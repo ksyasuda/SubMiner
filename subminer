@@ -359,6 +359,7 @@ start_overlay() {
     sleep 2
 }
 
+# shellcheck disable=SC2329
 stop_overlay() {
 <<<<<<< HEAD:subminer
     if [ -n "$OVERLAY_PID" ]; then
@@ -397,6 +398,7 @@ play_video() {
     return $?
 }
 
+# shellcheck disable=SC2329
 cleanup() {
     stop_overlay
 }
