@@ -502,6 +502,40 @@ Add a `keybindings` array to configure keyboard shortcuts that send commands to 
 
 **Supported commands:** Any valid mpv JSON IPC command array (`["cycle", "pause"]`, `["seek", 5]`, `["script-binding", "..."]`, etc.)
 
+### Subtitle Style
+
+Customize the appearance of primary and secondary subtitles:
+
+```json
+{
+  "subtitleStyle": {
+    "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif",
+    "fontSize": 35,
+    "fontColor": "#cad3f5",
+    "fontWeight": "normal",
+    "fontStyle": "normal",
+    "backgroundColor": "rgba(54, 58, 79, 0.5)",
+    "secondary": {
+      "fontSize": 24,
+      "fontColor": "#cad3f5",
+      "backgroundColor": "transparent"
+    }
+  }
+}
+```
+
+| Option            | Values          | Description                                                         |
+| ----------------- | --------------- | ------------------------------------------------------------------- |
+| `fontFamily`      | string          | CSS font-family value (default: `"Noto Sans CJK JP Regular, ..."`) |
+| `fontSize`        | number (px)     | Font size in pixels (default: `35`)                                 |
+| `fontColor`       | string          | Any CSS color value (default: `"#cad3f5"`)                          |
+| `fontWeight`      | string          | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"normal"`) |
+| `fontStyle`       | string          | `"normal"` or `"italic"` (default: `"normal"`)                     |
+| `backgroundColor` | string          | Any CSS color, including `"transparent"` (default: `"rgba(54, 58, 79, 0.5)"`) |
+| `secondary`       | object          | Override any of the above for secondary subtitles (optional)        |
+
+Secondary subtitle defaults: `fontSize: 24`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
+
 ### Secondary Subtitles
 
 Display a second subtitle track (e.g., English alongside Japanese) in the overlay:

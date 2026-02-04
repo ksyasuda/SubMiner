@@ -1659,16 +1659,15 @@ ipcMain.handle("get-subtitle-position", () => {
 
 ipcMain.handle("get-subtitle-style", () => {
   const { config } = loadConfig();
-  const fontSize = config.subtitleFontSize;
-  if (typeof fontSize === "number" && Number.isFinite(fontSize) && fontSize > 0) {
-    return { fontSize };
-  }
-  return { fontSize: DEFAULT_SUBTITLE_FONT_SIZE };
+  return config.subtitleStyle ?? null;
 });
 
-ipcMain.on("save-subtitle-position", (_event: IpcMainEvent, position: SubtitlePosition) => {
-  saveSubtitlePosition(position);
-});
+ipcMain.on(
+  "save-subtitle-position",
+  (_event: IpcMainEvent, position: SubtitlePosition) => {
+    saveSubtitlePosition(position);
+  },
+);
 
 ipcMain.handle("get-mecab-status", () => {
   if (mecabTokenizer) {

@@ -42,6 +42,23 @@ interface SubtitlePosition {
 
 type SecondarySubMode = "hidden" | "visible" | "hover";
 
+interface SubtitleStyleConfig {
+  fontFamily?: string;
+  fontSize?: number;
+  fontColor?: string;
+  fontWeight?: string;
+  fontStyle?: string;
+  backgroundColor?: string;
+  secondary?: {
+    fontFamily?: string;
+    fontSize?: number;
+    fontColor?: string;
+    fontWeight?: string;
+    fontStyle?: string;
+    backgroundColor?: string;
+  };
+}
+
 const subtitleRoot = document.getElementById('subtitleRoot')!;
 const subtitleContainer = document.getElementById('subtitleContainer')!;
 const overlay = document.getElementById('overlay')!;
@@ -448,6 +465,52 @@ function updateSecondarySubMode(mode: SecondarySubMode): void {
   secondarySubContainer.classList.add(`secondary-sub-${mode}`);
 }
 
+async function applySubtitleStyle(): Promise<void> {
+  const style = await window.electronAPI.getSubtitleStyle();
+  if (!style) return;
+
+  if (style.fontFamily) {
+    subtitleRoot.style.fontFamily = style.fontFamily;
+  }
+  if (style.fontSize) {
+    subtitleRoot.style.fontSize = `${style.fontSize}px`;
+  }
+  if (style.fontColor) {
+    subtitleRoot.style.color = style.fontColor;
+  }
+  if (style.fontWeight) {
+    subtitleRoot.style.fontWeight = style.fontWeight;
+  }
+  if (style.fontStyle) {
+    subtitleRoot.style.fontStyle = style.fontStyle;
+  }
+  if (style.backgroundColor) {
+    subtitleContainer.style.background = style.backgroundColor;
+  }
+
+  const sec = style.secondary;
+  if (sec) {
+    if (sec.fontFamily) {
+      secondarySubRoot.style.fontFamily = sec.fontFamily;
+    }
+    if (sec.fontSize) {
+      secondarySubRoot.style.fontSize = `${sec.fontSize}px`;
+    }
+    if (sec.fontColor) {
+      secondarySubRoot.style.color = sec.fontColor;
+    }
+    if (sec.fontWeight) {
+      secondarySubRoot.style.fontWeight = sec.fontWeight;
+    }
+    if (sec.fontStyle) {
+      secondarySubRoot.style.fontStyle = sec.fontStyle;
+    }
+    if (sec.backgroundColor) {
+      secondarySubContainer.style.background = sec.backgroundColor;
+    }
+  }
+}
+
 async function init(): Promise<void> {
   window.electronAPI.onSubtitle((data: SubtitleData) => {
     renderSubtitle(data);
@@ -488,6 +551,8 @@ async function init(): Promise<void> {
 
   await restoreSubtitlePosition();
   await restoreSubtitleFontSize();
+
+  await applySubtitleStyle();
 
   setupYomitanObserver();
 

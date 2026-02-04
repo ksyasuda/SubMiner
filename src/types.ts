@@ -124,6 +124,23 @@ export interface AnkiConnectConfig {
   isLapis?: boolean;
 }
 
+export interface SubtitleStyleConfig {
+  fontFamily?: string;
+  fontSize?: number;
+  fontColor?: string;
+  fontWeight?: string;
+  fontStyle?: string;
+  backgroundColor?: string;
+  secondary?: {
+    fontFamily?: string;
+    fontSize?: number;
+    fontColor?: string;
+    fontWeight?: string;
+    fontStyle?: string;
+    backgroundColor?: string;
+  };
+}
+
 export interface ShortcutsConfig {
   copySubtitle?: string | null;
   copySubtitleMultiple?: string | null;
@@ -143,6 +160,7 @@ export interface Config {
   ankiConnect?: AnkiConnectConfig;
   shortcuts?: ShortcutsConfig;
   secondarySub?: SecondarySubConfig;
+  subtitleStyle?: SubtitleStyleConfig;
   auto_start_overlay?: boolean;
 }
 
@@ -185,6 +203,7 @@ export interface ElectronAPI {
   onSecondarySubMode: (callback: (mode: SecondarySubMode) => void) => void;
   getSecondarySubMode: () => Promise<SecondarySubMode>;
   getCurrentSecondarySub: () => Promise<string>;
+  getSubtitleStyle: () => Promise<SubtitleStyleConfig | null>;
 }
 
 declare global {

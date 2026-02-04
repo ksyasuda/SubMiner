@@ -20,11 +20,11 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
 import type {
   SubtitleData,
   SubtitlePosition,
-  SubtitleStyle,
   MecabStatus,
   Keybinding,
   ElectronAPI,
   SecondarySubMode,
+  SubtitleStyleConfig,
 } from "./types";
 
 const electronAPI: ElectronAPI = {
@@ -100,6 +100,7 @@ const electronAPI: ElectronAPI = {
 
   getSecondarySubMode: (): Promise<SecondarySubMode> => ipcRenderer.invoke("get-secondary-sub-mode"),
   getCurrentSecondarySub: (): Promise<string> => ipcRenderer.invoke("get-current-secondary-sub"),
+  getSubtitleStyle: (): Promise<SubtitleStyleConfig | null> => ipcRenderer.invoke("get-subtitle-style"),
 };
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI);

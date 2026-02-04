@@ -22,13 +22,12 @@
 	box-sizing: border-box;
 }
 
-html,
-body {
-	width: 100%;
-	height: 100%;
-	overflow: hidden;
-	background: transparent;
-	font-family: 'Noto Sans CJK JP', 'Yu Gothic', 'Hiragino Sans', sans-serif;
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: 'Noto Sans CJK JP Regular', 'Noto Sans CJK JP', 'Arial Unicode MS', Arial, sans-serif;
 }
 
 #overlay {
@@ -46,23 +45,25 @@ body {
 }
 
 #subtitleContainer {
-	max-width: 80%;
-	margin-bottom: 60px;
-	padding: 12px 20px;
-	background: rgba(0, 0, 0, 0.75);
-	border-radius: 8px;
-	pointer-events: auto;
+  max-width: 80%;
+  margin-bottom: 60px;
+  padding: 12px 20px;
+  background: rgba(54, 58, 79, 0.5);
+  border-radius: 8px;
+  pointer-events: auto;
 }
 
 #subtitleRoot {
-	text-align: center;
-	font-size: var(--subtitle-font-size, 24px);
-	line-height: 1.5;
-	color: #ffffff;
-	text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8), -1px -1px 2px rgba(0, 0, 0, 0.5);
-	/* Enable text selection for Yomitan */
-	user-select: text;
-	cursor: text;
+  text-align: center;
+  font-size: 35px;
+  line-height: 1.5;
+  color: #cad3f5;
+  text-shadow:
+    2px 2px 4px rgba(0, 0, 0, 0.8),
+    -1px -1px 2px rgba(0, 0, 0, 0.5);
+  /* Enable text selection for Yomitan */
+  user-select: text;
+  cursor: text;
 }
 
 #subtitleRoot:empty {
@@ -111,16 +112,16 @@ body {
   transform: translateX(-50%);
   max-width: 80%;
   padding: 10px 18px;
-  background: rgba(0, 0, 0, 0.75);
+  background: transparent;
   border-radius: 8px;
   pointer-events: auto;
 }
 
 #secondarySubRoot {
   text-align: center;
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1.5;
-  color: #ffffff;
+  color: #cad3f5;
   text-shadow:
     2px 2px 4px rgba(0, 0, 0, 0.8),
     -1px -1px 2px rgba(0, 0, 0, 0.5);
@@ -157,7 +158,7 @@ body {
 }
 
 #secondarySubContainer.secondary-sub-hover #secondarySubRoot {
-  background: rgba(0, 0, 0, 0.75);
+  background: transparent;
   border-radius: 8px;
   padding: 10px 18px;
 }
