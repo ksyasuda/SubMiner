@@ -48,9 +48,9 @@ Download the latest AppImage from GitHub Releases:
 wget https://github.com/sudacode/subminer/releases/download/v1.0.0/subminer-1.0.0.AppImage -O ~/.local/bin/subminer.AppImage
 chmod +x ~/.local/bin/subminer.AppImage
 
-# Download ympv wrapper script
-wget https://github.com/sudacode/subminer/releases/download/v1.0.0/ympv -O ~/.local/bin/ympv
-chmod +x ~/.local/bin/ympv
+# Download subminer wrapper script
+wget https://github.com/sudacode/subminer/releases/download/v1.0.0/subminer -O ~/.local/bin/subminer
+chmod +x ~/.local/bin/subminer
 ```
 
 ### From Source (Development)
@@ -64,8 +64,8 @@ pnpm run build:appimage
 
 # Copy to ~/.local/bin
 cp dist/subminer-*.AppImage ~/.local/bin/subminer.AppImage
-cp ympv ~/.local/bin/
-chmod +x ~/.local/bin/subminer.AppImage ~/.local/bin/ympv
+cp subminer ~/.local/bin/
+chmod +x ~/.local/bin/subminer.AppImage ~/.local/bin/subminer
 ```
 
 <!-- ### Arch Linux -->
@@ -141,31 +141,31 @@ The plugin auto-detects the binary location, searching:
 - `/usr/local/bin/subminer`
 - `/usr/bin/subminer`
 
-## ympv Script vs MPV Plugin
+## SubMiner Script vs MPV Plugin
 
 There are two ways to use SubMiner:
 
 | Approach        | Best For                                                                                                                                                             |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ympv script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, starts the overlay automatically, and cleans up on exit.                         |
+| **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, starts the overlay automatically, and cleans up on exit.                         |
 | **MPV plugin**  | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control the overlay. Requires `--input-ipc-server=/tmp/subminer-socket`. |
 
-You can use both together—install the plugin for on-demand control, but use `ympv` when you want the streamlined workflow.
+You can use both together—install the plugin for on-demand control, but use `subminer` when you want the streamlined workflow.
 
 ## Usage
 
 ```bash
 # Browse and play videos
-ympv                          # Current directory (uses fzf)
-ympv -R                       # Use rofi instead of fzf
-ympv -d ~/Videos              # Specific directory
-ympv -r -d ~/Anime            # Recursive search
-ympv video.mkv                # Play specific file
+subminer                          # Current directory (uses fzf)
+subminer -R                       # Use rofi instead of fzf
+subminer -d ~/Videos              # Specific directory
+subminer -r -d ~/Anime            # Recursive search
+subminer video.mkv                # Play specific file
 
 # Options
-ympv -T video.mkv             # Disable texthooker server
-ympv -b x11 video.mkv         # Force X11 backend
-ympv -p gpu-hq video.mkv      # Use mpv profile
+subminer -T video.mkv             # Disable texthooker server
+subminer -b x11 video.mkv         # Force X11 backend
+subminer -p gpu-hq video.mkv      # Use mpv profile
 
 # Direct AppImage control
 subminer.AppImage --start --texthooker   # Start overlay with texthooker
@@ -275,7 +275,7 @@ Add a `keybindings` array to configure keyboard shortcuts that send commands to 
 
 | Variable                    | Description                                |
 | --------------------------- | ------------------------------------------ |
-| `SUBMINER_APPIMAGE_PATH` | Override AppImage location for ympv script |
+| `SUBMINER_APPIMAGE_PATH` | Override AppImage location for subminer script |
 
 ## License
 

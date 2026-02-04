@@ -20,14 +20,14 @@ optdepends=(
 )
 source=(
     "$pkgname-$pkgver.AppImage::$url/releases/download/v$pkgver/subminer-$pkgver.AppImage"
-    "ympv-$pkgver::$url/releases/download/v$pkgver/ympv"
+    "subminer-$pkgver::$url/releases/download/v$pkgver/subminer"
     "catppuccin-macchiato.rasi::$url/raw/v$pkgver/catppuccin-macchiato.rasi"
 )
 sha256sums=('SKIP' 'SKIP' 'SKIP')
 
 package() {
     install -Dm755 "$pkgname-$pkgver.AppImage" "$pkgdir/opt/$pkgname/subminer.AppImage"
-    install -Dm755 "ympv-$pkgver" "$pkgdir/usr/bin/ympv"
+    install -Dm755 "subminer-$pkgver" "$pkgdir/usr/bin/subminer"
     install -Dm644 catppuccin-macchiato.rasi "$pkgdir/opt/$pkgname/catppuccin-macchiato.rasi"
 
     install -d "$pkgdir/usr/bin"

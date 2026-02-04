@@ -104,6 +104,6 @@ jobs:
             See the [README](https://github.com/${{ github.repository }}#installation) for manual installation instructions.
           files: |
             dist/*.AppImage
-            ympv
+            subminer
           draft: false
           prerelease: false

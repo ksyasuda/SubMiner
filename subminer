@@ -16,10 +16,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# ympv - Wrapper script to launch MPV with SubMiner overlay
+# subminer - Wrapper script to launch MPV with SubMiner overlay
 #
 # Usage:
-#   ympv [OPTIONS] [FILE|DIRECTORY]
+#   subminer [OPTIONS] [FILE|DIRECTORY]
 #
 # Options:
 #   -b, --backend BACKEND  Display backend: auto, hyprland, sway, x11 (default: auto)
@@ -50,7 +50,7 @@ NC='\033[0m'
 
 show_help() {
     cat <<EOF
-ympv - Launch MPV with SubMiner sentence mining overlay
+subminer - Launch MPV with SubMiner sentence mining overlay
 
 Usage: $(basename "$0") [OPTIONS] [FILE|DIRECTORY]
 
@@ -193,7 +193,7 @@ get_video_thumbnail() {
         return 0
     fi
 
-    local tmp_thumb="/tmp/ympv-thumb-$$.jpg"
+    local tmp_thumb="/tmp/subminer-thumb-$$.jpg"
     if command -v ffmpegthumbnailer &>/dev/null; then
         ffmpegthumbnailer -i "$video" -o "$tmp_thumb" -s 512 -q 5 2>/dev/null && echo "$tmp_thumb"
     elif command -v ffmpeg &>/dev/null; then
@@ -222,10 +222,10 @@ show_fzf_menu() {
                 if [ -f \"\$thumb_path\" ]; then
                     echo \"\$thumb_path\"
                 elif command -v ffmpegthumbnailer &>/dev/null; then
-                    tmp=\"/tmp/ympv-preview.jpg\"
+                    tmp=\"/tmp/subminer-preview.jpg\"
                     ffmpegthumbnailer -i \"\$video\" -o \"\$tmp\" -s 512 -q 5 2>/dev/null && echo \"\$tmp\"
                 elif command -v ffmpeg &>/dev/null; then
-                    tmp=\"/tmp/ympv-preview.jpg\"
+                    tmp=\"/tmp/subminer-preview.jpg\"
                     ffmpeg -y -i \"\$video\" -ss 00:00:05 -vframes 1 -vf \"scale=512:-1\" \"\$tmp\" 2>/dev/null && echo \"\$tmp\"
                 fi
             }
