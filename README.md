@@ -1,8 +1,8 @@
 <div align="center">
-  <img src="assets/subminer.png" width="169" height="169" alt="SubMiner logo">
+  <img src="assets/subminer.png" width="169" alt="SubMiner logo">
+  <h1>SubMiner</h1>
 </div>
 
-# SubMiner
 An all-in-one sentence mining overlay for MPV with AnkiConnect and dictionary (Yomitan) integration.
 
 ## Features
@@ -164,15 +164,15 @@ cp plugin/subminer.conf ~/.config/mpv/script-opts/
 
 All keybindings use chord sequences starting with `y`:
 
-| Keybind | Action                                   |
-| ------- | ---------------------------------------- |
+| Keybind | Action                                |
+| ------- | ------------------------------------- |
 | `y-y`   | Open SubMiner menu (fuzzy-searchable) |
-| `y-s`   | Start overlay                            |
-| `y-S`   | Stop overlay                             |
-| `y-t`   | Toggle overlay                           |
-| `y-o`   | Open Yomitan settings                    |
-| `y-r`   | Restart overlay                          |
-| `y-c`   | Check overlay status                     |
+| `y-s`   | Start overlay                         |
+| `y-S`   | Stop overlay                          |
+| `y-t`   | Toggle overlay                        |
+| `y-o`   | Open Yomitan settings                 |
+| `y-r`   | Restart overlay                       |
+| `y-c`   | Check overlay status                  |
 
 The menu provides options to start/stop/toggle the overlay and open settings. Type to filter or use arrow keys to navigate.
 
@@ -237,10 +237,10 @@ mpv --input-ipc-server=\\\\.\\pipe\\subminer-socket video.mkv
 
 There are two ways to use SubMiner:
 
-| Approach        | Best For                                                                                                                                                             |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, starts the overlay automatically, and cleans up on exit.                         |
-| **MPV plugin**  | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control the overlay. Requires `--input-ipc-server=/tmp/subminer-socket`. |
+| Approach            | Best For                                                                                                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, starts the overlay automatically, and cleans up on exit.                                          |
+| **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control the overlay. Requires `--input-ipc-server=/tmp/subminer-socket`. |
 
 You can use both together—install the plugin for on-demand control, but use `subminer` when you want the streamlined workflow.
 
@@ -278,15 +278,15 @@ subminer.AppImage --help                  # Show all options
 
 ### Overlay Controls (Configurable)
 
-| Input                | Action                                              |
-| -------------------- | --------------------------------------------------- |
-| `Space`              | Toggle MPV pause                                    |
-| `Shift+H`            | Jump to previous subtitle                           |
-| `Shift+L`            | Jump to next subtitle                               |
-| `Ctrl+Shift+H`      | Replay current subtitle (play to end, then pause)   |
-| `Ctrl+Shift+L`      | Play next subtitle (jump, play to end, then pause)  |
-| `Right-click`        | Toggle MPV pause (outside subtitle area)            |
-| `Right-click + drag` | Move subtitle position (on subtitle)                |
+| Input                | Action                                             |
+| -------------------- | -------------------------------------------------- |
+| `Space`              | Toggle MPV pause                                   |
+| `Shift+H`            | Jump to previous subtitle                          |
+| `Shift+L`            | Jump to next subtitle                              |
+| `Ctrl+Shift+H`       | Replay current subtitle (play to end, then pause)  |
+| `Ctrl+Shift+L`       | Play next subtitle (jump, play to end, then pause) |
+| `Right-click`        | Toggle MPV pause (outside subtitle area)           |
+| `Right-click + drag` | Move subtitle position (on subtitle)               |
 
 These keybindings only work when the overlay window has focus. See [Configuration](#configuration) for customization.
 
@@ -381,41 +381,41 @@ See `config.example.jsonc` for detailed configuration options with all available
 
 **Requirements:** [AnkiConnect](https://github.com/FooSoft/anki-connect) plugin must be installed and running in Anki. ffmpeg must be installed for media generation.
 
-| Option                     | Values                     | Description                                                                 |
-| -------------------------- | -------------------------- | --------------------------------------------------------------------------- |
-| `enabled`                  | `true`, `false`            | Enable AnkiConnect integration (default: `false`)                           |
-| `url`                      | string (URL)               | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                      |
-| `pollingRate`              | number (ms)                | How often to check for new cards (default: `3000`)                          |
-| `deck`                     | string                     | Anki deck to monitor for new cards                                          |
-| `audioField`               | string                     | Card field for audio files (default: `ExpressionAudio`)                     |
-| `imageField`               | string                     | Card field for images (default: `Picture`)                                  |
-| `sentenceField`            | string                     | Card field for sentences (default: `Sentence`)                              |
-| `generateAudio`            | `true`, `false`            | Generate audio clips from video (default: `true`)                           |
-| `generateImage`            | `true`, `false`            | Generate image/animation screenshots (default: `true`)                      |
-| `imageType`                | `"static"`, `"avif"`       | Image type: static screenshot or animated AVIF (default: `"static"`)        |
-| `imageFormat`              | `"jpg"`, `"png"`, `"webp"` | Image format (default: `"jpg"`)                                             |
-| `imageQuality`             | number (1-100)             | Image quality for JPG/WebP; PNG ignores this (default: `92`)                |
-| `imageMaxWidth`            | number (px)                | Max width for images; preserves aspect ratio (default: `1280`)             |
-| `imageMaxHeight`           | number (px)                | Max height for images; preserves aspect ratio (default: `720`)              |
-| `animatedFps`              | number (1-60)              | FPS for animated AVIF (default: `10`)                                       |
-| `animatedMaxWidth`         | number (px)                | Max width for animated AVIF (default: `640`)                                |
-| `animatedMaxHeight`        | number (px)                | Max height for animated AVIF; preserves aspect ratio (default: `null`)     |
-| `animatedCrf`              | number (0-63)              | CRF quality for AVIF; lower = higher quality (default: `35`)                |
-| `audioPadding`             | number (seconds)           | Padding around audio clip timing (default: `0.5`)                           |
-| `fallbackDuration`         | number (seconds)           | Default duration if timing unavailable (default: `3.0`)                     |
-| `overwriteAudio`           | `true`, `false`            | Replace existing audio on updates; when `false`, new audio is appended/prepended per `mediaInsertMode` (default: `true`) |
-| `overwriteImage`           | `true`, `false`            | Replace existing images on updates; when `false`, new images are appended/prepended per `mediaInsertMode` (default: `true`) |
-| `mediaInsertMode`          | `"append"`, `"prepend"`    | Where to insert new media when overwrite is off (default: `"append"`)       |
-| `miscInfoField`            | string                     | Card field for metadata (optional)                                          |
-| `miscInfoPattern`          | string                     | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time    |
-| `highlightWord`            | `true`, `false`            | Highlight the word in sentence context (default: `true`)                    |
-| `notificationType`         | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                         |
-| `autoUpdateNewCards`       | `true`, `false`            | Automatically update cards on creation (default: `true`)                    |
-| `maxMediaDuration`         | number (seconds)           | Max duration for generated media from multi-line copy (default: `30`, `0` to disable) |
-| `sentenceCardModel`        | string                     | Anki note type for sentence mining cards (optional)                         |
-| `sentenceCardSentenceField`| string                     | Field name for sentence in sentence cards (default: `Sentence`)             |
-| `sentenceCardAudioField`   | string                     | Field name for audio in sentence cards (default: `SentenceAudio`)           |
-| `isLapis`                  | `true`, `false`            | Enable Lapis note format compatibility (default: `false`)                   |
+| Option                      | Values                                  | Description                                                                                                                 |
+| --------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                   | `true`, `false`                         | Enable AnkiConnect integration (default: `false`)                                                                           |
+| `url`                       | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                      |
+| `pollingRate`               | number (ms)                             | How often to check for new cards (default: `3000`)                                                                          |
+| `deck`                      | string                                  | Anki deck to monitor for new cards                                                                                          |
+| `audioField`                | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                     |
+| `imageField`                | string                                  | Card field for images (default: `Picture`)                                                                                  |
+| `sentenceField`             | string                                  | Card field for sentences (default: `Sentence`)                                                                              |
+| `generateAudio`             | `true`, `false`                         | Generate audio clips from video (default: `true`)                                                                           |
+| `generateImage`             | `true`, `false`                         | Generate image/animation screenshots (default: `true`)                                                                      |
+| `imageType`                 | `"static"`, `"avif"`                    | Image type: static screenshot or animated AVIF (default: `"static"`)                                                        |
+| `imageFormat`               | `"jpg"`, `"png"`, `"webp"`              | Image format (default: `"jpg"`)                                                                                             |
+| `imageQuality`              | number (1-100)                          | Image quality for JPG/WebP; PNG ignores this (default: `92`)                                                                |
+| `imageMaxWidth`             | number (px)                             | Max width for images; preserves aspect ratio (default: `1280`)                                                              |
+| `imageMaxHeight`            | number (px)                             | Max height for images; preserves aspect ratio (default: `720`)                                                              |
+| `animatedFps`               | number (1-60)                           | FPS for animated AVIF (default: `10`)                                                                                       |
+| `animatedMaxWidth`          | number (px)                             | Max width for animated AVIF (default: `640`)                                                                                |
+| `animatedMaxHeight`         | number (px)                             | Max height for animated AVIF; preserves aspect ratio (default: `null`)                                                      |
+| `animatedCrf`               | number (0-63)                           | CRF quality for AVIF; lower = higher quality (default: `35`)                                                                |
+| `audioPadding`              | number (seconds)                        | Padding around audio clip timing (default: `0.5`)                                                                           |
+| `fallbackDuration`          | number (seconds)                        | Default duration if timing unavailable (default: `3.0`)                                                                     |
+| `overwriteAudio`            | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended per `mediaInsertMode` (default: `true`)    |
+| `overwriteImage`            | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `mediaInsertMode` (default: `true`) |
+| `mediaInsertMode`           | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                       |
+| `miscInfoField`             | string                                  | Card field for metadata (optional)                                                                                          |
+| `miscInfoPattern`           | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                    |
+| `highlightWord`             | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                    |
+| `notificationType`          | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                         |
+| `autoUpdateNewCards`        | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                    |
+| `maxMediaDuration`          | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                       |
+| `sentenceCardModel`         | string                                  | Anki note type for sentence mining cards (optional)                                                                         |
+| `sentenceCardSentenceField` | string                                  | Field name for sentence in sentence cards (default: `Sentence`)                                                             |
+| `sentenceCardAudioField`    | string                                  | Field name for audio in sentence cards (default: `SentenceAudio`)                                                           |
+| `isLapis`                   | `true`, `false`                         | Enable Lapis note format compatibility (default: `false`)                                                                   |
 
 **Image Quality Notes:**
 
@@ -431,14 +431,14 @@ See `config.example.jsonc` for detailed configuration options with all available
 
 When `autoUpdateNewCards` is set to `false`, new cards are detected but not automatically updated. Instead, you can manually update cards using keyboard shortcuts:
 
-| Shortcut       | Action                                                                                                    |
-| -------------- | --------------------------------------------------------------------------------------------------------- |
-| `Ctrl+C`       | Copy the current subtitle line to clipboard (preserves line breaks)                                       |
-| `Ctrl+Shift+C` | Enter multi-copy mode. Press `1-9` to copy that many recent lines, or `Esc` to cancel. Timeout: 3 seconds |
-| `Ctrl+V`       | Update the last added Anki card using subtitles from clipboard                                            |
-| `Ctrl+S`       | Create a sentence card from the current subtitle line                                                     |
+| Shortcut       | Action                                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| `Ctrl+C`       | Copy the current subtitle line to clipboard (preserves line breaks)                                          |
+| `Ctrl+Shift+C` | Enter multi-copy mode. Press `1-9` to copy that many recent lines, or `Esc` to cancel. Timeout: 3 seconds    |
+| `Ctrl+V`       | Update the last added Anki card using subtitles from clipboard                                               |
+| `Ctrl+S`       | Create a sentence card from the current subtitle line                                                        |
 | `Ctrl+Shift+S` | Enter multi-mine mode. Press `1-9` to create a sentence card from that many recent lines, or `Esc` to cancel |
-| `Ctrl+Shift+V` | Cycle secondary subtitle display mode (hidden → visible → hover) |
+| `Ctrl+Shift+V` | Cycle secondary subtitle display mode (hidden → visible → hover)                                             |
 
 To copy multiple lines (current + previous):
 
@@ -468,15 +468,15 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                        | Values           | Description                                                                    |
-| ----------------------------- | ---------------- | ------------------------------------------------------------------------------ |
-| `copySubtitle`                | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)     |
-| `copySubtitleMultiple`        | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)        |
-| `updateLastCardFromClipboard` | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`) |
+| Option                        | Values           | Description                                                                                    |
+| ----------------------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| `copySubtitle`                | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                     |
+| `copySubtitleMultiple`        | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                        |
+| `updateLastCardFromClipboard` | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                 |
 | `mineSentence`                | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`) |
-| `mineSentenceMultiple`        | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`) |
-| `multiCopyTimeoutMs`          | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                |
-| `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`) |
+| `mineSentenceMultiple`        | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)          |
+| `multiCopyTimeoutMs`          | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                |
+| `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)        |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options. |
 
@@ -490,14 +490,14 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 
 **Default keybindings:**
 
-| Key              | Command                  | Description                              |
-| ---------------- | ------------------------ | ---------------------------------------- |
-| Key              | Command                  | Description                              |
-| `Space`          | `["cycle", "pause"]`     | Toggle pause                             |
-| `Shift+KeyH`    | `["sub-seek", -1]`      | Jump to previous subtitle                |
-| `Shift+KeyL`    | `["sub-seek", 1]`       | Jump to next subtitle                    |
-| `Ctrl+Shift+KeyH`| `["__replay-subtitle"]` | Replay current subtitle, pause at end    |
-| `Ctrl+Shift+KeyL`| `["__play-next-subtitle"]` | Play next subtitle, pause at end      |
+| Key               | Command                    | Description                           |
+| ----------------- | -------------------------- | ------------------------------------- |
+| Key               | Command                    | Description                           |
+| `Space`           | `["cycle", "pause"]`       | Toggle pause                          |
+| `Shift+KeyH`      | `["sub-seek", -1]`         | Jump to previous subtitle             |
+| `Shift+KeyL`      | `["sub-seek", 1]`          | Jump to next subtitle                 |
+| `Ctrl+Shift+KeyH` | `["__replay-subtitle"]`    | Replay current subtitle, pause at end |
+| `Ctrl+Shift+KeyL` | `["__play-next-subtitle"]` | Play next subtitle, pause at end      |
 
 **Custom keybindings example:**
 
@@ -551,15 +551,15 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option            | Values          | Description                                                         |
-| ----------------- | --------------- | ------------------------------------------------------------------- |
-| `fontFamily`      | string          | CSS font-family value (default: `"Noto Sans CJK JP Regular, ..."`) |
-| `fontSize`        | number (px)     | Font size in pixels (default: `35`)                                 |
-| `fontColor`       | string          | Any CSS color value (default: `"#cad3f5"`)                          |
-| `fontWeight`      | string          | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"normal"`) |
-| `fontStyle`       | string          | `"normal"` or `"italic"` (default: `"normal"`)                     |
-| `backgroundColor` | string          | Any CSS color, including `"transparent"` (default: `"rgba(54, 58, 79, 0.5)"`) |
-| `secondary`       | object          | Override any of the above for secondary subtitles (optional)        |
+| Option            | Values      | Description                                                                   |
+| ----------------- | ----------- | ----------------------------------------------------------------------------- |
+| `fontFamily`      | string      | CSS font-family value (default: `"Noto Sans CJK JP Regular, ..."`)            |
+| `fontSize`        | number (px) | Font size in pixels (default: `35`)                                           |
+| `fontColor`       | string      | Any CSS color value (default: `"#cad3f5"`)                                    |
+| `fontWeight`      | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"normal"`)     |
+| `fontStyle`       | string      | `"normal"` or `"italic"` (default: `"normal"`)                                |
+| `backgroundColor` | string      | Any CSS color, including `"transparent"` (default: `"rgba(54, 58, 79, 0.5)"`) |
+| `secondary`       | object      | Override any of the above for secondary subtitles (optional)                  |
 
 Secondary subtitle defaults: `fontSize: 24`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
 
@@ -581,11 +581,11 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                    | Values           | Description                                                    |
-| ------------------------- | ---------------- | -------------------------------------------------------------- |
-| `secondarySubLanguages`   | string[]         | Language codes to auto-load (e.g., `["eng", "en"]`)            |
-| `autoLoadSecondarySub`    | `true`, `false`  | Auto-detect and load matching secondary subtitle track         |
-| `defaultMode`             | `"hidden"`, `"visible"`, `"hover"` | Initial display mode (default: `"hover"`)    |
+| Option                  | Values                             | Description                                            |
+| ----------------------- | ---------------------------------- | ------------------------------------------------------ |
+| `secondarySubLanguages` | string[]                           | Language codes to auto-load (e.g., `["eng", "en"]`)    |
+| `autoLoadSecondarySub`  | `true`, `false`                    | Auto-detect and load matching secondary subtitle track |
+| `defaultMode`           | `"hidden"`, `"visible"`, `"hover"` | Initial display mode (default: `"hover"`)              |
 
 **Display modes:**
 
@@ -597,8 +597,8 @@ See `config.example.jsonc` for detailed configuration options.
 
 ## Environment Variables
 
-| Variable                    | Description                                |
-| --------------------------- | ------------------------------------------ |
+| Variable                 | Description                                    |
+| ------------------------ | ---------------------------------------------- |
 | `SUBMINER_APPIMAGE_PATH` | Override AppImage location for subminer script |
 
 ## License
