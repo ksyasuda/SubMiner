@@ -158,6 +158,7 @@ export class AnkiIntegration {
       this.nextPollTime = Date.now() + this.backoffMs;
       if (!wasBackingOff) {
         console.warn("AnkiConnect polling failed, backing off...");
+        this.showStatusNotification("AnkiConnect: unable to connect");
       }
     }
   }
@@ -403,6 +404,18 @@ export class AnkiIntegration {
     const timestamp = Date.now();
     const ext = this.config.imageType === "avif" ? "avif" : this.config.imageFormat;
     return `image_${timestamp}.${ext}`;
+  }
+
+  private showStatusNotification(message: string): void {
+    const type = this.config.notificationType || "osd";
+
+    if (type === "osd" || type === "both") {
+      this.showOsdNotification(message);
+    }
+
+    if ((type === "system" || type === "both") && this.notificationCallback) {
+      this.notificationCallback("mpv-yomitan", { body: message });
+    }
   }
 
   private showOsdNotification(text: string): void {
