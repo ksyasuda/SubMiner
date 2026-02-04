@@ -350,6 +350,9 @@ Enable automatic Anki card creation and updates with media generation:
     "generateImage": true,
     "imageType": "static",
     "imageFormat": "jpg",
+    "imageQuality": 92,
+    "imageMaxWidth": 1280,
+    "imageMaxHeight": 720,
     "audioPadding": 0.5,
     "fallbackDuration": 3.0,
     "overwriteAudio": true,
@@ -357,7 +360,11 @@ Enable automatic Anki card creation and updates with media generation:
     "miscInfoField": "Info",
     "miscInfoPattern": "[mpv-yomitan] %f (%t)",
     "highlightWord": true,
-    "showNotificationOnUpdate": false
+    "showNotificationOnUpdate": false,
+    "animatedFps": 10,
+    "animatedMaxWidth": 640,
+    "animatedMaxHeight": null,
+    "animatedCrf": 35
   }
 }
 ```
@@ -375,6 +382,13 @@ Enable automatic Anki card creation and updates with media generation:
 | `generateImage`          | `true`, `false`        | Generate image/animation screenshots (default: `true`)                    |
 | `imageType`              | `"static"`, `"avif"`   | Image type: static screenshot or animated AVIF (default: `"static"`)     |
 | `imageFormat`            | `"jpg"`, `"png"`, `"webp"` | Image format (default: `"jpg"`)                                       |
+| `imageQuality`           | number (1-100)         | Image quality for JPG/WebP; PNG ignores this (default: `92`)             |
+| `imageMaxWidth`          | number (px)            | Max width for images; preserves aspect ratio (default: `undefined`)      |
+| `imageMaxHeight`         | number (px)            | Max height for images; preserves aspect ratio (default: `undefined`)     |
+| `animatedFps`            | number (1-60)          | FPS for animated AVIF (default: `10`)                                    |
+| `animatedMaxWidth`       | number (px)            | Max width for animated AVIF (default: `640`)                             |
+| `animatedMaxHeight`      | number (px)            | Max height for animated AVIF; preserves aspect ratio (default: `undefined`) |
+| `animatedCrf`            | number (0-63)          | CRF quality for AVIF; lower = higher quality (default: `35`)             |
 | `audioPadding`           | number (seconds)       | Padding around audio clip timing (default: `0.5`)                         |
 | `fallbackDuration`       | number (seconds)       | Default duration if timing unavailable (default: `3.0`)                   |
 | `overwriteAudio`         | `true`, `false`        | Replace existing audio on updates (default: `true`)                       |
@@ -383,6 +397,11 @@ Enable automatic Anki card creation and updates with media generation:
 | `miscInfoPattern`        | string                 | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time |
 | `highlightWord`          | `true`, `false`        | Highlight the word in sentence context (default: `true`)                  |
 | `showNotificationOnUpdate` | `true`, `false`      | Show desktop notification when cards update (default: `false`)            |
+
+**Image Quality Notes:**
+- `imageQuality` affects JPG and WebP only; PNG is lossless and ignores this setting
+- JPG quality is mapped to FFmpeg's scale (2-31, lower = better)
+- WebP quality uses FFmpeg's native 0-100 scale
 
 **Requirements:** [AnkiConnect](https://github.com/FooSoft/anki-connect) plugin must be installed and running in Anki. ffmpeg must be installed for media generation.
 

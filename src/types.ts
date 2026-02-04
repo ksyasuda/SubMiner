@@ -100,6 +100,13 @@ export interface AnkiConnectConfig {
   miscInfoPattern?: string;
   highlightWord?: boolean;
   showNotificationOnUpdate?: boolean;
+  imageQuality?: number;
+  imageMaxWidth?: number;
+  imageMaxHeight?: number;
+  animatedFps?: number;
+  animatedMaxWidth?: number;
+  animatedMaxHeight?: number;
+  animatedCrf?: number;
 }
 
 export interface Config {

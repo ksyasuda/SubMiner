@@ -23,12 +23,59 @@ import * as os from "os";
 
 export class MediaGenerator {
   private tempDir: string;
+  private notifyIconDir: string;
 
   constructor(tempDir?: string) {
     this.tempDir = tempDir || path.join(os.tmpdir(), "mpv-yomitan-media");
+    this.notifyIconDir = path.join(os.tmpdir(), "mpv-yomitan-notify");
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true });
     }
+    if (!fs.existsSync(this.notifyIconDir)) {
+      fs.mkdirSync(this.notifyIconDir, { recursive: true });
+    }
+    // Clean up old notification icons on startup (older than 1 hour)
+    this.cleanupOldNotificationIcons();
+  }
+
+  /**
+   * Clean up notification icons older than 1 hour.
+   * Called on startup to prevent accumulation of temp files.
+   */
+  private cleanupOldNotificationIcons(): void {
+    try {
+      if (!fs.existsSync(this.notifyIconDir)) return;
+
+      const files = fs.readdirSync(this.notifyIconDir);
+      const oneHourAgo = Date.now() - (60 * 60 * 1000);
+
+      for (const file of files) {
+        if (!file.endsWith('.png')) continue;
+        const filePath = path.join(this.notifyIconDir, file);
+        try {
+          const stat = fs.statSync(filePath);
+          if (stat.mtimeMs < oneHourAgo) {
+            fs.unlinkSync(filePath);
+          }
+        } catch (err) {
+          // Ignore individual file cleanup errors
+        }
+      }
+    } catch (err) {
+      console.error("Failed to cleanup old notification icons:", err);
+    }
+  }
+
+  /**
+   * Write a notification icon buffer to a temp file and return the file path.
+   * The file path can be passed directly to Electron Notification for better
+   * compatibility with Linux/Wayland notification daemons.
+   */
+  writeNotificationIconToFile(iconBuffer: Buffer, noteId: number): string {
+    const filename = `icon_${noteId}_${Date.now()}.png`;
+    const filePath = path.join(this.notifyIconDir, filename);
+    fs.writeFileSync(filePath, iconBuffer);
+    return filePath;
   }
 
   async generateAudio(
@@ -84,8 +131,14 @@ export class MediaGenerator {
   async generateScreenshot(
     videoPath: string,
     timestamp: number,
-    format: "jpg" | "png" | "webp" = "jpg",
+    options: {
+      format: "jpg" | "png" | "webp";
+      quality?: number;
+      maxWidth?: number;
+      maxHeight?: number;
+    },
   ): Promise<Buffer> {
+    const { format, quality = 92, maxWidth, maxHeight } = options;
     const ext = format === "webp" ? "webp" : format === "png" ? "png" : "jpg";
     const codecMap: Record<string, string> = {
       jpg: "mjpeg",
@@ -93,8 +146,78 @@ export class MediaGenerator {
       webp: "webp",
     };
 
+    const args: string[] = [
+      "-ss",
+      timestamp.toString(),
+      "-i",
+      videoPath,
+      "-vframes",
+      "1",
+    ];
+
+    const vfParts: string[] = [];
+    if (maxWidth && maxWidth > 0 && maxHeight && maxHeight > 0) {
+      vfParts.push(`scale=w=${maxWidth}:h=${maxHeight}:force_original_aspect_ratio=decrease`);
+    } else if (maxWidth && maxWidth > 0) {
+      vfParts.push(`scale=w=${maxWidth}:h=-2`);
+    } else if (maxHeight && maxHeight > 0) {
+      vfParts.push(`scale=w=-2:h=${maxHeight}`);
+    }
+    if (vfParts.length > 0) {
+      args.push("-vf", vfParts.join(","));
+    }
+
+    args.push("-c:v", codecMap[format]);
+
+    if (format !== "png") {
+      const clampedQuality = Math.max(1, Math.min(100, quality));
+      if (format === "jpg") {
+        const qv = Math.round(2 + (100 - clampedQuality) * (29 / 99));
+        args.push("-q:v", qv.toString());
+      } else {
+        args.push("-q:v", clampedQuality.toString());
+      }
+    }
+
+    args.push("-y");
+
     return new Promise((resolve, reject) => {
       const outputPath = path.join(this.tempDir, `screenshot_${Date.now()}.${ext}`);
+      args.push(outputPath);
+
+      execFile(
+        "ffmpeg",
+        args,
+        { timeout: 30000 },
+        (error) => {
+          if (error) {
+            reject(new Error(`FFmpeg screenshot generation failed: ${error.message}`));
+            return;
+          }
+
+          try {
+            const data = fs.readFileSync(outputPath);
+            fs.unlinkSync(outputPath);
+            resolve(data);
+          } catch (err) {
+            reject(err);
+          }
+        },
+      );
+    });
+  }
+
+  /**
+   * Generate a small PNG icon suitable for desktop notifications.
+   * Always outputs PNG format (known-good for Electron + Linux notification daemons).
+   * Scaled to 256px width for fast encoding and small file size.
+   */
+  async generateNotificationIcon(
+    videoPath: string,
+    timestamp: number,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const outputPath = path.join(this.tempDir, `notify_icon_${Date.now()}.png`);
 
       execFile(
         "ffmpeg",
@@ -105,17 +228,17 @@ export class MediaGenerator {
           videoPath,
           "-vframes",
           "1",
+          "-vf",
+          "scale=256:-1",
           "-c:v",
-          codecMap[format],
-          "-q:v",
-          "2",
+          "png",
           "-y",
           outputPath,
         ],
         { timeout: 30000 },
         (error) => {
           if (error) {
-            reject(new Error(`FFmpeg screenshot generation failed: ${error.message}`));
+            reject(new Error(`FFmpeg notification icon generation failed: ${error.message}`));
             return;
           }
 
@@ -136,9 +259,29 @@ export class MediaGenerator {
     startTime: number,
     endTime: number,
     padding: number = 0.5,
+    options: {
+      fps?: number;
+      maxWidth?: number;
+      maxHeight?: number;
+      crf?: number;
+    } = {},
   ): Promise<Buffer> {
     const start = Math.max(0, startTime - padding);
     const duration = endTime - startTime + 2 * padding;
+    const { fps = 10, maxWidth = 640, maxHeight, crf = 35 } = options;
+
+    const clampedFps = Math.max(1, Math.min(60, fps));
+    const clampedCrf = Math.max(0, Math.min(63, crf));
+
+    const vfParts: string[] = [];
+    vfParts.push(`fps=${clampedFps}`);
+    if (maxWidth && maxWidth > 0 && maxHeight && maxHeight > 0) {
+      vfParts.push(`scale=w=${maxWidth}:h=${maxHeight}:force_original_aspect_ratio=decrease`);
+    } else if (maxWidth && maxWidth > 0) {
+      vfParts.push(`scale=w=${maxWidth}:h=-2`);
+    } else if (maxHeight && maxHeight > 0) {
+      vfParts.push(`scale=w=-2:h=${maxHeight}`);
+    }
 
     return new Promise((resolve, reject) => {
       const outputPath = path.join(this.tempDir, `animation_${Date.now()}.avif`);
@@ -153,9 +296,13 @@ export class MediaGenerator {
           "-i",
           videoPath,
           "-vf",
-          "fps=10,scale=640:-1",
+          vfParts.join(","),
           "-c:v",
           "libaom-av1",
+          "-crf",
+          clampedCrf.toString(),
+          "-b:v",
+          "0",
           "-cpu-used",
           "8",
           "-y",

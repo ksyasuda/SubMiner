@@ -62,6 +62,10 @@ export class AnkiIntegration {
       fallbackDuration: 3.0,
       miscInfoPattern: "[mpv-yomitan] %f (%t)",
       showNotificationOnUpdate: false,
+      imageQuality: 92,
+      animatedFps: 10,
+      animatedMaxWidth: 640,
+      animatedCrf: 35,
       ...config,
     };
 
@@ -222,35 +226,33 @@ export class AnkiIntegration {
         this.showOsdNotification(`Updated card: ${expressionText}`);
 
         if (this.config.showNotificationOnUpdate && this.notificationCallback) {
-          let iconBuffer: Buffer | null = imageBuffer;
-          let imageFormat: string = this.config.imageFormat || 'jpg';
+          // Generate a separate notification icon as a static PNG.
+          // This is independent of the Picture field (which may be AVIF).
+          // Using a temp file path is more reliable on Linux/Wayland.
+          let notificationIconPath: string | undefined;
 
-          if (!iconBuffer && updatedFields[this.config.imageField!]) {
-            const pictureFieldValue = updatedFields[this.config.imageField!];
-            const imageFilenameMatch = pictureFieldValue.match(/src="([^"]+)"/);
-            if (imageFilenameMatch && imageFilenameMatch[1]) {
-              try {
-                const filename = imageFilenameMatch[1];
-                const extMatch = filename.match(/\.(\w+)$/);
-                if (extMatch && extMatch[1]) {
-                  imageFormat = extMatch[1].toLowerCase();
-                }
-                const base64Data = await this.client.retrieveMediaFile(filename) as string;
-                if (base64Data) {
-                  iconBuffer = Buffer.from(base64Data, 'base64');
-                }
-              } catch (err) {
-                console.error('Failed to retrieve media file for notification:', err);
+          if (this.mpvClient && this.mpvClient.currentVideoPath) {
+            try {
+              const timestamp = this.mpvClient.currentTimePos || 0;
+              const iconBuffer = await this.mediaGenerator.generateNotificationIcon(
+                this.mpvClient.currentVideoPath,
+                timestamp,
+              );
+              if (iconBuffer && iconBuffer.length > 0) {
+                notificationIconPath = this.mediaGenerator.writeNotificationIconToFile(
+                  iconBuffer,
+                  noteId,
+                );
               }
+            } catch (err) {
+              console.warn('Failed to generate notification icon:', (err as Error).message);
+              // Continue without icon - notifications are best-effort
             }
           }
 
-          const imageIcon = iconBuffer
-            ? `data:image/${imageFormat};base64,${iconBuffer.toString('base64')}`
-            : undefined;
           this.notificationCallback('Anki Card Updated', {
             body: `Updated card: ${expressionText}`,
-            icon: imageIcon,
+            icon: notificationIconPath,
           });
         }
       }
@@ -348,12 +350,23 @@ export class AnkiIntegration {
         startTime,
         endTime,
         this.config.audioPadding,
+        {
+          fps: this.config.animatedFps,
+          maxWidth: this.config.animatedMaxWidth,
+          maxHeight: this.config.animatedMaxHeight,
+          crf: this.config.animatedCrf,
+        },
       );
     } else {
       return this.mediaGenerator.generateScreenshot(
         videoPath,
         timestamp,
-        this.config.imageFormat as "jpg" | "png" | "webp",
+        {
+          format: this.config.imageFormat as "jpg" | "png" | "webp",
+          quality: this.config.imageQuality,
+          maxWidth: this.config.imageMaxWidth,
+          maxHeight: this.config.imageMaxHeight,
+        },
       );
     }
   }

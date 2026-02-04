@@ -1248,6 +1248,53 @@ ipcMain.handle("get-anki-connect-status", () => {
   return ankiIntegration !== null;
 });
 
+/**
+ * Create and show a desktop notification with robust icon handling.
+ * Supports both file paths (preferred on Linux/Wayland) and data URLs (fallback).
+ */
+function showDesktopNotification(title: string, options: { body?: string; icon?: string }): void {
+  const notificationOptions: { title: string; body?: string; icon?: Electron.NativeImage | string } = { title };
+
+  if (options.body) {
+    notificationOptions.body = options.body;
+  }
+
+  if (options.icon) {
+    // Check if it's a file path (starts with / on Linux/Mac, or drive letter on Windows)
+    const isFilePath = typeof options.icon === 'string' &&
+      (options.icon.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(options.icon));
+
+    if (isFilePath) {
+      // File path - preferred for Linux/Wayland compatibility
+      // Verify file exists before using
+      if (fs.existsSync(options.icon)) {
+        notificationOptions.icon = options.icon;
+      } else {
+        console.warn('Notification icon file not found:', options.icon);
+      }
+    } else if (typeof options.icon === 'string' && options.icon.startsWith('data:image/')) {
+      // Data URL fallback - decode to nativeImage
+      const base64Data = options.icon.replace(/^data:image\/\w+;base64,/, '');
+      try {
+        const image = nativeImage.createFromBuffer(Buffer.from(base64Data, 'base64'));
+        if (image.isEmpty()) {
+          console.warn('Notification icon created from base64 is empty - image format may not be supported by Electron');
+        } else {
+          notificationOptions.icon = image;
+        }
+      } catch (err) {
+        console.error('Failed to create notification icon from base64:', err);
+      }
+    } else {
+      // Unknown format, try to use as-is
+      notificationOptions.icon = options.icon;
+    }
+  }
+
+  const notification = new Notification(notificationOptions);
+  notification.show();
+}
+
 ipcMain.on("set-anki-connect-enabled", (_event: IpcMainEvent, enabled: boolean) => {
   const { config } = loadConfig();
   if (!config.ankiConnect) {
@@ -1268,29 +1315,7 @@ ipcMain.on("set-anki-connect-enabled", (_event: IpcMainEvent, enabled: boolean) 
           });
         }
       },
-      (title: string, options: any) => {
-        const notificationOptions: any = { title };
-
-        if (options.body) {
-          notificationOptions.body = options.body;
-        }
-
-        if (options.icon) {
-          if (typeof options.icon === 'string' && options.icon.startsWith('data:image/')) {
-            const base64Data = options.icon.replace(/^data:image\/\w+;base64,/, '');
-            try {
-              notificationOptions.icon = nativeImage.createFromBuffer(Buffer.from(base64Data, 'base64'));
-            } catch (err) {
-              console.error('Failed to create notification icon from base64:', err);
-            }
-          } else {
-            notificationOptions.icon = options.icon;
-          }
-        }
-
-        const notification = new Notification(notificationOptions);
-        notification.show();
-      },
+      showDesktopNotification,
     );
     ankiIntegration.start();
     console.log("AnkiConnect integration enabled");
