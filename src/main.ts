@@ -45,6 +45,7 @@ import * as net from "net";
 import * as http from "http";
 import * as os from "os";
 import * as fs from "fs";
+import * as crypto from "crypto";
 import WebSocket from "ws";
 import { parse as parseJsonc } from "jsonc-parser";
 import { MecabTokenizer } from "./mecab-tokenizer";
@@ -91,6 +92,7 @@ let currentSubText = "";
 let overlayVisible = false;
 let windowTracker: BaseWindowTracker | null = null;
 let subtitlePosition: SubtitlePosition | null = null;
+let currentMediaPath: string | null = null;
 let mecabTokenizer: MecabTokenizer | null = null;
 let keybindings: Keybinding[] = [];
 
@@ -105,6 +107,7 @@ const CONFIG_DIR = path.join(
 );
 const CONFIG_FILE_JSONC = path.join(CONFIG_DIR, "config.jsonc");
 const CONFIG_FILE_JSON = path.join(CONFIG_DIR, "config.json");
+const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, "subtitle-positions");
 
 function getConfigFilePath(): string {
   if (fs.existsSync(CONFIG_FILE_JSONC)) return CONFIG_FILE_JSONC;
@@ -143,6 +146,67 @@ function saveConfig(config: Config): void {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
   } catch (err) {
     console.error("Failed to save config:", (err as Error).message);
+  }
+}
+
+function getSubtitlePositionFilePath(mediaPath: string): string {
+  const hash = crypto.createHash("sha256").update(mediaPath).digest("hex");
+  return path.join(SUBTITLE_POSITIONS_DIR, `${hash}.json`);
+}
+
+function loadSubtitlePosition(): SubtitlePosition | null {
+  if (!currentMediaPath) {
+    subtitlePosition = null;
+    return subtitlePosition;
+  }
+
+  try {
+    const positionPath = getSubtitlePositionFilePath(currentMediaPath);
+    if (!fs.existsSync(positionPath)) {
+      subtitlePosition = null;
+      return subtitlePosition;
+    }
+
+    const data = fs.readFileSync(positionPath, "utf-8");
+    const parsed = JSON.parse(data) as Partial<SubtitlePosition>;
+    if (parsed && typeof parsed.yPercent === "number" && Number.isFinite(parsed.yPercent)) {
+      subtitlePosition = { yPercent: parsed.yPercent };
+    } else {
+      subtitlePosition = null;
+    }
+  } catch (err) {
+    console.error("Failed to load subtitle position:", (err as Error).message);
+    subtitlePosition = null;
+  }
+
+  return subtitlePosition;
+}
+
+function saveSubtitlePosition(position: SubtitlePosition): void {
+  subtitlePosition = position;
+  if (!currentMediaPath) {
+    console.error("Refusing to save subtitle position - no media path yet");
+    return;
+  }
+
+  try {
+    if (!fs.existsSync(SUBTITLE_POSITIONS_DIR)) {
+      fs.mkdirSync(SUBTITLE_POSITIONS_DIR, { recursive: true });
+    }
+    const positionPath = getSubtitlePositionFilePath(currentMediaPath);
+    fs.writeFileSync(positionPath, JSON.stringify(position, null, 2));
+  } catch (err) {
+    console.error("Failed to save subtitle position:", (err as Error).message);
+  }
+}
+
+function updateCurrentMediaPath(mediaPath: unknown): void {
+  const nextPath = typeof mediaPath === "string" && mediaPath.trim().length > 0 ? mediaPath : null;
+  if (nextPath === currentMediaPath) return;
+  currentMediaPath = nextPath;
+  const position = loadSubtitlePosition();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("subtitle-position:set", position);
   }
 }
 
@@ -250,30 +314,6 @@ function stopSubtitleWebSocketServer(): void {
     subtitleWebSocketServer.close();
     subtitleWebSocketServer = null;
   }
-}
-
-function loadSubtitlePosition(): SubtitlePosition | null {
-  const { config } = loadConfig();
-  const saved = config.subtitlePosition;
-
-  if (saved && saved.yPercent !== undefined) {
-    subtitlePosition = saved;
-  } else {
-    subtitlePosition = null;
-  }
-
-  return subtitlePosition;
-}
-
-function saveSubtitlePosition(position: SubtitlePosition): void {
-  subtitlePosition = position;
-  const { success, config } = loadConfig();
-  if (!success) {
-    console.error("Refusing to save - could not load existing config");
-    return;
-  }
-  config.subtitlePosition = position;
-  saveConfig(config);
 }
 
 function loadKeybindings(): Keybinding[] {
@@ -452,6 +492,9 @@ interface MpvMessage {
   request_id?: number;
 }
 
+const MPV_REQUEST_ID_SUBTEXT = 101;
+const MPV_REQUEST_ID_PATH = 102;
+
 class MpvIpcClient {
   private socketPath: string;
   public socket: net.Socket | null = null;
@@ -554,9 +597,11 @@ class MpvIpcClient {
           const subtitleData = await tokenizeSubtitle(currentSubText);
           mainWindow.webContents.send("subtitle:set", subtitleData);
         }
+      } else if (msg.name === "path") {
+        updateCurrentMediaPath(msg.data);
       }
     } else if (msg.data !== undefined && msg.request_id) {
-      if (msg.request_id === 101) {
+      if (msg.request_id === MPV_REQUEST_ID_SUBTEXT) {
         currentSubText = (msg.data as string) || "";
         broadcastSubtitle(currentSubText);
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -564,6 +609,8 @@ class MpvIpcClient {
             mainWindow!.webContents.send("subtitle:set", subtitleData);
           });
         }
+      } else if (msg.request_id === MPV_REQUEST_ID_PATH) {
+        updateCurrentMediaPath(msg.data);
       }
     }
   }
@@ -579,10 +626,12 @@ class MpvIpcClient {
 
   private subscribeToProperties(): void {
     this.send({ command: ["observe_property", 1, "sub-text"] });
+    this.send({ command: ["observe_property", 2, "path"] });
   }
 
   private getInitialState(): void {
-    this.send({ command: ["get_property", "sub-text"], request_id: 101 });
+    this.send({ command: ["get_property", "sub-text"], request_id: MPV_REQUEST_ID_SUBTEXT });
+    this.send({ command: ["get_property", "path"], request_id: MPV_REQUEST_ID_PATH });
   }
 
   setSubVisibility(visible: boolean): void {
@@ -939,7 +988,7 @@ ipcMain.handle("get-current-subtitle", async () => {
 });
 
 ipcMain.handle("get-subtitle-position", () => {
-  return subtitlePosition;
+  return loadSubtitlePosition();
 });
 
 ipcMain.on("save-subtitle-position", (_event: IpcMainEvent, position: SubtitlePosition) => {
@@ -968,4 +1017,3 @@ ipcMain.on("mpv-command", (_event: IpcMainEvent, command: string[]) => {
 ipcMain.handle("get-keybindings", () => {
   return keybindings;
 });
-

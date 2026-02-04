@@ -77,7 +77,6 @@ export interface TexthookerConfig {
 }
 
 export interface Config {
-  subtitlePosition?: SubtitlePosition;
   keybindings?: Keybinding[];
   websocket?: WebSocketConfig;
   texthooker?: TexthookerConfig;
@@ -97,6 +96,7 @@ export interface MecabStatus {
 export interface ElectronAPI {
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
   onVisibility: (callback: (visible: boolean) => void) => void;
+  onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;
   getOverlayVisibility: () => Promise<boolean>;
   getCurrentSubtitle: () => Promise<SubtitleData>;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;

@@ -36,6 +36,10 @@ interface Keybinding {
   command: string[] | null;
 }
 
+interface SubtitlePosition {
+  yPercent: number;
+}
+
 const subtitleRoot = document.getElementById('subtitleRoot')!;
 const subtitleContainer = document.getElementById('subtitleContainer')!;
 const overlay = document.getElementById('overlay')!;
@@ -175,6 +179,18 @@ function applyYPercent(yPercent: number): void {
   subtitleContainer.style.transform = '';
 
   subtitleContainer.style.marginBottom = `${marginBottom}px`;
+}
+
+function applyStoredSubtitlePosition(position: SubtitlePosition | null, source: string): void {
+  if (position && position.yPercent !== undefined) {
+    applyYPercent(position.yPercent);
+    console.log('Applied subtitle position from', source, ':', position.yPercent, '%');
+  } else {
+    const defaultMarginBottom = 60;
+    const defaultYPercent = (defaultMarginBottom / window.innerHeight) * 100;
+    applyYPercent(defaultYPercent);
+    console.log('Applied default subtitle position from', source);
+  }
 }
 
 function setupDragging(): void {
@@ -335,15 +351,7 @@ function setupResizeHandler(): void {
 
 async function restoreSubtitlePosition(): Promise<void> {
   const position = await window.electronAPI.getSubtitlePosition();
-  if (position && position.yPercent !== undefined) {
-    applyYPercent(position.yPercent);
-    console.log('Restored subtitle position:', position.yPercent, '%');
-  } else {
-    const defaultMarginBottom = 60;
-    const defaultYPercent = (defaultMarginBottom / window.innerHeight) * 100;
-    applyYPercent(defaultYPercent);
-    console.log('Applied default subtitle position');
-  }
+  applyStoredSubtitlePosition(position, 'startup');
 }
 
 function setupSelectionObserver(): void {
@@ -392,6 +400,10 @@ function setupYomitanObserver(): void {
 async function init(): Promise<void> {
   window.electronAPI.onSubtitle((data: SubtitleData) => {
     renderSubtitle(data);
+  });
+
+  window.electronAPI.onSubtitlePosition((position: SubtitlePosition | null) => {
+    applyStoredSubtitlePosition(position, 'media-change');
   });
 
   const initialSubtitle = await window.electronAPI.getCurrentSubtitle();
