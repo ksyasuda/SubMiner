@@ -173,6 +173,7 @@ find_videos() {
         find_opts=()
     fi
 
+    # shellcheck disable=SC2312
     find "$dir" "${find_opts[@]}" -type f -regextype posix-extended \
         -iregex ".*\.($VIDEO_EXTENSIONS)$" 2>/dev/null | sort -V
 }
@@ -189,7 +190,7 @@ build_rofi_menu() {
             display_name=$(basename "$video")
         fi
         printf '%s\0icon\x1fthumbnail://%s\n' "$display_name" "$video"
-    done < <(find_videos "$dir")
+    done < <(find_videos "$dir" || true)
 }
 
 show_rofi_menu() {
@@ -210,6 +211,7 @@ show_rofi_menu() {
     fi
 
     local selection
+    # shellcheck disable=SC2312
     selection=$(build_rofi_menu "$dir" | rofi "${rofi_opts[@]}")
 
     if [[ -z "$selection" ]]; then
@@ -256,6 +258,7 @@ show_fzf_menu() {
     fi
 
     local selection
+    # shellcheck disable=SC2312
     selection=$(find_videos "$dir" | fzf \
         --ansi \
         --reverse \
@@ -443,6 +446,7 @@ main() {
         fi
 
         local video_count
+        # shellcheck disable=SC2312
         video_count=$(find_videos "$SEARCH_DIR" | wc -l)
         if [[ "$video_count" -eq 0 ]]; then
             log_error "No video files found in: $SEARCH_DIR"
