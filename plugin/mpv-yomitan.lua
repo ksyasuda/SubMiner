@@ -218,6 +218,9 @@ local function open_options()
 	end
 end
 
+local restart_overlay
+local check_status
+
 local function show_menu()
 	if not state.binary_available then
 		msg.error("mpv-yomitan binary not found")
@@ -254,7 +257,7 @@ local function show_menu()
 	})
 end
 
-local function restart_overlay()
+restart_overlay = function()
 	if not state.binary_available then
 		msg.error("mpv-yomitan binary not found")
 		show_osd("Error: binary not found")
@@ -296,7 +299,7 @@ local function restart_overlay()
 	end)
 end
 
-local function check_status()
+check_status = function()
 	if not state.binary_available then
 		show_osd("Status: binary not found")
 		return

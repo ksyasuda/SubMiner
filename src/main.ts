@@ -458,6 +458,7 @@ class MpvIpcClient {
   private buffer = "";
   public connected = false;
   private reconnectAttempt = 0;
+  private firstConnection = true;
 
   constructor(socketPath: string) {
     this.socketPath = socketPath;
@@ -477,12 +478,16 @@ class MpvIpcClient {
       this.subscribeToProperties();
       this.getInitialState();
 
-      if (autoStartOverlay) {
+      if (this.firstConnection && autoStartOverlay) {
         console.log("Auto-starting overlay, hiding mpv subtitles");
         setTimeout(() => {
           setOverlayVisible(true);
         }, 100);
+      } else {
+        this.setSubVisibility(!overlayVisible);
       }
+
+      this.firstConnection = false;
     });
 
     this.socket.on("data", (data: Buffer) => {

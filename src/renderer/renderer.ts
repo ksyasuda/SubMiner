@@ -244,7 +244,7 @@ const CHORD_MAP = new Map<string, ChordAction>([
   ['KeyO', { type: 'electron', action: () => window.electronAPI.openYomitanSettings() }],
   ['KeyR', { type: 'mpv', command: ['script-message', 'mpv-yomitan-restart'] }],
   ['KeyC', { type: 'mpv', command: ['script-message', 'mpv-yomitan-status'] }],
-  ['KeyY', { type: 'electron', action: () => window.electronAPI.openYomitanSettings() }],
+  ['KeyY', { type: 'mpv', command: ['script-message', 'mpv-yomitan-menu'] }],
   ['KeyD', { type: 'electron', action: () => window.electronAPI.toggleDevTools() }],
   ['KeyS', { type: 'noop' }],
 ]);
