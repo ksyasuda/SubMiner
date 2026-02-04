@@ -21,6 +21,7 @@ import {
   session,
   ipcMain,
   globalShortcut,
+  clipboard,
   shell,
   protocol,
   screen,
@@ -227,6 +228,17 @@ let keybindings: Keybinding[] = [];
 let subtitleTimingTracker: SubtitleTimingTracker | null = null;
 let ankiIntegration: AnkiIntegration | null = null;
 
+// Shortcut state tracking
+let shortcutsRegistered = false;
+let pendingMultiCopy = false;
+let pendingMultiCopyTimeout: ReturnType<typeof setTimeout> | null = null;
+let multiCopyDigitShortcuts: string[] = [];
+let multiCopyEscapeShortcut: string | null = null;
+let pendingMineSentenceMultiple = false;
+let pendingMineSentenceMultipleTimeout: ReturnType<typeof setTimeout> | null = null;
+let mineSentenceDigitShortcuts: string[] = [];
+let mineSentenceEscapeShortcut: string | null = null;
+
 const DEFAULT_KEYBINDINGS: Keybinding[] = [
   { key: "Space", command: ["cycle", "pause"] },
 ];
@@ -404,7 +416,12 @@ function stopTexthookerServer(): void {
 }
 
 function hasMpvWebsocket(): boolean {
-  const mpvWebsocketPath = path.join(os.homedir(), ".config", "mpv", "mpv_websocket");
+  const mpvWebsocketPath = path.join(
+    os.homedir(),
+    ".config",
+    "mpv",
+    "mpv_websocket",
+  );
   return fs.existsSync(mpvWebsocketPath);
 }
 
@@ -693,6 +710,7 @@ class MpvIpcClient {
   public currentSubStart = 0;
   public currentSubEnd = 0;
   public currentSubText = "";
+  public currentSecondarySubText = "";
 
   constructor(socketPath: string) {
     this.socketPath = socketPath;
@@ -784,8 +802,16 @@ class MpvIpcClient {
       if (msg.name === "sub-text") {
         currentSubText = (msg.data as string) || "";
         this.currentSubText = currentSubText;
-        if (subtitleTimingTracker && this.currentSubStart !== undefined && this.currentSubEnd !== undefined) {
-          subtitleTimingTracker.recordSubtitle(currentSubText, this.currentSubStart, this.currentSubEnd);
+        if (
+          subtitleTimingTracker &&
+          this.currentSubStart !== undefined &&
+          this.currentSubEnd !== undefined
+        ) {
+          subtitleTimingTracker.recordSubtitle(
+            currentSubText,
+            this.currentSubStart,
+            this.currentSubEnd,
+          );
         }
         broadcastSubtitle(currentSubText);
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -794,8 +820,24 @@ class MpvIpcClient {
         }
       } else if (msg.name === "sub-start") {
         this.currentSubStart = (msg.data as number) || 0;
+        if (subtitleTimingTracker && currentSubText) {
+          subtitleTimingTracker.recordSubtitle(
+            currentSubText,
+            this.currentSubStart,
+            this.currentSubEnd,
+          );
+        }
       } else if (msg.name === "sub-end") {
         this.currentSubEnd = (msg.data as number) || 0;
+        if (subtitleTimingTracker && currentSubText) {
+          subtitleTimingTracker.recordSubtitle(
+            currentSubText,
+            this.currentSubStart,
+            this.currentSubEnd,
+          );
+        }
+      } else if (msg.name === "secondary-sub-text") {
+        this.currentSecondarySubText = (msg.data as string) || "";
       } else if (msg.name === "time-pos") {
         this.currentTimePos = (msg.data as number) || 0;
       } else if (msg.name === "path") {
@@ -835,6 +877,7 @@ class MpvIpcClient {
     this.send({ command: ["observe_property", 3, "sub-start"] });
     this.send({ command: ["observe_property", 4, "sub-end"] });
     this.send({ command: ["observe_property", 5, "time-pos"] });
+    this.send({ command: ["observe_property", 6, "secondary-sub-text"] });
   }
 
   private getInitialState(): void {
@@ -843,10 +886,11 @@ class MpvIpcClient {
   }
 
   setSubVisibility(visible: boolean): void {
-    this.send({ command: ["set_property", "sub-visibility", visible ? "yes" : "no"] });
+    this.send({
+      command: ["set_property", "sub-visibility", visible ? "yes" : "no"],
+    });
   }
 }
-
 
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
   if (!text || !mecabTokenizer) {
@@ -854,10 +898,10 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
   }
 
   const normalizedText = text
-    .replace(/\\N/g, ' ')
-    .replace(/\\n/g, ' ')
-    .replace(/\n/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/\\N/g, " ")
+    .replace(/\\n/g, " ")
+    .replace(/\n/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   if (!normalizedText) {
@@ -954,10 +998,22 @@ function ensureExtensionCopy(sourceDir: string): string {
   const targetManifest = path.join(targetDir, "manifest.json");
 
   let shouldCopy = !fs.existsSync(targetDir);
-  if (!shouldCopy && fs.existsSync(sourceManifest) && fs.existsSync(targetManifest)) {
+  if (
+    !shouldCopy &&
+    fs.existsSync(sourceManifest) &&
+    fs.existsSync(targetManifest)
+  ) {
     try {
-      const sourceVersion = (JSON.parse(fs.readFileSync(sourceManifest, "utf-8")) as { version: string }).version;
-      const targetVersion = (JSON.parse(fs.readFileSync(targetManifest, "utf-8")) as { version: string }).version;
+      const sourceVersion = (
+        JSON.parse(fs.readFileSync(sourceManifest, "utf-8")) as {
+          version: string;
+        }
+      ).version;
+      const targetVersion = (
+        JSON.parse(fs.readFileSync(targetManifest, "utf-8")) as {
+          version: string;
+        }
+      ).version;
       shouldCopy = sourceVersion !== targetVersion;
     } catch (e) {
       shouldCopy = true;
@@ -1051,9 +1107,17 @@ function createMainWindow(): BrowserWindow {
     console.error("Failed to load HTML file:", err);
   });
 
-  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
-    console.error("Page failed to load:", errorCode, errorDescription, validatedURL);
-  });
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL) => {
+      console.error(
+        "Page failed to load:",
+        errorCode,
+        errorDescription,
+        validatedURL,
+      );
+    },
+  );
 
   mainWindow.webContents.on("did-finish-load", () => {
     console.log("Overlay HTML loaded successfully");
@@ -1109,16 +1173,25 @@ function openYomitanSettings(): void {
   const maxAttempts = 3;
 
   function attemptLoad(): void {
-    yomitanSettingsWindow!.loadURL(settingsUrl).then(() => {
-      console.log("Settings URL loaded successfully");
-    }).catch((err: Error) => {
-      console.error("Failed to load settings URL:", err);
-      loadAttempts++;
-      if (loadAttempts < maxAttempts && yomitanSettingsWindow && !yomitanSettingsWindow.isDestroyed()) {
-        console.log(`Retrying in 500ms (attempt ${loadAttempts + 1}/${maxAttempts})`);
-        setTimeout(attemptLoad, 500);
-      }
-    });
+    yomitanSettingsWindow!
+      .loadURL(settingsUrl)
+      .then(() => {
+        console.log("Settings URL loaded successfully");
+      })
+      .catch((err: Error) => {
+        console.error("Failed to load settings URL:", err);
+        loadAttempts++;
+        if (
+          loadAttempts < maxAttempts &&
+          yomitanSettingsWindow &&
+          !yomitanSettingsWindow.isDestroyed()
+        ) {
+          console.log(
+            `Retrying in 500ms (attempt ${loadAttempts + 1}/${maxAttempts})`,
+          );
+          setTimeout(attemptLoad, 500);
+        }
+      });
   }
 
   attemptLoad();
@@ -1172,11 +1245,333 @@ function registerGlobalShortcuts(): void {
   }
 }
 
-ipcMain.on("set-ignore-mouse-events", (_event: IpcMainEvent, ignore: boolean, options: { forward?: boolean } = {}) => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.setIgnoreMouseEvents(ignore, options);
+function getConfiguredShortcuts() {
+  const { config } = loadConfig();
+  return {
+    copySubtitle: config.shortcuts?.copySubtitle ?? "CommandOrControl+C",
+    copySubtitleMultiple:
+      config.shortcuts?.copySubtitleMultiple ?? "CommandOrControl+Shift+C",
+    updateLastCardFromClipboard:
+      config.shortcuts?.updateLastCardFromClipboard ?? "CommandOrControl+V",
+    mineSentence: config.shortcuts?.mineSentence ?? "CommandOrControl+S",
+    mineSentenceMultiple:
+      config.shortcuts?.mineSentenceMultiple ?? "CommandOrControl+Shift+S",
+    multiCopyTimeoutMs: config.shortcuts?.multiCopyTimeoutMs ?? 3000,
+  };
+}
+
+function showMpvOsd(text: string): void {
+  if (mpvClient && mpvClient.connected && mpvClient.send) {
+    mpvClient.send({
+      command: ["show-text", text, "3000"],
+    });
+  } else {
+    console.log("OSD (MPV not connected):", text);
   }
-});
+}
+
+function cancelPendingMultiCopy(): void {
+  if (!pendingMultiCopy) return;
+
+  pendingMultiCopy = false;
+  if (pendingMultiCopyTimeout) {
+    clearTimeout(pendingMultiCopyTimeout);
+    pendingMultiCopyTimeout = null;
+  }
+
+  // Unregister digit and escape shortcuts
+  for (const shortcut of multiCopyDigitShortcuts) {
+    globalShortcut.unregister(shortcut);
+  }
+  multiCopyDigitShortcuts = [];
+
+  if (multiCopyEscapeShortcut) {
+    globalShortcut.unregister(multiCopyEscapeShortcut);
+    multiCopyEscapeShortcut = null;
+  }
+}
+
+function startPendingMultiCopy(timeoutMs: number): void {
+  cancelPendingMultiCopy();
+  pendingMultiCopy = true;
+
+  // Register digit shortcuts 1-9
+  for (let i = 1; i <= 9; i++) {
+    const shortcut = i.toString();
+    if (
+      globalShortcut.register(shortcut, () => {
+        handleMultiCopyDigit(i);
+      })
+    ) {
+      multiCopyDigitShortcuts.push(shortcut);
+    }
+  }
+
+  // Register Escape to cancel
+  if (
+    globalShortcut.register("Escape", () => {
+      cancelPendingMultiCopy();
+      showMpvOsd("Cancelled");
+    })
+  ) {
+    multiCopyEscapeShortcut = "Escape";
+  }
+
+  // Set timeout
+  pendingMultiCopyTimeout = setTimeout(() => {
+    cancelPendingMultiCopy();
+    showMpvOsd("Copy timeout");
+  }, timeoutMs);
+
+  showMpvOsd("Copy how many lines? Press 1-9 (Esc to cancel)");
+}
+
+function handleMultiCopyDigit(count: number): void {
+  if (!pendingMultiCopy || !subtitleTimingTracker) return;
+
+  cancelPendingMultiCopy();
+
+  // Check if we have enough history
+  const availableCount = Math.min(count, 200); // Max history size
+  const blocks = subtitleTimingTracker.getRecentBlocks(availableCount);
+
+  if (blocks.length === 0) {
+    showMpvOsd("No subtitle history available");
+    return;
+  }
+
+  const actualCount = blocks.length;
+  const clipboardText = blocks.join("\n\n");
+  clipboard.writeText(clipboardText);
+
+  if (actualCount < count) {
+    showMpvOsd(`Only ${actualCount} lines available, copied ${actualCount}`);
+  } else {
+    showMpvOsd(`Copied ${actualCount} lines`);
+  }
+}
+
+function copyCurrentSubtitle(): void {
+  if (!subtitleTimingTracker) {
+    showMpvOsd("Subtitle tracker not available");
+    return;
+  }
+
+  const currentSubtitle = subtitleTimingTracker.getCurrentSubtitle();
+  if (!currentSubtitle) {
+    showMpvOsd("No current subtitle");
+    return;
+  }
+
+  clipboard.writeText(currentSubtitle);
+  showMpvOsd("Copied subtitle");
+}
+
+async function updateLastCardFromClipboard(): Promise<void> {
+  if (!ankiIntegration) {
+    showMpvOsd("AnkiConnect integration not enabled");
+    return;
+  }
+
+  const clipboardText = clipboard.readText();
+  await ankiIntegration.updateLastAddedFromClipboard(clipboardText);
+}
+
+async function mineSentenceCard(): Promise<void> {
+  if (!ankiIntegration) {
+    showMpvOsd("AnkiConnect integration not enabled");
+    return;
+  }
+
+  if (!mpvClient || !mpvClient.connected) {
+    showMpvOsd("MPV not connected");
+    return;
+  }
+
+  const text = mpvClient.currentSubText;
+  if (!text) {
+    showMpvOsd("No current subtitle");
+    return;
+  }
+
+  const startTime = mpvClient.currentSubStart;
+  const endTime = mpvClient.currentSubEnd;
+  const secondarySub = mpvClient.currentSecondarySubText || undefined;
+
+  await ankiIntegration.createSentenceCard(text, startTime, endTime, secondarySub);
+}
+
+function cancelPendingMineSentenceMultiple(): void {
+  if (!pendingMineSentenceMultiple) return;
+
+  pendingMineSentenceMultiple = false;
+  if (pendingMineSentenceMultipleTimeout) {
+    clearTimeout(pendingMineSentenceMultipleTimeout);
+    pendingMineSentenceMultipleTimeout = null;
+  }
+
+  for (const shortcut of mineSentenceDigitShortcuts) {
+    globalShortcut.unregister(shortcut);
+  }
+  mineSentenceDigitShortcuts = [];
+
+  if (mineSentenceEscapeShortcut) {
+    globalShortcut.unregister(mineSentenceEscapeShortcut);
+    mineSentenceEscapeShortcut = null;
+  }
+}
+
+function startPendingMineSentenceMultiple(timeoutMs: number): void {
+  cancelPendingMineSentenceMultiple();
+  pendingMineSentenceMultiple = true;
+
+  for (let i = 1; i <= 9; i++) {
+    const shortcut = i.toString();
+    if (
+      globalShortcut.register(shortcut, () => {
+        handleMineSentenceDigit(i);
+      })
+    ) {
+      mineSentenceDigitShortcuts.push(shortcut);
+    }
+  }
+
+  if (
+    globalShortcut.register("Escape", () => {
+      cancelPendingMineSentenceMultiple();
+      showMpvOsd("Cancelled");
+    })
+  ) {
+    mineSentenceEscapeShortcut = "Escape";
+  }
+
+  pendingMineSentenceMultipleTimeout = setTimeout(() => {
+    cancelPendingMineSentenceMultiple();
+    showMpvOsd("Mine sentence timeout");
+  }, timeoutMs);
+
+  showMpvOsd("Mine how many lines? Press 1-9 (Esc to cancel)");
+}
+
+function handleMineSentenceDigit(count: number): void {
+  if (!pendingMineSentenceMultiple || !subtitleTimingTracker || !ankiIntegration) return;
+
+  cancelPendingMineSentenceMultiple();
+
+  const blocks = subtitleTimingTracker.getRecentBlocks(count);
+
+  if (blocks.length === 0) {
+    showMpvOsd("No subtitle history available");
+    return;
+  }
+
+  const timings: { startTime: number; endTime: number }[] = [];
+  for (const block of blocks) {
+    const timing = subtitleTimingTracker.findTiming(block);
+    if (timing) {
+      timings.push(timing);
+    }
+  }
+
+  if (timings.length === 0) {
+    showMpvOsd("Subtitle timing not found");
+    return;
+  }
+
+  const rangeStart = Math.min(...timings.map((t) => t.startTime));
+  const rangeEnd = Math.max(...timings.map((t) => t.endTime));
+  const sentence = blocks.join(" ");
+
+  const secondarySub = mpvClient?.currentSecondarySubText || undefined;
+  ankiIntegration.createSentenceCard(sentence, rangeStart, rangeEnd, secondarySub).catch((err) => {
+    console.error("mineSentenceMultiple failed:", err);
+    showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
+  });
+}
+
+function registerOverlayShortcuts(): void {
+  if (shortcutsRegistered) return;
+
+  const shortcuts = getConfiguredShortcuts();
+
+  if (shortcuts.copySubtitle) {
+    globalShortcut.register(shortcuts.copySubtitle, () => {
+      copyCurrentSubtitle();
+    });
+  }
+
+  if (shortcuts.copySubtitleMultiple) {
+    globalShortcut.register(shortcuts.copySubtitleMultiple, () => {
+      startPendingMultiCopy(shortcuts.multiCopyTimeoutMs);
+    });
+  }
+
+  if (shortcuts.updateLastCardFromClipboard) {
+    globalShortcut.register(shortcuts.updateLastCardFromClipboard, () => {
+      updateLastCardFromClipboard().catch((err) => {
+        console.error("updateLastCardFromClipboard failed:", err);
+        showMpvOsd(`Update failed: ${(err as Error).message}`);
+      });
+    });
+  }
+
+  if (shortcuts.mineSentence) {
+    globalShortcut.register(shortcuts.mineSentence, () => {
+      mineSentenceCard().catch((err) => {
+        console.error("mineSentenceCard failed:", err);
+        showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
+      });
+    });
+  }
+
+  if (shortcuts.mineSentenceMultiple) {
+    globalShortcut.register(shortcuts.mineSentenceMultiple, () => {
+      startPendingMineSentenceMultiple(shortcuts.multiCopyTimeoutMs);
+    });
+  }
+
+  shortcutsRegistered = true;
+}
+
+function unregisterOverlayShortcuts(): void {
+  if (!shortcutsRegistered) return;
+
+  cancelPendingMultiCopy();
+  cancelPendingMineSentenceMultiple();
+
+  const shortcuts = getConfiguredShortcuts();
+
+  if (shortcuts.copySubtitle) {
+    globalShortcut.unregister(shortcuts.copySubtitle);
+  }
+  if (shortcuts.copySubtitleMultiple) {
+    globalShortcut.unregister(shortcuts.copySubtitleMultiple);
+  }
+  if (shortcuts.updateLastCardFromClipboard) {
+    globalShortcut.unregister(shortcuts.updateLastCardFromClipboard);
+  }
+  if (shortcuts.mineSentence) {
+    globalShortcut.unregister(shortcuts.mineSentence);
+  }
+  if (shortcuts.mineSentenceMultiple) {
+    globalShortcut.unregister(shortcuts.mineSentenceMultiple);
+  }
+
+  shortcutsRegistered = false;
+}
+
+ipcMain.on(
+  "set-ignore-mouse-events",
+  (
+    _event: IpcMainEvent,
+    ignore: boolean,
+    options: { forward?: boolean } = {},
+  ) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setIgnoreMouseEvents(ignore, options);
+    }
+  },
+);
 
 ipcMain.on("open-yomitan-settings", () => {
   openYomitanSettings();
@@ -1252,8 +1647,15 @@ ipcMain.handle("get-anki-connect-status", () => {
  * Create and show a desktop notification with robust icon handling.
  * Supports both file paths (preferred on Linux/Wayland) and data URLs (fallback).
  */
-function showDesktopNotification(title: string, options: { body?: string; icon?: string }): void {
-  const notificationOptions: { title: string; body?: string; icon?: Electron.NativeImage | string } = { title };
+function showDesktopNotification(
+  title: string,
+  options: { body?: string; icon?: string },
+): void {
+  const notificationOptions: {
+    title: string;
+    body?: string;
+    icon?: Electron.NativeImage | string;
+  } = { title };
 
   if (options.body) {
     notificationOptions.body = options.body;
@@ -1261,8 +1663,9 @@ function showDesktopNotification(title: string, options: { body?: string; icon?:
 
   if (options.icon) {
     // Check if it's a file path (starts with / on Linux/Mac, or drive letter on Windows)
-    const isFilePath = typeof options.icon === 'string' &&
-      (options.icon.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(options.icon));
+    const isFilePath =
+      typeof options.icon === "string" &&
+      (options.icon.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(options.icon));
 
     if (isFilePath) {
       // File path - preferred for Linux/Wayland compatibility
@@ -1270,20 +1673,27 @@ function showDesktopNotification(title: string, options: { body?: string; icon?:
       if (fs.existsSync(options.icon)) {
         notificationOptions.icon = options.icon;
       } else {
-        console.warn('Notification icon file not found:', options.icon);
+        console.warn("Notification icon file not found:", options.icon);
       }
-    } else if (typeof options.icon === 'string' && options.icon.startsWith('data:image/')) {
+    } else if (
+      typeof options.icon === "string" &&
+      options.icon.startsWith("data:image/")
+    ) {
       // Data URL fallback - decode to nativeImage
-      const base64Data = options.icon.replace(/^data:image\/\w+;base64,/, '');
+      const base64Data = options.icon.replace(/^data:image\/\w+;base64,/, "");
       try {
-        const image = nativeImage.createFromBuffer(Buffer.from(base64Data, 'base64'));
+        const image = nativeImage.createFromBuffer(
+          Buffer.from(base64Data, "base64"),
+        );
         if (image.isEmpty()) {
-          console.warn('Notification icon created from base64 is empty - image format may not be supported by Electron');
+          console.warn(
+            "Notification icon created from base64 is empty - image format may not be supported by Electron",
+          );
         } else {
           notificationOptions.icon = image;
         }
       } catch (err) {
-        console.error('Failed to create notification icon from base64:', err);
+        console.error("Failed to create notification icon from base64:", err);
       }
     } else {
       // Unknown format, try to use as-is
@@ -1295,36 +1705,39 @@ function showDesktopNotification(title: string, options: { body?: string; icon?:
   notification.show();
 }
 
-ipcMain.on("set-anki-connect-enabled", (_event: IpcMainEvent, enabled: boolean) => {
-  const { config } = loadConfig();
-  if (!config.ankiConnect) {
-    config.ankiConnect = {};
-  }
-  config.ankiConnect.enabled = enabled;
-  saveConfig(config);
+ipcMain.on(
+  "set-anki-connect-enabled",
+  (_event: IpcMainEvent, enabled: boolean) => {
+    const { config } = loadConfig();
+    if (!config.ankiConnect) {
+      config.ankiConnect = {};
+    }
+    config.ankiConnect.enabled = enabled;
+    saveConfig(config);
 
-  if (enabled && !ankiIntegration && subtitleTimingTracker && mpvClient) {
-    ankiIntegration = new AnkiIntegration(
-      config.ankiConnect,
-      subtitleTimingTracker,
-      mpvClient,
-      (text: string) => {
-        if (mpvClient) {
-          mpvClient.send({
-            command: ["show-text", text, "3000"],
-          });
-        }
-      },
-      showDesktopNotification,
-    );
-    ankiIntegration.start();
-    console.log("AnkiConnect integration enabled");
-  } else if (!enabled && ankiIntegration) {
-    ankiIntegration.destroy();
-    ankiIntegration = null;
-    console.log("AnkiConnect integration disabled");
-  }
-});
+    if (enabled && !ankiIntegration && subtitleTimingTracker && mpvClient) {
+      ankiIntegration = new AnkiIntegration(
+        config.ankiConnect,
+        subtitleTimingTracker,
+        mpvClient,
+        (text: string) => {
+          if (mpvClient) {
+            mpvClient.send({
+              command: ["show-text", text, "3000"],
+            });
+          }
+        },
+        showDesktopNotification,
+      );
+      ankiIntegration.start();
+      console.log("AnkiConnect integration enabled");
+    } else if (!enabled && ankiIntegration) {
+      ankiIntegration.destroy();
+      ankiIntegration = null;
+      console.log("AnkiConnect integration disabled");
+    }
+  },
+);
 
 ipcMain.on("clear-anki-connect-history", () => {
   if (subtitleTimingTracker) {

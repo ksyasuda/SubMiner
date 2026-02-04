@@ -357,53 +357,117 @@ Enable automatic Anki card creation and updates with media generation:
     "fallbackDuration": 3.0,
     "overwriteAudio": true,
     "overwriteImage": true,
+    "mediaInsertMode": "append",
     "miscInfoField": "Info",
     "miscInfoPattern": "[mpv-yomitan] %f (%t)",
     "highlightWord": true,
-    "showNotificationOnUpdate": false,
+    "notificationType": "osd",
     "animatedFps": 10,
     "animatedMaxWidth": 640,
     "animatedMaxHeight": null,
-    "animatedCrf": 35
+    "animatedCrf": 35,
+    "autoUpdateNewCards": true,
+    "maxMediaDuration": 30,
+    "sentenceCardModel": "Japanese sentences",
+    "sentenceCardSentenceField": "Sentence",
+    "sentenceCardAudioField": "SentenceAudio",
+    "isLapis": false
   }
 }
 ```
 
-| Option                   | Values                 | Description                                                                |
-| ------------------------ | ---------------------- | -------------------------------------------------------------------------- |
-| `enabled`                | `true`, `false`        | Enable AnkiConnect integration (default: `false`)                         |
-| `url`                    | string (URL)           | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                   |
-| `pollingRate`            | number (ms)            | How often to check for new cards (default: `3000`)                        |
-| `deck`                   | string                 | Anki deck to monitor for new cards                                        |
-| `audioField`             | string                 | Card field for audio files (default: `ExpressionAudio`)                  |
-| `imageField`             | string                 | Card field for images (default: `Picture`)                                |
-| `sentenceField`          | string                 | Card field for sentences (default: `Sentence`)                            |
-| `generateAudio`          | `true`, `false`        | Generate audio clips from video (default: `true`)                         |
-| `generateImage`          | `true`, `false`        | Generate image/animation screenshots (default: `true`)                    |
-| `imageType`              | `"static"`, `"avif"`   | Image type: static screenshot or animated AVIF (default: `"static"`)     |
-| `imageFormat`            | `"jpg"`, `"png"`, `"webp"` | Image format (default: `"jpg"`)                                       |
-| `imageQuality`           | number (1-100)         | Image quality for JPG/WebP; PNG ignores this (default: `92`)             |
-| `imageMaxWidth`          | number (px)            | Max width for images; preserves aspect ratio (default: `undefined`)      |
-| `imageMaxHeight`         | number (px)            | Max height for images; preserves aspect ratio (default: `undefined`)     |
-| `animatedFps`            | number (1-60)          | FPS for animated AVIF (default: `10`)                                    |
-| `animatedMaxWidth`       | number (px)            | Max width for animated AVIF (default: `640`)                             |
-| `animatedMaxHeight`      | number (px)            | Max height for animated AVIF; preserves aspect ratio (default: `undefined`) |
-| `animatedCrf`            | number (0-63)          | CRF quality for AVIF; lower = higher quality (default: `35`)             |
-| `audioPadding`           | number (seconds)       | Padding around audio clip timing (default: `0.5`)                         |
-| `fallbackDuration`       | number (seconds)       | Default duration if timing unavailable (default: `3.0`)                   |
-| `overwriteAudio`         | `true`, `false`        | Replace existing audio on updates (default: `true`)                       |
-| `overwriteImage`         | `true`, `false`        | Replace existing images on updates (default: `true`)                      |
-| `miscInfoField`          | string                 | Card field for metadata (optional)                                        |
-| `miscInfoPattern`        | string                 | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time |
-| `highlightWord`          | `true`, `false`        | Highlight the word in sentence context (default: `true`)                  |
-| `showNotificationOnUpdate` | `true`, `false`      | Show desktop notification when cards update (default: `false`)            |
+| Option                     | Values                     | Description                                                                 |
+| -------------------------- | -------------------------- | --------------------------------------------------------------------------- |
+| `enabled`                  | `true`, `false`            | Enable AnkiConnect integration (default: `false`)                           |
+| `url`                      | string (URL)               | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                      |
+| `pollingRate`              | number (ms)                | How often to check for new cards (default: `3000`)                          |
+| `deck`                     | string                     | Anki deck to monitor for new cards                                          |
+| `audioField`               | string                     | Card field for audio files (default: `ExpressionAudio`)                     |
+| `imageField`               | string                     | Card field for images (default: `Picture`)                                  |
+| `sentenceField`            | string                     | Card field for sentences (default: `Sentence`)                              |
+| `generateAudio`            | `true`, `false`            | Generate audio clips from video (default: `true`)                           |
+| `generateImage`            | `true`, `false`            | Generate image/animation screenshots (default: `true`)                      |
+| `imageType`                | `"static"`, `"avif"`       | Image type: static screenshot or animated AVIF (default: `"static"`)        |
+| `imageFormat`              | `"jpg"`, `"png"`, `"webp"` | Image format (default: `"jpg"`)                                             |
+| `imageQuality`             | number (1-100)             | Image quality for JPG/WebP; PNG ignores this (default: `92`)                |
+| `imageMaxWidth`            | number (px)                | Max width for images; preserves aspect ratio (default: `undefined`)         |
+| `imageMaxHeight`           | number (px)                | Max height for images; preserves aspect ratio (default: `undefined`)        |
+| `animatedFps`              | number (1-60)              | FPS for animated AVIF (default: `10`)                                       |
+| `animatedMaxWidth`         | number (px)                | Max width for animated AVIF (default: `640`)                                |
+| `animatedMaxHeight`        | number (px)                | Max height for animated AVIF; preserves aspect ratio (default: `undefined`) |
+| `animatedCrf`              | number (0-63)              | CRF quality for AVIF; lower = higher quality (default: `35`)                |
+| `audioPadding`             | number (seconds)           | Padding around audio clip timing (default: `0.5`)                           |
+| `fallbackDuration`         | number (seconds)           | Default duration if timing unavailable (default: `3.0`)                     |
+| `overwriteAudio`           | `true`, `false`            | Replace existing audio on updates; when `false`, new audio is appended/prepended per `mediaInsertMode` (default: `true`) |
+| `overwriteImage`           | `true`, `false`            | Replace existing images on updates; when `false`, new images are appended/prepended per `mediaInsertMode` (default: `true`) |
+| `mediaInsertMode`          | `"append"`, `"prepend"`    | Where to insert new media when overwrite is off (default: `"append"`)       |
+| `miscInfoField`            | string                     | Card field for metadata (optional)                                          |
+| `miscInfoPattern`          | string                     | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time    |
+| `highlightWord`            | `true`, `false`            | Highlight the word in sentence context (default: `true`)                    |
+| `notificationType`         | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                         |
+| `autoUpdateNewCards`       | `true`, `false`            | Automatically update cards on creation (default: `true`)                    |
+| `maxMediaDuration`         | number (seconds)           | Max duration for generated media from multi-line copy (default: `30`, `0` to disable) |
+| `sentenceCardModel`        | string                     | Anki note type for sentence mining cards (optional)                         |
+| `sentenceCardSentenceField`| string                     | Field name for sentence in sentence cards (default: `Sentence`)             |
+| `sentenceCardAudioField`   | string                     | Field name for audio in sentence cards (default: `SentenceAudio`)           |
+| `isLapis`                  | `true`, `false`            | Enable Lapis note format compatibility (default: `false`)                   |
 
 **Image Quality Notes:**
+
 - `imageQuality` affects JPG and WebP only; PNG is lossless and ignores this setting
 - JPG quality is mapped to FFmpeg's scale (2-31, lower = better)
 - WebP quality uses FFmpeg's native 0-100 scale
 
 **Requirements:** [AnkiConnect](https://github.com/FooSoft/anki-connect) plugin must be installed and running in Anki. ffmpeg must be installed for media generation.
+
+**Manual Card Update:**
+
+When `autoUpdateNewCards` is set to `false`, new cards are detected but not automatically updated. Instead, you can manually update cards using keyboard shortcuts:
+
+| Shortcut       | Action                                                                                                    |
+| -------------- | --------------------------------------------------------------------------------------------------------- |
+| `Ctrl+C`       | Copy the current subtitle line to clipboard (preserves line breaks)                                       |
+| `Ctrl+Shift+C` | Enter multi-copy mode. Press `1-9` to copy that many recent lines, or `Esc` to cancel. Timeout: 3 seconds |
+| `Ctrl+V`       | Update the last added Anki card using subtitles from clipboard                                            |
+| `Ctrl+S`       | Create a sentence card from the current subtitle line                                                     |
+| `Ctrl+Shift+S` | Enter multi-mine mode. Press `1-9` to create a sentence card from that many recent lines, or `Esc` to cancel |
+
+To copy multiple lines (current + previous):
+
+1. Press `Ctrl+Shift+C`
+2. Press a number key (`1-9`) within 3 seconds
+3. The specified number of most recent subtitle lines are copied
+4. Press `Ctrl+V` to update the last added card with the copied lines
+
+These shortcuts are only active when the overlay window is visible. They are automatically disabled when the overlay is hidden to avoid interfering with normal system clipboard operations.
+
+### Shortcuts Configuration
+
+Customize or disable the overlay keyboard shortcuts:
+
+```json
+{
+  "shortcuts": {
+    "copySubtitle": "CommandOrControl+C",
+    "copySubtitleMultiple": "CommandOrControl+Shift+C",
+    "updateLastCardFromClipboard": "CommandOrControl+V",
+    "mineSentence": "CommandOrControl+S",
+    "mineSentenceMultiple": "CommandOrControl+Shift+S",
+    "multiCopyTimeoutMs": 3000
+  }
+}
+```
+
+| Option                        | Values           | Description                                                                    |
+| ----------------------------- | ---------------- | ------------------------------------------------------------------------------ |
+| `copySubtitle`                | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)     |
+| `copySubtitleMultiple`        | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)        |
+| `updateLastCardFromClipboard` | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`) |
+| `mineSentence`                | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`) |
+| `mineSentenceMultiple`        | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`) |
+| `multiCopyTimeoutMs`          | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                |
+
+Set any shortcut to `null` to disable it.
 
 ### Keybindings
 

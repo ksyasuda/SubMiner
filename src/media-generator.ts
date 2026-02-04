@@ -229,7 +229,7 @@ export class MediaGenerator {
           "-vframes",
           "1",
           "-vf",
-          "scale=256:-1",
+          "scale=256:256:force_original_aspect_ratio=decrease,pad=256:256:(ow-iw)/2:(oh-ih)/2:black",
           "-c:v",
           "png",
           "-y",

@@ -88,7 +88,7 @@ listview {
 
 icon-current-entry {
     expand: false;
-    size: 640px;
+    size: 800px;
     background-color: @surface0;
     border-radius: 8px;
     padding: 8px;
@@ -111,14 +111,15 @@ element selected.normal {
 }
 
 element-icon {
-    size: 24px;
+    size: 64px;
     background-color: transparent;
-    margin: 0 8px 0 0;
+    margin: 0 0px 0 0;
 }
 
 element-text {
     text-color: inherit;
     background-color: transparent;
+    margin: 20px 0 0 0;
 }
 
 scrollbar {

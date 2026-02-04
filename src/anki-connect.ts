@@ -91,9 +91,9 @@ export class AnkiConnectClient {
   async invoke(
     action: string,
     params: Record<string, unknown> = {},
-    options: { timeout?: number } = {},
+    options: { timeout?: number; maxRetries?: number } = {},
   ): Promise<unknown> {
-    const maxRetries = 3;
+    const maxRetries = options.maxRetries ?? 3;
     let lastError: Error | null = null;
 
     const isMediaUpload = action === "storeMediaFile";
@@ -160,8 +160,8 @@ export class AnkiConnectClient {
     throw lastError || new Error("Unknown error");
   }
 
-  async findNotes(query: string): Promise<number[]> {
-    const result = await this.invoke("findNotes", { query });
+  async findNotes(query: string, options?: { maxRetries?: number }): Promise<number[]> {
+    const result = await this.invoke("findNotes", { query }, options);
     return (result as number[]) || [];
   }
 
@@ -198,6 +198,17 @@ export class AnkiConnectClient {
       },
       { timeout: 30000 },
     );
+  }
+
+  async addNote(
+    deckName: string,
+    modelName: string,
+    fields: Record<string, string>,
+  ): Promise<number> {
+    const result = await this.invoke("addNote", {
+      note: { deckName, modelName, fields },
+    });
+    return result as number;
   }
 
   async retrieveMediaFile(filename: string): Promise<string> {

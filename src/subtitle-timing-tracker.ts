@@ -22,8 +22,18 @@ interface TimingEntry {
   timestamp: number;
 }
 
+interface HistoryEntry {
+  displayText: string;
+  timingKey: string;
+  startTime: number;
+  endTime: number;
+  timestamp: number;
+}
+
 export class SubtitleTimingTracker {
   private timings = new Map<string, TimingEntry>();
+  private history: HistoryEntry[] = [];
+  private readonly maxHistory = 200;
   private readonly ttlMs = 5 * 60 * 1000;
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -35,11 +45,37 @@ export class SubtitleTimingTracker {
     const normalizedText = this.normalizeText(text);
     if (!normalizedText) return;
 
-    this.timings.set(normalizedText, {
+    const displayText = this.prepareDisplayText(text);
+    const timingKey = normalizedText;
+
+    this.timings.set(timingKey, {
       startTime,
       endTime,
       timestamp: Date.now(),
     });
+
+    // Check for duplicate of most recent entry (deduplicate adjacent repeats)
+    const lastEntry = this.history[this.history.length - 1];
+    if (lastEntry && lastEntry.timingKey === timingKey) {
+      // Update timing to most recent occurrence
+      lastEntry.startTime = startTime;
+      lastEntry.endTime = endTime;
+      lastEntry.timestamp = Date.now();
+      return;
+    }
+
+    this.history.push({
+      displayText,
+      timingKey,
+      startTime,
+      endTime,
+      timestamp: Date.now(),
+    });
+
+    // Prune history if too large
+    if (this.history.length > this.maxHistory) {
+      this.history = this.history.slice(-this.maxHistory);
+    }
   }
 
   findTiming(text: string): { startTime: number; endTime: number } | null {
@@ -57,7 +93,30 @@ export class SubtitleTimingTracker {
     };
   }
 
-  private findFuzzyMatch(text: string): { startTime: number; endTime: number } | null {
+  /**
+   * Get recent subtitle blocks in chronological order.
+   * Returns the last `count` subtitle events (oldest → newest).
+   * Blocks preserve internal line breaks and are joined with blank lines.
+   */
+  getRecentBlocks(count: number): string[] {
+    if (count <= 0) return [];
+    if (count > this.history.length) {
+      count = this.history.length;
+    }
+    return this.history.slice(-count).map((entry) => entry.displayText);
+  }
+
+  /**
+   * Get display text for the most recent subtitle.
+   */
+  getCurrentSubtitle(): string | null {
+    const lastEntry = this.history[this.history.length - 1];
+    return lastEntry ? lastEntry.displayText : null;
+  }
+
+  private findFuzzyMatch(
+    text: string,
+  ): { startTime: number; endTime: number } | null {
     let bestMatch: TimingEntry | null = null;
     let bestScore = 0;
 
@@ -96,7 +155,7 @@ export class SubtitleTimingTracker {
       for (let j = 1; j <= longer.length; j++) {
         let newValue = costs[j - 1] || 0;
         if (longer.charAt(j - 1) !== shorter.charAt(i - 1)) {
-          newValue = Math.min(Math.min(newValue, lastValue), (costs[j] || 0)) + 1;
+          newValue = Math.min(Math.min(newValue, lastValue), costs[j] || 0) + 1;
         }
         costs[j - 1] = lastValue;
         lastValue = newValue;
@@ -116,6 +175,15 @@ export class SubtitleTimingTracker {
       .trim();
   }
 
+  private prepareDisplayText(text: string): string {
+    // Convert ASS/SSA newlines to real newlines, strip tags
+    return text
+      .replace(/\\N/g, "\n")
+      .replace(/\\n/g, "\n")
+      .replace(/{[^}]*}/g, "")
+      .trim();
+  }
+
   private startCleanup(): void {
     this.cleanupInterval = setInterval(() => {
       this.cleanup();
@@ -124,11 +192,16 @@ export class SubtitleTimingTracker {
 
   cleanup(): void {
     const now = Date.now();
+    // Clean up old timing entries
     for (const [key, entry] of this.timings.entries()) {
       if (now - entry.timestamp > this.ttlMs) {
         this.timings.delete(key);
       }
     }
+    // Clean up old history entries
+    this.history = this.history.filter(
+      (entry) => now - entry.timestamp <= this.ttlMs,
+    );
   }
 
   destroy(): void {
@@ -137,5 +210,6 @@ export class SubtitleTimingTracker {
       this.cleanupInterval = null;
     }
     this.timings.clear();
+    this.history = [];
   }
 }

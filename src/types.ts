@@ -93,13 +93,14 @@ export interface AnkiConnectConfig {
   imageFormat?: "jpg" | "png" | "webp";
   overwriteAudio?: boolean;
   overwriteImage?: boolean;
+  mediaInsertMode?: "append" | "prepend";
   audioPadding?: number;
   fallbackDuration?: number;
   deck?: string;
   miscInfoField?: string;
   miscInfoPattern?: string;
   highlightWord?: boolean;
-  showNotificationOnUpdate?: boolean;
+  notificationType?: "osd" | "system" | "both" | "none";
   imageQuality?: number;
   imageMaxWidth?: number;
   imageMaxHeight?: number;
@@ -107,6 +108,21 @@ export interface AnkiConnectConfig {
   animatedMaxWidth?: number;
   animatedMaxHeight?: number;
   animatedCrf?: number;
+  autoUpdateNewCards?: boolean;
+  maxMediaDuration?: number;
+  sentenceCardModel?: string;
+  sentenceCardSentenceField?: string;
+  sentenceCardAudioField?: string;
+  isLapis?: boolean;
+}
+
+export interface ShortcutsConfig {
+  copySubtitle?: string | null;
+  copySubtitleMultiple?: string | null;
+  updateLastCardFromClipboard?: string | null;
+  mineSentence?: string | null;
+  mineSentenceMultiple?: string | null;
+  multiCopyTimeoutMs?: number;
 }
 
 export interface Config {
@@ -116,6 +132,7 @@ export interface Config {
   websocket?: WebSocketConfig;
   texthooker?: TexthookerConfig;
   ankiConnect?: AnkiConnectConfig;
+  shortcuts?: ShortcutsConfig;
   auto_start_overlay?: boolean;
 }
 
@@ -136,7 +153,10 @@ export interface ElectronAPI {
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;
   getOverlayVisibility: () => Promise<boolean>;
   getCurrentSubtitle: () => Promise<SubtitleData>;
-  setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
+  setIgnoreMouseEvents: (
+    ignore: boolean,
+    options?: { forward?: boolean },
+  ) => void;
   openYomitanSettings: () => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
