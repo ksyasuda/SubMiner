@@ -1,0 +1,201 @@
+/**
+ * mpv-yomitan Example Configuration File
+ *
+ * Copy this file to: ~/.config/mpv-yomitan-overlay/config.json
+ * (Remove the comments if your JSON parser doesn't support JSONC)
+ *
+ * This file shows all available configuration options with their default values.
+ * Only include the options you want to customize - unspecified options use defaults.
+ */
+{
+  // ==========================================
+  // Texthooker Server
+  // ==========================================
+  // Control whether the browser opens automatically when texthooker starts.
+  "texthooker": {
+    // Set to false to only print the URL without opening a browser
+    "openBrowser": true,
+  },
+
+  // ==========================================
+  // WebSocket Server
+  // ==========================================
+  // Built-in WebSocket server broadcasts subtitle text to connected clients
+  // (such as texthooker-ui) for external processing.
+  //
+  // By default, uses "auto" mode: starts automatically unless mpv_websocket
+  // is detected at ~/.config/mpv/mpv_websocket (to avoid conflicts).
+  "websocket": {
+    // "auto" | true | false
+    // "auto" disables if mpv_websocket is detected
+    "enabled": "auto",
+    "port": 6677,
+  },
+
+  // ==========================================
+  // AnkiConnect Integration
+  // ==========================================
+  // Automatic Anki card creation and updates with media generation.
+  // Requires: AnkiConnect plugin installed in Anki, ffmpeg for media generation
+  "ankiConnect": {
+    // Enable AnkiConnect integration
+    "enabled": false,
+
+    // AnkiConnect API URL
+    "url": "http://127.0.0.1:8765",
+
+    // How often to check for new cards (milliseconds)
+    "pollingRate": 3000,
+
+    // Anki deck to monitor for new cards
+    "deck": "Learning::Japanese",
+
+    // Card fields for media and content
+    "audioField": "ExpressionAudio",
+    "imageField": "Picture",
+    "sentenceField": "Sentence",
+
+    // Media generation options
+    "generateAudio": true,
+    "generateImage": true,
+
+    // Image settings
+    "imageType": "static", // "static" | "avif"
+    "imageFormat": "jpg", // "jpg" | "png" | "webp"
+    "imageQuality": 92, // 1-100 (JPG/WebP only; PNG is lossless)
+    "imageMaxWidth": 1280, // null for no limit
+    "imageMaxHeight": 720, // null for no limit
+
+    // Animated AVIF settings (when imageType is "avif")
+    "animatedFps": 10, // 1-60
+    "animatedMaxWidth": 640, // null to preserve aspect ratio
+    "animatedMaxHeight": null, // null to preserve aspect ratio
+    "animatedCrf": 35, // 0-63, lower = higher quality
+
+    // Audio clip settings
+    "audioPadding": 0.5, // seconds of padding around clip
+    "fallbackDuration": 3.0, // default duration if timing unavailable
+
+    // Media update behavior
+    "overwriteAudio": true, // true = replace; false = append/prepend
+    "overwriteImage": true, // true = replace; false = append/prepend
+    "mediaInsertMode": "append", // "append" | "prepend" (when overwrite is false)
+
+    // Metadata field
+    "miscInfoField": "Info", // optional, null to disable
+    "miscInfoPattern": "[mpv-yomitan] %f (%t)", // %f=filename, %F=filename+ext, %t=time
+
+    // UI options
+    "highlightWord": true,
+    "notificationType": "osd", // "osd" | "system" | "both" | "none"
+
+    // Card update behavior
+    "autoUpdateNewCards": true, // false = use manual shortcuts instead
+    "maxMediaDuration": 30, // 0 to disable limit
+
+    // Sentence card mining
+    "sentenceCardModel": "Japanese sentences",
+    "sentenceCardSentenceField": "Sentence",
+    "sentenceCardAudioField": "SentenceAudio",
+
+    // Lapis note format compatibility
+    "isLapis": false,
+  },
+
+  // ==========================================
+  // Keyboard Shortcuts
+  // ==========================================
+  // Customize or disable overlay keyboard shortcuts.
+  // Use null to disable any shortcut.
+  "shortcuts": {
+    // Copy current subtitle to clipboard
+    "copySubtitle": "CommandOrControl+C",
+
+    // Multi-copy mode: press 1-9 for recent lines
+    "copySubtitleMultiple": "CommandOrControl+Shift+C",
+
+    // Update last added card from clipboard
+    "updateLastCardFromClipboard": "CommandOrControl+V",
+
+    // Create sentence card from current subtitle
+    "mineSentence": "CommandOrControl+S",
+
+    // Multi-mine mode: press 1-9 for recent lines
+    "mineSentenceMultiple": "CommandOrControl+Shift+S",
+
+    // Cycle secondary subtitle display mode
+    "toggleSecondarySub": "CommandOrControl+Shift+V",
+
+    // Timeout in ms for multi-copy/mine digit input
+    "multiCopyTimeoutMs": 3000,
+  },
+
+  // ==========================================
+  // Keybindings (MPV Commands)
+  // ==========================================
+  // Configure keyboard shortcuts that send commands to mpv.
+  // Key format: KeyboardEvent.code values with optional modifiers (Ctrl+, Alt+, Shift+, Meta+)
+  // Set command to null to disable a default binding.
+  // Default keybindings (these are active without any config):
+  //   Space         → ["cycle", "pause"]           (toggle pause)
+  //   Shift+KeyH    → ["sub-seek", -1]             (previous subtitle)
+  //   Shift+KeyL    → ["sub-seek", 1]              (next subtitle)
+  //   Ctrl+Shift+KeyH → ["__replay-subtitle"]      (replay current subtitle, pause at end)
+  //   Ctrl+Shift+KeyL → ["__play-next-subtitle"]   (play next subtitle, pause at end)
+  //
+  // Commands prefixed with "__" are handled internally by the overlay.
+  // Set command to null to disable a default binding (e.g., { "key": "KeyH", "command": null }).
+  "keybindings": [
+    { "key": "ArrowRight", "command": ["seek", 5] },
+    { "key": "ArrowLeft", "command": ["seek", -5] },
+    { "key": "Shift+ArrowRight", "command": ["seek", 30] },
+    // { "key": "KeyR", "command": ["script-binding", "immersive/auto-replay"] },
+    // { "key": "KeyA", "command": ["script-message", "ankiconnect-add-note"] }
+  ],
+
+  // ==========================================
+  // Subtitle Appearance
+  // ==========================================
+  // Customize the appearance of primary and secondary subtitles
+  "subtitleStyle": {
+    "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif",
+    "fontSize": 35,
+    "fontColor": "#cad3f5",
+    "fontWeight": "normal", // "normal" | "bold" | "600" | etc.
+    "fontStyle": "normal", // "normal" | "italic"
+    "backgroundColor": "rgba(54, 58, 79, 0.5)",
+
+    // Secondary subtitle overrides (optional)
+    "secondary": {
+      "fontSize": 24,
+      "fontColor": "#cad3f5",
+      "backgroundColor": "transparent",
+    },
+  },
+
+  // ==========================================
+  // Secondary Subtitles
+  // ==========================================
+  // Display a second subtitle track alongside the primary
+  "secondarySub": {
+    // Language codes to auto-load (e.g., ["eng", "en"])
+    "secondarySubLanguages": ["eng", "en"],
+
+    // Auto-detect and load matching secondary subtitle track
+    "autoLoadSecondarySub": true,
+
+    // Initial display mode: "hidden" | "visible" | "hover"
+    // - hidden: not shown
+    // - visible: always shown at top
+    // - hover: shown when hovering over subtitle area
+    "defaultMode": "hover",
+  },
+
+  // ==========================================
+  // Subtitle Position
+  // ==========================================
+  // Position the subtitle overlay vertically (percentage from bottom)
+  "subtitlePosition": {
+    "yPercent": 10,
+  },
+}

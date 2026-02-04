@@ -68,7 +68,7 @@ export interface SubtitleStyle {
 
 export interface Keybinding {
   key: string;
-  command: string[] | null;
+  command: (string | number)[] | null;
 }
 
 export type SecondarySubMode = "hidden" | "visible" | "hover";
@@ -191,7 +191,7 @@ export interface ElectronAPI {
   getSubtitleStyle: () => Promise<SubtitleStyle>;
   getMecabStatus: () => Promise<MecabStatus>;
   setMecabEnabled: (enabled: boolean) => void;
-  sendMpvCommand: (command: string[]) => void;
+  sendMpvCommand: (command: (string | number)[]) => void;
   getKeybindings: () => Promise<Keybinding[]>;
   quitApp: () => void;
   toggleDevTools: () => void;

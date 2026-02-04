@@ -64,7 +64,7 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.send("set-mecab-enabled", enabled);
   },
 
-  sendMpvCommand: (command: string[]) => {
+  sendMpvCommand: (command: (string | number)[]) => {
     ipcRenderer.send("mpv-command", command);
   },
 

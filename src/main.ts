@@ -244,6 +244,10 @@ let mineSentenceEscapeShortcut: string | null = null;
 
 const DEFAULT_KEYBINDINGS: Keybinding[] = [
   { key: "Space", command: ["cycle", "pause"] },
+  { key: "Shift+KeyH", command: ["sub-seek", -1] },
+  { key: "Shift+KeyL", command: ["sub-seek", 1] },
+  { key: "Ctrl+Shift+KeyH", command: ["__replay-subtitle"] },
+  { key: "Ctrl+Shift+KeyL", command: ["__play-next-subtitle"] },
 ];
 
 const CONFIG_FILE_JSONC = path.join(CONFIG_DIR, "config.jsonc");
@@ -466,7 +470,7 @@ function loadKeybindings(): Keybinding[] {
   const { config } = loadConfig();
   const userBindings = config.keybindings || [];
 
-  const bindingMap = new Map<string, string[] | null>();
+  const bindingMap = new Map<string, (string | number)[] | null>();
 
   for (const binding of DEFAULT_KEYBINDINGS) {
     bindingMap.set(binding.key, binding.command);
@@ -697,6 +701,8 @@ class MpvIpcClient {
   public currentSubEnd = 0;
   public currentSubText = "";
   public currentSecondarySubText = "";
+  private pauseAtTime: number | null = null;
+  private pendingPauseAtSubEnd = false;
 
   constructor(socketPath: string) {
     this.socketPath = socketPath;
@@ -817,6 +823,11 @@ class MpvIpcClient {
         }
       } else if (msg.name === "sub-end") {
         this.currentSubEnd = (msg.data as number) || 0;
+        if (this.pendingPauseAtSubEnd && this.currentSubEnd > 0) {
+          this.pauseAtTime = this.currentSubEnd;
+          this.pendingPauseAtSubEnd = false;
+          this.send({ command: ["set_property", "pause", false] });
+        }
         if (subtitleTimingTracker && currentSubText) {
           subtitleTimingTracker.recordSubtitle(
             currentSubText,
@@ -831,6 +842,10 @@ class MpvIpcClient {
         }
       } else if (msg.name === "time-pos") {
         this.currentTimePos = (msg.data as number) || 0;
+        if (this.pauseAtTime !== null && this.currentTimePos >= this.pauseAtTime) {
+          this.pauseAtTime = null;
+          this.send({ command: ["set_property", "pause", true] });
+        }
       } else if (msg.name === "path") {
         this.currentVideoPath = (msg.data as string) || "";
         updateCurrentMediaPath(msg.data);
@@ -916,6 +931,16 @@ class MpvIpcClient {
     this.send({
       command: ["set_property", "sub-visibility", visible ? "yes" : "no"],
     });
+  }
+
+  replayCurrentSubtitle(): void {
+    this.pendingPauseAtSubEnd = true;
+    this.send({ command: ["sub-seek", 0] });
+  }
+
+  playNextSubtitle(): void {
+    this.pendingPauseAtSubEnd = true;
+    this.send({ command: ["sub-seek", 1] });
   }
 }
 
@@ -1682,9 +1707,15 @@ ipcMain.on("set-mecab-enabled", (_event: IpcMainEvent, enabled: boolean) => {
   }
 });
 
-ipcMain.on("mpv-command", (_event: IpcMainEvent, command: string[]) => {
+ipcMain.on("mpv-command", (_event: IpcMainEvent, command: (string | number)[]) => {
   if (mpvClient && mpvClient.connected) {
-    mpvClient.send({ command });
+    if (command[0] === "__replay-subtitle") {
+      mpvClient.replayCurrentSubtitle();
+    } else if (command[0] === "__play-next-subtitle") {
+      mpvClient.playNextSubtitle();
+    } else {
+      mpvClient.send({ command });
+    }
   }
 });
 

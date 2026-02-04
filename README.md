@@ -278,11 +278,15 @@ subminer.AppImage --help                  # Show all options
 
 ### Overlay Controls (Configurable)
 
-| Input                | Action                                   |
-| -------------------- | ---------------------------------------- |
-| `Space`              | Toggle MPV pause                         |
-| `Right-click`        | Toggle MPV pause (outside subtitle area) |
-| `Right-click + drag` | Move subtitle position (on subtitle)     |
+| Input                | Action                                              |
+| -------------------- | --------------------------------------------------- |
+| `Space`              | Toggle MPV pause                                    |
+| `Shift+H`            | Jump to previous subtitle                           |
+| `Shift+L`            | Jump to next subtitle                               |
+| `Ctrl+Shift+H`      | Replay current subtitle (play to end, then pause)   |
+| `Ctrl+Shift+L`      | Play next subtitle (jump, play to end, then pause)  |
+| `Right-click`        | Toggle MPV pause (outside subtitle area)            |
+| `Right-click + drag` | Move subtitle position (on subtitle)                |
 
 These keybindings only work when the overlay window has focus. See [Configuration](#configuration) for customization.
 
@@ -299,9 +303,28 @@ These keybindings only work when the overlay window has focus. See [Configuratio
 
 Settings are stored in `~/.config/subminer/config.json`
 
+### Configuration File
+
+See `config.example.jsonc` for a comprehensive example configuration file with all available options, default values, and detailed comments. Only include the options you want to customize in your config file.
+
+### Configuration Options Overview
+
+The configuration file includes several main sections:
+
+- **Texthooker** - Control browser opening behavior
+- **WebSocket** - Built-in subtitle broadcasting server
+- **AnkiConnect** - Automatic Anki card creation with media
+- **Shortcuts** - Overlay keyboard shortcuts
+- **Keybindings** - MPV command shortcuts
+- **Subtitle Style** - Appearance customization
+- **Secondary Subtitles** - Dual subtitle track support
+- **Subtitle Position** - Overlay vertical positioning
+
 ### Texthooker
 
 Control whether the browser opens automatically when texthooker starts:
+
+See `config.example.jsonc` for detailed configuration options.
 
 ```json
 {
@@ -318,6 +341,8 @@ Set `openBrowser` to `false` to only print the URL without opening a browser.
 The overlay includes a built-in WebSocket server that broadcasts subtitle text to connected clients (such as texthooker-ui) for external processing.
 
 By default, the server uses "auto" mode: it starts automatically unless [mpv_websocket](https://github.com/kuroahna/mpv_websocket) is detected at `~/.config/mpv/mpv_websocket`. If you have mpv_websocket installed, the built-in server is skipped to avoid conflicts.
+
+See `config.example.jsonc` for detailed configuration options.
 
 ```json
 {
@@ -337,6 +362,8 @@ By default, the server uses "auto" mode: it starts automatically unless [mpv_web
 
 Enable automatic Anki card creation and updates with media generation:
 
+See `config.example.jsonc` for detailed configuration options with all available parameters.
+
 ```json
 {
   "ankiConnect": {
@@ -346,36 +373,13 @@ Enable automatic Anki card creation and updates with media generation:
     "deck": "Learning::Japanese",
     "audioField": "ExpressionAudio",
     "imageField": "Picture",
-    "sentenceField": "Sentence",
-    "generateAudio": true,
-    "generateImage": true,
-    "imageType": "static",
-    "imageFormat": "jpg",
-    "imageQuality": 92,
-    "imageMaxWidth": 1280,
-    "imageMaxHeight": 720,
-    "audioPadding": 0.5,
-    "fallbackDuration": 3.0,
-    "overwriteAudio": true,
-    "overwriteImage": true,
-    "mediaInsertMode": "append",
-    "miscInfoField": "Info",
-    "miscInfoPattern": "[mpv-yomitan] %f (%t)",
-    "highlightWord": true,
-    "notificationType": "osd",
-    "animatedFps": 10,
-    "animatedMaxWidth": 640,
-    "animatedMaxHeight": null,
-    "animatedCrf": 35,
-    "autoUpdateNewCards": true,
-    "maxMediaDuration": 30,
-    "sentenceCardModel": "Japanese sentences",
-    "sentenceCardSentenceField": "Sentence",
-    "sentenceCardAudioField": "SentenceAudio",
-    "isLapis": false
+    "sentenceField": "Sentence"
+    // ... many more options available in config.example.jsonc
   }
 }
 ```
+
+**Requirements:** [AnkiConnect](https://github.com/FooSoft/anki-connect) plugin must be installed and running in Anki. ffmpeg must be installed for media generation.
 
 | Option                     | Values                     | Description                                                                 |
 | -------------------------- | -------------------------- | --------------------------------------------------------------------------- |
@@ -391,11 +395,11 @@ Enable automatic Anki card creation and updates with media generation:
 | `imageType`                | `"static"`, `"avif"`       | Image type: static screenshot or animated AVIF (default: `"static"`)        |
 | `imageFormat`              | `"jpg"`, `"png"`, `"webp"` | Image format (default: `"jpg"`)                                             |
 | `imageQuality`             | number (1-100)             | Image quality for JPG/WebP; PNG ignores this (default: `92`)                |
-| `imageMaxWidth`            | number (px)                | Max width for images; preserves aspect ratio (default: `undefined`)         |
-| `imageMaxHeight`           | number (px)                | Max height for images; preserves aspect ratio (default: `undefined`)        |
+| `imageMaxWidth`            | number (px)                | Max width for images; preserves aspect ratio (default: `1280`)             |
+| `imageMaxHeight`           | number (px)                | Max height for images; preserves aspect ratio (default: `720`)              |
 | `animatedFps`              | number (1-60)              | FPS for animated AVIF (default: `10`)                                       |
 | `animatedMaxWidth`         | number (px)                | Max width for animated AVIF (default: `640`)                                |
-| `animatedMaxHeight`        | number (px)                | Max height for animated AVIF; preserves aspect ratio (default: `undefined`) |
+| `animatedMaxHeight`        | number (px)                | Max height for animated AVIF; preserves aspect ratio (default: `null`)     |
 | `animatedCrf`              | number (0-63)              | CRF quality for AVIF; lower = higher quality (default: `35`)                |
 | `audioPadding`             | number (seconds)           | Padding around audio clip timing (default: `0.5`)                           |
 | `fallbackDuration`         | number (seconds)           | Default duration if timing unavailable (default: `3.0`)                     |
@@ -420,6 +424,8 @@ Enable automatic Anki card creation and updates with media generation:
 - WebP quality uses FFmpeg's native 0-100 scale
 
 **Requirements:** [AnkiConnect](https://github.com/FooSoft/anki-connect) plugin must be installed and running in Anki. ffmpeg must be installed for media generation.
+
+**See `config.example.jsonc`** for the complete list of AnkiConnect configuration options.
 
 **Manual Card Update:**
 
@@ -447,6 +453,8 @@ These shortcuts are only active when the overlay window is visible. They are aut
 
 Customize or disable the overlay keyboard shortcuts:
 
+See `config.example.jsonc` for detailed configuration options.
+
 ```json
 {
   "shortcuts": {
@@ -470,22 +478,35 @@ Customize or disable the overlay keyboard shortcuts:
 | `multiCopyTimeoutMs`          | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                |
 | `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`) |
 
+**See `config.example.jsonc`** for the complete list of shortcut configuration options. |
+
 Set any shortcut to `null` to disable it.
 
 ### Keybindings
 
 Add a `keybindings` array to configure keyboard shortcuts that send commands to mpv:
 
+See `config.example.jsonc` for detailed configuration options and more examples.
+
+**Default keybindings:**
+
+| Key              | Command                  | Description                              |
+| ---------------- | ------------------------ | ---------------------------------------- |
+| Key              | Command                  | Description                              |
+| `Space`          | `["cycle", "pause"]`     | Toggle pause                             |
+| `Shift+KeyH`    | `["sub-seek", -1]`      | Jump to previous subtitle                |
+| `Shift+KeyL`    | `["sub-seek", 1]`       | Jump to next subtitle                    |
+| `Ctrl+Shift+KeyH`| `["__replay-subtitle"]` | Replay current subtitle, pause at end    |
+| `Ctrl+Shift+KeyL`| `["__play-next-subtitle"]` | Play next subtitle, pause at end      |
+
+**Custom keybindings example:**
+
 ```json
 {
-  "subtitlePosition": { "yPercent": 10 },
   "keybindings": [
-    { "key": "Space", "command": ["cycle", "pause"] },
     { "key": "ArrowRight", "command": ["seek", 5] },
     { "key": "ArrowLeft", "command": ["seek", -5] },
     { "key": "Shift+ArrowRight", "command": ["seek", 30] },
-    { "key": "KeyJ", "command": ["sub-seek", -1] },
-    { "key": "KeyL", "command": ["sub-seek", 1] },
     { "key": "KeyR", "command": ["script-binding", "immersive/auto-replay"] },
     { "key": "KeyA", "command": ["script-message", "ankiconnect-add-note"] }
   ]
@@ -500,11 +521,17 @@ Add a `keybindings` array to configure keyboard shortcuts that send commands to 
 { "key": "Space", "command": null }
 ```
 
+**Special commands:** Commands prefixed with `__` are handled internally by the overlay rather than sent to mpv. `__replay-subtitle` replays the current subtitle and pauses at its end. `__play-next-subtitle` seeks to the next subtitle, plays it, and pauses at its end.
+
 **Supported commands:** Any valid mpv JSON IPC command array (`["cycle", "pause"]`, `["seek", 5]`, `["script-binding", "..."]`, etc.)
+
+**See `config.example.jsonc`** for more keybinding examples and configuration options.
 
 ### Subtitle Style
 
 Customize the appearance of primary and secondary subtitles:
+
+See `config.example.jsonc` for detailed configuration options.
 
 ```json
 {
@@ -536,9 +563,13 @@ Customize the appearance of primary and secondary subtitles:
 
 Secondary subtitle defaults: `fontSize: 24`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
 
+**See `config.example.jsonc`** for the complete list of subtitle style configuration options.
+
 ### Secondary Subtitles
 
 Display a second subtitle track (e.g., English alongside Japanese) in the overlay:
+
+See `config.example.jsonc` for detailed configuration options.
 
 ```json
 {
@@ -561,6 +592,8 @@ Display a second subtitle track (e.g., English alongside Japanese) in the overla
 - **hidden** — Secondary subtitles not shown
 - **visible** — Always visible at top of overlay
 - **hover** — Only visible when hovering over the subtitle area (default)
+
+**See `config.example.jsonc`** for additional secondary subtitle configuration options.
 
 ## Environment Variables
 

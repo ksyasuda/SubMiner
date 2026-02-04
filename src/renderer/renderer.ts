@@ -33,7 +33,7 @@ interface SubtitleData {
 
 interface Keybinding {
   key: string;
-  command: string[] | null;
+  command: (string | number)[] | null;
 }
 
 interface SubtitlePosition {
@@ -276,7 +276,7 @@ function keyEventToString(e: KeyboardEvent): string {
   return parts.join('+');
 }
 
-let keybindingsMap = new Map<string, string[]>();
+let keybindingsMap = new Map<string, (string | number)[]>();
 
 type ChordAction =
   | { type: 'mpv'; command: string[] }
