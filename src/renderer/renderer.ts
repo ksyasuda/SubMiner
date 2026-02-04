@@ -233,6 +233,33 @@ function keyEventToString(e: KeyboardEvent): string {
 
 let keybindingsMap = new Map<string, string[]>();
 
+type ChordAction =
+  | { type: 'mpv'; command: string[] }
+  | { type: 'electron'; action: () => void }
+  | { type: 'noop' };
+
+const CHORD_MAP = new Map<string, ChordAction>([
+  ['KeyT', { type: 'electron', action: () => window.electronAPI.toggleOverlay() }],
+  ['Shift+KeyS', { type: 'electron', action: () => window.electronAPI.quitApp() }],
+  ['KeyO', { type: 'electron', action: () => window.electronAPI.openYomitanSettings() }],
+  ['KeyR', { type: 'mpv', command: ['script-message', 'mpv-yomitan-restart'] }],
+  ['KeyC', { type: 'mpv', command: ['script-message', 'mpv-yomitan-status'] }],
+  ['KeyY', { type: 'mpv', command: ['script-message', 'mpv-yomitan-menu'] }],
+  ['KeyD', { type: 'electron', action: () => window.electronAPI.toggleDevTools() }],
+  ['KeyS', { type: 'noop' }],
+]);
+
+let chordPending = false;
+let chordTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function resetChord(): void {
+  chordPending = false;
+  if (chordTimeout !== null) {
+    clearTimeout(chordTimeout);
+    chordTimeout = null;
+  }
+}
+
 async function setupMpvInputForwarding(): Promise<void> {
   const keybindings: Keybinding[] = await window.electronAPI.getKeybindings();
   keybindingsMap = new Map();
@@ -243,7 +270,38 @@ async function setupMpvInputForwarding(): Promise<void> {
   }
 
   document.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (isInteractiveTarget(document.activeElement)) return;
+    const yomitanPopup = document.querySelector('iframe[id^="yomitan-popup"]');
+    if (yomitanPopup) return;
+
+    if (chordPending) {
+      const modifierKeys = ['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
+                            'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'];
+      if (modifierKeys.includes(e.code)) {
+        return;
+      }
+
+      e.preventDefault();
+      const secondKey = keyEventToString(e);
+      const action = CHORD_MAP.get(secondKey);
+      resetChord();
+      if (action) {
+        if (action.type === 'mpv') {
+          window.electronAPI.sendMpvCommand(action.command);
+        } else if (action.type === 'electron') {
+          action.action();
+        }
+      }
+      return;
+    }
+
+    if (e.code === 'KeyY' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && !e.repeat) {
+      e.preventDefault();
+      chordPending = true;
+      chordTimeout = setTimeout(() => {
+        resetChord();
+      }, 1000);
+      return;
+    }
 
     const keyString = keyEventToString(e);
     const command = keybindingsMap.get(keyString);

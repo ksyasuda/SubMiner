@@ -90,9 +90,17 @@ cp plugin/mpv-yomitan.conf ~/.config/mpv/script-opts/
 
 #### Plugin Keybindings
 
+All keybindings use chord sequences starting with `y`:
+
 | Keybind | Action                                   |
 | ------- | ---------------------------------------- |
-| `y`     | Open mpv-yomitan menu (fuzzy-searchable) |
+| `y-y`   | Open mpv-yomitan menu (fuzzy-searchable) |
+| `y-s`   | Start overlay                            |
+| `y-S`   | Stop overlay                             |
+| `y-t`   | Toggle overlay                           |
+| `y-o`   | Open Yomitan settings                    |
+| `y-r`   | Restart overlay                          |
+| `y-c`   | Check overlay status                     |
 
 The menu provides options to start/stop/toggle the overlay and open settings. Type to filter or use arrow keys to navigate.
 
@@ -111,7 +119,7 @@ socket_path=/tmp/mpv-yomitan-socket
 texthooker_enabled=yes
 
 # Texthooker WebSocket port
-texthooker_port=8765
+texthooker_port=5174
 
 # Window manager backend: auto, hyprland, sway, x11
 backend=auto
@@ -121,9 +129,6 @@ auto_start=no
 
 # Automatically show overlay (hide mpv subtitles) when overlay starts
 auto_start_overlay=yes
-
-# Keybinding to open the mpv-yomitan menu
-key_menu=y
 
 # Show OSD messages for overlay status
 osd_messages=yes
@@ -143,7 +148,7 @@ There are two ways to use mpv-yomitan:
 | Approach        | Best For                                                                                                                                                             |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **ympv script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, starts the overlay automatically, and cleans up on exit.                         |
-| **MPV plugin**  | When you launch MPV yourself or from other tools. Provides an in-MPV menu (press `y`) to control the overlay. Requires `--input-ipc-server=/tmp/mpv-yomitan-socket`. |
+| **MPV plugin**  | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control the overlay. Requires `--input-ipc-server=/tmp/mpv-yomitan-socket`. |
 
 You can use both together—install the plugin for on-demand control, but use `ympv` when you want the streamlined workflow.
 

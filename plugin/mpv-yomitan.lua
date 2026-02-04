@@ -12,7 +12,6 @@ local opts = {
 	backend = "auto",
 	auto_start = false,
 	auto_start_overlay = true,
-	key_menu = "y",
 	osd_messages = true,
 }
 
@@ -162,13 +161,13 @@ local function stop_overlay()
 		capture_stderr = true,
 	})
 
+	state.overlay_running = false
 	if result.status == 0 then
-		state.overlay_running = false
 		msg.info("Overlay stopped")
-		show_osd("Stopped")
 	else
-		msg.warn("Stop command returned non-zero status (overlay may not have been running)")
+		msg.warn("Stop command returned non-zero status: " .. tostring(result.status))
 	end
+	show_osd("Stopped")
 end
 
 local function toggle_overlay()
@@ -189,10 +188,7 @@ local function toggle_overlay()
 		capture_stderr = true,
 	})
 
-	if result.status == 0 then
-		msg.info("Overlay toggled")
-		show_osd("Toggled")
-	else
+	if result and result.status ~= 0 then
 		msg.warn("Toggle command failed")
 		show_osd("Toggle failed")
 	end
@@ -222,6 +218,98 @@ local function open_options()
 	end
 end
 
+local restart_overlay
+local check_status
+
+local function show_menu()
+	if not state.binary_available then
+		msg.error("mpv-yomitan binary not found")
+		show_osd("Error: binary not found")
+		return
+	end
+
+	local items = {
+		"Start overlay",
+		"Stop overlay",
+		"Toggle overlay",
+		"Open options",
+		"Restart overlay",
+		"Check status",
+	}
+
+	local actions = {
+		start_overlay,
+		stop_overlay,
+		toggle_overlay,
+		open_options,
+		restart_overlay,
+		check_status,
+	}
+
+	input.select({
+		prompt = "mpv-yomitan: ",
+		items = items,
+		submit = function(index)
+			if index and actions[index] then
+				actions[index]()
+			end
+		end,
+	})
+end
+
+restart_overlay = function()
+	if not state.binary_available then
+		msg.error("mpv-yomitan binary not found")
+		show_osd("Error: binary not found")
+		return
+	end
+
+	msg.info("Restarting overlay...")
+	show_osd("Restarting...")
+
+	local stop_args = build_command_args("stop")
+	mp.command_native({
+		name = "subprocess",
+		args = stop_args,
+		playback_only = false,
+		capture_stdout = true,
+		capture_stderr = true,
+	})
+
+	state.overlay_running = false
+
+	local start_args = build_command_args("start")
+	msg.info("Starting overlay: " .. table.concat(start_args, " "))
+
+	state.overlay_running = true
+	mp.command_native_async({
+		name = "subprocess",
+		args = start_args,
+		playback_only = false,
+		capture_stdout = true,
+		capture_stderr = true,
+	}, function(success, result, error)
+		state.overlay_running = false
+		if not success or (result and result.status ~= 0) then
+			msg.error("Overlay stopped unexpectedly: " .. (error or (result and result.stderr) or "unknown error"))
+			show_osd("Restart failed - overlay stopped unexpectedly")
+		else
+			show_osd("Restarted successfully")
+		end
+	end)
+end
+
+check_status = function()
+	if not state.binary_available then
+		show_osd("Status: binary not found")
+		return
+	end
+
+	local status = state.overlay_running and "running" or "stopped"
+	show_osd("Status: overlay is " .. status)
+	msg.info("Status check: overlay is " .. status)
+end
+
 local function on_file_loaded()
 	state.binary_path = find_binary()
 	if state.binary_path then
@@ -247,40 +335,14 @@ local function on_shutdown()
 	end
 end
 
-local function show_menu()
-	if not state.binary_available then
-		msg.error("mpv-yomitan binary not found")
-		show_osd("Error: binary not found")
-		return
-	end
-
-	local items = {
-		"Start overlay",
-		"Stop overlay",
-		"Toggle overlay",
-		"Open options",
-	}
-
-	local actions = {
-		start_overlay,
-		stop_overlay,
-		toggle_overlay,
-		open_options,
-	}
-
-	input.select({
-		prompt = "mpv-yomitan: ",
-		items = items,
-		submit = function(index)
-			if index and actions[index] then
-				actions[index]()
-			end
-		end,
-	})
-end
-
 local function register_keybindings()
-	mp.add_key_binding(opts.key_menu, "mpv-yomitan-menu", show_menu)
+	mp.add_key_binding("y-s", "mpv-yomitan-start", start_overlay)
+	mp.add_key_binding("y-S", "mpv-yomitan-stop", stop_overlay)
+	mp.add_key_binding("y-t", "mpv-yomitan-toggle", toggle_overlay)
+	mp.add_key_binding("y-y", "mpv-yomitan-menu", show_menu)
+	mp.add_key_binding("y-o", "mpv-yomitan-options", open_options)
+	mp.add_key_binding("y-r", "mpv-yomitan-restart", restart_overlay)
+	mp.add_key_binding("y-c", "mpv-yomitan-status", check_status)
 end
 
 local function register_script_messages()
@@ -288,6 +350,9 @@ local function register_script_messages()
 	mp.register_script_message("mpv-yomitan-stop", stop_overlay)
 	mp.register_script_message("mpv-yomitan-toggle", toggle_overlay)
 	mp.register_script_message("mpv-yomitan-menu", show_menu)
+	mp.register_script_message("mpv-yomitan-options", open_options)
+	mp.register_script_message("mpv-yomitan-restart", restart_overlay)
+	mp.register_script_message("mpv-yomitan-status", check_status)
 end
 
 local function init()

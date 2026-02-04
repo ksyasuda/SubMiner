@@ -28,7 +28,7 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on("mpv:subVisibility", (_event: IpcRendererEvent, visible: boolean) => callback(visible));
   },
 
-  getSubVisibility: (): Promise<boolean> => ipcRenderer.invoke("get-sub-visibility"),
+  getOverlayVisibility: (): Promise<boolean> => ipcRenderer.invoke("get-overlay-visibility"),
   getCurrentSubtitle: (): Promise<SubtitleData> => ipcRenderer.invoke("get-current-subtitle"),
 
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
@@ -54,6 +54,18 @@ const electronAPI: ElectronAPI = {
   },
 
   getKeybindings: (): Promise<Keybinding[]> => ipcRenderer.invoke("get-keybindings"),
+
+  quitApp: () => {
+    ipcRenderer.send("quit-app");
+  },
+
+  toggleDevTools: () => {
+    ipcRenderer.send("toggle-dev-tools");
+  },
+
+  toggleOverlay: () => {
+    ipcRenderer.send("toggle-overlay");
+  },
 };
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI);

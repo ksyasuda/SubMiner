@@ -81,7 +81,6 @@ export interface Config {
   keybindings?: Keybinding[];
   websocket?: WebSocketConfig;
   texthooker?: TexthookerConfig;
-  auto_start_overlay?: boolean;
 }
 
 export interface SubtitleData {
@@ -98,7 +97,7 @@ export interface MecabStatus {
 export interface ElectronAPI {
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
   onVisibility: (callback: (visible: boolean) => void) => void;
-  getSubVisibility: () => Promise<boolean>;
+  getOverlayVisibility: () => Promise<boolean>;
   getCurrentSubtitle: () => Promise<SubtitleData>;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   openYomitanSettings: () => void;
@@ -108,6 +107,9 @@ export interface ElectronAPI {
   setMecabEnabled: (enabled: boolean) => void;
   sendMpvCommand: (command: string[]) => void;
   getKeybindings: () => Promise<Keybinding[]>;
+  quitApp: () => void;
+  toggleDevTools: () => void;
+  toggleOverlay: () => void;
 }
 
 declare global {

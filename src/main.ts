@@ -88,7 +88,7 @@ let yomitanSettingsWindow: BrowserWindow | null = null;
 let mpvClient: MpvIpcClient | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let currentSubText = "";
-let subVisibility = true;
+let overlayVisible = false;
 let windowTracker: BaseWindowTracker | null = null;
 let subtitlePosition: SubtitlePosition | null = null;
 let mecabTokenizer: MecabTokenizer | null = null;
@@ -320,6 +320,82 @@ if (!gotTheLock) {
   if (!isStartCommand && !isHelpCommand) {
     console.error("No running instance. Use --start to launch the app.");
     app.quit();
+  } else {
+    app.whenReady().then(async () => {
+      loadSubtitlePosition();
+      loadKeybindings();
+
+      mpvClient = new MpvIpcClient(MPV_SOCKET_PATH);
+      mpvClient.connect();
+
+      const { config } = loadConfig();
+      const wsConfig = config.websocket || {};
+      const wsEnabled = wsConfig.enabled ?? "auto";
+      const wsPort = wsConfig.port || DEFAULT_WEBSOCKET_PORT;
+
+      if (wsEnabled === true || (wsEnabled === "auto" && !hasMpvWebsocket())) {
+        startSubtitleWebSocketServer(wsPort);
+      } else if (wsEnabled === "auto") {
+        console.log("mpv_websocket detected, skipping built-in WebSocket server");
+      }
+
+      mecabTokenizer = new MecabTokenizer();
+      await mecabTokenizer.checkAvailability();
+
+      await loadYomitanExtension();
+      createMainWindow();
+      registerGlobalShortcuts();
+
+      windowTracker = createWindowTracker();
+      if (windowTracker) {
+        windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
+          updateOverlayBounds(geometry);
+        };
+        windowTracker.onWindowFound = (geometry: WindowGeometry) => {
+          console.log("MPV window found:", geometry);
+          updateOverlayBounds(geometry);
+          if (overlayVisible) {
+            updateOverlayVisibility();
+          }
+        };
+        windowTracker.onWindowLost = () => {
+          console.log("MPV window lost");
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.hide();
+          }
+        };
+        windowTracker.start();
+      }
+
+      handleInitialArgs();
+    });
+
+    app.on("window-all-closed", () => {
+      if (process.platform !== "darwin") {
+        app.quit();
+      }
+    });
+
+    app.on("will-quit", () => {
+      globalShortcut.unregisterAll();
+      stopSubtitleWebSocketServer();
+      stopTexthookerServer();
+      if (windowTracker) {
+        windowTracker.stop();
+      }
+      if (mpvClient && mpvClient.socket) {
+        mpvClient.socket.destroy();
+      }
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+    });
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createMainWindow();
+      }
+    });
   }
 }
 
@@ -328,21 +404,15 @@ function handleCliCommand(argv: string[]): void {
     console.log("Stopping mpv-yomitan-overlay...");
     app.quit();
   } else if (argv.includes("--toggle")) {
-    if (mpvClient && mpvClient.connected) {
-      mpvClient.toggleSubVisibility();
-    }
+    toggleOverlay();
   } else if (argv.includes("--settings") || argv.includes("--yomitan")) {
     setTimeout(() => {
       openYomitanSettings();
     }, 1000);
   } else if (argv.includes("--show")) {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-    }
+    setOverlayVisible(true);
   } else if (argv.includes("--hide")) {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.hide();
-    }
+    setOverlayVisible(false);
   } else if (argv.includes("--texthooker")) {
     if (!texthookerServer) {
       startTexthookerServer();
@@ -388,6 +458,7 @@ class MpvIpcClient {
   private buffer = "";
   public connected = false;
   private reconnectAttempt = 0;
+  private firstConnection = true;
 
   constructor(socketPath: string) {
     this.socketPath = socketPath;
@@ -407,13 +478,16 @@ class MpvIpcClient {
       this.subscribeToProperties();
       this.getInitialState();
 
-      const shouldAutoStart = autoStartOverlay || (loadConfig().config.auto_start_overlay !== false);
-      if (shouldAutoStart) {
+      if (this.firstConnection && autoStartOverlay) {
         console.log("Auto-starting overlay, hiding mpv subtitles");
         setTimeout(() => {
-          this.setSubVisibility(false);
+          setOverlayVisible(true);
         }, 100);
+      } else {
+        this.setSubVisibility(!overlayVisible);
       }
+
+      this.firstConnection = false;
     });
 
     this.socket.on("data", (data: Buffer) => {
@@ -480,21 +554,9 @@ class MpvIpcClient {
           const subtitleData = await tokenizeSubtitle(currentSubText);
           mainWindow.webContents.send("subtitle:set", subtitleData);
         }
-      } else if (msg.name === "sub-visibility") {
-        subVisibility = msg.data === true || msg.data === "yes";
-        console.log(
-          "sub-visibility changed:",
-          msg.data,
-          "-> subVisibility:",
-          subVisibility,
-        );
-        updateOverlayVisibility();
       }
     } else if (msg.data !== undefined && msg.request_id) {
-      if (msg.request_id === 100) {
-        subVisibility = msg.data === true || msg.data === "yes";
-        updateOverlayVisibility();
-      } else if (msg.request_id === 101) {
+      if (msg.request_id === 101) {
         currentSubText = (msg.data as string) || "";
         broadcastSubtitle(currentSubText);
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -517,17 +579,10 @@ class MpvIpcClient {
 
   private subscribeToProperties(): void {
     this.send({ command: ["observe_property", 1, "sub-text"] });
-    this.send({ command: ["observe_property", 2, "sub-visibility"] });
   }
 
   private getInitialState(): void {
-    this.send({ command: ["get_property", "sub-visibility"], request_id: 100 });
     this.send({ command: ["get_property", "sub-text"], request_id: 101 });
-  }
-
-  toggleSubVisibility(): void {
-    console.log("Sending sub-visibility toggle to MPV");
-    this.send({ command: ["cycle", "sub-visibility"] });
   }
 
   setSubVisibility(visible: boolean): void {
@@ -579,14 +634,14 @@ function updateOverlayBounds(geometry: WindowGeometry): void {
 }
 
 function updateOverlayVisibility(): void {
-  console.log("updateOverlayVisibility called, subVisibility:", subVisibility);
+  console.log("updateOverlayVisibility called, overlayVisible:", overlayVisible);
   if (!mainWindow || mainWindow.isDestroyed()) {
     console.log("mainWindow not available");
     return;
   }
 
-  if (subVisibility) {
-    console.log("Hiding overlay (subs visible)");
+  if (!overlayVisible) {
+    console.log("Hiding overlay");
     mainWindow.hide();
   } else {
     console.log(
@@ -607,6 +662,18 @@ function updateOverlayVisibility(): void {
       mainWindow.focus();
     }
   }
+}
+
+function setOverlayVisible(visible: boolean): void {
+  overlayVisible = visible;
+  updateOverlayVisibility();
+  if (mpvClient && mpvClient.connected) {
+    mpvClient.setSubVisibility(!visible);
+  }
+}
+
+function toggleOverlay(): void {
+  setOverlayVisible(!overlayVisible);
 }
 
 function ensureExtensionCopy(sourceDir: string): string {
@@ -823,15 +890,7 @@ function openYomitanSettings(): void {
 
 function registerGlobalShortcuts(): void {
   globalShortcut.register("Alt+Shift+O", () => {
-    console.log(
-      "Toggle shortcut pressed, mpvClient connected:",
-      mpvClient?.connected,
-    );
-    if (mpvClient && mpvClient.connected) {
-      mpvClient.toggleSubVisibility();
-    } else {
-      console.log("MPV client not connected, cannot toggle");
-    }
+    toggleOverlay();
   });
 
   globalShortcut.register("Alt+Shift+Y", () => {
@@ -857,8 +916,22 @@ ipcMain.on("open-yomitan-settings", () => {
   openYomitanSettings();
 });
 
-ipcMain.handle("get-sub-visibility", () => {
-  return subVisibility;
+ipcMain.on("quit-app", () => {
+  app.quit();
+});
+
+ipcMain.on("toggle-dev-tools", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.toggleDevTools();
+  }
+});
+
+ipcMain.handle("get-overlay-visibility", () => {
+  return overlayVisible;
+});
+
+ipcMain.on("toggle-overlay", () => {
+  toggleOverlay();
 });
 
 ipcMain.handle("get-current-subtitle", async () => {
@@ -896,78 +969,3 @@ ipcMain.handle("get-keybindings", () => {
   return keybindings;
 });
 
-app.whenReady().then(async () => {
-  loadSubtitlePosition();
-  loadKeybindings();
-
-  mpvClient = new MpvIpcClient(MPV_SOCKET_PATH);
-  mpvClient.connect();
-
-  const { config } = loadConfig();
-  const wsConfig = config.websocket || {};
-  const wsEnabled = wsConfig.enabled ?? "auto";
-  const wsPort = wsConfig.port || DEFAULT_WEBSOCKET_PORT;
-
-  if (wsEnabled === true || (wsEnabled === "auto" && !hasMpvWebsocket())) {
-    startSubtitleWebSocketServer(wsPort);
-  } else if (wsEnabled === "auto") {
-    console.log("mpv_websocket detected, skipping built-in WebSocket server");
-  }
-
-  mecabTokenizer = new MecabTokenizer();
-  await mecabTokenizer.checkAvailability();
-
-  await loadYomitanExtension();
-  createMainWindow();
-  registerGlobalShortcuts();
-
-  windowTracker = createWindowTracker();
-  if (windowTracker) {
-    windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
-      updateOverlayBounds(geometry);
-    };
-    windowTracker.onWindowFound = (geometry: WindowGeometry) => {
-      console.log("MPV window found:", geometry);
-      updateOverlayBounds(geometry);
-      if (!subVisibility) {
-        updateOverlayVisibility();
-      }
-    };
-    windowTracker.onWindowLost = () => {
-      console.log("MPV window lost");
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.hide();
-      }
-    };
-    windowTracker.start();
-  }
-
-  handleInitialArgs();
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-app.on("will-quit", () => {
-  globalShortcut.unregisterAll();
-  stopSubtitleWebSocketServer();
-  stopTexthookerServer();
-  if (windowTracker) {
-    windowTracker.stop();
-  }
-  if (mpvClient && mpvClient.socket) {
-    mpvClient.socket.destroy();
-  }
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-  }
-});
-
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createMainWindow();
-  }
-});
