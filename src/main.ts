@@ -1,5 +1,5 @@
 /*
-  mpv-yomitan - Yomitan integration for mpv
+  SubMiner - All-in-one sentence mining overlay
   Copyright (C) 2024 sudacode
 
   This program is free software: you can redistribute it and/or modify
@@ -47,28 +47,25 @@ import * as os from "os";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import WebSocket from "ws";
-import { parse as parseJsonc } from "jsonc-parser";
-import { MecabTokenizer } from "./mecab-tokenizer";
-import { mergeTokens } from "./token-merger";
-import { createWindowTracker, BaseWindowTracker } from "./window-trackers";
-import {
-  Config,
-  SubtitleData,
-  SubtitlePosition,
-  Keybinding,
-  WindowGeometry,
-} from "./types";
+	import { parse as parseJsonc } from "jsonc-parser";
+	import { MecabTokenizer } from "./mecab-tokenizer";
+	import { mergeTokens } from "./token-merger";
+	import { createWindowTracker, BaseWindowTracker, type Backend } from "./window-trackers";
+	import {
+	  Config,
+	  SubtitleData,
+	  SubtitlePosition,
+	  Keybinding,
+	  WindowGeometry,
+	} from "./types";
 
-const MPV_SOCKET_PATH = "/tmp/mpv-yomitan-socket";
-const TEXTHOOKER_PORT = 5174;
+const DEFAULT_MPV_SOCKET_PATH = "/tmp/subminer-socket";
+const DEFAULT_TEXTHOOKER_PORT = 5174;
 const DEFAULT_WEBSOCKET_PORT = 6677;
 let texthookerServer: http.Server | null = null;
 let subtitleWebSocketServer: WebSocket.Server | null = null;
-const USER_DATA_PATH = path.join(
-  os.homedir(),
-  ".config",
-  "mpv-yomitan-overlay",
-);
+const CONFIG_DIR = path.join(os.homedir(), ".config", "subminer");
+const USER_DATA_PATH = CONFIG_DIR;
 const isDev = process.argv.includes("--dev");
 
 if (!fs.existsSync(USER_DATA_PATH)) {
@@ -100,14 +97,41 @@ const DEFAULT_KEYBINDINGS: Keybinding[] = [
   { key: "Space", command: ["cycle", "pause"] },
 ];
 
-const CONFIG_DIR = path.join(
-  os.homedir(),
-  ".config",
-  "mpv-yomitan-overlay",
-);
 const CONFIG_FILE_JSONC = path.join(CONFIG_DIR, "config.jsonc");
 const CONFIG_FILE_JSON = path.join(CONFIG_DIR, "config.json");
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, "subtitle-positions");
+
+function getArgValue(argv: string[], flag: string): string | null {
+  const index = argv.indexOf(flag);
+  if (index === -1) return null;
+  const next = argv[index + 1];
+  if (!next || next.startsWith("--")) return null;
+  return next;
+}
+
+function parsePort(value: string | null, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) return fallback;
+  return parsed;
+}
+
+function parseBackend(value: string | null): Backend {
+  if (!value) return "auto";
+  if (value === "auto" || value === "hyprland" || value === "sway" || value === "x11") {
+    return value;
+  }
+  console.warn(`Unknown backend '${value}', falling back to auto`);
+  return "auto";
+}
+
+const STARTUP_MPV_SOCKET_PATH =
+  getArgValue(process.argv, "--socket") ?? DEFAULT_MPV_SOCKET_PATH;
+const STARTUP_BACKEND = parseBackend(getArgValue(process.argv, "--backend"));
+let currentTexthookerPort = parsePort(
+  getArgValue(process.argv, "--port"),
+  DEFAULT_TEXTHOOKER_PORT,
+);
 
 function getConfigFilePath(): string {
   if (fs.existsSync(CONFIG_FILE_JSONC)) return CONFIG_FILE_JSONC;
@@ -223,7 +247,7 @@ function getTexthookerPath(): string | null {
   return null;
 }
 
-function startTexthookerServer(): http.Server | null {
+function startTexthookerServer(port: number): http.Server | null {
   const texthookerPath = getTexthookerPath();
   if (!texthookerPath) {
     console.error("texthooker-ui not found");
@@ -261,9 +285,9 @@ function startTexthookerServer(): http.Server | null {
     });
   });
 
-  texthookerServer.listen(TEXTHOOKER_PORT, "127.0.0.1", () => {
+  texthookerServer.listen(port, "127.0.0.1", () => {
     console.log(
-      `Texthooker server running at http://127.0.0.1:${TEXTHOOKER_PORT}`,
+      `Texthooker server running at http://127.0.0.1:${port}`,
     );
   });
 
@@ -365,7 +389,7 @@ if (!gotTheLock) {
       loadSubtitlePosition();
       loadKeybindings();
 
-      mpvClient = new MpvIpcClient(MPV_SOCKET_PATH);
+      mpvClient = new MpvIpcClient(STARTUP_MPV_SOCKET_PATH);
       mpvClient.connect();
 
       const { config } = loadConfig();
@@ -386,7 +410,7 @@ if (!gotTheLock) {
       createMainWindow();
       registerGlobalShortcuts();
 
-      windowTracker = createWindowTracker();
+      windowTracker = createWindowTracker(STARTUP_BACKEND);
       if (windowTracker) {
         windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
           updateOverlayBounds(geometry);
@@ -441,7 +465,7 @@ if (!gotTheLock) {
 
 function handleCliCommand(argv: string[]): void {
   if (argv.includes("--stop")) {
-    console.log("Stopping mpv-yomitan-overlay...");
+    console.log("Stopping SubMiner...");
     app.quit();
   } else if (argv.includes("--toggle")) {
     toggleOverlay();
@@ -454,29 +478,35 @@ function handleCliCommand(argv: string[]): void {
   } else if (argv.includes("--hide")) {
     setOverlayVisible(false);
   } else if (argv.includes("--texthooker")) {
+    const requestedPort = parsePort(getArgValue(argv, "--port"), currentTexthookerPort);
     if (!texthookerServer) {
-      startTexthookerServer();
+      currentTexthookerPort = requestedPort;
+      startTexthookerServer(currentTexthookerPort);
     }
     const { config } = loadConfig();
     const openBrowser = config.texthooker?.openBrowser !== false;
+    const port = texthookerServer ? currentTexthookerPort : requestedPort;
     if (openBrowser) {
-      shell.openExternal(`http://127.0.0.1:${TEXTHOOKER_PORT}`);
+      shell.openExternal(`http://127.0.0.1:${port}`);
     }
-    console.log(`Texthooker available at http://127.0.0.1:${TEXTHOOKER_PORT}`);
+    console.log(`Texthooker available at http://127.0.0.1:${port}`);
   } else if (argv.includes("--help")) {
     console.log(`
-mpv-yomitan-overlay CLI commands:
-  --start             Start the overlay app (required for first launch)
-  --stop              Stop the running overlay app
-  --toggle            Toggle subtitle overlay visibility
-  --settings          Open Yomitan settings window
-  --texthooker        Start texthooker server and open browser
-  --show              Force show overlay
-  --hide              Force hide overlay
-  --auto-start-overlay  Auto-hide mpv subtitles on connect (show overlay)
-  --dev               Run in development mode
-  --help              Show this help
-`);
+	SubMiner CLI commands:
+	  --start             Start the overlay app (required for first launch)
+	  --stop              Stop the running overlay app
+	  --toggle            Toggle subtitle overlay visibility
+	  --settings          Open Yomitan settings window
+	  --texthooker        Start texthooker server and open browser
+	  --port <port>       Texthooker server port (default: 5174)
+	  --socket <path>     MPV IPC socket path (default: /tmp/subminer-socket)
+	  --backend <backend> Window backend: auto, hyprland, sway, x11 (default: auto)
+	  --show              Force show overlay
+	  --hide              Force hide overlay
+	  --auto-start-overlay  Auto-hide mpv subtitles on connect (show overlay)
+	  --dev               Run in development mode
+	  --help              Show this help
+	`);
     if (!mainWindow) app.quit();
   }
 }
@@ -761,7 +791,7 @@ async function loadYomitanExtension(): Promise<Extension | null> {
   const searchPaths = [
     path.join(__dirname, "..", "vendor", "yomitan"),
     path.join(process.resourcesPath, "yomitan"),
-    "/usr/share/mpv-yomitan-overlay/yomitan",
+    "/usr/share/subminer/yomitan",
     path.join(USER_DATA_PATH, "yomitan"),
   ];
 

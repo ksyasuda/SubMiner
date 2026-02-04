@@ -1,10 +1,10 @@
 # Maintainer: sudacode <sudacode@example.com>
-pkgname=mpv-yomitan
+pkgname=subminer
 pkgver=1.0.0
 pkgrel=1
-pkgdesc="MPV subtitle overlay with Yomitan dictionary lookup support"
+pkgdesc="All-in-one sentence mining overlay with AnkiConnect and dictionary integration"
 arch=('x86_64')
-url="https://github.com/sudacode/mpv-yomitan"
+url="https://github.com/sudacode/subminer"
 license=('GPL-3.0-or-later')
 depends=(
     'mpv'
@@ -19,17 +19,17 @@ optdepends=(
     'ffmpegthumbnailer: Generate video thumbnails'
 )
 source=(
-    "$pkgname-$pkgver.AppImage::$url/releases/download/v$pkgver/mpv-yomitan-$pkgver.AppImage"
-    "ympv-$pkgver::$url/releases/download/v$pkgver/ympv"
+    "$pkgname-$pkgver.AppImage::$url/releases/download/v$pkgver/subminer-$pkgver.AppImage"
+    "subminer-$pkgver::$url/releases/download/v$pkgver/subminer"
     "catppuccin-macchiato.rasi::$url/raw/v$pkgver/catppuccin-macchiato.rasi"
 )
 sha256sums=('SKIP' 'SKIP' 'SKIP')
 
 package() {
-    install -Dm755 "$pkgname-$pkgver.AppImage" "$pkgdir/opt/$pkgname/mpv-yomitan.AppImage"
-    install -Dm755 "ympv-$pkgver" "$pkgdir/usr/bin/ympv"
+    install -Dm755 "$pkgname-$pkgver.AppImage" "$pkgdir/opt/$pkgname/subminer.AppImage"
+    install -Dm755 "subminer-$pkgver" "$pkgdir/usr/bin/subminer"
     install -Dm644 catppuccin-macchiato.rasi "$pkgdir/opt/$pkgname/catppuccin-macchiato.rasi"
 
     install -d "$pkgdir/usr/bin"
-    ln -s "/opt/$pkgname/mpv-yomitan.AppImage" "$pkgdir/usr/bin/mpv-yomitan"
+    ln -s "/opt/$pkgname/subminer.AppImage" "$pkgdir/usr/bin/subminer"
 }

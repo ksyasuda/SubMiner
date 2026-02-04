@@ -33,10 +33,10 @@ jobs:
         run: pnpm audit --audit-level=high
         continue-on-error: true
 
-      - name: Shellcheck ympv script
+      - name: Shellcheck subminer script
         uses: ludeeus/action-shellcheck@2.0.0
         with:
           scandir: .
-          additional_files: ympv
+          additional_files: subminer
           ignore_paths: node_modules vendor tmp
           shellcheck_flags: -s bash -o all -e 2250

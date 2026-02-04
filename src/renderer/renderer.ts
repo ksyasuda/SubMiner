@@ -1,5 +1,5 @@
 /*
- * mpv-yomitan - Yomitan integration for mpv
+ * SubMiner - All-in-one sentence mining overlay
  * Copyright (C) 2024 sudacode
  *
  * This program is free software: you can redistribute it and/or modify
@@ -258,9 +258,9 @@ const CHORD_MAP = new Map<string, ChordAction>([
   ['KeyT', { type: 'electron', action: () => window.electronAPI.toggleOverlay() }],
   ['Shift+KeyS', { type: 'electron', action: () => window.electronAPI.quitApp() }],
   ['KeyO', { type: 'electron', action: () => window.electronAPI.openYomitanSettings() }],
-  ['KeyR', { type: 'mpv', command: ['script-message', 'mpv-yomitan-restart'] }],
-  ['KeyC', { type: 'mpv', command: ['script-message', 'mpv-yomitan-status'] }],
-  ['KeyY', { type: 'mpv', command: ['script-message', 'mpv-yomitan-menu'] }],
+  ['KeyR', { type: 'mpv', command: ['script-message', 'subminer-restart'] }],
+  ['KeyC', { type: 'mpv', command: ['script-message', 'subminer-status'] }],
+  ['KeyY', { type: 'mpv', command: ['script-message', 'subminer-menu'] }],
   ['KeyD', { type: 'electron', action: () => window.electronAPI.toggleDevTools() }],
   ['KeyS', { type: 'noop' }],
 ]);

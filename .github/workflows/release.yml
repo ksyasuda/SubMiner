@@ -97,18 +97,13 @@ jobs:
 
             ### AppImage (Recommended)
             1. Download the AppImage below
-            2. Make it executable: `chmod +x mpv-yomitan-*.AppImage`
-            3. Run: `./mpv-yomitan-*.AppImage`
-
-            ### Arch Linux (AUR)
-            ```bash
-            yay -S mpv-yomitan
-            ```
+            2. Make it executable: `chmod +x subminer-*.AppImage`
+            3. Run: `./subminer-*.AppImage`
 
             ### Manual Installation
             See the [README](https://github.com/${{ github.repository }}#installation) for manual installation instructions.
           files: |
             dist/*.AppImage
-            ympv
+            subminer
           draft: false
           prerelease: false

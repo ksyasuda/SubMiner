@@ -1,5 +1,5 @@
 /*
- * mpv-yomitan - Yomitan integration for mpv
+ * SubMiner - All-in-one sentence mining overlay
  * Copyright (C) 2024 sudacode
  *
  * This program is free software: you can redistribute it and/or modify
