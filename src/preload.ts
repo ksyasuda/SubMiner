@@ -28,6 +28,12 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on("mpv:subVisibility", (_event: IpcRendererEvent, visible: boolean) => callback(visible));
   },
 
+  onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => {
+    ipcRenderer.on("subtitle-position:set", (_event: IpcRendererEvent, position: SubtitlePosition | null) => {
+      callback(position);
+    });
+  },
+
   getOverlayVisibility: (): Promise<boolean> => ipcRenderer.invoke("get-overlay-visibility"),
   getCurrentSubtitle: (): Promise<SubtitleData> => ipcRenderer.invoke("get-current-subtitle"),
 
