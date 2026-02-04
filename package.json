@@ -1,7 +1,7 @@
 {
-  "name": "mpv-yomitan-overlay",
+  "name": "subminer",
   "version": "0.1.0",
-  "description": "MPV subtitle overlay with Yomitan dictionary lookup support",
+  "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc && cp src/renderer/index.html src/renderer/style.css dist/renderer/",
@@ -13,11 +13,14 @@
     "build:appimage": "pnpm run build && electron-builder --linux AppImage"
   },
   "keywords": [
-    "mpv",
-    "yomitan",
+    "anki",
+    "ankiconnect",
+    "sentence-mining",
     "japanese",
     "subtitles",
-    "overlay"
+    "overlay",
+    "mpv",
+    "yomitan"
   ],
   "author": "",
   "license": "GPL-3.0-or-later",
@@ -33,9 +36,11 @@
     "typescript": "^5.9.3"
   },
   "build": {
-    "appId": "com.sudacode.mpv-yomitan",
-    "productName": "mpv-yomitan",
-    "icon": "assets/mpv-yomitan.png",
+    "appId": "com.sudacode.subminer",
+    "productName": "SubMiner",
+    "executableName": "subminer",
+    "artifactName": "subminer-${version}.${ext}",
+    "icon": "assets/subminer.png",
     "linux": {
       "target": [
         "AppImage"

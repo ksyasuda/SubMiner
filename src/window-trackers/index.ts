@@ -1,5 +1,5 @@
 /*
-  mpv-yomitan - Yomitan integration for mpv
+  SubMiner - All-in-one sentence mining overlay
   Copyright (C) 2024 sudacode
 
   This program is free software: you can redistribute it and/or modify
@@ -22,6 +22,7 @@ import { SwayWindowTracker } from "./sway-tracker";
 import { X11WindowTracker } from "./x11-tracker";
 
 export type Compositor = "hyprland" | "sway" | "x11" | null;
+export type Backend = "auto" | Exclude<Compositor, null>;
 
 export function detectCompositor(): Compositor {
   if (process.env.HYPRLAND_INSTANCE_SIGNATURE) return "hyprland";
@@ -30,8 +31,8 @@ export function detectCompositor(): Compositor {
   return null;
 }
 
-export function createWindowTracker(): BaseWindowTracker | null {
-  const compositor = detectCompositor();
+export function createWindowTracker(backend: Backend = "auto"): BaseWindowTracker | null {
+  const compositor = backend === "auto" ? detectCompositor() : backend;
   console.log(`Detected compositor: ${compositor || "none"}`);
 
   switch (compositor) {

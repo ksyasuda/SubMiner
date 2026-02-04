@@ -1,9 +1,9 @@
 <div align="center">
-  <img src="assets/mpv-yomitan.png" width="169" height="169" alt="mpv-yomitan logo">
+  <img src="assets/subminer.png" width="169" height="169" alt="SubMiner logo">
 </div>
 
-# mpv-yomitan
-An Electron-based subtitle overlay for MPV with Yomitan lookup support for Japanese language learning.
+# SubMiner
+An all-in-one sentence mining overlay for MPV with AnkiConnect and dictionary (Yomitan) integration.
 
 ## Features
 
@@ -41,31 +41,31 @@ An Electron-based subtitle overlay for MPV with Yomitan lookup support for Japan
 
 ### From AppImage (Recommended)
 
-Download the latest AppImage from [Releases](https://github.com/ksyasuda/mpv-yomitan/releases):
+Download the latest AppImage from GitHub Releases:
 
 ```bash
 # Download and install AppImage
-wget https://github.com/ksyasuda/mpv-yomitan/releases/download/v1.0.0/mpv-yomitan-1.0.0.AppImage -O ~/.local/bin/mpv-yomitan.AppImage
-chmod +x ~/.local/bin/mpv-yomitan.AppImage
+wget https://github.com/sudacode/subminer/releases/download/v1.0.0/subminer-1.0.0.AppImage -O ~/.local/bin/subminer.AppImage
+chmod +x ~/.local/bin/subminer.AppImage
 
 # Download ympv wrapper script
-wget https://github.com/ksyasuda/mpv-yomitan/releases/download/v1.0.0/ympv -O ~/.local/bin/ympv
+wget https://github.com/sudacode/subminer/releases/download/v1.0.0/ympv -O ~/.local/bin/ympv
 chmod +x ~/.local/bin/ympv
 ```
 
 ### From Source (Development)
 
 ```bash
-git clone https://github.com/ksyasuda/mpv-yomitan.git
-cd mpv-yomitan
+git clone https://github.com/sudacode/subminer.git
+cd subminer
 pnpm install
 cd vendor/texthooker-ui && pnpm install && pnpm build && cd ../..
 pnpm run build:appimage
 
 # Copy to ~/.local/bin
-cp dist/mpv-yomitan-*.AppImage ~/.local/bin/mpv-yomitan.AppImage
+cp dist/subminer-*.AppImage ~/.local/bin/subminer.AppImage
 cp ympv ~/.local/bin/
-chmod +x ~/.local/bin/mpv-yomitan.AppImage ~/.local/bin/ympv
+chmod +x ~/.local/bin/subminer.AppImage ~/.local/bin/ympv
 ```
 
 <!-- ### Arch Linux -->
@@ -80,12 +80,12 @@ chmod +x ~/.local/bin/mpv-yomitan.AppImage ~/.local/bin/ympv
 The Lua plugin allows you to control the overlay directly from mpv using keybindings:
 
 > [!IMPORTANT]
-> `mpv` must be launched with `--input-ipc-server=/tmp/mpv-yomitan-socket` to allow communication with the application
+> `mpv` must be launched with `--input-ipc-server=/tmp/subminer-socket` to allow communication with the application
 
 ```bash
 # Copy plugin files to mpv config
-cp plugin/mpv-yomitan.lua ~/.config/mpv/scripts/
-cp plugin/mpv-yomitan.conf ~/.config/mpv/script-opts/
+cp plugin/subminer.lua ~/.config/mpv/scripts/
+cp plugin/subminer.conf ~/.config/mpv/script-opts/
 ```
 
 #### Plugin Keybindings
@@ -94,7 +94,7 @@ All keybindings use chord sequences starting with `y`:
 
 | Keybind | Action                                   |
 | ------- | ---------------------------------------- |
-| `y-y`   | Open mpv-yomitan menu (fuzzy-searchable) |
+| `y-y`   | Open SubMiner menu (fuzzy-searchable) |
 | `y-s`   | Start overlay                            |
 | `y-S`   | Stop overlay                             |
 | `y-t`   | Toggle overlay                           |
@@ -106,14 +106,14 @@ The menu provides options to start/stop/toggle the overlay and open settings. Ty
 
 #### Plugin Configuration
 
-Edit `~/.config/mpv/script-opts/mpv-yomitan.conf`:
+Edit `~/.config/mpv/script-opts/subminer.conf`:
 
 ```ini
-# Path to mpv-yomitan binary (leave empty for auto-detection)
+# Path to SubMiner binary (leave empty for auto-detection)
 binary_path=
 
 # Path to mpv IPC socket (must match input-ipc-server in mpv.conf)
-socket_path=/tmp/mpv-yomitan-socket
+socket_path=/tmp/subminer-socket
 
 # Enable texthooker WebSocket server
 texthooker_enabled=yes
@@ -136,19 +136,19 @@ osd_messages=yes
 
 The plugin auto-detects the binary location, searching:
 
-- `~/.local/bin/mpv-yomitan.AppImage`
-- `/opt/mpv-yomitan/mpv-yomitan`
-- `/usr/local/bin/mpv-yomitan`
-- `/usr/bin/mpv-yomitan`
+- `~/.local/bin/subminer.AppImage`
+- `/opt/subminer/subminer.AppImage`
+- `/usr/local/bin/subminer`
+- `/usr/bin/subminer`
 
 ## ympv Script vs MPV Plugin
 
-There are two ways to use mpv-yomitan:
+There are two ways to use SubMiner:
 
 | Approach        | Best For                                                                                                                                                             |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **ympv script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, starts the overlay automatically, and cleans up on exit.                         |
-| **MPV plugin**  | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control the overlay. Requires `--input-ipc-server=/tmp/mpv-yomitan-socket`. |
+| **MPV plugin**  | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control the overlay. Requires `--input-ipc-server=/tmp/subminer-socket`. |
 
 You can use both together—install the plugin for on-demand control, but use `ympv` when you want the streamlined workflow.
 
@@ -168,11 +168,11 @@ ympv -b x11 video.mkv         # Force X11 backend
 ympv -p gpu-hq video.mkv      # Use mpv profile
 
 # Direct AppImage control
-mpv-yomitan.AppImage --start --texthooker   # Start overlay with texthooker
-mpv-yomitan.AppImage --stop                  # Stop overlay
-mpv-yomitan.AppImage --toggle                # Toggle visibility
-mpv-yomitan.AppImage --settings              # Open Yomitan settings
-mpv-yomitan.AppImage --help                  # Show all options
+subminer.AppImage --start --texthooker   # Start overlay with texthooker
+subminer.AppImage --stop                  # Stop overlay
+subminer.AppImage --toggle                # Toggle visibility
+subminer.AppImage --settings              # Open Yomitan settings
+subminer.AppImage --help                  # Show all options
 ```
 
 ## Keybindings
@@ -196,7 +196,7 @@ These keybindings only work when the overlay window has focus. See [Configuratio
 
 ## How It Works
 
-1. MPV runs with an IPC socket at `/tmp/mpv-yomitan-socket`
+1. MPV runs with an IPC socket at `/tmp/subminer-socket`
 2. The overlay connects and subscribes to subtitle changes
 3. Subtitles are tokenized with MeCab and merged into natural word boundaries
 4. Words are displayed as clickable spans
@@ -205,7 +205,7 @@ These keybindings only work when the overlay window has focus. See [Configuratio
 
 ## Configuration
 
-Settings are stored in `~/.config/mpv-yomitan-overlay/config.json`
+Settings are stored in `~/.config/subminer/config.json`
 
 ### Texthooker
 
@@ -275,7 +275,7 @@ Add a `keybindings` array to configure keyboard shortcuts that send commands to 
 
 | Variable                    | Description                                |
 | --------------------------- | ------------------------------------------ |
-| `MPV_YOMITAN_APPIMAGE_PATH` | Override AppImage location for ympv script |
+| `SUBMINER_APPIMAGE_PATH` | Override AppImage location for ympv script |
 
 ## License
 

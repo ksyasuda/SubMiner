@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# mpv-yomitan - Yomitan integration for mpv
+# SubMiner - All-in-one sentence mining overlay
 # Copyright (C) 2024 sudacode
 #
 # This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# ympv - Wrapper script to launch MPV with Yomitan overlay
+# ympv - Wrapper script to launch MPV with SubMiner overlay
 #
 # Usage:
 #   ympv [OPTIONS] [FILE|DIRECTORY]
@@ -40,8 +40,8 @@ MPV_PROFILE=""
 USE_TEXTHOOKER=true
 USE_ROFI=false
 BACKEND="auto"
-MPV_YOMITAN_APPIMAGE_PATH="${MPV_YOMITAN_APPIMAGE_PATH:-}"
-MPV_SOCKET_PATH="/tmp/mpv-yomitan-socket"
+SUBMINER_APPIMAGE_PATH="${SUBMINER_APPIMAGE_PATH:-}"
+MPV_SOCKET_PATH="/tmp/subminer-socket"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -50,7 +50,7 @@ NC='\033[0m'
 
 show_help() {
     cat <<EOF
-ympv - Launch MPV with Yomitan dictionary overlay
+ympv - Launch MPV with SubMiner sentence mining overlay
 
 Usage: $(basename "$0") [OPTIONS] [FILE|DIRECTORY]
 
@@ -64,7 +64,7 @@ Options:
   -h, --help             Show this help message
 
 Environment:
-  MPV_YOMITAN_APPIMAGE_PATH   Path to mpv-yomitan AppImage (optional override)
+  SUBMINER_APPIMAGE_PATH      Path to SubMiner AppImage/binary (optional override)
 
 Examples:
   $(basename "$0")                        # Browse current directory with fzf
@@ -253,23 +253,23 @@ show_fzf_menu() {
 }
 
 find_appimage() {
-    if [ -n "$MPV_YOMITAN_APPIMAGE_PATH" ] && [ -x "$MPV_YOMITAN_APPIMAGE_PATH" ]; then
-        echo "$MPV_YOMITAN_APPIMAGE_PATH"
+    if [ -n "$SUBMINER_APPIMAGE_PATH" ] && [ -x "$SUBMINER_APPIMAGE_PATH" ]; then
+        echo "$SUBMINER_APPIMAGE_PATH"
         return 0
     fi
 
-    if [ -x "$HOME/.local/bin/mpv-yomitan.AppImage" ]; then
-        echo "$HOME/.local/bin/mpv-yomitan.AppImage"
+    if [ -x "$HOME/.local/bin/subminer.AppImage" ]; then
+        echo "$HOME/.local/bin/subminer.AppImage"
         return 0
     fi
 
-    if [ -x "/opt/mpv-yomitan/mpv-yomitan.AppImage" ]; then
-        echo "/opt/mpv-yomitan/mpv-yomitan.AppImage"
+    if [ -x "/opt/subminer/subminer.AppImage" ]; then
+        echo "/opt/subminer/subminer.AppImage"
         return 0
     fi
 
-    if command -v mpv-yomitan &>/dev/null; then
-        echo "mpv-yomitan"
+    if command -v subminer &>/dev/null; then
+        echo "subminer"
         return 0
     fi
 
@@ -279,16 +279,16 @@ find_appimage() {
 start_overlay() {
     local detected_backend
     detected_backend=$(detect_backend)
-    log_info "Starting Yomitan overlay (backend: $detected_backend)..."
+    log_info "Starting SubMiner overlay (backend: $detected_backend)..."
 
     local appimage
     appimage=$(find_appimage)
     if [ -z "$appimage" ]; then
-        log_error "mpv-yomitan AppImage not found. Install to ~/.local/bin/ or set MPV_YOMITAN_APPIMAGE_PATH"
+        log_error "SubMiner AppImage not found. Install to ~/.local/bin/ or set SUBMINER_APPIMAGE_PATH"
         exit 1
     fi
 
-    local args=(--start --backend "$detected_backend")
+    local args=(--start --backend "$detected_backend" --socket "$MPV_SOCKET_PATH")
     if [ "$USE_TEXTHOOKER" = true ]; then
         args+=(--texthooker)
     fi
@@ -300,7 +300,7 @@ start_overlay() {
 
 stop_overlay() {
     if [ -n "$OVERLAY_PID" ]; then
-        log_info "Stopping Yomitan overlay..."
+        log_info "Stopping SubMiner overlay..."
         kill "$OVERLAY_PID" 2>/dev/null || true
         wait "$OVERLAY_PID" 2>/dev/null || true
     fi
