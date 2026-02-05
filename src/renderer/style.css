@@ -17,95 +17,94 @@
  */
 
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
 }
 
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: transparent;
-  font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', sans-serif;
+html,
+body {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	background: transparent;
+	font-family: 'Noto Sans CJK JP', 'Yu Gothic', 'Hiragino Sans', sans-serif;
 }
 
 #overlay {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  pointer-events: none;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	align-items: center;
+	pointer-events: none;
 }
 
 #overlay.interactive {
-  pointer-events: auto;
+	pointer-events: auto;
 }
 
 #subtitleContainer {
-  max-width: 80%;
-  margin-bottom: 60px;
-  padding: 12px 20px;
-  background: rgba(0, 0, 0, 0.75);
-  border-radius: 8px;
-  pointer-events: auto;
+	max-width: 80%;
+	margin-bottom: 60px;
+	padding: 12px 20px;
+	background: rgba(0, 0, 0, 0.75);
+	border-radius: 8px;
+	pointer-events: auto;
 }
 
 #subtitleRoot {
-  text-align: center;
-  font-size: 36px;
-  line-height: 1.5;
-  color: #ffffff;
-  text-shadow:
-    2px 2px 4px rgba(0, 0, 0, 0.8),
-    -1px -1px 2px rgba(0, 0, 0, 0.5);
-  /* Enable text selection for Yomitan */
-  user-select: text;
-  cursor: text;
+	text-align: center;
+	font-size: var(--subtitle-font-size, 24px);
+	line-height: 1.5;
+	color: #ffffff;
+	text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8), -1px -1px 2px rgba(0, 0, 0, 0.5);
+	/* Enable text selection for Yomitan */
+	user-select: text;
+	cursor: text;
 }
 
 #subtitleRoot:empty {
-  display: none;
+	display: none;
 }
 
 #subtitleContainer:has(#subtitleRoot:empty) {
-  display: none;
+	display: none;
 }
 
 #subtitleRoot .c {
-  display: inline;
-  position: relative;
+	display: inline;
+	position: relative;
 }
 
 #subtitleRoot .c:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 2px;
+	background: rgba(255, 255, 255, 0.15);
+	border-radius: 2px;
 }
 
 #subtitleRoot .word {
-  display: inline;
-  position: relative;
+	display: inline;
+	position: relative;
 }
 
 #subtitleRoot .word:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+	background: rgba(255, 255, 255, 0.2);
+	border-radius: 3px;
 }
 
 #subtitleRoot br {
-  display: block;
-  content: '';
-  margin-bottom: 0.3em;
+	display: block;
+	content: '';
+	margin-bottom: 0.3em;
 }
 
 #subtitleRoot.has-selection .word:hover,
 #subtitleRoot.has-selection .c:hover {
-  background: transparent;
+	background: transparent;
 }
 
-iframe[id^="yomitan-popup"] {
-  pointer-events: auto !important;
-  z-index: 2147483647 !important;
+iframe[id^='yomitan-popup'] {
+	pointer-events: auto !important;
+	z-index: 2147483647 !important;
 }

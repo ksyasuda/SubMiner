@@ -22,6 +22,7 @@ An all-in-one sentence mining overlay for MPV with AnkiConnect and dictionary (Y
 
 ## Requirements
 
+### Linux
 - **Wayland/X11 compositor** (one of the following):
   - Hyprland (uses `hyprctl`)
   - Sway (uses `swaymsg`)
@@ -29,6 +30,12 @@ An all-in-one sentence mining overlay for MPV with AnkiConnect and dictionary (Y
 - mpv (with IPC socket support)
 - mecab and mecab-ipadic (Japanese morphological analyzer)
 - fuse2 (for AppImage support)
+
+### macOS
+- macOS 10.13 or later
+- mpv (with IPC socket support)
+- mecab and mecab-ipadic (Japanese morphological analyzer) - optional
+- **Accessibility permission** required for window tracking (see [macOS Installation](#macos-installation))
 
 **Optional:**
 
@@ -53,7 +60,40 @@ wget https://github.com/sudacode/subminer/releases/download/v1.0.0/subminer -O ~
 chmod +x ~/.local/bin/subminer
 ```
 
-### From Source (Development)
+### macOS Installation
+
+If you download a release, use the **ZIP** artifact. Unzip it and drag `SubMiner.app` into `/Applications`.
+
+Install dependencies using Homebrew:
+
+```bash
+brew install mpv mecab mecab-ipadic
+```
+
+Build from source:
+
+```bash
+git clone https://github.com/sudacode/subminer.git
+cd subminer
+pnpm install
+cd vendor/texthooker-ui && pnpm install && pnpm build && cd ../..
+pnpm run build:mac
+```
+
+The built app will be available in the `release` directory (ZIP on macOS).
+
+You can launch `SubMiner.app` directly (double-click or `open -a SubMiner`). The app no longer requires a `--start` argument on macOS.
+
+**Accessibility Permission:**
+
+After launching the app for the first time, grant accessibility permission:
+1. Open **System Preferences** → **Security & Privacy** → **Privacy** tab
+2. Select **Accessibility** from the left sidebar
+3. Add SubMiner to the list
+
+Without this permission, window tracking will not work and the overlay won't follow the MPV window.
+
+### From Source (Linux/Development)
 
 ```bash
 git clone https://github.com/sudacode/subminer.git
@@ -74,6 +114,38 @@ chmod +x ~/.local/bin/subminer.AppImage ~/.local/bin/subminer
 <!-- # Using the PKGBUILD -->
 <!-- makepkg -si -->
 <!-- ``` -->
+
+### macOS Usage Notes
+
+**Launching MPV with IPC:**
+
+```bash
+mpv --input-ipc-server=/tmp/subminer-socket video.mkv
+```
+
+**Config Location:**
+
+Settings are stored in `~/.config/subminer/config.json` (same as Linux).
+
+**MeCab Installation Paths:**
+
+Common Homebrew install paths:
+- Apple Silicon (M1/M2): `/opt/homebrew/bin/mecab`
+- Intel: `/usr/local/bin/mecab`
+
+Ensure that `mecab` is available on your PATH when launching subminer (for example, by starting it from a terminal where `which mecab` works), otherwise MeCab may not be detected.
+
+**Fullscreen Mode:**
+
+The overlay should appear correctly in fullscreen. If you encounter issues, check that macOS accessibility permissions are granted (see [macOS Installation](#macos-installation)).
+
+**mpv Plugin Binary Path (macOS):**
+
+Set `binary_path` to your app binary, for example:
+
+```ini
+binary_path=/Applications/SubMiner.app/Contents/MacOS/subminer
+```
 
 ### MPV Plugin (Optional)
 
@@ -121,7 +193,7 @@ texthooker_enabled=yes
 # Texthooker WebSocket port
 texthooker_port=5174
 
-# Window manager backend: auto, hyprland, sway, x11
+# Window manager backend: auto, hyprland, sway, x11, macos
 backend=auto
 
 # Automatically start overlay when a file is loaded
@@ -136,10 +208,30 @@ osd_messages=yes
 
 The plugin auto-detects the binary location, searching:
 
+- `/Applications/SubMiner.app/Contents/MacOS/subminer`
+- `~/Applications/SubMiner.app/Contents/MacOS/subminer`
+- `C:\Program Files\subminer\subminer.exe`
+- `C:\Program Files (x86)\subminer\subminer.exe`
+- `C:\subminer\subminer.exe`
 - `~/.local/bin/subminer.AppImage`
 - `/opt/subminer/subminer.AppImage`
 - `/usr/local/bin/subminer`
 - `/usr/bin/subminer`
+
+**Windows Notes:**
+
+Set the binary and socket path like this:
+
+```ini
+binary_path=C:\\Program Files\\subminer\\subminer.exe
+socket_path=\\\\.\\pipe\\subminer-socket
+```
+
+Launch mpv with:
+
+```bash
+mpv --input-ipc-server=\\\\.\\pipe\\subminer-socket video.mkv
+```
 
 ## SubMiner Script vs MPV Plugin
 

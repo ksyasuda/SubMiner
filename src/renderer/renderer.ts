@@ -193,6 +193,14 @@ function applyStoredSubtitlePosition(position: SubtitlePosition | null, source: 
   }
 }
 
+function applySubtitleFontSize(fontSize: number): void {
+  const clampedSize = Math.max(10, Math.min(96, fontSize));
+  document.documentElement.style.setProperty(
+    '--subtitle-font-size',
+    `${clampedSize}px`,
+  );
+}
+
 function setupDragging(): void {
   subtitleContainer.addEventListener('mousedown', (e: MouseEvent) => {
     if (e.button === 2) {
@@ -354,6 +362,12 @@ async function restoreSubtitlePosition(): Promise<void> {
   applyStoredSubtitlePosition(position, 'startup');
 }
 
+async function restoreSubtitleFontSize(): Promise<void> {
+  const style = await window.electronAPI.getSubtitleStyle();
+  applySubtitleFontSize(style.fontSize);
+  console.log('Applied subtitle font size:', style.fontSize);
+}
+
 function setupSelectionObserver(): void {
   document.addEventListener('selectionchange', () => {
     const selection = window.getSelection();
@@ -419,6 +433,7 @@ async function init(): Promise<void> {
   setupResizeHandler();
 
   await restoreSubtitlePosition();
+  await restoreSubtitleFontSize();
 
   setupYomitanObserver();
 

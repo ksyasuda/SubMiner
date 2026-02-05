@@ -4,6 +4,7 @@ node_modules/
 # Electron build output
 out/
 dist/
+release/
 
 # Logs
 *.log
@@ -17,4 +18,3 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-tmp/*

@@ -20,19 +20,43 @@ import { BaseWindowTracker } from "./base-tracker";
 import { HyprlandWindowTracker } from "./hyprland-tracker";
 import { SwayWindowTracker } from "./sway-tracker";
 import { X11WindowTracker } from "./x11-tracker";
+import { MacOSWindowTracker } from "./macos-tracker";
 
-export type Compositor = "hyprland" | "sway" | "x11" | null;
+export type Compositor = "hyprland" | "sway" | "x11" | "macos" | null;
 export type Backend = "auto" | Exclude<Compositor, null>;
 
 export function detectCompositor(): Compositor {
+  if (process.platform === "darwin") return "macos";
   if (process.env.HYPRLAND_INSTANCE_SIGNATURE) return "hyprland";
   if (process.env.SWAYSOCK) return "sway";
   if (process.env.XDG_SESSION_TYPE === "x11") return "x11";
   return null;
 }
 
-export function createWindowTracker(backend: Backend = "auto"): BaseWindowTracker | null {
-  const compositor = backend === "auto" ? detectCompositor() : backend;
+function normalizeCompositor(value: string): Compositor | null {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "hyprland") return "hyprland";
+  if (normalized === "sway") return "sway";
+  if (normalized === "x11") return "x11";
+  if (normalized === "macos") return "macos";
+  return null;
+}
+
+export function createWindowTracker(
+  override?: string | null,
+): BaseWindowTracker | null {
+  let compositor = detectCompositor();
+
+  if (override && override !== "auto") {
+    const normalized = normalizeCompositor(override);
+    if (normalized) {
+      compositor = normalized;
+    } else {
+      console.warn(
+        `Unsupported backend override "${override}", falling back to auto.`,
+      );
+    }
+  }
   console.log(`Detected compositor: ${compositor || "none"}`);
 
   switch (compositor) {
@@ -42,6 +66,8 @@ export function createWindowTracker(backend: Backend = "auto"): BaseWindowTracke
       return new SwayWindowTracker();
     case "x11":
       return new X11WindowTracker();
+    case "macos":
+      return new MacOSWindowTracker();
     default:
       console.warn(
         "No supported compositor detected. Window tracking disabled.",
@@ -55,4 +81,5 @@ export {
   HyprlandWindowTracker,
   SwayWindowTracker,
   X11WindowTracker,
+  MacOSWindowTracker,
 };

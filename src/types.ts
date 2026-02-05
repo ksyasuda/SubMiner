@@ -62,6 +62,10 @@ export interface SubtitlePosition {
   yPercent: number;
 }
 
+export interface SubtitleStyle {
+  fontSize: number;
+}
+
 export interface Keybinding {
   key: string;
   command: string[] | null;
@@ -77,6 +81,8 @@ export interface TexthookerConfig {
 }
 
 export interface Config {
+  subtitlePosition?: SubtitlePosition;
+  subtitleFontSize?: number;
   keybindings?: Keybinding[];
   websocket?: WebSocketConfig;
   texthooker?: TexthookerConfig;
@@ -103,6 +109,7 @@ export interface ElectronAPI {
   openYomitanSettings: () => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
+  getSubtitleStyle: () => Promise<SubtitleStyle>;
   getMecabStatus: () => Promise<MecabStatus>;
   setMecabEnabled: (enabled: boolean) => void;
   sendMpvCommand: (command: string[]) => void;

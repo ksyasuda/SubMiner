@@ -4,9 +4,29 @@ local msg = require("mp.msg")
 local options = require("mp.options")
 local utils = require("mp.utils")
 
+local function is_windows()
+	return package.config:sub(1, 1) == "\\"
+end
+
+local function is_macos()
+	local platform = mp.get_property("platform") or ""
+	if platform == "macos" or platform == "darwin" then
+		return true
+	end
+	local ostype = os.getenv("OSTYPE") or ""
+	return ostype:find("darwin") ~= nil
+end
+
+local function default_socket_path()
+	if is_windows() then
+		return "\\\\.\\pipe\\subminer-socket"
+	end
+	return "/tmp/subminer-socket"
+end
+
 local opts = {
 	binary_path = "",
-	socket_path = "/tmp/subminer-socket",
+	socket_path = default_socket_path(),
 	texthooker_enabled = true,
 	texthooker_port = 5174,
 	backend = "auto",
@@ -38,7 +58,11 @@ local function detect_backend()
 
 	local backend = nil
 
-	if os.getenv("HYPRLAND_INSTANCE_SIGNATURE") then
+	if is_macos() then
+		backend = "macos"
+	elseif is_windows() then
+		backend = nil
+	elseif os.getenv("HYPRLAND_INSTANCE_SIGNATURE") then
 		backend = "hyprland"
 	elseif os.getenv("SWAYSOCK") then
 		backend = "sway"
@@ -50,7 +74,11 @@ local function detect_backend()
 	end
 
 	state.detected_backend = backend
-	msg.info("Detected backend: " .. backend)
+	if backend then
+		msg.info("Detected backend: " .. backend)
+	else
+		msg.info("No backend detected")
+	end
 	return backend
 end
 
@@ -65,6 +93,13 @@ local function find_binary()
 	end
 
 	local search_paths = {
+		"/Applications/SubMiner.app/Contents/MacOS/subminer",
+		"/Applications/subminer.app/Contents/MacOS/subminer",
+		utils.join_path(os.getenv("HOME") or "", "Applications/SubMiner.app/Contents/MacOS/subminer"),
+		utils.join_path(os.getenv("HOME") or "", "Applications/subminer.app/Contents/MacOS/subminer"),
+		"C:\\Program Files\\subminer\\subminer.exe",
+		"C:\\Program Files (x86)\\subminer\\subminer.exe",
+		"C:\\subminer\\subminer.exe",
 		utils.join_path(os.getenv("HOME") or "", ".local/bin/subminer.AppImage"),
 		"/opt/subminer/subminer.AppImage",
 		"/usr/local/bin/subminer",
@@ -88,8 +123,10 @@ local function build_command_args(action)
 
 	if action == "start" then
 		local backend = opts.backend == "auto" and detect_backend() or opts.backend
-		table.insert(args, "--backend")
-		table.insert(args, backend)
+		if backend and backend ~= "" then
+			table.insert(args, "--backend")
+			table.insert(args, backend)
+		end
 
 		if opts.texthooker_enabled then
 			table.insert(args, "--texthooker")
@@ -330,6 +367,7 @@ end
 local function on_shutdown()
 	if state.overlay_running and state.binary_available then
 		msg.info("mpv shutting down, stopping overlay")
+		show_osd("Shutting down...")
 		stop_overlay()
 	end
 end

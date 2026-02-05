@@ -17,7 +17,14 @@
  */
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
-import type { SubtitleData, SubtitlePosition, MecabStatus, Keybinding, ElectronAPI } from "./types";
+import type {
+  SubtitleData,
+  SubtitlePosition,
+  SubtitleStyle,
+  MecabStatus,
+  Keybinding,
+  ElectronAPI,
+} from "./types";
 
 const electronAPI: ElectronAPI = {
   onSubtitle: (callback: (data: SubtitleData) => void) => {
@@ -49,6 +56,7 @@ const electronAPI: ElectronAPI = {
   saveSubtitlePosition: (position: SubtitlePosition) => {
     ipcRenderer.send("save-subtitle-position", position);
   },
+  getSubtitleStyle: (): Promise<SubtitleStyle> => ipcRenderer.invoke("get-subtitle-style"),
 
   getMecabStatus: (): Promise<MecabStatus> => ipcRenderer.invoke("get-mecab-status"),
   setMecabEnabled: (enabled: boolean) => {

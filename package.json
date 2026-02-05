@@ -5,12 +5,14 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc && cp src/renderer/index.html src/renderer/style.css dist/renderer/",
-    "clean": "rm dist/*.AppImage",
+    "clean": "rm -rf release",
     "start": "pnpm run build && electron . --start",
     "dev": "pnpm run build && electron . --start --dev",
     "stop": "electron . --stop",
     "toggle": "electron . --toggle",
-    "build:appimage": "pnpm run build && electron-builder --linux AppImage"
+    "build:appimage": "pnpm run build && electron-builder --linux AppImage",
+    "build:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false pnpm run build && electron-builder --mac",
+    "build:mac:zip": "CSC_IDENTITY_AUTO_DISCOVERY=false pnpm run build && electron-builder --mac zip"
   },
   "keywords": [
     "anki",
@@ -41,11 +43,22 @@
     "executableName": "subminer",
     "artifactName": "subminer-${version}.${ext}",
     "icon": "assets/subminer.png",
+    "directories": {
+      "output": "release"
+    },
     "linux": {
       "target": [
         "AppImage"
       ],
       "category": "AudioVideo"
+    },
+    "mac": {
+      "target": [
+        "zip"
+      ],
+      "category": "public.app-category.video",
+      "icon": "assets/subminer.png",
+      "identity": null
     },
     "files": [
       "dist/**/*",

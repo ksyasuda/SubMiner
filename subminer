@@ -45,7 +45,6 @@ MPV_SOCKET_PATH="/tmp/subminer-socket"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 NC='\033[0m'
 
 show_help() {
@@ -82,25 +81,21 @@ log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
 }
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
 detect_backend() {
-    if [ "$BACKEND" != "auto" ]; then
+    if [[ "$BACKEND" != "auto" ]]; then
         echo "$BACKEND"
         return
     fi
 
-    if [ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]; then
+    if [[ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]]; then
         echo "hyprland"
-    elif [ -n "$SWAYSOCK" ]; then
+    elif [[ -n "$SWAYSOCK" ]]; then
         echo "sway"
-    elif [ -n "$DISPLAY" ]; then
+    elif [[ -n "$DISPLAY" ]]; then
         echo "x11"
     else
         log_error "Could not detect display backend"
@@ -115,7 +110,7 @@ check_dependencies() {
         missing+=("mpv")
     fi
 
-    if [ "$USE_ROFI" = true ]; then
+    if [[ "$USE_ROFI" = true ]]; then
         if ! command -v rofi &>/dev/null; then
             missing+=("rofi")
         fi
@@ -125,7 +120,7 @@ check_dependencies() {
         fi
     fi
 
-    if [ ${#missing[@]} -gt 0 ]; then
+    if [[ ${#missing[@]} -gt 0 ]]; then
         log_error "Missing dependencies: ${missing[*]}"
         exit 1
     fi
@@ -135,7 +130,7 @@ find_videos() {
     local dir="$1"
     local find_opts=(-maxdepth 1)
 
-    if [ "$RECURSIVE" = true ]; then
+    if [[ "$RECURSIVE" = true ]]; then
         find_opts=()
     fi
 
@@ -147,9 +142,9 @@ build_rofi_menu() {
     local dir="$1"
 
     while IFS= read -r video; do
-        [ -z "$video" ] && continue
+        [[ -z "$video" ]] && continue
         local display_name
-        if [ "$RECURSIVE" = true ]; then
+        if [[ "$RECURSIVE" = true ]]; then
             display_name=$(realpath --relative-to="$dir" "$video")
         else
             display_name=$(basename "$video")
@@ -161,7 +156,9 @@ build_rofi_menu() {
 show_rofi_menu() {
     local dir="$1"
     local theme_path
-    theme_path="$(dirname "$(realpath "$0")")/catppuccin-macchiato.rasi"
+    local realpath_result
+    realpath_result=$(realpath "$0")
+    theme_path="$(dirname "$realpath_result")/catppuccin-macchiato.rasi"
 
     local rofi_opts=(
         -dmenu
@@ -174,38 +171,18 @@ show_rofi_menu() {
     local selection
     selection=$(build_rofi_menu "$dir" | rofi "${rofi_opts[@]}")
 
-    if [ -z "$selection" ]; then
+    if [[ -z "$selection" ]]; then
         return 0
     fi
 
     echo "$dir/$selection"
 }
 
-get_video_thumbnail() {
-    local video="$1"
-    local thumb_dir="$HOME/.cache/thumbnails/large"
-    local video_uri="file://$(realpath "$video")"
-    local thumb_hash=$(echo -n "$video_uri" | md5sum | cut -d' ' -f1)
-    local thumb_path="$thumb_dir/$thumb_hash.png"
-
-    if [ -f "$thumb_path" ]; then
-        echo "$thumb_path"
-        return 0
-    fi
-
-    local tmp_thumb="/tmp/subminer-thumb-$$.jpg"
-    if command -v ffmpegthumbnailer &>/dev/null; then
-        ffmpegthumbnailer -i "$video" -o "$tmp_thumb" -s 512 -q 5 2>/dev/null && echo "$tmp_thumb"
-    elif command -v ffmpeg &>/dev/null; then
-        ffmpeg -i "$video" -ss 00:00:30 -vframes 1 -vf "scale=512:-1" "$tmp_thumb" 2>/dev/null && echo "$tmp_thumb"
-    fi
-}
-
 show_fzf_menu() {
     local dir="$1"
 
     local chafa_opts="--format=kitty"
-    if [ -n "$TMUX" ]; then
+    if [[ -n "$TMUX" ]]; then
         chafa_opts="--format=symbols --symbols=vhalf+wide --color-space=din99d"
     fi
 
@@ -219,7 +196,7 @@ show_fzf_menu() {
             thumb_path=\"\$thumb_dir/\$thumb_hash.png\"
 
             get_thumb() {
-                if [ -f \"\$thumb_path\" ]; then
+                if [[ -f \"\$thumb_path\" ]]; then
                     echo \"\$thumb_path\"
                 elif command -v ffmpegthumbnailer &>/dev/null; then
                     tmp=\"/tmp/subminer-preview.jpg\"
@@ -231,7 +208,7 @@ show_fzf_menu() {
             }
 
             thumb=\$(get_thumb)
-            [ -n \"\$thumb\" ] && chafa $chafa_opts --size=\${FZF_PREVIEW_COLUMNS}x\${FZF_PREVIEW_LINES} \"\$thumb\" 2>/dev/null
+            [[ -n \"\$thumb\" ]] && chafa $chafa_opts --size=\${FZF_PREVIEW_COLUMNS}x\${FZF_PREVIEW_LINES} \"\$thumb\" 2>/dev/null
         "
     else
         preview_cmd='echo "Install chafa for thumbnail preview"'
@@ -245,7 +222,7 @@ show_fzf_menu() {
         --preview-window=right:50%:wrap \
         --preview "$preview_cmd")
 
-    if [ -z "$selection" ]; then
+    if [[ -z "$selection" ]]; then
         return 0
     fi
 
@@ -253,17 +230,17 @@ show_fzf_menu() {
 }
 
 find_appimage() {
-    if [ -n "$SUBMINER_APPIMAGE_PATH" ] && [ -x "$SUBMINER_APPIMAGE_PATH" ]; then
+    if [[ -n "$SUBMINER_APPIMAGE_PATH" ]] && [[ -x "$SUBMINER_APPIMAGE_PATH" ]]; then
         echo "$SUBMINER_APPIMAGE_PATH"
         return 0
     fi
 
-    if [ -x "$HOME/.local/bin/subminer.AppImage" ]; then
+    if [[ -x "$HOME/.local/bin/subminer.AppImage" ]]; then
         echo "$HOME/.local/bin/subminer.AppImage"
         return 0
     fi
 
-    if [ -x "/opt/subminer/subminer.AppImage" ]; then
+    if [[ -x "/opt/subminer/subminer.AppImage" ]]; then
         echo "/opt/subminer/subminer.AppImage"
         return 0
     fi
@@ -283,13 +260,13 @@ start_overlay() {
 
     local appimage
     appimage=$(find_appimage)
-    if [ -z "$appimage" ]; then
+    if [[ -z "$appimage" ]]; then
         log_error "SubMiner AppImage not found. Install to ~/.local/bin/ or set SUBMINER_APPIMAGE_PATH"
         exit 1
     fi
 
     local args=(--start --backend "$detected_backend" --socket "$MPV_SOCKET_PATH")
-    if [ "$USE_TEXTHOOKER" = true ]; then
+    if [[ "$USE_TEXTHOOKER" = true ]]; then
         args+=(--texthooker)
     fi
 
@@ -298,8 +275,9 @@ start_overlay() {
     sleep 2
 }
 
+# shellcheck disable=SC2329
 stop_overlay() {
-    if [ -n "$OVERLAY_PID" ]; then
+    if [[ -n "$OVERLAY_PID" ]]; then
         log_info "Stopping SubMiner overlay..."
         kill "$OVERLAY_PID" 2>/dev/null || true
         wait "$OVERLAY_PID" 2>/dev/null || true
@@ -309,7 +287,7 @@ stop_overlay() {
 play_video() {
     local video_file="$1"
 
-    if [ ! -f "$video_file" ]; then
+    if [[ ! -f "$video_file" ]]; then
         log_error "Video file not found: $video_file"
         return 1
     fi
@@ -317,7 +295,7 @@ play_video() {
     log_info "Playing: $(basename "$video_file")"
 
     local mpv_opts=()
-    if [ -n "$MPV_PROFILE" ]; then
+    if [[ -n "$MPV_PROFILE" ]]; then
         mpv_opts+=("--profile=$MPV_PROFILE")
     fi
 
@@ -328,6 +306,7 @@ play_video() {
     return $?
 }
 
+# shellcheck disable=SC2329
 cleanup() {
     stop_overlay
 }
@@ -389,11 +368,11 @@ parse_args() {
         esac
     done
 
-    if [ $# -gt 0 ]; then
+    if [[ $# -gt 0 ]]; then
         local arg="$1"
-        if [ -f "$arg" ]; then
+        if [[ -f "$arg" ]]; then
             VIDEO_FILE="$arg"
-        elif [ -d "$arg" ]; then
+        elif [[ -d "$arg" ]]; then
             SEARCH_DIR="$arg"
         else
             log_error "Not a file or directory: $arg"
@@ -408,8 +387,8 @@ main() {
 
     local video_to_play=""
 
-    if [ -n "$VIDEO_FILE" ]; then
-        if [ ! -f "$VIDEO_FILE" ]; then
+    if [[ -n "$VIDEO_FILE" ]]; then
+        if [[ ! -f "$VIDEO_FILE" ]]; then
             log_error "Video file not found: $VIDEO_FILE"
             exit 1
         fi
@@ -417,27 +396,27 @@ main() {
     else
         SEARCH_DIR=$(realpath "$SEARCH_DIR")
 
-        if [ ! -d "$SEARCH_DIR" ]; then
+        if [[ ! -d "$SEARCH_DIR" ]]; then
             log_error "Directory not found: $SEARCH_DIR"
             exit 1
         fi
 
         local video_count
         video_count=$(find_videos "$SEARCH_DIR" | wc -l)
-        if [ "$video_count" -eq 0 ]; then
+        if [[ "$video_count" -eq 0 ]]; then
             log_error "No video files found in: $SEARCH_DIR"
             exit 1
         fi
 
         log_info "Browsing: $SEARCH_DIR ($video_count videos found)"
-        if [ "$USE_ROFI" = true ]; then
+        if [[ "$USE_ROFI" = true ]]; then
             video_to_play=$(show_rofi_menu "$SEARCH_DIR")
         else
             video_to_play=$(show_fzf_menu "$SEARCH_DIR")
         fi
     fi
 
-    if [ -z "$video_to_play" ]; then
+    if [[ -z "$video_to_play" ]]; then
         log_info "No video selected, exiting"
         exit 0
     fi
@@ -449,7 +428,7 @@ main() {
     play_video "$video_to_play"
     MPV_EXIT_CODE=$?
 
-    exit $MPV_EXIT_CODE
+    exit "$MPV_EXIT_CODE"
 }
 
 main "$@"

@@ -23,6 +23,7 @@ import {
   globalShortcut,
   shell,
   protocol,
+  screen,
   IpcMainEvent,
   Extension,
 } from "electron";
@@ -47,26 +48,153 @@ import * as os from "os";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import WebSocket from "ws";
-	import { parse as parseJsonc } from "jsonc-parser";
-	import { MecabTokenizer } from "./mecab-tokenizer";
-	import { mergeTokens } from "./token-merger";
-	import { createWindowTracker, BaseWindowTracker, type Backend } from "./window-trackers";
-	import {
-	  Config,
-	  SubtitleData,
-	  SubtitlePosition,
-	  Keybinding,
-	  WindowGeometry,
-	} from "./types";
+import { parse as parseJsonc } from "jsonc-parser";
+import { MecabTokenizer } from "./mecab-tokenizer";
+import { mergeTokens } from "./token-merger";
+import { createWindowTracker, BaseWindowTracker } from "./window-trackers";
+import {
+  Config,
+  SubtitleData,
+  SubtitlePosition,
+  Keybinding,
+  WindowGeometry,
+} from "./types";
 
-const DEFAULT_MPV_SOCKET_PATH = "/tmp/subminer-socket";
 const DEFAULT_TEXTHOOKER_PORT = 5174;
 const DEFAULT_WEBSOCKET_PORT = 6677;
+const DEFAULT_SUBTITLE_FONT_SIZE = 24;
 let texthookerServer: http.Server | null = null;
 let subtitleWebSocketServer: WebSocket.Server | null = null;
 const CONFIG_DIR = path.join(os.homedir(), ".config", "subminer");
 const USER_DATA_PATH = CONFIG_DIR;
 const isDev = process.argv.includes("--dev");
+
+function getDefaultSocketPath(): string {
+  if (process.platform === "win32") {
+    return "\\\\.\\pipe\\subminer-socket";
+  }
+  return "/tmp/subminer-socket";
+}
+
+interface CliArgs {
+  start: boolean;
+  stop: boolean;
+  toggle: boolean;
+  settings: boolean;
+  show: boolean;
+  hide: boolean;
+  texthooker: boolean;
+  help: boolean;
+  autoStartOverlay: boolean;
+  socketPath?: string;
+  backend?: string;
+  texthookerPort?: number;
+}
+
+function parseArgs(argv: string[]): CliArgs {
+  const args: CliArgs = {
+    start: false,
+    stop: false,
+    toggle: false,
+    settings: false,
+    show: false,
+    hide: false,
+    texthooker: false,
+    help: false,
+    autoStartOverlay: false,
+  };
+
+  const readValue = (value?: string): string | undefined => {
+    if (!value) return undefined;
+    if (value.startsWith("--")) return undefined;
+    return value;
+  };
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (!arg.startsWith("--")) continue;
+
+    if (arg === "--start") args.start = true;
+    else if (arg === "--stop") args.stop = true;
+    else if (arg === "--toggle") args.toggle = true;
+    else if (arg === "--settings" || arg === "--yomitan") args.settings = true;
+    else if (arg === "--show") args.show = true;
+    else if (arg === "--hide") args.hide = true;
+    else if (arg === "--texthooker") args.texthooker = true;
+    else if (arg === "--auto-start-overlay") args.autoStartOverlay = true;
+    else if (arg === "--help") args.help = true;
+    else if (arg.startsWith("--socket=")) {
+      const value = arg.split("=", 2)[1];
+      if (value) args.socketPath = value;
+    } else if (arg === "--socket") {
+      const value = readValue(argv[i + 1]);
+      if (value) args.socketPath = value;
+    } else if (arg.startsWith("--backend=")) {
+      const value = arg.split("=", 2)[1];
+      if (value) args.backend = value;
+    } else if (arg === "--backend") {
+      const value = readValue(argv[i + 1]);
+      if (value) args.backend = value;
+    } else if (arg.startsWith("--port=")) {
+      const value = Number(arg.split("=", 2)[1]);
+      if (!Number.isNaN(value)) args.texthookerPort = value;
+    } else if (arg === "--port") {
+      const value = Number(readValue(argv[i + 1]));
+      if (!Number.isNaN(value)) args.texthookerPort = value;
+    }
+  }
+
+  return args;
+}
+
+function printHelp(): void {
+  console.log(`
+SubMiner CLI commands:
+  --start               Start the overlay app (default on GUI launch)
+  --stop                Stop the running overlay app
+  --toggle              Toggle subtitle overlay visibility
+  --settings            Open Yomitan settings window
+  --texthooker          Start texthooker server and open browser
+  --show                Force show overlay
+  --hide                Force hide overlay
+  --auto-start-overlay  Auto-hide mpv subtitles on connect (show overlay)
+  --socket PATH         Override MPV IPC socket/pipe path
+  --backend BACKEND     Override window tracker backend (auto, hyprland, sway, x11, macos)
+  --port PORT           Texthooker server port (default: ${DEFAULT_TEXTHOOKER_PORT})
+  --dev                 Run in development mode
+  --help                Show this help
+`);
+}
+
+function hasExplicitCommand(args: CliArgs): boolean {
+  return (
+    args.start ||
+    args.stop ||
+    args.toggle ||
+    args.settings ||
+    args.show ||
+    args.hide ||
+    args.texthooker ||
+    args.help ||
+    args.autoStartOverlay
+  );
+}
+
+function shouldStartApp(args: CliArgs): boolean {
+  if (args.stop && !args.start) return false;
+  if (
+    args.start ||
+    args.toggle ||
+    args.settings ||
+    args.show ||
+    args.hide ||
+    args.texthooker ||
+    args.autoStartOverlay
+  ) {
+    return true;
+  }
+  return !hasExplicitCommand(args) && !args.help;
+}
 
 if (!fs.existsSync(USER_DATA_PATH)) {
   fs.mkdirSync(USER_DATA_PATH, { recursive: true });
@@ -100,38 +228,6 @@ const DEFAULT_KEYBINDINGS: Keybinding[] = [
 const CONFIG_FILE_JSONC = path.join(CONFIG_DIR, "config.jsonc");
 const CONFIG_FILE_JSON = path.join(CONFIG_DIR, "config.json");
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, "subtitle-positions");
-
-function getArgValue(argv: string[], flag: string): string | null {
-  const index = argv.indexOf(flag);
-  if (index === -1) return null;
-  const next = argv[index + 1];
-  if (!next || next.startsWith("--")) return null;
-  return next;
-}
-
-function parsePort(value: string | null, fallback: number): number {
-  if (!value) return fallback;
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) return fallback;
-  return parsed;
-}
-
-function parseBackend(value: string | null): Backend {
-  if (!value) return "auto";
-  if (value === "auto" || value === "hyprland" || value === "sway" || value === "x11") {
-    return value;
-  }
-  console.warn(`Unknown backend '${value}', falling back to auto`);
-  return "auto";
-}
-
-const STARTUP_MPV_SOCKET_PATH =
-  getArgValue(process.argv, "--socket") ?? DEFAULT_MPV_SOCKET_PATH;
-const STARTUP_BACKEND = parseBackend(getArgValue(process.argv, "--backend"));
-let currentTexthookerPort = parsePort(
-  getArgValue(process.argv, "--port"),
-  DEFAULT_TEXTHOOKER_PORT,
-);
 
 function getConfigFilePath(): string {
   if (fs.existsSync(CONFIG_FILE_JSONC)) return CONFIG_FILE_JSONC;
@@ -368,9 +464,11 @@ function loadKeybindings(): Keybinding[] {
   return keybindings;
 }
 
-const isStartCommand = process.argv.includes("--start");
-const isHelpCommand = process.argv.includes("--help");
-const autoStartOverlay = process.argv.includes("--auto-start-overlay");
+const initialArgs = parseArgs(process.argv);
+let mpvSocketPath = initialArgs.socketPath ?? getDefaultSocketPath();
+let texthookerPort = initialArgs.texthookerPort ?? DEFAULT_TEXTHOOKER_PORT;
+const backendOverride = initialArgs.backend ?? null;
+const autoStartOverlay = initialArgs.autoStartOverlay;
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -378,10 +476,12 @@ if (!gotTheLock) {
   app.quit();
 } else {
   app.on("second-instance", (_event, argv) => {
-    handleCliCommand(argv);
+    handleCliCommand(parseArgs(argv));
   });
-
-  if (!isStartCommand && !isHelpCommand) {
+  if (initialArgs.help && !shouldStartApp(initialArgs)) {
+    printHelp();
+    app.quit();
+  } else if (!shouldStartApp(initialArgs)) {
     console.error("No running instance. Use --start to launch the app.");
     app.quit();
   } else {
@@ -389,7 +489,7 @@ if (!gotTheLock) {
       loadSubtitlePosition();
       loadKeybindings();
 
-      mpvClient = new MpvIpcClient(STARTUP_MPV_SOCKET_PATH);
+      mpvClient = new MpvIpcClient(mpvSocketPath);
       mpvClient.connect();
 
       const { config } = loadConfig();
@@ -410,7 +510,7 @@ if (!gotTheLock) {
       createMainWindow();
       registerGlobalShortcuts();
 
-      windowTracker = createWindowTracker(STARTUP_BACKEND);
+      windowTracker = createWindowTracker(backendOverride);
       if (windowTracker) {
         windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
           updateOverlayBounds(geometry);
@@ -463,56 +563,59 @@ if (!gotTheLock) {
   }
 }
 
-function handleCliCommand(argv: string[]): void {
-  if (argv.includes("--stop")) {
+function handleCliCommand(args: CliArgs): void {
+  if (args.socketPath !== undefined) {
+    if (mpvClient) {
+      console.warn(
+        "Ignoring --socket override because the IPC client is already running.",
+      );
+    } else {
+      mpvSocketPath = args.socketPath;
+    }
+  }
+  if (args.texthookerPort !== undefined) {
+    if (texthookerServer) {
+      console.warn(
+        "Ignoring --port override because the texthooker server is already running.",
+      );
+    } else {
+      texthookerPort = args.texthookerPort;
+    }
+  }
+
+  if (args.stop) {
     console.log("Stopping SubMiner...");
     app.quit();
-  } else if (argv.includes("--toggle")) {
+  } else if (args.toggle) {
     toggleOverlay();
-  } else if (argv.includes("--settings") || argv.includes("--yomitan")) {
+  } else if (args.settings) {
     setTimeout(() => {
       openYomitanSettings();
     }, 1000);
-  } else if (argv.includes("--show")) {
+  } else if (args.show) {
     setOverlayVisible(true);
-  } else if (argv.includes("--hide")) {
+  } else if (args.hide) {
     setOverlayVisible(false);
-  } else if (argv.includes("--texthooker")) {
-    const requestedPort = parsePort(getArgValue(argv, "--port"), currentTexthookerPort);
+  } else if (args.texthooker) {
     if (!texthookerServer) {
-      currentTexthookerPort = requestedPort;
-      startTexthookerServer(currentTexthookerPort);
+      startTexthookerServer(texthookerPort);
     }
     const { config } = loadConfig();
     const openBrowser = config.texthooker?.openBrowser !== false;
-    const port = texthookerServer ? currentTexthookerPort : requestedPort;
     if (openBrowser) {
-      shell.openExternal(`http://127.0.0.1:${port}`);
+      shell.openExternal(`http://127.0.0.1:${texthookerPort}`);
     }
-    console.log(`Texthooker available at http://127.0.0.1:${port}`);
-  } else if (argv.includes("--help")) {
-    console.log(`
-	SubMiner CLI commands:
-	  --start             Start the overlay app (required for first launch)
-	  --stop              Stop the running overlay app
-	  --toggle            Toggle subtitle overlay visibility
-	  --settings          Open Yomitan settings window
-	  --texthooker        Start texthooker server and open browser
-	  --port <port>       Texthooker server port (default: 5174)
-	  --socket <path>     MPV IPC socket path (default: /tmp/subminer-socket)
-	  --backend <backend> Window backend: auto, hyprland, sway, x11 (default: auto)
-	  --show              Force show overlay
-	  --hide              Force hide overlay
-	  --auto-start-overlay  Auto-hide mpv subtitles on connect (show overlay)
-	  --dev               Run in development mode
-	  --help              Show this help
-	`);
+    console.log(
+      `Texthooker available at http://127.0.0.1:${texthookerPort}`,
+    );
+  } else if (args.help) {
+    printHelp();
     if (!mainWindow) app.quit();
   }
 }
 
 function handleInitialArgs(): void {
-  handleCliCommand(process.argv);
+  handleCliCommand(initialArgs);
 }
 
 interface MpvMessage {
@@ -727,19 +830,25 @@ function updateOverlayVisibility(): void {
       "Should show overlay, isTracking:",
       windowTracker?.isTracking(),
     );
-    if (windowTracker && windowTracker.isTracking()) {
-      const geometry = windowTracker.getGeometry();
-      console.log("Geometry:", geometry);
-      if (geometry) {
-        updateOverlayBounds(geometry);
-      }
+    const geometry = windowTracker?.getGeometry();
+    console.log("Geometry:", geometry);
+
+    if (geometry) {
+      updateOverlayBounds(geometry);
       console.log("Showing mainWindow");
       mainWindow.show();
-      mainWindow.focus();
-    } else if (!windowTracker) {
-      mainWindow.show();
-      mainWindow.focus();
+      return;
     }
+
+    if (windowTracker) {
+      console.log("No window geometry available yet, showing without tracking");
+      mainWindow.show();
+      return;
+    }
+
+    const primaryDisplay = screen.getPrimaryDisplay();
+    mainWindow.setBounds(primaryDisplay.bounds);
+    mainWindow.show();
   }
 }
 
@@ -756,7 +865,10 @@ function toggleOverlay(): void {
 }
 
 function ensureExtensionCopy(sourceDir: string): string {
-  if (process.platform !== "linux") {
+  // Copy extension to writable location on Linux and macOS
+  // MV3 service workers need write access for IndexedDB/storage
+  // App bundles on macOS are read-only, causing service worker failures
+  if (process.platform === "win32") {
     return sourceDir;
   }
 
@@ -1019,6 +1131,15 @@ ipcMain.handle("get-current-subtitle", async () => {
 
 ipcMain.handle("get-subtitle-position", () => {
   return loadSubtitlePosition();
+});
+
+ipcMain.handle("get-subtitle-style", () => {
+  const { config } = loadConfig();
+  const fontSize = config.subtitleFontSize;
+  if (typeof fontSize === "number" && Number.isFinite(fontSize) && fontSize > 0) {
+    return { fontSize };
+  }
+  return { fontSize: DEFAULT_SUBTITLE_FONT_SIZE };
 });
 
 ipcMain.on("save-subtitle-position", (_event: IpcMainEvent, position: SubtitlePosition) => {
