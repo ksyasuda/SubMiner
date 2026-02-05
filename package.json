@@ -5,7 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc && cp src/renderer/index.html src/renderer/style.css dist/renderer/",
-    "clean": "rm dist/*.AppImage",
+    "clean": "rm -rf release",
     "start": "pnpm run build && electron . --start",
     "dev": "pnpm run build && electron . --start --dev",
     "stop": "electron . --stop",

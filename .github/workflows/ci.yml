@@ -39,4 +39,4 @@ jobs:
           scandir: .
           additional_files: subminer
           ignore_paths: node_modules vendor tmp
-          shellcheck_flags: -s bash -W all -e 2250
+          shellcheck_flags: -s bash -o compat -e 2250

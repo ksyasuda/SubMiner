@@ -367,6 +367,7 @@ end
 local function on_shutdown()
 	if state.overlay_running and state.binary_available then
 		msg.info("mpv shutting down, stopping overlay")
+		show_osd("Shutting down...")
 		stop_overlay()
 	end
 end

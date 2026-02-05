@@ -81,14 +81,28 @@ export class MacOSWindowTracker extends BaseWindowTracker {
         if (result && result !== "not-found") {
           const parts = result.split(",");
           if (parts.length === 4) {
-            this.updateGeometry({
-              x: parseInt(parts[0], 10),
-              y: parseInt(parts[1], 10),
-              width: parseInt(parts[2], 10),
-              height: parseInt(parts[3], 10),
-            });
-            this.pollInFlight = false;
-            return;
+            const x = parseInt(parts[0], 10);
+            const y = parseInt(parts[1], 10);
+            const width = parseInt(parts[2], 10);
+            const height = parseInt(parts[3], 10);
+
+            if (
+              Number.isFinite(x) &&
+              Number.isFinite(y) &&
+              Number.isFinite(width) &&
+              Number.isFinite(height) &&
+              width > 0 &&
+              height > 0
+            ) {
+              this.updateGeometry({
+                x,
+                y,
+                width,
+                height,
+              });
+              this.pollInFlight = false;
+              return;
+            }
           }
         }
 

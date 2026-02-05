@@ -830,24 +830,25 @@ function updateOverlayVisibility(): void {
       "Should show overlay, isTracking:",
       windowTracker?.isTracking(),
     );
-    if (windowTracker && windowTracker.isTracking()) {
-      const geometry = windowTracker.getGeometry();
-      console.log("Geometry:", geometry);
-      if (geometry) {
-        updateOverlayBounds(geometry);
-      }
+    const geometry = windowTracker?.getGeometry();
+    console.log("Geometry:", geometry);
+
+    if (geometry) {
+      updateOverlayBounds(geometry);
       console.log("Showing mainWindow");
       mainWindow.show();
-    } else {
-      const geometry = windowTracker?.getGeometry();
-      if (geometry) {
-        updateOverlayBounds(geometry);
-      } else {
-        const primaryDisplay = screen.getPrimaryDisplay();
-        mainWindow.setBounds(primaryDisplay.bounds);
-      }
-      mainWindow.show();
+      return;
     }
+
+    if (windowTracker) {
+      console.log("No window geometry available yet, showing without tracking");
+      mainWindow.show();
+      return;
+    }
+
+    const primaryDisplay = screen.getPrimaryDisplay();
+    mainWindow.setBounds(primaryDisplay.bounds);
+    mainWindow.show();
   }
 }
 

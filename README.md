@@ -62,7 +62,7 @@ chmod +x ~/.local/bin/subminer
 
 ### macOS Installation
 
-If you download a release, use the **ZIP** artifact. Unzip it and drag `subminer.app` into `/Applications`.
+If you download a release, use the **ZIP** artifact. Unzip it and drag `SubMiner.app` into `/Applications`.
 
 Install dependencies using Homebrew:
 
@@ -82,7 +82,7 @@ pnpm run build:mac
 
 The built app will be available in the `release` directory (ZIP on macOS).
 
-You can launch `subminer.app` directly (double-click or `open -a subminer`). The app no longer requires a `--start` argument on macOS.
+You can launch `SubMiner.app` directly (double-click or `open -a SubMiner`). The app no longer requires a `--start` argument on macOS.
 
 **Accessibility Permission:**
 
@@ -144,7 +144,7 @@ The overlay should appear correctly in fullscreen. If you encounter issues, chec
 Set `binary_path` to your app binary, for example:
 
 ```ini
-binary_path=/Applications/subminer.app/Contents/MacOS/subminer
+binary_path=/Applications/SubMiner.app/Contents/MacOS/subminer
 ```
 
 ### MPV Plugin (Optional)
@@ -208,8 +208,8 @@ osd_messages=yes
 
 The plugin auto-detects the binary location, searching:
 
-- `/Applications/subminer.app/Contents/MacOS/subminer`
-- `~/Applications/subminer.app/Contents/MacOS/subminer`
+- `/Applications/SubMiner.app/Contents/MacOS/subminer`
+- `~/Applications/SubMiner.app/Contents/MacOS/subminer`
 - `C:\Program Files\subminer\subminer.exe`
 - `C:\Program Files (x86)\subminer\subminer.exe`
 - `C:\subminer\subminer.exe`
