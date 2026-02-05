@@ -516,7 +516,6 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 
 | Key               | Command                    | Description                           |
 | ----------------- | -------------------------- | ------------------------------------- |
-| Key               | Command                    | Description                           |
 | `Space`           | `["cycle", "pause"]`       | Toggle pause                          |
 | `Shift+KeyH`      | `["sub-seek", -1]`         | Jump to previous subtitle             |
 | `Shift+KeyL`      | `["sub-seek", 1]`          | Jump to next subtitle                 |
