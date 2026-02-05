@@ -93,7 +93,9 @@ local function find_binary()
 	end
 
 	local search_paths = {
+		"/Applications/SubMiner.app/Contents/MacOS/subminer",
 		"/Applications/subminer.app/Contents/MacOS/subminer",
+		utils.join_path(os.getenv("HOME") or "", "Applications/SubMiner.app/Contents/MacOS/subminer"),
 		utils.join_path(os.getenv("HOME") or "", "Applications/subminer.app/Contents/MacOS/subminer"),
 		"C:\\Program Files\\subminer\\subminer.exe",
 		"C:\\Program Files (x86)\\subminer\\subminer.exe",
