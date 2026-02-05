@@ -47,9 +47,11 @@ protocol.registerSchemesAsPrivileged([
 import * as path from "path";
 import * as net from "net";
 import * as http from "http";
+import * as https from "https";
 import * as os from "os";
 import * as fs from "fs";
 import * as crypto from "crypto";
+import * as childProcess from "child_process";
 import WebSocket from "ws";
 import { parse as parseJsonc } from "jsonc-parser";
 import { MecabTokenizer } from "./mecab-tokenizer";
@@ -57,6 +59,16 @@ import { mergeTokens } from "./token-merger";
 import { createWindowTracker, BaseWindowTracker } from "./window-trackers";
 import {
   Config,
+  JimakuApiResponse,
+  JimakuDownloadResult,
+  JimakuEntry,
+  JimakuFileEntry,
+  JimakuFilesQuery,
+  JimakuMediaInfo,
+  JimakuSearchQuery,
+  JimakuDownloadQuery,
+  JimakuConfig,
+  JimakuLanguagePreference,
   SubtitleData,
   SubtitlePosition,
   Keybinding,
@@ -253,6 +265,9 @@ const DEFAULT_KEYBINDINGS: Keybinding[] = [
 const CONFIG_FILE_JSONC = path.join(CONFIG_DIR, "config.jsonc");
 const CONFIG_FILE_JSON = path.join(CONFIG_DIR, "config.json");
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, "subtitle-positions");
+const DEFAULT_JIMAKU_BASE_URL = "https://jimaku.cc";
+const DEFAULT_JIMAKU_MAX_RESULTS = 10;
+const DEFAULT_JIMAKU_LANGUAGE_PREF: JimakuLanguagePreference = "ja";
 
 function getConfigFilePath(): string {
   if (fs.existsSync(CONFIG_FILE_JSONC)) return CONFIG_FILE_JSONC;
@@ -292,6 +307,255 @@ function saveConfig(config: Config): void {
   } catch (err) {
     console.error("Failed to save config:", (err as Error).message);
   }
+}
+
+function getJimakuConfig(): JimakuConfig {
+  const { config } = loadConfig();
+  return config.jimaku ?? {};
+}
+
+function getJimakuBaseUrl(): string {
+  const config = getJimakuConfig();
+  return config.apiBaseUrl || DEFAULT_JIMAKU_BASE_URL;
+}
+
+function getJimakuLanguagePreference(): JimakuLanguagePreference {
+  const config = getJimakuConfig();
+  return config.languagePreference || DEFAULT_JIMAKU_LANGUAGE_PREF;
+}
+
+function getJimakuMaxEntryResults(): number {
+  const config = getJimakuConfig();
+  const value = config.maxEntryResults;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  return DEFAULT_JIMAKU_MAX_RESULTS;
+}
+
+function execCommand(command: string): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    childProcess.exec(command, { timeout: 10000 }, (err, stdout, stderr) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
+async function resolveJimakuApiKey(): Promise<string | null> {
+  const config = getJimakuConfig();
+  if (config.apiKey && config.apiKey.trim()) {
+    return config.apiKey.trim();
+  }
+  if (config.apiKeyCommand && config.apiKeyCommand.trim()) {
+    try {
+      const { stdout } = await execCommand(config.apiKeyCommand);
+      const key = stdout.trim();
+      return key.length > 0 ? key : null;
+    } catch (err) {
+      console.error("Failed to run jimaku.apiKeyCommand:", (err as Error).message);
+      return null;
+    }
+  }
+  return null;
+}
+
+function getRetryAfter(headers: http.IncomingHttpHeaders): number | undefined {
+  const value = headers["x-ratelimit-reset-after"];
+  if (!value) return undefined;
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed)) return undefined;
+  return parsed;
+}
+
+async function jimakuFetchJson<T>(
+  endpoint: string,
+  query: Record<string, string | number | boolean | null | undefined> = {},
+): Promise<JimakuApiResponse<T>> {
+  const apiKey = await resolveJimakuApiKey();
+  if (!apiKey) {
+    return {
+      ok: false,
+      error: {
+        error: "Jimaku API key not set. Configure jimaku.apiKey or jimaku.apiKeyCommand.",
+        code: 401,
+      },
+    };
+  }
+
+  const baseUrl = getJimakuBaseUrl();
+  const url = new URL(endpoint, baseUrl);
+  for (const [key, value] of Object.entries(query)) {
+    if (value === null || value === undefined) continue;
+    url.searchParams.set(key, String(value));
+  }
+
+  const transport = url.protocol === "https:" ? https : http;
+
+  return new Promise((resolve) => {
+    const req = transport.request(
+      url,
+      {
+        method: "GET",
+        headers: {
+          Authorization: apiKey,
+          "User-Agent": "SubMiner",
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => {
+          data += chunk.toString();
+        });
+        res.on("end", () => {
+          const status = res.statusCode || 0;
+          if (status >= 200 && status < 300) {
+            try {
+              const parsed = JSON.parse(data) as T;
+              resolve({ ok: true, data: parsed });
+            } catch (err) {
+              resolve({
+                ok: false,
+                error: { error: "Failed to parse Jimaku response JSON." },
+              });
+            }
+            return;
+          }
+
+          let errorMessage = `Jimaku API error (HTTP ${status})`;
+          try {
+            const parsed = JSON.parse(data) as { error?: string };
+            if (parsed && parsed.error) {
+              errorMessage = parsed.error;
+            }
+          } catch (err) {
+            // Ignore parse errors.
+          }
+
+          resolve({
+            ok: false,
+            error: {
+              error: errorMessage,
+              code: status || undefined,
+              retryAfter: status === 429 ? getRetryAfter(res.headers) : undefined,
+            },
+          });
+        });
+      },
+    );
+
+    req.on("error", (err) => {
+      resolve({
+        ok: false,
+        error: { error: `Jimaku request failed: ${(err as Error).message}` },
+      });
+    });
+
+    req.end();
+  });
+}
+
+function matchEpisodeFromName(name: string): { season: number | null; episode: number | null; index: number | null; confidence: "high" | "medium" | "low" } {
+  const seasonEpisode = name.match(/S(\d{1,2})E(\d{1,3})/i);
+  if (seasonEpisode && seasonEpisode.index !== undefined) {
+    return {
+      season: Number.parseInt(seasonEpisode[1], 10),
+      episode: Number.parseInt(seasonEpisode[2], 10),
+      index: seasonEpisode.index,
+      confidence: "high",
+    };
+  }
+
+  const alt = name.match(/(\d{1,2})x(\d{1,3})/i);
+  if (alt && alt.index !== undefined) {
+    return {
+      season: Number.parseInt(alt[1], 10),
+      episode: Number.parseInt(alt[2], 10),
+      index: alt.index,
+      confidence: "high",
+    };
+  }
+
+  const epOnly = name.match(/(?:^|[\s._-])E(?:P)?(\d{1,3})(?:\b|[\s._-])/i);
+  if (epOnly && epOnly.index !== undefined) {
+    return {
+      season: null,
+      episode: Number.parseInt(epOnly[1], 10),
+      index: epOnly.index,
+      confidence: "medium",
+    };
+  }
+
+  const numeric = name.match(/(?:^|[-–—]\s*)(\d{1,3})\s*[-–—]/);
+  if (numeric && numeric.index !== undefined) {
+    return {
+      season: null,
+      episode: Number.parseInt(numeric[1], 10),
+      index: numeric.index,
+      confidence: "medium",
+    };
+  }
+
+  return { season: null, episode: null, index: null, confidence: "low" };
+}
+
+function detectSeasonFromDir(mediaPath: string): number | null {
+  const parent = path.basename(path.dirname(mediaPath));
+  const match = parent.match(/(?:Season|S)\s*(\d{1,2})/i);
+  if (!match) return null;
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function cleanupTitle(value: string): string {
+  return value
+    .replace(/^[\s-–—]+/, "")
+    .replace(/[\s-–—]+$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
+  if (!mediaPath) {
+    return {
+      title: "",
+      season: null,
+      episode: null,
+      confidence: "low",
+      filename: "",
+      rawTitle: "",
+    };
+  }
+
+  const filename = path.basename(mediaPath);
+  let name = filename.replace(/\.[^/.]+$/, "");
+  name = name.replace(/\[[^\]]*]/g, " ");
+  name = name.replace(/\(\d{4}\)/g, " ");
+  name = name.replace(/[._]/g, " ");
+  name = name.replace(/[–—]/g, "-");
+  name = name.replace(/\s+/g, " ").trim();
+
+  const parsed = matchEpisodeFromName(name);
+  let titlePart = name;
+  if (parsed.index !== null) {
+    titlePart = name.slice(0, parsed.index);
+  }
+
+  const seasonFromDir = parsed.season ?? detectSeasonFromDir(mediaPath);
+  const title = cleanupTitle(titlePart || name);
+
+  return {
+    title,
+    season: seasonFromDir,
+    episode: parsed.episode,
+    confidence: parsed.confidence,
+    filename,
+    rawTitle: name,
+  };
 }
 
 function getSubtitlePositionFilePath(mediaPath: string): string {
@@ -1275,6 +1539,100 @@ function showMpvOsd(text: string): void {
   }
 }
 
+function formatLangScore(name: string, pref: JimakuLanguagePreference): number {
+  if (pref === "none") return 0;
+  const upper = name.toUpperCase();
+  const hasJa = /(^|[\W_])JA([\W_]|$)/.test(upper) || /(^|[\W_])JPN([\W_]|$)/.test(upper) || upper.includes(".JA.");
+  const hasEn = /(^|[\W_])EN([\W_]|$)/.test(upper) || /(^|[\W_])ENG([\W_]|$)/.test(upper) || upper.includes(".EN.");
+  if (pref === "ja") {
+    if (hasJa) return 2;
+    if (hasEn) return 1;
+  } else if (pref === "en") {
+    if (hasEn) return 2;
+    if (hasJa) return 1;
+  }
+  return 0;
+}
+
+function sortJimakuFiles(files: JimakuFileEntry[], pref: JimakuLanguagePreference): JimakuFileEntry[] {
+  if (pref === "none") return files;
+  return [...files].sort((a, b) => {
+    const scoreDiff = formatLangScore(b.name, pref) - formatLangScore(a.name, pref);
+    if (scoreDiff !== 0) return scoreDiff;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function isRemoteMediaPath(mediaPath: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(mediaPath);
+}
+
+async function downloadToFile(
+  url: string,
+  destPath: string,
+  headers: Record<string, string>,
+  redirectCount = 0,
+): Promise<JimakuDownloadResult> {
+  if (redirectCount > 3) {
+    return { ok: false, error: { error: "Too many redirects while downloading subtitle." } };
+  }
+
+  return new Promise((resolve) => {
+    const parsedUrl = new URL(url);
+    const transport = parsedUrl.protocol === "https:" ? https : http;
+
+    const req = transport.get(
+      parsedUrl,
+      { headers },
+      (res) => {
+        const status = res.statusCode || 0;
+        if ([301, 302, 303, 307, 308].includes(status) && res.headers.location) {
+          const redirectUrl = new URL(res.headers.location, parsedUrl).toString();
+          res.resume();
+          downloadToFile(redirectUrl, destPath, headers, redirectCount + 1).then(resolve);
+          return;
+        }
+
+        if (status < 200 || status >= 300) {
+          res.resume();
+          resolve({
+            ok: false,
+            error: { error: `Failed to download subtitle (HTTP ${status}).`, code: status },
+          });
+          return;
+        }
+
+        const fileStream = fs.createWriteStream(destPath);
+        res.pipe(fileStream);
+        fileStream.on("finish", () => {
+          fileStream.close(() => {
+            resolve({ ok: true, path: destPath });
+          });
+        });
+        fileStream.on("error", (err) => {
+          resolve({
+            ok: false,
+            error: { error: `Failed to save subtitle: ${(err as Error).message}` },
+          });
+        });
+      },
+    );
+
+    req.on("error", (err) => {
+      resolve({
+        ok: false,
+        error: { error: `Download request failed: ${(err as Error).message}` },
+      });
+    });
+  });
+}
+
+ipcMain.on("set-ignore-mouse-events", (_event: IpcMainEvent, ignore: boolean, options: { forward?: boolean } = {}) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setIgnoreMouseEvents(ignore, options);
+  }
+});
+
 function cancelPendingMultiCopy(): void {
   if (!pendingMultiCopy) return;
 
@@ -1836,4 +2194,80 @@ ipcMain.on("clear-anki-connect-history", () => {
     subtitleTimingTracker.cleanup();
     console.log("AnkiConnect subtitle timing history cleared");
   }
+});
+
+ipcMain.handle("jimaku:get-media-info", (): JimakuMediaInfo => {
+  return parseMediaInfo(currentMediaPath);
+});
+
+ipcMain.handle("jimaku:search-entries", async (_event, query: JimakuSearchQuery): Promise<JimakuApiResponse<JimakuEntry[]>> => {
+  const response = await jimakuFetchJson<JimakuEntry[]>("/api/entries/search", {
+    anime: true,
+    query: query.query,
+  });
+  if (!response.ok) return response;
+  const maxResults = getJimakuMaxEntryResults();
+  return { ok: true, data: response.data.slice(0, maxResults) };
+});
+
+ipcMain.handle("jimaku:list-files", async (_event, query: JimakuFilesQuery): Promise<JimakuApiResponse<JimakuFileEntry[]>> => {
+  const response = await jimakuFetchJson<JimakuFileEntry[]>(
+    `/api/entries/${query.entryId}/files`,
+    {
+      episode: query.episode ?? undefined,
+    },
+  );
+  if (!response.ok) return response;
+  const sorted = sortJimakuFiles(response.data, getJimakuLanguagePreference());
+  return { ok: true, data: sorted };
+});
+
+ipcMain.handle("jimaku:download-file", async (_event, query: JimakuDownloadQuery): Promise<JimakuDownloadResult> => {
+  const apiKey = await resolveJimakuApiKey();
+  if (!apiKey) {
+    return {
+      ok: false,
+      error: {
+        error: "Jimaku API key not set. Configure jimaku.apiKey or jimaku.apiKeyCommand.",
+        code: 401,
+      },
+    };
+  }
+
+  if (!currentMediaPath) {
+    return { ok: false, error: { error: "No media file loaded in MPV." } };
+  }
+
+  if (isRemoteMediaPath(currentMediaPath)) {
+    return { ok: false, error: { error: "Cannot download subtitles for remote media paths." } };
+  }
+
+  const mediaDir = path.dirname(path.resolve(currentMediaPath));
+  const safeName = path.basename(query.name);
+  if (!safeName) {
+    return { ok: false, error: { error: "Invalid subtitle filename." } };
+  }
+
+  const ext = path.extname(safeName);
+  const baseName = ext ? safeName.slice(0, -ext.length) : safeName;
+  let targetPath = path.join(mediaDir, safeName);
+  if (fs.existsSync(targetPath)) {
+    targetPath = path.join(mediaDir, `${baseName} (jimaku-${query.entryId})${ext}`);
+    let counter = 2;
+    while (fs.existsSync(targetPath)) {
+      targetPath = path.join(mediaDir, `${baseName} (jimaku-${query.entryId}-${counter})${ext}`);
+      counter += 1;
+    }
+  }
+
+  const result = await downloadToFile(query.url, targetPath, {
+    Authorization: apiKey,
+    "User-Agent": "SubMiner",
+  });
+
+  if (result.ok && mpvClient && mpvClient.connected) {
+    mpvClient.send({ command: ["sub-add", result.path, "select"] });
+  }
+
+  return result;
 });

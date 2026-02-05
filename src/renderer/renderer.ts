@@ -59,16 +59,84 @@ interface SubtitleStyleConfig {
   };
 }
 
+type JimakuConfidence = "high" | "medium" | "low";
+
+interface JimakuMediaInfo {
+  title: string;
+  season: number | null;
+  episode: number | null;
+  confidence: JimakuConfidence;
+  filename: string;
+  rawTitle: string;
+}
+
+interface JimakuEntryFlags {
+  anime?: boolean;
+  movie?: boolean;
+  adult?: boolean;
+  external?: boolean;
+  unverified?: boolean;
+}
+
+interface JimakuEntry {
+  id: number;
+  name: string;
+  english_name?: string | null;
+  japanese_name?: string | null;
+  flags?: JimakuEntryFlags;
+  last_modified?: string;
+}
+
+interface JimakuFileEntry {
+  name: string;
+  url: string;
+  size: number;
+  last_modified: string;
+}
+
+interface JimakuApiError {
+  error: string;
+  code?: number;
+  retryAfter?: number;
+}
+
+type JimakuApiResponse<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: JimakuApiError };
+
+type JimakuDownloadResult =
+  | { ok: true; path: string }
+  | { ok: false; error: JimakuApiError };
+
 const subtitleRoot = document.getElementById('subtitleRoot')!;
 const subtitleContainer = document.getElementById('subtitleContainer')!;
 const overlay = document.getElementById('overlay')!;
 const secondarySubContainer = document.getElementById('secondarySubContainer')!;
 const secondarySubRoot = document.getElementById('secondarySubRoot')!;
+const jimakuModal = document.getElementById('jimakuModal') as HTMLDivElement;
+const jimakuTitleInput = document.getElementById('jimakuTitle') as HTMLInputElement;
+const jimakuSeasonInput = document.getElementById('jimakuSeason') as HTMLInputElement;
+const jimakuEpisodeInput = document.getElementById('jimakuEpisode') as HTMLInputElement;
+const jimakuSearchButton = document.getElementById('jimakuSearch') as HTMLButtonElement;
+const jimakuCloseButton = document.getElementById('jimakuClose') as HTMLButtonElement;
+const jimakuStatus = document.getElementById('jimakuStatus') as HTMLDivElement;
+const jimakuEntriesSection = document.getElementById('jimakuEntriesSection') as HTMLDivElement;
+const jimakuEntriesList = document.getElementById('jimakuEntries') as HTMLUListElement;
+const jimakuFilesSection = document.getElementById('jimakuFilesSection') as HTMLDivElement;
+const jimakuFilesList = document.getElementById('jimakuFiles') as HTMLUListElement;
+const jimakuBroadenButton = document.getElementById('jimakuBroaden') as HTMLButtonElement;
 
 let isOverSubtitle = false;
 let isDragging = false;
 let dragStartY = 0;
 let startYPercent = 0;
+let jimakuModalOpen = false;
+let jimakuEntries: JimakuEntry[] = [];
+let jimakuFiles: JimakuFileEntry[] = [];
+let selectedEntryIndex = 0;
+let selectedFileIndex = 0;
+let currentEpisodeFilter: number | null = null;
+let currentEntryId: number | null = null;
 
 function normalizeSubtitle(text: string): string {
   if (!text) return '';
@@ -178,7 +246,7 @@ function handleMouseEnter(): void {
 function handleMouseLeave(): void {
   isOverSubtitle = false;
   const yomitanPopup = document.querySelector('iframe[id^="yomitan-popup"]');
-  if (!yomitanPopup) {
+  if (!yomitanPopup && !jimakuModalOpen) {
     overlay.classList.remove('interactive');
   }
 }
@@ -220,6 +288,302 @@ function applySubtitleFontSize(fontSize: number): void {
     '--subtitle-font-size',
     `${clampedSize}px`,
   );
+}
+
+function setJimakuStatus(message: string, isError = false): void {
+  jimakuStatus.textContent = message;
+  jimakuStatus.style.color = isError ? 'rgba(255, 120, 120, 0.95)' : 'rgba(255, 255, 255, 0.8)';
+}
+
+function resetJimakuLists(): void {
+  jimakuEntries = [];
+  jimakuFiles = [];
+  selectedEntryIndex = 0;
+  selectedFileIndex = 0;
+  currentEntryId = null;
+  jimakuEntriesList.innerHTML = '';
+  jimakuFilesList.innerHTML = '';
+  jimakuEntriesSection.classList.add('hidden');
+  jimakuFilesSection.classList.add('hidden');
+  jimakuBroadenButton.classList.add('hidden');
+}
+
+function openJimakuModal(): void {
+  if (jimakuModalOpen) return;
+  jimakuModalOpen = true;
+  overlay.classList.add('interactive');
+  jimakuModal.classList.remove('hidden');
+  jimakuModal.setAttribute('aria-hidden', 'false');
+  setJimakuStatus('Loading media info...');
+  resetJimakuLists();
+
+  window.electronAPI.getJimakuMediaInfo().then((info: JimakuMediaInfo) => {
+    jimakuTitleInput.value = info.title || '';
+    jimakuSeasonInput.value = info.season ? String(info.season) : '';
+    jimakuEpisodeInput.value = info.episode ? String(info.episode) : '';
+    currentEpisodeFilter = info.episode ?? null;
+
+    if (info.confidence === 'high' && info.title && info.episode) {
+      performJimakuSearch();
+    } else if (info.title) {
+      setJimakuStatus('Check title/season/episode and press Search.');
+    } else {
+      setJimakuStatus('Enter title/season/episode and press Search.');
+    }
+  }).catch(() => {
+    setJimakuStatus('Failed to load media info.', true);
+  });
+}
+
+function closeJimakuModal(): void {
+  if (!jimakuModalOpen) return;
+  jimakuModalOpen = false;
+  jimakuModal.classList.add('hidden');
+  jimakuModal.setAttribute('aria-hidden', 'true');
+  if (!isOverSubtitle) {
+    overlay.classList.remove('interactive');
+  }
+  resetJimakuLists();
+}
+
+function formatEntryLabel(entry: JimakuEntry): string {
+  if (entry.english_name && entry.english_name !== entry.name) {
+    return `${entry.name} / ${entry.english_name}`;
+  }
+  return entry.name;
+}
+
+function renderEntries(): void {
+  jimakuEntriesList.innerHTML = '';
+  if (jimakuEntries.length === 0) {
+    jimakuEntriesSection.classList.add('hidden');
+    return;
+  }
+  jimakuEntriesSection.classList.remove('hidden');
+  jimakuEntries.forEach((entry, index) => {
+    const li = document.createElement('li');
+    li.textContent = formatEntryLabel(entry);
+    if (entry.japanese_name) {
+      const sub = document.createElement('div');
+      sub.className = 'jimaku-subtext';
+      sub.textContent = entry.japanese_name;
+      li.appendChild(sub);
+    }
+    if (index === selectedEntryIndex) {
+      li.classList.add('active');
+    }
+    li.addEventListener('click', () => {
+      selectEntry(index);
+    });
+    jimakuEntriesList.appendChild(li);
+  });
+}
+
+function formatBytes(size: number): string {
+  if (!Number.isFinite(size)) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = size;
+  let idx = 0;
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx += 1;
+  }
+  return `${value.toFixed(value >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
+}
+
+function renderFiles(): void {
+  jimakuFilesList.innerHTML = '';
+  if (jimakuFiles.length === 0) {
+    jimakuFilesSection.classList.add('hidden');
+    return;
+  }
+  jimakuFilesSection.classList.remove('hidden');
+  jimakuFiles.forEach((file, index) => {
+    const li = document.createElement('li');
+    li.textContent = file.name;
+    const sub = document.createElement('div');
+    sub.className = 'jimaku-subtext';
+    sub.textContent = `${formatBytes(file.size)} • ${file.last_modified}`;
+    li.appendChild(sub);
+    if (index === selectedFileIndex) {
+      li.classList.add('active');
+    }
+    li.addEventListener('click', () => {
+      selectFile(index);
+    });
+    jimakuFilesList.appendChild(li);
+  });
+}
+
+function getSearchQuery(): { query: string; episode: number | null } {
+  const title = jimakuTitleInput.value.trim();
+  const season = jimakuSeasonInput.value ? Number.parseInt(jimakuSeasonInput.value, 10) : null;
+  const episode = jimakuEpisodeInput.value ? Number.parseInt(jimakuEpisodeInput.value, 10) : null;
+  const query = season ? `${title} Season ${season}` : title;
+  return { query, episode: Number.isFinite(episode) ? episode : null };
+}
+
+async function performJimakuSearch(): Promise<void> {
+  const { query, episode } = getSearchQuery();
+  if (!query) {
+    setJimakuStatus('Enter a title before searching.', true);
+    return;
+  }
+  resetJimakuLists();
+  setJimakuStatus('Searching Jimaku...');
+  currentEpisodeFilter = episode;
+
+  const response: JimakuApiResponse<JimakuEntry[]> = await window.electronAPI.jimakuSearchEntries({ query });
+  if (!response.ok) {
+    const retry = response.error.retryAfter ? ` Retry after ${response.error.retryAfter.toFixed(1)}s.` : '';
+    setJimakuStatus(`${response.error.error}${retry}`, true);
+    return;
+  }
+
+  jimakuEntries = response.data;
+  selectedEntryIndex = 0;
+  if (jimakuEntries.length === 0) {
+    setJimakuStatus('No entries found.');
+    return;
+  }
+  setJimakuStatus('Select an entry.');
+  renderEntries();
+  if (jimakuEntries.length === 1) {
+    selectEntry(0);
+  }
+}
+
+async function loadFiles(entryId: number, episode: number | null): Promise<void> {
+  setJimakuStatus('Loading files...');
+  jimakuFiles = [];
+  selectedFileIndex = 0;
+  jimakuFilesList.innerHTML = '';
+  jimakuFilesSection.classList.add('hidden');
+
+  const response: JimakuApiResponse<JimakuFileEntry[]> = await window.electronAPI.jimakuListFiles({
+    entryId,
+    episode,
+  });
+  if (!response.ok) {
+    const retry = response.error.retryAfter ? ` Retry after ${response.error.retryAfter.toFixed(1)}s.` : '';
+    setJimakuStatus(`${response.error.error}${retry}`, true);
+    return;
+  }
+
+  jimakuFiles = response.data;
+  if (jimakuFiles.length === 0) {
+    if (episode !== null) {
+      setJimakuStatus('No files found for this episode.');
+      jimakuBroadenButton.classList.remove('hidden');
+    } else {
+      setJimakuStatus('No files found.');
+    }
+    return;
+  }
+
+  jimakuBroadenButton.classList.add('hidden');
+  setJimakuStatus('Select a subtitle file.');
+  renderFiles();
+  if (jimakuFiles.length === 1) {
+    selectFile(0);
+  }
+}
+
+function selectEntry(index: number): void {
+  if (index < 0 || index >= jimakuEntries.length) return;
+  selectedEntryIndex = index;
+  currentEntryId = jimakuEntries[index].id;
+  renderEntries();
+  if (currentEntryId !== null) {
+    loadFiles(currentEntryId, currentEpisodeFilter);
+  }
+}
+
+async function selectFile(index: number): Promise<void> {
+  if (index < 0 || index >= jimakuFiles.length) return;
+  selectedFileIndex = index;
+  renderFiles();
+  if (currentEntryId === null) {
+    setJimakuStatus('Select an entry first.', true);
+    return;
+  }
+
+  const file = jimakuFiles[index];
+  setJimakuStatus('Downloading subtitle...');
+  const result: JimakuDownloadResult = await window.electronAPI.jimakuDownloadFile({
+    entryId: currentEntryId,
+    url: file.url,
+    name: file.name,
+  });
+
+  if (result.ok) {
+    setJimakuStatus(`Downloaded and loaded: ${result.path}`);
+  } else {
+    const retry = result.error.retryAfter ? ` Retry after ${result.error.retryAfter.toFixed(1)}s.` : '';
+    setJimakuStatus(`${result.error.error}${retry}`, true);
+  }
+}
+
+function isTextInputFocused(): boolean {
+  const active = document.activeElement;
+  if (!active) return false;
+  const tag = active.tagName.toLowerCase();
+  return tag === 'input' || tag === 'textarea';
+}
+
+function handleJimakuKeydown(e: KeyboardEvent): boolean {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeJimakuModal();
+    return true;
+  }
+
+  if (isTextInputFocused()) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      performJimakuSearch();
+      return true;
+    }
+    return true;
+  }
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (jimakuFiles.length > 0) {
+      selectedFileIndex = Math.min(jimakuFiles.length - 1, selectedFileIndex + 1);
+      renderFiles();
+    } else if (jimakuEntries.length > 0) {
+      selectedEntryIndex = Math.min(jimakuEntries.length - 1, selectedEntryIndex + 1);
+      renderEntries();
+    }
+    return true;
+  }
+
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (jimakuFiles.length > 0) {
+      selectedFileIndex = Math.max(0, selectedFileIndex - 1);
+      renderFiles();
+    } else if (jimakuEntries.length > 0) {
+      selectedEntryIndex = Math.max(0, selectedEntryIndex - 1);
+      renderEntries();
+    }
+    return true;
+  }
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (jimakuFiles.length > 0) {
+      selectFile(selectedFileIndex);
+    } else if (jimakuEntries.length > 0) {
+      selectEntry(selectedEntryIndex);
+    } else {
+      performJimakuSearch();
+    }
+    return true;
+  }
+
+  return true;
 }
 
 function setupDragging(): void {
@@ -290,6 +654,7 @@ const CHORD_MAP = new Map<string, ChordAction>([
   ['KeyR', { type: 'mpv', command: ['script-message', 'subminer-restart'] }],
   ['KeyC', { type: 'mpv', command: ['script-message', 'subminer-status'] }],
   ['KeyY', { type: 'mpv', command: ['script-message', 'subminer-menu'] }],
+  ['KeyJ', { type: 'electron', action: () => openJimakuModal() }],
   ['KeyD', { type: 'electron', action: () => window.electronAPI.toggleDevTools() }],
   ['KeyS', { type: 'noop' }],
 ]);
@@ -317,6 +682,11 @@ async function setupMpvInputForwarding(): Promise<void> {
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     const yomitanPopup = document.querySelector('iframe[id^="yomitan-popup"]');
     if (yomitanPopup) return;
+
+    if (jimakuModalOpen) {
+      handleJimakuKeydown(e);
+      return;
+    }
 
     if (chordPending) {
       const modifierKeys = ['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
@@ -419,7 +789,7 @@ function setupYomitanObserver(): void {
         if (node.nodeType === Node.ELEMENT_NODE) {
           const element = node as Element;
           if (element.tagName === 'IFRAME' && element.id && element.id.startsWith('yomitan-popup')) {
-            if (!isOverSubtitle) {
+            if (!isOverSubtitle && !jimakuModalOpen) {
               overlay.classList.remove('interactive');
             }
           }
@@ -544,6 +914,21 @@ async function init(): Promise<void> {
 
   secondarySubContainer.addEventListener('mouseenter', handleMouseEnter);
   secondarySubContainer.addEventListener('mouseleave', handleMouseLeave);
+
+  jimakuSearchButton.addEventListener('click', () => {
+    performJimakuSearch();
+  });
+
+  jimakuCloseButton.addEventListener('click', () => {
+    closeJimakuModal();
+  });
+
+  jimakuBroadenButton.addEventListener('click', () => {
+    if (currentEntryId !== null) {
+      jimakuBroadenButton.classList.add('hidden');
+      loadFiles(currentEntryId, null);
+    }
+  });
 
   setupDragging();
 

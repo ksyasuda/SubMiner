@@ -44,6 +44,184 @@ html, body {
 	pointer-events: auto;
 }
 
+.modal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+  z-index: 1000;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  width: min(720px, 92%);
+  max-height: 80%;
+  background: rgba(20, 20, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 16px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.jimaku-form {
+  display: grid;
+  grid-template-columns: 1fr 120px 120px auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.jimaku-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.jimaku-field input {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #fff;
+  padding: 6px 8px;
+}
+
+.jimaku-button {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+}
+
+.jimaku-button:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.jimaku-status {
+  min-height: 20px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.jimaku-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow: hidden;
+}
+
+.jimaku-section.hidden {
+  display: none;
+}
+
+.jimaku-section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.jimaku-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  max-height: 180px;
+}
+
+.jimaku-list li {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jimaku-list li:last-child {
+  border-bottom: none;
+}
+
+.jimaku-list li.active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.jimaku-list .jimaku-subtext {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.jimaku-link {
+  align-self: flex-start;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.jimaku-link.hidden {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .jimaku-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .jimaku-button {
+    grid-column: span 2;
+  }
+}
+
 #subtitleContainer {
   max-width: 80%;
   margin-bottom: 60px;

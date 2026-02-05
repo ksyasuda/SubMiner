@@ -151,6 +151,16 @@ export interface ShortcutsConfig {
   toggleSecondarySub?: string | null;
 }
 
+export type JimakuLanguagePreference = "ja" | "en" | "none";
+
+export interface JimakuConfig {
+  apiKey?: string;
+  apiKeyCommand?: string;
+  apiBaseUrl?: string;
+  languagePreference?: JimakuLanguagePreference;
+  maxEntryResults?: number;
+}
+
 export interface Config {
   subtitlePosition?: SubtitlePosition;
   subtitleFontSize?: number;
@@ -162,6 +172,7 @@ export interface Config {
   secondarySub?: SecondarySubConfig;
   subtitleStyle?: SubtitleStyleConfig;
   auto_start_overlay?: boolean;
+  jimaku?: JimakuConfig;
 }
 
 export interface SubtitleData {
@@ -174,6 +185,70 @@ export interface MecabStatus {
   enabled: boolean;
   path: string | null;
 }
+
+export type JimakuConfidence = "high" | "medium" | "low";
+
+export interface JimakuMediaInfo {
+  title: string;
+  season: number | null;
+  episode: number | null;
+  confidence: JimakuConfidence;
+  filename: string;
+  rawTitle: string;
+}
+
+export interface JimakuSearchQuery {
+  query: string;
+}
+
+export interface JimakuEntryFlags {
+  anime?: boolean;
+  movie?: boolean;
+  adult?: boolean;
+  external?: boolean;
+  unverified?: boolean;
+}
+
+export interface JimakuEntry {
+  id: number;
+  name: string;
+  english_name?: string | null;
+  japanese_name?: string | null;
+  flags?: JimakuEntryFlags;
+  last_modified?: string;
+}
+
+export interface JimakuFilesQuery {
+  entryId: number;
+  episode?: number | null;
+}
+
+export interface JimakuFileEntry {
+  name: string;
+  url: string;
+  size: number;
+  last_modified: string;
+}
+
+export interface JimakuDownloadQuery {
+  entryId: number;
+  url: string;
+  name: string;
+}
+
+export interface JimakuApiError {
+  error: string;
+  code?: number;
+  retryAfter?: number;
+}
+
+export type JimakuApiResponse<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: JimakuApiError };
+
+export type JimakuDownloadResult =
+  | { ok: true; path: string }
+  | { ok: false; error: JimakuApiError };
 
 export interface ElectronAPI {
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
@@ -192,6 +267,10 @@ export interface ElectronAPI {
   setMecabEnabled: (enabled: boolean) => void;
   sendMpvCommand: (command: (string | number)[]) => void;
   getKeybindings: () => Promise<Keybinding[]>;
+  getJimakuMediaInfo: () => Promise<JimakuMediaInfo>;
+  jimakuSearchEntries: (query: JimakuSearchQuery) => Promise<JimakuApiResponse<JimakuEntry[]>>;
+  jimakuListFiles: (query: JimakuFilesQuery) => Promise<JimakuApiResponse<JimakuFileEntry[]>>;
+  jimakuDownloadFile: (query: JimakuDownloadQuery) => Promise<JimakuDownloadResult>;
   quitApp: () => void;
   toggleDevTools: () => void;
   toggleOverlay: () => void;

@@ -32,6 +32,41 @@
     <div id="subtitleContainer">
       <div id="subtitleRoot"></div>
     </div>
+    <div id="jimakuModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">Jimaku Subtitles</div>
+          <button id="jimakuClose" class="modal-close" type="button">Close</button>
+        </div>
+        <div class="modal-body">
+          <div class="jimaku-form">
+            <label class="jimaku-field">
+              <span>Title</span>
+              <input id="jimakuTitle" type="text" placeholder="Anime title">
+            </label>
+            <label class="jimaku-field">
+              <span>Season</span>
+              <input id="jimakuSeason" type="number" min="1" placeholder="1">
+            </label>
+            <label class="jimaku-field">
+              <span>Episode</span>
+              <input id="jimakuEpisode" type="number" min="1" placeholder="1">
+            </label>
+            <button id="jimakuSearch" class="jimaku-button" type="button">Search</button>
+          </div>
+          <div id="jimakuStatus" class="jimaku-status"></div>
+          <div id="jimakuEntriesSection" class="jimaku-section hidden">
+            <div class="jimaku-section-title">Entries</div>
+            <ul id="jimakuEntries" class="jimaku-list"></ul>
+          </div>
+          <div id="jimakuFilesSection" class="jimaku-section hidden">
+            <div class="jimaku-section-title">Files</div>
+            <ul id="jimakuFiles" class="jimaku-list"></ul>
+            <button id="jimakuBroaden" class="jimaku-link hidden" type="button">Broaden search (all files)</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
   <script src="renderer.js"></script>
 </body>

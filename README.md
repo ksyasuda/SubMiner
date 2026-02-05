@@ -290,6 +290,12 @@ subminer.AppImage --help                  # Show all options
 
 These keybindings only work when the overlay window has focus. See [Configuration](#configuration) for customization.
 
+### Overlay Chord Shortcuts
+
+| Chord | Action |
+| ----- | ------ |
+| `y` then `j` | Open Jimaku subtitle menu |
+
 ## How It Works
 
 1. MPV runs with an IPC socket at `/tmp/subminer-socket`
@@ -333,6 +339,24 @@ See `config.example.jsonc` for detailed configuration options.
   }
 }
 ```
+
+### Jimaku
+
+Configure Jimaku API access and defaults:
+
+```json
+{
+  "jimaku": {
+    "apiKey": "YOUR_API_KEY",
+    "apiKeyCommand": "cat ~/.jimaku_key",
+    "apiBaseUrl": "https://jimaku.cc",
+    "languagePreference": "ja",
+    "maxEntryResults": 10
+  }
+}
+```
+
+Jimaku is rate limited; if you hit a limit, SubMiner will surface the retry delay from the API response.
 
 Set `openBrowser` to `false` to only print the URL without opening a browser.
 
