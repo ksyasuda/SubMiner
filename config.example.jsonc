@@ -9,6 +9,15 @@
  */
 {
   // ==========================================
+  // Overlay Auto-Start
+  // ==========================================
+  // When the overlay process connects to mpv, automatically show the overlay
+  // and hide mpv's native subtitles. This can also be set via the Lua plugin's
+  // auto_start_overlay option, which passes --auto-start-overlay on the CLI.
+  // Either setting being true will enable auto-start.
+  "auto_start_overlay": false,
+
+  // ==========================================
   // Texthooker Server
   // ==========================================
   // Control whether the browser opens automatically when texthooker starts.

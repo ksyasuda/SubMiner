@@ -346,6 +346,23 @@ The configuration file includes several main sections:
 - **Subtitle Style** - Appearance customization
 - **Secondary Subtitles** - Dual subtitle track support
 - **Subtitle Position** - Overlay vertical positioning
+- **Auto-Start Overlay** - Automatically show overlay on MPV connection
+
+### Auto-Start Overlay
+
+Control whether the overlay automatically becomes visible when it connects to mpv:
+
+```json
+{
+  "auto_start_overlay": false
+}
+```
+
+| Option               | Values          | Description                                            |
+| -------------------- | --------------- | ------------------------------------------------------ |
+| `auto_start_overlay` | `true`, `false` | Auto-show overlay on mpv connection (default: `false`) |
+
+This can also be controlled via the Lua plugin's `auto_start_overlay` option in `subminer.conf`. If either the plugin config or the electron config enables it, the overlay will auto-start.
 
 ### Texthooker
 
