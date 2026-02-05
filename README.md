@@ -294,7 +294,7 @@ These keybindings only work when the overlay window has focus. See [Configuratio
 
 | Chord | Action |
 | ----- | ------ |
-| `y` then `j` | Open Jimaku subtitle menu |
+| `y` → `j` | Open Jimaku subtitle menu |
 
 ## How It Works
 
