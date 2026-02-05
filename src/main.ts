@@ -83,7 +83,7 @@ const DEFAULT_WEBSOCKET_PORT = 6677;
 const DEFAULT_SUBTITLE_FONT_SIZE = 24;
 let texthookerServer: http.Server | null = null;
 let subtitleWebSocketServer: WebSocket.Server | null = null;
-const CONFIG_DIR = path.join(os.homedir(), ".config", "subminer");
+const CONFIG_DIR = path.join(os.homedir(), ".config", "SubMiner");
 const USER_DATA_PATH = CONFIG_DIR;
 const isDev = process.argv.includes("--dev");
 
@@ -193,8 +193,7 @@ function hasExplicitCommand(args: CliArgs): boolean {
     args.show ||
     args.hide ||
     args.texthooker ||
-    args.help ||
-    args.autoStartOverlay
+    args.help
   );
 }
 
@@ -206,8 +205,7 @@ function shouldStartApp(args: CliArgs): boolean {
     args.settings ||
     args.show ||
     args.hide ||
-    args.texthooker ||
-    args.autoStartOverlay
+    args.texthooker
   ) {
     return true;
   }
@@ -1017,7 +1015,7 @@ class MpvIpcClient {
       this.getInitialState();
 
       const shouldAutoStart =
-        autoStartOverlay || loadConfig().config.auto_start_overlay !== false;
+        autoStartOverlay || loadConfig().config.auto_start_overlay === true;
       if (this.firstConnection && shouldAutoStart) {
         console.log("Auto-starting overlay, hiding mpv subtitles");
         setTimeout(() => {
@@ -1363,7 +1361,7 @@ async function loadYomitanExtension(): Promise<Extension | null> {
   const searchPaths = [
     path.join(__dirname, "..", "vendor", "yomitan"),
     path.join(process.resourcesPath, "yomitan"),
-    "/usr/share/subminer/yomitan",
+    "/usr/share/SubMiner/yomitan",
     path.join(USER_DATA_PATH, "yomitan"),
   ];
 

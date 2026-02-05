@@ -38,11 +38,11 @@
     "typescript": "^5.9.3"
   },
   "build": {
-    "appId": "com.sudacode.subminer",
+    "appId": "com.sudacode.SubMiner",
     "productName": "SubMiner",
-    "executableName": "subminer",
-    "artifactName": "subminer-${version}.${ext}",
-    "icon": "assets/subminer.png",
+    "executableName": "SubMiner",
+    "artifactName": "SubMiner-${version}.${ext}",
+    "icon": "assets/SubMiner.png",
     "directories": {
       "output": "release"
     },
@@ -57,7 +57,7 @@
         "zip"
       ],
       "category": "public.app-category.video",
-      "icon": "assets/subminer.png",
+      "icon": "assets/SubMiner.png",
       "identity": null
     },
     "files": [

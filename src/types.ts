@@ -163,7 +163,6 @@ export interface JimakuConfig {
 
 export interface Config {
   subtitlePosition?: SubtitlePosition;
-  subtitleFontSize?: number;
   keybindings?: Keybinding[];
   websocket?: WebSocketConfig;
   texthooker?: TexthookerConfig;

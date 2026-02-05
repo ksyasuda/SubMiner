@@ -1,4 +1,4 @@
-.PHONY: help deps build build-linux build-macos build-appimage install install-linux install-macos uninstall uninstall-linux uninstall-macos print-dirs
+.PHONY: help deps build build-linux build-macos build-appimage install install-linux install-macos uninstall uninstall-linux uninstall-macos print-dirs pretty
 
 APP_NAME := subminer
 THEME_FILE := subminer.rasi
@@ -7,16 +7,16 @@ THEME_FILE := subminer.rasi
 PREFIX ?= $(HOME)/.local
 BINDIR ?= $(PREFIX)/bin
 
-# Linux data dir defaults to XDG_DATA_HOME/subminer.
+# Linux data dir defaults to XDG_DATA_HOME/SubMiner.
 XDG_DATA_HOME ?= $(HOME)/.local/share
-LINUX_DATA_DIR ?= $(XDG_DATA_HOME)/subminer
+LINUX_DATA_DIR ?= $(XDG_DATA_HOME)/SubMiner
 
 # macOS data dir uses the standard Application Support location.
 # Note: contains spaces; recipes must quote it.
 MACOS_DATA_DIR ?= $(HOME)/Library/Application Support/SubMiner
 
 # If building from source, the AppImage will typically land in dist/.
-APPIMAGE_SRC := $(firstword $(wildcard dist/subminer-*.AppImage))
+APPIMAGE_SRC := $(firstword $(wildcard dist/SubMiner-*.AppImage))
 
 help:
 	@printf '%s\n' \
@@ -50,6 +50,9 @@ deps:
 	@pnpm install
 	@pnpm -C vendor/texthooker-ui install
 
+pretty:
+	@pnpm exec prettier --write 'src/**/*.ts'
+
 build:
 	@command -v pnpm >/dev/null 2>&1 || { printf '%s\n' "[ERROR] pnpm not found"; exit 1; }
 	@pnpm -C vendor/texthooker-ui build
@@ -72,9 +75,9 @@ install-linux:
 	@install -d "$(LINUX_DATA_DIR)/themes"
 	@install -m 0644 "./$(THEME_FILE)" "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
 	@if [ -n "$(APPIMAGE_SRC)" ]; then \
-		install -m 0755 "$(APPIMAGE_SRC)" "$(BINDIR)/subminer.AppImage"; \
+		install -m 0755 "$(APPIMAGE_SRC)" "$(BINDIR)/SubMiner.AppImage"; \
 	else \
-		printf '%s\n' "[WARN] No dist/subminer-*.AppImage found; skipping AppImage install"; \
+		printf '%s\n' "[WARN] No dist/SubMiner-*.AppImage found; skipping AppImage install"; \
 		printf '%s\n' "       Build one with: pnpm run build:appimage"; \
 	fi
 	@printf '%s\n' "Installed to:" "  $(BINDIR)/subminer" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
@@ -89,9 +92,9 @@ install-macos:
 uninstall: uninstall-linux
 
 uninstall-linux:
-	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/subminer.AppImage"
+	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
 	@rm -f "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
-	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(BINDIR)/subminer.AppImage" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
+	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(BINDIR)/SubMiner.AppImage" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
 
 uninstall-macos:
 	@rm -f "$(BINDIR)/subminer"

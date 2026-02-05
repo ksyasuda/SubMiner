@@ -93,17 +93,15 @@ local function find_binary()
 	end
 
 	local search_paths = {
-		"/Applications/SubMiner.app/Contents/MacOS/subminer",
-		"/Applications/subminer.app/Contents/MacOS/subminer",
-		utils.join_path(os.getenv("HOME") or "", "Applications/SubMiner.app/Contents/MacOS/subminer"),
-		utils.join_path(os.getenv("HOME") or "", "Applications/subminer.app/Contents/MacOS/subminer"),
-		"C:\\Program Files\\subminer\\subminer.exe",
-		"C:\\Program Files (x86)\\subminer\\subminer.exe",
-		"C:\\subminer\\subminer.exe",
-		utils.join_path(os.getenv("HOME") or "", ".local/bin/subminer.AppImage"),
-		"/opt/subminer/subminer.AppImage",
-		"/usr/local/bin/subminer",
-		"/usr/bin/subminer",
+		"/Applications/SubMiner.app/Contents/MacOS/SubMiner",
+		utils.join_path(os.getenv("HOME") or "", "Applications/SubMiner.app/Contents/MacOS/SubMiner"),
+		"C:\\Program Files\\SubMiner\\SubMiner.exe",
+		"C:\\Program Files (x86)\\SubMiner\\SubMiner.exe",
+		"C:\\SubMiner\\SubMiner.exe",
+		utils.join_path(os.getenv("HOME") or "", ".local/bin/SubMiner.AppImage"),
+		"/opt/SubMiner/SubMiner.AppImage",
+		"/usr/local/bin/SubMiner",
+		"/usr/bin/SubMiner",
 	}
 
 	for _, path in ipairs(search_paths) do
