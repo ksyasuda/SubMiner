@@ -136,6 +136,7 @@ export interface AnkiConnectConfig {
   sentenceCardSentenceField?: string;
   sentenceCardAudioField?: string;
   isLapis?: boolean;
+  audioCardField?: string;
 }
 
 export interface SubtitleStyleConfig {
@@ -163,6 +164,7 @@ export interface ShortcutsConfig {
   mineSentenceMultiple?: string | null;
   multiCopyTimeoutMs?: number;
   toggleSecondarySub?: string | null;
+  markAudioCard?: string | null;
 }
 
 export type JimakuLanguagePreference = "ja" | "en" | "none";

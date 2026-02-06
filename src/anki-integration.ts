@@ -77,6 +77,7 @@ export class AnkiIntegration {
       animatedCrf: 35,
       autoUpdateNewCards: true,
       maxMediaDuration: 30,
+      audioCardField: "IsAudioCard",
       ...config,
     };
 
@@ -740,6 +741,179 @@ export class AnkiIntegration {
         (error as Error).message,
       );
       this.showOsdNotification(`Update failed: ${(error as Error).message}`);
+    }
+  }
+
+  async markLastCardAsAudioCard(): Promise<void> {
+    try {
+      if (!this.mpvClient || !this.mpvClient.currentVideoPath) {
+        this.showOsdNotification("No video loaded");
+        return;
+      }
+
+      if (!this.mpvClient.currentSubText) {
+        this.showOsdNotification("No current subtitle");
+        return;
+      }
+
+      let startTime = this.mpvClient.currentSubStart;
+      let endTime = this.mpvClient.currentSubEnd;
+
+      if (startTime === undefined || endTime === undefined) {
+        const currentTime = this.mpvClient.currentTimePos || 0;
+        const fallback = this.config.fallbackDuration! / 2;
+        startTime = currentTime - fallback;
+        endTime = currentTime + fallback;
+      }
+
+      const maxMediaDuration = this.config.maxMediaDuration ?? 30;
+      if (maxMediaDuration > 0 && endTime - startTime > maxMediaDuration) {
+        endTime = startTime + maxMediaDuration;
+      }
+
+      this.showOsdNotification("Marking card as audio card...");
+      this.updateInProgress = true;
+
+      try {
+        const query = this.config.deck
+          ? `"deck:${this.config.deck}" added:1`
+          : "added:1";
+        const noteIds = (await this.client.findNotes(query)) as number[];
+        if (!noteIds || noteIds.length === 0) {
+          this.showOsdNotification("No recently added cards found");
+          return;
+        }
+
+        const noteId = Math.max(...noteIds);
+
+        const notesInfoResult = await this.client.notesInfo([noteId]);
+        const notesInfo = notesInfoResult as unknown as NoteInfo[];
+        if (!notesInfo || notesInfo.length === 0) {
+          this.showOsdNotification("Card not found");
+          return;
+        }
+
+        const noteInfo = notesInfo[0];
+        const fields = this.extractFields(noteInfo.fields);
+        const expressionText = fields.expression || fields.word || "";
+
+        const updatedFields: Record<string, string> = {};
+        const errors: string[] = [];
+
+        const audioCardFieldName = this.config.audioCardField || "IsAudioCard";
+        updatedFields[audioCardFieldName] = "x";
+
+        if (this.config.sentenceField) {
+          const processedSentence = this.processSentence(
+            this.mpvClient.currentSubText,
+            fields,
+          );
+          updatedFields[this.config.sentenceField] = processedSentence;
+        }
+
+        const audioFieldName =
+          this.config.sentenceCardAudioField || "SentenceAudio";
+        try {
+          const audioFilename = this.generateAudioFilename();
+          const audioBuffer = await this.mediaGenerator.generateAudio(
+            this.mpvClient.currentVideoPath,
+            startTime,
+            endTime,
+            this.config.audioPadding,
+          );
+
+          if (audioBuffer) {
+            await this.client.storeMediaFile(audioFilename, audioBuffer);
+            updatedFields[audioFieldName] = `[sound:${audioFilename}]`;
+
+            if (this.config.miscInfoField) {
+              const miscInfo = this.formatMiscInfoPattern(audioFilename);
+              if (miscInfo) {
+                updatedFields[this.config.miscInfoField] = miscInfo;
+              }
+            }
+          }
+        } catch (error) {
+          console.error(
+            "Failed to generate audio for audio card:",
+            (error as Error).message,
+          );
+          errors.push("audio");
+        }
+
+        if (this.config.generateImage) {
+          try {
+            const imageFilename = this.generateImageFilename();
+            let imageBuffer: Buffer | null = null;
+
+            if (this.config.imageType === "avif") {
+              imageBuffer = await this.mediaGenerator.generateAnimatedImage(
+                this.mpvClient.currentVideoPath,
+                startTime,
+                endTime,
+                this.config.audioPadding,
+                {
+                  fps: this.config.animatedFps,
+                  maxWidth: this.config.animatedMaxWidth,
+                  maxHeight: this.config.animatedMaxHeight,
+                  crf: this.config.animatedCrf,
+                },
+              );
+            } else {
+              const timestamp = this.mpvClient.currentTimePos || 0;
+              imageBuffer = await this.mediaGenerator.generateScreenshot(
+                this.mpvClient.currentVideoPath,
+                timestamp,
+                {
+                  format: this.config.imageFormat as "jpg" | "png" | "webp",
+                  quality: this.config.imageQuality,
+                  maxWidth: this.config.imageMaxWidth,
+                  maxHeight: this.config.imageMaxHeight,
+                },
+              );
+            }
+
+            if (imageBuffer && this.config.imageField) {
+              await this.client.storeMediaFile(imageFilename, imageBuffer);
+              updatedFields[this.config.imageField] =
+                `<img src="${imageFilename}">`;
+
+              if (
+                this.config.miscInfoField &&
+                !updatedFields[this.config.miscInfoField]
+              ) {
+                const miscInfo = this.formatMiscInfoPattern(imageFilename);
+                if (miscInfo) {
+                  updatedFields[this.config.miscInfoField] = miscInfo;
+                }
+              }
+            }
+          } catch (error) {
+            console.error(
+              "Failed to generate image for audio card:",
+              (error as Error).message,
+            );
+            errors.push("image");
+          }
+        }
+
+        await this.client.updateNoteFields(noteId, updatedFields);
+        const label = expressionText || noteId;
+        console.log("Marked card as audio card:", label);
+        const errorSuffix =
+          errors.length > 0 ? `${errors.join(", ")} failed` : undefined;
+        await this.showNotification(noteId, label, errorSuffix);
+      } finally {
+        this.updateInProgress = false;
+      }
+    } catch (error) {
+      console.error(
+        "Error marking card as audio card:",
+        (error as Error).message,
+      );
+      this.showOsdNotification(
+        `Audio card failed: ${(error as Error).message}`,
+      );
     }
   }
 

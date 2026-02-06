@@ -93,12 +93,19 @@ const electronAPI: ElectronAPI = {
   getKeybindings: (): Promise<Keybinding[]> =>
     ipcRenderer.invoke("get-keybindings"),
 
-  getJimakuMediaInfo: (): Promise<JimakuMediaInfo> => ipcRenderer.invoke("jimaku:get-media-info"),
-  jimakuSearchEntries: (query: JimakuSearchQuery): Promise<JimakuApiResponse<JimakuEntry[]>> =>
+  getJimakuMediaInfo: (): Promise<JimakuMediaInfo> =>
+    ipcRenderer.invoke("jimaku:get-media-info"),
+  jimakuSearchEntries: (
+    query: JimakuSearchQuery,
+  ): Promise<JimakuApiResponse<JimakuEntry[]>> =>
     ipcRenderer.invoke("jimaku:search-entries", query),
-  jimakuListFiles: (query: JimakuFilesQuery): Promise<JimakuApiResponse<JimakuFileEntry[]>> =>
+  jimakuListFiles: (
+    query: JimakuFilesQuery,
+  ): Promise<JimakuApiResponse<JimakuFileEntry[]>> =>
     ipcRenderer.invoke("jimaku:list-files", query),
-  jimakuDownloadFile: (query: JimakuDownloadQuery): Promise<JimakuDownloadResult> =>
+  jimakuDownloadFile: (
+    query: JimakuDownloadQuery,
+  ): Promise<JimakuDownloadResult> =>
     ipcRenderer.invoke("jimaku:download-file", query),
 
   quitApp: () => {

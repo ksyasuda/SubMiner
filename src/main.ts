@@ -1587,6 +1587,7 @@ function getConfiguredShortcuts() {
     multiCopyTimeoutMs: config.shortcuts?.multiCopyTimeoutMs ?? 3000,
     toggleSecondarySub:
       config.shortcuts?.toggleSecondarySub ?? "CommandOrControl+Shift+V",
+    markAudioCard: config.shortcuts?.markAudioCard ?? "CommandOrControl+A",
   };
 }
 
@@ -1704,11 +1705,18 @@ async function downloadToFile(
   });
 }
 
-ipcMain.on("set-ignore-mouse-events", (_event: IpcMainEvent, ignore: boolean, options: { forward?: boolean } = {}) => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.setIgnoreMouseEvents(ignore, options);
-  }
-});
+ipcMain.on(
+  "set-ignore-mouse-events",
+  (
+    _event: IpcMainEvent,
+    ignore: boolean,
+    options: { forward?: boolean } = {},
+  ) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setIgnoreMouseEvents(ignore, options);
+    }
+  },
+);
 
 function cancelPendingMultiCopy(): void {
   if (!pendingMultiCopy) return;
@@ -1815,6 +1823,14 @@ async function updateLastCardFromClipboard(): Promise<void> {
 
   const clipboardText = clipboard.readText();
   await ankiIntegration.updateLastAddedFromClipboard(clipboardText);
+}
+
+async function markLastCardAsAudioCard(): Promise<void> {
+  if (!ankiIntegration) {
+    showMpvOsd("AnkiConnect integration not enabled");
+    return;
+  }
+  await ankiIntegration.markLastCardAsAudioCard();
 }
 
 async function mineSentenceCard(): Promise<void> {
@@ -1997,6 +2013,15 @@ function registerOverlayShortcuts(): void {
     });
   }
 
+  if (shortcuts.markAudioCard) {
+    globalShortcut.register(shortcuts.markAudioCard, () => {
+      markLastCardAsAudioCard().catch((err) => {
+        console.error("markLastCardAsAudioCard failed:", err);
+        showMpvOsd(`Audio card failed: ${(err as Error).message}`);
+      });
+    });
+  }
+
   shortcutsRegistered = true;
 }
 
@@ -2025,6 +2050,9 @@ function unregisterOverlayShortcuts(): void {
   }
   if (shortcuts.toggleSecondarySub) {
     globalShortcut.unregister(shortcuts.toggleSecondarySub);
+  }
+  if (shortcuts.markAudioCard) {
+    globalShortcut.unregister(shortcuts.markAudioCard);
   }
 
   shortcutsRegistered = false;

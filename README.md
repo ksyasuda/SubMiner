@@ -482,6 +482,7 @@ See `config.example.jsonc` for detailed configuration options with all available
 | `sentenceCardSentenceField` | string                                  | Field name for sentence in sentence cards (default: `Sentence`)                                                             |
 | `sentenceCardAudioField`    | string                                  | Field name for audio in sentence cards (default: `SentenceAudio`)                                                           |
 | `isLapis`                   | `true`, `false`                         | Enable Lapis note format compatibility (default: `false`)                                                                   |
+| `audioCardField`            | string                                  | Card field for audio card marker (default: `"IsAudioCard"`)                                                                 |
 
 **Image Quality Notes:**
 
@@ -505,6 +506,7 @@ When `autoUpdateNewCards` is set to `false`, new cards are detected but not auto
 | `Ctrl+S`       | Create a sentence card from the current subtitle line                                                        |
 | `Ctrl+Shift+S` | Enter multi-mine mode. Press `1-9` to create a sentence card from that many recent lines, or `Esc` to cancel |
 | `Ctrl+Shift+V` | Cycle secondary subtitle display mode (hidden → visible → hover)                                             |
+| `Ctrl+A`       | Mark the last added Anki card as an audio card (sets IsAudioCard, SentenceAudio, Sentence, Picture)          |
 
 To copy multiple lines (current + previous):
 
@@ -529,6 +531,7 @@ See `config.example.jsonc` for detailed configuration options.
     "updateLastCardFromClipboard": "CommandOrControl+V",
     "mineSentence": "CommandOrControl+S",
     "mineSentenceMultiple": "CommandOrControl+Shift+S",
+    "markAudioCard": "CommandOrControl+A",
     "multiCopyTimeoutMs": 3000
   }
 }
@@ -543,6 +546,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `mineSentenceMultiple`        | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)          |
 | `multiCopyTimeoutMs`          | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                |
 | `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)        |
+| `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+A"`)               |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options. |
 

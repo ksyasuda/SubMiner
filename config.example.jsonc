@@ -109,6 +109,9 @@
 
     // Lapis note format compatibility
     "isLapis": false,
+
+    // Audio card field name (set to "x" when marking a card as audio card)
+    "audioCardField": "IsAudioCard",
   },
 
   // ==========================================
@@ -134,6 +137,9 @@
 
     // Cycle secondary subtitle display mode
     "toggleSecondarySub": "CommandOrControl+Shift+V",
+
+    // Mark last added card as audio card
+    "markAudioCard": "CommandOrControl+A",
 
     // Timeout in ms for multi-copy/mine digit input
     "multiCopyTimeoutMs": 3000,
