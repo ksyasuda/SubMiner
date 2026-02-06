@@ -107,16 +107,14 @@
       "enabled": false,
       "sentenceCardModel": "Japanese sentences",
       "sentenceCardSentenceField": "Sentence",
-      "sentenceCardAudioField": "SentenceAudio"
+      "sentenceCardAudioField": "SentenceAudio",
     },
 
     // Kiku note format config (extends Lapis)
     // Both isKiku.enabled and isLapis.enabled can be true; Kiku takes precedence
+    // sentenceCardModel/sentenceCardSentenceField/sentenceCardAudioField are inherited from isLapis
     "isKiku": {
       "enabled": false,
-      "sentenceCardModel": "Japanese sentences",
-      "sentenceCardSentenceField": "Sentence",
-      "sentenceCardAudioField": "SentenceAudio",
 
       // Kiku field grouping for duplicate cards:
       // "auto" = automatically merge duplicates into one card
@@ -125,7 +123,7 @@
       "fieldGrouping": "disabled",
 
       // Auto mode only: whether to delete the duplicate card after merge
-      "deleteDuplicateInAuto": true
+      "deleteDuplicateInAuto": true,
     },
   },
 
