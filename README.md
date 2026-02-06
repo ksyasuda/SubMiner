@@ -451,7 +451,8 @@ See `config.example.jsonc` for detailed configuration options with all available
       "sentenceCardModel": "Japanese sentences",
       "sentenceCardSentenceField": "Sentence",
       "sentenceCardAudioField": "SentenceAudio",
-      "fieldGrouping": "disabled"
+      "fieldGrouping": "disabled",
+      "deleteDuplicateInAuto": true
     }
     // ... many more options available in config.example.jsonc
   }
@@ -485,14 +486,14 @@ See `config.example.jsonc` for detailed configuration options with all available
 | `overwriteAudio`            | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended per `mediaInsertMode` (default: `true`)    |
 | `overwriteImage`            | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `mediaInsertMode` (default: `true`) |
 | `mediaInsertMode`           | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                       |
-| `miscInfoField`             | string                                  | Card field for metadata (optional)                                                                                          |
+| `miscInfoField`             | string                                  | Card field for metadata (default: `"MiscInfo"`, set to `null` to disable)                                                  |
 | `miscInfoPattern`           | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                    |
 | `highlightWord`             | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                    |
 | `notificationType`          | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                         |
 | `autoUpdateNewCards`        | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                    |
 | `maxMediaDuration`          | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                       |
 | `isLapis`                   | object                                  | Lapis profile config: `{ enabled, sentenceCardModel, sentenceCardSentenceField, sentenceCardAudioField }` |
-| `isKiku`                    | object                                  | Kiku profile config: `{ enabled, sentenceCardModel, sentenceCardSentenceField, sentenceCardAudioField, fieldGrouping }` |
+| `isKiku`                    | object                                  | Kiku profile config: `{ enabled, sentenceCardModel, sentenceCardSentenceField, sentenceCardAudioField, fieldGrouping, deleteDuplicateInAuto }` |
 
 **Kiku / Lapis Note Type Support:**
 
@@ -504,9 +505,11 @@ Kiku extends Lapis with **field grouping** — when a duplicate card is detected
 
 | Mode       | Behavior                                                                                |
 | ---------- | --------------------------------------------------------------------------------------- |
-| `auto`     | Automatically merges the new card's content into the original and deletes the duplicate |
-| `manual`   | Shows an overlay popup to choose which card to keep; the other is merged in and deleted |
+| `auto`     | Automatically merges the new card's content into the original; duplicate deletion is controlled by `deleteDuplicateInAuto` |
+| `manual`   | Shows an overlay popup to choose which card to keep and whether to delete the duplicate after merge |
 | `disabled` | No field grouping; duplicate cards are left as-is                                       |
+
+`deleteDuplicateInAuto` controls whether `auto` mode deletes the duplicate after merge (default: `true`). In `manual` mode, the popup asks each time whether to delete the duplicate.
 
 **Image Quality Notes:**
 
@@ -527,6 +530,7 @@ When `autoUpdateNewCards` is set to `false`, new cards are detected but not auto
 | `Ctrl+C`       | Copy the current subtitle line to clipboard (preserves line breaks)                                          |
 | `Ctrl+Shift+C` | Enter multi-copy mode. Press `1-9` to copy that many recent lines, or `Esc` to cancel. Timeout: 3 seconds    |
 | `Ctrl+V`       | Update the last added Anki card using subtitles from clipboard                                               |
+| `Ctrl+G`       | Trigger Kiku duplicate field grouping for the last added card (only when `autoUpdateNewCards` is `false`)   |
 | `Ctrl+S`       | Create a sentence card from the current subtitle line                                                        |
 | `Ctrl+Shift+S` | Enter multi-mine mode. Press `1-9` to create a sentence card from that many recent lines, or `Esc` to cancel |
 | `Ctrl+Shift+V` | Cycle secondary subtitle display mode (hidden → visible → hover)                                             |
@@ -553,6 +557,7 @@ See `config.example.jsonc` for detailed configuration options.
     "copySubtitle": "CommandOrControl+C",
     "copySubtitleMultiple": "CommandOrControl+Shift+C",
     "updateLastCardFromClipboard": "CommandOrControl+V",
+    "triggerFieldGrouping": "CommandOrControl+G",
     "mineSentence": "CommandOrControl+S",
     "mineSentenceMultiple": "CommandOrControl+Shift+S",
     "markAudioCard": "CommandOrControl+Shift+A",
@@ -566,6 +571,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `copySubtitle`                | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                     |
 | `copySubtitleMultiple`        | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                        |
 | `updateLastCardFromClipboard` | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                 |
+| `triggerFieldGrouping`        | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when `autoUpdateNewCards` is `false`) |
 | `mineSentence`                | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`) |
 | `mineSentenceMultiple`        | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)          |
 | `multiCopyTimeoutMs`          | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                |

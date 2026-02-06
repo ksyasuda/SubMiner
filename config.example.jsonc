@@ -91,7 +91,7 @@
     "mediaInsertMode": "append", // "append" | "prepend" (when overwrite is false)
 
     // Metadata field
-    "miscInfoField": "Info", // optional, null to disable
+    "miscInfoField": "MiscInfo", // optional, null to disable
     "miscInfoPattern": "[SubMiner] %f (%t)", // %f=filename, %F=filename+ext, %t=time
 
     // UI options
@@ -122,7 +122,10 @@
       // "auto" = automatically merge duplicates into one card
       // "manual" = show popup to choose which card to keep
       // "disabled" = no field grouping
-      "fieldGrouping": "disabled"
+      "fieldGrouping": "disabled",
+
+      // Auto mode only: whether to delete the duplicate card after merge
+      "deleteDuplicateInAuto": true
     },
   },
 
@@ -140,6 +143,10 @@
 
     // Update last added card from clipboard
     "updateLastCardFromClipboard": "CommandOrControl+V",
+
+    // Trigger Kiku duplicate field grouping for last added card
+    // Only active when ankiConnect.autoUpdateNewCards is false
+    "triggerFieldGrouping": "CommandOrControl+G",
 
     // Create sentence card from current subtitle
     "mineSentence": "CommandOrControl+S",
