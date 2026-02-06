@@ -139,25 +139,20 @@ export class MediaGenerator {
         outputPath,
       );
 
-      execFile(
-        "ffmpeg",
-        args,
-        { timeout: 30000 },
-        (error) => {
-          if (error) {
-            reject(this.ffmpegError("audio generation", error));
-            return;
-          }
+      execFile("ffmpeg", args, { timeout: 30000 }, (error) => {
+        if (error) {
+          reject(this.ffmpegError("audio generation", error));
+          return;
+        }
 
-          try {
-            const data = fs.readFileSync(outputPath);
-            fs.unlinkSync(outputPath);
-            resolve(data);
-          } catch (err) {
-            reject(err);
-          }
-        },
-      );
+        try {
+          const data = fs.readFileSync(outputPath);
+          fs.unlinkSync(outputPath);
+          resolve(data);
+        } catch (err) {
+          reject(err);
+        }
+      });
     });
   }
 

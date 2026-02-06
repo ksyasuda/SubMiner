@@ -421,12 +421,37 @@ iframe[id^="yomitan-popup"] {
   gap: 10px;
 }
 
+.kiku-card-image {
+  display: none;
+  width: 100%;
+  max-height: 110px;
+  object-fit: contain;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+}
+
 .kiku-footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
   gap: 10px;
   padding-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.kiku-delete-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  user-select: none;
+}
+
+.kiku-delete-toggle input {
+  accent-color: rgba(100, 180, 255, 0.9);
 }
 
 .kiku-confirm-button {

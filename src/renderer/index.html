@@ -99,7 +99,7 @@
             <div class="kiku-info-text">
               A card with the same expression already exists. Select which card
               to keep. The other card's content will be merged using Kiku field
-              grouping, then the duplicate will be deleted.
+              grouping. You can choose whether to delete the duplicate.
             </div>
             <div class="kiku-cards-container">
               <div id="kikuCard1" class="kiku-card active" tabindex="0">
@@ -109,6 +109,11 @@
                   id="kikuCard1Expression"
                 ></div>
                 <div class="kiku-card-sentence" id="kikuCard1Sentence"></div>
+                <img
+                  class="kiku-card-image"
+                  id="kikuCard1Image"
+                  alt="Original card image preview"
+                />
                 <div class="kiku-card-meta" id="kikuCard1Meta"></div>
               </div>
               <div id="kikuCard2" class="kiku-card" tabindex="0">
@@ -118,10 +123,19 @@
                   id="kikuCard2Expression"
                 ></div>
                 <div class="kiku-card-sentence" id="kikuCard2Sentence"></div>
+                <img
+                  class="kiku-card-image"
+                  id="kikuCard2Image"
+                  alt="New card image preview"
+                />
                 <div class="kiku-card-meta" id="kikuCard2Meta"></div>
               </div>
             </div>
             <div class="kiku-footer">
+              <label class="kiku-delete-toggle">
+                <input id="kikuDeleteDuplicate" type="checkbox" checked />
+                Delete duplicate card after merge
+              </label>
               <button
                 id="kikuConfirmButton"
                 class="kiku-confirm-button"

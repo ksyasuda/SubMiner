@@ -1655,19 +1655,20 @@ function getConfiguredShortcuts() {
       config.shortcuts?.copySubtitleMultiple ?? "CommandOrControl+Shift+C",
     updateLastCardFromClipboard:
       config.shortcuts?.updateLastCardFromClipboard ?? "CommandOrControl+V",
+    triggerFieldGrouping:
+      config.shortcuts?.triggerFieldGrouping ?? "CommandOrControl+G",
     mineSentence: config.shortcuts?.mineSentence ?? "CommandOrControl+S",
     mineSentenceMultiple:
       config.shortcuts?.mineSentenceMultiple ?? "CommandOrControl+Shift+S",
     multiCopyTimeoutMs: config.shortcuts?.multiCopyTimeoutMs ?? 3000,
     toggleSecondarySub:
       config.shortcuts?.toggleSecondarySub ?? "CommandOrControl+Shift+V",
-    markAudioCard: config.shortcuts?.markAudioCard ?? "CommandOrControl+Shift+A",
+    markAudioCard:
+      config.shortcuts?.markAudioCard ?? "CommandOrControl+Shift+A",
   };
 }
 
-function shouldUseMarkAudioCardLocalFallback(
-  input: Electron.Input,
-): boolean {
+function shouldUseMarkAudioCardLocalFallback(input: Electron.Input): boolean {
   const shortcuts = getConfiguredShortcuts();
   if (!shortcuts.markAudioCard) return false;
   if (globalShortcut.isRegistered(shortcuts.markAudioCard)) return false;
@@ -1924,6 +1925,19 @@ async function updateLastCardFromClipboard(): Promise<void> {
   await ankiIntegration.updateLastAddedFromClipboard(clipboardText);
 }
 
+async function triggerFieldGrouping(): Promise<void> {
+  const { config } = loadConfig();
+  if (config.ankiConnect?.autoUpdateNewCards !== false) {
+    return;
+  }
+
+  if (!ankiIntegration) {
+    showMpvOsd("AnkiConnect integration not enabled");
+    return;
+  }
+  await ankiIntegration.triggerFieldGroupingForLastAddedCard();
+}
+
 async function markLastCardAsAudioCard(): Promise<void> {
   if (!ankiIntegration) {
     showMpvOsd("AnkiConnect integration not enabled");
@@ -2060,6 +2074,9 @@ function registerOverlayShortcuts(): void {
   if (shortcutsRegistered) return;
 
   const shortcuts = getConfiguredShortcuts();
+  const { config } = loadConfig();
+  const enableFieldGroupingShortcut =
+    config.ankiConnect?.autoUpdateNewCards === false;
 
   if (shortcuts.copySubtitle) {
     globalShortcut.register(shortcuts.copySubtitle, () => {
@@ -2078,6 +2095,15 @@ function registerOverlayShortcuts(): void {
       updateLastCardFromClipboard().catch((err) => {
         console.error("updateLastCardFromClipboard failed:", err);
         showMpvOsd(`Update failed: ${(err as Error).message}`);
+      });
+    });
+  }
+
+  if (enableFieldGroupingShortcut && shortcuts.triggerFieldGrouping) {
+    globalShortcut.register(shortcuts.triggerFieldGrouping, () => {
+      triggerFieldGrouping().catch((err) => {
+        console.error("triggerFieldGrouping failed:", err);
+        showMpvOsd(`Field grouping failed: ${(err as Error).message}`);
       });
     });
   }
@@ -2140,6 +2166,9 @@ function unregisterOverlayShortcuts(): void {
   }
   if (shortcuts.updateLastCardFromClipboard) {
     globalShortcut.unregister(shortcuts.updateLastCardFromClipboard);
+  }
+  if (shortcuts.triggerFieldGrouping) {
+    globalShortcut.unregister(shortcuts.triggerFieldGrouping);
   }
   if (shortcuts.mineSentence) {
     globalShortcut.unregister(shortcuts.mineSentence);
@@ -2345,6 +2374,7 @@ function createFieldGroupingCallback() {
         resolve({
           keepNoteId: 0,
           deleteNoteId: 0,
+          deleteDuplicate: true,
           cancelled: true,
         });
         fieldGroupingResolver = null;
@@ -2355,6 +2385,7 @@ function createFieldGroupingCallback() {
           fieldGroupingResolver({
             keepNoteId: 0,
             deleteNoteId: 0,
+            deleteDuplicate: true,
             cancelled: true,
           });
           fieldGroupingResolver = null;

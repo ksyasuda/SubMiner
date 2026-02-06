@@ -109,12 +109,14 @@ export interface KikuDuplicateCardInfo {
   sentencePreview: string;
   hasAudio: boolean;
   hasImage: boolean;
+  imagePreviewUrl?: string;
   isOriginal: boolean;
 }
 
 export interface KikuFieldGroupingChoice {
   keepNoteId: number;
   deleteNoteId: number;
+  deleteDuplicate: boolean;
   cancelled: boolean;
 }
 
@@ -160,6 +162,7 @@ export interface AnkiConnectConfig {
     sentenceCardSentenceField?: string;
     sentenceCardAudioField?: string;
     fieldGrouping?: "auto" | "manual" | "disabled";
+    deleteDuplicateInAuto?: boolean;
   };
 }
 
@@ -184,6 +187,7 @@ export interface ShortcutsConfig {
   copySubtitle?: string | null;
   copySubtitleMultiple?: string | null;
   updateLastCardFromClipboard?: string | null;
+  triggerFieldGrouping?: string | null;
   mineSentence?: string | null;
   mineSentenceMultiple?: string | null;
   multiCopyTimeoutMs?: number;

@@ -19,6 +19,7 @@
 import { AnkiConnectClient } from "./anki-connect";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
 import { MediaGenerator } from "./media-generator";
+import * as path from "path";
 import {
   AnkiConnectConfig,
   KikuDuplicateCardInfo,
@@ -51,6 +52,10 @@ export class AnkiIntegration {
     | ((title: string, options: NotificationOptions) => void)
     | null = null;
   private updateInProgress = false;
+  private progressDepth = 0;
+  private progressTimer: ReturnType<typeof setInterval> | null = null;
+  private progressMessage = "";
+  private progressFrame = 0;
   private fieldGroupingCallback:
     | ((data: {
         original: KikuDuplicateCardInfo;
@@ -87,6 +92,7 @@ export class AnkiIntegration {
       mediaInsertMode: "append",
       audioPadding: 0.5,
       fallbackDuration: 3.0,
+      miscInfoField: "MiscInfo",
       miscInfoPattern: "[SubMiner] %f (%t)",
       notificationType: "osd",
       imageQuality: 92,
@@ -128,6 +134,7 @@ export class AnkiIntegration {
     sentenceCardSentenceField?: string;
     sentenceCardAudioField?: string;
     fieldGrouping?: "auto" | "manual" | "disabled";
+    deleteDuplicateInAuto?: boolean;
   } {
     const kiku = this.config.isKiku;
     return {
@@ -136,6 +143,7 @@ export class AnkiIntegration {
       sentenceCardSentenceField: kiku?.sentenceCardSentenceField,
       sentenceCardAudioField: kiku?.sentenceCardAudioField,
       fieldGrouping: kiku?.fieldGrouping,
+      deleteDuplicateInAuto: kiku?.deleteDuplicateInAuto,
     };
   }
 
@@ -146,6 +154,7 @@ export class AnkiIntegration {
     lapisEnabled: boolean;
     kikuEnabled: boolean;
     kikuFieldGrouping: "auto" | "manual" | "disabled";
+    kikuDeleteDuplicateInAuto: boolean;
   } {
     const lapis = this.getLapisConfig();
     const kiku = this.getKikuConfig();
@@ -167,6 +176,7 @@ export class AnkiIntegration {
         | "auto"
         | "manual"
         | "disabled",
+      kikuDeleteDuplicateInAuto: kiku.deleteDuplicateInAuto !== false,
     };
   }
 
@@ -261,6 +271,7 @@ export class AnkiIntegration {
   }
 
   private async processNewCard(noteId: number): Promise<void> {
+    this.beginUpdateProgress("Updating card");
     try {
       const notesInfoResult = await this.client.notesInfo([noteId]);
       const notesInfo = notesInfoResult as unknown as NoteInfo[];
@@ -311,6 +322,7 @@ export class AnkiIntegration {
 
       const updatedFields: Record<string, string> = {};
       let updatePerformed = false;
+      let miscInfoFilename: string | null = null;
 
       if (this.config.sentenceField && this.mpvClient.currentSubText) {
         const processedSentence = this.processSentence(
@@ -335,14 +347,7 @@ export class AnkiIntegration {
               `[sound:${audioFilename}]`,
               this.config.overwriteAudio !== false,
             );
-
-            if (this.config.miscInfoField) {
-              const miscInfo = this.formatMiscInfoPattern(audioFilename);
-              if (miscInfo) {
-                updatedFields[this.config.miscInfoField] = miscInfo;
-              }
-            }
-
+            miscInfoFilename = audioFilename;
             updatePerformed = true;
           }
         } catch (error) {
@@ -368,17 +373,7 @@ export class AnkiIntegration {
               `<img src="${imageFilename}">`,
               this.config.overwriteImage !== false,
             );
-
-            if (
-              this.config.miscInfoField &&
-              !updatedFields[this.config.miscInfoField]
-            ) {
-              const miscInfo = this.formatMiscInfoPattern(imageFilename);
-              if (miscInfo) {
-                updatedFields[this.config.miscInfoField] = miscInfo;
-              }
-            }
-
+            miscInfoFilename = imageFilename;
             updatePerformed = true;
           }
         } catch (error) {
@@ -386,6 +381,21 @@ export class AnkiIntegration {
           this.showOsdNotification(
             `Image generation failed: ${(error as Error).message}`,
           );
+        }
+      }
+
+      if (this.config.miscInfoField) {
+        const miscInfo = this.formatMiscInfoPattern(
+          miscInfoFilename || "",
+          this.mpvClient.currentSubStart,
+        );
+        const miscInfoField = this.getResolvedConfiguredFieldName(
+          noteInfo,
+          this.config.miscInfoField,
+        );
+        if (miscInfo && miscInfoField) {
+          updatedFields[miscInfoField] = miscInfo;
+          updatePerformed = true;
         }
       }
 
@@ -400,6 +410,8 @@ export class AnkiIntegration {
       } else {
         console.error("Error processing new card:", (error as Error).message);
       }
+    } finally {
+      this.endUpdateProgress();
     }
   }
 
@@ -508,19 +520,45 @@ export class AnkiIntegration {
     }
   }
 
-  private formatMiscInfoPattern(filename: string): string {
+  private formatMiscInfoPattern(
+    fallbackFilename: string,
+    startTimeSeconds?: number,
+  ): string {
     if (!this.config.miscInfoPattern) {
       return "";
     }
 
-    const now = new Date();
-    const hours = String(now.getHours()).padStart(2, "0");
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-    const seconds = String(now.getSeconds()).padStart(2, "0");
-    const milliseconds = String(now.getMilliseconds()).padStart(3, "0");
+    const currentVideoPath = this.mpvClient.currentVideoPath || "";
+    const videoFilename = currentVideoPath
+      ? path.basename(currentVideoPath)
+      : "";
+    const filenameWithExt = videoFilename || fallbackFilename;
+    const filenameWithoutExt = filenameWithExt.replace(/\.[^.]+$/, "");
 
-    const filenameWithoutExt = filename.replace(/\.[^.]+$/, "");
-    const filenameWithExt = filename;
+    const currentTimePos =
+      typeof startTimeSeconds === "number" && Number.isFinite(startTimeSeconds)
+        ? startTimeSeconds
+        : this.mpvClient.currentTimePos;
+    let totalMilliseconds = 0;
+    if (Number.isFinite(currentTimePos) && currentTimePos >= 0) {
+      totalMilliseconds = Math.floor(currentTimePos * 1000);
+    } else {
+      const now = new Date();
+      totalMilliseconds =
+        now.getHours() * 3600000 +
+        now.getMinutes() * 60000 +
+        now.getSeconds() * 1000 +
+        now.getMilliseconds();
+    }
+
+    const totalSeconds = Math.floor(totalMilliseconds / 1000);
+    const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+    const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(
+      2,
+      "0",
+    );
+    const seconds = String(totalSeconds % 60).padStart(2, "0");
+    const milliseconds = String(totalMilliseconds % 1000).padStart(3, "0");
 
     let result = this.config.miscInfoPattern
       .replace(/%f/g, filenameWithoutExt)
@@ -554,6 +592,38 @@ export class AnkiIntegration {
     if ((type === "system" || type === "both") && this.notificationCallback) {
       this.notificationCallback("SubMiner", { body: message });
     }
+  }
+
+  private beginUpdateProgress(initialMessage: string): void {
+    this.progressDepth += 1;
+    if (this.progressDepth > 1) return;
+
+    this.progressMessage = initialMessage;
+    this.progressFrame = 0;
+    this.showProgressTick();
+    this.progressTimer = setInterval(() => {
+      this.showProgressTick();
+    }, 300);
+  }
+
+  private endUpdateProgress(): void {
+    this.progressDepth = Math.max(0, this.progressDepth - 1);
+    if (this.progressDepth > 0) return;
+
+    if (this.progressTimer) {
+      clearInterval(this.progressTimer);
+      this.progressTimer = null;
+    }
+    this.progressMessage = "";
+    this.progressFrame = 0;
+  }
+
+  private showProgressTick(): void {
+    if (!this.progressMessage) return;
+    const frames = ["|", "/", "-", "\\"];
+    const frame = frames[this.progressFrame % frames.length];
+    this.progressFrame += 1;
+    this.showOsdNotification(`${this.progressMessage} ${frame}`);
   }
 
   private showOsdNotification(text: string): void {
@@ -769,6 +839,7 @@ export class AnkiIntegration {
       }
 
       this.showOsdNotification("Updating card from clipboard...");
+      this.beginUpdateProgress("Updating card from clipboard");
       this.updateInProgress = true;
 
       try {
@@ -802,6 +873,7 @@ export class AnkiIntegration {
         const updatedFields: Record<string, string> = {};
         let updatePerformed = false;
         const errors: string[] = [];
+        let miscInfoFilename: string | null = null;
 
         // Add sentence field
         if (this.config.sentenceField) {
@@ -835,14 +907,7 @@ export class AnkiIntegration {
                 `[sound:${audioFilename}]`,
                 this.config.overwriteAudio !== false,
               );
-
-              if (this.config.miscInfoField) {
-                const miscInfo = this.formatMiscInfoPattern(audioFilename);
-                if (miscInfo) {
-                  updatedFields[this.config.miscInfoField] = miscInfo;
-                }
-              }
-
+              miscInfoFilename = audioFilename;
               updatePerformed = true;
             }
           } catch (error) {
@@ -896,17 +961,7 @@ export class AnkiIntegration {
                 `<img src="${imageFilename}">`,
                 this.config.overwriteImage !== false,
               );
-
-              if (
-                this.config.miscInfoField &&
-                !updatedFields[this.config.miscInfoField]
-              ) {
-                const miscInfo = this.formatMiscInfoPattern(imageFilename);
-                if (miscInfo) {
-                  updatedFields[this.config.miscInfoField] = miscInfo;
-                }
-              }
-
+              miscInfoFilename = imageFilename;
               updatePerformed = true;
             }
           } catch (error) {
@@ -915,6 +970,21 @@ export class AnkiIntegration {
               (error as Error).message,
             );
             errors.push("image");
+          }
+        }
+
+        if (this.config.miscInfoField) {
+          const miscInfo = this.formatMiscInfoPattern(
+            miscInfoFilename || "",
+            rangeStart,
+          );
+          const miscInfoField = this.getResolvedConfiguredFieldName(
+            noteInfo,
+            this.config.miscInfoField,
+          );
+          if (miscInfo && miscInfoField) {
+            updatedFields[miscInfoField] = miscInfo;
+            updatePerformed = true;
           }
         }
 
@@ -928,6 +998,7 @@ export class AnkiIntegration {
         }
       } finally {
         this.updateInProgress = false;
+        this.endUpdateProgress();
       }
     } catch (error) {
       console.error(
@@ -935,6 +1006,117 @@ export class AnkiIntegration {
         (error as Error).message,
       );
       this.showOsdNotification(`Update failed: ${(error as Error).message}`);
+    }
+  }
+
+  async triggerFieldGroupingForLastAddedCard(): Promise<void> {
+    const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
+    if (!sentenceCardConfig.kikuEnabled) {
+      this.showOsdNotification("Kiku mode is not enabled");
+      return;
+    }
+    if (sentenceCardConfig.kikuFieldGrouping === "disabled") {
+      this.showOsdNotification("Kiku field grouping is disabled");
+      return;
+    }
+
+    if (this.updateInProgress) {
+      this.showOsdNotification("Anki update already in progress");
+      return;
+    }
+
+    this.beginUpdateProgress("Grouping duplicate cards");
+    this.updateInProgress = true;
+    try {
+      const query = this.config.deck
+        ? `"deck:${this.config.deck}" added:1`
+        : "added:1";
+      const noteIds = (await this.client.findNotes(query)) as number[];
+      if (!noteIds || noteIds.length === 0) {
+        this.showOsdNotification("No recently added cards found");
+        return;
+      }
+
+      const noteId = Math.max(...noteIds);
+      const notesInfoResult = await this.client.notesInfo([noteId]);
+      const notesInfo = notesInfoResult as unknown as NoteInfo[];
+      if (!notesInfo || notesInfo.length === 0) {
+        this.showOsdNotification("Card not found");
+        return;
+      }
+      const noteInfoBeforeUpdate = notesInfo[0];
+
+      // First, run the normal auto-update path (sentence/audio/image),
+      // but only when required fields are missing.
+      if (!this.hasRequiredUpdateFields(noteInfoBeforeUpdate)) {
+        // Force grouping disabled for the update pass so we can merge after.
+        const originalKikuFieldGrouping = this.config.isKiku?.fieldGrouping;
+        if (this.config.isKiku) {
+          this.config.isKiku.fieldGrouping = "disabled";
+        }
+        try {
+          await this.processNewCard(noteId);
+        } finally {
+          if (this.config.isKiku) {
+            this.config.isKiku.fieldGrouping = originalKikuFieldGrouping;
+          }
+        }
+      }
+
+      const refreshedInfoResult = await this.client.notesInfo([noteId]);
+      const refreshedInfo = refreshedInfoResult as unknown as NoteInfo[];
+      if (!refreshedInfo || refreshedInfo.length === 0) {
+        this.showOsdNotification("Card not found");
+        return;
+      }
+
+      const noteInfo = refreshedInfo[0];
+      const fields = this.extractFields(noteInfo.fields);
+      const expressionText = fields.expression || fields.word || "";
+      if (!expressionText) {
+        this.showOsdNotification("No expression/word field found");
+        return;
+      }
+
+      const duplicateNoteId = await this.findDuplicateNote(
+        expressionText,
+        noteId,
+        noteInfo,
+      );
+      if (duplicateNoteId === null) {
+        this.showOsdNotification("No duplicate card found");
+        return;
+      }
+
+      if (sentenceCardConfig.kikuFieldGrouping === "auto") {
+        await this.handleFieldGroupingAuto(
+          duplicateNoteId,
+          noteId,
+          noteInfo,
+          expressionText,
+        );
+        return;
+      }
+      const handled = await this.handleFieldGroupingManual(
+        duplicateNoteId,
+        noteId,
+        noteInfo,
+        expressionText,
+      );
+      if (!handled) {
+        this.showOsdNotification("Field grouping cancelled");
+      }
+    } catch (error) {
+      console.error(
+        "Error triggering field grouping:",
+        (error as Error).message,
+      );
+      this.showOsdNotification(
+        `Field grouping failed: ${(error as Error).message}`,
+      );
+    } finally {
+      this.updateInProgress = false;
+      this.endUpdateProgress();
     }
   }
 
@@ -966,6 +1148,7 @@ export class AnkiIntegration {
       }
 
       this.showOsdNotification("Marking card as audio card...");
+      this.beginUpdateProgress("Marking audio card");
       this.updateInProgress = true;
 
       try {
@@ -993,6 +1176,7 @@ export class AnkiIntegration {
 
         const updatedFields: Record<string, string> = {};
         const errors: string[] = [];
+        let miscInfoFilename: string | null = null;
 
         this.setCardTypeFields(
           updatedFields,
@@ -1023,13 +1207,7 @@ export class AnkiIntegration {
           if (audioBuffer) {
             await this.client.storeMediaFile(audioFilename, audioBuffer);
             updatedFields[audioFieldName] = `[sound:${audioFilename}]`;
-
-            if (this.config.miscInfoField) {
-              const miscInfo = this.formatMiscInfoPattern(audioFilename);
-              if (miscInfo) {
-                updatedFields[this.config.miscInfoField] = miscInfo;
-              }
-            }
+            miscInfoFilename = audioFilename;
           }
         } catch (error) {
           console.error(
@@ -1075,16 +1253,7 @@ export class AnkiIntegration {
               await this.client.storeMediaFile(imageFilename, imageBuffer);
               updatedFields[this.config.imageField] =
                 `<img src="${imageFilename}">`;
-
-              if (
-                this.config.miscInfoField &&
-                !updatedFields[this.config.miscInfoField]
-              ) {
-                const miscInfo = this.formatMiscInfoPattern(imageFilename);
-                if (miscInfo) {
-                  updatedFields[this.config.miscInfoField] = miscInfo;
-                }
-              }
+              miscInfoFilename = imageFilename;
             }
           } catch (error) {
             console.error(
@@ -1092,6 +1261,20 @@ export class AnkiIntegration {
               (error as Error).message,
             );
             errors.push("image");
+          }
+        }
+
+        if (this.config.miscInfoField) {
+          const miscInfo = this.formatMiscInfoPattern(
+            miscInfoFilename || "",
+            startTime,
+          );
+          const miscInfoField = this.getResolvedConfiguredFieldName(
+            noteInfo,
+            this.config.miscInfoField,
+          );
+          if (miscInfo && miscInfoField) {
+            updatedFields[miscInfoField] = miscInfo;
           }
         }
 
@@ -1103,6 +1286,7 @@ export class AnkiIntegration {
         await this.showNotification(noteId, label, errorSuffix);
       } finally {
         this.updateInProgress = false;
+        this.endUpdateProgress();
       }
     } catch (error) {
       console.error(
@@ -1141,13 +1325,17 @@ export class AnkiIntegration {
     }
 
     this.showOsdNotification("Creating sentence card...");
+    this.beginUpdateProgress("Creating sentence card");
+    this.updateInProgress = true;
 
     const videoPath = this.mpvClient.currentVideoPath;
     const fields: Record<string, string> = {};
     const errors: string[] = [];
+    let miscInfoFilename: string | null = null;
 
     const sentenceField = sentenceCardConfig.sentenceField;
     const audioFieldName = sentenceCardConfig.audioField;
+    let resolvedMiscInfoField: string | null = null;
 
     fields[sentenceField] = sentence;
 
@@ -1185,6 +1373,10 @@ export class AnkiIntegration {
       const noteInfoResult = await this.client.notesInfo([noteId]);
       const noteInfos = noteInfoResult as unknown as NoteInfo[];
       if (noteInfos.length > 0) {
+        resolvedMiscInfoField = this.getResolvedConfiguredFieldName(
+          noteInfos[0],
+          this.config.miscInfoField,
+        );
         const cardTypeFields: Record<string, string> = {};
         this.setCardTypeFields(
           cardTypeFields,
@@ -1218,6 +1410,7 @@ export class AnkiIntegration {
       if (audioBuffer) {
         await this.client.storeMediaFile(audioFilename, audioBuffer);
         mediaFields[audioFieldName] = `[sound:${audioFilename}]`;
+        miscInfoFilename = audioFilename;
       }
     } catch (error) {
       console.error(
@@ -1261,6 +1454,7 @@ export class AnkiIntegration {
       if (imageBuffer && this.config.imageField) {
         await this.client.storeMediaFile(imageFilename, imageBuffer);
         mediaFields[this.config.imageField] = `<img src="${imageFilename}">`;
+        miscInfoFilename = imageFilename;
       }
     } catch (error) {
       console.error(
@@ -1268,6 +1462,16 @@ export class AnkiIntegration {
         (error as Error).message,
       );
       errors.push("image");
+    }
+
+    if (this.config.miscInfoField) {
+      const miscInfo = this.formatMiscInfoPattern(
+        miscInfoFilename || "",
+        startTime,
+      );
+      if (miscInfo && resolvedMiscInfoField) {
+        mediaFields[resolvedMiscInfoField] = miscInfo;
+      }
     }
 
     if (Object.keys(mediaFields).length > 0) {
@@ -1287,6 +1491,8 @@ export class AnkiIntegration {
     const errorSuffix =
       errors.length > 0 ? `${errors.join(", ")} failed` : undefined;
     await this.showNotification(noteId, label, errorSuffix);
+    this.updateInProgress = false;
+    this.endUpdateProgress();
   }
 
   private async findDuplicateNote(
@@ -1404,7 +1610,10 @@ export class AnkiIntegration {
           result.audioField = this.config.audioField!;
           result.audioValue = `[sound:${audioFilename}]`;
           if (this.config.miscInfoField) {
-            result.miscInfoValue = this.formatMiscInfoPattern(audioFilename);
+            result.miscInfoValue = this.formatMiscInfoPattern(
+              audioFilename,
+              this.mpvClient.currentSubStart,
+            );
           }
         }
       } catch (error) {
@@ -1424,7 +1633,10 @@ export class AnkiIntegration {
           result.imageField = this.config.imageField!;
           result.imageValue = `<img src="${imageFilename}">`;
           if (this.config.miscInfoField && !result.miscInfoValue) {
-            result.miscInfoValue = this.formatMiscInfoPattern(imageFilename);
+            result.miscInfoValue = this.formatMiscInfoPattern(
+              imageFilename,
+              this.mpvClient.currentSubStart,
+            );
           }
         }
       } catch (error) {
@@ -1438,11 +1650,36 @@ export class AnkiIntegration {
     return result;
   }
 
+  private getResolvedFieldValue(
+    noteInfo: NoteInfo,
+    preferredFieldName?: string,
+  ): string {
+    if (!preferredFieldName) return "";
+    const resolved = this.resolveFieldName(
+      Object.keys(noteInfo.fields),
+      preferredFieldName,
+    );
+    if (!resolved) return "";
+    return noteInfo.fields[resolved]?.value || "";
+  }
+
+  private getResolvedConfiguredFieldName(
+    noteInfo: NoteInfo,
+    preferredFieldName?: string,
+  ): string | null {
+    if (!preferredFieldName) return null;
+    return this.resolveFieldName(
+      Object.keys(noteInfo.fields),
+      preferredFieldName,
+    );
+  }
+
   private async performFieldGroupingMerge(
     keepNoteId: number,
     deleteNoteId: number,
     deleteNoteInfo: NoteInfo,
     expression: string,
+    deleteDuplicate = true,
   ): Promise<void> {
     const keepNotesInfoResult = await this.client.notesInfo([keepNoteId]);
     const keepNotesInfo = keepNotesInfoResult as unknown as NoteInfo[];
@@ -1452,43 +1689,98 @@ export class AnkiIntegration {
     }
     const keepNoteInfo = keepNotesInfo[0];
 
-    const media = await this.generateMediaForMerge();
+    const groupableFields = this.getGroupableFieldNames();
+    const keepFieldNames = Object.keys(keepNoteInfo.fields);
+    const sourceFields: Record<string, string> = {};
+    const resolvedKeepFieldByPreferred = new Map<string, string>();
+    for (const preferredFieldName of groupableFields) {
+      sourceFields[preferredFieldName] = this.getResolvedFieldValue(
+        deleteNoteInfo,
+        preferredFieldName,
+      );
+      const keepResolved = this.resolveFieldName(
+        keepFieldNames,
+        preferredFieldName,
+      );
+      if (keepResolved) {
+        resolvedKeepFieldByPreferred.set(preferredFieldName, keepResolved);
+      }
+    }
 
-    const newFields: Record<string, string> = {};
-    if (this.config.sentenceField && this.mpvClient.currentSubText) {
+    // Cross-fill sentence fields so Kiku/Lapis templates that render
+    // SentenceFurigana still receive merged sentence content.
+    if (!sourceFields["SentenceFurigana"] && sourceFields["Sentence"]) {
+      sourceFields["SentenceFurigana"] = sourceFields["Sentence"];
+    }
+    if (!sourceFields["Sentence"] && sourceFields["SentenceFurigana"]) {
+      sourceFields["Sentence"] = sourceFields["SentenceFurigana"];
+    }
+
+    // Fallback only when source card does not already have mergeable content.
+    if (
+      this.config.sentenceField &&
+      !sourceFields[this.config.sentenceField] &&
+      this.mpvClient.currentSubText
+    ) {
       const deleteFields = this.extractFields(deleteNoteInfo.fields);
-      newFields[this.config.sentenceField] = this.processSentence(
+      sourceFields[this.config.sentenceField] = this.processSentence(
         this.mpvClient.currentSubText,
         deleteFields,
       );
     }
-    if (media.audioField && media.audioValue) {
-      newFields[media.audioField] = media.audioValue;
+
+    const media = await this.generateMediaForMerge();
+    if (
+      media.audioField &&
+      media.audioValue &&
+      !sourceFields[media.audioField]
+    ) {
+      sourceFields[media.audioField] = media.audioValue;
     }
-    if (media.imageField && media.imageValue) {
-      newFields[media.imageField] = media.imageValue;
+    if (
+      media.imageField &&
+      media.imageValue &&
+      !sourceFields[media.imageField]
+    ) {
+      sourceFields[media.imageField] = media.imageValue;
     }
-    if (this.config.miscInfoField && media.miscInfoValue) {
-      newFields[this.config.miscInfoField] = media.miscInfoValue;
+    if (
+      this.config.miscInfoField &&
+      media.miscInfoValue &&
+      !sourceFields[this.config.miscInfoField]
+    ) {
+      sourceFields[this.config.miscInfoField] = media.miscInfoValue;
     }
 
-    const groupableFields = this.getGroupableFieldNames();
     const mergedFields: Record<string, string> = {};
 
-    for (const fieldName of groupableFields) {
-      const existingValue = keepNoteInfo.fields[fieldName]?.value || "";
-      const newValue = newFields[fieldName] || "";
-      const isPictureField = fieldName === this.config.imageField;
+    for (const preferredFieldName of groupableFields) {
+      const keepFieldName =
+        resolvedKeepFieldByPreferred.get(preferredFieldName);
+      if (!keepFieldName) {
+        continue;
+      }
+      const existingValue = keepNoteInfo.fields[keepFieldName]?.value || "";
+      const newValue = sourceFields[preferredFieldName] || "";
+      const isPictureField =
+        preferredFieldName.toLowerCase() ===
+        (this.config.imageField || "").toLowerCase();
 
       if (existingValue.trim() && newValue.trim()) {
-        mergedFields[fieldName] = this.applyFieldGrouping(
+        if (
+          existingValue.trim() === newValue.trim() ||
+          existingValue.includes(newValue)
+        ) {
+          continue;
+        }
+        mergedFields[keepFieldName] = this.applyFieldGrouping(
           existingValue,
           newValue,
           keepNoteId,
           isPictureField,
         );
       } else if (newValue.trim()) {
-        mergedFields[fieldName] = newValue;
+        mergedFields[keepFieldName] = newValue;
       }
     }
 
@@ -1496,11 +1788,17 @@ export class AnkiIntegration {
       await this.client.updateNoteFields(keepNoteId, mergedFields);
     }
 
-    await this.client.deleteNotes([deleteNoteId]);
-    this.previousNoteIds.delete(deleteNoteId);
+    if (deleteDuplicate) {
+      await this.client.deleteNotes([deleteNoteId]);
+      this.previousNoteIds.delete(deleteNoteId);
+    }
 
     console.log("Merged duplicate card:", expression, "into note:", keepNoteId);
-    this.showStatusNotification(`Merged duplicate: ${expression}`);
+    this.showStatusNotification(
+      deleteDuplicate
+        ? `Merged duplicate: ${expression}`
+        : `Grouped duplicate (kept both): ${expression}`,
+    );
     await this.showNotification(keepNoteId, expression);
   }
 
@@ -1511,11 +1809,13 @@ export class AnkiIntegration {
     expression: string,
   ): Promise<void> {
     try {
+      const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
       await this.performFieldGroupingMerge(
         originalNoteId,
         newNoteId,
         newNoteInfo,
         expression,
+        sentenceCardConfig.kikuDeleteDuplicateInAuto,
       );
     } catch (error) {
       console.error(
@@ -1552,6 +1852,9 @@ export class AnkiIntegration {
       }
       const originalNoteInfo = originalNotesInfo[0];
       const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
+      const originalImagePreview =
+        await this.getImagePreviewUrl(originalNoteInfo);
+      const newImagePreview = await this.getImagePreviewUrl(newNoteInfo);
 
       const originalFields = this.extractFields(originalNoteInfo.fields);
       const newFields = this.extractFields(newNoteInfo.fields);
@@ -1565,11 +1868,11 @@ export class AnkiIntegration {
             (this.config.sentenceField || "sentence").toLowerCase()
           ] || "",
         ),
-        hasAudio: !!(
-          originalNoteInfo.fields[this.config.audioField!]?.value ||
-          originalNoteInfo.fields[sentenceCardConfig.audioField]?.value
-        ),
-        hasImage: !!originalNoteInfo.fields[this.config.imageField!]?.value,
+        hasAudio:
+          this.hasFieldValue(originalNoteInfo, this.config.audioField) ||
+          this.hasFieldValue(originalNoteInfo, sentenceCardConfig.audioField),
+        hasImage: this.hasFieldValue(originalNoteInfo, this.config.imageField),
+        imagePreviewUrl: originalImagePreview || undefined,
         isOriginal: true,
       };
 
@@ -1581,8 +1884,11 @@ export class AnkiIntegration {
             this.mpvClient.currentSubText ||
             "",
         ),
-        hasAudio: false,
-        hasImage: false,
+        hasAudio:
+          this.hasFieldValue(newNoteInfo, this.config.audioField) ||
+          this.hasFieldValue(newNoteInfo, sentenceCardConfig.audioField),
+        hasImage: this.hasFieldValue(newNoteInfo, this.config.imageField),
+        imagePreviewUrl: newImagePreview || undefined,
         isOriginal: false,
       };
 
@@ -1605,6 +1911,7 @@ export class AnkiIntegration {
         deleteNoteId,
         deleteNoteInfo,
         expression,
+        choice.deleteDuplicate,
       );
       return true;
     } catch (error) {
@@ -1623,6 +1930,122 @@ export class AnkiIntegration {
     const clean = sentence.replace(/<[^>]*>/g, "").trim();
     if (clean.length <= 100) return clean;
     return clean.substring(0, 100) + "...";
+  }
+
+  private extractFirstImageSrc(fieldValue: string): string | null {
+    const match = fieldValue.match(
+      /<img[^>]*src=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i,
+    );
+    return match?.[1] || match?.[2] || match?.[3] || null;
+  }
+
+  private hasFieldValue(
+    noteInfo: NoteInfo,
+    preferredFieldName?: string,
+  ): boolean {
+    if (!preferredFieldName) return false;
+    const resolved = this.resolveFieldName(
+      Object.keys(noteInfo.fields),
+      preferredFieldName,
+    );
+    if (!resolved) return false;
+    return Boolean(noteInfo.fields[resolved]?.value);
+  }
+
+  private hasRequiredUpdateFields(noteInfo: NoteInfo): boolean {
+    const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
+
+    const hasSentence =
+      this.hasFieldValue(noteInfo, this.config.sentenceField) ||
+      this.hasFieldValue(noteInfo, sentenceCardConfig.sentenceField) ||
+      this.hasFieldValue(noteInfo, "Sentence") ||
+      this.hasFieldValue(noteInfo, "SentenceFurigana");
+
+    const hasAudio =
+      this.config.generateAudio !== false
+        ? this.hasFieldValue(noteInfo, this.config.audioField) ||
+          this.hasFieldValue(noteInfo, sentenceCardConfig.audioField) ||
+          this.hasFieldValue(noteInfo, "SentenceAudio")
+        : true;
+
+    const hasImage =
+      this.config.generateImage !== false && this.config.imageField
+        ? this.hasFieldValue(noteInfo, this.config.imageField)
+        : true;
+
+    return hasSentence && hasAudio && hasImage;
+  }
+
+  private async refreshMiscInfoField(
+    noteId: number,
+    noteInfo: NoteInfo,
+  ): Promise<void> {
+    if (!this.config.miscInfoField || !this.config.miscInfoPattern) return;
+
+    const resolvedMiscField = this.resolveFieldName(
+      Object.keys(noteInfo.fields),
+      this.config.miscInfoField,
+    );
+    if (!resolvedMiscField) return;
+
+    const nextValue = this.formatMiscInfoPattern(
+      "",
+      this.mpvClient.currentSubStart,
+    );
+    if (!nextValue) return;
+
+    const currentValue = noteInfo.fields[resolvedMiscField]?.value || "";
+    if (currentValue === nextValue) return;
+
+    await this.client.updateNoteFields(noteId, {
+      [resolvedMiscField]: nextValue,
+    });
+  }
+
+  private mimeTypeFromFilename(filename: string): string {
+    const ext = filename.split(".").pop()?.toLowerCase() || "";
+    if (ext === "png") return "image/png";
+    if (ext === "gif") return "image/gif";
+    if (ext === "webp") return "image/webp";
+    if (ext === "avif") return "image/avif";
+    if (ext === "svg") return "image/svg+xml";
+    return "image/jpeg";
+  }
+
+  private async getImagePreviewUrl(noteInfo: NoteInfo): Promise<string | null> {
+    if (!this.config.imageField) return null;
+
+    const resolvedImageField = this.resolveFieldName(
+      Object.keys(noteInfo.fields),
+      this.config.imageField,
+    );
+    if (!resolvedImageField) return null;
+
+    const imageFieldValue = noteInfo.fields[resolvedImageField]?.value || "";
+    if (!imageFieldValue) return null;
+
+    const src = this.extractFirstImageSrc(imageFieldValue);
+    if (!src) return null;
+
+    if (
+      src.startsWith("data:image/") ||
+      src.startsWith("http://") ||
+      src.startsWith("https://")
+    ) {
+      return src;
+    }
+
+    try {
+      const base64 = await this.client.retrieveMediaFile(src);
+      if (!base64) return null;
+      return `data:${this.mimeTypeFromFilename(src)};base64,${base64}`;
+    } catch (error) {
+      console.warn(
+        "Failed to load image preview from Anki media:",
+        (error as Error).message,
+      );
+      return null;
+    }
   }
 
   destroy(): void {
