@@ -32,6 +32,8 @@ interface NoteInfo {
   fields: Record<string, { value: string }>;
 }
 
+type CardKind = "sentence" | "audio";
+
 export class AnkiIntegration {
   private client: AnkiConnectClient;
   private mediaGenerator: MediaGenerator;
@@ -501,6 +503,88 @@ export class AnkiIntegration {
     }
   }
 
+  private resolveFieldName(
+    availableFieldNames: string[],
+    preferredName: string,
+  ): string | null {
+    const exact = availableFieldNames.find((name) => name === preferredName);
+    if (exact) return exact;
+
+    const lower = preferredName.toLowerCase();
+    const ci = availableFieldNames.find((name) => name.toLowerCase() === lower);
+    return ci || null;
+  }
+
+  private setCardTypeFields(
+    updatedFields: Record<string, string>,
+    availableFieldNames: string[],
+    cardKind: CardKind,
+  ): void {
+    const audioFlagNames = Array.from(
+      new Set(["IsAudioCard", this.config.audioCardField || "IsAudioCard"]),
+    );
+
+    if (cardKind === "sentence") {
+      const sentenceFlag = this.resolveFieldName(
+        availableFieldNames,
+        "IsSentenceCard",
+      );
+      if (sentenceFlag) {
+        updatedFields[sentenceFlag] = "x";
+      }
+
+      for (const audioFlagName of audioFlagNames) {
+        const resolved = this.resolveFieldName(
+          availableFieldNames,
+          audioFlagName,
+        );
+        if (resolved && resolved !== sentenceFlag) {
+          updatedFields[resolved] = "";
+        }
+      }
+
+      const wordAndSentenceFlag = this.resolveFieldName(
+        availableFieldNames,
+        "IsWordAndSentenceCard",
+      );
+      if (wordAndSentenceFlag && wordAndSentenceFlag !== sentenceFlag) {
+        updatedFields[wordAndSentenceFlag] = "";
+      }
+      return;
+    }
+
+    const resolvedAudioFlags = Array.from(
+      new Set(
+        audioFlagNames
+          .map((name) => this.resolveFieldName(availableFieldNames, name))
+          .filter((name): name is string => Boolean(name)),
+      ),
+    );
+    const audioFlagName = resolvedAudioFlags[0] || null;
+    if (audioFlagName) {
+      updatedFields[audioFlagName] = "x";
+    }
+    for (const extraAudioFlag of resolvedAudioFlags.slice(1)) {
+      updatedFields[extraAudioFlag] = "";
+    }
+
+    const sentenceFlag = this.resolveFieldName(
+      availableFieldNames,
+      "IsSentenceCard",
+    );
+    if (sentenceFlag && sentenceFlag !== audioFlagName) {
+      updatedFields[sentenceFlag] = "";
+    }
+
+    const wordAndSentenceFlag = this.resolveFieldName(
+      availableFieldNames,
+      "IsWordAndSentenceCard",
+    );
+    if (wordAndSentenceFlag && wordAndSentenceFlag !== audioFlagName) {
+      updatedFields[wordAndSentenceFlag] = "";
+    }
+  }
+
   private async showNotification(
     noteId: number,
     label: string | number,
@@ -848,8 +932,11 @@ export class AnkiIntegration {
         const updatedFields: Record<string, string> = {};
         const errors: string[] = [];
 
-        const audioCardFieldName = this.config.audioCardField || "IsAudioCard";
-        updatedFields[audioCardFieldName] = "x";
+        this.setCardTypeFields(
+          updatedFields,
+          Object.keys(noteInfo.fields),
+          "audio",
+        );
 
         if (this.config.sentenceField) {
           const processedSentence = this.processSentence(
@@ -1029,6 +1116,28 @@ export class AnkiIntegration {
         `Sentence card failed: ${(error as Error).message}`,
       );
       return;
+    }
+
+    try {
+      const noteInfoResult = await this.client.notesInfo([noteId]);
+      const noteInfos = noteInfoResult as unknown as NoteInfo[];
+      if (noteInfos.length > 0) {
+        const cardTypeFields: Record<string, string> = {};
+        this.setCardTypeFields(
+          cardTypeFields,
+          Object.keys(noteInfos[0].fields),
+          "sentence",
+        );
+        if (Object.keys(cardTypeFields).length > 0) {
+          await this.client.updateNoteFields(noteId, cardTypeFields);
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Failed to normalize sentence card type fields:",
+        (error as Error).message,
+      );
+      errors.push("card type fields");
     }
 
     const mediaFields: Record<string, string> = {};

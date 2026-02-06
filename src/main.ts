@@ -1455,6 +1455,17 @@ function createMainWindow(): BrowserWindow {
     console.log("Overlay HTML loaded successfully");
   });
 
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (!overlayVisible) return;
+    if (!shouldUseMarkAudioCardLocalFallback(input)) return;
+
+    event.preventDefault();
+    markLastCardAsAudioCard().catch((err) => {
+      console.error("markLastCardAsAudioCard failed:", err);
+      showMpvOsd(`Audio card failed: ${(err as Error).message}`);
+    });
+  });
+
   mainWindow.hide();
 
   mainWindow.on("closed", () => {
@@ -1591,8 +1602,33 @@ function getConfiguredShortcuts() {
     multiCopyTimeoutMs: config.shortcuts?.multiCopyTimeoutMs ?? 3000,
     toggleSecondarySub:
       config.shortcuts?.toggleSecondarySub ?? "CommandOrControl+Shift+V",
-    markAudioCard: config.shortcuts?.markAudioCard ?? "CommandOrControl+A",
+    markAudioCard: config.shortcuts?.markAudioCard ?? "CommandOrControl+Shift+A",
   };
+}
+
+function shouldUseMarkAudioCardLocalFallback(
+  input: Electron.Input,
+): boolean {
+  const shortcuts = getConfiguredShortcuts();
+  if (!shortcuts.markAudioCard) return false;
+  if (globalShortcut.isRegistered(shortcuts.markAudioCard)) return false;
+
+  const normalized = shortcuts.markAudioCard.replace(/\s+/g, "").toLowerCase();
+  const supportsFallback =
+    normalized === "commandorcontrol+shift+a" ||
+    normalized === "cmdorctrl+shift+a" ||
+    normalized === "control+shift+a" ||
+    normalized === "ctrl+shift+a";
+  if (!supportsFallback) return false;
+
+  if (input.type !== "keyDown" || input.isAutoRepeat) return false;
+  if ((input.key || "").toLowerCase() !== "a") return false;
+  if (!input.shift || input.alt) return false;
+
+  if (process.platform === "darwin") {
+    return Boolean(input.meta || input.control);
+  }
+  return Boolean(input.control);
 }
 
 function showMpvOsd(text: string): void {

@@ -99,7 +99,7 @@
     "notificationType": "osd", // "osd" | "system" | "both" | "none"
 
     // Card update behavior
-    "autoUpdateNewCards": true, // false = use manual shortcuts instead
+    "autoUpdateNewCards": false, // false = use manual shortcuts instead
     "maxMediaDuration": 30, // 0 to disable limit
 
     // Sentence card mining
@@ -149,7 +149,7 @@
     "toggleSecondarySub": "CommandOrControl+Shift+V",
 
     // Mark last added card as audio card
-    "markAudioCard": "CommandOrControl+A",
+    "markAudioCard": "CommandOrControl+Shift+A",
 
     // Timeout in ms for multi-copy/mine digit input
     "multiCopyTimeoutMs": 3000,
