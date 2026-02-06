@@ -496,6 +496,12 @@ export class AnkiIntegration {
         body: message,
         icon: notificationIconPath,
       });
+
+      if (notificationIconPath) {
+        this.mediaGenerator.scheduleNotificationIconCleanup(
+          notificationIconPath,
+        );
+      }
     }
   }
 

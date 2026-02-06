@@ -78,6 +78,14 @@ export class MediaGenerator {
     return filePath;
   }
 
+  scheduleNotificationIconCleanup(filePath: string, delayMs = 10000): void {
+    setTimeout(() => {
+      try {
+        fs.unlinkSync(filePath);
+      } catch {}
+    }, delayMs);
+  }
+
   async generateAudio(
     videoPath: string,
     startTime: number,
