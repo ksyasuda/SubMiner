@@ -147,13 +147,28 @@ export interface AnkiConnectConfig {
   animatedCrf?: number;
   autoUpdateNewCards?: boolean;
   maxMediaDuration?: number;
+  // Legacy flat options (kept for backward compatibility)
   sentenceCardModel?: string;
   sentenceCardSentenceField?: string;
   sentenceCardAudioField?: string;
-  isLapis?: boolean;
-  isKiku?: boolean;
   kikuFieldGrouping?: "auto" | "manual" | "disabled";
-  audioCardField?: string;
+  isLapis?:
+    | boolean
+    | {
+        enabled?: boolean;
+        sentenceCardModel?: string;
+        sentenceCardSentenceField?: string;
+        sentenceCardAudioField?: string;
+      };
+  isKiku?:
+    | boolean
+    | {
+        enabled?: boolean;
+        sentenceCardModel?: string;
+        sentenceCardSentenceField?: string;
+        sentenceCardAudioField?: string;
+        fieldGrouping?: "auto" | "manual" | "disabled";
+      };
 }
 
 export interface SubtitleStyleConfig {

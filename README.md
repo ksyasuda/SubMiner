@@ -439,7 +439,20 @@ See `config.example.jsonc` for detailed configuration options with all available
     "deck": "Learning::Japanese",
     "audioField": "ExpressionAudio",
     "imageField": "Picture",
-    "sentenceField": "Sentence"
+    "sentenceField": "Sentence",
+    "isLapis": {
+      "enabled": true,
+      "sentenceCardModel": "Japanese sentences",
+      "sentenceCardSentenceField": "Sentence",
+      "sentenceCardAudioField": "SentenceAudio"
+    },
+    "isKiku": {
+      "enabled": false,
+      "sentenceCardModel": "Japanese sentences",
+      "sentenceCardSentenceField": "Sentence",
+      "sentenceCardAudioField": "SentenceAudio",
+      "fieldGrouping": "disabled"
+    }
     // ... many more options available in config.example.jsonc
   }
 }
@@ -478,17 +491,12 @@ See `config.example.jsonc` for detailed configuration options with all available
 | `notificationType`          | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                         |
 | `autoUpdateNewCards`        | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                    |
 | `maxMediaDuration`          | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                       |
-| `sentenceCardModel`         | string                                  | Anki note type for sentence mining cards (optional)                                                                         |
-| `sentenceCardSentenceField` | string                                  | Field name for sentence in sentence cards (default: `Sentence`)                                                             |
-| `sentenceCardAudioField`    | string                                  | Field name for audio in sentence cards (default: `SentenceAudio`)                                                           |
-| `isLapis`                   | `true`, `false`                         | Enable Lapis note format compatibility (default: `false`)                                                                   |
-| `isKiku`                    | `true`, `false`                         | Enable Kiku note format compatibility; extends Lapis (default: `false`)                                                     |
-| `kikuFieldGrouping`         | `"auto"`, `"manual"`, `"disabled"`      | Kiku field grouping mode for duplicate cards (default: `"disabled"`)                                                        |
-| `audioCardField`            | string                                  | Card field for audio card marker (default: `"IsAudioCard"`)                                                                 |
+| `isLapis`                   | object / `true` / `false`               | Lapis profile config. Object form: `{ enabled, sentenceCardModel, sentenceCardSentenceField, sentenceCardAudioField }` |
+| `isKiku`                    | object / `true` / `false`               | Kiku profile config. Object form: `{ enabled, sentenceCardModel, sentenceCardSentenceField, sentenceCardAudioField, fieldGrouping }` |
 
 **Kiku / Lapis Note Type Support:**
 
-SubMiner supports the [Lapis](https://github.com/donkuri/lapis) and [Kiku](https://kiku.youyoumu.my.id/) note types. Both `isLapis` and `isKiku` can be enabled simultaneously; Kiku takes precedence.
+SubMiner supports the [Lapis](https://github.com/donkuri/lapis) and [Kiku](https://kiku.youyoumu.my.id/) note types. Both `isLapis.enabled` and `isKiku.enabled` can be true; Kiku takes precedence.
 
 When enabled, sentence cards automatically set `IsSentenceCard` to `"x"` and populate the `Expression` field. Audio cards set `IsAudioCard` to `"x"`.
 

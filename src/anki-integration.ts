@@ -95,7 +95,6 @@ export class AnkiIntegration {
       animatedCrf: 35,
       autoUpdateNewCards: true,
       maxMediaDuration: 30,
-      audioCardField: "IsAudioCard",
       ...config,
     };
 
@@ -106,6 +105,80 @@ export class AnkiIntegration {
     this.osdCallback = osdCallback || null;
     this.notificationCallback = notificationCallback || null;
     this.fieldGroupingCallback = fieldGroupingCallback || null;
+  }
+
+  private getLapisConfig(): {
+    enabled: boolean;
+    sentenceCardModel?: string;
+    sentenceCardSentenceField?: string;
+    sentenceCardAudioField?: string;
+  } {
+    const lapis = this.config.isLapis;
+    if (typeof lapis === "object" && lapis !== null) {
+      return {
+        enabled: lapis.enabled === true,
+        sentenceCardModel: lapis.sentenceCardModel,
+        sentenceCardSentenceField: lapis.sentenceCardSentenceField,
+        sentenceCardAudioField: lapis.sentenceCardAudioField,
+      };
+    }
+    return { enabled: lapis === true };
+  }
+
+  private getKikuConfig(): {
+    enabled: boolean;
+    sentenceCardModel?: string;
+    sentenceCardSentenceField?: string;
+    sentenceCardAudioField?: string;
+    fieldGrouping?: "auto" | "manual" | "disabled";
+  } {
+    const kiku = this.config.isKiku;
+    if (typeof kiku === "object" && kiku !== null) {
+      return {
+        enabled: kiku.enabled === true,
+        sentenceCardModel: kiku.sentenceCardModel,
+        sentenceCardSentenceField: kiku.sentenceCardSentenceField,
+        sentenceCardAudioField: kiku.sentenceCardAudioField,
+        fieldGrouping: kiku.fieldGrouping,
+      };
+    }
+    return { enabled: kiku === true };
+  }
+
+  private getEffectiveSentenceCardConfig(): {
+    model?: string;
+    sentenceField: string;
+    audioField: string;
+    lapisEnabled: boolean;
+    kikuEnabled: boolean;
+    kikuFieldGrouping: "auto" | "manual" | "disabled";
+  } {
+    const lapis = this.getLapisConfig();
+    const kiku = this.getKikuConfig();
+    const preferKiku = kiku.enabled;
+
+    return {
+      model:
+        (preferKiku ? kiku.sentenceCardModel : lapis.sentenceCardModel) ||
+        this.config.sentenceCardModel,
+      sentenceField:
+        (preferKiku
+          ? kiku.sentenceCardSentenceField
+          : lapis.sentenceCardSentenceField) ||
+        this.config.sentenceCardSentenceField ||
+        "Sentence",
+      audioField:
+        (preferKiku ? kiku.sentenceCardAudioField : lapis.sentenceCardAudioField) ||
+        this.config.sentenceCardAudioField ||
+        "SentenceAudio",
+      lapisEnabled: lapis.enabled,
+      kikuEnabled: kiku.enabled,
+      kikuFieldGrouping:
+        (kiku.fieldGrouping || this.config.kikuFieldGrouping || "disabled") as
+          | "auto"
+          | "manual"
+          | "disabled",
+    };
   }
 
   start(): void {
@@ -216,10 +289,10 @@ export class AnkiIntegration {
         return;
       }
 
+      const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
       if (
-        this.config.isKiku &&
-        this.config.kikuFieldGrouping &&
-        this.config.kikuFieldGrouping !== "disabled"
+        sentenceCardConfig.kikuEnabled &&
+        sentenceCardConfig.kikuFieldGrouping !== "disabled"
       ) {
         const duplicateNoteId = await this.findDuplicateNote(
           expressionText,
@@ -227,7 +300,7 @@ export class AnkiIntegration {
           noteInfo,
         );
         if (duplicateNoteId !== null) {
-          if (this.config.kikuFieldGrouping === "auto") {
+          if (sentenceCardConfig.kikuFieldGrouping === "auto") {
             await this.handleFieldGroupingAuto(
               duplicateNoteId,
               noteId,
@@ -235,7 +308,7 @@ export class AnkiIntegration {
               expressionText,
             );
             return;
-          } else if (this.config.kikuFieldGrouping === "manual") {
+          } else if (sentenceCardConfig.kikuFieldGrouping === "manual") {
             const handled = await this.handleFieldGroupingManual(
               duplicateNoteId,
               noteId,
@@ -520,9 +593,7 @@ export class AnkiIntegration {
     availableFieldNames: string[],
     cardKind: CardKind,
   ): void {
-    const audioFlagNames = Array.from(
-      new Set(["IsAudioCard", this.config.audioCardField || "IsAudioCard"]),
-    );
+    const audioFlagNames = ["IsAudioCard"];
 
     if (cardKind === "sentence") {
       const sentenceFlag = this.resolveFieldName(
@@ -946,8 +1017,8 @@ export class AnkiIntegration {
           updatedFields[this.config.sentenceField] = processedSentence;
         }
 
-        const audioFieldName =
-          this.config.sentenceCardAudioField || "SentenceAudio";
+        const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
+        const audioFieldName = sentenceCardConfig.audioField;
         try {
           const audioFilename = this.generateAudioFilename();
           const audioBuffer = await this.mediaGenerator.generateAudio(
@@ -1058,7 +1129,8 @@ export class AnkiIntegration {
     endTime: number,
     secondarySubText?: string,
   ): Promise<void> {
-    if (!this.config.sentenceCardModel) {
+    const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
+    if (!sentenceCardConfig.model) {
       this.showOsdNotification("sentenceCardModel not configured");
       return;
     }
@@ -1082,9 +1154,8 @@ export class AnkiIntegration {
     const fields: Record<string, string> = {};
     const errors: string[] = [];
 
-    const sentenceField = this.config.sentenceCardSentenceField || "Sentence";
-    const audioFieldName =
-      this.config.sentenceCardAudioField || "SentenceAudio";
+    const sentenceField = sentenceCardConfig.sentenceField;
+    const audioFieldName = sentenceCardConfig.audioField;
 
     fields[sentenceField] = sentence;
 
@@ -1092,7 +1163,7 @@ export class AnkiIntegration {
       fields["SelectionText"] = secondarySubText;
     }
 
-    if (this.config.isLapis || this.config.isKiku) {
+    if (sentenceCardConfig.lapisEnabled || sentenceCardConfig.kikuEnabled) {
       fields["IsSentenceCard"] = "x";
       fields["Expression"] = sentence;
     }
@@ -1102,7 +1173,7 @@ export class AnkiIntegration {
     try {
       noteId = await this.client.addNote(
         deck,
-        this.config.sentenceCardModel,
+        sentenceCardConfig.model,
         fields,
       );
       console.log("Created sentence card:", noteId);
@@ -1261,8 +1332,8 @@ export class AnkiIntegration {
     if (this.config.imageField) fields.push(this.config.imageField);
     if (this.config.sentenceField) fields.push(this.config.sentenceField);
     if (this.config.audioField) fields.push(this.config.audioField);
-    const sentenceAudioField =
-      this.config.sentenceCardAudioField || "SentenceAudio";
+    const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
+    const sentenceAudioField = sentenceCardConfig.audioField;
     if (!fields.includes(sentenceAudioField)) fields.push(sentenceAudioField);
     if (this.config.miscInfoField) fields.push(this.config.miscInfoField);
     fields.push("SentenceFurigana");
@@ -1487,6 +1558,7 @@ export class AnkiIntegration {
         return false;
       }
       const originalNoteInfo = originalNotesInfo[0];
+      const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
 
       const originalFields = this.extractFields(originalNoteInfo.fields);
       const newFields = this.extractFields(newNoteInfo.fields);
@@ -1502,9 +1574,7 @@ export class AnkiIntegration {
         ),
         hasAudio: !!(
           originalNoteInfo.fields[this.config.audioField!]?.value ||
-          originalNoteInfo.fields[
-            this.config.sentenceCardAudioField || "SentenceAudio"
-          ]?.value
+          originalNoteInfo.fields[sentenceCardConfig.audioField]?.value
         ),
         hasImage: !!originalNoteInfo.fields[this.config.imageField!]?.value,
         isOriginal: true,
