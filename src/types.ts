@@ -88,6 +88,15 @@ export interface TexthookerConfig {
   openBrowser?: boolean;
 }
 
+export interface MpvClient {
+  currentSubText: string;
+  currentVideoPath: string;
+  currentTimePos: number;
+  currentSubStart: number;
+  currentSubEnd: number;
+  send(command: { command: unknown[]; request_id?: number }): boolean;
+}
+
 export interface AnkiConnectConfig {
   enabled?: boolean;
   url?: string;

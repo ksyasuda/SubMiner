@@ -74,6 +74,7 @@ import {
   Keybinding,
   WindowGeometry,
   SecondarySubMode,
+  MpvClient,
 } from "./types";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
 import { AnkiIntegration } from "./anki-integration";
@@ -980,7 +981,7 @@ const MPV_REQUEST_ID_SECONDARY_SUBTEXT = 103;
 const MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY = 104;
 const MPV_REQUEST_ID_TRACK_LIST = 200;
 
-class MpvIpcClient {
+class MpvIpcClient implements MpvClient {
   private socketPath: string;
   public socket: net.Socket | null = null;
   private buffer = "";
