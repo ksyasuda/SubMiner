@@ -16,7 +16,7 @@ LINUX_DATA_DIR ?= $(XDG_DATA_HOME)/SubMiner
 MACOS_DATA_DIR ?= $(HOME)/Library/Application Support/SubMiner
 
 # If building from source, the AppImage will typically land in dist/.
-APPIMAGE_SRC := $(firstword $(wildcard dist/SubMiner-*.AppImage))
+APPIMAGE_SRC := $(firstword $(wildcard release/SubMiner-*.AppImage))
 
 help:
 	@printf '%s\n' \

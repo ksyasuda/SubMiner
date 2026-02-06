@@ -97,9 +97,9 @@ find_rofi_theme() {
 	else
 		local xdg_data_home
 		xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-		candidates+=("$xdg_data_home/subminer/themes/$ROFI_THEME_FILE")
-		candidates+=("/usr/local/share/subminer/themes/$ROFI_THEME_FILE")
-		candidates+=("/usr/share/subminer/themes/$ROFI_THEME_FILE")
+		candidates+=("$xdg_data_home/SubMiner/themes/$ROFI_THEME_FILE")
+		candidates+=("/usr/local/share/SubMiner/themes/$ROFI_THEME_FILE")
+		candidates+=("/usr/share/SubMiner/themes/$ROFI_THEME_FILE")
 	fi
 
 	# Backwards compatibility: theme next to the script.
@@ -306,8 +306,7 @@ find_appimage() {
 
 	if [[ "$(uname -s)" = "Darwin" ]]; then
 		local mac_candidates=(
-			"/Applications/SubMiner.app/Contents/MacOS/subminer"
-			"/Applications/subminer.app/Contents/MacOS/subminer"
+			"/Applications/SubMiner.app/Contents/MacOS/SubMiner"
 		)
 		local candidate
 		for candidate in "${mac_candidates[@]}"; do
@@ -318,13 +317,13 @@ find_appimage() {
 		done
 	fi
 
-	if [[ -x "$HOME/.local/bin/subminer.AppImage" ]]; then
-		echo "$HOME/.local/bin/subminer.AppImage"
+	if [[ -x "$HOME/.local/bin/SubMiner.AppImage" ]]; then
+		echo "$HOME/.local/bin/SubMiner.AppImage"
 		return 0
 	fi
 
-	if [[ -x "/opt/subminer/subminer.AppImage" ]]; then
-		echo "/opt/subminer/subminer.AppImage"
+	if [[ -x "/opt/SubMiner/SubMiner.AppImage" ]]; then
+		echo "/opt/SubMiner/SubMiner.AppImage"
 		return 0
 	fi
 
