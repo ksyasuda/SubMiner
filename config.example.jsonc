@@ -110,6 +110,16 @@
     // Lapis note format compatibility
     "isLapis": false,
 
+    // Kiku note format compatibility (extends Lapis)
+    // Both isKiku and isLapis can be enabled; Kiku takes precedence
+    "isKiku": false,
+
+    // Kiku field grouping for duplicate cards:
+    // "auto" = automatically merge duplicates into one card
+    // "manual" = show popup to choose which card to keep
+    // "disabled" = no field grouping
+    "kikuFieldGrouping": "disabled",
+
     // Audio card field name (set to "x" when marking a card as audio card)
     "audioCardField": "IsAudioCard",
   },

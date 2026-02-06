@@ -33,6 +33,8 @@ import type {
   JimakuFileEntry,
   JimakuApiResponse,
   JimakuDownloadResult,
+  KikuDuplicateCardInfo,
+  KikuFieldGroupingChoice,
 } from "./types";
 
 const electronAPI: ElectronAPI = {
@@ -149,6 +151,28 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke("get-current-secondary-sub"),
   getSubtitleStyle: (): Promise<SubtitleStyleConfig | null> =>
     ipcRenderer.invoke("get-subtitle-style"),
+
+  onKikuFieldGroupingRequest: (
+    callback: (data: {
+      original: KikuDuplicateCardInfo;
+      duplicate: KikuDuplicateCardInfo;
+    }) => void,
+  ) => {
+    ipcRenderer.on(
+      "kiku:field-grouping-request",
+      (
+        _event: IpcRendererEvent,
+        data: {
+          original: KikuDuplicateCardInfo;
+          duplicate: KikuDuplicateCardInfo;
+        },
+      ) => callback(data),
+    );
+  },
+
+  kikuFieldGroupingRespond: (choice: KikuFieldGroupingChoice) => {
+    ipcRenderer.send("kiku:field-grouping-respond", choice);
+  },
 };
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI);

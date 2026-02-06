@@ -482,7 +482,23 @@ See `config.example.jsonc` for detailed configuration options with all available
 | `sentenceCardSentenceField` | string                                  | Field name for sentence in sentence cards (default: `Sentence`)                                                             |
 | `sentenceCardAudioField`    | string                                  | Field name for audio in sentence cards (default: `SentenceAudio`)                                                           |
 | `isLapis`                   | `true`, `false`                         | Enable Lapis note format compatibility (default: `false`)                                                                   |
+| `isKiku`                    | `true`, `false`                         | Enable Kiku note format compatibility; extends Lapis (default: `false`)                                                     |
+| `kikuFieldGrouping`         | `"auto"`, `"manual"`, `"disabled"`      | Kiku field grouping mode for duplicate cards (default: `"disabled"`)                                                        |
 | `audioCardField`            | string                                  | Card field for audio card marker (default: `"IsAudioCard"`)                                                                 |
+
+**Kiku / Lapis Note Type Support:**
+
+SubMiner supports the [Lapis](https://github.com/donkuri/lapis) and [Kiku](https://kiku.youyoumu.my.id/) note types. Both `isLapis` and `isKiku` can be enabled simultaneously; Kiku takes precedence.
+
+When enabled, sentence cards automatically set `IsSentenceCard` to `"x"` and populate the `Expression` field. Audio cards set `IsAudioCard` to `"x"`.
+
+Kiku extends Lapis with **field grouping** — when a duplicate card is detected (same Word/Expression), SubMiner merges the two cards' content into one using Kiku's `data-group-id` HTML structure, organizing each mining instance into separate pages within the note.
+
+| Mode       | Behavior                                                                                |
+| ---------- | --------------------------------------------------------------------------------------- |
+| `auto`     | Automatically merges the new card's content into the original and deletes the duplicate |
+| `manual`   | Shows an overlay popup to choose which card to keep; the other is merged in and deleted |
+| `disabled` | No field grouping; duplicate cards are left as-is                                       |
 
 **Image Quality Notes:**
 

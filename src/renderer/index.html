@@ -15,59 +15,136 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' chrome-extension:; script-src 'self' 'unsafe-inline' chrome-extension:; style-src 'self' 'unsafe-inline' chrome-extension:;">
-	  <title>SubMiner</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <div id="overlay">
-    <div id="secondarySubContainer" class="secondary-sub-hidden">
-      <div id="secondarySubRoot"></div>
-    </div>
-    <div id="subtitleContainer">
-      <div id="subtitleRoot"></div>
-    </div>
-    <div id="jimakuModal" class="modal hidden" aria-hidden="true">
-      <div class="modal-content">
-        <div class="modal-header">
-          <div class="modal-title">Jimaku Subtitles</div>
-          <button id="jimakuClose" class="modal-close" type="button">Close</button>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' 'unsafe-inline' chrome-extension:; script-src 'self' 'unsafe-inline' chrome-extension:; style-src 'self' 'unsafe-inline' chrome-extension:;"
+    />
+    <title>SubMiner</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="overlay">
+      <div id="secondarySubContainer" class="secondary-sub-hidden">
+        <div id="secondarySubRoot"></div>
+      </div>
+      <div id="subtitleContainer">
+        <div id="subtitleRoot"></div>
+      </div>
+      <div id="jimakuModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div class="modal-title">Jimaku Subtitles</div>
+            <button id="jimakuClose" class="modal-close" type="button">
+              Close
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="jimaku-form">
+              <label class="jimaku-field">
+                <span>Title</span>
+                <input id="jimakuTitle" type="text" placeholder="Anime title" />
+              </label>
+              <label class="jimaku-field">
+                <span>Season</span>
+                <input
+                  id="jimakuSeason"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                />
+              </label>
+              <label class="jimaku-field">
+                <span>Episode</span>
+                <input
+                  id="jimakuEpisode"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                />
+              </label>
+              <button id="jimakuSearch" class="jimaku-button" type="button">
+                Search
+              </button>
+            </div>
+            <div id="jimakuStatus" class="jimaku-status"></div>
+            <div id="jimakuEntriesSection" class="jimaku-section hidden">
+              <div class="jimaku-section-title">Entries</div>
+              <ul id="jimakuEntries" class="jimaku-list"></ul>
+            </div>
+            <div id="jimakuFilesSection" class="jimaku-section hidden">
+              <div class="jimaku-section-title">Files</div>
+              <ul id="jimakuFiles" class="jimaku-list"></ul>
+              <button
+                id="jimakuBroaden"
+                class="jimaku-link hidden"
+                type="button"
+              >
+                Broaden search (all files)
+              </button>
+            </div>
+          </div>
         </div>
-        <div class="modal-body">
-          <div class="jimaku-form">
-            <label class="jimaku-field">
-              <span>Title</span>
-              <input id="jimakuTitle" type="text" placeholder="Anime title">
-            </label>
-            <label class="jimaku-field">
-              <span>Season</span>
-              <input id="jimakuSeason" type="number" min="1" placeholder="1">
-            </label>
-            <label class="jimaku-field">
-              <span>Episode</span>
-              <input id="jimakuEpisode" type="number" min="1" placeholder="1">
-            </label>
-            <button id="jimakuSearch" class="jimaku-button" type="button">Search</button>
+      </div>
+      <div id="kikuFieldGroupingModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div class="modal-title">Duplicate Card Detected</div>
           </div>
-          <div id="jimakuStatus" class="jimaku-status"></div>
-          <div id="jimakuEntriesSection" class="jimaku-section hidden">
-            <div class="jimaku-section-title">Entries</div>
-            <ul id="jimakuEntries" class="jimaku-list"></ul>
-          </div>
-          <div id="jimakuFilesSection" class="jimaku-section hidden">
-            <div class="jimaku-section-title">Files</div>
-            <ul id="jimakuFiles" class="jimaku-list"></ul>
-            <button id="jimakuBroaden" class="jimaku-link hidden" type="button">Broaden search (all files)</button>
+          <div class="modal-body">
+            <div class="kiku-info-text">
+              A card with the same expression already exists. Select which card
+              to keep. The other card's content will be merged using Kiku field
+              grouping, then the duplicate will be deleted.
+            </div>
+            <div class="kiku-cards-container">
+              <div id="kikuCard1" class="kiku-card active" tabindex="0">
+                <div class="kiku-card-label">1 &mdash; Original Card</div>
+                <div
+                  class="kiku-card-expression"
+                  id="kikuCard1Expression"
+                ></div>
+                <div class="kiku-card-sentence" id="kikuCard1Sentence"></div>
+                <div class="kiku-card-meta" id="kikuCard1Meta"></div>
+              </div>
+              <div id="kikuCard2" class="kiku-card" tabindex="0">
+                <div class="kiku-card-label">2 &mdash; New Card</div>
+                <div
+                  class="kiku-card-expression"
+                  id="kikuCard2Expression"
+                ></div>
+                <div class="kiku-card-sentence" id="kikuCard2Sentence"></div>
+                <div class="kiku-card-meta" id="kikuCard2Meta"></div>
+              </div>
+            </div>
+            <div class="kiku-footer">
+              <button
+                id="kikuConfirmButton"
+                class="kiku-confirm-button"
+                type="button"
+              >
+                Keep Selected
+              </button>
+              <button
+                id="kikuCancelButton"
+                class="kiku-cancel-button"
+                type="button"
+              >
+                Cancel
+              </button>
+            </div>
+            <div class="kiku-hint">
+              Press 1 or 2 to select &middot; Enter to confirm &middot; Esc to
+              cancel
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-  <script src="renderer.js"></script>
-</body>
+    <script src="renderer.js"></script>
+  </body>
 </html>

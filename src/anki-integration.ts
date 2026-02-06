@@ -19,7 +19,13 @@
 import { AnkiConnectClient } from "./anki-connect";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
 import { MediaGenerator } from "./media-generator";
-import { AnkiConnectConfig, MpvClient, NotificationOptions } from "./types";
+import {
+  AnkiConnectConfig,
+  KikuDuplicateCardInfo,
+  KikuFieldGroupingChoice,
+  MpvClient,
+  NotificationOptions,
+} from "./types";
 
 interface NoteInfo {
   noteId: number;
@@ -43,6 +49,12 @@ export class AnkiIntegration {
     | ((title: string, options: NotificationOptions) => void)
     | null = null;
   private updateInProgress = false;
+  private fieldGroupingCallback:
+    | ((data: {
+        original: KikuDuplicateCardInfo;
+        duplicate: KikuDuplicateCardInfo;
+      }) => Promise<KikuFieldGroupingChoice>)
+    | null = null;
 
   constructor(
     config: AnkiConnectConfig,
@@ -53,6 +65,10 @@ export class AnkiIntegration {
       title: string,
       options: NotificationOptions,
     ) => void,
+    fieldGroupingCallback?: (data: {
+      original: KikuDuplicateCardInfo;
+      duplicate: KikuDuplicateCardInfo;
+    }) => Promise<KikuFieldGroupingChoice>,
   ) {
     this.config = {
       url: "http://127.0.0.1:8765",
@@ -87,6 +103,7 @@ export class AnkiIntegration {
     this.mpvClient = mpvClient;
     this.osdCallback = osdCallback || null;
     this.notificationCallback = notificationCallback || null;
+    this.fieldGroupingCallback = fieldGroupingCallback || null;
   }
 
   start(): void {
@@ -195,6 +212,37 @@ export class AnkiIntegration {
       if (!expressionText) {
         console.warn("No expression/word field found in card:", noteId);
         return;
+      }
+
+      if (
+        this.config.isKiku &&
+        this.config.kikuFieldGrouping &&
+        this.config.kikuFieldGrouping !== "disabled"
+      ) {
+        const duplicateNoteId = await this.findDuplicateNote(
+          expressionText,
+          noteId,
+          noteInfo,
+        );
+        if (duplicateNoteId !== null) {
+          if (this.config.kikuFieldGrouping === "auto") {
+            await this.handleFieldGroupingAuto(
+              duplicateNoteId,
+              noteId,
+              noteInfo,
+              expressionText,
+            );
+            return;
+          } else if (this.config.kikuFieldGrouping === "manual") {
+            const handled = await this.handleFieldGroupingManual(
+              duplicateNoteId,
+              noteId,
+              noteInfo,
+              expressionText,
+            );
+            if (handled) return;
+          }
+        }
       }
 
       const updatedFields: Record<string, string> = {};
@@ -957,7 +1005,7 @@ export class AnkiIntegration {
       fields["SelectionText"] = secondarySubText;
     }
 
-    if (this.config.isLapis) {
+    if (this.config.isLapis || this.config.isKiku) {
       fields["IsSentenceCard"] = "x";
       fields["Expression"] = sentence;
     }
@@ -1066,6 +1114,343 @@ export class AnkiIntegration {
     const errorSuffix =
       errors.length > 0 ? `${errors.join(", ")} failed` : undefined;
     await this.showNotification(noteId, label, errorSuffix);
+  }
+
+  private async findDuplicateNote(
+    expression: string,
+    excludeNoteId: number,
+    noteInfo: NoteInfo,
+  ): Promise<number | null> {
+    let fieldName = "";
+    for (const name of Object.keys(noteInfo.fields)) {
+      if (
+        ["word", "expression"].includes(name.toLowerCase()) &&
+        noteInfo.fields[name].value
+      ) {
+        fieldName = name;
+        break;
+      }
+    }
+    if (!fieldName) return null;
+
+    const escapedExpression = expression.replace(/"/g, '\\"');
+    const deckPrefix = this.config.deck ? `"deck:${this.config.deck}" ` : "";
+    const query = `${deckPrefix}"${fieldName}:${escapedExpression}"`;
+
+    try {
+      const noteIds = await this.client.findNotes(query);
+      const duplicates = noteIds.filter((id) => id !== excludeNoteId);
+      return duplicates.length > 0 ? duplicates[0] : null;
+    } catch (error) {
+      console.warn("Duplicate search failed:", (error as Error).message);
+      return null;
+    }
+  }
+
+  private getGroupableFieldNames(): string[] {
+    const fields: string[] = [];
+    if (this.config.imageField) fields.push(this.config.imageField);
+    if (this.config.sentenceField) fields.push(this.config.sentenceField);
+    if (this.config.audioField) fields.push(this.config.audioField);
+    const sentenceAudioField =
+      this.config.sentenceCardAudioField || "SentenceAudio";
+    if (!fields.includes(sentenceAudioField)) fields.push(sentenceAudioField);
+    if (this.config.miscInfoField) fields.push(this.config.miscInfoField);
+    fields.push("SentenceFurigana");
+    return fields;
+  }
+
+  private applyFieldGrouping(
+    existingValue: string,
+    newValue: string,
+    groupId: number,
+    isPictureField: boolean,
+  ): string {
+    if (!existingValue.trim()) return newValue;
+    if (!newValue.trim()) return existingValue;
+
+    if (isPictureField) {
+      const grouped = existingValue.replace(
+        /<img(?![^>]*data-group-id)([^>]*)>/g,
+        `<img data-group-id="${groupId}"$1>`,
+      );
+      return grouped + "\n" + newValue;
+    }
+
+    const hasGroups = /data-group-id/.test(existingValue);
+
+    if (!hasGroups) {
+      return (
+        `<span data-group-id="${groupId}">${existingValue}</span>\n` + newValue
+      );
+    }
+
+    const groupedSpanRegex = /<span\s+data-group-id="[^"]*">[\s\S]*?<\/span>/g;
+    let lastEnd = 0;
+    let result = "";
+    let match;
+
+    while ((match = groupedSpanRegex.exec(existingValue)) !== null) {
+      const before = existingValue.slice(lastEnd, match.index);
+      if (before.trim()) {
+        result += `<span data-group-id="${groupId}">${before.trim()}</span>\n`;
+      }
+      result += match[0] + "\n";
+      lastEnd = match.index + match[0].length;
+    }
+
+    const after = existingValue.slice(lastEnd);
+    if (after.trim()) {
+      result += `\n<span data-group-id="${groupId}">${after.trim()}</span>`;
+    }
+
+    return result + "\n" + newValue;
+  }
+
+  private async generateMediaForMerge(): Promise<{
+    audioField?: string;
+    audioValue?: string;
+    imageField?: string;
+    imageValue?: string;
+    miscInfoValue?: string;
+  }> {
+    const result: {
+      audioField?: string;
+      audioValue?: string;
+      imageField?: string;
+      imageValue?: string;
+      miscInfoValue?: string;
+    } = {};
+
+    if (this.config.generateAudio && this.mpvClient?.currentVideoPath) {
+      try {
+        const audioFilename = this.generateAudioFilename();
+        const audioBuffer = await this.generateAudio();
+        if (audioBuffer) {
+          await this.client.storeMediaFile(audioFilename, audioBuffer);
+          result.audioField = this.config.audioField!;
+          result.audioValue = `[sound:${audioFilename}]`;
+          if (this.config.miscInfoField) {
+            result.miscInfoValue = this.formatMiscInfoPattern(audioFilename);
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Failed to generate audio for merge:",
+          (error as Error).message,
+        );
+      }
+    }
+
+    if (this.config.generateImage && this.mpvClient?.currentVideoPath) {
+      try {
+        const imageFilename = this.generateImageFilename();
+        const imageBuffer = await this.generateImage();
+        if (imageBuffer) {
+          await this.client.storeMediaFile(imageFilename, imageBuffer);
+          result.imageField = this.config.imageField!;
+          result.imageValue = `<img src="${imageFilename}">`;
+          if (this.config.miscInfoField && !result.miscInfoValue) {
+            result.miscInfoValue = this.formatMiscInfoPattern(imageFilename);
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Failed to generate image for merge:",
+          (error as Error).message,
+        );
+      }
+    }
+
+    return result;
+  }
+
+  private async performFieldGroupingMerge(
+    keepNoteId: number,
+    deleteNoteId: number,
+    deleteNoteInfo: NoteInfo,
+    expression: string,
+  ): Promise<void> {
+    const keepNotesInfoResult = await this.client.notesInfo([keepNoteId]);
+    const keepNotesInfo = keepNotesInfoResult as unknown as NoteInfo[];
+    if (!keepNotesInfo || keepNotesInfo.length === 0) {
+      console.warn("Keep note not found:", keepNoteId);
+      return;
+    }
+    const keepNoteInfo = keepNotesInfo[0];
+
+    const media = await this.generateMediaForMerge();
+
+    const newFields: Record<string, string> = {};
+    if (this.config.sentenceField && this.mpvClient.currentSubText) {
+      const deleteFields = this.extractFields(deleteNoteInfo.fields);
+      newFields[this.config.sentenceField] = this.processSentence(
+        this.mpvClient.currentSubText,
+        deleteFields,
+      );
+    }
+    if (media.audioField && media.audioValue) {
+      newFields[media.audioField] = media.audioValue;
+    }
+    if (media.imageField && media.imageValue) {
+      newFields[media.imageField] = media.imageValue;
+    }
+    if (this.config.miscInfoField && media.miscInfoValue) {
+      newFields[this.config.miscInfoField] = media.miscInfoValue;
+    }
+
+    const groupableFields = this.getGroupableFieldNames();
+    const mergedFields: Record<string, string> = {};
+
+    for (const fieldName of groupableFields) {
+      const existingValue = keepNoteInfo.fields[fieldName]?.value || "";
+      const newValue = newFields[fieldName] || "";
+      const isPictureField = fieldName === this.config.imageField;
+
+      if (existingValue.trim() && newValue.trim()) {
+        mergedFields[fieldName] = this.applyFieldGrouping(
+          existingValue,
+          newValue,
+          keepNoteId,
+          isPictureField,
+        );
+      } else if (newValue.trim()) {
+        mergedFields[fieldName] = newValue;
+      }
+    }
+
+    if (Object.keys(mergedFields).length > 0) {
+      await this.client.updateNoteFields(keepNoteId, mergedFields);
+    }
+
+    await this.client.deleteNotes([deleteNoteId]);
+    this.previousNoteIds.delete(deleteNoteId);
+
+    console.log("Merged duplicate card:", expression, "into note:", keepNoteId);
+    this.showStatusNotification(`Merged duplicate: ${expression}`);
+    await this.showNotification(keepNoteId, expression);
+  }
+
+  private async handleFieldGroupingAuto(
+    originalNoteId: number,
+    newNoteId: number,
+    newNoteInfo: NoteInfo,
+    expression: string,
+  ): Promise<void> {
+    try {
+      await this.performFieldGroupingMerge(
+        originalNoteId,
+        newNoteId,
+        newNoteInfo,
+        expression,
+      );
+    } catch (error) {
+      console.error(
+        "Field grouping auto merge failed:",
+        (error as Error).message,
+      );
+      this.showOsdNotification(
+        `Field grouping failed: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  private async handleFieldGroupingManual(
+    originalNoteId: number,
+    newNoteId: number,
+    newNoteInfo: NoteInfo,
+    expression: string,
+  ): Promise<boolean> {
+    if (!this.fieldGroupingCallback) {
+      console.warn(
+        "No field grouping callback registered, skipping manual mode",
+      );
+      return false;
+    }
+
+    try {
+      const originalNotesInfoResult = await this.client.notesInfo([
+        originalNoteId,
+      ]);
+      const originalNotesInfo =
+        originalNotesInfoResult as unknown as NoteInfo[];
+      if (!originalNotesInfo || originalNotesInfo.length === 0) {
+        return false;
+      }
+      const originalNoteInfo = originalNotesInfo[0];
+
+      const originalFields = this.extractFields(originalNoteInfo.fields);
+      const newFields = this.extractFields(newNoteInfo.fields);
+
+      const originalCard: KikuDuplicateCardInfo = {
+        noteId: originalNoteId,
+        expression:
+          originalFields.expression || originalFields.word || expression,
+        sentencePreview: this.truncateSentence(
+          originalFields[
+            (this.config.sentenceField || "sentence").toLowerCase()
+          ] || "",
+        ),
+        hasAudio: !!(
+          originalNoteInfo.fields[this.config.audioField!]?.value ||
+          originalNoteInfo.fields[
+            this.config.sentenceCardAudioField || "SentenceAudio"
+          ]?.value
+        ),
+        hasImage: !!originalNoteInfo.fields[this.config.imageField!]?.value,
+        isOriginal: true,
+      };
+
+      const newCard: KikuDuplicateCardInfo = {
+        noteId: newNoteId,
+        expression: newFields.expression || newFields.word || expression,
+        sentencePreview: this.truncateSentence(
+          newFields[(this.config.sentenceField || "sentence").toLowerCase()] ||
+            this.mpvClient.currentSubText ||
+            "",
+        ),
+        hasAudio: false,
+        hasImage: false,
+        isOriginal: false,
+      };
+
+      const choice = await this.fieldGroupingCallback({
+        original: originalCard,
+        duplicate: newCard,
+      });
+
+      if (choice.cancelled) {
+        return false;
+      }
+
+      const keepNoteId = choice.keepNoteId;
+      const deleteNoteId = choice.deleteNoteId;
+      const deleteNoteInfo =
+        deleteNoteId === newNoteId ? newNoteInfo : originalNoteInfo;
+
+      await this.performFieldGroupingMerge(
+        keepNoteId,
+        deleteNoteId,
+        deleteNoteInfo,
+        expression,
+      );
+      return true;
+    } catch (error) {
+      console.error(
+        "Field grouping manual merge failed:",
+        (error as Error).message,
+      );
+      this.showOsdNotification(
+        `Field grouping failed: ${(error as Error).message}`,
+      );
+      return false;
+    }
+  }
+
+  private truncateSentence(sentence: string): string {
+    const clean = sentence.replace(/<[^>]*>/g, "").trim();
+    if (clean.length <= 100) return clean;
+    return clean.substring(0, 100) + "...";
   }
 
   destroy(): void {

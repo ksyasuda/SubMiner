@@ -75,6 +75,7 @@ import {
   WindowGeometry,
   SecondarySubMode,
   MpvClient,
+  KikuFieldGroupingChoice,
 } from "./types";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
 import { AnkiIntegration } from "./anki-integration";
@@ -253,6 +254,8 @@ let pendingMineSentenceMultipleTimeout: ReturnType<typeof setTimeout> | null =
   null;
 let mineSentenceDigitShortcuts: string[] = [];
 let mineSentenceEscapeShortcut: string | null = null;
+let fieldGroupingResolver: ((choice: KikuFieldGroupingChoice) => void) | null =
+  null;
 
 const DEFAULT_KEYBINDINGS: Keybinding[] = [
   { key: "Space", command: ["cycle", "pause"] },
@@ -873,6 +876,7 @@ if (!gotTheLock) {
             }
           },
           showDesktopNotification,
+          createFieldGroupingCallback(),
         );
         ankiIntegration.start();
       }
@@ -2233,6 +2237,38 @@ ipcMain.handle("get-anki-connect-status", () => {
  * Create and show a desktop notification with robust icon handling.
  * Supports both file paths (preferred on Linux/Wayland) and data URLs (fallback).
  */
+function createFieldGroupingCallback() {
+  return async (data: {
+    original: import("./types").KikuDuplicateCardInfo;
+    duplicate: import("./types").KikuDuplicateCardInfo;
+  }): Promise<import("./types").KikuFieldGroupingChoice> => {
+    return new Promise((resolve) => {
+      fieldGroupingResolver = resolve;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("kiku:field-grouping-request", data);
+      } else {
+        resolve({
+          keepNoteId: 0,
+          deleteNoteId: 0,
+          cancelled: true,
+        });
+        fieldGroupingResolver = null;
+        return;
+      }
+      setTimeout(() => {
+        if (fieldGroupingResolver) {
+          fieldGroupingResolver({
+            keepNoteId: 0,
+            deleteNoteId: 0,
+            cancelled: true,
+          });
+          fieldGroupingResolver = null;
+        }
+      }, 30000);
+    });
+  };
+}
+
 function showDesktopNotification(
   title: string,
   options: { body?: string; icon?: string },
@@ -2314,6 +2350,7 @@ ipcMain.on(
           }
         },
         showDesktopNotification,
+        createFieldGroupingCallback(),
       );
       ankiIntegration.start();
       console.log("AnkiConnect integration enabled");
@@ -2331,6 +2368,16 @@ ipcMain.on("clear-anki-connect-history", () => {
     console.log("AnkiConnect subtitle timing history cleared");
   }
 });
+
+ipcMain.on(
+  "kiku:field-grouping-respond",
+  (_event: IpcMainEvent, choice: KikuFieldGroupingChoice) => {
+    if (fieldGroupingResolver) {
+      fieldGroupingResolver(choice);
+      fieldGroupingResolver = null;
+    }
+  },
+);
 
 ipcMain.handle("jimaku:get-media-info", (): JimakuMediaInfo => {
   return parseMediaInfo(currentMediaPath);

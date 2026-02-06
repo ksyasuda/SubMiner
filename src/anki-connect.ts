@@ -209,6 +209,10 @@ export class AnkiConnectClient {
     return result as number;
   }
 
+  async deleteNotes(noteIds: number[]): Promise<void> {
+    await this.invoke("deleteNotes", { notes: noteIds });
+  }
+
   async retrieveMediaFile(filename: string): Promise<string> {
     const result = await this.invoke("retrieveMediaFile", { filename });
     return (result as string) || "";

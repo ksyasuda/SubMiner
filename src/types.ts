@@ -102,6 +102,21 @@ export interface MpvClient {
   send(command: { command: unknown[]; request_id?: number }): boolean;
 }
 
+export interface KikuDuplicateCardInfo {
+  noteId: number;
+  expression: string;
+  sentencePreview: string;
+  hasAudio: boolean;
+  hasImage: boolean;
+  isOriginal: boolean;
+}
+
+export interface KikuFieldGroupingChoice {
+  keepNoteId: number;
+  deleteNoteId: number;
+  cancelled: boolean;
+}
+
 export interface AnkiConnectConfig {
   enabled?: boolean;
   url?: string;
@@ -136,6 +151,8 @@ export interface AnkiConnectConfig {
   sentenceCardSentenceField?: string;
   sentenceCardAudioField?: string;
   isLapis?: boolean;
+  isKiku?: boolean;
+  kikuFieldGrouping?: "auto" | "manual" | "disabled";
   audioCardField?: string;
 }
 
@@ -305,6 +322,13 @@ export interface ElectronAPI {
   getSecondarySubMode: () => Promise<SecondarySubMode>;
   getCurrentSecondarySub: () => Promise<string>;
   getSubtitleStyle: () => Promise<SubtitleStyleConfig | null>;
+  onKikuFieldGroupingRequest: (
+    callback: (data: {
+      original: KikuDuplicateCardInfo;
+      duplicate: KikuDuplicateCardInfo;
+    }) => void,
+  ) => void;
+  kikuFieldGroupingRespond: (choice: KikuFieldGroupingChoice) => void;
 }
 
 declare global {
