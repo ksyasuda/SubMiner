@@ -96,62 +96,103 @@
             <div class="modal-title">Duplicate Card Detected</div>
           </div>
           <div class="modal-body">
-            <div class="kiku-info-text">
-              A card with the same expression already exists. Select which card
-              to keep. The other card's content will be merged using Kiku field
-              grouping. You can choose whether to delete the duplicate.
-            </div>
-            <div class="kiku-cards-container">
-              <div id="kikuCard1" class="kiku-card active" tabindex="0">
-                <div class="kiku-card-label">1 &mdash; Original Card</div>
-                <div
-                  class="kiku-card-expression"
-                  id="kikuCard1Expression"
-                ></div>
-                <div class="kiku-card-sentence" id="kikuCard1Sentence"></div>
-                <img
-                  class="kiku-card-image"
-                  id="kikuCard1Image"
-                  alt="Original card image preview"
-                />
-                <div class="kiku-card-meta" id="kikuCard1Meta"></div>
+            <div id="kikuSelectionStep">
+              <div class="kiku-info-text">
+                A card with the same expression already exists. Select which
+                card to keep. The other card's content will be merged using Kiku
+                field grouping. You can choose whether to delete the duplicate.
               </div>
-              <div id="kikuCard2" class="kiku-card" tabindex="0">
-                <div class="kiku-card-label">2 &mdash; New Card</div>
-                <div
-                  class="kiku-card-expression"
-                  id="kikuCard2Expression"
-                ></div>
-                <div class="kiku-card-sentence" id="kikuCard2Sentence"></div>
-                <img
-                  class="kiku-card-image"
-                  id="kikuCard2Image"
-                  alt="New card image preview"
-                />
-                <div class="kiku-card-meta" id="kikuCard2Meta"></div>
+              <div class="kiku-cards-container">
+                <div id="kikuCard1" class="kiku-card active" tabindex="0">
+                  <div class="kiku-card-label">1 &mdash; Original Card</div>
+                  <div
+                    class="kiku-card-expression"
+                    id="kikuCard1Expression"
+                  ></div>
+                  <div class="kiku-card-sentence" id="kikuCard1Sentence"></div>
+                  <img
+                    class="kiku-card-image"
+                    id="kikuCard1Image"
+                    alt="Original card image preview"
+                  />
+                  <div class="kiku-card-meta" id="kikuCard1Meta"></div>
+                </div>
+                <div id="kikuCard2" class="kiku-card" tabindex="0">
+                  <div class="kiku-card-label">2 &mdash; New Card</div>
+                  <div
+                    class="kiku-card-expression"
+                    id="kikuCard2Expression"
+                  ></div>
+                  <div class="kiku-card-sentence" id="kikuCard2Sentence"></div>
+                  <img
+                    class="kiku-card-image"
+                    id="kikuCard2Image"
+                    alt="New card image preview"
+                  />
+                  <div class="kiku-card-meta" id="kikuCard2Meta"></div>
+                </div>
+              </div>
+              <div class="kiku-footer">
+                <label class="kiku-delete-toggle">
+                  <input id="kikuDeleteDuplicate" type="checkbox" checked />
+                  Delete duplicate card after merge
+                </label>
+                <button
+                  id="kikuConfirmButton"
+                  class="kiku-confirm-button"
+                  type="button"
+                >
+                  Continue
+                </button>
+                <button
+                  id="kikuCancelButton"
+                  class="kiku-cancel-button"
+                  type="button"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
-            <div class="kiku-footer">
-              <label class="kiku-delete-toggle">
-                <input id="kikuDeleteDuplicate" type="checkbox" checked />
-                Delete duplicate card after merge
-              </label>
-              <button
-                id="kikuConfirmButton"
-                class="kiku-confirm-button"
-                type="button"
-              >
-                Keep Selected
-              </button>
-              <button
-                id="kikuCancelButton"
-                class="kiku-cancel-button"
-                type="button"
-              >
-                Cancel
-              </button>
+
+            <div id="kikuPreviewStep" class="hidden">
+              <div class="kiku-preview-header">
+                <div class="kiku-preview-title">Final Merge Preview</div>
+                <div class="kiku-preview-toggle">
+                  <button id="kikuPreviewCompact" type="button">Compact</button>
+                  <button id="kikuPreviewFull" type="button">Full</button>
+                </div>
+              </div>
+              <div
+                id="kikuPreviewError"
+                class="kiku-preview-error hidden"
+              ></div>
+              <pre id="kikuPreviewJson" class="kiku-preview-json"></pre>
+              <div class="kiku-footer">
+                <button
+                  id="kikuBackButton"
+                  class="kiku-cancel-button"
+                  type="button"
+                >
+                  Back
+                </button>
+                <button
+                  id="kikuFinalConfirmButton"
+                  class="kiku-confirm-button"
+                  type="button"
+                >
+                  Confirm Merge
+                </button>
+                <button
+                  id="kikuFinalCancelButton"
+                  class="kiku-cancel-button"
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-            <div class="kiku-hint">
+
+            <div id="kikuHint" class="kiku-hint">
               Press 1 or 2 to select &middot; Enter to confirm &middot; Esc to
               cancel
             </div>

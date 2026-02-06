@@ -125,6 +125,16 @@ interface KikuFieldGroupingChoice {
   cancelled: boolean;
 }
 
+interface KikuMergePreviewResponse {
+  ok: boolean;
+  compact?: Record<string, unknown>;
+  full?: Record<string, unknown>;
+  error?: string;
+}
+
+type KikuModalStep = "select" | "preview";
+type KikuPreviewMode = "compact" | "full";
+
 const subtitleRoot = document.getElementById("subtitleRoot")!;
 const subtitleContainer = document.getElementById("subtitleContainer")!;
 const overlay = document.getElementById("overlay")!;
@@ -201,6 +211,34 @@ const kikuCancelButton = document.getElementById(
 const kikuDeleteDuplicateCheckbox = document.getElementById(
   "kikuDeleteDuplicate",
 ) as HTMLInputElement;
+const kikuSelectionStep = document.getElementById(
+  "kikuSelectionStep",
+) as HTMLDivElement;
+const kikuPreviewStep = document.getElementById(
+  "kikuPreviewStep",
+) as HTMLDivElement;
+const kikuPreviewJson = document.getElementById(
+  "kikuPreviewJson",
+) as HTMLPreElement;
+const kikuPreviewCompactButton = document.getElementById(
+  "kikuPreviewCompact",
+) as HTMLButtonElement;
+const kikuPreviewFullButton = document.getElementById(
+  "kikuPreviewFull",
+) as HTMLButtonElement;
+const kikuPreviewError = document.getElementById(
+  "kikuPreviewError",
+) as HTMLDivElement;
+const kikuBackButton = document.getElementById(
+  "kikuBackButton",
+) as HTMLButtonElement;
+const kikuFinalConfirmButton = document.getElementById(
+  "kikuFinalConfirmButton",
+) as HTMLButtonElement;
+const kikuFinalCancelButton = document.getElementById(
+  "kikuFinalCancelButton",
+) as HTMLButtonElement;
+const kikuHint = document.getElementById("kikuHint") as HTMLDivElement;
 
 let isOverSubtitle = false;
 let isDragging = false;
@@ -218,6 +256,11 @@ let kikuModalOpen = false;
 let kikuSelectedCard: 1 | 2 = 1;
 let kikuOriginalData: KikuDuplicateCardInfo | null = null;
 let kikuDuplicateData: KikuDuplicateCardInfo | null = null;
+let kikuModalStep: KikuModalStep = "select";
+let kikuPreviewMode: KikuPreviewMode = "compact";
+let kikuPendingChoice: KikuFieldGroupingChoice | null = null;
+let kikuPreviewCompactData: Record<string, unknown> | null = null;
+let kikuPreviewFullData: Record<string, unknown> | null = null;
 
 function normalizeSubtitle(text: string): string {
   if (!text) return "";
@@ -451,6 +494,45 @@ function updateKikuCardSelection(): void {
   kikuCard2.classList.toggle("active", kikuSelectedCard === 2);
 }
 
+function setKikuModalStep(step: KikuModalStep): void {
+  kikuModalStep = step;
+  const isSelect = step === "select";
+  kikuSelectionStep.classList.toggle("hidden", !isSelect);
+  kikuPreviewStep.classList.toggle("hidden", isSelect);
+  kikuHint.textContent = isSelect
+    ? "Press 1 or 2 to select · Enter to continue · Esc to cancel"
+    : "Enter to confirm merge · Backspace to go back · Esc to cancel";
+}
+
+function updateKikuPreviewToggle(): void {
+  kikuPreviewCompactButton.classList.toggle(
+    "active",
+    kikuPreviewMode === "compact",
+  );
+  kikuPreviewFullButton.classList.toggle("active", kikuPreviewMode === "full");
+}
+
+function renderKikuPreview(): void {
+  const payload =
+    kikuPreviewMode === "compact"
+      ? kikuPreviewCompactData
+      : kikuPreviewFullData;
+  kikuPreviewJson.textContent = payload
+    ? JSON.stringify(payload, null, 2)
+    : "{}";
+  updateKikuPreviewToggle();
+}
+
+function setKikuPreviewError(message: string | null): void {
+  if (!message) {
+    kikuPreviewError.textContent = "";
+    kikuPreviewError.classList.add("hidden");
+    return;
+  }
+  kikuPreviewError.textContent = message;
+  kikuPreviewError.classList.remove("hidden");
+}
+
 function setKikuCardImage(
   imageEl: HTMLImageElement,
   card: KikuDuplicateCardInfo,
@@ -491,6 +573,13 @@ function openKikuFieldGroupingModal(data: {
   setKikuCardImage(kikuCard2Image, data.duplicate);
   kikuCard2Meta.textContent = formatMediaMeta(data.duplicate);
   kikuDeleteDuplicateCheckbox.checked = true;
+  kikuPendingChoice = null;
+  kikuPreviewCompactData = null;
+  kikuPreviewFullData = null;
+  kikuPreviewMode = "compact";
+  renderKikuPreview();
+  setKikuPreviewError(null);
+  setKikuModalStep("select");
 
   updateKikuCardSelection();
 
@@ -508,6 +597,13 @@ function closeKikuFieldGroupingModal(): void {
   kikuCard2Image.removeAttribute("src");
   kikuCard1Image.style.display = "none";
   kikuCard2Image.style.display = "none";
+  setKikuPreviewError(null);
+  kikuPreviewJson.textContent = "";
+  kikuPendingChoice = null;
+  kikuPreviewCompactData = null;
+  kikuPreviewFullData = null;
+  kikuPreviewMode = "compact";
+  setKikuModalStep("select");
   kikuOriginalData = null;
   kikuDuplicateData = null;
   if (!isOverSubtitle && !jimakuModalOpen) {
@@ -515,7 +611,7 @@ function closeKikuFieldGroupingModal(): void {
   }
 }
 
-function confirmKikuSelection(): void {
+async function confirmKikuSelection(): Promise<void> {
   if (!kikuOriginalData || !kikuDuplicateData) return;
 
   const keepData =
@@ -529,9 +625,42 @@ function confirmKikuSelection(): void {
     deleteDuplicate: kikuDeleteDuplicateCheckbox.checked,
     cancelled: false,
   };
+  kikuPendingChoice = choice;
+  setKikuPreviewError(null);
+  kikuConfirmButton.disabled = true;
 
-  window.electronAPI.kikuFieldGroupingRespond(choice);
+  try {
+    const preview: KikuMergePreviewResponse =
+      await window.electronAPI.kikuBuildMergePreview({
+        keepNoteId: choice.keepNoteId,
+        deleteNoteId: choice.deleteNoteId,
+        deleteDuplicate: choice.deleteDuplicate,
+      });
+
+    if (!preview.ok) {
+      setKikuPreviewError(preview.error || "Failed to build merge preview");
+      return;
+    }
+
+    kikuPreviewCompactData = preview.compact || {};
+    kikuPreviewFullData = preview.full || {};
+    kikuPreviewMode = "compact";
+    renderKikuPreview();
+    setKikuModalStep("preview");
+  } finally {
+    kikuConfirmButton.disabled = false;
+  }
+}
+
+function confirmKikuMerge(): void {
+  if (!kikuPendingChoice) return;
+  window.electronAPI.kikuFieldGroupingRespond(kikuPendingChoice);
   closeKikuFieldGroupingModal();
+}
+
+function goBackFromKikuPreview(): void {
+  setKikuPreviewError(null);
+  setKikuModalStep("select");
 }
 
 function cancelKikuFieldGrouping(): void {
@@ -547,6 +676,28 @@ function cancelKikuFieldGrouping(): void {
 }
 
 function handleKikuKeydown(e: KeyboardEvent): boolean {
+  if (kikuModalStep === "preview") {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cancelKikuFieldGrouping();
+      return true;
+    }
+
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      goBackFromKikuPreview();
+      return true;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      confirmKikuMerge();
+      return true;
+    }
+
+    return true;
+  }
+
   if (e.key === "Escape") {
     e.preventDefault();
     cancelKikuFieldGrouping();
@@ -576,7 +727,7 @@ function handleKikuKeydown(e: KeyboardEvent): boolean {
 
   if (e.key === "Enter") {
     e.preventDefault();
-    confirmKikuSelection();
+    void confirmKikuSelection();
     return true;
   }
 
@@ -1243,7 +1394,7 @@ async function init(): Promise<void> {
 
   kikuCard1.addEventListener("dblclick", () => {
     kikuSelectedCard = 1;
-    confirmKikuSelection();
+    void confirmKikuSelection();
   });
 
   kikuCard2.addEventListener("click", () => {
@@ -1253,15 +1404,37 @@ async function init(): Promise<void> {
 
   kikuCard2.addEventListener("dblclick", () => {
     kikuSelectedCard = 2;
-    confirmKikuSelection();
+    void confirmKikuSelection();
   });
 
   kikuConfirmButton.addEventListener("click", () => {
-    confirmKikuSelection();
+    void confirmKikuSelection();
   });
 
   kikuCancelButton.addEventListener("click", () => {
     cancelKikuFieldGrouping();
+  });
+
+  kikuBackButton.addEventListener("click", () => {
+    goBackFromKikuPreview();
+  });
+
+  kikuFinalConfirmButton.addEventListener("click", () => {
+    confirmKikuMerge();
+  });
+
+  kikuFinalCancelButton.addEventListener("click", () => {
+    cancelKikuFieldGrouping();
+  });
+
+  kikuPreviewCompactButton.addEventListener("click", () => {
+    kikuPreviewMode = "compact";
+    renderKikuPreview();
+  });
+
+  kikuPreviewFullButton.addEventListener("click", () => {
+    kikuPreviewMode = "full";
+    renderKikuPreview();
   });
 
   window.electronAPI.onKikuFieldGroupingRequest(

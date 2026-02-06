@@ -24,6 +24,7 @@ import {
   AnkiConnectConfig,
   KikuDuplicateCardInfo,
   KikuFieldGroupingChoice,
+  KikuMergePreviewResponse,
   MpvClient,
   NotificationOptions,
 } from "./types";
@@ -130,18 +131,12 @@ export class AnkiIntegration {
 
   private getKikuConfig(): {
     enabled: boolean;
-    sentenceCardModel?: string;
-    sentenceCardSentenceField?: string;
-    sentenceCardAudioField?: string;
     fieldGrouping?: "auto" | "manual" | "disabled";
     deleteDuplicateInAuto?: boolean;
   } {
     const kiku = this.config.isKiku;
     return {
       enabled: kiku?.enabled === true,
-      sentenceCardModel: kiku?.sentenceCardModel,
-      sentenceCardSentenceField: kiku?.sentenceCardSentenceField,
-      sentenceCardAudioField: kiku?.sentenceCardAudioField,
       fieldGrouping: kiku?.fieldGrouping,
       deleteDuplicateInAuto: kiku?.deleteDuplicateInAuto,
     };
@@ -158,18 +153,11 @@ export class AnkiIntegration {
   } {
     const lapis = this.getLapisConfig();
     const kiku = this.getKikuConfig();
-    const preferKiku = kiku.enabled;
 
     return {
-      model: preferKiku ? kiku.sentenceCardModel : lapis.sentenceCardModel,
-      sentenceField:
-        (preferKiku
-          ? kiku.sentenceCardSentenceField
-          : lapis.sentenceCardSentenceField) || "Sentence",
-      audioField:
-        (preferKiku
-          ? kiku.sentenceCardAudioField
-          : lapis.sentenceCardAudioField) || "SentenceAudio",
+      model: lapis.sentenceCardModel,
+      sentenceField: lapis.sentenceCardSentenceField || "Sentence",
+      audioField: lapis.sentenceCardAudioField || "SentenceAudio",
       lapisEnabled: lapis.enabled,
       kikuEnabled: kiku.enabled,
       kikuFieldGrouping: (kiku.fieldGrouping || "disabled") as
@@ -323,13 +311,14 @@ export class AnkiIntegration {
       const updatedFields: Record<string, string> = {};
       let updatePerformed = false;
       let miscInfoFilename: string | null = null;
+      const sentenceField = sentenceCardConfig.sentenceField;
 
-      if (this.config.sentenceField && this.mpvClient.currentSubText) {
+      if (sentenceField && this.mpvClient.currentSubText) {
         const processedSentence = this.processSentence(
           this.mpvClient.currentSubText,
           fields,
         );
-        updatedFields[this.config.sentenceField] = processedSentence;
+        updatedFields[sentenceField] = processedSentence;
         updatePerformed = true;
       }
 
@@ -340,13 +329,17 @@ export class AnkiIntegration {
 
           if (audioBuffer) {
             await this.client.storeMediaFile(audioFilename, audioBuffer);
-            const existingAudio =
-              noteInfo.fields[this.config.audioField!]?.value || "";
-            updatedFields[this.config.audioField!] = this.mergeFieldValue(
-              existingAudio,
-              `[sound:${audioFilename}]`,
-              this.config.overwriteAudio !== false,
-            );
+            const sentenceAudioField =
+              this.getResolvedSentenceAudioFieldName(noteInfo);
+            if (sentenceAudioField) {
+              const existingAudio =
+                noteInfo.fields[sentenceAudioField]?.value || "";
+              updatedFields[sentenceAudioField] = this.mergeFieldValue(
+                existingAudio,
+                `[sound:${audioFilename}]`,
+                this.config.overwriteAudio !== false,
+              );
+            }
             miscInfoFilename = audioFilename;
             updatePerformed = true;
           }
@@ -603,7 +596,7 @@ export class AnkiIntegration {
     this.showProgressTick();
     this.progressTimer = setInterval(() => {
       this.showProgressTick();
-    }, 300);
+    }, 180);
   }
 
   private endUpdateProgress(): void {
@@ -867,6 +860,10 @@ export class AnkiIntegration {
         const noteInfo = notesInfo[0];
         const fields = this.extractFields(noteInfo.fields);
         const expressionText = fields.expression || fields.word || "";
+        const sentenceAudioField =
+          this.getResolvedSentenceAudioFieldName(noteInfo);
+        const sentenceField =
+          this.getEffectiveSentenceCardConfig().sentenceField;
 
         // Build sentence from blocks (join with spaces between blocks)
         const sentence = blocks.join(" ");
@@ -876,9 +873,9 @@ export class AnkiIntegration {
         let miscInfoFilename: string | null = null;
 
         // Add sentence field
-        if (this.config.sentenceField) {
+        if (sentenceField) {
           const processedSentence = this.processSentence(sentence, fields);
-          updatedFields[this.config.sentenceField] = processedSentence;
+          updatedFields[sentenceField] = processedSentence;
           updatePerformed = true;
         }
 
@@ -900,13 +897,15 @@ export class AnkiIntegration {
 
             if (audioBuffer) {
               await this.client.storeMediaFile(audioFilename, audioBuffer);
-              const existingAudio =
-                noteInfo.fields[this.config.audioField!]?.value || "";
-              updatedFields[this.config.audioField!] = this.mergeFieldValue(
-                existingAudio,
-                `[sound:${audioFilename}]`,
-                this.config.overwriteAudio !== false,
-              );
+              if (sentenceAudioField) {
+                const existingAudio =
+                  noteInfo.fields[sentenceAudioField]?.value || "";
+                updatedFields[sentenceAudioField] = this.mergeFieldValue(
+                  existingAudio,
+                  `[sound:${audioFilename}]`,
+                  this.config.overwriteAudio !== false,
+                );
+              }
               miscInfoFilename = audioFilename;
               updatePerformed = true;
             }
@@ -1334,8 +1333,10 @@ export class AnkiIntegration {
     let miscInfoFilename: string | null = null;
 
     const sentenceField = sentenceCardConfig.sentenceField;
-    const audioFieldName = sentenceCardConfig.audioField;
+    const audioFieldName = sentenceCardConfig.audioField || "SentenceAudio";
     let resolvedMiscInfoField: string | null = null;
+    let resolvedSentenceAudioField: string = audioFieldName;
+    let resolvedExpressionAudioField: string | null = null;
 
     fields[sentenceField] = sentence;
 
@@ -1373,6 +1374,20 @@ export class AnkiIntegration {
       const noteInfoResult = await this.client.notesInfo([noteId]);
       const noteInfos = noteInfoResult as unknown as NoteInfo[];
       if (noteInfos.length > 0) {
+        resolvedSentenceAudioField =
+          this.resolveFieldName(
+            Object.keys(noteInfos[0].fields),
+            audioFieldName,
+          ) || audioFieldName;
+        resolvedExpressionAudioField =
+          this.resolveFieldName(
+            Object.keys(noteInfos[0].fields),
+            this.config.audioField || "ExpressionAudio",
+          ) ||
+          this.resolveFieldName(
+            Object.keys(noteInfos[0].fields),
+            "ExpressionAudio",
+          );
         resolvedMiscInfoField = this.getResolvedConfiguredFieldName(
           noteInfos[0],
           this.config.miscInfoField,
@@ -1409,7 +1424,14 @@ export class AnkiIntegration {
 
       if (audioBuffer) {
         await this.client.storeMediaFile(audioFilename, audioBuffer);
-        mediaFields[audioFieldName] = `[sound:${audioFilename}]`;
+        const audioValue = `[sound:${audioFilename}]`;
+        mediaFields[resolvedSentenceAudioField] = audioValue;
+        if (
+          resolvedExpressionAudioField &&
+          resolvedExpressionAudioField !== resolvedSentenceAudioField
+        ) {
+          mediaFields[resolvedExpressionAudioField] = audioValue;
+        }
         miscInfoFilename = audioFilename;
       }
     } catch (error) {
@@ -1528,9 +1550,17 @@ export class AnkiIntegration {
 
   private getGroupableFieldNames(): string[] {
     const fields: string[] = [];
+    fields.push("Sentence");
+    fields.push("SentenceAudio");
+    fields.push("Picture");
     if (this.config.imageField) fields.push(this.config.imageField);
     if (this.config.sentenceField) fields.push(this.config.sentenceField);
-    if (this.config.audioField) fields.push(this.config.audioField);
+    if (
+      this.config.audioField &&
+      this.config.audioField.toLowerCase() !== "expressionaudio"
+    ) {
+      fields.push(this.config.audioField);
+    }
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
     const sentenceAudioField = sentenceCardConfig.audioField;
     if (!fields.includes(sentenceAudioField)) fields.push(sentenceAudioField);
@@ -1539,28 +1569,239 @@ export class AnkiIntegration {
     return fields;
   }
 
+  private getPreferredSentenceAudioFieldName(): string {
+    const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
+    return sentenceCardConfig.audioField || "SentenceAudio";
+  }
+
+  private getResolvedSentenceAudioFieldName(noteInfo: NoteInfo): string | null {
+    return (
+      this.resolveFieldName(
+        Object.keys(noteInfo.fields),
+        this.getPreferredSentenceAudioFieldName(),
+      ) || this.getResolvedConfiguredFieldName(noteInfo, this.config.audioField)
+    );
+  }
+
+  private extractUngroupedValue(value: string): string {
+    const groupedSpanRegex = /<span\s+data-group-id="[^"]*">[\s\S]*?<\/span>/gi;
+    const ungrouped = value.replace(groupedSpanRegex, "").trim();
+    if (ungrouped) return ungrouped;
+    return value.trim();
+  }
+
+  private extractLastSoundTag(value: string): string {
+    const matches = value.match(/\[sound:[^\]]+\]/g);
+    if (!matches || matches.length === 0) return "";
+    return matches[matches.length - 1];
+  }
+
+  private extractLastImageTag(value: string): string {
+    const matches = value.match(/<img\b[^>]*>/gi);
+    if (!matches || matches.length === 0) return "";
+    return matches[matches.length - 1];
+  }
+
+  private extractImageTags(value: string): string[] {
+    const matches = value.match(/<img\b[^>]*>/gi);
+    return matches || [];
+  }
+
+  private ensureImageGroupId(imageTag: string, groupId: number): string {
+    if (!imageTag) return "";
+    if (/data-group-id=/i.test(imageTag)) {
+      return imageTag.replace(
+        /data-group-id="[^"]*"/i,
+        `data-group-id="${groupId}"`,
+      );
+    }
+    return imageTag.replace(/<img\b/i, `<img data-group-id="${groupId}"`);
+  }
+
+  private extractSpanEntries(
+    value: string,
+    fieldName: string,
+  ): { groupId: number; content: string }[] {
+    const entries: { groupId: number; content: string }[] = [];
+    const spanRegex = /<span\s+data-group-id="(\d+)"[^>]*>([\s\S]*?)<\/span>/gi;
+    let match;
+    while ((match = spanRegex.exec(value)) !== null) {
+      const groupId = Number(match[1]);
+      if (!Number.isFinite(groupId) || groupId <= 0) continue;
+      const content = this.normalizeStrictGroupedValue(
+        match[2] || "",
+        fieldName,
+      );
+      if (!content) continue;
+      entries.push({ groupId, content });
+    }
+    return entries;
+  }
+
+  private parseStrictEntries(
+    value: string,
+    fallbackGroupId: number,
+    fieldName: string,
+  ): { groupId: number; content: string }[] {
+    const entries = this.extractSpanEntries(value, fieldName);
+    if (entries.length === 0) {
+      const ungrouped = this.normalizeStrictGroupedValue(
+        this.extractUngroupedValue(value),
+        fieldName,
+      );
+      if (ungrouped) {
+        entries.push({ groupId: fallbackGroupId, content: ungrouped });
+      }
+    }
+
+    const unique: { groupId: number; content: string }[] = [];
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      const key = `${entry.groupId}::${entry.content}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(entry);
+    }
+    return unique;
+  }
+
+  private parsePictureEntries(
+    value: string,
+    fallbackGroupId: number,
+  ): { groupId: number; tag: string }[] {
+    const tags = this.extractImageTags(value);
+    const result: { groupId: number; tag: string }[] = [];
+    for (const tag of tags) {
+      const idMatch = tag.match(/data-group-id="(\d+)"/i);
+      const groupId = idMatch ? Number(idMatch[1]) : fallbackGroupId;
+      const normalizedTag = this.ensureImageGroupId(tag, groupId);
+      if (!normalizedTag) continue;
+      result.push({ groupId, tag: normalizedTag });
+    }
+    return result;
+  }
+
+  private normalizeStrictGroupedValue(
+    value: string,
+    fieldName: string,
+  ): string {
+    const ungrouped = this.extractUngroupedValue(value);
+    if (!ungrouped) return "";
+
+    const normalizedField = fieldName.toLowerCase();
+    if (
+      normalizedField === "sentenceaudio" ||
+      normalizedField === "expressionaudio"
+    ) {
+      return this.extractLastSoundTag(ungrouped) || ungrouped;
+    }
+
+    if (normalizedField === "picture") {
+      return this.extractLastImageTag(ungrouped) || ungrouped;
+    }
+
+    return ungrouped;
+  }
+
+  private shouldUseStrictSpanGrouping(fieldName: string): boolean {
+    const normalized = fieldName.toLowerCase();
+    const configuredMiscInfo = (this.config.miscInfoField || "").toLowerCase();
+    if (
+      [
+        "picture",
+        "sentence",
+        "sentenceaudio",
+        "sentencefurigana",
+        "miscinfo",
+      ].includes(normalized)
+    ) {
+      return true;
+    }
+    if (configuredMiscInfo && normalized === configuredMiscInfo) {
+      return true;
+    }
+    return false;
+  }
+
   private applyFieldGrouping(
     existingValue: string,
     newValue: string,
-    groupId: number,
-    isPictureField: boolean,
+    keepGroupId: number,
+    sourceGroupId: number,
+    fieldName: string,
   ): string {
+    if (this.shouldUseStrictSpanGrouping(fieldName)) {
+      if (fieldName.toLowerCase() === "picture") {
+        const keepEntries = this.parsePictureEntries(
+          existingValue,
+          keepGroupId,
+        );
+        const sourceEntries = this.parsePictureEntries(newValue, sourceGroupId);
+        if (keepEntries.length === 0 && sourceEntries.length === 0) {
+          return existingValue || newValue;
+        }
+        const mergedTags = keepEntries.map((entry) =>
+          this.ensureImageGroupId(entry.tag, entry.groupId),
+        );
+        const seen = new Set(mergedTags);
+        for (const entry of sourceEntries) {
+          const normalized = this.ensureImageGroupId(entry.tag, entry.groupId);
+          if (seen.has(normalized)) continue;
+          seen.add(normalized);
+          mergedTags.push(normalized);
+        }
+        return mergedTags.join("");
+      }
+
+      const keepEntries = this.parseStrictEntries(
+        existingValue,
+        keepGroupId,
+        fieldName,
+      );
+      const sourceEntries = this.parseStrictEntries(
+        newValue,
+        sourceGroupId,
+        fieldName,
+      );
+      if (keepEntries.length === 0 && sourceEntries.length === 0) {
+        return existingValue || newValue;
+      }
+      if (sourceEntries.length === 0) {
+        return keepEntries
+          .map(
+            (entry) =>
+              `<span data-group-id="${entry.groupId}">${entry.content}</span>`,
+          )
+          .join("");
+      }
+      const merged = [...keepEntries];
+      const seen = new Set(
+        keepEntries.map((entry) => `${entry.groupId}::${entry.content}`),
+      );
+      for (const entry of sourceEntries) {
+        const key = `${entry.groupId}::${entry.content}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(entry);
+      }
+      if (merged.length === 0) return existingValue;
+      return merged
+        .map(
+          (entry) =>
+            `<span data-group-id="${entry.groupId}">${entry.content}</span>`,
+        )
+        .join("");
+    }
+
     if (!existingValue.trim()) return newValue;
     if (!newValue.trim()) return existingValue;
-
-    if (isPictureField) {
-      const grouped = existingValue.replace(
-        /<img(?![^>]*data-group-id)([^>]*)>/g,
-        `<img data-group-id="${groupId}"$1>`,
-      );
-      return grouped + "\n" + newValue;
-    }
 
     const hasGroups = /data-group-id/.test(existingValue);
 
     if (!hasGroups) {
       return (
-        `<span data-group-id="${groupId}">${existingValue}</span>\n` + newValue
+        `<span data-group-id="${keepGroupId}">${existingValue}</span>\n` +
+        newValue
       );
     }
 
@@ -1572,7 +1813,7 @@ export class AnkiIntegration {
     while ((match = groupedSpanRegex.exec(existingValue)) !== null) {
       const before = existingValue.slice(lastEnd, match.index);
       if (before.trim()) {
-        result += `<span data-group-id="${groupId}">${before.trim()}</span>\n`;
+        result += `<span data-group-id="${keepGroupId}">${before.trim()}</span>\n`;
       }
       result += match[0] + "\n";
       lastEnd = match.index + match[0].length;
@@ -1580,7 +1821,7 @@ export class AnkiIntegration {
 
     const after = existingValue.slice(lastEnd);
     if (after.trim()) {
-      result += `\n<span data-group-id="${groupId}">${after.trim()}</span>`;
+      result += `\n<span data-group-id="${keepGroupId}">${after.trim()}</span>`;
     }
 
     return result + "\n" + newValue;
@@ -1607,7 +1848,7 @@ export class AnkiIntegration {
         const audioBuffer = await this.generateAudio();
         if (audioBuffer) {
           await this.client.storeMediaFile(audioFilename, audioBuffer);
-          result.audioField = this.config.audioField!;
+          result.audioField = this.getPreferredSentenceAudioFieldName();
           result.audioValue = `[sound:${audioFilename}]`;
           if (this.config.miscInfoField) {
             result.miscInfoValue = this.formatMiscInfoPattern(
@@ -1674,21 +1915,13 @@ export class AnkiIntegration {
     );
   }
 
-  private async performFieldGroupingMerge(
+  private async computeFieldGroupingMergedFields(
     keepNoteId: number,
     deleteNoteId: number,
+    keepNoteInfo: NoteInfo,
     deleteNoteInfo: NoteInfo,
-    expression: string,
-    deleteDuplicate = true,
-  ): Promise<void> {
-    const keepNotesInfoResult = await this.client.notesInfo([keepNoteId]);
-    const keepNotesInfo = keepNotesInfoResult as unknown as NoteInfo[];
-    if (!keepNotesInfo || keepNotesInfo.length === 0) {
-      console.warn("Keep note not found:", keepNoteId);
-      return;
-    }
-    const keepNoteInfo = keepNotesInfo[0];
-
+    includeGeneratedMedia: boolean,
+  ): Promise<Record<string, string>> {
     const groupableFields = this.getGroupableFieldNames();
     const keepFieldNames = Object.keys(keepNoteInfo.fields);
     const sourceFields: Record<string, string> = {};
@@ -1707,16 +1940,25 @@ export class AnkiIntegration {
       }
     }
 
-    // Cross-fill sentence fields so Kiku/Lapis templates that render
-    // SentenceFurigana still receive merged sentence content.
     if (!sourceFields["SentenceFurigana"] && sourceFields["Sentence"]) {
       sourceFields["SentenceFurigana"] = sourceFields["Sentence"];
     }
     if (!sourceFields["Sentence"] && sourceFields["SentenceFurigana"]) {
       sourceFields["Sentence"] = sourceFields["SentenceFurigana"];
     }
+    if (!sourceFields["Expression"] && sourceFields["Word"]) {
+      sourceFields["Expression"] = sourceFields["Word"];
+    }
+    if (!sourceFields["Word"] && sourceFields["Expression"]) {
+      sourceFields["Word"] = sourceFields["Expression"];
+    }
+    if (!sourceFields["SentenceAudio"] && sourceFields["ExpressionAudio"]) {
+      sourceFields["SentenceAudio"] = sourceFields["ExpressionAudio"];
+    }
+    if (!sourceFields["ExpressionAudio"] && sourceFields["SentenceAudio"]) {
+      sourceFields["ExpressionAudio"] = sourceFields["SentenceAudio"];
+    }
 
-    // Fallback only when source card does not already have mergeable content.
     if (
       this.config.sentenceField &&
       !sourceFields[this.config.sentenceField] &&
@@ -1729,60 +1971,186 @@ export class AnkiIntegration {
       );
     }
 
-    const media = await this.generateMediaForMerge();
-    if (
-      media.audioField &&
-      media.audioValue &&
-      !sourceFields[media.audioField]
-    ) {
-      sourceFields[media.audioField] = media.audioValue;
-    }
-    if (
-      media.imageField &&
-      media.imageValue &&
-      !sourceFields[media.imageField]
-    ) {
-      sourceFields[media.imageField] = media.imageValue;
-    }
-    if (
-      this.config.miscInfoField &&
-      media.miscInfoValue &&
-      !sourceFields[this.config.miscInfoField]
-    ) {
-      sourceFields[this.config.miscInfoField] = media.miscInfoValue;
+    if (includeGeneratedMedia) {
+      const media = await this.generateMediaForMerge();
+      if (
+        media.audioField &&
+        media.audioValue &&
+        !sourceFields[media.audioField]
+      ) {
+        sourceFields[media.audioField] = media.audioValue;
+      }
+      if (
+        media.imageField &&
+        media.imageValue &&
+        !sourceFields[media.imageField]
+      ) {
+        sourceFields[media.imageField] = media.imageValue;
+      }
+      if (
+        this.config.miscInfoField &&
+        media.miscInfoValue &&
+        !sourceFields[this.config.miscInfoField]
+      ) {
+        sourceFields[this.config.miscInfoField] = media.miscInfoValue;
+      }
     }
 
     const mergedFields: Record<string, string> = {};
-
     for (const preferredFieldName of groupableFields) {
       const keepFieldName =
         resolvedKeepFieldByPreferred.get(preferredFieldName);
-      if (!keepFieldName) {
+      if (!keepFieldName) continue;
+
+      const keepFieldNormalized = keepFieldName.toLowerCase();
+      if (
+        keepFieldNormalized === "expression" ||
+        keepFieldNormalized === "expressionfurigana" ||
+        keepFieldNormalized === "expressionreading" ||
+        keepFieldNormalized === "expressionaudio"
+      ) {
         continue;
       }
+
       const existingValue = keepNoteInfo.fields[keepFieldName]?.value || "";
       const newValue = sourceFields[preferredFieldName] || "";
-      const isPictureField =
-        preferredFieldName.toLowerCase() ===
-        (this.config.imageField || "").toLowerCase();
+      const isStrictField = this.shouldUseStrictSpanGrouping(keepFieldName);
+      if (!existingValue.trim() && !newValue.trim()) continue;
 
-      if (existingValue.trim() && newValue.trim()) {
-        if (
-          existingValue.trim() === newValue.trim() ||
-          existingValue.includes(newValue)
-        ) {
-          continue;
-        }
+      if (isStrictField) {
         mergedFields[keepFieldName] = this.applyFieldGrouping(
           existingValue,
           newValue,
           keepNoteId,
-          isPictureField,
+          deleteNoteId,
+          keepFieldName,
         );
-      } else if (newValue.trim()) {
+      } else if (existingValue.trim() && newValue.trim()) {
+        mergedFields[keepFieldName] = this.applyFieldGrouping(
+          existingValue,
+          newValue,
+          keepNoteId,
+          deleteNoteId,
+          keepFieldName,
+        );
+      } else {
+        if (!newValue.trim()) continue;
         mergedFields[keepFieldName] = newValue;
       }
     }
+
+    return mergedFields;
+  }
+
+  private getNoteFieldMap(noteInfo: NoteInfo): Record<string, string> {
+    const fields: Record<string, string> = {};
+    for (const [name, field] of Object.entries(noteInfo.fields)) {
+      fields[name] = field?.value || "";
+    }
+    return fields;
+  }
+
+  async buildFieldGroupingPreview(
+    keepNoteId: number,
+    deleteNoteId: number,
+    deleteDuplicate: boolean,
+  ): Promise<KikuMergePreviewResponse> {
+    try {
+      const notesInfoResult = await this.client.notesInfo([
+        keepNoteId,
+        deleteNoteId,
+      ]);
+      const notesInfo = notesInfoResult as unknown as NoteInfo[];
+      const keepNoteInfo = notesInfo.find((note) => note.noteId === keepNoteId);
+      const deleteNoteInfo = notesInfo.find(
+        (note) => note.noteId === deleteNoteId,
+      );
+
+      if (!keepNoteInfo || !deleteNoteInfo) {
+        return { ok: false, error: "Could not load selected notes" };
+      }
+
+      const mergedFields = await this.computeFieldGroupingMergedFields(
+        keepNoteId,
+        deleteNoteId,
+        keepNoteInfo,
+        deleteNoteInfo,
+        false,
+      );
+      const keepBefore = this.getNoteFieldMap(keepNoteInfo);
+      const keepAfter = { ...keepBefore, ...mergedFields };
+      const sourceBefore = this.getNoteFieldMap(deleteNoteInfo);
+
+      const compactFields: Record<string, string> = {};
+      for (const fieldName of [
+        "Sentence",
+        "SentenceFurigana",
+        "SentenceAudio",
+        "Picture",
+        "MiscInfo",
+      ]) {
+        const resolved = this.resolveFieldName(
+          Object.keys(keepAfter),
+          fieldName,
+        );
+        if (!resolved) continue;
+        compactFields[fieldName] = keepAfter[resolved] || "";
+      }
+
+      return {
+        ok: true,
+        compact: {
+          action: {
+            keepNoteId,
+            deleteNoteId,
+            deleteDuplicate,
+          },
+          mergedFields: compactFields,
+        },
+        full: {
+          keepNote: {
+            id: keepNoteId,
+            fieldsBefore: keepBefore,
+          },
+          sourceNote: {
+            id: deleteNoteId,
+            fieldsBefore: sourceBefore,
+          },
+          result: {
+            fieldsAfter: keepAfter,
+            wouldDeleteNoteId: deleteDuplicate ? deleteNoteId : null,
+          },
+        },
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: `Failed to build preview: ${(error as Error).message}`,
+      };
+    }
+  }
+
+  private async performFieldGroupingMerge(
+    keepNoteId: number,
+    deleteNoteId: number,
+    deleteNoteInfo: NoteInfo,
+    expression: string,
+    deleteDuplicate = true,
+  ): Promise<void> {
+    const keepNotesInfoResult = await this.client.notesInfo([keepNoteId]);
+    const keepNotesInfo = keepNotesInfoResult as unknown as NoteInfo[];
+    if (!keepNotesInfo || keepNotesInfo.length === 0) {
+      console.warn("Keep note not found:", keepNoteId);
+      return;
+    }
+    const keepNoteInfo = keepNotesInfo[0];
+    const mergedFields = await this.computeFieldGroupingMergedFields(
+      keepNoteId,
+      deleteNoteId,
+      keepNoteInfo,
+      deleteNoteInfo,
+      true,
+    );
 
     if (Object.keys(mergedFields).length > 0) {
       await this.client.updateNoteFields(keepNoteId, mergedFields);
@@ -1865,7 +2233,7 @@ export class AnkiIntegration {
           originalFields.expression || originalFields.word || expression,
         sentencePreview: this.truncateSentence(
           originalFields[
-            (this.config.sentenceField || "sentence").toLowerCase()
+            (sentenceCardConfig.sentenceField || "sentence").toLowerCase()
           ] || "",
         ),
         hasAudio:
@@ -1880,7 +2248,9 @@ export class AnkiIntegration {
         noteId: newNoteId,
         expression: newFields.expression || newFields.word || expression,
         sentencePreview: this.truncateSentence(
-          newFields[(this.config.sentenceField || "sentence").toLowerCase()] ||
+          newFields[
+            (sentenceCardConfig.sentenceField || "sentence").toLowerCase()
+          ] ||
             this.mpvClient.currentSubText ||
             "",
         ),
@@ -1953,27 +2323,8 @@ export class AnkiIntegration {
   }
 
   private hasRequiredUpdateFields(noteInfo: NoteInfo): boolean {
-    const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-
-    const hasSentence =
-      this.hasFieldValue(noteInfo, this.config.sentenceField) ||
-      this.hasFieldValue(noteInfo, sentenceCardConfig.sentenceField) ||
-      this.hasFieldValue(noteInfo, "Sentence") ||
-      this.hasFieldValue(noteInfo, "SentenceFurigana");
-
-    const hasAudio =
-      this.config.generateAudio !== false
-        ? this.hasFieldValue(noteInfo, this.config.audioField) ||
-          this.hasFieldValue(noteInfo, sentenceCardConfig.audioField) ||
-          this.hasFieldValue(noteInfo, "SentenceAudio")
-        : true;
-
-    const hasImage =
-      this.config.generateImage !== false && this.config.imageField
-        ? this.hasFieldValue(noteInfo, this.config.imageField)
-        : true;
-
-    return hasSentence && hasAudio && hasImage;
+    if (!this.config.imageField) return true;
+    return this.hasFieldValue(noteInfo, this.config.imageField);
   }
 
   private async refreshMiscInfoField(

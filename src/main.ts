@@ -75,7 +75,10 @@ import {
   WindowGeometry,
   SecondarySubMode,
   MpvClient,
+  KikuFieldGroupingRequestData,
   KikuFieldGroupingChoice,
+  KikuMergePreviewRequest,
+  KikuMergePreviewResponse,
 } from "./types";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
 import { AnkiIntegration } from "./anki-integration";
@@ -2362,10 +2365,9 @@ ipcMain.handle("get-anki-connect-status", () => {
  * Supports both file paths (preferred on Linux/Wayland) and data URLs (fallback).
  */
 function createFieldGroupingCallback() {
-  return async (data: {
-    original: import("./types").KikuDuplicateCardInfo;
-    duplicate: import("./types").KikuDuplicateCardInfo;
-  }): Promise<import("./types").KikuFieldGroupingChoice> => {
+  return async (
+    data: KikuFieldGroupingRequestData,
+  ): Promise<KikuFieldGroupingChoice> => {
     return new Promise((resolve) => {
       fieldGroupingResolver = resolve;
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2390,7 +2392,7 @@ function createFieldGroupingCallback() {
           });
           fieldGroupingResolver = null;
         }
-      }, 30000);
+      }, 90000);
     });
   };
 }
@@ -2502,6 +2504,23 @@ ipcMain.on(
       fieldGroupingResolver(choice);
       fieldGroupingResolver = null;
     }
+  },
+);
+
+ipcMain.handle(
+  "kiku:build-merge-preview",
+  async (
+    _event,
+    request: KikuMergePreviewRequest,
+  ): Promise<KikuMergePreviewResponse> => {
+    if (!ankiIntegration) {
+      return { ok: false, error: "AnkiConnect integration not enabled" };
+    }
+    return ankiIntegration.buildFieldGroupingPreview(
+      request.keepNoteId,
+      request.deleteNoteId,
+      request.deleteDuplicate,
+    );
   },
 );
 

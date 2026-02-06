@@ -113,11 +113,29 @@ export interface KikuDuplicateCardInfo {
   isOriginal: boolean;
 }
 
+export interface KikuFieldGroupingRequestData {
+  original: KikuDuplicateCardInfo;
+  duplicate: KikuDuplicateCardInfo;
+}
+
 export interface KikuFieldGroupingChoice {
   keepNoteId: number;
   deleteNoteId: number;
   deleteDuplicate: boolean;
   cancelled: boolean;
+}
+
+export interface KikuMergePreviewRequest {
+  keepNoteId: number;
+  deleteNoteId: number;
+  deleteDuplicate: boolean;
+}
+
+export interface KikuMergePreviewResponse {
+  ok: boolean;
+  compact?: Record<string, unknown>;
+  full?: Record<string, unknown>;
+  error?: string;
 }
 
 export interface AnkiConnectConfig {
@@ -158,9 +176,6 @@ export interface AnkiConnectConfig {
   };
   isKiku?: {
     enabled?: boolean;
-    sentenceCardModel?: string;
-    sentenceCardSentenceField?: string;
-    sentenceCardAudioField?: string;
     fieldGrouping?: "auto" | "manual" | "disabled";
     deleteDuplicateInAuto?: boolean;
   };
@@ -334,11 +349,11 @@ export interface ElectronAPI {
   getCurrentSecondarySub: () => Promise<string>;
   getSubtitleStyle: () => Promise<SubtitleStyleConfig | null>;
   onKikuFieldGroupingRequest: (
-    callback: (data: {
-      original: KikuDuplicateCardInfo;
-      duplicate: KikuDuplicateCardInfo;
-    }) => void,
+    callback: (data: KikuFieldGroupingRequestData) => void,
   ) => void;
+  kikuBuildMergePreview: (
+    request: KikuMergePreviewRequest,
+  ) => Promise<KikuMergePreviewResponse>;
   kikuFieldGroupingRespond: (choice: KikuFieldGroupingChoice) => void;
 }
 

@@ -33,8 +33,10 @@ import type {
   JimakuFileEntry,
   JimakuApiResponse,
   JimakuDownloadResult,
-  KikuDuplicateCardInfo,
+  KikuFieldGroupingRequestData,
   KikuFieldGroupingChoice,
+  KikuMergePreviewRequest,
+  KikuMergePreviewResponse,
 } from "./types";
 
 const electronAPI: ElectronAPI = {
@@ -153,22 +155,18 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke("get-subtitle-style"),
 
   onKikuFieldGroupingRequest: (
-    callback: (data: {
-      original: KikuDuplicateCardInfo;
-      duplicate: KikuDuplicateCardInfo;
-    }) => void,
+    callback: (data: KikuFieldGroupingRequestData) => void,
   ) => {
     ipcRenderer.on(
       "kiku:field-grouping-request",
-      (
-        _event: IpcRendererEvent,
-        data: {
-          original: KikuDuplicateCardInfo;
-          duplicate: KikuDuplicateCardInfo;
-        },
-      ) => callback(data),
+      (_event: IpcRendererEvent, data: KikuFieldGroupingRequestData) =>
+        callback(data),
     );
   },
+  kikuBuildMergePreview: (
+    request: KikuMergePreviewRequest,
+  ): Promise<KikuMergePreviewResponse> =>
+    ipcRenderer.invoke("kiku:build-merge-preview", request),
 
   kikuFieldGroupingRespond: (choice: KikuFieldGroupingChoice) => {
     ipcRenderer.send("kiku:field-grouping-respond", choice);
