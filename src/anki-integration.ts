@@ -2220,9 +2220,6 @@ export class AnkiIntegration {
       }
       const originalNoteInfo = originalNotesInfo[0];
       const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-      const originalImagePreview =
-        await this.getImagePreviewUrl(originalNoteInfo);
-      const newImagePreview = await this.getImagePreviewUrl(newNoteInfo);
 
       const originalFields = this.extractFields(originalNoteInfo.fields);
       const newFields = this.extractFields(newNoteInfo.fields);
@@ -2240,7 +2237,6 @@ export class AnkiIntegration {
           this.hasFieldValue(originalNoteInfo, this.config.audioField) ||
           this.hasFieldValue(originalNoteInfo, sentenceCardConfig.audioField),
         hasImage: this.hasFieldValue(originalNoteInfo, this.config.imageField),
-        imagePreviewUrl: originalImagePreview || undefined,
         isOriginal: true,
       };
 
@@ -2258,7 +2254,6 @@ export class AnkiIntegration {
           this.hasFieldValue(newNoteInfo, this.config.audioField) ||
           this.hasFieldValue(newNoteInfo, sentenceCardConfig.audioField),
         hasImage: this.hasFieldValue(newNoteInfo, this.config.imageField),
-        imagePreviewUrl: newImagePreview || undefined,
         isOriginal: false,
       };
 
@@ -2300,13 +2295,6 @@ export class AnkiIntegration {
     const clean = sentence.replace(/<[^>]*>/g, "").trim();
     if (clean.length <= 100) return clean;
     return clean.substring(0, 100) + "...";
-  }
-
-  private extractFirstImageSrc(fieldValue: string): string | null {
-    const match = fieldValue.match(
-      /<img[^>]*src=(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i,
-    );
-    return match?.[1] || match?.[2] || match?.[3] || null;
   }
 
   private hasFieldValue(
@@ -2353,51 +2341,6 @@ export class AnkiIntegration {
     });
   }
 
-  private mimeTypeFromFilename(filename: string): string {
-    const ext = filename.split(".").pop()?.toLowerCase() || "";
-    if (ext === "png") return "image/png";
-    if (ext === "gif") return "image/gif";
-    if (ext === "webp") return "image/webp";
-    if (ext === "avif") return "image/avif";
-    if (ext === "svg") return "image/svg+xml";
-    return "image/jpeg";
-  }
-
-  private async getImagePreviewUrl(noteInfo: NoteInfo): Promise<string | null> {
-    if (!this.config.imageField) return null;
-
-    const resolvedImageField = this.resolveFieldName(
-      Object.keys(noteInfo.fields),
-      this.config.imageField,
-    );
-    if (!resolvedImageField) return null;
-
-    const imageFieldValue = noteInfo.fields[resolvedImageField]?.value || "";
-    if (!imageFieldValue) return null;
-
-    const src = this.extractFirstImageSrc(imageFieldValue);
-    if (!src) return null;
-
-    if (
-      src.startsWith("data:image/") ||
-      src.startsWith("http://") ||
-      src.startsWith("https://")
-    ) {
-      return src;
-    }
-
-    try {
-      const base64 = await this.client.retrieveMediaFile(src);
-      if (!base64) return null;
-      return `data:${this.mimeTypeFromFilename(src)};base64,${base64}`;
-    } catch (error) {
-      console.warn(
-        "Failed to load image preview from Anki media:",
-        (error as Error).message,
-      );
-      return null;
-    }
-  }
 
   destroy(): void {
     this.stop();

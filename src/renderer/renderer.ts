@@ -114,7 +114,6 @@ interface KikuDuplicateCardInfo {
   sentencePreview: string;
   hasAudio: boolean;
   hasImage: boolean;
-  imagePreviewUrl?: string;
   isOriginal: boolean;
 }
 
@@ -196,12 +195,6 @@ const kikuCard1Meta = document.getElementById(
 const kikuCard2Meta = document.getElementById(
   "kikuCard2Meta",
 ) as HTMLDivElement;
-const kikuCard1Image = document.getElementById(
-  "kikuCard1Image",
-) as HTMLImageElement;
-const kikuCard2Image = document.getElementById(
-  "kikuCard2Image",
-) as HTMLImageElement;
 const kikuConfirmButton = document.getElementById(
   "kikuConfirmButton",
 ) as HTMLButtonElement;
@@ -533,24 +526,6 @@ function setKikuPreviewError(message: string | null): void {
   kikuPreviewError.classList.remove("hidden");
 }
 
-function setKikuCardImage(
-  imageEl: HTMLImageElement,
-  card: KikuDuplicateCardInfo,
-): void {
-  if (card.imagePreviewUrl) {
-    imageEl.onerror = () => {
-      imageEl.removeAttribute("src");
-      imageEl.style.display = "none";
-    };
-    imageEl.src = card.imagePreviewUrl;
-    imageEl.style.display = "block";
-    return;
-  }
-  imageEl.onerror = null;
-  imageEl.removeAttribute("src");
-  imageEl.style.display = "none";
-}
-
 function openKikuFieldGroupingModal(data: {
   original: KikuDuplicateCardInfo;
   duplicate: KikuDuplicateCardInfo;
@@ -564,13 +539,11 @@ function openKikuFieldGroupingModal(data: {
   kikuCard1Expression.textContent = data.original.expression;
   kikuCard1Sentence.textContent =
     data.original.sentencePreview || "(no sentence)";
-  setKikuCardImage(kikuCard1Image, data.original);
   kikuCard1Meta.textContent = formatMediaMeta(data.original);
 
   kikuCard2Expression.textContent = data.duplicate.expression;
   kikuCard2Sentence.textContent =
     data.duplicate.sentencePreview || "(current subtitle)";
-  setKikuCardImage(kikuCard2Image, data.duplicate);
   kikuCard2Meta.textContent = formatMediaMeta(data.duplicate);
   kikuDeleteDuplicateCheckbox.checked = true;
   kikuPendingChoice = null;
@@ -593,10 +566,6 @@ function closeKikuFieldGroupingModal(): void {
   kikuModalOpen = false;
   kikuModal.classList.add("hidden");
   kikuModal.setAttribute("aria-hidden", "true");
-  kikuCard1Image.removeAttribute("src");
-  kikuCard2Image.removeAttribute("src");
-  kikuCard1Image.style.display = "none";
-  kikuCard2Image.style.display = "none";
   setKikuPreviewError(null);
   kikuPreviewJson.textContent = "";
   kikuPendingChoice = null;

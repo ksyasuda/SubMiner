@@ -425,16 +425,6 @@ iframe[id^="yomitan-popup"] {
   gap: 10px;
 }
 
-.kiku-card-image {
-  display: none;
-  width: 100%;
-  max-height: 110px;
-  object-fit: contain;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.35);
-}
-
 .kiku-footer {
   display: flex;
   flex-wrap: wrap;

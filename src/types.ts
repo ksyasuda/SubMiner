@@ -109,7 +109,6 @@ export interface KikuDuplicateCardInfo {
   sentencePreview: string;
   hasAudio: boolean;
   hasImage: boolean;
-  imagePreviewUrl?: string;
   isOriginal: boolean;
 }
 
