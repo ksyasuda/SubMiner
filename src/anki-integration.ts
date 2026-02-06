@@ -119,6 +119,7 @@ export class AnkiIntegration {
     if (this.updateInProgress) return;
     if (Date.now() < this.nextPollTime) return;
 
+    this.updateInProgress = true;
     try {
       const query = this.config.deck
         ? `"deck:${this.config.deck}" added:1`
@@ -172,11 +173,12 @@ export class AnkiIntegration {
         console.warn("AnkiConnect polling failed, backing off...");
         this.showStatusNotification("AnkiConnect: unable to connect");
       }
+    } finally {
+      this.updateInProgress = false;
     }
   }
 
   private async processNewCard(noteId: number): Promise<void> {
-    this.updateInProgress = true;
     try {
       const notesInfoResult = await this.client.notesInfo([noteId]);
       const notesInfo = notesInfoResult as unknown as NoteInfo[];
@@ -285,8 +287,6 @@ export class AnkiIntegration {
       } else {
         console.error("Error processing new card:", (error as Error).message);
       }
-    } finally {
-      this.updateInProgress = false;
     }
   }
 
