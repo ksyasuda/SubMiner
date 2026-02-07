@@ -1,7 +1,7 @@
 .PHONY: help deps build build-linux build-macos build-appimage install install-linux install-macos uninstall uninstall-linux uninstall-macos print-dirs
 
 APP_NAME := subminer
-THEME_FILE := catppuccin-macchiato.rasi
+THEME_FILE := subminer.rasi
 
 # Default install prefix for the wrapper script.
 PREFIX ?= $(HOME)/.local

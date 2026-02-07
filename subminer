@@ -33,7 +33,7 @@
 # If DIRECTORY is provided or no argument, opens rofi/fzf to select a video.
 
 VIDEO_EXTENSIONS="mkv|mp4|avi|webm|mov|flv|wmv|m4v|ts|m2ts"
-ROFI_THEME_FILE="catppuccin-macchiato.rasi"
+ROFI_THEME_FILE="subminer.rasi"
 
 SEARCH_DIR="."
 RECURSIVE=false
@@ -80,40 +80,40 @@ EOF
 }
 
 find_rofi_theme() {
-    if [ -n "${SUBMINER_ROFI_THEME:-}" ] && [ -f "$SUBMINER_ROFI_THEME" ]; then
-        echo "$SUBMINER_ROFI_THEME"
-        return 0
-    fi
+	if [ -n "${SUBMINER_ROFI_THEME:-}" ] && [ -f "$SUBMINER_ROFI_THEME" ]; then
+		echo "$SUBMINER_ROFI_THEME"
+		return 0
+	fi
 
-    local script_dir
-    script_dir="$(dirname "$(realpath "$0")")"
+	local script_dir
+	script_dir="$(dirname "$(realpath "$0")")"
 
-    local os
-    os="$(uname -s)"
+	local os
+	os="$(uname -s)"
 
-    local candidates=()
-    if [ "$os" = "Darwin" ]; then
-        candidates+=("$HOME/Library/Application Support/SubMiner/themes/$ROFI_THEME_FILE")
-    else
-        local xdg_data_home
-        xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-        candidates+=("$xdg_data_home/subminer/themes/$ROFI_THEME_FILE")
-        candidates+=("/usr/local/share/subminer/themes/$ROFI_THEME_FILE")
-        candidates+=("/usr/share/subminer/themes/$ROFI_THEME_FILE")
-    fi
+	local candidates=()
+	if [ "$os" = "Darwin" ]; then
+		candidates+=("$HOME/Library/Application Support/SubMiner/themes/$ROFI_THEME_FILE")
+	else
+		local xdg_data_home
+		xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+		candidates+=("$xdg_data_home/subminer/themes/$ROFI_THEME_FILE")
+		candidates+=("/usr/local/share/subminer/themes/$ROFI_THEME_FILE")
+		candidates+=("/usr/share/subminer/themes/$ROFI_THEME_FILE")
+	fi
 
-    # Backwards compatibility: theme next to the script.
-    candidates+=("$script_dir/$ROFI_THEME_FILE")
+	# Backwards compatibility: theme next to the script.
+	candidates+=("$script_dir/$ROFI_THEME_FILE")
 
-    local theme_path
-    for theme_path in "${candidates[@]}"; do
-        if [ -f "$theme_path" ]; then
-            echo "$theme_path"
-            return 0
-        fi
-    done
+	local theme_path
+	for theme_path in "${candidates[@]}"; do
+		if [ -f "$theme_path" ]; then
+			echo "$theme_path"
+			return 0
+		fi
+	done
 
-    return 1
+	return 1
 }
 
 log_info() {
@@ -201,14 +201,14 @@ build_rofi_menu() {
 }
 
 build_fzf_menu() {
-    local dir="$1"
+	local dir="$1"
 
-    while IFS= read -r video; do
-        [[ -z "$video" ]] && continue
-        local display_name
-        display_name=$(basename "$video")
-        printf '%s\t%s\n' "$display_name" "$video"
-    done < <(find_videos "$dir")
+	while IFS= read -r video; do
+		[[ -z "$video" ]] && continue
+		local display_name
+		display_name=$(basename "$video")
+		printf '%s\t%s\n' "$display_name" "$video"
+	done < <(find_videos "$dir")
 }
 
 show_rofi_menu() {

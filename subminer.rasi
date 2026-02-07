@@ -38,7 +38,7 @@ configuration {
 
 window {
     width: 88%;
-    height: 69%;
+    height: 88%;
     background-color: @base;
     border: 2px;
     border-color: @mauve;
@@ -72,30 +72,22 @@ entry {
 
 listview-split {
     orientation: horizontal;
-    children: [listview, icon-current-entry];
+    children: [listview];
     spacing: 8px;
     background-color: transparent;
 }
 
 listview {
     columns: 1;
-    lines: 10;
+    lines: 12;
     scrollbar: true;
     background-color: transparent;
-    padding: 8px;
+    padding: 4px;
     fixed-columns: true;
 }
 
-icon-current-entry {
-    expand: false;
-    size: 800px;
-    background-color: @surface0;
-    border-radius: 8px;
-    padding: 8px;
-}
-
 element {
-    padding: 8px 12px;
+    padding: 4px 8px;
     background-color: transparent;
     border-radius: 4px;
 }
@@ -108,18 +100,21 @@ element normal.normal {
 element selected.normal {
     background-color: @surface1;
     text-color: @mauve;
+    border: 2px;
+    border-color: @mauve;
+    border-radius: 4px;
 }
 
 element-icon {
-    size: 64px;
+    size: 128px;
     background-color: transparent;
-    margin: 0 0px 0 0;
+    margin: 0px 4px;
 }
 
 element-text {
     text-color: inherit;
     background-color: transparent;
-    margin: 20px 0 0 0;
+    margin: 50px 0 0 0;
 }
 
 scrollbar {
