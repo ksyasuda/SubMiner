@@ -57,6 +57,7 @@ export class AnkiIntegration {
   private progressTimer: ReturnType<typeof setInterval> | null = null;
   private progressMessage = "";
   private progressFrame = 0;
+  private parseWarningKeys = new Set<string>();
   private fieldGroupingCallback:
     | ((data: {
         original: KikuDuplicateCardInfo;
@@ -258,7 +259,10 @@ export class AnkiIntegration {
     }
   }
 
-  private async processNewCard(noteId: number): Promise<void> {
+  private async processNewCard(
+    noteId: number,
+    options?: { skipKikuFieldGrouping?: boolean },
+  ): Promise<void> {
     this.beginUpdateProgress("Updating card");
     try {
       const notesInfoResult = await this.client.notesInfo([noteId]);
@@ -279,6 +283,7 @@ export class AnkiIntegration {
 
       const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
       if (
+        !options?.skipKikuFieldGrouping &&
         sentenceCardConfig.kikuEnabled &&
         sentenceCardConfig.kikuFieldGrouping !== "disabled"
       ) {
@@ -619,6 +624,20 @@ export class AnkiIntegration {
     this.showOsdNotification(`${this.progressMessage} ${frame}`);
   }
 
+  private async withUpdateProgress<T>(
+    initialMessage: string,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    this.beginUpdateProgress(initialMessage);
+    this.updateInProgress = true;
+    try {
+      return await action();
+    } finally {
+      this.updateInProgress = false;
+      this.endUpdateProgress();
+    }
+  }
+
   private showOsdNotification(text: string): void {
     if (this.osdCallback) {
       this.osdCallback(text);
@@ -639,6 +658,39 @@ export class AnkiIntegration {
     const lower = preferredName.toLowerCase();
     const ci = availableFieldNames.find((name) => name.toLowerCase() === lower);
     return ci || null;
+  }
+
+  private resolveNoteFieldName(
+    noteInfo: NoteInfo,
+    preferredName?: string,
+  ): string | null {
+    if (!preferredName) return null;
+    return this.resolveFieldName(Object.keys(noteInfo.fields), preferredName);
+  }
+
+  private resolveFirstNoteFieldName(
+    noteInfo: NoteInfo,
+    preferredNames: (string | undefined)[],
+  ): string | null {
+    for (const preferredName of preferredNames) {
+      const resolved = this.resolveNoteFieldName(noteInfo, preferredName);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+
+  private warnFieldParseOnce(
+    fieldName: string,
+    reason: string,
+    detail?: string,
+  ): void {
+    const key = `${fieldName.toLowerCase()}::${reason}`;
+    if (this.parseWarningKeys.has(key)) return;
+    this.parseWarningKeys.add(key);
+    const suffix = detail ? ` (${detail})` : "";
+    console.warn(
+      `Field grouping parse warning [${fieldName}] ${reason}${suffix}`,
+    );
   }
 
   private setCardTypeFields(
@@ -1024,87 +1076,79 @@ export class AnkiIntegration {
       return;
     }
 
-    this.beginUpdateProgress("Grouping duplicate cards");
-    this.updateInProgress = true;
     try {
-      const query = this.config.deck
-        ? `"deck:${this.config.deck}" added:1`
-        : "added:1";
-      const noteIds = (await this.client.findNotes(query)) as number[];
-      if (!noteIds || noteIds.length === 0) {
-        this.showOsdNotification("No recently added cards found");
-        return;
-      }
-
-      const noteId = Math.max(...noteIds);
-      const notesInfoResult = await this.client.notesInfo([noteId]);
-      const notesInfo = notesInfoResult as unknown as NoteInfo[];
-      if (!notesInfo || notesInfo.length === 0) {
-        this.showOsdNotification("Card not found");
-        return;
-      }
-      const noteInfoBeforeUpdate = notesInfo[0];
-
-      // First, run the normal auto-update path (sentence/audio/image),
-      // but only when required fields are missing.
-      if (!this.hasRequiredUpdateFields(noteInfoBeforeUpdate)) {
-        // Force grouping disabled for the update pass so we can merge after.
-        const originalKikuFieldGrouping = this.config.isKiku?.fieldGrouping;
-        if (this.config.isKiku) {
-          this.config.isKiku.fieldGrouping = "disabled";
+      await this.withUpdateProgress("Grouping duplicate cards", async () => {
+        const query = this.config.deck
+          ? `"deck:${this.config.deck}" added:1`
+          : "added:1";
+        const noteIds = (await this.client.findNotes(query)) as number[];
+        if (!noteIds || noteIds.length === 0) {
+          this.showOsdNotification("No recently added cards found");
+          return;
         }
-        try {
-          await this.processNewCard(noteId);
-        } finally {
-          if (this.config.isKiku) {
-            this.config.isKiku.fieldGrouping = originalKikuFieldGrouping;
-          }
+
+        const noteId = Math.max(...noteIds);
+        const notesInfoResult = await this.client.notesInfo([noteId]);
+        const notesInfo = notesInfoResult as unknown as NoteInfo[];
+        if (!notesInfo || notesInfo.length === 0) {
+          this.showOsdNotification("Card not found");
+          return;
         }
-      }
+        const noteInfoBeforeUpdate = notesInfo[0];
 
-      const refreshedInfoResult = await this.client.notesInfo([noteId]);
-      const refreshedInfo = refreshedInfoResult as unknown as NoteInfo[];
-      if (!refreshedInfo || refreshedInfo.length === 0) {
-        this.showOsdNotification("Card not found");
-        return;
-      }
+        // Run the update pass first when required media fields are missing.
+        if (
+          !this.hasAllConfiguredFields(noteInfoBeforeUpdate, [
+            this.config.imageField,
+          ])
+        ) {
+          await this.processNewCard(noteId, { skipKikuFieldGrouping: true });
+        }
 
-      const noteInfo = refreshedInfo[0];
-      const fields = this.extractFields(noteInfo.fields);
-      const expressionText = fields.expression || fields.word || "";
-      if (!expressionText) {
-        this.showOsdNotification("No expression/word field found");
-        return;
-      }
+        const refreshedInfoResult = await this.client.notesInfo([noteId]);
+        const refreshedInfo = refreshedInfoResult as unknown as NoteInfo[];
+        if (!refreshedInfo || refreshedInfo.length === 0) {
+          this.showOsdNotification("Card not found");
+          return;
+        }
 
-      const duplicateNoteId = await this.findDuplicateNote(
-        expressionText,
-        noteId,
-        noteInfo,
-      );
-      if (duplicateNoteId === null) {
-        this.showOsdNotification("No duplicate card found");
-        return;
-      }
+        const noteInfo = refreshedInfo[0];
+        const fields = this.extractFields(noteInfo.fields);
+        const expressionText = fields.expression || fields.word || "";
+        if (!expressionText) {
+          this.showOsdNotification("No expression/word field found");
+          return;
+        }
 
-      if (sentenceCardConfig.kikuFieldGrouping === "auto") {
-        await this.handleFieldGroupingAuto(
+        const duplicateNoteId = await this.findDuplicateNote(
+          expressionText,
+          noteId,
+          noteInfo,
+        );
+        if (duplicateNoteId === null) {
+          this.showOsdNotification("No duplicate card found");
+          return;
+        }
+
+        if (sentenceCardConfig.kikuFieldGrouping === "auto") {
+          await this.handleFieldGroupingAuto(
+            duplicateNoteId,
+            noteId,
+            noteInfo,
+            expressionText,
+          );
+          return;
+        }
+        const handled = await this.handleFieldGroupingManual(
           duplicateNoteId,
           noteId,
           noteInfo,
           expressionText,
         );
-        return;
-      }
-      const handled = await this.handleFieldGroupingManual(
-        duplicateNoteId,
-        noteId,
-        noteInfo,
-        expressionText,
-      );
-      if (!handled) {
-        this.showOsdNotification("Field grouping cancelled");
-      }
+        if (!handled) {
+          this.showOsdNotification("Field grouping cancelled");
+        }
+      });
     } catch (error) {
       console.error(
         "Error triggering field grouping:",
@@ -1113,13 +1157,15 @@ export class AnkiIntegration {
       this.showOsdNotification(
         `Field grouping failed: ${(error as Error).message}`,
       );
-    } finally {
-      this.updateInProgress = false;
-      this.endUpdateProgress();
     }
   }
 
   async markLastCardAsAudioCard(): Promise<void> {
+    if (this.updateInProgress) {
+      this.showOsdNotification("Anki update already in progress");
+      return;
+    }
+
     try {
       if (!this.mpvClient || !this.mpvClient.currentVideoPath) {
         this.showOsdNotification("No video loaded");
@@ -1147,10 +1193,7 @@ export class AnkiIntegration {
       }
 
       this.showOsdNotification("Marking card as audio card...");
-      this.beginUpdateProgress("Marking audio card");
-      this.updateInProgress = true;
-
-      try {
+      await this.withUpdateProgress("Marking audio card", async () => {
         const query = this.config.deck
           ? `"deck:${this.config.deck}" added:1`
           : "added:1";
@@ -1283,10 +1326,7 @@ export class AnkiIntegration {
         const errorSuffix =
           errors.length > 0 ? `${errors.join(", ")} failed` : undefined;
         await this.showNotification(noteId, label, errorSuffix);
-      } finally {
-        this.updateInProgress = false;
-        this.endUpdateProgress();
-      }
+      });
     } catch (error) {
       console.error(
         "Error marking card as audio card:",
@@ -1304,8 +1344,14 @@ export class AnkiIntegration {
     endTime: number,
     secondarySubText?: string,
   ): Promise<void> {
+    if (this.updateInProgress) {
+      this.showOsdNotification("Anki update already in progress");
+      return;
+    }
+
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-    if (!sentenceCardConfig.model) {
+    const sentenceCardModel = sentenceCardConfig.model;
+    if (!sentenceCardModel) {
       this.showOsdNotification("sentenceCardModel not configured");
       return;
     }
@@ -1324,197 +1370,188 @@ export class AnkiIntegration {
     }
 
     this.showOsdNotification("Creating sentence card...");
-    this.beginUpdateProgress("Creating sentence card");
-    this.updateInProgress = true;
+    await this.withUpdateProgress("Creating sentence card", async () => {
+      const videoPath = this.mpvClient.currentVideoPath;
+      const fields: Record<string, string> = {};
+      const errors: string[] = [];
+      let miscInfoFilename: string | null = null;
 
-    const videoPath = this.mpvClient.currentVideoPath;
-    const fields: Record<string, string> = {};
-    const errors: string[] = [];
-    let miscInfoFilename: string | null = null;
+      const sentenceField = sentenceCardConfig.sentenceField;
+      const audioFieldName = sentenceCardConfig.audioField || "SentenceAudio";
+      let resolvedMiscInfoField: string | null = null;
+      let resolvedSentenceAudioField: string = audioFieldName;
+      let resolvedExpressionAudioField: string | null = null;
 
-    const sentenceField = sentenceCardConfig.sentenceField;
-    const audioFieldName = sentenceCardConfig.audioField || "SentenceAudio";
-    let resolvedMiscInfoField: string | null = null;
-    let resolvedSentenceAudioField: string = audioFieldName;
-    let resolvedExpressionAudioField: string | null = null;
+      fields[sentenceField] = sentence;
 
-    fields[sentenceField] = sentence;
+      if (secondarySubText) {
+        fields["SelectionText"] = secondarySubText;
+      }
 
-    if (secondarySubText) {
-      fields["SelectionText"] = secondarySubText;
-    }
+      if (sentenceCardConfig.lapisEnabled || sentenceCardConfig.kikuEnabled) {
+        fields["IsSentenceCard"] = "x";
+        fields["Expression"] = sentence;
+      }
 
-    if (sentenceCardConfig.lapisEnabled || sentenceCardConfig.kikuEnabled) {
-      fields["IsSentenceCard"] = "x";
-      fields["Expression"] = sentence;
-    }
+      const deck = this.config.deck || "Default";
+      let noteId: number;
+      try {
+        noteId = await this.client.addNote(
+          deck,
+          sentenceCardModel,
+          fields,
+        );
+        console.log("Created sentence card:", noteId);
+        this.previousNoteIds.add(noteId);
+      } catch (error) {
+        console.error(
+          "Failed to create sentence card:",
+          (error as Error).message,
+        );
+        this.showOsdNotification(
+          `Sentence card failed: ${(error as Error).message}`,
+        );
+        return;
+      }
 
-    const deck = this.config.deck || "Default";
-    let noteId: number;
-    try {
-      noteId = await this.client.addNote(
-        deck,
-        sentenceCardConfig.model,
-        fields,
-      );
-      console.log("Created sentence card:", noteId);
-      this.previousNoteIds.add(noteId);
-    } catch (error) {
-      console.error(
-        "Failed to create sentence card:",
-        (error as Error).message,
-      );
-      this.showOsdNotification(
-        `Sentence card failed: ${(error as Error).message}`,
-      );
-      return;
-    }
-
-    try {
-      const noteInfoResult = await this.client.notesInfo([noteId]);
-      const noteInfos = noteInfoResult as unknown as NoteInfo[];
-      if (noteInfos.length > 0) {
-        resolvedSentenceAudioField =
-          this.resolveFieldName(
-            Object.keys(noteInfos[0].fields),
-            audioFieldName,
-          ) || audioFieldName;
-        resolvedExpressionAudioField =
-          this.resolveFieldName(
-            Object.keys(noteInfos[0].fields),
-            this.config.audioField || "ExpressionAudio",
-          ) ||
-          this.resolveFieldName(
-            Object.keys(noteInfos[0].fields),
-            "ExpressionAudio",
+      try {
+        const noteInfoResult = await this.client.notesInfo([noteId]);
+        const noteInfos = noteInfoResult as unknown as NoteInfo[];
+        if (noteInfos.length > 0) {
+          const createdNoteInfo = noteInfos[0];
+          resolvedSentenceAudioField =
+            this.resolveNoteFieldName(createdNoteInfo, audioFieldName) ||
+            audioFieldName;
+          resolvedExpressionAudioField = this.resolveFirstNoteFieldName(
+            createdNoteInfo,
+            [this.config.audioField || "ExpressionAudio", "ExpressionAudio"],
           );
-        resolvedMiscInfoField = this.getResolvedConfiguredFieldName(
-          noteInfos[0],
-          this.config.miscInfoField,
-        );
-        const cardTypeFields: Record<string, string> = {};
-        this.setCardTypeFields(
-          cardTypeFields,
-          Object.keys(noteInfos[0].fields),
-          "sentence",
-        );
-        if (Object.keys(cardTypeFields).length > 0) {
-          await this.client.updateNoteFields(noteId, cardTypeFields);
+          resolvedMiscInfoField = this.getResolvedConfiguredFieldName(
+            createdNoteInfo,
+            this.config.miscInfoField,
+          );
+          const cardTypeFields: Record<string, string> = {};
+          this.setCardTypeFields(
+            cardTypeFields,
+            Object.keys(createdNoteInfo.fields),
+            "sentence",
+          );
+          if (Object.keys(cardTypeFields).length > 0) {
+            await this.client.updateNoteFields(noteId, cardTypeFields);
+          }
         }
+      } catch (error) {
+        console.error(
+          "Failed to normalize sentence card type fields:",
+          (error as Error).message,
+        );
+        errors.push("card type fields");
       }
-    } catch (error) {
-      console.error(
-        "Failed to normalize sentence card type fields:",
-        (error as Error).message,
-      );
-      errors.push("card type fields");
-    }
 
-    const mediaFields: Record<string, string> = {};
+      const mediaFields: Record<string, string> = {};
 
-    try {
-      const audioFilename = this.generateAudioFilename();
-      const audioBuffer = await this.mediaGenerator.generateAudio(
-        videoPath,
-        startTime,
-        endTime,
-        this.config.audioPadding,
-        this.mpvClient.currentAudioStreamIndex,
-      );
-
-      if (audioBuffer) {
-        await this.client.storeMediaFile(audioFilename, audioBuffer);
-        const audioValue = `[sound:${audioFilename}]`;
-        mediaFields[resolvedSentenceAudioField] = audioValue;
-        if (
-          resolvedExpressionAudioField &&
-          resolvedExpressionAudioField !== resolvedSentenceAudioField
-        ) {
-          mediaFields[resolvedExpressionAudioField] = audioValue;
-        }
-        miscInfoFilename = audioFilename;
-      }
-    } catch (error) {
-      console.error(
-        "Failed to generate sentence audio:",
-        (error as Error).message,
-      );
-      errors.push("audio");
-    }
-
-    try {
-      const imageFilename = this.generateImageFilename();
-      let imageBuffer: Buffer | null = null;
-
-      if (this.config.imageType === "avif") {
-        imageBuffer = await this.mediaGenerator.generateAnimatedImage(
+      try {
+        const audioFilename = this.generateAudioFilename();
+        const audioBuffer = await this.mediaGenerator.generateAudio(
           videoPath,
           startTime,
           endTime,
           this.config.audioPadding,
-          {
-            fps: this.config.animatedFps,
-            maxWidth: this.config.animatedMaxWidth,
-            maxHeight: this.config.animatedMaxHeight,
-            crf: this.config.animatedCrf,
-          },
+          this.mpvClient.currentAudioStreamIndex,
         );
-      } else {
-        const timestamp = this.mpvClient.currentTimePos || 0;
-        imageBuffer = await this.mediaGenerator.generateScreenshot(
-          videoPath,
-          timestamp,
-          {
-            format: this.config.imageFormat as "jpg" | "png" | "webp",
-            quality: this.config.imageQuality,
-            maxWidth: this.config.imageMaxWidth,
-            maxHeight: this.config.imageMaxHeight,
-          },
-        );
-      }
 
-      if (imageBuffer && this.config.imageField) {
-        await this.client.storeMediaFile(imageFilename, imageBuffer);
-        mediaFields[this.config.imageField] = `<img src="${imageFilename}">`;
-        miscInfoFilename = imageFilename;
-      }
-    } catch (error) {
-      console.error(
-        "Failed to generate sentence image:",
-        (error as Error).message,
-      );
-      errors.push("image");
-    }
-
-    if (this.config.miscInfoField) {
-      const miscInfo = this.formatMiscInfoPattern(
-        miscInfoFilename || "",
-        startTime,
-      );
-      if (miscInfo && resolvedMiscInfoField) {
-        mediaFields[resolvedMiscInfoField] = miscInfo;
-      }
-    }
-
-    if (Object.keys(mediaFields).length > 0) {
-      try {
-        await this.client.updateNoteFields(noteId, mediaFields);
+        if (audioBuffer) {
+          await this.client.storeMediaFile(audioFilename, audioBuffer);
+          const audioValue = `[sound:${audioFilename}]`;
+          mediaFields[resolvedSentenceAudioField] = audioValue;
+          if (
+            resolvedExpressionAudioField &&
+            resolvedExpressionAudioField !== resolvedSentenceAudioField
+          ) {
+            mediaFields[resolvedExpressionAudioField] = audioValue;
+          }
+          miscInfoFilename = audioFilename;
+        }
       } catch (error) {
         console.error(
-          "Failed to update sentence card media:",
+          "Failed to generate sentence audio:",
           (error as Error).message,
         );
-        errors.push("media update");
+        errors.push("audio");
       }
-    }
 
-    const label =
-      sentence.length > 30 ? sentence.substring(0, 30) + "..." : sentence;
-    const errorSuffix =
-      errors.length > 0 ? `${errors.join(", ")} failed` : undefined;
-    await this.showNotification(noteId, label, errorSuffix);
-    this.updateInProgress = false;
-    this.endUpdateProgress();
+      try {
+        const imageFilename = this.generateImageFilename();
+        let imageBuffer: Buffer | null = null;
+
+        if (this.config.imageType === "avif") {
+          imageBuffer = await this.mediaGenerator.generateAnimatedImage(
+            videoPath,
+            startTime,
+            endTime,
+            this.config.audioPadding,
+            {
+              fps: this.config.animatedFps,
+              maxWidth: this.config.animatedMaxWidth,
+              maxHeight: this.config.animatedMaxHeight,
+              crf: this.config.animatedCrf,
+            },
+          );
+        } else {
+          const timestamp = this.mpvClient.currentTimePos || 0;
+          imageBuffer = await this.mediaGenerator.generateScreenshot(
+            videoPath,
+            timestamp,
+            {
+              format: this.config.imageFormat as "jpg" | "png" | "webp",
+              quality: this.config.imageQuality,
+              maxWidth: this.config.imageMaxWidth,
+              maxHeight: this.config.imageMaxHeight,
+            },
+          );
+        }
+
+        if (imageBuffer && this.config.imageField) {
+          await this.client.storeMediaFile(imageFilename, imageBuffer);
+          mediaFields[this.config.imageField] = `<img src="${imageFilename}">`;
+          miscInfoFilename = imageFilename;
+        }
+      } catch (error) {
+        console.error(
+          "Failed to generate sentence image:",
+          (error as Error).message,
+        );
+        errors.push("image");
+      }
+
+      if (this.config.miscInfoField) {
+        const miscInfo = this.formatMiscInfoPattern(
+          miscInfoFilename || "",
+          startTime,
+        );
+        if (miscInfo && resolvedMiscInfoField) {
+          mediaFields[resolvedMiscInfoField] = miscInfo;
+        }
+      }
+
+      if (Object.keys(mediaFields).length > 0) {
+        try {
+          await this.client.updateNoteFields(noteId, mediaFields);
+        } catch (error) {
+          console.error(
+            "Failed to update sentence card media:",
+            (error as Error).message,
+          );
+          errors.push("media update");
+        }
+      }
+
+      const label =
+        sentence.length > 30 ? sentence.substring(0, 30) + "..." : sentence;
+      const errorSuffix =
+        errors.length > 0 ? `${errors.join(", ")} failed` : undefined;
+      await this.showNotification(noteId, label, errorSuffix);
+    });
   }
 
   private async findDuplicateNote(
@@ -1534,18 +1571,61 @@ export class AnkiIntegration {
     }
     if (!fieldName) return null;
 
-    const escapedExpression = expression.replace(/"/g, '\\"');
+    const escapedFieldName = this.escapeAnkiSearchValue(fieldName);
+    const escapedExpression = this.escapeAnkiSearchValue(expression);
     const deckPrefix = this.config.deck ? `"deck:${this.config.deck}" ` : "";
-    const query = `${deckPrefix}"${fieldName}:${escapedExpression}"`;
+    const query = `${deckPrefix}"${escapedFieldName}:${escapedExpression}"`;
 
     try {
-      const noteIds = await this.client.findNotes(query);
-      const duplicates = noteIds.filter((id) => id !== excludeNoteId);
-      return duplicates.length > 0 ? duplicates[0] : null;
+      const noteIds = (await this.client.findNotes(query)) as number[];
+      return await this.findFirstExactDuplicateNoteId(
+        noteIds,
+        excludeNoteId,
+        fieldName,
+        expression,
+      );
     } catch (error) {
       console.warn("Duplicate search failed:", (error as Error).message);
       return null;
     }
+  }
+
+  private escapeAnkiSearchValue(value: string): string {
+    return value.replace(/([\\":*?()[\]{}])/g, "\\$1");
+  }
+
+  private normalizeDuplicateValue(value: string): string {
+    return value.replace(/\s+/g, " ").trim();
+  }
+
+  private async findFirstExactDuplicateNoteId(
+    candidateNoteIds: number[],
+    excludeNoteId: number,
+    fieldName: string,
+    expression: string,
+  ): Promise<number | null> {
+    const candidates = candidateNoteIds.filter((id) => id !== excludeNoteId);
+    if (candidates.length === 0) return null;
+
+    const normalizedExpression = this.normalizeDuplicateValue(expression);
+    const chunkSize = 50;
+    for (let i = 0; i < candidates.length; i += chunkSize) {
+      const chunk = candidates.slice(i, i + chunkSize);
+      const notesInfoResult = await this.client.notesInfo(chunk);
+      const notesInfo = notesInfoResult as unknown as NoteInfo[];
+      for (const noteInfo of notesInfo) {
+        const resolvedField = this.resolveNoteFieldName(noteInfo, fieldName);
+        if (!resolvedField) continue;
+        const candidateValue = noteInfo.fields[resolvedField]?.value || "";
+        if (
+          this.normalizeDuplicateValue(candidateValue) === normalizedExpression
+        ) {
+          return noteInfo.noteId;
+        }
+      }
+    }
+
+    return null;
   }
 
   private getGroupableFieldNames(): string[] {
@@ -1576,8 +1656,8 @@ export class AnkiIntegration {
 
   private getResolvedSentenceAudioFieldName(noteInfo: NoteInfo): string | null {
     return (
-      this.resolveFieldName(
-        Object.keys(noteInfo.fields),
+      this.resolveNoteFieldName(
+        noteInfo,
         this.getPreferredSentenceAudioFieldName(),
       ) || this.getResolvedConfiguredFieldName(noteInfo, this.config.audioField)
     );
@@ -1623,6 +1703,16 @@ export class AnkiIntegration {
     fieldName: string,
   ): { groupId: number; content: string }[] {
     const entries: { groupId: number; content: string }[] = [];
+    const malformedIdRegex = /<span\s+[^>]*data-group-id="([^"]*)"[^>]*>/gi;
+    let malformed;
+    while ((malformed = malformedIdRegex.exec(value)) !== null) {
+      const rawId = malformed[1];
+      const groupId = Number(rawId);
+      if (!Number.isFinite(groupId) || groupId <= 0) {
+        this.warnFieldParseOnce(fieldName, "invalid-group-id", rawId);
+      }
+    }
+
     const spanRegex = /<span\s+data-group-id="(\d+)"[^>]*>([\s\S]*?)<\/span>/gi;
     let match;
     while ((match = spanRegex.exec(value)) !== null) {
@@ -1632,8 +1722,14 @@ export class AnkiIntegration {
         match[2] || "",
         fieldName,
       );
-      if (!content) continue;
+      if (!content) {
+        this.warnFieldParseOnce(fieldName, "empty-group-content");
+        continue;
+      }
       entries.push({ groupId, content });
+    }
+    if (entries.length === 0 && /<span\b/i.test(value)) {
+      this.warnFieldParseOnce(fieldName, "no-usable-span-entries");
     }
     return entries;
   }
@@ -1673,9 +1769,20 @@ export class AnkiIntegration {
     const result: { groupId: number; tag: string }[] = [];
     for (const tag of tags) {
       const idMatch = tag.match(/data-group-id="(\d+)"/i);
-      const groupId = idMatch ? Number(idMatch[1]) : fallbackGroupId;
+      let groupId = fallbackGroupId;
+      if (idMatch) {
+        const parsed = Number(idMatch[1]);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          this.warnFieldParseOnce("Picture", "invalid-group-id", idMatch[1]);
+        } else {
+          groupId = parsed;
+        }
+      }
       const normalizedTag = this.ensureImageGroupId(tag, groupId);
-      if (!normalizedTag) continue;
+      if (!normalizedTag) {
+        this.warnFieldParseOnce("Picture", "empty-image-tag");
+        continue;
+      }
       result.push({ groupId, tag: normalizedTag });
     }
     return result;
@@ -1693,11 +1800,19 @@ export class AnkiIntegration {
       normalizedField === "sentenceaudio" ||
       normalizedField === "expressionaudio"
     ) {
-      return this.extractLastSoundTag(ungrouped) || ungrouped;
+      const lastSoundTag = this.extractLastSoundTag(ungrouped);
+      if (!lastSoundTag) {
+        this.warnFieldParseOnce(fieldName, "missing-sound-tag");
+      }
+      return lastSoundTag || ungrouped;
     }
 
     if (normalizedField === "picture") {
-      return this.extractLastImageTag(ungrouped) || ungrouped;
+      const lastImageTag = this.extractLastImageTag(ungrouped);
+      if (!lastImageTag) {
+        this.warnFieldParseOnce(fieldName, "missing-image-tag");
+      }
+      return lastImageTag || ungrouped;
     }
 
     return ungrouped;
@@ -1896,10 +2011,7 @@ export class AnkiIntegration {
     preferredFieldName?: string,
   ): string {
     if (!preferredFieldName) return "";
-    const resolved = this.resolveFieldName(
-      Object.keys(noteInfo.fields),
-      preferredFieldName,
-    );
+    const resolved = this.resolveNoteFieldName(noteInfo, preferredFieldName);
     if (!resolved) return "";
     return noteInfo.fields[resolved]?.value || "";
   }
@@ -1908,11 +2020,7 @@ export class AnkiIntegration {
     noteInfo: NoteInfo,
     preferredFieldName?: string,
   ): string | null {
-    if (!preferredFieldName) return null;
-    return this.resolveFieldName(
-      Object.keys(noteInfo.fields),
-      preferredFieldName,
-    );
+    return this.resolveNoteFieldName(noteInfo, preferredFieldName);
   }
 
   private async computeFieldGroupingMergedFields(
@@ -2301,18 +2409,22 @@ export class AnkiIntegration {
     noteInfo: NoteInfo,
     preferredFieldName?: string,
   ): boolean {
-    if (!preferredFieldName) return false;
-    const resolved = this.resolveFieldName(
-      Object.keys(noteInfo.fields),
-      preferredFieldName,
-    );
+    const resolved = this.resolveNoteFieldName(noteInfo, preferredFieldName);
     if (!resolved) return false;
     return Boolean(noteInfo.fields[resolved]?.value);
   }
 
-  private hasRequiredUpdateFields(noteInfo: NoteInfo): boolean {
-    if (!this.config.imageField) return true;
-    return this.hasFieldValue(noteInfo, this.config.imageField);
+  private hasAllConfiguredFields(
+    noteInfo: NoteInfo,
+    configuredFieldNames: (string | undefined)[],
+  ): boolean {
+    const requiredFields = configuredFieldNames.filter(
+      (fieldName): fieldName is string => Boolean(fieldName),
+    );
+    if (requiredFields.length === 0) return true;
+    return requiredFields.every((fieldName) =>
+      this.hasFieldValue(noteInfo, fieldName),
+    );
   }
 
   private async refreshMiscInfoField(
@@ -2321,8 +2433,8 @@ export class AnkiIntegration {
   ): Promise<void> {
     if (!this.config.miscInfoField || !this.config.miscInfoPattern) return;
 
-    const resolvedMiscField = this.resolveFieldName(
-      Object.keys(noteInfo.fields),
+    const resolvedMiscField = this.resolveNoteFieldName(
+      noteInfo,
       this.config.miscInfoField,
     );
     if (!resolvedMiscField) return;
