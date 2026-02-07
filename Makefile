@@ -55,6 +55,8 @@ pretty:
 
 build:
 	@command -v pnpm >/dev/null 2>&1 || { printf '%s\n' "[ERROR] pnpm not found"; exit 1; }
+	@pnpm install
+	@pnpm -C vendor/texthooker-ui install
 	@pnpm -C vendor/texthooker-ui build
 	@pnpm run build
 
@@ -62,6 +64,8 @@ build-macos: build
 
 build-appimage:
 	@command -v pnpm >/dev/null 2>&1 || { printf '%s\n' "[ERROR] pnpm not found"; exit 1; }
+	@pnpm install
+	@pnpm -C vendor/texthooker-ui install
 	@pnpm -C vendor/texthooker-ui build
 	@pnpm run build:appimage
 
