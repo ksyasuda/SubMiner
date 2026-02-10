@@ -201,6 +201,12 @@ import { createOverlayVisibilityFacadeDepsRuntimeService } from "./core/services
 import { createMpvCommandIpcDepsRuntimeService } from "./core/services/mpv-command-ipc-deps-runtime-service";
 import { createRuntimeOptionsIpcDepsRuntimeService } from "./core/services/runtime-options-ipc-deps-runtime-service";
 import { createTokenizerDepsRuntimeService } from "./core/services/tokenizer-deps-runtime-service";
+import {
+  createInitializeOverlayRuntimeDepsService,
+  createInvisibleOverlayVisibilityDepsRuntimeService,
+  createOverlayWindowRuntimeDepsService,
+  createVisibleOverlayVisibilityDepsRuntimeService,
+} from "./core/services/overlay-runtime-deps-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
@@ -807,25 +813,28 @@ async function loadYomitanExtension(): Promise<Extension | null> {
 }
 
 function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
-  return createOverlayWindowService(kind, {
-    isDev,
-    overlayDebugVisualizationEnabled,
-    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-    onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-    setOverlayDebugVisualizationEnabled: (enabled) =>
-      setOverlayDebugVisualizationEnabled(enabled),
-    isOverlayVisible: (windowKind) =>
-      windowKind === "visible" ? visibleOverlayVisible : invisibleOverlayVisible,
-    tryHandleOverlayShortcutLocalFallback: (input) =>
-      tryHandleOverlayShortcutLocalFallback(input),
-    onWindowClosed: (windowKind) => {
-      if (windowKind === "visible") {
-        mainWindow = null;
-      } else {
-        invisibleWindow = null;
-      }
-    },
-  });
+  return createOverlayWindowService(
+    kind,
+    createOverlayWindowRuntimeDepsService({
+      isDev,
+      getOverlayDebugVisualizationEnabled: () => overlayDebugVisualizationEnabled,
+      ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+      onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+      setOverlayDebugVisualizationEnabled: (enabled) =>
+        setOverlayDebugVisualizationEnabled(enabled),
+      getVisibleOverlayVisible: () => visibleOverlayVisible,
+      getInvisibleOverlayVisible: () => invisibleOverlayVisible,
+      tryHandleOverlayShortcutLocalFallback: (input) =>
+        tryHandleOverlayShortcutLocalFallback(input),
+      onWindowClosed: (windowKind) => {
+        if (windowKind === "visible") {
+          mainWindow = null;
+        } else {
+          invisibleWindow = null;
+        }
+      },
+    }),
+  );
 }
 
 function createMainWindow(): BrowserWindow { mainWindow = createOverlayWindow("visible"); return mainWindow; }
@@ -835,46 +844,49 @@ function initializeOverlayRuntime(): void {
   if (overlayRuntimeInitialized) {
     return;
   }
-  const result = initializeOverlayRuntimeService({
-    backendOverride,
-    getInitialInvisibleOverlayVisibility: () => getInitialInvisibleOverlayVisibility(),
-    createMainWindow: () => {
-      createMainWindow();
-    },
-    createInvisibleWindow: () => {
-      createInvisibleWindow();
-    },
-    registerGlobalShortcuts: () => {
-      registerGlobalShortcuts();
-    },
-    updateOverlayBounds: (geometry) => {
-      updateOverlayBounds(geometry);
-    },
-    isVisibleOverlayVisible: () => visibleOverlayVisible,
-    isInvisibleOverlayVisible: () => invisibleOverlayVisible,
-    updateVisibleOverlayVisibility: () => {
-      updateVisibleOverlayVisibility();
-    },
-    updateInvisibleOverlayVisibility: () => {
-      updateInvisibleOverlayVisibility();
-    },
-    getOverlayWindows: () => getOverlayWindows(),
-    syncOverlayShortcuts: () => {
-      syncOverlayShortcuts();
-    },
-    setWindowTracker: (tracker) => {
-      windowTracker = tracker;
-    },
-    getResolvedConfig: () => getResolvedConfig(),
-    getSubtitleTimingTracker: () => subtitleTimingTracker,
-    getMpvClient: () => mpvClient,
-    getRuntimeOptionsManager: () => runtimeOptionsManager,
-    setAnkiIntegration: (integration) => {
-      ankiIntegration = integration as AnkiIntegration | null;
-    },
-    showDesktopNotification,
-    createFieldGroupingCallback: () => createFieldGroupingCallback(),
-  });
+  const result = initializeOverlayRuntimeService(
+    createInitializeOverlayRuntimeDepsService({
+      backendOverride,
+      getInitialInvisibleOverlayVisibility: () =>
+        getInitialInvisibleOverlayVisibility(),
+      createMainWindow: () => {
+        createMainWindow();
+      },
+      createInvisibleWindow: () => {
+        createInvisibleWindow();
+      },
+      registerGlobalShortcuts: () => {
+        registerGlobalShortcuts();
+      },
+      updateOverlayBounds: (geometry) => {
+        updateOverlayBounds(geometry);
+      },
+      isVisibleOverlayVisible: () => visibleOverlayVisible,
+      isInvisibleOverlayVisible: () => invisibleOverlayVisible,
+      updateVisibleOverlayVisibility: () => {
+        updateVisibleOverlayVisibility();
+      },
+      updateInvisibleOverlayVisibility: () => {
+        updateInvisibleOverlayVisibility();
+      },
+      getOverlayWindows: () => getOverlayWindows(),
+      syncOverlayShortcuts: () => {
+        syncOverlayShortcuts();
+      },
+      setWindowTracker: (tracker) => {
+        windowTracker = tracker;
+      },
+      getResolvedConfig: () => getResolvedConfig(),
+      getSubtitleTimingTracker: () => subtitleTimingTracker,
+      getMpvClient: () => mpvClient,
+      getRuntimeOptionsManager: () => runtimeOptionsManager,
+      setAnkiIntegration: (integration) => {
+        ankiIntegration = integration as AnkiIntegration | null;
+      },
+      showDesktopNotification,
+      createFieldGroupingCallback: () => createFieldGroupingCallback(),
+    }),
+  );
   invisibleOverlayVisible = result.invisibleOverlayVisible;
   overlayRuntimeInitialized = true;
 }
@@ -1127,44 +1139,48 @@ function refreshOverlayShortcuts(): void {
 }
 
 function updateVisibleOverlayVisibility(): void {
-  updateVisibleOverlayVisibilityService({
-    visibleOverlayVisible,
-    mainWindow,
-    windowTracker,
-    trackerNotReadyWarningShown,
-    setTrackerNotReadyWarningShown: (shown) => {
-      trackerNotReadyWarningShown = shown;
-    },
-    shouldBindVisibleOverlayToMpvSubVisibility:
-      shouldBindVisibleOverlayToMpvSubVisibility(),
-    previousSecondarySubVisibility,
-    setPreviousSecondarySubVisibility: (value) => {
-      previousSecondarySubVisibility = value;
-    },
-    mpvConnected: Boolean(mpvClient && mpvClient.connected),
-    mpvSend: (payload) => {
-      if (!mpvClient) return;
-      mpvClient.send(payload);
-    },
-    secondarySubVisibilityRequestId: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
-    updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
-    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-    enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
-    syncOverlayShortcuts: () => syncOverlayShortcuts(),
-  });
+  updateVisibleOverlayVisibilityService(
+    createVisibleOverlayVisibilityDepsRuntimeService({
+      getVisibleOverlayVisible: () => visibleOverlayVisible,
+      getMainWindow: () => mainWindow,
+      getWindowTracker: () => windowTracker,
+      getTrackerNotReadyWarningShown: () => trackerNotReadyWarningShown,
+      setTrackerNotReadyWarningShown: (shown) => {
+        trackerNotReadyWarningShown = shown;
+      },
+      shouldBindVisibleOverlayToMpvSubVisibility: () =>
+        shouldBindVisibleOverlayToMpvSubVisibility(),
+      getPreviousSecondarySubVisibility: () => previousSecondarySubVisibility,
+      setPreviousSecondarySubVisibility: (value) => {
+        previousSecondarySubVisibility = value;
+      },
+      isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
+      mpvSend: (payload) => {
+        if (!mpvClient) return;
+        mpvClient.send(payload);
+      },
+      secondarySubVisibilityRequestId: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+      updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
+      ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+      enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
+      syncOverlayShortcuts: () => syncOverlayShortcuts(),
+    }),
+  );
 }
 
 function updateInvisibleOverlayVisibility(): void {
-  updateInvisibleOverlayVisibilityService({
-    invisibleWindow,
-    visibleOverlayVisible,
-    invisibleOverlayVisible,
-    windowTracker,
-    updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
-    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-    enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
-    syncOverlayShortcuts: () => syncOverlayShortcuts(),
-  });
+  updateInvisibleOverlayVisibilityService(
+    createInvisibleOverlayVisibilityDepsRuntimeService({
+      getInvisibleWindow: () => invisibleWindow,
+      getVisibleOverlayVisible: () => visibleOverlayVisible,
+      getInvisibleOverlayVisible: () => invisibleOverlayVisible,
+      getWindowTracker: () => windowTracker,
+      updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
+      ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+      enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
+      syncOverlayShortcuts: () => syncOverlayShortcuts(),
+    }),
+  );
 }
 
 function syncInvisibleOverlayMousePassthrough(): void {
