@@ -1,0 +1,86 @@
+{
+  "name": "subminer",
+  "version": "0.1.0",
+  "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc && cp src/renderer/index.html src/renderer/style.css dist/renderer/",
+    "test:config": "pnpm run build && node --test dist/config/config.test.js",
+    "generate:config-example": "pnpm run build && node dist/generate-config-example.js",
+    "start": "pnpm run build && electron . --start",
+    "dev": "pnpm run build && electron . --start --dev",
+    "stop": "electron . --stop",
+    "toggle": "electron . --toggle",
+    "build:appimage": "pnpm run build && electron-builder --linux AppImage",
+    "build:mac": "pnpm run build && electron-builder --mac dmg zip",
+    "build:mac:unsigned": "pnpm run build && env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u CSC_LINK -u CSC_KEY_PASSWORD CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip",
+    "build:mac:zip": "pnpm run build && electron-builder --mac zip"
+  },
+  "keywords": [
+    "anki",
+    "ankiconnect",
+    "sentence-mining",
+    "japanese",
+    "subtitles",
+    "overlay",
+    "mpv",
+    "yomitan"
+  ],
+  "author": "",
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "axios": "^1.13.5",
+    "jsonc-parser": "^3.3.1",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.2",
+    "@types/ws": "^8.18.1",
+    "electron": "^37.10.3",
+    "electron-builder": "^26.7.0",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "com.sudacode.SubMiner",
+    "productName": "SubMiner",
+    "executableName": "SubMiner",
+    "artifactName": "SubMiner-${version}.${ext}",
+    "icon": "assets/SubMiner.png",
+    "directories": {
+      "output": "release"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "AudioVideo"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.video",
+      "icon": "assets/SubMiner.png",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "files": [
+      "dist/**/*",
+      "vendor/texthooker-ui/docs/**/*",
+      "vendor/texthooker-ui/package.json",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/yomitan",
+        "to": "yomitan"
+      },
+      {
+        "from": "assets",
+        "to": "assets"
+      }
+    ]
+  }
+}
