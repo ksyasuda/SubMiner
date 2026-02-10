@@ -205,6 +205,7 @@ import { runAppReadyRuntimeService } from "./core/services/app-ready-runtime-ser
 import { runAppShutdownRuntimeService } from "./core/services/app-shutdown-runtime-service";
 import { createMpvIpcClientDepsRuntimeService } from "./core/services/mpv-client-deps-runtime-service";
 import { createAppLifecycleDepsRuntimeService } from "./core/services/app-lifecycle-deps-runtime-service";
+import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
@@ -537,20 +538,18 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
           );
         },
         initRuntimeOptionsManager: () => {
-          runtimeOptionsManager = new RuntimeOptionsManager(
-            () => configService.getConfig().ankiConnect,
-            {
-              applyAnkiPatch: (patch) => {
-                if (ankiIntegration) {
-                  ankiIntegration.applyRuntimeConfigPatch(patch);
-                }
-              },
-              onOptionsChanged: () => {
-                broadcastRuntimeOptionsChanged();
-                refreshOverlayShortcuts();
-              },
+          runtimeOptionsManager = createRuntimeOptionsManagerRuntimeService({
+            getAnkiConfig: () => configService.getConfig().ankiConnect,
+            applyAnkiPatch: (patch) => {
+              if (ankiIntegration) {
+                ankiIntegration.applyRuntimeConfigPatch(patch);
+              }
             },
-          );
+            onOptionsChanged: () => {
+              broadcastRuntimeOptionsChanged();
+              refreshOverlayShortcuts();
+            },
+          });
         },
         setSecondarySubMode: (mode) => {
           secondarySubMode = mode;
