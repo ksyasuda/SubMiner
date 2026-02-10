@@ -3,8 +3,107 @@ import { useRoute } from 'vitepress';
 import { nextTick, onMounted, watch } from 'vue';
 import mermaid from 'mermaid';
 import '@catppuccin/vitepress/theme/macchiato/mauve.css';
+import './mermaid-modal.css';
 
 let mermaidLoader: Promise<any> | null = null;
+const MERMAID_MODAL_ID = 'mermaid-diagram-modal';
+
+function closeMermaidModal() {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  const modal = document.getElementById(MERMAID_MODAL_ID);
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.remove('is-open');
+  document.body.classList.remove('mermaid-modal-open');
+}
+
+function ensureMermaidModal(): HTMLDivElement {
+  const existing = document.getElementById(MERMAID_MODAL_ID);
+  if (existing) {
+    return existing as HTMLDivElement;
+  }
+
+  const modal = document.createElement('div');
+  modal.id = MERMAID_MODAL_ID;
+  modal.className = 'mermaid-modal';
+  modal.innerHTML = `
+    <div class="mermaid-modal__backdrop" data-mermaid-close="true"></div>
+    <div class="mermaid-modal__dialog" role="dialog" aria-modal="true" aria-label="Expanded Mermaid diagram">
+      <button class="mermaid-modal__close" type="button" aria-label="Close Mermaid diagram">Close</button>
+      <div class="mermaid-modal__content"></div>
+    </div>
+  `;
+
+  modal.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) {
+      return;
+    }
+
+    if (target.closest('[data-mermaid-close="true"]') || target.closest('.mermaid-modal__close')) {
+      closeMermaidModal();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+      closeMermaidModal();
+    }
+  });
+
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function openMermaidModal(sourceNode: HTMLElement) {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  const modal = ensureMermaidModal();
+  const content = modal.querySelector<HTMLDivElement>('.mermaid-modal__content');
+  if (!content) {
+    return;
+  }
+
+  content.replaceChildren(sourceNode.cloneNode(true));
+  modal.classList.add('is-open');
+  document.body.classList.add('mermaid-modal-open');
+}
+
+function attachMermaidInteractions(nodes: HTMLElement[]) {
+  for (const node of nodes) {
+    if (node.dataset.mermaidInteractive === 'true') {
+      continue;
+    }
+
+    const svg = node.querySelector<HTMLElement>('svg');
+    if (!svg) {
+      continue;
+    }
+
+    node.classList.add('mermaid-interactive');
+    node.setAttribute('role', 'button');
+    node.setAttribute('tabindex', '0');
+    node.setAttribute('aria-label', 'Open Mermaid diagram in full view');
+
+    const open = () => openMermaidModal(svg);
+    node.addEventListener('click', open);
+    node.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        open();
+      }
+    });
+
+    node.dataset.mermaidInteractive = 'true';
+  }
+}
 
 async function getMermaid() {
   if (!mermaidLoader) {
@@ -54,6 +153,7 @@ async function renderMermaidBlocks() {
 
   if (nodes.length > 0) {
     await mermaid.run({ nodes });
+    attachMermaidInteractions(nodes);
   }
 }
 

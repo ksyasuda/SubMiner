@@ -1,0 +1,69 @@
+.mermaid-interactive {
+  cursor: zoom-in;
+}
+
+.mermaid-interactive:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.mermaid-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+}
+
+.mermaid-modal.is-open {
+  display: block;
+}
+
+.mermaid-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.mermaid-modal__dialog {
+  position: relative;
+  z-index: 1;
+  margin: 4vh auto;
+  width: min(96vw, 1800px);
+  max-height: 92vh;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 12px;
+  background: var(--vp-c-bg);
+  box-shadow: var(--vp-shadow-4);
+  overflow: hidden;
+}
+
+.mermaid-modal__close {
+  display: block;
+  margin-left: auto;
+  margin-right: 16px;
+  margin-top: 12px;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+  font-size: 14px;
+}
+
+.mermaid-modal__content {
+  overflow: auto;
+  max-height: calc(92vh - 56px);
+  padding: 8px 16px 16px;
+}
+
+.mermaid-modal__content svg {
+  max-width: none;
+  width: max-content;
+  height: auto;
+  min-width: 100%;
+}
+
+body.mermaid-modal-open {
+  overflow: hidden;
+}
