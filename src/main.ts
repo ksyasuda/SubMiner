@@ -206,6 +206,7 @@ import { runAppShutdownRuntimeService } from "./core/services/app-shutdown-runti
 import { createMpvIpcClientDepsRuntimeService } from "./core/services/mpv-client-deps-runtime-service";
 import { createAppLifecycleDepsRuntimeService } from "./core/services/app-lifecycle-deps-runtime-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
+import { logConfigWarningRuntimeService } from "./core/services/config-warning-runtime-service";
 import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
@@ -533,9 +534,7 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
         getResolvedConfig: () => getResolvedConfig(),
         getConfigWarnings: () => configService.getWarnings(),
         logConfigWarning: (warning) => {
-          console.warn(
-            `[config] ${warning.path}: ${warning.message} value=${JSON.stringify(warning.value)} fallback=${JSON.stringify(warning.fallback)}`,
-          );
+          logConfigWarningRuntimeService(warning, (line) => console.warn(line));
         },
         initRuntimeOptionsManager: () => {
           runtimeOptionsManager = createRuntimeOptionsManagerRuntimeService({
