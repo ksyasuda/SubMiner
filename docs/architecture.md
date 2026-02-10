@@ -35,6 +35,33 @@ SubMiner uses a service-oriented Electron main-process architecture where `src/m
 - `src/jimaku/*`, `src/subsync/*`
   - Domain-specific integration helpers.
 
+## Flow Diagram
+
+```mermaid
+flowchart TD
+  Main["src/main.ts\n(composition root)"] --> Startup["runStartupBootstrapRuntimeService"]
+  Main --> Lifecycle["startAppLifecycleService"]
+  Lifecycle --> AppReady["runAppReadyRuntimeService"]
+
+  Main --> OverlayMgr["overlay-manager-service"]
+  Main --> Ipc["ipc-service / ipc-command-service"]
+  Main --> Mpv["mpv-service / mpv-control-service"]
+  Main --> Shortcuts["shortcut-service / overlay-shortcut-service"]
+  Main --> RuntimeOpts["runtime-options-ipc-service"]
+  Main --> Subtitle["subtitle-ws-service / secondary-subtitle-service"]
+
+  Main --> Config["src/config/*"]
+  Main --> Cli["src/cli/*"]
+  Main --> Trackers["src/window-trackers/*"]
+  Main --> Integrations["src/jimaku/* + src/subsync/*"]
+
+  OverlayMgr --> OverlayWindow["overlay-window-service"]
+  OverlayMgr --> OverlayVisibility["overlay-visibility-service"]
+  Mpv --> Subtitle
+  Ipc --> RuntimeOpts
+  Shortcuts --> OverlayMgr
+```
+
 ## Composition Pattern
 
 Most runtime code follows a dependency-injection pattern:
@@ -58,6 +85,19 @@ This keeps side effects explicit and makes behavior easy to unit-test with fakes
   - Runtime options and mining flows are coordinated via service boundaries.
 - Shutdown:
   - `startAppLifecycleService` registers cleanup hooks (`will-quit`) while teardown behavior stays delegated to focused services from `main.ts`.
+
+```mermaid
+flowchart LR
+  Args["CLI args"] --> Bootstrap["runStartupBootstrapRuntimeService"]
+  Bootstrap -->|generate-config| Exit["exit"]
+  Bootstrap -->|normal start| AppLifecycle["startAppLifecycleService"]
+  AppLifecycle --> Ready["runAppReadyRuntimeService"]
+  Ready --> Runtime["IPC + shortcuts + mpv events"]
+  Runtime --> Overlay["overlay visibility + mining actions"]
+  Runtime --> Subsync["subsync + secondary sub flows"]
+  Runtime --> WillQuit["app will-quit"]
+  WillQuit --> Cleanup["service-level cleanup + unregister"]
+```
 
 ## Why This Design
 
