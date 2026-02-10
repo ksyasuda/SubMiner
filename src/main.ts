@@ -19,13 +19,11 @@ import {
   app,
   BrowserWindow,
   session,
-  ipcMain,
   globalShortcut,
   clipboard,
   shell,
   protocol,
   screen,
-  IpcMainEvent,
   Extension,
 } from "electron";
 
@@ -60,10 +58,7 @@ import {
   JimakuDownloadResult,
   JimakuEntry,
   JimakuFileEntry,
-  JimakuFilesQuery,
   JimakuMediaInfo,
-  JimakuSearchQuery,
-  JimakuDownloadQuery,
   JimakuConfig,
   JimakuLanguagePreference,
   SubtitleData,
@@ -153,6 +148,7 @@ import {
   updateInvisibleOverlayVisibilityService,
   updateVisibleOverlayVisibilityService,
 } from "./core/services/overlay-visibility-service";
+import { registerAnkiJimakuIpcHandlers } from "./core/services/anki-jimaku-ipc-service";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -3298,9 +3294,8 @@ function sendToVisibleOverlay(
   });
 }
 
-ipcMain.on(
-  "set-anki-connect-enabled",
-  (_event: IpcMainEvent, enabled: boolean) => {
+registerAnkiJimakuIpcHandlers({
+  setAnkiConnectEnabled: (enabled) => {
     configService.patchRawConfig({
       ankiConnect: {
         enabled,
@@ -3338,31 +3333,19 @@ ipcMain.on(
 
     broadcastRuntimeOptionsChanged();
   },
-);
-
-ipcMain.on("clear-anki-connect-history", () => {
-  if (subtitleTimingTracker) {
-    subtitleTimingTracker.cleanup();
-    console.log("AnkiConnect subtitle timing history cleared");
-  }
-});
-
-ipcMain.on(
-  "kiku:field-grouping-respond",
-  (_event: IpcMainEvent, choice: KikuFieldGroupingChoice) => {
+  clearAnkiHistory: () => {
+    if (subtitleTimingTracker) {
+      subtitleTimingTracker.cleanup();
+      console.log("AnkiConnect subtitle timing history cleared");
+    }
+  },
+  respondFieldGrouping: (choice) => {
     if (fieldGroupingResolver) {
       fieldGroupingResolver(choice);
       fieldGroupingResolver = null;
     }
   },
-);
-
-ipcMain.handle(
-  "kiku:build-merge-preview",
-  async (
-    _event,
-    request: KikuMergePreviewRequest,
-  ): Promise<KikuMergePreviewResponse> => {
+  buildKikuMergePreview: async (request) => {
     if (!ankiIntegration) {
       return { ok: false, error: "AnkiConnect integration not enabled" };
     }
@@ -3372,18 +3355,8 @@ ipcMain.handle(
       request.deleteDuplicate,
     );
   },
-);
-
-ipcMain.handle("jimaku:get-media-info", (): JimakuMediaInfo => {
-  return parseMediaInfo(currentMediaPath);
-});
-
-ipcMain.handle(
-  "jimaku:search-entries",
-  async (
-    _event,
-    query: JimakuSearchQuery,
-  ): Promise<JimakuApiResponse<JimakuEntry[]>> => {
+  getJimakuMediaInfo: () => parseMediaInfo(currentMediaPath),
+  searchJimakuEntries: async (query) => {
     console.log(`[jimaku] search-entries query: "${query.query}"`);
     const response = await jimakuFetchJson<JimakuEntry[]>(
       "/api/entries/search",
@@ -3399,14 +3372,7 @@ ipcMain.handle(
     );
     return { ok: true, data: response.data.slice(0, maxResults) };
   },
-);
-
-ipcMain.handle(
-  "jimaku:list-files",
-  async (
-    _event,
-    query: JimakuFilesQuery,
-  ): Promise<JimakuApiResponse<JimakuFileEntry[]>> => {
+  listJimakuFiles: async (query) => {
     console.log(
       `[jimaku] list-files entryId=${query.entryId} episode=${query.episode ?? "all"}`,
     );
@@ -3424,77 +3390,13 @@ ipcMain.handle(
     console.log(`[jimaku] list-files returned ${sorted.length} files`);
     return { ok: true, data: sorted };
   },
-);
-
-ipcMain.handle(
-  "jimaku:download-file",
-  async (_event, query: JimakuDownloadQuery): Promise<JimakuDownloadResult> => {
-    const apiKey = await resolveJimakuApiKey();
-    if (!apiKey) {
-      return {
-        ok: false,
-        error: {
-          error:
-            "Jimaku API key not set. Configure jimaku.apiKey or jimaku.apiKeyCommand.",
-          code: 401,
-        },
-      };
+  resolveJimakuApiKey: () => resolveJimakuApiKey(),
+  getCurrentMediaPath: () => currentMediaPath,
+  isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
+  downloadToFile: (url, destPath, headers) => downloadToFile(url, destPath, headers),
+  onDownloadedSubtitle: (pathToSubtitle) => {
+    if (mpvClient && mpvClient.connected) {
+      mpvClient.send({ command: ["sub-add", pathToSubtitle, "select"] });
     }
-
-    if (!currentMediaPath) {
-      return { ok: false, error: { error: "No media file loaded in MPV." } };
-    }
-
-    if (isRemoteMediaPath(currentMediaPath)) {
-      return {
-        ok: false,
-        error: { error: "Cannot download subtitles for remote media paths." },
-      };
-    }
-
-    const mediaDir = path.dirname(path.resolve(currentMediaPath));
-    const safeName = path.basename(query.name);
-    if (!safeName) {
-      return { ok: false, error: { error: "Invalid subtitle filename." } };
-    }
-
-    const ext = path.extname(safeName);
-    const baseName = ext ? safeName.slice(0, -ext.length) : safeName;
-    let targetPath = path.join(mediaDir, safeName);
-    if (fs.existsSync(targetPath)) {
-      targetPath = path.join(
-        mediaDir,
-        `${baseName} (jimaku-${query.entryId})${ext}`,
-      );
-      let counter = 2;
-      while (fs.existsSync(targetPath)) {
-        targetPath = path.join(
-          mediaDir,
-          `${baseName} (jimaku-${query.entryId}-${counter})${ext}`,
-        );
-        counter += 1;
-      }
-    }
-
-    console.log(
-      `[jimaku] download-file name="${query.name}" entryId=${query.entryId}`,
-    );
-    const result = await downloadToFile(query.url, targetPath, {
-      Authorization: apiKey,
-      "User-Agent": "SubMiner",
-    });
-
-    if (result.ok) {
-      console.log(`[jimaku] download-file saved to ${result.path}`);
-      if (mpvClient && mpvClient.connected) {
-        mpvClient.send({ command: ["sub-add", result.path, "select"] });
-      }
-    } else {
-      console.error(
-        `[jimaku] download-file failed: ${result.error?.error ?? "unknown error"}`,
-      );
-    }
-
-    return result;
   },
-);
+});
