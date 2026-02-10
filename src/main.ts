@@ -27,8 +27,6 @@ import {
   screen,
   IpcMainEvent,
   Extension,
-  Notification,
-  nativeImage,
 } from "electron";
 
 protocol.registerSchemesAsPrivileged([
@@ -143,6 +141,18 @@ import {
   registerOverlayShortcutsService,
   unregisterOverlayShortcutsService,
 } from "./core/services/overlay-shortcut-service";
+import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-fallback-runner";
+import { showDesktopNotification } from "./core/utils/notification";
+import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
+import {
+  handleMpvCommandFromIpcService,
+  runSubsyncManualFromIpcService,
+} from "./core/services/ipc-command-service";
+import { sendToVisibleOverlayService } from "./core/services/overlay-send-service";
+import {
+  updateInvisibleOverlayVisibilityService,
+  updateVisibleOverlayVisibilityService,
+} from "./core/services/overlay-visibility-service";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -1976,9 +1986,6 @@ function enforceOverlayLayerOrder(): void {
 }
 
 function ensureExtensionCopy(sourceDir: string): string {
-  // Copy extension to writable location on Linux and macOS
-  // MV3 service workers need write access for IndexedDB/storage
-  // App bundles on macOS are read-only, causing service worker failures
   if (process.platform === "win32") {
     return sourceDir;
   }
@@ -2038,8 +2045,6 @@ async function loadYomitanExtension(): Promise<Extension | null> {
     }
   }
 
-  console.log("Yomitan search paths:", searchPaths);
-  console.log("Found Yomitan at:", extPath);
 
   if (!extPath) {
     console.error("Yomitan extension not found in any search path");
@@ -2048,7 +2053,6 @@ async function loadYomitanExtension(): Promise<Extension | null> {
   }
 
   extPath = ensureExtensionCopy(extPath);
-  console.log("Using extension path:", extPath);
 
   if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
     yomitanParserWindow.destroy();
@@ -2068,7 +2072,6 @@ async function loadYomitanExtension(): Promise<Extension | null> {
         allowFileAccess: true,
       });
     }
-    console.log("Yomitan extension loaded successfully:", yomitanExt.id);
     return yomitanExt;
   } catch (err) {
     console.error("Failed to load Yomitan extension:", (err as Error).message);
@@ -2103,8 +2106,6 @@ function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
   ensureOverlayWindowLevel(window);
 
   const htmlPath = path.join(__dirname, "renderer", "index.html");
-  console.log(`Loading ${kind} overlay HTML from:`, htmlPath);
-  console.log("HTML file exists:", fs.existsSync(htmlPath));
 
   window
     .loadFile(htmlPath, {
@@ -2127,7 +2128,6 @@ function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
   );
 
   window.webContents.on("did-finish-load", () => {
-    console.log(`${kind} overlay HTML loaded successfully`);
     broadcastRuntimeOptionsChanged();
     window.webContents.send(
       "overlay-debug-visualization:set",
@@ -2201,7 +2201,6 @@ function initializeOverlayRuntime(): void {
       updateOverlayBounds(geometry);
     };
     windowTracker.onWindowFound = (geometry: WindowGeometry) => {
-      console.log("MPV window found:", geometry);
       updateOverlayBounds(geometry);
       if (visibleOverlayVisible) {
         updateVisibleOverlayVisibility();
@@ -2211,11 +2210,9 @@ function initializeOverlayRuntime(): void {
       }
     };
     windowTracker.onWindowLost = () => {
-      console.log("MPV window lost");
       for (const window of getOverlayWindows()) {
         window.hide();
       }
-      // Keep overlay shortcuts registered; tracking loss can be transient.
       syncOverlayShortcuts();
     };
     windowTracker.start();
@@ -2253,93 +2250,10 @@ function initializeOverlayRuntime(): void {
 }
 
 function openYomitanSettings(): void {
-  console.log("openYomitanSettings called");
-
-  if (!yomitanExt) {
-    console.error("Yomitan extension not loaded - yomitanExt is:", yomitanExt);
-    console.error(
-      "This may be due to Manifest V3 service worker issues with Electron",
-    );
-    return;
-  }
-
-  if (yomitanSettingsWindow && !yomitanSettingsWindow.isDestroyed()) {
-    console.log("Settings window already exists, focusing");
-    yomitanSettingsWindow.focus();
-    return;
-  }
-
-  console.log("Creating new settings window for extension:", yomitanExt.id);
-
-  yomitanSettingsWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    show: false,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      session: session.defaultSession,
-    },
-  });
-
-  const settingsUrl = `chrome-extension://${yomitanExt.id}/settings.html`;
-  console.log("Loading settings URL:", settingsUrl);
-
-  let loadAttempts = 0;
-  const maxAttempts = 3;
-
-  function attemptLoad(): void {
-    yomitanSettingsWindow!
-      .loadURL(settingsUrl)
-      .then(() => {
-        console.log("Settings URL loaded successfully");
-      })
-      .catch((err: Error) => {
-        console.error("Failed to load settings URL:", err);
-        loadAttempts++;
-        if (
-          loadAttempts < maxAttempts &&
-          yomitanSettingsWindow &&
-          !yomitanSettingsWindow.isDestroyed()
-        ) {
-          console.log(
-            `Retrying in 500ms (attempt ${loadAttempts + 1}/${maxAttempts})`,
-          );
-          setTimeout(attemptLoad, 500);
-        }
-      });
-  }
-
-  attemptLoad();
-
-  yomitanSettingsWindow.webContents.on(
-    "did-fail-load",
-    (_event, errorCode, errorDescription) => {
-      console.error(
-        "Settings page failed to load:",
-        errorCode,
-        errorDescription,
-      );
-    },
-  );
-
-  yomitanSettingsWindow.webContents.on("did-finish-load", () => {
-    console.log("Settings page loaded successfully");
-  });
-
-  setTimeout(() => {
-    if (yomitanSettingsWindow && !yomitanSettingsWindow.isDestroyed()) {
-      yomitanSettingsWindow.setSize(
-        yomitanSettingsWindow.getSize()[0],
-        yomitanSettingsWindow.getSize()[1],
-      );
-      yomitanSettingsWindow.webContents.invalidate();
-      yomitanSettingsWindow.show();
-    }
-  }, 500);
-
-  yomitanSettingsWindow.on("closed", () => {
-    yomitanSettingsWindow = null;
+  openYomitanSettingsWindow({
+    yomitanExt,
+    getExistingWindow: () => yomitanSettingsWindow,
+    setWindow: (window) => (yomitanSettingsWindow = window),
   });
 }
 
@@ -2354,112 +2268,63 @@ function registerGlobalShortcuts(): void {
   });
 }
 
-function getConfiguredShortcuts() {
-  return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG);
-}
+function getConfiguredShortcuts() { return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG); }
 
 function tryHandleOverlayShortcutLocalFallback(input: Electron.Input): boolean {
   const shortcuts = getConfiguredShortcuts();
-  const handlers: Array<{
-    accelerator: string | null | undefined;
-    run: () => void;
-    allowWhenRegistered?: boolean;
-  }> = [
+  return runOverlayShortcutLocalFallback(
+    input,
+    shortcuts,
+    shortcutMatchesInputForLocalFallback,
     {
-      accelerator: shortcuts.openRuntimeOptions,
-      run: () => {
+      openRuntimeOptions: () => {
         openRuntimeOptionsPalette();
       },
-    },
-    {
-      accelerator: shortcuts.markAudioCard,
-      run: () => {
+      markAudioCard: () => {
         markLastCardAsAudioCard().catch((err) => {
           console.error("markLastCardAsAudioCard failed:", err);
           showMpvOsd(`Audio card failed: ${(err as Error).message}`);
         });
       },
-    },
-    {
-      accelerator: shortcuts.copySubtitleMultiple,
-      run: () => {
-        startPendingMultiCopy(shortcuts.multiCopyTimeoutMs);
+      copySubtitleMultiple: (timeoutMs) => {
+        startPendingMultiCopy(timeoutMs);
       },
-    },
-    {
-      accelerator: shortcuts.copySubtitle,
-      run: () => {
+      copySubtitle: () => {
         copyCurrentSubtitle();
       },
-    },
-    {
-      accelerator: shortcuts.toggleSecondarySub,
-      run: () => cycleSecondarySubMode(),
-      allowWhenRegistered: true,
-    },
-    {
-      accelerator: shortcuts.updateLastCardFromClipboard,
-      run: () => {
+      toggleSecondarySub: () => cycleSecondarySubMode(),
+      updateLastCardFromClipboard: () => {
         updateLastCardFromClipboard().catch((err) => {
           console.error("updateLastCardFromClipboard failed:", err);
           showMpvOsd(`Update failed: ${(err as Error).message}`);
         });
       },
-    },
-    {
-      accelerator: shortcuts.triggerFieldGrouping,
-      run: () => {
+      triggerFieldGrouping: () => {
         triggerFieldGrouping().catch((err) => {
           console.error("triggerFieldGrouping failed:", err);
           showMpvOsd(`Field grouping failed: ${(err as Error).message}`);
         });
       },
-    },
-    {
-      accelerator: shortcuts.triggerSubsync,
-      run: () => {
+      triggerSubsync: () => {
         triggerSubsyncFromConfig().catch((err) => {
           console.error("triggerSubsyncFromConfig failed:", err);
           showMpvOsd(`Subsync failed: ${(err as Error).message}`);
         });
       },
-    },
-    {
-      accelerator: shortcuts.mineSentence,
-      run: () => {
+      mineSentence: () => {
         mineSentenceCard().catch((err) => {
           console.error("mineSentenceCard failed:", err);
           showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
         });
       },
-    },
-    {
-      accelerator: shortcuts.mineSentenceMultiple,
-      run: () => {
-        startPendingMineSentenceMultiple(shortcuts.multiCopyTimeoutMs);
+      mineSentenceMultiple: (timeoutMs) => {
+        startPendingMineSentenceMultiple(timeoutMs);
       },
     },
-  ];
-
-  for (const handler of handlers) {
-    if (!handler.accelerator) continue;
-    if (
-      shortcutMatchesInputForLocalFallback(
-        input,
-        handler.accelerator,
-        handler.allowWhenRegistered === true,
-      )
-    ) {
-      handler.run();
-      return true;
-    }
-  }
-
-  return false;
+  );
 }
 
 function cycleSecondarySubMode(): void {
-  // Some platforms can trigger both global and in-window handlers for one key press.
   const now = Date.now();
   if (now - lastSecondarySubToggleAtMs < 120) {
     return;
@@ -2610,17 +2475,13 @@ function cleanupTemporaryFile(extraction: FileExtractionResult): void {
     if (fileExists(extraction.path)) {
       fs.unlinkSync(extraction.path);
     }
-  } catch {
-    // Ignore cleanup failures
-  }
+  } catch {}
   try {
     const dir = path.dirname(extraction.path);
     if (fs.existsSync(dir)) {
       fs.rmdirSync(dir);
     }
-  } catch {
-    // Ignore cleanup failures
-  }
+  } catch {}
 }
 
 function buildRetimedPath(subPath: string): string {
@@ -2742,7 +2603,6 @@ async function runSubsyncAuto(): Promise<SubsyncResult> {
         return alassResult;
       }
     } catch (error) {
-      // Fall through to ffsubsync fallback
       console.warn("Auto alass sync failed, trying ffsubsync fallback:", error);
     } finally {
       if (secondaryExtraction) {
@@ -2857,7 +2717,6 @@ function cancelPendingMultiCopy(): void {
     pendingMultiCopyTimeout = null;
   }
 
-  // Unregister digit and escape shortcuts
   for (const shortcut of multiCopyDigitShortcuts) {
     globalShortcut.unregister(shortcut);
   }
@@ -2873,7 +2732,6 @@ function startPendingMultiCopy(timeoutMs: number): void {
   cancelPendingMultiCopy();
   pendingMultiCopy = true;
 
-  // Register digit shortcuts 1-9
   for (let i = 1; i <= 9; i++) {
     const shortcut = i.toString();
     if (
@@ -2885,7 +2743,6 @@ function startPendingMultiCopy(timeoutMs: number): void {
     }
   }
 
-  // Register Escape to cancel
   if (
     globalShortcut.register("Escape", () => {
       cancelPendingMultiCopy();
@@ -2895,7 +2752,6 @@ function startPendingMultiCopy(timeoutMs: number): void {
     multiCopyEscapeShortcut = "Escape";
   }
 
-  // Set timeout
   pendingMultiCopyTimeout = setTimeout(() => {
     cancelPendingMultiCopy();
     showMpvOsd("Copy timeout");
@@ -2909,7 +2765,6 @@ function handleMultiCopyDigit(count: number): void {
 
   cancelPendingMultiCopy();
 
-  // Check if we have enough history
   const availableCount = Math.min(count, 200); // Max history size
   const blocks = subtitleTimingTracker.getRecentBlocks(availableCount);
 
@@ -3173,155 +3028,44 @@ function refreshOverlayShortcuts(): void {
 }
 
 function updateVisibleOverlayVisibility(): void {
-  console.log(
-    "updateVisibleOverlayVisibility called, visibleOverlayVisible:",
+  updateVisibleOverlayVisibilityService({
     visibleOverlayVisible,
-  );
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    console.log("mainWindow not available");
-    return;
-  }
-
-  if (!visibleOverlayVisible) {
-    console.log("Hiding visible overlay");
-    mainWindow.hide();
-
-    if (
-      shouldBindVisibleOverlayToMpvSubVisibility() &&
-      previousSecondarySubVisibility !== null &&
-      mpvClient &&
-      mpvClient.connected
-    ) {
-      mpvClient.send({
-        command: [
-          "set_property",
-          "secondary-sub-visibility",
-          previousSecondarySubVisibility ? "yes" : "no",
-        ],
-      });
-      previousSecondarySubVisibility = null;
-    } else if (!shouldBindVisibleOverlayToMpvSubVisibility()) {
-      previousSecondarySubVisibility = null;
-    }
-    syncOverlayShortcuts();
-  } else {
-    console.log(
-      "Should show visible overlay, isTracking:",
-      windowTracker?.isTracking(),
-    );
-
-    if (
-      shouldBindVisibleOverlayToMpvSubVisibility() &&
-      mpvClient &&
-      mpvClient.connected
-    ) {
-      mpvClient.send({
-        command: ["get_property", "secondary-sub-visibility"],
-        request_id: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
-      });
-    }
-
-    if (windowTracker && windowTracker.isTracking()) {
-      trackerNotReadyWarningShown = false;
-      const geometry = windowTracker.getGeometry();
-      console.log("Geometry:", geometry);
-      if (geometry) {
-        updateOverlayBounds(geometry);
-      }
-      console.log("Showing visible overlay mainWindow");
-      ensureOverlayWindowLevel(mainWindow);
-      mainWindow.show();
-      mainWindow.focus();
-      enforceOverlayLayerOrder();
-      syncOverlayShortcuts();
-    } else if (!windowTracker) {
-      trackerNotReadyWarningShown = false;
-      ensureOverlayWindowLevel(mainWindow);
-      mainWindow.show();
-      mainWindow.focus();
-      enforceOverlayLayerOrder();
-      syncOverlayShortcuts();
-    } else {
-      if (!trackerNotReadyWarningShown) {
-        console.warn(
-          "Window tracker exists but is not tracking yet; using fallback bounds until tracking starts",
-        );
-        trackerNotReadyWarningShown = true;
-      }
-      const cursorPoint = screen.getCursorScreenPoint();
-      const display = screen.getDisplayNearestPoint(cursorPoint);
-      const fallbackBounds = display.workArea;
-      updateOverlayBounds({
-        x: fallbackBounds.x,
-        y: fallbackBounds.y,
-        width: fallbackBounds.width,
-        height: fallbackBounds.height,
-      });
-      ensureOverlayWindowLevel(mainWindow);
-      mainWindow.show();
-      mainWindow.focus();
-      enforceOverlayLayerOrder();
-      syncOverlayShortcuts();
-    }
-  }
+    mainWindow,
+    windowTracker,
+    trackerNotReadyWarningShown,
+    setTrackerNotReadyWarningShown: (shown) => {
+      trackerNotReadyWarningShown = shown;
+    },
+    shouldBindVisibleOverlayToMpvSubVisibility:
+      shouldBindVisibleOverlayToMpvSubVisibility(),
+    previousSecondarySubVisibility,
+    setPreviousSecondarySubVisibility: (value) => {
+      previousSecondarySubVisibility = value;
+    },
+    mpvConnected: Boolean(mpvClient && mpvClient.connected),
+    mpvSend: (payload) => {
+      if (!mpvClient) return;
+      mpvClient.send(payload);
+    },
+    secondarySubVisibilityRequestId: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+    updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
+    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+    enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
+    syncOverlayShortcuts: () => syncOverlayShortcuts(),
+  });
 }
 
 function updateInvisibleOverlayVisibility(): void {
-  if (!invisibleWindow || invisibleWindow.isDestroyed()) {
-    return;
-  }
-
-  // When the visible overlay is shown, keep the invisible layer hidden to
-  // avoid it intercepting or rerouting pointer interactions.
-  if (visibleOverlayVisible) {
-    invisibleWindow.hide();
-    syncOverlayShortcuts();
-    return;
-  }
-
-  const showInvisibleWithoutFocus = (): void => {
-    ensureOverlayWindowLevel(invisibleWindow!);
-    if (typeof invisibleWindow!.showInactive === "function") {
-      invisibleWindow!.showInactive();
-    } else {
-      invisibleWindow!.show();
-    }
-    enforceOverlayLayerOrder();
-  };
-
-  if (!invisibleOverlayVisible) {
-    invisibleWindow.hide();
-    syncOverlayShortcuts();
-    return;
-  }
-
-  if (windowTracker && windowTracker.isTracking()) {
-    const geometry = windowTracker.getGeometry();
-    if (geometry) {
-      updateOverlayBounds(geometry);
-    }
-    showInvisibleWithoutFocus();
-    syncOverlayShortcuts();
-    return;
-  }
-
-  if (!windowTracker) {
-    showInvisibleWithoutFocus();
-    syncOverlayShortcuts();
-    return;
-  }
-
-  const cursorPoint = screen.getCursorScreenPoint();
-  const display = screen.getDisplayNearestPoint(cursorPoint);
-  const fallbackBounds = display.workArea;
-  updateOverlayBounds({
-    x: fallbackBounds.x,
-    y: fallbackBounds.y,
-    width: fallbackBounds.width,
-    height: fallbackBounds.height,
+  updateInvisibleOverlayVisibilityService({
+    invisibleWindow,
+    visibleOverlayVisible,
+    invisibleOverlayVisible,
+    windowTracker,
+    updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
+    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+    enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
+    syncOverlayShortcuts: () => syncOverlayShortcuts(),
   });
-  showInvisibleWithoutFocus();
-  syncOverlayShortcuts();
 }
 
 function syncInvisibleOverlayMousePassthrough(): void {
@@ -3378,62 +3122,46 @@ function handleOverlayModalClosed(modal: OverlayHostedModal): void {
 }
 
 function handleMpvCommandFromIpc(command: (string | number)[]): void {
-  const first = typeof command[0] === "string" ? command[0] : "";
-  if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) {
-    triggerSubsyncFromConfig();
-    return;
-  }
-
-  if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN) {
-    openRuntimeOptionsPalette();
-    return;
-  }
-
-  if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
-    if (!runtimeOptionsManager) return;
-    const [, idToken, directionToken] = first.split(":");
-    const id = idToken as RuntimeOptionId;
-    const direction: 1 | -1 = directionToken === "prev" ? -1 : 1;
-    const result = applyRuntimeOptionResult(
-      runtimeOptionsManager.cycleOption(id, direction),
-    );
-    if (!result.ok && result.error) {
-      showMpvOsd(result.error);
-    }
-    return;
-  }
-
-  if (mpvClient && mpvClient.connected) {
-    if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) {
-      mpvClient.replayCurrentSubtitle();
-    } else if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE) {
-      mpvClient.playNextSubtitle();
-    } else {
-      mpvClient.send({ command });
-    }
-  }
+  handleMpvCommandFromIpcService(command, {
+    specialCommands: SPECIAL_COMMANDS,
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    runtimeOptionsCycle: (id, direction) => {
+      if (!runtimeOptionsManager) {
+        return { ok: false, error: "Runtime options manager unavailable" };
+      }
+      return applyRuntimeOptionResult(
+        runtimeOptionsManager.cycleOption(id, direction),
+      );
+    },
+    showMpvOsd: (text) => showMpvOsd(text),
+    mpvReplaySubtitle: () => {
+      if (mpvClient) mpvClient.replayCurrentSubtitle();
+    },
+    mpvPlayNextSubtitle: () => {
+      if (mpvClient) mpvClient.playNextSubtitle();
+    },
+    mpvSendCommand: (rawCommand) => {
+      if (!mpvClient) return;
+      mpvClient.send({ command: rawCommand });
+    },
+    isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
+    hasRuntimeOptionsManager: () => runtimeOptionsManager !== null,
+  });
 }
 
 async function runSubsyncManualFromIpc(
   request: SubsyncManualRunRequest,
 ): Promise<SubsyncResult> {
-  if (subsyncInProgress) {
-    const busy = "Subsync already running";
-    showMpvOsd(busy);
-    return { ok: false, message: busy };
-  }
-  try {
-    subsyncInProgress = true;
-    const result = await runWithSubsyncSpinner(() => runSubsyncManual(request));
-    showMpvOsd(result.message);
-    return result;
-  } catch (error) {
-    const message = `Subsync failed: ${(error as Error).message}`;
-    showMpvOsd(message);
-    return { ok: false, message };
-  } finally {
-    subsyncInProgress = false;
-  }
+  return runSubsyncManualFromIpcService(request, {
+    isSubsyncInProgress: () => subsyncInProgress,
+    setSubsyncInProgress: (inProgress) => {
+      subsyncInProgress = inProgress;
+    },
+    showMpvOsd: (text) => showMpvOsd(text),
+    runWithSpinner: (task) => runWithSubsyncSpinner(task),
+    runSubsyncManual: (subsyncRequest) => runSubsyncManual(subsyncRequest),
+  });
 }
 
 registerIpcHandlersService({
@@ -3521,8 +3249,6 @@ function createFieldGroupingCallback() {
         fieldGroupingResolver = null;
         resolve(choice);
 
-        // Treat the visible overlay as a temporary modal host and then restore
-        // the user's previous overlay visibility state.
         if (!previousVisibleOverlay && visibleOverlayVisible) {
           setVisibleOverlayVisible(false);
         }
@@ -3532,7 +3258,6 @@ function createFieldGroupingCallback() {
       };
 
       fieldGroupingResolver = finish;
-      // Manual Kiku flow is rendered only in the visible overlay window.
       if (!sendToVisibleOverlay("kiku:field-grouping-request", data)) {
         finish({
           keepNoteId: 0,
@@ -3561,78 +3286,16 @@ function sendToVisibleOverlay(
   payload?: unknown,
   options?: { restoreOnModalClose?: OverlayHostedModal },
 ): boolean {
-  if (!mainWindow || mainWindow.isDestroyed()) return false;
-  const wasVisible = visibleOverlayVisible;
-  if (!visibleOverlayVisible) {
-    setVisibleOverlayVisible(true);
-  }
-  if (!wasVisible && options?.restoreOnModalClose) {
-    restoreVisibleOverlayOnModalClose.add(options.restoreOnModalClose);
-  }
-  if (payload === undefined) {
-    mainWindow.webContents.send(channel);
-  } else {
-    mainWindow.webContents.send(channel, payload);
-  }
-  return true;
-}
-
-function showDesktopNotification(
-  title: string,
-  options: { body?: string; icon?: string },
-): void {
-  const notificationOptions: {
-    title: string;
-    body?: string;
-    icon?: Electron.NativeImage | string;
-  } = { title };
-
-  if (options.body) {
-    notificationOptions.body = options.body;
-  }
-
-  if (options.icon) {
-    // Check if it's a file path (starts with / on Linux/Mac, or drive letter on Windows)
-    const isFilePath =
-      typeof options.icon === "string" &&
-      (options.icon.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(options.icon));
-
-    if (isFilePath) {
-      // File path - preferred for Linux/Wayland compatibility
-      // Verify file exists before using
-      if (fs.existsSync(options.icon)) {
-        notificationOptions.icon = options.icon;
-      } else {
-        console.warn("Notification icon file not found:", options.icon);
-      }
-    } else if (
-      typeof options.icon === "string" &&
-      options.icon.startsWith("data:image/")
-    ) {
-      // Data URL fallback - decode to nativeImage
-      const base64Data = options.icon.replace(/^data:image\/\w+;base64,/, "");
-      try {
-        const image = nativeImage.createFromBuffer(
-          Buffer.from(base64Data, "base64"),
-        );
-        if (image.isEmpty()) {
-          console.warn(
-            "Notification icon created from base64 is empty - image format may not be supported by Electron",
-          );
-        } else {
-          notificationOptions.icon = image;
-        }
-      } catch (err) {
-        console.error("Failed to create notification icon from base64:", err);
-      }
-    } else {
-      // Unknown format, try to use as-is
-      notificationOptions.icon = options.icon;
-    }
-  }
-
-  const notification = new Notification(notificationOptions);
-  notification.show();
+  return sendToVisibleOverlayService({
+    mainWindow,
+    visibleOverlayVisible,
+    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+    channel,
+    payload,
+    restoreOnModalClose: options?.restoreOnModalClose,
+    addRestoreFlag: (modal) =>
+      restoreVisibleOverlayOnModalClose.add(modal as OverlayHostedModal),
+  });
 }
 
 ipcMain.on(
