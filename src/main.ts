@@ -132,6 +132,13 @@ import {
   updateLastCardFromClipboardService,
 } from "./core/services/mining-runtime-service";
 import { startAppLifecycleService } from "./core/services/app-lifecycle-service";
+import {
+  playNextSubtitleRuntimeService,
+  replayCurrentSubtitleRuntimeService,
+  sendMpvCommandRuntimeService,
+  setMpvSubVisibilityRuntimeService,
+  showMpvOsdRuntimeService,
+} from "./core/services/mpv-runtime-service";
 import { showDesktopNotification } from "./core/utils/notification";
 import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
 import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
@@ -851,13 +858,13 @@ function cycleSecondarySubMode(): void {
 }
 
 function showMpvOsd(text: string): void {
-  if (mpvClient && mpvClient.connected && mpvClient.send) {
-    mpvClient.send({
-      command: ["show-text", text, "3000"],
-    });
-  } else {
-    console.log("OSD (MPV not connected):", text);
-  }
+  showMpvOsdRuntimeService(
+    mpvClient,
+    text,
+    (line) => {
+      console.log(line);
+    },
+  );
 }
 
 const multiCopySession = createNumericShortcutSessionService({
@@ -1095,9 +1102,7 @@ function setVisibleOverlayVisible(visible: boolean): void {
       shouldBindVisibleOverlayToMpvSubVisibility(),
     isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
     setMpvSubVisibility: (mpvSubVisible) => {
-      if (mpvClient) {
-        mpvClient.setSubVisibility(mpvSubVisible);
-      }
+      setMpvSubVisibilityRuntimeService(mpvClient, mpvSubVisible);
     },
   });
 }
@@ -1134,16 +1139,10 @@ function handleMpvCommandFromIpc(command: (string | number)[]): void {
       );
     },
     showMpvOsd: (text) => showMpvOsd(text),
-    mpvReplaySubtitle: () => {
-      if (mpvClient) mpvClient.replayCurrentSubtitle();
-    },
-    mpvPlayNextSubtitle: () => {
-      if (mpvClient) mpvClient.playNextSubtitle();
-    },
-    mpvSendCommand: (rawCommand) => {
-      if (!mpvClient) return;
-      mpvClient.send({ command: rawCommand });
-    },
+    mpvReplaySubtitle: () => replayCurrentSubtitleRuntimeService(mpvClient),
+    mpvPlayNextSubtitle: () => playNextSubtitleRuntimeService(mpvClient),
+    mpvSendCommand: (rawCommand) =>
+      sendMpvCommandRuntimeService(mpvClient, rawCommand),
     isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
     hasRuntimeOptionsManager: () => runtimeOptionsManager !== null,
   });
