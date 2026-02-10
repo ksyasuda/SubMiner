@@ -6,26 +6,31 @@ import {
   SubsyncResult,
 } from "../../types";
 
+export interface HandleMpvCommandFromIpcOptions {
+  specialCommands: {
+    SUBSYNC_TRIGGER: string;
+    RUNTIME_OPTIONS_OPEN: string;
+    RUNTIME_OPTION_CYCLE_PREFIX: string;
+    REPLAY_SUBTITLE: string;
+    PLAY_NEXT_SUBTITLE: string;
+  };
+  triggerSubsyncFromConfig: () => void;
+  openRuntimeOptionsPalette: () => void;
+  runtimeOptionsCycle: (
+    id: RuntimeOptionId,
+    direction: 1 | -1,
+  ) => RuntimeOptionApplyResult;
+  showMpvOsd: (text: string) => void;
+  mpvReplaySubtitle: () => void;
+  mpvPlayNextSubtitle: () => void;
+  mpvSendCommand: (command: (string | number)[]) => void;
+  isMpvConnected: () => boolean;
+  hasRuntimeOptionsManager: () => boolean;
+}
+
 export function handleMpvCommandFromIpcService(
   command: (string | number)[],
-  options: {
-    specialCommands: {
-      SUBSYNC_TRIGGER: string;
-      RUNTIME_OPTIONS_OPEN: string;
-      RUNTIME_OPTION_CYCLE_PREFIX: string;
-      REPLAY_SUBTITLE: string;
-      PLAY_NEXT_SUBTITLE: string;
-    };
-    triggerSubsyncFromConfig: () => void;
-    openRuntimeOptionsPalette: () => void;
-    runtimeOptionsCycle: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
-    showMpvOsd: (text: string) => void;
-    mpvReplaySubtitle: () => void;
-    mpvPlayNextSubtitle: () => void;
-    mpvSendCommand: (command: (string | number)[]) => void;
-    isMpvConnected: () => boolean;
-    hasRuntimeOptionsManager: () => boolean;
-  },
+  options: HandleMpvCommandFromIpcOptions,
 ): void {
   const first = typeof command[0] === "string" ? command[0] : "";
   if (first === options.specialCommands.SUBSYNC_TRIGGER) {
