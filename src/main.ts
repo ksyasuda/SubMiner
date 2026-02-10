@@ -112,7 +112,6 @@ import {
 } from "./core/services/overlay-shortcut-service";
 import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-fallback-runner";
 import { createOverlayShortcutRuntimeHandlers } from "./core/services/overlay-shortcut-runtime-service";
-import { createNumericShortcutSessionService } from "./core/services/numeric-shortcut-session-service";
 import { handleCliCommandService } from "./core/services/cli-command-service";
 import { cycleSecondarySubModeService } from "./core/services/secondary-subtitle-service";
 import {
@@ -205,6 +204,7 @@ import { createIpcDepsRuntimeService } from "./core/services/ipc-deps-runtime-se
 import { createAnkiJimakuIpcDepsRuntimeService } from "./core/services/anki-jimaku-ipc-deps-runtime-service";
 import { createFieldGroupingOverlayRuntimeService } from "./core/services/field-grouping-overlay-runtime-service";
 import { createSubsyncRuntimeDepsService } from "./core/services/subsync-deps-runtime-service";
+import { createNumericShortcutRuntimeService } from "./core/services/numeric-shortcut-runtime-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
@@ -959,23 +959,14 @@ function showMpvOsd(text: string): void {
   );
 }
 
-const multiCopySession = createNumericShortcutSessionService({
-  registerShortcut: (accelerator, handler) =>
-    globalShortcut.register(accelerator, handler),
-  unregisterShortcut: (accelerator) => globalShortcut.unregister(accelerator),
+const numericShortcutRuntime = createNumericShortcutRuntimeService({
+  globalShortcut,
+  showMpvOsd: (text) => showMpvOsd(text),
   setTimer: (handler, timeoutMs) => setTimeout(handler, timeoutMs),
   clearTimer: (timer) => clearTimeout(timer),
-  showMpvOsd: (text) => showMpvOsd(text),
 });
-
-const mineSentenceSession = createNumericShortcutSessionService({
-  registerShortcut: (accelerator, handler) =>
-    globalShortcut.register(accelerator, handler),
-  unregisterShortcut: (accelerator) => globalShortcut.unregister(accelerator),
-  setTimer: (handler, timeoutMs) => setTimeout(handler, timeoutMs),
-  clearTimer: (timer) => clearTimeout(timer),
-  showMpvOsd: (text) => showMpvOsd(text),
-});
+const multiCopySession = numericShortcutRuntime.createSession();
+const mineSentenceSession = numericShortcutRuntime.createSession();
 
 function getSubsyncRuntimeDeps() {
   return createSubsyncRuntimeDepsService({
