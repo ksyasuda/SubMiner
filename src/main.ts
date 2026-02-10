@@ -208,6 +208,10 @@ import { createAppLifecycleDepsRuntimeService } from "./core/services/app-lifecy
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
+  createMecabTokenizerAndCheckRuntimeService,
+  createSubtitleTimingTrackerRuntimeService,
+} from "./core/services/startup-resource-runtime-service";
+import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
 } from "./core/services/subsync-runtime-service";
@@ -557,13 +561,20 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
           subtitleWsService.start(port, () => currentSubText);
         },
         log: (message) => appLogger.logInfo(message),
-        createMecabTokenizerAndCheck: async () => {
-          mecabTokenizer = new MecabTokenizer();
-          await mecabTokenizer.checkAvailability();
-        },
-        createSubtitleTimingTracker: () => {
-          subtitleTimingTracker = new SubtitleTimingTracker();
-        },
+        createMecabTokenizerAndCheck: async () =>
+          createMecabTokenizerAndCheckRuntimeService({
+            createMecabTokenizer: () => new MecabTokenizer(),
+            setMecabTokenizer: (tokenizer) => {
+              mecabTokenizer = tokenizer;
+            },
+          }),
+        createSubtitleTimingTracker: () =>
+          createSubtitleTimingTrackerRuntimeService({
+            createSubtitleTimingTracker: () => new SubtitleTimingTracker(),
+            setSubtitleTimingTracker: (tracker) => {
+              subtitleTimingTracker = tracker;
+            },
+          }),
         loadYomitanExtension: async () => {
           await loadYomitanExtension();
         },
