@@ -85,7 +85,6 @@ import {
 import {
   CliArgs,
   CliCommandSource,
-  commandNeedsOverlayRuntime,
   hasExplicitCommand,
   parseArgs,
   shouldStartApp,
@@ -117,6 +116,7 @@ import {
 import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-fallback-runner";
 import { createOverlayShortcutRuntimeHandlers } from "./core/services/overlay-shortcut-runtime-service";
 import { createNumericShortcutSessionService } from "./core/services/numeric-shortcut-session-service";
+import { handleCliCommandService } from "./core/services/cli-command-service";
 import { showDesktopNotification } from "./core/utils/notification";
 import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
 import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
@@ -575,141 +575,73 @@ function handleCliCommand(
   args: CliArgs,
   source: CliCommandSource = "initial",
 ): void {
-  const hasNonStartAction =
-    args.stop ||
-    args.toggle ||
-    args.toggleVisibleOverlay ||
-    args.toggleInvisibleOverlay ||
-    args.settings ||
-    args.show ||
-    args.hide ||
-    args.showVisibleOverlay ||
-    args.hideVisibleOverlay ||
-    args.showInvisibleOverlay ||
-    args.hideInvisibleOverlay ||
-    args.copySubtitle ||
-    args.copySubtitleMultiple ||
-    args.mineSentence ||
-    args.mineSentenceMultiple ||
-    args.updateLastCardFromClipboard ||
-    args.toggleSecondarySub ||
-    args.triggerFieldGrouping ||
-    args.triggerSubsync ||
-    args.markAudioCard ||
-    args.openRuntimeOptions ||
-    args.texthooker ||
-    args.help;
-  const ignoreStart = source === "second-instance" && args.start;
-  if (ignoreStart && !hasNonStartAction) {
-    console.log("Ignoring --start because SubMiner is already running.");
-    return;
-  }
-  const shouldStart =
-    !ignoreStart &&
-    (args.start ||
-      (source === "initial" &&
-        (args.toggle ||
-          args.toggleVisibleOverlay ||
-          args.toggleInvisibleOverlay)));
-  const needsOverlayRuntime = commandNeedsOverlayRuntime(args);
-
-  if (args.socketPath !== undefined) {
-    mpvSocketPath = args.socketPath;
-    if (mpvClient) {
-      mpvClient.setSocketPath(mpvSocketPath);
-    }
-  }
-  if (args.texthookerPort !== undefined) {
-    if (texthookerService.isRunning()) {
-      console.warn(
-        "Ignoring --port override because the texthooker server is already running.",
-      );
-    } else {
-      texthookerPort = args.texthookerPort;
-    }
-  }
-
-  if (args.stop) {
-    console.log("Stopping SubMiner...");
-    app.quit();
-    return;
-  }
-
-  if (needsOverlayRuntime && !overlayRuntimeInitialized) {
-    initializeOverlayRuntime();
-  }
-
-  if (shouldStart && mpvClient) {
-    mpvClient.setSocketPath(mpvSocketPath);
-    mpvClient.connect();
-    console.log(`Starting MPV IPC connection on socket: ${mpvSocketPath}`);
-  }
-
-  if (args.toggle || args.toggleVisibleOverlay) {
-    toggleVisibleOverlay();
-  } else if (args.toggleInvisibleOverlay) {
-    toggleInvisibleOverlay();
-  } else if (args.settings) {
-    setTimeout(() => {
-      openYomitanSettings();
-    }, 1000);
-  } else if (args.show || args.showVisibleOverlay) {
-    setVisibleOverlayVisible(true);
-  } else if (args.hide || args.hideVisibleOverlay) {
-    setVisibleOverlayVisible(false);
-  } else if (args.showInvisibleOverlay) {
-    setInvisibleOverlayVisible(true);
-  } else if (args.hideInvisibleOverlay) {
-    setInvisibleOverlayVisible(false);
-  } else if (args.copySubtitle) {
-    copyCurrentSubtitle();
-  } else if (args.copySubtitleMultiple) {
-    startPendingMultiCopy(getConfiguredShortcuts().multiCopyTimeoutMs);
-  } else if (args.mineSentence) {
-    mineSentenceCard().catch((err) => {
-      console.error("mineSentenceCard failed:", err);
-      showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
-    });
-  } else if (args.mineSentenceMultiple) {
-    startPendingMineSentenceMultiple(getConfiguredShortcuts().multiCopyTimeoutMs);
-  } else if (args.updateLastCardFromClipboard) {
-    updateLastCardFromClipboard().catch((err) => {
-      console.error("updateLastCardFromClipboard failed:", err);
-      showMpvOsd(`Update failed: ${(err as Error).message}`);
-    });
-  } else if (args.toggleSecondarySub) {
-    cycleSecondarySubMode();
-  } else if (args.triggerFieldGrouping) {
-    triggerFieldGrouping().catch((err) => {
-      console.error("triggerFieldGrouping failed:", err);
-      showMpvOsd(`Field grouping failed: ${(err as Error).message}`);
-    });
-  } else if (args.triggerSubsync) {
-    triggerSubsyncFromConfig().catch((err) => {
-      console.error("triggerSubsyncFromConfig failed:", err);
-      showMpvOsd(`Subsync failed: ${(err as Error).message}`);
-    });
-  } else if (args.markAudioCard) {
-    markLastCardAsAudioCard().catch((err) => {
-      console.error("markLastCardAsAudioCard failed:", err);
-      showMpvOsd(`Audio card failed: ${(err as Error).message}`);
-    });
-  } else if (args.openRuntimeOptions) {
-    openRuntimeOptionsPalette();
-  } else if (args.texthooker) {
-    if (!texthookerService.isRunning()) {
-      texthookerService.start(texthookerPort);
-    }
-    const config = getResolvedConfig();
-    const openBrowser = config.texthooker?.openBrowser !== false;
-    if (openBrowser) {
-      shell.openExternal(`http://127.0.0.1:${texthookerPort}`);
-    }
-    console.log(`Texthooker available at http://127.0.0.1:${texthookerPort}`);
-  } else if (args.help) {
-    printHelp(DEFAULT_TEXTHOOKER_PORT);
-    if (!mainWindow) app.quit();
-  }
+  handleCliCommandService(args, source, {
+    getMpvSocketPath: () => mpvSocketPath,
+    setMpvSocketPath: (socketPath) => {
+      mpvSocketPath = socketPath;
+    },
+    setMpvClientSocketPath: (socketPath) => {
+      if (!mpvClient) return;
+      mpvClient.setSocketPath(socketPath);
+    },
+    hasMpvClient: () => Boolean(mpvClient),
+    connectMpvClient: () => {
+      if (!mpvClient) return;
+      mpvClient.connect();
+    },
+    isTexthookerRunning: () => texthookerService.isRunning(),
+    setTexthookerPort: (port) => {
+      texthookerPort = port;
+    },
+    getTexthookerPort: () => texthookerPort,
+    shouldOpenTexthookerBrowser: () =>
+      getResolvedConfig().texthooker?.openBrowser !== false,
+    ensureTexthookerRunning: (port) => {
+      if (!texthookerService.isRunning()) {
+        texthookerService.start(port);
+      }
+    },
+    openTexthookerInBrowser: (url) => {
+      shell.openExternal(url);
+    },
+    stopApp: () => app.quit(),
+    isOverlayRuntimeInitialized: () => overlayRuntimeInitialized,
+    initializeOverlayRuntime: () => initializeOverlayRuntime(),
+    toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
+    openYomitanSettingsDelayed: (delayMs) => {
+      setTimeout(() => {
+        openYomitanSettings();
+      }, delayMs);
+    },
+    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+    setInvisibleOverlayVisible: (visible) =>
+      setInvisibleOverlayVisible(visible),
+    copyCurrentSubtitle: () => copyCurrentSubtitle(),
+    startPendingMultiCopy: (timeoutMs) => startPendingMultiCopy(timeoutMs),
+    mineSentenceCard: () => mineSentenceCard(),
+    startPendingMineSentenceMultiple: (timeoutMs) =>
+      startPendingMineSentenceMultiple(timeoutMs),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    cycleSecondarySubMode: () => cycleSecondarySubMode(),
+    triggerFieldGrouping: () => triggerFieldGrouping(),
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+    hasMainWindow: () => Boolean(mainWindow),
+    getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
+    showMpvOsd: (text) => showMpvOsd(text),
+    log: (message) => {
+      console.log(message);
+    },
+    warn: (message) => {
+      console.warn(message);
+    },
+    error: (message, err) => {
+      console.error(message, err);
+    },
+  });
 }
 
 function handleInitialArgs(): void {
