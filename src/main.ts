@@ -206,7 +206,7 @@ import { runAppShutdownRuntimeService } from "./core/services/app-shutdown-runti
 import { createMpvIpcClientDepsRuntimeService } from "./core/services/mpv-client-deps-runtime-service";
 import { createAppLifecycleDepsRuntimeService } from "./core/services/app-lifecycle-deps-runtime-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
-import { logConfigWarningRuntimeService } from "./core/services/config-warning-runtime-service";
+import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
@@ -236,6 +236,7 @@ const isDev =
   process.argv.includes("--dev") || process.argv.includes("--debug");
 const texthookerService = new TexthookerService();
 const subtitleWsService = new SubtitleWebSocketService();
+const appLogger = createAppLoggingRuntimeService();
 
 function getDefaultSocketPath(): string {
   if (process.platform === "win32") {
@@ -473,9 +474,7 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
     parseArgs: (argv) => parseArgs(argv),
     handleCliCommand: (args, source) => handleCliCommand(args, source),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-    logNoRunningInstance: () => {
-      console.error("No running instance. Use --start to launch the app.");
-    },
+    logNoRunningInstance: () => appLogger.logNoRunningInstance(),
     onReady: async () => {
       await runAppReadyRuntimeService({
         loadSubtitlePosition: () => loadSubtitlePosition(),
@@ -533,9 +532,7 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
         },
         getResolvedConfig: () => getResolvedConfig(),
         getConfigWarnings: () => configService.getWarnings(),
-        logConfigWarning: (warning) => {
-          logConfigWarningRuntimeService(warning, (line) => console.warn(line));
-        },
+        logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
         initRuntimeOptionsManager: () => {
           runtimeOptionsManager = createRuntimeOptionsManagerRuntimeService({
             getAnkiConfig: () => configService.getConfig().ankiConnect,
@@ -559,9 +556,7 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
         startSubtitleWebsocket: (port) => {
           subtitleWsService.start(port, () => currentSubText);
         },
-        log: (message) => {
-          console.log(message);
-        },
+        log: (message) => appLogger.logInfo(message),
         createMecabTokenizerAndCheck: async () => {
           mecabTokenizer = new MecabTokenizer();
           await mecabTokenizer.checkAvailability();
