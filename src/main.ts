@@ -172,10 +172,14 @@ import {
 } from "./core/services/overlay-window-service";
 import { initializeOverlayRuntimeService } from "./core/services/overlay-runtime-init-service";
 import {
-  setInvisibleOverlayVisibleService,
-  setVisibleOverlayVisibleService,
   syncInvisibleOverlayMousePassthroughService,
 } from "./core/services/overlay-visibility-runtime-service";
+import {
+  setInvisibleOverlayVisibleRuntimeFacadeService,
+  setVisibleOverlayVisibleRuntimeFacadeService,
+  toggleInvisibleOverlayRuntimeFacadeService,
+  toggleVisibleOverlayRuntimeFacadeService,
+} from "./core/services/overlay-visibility-facade-service";
 import {
   MpvIpcClient,
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
@@ -1102,10 +1106,22 @@ function syncInvisibleOverlayMousePassthrough(): void {
 }
 
 function setVisibleOverlayVisible(visible: boolean): void {
-  setVisibleOverlayVisibleService({
-    visible,
-    setVisibleOverlayVisibleState: (nextVisible) => {
+  setVisibleOverlayVisibleRuntimeFacadeService(visible, getOverlayVisibilityFacadeDeps());
+}
+
+function setInvisibleOverlayVisible(visible: boolean): void {
+  setInvisibleOverlayVisibleRuntimeFacadeService(visible, getOverlayVisibilityFacadeDeps());
+}
+
+function getOverlayVisibilityFacadeDeps() {
+  return {
+    getVisibleOverlayVisible: () => visibleOverlayVisible,
+    getInvisibleOverlayVisible: () => invisibleOverlayVisible,
+    setVisibleOverlayVisibleState: (nextVisible: boolean) => {
       visibleOverlayVisible = nextVisible;
+    },
+    setInvisibleOverlayVisibleState: (nextVisible: boolean) => {
+      invisibleOverlayVisible = nextVisible;
     },
     updateVisibleOverlayVisibility: () => updateVisibleOverlayVisibility(),
     updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
@@ -1114,26 +1130,18 @@ function setVisibleOverlayVisible(visible: boolean): void {
     shouldBindVisibleOverlayToMpvSubVisibility: () =>
       shouldBindVisibleOverlayToMpvSubVisibility(),
     isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
-    setMpvSubVisibility: (mpvSubVisible) => {
+    setMpvSubVisibility: (mpvSubVisible: boolean) => {
       setMpvSubVisibilityRuntimeService(mpvClient, mpvSubVisible);
     },
-  });
+  };
 }
 
-function setInvisibleOverlayVisible(visible: boolean): void {
-  setInvisibleOverlayVisibleService({
-    visible,
-    setInvisibleOverlayVisibleState: (nextVisible) => {
-      invisibleOverlayVisible = nextVisible;
-    },
-    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
-    syncInvisibleOverlayMousePassthrough: () =>
-      syncInvisibleOverlayMousePassthrough(),
-  });
+function toggleVisibleOverlay(): void {
+  toggleVisibleOverlayRuntimeFacadeService(getOverlayVisibilityFacadeDeps());
 }
-
-function toggleVisibleOverlay(): void { setVisibleOverlayVisible(!visibleOverlayVisible); }
-function toggleInvisibleOverlay(): void { setInvisibleOverlayVisible(!invisibleOverlayVisible); }
+function toggleInvisibleOverlay(): void {
+  toggleInvisibleOverlayRuntimeFacadeService(getOverlayVisibilityFacadeDeps());
+}
 function setOverlayVisible(visible: boolean): void { setVisibleOverlayVisible(visible); }
 function toggleOverlay(): void { toggleVisibleOverlay(); }
 function handleOverlayModalClosed(modal: OverlayHostedModal): void {
