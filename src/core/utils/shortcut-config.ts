@@ -14,6 +14,7 @@ export interface ConfiguredShortcuts {
   toggleSecondarySub: string | null | undefined;
   markAudioCard: string | null | undefined;
   openRuntimeOptions: string | null | undefined;
+  openJimaku: string | null | undefined;
 }
 
 export function resolveConfiguredShortcuts(
@@ -77,6 +78,9 @@ export function resolveConfiguredShortcuts(
     openRuntimeOptions: normalizeShortcut(
       config.shortcuts?.openRuntimeOptions ??
         defaultConfig.shortcuts?.openRuntimeOptions,
+    ),
+    openJimaku: normalizeShortcut(
+      config.shortcuts?.openJimaku ?? defaultConfig.shortcuts?.openJimaku,
     ),
   };
 }

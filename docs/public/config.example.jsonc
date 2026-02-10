@@ -1,0 +1,211 @@
+/**
+ * SubMiner Example Configuration File
+ *
+ * This file is auto-generated from src/config/definitions.ts.
+ * Copy to ~/.config/SubMiner/config.jsonc and edit as needed.
+ */
+{
+
+  // ==========================================
+  // Overlay Auto-Start
+  // When overlay connects to mpv, automatically show overlay and hide mpv subtitles.
+  // ==========================================
+  "auto_start_overlay": false,
+
+  // ==========================================
+  // Visible Overlay Subtitle Binding
+  // Control whether visible overlay toggles also toggle MPV subtitle visibility.
+  // When enabled, visible overlay hides MPV subtitles; when disabled, MPV subtitles are left unchanged.
+  // ==========================================
+  "bind_visible_overlay_to_mpv_sub_visibility": true,
+
+  // ==========================================
+  // Texthooker Server
+  // Control whether browser opens automatically for texthooker.
+  // ==========================================
+  "texthooker": {
+    "openBrowser": true
+  },
+
+  // ==========================================
+  // WebSocket Server
+  // Built-in WebSocket server broadcasts subtitle text to connected clients.
+  // Auto mode disables built-in server if mpv_websocket is detected.
+  // ==========================================
+  "websocket": {
+    "enabled": "auto",
+    "port": 6677
+  },
+
+  // ==========================================
+  // AnkiConnect Integration
+  // Automatic Anki updates and media generation options.
+  // ==========================================
+  "ankiConnect": {
+    "enabled": false,
+    "url": "http://127.0.0.1:8765",
+    "pollingRate": 3000,
+    "fields": {
+      "audio": "ExpressionAudio",
+      "image": "Picture",
+      "sentence": "Sentence",
+      "miscInfo": "MiscInfo",
+      "translation": "SelectionText"
+    },
+    "ai": {
+      "enabled": false,
+      "alwaysUseAiTranslation": false,
+      "apiKey": "",
+      "model": "openai/gpt-4o-mini",
+      "baseUrl": "https://openrouter.ai/api",
+      "targetLanguage": "English",
+      "systemPrompt": "You are a translation engine. Return only the translated text with no explanations."
+    },
+    "media": {
+      "generateAudio": true,
+      "generateImage": true,
+      "imageType": "static",
+      "imageFormat": "jpg",
+      "imageQuality": 92,
+      "animatedFps": 10,
+      "animatedMaxWidth": 640,
+      "animatedCrf": 35,
+      "audioPadding": 0.5,
+      "fallbackDuration": 3,
+      "maxMediaDuration": 30
+    },
+    "behavior": {
+      "overwriteAudio": true,
+      "overwriteImage": true,
+      "mediaInsertMode": "append",
+      "highlightWord": true,
+      "notificationType": "osd",
+      "autoUpdateNewCards": true
+    },
+    "metadata": {
+      "pattern": "[SubMiner] %f (%t)"
+    },
+    "isLapis": {
+      "enabled": false,
+      "sentenceCardModel": "Japanese sentences",
+      "sentenceCardSentenceField": "Sentence",
+      "sentenceCardAudioField": "SentenceAudio"
+    },
+    "isKiku": {
+      "enabled": false,
+      "fieldGrouping": "disabled",
+      "deleteDuplicateInAuto": true
+    }
+  },
+
+  // ==========================================
+  // Keyboard Shortcuts
+  // Overlay keyboard shortcuts. Set a shortcut to null to disable.
+  // ==========================================
+  "shortcuts": {
+    "toggleVisibleOverlayGlobal": "Alt+Shift+O",
+    "toggleInvisibleOverlayGlobal": "Alt+Shift+I",
+    "copySubtitle": "CommandOrControl+C",
+    "copySubtitleMultiple": "CommandOrControl+Shift+C",
+    "updateLastCardFromClipboard": "CommandOrControl+V",
+    "triggerFieldGrouping": "CommandOrControl+G",
+    "triggerSubsync": "Ctrl+Alt+S",
+    "mineSentence": "CommandOrControl+S",
+    "mineSentenceMultiple": "CommandOrControl+Shift+S",
+    "multiCopyTimeoutMs": 3000,
+    "toggleSecondarySub": "CommandOrControl+Shift+V",
+    "markAudioCard": "CommandOrControl+Shift+A",
+    "openRuntimeOptions": "CommandOrControl+Shift+O",
+    "openJimaku": "Ctrl+Alt+J"
+  },
+
+  // ==========================================
+  // Invisible Overlay
+  // Startup behavior for the invisible interactive subtitle mining layer.
+  // ==========================================
+  "invisibleOverlay": {
+    "startupVisibility": "platform-default"
+  },
+
+  // ==========================================
+  // Keybindings (MPV Commands)
+  // Extra keybindings that are merged with built-in defaults.
+  // Set command to null to disable a default keybinding.
+  // ==========================================
+  "keybindings": [],
+
+  // ==========================================
+  // Subtitle Appearance
+  // Primary and secondary subtitle styling.
+  // ==========================================
+  "subtitleStyle": {
+    "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif",
+    "fontSize": 35,
+    "fontColor": "#cad3f5",
+    "fontWeight": "normal",
+    "fontStyle": "normal",
+    "backgroundColor": "rgba(54, 58, 79, 0.5)",
+    "secondary": {
+      "fontSize": 24,
+      "fontColor": "#ffffff",
+      "backgroundColor": "transparent",
+      "fontWeight": "normal",
+      "fontStyle": "normal",
+      "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif"
+    }
+  },
+
+  // ==========================================
+  // Secondary Subtitles
+  // Dual subtitle track options.
+  // Used by subminer YouTube subtitle generation as secondary language preferences.
+  // ==========================================
+  "secondarySub": {
+    "secondarySubLanguages": [],
+    "autoLoadSecondarySub": false,
+    "defaultMode": "hover"
+  },
+
+  // ==========================================
+  // Auto Subtitle Sync
+  // Subsync engine and executable paths.
+  // ==========================================
+  "subsync": {
+    "defaultMode": "auto",
+    "alass_path": "",
+    "ffsubsync_path": "",
+    "ffmpeg_path": ""
+  },
+
+  // ==========================================
+  // Subtitle Position
+  // Initial vertical subtitle position from the bottom.
+  // ==========================================
+  "subtitlePosition": {
+    "yPercent": 10
+  },
+
+  // ==========================================
+  // Jimaku
+  // Jimaku API configuration and defaults.
+  // ==========================================
+  "jimaku": {
+    "apiBaseUrl": "https://jimaku.cc",
+    "languagePreference": "ja",
+    "maxEntryResults": 10
+  },
+
+  // ==========================================
+  // YouTube Subtitle Generation
+  // Defaults for subminer YouTube subtitle extraction/transcription mode.
+  // ==========================================
+  "youtubeSubgen": {
+    "mode": "automatic",
+    "whisperBin": "",
+    "whisperModel": "",
+    "primarySubLanguages": [
+      "ja",
+      "jpn"
+    ]
+  }
+}

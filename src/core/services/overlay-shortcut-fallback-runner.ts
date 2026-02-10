@@ -2,6 +2,7 @@ import { ConfiguredShortcuts } from "../utils/shortcut-config";
 
 export interface OverlayShortcutFallbackHandlers {
   openRuntimeOptions: () => void;
+  openJimaku: () => void;
   markAudioCard: () => void;
   copySubtitleMultiple: (timeoutMs: number) => void;
   copySubtitle: () => void;
@@ -32,6 +33,12 @@ export function runOverlayShortcutLocalFallback(
       accelerator: shortcuts.openRuntimeOptions,
       run: () => {
         handlers.openRuntimeOptions();
+      },
+    },
+    {
+      accelerator: shortcuts.openJimaku,
+      run: () => {
+        handlers.openJimaku();
       },
     },
     {

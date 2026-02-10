@@ -6,14 +6,14 @@
   - Hyprland (uses `hyprctl`)
   - X11 (uses `xdotool` and `xwininfo`)
 - mpv (with IPC socket support)
-- mecab and mecab-ipadic (Japanese morphological analyzer)
+- mecab and mecab-ipadic (optional fallback Japanese morphological analyzer)
 - fuse2 (for AppImage support)
 
 ### macOS
 
 - macOS 10.13 or later
 - mpv (with IPC socket support)
-- mecab and mecab-ipadic (Japanese morphological analyzer) - optional
+- mecab and mecab-ipadic (optional fallback Japanese morphological analyzer)
 - **Accessibility permission** required for window tracking (see [macOS Installation](#macos-installation))
 
 **Optional:**
@@ -154,8 +154,9 @@ binary_path=/Applications/SubMiner.app/Contents/MacOS/subminer
 
 The Lua plugin allows you to control the overlay directly from mpv using keybindings:
 
-> [!IMPORTANT]
-> `mpv` must be launched with `--input-ipc-server=/tmp/subminer-socket` to allow communication with the application
+::: warning Important
+`mpv` must be launched with `--input-ipc-server=/tmp/subminer-socket` to allow communication with the application.
+:::
 
 ```bash
 # Copy plugin files to mpv config
@@ -181,6 +182,8 @@ All keybindings use chord sequences starting with `y`:
 | `y-c`   | Check overlay status                  |
 
 The menu provides options to start/stop/toggle the visible or invisible overlay layers and open settings. Type to filter or use arrow keys to navigate.
+
+Jimaku modal shortcut is configured separately in SubMiner overlay shortcuts (`shortcuts.openJimaku`), default `Ctrl+Alt+J`.
 
 #### Plugin Configuration
 
@@ -243,4 +246,3 @@ Launch mpv with:
 ```bash
 mpv --input-ipc-server=\\\\.\\pipe\\subminer-socket video.mkv
 ```
-

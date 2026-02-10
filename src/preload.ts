@@ -259,6 +259,11 @@ const electronAPI: ElectronAPI = {
       callback();
     });
   },
+  onOpenJimaku: (callback: () => void) => {
+    ipcRenderer.on("jimaku:open", () => {
+      callback();
+    });
+  },
   notifyOverlayModalClosed: (modal: "runtime-options" | "subsync") => {
     ipcRenderer.send("overlay:modal-closed", modal);
   },

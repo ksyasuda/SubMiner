@@ -7,6 +7,8 @@ There are two ways to use SubMiner:
 | **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, starts the overlay automatically, and cleans up on exit.                                          |
 | **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control visible and invisible overlay layers. Requires `--input-ipc-server=/tmp/subminer-socket`. |
 
+Jimaku modal shortcut is an overlay shortcut, not an MPV plugin chord: default `Ctrl+Alt+J` via `shortcuts.openJimaku`.
+
 You can use both together—install the plugin for on-demand control, but use `subminer` when you want the streamlined workflow.
 
 `subminer` is implemented as a Bun script and runs directly via shebang (no `bun run` needed), for example: `subminer video.mkv`.
@@ -113,7 +115,7 @@ Notes:
 | `Right-click`        | Toggle MPV pause (outside subtitle area)           |
 | `Right-click + drag` | Move subtitle position (on subtitle)               |
 
-These keybindings only work when the overlay window has focus. See [Configuration](configuration.md) for customization.
+These keybindings only work when the overlay window has focus. See [Configuration](/configuration) for customization.
 
 ### Overlay Chord Shortcuts
 
@@ -125,7 +127,7 @@ These keybindings only work when the overlay window has focus. See [Configuratio
 
 1. MPV runs with an IPC socket at `/tmp/subminer-socket`
 2. The overlay connects and subscribes to subtitle changes
-3. Subtitles are tokenized with MeCab and merged into natural word boundaries
+3. Subtitles are tokenized with Yomitan's internal parser, with MeCab fallback when needed
 4. Words are displayed as clickable spans
 5. Clicking a word triggers Yomitan popup for dictionary lookup
 6. Texthooker server runs at `http://127.0.0.1:5174` for external tools

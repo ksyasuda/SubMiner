@@ -275,6 +275,7 @@ export interface ShortcutsConfig {
   toggleSecondarySub?: string | null;
   markAudioCard?: string | null;
   openRuntimeOptions?: string | null;
+  openJimaku?: string | null;
 }
 
 export type JimakuLanguagePreference = "ja" | "en" | "none";
@@ -606,6 +607,7 @@ export interface ElectronAPI {
     callback: (options: RuntimeOptionState[]) => void,
   ) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
+  onOpenJimaku: (callback: () => void) => void;
   notifyOverlayModalClosed: (modal: "runtime-options" | "subsync") => void;
 }
 

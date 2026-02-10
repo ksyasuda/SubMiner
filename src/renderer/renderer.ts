@@ -1953,7 +1953,6 @@ const CHORD_MAP = new Map<string, ChordAction>([
   ["KeyR", { type: "mpv", command: ["script-message", "subminer-restart"] }],
   ["KeyC", { type: "mpv", command: ["script-message", "subminer-status"] }],
   ["KeyY", { type: "mpv", command: ["script-message", "subminer-menu"] }],
-  ["KeyJ", { type: "electron", action: () => openJimakuModal() }],
   [
     "KeyD",
     { type: "electron", action: () => window.electronAPI.toggleDevTools() },
@@ -2397,6 +2396,9 @@ async function init(): Promise<void> {
       setRuntimeOptionsStatus("Failed to load runtime options", true);
       window.electronAPI.notifyOverlayModalClosed("runtime-options");
     });
+  });
+  window.electronAPI.onOpenJimaku(() => {
+    openJimakuModal();
   });
   window.electronAPI.onSubsyncManualOpen((payload: SubsyncManualPayload) => {
     openSubsyncModal(payload);

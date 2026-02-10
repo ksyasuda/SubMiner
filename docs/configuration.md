@@ -4,7 +4,7 @@ Settings are stored in `~/.config/SubMiner/config.jsonc`
 
 ### Configuration File
 
-See `config.example.jsonc` for a comprehensive example configuration file with all available options, default values, and detailed comments. Only include the options you want to customize in your config file.
+See [config.example.jsonc](/config.example.jsonc) for a comprehensive example configuration file with all available options, default values, and detailed comments. Only include the options you want to customize in your config file.
 
 Generate a fresh default config from the centralized config registry:
 
@@ -17,7 +17,7 @@ subminer.AppImage --generate-config --backup-overwrite
 - `--generate-config` writes a default JSONC config template.
 - If the target file exists, SubMiner prompts to create a timestamped backup and overwrite.
 - In non-interactive shells, use `--backup-overwrite` to explicitly back up and overwrite.
-- `pnpm run generate:config-example` regenerates repository `config.example.jsonc` from the same centralized defaults.
+- `pnpm run generate:config-example` regenerates both repository `config.example.jsonc` and docs-served `/config.example.jsonc` from the same centralized defaults.
 - `make generate-config` builds and runs the same default-config generator via local Electron.
 
 Invalid config values are handled with warn-and-fallback behavior: SubMiner logs the bad key/value and continues with the default for that option.
@@ -164,7 +164,12 @@ When enabled, sentence cards automatically set `IsSentenceCard` to `"x"` and pop
 
 Kiku extends Lapis with **field grouping** — when a duplicate card is detected (same Word/Expression), SubMiner merges the two cards' content into one using Kiku's `data-group-id` HTML structure, organizing each mining instance into separate pages within the note.
 
-[![Field Grouping Demo](assets/kiku-integration-poster.jpg)](https://github.com/user-attachments/assets/bf2476cb-2351-4622-8143-c90e59b19213)
+<video controls playsinline preload="metadata" poster="/assets/kiku-integration-poster.jpg" style="width: 100%; max-width: 960px;">
+  <source :src="'/assets/kiku-integration.webm'" type="video/webm" />
+  Your browser does not support the video tag.
+</video>
+
+<a :href="'/assets/kiku-integration.webm'" target="_blank" rel="noreferrer">Open demo in a new tab</a>
 
 
 | Mode       | Behavior                                                                                                                   |
@@ -416,6 +421,7 @@ See `config.example.jsonc` for detailed configuration options.
     "mineSentenceMultiple": "CommandOrControl+Shift+S",
     "markAudioCard": "CommandOrControl+Shift+A",
     "openRuntimeOptions": "CommandOrControl+Shift+O",
+    "openJimaku": "Ctrl+Alt+J",
     "multiCopyTimeoutMs": 3000
   }
 }
@@ -436,6 +442,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                              |
 | `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                              |
 | `openRuntimeOptions`          | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                  |
+| `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Alt+J"`)                                                                               |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 
