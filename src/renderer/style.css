@@ -259,6 +259,11 @@ body {
   display: none;
 }
 
+body.settings-modal-open #subtitleContainer {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 #subtitleRoot .c {
   display: inline;
   position: relative;
@@ -376,6 +381,11 @@ body.layer-invisible.debug-invisible-visualization #subtitleRoot .c {
 
 #secondarySubContainer:has(#secondarySubRoot:empty) {
   display: none;
+}
+
+body.settings-modal-open #secondarySubContainer {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 .secondary-sub-hidden {
