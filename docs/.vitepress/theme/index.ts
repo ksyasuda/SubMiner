@@ -1,16 +1,14 @@
 import DefaultTheme from 'vitepress/theme';
 import { useRoute } from 'vitepress';
 import { nextTick, onMounted, watch } from 'vue';
+import mermaid from 'mermaid';
 import '@catppuccin/vitepress/theme/macchiato/mauve.css';
 
 let mermaidLoader: Promise<any> | null = null;
 
 async function getMermaid() {
   if (!mermaidLoader) {
-    mermaidLoader = import(
-      /* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'
-    ).then((mod) => {
-      const mermaid = mod.default ?? mod;
+    mermaidLoader = Promise.resolve().then(() => {
       mermaid.initialize({
         startOnLoad: false,
         securityLevel: 'loose',

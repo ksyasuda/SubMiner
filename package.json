@@ -41,10 +41,11 @@
   "author": "",
   "license": "GPL-3.0-or-later",
   "dependencies": {
+    "@catppuccin/vitepress": "^0.1.2",
     "axios": "^1.13.5",
     "jsonc-parser": "^3.3.1",
-    "ws": "^8.19.0",
-    "@catppuccin/vitepress": "^0.1.2"
+    "mermaid": "^11.12.2",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/node": "^25.2.2",
