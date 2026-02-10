@@ -196,6 +196,12 @@ import {
   sendToVisibleOverlayRuntimeService,
 } from "./core/services/overlay-bridge-runtime-service";
 import {
+  broadcastRuntimeOptionsChangedRuntimeService,
+  broadcastToOverlayWindowsRuntimeService,
+  getOverlayWindowsRuntimeService,
+  setOverlayDebugVisualizationEnabledRuntimeService,
+} from "./core/services/overlay-broadcast-runtime-service";
+import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
 } from "./core/services/subsync-runtime-service";
@@ -305,25 +311,30 @@ const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, "subtitle-positions");
 function getRuntimeOptionsState(): RuntimeOptionState[] { if (!runtimeOptionsManager) return []; return runtimeOptionsManager.listOptions(); }
 
 function getOverlayWindows(): BrowserWindow[] {
-  const windows: BrowserWindow[] = [];
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    windows.push(mainWindow);
-  }
-  if (invisibleWindow && !invisibleWindow.isDestroyed()) {
-    windows.push(invisibleWindow);
-  }
-  return windows;
+  return getOverlayWindowsRuntimeService({ mainWindow, invisibleWindow });
 }
 
 function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
-  for (const window of getOverlayWindows()) {
-    window.webContents.send(channel, ...args);
-  }
+  broadcastToOverlayWindowsRuntimeService(getOverlayWindows(), channel, ...args);
 }
 
-function broadcastRuntimeOptionsChanged(): void { broadcastToOverlayWindows("runtime-options:changed", getRuntimeOptionsState()); }
+function broadcastRuntimeOptionsChanged(): void {
+  broadcastRuntimeOptionsChangedRuntimeService(
+    () => getRuntimeOptionsState(),
+    (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
+  );
+}
 
-function setOverlayDebugVisualizationEnabled(enabled: boolean): void { if (overlayDebugVisualizationEnabled === enabled) return; overlayDebugVisualizationEnabled = enabled; broadcastToOverlayWindows("overlay-debug-visualization:set", overlayDebugVisualizationEnabled); }
+function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
+  setOverlayDebugVisualizationEnabledRuntimeService(
+    overlayDebugVisualizationEnabled,
+    enabled,
+    (next) => {
+      overlayDebugVisualizationEnabled = next;
+    },
+    (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
+  );
+}
 
 function openRuntimeOptionsPalette(): void { sendToVisibleOverlay("runtime-options:open", undefined, { restoreOnModalClose: "runtime-options" }); }
 
