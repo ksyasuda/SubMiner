@@ -59,7 +59,6 @@ import {
   Keybinding,
   WindowGeometry,
   SecondarySubMode,
-  SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
   KikuFieldGroupingChoice,
@@ -205,6 +204,7 @@ import { createCliCommandDepsRuntimeService } from "./core/services/cli-command-
 import { createIpcDepsRuntimeService } from "./core/services/ipc-deps-runtime-service";
 import { createAnkiJimakuIpcDepsRuntimeService } from "./core/services/anki-jimaku-ipc-deps-runtime-service";
 import { createFieldGroupingOverlayRuntimeService } from "./core/services/field-grouping-overlay-runtime-service";
+import { createSubsyncRuntimeDepsService } from "./core/services/subsync-deps-runtime-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
@@ -978,7 +978,7 @@ const mineSentenceSession = createNumericShortcutSessionService({
 });
 
 function getSubsyncRuntimeDeps() {
-  return {
+  return createSubsyncRuntimeDepsService({
     getMpvClient: () => mpvClient,
     getResolvedSubsyncConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
     isSubsyncInProgress: () => subsyncInProgress,
@@ -986,12 +986,9 @@ function getSubsyncRuntimeDeps() {
       subsyncInProgress = inProgress;
     },
     showMpvOsd: (text: string) => showMpvOsd(text),
-    openManualPicker: (payload: SubsyncManualPayload) => {
-      sendToVisibleOverlay("subsync:open-manual", payload, {
-        restoreOnModalClose: "subsync",
-      });
-    },
-  };
+    sendToVisibleOverlay: (channel, payload, options) =>
+      sendToVisibleOverlay(channel, payload, options),
+  });
 }
 
 async function triggerSubsyncFromConfig(): Promise<void> {
