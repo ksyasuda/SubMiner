@@ -201,6 +201,7 @@ import {
   getOverlayWindowsRuntimeService,
   setOverlayDebugVisualizationEnabledRuntimeService,
 } from "./core/services/overlay-broadcast-runtime-service";
+import { runAppReadyRuntimeService } from "./core/services/app-ready-runtime-service";
 import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
@@ -487,76 +488,80 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
     },
     isDarwinPlatform: () => process.platform === "darwin",
     onReady: async () => {
-      loadSubtitlePosition();
-      keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
-
-      mpvClient = new MpvIpcClient(mpvSocketPath, {
-        getResolvedConfig: () => getResolvedConfig(), autoStartOverlay,
-        setOverlayVisible: (visible) => setOverlayVisible(visible),
-        shouldBindVisibleOverlayToMpvSubVisibility: () => shouldBindVisibleOverlayToMpvSubVisibility(),
-        isVisibleOverlayVisible: () => visibleOverlayVisible,
-        getReconnectTimer: () => reconnectTimer, setReconnectTimer: (timer) => { reconnectTimer = timer; },
-        getCurrentSubText: () => currentSubText, setCurrentSubText: (text) => { currentSubText = text; }, setCurrentSubAssText: (text) => { currentSubAssText = text; },
-        getSubtitleTimingTracker: () => subtitleTimingTracker, subtitleWsBroadcast: (text) => { subtitleWsService.broadcast(text); },
-        getOverlayWindowsCount: () => getOverlayWindows().length, tokenizeSubtitle: (text) => tokenizeSubtitle(text),
-        broadcastToOverlayWindows: (channel, ...args) => { broadcastToOverlayWindows(channel, ...args); },
-        updateCurrentMediaPath: (mediaPath) => { updateCurrentMediaPath(mediaPath); }, updateMpvSubtitleRenderMetrics: (patch) => { updateMpvSubtitleRenderMetrics(patch); },
-        getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics, setPreviousSecondarySubVisibility: (value) => { previousSecondarySubVisibility = value; }, showMpvOsd: (text) => { showMpvOsd(text); },
-      });
-
-      configService.reloadConfig();
-      const config = getResolvedConfig();
-      for (const warning of configService.getWarnings()) {
-        console.warn(
-          `[config] ${warning.path}: ${warning.message} value=${JSON.stringify(warning.value)} fallback=${JSON.stringify(warning.fallback)}`,
-        );
-      }
-      runtimeOptionsManager = new RuntimeOptionsManager(
-        () => configService.getConfig().ankiConnect,
-        {
-          applyAnkiPatch: (patch) => {
-            if (ankiIntegration) {
-              ankiIntegration.applyRuntimeConfigPatch(patch);
-            }
-          },
-          onOptionsChanged: () => {
-            broadcastRuntimeOptionsChanged();
-            refreshOverlayShortcuts();
-          },
+      await runAppReadyRuntimeService({
+        loadSubtitlePosition: () => loadSubtitlePosition(),
+        resolveKeybindings: () => {
+          keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
         },
-      );
-      secondarySubMode = config.secondarySub?.defaultMode ?? "hover";
-      const wsConfig = config.websocket || {};
-      const wsEnabled = wsConfig.enabled ?? "auto";
-      const wsPort = wsConfig.port || DEFAULT_CONFIG.websocket.port;
-
-      if (
-        wsEnabled === true ||
-        (wsEnabled === "auto" && !hasMpvWebsocketPlugin())
-      ) {
-        subtitleWsService.start(wsPort, () => currentSubText);
-      } else if (wsEnabled === "auto") {
-        console.log(
-          "mpv_websocket detected, skipping built-in WebSocket server",
-        );
-      }
-
-      mecabTokenizer = new MecabTokenizer();
-      await mecabTokenizer.checkAvailability();
-
-      subtitleTimingTracker = new SubtitleTimingTracker();
-
-      await loadYomitanExtension();
-      if (texthookerOnlyMode) {
-        console.log("Texthooker-only mode enabled; skipping overlay window.");
-      } else if (shouldAutoInitializeOverlayRuntimeFromConfig()) {
-        initializeOverlayRuntime();
-      } else {
-        console.log(
-          "Overlay runtime deferred: waiting for explicit overlay command.",
-        );
-      }
-      handleInitialArgs();
+        createMpvClient: () => {
+          mpvClient = new MpvIpcClient(mpvSocketPath, {
+            getResolvedConfig: () => getResolvedConfig(), autoStartOverlay,
+            setOverlayVisible: (visible) => setOverlayVisible(visible),
+            shouldBindVisibleOverlayToMpvSubVisibility: () => shouldBindVisibleOverlayToMpvSubVisibility(),
+            isVisibleOverlayVisible: () => visibleOverlayVisible,
+            getReconnectTimer: () => reconnectTimer, setReconnectTimer: (timer) => { reconnectTimer = timer; },
+            getCurrentSubText: () => currentSubText, setCurrentSubText: (text) => { currentSubText = text; }, setCurrentSubAssText: (text) => { currentSubAssText = text; },
+            getSubtitleTimingTracker: () => subtitleTimingTracker, subtitleWsBroadcast: (text) => { subtitleWsService.broadcast(text); },
+            getOverlayWindowsCount: () => getOverlayWindows().length, tokenizeSubtitle: (text) => tokenizeSubtitle(text),
+            broadcastToOverlayWindows: (channel, ...args) => { broadcastToOverlayWindows(channel, ...args); },
+            updateCurrentMediaPath: (mediaPath) => { updateCurrentMediaPath(mediaPath); }, updateMpvSubtitleRenderMetrics: (patch) => { updateMpvSubtitleRenderMetrics(patch); },
+            getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics, setPreviousSecondarySubVisibility: (value) => { previousSecondarySubVisibility = value; }, showMpvOsd: (text) => { showMpvOsd(text); },
+          });
+        },
+        reloadConfig: () => {
+          configService.reloadConfig();
+        },
+        getResolvedConfig: () => getResolvedConfig(),
+        getConfigWarnings: () => configService.getWarnings(),
+        logConfigWarning: (warning) => {
+          console.warn(
+            `[config] ${warning.path}: ${warning.message} value=${JSON.stringify(warning.value)} fallback=${JSON.stringify(warning.fallback)}`,
+          );
+        },
+        initRuntimeOptionsManager: () => {
+          runtimeOptionsManager = new RuntimeOptionsManager(
+            () => configService.getConfig().ankiConnect,
+            {
+              applyAnkiPatch: (patch) => {
+                if (ankiIntegration) {
+                  ankiIntegration.applyRuntimeConfigPatch(patch);
+                }
+              },
+              onOptionsChanged: () => {
+                broadcastRuntimeOptionsChanged();
+                refreshOverlayShortcuts();
+              },
+            },
+          );
+        },
+        setSecondarySubMode: (mode) => {
+          secondarySubMode = mode;
+        },
+        defaultSecondarySubMode: "hover",
+        defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
+        hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
+        startSubtitleWebsocket: (port) => {
+          subtitleWsService.start(port, () => currentSubText);
+        },
+        log: (message) => {
+          console.log(message);
+        },
+        createMecabTokenizerAndCheck: async () => {
+          mecabTokenizer = new MecabTokenizer();
+          await mecabTokenizer.checkAvailability();
+        },
+        createSubtitleTimingTracker: () => {
+          subtitleTimingTracker = new SubtitleTimingTracker();
+        },
+        loadYomitanExtension: async () => {
+          await loadYomitanExtension();
+        },
+        texthookerOnlyMode,
+        shouldAutoInitializeOverlayRuntimeFromConfig: () =>
+          shouldAutoInitializeOverlayRuntimeFromConfig(),
+        initializeOverlayRuntime: () => initializeOverlayRuntime(),
+        handleInitialArgs: () => handleInitialArgs(),
+      });
     },
     onWillQuitCleanup: () => {
       globalShortcut.unregisterAll();
