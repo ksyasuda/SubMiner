@@ -118,6 +118,15 @@ import { createOverlayShortcutRuntimeHandlers } from "./core/services/overlay-sh
 import { createNumericShortcutSessionService } from "./core/services/numeric-shortcut-session-service";
 import { handleCliCommandService } from "./core/services/cli-command-service";
 import { cycleSecondarySubModeService } from "./core/services/secondary-subtitle-service";
+import {
+  copyCurrentSubtitleService,
+  handleMineSentenceDigitService,
+  handleMultiCopyDigitService,
+  markLastCardAsAudioCardService,
+  mineSentenceCardService,
+  triggerFieldGroupingService,
+  updateLastCardFromClipboardService,
+} from "./core/services/mining-runtime-service";
 import { showDesktopNotification } from "./core/utils/notification";
 import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
 import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
@@ -928,96 +937,49 @@ function startPendingMultiCopy(timeoutMs: number): void {
 }
 
 function handleMultiCopyDigit(count: number): void {
-  if (!subtitleTimingTracker) return;
-
-  const availableCount = Math.min(count, 200); // Max history size
-  const blocks = subtitleTimingTracker.getRecentBlocks(availableCount);
-
-  if (blocks.length === 0) {
-    showMpvOsd("No subtitle history available");
-    return;
-  }
-
-  const actualCount = blocks.length;
-  const clipboardText = blocks.join("\n\n");
-  clipboard.writeText(clipboardText);
-
-  if (actualCount < count) {
-    showMpvOsd(`Only ${actualCount} lines available, copied ${actualCount}`);
-  } else {
-    showMpvOsd(`Copied ${actualCount} lines`);
-  }
+  handleMultiCopyDigitService(count, {
+    subtitleTimingTracker,
+    writeClipboardText: (text) => clipboard.writeText(text),
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 function copyCurrentSubtitle(): void {
-  if (!subtitleTimingTracker) {
-    showMpvOsd("Subtitle tracker not available");
-    return;
-  }
-
-  const currentSubtitle = subtitleTimingTracker.getCurrentSubtitle();
-  if (!currentSubtitle) {
-    showMpvOsd("No current subtitle");
-    return;
-  }
-
-  clipboard.writeText(currentSubtitle);
-  showMpvOsd("Copied subtitle");
+  copyCurrentSubtitleService({
+    subtitleTimingTracker,
+    writeClipboardText: (text) => clipboard.writeText(text),
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 async function updateLastCardFromClipboard(): Promise<void> {
-  if (!ankiIntegration) {
-    showMpvOsd("AnkiConnect integration not enabled");
-    return;
-  }
-
-  const clipboardText = clipboard.readText();
-  await ankiIntegration.updateLastAddedFromClipboard(clipboardText);
+  await updateLastCardFromClipboardService({
+    ankiIntegration,
+    readClipboardText: () => clipboard.readText(),
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 async function triggerFieldGrouping(): Promise<void> {
-  if (!ankiIntegration) {
-    showMpvOsd("AnkiConnect integration not enabled");
-    return;
-  }
-  await ankiIntegration.triggerFieldGroupingForLastAddedCard();
+  await triggerFieldGroupingService({
+    ankiIntegration,
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 async function markLastCardAsAudioCard(): Promise<void> {
-  if (!ankiIntegration) {
-    showMpvOsd("AnkiConnect integration not enabled");
-    return;
-  }
-  await ankiIntegration.markLastCardAsAudioCard();
+  await markLastCardAsAudioCardService({
+    ankiIntegration,
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 async function mineSentenceCard(): Promise<void> {
-  if (!ankiIntegration) {
-    showMpvOsd("AnkiConnect integration not enabled");
-    return;
-  }
-
-  if (!mpvClient || !mpvClient.connected) {
-    showMpvOsd("MPV not connected");
-    return;
-  }
-
-  const text = mpvClient.currentSubText;
-  if (!text) {
-    showMpvOsd("No current subtitle");
-    return;
-  }
-
-  const startTime = mpvClient.currentSubStart;
-  const endTime = mpvClient.currentSubEnd;
-  const secondarySub = mpvClient.currentSecondarySubText || undefined;
-
-  await ankiIntegration.createSentenceCard(
-    text,
-    startTime,
-    endTime,
-    secondarySub,
-  );
+  await mineSentenceCardService({
+    ankiIntegration,
+    mpvClient,
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 function cancelPendingMineSentenceMultiple(): void {
@@ -1037,40 +999,15 @@ function startPendingMineSentenceMultiple(timeoutMs: number): void {
 }
 
 function handleMineSentenceDigit(count: number): void {
-  if (!subtitleTimingTracker || !ankiIntegration)
-    return;
-
-  const blocks = subtitleTimingTracker.getRecentBlocks(count);
-
-  if (blocks.length === 0) {
-    showMpvOsd("No subtitle history available");
-    return;
-  }
-
-  const timings: { startTime: number; endTime: number }[] = [];
-  for (const block of blocks) {
-    const timing = subtitleTimingTracker.findTiming(block);
-    if (timing) {
-      timings.push(timing);
-    }
-  }
-
-  if (timings.length === 0) {
-    showMpvOsd("Subtitle timing not found");
-    return;
-  }
-
-  const rangeStart = Math.min(...timings.map((t) => t.startTime));
-  const rangeEnd = Math.max(...timings.map((t) => t.endTime));
-  const sentence = blocks.join(" ");
-
-  const secondarySub = mpvClient?.currentSecondarySubText || undefined;
-  ankiIntegration
-    .createSentenceCard(sentence, rangeStart, rangeEnd, secondarySub)
-    .catch((err) => {
-      console.error("mineSentenceMultiple failed:", err);
-      showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
-    });
+  handleMineSentenceDigitService(count, {
+    subtitleTimingTracker,
+    ankiIntegration,
+    getCurrentSecondarySubText: () => mpvClient?.currentSecondarySubText || undefined,
+    showMpvOsd: (text) => showMpvOsd(text),
+    logError: (message, err) => {
+      console.error(message, err);
+    },
+  });
 }
 
 function registerOverlayShortcuts(): void {
