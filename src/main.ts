@@ -18,7 +18,6 @@
 import {
   app,
   BrowserWindow,
-  session,
   globalShortcut,
   clipboard,
   shell,
@@ -41,7 +40,6 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 import * as path from "path";
-import * as net from "net";
 import * as http from "http";
 import * as https from "https";
 import * as os from "os";
@@ -52,8 +50,6 @@ import { mergeTokens } from "./token-merger";
 import { createWindowTracker, BaseWindowTracker } from "./window-trackers";
 import {
   Config,
-  PartOfSpeech,
-  MergedToken,
   JimakuApiResponse,
   JimakuDownloadResult,
   JimakuEntry,
@@ -66,7 +62,6 @@ import {
   Keybinding,
   WindowGeometry,
   SecondarySubMode,
-  MpvClient,
   SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
@@ -129,6 +124,12 @@ import {
 import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-fallback-runner";
 import { showDesktopNotification } from "./core/utils/notification";
 import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
+import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
+import { loadYomitanExtensionService } from "./core/services/yomitan-extension-loader-service";
+import {
+  MpvIpcClient,
+  MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+} from "./core/services/mpv-service";
 import {
   handleMpvCommandFromIpcService,
   runSubsyncManualFromIpcService,
@@ -597,7 +598,47 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
         loadSubtitlePosition();
         keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
 
-        mpvClient = new MpvIpcClient(mpvSocketPath);
+        mpvClient = new MpvIpcClient(mpvSocketPath, {
+          getResolvedConfig: () => getResolvedConfig(),
+          autoStartOverlay,
+          setOverlayVisible: (visible) => setOverlayVisible(visible),
+          shouldBindVisibleOverlayToMpvSubVisibility: () =>
+            shouldBindVisibleOverlayToMpvSubVisibility(),
+          isVisibleOverlayVisible: () => visibleOverlayVisible,
+          getReconnectTimer: () => reconnectTimer,
+          setReconnectTimer: (timer) => {
+            reconnectTimer = timer;
+          },
+          getCurrentSubText: () => currentSubText,
+          setCurrentSubText: (text) => {
+            currentSubText = text;
+          },
+          setCurrentSubAssText: (text) => {
+            currentSubAssText = text;
+          },
+          getSubtitleTimingTracker: () => subtitleTimingTracker,
+          subtitleWsBroadcast: (text) => {
+            subtitleWsService.broadcast(text);
+          },
+          getOverlayWindowsCount: () => getOverlayWindows().length,
+          tokenizeSubtitle: (text) => tokenizeSubtitle(text),
+          broadcastToOverlayWindows: (channel, ...args) => {
+            broadcastToOverlayWindows(channel, ...args);
+          },
+          updateCurrentMediaPath: (mediaPath) => {
+            updateCurrentMediaPath(mediaPath);
+          },
+          updateMpvSubtitleRenderMetrics: (patch) => {
+            updateMpvSubtitleRenderMetrics(patch);
+          },
+          getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
+          setPreviousSecondarySubVisibility: (value) => {
+            previousSecondarySubVisibility = value;
+          },
+          showMpvOsd: (text) => {
+            showMpvOsd(text);
+          },
+        });
 
         configService.reloadConfig();
         const config = getResolvedConfig();
@@ -972,971 +1013,32 @@ function updateMpvSubtitleRenderMetrics(
   );
 }
 
-interface MpvMessage {
-  event?: string;
-  name?: string;
-  data?: unknown;
-  request_id?: number;
-  error?: string;
-}
-
-const MPV_REQUEST_ID_SUBTEXT = 101;
-const MPV_REQUEST_ID_PATH = 102;
-const MPV_REQUEST_ID_SECONDARY_SUBTEXT = 103;
-const MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY = 104;
-const MPV_REQUEST_ID_AID = 105;
-const MPV_REQUEST_ID_SUB_POS = 106;
-const MPV_REQUEST_ID_SUB_FONT_SIZE = 107;
-const MPV_REQUEST_ID_SUB_SCALE = 108;
-const MPV_REQUEST_ID_SUB_MARGIN_Y = 109;
-const MPV_REQUEST_ID_SUB_MARGIN_X = 110;
-const MPV_REQUEST_ID_SUB_FONT = 111;
-const MPV_REQUEST_ID_SUB_SCALE_BY_WINDOW = 112;
-const MPV_REQUEST_ID_OSD_HEIGHT = 113;
-const MPV_REQUEST_ID_OSD_DIMENSIONS = 114;
-const MPV_REQUEST_ID_SUBTEXT_ASS = 115;
-const MPV_REQUEST_ID_SUB_SPACING = 116;
-const MPV_REQUEST_ID_SUB_BOLD = 117;
-const MPV_REQUEST_ID_SUB_ITALIC = 118;
-const MPV_REQUEST_ID_SUB_BORDER_SIZE = 119;
-const MPV_REQUEST_ID_SUB_SHADOW_OFFSET = 120;
-const MPV_REQUEST_ID_SUB_ASS_OVERRIDE = 121;
-const MPV_REQUEST_ID_SUB_USE_MARGINS = 122;
-const MPV_REQUEST_ID_TRACK_LIST_SECONDARY = 200;
-const MPV_REQUEST_ID_TRACK_LIST_AUDIO = 201;
-
-class MpvIpcClient implements MpvClient {
-  private socketPath: string;
-  public socket: net.Socket | null = null;
-  private buffer = "";
-  public connected = false;
-  private connecting = false;
-  private reconnectAttempt = 0;
-  private firstConnection = true;
-  private hasConnectedOnce = false;
-  public currentVideoPath = "";
-  public currentTimePos = 0;
-  public currentSubStart = 0;
-  public currentSubEnd = 0;
-  public currentSubText = "";
-  public currentSecondarySubText = "";
-  public currentAudioStreamIndex: number | null = null;
-  private currentAudioTrackId: number | null = null;
-  private pauseAtTime: number | null = null;
-  private pendingPauseAtSubEnd = false;
-  private nextDynamicRequestId = 1000;
-  private pendingRequests = new Map<number, (message: MpvMessage) => void>();
-
-  constructor(socketPath: string) {
-    this.socketPath = socketPath;
-  }
-
-  setSocketPath(socketPath: string): void {
-    this.socketPath = socketPath;
-  }
-
-  connect(): void {
-    if (this.connected || this.connecting) {
-      return;
-    }
-
-    if (this.socket) {
-      this.socket.destroy();
-    }
-
-    this.connecting = true;
-    this.socket = new net.Socket();
-
-    this.socket.on("connect", () => {
-      console.log("Connected to MPV socket");
-      this.connected = true;
-      this.connecting = false;
-      this.reconnectAttempt = 0;
-      this.hasConnectedOnce = true;
-      this.subscribeToProperties();
-      this.getInitialState();
-
-      const shouldAutoStart =
-        autoStartOverlay || getResolvedConfig().auto_start_overlay === true;
-      if (this.firstConnection && shouldAutoStart) {
-        console.log("Auto-starting overlay, hiding mpv subtitles");
-        setTimeout(() => {
-          setOverlayVisible(true);
-        }, 100);
-      } else if (shouldBindVisibleOverlayToMpvSubVisibility()) {
-        this.setSubVisibility(!visibleOverlayVisible);
-      }
-
-      this.firstConnection = false;
-    });
-
-    this.socket.on("data", (data: Buffer) => {
-      this.buffer += data.toString();
-      this.processBuffer();
-    });
-
-    this.socket.on("error", (err: Error) => {
-      console.error("MPV socket error:", err.message);
-      this.connected = false;
-      this.connecting = false;
-      this.failPendingRequests();
-    });
-
-    this.socket.on("close", () => {
-      console.log("MPV socket closed");
-      this.connected = false;
-      this.connecting = false;
-      this.failPendingRequests();
-      this.scheduleReconnect();
-    });
-
-    this.socket.connect(this.socketPath);
-  }
-
-  private scheduleReconnect(): void {
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-    }
-    const attempt = this.reconnectAttempt++;
-    let delay: number;
-    if (this.hasConnectedOnce) {
-      if (attempt < 2) {
-        delay = 1000;
-      } else if (attempt < 4) {
-        delay = 2000;
-      } else if (attempt < 7) {
-        delay = 5000;
-      } else {
-        delay = 10000;
-      }
-    } else {
-      if (attempt < 2) {
-        delay = 200;
-      } else if (attempt < 4) {
-        delay = 500;
-      } else if (attempt < 6) {
-        delay = 1000;
-      } else {
-        delay = 2000;
-      }
-    }
-    reconnectTimer = setTimeout(() => {
-      console.log(
-        `Attempting to reconnect to MPV (attempt ${attempt + 1}, delay ${delay}ms)...`,
-      );
-      this.connect();
-    }, delay);
-  }
-
-  private processBuffer(): void {
-    const lines = this.buffer.split("\n");
-    this.buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const msg = JSON.parse(line) as MpvMessage;
-        this.handleMessage(msg);
-      } catch (e) {
-        console.error("Failed to parse MPV message:", line, e);
-      }
-    }
-  }
-
-  private async handleMessage(msg: MpvMessage): Promise<void> {
-    if (msg.event === "property-change") {
-      if (msg.name === "sub-text") {
-        currentSubText = (msg.data as string) || "";
-        this.currentSubText = currentSubText;
-        if (
-          subtitleTimingTracker &&
-          this.currentSubStart !== undefined &&
-          this.currentSubEnd !== undefined
-        ) {
-          subtitleTimingTracker.recordSubtitle(
-            currentSubText,
-            this.currentSubStart,
-            this.currentSubEnd,
-          );
-        }
-        subtitleWsService.broadcast(currentSubText);
-        if (getOverlayWindows().length > 0) {
-          const subtitleData = await tokenizeSubtitle(currentSubText);
-          broadcastToOverlayWindows("subtitle:set", subtitleData);
-        }
-      } else if (msg.name === "sub-text-ass") {
-        currentSubAssText = (msg.data as string) || "";
-        broadcastToOverlayWindows("subtitle-ass:set", currentSubAssText);
-      } else if (msg.name === "sub-start") {
-        this.currentSubStart = (msg.data as number) || 0;
-        if (subtitleTimingTracker && currentSubText) {
-          subtitleTimingTracker.recordSubtitle(
-            currentSubText,
-            this.currentSubStart,
-            this.currentSubEnd,
-          );
-        }
-      } else if (msg.name === "sub-end") {
-        this.currentSubEnd = (msg.data as number) || 0;
-        if (this.pendingPauseAtSubEnd && this.currentSubEnd > 0) {
-          this.pauseAtTime = this.currentSubEnd;
-          this.pendingPauseAtSubEnd = false;
-          this.send({ command: ["set_property", "pause", false] });
-        }
-        if (subtitleTimingTracker && currentSubText) {
-          subtitleTimingTracker.recordSubtitle(
-            currentSubText,
-            this.currentSubStart,
-            this.currentSubEnd,
-          );
-        }
-      } else if (msg.name === "secondary-sub-text") {
-        this.currentSecondarySubText = (msg.data as string) || "";
-        broadcastToOverlayWindows(
-          "secondary-subtitle:set",
-          this.currentSecondarySubText,
-        );
-      } else if (msg.name === "aid") {
-        this.currentAudioTrackId =
-          typeof msg.data === "number" ? (msg.data as number) : null;
-        this.syncCurrentAudioStreamIndex();
-      } else if (msg.name === "time-pos") {
-        this.currentTimePos = (msg.data as number) || 0;
-        if (
-          this.pauseAtTime !== null &&
-          this.currentTimePos >= this.pauseAtTime
-        ) {
-          this.pauseAtTime = null;
-          this.send({ command: ["set_property", "pause", true] });
-        }
-      } else if (msg.name === "path") {
-        this.currentVideoPath = (msg.data as string) || "";
-        updateCurrentMediaPath(msg.data);
-        this.autoLoadSecondarySubTrack();
-        this.syncCurrentAudioStreamIndex();
-      } else if (msg.name === "sub-pos") {
-        updateMpvSubtitleRenderMetrics({ subPos: msg.data as number });
-      } else if (msg.name === "sub-font-size") {
-        updateMpvSubtitleRenderMetrics({ subFontSize: msg.data as number });
-      } else if (msg.name === "sub-scale") {
-        updateMpvSubtitleRenderMetrics({ subScale: msg.data as number });
-      } else if (msg.name === "sub-margin-y") {
-        updateMpvSubtitleRenderMetrics({ subMarginY: msg.data as number });
-      } else if (msg.name === "sub-margin-x") {
-        updateMpvSubtitleRenderMetrics({ subMarginX: msg.data as number });
-      } else if (msg.name === "sub-font") {
-        updateMpvSubtitleRenderMetrics({ subFont: msg.data as string });
-      } else if (msg.name === "sub-spacing") {
-        updateMpvSubtitleRenderMetrics({ subSpacing: msg.data as number });
-      } else if (msg.name === "sub-bold") {
-        updateMpvSubtitleRenderMetrics({
-          subBold: asBoolean(msg.data, mpvSubtitleRenderMetrics.subBold),
-        });
-      } else if (msg.name === "sub-italic") {
-        updateMpvSubtitleRenderMetrics({
-          subItalic: asBoolean(msg.data, mpvSubtitleRenderMetrics.subItalic),
-        });
-      } else if (msg.name === "sub-border-size") {
-        updateMpvSubtitleRenderMetrics({
-          subBorderSize: msg.data as number,
-        });
-      } else if (msg.name === "sub-shadow-offset") {
-        updateMpvSubtitleRenderMetrics({
-          subShadowOffset: msg.data as number,
-        });
-      } else if (msg.name === "sub-ass-override") {
-        updateMpvSubtitleRenderMetrics({
-          subAssOverride: msg.data as string,
-        });
-      } else if (msg.name === "sub-scale-by-window") {
-        updateMpvSubtitleRenderMetrics({
-          subScaleByWindow: asBoolean(
-            msg.data,
-            mpvSubtitleRenderMetrics.subScaleByWindow,
-          ),
-        });
-      } else if (msg.name === "sub-use-margins") {
-        updateMpvSubtitleRenderMetrics({
-          subUseMargins: asBoolean(
-            msg.data,
-            mpvSubtitleRenderMetrics.subUseMargins,
-          ),
-        });
-      } else if (msg.name === "osd-height") {
-        updateMpvSubtitleRenderMetrics({ osdHeight: msg.data as number });
-      } else if (msg.name === "osd-dimensions") {
-        const dims = msg.data as Record<string, unknown> | null;
-        if (!dims) {
-          updateMpvSubtitleRenderMetrics({ osdDimensions: null });
-        } else {
-          updateMpvSubtitleRenderMetrics({
-            osdDimensions: {
-              w: asFiniteNumber(dims.w, 0),
-              h: asFiniteNumber(dims.h, 0),
-              ml: asFiniteNumber(dims.ml, 0),
-              mr: asFiniteNumber(dims.mr, 0),
-              mt: asFiniteNumber(dims.mt, 0),
-              mb: asFiniteNumber(dims.mb, 0),
-            },
-          });
-        }
-      }
-    } else if (msg.request_id) {
-      const pending = this.pendingRequests.get(msg.request_id);
-      if (pending) {
-        this.pendingRequests.delete(msg.request_id);
-        pending(msg);
-        return;
-      }
-
-      if (msg.data === undefined) {
-        return;
-      }
-
-      if (msg.request_id === MPV_REQUEST_ID_TRACK_LIST_SECONDARY) {
-        const tracks = msg.data as Array<{
-          type: string;
-          lang?: string;
-          id: number;
-        }>;
-        if (Array.isArray(tracks)) {
-          const config = getResolvedConfig();
-          const languages = config.secondarySub?.secondarySubLanguages || [];
-          const subTracks = tracks.filter((t) => t.type === "sub");
-          for (const lang of languages) {
-            const match = subTracks.find((t) => t.lang === lang);
-            if (match) {
-              this.send({
-                command: ["set_property", "secondary-sid", match.id],
-              });
-              showMpvOsd(`Secondary subtitle: ${lang} (track ${match.id})`);
-              break;
-            }
-          }
-        }
-      } else if (msg.request_id === MPV_REQUEST_ID_TRACK_LIST_AUDIO) {
-        this.updateCurrentAudioStreamIndex(
-          msg.data as Array<{
-            type?: string;
-            id?: number;
-            selected?: boolean;
-            "ff-index"?: number;
-          }>,
-        );
-      } else if (msg.request_id === MPV_REQUEST_ID_SUBTEXT) {
-        currentSubText = (msg.data as string) || "";
-        if (mpvClient) {
-          mpvClient.currentSubText = currentSubText;
-        }
-        subtitleWsService.broadcast(currentSubText);
-        if (getOverlayWindows().length > 0) {
-          tokenizeSubtitle(currentSubText).then((subtitleData) => {
-            broadcastToOverlayWindows("subtitle:set", subtitleData);
-          });
-        }
-      } else if (msg.request_id === MPV_REQUEST_ID_SUBTEXT_ASS) {
-        currentSubAssText = (msg.data as string) || "";
-        broadcastToOverlayWindows("subtitle-ass:set", currentSubAssText);
-      } else if (msg.request_id === MPV_REQUEST_ID_PATH) {
-        updateCurrentMediaPath(msg.data);
-      } else if (msg.request_id === MPV_REQUEST_ID_AID) {
-        this.currentAudioTrackId =
-          typeof msg.data === "number" ? (msg.data as number) : null;
-        this.syncCurrentAudioStreamIndex();
-      } else if (msg.request_id === MPV_REQUEST_ID_SECONDARY_SUBTEXT) {
-        this.currentSecondarySubText = (msg.data as string) || "";
-        broadcastToOverlayWindows(
-          "secondary-subtitle:set",
-          this.currentSecondarySubText,
-        );
-      } else if (msg.request_id === MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY) {
-        if (!shouldBindVisibleOverlayToMpvSubVisibility()) {
-          previousSecondarySubVisibility = null;
-          return;
-        }
-        previousSecondarySubVisibility =
-          msg.data === true || msg.data === "yes";
-        this.send({
-          command: ["set_property", "secondary-sub-visibility", "no"],
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_POS) {
-        updateMpvSubtitleRenderMetrics({ subPos: msg.data as number });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_FONT_SIZE) {
-        updateMpvSubtitleRenderMetrics({ subFontSize: msg.data as number });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_SCALE) {
-        updateMpvSubtitleRenderMetrics({ subScale: msg.data as number });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_MARGIN_Y) {
-        updateMpvSubtitleRenderMetrics({ subMarginY: msg.data as number });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_MARGIN_X) {
-        updateMpvSubtitleRenderMetrics({ subMarginX: msg.data as number });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_FONT) {
-        updateMpvSubtitleRenderMetrics({ subFont: msg.data as string });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_SPACING) {
-        updateMpvSubtitleRenderMetrics({ subSpacing: msg.data as number });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_BOLD) {
-        updateMpvSubtitleRenderMetrics({
-          subBold: asBoolean(msg.data, mpvSubtitleRenderMetrics.subBold),
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_ITALIC) {
-        updateMpvSubtitleRenderMetrics({
-          subItalic: asBoolean(msg.data, mpvSubtitleRenderMetrics.subItalic),
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_BORDER_SIZE) {
-        updateMpvSubtitleRenderMetrics({
-          subBorderSize: msg.data as number,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_SHADOW_OFFSET) {
-        updateMpvSubtitleRenderMetrics({
-          subShadowOffset: msg.data as number,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_ASS_OVERRIDE) {
-        updateMpvSubtitleRenderMetrics({
-          subAssOverride: msg.data as string,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_SCALE_BY_WINDOW) {
-        updateMpvSubtitleRenderMetrics({
-          subScaleByWindow: asBoolean(
-            msg.data,
-            mpvSubtitleRenderMetrics.subScaleByWindow,
-          ),
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_USE_MARGINS) {
-        updateMpvSubtitleRenderMetrics({
-          subUseMargins: asBoolean(
-            msg.data,
-            mpvSubtitleRenderMetrics.subUseMargins,
-          ),
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_OSD_HEIGHT) {
-        updateMpvSubtitleRenderMetrics({ osdHeight: msg.data as number });
-      } else if (msg.request_id === MPV_REQUEST_ID_OSD_DIMENSIONS) {
-        const dims = msg.data as Record<string, unknown> | null;
-        if (!dims) {
-          updateMpvSubtitleRenderMetrics({ osdDimensions: null });
-        } else {
-          updateMpvSubtitleRenderMetrics({
-            osdDimensions: {
-              w: asFiniteNumber(dims.w, 0),
-              h: asFiniteNumber(dims.h, 0),
-              ml: asFiniteNumber(dims.ml, 0),
-              mr: asFiniteNumber(dims.mr, 0),
-              mt: asFiniteNumber(dims.mt, 0),
-              mb: asFiniteNumber(dims.mb, 0),
-            },
-          });
-        }
-      }
-    }
-  }
-
-  private autoLoadSecondarySubTrack(): void {
-    const config = getResolvedConfig();
-    if (!config.secondarySub?.autoLoadSecondarySub) return;
-    const languages = config.secondarySub.secondarySubLanguages;
-    if (!languages || languages.length === 0) return;
-
-    setTimeout(() => {
-      this.send({
-        command: ["get_property", "track-list"],
-        request_id: MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
-      });
-    }, 500);
-  }
-
-  private syncCurrentAudioStreamIndex(): void {
-    this.send({
-      command: ["get_property", "track-list"],
-      request_id: MPV_REQUEST_ID_TRACK_LIST_AUDIO,
-    });
-  }
-
-  private updateCurrentAudioStreamIndex(
-    tracks: Array<{
-      type?: string;
-      id?: number;
-      selected?: boolean;
-      "ff-index"?: number;
-    }>,
-  ): void {
-    if (!Array.isArray(tracks)) {
-      this.currentAudioStreamIndex = null;
-      return;
-    }
-
-    const audioTracks = tracks.filter((track) => track.type === "audio");
-    const activeTrack =
-      audioTracks.find((track) => track.id === this.currentAudioTrackId) ||
-      audioTracks.find((track) => track.selected === true);
-
-    const ffIndex = activeTrack?.["ff-index"];
-    this.currentAudioStreamIndex =
-      typeof ffIndex === "number" && Number.isInteger(ffIndex) && ffIndex >= 0
-        ? ffIndex
-        : null;
-  }
-
-  send(command: { command: unknown[]; request_id?: number }): boolean {
-    if (!this.connected || !this.socket) {
-      return false;
-    }
-    const msg = JSON.stringify(command) + "\n";
-    this.socket.write(msg);
-    return true;
-  }
-
-  request(command: unknown[]): Promise<MpvMessage> {
-    return new Promise((resolve, reject) => {
-      if (!this.connected || !this.socket) {
-        reject(new Error("MPV not connected"));
-        return;
-      }
-
-      const requestId = this.nextDynamicRequestId++;
-      this.pendingRequests.set(requestId, resolve);
-      const sent = this.send({ command, request_id: requestId });
-      if (!sent) {
-        this.pendingRequests.delete(requestId);
-        reject(new Error("Failed to send MPV request"));
-        return;
-      }
-
-      setTimeout(() => {
-        if (this.pendingRequests.delete(requestId)) {
-          reject(new Error("MPV request timed out"));
-        }
-      }, 4000);
-    });
-  }
-
-  async requestProperty(name: string): Promise<unknown> {
-    const response = await this.request(["get_property", name]);
-    if (response.error && response.error !== "success") {
-      throw new Error(
-        `Failed to read MPV property '${name}': ${response.error}`,
-      );
-    }
-    return response.data;
-  }
-
-  private failPendingRequests(): void {
-    for (const [requestId, resolve] of this.pendingRequests.entries()) {
-      resolve({ request_id: requestId, error: "disconnected" });
-    }
-    this.pendingRequests.clear();
-  }
-
-  private subscribeToProperties(): void {
-    this.send({ command: ["observe_property", 1, "sub-text"] });
-    this.send({ command: ["observe_property", 2, "path"] });
-    this.send({ command: ["observe_property", 3, "sub-start"] });
-    this.send({ command: ["observe_property", 4, "sub-end"] });
-    this.send({ command: ["observe_property", 5, "time-pos"] });
-    this.send({ command: ["observe_property", 6, "secondary-sub-text"] });
-    this.send({ command: ["observe_property", 7, "aid"] });
-    this.send({ command: ["observe_property", 8, "sub-pos"] });
-    this.send({ command: ["observe_property", 9, "sub-font-size"] });
-    this.send({ command: ["observe_property", 10, "sub-scale"] });
-    this.send({ command: ["observe_property", 11, "sub-margin-y"] });
-    this.send({ command: ["observe_property", 12, "sub-margin-x"] });
-    this.send({ command: ["observe_property", 13, "sub-font"] });
-    this.send({ command: ["observe_property", 14, "sub-spacing"] });
-    this.send({ command: ["observe_property", 15, "sub-bold"] });
-    this.send({ command: ["observe_property", 16, "sub-italic"] });
-    this.send({ command: ["observe_property", 17, "sub-scale-by-window"] });
-    this.send({ command: ["observe_property", 18, "osd-height"] });
-    this.send({ command: ["observe_property", 19, "osd-dimensions"] });
-    this.send({ command: ["observe_property", 20, "sub-text-ass"] });
-    this.send({ command: ["observe_property", 21, "sub-border-size"] });
-    this.send({ command: ["observe_property", 22, "sub-shadow-offset"] });
-    this.send({ command: ["observe_property", 23, "sub-ass-override"] });
-    this.send({ command: ["observe_property", 24, "sub-use-margins"] });
-  }
-
-  private getInitialState(): void {
-    this.send({
-      command: ["get_property", "sub-text"],
-      request_id: MPV_REQUEST_ID_SUBTEXT,
-    });
-    this.send({
-      command: ["get_property", "sub-text-ass"],
-      request_id: MPV_REQUEST_ID_SUBTEXT_ASS,
-    });
-    this.send({
-      command: ["get_property", "path"],
-      request_id: MPV_REQUEST_ID_PATH,
-    });
-    this.send({
-      command: ["get_property", "secondary-sub-text"],
-      request_id: MPV_REQUEST_ID_SECONDARY_SUBTEXT,
-    });
-    this.send({
-      command: ["get_property", "aid"],
-      request_id: MPV_REQUEST_ID_AID,
-    });
-    this.send({
-      command: ["get_property", "sub-pos"],
-      request_id: MPV_REQUEST_ID_SUB_POS,
-    });
-    this.send({
-      command: ["get_property", "sub-font-size"],
-      request_id: MPV_REQUEST_ID_SUB_FONT_SIZE,
-    });
-    this.send({
-      command: ["get_property", "sub-scale"],
-      request_id: MPV_REQUEST_ID_SUB_SCALE,
-    });
-    this.send({
-      command: ["get_property", "sub-margin-y"],
-      request_id: MPV_REQUEST_ID_SUB_MARGIN_Y,
-    });
-    this.send({
-      command: ["get_property", "sub-margin-x"],
-      request_id: MPV_REQUEST_ID_SUB_MARGIN_X,
-    });
-    this.send({
-      command: ["get_property", "sub-font"],
-      request_id: MPV_REQUEST_ID_SUB_FONT,
-    });
-    this.send({
-      command: ["get_property", "sub-spacing"],
-      request_id: MPV_REQUEST_ID_SUB_SPACING,
-    });
-    this.send({
-      command: ["get_property", "sub-bold"],
-      request_id: MPV_REQUEST_ID_SUB_BOLD,
-    });
-    this.send({
-      command: ["get_property", "sub-italic"],
-      request_id: MPV_REQUEST_ID_SUB_ITALIC,
-    });
-    this.send({
-      command: ["get_property", "sub-scale-by-window"],
-      request_id: MPV_REQUEST_ID_SUB_SCALE_BY_WINDOW,
-    });
-    this.send({
-      command: ["get_property", "osd-height"],
-      request_id: MPV_REQUEST_ID_OSD_HEIGHT,
-    });
-    this.send({
-      command: ["get_property", "osd-dimensions"],
-      request_id: MPV_REQUEST_ID_OSD_DIMENSIONS,
-    });
-    this.send({
-      command: ["get_property", "sub-border-size"],
-      request_id: MPV_REQUEST_ID_SUB_BORDER_SIZE,
-    });
-    this.send({
-      command: ["get_property", "sub-shadow-offset"],
-      request_id: MPV_REQUEST_ID_SUB_SHADOW_OFFSET,
-    });
-    this.send({
-      command: ["get_property", "sub-ass-override"],
-      request_id: MPV_REQUEST_ID_SUB_ASS_OVERRIDE,
-    });
-    this.send({
-      command: ["get_property", "sub-use-margins"],
-      request_id: MPV_REQUEST_ID_SUB_USE_MARGINS,
-    });
-  }
-
-  setSubVisibility(visible: boolean): void {
-    this.send({
-      command: ["set_property", "sub-visibility", visible ? "yes" : "no"],
-    });
-  }
-
-  replayCurrentSubtitle(): void {
-    this.pendingPauseAtSubEnd = true;
-    this.send({ command: ["sub-seek", 0] });
-  }
-
-  playNextSubtitle(): void {
-    this.pendingPauseAtSubEnd = true;
-    this.send({ command: ["sub-seek", 1] });
-  }
-}
-
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
-  const displayText = text
-    .replace(/\r\n/g, "\n")
-    .replace(/\\N/g, "\n")
-    .replace(/\\n/g, "\n")
-    .trim();
-
-  if (!displayText) {
-    return { text, tokens: null };
-  }
-
-  const tokenizeText = displayText
-    .replace(/\n/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText);
-  if (yomitanTokens && yomitanTokens.length > 0) {
-    return { text: displayText, tokens: yomitanTokens };
-  }
-
-  if (!mecabTokenizer) {
-    return { text: displayText, tokens: null };
-  }
-
-  try {
-    const rawTokens = await mecabTokenizer.tokenize(tokenizeText);
-
-    if (rawTokens && rawTokens.length > 0) {
-      const mergedTokens = mergeTokens(rawTokens);
-      return { text: displayText, tokens: mergedTokens };
-    }
-  } catch (err) {
-    console.error("Tokenization error:", (err as Error).message);
-  }
-
-  return { text: displayText, tokens: null };
-}
-
-interface YomitanParseHeadword {
-  term?: unknown;
-}
-
-interface YomitanParseSegment {
-  text?: unknown;
-  reading?: unknown;
-  headwords?: unknown;
-}
-
-interface YomitanParseResultItem {
-  source?: unknown;
-  index?: unknown;
-  content?: unknown;
-}
-
-function extractYomitanHeadword(segment: YomitanParseSegment): string {
-  const headwords = segment.headwords;
-  if (!Array.isArray(headwords) || headwords.length === 0) {
-    return "";
-  }
-
-  const firstGroup = headwords[0];
-  if (!Array.isArray(firstGroup) || firstGroup.length === 0) {
-    return "";
-  }
-
-  const firstHeadword = firstGroup[0] as YomitanParseHeadword;
-  return typeof firstHeadword?.term === "string" ? firstHeadword.term : "";
-}
-
-function mapYomitanParseResultsToMergedTokens(
-  parseResults: unknown,
-): MergedToken[] | null {
-  if (!Array.isArray(parseResults) || parseResults.length === 0) {
-    return null;
-  }
-
-  const scanningItems = parseResults.filter((item) => {
-    const resultItem = item as YomitanParseResultItem;
-    return (
-      resultItem &&
-      resultItem.source === "scanning-parser" &&
-      Array.isArray(resultItem.content)
-    );
-  }) as YomitanParseResultItem[];
-
-  if (scanningItems.length === 0) {
-    return null;
-  }
-
-  const primaryItem =
-    scanningItems.find((item) => item.index === 0) || scanningItems[0];
-  const content = primaryItem.content;
-  if (!Array.isArray(content)) {
-    return null;
-  }
-
-  const tokens: MergedToken[] = [];
-  let charOffset = 0;
-
-  for (const line of content) {
-    if (!Array.isArray(line)) {
-      continue;
-    }
-
-    let surface = "";
-    let reading = "";
-    let headword = "";
-
-    for (const rawSegment of line) {
-      const segment = rawSegment as YomitanParseSegment;
-      if (!segment || typeof segment !== "object") {
-        continue;
+  return tokenizeSubtitleService(text, {
+    getYomitanExt: () => yomitanExt,
+    getYomitanParserWindow: () => yomitanParserWindow,
+    setYomitanParserWindow: (window) => {
+      yomitanParserWindow = window;
+    },
+    getYomitanParserReadyPromise: () => yomitanParserReadyPromise,
+    setYomitanParserReadyPromise: (promise) => {
+      yomitanParserReadyPromise = promise;
+    },
+    getYomitanParserInitPromise: () => yomitanParserInitPromise,
+    setYomitanParserInitPromise: (promise) => {
+      yomitanParserInitPromise = promise;
+    },
+    tokenizeWithMecab: async (tokenizeText) => {
+      if (!mecabTokenizer) {
+        return null;
       }
-
-      const segmentText = segment.text;
-      if (typeof segmentText !== "string" || segmentText.length === 0) {
-        continue;
+      const rawTokens = await mecabTokenizer.tokenize(tokenizeText);
+      if (!rawTokens || rawTokens.length === 0) {
+        return null;
       }
-
-      surface += segmentText;
-
-      if (typeof segment.reading === "string") {
-        reading += segment.reading;
-      }
-
-      if (!headword) {
-        headword = extractYomitanHeadword(segment);
-      }
-    }
-
-    if (!surface) {
-      continue;
-    }
-
-    const start = charOffset;
-    const end = start + surface.length;
-    charOffset = end;
-
-    tokens.push({
-      surface,
-      reading,
-      headword: headword || surface,
-      startPos: start,
-      endPos: end,
-      partOfSpeech: PartOfSpeech.other,
-      isMerged: true,
-    });
-  }
-
-  return tokens.length > 0 ? tokens : null;
-}
-
-async function ensureYomitanParserWindow(): Promise<boolean> {
-  if (!yomitanExt) {
-    return false;
-  }
-
-  if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
-    return true;
-  }
-
-  if (yomitanParserInitPromise) {
-    return yomitanParserInitPromise;
-  }
-
-  yomitanParserInitPromise = (async () => {
-    const parserWindow = new BrowserWindow({
-      show: false,
-      width: 800,
-      height: 600,
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        session: session.defaultSession,
-      },
-    });
-    yomitanParserWindow = parserWindow;
-
-    yomitanParserReadyPromise = new Promise((resolve, reject) => {
-      parserWindow.webContents.once("did-finish-load", () => resolve());
-      parserWindow.webContents.once(
-        "did-fail-load",
-        (_event, _errorCode, errorDescription) => {
-          reject(new Error(errorDescription));
-        },
-      );
-    });
-
-    parserWindow.on("closed", () => {
-      if (yomitanParserWindow === parserWindow) {
-        yomitanParserWindow = null;
-        yomitanParserReadyPromise = null;
-      }
-    });
-
-    try {
-      await parserWindow.loadURL(`chrome-extension://${yomitanExt.id}/search.html`);
-      if (yomitanParserReadyPromise) {
-        await yomitanParserReadyPromise;
-      }
-      return true;
-    } catch (err) {
-      console.error(
-        "Failed to initialize Yomitan parser window:",
-        (err as Error).message,
-      );
-      if (!parserWindow.isDestroyed()) {
-        parserWindow.destroy();
-      }
-      if (yomitanParserWindow === parserWindow) {
-        yomitanParserWindow = null;
-        yomitanParserReadyPromise = null;
-      }
-      return false;
-    } finally {
-      yomitanParserInitPromise = null;
-    }
-  })();
-
-  return yomitanParserInitPromise;
-}
-
-async function parseWithYomitanInternalParser(
-  text: string,
-): Promise<MergedToken[] | null> {
-  if (!text || !yomitanExt) {
-    return null;
-  }
-
-  const isReady = await ensureYomitanParserWindow();
-  if (!isReady || !yomitanParserWindow || yomitanParserWindow.isDestroyed()) {
-    return null;
-  }
-
-  const script = `
-    (async () => {
-      const invoke = (action, params) =>
-        new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage({ action, params }, (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-              return;
-            }
-            if (!response || typeof response !== "object") {
-              reject(new Error("Invalid response from Yomitan backend"));
-              return;
-            }
-            if (response.error) {
-              reject(new Error(response.error.message || "Yomitan backend error"));
-              return;
-            }
-            resolve(response.result);
-          });
-        });
-
-      const optionsFull = await invoke("optionsGetFull", undefined);
-      const profileIndex = optionsFull.profileCurrent;
-      const scanLength =
-        optionsFull.profiles?.[profileIndex]?.options?.scanning?.length ?? 40;
-
-      return await invoke("parseText", {
-        text: ${JSON.stringify(text)},
-        optionsContext: { index: profileIndex },
-        scanLength,
-        useInternalParser: true,
-        useMecabParser: false
-      });
-    })();
-  `;
-
-  try {
-    const parseResults = await yomitanParserWindow.webContents.executeJavaScript(
-      script,
-      true,
-    );
-    return mapYomitanParseResultsToMergedTokens(parseResults);
-  } catch (err) {
-    console.error("Yomitan parser request failed:", (err as Error).message);
-    return null;
-  }
+      return mergeTokens(rawTokens);
+    },
+  });
 }
 
 function updateOverlayBounds(geometry: WindowGeometry): void {
@@ -1970,99 +1072,23 @@ function enforceOverlayLayerOrder(): void {
   mainWindow.moveTop();
 }
 
-function ensureExtensionCopy(sourceDir: string): string {
-  if (process.platform === "win32") {
-    return sourceDir;
-  }
-
-  const extensionsRoot = path.join(USER_DATA_PATH, "extensions");
-  const targetDir = path.join(extensionsRoot, "yomitan");
-
-  const sourceManifest = path.join(sourceDir, "manifest.json");
-  const targetManifest = path.join(targetDir, "manifest.json");
-
-  let shouldCopy = !fs.existsSync(targetDir);
-  if (
-    !shouldCopy &&
-    fs.existsSync(sourceManifest) &&
-    fs.existsSync(targetManifest)
-  ) {
-    try {
-      const sourceVersion = (
-        JSON.parse(fs.readFileSync(sourceManifest, "utf-8")) as {
-          version: string;
-        }
-      ).version;
-      const targetVersion = (
-        JSON.parse(fs.readFileSync(targetManifest, "utf-8")) as {
-          version: string;
-        }
-      ).version;
-      shouldCopy = sourceVersion !== targetVersion;
-    } catch (e) {
-      shouldCopy = true;
-    }
-  }
-
-  if (shouldCopy) {
-    fs.mkdirSync(extensionsRoot, { recursive: true });
-    fs.rmSync(targetDir, { recursive: true, force: true });
-    fs.cpSync(sourceDir, targetDir, { recursive: true });
-    console.log(`Copied yomitan extension to ${targetDir}`);
-  }
-
-  return targetDir;
-}
-
 async function loadYomitanExtension(): Promise<Extension | null> {
-  const searchPaths = [
-    path.join(__dirname, "..", "vendor", "yomitan"),
-    path.join(process.resourcesPath, "yomitan"),
-    "/usr/share/SubMiner/yomitan",
-    path.join(USER_DATA_PATH, "yomitan"),
-  ];
-
-  let extPath: string | null = null;
-  for (const p of searchPaths) {
-    if (fs.existsSync(p)) {
-      extPath = p;
-      break;
-    }
-  }
-
-
-  if (!extPath) {
-    console.error("Yomitan extension not found in any search path");
-    console.error("Install Yomitan to one of:", searchPaths);
-    return null;
-  }
-
-  extPath = ensureExtensionCopy(extPath);
-
-  if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
-    yomitanParserWindow.destroy();
-  }
-  yomitanParserWindow = null;
-  yomitanParserReadyPromise = null;
-  yomitanParserInitPromise = null;
-
-  try {
-    const extensions = session.defaultSession.extensions;
-    if (extensions) {
-      yomitanExt = await extensions.loadExtension(extPath, {
-        allowFileAccess: true,
-      });
-    } else {
-      yomitanExt = await session.defaultSession.loadExtension(extPath, {
-        allowFileAccess: true,
-      });
-    }
-    return yomitanExt;
-  } catch (err) {
-    console.error("Failed to load Yomitan extension:", (err as Error).message);
-    console.error("Full error:", err);
-    return null;
-  }
+  return loadYomitanExtensionService({
+    userDataPath: USER_DATA_PATH,
+    getYomitanParserWindow: () => yomitanParserWindow,
+    setYomitanParserWindow: (window) => {
+      yomitanParserWindow = window;
+    },
+    setYomitanParserReadyPromise: (promise) => {
+      yomitanParserReadyPromise = promise;
+    },
+    setYomitanParserInitPromise: (promise) => {
+      yomitanParserInitPromise = promise;
+    },
+    setYomitanExtension: (extension) => {
+      yomitanExt = extension;
+    },
+  });
 }
 
 function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
