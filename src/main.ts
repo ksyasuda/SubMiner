@@ -129,6 +129,7 @@ import {
   hasMpvWebsocketPlugin,
   SubtitleWebSocketService,
 } from "./core/services/subtitle-ws-service";
+import { registerGlobalShortcutsService } from "./core/services/shortcut-service";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -2330,71 +2331,14 @@ function openYomitanSettings(): void {
 }
 
 function registerGlobalShortcuts(): void {
-  const shortcuts = getConfiguredShortcuts();
-  const visibleShortcut = shortcuts.toggleVisibleOverlayGlobal;
-  const invisibleShortcut = shortcuts.toggleInvisibleOverlayGlobal;
-  const normalizedVisible = visibleShortcut?.replace(/\s+/g, "").toLowerCase();
-  const normalizedInvisible = invisibleShortcut
-    ?.replace(/\s+/g, "")
-    .toLowerCase();
-
-  if (visibleShortcut) {
-    const toggleVisibleRegistered = globalShortcut.register(
-      visibleShortcut,
-      () => {
-        toggleVisibleOverlay();
-      },
-    );
-    if (!toggleVisibleRegistered) {
-      console.warn(
-        `Failed to register global shortcut toggleVisibleOverlayGlobal: ${visibleShortcut}`,
-      );
-    }
-  }
-
-  if (
-    invisibleShortcut &&
-    normalizedInvisible &&
-    normalizedInvisible !== normalizedVisible
-  ) {
-    const toggleInvisibleRegistered = globalShortcut.register(
-      invisibleShortcut,
-      () => {
-        toggleInvisibleOverlay();
-      },
-    );
-    if (!toggleInvisibleRegistered) {
-      console.warn(
-        `Failed to register global shortcut toggleInvisibleOverlayGlobal: ${invisibleShortcut}`,
-      );
-    }
-  } else if (
-    invisibleShortcut &&
-    normalizedInvisible &&
-    normalizedInvisible === normalizedVisible
-  ) {
-    console.warn(
-      "Skipped registering toggleInvisibleOverlayGlobal because it collides with toggleVisibleOverlayGlobal",
-    );
-  }
-
-  const settingsRegistered = globalShortcut.register("Alt+Shift+Y", () => {
-    openYomitanSettings();
+  registerGlobalShortcutsService({
+    shortcuts: getConfiguredShortcuts(),
+    onToggleVisibleOverlay: () => toggleVisibleOverlay(),
+    onToggleInvisibleOverlay: () => toggleInvisibleOverlay(),
+    onOpenYomitanSettings: () => openYomitanSettings(),
+    isDev,
+    getMainWindow: () => mainWindow,
   });
-  if (!settingsRegistered) {
-    console.warn("Failed to register global shortcut: Alt+Shift+Y");
-  }
-
-  if (isDev) {
-    const devtoolsRegistered = globalShortcut.register("F12", () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.toggleDevTools();
-      }
-    });
-    if (!devtoolsRegistered) {
-      console.warn("Failed to register global shortcut: F12");
-    }
-  }
 }
 
 function getConfiguredShortcuts() {
