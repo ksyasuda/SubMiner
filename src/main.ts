@@ -160,7 +160,7 @@ import {
   MpvIpcClient,
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
 } from "./core/services/mpv-service";
-import { updateMpvSubtitleRenderMetricsService } from "./core/services/mpv-render-metrics-service";
+import { applyMpvSubtitleRenderMetricsPatchService } from "./core/services/mpv-render-metrics-service";
 import {
   handleMpvCommandFromIpcService,
 } from "./core/services/ipc-command-service";
@@ -636,30 +636,10 @@ function handleInitialArgs(): void {
 function updateMpvSubtitleRenderMetrics(
   patch: Partial<MpvSubtitleRenderMetrics>,
 ): void {
-  const next = updateMpvSubtitleRenderMetricsService(
+  const { next, changed } = applyMpvSubtitleRenderMetricsPatchService(
     mpvSubtitleRenderMetrics,
     patch,
   );
-
-  const changed =
-    next.subPos !== mpvSubtitleRenderMetrics.subPos ||
-    next.subFontSize !== mpvSubtitleRenderMetrics.subFontSize ||
-    next.subScale !== mpvSubtitleRenderMetrics.subScale ||
-    next.subMarginY !== mpvSubtitleRenderMetrics.subMarginY ||
-    next.subMarginX !== mpvSubtitleRenderMetrics.subMarginX ||
-    next.subFont !== mpvSubtitleRenderMetrics.subFont ||
-    next.subSpacing !== mpvSubtitleRenderMetrics.subSpacing ||
-    next.subBold !== mpvSubtitleRenderMetrics.subBold ||
-    next.subItalic !== mpvSubtitleRenderMetrics.subItalic ||
-    next.subBorderSize !== mpvSubtitleRenderMetrics.subBorderSize ||
-    next.subShadowOffset !== mpvSubtitleRenderMetrics.subShadowOffset ||
-    next.subAssOverride !== mpvSubtitleRenderMetrics.subAssOverride ||
-    next.subScaleByWindow !== mpvSubtitleRenderMetrics.subScaleByWindow ||
-    next.subUseMargins !== mpvSubtitleRenderMetrics.subUseMargins ||
-    next.osdHeight !== mpvSubtitleRenderMetrics.osdHeight ||
-    JSON.stringify(next.osdDimensions) !==
-      JSON.stringify(mpvSubtitleRenderMetrics.osdDimensions);
-
   if (!changed) return;
   mpvSubtitleRenderMetrics = next;
   broadcastToOverlayWindows(

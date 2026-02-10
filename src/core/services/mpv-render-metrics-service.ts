@@ -55,3 +55,28 @@ export function updateMpvSubtitleRenderMetricsService(
     osdDimensions: nextOsdDimensions,
   };
 }
+
+export function applyMpvSubtitleRenderMetricsPatchService(
+  current: MpvSubtitleRenderMetrics,
+  patch: Partial<MpvSubtitleRenderMetrics>,
+): { next: MpvSubtitleRenderMetrics; changed: boolean } {
+  const next = updateMpvSubtitleRenderMetricsService(current, patch);
+  const changed =
+    next.subPos !== current.subPos ||
+    next.subFontSize !== current.subFontSize ||
+    next.subScale !== current.subScale ||
+    next.subMarginY !== current.subMarginY ||
+    next.subMarginX !== current.subMarginX ||
+    next.subFont !== current.subFont ||
+    next.subSpacing !== current.subSpacing ||
+    next.subBold !== current.subBold ||
+    next.subItalic !== current.subItalic ||
+    next.subBorderSize !== current.subBorderSize ||
+    next.subShadowOffset !== current.subShadowOffset ||
+    next.subAssOverride !== current.subAssOverride ||
+    next.subScaleByWindow !== current.subScaleByWindow ||
+    next.subUseMargins !== current.subUseMargins ||
+    next.osdHeight !== current.osdHeight ||
+    JSON.stringify(next.osdDimensions) !== JSON.stringify(current.osdDimensions);
+  return { next, changed };
+}
