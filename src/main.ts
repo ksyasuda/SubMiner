@@ -211,6 +211,7 @@ import {
   createMecabTokenizerAndCheckRuntimeService,
   createSubtitleTimingTrackerRuntimeService,
 } from "./core/services/startup-resource-runtime-service";
+import { runGenerateConfigFlowRuntimeService } from "./core/services/config-generation-runtime-service";
 import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
@@ -455,22 +456,26 @@ const backendOverride = initialArgs.backend ?? null;
 const autoStartOverlay = initialArgs.autoStartOverlay;
 const texthookerOnlyMode = initialArgs.texthooker;
 
-if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
-  generateDefaultConfigFile(initialArgs, {
-    configDir: CONFIG_DIR,
-    defaultConfig: DEFAULT_CONFIG,
-    generateTemplate: (config) => generateConfigTemplate(config as never),
-  })
-    .then((exitCode) => {
+if (
+  !runGenerateConfigFlowRuntimeService(initialArgs, {
+    shouldStartApp: (args) => shouldStartApp(args),
+    generateConfig: async (args) =>
+      generateDefaultConfigFile(args, {
+        configDir: CONFIG_DIR,
+        defaultConfig: DEFAULT_CONFIG,
+        generateTemplate: (config) => generateConfigTemplate(config as never),
+      }),
+    onSuccess: (exitCode) => {
       process.exitCode = exitCode;
       app.quit();
-    })
-    .catch((error: Error) => {
+    },
+    onError: (error) => {
       console.error(`Failed to generate config: ${error.message}`);
       process.exitCode = 1;
       app.quit();
-    });
-} else {
+    },
+  })
+) {
   startAppLifecycleService(initialArgs, createAppLifecycleDepsRuntimeService({
     app,
     platform: process.platform,
