@@ -92,17 +92,7 @@ import {
   sortJimakuFiles,
 } from "./jimaku/utils";
 import {
-  CommandResult,
-  codecToExtension,
-  fileExists,
-  formatTrackLabel,
   getSubsyncConfig,
-  getTrackById,
-  hasPathSeparators,
-  MpvTrack,
-  runCommand,
-  SubsyncContext,
-  SubsyncResolvedConfig,
 } from "./subsync/utils";
 import {
   CliArgs,
@@ -144,6 +134,10 @@ import {
   runSubsyncManualFromIpcService,
 } from "./core/services/ipc-command-service";
 import { sendToVisibleOverlayService } from "./core/services/overlay-send-service";
+import {
+  runSubsyncManualService,
+  triggerSubsyncFromConfigService,
+} from "./core/services/subsync-service";
 import {
   updateInvisibleOverlayVisibilityService,
   updateVisibleOverlayVisibilityService,
@@ -546,11 +540,6 @@ async function runWithSubsyncSpinner<T>(
   } finally {
     clearInterval(timer);
   }
-}
-
-interface FileExtractionResult {
-  path: string;
-  temporary: boolean;
 }
 
 const initialArgs = parseArgs(process.argv);
@@ -2344,364 +2333,27 @@ function showMpvOsd(text: string): void {
   }
 }
 
-function getMpvClientForSubsync(): MpvIpcClient {
-  if (!mpvClient || !mpvClient.connected) {
-    throw new Error("MPV not connected");
-  }
-  return mpvClient as MpvIpcClient;
-}
-
-async function gatherSubsyncContext(
-  client: MpvIpcClient,
-): Promise<SubsyncContext> {
-  const [videoPathRaw, sidRaw, secondarySidRaw, trackListRaw] =
-    await Promise.all([
-      client.requestProperty("path"),
-      client.requestProperty("sid"),
-      client.requestProperty("secondary-sid"),
-      client.requestProperty("track-list"),
-    ]);
-
-  const videoPath = typeof videoPathRaw === "string" ? videoPathRaw : "";
-  if (!videoPath) {
-    throw new Error("No video is currently loaded");
-  }
-
-  const tracks = Array.isArray(trackListRaw)
-    ? (trackListRaw as MpvTrack[])
-    : [];
-  const subtitleTracks = tracks.filter((track) => track.type === "sub");
-  const sid = typeof sidRaw === "number" ? sidRaw : null;
-  const secondarySid =
-    typeof secondarySidRaw === "number" ? secondarySidRaw : null;
-
-  const primaryTrack = subtitleTracks.find((track) => track.id === sid);
-  if (!primaryTrack) {
-    throw new Error("No active subtitle track found");
-  }
-
-  const secondaryTrack =
-    subtitleTracks.find((track) => track.id === secondarySid) ?? null;
-  const sourceTracks = subtitleTracks
-    .filter((track) => track.id !== sid)
-    .filter((track) => {
-      if (!track.external) return true;
-      const filename = track["external-filename"];
-      return typeof filename === "string" && filename.length > 0;
-    });
-
+function getSubsyncServiceDeps() {
   return {
-    videoPath,
-    primaryTrack,
-    secondaryTrack,
-    sourceTracks,
-    audioStreamIndex: client.currentAudioStreamIndex,
+    getMpvClient: () => mpvClient,
+    getResolvedConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
+    isSubsyncInProgress: () => subsyncInProgress,
+    setSubsyncInProgress: (inProgress: boolean) => {
+      subsyncInProgress = inProgress;
+    },
+    showMpvOsd: (text: string) => showMpvOsd(text),
+    runWithSubsyncSpinner: <T>(task: () => Promise<T>) =>
+      runWithSubsyncSpinner(task),
+    openManualPicker: (payload: SubsyncManualPayload) => {
+      sendToVisibleOverlay("subsync:open-manual", payload, {
+        restoreOnModalClose: "subsync",
+      });
+    },
   };
-}
-
-function ensureExecutablePath(pathOrName: string, name: string): string {
-  if (!pathOrName) {
-    throw new Error(`Missing ${name} path in config`);
-  }
-
-  if (hasPathSeparators(pathOrName) && !fileExists(pathOrName)) {
-    throw new Error(`Configured ${name} executable not found: ${pathOrName}`);
-  }
-  return pathOrName;
-}
-
-async function extractSubtitleTrackToFile(
-  ffmpegPath: string,
-  videoPath: string,
-  track: MpvTrack,
-): Promise<FileExtractionResult> {
-  if (track.external) {
-    const externalPath = track["external-filename"];
-    if (typeof externalPath !== "string" || externalPath.length === 0) {
-      throw new Error("External subtitle track has no file path");
-    }
-    if (!fileExists(externalPath)) {
-      throw new Error(`Subtitle file not found: ${externalPath}`);
-    }
-    return { path: externalPath, temporary: false };
-  }
-
-  const ffIndex = track["ff-index"];
-  const extension = codecToExtension(track.codec);
-  if (
-    typeof ffIndex !== "number" ||
-    !Number.isInteger(ffIndex) ||
-    ffIndex < 0
-  ) {
-    throw new Error("Internal subtitle track has no valid ff-index");
-  }
-  if (!extension) {
-    throw new Error(`Unsupported subtitle codec: ${track.codec ?? "unknown"}`);
-  }
-
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "subminer-subsync-"));
-  const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
-  const extraction = await runCommand(ffmpegPath, [
-    "-hide_banner",
-    "-nostdin",
-    "-y",
-    "-loglevel",
-    "quiet",
-    "-an",
-    "-vn",
-    "-i",
-    videoPath,
-    "-map",
-    `0:${ffIndex}`,
-    "-f",
-    extension,
-    outputPath,
-  ]);
-
-  if (!extraction.ok || !fileExists(outputPath)) {
-    throw new Error("Failed to extract internal subtitle track with ffmpeg");
-  }
-
-  return { path: outputPath, temporary: true };
-}
-
-function cleanupTemporaryFile(extraction: FileExtractionResult): void {
-  if (!extraction.temporary) return;
-  try {
-    if (fileExists(extraction.path)) {
-      fs.unlinkSync(extraction.path);
-    }
-  } catch {}
-  try {
-    const dir = path.dirname(extraction.path);
-    if (fs.existsSync(dir)) {
-      fs.rmdirSync(dir);
-    }
-  } catch {}
-}
-
-function buildRetimedPath(subPath: string): string {
-  const parsed = path.parse(subPath);
-  const suffix = `_retimed_${Date.now()}`;
-  return path.join(
-    parsed.dir,
-    `${parsed.name}${suffix}${parsed.ext || ".srt"}`,
-  );
-}
-
-async function runAlassSync(
-  alassPath: string,
-  referenceFile: string,
-  inputSubtitlePath: string,
-  outputPath: string,
-): Promise<CommandResult> {
-  return runCommand(alassPath, [referenceFile, inputSubtitlePath, outputPath]);
-}
-
-async function runFfsubsyncSync(
-  ffsubsyncPath: string,
-  videoPath: string,
-  inputSubtitlePath: string,
-  outputPath: string,
-  audioStreamIndex: number | null,
-): Promise<CommandResult> {
-  const args = [videoPath, "-i", inputSubtitlePath, "-o", outputPath];
-  if (audioStreamIndex !== null) {
-    args.push("--reference-stream", `0:${audioStreamIndex}`);
-  }
-  return runCommand(ffsubsyncPath, args);
-}
-
-function loadSyncedSubtitle(pathToLoad: string): void {
-  if (!mpvClient || !mpvClient.connected) {
-    throw new Error("MPV disconnected while loading subtitle");
-  }
-  mpvClient.send({ command: ["sub_add", pathToLoad] });
-  mpvClient.send({ command: ["set_property", "sub-delay", 0] });
-}
-
-async function subsyncToReference(
-  engine: "alass" | "ffsubsync",
-  referenceFilePath: string,
-  context: SubsyncContext,
-  resolved: SubsyncResolvedConfig,
-): Promise<SubsyncResult> {
-  const ffmpegPath = ensureExecutablePath(resolved.ffmpegPath, "ffmpeg");
-  const primaryExtraction = await extractSubtitleTrackToFile(
-    ffmpegPath,
-    context.videoPath,
-    context.primaryTrack,
-  );
-  const outputPath = buildRetimedPath(primaryExtraction.path);
-
-  try {
-    let result: CommandResult;
-    if (engine === "alass") {
-      const alassPath = ensureExecutablePath(resolved.alassPath, "alass");
-      result = await runAlassSync(
-        alassPath,
-        referenceFilePath,
-        primaryExtraction.path,
-        outputPath,
-      );
-    } else {
-      const ffsubsyncPath = ensureExecutablePath(
-        resolved.ffsubsyncPath,
-        "ffsubsync",
-      );
-      result = await runFfsubsyncSync(
-        ffsubsyncPath,
-        context.videoPath,
-        primaryExtraction.path,
-        outputPath,
-        context.audioStreamIndex,
-      );
-    }
-
-    if (!result.ok || !fileExists(outputPath)) {
-      return {
-        ok: false,
-        message: `${engine} synchronization failed`,
-      };
-    }
-
-    loadSyncedSubtitle(outputPath);
-    return {
-      ok: true,
-      message: `Subtitle synchronized with ${engine}`,
-    };
-  } finally {
-    cleanupTemporaryFile(primaryExtraction);
-  }
-}
-
-async function runSubsyncAuto(): Promise<SubsyncResult> {
-  const client = getMpvClientForSubsync();
-  const context = await gatherSubsyncContext(client);
-  const resolved = getSubsyncConfig(getResolvedConfig().subsync);
-  const ffmpegPath = ensureExecutablePath(resolved.ffmpegPath, "ffmpeg");
-
-  if (context.secondaryTrack) {
-    let secondaryExtraction: FileExtractionResult | null = null;
-    try {
-      secondaryExtraction = await extractSubtitleTrackToFile(
-        ffmpegPath,
-        context.videoPath,
-        context.secondaryTrack,
-      );
-      const alassResult = await subsyncToReference(
-        "alass",
-        secondaryExtraction.path,
-        context,
-        resolved,
-      );
-      if (alassResult.ok) {
-        return alassResult;
-      }
-    } catch (error) {
-      console.warn("Auto alass sync failed, trying ffsubsync fallback:", error);
-    } finally {
-      if (secondaryExtraction) {
-        cleanupTemporaryFile(secondaryExtraction);
-      }
-    }
-  }
-
-  const ffsubsyncPath = ensureExecutablePath(
-    resolved.ffsubsyncPath,
-    "ffsubsync",
-  );
-  if (!ffsubsyncPath) {
-    return {
-      ok: false,
-      message: "No secondary subtitle for alass and ffsubsync not configured",
-    };
-  }
-  return subsyncToReference("ffsubsync", context.videoPath, context, resolved);
-}
-
-async function openSubsyncManualPicker(): Promise<void> {
-  const client = getMpvClientForSubsync();
-  const context = await gatherSubsyncContext(client);
-  const payload: SubsyncManualPayload = {
-    sourceTracks: context.sourceTracks
-      .filter((track) => typeof track.id === "number")
-      .map((track) => ({
-        id: track.id as number,
-        label: formatTrackLabel(track),
-      })),
-  };
-  sendToVisibleOverlay("subsync:open-manual", payload, {
-    restoreOnModalClose: "subsync",
-  });
-}
-
-async function runSubsyncManual(
-  request: SubsyncManualRunRequest,
-): Promise<SubsyncResult> {
-  const client = getMpvClientForSubsync();
-  const context = await gatherSubsyncContext(client);
-  const resolved = getSubsyncConfig(getResolvedConfig().subsync);
-
-  if (request.engine === "ffsubsync") {
-    return subsyncToReference(
-      "ffsubsync",
-      context.videoPath,
-      context,
-      resolved,
-    );
-  }
-
-  const sourceTrack = getTrackById(
-    context.sourceTracks,
-    request.sourceTrackId ?? null,
-  );
-  if (!sourceTrack) {
-    return { ok: false, message: "Select a subtitle source track for alass" };
-  }
-
-  const ffmpegPath = ensureExecutablePath(resolved.ffmpegPath, "ffmpeg");
-  let sourceExtraction: FileExtractionResult | null = null;
-  try {
-    sourceExtraction = await extractSubtitleTrackToFile(
-      ffmpegPath,
-      context.videoPath,
-      sourceTrack,
-    );
-    return subsyncToReference(
-      "alass",
-      sourceExtraction.path,
-      context,
-      resolved,
-    );
-  } finally {
-    if (sourceExtraction) {
-      cleanupTemporaryFile(sourceExtraction);
-    }
-  }
 }
 
 async function triggerSubsyncFromConfig(): Promise<void> {
-  if (subsyncInProgress) {
-    showMpvOsd("Subsync already running");
-    return;
-  }
-  const resolved = getSubsyncConfig(getResolvedConfig().subsync);
-  try {
-    if (resolved.defaultMode === "manual") {
-      await openSubsyncManualPicker();
-      showMpvOsd("Subsync: choose engine and source");
-      return;
-    }
-
-    subsyncInProgress = true;
-    const result = await runWithSubsyncSpinner(() => runSubsyncAuto());
-    showMpvOsd(result.message);
-  } catch (error) {
-    showMpvOsd(`Subsync failed: ${(error as Error).message}`);
-  } finally {
-    subsyncInProgress = false;
-  }
+  await triggerSubsyncFromConfigService(getSubsyncServiceDeps());
 }
 
 function cancelPendingMultiCopy(): void {
@@ -3149,14 +2801,14 @@ function handleMpvCommandFromIpc(command: (string | number)[]): void {
 async function runSubsyncManualFromIpc(
   request: SubsyncManualRunRequest,
 ): Promise<SubsyncResult> {
+  const deps = getSubsyncServiceDeps();
   return runSubsyncManualFromIpcService(request, {
-    isSubsyncInProgress: () => subsyncInProgress,
-    setSubsyncInProgress: (inProgress) => {
-      subsyncInProgress = inProgress;
-    },
-    showMpvOsd: (text) => showMpvOsd(text),
-    runWithSpinner: (task) => runWithSubsyncSpinner(task),
-    runSubsyncManual: (subsyncRequest) => runSubsyncManual(subsyncRequest),
+    isSubsyncInProgress: deps.isSubsyncInProgress,
+    setSubsyncInProgress: deps.setSubsyncInProgress,
+    showMpvOsd: deps.showMpvOsd,
+    runWithSpinner: deps.runWithSubsyncSpinner,
+    runSubsyncManual: (subsyncRequest) =>
+      runSubsyncManualService(subsyncRequest, deps),
   });
 }
 
