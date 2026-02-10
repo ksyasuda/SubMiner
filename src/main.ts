@@ -117,6 +117,7 @@ import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcu
 import { createOverlayShortcutRuntimeHandlers } from "./core/services/overlay-shortcut-runtime-service";
 import { createNumericShortcutSessionService } from "./core/services/numeric-shortcut-session-service";
 import { handleCliCommandService } from "./core/services/cli-command-service";
+import { cycleSecondarySubModeService } from "./core/services/secondary-subtitle-service";
 import { showDesktopNotification } from "./core/utils/notification";
 import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
 import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
@@ -845,17 +846,20 @@ function tryHandleOverlayShortcutLocalFallback(input: Electron.Input): boolean {
 }
 
 function cycleSecondarySubMode(): void {
-  const now = Date.now();
-  if (now - lastSecondarySubToggleAtMs < 120) {
-    return;
-  }
-  lastSecondarySubToggleAtMs = now;
-
-  const cycle: SecondarySubMode[] = ["hidden", "visible", "hover"];
-  const idx = cycle.indexOf(secondarySubMode);
-  secondarySubMode = cycle[(idx + 1) % cycle.length];
-  broadcastToOverlayWindows("secondary-subtitle:mode", secondarySubMode);
-  showMpvOsd(`Secondary subtitle: ${secondarySubMode}`);
+  cycleSecondarySubModeService({
+    getSecondarySubMode: () => secondarySubMode,
+    setSecondarySubMode: (mode) => {
+      secondarySubMode = mode;
+    },
+    getLastSecondarySubToggleAtMs: () => lastSecondarySubToggleAtMs,
+    setLastSecondarySubToggleAtMs: (timestampMs) => {
+      lastSecondarySubToggleAtMs = timestampMs;
+    },
+    broadcastSecondarySubMode: (mode) => {
+      broadcastToOverlayWindows("secondary-subtitle:mode", mode);
+    },
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 function showMpvOsd(text: string): void {
