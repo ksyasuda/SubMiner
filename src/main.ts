@@ -124,6 +124,7 @@ import {
 } from "./core/utils/electron-backend";
 import { asBoolean, asFiniteNumber, asString } from "./core/utils/coerce";
 import { resolveKeybindings } from "./core/utils/keybindings";
+import { resolveConfiguredShortcuts } from "./core/utils/shortcut-config";
 import { TexthookerService } from "./core/services/texthooker-service";
 import {
   hasMpvWebsocketPlugin,
@@ -2347,66 +2348,7 @@ function registerGlobalShortcuts(): void {
 }
 
 function getConfiguredShortcuts() {
-  const config = getResolvedConfig();
-  const normalizeShortcut = (
-    value: string | null | undefined,
-  ): string | null | undefined => {
-    if (typeof value !== "string") return value;
-    return value
-      .replace(/\bKey([A-Z])\b/g, "$1")
-      .replace(/\bDigit([0-9])\b/g, "$1");
-  };
-
-  return {
-    toggleVisibleOverlayGlobal: normalizeShortcut(
-      config.shortcuts?.toggleVisibleOverlayGlobal ??
-        DEFAULT_CONFIG.shortcuts.toggleVisibleOverlayGlobal,
-    ),
-    toggleInvisibleOverlayGlobal: normalizeShortcut(
-      config.shortcuts?.toggleInvisibleOverlayGlobal ??
-        DEFAULT_CONFIG.shortcuts.toggleInvisibleOverlayGlobal,
-    ),
-    copySubtitle: normalizeShortcut(
-      config.shortcuts?.copySubtitle ?? DEFAULT_CONFIG.shortcuts.copySubtitle,
-    ),
-    copySubtitleMultiple: normalizeShortcut(
-      config.shortcuts?.copySubtitleMultiple ??
-        DEFAULT_CONFIG.shortcuts.copySubtitleMultiple,
-    ),
-    updateLastCardFromClipboard: normalizeShortcut(
-      config.shortcuts?.updateLastCardFromClipboard ??
-        DEFAULT_CONFIG.shortcuts.updateLastCardFromClipboard,
-    ),
-    triggerFieldGrouping: normalizeShortcut(
-      config.shortcuts?.triggerFieldGrouping ??
-        DEFAULT_CONFIG.shortcuts.triggerFieldGrouping,
-    ),
-    triggerSubsync: normalizeShortcut(
-      config.shortcuts?.triggerSubsync ??
-        DEFAULT_CONFIG.shortcuts.triggerSubsync,
-    ),
-    mineSentence: normalizeShortcut(
-      config.shortcuts?.mineSentence ?? DEFAULT_CONFIG.shortcuts.mineSentence,
-    ),
-    mineSentenceMultiple: normalizeShortcut(
-      config.shortcuts?.mineSentenceMultiple ??
-        DEFAULT_CONFIG.shortcuts.mineSentenceMultiple,
-    ),
-    multiCopyTimeoutMs:
-      config.shortcuts?.multiCopyTimeoutMs ??
-      DEFAULT_CONFIG.shortcuts.multiCopyTimeoutMs,
-    toggleSecondarySub: normalizeShortcut(
-      config.shortcuts?.toggleSecondarySub ??
-        DEFAULT_CONFIG.shortcuts.toggleSecondarySub,
-    ),
-    markAudioCard: normalizeShortcut(
-      config.shortcuts?.markAudioCard ?? DEFAULT_CONFIG.shortcuts.markAudioCard,
-    ),
-    openRuntimeOptions: normalizeShortcut(
-      config.shortcuts?.openRuntimeOptions ??
-        DEFAULT_CONFIG.shortcuts.openRuntimeOptions,
-    ),
-  };
+  return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG);
 }
 
 function tryHandleOverlayShortcutLocalFallback(input: Electron.Input): boolean {
