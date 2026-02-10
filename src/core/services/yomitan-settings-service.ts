@@ -1,10 +1,14 @@
 import { BrowserWindow, Extension, session } from "electron";
 
-export function openYomitanSettingsWindow(options: {
+export interface OpenYomitanSettingsWindowOptions {
   yomitanExt: Extension | null;
   getExistingWindow: () => BrowserWindow | null;
   setWindow: (window: BrowserWindow | null) => void;
-}): void {
+}
+
+export function openYomitanSettingsWindow(
+  options: OpenYomitanSettingsWindowOptions,
+): void {
   console.log("openYomitanSettings called");
 
   if (!options.yomitanExt) {

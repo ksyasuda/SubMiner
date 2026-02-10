@@ -107,7 +107,6 @@ import {
 import {
   registerOverlayShortcutsService,
 } from "./core/services/overlay-shortcut-service";
-import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-fallback-runner";
 import { createOverlayShortcutRuntimeHandlers } from "./core/services/overlay-shortcut-runtime-service";
 import { handleCliCommandService } from "./core/services/cli-command-service";
 import { cycleSecondarySubModeService } from "./core/services/secondary-subtitle-service";
@@ -220,6 +219,12 @@ import {
   createTriggerFieldGroupingDepsRuntimeService,
   createUpdateLastCardFromClipboardDepsRuntimeService,
 } from "./core/services/mining-runtime-deps-service";
+import {
+  createGlobalShortcutRegistrationDepsRuntimeService,
+  createSecondarySubtitleCycleDepsRuntimeService,
+  createYomitanSettingsWindowDepsRuntimeService,
+  runOverlayShortcutLocalFallbackRuntimeService,
+} from "./core/services/shortcut-ui-runtime-deps-service";
 import {
   createStartupAppReadyDepsRuntimeService,
   createStartupAppShutdownDepsRuntimeService,
@@ -912,8 +917,48 @@ function initializeOverlayRuntime(): void {
   overlayRuntimeInitialized = true;
 }
 
-function openYomitanSettings(): void { openYomitanSettingsWindow({ yomitanExt, getExistingWindow: () => yomitanSettingsWindow, setWindow: (window) => (yomitanSettingsWindow = window) }); }
-function registerGlobalShortcuts(): void { registerGlobalShortcutsService({ shortcuts: getConfiguredShortcuts(), onToggleVisibleOverlay: () => toggleVisibleOverlay(), onToggleInvisibleOverlay: () => toggleInvisibleOverlay(), onOpenYomitanSettings: () => openYomitanSettings(), isDev, getMainWindow: () => mainWindow }); }
+function getShortcutUiRuntimeDeps() {
+  return {
+    yomitanExt,
+    getYomitanSettingsWindow: () => yomitanSettingsWindow,
+    setYomitanSettingsWindow: (window: BrowserWindow | null) => {
+      yomitanSettingsWindow = window;
+    },
+    shortcuts: getConfiguredShortcuts(),
+    onToggleVisibleOverlay: () => toggleVisibleOverlay(),
+    onToggleInvisibleOverlay: () => toggleInvisibleOverlay(),
+    onOpenYomitanSettings: () => openYomitanSettings(),
+    isDev,
+    getMainWindow: () => mainWindow,
+    getSecondarySubMode: () => secondarySubMode,
+    setSecondarySubMode: (mode: SecondarySubMode) => {
+      secondarySubMode = mode;
+    },
+    getLastSecondarySubToggleAtMs: () => lastSecondarySubToggleAtMs,
+    setLastSecondarySubToggleAtMs: (timestampMs: number) => {
+      lastSecondarySubToggleAtMs = timestampMs;
+    },
+    broadcastSecondarySubMode: (mode: SecondarySubMode) => {
+      broadcastToOverlayWindows("secondary-subtitle:mode", mode);
+    },
+    showMpvOsd: (text: string) => showMpvOsd(text),
+    getConfiguredShortcuts: () => getConfiguredShortcuts(),
+    getOverlayShortcutFallbackHandlers: () =>
+      getOverlayShortcutRuntimeHandlers().fallbackHandlers,
+    shortcutMatcher: shortcutMatchesInputForLocalFallback,
+  };
+}
+
+function openYomitanSettings(): void {
+  openYomitanSettingsWindow(
+    createYomitanSettingsWindowDepsRuntimeService(getShortcutUiRuntimeDeps()),
+  );
+}
+function registerGlobalShortcuts(): void {
+  registerGlobalShortcutsService(
+    createGlobalShortcutRegistrationDepsRuntimeService(getShortcutUiRuntimeDeps()),
+  );
+}
 
 function getConfiguredShortcuts() { return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG); }
 
@@ -947,31 +992,16 @@ function getOverlayShortcutRuntimeHandlers() {
 }
 
 function tryHandleOverlayShortcutLocalFallback(input: Electron.Input): boolean {
-  const shortcuts = getConfiguredShortcuts();
-  const handlers = getOverlayShortcutRuntimeHandlers();
-  return runOverlayShortcutLocalFallback(
+  return runOverlayShortcutLocalFallbackRuntimeService(
     input,
-    shortcuts,
-    shortcutMatchesInputForLocalFallback,
-    handlers.fallbackHandlers,
+    getShortcutUiRuntimeDeps(),
   );
 }
 
 function cycleSecondarySubMode(): void {
-  cycleSecondarySubModeService({
-    getSecondarySubMode: () => secondarySubMode,
-    setSecondarySubMode: (mode) => {
-      secondarySubMode = mode;
-    },
-    getLastSecondarySubToggleAtMs: () => lastSecondarySubToggleAtMs,
-    setLastSecondarySubToggleAtMs: (timestampMs) => {
-      lastSecondarySubToggleAtMs = timestampMs;
-    },
-    broadcastSecondarySubMode: (mode) => {
-      broadcastToOverlayWindows("secondary-subtitle:mode", mode);
-    },
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  cycleSecondarySubModeService(
+    createSecondarySubtitleCycleDepsRuntimeService(getShortcutUiRuntimeDeps()),
+  );
 }
 
 function showMpvOsd(text: string): void {
