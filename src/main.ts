@@ -206,6 +206,7 @@ import { runAppShutdownRuntimeService } from "./core/services/app-shutdown-runti
 import { createMpvIpcClientDepsRuntimeService } from "./core/services/mpv-client-deps-runtime-service";
 import { createAppLifecycleDepsRuntimeService } from "./core/services/app-lifecycle-deps-runtime-service";
 import { createCliCommandDepsRuntimeService } from "./core/services/cli-command-deps-runtime-service";
+import { createIpcDepsRuntimeService } from "./core/services/ipc-deps-runtime-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
@@ -1243,63 +1244,49 @@ async function runSubsyncManualFromIpc(
   return runSubsyncManualFromIpcRuntimeService(request, getSubsyncRuntimeDeps());
 }
 
-registerIpcHandlersService({
-  getInvisibleWindow: () => invisibleWindow,
-  isVisibleOverlayVisible: () => visibleOverlayVisible,
-  setInvisibleIgnoreMouseEvents: (ignore, options) => {
-    if (!invisibleWindow || invisibleWindow.isDestroyed()) return;
-    invisibleWindow.setIgnoreMouseEvents(ignore, options);
-  },
-  onOverlayModalClosed: (modal) =>
-    handleOverlayModalClosed(modal as OverlayHostedModal),
-  openYomitanSettings: () => openYomitanSettings(),
-  quitApp: () => app.quit(),
-  toggleDevTools: () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.toggleDevTools();
-    }
-  },
-  getVisibleOverlayVisibility: () => visibleOverlayVisible,
-  toggleVisibleOverlay: () => toggleVisibleOverlay(),
-  getInvisibleOverlayVisibility: () => invisibleOverlayVisible,
-  tokenizeCurrentSubtitle: () => tokenizeSubtitle(currentSubText),
-  getCurrentSubtitleAss: () => currentSubAssText,
-  getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
-  getSubtitlePosition: () => loadSubtitlePosition(),
-  getSubtitleStyle: () => getResolvedConfig().subtitleStyle ?? null,
-  saveSubtitlePosition: (position) => saveSubtitlePosition(position as SubtitlePosition),
-  getMecabStatus: () =>
-    mecabTokenizer
-      ? mecabTokenizer.getStatus()
-      : { available: false, enabled: false, path: null },
-  setMecabEnabled: (enabled) => {
-    if (mecabTokenizer) mecabTokenizer.setEnabled(enabled);
-  },
-  handleMpvCommand: (command) => handleMpvCommandFromIpc(command),
-  getKeybindings: () => keybindings,
-  getSecondarySubMode: () => secondarySubMode,
-  getCurrentSecondarySub: () => mpvClient?.currentSecondarySubText || "",
-  runSubsyncManual: (request) =>
-    runSubsyncManualFromIpc(request as SubsyncManualRunRequest),
-  getAnkiConnectStatus: () => ankiIntegration !== null,
-  getRuntimeOptions: () => getRuntimeOptionsState(),
-  setRuntimeOption: (id, value) => {
-    return setRuntimeOptionFromIpcRuntimeService(
-      runtimeOptionsManager,
-      id as RuntimeOptionId,
-      value as RuntimeOptionValue,
-      (text) => showMpvOsd(text),
-    );
-  },
-  cycleRuntimeOption: (id, direction) => {
-    return cycleRuntimeOptionFromIpcRuntimeService(
-      runtimeOptionsManager,
-      id as RuntimeOptionId,
-      direction,
-      (text) => showMpvOsd(text),
-    );
-  },
-});
+registerIpcHandlersService(
+  createIpcDepsRuntimeService({
+    getInvisibleWindow: () => invisibleWindow,
+    getMainWindow: () => mainWindow,
+    getVisibleOverlayVisibility: () => visibleOverlayVisible,
+    getInvisibleOverlayVisibility: () => invisibleOverlayVisible,
+    onOverlayModalClosed: (modal) =>
+      handleOverlayModalClosed(modal as OverlayHostedModal),
+    openYomitanSettings: () => openYomitanSettings(),
+    quitApp: () => app.quit(),
+    toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    tokenizeCurrentSubtitle: () => tokenizeSubtitle(currentSubText),
+    getCurrentSubtitleAss: () => currentSubAssText,
+    getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
+    getSubtitlePosition: () => loadSubtitlePosition(),
+    getSubtitleStyle: () => getResolvedConfig().subtitleStyle ?? null,
+    saveSubtitlePosition: (position) =>
+      saveSubtitlePosition(position as SubtitlePosition),
+    getMecabTokenizer: () => mecabTokenizer,
+    handleMpvCommand: (command) => handleMpvCommandFromIpc(command),
+    getKeybindings: () => keybindings,
+    getSecondarySubMode: () => secondarySubMode,
+    getMpvClient: () => mpvClient,
+    runSubsyncManual: (request) =>
+      runSubsyncManualFromIpc(request as SubsyncManualRunRequest),
+    getAnkiConnectStatus: () => ankiIntegration !== null,
+    getRuntimeOptions: () => getRuntimeOptionsState(),
+    setRuntimeOption: (id, value) =>
+      setRuntimeOptionFromIpcRuntimeService(
+        runtimeOptionsManager,
+        id as RuntimeOptionId,
+        value as RuntimeOptionValue,
+        (text) => showMpvOsd(text),
+      ),
+    cycleRuntimeOption: (id, direction) =>
+      cycleRuntimeOptionFromIpcRuntimeService(
+        runtimeOptionsManager,
+        id as RuntimeOptionId,
+        direction,
+        (text) => showMpvOsd(text),
+      ),
+  }),
+);
 
 /**
  * Create and show a desktop notification with robust icon handling.
