@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Electron build output
+out/
+dist/
+release/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+**/CLAUDE.md
+environment.toml
+**/CLAUDE.md
+.env
+.vscode/*

@@ -1,0 +1,616 @@
+/*
+ * SubMiner - All-in-one sentence mining overlay
+ * Copyright (C) 2024 sudacode
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+export enum PartOfSpeech {
+  noun = "noun",
+  verb = "verb",
+  i_adjective = "i_adjective",
+  na_adjective = "na_adjective",
+  particle = "particle",
+  bound_auxiliary = "bound_auxiliary",
+  symbol = "symbol",
+  other = "other",
+}
+
+export interface Token {
+  word: string;
+  partOfSpeech: PartOfSpeech;
+  pos1: string;
+  pos2: string;
+  pos3: string;
+  pos4: string;
+  inflectionType: string;
+  inflectionForm: string;
+  headword: string;
+  katakanaReading: string;
+  pronunciation: string;
+}
+
+export interface MergedToken {
+  surface: string;
+  reading: string;
+  headword: string;
+  startPos: number;
+  endPos: number;
+  partOfSpeech: PartOfSpeech;
+  isMerged: boolean;
+}
+
+export interface WindowGeometry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface SubtitlePosition {
+  yPercent: number;
+}
+
+export interface SubtitleStyle {
+  fontSize: number;
+}
+
+export interface Keybinding {
+  key: string;
+  command: (string | number)[] | null;
+}
+
+export type SecondarySubMode = "hidden" | "visible" | "hover";
+
+export interface SecondarySubConfig {
+  secondarySubLanguages?: string[];
+  autoLoadSecondarySub?: boolean;
+  defaultMode?: SecondarySubMode;
+}
+
+export type SubsyncMode = "auto" | "manual";
+
+export interface SubsyncConfig {
+  defaultMode?: SubsyncMode;
+  alass_path?: string;
+  ffsubsync_path?: string;
+  ffmpeg_path?: string;
+}
+
+export interface WebSocketConfig {
+  enabled?: boolean | "auto";
+  port?: number;
+}
+
+export interface TexthookerConfig {
+  openBrowser?: boolean;
+}
+
+export interface NotificationOptions {
+  body?: string;
+  icon?: string;
+}
+
+export interface MpvClient {
+  currentSubText: string;
+  currentVideoPath: string;
+  currentTimePos: number;
+  currentSubStart: number;
+  currentSubEnd: number;
+  currentAudioStreamIndex: number | null;
+  send(command: { command: unknown[]; request_id?: number }): boolean;
+}
+
+export interface KikuDuplicateCardInfo {
+  noteId: number;
+  expression: string;
+  sentencePreview: string;
+  hasAudio: boolean;
+  hasImage: boolean;
+  isOriginal: boolean;
+}
+
+export interface KikuFieldGroupingRequestData {
+  original: KikuDuplicateCardInfo;
+  duplicate: KikuDuplicateCardInfo;
+}
+
+export interface KikuFieldGroupingChoice {
+  keepNoteId: number;
+  deleteNoteId: number;
+  deleteDuplicate: boolean;
+  cancelled: boolean;
+}
+
+export interface KikuMergePreviewRequest {
+  keepNoteId: number;
+  deleteNoteId: number;
+  deleteDuplicate: boolean;
+}
+
+export interface KikuMergePreviewResponse {
+  ok: boolean;
+  compact?: Record<string, unknown>;
+  full?: Record<string, unknown>;
+  error?: string;
+}
+
+export type RuntimeOptionId =
+  | "anki.autoUpdateNewCards"
+  | "anki.kikuFieldGrouping";
+
+export type RuntimeOptionScope = "ankiConnect";
+
+export type RuntimeOptionValueType = "boolean" | "enum";
+
+export type RuntimeOptionValue = boolean | string;
+
+export interface RuntimeOptionState {
+  id: RuntimeOptionId;
+  label: string;
+  scope: RuntimeOptionScope;
+  valueType: RuntimeOptionValueType;
+  value: RuntimeOptionValue;
+  allowedValues: RuntimeOptionValue[];
+  requiresRestart: boolean;
+}
+
+export interface RuntimeOptionApplyResult {
+  ok: boolean;
+  option?: RuntimeOptionState;
+  osdMessage?: string;
+  requiresRestart?: boolean;
+  error?: string;
+}
+
+export interface AnkiConnectConfig {
+  enabled?: boolean;
+  url?: string;
+  pollingRate?: number;
+  fields?: {
+    audio?: string;
+    image?: string;
+    sentence?: string;
+    miscInfo?: string;
+    translation?: string;
+  };
+  ai?: {
+    enabled?: boolean;
+    alwaysUseAiTranslation?: boolean;
+    apiKey?: string;
+    model?: string;
+    baseUrl?: string;
+    targetLanguage?: string;
+    systemPrompt?: string;
+  };
+  openRouter?: {
+    enabled?: boolean;
+    alwaysUseAiTranslation?: boolean;
+    apiKey?: string;
+    model?: string;
+    baseUrl?: string;
+    targetLanguage?: string;
+    systemPrompt?: string;
+  };
+  media?: {
+    generateAudio?: boolean;
+    generateImage?: boolean;
+    imageType?: "static" | "avif";
+    imageFormat?: "jpg" | "png" | "webp";
+    imageQuality?: number;
+    imageMaxWidth?: number;
+    imageMaxHeight?: number;
+    animatedFps?: number;
+    animatedMaxWidth?: number;
+    animatedMaxHeight?: number;
+    animatedCrf?: number;
+    audioPadding?: number;
+    fallbackDuration?: number;
+    maxMediaDuration?: number;
+  };
+  behavior?: {
+    overwriteAudio?: boolean;
+    overwriteImage?: boolean;
+    mediaInsertMode?: "append" | "prepend";
+    highlightWord?: boolean;
+    notificationType?: "osd" | "system" | "both" | "none";
+    autoUpdateNewCards?: boolean;
+  };
+  metadata?: {
+    pattern?: string;
+  };
+  deck?: string;
+  isLapis?: {
+    enabled?: boolean;
+    sentenceCardModel?: string;
+    sentenceCardSentenceField?: string;
+    sentenceCardAudioField?: string;
+  };
+  isKiku?: {
+    enabled?: boolean;
+    fieldGrouping?: "auto" | "manual" | "disabled";
+    deleteDuplicateInAuto?: boolean;
+  };
+}
+
+export interface SubtitleStyleConfig {
+  fontFamily?: string;
+  fontSize?: number;
+  fontColor?: string;
+  fontWeight?: string;
+  fontStyle?: string;
+  backgroundColor?: string;
+  secondary?: {
+    fontFamily?: string;
+    fontSize?: number;
+    fontColor?: string;
+    fontWeight?: string;
+    fontStyle?: string;
+    backgroundColor?: string;
+  };
+}
+
+export interface ShortcutsConfig {
+  toggleVisibleOverlayGlobal?: string | null;
+  toggleInvisibleOverlayGlobal?: string | null;
+  copySubtitle?: string | null;
+  copySubtitleMultiple?: string | null;
+  updateLastCardFromClipboard?: string | null;
+  triggerFieldGrouping?: string | null;
+  triggerSubsync?: string | null;
+  mineSentence?: string | null;
+  mineSentenceMultiple?: string | null;
+  multiCopyTimeoutMs?: number;
+  toggleSecondarySub?: string | null;
+  markAudioCard?: string | null;
+  openRuntimeOptions?: string | null;
+}
+
+export type JimakuLanguagePreference = "ja" | "en" | "none";
+
+export interface JimakuConfig {
+  apiKey?: string;
+  apiKeyCommand?: string;
+  apiBaseUrl?: string;
+  languagePreference?: JimakuLanguagePreference;
+  maxEntryResults?: number;
+}
+
+export interface InvisibleOverlayConfig {
+  startupVisibility?: "platform-default" | "visible" | "hidden";
+}
+
+export type YoutubeSubgenMode = "automatic" | "preprocess" | "off";
+
+export interface YoutubeSubgenConfig {
+  mode?: YoutubeSubgenMode;
+  whisperBin?: string;
+  whisperModel?: string;
+  primarySubLanguages?: string[];
+}
+
+export interface Config {
+  subtitlePosition?: SubtitlePosition;
+  keybindings?: Keybinding[];
+  websocket?: WebSocketConfig;
+  texthooker?: TexthookerConfig;
+  ankiConnect?: AnkiConnectConfig;
+  shortcuts?: ShortcutsConfig;
+  secondarySub?: SecondarySubConfig;
+  subsync?: SubsyncConfig;
+  subtitleStyle?: SubtitleStyleConfig;
+  auto_start_overlay?: boolean;
+  bind_visible_overlay_to_mpv_sub_visibility?: boolean;
+  jimaku?: JimakuConfig;
+  invisibleOverlay?: InvisibleOverlayConfig;
+  youtubeSubgen?: YoutubeSubgenConfig;
+}
+
+export type RawConfig = Config;
+
+export interface ResolvedConfig {
+  subtitlePosition: SubtitlePosition;
+  keybindings: Keybinding[];
+  websocket: Required<WebSocketConfig>;
+  texthooker: Required<TexthookerConfig>;
+  ankiConnect: AnkiConnectConfig & {
+    enabled: boolean;
+    url: string;
+    pollingRate: number;
+    fields: {
+      audio: string;
+      image: string;
+      sentence: string;
+      miscInfo: string;
+      translation: string;
+    };
+    ai: {
+      enabled: boolean;
+      alwaysUseAiTranslation: boolean;
+      apiKey: string;
+      model: string;
+      baseUrl: string;
+      targetLanguage: string;
+      systemPrompt: string;
+    };
+    media: {
+      generateAudio: boolean;
+      generateImage: boolean;
+      imageType: "static" | "avif";
+      imageFormat: "jpg" | "png" | "webp";
+      imageQuality: number;
+      imageMaxWidth?: number;
+      imageMaxHeight?: number;
+      animatedFps: number;
+      animatedMaxWidth: number;
+      animatedMaxHeight?: number;
+      animatedCrf: number;
+      audioPadding: number;
+      fallbackDuration: number;
+      maxMediaDuration: number;
+    };
+    behavior: {
+      overwriteAudio: boolean;
+      overwriteImage: boolean;
+      mediaInsertMode: "append" | "prepend";
+      highlightWord: boolean;
+      notificationType: "osd" | "system" | "both" | "none";
+      autoUpdateNewCards: boolean;
+    };
+    metadata: {
+      pattern: string;
+    };
+    isLapis: {
+      enabled: boolean;
+      sentenceCardModel: string;
+      sentenceCardSentenceField: string;
+      sentenceCardAudioField: string;
+    };
+    isKiku: {
+      enabled: boolean;
+      fieldGrouping: "auto" | "manual" | "disabled";
+      deleteDuplicateInAuto: boolean;
+    };
+  };
+  shortcuts: Required<ShortcutsConfig>;
+  secondarySub: Required<SecondarySubConfig>;
+  subsync: Required<SubsyncConfig>;
+  subtitleStyle: Required<Omit<SubtitleStyleConfig, "secondary">> & {
+    secondary: Required<NonNullable<SubtitleStyleConfig["secondary"]>>;
+  };
+  auto_start_overlay: boolean;
+  bind_visible_overlay_to_mpv_sub_visibility: boolean;
+  jimaku: JimakuConfig & {
+    apiBaseUrl: string;
+    languagePreference: JimakuLanguagePreference;
+    maxEntryResults: number;
+  };
+  invisibleOverlay: Required<InvisibleOverlayConfig>;
+  youtubeSubgen: YoutubeSubgenConfig & {
+    mode: YoutubeSubgenMode;
+    whisperBin: string;
+    whisperModel: string;
+    primarySubLanguages: string[];
+  };
+}
+
+export interface ConfigValidationWarning {
+  path: string;
+  value: unknown;
+  fallback: unknown;
+  message: string;
+}
+
+export interface SubsyncSourceTrack {
+  id: number;
+  label: string;
+}
+
+export interface SubsyncManualPayload {
+  sourceTracks: SubsyncSourceTrack[];
+}
+
+export interface SubsyncManualRunRequest {
+  engine: "alass" | "ffsubsync";
+  sourceTrackId?: number | null;
+}
+
+export interface SubsyncResult {
+  ok: boolean;
+  message: string;
+}
+
+export interface SubtitleData {
+  text: string;
+  tokens: MergedToken[] | null;
+}
+
+export interface MpvSubtitleRenderMetrics {
+  subPos: number;
+  subFontSize: number;
+  subScale: number;
+  subMarginY: number;
+  subMarginX: number;
+  subFont: string;
+  subSpacing: number;
+  subBold: boolean;
+  subItalic: boolean;
+  subBorderSize: number;
+  subShadowOffset: number;
+  subAssOverride: string;
+  subScaleByWindow: boolean;
+  subUseMargins: boolean;
+  osdHeight: number;
+  osdDimensions: {
+    w: number;
+    h: number;
+    ml: number;
+    mr: number;
+    mt: number;
+    mb: number;
+  } | null;
+}
+
+export interface MecabStatus {
+  available: boolean;
+  enabled: boolean;
+  path: string | null;
+}
+
+export type JimakuConfidence = "high" | "medium" | "low";
+
+export interface JimakuMediaInfo {
+  title: string;
+  season: number | null;
+  episode: number | null;
+  confidence: JimakuConfidence;
+  filename: string;
+  rawTitle: string;
+}
+
+export interface JimakuSearchQuery {
+  query: string;
+}
+
+export interface JimakuEntryFlags {
+  anime?: boolean;
+  movie?: boolean;
+  adult?: boolean;
+  external?: boolean;
+  unverified?: boolean;
+}
+
+export interface JimakuEntry {
+  id: number;
+  name: string;
+  english_name?: string | null;
+  japanese_name?: string | null;
+  flags?: JimakuEntryFlags;
+  last_modified?: string;
+}
+
+export interface JimakuFilesQuery {
+  entryId: number;
+  episode?: number | null;
+}
+
+export interface JimakuFileEntry {
+  name: string;
+  url: string;
+  size: number;
+  last_modified: string;
+}
+
+export interface JimakuDownloadQuery {
+  entryId: number;
+  url: string;
+  name: string;
+}
+
+export interface JimakuApiError {
+  error: string;
+  code?: number;
+  retryAfter?: number;
+}
+
+export type JimakuApiResponse<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: JimakuApiError };
+
+export type JimakuDownloadResult =
+  | { ok: true; path: string }
+  | { ok: false; error: JimakuApiError };
+
+export interface ElectronAPI {
+  getOverlayLayer: () => "visible" | "invisible" | null;
+  onSubtitle: (callback: (data: SubtitleData) => void) => void;
+  onVisibility: (callback: (visible: boolean) => void) => void;
+  onSubtitlePosition: (
+    callback: (position: SubtitlePosition | null) => void,
+  ) => void;
+  getOverlayVisibility: () => Promise<boolean>;
+  getCurrentSubtitle: () => Promise<SubtitleData>;
+  getCurrentSubtitleAss: () => Promise<string>;
+  getMpvSubtitleRenderMetrics: () => Promise<MpvSubtitleRenderMetrics>;
+  onMpvSubtitleRenderMetrics: (
+    callback: (metrics: MpvSubtitleRenderMetrics) => void,
+  ) => void;
+  onSubtitleAss: (callback: (assText: string) => void) => void;
+  onOverlayDebugVisualization: (callback: (enabled: boolean) => void) => void;
+  setIgnoreMouseEvents: (
+    ignore: boolean,
+    options?: { forward?: boolean },
+  ) => void;
+  openYomitanSettings: () => void;
+  getSubtitlePosition: () => Promise<SubtitlePosition | null>;
+  saveSubtitlePosition: (position: SubtitlePosition) => void;
+  getMecabStatus: () => Promise<MecabStatus>;
+  setMecabEnabled: (enabled: boolean) => void;
+  sendMpvCommand: (command: (string | number)[]) => void;
+  getKeybindings: () => Promise<Keybinding[]>;
+  getJimakuMediaInfo: () => Promise<JimakuMediaInfo>;
+  jimakuSearchEntries: (
+    query: JimakuSearchQuery,
+  ) => Promise<JimakuApiResponse<JimakuEntry[]>>;
+  jimakuListFiles: (
+    query: JimakuFilesQuery,
+  ) => Promise<JimakuApiResponse<JimakuFileEntry[]>>;
+  jimakuDownloadFile: (
+    query: JimakuDownloadQuery,
+  ) => Promise<JimakuDownloadResult>;
+  quitApp: () => void;
+  toggleDevTools: () => void;
+  toggleOverlay: () => void;
+  getAnkiConnectStatus: () => Promise<boolean>;
+  setAnkiConnectEnabled: (enabled: boolean) => void;
+  clearAnkiConnectHistory: () => void;
+  onSecondarySub: (callback: (text: string) => void) => void;
+  onSecondarySubMode: (callback: (mode: SecondarySubMode) => void) => void;
+  getSecondarySubMode: () => Promise<SecondarySubMode>;
+  getCurrentSecondarySub: () => Promise<string>;
+  getSubtitleStyle: () => Promise<SubtitleStyleConfig | null>;
+  onSubsyncManualOpen: (
+    callback: (payload: SubsyncManualPayload) => void,
+  ) => void;
+  runSubsyncManual: (
+    request: SubsyncManualRunRequest,
+  ) => Promise<SubsyncResult>;
+  onKikuFieldGroupingRequest: (
+    callback: (data: KikuFieldGroupingRequestData) => void,
+  ) => void;
+  kikuBuildMergePreview: (
+    request: KikuMergePreviewRequest,
+  ) => Promise<KikuMergePreviewResponse>;
+  kikuFieldGroupingRespond: (choice: KikuFieldGroupingChoice) => void;
+  getRuntimeOptions: () => Promise<RuntimeOptionState[]>;
+  setRuntimeOptionValue: (
+    id: RuntimeOptionId,
+    value: RuntimeOptionValue,
+  ) => Promise<RuntimeOptionApplyResult>;
+  cycleRuntimeOption: (
+    id: RuntimeOptionId,
+    direction: 1 | -1,
+  ) => Promise<RuntimeOptionApplyResult>;
+  onRuntimeOptionsChanged: (
+    callback: (options: RuntimeOptionState[]) => void,
+  ) => void;
+  onOpenRuntimeOptions: (callback: () => void) => void;
+  notifyOverlayModalClosed: (modal: "runtime-options" | "subsync") => void;
+}
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}
