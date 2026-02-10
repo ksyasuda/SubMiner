@@ -49,7 +49,6 @@ import { MecabTokenizer } from "./mecab-tokenizer";
 import { mergeTokens } from "./token-merger";
 import { BaseWindowTracker } from "./window-trackers";
 import {
-  Config,
   JimakuApiResponse,
   JimakuDownloadResult,
   JimakuMediaInfo,
@@ -78,9 +77,7 @@ import { RuntimeOptionsManager } from "./runtime-options";
 import {
   downloadToFile,
   isRemoteMediaPath,
-  jimakuFetchJson as jimakuFetchJsonRequest,
   parseMediaInfo,
-  resolveJimakuApiKey as resolveJimakuApiKeyFromConfig,
 } from "./jimaku/utils";
 import {
   getSubsyncConfig,
@@ -124,6 +121,17 @@ import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-serv
 import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
 import { loadYomitanExtensionService } from "./core/services/yomitan-extension-loader-service";
 import {
+  getJimakuLanguagePreferenceService,
+  getJimakuMaxEntryResultsService,
+  jimakuFetchJsonService,
+  resolveJimakuApiKeyService,
+} from "./core/services/jimaku-runtime-service";
+import {
+  loadSubtitlePositionService,
+  saveSubtitlePositionService,
+  updateCurrentMediaPathService,
+} from "./core/services/subtitle-position-service";
+import {
   createOverlayWindowService,
   enforceOverlayLayerOrderService,
   ensureOverlayWindowLevelService,
@@ -140,6 +148,7 @@ import {
   MpvIpcClient,
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
 } from "./core/services/mpv-service";
+import { updateMpvSubtitleRenderMetricsService } from "./core/services/mpv-render-metrics-service";
 import {
   handleMpvCommandFromIpcService,
   runSubsyncManualFromIpcService,
@@ -261,29 +270,7 @@ const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, "subtitle-positions");
 
-interface LoadConfigResult {
-  success: boolean;
-  config: Config;
-}
-
-function loadConfig(): LoadConfigResult {
-  const config = configService.getRawConfig();
-  return { success: true, config };
-}
-
-function saveConfig(config: Config): void {
-  try {
-    configService.saveRawConfig(config);
-    configService.reloadConfig();
-  } catch (err) {
-    console.error("Failed to save config:", (err as Error).message);
-  }
-}
-
-function getRuntimeOptionsState(): RuntimeOptionState[] {
-  if (!runtimeOptionsManager) return [];
-  return runtimeOptionsManager.listOptions();
-}
+function getRuntimeOptionsState(): RuntimeOptionState[] { if (!runtimeOptionsManager) return []; return runtimeOptionsManager.listOptions(); }
 
 function getOverlayWindows(): BrowserWindow[] {
   const windows: BrowserWindow[] = [];
@@ -302,21 +289,9 @@ function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
   }
 }
 
-function broadcastRuntimeOptionsChanged(): void {
-  broadcastToOverlayWindows(
-    "runtime-options:changed",
-    getRuntimeOptionsState(),
-  );
-}
+function broadcastRuntimeOptionsChanged(): void { broadcastToOverlayWindows("runtime-options:changed", getRuntimeOptionsState()); }
 
-function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
-  if (overlayDebugVisualizationEnabled === enabled) return;
-  overlayDebugVisualizationEnabled = enabled;
-  broadcastToOverlayWindows(
-    "overlay-debug-visualization:set",
-    overlayDebugVisualizationEnabled,
-  );
-}
+function setOverlayDebugVisualizationEnabled(enabled: boolean): void { if (overlayDebugVisualizationEnabled === enabled) return; overlayDebugVisualizationEnabled = enabled; broadcastToOverlayWindows("overlay-debug-visualization:set", overlayDebugVisualizationEnabled); }
 
 function applyRuntimeOptionResult(
   result: RuntimeOptionApplyResult,
@@ -327,34 +302,15 @@ function applyRuntimeOptionResult(
   return result;
 }
 
-function openRuntimeOptionsPalette(): void {
-  sendToVisibleOverlay("runtime-options:open", undefined, {
-    restoreOnModalClose: "runtime-options",
-  });
-}
+function openRuntimeOptionsPalette(): void { sendToVisibleOverlay("runtime-options:open", undefined, { restoreOnModalClose: "runtime-options" }); }
 
-function getResolvedConfig() {
-  return configService.getConfig();
-}
+function getResolvedConfig() { return configService.getConfig(); }
 
-function getInitialInvisibleOverlayVisibility(): boolean {
-  const visibility = getResolvedConfig().invisibleOverlay.startupVisibility;
-  if (visibility === "visible") return true;
-  if (visibility === "hidden") return false;
-  if (process.platform === "linux") return false;
-  return true;
-}
+function getInitialInvisibleOverlayVisibility(): boolean { const visibility = getResolvedConfig().invisibleOverlay.startupVisibility; if (visibility === "visible") return true; if (visibility === "hidden") return false; if (process.platform === "linux") return false; return true; }
 
-function shouldAutoInitializeOverlayRuntimeFromConfig(): boolean {
-  const config = getResolvedConfig();
-  if (config.auto_start_overlay === true) return true;
-  if (config.invisibleOverlay.startupVisibility === "visible") return true;
-  return false;
-}
+function shouldAutoInitializeOverlayRuntimeFromConfig(): boolean { const config = getResolvedConfig(); if (config.auto_start_overlay === true) return true; if (config.invisibleOverlay.startupVisibility === "visible") return true; return false; }
 
-function shouldBindVisibleOverlayToMpvSubVisibility(): boolean {
-  return getResolvedConfig().bind_visible_overlay_to_mpv_sub_visibility;
-}
+function shouldBindVisibleOverlayToMpvSubVisibility(): boolean { return getResolvedConfig().bind_visible_overlay_to_mpv_sub_visibility; }
 
 function isAutoUpdateEnabledRuntime(): boolean {
   const value = runtimeOptionsManager?.getOptionValue(
@@ -365,171 +321,68 @@ function isAutoUpdateEnabledRuntime(): boolean {
   return config.ankiConnect?.behavior?.autoUpdateNewCards !== false;
 }
 
-function getJimakuConfig(): JimakuConfig {
-  const config = getResolvedConfig();
-  return config.jimaku ?? {};
-}
+function getJimakuLanguagePreference(): JimakuLanguagePreference { return getJimakuLanguagePreferenceService(() => getResolvedConfig(), DEFAULT_CONFIG.jimaku.languagePreference); }
 
-function getJimakuBaseUrl(): string {
-  const config = getJimakuConfig();
-  return config.apiBaseUrl || DEFAULT_CONFIG.jimaku.apiBaseUrl;
-}
+function getJimakuMaxEntryResults(): number { return getJimakuMaxEntryResultsService(() => getResolvedConfig(), DEFAULT_CONFIG.jimaku.maxEntryResults); }
 
-function getJimakuLanguagePreference(): JimakuLanguagePreference {
-  const config = getJimakuConfig();
-  return config.languagePreference || DEFAULT_CONFIG.jimaku.languagePreference;
-}
-
-function getJimakuMaxEntryResults(): number {
-  const config = getJimakuConfig();
-  const value = config.maxEntryResults;
-  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-    return Math.floor(value);
-  }
-  return DEFAULT_CONFIG.jimaku.maxEntryResults;
-}
-
-async function resolveJimakuApiKey(): Promise<string | null> {
-  return resolveJimakuApiKeyFromConfig(getJimakuConfig());
-}
+async function resolveJimakuApiKey(): Promise<string | null> { return resolveJimakuApiKeyService(() => getResolvedConfig()); }
 
 async function jimakuFetchJson<T>(
   endpoint: string,
   query: Record<string, string | number | boolean | null | undefined> = {},
 ): Promise<JimakuApiResponse<T>> {
-  const apiKey = await resolveJimakuApiKey();
-  if (!apiKey) {
-    return {
-      ok: false,
-      error: {
-        error:
-          "Jimaku API key not set. Configure jimaku.apiKey or jimaku.apiKeyCommand.",
-        code: 401,
-      },
-    };
-  }
-
-  return jimakuFetchJsonRequest<T>(endpoint, query, {
-    baseUrl: getJimakuBaseUrl(),
-    apiKey,
+  return jimakuFetchJsonService<T>(endpoint, query, {
+    getResolvedConfig: () => getResolvedConfig(),
+    defaultBaseUrl: DEFAULT_CONFIG.jimaku.apiBaseUrl,
+    defaultMaxEntryResults: DEFAULT_CONFIG.jimaku.maxEntryResults,
+    defaultLanguagePreference: DEFAULT_CONFIG.jimaku.languagePreference,
   });
 }
 
-function getSubtitlePositionFilePath(mediaPath: string): string {
-  const key = normalizeMediaPathForSubtitlePosition(mediaPath);
-  const hash = crypto.createHash("sha256").update(key).digest("hex");
-  return path.join(SUBTITLE_POSITIONS_DIR, `${hash}.json`);
-}
-
-function normalizeMediaPathForSubtitlePosition(mediaPath: string): string {
-  const trimmed = mediaPath.trim();
-  if (!trimmed) return trimmed;
-
-  if (
-    /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed) ||
-    /^ytsearch:/.test(trimmed)
-  ) {
-    return trimmed;
-  }
-
-  const resolved = path.resolve(trimmed);
-  let normalized = resolved;
-  try {
-    if (fs.existsSync(resolved)) {
-      normalized = fs.realpathSync(resolved);
-    }
-  } catch {
-    normalized = resolved;
-  }
-
-  if (process.platform === "win32") {
-    normalized = normalized.toLowerCase();
-  }
-
-  return normalized;
-}
-
-function persistSubtitlePosition(position: SubtitlePosition): void {
-  if (!currentMediaPath) return;
-  if (!fs.existsSync(SUBTITLE_POSITIONS_DIR)) {
-    fs.mkdirSync(SUBTITLE_POSITIONS_DIR, { recursive: true });
-  }
-  const positionPath = getSubtitlePositionFilePath(currentMediaPath);
-  fs.writeFileSync(positionPath, JSON.stringify(position, null, 2));
-}
-
 function loadSubtitlePosition(): SubtitlePosition | null {
-  const fallbackPosition = getResolvedConfig().subtitlePosition;
-  if (!currentMediaPath) {
-    subtitlePosition = fallbackPosition;
-    return subtitlePosition;
-  }
-
-  try {
-    const positionPath = getSubtitlePositionFilePath(currentMediaPath);
-    if (!fs.existsSync(positionPath)) {
-      subtitlePosition = fallbackPosition;
-      return subtitlePosition;
-    }
-
-    const data = fs.readFileSync(positionPath, "utf-8");
-    const parsed = JSON.parse(data) as Partial<SubtitlePosition>;
-    if (
-      parsed &&
-      typeof parsed.yPercent === "number" &&
-      Number.isFinite(parsed.yPercent)
-    ) {
-      subtitlePosition = { yPercent: parsed.yPercent };
-    } else {
-      subtitlePosition = fallbackPosition;
-    }
-  } catch (err) {
-    console.error("Failed to load subtitle position:", (err as Error).message);
-    subtitlePosition = fallbackPosition;
-  }
-
+  subtitlePosition = loadSubtitlePositionService({
+    currentMediaPath,
+    fallbackPosition: getResolvedConfig().subtitlePosition,
+    subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
+  });
   return subtitlePosition;
 }
 
 function saveSubtitlePosition(position: SubtitlePosition): void {
   subtitlePosition = position;
-  if (!currentMediaPath) {
-    pendingSubtitlePosition = position;
-    console.warn("Queued subtitle position save - no media path yet");
-    return;
-  }
-
-  try {
-    persistSubtitlePosition(position);
-    pendingSubtitlePosition = null;
-  } catch (err) {
-    console.error("Failed to save subtitle position:", (err as Error).message);
-  }
+  saveSubtitlePositionService({
+    position,
+    currentMediaPath,
+    subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
+    onQueuePending: (queued) => {
+      pendingSubtitlePosition = queued;
+    },
+    onPersisted: () => {
+      pendingSubtitlePosition = null;
+    },
+  });
 }
 
 function updateCurrentMediaPath(mediaPath: unknown): void {
-  const nextPath =
-    typeof mediaPath === "string" && mediaPath.trim().length > 0
-      ? mediaPath
-      : null;
-  if (nextPath === currentMediaPath) return;
-  currentMediaPath = nextPath;
-
-  if (currentMediaPath && pendingSubtitlePosition) {
-    try {
-      persistSubtitlePosition(pendingSubtitlePosition);
-      subtitlePosition = pendingSubtitlePosition;
+  updateCurrentMediaPathService({
+    mediaPath,
+    currentMediaPath,
+    pendingSubtitlePosition,
+    subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
+    loadSubtitlePosition: () => loadSubtitlePosition(),
+    setCurrentMediaPath: (nextPath) => {
+      currentMediaPath = nextPath;
+    },
+    clearPendingSubtitlePosition: () => {
       pendingSubtitlePosition = null;
-    } catch (err) {
-      console.error(
-        "Failed to persist queued subtitle position:",
-        (err as Error).message,
-      );
-    }
-  }
-
-  const position = loadSubtitlePosition();
-  broadcastToOverlayWindows("subtitle-position:set", position);
+    },
+    setSubtitlePosition: (position) => {
+      subtitlePosition = position;
+    },
+    broadcastSubtitlePosition: (position) => {
+      broadcastToOverlayWindows("subtitle-position:set", position);
+    },
+  });
 }
 
 const AUTOSUBSYNC_SPINNER_FRAMES = ["|", "/", "-", "\\"];
@@ -609,45 +462,17 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
         keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
 
         mpvClient = new MpvIpcClient(mpvSocketPath, {
-          getResolvedConfig: () => getResolvedConfig(),
-          autoStartOverlay,
+          getResolvedConfig: () => getResolvedConfig(), autoStartOverlay,
           setOverlayVisible: (visible) => setOverlayVisible(visible),
-          shouldBindVisibleOverlayToMpvSubVisibility: () =>
-            shouldBindVisibleOverlayToMpvSubVisibility(),
+          shouldBindVisibleOverlayToMpvSubVisibility: () => shouldBindVisibleOverlayToMpvSubVisibility(),
           isVisibleOverlayVisible: () => visibleOverlayVisible,
-          getReconnectTimer: () => reconnectTimer,
-          setReconnectTimer: (timer) => {
-            reconnectTimer = timer;
-          },
-          getCurrentSubText: () => currentSubText,
-          setCurrentSubText: (text) => {
-            currentSubText = text;
-          },
-          setCurrentSubAssText: (text) => {
-            currentSubAssText = text;
-          },
-          getSubtitleTimingTracker: () => subtitleTimingTracker,
-          subtitleWsBroadcast: (text) => {
-            subtitleWsService.broadcast(text);
-          },
-          getOverlayWindowsCount: () => getOverlayWindows().length,
-          tokenizeSubtitle: (text) => tokenizeSubtitle(text),
-          broadcastToOverlayWindows: (channel, ...args) => {
-            broadcastToOverlayWindows(channel, ...args);
-          },
-          updateCurrentMediaPath: (mediaPath) => {
-            updateCurrentMediaPath(mediaPath);
-          },
-          updateMpvSubtitleRenderMetrics: (patch) => {
-            updateMpvSubtitleRenderMetrics(patch);
-          },
-          getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
-          setPreviousSecondarySubVisibility: (value) => {
-            previousSecondarySubVisibility = value;
-          },
-          showMpvOsd: (text) => {
-            showMpvOsd(text);
-          },
+          getReconnectTimer: () => reconnectTimer, setReconnectTimer: (timer) => { reconnectTimer = timer; },
+          getCurrentSubText: () => currentSubText, setCurrentSubText: (text) => { currentSubText = text; }, setCurrentSubAssText: (text) => { currentSubAssText = text; },
+          getSubtitleTimingTracker: () => subtitleTimingTracker, subtitleWsBroadcast: (text) => { subtitleWsService.broadcast(text); },
+          getOverlayWindowsCount: () => getOverlayWindows().length, tokenizeSubtitle: (text) => tokenizeSubtitle(text),
+          broadcastToOverlayWindows: (channel, ...args) => { broadcastToOverlayWindows(channel, ...args); },
+          updateCurrentMediaPath: (mediaPath) => { updateCurrentMediaPath(mediaPath); }, updateMpvSubtitleRenderMetrics: (patch) => { updateMpvSubtitleRenderMetrics(patch); },
+          getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics, setPreviousSecondarySubVisibility: (value) => { previousSecondarySubVisibility = value; }, showMpvOsd: (text) => { showMpvOsd(text); },
         });
 
         configService.reloadConfig();
@@ -902,99 +727,10 @@ function handleInitialArgs(): void {
 function updateMpvSubtitleRenderMetrics(
   patch: Partial<MpvSubtitleRenderMetrics>,
 ): void {
-  const patchOsd = patch.osdDimensions;
-  const nextOsdDimensions =
-    patchOsd &&
-    typeof patchOsd.w === "number" &&
-    typeof patchOsd.h === "number" &&
-    typeof patchOsd.ml === "number" &&
-    typeof patchOsd.mr === "number" &&
-    typeof patchOsd.mt === "number" &&
-    typeof patchOsd.mb === "number"
-      ? {
-          w: asFiniteNumber(patchOsd.w, 0, 1, 100000),
-          h: asFiniteNumber(patchOsd.h, 0, 1, 100000),
-          ml: asFiniteNumber(patchOsd.ml, 0, 0, 100000),
-          mr: asFiniteNumber(patchOsd.mr, 0, 0, 100000),
-          mt: asFiniteNumber(patchOsd.mt, 0, 0, 100000),
-          mb: asFiniteNumber(patchOsd.mb, 0, 0, 100000),
-        }
-      : patchOsd === null
-        ? null
-        : mpvSubtitleRenderMetrics.osdDimensions;
-
-  const next: MpvSubtitleRenderMetrics = {
-    subPos: asFiniteNumber(
-      patch.subPos,
-      mpvSubtitleRenderMetrics.subPos,
-      0,
-      150,
-    ),
-    subFontSize: asFiniteNumber(
-      patch.subFontSize,
-      mpvSubtitleRenderMetrics.subFontSize,
-      1,
-      200,
-    ),
-    subScale: asFiniteNumber(
-      patch.subScale,
-      mpvSubtitleRenderMetrics.subScale,
-      0.1,
-      10,
-    ),
-    subMarginY: asFiniteNumber(
-      patch.subMarginY,
-      mpvSubtitleRenderMetrics.subMarginY,
-      0,
-      200,
-    ),
-    subMarginX: asFiniteNumber(
-      patch.subMarginX,
-      mpvSubtitleRenderMetrics.subMarginX,
-      0,
-      200,
-    ),
-    subFont: asString(patch.subFont, mpvSubtitleRenderMetrics.subFont),
-    subSpacing: asFiniteNumber(
-      patch.subSpacing,
-      mpvSubtitleRenderMetrics.subSpacing,
-      -100,
-      100,
-    ),
-    subBold: asBoolean(patch.subBold, mpvSubtitleRenderMetrics.subBold),
-    subItalic: asBoolean(patch.subItalic, mpvSubtitleRenderMetrics.subItalic),
-    subBorderSize: asFiniteNumber(
-      patch.subBorderSize,
-      mpvSubtitleRenderMetrics.subBorderSize,
-      0,
-      100,
-    ),
-    subShadowOffset: asFiniteNumber(
-      patch.subShadowOffset,
-      mpvSubtitleRenderMetrics.subShadowOffset,
-      0,
-      100,
-    ),
-    subAssOverride: asString(
-      patch.subAssOverride,
-      mpvSubtitleRenderMetrics.subAssOverride,
-    ),
-    subScaleByWindow: asBoolean(
-      patch.subScaleByWindow,
-      mpvSubtitleRenderMetrics.subScaleByWindow,
-    ),
-    subUseMargins: asBoolean(
-      patch.subUseMargins,
-      mpvSubtitleRenderMetrics.subUseMargins,
-    ),
-    osdHeight: asFiniteNumber(
-      patch.osdHeight,
-      mpvSubtitleRenderMetrics.osdHeight,
-      1,
-      10000,
-    ),
-    osdDimensions: nextOsdDimensions,
-  };
+  const next = updateMpvSubtitleRenderMetricsService(
+    mpvSubtitleRenderMetrics,
+    patch,
+  );
 
   const changed =
     next.subPos !== mpvSubtitleRenderMetrics.subPos ||
@@ -1722,52 +1458,16 @@ registerIpcHandlersService({
  * Create and show a desktop notification with robust icon handling.
  * Supports both file paths (preferred on Linux/Wayland) and data URLs (fallback).
  */
-function createFieldGroupingCallback() {
-  return createFieldGroupingCallbackService({
-    getVisibleOverlayVisible: () => visibleOverlayVisible,
-    getInvisibleOverlayVisible: () => invisibleOverlayVisible,
-    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
-    getResolver: () => fieldGroupingResolver,
-    setResolver: (resolver) => {
-      fieldGroupingResolver = resolver;
-    },
-    sendRequestToVisibleOverlay: (data) =>
-      sendToVisibleOverlay("kiku:field-grouping-request", data),
-  });
-}
+function createFieldGroupingCallback() { return createFieldGroupingCallbackService({ getVisibleOverlayVisible: () => visibleOverlayVisible, getInvisibleOverlayVisible: () => invisibleOverlayVisible, setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible), setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible), getResolver: () => fieldGroupingResolver, setResolver: (resolver) => { fieldGroupingResolver = resolver; }, sendRequestToVisibleOverlay: (data) => sendToVisibleOverlay("kiku:field-grouping-request", data) }); }
 
 function sendToVisibleOverlay(channel: string, payload?: unknown, options?: { restoreOnModalClose?: OverlayHostedModal }): boolean { return sendToVisibleOverlayService({ mainWindow, visibleOverlayVisible, setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible), channel, payload, restoreOnModalClose: options?.restoreOnModalClose, addRestoreFlag: (modal) => restoreVisibleOverlayOnModalClose.add(modal as OverlayHostedModal) }); }
 
 registerAnkiJimakuIpcRuntimeService({
-  patchAnkiConnectEnabled: (enabled) => {
-    configService.patchRawConfig({
-      ankiConnect: {
-        enabled,
-      },
-    });
-  },
-  getResolvedConfig: () => getResolvedConfig(),
-  getRuntimeOptionsManager: () => runtimeOptionsManager,
-  getSubtitleTimingTracker: () => subtitleTimingTracker,
-  getMpvClient: () => mpvClient,
-  getAnkiIntegration: () => ankiIntegration,
-  setAnkiIntegration: (integration) => {
-    ankiIntegration = integration;
-  },
-  showDesktopNotification,
-  createFieldGroupingCallback: () => createFieldGroupingCallback(),
-  broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-  getFieldGroupingResolver: () => fieldGroupingResolver,
-  setFieldGroupingResolver: (resolver) => {
-    fieldGroupingResolver = resolver;
-  },
-  parseMediaInfo: (mediaPath) => parseMediaInfo(mediaPath),
-  getCurrentMediaPath: () => currentMediaPath,
-  jimakuFetchJson: (endpoint, query) => jimakuFetchJson(endpoint, query),
-  getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(),
-  getJimakuLanguagePreference: () => getJimakuLanguagePreference(),
-  resolveJimakuApiKey: () => resolveJimakuApiKey(),
-  isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
-  downloadToFile: (url, destPath, headers) => downloadToFile(url, destPath, headers),
+  patchAnkiConnectEnabled: (enabled) => { configService.patchRawConfig({ ankiConnect: { enabled } }); },
+  getResolvedConfig: () => getResolvedConfig(), getRuntimeOptionsManager: () => runtimeOptionsManager, getSubtitleTimingTracker: () => subtitleTimingTracker, getMpvClient: () => mpvClient, getAnkiIntegration: () => ankiIntegration, setAnkiIntegration: (integration) => { ankiIntegration = integration; },
+  showDesktopNotification, createFieldGroupingCallback: () => createFieldGroupingCallback(), broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+  getFieldGroupingResolver: () => fieldGroupingResolver, setFieldGroupingResolver: (resolver) => { fieldGroupingResolver = resolver; },
+  parseMediaInfo: (mediaPath) => parseMediaInfo(mediaPath), getCurrentMediaPath: () => currentMediaPath, jimakuFetchJson: (endpoint, query) => jimakuFetchJson(endpoint, query),
+  getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(), getJimakuLanguagePreference: () => getJimakuLanguagePreference(), resolveJimakuApiKey: () => resolveJimakuApiKey(),
+  isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath), downloadToFile: (url, destPath, headers) => downloadToFile(url, destPath, headers),
 });
