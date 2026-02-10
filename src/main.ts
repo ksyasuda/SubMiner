@@ -202,6 +202,7 @@ import {
   setOverlayDebugVisualizationEnabledRuntimeService,
 } from "./core/services/overlay-broadcast-runtime-service";
 import { runAppReadyRuntimeService } from "./core/services/app-ready-runtime-service";
+import { runAppShutdownRuntimeService } from "./core/services/app-shutdown-runtime-service";
 import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
@@ -564,30 +565,52 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
       });
     },
     onWillQuitCleanup: () => {
-      globalShortcut.unregisterAll();
-      subtitleWsService.stop();
-      texthookerService.stop();
-      if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
-        yomitanParserWindow.destroy();
-      }
-      yomitanParserWindow = null;
-      yomitanParserReadyPromise = null;
-      yomitanParserInitPromise = null;
-      if (windowTracker) {
-        windowTracker.stop();
-      }
-      if (mpvClient && mpvClient.socket) {
-        mpvClient.socket.destroy();
-      }
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-      }
-      if (subtitleTimingTracker) {
-        subtitleTimingTracker.destroy();
-      }
-      if (ankiIntegration) {
-        ankiIntegration.destroy();
-      }
+      runAppShutdownRuntimeService({
+        unregisterAllGlobalShortcuts: () => {
+          globalShortcut.unregisterAll();
+        },
+        stopSubtitleWebsocket: () => {
+          subtitleWsService.stop();
+        },
+        stopTexthookerService: () => {
+          texthookerService.stop();
+        },
+        destroyYomitanParserWindow: () => {
+          if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
+            yomitanParserWindow.destroy();
+          }
+          yomitanParserWindow = null;
+        },
+        clearYomitanParserPromises: () => {
+          yomitanParserReadyPromise = null;
+          yomitanParserInitPromise = null;
+        },
+        stopWindowTracker: () => {
+          if (windowTracker) {
+            windowTracker.stop();
+          }
+        },
+        destroyMpvSocket: () => {
+          if (mpvClient && mpvClient.socket) {
+            mpvClient.socket.destroy();
+          }
+        },
+        clearReconnectTimer: () => {
+          if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+          }
+        },
+        destroySubtitleTimingTracker: () => {
+          if (subtitleTimingTracker) {
+            subtitleTimingTracker.destroy();
+          }
+        },
+        destroyAnkiIntegration: () => {
+          if (ankiIntegration) {
+            ankiIntegration.destroy();
+          }
+        },
+      });
     },
     shouldRestoreWindowsOnActivate: () =>
       overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
