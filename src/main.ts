@@ -51,12 +51,15 @@ import type {
   Keybinding,
   WindowGeometry,
   SecondarySubMode,
+  SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
   KikuFieldGroupingChoice,
   KikuMergePreviewRequest,
   KikuMergePreviewResponse,
+  RuntimeOptionId,
   RuntimeOptionState,
+  RuntimeOptionValue,
   MpvSubtitleRenderMetrics,
 } from "./types";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
@@ -98,22 +101,14 @@ import {
   createCliCommandDepsRuntimeService,
   createOverlayManagerService,
   createFieldGroupingOverlayRuntimeService,
-  createInitializeOverlayRuntimeDepsService,
-  createInvisibleOverlayVisibilityDepsRuntimeService,
   createIpcDepsRuntimeService,
   createMecabTokenizerAndCheckRuntimeService,
-  createMpvCommandIpcDepsRuntimeService,
   createNumericShortcutRuntimeService,
   createOverlayShortcutRuntimeHandlers,
-  createOverlayWindowRuntimeDepsService,
   createOverlayWindowService,
-  createRuntimeOptionsIpcDepsRuntimeService,
   createRuntimeOptionsManagerRuntimeService,
-  createStartupLifecycleHooksRuntimeService,
-  createSubsyncRuntimeDepsService,
   createSubtitleTimingTrackerRuntimeService,
   createTokenizerDepsRuntimeService,
-  createVisibleOverlayVisibilityDepsRuntimeService,
   cycleSecondarySubModeService,
   enforceOverlayLayerOrderService,
   ensureOverlayWindowLevelService,
@@ -148,10 +143,10 @@ import {
   runSubsyncManualFromIpcRuntimeService,
   saveSubtitlePositionService,
   sendMpvCommandRuntimeService,
-  setInvisibleOverlayVisibleRuntimeFacadeService,
+  setInvisibleOverlayVisibleService,
   setMpvSubVisibilityRuntimeService,
   setOverlayDebugVisualizationEnabledRuntimeService,
-  setVisibleOverlayVisibleRuntimeFacadeService,
+  setVisibleOverlayVisibleService,
   shouldAutoInitializeOverlayRuntimeFromConfigService,
   shouldBindVisibleOverlayToMpvSubVisibilityService,
   shortcutMatchesInputForLocalFallback,
@@ -160,8 +155,6 @@ import {
   syncInvisibleOverlayMousePassthroughService,
   syncOverlayShortcutsRuntimeService,
   tokenizeSubtitleService,
-  toggleInvisibleOverlayRuntimeFacadeService,
-  toggleVisibleOverlayRuntimeFacadeService,
   triggerFieldGroupingService,
   triggerSubsyncFromConfigRuntimeService,
   unregisterOverlayShortcutsRuntimeService,
@@ -171,6 +164,13 @@ import {
   updateOverlayBoundsService,
   updateVisibleOverlayVisibilityService,
 } from "./core/services";
+import { runAppReadyRuntimeService } from "./core/services/app-ready-runtime-service";
+import { runAppShutdownRuntimeService } from "./core/services/app-shutdown-runtime-service";
+import {
+  applyRuntimeOptionResultRuntimeService,
+  cycleRuntimeOptionFromIpcRuntimeService,
+  setRuntimeOptionFromIpcRuntimeService,
+} from "./core/services/runtime-options-runtime-service";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -487,8 +487,8 @@ const startupState = runStartupBootstrapRuntimeService({
       handleCliCommand: (nextArgs, source) => handleCliCommand(nextArgs, source),
       printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
       logNoRunningInstance: () => appLogger.logNoRunningInstance(),
-      ...createStartupLifecycleHooksRuntimeService({
-        appReadyDeps: {
+      onReady: async () => {
+        await runAppReadyRuntimeService({
           loadSubtitlePosition: () => loadSubtitlePosition(),
           resolveKeybindings: () => {
             keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
@@ -593,8 +593,10 @@ const startupState = runStartupBootstrapRuntimeService({
             shouldAutoInitializeOverlayRuntimeFromConfig(),
           initializeOverlayRuntime: () => initializeOverlayRuntime(),
           handleInitialArgs: () => handleInitialArgs(),
-        },
-        appShutdownDeps: {
+        });
+      },
+      onWillQuitCleanup: () => {
+        runAppShutdownRuntimeService({
           unregisterAllGlobalShortcuts: () => {
             globalShortcut.unregisterAll();
           },
@@ -639,16 +641,16 @@ const startupState = runStartupBootstrapRuntimeService({
               ankiIntegration.destroy();
             }
           },
-        },
-        shouldRestoreWindowsOnActivate: () =>
-          overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
-        restoreWindowsOnActivate: () => {
-          createMainWindow();
-          createInvisibleWindow();
-          updateVisibleOverlayVisibility();
-          updateInvisibleOverlayVisibility();
-        },
-      }),
+        });
+      },
+      shouldRestoreWindowsOnActivate: () =>
+        overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
+      restoreWindowsOnActivate: () => {
+        createMainWindow();
+        createInvisibleWindow();
+        updateVisibleOverlayVisibility();
+        updateInvisibleOverlayVisibility();
+      },
     }));
   },
 });
@@ -809,15 +811,17 @@ async function loadYomitanExtension(): Promise<Extension | null> {
 function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
   return createOverlayWindowService(
     kind,
-    createOverlayWindowRuntimeDepsService({
+    {
       isDev,
-      getOverlayDebugVisualizationEnabled: () => overlayDebugVisualizationEnabled,
+      overlayDebugVisualizationEnabled,
       ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
       onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
       setOverlayDebugVisualizationEnabled: (enabled) =>
         setOverlayDebugVisualizationEnabled(enabled),
-      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
+      isOverlayVisible: (windowKind) =>
+        windowKind === "visible"
+          ? overlayManager.getVisibleOverlayVisible()
+          : overlayManager.getInvisibleOverlayVisible(),
       tryHandleOverlayShortcutLocalFallback: (input) =>
         tryHandleOverlayShortcutLocalFallback(input),
       onWindowClosed: (windowKind) => {
@@ -827,7 +831,7 @@ function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
           overlayManager.setInvisibleWindow(null);
         }
       },
-    }),
+    },
   );
 }
 
@@ -847,7 +851,7 @@ function initializeOverlayRuntime(): void {
     return;
   }
   const result = initializeOverlayRuntimeService(
-    createInitializeOverlayRuntimeDepsService({
+    {
       backendOverride,
       getInitialInvisibleOverlayVisibility: () =>
         getInitialInvisibleOverlayVisibility(),
@@ -888,7 +892,7 @@ function initializeOverlayRuntime(): void {
       },
       showDesktopNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
-    }),
+    },
   );
   overlayManager.setInvisibleOverlayVisible(result.invisibleOverlayVisible);
   overlayRuntimeInitialized = true;
@@ -1002,29 +1006,9 @@ const numericShortcutRuntime = createNumericShortcutRuntimeService({
 });
 const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
-const overlayVisibilityFacadeDeps = {
-  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
-  setVisibleOverlayVisibleState: (nextVisible: boolean) => {
-    overlayManager.setVisibleOverlayVisible(nextVisible);
-  },
-  setInvisibleOverlayVisibleState: (nextVisible: boolean) => {
-    overlayManager.setInvisibleOverlayVisible(nextVisible);
-  },
-  updateVisibleOverlayVisibility: () => updateVisibleOverlayVisibility(),
-  updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
-  syncInvisibleOverlayMousePassthrough: () =>
-    syncInvisibleOverlayMousePassthrough(),
-  shouldBindVisibleOverlayToMpvSubVisibility: () =>
-    shouldBindVisibleOverlayToMpvSubVisibility(),
-  isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
-  setMpvSubVisibility: (mpvSubVisible: boolean) => {
-    setMpvSubVisibilityRuntimeService(mpvClient, mpvSubVisible);
-  },
-};
 
 function getSubsyncRuntimeDeps() {
-  return createSubsyncRuntimeDepsService({
+  return {
     getMpvClient: () => mpvClient,
     getResolvedSubsyncConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
     isSubsyncInProgress: () => subsyncInProgress,
@@ -1032,9 +1016,12 @@ function getSubsyncRuntimeDeps() {
       subsyncInProgress = inProgress;
     },
     showMpvOsd: (text: string) => showMpvOsd(text),
-    sendToVisibleOverlay: (channel, payload, options) =>
-      sendToVisibleOverlay(channel, payload, options),
-  });
+    openManualPicker: (payload: SubsyncManualPayload) => {
+      sendToVisibleOverlay("subsync:open-manual", payload, {
+        restoreOnModalClose: "subsync",
+      });
+    },
+  };
 }
 
 async function triggerSubsyncFromConfig(): Promise<void> {
@@ -1189,21 +1176,21 @@ function refreshOverlayShortcuts(): void {
 
 function updateVisibleOverlayVisibility(): void {
   updateVisibleOverlayVisibilityService(
-    createVisibleOverlayVisibilityDepsRuntimeService({
-      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      getMainWindow: () => overlayManager.getMainWindow(),
-      getWindowTracker: () => windowTracker,
-      getTrackerNotReadyWarningShown: () => trackerNotReadyWarningShown,
+    {
+      visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
+      mainWindow: overlayManager.getMainWindow(),
+      windowTracker,
+      trackerNotReadyWarningShown,
       setTrackerNotReadyWarningShown: (shown) => {
         trackerNotReadyWarningShown = shown;
       },
-      shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      shouldBindVisibleOverlayToMpvSubVisibility:
         shouldBindVisibleOverlayToMpvSubVisibility(),
-      getPreviousSecondarySubVisibility: () => previousSecondarySubVisibility,
+      previousSecondarySubVisibility,
       setPreviousSecondarySubVisibility: (value) => {
         previousSecondarySubVisibility = value;
       },
-      isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
+      mpvConnected: Boolean(mpvClient && mpvClient.connected),
       mpvSend: (payload) => {
         if (!mpvClient) return;
         mpvClient.send(payload);
@@ -1213,23 +1200,22 @@ function updateVisibleOverlayVisibility(): void {
       ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
       enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
       syncOverlayShortcuts: () => syncOverlayShortcuts(),
-    }),
+    },
   );
 }
 
 function updateInvisibleOverlayVisibility(): void {
   updateInvisibleOverlayVisibilityService(
-    createInvisibleOverlayVisibilityDepsRuntimeService({
-      getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
-      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      getInvisibleOverlayVisible: () =>
-        overlayManager.getInvisibleOverlayVisible(),
-      getWindowTracker: () => windowTracker,
+    {
+      invisibleWindow: overlayManager.getInvisibleWindow(),
+      visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
+      invisibleOverlayVisible: overlayManager.getInvisibleOverlayVisible(),
+      windowTracker,
       updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
       ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
       enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
       syncOverlayShortcuts: () => syncOverlayShortcuts(),
-    }),
+    },
   );
 }
 
@@ -1250,21 +1236,41 @@ function syncInvisibleOverlayMousePassthrough(): void {
 }
 
 function setVisibleOverlayVisible(visible: boolean): void {
-  setVisibleOverlayVisibleRuntimeFacadeService(visible, overlayVisibilityFacadeDeps);
+  setVisibleOverlayVisibleService({
+    visible,
+    setVisibleOverlayVisibleState: (nextVisible) => {
+      overlayManager.setVisibleOverlayVisible(nextVisible);
+    },
+    updateVisibleOverlayVisibility: () => updateVisibleOverlayVisibility(),
+    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
+    syncInvisibleOverlayMousePassthrough: () =>
+      syncInvisibleOverlayMousePassthrough(),
+    shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      shouldBindVisibleOverlayToMpvSubVisibility(),
+    isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
+    setMpvSubVisibility: (mpvSubVisible) => {
+      setMpvSubVisibilityRuntimeService(mpvClient, mpvSubVisible);
+    },
+  });
 }
 
 function setInvisibleOverlayVisible(visible: boolean): void {
-  setInvisibleOverlayVisibleRuntimeFacadeService(
+  setInvisibleOverlayVisibleService({
     visible,
-    overlayVisibilityFacadeDeps,
-  );
+    setInvisibleOverlayVisibleState: (nextVisible) => {
+      overlayManager.setInvisibleOverlayVisible(nextVisible);
+    },
+    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
+    syncInvisibleOverlayMousePassthrough: () =>
+      syncInvisibleOverlayMousePassthrough(),
+  });
 }
 
 function toggleVisibleOverlay(): void {
-  toggleVisibleOverlayRuntimeFacadeService(overlayVisibilityFacadeDeps);
+  setVisibleOverlayVisible(!overlayManager.getVisibleOverlayVisible());
 }
 function toggleInvisibleOverlay(): void {
-  toggleInvisibleOverlayRuntimeFacadeService(overlayVisibilityFacadeDeps);
+  setInvisibleOverlayVisible(!overlayManager.getInvisibleOverlayVisible());
 }
 function setOverlayVisible(visible: boolean): void { setVisibleOverlayVisible(visible); }
 function toggleOverlay(): void { toggleVisibleOverlay(); }
@@ -1279,18 +1285,27 @@ function handleOverlayModalClosed(modal: OverlayHostedModal): void {
 function handleMpvCommandFromIpc(command: (string | number)[]): void {
   handleMpvCommandFromIpcService(
     command,
-    createMpvCommandIpcDepsRuntimeService({
+    {
       specialCommands: SPECIAL_COMMANDS,
       triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
       openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-      getRuntimeOptionsManager: () => runtimeOptionsManager,
+      runtimeOptionsCycle: (id, direction) => {
+        if (!runtimeOptionsManager) {
+          return { ok: false, error: "Runtime options manager unavailable" };
+        }
+        return applyRuntimeOptionResultRuntimeService(
+          runtimeOptionsManager.cycleOption(id, direction),
+          (text) => showMpvOsd(text),
+        );
+      },
       showMpvOsd: (text) => showMpvOsd(text),
       mpvReplaySubtitle: () => replayCurrentSubtitleRuntimeService(mpvClient),
       mpvPlayNextSubtitle: () => playNextSubtitleRuntimeService(mpvClient),
       mpvSendCommand: (rawCommand) =>
         sendMpvCommandRuntimeService(mpvClient, rawCommand),
       isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
-    }),
+      hasRuntimeOptionsManager: () => runtimeOptionsManager !== null,
+    },
   );
 }
 
@@ -1300,10 +1315,22 @@ async function runSubsyncManualFromIpc(
   return runSubsyncManualFromIpcRuntimeService(request, getSubsyncRuntimeDeps());
 }
 
-const runtimeOptionsIpcDeps = createRuntimeOptionsIpcDepsRuntimeService({
-  getRuntimeOptionsManager: () => runtimeOptionsManager,
-  showMpvOsd: (text) => showMpvOsd(text),
-});
+const runtimeOptionsIpcDeps = {
+  setRuntimeOption: (id: string, value: unknown) =>
+    setRuntimeOptionFromIpcRuntimeService(
+      runtimeOptionsManager,
+      id as RuntimeOptionId,
+      value as RuntimeOptionValue,
+      (text) => showMpvOsd(text),
+    ),
+  cycleRuntimeOption: (id: string, direction: 1 | -1) =>
+    cycleRuntimeOptionFromIpcRuntimeService(
+      runtimeOptionsManager,
+      id as RuntimeOptionId,
+      direction,
+      (text) => showMpvOsd(text),
+    ),
+};
 
 registerIpcHandlersService(
   createIpcDepsRuntimeService({
