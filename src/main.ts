@@ -208,6 +208,19 @@ import {
   createVisibleOverlayVisibilityDepsRuntimeService,
 } from "./core/services/overlay-runtime-deps-service";
 import {
+  createOverlayShortcutLifecycleDepsRuntimeService,
+  createOverlayShortcutRuntimeDepsService,
+} from "./core/services/overlay-shortcut-runtime-deps-service";
+import {
+  createCopyCurrentSubtitleDepsRuntimeService,
+  createHandleMineSentenceDigitDepsRuntimeService,
+  createHandleMultiCopyDigitDepsRuntimeService,
+  createMarkLastCardAsAudioCardDepsRuntimeService,
+  createMineSentenceCardDepsRuntimeService,
+  createTriggerFieldGroupingDepsRuntimeService,
+  createUpdateLastCardFromClipboardDepsRuntimeService,
+} from "./core/services/mining-runtime-deps-service";
+import {
   createStartupAppReadyDepsRuntimeService,
   createStartupAppShutdownDepsRuntimeService,
 } from "./core/services/startup-lifecycle-runtime-deps-service";
@@ -905,7 +918,8 @@ function registerGlobalShortcuts(): void { registerGlobalShortcutsService({ shor
 function getConfiguredShortcuts() { return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG); }
 
 function getOverlayShortcutRuntimeHandlers() {
-  return createOverlayShortcutRuntimeHandlers({
+  return createOverlayShortcutRuntimeHandlers(
+    createOverlayShortcutRuntimeDepsService({
     showMpvOsd: (text) => showMpvOsd(text),
     openRuntimeOptions: () => {
       openRuntimeOptionsPalette();
@@ -928,7 +942,8 @@ function getOverlayShortcutRuntimeHandlers() {
     mineSentenceMultiple: (timeoutMs) => {
       startPendingMineSentenceMultiple(timeoutMs);
     },
-  });
+    }),
+  );
 }
 
 function tryHandleOverlayShortcutLocalFallback(input: Electron.Input): boolean {
@@ -1034,49 +1049,62 @@ function startPendingMultiCopy(timeoutMs: number): void {
 }
 
 function handleMultiCopyDigit(count: number): void {
-  handleMultiCopyDigitService(count, {
-    subtitleTimingTracker,
-    writeClipboardText: (text) => clipboard.writeText(text),
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  handleMultiCopyDigitService(
+    count,
+    createHandleMultiCopyDigitDepsRuntimeService({
+      subtitleTimingTracker,
+      writeClipboardText: (text) => clipboard.writeText(text),
+      showMpvOsd: (text) => showMpvOsd(text),
+    }),
+  );
 }
 
 function copyCurrentSubtitle(): void {
-  copyCurrentSubtitleService({
-    subtitleTimingTracker,
-    writeClipboardText: (text) => clipboard.writeText(text),
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  copyCurrentSubtitleService(
+    createCopyCurrentSubtitleDepsRuntimeService({
+      subtitleTimingTracker,
+      writeClipboardText: (text) => clipboard.writeText(text),
+      showMpvOsd: (text) => showMpvOsd(text),
+    }),
+  );
 }
 
 async function updateLastCardFromClipboard(): Promise<void> {
-  await updateLastCardFromClipboardService({
-    ankiIntegration,
-    readClipboardText: () => clipboard.readText(),
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  await updateLastCardFromClipboardService(
+    createUpdateLastCardFromClipboardDepsRuntimeService({
+      ankiIntegration,
+      readClipboardText: () => clipboard.readText(),
+      showMpvOsd: (text) => showMpvOsd(text),
+    }),
+  );
 }
 
 async function triggerFieldGrouping(): Promise<void> {
-  await triggerFieldGroupingService({
-    ankiIntegration,
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  await triggerFieldGroupingService(
+    createTriggerFieldGroupingDepsRuntimeService({
+      ankiIntegration,
+      showMpvOsd: (text) => showMpvOsd(text),
+    }),
+  );
 }
 
 async function markLastCardAsAudioCard(): Promise<void> {
-  await markLastCardAsAudioCardService({
-    ankiIntegration,
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  await markLastCardAsAudioCardService(
+    createMarkLastCardAsAudioCardDepsRuntimeService({
+      ankiIntegration,
+      showMpvOsd: (text) => showMpvOsd(text),
+    }),
+  );
 }
 
 async function mineSentenceCard(): Promise<void> {
-  await mineSentenceCardService({
-    ankiIntegration,
-    mpvClient,
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  await mineSentenceCardService(
+    createMineSentenceCardDepsRuntimeService({
+      ankiIntegration,
+      mpvClient,
+      showMpvOsd: (text) => showMpvOsd(text),
+    }),
+  );
 }
 
 function cancelPendingMineSentenceMultiple(): void {
@@ -1096,15 +1124,19 @@ function startPendingMineSentenceMultiple(timeoutMs: number): void {
 }
 
 function handleMineSentenceDigit(count: number): void {
-  handleMineSentenceDigitService(count, {
-    subtitleTimingTracker,
-    ankiIntegration,
-    getCurrentSecondarySubText: () => mpvClient?.currentSecondarySubText || undefined,
-    showMpvOsd: (text) => showMpvOsd(text),
-    logError: (message, err) => {
-      console.error(message, err);
-    },
-  });
+  handleMineSentenceDigitService(
+    count,
+    createHandleMineSentenceDigitDepsRuntimeService({
+      subtitleTimingTracker,
+      ankiIntegration,
+      getCurrentSecondarySubText: () =>
+        mpvClient?.currentSecondarySubText || undefined,
+      showMpvOsd: (text) => showMpvOsd(text),
+      logError: (message, err) => {
+        console.error(message, err);
+      },
+    }),
+  );
 }
 
 function registerOverlayShortcuts(): void {
@@ -1115,12 +1147,12 @@ function registerOverlayShortcuts(): void {
 }
 
 function getOverlayShortcutLifecycleDeps() {
-  return {
+  return createOverlayShortcutLifecycleDepsRuntimeService({
     getConfiguredShortcuts: () => getConfiguredShortcuts(),
     getOverlayHandlers: () => getOverlayShortcutRuntimeHandlers().overlayHandlers,
     cancelPendingMultiCopy: () => cancelPendingMultiCopy(),
     cancelPendingMineSentenceMultiple: () => cancelPendingMineSentenceMultiple(),
-  };
+  });
 }
 
 function unregisterOverlayShortcuts(): void {
