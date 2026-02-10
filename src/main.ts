@@ -127,6 +127,7 @@ import {
   triggerFieldGroupingService,
   updateLastCardFromClipboardService,
 } from "./core/services/mining-runtime-service";
+import { startAppLifecycleService } from "./core/services/app-lifecycle-service";
 import { showDesktopNotification } from "./core/utils/notification";
 import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
 import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
@@ -420,145 +421,139 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
       app.quit();
     });
 } else {
-  const gotTheLock = app.requestSingleInstanceLock();
+  startAppLifecycleService(initialArgs, {
+    shouldStartApp: (args) => shouldStartApp(args),
+    parseArgs: (argv) => parseArgs(argv),
+    requestSingleInstanceLock: () => app.requestSingleInstanceLock(),
+    quitApp: () => app.quit(),
+    onSecondInstance: (handler) => {
+      app.on("second-instance", handler);
+    },
+    handleCliCommand: (args, source) => handleCliCommand(args, source),
+    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+    logNoRunningInstance: () => {
+      console.error("No running instance. Use --start to launch the app.");
+    },
+    whenReady: (handler) => {
+      app.whenReady().then(handler);
+    },
+    onWindowAllClosed: (handler) => {
+      app.on("window-all-closed", handler);
+    },
+    onWillQuit: (handler) => {
+      app.on("will-quit", handler);
+    },
+    onActivate: (handler) => {
+      app.on("activate", handler);
+    },
+    isDarwinPlatform: () => process.platform === "darwin",
+    onReady: async () => {
+      loadSubtitlePosition();
+      keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
 
-  if (!gotTheLock) {
-    app.quit();
-  } else {
-    app.on("second-instance", (_event, argv) => {
-      handleCliCommand(parseArgs(argv), "second-instance");
-    });
-    if (initialArgs.help && !shouldStartApp(initialArgs)) {
-      printHelp(DEFAULT_TEXTHOOKER_PORT);
-      app.quit();
-    } else if (!shouldStartApp(initialArgs)) {
-      if (initialArgs.stop && !initialArgs.start) {
-        app.quit();
-      } else {
-        console.error("No running instance. Use --start to launch the app.");
-        app.quit();
-      }
-    } else {
-      app.whenReady().then(async () => {
-        loadSubtitlePosition();
-        keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+      mpvClient = new MpvIpcClient(mpvSocketPath, {
+        getResolvedConfig: () => getResolvedConfig(), autoStartOverlay,
+        setOverlayVisible: (visible) => setOverlayVisible(visible),
+        shouldBindVisibleOverlayToMpvSubVisibility: () => shouldBindVisibleOverlayToMpvSubVisibility(),
+        isVisibleOverlayVisible: () => visibleOverlayVisible,
+        getReconnectTimer: () => reconnectTimer, setReconnectTimer: (timer) => { reconnectTimer = timer; },
+        getCurrentSubText: () => currentSubText, setCurrentSubText: (text) => { currentSubText = text; }, setCurrentSubAssText: (text) => { currentSubAssText = text; },
+        getSubtitleTimingTracker: () => subtitleTimingTracker, subtitleWsBroadcast: (text) => { subtitleWsService.broadcast(text); },
+        getOverlayWindowsCount: () => getOverlayWindows().length, tokenizeSubtitle: (text) => tokenizeSubtitle(text),
+        broadcastToOverlayWindows: (channel, ...args) => { broadcastToOverlayWindows(channel, ...args); },
+        updateCurrentMediaPath: (mediaPath) => { updateCurrentMediaPath(mediaPath); }, updateMpvSubtitleRenderMetrics: (patch) => { updateMpvSubtitleRenderMetrics(patch); },
+        getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics, setPreviousSecondarySubVisibility: (value) => { previousSecondarySubVisibility = value; }, showMpvOsd: (text) => { showMpvOsd(text); },
+      });
 
-        mpvClient = new MpvIpcClient(mpvSocketPath, {
-          getResolvedConfig: () => getResolvedConfig(), autoStartOverlay,
-          setOverlayVisible: (visible) => setOverlayVisible(visible),
-          shouldBindVisibleOverlayToMpvSubVisibility: () => shouldBindVisibleOverlayToMpvSubVisibility(),
-          isVisibleOverlayVisible: () => visibleOverlayVisible,
-          getReconnectTimer: () => reconnectTimer, setReconnectTimer: (timer) => { reconnectTimer = timer; },
-          getCurrentSubText: () => currentSubText, setCurrentSubText: (text) => { currentSubText = text; }, setCurrentSubAssText: (text) => { currentSubAssText = text; },
-          getSubtitleTimingTracker: () => subtitleTimingTracker, subtitleWsBroadcast: (text) => { subtitleWsService.broadcast(text); },
-          getOverlayWindowsCount: () => getOverlayWindows().length, tokenizeSubtitle: (text) => tokenizeSubtitle(text),
-          broadcastToOverlayWindows: (channel, ...args) => { broadcastToOverlayWindows(channel, ...args); },
-          updateCurrentMediaPath: (mediaPath) => { updateCurrentMediaPath(mediaPath); }, updateMpvSubtitleRenderMetrics: (patch) => { updateMpvSubtitleRenderMetrics(patch); },
-          getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics, setPreviousSecondarySubVisibility: (value) => { previousSecondarySubVisibility = value; }, showMpvOsd: (text) => { showMpvOsd(text); },
-        });
-
-        configService.reloadConfig();
-        const config = getResolvedConfig();
-        for (const warning of configService.getWarnings()) {
-          console.warn(
-            `[config] ${warning.path}: ${warning.message} value=${JSON.stringify(warning.value)} fallback=${JSON.stringify(warning.fallback)}`,
-          );
-        }
-        runtimeOptionsManager = new RuntimeOptionsManager(
-          () => configService.getConfig().ankiConnect,
-          {
-            applyAnkiPatch: (patch) => {
-              if (ankiIntegration) {
-                ankiIntegration.applyRuntimeConfigPatch(patch);
-              }
-            },
-            onOptionsChanged: () => {
-              broadcastRuntimeOptionsChanged();
-              refreshOverlayShortcuts();
-            },
-          },
+      configService.reloadConfig();
+      const config = getResolvedConfig();
+      for (const warning of configService.getWarnings()) {
+        console.warn(
+          `[config] ${warning.path}: ${warning.message} value=${JSON.stringify(warning.value)} fallback=${JSON.stringify(warning.fallback)}`,
         );
-        secondarySubMode = config.secondarySub?.defaultMode ?? "hover";
-        const wsConfig = config.websocket || {};
-        const wsEnabled = wsConfig.enabled ?? "auto";
-        const wsPort = wsConfig.port || DEFAULT_CONFIG.websocket.port;
+      }
+      runtimeOptionsManager = new RuntimeOptionsManager(
+        () => configService.getConfig().ankiConnect,
+        {
+          applyAnkiPatch: (patch) => {
+            if (ankiIntegration) {
+              ankiIntegration.applyRuntimeConfigPatch(patch);
+            }
+          },
+          onOptionsChanged: () => {
+            broadcastRuntimeOptionsChanged();
+            refreshOverlayShortcuts();
+          },
+        },
+      );
+      secondarySubMode = config.secondarySub?.defaultMode ?? "hover";
+      const wsConfig = config.websocket || {};
+      const wsEnabled = wsConfig.enabled ?? "auto";
+      const wsPort = wsConfig.port || DEFAULT_CONFIG.websocket.port;
 
-        if (
-          wsEnabled === true ||
-          (wsEnabled === "auto" && !hasMpvWebsocketPlugin())
-        ) {
-          subtitleWsService.start(wsPort, () => currentSubText);
-        } else if (wsEnabled === "auto") {
-          console.log(
-            "mpv_websocket detected, skipping built-in WebSocket server",
-          );
-        }
+      if (
+        wsEnabled === true ||
+        (wsEnabled === "auto" && !hasMpvWebsocketPlugin())
+      ) {
+        subtitleWsService.start(wsPort, () => currentSubText);
+      } else if (wsEnabled === "auto") {
+        console.log(
+          "mpv_websocket detected, skipping built-in WebSocket server",
+        );
+      }
 
-        mecabTokenizer = new MecabTokenizer();
-        await mecabTokenizer.checkAvailability();
+      mecabTokenizer = new MecabTokenizer();
+      await mecabTokenizer.checkAvailability();
 
-        subtitleTimingTracker = new SubtitleTimingTracker();
+      subtitleTimingTracker = new SubtitleTimingTracker();
 
-        await loadYomitanExtension();
-        if (texthookerOnlyMode) {
-          console.log("Texthooker-only mode enabled; skipping overlay window.");
-        } else if (shouldAutoInitializeOverlayRuntimeFromConfig()) {
-          initializeOverlayRuntime();
-        } else {
-          console.log(
-            "Overlay runtime deferred: waiting for explicit overlay command.",
-          );
-        }
-
-        handleInitialArgs();
-      });
-
-      app.on("window-all-closed", () => {
-        if (process.platform !== "darwin") {
-          app.quit();
-        }
-      });
-
-      app.on("will-quit", () => {
-        globalShortcut.unregisterAll();
-        subtitleWsService.stop();
-        texthookerService.stop();
-        if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
-          yomitanParserWindow.destroy();
-        }
-        yomitanParserWindow = null;
-        yomitanParserReadyPromise = null;
-        yomitanParserInitPromise = null;
-        if (windowTracker) {
-          windowTracker.stop();
-        }
-        if (mpvClient && mpvClient.socket) {
-          mpvClient.socket.destroy();
-        }
-        if (reconnectTimer) {
-          clearTimeout(reconnectTimer);
-        }
-        if (subtitleTimingTracker) {
-          subtitleTimingTracker.destroy();
-        }
-        if (ankiIntegration) {
-          ankiIntegration.destroy();
-        }
-      });
-
-      app.on("activate", () => {
-        if (
-          overlayRuntimeInitialized &&
-          BrowserWindow.getAllWindows().length === 0
-        ) {
-          createMainWindow();
-          createInvisibleWindow();
-          updateVisibleOverlayVisibility();
-          updateInvisibleOverlayVisibility();
-        }
-      });
-    }
-  }
+      await loadYomitanExtension();
+      if (texthookerOnlyMode) {
+        console.log("Texthooker-only mode enabled; skipping overlay window.");
+      } else if (shouldAutoInitializeOverlayRuntimeFromConfig()) {
+        initializeOverlayRuntime();
+      } else {
+        console.log(
+          "Overlay runtime deferred: waiting for explicit overlay command.",
+        );
+      }
+      handleInitialArgs();
+    },
+    onWillQuitCleanup: () => {
+      globalShortcut.unregisterAll();
+      subtitleWsService.stop();
+      texthookerService.stop();
+      if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
+        yomitanParserWindow.destroy();
+      }
+      yomitanParserWindow = null;
+      yomitanParserReadyPromise = null;
+      yomitanParserInitPromise = null;
+      if (windowTracker) {
+        windowTracker.stop();
+      }
+      if (mpvClient && mpvClient.socket) {
+        mpvClient.socket.destroy();
+      }
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+      if (subtitleTimingTracker) {
+        subtitleTimingTracker.destroy();
+      }
+      if (ankiIntegration) {
+        ankiIntegration.destroy();
+      }
+    },
+    shouldRestoreWindowsOnActivate: () =>
+      overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
+    restoreWindowsOnActivate: () => {
+      createMainWindow();
+      createInvisibleWindow();
+      updateVisibleOverlayVisibility();
+      updateInvisibleOverlayVisibility();
+    },
+  });
 }
 
 function handleCliCommand(
