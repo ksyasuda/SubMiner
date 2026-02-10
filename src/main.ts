@@ -46,7 +46,6 @@ import * as os from "os";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import { MecabTokenizer } from "./mecab-tokenizer";
-import { mergeTokens } from "./token-merger";
 import { BaseWindowTracker } from "./window-trackers";
 import {
   JimakuApiResponse,
@@ -64,9 +63,7 @@ import {
   KikuFieldGroupingChoice,
   KikuMergePreviewRequest,
   KikuMergePreviewResponse,
-  RuntimeOptionId,
   RuntimeOptionState,
-  RuntimeOptionValue,
   MpvSubtitleRenderMetrics,
 } from "./types";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
@@ -137,11 +134,6 @@ import {
   showMpvOsdRuntimeService,
 } from "./core/services/mpv-runtime-service";
 import {
-  applyRuntimeOptionResultRuntimeService,
-  cycleRuntimeOptionFromIpcRuntimeService,
-  setRuntimeOptionFromIpcRuntimeService,
-} from "./core/services/runtime-options-runtime-service";
-import {
   getInitialInvisibleOverlayVisibilityService,
   isAutoUpdateEnabledRuntimeService,
   shouldAutoInitializeOverlayRuntimeFromConfigService,
@@ -206,6 +198,9 @@ import { createFieldGroupingOverlayRuntimeService } from "./core/services/field-
 import { createSubsyncRuntimeDepsService } from "./core/services/subsync-deps-runtime-service";
 import { createNumericShortcutRuntimeService } from "./core/services/numeric-shortcut-runtime-service";
 import { createOverlayVisibilityFacadeDepsRuntimeService } from "./core/services/overlay-visibility-facade-deps-runtime-service";
+import { createMpvCommandIpcDepsRuntimeService } from "./core/services/mpv-command-ipc-deps-runtime-service";
+import { createRuntimeOptionsIpcDepsRuntimeService } from "./core/services/runtime-options-ipc-deps-runtime-service";
+import { createTokenizerDepsRuntimeService } from "./core/services/tokenizer-deps-runtime-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
@@ -753,31 +748,25 @@ function updateMpvSubtitleRenderMetrics(
 }
 
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
-  return tokenizeSubtitleService(text, {
-    getYomitanExt: () => yomitanExt,
-    getYomitanParserWindow: () => yomitanParserWindow,
-    setYomitanParserWindow: (window) => {
-      yomitanParserWindow = window;
-    },
-    getYomitanParserReadyPromise: () => yomitanParserReadyPromise,
-    setYomitanParserReadyPromise: (promise) => {
-      yomitanParserReadyPromise = promise;
-    },
-    getYomitanParserInitPromise: () => yomitanParserInitPromise,
-    setYomitanParserInitPromise: (promise) => {
-      yomitanParserInitPromise = promise;
-    },
-    tokenizeWithMecab: async (tokenizeText) => {
-      if (!mecabTokenizer) {
-        return null;
-      }
-      const rawTokens = await mecabTokenizer.tokenize(tokenizeText);
-      if (!rawTokens || rawTokens.length === 0) {
-        return null;
-      }
-      return mergeTokens(rawTokens);
-    },
-  });
+  return tokenizeSubtitleService(
+    text,
+    createTokenizerDepsRuntimeService({
+      getYomitanExt: () => yomitanExt,
+      getYomitanParserWindow: () => yomitanParserWindow,
+      setYomitanParserWindow: (window) => {
+        yomitanParserWindow = window;
+      },
+      getYomitanParserReadyPromise: () => yomitanParserReadyPromise,
+      setYomitanParserReadyPromise: (promise) => {
+        yomitanParserReadyPromise = promise;
+      },
+      getYomitanParserInitPromise: () => yomitanParserInitPromise,
+      setYomitanParserInitPromise: (promise) => {
+        yomitanParserInitPromise = promise;
+      },
+      getMecabTokenizer: () => mecabTokenizer,
+    }),
+  );
 }
 
 function updateOverlayBounds(geometry: WindowGeometry): void {
@@ -1218,27 +1207,21 @@ function handleOverlayModalClosed(modal: OverlayHostedModal): void {
 }
 
 function handleMpvCommandFromIpc(command: (string | number)[]): void {
-  handleMpvCommandFromIpcService(command, {
-    specialCommands: SPECIAL_COMMANDS,
-    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    runtimeOptionsCycle: (id, direction) => {
-      if (!runtimeOptionsManager) {
-        return { ok: false, error: "Runtime options manager unavailable" };
-      }
-      return applyRuntimeOptionResultRuntimeService(
-        runtimeOptionsManager.cycleOption(id, direction),
-        (text) => showMpvOsd(text),
-      );
-    },
-    showMpvOsd: (text) => showMpvOsd(text),
-    mpvReplaySubtitle: () => replayCurrentSubtitleRuntimeService(mpvClient),
-    mpvPlayNextSubtitle: () => playNextSubtitleRuntimeService(mpvClient),
-    mpvSendCommand: (rawCommand) =>
-      sendMpvCommandRuntimeService(mpvClient, rawCommand),
-    isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
-    hasRuntimeOptionsManager: () => runtimeOptionsManager !== null,
-  });
+  handleMpvCommandFromIpcService(
+    command,
+    createMpvCommandIpcDepsRuntimeService({
+      specialCommands: SPECIAL_COMMANDS,
+      triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+      openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+      getRuntimeOptionsManager: () => runtimeOptionsManager,
+      showMpvOsd: (text) => showMpvOsd(text),
+      mpvReplaySubtitle: () => replayCurrentSubtitleRuntimeService(mpvClient),
+      mpvPlayNextSubtitle: () => playNextSubtitleRuntimeService(mpvClient),
+      mpvSendCommand: (rawCommand) =>
+        sendMpvCommandRuntimeService(mpvClient, rawCommand),
+      isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
+    }),
+  );
 }
 
 async function runSubsyncManualFromIpc(
@@ -1246,6 +1229,11 @@ async function runSubsyncManualFromIpc(
 ): Promise<SubsyncResult> {
   return runSubsyncManualFromIpcRuntimeService(request, getSubsyncRuntimeDeps());
 }
+
+const runtimeOptionsIpcDeps = createRuntimeOptionsIpcDepsRuntimeService({
+  getRuntimeOptionsManager: () => runtimeOptionsManager,
+  showMpvOsd: (text) => showMpvOsd(text),
+});
 
 registerIpcHandlersService(
   createIpcDepsRuntimeService({
@@ -1274,20 +1262,8 @@ registerIpcHandlersService(
       runSubsyncManualFromIpc(request as SubsyncManualRunRequest),
     getAnkiConnectStatus: () => ankiIntegration !== null,
     getRuntimeOptions: () => getRuntimeOptionsState(),
-    setRuntimeOption: (id, value) =>
-      setRuntimeOptionFromIpcRuntimeService(
-        runtimeOptionsManager,
-        id as RuntimeOptionId,
-        value as RuntimeOptionValue,
-        (text) => showMpvOsd(text),
-      ),
-    cycleRuntimeOption: (id, direction) =>
-      cycleRuntimeOptionFromIpcRuntimeService(
-        runtimeOptionsManager,
-        id as RuntimeOptionId,
-        direction,
-        (text) => showMpvOsd(text),
-      ),
+    setRuntimeOption: runtimeOptionsIpcDeps.setRuntimeOption,
+    cycleRuntimeOption: runtimeOptionsIpcDeps.cycleRuntimeOption,
   }),
 );
 
