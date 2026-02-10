@@ -9,7 +9,7 @@ The current runtime design, composition model, and extension guidelines are docu
 Contributor guidance:
 - Overlay window/visibility state is owned by `src/core/services/overlay-manager-service.ts`.
 - Prefer direct inline deps objects in `main.ts` for simple pass-through wiring.
-- Add a `*-deps-runtime-service.ts` helper only when it performs meaningful adaptation (not identity mapping).
+- Add a helper/adapter service only when it performs meaningful adaptation, validation, or reuse (not identity mapping).
 
 ## Environment Variables
 
