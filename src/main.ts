@@ -152,13 +152,12 @@ import {
 import { updateMpvSubtitleRenderMetricsService } from "./core/services/mpv-render-metrics-service";
 import {
   handleMpvCommandFromIpcService,
-  runSubsyncManualFromIpcService,
 } from "./core/services/ipc-command-service";
 import { sendToVisibleOverlayService } from "./core/services/overlay-send-service";
 import {
-  runSubsyncManualService,
-  triggerSubsyncFromConfigService,
-} from "./core/services/subsync-service";
+  runSubsyncManualFromIpcRuntimeService,
+  triggerSubsyncFromConfigRuntimeService,
+} from "./core/services/subsync-runtime-service";
 import {
   updateInvisibleOverlayVisibilityService,
   updateVisibleOverlayVisibilityService,
@@ -377,26 +376,7 @@ function updateCurrentMediaPath(mediaPath: unknown): void {
   });
 }
 
-const AUTOSUBSYNC_SPINNER_FRAMES = ["|", "/", "-", "\\"];
 let subsyncInProgress = false;
-
-async function runWithSubsyncSpinner<T>(
-  task: () => Promise<T>,
-  label = "Subsync: syncing",
-): Promise<T> {
-  let frame = 0;
-  showMpvOsd(`${label} ${AUTOSUBSYNC_SPINNER_FRAMES[0]}`);
-  const timer = setInterval(() => {
-    frame = (frame + 1) % AUTOSUBSYNC_SPINNER_FRAMES.length;
-    showMpvOsd(`${label} ${AUTOSUBSYNC_SPINNER_FRAMES[frame]}`);
-  }, 150);
-
-  try {
-    return await task();
-  } finally {
-    clearInterval(timer);
-  }
-}
 
 const initialArgs = parseArgs(process.argv);
 if (initialArgs.logLevel) {
@@ -906,17 +886,15 @@ const mineSentenceSession = createNumericShortcutSessionService({
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
-function getSubsyncServiceDeps() {
+function getSubsyncRuntimeDeps() {
   return {
     getMpvClient: () => mpvClient,
-    getResolvedConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
+    getResolvedSubsyncConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
     isSubsyncInProgress: () => subsyncInProgress,
     setSubsyncInProgress: (inProgress: boolean) => {
       subsyncInProgress = inProgress;
     },
     showMpvOsd: (text: string) => showMpvOsd(text),
-    runWithSubsyncSpinner: <T>(task: () => Promise<T>) =>
-      runWithSubsyncSpinner(task),
     openManualPicker: (payload: SubsyncManualPayload) => {
       sendToVisibleOverlay("subsync:open-manual", payload, {
         restoreOnModalClose: "subsync",
@@ -926,7 +904,7 @@ function getSubsyncServiceDeps() {
 }
 
 async function triggerSubsyncFromConfig(): Promise<void> {
-  await triggerSubsyncFromConfigService(getSubsyncServiceDeps());
+  await triggerSubsyncFromConfigRuntimeService(getSubsyncRuntimeDeps());
 }
 
 function cancelPendingMultiCopy(): void {
@@ -1239,15 +1217,7 @@ function handleMpvCommandFromIpc(command: (string | number)[]): void {
 async function runSubsyncManualFromIpc(
   request: SubsyncManualRunRequest,
 ): Promise<SubsyncResult> {
-  const deps = getSubsyncServiceDeps();
-  return runSubsyncManualFromIpcService(request, {
-    isSubsyncInProgress: deps.isSubsyncInProgress,
-    setSubsyncInProgress: deps.setSubsyncInProgress,
-    showMpvOsd: deps.showMpvOsd,
-    runWithSpinner: deps.runWithSubsyncSpinner,
-    runSubsyncManual: (subsyncRequest) =>
-      runSubsyncManualService(subsyncRequest, deps),
-  });
+  return runSubsyncManualFromIpcRuntimeService(request, getSubsyncRuntimeDeps());
 }
 
 registerIpcHandlersService({
