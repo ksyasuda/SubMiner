@@ -143,6 +143,12 @@ import {
   cycleRuntimeOptionFromIpcRuntimeService,
   setRuntimeOptionFromIpcRuntimeService,
 } from "./core/services/runtime-options-runtime-service";
+import {
+  getInitialInvisibleOverlayVisibilityService,
+  isAutoUpdateEnabledRuntimeService,
+  shouldAutoInitializeOverlayRuntimeFromConfigService,
+  shouldBindVisibleOverlayToMpvSubVisibilityService,
+} from "./core/services/runtime-config-service";
 import { showDesktopNotification } from "./core/utils/notification";
 import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
 import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
@@ -318,19 +324,26 @@ function openRuntimeOptionsPalette(): void { sendToVisibleOverlay("runtime-optio
 
 function getResolvedConfig() { return configService.getConfig(); }
 
-function getInitialInvisibleOverlayVisibility(): boolean { const visibility = getResolvedConfig().invisibleOverlay.startupVisibility; if (visibility === "visible") return true; if (visibility === "hidden") return false; if (process.platform === "linux") return false; return true; }
+function getInitialInvisibleOverlayVisibility(): boolean {
+  return getInitialInvisibleOverlayVisibilityService(
+    getResolvedConfig(),
+    process.platform,
+  );
+}
 
-function shouldAutoInitializeOverlayRuntimeFromConfig(): boolean { const config = getResolvedConfig(); if (config.auto_start_overlay === true) return true; if (config.invisibleOverlay.startupVisibility === "visible") return true; return false; }
+function shouldAutoInitializeOverlayRuntimeFromConfig(): boolean {
+  return shouldAutoInitializeOverlayRuntimeFromConfigService(getResolvedConfig());
+}
 
-function shouldBindVisibleOverlayToMpvSubVisibility(): boolean { return getResolvedConfig().bind_visible_overlay_to_mpv_sub_visibility; }
+function shouldBindVisibleOverlayToMpvSubVisibility(): boolean {
+  return shouldBindVisibleOverlayToMpvSubVisibilityService(getResolvedConfig());
+}
 
 function isAutoUpdateEnabledRuntime(): boolean {
-  const value = runtimeOptionsManager?.getOptionValue(
-    "anki.autoUpdateNewCards",
+  return isAutoUpdateEnabledRuntimeService(
+    getResolvedConfig(),
+    runtimeOptionsManager,
   );
-  if (typeof value === "boolean") return value;
-  const config = getResolvedConfig();
-  return config.ankiConnect?.behavior?.autoUpdateNewCards !== false;
 }
 
 function getJimakuLanguagePreference(): JimakuLanguagePreference { return getJimakuLanguagePreferenceService(() => getResolvedConfig(), DEFAULT_CONFIG.jimaku.languagePreference); }
