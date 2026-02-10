@@ -130,6 +130,7 @@ import {
   SubtitleWebSocketService,
 } from "./core/services/subtitle-ws-service";
 import { registerGlobalShortcutsService } from "./core/services/shortcut-service";
+import { registerIpcHandlersService } from "./core/services/ipc-service";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -3775,234 +3776,138 @@ function toggleOverlay(): void {
   toggleVisibleOverlay();
 }
 
-ipcMain.on(
-  "set-ignore-mouse-events",
-  (
-    event: IpcMainEvent,
-    ignore: boolean,
-    options: { forward?: boolean } = {},
-  ) => {
-    const senderWindow = BrowserWindow.fromWebContents(event.sender);
-    if (senderWindow && !senderWindow.isDestroyed()) {
-      if (
-        senderWindow === invisibleWindow &&
-        visibleOverlayVisible &&
-        !invisibleWindow.isDestroyed()
-      ) {
-        invisibleWindow.setIgnoreMouseEvents(true, { forward: true });
-      } else {
-        senderWindow.setIgnoreMouseEvents(ignore, options);
-      }
-    }
-  },
-);
-
-ipcMain.on(
-  "overlay:modal-closed",
-  (_event: IpcMainEvent, modal: OverlayHostedModal) => {
-    if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
-    restoreVisibleOverlayOnModalClose.delete(modal);
-    if (restoreVisibleOverlayOnModalClose.size === 0) {
-      setVisibleOverlayVisible(false);
-    }
-  },
-);
-
-ipcMain.on("open-yomitan-settings", () => {
-  openYomitanSettings();
-});
-
-ipcMain.on("quit-app", () => {
-  app.quit();
-});
-
-ipcMain.on("toggle-dev-tools", () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.toggleDevTools();
+function handleOverlayModalClosed(modal: OverlayHostedModal): void {
+  if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
+  restoreVisibleOverlayOnModalClose.delete(modal);
+  if (restoreVisibleOverlayOnModalClose.size === 0) {
+    setVisibleOverlayVisible(false);
   }
-});
+}
 
-ipcMain.handle("get-overlay-visibility", () => {
-  return visibleOverlayVisible;
-});
-
-ipcMain.on("toggle-overlay", () => {
-  toggleVisibleOverlay();
-});
-
-ipcMain.handle("get-visible-overlay-visibility", () => {
-  return visibleOverlayVisible;
-});
-
-ipcMain.handle("get-invisible-overlay-visibility", () => {
-  return invisibleOverlayVisible;
-});
-
-ipcMain.handle("get-current-subtitle", async () => {
-  return await tokenizeSubtitle(currentSubText);
-});
-
-ipcMain.handle("get-current-subtitle-ass", () => {
-  return currentSubAssText;
-});
-
-ipcMain.handle("get-mpv-subtitle-render-metrics", () => {
-  return mpvSubtitleRenderMetrics;
-});
-
-ipcMain.handle("get-subtitle-position", () => {
-  return loadSubtitlePosition();
-});
-
-ipcMain.handle("get-subtitle-style", () => {
-  const config = getResolvedConfig();
-  return config.subtitleStyle ?? null;
-});
-
-ipcMain.on(
-  "save-subtitle-position",
-  (_event: IpcMainEvent, position: SubtitlePosition) => {
-    saveSubtitlePosition(position);
-  },
-);
-
-ipcMain.handle("get-mecab-status", () => {
-  if (mecabTokenizer) {
-    return mecabTokenizer.getStatus();
+function handleMpvCommandFromIpc(command: (string | number)[]): void {
+  const first = typeof command[0] === "string" ? command[0] : "";
+  if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) {
+    triggerSubsyncFromConfig();
+    return;
   }
-  return { available: false, enabled: false, path: null };
-});
 
-ipcMain.on("set-mecab-enabled", (_event: IpcMainEvent, enabled: boolean) => {
-  if (mecabTokenizer) {
-    mecabTokenizer.setEnabled(enabled);
+  if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN) {
+    openRuntimeOptionsPalette();
+    return;
   }
-});
 
-ipcMain.on(
-  "mpv-command",
-  (_event: IpcMainEvent, command: (string | number)[]) => {
-    const first = typeof command[0] === "string" ? command[0] : "";
-    if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) {
-      triggerSubsyncFromConfig();
-      return;
-    }
-
-    if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN) {
-      openRuntimeOptionsPalette();
-      return;
-    }
-
-    if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
-      if (!runtimeOptionsManager) return;
-      const [, idToken, directionToken] = first.split(":");
-      const id = idToken as RuntimeOptionId;
-      const direction: 1 | -1 = directionToken === "prev" ? -1 : 1;
-      const result = applyRuntimeOptionResult(
-        runtimeOptionsManager.cycleOption(id, direction),
-      );
-      if (!result.ok && result.error) {
-        showMpvOsd(result.error);
-      }
-      return;
-    }
-
-    if (mpvClient && mpvClient.connected) {
-      if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) {
-        mpvClient.replayCurrentSubtitle();
-      } else if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE) {
-        mpvClient.playNextSubtitle();
-      } else {
-        mpvClient.send({ command });
-      }
-    }
-  },
-);
-
-ipcMain.handle("get-keybindings", () => {
-  return keybindings;
-});
-
-ipcMain.handle("get-secondary-sub-mode", () => {
-  return secondarySubMode;
-});
-
-ipcMain.handle("get-current-secondary-sub", () => {
-  return mpvClient?.currentSecondarySubText || "";
-});
-
-ipcMain.handle(
-  "subsync:run-manual",
-  async (_event, request: SubsyncManualRunRequest): Promise<SubsyncResult> => {
-    if (subsyncInProgress) {
-      const busy = "Subsync already running";
-      showMpvOsd(busy);
-      return { ok: false, message: busy };
-    }
-    try {
-      subsyncInProgress = true;
-      const result = await runWithSubsyncSpinner(() =>
-        runSubsyncManual(request),
-      );
-      showMpvOsd(result.message);
-      return result;
-    } catch (error) {
-      const message = `Subsync failed: ${(error as Error).message}`;
-      showMpvOsd(message);
-      return { ok: false, message };
-    } finally {
-      subsyncInProgress = false;
-    }
-  },
-);
-
-ipcMain.handle("get-anki-connect-status", () => {
-  return ankiIntegration !== null;
-});
-
-ipcMain.handle("runtime-options:get", (): RuntimeOptionState[] => {
-  return getRuntimeOptionsState();
-});
-
-ipcMain.handle(
-  "runtime-options:set",
-  (
-    _event,
-    id: RuntimeOptionId,
-    value: RuntimeOptionValue,
-  ): RuntimeOptionApplyResult => {
-    if (!runtimeOptionsManager) {
-      return { ok: false, error: "Runtime options manager unavailable" };
-    }
-    const result = applyRuntimeOptionResult(
-      runtimeOptionsManager.setOptionValue(id, value),
-    );
-    if (!result.ok && result.error) {
-      showMpvOsd(result.error);
-    }
-    return result;
-  },
-);
-
-ipcMain.handle(
-  "runtime-options:cycle",
-  (
-    _event,
-    id: RuntimeOptionId,
-    direction: 1 | -1,
-  ): RuntimeOptionApplyResult => {
-    if (!runtimeOptionsManager) {
-      return { ok: false, error: "Runtime options manager unavailable" };
-    }
+  if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
+    if (!runtimeOptionsManager) return;
+    const [, idToken, directionToken] = first.split(":");
+    const id = idToken as RuntimeOptionId;
+    const direction: 1 | -1 = directionToken === "prev" ? -1 : 1;
     const result = applyRuntimeOptionResult(
       runtimeOptionsManager.cycleOption(id, direction),
     );
     if (!result.ok && result.error) {
       showMpvOsd(result.error);
     }
+    return;
+  }
+
+  if (mpvClient && mpvClient.connected) {
+    if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) {
+      mpvClient.replayCurrentSubtitle();
+    } else if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE) {
+      mpvClient.playNextSubtitle();
+    } else {
+      mpvClient.send({ command });
+    }
+  }
+}
+
+async function runSubsyncManualFromIpc(
+  request: SubsyncManualRunRequest,
+): Promise<SubsyncResult> {
+  if (subsyncInProgress) {
+    const busy = "Subsync already running";
+    showMpvOsd(busy);
+    return { ok: false, message: busy };
+  }
+  try {
+    subsyncInProgress = true;
+    const result = await runWithSubsyncSpinner(() => runSubsyncManual(request));
+    showMpvOsd(result.message);
+    return result;
+  } catch (error) {
+    const message = `Subsync failed: ${(error as Error).message}`;
+    showMpvOsd(message);
+    return { ok: false, message };
+  } finally {
+    subsyncInProgress = false;
+  }
+}
+
+registerIpcHandlersService({
+  getInvisibleWindow: () => invisibleWindow,
+  isVisibleOverlayVisible: () => visibleOverlayVisible,
+  setInvisibleIgnoreMouseEvents: (ignore, options) => {
+    if (!invisibleWindow || invisibleWindow.isDestroyed()) return;
+    invisibleWindow.setIgnoreMouseEvents(ignore, options);
+  },
+  onOverlayModalClosed: (modal) =>
+    handleOverlayModalClosed(modal as OverlayHostedModal),
+  openYomitanSettings: () => openYomitanSettings(),
+  quitApp: () => app.quit(),
+  toggleDevTools: () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.toggleDevTools();
+    }
+  },
+  getVisibleOverlayVisibility: () => visibleOverlayVisible,
+  toggleVisibleOverlay: () => toggleVisibleOverlay(),
+  getInvisibleOverlayVisibility: () => invisibleOverlayVisible,
+  tokenizeCurrentSubtitle: () => tokenizeSubtitle(currentSubText),
+  getCurrentSubtitleAss: () => currentSubAssText,
+  getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
+  getSubtitlePosition: () => loadSubtitlePosition(),
+  getSubtitleStyle: () => getResolvedConfig().subtitleStyle ?? null,
+  saveSubtitlePosition: (position) => saveSubtitlePosition(position as SubtitlePosition),
+  getMecabStatus: () =>
+    mecabTokenizer
+      ? mecabTokenizer.getStatus()
+      : { available: false, enabled: false, path: null },
+  setMecabEnabled: (enabled) => {
+    if (mecabTokenizer) mecabTokenizer.setEnabled(enabled);
+  },
+  handleMpvCommand: (command) => handleMpvCommandFromIpc(command),
+  getKeybindings: () => keybindings,
+  getSecondarySubMode: () => secondarySubMode,
+  getCurrentSecondarySub: () => mpvClient?.currentSecondarySubText || "",
+  runSubsyncManual: (request) =>
+    runSubsyncManualFromIpc(request as SubsyncManualRunRequest),
+  getAnkiConnectStatus: () => ankiIntegration !== null,
+  getRuntimeOptions: () => getRuntimeOptionsState(),
+  setRuntimeOption: (id, value) => {
+    if (!runtimeOptionsManager) {
+      return { ok: false, error: "Runtime options manager unavailable" };
+    }
+    const result = applyRuntimeOptionResult(
+      runtimeOptionsManager.setOptionValue(id as RuntimeOptionId, value as RuntimeOptionValue),
+    );
+    if (!result.ok && result.error) {
+      showMpvOsd(result.error);
+    }
     return result;
   },
-);
+  cycleRuntimeOption: (id, direction) => {
+    if (!runtimeOptionsManager) {
+      return { ok: false, error: "Runtime options manager unavailable" };
+    }
+    const result = applyRuntimeOptionResult(
+      runtimeOptionsManager.cycleOption(id as RuntimeOptionId, direction),
+    );
+    if (!result.ok && result.error) {
+      showMpvOsd(result.error);
+    }
+    return result;
+  },
+});
 
 /**
  * Create and show a desktop notification with robust icon handling.
