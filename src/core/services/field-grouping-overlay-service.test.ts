@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { KikuFieldGroupingChoice } from "../../types";
-import { createFieldGroupingOverlayRuntimeService } from "./field-grouping-overlay-runtime-service";
+import { createFieldGroupingOverlayRuntimeService } from "./field-grouping-overlay-service";
 
 test("createFieldGroupingOverlayRuntimeService sends overlay messages and sets restore flag", () => {
   const sent: unknown[][] = [];

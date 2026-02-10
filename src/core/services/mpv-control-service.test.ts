@@ -6,7 +6,7 @@ import {
   sendMpvCommandRuntimeService,
   setMpvSubVisibilityRuntimeService,
   showMpvOsdRuntimeService,
-} from "./mpv-runtime-service";
+} from "./mpv-control-service";
 
 test("showMpvOsdRuntimeService sends show-text when connected", () => {
   const commands: (string | number)[][] = [];

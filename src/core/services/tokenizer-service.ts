@@ -1,5 +1,6 @@
 import { BrowserWindow, Extension, session } from "electron";
-import { MergedToken, PartOfSpeech, SubtitleData } from "../../types";
+import { mergeTokens } from "../../token-merger";
+import { MergedToken, PartOfSpeech, SubtitleData, Token } from "../../types";
 
 interface YomitanParseHeadword {
   term?: unknown;
@@ -26,6 +27,46 @@ export interface TokenizerServiceDeps {
   getYomitanParserInitPromise: () => Promise<boolean> | null;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
   tokenizeWithMecab: (text: string) => Promise<MergedToken[] | null>;
+}
+
+interface MecabTokenizerLike {
+  tokenize: (text: string) => Promise<Token[] | null>;
+}
+
+export interface TokenizerDepsRuntimeOptions {
+  getYomitanExt: () => Extension | null;
+  getYomitanParserWindow: () => BrowserWindow | null;
+  setYomitanParserWindow: (window: BrowserWindow | null) => void;
+  getYomitanParserReadyPromise: () => Promise<void> | null;
+  setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
+  getYomitanParserInitPromise: () => Promise<boolean> | null;
+  setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
+  getMecabTokenizer: () => MecabTokenizerLike | null;
+}
+
+export function createTokenizerDepsRuntimeService(
+  options: TokenizerDepsRuntimeOptions,
+): TokenizerServiceDeps {
+  return {
+    getYomitanExt: options.getYomitanExt,
+    getYomitanParserWindow: options.getYomitanParserWindow,
+    setYomitanParserWindow: options.setYomitanParserWindow,
+    getYomitanParserReadyPromise: options.getYomitanParserReadyPromise,
+    setYomitanParserReadyPromise: options.setYomitanParserReadyPromise,
+    getYomitanParserInitPromise: options.getYomitanParserInitPromise,
+    setYomitanParserInitPromise: options.setYomitanParserInitPromise,
+    tokenizeWithMecab: async (text) => {
+      const mecabTokenizer = options.getMecabTokenizer();
+      if (!mecabTokenizer) {
+        return null;
+      }
+      const rawTokens = await mecabTokenizer.tokenize(text);
+      if (!rawTokens || rawTokens.length === 0) {
+        return null;
+      }
+      return mergeTokens(rawTokens);
+    },
+  };
 }
 
 function extractYomitanHeadword(segment: YomitanParseSegment): string {

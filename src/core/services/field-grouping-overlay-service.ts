@@ -5,7 +5,7 @@ import {
 import {
   createFieldGroupingCallbackRuntimeService,
   sendToVisibleOverlayRuntimeService,
-} from "./overlay-bridge-runtime-service";
+} from "./overlay-bridge-service";
 
 interface WindowLike {
   isDestroyed: () => boolean;

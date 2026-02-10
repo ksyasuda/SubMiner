@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOverlayManagerService } from "./overlay-manager-service";
+import {
+  broadcastRuntimeOptionsChangedRuntimeService,
+  createOverlayManagerService,
+  setOverlayDebugVisualizationEnabledRuntimeService,
+} from "./overlay-manager-service";
 
 test("overlay manager initializes with empty windows and hidden overlays", () => {
   const manager = createOverlayManagerService();
@@ -39,4 +43,56 @@ test("overlay manager stores visibility state", () => {
   manager.setInvisibleOverlayVisible(true);
   assert.equal(manager.getVisibleOverlayVisible(), true);
   assert.equal(manager.getInvisibleOverlayVisible(), true);
+});
+
+test("overlay manager broadcasts to non-destroyed windows", () => {
+  const manager = createOverlayManagerService();
+  const calls: unknown[][] = [];
+  const aliveWindow = {
+    isDestroyed: () => false,
+    webContents: {
+      send: (...args: unknown[]) => {
+        calls.push(args);
+      },
+    },
+  } as unknown as Electron.BrowserWindow;
+  const deadWindow = {
+    isDestroyed: () => true,
+    webContents: {
+      send: (..._args: unknown[]) => {},
+    },
+  } as unknown as Electron.BrowserWindow;
+
+  manager.setMainWindow(aliveWindow);
+  manager.setInvisibleWindow(deadWindow);
+  manager.broadcastToOverlayWindows("x", 1, "a");
+
+  assert.deepEqual(calls, [["x", 1, "a"]]);
+});
+
+test("runtime-option and debug broadcasts use expected channels", () => {
+  const broadcasts: unknown[][] = [];
+  broadcastRuntimeOptionsChangedRuntimeService(
+    () => [],
+    (channel, ...args) => {
+      broadcasts.push([channel, ...args]);
+    },
+  );
+  let state = false;
+  const changed = setOverlayDebugVisualizationEnabledRuntimeService(
+    state,
+    true,
+    (enabled) => {
+      state = enabled;
+    },
+    (channel, ...args) => {
+      broadcasts.push([channel, ...args]);
+    },
+  );
+  assert.equal(changed, true);
+  assert.equal(state, true);
+  assert.deepEqual(broadcasts, [
+    ["runtime-options:changed", []],
+    ["overlay-debug-visualization:set", true],
+  ]);
 });

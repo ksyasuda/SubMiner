@@ -2,8 +2,6 @@ import {
   KikuFieldGroupingChoice,
   KikuFieldGroupingRequestData,
 } from "../../types";
-import { addOverlayModalRestoreFlagService } from "./overlay-modal-restore-service";
-import { sendToVisibleOverlayService } from "./overlay-send-service";
 import { createFieldGroupingCallbackService } from "./field-grouping-service";
 import { BrowserWindow } from "electron";
 
@@ -16,19 +14,20 @@ export function sendToVisibleOverlayRuntimeService<T extends string>(options: {
   restoreOnModalClose?: T;
   restoreVisibleOverlayOnModalClose: Set<T>;
 }): boolean {
-  return sendToVisibleOverlayService({
-    mainWindow: options.mainWindow,
-    visibleOverlayVisible: options.visibleOverlayVisible,
-    setVisibleOverlayVisible: options.setVisibleOverlayVisible,
-    channel: options.channel,
-    payload: options.payload,
-    restoreOnModalClose: options.restoreOnModalClose,
-    addRestoreFlag: (modal) =>
-      addOverlayModalRestoreFlagService(
-        options.restoreVisibleOverlayOnModalClose,
-        modal as T,
-      ),
-  });
+  if (!options.mainWindow || options.mainWindow.isDestroyed()) return false;
+  const wasVisible = options.visibleOverlayVisible;
+  if (!options.visibleOverlayVisible) {
+    options.setVisibleOverlayVisible(true);
+  }
+  if (!wasVisible && options.restoreOnModalClose) {
+    options.restoreVisibleOverlayOnModalClose.add(options.restoreOnModalClose);
+  }
+  if (options.payload === undefined) {
+    options.mainWindow.webContents.send(options.channel);
+  } else {
+    options.mainWindow.webContents.send(options.channel, options.payload);
+  }
+  return true;
 }
 
 export function createFieldGroupingCallbackRuntimeService<T extends string>(

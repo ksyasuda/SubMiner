@@ -1,4 +1,5 @@
 import { BrowserWindow } from "electron";
+import { RuntimeOptionState } from "../../types";
 
 export interface OverlayManagerService {
   getMainWindow: () => BrowserWindow | null;
@@ -10,6 +11,7 @@ export interface OverlayManagerService {
   getInvisibleOverlayVisible: () => boolean;
   setInvisibleOverlayVisible: (visible: boolean) => void;
   getOverlayWindows: () => BrowserWindow[];
+  broadcastToOverlayWindows: (channel: string, ...args: unknown[]) => void;
 }
 
 export function createOverlayManagerService(): OverlayManagerService {
@@ -45,5 +47,36 @@ export function createOverlayManagerService(): OverlayManagerService {
       }
       return windows;
     },
+    broadcastToOverlayWindows: (channel, ...args) => {
+      const windows: BrowserWindow[] = [];
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        windows.push(mainWindow);
+      }
+      if (invisibleWindow && !invisibleWindow.isDestroyed()) {
+        windows.push(invisibleWindow);
+      }
+      for (const window of windows) {
+        window.webContents.send(channel, ...args);
+      }
+    },
   };
+}
+
+export function broadcastRuntimeOptionsChangedRuntimeService(
+  getRuntimeOptionsState: () => RuntimeOptionState[],
+  broadcastToOverlayWindows: (channel: string, ...args: unknown[]) => void,
+): void {
+  broadcastToOverlayWindows("runtime-options:changed", getRuntimeOptionsState());
+}
+
+export function setOverlayDebugVisualizationEnabledRuntimeService(
+  currentEnabled: boolean,
+  nextEnabled: boolean,
+  setState: (enabled: boolean) => void,
+  broadcastToOverlayWindows: (channel: string, ...args: unknown[]) => void,
+): boolean {
+  if (currentEnabled === nextEnabled) return false;
+  setState(nextEnabled);
+  broadcastToOverlayWindows("overlay-debug-visualization:set", nextEnabled);
+  return true;
 }

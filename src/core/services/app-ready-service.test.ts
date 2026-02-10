@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AppReadyRuntimeDeps, runAppReadyRuntimeService } from "./app-ready-runtime-service";
+import { AppReadyRuntimeDeps, runAppReadyRuntimeService } from "./startup-service";
 
 function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
   const calls: string[] = [];
