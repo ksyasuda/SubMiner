@@ -47,13 +47,11 @@ import * as fs from "fs";
 import * as crypto from "crypto";
 import { MecabTokenizer } from "./mecab-tokenizer";
 import { mergeTokens } from "./token-merger";
-import { createWindowTracker, BaseWindowTracker } from "./window-trackers";
+import { BaseWindowTracker } from "./window-trackers";
 import {
   Config,
   JimakuApiResponse,
   JimakuDownloadResult,
-  JimakuEntry,
-  JimakuFileEntry,
   JimakuMediaInfo,
   JimakuConfig,
   JimakuLanguagePreference,
@@ -65,7 +63,6 @@ import {
   SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
-  KikuFieldGroupingRequestData,
   KikuFieldGroupingChoice,
   KikuMergePreviewRequest,
   KikuMergePreviewResponse,
@@ -84,7 +81,6 @@ import {
   jimakuFetchJson as jimakuFetchJsonRequest,
   parseMediaInfo,
   resolveJimakuApiKey as resolveJimakuApiKeyFromConfig,
-  sortJimakuFiles,
 } from "./jimaku/utils";
 import {
   getSubsyncConfig,
@@ -122,10 +118,24 @@ import {
   unregisterOverlayShortcutsService,
 } from "./core/services/overlay-shortcut-service";
 import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-fallback-runner";
+import { createOverlayShortcutRuntimeHandlers } from "./core/services/overlay-shortcut-runtime-service";
 import { showDesktopNotification } from "./core/utils/notification";
 import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
 import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
 import { loadYomitanExtensionService } from "./core/services/yomitan-extension-loader-service";
+import {
+  createOverlayWindowService,
+  enforceOverlayLayerOrderService,
+  ensureOverlayWindowLevelService,
+  updateOverlayBoundsService,
+} from "./core/services/overlay-window-service";
+import { createFieldGroupingCallbackService } from "./core/services/field-grouping-service";
+import { initializeOverlayRuntimeService } from "./core/services/overlay-runtime-init-service";
+import {
+  setInvisibleOverlayVisibleService,
+  setVisibleOverlayVisibleService,
+  syncInvisibleOverlayMousePassthroughService,
+} from "./core/services/overlay-visibility-runtime-service";
 import {
   MpvIpcClient,
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
@@ -143,7 +153,7 @@ import {
   updateInvisibleOverlayVisibilityService,
   updateVisibleOverlayVisibilityService,
 } from "./core/services/overlay-visibility-service";
-import { registerAnkiJimakuIpcHandlers } from "./core/services/anki-jimaku-ipc-service";
+import { registerAnkiJimakuIpcRuntimeService } from "./core/services/anki-jimaku-runtime-service";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -1042,34 +1052,21 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
 }
 
 function updateOverlayBounds(geometry: WindowGeometry): void {
-  if (!geometry) return;
-  for (const window of getOverlayWindows()) {
-    window.setBounds({
-      x: geometry.x,
-      y: geometry.y,
-      width: geometry.width,
-      height: geometry.height,
-    });
-  }
+  updateOverlayBoundsService(geometry, () => getOverlayWindows());
 }
 
 function ensureOverlayWindowLevel(window: BrowserWindow): void {
-  if (process.platform === "darwin") {
-    window.setAlwaysOnTop(true, "screen-saver", 1);
-    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    window.setFullScreenable(false);
-    return;
-  }
-  window.setAlwaysOnTop(true);
+  ensureOverlayWindowLevelService(window);
 }
 
 function enforceOverlayLayerOrder(): void {
-  if (!visibleOverlayVisible || !invisibleOverlayVisible) return;
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (!invisibleWindow || invisibleWindow.isDestroyed()) return;
-
-  ensureOverlayWindowLevel(mainWindow);
-  mainWindow.moveTop();
+  enforceOverlayLayerOrderService({
+    visibleOverlayVisible,
+    invisibleOverlayVisible,
+    mainWindow,
+    invisibleWindow,
+    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+  });
 }
 
 async function loadYomitanExtension(): Promise<Extension | null> {
@@ -1092,249 +1089,118 @@ async function loadYomitanExtension(): Promise<Extension | null> {
 }
 
 function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
-  const window = new BrowserWindow({
-    show: false,
-    width: 800,
-    height: 600,
-    x: 0,
-    y: 0,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    hasShadow: false,
-    focusable: true,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      webSecurity: true,
-      additionalArguments: [`--overlay-layer=${kind}`],
+  return createOverlayWindowService(kind, {
+    isDev,
+    overlayDebugVisualizationEnabled,
+    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+    onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+    setOverlayDebugVisualizationEnabled: (enabled) =>
+      setOverlayDebugVisualizationEnabled(enabled),
+    isOverlayVisible: (windowKind) =>
+      windowKind === "visible" ? visibleOverlayVisible : invisibleOverlayVisible,
+    tryHandleOverlayShortcutLocalFallback: (input) =>
+      tryHandleOverlayShortcutLocalFallback(input),
+    onWindowClosed: (windowKind) => {
+      if (windowKind === "visible") {
+        mainWindow = null;
+      } else {
+        invisibleWindow = null;
+      }
     },
   });
-
-  ensureOverlayWindowLevel(window);
-
-  const htmlPath = path.join(__dirname, "renderer", "index.html");
-
-  window
-    .loadFile(htmlPath, {
-      query: { layer: kind === "visible" ? "visible" : "invisible" },
-    })
-    .catch((err) => {
-      console.error("Failed to load HTML file:", err);
-    });
-
-  window.webContents.on(
-    "did-fail-load",
-    (_event, errorCode, errorDescription, validatedURL) => {
-      console.error(
-        "Page failed to load:",
-        errorCode,
-        errorDescription,
-        validatedURL,
-      );
-    },
-  );
-
-  window.webContents.on("did-finish-load", () => {
-    broadcastRuntimeOptionsChanged();
-    window.webContents.send(
-      "overlay-debug-visualization:set",
-      overlayDebugVisualizationEnabled,
-    );
-  });
-
-  if (kind === "visible") {
-    window.webContents.on("devtools-opened", () => {
-      setOverlayDebugVisualizationEnabled(true);
-    });
-    window.webContents.on("devtools-closed", () => {
-      setOverlayDebugVisualizationEnabled(false);
-    });
-  }
-
-  window.webContents.on("before-input-event", (event, input) => {
-    const isOverlayVisible =
-      kind === "visible" ? visibleOverlayVisible : invisibleOverlayVisible;
-    if (!isOverlayVisible) return;
-    if (!tryHandleOverlayShortcutLocalFallback(input)) return;
-    event.preventDefault();
-  });
-
-  window.hide();
-
-  window.on("closed", () => {
-    if (kind === "visible") {
-      mainWindow = null;
-    } else {
-      invisibleWindow = null;
-    }
-  });
-
-  window.on("blur", () => {
-    if (!window.isDestroyed()) {
-      ensureOverlayWindowLevel(window);
-    }
-  });
-
-  if (isDev && kind === "visible") {
-    window.webContents.openDevTools({ mode: "detach" });
-  }
-
-  return window;
 }
 
-function createMainWindow(): BrowserWindow {
-  mainWindow = createOverlayWindow("visible");
-  return mainWindow;
-}
-
-function createInvisibleWindow(): BrowserWindow {
-  invisibleWindow = createOverlayWindow("invisible");
-  return invisibleWindow;
-}
+function createMainWindow(): BrowserWindow { mainWindow = createOverlayWindow("visible"); return mainWindow; }
+function createInvisibleWindow(): BrowserWindow { invisibleWindow = createOverlayWindow("invisible"); return invisibleWindow; }
 
 function initializeOverlayRuntime(): void {
   if (overlayRuntimeInitialized) {
     return;
   }
-
-  createMainWindow();
-  createInvisibleWindow();
-  invisibleOverlayVisible = getInitialInvisibleOverlayVisibility();
-  registerGlobalShortcuts();
-
-  windowTracker = createWindowTracker(backendOverride);
-  if (windowTracker) {
-    windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
+  const result = initializeOverlayRuntimeService({
+    backendOverride,
+    getInitialInvisibleOverlayVisibility: () => getInitialInvisibleOverlayVisibility(),
+    createMainWindow: () => {
+      createMainWindow();
+    },
+    createInvisibleWindow: () => {
+      createInvisibleWindow();
+    },
+    registerGlobalShortcuts: () => {
+      registerGlobalShortcuts();
+    },
+    updateOverlayBounds: (geometry) => {
       updateOverlayBounds(geometry);
-    };
-    windowTracker.onWindowFound = (geometry: WindowGeometry) => {
-      updateOverlayBounds(geometry);
-      if (visibleOverlayVisible) {
-        updateVisibleOverlayVisibility();
-      }
-      if (invisibleOverlayVisible) {
-        updateInvisibleOverlayVisibility();
-      }
-    };
-    windowTracker.onWindowLost = () => {
-      for (const window of getOverlayWindows()) {
-        window.hide();
-      }
+    },
+    isVisibleOverlayVisible: () => visibleOverlayVisible,
+    isInvisibleOverlayVisible: () => invisibleOverlayVisible,
+    updateVisibleOverlayVisibility: () => {
+      updateVisibleOverlayVisibility();
+    },
+    updateInvisibleOverlayVisibility: () => {
+      updateInvisibleOverlayVisibility();
+    },
+    getOverlayWindows: () => getOverlayWindows(),
+    syncOverlayShortcuts: () => {
       syncOverlayShortcuts();
-    };
-    windowTracker.start();
-  }
-
-  const config = getResolvedConfig();
-  if (
-    config.ankiConnect?.enabled &&
-    subtitleTimingTracker &&
-    mpvClient &&
-    runtimeOptionsManager
-  ) {
-    const effectiveAnkiConfig =
-      runtimeOptionsManager.getEffectiveAnkiConnectConfig(config.ankiConnect);
-    ankiIntegration = new AnkiIntegration(
-      effectiveAnkiConfig,
-      subtitleTimingTracker,
-      mpvClient,
-      (text: string) => {
-        if (mpvClient) {
-          mpvClient.send({
-            command: ["show-text", text, "3000"],
-          });
-        }
-      },
-      showDesktopNotification,
-      createFieldGroupingCallback(),
-    );
-    ankiIntegration.start();
-  }
-
+    },
+    setWindowTracker: (tracker) => {
+      windowTracker = tracker;
+    },
+    getResolvedConfig: () => getResolvedConfig(),
+    getSubtitleTimingTracker: () => subtitleTimingTracker,
+    getMpvClient: () => mpvClient,
+    getRuntimeOptionsManager: () => runtimeOptionsManager,
+    setAnkiIntegration: (integration) => {
+      ankiIntegration = integration as AnkiIntegration | null;
+    },
+    showDesktopNotification,
+    createFieldGroupingCallback: () => createFieldGroupingCallback(),
+  });
+  invisibleOverlayVisible = result.invisibleOverlayVisible;
   overlayRuntimeInitialized = true;
-  updateVisibleOverlayVisibility();
-  updateInvisibleOverlayVisibility();
 }
 
-function openYomitanSettings(): void {
-  openYomitanSettingsWindow({
-    yomitanExt,
-    getExistingWindow: () => yomitanSettingsWindow,
-    setWindow: (window) => (yomitanSettingsWindow = window),
-  });
-}
-
-function registerGlobalShortcuts(): void {
-  registerGlobalShortcutsService({
-    shortcuts: getConfiguredShortcuts(),
-    onToggleVisibleOverlay: () => toggleVisibleOverlay(),
-    onToggleInvisibleOverlay: () => toggleInvisibleOverlay(),
-    onOpenYomitanSettings: () => openYomitanSettings(),
-    isDev,
-    getMainWindow: () => mainWindow,
-  });
-}
+function openYomitanSettings(): void { openYomitanSettingsWindow({ yomitanExt, getExistingWindow: () => yomitanSettingsWindow, setWindow: (window) => (yomitanSettingsWindow = window) }); }
+function registerGlobalShortcuts(): void { registerGlobalShortcutsService({ shortcuts: getConfiguredShortcuts(), onToggleVisibleOverlay: () => toggleVisibleOverlay(), onToggleInvisibleOverlay: () => toggleInvisibleOverlay(), onOpenYomitanSettings: () => openYomitanSettings(), isDev, getMainWindow: () => mainWindow }); }
 
 function getConfiguredShortcuts() { return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG); }
 
+function getOverlayShortcutRuntimeHandlers() {
+  return createOverlayShortcutRuntimeHandlers({
+    showMpvOsd: (text) => showMpvOsd(text),
+    openRuntimeOptions: () => {
+      openRuntimeOptionsPalette();
+    },
+    openJimaku: () => {
+      sendToVisibleOverlay("jimaku:open");
+    },
+    markAudioCard: () => markLastCardAsAudioCard(),
+    copySubtitleMultiple: (timeoutMs) => {
+      startPendingMultiCopy(timeoutMs);
+    },
+    copySubtitle: () => {
+      copyCurrentSubtitle();
+    },
+    toggleSecondarySub: () => cycleSecondarySubMode(),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    triggerFieldGrouping: () => triggerFieldGrouping(),
+    triggerSubsync: () => triggerSubsyncFromConfig(),
+    mineSentence: () => mineSentenceCard(),
+    mineSentenceMultiple: (timeoutMs) => {
+      startPendingMineSentenceMultiple(timeoutMs);
+    },
+  });
+}
+
 function tryHandleOverlayShortcutLocalFallback(input: Electron.Input): boolean {
   const shortcuts = getConfiguredShortcuts();
+  const handlers = getOverlayShortcutRuntimeHandlers();
   return runOverlayShortcutLocalFallback(
     input,
     shortcuts,
     shortcutMatchesInputForLocalFallback,
-    {
-      openRuntimeOptions: () => {
-        openRuntimeOptionsPalette();
-      },
-      openJimaku: () => {
-        sendToVisibleOverlay("jimaku:open");
-      },
-      markAudioCard: () => {
-        markLastCardAsAudioCard().catch((err) => {
-          console.error("markLastCardAsAudioCard failed:", err);
-          showMpvOsd(`Audio card failed: ${(err as Error).message}`);
-        });
-      },
-      copySubtitleMultiple: (timeoutMs) => {
-        startPendingMultiCopy(timeoutMs);
-      },
-      copySubtitle: () => {
-        copyCurrentSubtitle();
-      },
-      toggleSecondarySub: () => cycleSecondarySubMode(),
-      updateLastCardFromClipboard: () => {
-        updateLastCardFromClipboard().catch((err) => {
-          console.error("updateLastCardFromClipboard failed:", err);
-          showMpvOsd(`Update failed: ${(err as Error).message}`);
-        });
-      },
-      triggerFieldGrouping: () => {
-        triggerFieldGrouping().catch((err) => {
-          console.error("triggerFieldGrouping failed:", err);
-          showMpvOsd(`Field grouping failed: ${(err as Error).message}`);
-        });
-      },
-      triggerSubsync: () => {
-        triggerSubsyncFromConfig().catch((err) => {
-          console.error("triggerSubsyncFromConfig failed:", err);
-          showMpvOsd(`Subsync failed: ${(err as Error).message}`);
-        });
-      },
-      mineSentence: () => {
-        mineSentenceCard().catch((err) => {
-          console.error("mineSentenceCard failed:", err);
-          showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
-        });
-      },
-      mineSentenceMultiple: (timeoutMs) => {
-        startPendingMineSentenceMultiple(timeoutMs);
-      },
-    },
+    handlers.fallbackHandlers,
   );
 }
 
@@ -1629,54 +1495,11 @@ function handleMineSentenceDigit(count: number): void {
 
 function registerOverlayShortcuts(): void {
   const shortcuts = getConfiguredShortcuts();
-  shortcutsRegistered = registerOverlayShortcutsService(shortcuts, {
-    copySubtitle: () => {
-      copyCurrentSubtitle();
-    },
-    copySubtitleMultiple: (timeoutMs) => {
-      startPendingMultiCopy(timeoutMs);
-    },
-    updateLastCardFromClipboard: () => {
-      updateLastCardFromClipboard().catch((err) => {
-        console.error("updateLastCardFromClipboard failed:", err);
-        showMpvOsd(`Update failed: ${(err as Error).message}`);
-      });
-    },
-    triggerFieldGrouping: () => {
-      triggerFieldGrouping().catch((err) => {
-        console.error("triggerFieldGrouping failed:", err);
-        showMpvOsd(`Field grouping failed: ${(err as Error).message}`);
-      });
-    },
-    triggerSubsync: () => {
-      triggerSubsyncFromConfig().catch((err) => {
-        console.error("triggerSubsyncFromConfig failed:", err);
-        showMpvOsd(`Subsync failed: ${(err as Error).message}`);
-      });
-    },
-    mineSentence: () => {
-      mineSentenceCard().catch((err) => {
-        console.error("mineSentenceCard failed:", err);
-        showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
-      });
-    },
-    mineSentenceMultiple: (timeoutMs) => {
-      startPendingMineSentenceMultiple(timeoutMs);
-    },
-    toggleSecondarySub: () => cycleSecondarySubMode(),
-    markAudioCard: () => {
-      markLastCardAsAudioCard().catch((err) => {
-        console.error("markLastCardAsAudioCard failed:", err);
-        showMpvOsd(`Audio card failed: ${(err as Error).message}`);
-      });
-    },
-    openRuntimeOptions: () => {
-      openRuntimeOptionsPalette();
-    },
-    openJimaku: () => {
-      sendToVisibleOverlay("jimaku:open");
-    },
-  });
+  const handlers = getOverlayShortcutRuntimeHandlers();
+  shortcutsRegistered = registerOverlayShortcutsService(
+    shortcuts,
+    handlers.overlayHandlers,
+  );
 }
 
 function unregisterOverlayShortcuts(): void {
@@ -1690,22 +1513,9 @@ function unregisterOverlayShortcuts(): void {
   shortcutsRegistered = false;
 }
 
-function shouldOverlayShortcutsBeActive(): boolean {
-  return overlayRuntimeInitialized;
-}
-
-function syncOverlayShortcuts(): void {
-  if (shouldOverlayShortcutsBeActive()) {
-    registerOverlayShortcuts();
-  } else {
-    unregisterOverlayShortcuts();
-  }
-}
-
-function refreshOverlayShortcuts(): void {
-  unregisterOverlayShortcuts();
-  syncOverlayShortcuts();
-}
+function shouldOverlayShortcutsBeActive(): boolean { return overlayRuntimeInitialized; }
+function syncOverlayShortcuts(): void { if (shouldOverlayShortcutsBeActive()) { registerOverlayShortcuts(); } else { unregisterOverlayShortcuts(); } }
+function refreshOverlayShortcuts(): void { unregisterOverlayShortcuts(); syncOverlayShortcuts(); }
 
 function updateVisibleOverlayVisibility(): void {
   updateVisibleOverlayVisibilityService({
@@ -1749,57 +1559,55 @@ function updateInvisibleOverlayVisibility(): void {
 }
 
 function syncInvisibleOverlayMousePassthrough(): void {
-  if (!invisibleWindow || invisibleWindow.isDestroyed()) return;
-  if (visibleOverlayVisible) {
-    invisibleWindow.setIgnoreMouseEvents(true, { forward: true });
-  } else if (invisibleOverlayVisible) {
-    invisibleWindow.setIgnoreMouseEvents(false);
-  }
+  syncInvisibleOverlayMousePassthroughService({
+    hasInvisibleWindow: () => Boolean(invisibleWindow && !invisibleWindow.isDestroyed()),
+    setIgnoreMouseEvents: (ignore, extra) => {
+      if (!invisibleWindow || invisibleWindow.isDestroyed()) return;
+      invisibleWindow.setIgnoreMouseEvents(ignore, extra);
+    },
+    visibleOverlayVisible,
+    invisibleOverlayVisible,
+  });
 }
 
 function setVisibleOverlayVisible(visible: boolean): void {
-  visibleOverlayVisible = visible;
-  updateVisibleOverlayVisibility();
-  updateInvisibleOverlayVisibility();
-  syncInvisibleOverlayMousePassthrough();
-  if (
-    shouldBindVisibleOverlayToMpvSubVisibility() &&
-    mpvClient &&
-    mpvClient.connected
-  ) {
-    mpvClient.setSubVisibility(!visible);
-  }
+  setVisibleOverlayVisibleService({
+    visible,
+    setVisibleOverlayVisibleState: (nextVisible) => {
+      visibleOverlayVisible = nextVisible;
+    },
+    updateVisibleOverlayVisibility: () => updateVisibleOverlayVisibility(),
+    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
+    syncInvisibleOverlayMousePassthrough: () =>
+      syncInvisibleOverlayMousePassthrough(),
+    shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      shouldBindVisibleOverlayToMpvSubVisibility(),
+    isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
+    setMpvSubVisibility: (mpvSubVisible) => {
+      if (mpvClient) {
+        mpvClient.setSubVisibility(mpvSubVisible);
+      }
+    },
+  });
 }
 
 function setInvisibleOverlayVisible(visible: boolean): void {
-  invisibleOverlayVisible = visible;
-  updateInvisibleOverlayVisibility();
-  syncInvisibleOverlayMousePassthrough();
+  setInvisibleOverlayVisibleService({
+    visible,
+    setInvisibleOverlayVisibleState: (nextVisible) => {
+      invisibleOverlayVisible = nextVisible;
+    },
+    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
+    syncInvisibleOverlayMousePassthrough: () =>
+      syncInvisibleOverlayMousePassthrough(),
+  });
 }
 
-function toggleVisibleOverlay(): void {
-  setVisibleOverlayVisible(!visibleOverlayVisible);
-}
-
-function toggleInvisibleOverlay(): void {
-  setInvisibleOverlayVisible(!invisibleOverlayVisible);
-}
-
-function setOverlayVisible(visible: boolean): void {
-  setVisibleOverlayVisible(visible);
-}
-
-function toggleOverlay(): void {
-  toggleVisibleOverlay();
-}
-
-function handleOverlayModalClosed(modal: OverlayHostedModal): void {
-  if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
-  restoreVisibleOverlayOnModalClose.delete(modal);
-  if (restoreVisibleOverlayOnModalClose.size === 0) {
-    setVisibleOverlayVisible(false);
-  }
-}
+function toggleVisibleOverlay(): void { setVisibleOverlayVisible(!visibleOverlayVisible); }
+function toggleInvisibleOverlay(): void { setInvisibleOverlayVisible(!invisibleOverlayVisible); }
+function setOverlayVisible(visible: boolean): void { setVisibleOverlayVisible(visible); }
+function toggleOverlay(): void { toggleVisibleOverlay(); }
+function handleOverlayModalClosed(modal: OverlayHostedModal): void { if (!restoreVisibleOverlayOnModalClose.has(modal)) return; restoreVisibleOverlayOnModalClose.delete(modal); if (restoreVisibleOverlayOnModalClose.size === 0) { setVisibleOverlayVisible(false); } }
 
 function handleMpvCommandFromIpc(command: (string | number)[]): void {
   handleMpvCommandFromIpcService(command, {
@@ -1915,172 +1723,51 @@ registerIpcHandlersService({
  * Supports both file paths (preferred on Linux/Wayland) and data URLs (fallback).
  */
 function createFieldGroupingCallback() {
-  return async (
-    data: KikuFieldGroupingRequestData,
-  ): Promise<KikuFieldGroupingChoice> => {
-    return new Promise((resolve) => {
-      const previousVisibleOverlay = visibleOverlayVisible;
-      const previousInvisibleOverlay = invisibleOverlayVisible;
-      let settled = false;
-
-      const finish = (choice: KikuFieldGroupingChoice): void => {
-        if (settled) return;
-        settled = true;
-        fieldGroupingResolver = null;
-        resolve(choice);
-
-        if (!previousVisibleOverlay && visibleOverlayVisible) {
-          setVisibleOverlayVisible(false);
-        }
-        if (invisibleOverlayVisible !== previousInvisibleOverlay) {
-          setInvisibleOverlayVisible(previousInvisibleOverlay);
-        }
-      };
-
-      fieldGroupingResolver = finish;
-      if (!sendToVisibleOverlay("kiku:field-grouping-request", data)) {
-        finish({
-          keepNoteId: 0,
-          deleteNoteId: 0,
-          deleteDuplicate: true,
-          cancelled: true,
-        });
-        return;
-      }
-      setTimeout(() => {
-        if (!settled) {
-          finish({
-            keepNoteId: 0,
-            deleteNoteId: 0,
-            deleteDuplicate: true,
-            cancelled: true,
-          });
-        }
-      }, 90000);
-    });
-  };
-}
-
-function sendToVisibleOverlay(
-  channel: string,
-  payload?: unknown,
-  options?: { restoreOnModalClose?: OverlayHostedModal },
-): boolean {
-  return sendToVisibleOverlayService({
-    mainWindow,
-    visibleOverlayVisible,
+  return createFieldGroupingCallbackService({
+    getVisibleOverlayVisible: () => visibleOverlayVisible,
+    getInvisibleOverlayVisible: () => invisibleOverlayVisible,
     setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    channel,
-    payload,
-    restoreOnModalClose: options?.restoreOnModalClose,
-    addRestoreFlag: (modal) =>
-      restoreVisibleOverlayOnModalClose.add(modal as OverlayHostedModal),
+    setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
+    getResolver: () => fieldGroupingResolver,
+    setResolver: (resolver) => {
+      fieldGroupingResolver = resolver;
+    },
+    sendRequestToVisibleOverlay: (data) =>
+      sendToVisibleOverlay("kiku:field-grouping-request", data),
   });
 }
 
-registerAnkiJimakuIpcHandlers({
-  setAnkiConnectEnabled: (enabled) => {
+function sendToVisibleOverlay(channel: string, payload?: unknown, options?: { restoreOnModalClose?: OverlayHostedModal }): boolean { return sendToVisibleOverlayService({ mainWindow, visibleOverlayVisible, setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible), channel, payload, restoreOnModalClose: options?.restoreOnModalClose, addRestoreFlag: (modal) => restoreVisibleOverlayOnModalClose.add(modal as OverlayHostedModal) }); }
+
+registerAnkiJimakuIpcRuntimeService({
+  patchAnkiConnectEnabled: (enabled) => {
     configService.patchRawConfig({
       ankiConnect: {
         enabled,
       },
     });
-    const config = getResolvedConfig();
-
-    if (enabled && !ankiIntegration && subtitleTimingTracker && mpvClient) {
-      const effectiveAnkiConfig = runtimeOptionsManager
-        ? runtimeOptionsManager.getEffectiveAnkiConnectConfig(
-            config.ankiConnect,
-          )
-        : config.ankiConnect;
-      ankiIntegration = new AnkiIntegration(
-        effectiveAnkiConfig,
-        subtitleTimingTracker,
-        mpvClient,
-        (text: string) => {
-          if (mpvClient) {
-            mpvClient.send({
-              command: ["show-text", text, "3000"],
-            });
-          }
-        },
-        showDesktopNotification,
-        createFieldGroupingCallback(),
-      );
-      ankiIntegration.start();
-      console.log("AnkiConnect integration enabled");
-    } else if (!enabled && ankiIntegration) {
-      ankiIntegration.destroy();
-      ankiIntegration = null;
-      console.log("AnkiConnect integration disabled");
-    }
-
-    broadcastRuntimeOptionsChanged();
   },
-  clearAnkiHistory: () => {
-    if (subtitleTimingTracker) {
-      subtitleTimingTracker.cleanup();
-      console.log("AnkiConnect subtitle timing history cleared");
-    }
+  getResolvedConfig: () => getResolvedConfig(),
+  getRuntimeOptionsManager: () => runtimeOptionsManager,
+  getSubtitleTimingTracker: () => subtitleTimingTracker,
+  getMpvClient: () => mpvClient,
+  getAnkiIntegration: () => ankiIntegration,
+  setAnkiIntegration: (integration) => {
+    ankiIntegration = integration;
   },
-  respondFieldGrouping: (choice) => {
-    if (fieldGroupingResolver) {
-      fieldGroupingResolver(choice);
-      fieldGroupingResolver = null;
-    }
+  showDesktopNotification,
+  createFieldGroupingCallback: () => createFieldGroupingCallback(),
+  broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+  getFieldGroupingResolver: () => fieldGroupingResolver,
+  setFieldGroupingResolver: (resolver) => {
+    fieldGroupingResolver = resolver;
   },
-  buildKikuMergePreview: async (request) => {
-    if (!ankiIntegration) {
-      return { ok: false, error: "AnkiConnect integration not enabled" };
-    }
-    return ankiIntegration.buildFieldGroupingPreview(
-      request.keepNoteId,
-      request.deleteNoteId,
-      request.deleteDuplicate,
-    );
-  },
-  getJimakuMediaInfo: () => parseMediaInfo(currentMediaPath),
-  searchJimakuEntries: async (query) => {
-    console.log(`[jimaku] search-entries query: "${query.query}"`);
-    const response = await jimakuFetchJson<JimakuEntry[]>(
-      "/api/entries/search",
-      {
-        anime: true,
-        query: query.query,
-      },
-    );
-    if (!response.ok) return response;
-    const maxResults = getJimakuMaxEntryResults();
-    console.log(
-      `[jimaku] search-entries returned ${response.data.length} results (capped to ${maxResults})`,
-    );
-    return { ok: true, data: response.data.slice(0, maxResults) };
-  },
-  listJimakuFiles: async (query) => {
-    console.log(
-      `[jimaku] list-files entryId=${query.entryId} episode=${query.episode ?? "all"}`,
-    );
-    const response = await jimakuFetchJson<JimakuFileEntry[]>(
-      `/api/entries/${query.entryId}/files`,
-      {
-        episode: query.episode ?? undefined,
-      },
-    );
-    if (!response.ok) return response;
-    const sorted = sortJimakuFiles(
-      response.data,
-      getJimakuLanguagePreference(),
-    );
-    console.log(`[jimaku] list-files returned ${sorted.length} files`);
-    return { ok: true, data: sorted };
-  },
-  resolveJimakuApiKey: () => resolveJimakuApiKey(),
+  parseMediaInfo: (mediaPath) => parseMediaInfo(mediaPath),
   getCurrentMediaPath: () => currentMediaPath,
+  jimakuFetchJson: (endpoint, query) => jimakuFetchJson(endpoint, query),
+  getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(),
+  getJimakuLanguagePreference: () => getJimakuLanguagePreference(),
+  resolveJimakuApiKey: () => resolveJimakuApiKey(),
   isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
   downloadToFile: (url, destPath, headers) => downloadToFile(url, destPath, headers),
-  onDownloadedSubtitle: (pathToSubtitle) => {
-    if (mpvClient && mpvClient.connected) {
-      mpvClient.send({ command: ["sub-add", pathToSubtitle, "select"] });
-    }
-  },
 });
