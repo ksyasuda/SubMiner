@@ -205,6 +205,7 @@ import { createAnkiJimakuIpcDepsRuntimeService } from "./core/services/anki-jima
 import { createFieldGroupingOverlayRuntimeService } from "./core/services/field-grouping-overlay-runtime-service";
 import { createSubsyncRuntimeDepsService } from "./core/services/subsync-deps-runtime-service";
 import { createNumericShortcutRuntimeService } from "./core/services/numeric-shortcut-runtime-service";
+import { createOverlayVisibilityFacadeDepsRuntimeService } from "./core/services/overlay-visibility-facade-deps-runtime-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
@@ -967,6 +968,27 @@ const numericShortcutRuntime = createNumericShortcutRuntimeService({
 });
 const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
+const overlayVisibilityFacadeDeps =
+  createOverlayVisibilityFacadeDepsRuntimeService({
+    getVisibleOverlayVisible: () => visibleOverlayVisible,
+    getInvisibleOverlayVisible: () => invisibleOverlayVisible,
+    setVisibleOverlayVisibleState: (nextVisible: boolean) => {
+      visibleOverlayVisible = nextVisible;
+    },
+    setInvisibleOverlayVisibleState: (nextVisible: boolean) => {
+      invisibleOverlayVisible = nextVisible;
+    },
+    updateVisibleOverlayVisibility: () => updateVisibleOverlayVisibility(),
+    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
+    syncInvisibleOverlayMousePassthrough: () =>
+      syncInvisibleOverlayMousePassthrough(),
+    shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      shouldBindVisibleOverlayToMpvSubVisibility(),
+    isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
+    setMpvSubVisibility: (mpvSubVisible: boolean) => {
+      setMpvSubVisibilityRuntimeService(mpvClient, mpvSubVisible);
+    },
+  });
 
 function getSubsyncRuntimeDeps() {
   return createSubsyncRuntimeDepsService({
@@ -1169,41 +1191,21 @@ function syncInvisibleOverlayMousePassthrough(): void {
 }
 
 function setVisibleOverlayVisible(visible: boolean): void {
-  setVisibleOverlayVisibleRuntimeFacadeService(visible, getOverlayVisibilityFacadeDeps());
+  setVisibleOverlayVisibleRuntimeFacadeService(visible, overlayVisibilityFacadeDeps);
 }
 
 function setInvisibleOverlayVisible(visible: boolean): void {
-  setInvisibleOverlayVisibleRuntimeFacadeService(visible, getOverlayVisibilityFacadeDeps());
-}
-
-function getOverlayVisibilityFacadeDeps() {
-  return {
-    getVisibleOverlayVisible: () => visibleOverlayVisible,
-    getInvisibleOverlayVisible: () => invisibleOverlayVisible,
-    setVisibleOverlayVisibleState: (nextVisible: boolean) => {
-      visibleOverlayVisible = nextVisible;
-    },
-    setInvisibleOverlayVisibleState: (nextVisible: boolean) => {
-      invisibleOverlayVisible = nextVisible;
-    },
-    updateVisibleOverlayVisibility: () => updateVisibleOverlayVisibility(),
-    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
-    syncInvisibleOverlayMousePassthrough: () =>
-      syncInvisibleOverlayMousePassthrough(),
-    shouldBindVisibleOverlayToMpvSubVisibility: () =>
-      shouldBindVisibleOverlayToMpvSubVisibility(),
-    isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
-    setMpvSubVisibility: (mpvSubVisible: boolean) => {
-      setMpvSubVisibilityRuntimeService(mpvClient, mpvSubVisible);
-    },
-  };
+  setInvisibleOverlayVisibleRuntimeFacadeService(
+    visible,
+    overlayVisibilityFacadeDeps,
+  );
 }
 
 function toggleVisibleOverlay(): void {
-  toggleVisibleOverlayRuntimeFacadeService(getOverlayVisibilityFacadeDeps());
+  toggleVisibleOverlayRuntimeFacadeService(overlayVisibilityFacadeDeps);
 }
 function toggleInvisibleOverlay(): void {
-  toggleInvisibleOverlayRuntimeFacadeService(getOverlayVisibilityFacadeDeps());
+  toggleInvisibleOverlayRuntimeFacadeService(overlayVisibilityFacadeDeps);
 }
 function setOverlayVisible(visible: boolean): void { setVisibleOverlayVisible(visible); }
 function toggleOverlay(): void { toggleVisibleOverlay(); }
