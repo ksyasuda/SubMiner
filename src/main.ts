@@ -205,6 +205,7 @@ import { runAppReadyRuntimeService } from "./core/services/app-ready-runtime-ser
 import { runAppShutdownRuntimeService } from "./core/services/app-shutdown-runtime-service";
 import { createMpvIpcClientDepsRuntimeService } from "./core/services/mpv-client-deps-runtime-service";
 import { createAppLifecycleDepsRuntimeService } from "./core/services/app-lifecycle-deps-runtime-service";
+import { createCliCommandDepsRuntimeService } from "./core/services/cli-command-deps-runtime-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
@@ -653,63 +654,57 @@ function handleCliCommand(
   args: CliArgs,
   source: CliCommandSource = "initial",
 ): void {
-  handleCliCommandService(args, source, {
-    getMpvSocketPath: () => mpvSocketPath,
-    setMpvSocketPath: (socketPath) => {
-      mpvSocketPath = socketPath;
+  const deps = createCliCommandDepsRuntimeService({
+    mpv: {
+      getSocketPath: () => mpvSocketPath,
+      setSocketPath: (socketPath) => {
+        mpvSocketPath = socketPath;
+      },
+      getClient: () => mpvClient,
+      showOsd: (text) => showMpvOsd(text),
     },
-    setMpvClientSocketPath: (socketPath) => {
-      if (!mpvClient) return;
-      mpvClient.setSocketPath(socketPath);
+    texthooker: {
+      service: texthookerService,
+      getPort: () => texthookerPort,
+      setPort: (port) => {
+        texthookerPort = port;
+      },
+      shouldOpenBrowser: () => getResolvedConfig().texthooker?.openBrowser !== false,
+      openInBrowser: (url) => {
+        shell.openExternal(url);
+      },
     },
-    hasMpvClient: () => Boolean(mpvClient),
-    connectMpvClient: () => {
-      if (!mpvClient) return;
-      mpvClient.connect();
+    overlay: {
+      isInitialized: () => overlayRuntimeInitialized,
+      initialize: () => initializeOverlayRuntime(),
+      toggleVisible: () => toggleVisibleOverlay(),
+      toggleInvisible: () => toggleInvisibleOverlay(),
+      setVisible: (visible) => setVisibleOverlayVisible(visible),
+      setInvisible: (visible) => setInvisibleOverlayVisible(visible),
     },
-    isTexthookerRunning: () => texthookerService.isRunning(),
-    setTexthookerPort: (port) => {
-      texthookerPort = port;
+    mining: {
+      copyCurrentSubtitle: () => copyCurrentSubtitle(),
+      startPendingMultiCopy: (timeoutMs) => startPendingMultiCopy(timeoutMs),
+      mineSentenceCard: () => mineSentenceCard(),
+      startPendingMineSentenceMultiple: (timeoutMs) =>
+        startPendingMineSentenceMultiple(timeoutMs),
+      updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+      triggerFieldGrouping: () => triggerFieldGrouping(),
+      triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+      markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
     },
-    getTexthookerPort: () => texthookerPort,
-    shouldOpenTexthookerBrowser: () =>
-      getResolvedConfig().texthooker?.openBrowser !== false,
-    ensureTexthookerRunning: (port) => {
-      if (!texthookerService.isRunning()) {
-        texthookerService.start(port);
-      }
+    ui: {
+      openYomitanSettings: () => openYomitanSettings(),
+      cycleSecondarySubMode: () => cycleSecondarySubMode(),
+      openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+      printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
     },
-    openTexthookerInBrowser: (url) => {
-      shell.openExternal(url);
+    app: {
+      stop: () => app.quit(),
+      hasMainWindow: () => Boolean(mainWindow),
     },
-    stopApp: () => app.quit(),
-    isOverlayRuntimeInitialized: () => overlayRuntimeInitialized,
-    initializeOverlayRuntime: () => initializeOverlayRuntime(),
-    toggleVisibleOverlay: () => toggleVisibleOverlay(),
-    toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
-    openYomitanSettingsDelayed: (delayMs) => {
-      setTimeout(() => {
-        openYomitanSettings();
-      }, delayMs);
-    },
-    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    setInvisibleOverlayVisible: (visible) =>
-      setInvisibleOverlayVisible(visible),
-    copyCurrentSubtitle: () => copyCurrentSubtitle(),
-    startPendingMultiCopy: (timeoutMs) => startPendingMultiCopy(timeoutMs),
-    mineSentenceCard: () => mineSentenceCard(),
-    startPendingMineSentenceMultiple: (timeoutMs) =>
-      startPendingMineSentenceMultiple(timeoutMs),
-    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-    cycleSecondarySubMode: () => cycleSecondarySubMode(),
-    triggerFieldGrouping: () => triggerFieldGrouping(),
-    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
-    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-    hasMainWindow: () => Boolean(mainWindow),
     getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
-    showMpvOsd: (text) => showMpvOsd(text),
+    schedule: (fn, delayMs) => setTimeout(fn, delayMs),
     log: (message) => {
       console.log(message);
     },
@@ -720,6 +715,7 @@ function handleCliCommand(
       console.error(message, err);
     },
   });
+  handleCliCommandService(args, source, deps);
 }
 
 function handleInitialArgs(): void {
