@@ -32,8 +32,14 @@ jobs:
       - name: Build (TypeScript check)
         run: pnpm run build
 
+      - name: Main.ts line gate (baseline)
+        run: pnpm run check:main-lines:baseline
+
       - name: Config tests
         run: pnpm run test:config
+
+      - name: Core tests
+        run: pnpm run test:core
 
       - name: Security audit
         run: pnpm audit --audit-level=high
