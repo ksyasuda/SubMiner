@@ -28,10 +28,10 @@ pnpm run docs:build
   - Full config file reference and option details
 - [Development](/development)
   - Contributor notes
-  - Architecture migration overview
+  - Architecture and extension rules
   - Environment variables
   - License and acknowledgments
 - [Architecture](/architecture)
-  - Composability migration status
-  - Core runtime structure
+  - Service-oriented runtime structure
+  - Composition and lifecycle model
   - Extension design rules

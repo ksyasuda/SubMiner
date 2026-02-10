@@ -1,35 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createGlobalShortcutRegistrationDepsRuntimeService,
-  createSecondarySubtitleCycleDepsRuntimeService,
-  createYomitanSettingsWindowDepsRuntimeService,
   runOverlayShortcutLocalFallbackRuntimeService,
-} from "./shortcut-ui-runtime-deps-service";
+} from "./shortcut-ui-deps-runtime-service";
 
 function makeOptions() {
   return {
-    yomitanExt: null,
-    getYomitanSettingsWindow: () => null,
-    setYomitanSettingsWindow: () => {},
-
-    shortcuts: {
-      toggleVisibleOverlayGlobal: "Ctrl+Shift+O",
-      toggleInvisibleOverlayGlobal: "Ctrl+Alt+O",
-    },
-    onToggleVisibleOverlay: () => {},
-    onToggleInvisibleOverlay: () => {},
-    onOpenYomitanSettings: () => {},
-    isDev: false,
-    getMainWindow: () => null,
-
-    getSecondarySubMode: () => "hover" as const,
-    setSecondarySubMode: () => {},
-    getLastSecondarySubToggleAtMs: () => 0,
-    setLastSecondarySubToggleAtMs: () => {},
-    broadcastSecondarySubMode: () => {},
-    showMpvOsd: () => {},
-
     getConfiguredShortcuts: () => ({
       toggleVisibleOverlayGlobal: null,
       toggleInvisibleOverlayGlobal: null,
@@ -62,17 +38,6 @@ function makeOptions() {
     shortcutMatcher: () => false,
   };
 }
-
-test("shortcut ui deps builders return expected adapters", () => {
-  const options = makeOptions();
-  const yomitan = createYomitanSettingsWindowDepsRuntimeService(options);
-  const globalShortcuts = createGlobalShortcutRegistrationDepsRuntimeService(options);
-  const secondary = createSecondarySubtitleCycleDepsRuntimeService(options);
-
-  assert.equal(yomitan.yomitanExt, null);
-  assert.equal(typeof globalShortcuts.onOpenYomitanSettings, "function");
-  assert.equal(secondary.getSecondarySubMode(), "hover");
-});
 
 test("runOverlayShortcutLocalFallbackRuntimeService delegates and returns boolean", () => {
   const options = {

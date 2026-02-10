@@ -1,4 +1,4 @@
-.PHONY: help deps build install build-linux build-macos build-macos-unsigned install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config docs-dev docs-build docs-preview
+.PHONY: help deps build install build-linux build-macos build-macos-unsigned install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config docs-dev docs docs-preview
 
 APP_NAME := subminer
 THEME_FILE := subminer.rasi
@@ -49,7 +49,7 @@ help:
 		"  build-macos      Build macOS DMG/ZIP (signed if configured)" \
 		"  build-macos-unsigned Build macOS DMG/ZIP without signing/notarization" \
 		"  docs-dev         Run VitePress docs dev server" \
-		"  docs-build       Build VitePress static docs" \
+		"  docs       Build VitePress static docs" \
 		"  docs-preview     Preview built VitePress docs" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
 		"  install-macos    Install macOS wrapper/theme/app artifacts" \
@@ -137,7 +137,7 @@ generate-example-config: ensure-pnpm
 docs-dev: ensure-pnpm
 	@pnpm run docs:dev
 
-docs-build: ensure-pnpm
+docs: ensure-pnpm
 	@pnpm run docs:build
 
 docs-preview: ensure-pnpm

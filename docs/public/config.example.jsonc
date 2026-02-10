@@ -2,7 +2,7 @@
  * SubMiner Example Configuration File
  *
  * This file is auto-generated from src/config/definitions.ts.
- * Copy to ~/.config/SubMiner/config.jsonc and edit as needed.
+ * Copy to $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) and edit as needed.
  */
 {
 

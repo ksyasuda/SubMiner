@@ -5,7 +5,7 @@ import {
   createInvisibleOverlayVisibilityDepsRuntimeService,
   createOverlayWindowRuntimeDepsService,
   createVisibleOverlayVisibilityDepsRuntimeService,
-} from "./overlay-runtime-deps-service";
+} from "./overlay-deps-runtime-service";
 
 test("createOverlayWindowRuntimeDepsService maps runtime state providers", () => {
   let visible = true;

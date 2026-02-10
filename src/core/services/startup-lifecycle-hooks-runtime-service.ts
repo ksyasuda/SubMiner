@@ -7,10 +7,6 @@ import {
   AppShutdownRuntimeDeps,
   runAppShutdownRuntimeService,
 } from "./app-shutdown-runtime-service";
-import {
-  createStartupAppReadyDepsRuntimeService,
-  createStartupAppShutdownDepsRuntimeService,
-} from "./startup-lifecycle-runtime-deps-service";
 
 type StartupLifecycleHookDeps = Pick<
   AppLifecycleDepsRuntimeOptions,
@@ -29,14 +25,10 @@ export function createStartupLifecycleHooksRuntimeService(
 ): StartupLifecycleHookDeps {
   return {
     onReady: async () => {
-      await runAppReadyRuntimeService(
-        createStartupAppReadyDepsRuntimeService(options.appReadyDeps),
-      );
+      await runAppReadyRuntimeService(options.appReadyDeps);
     },
     onWillQuitCleanup: () => {
-      runAppShutdownRuntimeService(
-        createStartupAppShutdownDepsRuntimeService(options.appShutdownDeps),
-      );
+      runAppShutdownRuntimeService(options.appShutdownDeps);
     },
     shouldRestoreWindowsOnActivate: options.shouldRestoreWindowsOnActivate,
     restoreWindowsOnActivate: options.restoreWindowsOnActivate,

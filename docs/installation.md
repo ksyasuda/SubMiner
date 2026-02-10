@@ -127,7 +127,7 @@ mpv --input-ipc-server=/tmp/subminer-socket video.mkv
 
 **Config Location:**
 
-Settings are stored in `~/.config/SubMiner/config.jsonc` (same as Linux).
+Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`, same as Linux).
 
 **MeCab Installation Paths:**
 

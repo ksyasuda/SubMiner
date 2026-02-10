@@ -73,15 +73,12 @@ export {
   getOverlayWindowsRuntimeService,
   setOverlayDebugVisualizationEnabledRuntimeService,
 } from "./overlay-broadcast-runtime-service";
-export { createMpvIpcClientDepsRuntimeService } from "./mpv-client-deps-runtime-service";
 export { createAppLifecycleDepsRuntimeService } from "./app-lifecycle-deps-runtime-service";
 export { createCliCommandDepsRuntimeService } from "./cli-command-deps-runtime-service";
 export { createIpcDepsRuntimeService } from "./ipc-deps-runtime-service";
-export { createAnkiJimakuIpcDepsRuntimeService } from "./anki-jimaku-ipc-deps-runtime-service";
 export { createFieldGroupingOverlayRuntimeService } from "./field-grouping-overlay-runtime-service";
 export { createSubsyncRuntimeDepsService } from "./subsync-deps-runtime-service";
 export { createNumericShortcutRuntimeService } from "./numeric-shortcut-runtime-service";
-export { createOverlayVisibilityFacadeDepsRuntimeService } from "./overlay-visibility-facade-deps-runtime-service";
 export { createMpvCommandIpcDepsRuntimeService } from "./mpv-command-ipc-deps-runtime-service";
 export { createRuntimeOptionsIpcDepsRuntimeService } from "./runtime-options-ipc-deps-runtime-service";
 export { createTokenizerDepsRuntimeService } from "./tokenizer-deps-runtime-service";
@@ -90,26 +87,8 @@ export {
   createInvisibleOverlayVisibilityDepsRuntimeService,
   createOverlayWindowRuntimeDepsService,
   createVisibleOverlayVisibilityDepsRuntimeService,
-} from "./overlay-runtime-deps-service";
-export {
-  createOverlayShortcutLifecycleDepsRuntimeService,
-  createOverlayShortcutRuntimeDepsService,
-} from "./overlay-shortcut-runtime-deps-service";
-export {
-  createCopyCurrentSubtitleDepsRuntimeService,
-  createHandleMineSentenceDigitDepsRuntimeService,
-  createHandleMultiCopyDigitDepsRuntimeService,
-  createMarkLastCardAsAudioCardDepsRuntimeService,
-  createMineSentenceCardDepsRuntimeService,
-  createTriggerFieldGroupingDepsRuntimeService,
-  createUpdateLastCardFromClipboardDepsRuntimeService,
-} from "./mining-runtime-deps-service";
-export {
-  createGlobalShortcutRegistrationDepsRuntimeService,
-  createSecondarySubtitleCycleDepsRuntimeService,
-  createYomitanSettingsWindowDepsRuntimeService,
-  runOverlayShortcutLocalFallbackRuntimeService,
-} from "./shortcut-ui-runtime-deps-service";
+} from "./overlay-deps-runtime-service";
+export { runOverlayShortcutLocalFallbackRuntimeService } from "./shortcut-ui-deps-runtime-service";
 export { createStartupLifecycleHooksRuntimeService } from "./startup-lifecycle-hooks-runtime-service";
 export { createRuntimeOptionsManagerRuntimeService } from "./runtime-options-manager-runtime-service";
 export { createAppLoggingRuntimeService } from "./app-logging-runtime-service";
@@ -122,3 +101,4 @@ export { runStartupBootstrapRuntimeService } from "./startup-bootstrap-runtime-s
 export { runSubsyncManualFromIpcRuntimeService, triggerSubsyncFromConfigRuntimeService } from "./subsync-runtime-service";
 export { updateInvisibleOverlayVisibilityService, updateVisibleOverlayVisibilityService } from "./overlay-visibility-service";
 export { registerAnkiJimakuIpcRuntimeService } from "./anki-jimaku-runtime-service";
+export { createOverlayManagerService } from "./overlay-manager-service";

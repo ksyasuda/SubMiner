@@ -34,10 +34,10 @@ features:
     details: Build, test, and package SubMiner with the development notes in this docs set.
 ---
 
-## Documentation Sections
+<!-- ## Documentation Sections
 
 - [Installation](/installation)
 - [Usage](/usage)
 - [Configuration](/configuration)
 - [Development](/development)
-- [Architecture](/architecture)
+- [Architecture](/architecture) -->
