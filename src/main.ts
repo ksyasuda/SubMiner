@@ -236,6 +236,7 @@ import {
   createSubtitleTimingTrackerRuntimeService,
 } from "./core/services/startup-resource-runtime-service";
 import { runGenerateConfigFlowRuntimeService } from "./core/services/config-generation-runtime-service";
+import { runStartupBootstrapRuntimeService } from "./core/services/startup-bootstrap-runtime-service";
 import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
@@ -479,218 +480,227 @@ function updateCurrentMediaPath(mediaPath: unknown): void {
 
 let subsyncInProgress = false;
 
-const initialArgs = parseArgs(process.argv);
-if (initialArgs.logLevel) {
-  process.env.SUBMINER_LOG_LEVEL = initialArgs.logLevel;
-} else if (initialArgs.verbose) {
-  process.env.SUBMINER_LOG_LEVEL = "debug";
-}
-
-forceX11Backend(initialArgs);
-enforceUnsupportedWaylandMode(initialArgs);
-
-let mpvSocketPath = initialArgs.socketPath ?? getDefaultSocketPath();
-let texthookerPort = initialArgs.texthookerPort ?? DEFAULT_TEXTHOOKER_PORT;
-const backendOverride = initialArgs.backend ?? null;
-const autoStartOverlay = initialArgs.autoStartOverlay;
-const texthookerOnlyMode = initialArgs.texthooker;
-
-if (
-  !runGenerateConfigFlowRuntimeService(initialArgs, {
-    shouldStartApp: (args) => shouldStartApp(args),
-    generateConfig: async (args) =>
-      generateDefaultConfigFile(args, {
-        configDir: CONFIG_DIR,
-        defaultConfig: DEFAULT_CONFIG,
-        generateTemplate: (config) => generateConfigTemplate(config as never),
-      }),
-    onSuccess: (exitCode) => {
-      process.exitCode = exitCode;
-      app.quit();
-    },
-    onError: (error) => {
-      console.error(`Failed to generate config: ${error.message}`);
-      process.exitCode = 1;
-      app.quit();
-    },
-  })
-) {
-  startAppLifecycleService(initialArgs, createAppLifecycleDepsRuntimeService({
-    app,
-    platform: process.platform,
-    shouldStartApp: (args) => shouldStartApp(args),
-    parseArgs: (argv) => parseArgs(argv),
-    handleCliCommand: (args, source) => handleCliCommand(args, source),
-    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-    logNoRunningInstance: () => appLogger.logNoRunningInstance(),
-    onReady: async () => {
-      await runAppReadyRuntimeService(
-        createStartupAppReadyDepsRuntimeService({
-          loadSubtitlePosition: () => loadSubtitlePosition(),
-          resolveKeybindings: () => {
-            keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
-          },
-          createMpvClient: () => {
-            mpvClient = new MpvIpcClient(
-              mpvSocketPath,
-              createMpvIpcClientDepsRuntimeService({
-                getResolvedConfig: () => getResolvedConfig(),
-                autoStartOverlay,
-                setOverlayVisible: (visible) => setOverlayVisible(visible),
-                shouldBindVisibleOverlayToMpvSubVisibility: () =>
-                  shouldBindVisibleOverlayToMpvSubVisibility(),
-                isVisibleOverlayVisible: () => visibleOverlayVisible,
-                getReconnectTimer: () => reconnectTimer,
-                setReconnectTimer: (timer) => {
-                  reconnectTimer = timer;
+const startupState = runStartupBootstrapRuntimeService({
+  argv: process.argv,
+  parseArgs: (argv) => parseArgs(argv),
+  setLogLevelEnv: (level) => {
+    process.env.SUBMINER_LOG_LEVEL = level;
+  },
+  enableVerboseLogging: () => {
+    process.env.SUBMINER_LOG_LEVEL = "debug";
+  },
+  forceX11Backend: (args) => {
+    forceX11Backend(args);
+  },
+  enforceUnsupportedWaylandMode: (args) => {
+    enforceUnsupportedWaylandMode(args);
+  },
+  getDefaultSocketPath: () => getDefaultSocketPath(),
+  defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
+  runGenerateConfigFlow: (args) =>
+    runGenerateConfigFlowRuntimeService(args, {
+      shouldStartApp: (nextArgs) => shouldStartApp(nextArgs),
+      generateConfig: async (nextArgs) =>
+        generateDefaultConfigFile(nextArgs, {
+          configDir: CONFIG_DIR,
+          defaultConfig: DEFAULT_CONFIG,
+          generateTemplate: (config) => generateConfigTemplate(config as never),
+        }),
+      onSuccess: (exitCode) => {
+        process.exitCode = exitCode;
+        app.quit();
+      },
+      onError: (error) => {
+        console.error(`Failed to generate config: ${error.message}`);
+        process.exitCode = 1;
+        app.quit();
+      },
+    }),
+  startAppLifecycle: (args) => {
+    startAppLifecycleService(args, createAppLifecycleDepsRuntimeService({
+      app,
+      platform: process.platform,
+      shouldStartApp: (nextArgs) => shouldStartApp(nextArgs),
+      parseArgs: (argv) => parseArgs(argv),
+      handleCliCommand: (nextArgs, source) => handleCliCommand(nextArgs, source),
+      printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+      logNoRunningInstance: () => appLogger.logNoRunningInstance(),
+      onReady: async () => {
+        await runAppReadyRuntimeService(
+          createStartupAppReadyDepsRuntimeService({
+            loadSubtitlePosition: () => loadSubtitlePosition(),
+            resolveKeybindings: () => {
+              keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+            },
+            createMpvClient: () => {
+              mpvClient = new MpvIpcClient(
+                mpvSocketPath,
+                createMpvIpcClientDepsRuntimeService({
+                  getResolvedConfig: () => getResolvedConfig(),
+                  autoStartOverlay,
+                  setOverlayVisible: (visible) => setOverlayVisible(visible),
+                  shouldBindVisibleOverlayToMpvSubVisibility: () =>
+                    shouldBindVisibleOverlayToMpvSubVisibility(),
+                  isVisibleOverlayVisible: () => visibleOverlayVisible,
+                  getReconnectTimer: () => reconnectTimer,
+                  setReconnectTimer: (timer) => {
+                    reconnectTimer = timer;
+                  },
+                  getCurrentSubText: () => currentSubText,
+                  setCurrentSubText: (text) => {
+                    currentSubText = text;
+                  },
+                  setCurrentSubAssText: (text) => {
+                    currentSubAssText = text;
+                  },
+                  getSubtitleTimingTracker: () => subtitleTimingTracker,
+                  subtitleWsBroadcast: (text) => {
+                    subtitleWsService.broadcast(text);
+                  },
+                  getOverlayWindowsCount: () => getOverlayWindows().length,
+                  tokenizeSubtitle: (text) => tokenizeSubtitle(text),
+                  broadcastToOverlayWindows: (channel, ...channelArgs) => {
+                    broadcastToOverlayWindows(channel, ...channelArgs);
+                  },
+                  updateCurrentMediaPath: (mediaPath) => {
+                    updateCurrentMediaPath(mediaPath);
+                  },
+                  updateMpvSubtitleRenderMetrics: (patch) => {
+                    updateMpvSubtitleRenderMetrics(patch);
+                  },
+                  getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
+                  setPreviousSecondarySubVisibility: (value) => {
+                    previousSecondarySubVisibility = value;
+                  },
+                  showMpvOsd: (text) => {
+                    showMpvOsd(text);
+                  },
+                }),
+              );
+            },
+            reloadConfig: () => {
+              configService.reloadConfig();
+            },
+            getResolvedConfig: () => getResolvedConfig(),
+            getConfigWarnings: () => configService.getWarnings(),
+            logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
+            initRuntimeOptionsManager: () => {
+              runtimeOptionsManager = createRuntimeOptionsManagerRuntimeService({
+                getAnkiConfig: () => configService.getConfig().ankiConnect,
+                applyAnkiPatch: (patch) => {
+                  if (ankiIntegration) {
+                    ankiIntegration.applyRuntimeConfigPatch(patch);
+                  }
                 },
-                getCurrentSubText: () => currentSubText,
-                setCurrentSubText: (text) => {
-                  currentSubText = text;
+                onOptionsChanged: () => {
+                  broadcastRuntimeOptionsChanged();
+                  refreshOverlayShortcuts();
                 },
-                setCurrentSubAssText: (text) => {
-                  currentSubAssText = text;
-                },
-                getSubtitleTimingTracker: () => subtitleTimingTracker,
-                subtitleWsBroadcast: (text) => {
-                  subtitleWsService.broadcast(text);
-                },
-                getOverlayWindowsCount: () => getOverlayWindows().length,
-                tokenizeSubtitle: (text) => tokenizeSubtitle(text),
-                broadcastToOverlayWindows: (channel, ...args) => {
-                  broadcastToOverlayWindows(channel, ...args);
-                },
-                updateCurrentMediaPath: (mediaPath) => {
-                  updateCurrentMediaPath(mediaPath);
-                },
-                updateMpvSubtitleRenderMetrics: (patch) => {
-                  updateMpvSubtitleRenderMetrics(patch);
-                },
-                getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
-                setPreviousSecondarySubVisibility: (value) => {
-                  previousSecondarySubVisibility = value;
-                },
-                showMpvOsd: (text) => {
-                  showMpvOsd(text);
+              });
+            },
+            setSecondarySubMode: (mode) => {
+              secondarySubMode = mode;
+            },
+            defaultSecondarySubMode: "hover",
+            defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
+            hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
+            startSubtitleWebsocket: (port) => {
+              subtitleWsService.start(port, () => currentSubText);
+            },
+            log: (message) => appLogger.logInfo(message),
+            createMecabTokenizerAndCheck: async () =>
+              createMecabTokenizerAndCheckRuntimeService({
+                createMecabTokenizer: () => new MecabTokenizer(),
+                setMecabTokenizer: (tokenizer) => {
+                  mecabTokenizer = tokenizer;
                 },
               }),
-            );
-          },
-          reloadConfig: () => {
-            configService.reloadConfig();
-          },
-          getResolvedConfig: () => getResolvedConfig(),
-          getConfigWarnings: () => configService.getWarnings(),
-          logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
-          initRuntimeOptionsManager: () => {
-            runtimeOptionsManager = createRuntimeOptionsManagerRuntimeService({
-              getAnkiConfig: () => configService.getConfig().ankiConnect,
-              applyAnkiPatch: (patch) => {
-                if (ankiIntegration) {
-                  ankiIntegration.applyRuntimeConfigPatch(patch);
-                }
-              },
-              onOptionsChanged: () => {
-                broadcastRuntimeOptionsChanged();
-                refreshOverlayShortcuts();
-              },
-            });
-          },
-          setSecondarySubMode: (mode) => {
-            secondarySubMode = mode;
-          },
-          defaultSecondarySubMode: "hover",
-          defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
-          hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
-          startSubtitleWebsocket: (port) => {
-            subtitleWsService.start(port, () => currentSubText);
-          },
-          log: (message) => appLogger.logInfo(message),
-          createMecabTokenizerAndCheck: async () =>
-            createMecabTokenizerAndCheckRuntimeService({
-              createMecabTokenizer: () => new MecabTokenizer(),
-              setMecabTokenizer: (tokenizer) => {
-                mecabTokenizer = tokenizer;
-              },
-            }),
-          createSubtitleTimingTracker: () =>
-            createSubtitleTimingTrackerRuntimeService({
-              createSubtitleTimingTracker: () => new SubtitleTimingTracker(),
-              setSubtitleTimingTracker: (tracker) => {
-                subtitleTimingTracker = tracker;
-              },
-            }),
-          loadYomitanExtension: async () => {
-            await loadYomitanExtension();
-          },
-          texthookerOnlyMode,
-          shouldAutoInitializeOverlayRuntimeFromConfig: () =>
-            shouldAutoInitializeOverlayRuntimeFromConfig(),
-          initializeOverlayRuntime: () => initializeOverlayRuntime(),
-          handleInitialArgs: () => handleInitialArgs(),
-        }),
-      );
-    },
-    onWillQuitCleanup: () => {
-      runAppShutdownRuntimeService(
-        createStartupAppShutdownDepsRuntimeService({
-          unregisterAllGlobalShortcuts: () => {
-            globalShortcut.unregisterAll();
-          },
-          stopSubtitleWebsocket: () => {
-            subtitleWsService.stop();
-          },
-          stopTexthookerService: () => {
-            texthookerService.stop();
-          },
-          destroyYomitanParserWindow: () => {
-            if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
-              yomitanParserWindow.destroy();
-            }
-            yomitanParserWindow = null;
-          },
-          clearYomitanParserPromises: () => {
-            yomitanParserReadyPromise = null;
-            yomitanParserInitPromise = null;
-          },
-          stopWindowTracker: () => {
-            if (windowTracker) {
-              windowTracker.stop();
-            }
-          },
-          destroyMpvSocket: () => {
-            if (mpvClient && mpvClient.socket) {
-              mpvClient.socket.destroy();
-            }
-          },
-          clearReconnectTimer: () => {
-            if (reconnectTimer) {
-              clearTimeout(reconnectTimer);
-            }
-          },
-          destroySubtitleTimingTracker: () => {
-            if (subtitleTimingTracker) {
-              subtitleTimingTracker.destroy();
-            }
-          },
-          destroyAnkiIntegration: () => {
-            if (ankiIntegration) {
-              ankiIntegration.destroy();
-            }
-          },
-        }),
-      );
-    },
-    shouldRestoreWindowsOnActivate: () =>
-      overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
-    restoreWindowsOnActivate: () => {
-      createMainWindow();
-      createInvisibleWindow();
-      updateVisibleOverlayVisibility();
-      updateInvisibleOverlayVisibility();
-    },
-  }));
-}
+            createSubtitleTimingTracker: () =>
+              createSubtitleTimingTrackerRuntimeService({
+                createSubtitleTimingTracker: () => new SubtitleTimingTracker(),
+                setSubtitleTimingTracker: (tracker) => {
+                  subtitleTimingTracker = tracker;
+                },
+              }),
+            loadYomitanExtension: async () => {
+              await loadYomitanExtension();
+            },
+            texthookerOnlyMode,
+            shouldAutoInitializeOverlayRuntimeFromConfig: () =>
+              shouldAutoInitializeOverlayRuntimeFromConfig(),
+            initializeOverlayRuntime: () => initializeOverlayRuntime(),
+            handleInitialArgs: () => handleInitialArgs(),
+          }),
+        );
+      },
+      onWillQuitCleanup: () => {
+        runAppShutdownRuntimeService(
+          createStartupAppShutdownDepsRuntimeService({
+            unregisterAllGlobalShortcuts: () => {
+              globalShortcut.unregisterAll();
+            },
+            stopSubtitleWebsocket: () => {
+              subtitleWsService.stop();
+            },
+            stopTexthookerService: () => {
+              texthookerService.stop();
+            },
+            destroyYomitanParserWindow: () => {
+              if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
+                yomitanParserWindow.destroy();
+              }
+              yomitanParserWindow = null;
+            },
+            clearYomitanParserPromises: () => {
+              yomitanParserReadyPromise = null;
+              yomitanParserInitPromise = null;
+            },
+            stopWindowTracker: () => {
+              if (windowTracker) {
+                windowTracker.stop();
+              }
+            },
+            destroyMpvSocket: () => {
+              if (mpvClient && mpvClient.socket) {
+                mpvClient.socket.destroy();
+              }
+            },
+            clearReconnectTimer: () => {
+              if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+              }
+            },
+            destroySubtitleTimingTracker: () => {
+              if (subtitleTimingTracker) {
+                subtitleTimingTracker.destroy();
+              }
+            },
+            destroyAnkiIntegration: () => {
+              if (ankiIntegration) {
+                ankiIntegration.destroy();
+              }
+            },
+          }),
+        );
+      },
+      shouldRestoreWindowsOnActivate: () =>
+        overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
+      restoreWindowsOnActivate: () => {
+        createMainWindow();
+        createInvisibleWindow();
+        updateVisibleOverlayVisibility();
+        updateInvisibleOverlayVisibility();
+      },
+    }));
+  },
+});
+
+const initialArgs = startupState.initialArgs;
+let mpvSocketPath = startupState.mpvSocketPath;
+let texthookerPort = startupState.texthookerPort;
+const backendOverride = startupState.backendOverride;
+const autoStartOverlay = startupState.autoStartOverlay;
+const texthookerOnlyMode = startupState.texthookerOnlyMode;
 
 function handleCliCommand(
   args: CliArgs,
