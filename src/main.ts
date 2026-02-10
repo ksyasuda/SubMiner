@@ -203,6 +203,7 @@ import {
 } from "./core/services/overlay-broadcast-runtime-service";
 import { runAppReadyRuntimeService } from "./core/services/app-ready-runtime-service";
 import { runAppShutdownRuntimeService } from "./core/services/app-shutdown-runtime-service";
+import { createMpvIpcClientDepsRuntimeService } from "./core/services/mpv-client-deps-runtime-service";
 import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
@@ -495,19 +496,50 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
           keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
         },
         createMpvClient: () => {
-          mpvClient = new MpvIpcClient(mpvSocketPath, {
-            getResolvedConfig: () => getResolvedConfig(), autoStartOverlay,
-            setOverlayVisible: (visible) => setOverlayVisible(visible),
-            shouldBindVisibleOverlayToMpvSubVisibility: () => shouldBindVisibleOverlayToMpvSubVisibility(),
-            isVisibleOverlayVisible: () => visibleOverlayVisible,
-            getReconnectTimer: () => reconnectTimer, setReconnectTimer: (timer) => { reconnectTimer = timer; },
-            getCurrentSubText: () => currentSubText, setCurrentSubText: (text) => { currentSubText = text; }, setCurrentSubAssText: (text) => { currentSubAssText = text; },
-            getSubtitleTimingTracker: () => subtitleTimingTracker, subtitleWsBroadcast: (text) => { subtitleWsService.broadcast(text); },
-            getOverlayWindowsCount: () => getOverlayWindows().length, tokenizeSubtitle: (text) => tokenizeSubtitle(text),
-            broadcastToOverlayWindows: (channel, ...args) => { broadcastToOverlayWindows(channel, ...args); },
-            updateCurrentMediaPath: (mediaPath) => { updateCurrentMediaPath(mediaPath); }, updateMpvSubtitleRenderMetrics: (patch) => { updateMpvSubtitleRenderMetrics(patch); },
-            getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics, setPreviousSecondarySubVisibility: (value) => { previousSecondarySubVisibility = value; }, showMpvOsd: (text) => { showMpvOsd(text); },
-          });
+          mpvClient = new MpvIpcClient(
+            mpvSocketPath,
+            createMpvIpcClientDepsRuntimeService({
+              getResolvedConfig: () => getResolvedConfig(),
+              autoStartOverlay,
+              setOverlayVisible: (visible) => setOverlayVisible(visible),
+              shouldBindVisibleOverlayToMpvSubVisibility: () =>
+                shouldBindVisibleOverlayToMpvSubVisibility(),
+              isVisibleOverlayVisible: () => visibleOverlayVisible,
+              getReconnectTimer: () => reconnectTimer,
+              setReconnectTimer: (timer) => {
+                reconnectTimer = timer;
+              },
+              getCurrentSubText: () => currentSubText,
+              setCurrentSubText: (text) => {
+                currentSubText = text;
+              },
+              setCurrentSubAssText: (text) => {
+                currentSubAssText = text;
+              },
+              getSubtitleTimingTracker: () => subtitleTimingTracker,
+              subtitleWsBroadcast: (text) => {
+                subtitleWsService.broadcast(text);
+              },
+              getOverlayWindowsCount: () => getOverlayWindows().length,
+              tokenizeSubtitle: (text) => tokenizeSubtitle(text),
+              broadcastToOverlayWindows: (channel, ...args) => {
+                broadcastToOverlayWindows(channel, ...args);
+              },
+              updateCurrentMediaPath: (mediaPath) => {
+                updateCurrentMediaPath(mediaPath);
+              },
+              updateMpvSubtitleRenderMetrics: (patch) => {
+                updateMpvSubtitleRenderMetrics(patch);
+              },
+              getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
+              setPreviousSecondarySubVisibility: (value) => {
+                previousSecondarySubVisibility = value;
+              },
+              showMpvOsd: (text) => {
+                showMpvOsd(text);
+              },
+            }),
+          );
         },
         reloadConfig: () => {
           configService.reloadConfig();
