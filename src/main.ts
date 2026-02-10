@@ -111,13 +111,17 @@ import {
 } from "./core/services/shortcut-fallback-service";
 import {
   registerOverlayShortcutsService,
-  unregisterOverlayShortcutsService,
 } from "./core/services/overlay-shortcut-service";
 import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-fallback-runner";
 import { createOverlayShortcutRuntimeHandlers } from "./core/services/overlay-shortcut-runtime-service";
 import { createNumericShortcutSessionService } from "./core/services/numeric-shortcut-session-service";
 import { handleCliCommandService } from "./core/services/cli-command-service";
 import { cycleSecondarySubModeService } from "./core/services/secondary-subtitle-service";
+import {
+  refreshOverlayShortcutsRuntimeService,
+  syncOverlayShortcutsRuntimeService,
+  unregisterOverlayShortcutsRuntimeService,
+} from "./core/services/overlay-shortcut-lifecycle-service";
 import {
   copyCurrentSubtitleService,
   handleMineSentenceDigitService,
@@ -986,28 +990,43 @@ function handleMineSentenceDigit(count: number): void {
 }
 
 function registerOverlayShortcuts(): void {
-  const shortcuts = getConfiguredShortcuts();
-  const handlers = getOverlayShortcutRuntimeHandlers();
   shortcutsRegistered = registerOverlayShortcutsService(
-    shortcuts,
-    handlers.overlayHandlers,
+    getConfiguredShortcuts(),
+    getOverlayShortcutRuntimeHandlers().overlayHandlers,
   );
 }
 
+function getOverlayShortcutLifecycleDeps() {
+  return {
+    getConfiguredShortcuts: () => getConfiguredShortcuts(),
+    getOverlayHandlers: () => getOverlayShortcutRuntimeHandlers().overlayHandlers,
+    cancelPendingMultiCopy: () => cancelPendingMultiCopy(),
+    cancelPendingMineSentenceMultiple: () => cancelPendingMineSentenceMultiple(),
+  };
+}
+
 function unregisterOverlayShortcuts(): void {
-  if (!shortcutsRegistered) return;
-
-  cancelPendingMultiCopy();
-  cancelPendingMineSentenceMultiple();
-
-  unregisterOverlayShortcutsService(getConfiguredShortcuts());
-
-  shortcutsRegistered = false;
+  shortcutsRegistered = unregisterOverlayShortcutsRuntimeService(
+    shortcutsRegistered,
+    getOverlayShortcutLifecycleDeps(),
+  );
 }
 
 function shouldOverlayShortcutsBeActive(): boolean { return overlayRuntimeInitialized; }
-function syncOverlayShortcuts(): void { if (shouldOverlayShortcutsBeActive()) { registerOverlayShortcuts(); } else { unregisterOverlayShortcuts(); } }
-function refreshOverlayShortcuts(): void { unregisterOverlayShortcuts(); syncOverlayShortcuts(); }
+function syncOverlayShortcuts(): void {
+  shortcutsRegistered = syncOverlayShortcutsRuntimeService(
+    shouldOverlayShortcutsBeActive(),
+    shortcutsRegistered,
+    getOverlayShortcutLifecycleDeps(),
+  );
+}
+function refreshOverlayShortcuts(): void {
+  shortcutsRegistered = refreshOverlayShortcutsRuntimeService(
+    shouldOverlayShortcutsBeActive(),
+    shortcutsRegistered,
+    getOverlayShortcutLifecycleDeps(),
+  );
+}
 
 function updateVisibleOverlayVisibility(): void {
   updateVisibleOverlayVisibilityService({
