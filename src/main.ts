@@ -47,7 +47,7 @@ import * as fs from "fs";
 import * as crypto from "crypto";
 import { MecabTokenizer } from "./mecab-tokenizer";
 import { BaseWindowTracker } from "./window-trackers";
-import {
+import type {
   JimakuApiResponse,
   JimakuDownloadResult,
   JimakuMediaInfo,
@@ -78,169 +78,126 @@ import {
   getSubsyncConfig,
 } from "./subsync/utils";
 import {
-  CliArgs,
-  CliCommandSource,
   hasExplicitCommand,
   parseArgs,
   shouldStartApp,
 } from "./cli/args";
+import type { CliArgs, CliCommandSource } from "./cli/args";
 import { printHelp } from "./cli/help";
-import { generateDefaultConfigFile } from "./core/utils/config-gen";
 import {
+  asBoolean,
+  asFiniteNumber,
+  asString,
   enforceUnsupportedWaylandMode,
   forceX11Backend,
-} from "./core/utils/electron-backend";
-import { asBoolean, asFiniteNumber, asString } from "./core/utils/coerce";
-import { resolveKeybindings } from "./core/utils/keybindings";
-import { resolveConfiguredShortcuts } from "./core/utils/shortcut-config";
-import { TexthookerService } from "./core/services/texthooker-service";
+  generateDefaultConfigFile,
+  resolveConfiguredShortcuts,
+  resolveKeybindings,
+  showDesktopNotification,
+} from "./core/utils";
 import {
-  hasMpvWebsocketPlugin,
-  SubtitleWebSocketService,
-} from "./core/services/subtitle-ws-service";
-import { registerGlobalShortcutsService } from "./core/services/shortcut-service";
-import { registerIpcHandlersService } from "./core/services/ipc-service";
-import {
-  isGlobalShortcutRegisteredSafe,
-  shortcutMatchesInputForLocalFallback,
-} from "./core/services/shortcut-fallback-service";
-import {
-  registerOverlayShortcutsService,
-} from "./core/services/overlay-shortcut-service";
-import { createOverlayShortcutRuntimeHandlers } from "./core/services/overlay-shortcut-runtime-service";
-import { handleCliCommandService } from "./core/services/cli-command-service";
-import { cycleSecondarySubModeService } from "./core/services/secondary-subtitle-service";
-import {
-  refreshOverlayShortcutsRuntimeService,
-  syncOverlayShortcutsRuntimeService,
-  unregisterOverlayShortcutsRuntimeService,
-} from "./core/services/overlay-shortcut-lifecycle-service";
-import {
-  copyCurrentSubtitleService,
-  handleMineSentenceDigitService,
-  handleMultiCopyDigitService,
-  markLastCardAsAudioCardService,
-  mineSentenceCardService,
-  triggerFieldGroupingService,
-  updateLastCardFromClipboardService,
-} from "./core/services/mining-runtime-service";
-import { startAppLifecycleService } from "./core/services/app-lifecycle-service";
-import {
-  playNextSubtitleRuntimeService,
-  replayCurrentSubtitleRuntimeService,
-  sendMpvCommandRuntimeService,
-  setMpvSubVisibilityRuntimeService,
-  showMpvOsdRuntimeService,
-} from "./core/services/mpv-runtime-service";
-import {
-  getInitialInvisibleOverlayVisibilityService,
-  isAutoUpdateEnabledRuntimeService,
-  shouldAutoInitializeOverlayRuntimeFromConfigService,
-  shouldBindVisibleOverlayToMpvSubVisibilityService,
-} from "./core/services/runtime-config-service";
-import { showDesktopNotification } from "./core/utils/notification";
-import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
-import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
-import { loadYomitanExtensionService } from "./core/services/yomitan-extension-loader-service";
-import {
-  getJimakuLanguagePreferenceService,
-  getJimakuMaxEntryResultsService,
-  jimakuFetchJsonService,
-  resolveJimakuApiKeyService,
-} from "./core/services/jimaku-runtime-service";
-import {
-  loadSubtitlePositionService,
-  saveSubtitlePositionService,
-  updateCurrentMediaPathService,
-} from "./core/services/subtitle-position-service";
-import {
-  createOverlayWindowService,
-  enforceOverlayLayerOrderService,
-  ensureOverlayWindowLevelService,
-  updateOverlayBoundsService,
-} from "./core/services/overlay-window-service";
-import { initializeOverlayRuntimeService } from "./core/services/overlay-runtime-init-service";
-import {
-  syncInvisibleOverlayMousePassthroughService,
-} from "./core/services/overlay-visibility-runtime-service";
-import {
-  setInvisibleOverlayVisibleRuntimeFacadeService,
-  setVisibleOverlayVisibleRuntimeFacadeService,
-  toggleInvisibleOverlayRuntimeFacadeService,
-  toggleVisibleOverlayRuntimeFacadeService,
-} from "./core/services/overlay-visibility-facade-service";
-import {
-  MpvIpcClient,
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
-} from "./core/services/mpv-service";
-import { applyMpvSubtitleRenderMetricsPatchService } from "./core/services/mpv-render-metrics-service";
-import {
-  handleMpvCommandFromIpcService,
-} from "./core/services/ipc-command-service";
-import {
-  handleOverlayModalClosedService,
-} from "./core/services/overlay-modal-restore-service";
-import {
+  MpvIpcClient,
+  SubtitleWebSocketService,
+  TexthookerService,
+  applyMpvSubtitleRenderMetricsPatchService,
   broadcastRuntimeOptionsChangedRuntimeService,
   broadcastToOverlayWindowsRuntimeService,
-  getOverlayWindowsRuntimeService,
-  setOverlayDebugVisualizationEnabledRuntimeService,
-} from "./core/services/overlay-broadcast-runtime-service";
-import { createMpvIpcClientDepsRuntimeService } from "./core/services/mpv-client-deps-runtime-service";
-import { createAppLifecycleDepsRuntimeService } from "./core/services/app-lifecycle-deps-runtime-service";
-import { createCliCommandDepsRuntimeService } from "./core/services/cli-command-deps-runtime-service";
-import { createIpcDepsRuntimeService } from "./core/services/ipc-deps-runtime-service";
-import { createAnkiJimakuIpcDepsRuntimeService } from "./core/services/anki-jimaku-ipc-deps-runtime-service";
-import { createFieldGroupingOverlayRuntimeService } from "./core/services/field-grouping-overlay-runtime-service";
-import { createSubsyncRuntimeDepsService } from "./core/services/subsync-deps-runtime-service";
-import { createNumericShortcutRuntimeService } from "./core/services/numeric-shortcut-runtime-service";
-import { createOverlayVisibilityFacadeDepsRuntimeService } from "./core/services/overlay-visibility-facade-deps-runtime-service";
-import { createMpvCommandIpcDepsRuntimeService } from "./core/services/mpv-command-ipc-deps-runtime-service";
-import { createRuntimeOptionsIpcDepsRuntimeService } from "./core/services/runtime-options-ipc-deps-runtime-service";
-import { createTokenizerDepsRuntimeService } from "./core/services/tokenizer-deps-runtime-service";
-import {
-  createInitializeOverlayRuntimeDepsService,
-  createInvisibleOverlayVisibilityDepsRuntimeService,
-  createOverlayWindowRuntimeDepsService,
-  createVisibleOverlayVisibilityDepsRuntimeService,
-} from "./core/services/overlay-runtime-deps-service";
-import {
-  createOverlayShortcutLifecycleDepsRuntimeService,
-  createOverlayShortcutRuntimeDepsService,
-} from "./core/services/overlay-shortcut-runtime-deps-service";
-import {
+  copyCurrentSubtitleService,
+  createAnkiJimakuIpcDepsRuntimeService,
+  createAppLifecycleDepsRuntimeService,
+  createAppLoggingRuntimeService,
+  createCliCommandDepsRuntimeService,
   createCopyCurrentSubtitleDepsRuntimeService,
+  createFieldGroupingOverlayRuntimeService,
+  createGlobalShortcutRegistrationDepsRuntimeService,
   createHandleMineSentenceDigitDepsRuntimeService,
   createHandleMultiCopyDigitDepsRuntimeService,
+  createInitializeOverlayRuntimeDepsService,
+  createInvisibleOverlayVisibilityDepsRuntimeService,
+  createIpcDepsRuntimeService,
   createMarkLastCardAsAudioCardDepsRuntimeService,
+  createMecabTokenizerAndCheckRuntimeService,
   createMineSentenceCardDepsRuntimeService,
+  createMpvCommandIpcDepsRuntimeService,
+  createMpvIpcClientDepsRuntimeService,
+  createNumericShortcutRuntimeService,
+  createOverlayShortcutLifecycleDepsRuntimeService,
+  createOverlayShortcutRuntimeDepsService,
+  createOverlayShortcutRuntimeHandlers,
+  createOverlayVisibilityFacadeDepsRuntimeService,
+  createOverlayWindowRuntimeDepsService,
+  createOverlayWindowService,
+  createRuntimeOptionsIpcDepsRuntimeService,
+  createRuntimeOptionsManagerRuntimeService,
+  createSecondarySubtitleCycleDepsRuntimeService,
+  createStartupLifecycleHooksRuntimeService,
+  createSubsyncRuntimeDepsService,
+  createSubtitleTimingTrackerRuntimeService,
+  createTokenizerDepsRuntimeService,
   createTriggerFieldGroupingDepsRuntimeService,
   createUpdateLastCardFromClipboardDepsRuntimeService,
-} from "./core/services/mining-runtime-deps-service";
-import {
-  createGlobalShortcutRegistrationDepsRuntimeService,
-  createSecondarySubtitleCycleDepsRuntimeService,
+  createVisibleOverlayVisibilityDepsRuntimeService,
   createYomitanSettingsWindowDepsRuntimeService,
+  cycleSecondarySubModeService,
+  enforceOverlayLayerOrderService,
+  ensureOverlayWindowLevelService,
+  getInitialInvisibleOverlayVisibilityService,
+  getJimakuLanguagePreferenceService,
+  getJimakuMaxEntryResultsService,
+  getOverlayWindowsRuntimeService,
+  handleCliCommandService,
+  handleMineSentenceDigitService,
+  handleMpvCommandFromIpcService,
+  handleMultiCopyDigitService,
+  handleOverlayModalClosedService,
+  hasMpvWebsocketPlugin,
+  initializeOverlayRuntimeService,
+  isAutoUpdateEnabledRuntimeService,
+  isGlobalShortcutRegisteredSafe,
+  jimakuFetchJsonService,
+  loadSubtitlePositionService,
+  loadYomitanExtensionService,
+  markLastCardAsAudioCardService,
+  mineSentenceCardService,
+  openYomitanSettingsWindow,
+  playNextSubtitleRuntimeService,
+  refreshOverlayShortcutsRuntimeService,
+  registerAnkiJimakuIpcRuntimeService,
+  registerGlobalShortcutsService,
+  registerIpcHandlersService,
+  registerOverlayShortcutsService,
+  replayCurrentSubtitleRuntimeService,
+  resolveJimakuApiKeyService,
+  runGenerateConfigFlowRuntimeService,
   runOverlayShortcutLocalFallbackRuntimeService,
-} from "./core/services/shortcut-ui-runtime-deps-service";
-import { createStartupLifecycleHooksRuntimeService } from "./core/services/startup-lifecycle-hooks-runtime-service";
-import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
-import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
-import {
-  createMecabTokenizerAndCheckRuntimeService,
-  createSubtitleTimingTrackerRuntimeService,
-} from "./core/services/startup-resource-runtime-service";
-import { runGenerateConfigFlowRuntimeService } from "./core/services/config-generation-runtime-service";
-import { runStartupBootstrapRuntimeService } from "./core/services/startup-bootstrap-runtime-service";
-import {
+  runStartupBootstrapRuntimeService,
   runSubsyncManualFromIpcRuntimeService,
+  saveSubtitlePositionService,
+  sendMpvCommandRuntimeService,
+  setInvisibleOverlayVisibleRuntimeFacadeService,
+  setMpvSubVisibilityRuntimeService,
+  setOverlayDebugVisualizationEnabledRuntimeService,
+  setVisibleOverlayVisibleRuntimeFacadeService,
+  shouldAutoInitializeOverlayRuntimeFromConfigService,
+  shouldBindVisibleOverlayToMpvSubVisibilityService,
+  shortcutMatchesInputForLocalFallback,
+  showMpvOsdRuntimeService,
+  startAppLifecycleService,
+  syncInvisibleOverlayMousePassthroughService,
+  syncOverlayShortcutsRuntimeService,
+  tokenizeSubtitleService,
+  toggleInvisibleOverlayRuntimeFacadeService,
+  toggleVisibleOverlayRuntimeFacadeService,
+  triggerFieldGroupingService,
   triggerSubsyncFromConfigRuntimeService,
-} from "./core/services/subsync-runtime-service";
-import {
+  unregisterOverlayShortcutsRuntimeService,
+  updateCurrentMediaPathService,
   updateInvisibleOverlayVisibilityService,
+  updateLastCardFromClipboardService,
+  updateOverlayBoundsService,
   updateVisibleOverlayVisibilityService,
-} from "./core/services/overlay-visibility-service";
-import { registerAnkiJimakuIpcRuntimeService } from "./core/services/anki-jimaku-runtime-service";
+} from "./core/services";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -474,6 +431,12 @@ function updateCurrentMediaPath(mediaPath: unknown): void {
 }
 
 let subsyncInProgress = false;
+let initialArgs: CliArgs;
+let mpvSocketPath = getDefaultSocketPath();
+let texthookerPort = DEFAULT_TEXTHOOKER_PORT;
+let backendOverride: string | null = null;
+let autoStartOverlay = false;
+let texthookerOnlyMode = false;
 
 const startupState = runStartupBootstrapRuntimeService({
   argv: process.argv,
@@ -684,12 +647,12 @@ const startupState = runStartupBootstrapRuntimeService({
   },
 });
 
-const initialArgs = startupState.initialArgs;
-let mpvSocketPath = startupState.mpvSocketPath;
-let texthookerPort = startupState.texthookerPort;
-const backendOverride = startupState.backendOverride;
-const autoStartOverlay = startupState.autoStartOverlay;
-const texthookerOnlyMode = startupState.texthookerOnlyMode;
+initialArgs = startupState.initialArgs;
+mpvSocketPath = startupState.mpvSocketPath;
+texthookerPort = startupState.texthookerPort;
+backendOverride = startupState.backendOverride;
+autoStartOverlay = startupState.autoStartOverlay;
+texthookerOnlyMode = startupState.texthookerOnlyMode;
 
 function handleCliCommand(
   args: CliArgs,

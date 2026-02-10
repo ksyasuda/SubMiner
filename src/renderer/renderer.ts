@@ -405,6 +405,18 @@ let mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics = {
 };
 let currentSubtitleAss = "";
 
+function isAnySettingsModalOpen(): boolean {
+  return runtimeOptionsModalOpen || subsyncModalOpen || kikuModalOpen;
+}
+
+function syncSettingsModalSubtitleSuppression(): void {
+  const suppressSubtitles = isAnySettingsModalOpen();
+  document.body.classList.toggle("settings-modal-open", suppressSubtitles);
+  if (suppressSubtitles) {
+    isOverSubtitle = false;
+  }
+}
+
 function normalizeSubtitle(text: string, trim = true): string {
   if (!text) return "";
 
@@ -1140,6 +1152,7 @@ function updateRuntimeOptions(options: RuntimeOptionState[]): void {
 function closeRuntimeOptionsModal(): void {
   if (!runtimeOptionsModalOpen) return;
   runtimeOptionsModalOpen = false;
+  syncSettingsModalSubtitleSuppression();
   runtimeOptionsModal.classList.add("hidden");
   runtimeOptionsModal.setAttribute("aria-hidden", "true");
   window.electronAPI.notifyOverlayModalClosed("runtime-options");
@@ -1159,6 +1172,7 @@ async function openRuntimeOptionsModal(): Promise<void> {
   const options = await window.electronAPI.getRuntimeOptions();
   updateRuntimeOptions(options);
   runtimeOptionsModalOpen = true;
+  syncSettingsModalSubtitleSuppression();
   overlay.classList.add("interactive");
   runtimeOptionsModal.classList.remove("hidden");
   runtimeOptionsModal.setAttribute("aria-hidden", "false");
@@ -1296,6 +1310,7 @@ function renderSubsyncSourceTracks(): void {
 function closeSubsyncModal(): void {
   if (!subsyncModalOpen) return;
   subsyncModalOpen = false;
+  syncSettingsModalSubtitleSuppression();
   subsyncModal.classList.add("hidden");
   subsyncModal.setAttribute("aria-hidden", "true");
   window.electronAPI.notifyOverlayModalClosed("subsync");
@@ -1326,6 +1341,7 @@ function openSubsyncModal(payload: SubsyncManualPayload): void {
     false,
   );
   subsyncModalOpen = true;
+  syncSettingsModalSubtitleSuppression();
   overlay.classList.add("interactive");
   subsyncModal.classList.remove("hidden");
   subsyncModal.setAttribute("aria-hidden", "false");
@@ -1454,6 +1470,7 @@ function openKikuFieldGroupingModal(data: {
 
   updateKikuCardSelection();
 
+  syncSettingsModalSubtitleSuppression();
   overlay.classList.add("interactive");
   kikuModal.classList.remove("hidden");
   kikuModal.setAttribute("aria-hidden", "false");
@@ -1462,6 +1479,7 @@ function openKikuFieldGroupingModal(data: {
 function closeKikuFieldGroupingModal(): void {
   if (!kikuModalOpen) return;
   kikuModalOpen = false;
+  syncSettingsModalSubtitleSuppression();
   kikuModal.classList.add("hidden");
   kikuModal.setAttribute("aria-hidden", "true");
   setKikuPreviewError(null);
@@ -2395,6 +2413,7 @@ async function init(): Promise<void> {
     openRuntimeOptionsModal().catch(() => {
       setRuntimeOptionsStatus("Failed to load runtime options", true);
       window.electronAPI.notifyOverlayModalClosed("runtime-options");
+      syncSettingsModalSubtitleSuppression();
     });
   });
   window.electronAPI.onOpenJimaku(() => {
