@@ -23,3 +23,9 @@ environment.toml
 **/CLAUDE.md
 .env
 .vscode/*
+
+# VitePress
+.vitepress/cache/
+.vitepress/dist/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

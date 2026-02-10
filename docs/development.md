@@ -2,6 +2,10 @@
 
 To add or change a config option, update `src/config/definitions.ts` first. Defaults, runtime-option metadata, and generated `config.example.jsonc` are derived from this centralized source.
 
+## Architecture
+
+The composability migration state and extension-point guidelines are documented in [`architecture.md`](/architecture).
+
 ## Environment Variables
 
 | Variable                 | Description                                    |
