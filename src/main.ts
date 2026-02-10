@@ -91,9 +91,12 @@ import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
 import { AnkiIntegration } from "./anki-integration";
 import { RuntimeOptionsManager } from "./runtime-options";
 import {
+  downloadToFile,
+  isRemoteMediaPath,
   jimakuFetchJson as jimakuFetchJsonRequest,
   parseMediaInfo,
   resolveJimakuApiKey as resolveJimakuApiKeyFromConfig,
+  sortJimakuFiles,
 } from "./jimaku/utils";
 import {
   CommandResult,
@@ -136,6 +139,10 @@ import {
   isGlobalShortcutRegisteredSafe,
   shortcutMatchesInputForLocalFallback,
 } from "./core/services/shortcut-fallback-service";
+import {
+  registerOverlayShortcutsService,
+  unregisterOverlayShortcutsService,
+} from "./core/services/overlay-shortcut-service";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -2841,110 +2848,6 @@ async function triggerSubsyncFromConfig(): Promise<void> {
   }
 }
 
-function formatLangScore(name: string, pref: JimakuLanguagePreference): number {
-  if (pref === "none") return 0;
-  const upper = name.toUpperCase();
-  const hasJa =
-    /(^|[\W_])JA([\W_]|$)/.test(upper) ||
-    /(^|[\W_])JPN([\W_]|$)/.test(upper) ||
-    upper.includes(".JA.");
-  const hasEn =
-    /(^|[\W_])EN([\W_]|$)/.test(upper) ||
-    /(^|[\W_])ENG([\W_]|$)/.test(upper) ||
-    upper.includes(".EN.");
-  if (pref === "ja") {
-    if (hasJa) return 2;
-    if (hasEn) return 1;
-  } else if (pref === "en") {
-    if (hasEn) return 2;
-    if (hasJa) return 1;
-  }
-  return 0;
-}
-
-function sortJimakuFiles(
-  files: JimakuFileEntry[],
-  pref: JimakuLanguagePreference,
-): JimakuFileEntry[] {
-  if (pref === "none") return files;
-  return [...files].sort((a, b) => {
-    const scoreDiff =
-      formatLangScore(b.name, pref) - formatLangScore(a.name, pref);
-    if (scoreDiff !== 0) return scoreDiff;
-    return a.name.localeCompare(b.name);
-  });
-}
-
-function isRemoteMediaPath(mediaPath: string): boolean {
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(mediaPath);
-}
-
-async function downloadToFile(
-  url: string,
-  destPath: string,
-  headers: Record<string, string>,
-  redirectCount = 0,
-): Promise<JimakuDownloadResult> {
-  if (redirectCount > 3) {
-    return {
-      ok: false,
-      error: { error: "Too many redirects while downloading subtitle." },
-    };
-  }
-
-  return new Promise((resolve) => {
-    const parsedUrl = new URL(url);
-    const transport = parsedUrl.protocol === "https:" ? https : http;
-
-    const req = transport.get(parsedUrl, { headers }, (res) => {
-      const status = res.statusCode || 0;
-      if ([301, 302, 303, 307, 308].includes(status) && res.headers.location) {
-        const redirectUrl = new URL(res.headers.location, parsedUrl).toString();
-        res.resume();
-        downloadToFile(redirectUrl, destPath, headers, redirectCount + 1).then(
-          resolve,
-        );
-        return;
-      }
-
-      if (status < 200 || status >= 300) {
-        res.resume();
-        resolve({
-          ok: false,
-          error: {
-            error: `Failed to download subtitle (HTTP ${status}).`,
-            code: status,
-          },
-        });
-        return;
-      }
-
-      const fileStream = fs.createWriteStream(destPath);
-      res.pipe(fileStream);
-      fileStream.on("finish", () => {
-        fileStream.close(() => {
-          resolve({ ok: true, path: destPath });
-        });
-      });
-      fileStream.on("error", (err) => {
-        resolve({
-          ok: false,
-          error: {
-            error: `Failed to save subtitle: ${(err as Error).message}`,
-          },
-        });
-      });
-    });
-
-    req.on("error", (err) => {
-      resolve({
-        ok: false,
-        error: { error: `Download request failed: ${(err as Error).message}` },
-      });
-    });
-  });
-}
-
 function cancelPendingMultiCopy(): void {
   if (!pendingMultiCopy) return;
 
@@ -3194,140 +3097,51 @@ function handleMineSentenceDigit(count: number): void {
 
 function registerOverlayShortcuts(): void {
   const shortcuts = getConfiguredShortcuts();
-  let registeredAny = false;
-  const registerOverlayShortcut = (
-    accelerator: string,
-    handler: () => void,
-    label: string,
-  ): void => {
-    if (isGlobalShortcutRegisteredSafe(accelerator)) {
-      registeredAny = true;
-      return;
-    }
-    const ok = globalShortcut.register(accelerator, handler);
-    if (!ok) {
-      console.warn(
-        `Failed to register overlay shortcut ${label}: ${accelerator}`,
-      );
-      return;
-    }
-    registeredAny = true;
-  };
-
-  if (shortcuts.copySubtitleMultiple) {
-    registerOverlayShortcut(
-      shortcuts.copySubtitleMultiple,
-      () => {
-        startPendingMultiCopy(shortcuts.multiCopyTimeoutMs);
-      },
-      "copySubtitleMultiple",
-    );
-  }
-
-  if (shortcuts.copySubtitle) {
-    registerOverlayShortcut(
-      shortcuts.copySubtitle,
-      () => {
-        copyCurrentSubtitle();
-      },
-      "copySubtitle",
-    );
-  }
-
-  if (shortcuts.triggerFieldGrouping) {
-    registerOverlayShortcut(
-      shortcuts.triggerFieldGrouping,
-      () => {
-        triggerFieldGrouping().catch((err) => {
-          console.error("triggerFieldGrouping failed:", err);
-          showMpvOsd(`Field grouping failed: ${(err as Error).message}`);
-        });
-      },
-      "triggerFieldGrouping",
-    );
-  }
-
-  if (shortcuts.triggerSubsync) {
-    registerOverlayShortcut(
-      shortcuts.triggerSubsync,
-      () => {
-        triggerSubsyncFromConfig().catch((err) => {
-          console.error("triggerSubsyncFromConfig failed:", err);
-          showMpvOsd(`Subsync failed: ${(err as Error).message}`);
-        });
-      },
-      "triggerSubsync",
-    );
-  }
-
-  if (shortcuts.mineSentence) {
-    registerOverlayShortcut(
-      shortcuts.mineSentence,
-      () => {
-        mineSentenceCard().catch((err) => {
-          console.error("mineSentenceCard failed:", err);
-          showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
-        });
-      },
-      "mineSentence",
-    );
-  }
-
-  if (shortcuts.mineSentenceMultiple) {
-    registerOverlayShortcut(
-      shortcuts.mineSentenceMultiple,
-      () => {
-        startPendingMineSentenceMultiple(shortcuts.multiCopyTimeoutMs);
-      },
-      "mineSentenceMultiple",
-    );
-  }
-
-  if (shortcuts.toggleSecondarySub) {
-    registerOverlayShortcut(
-      shortcuts.toggleSecondarySub,
-      () => cycleSecondarySubMode(),
-      "toggleSecondarySub",
-    );
-  }
-
-  if (shortcuts.updateLastCardFromClipboard) {
-    registerOverlayShortcut(
-      shortcuts.updateLastCardFromClipboard,
-      () => {
-        updateLastCardFromClipboard().catch((err) => {
-          console.error("updateLastCardFromClipboard failed:", err);
-          showMpvOsd(`Update failed: ${(err as Error).message}`);
-        });
-      },
-      "updateLastCardFromClipboard",
-    );
-  }
-
-  if (shortcuts.markAudioCard) {
-    registerOverlayShortcut(
-      shortcuts.markAudioCard,
-      () => {
-        markLastCardAsAudioCard().catch((err) => {
-          console.error("markLastCardAsAudioCard failed:", err);
-          showMpvOsd(`Audio card failed: ${(err as Error).message}`);
-        });
-      },
-      "markAudioCard",
-    );
-  }
-
-  if (shortcuts.openRuntimeOptions) {
-    registerOverlayShortcut(
-      shortcuts.openRuntimeOptions,
-      () => {
-        openRuntimeOptionsPalette();
-      },
-      "openRuntimeOptions",
-    );
-  }
-
-  shortcutsRegistered = registeredAny;
+  shortcutsRegistered = registerOverlayShortcutsService(shortcuts, {
+    copySubtitle: () => {
+      copyCurrentSubtitle();
+    },
+    copySubtitleMultiple: (timeoutMs) => {
+      startPendingMultiCopy(timeoutMs);
+    },
+    updateLastCardFromClipboard: () => {
+      updateLastCardFromClipboard().catch((err) => {
+        console.error("updateLastCardFromClipboard failed:", err);
+        showMpvOsd(`Update failed: ${(err as Error).message}`);
+      });
+    },
+    triggerFieldGrouping: () => {
+      triggerFieldGrouping().catch((err) => {
+        console.error("triggerFieldGrouping failed:", err);
+        showMpvOsd(`Field grouping failed: ${(err as Error).message}`);
+      });
+    },
+    triggerSubsync: () => {
+      triggerSubsyncFromConfig().catch((err) => {
+        console.error("triggerSubsyncFromConfig failed:", err);
+        showMpvOsd(`Subsync failed: ${(err as Error).message}`);
+      });
+    },
+    mineSentence: () => {
+      mineSentenceCard().catch((err) => {
+        console.error("mineSentenceCard failed:", err);
+        showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
+      });
+    },
+    mineSentenceMultiple: (timeoutMs) => {
+      startPendingMineSentenceMultiple(timeoutMs);
+    },
+    toggleSecondarySub: () => cycleSecondarySubMode(),
+    markAudioCard: () => {
+      markLastCardAsAudioCard().catch((err) => {
+        console.error("markLastCardAsAudioCard failed:", err);
+        showMpvOsd(`Audio card failed: ${(err as Error).message}`);
+      });
+    },
+    openRuntimeOptions: () => {
+      openRuntimeOptionsPalette();
+    },
+  });
 }
 
 function unregisterOverlayShortcuts(): void {
@@ -3336,38 +3150,7 @@ function unregisterOverlayShortcuts(): void {
   cancelPendingMultiCopy();
   cancelPendingMineSentenceMultiple();
 
-  const shortcuts = getConfiguredShortcuts();
-
-  if (shortcuts.copySubtitle) {
-    globalShortcut.unregister(shortcuts.copySubtitle);
-  }
-  if (shortcuts.copySubtitleMultiple) {
-    globalShortcut.unregister(shortcuts.copySubtitleMultiple);
-  }
-  if (shortcuts.updateLastCardFromClipboard) {
-    globalShortcut.unregister(shortcuts.updateLastCardFromClipboard);
-  }
-  if (shortcuts.triggerFieldGrouping) {
-    globalShortcut.unregister(shortcuts.triggerFieldGrouping);
-  }
-  if (shortcuts.triggerSubsync) {
-    globalShortcut.unregister(shortcuts.triggerSubsync);
-  }
-  if (shortcuts.mineSentence) {
-    globalShortcut.unregister(shortcuts.mineSentence);
-  }
-  if (shortcuts.mineSentenceMultiple) {
-    globalShortcut.unregister(shortcuts.mineSentenceMultiple);
-  }
-  if (shortcuts.toggleSecondarySub) {
-    globalShortcut.unregister(shortcuts.toggleSecondarySub);
-  }
-  if (shortcuts.markAudioCard) {
-    globalShortcut.unregister(shortcuts.markAudioCard);
-  }
-  if (shortcuts.openRuntimeOptions) {
-    globalShortcut.unregister(shortcuts.openRuntimeOptions);
-  }
+  unregisterOverlayShortcutsService(getConfiguredShortcuts());
 
   shortcutsRegistered = false;
 }

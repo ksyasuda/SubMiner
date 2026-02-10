@@ -1,10 +1,14 @@
 import * as http from "http";
 import * as https from "https";
 import * as path from "path";
+import * as fs from "fs";
 import * as childProcess from "child_process";
 import {
   JimakuApiResponse,
   JimakuConfig,
+  JimakuDownloadResult,
+  JimakuFileEntry,
+  JimakuLanguagePreference,
   JimakuMediaInfo,
 } from "../types";
 
@@ -244,4 +248,108 @@ export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
     filename,
     rawTitle: name,
   };
+}
+
+function formatLangScore(name: string, pref: JimakuLanguagePreference): number {
+  if (pref === "none") return 0;
+  const upper = name.toUpperCase();
+  const hasJa =
+    /(^|[\W_])JA([\W_]|$)/.test(upper) ||
+    /(^|[\W_])JPN([\W_]|$)/.test(upper) ||
+    upper.includes(".JA.");
+  const hasEn =
+    /(^|[\W_])EN([\W_]|$)/.test(upper) ||
+    /(^|[\W_])ENG([\W_]|$)/.test(upper) ||
+    upper.includes(".EN.");
+  if (pref === "ja") {
+    if (hasJa) return 2;
+    if (hasEn) return 1;
+  } else if (pref === "en") {
+    if (hasEn) return 2;
+    if (hasJa) return 1;
+  }
+  return 0;
+}
+
+export function sortJimakuFiles(
+  files: JimakuFileEntry[],
+  pref: JimakuLanguagePreference,
+): JimakuFileEntry[] {
+  if (pref === "none") return files;
+  return [...files].sort((a, b) => {
+    const scoreDiff =
+      formatLangScore(b.name, pref) - formatLangScore(a.name, pref);
+    if (scoreDiff !== 0) return scoreDiff;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+export function isRemoteMediaPath(mediaPath: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(mediaPath);
+}
+
+export async function downloadToFile(
+  url: string,
+  destPath: string,
+  headers: Record<string, string>,
+  redirectCount = 0,
+): Promise<JimakuDownloadResult> {
+  if (redirectCount > 3) {
+    return {
+      ok: false,
+      error: { error: "Too many redirects while downloading subtitle." },
+    };
+  }
+
+  return new Promise((resolve) => {
+    const parsedUrl = new URL(url);
+    const transport = parsedUrl.protocol === "https:" ? https : http;
+
+    const req = transport.get(parsedUrl, { headers }, (res) => {
+      const status = res.statusCode || 0;
+      if ([301, 302, 303, 307, 308].includes(status) && res.headers.location) {
+        const redirectUrl = new URL(res.headers.location, parsedUrl).toString();
+        res.resume();
+        downloadToFile(redirectUrl, destPath, headers, redirectCount + 1).then(
+          resolve,
+        );
+        return;
+      }
+
+      if (status < 200 || status >= 300) {
+        res.resume();
+        resolve({
+          ok: false,
+          error: {
+            error: `Failed to download subtitle (HTTP ${status}).`,
+            code: status,
+          },
+        });
+        return;
+      }
+
+      const fileStream = fs.createWriteStream(destPath);
+      res.pipe(fileStream);
+      fileStream.on("finish", () => {
+        fileStream.close(() => {
+          resolve({ ok: true, path: destPath });
+        });
+      });
+      fileStream.on("error", (err: Error) => {
+        resolve({
+          ok: false,
+          error: {
+            error: `Failed to save subtitle: ${(err as Error).message}`,
+          },
+        });
+      });
+    });
+
+    req.on("error", (err) => {
+      resolve({
+        ok: false,
+        error: { error: `Download request failed: ${(err as Error).message}` },
+      });
+    });
+  });
 }
