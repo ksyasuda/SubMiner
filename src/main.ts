@@ -192,10 +192,6 @@ import {
   handleOverlayModalClosedService,
 } from "./core/services/overlay-modal-restore-service";
 import {
-  createFieldGroupingCallbackRuntimeService,
-  sendToVisibleOverlayRuntimeService,
-} from "./core/services/overlay-bridge-runtime-service";
-import {
   broadcastRuntimeOptionsChangedRuntimeService,
   broadcastToOverlayWindowsRuntimeService,
   getOverlayWindowsRuntimeService,
@@ -208,6 +204,7 @@ import { createAppLifecycleDepsRuntimeService } from "./core/services/app-lifecy
 import { createCliCommandDepsRuntimeService } from "./core/services/cli-command-deps-runtime-service";
 import { createIpcDepsRuntimeService } from "./core/services/ipc-deps-runtime-service";
 import { createAnkiJimakuIpcDepsRuntimeService } from "./core/services/anki-jimaku-ipc-deps-runtime-service";
+import { createFieldGroupingOverlayRuntimeService } from "./core/services/field-grouping-overlay-runtime-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
@@ -320,6 +317,21 @@ let trackerNotReadyWarningShown = false;
 let overlayDebugVisualizationEnabled = false;
 type OverlayHostedModal = "runtime-options" | "subsync";
 const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
+const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntimeService<OverlayHostedModal>({
+  getMainWindow: () => mainWindow,
+  getVisibleOverlayVisible: () => visibleOverlayVisible,
+  getInvisibleOverlayVisible: () => invisibleOverlayVisible,
+  setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+  setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
+  getResolver: () => fieldGroupingResolver,
+  setResolver: (resolver) => {
+    fieldGroupingResolver = resolver;
+  },
+  getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
+});
+const sendToVisibleOverlay = fieldGroupingOverlayRuntime.sendToVisibleOverlay;
+const createFieldGroupingCallback =
+  fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, "subtitle-positions");
 
@@ -1288,41 +1300,6 @@ registerIpcHandlersService(
       ),
   }),
 );
-
-/**
- * Create and show a desktop notification with robust icon handling.
- * Supports both file paths (preferred on Linux/Wayland) and data URLs (fallback).
- */
-function createFieldGroupingCallback() {
-  return createFieldGroupingCallbackRuntimeService({
-    getVisibleOverlayVisible: () => visibleOverlayVisible,
-    getInvisibleOverlayVisible: () => invisibleOverlayVisible,
-    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
-    getResolver: () => fieldGroupingResolver,
-    setResolver: (resolver) => {
-      fieldGroupingResolver = resolver;
-    },
-    sendToVisibleOverlay: (
-      channel,
-      payload,
-      runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
-    ) =>
-      sendToVisibleOverlay(channel, payload, runtimeOptions),
-  });
-}
-
-function sendToVisibleOverlay(channel: string, payload?: unknown, options?: { restoreOnModalClose?: OverlayHostedModal }): boolean {
-  return sendToVisibleOverlayRuntimeService({
-    mainWindow,
-    visibleOverlayVisible,
-    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    channel,
-    payload,
-    restoreOnModalClose: options?.restoreOnModalClose,
-    restoreVisibleOverlayOnModalClose,
-  });
-}
 
 registerAnkiJimakuIpcRuntimeService(
   createAnkiJimakuIpcDepsRuntimeService({
