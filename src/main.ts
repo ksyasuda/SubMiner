@@ -181,6 +181,10 @@ import {
 } from "./core/services/ipc-command-service";
 import { sendToVisibleOverlayService } from "./core/services/overlay-send-service";
 import {
+  addOverlayModalRestoreFlagService,
+  handleOverlayModalClosedService,
+} from "./core/services/overlay-modal-restore-service";
+import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
 } from "./core/services/subsync-runtime-service";
@@ -1118,7 +1122,13 @@ function toggleVisibleOverlay(): void { setVisibleOverlayVisible(!visibleOverlay
 function toggleInvisibleOverlay(): void { setInvisibleOverlayVisible(!invisibleOverlayVisible); }
 function setOverlayVisible(visible: boolean): void { setVisibleOverlayVisible(visible); }
 function toggleOverlay(): void { toggleVisibleOverlay(); }
-function handleOverlayModalClosed(modal: OverlayHostedModal): void { if (!restoreVisibleOverlayOnModalClose.has(modal)) return; restoreVisibleOverlayOnModalClose.delete(modal); if (restoreVisibleOverlayOnModalClose.size === 0) { setVisibleOverlayVisible(false); } }
+function handleOverlayModalClosed(modal: OverlayHostedModal): void {
+  handleOverlayModalClosedService(
+    restoreVisibleOverlayOnModalClose,
+    modal,
+    (visible) => setVisibleOverlayVisible(visible),
+  );
+}
 
 function handleMpvCommandFromIpc(command: (string | number)[]): void {
   handleMpvCommandFromIpcService(command, {
@@ -1214,7 +1224,7 @@ registerIpcHandlersService({
  */
 function createFieldGroupingCallback() { return createFieldGroupingCallbackService({ getVisibleOverlayVisible: () => visibleOverlayVisible, getInvisibleOverlayVisible: () => invisibleOverlayVisible, setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible), setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible), getResolver: () => fieldGroupingResolver, setResolver: (resolver) => { fieldGroupingResolver = resolver; }, sendRequestToVisibleOverlay: (data) => sendToVisibleOverlay("kiku:field-grouping-request", data) }); }
 
-function sendToVisibleOverlay(channel: string, payload?: unknown, options?: { restoreOnModalClose?: OverlayHostedModal }): boolean { return sendToVisibleOverlayService({ mainWindow, visibleOverlayVisible, setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible), channel, payload, restoreOnModalClose: options?.restoreOnModalClose, addRestoreFlag: (modal) => restoreVisibleOverlayOnModalClose.add(modal as OverlayHostedModal) }); }
+function sendToVisibleOverlay(channel: string, payload?: unknown, options?: { restoreOnModalClose?: OverlayHostedModal }): boolean { return sendToVisibleOverlayService({ mainWindow, visibleOverlayVisible, setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible), channel, payload, restoreOnModalClose: options?.restoreOnModalClose, addRestoreFlag: (modal) => addOverlayModalRestoreFlagService(restoreVisibleOverlayOnModalClose, modal as OverlayHostedModal) }); }
 
 registerAnkiJimakuIpcRuntimeService({
   patchAnkiConnectEnabled: (enabled) => { configService.patchRawConfig({ ankiConnect: { enabled } }); },
