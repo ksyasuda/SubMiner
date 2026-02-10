@@ -1,4 +1,4 @@
-.PHONY: help deps build install build-linux build-macos build-macos-unsigned install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config
+.PHONY: help deps build install build-linux build-macos build-macos-unsigned install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config docs-dev docs-build docs-preview
 
 APP_NAME := subminer
 THEME_FILE := subminer.rasi
@@ -48,6 +48,9 @@ help:
 		"  build-linux      Build Linux AppImage" \
 		"  build-macos      Build macOS DMG/ZIP (signed if configured)" \
 		"  build-macos-unsigned Build macOS DMG/ZIP without signing/notarization" \
+		"  docs-dev         Run VitePress docs dev server" \
+		"  docs-build       Build VitePress static docs" \
+		"  docs-preview     Preview built VitePress docs" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
 		"  install-macos    Install macOS wrapper/theme/app artifacts" \
 		"  install-plugin   Install mpv Lua plugin and plugin config" \
@@ -130,6 +133,15 @@ generate-config: ensure-pnpm
 generate-example-config: ensure-pnpm
 	@pnpm run build
 	@pnpm run generate:config-example
+
+docs-dev: ensure-pnpm
+	@pnpm run docs:dev
+
+docs-build: ensure-pnpm
+	@pnpm run docs:build
+
+docs-preview: ensure-pnpm
+	@pnpm run docs:preview
 
 
 install-linux:
