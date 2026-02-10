@@ -204,6 +204,7 @@ import {
 import { runAppReadyRuntimeService } from "./core/services/app-ready-runtime-service";
 import { runAppShutdownRuntimeService } from "./core/services/app-shutdown-runtime-service";
 import { createMpvIpcClientDepsRuntimeService } from "./core/services/mpv-client-deps-runtime-service";
+import { createAppLifecycleDepsRuntimeService } from "./core/services/app-lifecycle-deps-runtime-service";
 import {
   runSubsyncManualFromIpcRuntimeService,
   triggerSubsyncFromConfigRuntimeService,
@@ -463,32 +464,16 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
       app.quit();
     });
 } else {
-  startAppLifecycleService(initialArgs, {
+  startAppLifecycleService(initialArgs, createAppLifecycleDepsRuntimeService({
+    app,
+    platform: process.platform,
     shouldStartApp: (args) => shouldStartApp(args),
     parseArgs: (argv) => parseArgs(argv),
-    requestSingleInstanceLock: () => app.requestSingleInstanceLock(),
-    quitApp: () => app.quit(),
-    onSecondInstance: (handler) => {
-      app.on("second-instance", handler);
-    },
     handleCliCommand: (args, source) => handleCliCommand(args, source),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
     logNoRunningInstance: () => {
       console.error("No running instance. Use --start to launch the app.");
     },
-    whenReady: (handler) => {
-      app.whenReady().then(handler);
-    },
-    onWindowAllClosed: (handler) => {
-      app.on("window-all-closed", handler);
-    },
-    onWillQuit: (handler) => {
-      app.on("will-quit", handler);
-    },
-    onActivate: (handler) => {
-      app.on("activate", handler);
-    },
-    isDarwinPlatform: () => process.platform === "darwin",
     onReady: async () => {
       await runAppReadyRuntimeService({
         loadSubtitlePosition: () => loadSubtitlePosition(),
@@ -652,7 +637,7 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
       updateVisibleOverlayVisibility();
       updateInvisibleOverlayVisibility();
     },
-  });
+  }));
 }
 
 function handleCliCommand(
