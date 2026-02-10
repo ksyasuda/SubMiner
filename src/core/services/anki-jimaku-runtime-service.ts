@@ -25,7 +25,7 @@ interface SubtitleTimingTrackerLike {
   cleanup: () => void;
 }
 
-export function registerAnkiJimakuIpcRuntimeService(options: {
+export interface AnkiJimakuIpcRuntimeOptions {
   patchAnkiConnectEnabled: (enabled: boolean) => void;
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   getRuntimeOptionsManager: () => RuntimeOptionsManagerLike | null;
@@ -55,7 +55,11 @@ export function registerAnkiJimakuIpcRuntimeService(options: {
     destPath: string,
     headers: Record<string, string>,
   ) => Promise<{ ok: true; path: string } | { ok: false; error: { error: string; code?: number; retryAfter?: number } }>;
-}): void {
+}
+
+export function registerAnkiJimakuIpcRuntimeService(
+  options: AnkiJimakuIpcRuntimeOptions,
+): void {
   registerAnkiJimakuIpcHandlers({
     setAnkiConnectEnabled: (enabled) => {
       options.patchAnkiConnectEnabled(enabled);

@@ -207,6 +207,7 @@ import { createMpvIpcClientDepsRuntimeService } from "./core/services/mpv-client
 import { createAppLifecycleDepsRuntimeService } from "./core/services/app-lifecycle-deps-runtime-service";
 import { createCliCommandDepsRuntimeService } from "./core/services/cli-command-deps-runtime-service";
 import { createIpcDepsRuntimeService } from "./core/services/ipc-deps-runtime-service";
+import { createAnkiJimakuIpcDepsRuntimeService } from "./core/services/anki-jimaku-ipc-deps-runtime-service";
 import { createRuntimeOptionsManagerRuntimeService } from "./core/services/runtime-options-manager-runtime-service";
 import { createAppLoggingRuntimeService } from "./core/services/app-logging-runtime-service";
 import {
@@ -1323,12 +1324,34 @@ function sendToVisibleOverlay(channel: string, payload?: unknown, options?: { re
   });
 }
 
-registerAnkiJimakuIpcRuntimeService({
-  patchAnkiConnectEnabled: (enabled) => { configService.patchRawConfig({ ankiConnect: { enabled } }); },
-  getResolvedConfig: () => getResolvedConfig(), getRuntimeOptionsManager: () => runtimeOptionsManager, getSubtitleTimingTracker: () => subtitleTimingTracker, getMpvClient: () => mpvClient, getAnkiIntegration: () => ankiIntegration, setAnkiIntegration: (integration) => { ankiIntegration = integration; },
-  showDesktopNotification, createFieldGroupingCallback: () => createFieldGroupingCallback(), broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-  getFieldGroupingResolver: () => fieldGroupingResolver, setFieldGroupingResolver: (resolver) => { fieldGroupingResolver = resolver; },
-  parseMediaInfo: (mediaPath) => parseMediaInfo(mediaPath), getCurrentMediaPath: () => currentMediaPath, jimakuFetchJson: (endpoint, query) => jimakuFetchJson(endpoint, query),
-  getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(), getJimakuLanguagePreference: () => getJimakuLanguagePreference(), resolveJimakuApiKey: () => resolveJimakuApiKey(),
-  isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath), downloadToFile: (url, destPath, headers) => downloadToFile(url, destPath, headers),
-});
+registerAnkiJimakuIpcRuntimeService(
+  createAnkiJimakuIpcDepsRuntimeService({
+    patchAnkiConnectEnabled: (enabled) => {
+      configService.patchRawConfig({ ankiConnect: { enabled } });
+    },
+    getResolvedConfig: () => getResolvedConfig(),
+    getRuntimeOptionsManager: () => runtimeOptionsManager,
+    getSubtitleTimingTracker: () => subtitleTimingTracker,
+    getMpvClient: () => mpvClient,
+    getAnkiIntegration: () => ankiIntegration,
+    setAnkiIntegration: (integration) => {
+      ankiIntegration = integration;
+    },
+    showDesktopNotification,
+    createFieldGroupingCallback: () => createFieldGroupingCallback(),
+    broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+    getFieldGroupingResolver: () => fieldGroupingResolver,
+    setFieldGroupingResolver: (resolver) => {
+      fieldGroupingResolver = resolver;
+    },
+    parseMediaInfo: (mediaPath) => parseMediaInfo(mediaPath),
+    getCurrentMediaPath: () => currentMediaPath,
+    jimakuFetchJson: (endpoint, query) => jimakuFetchJson(endpoint, query),
+    getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(),
+    getJimakuLanguagePreference: () => getJimakuLanguagePreference(),
+    resolveJimakuApiKey: () => resolveJimakuApiKey(),
+    isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
+    downloadToFile: (url, destPath, headers) =>
+      downloadToFile(url, destPath, headers),
+  }),
+);
