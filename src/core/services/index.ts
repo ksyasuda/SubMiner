@@ -56,7 +56,11 @@ export {
   updateOverlayBoundsService,
 } from "./overlay-window-service";
 export { initializeOverlayRuntimeService } from "./overlay-runtime-init-service";
-export { syncInvisibleOverlayMousePassthroughService } from "./overlay-visibility-runtime-service";
+export {
+  setInvisibleOverlayVisibleService,
+  setVisibleOverlayVisibleService,
+  syncInvisibleOverlayMousePassthroughService,
+} from "./overlay-visibility-runtime-service";
 export {
   setInvisibleOverlayVisibleRuntimeFacadeService,
   setVisibleOverlayVisibleRuntimeFacadeService,

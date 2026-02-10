@@ -397,9 +397,9 @@ export class MpvIpcClient implements MpvClient {
               this.send({
                 command: ["set_property", "secondary-sid", match.id],
               });
-              this.deps.showMpvOsd(
-                `Secondary subtitle: ${lang} (track ${match.id})`,
-              );
+            //   this.deps.showMpvOsd(
+            //     `Secondary subtitle: ${lang} (track ${match.id})`,
+            //   );
               break;
             }
           }
