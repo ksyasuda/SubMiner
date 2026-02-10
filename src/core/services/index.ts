@@ -61,12 +61,6 @@ export {
   setVisibleOverlayVisibleService,
   syncInvisibleOverlayMousePassthroughService,
 } from "./overlay-visibility-runtime-service";
-export {
-  setInvisibleOverlayVisibleRuntimeFacadeService,
-  setVisibleOverlayVisibleRuntimeFacadeService,
-  toggleInvisibleOverlayRuntimeFacadeService,
-  toggleVisibleOverlayRuntimeFacadeService,
-} from "./overlay-visibility-facade-service";
 export { MpvIpcClient, MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY } from "./mpv-service";
 export { applyMpvSubtitleRenderMetricsPatchService } from "./mpv-render-metrics-service";
 export { handleMpvCommandFromIpcService } from "./ipc-command-service";
@@ -81,19 +75,9 @@ export { createAppLifecycleDepsRuntimeService } from "./app-lifecycle-deps-runti
 export { createCliCommandDepsRuntimeService } from "./cli-command-deps-runtime-service";
 export { createIpcDepsRuntimeService } from "./ipc-deps-runtime-service";
 export { createFieldGroupingOverlayRuntimeService } from "./field-grouping-overlay-runtime-service";
-export { createSubsyncRuntimeDepsService } from "./subsync-deps-runtime-service";
 export { createNumericShortcutRuntimeService } from "./numeric-shortcut-runtime-service";
-export { createMpvCommandIpcDepsRuntimeService } from "./mpv-command-ipc-deps-runtime-service";
-export { createRuntimeOptionsIpcDepsRuntimeService } from "./runtime-options-ipc-deps-runtime-service";
 export { createTokenizerDepsRuntimeService } from "./tokenizer-deps-runtime-service";
-export {
-  createInitializeOverlayRuntimeDepsService,
-  createInvisibleOverlayVisibilityDepsRuntimeService,
-  createOverlayWindowRuntimeDepsService,
-  createVisibleOverlayVisibilityDepsRuntimeService,
-} from "./overlay-deps-runtime-service";
 export { runOverlayShortcutLocalFallbackRuntimeService } from "./shortcut-ui-deps-runtime-service";
-export { createStartupLifecycleHooksRuntimeService } from "./startup-lifecycle-hooks-runtime-service";
 export { createRuntimeOptionsManagerRuntimeService } from "./runtime-options-manager-runtime-service";
 export { createAppLoggingRuntimeService } from "./app-logging-runtime-service";
 export {
