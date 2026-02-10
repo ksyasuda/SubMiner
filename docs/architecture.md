@@ -23,7 +23,7 @@ SubMiner uses a service-oriented Electron main-process architecture where `src/m
   - Provides a narrow state API used by `main.ts` and overlay services.
 - `src/core/services/*`
   - Stateless or narrowly stateful units for a specific responsibility.
-  - Examples: startup bootstrap, app lifecycle hooks, CLI command handling, IPC registration, overlay visibility, MPV IPC behavior, shortcut registration, subtitle websocket, jimaku/subsync helpers.
+  - Examples: startup bootstrap/ready flow, app lifecycle wiring, CLI command handling, IPC registration, overlay visibility, MPV IPC behavior, shortcut registration, subtitle websocket, jimaku/subsync helpers.
 - `src/core/utils/*`
   - Pure helpers and coercion/config utilities.
 - `src/cli/*`
@@ -41,7 +41,7 @@ Most runtime code follows a dependency-injection pattern:
 
 1. Define a service interface in `src/core/services/*`.
 2. Keep core logic in pure or side-effect-bounded functions.
-3. Build runtime deps in `main.ts`; use `*-deps-runtime-service.ts` helpers only when they add real adaptation logic.
+3. Build runtime deps in `main.ts`; extract an adapter/helper only when it adds meaningful behavior or reuse.
 4. Call the service from lifecycle/command wiring points.
 
 This keeps side effects explicit and makes behavior easy to unit-test with fakes.
@@ -49,15 +49,15 @@ This keeps side effects explicit and makes behavior easy to unit-test with fakes
 ## Lifecycle Model
 
 - Startup:
-  - `startup-bootstrap-runtime-service` handles initial argv/env/backend setup and decides generate-config flow vs app lifecycle start.
+  - `runStartupBootstrapRuntimeService` handles initial argv/env/backend setup and decides generate-config flow vs app lifecycle start.
   - `app-lifecycle-service` handles Electron single-instance + lifecycle event registration.
-  - `startup-lifecycle-hooks-runtime-service` wires app-ready and app-shutdown hooks.
+  - `runAppReadyRuntimeService` performs ready-time initialization (config load, websocket policy, tokenizer/tracker setup, overlay auto-init decisions).
 - Runtime:
   - CLI/shortcut/IPC events map to service calls.
   - Overlay and MPV state sync through dedicated services.
   - Runtime options and mining flows are coordinated via service boundaries.
 - Shutdown:
-  - `app-shutdown-runtime-service` coordinates cleanup ordering (shortcuts, sockets, trackers, integrations).
+  - `startAppLifecycleService` registers cleanup hooks (`will-quit`) while teardown behavior stays delegated to focused services from `main.ts`.
 
 ## Why This Design
 
