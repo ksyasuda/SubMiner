@@ -214,6 +214,7 @@ export class ConfigService {
         "toggleSecondarySub",
         "markAudioCard",
         "openRuntimeOptions",
+        "openJimaku",
       ] as const;
 
       for (const key of shortcutKeys) {

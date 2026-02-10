@@ -43,7 +43,8 @@ test("parses invisible overlay config and new global shortcuts", () => {
     `{
       "shortcuts": {
         "toggleVisibleOverlayGlobal": "Alt+Shift+U",
-        "toggleInvisibleOverlayGlobal": "Alt+Shift+I"
+        "toggleInvisibleOverlayGlobal": "Alt+Shift+I",
+        "openJimaku": "Ctrl+Alt+J"
       },
       "invisibleOverlay": {
         "startupVisibility": "hidden"
@@ -60,6 +61,7 @@ test("parses invisible overlay config and new global shortcuts", () => {
   const config = service.getConfig();
   assert.equal(config.shortcuts.toggleVisibleOverlayGlobal, "Alt+Shift+U");
   assert.equal(config.shortcuts.toggleInvisibleOverlayGlobal, "Alt+Shift+I");
+  assert.equal(config.shortcuts.openJimaku, "Ctrl+Alt+J");
   assert.equal(config.invisibleOverlay.startupVisibility, "hidden");
   assert.equal(config.bind_visible_overlay_to_mpv_sub_visibility, false);
   assert.deepEqual(config.youtubeSubgen.primarySubLanguages, ["ja", "jpn", "jp"]);

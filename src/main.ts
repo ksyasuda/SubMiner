@@ -2265,6 +2265,9 @@ function tryHandleOverlayShortcutLocalFallback(input: Electron.Input): boolean {
       openRuntimeOptions: () => {
         openRuntimeOptionsPalette();
       },
+      openJimaku: () => {
+        sendToVisibleOverlay("jimaku:open");
+      },
       markAudioCard: () => {
         markLastCardAsAudioCard().catch((err) => {
           console.error("markLastCardAsAudioCard failed:", err);
@@ -2643,6 +2646,9 @@ function registerOverlayShortcuts(): void {
     },
     openRuntimeOptions: () => {
       openRuntimeOptionsPalette();
+    },
+    openJimaku: () => {
+      sendToVisibleOverlay("jimaku:open");
     },
   });
 }

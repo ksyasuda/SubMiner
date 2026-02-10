@@ -152,6 +152,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     toggleSecondarySub: "CommandOrControl+Shift+V",
     markAudioCard: "CommandOrControl+Shift+A",
     openRuntimeOptions: "CommandOrControl+Shift+O",
+    openJimaku: "Ctrl+Alt+J",
   },
   secondarySub: {
     secondarySubLanguages: [],

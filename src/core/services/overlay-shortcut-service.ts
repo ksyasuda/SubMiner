@@ -13,6 +13,7 @@ export interface OverlayShortcutHandlers {
   toggleSecondarySub: () => void;
   markAudioCard: () => void;
   openRuntimeOptions: () => void;
+  openJimaku: () => void;
 }
 
 export function registerOverlayShortcutsService(
@@ -118,6 +119,13 @@ export function registerOverlayShortcutsService(
       "openRuntimeOptions",
     );
   }
+  if (shortcuts.openJimaku) {
+    registerOverlayShortcut(
+      shortcuts.openJimaku,
+      () => handlers.openJimaku(),
+      "openJimaku",
+    );
+  }
 
   return registeredAny;
 }
@@ -154,5 +162,8 @@ export function unregisterOverlayShortcutsService(
   }
   if (shortcuts.openRuntimeOptions) {
     globalShortcut.unregister(shortcuts.openRuntimeOptions);
+  }
+  if (shortcuts.openJimaku) {
+    globalShortcut.unregister(shortcuts.openJimaku);
   }
 }
