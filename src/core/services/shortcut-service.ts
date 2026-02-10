@@ -5,14 +5,18 @@ export interface GlobalShortcutConfig {
   toggleInvisibleOverlayGlobal: string | null | undefined;
 }
 
-export function registerGlobalShortcutsService(options: {
+export interface RegisterGlobalShortcutsServiceOptions {
   shortcuts: GlobalShortcutConfig;
   onToggleVisibleOverlay: () => void;
   onToggleInvisibleOverlay: () => void;
   onOpenYomitanSettings: () => void;
   isDev: boolean;
   getMainWindow: () => BrowserWindow | null;
-}): void {
+}
+
+export function registerGlobalShortcutsService(
+  options: RegisterGlobalShortcutsServiceOptions,
+): void {
   const visibleShortcut = options.shortcuts.toggleVisibleOverlayGlobal;
   const invisibleShortcut = options.shortcuts.toggleInvisibleOverlayGlobal;
   const normalizedVisible = visibleShortcut?.replace(/\s+/g, "").toLowerCase();
