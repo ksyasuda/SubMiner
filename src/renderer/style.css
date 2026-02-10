@@ -34,6 +34,7 @@ body {
 }
 
 #overlay {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
@@ -300,6 +301,8 @@ body.layer-invisible #subtitleContainer {
   border: 0 !important;
   padding: 0 !important;
   border-radius: 0 !important;
+  position: relative;
+  z-index: 3;
 }
 
 body.layer-invisible #subtitleRoot,
@@ -342,10 +345,9 @@ body.layer-invisible.debug-invisible-visualization #subtitleRoot .word,
 body.layer-invisible.debug-invisible-visualization #subtitleRoot .c {
   color: #ed8796 !important;
   -webkit-text-fill-color: #ed8796 !important;
-  -webkit-text-stroke: 0.55px rgba(0, 0, 0, 0.95) !important;
-  text-shadow:
-    0 0 8px rgba(237, 135, 150, 0.9),
-    0 2px 6px rgba(0, 0, 0, 0.95) !important;
+  -webkit-text-stroke: calc(var(--sub-border-size, 2px) * 2) rgba(0, 0, 0, 0.85) !important;
+  paint-order: stroke fill !important;
+  text-shadow: none !important;
 }
 
 #secondarySubContainer {

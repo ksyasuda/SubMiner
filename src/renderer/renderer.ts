@@ -31,19 +31,6 @@ interface SubtitleData {
   tokens: MergedToken[] | null;
 }
 
-interface AssInlineOverrides {
-  fontFamily?: string;
-  fontSize?: number;
-  letterSpacing?: number;
-  scaleX?: number;
-  scaleY?: number;
-  bold?: boolean;
-  italic?: boolean;
-  borderSize?: number;
-  shadowOffset?: number;
-  alignment?: number;
-}
-
 interface MpvSubtitleRenderMetrics {
   subPos: number;
   subFontSize: number;
@@ -349,6 +336,9 @@ const overlayLayer =
     : overlayLayerFromQuery;
 const isInvisibleLayer = overlayLayer === "invisible";
 const isLinuxPlatform = navigator.platform.toLowerCase().includes("linux");
+const isMacOSPlatform =
+  navigator.platform.toLowerCase().includes("mac") ||
+  /mac/i.test(navigator.userAgent);
 // Linux passthrough forwarding is not reliable for this overlay; keep pointer
 // routing local so hover lookup, drag-reposition, and key handling remain usable.
 const shouldToggleMouseIgnore = !isLinuxPlatform;
@@ -403,7 +393,13 @@ const DEFAULT_MPV_SUBTITLE_RENDER_METRICS: MpvSubtitleRenderMetrics = {
 let mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics = {
   ...DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
 };
-let currentSubtitleAss = "";
+let currentInvisibleSubtitleLineCount = 1;
+let lastHoverSelectionKey = "";
+let lastHoverSelectionNode: Text | null = null;
+const wordSegmenter =
+  typeof Intl !== "undefined" && "Segmenter" in Intl
+    ? new Intl.Segmenter(undefined, { granularity: "word" })
+    : null;
 
 function isAnySettingsModalOpen(): boolean {
   return runtimeOptionsModalOpen || subsyncModalOpen || kikuModalOpen;
@@ -502,6 +498,8 @@ function renderPlainTextPreserveLineBreaks(text: string): void {
 
 function renderSubtitle(data: SubtitleData | string): void {
   subtitleRoot.innerHTML = "";
+  lastHoverSelectionKey = "";
+  lastHoverSelectionNode = null;
 
   let text: string;
   let tokens: MergedToken[] | null;
@@ -521,8 +519,13 @@ function renderSubtitle(data: SubtitleData | string): void {
   }
 
   if (isInvisibleLayer) {
-    // Keep natural kerning/shaping for accurate hitbox alignment with mpv/libass.
-    renderPlainTextPreserveLineBreaks(normalizeSubtitle(text, false));
+    // Keep natural kerning/shaping for accurate hitbox alignment with mpv.
+    const normalizedInvisible = normalizeSubtitle(text, false);
+    currentInvisibleSubtitleLineCount = Math.max(
+      1,
+      normalizedInvisible.split("\n").length,
+    );
+    renderPlainTextPreserveLineBreaks(normalizedInvisible);
     return;
   }
 
@@ -741,101 +744,6 @@ function sanitizeMpvSubtitleRenderMetrics(
   };
 }
 
-function getLastMatch(text: string, pattern: RegExp): string | undefined {
-  let last: string | undefined;
-  let match: RegExpExecArray | null;
-  // eslint-disable-next-line no-cond-assign
-  while ((match = pattern.exec(text)) !== null) {
-    last = match[1];
-  }
-  return last;
-}
-
-function parseAssInlineOverrides(assText: string): AssInlineOverrides {
-  if (!assText) return {};
-
-  const result: AssInlineOverrides = {};
-
-  const fontFamily = getLastMatch(assText, /\\fn([^\\}]+)/g);
-  if (fontFamily && fontFamily.trim()) {
-    result.fontFamily = fontFamily.trim();
-  }
-
-  const fontSize = getLastMatch(assText, /\\fs(-?\d+(?:\.\d+)?)/g);
-  if (fontSize) {
-    const parsed = Number.parseFloat(fontSize);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      result.fontSize = parsed;
-    }
-  }
-
-  const letterSpacing = getLastMatch(assText, /\\fsp(-?\d+(?:\.\d+)?)/g);
-  if (letterSpacing) {
-    const parsed = Number.parseFloat(letterSpacing);
-    if (Number.isFinite(parsed)) {
-      result.letterSpacing = parsed;
-    }
-  }
-
-  const scaleX = getLastMatch(assText, /\\fscx(-?\d+(?:\.\d+)?)/g);
-  if (scaleX) {
-    const parsed = Number.parseFloat(scaleX);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      result.scaleX = parsed / 100;
-    }
-  }
-
-  const scaleY = getLastMatch(assText, /\\fscy(-?\d+(?:\.\d+)?)/g);
-  if (scaleY) {
-    const parsed = Number.parseFloat(scaleY);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      result.scaleY = parsed / 100;
-    }
-  }
-
-  const bold = getLastMatch(assText, /\\b(-?\d+)/g);
-  if (bold) {
-    const parsed = Number.parseInt(bold, 10);
-    if (!Number.isNaN(parsed)) {
-      result.bold = parsed !== 0;
-    }
-  }
-
-  const italic = getLastMatch(assText, /\\i(-?\d+)/g);
-  if (italic) {
-    const parsed = Number.parseInt(italic, 10);
-    if (!Number.isNaN(parsed)) {
-      result.italic = parsed !== 0;
-    }
-  }
-
-  const borderSize = getLastMatch(assText, /\\bord(-?\d+(?:\.\d+)?)/g);
-  if (borderSize) {
-    const parsed = Number.parseFloat(borderSize);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      result.borderSize = parsed;
-    }
-  }
-
-  const shadowOffset = getLastMatch(assText, /\\shad(-?\d+(?:\.\d+)?)/g);
-  if (shadowOffset) {
-    const parsed = Number.parseFloat(shadowOffset);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      result.shadowOffset = parsed;
-    }
-  }
-
-  const alignment = getLastMatch(assText, /\\an(\d)/g);
-  if (alignment) {
-    const parsed = Number.parseInt(alignment, 10);
-    if (parsed >= 1 && parsed <= 9) {
-      result.alignment = parsed;
-    }
-  }
-
-  return result;
-}
-
 function applyInvisibleSubtitleLayoutFromMpvMetrics(
   metrics: Partial<MpvSubtitleRenderMetrics> | null | undefined,
   source: string,
@@ -843,52 +751,50 @@ function applyInvisibleSubtitleLayoutFromMpvMetrics(
   mpvSubtitleRenderMetrics = sanitizeMpvSubtitleRenderMetrics(metrics);
 
   const dims = mpvSubtitleRenderMetrics.osdDimensions;
-  const renderAreaHeight = dims?.h ?? window.innerHeight;
-  const renderAreaWidth = dims?.w ?? window.innerWidth;
-  const videoLeftInset = dims?.ml ?? 0;
-  const videoRightInset = dims?.mr ?? 0;
-  const videoTopInset = dims?.mt ?? 0;
-  const videoBottomInset = dims?.mb ?? 0;
+  const dpr = window.devicePixelRatio || 1;
+  // On macOS, mpv osd-dimensions can be reported in either physical pixels or
+  // point-like units. Infer the osd->CSS scale from current viewport ratio.
+  const osdToCssScale =
+    isMacOSPlatform && dims
+      ? (() => {
+          const ratios = [
+            dims.w / Math.max(1, window.innerWidth),
+            dims.h / Math.max(1, window.innerHeight),
+          ].filter((value) => Number.isFinite(value) && value > 0);
+          const avgRatio =
+            ratios.length > 0
+              ? ratios.reduce((sum, value) => sum + value, 0) / ratios.length
+              : dpr;
+          return avgRatio > 1.25 ? avgRatio : 1;
+        })()
+      : dpr;
+  const renderAreaHeight = dims ? dims.h / osdToCssScale : window.innerHeight;
+  const renderAreaWidth = dims ? dims.w / osdToCssScale : window.innerWidth;
+  const videoLeftInset = dims ? dims.ml / osdToCssScale : 0;
+  const videoRightInset = dims ? dims.mr / osdToCssScale : 0;
+  const videoTopInset = dims ? dims.mt / osdToCssScale : 0;
+  const videoBottomInset = dims ? dims.mb / osdToCssScale : 0;
   const anchorToVideoArea = !mpvSubtitleRenderMetrics.subUseMargins;
   const leftInset = anchorToVideoArea ? videoLeftInset : 0;
   const rightInset = anchorToVideoArea ? videoRightInset : 0;
   const topInset = anchorToVideoArea ? videoTopInset : 0;
   const bottomInset = anchorToVideoArea ? videoBottomInset : 0;
 
-  // Match mpv subtitle sizing from scaled pixels in mpv's OSD space.
-  const osdReferenceHeight = mpvSubtitleRenderMetrics.subScaleByWindow
-    ? mpvSubtitleRenderMetrics.osdHeight
-    : 720;
-  const pxPerScaledPixel = Math.max(0.1, renderAreaHeight / osdReferenceHeight);
+  const videoHeight = renderAreaHeight - videoTopInset - videoBottomInset;
+  const scaleRefHeight = mpvSubtitleRenderMetrics.subScaleByWindow
+    ? renderAreaHeight
+    : videoHeight;
+  const pxPerScaledPixel = Math.max(0.1, scaleRefHeight / 720);
   const computedFontSize =
     mpvSubtitleRenderMetrics.subFontSize *
     mpvSubtitleRenderMetrics.subScale *
-    pxPerScaledPixel;
-  const rawAssOverrides = parseAssInlineOverrides(currentSubtitleAss);
+    (isLinuxPlatform ? 1 : pxPerScaledPixel);
 
-  // When sub-ass-override is "yes" (default), "force", or "strip", mpv ignores
-  // ASS inline style tags (\fn, \fs, \b, \i, \bord, \shad, \fsp, \fscx, \fscy)
-  // and uses its own sub-* settings instead. Only positioning tags like \an and
-  // \pos are always respected. Since sub-text-ass returns the raw ASS text
-  // regardless of this setting, we must skip style overrides when mpv is
-  // overriding them.
-  const assOverrideMode = mpvSubtitleRenderMetrics.subAssOverride;
-  const mpvOverridesAssStyles =
-    assOverrideMode === "yes" ||
-    assOverrideMode === "force" ||
-    assOverrideMode === "strip";
-  const assOverrides: AssInlineOverrides = mpvOverridesAssStyles
-    ? {}
-    : rawAssOverrides;
-
-  const effectiveFontSize =
-    assOverrides.fontSize && assOverrides.fontSize > 0
-      ? assOverrides.fontSize * pxPerScaledPixel
-      : computedFontSize;
+  const macOsFontCompensation = isMacOSPlatform ? 0.87 : 1;
+  const effectiveFontSize = computedFontSize * macOsFontCompensation;
   applySubtitleFontSize(effectiveFontSize);
 
-  // \an is a positioning tag — always respected regardless of sub-ass-override
-  const alignment = rawAssOverrides.alignment ?? 2;
+  const alignment = 2;
   const hAlign = ((alignment - 1) % 3) as 0 | 1 | 2; // 0=left, 1=center, 2=right
   const vAlign = Math.floor((alignment - 1) / 3) as 0 | 1 | 2; // 0=bottom, 1=middle, 2=top
 
@@ -902,12 +808,19 @@ function applyInvisibleSubtitleLayoutFromMpvMetrics(
     renderAreaWidth - leftInset - rightInset - Math.round(marginX * 2),
   );
 
+  const effectiveBorderSize = mpvSubtitleRenderMetrics.subBorderSize * pxPerScaledPixel;
+  document.documentElement.style.setProperty(
+    "--sub-border-size",
+    `${effectiveBorderSize}px`,
+  );
+
   subtitleContainer.style.position = "absolute";
   subtitleContainer.style.maxWidth = `${horizontalAvailable}px`;
   subtitleContainer.style.width = `${horizontalAvailable}px`;
   subtitleContainer.style.padding = "0";
   subtitleContainer.style.background = "transparent";
   subtitleContainer.style.marginBottom = "0";
+  subtitleContainer.style.pointerEvents = "none";
 
   // Horizontal positioning based on \an alignment.
   // All alignments position the container at the left margin with full available
@@ -916,47 +829,89 @@ function applyInvisibleSubtitleLayoutFromMpvMetrics(
   subtitleContainer.style.left = `${leftInset + marginX}px`;
   subtitleContainer.style.right = "";
   subtitleContainer.style.transform = "";
+  subtitleContainer.style.textAlign = "";
   if (hAlign === 0) {
+    subtitleContainer.style.textAlign = "left";
     subtitleRoot.style.textAlign = "left";
   } else if (hAlign === 2) {
+    subtitleContainer.style.textAlign = "right";
     subtitleRoot.style.textAlign = "right";
   } else {
+    subtitleContainer.style.textAlign = "center";
     subtitleRoot.style.textAlign = "center";
   }
+  subtitleRoot.style.display = "inline-block";
+  subtitleRoot.style.maxWidth = "100%";
+  subtitleRoot.style.pointerEvents = "auto";
 
   // Vertical positioning based on \an alignment
+  const lineCount = Math.max(1, currentInvisibleSubtitleLineCount);
+  const multiline = lineCount > 1;
+  const baselineCompensationFactor =
+    lineCount >= 3 ? 0.46 : multiline ? 0.58 : 0.7;
+  const baselineCompensationPx = Math.max(
+    0,
+    effectiveFontSize * baselineCompensationFactor,
+  );
   if (vAlign === 2) {
-    subtitleContainer.style.top = `${topInset + marginY}px`;
+    subtitleContainer.style.top = `${Math.max(0, topInset + marginY - baselineCompensationPx)}px`;
     subtitleContainer.style.bottom = "";
   } else if (vAlign === 1) {
     subtitleContainer.style.top = "50%";
     subtitleContainer.style.bottom = "";
     subtitleContainer.style.transform = "translateY(-50%)";
   } else {
-    const subPosOffset =
+    const subPosMargin =
       ((100 - mpvSubtitleRenderMetrics.subPos) / 100) * renderAreaHeight;
-    const bottomPx = Math.max(0, bottomInset + marginY + subPosOffset);
+    const effectiveMargin = Math.max(marginY, subPosMargin);
+    const bottomPx = Math.max(
+      0,
+      bottomInset + effectiveMargin + baselineCompensationPx,
+    );
     subtitleContainer.style.top = "";
     subtitleContainer.style.bottom = `${bottomPx}px`;
   }
 
+  subtitleRoot.style.setProperty(
+    "line-height",
+    isMacOSPlatform
+      ? lineCount >= 3
+        ? "1.18"
+        : multiline
+          ? "1.08"
+          : "0.86"
+      : "normal",
+    isMacOSPlatform ? "important" : "",
+  );
+
+  const rawFont = mpvSubtitleRenderMetrics.subFont;
+  const strippedFont = rawFont
+    .replace(
+      /\s+(Regular|Bold|Italic|Light|Medium|Semi\s*Bold|Extra\s*Bold|Extra\s*Light|Thin|Black|Heavy|Demi\s*Bold|Book|Condensed)\s*$/i,
+      "",
+    )
+    .trim();
   subtitleRoot.style.fontFamily =
-    assOverrides.fontFamily || mpvSubtitleRenderMetrics.subFont;
-  const effectiveSpacing =
-    typeof assOverrides.letterSpacing === "number"
-      ? assOverrides.letterSpacing
-      : mpvSubtitleRenderMetrics.subSpacing;
-  subtitleRoot.style.letterSpacing =
+    strippedFont !== rawFont
+      ? `"${rawFont}", "${strippedFont}", sans-serif`
+      : `"${rawFont}", sans-serif`;
+  const effectiveSpacing = mpvSubtitleRenderMetrics.subSpacing;
+  subtitleRoot.style.setProperty(
+    "letter-spacing",
     Math.abs(effectiveSpacing) > 0.0001
-      ? `${effectiveSpacing * pxPerScaledPixel}px`
-      : "normal";
-  const effectiveBold = assOverrides.bold ?? mpvSubtitleRenderMetrics.subBold;
-  const effectiveItalic =
-    assOverrides.italic ?? mpvSubtitleRenderMetrics.subItalic;
+      ? `${effectiveSpacing * pxPerScaledPixel * (isMacOSPlatform ? 0.7 : 1)}px`
+      : isMacOSPlatform
+        ? "-0.02em"
+        : "0px",
+    isMacOSPlatform ? "important" : "",
+  );
+  subtitleRoot.style.fontKerning = isMacOSPlatform ? "auto" : "none";
+  const effectiveBold = mpvSubtitleRenderMetrics.subBold;
+  const effectiveItalic = mpvSubtitleRenderMetrics.subItalic;
   subtitleRoot.style.fontWeight = effectiveBold ? "700" : "400";
   subtitleRoot.style.fontStyle = effectiveItalic ? "italic" : "normal";
-  const scaleX = assOverrides.scaleX ?? 1;
-  const scaleY = assOverrides.scaleY ?? 1;
+  const scaleX = 1;
+  const scaleY = 1;
   if (Math.abs(scaleX - 1) > 0.0001 || Math.abs(scaleY - 1) > 0.0001) {
     subtitleRoot.style.transform = `scale(${scaleX}, ${scaleY})`;
     subtitleRoot.style.transformOrigin = "50% 100%";
@@ -968,7 +923,7 @@ function applyInvisibleSubtitleLayoutFromMpvMetrics(
   // CSS line-height: normal adds "half-leading" — extra space equally distributed
   // above and below text within each line box. This means the text's visual bottom
   // is above the element's bottom edge by halfLeading pixels. We must compensate
-  // by shifting the element down by that amount so glyph positions match mpv/libass.
+  // by shifting the element down by that amount so glyph positions better match mpv.
   const computedLineHeight = parseFloat(
     getComputedStyle(subtitleRoot).lineHeight,
   );
@@ -989,12 +944,7 @@ function applyInvisibleSubtitleLayoutFromMpvMetrics(
       }
     }
   }
-  console.log(
-    "[invisible-overlay] Applied mpv subtitle render metrics from",
-    source,
-    mpvSubtitleRenderMetrics,
-    assOverrides,
-  );
+  console.log("[invisible-overlay] Applied mpv subtitle render metrics from", source);
 }
 
 function setJimakuStatus(message: string, isError = false): void {
@@ -1919,6 +1869,129 @@ function setupDragging(): void {
   });
 }
 
+function getCaretTextPointRange(clientX: number, clientY: number): Range | null {
+  const documentWithCaretApi = document as Document & {
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    caretPositionFromPoint?: (
+      x: number,
+      y: number,
+    ) => { offsetNode: Node; offset: number } | null;
+  };
+
+  if (typeof documentWithCaretApi.caretRangeFromPoint === "function") {
+    return documentWithCaretApi.caretRangeFromPoint(clientX, clientY);
+  }
+
+  if (typeof documentWithCaretApi.caretPositionFromPoint === "function") {
+    const caretPosition = documentWithCaretApi.caretPositionFromPoint(
+      clientX,
+      clientY,
+    );
+    if (!caretPosition) return null;
+    const range = document.createRange();
+    range.setStart(caretPosition.offsetNode, caretPosition.offset);
+    range.collapse(true);
+    return range;
+  }
+
+  return null;
+}
+
+function getWordBoundsAtOffset(
+  text: string,
+  offset: number,
+): { start: number; end: number } | null {
+  if (!text || text.length === 0) return null;
+
+  const clampedOffset = Math.max(0, Math.min(offset, text.length));
+  const probeIndex =
+    clampedOffset >= text.length ? Math.max(0, text.length - 1) : clampedOffset;
+
+  if (wordSegmenter) {
+    for (const part of wordSegmenter.segment(text)) {
+      const start = part.index;
+      const end = start + part.segment.length;
+      if (probeIndex >= start && probeIndex < end) {
+        if (part.isWordLike === false) return null;
+        return { start, end };
+      }
+    }
+  }
+
+  const isBoundary = (char: string): boolean =>
+    /[\s\u3000.,!?;:()[\]{}"'`~<>/\\|@#$%^&*+=\-、。・「」『』【】〈〉《》]/.test(
+      char,
+    );
+
+  const probeChar = text[probeIndex];
+  if (!probeChar || isBoundary(probeChar)) return null;
+
+  let start = probeIndex;
+  while (start > 0 && !isBoundary(text[start - 1])) {
+    start -= 1;
+  }
+
+  let end = probeIndex + 1;
+  while (end < text.length && !isBoundary(text[end])) {
+    end += 1;
+  }
+
+  if (end <= start) return null;
+  return { start, end };
+}
+
+function updateHoverWordSelection(event: MouseEvent): void {
+  if (!isInvisibleLayer || !isMacOSPlatform) return;
+  if (event.buttons !== 0) return;
+  if (!(event.target instanceof Node)) return;
+  if (!subtitleRoot.contains(event.target)) return;
+
+  const caretRange = getCaretTextPointRange(event.clientX, event.clientY);
+  if (!caretRange) return;
+  if (caretRange.startContainer.nodeType !== Node.TEXT_NODE) return;
+  if (!subtitleRoot.contains(caretRange.startContainer)) return;
+
+  const textNode = caretRange.startContainer as Text;
+  const wordBounds = getWordBoundsAtOffset(textNode.data, caretRange.startOffset);
+  if (!wordBounds) return;
+
+  const selectionKey = `${wordBounds.start}:${wordBounds.end}:${textNode.data.slice(
+    wordBounds.start,
+    wordBounds.end,
+  )}`;
+  if (
+    selectionKey === lastHoverSelectionKey &&
+    textNode === lastHoverSelectionNode
+  ) {
+    return;
+  }
+
+  const selection = window.getSelection();
+  if (!selection) return;
+
+  const range = document.createRange();
+  range.setStart(textNode, wordBounds.start);
+  range.setEnd(textNode, wordBounds.end);
+
+  selection.removeAllRanges();
+  selection.addRange(range);
+  lastHoverSelectionKey = selectionKey;
+  lastHoverSelectionNode = textNode;
+}
+
+function setupInvisibleHoverSelection(): void {
+  if (!isInvisibleLayer || !isMacOSPlatform) return;
+
+  subtitleRoot.addEventListener("mousemove", (event: MouseEvent) => {
+    updateHoverWordSelection(event);
+  });
+
+  subtitleRoot.addEventListener("mouseleave", () => {
+    lastHoverSelectionKey = "";
+    lastHoverSelectionNode = null;
+  });
+}
+
 function isInteractiveTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   if (target.closest(".modal")) return true;
@@ -2267,16 +2340,6 @@ async function init(): Promise<void> {
     renderSubtitle(data);
   });
 
-  if (isInvisibleLayer) {
-    window.electronAPI.onSubtitleAss((assText: string) => {
-      currentSubtitleAss = assText || "";
-      applyInvisibleSubtitleLayoutFromMpvMetrics(
-        mpvSubtitleRenderMetrics,
-        "subtitle-ass",
-      );
-    });
-  }
-
   if (!isInvisibleLayer) {
     window.electronAPI.onSubtitlePosition(
       (position: SubtitlePosition | null) => {
@@ -2296,9 +2359,6 @@ async function init(): Promise<void> {
     });
   }
 
-  if (isInvisibleLayer) {
-    currentSubtitleAss = await window.electronAPI.getCurrentSubtitleAss();
-  }
   const initialSubtitle = await window.electronAPI.getCurrentSubtitle();
   renderSubtitle(initialSubtitle);
 
@@ -2316,8 +2376,10 @@ async function init(): Promise<void> {
   const initialSecondary = await window.electronAPI.getCurrentSecondarySub();
   renderSecondarySub(initialSecondary);
 
-  subtitleContainer.addEventListener("mouseenter", handleMouseEnter);
-  subtitleContainer.addEventListener("mouseleave", handleMouseLeave);
+  const hoverTarget = isInvisibleLayer ? subtitleRoot : subtitleContainer;
+  hoverTarget.addEventListener("mouseenter", handleMouseEnter);
+  hoverTarget.addEventListener("mouseleave", handleMouseLeave);
+  setupInvisibleHoverSelection();
 
   secondarySubContainer.addEventListener("mouseenter", handleMouseEnter);
   secondarySubContainer.addEventListener("mouseleave", handleMouseLeave);
