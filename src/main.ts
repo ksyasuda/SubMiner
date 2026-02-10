@@ -116,6 +116,7 @@ import {
 } from "./core/services/overlay-shortcut-service";
 import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-fallback-runner";
 import { createOverlayShortcutRuntimeHandlers } from "./core/services/overlay-shortcut-runtime-service";
+import { createNumericShortcutSessionService } from "./core/services/numeric-shortcut-session-service";
 import { showDesktopNotification } from "./core/utils/notification";
 import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
 import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
@@ -250,16 +251,7 @@ let mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics = {
 };
 
 let shortcutsRegistered = false;
-let pendingMultiCopy = false;
-let pendingMultiCopyTimeout: ReturnType<typeof setTimeout> | null = null;
-let multiCopyDigitShortcuts: string[] = [];
-let multiCopyEscapeShortcut: string | null = null;
-let pendingMineSentenceMultiple = false;
-let pendingMineSentenceMultipleTimeout: ReturnType<typeof setTimeout> | null =
-  null;
 let overlayRuntimeInitialized = false;
-let mineSentenceDigitShortcuts: string[] = [];
-let mineSentenceEscapeShortcut: string | null = null;
 let fieldGroupingResolver: ((choice: KikuFieldGroupingChoice) => void) | null =
   null;
 let runtimeOptionsManager: RuntimeOptionsManager | null = null;
@@ -964,6 +956,24 @@ function showMpvOsd(text: string): void {
   }
 }
 
+const multiCopySession = createNumericShortcutSessionService({
+  registerShortcut: (accelerator, handler) =>
+    globalShortcut.register(accelerator, handler),
+  unregisterShortcut: (accelerator) => globalShortcut.unregister(accelerator),
+  setTimer: (handler, timeoutMs) => setTimeout(handler, timeoutMs),
+  clearTimer: (timer) => clearTimeout(timer),
+  showMpvOsd: (text) => showMpvOsd(text),
+});
+
+const mineSentenceSession = createNumericShortcutSessionService({
+  registerShortcut: (accelerator, handler) =>
+    globalShortcut.register(accelerator, handler),
+  unregisterShortcut: (accelerator) => globalShortcut.unregister(accelerator),
+  setTimer: (handler, timeoutMs) => setTimeout(handler, timeoutMs),
+  clearTimer: (timer) => clearTimeout(timer),
+  showMpvOsd: (text) => showMpvOsd(text),
+});
+
 function getSubsyncServiceDeps() {
   return {
     getMpvClient: () => mpvClient,
@@ -988,61 +998,23 @@ async function triggerSubsyncFromConfig(): Promise<void> {
 }
 
 function cancelPendingMultiCopy(): void {
-  if (!pendingMultiCopy) return;
-
-  pendingMultiCopy = false;
-  if (pendingMultiCopyTimeout) {
-    clearTimeout(pendingMultiCopyTimeout);
-    pendingMultiCopyTimeout = null;
-  }
-
-  for (const shortcut of multiCopyDigitShortcuts) {
-    globalShortcut.unregister(shortcut);
-  }
-  multiCopyDigitShortcuts = [];
-
-  if (multiCopyEscapeShortcut) {
-    globalShortcut.unregister(multiCopyEscapeShortcut);
-    multiCopyEscapeShortcut = null;
-  }
+  multiCopySession.cancel();
 }
 
 function startPendingMultiCopy(timeoutMs: number): void {
-  cancelPendingMultiCopy();
-  pendingMultiCopy = true;
-
-  for (let i = 1; i <= 9; i++) {
-    const shortcut = i.toString();
-    if (
-      globalShortcut.register(shortcut, () => {
-        handleMultiCopyDigit(i);
-      })
-    ) {
-      multiCopyDigitShortcuts.push(shortcut);
-    }
-  }
-
-  if (
-    globalShortcut.register("Escape", () => {
-      cancelPendingMultiCopy();
-      showMpvOsd("Cancelled");
-    })
-  ) {
-    multiCopyEscapeShortcut = "Escape";
-  }
-
-  pendingMultiCopyTimeout = setTimeout(() => {
-    cancelPendingMultiCopy();
-    showMpvOsd("Copy timeout");
-  }, timeoutMs);
-
-  showMpvOsd("Copy how many lines? Press 1-9 (Esc to cancel)");
+  multiCopySession.start({
+    timeoutMs,
+    onDigit: (count) => handleMultiCopyDigit(count),
+    messages: {
+      prompt: "Copy how many lines? Press 1-9 (Esc to cancel)",
+      timeout: "Copy timeout",
+      cancelled: "Cancelled",
+    },
+  });
 }
 
 function handleMultiCopyDigit(count: number): void {
-  if (!pendingMultiCopy || !subtitleTimingTracker) return;
-
-  cancelPendingMultiCopy();
+  if (!subtitleTimingTracker) return;
 
   const availableCount = Math.min(count, 200); // Max history size
   const blocks = subtitleTimingTracker.getRecentBlocks(availableCount);
@@ -1135,66 +1107,24 @@ async function mineSentenceCard(): Promise<void> {
 }
 
 function cancelPendingMineSentenceMultiple(): void {
-  if (!pendingMineSentenceMultiple) return;
-
-  pendingMineSentenceMultiple = false;
-  if (pendingMineSentenceMultipleTimeout) {
-    clearTimeout(pendingMineSentenceMultipleTimeout);
-    pendingMineSentenceMultipleTimeout = null;
-  }
-
-  for (const shortcut of mineSentenceDigitShortcuts) {
-    globalShortcut.unregister(shortcut);
-  }
-  mineSentenceDigitShortcuts = [];
-
-  if (mineSentenceEscapeShortcut) {
-    globalShortcut.unregister(mineSentenceEscapeShortcut);
-    mineSentenceEscapeShortcut = null;
-  }
+  mineSentenceSession.cancel();
 }
 
 function startPendingMineSentenceMultiple(timeoutMs: number): void {
-  cancelPendingMineSentenceMultiple();
-  pendingMineSentenceMultiple = true;
-
-  for (let i = 1; i <= 9; i++) {
-    const shortcut = i.toString();
-    if (
-      globalShortcut.register(shortcut, () => {
-        handleMineSentenceDigit(i);
-      })
-    ) {
-      mineSentenceDigitShortcuts.push(shortcut);
-    }
-  }
-
-  if (
-    globalShortcut.register("Escape", () => {
-      cancelPendingMineSentenceMultiple();
-      showMpvOsd("Cancelled");
-    })
-  ) {
-    mineSentenceEscapeShortcut = "Escape";
-  }
-
-  pendingMineSentenceMultipleTimeout = setTimeout(() => {
-    cancelPendingMineSentenceMultiple();
-    showMpvOsd("Mine sentence timeout");
-  }, timeoutMs);
-
-  showMpvOsd("Mine how many lines? Press 1-9 (Esc to cancel)");
+  mineSentenceSession.start({
+    timeoutMs,
+    onDigit: (count) => handleMineSentenceDigit(count),
+    messages: {
+      prompt: "Mine how many lines? Press 1-9 (Esc to cancel)",
+      timeout: "Mine sentence timeout",
+      cancelled: "Cancelled",
+    },
+  });
 }
 
 function handleMineSentenceDigit(count: number): void {
-  if (
-    !pendingMineSentenceMultiple ||
-    !subtitleTimingTracker ||
-    !ankiIntegration
-  )
+  if (!subtitleTimingTracker || !ankiIntegration)
     return;
-
-  cancelPendingMineSentenceMultiple();
 
   const blocks = subtitleTimingTracker.getRecentBlocks(count);
 
