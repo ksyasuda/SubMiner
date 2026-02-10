@@ -65,7 +65,6 @@ import {
   KikuFieldGroupingChoice,
   KikuMergePreviewRequest,
   KikuMergePreviewResponse,
-  RuntimeOptionApplyResult,
   RuntimeOptionId,
   RuntimeOptionState,
   RuntimeOptionValue,
@@ -139,6 +138,11 @@ import {
   setMpvSubVisibilityRuntimeService,
   showMpvOsdRuntimeService,
 } from "./core/services/mpv-runtime-service";
+import {
+  applyRuntimeOptionResultRuntimeService,
+  cycleRuntimeOptionFromIpcRuntimeService,
+  setRuntimeOptionFromIpcRuntimeService,
+} from "./core/services/runtime-options-runtime-service";
 import { showDesktopNotification } from "./core/utils/notification";
 import { openYomitanSettingsWindow } from "./core/services/yomitan-settings-service";
 import { tokenizeSubtitleService } from "./core/services/tokenizer-service";
@@ -305,15 +309,6 @@ function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
 function broadcastRuntimeOptionsChanged(): void { broadcastToOverlayWindows("runtime-options:changed", getRuntimeOptionsState()); }
 
 function setOverlayDebugVisualizationEnabled(enabled: boolean): void { if (overlayDebugVisualizationEnabled === enabled) return; overlayDebugVisualizationEnabled = enabled; broadcastToOverlayWindows("overlay-debug-visualization:set", overlayDebugVisualizationEnabled); }
-
-function applyRuntimeOptionResult(
-  result: RuntimeOptionApplyResult,
-): RuntimeOptionApplyResult {
-  if (result.ok && result.osdMessage) {
-    showMpvOsd(result.osdMessage);
-  }
-  return result;
-}
 
 function openRuntimeOptionsPalette(): void { sendToVisibleOverlay("runtime-options:open", undefined, { restoreOnModalClose: "runtime-options" }); }
 
@@ -1134,8 +1129,9 @@ function handleMpvCommandFromIpc(command: (string | number)[]): void {
       if (!runtimeOptionsManager) {
         return { ok: false, error: "Runtime options manager unavailable" };
       }
-      return applyRuntimeOptionResult(
+      return applyRuntimeOptionResultRuntimeService(
         runtimeOptionsManager.cycleOption(id, direction),
+        (text) => showMpvOsd(text),
       );
     },
     showMpvOsd: (text) => showMpvOsd(text),
@@ -1195,28 +1191,20 @@ registerIpcHandlersService({
   getAnkiConnectStatus: () => ankiIntegration !== null,
   getRuntimeOptions: () => getRuntimeOptionsState(),
   setRuntimeOption: (id, value) => {
-    if (!runtimeOptionsManager) {
-      return { ok: false, error: "Runtime options manager unavailable" };
-    }
-    const result = applyRuntimeOptionResult(
-      runtimeOptionsManager.setOptionValue(id as RuntimeOptionId, value as RuntimeOptionValue),
+    return setRuntimeOptionFromIpcRuntimeService(
+      runtimeOptionsManager,
+      id as RuntimeOptionId,
+      value as RuntimeOptionValue,
+      (text) => showMpvOsd(text),
     );
-    if (!result.ok && result.error) {
-      showMpvOsd(result.error);
-    }
-    return result;
   },
   cycleRuntimeOption: (id, direction) => {
-    if (!runtimeOptionsManager) {
-      return { ok: false, error: "Runtime options manager unavailable" };
-    }
-    const result = applyRuntimeOptionResult(
-      runtimeOptionsManager.cycleOption(id as RuntimeOptionId, direction),
+    return cycleRuntimeOptionFromIpcRuntimeService(
+      runtimeOptionsManager,
+      id as RuntimeOptionId,
+      direction,
+      (text) => showMpvOsd(text),
     );
-    if (!result.ok && result.error) {
-      showMpvOsd(result.error);
-    }
-    return result;
   },
 });
 
