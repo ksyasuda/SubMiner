@@ -51,7 +51,6 @@ import * as https from "https";
 import * as os from "os";
 import * as fs from "fs";
 import * as crypto from "crypto";
-import WebSocket from "ws";
 import { MecabTokenizer } from "./mecab-tokenizer";
 import { mergeTokens } from "./token-merger";
 import { createWindowTracker, BaseWindowTracker } from "./window-trackers";
@@ -125,6 +124,11 @@ import {
 } from "./core/utils/electron-backend";
 import { asBoolean, asFiniteNumber, asString } from "./core/utils/coerce";
 import { resolveKeybindings } from "./core/utils/keybindings";
+import { TexthookerService } from "./core/services/texthooker-service";
+import {
+  hasMpvWebsocketPlugin,
+  SubtitleWebSocketService,
+} from "./core/services/subtitle-ws-service";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -138,13 +142,13 @@ if (process.platform === "linux") {
 }
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
-let texthookerServer: http.Server | null = null;
-let subtitleWebSocketServer: WebSocket.Server | null = null;
 const CONFIG_DIR = path.join(os.homedir(), ".config", "SubMiner");
 const USER_DATA_PATH = CONFIG_DIR;
 const configService = new ConfigService(CONFIG_DIR);
 const isDev =
   process.argv.includes("--dev") || process.argv.includes("--debug");
+const texthookerService = new TexthookerService();
+const subtitleWsService = new SubtitleWebSocketService();
 
 function getDefaultSocketPath(): string {
   if (process.platform === "win32") {
@@ -503,115 +507,6 @@ function updateCurrentMediaPath(mediaPath: unknown): void {
   broadcastToOverlayWindows("subtitle-position:set", position);
 }
 
-function getTexthookerPath(): string | null {
-  const searchPaths = [
-    path.join(__dirname, "..", "vendor", "texthooker-ui", "docs"),
-    path.join(process.resourcesPath, "app", "vendor", "texthooker-ui", "docs"),
-  ];
-  for (const p of searchPaths) {
-    if (fs.existsSync(path.join(p, "index.html"))) {
-      return p;
-    }
-  }
-  return null;
-}
-
-function startTexthookerServer(port: number): http.Server | null {
-  const texthookerPath = getTexthookerPath();
-  if (!texthookerPath) {
-    console.error("texthooker-ui not found");
-    return null;
-  }
-
-  texthookerServer = http.createServer((req, res) => {
-    let urlPath = (req.url || "/").split("?")[0];
-    let filePath = path.join(
-      texthookerPath,
-      urlPath === "/" ? "index.html" : urlPath,
-    );
-
-    const ext = path.extname(filePath);
-    const mimeTypes: Record<string, string> = {
-      ".html": "text/html",
-      ".js": "application/javascript",
-      ".css": "text/css",
-      ".json": "application/json",
-      ".png": "image/png",
-      ".svg": "image/svg+xml",
-      ".ttf": "font/ttf",
-      ".woff": "font/woff",
-      ".woff2": "font/woff2",
-    };
-
-    fs.readFile(filePath, (err, data) => {
-      if (err) {
-        res.writeHead(404);
-        res.end("Not found");
-        return;
-      }
-      res.writeHead(200, { "Content-Type": mimeTypes[ext] || "text/plain" });
-      res.end(data);
-    });
-  });
-
-  texthookerServer.listen(port, "127.0.0.1", () => {
-    console.log(`Texthooker server running at http://127.0.0.1:${port}`);
-  });
-
-  return texthookerServer;
-}
-
-function stopTexthookerServer(): void {
-  if (texthookerServer) {
-    texthookerServer.close();
-    texthookerServer = null;
-  }
-}
-
-function hasMpvWebsocket(): boolean {
-  const mpvWebsocketPath = path.join(
-    os.homedir(),
-    ".config",
-    "mpv",
-    "mpv_websocket",
-  );
-  return fs.existsSync(mpvWebsocketPath);
-}
-
-function startSubtitleWebSocketServer(port: number): void {
-  subtitleWebSocketServer = new WebSocket.Server({ port, host: "127.0.0.1" });
-
-  subtitleWebSocketServer.on("connection", (ws: WebSocket) => {
-    console.log("WebSocket client connected");
-    if (currentSubText) {
-      ws.send(JSON.stringify({ sentence: currentSubText }));
-    }
-  });
-
-  subtitleWebSocketServer.on("error", (err: Error) => {
-    console.error("WebSocket server error:", err.message);
-  });
-
-  console.log(`Subtitle WebSocket server running on ws://127.0.0.1:${port}`);
-}
-
-function broadcastSubtitle(text: string): void {
-  if (!subtitleWebSocketServer) return;
-  const message = JSON.stringify({ sentence: text });
-  for (const client of subtitleWebSocketServer.clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  }
-}
-
-function stopSubtitleWebSocketServer(): void {
-  if (subtitleWebSocketServer) {
-    subtitleWebSocketServer.close();
-    subtitleWebSocketServer = null;
-  }
-}
-
 const AUTOSUBSYNC_SPINNER_FRAMES = ["|", "/", "-", "\\"];
 let subsyncInProgress = false;
 
@@ -723,9 +618,9 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
 
         if (
           wsEnabled === true ||
-          (wsEnabled === "auto" && !hasMpvWebsocket())
+          (wsEnabled === "auto" && !hasMpvWebsocketPlugin())
         ) {
-          startSubtitleWebSocketServer(wsPort);
+          subtitleWsService.start(wsPort, () => currentSubText);
         } else if (wsEnabled === "auto") {
           console.log(
             "mpv_websocket detected, skipping built-in WebSocket server",
@@ -759,8 +654,8 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
 
       app.on("will-quit", () => {
         globalShortcut.unregisterAll();
-        stopSubtitleWebSocketServer();
-        stopTexthookerServer();
+        subtitleWsService.stop();
+        texthookerService.stop();
         if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
           yomitanParserWindow.destroy();
         }
@@ -848,7 +743,7 @@ function handleCliCommand(
     }
   }
   if (args.texthookerPort !== undefined) {
-    if (texthookerServer) {
+    if (texthookerService.isRunning()) {
       console.warn(
         "Ignoring --port override because the texthooker server is already running.",
       );
@@ -925,8 +820,8 @@ function handleCliCommand(
   } else if (args.openRuntimeOptions) {
     openRuntimeOptionsPalette();
   } else if (args.texthooker) {
-    if (!texthookerServer) {
-      startTexthookerServer(texthookerPort);
+    if (!texthookerService.isRunning()) {
+      texthookerService.start(texthookerPort);
     }
     const config = getResolvedConfig();
     const openBrowser = config.texthooker?.openBrowser !== false;
@@ -1255,7 +1150,7 @@ class MpvIpcClient implements MpvClient {
             this.currentSubEnd,
           );
         }
-        broadcastSubtitle(currentSubText);
+        subtitleWsService.broadcast(currentSubText);
         if (getOverlayWindows().length > 0) {
           const subtitleData = await tokenizeSubtitle(currentSubText);
           broadcastToOverlayWindows("subtitle:set", subtitleData);
@@ -1424,7 +1319,7 @@ class MpvIpcClient implements MpvClient {
         if (mpvClient) {
           mpvClient.currentSubText = currentSubText;
         }
-        broadcastSubtitle(currentSubText);
+        subtitleWsService.broadcast(currentSubText);
         if (getOverlayWindows().length > 0) {
           tokenizeSubtitle(currentSubText).then((subtitleData) => {
             broadcastToOverlayWindows("subtitle:set", subtitleData);
