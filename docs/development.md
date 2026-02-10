@@ -4,7 +4,12 @@ To add or change a config option, update `src/config/definitions.ts` first. Defa
 
 ## Architecture
 
-The composability migration state and extension-point guidelines are documented in [`architecture.md`](/architecture).
+The current runtime design, composition model, and extension guidelines are documented in [`architecture.md`](/architecture).
+
+Contributor guidance:
+- Overlay window/visibility state is owned by `src/core/services/overlay-manager-service.ts`.
+- Prefer direct inline deps objects in `main.ts` for simple pass-through wiring.
+- Add a `*-deps-runtime-service.ts` helper only when it performs meaningful adaptation (not identity mapping).
 
 ## Environment Variables
 

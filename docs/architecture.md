@@ -1,51 +1,75 @@
 # Architecture
 
-SubMiner is migrating from a single, monolithic `src/main.ts` runtime toward a composable architecture with clear extension points.
+SubMiner uses a service-oriented Electron main-process architecture where `src/main.ts` acts as the composition root and behavior lives in small runtime services under `src/core/services`.
+
+## Goals
+
+- Keep behavior stable while reducing coupling.
+- Prefer small, single-purpose units that can be tested in isolation.
+- Keep `main.ts` focused on wiring and state ownership, not implementation detail.
+- Follow Unix-style composability:
+  - each service does one job
+  - services compose through explicit inputs/outputs
+  - orchestration is separate from implementation
 
 ## Current Structure
 
-- `src/main.ts`: bootstrap/composition root plus remaining legacy orchestration.
-- `src/core/`: shared runtime primitives:
-  - `app-orchestrator.ts`: lifecycle wiring for ready/activate/quit hooks.
-  - `action-bus.ts`: typed action dispatch path.
-  - `actions.ts`: canonical app action types.
-  - `module.ts` / `module-registry.ts`: module lifecycle contract.
-  - `services/`: extracted runtime services (IPC, shortcuts, subtitle, overlay, MPV command routing).
-- `src/ipc/`: shared IPC contract + wrappers used by main, preload, and renderer.
-- `src/subtitle/`: staged subtitle pipeline (`normalize` -> `tokenize` -> `merge`).
-- `src/modules/`: feature modules:
-  - `runtime-options`
-  - `jimaku`
-  - `subsync`
-  - `anki`
-  - `texthooker`
-- provider registries:
-  - `src/window-trackers/index.ts`
-  - `src/tokenizers/index.ts`
-  - `src/token-mergers/index.ts`
-  - `src/translators/index.ts`
-  - `src/subsync/engines.ts`
+- `src/main.ts`
+  - Composition root for lifecycle wiring and non-overlay runtime state.
+  - Owns long-lived process state for trackers, runtime flags, and client instances.
+  - Delegates behavior to services.
+- `src/core/services/overlay-manager-service.ts`
+  - Owns overlay/window state (`mainWindow`, `invisibleWindow`, visible/invisible overlay flags).
+  - Provides a narrow state API used by `main.ts` and overlay services.
+- `src/core/services/*`
+  - Stateless or narrowly stateful units for a specific responsibility.
+  - Examples: startup bootstrap, app lifecycle hooks, CLI command handling, IPC registration, overlay visibility, MPV IPC behavior, shortcut registration, subtitle websocket, jimaku/subsync helpers.
+- `src/core/utils/*`
+  - Pure helpers and coercion/config utilities.
+- `src/cli/*`
+  - CLI parsing and help output.
+- `src/config/*`
+  - Config schema/definitions, defaults, validation, and template generation.
+- `src/window-trackers/*`
+  - Backend-specific tracker implementations plus selection index.
+- `src/jimaku/*`, `src/subsync/*`
+  - Domain-specific integration helpers.
 
-## Migration Status
+## Composition Pattern
 
-- Completed:
-  - Action bus wired for CLI, shortcuts, and IPC-triggered commands.
-  - Command/action mapping covered by focused core tests.
-  - Shared IPC channel contract adopted across main/preload/renderer.
-  - Runtime options extracted into module lifecycle.
-  - Provider registries replace hardcoded backend selection.
-  - Subtitle tokenization/merge/enrich flow moved to staged pipeline.
-  - Stage-level subtitle pipeline tests added for deterministic behavior.
-  - Jimaku, Subsync, Anki, and texthooker/websocket flows moduleized.
-- In progress:
-  - Further shrink `src/main.ts` by moving orchestration into dedicated services/orchestrator files.
-  - Continue moduleizing remaining integrations with complex lifecycle coupling.
+Most runtime code follows a dependency-injection pattern:
 
-## Design Rules
+1. Define a service interface in `src/core/services/*`.
+2. Keep core logic in pure or side-effect-bounded functions.
+3. Build runtime deps in `main.ts`; use `*-deps-runtime-service.ts` helpers only when they add real adaptation logic.
+4. Call the service from lifecycle/command wiring points.
 
-- New feature behavior should be added as:
-  - a module (`src/modules/*`) and/or
-  - a provider registration (`src/*/index.ts` registries),
-  instead of editing unrelated branches in `src/main.ts`.
-- New command triggers should dispatch `AppAction` and reuse existing action handlers.
-- New IPC channels should be added only via `src/ipc/contract.ts`.
+This keeps side effects explicit and makes behavior easy to unit-test with fakes.
+
+## Lifecycle Model
+
+- Startup:
+  - `startup-bootstrap-runtime-service` handles initial argv/env/backend setup and decides generate-config flow vs app lifecycle start.
+  - `app-lifecycle-service` handles Electron single-instance + lifecycle event registration.
+  - `startup-lifecycle-hooks-runtime-service` wires app-ready and app-shutdown hooks.
+- Runtime:
+  - CLI/shortcut/IPC events map to service calls.
+  - Overlay and MPV state sync through dedicated services.
+  - Runtime options and mining flows are coordinated via service boundaries.
+- Shutdown:
+  - `app-shutdown-runtime-service` coordinates cleanup ordering (shortcuts, sockets, trackers, integrations).
+
+## Why This Design
+
+- Smaller blast radius: changing one feature usually touches one service.
+- Better testability: most behavior can be tested without Electron windows/mpv.
+- Better reviewability: PRs can be scoped to one subsystem.
+- Backward compatibility: CLI flags and IPC channels can remain stable while internals evolve.
+
+## Extension Rules
+
+- Add behavior to an existing service or a new `src/core/services/*` file, not as ad-hoc logic in `main.ts`.
+- Keep service APIs explicit and narrowly scoped.
+- Prefer additive changes that preserve existing CLI flags and IPC channel behavior.
+- Add/update unit tests for each service extraction or behavior change.
+- For cross-cutting changes, extract-first then refactor internals after parity is verified.

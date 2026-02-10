@@ -53,7 +53,7 @@ For macOS app bundle / signing / permissions details, use `docs/installation.md`
 
 ## Quick Start
 
-1. Copy and customize [`config.example.jsonc`](config.example.jsonc) to `~/.config/SubMiner/config.jsonc`.
+1. Copy and customize [`config.example.jsonc`](config.example.jsonc) to `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` if `XDG_CONFIG_HOME` is unset).
 2. Start mpv with IPC enabled:
 
 ```bash
@@ -100,6 +100,7 @@ Detailed guides live in [`docs/`](docs/README.md):
 - [Usage](docs/usage.md)
 - [Configuration](docs/configuration.md)
 - [Development](docs/development.md)
+- [Architecture](docs/architecture.md) (includes `OverlayManager` state ownership and deps wiring rules)
 
 ### Third-Party Components
 

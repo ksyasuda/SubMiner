@@ -7,8 +7,6 @@ There are two ways to use SubMiner:
 | **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, starts the overlay automatically, and cleans up on exit.                                          |
 | **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control visible and invisible overlay layers. Requires `--input-ipc-server=/tmp/subminer-socket`. |
 
-Jimaku modal shortcut is an overlay shortcut, not an MPV plugin chord: default `Ctrl+Alt+J` via `shortcuts.openJimaku`.
-
 You can use both together—install the plugin for on-demand control, but use `subminer` when you want the streamlined workflow.
 
 `subminer` is implemented as a Bun script and runs directly via shebang (no `bun run` needed), for example: `subminer video.mkv`.
@@ -85,7 +83,7 @@ Notes:
 - Secondary target languages come from `secondarySub.secondarySubLanguages` (defaults to English if unset).
 - `subminer` prefers subtitle tracks from yt-dlp first, then falls back to local `whisper.cpp` (`whisper-cli`) when tracks are missing.
 - Whisper translation fallback currently only supports English secondary targets; non-English secondary targets rely on yt-dlp subtitle availability.
-- Configure defaults in `~/.config/SubMiner/config.jsonc` under `youtubeSubgen` and `secondarySub`, or override mode/tool paths via CLI flags/environment variables.
+- Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtubeSubgen` and `secondarySub`, or override mode/tool paths via CLI flags/environment variables.
 
 ## Keybindings
 
@@ -116,12 +114,6 @@ Notes:
 | `Right-click + drag` | Move subtitle position (on subtitle)               |
 
 These keybindings only work when the overlay window has focus. See [Configuration](/configuration) for customization.
-
-### Overlay Chord Shortcuts
-
-| Chord     | Action                    |
-| --------- | ------------------------- |
-| `y` → `j` | Open Jimaku subtitle menu |
 
 ## How It Works
 

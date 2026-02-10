@@ -1,6 +1,6 @@
 # Configuration
 
-Settings are stored in `~/.config/SubMiner/config.jsonc`
+Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` when `XDG_CONFIG_HOME` is unset). For backward compatibility, SubMiner also reads existing configs from lowercase `subminer` directories.
 
 ### Configuration File
 
