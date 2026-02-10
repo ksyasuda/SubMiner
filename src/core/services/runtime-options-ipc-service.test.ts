@@ -4,7 +4,7 @@ import {
   applyRuntimeOptionResultRuntimeService,
   cycleRuntimeOptionFromIpcRuntimeService,
   setRuntimeOptionFromIpcRuntimeService,
-} from "./runtime-options-runtime-service";
+} from "./runtime-options-ipc-service";
 
 test("applyRuntimeOptionResultRuntimeService emits success OSD message", () => {
   const osd: string[] = [];

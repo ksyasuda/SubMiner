@@ -4,7 +4,7 @@ import { KikuFieldGroupingChoice } from "../../types";
 import {
   createFieldGroupingCallbackRuntimeService,
   sendToVisibleOverlayRuntimeService,
-} from "./overlay-bridge-runtime-service";
+} from "./overlay-bridge-service";
 
 test("sendToVisibleOverlayRuntimeService restores visibility flag when opening hidden overlay modal", () => {
   const sent: unknown[][] = [];

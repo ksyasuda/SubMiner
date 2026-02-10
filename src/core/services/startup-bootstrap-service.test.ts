@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   runStartupBootstrapRuntimeService,
-} from "./startup-bootstrap-runtime-service";
+} from "./startup-service";
 import { CliArgs } from "../../cli/args";
 
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
