@@ -51,14 +51,14 @@ import * as https from "https";
 import * as os from "os";
 import * as fs from "fs";
 import * as crypto from "crypto";
-import * as readline from "readline";
-import * as childProcess from "child_process";
 import WebSocket from "ws";
 import { MecabTokenizer } from "./mecab-tokenizer";
 import { mergeTokens } from "./token-merger";
 import { createWindowTracker, BaseWindowTracker } from "./window-trackers";
 import {
   Config,
+  PartOfSpeech,
+  MergedToken,
   JimakuApiResponse,
   JimakuDownloadResult,
   JimakuEntry,
@@ -75,8 +75,6 @@ import {
   WindowGeometry,
   SecondarySubMode,
   MpvClient,
-  SubsyncConfig,
-  SubsyncMode,
   SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
@@ -94,6 +92,40 @@ import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
 import { AnkiIntegration } from "./anki-integration";
 import { RuntimeOptionsManager } from "./runtime-options";
 import {
+  jimakuFetchJson as jimakuFetchJsonRequest,
+  parseMediaInfo,
+  resolveJimakuApiKey as resolveJimakuApiKeyFromConfig,
+} from "./jimaku/utils";
+import {
+  CommandResult,
+  codecToExtension,
+  fileExists,
+  formatTrackLabel,
+  getSubsyncConfig,
+  getTrackById,
+  hasPathSeparators,
+  MpvTrack,
+  runCommand,
+  SubsyncContext,
+  SubsyncResolvedConfig,
+} from "./subsync/utils";
+import {
+  CliArgs,
+  CliCommandSource,
+  commandNeedsOverlayRuntime,
+  hasExplicitCommand,
+  parseArgs,
+  shouldStartApp,
+} from "./cli/args";
+import { printHelp } from "./cli/help";
+import { generateDefaultConfigFile } from "./core/utils/config-gen";
+import {
+  enforceUnsupportedWaylandMode,
+  forceX11Backend,
+} from "./core/utils/electron-backend";
+import { asBoolean, asFiniteNumber, asString } from "./core/utils/coerce";
+import { resolveKeybindings } from "./core/utils/keybindings";
+import {
   ConfigService,
   DEFAULT_CONFIG,
   DEFAULT_KEYBINDINGS,
@@ -102,7 +134,6 @@ import {
 } from "./config";
 
 if (process.platform === "linux") {
-  // Wayland requires the portal backend for reliable globalShortcut support.
   app.commandLine.appendSwitch("enable-features", "GlobalShortcutsPortal");
 }
 
@@ -122,332 +153,6 @@ function getDefaultSocketPath(): string {
   return "/tmp/subminer-socket";
 }
 
-interface CliArgs {
-  start: boolean;
-  stop: boolean;
-  toggle: boolean;
-  toggleVisibleOverlay: boolean;
-  toggleInvisibleOverlay: boolean;
-  settings: boolean;
-  show: boolean;
-  hide: boolean;
-  showVisibleOverlay: boolean;
-  hideVisibleOverlay: boolean;
-  showInvisibleOverlay: boolean;
-  hideInvisibleOverlay: boolean;
-  copySubtitle: boolean;
-  copySubtitleMultiple: boolean;
-  mineSentence: boolean;
-  mineSentenceMultiple: boolean;
-  updateLastCardFromClipboard: boolean;
-  toggleSecondarySub: boolean;
-  triggerFieldGrouping: boolean;
-  triggerSubsync: boolean;
-  markAudioCard: boolean;
-  openRuntimeOptions: boolean;
-  texthooker: boolean;
-  help: boolean;
-  autoStartOverlay: boolean;
-  generateConfig: boolean;
-  configPath?: string;
-  backupOverwrite: boolean;
-  socketPath?: string;
-  backend?: string;
-  texthookerPort?: number;
-  verbose: boolean;
-  logLevel?: "debug" | "info" | "warn" | "error";
-}
-
-type CliCommandSource = "initial" | "second-instance";
-
-function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = {
-    start: false,
-    stop: false,
-    toggle: false,
-    toggleVisibleOverlay: false,
-    toggleInvisibleOverlay: false,
-    settings: false,
-    show: false,
-    hide: false,
-    showVisibleOverlay: false,
-    hideVisibleOverlay: false,
-    showInvisibleOverlay: false,
-    hideInvisibleOverlay: false,
-    copySubtitle: false,
-    copySubtitleMultiple: false,
-    mineSentence: false,
-    mineSentenceMultiple: false,
-    updateLastCardFromClipboard: false,
-    toggleSecondarySub: false,
-    triggerFieldGrouping: false,
-    triggerSubsync: false,
-    markAudioCard: false,
-    openRuntimeOptions: false,
-    texthooker: false,
-    help: false,
-    autoStartOverlay: false,
-    generateConfig: false,
-    backupOverwrite: false,
-    verbose: false,
-  };
-
-  const readValue = (value?: string): string | undefined => {
-    if (!value) return undefined;
-    if (value.startsWith("--")) return undefined;
-    return value;
-  };
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith("--")) continue;
-
-    if (arg === "--start") args.start = true;
-    else if (arg === "--stop") args.stop = true;
-    else if (arg === "--toggle") args.toggle = true;
-    else if (arg === "--toggle-visible-overlay")
-      args.toggleVisibleOverlay = true;
-    else if (arg === "--toggle-invisible-overlay")
-      args.toggleInvisibleOverlay = true;
-    else if (arg === "--settings" || arg === "--yomitan") args.settings = true;
-    else if (arg === "--show") args.show = true;
-    else if (arg === "--hide") args.hide = true;
-    else if (arg === "--show-visible-overlay") args.showVisibleOverlay = true;
-    else if (arg === "--hide-visible-overlay") args.hideVisibleOverlay = true;
-    else if (arg === "--show-invisible-overlay")
-      args.showInvisibleOverlay = true;
-    else if (arg === "--hide-invisible-overlay")
-      args.hideInvisibleOverlay = true;
-    else if (arg === "--copy-subtitle") args.copySubtitle = true;
-    else if (arg === "--copy-subtitle-multiple") args.copySubtitleMultiple = true;
-    else if (arg === "--mine-sentence") args.mineSentence = true;
-    else if (arg === "--mine-sentence-multiple") args.mineSentenceMultiple = true;
-    else if (arg === "--update-last-card-from-clipboard")
-      args.updateLastCardFromClipboard = true;
-    else if (arg === "--toggle-secondary-sub") args.toggleSecondarySub = true;
-    else if (arg === "--trigger-field-grouping")
-      args.triggerFieldGrouping = true;
-    else if (arg === "--trigger-subsync") args.triggerSubsync = true;
-    else if (arg === "--mark-audio-card") args.markAudioCard = true;
-    else if (arg === "--open-runtime-options") args.openRuntimeOptions = true;
-    else if (arg === "--texthooker") args.texthooker = true;
-    else if (arg === "--auto-start-overlay") args.autoStartOverlay = true;
-    else if (arg === "--generate-config") args.generateConfig = true;
-    else if (arg === "--backup-overwrite") args.backupOverwrite = true;
-    else if (arg === "--help") args.help = true;
-    else if (arg === "--verbose") args.verbose = true;
-    else if (arg.startsWith("--log-level=")) {
-      const value = arg.split("=", 2)[1]?.toLowerCase();
-      if (
-        value === "debug" ||
-        value === "info" ||
-        value === "warn" ||
-        value === "error"
-      ) {
-        args.logLevel = value;
-      }
-    } else if (arg === "--log-level") {
-      const value = readValue(argv[i + 1])?.toLowerCase();
-      if (
-        value === "debug" ||
-        value === "info" ||
-        value === "warn" ||
-        value === "error"
-      ) {
-        args.logLevel = value;
-      }
-    } else if (arg.startsWith("--config-path=")) {
-      const value = arg.split("=", 2)[1];
-      if (value) args.configPath = value;
-    } else if (arg === "--config-path") {
-      const value = readValue(argv[i + 1]);
-      if (value) args.configPath = value;
-    } else if (arg.startsWith("--socket=")) {
-      const value = arg.split("=", 2)[1];
-      if (value) args.socketPath = value;
-    } else if (arg === "--socket") {
-      const value = readValue(argv[i + 1]);
-      if (value) args.socketPath = value;
-    } else if (arg.startsWith("--backend=")) {
-      const value = arg.split("=", 2)[1];
-      if (value) args.backend = value;
-    } else if (arg === "--backend") {
-      const value = readValue(argv[i + 1]);
-      if (value) args.backend = value;
-    } else if (arg.startsWith("--port=")) {
-      const value = Number(arg.split("=", 2)[1]);
-      if (!Number.isNaN(value)) args.texthookerPort = value;
-    } else if (arg === "--port") {
-      const value = Number(readValue(argv[i + 1]));
-      if (!Number.isNaN(value)) args.texthookerPort = value;
-    }
-  }
-
-  return args;
-}
-
-function printHelp(): void {
-  console.log(`
-SubMiner CLI commands:
-  --start               Start MPV IPC connection and overlay control loop
-  --stop                Stop the running overlay app
-  --toggle              Toggle visible subtitle overlay visibility (legacy alias)
-  --toggle-visible-overlay    Toggle visible subtitle overlay visibility
-  --toggle-invisible-overlay  Toggle invisible interactive overlay visibility
-  --settings            Open Yomitan settings window
-  --texthooker          Launch texthooker only (no overlay window)
-  --show                Force show visible overlay (legacy alias)
-  --hide                Force hide visible overlay (legacy alias)
-  --show-visible-overlay       Force show visible subtitle overlay
-  --hide-visible-overlay       Force hide visible subtitle overlay
-  --show-invisible-overlay     Force show invisible interactive overlay
-  --hide-invisible-overlay     Force hide invisible interactive overlay
-  --copy-subtitle              Copy current subtitle text
-  --copy-subtitle-multiple     Start multi-copy mode
-  --mine-sentence              Mine sentence card from current subtitle
-  --mine-sentence-multiple     Start multi-mine sentence mode
-  --update-last-card-from-clipboard  Update last card from clipboard
-  --toggle-secondary-sub       Cycle secondary subtitle mode
-  --trigger-field-grouping     Trigger Kiku field grouping
-  --trigger-subsync            Run subtitle sync
-  --mark-audio-card            Mark last card as audio card
-  --open-runtime-options       Open runtime options palette
-  --auto-start-overlay  Auto-hide mpv subtitles on connect (show overlay)
-  --socket PATH         Override MPV IPC socket/pipe path
-  --backend BACKEND     Override window tracker backend (auto, hyprland, sway, x11, macos)
-  --port PORT           Texthooker server port (default: ${DEFAULT_TEXTHOOKER_PORT})
-  --verbose             Enable debug logging (equivalent to --log-level debug)
-  --log-level LEVEL     Set log level: debug, info, warn, error
-  --generate-config     Generate default config.jsonc from centralized config registry
-  --config-path PATH    Target config path for --generate-config
-  --backup-overwrite    With --generate-config, backup and overwrite existing file
-  --dev                 Run in development mode
-  --debug               Alias for --dev
-  --help                Show this help
-`);
-}
-
-function hasExplicitCommand(args: CliArgs): boolean {
-  return (
-    args.start ||
-    args.stop ||
-    args.toggle ||
-    args.toggleVisibleOverlay ||
-    args.toggleInvisibleOverlay ||
-    args.settings ||
-    args.show ||
-    args.hide ||
-    args.showVisibleOverlay ||
-    args.hideVisibleOverlay ||
-    args.showInvisibleOverlay ||
-    args.hideInvisibleOverlay ||
-    args.copySubtitle ||
-    args.copySubtitleMultiple ||
-    args.mineSentence ||
-    args.mineSentenceMultiple ||
-    args.updateLastCardFromClipboard ||
-    args.toggleSecondarySub ||
-    args.triggerFieldGrouping ||
-    args.triggerSubsync ||
-    args.markAudioCard ||
-    args.openRuntimeOptions ||
-    args.texthooker ||
-    args.generateConfig ||
-    args.help
-  );
-}
-
-function shouldStartApp(args: CliArgs): boolean {
-  if (args.stop && !args.start) return false;
-  if (
-    args.start ||
-    args.toggle ||
-    args.toggleVisibleOverlay ||
-    args.toggleInvisibleOverlay ||
-    args.copySubtitle ||
-    args.copySubtitleMultiple ||
-    args.mineSentence ||
-    args.mineSentenceMultiple ||
-    args.updateLastCardFromClipboard ||
-    args.toggleSecondarySub ||
-    args.triggerFieldGrouping ||
-    args.triggerSubsync ||
-    args.markAudioCard ||
-    args.openRuntimeOptions ||
-    args.texthooker
-  ) {
-    return true;
-  }
-  return false;
-}
-
-function formatBackupTimestamp(date = new Date()): string {
-  const pad = (v: number): string => String(v).padStart(2, "0");
-  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-}
-
-function promptYesNo(question: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    rl.question(question, (answer) => {
-      rl.close();
-      const normalized = answer.trim().toLowerCase();
-      resolve(normalized === "y" || normalized === "yes");
-    });
-  });
-}
-
-async function generateDefaultConfigFile(args: CliArgs): Promise<number> {
-  const targetPath = args.configPath
-    ? path.resolve(args.configPath)
-    : path.join(CONFIG_DIR, "config.jsonc");
-  const template = generateConfigTemplate(DEFAULT_CONFIG);
-
-  if (fs.existsSync(targetPath)) {
-    if (args.backupOverwrite) {
-      const backupPath = `${targetPath}.bak.${formatBackupTimestamp()}`;
-      fs.copyFileSync(targetPath, backupPath);
-      fs.writeFileSync(targetPath, template, "utf-8");
-      console.log(`Backed up existing config to ${backupPath}`);
-      console.log(`Generated config at ${targetPath}`);
-      return 0;
-    }
-
-    if (!process.stdin.isTTY || !process.stdout.isTTY) {
-      console.error(
-        `Config exists at ${targetPath}. Re-run with --backup-overwrite to back up and overwrite.`,
-      );
-      return 1;
-    }
-
-    const confirmed = await promptYesNo(
-      `Config exists at ${targetPath}. Back up and overwrite? [y/N] `,
-    );
-    if (!confirmed) {
-      console.log("Config generation cancelled.");
-      return 0;
-    }
-
-    const backupPath = `${targetPath}.bak.${formatBackupTimestamp()}`;
-    fs.copyFileSync(targetPath, backupPath);
-    fs.writeFileSync(targetPath, template, "utf-8");
-    console.log(`Backed up existing config to ${backupPath}`);
-    console.log(`Generated config at ${targetPath}`);
-    return 0;
-  }
-
-  const parentDir = path.dirname(targetPath);
-  if (!fs.existsSync(parentDir)) {
-    fs.mkdirSync(parentDir, { recursive: true });
-  }
-  fs.writeFileSync(targetPath, template, "utf-8");
-  console.log(`Generated config at ${targetPath}`);
-  return 0;
-}
-
 if (!fs.existsSync(USER_DATA_PATH)) {
   fs.mkdirSync(USER_DATA_PATH, { recursive: true });
 }
@@ -464,6 +169,9 @@ let mainWindow: BrowserWindow | null = null;
 let invisibleWindow: BrowserWindow | null = null;
 let yomitanExt: Extension | null = null;
 let yomitanSettingsWindow: BrowserWindow | null = null;
+let yomitanParserWindow: BrowserWindow | null = null;
+let yomitanParserReadyPromise: Promise<void> | null = null;
+let yomitanParserInitPromise: Promise<boolean> | null = null;
 let mpvClient: MpvIpcClient | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let currentSubText = "";
@@ -503,7 +211,6 @@ let mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics = {
   ...DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
 };
 
-// Shortcut state tracking
 let shortcutsRegistered = false;
 let pendingMultiCopy = false;
 let pendingMultiCopyTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -620,30 +327,6 @@ function shouldBindVisibleOverlayToMpvSubVisibility(): boolean {
   return getResolvedConfig().bind_visible_overlay_to_mpv_sub_visibility;
 }
 
-function commandNeedsOverlayRuntime(args: CliArgs): boolean {
-  return (
-    args.toggle ||
-    args.toggleVisibleOverlay ||
-    args.toggleInvisibleOverlay ||
-    args.show ||
-    args.hide ||
-    args.showVisibleOverlay ||
-    args.hideVisibleOverlay ||
-    args.showInvisibleOverlay ||
-    args.hideInvisibleOverlay ||
-    args.copySubtitle ||
-    args.copySubtitleMultiple ||
-    args.mineSentence ||
-    args.mineSentenceMultiple ||
-    args.updateLastCardFromClipboard ||
-    args.toggleSecondarySub ||
-    args.triggerFieldGrouping ||
-    args.triggerSubsync ||
-    args.markAudioCard ||
-    args.openRuntimeOptions
-  );
-}
-
 function isAutoUpdateEnabledRuntime(): boolean {
   const value = runtimeOptionsManager?.getOptionValue(
     "anki.autoUpdateNewCards",
@@ -677,55 +360,8 @@ function getJimakuMaxEntryResults(): number {
   return DEFAULT_CONFIG.jimaku.maxEntryResults;
 }
 
-function execCommand(
-  command: string,
-): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    childProcess.exec(command, { timeout: 10000 }, (err, stdout, stderr) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      resolve({ stdout, stderr });
-    });
-  });
-}
-
 async function resolveJimakuApiKey(): Promise<string | null> {
-  const config = getJimakuConfig();
-  if (config.apiKey && config.apiKey.trim()) {
-    console.log("[jimaku] API key found in config");
-    return config.apiKey.trim();
-  }
-  if (config.apiKeyCommand && config.apiKeyCommand.trim()) {
-    try {
-      const { stdout } = await execCommand(config.apiKeyCommand);
-      const key = stdout.trim();
-      console.log(
-        `[jimaku] apiKeyCommand result: ${key.length > 0 ? "key obtained" : "empty output"}`,
-      );
-      return key.length > 0 ? key : null;
-    } catch (err) {
-      console.error(
-        "Failed to run jimaku.apiKeyCommand:",
-        (err as Error).message,
-      );
-      return null;
-    }
-  }
-  console.log(
-    "[jimaku] No API key configured (neither apiKey nor apiKeyCommand set)",
-  );
-  return null;
-}
-
-function getRetryAfter(headers: http.IncomingHttpHeaders): number | undefined {
-  const value = headers["x-ratelimit-reset-after"];
-  if (!value) return undefined;
-  const raw = Array.isArray(value) ? value[0] : value;
-  const parsed = Number.parseFloat(raw);
-  if (!Number.isFinite(parsed)) return undefined;
-  return parsed;
+  return resolveJimakuApiKeyFromConfig(getJimakuConfig());
 }
 
 async function jimakuFetchJson<T>(
@@ -744,186 +380,10 @@ async function jimakuFetchJson<T>(
     };
   }
 
-  const baseUrl = getJimakuBaseUrl();
-  const url = new URL(endpoint, baseUrl);
-  for (const [key, value] of Object.entries(query)) {
-    if (value === null || value === undefined) continue;
-    url.searchParams.set(key, String(value));
-  }
-
-  console.log(`[jimaku] GET ${url.toString()}`);
-  const transport = url.protocol === "https:" ? https : http;
-
-  return new Promise((resolve) => {
-    const req = transport.request(
-      url,
-      {
-        method: "GET",
-        headers: {
-          Authorization: apiKey,
-          "User-Agent": "SubMiner",
-        },
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (chunk) => {
-          data += chunk.toString();
-        });
-        res.on("end", () => {
-          const status = res.statusCode || 0;
-          console.log(`[jimaku] Response HTTP ${status} for ${endpoint}`);
-          if (status >= 200 && status < 300) {
-            try {
-              const parsed = JSON.parse(data) as T;
-              resolve({ ok: true, data: parsed });
-            } catch (err) {
-              console.error(`[jimaku] JSON parse error: ${data.slice(0, 200)}`);
-              resolve({
-                ok: false,
-                error: { error: "Failed to parse Jimaku response JSON." },
-              });
-            }
-            return;
-          }
-
-          let errorMessage = `Jimaku API error (HTTP ${status})`;
-          try {
-            const parsed = JSON.parse(data) as { error?: string };
-            if (parsed && parsed.error) {
-              errorMessage = parsed.error;
-            }
-          } catch (err) {
-            // Ignore parse errors.
-          }
-          console.error(`[jimaku] API error: ${errorMessage}`);
-
-          resolve({
-            ok: false,
-            error: {
-              error: errorMessage,
-              code: status || undefined,
-              retryAfter:
-                status === 429 ? getRetryAfter(res.headers) : undefined,
-            },
-          });
-        });
-      },
-    );
-
-    req.on("error", (err) => {
-      console.error(`[jimaku] Network error: ${(err as Error).message}`);
-      resolve({
-        ok: false,
-        error: { error: `Jimaku request failed: ${(err as Error).message}` },
-      });
-    });
-
-    req.end();
+  return jimakuFetchJsonRequest<T>(endpoint, query, {
+    baseUrl: getJimakuBaseUrl(),
+    apiKey,
   });
-}
-
-function matchEpisodeFromName(name: string): {
-  season: number | null;
-  episode: number | null;
-  index: number | null;
-  confidence: "high" | "medium" | "low";
-} {
-  const seasonEpisode = name.match(/S(\d{1,2})E(\d{1,3})/i);
-  if (seasonEpisode && seasonEpisode.index !== undefined) {
-    return {
-      season: Number.parseInt(seasonEpisode[1], 10),
-      episode: Number.parseInt(seasonEpisode[2], 10),
-      index: seasonEpisode.index,
-      confidence: "high",
-    };
-  }
-
-  const alt = name.match(/(\d{1,2})x(\d{1,3})/i);
-  if (alt && alt.index !== undefined) {
-    return {
-      season: Number.parseInt(alt[1], 10),
-      episode: Number.parseInt(alt[2], 10),
-      index: alt.index,
-      confidence: "high",
-    };
-  }
-
-  const epOnly = name.match(/(?:^|[\s._-])E(?:P)?(\d{1,3})(?:\b|[\s._-])/i);
-  if (epOnly && epOnly.index !== undefined) {
-    return {
-      season: null,
-      episode: Number.parseInt(epOnly[1], 10),
-      index: epOnly.index,
-      confidence: "medium",
-    };
-  }
-
-  const numeric = name.match(/(?:^|[-–—]\s*)(\d{1,3})\s*[-–—]/);
-  if (numeric && numeric.index !== undefined) {
-    return {
-      season: null,
-      episode: Number.parseInt(numeric[1], 10),
-      index: numeric.index,
-      confidence: "medium",
-    };
-  }
-
-  return { season: null, episode: null, index: null, confidence: "low" };
-}
-
-function detectSeasonFromDir(mediaPath: string): number | null {
-  const parent = path.basename(path.dirname(mediaPath));
-  const match = parent.match(/(?:Season|S)\s*(\d{1,2})/i);
-  if (!match) return null;
-  const parsed = Number.parseInt(match[1], 10);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function cleanupTitle(value: string): string {
-  return value
-    .replace(/^[\s-–—]+/, "")
-    .replace(/[\s-–—]+$/, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
-  if (!mediaPath) {
-    return {
-      title: "",
-      season: null,
-      episode: null,
-      confidence: "low",
-      filename: "",
-      rawTitle: "",
-    };
-  }
-
-  const filename = path.basename(mediaPath);
-  let name = filename.replace(/\.[^/.]+$/, "");
-  name = name.replace(/\[[^\]]*]/g, " ");
-  name = name.replace(/\(\d{4}\)/g, " ");
-  name = name.replace(/[._]/g, " ");
-  name = name.replace(/[–—]/g, "-");
-  name = name.replace(/\s+/g, " ").trim();
-
-  const parsed = matchEpisodeFromName(name);
-  let titlePart = name;
-  if (parsed.index !== null) {
-    titlePart = name.slice(0, parsed.index);
-  }
-
-  const seasonFromDir = parsed.season ?? detectSeasonFromDir(mediaPath);
-  const title = cleanupTitle(titlePart || name);
-
-  return {
-    title,
-    season: seasonFromDir,
-    episode: parsed.episode,
-    confidence: parsed.confidence,
-    filename,
-    rawTitle: name,
-  };
 }
 
 function getSubtitlePositionFilePath(mediaPath: string): string {
@@ -936,7 +396,6 @@ function normalizeMediaPathForSubtitlePosition(mediaPath: string): string {
   const trimmed = mediaPath.trim();
   if (!trimmed) return trimmed;
 
-  // Keep URL-like targets as-is; local files are normalized to stable absolute paths.
   if (
     /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed) ||
     /^ytsearch:/.test(trimmed)
@@ -1153,47 +612,6 @@ function stopSubtitleWebSocketServer(): void {
   }
 }
 
-interface MpvTrack {
-  id?: number;
-  type?: string;
-  selected?: boolean;
-  external?: boolean;
-  lang?: string;
-  title?: string;
-  codec?: string;
-  "ff-index"?: number;
-  "external-filename"?: string;
-}
-
-interface SubsyncResolvedConfig {
-  defaultMode: SubsyncMode;
-  alassPath: string;
-  ffsubsyncPath: string;
-  ffmpegPath: string;
-}
-
-const DEFAULT_SUBSYNC_EXECUTABLE_PATHS = {
-  alass: "/usr/bin/alass",
-  ffsubsync: "/usr/bin/ffsubsync",
-  ffmpeg: "/usr/bin/ffmpeg",
-} as const;
-
-interface SubsyncContext {
-  videoPath: string;
-  primaryTrack: MpvTrack;
-  secondaryTrack: MpvTrack | null;
-  sourceTracks: MpvTrack[];
-  audioStreamIndex: number | null;
-}
-
-interface CommandResult {
-  ok: boolean;
-  code: number | null;
-  stderr: string;
-  stdout: string;
-  error?: string;
-}
-
 const AUTOSUBSYNC_SPINNER_FRAMES = ["|", "/", "-", "\\"];
 let subsyncInProgress = false;
 
@@ -1220,139 +638,6 @@ interface FileExtractionResult {
   temporary: boolean;
 }
 
-function getSubsyncConfig(
-  config: SubsyncConfig | undefined,
-): SubsyncResolvedConfig {
-  const resolvePath = (value: string | undefined, fallback: string): string => {
-    const trimmed = value?.trim();
-    return trimmed && trimmed.length > 0 ? trimmed : fallback;
-  };
-
-  return {
-    defaultMode: config?.defaultMode ?? DEFAULT_CONFIG.subsync.defaultMode,
-    alassPath: resolvePath(
-      config?.alass_path,
-      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.alass,
-    ),
-    ffsubsyncPath: resolvePath(
-      config?.ffsubsync_path,
-      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffsubsync,
-    ),
-    ffmpegPath: resolvePath(
-      config?.ffmpeg_path,
-      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffmpeg,
-    ),
-  };
-}
-
-function hasPathSeparators(value: string): boolean {
-  return value.includes("/") || value.includes("\\");
-}
-
-function fileExists(pathOrEmpty: string): boolean {
-  if (!pathOrEmpty) return false;
-  try {
-    return fs.existsSync(pathOrEmpty);
-  } catch {
-    return false;
-  }
-}
-
-function formatTrackLabel(track: MpvTrack): string {
-  const trackId = typeof track.id === "number" ? track.id : -1;
-  const source = track.external ? "External" : "Internal";
-  const lang = track.lang || track.title || "unknown";
-  const active = track.selected ? " (active)" : "";
-  return `${source} #${trackId} - ${lang}${active}`;
-}
-
-function getTrackById(
-  tracks: MpvTrack[],
-  trackId: number | null,
-): MpvTrack | null {
-  if (trackId === null) return null;
-  return tracks.find((track) => track.id === trackId) ?? null;
-}
-
-function codecToExtension(codec: string | undefined): string | null {
-  if (!codec) return null;
-  const normalized = codec.toLowerCase();
-  if (normalized === "subrip" || normalized === "srt") return "srt";
-  if (normalized === "ass" || normalized === "ssa") return "ass";
-  return null;
-}
-
-function runCommand(
-  executable: string,
-  args: string[],
-  timeoutMs = 120000,
-): Promise<CommandResult> {
-  return new Promise((resolve) => {
-    const child = childProcess.spawn(executable, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    const timeout = setTimeout(() => {
-      child.kill("SIGKILL");
-    }, timeoutMs);
-
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-    child.on("error", (error: Error) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: false,
-        code: null,
-        stderr,
-        stdout,
-        error: error.message,
-      });
-    });
-    child.on("close", (code: number | null) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: code === 0,
-        code,
-        stderr,
-        stdout,
-      });
-    });
-  });
-}
-
-function loadKeybindings(): Keybinding[] {
-  const config = getResolvedConfig();
-  const userBindings = config.keybindings || [];
-
-  const bindingMap = new Map<string, (string | number)[] | null>();
-
-  for (const binding of DEFAULT_KEYBINDINGS) {
-    bindingMap.set(binding.key, binding.command);
-  }
-
-  for (const binding of userBindings) {
-    if (binding.command === null) {
-      bindingMap.delete(binding.key);
-    } else {
-      bindingMap.set(binding.key, binding.command);
-    }
-  }
-
-  keybindings = [];
-  for (const [key, command] of bindingMap) {
-    if (command !== null) {
-      keybindings.push({ key, command });
-    }
-  }
-
-  return keybindings;
-}
-
 const initialArgs = parseArgs(process.argv);
 if (initialArgs.logLevel) {
   process.env.SUBMINER_LOG_LEVEL = initialArgs.logLevel;
@@ -1360,26 +645,7 @@ if (initialArgs.logLevel) {
   process.env.SUBMINER_LOG_LEVEL = "debug";
 }
 
-function getElectronOzonePlatformHint(): string | null {
-  const hint = process.env.ELECTRON_OZONE_PLATFORM_HINT?.trim().toLowerCase();
-  if (hint) return hint;
-  const ozone = process.env.OZONE_PLATFORM?.trim().toLowerCase();
-  if (ozone) return ozone;
-  return null;
-}
-
-function enforceUnsupportedWaylandMode(args: CliArgs): void {
-  if (process.platform !== "linux") return;
-  if (!shouldStartApp(args)) return;
-  const hint = getElectronOzonePlatformHint();
-  if (hint !== "wayland") return;
-
-  const message =
-    "Unsupported Electron backend: Wayland. Set ELECTRON_OZONE_PLATFORM_HINT=x11 and restart SubMiner.";
-  console.error(message);
-  throw new Error(message);
-}
-
+forceX11Backend(initialArgs);
 enforceUnsupportedWaylandMode(initialArgs);
 
 let mpvSocketPath = initialArgs.socketPath ?? getDefaultSocketPath();
@@ -1389,7 +655,11 @@ const autoStartOverlay = initialArgs.autoStartOverlay;
 const texthookerOnlyMode = initialArgs.texthooker;
 
 if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
-  generateDefaultConfigFile(initialArgs)
+  generateDefaultConfigFile(initialArgs, {
+    configDir: CONFIG_DIR,
+    defaultConfig: DEFAULT_CONFIG,
+    generateTemplate: (config) => generateConfigTemplate(config as never),
+  })
     .then((exitCode) => {
       process.exitCode = exitCode;
       app.quit();
@@ -1409,7 +679,7 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
       handleCliCommand(parseArgs(argv), "second-instance");
     });
     if (initialArgs.help && !shouldStartApp(initialArgs)) {
-      printHelp();
+      printHelp(DEFAULT_TEXTHOOKER_PORT);
       app.quit();
     } else if (!shouldStartApp(initialArgs)) {
       if (initialArgs.stop && !initialArgs.start) {
@@ -1421,7 +691,7 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
     } else {
       app.whenReady().then(async () => {
         loadSubtitlePosition();
-        loadKeybindings();
+        keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
 
         mpvClient = new MpvIpcClient(mpvSocketPath);
 
@@ -1491,6 +761,12 @@ if (initialArgs.generateConfig && !shouldStartApp(initialArgs)) {
         globalShortcut.unregisterAll();
         stopSubtitleWebSocketServer();
         stopTexthookerServer();
+        if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
+          yomitanParserWindow.destroy();
+        }
+        yomitanParserWindow = null;
+        yomitanParserReadyPromise = null;
+        yomitanParserInitPromise = null;
         if (windowTracker) {
           windowTracker.stop();
         }
@@ -1659,48 +935,13 @@ function handleCliCommand(
     }
     console.log(`Texthooker available at http://127.0.0.1:${texthookerPort}`);
   } else if (args.help) {
-    printHelp();
+    printHelp(DEFAULT_TEXTHOOKER_PORT);
     if (!mainWindow) app.quit();
   }
 }
 
 function handleInitialArgs(): void {
   handleCliCommand(initialArgs, "initial");
-}
-
-function asFiniteNumber(
-  value: unknown,
-  fallback: number,
-  min?: number,
-  max?: number,
-): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return fallback;
-  }
-  let next = value;
-  if (typeof min === "number") next = Math.max(min, next);
-  if (typeof max === "number") next = Math.min(max, next);
-  return next;
-}
-
-function asString(value: unknown, fallback: string): string {
-  if (typeof value !== "string") return fallback;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : fallback;
-}
-
-function asBoolean(value: unknown, fallback: boolean): boolean {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "yes" || normalized === "true" || normalized === "1") {
-      return true;
-    }
-    if (normalized === "no" || normalized === "false" || normalized === "0") {
-      return false;
-    }
-  }
-  return fallback;
 }
 
 function updateMpvSubtitleRenderMetrics(
@@ -2512,10 +1753,6 @@ class MpvIpcClient implements MpvClient {
 }
 
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
-  if (!text || !mecabTokenizer) {
-    return { text, tokens: null };
-  }
-
   const displayText = text
     .replace(/\r\n/g, "\n")
     .replace(/\\N/g, "\n")
@@ -2531,6 +1768,15 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
     .replace(/\s+/g, " ")
     .trim();
 
+  const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText);
+  if (yomitanTokens && yomitanTokens.length > 0) {
+    return { text: displayText, tokens: yomitanTokens };
+  }
+
+  if (!mecabTokenizer) {
+    return { text: displayText, tokens: null };
+  }
+
   try {
     const rawTokens = await mecabTokenizer.tokenize(tokenizeText);
 
@@ -2543,6 +1789,250 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
   }
 
   return { text: displayText, tokens: null };
+}
+
+interface YomitanParseHeadword {
+  term?: unknown;
+}
+
+interface YomitanParseSegment {
+  text?: unknown;
+  reading?: unknown;
+  headwords?: unknown;
+}
+
+interface YomitanParseResultItem {
+  source?: unknown;
+  index?: unknown;
+  content?: unknown;
+}
+
+function extractYomitanHeadword(segment: YomitanParseSegment): string {
+  const headwords = segment.headwords;
+  if (!Array.isArray(headwords) || headwords.length === 0) {
+    return "";
+  }
+
+  const firstGroup = headwords[0];
+  if (!Array.isArray(firstGroup) || firstGroup.length === 0) {
+    return "";
+  }
+
+  const firstHeadword = firstGroup[0] as YomitanParseHeadword;
+  return typeof firstHeadword?.term === "string" ? firstHeadword.term : "";
+}
+
+function mapYomitanParseResultsToMergedTokens(
+  parseResults: unknown,
+): MergedToken[] | null {
+  if (!Array.isArray(parseResults) || parseResults.length === 0) {
+    return null;
+  }
+
+  const scanningItems = parseResults.filter((item) => {
+    const resultItem = item as YomitanParseResultItem;
+    return (
+      resultItem &&
+      resultItem.source === "scanning-parser" &&
+      Array.isArray(resultItem.content)
+    );
+  }) as YomitanParseResultItem[];
+
+  if (scanningItems.length === 0) {
+    return null;
+  }
+
+  const primaryItem =
+    scanningItems.find((item) => item.index === 0) || scanningItems[0];
+  const content = primaryItem.content;
+  if (!Array.isArray(content)) {
+    return null;
+  }
+
+  const tokens: MergedToken[] = [];
+  let charOffset = 0;
+
+  for (const line of content) {
+    if (!Array.isArray(line)) {
+      continue;
+    }
+
+    let surface = "";
+    let reading = "";
+    let headword = "";
+
+    for (const rawSegment of line) {
+      const segment = rawSegment as YomitanParseSegment;
+      if (!segment || typeof segment !== "object") {
+        continue;
+      }
+
+      const segmentText = segment.text;
+      if (typeof segmentText !== "string" || segmentText.length === 0) {
+        continue;
+      }
+
+      surface += segmentText;
+
+      if (typeof segment.reading === "string") {
+        reading += segment.reading;
+      }
+
+      if (!headword) {
+        headword = extractYomitanHeadword(segment);
+      }
+    }
+
+    if (!surface) {
+      continue;
+    }
+
+    const start = charOffset;
+    const end = start + surface.length;
+    charOffset = end;
+
+    tokens.push({
+      surface,
+      reading,
+      headword: headword || surface,
+      startPos: start,
+      endPos: end,
+      partOfSpeech: PartOfSpeech.other,
+      isMerged: true,
+    });
+  }
+
+  return tokens.length > 0 ? tokens : null;
+}
+
+async function ensureYomitanParserWindow(): Promise<boolean> {
+  if (!yomitanExt) {
+    return false;
+  }
+
+  if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
+    return true;
+  }
+
+  if (yomitanParserInitPromise) {
+    return yomitanParserInitPromise;
+  }
+
+  yomitanParserInitPromise = (async () => {
+    const parserWindow = new BrowserWindow({
+      show: false,
+      width: 800,
+      height: 600,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        session: session.defaultSession,
+      },
+    });
+    yomitanParserWindow = parserWindow;
+
+    yomitanParserReadyPromise = new Promise((resolve, reject) => {
+      parserWindow.webContents.once("did-finish-load", () => resolve());
+      parserWindow.webContents.once(
+        "did-fail-load",
+        (_event, _errorCode, errorDescription) => {
+          reject(new Error(errorDescription));
+        },
+      );
+    });
+
+    parserWindow.on("closed", () => {
+      if (yomitanParserWindow === parserWindow) {
+        yomitanParserWindow = null;
+        yomitanParserReadyPromise = null;
+      }
+    });
+
+    try {
+      await parserWindow.loadURL(`chrome-extension://${yomitanExt.id}/search.html`);
+      if (yomitanParserReadyPromise) {
+        await yomitanParserReadyPromise;
+      }
+      return true;
+    } catch (err) {
+      console.error(
+        "Failed to initialize Yomitan parser window:",
+        (err as Error).message,
+      );
+      if (!parserWindow.isDestroyed()) {
+        parserWindow.destroy();
+      }
+      if (yomitanParserWindow === parserWindow) {
+        yomitanParserWindow = null;
+        yomitanParserReadyPromise = null;
+      }
+      return false;
+    } finally {
+      yomitanParserInitPromise = null;
+    }
+  })();
+
+  return yomitanParserInitPromise;
+}
+
+async function parseWithYomitanInternalParser(
+  text: string,
+): Promise<MergedToken[] | null> {
+  if (!text || !yomitanExt) {
+    return null;
+  }
+
+  const isReady = await ensureYomitanParserWindow();
+  if (!isReady || !yomitanParserWindow || yomitanParserWindow.isDestroyed()) {
+    return null;
+  }
+
+  const script = `
+    (async () => {
+      const invoke = (action, params) =>
+        new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ action, params }, (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!response || typeof response !== "object") {
+              reject(new Error("Invalid response from Yomitan backend"));
+              return;
+            }
+            if (response.error) {
+              reject(new Error(response.error.message || "Yomitan backend error"));
+              return;
+            }
+            resolve(response.result);
+          });
+        });
+
+      const optionsFull = await invoke("optionsGetFull", undefined);
+      const profileIndex = optionsFull.profileCurrent;
+      const scanLength =
+        optionsFull.profiles?.[profileIndex]?.options?.scanning?.length ?? 40;
+
+      return await invoke("parseText", {
+        text: ${JSON.stringify(text)},
+        optionsContext: { index: profileIndex },
+        scanLength,
+        useInternalParser: true,
+        useMecabParser: false
+      });
+    })();
+  `;
+
+  try {
+    const parseResults = await yomitanParserWindow.webContents.executeJavaScript(
+      script,
+      true,
+    );
+    return mapYomitanParseResultsToMergedTokens(parseResults);
+  } catch (err) {
+    console.error("Yomitan parser request failed:", (err as Error).message);
+    return null;
+  }
 }
 
 function updateOverlayBounds(geometry: WindowGeometry): void {
@@ -2650,6 +2140,13 @@ async function loadYomitanExtension(): Promise<Extension | null> {
 
   extPath = ensureExtensionCopy(extPath);
   console.log("Using extension path:", extPath);
+
+  if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
+    yomitanParserWindow.destroy();
+  }
+  yomitanParserWindow = null;
+  yomitanParserReadyPromise = null;
+  yomitanParserInitPromise = null;
 
   try {
     const extensions = session.defaultSession.extensions;

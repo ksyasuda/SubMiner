@@ -5,7 +5,19 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc && cp src/renderer/index.html src/renderer/style.css dist/renderer/",
+    "check:main-lines": "bash scripts/check-main-lines.sh",
+    "check:main-lines:baseline": "bash scripts/check-main-lines.sh 5300",
+    "check:main-lines:gate1": "bash scripts/check-main-lines.sh 4500",
+    "check:main-lines:gate2": "bash scripts/check-main-lines.sh 3500",
+    "check:main-lines:gate3": "bash scripts/check-main-lines.sh 2500",
+    "check:main-lines:gate4": "bash scripts/check-main-lines.sh 1800",
+    "check:main-lines:gate5": "bash scripts/check-main-lines.sh 1500",
+    "docs:dev": "vitepress dev docs --host 0.0.0.0 --port 5173 --strictPort",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs --host 0.0.0.0 --port 4173 --strictPort",
     "test:config": "pnpm run build && node --test dist/config/config.test.js",
+    "test:core": "pnpm run build && node --test dist/cli/args.test.js dist/cli/help.test.js",
+    "test:subtitle": "pnpm run build && node --test dist/subtitle/stages.test.js dist/subtitle/pipeline.test.js",
     "generate:config-example": "pnpm run build && node dist/generate-config-example.js",
     "start": "pnpm run build && electron . --start",
     "dev": "pnpm run build && electron . --start --dev",
@@ -31,14 +43,16 @@
   "dependencies": {
     "axios": "^1.13.5",
     "jsonc-parser": "^3.3.1",
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "@catppuccin/vitepress": "^0.1.2"
   },
   "devDependencies": {
     "@types/node": "^25.2.2",
     "@types/ws": "^8.18.1",
     "electron": "^37.10.3",
     "electron-builder": "^26.7.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitepress": "^1.6.3"
   },
   "build": {
     "appId": "com.sudacode.SubMiner",
