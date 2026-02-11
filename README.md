@@ -11,7 +11,7 @@ An all-in-one sentence mining overlay for MPV with AnkiConnect and dictionary (Y
 - Yomitan integration for fast, on-screen lookups
 - Japanese text tokenization using MeCab with smart word boundary detection
 - Integrated texthooker-ui server for use with Yomitan
-- Integrated websocket server (if [mpv_websocket](https://github.com/kuroahna/mpv_websocket) is not found) to send lines to the texthooker
+- Integrated WebSocket server (if [mpv_websocket](https://github.com/kuroahna/mpv_websocket) is not found) to send lines to the texthooker
 - AnkiConnect integration for automatic card creation with media (audio/image)
 - Invisible subtitle position edit mode (`Ctrl/Cmd+Shift+P`, arrow keys to adjust, `Enter`/`Ctrl+S` save, `Esc` cancel)
 
@@ -32,29 +32,31 @@ Optional but recommended: `yt-dlp`, `fzf`, `rofi`, `chafa`, `ffmpegthumbnailer`.
 
 ### Linux (AppImage)
 
+Download the latest release from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):
+
 ```bash
-wget https://github.com/sudacode/subminer/releases/download/v1.0.0/subminer-1.0.0.AppImage -O ~/.local/bin/subminer.AppImage
-chmod +x ~/.local/bin/subminer.AppImage
-wget https://github.com/sudacode/subminer/releases/download/v1.0.0/subminer -O ~/.local/bin/subminer
+wget https://github.com/ksyasuda/SubMiner/releases/download/v0.1.0/SubMiner-0.1.0.AppImage -O ~/.local/bin/SubMiner.AppImage
+chmod +x ~/.local/bin/SubMiner.AppImage
+wget https://github.com/ksyasuda/SubMiner/releases/download/v0.1.0/subminer -O ~/.local/bin/subminer
 chmod +x ~/.local/bin/subminer
 ```
 
-`subminer` uses a [Bun](https://bun.com) shebang, so `bun` must be on `PATH`.
+The `subminer` wrapper uses a [Bun](https://bun.sh) shebang, so `bun` must be on `PATH`.
 
-### From source
+### From Source
 
 ```bash
-git clone https://github.com/sudacode/subminer.git
-cd subminer
+git clone https://github.com/ksyasuda/SubMiner.git
+cd SubMiner
 make build
 make install
 ```
 
-For macOS app bundle / signing / permissions details, use `docs/installation.md`.
+For macOS builds, signing, and platform-specific details, see [docs/installation.md](docs/installation.md).
 
 ## Quick Start
 
-1. Copy and customize [`config.example.jsonc`](config.example.jsonc) to `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` if `XDG_CONFIG_HOME` is unset).
+1. Copy and customize [`config.example.jsonc`](config.example.jsonc) to `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`).
 2. Start mpv with IPC enabled:
 
 ```bash
@@ -86,6 +88,7 @@ subminer -T video.mkv             # disable texthooker
 ```bash
 cp plugin/subminer.lua ~/.config/mpv/scripts/
 cp plugin/subminer.conf ~/.config/mpv/script-opts/
+# or: make install-plugin
 ```
 
 Requires mpv IPC: `--input-ipc-server=/tmp/subminer-socket`
@@ -97,18 +100,22 @@ Overlay Jimaku shortcut default: `Ctrl+Alt+J` (`shortcuts.openJimaku`).
 
 Detailed guides live in [`docs/`](docs/README.md):
 
-- [Installation](docs/installation.md)
-- [Usage](docs/usage.md)
-- [Configuration](docs/configuration.md)
-- [Development](docs/development.md)
-- [Architecture](docs/architecture.md) (includes `OverlayManager` state ownership and deps wiring rules)
+- [Installation](docs/installation.md) — Platform requirements, AppImage/macOS/source installs, mpv plugin
+- [Usage](docs/usage.md) — Script vs plugin workflow, keybindings, YouTube playback
+- [Mining Workflow](docs/mining-workflow.md) — End-to-end mining guide, overlay layers, card creation
+- [Configuration](docs/configuration.md) — Full config reference and option details
+- [Anki Integration](docs/anki-integration.md) — AnkiConnect setup, field mapping, media generation
+- [MPV Plugin](docs/mpv-plugin.md) — Chord keybindings, subminer.conf options, script messages
+- [Troubleshooting](docs/troubleshooting.md) — Common issues and solutions
+- [Development](docs/development.md) — Building, testing, contributing
+- [Architecture](docs/architecture.md) — Service-oriented design, composition model
 
 ### Third-Party Components
 
 This project includes the following third-party components:
 
-- **[Yomitan](https://github.com/yomidevs/yomitan)** - GPL-3.0
-- **[texthooker-ui](https://github.com/Renji-XD/texthooker-ui)** - MIT
+- **[Yomitan](https://github.com/yomidevs/yomitan)** — GPL-3.0
+- **[texthooker-ui](https://github.com/Renji-XD/texthooker-ui)** — MIT
 
 ### Acknowledgments
 

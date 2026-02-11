@@ -1,7 +1,6 @@
 import DefaultTheme from 'vitepress/theme';
 import { useRoute } from 'vitepress';
 import { nextTick, onMounted, watch } from 'vue';
-import mermaid from 'mermaid';
 import '@catppuccin/vitepress/theme/macchiato/mauve.css';
 import './mermaid-modal.css';
 
@@ -107,7 +106,8 @@ function attachMermaidInteractions(nodes: HTMLElement[]) {
 
 async function getMermaid() {
   if (!mermaidLoader) {
-    mermaidLoader = Promise.resolve().then(() => {
+    mermaidLoader = import('mermaid').then((module) => {
+      const mermaid = module.default;
       mermaid.initialize({
         startOnLoad: false,
         securityLevel: 'loose',

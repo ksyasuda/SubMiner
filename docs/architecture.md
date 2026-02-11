@@ -1,6 +1,6 @@
 # Architecture
 
-SubMiner uses a service-oriented Electron main-process architecture where `src/main.ts` acts as the composition root and behavior lives in small runtime services under `src/core/services`.
+SubMiner uses a service-oriented Electron main-process architecture where `src/main.ts` (~1,400 lines) acts as the composition root and behavior lives in focused services under `src/core/services/` (~35 service files).
 
 ## Goals
 
@@ -12,54 +12,102 @@ SubMiner uses a service-oriented Electron main-process architecture where `src/m
   - services compose through explicit inputs/outputs
   - orchestration is separate from implementation
 
-## Current Structure
+## Project Structure
 
-- `src/main.ts`
-  - Composition root for lifecycle wiring and non-overlay runtime state.
-  - Owns long-lived process state for trackers, runtime flags, and client instances.
-  - Delegates behavior to services.
-- `src/core/services/overlay-manager-service.ts`
-  - Owns overlay/window state (`mainWindow`, `invisibleWindow`, visible/invisible overlay flags).
-  - Provides a narrow state API used by `main.ts` and overlay services.
-- `src/core/services/*`
-  - Stateless or narrowly stateful units for a specific responsibility.
-  - Examples: startup bootstrap/ready flow, app lifecycle wiring, CLI command handling, IPC registration, overlay visibility, MPV IPC behavior, shortcut registration, subtitle websocket, jimaku/subsync helpers.
-- `src/core/utils/*`
-  - Pure helpers and coercion/config utilities.
-- `src/cli/*`
-  - CLI parsing and help output.
-- `src/config/*`
-  - Config schema/definitions, defaults, validation, and template generation.
-- `src/window-trackers/*`
-  - Backend-specific tracker implementations plus selection index.
-- `src/jimaku/*`, `src/subsync/*`
-  - Domain-specific integration helpers.
+```text
+src/
+  main.ts                  # Composition root — lifecycle wiring and state ownership
+  preload.ts               # Electron preload bridge
+  types.ts                 # Shared type definitions
+  core/
+    services/              # ~35 focused service modules (see below)
+    utils/                 # Pure helpers and coercion/config utilities
+  cli/                     # CLI parsing and help output
+  config/                  # Config schema, defaults, validation, template generation
+  renderer/                # Overlay renderer (HTML/CSS/JS)
+  window-trackers/         # Backend-specific tracker implementations (Hyprland, X11, macOS)
+  jimaku/                  # Jimaku API integration helpers
+  subsync/                 # Subtitle sync (alass/ffsubsync) helpers
+  subtitle/                # Subtitle processing utilities
+  tokenizers/              # Tokenizer implementations
+  token-mergers/           # Token merge strategies
+  translators/             # AI translation providers
+```
+
+### Service Layer (`src/core/services/`)
+
+- **Startup** — `startup-service`, `app-lifecycle-service`
+- **Overlay** — `overlay-manager-service`, `overlay-window-service`, `overlay-visibility-service`, `overlay-bridge-service`, `overlay-runtime-init-service`
+- **Shortcuts** — `shortcut-service`, `overlay-shortcut-service`, `overlay-shortcut-handler`, `shortcut-fallback-service`, `numeric-shortcut-service`
+- **MPV** — `mpv-service`, `mpv-control-service`, `mpv-render-metrics-service`
+- **IPC** — `ipc-service`, `ipc-command-service`, `runtime-options-ipc-service`
+- **Mining** — `mining-service`, `field-grouping-service`, `field-grouping-overlay-service`, `anki-jimaku-service`, `anki-jimaku-ipc-service`
+- **Subtitles** — `subtitle-ws-service`, `subtitle-position-service`, `secondary-subtitle-service`, `tokenizer-service`
+- **Integrations** — `jimaku-service`, `subsync-service`, `subsync-runner-service`, `texthooker-service`, `yomitan-extension-loader-service`, `yomitan-settings-service`
+- **Config** — `runtime-config-service`, `cli-command-service`
 
 ## Flow Diagram
 
 ```mermaid
 flowchart TD
-  Main["src/main.ts\n(composition root)"] --> Startup["runStartupBootstrapRuntimeService"]
-  Main --> Lifecycle["startAppLifecycleService"]
-  Lifecycle --> AppReady["runAppReadyRuntimeService"]
+  classDef root fill:#1f2937,stroke:#111827,color:#f9fafb,stroke-width:1.5px;
+  classDef orchestration fill:#334155,stroke:#0f172a,color:#e2e8f0;
+  classDef domain fill:#1d4ed8,stroke:#1e3a8a,color:#dbeafe;
+  classDef boundary fill:#065f46,stroke:#064e3b,color:#d1fae5;
 
-  Main --> OverlayMgr["overlay-manager-service"]
-  Main --> Ipc["ipc-service / ipc-command-service"]
-  Main --> Mpv["mpv-service / mpv-control-service"]
-  Main --> Shortcuts["shortcut-service / overlay-shortcut-service"]
-  Main --> RuntimeOpts["runtime-options-ipc-service"]
-  Main --> Subtitle["subtitle-ws-service / secondary-subtitle-service"]
+  subgraph Entry["Entrypoint"]
+    Main["src/main.ts\ncomposition root"]
+  end
+  class Main root;
 
-  Main --> Config["src/config/*"]
-  Main --> Cli["src/cli/*"]
-  Main --> Trackers["src/window-trackers/*"]
-  Main --> Integrations["src/jimaku/* + src/subsync/*"]
+  subgraph Boot["Startup Orchestration"]
+    Startup["startup-service"]
+    Lifecycle["app-lifecycle-service"]
+    AppReady["app-ready flow"]
+  end
+  class Startup,Lifecycle,AppReady orchestration;
 
-  OverlayMgr --> OverlayWindow["overlay-window-service"]
-  OverlayMgr --> OverlayVisibility["overlay-visibility-service"]
-  Mpv --> Subtitle
-  Ipc --> RuntimeOpts
-  Shortcuts --> OverlayMgr
+  subgraph Runtime["Runtime Domains"]
+    OverlayMgr["overlay-manager-service"]
+    OverlayWindow["overlay-window-service"]
+    OverlayVisibility["overlay-visibility-service"]
+    Ipc["ipc-service\nipc-command-service"]
+    RuntimeOpts["runtime-options-ipc-service"]
+    Mpv["mpv-service\nmpv-control-service"]
+    Subtitle["subtitle-ws-service\nsecondary-subtitle-service"]
+    Shortcuts["shortcut-service\noverlay-shortcut-service"]
+  end
+  class OverlayMgr,OverlayWindow,OverlayVisibility,Ipc,RuntimeOpts,Mpv,Subtitle,Shortcuts domain;
+
+  subgraph Adapters["External Boundaries"]
+    Config["src/config/*"]
+    Cli["src/cli/*"]
+    Trackers["src/window-trackers/*"]
+    Integrations["src/jimaku/*\nsrc/subsync/*"]
+  end
+  class Config,Cli,Trackers,Integrations boundary;
+
+  Main -->|bootstraps| Startup
+  Main -->|registers lifecycle hooks| Lifecycle
+  Lifecycle -->|triggers| AppReady
+
+  Main -->|wires| OverlayMgr
+  Main -->|wires| Ipc
+  Main -->|wires| Mpv
+  Main -->|wires| Shortcuts
+  Main -->|wires| RuntimeOpts
+  Main -->|wires| Subtitle
+
+  Main -->|loads| Config
+  Main -->|parses| Cli
+  Main -->|delegates backend state| Trackers
+  Main -->|calls integrations| Integrations
+
+  OverlayMgr -->|creates window| OverlayWindow
+  OverlayMgr -->|applies visibility policy| OverlayVisibility
+  Ipc -->|updates| RuntimeOpts
+  Mpv -->|feeds timing + subtitle context| Subtitle
+  Shortcuts -->|drives overlay actions| OverlayMgr
 ```
 
 ## Composition Pattern
@@ -75,36 +123,54 @@ This keeps side effects explicit and makes behavior easy to unit-test with fakes
 
 ## Lifecycle Model
 
-- Startup:
-  - `runStartupBootstrapRuntimeService` handles initial argv/env/backend setup and decides generate-config flow vs app lifecycle start.
+- **Startup:**
+  - `startup-service` handles initial argv/env/backend setup and decides generate-config flow vs app lifecycle start.
   - `app-lifecycle-service` handles Electron single-instance + lifecycle event registration.
-  - `runAppReadyRuntimeService` performs ready-time initialization (config load, websocket policy, tokenizer/tracker setup, overlay auto-init decisions).
-- Runtime:
+  - App-ready flow performs ready-time initialization (config load, websocket policy, tokenizer/tracker setup, overlay auto-init decisions).
+- **Runtime:**
   - CLI/shortcut/IPC events map to service calls.
   - Overlay and MPV state sync through dedicated services.
   - Runtime options and mining flows are coordinated via service boundaries.
-- Shutdown:
-  - `startAppLifecycleService` registers cleanup hooks (`will-quit`) while teardown behavior stays delegated to focused services from `main.ts`.
+- **Shutdown:**
+  - `app-lifecycle-service` registers cleanup hooks (`will-quit`) while teardown behavior stays delegated to focused services from `main.ts`.
 
 ```mermaid
-flowchart LR
-  Args["CLI args"] --> Bootstrap["runStartupBootstrapRuntimeService"]
-  Bootstrap -->|generate-config| Exit["exit"]
-  Bootstrap -->|normal start| AppLifecycle["startAppLifecycleService"]
-  AppLifecycle --> Ready["runAppReadyRuntimeService"]
-  Ready --> Runtime["IPC + shortcuts + mpv events"]
-  Runtime --> Overlay["overlay visibility + mining actions"]
-  Runtime --> Subsync["subsync + secondary sub flows"]
-  Runtime --> WillQuit["app will-quit"]
-  WillQuit --> Cleanup["service-level cleanup + unregister"]
+flowchart TD
+  classDef phase fill:#334155,stroke:#0f172a,color:#e2e8f0;
+  classDef decision fill:#7c2d12,stroke:#431407,color:#ffedd5;
+  classDef runtime fill:#0369a1,stroke:#0c4a6e,color:#e0f2fe;
+  classDef shutdown fill:#14532d,stroke:#052e16,color:#dcfce7;
+
+  Args["CLI args / env"] --> Startup["startup-service"]
+  class Args,Startup phase;
+
+  Startup --> Decision{"generate-config?"}
+  class Decision decision;
+
+  Decision -->|yes| WriteConfig["write config + exit"]
+  Decision -->|no| Lifecycle["app-lifecycle-service"]
+  class WriteConfig,Lifecycle phase;
+
+  Lifecycle --> Ready["app-ready flow\n(config + websocket policy + tracker/tokenizer init)"]
+  class Ready phase;
+
+  Ready --> RuntimeBus["event loop:\nIPC + shortcuts + mpv events"]
+  RuntimeBus --> Overlay["overlay visibility + mining actions"]
+  RuntimeBus --> Subtitle["subtitle + secondary-subtitle processing"]
+  RuntimeBus --> Subsync["subsync / jimaku integration actions"]
+  class RuntimeBus,Overlay,Subtitle,Subsync runtime;
+
+  RuntimeBus --> WillQuit["Electron will-quit"]
+  WillQuit --> Cleanup["service-level teardown\n(unregister hooks, close resources)"]
+  class WillQuit,Cleanup shutdown;
 ```
 
 ## Why This Design
 
-- Smaller blast radius: changing one feature usually touches one service.
-- Better testability: most behavior can be tested without Electron windows/mpv.
-- Better reviewability: PRs can be scoped to one subsystem.
-- Backward compatibility: CLI flags and IPC channels can remain stable while internals evolve.
+- **Smaller blast radius:** changing one feature usually touches one service.
+- **Better testability:** most behavior can be tested without Electron windows/mpv.
+- **Better reviewability:** PRs can be scoped to one subsystem.
+- **Backward compatibility:** CLI flags and IPC channels can remain stable while internals evolve.
 
 ## Extension Rules
 
