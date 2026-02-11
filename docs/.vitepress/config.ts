@@ -2,7 +2,7 @@ const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')[1];
 const base = process.env.GITHUB_ACTIONS && repositoryName ? `/${repositoryName}/` : '/';
 
 export default {
-  title: 'SubMiner',
+  title: 'SubMiner Docs',
   description: 'Documentation for SubMiner',
   base,
   appearance: 'dark',
@@ -15,7 +15,11 @@ export default {
     },
   },
   themeConfig: {
-    logo: '/assets/SubMiner.png',
+    logo: {
+      light: '/assets/SubMiner.png',
+      dark: '/assets/SubMiner.png',
+    },
+    siteTitle: 'SubMiner Docs',
     nav: [
       { text: 'Docs', link: '/' },
       { text: 'Installation', link: '/installation' },
