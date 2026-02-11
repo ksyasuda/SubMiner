@@ -1,3 +1,4 @@
 [submodule "vendor/texthooker-ui"]
 	path = vendor/texthooker-ui
 	url = https://github.com/ksyasuda/texthooker-ui.git
+	branch = subminer
