@@ -46,6 +46,14 @@ const DEFAULT_YOUTUBE_SUBGEN_OUT_DIR = path.join(
   "youtube-subs",
 );
 const DEFAULT_YOUTUBE_YTDL_FORMAT = "bestvideo*+bestaudio/best";
+const DEFAULT_MPV_SUBMINER_ARGS = [
+  "--sub-auto=fuzzy",
+  "--sub-file-paths=.;subs;subtitles",
+  "--sid=auto",
+  "--secondary-sid=auto",
+  "--secondary-sub-visibility=no",
+  "--slang=ja,jpn,en,eng",
+] as const;
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 type YoutubeSubgenMode = "automatic" | "preprocess" | "off";
@@ -1723,6 +1731,7 @@ function startMpv(
 
   const mpvArgs: string[] = [];
   if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
+  mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
 
   if (targetKind === "url" && isYoutubeTarget(target)) {
     const subtitleLangs = uniqueNormalizedLangCodes([
