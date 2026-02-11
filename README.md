@@ -13,6 +13,7 @@ An all-in-one sentence mining overlay for MPV with AnkiConnect and dictionary (Y
 - Integrated texthooker-ui server for use with Yomitan
 - Integrated websocket server (if [mpv_websocket](https://github.com/kuroahna/mpv_websocket) is not found) to send lines to the texthooker
 - AnkiConnect integration for automatic card creation with media (audio/image)
+- Invisible subtitle position edit mode (`Ctrl/Cmd+Shift+P`, arrow keys to adjust, `Enter`/`Ctrl+S` save, `Esc` cancel)
 
 ## Demo
 

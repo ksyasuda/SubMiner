@@ -389,6 +389,10 @@ export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     description: [
       "Startup behavior for the invisible interactive subtitle mining layer.",
     ],
+    notes: [
+      "Invisible subtitle position edit mode: Ctrl/Cmd+Shift+P to toggle, arrow keys to move, Enter or Ctrl/Cmd+S to save, Esc to cancel.",
+      "This edit-mode shortcut is fixed and is not currently configurable.",
+    ],
     key: "invisibleOverlay",
   },
   {
