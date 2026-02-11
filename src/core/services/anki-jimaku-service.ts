@@ -59,8 +59,9 @@ export interface AnkiJimakuIpcRuntimeOptions {
 
 export function registerAnkiJimakuIpcRuntimeService(
   options: AnkiJimakuIpcRuntimeOptions,
+  registerHandlers: typeof registerAnkiJimakuIpcHandlers = registerAnkiJimakuIpcHandlers,
 ): void {
-  registerAnkiJimakuIpcHandlers({
+  registerHandlers({
     setAnkiConnectEnabled: (enabled) => {
       options.patchAnkiConnectEnabled(enabled);
       const config = options.getResolvedConfig();

@@ -80,7 +80,20 @@ export function loadSubtitlePositionService(options: {
       typeof parsed.yPercent === "number" &&
       Number.isFinite(parsed.yPercent)
     ) {
-      return { yPercent: parsed.yPercent };
+      const position: SubtitlePosition = { yPercent: parsed.yPercent };
+      if (
+        typeof parsed.invisibleOffsetXPx === "number" &&
+        Number.isFinite(parsed.invisibleOffsetXPx)
+      ) {
+        position.invisibleOffsetXPx = parsed.invisibleOffsetXPx;
+      }
+      if (
+        typeof parsed.invisibleOffsetYPx === "number" &&
+        Number.isFinite(parsed.invisibleOffsetYPx)
+      ) {
+        position.invisibleOffsetYPx = parsed.invisibleOffsetYPx;
+      }
+      return position;
     }
     return options.fallbackPosition;
   } catch (err) {

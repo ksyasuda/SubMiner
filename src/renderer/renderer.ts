@@ -64,6 +64,8 @@ interface Keybinding {
 
 interface SubtitlePosition {
   yPercent: number;
+  invisibleOffsetXPx?: number;
+  invisibleOffsetYPx?: number;
 }
 
 type SecondarySubMode = "hidden" | "visible" | "hover";
@@ -342,12 +344,16 @@ const isMacOSPlatform =
 // Linux passthrough forwarding is not reliable for this overlay; keep pointer
 // routing local so hover lookup, drag-reposition, and key handling remain usable.
 const shouldToggleMouseIgnore = !isLinuxPlatform;
+const INVISIBLE_POSITION_EDIT_TOGGLE_CODE = "KeyP";
+const INVISIBLE_POSITION_STEP_PX = 1;
+const INVISIBLE_POSITION_STEP_FAST_PX = 4;
 
 let isOverSubtitle = false;
 let isDragging = false;
 let dragStartY = 0;
 let startYPercent = 0;
 let currentYPercent: number | null = null;
+let persistedSubtitlePosition: SubtitlePosition = { yPercent: 10 };
 let jimakuModalOpen = false;
 let jimakuEntries: JimakuEntry[] = [];
 let jimakuFiles: JimakuFileEntry[] = [];
@@ -393,6 +399,15 @@ const DEFAULT_MPV_SUBTITLE_RENDER_METRICS: MpvSubtitleRenderMetrics = {
 let mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics = {
   ...DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
 };
+let invisiblePositionEditMode = false;
+let invisiblePositionEditStartX = 0;
+let invisiblePositionEditStartY = 0;
+let invisibleSubtitleOffsetXPx = 0;
+let invisibleSubtitleOffsetYPx = 0;
+let invisibleLayoutBaseLeftPx = 0;
+let invisibleLayoutBaseBottomPx: number | null = null;
+let invisibleLayoutBaseTopPx: number | null = null;
+let invisiblePositionEditHud: HTMLDivElement | null = null;
 let currentInvisibleSubtitleLineCount = 1;
 let lastHoverSelectionKey = "";
 let lastHoverSelectionNode: Text | null = null;
@@ -554,7 +569,8 @@ function handleMouseLeave(): void {
     !jimakuModalOpen &&
     !kikuModalOpen &&
     !runtimeOptionsModalOpen &&
-    !subsyncModalOpen
+    !subsyncModalOpen &&
+    !invisiblePositionEditMode
   ) {
     overlay.classList.remove("interactive");
     if (shouldToggleMouseIgnore) {
@@ -591,10 +607,52 @@ function applyYPercent(yPercent: number): void {
   subtitleContainer.style.marginBottom = `${marginBottom}px`;
 }
 
+function updatePersistedSubtitlePosition(position: SubtitlePosition | null): void {
+  const nextYPercent =
+    position && typeof position.yPercent === "number" && Number.isFinite(position.yPercent)
+      ? position.yPercent
+      : persistedSubtitlePosition.yPercent;
+  const nextXOffset =
+    position && typeof position.invisibleOffsetXPx === "number" && Number.isFinite(position.invisibleOffsetXPx)
+      ? position.invisibleOffsetXPx
+      : 0;
+  const nextYOffset =
+    position && typeof position.invisibleOffsetYPx === "number" && Number.isFinite(position.invisibleOffsetYPx)
+      ? position.invisibleOffsetYPx
+      : 0;
+  persistedSubtitlePosition = {
+    yPercent: nextYPercent,
+    invisibleOffsetXPx: nextXOffset,
+    invisibleOffsetYPx: nextYOffset,
+  };
+}
+
+function persistSubtitlePositionPatch(patch: Partial<SubtitlePosition>): void {
+  const nextPosition: SubtitlePosition = {
+    yPercent:
+      typeof patch.yPercent === "number" && Number.isFinite(patch.yPercent)
+        ? patch.yPercent
+        : persistedSubtitlePosition.yPercent,
+    invisibleOffsetXPx:
+      typeof patch.invisibleOffsetXPx === "number" &&
+      Number.isFinite(patch.invisibleOffsetXPx)
+        ? patch.invisibleOffsetXPx
+        : persistedSubtitlePosition.invisibleOffsetXPx ?? 0,
+    invisibleOffsetYPx:
+      typeof patch.invisibleOffsetYPx === "number" &&
+      Number.isFinite(patch.invisibleOffsetYPx)
+        ? patch.invisibleOffsetYPx
+        : persistedSubtitlePosition.invisibleOffsetYPx ?? 0,
+  };
+  persistedSubtitlePosition = nextPosition;
+  window.electronAPI.saveSubtitlePosition(nextPosition);
+}
+
 function applyStoredSubtitlePosition(
   position: SubtitlePosition | null,
   source: string,
 ): void {
+  updatePersistedSubtitlePosition(position);
   if (position && position.yPercent !== undefined) {
     applyYPercent(position.yPercent);
     console.log(
@@ -610,6 +668,66 @@ function applyStoredSubtitlePosition(
     applyYPercent(defaultYPercent);
     console.log("Applied default subtitle position from", source);
   }
+}
+
+function applyInvisibleSubtitleOffsetPosition(): void {
+  const nextLeft = invisibleLayoutBaseLeftPx + invisibleSubtitleOffsetXPx;
+  subtitleContainer.style.left = `${nextLeft}px`;
+
+  if (invisibleLayoutBaseBottomPx !== null) {
+    subtitleContainer.style.bottom = `${Math.max(0, invisibleLayoutBaseBottomPx + invisibleSubtitleOffsetYPx)}px`;
+    subtitleContainer.style.top = "";
+    return;
+  }
+
+  if (invisibleLayoutBaseTopPx !== null) {
+    subtitleContainer.style.top = `${Math.max(0, invisibleLayoutBaseTopPx - invisibleSubtitleOffsetYPx)}px`;
+    subtitleContainer.style.bottom = "";
+  }
+}
+
+function updateInvisiblePositionEditHud(): void {
+  if (!invisiblePositionEditHud) return;
+  invisiblePositionEditHud.textContent =
+    `Position Edit  Ctrl/Cmd+Shift+P toggle  Arrow keys move  Enter/Ctrl+S save  Esc cancel  x:${Math.round(invisibleSubtitleOffsetXPx)} y:${Math.round(invisibleSubtitleOffsetYPx)}`;
+}
+
+function setInvisiblePositionEditMode(enabled: boolean): void {
+  if (!isInvisibleLayer) return;
+  if (invisiblePositionEditMode === enabled) return;
+  invisiblePositionEditMode = enabled;
+  document.body.classList.toggle("invisible-position-edit", enabled);
+  if (enabled) {
+    invisiblePositionEditStartX = invisibleSubtitleOffsetXPx;
+    invisiblePositionEditStartY = invisibleSubtitleOffsetYPx;
+    overlay.classList.add("interactive");
+    if (shouldToggleMouseIgnore) {
+      window.electronAPI.setIgnoreMouseEvents(false);
+    }
+  } else if (!isOverSubtitle && !isAnySettingsModalOpen()) {
+    overlay.classList.remove("interactive");
+    if (shouldToggleMouseIgnore) {
+      window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
+    }
+  }
+  updateInvisiblePositionEditHud();
+}
+
+function applyInvisibleStoredSubtitlePosition(
+  position: SubtitlePosition | null,
+  source: string,
+): void {
+  updatePersistedSubtitlePosition(position);
+  invisibleSubtitleOffsetXPx = persistedSubtitlePosition.invisibleOffsetXPx ?? 0;
+  invisibleSubtitleOffsetYPx = persistedSubtitlePosition.invisibleOffsetYPx ?? 0;
+  applyInvisibleSubtitleOffsetPosition();
+  console.log(
+    "[invisible-overlay] Applied subtitle offset from",
+    source,
+    `${invisibleSubtitleOffsetXPx}px`,
+    `${invisibleSubtitleOffsetYPx}px`,
+  );
+  updateInvisiblePositionEditHud();
 }
 
 function applySubtitleFontSize(fontSize: number): void {
@@ -944,6 +1062,15 @@ function applyInvisibleSubtitleLayoutFromMpvMetrics(
       }
     }
   }
+  invisibleLayoutBaseLeftPx = parseFloat(subtitleContainer.style.left) || 0;
+  invisibleLayoutBaseBottomPx = Number.isFinite(parseFloat(subtitleContainer.style.bottom))
+    ? parseFloat(subtitleContainer.style.bottom)
+    : null;
+  invisibleLayoutBaseTopPx = Number.isFinite(parseFloat(subtitleContainer.style.top))
+    ? parseFloat(subtitleContainer.style.top)
+    : null;
+  applyInvisibleSubtitleOffsetPosition();
+  updateInvisiblePositionEditHud();
   console.log("[invisible-overlay] Applied mpv subtitle render metrics from", source);
 }
 
@@ -1860,7 +1987,7 @@ function setupDragging(): void {
       subtitleContainer.style.cursor = "";
 
       const yPercent = getCurrentYPercent();
-      window.electronAPI.saveSubtitlePosition({ yPercent });
+      persistSubtitlePositionPatch({ yPercent });
     }
   });
 
@@ -2017,6 +2144,91 @@ function keyEventToString(e: KeyboardEvent): string {
   return parts.join("+");
 }
 
+function isInvisiblePositionToggleShortcut(e: KeyboardEvent): boolean {
+  return (
+    e.code === INVISIBLE_POSITION_EDIT_TOGGLE_CODE &&
+    !e.altKey &&
+    e.shiftKey &&
+    (e.ctrlKey || e.metaKey)
+  );
+}
+
+function saveInvisiblePositionEdit(): void {
+  persistSubtitlePositionPatch({
+    invisibleOffsetXPx: invisibleSubtitleOffsetXPx,
+    invisibleOffsetYPx: invisibleSubtitleOffsetYPx,
+  });
+  setInvisiblePositionEditMode(false);
+}
+
+function cancelInvisiblePositionEdit(): void {
+  invisibleSubtitleOffsetXPx = invisiblePositionEditStartX;
+  invisibleSubtitleOffsetYPx = invisiblePositionEditStartY;
+  applyInvisibleSubtitleOffsetPosition();
+  setInvisiblePositionEditMode(false);
+}
+
+function handleInvisiblePositionEditKeydown(e: KeyboardEvent): boolean {
+  if (!isInvisibleLayer) return false;
+
+  if (isInvisiblePositionToggleShortcut(e)) {
+    e.preventDefault();
+    if (invisiblePositionEditMode) {
+      cancelInvisiblePositionEdit();
+    } else {
+      setInvisiblePositionEditMode(true);
+    }
+    return true;
+  }
+
+  if (!invisiblePositionEditMode) return false;
+
+  const step = e.shiftKey ? INVISIBLE_POSITION_STEP_FAST_PX : INVISIBLE_POSITION_STEP_PX;
+
+  if (e.key === "Escape") {
+    e.preventDefault();
+    cancelInvisiblePositionEdit();
+    return true;
+  }
+
+  if (e.key === "Enter" || ((e.ctrlKey || e.metaKey) && e.code === "KeyS")) {
+    e.preventDefault();
+    saveInvisiblePositionEdit();
+    return true;
+  }
+
+  if (
+    e.key === "ArrowUp" ||
+    e.key === "ArrowDown" ||
+    e.key === "ArrowLeft" ||
+    e.key === "ArrowRight" ||
+    e.key === "h" ||
+    e.key === "j" ||
+    e.key === "k" ||
+    e.key === "l" ||
+    e.key === "H" ||
+    e.key === "J" ||
+    e.key === "K" ||
+    e.key === "L"
+  ) {
+    e.preventDefault();
+    if (e.key === "ArrowUp" || e.key === "k" || e.key === "K") {
+      invisibleSubtitleOffsetYPx += step;
+    } else if (e.key === "ArrowDown" || e.key === "j" || e.key === "J") {
+      invisibleSubtitleOffsetYPx -= step;
+    } else if (e.key === "ArrowLeft" || e.key === "h" || e.key === "H") {
+      invisibleSubtitleOffsetXPx -= step;
+    } else if (e.key === "ArrowRight" || e.key === "l" || e.key === "L") {
+      invisibleSubtitleOffsetXPx += step;
+    }
+    applyInvisibleSubtitleOffsetPosition();
+    updateInvisiblePositionEditHud();
+    return true;
+  }
+
+  return true;
+}
+
 let keybindingsMap = new Map<string, (string | number)[]>();
 
 type ChordAction =
@@ -2073,6 +2285,7 @@ async function setupMpvInputForwarding(): Promise<void> {
   document.addEventListener("keydown", (e: KeyboardEvent) => {
     const yomitanPopup = document.querySelector('iframe[id^="yomitan-popup"]');
     if (yomitanPopup) return;
+    if (handleInvisiblePositionEditKeydown(e)) return;
 
     if (runtimeOptionsModalOpen) {
       handleRuntimeOptionsKeydown(e);
@@ -2200,6 +2413,16 @@ function setupSelectionObserver(): void {
       subtitleRoot.classList.remove("has-selection");
     }
   });
+}
+
+function setupInvisiblePositionEditHud(): void {
+  if (!isInvisibleLayer) return;
+  const hud = document.createElement("div");
+  hud.id = "invisiblePositionEditHud";
+  hud.className = "invisible-position-edit-hud";
+  overlay.appendChild(hud);
+  invisiblePositionEditHud = hud;
+  updateInvisiblePositionEditHud();
 }
 
 function setupYomitanObserver(): void {
@@ -2340,13 +2563,15 @@ async function init(): Promise<void> {
     renderSubtitle(data);
   });
 
-  if (!isInvisibleLayer) {
-    window.electronAPI.onSubtitlePosition(
-      (position: SubtitlePosition | null) => {
+  window.electronAPI.onSubtitlePosition(
+    (position: SubtitlePosition | null) => {
+      if (isInvisibleLayer) {
+        applyInvisibleStoredSubtitlePosition(position, "media-change");
+      } else {
         applyStoredSubtitlePosition(position, "media-change");
-      },
-    );
-  }
+      }
+    },
+  );
 
   if (isInvisibleLayer) {
     window.electronAPI.onMpvSubtitleRenderMetrics(
@@ -2380,6 +2605,7 @@ async function init(): Promise<void> {
   hoverTarget.addEventListener("mouseenter", handleMouseEnter);
   hoverTarget.addEventListener("mouseleave", handleMouseLeave);
   setupInvisibleHoverSelection();
+  setupInvisiblePositionEditHud();
 
   secondarySubContainer.addEventListener("mouseenter", handleMouseEnter);
   secondarySubContainer.addEventListener("mouseleave", handleMouseLeave);
@@ -2503,6 +2729,8 @@ async function init(): Promise<void> {
   setupResizeHandler();
 
   if (isInvisibleLayer) {
+    const position = await window.electronAPI.getSubtitlePosition();
+    applyInvisibleStoredSubtitlePosition(position, "startup");
     const metrics = await window.electronAPI.getMpvSubtitleRenderMetrics();
     applyInvisibleSubtitleLayoutFromMpvMetrics(metrics, "startup");
   } else {

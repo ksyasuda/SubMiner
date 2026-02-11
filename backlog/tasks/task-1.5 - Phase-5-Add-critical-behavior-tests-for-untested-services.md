@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-10 18:46'
-updated_date: '2026-02-10 19:36'
+updated_date: '2026-02-11 03:35'
 labels: []
 dependencies:
   - TASK-1.4
@@ -16,6 +16,7 @@ references:
   - src/core/services/tokenizer-service.ts
   - src/core/services/cli-command-service.ts
 parent_task_id: TASK-1
+ordinal: 4000
 ---
 
 ## Description
