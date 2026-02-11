@@ -24,8 +24,8 @@ export default {
       { text: 'Docs', link: '/' },
       { text: 'Installation', link: '/installation' },
       { text: 'Usage', link: '/usage' },
+      { text: 'Mining', link: '/mining-workflow' },
       { text: 'Configuration', link: '/configuration' },
-      { text: 'Development', link: '/development' },
       { text: 'Architecture', link: '/architecture' },
     ],
     sidebar: [
@@ -35,12 +35,21 @@ export default {
           { text: 'Overview', link: '/' },
           { text: 'Installation', link: '/installation' },
           { text: 'Usage', link: '/usage' },
+          { text: 'Mining Workflow', link: '/mining-workflow' },
         ],
       },
       {
         text: 'Reference',
         items: [
           { text: 'Configuration', link: '/configuration' },
+          { text: 'Anki Integration', link: '/anki-integration' },
+          { text: 'MPV Plugin', link: '/mpv-plugin' },
+          { text: 'Troubleshooting', link: '/troubleshooting' },
+        ],
+      },
+      {
+        text: 'Development',
+        items: [
           { text: 'Development', link: '/development' },
           { text: 'Architecture', link: '/architecture' },
         ],

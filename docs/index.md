@@ -16,14 +16,14 @@ hero:
       text: Installation
       link: /installation
     - theme: alt
+      text: Mining Workflow
+      link: /mining-workflow
+    - theme: alt
       text: Configuration
       link: /configuration
     - theme: alt
-      text: Development
-      link: /development
-    - theme: alt
-      text: Architecture
-      link: /architecture
+      text: Troubleshooting
+      link: /troubleshooting
 
 features:
   - title: End-to-end workflow
@@ -33,11 +33,3 @@ features:
   - title: Contributor docs
     details: Build, test, and package SubMiner with the development notes in this docs set.
 ---
-
-<!-- ## Documentation Sections
-
-- [Installation](/installation)
-- [Usage](/usage)
-- [Configuration](/configuration)
-- [Development](/development)
-- [Architecture](/architecture) -->

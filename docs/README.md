@@ -1,37 +1,23 @@
 # Documentation
 
-Use this directory for detailed SubMiner documentation.
+SubMiner documentation is built with [VitePress](https://vitepress.dev/).
 
 ## Local Docs Site
 
-Run the VitePress docs site locally:
-
 ```bash
-pnpm run docs:dev
+make docs-dev     # Dev server at http://localhost:5173
+make docs         # Build static output
+make docs-preview # Preview built site at http://localhost:4173
 ```
 
-Build static docs output:
+## Pages
 
-```bash
-pnpm run docs:build
-```
-
-- [Installation](/installation)
-  - Platform requirements
-  - AppImage / macOS / source installs
-  - mpv plugin setup
-- [Usage](/usage)
-  - Script vs plugin workflow
-  - Running SubMiner with mpv
-  - Keybindings and runtime behavior
-- [Configuration](/configuration)
-  - Full config file reference and option details
-- [Development](/development)
-  - Contributor notes
-  - Architecture and extension rules
-  - Environment variables
-  - License and acknowledgments
-- [Architecture](/architecture)
-  - Service-oriented runtime structure
-  - Composition and lifecycle model
-  - Extension design rules
+- [Installation](/installation) — Platform requirements, AppImage/macOS/source installs, mpv plugin
+- [Usage](/usage) — Script vs plugin workflow, keybindings, YouTube playback
+- [Mining Workflow](/mining-workflow) — End-to-end sentence mining guide, overlay layers, card creation
+- [Configuration](/configuration) — Full config file reference and option details
+- [Anki Integration](/anki-integration) — AnkiConnect setup, field mapping, media generation, field grouping
+- [MPV Plugin](/mpv-plugin) — Chord keybindings, subminer.conf options, script messages
+- [Troubleshooting](/troubleshooting) — Common issues and solutions by category
+- [Development](/development) — Building, testing, contributing, environment variables
+- [Architecture](/architecture) — Service-oriented design, composition model, extension rules
