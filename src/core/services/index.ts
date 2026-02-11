@@ -2,7 +2,7 @@ export { TexthookerService } from "./texthooker-service";
 export { hasMpvWebsocketPlugin, SubtitleWebSocketService } from "./subtitle-ws-service";
 export { registerGlobalShortcutsService } from "./shortcut-service";
 export { createIpcDepsRuntimeService, registerIpcHandlersService } from "./ipc-service";
-export { isGlobalShortcutRegisteredSafe, shortcutMatchesInputForLocalFallback } from "./shortcut-fallback-service";
+export { shortcutMatchesInputForLocalFallback } from "./shortcut-fallback-service";
 export {
   refreshOverlayShortcutsRuntimeService,
   registerOverlayShortcutsService,

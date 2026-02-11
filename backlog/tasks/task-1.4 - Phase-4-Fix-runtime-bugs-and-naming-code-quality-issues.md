@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-10 18:46'
-updated_date: '2026-02-10 19:50'
+updated_date: '2026-02-11 03:35'
 labels: []
 dependencies:
   - TASK-1.3
@@ -15,6 +15,7 @@ references:
   - src/core/services/overlay-visibility-service.ts
   - src/core/services/tokenizer-deps-runtime-service.ts
 parent_task_id: TASK-1
+ordinal: 2000
 ---
 
 ## Description

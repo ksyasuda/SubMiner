@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-10 18:46'
-updated_date: '2026-02-10 18:56'
+updated_date: '2026-02-11 03:35'
 labels: []
 dependencies: []
 references:
@@ -13,6 +13,7 @@ references:
   - src/main.ts
   - src/core/services/index.ts
 parent_task_id: TASK-1
+ordinal: 11000
 ---
 
 ## Description

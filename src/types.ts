@@ -60,6 +60,8 @@ export interface WindowGeometry {
 
 export interface SubtitlePosition {
   yPercent: number;
+  invisibleOffsetXPx?: number;
+  invisibleOffsetYPx?: number;
 }
 
 export interface SubtitleStyle {
