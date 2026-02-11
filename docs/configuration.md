@@ -278,6 +278,13 @@ SubMiner includes a second subtitle mining layer that can be visually invisible 
 2. `"visible"`: always shown on startup.
 3. `"hidden"`: always hidden on startup.
 
+Invisible subtitle positioning can be adjusted directly in the invisible layer:
+
+- `Ctrl/Cmd+Shift+P` toggles position edit mode.
+- Use arrow keys to move the invisible subtitle text.
+- Press `Enter` or `Ctrl/Cmd+S` to save, or `Esc` to cancel.
+- This edit-mode shortcut is fixed (not currently configurable in `shortcuts`/`keybindings`).
+
 
 ### Jimaku
 

@@ -112,6 +112,10 @@ Notes:
 | `Ctrl+W`             | Quit mpv                                           |
 | `Right-click`        | Toggle MPV pause (outside subtitle area)           |
 | `Right-click + drag` | Move subtitle position (on subtitle)               |
+| `Ctrl/Cmd+Shift+P`   | Toggle invisible subtitle position edit mode       |
+| `Arrow keys`         | Move invisible subtitles while edit mode is active |
+| `Enter` / `Ctrl+S`   | Save invisible subtitle position in edit mode      |
+| `Esc`                | Cancel invisible subtitle position edit mode       |
 
 These keybindings only work when the overlay window has focus. See [Configuration](/configuration) for customization.
 
