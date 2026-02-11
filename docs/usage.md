@@ -31,22 +31,32 @@ subminer -p gpu-hq video.mkv      # Override mpv profile
 subminer --yt-subgen-mode preprocess --whisper-bin /path/to/whisper-cli --whisper-model /path/to/model.bin https://youtu.be/...  # Pre-generate subtitle tracks before playback
 
 # Direct AppImage control
-subminer.AppImage --start --texthooker   # Start overlay with texthooker
-subminer.AppImage --texthooker           # Launch texthooker only (no overlay window)
-subminer.AppImage --stop                  # Stop overlay
-subminer.AppImage --start --toggle        # Start MPV IPC + toggle visibility
-subminer.AppImage --start --toggle-invisible-overlay  # Start MPV IPC + toggle invisible layer
-subminer.AppImage --show-visible-overlay              # Force show visible overlay
-subminer.AppImage --hide-visible-overlay              # Force hide visible overlay
-subminer.AppImage --show-invisible-overlay            # Force show invisible overlay
-subminer.AppImage --hide-invisible-overlay            # Force hide invisible overlay
-subminer.AppImage --settings              # Open Yomitan settings
-subminer.AppImage --help                  # Show all options
+SubMiner.AppImage --start --texthooker   # Start overlay with texthooker
+SubMiner.AppImage --texthooker           # Launch texthooker only (no overlay window)
+SubMiner.AppImage --stop                  # Stop overlay
+SubMiner.AppImage --start --toggle        # Start MPV IPC + toggle visibility
+SubMiner.AppImage --start --toggle-invisible-overlay  # Start MPV IPC + toggle invisible layer
+SubMiner.AppImage --show-visible-overlay              # Force show visible overlay
+SubMiner.AppImage --hide-visible-overlay              # Force hide visible overlay
+SubMiner.AppImage --show-invisible-overlay            # Force show invisible overlay
+SubMiner.AppImage --hide-invisible-overlay            # Force hide invisible overlay
+SubMiner.AppImage --settings              # Open Yomitan settings
+SubMiner.AppImage --help                  # Show all options
 ```
 
 ### MPV Profile Example (mpv.conf)
 
-Add a profile to `~/.config/mpv/mpv.conf`; `subminer` now launches mpv with `--profile=subminer` by default (or override with `subminer -p <profile> ...`):
+`subminer` passes the following MPV options directly on launch by default:
+
+- `--input-ipc-server=/tmp/subminer-socket` (or your configured socket path)
+- `--slang=ja,jpn,en,eng`
+- `--sub-auto=fuzzy`
+- `--sub-file-paths=.;subs;subtitles`
+- `--sid=auto`
+- `--secondary-sid=auto`
+- `--secondary-sub-visibility=no`
+
+You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency when launching `mpv` manually or from other tools. `subminer` launches with `--profile=subminer` by default (or override with `subminer -p <profile> ...`):
 
 ```ini
 [subminer]

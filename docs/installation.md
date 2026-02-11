@@ -1,4 +1,6 @@
-# Requirements
+# Installation
+
+## Requirements
 
 ### Linux
 
@@ -25,23 +27,21 @@
 - yt-dlp (recommended for reliable YouTube playback/subtitles in mpv)
 - bun (required to run the `subminer` wrapper script from source/local installs)
 
-## Installation
-
 ### From AppImage (Recommended)
 
-Download the latest AppImage from GitHub Releases:
+Download the latest AppImage from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):
 
 ```bash
 # Download and install AppImage
-wget https://github.com/sudacode/subminer/releases/download/v1.0.0/subminer-1.0.0.AppImage -O ~/.local/bin/subminer.AppImage
-chmod +x ~/.local/bin/subminer.AppImage
+wget https://github.com/ksyasuda/SubMiner/releases/download/v0.1.0/SubMiner-0.1.0.AppImage -O ~/.local/bin/SubMiner.AppImage
+chmod +x ~/.local/bin/SubMiner.AppImage
 
 # Download subminer wrapper script
-wget https://github.com/sudacode/subminer/releases/download/v1.0.0/subminer -O ~/.local/bin/subminer
+wget https://github.com/ksyasuda/SubMiner/releases/download/v0.1.0/subminer -O ~/.local/bin/subminer
 chmod +x ~/.local/bin/subminer
 ```
 
-Note: the `subminer` wrapper uses a Bun shebang (`#!/usr/bin/env bun`), so `bun` must be installed and available on `PATH`.
+Note: the `subminer` wrapper uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`.
 
 ### macOS Installation
 
@@ -57,8 +57,8 @@ brew install mpv mecab mecab-ipadic
 Build from source:
 
 ```bash
-git clone https://github.com/sudacode/subminer.git
-cd subminer
+git clone https://github.com/ksyasuda/SubMiner.git
+cd SubMiner
 pnpm install
 cd vendor/texthooker-ui && pnpm install && pnpm build && cd ../..
 pnpm run build:mac
@@ -100,8 +100,8 @@ Set these GitHub Actions secrets before creating a release tag:
 ### From Source
 
 ```bash
-git clone https://github.com/sudacode/subminer.git
-cd subminer
+git clone https://github.com/ksyasuda/SubMiner.git
+cd SubMiner
 make build
 
 # Install platform artifacts
@@ -227,8 +227,8 @@ The plugin auto-detects the binary location, searching:
 - `C:\Program Files\subminer\subminer.exe`
 - `C:\Program Files (x86)\subminer\subminer.exe`
 - `C:\subminer\subminer.exe`
-- `~/.local/bin/subminer.AppImage`
-- `/opt/subminer/subminer.AppImage`
+- `~/.local/bin/SubMiner.AppImage`
+- `/opt/SubMiner/SubMiner.AppImage`
 - `/usr/local/bin/subminer`
 - `/usr/bin/subminer`
 

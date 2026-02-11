@@ -2,16 +2,16 @@
 
 Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` when `XDG_CONFIG_HOME` is unset). For backward compatibility, SubMiner also reads existing configs from lowercase `subminer` directories.
 
-### Configuration File
+## Configuration File
 
 See [config.example.jsonc](/config.example.jsonc) for a comprehensive example configuration file with all available options, default values, and detailed comments. Only include the options you want to customize in your config file.
 
 Generate a fresh default config from the centralized config registry:
 
 ```bash
-subminer.AppImage --generate-config
-subminer.AppImage --generate-config --config-path /tmp/subminer.jsonc
-subminer.AppImage --generate-config --backup-overwrite
+SubMiner.AppImage --generate-config
+SubMiner.AppImage --generate-config --config-path /tmp/subminer.jsonc
+SubMiner.AppImage --generate-config --backup-overwrite
 ```
 
 - `--generate-config` writes a default JSONC config template.
@@ -21,7 +21,6 @@ subminer.AppImage --generate-config --backup-overwrite
 - `make generate-config` builds and runs the same default-config generator via local Electron.
 
 Invalid config values are handled with warn-and-fallback behavior: SubMiner logs the bad key/value and continues with the default for that option.
-
 
 ### Configuration Options Overview
 
@@ -42,7 +41,6 @@ The configuration file includes several main sections:
 - [**Texthooker**](#texthooker) - Control browser opening behavior
 - [**WebSocket Server**](#websocket-server) - Built-in subtitle broadcasting server
 - [**YouTube Subtitle Generation**](#youtube-subtitle-generation) - Launcher defaults for yt-dlp + local whisper fallback
-
 
 ### AnkiConnect
 
@@ -170,8 +168,6 @@ Kiku extends Lapis with **field grouping** — when a duplicate card is detected
 </video>
 
 <a :href="'/assets/kiku-integration.webm'" target="_blank" rel="noreferrer">Open demo in a new tab</a>
-
-
 | Mode       | Behavior                                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `auto`     | Automatically merges the new card's content into the original; duplicate deletion is controlled by `deleteDuplicateInAuto` |
@@ -211,7 +207,6 @@ To copy multiple lines (current + previous):
 
 These shortcuts are only active when the overlay window is visible. They are automatically disabled when the overlay is hidden to avoid interfering with normal system clipboard operations.
 
-
 ### Auto-Start Overlay
 
 Control whether the overlay automatically becomes visible when it connects to mpv:
@@ -226,7 +221,7 @@ Control whether the overlay automatically becomes visible when it connects to mp
 | -------------------- | --------------- | ------------------------------------------------------ |
 | `auto_start_overlay` | `true`, `false` | Auto-show overlay on mpv connection (default: `false`) |
 
-The mpv plugin now controls startup per layer via `auto_start_visible_overlay` and `auto_start_invisible_overlay` in `subminer.conf` (`platform-default` for invisible means hidden on Linux, visible on macOS/Windows).
+The mpv plugin controls startup per layer via `auto_start_visible_overlay` and `auto_start_invisible_overlay` in `subminer.conf` (`platform-default` for invisible means hidden on Linux, visible on macOS/Windows).
 
 ### Visible Overlay Subtitle Binding
 
@@ -241,7 +236,6 @@ Control whether toggling the visible overlay also toggles MPV subtitle visibilit
 | Option                                        | Values          | Description |
 | --------------------------------------------- | --------------- | ----------- |
 | `bind_visible_overlay_to_mpv_sub_visibility` | `true`, `false` | When `true` (default), visible overlay hides MPV primary/secondary subtitles and restores them when hidden. When `false`, visible overlay toggles do not change MPV subtitle visibility. |
-
 
 ### Auto Subtitle Sync
 
@@ -268,7 +262,6 @@ Sync the active subtitle track using `alass` (preferred) or `ffsubsync`:
 Default trigger is `Ctrl+Alt+S` via `shortcuts.triggerSubsync`.
 Customize it there, or set it to `null` to disable.
 
-
 ### Invisible Overlay
 
 SubMiner includes a second subtitle mining layer that can be visually invisible while still interactive for Yomitan lookups.
@@ -284,7 +277,6 @@ Invisible subtitle positioning can be adjusted directly in the invisible layer:
 - Use arrow keys to move the invisible subtitle text.
 - Press `Enter` or `Ctrl/Cmd+S` to save, or `Esc` to cancel.
 - This edit-mode shortcut is fixed (not currently configurable in `shortcuts`/`keybindings`).
-
 
 ### Jimaku
 
@@ -305,7 +297,6 @@ Configure Jimaku API access and defaults:
 Jimaku is rate limited; if you hit a limit, SubMiner will surface the retry delay from the API response.
 
 Set `openBrowser` to `false` to only print the URL without opening a browser.
-
 
 ### Keybindings
 
@@ -357,7 +348,6 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 
 **See `config.example.jsonc`** for more keybinding examples and configuration options.
 
-
 ### Runtime Option Palette
 
 Use the runtime options palette to toggle settings live while SubMiner is running. These changes are session-only and reset on restart.
@@ -375,7 +365,6 @@ Palette controls:
 - `Arrow Left/Right`: change selected value
 - `Enter`: apply selected value
 - `Esc`: close
-
 
 ### Secondary Subtitles
 
@@ -406,7 +395,6 @@ See `config.example.jsonc` for detailed configuration options.
 - **hover** — Only visible when hovering over the subtitle area (default)
 
 **See `config.example.jsonc`** for additional secondary subtitle configuration options.
-
 
 ### Shortcuts Configuration
 
@@ -455,7 +443,6 @@ See `config.example.jsonc` for detailed configuration options.
 
 Set any shortcut to `null` to disable it.
 
-
 ### Subtitle Position
 
 Set the initial vertical subtitle position (measured from the bottom of the screen):
@@ -471,7 +458,6 @@ Set the initial vertical subtitle position (measured from the bottom of the scre
 | Option     | Values          | Description                                                        |
 | ---------- | --------------- | ------------------------------------------------------------------ |
 | `yPercent` | number (0 - 100) | Distance from the bottom as a percent of screen height (default: `10`) |
-
 
 ### Subtitle Style
 
@@ -511,7 +497,6 @@ Secondary subtitle defaults: `fontSize: 24`, `fontColor: "#ffffff"`, `background
 
 **See `config.example.jsonc`** for the complete list of subtitle style configuration options.
 
-
 ### Texthooker
 
 Control whether the browser opens automatically when texthooker starts:
@@ -525,7 +510,6 @@ See `config.example.jsonc` for detailed configuration options.
   }
 }
 ```
-
 
 ### WebSocket Server
 
@@ -548,7 +532,6 @@ See `config.example.jsonc` for detailed configuration options.
 | --------- | ------------------------- | -------------------------------------------------------- |
 | `enabled` | `true`, `false`, `"auto"` | `"auto"` (default) disables if mpv_websocket is detected |
 | `port`    | number                    | WebSocket server port (default: 6677)                    |
-
 
 ### YouTube Subtitle Generation
 
