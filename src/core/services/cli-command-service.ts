@@ -215,19 +215,18 @@ export function handleCliCommandService(
     args.openRuntimeOptions ||
     args.texthooker ||
     args.help;
-  const ignoreStart = source === "second-instance" && args.start;
-  if (ignoreStart && !hasNonStartAction) {
+  const ignoreStartOnly = source === "second-instance" && args.start && !hasNonStartAction;
+  if (ignoreStartOnly) {
     deps.log("Ignoring --start because SubMiner is already running.");
     return;
   }
 
   const shouldStart =
-    !ignoreStart &&
-    (args.start ||
-      (source === "initial" &&
-        (args.toggle ||
-          args.toggleVisibleOverlay ||
-          args.toggleInvisibleOverlay)));
+    args.start ||
+    (source === "initial" &&
+      (args.toggle ||
+        args.toggleVisibleOverlay ||
+        args.toggleInvisibleOverlay));
   const needsOverlayRuntime = commandNeedsOverlayRuntime(args);
 
   if (args.socketPath !== undefined) {
