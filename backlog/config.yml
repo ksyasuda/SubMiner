@@ -6,7 +6,7 @@ milestones: []
 date_format: yyyy-mm-dd
 max_column_width: 20
 default_editor: "nvim"
-auto_open_browser: true
+auto_open_browser: false
 default_port: 6420
 remote_operations: true
 auto_commit: false

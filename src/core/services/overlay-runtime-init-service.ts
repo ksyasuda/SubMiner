@@ -14,7 +14,8 @@ export function initializeOverlayRuntimeService(options: {
   createMainWindow: () => void;
   createInvisibleWindow: () => void;
   registerGlobalShortcuts: () => void;
-  updateOverlayBounds: (geometry: WindowGeometry) => void;
+  updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
+  updateInvisibleOverlayBounds: (geometry: WindowGeometry) => void;
   isVisibleOverlayVisible: () => boolean;
   isInvisibleOverlayVisible: () => boolean;
   updateVisibleOverlayVisibility: () => void;
@@ -45,10 +46,12 @@ export function initializeOverlayRuntimeService(options: {
   options.setWindowTracker(windowTracker);
   if (windowTracker) {
     windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
-      options.updateOverlayBounds(geometry);
+      options.updateVisibleOverlayBounds(geometry);
+      options.updateInvisibleOverlayBounds(geometry);
     };
     windowTracker.onWindowFound = (geometry: WindowGeometry) => {
-      options.updateOverlayBounds(geometry);
+      options.updateVisibleOverlayBounds(geometry);
+      options.updateInvisibleOverlayBounds(geometry);
       if (options.isVisibleOverlayVisible()) {
         options.updateVisibleOverlayVisibility();
       }

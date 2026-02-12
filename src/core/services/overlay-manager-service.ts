@@ -1,11 +1,16 @@
 import { BrowserWindow } from "electron";
-import { RuntimeOptionState } from "../../types";
+import { RuntimeOptionState, WindowGeometry } from "../../types";
+import { updateOverlayWindowBoundsService } from "./overlay-window-service";
+
+type OverlayLayer = "visible" | "invisible";
 
 export interface OverlayManagerService {
   getMainWindow: () => BrowserWindow | null;
   setMainWindow: (window: BrowserWindow | null) => void;
   getInvisibleWindow: () => BrowserWindow | null;
   setInvisibleWindow: (window: BrowserWindow | null) => void;
+  getOverlayWindow: (layer: OverlayLayer) => BrowserWindow | null;
+  setOverlayWindowBounds: (layer: OverlayLayer, geometry: WindowGeometry) => void;
   getVisibleOverlayVisible: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
   getInvisibleOverlayVisible: () => boolean;
@@ -28,6 +33,14 @@ export function createOverlayManagerService(): OverlayManagerService {
     getInvisibleWindow: () => invisibleWindow,
     setInvisibleWindow: (window) => {
       invisibleWindow = window;
+    },
+    getOverlayWindow: (layer) =>
+      layer === "visible" ? mainWindow : invisibleWindow,
+    setOverlayWindowBounds: (layer, geometry) => {
+      updateOverlayWindowBoundsService(
+        geometry,
+        layer === "visible" ? mainWindow : invisibleWindow,
+      );
     },
     getVisibleOverlayVisible: () => visibleOverlayVisible,
     setVisibleOverlayVisible: (visible) => {

@@ -154,7 +154,6 @@ import {
   updateCurrentMediaPathService,
   updateInvisibleOverlayVisibilityService,
   updateLastCardFromClipboardService,
-  updateOverlayBoundsService,
   updateVisibleOverlayVisibilityService,
 } from "./core/services";
 import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-handler";
@@ -763,8 +762,12 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
   );
 }
 
-function updateOverlayBounds(geometry: WindowGeometry): void {
-  updateOverlayBoundsService(geometry, () => getOverlayWindows());
+function updateVisibleOverlayBounds(geometry: WindowGeometry): void {
+  overlayManager.setOverlayWindowBounds("visible", geometry);
+}
+
+function updateInvisibleOverlayBounds(geometry: WindowGeometry): void {
+  overlayManager.setOverlayWindowBounds("invisible", geometry);
 }
 
 function ensureOverlayWindowLevel(window: BrowserWindow): void {
@@ -856,8 +859,11 @@ function initializeOverlayRuntime(): void {
       registerGlobalShortcuts: () => {
         registerGlobalShortcuts();
       },
-      updateOverlayBounds: (geometry) => {
-        updateOverlayBounds(geometry);
+      updateVisibleOverlayBounds: (geometry) => {
+        updateVisibleOverlayBounds(geometry);
+      },
+      updateInvisibleOverlayBounds: (geometry) => {
+        updateInvisibleOverlayBounds(geometry);
       },
       isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
       isInvisibleOverlayVisible: () =>
@@ -1181,7 +1187,7 @@ function updateVisibleOverlayVisibility(): void {
         mpvClient.send(payload);
       },
       secondarySubVisibilityRequestId: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
-      updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
+      updateVisibleOverlayBounds: (geometry) => updateVisibleOverlayBounds(geometry),
       ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
       enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
       syncOverlayShortcuts: () => syncOverlayShortcuts(),
@@ -1196,7 +1202,7 @@ function updateInvisibleOverlayVisibility(): void {
       visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
       invisibleOverlayVisible: overlayManager.getInvisibleOverlayVisible(),
       windowTracker,
-      updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
+      updateInvisibleOverlayBounds: (geometry) => updateInvisibleOverlayBounds(geometry),
       ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
       enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
       syncOverlayShortcuts: () => syncOverlayShortcuts(),

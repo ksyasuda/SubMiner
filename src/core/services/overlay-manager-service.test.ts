@@ -25,6 +25,8 @@ test("overlay manager stores window references and returns stable window order",
 
   assert.equal(manager.getMainWindow(), visibleWindow);
   assert.equal(manager.getInvisibleWindow(), invisibleWindow);
+  assert.equal(manager.getOverlayWindow("visible"), visibleWindow);
+  assert.equal(manager.getOverlayWindow("invisible"), invisibleWindow);
   assert.deepEqual(manager.getOverlayWindows(), [visibleWindow, invisibleWindow]);
 });
 
@@ -68,6 +70,42 @@ test("overlay manager broadcasts to non-destroyed windows", () => {
   manager.broadcastToOverlayWindows("x", 1, "a");
 
   assert.deepEqual(calls, [["x", 1, "a"]]);
+});
+
+test("overlay manager applies bounds by layer", () => {
+  const manager = createOverlayManagerService();
+  const visibleCalls: Electron.Rectangle[] = [];
+  const invisibleCalls: Electron.Rectangle[] = [];
+  const visibleWindow = {
+    isDestroyed: () => false,
+    setBounds: (bounds: Electron.Rectangle) => {
+      visibleCalls.push(bounds);
+    },
+  } as unknown as Electron.BrowserWindow;
+  const invisibleWindow = {
+    isDestroyed: () => false,
+    setBounds: (bounds: Electron.Rectangle) => {
+      invisibleCalls.push(bounds);
+    },
+  } as unknown as Electron.BrowserWindow;
+  manager.setMainWindow(visibleWindow);
+  manager.setInvisibleWindow(invisibleWindow);
+
+  manager.setOverlayWindowBounds("visible", {
+    x: 10,
+    y: 20,
+    width: 30,
+    height: 40,
+  });
+  manager.setOverlayWindowBounds("invisible", {
+    x: 1,
+    y: 2,
+    width: 3,
+    height: 4,
+  });
+
+  assert.deepEqual(visibleCalls, [{ x: 10, y: 20, width: 30, height: 40 }]);
+  assert.deepEqual(invisibleCalls, [{ x: 1, y: 2, width: 3, height: 4 }]);
 });
 
 test("runtime-option and debug broadcasts use expected channels", () => {
