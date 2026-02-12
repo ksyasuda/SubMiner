@@ -4,7 +4,7 @@
   "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc && cp src/renderer/index.html src/renderer/style.css dist/renderer/",
+    "build": "tsc && cp src/renderer/index.html src/renderer/style.css dist/renderer/ && bash scripts/build-macos-helper.sh",
     "check:main-lines": "bash scripts/check-main-lines.sh",
     "check:main-lines:baseline": "bash scripts/check-main-lines.sh 5300",
     "check:main-lines:gate1": "bash scripts/check-main-lines.sh 4500",
@@ -85,7 +85,8 @@
       "dist/**/*",
       "vendor/texthooker-ui/docs/**/*",
       "vendor/texthooker-ui/package.json",
-      "package.json"
+      "package.json",
+      "scripts/get-mpv-window-macos.swift"
     ],
     "extraResources": [
       {
@@ -95,6 +96,10 @@
       {
         "from": "assets",
         "to": "assets"
+      },
+      {
+        "from": "dist/scripts/get-mpv-window-macos",
+        "to": "scripts/get-mpv-window-macos"
       }
     ]
   }

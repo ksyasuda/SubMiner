@@ -347,6 +347,7 @@ const shouldToggleMouseIgnore = !isLinuxPlatform;
 const INVISIBLE_POSITION_EDIT_TOGGLE_CODE = "KeyP";
 const INVISIBLE_POSITION_STEP_PX = 1;
 const INVISIBLE_POSITION_STEP_FAST_PX = 4;
+const INVISIBLE_MACOS_VERTICAL_NUDGE_PX = 4;
 
 let isOverSubtitle = false;
 let isDragging = false;
@@ -1062,6 +1063,14 @@ function applyInvisibleSubtitleLayoutFromMpvMetrics(
       }
     }
   }
+
+  if (isMacOSPlatform && vAlign === 0) {
+    const currentBottom = parseFloat(subtitleContainer.style.bottom);
+    if (Number.isFinite(currentBottom)) {
+      subtitleContainer.style.bottom = `${Math.max(0, currentBottom + INVISIBLE_MACOS_VERTICAL_NUDGE_PX)}px`;
+    }
+  }
+
   invisibleLayoutBaseLeftPx = parseFloat(subtitleContainer.style.left) || 0;
   invisibleLayoutBaseBottomPx = Number.isFinite(parseFloat(subtitleContainer.style.bottom))
     ? parseFloat(subtitleContainer.style.bottom)
