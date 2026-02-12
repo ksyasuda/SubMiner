@@ -1,6 +1,6 @@
 # Architecture
 
-SubMiner uses a service-oriented Electron main-process architecture where `src/main.ts` (~1,400 lines) acts as the composition root and behavior lives in focused services under `src/core/services/` (~35 service files).
+SubMiner uses a service-oriented Electron architecture with a composition-oriented main process and a modular renderer process.
 
 ## Goals
 
@@ -24,7 +24,7 @@ src/
     utils/                 # Pure helpers and coercion/config utilities
   cli/                     # CLI parsing and help output
   config/                  # Config schema, defaults, validation, template generation
-  renderer/                # Overlay renderer (HTML/CSS/JS)
+  renderer/                # Overlay renderer (modularized UI/runtime)
   window-trackers/         # Backend-specific tracker implementations (Hyprland, X11, macOS)
   jimaku/                  # Jimaku API integration helpers
   subsync/                 # Subtitle sync (alass/ffsubsync) helpers
@@ -45,6 +45,30 @@ src/
 - **Subtitles** — `subtitle-ws-service`, `subtitle-position-service`, `secondary-subtitle-service`, `tokenizer-service`
 - **Integrations** — `jimaku-service`, `subsync-service`, `subsync-runner-service`, `texthooker-service`, `yomitan-extension-loader-service`, `yomitan-settings-service`
 - **Config** — `runtime-config-service`, `cli-command-service`
+
+### Renderer Layer (`src/renderer/`)
+
+The overlay renderer is split by concern so `renderer.ts` stays focused on bootstrapping, IPC wiring, and module composition.
+
+```text
+src/renderer/
+  renderer.ts              # Entrypoint/orchestration only
+  context.ts               # Shared runtime context contract
+  state.ts                 # Centralized renderer mutable state
+  subtitle-render.ts       # Primary/secondary subtitle rendering + style application
+  positioning.ts           # Visible/invisible positioning + mpv metrics layout
+  handlers/
+    keyboard.ts            # Keybindings, chord handling, modal key routing
+    mouse.ts               # Hover/drag behavior, selection + observer wiring
+  modals/
+    jimaku.ts              # Jimaku modal flow
+    kiku.ts                # Kiku field-grouping modal flow
+    runtime-options.ts     # Runtime options modal flow
+    subsync.ts             # Manual subsync modal flow
+  utils/
+    dom.ts                 # Required DOM lookups + typed handles
+    platform.ts            # Layer/platform capability detection
+```
 
 ## Flow Diagram
 

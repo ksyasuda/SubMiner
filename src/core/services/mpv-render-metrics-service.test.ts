@@ -1,25 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MpvSubtitleRenderMetrics } from "../../types";
-import { applyMpvSubtitleRenderMetricsPatchService } from "./mpv-render-metrics-service";
+import {
+  applyMpvSubtitleRenderMetricsPatchService,
+  DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
+} from "./mpv-render-metrics-service";
 
 const BASE: MpvSubtitleRenderMetrics = {
-  subPos: 100,
-  subFontSize: 38,
-  subScale: 1,
-  subMarginY: 34,
-  subMarginX: 19,
-  subFont: "sans-serif",
-  subSpacing: 0,
-  subBold: false,
-  subItalic: false,
-  subBorderSize: 2.5,
-  subShadowOffset: 0,
-  subAssOverride: "yes",
-  subScaleByWindow: true,
-  subUseMargins: true,
-  osdHeight: 720,
-  osdDimensions: null,
+  ...DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
 };
 
 test("applyMpvSubtitleRenderMetricsPatchService returns unchanged on empty patch", () => {

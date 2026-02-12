@@ -121,6 +121,7 @@ import {
   loadSubtitlePositionService,
   loadYomitanExtensionService,
   markLastCardAsAudioCardService,
+  DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
   mineSentenceCardService,
   openYomitanSettingsWindow,
   playNextSubtitleRuntimeService,
@@ -278,24 +279,6 @@ let ankiIntegration: AnkiIntegration | null = null;
 let secondarySubMode: SecondarySubMode = "hover";
 let lastSecondarySubToggleAtMs = 0;
 let previousSecondarySubVisibility: boolean | null = null;
-const DEFAULT_MPV_SUBTITLE_RENDER_METRICS: MpvSubtitleRenderMetrics = {
-  subPos: 100,
-  subFontSize: 38,
-  subScale: 1,
-  subMarginY: 34,
-  subMarginX: 19,
-  subFont: "sans-serif",
-  subSpacing: 0,
-  subBold: false,
-  subItalic: false,
-  subBorderSize: 2.5,
-  subShadowOffset: 0,
-  subAssOverride: "yes",
-  subScaleByWindow: true,
-  subUseMargins: true,
-  osdHeight: 720,
-  osdDimensions: null,
-};
 let mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics = {
   ...DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
 };
