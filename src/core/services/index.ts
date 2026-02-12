@@ -69,6 +69,7 @@ export {
   DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
   sanitizeMpvSubtitleRenderMetrics,
 } from "./mpv-render-metrics-service";
+export { createOverlayContentMeasurementStoreService } from "./overlay-content-measurement-service";
 export { handleMpvCommandFromIpcService } from "./ipc-command-service";
 export { createFieldGroupingOverlayRuntimeService } from "./field-grouping-overlay-service";
 export { createNumericShortcutRuntimeService } from "./numeric-shortcut-service";

@@ -101,6 +101,7 @@ import {
   createFieldGroupingOverlayRuntimeService,
   createIpcDepsRuntimeService,
   createNumericShortcutRuntimeService,
+  createOverlayContentMeasurementStoreService,
   createOverlayShortcutRuntimeHandlers,
   createOverlayWindowService,
   createTokenizerDepsRuntimeService,
@@ -291,6 +292,12 @@ let runtimeOptionsManager: RuntimeOptionsManager | null = null;
 let trackerNotReadyWarningShown = false;
 let overlayDebugVisualizationEnabled = false;
 const overlayManager = createOverlayManagerService();
+const overlayContentMeasurementStore = createOverlayContentMeasurementStoreService({
+  now: () => Date.now(),
+  warn: (message: string) => {
+    console.warn(message);
+  },
+});
 type OverlayHostedModal = "runtime-options" | "subsync";
 const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
 
@@ -1353,6 +1360,9 @@ registerIpcHandlersService(
     getRuntimeOptions: () => getRuntimeOptionsState(),
     setRuntimeOption: runtimeOptionsIpcDeps.setRuntimeOption,
     cycleRuntimeOption: runtimeOptionsIpcDeps.cycleRuntimeOption,
+    reportOverlayContentBounds: (payload) => {
+      overlayContentMeasurementStore.report(payload);
+    },
   }),
 );
 
