@@ -1,6 +1,8 @@
 import type { MpvSubtitleRenderMetrics, SubtitlePosition } from "../types";
 import type { ModalStateReader, RendererContext } from "./context";
 
+const INVISIBLE_MACOS_VERTICAL_NUDGE_PX = 5;
+
 function clampYPercent(yPercent: number): number {
   return Math.max(2, Math.min(80, yPercent));
 }
@@ -363,6 +365,16 @@ export function createPositioningController(
 
       if (halfLeading > 0.5 && Number.isFinite(currentTop)) {
         ctx.dom.subtitleContainer.style.top = `${Math.max(0, currentTop - halfLeading)}px`;
+      }
+    }
+
+    if (ctx.platform.isMacOSPlatform) {
+      const currentBottom = parseFloat(ctx.dom.subtitleContainer.style.bottom);
+      if (Number.isFinite(currentBottom)) {
+        ctx.dom.subtitleContainer.style.bottom = `${Math.max(
+          0,
+          currentBottom + INVISIBLE_MACOS_VERTICAL_NUDGE_PX,
+        )}px`;
       }
     }
   }

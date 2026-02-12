@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-11 15:45'
-updated_date: '2026-02-11 16:20'
+updated_date: '2026-02-11 16:28'
 labels:
   - bug
   - macos
@@ -40,5 +40,5 @@ Follow-up in progress after packaged app runtime showed fullscreen fallback beha
 - Added `.asar` helper materialization to temp path so child process execution is possible if candidate path resolves inside asar.
 - Added throttled tracker logging for helper execution failures to expose runtime errors without log spam.
 - Updated Electron builder `extraResources` to ship `dist/scripts/get-mpv-window-macos` outside asar at `resources/scripts/get-mpv-window-macos`.
-- Added macOS-only invisible subtitle vertical nudge (`+4px`) in renderer layout to align interactive subtitles with mpv glyph baseline after bounds fix.
+- Added macOS-only invisible subtitle vertical nudge (`+5px`) in renderer layout to align interactive subtitles with mpv glyph baseline after bounds fix.
 <!-- SECTION:NOTES:END -->
