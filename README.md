@@ -108,7 +108,7 @@ Detailed guides live in [`docs/`](docs/README.md):
 - [MPV Plugin](docs/mpv-plugin.md) — Chord keybindings, subminer.conf options, script messages
 - [Troubleshooting](docs/troubleshooting.md) — Common issues and solutions
 - [Development](docs/development.md) — Building, testing, contributing
-- [Architecture](docs/architecture.md) — Service-oriented design, composition model
+- [Architecture](docs/architecture.md) — Service-oriented design, composition model, and modular renderer layout (`src/renderer/{modals,handlers,utils,...}`)
 
 ### Third-Party Components
 

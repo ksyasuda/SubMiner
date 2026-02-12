@@ -20,4 +20,4 @@ make docs-preview # Preview built site at http://localhost:4173
 - [MPV Plugin](/mpv-plugin) — Chord keybindings, subminer.conf options, script messages
 - [Troubleshooting](/troubleshooting) — Common issues and solutions by category
 - [Development](/development) — Building, testing, contributing, environment variables
-- [Architecture](/architecture) — Service-oriented design, composition model, extension rules
+- [Architecture](/architecture) — Service-oriented design, composition model, renderer module layout, extension rules

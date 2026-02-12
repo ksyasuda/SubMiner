@@ -64,7 +64,11 @@ export {
   updateVisibleOverlayVisibilityService,
 } from "./overlay-visibility-service";
 export { MpvIpcClient, MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY } from "./mpv-service";
-export { applyMpvSubtitleRenderMetricsPatchService } from "./mpv-render-metrics-service";
+export {
+  applyMpvSubtitleRenderMetricsPatchService,
+  DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
+  sanitizeMpvSubtitleRenderMetrics,
+} from "./mpv-render-metrics-service";
 export { handleMpvCommandFromIpcService } from "./ipc-command-service";
 export { createFieldGroupingOverlayRuntimeService } from "./field-grouping-overlay-service";
 export { createNumericShortcutRuntimeService } from "./numeric-shortcut-service";
