@@ -465,6 +465,25 @@ export interface MpvSubtitleRenderMetrics {
   } | null;
 }
 
+export type OverlayLayer = "visible" | "invisible";
+
+export interface OverlayContentRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface OverlayContentMeasurement {
+  layer: OverlayLayer;
+  measuredAtMs: number;
+  viewport: {
+    width: number;
+    height: number;
+  };
+  contentRect: OverlayContentRect | null;
+}
+
 export interface MecabStatus {
   available: boolean;
   enabled: boolean;
@@ -611,6 +630,7 @@ export interface ElectronAPI {
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
   notifyOverlayModalClosed: (modal: "runtime-options" | "subsync") => void;
+  reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
 }
 
 declare global {

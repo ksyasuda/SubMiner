@@ -32,6 +32,7 @@ import { createKikuModal } from "./modals/kiku.js";
 import { createRuntimeOptionsModal } from "./modals/runtime-options.js";
 import { createSubsyncModal } from "./modals/subsync.js";
 import { createPositioningController } from "./positioning.js";
+import { createOverlayContentMeasurementReporter } from "./overlay-content-measurement.js";
 import { createRendererState } from "./state.js";
 import { createSubtitleRenderer } from "./subtitle-render.js";
 import { resolveRendererDom } from "./utils/dom.js";
@@ -69,6 +70,7 @@ function syncSettingsModalSubtitleSuppression(): void {
 }
 
 const subtitleRenderer = createSubtitleRenderer(ctx);
+const measurementReporter = createOverlayContentMeasurementReporter(ctx);
 const positioning = createPositioningController(ctx, {
   modalStateReader: { isAnySettingsModalOpen },
   applySubtitleFontSize: subtitleRenderer.applySubtitleFontSize,
@@ -114,6 +116,7 @@ async function init(): Promise<void> {
 
   window.electronAPI.onSubtitle((data: SubtitleData) => {
     subtitleRenderer.renderSubtitle(data);
+    measurementReporter.schedule();
   });
 
   window.electronAPI.onSubtitlePosition((position: SubtitlePosition | null) => {
@@ -122,11 +125,13 @@ async function init(): Promise<void> {
     } else {
       positioning.applyStoredSubtitlePosition(position, "media-change");
     }
+    measurementReporter.schedule();
   });
 
   if (ctx.platform.isInvisibleLayer) {
     window.electronAPI.onMpvSubtitleRenderMetrics((metrics: MpvSubtitleRenderMetrics) => {
       positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(metrics, "event");
+      measurementReporter.schedule();
     });
     window.electronAPI.onOverlayDebugVisualization((enabled: boolean) => {
       document.body.classList.toggle("debug-invisible-visualization", enabled);
@@ -135,16 +140,20 @@ async function init(): Promise<void> {
 
   const initialSubtitle = await window.electronAPI.getCurrentSubtitle();
   subtitleRenderer.renderSubtitle(initialSubtitle);
+  measurementReporter.schedule();
 
   window.electronAPI.onSecondarySub((text: string) => {
     subtitleRenderer.renderSecondarySub(text);
+    measurementReporter.schedule();
   });
   window.electronAPI.onSecondarySubMode((mode: SecondarySubMode) => {
     subtitleRenderer.updateSecondarySubMode(mode);
+    measurementReporter.schedule();
   });
 
   subtitleRenderer.updateSecondarySubMode(await window.electronAPI.getSecondarySubMode());
   subtitleRenderer.renderSecondarySub(await window.electronAPI.getCurrentSecondarySub());
+  measurementReporter.schedule();
 
   const hoverTarget = ctx.platform.isInvisibleLayer
     ? ctx.dom.subtitleRoot
@@ -159,6 +168,9 @@ async function init(): Promise<void> {
   mouseHandlers.setupResizeHandler();
   mouseHandlers.setupSelectionObserver();
   mouseHandlers.setupYomitanObserver();
+  window.addEventListener("resize", () => {
+    measurementReporter.schedule();
+  });
 
   jimakuModal.wireDomEvents();
   kikuModal.wireDomEvents();
@@ -211,11 +223,14 @@ async function init(): Promise<void> {
       "startup",
     );
     subtitleRenderer.applySubtitleStyle(await window.electronAPI.getSubtitleStyle());
+    measurementReporter.schedule();
   }
 
   if (ctx.platform.shouldToggleMouseIgnore) {
     window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
   }
+
+  measurementReporter.emitNow();
 }
 
 if (document.readyState === "loading") {

@@ -28,6 +28,7 @@ export interface IpcServiceDeps {
   getRuntimeOptions: () => unknown;
   setRuntimeOption: (id: string, value: unknown) => unknown;
   cycleRuntimeOption: (id: string, direction: 1 | -1) => unknown;
+  reportOverlayContentBounds: (payload: unknown) => void;
 }
 
 interface WindowLike {
@@ -75,6 +76,7 @@ export interface IpcDepsRuntimeOptions {
   getRuntimeOptions: () => unknown;
   setRuntimeOption: (id: string, value: unknown) => unknown;
   cycleRuntimeOption: (id: string, direction: 1 | -1) => unknown;
+  reportOverlayContentBounds: (payload: unknown) => void;
 }
 
 export function createIpcDepsRuntimeService(
@@ -126,6 +128,7 @@ export function createIpcDepsRuntimeService(
     getRuntimeOptions: options.getRuntimeOptions,
     setRuntimeOption: options.setRuntimeOption,
     cycleRuntimeOption: options.cycleRuntimeOption,
+    reportOverlayContentBounds: options.reportOverlayContentBounds,
   };
 }
 
@@ -252,5 +255,9 @@ export function registerIpcHandlersService(deps: IpcServiceDeps): void {
 
   ipcMain.handle("runtime-options:cycle", (_event, id: string, direction: 1 | -1) => {
     return deps.cycleRuntimeOption(id, direction);
+  });
+
+  ipcMain.on("overlay-content-bounds:report", (_event: IpcMainEvent, payload: unknown) => {
+    deps.reportOverlayContentBounds(payload);
   });
 }

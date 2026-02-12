@@ -45,6 +45,7 @@ import type {
   RuntimeOptionState,
   RuntimeOptionValue,
   MpvSubtitleRenderMetrics,
+  OverlayContentMeasurement,
 } from "./types";
 
 const overlayLayerArg = process.argv.find((arg) =>
@@ -266,6 +267,9 @@ const electronAPI: ElectronAPI = {
   },
   notifyOverlayModalClosed: (modal: "runtime-options" | "subsync") => {
     ipcRenderer.send("overlay:modal-closed", modal);
+  },
+  reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => {
+    ipcRenderer.send("overlay-content-bounds:report", measurement);
   },
 };
 
