@@ -5,14 +5,14 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-12 02:27'
-updated_date: '2026-02-12 02:56'
+updated_date: '2026-02-12 09:42'
 labels:
   - overlay
   - ux
   - investigation
 dependencies: []
 documentation:
-  - docs/overlay-window-sizing-investigation.md
+  - overlay_window.md
 priority: high
 ---
 
@@ -60,6 +60,8 @@ Documented current conflict mechanism and architecture limitation: shared fullsc
 Proposed renderer-driven content-bounds IPC model, per-window bounds ownership, and a dedicated secondary top-bar window with mode-specific behavior.
 
 Included phased implementation plan with risks and edge-case handling in docs/overlay-window-sizing-investigation.md.
+
+Updated documentation reference to `overlay_window.md` because previous `docs/overlay-window-sizing-investigation.md` path is not present in repository.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
