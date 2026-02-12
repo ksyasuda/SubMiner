@@ -65,6 +65,7 @@ interface Args {
   directory: string;
   recursive: boolean;
   profile: string;
+  startOverlay: boolean;
   youtubeSubgenMode: YoutubeSubgenMode;
   whisperBin: string;
   whisperModel: string;
@@ -91,6 +92,11 @@ interface LauncherYoutubeSubgenConfig {
   secondarySubLanguages?: string[];
 }
 
+interface PluginRuntimeConfig {
+  autoStartOverlay: boolean;
+  socketPath: string;
+}
+
 const COLORS = {
   red: "\x1b[0;31m",
   green: "\x1b[0;32m",
@@ -111,6 +117,7 @@ const state = {
   mpvProc: null as ReturnType<typeof spawn> | null,
   youtubeSubgenChildren: new Set<ReturnType<typeof spawn>>(),
   appPath: "" as string,
+  overlayManagedByLauncher: false,
   stopRequested: false,
 };
 
@@ -124,6 +131,7 @@ Options:
   -d, --directory DIR    Directory to browse for videos (default: current directory)
   -r, --recursive        Search for videos recursively
   -p, --profile PROFILE  MPV profile to use (default: subminer)
+      --start            Explicitly start SubMiner overlay
       --yt-subgen-mode MODE
                          YouTube subtitle generation mode: automatic, preprocess, off (default: automatic)
       --whisper-bin PATH whisper.cpp CLI binary (used for fallback transcription)
@@ -1358,6 +1366,7 @@ function parseArgs(
     directory: ".",
     recursive: false,
     profile: "subminer",
+    startOverlay: false,
     youtubeSubgenMode: defaultMode,
     whisperBin: process.env.SUBMINER_WHISPER_BIN || launcherConfig.whisperBin || "",
     whisperModel:
@@ -1422,6 +1431,12 @@ function parseArgs(
       if (!value) fail("--profile requires a value");
       parsed.profile = value;
       i += 2;
+      continue;
+    }
+
+    if (arg === "--start") {
+      parsed.startOverlay = true;
+      i += 1;
       continue;
     }
 
@@ -1631,6 +1646,7 @@ function startOverlay(
   if (args.useTexthooker) overlayArgs.push("--texthooker");
 
   state.overlayProc = spawn(appPath, overlayArgs, { stdio: "inherit" });
+  state.overlayManagedByLauncher = true;
 
   return new Promise((resolve) => {
     setTimeout(resolve, 2000);
@@ -1649,23 +1665,25 @@ function launchTexthookerOnly(appPath: string, args: Args): never {
 }
 
 function stopOverlay(args: Args): void {
-  if (!state.appPath || state.stopRequested) return;
+  if (state.stopRequested) return;
   state.stopRequested = true;
 
-  log("info", args.logLevel, "Stopping SubMiner overlay...");
+  if (state.overlayManagedByLauncher && state.appPath) {
+    log("info", args.logLevel, "Stopping SubMiner overlay...");
 
-  const stopArgs = ["--stop"];
-  if (args.logLevel === "debug") stopArgs.push("--verbose");
-  else if (args.logLevel !== "info")
-    stopArgs.push("--log-level", args.logLevel);
+    const stopArgs = ["--stop"];
+    if (args.logLevel === "debug") stopArgs.push("--verbose");
+    else if (args.logLevel !== "info")
+      stopArgs.push("--log-level", args.logLevel);
 
-  spawnSync(state.appPath, stopArgs, { stdio: "ignore" });
+    spawnSync(state.appPath, stopArgs, { stdio: "ignore" });
 
-  if (state.overlayProc && !state.overlayProc.killed) {
-    try {
-      state.overlayProc.kill("SIGTERM");
-    } catch {
-      // ignore
+    if (state.overlayProc && !state.overlayProc.killed) {
+      try {
+        state.overlayProc.kill("SIGTERM");
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -1687,6 +1705,93 @@ function stopOverlay(args: Args): void {
     }
   }
   state.youtubeSubgenChildren.clear();
+}
+
+function parseBoolLike(value: string): boolean | null {
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "yes" ||
+    normalized === "true" ||
+    normalized === "1" ||
+    normalized === "on"
+  ) {
+    return true;
+  }
+  if (
+    normalized === "no" ||
+    normalized === "false" ||
+    normalized === "0" ||
+    normalized === "off"
+  ) {
+    return false;
+  }
+  return null;
+}
+
+function getPluginConfigCandidates(): string[] {
+  const xdgConfigHome =
+    process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+  return Array.from(
+    new Set([
+      path.join(xdgConfigHome, "mpv", "script-opts", "subminer.conf"),
+      path.join(os.homedir(), ".config", "mpv", "script-opts", "subminer.conf"),
+    ]),
+  );
+}
+
+function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig {
+  const runtimeConfig: PluginRuntimeConfig = {
+    autoStartOverlay: false,
+    socketPath: DEFAULT_SOCKET_PATH,
+  };
+  const candidates = getPluginConfigCandidates();
+
+  for (const configPath of candidates) {
+    if (!fs.existsSync(configPath)) continue;
+    try {
+      const content = fs.readFileSync(configPath, "utf8");
+      const lines = content.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
+        const autoStartMatch = trimmed.match(/^auto_start\s*=\s*(.+)$/i);
+        if (autoStartMatch) {
+          const value = (autoStartMatch[1] || "").split("#", 1)[0]?.trim() || "";
+          const parsed = parseBoolLike(value);
+          if (parsed !== null) {
+            runtimeConfig.autoStartOverlay = parsed;
+          }
+          continue;
+        }
+
+        const socketMatch = trimmed.match(/^socket_path\s*=\s*(.+)$/i);
+        if (socketMatch) {
+          const value = (socketMatch[1] || "").split("#", 1)[0]?.trim() || "";
+          if (value) runtimeConfig.socketPath = value;
+        }
+      }
+      log(
+        "debug",
+        logLevel,
+        `Using mpv plugin settings from ${configPath}: auto_start=${runtimeConfig.autoStartOverlay ? "yes" : "no"} socket_path=${runtimeConfig.socketPath}`,
+      );
+      return runtimeConfig;
+    } catch {
+      log(
+        "warn",
+        logLevel,
+        `Failed to read ${configPath}; using launcher defaults`,
+      );
+      return runtimeConfig;
+    }
+  }
+
+  log(
+    "debug",
+    logLevel,
+    `No mpv subminer.conf found; using launcher defaults (auto_start=no socket_path=${runtimeConfig.socketPath})`,
+  );
+  return runtimeConfig;
 }
 
 function waitForSocket(
@@ -1827,6 +1932,8 @@ async function main(): Promise<void> {
   const scriptName = path.basename(process.argv[1] || "subminer");
   const launcherConfig = loadLauncherYoutubeSubgenConfig();
   const args = parseArgs(process.argv.slice(2), scriptName, launcherConfig);
+  const pluginRuntimeConfig = readPluginRuntimeConfig(args.logLevel);
+  const mpvSocketPath = pluginRuntimeConfig.socketPath;
 
   log("debug", args.logLevel, `Wrapper log level set to: ${args.logLevel}`);
 
@@ -1893,7 +2000,7 @@ async function main(): Promise<void> {
     targetChoice.target,
     targetChoice.kind,
     args,
-    DEFAULT_SOCKET_PATH,
+    mpvSocketPath,
     preloadedSubtitles,
   );
 
@@ -1901,7 +2008,7 @@ async function main(): Promise<void> {
     void generateYoutubeSubtitles(targetChoice.target, args, async (lang, subtitlePath) => {
       try {
         await loadSubtitleIntoMpv(
-          DEFAULT_SOCKET_PATH,
+          mpvSocketPath,
           subtitlePath,
           lang === "primary",
           args.logLevel,
@@ -1922,21 +2029,30 @@ async function main(): Promise<void> {
     });
   }
 
-  const ready = await waitForSocket(DEFAULT_SOCKET_PATH);
-  if (ready) {
-    log(
-      "info",
-      args.logLevel,
-      "MPV IPC socket ready, starting SubMiner overlay",
-    );
+  const shouldStartOverlay = args.startOverlay || pluginRuntimeConfig.autoStartOverlay;
+  if (shouldStartOverlay) {
+    const ready = await waitForSocket(mpvSocketPath);
+    if (ready) {
+      log(
+        "info",
+        args.logLevel,
+        "MPV IPC socket ready, starting SubMiner overlay",
+      );
+    } else {
+      log(
+        "info",
+        args.logLevel,
+        "MPV IPC socket not ready after timeout, starting SubMiner overlay anyway",
+      );
+    }
+    await startOverlay(appPath, args, mpvSocketPath);
   } else {
     log(
       "info",
       args.logLevel,
-      "MPV IPC socket not ready after timeout, starting SubMiner overlay anyway",
+      "SubMiner overlay auto-start disabled; not launching overlay process",
     );
   }
-  await startOverlay(appPath, args, DEFAULT_SOCKET_PATH);
 
   await new Promise<void>((resolve) => {
     if (!state.mpvProc) {

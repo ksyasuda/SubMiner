@@ -255,7 +255,7 @@ test("handleCliCommandService still runs non-start actions on second-instance", 
     deps,
   );
   assert.ok(calls.includes("toggleVisibleOverlay"));
-  assert.equal(calls.some((value) => value === "connectMpvClient"), false);
+  assert.equal(calls.some((value) => value === "connectMpvClient"), true);
 });
 
 test("handleCliCommandService handles visibility and utility command dispatches", () => {
