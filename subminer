@@ -77,6 +77,7 @@ interface Args {
   youtubeAudioLangs: string[];
   youtubeWhisperSourceLanguage: string;
   useTexthooker: boolean;
+  autoStartOverlay: boolean;
   texthookerOnly: boolean;
   useRofi: boolean;
   logLevel: LogLevel;
@@ -146,6 +147,7 @@ Options:
   -v, --verbose          Enable verbose/debug logging
       --log-level LEVEL  Set log level: debug, info, warn, error
   -R, --rofi             Use rofi file browser instead of fzf for video selection
+  -S, --start-overlay    Auto-start SubMiner overlay after MPV socket is ready
   -T, --no-texthooker    Disable texthooker-ui server
       --texthooker       Launch only texthooker page (no MPV/overlay workflow)
   -h, --help             Show this help message
@@ -170,6 +172,7 @@ Examples:
   ${scriptName} video.mkv              # Play with subminer profile
   ${scriptName} -p gpu-hq video.mkv    # Play with gpu-hq profile
   ${scriptName} -b x11 video.mkv       # Force x11 backend
+  ${scriptName} -S video.mkv           # Start overlay immediately after MPV launch
   ${scriptName} --texthooker           # Launch only texthooker page
 `;
 }
@@ -1380,6 +1383,7 @@ function parseArgs(
     youtubeAudioLangs,
     youtubeWhisperSourceLanguage: inferWhisperLanguage(primarySubLangs, "ja"),
     useTexthooker: true,
+    autoStartOverlay: false,
     texthookerOnly: false,
     useRofi: false,
     logLevel: "info",
@@ -1569,6 +1573,12 @@ function parseArgs(
 
     if (arg === "-R" || arg === "--rofi") {
       parsed.useRofi = true;
+      i += 1;
+      continue;
+    }
+
+    if (arg === "-S" || arg === "--start-overlay") {
+      parsed.autoStartOverlay = true;
       i += 1;
       continue;
     }
@@ -2029,9 +2039,10 @@ async function main(): Promise<void> {
     });
   }
 
-  const shouldStartOverlay = args.startOverlay || pluginRuntimeConfig.autoStartOverlay;
+  const ready = await waitForSocket(mpvSocketPath);
+  const shouldStartOverlay =
+    args.startOverlay || args.autoStartOverlay || pluginRuntimeConfig.autoStartOverlay;
   if (shouldStartOverlay) {
-    const ready = await waitForSocket(mpvSocketPath);
     if (ready) {
       log(
         "info",
@@ -2046,11 +2057,17 @@ async function main(): Promise<void> {
       );
     }
     await startOverlay(appPath, args, mpvSocketPath);
+  } else if (ready) {
+    log(
+      "info",
+      args.logLevel,
+      "MPV IPC socket ready, overlay auto-start disabled (use y-s to start)",
+    );
   } else {
     log(
       "info",
       args.logLevel,
-      "SubMiner overlay auto-start disabled; not launching overlay process",
+      "MPV IPC socket not ready yet, overlay auto-start disabled (use y-s to start)",
     );
   }
 
