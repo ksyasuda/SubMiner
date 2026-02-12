@@ -53,7 +53,7 @@ export {
   createOverlayWindowService,
   enforceOverlayLayerOrderService,
   ensureOverlayWindowLevelService,
-  updateOverlayBoundsService,
+  updateOverlayWindowBoundsService,
 } from "./overlay-window-service";
 export { initializeOverlayRuntimeService } from "./overlay-runtime-init-service";
 export {

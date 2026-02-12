@@ -19,7 +19,7 @@ export function updateVisibleOverlayVisibilityService(args: {
   mpvConnected: boolean;
   mpvSend: (payload: MpvCommandSender) => void;
   secondarySubVisibilityRequestId: number;
-  updateOverlayBounds: (geometry: WindowGeometry) => void;
+  updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
   ensureOverlayWindowLevel: (window: BrowserWindow) => void;
   enforceOverlayLayerOrder: () => void;
   syncOverlayShortcuts: () => void;
@@ -62,7 +62,7 @@ export function updateVisibleOverlayVisibilityService(args: {
     args.setTrackerNotReadyWarningShown(false);
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {
-      args.updateOverlayBounds(geometry);
+      args.updateVisibleOverlayBounds(geometry);
     }
     args.ensureOverlayWindowLevel(args.mainWindow);
     args.mainWindow.show();
@@ -88,7 +88,7 @@ export function updateVisibleOverlayVisibilityService(args: {
   const cursorPoint = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursorPoint);
   const fallbackBounds = display.workArea;
-  args.updateOverlayBounds({
+  args.updateVisibleOverlayBounds({
     x: fallbackBounds.x,
     y: fallbackBounds.y,
     width: fallbackBounds.width,
@@ -106,7 +106,7 @@ export function updateInvisibleOverlayVisibilityService(args: {
   visibleOverlayVisible: boolean;
   invisibleOverlayVisible: boolean;
   windowTracker: BaseWindowTracker | null;
-  updateOverlayBounds: (geometry: WindowGeometry) => void;
+  updateInvisibleOverlayBounds: (geometry: WindowGeometry) => void;
   ensureOverlayWindowLevel: (window: BrowserWindow) => void;
   enforceOverlayLayerOrder: () => void;
   syncOverlayShortcuts: () => void;
@@ -140,7 +140,7 @@ export function updateInvisibleOverlayVisibilityService(args: {
   if (args.windowTracker && args.windowTracker.isTracking()) {
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {
-      args.updateOverlayBounds(geometry);
+      args.updateInvisibleOverlayBounds(geometry);
     }
     showInvisibleWithoutFocus();
     args.syncOverlayShortcuts();
@@ -156,7 +156,7 @@ export function updateInvisibleOverlayVisibilityService(args: {
   const cursorPoint = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursorPoint);
   const fallbackBounds = display.workArea;
-  args.updateOverlayBounds({
+  args.updateInvisibleOverlayBounds({
     x: fallbackBounds.x,
     y: fallbackBounds.y,
     width: fallbackBounds.width,
