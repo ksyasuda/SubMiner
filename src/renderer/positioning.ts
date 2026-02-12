@@ -2,6 +2,9 @@ import type { MpvSubtitleRenderMetrics, SubtitlePosition } from "../types";
 import type { ModalStateReader, RendererContext } from "./context";
 
 const INVISIBLE_MACOS_VERTICAL_NUDGE_PX = 5;
+const INVISIBLE_MACOS_LINE_HEIGHT_SINGLE = "0.92";
+const INVISIBLE_MACOS_LINE_HEIGHT_MULTI = "1.2";
+const INVISIBLE_MACOS_LINE_HEIGHT_MULTI_DENSE = "1.3";
 
 function clampYPercent(yPercent: number): number {
   return Math.max(2, Math.min(80, yPercent));
@@ -297,10 +300,10 @@ export function createPositioningController(
       "line-height",
       ctx.platform.isMacOSPlatform
         ? lineCount >= 3
-          ? "1.18"
+          ? INVISIBLE_MACOS_LINE_HEIGHT_MULTI_DENSE
           : multiline
-            ? "1.08"
-            : "0.86"
+            ? INVISIBLE_MACOS_LINE_HEIGHT_MULTI
+            : INVISIBLE_MACOS_LINE_HEIGHT_SINGLE
         : "normal",
       ctx.platform.isMacOSPlatform ? "important" : "",
     );
