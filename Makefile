@@ -1,4 +1,4 @@
-.PHONY: help deps build install build-linux build-macos build-macos-unsigned install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config docs-dev docs docs-preview
+.PHONY: help deps build install build-linux build-macos build-macos-unsigned install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_FILE := subminer.rasi
@@ -48,6 +48,10 @@ help:
 		"  build-linux      Build Linux AppImage" \
 		"  build-macos      Build macOS DMG/ZIP (signed if configured)" \
 		"  build-macos-unsigned Build macOS DMG/ZIP without signing/notarization" \
+		"  dev-start        Build and launch local Electron app" \
+		"  dev-start-macos  Build and launch local Electron app with macOS tracker backend" \
+		"  dev-toggle       Toggle overlay in a running local Electron app" \
+		"  dev-stop         Stop a running local Electron app" \
 		"  docs-dev         Run VitePress docs dev server" \
 		"  docs       Build VitePress static docs" \
 		"  docs-preview     Preview built VitePress docs" \
@@ -142,6 +146,20 @@ docs: ensure-pnpm
 
 docs-preview: ensure-pnpm
 	@pnpm run docs:preview
+
+dev-start: ensure-pnpm
+	@pnpm run build
+	@pnpm exec electron . --start
+
+dev-start-macos: ensure-pnpm
+	@pnpm run build
+	@pnpm exec electron . --start --backend macos
+
+dev-toggle: ensure-pnpm
+	@pnpm exec electron . --toggle
+
+dev-stop: ensure-pnpm
+	@pnpm exec electron . --stop
 
 
 install-linux:
