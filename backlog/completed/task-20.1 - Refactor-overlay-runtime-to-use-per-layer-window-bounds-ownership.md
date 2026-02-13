@@ -4,7 +4,7 @@ title: Refactor overlay runtime to use per-layer window bounds ownership
 status: Done
 assignee: []
 created_date: '2026-02-12 08:47'
-updated_date: '2026-02-12 10:12'
+updated_date: '2026-02-13 08:04'
 labels: []
 dependencies: []
 parent_task_id: TASK-20
@@ -33,6 +33,8 @@ Started implementation for per-layer overlay bounds ownership refactor.
 Implemented per-layer bounds ownership path: visible and invisible layers now update bounds independently through overlay manager/runtime plumbing, while preserving existing geometry source behavior.
 
 Replaced shared all-window bounds application with per-window bound application service and layer-specific runtime calls from visibility/tracker flows.
+
+Archiving requested by user.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

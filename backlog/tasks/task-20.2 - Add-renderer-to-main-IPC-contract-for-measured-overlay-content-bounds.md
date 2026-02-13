@@ -4,7 +4,7 @@ title: Add renderer-to-main IPC contract for measured overlay content bounds
 status: Done
 assignee: []
 created_date: '2026-02-12 08:47'
-updated_date: '2026-02-12 02:45'
+updated_date: '2026-02-13 08:05'
 labels: []
 dependencies: []
 parent_task_id: TASK-20
@@ -31,6 +31,8 @@ Add renderer-to-main IPC for content measurement reporting, so main process can 
 Added a typed `OverlayContentMeasurement` IPC contract exposed in preload and Electron API typings. Implemented a main-process measurement store with strict payload validation and rate-limited warning logs for invalid reports. Added renderer-side debounced measurement reporting that emits updates on subtitle content/mode/style/render-metric and resize changes, explicitly sending `contentRect: null` when no measured content exists to signal fallback behavior.
 
 Added unit coverage for measurement validation and store behavior.
+
+Closed per user request to delete parent task and subtasks.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
