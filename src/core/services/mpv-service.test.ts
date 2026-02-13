@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MpvIpcClient, MpvIpcClientDeps } from "./mpv-service";
+import {
+  MpvIpcClient,
+  MpvIpcClientDeps,
+  MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+} from "./mpv-service";
 
 function makeDeps(
   overrides: Partial<MpvIpcClientDeps> = {},
@@ -41,6 +45,7 @@ function makeDeps(
       osdHeight: 720,
       osdDimensions: null,
     }),
+    getPreviousSecondarySubVisibility: () => null,
     setPreviousSecondarySubVisibility: () => {},
     showMpvOsd: () => {},
     ...overrides,
@@ -173,4 +178,63 @@ test("MpvIpcClient scheduleReconnect schedules timer and invokes connect", () =>
 
   assert.equal(timers.length, 1);
   assert.equal(connectCalled, true);
+});
+
+test("MpvIpcClient captures and disables secondary subtitle visibility on request", async () => {
+  const commands: unknown[] = [];
+  let previousSecondarySubVisibility: boolean | null = null;
+  const client = new MpvIpcClient(
+    "/tmp/mpv.sock",
+    makeDeps({
+      getPreviousSecondarySubVisibility: () => previousSecondarySubVisibility,
+      setPreviousSecondarySubVisibility: (value) => {
+        previousSecondarySubVisibility = value;
+      },
+    }),
+  );
+
+  (client as any).send = (payload: unknown) => {
+    commands.push(payload);
+    return true;
+  };
+
+  await (client as any).handleMessage({
+    request_id: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+    data: "yes",
+  });
+
+  assert.equal(previousSecondarySubVisibility, true);
+  assert.deepEqual(commands, [
+    {
+      command: ["set_property", "secondary-sub-visibility", "no"],
+    },
+  ]);
+});
+
+test("MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tracked value", () => {
+  const commands: unknown[] = [];
+  let previousSecondarySubVisibility: boolean | null = false;
+  const client = new MpvIpcClient(
+    "/tmp/mpv.sock",
+    makeDeps({
+      getPreviousSecondarySubVisibility: () => previousSecondarySubVisibility,
+      setPreviousSecondarySubVisibility: (value) => {
+        previousSecondarySubVisibility = value;
+      },
+    }),
+  );
+
+  (client as any).send = (payload: unknown) => {
+    commands.push(payload);
+    return true;
+  };
+
+  client.restorePreviousSecondarySubVisibility();
+
+  assert.deepEqual(commands, [
+    {
+      command: ["set_property", "secondary-sub-visibility", "no"],
+    },
+  ]);
+  assert.equal(previousSecondarySubVisibility, null);
 });
