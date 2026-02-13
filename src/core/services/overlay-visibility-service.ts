@@ -2,23 +2,12 @@ import { BrowserWindow, screen } from "electron";
 import { BaseWindowTracker } from "../../window-trackers";
 import { WindowGeometry } from "../../types";
 
-interface MpvCommandSender {
-  command: Array<string | number>;
-  request_id?: number;
-}
-
 export function updateVisibleOverlayVisibilityService(args: {
   visibleOverlayVisible: boolean;
   mainWindow: BrowserWindow | null;
   windowTracker: BaseWindowTracker | null;
   trackerNotReadyWarningShown: boolean;
   setTrackerNotReadyWarningShown: (shown: boolean) => void;
-  shouldBindVisibleOverlayToMpvSubVisibility: boolean;
-  previousSecondarySubVisibility: boolean | null;
-  setPreviousSecondarySubVisibility: (value: boolean | null) => void;
-  mpvConnected: boolean;
-  mpvSend: (payload: MpvCommandSender) => void;
-  secondarySubVisibilityRequestId: number;
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
   ensureOverlayWindowLevel: (window: BrowserWindow) => void;
   enforceOverlayLayerOrder: () => void;
@@ -30,32 +19,8 @@ export function updateVisibleOverlayVisibilityService(args: {
 
   if (!args.visibleOverlayVisible) {
     args.mainWindow.hide();
-
-    if (
-      args.shouldBindVisibleOverlayToMpvSubVisibility &&
-      args.previousSecondarySubVisibility !== null &&
-      args.mpvConnected
-    ) {
-      args.mpvSend({
-        command: [
-          "set_property",
-          "secondary-sub-visibility",
-          args.previousSecondarySubVisibility ? "yes" : "no",
-        ],
-      });
-      args.setPreviousSecondarySubVisibility(null);
-    } else if (!args.shouldBindVisibleOverlayToMpvSubVisibility) {
-      args.setPreviousSecondarySubVisibility(null);
-    }
     args.syncOverlayShortcuts();
     return;
-  }
-
-  if (args.shouldBindVisibleOverlayToMpvSubVisibility && args.mpvConnected) {
-    args.mpvSend({
-      command: ["get_property", "secondary-sub-visibility"],
-      request_id: args.secondarySubVisibilityRequestId,
-    });
   }
 
   if (args.windowTracker && args.windowTracker.isTracking()) {

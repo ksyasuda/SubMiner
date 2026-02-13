@@ -88,7 +88,6 @@ import {
   showDesktopNotification,
 } from "./core/utils";
 import {
-  MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
   MpvIpcClient,
   SubtitleWebSocketService,
   TexthookerService,
@@ -342,6 +341,11 @@ function getOverlayWindows(): BrowserWindow[] {
   return overlayManager.getOverlayWindows();
 }
 
+function restorePreviousSecondarySubVisibility(): void {
+  if (!mpvClient || !mpvClient.connected) return;
+  mpvClient.restorePreviousSecondarySubVisibility();
+}
+
 function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
   overlayManager.broadcastToOverlayWindows(channel, ...args);
 }
@@ -552,6 +556,8 @@ const startupState = runStartupBootstrapRuntimeService({
                   updateMpvSubtitleRenderMetrics(patch);
                 },
                 getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
+                getPreviousSecondarySubVisibility: () =>
+                  previousSecondarySubVisibility,
                 setPreviousSecondarySubVisibility: (value) => {
                   previousSecondarySubVisibility = value;
                 },
@@ -614,6 +620,7 @@ const startupState = runStartupBootstrapRuntimeService({
         });
       },
       onWillQuitCleanup: () => {
+        restorePreviousSecondarySubVisibility();
         globalShortcut.unregisterAll();
         subtitleWsService.stop();
         texthookerService.stop();
@@ -1182,18 +1189,6 @@ function updateVisibleOverlayVisibility(): void {
       setTrackerNotReadyWarningShown: (shown) => {
         trackerNotReadyWarningShown = shown;
       },
-      shouldBindVisibleOverlayToMpvSubVisibility:
-        shouldBindVisibleOverlayToMpvSubVisibility(),
-      previousSecondarySubVisibility,
-      setPreviousSecondarySubVisibility: (value) => {
-        previousSecondarySubVisibility = value;
-      },
-      mpvConnected: Boolean(mpvClient && mpvClient.connected),
-      mpvSend: (payload) => {
-        if (!mpvClient) return;
-        mpvClient.send(payload);
-      },
-      secondarySubVisibilityRequestId: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
       updateVisibleOverlayBounds: (geometry) => updateVisibleOverlayBounds(geometry),
       ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
       enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),

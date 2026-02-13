@@ -208,6 +208,8 @@ async function init(): Promise<void> {
 
   await keyboardHandlers.setupMpvInputForwarding();
 
+  subtitleRenderer.applySubtitleStyle(await window.electronAPI.getSubtitleStyle());
+
   if (ctx.platform.isInvisibleLayer) {
     positioning.applyInvisibleStoredSubtitlePosition(
       await window.electronAPI.getSubtitlePosition(),
@@ -222,7 +224,6 @@ async function init(): Promise<void> {
       await window.electronAPI.getSubtitlePosition(),
       "startup",
     );
-    subtitleRenderer.applySubtitleStyle(await window.electronAPI.getSubtitleStyle());
     measurementReporter.schedule();
   }
 

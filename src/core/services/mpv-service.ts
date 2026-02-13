@@ -65,6 +65,7 @@ export interface MpvIpcClientDeps {
     patch: Partial<MpvSubtitleRenderMetrics>,
   ) => void;
   getMpvSubtitleRenderMetrics: () => MpvSubtitleRenderMetrics;
+  getPreviousSecondarySubVisibility: () => boolean | null;
   setPreviousSecondarySubVisibility: (value: boolean | null) => void;
   showMpvOsd: (text: string) => void;
 }
@@ -369,6 +370,8 @@ export class MpvIpcClient implements MpvClient {
           });
         }
       }
+    } else if (msg.event === "shutdown") {
+      this.restorePreviousSecondarySubVisibility();
     } else if (msg.request_id) {
       const pending = this.pendingRequests.get(msg.request_id);
       if (pending) {
@@ -440,10 +443,6 @@ export class MpvIpcClient implements MpvClient {
           this.currentSecondarySubText,
         );
       } else if (msg.request_id === MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY) {
-        if (!this.deps.shouldBindVisibleOverlayToMpvSubVisibility()) {
-          this.deps.setPreviousSecondarySubVisibility(null);
-          return;
-        }
         this.deps.setPreviousSecondarySubVisibility(
           msg.data === true || msg.data === "yes",
         );
@@ -674,6 +673,10 @@ export class MpvIpcClient implements MpvClient {
       request_id: MPV_REQUEST_ID_SECONDARY_SUBTEXT,
     });
     this.send({
+      command: ["get_property", "secondary-sub-visibility"],
+      request_id: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+    });
+    this.send({
       command: ["get_property", "aid"],
       request_id: MPV_REQUEST_ID_AID,
     });
@@ -757,5 +760,14 @@ export class MpvIpcClient implements MpvClient {
   playNextSubtitle(): void {
     this.pendingPauseAtSubEnd = true;
     this.send({ command: ["sub-seek", 1] });
+  }
+
+  restorePreviousSecondarySubVisibility(): void {
+    const previous = this.deps.getPreviousSecondarySubVisibility();
+    if (previous === null) return;
+    this.send({
+      command: ["set_property", "secondary-sub-visibility", previous ? "yes" : "no"],
+    });
+    this.deps.setPreviousSecondarySubVisibility(null);
   }
 }
