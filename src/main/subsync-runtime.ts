@@ -1,0 +1,43 @@
+import { SubsyncResolvedConfig } from "../subsync/utils";
+import type { SubsyncManualPayload, SubsyncManualRunRequest, SubsyncResult } from "../types";
+import type { SubsyncRuntimeDeps } from "../core/services/subsync-runner-service";
+import { createSubsyncRuntimeDeps } from "./dependencies";
+import { runSubsyncManualFromIpcRuntimeService, triggerSubsyncFromConfigRuntimeService } from "../core/services";
+
+export interface SubsyncRuntimeServiceInput {
+  getMpvClient: SubsyncRuntimeDeps["getMpvClient"];
+  getResolvedSubsyncConfig: () => SubsyncResolvedConfig;
+  isSubsyncInProgress: SubsyncRuntimeDeps["isSubsyncInProgress"];
+  setSubsyncInProgress: SubsyncRuntimeDeps["setSubsyncInProgress"];
+  showMpvOsd: SubsyncRuntimeDeps["showMpvOsd"];
+  openManualPicker: (payload: SubsyncManualPayload) => void;
+}
+
+export function createSubsyncRuntimeServiceDeps(
+  params: SubsyncRuntimeServiceInput,
+): SubsyncRuntimeDeps {
+  return createSubsyncRuntimeDeps({
+    getMpvClient: params.getMpvClient,
+    getResolvedSubsyncConfig: params.getResolvedSubsyncConfig,
+    isSubsyncInProgress: params.isSubsyncInProgress,
+    setSubsyncInProgress: params.setSubsyncInProgress,
+    showMpvOsd: params.showMpvOsd,
+    openManualPicker: params.openManualPicker,
+  });
+}
+
+export function triggerSubsyncFromConfigRuntime(
+  params: SubsyncRuntimeServiceInput,
+): Promise<void> {
+  return triggerSubsyncFromConfigRuntimeService(createSubsyncRuntimeServiceDeps(params));
+}
+
+export async function runSubsyncManualFromIpcRuntime(
+  request: SubsyncManualRunRequest,
+  params: SubsyncRuntimeServiceInput,
+): Promise<SubsyncResult> {
+  return runSubsyncManualFromIpcRuntimeService(
+    request,
+    createSubsyncRuntimeServiceDeps(params),
+  );
+}

@@ -8,7 +8,18 @@ import {
   AnkiJimakuIpcRuntimeServiceDepsParams,
   createMainIpcRuntimeServiceDeps,
   MainIpcRuntimeServiceDepsParams,
+  createRuntimeOptionsIpcDeps,
+  RuntimeOptionsIpcDepsParams,
 } from "./dependencies";
+
+export interface RegisterIpcRuntimeServicesParams {
+  runtimeOptions: RuntimeOptionsIpcDepsParams;
+  mainDeps: Omit<
+    MainIpcRuntimeServiceDepsParams,
+    "setRuntimeOption" | "cycleRuntimeOption"
+  >;
+  ankiJimakuDeps: AnkiJimakuIpcRuntimeServiceDepsParams;
+}
 
 export function registerMainIpcRuntimeServices(
   params: MainIpcRuntimeServiceDepsParams,
@@ -26,3 +37,17 @@ export function registerAnkiJimakuIpcRuntimeServices(
   );
 }
 
+export function registerIpcRuntimeServices(
+  params: RegisterIpcRuntimeServicesParams,
+): void {
+  const runtimeOptionsIpcDeps = createRuntimeOptionsIpcDeps({
+    getRuntimeOptionsManager: params.runtimeOptions.getRuntimeOptionsManager,
+    showMpvOsd: params.runtimeOptions.showMpvOsd,
+  });
+  registerMainIpcRuntimeServices({
+    ...params.mainDeps,
+    setRuntimeOption: runtimeOptionsIpcDeps.setRuntimeOption,
+    cycleRuntimeOption: runtimeOptionsIpcDeps.cycleRuntimeOption,
+  });
+  registerAnkiJimakuIpcRuntimeServices(params.ankiJimakuDeps);
+}
