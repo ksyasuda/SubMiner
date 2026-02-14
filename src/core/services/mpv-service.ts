@@ -1,4 +1,5 @@
 import * as net from "net";
+import { EventEmitter } from "events";
 import {
   Config,
   MpvClient,
@@ -44,7 +45,7 @@ interface SubtitleTimingTrackerLike {
   recordSubtitle: (text: string, start: number, end: number) => void;
 }
 
-export interface MpvIpcClientDeps {
+export interface MpvIpcClientProtocolDeps {
   getResolvedConfig: () => Config;
   autoStartOverlay: boolean;
   setOverlayVisible: (visible: boolean) => void;
@@ -52,29 +53,47 @@ export interface MpvIpcClientDeps {
   isVisibleOverlayVisible: () => boolean;
   getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
-  getCurrentSubText: () => string;
-  setCurrentSubText: (text: string) => void;
-  setCurrentSubAssText: (text: string) => void;
-  getSubtitleTimingTracker: () => SubtitleTimingTrackerLike | null;
-  subtitleWsBroadcast: (text: string) => void;
-  getOverlayWindowsCount: () => number;
-  tokenizeSubtitle: (text: string) => Promise<SubtitleData>;
-  broadcastToOverlayWindows: (channel: string, ...args: unknown[]) => void;
-  updateCurrentMediaPath: (mediaPath: unknown) => void;
-  updateMpvSubtitleRenderMetrics: (
+}
+
+export interface MpvIpcClientRuntimeDeps {
+  getCurrentSubText?: () => string;
+  setCurrentSubText?: (text: string) => void;
+  setCurrentSubAssText?: (text: string) => void;
+  getSubtitleTimingTracker?: () => SubtitleTimingTrackerLike | null;
+  subtitleWsBroadcast?: (text: string) => void;
+  getOverlayWindowsCount?: () => number;
+  tokenizeSubtitle?: (text: string) => Promise<SubtitleData>;
+  broadcastToOverlayWindows?: (channel: string, ...args: unknown[]) => void;
+  updateCurrentMediaPath?: (mediaPath: unknown) => void;
+  updateMpvSubtitleRenderMetrics?: (
     patch: Partial<MpvSubtitleRenderMetrics>,
   ) => void;
-  getMpvSubtitleRenderMetrics: () => MpvSubtitleRenderMetrics;
-  getPreviousSecondarySubVisibility: () => boolean | null;
-  setPreviousSecondarySubVisibility: (value: boolean | null) => void;
-  showMpvOsd: (text: string) => void;
+  getMpvSubtitleRenderMetrics?: () => MpvSubtitleRenderMetrics;
+  getPreviousSecondarySubVisibility?: () => boolean | null;
+  setPreviousSecondarySubVisibility?: (value: boolean | null) => void;
+  showMpvOsd?: (text: string) => void;
   updateCurrentMediaTitle?: (mediaTitle: unknown) => void;
 }
 
+export interface MpvIpcClientDeps extends MpvIpcClientProtocolDeps, MpvIpcClientRuntimeDeps {}
+
+export interface MpvIpcClientEventMap {
+  "subtitle-change": { text: string; isOverlayVisible: boolean };
+  "subtitle-ass-change": { text: string };
+  "secondary-subtitle-change": { text: string };
+  "media-path-change": { path: string };
+  "media-title-change": { title: string | null };
+  "subtitle-metrics-change": { patch: Partial<MpvSubtitleRenderMetrics> };
+  "secondary-subtitle-visibility": { visible: boolean };
+}
+
+type MpvIpcClientEventName = keyof MpvIpcClientEventMap;
+
 export class MpvIpcClient implements MpvClient {
   private socketPath: string;
-  private deps: MpvIpcClientDeps;
+  private deps: MpvIpcClientProtocolDeps & Required<MpvIpcClientRuntimeDeps>;
   public socket: net.Socket | null = null;
+  private eventBus = new EventEmitter();
   private buffer = "";
   public connected = false;
   private connecting = false;
@@ -96,7 +115,62 @@ export class MpvIpcClient implements MpvClient {
 
   constructor(socketPath: string, deps: MpvIpcClientDeps) {
     this.socketPath = socketPath;
-    this.deps = deps;
+    this.deps = {
+      getCurrentSubText: () => "",
+      setCurrentSubText: () => undefined,
+      setCurrentSubAssText: () => undefined,
+      getSubtitleTimingTracker: () => null,
+      subtitleWsBroadcast: () => undefined,
+      getOverlayWindowsCount: () => 0,
+      tokenizeSubtitle: async (text) => ({ text, tokens: null }),
+      broadcastToOverlayWindows: () => undefined,
+      updateCurrentMediaPath: () => undefined,
+      updateCurrentMediaTitle: () => undefined,
+      updateMpvSubtitleRenderMetrics: () => undefined,
+      getMpvSubtitleRenderMetrics: () => ({
+        subPos: 100,
+        subFontSize: 36,
+        subScale: 1,
+        subMarginY: 0,
+        subMarginX: 0,
+        subFont: "",
+        subSpacing: 0,
+        subBold: false,
+        subItalic: false,
+        subBorderSize: 0,
+        subShadowOffset: 0,
+        subAssOverride: "yes",
+        subScaleByWindow: true,
+        subUseMargins: true,
+        osdHeight: 0,
+        osdDimensions: null,
+      }),
+      getPreviousSecondarySubVisibility: () => null,
+      setPreviousSecondarySubVisibility: () => undefined,
+      showMpvOsd: () => undefined,
+      ...deps,
+    };
+  }
+
+  on<EventName extends MpvIpcClientEventName>(
+    event: EventName,
+    listener: (payload: MpvIpcClientEventMap[EventName]) => void,
+  ): void {
+    this.eventBus.on(event as string, listener);
+  }
+
+  off<EventName extends MpvIpcClientEventName>(
+    event: EventName,
+    listener: (payload: MpvIpcClientEventMap[EventName]) => void,
+  ): void {
+    this.eventBus.off(event as string, listener);
+  }
+
+  private emit<EventName extends MpvIpcClientEventName>(
+    event: EventName,
+    payload: MpvIpcClientEventMap[EventName],
+  ): void {
+    this.eventBus.emit(event as string, payload);
   }
 
   setSocketPath(socketPath: string): void {
@@ -219,6 +293,11 @@ export class MpvIpcClient implements MpvClient {
     if (msg.event === "property-change") {
       if (msg.name === "sub-text") {
         const nextSubText = (msg.data as string) || "";
+        const overlayVisible = this.deps.isVisibleOverlayVisible();
+        this.emit("subtitle-change", {
+          text: nextSubText,
+          isOverlayVisible: overlayVisible,
+        });
         this.deps.setCurrentSubText(nextSubText);
         this.currentSubText = nextSubText;
         const subtitleTimingTracker = this.deps.getSubtitleTimingTracker();
@@ -240,6 +319,9 @@ export class MpvIpcClient implements MpvClient {
         }
       } else if (msg.name === "sub-text-ass") {
         const nextSubAssText = (msg.data as string) || "";
+        this.emit("subtitle-ass-change", {
+          text: nextSubAssText,
+        });
         this.deps.setCurrentSubAssText(nextSubAssText);
         this.deps.broadcastToOverlayWindows("subtitle-ass:set", nextSubAssText);
       } else if (msg.name === "sub-start") {
@@ -269,6 +351,9 @@ export class MpvIpcClient implements MpvClient {
         }
       } else if (msg.name === "secondary-sub-text") {
         this.currentSecondarySubText = (msg.data as string) || "";
+        this.emit("secondary-subtitle-change", {
+          text: this.currentSecondarySubText,
+        });
         this.deps.broadcastToOverlayWindows(
           "secondary-subtitle:set",
           this.currentSecondarySubText,
@@ -287,13 +372,21 @@ export class MpvIpcClient implements MpvClient {
           this.send({ command: ["set_property", "pause", true] });
         }
       } else if (msg.name === "media-title") {
+        this.emit("media-title-change", {
+          title: typeof msg.data === "string" ? msg.data.trim() : null,
+        });
         this.deps.updateCurrentMediaTitle?.(msg.data);
       } else if (msg.name === "path") {
         this.currentVideoPath = (msg.data as string) || "";
+        this.emit("media-path-change", {
+          path: (msg.data as string) || "",
+        });
         this.deps.updateCurrentMediaPath(msg.data);
         this.autoLoadSecondarySubTrack();
         this.syncCurrentAudioStreamIndex();
       } else if (msg.name === "sub-pos") {
+        const patch = { subPos: msg.data as number };
+        this.emit("subtitle-metrics-change", { patch });
         this.deps.updateMpvSubtitleRenderMetrics({ subPos: msg.data as number });
       } else if (msg.name === "sub-font-size") {
         this.deps.updateMpvSubtitleRenderMetrics({
@@ -423,6 +516,10 @@ export class MpvIpcClient implements MpvClient {
         const nextSubText = (msg.data as string) || "";
         this.deps.setCurrentSubText(nextSubText);
         this.currentSubText = nextSubText;
+        this.emit("subtitle-change", {
+          text: nextSubText,
+          isOverlayVisible: this.deps.isVisibleOverlayVisible(),
+        });
         this.deps.subtitleWsBroadcast(nextSubText);
         if (this.deps.getOverlayWindowsCount() > 0) {
           this.deps.tokenizeSubtitle(nextSubText).then((subtitleData) => {
@@ -431,9 +528,15 @@ export class MpvIpcClient implements MpvClient {
         }
       } else if (msg.request_id === MPV_REQUEST_ID_SUBTEXT_ASS) {
         const nextSubAssText = (msg.data as string) || "";
+        this.emit("subtitle-ass-change", {
+          text: nextSubAssText,
+        });
         this.deps.setCurrentSubAssText(nextSubAssText);
         this.deps.broadcastToOverlayWindows("subtitle-ass:set", nextSubAssText);
       } else if (msg.request_id === MPV_REQUEST_ID_PATH) {
+        this.emit("media-path-change", {
+          path: (msg.data as string) || "",
+        });
         this.deps.updateCurrentMediaPath(msg.data);
       } else if (msg.request_id === MPV_REQUEST_ID_AID) {
         this.currentAudioTrackId =
