@@ -666,51 +666,7 @@ const startupState = runStartupBootstrapRuntimeService({
             appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
           },
           createMpvClient: () => {
-            appState.mpvClient = new MpvIpcClient(
-              appState.mpvSocketPath,
-              {
-                getResolvedConfig: () => getResolvedConfig(),
-                autoStartOverlay: appState.autoStartOverlay,
-                setOverlayVisible: (visible) => setOverlayVisible(visible),
-                shouldBindVisibleOverlayToMpvSubVisibility: () =>
-                  shouldBindVisibleOverlayToMpvSubVisibility(),
-                isVisibleOverlayVisible: () =>
-                  overlayManager.getVisibleOverlayVisible(),
-                getReconnectTimer: () => appState.reconnectTimer,
-                setReconnectTimer: (timer) => {
-                  appState.reconnectTimer = timer;
-                },
-                getCurrentSubText: () => appState.currentSubText,
-                setCurrentSubText: (text) => {
-                  appState.currentSubText = text;
-                },
-                setCurrentSubAssText: (text) => {
-                  appState.currentSubAssText = text;
-                },
-                getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
-                subtitleWsBroadcast: (text) => {
-                  subtitleWsService.broadcast(text);
-                },
-                getOverlayWindowsCount: () => getOverlayWindows().length,
-                tokenizeSubtitle: (text) => tokenizeSubtitle(text),
-                broadcastToOverlayWindows: (channel, ...channelArgs) => {
-                  broadcastToOverlayWindows(channel, ...channelArgs);
-                },
-                updateMpvSubtitleRenderMetrics: (patch) => {
-                  updateMpvSubtitleRenderMetrics(patch);
-                },
-                getMpvSubtitleRenderMetrics: () => appState.mpvSubtitleRenderMetrics,
-                getPreviousSecondarySubVisibility: () =>
-                  appState.previousSecondarySubVisibility,
-                setPreviousSecondarySubVisibility: (value) => {
-                  appState.previousSecondarySubVisibility = value;
-                },
-                showMpvOsd: (text) => {
-                  showMpvOsd(text);
-                },
-              },
-            );
-            bindMpvClientEventHandlers(appState.mpvClient);
+            appState.mpvClient = createMpvClientRuntimeService();
           },
           reloadConfig: () => {
             configService.reloadConfig();
@@ -898,6 +854,50 @@ function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
   mpvClient.on("subtitle-change", ({ text }) => {
     appState.currentSubText = text;
   });
+}
+
+function createMpvClientRuntimeService(): MpvIpcClient {
+  const mpvClient = new MpvIpcClient(appState.mpvSocketPath, {
+    getResolvedConfig: () => getResolvedConfig(),
+    autoStartOverlay: appState.autoStartOverlay,
+    setOverlayVisible: (visible) => setOverlayVisible(visible),
+    shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      shouldBindVisibleOverlayToMpvSubVisibility(),
+    isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getReconnectTimer: () => appState.reconnectTimer,
+    setReconnectTimer: (timer) => {
+      appState.reconnectTimer = timer;
+    },
+    getCurrentSubText: () => appState.currentSubText,
+    setCurrentSubText: (text) => {
+      appState.currentSubText = text;
+    },
+    setCurrentSubAssText: (text) => {
+      appState.currentSubAssText = text;
+    },
+    getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+    subtitleWsBroadcast: (text) => {
+      subtitleWsService.broadcast(text);
+    },
+    getOverlayWindowsCount: () => getOverlayWindows().length,
+    tokenizeSubtitle: (text) => tokenizeSubtitle(text),
+    broadcastToOverlayWindows: (channel, ...channelArgs) => {
+      broadcastToOverlayWindows(channel, ...channelArgs);
+    },
+    updateMpvSubtitleRenderMetrics: (patch) => {
+      updateMpvSubtitleRenderMetrics(patch);
+    },
+    getMpvSubtitleRenderMetrics: () => appState.mpvSubtitleRenderMetrics,
+    getPreviousSecondarySubVisibility: () => appState.previousSecondarySubVisibility,
+    setPreviousSecondarySubVisibility: (value) => {
+      appState.previousSecondarySubVisibility = value;
+    },
+    showMpvOsd: (text) => {
+      showMpvOsd(text);
+    },
+  });
+  bindMpvClientEventHandlers(mpvClient);
+  return mpvClient;
 }
 
 function updateMpvSubtitleRenderMetrics(
