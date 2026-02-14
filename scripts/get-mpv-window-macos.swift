@@ -11,12 +11,65 @@
 //
 
 import Cocoa
+import Foundation
 
 private struct WindowGeometry {
     let x: Int
     let y: Int
     let width: Int
     let height: Int
+}
+
+private let targetMpvSocketPath: String? = {
+    guard CommandLine.arguments.count > 1 else {
+        return nil
+    }
+
+    let value = CommandLine.arguments[1].trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.isEmpty ? nil : value
+}()
+
+private func windowCommandLineForPid(_ pid: pid_t) -> String? {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/ps")
+    process.arguments = ["-p", "\(pid)", "-o", "args="]
+
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = pipe
+
+    do {
+        try process.run()
+        process.waitUntilExit()
+    } catch {
+        return nil
+    }
+
+    if process.terminationStatus != 0 {
+        return nil
+    }
+
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    guard let commandLine = String(data: data, encoding: .utf8) else {
+        return nil
+    }
+
+    return commandLine
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacingOccurrences(of: "\n", with: " ")
+}
+
+private func windowHasTargetSocket(_ pid: pid_t) -> Bool {
+    guard let socketPath = targetMpvSocketPath else {
+        return true
+    }
+
+    guard let commandLine = windowCommandLineForPid(pid) else {
+        return false
+    }
+
+    return commandLine.contains("--input-ipc-server=\(socketPath)") ||
+        commandLine.contains("--input-ipc-server \(socketPath)")
 }
 
 private func geometryFromRect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) -> WindowGeometry {
@@ -93,6 +146,10 @@ private func geometryFromAccessibilityAPI() -> WindowGeometry? {
 
     for app in runningApps {
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
+        if !windowHasTargetSocket(app.processIdentifier) {
+            continue
+        }
+
         var windowsRef: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
         guard status == .success, let windows = windowsRef as? [AXUIElement], !windows.isEmpty else {
@@ -103,6 +160,15 @@ private func geometryFromAccessibilityAPI() -> WindowGeometry? {
             var minimizedRef: CFTypeRef?
             let minimizedStatus = AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimizedRef)
             if minimizedStatus == .success, let minimized = minimizedRef as? Bool, minimized {
+                continue
+            }
+
+            var windowPid: pid_t = 0
+            if AXUIElementGetPid(window, &windowPid) != .success {
+                continue
+            }
+
+            if !windowHasTargetSocket(windowPid) {
                 continue
             }
 
@@ -124,6 +190,14 @@ private func geometryFromCoreGraphics() -> WindowGeometry? {
     for window in windowList {
         guard let ownerName = window[kCGWindowOwnerName as String] as? String,
               normalizedMpvName(ownerName) else {
+            continue
+        }
+
+        guard let ownerPid = window[kCGWindowOwnerPID as String] as? pid_t else {
+            continue
+        }
+
+        if !windowHasTargetSocket(ownerPid) {
             continue
         }
 
