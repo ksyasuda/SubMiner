@@ -74,10 +74,10 @@ src/renderer/
 
 ```mermaid
 flowchart TD
-  classDef root fill:#1f2937,stroke:#111827,color:#f9fafb,stroke-width:1.5px;
-  classDef orchestration fill:#334155,stroke:#0f172a,color:#e2e8f0;
-  classDef domain fill:#1d4ed8,stroke:#1e3a8a,color:#dbeafe;
-  classDef boundary fill:#065f46,stroke:#064e3b,color:#d1fae5;
+  classDef root fill:#c6a0f6,stroke:#181926,color:#181926,stroke-width:2px;
+  classDef orchestration fill:#494d64,stroke:#b7bdf8,color:#cad3f5,stroke-width:2px;
+  classDef domain fill:#494d64,stroke:#8aadf4,color:#cad3f5,stroke-width:2px;
+  classDef boundary fill:#494d64,stroke:#a6da95,color:#cad3f5,stroke-width:2px;
 
   subgraph Entry["Entrypoint"]
     Main["src/main.ts\ncomposition root"]
@@ -160,10 +160,10 @@ This keeps side effects explicit and makes behavior easy to unit-test with fakes
 
 ```mermaid
 flowchart TD
-  classDef phase fill:#334155,stroke:#0f172a,color:#e2e8f0;
-  classDef decision fill:#7c2d12,stroke:#431407,color:#ffedd5;
-  classDef runtime fill:#0369a1,stroke:#0c4a6e,color:#e0f2fe;
-  classDef shutdown fill:#14532d,stroke:#052e16,color:#dcfce7;
+  classDef phase fill:#494d64,stroke:#b7bdf8,color:#cad3f5,stroke-width:2px;
+  classDef decision fill:#494d64,stroke:#f5a97f,color:#cad3f5,stroke-width:2px;
+  classDef runtime fill:#494d64,stroke:#8aadf4,color:#cad3f5,stroke-width:2px;
+  classDef shutdown fill:#494d64,stroke:#a6da95,color:#cad3f5,stroke-width:2px;
 
   Args["CLI args / env"] --> Startup["startup-service"]
   class Args,Startup phase;
