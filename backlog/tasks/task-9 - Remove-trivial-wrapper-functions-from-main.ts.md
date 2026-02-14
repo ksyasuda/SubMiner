@@ -4,6 +4,7 @@ title: Remove trivial wrapper functions from main.ts
 status: To Do
 assignee: []
 created_date: '2026-02-11 08:21'
+updated_date: '2026-02-14 00:48'
 labels:
   - refactor
   - main
@@ -13,7 +14,7 @@ dependencies:
   - TASK-7
 references:
   - src/main.ts
-priority: medium
+priority: low
 ---
 
 ## Description
@@ -45,3 +46,9 @@ After TASK-7 (AppState container), many of these can be eliminated by having ser
 - [ ] #3 main.ts line count reduced
 - [ ] #4 No functional changes
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Priority changed from medium to low: this work is largely subsumed by TASK-27.2 (split main.ts). When main.ts is decomposed into composition-root modules, trivial wrappers will naturally be eliminated or inlined. Recommend folding remaining wrapper cleanup into TASK-27.2 rather than tracking separately. Keep this ticket as a checklist reference but don't execute independently.
+<!-- SECTION:NOTES:END -->
