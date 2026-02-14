@@ -144,6 +144,48 @@ test("MpvIpcClient scheduleReconnect schedules timer and invokes connect", () =>
   assert.equal(connectCalled, true);
 });
 
+test("MpvIpcClient scheduleReconnect clears existing reconnect timer", () => {
+  const timers: Array<ReturnType<typeof setTimeout> | null> = [];
+  const cleared: Array<ReturnType<typeof setTimeout> | null> = [];
+  const existingTimer = {} as ReturnType<typeof setTimeout>;
+  const client = new MpvIpcClient(
+    "/tmp/mpv.sock",
+    makeDeps({
+      getReconnectTimer: () => existingTimer,
+      setReconnectTimer: (timer) => {
+        timers.push(timer);
+      },
+    }),
+  );
+
+  let connectCalled = false;
+  (client as any).connect = () => {
+    connectCalled = true;
+  };
+
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  (globalThis as any).setTimeout = (handler: () => void, _delay: number) => {
+    handler();
+    return 1 as unknown as ReturnType<typeof setTimeout>;
+  };
+  (globalThis as any).clearTimeout = (timer: ReturnType<typeof setTimeout> | null) => {
+    cleared.push(timer);
+  };
+
+  try {
+    (client as any).scheduleReconnect();
+  } finally {
+    (globalThis as any).setTimeout = originalSetTimeout;
+    (globalThis as any).clearTimeout = originalClearTimeout;
+  }
+
+  assert.equal(cleared.length, 1);
+  assert.equal(cleared[0], existingTimer);
+  assert.equal(timers.length, 1);
+  assert.equal(connectCalled, true);
+});
+
 test("MpvIpcClient captures and disables secondary subtitle visibility on request", async () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient("/tmp/mpv.sock", makeDeps());
