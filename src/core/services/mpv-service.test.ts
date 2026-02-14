@@ -6,6 +6,7 @@ import {
   MpvIpcClientProtocolDeps,
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
 } from "./mpv-service";
+import { MPV_REQUEST_ID_TRACK_LIST_AUDIO } from "./mpv-protocol";
 
 function makeDeps(
   overrides: Partial<MpvIpcClientProtocolDeps> = {},
@@ -244,4 +245,25 @@ test("MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tra
 
   client.restorePreviousSecondarySubVisibility();
   assert.equal(commands.length, 2);
+});
+
+test("MpvIpcClient updates current audio stream index from track list", async () => {
+  const client = new MpvIpcClient("/tmp/mpv.sock", makeDeps());
+
+  await invokeHandleMessage(client, {
+    event: "property-change",
+    name: "aid",
+    data: 3,
+  });
+  await invokeHandleMessage(client, {
+    request_id: MPV_REQUEST_ID_TRACK_LIST_AUDIO,
+    data: [
+      { type: "sub", id: 5 },
+      { type: "audio", id: 1, selected: false, "ff-index": 7 },
+      { type: "audio", id: 3, selected: false, "ff-index": 11 },
+      { type: "audio", id: 4, selected: true, "ff-index": 9 },
+    ],
+  });
+
+  assert.equal(client.currentAudioStreamIndex, 11);
 });
