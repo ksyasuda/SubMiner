@@ -142,6 +142,7 @@ export function runOverlayShortcutLocalFallback(
       run: () => {
         handlers.openJimaku();
       },
+      allowWhenRegistered: true,
     },
     {
       accelerator: shortcuts.markAudioCard,

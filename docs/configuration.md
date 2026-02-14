@@ -416,7 +416,7 @@ See `config.example.jsonc` for detailed configuration options.
     "mineSentenceMultiple": "CommandOrControl+Shift+S",
     "markAudioCard": "CommandOrControl+Shift+A",
     "openRuntimeOptions": "CommandOrControl+Shift+O",
-    "openJimaku": "Ctrl+Alt+J",
+    "openJimaku": "Ctrl+Shift+J",
     "multiCopyTimeoutMs": 3000
   }
 }
@@ -437,7 +437,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                              |
 | `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                              |
 | `openRuntimeOptions`          | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                  |
-| `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Alt+J"`)                                                                               |
+| `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                              |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 

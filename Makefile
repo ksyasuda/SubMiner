@@ -166,13 +166,6 @@ install-linux:
 	@printf '%s\n' "[INFO] Installing Linux wrapper/theme artifacts"
 	@install -d "$(BINDIR)"
 	@install -m 0755 "./$(APP_NAME)" "$(BINDIR)/$(APP_NAME)"
-	@if [ -f "vendor/ani-cli/ani-cli" ]; then \
-		install -d "$(BINDIR)/ani-cli"; \
-		install -m 0755 "vendor/ani-cli/ani-cli" "$(BINDIR)/ani-cli/ani-cli"; \
-		printf '%s\n' "[INFO] Installed vendored ani-cli to $(BINDIR)/ani-cli"; \
-	else \
-		printf '%s\n' "[WARN] vendored ani-cli not found at vendor/ani-cli (stream mode will require system ani-cli)"; \
-	fi
 	@install -d "$(LINUX_DATA_DIR)/themes"
 	@install -m 0644 "./$(THEME_FILE)" "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
 	@if [ -n "$(APPIMAGE_SRC)" ]; then \
@@ -187,13 +180,6 @@ install-macos:
 	@printf '%s\n' "[INFO] Installing macOS wrapper/theme/app artifacts"
 	@install -d "$(BINDIR)"
 	@install -m 0755 "./$(APP_NAME)" "$(BINDIR)/$(APP_NAME)"
-	@if [ -f "vendor/ani-cli/ani-cli" ]; then \
-		install -d "$(BINDIR)/ani-cli"; \
-		install -m 0755 "vendor/ani-cli/ani-cli" "$(BINDIR)/ani-cli/ani-cli"; \
-		printf '%s\n' "[INFO] Installed vendored ani-cli to $(BINDIR)/ani-cli"; \
-	else \
-		printf '%s\n' "[WARN] vendored ani-cli not found at vendor/ani-cli (stream mode will require system ani-cli)"; \
-	fi
 	@install -d "$(MACOS_DATA_DIR)/themes"
 	@install -m 0644 "./$(THEME_FILE)" "$(MACOS_DATA_DIR)/themes/$(THEME_FILE)"
 	@install -d "$(MACOS_APP_DIR)"
@@ -224,13 +210,11 @@ uninstall: uninstall-linux
 
 uninstall-linux:
 	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
-	@rm -rf "$(BINDIR)/ani-cli"
 	@rm -f "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
 	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(BINDIR)/SubMiner.AppImage" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
 
 uninstall-macos:
 	@rm -f "$(BINDIR)/subminer"
-	@rm -rf "$(BINDIR)/ani-cli"
 	@rm -f "$(MACOS_DATA_DIR)/themes/$(THEME_FILE)"
 	@rm -rf "$(MACOS_APP_DEST)"
 	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(MACOS_DATA_DIR)/themes/$(THEME_FILE)" "  $(MACOS_APP_DEST)"

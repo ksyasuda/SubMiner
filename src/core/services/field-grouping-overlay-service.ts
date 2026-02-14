@@ -25,6 +25,11 @@ export interface FieldGroupingOverlayRuntimeOptions<T extends string> {
     resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
   ) => void;
   getRestoreVisibleOverlayOnModalClose: () => Set<T>;
+  sendToVisibleOverlay?: (
+    channel: string,
+    payload?: unknown,
+    runtimeOptions?: { restoreOnModalClose?: T },
+  ) => boolean;
 }
 
 export function createFieldGroupingOverlayRuntimeService<T extends string>(
@@ -44,6 +49,9 @@ export function createFieldGroupingOverlayRuntimeService<T extends string>(
     payload?: unknown,
     runtimeOptions?: { restoreOnModalClose?: T },
   ): boolean => {
+    if (options.sendToVisibleOverlay) {
+      return options.sendToVisibleOverlay(channel, payload, runtimeOptions);
+    }
     return sendToVisibleOverlayRuntimeService({
       mainWindow: options.getMainWindow() as never,
       visibleOverlayVisible: options.getVisibleOverlayVisible(),

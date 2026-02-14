@@ -101,8 +101,16 @@ export function getTrackById(
 export function codecToExtension(codec: string | undefined): string | null {
   if (!codec) return null;
   const normalized = codec.toLowerCase();
-  if (normalized === "subrip" || normalized === "srt") return "srt";
+  if (
+    normalized === "subrip" ||
+    normalized === "srt" ||
+    normalized === "text" ||
+    normalized === "mov_text"
+  )
+    return "srt";
   if (normalized === "ass" || normalized === "ssa") return "ass";
+  if (normalized === "webvtt" || normalized === "vtt") return "vtt";
+  if (normalized === "ttml") return "ttml";
   return null;
 }
 

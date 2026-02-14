@@ -1,6 +1,6 @@
-# SubMiner Script vs MPV Plugin
+# Usage
 
-There are two ways to use SubMiner:
+There are two ways to use SubMiner — the `subminer` wrapper script or the mpv plugin:
 
 | Approach            | Best For                                                                                                                                                                              |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -11,7 +11,7 @@ You can use both together—install the plugin for on-demand control, but use `s
 
 `subminer` is implemented as a Bun script and runs directly via shebang (no `bun run` needed), for example: `subminer video.mkv`.
 
-## Usage
+## Commands
 
 ```bash
 # Browse and play videos

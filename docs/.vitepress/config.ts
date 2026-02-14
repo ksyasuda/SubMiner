@@ -3,7 +3,7 @@ const base = process.env.GITHUB_ACTIONS && repositoryName ? `/${repositoryName}/
 
 export default {
   title: 'SubMiner Docs',
-  description: 'Documentation for SubMiner',
+  description: 'All-in-one sentence mining overlay for MPV with AnkiConnect and dictionary integration',
   base,
   appearance: 'dark',
   cleanUrls: true,
@@ -21,12 +21,11 @@ export default {
     },
     siteTitle: 'SubMiner Docs',
     nav: [
-      { text: 'Docs', link: '/' },
-      { text: 'Installation', link: '/installation' },
-      { text: 'Usage', link: '/usage' },
+      { text: 'Home', link: '/' },
+      { text: 'Get Started', link: '/installation' },
       { text: 'Mining', link: '/mining-workflow' },
       { text: 'Configuration', link: '/configuration' },
-      { text: 'Architecture', link: '/architecture' },
+      { text: 'Troubleshooting', link: '/troubleshooting' },
     ],
     sidebar: [
       {
@@ -50,7 +49,7 @@ export default {
       {
         text: 'Development',
         items: [
-          { text: 'Development', link: '/development' },
+          { text: 'Building & Testing', link: '/development' },
           { text: 'Architecture', link: '/architecture' },
         ],
       },
