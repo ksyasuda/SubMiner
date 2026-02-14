@@ -11,6 +11,7 @@ export function createJimakuModal(
   ctx: RendererContext,
   options: {
     modalStateReader: Pick<ModalStateReader, "isAnyModalOpen">;
+    syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
   function setJimakuStatus(message: string, isError = false): void {
@@ -252,6 +253,7 @@ export function createJimakuModal(
     if (ctx.state.jimakuModalOpen) return;
 
     ctx.state.jimakuModalOpen = true;
+    options.syncSettingsModalSubtitleSuppression();
     ctx.dom.overlay.classList.add("interactive");
     ctx.dom.jimakuModal.classList.remove("hidden");
     ctx.dom.jimakuModal.setAttribute("aria-hidden", "false");
@@ -284,8 +286,10 @@ export function createJimakuModal(
     if (!ctx.state.jimakuModalOpen) return;
 
     ctx.state.jimakuModalOpen = false;
+    options.syncSettingsModalSubtitleSuppression();
     ctx.dom.jimakuModal.classList.add("hidden");
     ctx.dom.jimakuModal.setAttribute("aria-hidden", "true");
+    window.electronAPI.notifyOverlayModalClosed("jimaku");
 
     if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
       ctx.dom.overlay.classList.remove("interactive");

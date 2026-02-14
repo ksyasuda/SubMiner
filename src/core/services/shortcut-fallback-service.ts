@@ -66,7 +66,7 @@ export function shortcutMatchesInputForLocalFallback(
   } else {
     if (process.platform === "darwin") {
       if (input.meta || input.control) return false;
-    } else if (input.control) {
+    } else if (!expectedControl && input.control) {
       return false;
     }
   }

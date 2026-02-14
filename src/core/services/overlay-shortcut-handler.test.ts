@@ -204,6 +204,41 @@ test("runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-s
   assert.deepEqual(matched, [{ accelerator: "Ctrl+2", allowWhenRegistered: true }]);
 });
 
+test("runOverlayShortcutLocalFallback allows registered-global jimaku shortcut", () => {
+  const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> = [];
+  const shortcuts = makeShortcuts({
+    openJimaku: "Ctrl+J",
+  });
+
+  const result = runOverlayShortcutLocalFallback(
+    {} as Electron.Input,
+    shortcuts,
+    (_input, accelerator, allowWhenRegistered) => {
+      matched.push({
+        accelerator,
+        allowWhenRegistered: allowWhenRegistered === true,
+      });
+      return accelerator === "Ctrl+J";
+    },
+    {
+      openRuntimeOptions: () => {},
+      openJimaku: () => {},
+      markAudioCard: () => {},
+      copySubtitleMultiple: () => {},
+      copySubtitle: () => {},
+      toggleSecondarySub: () => {},
+      updateLastCardFromClipboard: () => {},
+      triggerFieldGrouping: () => {},
+      triggerSubsync: () => {},
+      mineSentence: () => {},
+      mineSentenceMultiple: () => {},
+    },
+  );
+
+  assert.equal(result, true);
+  assert.deepEqual(matched, [{ accelerator: "Ctrl+J", allowWhenRegistered: true }]);
+});
+
 test("runOverlayShortcutLocalFallback returns false when no action matches", () => {
   const shortcuts = makeShortcuts({
     copySubtitle: "Ctrl+C",

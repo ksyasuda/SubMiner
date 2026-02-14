@@ -68,6 +68,7 @@ export interface MpvIpcClientDeps {
   getPreviousSecondarySubVisibility: () => boolean | null;
   setPreviousSecondarySubVisibility: (value: boolean | null) => void;
   showMpvOsd: (text: string) => void;
+  updateCurrentMediaTitle?: (mediaTitle: unknown) => void;
 }
 
 export class MpvIpcClient implements MpvClient {
@@ -285,6 +286,8 @@ export class MpvIpcClient implements MpvClient {
           this.pauseAtTime = null;
           this.send({ command: ["set_property", "pause", true] });
         }
+      } else if (msg.name === "media-title") {
+        this.deps.updateCurrentMediaTitle?.(msg.data);
       } else if (msg.name === "path") {
         this.currentVideoPath = (msg.data as string) || "";
         this.deps.updateCurrentMediaPath(msg.data);
@@ -653,6 +656,7 @@ export class MpvIpcClient implements MpvClient {
     this.send({ command: ["observe_property", 22, "sub-shadow-offset"] });
     this.send({ command: ["observe_property", 23, "sub-ass-override"] });
     this.send({ command: ["observe_property", 24, "sub-use-margins"] });
+    this.send({ command: ["observe_property", 25, "media-title"] });
   }
 
   private getInitialState(): void {
@@ -667,6 +671,9 @@ export class MpvIpcClient implements MpvClient {
     this.send({
       command: ["get_property", "path"],
       request_id: MPV_REQUEST_ID_PATH,
+    });
+    this.send({
+      command: ["get_property", "media-title"],
     });
     this.send({
       command: ["get_property", "secondary-sub-text"],

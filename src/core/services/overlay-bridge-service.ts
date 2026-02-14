@@ -22,11 +22,26 @@ export function sendToVisibleOverlayRuntimeService<T extends string>(options: {
   if (!wasVisible && options.restoreOnModalClose) {
     options.restoreVisibleOverlayOnModalClose.add(options.restoreOnModalClose);
   }
-  if (options.payload === undefined) {
-    options.mainWindow.webContents.send(options.channel);
-  } else {
-    options.mainWindow.webContents.send(options.channel, options.payload);
+  const sendNow = (): void => {
+    if (options.payload === undefined) {
+      options.mainWindow!.webContents.send(options.channel);
+    } else {
+      options.mainWindow!.webContents.send(options.channel, options.payload);
+    }
+  };
+  if (options.mainWindow.webContents.isLoading()) {
+    options.mainWindow.webContents.once("did-finish-load", () => {
+      if (
+        options.mainWindow &&
+        !options.mainWindow.isDestroyed() &&
+        !options.mainWindow.webContents.isLoading()
+      ) {
+        sendNow();
+      }
+    });
+    return true;
   }
+  sendNow();
   return true;
 }
 

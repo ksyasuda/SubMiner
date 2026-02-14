@@ -20,12 +20,12 @@ src/
   preload.ts               # Electron preload bridge
   types.ts                 # Shared type definitions
   core/
-    services/              # ~35 focused service modules (see below)
+    services/              # ~55 focused service modules (see below)
     utils/                 # Pure helpers and coercion/config utilities
   cli/                     # CLI parsing and help output
   config/                  # Config schema, defaults, validation, template generation
   renderer/                # Overlay renderer (modularized UI/runtime)
-  window-trackers/         # Backend-specific tracker implementations (Hyprland, X11, macOS)
+  window-trackers/         # Backend-specific tracker implementations (Hyprland, Sway, X11, macOS)
   jimaku/                  # Jimaku API integration helpers
   subsync/                 # Subtitle sync (alass/ffsubsync) helpers
   subtitle/                # Subtitle processing utilities

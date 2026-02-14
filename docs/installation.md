@@ -2,32 +2,41 @@
 
 ## Requirements
 
-### Linux
+### System Dependencies
 
-- **Wayland/X11 compositor** (one of the following):
-  - Hyprland (uses `hyprctl`)
-  - X11 (uses `xdotool` and `xwininfo`)
-- mpv (with IPC socket support)
-- mecab and mecab-ipadic (optional fallback Japanese morphological analyzer)
-- fuse2 (for AppImage support)
+| Dependency | Required | Notes |
+| --- | --- | --- |
+| mpv | Yes | Must support IPC sockets (`--input-ipc-server`) |
+| ffmpeg | For media | Audio extraction and screenshot generation |
+| MeCab + mecab-ipadic | No | Optional fallback tokenizer for Japanese |
+| fuse2 | Linux only | Required for AppImage |
+| yt-dlp | No | Recommended for YouTube playback and subtitle extraction |
 
-### macOS
+### Platform-Specific
 
-- macOS 10.13 or later
-- mpv (with IPC socket support)
-- mecab and mecab-ipadic (optional fallback Japanese morphological analyzer)
-- **Accessibility permission** required for window tracking (see [macOS Installation](#macos-installation))
+**Linux** — one of the following compositors:
 
-**Optional:**
+- Hyprland (uses `hyprctl`)
+- Sway (uses `swaymsg`)
+- X11 (uses `xdotool` and `xwininfo`)
 
-- fzf (terminal-based video picker, default)
-- rofi (GUI-based video picker)
-- chafa (thumbnail previews in fzf)
-- ffmpegthumbnailer (generate video thumbnails)
-- yt-dlp (recommended for reliable YouTube playback/subtitles in mpv)
-- bun (required to run the `subminer` wrapper script from source/local installs)
+**macOS** — macOS 10.13 or later. Accessibility permission required for window tracking.
 
-### From AppImage (Recommended)
+### Optional Tools
+
+| Tool | Purpose |
+| --- | --- |
+| fzf | Terminal-based video picker (default) |
+| rofi | GUI-based video picker |
+| chafa | Thumbnail previews in fzf |
+| ffmpegthumbnailer | Generate video thumbnails for picker |
+| alass | Subtitle sync engine (preferred) |
+| ffsubsync | Subtitle sync engine (fallback) |
+| Bun | Required for the `subminer` wrapper script |
+
+## Linux
+
+### AppImage (Recommended)
 
 Download the latest AppImage from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):
 
@@ -41,12 +50,26 @@ wget https://github.com/ksyasuda/SubMiner/releases/download/v0.1.0/subminer -O ~
 chmod +x ~/.local/bin/subminer
 ```
 
-Note: the `subminer` wrapper uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`.
+The `subminer` wrapper uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`.
 
-### macOS Installation
+### From Source
 
-If you download a release, use the **DMG** artifact. Open it and drag `SubMiner.app` into `/Applications`.
-If needed, you can use the **ZIP** artifact as a fallback by unzipping and dragging `SubMiner.app` into `/Applications`.
+```bash
+git clone https://github.com/ksyasuda/SubMiner.git
+cd SubMiner
+make build
+
+# Install platform artifacts (wrapper + theme + AppImage)
+make install
+```
+
+## macOS
+
+### DMG (Recommended)
+
+Download the **DMG** artifact from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Open it and drag `SubMiner.app` into `/Applications`.
+
+A **ZIP** artifact is also available as a fallback — unzip and drag `SubMiner.app` into `/Applications`.
 
 Install dependencies using Homebrew:
 
@@ -54,7 +77,7 @@ Install dependencies using Homebrew:
 brew install mpv mecab mecab-ipadic
 ```
 
-Build from source:
+### From Source (macOS)
 
 ```bash
 git clone https://github.com/ksyasuda/SubMiner.git
@@ -64,58 +87,23 @@ cd vendor/texthooker-ui && pnpm install && pnpm build && cd ../..
 pnpm run build:mac
 ```
 
-The built app will be available in the `release` directory (`.dmg` and `.zip` on macOS).
+The built app will be available in the `release` directory (`.dmg` and `.zip`).
 
-If you are building locally without Apple signing credentials, use:
+For unsigned local builds:
 
 ```bash
 pnpm run build:mac:unsigned
 ```
 
-You can launch `SubMiner.app` directly (double-click or `open -a SubMiner`).
-Use `--start` when you want SubMiner to begin MPV IPC connection/reconnect behavior.
-Use `--texthooker` when you only want the texthooker page (no overlay window).
+### Accessibility Permission
 
-**Accessibility Permission:**
-
-After launching the app for the first time, grant accessibility permission:
+After launching SubMiner for the first time, grant accessibility permission:
 
 1. Open **System Preferences** → **Security & Privacy** → **Privacy** tab
 2. Select **Accessibility** from the left sidebar
 3. Add SubMiner to the list
 
-Without this permission, window tracking will not work and the overlay won't follow the MPV window.
-
-<!-- ### Maintainer: macOS Release Signing/Notarization
-
-The GitHub release workflow builds signed and notarized macOS artifacts on `macos-latest`.
-Set these GitHub Actions secrets before creating a release tag:
-
-- `CSC_LINK` (base64 `.p12` certificate or file URL for Developer ID Application cert)
-- `CSC_KEY_PASSWORD` (password for the `.p12`)
-- `APPLE_ID` (Apple ID email)
-- `APPLE_APP_SPECIFIC_PASSWORD` (app-specific password for notarization)
-- `APPLE_TEAM_ID` (Apple Developer Team ID) -->
-
-### From Source
-
-```bash
-git clone https://github.com/ksyasuda/SubMiner.git
-cd SubMiner
-make build
-
-# Install platform artifacts
-# - Linux: wrapper + theme (+ AppImage if present)
-# - macOS: wrapper + theme + SubMiner.app (from release/*.app or release/*.zip)
-make install
-```
-
-<!-- ### Arch Linux -->
-
-<!-- ```bash -->
-<!-- # Using the PKGBUILD -->
-<!-- makepkg -si -->
-<!-- ``` -->
+Without this permission, window tracking will not work and the overlay won't follow the mpv window.
 
 ### macOS Usage Notes
 
@@ -125,116 +113,26 @@ make install
 mpv --input-ipc-server=/tmp/subminer-socket video.mkv
 ```
 
-**Config Location:**
+**Config location:** `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`).
 
-Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`, same as Linux).
-
-**MeCab Installation Paths:**
-
-Common Homebrew install paths:
+**MeCab paths (Homebrew):**
 
 - Apple Silicon (M1/M2): `/opt/homebrew/bin/mecab`
 - Intel: `/usr/local/bin/mecab`
 
-Ensure that `mecab` is available on your PATH when launching subminer (for example, by starting it from a terminal where `which mecab` works), otherwise MeCab may not be detected.
+Ensure `mecab` is available on your PATH when launching SubMiner.
 
-**Fullscreen Mode:**
+**Fullscreen:** The overlay should appear correctly in fullscreen. If you encounter issues, check that accessibility permissions are granted.
 
-The overlay should appear correctly in fullscreen. If you encounter issues, check that macOS accessibility permissions are granted (see [macOS Installation](#macos-installation)).
-
-**mpv Plugin Binary Path (macOS):**
-
-Set `binary_path` to your app binary, for example:
+**mpv plugin binary path:**
 
 ```ini
 binary_path=/Applications/SubMiner.app/Contents/MacOS/subminer
 ```
 
-### MPV Plugin (Optional)
+## Windows
 
-The Lua plugin allows you to control the overlay directly from mpv using keybindings:
-
-::: warning Important
-`mpv` must be launched with `--input-ipc-server=/tmp/subminer-socket` to allow communication with the application.
-:::
-
-```bash
-# Copy plugin files to mpv config
-cp plugin/subminer.lua ~/.config/mpv/scripts/
-cp plugin/subminer.conf ~/.config/mpv/script-opts/
-```
-
-#### Plugin Keybindings
-
-All keybindings use chord sequences starting with `y`:
-
-| Keybind | Action                                |
-| ------- | ------------------------------------- |
-| `y-y`   | Open SubMiner menu (fuzzy-searchable) |
-| `y-s`   | Start overlay                         |
-| `y-S`   | Stop overlay                          |
-| `y-t`   | Toggle visible overlay                |
-| `y-i`   | Toggle invisible overlay              |
-| `y-I`   | Show invisible overlay                |
-| `y-u`   | Hide invisible overlay                |
-| `y-o`   | Open Yomitan settings                 |
-| `y-r`   | Restart overlay                       |
-| `y-c`   | Check overlay status                  |
-
-The menu provides options to start/stop/toggle the visible or invisible overlay layers and open settings. Type to filter or use arrow keys to navigate.
-
-Jimaku modal shortcut is configured separately in SubMiner overlay shortcuts (`shortcuts.openJimaku`), default `Ctrl+Alt+J`.
-
-#### Plugin Configuration
-
-Edit `~/.config/mpv/script-opts/subminer.conf`:
-
-```ini
-# Path to SubMiner binary (leave empty for auto-detection)
-binary_path=
-
-# Path to mpv IPC socket (must match input-ipc-server in mpv.conf)
-socket_path=/tmp/subminer-socket
-
-# Enable texthooker WebSocket server
-texthooker_enabled=yes
-
-# Texthooker WebSocket port
-texthooker_port=5174
-
-# Window manager backend: auto, hyprland, x11, macos
-backend=auto
-
-# Automatically start overlay when a file is loaded
-auto_start=no
-
-# Automatically show visible overlay when overlay starts
-auto_start_visible_overlay=no
-
-# Automatically show invisible overlay when overlay starts
-# Values: platform-default, visible, hidden
-# platform-default => hidden on Linux, visible on macOS/Windows
-auto_start_invisible_overlay=platform-default
-
-# Show OSD messages for overlay status
-osd_messages=yes
-```
-
-The plugin auto-detects the binary location, searching:
-
-- `/Applications/SubMiner.app/Contents/MacOS/subminer`
-- `~/Applications/SubMiner.app/Contents/MacOS/subminer`
-- `C:\Program Files\subminer\subminer.exe`
-- `C:\Program Files (x86)\subminer\subminer.exe`
-- `C:\subminer\subminer.exe`
-- `~/.local/bin/SubMiner.AppImage`
-- `/opt/SubMiner/SubMiner.AppImage`
-- `/usr/local/bin/subminer`
-- `/usr/bin/subminer`
-
-**Windows Notes:**
-
-Set the binary and socket path like this:
+Windows support is available through the mpv plugin. Set the binary and socket path in `subminer.conf`:
 
 ```ini
 binary_path=C:\\Program Files\\subminer\\subminer.exe
@@ -246,3 +144,52 @@ Launch mpv with:
 ```bash
 mpv --input-ipc-server=\\\\.\\pipe\\subminer-socket video.mkv
 ```
+
+## MPV Plugin (Optional)
+
+The Lua plugin provides in-player keybindings to control the overlay from mpv. It communicates with SubMiner by invoking the binary with CLI flags.
+
+::: warning Important
+mpv must be launched with `--input-ipc-server=/tmp/subminer-socket` for SubMiner to connect.
+:::
+
+```bash
+# Copy plugin files
+cp plugin/subminer.lua ~/.config/mpv/scripts/
+cp plugin/subminer.conf ~/.config/mpv/script-opts/
+# or: make install-plugin
+```
+
+All keybindings use a `y` chord prefix — press `y`, then the second key:
+
+| Chord | Action |
+| --- | --- |
+| `y-y` | Open SubMiner menu (fuzzy-searchable) |
+| `y-s` | Start overlay |
+| `y-S` | Stop overlay |
+| `y-t` | Toggle visible overlay |
+| `y-i` | Toggle invisible overlay |
+| `y-I` | Show invisible overlay |
+| `y-u` | Hide invisible overlay |
+| `y-o` | Open Yomitan settings |
+| `y-r` | Restart overlay |
+| `y-c` | Check overlay status |
+
+See [MPV Plugin](/mpv-plugin) for the full configuration reference, script messages, and binary auto-detection details.
+
+## Verify Installation
+
+After installing, confirm SubMiner is working:
+
+```bash
+# Start the overlay (connects to mpv IPC)
+subminer video.mkv
+
+# Or with direct AppImage control
+SubMiner.AppImage --start
+SubMiner.AppImage --help    # Show all CLI options
+```
+
+You should see the overlay appear over mpv. If subtitles are loaded in the video, they will appear as interactive text in the overlay.
+
+Next: [Usage](/usage) — learn about the `subminer` wrapper, keybindings, and YouTube playback.

@@ -629,7 +629,7 @@ export interface ElectronAPI {
   ) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
-  notifyOverlayModalClosed: (modal: "runtime-options" | "subsync") => void;
+  notifyOverlayModalClosed: (modal: "runtime-options" | "subsync" | "jimaku") => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
 }
 

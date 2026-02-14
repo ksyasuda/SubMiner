@@ -48,7 +48,8 @@ function isAnySettingsModalOpen(): boolean {
   return (
     ctx.state.runtimeOptionsModalOpen ||
     ctx.state.subsyncModalOpen ||
-    ctx.state.kikuModalOpen
+    ctx.state.kikuModalOpen ||
+    ctx.state.jimakuModalOpen
   );
 }
 
@@ -89,6 +90,7 @@ const kikuModal = createKikuModal(ctx, {
 });
 const jimakuModal = createJimakuModal(ctx, {
   modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
 });
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,

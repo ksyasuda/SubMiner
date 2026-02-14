@@ -94,7 +94,7 @@ cp plugin/subminer.conf ~/.config/mpv/script-opts/
 Requires mpv IPC: `--input-ipc-server=/tmp/subminer-socket`
 
 Default chord prefix: `y` (`y-y` menu, `y-s` start, `y-S` stop, `y-t` toggle visible layer).
-Overlay Jimaku shortcut default: `Ctrl+Alt+J` (`shortcuts.openJimaku`).
+Overlay Jimaku shortcut default: `Ctrl+Shift+J` (`shortcuts.openJimaku`).
 
 ## Documentation
 

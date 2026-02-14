@@ -47,9 +47,14 @@ const DEFAULT_YOUTUBE_SUBGEN_OUT_DIR = path.join(
   "subminer",
   "youtube-subs",
 );
+const DEFAULT_MPV_LOG_FILE = path.join(
+  os.homedir(),
+  ".cache",
+  "SubMiner",
+  "mp.log",
+);
 const DEFAULT_YOUTUBE_YTDL_FORMAT = "bestvideo*+bestaudio/best";
 const DEFAULT_JIMAKU_API_BASE_URL = "https://jimaku.cc";
-const DEFAULT_STREAM_PRIMARY_SUB_LANGS = ["ja", "jpn"];
 const DEFAULT_MPV_SUBMINER_ARGS = [
   "--sub-auto=fuzzy",
   "--sub-file-paths=.;subs;subtitles",
@@ -534,9 +539,6 @@ interface Args {
   logLevel: LogLevel;
   target: string;
   targetKind: "" | "file" | "url";
-  streamMode: boolean;
-  aniCliPath: string | null;
-  streamPrimarySubLangs: string[];
   jimakuApiKey: string;
   jimakuApiKeyCommand: string;
   jimakuApiBaseUrl: string;
@@ -584,13 +586,7 @@ const state = {
   appPath: "" as string,
   overlayManagedByLauncher: false,
   stopRequested: false,
-  streamSubtitleFiles: [] as string[],
 };
-
-interface ResolvedStreamTarget {
-  streamUrl: string;
-  subtitleUrl?: string;
-}
 
 interface MpvTrack {
   type?: string;
@@ -609,7 +605,6 @@ Options:
   -d, --directory DIR    Directory to browse for videos (default: current directory)
   -r, --recursive        Search for videos recursively
   -p, --profile PROFILE  MPV profile to use (default: subminer)
-  -s, --stream           Resolve stream URL via ani-cli using the given query
       --start            Explicitly start SubMiner overlay
       --yt-subgen-mode MODE
                          YouTube subtitle generation mode: automatic, preprocess, off (default: automatic)
@@ -646,7 +641,6 @@ Examples:
   ${scriptName} video.mkv              # Play specific file
   ${scriptName} https://youtu.be/...   # Play a YouTube URL
   ${scriptName} ytsearch:query         # Play first YouTube search result
-  ${scriptName} -s \"blue lock\"      # Resolve and play Blue Lock stream via ani-cli
   ${scriptName} --yt-subgen-mode preprocess --whisper-bin /path/whisper-cli --whisper-model /path/model.bin https://youtu.be/...
   ${scriptName} video.mkv              # Play with subminer profile
   ${scriptName} -p gpu-hq video.mkv    # Play with gpu-hq profile
@@ -673,10 +667,32 @@ function log(level: LogLevel, configured: LogLevel, message: string): void {
   process.stdout.write(
     `${color}[${level.toUpperCase()}]${COLORS.reset} ${message}\n`,
   );
+  appendToMpvLog(`[${level.toUpperCase()}] ${message}`);
+}
+
+function getMpvLogPath(): string {
+  const envPath = process.env.SUBMINER_MPV_LOG?.trim();
+  if (envPath) return envPath;
+  return DEFAULT_MPV_LOG_FILE;
+}
+
+function appendToMpvLog(message: string): void {
+  const logPath = getMpvLogPath();
+  try {
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    fs.appendFileSync(
+      logPath,
+      `[${new Date().toISOString()}] ${message}\n`,
+      { encoding: "utf8" },
+    );
+  } catch {
+    // ignore logging failures
+  }
 }
 
 function fail(message: string): never {
   process.stderr.write(`${COLORS.red}[ERROR]${COLORS.reset} ${message}\n`);
+  appendToMpvLog(`[ERROR] ${message}`);
   process.exit(1);
 }
 
@@ -1678,117 +1694,42 @@ function findAppBinary(selfPath: string): string | null {
   return null;
 }
 
-function resolveAniCliPath(scriptPath: string): string | null {
-  const envPath = process.env.SUBMINER_ANI_CLI_PATH;
-  if (envPath && isExecutable(envPath)) return envPath;
+function normalizeJimakuSearchInput(mediaPath: string): string {
+  const trimmed = (mediaPath || "").trim();
+  if (!trimmed) return "";
+  if (!/^https?:\/\/.*/.test(trimmed)) return trimmed;
 
-  const candidates: string[] = [];
-  candidates.push(path.resolve(path.dirname(realpathMaybe(scriptPath)), "ani-cli/ani-cli"));
-
-  for (const candidate of candidates) {
-    if (isExecutable(candidate)) return candidate;
-  }
-
-  if (commandExists("ani-cli")) return "ani-cli";
-
-  return null;
-}
-
-function buildAniCliRofiConfig(
-  scriptPath: string,
-  logLevel: LogLevel,
-): { env: NodeJS.ProcessEnv; cleanup: () => void } | null {
-  const themePath = findRofiTheme(scriptPath);
-  if (!themePath) {
-    return null;
-  }
-
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "subminer-ani-cli-rofi-"));
-  const configPath = path.join(tempDir, "rofi", "config.rasi");
   try {
-    fs.mkdirSync(path.dirname(configPath), { recursive: true });
-    fs.writeFileSync(configPath, `@theme "${themePath}"\n`);
-  } catch (error) {
-    fs.rmSync(tempDir, { force: true, recursive: true });
-    throw new Error(
-      `Failed to prepare temporary ani-cli rofi theme config: ${(error as Error).message}`,
-    );
-  }
+    const url = new URL(trimmed);
+    const titleParam =
+      url.searchParams.get("title") || url.searchParams.get("name") ||
+      url.searchParams.get("q");
+    if (titleParam && titleParam.trim()) return titleParam.trim();
 
-  log("debug", logLevel, `Using Subminer rofi theme for ani-cli via ${configPath}`);
-
-  return {
-    env: {
-      XDG_CONFIG_HOME: tempDir,
-    },
-    cleanup: () => {
-      fs.rmSync(tempDir, { force: true, recursive: true });
-    },
-  };
-}
-
-function parseAniCliOutput(output: string): ResolvedStreamTarget {
-  const lines = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const selectedIndex = lines.findIndex((line) =>
-    line.startsWith("Selected link:"),
-  );
-  const selectedBlock =
-    selectedIndex >= 0
-      ? lines.slice(selectedIndex + 1)
-      : lines.slice();
-  const targetCandidate = selectedBlock
-    .flatMap((line) => line.match(/https?:\/\/\S+/g) ?? [])
-    .find((value) => value.length > 0);
-  if (!targetCandidate) {
-    throw new Error("Could not parse ani-cli stream URL from output.");
-  }
-
-  const subtitleCandidate = lines
-    .find((line) => line.startsWith("subtitle >") || line.includes("subtitle >"))
-    ?.match(/https?:\/\/\S+/)?.[0];
-
-  return {
-    streamUrl: targetCandidate,
-    subtitleUrl: subtitleCandidate,
-  };
-}
-
-async function resolveStreamTarget(
-  query: string,
-  args: Args,
-  scriptPath: string,
-): Promise<ResolvedStreamTarget> {
-  const aniCliThemeConfig = buildAniCliRofiConfig(scriptPath, args.logLevel);
-  try {
-    const result = await runExternalCommand(args.aniCliPath as string, [query], {
-      captureStdout: true,
-      logLevel: args.logLevel,
-      commandLabel: "ani-cli",
-      streamOutput: false,
-      env: {
-        ANI_CLI_PLAYER: "debug",
-        ...aniCliThemeConfig?.env,
-      },
+    const pathParts = url.pathname.split("/").filter(Boolean).reverse();
+    const candidate = pathParts.find((part) => {
+      const decoded = decodeURIComponent(part || "").replace(/\.[^/.]+$/, "");
+      const lowered = decoded.toLowerCase();
+      return (
+        lowered.length > 2 &&
+        !/^[0-9.]+$/.test(lowered) &&
+        !/^[a-f0-9]{16,}$/i.test(lowered)
+      );
     });
 
-    const parsed = parseAniCliOutput(result.stdout);
-    if (!parsed.streamUrl.startsWith("http://") && !parsed.streamUrl.startsWith("https://")) {
-      throw new Error(
-        `Ani-cli output stream URL is invalid: ${parsed.streamUrl}`,
-      );
-    }
-    log("info", args.logLevel, `Resolved stream target: ${parsed.streamUrl}`);
-    if (parsed.subtitleUrl) {
-      log(
-        "debug",
-        args.logLevel,
-        `Resolved stream subtitle URL: ${parsed.subtitleUrl}`,
-      );
-    }
-    return parsed;
-  } finally {
-    aniCliThemeConfig?.cleanup();
+    const fallback = candidate || url.hostname.replace(/^www\./, "");
+    return sanitizeJimakuQueryInput(decodeURIComponent(fallback));
+  } catch {
+    return trimmed;
   }
+}
+
+function sanitizeJimakuQueryInput(value: string): string {
+  return value
+    .replace(/^\s*-\s*/, "")
+    .replace(/[^\w\s\-'".:(),]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function buildJimakuConfig(args: Args): {
@@ -1807,125 +1748,10 @@ function buildJimakuConfig(args: Args): {
   };
 }
 
-async function resolveJimakuSubtitle(
-  args: Args,
-  mediaQuery: string,
-): Promise<string | null> {
-  const config = buildJimakuConfig(args);
-  if (!config.apiKey && !config.apiKeyCommand) return null;
-  const mediaInfo = parseMediaInfo(`${mediaQuery}.mkv`);
-  const searchQuery = mediaInfo.title || mediaQuery || "anime episode";
-  const apiKey = await resolveJimakuApiKey(config);
-  if (!apiKey) return null;
-
-  const searchResponse = await jimakuFetchJson<JimakuEntry[]>(
-    "/api/entries/search",
-    {
-      anime: true,
-      query: searchQuery,
-      limit: config.maxEntryResults,
-    },
-    {
-      baseUrl: config.apiBaseUrl || DEFAULT_JIMAKU_API_BASE_URL,
-      apiKey,
-    },
-  );
-
-  if (!searchResponse.ok || searchResponse.data.length === 0) return null;
-
-  const filesResponse = await jimakuFetchJson<JimakuFileEntry[]>(
-    `/api/entries/${searchResponse.data[0].id}/files`,
-    {
-      episode: mediaInfo.episode,
-    },
-    {
-      baseUrl: config.apiBaseUrl || DEFAULT_JIMAKU_API_BASE_URL,
-      apiKey,
-    },
-  );
-  if (!filesResponse.ok || filesResponse.data.length === 0) return null;
-
-  const sortedFiles = sortJimakuFiles(
-    filesResponse.data,
-    config.languagePreference,
-  );
-  const selectedFile =
-    sortedFiles.find((entry) => isValidSubtitleCandidateFile(entry.name)) ??
-    sortedFiles[0];
-  if (!selectedFile) return null;
-
-  const extension = path.extname(selectedFile.name).toLowerCase() || ".srt";
-  const tempFile = path.join(
-    makeTempDir("subminer-jimaku-stream-"),
-    `${Date.now()}-stream-subtitle${extension}`,
-  );
-
-  const result = await downloadToFile(
-    selectedFile.url,
-    tempFile,
-    { Authorization: apiKey },
-  );
-  if (!result.ok) return null;
-  state.streamSubtitleFiles.push(result.path);
-  return result.path;
-}
-
-async function ensurePrimaryStreamSubtitle(
-  socketPath: string,
-  args: Args,
-  mediaQuery: string,
-): Promise<void> {
-  const preferredLanguages = uniqueNormalizedLangCodes(
-    args.streamPrimarySubLangs.length > 0
-      ? args.streamPrimarySubLangs
-      : mapPreferenceToLanguages(args.jimakuLanguagePreference),
-  );
-  const tracks = await waitForSubtitleTrackList(socketPath, args.logLevel);
-  const preferredTrack = findPreferredSubtitleTrack(tracks, preferredLanguages);
-
-  if (preferredTrack?.id !== undefined) {
-    await sendMpvCommand(
-      socketPath,
-      ["set_property", "sid", preferredTrack.id],
-    );
-    log(
-      "info",
-      args.logLevel,
-      `Selected existing stream subtitle track: ${preferredTrack.lang || preferredTrack.title || preferredTrack.id}`,
-    );
-    return;
-  }
-
-  const jimakuPath = await resolveJimakuSubtitle(args, mediaQuery);
-  if (!jimakuPath) {
-    log(
-      "warn",
-      args.logLevel,
-      "No matching stream subtitle track found and no Jimaku fallback available.",
-    );
-    return;
-  }
-
-  try {
-    await loadSubtitleIntoMpv(socketPath, jimakuPath, true, args.logLevel);
-    log("info", args.logLevel, `Loaded Jimaku subtitle fallback: ${path.basename(jimakuPath)}`);
-  } catch (error) {
-    log(
-      "warn",
-      args.logLevel,
-      `Failed to load Jimaku fallback subtitle: ${(error as Error).message}`,
-    );
-  }
-}
-
 function checkDependencies(args: Args): void {
   const missing: string[] = [];
 
   if (!commandExists("mpv")) missing.push("mpv");
-
-  if (args.streamMode) {
-    if (!args.aniCliPath) missing.push("ani-cli");
-  }
 
   if (
     args.targetKind === "url" &&
@@ -2296,12 +2122,6 @@ function parseArgs(
   const configuredPrimaryLangs = uniqueNormalizedLangCodes(
     launcherConfig.primarySubLanguages ?? [],
   );
-  const envStreamPrimaryLangs = uniqueNormalizedLangCodes(
-    (process.env.SUBMINER_STREAM_PRIMARY_SUB_LANGS || "")
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean),
-  );
   const primarySubLangs =
     configuredPrimaryLangs.length > 0
       ? configuredPrimaryLangs
@@ -2328,12 +2148,6 @@ function parseArgs(
       process.env.SUBMINER_YT_SUBGEN_OUT_DIR || DEFAULT_YOUTUBE_SUBGEN_OUT_DIR,
     youtubeSubgenAudioFormat: process.env.SUBMINER_YT_SUBGEN_AUDIO_FORMAT || "m4a",
     youtubeSubgenKeepTemp: process.env.SUBMINER_YT_SUBGEN_KEEP_TEMP === "1",
-    streamMode: false,
-    aniCliPath: "",
-    streamPrimarySubLangs:
-      envStreamPrimaryLangs.length > 0
-        ? envStreamPrimaryLangs
-        : [...DEFAULT_STREAM_PRIMARY_SUB_LANGS],
     jimakuApiKey: process.env.SUBMINER_JIMAKU_API_KEY || "",
     jimakuApiKeyCommand: process.env.SUBMINER_JIMAKU_API_KEY_COMMAND || "",
     jimakuApiBaseUrl:
@@ -2363,11 +2177,6 @@ function parseArgs(
     parsed.jimakuLanguagePreference = launcherConfig.jimakuLanguagePreference;
   if (launcherConfig.jimakuMaxEntryResults !== undefined)
     parsed.jimakuMaxEntryResults = launcherConfig.jimakuMaxEntryResults;
-
-  parsed.streamPrimarySubLangs = uniqueNormalizedLangCodes([
-    ...parsed.streamPrimarySubLangs,
-    ...mapPreferenceToLanguages(parsed.jimakuLanguagePreference),
-  ]);
 
   const isValidLogLevel = (value: string): value is LogLevel =>
     value === "debug" ||
@@ -2413,12 +2222,6 @@ function parseArgs(
       if (!value) fail("--profile requires a value");
       parsed.profile = value;
       i += 2;
-      continue;
-    }
-
-    if (arg === "-s" || arg === "--stream") {
-      parsed.streamMode = true;
-      i += 1;
       continue;
     }
 
@@ -2599,10 +2402,7 @@ function parseArgs(
   const positional = argv.slice(i);
   if (positional.length > 0) {
     const target = positional[0];
-    if (parsed.streamMode) {
-      parsed.target = target;
-      parsed.targetKind = "url";
-    } else if (isUrlTarget(target)) {
+    if (isUrlTarget(target)) {
       parsed.target = target;
       parsed.targetKind = "url";
     } else {
@@ -2642,7 +2442,10 @@ function startOverlay(
     overlayArgs.push("--log-level", args.logLevel);
   if (args.useTexthooker) overlayArgs.push("--texthooker");
 
-  state.overlayProc = spawn(appPath, overlayArgs, { stdio: "inherit" });
+  state.overlayProc = spawn(appPath, overlayArgs, {
+    stdio: "inherit",
+    env: { ...process.env, SUBMINER_MPV_LOG: getMpvLogPath() },
+  });
   state.overlayManagedByLauncher = true;
 
   return new Promise((resolve) => {
@@ -2703,18 +2506,6 @@ function stopOverlay(args: Args): void {
   }
   state.youtubeSubgenChildren.clear();
 
-  for (const subtitleFile of state.streamSubtitleFiles) {
-    try {
-      fs.rmSync(subtitleFile, { force: true });
-      fs.rmSync(path.dirname(subtitleFile), {
-        force: true,
-        recursive: true,
-      });
-    } catch {
-      // ignore
-    }
-  }
-  state.streamSubtitleFiles = [];
 }
 
 function parseBoolLike(value: string): boolean | null {
@@ -2849,30 +2640,33 @@ function startMpv(
   mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
 
   if (targetKind === "url" && isYoutubeTarget(target)) {
-    const subtitleLangs = uniqueNormalizedLangCodes([
-      ...args.youtubePrimarySubLangs,
-      ...args.youtubeSecondarySubLangs,
-    ]).join(",");
-    const audioLangs = uniqueNormalizedLangCodes(args.youtubeAudioLangs).join(",");
-    log("info", args.logLevel, "Applying YouTube playback options");
-    log("debug", args.logLevel, `YouTube subtitle langs: ${subtitleLangs}`);
-    log("debug", args.logLevel, `YouTube audio langs: ${audioLangs}`);
-    mpvArgs.push(
-      "--ytdl=yes",
-      `--ytdl-format=${DEFAULT_YOUTUBE_YTDL_FORMAT}`,
-      "--ytdl-raw-options=",
-      `--alang=${audioLangs}`,
-    );
+    log("info", args.logLevel, "Applying URL playback options");
+    mpvArgs.push("--ytdl=yes", "--ytdl-raw-options=");
 
-    if (args.youtubeSubgenMode === "off") {
+    if (isYoutubeTarget(target)) {
+      const subtitleLangs = uniqueNormalizedLangCodes([
+        ...args.youtubePrimarySubLangs,
+        ...args.youtubeSecondarySubLangs,
+      ]).join(",");
+      const audioLangs = uniqueNormalizedLangCodes(args.youtubeAudioLangs).join(",");
+      log("info", args.logLevel, "Applying YouTube playback options");
+      log("debug", args.logLevel, `YouTube subtitle langs: ${subtitleLangs}`);
+      log("debug", args.logLevel, `YouTube audio langs: ${audioLangs}`);
       mpvArgs.push(
-        "--sub-auto=fuzzy",
-        `--slang=${subtitleLangs}`,
-        "--ytdl-raw-options-append=write-auto-subs=",
-        "--ytdl-raw-options-append=write-subs=",
-        "--ytdl-raw-options-append=sub-format=vtt/best",
-        `--ytdl-raw-options-append=sub-langs=${subtitleLangs}`,
+        `--ytdl-format=${DEFAULT_YOUTUBE_YTDL_FORMAT}`,
+        `--alang=${audioLangs}`,
       );
+
+      if (args.youtubeSubgenMode === "off") {
+        mpvArgs.push(
+          "--sub-auto=fuzzy",
+          `--slang=${subtitleLangs}`,
+          "--ytdl-raw-options-append=write-auto-subs=",
+          "--ytdl-raw-options-append=write-subs=",
+          "--ytdl-raw-options-append=sub-format=vtt/best",
+          `--ytdl-raw-options-append=sub-langs=${subtitleLangs}`,
+        );
+      }
     }
   }
 
@@ -2882,6 +2676,7 @@ function startMpv(
   if (preloadedSubtitles?.secondaryPath) {
     mpvArgs.push(`--sub-file=${preloadedSubtitles.secondaryPath}`);
   }
+  mpvArgs.push(`--log-file=${getMpvLogPath()}`);
 
   try {
     fs.rmSync(socketPath, { force: true });
@@ -2966,22 +2761,13 @@ async function main(): Promise<void> {
   }
 
   if (!args.target) {
-    if (args.streamMode) {
-      fail("Stream mode requires a search query argument.");
-    }
     checkPickerDependencies(args);
   }
 
-  const targetChoice = args.streamMode
-    ? null
-    : await chooseTarget(args, process.argv[1] || "subminer");
-  if (!targetChoice && !args.streamMode) {
+  const targetChoice = await chooseTarget(args, process.argv[1] || "subminer");
+  if (!targetChoice) {
     log("info", args.logLevel, "No video selected, exiting");
     process.exit(0);
-  }
-
-  if (args.streamMode) {
-    args.aniCliPath = resolveAniCliPath(scriptPath);
   }
 
   checkDependencies({
@@ -2998,28 +2784,6 @@ async function main(): Promise<void> {
         kind: targetChoice.kind as "file" | "url",
       }
     : { target: args.target, kind: "url" as const };
-  let resolvedStreamTarget: ResolvedStreamTarget | null = null;
-  const streamSource = selectedTarget.target;
-
-  if (args.streamMode) {
-    log("info", args.logLevel, `Resolving stream target via ani-cli for "${selectedTarget.target}"`);
-    resolvedStreamTarget = await resolveStreamTarget(
-      selectedTarget.target,
-      args,
-      scriptPath,
-    );
-    selectedTarget = {
-      target: resolvedStreamTarget.streamUrl,
-      kind: "url",
-    };
-    if (resolvedStreamTarget.subtitleUrl) {
-      log(
-        "debug",
-        args.logLevel,
-        `ani-cli provided subtitle URL: ${resolvedStreamTarget.subtitleUrl}`,
-      );
-    }
-  }
 
   const isYoutubeUrl =
     selectedTarget.kind === "url" && isYoutubeTarget(selectedTarget.target);
@@ -3085,17 +2849,6 @@ async function main(): Promise<void> {
   }
 
   const ready = await waitForSocket(mpvSocketPath);
-  if (args.streamMode && ready) {
-    await ensurePrimaryStreamSubtitle(mpvSocketPath, args, streamSource).catch(
-      (error) => {
-        log(
-          "warn",
-          args.logLevel,
-          `Stream subtitle setup failed: ${(error as Error).message}`,
-        );
-      },
-    );
-  }
   const shouldStartOverlay =
     args.startOverlay || args.autoStartOverlay || pluginRuntimeConfig.autoStartOverlay;
   if (shouldStartOverlay) {
