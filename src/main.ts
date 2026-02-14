@@ -159,6 +159,7 @@ import {
 import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-handler";
 import { runAppReadyRuntimeService } from "./core/services/startup-service";
 import type { AppReadyRuntimeDeps } from "./core/services/startup-service";
+import type { SubsyncRuntimeDeps } from "./core/services/subsync-runner-service";
 import {
   applyRuntimeOptionResultRuntimeService,
   cycleRuntimeOptionFromIpcRuntimeService,
@@ -1217,7 +1218,7 @@ const numericShortcutRuntime = createNumericShortcutRuntimeService({
 const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
 
-function getSubsyncRuntimeDeps() {
+function getSubsyncRuntimeDeps(): SubsyncRuntimeDeps {
   return {
     getMpvClient: () => appState.mpvClient,
     getResolvedSubsyncConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
