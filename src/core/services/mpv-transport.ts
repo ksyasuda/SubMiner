@@ -26,3 +26,29 @@ export function getMpvReconnectDelay(
   }
   return 2000;
 }
+
+export interface MpvReconnectSchedulerDeps {
+  attempt: number;
+  hasConnectedOnce: boolean;
+  getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
+  setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
+  onReconnectAttempt: (attempt: number, delay: number) => void;
+  connect: () => void;
+}
+
+export function scheduleMpvReconnect(
+  deps: MpvReconnectSchedulerDeps,
+): number {
+  const reconnectTimer = deps.getReconnectTimer();
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+  }
+  const delay = getMpvReconnectDelay(deps.attempt, deps.hasConnectedOnce);
+  deps.setReconnectTimer(
+    setTimeout(() => {
+      deps.onReconnectAttempt(deps.attempt + 1, delay);
+      deps.connect();
+    }, delay),
+  );
+  return deps.attempt + 1;
+}

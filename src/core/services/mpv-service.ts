@@ -14,7 +14,9 @@ import {
   splitMpvMessagesFromBuffer,
 } from "./mpv-protocol";
 import { requestMpvInitialState, subscribeToMpvProperties } from "./mpv-properties";
-import { getMpvReconnectDelay } from "./mpv-transport";
+import {
+  scheduleMpvReconnect,
+} from "./mpv-transport";
 
 export {
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
@@ -192,20 +194,20 @@ export class MpvIpcClient implements MpvClient {
   }
 
   private scheduleReconnect(): void {
-    const reconnectTimer = this.deps.getReconnectTimer();
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-    }
-    const attempt = this.reconnectAttempt++;
-    const delay = getMpvReconnectDelay(attempt, this.hasConnectedOnce);
-    this.deps.setReconnectTimer(
-      setTimeout(() => {
+    this.reconnectAttempt = scheduleMpvReconnect({
+      attempt: this.reconnectAttempt,
+      hasConnectedOnce: this.hasConnectedOnce,
+      getReconnectTimer: () => this.deps.getReconnectTimer(),
+      setReconnectTimer: (timer) => this.deps.setReconnectTimer(timer),
+      onReconnectAttempt: (attempt, delay) => {
         console.log(
-          `Attempting to reconnect to MPV (attempt ${attempt + 1}, delay ${delay}ms)...`,
+          `Attempting to reconnect to MPV (attempt ${attempt}, delay ${delay}ms)...`,
         );
+      },
+      connect: () => {
         this.connect();
-      }, delay),
-    );
+      },
+    });
   }
 
   private processBuffer(): void {
