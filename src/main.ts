@@ -613,47 +613,7 @@ function resolveMediaPathForJimaku(mediaPath: string | null): string | null {
     : mediaPath;
 }
 
-const startupState = runStartupBootstrapRuntimeService({
-  argv: process.argv,
-  parseArgs: (argv) => parseArgs(argv),
-  setLogLevelEnv: (level) => {
-    process.env.SUBMINER_LOG_LEVEL = level;
-  },
-  enableVerboseLogging: () => {
-    process.env.SUBMINER_LOG_LEVEL = "debug";
-  },
-  forceX11Backend: (args) => {
-    forceX11Backend(args);
-  },
-  enforceUnsupportedWaylandMode: (args) => {
-    enforceUnsupportedWaylandMode(args);
-  },
-  getDefaultSocketPath: () => getDefaultSocketPath(),
-  defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
-  runGenerateConfigFlow: (args) => {
-    if (!args.generateConfig || shouldStartApp(args)) {
-      return false;
-    }
-    generateDefaultConfigFile(args, {
-      configDir: CONFIG_DIR,
-      defaultConfig: DEFAULT_CONFIG,
-      generateTemplate: (config) => generateConfigTemplate(config as never),
-    })
-      .then((exitCode) => {
-        process.exitCode = exitCode;
-        app.quit();
-      })
-      .catch((error: Error) => {
-        console.error(`Failed to generate config: ${error.message}`);
-        process.exitCode = 1;
-        app.quit();
-      });
-    return true;
-  },
-  startAppLifecycle: (args) => {
-    startAppLifecycleService(args, createAppLifecycleDepsRuntimeService(createAppLifecycleRuntimeDeps()));
-  },
-});
+const startupState = runStartupBootstrapRuntimeService(createStartupBootstrapRuntimeDeps());
 
 appState.initialArgs = startupState.initialArgs;
 appState.mpvSocketPath = startupState.mpvSocketPath;
@@ -766,6 +726,53 @@ function createAppLifecycleRuntimeDeps() {
       createInvisibleWindow();
       updateVisibleOverlayVisibility();
       updateInvisibleOverlayVisibility();
+    },
+  };
+}
+
+function createStartupBootstrapRuntimeDeps() {
+  return {
+    argv: process.argv,
+    parseArgs: (argv) => parseArgs(argv),
+    setLogLevelEnv: (level) => {
+      process.env.SUBMINER_LOG_LEVEL = level;
+    },
+    enableVerboseLogging: () => {
+      process.env.SUBMINER_LOG_LEVEL = "debug";
+    },
+    forceX11Backend: (args) => {
+      forceX11Backend(args);
+    },
+    enforceUnsupportedWaylandMode: (args) => {
+      enforceUnsupportedWaylandMode(args);
+    },
+    getDefaultSocketPath: () => getDefaultSocketPath(),
+    defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
+    runGenerateConfigFlow: (args) => {
+      if (!args.generateConfig || shouldStartApp(args)) {
+        return false;
+      }
+      generateDefaultConfigFile(args, {
+        configDir: CONFIG_DIR,
+        defaultConfig: DEFAULT_CONFIG,
+        generateTemplate: (config) => generateConfigTemplate(config as never),
+      })
+        .then((exitCode) => {
+          process.exitCode = exitCode;
+          app.quit();
+        })
+        .catch((error: Error) => {
+          console.error(`Failed to generate config: ${error.message}`);
+          process.exitCode = 1;
+          app.quit();
+        });
+      return true;
+    },
+    startAppLifecycle: (args) => {
+      startAppLifecycleService(
+        args,
+        createAppLifecycleDepsRuntimeService(createAppLifecycleRuntimeDeps()),
+      );
     },
   };
 }
