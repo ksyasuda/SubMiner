@@ -170,6 +170,14 @@ import {
   generateConfigTemplate,
   SPECIAL_COMMANDS,
 } from "./config";
+import type {
+  AppLifecycleDepsRuntimeOptions,
+} from "./core/services/app-lifecycle-service";
+import type { CliCommandDepsRuntimeOptions } from "./core/services/cli-command-service";
+import type { HandleMpvCommandFromIpcOptions } from "./core/services/ipc-command-service";
+import type { IpcDepsRuntimeOptions } from "./core/services/ipc-service";
+import type { AnkiJimakuIpcRuntimeOptions } from "./core/services/anki-jimaku-service";
+import type { StartupBootstrapRuntimeDeps } from "./core/services/startup-service";
 
 if (process.platform === "linux") {
   app.commandLine.appendSwitch("enable-features", "GlobalShortcutsPortal");
@@ -622,7 +630,7 @@ appState.backendOverride = startupState.backendOverride;
 appState.autoStartOverlay = startupState.autoStartOverlay;
 appState.texthookerOnlyMode = startupState.texthookerOnlyMode;
 
-function createAppLifecycleRuntimeDeps() {
+function createAppLifecycleRuntimeDeps(): AppLifecycleDepsRuntimeOptions {
   return {
     app,
     platform: process.platform,
@@ -730,7 +738,7 @@ function createAppLifecycleRuntimeDeps() {
   };
 }
 
-function createStartupBootstrapRuntimeDeps() {
+function createStartupBootstrapRuntimeDeps(): StartupBootstrapRuntimeDeps {
   return {
     argv: process.argv,
     parseArgs: (argv) => parseArgs(argv),
@@ -785,7 +793,7 @@ function handleCliCommand(
   handleCliCommandService(args, source, deps);
 }
 
-function createCliCommandRuntimeServiceDeps() {
+function createCliCommandRuntimeServiceDeps(): CliCommandDepsRuntimeOptions {
   return {
     mpv: {
       getSocketPath: () => appState.mpvSocketPath,
@@ -1487,7 +1495,7 @@ function handleMpvCommandFromIpc(command: (string | number)[]): void {
   handleMpvCommandFromIpcService(command, createMpvCommandRuntimeServiceDeps());
 }
 
-function createMpvCommandRuntimeServiceDeps() {
+function createMpvCommandRuntimeServiceDeps(): HandleMpvCommandFromIpcOptions {
   return {
     specialCommands: SPECIAL_COMMANDS,
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
@@ -1542,7 +1550,7 @@ registerAnkiJimakuIpcRuntimeService(
   createAnkiJimakuIpcRuntimeServiceDeps(),
 );
 
-function createMainIpcRuntimeServiceDeps() {
+function createMainIpcRuntimeServiceDeps(): IpcDepsRuntimeOptions {
   return {
     getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
     getMainWindow: () => overlayManager.getMainWindow(),
@@ -1578,7 +1586,7 @@ function createMainIpcRuntimeServiceDeps() {
   };
 }
 
-function createAnkiJimakuIpcRuntimeServiceDeps() {
+function createAnkiJimakuIpcRuntimeServiceDeps(): AnkiJimakuIpcRuntimeOptions {
   return {
     patchAnkiConnectEnabled: (enabled) => {
       configService.patchRawConfig({ ankiConnect: { enabled } });
@@ -1598,7 +1606,10 @@ function createAnkiJimakuIpcRuntimeServiceDeps() {
     setFieldGroupingResolver: (resolver) => setFieldGroupingResolver(resolver),
     parseMediaInfo: (mediaPath) => parseMediaInfo(resolveMediaPathForJimaku(mediaPath)),
     getCurrentMediaPath: () => appState.currentMediaPath,
-    jimakuFetchJson: (endpoint, query) => jimakuFetchJson(endpoint, query),
+    jimakuFetchJson: <T>(
+      endpoint: string,
+      query?: Record<string, string | number | boolean | null | undefined>,
+    ): Promise<JimakuApiResponse<T>> => jimakuFetchJson(endpoint, query),
     getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(),
     getJimakuLanguagePreference: () => getJimakuLanguagePreference(),
     resolveJimakuApiKey: () => resolveJimakuApiKey(),
