@@ -94,7 +94,6 @@ import {
   createFieldGroupingOverlayRuntimeService,
   createNumericShortcutRuntimeService,
   createOverlayContentMeasurementStoreService,
-  createOverlayShortcutRuntimeHandlers,
   createOverlayWindowService,
   createTokenizerDepsRuntimeService,
   cycleSecondarySubModeService,
@@ -116,9 +115,7 @@ import {
   mineSentenceCardService,
   openYomitanSettingsWindow,
   playNextSubtitleRuntimeService,
-  refreshOverlayShortcutsRuntimeService,
   registerGlobalShortcutsService,
-  registerOverlayShortcutsService,
   replayCurrentSubtitleRuntimeService,
   resolveJimakuApiKeyService,
   runStartupBootstrapRuntimeService,
@@ -130,34 +127,31 @@ import {
   setVisibleOverlayVisibleService,
   shouldAutoInitializeOverlayRuntimeFromConfigService,
   shouldBindVisibleOverlayToMpvSubVisibilityService,
-  shortcutMatchesInputForLocalFallback,
   showMpvOsdRuntimeService,
   startAppLifecycleService,
   syncInvisibleOverlayMousePassthroughService,
-  syncOverlayShortcutsRuntimeService,
   tokenizeSubtitleService,
   triggerFieldGroupingService,
-  unregisterOverlayShortcutsRuntimeService,
   updateCurrentMediaPathService,
   updateInvisibleOverlayVisibilityService,
   updateLastCardFromClipboardService,
   updateVisibleOverlayVisibilityService,
 } from "./core/services";
-import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-handler";
 import {
   runAppReadyRuntimeService,
 } from "./core/services/startup-service";
-import type { AppReadyRuntimeDeps } from "./core/services/startup-service";
 import { applyRuntimeOptionResultRuntimeService } from "./core/services/runtime-options-ipc-service";
 import {
-  createAppLifecycleRuntimeDeps as createAppLifecycleRuntimeDepsBuilder,
-  createAppReadyRuntimeDeps as createAppReadyRuntimeDepsBuilder,
+  createAppLifecycleRuntimeDeps,
+  createAppReadyRuntimeDeps,
 } from "./main/app-lifecycle";
 import { handleMpvCommandFromIpcRuntime } from "./main/ipc-mpv-command";
 import {
   registerIpcRuntimeServices,
 } from "./main/ipc-runtime";
-import { handleCliCommandRuntimeService } from "./main/cli-runtime";
+import {
+  handleCliCommandRuntimeServiceWithContext,
+} from "./main/cli-runtime";
 import {
   runSubsyncManualFromIpcRuntime,
   triggerSubsyncFromConfigRuntime,
@@ -166,6 +160,9 @@ import {
   createOverlayModalRuntimeService,
   type OverlayHostedModal,
 } from "./main/overlay-runtime";
+import {
+  createOverlayShortcutsRuntimeService,
+} from "./main/overlay-shortcuts-runtime";
 import {
   applyStartupState,
   createAppState,
@@ -177,9 +174,6 @@ import {
   DEFAULT_KEYBINDINGS,
   generateConfigTemplate,
 } from "./config";
-import type {
-  AppLifecycleDepsRuntimeOptions,
-} from "./core/services/app-lifecycle-service";
 
 if (process.platform === "linux") {
   app.commandLine.appendSwitch("enable-features", "GlobalShortcutsPortal");
@@ -289,6 +283,44 @@ const overlayModalRuntime = createOverlayModalRuntimeService({
 const appState = createAppState({
   mpvSocketPath: getDefaultSocketPath(),
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
+});
+const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
+  getConfiguredShortcuts: () => getConfiguredShortcuts(),
+  getShortcutsRegistered: () => appState.shortcutsRegistered,
+  setShortcutsRegistered: (registered) => {
+    appState.shortcutsRegistered = registered;
+  },
+  isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+  showMpvOsd: (text: string) => showMpvOsd(text),
+  openRuntimeOptionsPalette: () => {
+    openRuntimeOptionsPalette();
+  },
+  openJimaku: () => {
+    sendToActiveOverlayWindow("jimaku:open", undefined, {
+      restoreOnModalClose: "jimaku",
+    });
+  },
+  markAudioCard: () => markLastCardAsAudioCard(),
+  copySubtitleMultiple: (timeoutMs) => {
+    startPendingMultiCopy(timeoutMs);
+  },
+  copySubtitle: () => {
+    copyCurrentSubtitle();
+  },
+  toggleSecondarySubMode: () => cycleSecondarySubMode(),
+  updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+  triggerFieldGrouping: () => triggerFieldGrouping(),
+  triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+  mineSentenceCard: () => mineSentenceCard(),
+  mineSentenceMultiple: (timeoutMs) => {
+    startPendingMineSentenceMultiple(timeoutMs);
+  },
+  cancelPendingMultiCopy: () => {
+    cancelPendingMultiCopy();
+  },
+  cancelPendingMineSentenceMultiple: () => {
+    cancelPendingMineSentenceMultiple();
+  },
 });
 
 function getFieldGroupingResolver(): ((choice: KikuFieldGroupingChoice) => void) | null {
@@ -530,7 +562,125 @@ const startupState = runStartupBootstrapRuntimeService(
     startAppLifecycle: (args: CliArgs) => {
       startAppLifecycleService(
         args,
-        createAppLifecycleDepsRuntimeService(createAppLifecycleRuntimeDeps()),
+        createAppLifecycleDepsRuntimeService(
+          createAppLifecycleRuntimeDeps({
+            app,
+            platform: process.platform,
+            shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
+            parseArgs: (argv: string[]) => parseArgs(argv),
+            handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) =>
+              handleCliCommand(nextArgs, source),
+            printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+            logNoRunningInstance: () => appLogger.logNoRunningInstance(),
+            onReady: async () => {
+              await runAppReadyRuntimeService(
+                createAppReadyRuntimeDeps({
+                  loadSubtitlePosition: () => loadSubtitlePosition(),
+                  resolveKeybindings: () => {
+                    appState.keybindings = resolveKeybindings(
+                      getResolvedConfig(),
+                      DEFAULT_KEYBINDINGS,
+                    );
+                  },
+                  createMpvClient: () => {
+                    appState.mpvClient = createMpvClientRuntimeService();
+                  },
+                  reloadConfig: () => {
+                    configService.reloadConfig();
+                    appLogger.logInfo(
+                      `Using config file: ${configService.getConfigPath()}`,
+                    );
+                  },
+                  getResolvedConfig: () => getResolvedConfig(),
+                  getConfigWarnings: () => configService.getWarnings(),
+                  logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
+                  initRuntimeOptionsManager: () => {
+                    appState.runtimeOptionsManager = new RuntimeOptionsManager(
+                      () => configService.getConfig().ankiConnect,
+                      {
+                        applyAnkiPatch: (patch) => {
+                          if (appState.ankiIntegration) {
+                            appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+                          }
+                        },
+                        onOptionsChanged: () => {
+                          broadcastRuntimeOptionsChanged();
+                          refreshOverlayShortcuts();
+                        },
+                      },
+                    );
+                  },
+                  setSecondarySubMode: (mode: SecondarySubMode) => {
+                    appState.secondarySubMode = mode;
+                  },
+                  defaultSecondarySubMode: "hover",
+                  defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
+                  hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
+                  startSubtitleWebsocket: (port: number) => {
+                    subtitleWsService.start(port, () => appState.currentSubText);
+                  },
+                  log: (message) => appLogger.logInfo(message),
+                  createMecabTokenizerAndCheck: async () => {
+                    const tokenizer = new MecabTokenizer();
+                    appState.mecabTokenizer = tokenizer;
+                    await tokenizer.checkAvailability();
+                  },
+                  createSubtitleTimingTracker: () => {
+                    const tracker = new SubtitleTimingTracker();
+                    appState.subtitleTimingTracker = tracker;
+                  },
+                  loadYomitanExtension: async () => {
+                    await loadYomitanExtension();
+                  },
+                  texthookerOnlyMode: appState.texthookerOnlyMode,
+                  shouldAutoInitializeOverlayRuntimeFromConfig: () =>
+                    shouldAutoInitializeOverlayRuntimeFromConfig(),
+                  initializeOverlayRuntime: () => initializeOverlayRuntime(),
+                  handleInitialArgs: () => handleInitialArgs(),
+                }),
+              );
+            },
+            onWillQuitCleanup: () => {
+              restorePreviousSecondarySubVisibility();
+              globalShortcut.unregisterAll();
+              subtitleWsService.stop();
+              texthookerService.stop();
+              if (
+                appState.yomitanParserWindow &&
+                !appState.yomitanParserWindow.isDestroyed()
+              ) {
+                appState.yomitanParserWindow.destroy();
+              }
+              appState.yomitanParserWindow = null;
+              appState.yomitanParserReadyPromise = null;
+              appState.yomitanParserInitPromise = null;
+              if (appState.windowTracker) {
+                appState.windowTracker.stop();
+              }
+              if (appState.mpvClient && appState.mpvClient.socket) {
+                appState.mpvClient.socket.destroy();
+              }
+              if (appState.reconnectTimer) {
+                clearTimeout(appState.reconnectTimer);
+              }
+              if (appState.subtitleTimingTracker) {
+                appState.subtitleTimingTracker.destroy();
+              }
+              if (appState.ankiIntegration) {
+                appState.ankiIntegration.destroy();
+              }
+            },
+            shouldRestoreWindowsOnActivate: () =>
+              appState.overlayRuntimeInitialized &&
+              BrowserWindow.getAllWindows().length === 0,
+            restoreWindowsOnActivate: () => {
+              createMainWindow();
+              createInvisibleWindow();
+              updateVisibleOverlayVisibility();
+              updateInvisibleOverlayVisibility();
+            },
+          }),
+        ),
       );
     },
   }),
@@ -538,176 +688,49 @@ const startupState = runStartupBootstrapRuntimeService(
 
 applyStartupState(appState, startupState);
 
-function createAppLifecycleRuntimeDeps(): AppLifecycleDepsRuntimeOptions {
-  return createAppLifecycleRuntimeDepsBuilder({
-    app,
-    platform: process.platform,
-    shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
-    parseArgs: (argv: string[]) => parseArgs(argv),
-    handleCliCommand: (
-      nextArgs: CliArgs,
-      source: CliCommandSource,
-    ) => handleCliCommand(nextArgs, source),
-    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-    logNoRunningInstance: () => appLogger.logNoRunningInstance(),
-    onReady: async () => {
-      await runAppReadyRuntimeService(createAppReadyRuntimeDeps());
-    },
-    onWillQuitCleanup: () => {
-      restorePreviousSecondarySubVisibility();
-      globalShortcut.unregisterAll();
-      subtitleWsService.stop();
-      texthookerService.stop();
-      if (appState.yomitanParserWindow && !appState.yomitanParserWindow.isDestroyed()) {
-        appState.yomitanParserWindow.destroy();
-      }
-      appState.yomitanParserWindow = null;
-      appState.yomitanParserReadyPromise = null;
-      appState.yomitanParserInitPromise = null;
-      if (appState.windowTracker) {
-        appState.windowTracker.stop();
-      }
-      if (appState.mpvClient && appState.mpvClient.socket) {
-        appState.mpvClient.socket.destroy();
-      }
-      if (appState.reconnectTimer) {
-        clearTimeout(appState.reconnectTimer);
-      }
-      if (appState.subtitleTimingTracker) {
-        appState.subtitleTimingTracker.destroy();
-      }
-      if (appState.ankiIntegration) {
-        appState.ankiIntegration.destroy();
-      }
-    },
-    shouldRestoreWindowsOnActivate: () =>
-      appState.overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
-    restoreWindowsOnActivate: () => {
-      createMainWindow();
-      createInvisibleWindow();
-      updateVisibleOverlayVisibility();
-      updateInvisibleOverlayVisibility();
-    },
-  });
-}
-
-function createAppReadyRuntimeDeps(): AppReadyRuntimeDeps {
-  return createAppReadyRuntimeDepsBuilder({
-    loadSubtitlePosition: () => loadSubtitlePosition(),
-    resolveKeybindings: () => {
-      appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
-    },
-    createMpvClient: () => {
-      appState.mpvClient = createMpvClientRuntimeService();
-    },
-    reloadConfig: () => {
-      configService.reloadConfig();
-      appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
-    },
-    getResolvedConfig: () => getResolvedConfig(),
-    getConfigWarnings: () => configService.getWarnings(),
-    logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
-    initRuntimeOptionsManager: () => {
-      appState.runtimeOptionsManager = new RuntimeOptionsManager(
-        () => configService.getConfig().ankiConnect,
-        {
-          applyAnkiPatch: (patch) => {
-            if (appState.ankiIntegration) {
-              appState.ankiIntegration.applyRuntimeConfigPatch(patch);
-            }
-          },
-          onOptionsChanged: () => {
-            broadcastRuntimeOptionsChanged();
-            refreshOverlayShortcuts();
-          },
-        },
-      );
-    },
-    setSecondarySubMode: (mode: SecondarySubMode) => {
-      appState.secondarySubMode = mode;
-    },
-    defaultSecondarySubMode: "hover",
-    defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
-    hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
-    startSubtitleWebsocket: (port: number) => {
-      subtitleWsService.start(port, () => appState.currentSubText);
-    },
-    log: (message) => appLogger.logInfo(message),
-    createMecabTokenizerAndCheck: async () => {
-      const tokenizer = new MecabTokenizer();
-      appState.mecabTokenizer = tokenizer;
-      await tokenizer.checkAvailability();
-    },
-    createSubtitleTimingTracker: () => {
-      const tracker = new SubtitleTimingTracker();
-      appState.subtitleTimingTracker = tracker;
-    },
-    loadYomitanExtension: async () => {
-      await loadYomitanExtension();
-    },
-    texthookerOnlyMode: appState.texthookerOnlyMode,
-    shouldAutoInitializeOverlayRuntimeFromConfig: () =>
-      shouldAutoInitializeOverlayRuntimeFromConfig(),
-    initializeOverlayRuntime: () => initializeOverlayRuntime(),
-    handleInitialArgs: () => handleInitialArgs(),
-  });
-}
-
 function handleCliCommand(
   args: CliArgs,
   source: CliCommandSource = "initial",
 ): void {
-  handleCliCommandRuntimeService(args, source, {
-    mpv: {
-      getSocketPath: () => appState.mpvSocketPath,
-      setSocketPath: (socketPath: string) => {
-        appState.mpvSocketPath = socketPath;
-      },
-      getClient: () => appState.mpvClient,
-      showOsd: (text: string) => showMpvOsd(text),
+  handleCliCommandRuntimeServiceWithContext(args, source, {
+    getSocketPath: () => appState.mpvSocketPath,
+    setSocketPath: (socketPath: string) => {
+      appState.mpvSocketPath = socketPath;
     },
-    texthooker: {
-      service: texthookerService,
-      getPort: () => appState.texthookerPort,
-      setPort: (port: number) => {
-        appState.texthookerPort = port;
-      },
-      shouldOpenBrowser: () => getResolvedConfig().texthooker?.openBrowser !== false,
-      openInBrowser: (url: string) => {
-        void shell.openExternal(url).catch((error) => {
-          console.error(`Failed to open browser for texthooker URL: ${url}`, error);
-        });
-      },
+    getClient: () => appState.mpvClient,
+    showOsd: (text: string) => showMpvOsd(text),
+    texthookerService,
+    getTexthookerPort: () => appState.texthookerPort,
+    setTexthookerPort: (port: number) => {
+      appState.texthookerPort = port;
     },
-    overlay: {
-      isInitialized: () => appState.overlayRuntimeInitialized,
-      initialize: () => initializeOverlayRuntime(),
-      toggleVisible: () => toggleVisibleOverlay(),
-      toggleInvisible: () => toggleInvisibleOverlay(),
-      setVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
-      setInvisible: (visible: boolean) => setInvisibleOverlayVisible(visible),
+    shouldOpenBrowser: () => getResolvedConfig().texthooker?.openBrowser !== false,
+    openInBrowser: (url: string) => {
+      void shell.openExternal(url).catch((error) => {
+        console.error(`Failed to open browser for texthooker URL: ${url}`, error);
+      });
     },
-    mining: {
-      copyCurrentSubtitle: () => copyCurrentSubtitle(),
-      startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
-      mineSentenceCard: () => mineSentenceCard(),
-      startPendingMineSentenceMultiple: (timeoutMs: number) =>
-        startPendingMineSentenceMultiple(timeoutMs),
-      updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-      triggerFieldGrouping: () => triggerFieldGrouping(),
-      triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-      markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
-    },
-    ui: {
-      openYomitanSettings: () => openYomitanSettings(),
-      cycleSecondarySubMode: () => cycleSecondarySubMode(),
-      openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-      printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-    },
-    app: {
-      stop: () => app.quit(),
-      hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
-    },
+    isOverlayInitialized: () => appState.overlayRuntimeInitialized,
+    initializeOverlay: () => initializeOverlayRuntime(),
+    toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
+    setVisibleOverlay: (visible: boolean) => setVisibleOverlayVisible(visible),
+    setInvisibleOverlay: (visible: boolean) => setInvisibleOverlayVisible(visible),
+    copyCurrentSubtitle: () => copyCurrentSubtitle(),
+    startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
+    mineSentenceCard: () => mineSentenceCard(),
+    startPendingMineSentenceMultiple: (timeoutMs: number) =>
+      startPendingMineSentenceMultiple(timeoutMs),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    triggerFieldGrouping: () => triggerFieldGrouping(),
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    openYomitanSettings: () => openYomitanSettings(),
+    cycleSecondarySubMode: () => cycleSecondarySubMode(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+    stopApp: () => app.quit(),
+    hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
     getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
     schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
     log: (message: string) => {
@@ -875,7 +898,7 @@ function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
           ? overlayManager.getVisibleOverlayVisible()
           : overlayManager.getInvisibleOverlayVisible(),
       tryHandleOverlayShortcutLocalFallback: (input) =>
-        tryHandleOverlayShortcutLocalFallback(input),
+        overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
       onWindowClosed: (windowKind) => {
         if (windowKind === "visible") {
           overlayManager.setMainWindow(null);
@@ -932,9 +955,7 @@ function initializeOverlayRuntime(): void {
         updateInvisibleOverlayVisibility();
       },
       getOverlayWindows: () => getOverlayWindows(),
-      syncOverlayShortcuts: () => {
-        syncOverlayShortcuts();
-      },
+      syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
       setWindowTracker: (tracker) => {
         appState.windowTracker = tracker;
       },
@@ -979,46 +1000,6 @@ function registerGlobalShortcuts(): void {
 }
 
 function getConfiguredShortcuts() { return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG); }
-
-function getOverlayShortcutRuntimeHandlers() {
-  return createOverlayShortcutRuntimeHandlers(
-    {
-    showMpvOsd: (text: string) => showMpvOsd(text),
-    openRuntimeOptions: () => {
-      openRuntimeOptionsPalette();
-    },
-    openJimaku: () => {
-      sendToActiveOverlayWindow("jimaku:open", undefined, {
-        restoreOnModalClose: "jimaku",
-      });
-    },
-    markAudioCard: () => markLastCardAsAudioCard(),
-    copySubtitleMultiple: (timeoutMs: number) => {
-      startPendingMultiCopy(timeoutMs);
-    },
-    copySubtitle: () => {
-      copyCurrentSubtitle();
-    },
-    toggleSecondarySub: () => cycleSecondarySubMode(),
-    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-    triggerFieldGrouping: () => triggerFieldGrouping(),
-    triggerSubsync: () => triggerSubsyncFromConfig(),
-    mineSentence: () => mineSentenceCard(),
-    mineSentenceMultiple: (timeoutMs: number) => {
-      startPendingMineSentenceMultiple(timeoutMs);
-    },
-    },
-  );
-}
-
-function tryHandleOverlayShortcutLocalFallback(input: Electron.Input): boolean {
-  return runOverlayShortcutLocalFallback(
-    input,
-    getConfiguredShortcuts(),
-    shortcutMatchesInputForLocalFallback,
-    getOverlayShortcutRuntimeHandlers().fallbackHandlers,
-  );
-}
 
 function cycleSecondarySubMode(): void {
   cycleSecondarySubModeService(
@@ -1201,42 +1182,18 @@ function handleMineSentenceDigit(count: number): void {
 }
 
 function registerOverlayShortcuts(): void {
-  appState.shortcutsRegistered = registerOverlayShortcutsService(
-    getConfiguredShortcuts(),
-    getOverlayShortcutRuntimeHandlers().overlayHandlers,
-  );
-}
-
-function getOverlayShortcutLifecycleDeps() {
-  return {
-    getConfiguredShortcuts: () => getConfiguredShortcuts(),
-    getOverlayHandlers: () => getOverlayShortcutRuntimeHandlers().overlayHandlers,
-    cancelPendingMultiCopy: () => cancelPendingMultiCopy(),
-    cancelPendingMineSentenceMultiple: () => cancelPendingMineSentenceMultiple(),
-  };
+  overlayShortcutsRuntime.registerOverlayShortcuts();
 }
 
 function unregisterOverlayShortcuts(): void {
-  appState.shortcutsRegistered = unregisterOverlayShortcutsRuntimeService(
-    appState.shortcutsRegistered,
-    getOverlayShortcutLifecycleDeps(),
-  );
+  overlayShortcutsRuntime.unregisterOverlayShortcuts();
 }
 
-function shouldOverlayShortcutsBeActive(): boolean { return appState.overlayRuntimeInitialized; }
 function syncOverlayShortcuts(): void {
-  appState.shortcutsRegistered = syncOverlayShortcutsRuntimeService(
-    shouldOverlayShortcutsBeActive(),
-    appState.shortcutsRegistered,
-    getOverlayShortcutLifecycleDeps(),
-  );
+  overlayShortcutsRuntime.syncOverlayShortcuts();
 }
 function refreshOverlayShortcuts(): void {
-  appState.shortcutsRegistered = refreshOverlayShortcutsRuntimeService(
-    shouldOverlayShortcutsBeActive(),
-    appState.shortcutsRegistered,
-    getOverlayShortcutLifecycleDeps(),
-  );
+  overlayShortcutsRuntime.refreshOverlayShortcuts();
 }
 
 function updateVisibleOverlayVisibility(): void {

@@ -20,7 +20,6 @@ import { AnkiConnectClient } from "./anki-connect";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
 import { MediaGenerator } from "./media-generator";
 import * as path from "path";
-import axios from "axios";
 import {
   AnkiConnectConfig,
   KikuDuplicateCardInfo,
@@ -31,6 +30,11 @@ import {
 } from "./types";
 import { DEFAULT_ANKI_CONNECT_CONFIG } from "./config";
 import { createLogger } from "./logger";
+import {
+  AiTranslateCallbacks,
+  AiTranslateRequest,
+  translateSentenceWithAi,
+} from "./anki-integration/ai";
 
 const log = createLogger("anki").child("integration");
 
@@ -132,93 +136,6 @@ export class AnkiIntegration {
     this.osdCallback = osdCallback || null;
     this.notificationCallback = notificationCallback || null;
     this.fieldGroupingCallback = fieldGroupingCallback || null;
-  }
-
-  private extractAiText(content: unknown): string {
-    if (typeof content === "string") {
-      return content.trim();
-    }
-    if (!Array.isArray(content)) {
-      return "";
-    }
-    const parts: string[] = [];
-    for (const item of content) {
-      if (
-        item &&
-        typeof item === "object" &&
-        "type" in item &&
-        (item as { type?: unknown }).type === "text" &&
-        "text" in item &&
-        typeof (item as { text?: unknown }).text === "string"
-      ) {
-        parts.push((item as { text: string }).text);
-      }
-    }
-    return parts.join("").trim();
-  }
-
-  private normalizeOpenAiBaseUrl(baseUrl: string): string {
-    const trimmed = baseUrl.trim().replace(/\/+$/, "");
-    if (/\/v1$/i.test(trimmed)) {
-      return trimmed;
-    }
-    return `${trimmed}/v1`;
-  }
-
-  private async translateSentenceWithAi(
-    sentence: string,
-  ): Promise<string | null> {
-    const ai = this.config.ai ?? DEFAULT_ANKI_CONNECT_CONFIG.ai;
-    if (!ai) {
-      return null;
-    }
-    const apiKey = ai?.apiKey?.trim();
-    if (!apiKey) {
-      return null;
-    }
-
-    const baseUrl = this.normalizeOpenAiBaseUrl(
-      ai.baseUrl || "https://openrouter.ai/api",
-    );
-    const model = ai.model || "openai/gpt-4o-mini";
-    const targetLanguage = ai.targetLanguage || "English";
-    const defaultSystemPrompt =
-      "You are a translation engine. Return only the translated text with no explanations.";
-    const systemPrompt = ai.systemPrompt?.trim() || defaultSystemPrompt;
-
-    try {
-      const response = await axios.post(
-        `${baseUrl}/chat/completions`,
-        {
-          model,
-          temperature: 0,
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: `Translate this text to ${targetLanguage}:\n\n${sentence}`,
-            },
-          ],
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          timeout: 15000,
-        },
-      );
-      const content = (response.data as { choices?: unknown[] })?.choices?.[0] as
-        | { message?: { content?: unknown } }
-        | undefined;
-      const translated = this.extractAiText(content?.message?.content);
-      return translated || null;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown translation error";
-      log.warn("AI translation failed:", message);
-      return null;
-    }
   }
 
   private getLapisConfig(): {
@@ -1528,7 +1445,18 @@ export class AnkiIntegration {
       const shouldAttemptAiTranslation =
         aiEnabled && (alwaysUseAiTranslation || !hasSecondarySub);
       if (shouldAttemptAiTranslation) {
-        const translated = await this.translateSentenceWithAi(sentence);
+        const request: AiTranslateRequest = {
+          sentence,
+          apiKey: aiConfig?.apiKey || "",
+          baseUrl: aiConfig?.baseUrl,
+          model: aiConfig?.model,
+          targetLanguage: aiConfig?.targetLanguage,
+          systemPrompt: aiConfig?.systemPrompt,
+        };
+        const callbacks: AiTranslateCallbacks = {
+          logWarning: (message: string) => log.warn(message),
+        };
+        const translated = await translateSentenceWithAi(request, callbacks);
         if (translated) {
           backText = translated;
         } else if (!hasSecondarySub) {
