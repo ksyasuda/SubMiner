@@ -111,6 +111,27 @@ async function getMermaid() {
       mermaid.initialize({
         startOnLoad: false,
         securityLevel: 'loose',
+        theme: 'base',
+        themeVariables: {
+          background: '#24273a',
+          primaryColor: '#363a4f',
+          primaryTextColor: '#cad3f5',
+          primaryBorderColor: '#c6a0f6',
+          secondaryColor: '#494d64',
+          secondaryTextColor: '#cad3f5',
+          secondaryBorderColor: '#b7bdf8',
+          tertiaryColor: '#5b6078',
+          tertiaryTextColor: '#cad3f5',
+          tertiaryBorderColor: '#8aadf4',
+          lineColor: '#939ab7',
+          textColor: '#cad3f5',
+          mainBkg: '#363a4f',
+          nodeBorder: '#c6a0f6',
+          clusterBkg: '#1e2030',
+          clusterBorder: '#494d64',
+          edgeLabelBackground: '#24273a',
+          labelTextColor: '#cad3f5',
+        },
       });
       return mermaid;
     });

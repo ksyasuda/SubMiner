@@ -41,12 +41,22 @@ pnpm run dev    # builds + launches with --start --dev flags
 ## Testing
 
 ```bash
-pnpm run test:config      # Config schema and validation tests
-pnpm run test:core        # Core service tests (~67 tests)
-pnpm run test:subtitle    # Subtitle pipeline tests
+pnpm run test:config       # Config schema and validation tests (build + run)
+pnpm run test:core         # Core service tests (~67 tests) (build + run)
+pnpm run test:subtitle     # Subtitle pipeline tests (build + run)
 ```
 
-All test commands build first, then run via Node's built-in test runner (`node --test`).
+All legacy test commands build first, then run via Node's built-in test runner (`node --test`).
+
+For faster iteration while editing test code:
+
+```bash
+pnpm run build             # one-time compile
+pnpm run test:config:dist  # no rebuild
+pnpm run test:core:dist    # no rebuild
+pnpm run test:subtitle:dist # no rebuild
+pnpm run test:fast         # run all tests without rebuild (assumes build is already current)
+```
 
 ## Config Generation
 
@@ -95,6 +105,7 @@ Run `make help` for a full list of targets. Key ones:
 | Variable | Description |
 | --- | --- |
 | `SUBMINER_APPIMAGE_PATH` | Override AppImage location for subminer script |
+| `SUBMINER_BINARY_PATH` | Alias for `SUBMINER_APPIMAGE_PATH` |
 | `SUBMINER_YT_SUBGEN_MODE` | Override `youtubeSubgen.mode` for launcher |
 | `SUBMINER_WHISPER_BIN` | Override `youtubeSubgen.whisperBin` for launcher |
 | `SUBMINER_WHISPER_MODEL` | Override `youtubeSubgen.whisperModel` for launcher |
