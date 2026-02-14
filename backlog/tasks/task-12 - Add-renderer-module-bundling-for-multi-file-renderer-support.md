@@ -4,6 +4,7 @@ title: Add renderer module bundling for multi-file renderer support
 status: To Do
 assignee: []
 created_date: '2026-02-11 08:21'
+updated_date: '2026-02-14 00:44'
 labels:
   - infrastructure
   - renderer
@@ -16,7 +17,7 @@ references:
   - src/renderer/index.html
   - package.json
   - tsconfig.json
-priority: medium
+priority: high
 ---
 
 ## Description
@@ -39,3 +40,9 @@ The build pipeline already compiles TypeScript and copies renderer assets. Addin
 - [ ] #3 Existing `make build` still works end-to-end
 - [ ] #4 No runtime errors in renderer process
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Priority promoted from medium to high: this unblocks clean multi-file renderer work and is a prerequisite for upcoming UI features (TASK-26 help modal, TASK-34 episode browser, and any future modal/overlay features).
+<!-- SECTION:NOTES:END -->

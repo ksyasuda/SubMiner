@@ -4,6 +4,7 @@ title: Consolidate service naming conventions and barrel exports
 status: To Do
 assignee: []
 created_date: '2026-02-11 08:21'
+updated_date: '2026-02-14 00:50'
 labels:
   - refactor
   - services
@@ -38,3 +39,9 @@ Establish consistent naming:
 - [ ] #2 Decision documented on barrel export vs direct imports
 - [ ] #3 No functional changes
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Naming convention consolidation should be addressed as part of TASK-27.2 (split main.ts) and TASK-27.3 (anki-integration split). As modules are extracted and given clear boundaries, naming will be standardized at each boundary. No need to do a standalone naming pass — it's wasted effort if the module structure is about to change.
+<!-- SECTION:NOTES:END -->
