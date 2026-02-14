@@ -2,3 +2,7 @@
 	path = vendor/texthooker-ui
 	url = https://github.com/ksyasuda/texthooker-ui.git
 	branch = subminer
+
+[submodule "vendor/ani-cli"]
+	path = vendor/ani-cli
+	url = https://github.com/pystardust/ani-cli
