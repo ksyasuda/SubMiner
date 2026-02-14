@@ -17,6 +17,7 @@ import { requestMpvInitialState, subscribeToMpvProperties } from "./mpv-properti
 import {
   scheduleMpvReconnect,
 } from "./mpv-transport";
+import { resolveCurrentAudioStreamIndex } from "./mpv-state";
 
 export {
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
@@ -338,21 +339,10 @@ export class MpvIpcClient implements MpvClient {
       "ff-index"?: number;
     }>,
   ): void {
-    if (!Array.isArray(tracks)) {
-      this.currentAudioStreamIndex = null;
-      return;
-    }
-
-    const audioTracks = tracks.filter((track) => track.type === "audio");
-    const activeTrack =
-      audioTracks.find((track) => track.id === this.currentAudioTrackId) ||
-      audioTracks.find((track) => track.selected === true);
-
-    const ffIndex = activeTrack?.["ff-index"];
-    this.currentAudioStreamIndex =
-      typeof ffIndex === "number" && Number.isInteger(ffIndex) && ffIndex >= 0
-        ? ffIndex
-        : null;
+    this.currentAudioStreamIndex = resolveCurrentAudioStreamIndex(
+      tracks,
+      this.currentAudioTrackId,
+    );
   }
 
   send(command: { command: unknown[]; request_id?: number }): boolean {
