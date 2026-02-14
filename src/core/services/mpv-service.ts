@@ -7,34 +7,14 @@ import {
 } from "../../types";
 import {
   dispatchMpvProtocolMessage,
-  MPV_REQUEST_ID_AID,
-  MPV_REQUEST_ID_OSD_DIMENSIONS,
-  MPV_REQUEST_ID_OSD_HEIGHT,
-  MPV_REQUEST_ID_PATH,
-  MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
-  MPV_REQUEST_ID_SECONDARY_SUBTEXT,
-  MPV_REQUEST_ID_SUB_ASS_OVERRIDE,
-  MPV_REQUEST_ID_SUB_BOLD,
-  MPV_REQUEST_ID_SUB_BORDER_SIZE,
-  MPV_REQUEST_ID_SUB_FONT,
-  MPV_REQUEST_ID_SUB_FONT_SIZE,
-  MPV_REQUEST_ID_SUB_ITALIC,
-  MPV_REQUEST_ID_SUB_MARGIN_X,
-  MPV_REQUEST_ID_SUB_MARGIN_Y,
-  MPV_REQUEST_ID_SUB_POS,
-  MPV_REQUEST_ID_SUB_SCALE,
-  MPV_REQUEST_ID_SUB_SCALE_BY_WINDOW,
-  MPV_REQUEST_ID_SUB_SHADOW_OFFSET,
-  MPV_REQUEST_ID_SUB_SPACING,
-  MPV_REQUEST_ID_SUBTEXT,
-  MPV_REQUEST_ID_SUBTEXT_ASS,
-  MPV_REQUEST_ID_SUB_USE_MARGINS,
   MPV_REQUEST_ID_TRACK_LIST_AUDIO,
   MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
   MpvMessage,
   MpvProtocolHandleMessageDeps,
   splitMpvMessagesFromBuffer,
 } from "./mpv-protocol";
+import { requestMpvInitialState, subscribeToMpvProperties } from "./mpv-properties";
+import { getMpvReconnectDelay } from "./mpv-transport";
 
 export {
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
@@ -170,8 +150,8 @@ export class MpvIpcClient implements MpvClient {
       this.reconnectAttempt = 0;
       this.hasConnectedOnce = true;
       this.setSecondarySubVisibility(false);
-      this.subscribeToProperties();
-      this.getInitialState();
+      subscribeToMpvProperties(this.send.bind(this));
+      requestMpvInitialState(this.send.bind(this));
 
       const shouldAutoStart =
         this.deps.autoStartOverlay ||
@@ -217,28 +197,7 @@ export class MpvIpcClient implements MpvClient {
       clearTimeout(reconnectTimer);
     }
     const attempt = this.reconnectAttempt++;
-    let delay: number;
-    if (this.hasConnectedOnce) {
-      if (attempt < 2) {
-        delay = 1000;
-      } else if (attempt < 4) {
-        delay = 2000;
-      } else if (attempt < 7) {
-        delay = 5000;
-      } else {
-        delay = 10000;
-      }
-    } else {
-      if (attempt < 2) {
-        delay = 200;
-      } else if (attempt < 4) {
-        delay = 500;
-      } else if (attempt < 6) {
-        delay = 1000;
-      } else {
-        delay = 2000;
-      }
-    }
+    const delay = getMpvReconnectDelay(attempt, this.hasConnectedOnce);
     this.deps.setReconnectTimer(
       setTimeout(() => {
         console.log(
@@ -455,128 +414,6 @@ export class MpvIpcClient implements MpvClient {
     this.pendingRequests.delete(requestId);
     pending(message);
     return true;
-  }
-
-  private subscribeToProperties(): void {
-    this.send({ command: ["observe_property", 1, "sub-text"] });
-    this.send({ command: ["observe_property", 2, "path"] });
-    this.send({ command: ["observe_property", 3, "sub-start"] });
-    this.send({ command: ["observe_property", 4, "sub-end"] });
-    this.send({ command: ["observe_property", 5, "time-pos"] });
-    this.send({ command: ["observe_property", 6, "secondary-sub-text"] });
-    this.send({ command: ["observe_property", 7, "aid"] });
-    this.send({ command: ["observe_property", 8, "sub-pos"] });
-    this.send({ command: ["observe_property", 9, "sub-font-size"] });
-    this.send({ command: ["observe_property", 10, "sub-scale"] });
-    this.send({ command: ["observe_property", 11, "sub-margin-y"] });
-    this.send({ command: ["observe_property", 12, "sub-margin-x"] });
-    this.send({ command: ["observe_property", 13, "sub-font"] });
-    this.send({ command: ["observe_property", 14, "sub-spacing"] });
-    this.send({ command: ["observe_property", 15, "sub-bold"] });
-    this.send({ command: ["observe_property", 16, "sub-italic"] });
-    this.send({ command: ["observe_property", 17, "sub-scale-by-window"] });
-    this.send({ command: ["observe_property", 18, "osd-height"] });
-    this.send({ command: ["observe_property", 19, "osd-dimensions"] });
-    this.send({ command: ["observe_property", 20, "sub-text-ass"] });
-    this.send({ command: ["observe_property", 21, "sub-border-size"] });
-    this.send({ command: ["observe_property", 22, "sub-shadow-offset"] });
-    this.send({ command: ["observe_property", 23, "sub-ass-override"] });
-    this.send({ command: ["observe_property", 24, "sub-use-margins"] });
-    this.send({ command: ["observe_property", 25, "media-title"] });
-  }
-
-  private getInitialState(): void {
-    this.send({
-      command: ["get_property", "sub-text"],
-      request_id: MPV_REQUEST_ID_SUBTEXT,
-    });
-    this.send({
-      command: ["get_property", "sub-text-ass"],
-      request_id: MPV_REQUEST_ID_SUBTEXT_ASS,
-    });
-    this.send({
-      command: ["get_property", "path"],
-      request_id: MPV_REQUEST_ID_PATH,
-    });
-    this.send({
-      command: ["get_property", "media-title"],
-    });
-    this.send({
-      command: ["get_property", "secondary-sub-text"],
-      request_id: MPV_REQUEST_ID_SECONDARY_SUBTEXT,
-    });
-    this.send({
-      command: ["get_property", "secondary-sub-visibility"],
-      request_id: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
-    });
-    this.send({
-      command: ["get_property", "aid"],
-      request_id: MPV_REQUEST_ID_AID,
-    });
-    this.send({
-      command: ["get_property", "sub-pos"],
-      request_id: MPV_REQUEST_ID_SUB_POS,
-    });
-    this.send({
-      command: ["get_property", "sub-font-size"],
-      request_id: MPV_REQUEST_ID_SUB_FONT_SIZE,
-    });
-    this.send({
-      command: ["get_property", "sub-scale"],
-      request_id: MPV_REQUEST_ID_SUB_SCALE,
-    });
-    this.send({
-      command: ["get_property", "sub-margin-y"],
-      request_id: MPV_REQUEST_ID_SUB_MARGIN_Y,
-    });
-    this.send({
-      command: ["get_property", "sub-margin-x"],
-      request_id: MPV_REQUEST_ID_SUB_MARGIN_X,
-    });
-    this.send({
-      command: ["get_property", "sub-font"],
-      request_id: MPV_REQUEST_ID_SUB_FONT,
-    });
-    this.send({
-      command: ["get_property", "sub-spacing"],
-      request_id: MPV_REQUEST_ID_SUB_SPACING,
-    });
-    this.send({
-      command: ["get_property", "sub-bold"],
-      request_id: MPV_REQUEST_ID_SUB_BOLD,
-    });
-    this.send({
-      command: ["get_property", "sub-italic"],
-      request_id: MPV_REQUEST_ID_SUB_ITALIC,
-    });
-    this.send({
-      command: ["get_property", "sub-scale-by-window"],
-      request_id: MPV_REQUEST_ID_SUB_SCALE_BY_WINDOW,
-    });
-    this.send({
-      command: ["get_property", "osd-height"],
-      request_id: MPV_REQUEST_ID_OSD_HEIGHT,
-    });
-    this.send({
-      command: ["get_property", "osd-dimensions"],
-      request_id: MPV_REQUEST_ID_OSD_DIMENSIONS,
-    });
-    this.send({
-      command: ["get_property", "sub-border-size"],
-      request_id: MPV_REQUEST_ID_SUB_BORDER_SIZE,
-    });
-    this.send({
-      command: ["get_property", "sub-shadow-offset"],
-      request_id: MPV_REQUEST_ID_SUB_SHADOW_OFFSET,
-    });
-    this.send({
-      command: ["get_property", "sub-ass-override"],
-      request_id: MPV_REQUEST_ID_SUB_ASS_OVERRIDE,
-    });
-    this.send({
-      command: ["get_property", "sub-use-margins"],
-      request_id: MPV_REQUEST_ID_SUB_USE_MARGINS,
-    });
   }
 
   setSubVisibility(visible: boolean): void {
