@@ -651,111 +651,7 @@ const startupState = runStartupBootstrapRuntimeService({
     return true;
   },
   startAppLifecycle: (args) => {
-    startAppLifecycleService(args, createAppLifecycleDepsRuntimeService({
-      app,
-      platform: process.platform,
-      shouldStartApp: (nextArgs) => shouldStartApp(nextArgs),
-      parseArgs: (argv) => parseArgs(argv),
-      handleCliCommand: (nextArgs, source) => handleCliCommand(nextArgs, source),
-      printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-      logNoRunningInstance: () => appLogger.logNoRunningInstance(),
-      onReady: async () => {
-        await runAppReadyRuntimeService({
-          loadSubtitlePosition: () => loadSubtitlePosition(),
-          resolveKeybindings: () => {
-            appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
-          },
-          createMpvClient: () => {
-            appState.mpvClient = createMpvClientRuntimeService();
-          },
-          reloadConfig: () => {
-            configService.reloadConfig();
-            appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
-          },
-          getResolvedConfig: () => getResolvedConfig(),
-          getConfigWarnings: () => configService.getWarnings(),
-          logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
-          initRuntimeOptionsManager: () => {
-            appState.runtimeOptionsManager = new RuntimeOptionsManager(
-              () => configService.getConfig().ankiConnect,
-              {
-                applyAnkiPatch: (patch) => {
-                  if (appState.ankiIntegration) {
-                    appState.ankiIntegration.applyRuntimeConfigPatch(patch);
-                  }
-                },
-                onOptionsChanged: () => {
-                  broadcastRuntimeOptionsChanged();
-                  refreshOverlayShortcuts();
-                },
-              },
-            );
-          },
-          setSecondarySubMode: (mode) => {
-            appState.secondarySubMode = mode;
-          },
-          defaultSecondarySubMode: "hover",
-          defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
-          hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
-          startSubtitleWebsocket: (port) => {
-            subtitleWsService.start(port, () => appState.currentSubText);
-          },
-          log: (message) => appLogger.logInfo(message),
-          createMecabTokenizerAndCheck: async () => {
-            const tokenizer = new MecabTokenizer();
-            appState.mecabTokenizer = tokenizer;
-            await tokenizer.checkAvailability();
-          },
-          createSubtitleTimingTracker: () => {
-            const tracker = new SubtitleTimingTracker();
-            appState.subtitleTimingTracker = tracker;
-          },
-          loadYomitanExtension: async () => {
-            await loadYomitanExtension();
-          },
-          texthookerOnlyMode: appState.texthookerOnlyMode,
-          shouldAutoInitializeOverlayRuntimeFromConfig: () =>
-            shouldAutoInitializeOverlayRuntimeFromConfig(),
-          initializeOverlayRuntime: () => initializeOverlayRuntime(),
-          handleInitialArgs: () => handleInitialArgs(),
-        });
-      },
-      onWillQuitCleanup: () => {
-        restorePreviousSecondarySubVisibility();
-        globalShortcut.unregisterAll();
-        subtitleWsService.stop();
-        texthookerService.stop();
-        if (appState.yomitanParserWindow && !appState.yomitanParserWindow.isDestroyed()) {
-          appState.yomitanParserWindow.destroy();
-        }
-        appState.yomitanParserWindow = null;
-        appState.yomitanParserReadyPromise = null;
-        appState.yomitanParserInitPromise = null;
-        if (appState.windowTracker) {
-          appState.windowTracker.stop();
-        }
-        if (appState.mpvClient && appState.mpvClient.socket) {
-          appState.mpvClient.socket.destroy();
-        }
-        if (appState.reconnectTimer) {
-          clearTimeout(appState.reconnectTimer);
-        }
-        if (appState.subtitleTimingTracker) {
-          appState.subtitleTimingTracker.destroy();
-        }
-        if (appState.ankiIntegration) {
-          appState.ankiIntegration.destroy();
-        }
-      },
-      shouldRestoreWindowsOnActivate: () =>
-        appState.overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
-      restoreWindowsOnActivate: () => {
-        createMainWindow();
-        createInvisibleWindow();
-        updateVisibleOverlayVisibility();
-        updateInvisibleOverlayVisibility();
-      },
-    }));
+    startAppLifecycleService(args, createAppLifecycleDepsRuntimeService(createAppLifecycleRuntimeDeps()));
   },
 });
 
@@ -765,6 +661,114 @@ appState.texthookerPort = startupState.texthookerPort;
 appState.backendOverride = startupState.backendOverride;
 appState.autoStartOverlay = startupState.autoStartOverlay;
 appState.texthookerOnlyMode = startupState.texthookerOnlyMode;
+
+function createAppLifecycleRuntimeDeps() {
+  return {
+    app,
+    platform: process.platform,
+    shouldStartApp: (nextArgs) => shouldStartApp(nextArgs),
+    parseArgs: (argv) => parseArgs(argv),
+    handleCliCommand: (nextArgs, source) => handleCliCommand(nextArgs, source),
+    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+    logNoRunningInstance: () => appLogger.logNoRunningInstance(),
+    onReady: async () => {
+      await runAppReadyRuntimeService({
+        loadSubtitlePosition: () => loadSubtitlePosition(),
+        resolveKeybindings: () => {
+          appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+        },
+        createMpvClient: () => {
+          appState.mpvClient = createMpvClientRuntimeService();
+        },
+        reloadConfig: () => {
+          configService.reloadConfig();
+          appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
+        },
+        getResolvedConfig: () => getResolvedConfig(),
+        getConfigWarnings: () => configService.getWarnings(),
+        logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
+        initRuntimeOptionsManager: () => {
+          appState.runtimeOptionsManager = new RuntimeOptionsManager(
+            () => configService.getConfig().ankiConnect,
+            {
+              applyAnkiPatch: (patch) => {
+                if (appState.ankiIntegration) {
+                  appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+                }
+              },
+              onOptionsChanged: () => {
+                broadcastRuntimeOptionsChanged();
+                refreshOverlayShortcuts();
+              },
+            },
+          );
+        },
+        setSecondarySubMode: (mode) => {
+          appState.secondarySubMode = mode;
+        },
+        defaultSecondarySubMode: "hover",
+        defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
+        hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
+        startSubtitleWebsocket: (port) => {
+          subtitleWsService.start(port, () => appState.currentSubText);
+        },
+        log: (message) => appLogger.logInfo(message),
+        createMecabTokenizerAndCheck: async () => {
+          const tokenizer = new MecabTokenizer();
+          appState.mecabTokenizer = tokenizer;
+          await tokenizer.checkAvailability();
+        },
+        createSubtitleTimingTracker: () => {
+          const tracker = new SubtitleTimingTracker();
+          appState.subtitleTimingTracker = tracker;
+        },
+        loadYomitanExtension: async () => {
+          await loadYomitanExtension();
+        },
+        texthookerOnlyMode: appState.texthookerOnlyMode,
+        shouldAutoInitializeOverlayRuntimeFromConfig: () =>
+          shouldAutoInitializeOverlayRuntimeFromConfig(),
+        initializeOverlayRuntime: () => initializeOverlayRuntime(),
+        handleInitialArgs: () => handleInitialArgs(),
+      });
+    },
+    onWillQuitCleanup: () => {
+      restorePreviousSecondarySubVisibility();
+      globalShortcut.unregisterAll();
+      subtitleWsService.stop();
+      texthookerService.stop();
+      if (appState.yomitanParserWindow && !appState.yomitanParserWindow.isDestroyed()) {
+        appState.yomitanParserWindow.destroy();
+      }
+      appState.yomitanParserWindow = null;
+      appState.yomitanParserReadyPromise = null;
+      appState.yomitanParserInitPromise = null;
+      if (appState.windowTracker) {
+        appState.windowTracker.stop();
+      }
+      if (appState.mpvClient && appState.mpvClient.socket) {
+        appState.mpvClient.socket.destroy();
+      }
+      if (appState.reconnectTimer) {
+        clearTimeout(appState.reconnectTimer);
+      }
+      if (appState.subtitleTimingTracker) {
+        appState.subtitleTimingTracker.destroy();
+      }
+      if (appState.ankiIntegration) {
+        appState.ankiIntegration.destroy();
+      }
+    },
+    shouldRestoreWindowsOnActivate: () =>
+      appState.overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
+    restoreWindowsOnActivate: () => {
+      createMainWindow();
+      createInvisibleWindow();
+      updateVisibleOverlayVisibility();
+      updateInvisibleOverlayVisibility();
+    },
+  };
+}
 
 function handleCliCommand(
   args: CliArgs,
