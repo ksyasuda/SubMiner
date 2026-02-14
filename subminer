@@ -722,6 +722,13 @@ function resolvePathMaybe(input: string): string {
   return input;
 }
 
+function resolveBinaryPathCandidate(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+  const unquoted = trimmed.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
+  return resolvePathMaybe(unquoted);
+}
+
 function loadLauncherYoutubeSubgenConfig(): LauncherYoutubeSubgenConfig {
   const configDir = path.join(os.homedir(), ".config", "SubMiner");
   const jsoncPath = path.join(configDir, "config.jsonc");
@@ -1653,8 +1660,17 @@ function formatPickerLaunchError(
 }
 
 function findAppBinary(selfPath: string): string | null {
-  const envPath = process.env.SUBMINER_APPIMAGE_PATH;
-  if (envPath && isExecutable(envPath)) return envPath;
+  const envPaths = [
+    process.env.SUBMINER_APPIMAGE_PATH,
+    process.env.SUBMINER_BINARY_PATH,
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  for (const envPath of envPaths) {
+    const resolved = resolveBinaryPathCandidate(envPath);
+    if (resolved && isExecutable(resolved)) {
+      return resolved;
+    }
+  }
 
   const candidates: string[] = [];
   if (process.platform === "darwin") {
