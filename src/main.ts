@@ -158,6 +158,7 @@ import {
 } from "./core/services";
 import { runOverlayShortcutLocalFallback } from "./core/services/overlay-shortcut-handler";
 import { runAppReadyRuntimeService } from "./core/services/startup-service";
+import type { AppReadyRuntimeDeps } from "./core/services/startup-service";
 import {
   applyRuntimeOptionResultRuntimeService,
   cycleRuntimeOptionFromIpcRuntimeService,
@@ -640,65 +641,7 @@ function createAppLifecycleRuntimeDeps(): AppLifecycleDepsRuntimeOptions {
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
     logNoRunningInstance: () => appLogger.logNoRunningInstance(),
     onReady: async () => {
-      await runAppReadyRuntimeService({
-        loadSubtitlePosition: () => loadSubtitlePosition(),
-        resolveKeybindings: () => {
-          appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
-        },
-        createMpvClient: () => {
-          appState.mpvClient = createMpvClientRuntimeService();
-        },
-        reloadConfig: () => {
-          configService.reloadConfig();
-          appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
-        },
-        getResolvedConfig: () => getResolvedConfig(),
-        getConfigWarnings: () => configService.getWarnings(),
-        logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
-        initRuntimeOptionsManager: () => {
-          appState.runtimeOptionsManager = new RuntimeOptionsManager(
-            () => configService.getConfig().ankiConnect,
-            {
-              applyAnkiPatch: (patch) => {
-                if (appState.ankiIntegration) {
-                  appState.ankiIntegration.applyRuntimeConfigPatch(patch);
-                }
-              },
-              onOptionsChanged: () => {
-                broadcastRuntimeOptionsChanged();
-                refreshOverlayShortcuts();
-              },
-            },
-          );
-        },
-        setSecondarySubMode: (mode) => {
-          appState.secondarySubMode = mode;
-        },
-        defaultSecondarySubMode: "hover",
-        defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
-        hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
-        startSubtitleWebsocket: (port) => {
-          subtitleWsService.start(port, () => appState.currentSubText);
-        },
-        log: (message) => appLogger.logInfo(message),
-        createMecabTokenizerAndCheck: async () => {
-          const tokenizer = new MecabTokenizer();
-          appState.mecabTokenizer = tokenizer;
-          await tokenizer.checkAvailability();
-        },
-        createSubtitleTimingTracker: () => {
-          const tracker = new SubtitleTimingTracker();
-          appState.subtitleTimingTracker = tracker;
-        },
-        loadYomitanExtension: async () => {
-          await loadYomitanExtension();
-        },
-        texthookerOnlyMode: appState.texthookerOnlyMode,
-        shouldAutoInitializeOverlayRuntimeFromConfig: () =>
-          shouldAutoInitializeOverlayRuntimeFromConfig(),
-        initializeOverlayRuntime: () => initializeOverlayRuntime(),
-        handleInitialArgs: () => handleInitialArgs(),
-      });
+      await runAppReadyRuntimeService(createAppReadyRuntimeDeps());
     },
     onWillQuitCleanup: () => {
       restorePreviousSecondarySubVisibility();
@@ -735,6 +678,68 @@ function createAppLifecycleRuntimeDeps(): AppLifecycleDepsRuntimeOptions {
       updateVisibleOverlayVisibility();
       updateInvisibleOverlayVisibility();
     },
+  };
+}
+
+function createAppReadyRuntimeDeps(): AppReadyRuntimeDeps {
+  return {
+    loadSubtitlePosition: () => loadSubtitlePosition(),
+    resolveKeybindings: () => {
+      appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+    },
+    createMpvClient: () => {
+      appState.mpvClient = createMpvClientRuntimeService();
+    },
+    reloadConfig: () => {
+      configService.reloadConfig();
+      appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
+    },
+    getResolvedConfig: () => getResolvedConfig(),
+    getConfigWarnings: () => configService.getWarnings(),
+    logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
+    initRuntimeOptionsManager: () => {
+      appState.runtimeOptionsManager = new RuntimeOptionsManager(
+        () => configService.getConfig().ankiConnect,
+        {
+          applyAnkiPatch: (patch) => {
+            if (appState.ankiIntegration) {
+              appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+            }
+          },
+          onOptionsChanged: () => {
+            broadcastRuntimeOptionsChanged();
+            refreshOverlayShortcuts();
+          },
+        },
+      );
+    },
+    setSecondarySubMode: (mode) => {
+      appState.secondarySubMode = mode;
+    },
+    defaultSecondarySubMode: "hover",
+    defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
+    hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
+    startSubtitleWebsocket: (port) => {
+      subtitleWsService.start(port, () => appState.currentSubText);
+    },
+    log: (message) => appLogger.logInfo(message),
+    createMecabTokenizerAndCheck: async () => {
+      const tokenizer = new MecabTokenizer();
+      appState.mecabTokenizer = tokenizer;
+      await tokenizer.checkAvailability();
+    },
+    createSubtitleTimingTracker: () => {
+      const tracker = new SubtitleTimingTracker();
+      appState.subtitleTimingTracker = tracker;
+    },
+    loadYomitanExtension: async () => {
+      await loadYomitanExtension();
+    },
+    texthookerOnlyMode: appState.texthookerOnlyMode,
+    shouldAutoInitializeOverlayRuntimeFromConfig: () =>
+      shouldAutoInitializeOverlayRuntimeFromConfig(),
+    initializeOverlayRuntime: () => initializeOverlayRuntime(),
+    handleInitialArgs: () => handleInitialArgs(),
   };
 }
 
