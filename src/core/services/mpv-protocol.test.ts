@@ -137,6 +137,36 @@ test("dispatchMpvProtocolMessage restores secondary visibility on shutdown", asy
   assert.equal(state.restored, 1);
 });
 
+test("dispatchMpvProtocolMessage pauses on sub-end when pendingPauseAtSubEnd is set", async () => {
+  let pendingPauseAtSubEnd = true;
+  let pauseAtTime: number | null = null;
+  const { deps, state } = createDeps({
+    getPendingPauseAtSubEnd: () => pendingPauseAtSubEnd,
+    setPendingPauseAtSubEnd: (next) => {
+      pendingPauseAtSubEnd = next;
+    },
+    getCurrentSubText: () => "字幕",
+    setCurrentSubEnd: () => {},
+    getCurrentSubEnd: () => 0,
+    setPauseAtTime: (next) => {
+      pauseAtTime = next;
+    },
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: "property-change", name: "sub-end", data: 42 },
+    deps,
+  );
+
+  assert.equal(pendingPauseAtSubEnd, false);
+  assert.equal(pauseAtTime, 42);
+  assert.deepEqual(state.events, [{ text: "字幕", start: 0, end: 0 }]);
+  assert.deepEqual(
+    state.commands[state.commands.length - 1],
+    { command: ["set_property", "pause", false] },
+  );
+});
+
 test("splitMpvMessagesFromBuffer parses complete lines and preserves partial buffer", () => {
   const parsed = splitMpvMessagesFromBuffer(
     "{\"event\":\"shutdown\"}\\n{\"event\":\"property-change\",\"name\":\"media-title\",\"data\":\"x\"}\\n{\"partial\"",
