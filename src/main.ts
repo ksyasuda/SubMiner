@@ -770,7 +770,12 @@ function handleCliCommand(
   args: CliArgs,
   source: CliCommandSource = "initial",
 ): void {
-  const deps = createCliCommandDepsRuntimeService({
+  const deps = createCliCommandDepsRuntimeService(createCliCommandRuntimeServiceDeps());
+  handleCliCommandService(args, source, deps);
+}
+
+function createCliCommandRuntimeServiceDeps() {
+  return {
     mpv: {
       getSocketPath: () => appState.mpvSocketPath,
       setSocketPath: (socketPath) => {
@@ -832,8 +837,7 @@ function handleCliCommand(
     error: (message, err) => {
       console.error(message, err);
     },
-  });
-  handleCliCommandService(args, source, deps);
+  };
 }
 
 function handleInitialArgs(): void {
