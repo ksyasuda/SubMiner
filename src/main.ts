@@ -46,7 +46,6 @@ import { BaseWindowTracker } from "./window-trackers";
 import type {
   JimakuApiResponse,
   JimakuLanguagePreference,
-  RuntimeOptionId,
   SubtitleData,
   SubtitlePosition,
   Keybinding,
@@ -112,7 +111,6 @@ import {
   getJimakuMaxEntryResultsService,
   handleCliCommandService,
   handleMineSentenceDigitService,
-  handleMpvCommandFromIpcService,
   handleMultiCopyDigitService,
   hasMpvWebsocketPlugin,
   initializeOverlayRuntimeService,
@@ -162,28 +160,25 @@ import {
 } from "./core/services/startup-service";
 import type { AppReadyRuntimeDeps } from "./core/services/startup-service";
 import type { SubsyncRuntimeDeps } from "./core/services/subsync-runner-service";
-import {
-  applyRuntimeOptionResultRuntimeService,
-} from "./core/services/runtime-options-ipc-service";
+import { applyRuntimeOptionResultRuntimeService } from "./core/services/runtime-options-ipc-service";
 import {
   createRuntimeOptionsIpcDeps,
   createAnkiJimakuIpcRuntimeServiceDeps,
   createCliCommandRuntimeServiceDeps,
   createMainIpcRuntimeServiceDeps,
-  createMpvCommandRuntimeServiceDeps,
   createSubsyncRuntimeDeps,
 } from "./main/dependencies";
 import {
   createAppLifecycleRuntimeDeps as createAppLifecycleRuntimeDepsBuilder,
   createAppReadyRuntimeDeps as createAppReadyRuntimeDepsBuilder,
 } from "./main/app-lifecycle";
+import { handleMpvCommandFromIpcRuntime } from "./main/ipc-mpv-command";
 import { createStartupBootstrapRuntimeDeps } from "./main/startup";
 import {
   ConfigService,
   DEFAULT_CONFIG,
   DEFAULT_KEYBINDINGS,
   generateConfigTemplate,
-  SPECIAL_COMMANDS,
 } from "./config";
 import type {
   AppLifecycleDepsRuntimeOptions,
@@ -1504,30 +1499,26 @@ function handleOverlayModalClosed(modal: OverlayHostedModal): void {
 }
 
 function handleMpvCommandFromIpc(command: (string | number)[]): void {
-  handleMpvCommandFromIpcService(
-    command,
-    createMpvCommandRuntimeServiceDeps({
-      specialCommands: SPECIAL_COMMANDS,
-      triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-      openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-      runtimeOptionsCycle: (id: RuntimeOptionId, direction: 1 | -1) => {
-        if (!appState.runtimeOptionsManager) {
-          return { ok: false, error: "Runtime options manager unavailable" };
-        }
-        return applyRuntimeOptionResultRuntimeService(
-          appState.runtimeOptionsManager.cycleOption(id, direction),
-          (text) => showMpvOsd(text),
-        );
-      },
-      showMpvOsd: (text: string) => showMpvOsd(text),
-      mpvReplaySubtitle: () => replayCurrentSubtitleRuntimeService(appState.mpvClient),
-      mpvPlayNextSubtitle: () => playNextSubtitleRuntimeService(appState.mpvClient),
-      mpvSendCommand: (rawCommand: (string | number)[]) =>
-        sendMpvCommandRuntimeService(appState.mpvClient, rawCommand),
-      isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
-      hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
-    }),
-  );
+  handleMpvCommandFromIpcRuntime(command, {
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    cycleRuntimeOption: (id, direction) => {
+      if (!appState.runtimeOptionsManager) {
+        return { ok: false, error: "Runtime options manager unavailable" };
+      }
+      return applyRuntimeOptionResultRuntimeService(
+        appState.runtimeOptionsManager.cycleOption(id, direction),
+        (text) => showMpvOsd(text),
+      );
+    },
+    showMpvOsd: (text: string) => showMpvOsd(text),
+    replayCurrentSubtitle: () => replayCurrentSubtitleRuntimeService(appState.mpvClient),
+    playNextSubtitle: () => playNextSubtitleRuntimeService(appState.mpvClient),
+    sendMpvCommand: (rawCommand: (string | number)[]) =>
+      sendMpvCommandRuntimeService(appState.mpvClient, rawCommand),
+    isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
+    hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
+  });
 }
 
 async function runSubsyncManualFromIpc(
