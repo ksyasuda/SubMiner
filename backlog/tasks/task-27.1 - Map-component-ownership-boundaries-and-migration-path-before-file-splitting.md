@@ -1,11 +1,11 @@
 ---
 id: TASK-27.1
 title: Map component ownership boundaries and migration path before file splitting
-status: To Do
+status: Done
 assignee:
   - backend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-13 21:09'
+updated_date: '2026-02-14 08:43'
 labels:
   - refactor
   - documentation
@@ -13,7 +13,7 @@ dependencies: []
 references:
   - docs/architecture.md
 documentation:
-  - docs/architecture.md
+  - docs/structure-roadmap.md
 parent_task_id: TASK-27
 priority: high
 ---
@@ -43,4 +43,6 @@ This is a documentation-only task — no code changes. Its output (docs/structur
 Original task called for named maintainer owners per component, risk-gated migration sequences, and success metrics per slice. This is heavyweight for a solo project where the developer already knows the codebase intimately.
 
 Reduced to: file inventory, API contracts, sequence + risks, and a shared smoke test checklist. The review analysis (in TASK-27 notes) already covers much of what this task would produce — this task captures it in a durable docs file.
+
+Generated docs/structure-roadmap.md with file inventory, task-specific API contracts, split sequence, known risks, and smoke checklist to unlock TASK-27 subtasks.
 <!-- SECTION:NOTES:END -->

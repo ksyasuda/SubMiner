@@ -1,11 +1,11 @@
 ---
 id: TASK-27.4
 title: 'Split mpv-service.ts into protocol, transport, property, and facade layers'
-status: To Do
+status: In Progress
 assignee:
   - backend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-13 21:15'
+updated_date: '2026-02-14 21:19'
 labels:
   - 'owner:backend'
 dependencies:
@@ -61,4 +61,14 @@ TASK-27.4 is TASK-8 + physical file splitting. Running them as separate tasks wo
 
 ## Dependency Note
 Original plan listed TASK-8 as a dependency. Since TASK-8's scope is now absorbed here, the only remaining dependency is TASK-27.1 (inventory/contracts map).
+
+Started prep: reviewed mpv-service coupling and prepared sequence for protocol/application split; no code split performed yet due current focus on keeping 27.2/27.3 sequencing compatible.
+
+Known compatibility constraint: TASK-27.4 should proceed only after main.ts AppState migration is stable and after the app-level overlay/subsync/anki behavior contracts are preserved.
+
+Milestone progress: extracted protocol buffer parsing into `src/core/services/mpv-protocol.ts`; `src/core/services/mpv-service.ts` now uses `splitMpvMessagesFromBuffer` in `processBuffer` and still delegates full message handling to existing handler. This is a small Phase B step toward protocol/dispatch separation.
+
+Protocol extraction completed: full `MpvMessage` handling moved into `src/core/services/mpv-protocol.ts` via `splitMpvMessagesFromBuffer` + `dispatchMpvProtocolMessage`; `MpvIpcClient` now delegates all message parsing/dispatch through `MpvProtocolHandleMessageDeps` and resolves pending requests through `tryResolvePendingRequest`. `main.ts` wiring remains unchanged.
+
+Updated `docs/structure-roadmap.md` expected mpv flow snapshot to reflect protocol parse/dispatch extraction (`splitMpvMessagesFromBuffer` + `dispatchMpvProtocolMessage`) and façade delegation path via `MpvProtocolHandleMessageDeps`.
 <!-- SECTION:NOTES:END -->

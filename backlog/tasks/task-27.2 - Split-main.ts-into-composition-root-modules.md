@@ -1,11 +1,11 @@
 ---
 id: TASK-27.2
 title: Split main.ts into composition-root modules
-status: To Do
+status: In Progress
 assignee:
   - backend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-14 02:23'
+updated_date: '2026-02-14 09:41'
 labels:
   - 'owner:backend'
   - 'owner:architect'
@@ -52,4 +52,24 @@ TASK-9 (remove trivial wrappers) and TASK-10 (naming conventions) have been depr
 - When main.ts is split into composition-root modules, trivial wrappers will naturally be eliminated or inlined at each module boundary.
 - Naming conventions should be standardized per-module as they are extracted, not as a separate global pass.
 Refer to TASK-9 and TASK-10 acceptance criteria as checklists during execution of this task.
+
+Deferred until TASK-7 validation and TASK-27.3 completion to avoid import-order/state scattering during composition-root extraction.
+
+Started `TASK-27.2` with a small composition-root extraction in `src/main.ts`: extracted `createMpvClientRuntimeService()` from inline `createMpvClient` deps object to reduce bootstrap-local complexity and prepare for module split (`main.ts` still owns state and startup sequencing remains unchanged).
+
+Added `createCliCommandRuntimeServiceDeps()` helper in `src/main.ts` and routed `handleCliCommand` through it, preserving existing `createCliCommandDepsRuntimeService` wiring while reducing inline dependency composition churn.
+
+Refactored `handleMpvCommandFromIpc` to use `createMpvCommandRuntimeServiceDeps()` helper, removing inline dependency object and keeping command dispatch behavior unchanged.
+
+Added `createAppLifecycleRuntimeDeps()` helper in `src/main.ts` and moved the full inline app-lifecycle dependency graph into it, so startup wiring now delegates to `createAppLifecycleDepsRuntimeService(createAppLifecycleRuntimeDeps())` and the composition root is further decoupled from lifecycle behavior.
+
+Extracted startup bootstrap composition in `src/main.ts` by adding `createStartupBootstrapRuntimeDeps()`, replacing the inline `runStartupBootstrapRuntimeService({...})` object with a factory for parse/startup logging/config/bootstrap wiring.
+
+Fixed TS strict errors introduced by factory extractions by adding explicit runtime dependency interface annotations to factory helpers (`createStartupBootstrapRuntimeDeps`, `createAppLifecycleRuntimeDeps`, `createCliCommandRuntimeServiceDeps`, `createMpvCommandRuntimeServiceDeps`, `createMainIpcRuntimeServiceDeps`, `createAnkiJimakuIpcRuntimeServiceDeps`) and by typing `jimakuFetchJson` wrapper generically to satisfy `AnkiJimakuIpcRuntimeOptions`.
+
+Extracted app-ready startup dependency object into `createAppReadyRuntimeDeps(): AppReadyRuntimeDeps`, moving the inline `runAppReadyRuntimeService({...})` payload out of `createAppLifecycleRuntimeDeps()` while preserving behavior.
+
+Added `SubsyncRuntimeDeps` typing to `getSubsyncRuntimeDeps()` for clearer composition-root contracts around subsync IPC/dependency wiring (`runSubsyncManualFromIpcRuntimeService`/`triggerSubsyncFromConfigRuntimeService` path).
+
+Extracted additional composition-root dependency composition for IPC command handlers into src/main/dependencies.ts: createCliCommandRuntimeServiceDeps(...) and createMpvCommandRuntimeServiceDeps(...). main.ts now inlines stateful callbacks into these shared builders while preserving behavior. Next step should be extracting startup/app-ready/lifecycle/overlay wiring into dedicated modules under src/main/.
 <!-- SECTION:NOTES:END -->

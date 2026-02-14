@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import {
   MpvIpcClient,
   MpvIpcClientDeps,
+  MpvIpcClientProtocolDeps,
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
 } from "./mpv-service";
 
 function makeDeps(
-  overrides: Partial<MpvIpcClientDeps> = {},
+  overrides: Partial<MpvIpcClientProtocolDeps> = {},
 ): MpvIpcClientDeps {
   return {
     getResolvedConfig: () => ({} as any),
@@ -17,39 +18,14 @@ function makeDeps(
     isVisibleOverlayVisible: () => false,
     getReconnectTimer: () => null,
     setReconnectTimer: () => {},
-    getCurrentSubText: () => "",
-    setCurrentSubText: () => {},
-    setCurrentSubAssText: () => {},
-    getSubtitleTimingTracker: () => null,
-    subtitleWsBroadcast: () => {},
-    getOverlayWindowsCount: () => 0,
-    tokenizeSubtitle: async (text) => ({ text, tokens: null }),
-    broadcastToOverlayWindows: () => {},
-    updateCurrentMediaPath: () => {},
-    updateMpvSubtitleRenderMetrics: () => {},
-    getMpvSubtitleRenderMetrics: () => ({
-      subPos: 100,
-      subFontSize: 36,
-      subScale: 1,
-      subMarginY: 0,
-      subMarginX: 0,
-      subFont: "sans-serif",
-      subSpacing: 0,
-      subBold: false,
-      subItalic: false,
-      subBorderSize: 0,
-      subShadowOffset: 0,
-      subAssOverride: "yes",
-      subScaleByWindow: true,
-      subUseMargins: true,
-      osdHeight: 720,
-      osdDimensions: null,
-    }),
-    getPreviousSecondarySubVisibility: () => null,
-    setPreviousSecondarySubVisibility: () => {},
-    showMpvOsd: () => {},
     ...overrides,
   };
+}
+
+function invokeHandleMessage(client: MpvIpcClient, msg: unknown): Promise<void> {
+  return (client as unknown as { handleMessage: (msg: unknown) => Promise<void> }).handleMessage(
+    msg,
+  );
 }
 
 test("MpvIpcClient resolves pending request by request_id", async () => {
@@ -59,40 +35,28 @@ test("MpvIpcClient resolves pending request by request_id", async () => {
     resolved = msg;
   });
 
-  await (client as any).handleMessage({ request_id: 1234, data: "ok" });
+  await invokeHandleMessage(client, { request_id: 1234, data: "ok" });
 
   assert.deepEqual(resolved, { request_id: 1234, data: "ok" });
   assert.equal((client as any).pendingRequests.size, 0);
 });
 
 test("MpvIpcClient handles sub-text property change and broadcasts tokenized subtitle", async () => {
-  const calls: string[] = [];
-  const client = new MpvIpcClient(
-    "/tmp/mpv.sock",
-    makeDeps({
-      setCurrentSubText: (text) => {
-        calls.push(`setCurrentSubText:${text}`);
-      },
-      subtitleWsBroadcast: (text) => {
-        calls.push(`subtitleWsBroadcast:${text}`);
-      },
-      getOverlayWindowsCount: () => 1,
-      tokenizeSubtitle: async (text) => ({ text, tokens: null }),
-      broadcastToOverlayWindows: (channel, payload) => {
-        calls.push(`broadcast:${channel}:${String((payload as any).text ?? "")}`);
-      },
-    }),
-  );
+  const events: Array<{ text: string; isOverlayVisible: boolean }> = [];
+  const client = new MpvIpcClient("/tmp/mpv.sock", makeDeps());
+  client.on("subtitle-change", (payload) => {
+    events.push(payload);
+  });
 
-  await (client as any).handleMessage({
+  await invokeHandleMessage(client, {
     event: "property-change",
     name: "sub-text",
     data: "字幕",
   });
 
-  assert.ok(calls.includes("setCurrentSubText:字幕"));
-  assert.ok(calls.includes("subtitleWsBroadcast:字幕"));
-  assert.ok(calls.includes("broadcast:subtitle:set:字幕"));
+  assert.equal(events.length, 1);
+  assert.equal(events[0].text, "字幕");
+  assert.equal(events[0].isOverlayVisible, false);
 });
 
 test("MpvIpcClient parses JSON line protocol in processBuffer", () => {
@@ -182,28 +146,23 @@ test("MpvIpcClient scheduleReconnect schedules timer and invokes connect", () =>
 
 test("MpvIpcClient captures and disables secondary subtitle visibility on request", async () => {
   const commands: unknown[] = [];
-  let previousSecondarySubVisibility: boolean | null = null;
-  const client = new MpvIpcClient(
-    "/tmp/mpv.sock",
-    makeDeps({
-      getPreviousSecondarySubVisibility: () => previousSecondarySubVisibility,
-      setPreviousSecondarySubVisibility: (value) => {
-        previousSecondarySubVisibility = value;
-      },
-    }),
-  );
+  const client = new MpvIpcClient("/tmp/mpv.sock", makeDeps());
+  const previous: boolean[] = [];
+  client.on("secondary-subtitle-visibility", ({ visible }) => {
+    previous.push(visible);
+  });
 
   (client as any).send = (payload: unknown) => {
     commands.push(payload);
     return true;
   };
 
-  await (client as any).handleMessage({
+  await invokeHandleMessage(client, {
     request_id: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
     data: "yes",
   });
 
-  assert.equal(previousSecondarySubVisibility, true);
+  assert.deepEqual(previous, [true]);
   assert.deepEqual(commands, [
     {
       command: ["set_property", "secondary-sub-visibility", "no"],
@@ -211,30 +170,36 @@ test("MpvIpcClient captures and disables secondary subtitle visibility on reques
   ]);
 });
 
-test("MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tracked value", () => {
+test("MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tracked value", async () => {
   const commands: unknown[] = [];
-  let previousSecondarySubVisibility: boolean | null = false;
-  const client = new MpvIpcClient(
-    "/tmp/mpv.sock",
-    makeDeps({
-      getPreviousSecondarySubVisibility: () => previousSecondarySubVisibility,
-      setPreviousSecondarySubVisibility: (value) => {
-        previousSecondarySubVisibility = value;
-      },
-    }),
-  );
+  const client = new MpvIpcClient("/tmp/mpv.sock", makeDeps());
+  const previous: boolean[] = [];
+  client.on("secondary-subtitle-visibility", ({ visible }) => {
+    previous.push(visible);
+  });
 
   (client as any).send = (payload: unknown) => {
     commands.push(payload);
     return true;
   };
 
+  await invokeHandleMessage(client, {
+    request_id: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+    data: "yes",
+  });
   client.restorePreviousSecondarySubVisibility();
 
+  assert.equal(previous[0], true);
+  assert.equal(previous.length, 1);
   assert.deepEqual(commands, [
     {
       command: ["set_property", "secondary-sub-visibility", "no"],
     },
+    {
+      command: ["set_property", "secondary-sub-visibility", "no"],
+    },
   ]);
-  assert.equal(previousSecondarySubVisibility, null);
+
+  client.restorePreviousSecondarySubVisibility();
+  assert.equal(commands.length, 2);
 });

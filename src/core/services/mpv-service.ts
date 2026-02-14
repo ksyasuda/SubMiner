@@ -4,46 +4,41 @@ import {
   Config,
   MpvClient,
   MpvSubtitleRenderMetrics,
-  SubtitleData,
 } from "../../types";
-import { asBoolean, asFiniteNumber } from "../utils/coerce";
+import {
+  dispatchMpvProtocolMessage,
+  MPV_REQUEST_ID_AID,
+  MPV_REQUEST_ID_OSD_DIMENSIONS,
+  MPV_REQUEST_ID_OSD_HEIGHT,
+  MPV_REQUEST_ID_PATH,
+  MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+  MPV_REQUEST_ID_SECONDARY_SUBTEXT,
+  MPV_REQUEST_ID_SUB_ASS_OVERRIDE,
+  MPV_REQUEST_ID_SUB_BOLD,
+  MPV_REQUEST_ID_SUB_BORDER_SIZE,
+  MPV_REQUEST_ID_SUB_FONT,
+  MPV_REQUEST_ID_SUB_FONT_SIZE,
+  MPV_REQUEST_ID_SUB_ITALIC,
+  MPV_REQUEST_ID_SUB_MARGIN_X,
+  MPV_REQUEST_ID_SUB_MARGIN_Y,
+  MPV_REQUEST_ID_SUB_POS,
+  MPV_REQUEST_ID_SUB_SCALE,
+  MPV_REQUEST_ID_SUB_SCALE_BY_WINDOW,
+  MPV_REQUEST_ID_SUB_SHADOW_OFFSET,
+  MPV_REQUEST_ID_SUB_SPACING,
+  MPV_REQUEST_ID_SUBTEXT,
+  MPV_REQUEST_ID_SUBTEXT_ASS,
+  MPV_REQUEST_ID_SUB_USE_MARGINS,
+  MPV_REQUEST_ID_TRACK_LIST_AUDIO,
+  MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
+  MpvMessage,
+  MpvProtocolHandleMessageDeps,
+  splitMpvMessagesFromBuffer,
+} from "./mpv-protocol";
 
-interface MpvMessage {
-  event?: string;
-  name?: string;
-  data?: unknown;
-  request_id?: number;
-  error?: string;
-}
-
-const MPV_REQUEST_ID_SUBTEXT = 101;
-const MPV_REQUEST_ID_PATH = 102;
-const MPV_REQUEST_ID_SECONDARY_SUBTEXT = 103;
-export const MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY = 104;
-const MPV_REQUEST_ID_AID = 105;
-const MPV_REQUEST_ID_SUB_POS = 106;
-const MPV_REQUEST_ID_SUB_FONT_SIZE = 107;
-const MPV_REQUEST_ID_SUB_SCALE = 108;
-const MPV_REQUEST_ID_SUB_MARGIN_Y = 109;
-const MPV_REQUEST_ID_SUB_MARGIN_X = 110;
-const MPV_REQUEST_ID_SUB_FONT = 111;
-const MPV_REQUEST_ID_SUB_SCALE_BY_WINDOW = 112;
-const MPV_REQUEST_ID_OSD_HEIGHT = 113;
-const MPV_REQUEST_ID_OSD_DIMENSIONS = 114;
-const MPV_REQUEST_ID_SUBTEXT_ASS = 115;
-const MPV_REQUEST_ID_SUB_SPACING = 116;
-const MPV_REQUEST_ID_SUB_BOLD = 117;
-const MPV_REQUEST_ID_SUB_ITALIC = 118;
-const MPV_REQUEST_ID_SUB_BORDER_SIZE = 119;
-const MPV_REQUEST_ID_SUB_SHADOW_OFFSET = 120;
-const MPV_REQUEST_ID_SUB_ASS_OVERRIDE = 121;
-const MPV_REQUEST_ID_SUB_USE_MARGINS = 122;
-const MPV_REQUEST_ID_TRACK_LIST_SECONDARY = 200;
-const MPV_REQUEST_ID_TRACK_LIST_AUDIO = 201;
-
-interface SubtitleTimingTrackerLike {
-  recordSubtitle: (text: string, start: number, end: number) => void;
-}
+export {
+  MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+} from "./mpv-protocol";
 
 export interface MpvIpcClientProtocolDeps {
   getResolvedConfig: () => Config;
@@ -55,31 +50,12 @@ export interface MpvIpcClientProtocolDeps {
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
 }
 
-export interface MpvIpcClientRuntimeDeps {
-  getCurrentSubText?: () => string;
-  setCurrentSubText?: (text: string) => void;
-  setCurrentSubAssText?: (text: string) => void;
-  getSubtitleTimingTracker?: () => SubtitleTimingTrackerLike | null;
-  subtitleWsBroadcast?: (text: string) => void;
-  getOverlayWindowsCount?: () => number;
-  tokenizeSubtitle?: (text: string) => Promise<SubtitleData>;
-  broadcastToOverlayWindows?: (channel: string, ...args: unknown[]) => void;
-  updateCurrentMediaPath?: (mediaPath: unknown) => void;
-  updateMpvSubtitleRenderMetrics?: (
-    patch: Partial<MpvSubtitleRenderMetrics>,
-  ) => void;
-  getMpvSubtitleRenderMetrics?: () => MpvSubtitleRenderMetrics;
-  getPreviousSecondarySubVisibility?: () => boolean | null;
-  setPreviousSecondarySubVisibility?: (value: boolean | null) => void;
-  showMpvOsd?: (text: string) => void;
-  updateCurrentMediaTitle?: (mediaTitle: unknown) => void;
-}
-
-export interface MpvIpcClientDeps extends MpvIpcClientProtocolDeps, MpvIpcClientRuntimeDeps {}
+export interface MpvIpcClientDeps extends MpvIpcClientProtocolDeps {}
 
 export interface MpvIpcClientEventMap {
   "subtitle-change": { text: string; isOverlayVisible: boolean };
   "subtitle-ass-change": { text: string };
+  "subtitle-timing": { text: string; start: number; end: number };
   "secondary-subtitle-change": { text: string };
   "media-path-change": { path: string };
   "media-title-change": { title: string | null };
@@ -91,7 +67,7 @@ type MpvIpcClientEventName = keyof MpvIpcClientEventMap;
 
 export class MpvIpcClient implements MpvClient {
   private socketPath: string;
-  private deps: MpvIpcClientProtocolDeps & Required<MpvIpcClientRuntimeDeps>;
+  private deps: MpvIpcClientProtocolDeps;
   public socket: net.Socket | null = null;
   private eventBus = new EventEmitter();
   private buffer = "";
@@ -108,48 +84,36 @@ export class MpvIpcClient implements MpvClient {
   public currentSecondarySubText = "";
   public currentAudioStreamIndex: number | null = null;
   private currentAudioTrackId: number | null = null;
+  private mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics = {
+    subPos: 100,
+    subFontSize: 36,
+    subScale: 1,
+    subMarginY: 0,
+    subMarginX: 0,
+    subFont: "",
+    subSpacing: 0,
+    subBold: false,
+    subItalic: false,
+    subBorderSize: 0,
+    subShadowOffset: 0,
+    subAssOverride: "yes",
+    subScaleByWindow: true,
+    subUseMargins: true,
+    osdHeight: 0,
+    osdDimensions: null,
+  };
+  private previousSecondarySubVisibility: boolean | null = null;
   private pauseAtTime: number | null = null;
   private pendingPauseAtSubEnd = false;
   private nextDynamicRequestId = 1000;
   private pendingRequests = new Map<number, (message: MpvMessage) => void>();
 
-  constructor(socketPath: string, deps: MpvIpcClientDeps) {
+  constructor(
+    socketPath: string,
+    deps: MpvIpcClientDeps,
+  ) {
     this.socketPath = socketPath;
-    this.deps = {
-      getCurrentSubText: () => "",
-      setCurrentSubText: () => undefined,
-      setCurrentSubAssText: () => undefined,
-      getSubtitleTimingTracker: () => null,
-      subtitleWsBroadcast: () => undefined,
-      getOverlayWindowsCount: () => 0,
-      tokenizeSubtitle: async (text) => ({ text, tokens: null }),
-      broadcastToOverlayWindows: () => undefined,
-      updateCurrentMediaPath: () => undefined,
-      updateCurrentMediaTitle: () => undefined,
-      updateMpvSubtitleRenderMetrics: () => undefined,
-      getMpvSubtitleRenderMetrics: () => ({
-        subPos: 100,
-        subFontSize: 36,
-        subScale: 1,
-        subMarginY: 0,
-        subMarginX: 0,
-        subFont: "",
-        subSpacing: 0,
-        subBold: false,
-        subItalic: false,
-        subBorderSize: 0,
-        subShadowOffset: 0,
-        subAssOverride: "yes",
-        subScaleByWindow: true,
-        subUseMargins: true,
-        osdHeight: 0,
-        osdDimensions: null,
-      }),
-      getPreviousSecondarySubVisibility: () => null,
-      setPreviousSecondarySubVisibility: () => undefined,
-      showMpvOsd: () => undefined,
-      ...deps,
-    };
+    this.deps = deps;
   }
 
   on<EventName extends MpvIpcClientEventName>(
@@ -171,6 +135,16 @@ export class MpvIpcClient implements MpvClient {
     payload: MpvIpcClientEventMap[EventName],
   ): void {
     this.eventBus.emit(event as string, payload);
+  }
+
+  private emitSubtitleMetricsChange(
+    patch: Partial<MpvSubtitleRenderMetrics>,
+  ): void {
+    this.mpvSubtitleRenderMetrics = {
+      ...this.mpvSubtitleRenderMetrics,
+      ...patch,
+    };
+    this.emit("subtitle-metrics-change", { patch });
   }
 
   setSocketPath(socketPath: string): void {
@@ -195,6 +169,7 @@ export class MpvIpcClient implements MpvClient {
       this.connecting = false;
       this.reconnectAttempt = 0;
       this.hasConnectedOnce = true;
+      this.setSecondarySubVisibility(false);
       this.subscribeToProperties();
       this.getInitialState();
 
@@ -275,367 +250,102 @@ export class MpvIpcClient implements MpvClient {
   }
 
   private processBuffer(): void {
-    const lines = this.buffer.split("\n");
-    this.buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const msg = JSON.parse(line) as MpvMessage;
-        this.handleMessage(msg);
-      } catch (e) {
-        console.error("Failed to parse MPV message:", line, e);
-      }
-    }
+    const parsed = splitMpvMessagesFromBuffer(
+      this.buffer,
+      (message) => {
+        this.handleMessage(message);
+      },
+      (line, error) => {
+        console.error("Failed to parse MPV message:", line, error);
+      },
+    );
+    this.buffer = parsed.nextBuffer;
   }
 
   private async handleMessage(msg: MpvMessage): Promise<void> {
-    if (msg.event === "property-change") {
-      if (msg.name === "sub-text") {
-        const nextSubText = (msg.data as string) || "";
-        const overlayVisible = this.deps.isVisibleOverlayVisible();
-        this.emit("subtitle-change", {
-          text: nextSubText,
-          isOverlayVisible: overlayVisible,
-        });
-        this.deps.setCurrentSubText(nextSubText);
-        this.currentSubText = nextSubText;
-        const subtitleTimingTracker = this.deps.getSubtitleTimingTracker();
-        if (
-          subtitleTimingTracker &&
-          this.currentSubStart !== undefined &&
-          this.currentSubEnd !== undefined
-        ) {
-          subtitleTimingTracker.recordSubtitle(
-            nextSubText,
-            this.currentSubStart,
-            this.currentSubEnd,
-          );
-        }
-        this.deps.subtitleWsBroadcast(nextSubText);
-        if (this.deps.getOverlayWindowsCount() > 0) {
-          const subtitleData = await this.deps.tokenizeSubtitle(nextSubText);
-          this.deps.broadcastToOverlayWindows("subtitle:set", subtitleData);
-        }
-      } else if (msg.name === "sub-text-ass") {
-        const nextSubAssText = (msg.data as string) || "";
-        this.emit("subtitle-ass-change", {
-          text: nextSubAssText,
-        });
-        this.deps.setCurrentSubAssText(nextSubAssText);
-        this.deps.broadcastToOverlayWindows("subtitle-ass:set", nextSubAssText);
-      } else if (msg.name === "sub-start") {
-        this.currentSubStart = (msg.data as number) || 0;
-        const subtitleTimingTracker = this.deps.getSubtitleTimingTracker();
-        if (subtitleTimingTracker && this.deps.getCurrentSubText()) {
-          subtitleTimingTracker.recordSubtitle(
-            this.deps.getCurrentSubText(),
-            this.currentSubStart,
-            this.currentSubEnd,
-          );
-        }
-      } else if (msg.name === "sub-end") {
-        this.currentSubEnd = (msg.data as number) || 0;
-        if (this.pendingPauseAtSubEnd && this.currentSubEnd > 0) {
-          this.pauseAtTime = this.currentSubEnd;
-          this.pendingPauseAtSubEnd = false;
-          this.send({ command: ["set_property", "pause", false] });
-        }
-        const subtitleTimingTracker = this.deps.getSubtitleTimingTracker();
-        if (subtitleTimingTracker && this.deps.getCurrentSubText()) {
-          subtitleTimingTracker.recordSubtitle(
-            this.deps.getCurrentSubText(),
-            this.currentSubStart,
-            this.currentSubEnd,
-          );
-        }
-      } else if (msg.name === "secondary-sub-text") {
-        this.currentSecondarySubText = (msg.data as string) || "";
-        this.emit("secondary-subtitle-change", {
-          text: this.currentSecondarySubText,
-        });
-        this.deps.broadcastToOverlayWindows(
-          "secondary-subtitle:set",
-          this.currentSecondarySubText,
-        );
-      } else if (msg.name === "aid") {
-        this.currentAudioTrackId =
-          typeof msg.data === "number" ? (msg.data as number) : null;
+    await dispatchMpvProtocolMessage(msg, this.createProtocolMessageDeps());
+  }
+
+  private createProtocolMessageDeps(): MpvProtocolHandleMessageDeps {
+    return {
+      getResolvedConfig: () => this.deps.getResolvedConfig(),
+      getSubtitleMetrics: () => this.mpvSubtitleRenderMetrics,
+      isVisibleOverlayVisible: () => this.deps.isVisibleOverlayVisible(),
+      emitSubtitleChange: (payload) => {
+        this.emit("subtitle-change", payload);
+      },
+      emitSubtitleAssChange: (payload) => {
+        this.emit("subtitle-ass-change", payload);
+      },
+      emitSubtitleTiming: (payload) => {
+        this.emit("subtitle-timing", payload);
+      },
+      emitSecondarySubtitleChange: (payload) => {
+        this.emit("secondary-subtitle-change", payload);
+      },
+      getCurrentSubText: () => this.currentSubText,
+      setCurrentSubText: (text: string) => {
+        this.currentSubText = text;
+      },
+      setCurrentSubStart: (value: number) => {
+        this.currentSubStart = value;
+      },
+      getCurrentSubStart: () => this.currentSubStart,
+      setCurrentSubEnd: (value: number) => {
+        this.currentSubEnd = value;
+      },
+      getCurrentSubEnd: () => this.currentSubEnd,
+      emitMediaPathChange: (payload) => {
+        this.emit("media-path-change", payload);
+      },
+      emitMediaTitleChange: (payload) => {
+        this.emit("media-title-change", payload);
+      },
+      emitSubtitleMetricsChange: (patch) => {
+        this.emitSubtitleMetricsChange(patch);
+      },
+      setCurrentSecondarySubText: (text: string) => {
+        this.currentSecondarySubText = text;
+      },
+      resolvePendingRequest: (requestId: number, message: MpvMessage) =>
+        this.tryResolvePendingRequest(requestId, message),
+      setSecondarySubVisibility: (visible: boolean) =>
+        this.setSecondarySubVisibility(visible),
+      syncCurrentAudioStreamIndex: () => {
         this.syncCurrentAudioStreamIndex();
-      } else if (msg.name === "time-pos") {
-        this.currentTimePos = (msg.data as number) || 0;
-        if (
-          this.pauseAtTime !== null &&
-          this.currentTimePos >= this.pauseAtTime
-        ) {
-          this.pauseAtTime = null;
-          this.send({ command: ["set_property", "pause", true] });
-        }
-      } else if (msg.name === "media-title") {
-        this.emit("media-title-change", {
-          title: typeof msg.data === "string" ? msg.data.trim() : null,
-        });
-        this.deps.updateCurrentMediaTitle?.(msg.data);
-      } else if (msg.name === "path") {
-        this.currentVideoPath = (msg.data as string) || "";
-        this.emit("media-path-change", {
-          path: (msg.data as string) || "",
-        });
-        this.deps.updateCurrentMediaPath(msg.data);
+      },
+      setCurrentAudioTrackId: (value: number | null) => {
+        this.currentAudioTrackId = value;
+      },
+      setCurrentTimePos: (value: number) => {
+        this.currentTimePos = value;
+      },
+      getCurrentTimePos: () => this.currentTimePos,
+      getPendingPauseAtSubEnd: () => this.pendingPauseAtSubEnd,
+      setPendingPauseAtSubEnd: (value: boolean) => {
+        this.pendingPauseAtSubEnd = value;
+      },
+      getPauseAtTime: () => this.pauseAtTime,
+      setPauseAtTime: (value: number | null) => {
+        this.pauseAtTime = value;
+      },
+      autoLoadSecondarySubTrack: () => {
         this.autoLoadSecondarySubTrack();
-        this.syncCurrentAudioStreamIndex();
-      } else if (msg.name === "sub-pos") {
-        const patch = { subPos: msg.data as number };
-        this.emit("subtitle-metrics-change", { patch });
-        this.deps.updateMpvSubtitleRenderMetrics({ subPos: msg.data as number });
-      } else if (msg.name === "sub-font-size") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subFontSize: msg.data as number,
-        });
-      } else if (msg.name === "sub-scale") {
-        this.deps.updateMpvSubtitleRenderMetrics({ subScale: msg.data as number });
-      } else if (msg.name === "sub-margin-y") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subMarginY: msg.data as number,
-        });
-      } else if (msg.name === "sub-margin-x") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subMarginX: msg.data as number,
-        });
-      } else if (msg.name === "sub-font") {
-        this.deps.updateMpvSubtitleRenderMetrics({ subFont: msg.data as string });
-      } else if (msg.name === "sub-spacing") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subSpacing: msg.data as number,
-        });
-      } else if (msg.name === "sub-bold") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subBold: asBoolean(msg.data, this.deps.getMpvSubtitleRenderMetrics().subBold),
-        });
-      } else if (msg.name === "sub-italic") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subItalic: asBoolean(
-            msg.data,
-            this.deps.getMpvSubtitleRenderMetrics().subItalic,
-          ),
-        });
-      } else if (msg.name === "sub-border-size") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subBorderSize: msg.data as number,
-        });
-      } else if (msg.name === "sub-shadow-offset") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subShadowOffset: msg.data as number,
-        });
-      } else if (msg.name === "sub-ass-override") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subAssOverride: msg.data as string,
-        });
-      } else if (msg.name === "sub-scale-by-window") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subScaleByWindow: asBoolean(
-            msg.data,
-            this.deps.getMpvSubtitleRenderMetrics().subScaleByWindow,
-          ),
-        });
-      } else if (msg.name === "sub-use-margins") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subUseMargins: asBoolean(
-            msg.data,
-            this.deps.getMpvSubtitleRenderMetrics().subUseMargins,
-          ),
-        });
-      } else if (msg.name === "osd-height") {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          osdHeight: msg.data as number,
-        });
-      } else if (msg.name === "osd-dimensions") {
-        const dims = msg.data as Record<string, unknown> | null;
-        if (!dims) {
-          this.deps.updateMpvSubtitleRenderMetrics({ osdDimensions: null });
-        } else {
-          this.deps.updateMpvSubtitleRenderMetrics({
-            osdDimensions: {
-              w: asFiniteNumber(dims.w, 0),
-              h: asFiniteNumber(dims.h, 0),
-              ml: asFiniteNumber(dims.ml, 0),
-              mr: asFiniteNumber(dims.mr, 0),
-              mt: asFiniteNumber(dims.mt, 0),
-              mb: asFiniteNumber(dims.mb, 0),
-            },
-          });
-        }
-      }
-    } else if (msg.event === "shutdown") {
-      this.restorePreviousSecondarySubVisibility();
-    } else if (msg.request_id) {
-      const pending = this.pendingRequests.get(msg.request_id);
-      if (pending) {
-        this.pendingRequests.delete(msg.request_id);
-        pending(msg);
-        return;
-      }
-
-      if (msg.data === undefined) {
-        return;
-      }
-
-      if (msg.request_id === MPV_REQUEST_ID_TRACK_LIST_SECONDARY) {
-        const tracks = msg.data as Array<{
-          type: string;
-          lang?: string;
-          id: number;
-        }>;
-        if (Array.isArray(tracks)) {
-          const config = this.deps.getResolvedConfig();
-          const languages = config.secondarySub?.secondarySubLanguages || [];
-          const subTracks = tracks.filter((t) => t.type === "sub");
-          for (const lang of languages) {
-            const match = subTracks.find((t) => t.lang === lang);
-            if (match) {
-              this.send({
-                command: ["set_property", "secondary-sid", match.id],
-              });
-            //   this.deps.showMpvOsd(
-            //     `Secondary subtitle: ${lang} (track ${match.id})`,
-            //   );
-              break;
-            }
-          }
-        }
-      } else if (msg.request_id === MPV_REQUEST_ID_TRACK_LIST_AUDIO) {
-        this.updateCurrentAudioStreamIndex(
-          msg.data as Array<{
-            type?: string;
-            id?: number;
-            selected?: boolean;
-            "ff-index"?: number;
-          }>,
-        );
-      } else if (msg.request_id === MPV_REQUEST_ID_SUBTEXT) {
-        const nextSubText = (msg.data as string) || "";
-        this.deps.setCurrentSubText(nextSubText);
-        this.currentSubText = nextSubText;
-        this.emit("subtitle-change", {
-          text: nextSubText,
-          isOverlayVisible: this.deps.isVisibleOverlayVisible(),
-        });
-        this.deps.subtitleWsBroadcast(nextSubText);
-        if (this.deps.getOverlayWindowsCount() > 0) {
-          this.deps.tokenizeSubtitle(nextSubText).then((subtitleData) => {
-            this.deps.broadcastToOverlayWindows("subtitle:set", subtitleData);
-          });
-        }
-      } else if (msg.request_id === MPV_REQUEST_ID_SUBTEXT_ASS) {
-        const nextSubAssText = (msg.data as string) || "";
-        this.emit("subtitle-ass-change", {
-          text: nextSubAssText,
-        });
-        this.deps.setCurrentSubAssText(nextSubAssText);
-        this.deps.broadcastToOverlayWindows("subtitle-ass:set", nextSubAssText);
-      } else if (msg.request_id === MPV_REQUEST_ID_PATH) {
-        this.emit("media-path-change", {
-          path: (msg.data as string) || "",
-        });
-        this.deps.updateCurrentMediaPath(msg.data);
-      } else if (msg.request_id === MPV_REQUEST_ID_AID) {
-        this.currentAudioTrackId =
-          typeof msg.data === "number" ? (msg.data as number) : null;
-        this.syncCurrentAudioStreamIndex();
-      } else if (msg.request_id === MPV_REQUEST_ID_SECONDARY_SUBTEXT) {
-        this.currentSecondarySubText = (msg.data as string) || "";
-        this.deps.broadcastToOverlayWindows(
-          "secondary-subtitle:set",
-          this.currentSecondarySubText,
-        );
-      } else if (msg.request_id === MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY) {
-        this.deps.setPreviousSecondarySubVisibility(
-          msg.data === true || msg.data === "yes",
-        );
-        this.send({
-          command: ["set_property", "secondary-sub-visibility", "no"],
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_POS) {
-        this.deps.updateMpvSubtitleRenderMetrics({ subPos: msg.data as number });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_FONT_SIZE) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subFontSize: msg.data as number,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_SCALE) {
-        this.deps.updateMpvSubtitleRenderMetrics({ subScale: msg.data as number });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_MARGIN_Y) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subMarginY: msg.data as number,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_MARGIN_X) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subMarginX: msg.data as number,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_FONT) {
-        this.deps.updateMpvSubtitleRenderMetrics({ subFont: msg.data as string });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_SPACING) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subSpacing: msg.data as number,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_BOLD) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subBold: asBoolean(msg.data, this.deps.getMpvSubtitleRenderMetrics().subBold),
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_ITALIC) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subItalic: asBoolean(
-            msg.data,
-            this.deps.getMpvSubtitleRenderMetrics().subItalic,
-          ),
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_BORDER_SIZE) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subBorderSize: msg.data as number,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_SHADOW_OFFSET) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subShadowOffset: msg.data as number,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_ASS_OVERRIDE) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subAssOverride: msg.data as string,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_SCALE_BY_WINDOW) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subScaleByWindow: asBoolean(
-            msg.data,
-            this.deps.getMpvSubtitleRenderMetrics().subScaleByWindow,
-          ),
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_SUB_USE_MARGINS) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          subUseMargins: asBoolean(
-            msg.data,
-            this.deps.getMpvSubtitleRenderMetrics().subUseMargins,
-          ),
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_OSD_HEIGHT) {
-        this.deps.updateMpvSubtitleRenderMetrics({
-          osdHeight: msg.data as number,
-        });
-      } else if (msg.request_id === MPV_REQUEST_ID_OSD_DIMENSIONS) {
-        const dims = msg.data as Record<string, unknown> | null;
-        if (!dims) {
-          this.deps.updateMpvSubtitleRenderMetrics({ osdDimensions: null });
-        } else {
-          this.deps.updateMpvSubtitleRenderMetrics({
-            osdDimensions: {
-              w: asFiniteNumber(dims.w, 0),
-              h: asFiniteNumber(dims.h, 0),
-              ml: asFiniteNumber(dims.ml, 0),
-              mr: asFiniteNumber(dims.mr, 0),
-              mt: asFiniteNumber(dims.mt, 0),
-              mb: asFiniteNumber(dims.mb, 0),
-            },
-          });
-        }
-      }
-    }
+      },
+      setCurrentVideoPath: (value: string) => {
+        this.currentVideoPath = value;
+      },
+      emitSecondarySubtitleVisibility: (payload) => {
+        this.emit("secondary-subtitle-visibility", payload);
+      },
+      setCurrentAudioStreamIndex: (tracks) => {
+        this.updateCurrentAudioStreamIndex(tracks);
+      },
+      sendCommand: (payload) => this.send(payload),
+      restorePreviousSecondarySubVisibility: () => {
+        this.restorePreviousSecondarySubVisibility();
+      },
+    };
   }
 
   private autoLoadSecondarySubTrack(): void {
@@ -732,6 +442,19 @@ export class MpvIpcClient implements MpvClient {
       resolve({ request_id: requestId, error: "disconnected" });
     }
     this.pendingRequests.clear();
+  }
+
+  private tryResolvePendingRequest(
+    requestId: number,
+    message: MpvMessage,
+  ): boolean {
+    const pending = this.pendingRequests.get(requestId);
+    if (!pending) {
+      return false;
+    }
+    this.pendingRequests.delete(requestId);
+    pending(message);
+    return true;
   }
 
   private subscribeToProperties(): void {
@@ -873,11 +596,21 @@ export class MpvIpcClient implements MpvClient {
   }
 
   restorePreviousSecondarySubVisibility(): void {
-    const previous = this.deps.getPreviousSecondarySubVisibility();
+    const previous = this.previousSecondarySubVisibility;
     if (previous === null) return;
     this.send({
       command: ["set_property", "secondary-sub-visibility", previous ? "yes" : "no"],
     });
-    this.deps.setPreviousSecondarySubVisibility(null);
+    this.previousSecondarySubVisibility = null;
+  }
+
+  private setSecondarySubVisibility(visible: boolean): void {
+    this.send({
+      command: [
+        "set_property",
+        "secondary-sub-visibility",
+        visible ? "yes" : "no",
+      ],
+    });
   }
 }

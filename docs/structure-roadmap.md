@@ -115,12 +115,12 @@ Adopted sequence (from TASK-27 parent):
 
 ### TASK-27.4 expected event flow snapshot (current)
 - `connect()` establishes socket and starts `observe_property` subscriptions via `subscribeToProperties()`.
-- Protocol frames are dispatched through `processBuffer()` → `handleMessage()`.
-- For `property-change` and request responses, handling remains in `MpvIpcClient` today but is a target for extraction:
-  - subtitle text/ASS/timing updates → `deps.setCurrentSubText`, `deps.setCurrentSubAssText`, subtitle timing tracker, overlay broadcast hooks
-  - media/path/title updates → `deps.updateCurrentMediaPath`, optional `deps.updateCurrentMediaTitle`
-  - property update commands (`sub-pos`, `sub-font*`, `sub-scale*`, etc.) → `deps.updateMpvSubtitleRenderMetrics`
-  - secondary-sub visibility tracking → `deps.setPreviousSecondarySubVisibility` + local `restorePreviousSecondarySubVisibility()`
+- `processBuffer()` uses `splitMpvMessagesFromBuffer()` to parse JSON lines and route each message to `handleMessage()`.
+- `dispatchMpvProtocolMessage()` now owns protocol-level handling for:
+  - `event === "property-change"` updates (subtitle text/ASS/timing, media/path/title, track metrics, secondary subtitles, visibility restore flags)
+  - `request_id` responses for startup state fetches and dynamic property queries
+  - shutdown handling and pending request resolution
+- `handleMessage()` now delegates state mutation and side effects through `MpvProtocolHandleMessageDeps` to the client facade (`emit(...)`, state fields, `sendCommand`, etc.).
 - Reconnect path stays behavior-critical:
   - socket close/error clears pending requests and calls `scheduleReconnect()`
   - timer callback calls `connect()` after exponential-ish delay
