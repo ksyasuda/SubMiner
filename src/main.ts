@@ -57,9 +57,7 @@ import type {
   KikuFieldGroupingChoice,
   KikuMergePreviewRequest,
   KikuMergePreviewResponse,
-  RuntimeOptionId,
   RuntimeOptionState,
-  RuntimeOptionValue,
   MpvSubtitleRenderMetrics,
 } from "./types";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
@@ -162,9 +160,8 @@ import type { AppReadyRuntimeDeps } from "./core/services/startup-service";
 import type { SubsyncRuntimeDeps } from "./core/services/subsync-runner-service";
 import {
   applyRuntimeOptionResultRuntimeService,
-  cycleRuntimeOptionFromIpcRuntimeService,
-  setRuntimeOptionFromIpcRuntimeService,
 } from "./core/services/runtime-options-ipc-service";
+import { createRuntimeOptionsIpcDeps, createSubsyncRuntimeDeps } from "./main/dependencies";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -1219,7 +1216,7 @@ const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
 
 function getSubsyncRuntimeDeps(): SubsyncRuntimeDeps {
-  return {
+  return createSubsyncRuntimeDeps({
     getMpvClient: () => appState.mpvClient,
     getResolvedSubsyncConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
     isSubsyncInProgress: () => appState.subsyncInProgress,
@@ -1232,7 +1229,7 @@ function getSubsyncRuntimeDeps(): SubsyncRuntimeDeps {
         restoreOnModalClose: "subsync",
       });
     },
-  };
+  });
 }
 
 async function triggerSubsyncFromConfig(): Promise<void> {
@@ -1531,22 +1528,10 @@ async function runSubsyncManualFromIpc(
   return runSubsyncManualFromIpcRuntimeService(request, getSubsyncRuntimeDeps());
 }
 
-const runtimeOptionsIpcDeps = {
-  setRuntimeOption: (id: string, value: unknown) =>
-    setRuntimeOptionFromIpcRuntimeService(
-      appState.runtimeOptionsManager,
-      id as RuntimeOptionId,
-      value as RuntimeOptionValue,
-      (text) => showMpvOsd(text),
-    ),
-  cycleRuntimeOption: (id: string, direction: 1 | -1) =>
-    cycleRuntimeOptionFromIpcRuntimeService(
-      appState.runtimeOptionsManager,
-      id as RuntimeOptionId,
-      direction,
-      (text) => showMpvOsd(text),
-    ),
-};
+const runtimeOptionsIpcDeps = createRuntimeOptionsIpcDeps({
+  getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
+  showMpvOsd,
+});
 
 registerIpcHandlersService(
   createIpcDepsRuntimeService(createMainIpcRuntimeServiceDeps()),
