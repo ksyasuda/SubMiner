@@ -21,6 +21,12 @@ import { BaseWindowTracker } from "./base-tracker";
 
 export class X11WindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly targetMpvSocketPath: string | null;
+
+  constructor(targetMpvSocketPath?: string) {
+    super();
+    this.targetMpvSocketPath = targetMpvSocketPath?.trim() || null;
+  }
 
   start(): void {
     this.pollInterval = setInterval(() => this.pollGeometry(), 250);
@@ -45,7 +51,17 @@ export class X11WindowTracker extends BaseWindowTracker {
         return;
       }
 
-      const windowId = windowIds.split("\n")[0];
+      const windowIdList = windowIds.split(/\s+/).filter(Boolean);
+      if (windowIdList.length === 0) {
+        this.updateGeometry(null);
+        return;
+      }
+
+      const windowId = this.findTargetWindowId(windowIdList);
+      if (!windowId) {
+        this.updateGeometry(null);
+        return;
+      }
 
       const winInfo = execSync(`xwininfo -id ${windowId}`, {
         encoding: "utf-8",
@@ -69,5 +85,56 @@ export class X11WindowTracker extends BaseWindowTracker {
     } catch (err) {
       this.updateGeometry(null);
     }
+  }
+
+  private findTargetWindowId(windowIds: string[]): string | null {
+    if (!this.targetMpvSocketPath) {
+      return windowIds[0] ?? null;
+    }
+
+    for (const windowId of windowIds) {
+      if (this.isWindowForTargetSocket(windowId)) {
+        return windowId;
+      }
+    }
+
+    return null;
+  }
+
+  private isWindowForTargetSocket(windowId: string): boolean {
+    const pid = this.getWindowPid(windowId);
+    if (pid === null) {
+      return false;
+    }
+
+    const commandLine = this.getWindowCommandLine(pid);
+    if (!commandLine) {
+      return false;
+    }
+
+    return (
+      commandLine.includes(`--input-ipc-server=${this.targetMpvSocketPath}`) ||
+      commandLine.includes(`--input-ipc-server ${this.targetMpvSocketPath}`)
+    );
+  }
+
+  private getWindowPid(windowId: string): number | null {
+    const windowPid = execSync(`xprop -id ${windowId} _NET_WM_PID`, {
+      encoding: "utf-8",
+    });
+    const pidMatch = windowPid.match(/= (\d+)/);
+    if (!pidMatch) {
+      return null;
+    }
+
+    const pid = Number.parseInt(pidMatch[1], 10);
+    return Number.isInteger(pid) ? pid : null;
+  }
+
+  private getWindowCommandLine(pid: number): string | null {
+    const commandLine = execSync(`ps -p ${pid} -o args=`, {
+      encoding: "utf-8",
+    }).trim();
+    return commandLine || null;
   }
 }

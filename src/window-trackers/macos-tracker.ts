@@ -32,9 +32,11 @@ export class MacOSWindowTracker extends BaseWindowTracker {
   private helperType: "binary" | "swift" | null = null;
   private lastExecErrorFingerprint: string | null = null;
   private lastExecErrorLoggedAtMs = 0;
+  private readonly targetMpvSocketPath: string | null;
 
-  constructor() {
+  constructor(targetMpvSocketPath?: string) {
     super();
+    this.targetMpvSocketPath = targetMpvSocketPath?.trim() || null;
     this.detectHelper();
   }
 
@@ -85,6 +87,21 @@ export class MacOSWindowTracker extends BaseWindowTracker {
   }
 
   private detectHelper(): void {
+    const shouldFilterBySocket = this.targetMpvSocketPath !== null;
+
+    // Fall back to Swift helper first when filtering by socket path to avoid
+    // stale prebuilt binaries that don't support the new socket filter argument.
+    const swiftPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "scripts",
+      "get-mpv-window-macos.swift",
+    );
+    if (shouldFilterBySocket && this.tryUseHelper(swiftPath, "swift")) {
+      return;
+    }
+
     // Prefer resources path (outside asar) in packaged apps.
     const resourcesPath = process.resourcesPath;
     if (resourcesPath) {
@@ -110,14 +127,8 @@ export class MacOSWindowTracker extends BaseWindowTracker {
       return;
     }
 
-    // Fall back to Swift script for development.
-    const swiftPath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "scripts",
-      "get-mpv-window-macos.swift",
-    );
+    // Fall back to Swift script for development or if binary filtering is not
+    // supported in the current environment.
     if (this.tryUseHelper(swiftPath, "swift")) {
       return;
     }
@@ -167,6 +178,9 @@ export class MacOSWindowTracker extends BaseWindowTracker {
     // This works with both bundled and unbundled mpv installations
     const command = this.helperType === "binary" ? this.helperPath : "swift";
     const args = this.helperType === "binary" ? [] : [this.helperPath];
+    if (this.targetMpvSocketPath) {
+      args.push(this.targetMpvSocketPath);
+    }
 
     execFile(
       command,

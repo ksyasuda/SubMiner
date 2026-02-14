@@ -23,6 +23,7 @@ export function initializeOverlayRuntimeService(options: {
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
+  getMpvSocketPath: () => string;
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   getSubtitleTimingTracker: () => unknown | null;
   getMpvClient: () => { send?: (payload: { command: string[] }) => void } | null;
@@ -42,7 +43,10 @@ export function initializeOverlayRuntimeService(options: {
   const invisibleOverlayVisible = options.getInitialInvisibleOverlayVisibility();
   options.registerGlobalShortcuts();
 
-  const windowTracker = createWindowTracker(options.backendOverride);
+  const windowTracker = createWindowTracker(
+    options.backendOverride,
+    options.getMpvSocketPath(),
+  );
   options.setWindowTracker(windowTracker);
   if (windowTracker) {
     windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
