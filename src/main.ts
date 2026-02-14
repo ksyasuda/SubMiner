@@ -1524,7 +1524,15 @@ const runtimeOptionsIpcDeps = {
 };
 
 registerIpcHandlersService(
-  createIpcDepsRuntimeService({
+  createIpcDepsRuntimeService(createMainIpcRuntimeServiceDeps()),
+);
+
+registerAnkiJimakuIpcRuntimeService(
+  createAnkiJimakuIpcRuntimeServiceDeps(),
+);
+
+function createMainIpcRuntimeServiceDeps() {
+  return {
     getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
     getMainWindow: () => overlayManager.getMainWindow(),
     getVisibleOverlayVisibility: () => overlayManager.getVisibleOverlayVisible(),
@@ -1556,11 +1564,11 @@ registerIpcHandlersService(
     reportOverlayContentBounds: (payload) => {
       overlayContentMeasurementStore.report(payload);
     },
-  }),
-);
+  };
+}
 
-registerAnkiJimakuIpcRuntimeService(
-  {
+function createAnkiJimakuIpcRuntimeServiceDeps() {
+  return {
     patchAnkiConnectEnabled: (enabled) => {
       configService.patchRawConfig({ ankiConnect: { enabled } });
     },
@@ -1586,5 +1594,5 @@ registerAnkiJimakuIpcRuntimeService(
     isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
     downloadToFile: (url, destPath, headers) =>
       downloadToFile(url, destPath, headers),
-  },
-);
+  };
+}
