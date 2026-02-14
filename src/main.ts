@@ -1473,30 +1473,31 @@ function handleOverlayModalClosed(modal: OverlayHostedModal): void {
 }
 
 function handleMpvCommandFromIpc(command: (string | number)[]): void {
-  handleMpvCommandFromIpcService(
-    command,
-    {
-      specialCommands: SPECIAL_COMMANDS,
-      triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-      openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-      runtimeOptionsCycle: (id, direction) => {
-        if (!appState.runtimeOptionsManager) {
-          return { ok: false, error: "Runtime options manager unavailable" };
-        }
-        return applyRuntimeOptionResultRuntimeService(
-          appState.runtimeOptionsManager.cycleOption(id, direction),
-          (text) => showMpvOsd(text),
-        );
-      },
-      showMpvOsd: (text) => showMpvOsd(text),
-      mpvReplaySubtitle: () => replayCurrentSubtitleRuntimeService(appState.mpvClient),
-      mpvPlayNextSubtitle: () => playNextSubtitleRuntimeService(appState.mpvClient),
-      mpvSendCommand: (rawCommand) =>
-        sendMpvCommandRuntimeService(appState.mpvClient, rawCommand),
-      isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
-      hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
+  handleMpvCommandFromIpcService(command, createMpvCommandRuntimeServiceDeps());
+}
+
+function createMpvCommandRuntimeServiceDeps() {
+  return {
+    specialCommands: SPECIAL_COMMANDS,
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    runtimeOptionsCycle: (id, direction) => {
+      if (!appState.runtimeOptionsManager) {
+        return { ok: false, error: "Runtime options manager unavailable" };
+      }
+      return applyRuntimeOptionResultRuntimeService(
+        appState.runtimeOptionsManager.cycleOption(id, direction),
+        (text) => showMpvOsd(text),
+      );
     },
-  );
+    showMpvOsd: (text) => showMpvOsd(text),
+    mpvReplaySubtitle: () => replayCurrentSubtitleRuntimeService(appState.mpvClient),
+    mpvPlayNextSubtitle: () => playNextSubtitleRuntimeService(appState.mpvClient),
+    mpvSendCommand: (rawCommand) =>
+      sendMpvCommandRuntimeService(appState.mpvClient, rawCommand),
+    isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
+    hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
+  };
 }
 
 async function runSubsyncManualFromIpc(
