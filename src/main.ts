@@ -176,6 +176,12 @@ if (process.platform === "linux") {
 }
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
+const DEFAULT_MPV_LOG_FILE = path.join(
+  os.homedir(),
+  ".cache",
+  "SubMiner",
+  "mp.log",
+);
 function resolveConfigDir(): string {
   const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
   const baseDirs = Array.from(
@@ -212,6 +218,7 @@ function resolveConfigDir(): string {
 
 const CONFIG_DIR = resolveConfigDir();
 const USER_DATA_PATH = CONFIG_DIR;
+const DEFAULT_MPV_LOG_PATH = process.env.SUBMINER_MPV_LOG?.trim() || DEFAULT_MPV_LOG_FILE;
 const configService = new ConfigService(CONFIG_DIR);
 const isDev =
   process.argv.includes("--dev") || process.argv.includes("--debug");
@@ -270,6 +277,7 @@ let currentSubAssText = "";
 let windowTracker: BaseWindowTracker | null = null;
 let subtitlePosition: SubtitlePosition | null = null;
 let currentMediaPath: string | null = null;
+let currentMediaTitle: string | null = null;
 let pendingSubtitlePosition: SubtitlePosition | null = null;
 let mecabTokenizer: MecabTokenizer | null = null;
 let keybindings: Keybinding[] = [];
@@ -297,8 +305,10 @@ const overlayContentMeasurementStore = createOverlayContentMeasurementStoreServi
     console.warn(message);
   },
 });
-type OverlayHostedModal = "runtime-options" | "subsync";
+type OverlayHostedModal = "runtime-options" | "subsync" | "jimaku";
+type OverlayHostLayer = "visible" | "invisible";
 const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
+const overlayModalAutoShownLayer = new Map<OverlayHostedModal, OverlayHostLayer>();
 
 function getFieldGroupingResolver(): ((choice: KikuFieldGroupingChoice) => void) | null {
   return fieldGroupingResolver;
@@ -328,8 +338,11 @@ const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntimeService<Ove
   getResolver: () => getFieldGroupingResolver(),
   setResolver: (resolver) => setFieldGroupingResolver(resolver),
   getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
+  sendToVisibleOverlay: (channel, payload) => {
+    sendToActiveOverlayWindow(channel, payload);
+    return true;
+  },
 });
-const sendToVisibleOverlay = fieldGroupingOverlayRuntime.sendToVisibleOverlay;
 const createFieldGroupingCallback =
   fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
@@ -357,6 +370,79 @@ function broadcastRuntimeOptionsChanged(): void {
   );
 }
 
+function getTargetOverlayWindow(): {
+  window: BrowserWindow;
+  layer: OverlayHostLayer;
+} | null {
+  const visibleMainWindow = overlayManager.getMainWindow();
+  const invisibleWindow = overlayManager.getInvisibleWindow();
+
+  if (visibleMainWindow && !visibleMainWindow.isDestroyed()) {
+    return { window: visibleMainWindow, layer: "visible" };
+  }
+
+  if (invisibleWindow && !invisibleWindow.isDestroyed()) {
+    return { window: invisibleWindow, layer: "invisible" };
+  }
+
+  return null;
+}
+
+function showOverlayWindowForModal(window: BrowserWindow, layer: OverlayHostLayer): void {
+  if (layer === "invisible" && typeof window.showInactive === "function") {
+    window.showInactive();
+  } else {
+    window.show();
+  }
+  if (!window.isFocused()) {
+    window.focus();
+  }
+}
+
+function sendToActiveOverlayWindow(
+  channel: string,
+  payload?: unknown,
+  runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
+): void {
+  const target = getTargetOverlayWindow();
+  if (!target) return;
+
+  const { window: targetWindow, layer } = target;
+  const wasVisible = targetWindow.isVisible();
+  const restoreOnModalClose = runtimeOptions?.restoreOnModalClose;
+
+  const sendNow = (): void => {
+    if (payload === undefined) {
+      targetWindow.webContents.send(channel);
+    } else {
+      targetWindow.webContents.send(channel, payload);
+    }
+  };
+
+  if (!wasVisible) {
+    showOverlayWindowForModal(targetWindow, layer);
+  }
+  if (!wasVisible && restoreOnModalClose) {
+    restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
+    overlayModalAutoShownLayer.set(restoreOnModalClose, layer);
+  }
+
+  if (targetWindow.webContents.isLoading()) {
+    targetWindow.webContents.once("did-finish-load", () => {
+      if (
+        targetWindow &&
+        !targetWindow.isDestroyed() &&
+        !targetWindow.webContents.isLoading()
+      ) {
+        sendNow();
+      }
+    });
+    return;
+  }
+
+  sendNow();
+}
+
 function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
   setOverlayDebugVisualizationEnabledRuntimeService(
     overlayDebugVisualizationEnabled,
@@ -368,7 +454,11 @@ function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
   );
 }
 
-function openRuntimeOptionsPalette(): void { sendToVisibleOverlay("runtime-options:open", undefined, { restoreOnModalClose: "runtime-options" }); }
+function openRuntimeOptionsPalette(): void {
+  sendToActiveOverlayWindow("runtime-options:open", undefined, {
+    restoreOnModalClose: "runtime-options",
+  });
+}
 
 function getResolvedConfig() { return configService.getConfig(); }
 
@@ -437,6 +527,9 @@ function saveSubtitlePosition(position: SubtitlePosition): void {
 }
 
 function updateCurrentMediaPath(mediaPath: unknown): void {
+  if (typeof mediaPath !== "string" || !isRemoteMediaPath(mediaPath)) {
+    currentMediaTitle = null;
+  }
   updateCurrentMediaPathService({
     mediaPath,
     currentMediaPath,
@@ -456,6 +549,21 @@ function updateCurrentMediaPath(mediaPath: unknown): void {
       broadcastToOverlayWindows("subtitle-position:set", position);
     },
   });
+}
+
+function updateCurrentMediaTitle(mediaTitle: unknown): void {
+  if (typeof mediaTitle === "string") {
+    const sanitized = mediaTitle.trim();
+    currentMediaTitle = sanitized.length > 0 ? sanitized : null;
+    return;
+  }
+  currentMediaTitle = null;
+}
+
+function resolveMediaPathForJimaku(mediaPath: string | null): string | null {
+  return mediaPath && isRemoteMediaPath(mediaPath) && currentMediaTitle
+    ? currentMediaTitle
+    : mediaPath;
 }
 
 let subsyncInProgress = false;
@@ -551,6 +659,9 @@ const startupState = runStartupBootstrapRuntimeService({
                 },
                 updateCurrentMediaPath: (mediaPath) => {
                   updateCurrentMediaPath(mediaPath);
+                },
+                updateCurrentMediaTitle: (mediaTitle) => {
+                  updateCurrentMediaTitle(mediaTitle);
                 },
                 updateMpvSubtitleRenderMetrics: (patch) => {
                   updateMpvSubtitleRenderMetrics(patch);
@@ -944,7 +1055,9 @@ function getOverlayShortcutRuntimeHandlers() {
       openRuntimeOptionsPalette();
     },
     openJimaku: () => {
-      sendToVisibleOverlay("jimaku:open");
+      sendToActiveOverlayWindow("jimaku:open", undefined, {
+        restoreOnModalClose: "jimaku",
+      });
     },
     markAudioCard: () => markLastCardAsAudioCard(),
     copySubtitleMultiple: (timeoutMs) => {
@@ -994,6 +1107,7 @@ function cycleSecondarySubMode(): void {
 }
 
 function showMpvOsd(text: string): void {
+  appendToMpvLog(`[OSD] ${text}`);
   showMpvOsdRuntimeService(
     mpvClient,
     text,
@@ -1001,6 +1115,19 @@ function showMpvOsd(text: string): void {
       console.log(line);
     },
   );
+}
+
+function appendToMpvLog(message: string): void {
+  try {
+    fs.mkdirSync(path.dirname(DEFAULT_MPV_LOG_PATH), { recursive: true });
+    fs.appendFileSync(
+      DEFAULT_MPV_LOG_PATH,
+      `[${new Date().toISOString()}] ${message}\n`,
+      { encoding: "utf8" },
+    );
+  } catch {
+    // best-effort logging
+  }
 }
 
 const numericShortcutRuntime = createNumericShortcutRuntimeService({
@@ -1022,7 +1149,7 @@ function getSubsyncRuntimeDeps() {
     },
     showMpvOsd: (text: string) => showMpvOsd(text),
     openManualPicker: (payload: SubsyncManualPayload) => {
-      sendToVisibleOverlay("subsync:open-manual", payload, {
+      sendToActiveOverlayWindow("subsync:open-manual", payload, {
         restoreOnModalClose: "subsync",
       });
     },
@@ -1270,8 +1397,24 @@ function toggleOverlay(): void { toggleVisibleOverlay(); }
 function handleOverlayModalClosed(modal: OverlayHostedModal): void {
   if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
   restoreVisibleOverlayOnModalClose.delete(modal);
-  if (restoreVisibleOverlayOnModalClose.size === 0) {
-    setVisibleOverlayVisible(false);
+  const layer = overlayModalAutoShownLayer.get(modal);
+  overlayModalAutoShownLayer.delete(modal);
+  if (!layer) return;
+  const shouldKeepLayerVisible = [...restoreVisibleOverlayOnModalClose].some(
+    (pendingModal) => overlayModalAutoShownLayer.get(pendingModal) === layer,
+  );
+  if (shouldKeepLayerVisible) return;
+
+  if (layer === "visible") {
+    const mainWindow = overlayManager.getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.hide();
+    }
+    return;
+  }
+  const invisibleWindow = overlayManager.getInvisibleWindow();
+  if (invisibleWindow && !invisibleWindow.isDestroyed()) {
+    invisibleWindow.hide();
   }
 }
 
@@ -1379,7 +1522,7 @@ registerAnkiJimakuIpcRuntimeService(
     broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
     getFieldGroupingResolver: () => getFieldGroupingResolver(),
     setFieldGroupingResolver: (resolver) => setFieldGroupingResolver(resolver),
-    parseMediaInfo: (mediaPath) => parseMediaInfo(mediaPath),
+    parseMediaInfo: (mediaPath) => parseMediaInfo(resolveMediaPathForJimaku(mediaPath)),
     getCurrentMediaPath: () => currentMediaPath,
     jimakuFetchJson: (endpoint, query) => jimakuFetchJson(endpoint, query),
     getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(),
