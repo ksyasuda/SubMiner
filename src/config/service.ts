@@ -36,6 +36,15 @@ function asBoolean(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
+const hexColorPattern =
+  /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+function asColor(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  return hexColorPattern.test(text) ? text : undefined;
+}
+
 export class ConfigService {
   private readonly configDir: string;
   private readonly configFileJsonc: string;
@@ -749,6 +758,34 @@ export class ConfigService {
           "Expected an array of strings.",
         );
         resolved.ankiConnect.nPlusOne.decks = [];
+      }
+
+      const nPlusOneHighlightColor = asColor(nPlusOneConfig.nPlusOne);
+      if (nPlusOneHighlightColor !== undefined) {
+        resolved.ankiConnect.nPlusOne.nPlusOne = nPlusOneHighlightColor;
+      } else if (nPlusOneConfig.nPlusOne !== undefined) {
+        warn(
+          "ankiConnect.nPlusOne.nPlusOne",
+          nPlusOneConfig.nPlusOne,
+          resolved.ankiConnect.nPlusOne.nPlusOne,
+          "Expected a hex color value.",
+        );
+        resolved.ankiConnect.nPlusOne.nPlusOne =
+          DEFAULT_CONFIG.ankiConnect.nPlusOne.nPlusOne;
+      }
+
+      const nPlusOneKnownWordColor = asColor(nPlusOneConfig.knownWord);
+      if (nPlusOneKnownWordColor !== undefined) {
+        resolved.ankiConnect.nPlusOne.knownWord = nPlusOneKnownWordColor;
+      } else if (nPlusOneConfig.knownWord !== undefined) {
+        warn(
+          "ankiConnect.nPlusOne.knownWord",
+          nPlusOneConfig.knownWord,
+          resolved.ankiConnect.nPlusOne.knownWord,
+          "Expected a hex color value.",
+        );
+        resolved.ankiConnect.nPlusOne.knownWord =
+          DEFAULT_CONFIG.ankiConnect.nPlusOne.knownWord;
       }
 
       if (

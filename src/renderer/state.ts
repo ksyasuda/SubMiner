@@ -69,6 +69,9 @@ export type RendererState = {
   lastHoverSelectionKey: string;
   lastHoverSelectionNode: Text | null;
 
+  knownWordColor: string;
+  nPlusOneColor: string;
+
   keybindingsMap: Map<string, (string | number)[]>;
   chordPending: boolean;
   chordTimeout: ReturnType<typeof setTimeout> | null;
@@ -124,6 +127,9 @@ export function createRendererState(): RendererState {
 
     lastHoverSelectionKey: "",
     lastHoverSelectionNode: null,
+
+    knownWordColor: "#a6da95",
+    nPlusOneColor: "#c6a0f6",
 
     keybindingsMap: new Map(),
     chordPending: false,

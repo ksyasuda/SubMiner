@@ -69,6 +69,7 @@ test("tokenizeSubtitleService normalizes newlines before mecab fallback", async 
             partOfSpeech: PartOfSpeech.other,
             isMerged: true,
             isKnown: false,
+            isNPlusOneTarget: false,
           },
         ];
       },
@@ -94,6 +95,7 @@ test("tokenizeSubtitleService falls back to mecab tokens when available", async 
           partOfSpeech: PartOfSpeech.noun,
           isMerged: false,
           isKnown: false,
+          isNPlusOneTarget: false,
         },
       ],
     }),
@@ -157,6 +159,7 @@ test("tokenizeSubtitleService uses Yomitan parser result when available", async 
   assert.equal(result.tokens?.[0]?.surface, "猫です");
   assert.equal(result.tokens?.[0]?.reading, "ねこです");
   assert.equal(result.tokens?.[0]?.isKnown, false);
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, true);
 });
 
 test("tokenizeSubtitleService marks tokens as known using callback", async () => {
@@ -183,6 +186,125 @@ test("tokenizeSubtitleService marks tokens as known using callback", async () =>
 
   assert.equal(result.text, "猫です");
   assert.equal(result.tokens?.[0]?.isKnown, true);
+});
+
+test("tokenizeSubtitleService selects one N+1 target token", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      tokenizeWithMecab: async () => [
+        {
+          surface: "私",
+          reading: "ワタシ",
+          headword: "私",
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: true,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: "犬",
+          reading: "イヌ",
+          headword: "犬",
+          startPos: 1,
+          endPos: 2,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+    }),
+  );
+
+  const targets = result.tokens?.filter((token) => token.isNPlusOneTarget) ?? [];
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0]?.surface, "犬");
+});
+
+test("tokenizeSubtitleService does not mark target when sentence has multiple candidates", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫犬",
+    makeDeps({
+      tokenizeWithMecab: async () => [
+        {
+          surface: "猫",
+          reading: "ネコ",
+          headword: "猫",
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: "犬",
+          reading: "イヌ",
+          headword: "犬",
+          startPos: 1,
+          endPos: 2,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(
+    result.tokens?.some((token) => token.isNPlusOneTarget),
+    false,
+  );
+});
+
+test("tokenizeSubtitleService applies N+1 target marking to Yomitan results", async () => {
+  const parserWindow = {
+    isDestroyed: () => false,
+    webContents: {
+      executeJavaScript: async () => [
+        {
+          source: "scanning-parser",
+          index: 0,
+      content: [
+        [
+          {
+            text: "猫",
+            reading: "ねこ",
+            headwords: [[{ term: "猫" }]],
+          },
+        ],
+        [
+          {
+            text: "です",
+            reading: "です",
+            headwords: [[{ term: "です" }]],
+          },
+        ],
+      ],
+    },
+      ],
+    },
+  } as unknown as Electron.BrowserWindow;
+
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => parserWindow,
+      tokenizeWithMecab: async () => null,
+      isKnownWord: (text) => text === "です",
+    }),
+  );
+
+  assert.equal(result.text, "猫です");
+  assert.equal(result.tokens?.length, 2);
+  assert.equal(result.tokens?.[0]?.surface, "猫");
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, true);
+  assert.equal(result.tokens?.[1]?.isNPlusOneTarget, false);
 });
 
 test("tokenizeSubtitleService checks known words by headword, not surface", async () => {

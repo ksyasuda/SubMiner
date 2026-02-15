@@ -1335,7 +1335,18 @@ registerIpcRuntimeServices({
     getCurrentSubtitleAss: () => appState.currentSubAssText,
     getMpvSubtitleRenderMetrics: () => appState.mpvSubtitleRenderMetrics,
     getSubtitlePosition: () => loadSubtitlePosition(),
-    getSubtitleStyle: () => getResolvedConfig().subtitleStyle ?? null,
+      getSubtitleStyle: () => {
+        const resolvedConfig = getResolvedConfig();
+        if (!resolvedConfig.subtitleStyle) {
+          return null;
+        }
+
+        return {
+          ...resolvedConfig.subtitleStyle,
+          nPlusOneColor: resolvedConfig.ankiConnect.nPlusOne.nPlusOne,
+          knownWordColor: resolvedConfig.ankiConnect.nPlusOne.knownWord,
+        };
+      },
     saveSubtitlePosition: (position: unknown) =>
       saveSubtitlePosition(position as SubtitlePosition),
     getMecabTokenizer: () => appState.mecabTokenizer,

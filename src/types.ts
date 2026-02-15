@@ -48,8 +48,11 @@ export interface MergedToken {
   startPos: number;
   endPos: number;
   partOfSpeech: PartOfSpeech;
+  pos2?: string;
+  pos3?: string;
   isMerged: boolean;
   isKnown: boolean;
+  isNPlusOneTarget: boolean;
 }
 
 export interface WindowGeometry {
@@ -230,6 +233,8 @@ export interface AnkiConnectConfig {
     refreshMinutes?: number;
     matchMode?: NPlusOneMatchMode;
     decks?: string[];
+    nPlusOne?: string;
+    knownWord?: string;
   };
   behavior?: {
       overwriteAudio?: boolean;
@@ -263,6 +268,8 @@ export interface SubtitleStyleConfig {
   fontWeight?: string;
   fontStyle?: string;
   backgroundColor?: string;
+  nPlusOneColor?: string;
+  knownWordColor?: string;
   secondary?: {
     fontFamily?: string;
     fontSize?: number;
@@ -378,6 +385,8 @@ export interface ResolvedConfig {
       refreshMinutes: number;
       matchMode: NPlusOneMatchMode;
       decks: string[];
+      nPlusOne: string;
+      knownWord: string;
     };
     behavior: {
       overwriteAudio: boolean;
