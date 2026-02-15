@@ -123,6 +123,12 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
       notificationType: "osd",
       autoUpdateNewCards: true,
     },
+    nPlusOne: {
+      highlightEnabled: false,
+      refreshMinutes: 1440,
+      matchMode: "headword",
+      decks: [],
+    },
     metadata: {
       pattern: "[SubMiner] %f (%t)",
     },
@@ -219,6 +225,23 @@ export const RUNTIME_OPTION_REGISTRY: RuntimeOptionRegistryEntry[] = [
     }),
   },
   {
+    id: "anki.nPlusOneMatchMode",
+    path: "ankiConnect.nPlusOne.matchMode",
+    label: "N+1 Match Mode",
+    scope: "ankiConnect",
+    valueType: "enum",
+    allowedValues: ["headword", "surface"],
+    defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode,
+    requiresRestart: false,
+    formatValueForOsd: (value) => String(value),
+    toAnkiPatch: (value) => ({
+      nPlusOne: {
+        matchMode:
+          value === "headword" || value === "surface" ? value : "headword",
+      },
+    }),
+  },
+  {
     id: "anki.kikuFieldGrouping",
     path: "ankiConnect.isKiku.fieldGrouping",
     label: "Kiku Field Grouping",
@@ -271,6 +294,32 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     defaultValue: DEFAULT_CONFIG.ankiConnect.behavior.autoUpdateNewCards,
     description: "Automatically update newly added cards.",
     runtime: RUNTIME_OPTION_REGISTRY[0],
+  },
+  {
+    path: "ankiConnect.nPlusOne.matchMode",
+    kind: "enum",
+    enumValues: ["headword", "surface"],
+    defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode,
+    description: "Known-word matching strategy for N+1 highlighting.",
+  },
+  {
+    path: "ankiConnect.nPlusOne.highlightEnabled",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled,
+    description: "Enable fast local highlighting for words already known in Anki.",
+  },
+  {
+    path: "ankiConnect.nPlusOne.refreshMinutes",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.refreshMinutes,
+    description: "Minutes between known-word cache refreshes.",
+  },
+  {
+    path: "ankiConnect.nPlusOne.decks",
+    kind: "array",
+    defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.decks,
+    description:
+      "Decks used for N+1 known-word cache scope. Supports one or more deck names.",
   },
   {
     path: "ankiConnect.isKiku.fieldGrouping",

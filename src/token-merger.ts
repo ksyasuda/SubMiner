@@ -179,7 +179,11 @@ export function shouldMerge(lastStandaloneToken: Token, token: Token): boolean {
   return false;
 }
 
-export function mergeTokens(tokens: Token[]): MergedToken[] {
+export function mergeTokens(
+  tokens: Token[],
+  isKnownWord: (text: string) => boolean = () => false,
+  knownWordMatchMode: "headword" | "surface" = "headword",
+): MergedToken[] {
   if (!tokens || tokens.length === 0) {
     return [];
   }
@@ -205,6 +209,13 @@ export function mergeTokens(tokens: Token[]): MergedToken[] {
 
     if (shouldMergeToken && result.length > 0) {
       const prev = result.pop()!;
+      const mergedHeadword = prev.headword;
+      const headwordForKnownMatch = (() => {
+        if (knownWordMatchMode === "surface") {
+          return prev.surface;
+        }
+        return mergedHeadword;
+      })();
       result.push({
         surface: prev.surface + token.word,
         reading: prev.reading + tokenReading,
@@ -213,8 +224,17 @@ export function mergeTokens(tokens: Token[]): MergedToken[] {
         endPos: end,
         partOfSpeech: prev.partOfSpeech,
         isMerged: true,
+        isKnown: headwordForKnownMatch
+          ? isKnownWord(headwordForKnownMatch)
+          : false,
       });
     } else {
+      const headwordForKnownMatch = (() => {
+        if (knownWordMatchMode === "surface") {
+          return token.word;
+        }
+        return token.headword;
+      })();
       result.push({
         surface: token.word,
         reading: tokenReading,
@@ -223,6 +243,9 @@ export function mergeTokens(tokens: Token[]): MergedToken[] {
         endPos: end,
         partOfSpeech: token.partOfSpeech,
         isMerged: false,
+        isKnown: headwordForKnownMatch
+          ? isKnownWord(headwordForKnownMatch)
+          : false,
       });
     }
 

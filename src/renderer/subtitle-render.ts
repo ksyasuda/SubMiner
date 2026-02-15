@@ -26,7 +26,7 @@ function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
       for (let i = 0; i < parts.length; i += 1) {
         if (parts[i]) {
           const span = document.createElement("span");
-          span.className = "word";
+          span.className = token.isKnown ? "word word-known" : "word";
           span.textContent = parts[i];
           if (token.reading) span.dataset.reading = token.reading;
           if (token.headword) span.dataset.headword = token.headword;
@@ -40,7 +40,7 @@ function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
     }
 
     const span = document.createElement("span");
-    span.className = "word";
+    span.className = token.isKnown ? "word word-known" : "word";
     span.textContent = surface;
     if (token.reading) span.dataset.reading = token.reading;
     if (token.headword) span.dataset.headword = token.headword;

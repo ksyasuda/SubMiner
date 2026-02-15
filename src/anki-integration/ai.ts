@@ -51,6 +51,24 @@ export interface AiTranslateCallbacks {
   logWarning: (message: string) => void;
 }
 
+export interface AiSentenceTranslationInput {
+  sentence: string;
+  secondarySubText?: string;
+  config: {
+    apiKey?: string;
+    baseUrl?: string;
+    model?: string;
+    targetLanguage?: string;
+    systemPrompt?: string;
+    enabled?: boolean;
+    alwaysUseAiTranslation?: boolean;
+  };
+}
+
+export interface AiSentenceTranslationCallbacks {
+  logWarning: (message: string) => void;
+}
+
 export async function translateSentenceWithAi(
   request: AiTranslateRequest,
   callbacks: AiTranslateCallbacks,
@@ -100,4 +118,41 @@ export async function translateSentenceWithAi(
     callbacks.logWarning(`AI translation failed: ${message}`);
     return null;
   }
+}
+
+export async function resolveSentenceBackText(
+  input: AiSentenceTranslationInput,
+  callbacks: AiSentenceTranslationCallbacks,
+): Promise<string> {
+  const hasSecondarySub = Boolean(input.secondarySubText?.trim());
+  let backText = input.secondarySubText?.trim() || "";
+
+  const aiConfig = {
+    ...DEFAULT_ANKI_CONNECT_CONFIG.ai,
+    ...input.config,
+  };
+  const shouldAttemptAiTranslation =
+    aiConfig.enabled === true &&
+    (aiConfig.alwaysUseAiTranslation === true || !hasSecondarySub);
+
+  if (!shouldAttemptAiTranslation) return backText;
+
+  const request: AiTranslateRequest = {
+    sentence: input.sentence,
+    apiKey: aiConfig.apiKey ?? "",
+    baseUrl: aiConfig.baseUrl,
+    model: aiConfig.model,
+    targetLanguage: aiConfig.targetLanguage,
+    systemPrompt: aiConfig.systemPrompt,
+  };
+
+  const translated = await translateSentenceWithAi(request, {
+    logWarning: (message) => callbacks.logWarning(message),
+  });
+
+  if (translated) {
+    return translated;
+  }
+
+  return hasSecondarySub ? backText : input.sentence;
 }

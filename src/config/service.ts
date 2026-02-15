@@ -437,6 +437,9 @@ export class ConfigService {
 
     if (isObject(src.ankiConnect)) {
       const ac = src.ankiConnect;
+      const behavior = isObject(ac.behavior)
+        ? (ac.behavior as Record<string, unknown>)
+        : {};
       const aiSource = isObject(ac.ai)
         ? ac.ai
         : isObject(ac.openRouter)
@@ -579,6 +582,159 @@ export class ConfigService {
       mapLegacy("autoUpdateNewCards", (value) => {
         resolved.ankiConnect.behavior.autoUpdateNewCards = value as boolean;
       });
+
+      const nPlusOneConfig = isObject(ac.nPlusOne)
+        ? (ac.nPlusOne as Record<string, unknown>)
+        : {};
+
+      const nPlusOneHighlightEnabled = asBoolean(
+        nPlusOneConfig.highlightEnabled,
+      );
+      if (nPlusOneHighlightEnabled !== undefined) {
+        resolved.ankiConnect.nPlusOne.highlightEnabled =
+          nPlusOneHighlightEnabled;
+      } else {
+        const legacyNPlusOneHighlightEnabled = asBoolean(
+          behavior.nPlusOneHighlightEnabled,
+        );
+        if (legacyNPlusOneHighlightEnabled !== undefined) {
+        resolved.ankiConnect.nPlusOne.highlightEnabled =
+          legacyNPlusOneHighlightEnabled;
+          warn(
+            "ankiConnect.behavior.nPlusOneHighlightEnabled",
+            behavior.nPlusOneHighlightEnabled,
+            DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled,
+            "Legacy key is deprecated; use ankiConnect.nPlusOne.highlightEnabled",
+          );
+        } else {
+        resolved.ankiConnect.nPlusOne.highlightEnabled =
+          DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled;
+        }
+      }
+
+      const nPlusOneRefreshMinutes = asNumber(nPlusOneConfig.refreshMinutes);
+      const hasValidNPlusOneRefreshMinutes =
+        nPlusOneRefreshMinutes !== undefined &&
+        Number.isInteger(nPlusOneRefreshMinutes) &&
+        nPlusOneRefreshMinutes > 0;
+      if (nPlusOneRefreshMinutes !== undefined) {
+        if (hasValidNPlusOneRefreshMinutes) {
+          resolved.ankiConnect.nPlusOne.refreshMinutes =
+            nPlusOneRefreshMinutes;
+        } else {
+          warn(
+            "ankiConnect.nPlusOne.refreshMinutes",
+            nPlusOneConfig.refreshMinutes,
+            resolved.ankiConnect.nPlusOne.refreshMinutes,
+            "Expected a positive integer.",
+          );
+          resolved.ankiConnect.nPlusOne.refreshMinutes =
+            DEFAULT_CONFIG.ankiConnect.nPlusOne.refreshMinutes;
+        }
+      } else if (asNumber(behavior.nPlusOneRefreshMinutes) !== undefined) {
+        const legacyNPlusOneRefreshMinutes = asNumber(
+          behavior.nPlusOneRefreshMinutes,
+        );
+        const hasValidLegacyRefreshMinutes =
+          legacyNPlusOneRefreshMinutes !== undefined &&
+          Number.isInteger(legacyNPlusOneRefreshMinutes) &&
+          legacyNPlusOneRefreshMinutes > 0;
+        if (hasValidLegacyRefreshMinutes) {
+          resolved.ankiConnect.nPlusOne.refreshMinutes =
+            legacyNPlusOneRefreshMinutes;
+          warn(
+            "ankiConnect.behavior.nPlusOneRefreshMinutes",
+            behavior.nPlusOneRefreshMinutes,
+            DEFAULT_CONFIG.ankiConnect.nPlusOne.refreshMinutes,
+            "Legacy key is deprecated; use ankiConnect.nPlusOne.refreshMinutes",
+          );
+        } else {
+          warn(
+            "ankiConnect.behavior.nPlusOneRefreshMinutes",
+            behavior.nPlusOneRefreshMinutes,
+            resolved.ankiConnect.nPlusOne.refreshMinutes,
+            "Expected a positive integer.",
+          );
+          resolved.ankiConnect.nPlusOne.refreshMinutes =
+            DEFAULT_CONFIG.ankiConnect.nPlusOne.refreshMinutes;
+        }
+      } else {
+        resolved.ankiConnect.nPlusOne.refreshMinutes =
+          DEFAULT_CONFIG.ankiConnect.nPlusOne.refreshMinutes;
+      }
+
+      const nPlusOneMatchMode = asString(nPlusOneConfig.matchMode);
+      const legacyNPlusOneMatchMode = asString(behavior.nPlusOneMatchMode);
+      const hasValidNPlusOneMatchMode =
+        nPlusOneMatchMode === "headword" || nPlusOneMatchMode === "surface";
+      const hasValidLegacyMatchMode =
+        legacyNPlusOneMatchMode === "headword" ||
+        legacyNPlusOneMatchMode === "surface";
+      if (hasValidNPlusOneMatchMode) {
+        resolved.ankiConnect.nPlusOne.matchMode = nPlusOneMatchMode;
+      } else if (nPlusOneMatchMode !== undefined) {
+        warn(
+          "ankiConnect.nPlusOne.matchMode",
+          nPlusOneConfig.matchMode,
+          DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode,
+          "Expected 'headword' or 'surface'.",
+        );
+        resolved.ankiConnect.nPlusOne.matchMode =
+          DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode;
+      } else if (legacyNPlusOneMatchMode !== undefined) {
+        if (hasValidLegacyMatchMode) {
+          resolved.ankiConnect.nPlusOne.matchMode =
+            legacyNPlusOneMatchMode;
+          warn(
+            "ankiConnect.behavior.nPlusOneMatchMode",
+            behavior.nPlusOneMatchMode,
+            DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode,
+            "Legacy key is deprecated; use ankiConnect.nPlusOne.matchMode",
+          );
+        } else {
+          warn(
+            "ankiConnect.behavior.nPlusOneMatchMode",
+            behavior.nPlusOneMatchMode,
+            resolved.ankiConnect.nPlusOne.matchMode,
+            "Expected 'headword' or 'surface'.",
+          );
+          resolved.ankiConnect.nPlusOne.matchMode =
+            DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode;
+        }
+      } else {
+        resolved.ankiConnect.nPlusOne.matchMode =
+          DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode;
+      }
+
+      const nPlusOneDecks = nPlusOneConfig.decks;
+      if (Array.isArray(nPlusOneDecks)) {
+        const normalizedDecks = nPlusOneDecks
+          .filter((entry): entry is string => typeof entry === "string")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0);
+
+        if (normalizedDecks.length === nPlusOneDecks.length) {
+          resolved.ankiConnect.nPlusOne.decks = [
+            ...new Set(normalizedDecks),
+          ];
+        } else if (nPlusOneDecks.length > 0) {
+          warn(
+            "ankiConnect.nPlusOne.decks",
+            nPlusOneDecks,
+            resolved.ankiConnect.nPlusOne.decks,
+            "Expected an array of strings.",
+          );
+        } else {
+          resolved.ankiConnect.nPlusOne.decks = [];
+        }
+      } else if (nPlusOneDecks !== undefined) {
+        warn(
+          "ankiConnect.nPlusOne.decks",
+          nPlusOneDecks,
+          resolved.ankiConnect.nPlusOne.decks,
+          "Expected an array of strings.",
+        );
+      }
 
       if (
         resolved.ankiConnect.isKiku.fieldGrouping !== "auto" &&

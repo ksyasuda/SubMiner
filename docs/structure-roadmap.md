@@ -110,7 +110,7 @@ Adopted sequence (from TASK-27 parent):
 - Mitigation: preserve service construction order and keep existing event registration boundaries
 
 Migration note:
-- `src/main.ts` now delegates composition edges to `src/main/startup.ts`, `src/main/app-lifecycle.ts`, `src/main/ipc-runtime.ts`, `src/main/cli-runtime.ts`, and `src/main/subsync-runtime.ts`.
+   - `src/main.ts` now delegates composition edges to `src/main/startup.ts`, `src/main/app-lifecycle.ts`, `src/main/startup-lifecycle.ts`, `src/main/ipc-runtime.ts`, `src/main/cli-runtime.ts`, and `src/main/subsync-runtime.ts`.
 - Overlay/modal interaction has been moved into `src/main/overlay-runtime.ts` (window selection, modal restore set tracking, runtime-options palette/modal close handling) so `main.ts` now uses a dedicated runtime service for modal routing instead of inline window bookkeeping.
 - Stateful runtime session data has moved to `src/main/state.ts` via `createAppState()` so `main.ts` no longer owns the `AppState` shape inline, only importing and mutating the shared state instance.
 - Behavioral contract remains stable: startup flow, CLI dispatch, IPC handlers, and subsync orchestration keep existing external behavior; only dependency wiring moved out of `main.ts`.

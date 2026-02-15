@@ -45,6 +45,8 @@ function createHarness(): RuntimeHarness {
     setAnkiIntegration: (integration) => {
       state.ankiIntegration = integration;
     },
+    getKnownWordCacheStatePath: () =>
+      "/tmp/subminer-known-words-cache.json",
     showDesktopNotification: () => {},
     createFieldGroupingCallback: () => async () => ({
       keepNoteId: 1,

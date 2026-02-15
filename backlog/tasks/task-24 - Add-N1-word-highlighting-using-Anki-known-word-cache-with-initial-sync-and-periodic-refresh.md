@@ -3,9 +3,10 @@ id: TASK-24
 title: >-
   Add N+1 word highlighting using Anki-known-word cache with initial sync and
   periodic refresh
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-02-13 16:45'
+updated_date: '2026-02-15 04:48'
 labels: []
 dependencies: []
 priority: high

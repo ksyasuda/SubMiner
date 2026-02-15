@@ -49,6 +49,7 @@ export interface MergedToken {
   endPos: number;
   partOfSpeech: PartOfSpeech;
   isMerged: boolean;
+  isKnown: boolean;
 }
 
 export interface WindowGeometry {
@@ -150,13 +151,16 @@ export interface KikuMergePreviewResponse {
 
 export type RuntimeOptionId =
   | "anki.autoUpdateNewCards"
-  | "anki.kikuFieldGrouping";
+  | "anki.kikuFieldGrouping"
+  | "anki.nPlusOneMatchMode";
 
 export type RuntimeOptionScope = "ankiConnect";
 
 export type RuntimeOptionValueType = "boolean" | "enum";
 
 export type RuntimeOptionValue = boolean | string;
+
+export type NPlusOneMatchMode = "headword" | "surface";
 
 export interface RuntimeOptionState {
   id: RuntimeOptionId;
@@ -221,14 +225,20 @@ export interface AnkiConnectConfig {
     fallbackDuration?: number;
     maxMediaDuration?: number;
   };
-  behavior?: {
-    overwriteAudio?: boolean;
-    overwriteImage?: boolean;
-    mediaInsertMode?: "append" | "prepend";
-    highlightWord?: boolean;
-    notificationType?: "osd" | "system" | "both" | "none";
-    autoUpdateNewCards?: boolean;
+  nPlusOne?: {
+    highlightEnabled?: boolean;
+    refreshMinutes?: number;
+    matchMode?: NPlusOneMatchMode;
+    decks?: string[];
   };
+  behavior?: {
+      overwriteAudio?: boolean;
+      overwriteImage?: boolean;
+      mediaInsertMode?: "append" | "prepend";
+      highlightWord?: boolean;
+      notificationType?: "osd" | "system" | "both" | "none";
+      autoUpdateNewCards?: boolean;
+    };
   metadata?: {
     pattern?: string;
   };
@@ -362,6 +372,12 @@ export interface ResolvedConfig {
       audioPadding: number;
       fallbackDuration: number;
       maxMediaDuration: number;
+    };
+    nPlusOne: {
+      highlightEnabled: boolean;
+      refreshMinutes: number;
+      matchMode: NPlusOneMatchMode;
+      decks: string[];
     };
     behavior: {
       overwriteAudio: boolean;

@@ -87,3 +87,11 @@ export function createAppReadyRuntimeDeps(
     handleInitialArgs: params.handleInitialArgs,
   };
 }
+
+export function createAppReadyRuntimeRunner(
+  params: AppReadyRuntimeDepsFactoryInput,
+): () => Promise<void> {
+  return async () => {
+    await runAppReadyRuntimeService(createAppReadyRuntimeDeps(params));
+  };
+}

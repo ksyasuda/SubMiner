@@ -13,6 +13,28 @@ export interface SubsyncRuntimeServiceInput {
   openManualPicker: (payload: SubsyncManualPayload) => void;
 }
 
+export interface SubsyncRuntimeServiceStateInput {
+  getMpvClient: SubsyncRuntimeServiceInput["getMpvClient"];
+  getResolvedSubsyncConfig: SubsyncRuntimeServiceInput["getResolvedSubsyncConfig"];
+  getSubsyncInProgress: () => boolean;
+  setSubsyncInProgress: SubsyncRuntimeServiceInput["setSubsyncInProgress"];
+  showMpvOsd: SubsyncRuntimeServiceInput["showMpvOsd"];
+  openManualPicker: SubsyncRuntimeServiceInput["openManualPicker"];
+}
+
+export function createSubsyncRuntimeServiceInputFromState(
+  input: SubsyncRuntimeServiceStateInput,
+): SubsyncRuntimeServiceInput {
+  return {
+    getMpvClient: input.getMpvClient,
+    getResolvedSubsyncConfig: input.getResolvedSubsyncConfig,
+    isSubsyncInProgress: input.getSubsyncInProgress,
+    setSubsyncInProgress: input.setSubsyncInProgress,
+    showMpvOsd: input.showMpvOsd,
+    openManualPicker: input.openManualPicker,
+  };
+}
+
 export function createSubsyncRuntimeServiceDeps(
   params: SubsyncRuntimeServiceInput,
 ): SubsyncRuntimeDeps {

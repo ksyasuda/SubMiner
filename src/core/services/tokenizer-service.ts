@@ -1,6 +1,12 @@
 import { BrowserWindow, Extension, session } from "electron";
 import { mergeTokens } from "../../token-merger";
-import { MergedToken, PartOfSpeech, SubtitleData, Token } from "../../types";
+import {
+  MergedToken,
+  NPlusOneMatchMode,
+  PartOfSpeech,
+  SubtitleData,
+  Token,
+} from "../../types";
 
 interface YomitanParseHeadword {
   term?: unknown;
@@ -26,6 +32,8 @@ export interface TokenizerServiceDeps {
   setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
   getYomitanParserInitPromise: () => Promise<boolean> | null;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
+  isKnownWord: (text: string) => boolean;
+  getKnownWordMatchMode: () => NPlusOneMatchMode;
   tokenizeWithMecab: (text: string) => Promise<MergedToken[] | null>;
 }
 
@@ -41,6 +49,8 @@ export interface TokenizerDepsRuntimeOptions {
   setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
   getYomitanParserInitPromise: () => Promise<boolean> | null;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
+  isKnownWord: (text: string) => boolean;
+  getKnownWordMatchMode: () => NPlusOneMatchMode;
   getMecabTokenizer: () => MecabTokenizerLike | null;
 }
 
@@ -55,6 +65,8 @@ export function createTokenizerDepsRuntimeService(
     setYomitanParserReadyPromise: options.setYomitanParserReadyPromise,
     getYomitanParserInitPromise: options.getYomitanParserInitPromise,
     setYomitanParserInitPromise: options.setYomitanParserInitPromise,
+    isKnownWord: options.isKnownWord,
+    getKnownWordMatchMode: options.getKnownWordMatchMode,
     tokenizeWithMecab: async (text) => {
       const mecabTokenizer = options.getMecabTokenizer();
       if (!mecabTokenizer) {
@@ -64,9 +76,21 @@ export function createTokenizerDepsRuntimeService(
       if (!rawTokens || rawTokens.length === 0) {
         return null;
       }
-      return mergeTokens(rawTokens);
+      return mergeTokens(
+        rawTokens,
+        options.isKnownWord,
+        options.getKnownWordMatchMode(),
+      );
     },
   };
+}
+
+function resolveKnownWordText(
+  surface: string,
+  headword: string,
+  matchMode: NPlusOneMatchMode,
+): string {
+  return matchMode === "surface" ? surface : headword;
 }
 
 function extractYomitanHeadword(segment: YomitanParseSegment): string {
@@ -86,6 +110,8 @@ function extractYomitanHeadword(segment: YomitanParseSegment): string {
 
 function mapYomitanParseResultsToMergedTokens(
   parseResults: unknown,
+  isKnownWord: (text: string) => boolean,
+  knownWordMatchMode: NPlusOneMatchMode,
 ): MergedToken[] | null {
   if (!Array.isArray(parseResults) || parseResults.length === 0) {
     return null;
@@ -161,6 +187,14 @@ function mapYomitanParseResultsToMergedTokens(
       endPos: end,
       partOfSpeech: PartOfSpeech.other,
       isMerged: true,
+      isKnown: (() => {
+        const matchText = resolveKnownWordText(
+          surface,
+          headword,
+          knownWordMatchMode,
+        );
+        return matchText ? isKnownWord(matchText) : false;
+      })(),
     });
   }
 
@@ -302,7 +336,11 @@ async function parseWithYomitanInternalParser(
       script,
       true,
     );
-    return mapYomitanParseResultsToMergedTokens(parseResults);
+    return mapYomitanParseResultsToMergedTokens(
+      parseResults,
+      deps.isKnownWord,
+      deps.getKnownWordMatchMode(),
+    );
   } catch (err) {
     console.error("Yomitan parser request failed:", (err as Error).message);
     return null;

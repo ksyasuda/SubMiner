@@ -20,6 +20,7 @@ import { AnkiConnectClient } from "./anki-connect";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
 import { MediaGenerator } from "./media-generator";
 import * as path from "path";
+import * as fs from "fs";
 import {
   AnkiConnectConfig,
   KikuDuplicateCardInfo,
@@ -27,20 +28,36 @@ import {
   KikuMergePreviewResponse,
   MpvClient,
   NotificationOptions,
+  NPlusOneMatchMode,
 } from "./types";
 import { DEFAULT_ANKI_CONNECT_CONFIG } from "./config";
 import { createLogger } from "./logger";
 import {
-  AiTranslateCallbacks,
-  AiTranslateRequest,
-  translateSentenceWithAi,
+  createUiFeedbackState,
+  beginUpdateProgress,
+  endUpdateProgress,
+  showProgressTick,
+  showStatusNotification,
+  withUpdateProgress,
+  UiFeedbackState,
+} from "./anki-integration-ui-feedback";
+import {
+  resolveSentenceBackText,
 } from "./anki-integration/ai";
+import { findDuplicateNote as findDuplicateNoteForAnkiIntegration } from "./anki-integration-duplicate";
 
 const log = createLogger("anki").child("integration");
 
 interface NoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
+}
+
+interface KnownWordCacheState {
+  readonly version: 1;
+  readonly refreshedAtMs: number;
+  readonly scope: string;
+  readonly words: string[];
 }
 
 type CardKind = "sentence" | "audio";
@@ -62,10 +79,7 @@ export class AnkiIntegration {
     | ((title: string, options: NotificationOptions) => void)
     | null = null;
   private updateInProgress = false;
-  private progressDepth = 0;
-  private progressTimer: ReturnType<typeof setInterval> | null = null;
-  private progressMessage = "";
-  private progressFrame = 0;
+  private uiFeedbackState: UiFeedbackState = createUiFeedbackState();
   private parseWarningKeys = new Set<string>();
   private readonly strictGroupingFieldDefaults = new Set<string>([
     "picture",
@@ -80,6 +94,12 @@ export class AnkiIntegration {
         duplicate: KikuDuplicateCardInfo;
       }) => Promise<KikuFieldGroupingChoice>)
     | null = null;
+  private readonly knownWordCacheStatePath: string;
+  private knownWordsLastRefreshedAtMs = 0;
+  private knownWordsScope = "";
+  private knownWords: Set<string> = new Set();
+  private knownWordsRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  private isRefreshingKnownWords = false;
 
   constructor(
     config: AnkiConnectConfig,
@@ -94,6 +114,7 @@ export class AnkiIntegration {
       original: KikuDuplicateCardInfo;
       duplicate: KikuDuplicateCardInfo;
     }) => Promise<KikuFieldGroupingChoice>,
+    knownWordCacheStatePath?: string,
   ) {
     this.config = {
       ...DEFAULT_ANKI_CONNECT_CONFIG,
@@ -136,6 +157,352 @@ export class AnkiIntegration {
     this.osdCallback = osdCallback || null;
     this.notificationCallback = notificationCallback || null;
     this.fieldGroupingCallback = fieldGroupingCallback || null;
+    this.knownWordCacheStatePath = path.normalize(
+      knownWordCacheStatePath ||
+        path.join(process.cwd(), "known-words-cache.json"),
+    );
+  }
+
+  isKnownWord(text: string): boolean {
+    if (!this.isKnownWordCacheEnabled()) {
+      return false;
+    }
+    const normalized = this.normalizeKnownWordForLookup(text);
+    return normalized.length > 0 ? this.knownWords.has(normalized) : false;
+  }
+
+  getKnownWordMatchMode(): NPlusOneMatchMode {
+    return (
+      this.config.nPlusOne?.matchMode ??
+      DEFAULT_ANKI_CONNECT_CONFIG.nPlusOne.matchMode
+    );
+  }
+
+  private isKnownWordCacheEnabled(): boolean {
+    return this.config.nPlusOne?.highlightEnabled === true;
+  }
+
+  private getKnownWordRefreshIntervalMs(): number {
+    const minutes = this.config.nPlusOne?.refreshMinutes;
+    const safeMinutes =
+      typeof minutes === "number" && Number.isFinite(minutes) && minutes > 0
+        ? minutes
+        : DEFAULT_ANKI_CONNECT_CONFIG.nPlusOne.refreshMinutes;
+    return safeMinutes * 60_000;
+  }
+
+  private startKnownWordCacheLifecycle(): void {
+    this.stopKnownWordCacheLifecycle();
+    if (!this.isKnownWordCacheEnabled()) {
+      log.info("Known-word cache disabled; clearing local cache state");
+      this.clearKnownWordCacheState();
+      return;
+    }
+
+    const refreshMinutes = this.getKnownWordRefreshIntervalMs() / 60_000;
+    const scope = this.getKnownWordCacheScope();
+    log.info(
+      "Known-word cache lifecycle enabled",
+      `scope=${scope}`,
+      `refreshMinutes=${refreshMinutes}`,
+      `cachePath=${this.knownWordCacheStatePath}`,
+    );
+
+    this.loadKnownWordCacheState();
+    void this.refreshKnownWords();
+    const refreshIntervalMs = this.getKnownWordRefreshIntervalMs();
+    this.knownWordsRefreshTimer = setInterval(() => {
+      void this.refreshKnownWords();
+    }, refreshIntervalMs);
+  }
+
+  private stopKnownWordCacheLifecycle(): void {
+    if (this.knownWordsRefreshTimer) {
+      clearInterval(this.knownWordsRefreshTimer);
+      this.knownWordsRefreshTimer = null;
+    }
+  }
+
+  private async refreshKnownWords(): Promise<void> {
+    if (!this.isKnownWordCacheEnabled()) {
+      log.debug("Known-word cache refresh skipped; feature disabled");
+      return;
+    }
+    if (this.isRefreshingKnownWords) {
+      log.debug("Known-word cache refresh skipped; already refreshing");
+      return;
+    }
+    if (!this.isKnownWordCacheStale()) {
+      log.debug("Known-word cache refresh skipped; cache is fresh");
+      return;
+    }
+
+    this.isRefreshingKnownWords = true;
+    try {
+      const query = this.buildKnownWordsQuery();
+      log.debug("Refreshing known-word cache", `query=${query}`);
+      const noteIds = (await this.client.findNotes(query, {
+        maxRetries: 0,
+      })) as number[];
+
+      const nextKnownWords = new Set<string>();
+      if (noteIds.length > 0) {
+        const chunkSize = 50;
+        for (let i = 0; i < noteIds.length; i += chunkSize) {
+          const chunk = noteIds.slice(i, i + chunkSize);
+          const notesInfoResult = (await this.client.notesInfo(chunk)) as unknown[];
+          const notesInfo = notesInfoResult as NoteInfo[];
+
+          for (const noteInfo of notesInfo) {
+            for (const word of this.extractKnownWordsFromNoteInfo(noteInfo)) {
+              const normalized = this.normalizeKnownWordForLookup(word);
+              if (normalized) {
+                nextKnownWords.add(normalized);
+              }
+            }
+          }
+        }
+      }
+
+      this.knownWords = nextKnownWords;
+      this.knownWordsLastRefreshedAtMs = Date.now();
+      this.knownWordsScope = this.getKnownWordCacheScope();
+      this.persistKnownWordCacheState();
+      log.info(
+        "Known-word cache refreshed",
+        `noteCount=${noteIds.length}`,
+        `wordCount=${nextKnownWords.size}`,
+      );
+    } catch (error) {
+      log.warn(
+        "Failed to refresh known-word cache:",
+        (error as Error).message,
+      );
+      this.showStatusNotification("AnkiConnect: unable to refresh known words");
+    } finally {
+      this.isRefreshingKnownWords = false;
+    }
+  }
+
+  private getKnownWordDecks(): string[] {
+    const configuredDecks = this.config.nPlusOne?.decks;
+    if (Array.isArray(configuredDecks)) {
+      const decks = configuredDecks
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+      return [...new Set(decks)];
+    }
+
+    const deck = this.config.deck?.trim();
+    return deck ? [deck] : [];
+  }
+
+  private buildKnownWordsQuery(): string {
+    const decks = this.getKnownWordDecks();
+    if (decks.length === 0) {
+      return "is:note";
+    }
+
+    if (decks.length === 1) {
+      return `deck:"${escapeAnkiSearchValue(decks[0])}"`;
+    }
+
+    const deckQueries = decks.map(
+      (deck) => `deck:"${escapeAnkiSearchValue(deck)}"`,
+    );
+    return `(${deckQueries.join(" OR ")})`;
+  }
+
+  private getKnownWordCacheScope(): string {
+    const decks = this.getKnownWordDecks();
+    if (decks.length === 0) {
+      return "is:note";
+    }
+    return `decks:${JSON.stringify(decks)}`;
+  }
+
+  private isKnownWordCacheStale(): boolean {
+    if (!this.isKnownWordCacheEnabled()) {
+      return true;
+    }
+    if (this.knownWordsScope !== this.getKnownWordCacheScope()) {
+      return true;
+    }
+    if (this.knownWordsLastRefreshedAtMs <= 0) {
+      return true;
+    }
+    return (
+      Date.now() - this.knownWordsLastRefreshedAtMs >=
+      this.getKnownWordRefreshIntervalMs()
+    );
+  }
+
+  private loadKnownWordCacheState(): void {
+    try {
+      if (!fs.existsSync(this.knownWordCacheStatePath)) {
+        this.knownWords = new Set();
+        this.knownWordsLastRefreshedAtMs = 0;
+        this.knownWordsScope = this.getKnownWordCacheScope();
+        return;
+      }
+
+      const raw = fs.readFileSync(this.knownWordCacheStatePath, "utf-8");
+      if (!raw.trim()) {
+        this.knownWords = new Set();
+        this.knownWordsLastRefreshedAtMs = 0;
+        this.knownWordsScope = this.getKnownWordCacheScope();
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as unknown;
+      if (!this.isKnownWordCacheStateValid(parsed)) {
+        this.knownWords = new Set();
+        this.knownWordsLastRefreshedAtMs = 0;
+        this.knownWordsScope = this.getKnownWordCacheScope();
+        return;
+      }
+
+      if (parsed.scope !== this.getKnownWordCacheScope()) {
+        this.knownWords = new Set();
+        this.knownWordsLastRefreshedAtMs = 0;
+        this.knownWordsScope = this.getKnownWordCacheScope();
+        return;
+      }
+
+      const nextKnownWords = new Set<string>();
+      for (const value of parsed.words) {
+        const normalized = this.normalizeKnownWordForLookup(value);
+        if (normalized) {
+          nextKnownWords.add(normalized);
+        }
+      }
+
+      this.knownWords = nextKnownWords;
+      this.knownWordsLastRefreshedAtMs = parsed.refreshedAtMs;
+      this.knownWordsScope = parsed.scope;
+    } catch (error) {
+      log.warn(
+        "Failed to load known-word cache state:",
+        (error as Error).message,
+      );
+      this.knownWords = new Set();
+      this.knownWordsLastRefreshedAtMs = 0;
+      this.knownWordsScope = this.getKnownWordCacheScope();
+    }
+  }
+
+  private persistKnownWordCacheState(): void {
+    try {
+      const state: KnownWordCacheState = {
+        version: 1,
+        refreshedAtMs: this.knownWordsLastRefreshedAtMs,
+        scope: this.knownWordsScope,
+        words: Array.from(this.knownWords),
+      };
+      fs.writeFileSync(this.knownWordCacheStatePath, JSON.stringify(state), "utf-8");
+    } catch (error) {
+      log.warn(
+        "Failed to persist known-word cache state:",
+        (error as Error).message,
+      );
+    }
+  }
+
+  private clearKnownWordCacheState(): void {
+    this.knownWords = new Set();
+    this.knownWordsLastRefreshedAtMs = 0;
+    this.knownWordsScope = this.getKnownWordCacheScope();
+    try {
+      if (fs.existsSync(this.knownWordCacheStatePath)) {
+        fs.unlinkSync(this.knownWordCacheStatePath);
+      }
+    } catch (error) {
+      log.warn("Failed to clear known-word cache state:", (error as Error).message);
+    }
+  }
+
+  private isKnownWordCacheStateValid(
+    value: unknown,
+  ): value is KnownWordCacheState {
+    if (typeof value !== "object" || value === null) return false;
+    const candidate = value as Partial<KnownWordCacheState>;
+    if (candidate.version !== 1) return false;
+    if (typeof candidate.refreshedAtMs !== "number") return false;
+    if (typeof candidate.scope !== "string") return false;
+    if (!Array.isArray(candidate.words)) return false;
+    if (!candidate.words.every((entry) => typeof entry === "string")) {
+      return false;
+    }
+    return true;
+  }
+
+  private extractKnownWordsFromNoteInfo(noteInfo: NoteInfo): string[] {
+    const words: string[] = [];
+    const preferredFields = ["Expression", "Word"];
+    for (const preferredField of preferredFields) {
+      const fieldName = this.resolveFieldName(
+        Object.keys(noteInfo.fields),
+        preferredField,
+      );
+      if (!fieldName) continue;
+
+      const raw = noteInfo.fields[fieldName]?.value;
+      if (!raw) continue;
+
+      const extracted = this.normalizeRawKnownWordValue(raw);
+      if (extracted) {
+        words.push(extracted);
+      }
+    }
+    return words;
+  }
+
+  private appendKnownWordsFromNoteInfo(noteInfo: NoteInfo): void {
+    if (!this.isKnownWordCacheEnabled()) {
+      return;
+    }
+
+    const currentScope = this.getKnownWordCacheScope();
+    if (this.knownWordsScope && this.knownWordsScope !== currentScope) {
+      this.clearKnownWordCacheState();
+    }
+    if (!this.knownWordsScope) {
+      this.knownWordsScope = currentScope;
+    }
+
+    let addedCount = 0;
+    for (const rawWord of this.extractKnownWordsFromNoteInfo(noteInfo)) {
+      const normalized = this.normalizeKnownWordForLookup(rawWord);
+      if (!normalized || this.knownWords.has(normalized)) {
+        continue;
+      }
+      this.knownWords.add(normalized);
+      addedCount += 1;
+    }
+
+    if (addedCount > 0) {
+      if (this.knownWordsLastRefreshedAtMs <= 0) {
+        this.knownWordsLastRefreshedAtMs = Date.now();
+      }
+      this.persistKnownWordCacheState();
+      log.info(
+        "Known-word cache updated in-session",
+        `added=${addedCount}`,
+        `scope=${currentScope}`,
+      );
+    }
+  }
+
+  private normalizeRawKnownWordValue(value: string): string {
+    return value
+      .replace(/<[^>]*>/g, "")
+      .replace(/\u3000/g, " ")
+      .trim();
+  }
+
+  private normalizeKnownWordForLookup(value: string): string {
+    return this.normalizeRawKnownWordValue(value).toLowerCase();
   }
 
   private getLapisConfig(): {
@@ -201,6 +568,7 @@ export class AnkiIntegration {
       "Starting AnkiConnect integration with polling rate:",
       this.config.pollingRate,
     );
+    this.startKnownWordCacheLifecycle();
     this.poll();
   }
 
@@ -209,6 +577,7 @@ export class AnkiIntegration {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
     }
+    this.stopKnownWordCacheLifecycle();
     log.info("Stopped AnkiConnect integration");
   }
 
@@ -296,6 +665,7 @@ export class AnkiIntegration {
       }
 
       const noteInfo = notesInfo[0];
+      this.appendKnownWordsFromNoteInfo(noteInfo);
       const fields = this.extractFields(noteInfo.fields);
 
       const expressionText = fields.expression || fields.word || "";
@@ -624,61 +994,60 @@ export class AnkiIntegration {
   }
 
   private showStatusNotification(message: string): void {
-    const type = this.config.behavior?.notificationType || "osd";
-
-    if (type === "osd" || type === "both") {
-      this.showOsdNotification(message);
-    }
-
-    if ((type === "system" || type === "both") && this.notificationCallback) {
-      this.notificationCallback("SubMiner", { body: message });
-    }
+    showStatusNotification(message, {
+      getNotificationType: () => this.config.behavior?.notificationType,
+      showOsd: (text: string) => {
+        this.showOsdNotification(text);
+      },
+      showSystemNotification: (
+        title: string,
+        options: NotificationOptions,
+      ) => {
+        if (this.notificationCallback) {
+          this.notificationCallback(title, options);
+        }
+      },
+    });
   }
 
   private beginUpdateProgress(initialMessage: string): void {
-    this.progressDepth += 1;
-    if (this.progressDepth > 1) return;
-
-    this.progressMessage = initialMessage;
-    this.progressFrame = 0;
-    this.showProgressTick();
-    this.progressTimer = setInterval(() => {
-      this.showProgressTick();
-    }, 180);
+    beginUpdateProgress(this.uiFeedbackState, initialMessage, (text: string) => {
+      this.showOsdNotification(text);
+    });
   }
 
   private endUpdateProgress(): void {
-    this.progressDepth = Math.max(0, this.progressDepth - 1);
-    if (this.progressDepth > 0) return;
-
-    if (this.progressTimer) {
-      clearInterval(this.progressTimer);
-      this.progressTimer = null;
-    }
-    this.progressMessage = "";
-    this.progressFrame = 0;
+    endUpdateProgress(this.uiFeedbackState, (timer) => {
+      clearInterval(timer);
+    });
   }
 
   private showProgressTick(): void {
-    if (!this.progressMessage) return;
-    const frames = ["|", "/", "-", "\\"];
-    const frame = frames[this.progressFrame % frames.length];
-    this.progressFrame += 1;
-    this.showOsdNotification(`${this.progressMessage} ${frame}`);
+    showProgressTick(
+      this.uiFeedbackState,
+      (text: string) => {
+        this.showOsdNotification(text);
+      },
+    );
   }
 
   private async withUpdateProgress<T>(
     initialMessage: string,
     action: () => Promise<T>,
   ): Promise<T> {
-    this.beginUpdateProgress(initialMessage);
-    this.updateInProgress = true;
-    try {
-      return await action();
-    } finally {
-      this.updateInProgress = false;
-      this.endUpdateProgress();
-    }
+    return withUpdateProgress(
+      this.uiFeedbackState,
+      {
+        setUpdateInProgress: (value: boolean) => {
+          this.updateInProgress = value;
+        },
+        showOsdNotification: (text: string) => {
+          this.showOsdNotification(text);
+        },
+      },
+      initialMessage,
+      action,
+    );
   }
 
   private showOsdNotification(text: string): void {
@@ -1436,33 +1805,16 @@ export class AnkiIntegration {
 
       fields[sentenceField] = sentence;
 
-      const hasSecondarySub = Boolean(secondarySubText?.trim());
-      let backText = secondarySubText?.trim() || "";
-      const aiConfig = this.config.ai ?? DEFAULT_ANKI_CONNECT_CONFIG.ai;
-      const aiEnabled = aiConfig?.enabled === true;
-      const alwaysUseAiTranslation =
-        aiConfig?.alwaysUseAiTranslation === true;
-      const shouldAttemptAiTranslation =
-        aiEnabled && (alwaysUseAiTranslation || !hasSecondarySub);
-      if (shouldAttemptAiTranslation) {
-        const request: AiTranslateRequest = {
+      const backText = await resolveSentenceBackText(
+        {
           sentence,
-          apiKey: aiConfig?.apiKey || "",
-          baseUrl: aiConfig?.baseUrl,
-          model: aiConfig?.model,
-          targetLanguage: aiConfig?.targetLanguage,
-          systemPrompt: aiConfig?.systemPrompt,
-        };
-        const callbacks: AiTranslateCallbacks = {
+          secondarySubText,
+          config: this.config.ai || {},
+        },
+        {
           logWarning: (message: string) => log.warn(message),
-        };
-        const translated = await translateSentenceWithAi(request, callbacks);
-        if (translated) {
-          backText = translated;
-        } else if (!hasSecondarySub) {
-          backText = sentence;
-        }
-      }
+        },
+      );
       if (backText) {
         fields[translationField] = backText;
       }
@@ -1498,6 +1850,7 @@ export class AnkiIntegration {
         const noteInfos = noteInfoResult as unknown as NoteInfo[];
         if (noteInfos.length > 0) {
           const createdNoteInfo = noteInfos[0];
+          this.appendKnownWordsFromNoteInfo(createdNoteInfo);
           resolvedSentenceAudioField =
             this.resolveNoteFieldName(createdNoteInfo, audioFieldName) ||
             audioFieldName;
@@ -1639,78 +1992,23 @@ export class AnkiIntegration {
     excludeNoteId: number,
     noteInfo: NoteInfo,
   ): Promise<number | null> {
-    let fieldName = "";
-    for (const name of Object.keys(noteInfo.fields)) {
-      if (
-        ["word", "expression"].includes(name.toLowerCase()) &&
-        noteInfo.fields[name].value
-      ) {
-        fieldName = name;
-        break;
-      }
-    }
-    if (!fieldName) return null;
-
-    const escapedFieldName = this.escapeAnkiSearchValue(fieldName);
-    const escapedExpression = this.escapeAnkiSearchValue(expression);
-    const deckPrefix = this.config.deck
-      ? `"deck:${this.escapeAnkiSearchValue(this.config.deck)}" `
-      : "";
-    const query = `${deckPrefix}"${escapedFieldName}:${escapedExpression}"`;
-
-    try {
-      const noteIds = (await this.client.findNotes(query)) as number[];
-      return await this.findFirstExactDuplicateNoteId(
-        noteIds,
-        excludeNoteId,
-        fieldName,
-        expression,
-      );
-    } catch (error) {
-      log.warn("Duplicate search failed:", (error as Error).message);
-      return null;
-    }
-  }
-
-  private escapeAnkiSearchValue(value: string): string {
-    return value
-      .replace(/\\/g, "\\\\")
-      .replace(/"/g, '\\"')
-      .replace(/([:*?()[\]{}])/g, "\\$1");
-  }
-
-  private normalizeDuplicateValue(value: string): string {
-    return value.replace(/\s+/g, " ").trim();
-  }
-
-  private async findFirstExactDuplicateNoteId(
-    candidateNoteIds: number[],
-    excludeNoteId: number,
-    fieldName: string,
-    expression: string,
-  ): Promise<number | null> {
-    const candidates = candidateNoteIds.filter((id) => id !== excludeNoteId);
-    if (candidates.length === 0) return null;
-
-    const normalizedExpression = this.normalizeDuplicateValue(expression);
-    const chunkSize = 50;
-    for (let i = 0; i < candidates.length; i += chunkSize) {
-      const chunk = candidates.slice(i, i + chunkSize);
-      const notesInfoResult = await this.client.notesInfo(chunk);
-      const notesInfo = notesInfoResult as unknown as NoteInfo[];
-      for (const noteInfo of notesInfo) {
-        const resolvedField = this.resolveNoteFieldName(noteInfo, fieldName);
-        if (!resolvedField) continue;
-        const candidateValue = noteInfo.fields[resolvedField]?.value || "";
-        if (
-          this.normalizeDuplicateValue(candidateValue) === normalizedExpression
-        ) {
-          return noteInfo.noteId;
-        }
-      }
-    }
-
-    return null;
+    return findDuplicateNoteForAnkiIntegration(
+      expression,
+      excludeNoteId,
+      noteInfo,
+      {
+        findNotes: async (query, options) =>
+          (await this.client.findNotes(query, options)) as unknown,
+        notesInfo: async (noteIds) =>
+          (await this.client.notesInfo(noteIds)) as unknown,
+        getDeck: () => this.config.deck,
+        resolveFieldName: (info, preferredName) =>
+          this.resolveNoteFieldName(info, preferredName),
+        logWarn: (message, error) => {
+          log.warn(message, (error as Error).message);
+        },
+      },
+    );
   }
 
   private getGroupableFieldNames(): string[] {
@@ -2559,10 +2857,18 @@ export class AnkiIntegration {
   }
 
   applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>): void {
+    const wasEnabled = this.config.nPlusOne?.highlightEnabled === true;
     const previousPollingRate = this.config.pollingRate;
     this.config = {
       ...this.config,
       ...patch,
+      nPlusOne:
+        patch.nPlusOne !== undefined
+          ? {
+              ...(this.config.nPlusOne ?? DEFAULT_ANKI_CONNECT_CONFIG.nPlusOne),
+              ...patch.nPlusOne,
+            }
+          : this.config.nPlusOne,
       fields:
         patch.fields !== undefined
           ? { ...this.config.fields, ...patch.fields }
@@ -2590,6 +2896,21 @@ export class AnkiIntegration {
     };
 
     if (
+      wasEnabled &&
+      this.config.nPlusOne?.highlightEnabled === false
+    ) {
+      this.stopKnownWordCacheLifecycle();
+      this.clearKnownWordCacheState();
+    } else if (
+      !wasEnabled &&
+      this.config.nPlusOne?.highlightEnabled === true
+    ) {
+      this.startKnownWordCacheLifecycle();
+    } else {
+      this.startKnownWordCacheLifecycle();
+    }
+
+    if (
       patch.pollingRate !== undefined &&
       previousPollingRate !== this.config.pollingRate &&
       this.pollingInterval
@@ -2604,4 +2925,11 @@ export class AnkiIntegration {
     this.stop();
     this.mediaGenerator.cleanup();
   }
+}
+
+function escapeAnkiSearchValue(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/([:*?()[\]{}])/g, "\\$1");
 }

@@ -89,7 +89,6 @@ import {
   applyMpvSubtitleRenderMetricsPatchService,
   broadcastRuntimeOptionsChangedRuntimeService,
   copyCurrentSubtitleService,
-  createAppLifecycleDepsRuntimeService,
   createOverlayManagerService,
   createFieldGroupingOverlayRuntimeService,
   createNumericShortcutRuntimeService,
@@ -128,7 +127,6 @@ import {
   shouldAutoInitializeOverlayRuntimeFromConfigService,
   shouldBindVisibleOverlayToMpvSubVisibilityService,
   showMpvOsdRuntimeService,
-  startAppLifecycleService,
   syncInvisibleOverlayMousePassthroughService,
   tokenizeSubtitleService,
   triggerFieldGroupingService,
@@ -137,13 +135,9 @@ import {
   updateLastCardFromClipboardService,
   updateVisibleOverlayVisibilityService,
 } from "./core/services";
-import {
-  runAppReadyRuntimeService,
-} from "./core/services/startup-service";
 import { applyRuntimeOptionResultRuntimeService } from "./core/services/runtime-options-ipc-service";
 import {
-  createAppLifecycleRuntimeDeps,
-  createAppReadyRuntimeDeps,
+  createAppReadyRuntimeRunner,
 } from "./main/app-lifecycle";
 import { handleMpvCommandFromIpcRuntime } from "./main/ipc-mpv-command";
 import {
@@ -158,6 +152,7 @@ import {
 import {
   runSubsyncManualFromIpcRuntime,
   triggerSubsyncFromConfigRuntime,
+  createSubsyncRuntimeServiceInputFromState,
 } from "./main/subsync-runtime";
 import {
   createOverlayModalRuntimeService,
@@ -171,6 +166,7 @@ import {
   createAppState,
 } from "./main/state";
 import { createStartupBootstrapRuntimeDeps } from "./main/startup";
+import { createAppLifecycleRuntimeRunner } from "./main/startup-lifecycle";
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -562,130 +558,113 @@ const startupState = runStartupBootstrapRuntimeService(
       process.exitCode = 1;
       app.quit();
     },
-    startAppLifecycle: (args: CliArgs) => {
-      startAppLifecycleService(
-        args,
-        createAppLifecycleDepsRuntimeService(
-          createAppLifecycleRuntimeDeps({
-            app,
-            platform: process.platform,
-            shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
-            parseArgs: (argv: string[]) => parseArgs(argv),
-            handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) =>
-              handleCliCommand(nextArgs, source),
-            printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-            logNoRunningInstance: () => appLogger.logNoRunningInstance(),
-            onReady: async () => {
-              await runAppReadyRuntimeService(
-                createAppReadyRuntimeDeps({
-                  loadSubtitlePosition: () => loadSubtitlePosition(),
-                  resolveKeybindings: () => {
-                    appState.keybindings = resolveKeybindings(
-                      getResolvedConfig(),
-                      DEFAULT_KEYBINDINGS,
-                    );
-                  },
-                  createMpvClient: () => {
-                    appState.mpvClient = createMpvClientRuntimeService();
-                  },
-                  reloadConfig: () => {
-                    configService.reloadConfig();
-                    appLogger.logInfo(
-                      `Using config file: ${configService.getConfigPath()}`,
-                    );
-                  },
-                  getResolvedConfig: () => getResolvedConfig(),
-                  getConfigWarnings: () => configService.getWarnings(),
-                  logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
-                  initRuntimeOptionsManager: () => {
-                    appState.runtimeOptionsManager = new RuntimeOptionsManager(
-                      () => configService.getConfig().ankiConnect,
-                      {
-                        applyAnkiPatch: (patch) => {
-                          if (appState.ankiIntegration) {
-                            appState.ankiIntegration.applyRuntimeConfigPatch(patch);
-                          }
-                        },
-                        onOptionsChanged: () => {
-                          broadcastRuntimeOptionsChanged();
-                          refreshOverlayShortcuts();
-                        },
-                      },
-                    );
-                  },
-                  setSecondarySubMode: (mode: SecondarySubMode) => {
-                    appState.secondarySubMode = mode;
-                  },
-                  defaultSecondarySubMode: "hover",
-                  defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
-                  hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
-                  startSubtitleWebsocket: (port: number) => {
-                    subtitleWsService.start(port, () => appState.currentSubText);
-                  },
-                  log: (message) => appLogger.logInfo(message),
-                  createMecabTokenizerAndCheck: async () => {
-                    const tokenizer = new MecabTokenizer();
-                    appState.mecabTokenizer = tokenizer;
-                    await tokenizer.checkAvailability();
-                  },
-                  createSubtitleTimingTracker: () => {
-                    const tracker = new SubtitleTimingTracker();
-                    appState.subtitleTimingTracker = tracker;
-                  },
-                  loadYomitanExtension: async () => {
-                    await loadYomitanExtension();
-                  },
-                  texthookerOnlyMode: appState.texthookerOnlyMode,
-                  shouldAutoInitializeOverlayRuntimeFromConfig: () =>
-                    shouldAutoInitializeOverlayRuntimeFromConfig(),
-                  initializeOverlayRuntime: () => initializeOverlayRuntime(),
-                  handleInitialArgs: () => handleInitialArgs(),
-                }),
-              );
+    startAppLifecycle: createAppLifecycleRuntimeRunner({
+      app,
+      platform: process.platform,
+      shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
+      parseArgs: (argv: string[]) => parseArgs(argv),
+      handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) =>
+        handleCliCommand(nextArgs, source),
+      printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+      logNoRunningInstance: () => appLogger.logNoRunningInstance(),
+      onReady: createAppReadyRuntimeRunner({
+        loadSubtitlePosition: () => loadSubtitlePosition(),
+        resolveKeybindings: () => {
+          appState.keybindings = resolveKeybindings(
+            getResolvedConfig(),
+            DEFAULT_KEYBINDINGS,
+          );
+        },
+        createMpvClient: () => {
+          appState.mpvClient = createMpvClientRuntimeService();
+        },
+        reloadConfig: () => {
+          configService.reloadConfig();
+          appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
+        },
+        getResolvedConfig: () => getResolvedConfig(),
+        getConfigWarnings: () => configService.getWarnings(),
+        logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
+        initRuntimeOptionsManager: () => {
+          appState.runtimeOptionsManager = new RuntimeOptionsManager(
+            () => configService.getConfig().ankiConnect,
+            {
+              applyAnkiPatch: (patch) => {
+                if (appState.ankiIntegration) {
+                  appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+                }
+              },
+              onOptionsChanged: () => {
+                broadcastRuntimeOptionsChanged();
+                refreshOverlayShortcuts();
+              },
             },
-            onWillQuitCleanup: () => {
-              restorePreviousSecondarySubVisibility();
-              globalShortcut.unregisterAll();
-              subtitleWsService.stop();
-              texthookerService.stop();
-              if (
-                appState.yomitanParserWindow &&
-                !appState.yomitanParserWindow.isDestroyed()
-              ) {
-                appState.yomitanParserWindow.destroy();
-              }
-              appState.yomitanParserWindow = null;
-              appState.yomitanParserReadyPromise = null;
-              appState.yomitanParserInitPromise = null;
-              if (appState.windowTracker) {
-                appState.windowTracker.stop();
-              }
-              if (appState.mpvClient && appState.mpvClient.socket) {
-                appState.mpvClient.socket.destroy();
-              }
-              if (appState.reconnectTimer) {
-                clearTimeout(appState.reconnectTimer);
-              }
-              if (appState.subtitleTimingTracker) {
-                appState.subtitleTimingTracker.destroy();
-              }
-              if (appState.ankiIntegration) {
-                appState.ankiIntegration.destroy();
-              }
-            },
-            shouldRestoreWindowsOnActivate: () =>
-              appState.overlayRuntimeInitialized &&
-              BrowserWindow.getAllWindows().length === 0,
-            restoreWindowsOnActivate: () => {
-              createMainWindow();
-              createInvisibleWindow();
-              updateVisibleOverlayVisibility();
-              updateInvisibleOverlayVisibility();
-            },
-          }),
-        ),
-      );
-    },
+          );
+        },
+        setSecondarySubMode: (mode: SecondarySubMode) => {
+          appState.secondarySubMode = mode;
+        },
+        defaultSecondarySubMode: "hover",
+        defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
+        hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
+        startSubtitleWebsocket: (port: number) => {
+          subtitleWsService.start(port, () => appState.currentSubText);
+        },
+        log: (message) => appLogger.logInfo(message),
+        createMecabTokenizerAndCheck: async () => {
+          const tokenizer = new MecabTokenizer();
+          appState.mecabTokenizer = tokenizer;
+          await tokenizer.checkAvailability();
+        },
+        createSubtitleTimingTracker: () => {
+          const tracker = new SubtitleTimingTracker();
+          appState.subtitleTimingTracker = tracker;
+        },
+        loadYomitanExtension: async () => {
+          await loadYomitanExtension();
+        },
+        texthookerOnlyMode: appState.texthookerOnlyMode,
+        shouldAutoInitializeOverlayRuntimeFromConfig: () =>
+          shouldAutoInitializeOverlayRuntimeFromConfig(),
+        initializeOverlayRuntime: () => initializeOverlayRuntime(),
+        handleInitialArgs: () => handleInitialArgs(),
+      }),
+      onWillQuitCleanup: () => {
+        restorePreviousSecondarySubVisibility();
+        globalShortcut.unregisterAll();
+        subtitleWsService.stop();
+        texthookerService.stop();
+        if (appState.yomitanParserWindow && !appState.yomitanParserWindow.isDestroyed()) {
+          appState.yomitanParserWindow.destroy();
+        }
+        appState.yomitanParserWindow = null;
+        appState.yomitanParserReadyPromise = null;
+        appState.yomitanParserInitPromise = null;
+        if (appState.windowTracker) {
+          appState.windowTracker.stop();
+        }
+        if (appState.mpvClient && appState.mpvClient.socket) {
+          appState.mpvClient.socket.destroy();
+        }
+        if (appState.reconnectTimer) {
+          clearTimeout(appState.reconnectTimer);
+        }
+        if (appState.subtitleTimingTracker) {
+          appState.subtitleTimingTracker.destroy();
+        }
+        if (appState.ankiIntegration) {
+          appState.ankiIntegration.destroy();
+        }
+      },
+      shouldRestoreWindowsOnActivate: () =>
+        appState.overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
+      restoreWindowsOnActivate: () => {
+        createMainWindow();
+        createInvisibleWindow();
+        updateVisibleOverlayVisibility();
+        updateInvisibleOverlayVisibility();
+      },
+    }),
   }),
 );
 
@@ -840,6 +819,11 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
       setYomitanParserInitPromise: (promise) => {
         appState.yomitanParserInitPromise = promise;
       },
+      isKnownWord: (text) =>
+        Boolean(appState.ankiIntegration?.isKnownWord(text)),
+      getKnownWordMatchMode: () =>
+        appState.ankiIntegration?.getKnownWordMatchMode() ??
+        getResolvedConfig().ankiConnect.nPlusOne.matchMode,
       getMecabTokenizer: () => appState.mecabTokenizer,
     }),
   );
@@ -972,6 +956,8 @@ function initializeOverlayRuntime(): void {
       },
       showDesktopNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
+      getKnownWordCacheStatePath: () =>
+        path.join(USER_DATA_PATH, "known-words-cache.json"),
     },
   );
   overlayManager.setInvisibleOverlayVisible(result.invisibleOverlayVisible);
@@ -1057,10 +1043,10 @@ const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
 
 function getSubsyncRuntimeServiceParams() {
-  return {
+  return createSubsyncRuntimeServiceInputFromState({
     getMpvClient: () => appState.mpvClient,
     getResolvedSubsyncConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
-    isSubsyncInProgress: () => appState.subsyncInProgress,
+    getSubsyncInProgress: () => appState.subsyncInProgress,
     setSubsyncInProgress: (inProgress: boolean) => {
       appState.subsyncInProgress = inProgress;
     },
@@ -1070,7 +1056,7 @@ function getSubsyncRuntimeServiceParams() {
         restoreOnModalClose: "subsync",
       });
     },
-  };
+  });
 }
 
 async function triggerSubsyncFromConfig(): Promise<void> {
@@ -1336,7 +1322,7 @@ registerIpcRuntimeServices({
     openYomitanSettings: () => openYomitanSettings(),
     quitApp: () => app.quit(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
-    tokenizeCurrentSubtitle: () => tokenizeCurrentSubtitle(appState.currentSubText),
+    tokenizeCurrentSubtitle: () => tokenizeSubtitle(appState.currentSubText),
     getCurrentSubtitleAss: () => appState.currentSubAssText,
     getMpvSubtitleRenderMetrics: () => appState.mpvSubtitleRenderMetrics,
     getSubtitlePosition: () => loadSubtitlePosition(),
@@ -1369,6 +1355,8 @@ registerIpcRuntimeServices({
     setAnkiIntegration: (integration: AnkiIntegration | null) => {
       appState.ankiIntegration = integration;
     },
+    getKnownWordCacheStatePath: () =>
+      path.join(USER_DATA_PATH, "known-words-cache.json"),
     showDesktopNotification,
     createFieldGroupingCallback: () => createFieldGroupingCallback(),
     broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),

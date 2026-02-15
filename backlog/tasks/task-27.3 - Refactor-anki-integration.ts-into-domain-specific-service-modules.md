@@ -1,11 +1,11 @@
 ---
 id: TASK-27.3
 title: Refactor anki-integration.ts into domain-specific service modules
-status: To Do
+status: Done
 assignee:
   - backend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-13 21:13'
+updated_date: '2026-02-15 04:23'
 labels:
   - 'owner:backend'
 dependencies:
@@ -64,4 +64,10 @@ This task is self-contained — anki-integration.ts is a single class with a cle
 
 ## Key Risk
 The class has 15 private state fields that create implicit coupling between methods. The `updateLastAddedFromClipboard` method alone is ~230 lines and touches polling state, media generation, and card updates. Extraction order matters: start with the leaf clusters (ai-translation, ui-feedback, duplicate-detection) and work inward toward the stateful core (polling, card-creation, field-grouping).
+
+Started TASK-27.3 with a surgical extraction of the duplicate-detection cluster into `src/anki-integration-duplicate.ts` and refactoring `AnkiIntegration.findDuplicateNote()` to delegate all deck query, search escaping, and normalization logic to the new module while preserving behavior. This reduces `anki-integration.ts` by removing three private duplicate-parsing methods and keeps callsites unchanged. Remaining decomposition work still needed across polling/card-creation/field-grouping/notification clusters from the task map.
+
+Second extraction pass completed: moved sentence-translation decision + AI fallback behavior out of `createSentenceCard` into `src/anki-integration/ai.ts` as `resolveSentenceBackText(...)`, with `AnkiIntegration` now delegating translation result generation to this function. This further isolates AI concerns from card-creation flow while keeping behavior and defaults intact.
+
+Refactor for TASK-27.3 is complete and build passes after cleanup of ui-feedback delegation (src/anki-integration.ts, src/anki-integration-ui-feedback.ts).
 <!-- SECTION:NOTES:END -->
