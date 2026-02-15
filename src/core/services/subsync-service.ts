@@ -18,10 +18,25 @@ import {
   SubsyncContext,
   SubsyncResolvedConfig,
 } from "../../subsync/utils";
+import { isRemoteMediaPath } from "../../jimaku/utils";
 
 interface FileExtractionResult {
   path: string;
   temporary: boolean;
+}
+
+function summarizeCommandFailure(command: string, result: CommandResult): string {
+  const parts = [
+    `code=${result.code ?? "n/a"}`,
+    result.stderr ? `stderr: ${result.stderr}` : "",
+    result.stdout ? `stdout: ${result.stdout}` : "",
+    result.error ? `error: ${result.error}` : "",
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) return `command failed (${command})`;
+  return `command failed (${command}) ${parts.join(" | ")}`;
 }
 
 interface MpvClientLike {
@@ -34,6 +49,32 @@ interface MpvClientLike {
 interface SubsyncCoreDeps {
   getMpvClient: () => MpvClientLike | null;
   getResolvedConfig: () => SubsyncResolvedConfig;
+}
+
+function parseTrackId(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed.length) return null;
+    const parsed = Number(trimmed);
+    return Number.isInteger(parsed) && String(parsed) === trimmed ? parsed : null;
+  }
+  return null;
+}
+
+function normalizeTrackIds(tracks: unknown[]): MpvTrack[] {
+  return tracks.map((track) => {
+    if (!track || typeof track !== "object") return track as MpvTrack;
+    const typed = track as MpvTrack & { id?: unknown };
+    const parsedId = parseTrackId(typed.id);
+    if (parsedId === null) {
+      const { id: _ignored, ...rest } = typed;
+      return rest as MpvTrack;
+    }
+    return { ...typed, id: parsedId };
+  });
 }
 
 export interface TriggerSubsyncFromConfigDeps extends SubsyncCoreDeps {
@@ -69,12 +110,11 @@ async function gatherSubsyncContext(
   }
 
   const tracks = Array.isArray(trackListRaw)
-    ? (trackListRaw as MpvTrack[])
+    ? normalizeTrackIds(trackListRaw as MpvTrack[])
     : [];
   const subtitleTracks = tracks.filter((track) => track.type === "sub");
-  const sid = typeof sidRaw === "number" ? sidRaw : null;
-  const secondarySid =
-    typeof secondarySidRaw === "number" ? secondarySidRaw : null;
+  const sid = parseTrackId(sidRaw);
+  const secondarySid = parseTrackId(secondarySidRaw);
 
   const primaryTrack = subtitleTracks.find((track) => track.id === sid);
   if (!primaryTrack) {
@@ -147,7 +187,7 @@ async function extractSubtitleTrackToFile(
     "-nostdin",
     "-y",
     "-loglevel",
-    "quiet",
+    "error",
     "-an",
     "-vn",
     "-i",
@@ -160,7 +200,12 @@ async function extractSubtitleTrackToFile(
   ]);
 
   if (!extraction.ok || !fileExists(outputPath)) {
-    throw new Error("Failed to extract internal subtitle track with ffmpeg");
+    throw new Error(
+      `Failed to extract internal subtitle track with ffmpeg: ${summarizeCommandFailure(
+        "ffmpeg",
+        extraction,
+      )}`,
+    );
   }
 
   return { path: outputPath, temporary: true };
@@ -264,9 +309,10 @@ async function subsyncToReference(
     }
 
     if (!result.ok || !fileExists(outputPath)) {
+      const details = summarizeCommandFailure(engine, result);
       return {
         ok: false,
-        message: `${engine} synchronization failed`,
+        message: `${engine} synchronization failed: ${details}`,
       };
     }
 
@@ -277,6 +323,14 @@ async function subsyncToReference(
     };
   } finally {
     cleanupTemporaryFile(primaryExtraction);
+  }
+}
+
+function validateFfsubsyncReference(videoPath: string): void {
+  if (isRemoteMediaPath(videoPath)) {
+    throw new Error(
+      "FFsubsync cannot reliably sync stream URLs because it needs direct reference media access. Use Alass with a secondary subtitle source or play a local file.",
+    );
   }
 }
 
@@ -325,6 +379,14 @@ async function runSubsyncAutoInternal(
       message: "No secondary subtitle for alass and ffsubsync not configured",
     };
   }
+  try {
+    validateFfsubsyncReference(context.videoPath);
+  } catch (error) {
+    return {
+      ok: false,
+      message: `ffsubsync synchronization failed: ${(error as Error).message}`,
+    };
+  }
   return subsyncToReference(
     "ffsubsync",
     context.videoPath,
@@ -343,6 +405,11 @@ export async function runSubsyncManualService(
   const resolved = deps.getResolvedConfig();
 
   if (request.engine === "ffsubsync") {
+    try {
+      validateFfsubsyncReference(context.videoPath);
+    } catch (error) {
+      return { ok: false, message: `ffsubsync synchronization failed: ${(error as Error).message}` };
+    }
     return subsyncToReference(
       "ffsubsync",
       context.videoPath,

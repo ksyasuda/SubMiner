@@ -16,6 +16,16 @@ export function createFieldGroupingCallbackService(options: {
     data: KikuFieldGroupingRequestData,
   ): Promise<KikuFieldGroupingChoice> => {
     return new Promise((resolve) => {
+      if (options.getResolver()) {
+        resolve({
+          keepNoteId: 0,
+          deleteNoteId: 0,
+          deleteDuplicate: true,
+          cancelled: true,
+        });
+        return;
+      }
+
       const previousVisibleOverlay = options.getVisibleOverlayVisible();
       const previousInvisibleOverlay = options.getInvisibleOverlayVisible();
       let settled = false;
@@ -23,7 +33,9 @@ export function createFieldGroupingCallbackService(options: {
       const finish = (choice: KikuFieldGroupingChoice): void => {
         if (settled) return;
         settled = true;
-        options.setResolver(null);
+        if (options.getResolver() === finish) {
+          options.setResolver(null);
+        }
         resolve(choice);
 
         if (!previousVisibleOverlay && options.getVisibleOverlayVisible()) {

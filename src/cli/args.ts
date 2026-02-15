@@ -16,6 +16,7 @@ export interface CliArgs {
   mineSentence: boolean;
   mineSentenceMultiple: boolean;
   updateLastCardFromClipboard: boolean;
+  refreshKnownWords: boolean;
   toggleSecondarySub: boolean;
   triggerFieldGrouping: boolean;
   triggerSubsync: boolean;
@@ -55,6 +56,7 @@ export function parseArgs(argv: string[]): CliArgs {
     mineSentence: false,
     mineSentenceMultiple: false,
     updateLastCardFromClipboard: false,
+    refreshKnownWords: false,
     toggleSecondarySub: false,
     triggerFieldGrouping: false,
     triggerSubsync: false,
@@ -100,6 +102,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === "--mine-sentence-multiple") args.mineSentenceMultiple = true;
     else if (arg === "--update-last-card-from-clipboard")
       args.updateLastCardFromClipboard = true;
+    else if (arg === "--refresh-known-words") args.refreshKnownWords = true;
     else if (arg === "--toggle-secondary-sub") args.toggleSecondarySub = true;
     else if (arg === "--trigger-field-grouping")
       args.triggerFieldGrouping = true;
@@ -181,6 +184,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.mineSentence ||
     args.mineSentenceMultiple ||
     args.updateLastCardFromClipboard ||
+    args.refreshKnownWords ||
     args.toggleSecondarySub ||
     args.triggerFieldGrouping ||
     args.triggerSubsync ||

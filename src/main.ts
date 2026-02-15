@@ -22,7 +22,6 @@ import {
   clipboard,
   shell,
   protocol,
-  screen,
   Extension,
 } from "electron";
 
@@ -40,31 +39,23 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 import * as path from "path";
-import * as http from "http";
-import * as https from "https";
 import * as os from "os";
 import * as fs from "fs";
-import * as crypto from "crypto";
 import { MecabTokenizer } from "./mecab-tokenizer";
-import { BaseWindowTracker } from "./window-trackers";
 import type {
   JimakuApiResponse,
-  JimakuDownloadResult,
-  JimakuMediaInfo,
-  JimakuConfig,
   JimakuLanguagePreference,
   SubtitleData,
   SubtitlePosition,
-  Keybinding,
   WindowGeometry,
   SecondarySubMode,
+  SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
   KikuFieldGroupingChoice,
-  KikuMergePreviewRequest,
-  KikuMergePreviewResponse,
   RuntimeOptionState,
   MpvSubtitleRenderMetrics,
+  ResolvedConfig,
 } from "./types";
 import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
 import { AnkiIntegration } from "./anki-integration";
@@ -78,16 +69,12 @@ import {
   getSubsyncConfig,
 } from "./subsync/utils";
 import {
-  hasExplicitCommand,
   parseArgs,
   shouldStartApp,
 } from "./cli/args";
 import type { CliArgs, CliCommandSource } from "./cli/args";
 import { printHelp } from "./cli/help";
 import {
-  asBoolean,
-  asFiniteNumber,
-  asString,
   enforceUnsupportedWaylandMode,
   forceX11Backend,
   generateDefaultConfigFile,
@@ -96,114 +83,95 @@ import {
   showDesktopNotification,
 } from "./core/utils";
 import {
-  MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
   MpvIpcClient,
   SubtitleWebSocketService,
   TexthookerService,
   applyMpvSubtitleRenderMetricsPatchService,
   broadcastRuntimeOptionsChangedRuntimeService,
-  broadcastToOverlayWindowsRuntimeService,
   copyCurrentSubtitleService,
-  createAnkiJimakuIpcDepsRuntimeService,
-  createAppLifecycleDepsRuntimeService,
-  createAppLoggingRuntimeService,
-  createCliCommandDepsRuntimeService,
-  createCopyCurrentSubtitleDepsRuntimeService,
+  createOverlayManagerService,
   createFieldGroupingOverlayRuntimeService,
-  createGlobalShortcutRegistrationDepsRuntimeService,
-  createHandleMineSentenceDigitDepsRuntimeService,
-  createHandleMultiCopyDigitDepsRuntimeService,
-  createInitializeOverlayRuntimeDepsService,
-  createInvisibleOverlayVisibilityDepsRuntimeService,
-  createIpcDepsRuntimeService,
-  createMarkLastCardAsAudioCardDepsRuntimeService,
-  createMecabTokenizerAndCheckRuntimeService,
-  createMineSentenceCardDepsRuntimeService,
-  createMpvCommandIpcDepsRuntimeService,
-  createMpvIpcClientDepsRuntimeService,
   createNumericShortcutRuntimeService,
-  createOverlayShortcutLifecycleDepsRuntimeService,
-  createOverlayShortcutRuntimeDepsService,
-  createOverlayShortcutRuntimeHandlers,
-  createOverlayVisibilityFacadeDepsRuntimeService,
-  createOverlayWindowRuntimeDepsService,
+  createOverlayContentMeasurementStoreService,
   createOverlayWindowService,
-  createRuntimeOptionsIpcDepsRuntimeService,
-  createRuntimeOptionsManagerRuntimeService,
-  createSecondarySubtitleCycleDepsRuntimeService,
-  createStartupLifecycleHooksRuntimeService,
-  createSubsyncRuntimeDepsService,
-  createSubtitleTimingTrackerRuntimeService,
   createTokenizerDepsRuntimeService,
-  createTriggerFieldGroupingDepsRuntimeService,
-  createUpdateLastCardFromClipboardDepsRuntimeService,
-  createVisibleOverlayVisibilityDepsRuntimeService,
-  createYomitanSettingsWindowDepsRuntimeService,
   cycleSecondarySubModeService,
   enforceOverlayLayerOrderService,
   ensureOverlayWindowLevelService,
   getInitialInvisibleOverlayVisibilityService,
   getJimakuLanguagePreferenceService,
   getJimakuMaxEntryResultsService,
-  getOverlayWindowsRuntimeService,
-  handleCliCommandService,
   handleMineSentenceDigitService,
-  handleMpvCommandFromIpcService,
   handleMultiCopyDigitService,
-  handleOverlayModalClosedService,
   hasMpvWebsocketPlugin,
   initializeOverlayRuntimeService,
   isAutoUpdateEnabledRuntimeService,
-  isGlobalShortcutRegisteredSafe,
   jimakuFetchJsonService,
   loadSubtitlePositionService,
   loadYomitanExtensionService,
   markLastCardAsAudioCardService,
+  DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
   mineSentenceCardService,
   openYomitanSettingsWindow,
   playNextSubtitleRuntimeService,
-  refreshOverlayShortcutsRuntimeService,
-  registerAnkiJimakuIpcRuntimeService,
   registerGlobalShortcutsService,
-  registerIpcHandlersService,
-  registerOverlayShortcutsService,
   replayCurrentSubtitleRuntimeService,
   resolveJimakuApiKeyService,
-  runGenerateConfigFlowRuntimeService,
-  runOverlayShortcutLocalFallbackRuntimeService,
   runStartupBootstrapRuntimeService,
-  runSubsyncManualFromIpcRuntimeService,
   saveSubtitlePositionService,
   sendMpvCommandRuntimeService,
-  setInvisibleOverlayVisibleRuntimeFacadeService,
+  setInvisibleOverlayVisibleService,
   setMpvSubVisibilityRuntimeService,
   setOverlayDebugVisualizationEnabledRuntimeService,
-  setVisibleOverlayVisibleRuntimeFacadeService,
+  setVisibleOverlayVisibleService,
   shouldAutoInitializeOverlayRuntimeFromConfigService,
   shouldBindVisibleOverlayToMpvSubVisibilityService,
-  shortcutMatchesInputForLocalFallback,
   showMpvOsdRuntimeService,
-  startAppLifecycleService,
   syncInvisibleOverlayMousePassthroughService,
-  syncOverlayShortcutsRuntimeService,
   tokenizeSubtitleService,
-  toggleInvisibleOverlayRuntimeFacadeService,
-  toggleVisibleOverlayRuntimeFacadeService,
   triggerFieldGroupingService,
-  triggerSubsyncFromConfigRuntimeService,
-  unregisterOverlayShortcutsRuntimeService,
   updateCurrentMediaPathService,
   updateInvisibleOverlayVisibilityService,
   updateLastCardFromClipboardService,
-  updateOverlayBoundsService,
   updateVisibleOverlayVisibilityService,
 } from "./core/services";
+import { applyRuntimeOptionResultRuntimeService } from "./core/services/runtime-options-ipc-service";
+import {
+  createAppReadyRuntimeRunner,
+} from "./main/app-lifecycle";
+import { handleMpvCommandFromIpcRuntime } from "./main/ipc-mpv-command";
+import {
+  registerIpcRuntimeServices,
+} from "./main/ipc-runtime";
+import {
+  createAnkiJimakuIpcRuntimeServiceDeps,
+} from "./main/dependencies";
+import {
+  handleCliCommandRuntimeServiceWithContext,
+} from "./main/cli-runtime";
+import {
+  runSubsyncManualFromIpcRuntime,
+  triggerSubsyncFromConfigRuntime,
+  createSubsyncRuntimeServiceInputFromState,
+} from "./main/subsync-runtime";
+import {
+  createOverlayModalRuntimeService,
+  type OverlayHostedModal,
+} from "./main/overlay-runtime";
+import {
+  createOverlayShortcutsRuntimeService,
+} from "./main/overlay-shortcuts-runtime";
+import {
+  applyStartupState,
+  createAppState,
+} from "./main/state";
+import { createStartupBootstrapRuntimeDeps } from "./main/startup";
+import { createAppLifecycleRuntimeRunner } from "./main/startup-lifecycle";
 import {
   ConfigService,
   DEFAULT_CONFIG,
   DEFAULT_KEYBINDINGS,
   generateConfigTemplate,
-  SPECIAL_COMMANDS,
 } from "./config";
 
 if (process.platform === "linux") {
@@ -211,14 +179,75 @@ if (process.platform === "linux") {
 }
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
-const CONFIG_DIR = path.join(os.homedir(), ".config", "SubMiner");
+const DEFAULT_MPV_LOG_FILE = path.join(
+  os.homedir(),
+  ".cache",
+  "SubMiner",
+  "mp.log",
+);
+function resolveConfigDir(): string {
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
+  const baseDirs = Array.from(
+    new Set([
+      xdgConfigHome || path.join(os.homedir(), ".config"),
+      path.join(os.homedir(), ".config"),
+    ]),
+  );
+  const appNames = ["SubMiner", "subminer"];
+
+  for (const baseDir of baseDirs) {
+    for (const appName of appNames) {
+      const dir = path.join(baseDir, appName);
+      if (
+        fs.existsSync(path.join(dir, "config.jsonc")) ||
+        fs.existsSync(path.join(dir, "config.json"))
+      ) {
+        return dir;
+      }
+    }
+  }
+
+  for (const baseDir of baseDirs) {
+    for (const appName of appNames) {
+      const dir = path.join(baseDir, appName);
+      if (fs.existsSync(dir)) {
+        return dir;
+      }
+    }
+  }
+
+  return path.join(baseDirs[0], "SubMiner");
+}
+
+const CONFIG_DIR = resolveConfigDir();
 const USER_DATA_PATH = CONFIG_DIR;
+const DEFAULT_MPV_LOG_PATH = process.env.SUBMINER_MPV_LOG?.trim() || DEFAULT_MPV_LOG_FILE;
 const configService = new ConfigService(CONFIG_DIR);
 const isDev =
   process.argv.includes("--dev") || process.argv.includes("--debug");
 const texthookerService = new TexthookerService();
 const subtitleWsService = new SubtitleWebSocketService();
-const appLogger = createAppLoggingRuntimeService();
+const appLogger = {
+  logInfo: (message: string) => {
+    console.log(message);
+  },
+  logWarning: (message: string) => {
+    console.warn(message);
+  },
+  logNoRunningInstance: () => {
+    console.error("No running instance. Use --start to launch the app.");
+  },
+  logConfigWarning: (warning: {
+    path: string;
+    message: string;
+    value: unknown;
+    fallback: unknown;
+  }) => {
+    console.warn(
+      `[config] ${warning.path}: ${warning.message} value=${JSON.stringify(warning.value)} fallback=${JSON.stringify(warning.fallback)}`,
+    );
+  },
+};
 
 function getDefaultSocketPath(): string {
   if (process.platform === "win32") {
@@ -239,87 +268,115 @@ process.on("SIGTERM", () => {
   app.quit();
 });
 
-let mainWindow: BrowserWindow | null = null;
-let invisibleWindow: BrowserWindow | null = null;
-let yomitanExt: Extension | null = null;
-let yomitanSettingsWindow: BrowserWindow | null = null;
-let yomitanParserWindow: BrowserWindow | null = null;
-let yomitanParserReadyPromise: Promise<void> | null = null;
-let yomitanParserInitPromise: Promise<boolean> | null = null;
-let mpvClient: MpvIpcClient | null = null;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let currentSubText = "";
-let currentSubAssText = "";
-let visibleOverlayVisible = false;
-let invisibleOverlayVisible = false;
-let windowTracker: BaseWindowTracker | null = null;
-let subtitlePosition: SubtitlePosition | null = null;
-let currentMediaPath: string | null = null;
-let pendingSubtitlePosition: SubtitlePosition | null = null;
-let mecabTokenizer: MecabTokenizer | null = null;
-let keybindings: Keybinding[] = [];
-let subtitleTimingTracker: SubtitleTimingTracker | null = null;
-let ankiIntegration: AnkiIntegration | null = null;
-let secondarySubMode: SecondarySubMode = "hover";
-let lastSecondarySubToggleAtMs = 0;
-let previousSecondarySubVisibility: boolean | null = null;
-const DEFAULT_MPV_SUBTITLE_RENDER_METRICS: MpvSubtitleRenderMetrics = {
-  subPos: 100,
-  subFontSize: 38,
-  subScale: 1,
-  subMarginY: 34,
-  subMarginX: 19,
-  subFont: "sans-serif",
-  subSpacing: 0,
-  subBold: false,
-  subItalic: false,
-  subBorderSize: 2.5,
-  subShadowOffset: 0,
-  subAssOverride: "yes",
-  subScaleByWindow: true,
-  subUseMargins: true,
-  osdHeight: 720,
-  osdDimensions: null,
-};
-let mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics = {
-  ...DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
-};
+const overlayManager = createOverlayManagerService();
+const overlayContentMeasurementStore = createOverlayContentMeasurementStoreService({
+  now: () => Date.now(),
+  warn: (message: string) => {
+    console.warn(message);
+  },
+});
+const overlayModalRuntime = createOverlayModalRuntimeService({
+  getMainWindow: () => overlayManager.getMainWindow(),
+  getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
+});
+const appState = createAppState({
+  mpvSocketPath: getDefaultSocketPath(),
+  texthookerPort: DEFAULT_TEXTHOOKER_PORT,
+});
+const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
+  getConfiguredShortcuts: () => getConfiguredShortcuts(),
+  getShortcutsRegistered: () => appState.shortcutsRegistered,
+  setShortcutsRegistered: (registered) => {
+    appState.shortcutsRegistered = registered;
+  },
+  isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+  showMpvOsd: (text: string) => showMpvOsd(text),
+  openRuntimeOptionsPalette: () => {
+    openRuntimeOptionsPalette();
+  },
+  openJimaku: () => {
+    sendToActiveOverlayWindow("jimaku:open", undefined, {
+      restoreOnModalClose: "jimaku",
+    });
+  },
+  markAudioCard: () => markLastCardAsAudioCard(),
+  copySubtitleMultiple: (timeoutMs) => {
+    startPendingMultiCopy(timeoutMs);
+  },
+  copySubtitle: () => {
+    copyCurrentSubtitle();
+  },
+  toggleSecondarySubMode: () => cycleSecondarySubMode(),
+  updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+  triggerFieldGrouping: () => triggerFieldGrouping(),
+  triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+  mineSentenceCard: () => mineSentenceCard(),
+  mineSentenceMultiple: (timeoutMs) => {
+    startPendingMineSentenceMultiple(timeoutMs);
+  },
+  cancelPendingMultiCopy: () => {
+    cancelPendingMultiCopy();
+  },
+  cancelPendingMineSentenceMultiple: () => {
+    cancelPendingMineSentenceMultiple();
+  },
+});
 
-let shortcutsRegistered = false;
-let overlayRuntimeInitialized = false;
-let fieldGroupingResolver: ((choice: KikuFieldGroupingChoice) => void) | null =
-  null;
-let runtimeOptionsManager: RuntimeOptionsManager | null = null;
-let trackerNotReadyWarningShown = false;
-let overlayDebugVisualizationEnabled = false;
-type OverlayHostedModal = "runtime-options" | "subsync";
-const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
+function getFieldGroupingResolver(): ((choice: KikuFieldGroupingChoice) => void) | null {
+  return appState.fieldGroupingResolver;
+}
+
+function setFieldGroupingResolver(
+  resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
+): void {
+  if (!resolver) {
+    appState.fieldGroupingResolver = null;
+    return;
+  }
+  const sequence = ++appState.fieldGroupingResolverSequence;
+  const wrappedResolver = (choice: KikuFieldGroupingChoice): void => {
+    if (sequence !== appState.fieldGroupingResolverSequence) return;
+    resolver(choice);
+  };
+  appState.fieldGroupingResolver = wrappedResolver;
+}
+
 const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntimeService<OverlayHostedModal>({
-  getMainWindow: () => mainWindow,
-  getVisibleOverlayVisible: () => visibleOverlayVisible,
-  getInvisibleOverlayVisible: () => invisibleOverlayVisible,
+  getMainWindow: () => overlayManager.getMainWindow(),
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
   setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
   setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
-  getResolver: () => fieldGroupingResolver,
-  setResolver: (resolver) => {
-    fieldGroupingResolver = resolver;
+  getResolver: () => getFieldGroupingResolver(),
+  setResolver: (resolver) => setFieldGroupingResolver(resolver),
+  getRestoreVisibleOverlayOnModalClose: () =>
+    overlayModalRuntime.getRestoreVisibleOverlayOnModalClose(),
+  sendToVisibleOverlay: (channel, payload, runtimeOptions) => {
+    return overlayModalRuntime.sendToActiveOverlayWindow(
+      channel,
+      payload,
+      runtimeOptions,
+    );
   },
-  getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
 });
-const sendToVisibleOverlay = fieldGroupingOverlayRuntime.sendToVisibleOverlay;
 const createFieldGroupingCallback =
   fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, "subtitle-positions");
 
-function getRuntimeOptionsState(): RuntimeOptionState[] { if (!runtimeOptionsManager) return []; return runtimeOptionsManager.listOptions(); }
+function getRuntimeOptionsState(): RuntimeOptionState[] { if (!appState.runtimeOptionsManager) return []; return appState.runtimeOptionsManager.listOptions(); }
 
 function getOverlayWindows(): BrowserWindow[] {
-  return getOverlayWindowsRuntimeService({ mainWindow, invisibleWindow });
+  return overlayManager.getOverlayWindows();
+}
+
+function restorePreviousSecondarySubVisibility(): void {
+  if (!appState.mpvClient || !appState.mpvClient.connected) return;
+  appState.mpvClient.restorePreviousSecondarySubVisibility();
 }
 
 function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
-  broadcastToOverlayWindowsRuntimeService(getOverlayWindows(), channel, ...args);
+  overlayManager.broadcastToOverlayWindows(channel, ...args);
 }
 
 function broadcastRuntimeOptionsChanged(): void {
@@ -329,18 +386,32 @@ function broadcastRuntimeOptionsChanged(): void {
   );
 }
 
+function sendToActiveOverlayWindow(
+  channel: string,
+  payload?: unknown,
+  runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
+): boolean {
+  return overlayModalRuntime.sendToActiveOverlayWindow(
+    channel,
+    payload,
+    runtimeOptions,
+  );
+}
+
 function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
   setOverlayDebugVisualizationEnabledRuntimeService(
-    overlayDebugVisualizationEnabled,
+    appState.overlayDebugVisualizationEnabled,
     enabled,
     (next) => {
-      overlayDebugVisualizationEnabled = next;
+      appState.overlayDebugVisualizationEnabled = next;
     },
     (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
   );
 }
 
-function openRuntimeOptionsPalette(): void { sendToVisibleOverlay("runtime-options:open", undefined, { restoreOnModalClose: "runtime-options" }); }
+function openRuntimeOptionsPalette(): void {
+  overlayModalRuntime.openRuntimeOptionsPalette();
+}
 
 function getResolvedConfig() { return configService.getConfig(); }
 
@@ -362,7 +433,7 @@ function shouldBindVisibleOverlayToMpvSubVisibility(): boolean {
 function isAutoUpdateEnabledRuntime(): boolean {
   return isAutoUpdateEnabledRuntimeService(
     getResolvedConfig(),
-    runtimeOptionsManager,
+    appState.runtimeOptionsManager,
   );
 }
 
@@ -385,44 +456,47 @@ async function jimakuFetchJson<T>(
 }
 
 function loadSubtitlePosition(): SubtitlePosition | null {
-  subtitlePosition = loadSubtitlePositionService({
-    currentMediaPath,
+  appState.subtitlePosition = loadSubtitlePositionService({
+    currentMediaPath: appState.currentMediaPath,
     fallbackPosition: getResolvedConfig().subtitlePosition,
     subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
   });
-  return subtitlePosition;
+  return appState.subtitlePosition;
 }
 
 function saveSubtitlePosition(position: SubtitlePosition): void {
-  subtitlePosition = position;
+  appState.subtitlePosition = position;
   saveSubtitlePositionService({
     position,
-    currentMediaPath,
+    currentMediaPath: appState.currentMediaPath,
     subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
     onQueuePending: (queued) => {
-      pendingSubtitlePosition = queued;
+      appState.pendingSubtitlePosition = queued;
     },
     onPersisted: () => {
-      pendingSubtitlePosition = null;
+      appState.pendingSubtitlePosition = null;
     },
   });
 }
 
 function updateCurrentMediaPath(mediaPath: unknown): void {
+  if (typeof mediaPath !== "string" || !isRemoteMediaPath(mediaPath)) {
+    appState.currentMediaTitle = null;
+  }
   updateCurrentMediaPathService({
     mediaPath,
-    currentMediaPath,
-    pendingSubtitlePosition,
+    currentMediaPath: appState.currentMediaPath,
+    pendingSubtitlePosition: appState.pendingSubtitlePosition,
     subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
     loadSubtitlePosition: () => loadSubtitlePosition(),
     setCurrentMediaPath: (nextPath) => {
-      currentMediaPath = nextPath;
+      appState.currentMediaPath = nextPath;
     },
     clearPendingSubtitlePosition: () => {
-      pendingSubtitlePosition = null;
+      appState.pendingSubtitlePosition = null;
     },
     setSubtitlePosition: (position) => {
-      subtitlePosition = position;
+      appState.subtitlePosition = position;
     },
     broadcastSubtitlePosition: (position) => {
       broadcastToOverlayWindows("subtitle-position:set", position);
@@ -430,314 +504,302 @@ function updateCurrentMediaPath(mediaPath: unknown): void {
   });
 }
 
-let subsyncInProgress = false;
-let initialArgs: CliArgs;
-let mpvSocketPath = getDefaultSocketPath();
-let texthookerPort = DEFAULT_TEXTHOOKER_PORT;
-let backendOverride: string | null = null;
-let autoStartOverlay = false;
-let texthookerOnlyMode = false;
+function updateCurrentMediaTitle(mediaTitle: unknown): void {
+  if (typeof mediaTitle === "string") {
+    const sanitized = mediaTitle.trim();
+    appState.currentMediaTitle = sanitized.length > 0 ? sanitized : null;
+    return;
+  }
+  appState.currentMediaTitle = null;
+}
 
-const startupState = runStartupBootstrapRuntimeService({
-  argv: process.argv,
-  parseArgs: (argv) => parseArgs(argv),
-  setLogLevelEnv: (level) => {
-    process.env.SUBMINER_LOG_LEVEL = level;
-  },
-  enableVerboseLogging: () => {
-    process.env.SUBMINER_LOG_LEVEL = "debug";
-  },
-  forceX11Backend: (args) => {
-    forceX11Backend(args);
-  },
-  enforceUnsupportedWaylandMode: (args) => {
-    enforceUnsupportedWaylandMode(args);
-  },
-  getDefaultSocketPath: () => getDefaultSocketPath(),
-  defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
-  runGenerateConfigFlow: (args) =>
-    runGenerateConfigFlowRuntimeService(args, {
-      shouldStartApp: (nextArgs) => shouldStartApp(nextArgs),
-      generateConfig: async (nextArgs) =>
-        generateDefaultConfigFile(nextArgs, {
-          configDir: CONFIG_DIR,
-          defaultConfig: DEFAULT_CONFIG,
-          generateTemplate: (config) => generateConfigTemplate(config as never),
-        }),
-      onSuccess: (exitCode) => {
-        process.exitCode = exitCode;
-        app.quit();
+function resolveMediaPathForJimaku(mediaPath: string | null): string | null {
+  return mediaPath && isRemoteMediaPath(mediaPath) && appState.currentMediaTitle
+    ? appState.currentMediaTitle
+    : mediaPath;
+}
+
+const startupState = runStartupBootstrapRuntimeService(
+  createStartupBootstrapRuntimeDeps({
+    argv: process.argv,
+    parseArgs: (argv: string[]) => parseArgs(argv),
+    setLogLevelEnv: (level: string) => {
+      process.env.SUBMINER_LOG_LEVEL = level;
+    },
+    enableVerboseLogging: () => {
+      process.env.SUBMINER_LOG_LEVEL = "debug";
+    },
+    forceX11Backend: (args: CliArgs) => {
+      forceX11Backend(args);
+    },
+    enforceUnsupportedWaylandMode: (args: CliArgs) => {
+      enforceUnsupportedWaylandMode(args);
+    },
+    shouldStartApp: (args: CliArgs) => shouldStartApp(args),
+    getDefaultSocketPath: () => getDefaultSocketPath(),
+    defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
+    configDir: CONFIG_DIR,
+    defaultConfig: DEFAULT_CONFIG,
+    generateConfigTemplate: (config: ResolvedConfig) => generateConfigTemplate(config),
+    generateDefaultConfigFile: (
+      args: CliArgs,
+      options: {
+        configDir: string;
+        defaultConfig: unknown;
+        generateTemplate: (config: unknown) => string;
       },
-      onError: (error) => {
-        console.error(`Failed to generate config: ${error.message}`);
-        process.exitCode = 1;
-        app.quit();
-      },
-    }),
-  startAppLifecycle: (args) => {
-    startAppLifecycleService(args, createAppLifecycleDepsRuntimeService({
+    ) => generateDefaultConfigFile(args, options),
+    onConfigGenerated: (exitCode: number) => {
+      process.exitCode = exitCode;
+      app.quit();
+    },
+    onGenerateConfigError: (error: Error) => {
+      console.error(`Failed to generate config: ${error.message}`);
+      process.exitCode = 1;
+      app.quit();
+    },
+    startAppLifecycle: createAppLifecycleRuntimeRunner({
       app,
       platform: process.platform,
-      shouldStartApp: (nextArgs) => shouldStartApp(nextArgs),
-      parseArgs: (argv) => parseArgs(argv),
-      handleCliCommand: (nextArgs, source) => handleCliCommand(nextArgs, source),
+      shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
+      parseArgs: (argv: string[]) => parseArgs(argv),
+      handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) =>
+        handleCliCommand(nextArgs, source),
       printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
       logNoRunningInstance: () => appLogger.logNoRunningInstance(),
-      ...createStartupLifecycleHooksRuntimeService({
-        appReadyDeps: {
-          loadSubtitlePosition: () => loadSubtitlePosition(),
-          resolveKeybindings: () => {
-            keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
-          },
-          createMpvClient: () => {
-            mpvClient = new MpvIpcClient(
-              mpvSocketPath,
-              createMpvIpcClientDepsRuntimeService({
-                getResolvedConfig: () => getResolvedConfig(),
-                autoStartOverlay,
-                setOverlayVisible: (visible) => setOverlayVisible(visible),
-                shouldBindVisibleOverlayToMpvSubVisibility: () =>
-                  shouldBindVisibleOverlayToMpvSubVisibility(),
-                isVisibleOverlayVisible: () => visibleOverlayVisible,
-                getReconnectTimer: () => reconnectTimer,
-                setReconnectTimer: (timer) => {
-                  reconnectTimer = timer;
-                },
-                getCurrentSubText: () => currentSubText,
-                setCurrentSubText: (text) => {
-                  currentSubText = text;
-                },
-                setCurrentSubAssText: (text) => {
-                  currentSubAssText = text;
-                },
-                getSubtitleTimingTracker: () => subtitleTimingTracker,
-                subtitleWsBroadcast: (text) => {
-                  subtitleWsService.broadcast(text);
-                },
-                getOverlayWindowsCount: () => getOverlayWindows().length,
-                tokenizeSubtitle: (text) => tokenizeSubtitle(text),
-                broadcastToOverlayWindows: (channel, ...channelArgs) => {
-                  broadcastToOverlayWindows(channel, ...channelArgs);
-                },
-                updateCurrentMediaPath: (mediaPath) => {
-                  updateCurrentMediaPath(mediaPath);
-                },
-                updateMpvSubtitleRenderMetrics: (patch) => {
-                  updateMpvSubtitleRenderMetrics(patch);
-                },
-                getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
-                setPreviousSecondarySubVisibility: (value) => {
-                  previousSecondarySubVisibility = value;
-                },
-                showMpvOsd: (text) => {
-                  showMpvOsd(text);
-                },
-              }),
-            );
-          },
-          reloadConfig: () => {
-            configService.reloadConfig();
-          },
-          getResolvedConfig: () => getResolvedConfig(),
-          getConfigWarnings: () => configService.getWarnings(),
-          logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
-          initRuntimeOptionsManager: () => {
-            runtimeOptionsManager = createRuntimeOptionsManagerRuntimeService({
-              getAnkiConfig: () => configService.getConfig().ankiConnect,
+      onReady: createAppReadyRuntimeRunner({
+        loadSubtitlePosition: () => loadSubtitlePosition(),
+        resolveKeybindings: () => {
+          appState.keybindings = resolveKeybindings(
+            getResolvedConfig(),
+            DEFAULT_KEYBINDINGS,
+          );
+        },
+        createMpvClient: () => {
+          appState.mpvClient = createMpvClientRuntimeService();
+        },
+        reloadConfig: () => {
+          configService.reloadConfig();
+          appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
+        },
+        getResolvedConfig: () => getResolvedConfig(),
+        getConfigWarnings: () => configService.getWarnings(),
+        logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
+        initRuntimeOptionsManager: () => {
+          appState.runtimeOptionsManager = new RuntimeOptionsManager(
+            () => configService.getConfig().ankiConnect,
+            {
               applyAnkiPatch: (patch) => {
-                if (ankiIntegration) {
-                  ankiIntegration.applyRuntimeConfigPatch(patch);
+                if (appState.ankiIntegration) {
+                  appState.ankiIntegration.applyRuntimeConfigPatch(patch);
                 }
               },
               onOptionsChanged: () => {
                 broadcastRuntimeOptionsChanged();
                 refreshOverlayShortcuts();
               },
-            });
-          },
-          setSecondarySubMode: (mode) => {
-            secondarySubMode = mode;
-          },
-          defaultSecondarySubMode: "hover",
-          defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
-          hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
-          startSubtitleWebsocket: (port) => {
-            subtitleWsService.start(port, () => currentSubText);
-          },
-          log: (message) => appLogger.logInfo(message),
-          createMecabTokenizerAndCheck: async () =>
-            createMecabTokenizerAndCheckRuntimeService({
-              createMecabTokenizer: () => new MecabTokenizer(),
-              setMecabTokenizer: (tokenizer) => {
-                mecabTokenizer = tokenizer;
-              },
-            }),
-          createSubtitleTimingTracker: () =>
-            createSubtitleTimingTrackerRuntimeService({
-              createSubtitleTimingTracker: () => new SubtitleTimingTracker(),
-              setSubtitleTimingTracker: (tracker) => {
-                subtitleTimingTracker = tracker;
-              },
-            }),
-          loadYomitanExtension: async () => {
-            await loadYomitanExtension();
-          },
-          texthookerOnlyMode,
-          shouldAutoInitializeOverlayRuntimeFromConfig: () =>
-            shouldAutoInitializeOverlayRuntimeFromConfig(),
-          initializeOverlayRuntime: () => initializeOverlayRuntime(),
-          handleInitialArgs: () => handleInitialArgs(),
+            },
+          );
         },
-        appShutdownDeps: {
-          unregisterAllGlobalShortcuts: () => {
-            globalShortcut.unregisterAll();
-          },
-          stopSubtitleWebsocket: () => {
-            subtitleWsService.stop();
-          },
-          stopTexthookerService: () => {
-            texthookerService.stop();
-          },
-          destroyYomitanParserWindow: () => {
-            if (yomitanParserWindow && !yomitanParserWindow.isDestroyed()) {
-              yomitanParserWindow.destroy();
-            }
-            yomitanParserWindow = null;
-          },
-          clearYomitanParserPromises: () => {
-            yomitanParserReadyPromise = null;
-            yomitanParserInitPromise = null;
-          },
-          stopWindowTracker: () => {
-            if (windowTracker) {
-              windowTracker.stop();
-            }
-          },
-          destroyMpvSocket: () => {
-            if (mpvClient && mpvClient.socket) {
-              mpvClient.socket.destroy();
-            }
-          },
-          clearReconnectTimer: () => {
-            if (reconnectTimer) {
-              clearTimeout(reconnectTimer);
-            }
-          },
-          destroySubtitleTimingTracker: () => {
-            if (subtitleTimingTracker) {
-              subtitleTimingTracker.destroy();
-            }
-          },
-          destroyAnkiIntegration: () => {
-            if (ankiIntegration) {
-              ankiIntegration.destroy();
-            }
-          },
+        setSecondarySubMode: (mode: SecondarySubMode) => {
+          appState.secondarySubMode = mode;
         },
-        shouldRestoreWindowsOnActivate: () =>
-          overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
-        restoreWindowsOnActivate: () => {
-          createMainWindow();
-          createInvisibleWindow();
-          updateVisibleOverlayVisibility();
-          updateInvisibleOverlayVisibility();
+        defaultSecondarySubMode: "hover",
+        defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
+        hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
+        startSubtitleWebsocket: (port: number) => {
+          subtitleWsService.start(port, () => appState.currentSubText);
         },
+        log: (message) => appLogger.logInfo(message),
+        createMecabTokenizerAndCheck: async () => {
+          const tokenizer = new MecabTokenizer();
+          appState.mecabTokenizer = tokenizer;
+          await tokenizer.checkAvailability();
+        },
+        createSubtitleTimingTracker: () => {
+          const tracker = new SubtitleTimingTracker();
+          appState.subtitleTimingTracker = tracker;
+        },
+        loadYomitanExtension: async () => {
+          await loadYomitanExtension();
+        },
+        texthookerOnlyMode: appState.texthookerOnlyMode,
+        shouldAutoInitializeOverlayRuntimeFromConfig: () =>
+          shouldAutoInitializeOverlayRuntimeFromConfig(),
+        initializeOverlayRuntime: () => initializeOverlayRuntime(),
+        handleInitialArgs: () => handleInitialArgs(),
       }),
-    }));
-  },
-});
+      onWillQuitCleanup: () => {
+        restorePreviousSecondarySubVisibility();
+        globalShortcut.unregisterAll();
+        subtitleWsService.stop();
+        texthookerService.stop();
+        if (appState.yomitanParserWindow && !appState.yomitanParserWindow.isDestroyed()) {
+          appState.yomitanParserWindow.destroy();
+        }
+        appState.yomitanParserWindow = null;
+        appState.yomitanParserReadyPromise = null;
+        appState.yomitanParserInitPromise = null;
+        if (appState.windowTracker) {
+          appState.windowTracker.stop();
+        }
+        if (appState.mpvClient && appState.mpvClient.socket) {
+          appState.mpvClient.socket.destroy();
+        }
+        if (appState.reconnectTimer) {
+          clearTimeout(appState.reconnectTimer);
+        }
+        if (appState.subtitleTimingTracker) {
+          appState.subtitleTimingTracker.destroy();
+        }
+        if (appState.ankiIntegration) {
+          appState.ankiIntegration.destroy();
+        }
+      },
+      shouldRestoreWindowsOnActivate: () =>
+        appState.overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
+      restoreWindowsOnActivate: () => {
+        createMainWindow();
+        createInvisibleWindow();
+        updateVisibleOverlayVisibility();
+        updateInvisibleOverlayVisibility();
+      },
+    }),
+  }),
+);
 
-initialArgs = startupState.initialArgs;
-mpvSocketPath = startupState.mpvSocketPath;
-texthookerPort = startupState.texthookerPort;
-backendOverride = startupState.backendOverride;
-autoStartOverlay = startupState.autoStartOverlay;
-texthookerOnlyMode = startupState.texthookerOnlyMode;
+applyStartupState(appState, startupState);
 
 function handleCliCommand(
   args: CliArgs,
   source: CliCommandSource = "initial",
 ): void {
-  const deps = createCliCommandDepsRuntimeService({
-    mpv: {
-      getSocketPath: () => mpvSocketPath,
-      setSocketPath: (socketPath) => {
-        mpvSocketPath = socketPath;
-      },
-      getClient: () => mpvClient,
-      showOsd: (text) => showMpvOsd(text),
+  handleCliCommandRuntimeServiceWithContext(args, source, {
+    getSocketPath: () => appState.mpvSocketPath,
+    setSocketPath: (socketPath: string) => {
+      appState.mpvSocketPath = socketPath;
     },
-    texthooker: {
-      service: texthookerService,
-      getPort: () => texthookerPort,
-      setPort: (port) => {
-        texthookerPort = port;
-      },
-      shouldOpenBrowser: () => getResolvedConfig().texthooker?.openBrowser !== false,
-      openInBrowser: (url) => {
-        shell.openExternal(url);
-      },
+    getClient: () => appState.mpvClient,
+    showOsd: (text: string) => showMpvOsd(text),
+    texthookerService,
+    getTexthookerPort: () => appState.texthookerPort,
+    setTexthookerPort: (port: number) => {
+      appState.texthookerPort = port;
     },
-    overlay: {
-      isInitialized: () => overlayRuntimeInitialized,
-      initialize: () => initializeOverlayRuntime(),
-      toggleVisible: () => toggleVisibleOverlay(),
-      toggleInvisible: () => toggleInvisibleOverlay(),
-      setVisible: (visible) => setVisibleOverlayVisible(visible),
-      setInvisible: (visible) => setInvisibleOverlayVisible(visible),
+    shouldOpenBrowser: () => getResolvedConfig().texthooker?.openBrowser !== false,
+    openInBrowser: (url: string) => {
+      void shell.openExternal(url).catch((error) => {
+        console.error(`Failed to open browser for texthooker URL: ${url}`, error);
+      });
     },
-    mining: {
-      copyCurrentSubtitle: () => copyCurrentSubtitle(),
-      startPendingMultiCopy: (timeoutMs) => startPendingMultiCopy(timeoutMs),
-      mineSentenceCard: () => mineSentenceCard(),
-      startPendingMineSentenceMultiple: (timeoutMs) =>
-        startPendingMineSentenceMultiple(timeoutMs),
-      updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-      triggerFieldGrouping: () => triggerFieldGrouping(),
-      triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-      markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
-    },
-    ui: {
-      openYomitanSettings: () => openYomitanSettings(),
-      cycleSecondarySubMode: () => cycleSecondarySubMode(),
-      openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-      printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-    },
-    app: {
-      stop: () => app.quit(),
-      hasMainWindow: () => Boolean(mainWindow),
-    },
+    isOverlayInitialized: () => appState.overlayRuntimeInitialized,
+    initializeOverlay: () => initializeOverlayRuntime(),
+    toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
+    setVisibleOverlay: (visible: boolean) => setVisibleOverlayVisible(visible),
+    setInvisibleOverlay: (visible: boolean) => setInvisibleOverlayVisible(visible),
+    copyCurrentSubtitle: () => copyCurrentSubtitle(),
+    startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
+    mineSentenceCard: () => mineSentenceCard(),
+    startPendingMineSentenceMultiple: (timeoutMs: number) =>
+      startPendingMineSentenceMultiple(timeoutMs),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    refreshKnownWordCache: () => refreshKnownWordCache(),
+    triggerFieldGrouping: () => triggerFieldGrouping(),
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    openYomitanSettings: () => openYomitanSettings(),
+    cycleSecondarySubMode: () => cycleSecondarySubMode(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+    stopApp: () => app.quit(),
+    hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
     getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
-    schedule: (fn, delayMs) => setTimeout(fn, delayMs),
-    log: (message) => {
+    schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
+    log: (message: string) => {
       console.log(message);
     },
-    warn: (message) => {
+    warn: (message: string) => {
       console.warn(message);
     },
-    error: (message, err) => {
+    error: (message: string, err: unknown) => {
       console.error(message, err);
     },
   });
-  handleCliCommandService(args, source, deps);
 }
 
 function handleInitialArgs(): void {
-  handleCliCommand(initialArgs, "initial");
+  if (!appState.initialArgs) return;
+  handleCliCommand(appState.initialArgs, "initial");
+}
+
+function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
+  mpvClient.on("subtitle-change", ({ text }) => {
+    appState.currentSubText = text;
+    subtitleWsService.broadcast(text);
+    void (async () => {
+      if (getOverlayWindows().length > 0) {
+        const subtitleData = await tokenizeSubtitle(text);
+        broadcastToOverlayWindows("subtitle:set", subtitleData);
+      }
+    })();
+  });
+  mpvClient.on("subtitle-ass-change", ({ text }) => {
+    appState.currentSubAssText = text;
+    broadcastToOverlayWindows("subtitle-ass:set", text);
+  });
+  mpvClient.on("secondary-subtitle-change", ({ text }) => {
+    broadcastToOverlayWindows("secondary-subtitle:set", text);
+  });
+  mpvClient.on("subtitle-timing", ({ text, start, end }) => {
+    if (!text.trim() || !appState.subtitleTimingTracker) {
+      return;
+    }
+    appState.subtitleTimingTracker.recordSubtitle(text, start, end);
+  });
+  mpvClient.on("media-path-change", ({ path }) => {
+    updateCurrentMediaPath(path);
+  });
+  mpvClient.on("media-title-change", ({ title }) => {
+    updateCurrentMediaTitle(title);
+  });
+  mpvClient.on("subtitle-metrics-change", ({ patch }) => {
+    updateMpvSubtitleRenderMetrics(patch);
+  });
+  mpvClient.on("secondary-subtitle-visibility", ({ visible }) => {
+    appState.previousSecondarySubVisibility = visible;
+  });
+}
+
+function createMpvClientRuntimeService(): MpvIpcClient {
+  const mpvClient = new MpvIpcClient(appState.mpvSocketPath, {
+    getResolvedConfig: () => getResolvedConfig(),
+    autoStartOverlay: appState.autoStartOverlay,
+    setOverlayVisible: (visible: boolean) => setOverlayVisible(visible),
+    shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      shouldBindVisibleOverlayToMpvSubVisibility(),
+    isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getReconnectTimer: () => appState.reconnectTimer,
+    setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
+      appState.reconnectTimer = timer;
+    },
+  });
+  bindMpvClientEventHandlers(mpvClient);
+  return mpvClient;
 }
 
 function updateMpvSubtitleRenderMetrics(
   patch: Partial<MpvSubtitleRenderMetrics>,
 ): void {
   const { next, changed } = applyMpvSubtitleRenderMetricsPatchService(
-    mpvSubtitleRenderMetrics,
+    appState.mpvSubtitleRenderMetrics,
     patch,
   );
   if (!changed) return;
-  mpvSubtitleRenderMetrics = next;
+  appState.mpvSubtitleRenderMetrics = next;
   broadcastToOverlayWindows(
     "mpv-subtitle-render-metrics:set",
-    mpvSubtitleRenderMetrics,
+    appState.mpvSubtitleRenderMetrics,
   );
 }
 
@@ -745,26 +807,35 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
   return tokenizeSubtitleService(
     text,
     createTokenizerDepsRuntimeService({
-      getYomitanExt: () => yomitanExt,
-      getYomitanParserWindow: () => yomitanParserWindow,
+      getYomitanExt: () => appState.yomitanExt,
+      getYomitanParserWindow: () => appState.yomitanParserWindow,
       setYomitanParserWindow: (window) => {
-        yomitanParserWindow = window;
+        appState.yomitanParserWindow = window;
       },
-      getYomitanParserReadyPromise: () => yomitanParserReadyPromise,
+      getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
       setYomitanParserReadyPromise: (promise) => {
-        yomitanParserReadyPromise = promise;
+        appState.yomitanParserReadyPromise = promise;
       },
-      getYomitanParserInitPromise: () => yomitanParserInitPromise,
+      getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
       setYomitanParserInitPromise: (promise) => {
-        yomitanParserInitPromise = promise;
+        appState.yomitanParserInitPromise = promise;
       },
-      getMecabTokenizer: () => mecabTokenizer,
+      isKnownWord: (text) =>
+        Boolean(appState.ankiIntegration?.isKnownWord(text)),
+      getKnownWordMatchMode: () =>
+        appState.ankiIntegration?.getKnownWordMatchMode() ??
+        getResolvedConfig().ankiConnect.nPlusOne.matchMode,
+      getMecabTokenizer: () => appState.mecabTokenizer,
     }),
   );
 }
 
-function updateOverlayBounds(geometry: WindowGeometry): void {
-  updateOverlayBoundsService(geometry, () => getOverlayWindows());
+function updateVisibleOverlayBounds(geometry: WindowGeometry): void {
+  overlayManager.setOverlayWindowBounds("visible", geometry);
+}
+
+function updateInvisibleOverlayBounds(geometry: WindowGeometry): void {
+  overlayManager.setOverlayWindowBounds("invisible", geometry);
 }
 
 function ensureOverlayWindowLevel(window: BrowserWindow): void {
@@ -773,10 +844,10 @@ function ensureOverlayWindowLevel(window: BrowserWindow): void {
 
 function enforceOverlayLayerOrder(): void {
   enforceOverlayLayerOrderService({
-    visibleOverlayVisible,
-    invisibleOverlayVisible,
-    mainWindow,
-    invisibleWindow,
+    visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
+    invisibleOverlayVisible: overlayManager.getInvisibleOverlayVisible(),
+    mainWindow: overlayManager.getMainWindow(),
+    invisibleWindow: overlayManager.getInvisibleWindow(),
     ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
   });
 }
@@ -784,18 +855,18 @@ function enforceOverlayLayerOrder(): void {
 async function loadYomitanExtension(): Promise<Extension | null> {
   return loadYomitanExtensionService({
     userDataPath: USER_DATA_PATH,
-    getYomitanParserWindow: () => yomitanParserWindow,
+    getYomitanParserWindow: () => appState.yomitanParserWindow,
     setYomitanParserWindow: (window) => {
-      yomitanParserWindow = window;
+      appState.yomitanParserWindow = window;
     },
     setYomitanParserReadyPromise: (promise) => {
-      yomitanParserReadyPromise = promise;
+      appState.yomitanParserReadyPromise = promise;
     },
     setYomitanParserInitPromise: (promise) => {
-      yomitanParserInitPromise = promise;
+      appState.yomitanParserInitPromise = promise;
     },
     setYomitanExtension: (extension) => {
-      yomitanExt = extension;
+      appState.yomitanExt = extension;
     },
   });
 }
@@ -803,38 +874,48 @@ async function loadYomitanExtension(): Promise<Extension | null> {
 function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
   return createOverlayWindowService(
     kind,
-    createOverlayWindowRuntimeDepsService({
+    {
       isDev,
-      getOverlayDebugVisualizationEnabled: () => overlayDebugVisualizationEnabled,
+      overlayDebugVisualizationEnabled: appState.overlayDebugVisualizationEnabled,
       ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
       onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
       setOverlayDebugVisualizationEnabled: (enabled) =>
         setOverlayDebugVisualizationEnabled(enabled),
-      getVisibleOverlayVisible: () => visibleOverlayVisible,
-      getInvisibleOverlayVisible: () => invisibleOverlayVisible,
+      isOverlayVisible: (windowKind) =>
+        windowKind === "visible"
+          ? overlayManager.getVisibleOverlayVisible()
+          : overlayManager.getInvisibleOverlayVisible(),
       tryHandleOverlayShortcutLocalFallback: (input) =>
-        tryHandleOverlayShortcutLocalFallback(input),
+        overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
       onWindowClosed: (windowKind) => {
         if (windowKind === "visible") {
-          mainWindow = null;
+          overlayManager.setMainWindow(null);
         } else {
-          invisibleWindow = null;
+          overlayManager.setInvisibleWindow(null);
         }
       },
-    }),
+    },
   );
 }
 
-function createMainWindow(): BrowserWindow { mainWindow = createOverlayWindow("visible"); return mainWindow; }
-function createInvisibleWindow(): BrowserWindow { invisibleWindow = createOverlayWindow("invisible"); return invisibleWindow; }
+function createMainWindow(): BrowserWindow {
+  const window = createOverlayWindow("visible");
+  overlayManager.setMainWindow(window);
+  return window;
+}
+function createInvisibleWindow(): BrowserWindow {
+  const window = createOverlayWindow("invisible");
+  overlayManager.setInvisibleWindow(window);
+  return window;
+}
 
 function initializeOverlayRuntime(): void {
-  if (overlayRuntimeInitialized) {
+  if (appState.overlayRuntimeInitialized) {
     return;
   }
   const result = initializeOverlayRuntimeService(
-    createInitializeOverlayRuntimeDepsService({
-      backendOverride,
+    {
+      backendOverride: appState.backendOverride,
       getInitialInvisibleOverlayVisibility: () =>
         getInitialInvisibleOverlayVisibility(),
       createMainWindow: () => {
@@ -846,11 +927,15 @@ function initializeOverlayRuntime(): void {
       registerGlobalShortcuts: () => {
         registerGlobalShortcuts();
       },
-      updateOverlayBounds: (geometry) => {
-        updateOverlayBounds(geometry);
+      updateVisibleOverlayBounds: (geometry) => {
+        updateVisibleOverlayBounds(geometry);
       },
-      isVisibleOverlayVisible: () => visibleOverlayVisible,
-      isInvisibleOverlayVisible: () => invisibleOverlayVisible,
+      updateInvisibleOverlayBounds: (geometry) => {
+        updateInvisibleOverlayBounds(geometry);
+      },
+      isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      isInvisibleOverlayVisible: () =>
+        overlayManager.getInvisibleOverlayVisible(),
       updateVisibleOverlayVisibility: () => {
         updateVisibleOverlayVisibility();
       },
@@ -858,122 +943,95 @@ function initializeOverlayRuntime(): void {
         updateInvisibleOverlayVisibility();
       },
       getOverlayWindows: () => getOverlayWindows(),
-      syncOverlayShortcuts: () => {
-        syncOverlayShortcuts();
-      },
+      syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
       setWindowTracker: (tracker) => {
-        windowTracker = tracker;
+        appState.windowTracker = tracker;
       },
       getResolvedConfig: () => getResolvedConfig(),
-      getSubtitleTimingTracker: () => subtitleTimingTracker,
-      getMpvClient: () => mpvClient,
-      getRuntimeOptionsManager: () => runtimeOptionsManager,
+      getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+      getMpvClient: () => appState.mpvClient,
+      getMpvSocketPath: () => appState.mpvSocketPath,
+      getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
       setAnkiIntegration: (integration) => {
-        ankiIntegration = integration as AnkiIntegration | null;
+        appState.ankiIntegration = integration as AnkiIntegration | null;
       },
       showDesktopNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
-    }),
+      getKnownWordCacheStatePath: () =>
+        path.join(USER_DATA_PATH, "known-words-cache.json"),
+    },
   );
-  invisibleOverlayVisible = result.invisibleOverlayVisible;
-  overlayRuntimeInitialized = true;
-}
-
-function getShortcutUiRuntimeDeps() {
-  return {
-    yomitanExt,
-    getYomitanSettingsWindow: () => yomitanSettingsWindow,
-    setYomitanSettingsWindow: (window: BrowserWindow | null) => {
-      yomitanSettingsWindow = window;
-    },
-    shortcuts: getConfiguredShortcuts(),
-    onToggleVisibleOverlay: () => toggleVisibleOverlay(),
-    onToggleInvisibleOverlay: () => toggleInvisibleOverlay(),
-    onOpenYomitanSettings: () => openYomitanSettings(),
-    isDev,
-    getMainWindow: () => mainWindow,
-    getSecondarySubMode: () => secondarySubMode,
-    setSecondarySubMode: (mode: SecondarySubMode) => {
-      secondarySubMode = mode;
-    },
-    getLastSecondarySubToggleAtMs: () => lastSecondarySubToggleAtMs,
-    setLastSecondarySubToggleAtMs: (timestampMs: number) => {
-      lastSecondarySubToggleAtMs = timestampMs;
-    },
-    broadcastSecondarySubMode: (mode: SecondarySubMode) => {
-      broadcastToOverlayWindows("secondary-subtitle:mode", mode);
-    },
-    showMpvOsd: (text: string) => showMpvOsd(text),
-    getConfiguredShortcuts: () => getConfiguredShortcuts(),
-    getOverlayShortcutFallbackHandlers: () =>
-      getOverlayShortcutRuntimeHandlers().fallbackHandlers,
-    shortcutMatcher: shortcutMatchesInputForLocalFallback,
-  };
+  overlayManager.setInvisibleOverlayVisible(result.invisibleOverlayVisible);
+  appState.overlayRuntimeInitialized = true;
 }
 
 function openYomitanSettings(): void {
   openYomitanSettingsWindow(
-    createYomitanSettingsWindowDepsRuntimeService(getShortcutUiRuntimeDeps()),
+    {
+      yomitanExt: appState.yomitanExt,
+      getExistingWindow: () => appState.yomitanSettingsWindow,
+      setWindow: (window: BrowserWindow | null) => {
+        appState.yomitanSettingsWindow = window;
+      },
+    },
   );
 }
 function registerGlobalShortcuts(): void {
   registerGlobalShortcutsService(
-    createGlobalShortcutRegistrationDepsRuntimeService(getShortcutUiRuntimeDeps()),
+    {
+      shortcuts: getConfiguredShortcuts(),
+      onToggleVisibleOverlay: () => toggleVisibleOverlay(),
+      onToggleInvisibleOverlay: () => toggleInvisibleOverlay(),
+      onOpenYomitanSettings: () => openYomitanSettings(),
+      isDev,
+      getMainWindow: () => overlayManager.getMainWindow(),
+    },
   );
 }
 
 function getConfiguredShortcuts() { return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG); }
 
-function getOverlayShortcutRuntimeHandlers() {
-  return createOverlayShortcutRuntimeHandlers(
-    createOverlayShortcutRuntimeDepsService({
-    showMpvOsd: (text) => showMpvOsd(text),
-    openRuntimeOptions: () => {
-      openRuntimeOptionsPalette();
-    },
-    openJimaku: () => {
-      sendToVisibleOverlay("jimaku:open");
-    },
-    markAudioCard: () => markLastCardAsAudioCard(),
-    copySubtitleMultiple: (timeoutMs) => {
-      startPendingMultiCopy(timeoutMs);
-    },
-    copySubtitle: () => {
-      copyCurrentSubtitle();
-    },
-    toggleSecondarySub: () => cycleSecondarySubMode(),
-    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-    triggerFieldGrouping: () => triggerFieldGrouping(),
-    triggerSubsync: () => triggerSubsyncFromConfig(),
-    mineSentence: () => mineSentenceCard(),
-    mineSentenceMultiple: (timeoutMs) => {
-      startPendingMineSentenceMultiple(timeoutMs);
-    },
-    }),
-  );
-}
-
-function tryHandleOverlayShortcutLocalFallback(input: Electron.Input): boolean {
-  return runOverlayShortcutLocalFallbackRuntimeService(
-    input,
-    getShortcutUiRuntimeDeps(),
-  );
-}
-
 function cycleSecondarySubMode(): void {
   cycleSecondarySubModeService(
-    createSecondarySubtitleCycleDepsRuntimeService(getShortcutUiRuntimeDeps()),
+    {
+      getSecondarySubMode: () => appState.secondarySubMode,
+      setSecondarySubMode: (mode: SecondarySubMode) => {
+        appState.secondarySubMode = mode;
+      },
+      getLastSecondarySubToggleAtMs: () => appState.lastSecondarySubToggleAtMs,
+      setLastSecondarySubToggleAtMs: (timestampMs: number) => {
+        appState.lastSecondarySubToggleAtMs = timestampMs;
+      },
+      broadcastSecondarySubMode: (mode: SecondarySubMode) => {
+        broadcastToOverlayWindows("secondary-subtitle:mode", mode);
+      },
+      showMpvOsd: (text: string) => showMpvOsd(text),
+    },
   );
 }
 
 function showMpvOsd(text: string): void {
+  appendToMpvLog(`[OSD] ${text}`);
   showMpvOsdRuntimeService(
-    mpvClient,
+    appState.mpvClient,
     text,
     (line) => {
       console.log(line);
     },
   );
+}
+
+function appendToMpvLog(message: string): void {
+  try {
+    fs.mkdirSync(path.dirname(DEFAULT_MPV_LOG_PATH), { recursive: true });
+    fs.appendFileSync(
+      DEFAULT_MPV_LOG_PATH,
+      `[${new Date().toISOString()}] ${message}\n`,
+      { encoding: "utf8" },
+    );
+  } catch {
+    // best-effort logging
+  }
 }
 
 const numericShortcutRuntime = createNumericShortcutRuntimeService({
@@ -984,44 +1042,26 @@ const numericShortcutRuntime = createNumericShortcutRuntimeService({
 });
 const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
-const overlayVisibilityFacadeDeps =
-  createOverlayVisibilityFacadeDepsRuntimeService({
-    getVisibleOverlayVisible: () => visibleOverlayVisible,
-    getInvisibleOverlayVisible: () => invisibleOverlayVisible,
-    setVisibleOverlayVisibleState: (nextVisible: boolean) => {
-      visibleOverlayVisible = nextVisible;
-    },
-    setInvisibleOverlayVisibleState: (nextVisible: boolean) => {
-      invisibleOverlayVisible = nextVisible;
-    },
-    updateVisibleOverlayVisibility: () => updateVisibleOverlayVisibility(),
-    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
-    syncInvisibleOverlayMousePassthrough: () =>
-      syncInvisibleOverlayMousePassthrough(),
-    shouldBindVisibleOverlayToMpvSubVisibility: () =>
-      shouldBindVisibleOverlayToMpvSubVisibility(),
-    isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
-    setMpvSubVisibility: (mpvSubVisible: boolean) => {
-      setMpvSubVisibilityRuntimeService(mpvClient, mpvSubVisible);
-    },
-  });
 
-function getSubsyncRuntimeDeps() {
-  return createSubsyncRuntimeDepsService({
-    getMpvClient: () => mpvClient,
+function getSubsyncRuntimeServiceParams() {
+  return createSubsyncRuntimeServiceInputFromState({
+    getMpvClient: () => appState.mpvClient,
     getResolvedSubsyncConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
-    isSubsyncInProgress: () => subsyncInProgress,
+    getSubsyncInProgress: () => appState.subsyncInProgress,
     setSubsyncInProgress: (inProgress: boolean) => {
-      subsyncInProgress = inProgress;
+      appState.subsyncInProgress = inProgress;
     },
     showMpvOsd: (text: string) => showMpvOsd(text),
-    sendToVisibleOverlay: (channel, payload, options) =>
-      sendToVisibleOverlay(channel, payload, options),
+    openManualPicker: (payload: SubsyncManualPayload) => {
+      sendToActiveOverlayWindow("subsync:open-manual", payload, {
+        restoreOnModalClose: "subsync",
+      });
+    },
   });
 }
 
 async function triggerSubsyncFromConfig(): Promise<void> {
-  await triggerSubsyncFromConfigRuntimeService(getSubsyncRuntimeDeps());
+  await triggerSubsyncFromConfigRuntime(getSubsyncRuntimeServiceParams());
 }
 
 function cancelPendingMultiCopy(): void {
@@ -1043,59 +1083,67 @@ function startPendingMultiCopy(timeoutMs: number): void {
 function handleMultiCopyDigit(count: number): void {
   handleMultiCopyDigitService(
     count,
-    createHandleMultiCopyDigitDepsRuntimeService({
-      subtitleTimingTracker,
+    {
+      subtitleTimingTracker: appState.subtitleTimingTracker,
       writeClipboardText: (text) => clipboard.writeText(text),
       showMpvOsd: (text) => showMpvOsd(text),
-    }),
+    },
   );
 }
 
 function copyCurrentSubtitle(): void {
   copyCurrentSubtitleService(
-    createCopyCurrentSubtitleDepsRuntimeService({
-      subtitleTimingTracker,
+    {
+      subtitleTimingTracker: appState.subtitleTimingTracker,
       writeClipboardText: (text) => clipboard.writeText(text),
       showMpvOsd: (text) => showMpvOsd(text),
-    }),
+    },
   );
 }
 
 async function updateLastCardFromClipboard(): Promise<void> {
   await updateLastCardFromClipboardService(
-    createUpdateLastCardFromClipboardDepsRuntimeService({
-      ankiIntegration,
+    {
+      ankiIntegration: appState.ankiIntegration,
       readClipboardText: () => clipboard.readText(),
       showMpvOsd: (text) => showMpvOsd(text),
-    }),
+    },
   );
+}
+
+async function refreshKnownWordCache(): Promise<void> {
+  if (!appState.ankiIntegration) {
+    throw new Error("AnkiConnect integration not enabled");
+  }
+
+  await appState.ankiIntegration.refreshKnownWordCache();
 }
 
 async function triggerFieldGrouping(): Promise<void> {
   await triggerFieldGroupingService(
-    createTriggerFieldGroupingDepsRuntimeService({
-      ankiIntegration,
+    {
+      ankiIntegration: appState.ankiIntegration,
       showMpvOsd: (text) => showMpvOsd(text),
-    }),
+    },
   );
 }
 
 async function markLastCardAsAudioCard(): Promise<void> {
   await markLastCardAsAudioCardService(
-    createMarkLastCardAsAudioCardDepsRuntimeService({
-      ankiIntegration,
+    {
+      ankiIntegration: appState.ankiIntegration,
       showMpvOsd: (text) => showMpvOsd(text),
-    }),
+    },
   );
 }
 
 async function mineSentenceCard(): Promise<void> {
   await mineSentenceCardService(
-    createMineSentenceCardDepsRuntimeService({
-      ankiIntegration,
-      mpvClient,
+    {
+      ankiIntegration: appState.ankiIntegration,
+      mpvClient: appState.mpvClient,
       showMpvOsd: (text) => showMpvOsd(text),
-    }),
+    },
   );
 }
 
@@ -1118,231 +1166,239 @@ function startPendingMineSentenceMultiple(timeoutMs: number): void {
 function handleMineSentenceDigit(count: number): void {
   handleMineSentenceDigitService(
     count,
-    createHandleMineSentenceDigitDepsRuntimeService({
-      subtitleTimingTracker,
-      ankiIntegration,
+    {
+      subtitleTimingTracker: appState.subtitleTimingTracker,
+      ankiIntegration: appState.ankiIntegration,
       getCurrentSecondarySubText: () =>
-        mpvClient?.currentSecondarySubText || undefined,
+        appState.mpvClient?.currentSecondarySubText || undefined,
       showMpvOsd: (text) => showMpvOsd(text),
       logError: (message, err) => {
         console.error(message, err);
       },
-    }),
+    },
   );
 }
 
 function registerOverlayShortcuts(): void {
-  shortcutsRegistered = registerOverlayShortcutsService(
-    getConfiguredShortcuts(),
-    getOverlayShortcutRuntimeHandlers().overlayHandlers,
-  );
-}
-
-function getOverlayShortcutLifecycleDeps() {
-  return createOverlayShortcutLifecycleDepsRuntimeService({
-    getConfiguredShortcuts: () => getConfiguredShortcuts(),
-    getOverlayHandlers: () => getOverlayShortcutRuntimeHandlers().overlayHandlers,
-    cancelPendingMultiCopy: () => cancelPendingMultiCopy(),
-    cancelPendingMineSentenceMultiple: () => cancelPendingMineSentenceMultiple(),
-  });
+  overlayShortcutsRuntime.registerOverlayShortcuts();
 }
 
 function unregisterOverlayShortcuts(): void {
-  shortcutsRegistered = unregisterOverlayShortcutsRuntimeService(
-    shortcutsRegistered,
-    getOverlayShortcutLifecycleDeps(),
-  );
+  overlayShortcutsRuntime.unregisterOverlayShortcuts();
 }
 
-function shouldOverlayShortcutsBeActive(): boolean { return overlayRuntimeInitialized; }
 function syncOverlayShortcuts(): void {
-  shortcutsRegistered = syncOverlayShortcutsRuntimeService(
-    shouldOverlayShortcutsBeActive(),
-    shortcutsRegistered,
-    getOverlayShortcutLifecycleDeps(),
-  );
+  overlayShortcutsRuntime.syncOverlayShortcuts();
 }
 function refreshOverlayShortcuts(): void {
-  shortcutsRegistered = refreshOverlayShortcutsRuntimeService(
-    shouldOverlayShortcutsBeActive(),
-    shortcutsRegistered,
-    getOverlayShortcutLifecycleDeps(),
-  );
+  overlayShortcutsRuntime.refreshOverlayShortcuts();
 }
 
 function updateVisibleOverlayVisibility(): void {
   updateVisibleOverlayVisibilityService(
-    createVisibleOverlayVisibilityDepsRuntimeService({
-      getVisibleOverlayVisible: () => visibleOverlayVisible,
-      getMainWindow: () => mainWindow,
-      getWindowTracker: () => windowTracker,
-      getTrackerNotReadyWarningShown: () => trackerNotReadyWarningShown,
+    {
+      visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
+      mainWindow: overlayManager.getMainWindow(),
+      windowTracker: appState.windowTracker,
+      trackerNotReadyWarningShown: appState.trackerNotReadyWarningShown,
       setTrackerNotReadyWarningShown: (shown) => {
-        trackerNotReadyWarningShown = shown;
+        appState.trackerNotReadyWarningShown = shown;
       },
-      shouldBindVisibleOverlayToMpvSubVisibility: () =>
-        shouldBindVisibleOverlayToMpvSubVisibility(),
-      getPreviousSecondarySubVisibility: () => previousSecondarySubVisibility,
-      setPreviousSecondarySubVisibility: (value) => {
-        previousSecondarySubVisibility = value;
-      },
-      isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
-      mpvSend: (payload) => {
-        if (!mpvClient) return;
-        mpvClient.send(payload);
-      },
-      secondarySubVisibilityRequestId: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
-      updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
+      updateVisibleOverlayBounds: (geometry) => updateVisibleOverlayBounds(geometry),
       ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
       enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
       syncOverlayShortcuts: () => syncOverlayShortcuts(),
-    }),
+    },
   );
 }
 
 function updateInvisibleOverlayVisibility(): void {
   updateInvisibleOverlayVisibilityService(
-    createInvisibleOverlayVisibilityDepsRuntimeService({
-      getInvisibleWindow: () => invisibleWindow,
-      getVisibleOverlayVisible: () => visibleOverlayVisible,
-      getInvisibleOverlayVisible: () => invisibleOverlayVisible,
-      getWindowTracker: () => windowTracker,
-      updateOverlayBounds: (geometry) => updateOverlayBounds(geometry),
+    {
+      invisibleWindow: overlayManager.getInvisibleWindow(),
+      visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
+      invisibleOverlayVisible: overlayManager.getInvisibleOverlayVisible(),
+      windowTracker: appState.windowTracker,
+      updateInvisibleOverlayBounds: (geometry) => updateInvisibleOverlayBounds(geometry),
       ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
       enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
       syncOverlayShortcuts: () => syncOverlayShortcuts(),
-    }),
+    },
   );
 }
 
 function syncInvisibleOverlayMousePassthrough(): void {
   syncInvisibleOverlayMousePassthroughService({
-    hasInvisibleWindow: () => Boolean(invisibleWindow && !invisibleWindow.isDestroyed()),
+    hasInvisibleWindow: () => {
+      const invisibleWindow = overlayManager.getInvisibleWindow();
+      return Boolean(invisibleWindow && !invisibleWindow.isDestroyed());
+    },
     setIgnoreMouseEvents: (ignore, extra) => {
+      const invisibleWindow = overlayManager.getInvisibleWindow();
       if (!invisibleWindow || invisibleWindow.isDestroyed()) return;
       invisibleWindow.setIgnoreMouseEvents(ignore, extra);
     },
-    visibleOverlayVisible,
-    invisibleOverlayVisible,
+    visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
+    invisibleOverlayVisible: overlayManager.getInvisibleOverlayVisible(),
   });
 }
 
 function setVisibleOverlayVisible(visible: boolean): void {
-  setVisibleOverlayVisibleRuntimeFacadeService(visible, overlayVisibilityFacadeDeps);
+  setVisibleOverlayVisibleService({
+    visible,
+    setVisibleOverlayVisibleState: (nextVisible) => {
+      overlayManager.setVisibleOverlayVisible(nextVisible);
+    },
+    updateVisibleOverlayVisibility: () => updateVisibleOverlayVisibility(),
+    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
+    syncInvisibleOverlayMousePassthrough: () =>
+      syncInvisibleOverlayMousePassthrough(),
+    shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      shouldBindVisibleOverlayToMpvSubVisibility(),
+    isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
+    setMpvSubVisibility: (mpvSubVisible) => {
+      setMpvSubVisibilityRuntimeService(appState.mpvClient, mpvSubVisible);
+    },
+  });
 }
 
 function setInvisibleOverlayVisible(visible: boolean): void {
-  setInvisibleOverlayVisibleRuntimeFacadeService(
+  setInvisibleOverlayVisibleService({
     visible,
-    overlayVisibilityFacadeDeps,
-  );
+    setInvisibleOverlayVisibleState: (nextVisible) => {
+      overlayManager.setInvisibleOverlayVisible(nextVisible);
+    },
+    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
+    syncInvisibleOverlayMousePassthrough: () =>
+      syncInvisibleOverlayMousePassthrough(),
+  });
 }
 
 function toggleVisibleOverlay(): void {
-  toggleVisibleOverlayRuntimeFacadeService(overlayVisibilityFacadeDeps);
+  setVisibleOverlayVisible(!overlayManager.getVisibleOverlayVisible());
 }
 function toggleInvisibleOverlay(): void {
-  toggleInvisibleOverlayRuntimeFacadeService(overlayVisibilityFacadeDeps);
+  setInvisibleOverlayVisible(!overlayManager.getInvisibleOverlayVisible());
 }
 function setOverlayVisible(visible: boolean): void { setVisibleOverlayVisible(visible); }
 function toggleOverlay(): void { toggleVisibleOverlay(); }
 function handleOverlayModalClosed(modal: OverlayHostedModal): void {
-  handleOverlayModalClosedService(
-    restoreVisibleOverlayOnModalClose,
-    modal,
-    (visible) => setVisibleOverlayVisible(visible),
-  );
+  overlayModalRuntime.handleOverlayModalClosed(modal);
 }
 
 function handleMpvCommandFromIpc(command: (string | number)[]): void {
-  handleMpvCommandFromIpcService(
-    command,
-    createMpvCommandIpcDepsRuntimeService({
-      specialCommands: SPECIAL_COMMANDS,
-      triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-      openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-      getRuntimeOptionsManager: () => runtimeOptionsManager,
-      showMpvOsd: (text) => showMpvOsd(text),
-      mpvReplaySubtitle: () => replayCurrentSubtitleRuntimeService(mpvClient),
-      mpvPlayNextSubtitle: () => playNextSubtitleRuntimeService(mpvClient),
-      mpvSendCommand: (rawCommand) =>
-        sendMpvCommandRuntimeService(mpvClient, rawCommand),
-      isMpvConnected: () => Boolean(mpvClient && mpvClient.connected),
-    }),
-  );
+  handleMpvCommandFromIpcRuntime(command, {
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    cycleRuntimeOption: (id, direction) => {
+      if (!appState.runtimeOptionsManager) {
+        return { ok: false, error: "Runtime options manager unavailable" };
+      }
+      return applyRuntimeOptionResultRuntimeService(
+        appState.runtimeOptionsManager.cycleOption(id, direction),
+        (text) => showMpvOsd(text),
+      );
+    },
+    showMpvOsd: (text: string) => showMpvOsd(text),
+    replayCurrentSubtitle: () => replayCurrentSubtitleRuntimeService(appState.mpvClient),
+    playNextSubtitle: () => playNextSubtitleRuntimeService(appState.mpvClient),
+    sendMpvCommand: (rawCommand: (string | number)[]) =>
+      sendMpvCommandRuntimeService(appState.mpvClient, rawCommand),
+    isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
+    hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
+  });
 }
 
 async function runSubsyncManualFromIpc(
   request: SubsyncManualRunRequest,
 ): Promise<SubsyncResult> {
-  return runSubsyncManualFromIpcRuntimeService(request, getSubsyncRuntimeDeps());
+  return runSubsyncManualFromIpcRuntime(request, getSubsyncRuntimeServiceParams());
 }
 
-const runtimeOptionsIpcDeps = createRuntimeOptionsIpcDepsRuntimeService({
-  getRuntimeOptionsManager: () => runtimeOptionsManager,
-  showMpvOsd: (text) => showMpvOsd(text),
-});
-
-registerIpcHandlersService(
-  createIpcDepsRuntimeService({
-    getInvisibleWindow: () => invisibleWindow,
-    getMainWindow: () => mainWindow,
-    getVisibleOverlayVisibility: () => visibleOverlayVisible,
-    getInvisibleOverlayVisibility: () => invisibleOverlayVisible,
-    onOverlayModalClosed: (modal) =>
-      handleOverlayModalClosed(modal as OverlayHostedModal),
+registerIpcRuntimeServices({
+  runtimeOptions: {
+    getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
+    showMpvOsd: (text: string) => showMpvOsd(text),
+  },
+  mainDeps: {
+    getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
+    getMainWindow: () => overlayManager.getMainWindow(),
+    getVisibleOverlayVisibility: () => overlayManager.getVisibleOverlayVisible(),
+    getInvisibleOverlayVisibility: () => overlayManager.getInvisibleOverlayVisible(),
+    onOverlayModalClosed: (modal: string) => {
+      handleOverlayModalClosed(modal as OverlayHostedModal);
+    },
     openYomitanSettings: () => openYomitanSettings(),
     quitApp: () => app.quit(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
-    tokenizeCurrentSubtitle: () => tokenizeSubtitle(currentSubText),
-    getCurrentSubtitleAss: () => currentSubAssText,
-    getMpvSubtitleRenderMetrics: () => mpvSubtitleRenderMetrics,
+    tokenizeCurrentSubtitle: () => tokenizeSubtitle(appState.currentSubText),
+    getCurrentSubtitleAss: () => appState.currentSubAssText,
+    getMpvSubtitleRenderMetrics: () => appState.mpvSubtitleRenderMetrics,
     getSubtitlePosition: () => loadSubtitlePosition(),
-    getSubtitleStyle: () => getResolvedConfig().subtitleStyle ?? null,
-    saveSubtitlePosition: (position) =>
-      saveSubtitlePosition(position as SubtitlePosition),
-    getMecabTokenizer: () => mecabTokenizer,
-    handleMpvCommand: (command) => handleMpvCommandFromIpc(command),
-    getKeybindings: () => keybindings,
-    getSecondarySubMode: () => secondarySubMode,
-    getMpvClient: () => mpvClient,
-    runSubsyncManual: (request) =>
-      runSubsyncManualFromIpc(request as SubsyncManualRunRequest),
-    getAnkiConnectStatus: () => ankiIntegration !== null,
-    getRuntimeOptions: () => getRuntimeOptionsState(),
-    setRuntimeOption: runtimeOptionsIpcDeps.setRuntimeOption,
-    cycleRuntimeOption: runtimeOptionsIpcDeps.cycleRuntimeOption,
-  }),
-);
+      getSubtitleStyle: () => {
+        const resolvedConfig = getResolvedConfig();
+        if (!resolvedConfig.subtitleStyle) {
+          return null;
+        }
 
-registerAnkiJimakuIpcRuntimeService(
-  createAnkiJimakuIpcDepsRuntimeService({
-    patchAnkiConnectEnabled: (enabled) => {
+        return {
+          ...resolvedConfig.subtitleStyle,
+          nPlusOneColor: resolvedConfig.ankiConnect.nPlusOne.nPlusOne,
+          knownWordColor: resolvedConfig.ankiConnect.nPlusOne.knownWord,
+        };
+      },
+    saveSubtitlePosition: (position: unknown) =>
+      saveSubtitlePosition(position as SubtitlePosition),
+    getMecabTokenizer: () => appState.mecabTokenizer,
+    handleMpvCommand: (command: (string | number)[]) =>
+      handleMpvCommandFromIpc(command),
+    getKeybindings: () => appState.keybindings,
+    getSecondarySubMode: () => appState.secondarySubMode,
+    getMpvClient: () => appState.mpvClient,
+    runSubsyncManual: (request: unknown) =>
+      runSubsyncManualFromIpc(request as SubsyncManualRunRequest),
+    getAnkiConnectStatus: () => appState.ankiIntegration !== null,
+    getRuntimeOptions: () => getRuntimeOptionsState(),
+    reportOverlayContentBounds: (payload: unknown) => {
+      overlayContentMeasurementStore.report(payload);
+    },
+  },
+  ankiJimakuDeps: createAnkiJimakuIpcRuntimeServiceDeps({
+    patchAnkiConnectEnabled: (enabled: boolean) => {
       configService.patchRawConfig({ ankiConnect: { enabled } });
     },
     getResolvedConfig: () => getResolvedConfig(),
-    getRuntimeOptionsManager: () => runtimeOptionsManager,
-    getSubtitleTimingTracker: () => subtitleTimingTracker,
-    getMpvClient: () => mpvClient,
-    getAnkiIntegration: () => ankiIntegration,
-    setAnkiIntegration: (integration) => {
-      ankiIntegration = integration;
+    getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
+    getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+    getMpvClient: () => appState.mpvClient,
+    getAnkiIntegration: () => appState.ankiIntegration,
+    setAnkiIntegration: (integration: AnkiIntegration | null) => {
+      appState.ankiIntegration = integration;
     },
+    getKnownWordCacheStatePath: () =>
+      path.join(USER_DATA_PATH, "known-words-cache.json"),
     showDesktopNotification,
     createFieldGroupingCallback: () => createFieldGroupingCallback(),
     broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-    getFieldGroupingResolver: () => fieldGroupingResolver,
-    setFieldGroupingResolver: (resolver) => {
-      fieldGroupingResolver = resolver;
-    },
-    parseMediaInfo: (mediaPath) => parseMediaInfo(mediaPath),
-    getCurrentMediaPath: () => currentMediaPath,
-    jimakuFetchJson: (endpoint, query) => jimakuFetchJson(endpoint, query),
+    getFieldGroupingResolver: () => getFieldGroupingResolver(),
+    setFieldGroupingResolver: (
+      resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
+    ) => setFieldGroupingResolver(resolver),
+    parseMediaInfo: (mediaPath: string | null) =>
+      parseMediaInfo(resolveMediaPathForJimaku(mediaPath)),
+    getCurrentMediaPath: () => appState.currentMediaPath,
+    jimakuFetchJson: <T>(
+      endpoint: string,
+      query?: Record<string, string | number | boolean | null | undefined>,
+    ): Promise<JimakuApiResponse<T>> => jimakuFetchJson<T>(endpoint, query),
     getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(),
     getJimakuLanguagePreference: () => getJimakuLanguagePreference(),
     resolveJimakuApiKey: () => resolveJimakuApiKey(),
-    isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
-    downloadToFile: (url, destPath, headers) =>
-      downloadToFile(url, destPath, headers),
+    isRemoteMediaPath: (mediaPath: string) => isRemoteMediaPath(mediaPath),
+    downloadToFile: (
+      url: string,
+      destPath: string,
+      headers: Record<string, string>,
+    ) => downloadToFile(url, destPath, headers),
   }),
-);
+});

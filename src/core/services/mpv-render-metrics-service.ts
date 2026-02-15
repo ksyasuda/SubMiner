@@ -1,6 +1,33 @@
 import { MpvSubtitleRenderMetrics } from "../../types";
 import { asBoolean, asFiniteNumber, asString } from "../utils/coerce";
 
+export const DEFAULT_MPV_SUBTITLE_RENDER_METRICS: MpvSubtitleRenderMetrics = {
+  subPos: 100,
+  subFontSize: 38,
+  subScale: 1,
+  subMarginY: 34,
+  subMarginX: 19,
+  subFont: "sans-serif",
+  subSpacing: 0,
+  subBold: false,
+  subItalic: false,
+  subBorderSize: 2.5,
+  subShadowOffset: 0,
+  subAssOverride: "yes",
+  subScaleByWindow: true,
+  subUseMargins: true,
+  osdHeight: 720,
+  osdDimensions: null,
+};
+
+export function sanitizeMpvSubtitleRenderMetrics(
+  current: MpvSubtitleRenderMetrics,
+  patch: Partial<MpvSubtitleRenderMetrics> | null | undefined,
+): MpvSubtitleRenderMetrics {
+  if (!patch) return current;
+  return updateMpvSubtitleRenderMetricsService(current, patch);
+}
+
 export function updateMpvSubtitleRenderMetricsService(
   current: MpvSubtitleRenderMetrics,
   patch: Partial<MpvSubtitleRenderMetrics>,

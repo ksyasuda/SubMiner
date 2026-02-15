@@ -4,19 +4,17 @@ import { WindowGeometry } from "../../types";
 
 export type OverlayWindowKind = "visible" | "invisible";
 
-export function updateOverlayBoundsService(
+export function updateOverlayWindowBoundsService(
   geometry: WindowGeometry,
-  getOverlayWindows: () => BrowserWindow[],
+  window: BrowserWindow | null,
 ): void {
-  if (!geometry) return;
-  for (const window of getOverlayWindows()) {
-    window.setBounds({
-      x: geometry.x,
-      y: geometry.y,
-      width: geometry.width,
-      height: geometry.height,
-    });
-  }
+  if (!geometry || !window || window.isDestroyed()) return;
+  window.setBounds({
+    x: geometry.x,
+    y: geometry.y,
+    width: geometry.width,
+    height: geometry.height,
+  });
 }
 
 export function ensureOverlayWindowLevelService(window: BrowserWindow): void {

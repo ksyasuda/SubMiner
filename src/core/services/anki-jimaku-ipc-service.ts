@@ -1,6 +1,7 @@
 import { ipcMain, IpcMainEvent } from "electron";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 import {
   JimakuApiResponse,
   JimakuDownloadQuery,
@@ -18,6 +19,7 @@ import {
 export interface AnkiJimakuIpcDeps {
   setAnkiConnectEnabled: (enabled: boolean) => void;
   clearAnkiHistory: () => void;
+  refreshKnownWords: () => Promise<void> | void;
   respondFieldGrouping: (choice: KikuFieldGroupingChoice) => void;
   buildKikuMergePreview: (
     request: KikuMergePreviewRequest,
@@ -52,6 +54,10 @@ export function registerAnkiJimakuIpcHandlers(
 
   ipcMain.on("clear-anki-connect-history", () => {
     deps.clearAnkiHistory();
+  });
+
+  ipcMain.on("anki:refresh-known-words", async () => {
+    await deps.refreshKnownWords();
   });
 
   ipcMain.on(
@@ -115,14 +121,9 @@ export function registerAnkiJimakuIpcHandlers(
         return { ok: false, error: { error: "No media file loaded in MPV." } };
       }
 
-      if (deps.isRemoteMediaPath(currentMediaPath)) {
-        return {
-          ok: false,
-          error: { error: "Cannot download subtitles for remote media paths." },
-        };
-      }
-
-      const mediaDir = path.dirname(path.resolve(currentMediaPath));
+      const mediaDir = deps.isRemoteMediaPath(currentMediaPath)
+        ? fs.mkdtempSync(path.join(os.tmpdir(), "subminer-jimaku-"))
+        : path.dirname(path.resolve(currentMediaPath));
       const safeName = path.basename(query.name);
       if (!safeName) {
         return { ok: false, error: { error: "Invalid subtitle filename." } };

@@ -34,6 +34,7 @@ body {
 }
 
 #overlay {
+  position: relative;
   width: 100%;
   height: 100%;
   display: flex;
@@ -56,6 +57,10 @@ body {
   background: rgba(0, 0, 0, 0.55);
   pointer-events: auto;
   z-index: 1000;
+}
+
+#jimakuModal {
+  z-index: 1100;
 }
 
 .modal.hidden {
@@ -243,6 +248,8 @@ body {
   font-size: 35px;
   line-height: 1.5;
   color: #cad3f5;
+  --subtitle-known-word-color: #a6da95;
+  --subtitle-n-plus-one-color: #c6a0f6;
   text-shadow:
     2px 2px 4px rgba(0, 0, 0, 0.8),
     -1px -1px 2px rgba(0, 0, 0, 0.5);
@@ -279,6 +286,16 @@ body.settings-modal-open #subtitleContainer {
   position: relative;
 }
 
+#subtitleRoot .word.word-known {
+  color: var(--subtitle-known-word-color, #a6da95);
+  text-shadow: 0 0 6px rgba(166, 218, 149, 0.35);
+}
+
+#subtitleRoot .word.word-n-plus-one {
+  color: var(--subtitle-n-plus-one-color, #c6a0f6);
+  text-shadow: 0 0 6px rgba(198, 160, 246, 0.35);
+}
+
 #subtitleRoot .word:hover {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
@@ -300,6 +317,8 @@ body.layer-invisible #subtitleContainer {
   border: 0 !important;
   padding: 0 !important;
   border-radius: 0 !important;
+  position: relative;
+  z-index: 3;
 }
 
 body.layer-invisible #subtitleRoot,
@@ -342,10 +361,42 @@ body.layer-invisible.debug-invisible-visualization #subtitleRoot .word,
 body.layer-invisible.debug-invisible-visualization #subtitleRoot .c {
   color: #ed8796 !important;
   -webkit-text-fill-color: #ed8796 !important;
-  -webkit-text-stroke: 0.55px rgba(0, 0, 0, 0.95) !important;
-  text-shadow:
-    0 0 8px rgba(237, 135, 150, 0.9),
-    0 2px 6px rgba(0, 0, 0, 0.95) !important;
+  -webkit-text-stroke: calc(var(--sub-border-size, 2px) * 2) rgba(0, 0, 0, 0.85) !important;
+  paint-order: stroke fill !important;
+  text-shadow: none !important;
+}
+
+.invisible-position-edit-hud {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  max-width: min(90vw, 1100px);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(22, 24, 36, 0.88);
+  border: 1px solid rgba(130, 150, 255, 0.55);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+body.layer-invisible.invisible-position-edit .invisible-position-edit-hud {
+  opacity: 1;
+}
+
+body.layer-invisible.invisible-position-edit #subtitleRoot,
+body.layer-invisible.invisible-position-edit #subtitleRoot .word,
+body.layer-invisible.invisible-position-edit #subtitleRoot .c {
+  color: #ed8796 !important;
+  -webkit-text-fill-color: #ed8796 !important;
+  -webkit-text-stroke: calc(var(--sub-border-size, 2px) * 2) rgba(0, 0, 0, 0.85) !important;
+  paint-order: stroke fill !important;
+  text-shadow: none !important;
 }
 
 #secondarySubContainer {

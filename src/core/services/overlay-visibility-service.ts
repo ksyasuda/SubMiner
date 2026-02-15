@@ -2,81 +2,33 @@ import { BrowserWindow, screen } from "electron";
 import { BaseWindowTracker } from "../../window-trackers";
 import { WindowGeometry } from "../../types";
 
-interface MpvCommandSender {
-  command: Array<string | number>;
-  request_id?: number;
-}
-
 export function updateVisibleOverlayVisibilityService(args: {
   visibleOverlayVisible: boolean;
   mainWindow: BrowserWindow | null;
   windowTracker: BaseWindowTracker | null;
   trackerNotReadyWarningShown: boolean;
   setTrackerNotReadyWarningShown: (shown: boolean) => void;
-  shouldBindVisibleOverlayToMpvSubVisibility: boolean;
-  previousSecondarySubVisibility: boolean | null;
-  setPreviousSecondarySubVisibility: (value: boolean | null) => void;
-  mpvConnected: boolean;
-  mpvSend: (payload: MpvCommandSender) => void;
-  secondarySubVisibilityRequestId: number;
-  updateOverlayBounds: (geometry: WindowGeometry) => void;
+  updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
   ensureOverlayWindowLevel: (window: BrowserWindow) => void;
   enforceOverlayLayerOrder: () => void;
   syncOverlayShortcuts: () => void;
 }): void {
-  console.log(
-    "updateVisibleOverlayVisibility called, visibleOverlayVisible:",
-    args.visibleOverlayVisible,
-  );
   if (!args.mainWindow || args.mainWindow.isDestroyed()) {
-    console.log("mainWindow not available");
     return;
   }
 
   if (!args.visibleOverlayVisible) {
-    console.log("Hiding visible overlay");
     args.mainWindow.hide();
-
-    if (
-      args.shouldBindVisibleOverlayToMpvSubVisibility &&
-      args.previousSecondarySubVisibility !== null &&
-      args.mpvConnected
-    ) {
-      args.mpvSend({
-        command: [
-          "set_property",
-          "secondary-sub-visibility",
-          args.previousSecondarySubVisibility ? "yes" : "no",
-        ],
-      });
-      args.setPreviousSecondarySubVisibility(null);
-    } else if (!args.shouldBindVisibleOverlayToMpvSubVisibility) {
-      args.setPreviousSecondarySubVisibility(null);
-    }
     args.syncOverlayShortcuts();
     return;
-  }
-
-  console.log(
-    "Should show visible overlay, isTracking:",
-    args.windowTracker?.isTracking(),
-  );
-
-  if (args.shouldBindVisibleOverlayToMpvSubVisibility && args.mpvConnected) {
-    args.mpvSend({
-      command: ["get_property", "secondary-sub-visibility"],
-      request_id: args.secondarySubVisibilityRequestId,
-    });
   }
 
   if (args.windowTracker && args.windowTracker.isTracking()) {
     args.setTrackerNotReadyWarningShown(false);
     const geometry = args.windowTracker.getGeometry();
-    console.log("Geometry:", geometry);
     if (geometry) {
-      args.updateOverlayBounds(geometry);
+      args.updateVisibleOverlayBounds(geometry);
     }
-    console.log("Showing visible overlay mainWindow");
     args.ensureOverlayWindowLevel(args.mainWindow);
     args.mainWindow.show();
     args.mainWindow.focus();
@@ -96,15 +48,12 @@ export function updateVisibleOverlayVisibilityService(args: {
   }
 
   if (!args.trackerNotReadyWarningShown) {
-    console.warn(
-      "Window tracker exists but is not tracking yet; using fallback bounds until tracking starts",
-    );
     args.setTrackerNotReadyWarningShown(true);
   }
   const cursorPoint = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursorPoint);
   const fallbackBounds = display.workArea;
-  args.updateOverlayBounds({
+  args.updateVisibleOverlayBounds({
     x: fallbackBounds.x,
     y: fallbackBounds.y,
     width: fallbackBounds.width,
@@ -122,7 +71,7 @@ export function updateInvisibleOverlayVisibilityService(args: {
   visibleOverlayVisible: boolean;
   invisibleOverlayVisible: boolean;
   windowTracker: BaseWindowTracker | null;
-  updateOverlayBounds: (geometry: WindowGeometry) => void;
+  updateInvisibleOverlayBounds: (geometry: WindowGeometry) => void;
   ensureOverlayWindowLevel: (window: BrowserWindow) => void;
   enforceOverlayLayerOrder: () => void;
   syncOverlayShortcuts: () => void;
@@ -156,7 +105,7 @@ export function updateInvisibleOverlayVisibilityService(args: {
   if (args.windowTracker && args.windowTracker.isTracking()) {
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {
-      args.updateOverlayBounds(geometry);
+      args.updateInvisibleOverlayBounds(geometry);
     }
     showInvisibleWithoutFocus();
     args.syncOverlayShortcuts();
@@ -172,7 +121,7 @@ export function updateInvisibleOverlayVisibilityService(args: {
   const cursorPoint = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursorPoint);
   const fallbackBounds = display.workArea;
-  args.updateOverlayBounds({
+  args.updateInvisibleOverlayBounds({
     x: fallbackBounds.x,
     y: fallbackBounds.y,
     width: fallbackBounds.width,
@@ -180,4 +129,51 @@ export function updateInvisibleOverlayVisibilityService(args: {
   });
   showInvisibleWithoutFocus();
   args.syncOverlayShortcuts();
+}
+
+export function syncInvisibleOverlayMousePassthroughService(options: {
+  hasInvisibleWindow: () => boolean;
+  setIgnoreMouseEvents: (ignore: boolean, extra?: { forward: boolean }) => void;
+  visibleOverlayVisible: boolean;
+  invisibleOverlayVisible: boolean;
+}): void {
+  if (!options.hasInvisibleWindow()) return;
+  if (options.visibleOverlayVisible) {
+    options.setIgnoreMouseEvents(true, { forward: true });
+  } else if (options.invisibleOverlayVisible) {
+    options.setIgnoreMouseEvents(false);
+  }
+}
+
+export function setVisibleOverlayVisibleService(options: {
+  visible: boolean;
+  setVisibleOverlayVisibleState: (visible: boolean) => void;
+  updateVisibleOverlayVisibility: () => void;
+  updateInvisibleOverlayVisibility: () => void;
+  syncInvisibleOverlayMousePassthrough: () => void;
+  shouldBindVisibleOverlayToMpvSubVisibility: () => boolean;
+  isMpvConnected: () => boolean;
+  setMpvSubVisibility: (visible: boolean) => void;
+}): void {
+  options.setVisibleOverlayVisibleState(options.visible);
+  options.updateVisibleOverlayVisibility();
+  options.updateInvisibleOverlayVisibility();
+  options.syncInvisibleOverlayMousePassthrough();
+  if (
+    options.shouldBindVisibleOverlayToMpvSubVisibility() &&
+    options.isMpvConnected()
+  ) {
+    options.setMpvSubVisibility(!options.visible);
+  }
+}
+
+export function setInvisibleOverlayVisibleService(options: {
+  visible: boolean;
+  setInvisibleOverlayVisibleState: (visible: boolean) => void;
+  updateInvisibleOverlayVisibility: () => void;
+  syncInvisibleOverlayMousePassthrough: () => void;
+}): void {
+  options.setInvisibleOverlayVisibleState(options.visible);
+  options.updateInvisibleOverlayVisibility();
+  options.syncInvisibleOverlayMousePassthrough();
 }

@@ -27,11 +27,18 @@ interface HyprlandClient {
   class: string;
   at: [number, number];
   size: [number, number];
+  pid?: number;
 }
 
 export class HyprlandWindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private eventSocket: net.Socket | null = null;
+  private readonly targetMpvSocketPath: string | null;
+
+  constructor(targetMpvSocketPath?: string) {
+    super();
+    this.targetMpvSocketPath = targetMpvSocketPath?.trim() || null;
+  }
 
   start(): void {
     this.pollInterval = setInterval(() => this.pollGeometry(), 250);
@@ -95,7 +102,7 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
     try {
       const output = execSync("hyprctl clients -j", { encoding: "utf-8" });
       const clients: HyprlandClient[] = JSON.parse(output);
-      const mpvWindow = clients.find((c) => c.class === "mpv");
+      const mpvWindow = this.findTargetWindow(clients);
 
       if (mpvWindow) {
         this.updateGeometry({
@@ -110,5 +117,39 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
     } catch (err) {
       // hyprctl not available or failed - silent fail
     }
+  }
+
+  private findTargetWindow(clients: HyprlandClient[]): HyprlandClient | null {
+    const mpvWindows = clients.filter((client) => client.class === "mpv");
+    if (!this.targetMpvSocketPath) {
+      return mpvWindows[0] || null;
+    }
+
+    for (const mpvWindow of mpvWindows) {
+      if (!mpvWindow.pid) {
+        continue;
+      }
+
+      const commandLine = this.getWindowCommandLine(mpvWindow.pid);
+      if (!commandLine) {
+        continue;
+      }
+
+      if (
+        commandLine.includes(`--input-ipc-server=${this.targetMpvSocketPath}`) ||
+        commandLine.includes(`--input-ipc-server ${this.targetMpvSocketPath}`)
+      ) {
+        return mpvWindow;
+      }
+    }
+
+    return null;
+  }
+
+  private getWindowCommandLine(pid: number): string | null {
+    const commandLine = execSync(`ps -p ${pid} -o args=`, {
+      encoding: "utf-8",
+    }).trim();
+    return commandLine || null;
   }
 }

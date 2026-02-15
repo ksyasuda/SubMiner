@@ -1,19 +1,17 @@
-# SubMiner Script vs MPV Plugin
+# Usage
 
-There are two ways to use SubMiner:
+There are two ways to use SubMiner — the `subminer` wrapper script or the mpv plugin:
 
 | Approach            | Best For                                                                                                                                                                              |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, starts the overlay automatically, and cleans up on exit.                                          |
 | **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control visible and invisible overlay layers. Requires `--input-ipc-server=/tmp/subminer-socket`. |
 
-Jimaku modal shortcut is an overlay shortcut, not an MPV plugin chord: default `Ctrl+Alt+J` via `shortcuts.openJimaku`.
-
 You can use both together—install the plugin for on-demand control, but use `subminer` when you want the streamlined workflow.
 
 `subminer` is implemented as a Bun script and runs directly via shebang (no `bun run` needed), for example: `subminer video.mkv`.
 
-## Usage
+## Commands
 
 ```bash
 # Browse and play videos
@@ -33,22 +31,32 @@ subminer -p gpu-hq video.mkv      # Override mpv profile
 subminer --yt-subgen-mode preprocess --whisper-bin /path/to/whisper-cli --whisper-model /path/to/model.bin https://youtu.be/...  # Pre-generate subtitle tracks before playback
 
 # Direct AppImage control
-subminer.AppImage --start --texthooker   # Start overlay with texthooker
-subminer.AppImage --texthooker           # Launch texthooker only (no overlay window)
-subminer.AppImage --stop                  # Stop overlay
-subminer.AppImage --start --toggle        # Start MPV IPC + toggle visibility
-subminer.AppImage --start --toggle-invisible-overlay  # Start MPV IPC + toggle invisible layer
-subminer.AppImage --show-visible-overlay              # Force show visible overlay
-subminer.AppImage --hide-visible-overlay              # Force hide visible overlay
-subminer.AppImage --show-invisible-overlay            # Force show invisible overlay
-subminer.AppImage --hide-invisible-overlay            # Force hide invisible overlay
-subminer.AppImage --settings              # Open Yomitan settings
-subminer.AppImage --help                  # Show all options
+SubMiner.AppImage --start --texthooker   # Start overlay with texthooker
+SubMiner.AppImage --texthooker           # Launch texthooker only (no overlay window)
+SubMiner.AppImage --stop                  # Stop overlay
+SubMiner.AppImage --start --toggle        # Start MPV IPC + toggle visibility
+SubMiner.AppImage --start --toggle-invisible-overlay  # Start MPV IPC + toggle invisible layer
+SubMiner.AppImage --show-visible-overlay              # Force show visible overlay
+SubMiner.AppImage --hide-visible-overlay              # Force hide visible overlay
+SubMiner.AppImage --show-invisible-overlay            # Force show invisible overlay
+SubMiner.AppImage --hide-invisible-overlay            # Force hide invisible overlay
+SubMiner.AppImage --settings              # Open Yomitan settings
+SubMiner.AppImage --help                  # Show all options
 ```
 
 ### MPV Profile Example (mpv.conf)
 
-Add a profile to `~/.config/mpv/mpv.conf`; `subminer` now launches mpv with `--profile=subminer` by default (or override with `subminer -p <profile> ...`):
+`subminer` passes the following MPV options directly on launch by default:
+
+- `--input-ipc-server=/tmp/subminer-socket` (or your configured socket path)
+- `--slang=ja,jpn,en,eng`
+- `--sub-auto=fuzzy`
+- `--sub-file-paths=.;subs;subtitles`
+- `--sid=auto`
+- `--secondary-sid=auto`
+- `--secondary-sub-visibility=no`
+
+You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency when launching `mpv` manually or from other tools. `subminer` launches with `--profile=subminer` by default (or override with `subminer -p <profile> ...`):
 
 ```ini
 [subminer]
@@ -85,7 +93,7 @@ Notes:
 - Secondary target languages come from `secondarySub.secondarySubLanguages` (defaults to English if unset).
 - `subminer` prefers subtitle tracks from yt-dlp first, then falls back to local `whisper.cpp` (`whisper-cli`) when tracks are missing.
 - Whisper translation fallback currently only supports English secondary targets; non-English secondary targets rely on yt-dlp subtitle availability.
-- Configure defaults in `~/.config/SubMiner/config.jsonc` under `youtubeSubgen` and `secondarySub`, or override mode/tool paths via CLI flags/environment variables.
+- Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtubeSubgen` and `secondarySub`, or override mode/tool paths via CLI flags/environment variables.
 
 ## Keybindings
 
@@ -114,14 +122,12 @@ Notes:
 | `Ctrl+W`             | Quit mpv                                           |
 | `Right-click`        | Toggle MPV pause (outside subtitle area)           |
 | `Right-click + drag` | Move subtitle position (on subtitle)               |
+| `Ctrl/Cmd+Shift+P`   | Toggle invisible subtitle position edit mode       |
+| `Arrow keys`         | Move invisible subtitles while edit mode is active |
+| `Enter` / `Ctrl+S`   | Save invisible subtitle position in edit mode      |
+| `Esc`                | Cancel invisible subtitle position edit mode       |
 
 These keybindings only work when the overlay window has focus. See [Configuration](/configuration) for customization.
-
-### Overlay Chord Shortcuts
-
-| Chord     | Action                    |
-| --------- | ------------------------- |
-| `y` → `j` | Open Jimaku subtitle menu |
 
 ## How It Works
 

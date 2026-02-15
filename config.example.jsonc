@@ -2,7 +2,7 @@
  * SubMiner Example Configuration File
  *
  * This file is auto-generated from src/config/definitions.ts.
- * Copy to ~/.config/SubMiner/config.jsonc and edit as needed.
+ * Copy to $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) and edit as needed.
  */
 {
 
@@ -82,6 +82,14 @@
       "notificationType": "osd",
       "autoUpdateNewCards": true
     },
+    "nPlusOne": {
+      "highlightEnabled": false,
+      "refreshMinutes": 1440,
+      "matchMode": "headword",
+      "decks": [],
+      "nPlusOne": "#c6a0f6",
+      "knownWord": "#a6da95"
+    },
     "metadata": {
       "pattern": "[SubMiner] %f (%t)"
     },
@@ -115,12 +123,15 @@
     "multiCopyTimeoutMs": 3000,
     "toggleSecondarySub": "CommandOrControl+Shift+V",
     "markAudioCard": "CommandOrControl+Shift+A",
-    "openRuntimeOptions": "CommandOrControl+Shift+O"
+    "openRuntimeOptions": "CommandOrControl+Shift+O",
+    "openJimaku": "Ctrl+Shift+J"
   },
 
   // ==========================================
   // Invisible Overlay
   // Startup behavior for the invisible interactive subtitle mining layer.
+  // Invisible subtitle position edit mode: Ctrl/Cmd+Shift+P to toggle, arrow keys to move, Enter or Ctrl/Cmd+S to save, Esc to cancel.
+  // This edit-mode shortcut is fixed and is not currently configurable.
   // ==========================================
   "invisibleOverlay": {
     "startupVisibility": "platform-default"
@@ -144,6 +155,8 @@
     "fontWeight": "normal",
     "fontStyle": "normal",
     "backgroundColor": "rgba(54, 58, 79, 0.5)",
+    "nPlusOneColor": "#c6a0f6",
+    "knownWordColor": "#a6da95",
     "secondary": {
       "fontSize": 24,
       "fontColor": "#ffffff",

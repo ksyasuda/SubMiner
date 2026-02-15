@@ -69,7 +69,255 @@ test("parses invisible overlay config and new global shortcuts", () => {
 
 test("runtime options registry is centralized", () => {
   const ids = RUNTIME_OPTION_REGISTRY.map((entry) => entry.id);
-  assert.deepEqual(ids, ["anki.autoUpdateNewCards", "anki.kikuFieldGrouping"]);
+  assert.deepEqual(ids, [
+    "anki.autoUpdateNewCards",
+    "anki.nPlusOneMatchMode",
+    "anki.kikuFieldGrouping",
+  ]);
+});
+
+test("validates ankiConnect n+1 behavior values", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "highlightEnabled": "yes",
+          "refreshMinutes": -5
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(
+    config.ankiConnect.nPlusOne.highlightEnabled,
+    DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled,
+  );
+  assert.equal(
+    config.ankiConnect.nPlusOne.refreshMinutes,
+    DEFAULT_CONFIG.ankiConnect.nPlusOne.refreshMinutes,
+  );
+  assert.ok(
+    warnings.some(
+      (warning) => warning.path === "ankiConnect.nPlusOne.highlightEnabled",
+    ),
+  );
+  assert.ok(
+    warnings.some(
+      (warning) => warning.path === "ankiConnect.nPlusOne.refreshMinutes",
+    ),
+  );
+});
+
+test("accepts valid ankiConnect n+1 behavior values", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "highlightEnabled": true,
+          "refreshMinutes": 120
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.ankiConnect.nPlusOne.highlightEnabled, true);
+  assert.equal(config.ankiConnect.nPlusOne.refreshMinutes, 120);
+});
+
+test("validates ankiConnect n+1 match mode values", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "matchMode": "bad-mode"
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(
+    config.ankiConnect.nPlusOne.matchMode,
+    DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode,
+  );
+  assert.ok(
+    warnings.some((warning) =>
+      warning.path === "ankiConnect.nPlusOne.matchMode",
+    ),
+  );
+});
+
+test("accepts valid ankiConnect n+1 match mode values", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "matchMode": "surface"
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.ankiConnect.nPlusOne.matchMode, "surface");
+});
+
+test("validates ankiConnect n+1 color values", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "nPlusOne": "not-a-color",
+          "knownWord": 123
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(
+    config.ankiConnect.nPlusOne.nPlusOne,
+    DEFAULT_CONFIG.ankiConnect.nPlusOne.nPlusOne,
+  );
+  assert.equal(
+    config.ankiConnect.nPlusOne.knownWord,
+    DEFAULT_CONFIG.ankiConnect.nPlusOne.knownWord,
+  );
+  assert.ok(
+    warnings.some((warning) => warning.path === "ankiConnect.nPlusOne.nPlusOne"),
+  );
+  assert.ok(
+    warnings.some((warning) => warning.path === "ankiConnect.nPlusOne.knownWord"),
+  );
+});
+
+test("accepts valid ankiConnect n+1 color values", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "nPlusOne": "#c6a0f6",
+          "knownWord": "#a6da95"
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.ankiConnect.nPlusOne.nPlusOne, "#c6a0f6");
+  assert.equal(config.ankiConnect.nPlusOne.knownWord, "#a6da95");
+});
+
+test("supports legacy ankiConnect.behavior N+1 settings as fallback", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "behavior": {
+          "nPlusOneHighlightEnabled": true,
+          "nPlusOneRefreshMinutes": 90,
+          "nPlusOneMatchMode": "surface"
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.ankiConnect.nPlusOne.highlightEnabled, true);
+  assert.equal(config.ankiConnect.nPlusOne.refreshMinutes, 90);
+  assert.equal(config.ankiConnect.nPlusOne.matchMode, "surface");
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === "ankiConnect.behavior.nPlusOneHighlightEnabled" ||
+        warning.path === "ankiConnect.behavior.nPlusOneRefreshMinutes" ||
+        warning.path === "ankiConnect.behavior.nPlusOneMatchMode",
+    ),
+  );
+});
+
+test("accepts valid ankiConnect n+1 deck list", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "decks": ["Deck One", "Deck Two"]
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.deepEqual(config.ankiConnect.nPlusOne.decks, ["Deck One", "Deck Two"]);
+});
+
+test("falls back to default when ankiConnect n+1 deck list is invalid", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "decks": "not-an-array"
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.deepEqual(config.ankiConnect.nPlusOne.decks, []);
+  assert.ok(
+    warnings.some((warning) => warning.path === "ankiConnect.nPlusOne.decks"),
+  );
 });
 
 test("template generator includes known keys", () => {
@@ -77,5 +325,8 @@ test("template generator includes known keys", () => {
   assert.match(output, /"ankiConnect":/);
   assert.match(output, /"websocket":/);
   assert.match(output, /"youtubeSubgen":/);
+  assert.match(output, /"nPlusOne"\s*:\s*\{/);
+  assert.match(output, /"nPlusOne": "#c6a0f6"/);
+  assert.match(output, /"knownWord": "#a6da95"/);
   assert.match(output, /auto-generated from src\/config\/definitions.ts/);
 });
