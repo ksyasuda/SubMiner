@@ -319,7 +319,7 @@ test("MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tra
       command: ["set_property", "secondary-sub-visibility", "no"],
     },
     {
-      command: ["set_property", "secondary-sub-visibility", "no"],
+      command: ["set_property", "secondary-sub-visibility", "yes"],
     },
   ]);
 

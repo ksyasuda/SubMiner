@@ -301,11 +301,11 @@ test("runSubsyncManualService constructs alass command and returns failure on no
 test("runSubsyncManualService resolves string sid values from mpv stream properties", async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "subsync-stream-sid-"));
   const ffsubsyncPath = path.join(tmpDir, "ffsubsync.sh");
+  const ffsubsyncLogPath = path.join(tmpDir, "ffsubsync-args.log");
   const ffmpegPath = path.join(tmpDir, "ffmpeg.sh");
   const alassPath = path.join(tmpDir, "alass.sh");
   const videoPath = path.join(tmpDir, "video.mkv");
   const primaryPath = path.join(tmpDir, "primary.srt");
-  const syncOutputPath = path.join(tmpDir, "synced.srt");
 
   fs.writeFileSync(videoPath, "video");
   fs.writeFileSync(primaryPath, "subtitle");
@@ -313,7 +313,7 @@ test("runSubsyncManualService resolves string sid values from mpv stream propert
   writeExecutableScript(alassPath, "#!/bin/sh\nexit 0\n");
   writeExecutableScript(
     ffsubsyncPath,
-    `#!/bin/sh\nmkdir -p "${tmpDir}"\nprev=""; for arg in "$@"; do if [ "$prev" = "--reference-stream" ]; then :; fi; if [ "$prev" = "-o" ]; then echo "$arg" > "${syncOutputPath}"; fi; prev="$arg"; done`,
+    `#!/bin/sh\n: > "${ffsubsyncLogPath}"\nfor arg in "$@"; do\n  printf '%s\\n' "$arg" >> "${ffsubsyncLogPath}"\ndone\nprev=""\nfor arg in "$@"; do\n  if [ "$prev" = "-o" ]; then\n    : > "$arg"\n  fi\n  prev="$arg"\ndone`,
   );
 
   const deps = makeDeps({
@@ -354,5 +354,9 @@ test("runSubsyncManualService resolves string sid values from mpv stream propert
 
   assert.equal(result.ok, true);
   assert.equal(result.message, "Subtitle synchronized with ffsubsync");
-  assert.equal(fs.readFileSync(syncOutputPath, "utf8"), "");
+  const ffsubsyncArgs = fs.readFileSync(ffsubsyncLogPath, "utf8").trim().split("\n");
+  const outputIndex = ffsubsyncArgs.findIndex((value) => value === "-o");
+  assert.ok(outputIndex >= 0);
+  const outputPath = ffsubsyncArgs[outputIndex + 1];
+  assert.equal(fs.readFileSync(outputPath, "utf8"), "");
 });

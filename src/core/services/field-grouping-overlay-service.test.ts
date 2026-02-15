@@ -13,6 +13,7 @@ test("createFieldGroupingOverlayRuntimeService sends overlay messages and sets r
     getMainWindow: () => ({
       isDestroyed: () => false,
       webContents: {
+        isLoading: () => false,
         send: (...args: unknown[]) => {
           sent.push(args);
         },

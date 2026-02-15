@@ -75,6 +75,7 @@ export interface MpvProtocolHandleMessageDeps {
   autoLoadSecondarySubTrack: () => void;
   setCurrentVideoPath: (value: string) => void;
   emitSecondarySubtitleVisibility: (payload: { visible: boolean }) => void;
+  setPreviousSecondarySubVisibility: (visible: boolean) => void;
   setCurrentAudioStreamIndex: (
     tracks: Array<{
       type?: string;
@@ -300,6 +301,7 @@ export async function dispatchMpvProtocolMessage(
     } else if (msg.request_id === MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY) {
       const previous = parseVisibilityProperty(msg.data);
       if (previous !== null) {
+        deps.setPreviousSecondarySubVisibility(previous);
         deps.emitSecondarySubtitleVisibility({ visible: previous });
       }
       deps.setSecondarySubVisibility(false);

@@ -293,6 +293,9 @@ export class MpvIpcClient implements MpvClient {
       emitSecondarySubtitleVisibility: (payload) => {
         this.emit("secondary-subtitle-visibility", payload);
       },
+      setPreviousSecondarySubVisibility: (visible: boolean) => {
+        this.previousSecondarySubVisibility = visible;
+      },
       setCurrentAudioStreamIndex: (tracks) => {
         this.updateCurrentAudioStreamIndex(tracks);
       },
