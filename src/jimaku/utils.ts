@@ -223,7 +223,8 @@ export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
     };
   }
 
-  const filename = path.basename(mediaPath);
+  const normalizedMediaPath = normalizeMediaPathForJimaku(mediaPath);
+  const filename = path.basename(normalizedMediaPath);
   let name = filename.replace(/\.[^/.]+$/, "");
   name = name.replace(/\[[^\]]*]/g, " ");
   name = name.replace(/\(\d{4}\)/g, " ");
@@ -237,7 +238,7 @@ export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
     titlePart = name.slice(0, parsed.index);
   }
 
-  const seasonFromDir = parsed.season ?? detectSeasonFromDir(mediaPath);
+  const seasonFromDir = parsed.season ?? detectSeasonFromDir(normalizedMediaPath);
   const title = cleanupTitle(titlePart || name);
 
   return {
@@ -248,6 +249,37 @@ export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
     filename,
     rawTitle: name,
   };
+}
+
+function normalizeMediaPathForJimaku(mediaPath: string): string {
+  const trimmed = mediaPath.trim();
+  if (!trimmed || !/^https?:\/\/.*/.test(trimmed)) {
+    return trimmed;
+  }
+
+  try {
+    const parsedUrl = new URL(trimmed);
+    const titleParam =
+      parsedUrl.searchParams.get("title") ||
+      parsedUrl.searchParams.get("name") ||
+      parsedUrl.searchParams.get("q");
+    if (titleParam && titleParam.trim()) return titleParam.trim();
+
+    const pathParts = parsedUrl.pathname.split("/").filter(Boolean).reverse();
+    const candidate = pathParts.find((part) => {
+      const decoded = decodeURIComponent(part || "").replace(/\.[^/.]+$/, "");
+      const lowered = decoded.toLowerCase();
+      return (
+        lowered.length > 2 &&
+        !/^[0-9.]+$/.test(lowered) &&
+        !/^[a-f0-9]{16,}$/i.test(lowered)
+      );
+    });
+
+    return decodeURIComponent(candidate || parsedUrl.hostname.replace(/^www\./, ""));
+  } catch {
+    return trimmed;
+  }
 }
 
 function formatLangScore(name: string, pref: JimakuLanguagePreference): number {

@@ -14,7 +14,8 @@ export function initializeOverlayRuntimeService(options: {
   createMainWindow: () => void;
   createInvisibleWindow: () => void;
   registerGlobalShortcuts: () => void;
-  updateOverlayBounds: (geometry: WindowGeometry) => void;
+  updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
+  updateInvisibleOverlayBounds: (geometry: WindowGeometry) => void;
   isVisibleOverlayVisible: () => boolean;
   isInvisibleOverlayVisible: () => boolean;
   updateVisibleOverlayVisibility: () => void;
@@ -22,6 +23,7 @@ export function initializeOverlayRuntimeService(options: {
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
+  getMpvSocketPath: () => string;
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   getSubtitleTimingTracker: () => unknown | null;
   getMpvClient: () => { send?: (payload: { command: string[] }) => void } | null;
@@ -33,6 +35,7 @@ export function initializeOverlayRuntimeService(options: {
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
+  getKnownWordCacheStatePath: () => string;
 }): {
   invisibleOverlayVisible: boolean;
 } {
@@ -41,14 +44,19 @@ export function initializeOverlayRuntimeService(options: {
   const invisibleOverlayVisible = options.getInitialInvisibleOverlayVisibility();
   options.registerGlobalShortcuts();
 
-  const windowTracker = createWindowTracker(options.backendOverride);
+  const windowTracker = createWindowTracker(
+    options.backendOverride,
+    options.getMpvSocketPath(),
+  );
   options.setWindowTracker(windowTracker);
   if (windowTracker) {
     windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
-      options.updateOverlayBounds(geometry);
+      options.updateVisibleOverlayBounds(geometry);
+      options.updateInvisibleOverlayBounds(geometry);
     };
     windowTracker.onWindowFound = (geometry: WindowGeometry) => {
-      options.updateOverlayBounds(geometry);
+      options.updateVisibleOverlayBounds(geometry);
+      options.updateInvisibleOverlayBounds(geometry);
       if (options.isVisibleOverlayVisible()) {
         options.updateVisibleOverlayVisibility();
       }
@@ -91,6 +99,7 @@ export function initializeOverlayRuntimeService(options: {
       },
       options.showDesktopNotification,
       options.createFieldGroupingCallback(),
+      options.getKnownWordCacheStatePath(),
     );
     integration.start();
     options.setAnkiIntegration(integration);

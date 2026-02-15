@@ -1,4 +1,4 @@
-.PHONY: help deps build install build-linux build-macos build-macos-unsigned install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config docs-dev docs-build docs-preview
+.PHONY: help deps build install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_FILE := subminer.rasi
@@ -48,8 +48,13 @@ help:
 		"  build-linux      Build Linux AppImage" \
 		"  build-macos      Build macOS DMG/ZIP (signed if configured)" \
 		"  build-macos-unsigned Build macOS DMG/ZIP without signing/notarization" \
+		"  clean            Remove build artifacts (dist/, release/, AppImage, binary)" \
+		"  dev-start        Build and launch local Electron app" \
+		"  dev-start-macos  Build and launch local Electron app with macOS tracker backend" \
+		"  dev-toggle       Toggle overlay in a running local Electron app" \
+		"  dev-stop         Stop a running local Electron app" \
 		"  docs-dev         Run VitePress docs dev server" \
-		"  docs-build       Build VitePress static docs" \
+		"  docs       Build VitePress static docs" \
 		"  docs-preview     Preview built VitePress docs" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
 		"  install-macos    Install macOS wrapper/theme/app artifacts" \
@@ -126,6 +131,13 @@ build-macos-unsigned: deps
 	@pnpm -C vendor/texthooker-ui build
 	@pnpm run build:mac:unsigned
 
+clean:
+	@printf '%s\n' "[INFO] Removing build artifacts"
+	@rm -f release/SubMiner-*.AppImage
+	@rm -f release/linux-unpacked/SubMiner
+	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
+	@rm -rf dist release
+
 generate-config: ensure-pnpm
 	@pnpm run build
 	@pnpm exec electron . --generate-config
@@ -137,11 +149,25 @@ generate-example-config: ensure-pnpm
 docs-dev: ensure-pnpm
 	@pnpm run docs:dev
 
-docs-build: ensure-pnpm
+docs: ensure-pnpm
 	@pnpm run docs:build
 
 docs-preview: ensure-pnpm
 	@pnpm run docs:preview
+
+dev-start: ensure-pnpm
+	@pnpm run build
+	@pnpm exec electron . --start
+
+dev-start-macos: ensure-pnpm
+	@pnpm run build
+	@pnpm exec electron . --start --backend macos
+
+dev-toggle: ensure-pnpm
+	@pnpm exec electron . --toggle
+
+dev-stop: ensure-pnpm
+	@pnpm exec electron . --stop
 
 
 install-linux:

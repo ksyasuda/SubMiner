@@ -41,4 +41,9 @@ test("hasExplicitCommand and shouldStartApp preserve command intent", () => {
   const noCommand = parseArgs(["--verbose"]);
   assert.equal(hasExplicitCommand(noCommand), false);
   assert.equal(shouldStartApp(noCommand), false);
+
+  const refreshKnownWords = parseArgs(["--refresh-known-words"]);
+  assert.equal(refreshKnownWords.help, false);
+  assert.equal(hasExplicitCommand(refreshKnownWords), true);
+  assert.equal(shouldStartApp(refreshKnownWords), false);
 });

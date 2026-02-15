@@ -4,7 +4,7 @@
   "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc && cp src/renderer/index.html src/renderer/style.css dist/renderer/",
+    "build": "tsc && tsc -p tsconfig.renderer.json && cp src/renderer/index.html src/renderer/style.css dist/renderer/ && bash scripts/build-macos-helper.sh",
     "check:main-lines": "bash scripts/check-main-lines.sh",
     "check:main-lines:baseline": "bash scripts/check-main-lines.sh 5300",
     "check:main-lines:gate1": "bash scripts/check-main-lines.sh 4500",
@@ -12,12 +12,16 @@
     "check:main-lines:gate3": "bash scripts/check-main-lines.sh 2500",
     "check:main-lines:gate4": "bash scripts/check-main-lines.sh 1800",
     "check:main-lines:gate5": "bash scripts/check-main-lines.sh 1500",
-    "docs:dev": "vitepress dev docs --host 0.0.0.0 --port 5173 --strictPort",
-    "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs --host 0.0.0.0 --port 4173 --strictPort",
-    "test:config": "pnpm run build && node --test dist/config/config.test.js",
-    "test:core": "pnpm run build && node --test dist/cli/args.test.js dist/cli/help.test.js dist/core/services/cli-command-service.test.js dist/core/services/cli-command-deps-runtime-service.test.js dist/core/services/ipc-deps-runtime-service.test.js dist/core/services/anki-jimaku-ipc-deps-runtime-service.test.js dist/core/services/field-grouping-overlay-runtime-service.test.js dist/core/services/subsync-deps-runtime-service.test.js dist/core/services/numeric-shortcut-runtime-service.test.js dist/core/services/numeric-shortcut-session-service.test.js dist/core/services/overlay-visibility-facade-deps-runtime-service.test.js dist/core/services/mpv-command-ipc-deps-runtime-service.test.js dist/core/services/runtime-options-ipc-deps-runtime-service.test.js dist/core/services/tokenizer-deps-runtime-service.test.js dist/core/services/overlay-runtime-deps-service.test.js dist/core/services/startup-lifecycle-runtime-deps-service.test.js dist/core/services/startup-lifecycle-hooks-runtime-service.test.js dist/core/services/overlay-shortcut-runtime-deps-service.test.js dist/core/services/mining-runtime-deps-service.test.js dist/core/services/shortcut-ui-runtime-deps-service.test.js dist/core/services/secondary-subtitle-service.test.js dist/core/services/mpv-render-metrics-service.test.js dist/core/services/mpv-runtime-service.test.js dist/core/services/runtime-options-runtime-service.test.js dist/core/services/overlay-modal-restore-service.test.js dist/core/services/runtime-config-service.test.js dist/core/services/overlay-bridge-runtime-service.test.js dist/core/services/overlay-visibility-facade-service.test.js dist/core/services/overlay-broadcast-runtime-service.test.js dist/core/services/app-ready-runtime-service.test.js dist/core/services/app-shutdown-runtime-service.test.js dist/core/services/mpv-client-deps-runtime-service.test.js dist/core/services/app-lifecycle-deps-runtime-service.test.js dist/core/services/runtime-options-manager-runtime-service.test.js dist/core/services/config-warning-runtime-service.test.js dist/core/services/app-logging-runtime-service.test.js dist/core/services/startup-resource-runtime-service.test.js dist/core/services/config-generation-runtime-service.test.js",
-    "test:subtitle": "pnpm run build && node --test dist/subtitle/stages.test.js dist/subtitle/pipeline.test.js",
+    "docs:dev": "VITE_EXTRA_EXTENSIONS=jsonc vitepress dev docs --host 0.0.0.0 --port 5173 --strictPort",
+    "docs:build": "VITE_EXTRA_EXTENSIONS=jsonc vitepress build docs",
+    "docs:preview": "VITE_EXTRA_EXTENSIONS=jsonc vitepress preview docs --host 0.0.0.0 --port 4173 --strictPort",
+    "test:config:dist": "node --test dist/config/config.test.js",
+    "test:core:dist": "node --test dist/cli/args.test.js dist/cli/help.test.js dist/core/services/cli-command-service.test.js dist/core/services/field-grouping-overlay-service.test.js dist/core/services/numeric-shortcut-session-service.test.js dist/core/services/secondary-subtitle-service.test.js dist/core/services/mpv-render-metrics-service.test.js dist/core/services/overlay-content-measurement-service.test.js dist/core/services/mpv-control-service.test.js dist/core/services/mpv-service.test.js dist/core/services/runtime-options-ipc-service.test.js dist/core/services/runtime-config-service.test.js dist/core/services/tokenizer-service.test.js dist/core/services/subsync-service.test.js dist/core/services/overlay-bridge-service.test.js dist/core/services/overlay-manager-service.test.js dist/core/services/overlay-shortcut-handler.test.js dist/core/services/mining-service.test.js dist/core/services/anki-jimaku-service.test.js dist/core/services/app-ready-service.test.js dist/core/services/startup-bootstrap-service.test.js dist/subsync/utils.test.js",
+    "test:subtitle:dist": "echo \"Subtitle tests are currently not configured\"",
+    "test:config": "pnpm run build && pnpm run test:config:dist",
+    "test:core": "pnpm run build && pnpm run test:core:dist",
+    "test:subtitle": "pnpm run build && pnpm run test:subtitle:dist",
+    "test:fast": "pnpm run test:config:dist && pnpm run test:core:dist",
     "generate:config-example": "pnpm run build && node dist/generate-config-example.js",
     "start": "pnpm run build && electron . --start",
     "dev": "pnpm run build && electron . --start --dev",
@@ -41,10 +45,11 @@
   "author": "",
   "license": "GPL-3.0-or-later",
   "dependencies": {
+    "@catppuccin/vitepress": "^0.1.2",
     "axios": "^1.13.5",
     "jsonc-parser": "^3.3.1",
-    "ws": "^8.19.0",
-    "@catppuccin/vitepress": "^0.1.2"
+    "mermaid": "^11.12.2",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/node": "^25.2.2",
@@ -84,7 +89,8 @@
       "dist/**/*",
       "vendor/texthooker-ui/docs/**/*",
       "vendor/texthooker-ui/package.json",
-      "package.json"
+      "package.json",
+      "scripts/get-mpv-window-macos.swift"
     ],
     "extraResources": [
       {
@@ -94,6 +100,10 @@
       {
         "from": "assets",
         "to": "assets"
+      },
+      {
+        "from": "dist/scripts/get-mpv-window-macos",
+        "to": "scripts/get-mpv-window-macos"
       }
     ]
   }

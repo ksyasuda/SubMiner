@@ -45,6 +45,7 @@ import type {
   RuntimeOptionState,
   RuntimeOptionValue,
   MpvSubtitleRenderMetrics,
+  OverlayContentMeasurement,
 } from "./types";
 
 const overlayLayerArg = process.argv.find((arg) =>
@@ -264,8 +265,11 @@ const electronAPI: ElectronAPI = {
       callback();
     });
   },
-  notifyOverlayModalClosed: (modal: "runtime-options" | "subsync") => {
+  notifyOverlayModalClosed: (modal: "runtime-options" | "subsync" | "jimaku") => {
     ipcRenderer.send("overlay:modal-closed", modal);
+  },
+  reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => {
+    ipcRenderer.send("overlay-content-bounds:report", measurement);
   },
 };
 

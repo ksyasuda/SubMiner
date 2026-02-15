@@ -1,17 +1,37 @@
 # Configuration
 
-Settings are stored in `~/.config/SubMiner/config.jsonc`
+Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` when `XDG_CONFIG_HOME` is unset). For backward compatibility, SubMiner also reads existing configs from lowercase `subminer` directories.
 
-### Configuration File
+## Quick Start
+
+For most users, start with this minimal configuration:
+
+```json
+{
+  "ankiConnect": {
+    "enabled": true,
+    "deck": "YourDeckName",
+    "fields": {
+      "sentence": "Sentence",
+      "audio": "Audio",
+      "image": "Image"
+    }
+  }
+}
+```
+
+Then customize as needed using the sections below.
+
+## Configuration File
 
 See [config.example.jsonc](/config.example.jsonc) for a comprehensive example configuration file with all available options, default values, and detailed comments. Only include the options you want to customize in your config file.
 
 Generate a fresh default config from the centralized config registry:
 
 ```bash
-subminer.AppImage --generate-config
-subminer.AppImage --generate-config --config-path /tmp/subminer.jsonc
-subminer.AppImage --generate-config --backup-overwrite
+SubMiner.AppImage --generate-config
+SubMiner.AppImage --generate-config --config-path /tmp/subminer.jsonc
+SubMiner.AppImage --generate-config --backup-overwrite
 ```
 
 - `--generate-config` writes a default JSONC config template.
@@ -21,7 +41,6 @@ subminer.AppImage --generate-config --backup-overwrite
 - `make generate-config` builds and runs the same default-config generator via local Electron.
 
 Invalid config values are handled with warn-and-fallback behavior: SubMiner logs the bad key/value and continues with the default for that option.
-
 
 ### Configuration Options Overview
 
@@ -42,7 +61,6 @@ The configuration file includes several main sections:
 - [**Texthooker**](#texthooker) - Control browser opening behavior
 - [**WebSocket Server**](#websocket-server) - Built-in subtitle broadcasting server
 - [**YouTube Subtitle Generation**](#youtube-subtitle-generation) - Launcher defaults for yt-dlp + local whisper fallback
-
 
 ### AnkiConnect
 
@@ -120,6 +138,7 @@ This example is intentionally compact. The option table below documents availabl
 | `url`                | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                    |
 | `pollingRate`        | number (ms)                             | How often to check for new cards (default: `3000`)                                                                                        |
 | `deck`               | string                                  | Anki deck to monitor for new cards                                                                                                        |
+| `ankiConnect.nPlusOne.decks`     | array of strings                        | Decks used for N+1 known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                                   |
 | `fields.audio`                  | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                   |
 | `fields.image`                  | string                                  | Card field for images (default: `Picture`)                                                                                                |
 | `fields.sentence`               | string                                  | Card field for sentences (default: `Sentence`)                                                                                            |
@@ -150,6 +169,12 @@ This example is intentionally compact. The option table below documents availabl
 | `behavior.overwriteImage`       | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `behavior.mediaInsertMode` (default: `true`)      |
 | `behavior.mediaInsertMode`      | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                     |
 | `behavior.highlightWord`        | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                  |
+| `ankiConnect.nPlusOne.highlightEnabled` | `true`, `false`                   | Enable fast local highlighting for words already known in Anki (default: `false`)                                                       |
+| `ankiConnect.nPlusOne.nPlusOne`      | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`). |
+| `ankiConnect.nPlusOne.knownWord`      | hex color string                        | Legacy known-word color kept for backward compatibility (default: `"#a6da95"`).                                                     |
+| `ankiConnect.nPlusOne.matchMode` | `"headword"`, `"surface"`      | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
+| `ankiConnect.nPlusOne.refreshMinutes`   | number                             | Minutes between known-word cache refreshes (default: `1440`)                                                                              |
+| `ankiConnect.nPlusOne.decks`     | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                            |
 | `behavior.notificationType`     | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                       |
 | `behavior.autoUpdateNewCards`   | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                  |
 | `metadata.pattern`              | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                                  |
@@ -164,13 +189,38 @@ When enabled, sentence cards automatically set `IsSentenceCard` to `"x"` and pop
 
 Kiku extends Lapis with **field grouping** — when a duplicate card is detected (same Word/Expression), SubMiner merges the two cards' content into one using Kiku's `data-group-id` HTML structure, organizing each mining instance into separate pages within the note.
 
-<video controls playsinline preload="metadata" poster="/assets/kiku-integration-poster.jpg" style="width: 100%; max-width: 960px;">
-  <source :src="'/assets/kiku-integration.webm'" type="video/webm" />
-  Your browser does not support the video tag.
-</video>
+### N+1 Word Highlighting
 
-<a :href="'/assets/kiku-integration.webm'" target="_blank" rel="noreferrer">Open demo in a new tab</a>
+When `ankiConnect.nPlusOne.highlightEnabled` is enabled, SubMiner builds a local cache of known words from Anki to highlight already learned tokens in subtitle rendering.
 
+Known-word cache policy:
+
+- Initial sync runs when the integration starts if the cache is missing or stale.
+- `ankiConnect.nPlusOne.refreshMinutes` controls the minimum time between refreshes; between refreshes, cached words are reused without querying Anki.
+- `ankiConnect.nPlusOne.nPlusOne` sets the color for the single target token when exactly one eligible unknown word exists.
+- `ankiConnect.nPlusOne.knownWord` sets the legacy known-word highlight color for tokens already in Anki.
+- `ankiConnect.nPlusOne.decks` accepts one or more decks. If empty, it uses the legacy single `ankiConnect.deck` value as scope.
+- Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
+- The cache is automatically invalidated when the configured scope changes (for example, when deck changes).
+- Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.nPlusOne.matchMode` to `"surface"` for raw subtitle text matching.
+- `ankiConnect.behavior.nPlusOne*` legacy keys (`nPlusOneHighlightEnabled`, `nPlusOneRefreshMinutes`, `nPlusOneMatchMode`) are deprecated and only kept for backward compatibility.
+- If AnkiConnect is unreachable, the cache remains in its previous state and an on-screen/system status message is shown.
+- Known-word sync activity is logged at `INFO`/`DEBUG` level with the `anki` logger scope and includes scope, notes returned, and word counts.
+
+To refresh roughly once per day, set:
+
+```json
+{
+  "ankiConnect": {
+    "nPlusOne": {
+      "highlightEnabled": true,
+      "refreshMinutes": 1440
+    }
+  }
+}
+```
+
+### Field Grouping Modes
 
 | Mode       | Behavior                                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -180,15 +230,22 @@ Kiku extends Lapis with **field grouping** — when a duplicate card is detected
 
 `deleteDuplicateInAuto` controls whether `auto` mode deletes the duplicate after merge (default: `true`). In `manual` mode, the popup asks each time whether to delete the duplicate.
 
+<video controls playsinline preload="metadata" poster="/assets/kiku-integration-poster.jpg" style="width: 100%; max-width: 960px;">
+  <source :src="'/assets/kiku-integration.webm'" type="video/webm" />
+  Your browser does not support the video tag.
+</video>
+
+<a :href="'/assets/kiku-integration.webm'" target="_blank" rel="noreferrer">Open demo in a new tab</a>
+
 **Image Quality Notes:**
 
 - `imageQuality` affects JPG and WebP only; PNG is lossless and ignores this setting
 - JPG quality is mapped to FFmpeg's scale (2-31, lower = better)
 - WebP quality uses FFmpeg's native 0-100 scale
 
-**Manual Card Update:**
+### Manual Card Update Shortcuts
 
-When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but not automatically updated. Instead, you can manually update cards using keyboard shortcuts:
+When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but not automatically updated. Use these keyboard shortcuts for manual control:
 
 | Shortcut       | Action                                                                                                       |
 | -------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -202,15 +259,14 @@ When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but
 | `Ctrl+Shift+A` | Mark the last added Anki card as an audio card (sets IsAudioCard, SentenceAudio, Sentence, Picture)          |
 | `Ctrl+Shift+O` | Open runtime options palette (session-only live toggles)                                                      |
 
-To copy multiple lines (current + previous):
+**Multi-line copy workflow:**
 
 1. Press `Ctrl+Shift+C`
 2. Press a number key (`1-9`) within 3 seconds
 3. The specified number of most recent subtitle lines are copied
 4. Press `Ctrl+V` to update the last added card with the copied lines
 
-These shortcuts are only active when the overlay window is visible. They are automatically disabled when the overlay is hidden to avoid interfering with normal system clipboard operations.
-
+These shortcuts are only active when the overlay window is visible and automatically disabled when hidden.
 
 ### Auto-Start Overlay
 
@@ -226,7 +282,7 @@ Control whether the overlay automatically becomes visible when it connects to mp
 | -------------------- | --------------- | ------------------------------------------------------ |
 | `auto_start_overlay` | `true`, `false` | Auto-show overlay on mpv connection (default: `false`) |
 
-The mpv plugin now controls startup per layer via `auto_start_visible_overlay` and `auto_start_invisible_overlay` in `subminer.conf` (`platform-default` for invisible means hidden on Linux, visible on macOS/Windows).
+The mpv plugin controls startup per layer via `auto_start_visible_overlay` and `auto_start_invisible_overlay` in `subminer.conf` (`platform-default` for invisible means hidden on Linux, visible on macOS/Windows).
 
 ### Visible Overlay Subtitle Binding
 
@@ -241,7 +297,6 @@ Control whether toggling the visible overlay also toggles MPV subtitle visibilit
 | Option                                        | Values          | Description |
 | --------------------------------------------- | --------------- | ----------- |
 | `bind_visible_overlay_to_mpv_sub_visibility` | `true`, `false` | When `true` (default), visible overlay hides MPV primary/secondary subtitles and restores them when hidden. When `false`, visible overlay toggles do not change MPV subtitle visibility. |
-
 
 ### Auto Subtitle Sync
 
@@ -268,7 +323,6 @@ Sync the active subtitle track using `alass` (preferred) or `ffsubsync`:
 Default trigger is `Ctrl+Alt+S` via `shortcuts.triggerSubsync`.
 Customize it there, or set it to `null` to disable.
 
-
 ### Invisible Overlay
 
 SubMiner includes a second subtitle mining layer that can be visually invisible while still interactive for Yomitan lookups.
@@ -278,6 +332,12 @@ SubMiner includes a second subtitle mining layer that can be visually invisible 
 2. `"visible"`: always shown on startup.
 3. `"hidden"`: always hidden on startup.
 
+Invisible subtitle positioning can be adjusted directly in the invisible layer:
+
+- `Ctrl/Cmd+Shift+P` toggles position edit mode.
+- Use arrow keys to move the invisible subtitle text.
+- Press `Enter` or `Ctrl/Cmd+S` to save, or `Esc` to cancel.
+- This edit-mode shortcut is fixed (not currently configurable in `shortcuts`/`keybindings`).
 
 ### Jimaku
 
@@ -298,7 +358,6 @@ Configure Jimaku API access and defaults:
 Jimaku is rate limited; if you hit a limit, SubMiner will surface the retry delay from the API response.
 
 Set `openBrowser` to `false` to only print the URL without opening a browser.
-
 
 ### Keybindings
 
@@ -350,7 +409,6 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 
 **See `config.example.jsonc`** for more keybinding examples and configuration options.
 
-
 ### Runtime Option Palette
 
 Use the runtime options palette to toggle settings live while SubMiner is running. These changes are session-only and reset on restart.
@@ -368,7 +426,6 @@ Palette controls:
 - `Arrow Left/Right`: change selected value
 - `Enter`: apply selected value
 - `Esc`: close
-
 
 ### Secondary Subtitles
 
@@ -400,7 +457,6 @@ See `config.example.jsonc` for detailed configuration options.
 
 **See `config.example.jsonc`** for additional secondary subtitle configuration options.
 
-
 ### Shortcuts Configuration
 
 Customize or disable the overlay keyboard shortcuts:
@@ -421,7 +477,7 @@ See `config.example.jsonc` for detailed configuration options.
     "mineSentenceMultiple": "CommandOrControl+Shift+S",
     "markAudioCard": "CommandOrControl+Shift+A",
     "openRuntimeOptions": "CommandOrControl+Shift+O",
-    "openJimaku": "Ctrl+Alt+J",
+    "openJimaku": "Ctrl+Shift+J",
     "multiCopyTimeoutMs": 3000
   }
 }
@@ -442,12 +498,11 @@ See `config.example.jsonc` for detailed configuration options.
 | `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                              |
 | `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                              |
 | `openRuntimeOptions`          | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                  |
-| `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Alt+J"`)                                                                               |
+| `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                              |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 
 Set any shortcut to `null` to disable it.
-
 
 ### Subtitle Position
 
@@ -464,7 +519,6 @@ Set the initial vertical subtitle position (measured from the bottom of the scre
 | Option     | Values          | Description                                                        |
 | ---------- | --------------- | ------------------------------------------------------------------ |
 | `yPercent` | number (0 - 100) | Distance from the bottom as a percent of screen height (default: `10`) |
-
 
 ### Subtitle Style
 
@@ -504,7 +558,6 @@ Secondary subtitle defaults: `fontSize: 24`, `fontColor: "#ffffff"`, `background
 
 **See `config.example.jsonc`** for the complete list of subtitle style configuration options.
 
-
 ### Texthooker
 
 Control whether the browser opens automatically when texthooker starts:
@@ -518,7 +571,6 @@ See `config.example.jsonc` for detailed configuration options.
   }
 }
 ```
-
 
 ### WebSocket Server
 
@@ -541,7 +593,6 @@ See `config.example.jsonc` for detailed configuration options.
 | --------- | ------------------------- | -------------------------------------------------------- |
 | `enabled` | `true`, `false`, `"auto"` | `"auto"` (default) disables if mpv_websocket is detected |
 | `port`    | number                    | WebSocket server port (default: 6677)                    |
-
 
 ### YouTube Subtitle Generation
 

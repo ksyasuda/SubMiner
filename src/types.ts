@@ -48,7 +48,11 @@ export interface MergedToken {
   startPos: number;
   endPos: number;
   partOfSpeech: PartOfSpeech;
+  pos2?: string;
+  pos3?: string;
   isMerged: boolean;
+  isKnown: boolean;
+  isNPlusOneTarget: boolean;
 }
 
 export interface WindowGeometry {
@@ -60,6 +64,8 @@ export interface WindowGeometry {
 
 export interface SubtitlePosition {
   yPercent: number;
+  invisibleOffsetXPx?: number;
+  invisibleOffsetYPx?: number;
 }
 
 export interface SubtitleStyle {
@@ -148,13 +154,16 @@ export interface KikuMergePreviewResponse {
 
 export type RuntimeOptionId =
   | "anki.autoUpdateNewCards"
-  | "anki.kikuFieldGrouping";
+  | "anki.kikuFieldGrouping"
+  | "anki.nPlusOneMatchMode";
 
 export type RuntimeOptionScope = "ankiConnect";
 
 export type RuntimeOptionValueType = "boolean" | "enum";
 
 export type RuntimeOptionValue = boolean | string;
+
+export type NPlusOneMatchMode = "headword" | "surface";
 
 export interface RuntimeOptionState {
   id: RuntimeOptionId;
@@ -219,14 +228,22 @@ export interface AnkiConnectConfig {
     fallbackDuration?: number;
     maxMediaDuration?: number;
   };
-  behavior?: {
-    overwriteAudio?: boolean;
-    overwriteImage?: boolean;
-    mediaInsertMode?: "append" | "prepend";
-    highlightWord?: boolean;
-    notificationType?: "osd" | "system" | "both" | "none";
-    autoUpdateNewCards?: boolean;
+  nPlusOne?: {
+    highlightEnabled?: boolean;
+    refreshMinutes?: number;
+    matchMode?: NPlusOneMatchMode;
+    decks?: string[];
+    nPlusOne?: string;
+    knownWord?: string;
   };
+  behavior?: {
+      overwriteAudio?: boolean;
+      overwriteImage?: boolean;
+      mediaInsertMode?: "append" | "prepend";
+      highlightWord?: boolean;
+      notificationType?: "osd" | "system" | "both" | "none";
+      autoUpdateNewCards?: boolean;
+    };
   metadata?: {
     pattern?: string;
   };
@@ -251,6 +268,8 @@ export interface SubtitleStyleConfig {
   fontWeight?: string;
   fontStyle?: string;
   backgroundColor?: string;
+  nPlusOneColor?: string;
+  knownWordColor?: string;
   secondary?: {
     fontFamily?: string;
     fontSize?: number;
@@ -361,6 +380,14 @@ export interface ResolvedConfig {
       fallbackDuration: number;
       maxMediaDuration: number;
     };
+    nPlusOne: {
+      highlightEnabled: boolean;
+      refreshMinutes: number;
+      matchMode: NPlusOneMatchMode;
+      decks: string[];
+      nPlusOne: string;
+      knownWord: string;
+    };
     behavior: {
       overwriteAudio: boolean;
       overwriteImage: boolean;
@@ -461,6 +488,25 @@ export interface MpvSubtitleRenderMetrics {
     mt: number;
     mb: number;
   } | null;
+}
+
+export type OverlayLayer = "visible" | "invisible";
+
+export interface OverlayContentRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface OverlayContentMeasurement {
+  layer: OverlayLayer;
+  measuredAtMs: number;
+  viewport: {
+    width: number;
+    height: number;
+  };
+  contentRect: OverlayContentRect | null;
 }
 
 export interface MecabStatus {
@@ -608,7 +654,8 @@ export interface ElectronAPI {
   ) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
-  notifyOverlayModalClosed: (modal: "runtime-options" | "subsync") => void;
+  notifyOverlayModalClosed: (modal: "runtime-options" | "subsync" | "jimaku") => void;
+  reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
 }
 
 declare global {

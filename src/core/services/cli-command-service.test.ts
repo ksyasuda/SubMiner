@@ -26,6 +26,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     triggerFieldGrouping: false,
     triggerSubsync: false,
     markAudioCard: false,
+    refreshKnownWords: false,
     openRuntimeOptions: false,
     texthooker: false,
     help: false,
@@ -106,6 +107,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     updateLastCardFromClipboard: async () => {
       calls.push("updateLastCardFromClipboard");
     },
+    refreshKnownWords: async () => {
+      calls.push("refreshKnownWords");
+    },
     cycleSecondarySubMode: () => {
       calls.push("cycleSecondarySubMode");
     },
@@ -178,4 +182,137 @@ test("handleCliCommandService reports async mine errors to OSD", async () => {
 
   assert.ok(calls.some((value) => value.startsWith("error:mineSentenceCard failed:")));
   assert.ok(osd.some((value) => value.includes("Mine sentence failed: boom")));
+});
+
+test("handleCliCommandService applies socket path and connects on start", () => {
+  const { deps, calls } = createDeps();
+
+  handleCliCommandService(
+    makeArgs({ start: true, socketPath: "/tmp/custom.sock" }),
+    "initial",
+    deps,
+  );
+
+  assert.ok(calls.includes("setMpvSocketPath:/tmp/custom.sock"));
+  assert.ok(calls.includes("setMpvClientSocketPath:/tmp/custom.sock"));
+  assert.ok(calls.includes("connectMpvClient"));
+});
+
+test("handleCliCommandService warns when texthooker port override used while running", () => {
+  const { deps, calls } = createDeps({
+    isTexthookerRunning: () => true,
+  });
+
+  handleCliCommandService(
+    makeArgs({ texthookerPort: 9999, texthooker: true }),
+    "initial",
+    deps,
+  );
+
+  assert.ok(
+    calls.includes(
+      "warn:Ignoring --port override because the texthooker server is already running.",
+    ),
+  );
+  assert.equal(calls.some((value) => value === "setTexthookerPort:9999"), false);
+});
+
+test("handleCliCommandService prints help and stops app when no window exists", () => {
+  const { deps, calls } = createDeps({
+    hasMainWindow: () => false,
+  });
+
+  handleCliCommandService(makeArgs({ help: true }), "initial", deps);
+
+  assert.ok(calls.includes("printHelp"));
+  assert.ok(calls.includes("stopApp"));
+});
+
+test("handleCliCommandService reports async trigger-subsync errors to OSD", async () => {
+  const { deps, calls, osd } = createDeps({
+    triggerSubsyncFromConfig: async () => {
+      throw new Error("subsync boom");
+    },
+  });
+
+  handleCliCommandService(makeArgs({ triggerSubsync: true }), "initial", deps);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(
+    calls.some((value) => value.startsWith("error:triggerSubsyncFromConfig failed:")),
+  );
+  assert.ok(osd.some((value) => value.includes("Subsync failed: subsync boom")));
+});
+
+test("handleCliCommandService stops app for --stop command", () => {
+  const { deps, calls } = createDeps();
+  handleCliCommandService(makeArgs({ stop: true }), "initial", deps);
+  assert.ok(calls.includes("log:Stopping SubMiner..."));
+  assert.ok(calls.includes("stopApp"));
+});
+
+test("handleCliCommandService still runs non-start actions on second-instance", () => {
+  const { deps, calls } = createDeps();
+  handleCliCommandService(
+    makeArgs({ start: true, toggleVisibleOverlay: true }),
+    "second-instance",
+    deps,
+  );
+  assert.ok(calls.includes("toggleVisibleOverlay"));
+  assert.equal(calls.some((value) => value === "connectMpvClient"), true);
+});
+
+test("handleCliCommandService handles visibility and utility command dispatches", () => {
+  const cases: Array<{
+    args: Partial<CliArgs>;
+    expected: string;
+  }> = [
+    { args: { toggleInvisibleOverlay: true }, expected: "toggleInvisibleOverlay" },
+    { args: { settings: true }, expected: "openYomitanSettingsDelayed:1000" },
+    { args: { showVisibleOverlay: true }, expected: "setVisibleOverlayVisible:true" },
+    { args: { hideVisibleOverlay: true }, expected: "setVisibleOverlayVisible:false" },
+    { args: { showInvisibleOverlay: true }, expected: "setInvisibleOverlayVisible:true" },
+    { args: { hideInvisibleOverlay: true }, expected: "setInvisibleOverlayVisible:false" },
+    { args: { copySubtitle: true }, expected: "copyCurrentSubtitle" },
+    { args: { copySubtitleMultiple: true }, expected: "startPendingMultiCopy:2500" },
+    {
+      args: { mineSentenceMultiple: true },
+      expected: "startPendingMineSentenceMultiple:2500",
+    },
+    { args: { toggleSecondarySub: true }, expected: "cycleSecondarySubMode" },
+    { args: { openRuntimeOptions: true }, expected: "openRuntimeOptionsPalette" },
+  ];
+
+  for (const entry of cases) {
+    const { deps, calls } = createDeps();
+    handleCliCommandService(makeArgs(entry.args), "initial", deps);
+    assert.ok(
+      calls.includes(entry.expected),
+      `expected call missing for args ${JSON.stringify(entry.args)}: ${entry.expected}`,
+    );
+  }
+});
+
+test("handleCliCommandService runs refresh-known-words command", () => {
+  const { deps, calls } = createDeps();
+
+  handleCliCommandService(makeArgs({ refreshKnownWords: true }), "initial", deps);
+
+  assert.ok(calls.includes("refreshKnownWords"));
+});
+
+test("handleCliCommandService reports async refresh-known-words errors to OSD", async () => {
+  const { deps, calls, osd } = createDeps({
+    refreshKnownWords: async () => {
+      throw new Error("refresh boom");
+    },
+  });
+
+  handleCliCommandService(makeArgs({ refreshKnownWords: true }), "initial", deps);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(
+    calls.some((value) => value.startsWith("error:refreshKnownWords failed:")),
+  );
+  assert.ok(osd.some((value) => value.includes("Refresh known words failed: refresh boom")));
 });

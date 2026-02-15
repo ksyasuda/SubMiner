@@ -47,6 +47,7 @@ function normalizeCompositor(value: string): Compositor | null {
 
 export function createWindowTracker(
   override?: string | null,
+  targetMpvSocketPath?: string | null,
 ): BaseWindowTracker | null {
   let compositor = detectCompositor();
 
@@ -64,13 +65,21 @@ export function createWindowTracker(
 
   switch (compositor) {
     case "hyprland":
-      return new HyprlandWindowTracker();
+      return new HyprlandWindowTracker(
+        targetMpvSocketPath?.trim() || undefined,
+      );
     case "sway":
-      return new SwayWindowTracker();
+      return new SwayWindowTracker(
+        targetMpvSocketPath?.trim() || undefined,
+      );
     case "x11":
-      return new X11WindowTracker();
+      return new X11WindowTracker(
+        targetMpvSocketPath?.trim() || undefined,
+      );
     case "macos":
-      return new MacOSWindowTracker();
+      return new MacOSWindowTracker(
+        targetMpvSocketPath?.trim() || undefined,
+      );
     default:
       log.warn("No supported compositor detected. Window tracking disabled.");
       return null;
