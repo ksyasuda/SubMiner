@@ -24,6 +24,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     mineSentence: false,
     mineSentenceMultiple: false,
     updateLastCardFromClipboard: false,
+    refreshKnownWords: false,
     toggleSecondarySub: false,
     triggerFieldGrouping: false,
     triggerSubsync: false,
