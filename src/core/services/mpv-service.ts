@@ -1,4 +1,3 @@
-import * as net from "net";
 import { EventEmitter } from "events";
 import {
   Config,
@@ -16,6 +15,7 @@ import {
 import { requestMpvInitialState, subscribeToMpvProperties } from "./mpv-properties";
 import {
   scheduleMpvReconnect,
+  MpvSocketTransport,
 } from "./mpv-transport";
 import { resolveCurrentAudioStreamIndex } from "./mpv-state";
 
@@ -49,9 +49,9 @@ export interface MpvIpcClientEventMap {
 type MpvIpcClientEventName = keyof MpvIpcClientEventMap;
 
 export class MpvIpcClient implements MpvClient {
-  private socketPath: string;
   private deps: MpvIpcClientProtocolDeps;
-  public socket: net.Socket | null = null;
+  private transport: MpvSocketTransport;
+  public socket: ReturnType<MpvSocketTransport["getSocket"]> = null;
   private eventBus = new EventEmitter();
   private buffer = "";
   public connected = false;
@@ -95,8 +95,52 @@ export class MpvIpcClient implements MpvClient {
     socketPath: string,
     deps: MpvIpcClientDeps,
   ) {
-    this.socketPath = socketPath;
     this.deps = deps;
+
+    this.transport = new MpvSocketTransport({
+      socketPath,
+      onConnect: () => {
+        console.log("Connected to MPV socket");
+        this.connected = true;
+        this.connecting = false;
+        this.socket = this.transport.getSocket();
+        this.reconnectAttempt = 0;
+        this.hasConnectedOnce = true;
+        this.setSecondarySubVisibility(false);
+        subscribeToMpvProperties(this.send.bind(this));
+        requestMpvInitialState(this.send.bind(this));
+
+        const shouldAutoStart =
+          this.deps.autoStartOverlay ||
+          this.deps.getResolvedConfig().auto_start_overlay === true;
+        if (this.firstConnection && shouldAutoStart) {
+          console.log("Auto-starting overlay, hiding mpv subtitles");
+          setTimeout(() => {
+            this.deps.setOverlayVisible(true);
+          }, 100);
+        } else if (this.deps.shouldBindVisibleOverlayToMpvSubVisibility()) {
+          this.setSubVisibility(!this.deps.isVisibleOverlayVisible());
+        }
+
+        this.firstConnection = false;
+      },
+      onData: (data) => {
+        this.buffer += data.toString();
+        this.processBuffer();
+      },
+      onError: (err: Error) => {
+        console.error("MPV socket error:", err.message);
+        this.failPendingRequests();
+      },
+      onClose: () => {
+        console.log("MPV socket closed");
+        this.connected = false;
+        this.connecting = false;
+        this.socket = null;
+        this.failPendingRequests();
+        this.scheduleReconnect();
+      },
+    });
   }
 
   on<EventName extends MpvIpcClientEventName>(
@@ -131,7 +175,7 @@ export class MpvIpcClient implements MpvClient {
   }
 
   setSocketPath(socketPath: string): void {
-    this.socketPath = socketPath;
+    this.transport.setSocketPath(socketPath);
   }
 
   connect(): void {
@@ -139,59 +183,8 @@ export class MpvIpcClient implements MpvClient {
       return;
     }
 
-    if (this.socket) {
-      this.socket.destroy();
-    }
-
     this.connecting = true;
-    this.socket = new net.Socket();
-
-    this.socket.on("connect", () => {
-      console.log("Connected to MPV socket");
-      this.connected = true;
-      this.connecting = false;
-      this.reconnectAttempt = 0;
-      this.hasConnectedOnce = true;
-      this.setSecondarySubVisibility(false);
-      subscribeToMpvProperties(this.send.bind(this));
-      requestMpvInitialState(this.send.bind(this));
-
-      const shouldAutoStart =
-        this.deps.autoStartOverlay ||
-        this.deps.getResolvedConfig().auto_start_overlay === true;
-      if (this.firstConnection && shouldAutoStart) {
-        console.log("Auto-starting overlay, hiding mpv subtitles");
-        setTimeout(() => {
-          this.deps.setOverlayVisible(true);
-        }, 100);
-      } else if (this.deps.shouldBindVisibleOverlayToMpvSubVisibility()) {
-        this.setSubVisibility(!this.deps.isVisibleOverlayVisible());
-      }
-
-      this.firstConnection = false;
-    });
-
-    this.socket.on("data", (data: Buffer) => {
-      this.buffer += data.toString();
-      this.processBuffer();
-    });
-
-    this.socket.on("error", (err: Error) => {
-      console.error("MPV socket error:", err.message);
-      this.connected = false;
-      this.connecting = false;
-      this.failPendingRequests();
-    });
-
-    this.socket.on("close", () => {
-      console.log("MPV socket closed");
-      this.connected = false;
-      this.connecting = false;
-      this.failPendingRequests();
-      this.scheduleReconnect();
-    });
-
-    this.socket.connect(this.socketPath);
+    this.transport.connect();
   }
 
   private scheduleReconnect(): void {
@@ -349,9 +342,7 @@ export class MpvIpcClient implements MpvClient {
     if (!this.connected || !this.socket) {
       return false;
     }
-    const msg = JSON.stringify(command) + "\n";
-    this.socket.write(msg);
-    return true;
+    return this.transport.send(command);
   }
 
   request(command: unknown[]): Promise<MpvMessage> {

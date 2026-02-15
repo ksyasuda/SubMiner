@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - backend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-14 09:41'
+updated_date: '2026-02-14 23:59'
 labels:
   - 'owner:backend'
   - 'owner:architect'
@@ -72,4 +72,8 @@ Extracted app-ready startup dependency object into `createAppReadyRuntimeDeps():
 Added `SubsyncRuntimeDeps` typing to `getSubsyncRuntimeDeps()` for clearer composition-root contracts around subsync IPC/dependency wiring (`runSubsyncManualFromIpcRuntimeService`/`triggerSubsyncFromConfigRuntimeService` path).
 
 Extracted additional composition-root dependency composition for IPC command handlers into src/main/dependencies.ts: createCliCommandRuntimeServiceDeps(...) and createMpvCommandRuntimeServiceDeps(...). main.ts now inlines stateful callbacks into these shared builders while preserving behavior. Next step should be extracting startup/app-ready/lifecycle/overlay wiring into dedicated modules under src/main/.
+
+Progress update (2026-02-14): committed `bbfe2a9` (`refactor: extract overlay shortcuts runtime for task 27.2`). `src/main/overlay-shortcuts-runtime.ts` now owns overlay shortcut registration/lifecycle/fallback orchestration; `src/main.ts` and `src/main/cli-runtime.ts` now consume factory helpers with stricter typed async contracts. Build verified via `pnpm run build`.
+
+Remaining for TASK-27.2: continue extracting remaining `main.ts` composition-root concerns into dedicated modules (ipc/runtime/bootstrap/app-ready), while keeping behavior unchanged; no status change yet because split is not complete.
 <!-- SECTION:NOTES:END -->
