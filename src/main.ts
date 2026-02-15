@@ -150,6 +150,9 @@ import {
   registerIpcRuntimeServices,
 } from "./main/ipc-runtime";
 import {
+  createAnkiJimakuIpcRuntimeServiceDeps,
+} from "./main/dependencies";
+import {
   handleCliCommandRuntimeServiceWithContext,
 } from "./main/cli-runtime";
 import {
@@ -1317,82 +1320,77 @@ async function runSubsyncManualFromIpc(
   return runSubsyncManualFromIpcRuntime(request, getSubsyncRuntimeServiceParams());
 }
 
-function buildIpcRuntimeServicesParams() {
-  return {
-    runtimeOptions: {
-      getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-      showMpvOsd: (text: string) => showMpvOsd(text),
+registerIpcRuntimeServices({
+  runtimeOptions: {
+    getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
+    showMpvOsd: (text: string) => showMpvOsd(text),
+  },
+  mainDeps: {
+    getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
+    getMainWindow: () => overlayManager.getMainWindow(),
+    getVisibleOverlayVisibility: () => overlayManager.getVisibleOverlayVisible(),
+    getInvisibleOverlayVisibility: () => overlayManager.getInvisibleOverlayVisible(),
+    onOverlayModalClosed: (modal: string) => {
+      handleOverlayModalClosed(modal as OverlayHostedModal);
     },
-    mainDeps: {
-      getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
-      getMainWindow: () => overlayManager.getMainWindow(),
-      getVisibleOverlayVisibility: () => overlayManager.getVisibleOverlayVisible(),
-      getInvisibleOverlayVisibility: () => overlayManager.getInvisibleOverlayVisible(),
-      onOverlayModalClosed: (modal: string) => {
-        handleOverlayModalClosed(modal as OverlayHostedModal);
-      },
-      openYomitanSettings: () => openYomitanSettings(),
-      quitApp: () => app.quit(),
-      toggleVisibleOverlay: () => toggleVisibleOverlay(),
-      tokenizeCurrentSubtitle: () => tokenizeSubtitle(appState.currentSubText),
-      getCurrentSubtitleAss: () => appState.currentSubAssText,
-      getMpvSubtitleRenderMetrics: () => appState.mpvSubtitleRenderMetrics,
-      getSubtitlePosition: () => loadSubtitlePosition(),
-      getSubtitleStyle: () => getResolvedConfig().subtitleStyle ?? null,
-      saveSubtitlePosition: (position: unknown) =>
-        saveSubtitlePosition(position as SubtitlePosition),
-      getMecabTokenizer: () => appState.mecabTokenizer,
-      handleMpvCommand: (command: (string | number)[]) =>
-        handleMpvCommandFromIpc(command),
-      getKeybindings: () => appState.keybindings,
-      getSecondarySubMode: () => appState.secondarySubMode,
-      getMpvClient: () => appState.mpvClient,
-      runSubsyncManual: (request: unknown) =>
-        runSubsyncManualFromIpc(request as SubsyncManualRunRequest),
-      getAnkiConnectStatus: () => appState.ankiIntegration !== null,
-      getRuntimeOptions: () => getRuntimeOptionsState(),
-      reportOverlayContentBounds: (payload: unknown) => {
-        overlayContentMeasurementStore.report(payload);
-      },
+    openYomitanSettings: () => openYomitanSettings(),
+    quitApp: () => app.quit(),
+    toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    tokenizeCurrentSubtitle: () => tokenizeCurrentSubtitle(appState.currentSubText),
+    getCurrentSubtitleAss: () => appState.currentSubAssText,
+    getMpvSubtitleRenderMetrics: () => appState.mpvSubtitleRenderMetrics,
+    getSubtitlePosition: () => loadSubtitlePosition(),
+    getSubtitleStyle: () => getResolvedConfig().subtitleStyle ?? null,
+    saveSubtitlePosition: (position: unknown) =>
+      saveSubtitlePosition(position as SubtitlePosition),
+    getMecabTokenizer: () => appState.mecabTokenizer,
+    handleMpvCommand: (command: (string | number)[]) =>
+      handleMpvCommandFromIpc(command),
+    getKeybindings: () => appState.keybindings,
+    getSecondarySubMode: () => appState.secondarySubMode,
+    getMpvClient: () => appState.mpvClient,
+    runSubsyncManual: (request: unknown) =>
+      runSubsyncManualFromIpc(request as SubsyncManualRunRequest),
+    getAnkiConnectStatus: () => appState.ankiIntegration !== null,
+    getRuntimeOptions: () => getRuntimeOptionsState(),
+    reportOverlayContentBounds: (payload: unknown) => {
+      overlayContentMeasurementStore.report(payload);
     },
-    ankiJimakuDeps: {
-      patchAnkiConnectEnabled: (enabled: boolean) => {
-        configService.patchRawConfig({ ankiConnect: { enabled } });
-      },
-      getResolvedConfig: () => getResolvedConfig(),
-      getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-      getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
-      getMpvClient: () => appState.mpvClient,
-      getAnkiIntegration: () => appState.ankiIntegration,
-      setAnkiIntegration: (integration: AnkiIntegration | null) => {
-        appState.ankiIntegration = integration;
-      },
-      showDesktopNotification,
-      createFieldGroupingCallback: () => createFieldGroupingCallback(),
-      broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-      getFieldGroupingResolver: () => getFieldGroupingResolver(),
-      setFieldGroupingResolver: (
-        resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
-      ) => setFieldGroupingResolver(resolver),
-      parseMediaInfo: (mediaPath: string | null) =>
-        parseMediaInfo(resolveMediaPathForJimaku(mediaPath)),
-      getCurrentMediaPath: () => appState.currentMediaPath,
-      jimakuFetchJson: <T>(
-        endpoint: string,
-        query?: Record<string, string | number | boolean | null | undefined>,
-      ): Promise<JimakuApiResponse<T>> =>
-        jimakuFetchJson<T>(endpoint, query),
-      getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(),
-      getJimakuLanguagePreference: () => getJimakuLanguagePreference(),
-      resolveJimakuApiKey: () => resolveJimakuApiKey(),
-      isRemoteMediaPath: (mediaPath: string) => isRemoteMediaPath(mediaPath),
-      downloadToFile: (
-        url: string,
-        destPath: string,
-        headers: Record<string, string>,
-      ) => downloadToFile(url, destPath, headers),
+  },
+  ankiJimakuDeps: createAnkiJimakuIpcRuntimeServiceDeps({
+    patchAnkiConnectEnabled: (enabled: boolean) => {
+      configService.patchRawConfig({ ankiConnect: { enabled } });
     },
-  };
-}
-
-registerIpcRuntimeServices(buildIpcRuntimeServicesParams());
+    getResolvedConfig: () => getResolvedConfig(),
+    getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
+    getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+    getMpvClient: () => appState.mpvClient,
+    getAnkiIntegration: () => appState.ankiIntegration,
+    setAnkiIntegration: (integration: AnkiIntegration | null) => {
+      appState.ankiIntegration = integration;
+    },
+    showDesktopNotification,
+    createFieldGroupingCallback: () => createFieldGroupingCallback(),
+    broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+    getFieldGroupingResolver: () => getFieldGroupingResolver(),
+    setFieldGroupingResolver: (
+      resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
+    ) => setFieldGroupingResolver(resolver),
+    parseMediaInfo: (mediaPath: string | null) =>
+      parseMediaInfo(resolveMediaPathForJimaku(mediaPath)),
+    getCurrentMediaPath: () => appState.currentMediaPath,
+    jimakuFetchJson: <T>(
+      endpoint: string,
+      query?: Record<string, string | number | boolean | null | undefined>,
+    ): Promise<JimakuApiResponse<T>> => jimakuFetchJson<T>(endpoint, query),
+    getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(),
+    getJimakuLanguagePreference: () => getJimakuLanguagePreference(),
+    resolveJimakuApiKey: () => resolveJimakuApiKey(),
+    isRemoteMediaPath: (mediaPath: string) => isRemoteMediaPath(mediaPath),
+    downloadToFile: (
+      url: string,
+      destPath: string,
+      headers: Record<string, string>,
+    ) => downloadToFile(url, destPath, headers),
+  }),
+});
