@@ -10,8 +10,7 @@ labels:
   - mpv
   - frontend
   - quality
-dependencies:
-  - TASK-28
+dependencies: []
 priority: high
 ---
 
