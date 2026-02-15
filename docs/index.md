@@ -23,22 +23,44 @@ hero:
       link: /configuration
 
 features:
-  - icon: "🎯"
-    title: Click-to-Lookup Overlay
-    details: Subtitles are tokenized into clickable words. Click any word to open a Yomitan dictionary popup — right on top of the video.
-  - icon: "📇"
-    title: Automatic Anki Cards
-    details: Add a word from Yomitan and SubMiner fills in the sentence, audio clip, screenshot, and translation automatically.
-  - icon: "🪟"
+  - icon:
+      src: /assets/mpv.svg
+      alt: mpv icon
+    title: Built for mpv
+    details: Connects directly to mpv over IPC — tracks subtitles in real time, observes playback properties, and renders a self-contained overlay with everything bundled in a single application.
+  - icon:
+      src: /assets/yomitan-icon.svg
+      alt: Yomitan logo
+    title: Yomitan Integration
+    details: Hover over any word in the subtitles to trigger Yomitan dictionary lookups — get instant definitions without leaving the video player.
+  - icon:
+      src: /assets/anki-card.svg
+      alt: Anki card icon
+    title: Anki Card Enrichment
+    details: Add a word from Yomitan and SubMiner automatically updates the card with the sentence, audio clip, screenshot, and translation — no extra steps needed.
+  - icon:
+      src: /assets/dual-layer.svg
+      alt: Dual layer icon
     title: Dual-Layer Subtitle System
     details: Visible overlay with styled, interactive subtitles — plus an invisible layer that aligns with mpv's own subtitle rendering for seamless click-through lookup.
-  - icon: "🎬"
-    title: YouTube & Subtitle Sync
-    details: Play YouTube videos with auto-generated subtitles. Sync external subtitle files with alass or ffsubsync. Search and download anime subtitles from Jimaku.
-  - icon: "🔠"
-    title: Smart Tokenization
-    details: Japanese text is segmented using Yomitan's internal parser with MeCab fallback, enabling accurate word boundary detection for dictionary lookups.
-  - icon: "⌨️"
+  - icon:
+      src: /assets/highlight.svg
+      alt: Highlight icon
+    title: N+1 Word Highlighting
+    details: Highlights words you already know from your Anki deck, making it easy to spot new vocabulary and identify true N+1 sentences during immersion.
+  - icon:
+      src: /assets/texthooker.svg
+      alt: Texthooker icon
+    title: Texthooker & WebSocket
+    details: Built-in texthooker page that receives subtitles over WebSocket — use it as a clipboard inserter for Yomitan or connect external tools for real-time subtitle streaming.
+  - icon:
+      src: /assets/subtitle-download.svg
+      alt: Subtitle download icon
+    title: Subtitle Download & Sync
+    details: Search and download Japanese subtitles from Jimaku, then sync them to the audio with alass or ffsubsync — all from within the player.
+  - icon:
+      src: /assets/keyboard.svg
+      alt: Keyboard icon
     title: Keyboard-Driven Workflow
     details: Mine sentences, copy subtitles, cycle display modes, and trigger field grouping — all from configurable keyboard shortcuts without touching the mouse.
 ---
@@ -136,7 +158,7 @@ SubMiner sits as a transparent overlay on top of mpv. Subtitles appear as intera
   <div class="workflow-step">
     <div class="step-number">02</div>
     <div class="step-title">Look Up</div>
-    <div class="step-desc">Click any word in the subtitle overlay. Yomitan opens its dictionary popup instantly.</div>
+    <div class="step-desc">Hover over a word in the subtitle overlay and hold Shift to trigger a Yomitan dictionary lookup.</div>
   </div>
   <div class="workflow-step">
     <div class="step-number">03</div>

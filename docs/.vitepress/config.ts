@@ -5,6 +5,12 @@ export default {
   title: 'SubMiner Docs',
   description: 'All-in-one sentence mining overlay for MPV with AnkiConnect and dictionary integration',
   base,
+  head: [
+    ['link', { rel: 'icon', href: '/favicon.ico', sizes: 'any' }],
+    ['link', { rel: 'icon', type: 'image/png', href: '/favicon-32x32.png', sizes: '32x32' }],
+    ['link', { rel: 'icon', type: 'image/png', href: '/favicon-16x16.png', sizes: '16x16' }],
+    ['link', { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' }],
+  ],
   appearance: 'dark',
   cleanUrls: true,
   lastUpdated: true,

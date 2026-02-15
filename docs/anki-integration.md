@@ -172,7 +172,7 @@ To mine multiple subtitle lines as one sentence card, use `Ctrl/Cmd+Shift+S` fol
 
 ## Field Grouping (Kiku)
 
-When you mine the same word multiple times, SubMiner can merge the cards instead of creating duplicates. This is designed for note types like [Kiku](https://github.com/donkuri/Kiku) that support grouped sentence/audio/image fields.
+When you mine the same word multiple times, SubMiner can merge the cards instead of creating duplicates. This is designed for note types like [Kiku](https://github.com/youyoumu/kiku) that support grouped sentence/audio/image fields.
 
 ```jsonc
 "ankiConnect": {

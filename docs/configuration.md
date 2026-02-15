@@ -2,6 +2,26 @@
 
 Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` when `XDG_CONFIG_HOME` is unset). For backward compatibility, SubMiner also reads existing configs from lowercase `subminer` directories.
 
+## Quick Start
+
+For most users, start with this minimal configuration:
+
+```json
+{
+  "ankiConnect": {
+    "enabled": true,
+    "deck": "YourDeckName",
+    "fields": {
+      "sentence": "Sentence",
+      "audio": "Audio",
+      "image": "Image"
+    }
+  }
+}
+```
+
+Then customize as needed using the sections below.
+
 ## Configuration File
 
 See [config.example.jsonc](/config.example.jsonc) for a comprehensive example configuration file with all available options, default values, and detailed comments. Only include the options you want to customize in your config file.
@@ -196,12 +216,8 @@ To refresh roughly once per day, set:
 }
 ```
 
-<video controls playsinline preload="metadata" poster="/assets/kiku-integration-poster.jpg" style="width: 100%; max-width: 960px;">
-  <source :src="'/assets/kiku-integration.webm'" type="video/webm" />
-  Your browser does not support the video tag.
-</video>
+### Field Grouping Modes
 
-<a :href="'/assets/kiku-integration.webm'" target="_blank" rel="noreferrer">Open demo in a new tab</a>
 | Mode       | Behavior                                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `auto`     | Automatically merges the new card's content into the original; duplicate deletion is controlled by `deleteDuplicateInAuto` |
@@ -210,15 +226,22 @@ To refresh roughly once per day, set:
 
 `deleteDuplicateInAuto` controls whether `auto` mode deletes the duplicate after merge (default: `true`). In `manual` mode, the popup asks each time whether to delete the duplicate.
 
+<video controls playsinline preload="metadata" poster="/assets/kiku-integration-poster.jpg" style="width: 100%; max-width: 960px;">
+  <source :src="'/assets/kiku-integration.webm'" type="video/webm" />
+  Your browser does not support the video tag.
+</video>
+
+<a :href="'/assets/kiku-integration.webm'" target="_blank" rel="noreferrer">Open demo in a new tab</a>
+
 **Image Quality Notes:**
 
 - `imageQuality` affects JPG and WebP only; PNG is lossless and ignores this setting
 - JPG quality is mapped to FFmpeg's scale (2-31, lower = better)
 - WebP quality uses FFmpeg's native 0-100 scale
 
-**Manual Card Update:**
+### Manual Card Update Shortcuts
 
-When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but not automatically updated. Instead, you can manually update cards using keyboard shortcuts:
+When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but not automatically updated. Use these keyboard shortcuts for manual control:
 
 | Shortcut       | Action                                                                                                       |
 | -------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -232,14 +255,14 @@ When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but
 | `Ctrl+Shift+A` | Mark the last added Anki card as an audio card (sets IsAudioCard, SentenceAudio, Sentence, Picture)          |
 | `Ctrl+Shift+O` | Open runtime options palette (session-only live toggles)                                                      |
 
-To copy multiple lines (current + previous):
+**Multi-line copy workflow:**
 
 1. Press `Ctrl+Shift+C`
 2. Press a number key (`1-9`) within 3 seconds
 3. The specified number of most recent subtitle lines are copied
 4. Press `Ctrl+V` to update the last added card with the copied lines
 
-These shortcuts are only active when the overlay window is visible. They are automatically disabled when the overlay is hidden to avoid interfering with normal system clipboard operations.
+These shortcuts are only active when the overlay window is visible and automatically disabled when hidden.
 
 ### Auto-Start Overlay
 
