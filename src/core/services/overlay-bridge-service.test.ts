@@ -12,14 +12,15 @@ test("sendToVisibleOverlayRuntimeService restores visibility flag when opening h
   let visibleOverlayVisible = false;
 
   const ok = sendToVisibleOverlayRuntimeService({
-    mainWindow: {
-      isDestroyed: () => false,
-      webContents: {
-        send: (...args: unknown[]) => {
-          sent.push(args);
+      mainWindow: {
+        isDestroyed: () => false,
+        webContents: {
+          isLoading: () => false,
+          send: (...args: unknown[]) => {
+            sent.push(args);
+          },
         },
-      },
-    } as unknown as Electron.BrowserWindow,
+      } as unknown as Electron.BrowserWindow,
     visibleOverlayVisible,
     setVisibleOverlayVisible: (visible) => {
       visibleOverlayVisible = visible;

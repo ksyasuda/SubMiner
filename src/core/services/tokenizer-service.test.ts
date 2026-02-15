@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PartOfSpeech } from "../../types";
-import { tokenizeSubtitleService, TokenizerServiceDeps } from "./tokenizer-service";
+import {
+  createTokenizerDepsRuntimeService,
+  TokenizerServiceDeps,
+  TokenizerDepsRuntimeOptions,
+  tokenizeSubtitleService,
+} from "./tokenizer-service";
 
 function makeDeps(
   overrides: Partial<TokenizerServiceDeps> = {},
@@ -19,6 +24,27 @@ function makeDeps(
     tokenizeWithMecab: async () => null,
     ...overrides,
   };
+}
+
+function makeDepsFromMecabTokenizer(
+  tokenize: (text: string) => Promise<import("../../types").Token[] | null>,
+  overrides: Partial<TokenizerDepsRuntimeOptions> = {},
+): TokenizerServiceDeps {
+  return createTokenizerDepsRuntimeService({
+    getYomitanExt: () => null,
+    getYomitanParserWindow: () => null,
+    setYomitanParserWindow: () => {},
+    getYomitanParserReadyPromise: () => null,
+    setYomitanParserReadyPromise: () => {},
+    getYomitanParserInitPromise: () => null,
+    setYomitanParserInitPromise: () => {},
+    isKnownWord: () => false,
+    getKnownWordMatchMode: () => "headword",
+    getMecabTokenizer: () => ({
+      tokenize,
+    }),
+    ...overrides,
+  });
 }
 
 test("tokenizeSubtitleService returns null tokens for empty normalized text", async () => {
@@ -136,20 +162,22 @@ test("tokenizeSubtitleService uses Yomitan parser result when available", async 
 test("tokenizeSubtitleService marks tokens as known using callback", async () => {
   const result = await tokenizeSubtitleService(
     "猫です",
-    makeDeps({
+    makeDepsFromMecabTokenizer(async () => [
+      {
+        word: "猫",
+        partOfSpeech: PartOfSpeech.noun,
+        pos1: "",
+        pos2: "",
+        pos3: "",
+        pos4: "",
+        inflectionType: "",
+        inflectionForm: "",
+        headword: "猫",
+        katakanaReading: "ネコ",
+        pronunciation: "ネコ",
+      },
+    ], {
       isKnownWord: (text) => text === "猫",
-      tokenizeWithMecab: async () => [
-        {
-          surface: "猫",
-          reading: "ネコ",
-          headword: "猫",
-          startPos: 0,
-          endPos: 1,
-          partOfSpeech: PartOfSpeech.noun,
-          isMerged: false,
-          isKnown: false,
-        },
-      ],
     }),
   );
 
@@ -160,20 +188,22 @@ test("tokenizeSubtitleService marks tokens as known using callback", async () =>
 test("tokenizeSubtitleService checks known words by headword, not surface", async () => {
   const result = await tokenizeSubtitleService(
     "猫です",
-    makeDeps({
+    makeDepsFromMecabTokenizer(async () => [
+      {
+        word: "猫",
+        partOfSpeech: PartOfSpeech.noun,
+        pos1: "",
+        pos2: "",
+        pos3: "",
+        pos4: "",
+        inflectionType: "",
+        inflectionForm: "",
+        headword: "猫です",
+        katakanaReading: "ネコ",
+        pronunciation: "ネコ",
+      },
+    ], {
       isKnownWord: (text) => text === "猫です",
-      tokenizeWithMecab: async () => [
-        {
-          surface: "猫",
-          reading: "ネコ",
-          headword: "猫です",
-          startPos: 0,
-          endPos: 1,
-          partOfSpeech: PartOfSpeech.noun,
-          isMerged: false,
-          isKnown: false,
-        },
-      ],
     }),
   );
 
@@ -184,21 +214,23 @@ test("tokenizeSubtitleService checks known words by headword, not surface", asyn
 test("tokenizeSubtitleService checks known words by surface when configured", async () => {
   const result = await tokenizeSubtitleService(
     "猫です",
-    makeDeps({
+    makeDepsFromMecabTokenizer(async () => [
+      {
+        word: "猫",
+        partOfSpeech: PartOfSpeech.noun,
+        pos1: "",
+        pos2: "",
+        pos3: "",
+        pos4: "",
+        inflectionType: "",
+        inflectionForm: "",
+        headword: "猫です",
+        katakanaReading: "ネコ",
+        pronunciation: "ネコ",
+      },
+    ], {
       getKnownWordMatchMode: () => "surface",
       isKnownWord: (text) => text === "猫",
-      tokenizeWithMecab: async () => [
-        {
-          surface: "猫",
-          reading: "ネコ",
-          headword: "猫です",
-          startPos: 0,
-          endPos: 1,
-          partOfSpeech: PartOfSpeech.noun,
-          isMerged: false,
-          isKnown: false,
-        },
-      ],
     }),
   );
 

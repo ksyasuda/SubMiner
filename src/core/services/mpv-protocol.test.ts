@@ -92,13 +92,16 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
         state.commands.push(payload);
         return true;
       },
-      restorePreviousSecondarySubVisibility: () => {
-        state.restored += 1;
+        restorePreviousSecondarySubVisibility: () => {
+          state.restored += 1;
+        },
+        setPreviousSecondarySubVisibility: () => {
+          // intentionally not tracked in this unit test
+        },
+        ...overrides,
       },
-      ...overrides,
-    },
-  };
-}
+    };
+  }
 
 test("dispatchMpvProtocolMessage emits subtitle text on property change", async () => {
   const { deps, state } = createDeps();
