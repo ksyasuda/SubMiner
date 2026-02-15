@@ -30,3 +30,4 @@ environment.toml
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 test/*
+.worktrees/
