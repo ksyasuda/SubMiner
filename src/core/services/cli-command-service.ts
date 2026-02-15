@@ -29,6 +29,7 @@ export interface CliCommandServiceDeps {
   mineSentenceCard: () => Promise<void>;
   startPendingMineSentenceMultiple: (timeoutMs: number) => void;
   updateLastCardFromClipboard: () => Promise<void>;
+  refreshKnownWords: () => Promise<void>;
   cycleSecondarySubMode: () => void;
   triggerFieldGrouping: () => Promise<void>;
   triggerSubsyncFromConfig: () => Promise<void>;
@@ -83,6 +84,7 @@ interface MiningCliRuntime {
   mineSentenceCard: () => Promise<void>;
   startPendingMineSentenceMultiple: (timeoutMs: number) => void;
   updateLastCardFromClipboard: () => Promise<void>;
+  refreshKnownWords: () => Promise<void>;
   triggerFieldGrouping: () => Promise<void>;
   triggerSubsyncFromConfig: () => Promise<void>;
   markLastCardAsAudioCard: () => Promise<void>;
@@ -159,6 +161,7 @@ export function createCliCommandDepsRuntimeService(
     startPendingMineSentenceMultiple:
       options.mining.startPendingMineSentenceMultiple,
     updateLastCardFromClipboard: options.mining.updateLastCardFromClipboard,
+    refreshKnownWords: options.mining.refreshKnownWords,
     cycleSecondarySubMode: options.ui.cycleSecondarySubMode,
     triggerFieldGrouping: options.mining.triggerFieldGrouping,
     triggerSubsyncFromConfig: options.mining.triggerSubsyncFromConfig,
@@ -208,6 +211,7 @@ export function handleCliCommandService(
     args.mineSentence ||
     args.mineSentenceMultiple ||
     args.updateLastCardFromClipboard ||
+    args.refreshKnownWords ||
     args.toggleSecondarySub ||
     args.triggerFieldGrouping ||
     args.triggerSubsync ||
@@ -294,6 +298,13 @@ export function handleCliCommandService(
       deps,
       "updateLastCardFromClipboard",
       "Update failed",
+    );
+  } else if (args.refreshKnownWords) {
+    runAsyncWithOsd(
+      () => deps.refreshKnownWords(),
+      deps,
+      "refreshKnownWords",
+      "Refresh known words failed",
     );
   } else if (args.toggleSecondarySub) {
     deps.cycleSecondarySubMode();

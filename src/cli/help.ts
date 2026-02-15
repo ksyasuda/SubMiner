@@ -18,8 +18,9 @@ SubMiner CLI commands:
   --copy-subtitle-multiple     Start multi-copy mode
   --mine-sentence              Mine sentence card from current subtitle
   --mine-sentence-multiple     Start multi-mine sentence mode
-  --update-last-card-from-clipboard  Update last card from clipboard
-  --toggle-secondary-sub       Cycle secondary subtitle mode
+   --update-last-card-from-clipboard  Update last card from clipboard
+   --refresh-known-words          Refresh known words cache now
+   --toggle-secondary-sub       Cycle secondary subtitle mode
   --trigger-field-grouping     Trigger Kiku field grouping
   --trigger-subsync            Run subtitle sync
   --mark-audio-card            Mark last card as audio card

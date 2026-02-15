@@ -704,6 +704,7 @@ function handleCliCommand(
     startPendingMineSentenceMultiple: (timeoutMs: number) =>
       startPendingMineSentenceMultiple(timeoutMs),
     updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    refreshKnownWordCache: () => refreshKnownWordCache(),
     triggerFieldGrouping: () => triggerFieldGrouping(),
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
@@ -1108,6 +1109,14 @@ async function updateLastCardFromClipboard(): Promise<void> {
       showMpvOsd: (text) => showMpvOsd(text),
     },
   );
+}
+
+async function refreshKnownWordCache(): Promise<void> {
+  if (!appState.ankiIntegration) {
+    throw new Error("AnkiConnect integration not enabled");
+  }
+
+  await appState.ankiIntegration.refreshKnownWordCache();
 }
 
 async function triggerFieldGrouping(): Promise<void> {

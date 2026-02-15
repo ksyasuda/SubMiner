@@ -145,6 +145,7 @@ export interface CliCommandRuntimeServiceDepsParams {
       CliCommandDepsRuntimeOptions["mining"]["startPendingMineSentenceMultiple"];
     updateLastCardFromClipboard:
       CliCommandDepsRuntimeOptions["mining"]["updateLastCardFromClipboard"];
+    refreshKnownWords: CliCommandDepsRuntimeOptions["mining"]["refreshKnownWords"];
     triggerFieldGrouping: CliCommandDepsRuntimeOptions["mining"]["triggerFieldGrouping"];
     triggerSubsyncFromConfig:
       CliCommandDepsRuntimeOptions["mining"]["triggerSubsyncFromConfig"];
@@ -273,6 +274,7 @@ export function createCliCommandRuntimeServiceDeps(
       mineSentenceCard: params.mining.mineSentenceCard,
       startPendingMineSentenceMultiple: params.mining.startPendingMineSentenceMultiple,
       updateLastCardFromClipboard: params.mining.updateLastCardFromClipboard,
+      refreshKnownWords: params.mining.refreshKnownWords,
       triggerFieldGrouping: params.mining.triggerFieldGrouping,
       triggerSubsyncFromConfig: params.mining.triggerSubsyncFromConfig,
       markLastCardAsAudioCard: params.mining.markLastCardAsAudioCard,

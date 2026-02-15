@@ -26,6 +26,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     triggerFieldGrouping: false,
     triggerSubsync: false,
     markAudioCard: false,
+    refreshKnownWords: false,
     openRuntimeOptions: false,
     texthooker: false,
     help: false,
@@ -105,6 +106,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     updateLastCardFromClipboard: async () => {
       calls.push("updateLastCardFromClipboard");
+    },
+    refreshKnownWords: async () => {
+      calls.push("refreshKnownWords");
     },
     cycleSecondarySubMode: () => {
       calls.push("cycleSecondarySubMode");
@@ -287,4 +291,28 @@ test("handleCliCommandService handles visibility and utility command dispatches"
       `expected call missing for args ${JSON.stringify(entry.args)}: ${entry.expected}`,
     );
   }
+});
+
+test("handleCliCommandService runs refresh-known-words command", () => {
+  const { deps, calls } = createDeps();
+
+  handleCliCommandService(makeArgs({ refreshKnownWords: true }), "initial", deps);
+
+  assert.ok(calls.includes("refreshKnownWords"));
+});
+
+test("handleCliCommandService reports async refresh-known-words errors to OSD", async () => {
+  const { deps, calls, osd } = createDeps({
+    refreshKnownWords: async () => {
+      throw new Error("refresh boom");
+    },
+  });
+
+  handleCliCommandService(makeArgs({ refreshKnownWords: true }), "initial", deps);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(
+    calls.some((value) => value.startsWith("error:refreshKnownWords failed:")),
+  );
+  assert.ok(osd.some((value) => value.includes("Refresh known words failed: refresh boom")));
 });

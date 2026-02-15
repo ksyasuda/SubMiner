@@ -107,6 +107,7 @@ test("registerAnkiJimakuIpcRuntimeService provides full handler surface", () => 
   const expected = [
     "setAnkiConnectEnabled",
     "clearAnkiHistory",
+    "refreshKnownWords",
     "respondFieldGrouping",
     "buildKikuMergePreview",
     "getJimakuMediaInfo",
@@ -122,6 +123,31 @@ test("registerAnkiJimakuIpcRuntimeService provides full handler surface", () => 
   for (const key of expected) {
     assert.equal(typeof registered[key], "function", `missing handler: ${key}`);
   }
+});
+
+test("refreshKnownWords throws when integration is unavailable", async () => {
+  const { registered } = createHarness();
+
+  await assert.rejects(
+    async () => {
+      await registered.refreshKnownWords();
+    },
+    { message: "AnkiConnect integration not enabled" },
+  );
+});
+
+test("refreshKnownWords delegates to integration", async () => {
+  const { registered, state } = createHarness();
+  let refreshed = 0;
+  state.ankiIntegration = {
+    refreshKnownWordCache: async () => {
+      refreshed += 1;
+    },
+  };
+
+  await registered.refreshKnownWords();
+
+  assert.equal(refreshed, 1);
 });
 
 test("setAnkiConnectEnabled disables active integration and broadcasts changes", () => {

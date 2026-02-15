@@ -19,6 +19,7 @@ import {
 export interface AnkiJimakuIpcDeps {
   setAnkiConnectEnabled: (enabled: boolean) => void;
   clearAnkiHistory: () => void;
+  refreshKnownWords: () => Promise<void> | void;
   respondFieldGrouping: (choice: KikuFieldGroupingChoice) => void;
   buildKikuMergePreview: (
     request: KikuMergePreviewRequest,
@@ -53,6 +54,10 @@ export function registerAnkiJimakuIpcHandlers(
 
   ipcMain.on("clear-anki-connect-history", () => {
     deps.clearAnkiHistory();
+  });
+
+  ipcMain.on("anki:refresh-known-words", async () => {
+    await deps.refreshKnownWords();
   });
 
   ipcMain.on(

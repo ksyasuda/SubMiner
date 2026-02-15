@@ -223,7 +223,11 @@ export class AnkiIntegration {
     }
   }
 
-  private async refreshKnownWords(): Promise<void> {
+  async refreshKnownWordCache(): Promise<void> {
+    return this.refreshKnownWords(true);
+  }
+
+  private async refreshKnownWords(force = false): Promise<void> {
     if (!this.isKnownWordCacheEnabled()) {
       log.debug("Known-word cache refresh skipped; feature disabled");
       return;
@@ -232,7 +236,7 @@ export class AnkiIntegration {
       log.debug("Known-word cache refresh skipped; already refreshing");
       return;
     }
-    if (!this.isKnownWordCacheStale()) {
+    if (!force && !this.isKnownWordCacheStale()) {
       log.debug("Known-word cache refresh skipped; cache is fresh");
       return;
     }

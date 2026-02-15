@@ -3,6 +3,7 @@ import {
   registerAnkiJimakuIpcRuntimeService,
   registerIpcHandlersService,
 } from "../core/services";
+import { registerAnkiJimakuIpcHandlers } from "../core/services/anki-jimaku-ipc-service";
 import {
   createAnkiJimakuIpcRuntimeServiceDeps,
   AnkiJimakuIpcRuntimeServiceDepsParams,
@@ -34,6 +35,7 @@ export function registerAnkiJimakuIpcRuntimeServices(
 ): void {
   registerAnkiJimakuIpcRuntimeService(
     createAnkiJimakuIpcRuntimeServiceDeps(params),
+    registerAnkiJimakuIpcHandlers,
   );
 }
 
