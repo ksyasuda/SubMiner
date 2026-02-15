@@ -92,28 +92,34 @@ flowchart TD
   classDef boundary fill:#494d64,stroke:#a6da95,color:#cad3f5,stroke-width:2px;
 
   subgraph Entry["Entrypoint"]
-    Main["src/main.ts\ncomposition root"]
+    Main["src/main.ts\nentry point"]
   end
   class Main root;
 
-  subgraph Boot["Startup Orchestration"]
-    Startup["startup-service"]
-    Lifecycle["app-lifecycle-service"]
-    AppReady["app-ready flow"]
+  subgraph MainModules["src/main/ Composition Modules"]
+    Startup["startup.ts\nbootstrap flow"]
+    AppLifecycle["app-lifecycle.ts\nlifecycle events"]
+    StartupLifecycle["startup-lifecycle.ts\napp-ready sequence"]
+    State["state.ts\nruntime state container"]
+    IpcRuntime["ipc-runtime.ts\nIPC handlers"]
+    CliRuntime["cli-runtime.ts\nCLI dispatch"]
+    OverlayRuntime["overlay-runtime.ts\nwindow/modal"]
+    SubsyncRuntime["subsync-runtime.ts\nsubsync orchestration"]
   end
-  class Startup,Lifecycle,AppReady orchestration;
+  class Startup,AppLifecycle,StartupLifecycle,State,IpcRuntime,CliRuntime,OverlayRuntime,SubsyncRuntime orchestration;
 
-  subgraph Runtime["Runtime Domains"]
+  subgraph RuntimeServices["Runtime Domain Services"]
     OverlayMgr["overlay-manager-service"]
     OverlayWindow["overlay-window-service"]
     OverlayVisibility["overlay-visibility-service"]
     Ipc["ipc-service\nipc-command-service"]
     RuntimeOpts["runtime-options-ipc-service"]
     Mpv["mpv-service\nmpv-control-service"]
+    MpvTransport["mpv-transport\nmpv-protocol"]
     Subtitle["subtitle-ws-service\nsecondary-subtitle-service"]
     Shortcuts["shortcut-service\noverlay-shortcut-service"]
   end
-  class OverlayMgr,OverlayWindow,OverlayVisibility,Ipc,RuntimeOpts,Mpv,Subtitle,Shortcuts domain;
+  class OverlayMgr,OverlayWindow,OverlayVisibility,Ipc,RuntimeOpts,Mpv,MpvTransport,Subtitle,Shortcuts domain;
 
   subgraph Adapters["External Boundaries"]
     Config["src/config/*"]
@@ -123,27 +129,28 @@ flowchart TD
   end
   class Config,Cli,Trackers,Integrations boundary;
 
-  Main -->|bootstraps| Startup
-  Main -->|registers lifecycle hooks| Lifecycle
-  Lifecycle -->|triggers| AppReady
+  Main -->|delegates to| Startup
+  Main -->|registers| AppLifecycle
+  AppLifecycle -->|triggers| StartupLifecycle
+  StartupLifecycle -->|initializes| State
 
-  Main -->|wires| OverlayMgr
-  Main -->|wires| Ipc
-  Main -->|wires| Mpv
-  Main -->|wires| Shortcuts
-  Main -->|wires| RuntimeOpts
-  Main -->|wires| Subtitle
+  Main -->|builds deps| IpcRuntime
+  Main -->|builds deps| CliRuntime
+  Main -->|builds deps| OverlayRuntime
+  Main -->|builds deps| SubsyncRuntime
+
+  IpcRuntime -->|registers| Ipc
+  IpcRuntime -->|registers| RuntimeOpts
+  CliRuntime -->|registers| Cli
+  OverlayRuntime -->|manages| OverlayMgr
+  OverlayRuntime -->|manages| OverlayWindow
+  OverlayRuntime -->|manages| OverlayVisibility
 
   Main -->|loads| Config
-  Main -->|parses| Cli
-  Main -->|delegates backend state| Trackers
-  Main -->|calls integrations| Integrations
 
-  OverlayMgr -->|creates window| OverlayWindow
-  OverlayMgr -->|applies visibility policy| OverlayVisibility
   Ipc -->|updates| RuntimeOpts
-  Mpv -->|feeds timing + subtitle context| Subtitle
-  Shortcuts -->|drives overlay actions| OverlayMgr
+  Mpv -->|feeds| Subtitle
+  Shortcuts -->|drives| OverlayMgr
 ```
 
 ## Composition Pattern
@@ -152,23 +159,33 @@ Most runtime code follows a dependency-injection pattern:
 
 1. Define a service interface in `src/core/services/*`.
 2. Keep core logic in pure or side-effect-bounded functions.
-3. Build runtime deps in `main.ts`; extract an adapter/helper only when it adds meaningful behavior or reuse.
+3. Build runtime deps in `src/main/` composition modules; extract an adapter/helper only when it adds meaningful behavior or reuse.
 4. Call the service from lifecycle/command wiring points.
+
+The composition root (`src/main.ts`) delegates to focused modules in `src/main/`:
+- `startup.ts` — argv/env processing and bootstrap flow
+- `app-lifecycle.ts` — Electron lifecycle event registration
+- `startup-lifecycle.ts` — app-ready initialization sequence
+- `state.ts` — centralized application runtime state container
+- `ipc-runtime.ts` — IPC channel registration and handler wiring
+- `cli-runtime.ts` — CLI command parsing and dispatch
+- `overlay-runtime.ts` — overlay window selection and modal state management
+- `subsync-runtime.ts` — subsync command orchestration
 
 This keeps side effects explicit and makes behavior easy to unit-test with fakes.
 
 ## Lifecycle Model
 
 - **Startup:**
-  - `startup-service` handles initial argv/env/backend setup and decides generate-config flow vs app lifecycle start.
-  - `app-lifecycle-service` handles Electron single-instance + lifecycle event registration.
-  - App-ready flow performs ready-time initialization (config load, websocket policy, tokenizer/tracker setup, overlay auto-init decisions).
+  - `src/main/startup.ts` (`startup-service`) handles initial argv/env/backend setup and decides generate-config flow vs app lifecycle start.
+  - `src/main/app-lifecycle.ts` (`app-lifecycle-service`) handles Electron single-instance + lifecycle event registration.
+  - `src/main/startup-lifecycle.ts` performs ready-time initialization (config load, websocket policy, tokenizer/tracker setup, overlay auto-init decisions).
 - **Runtime:**
-  - CLI/shortcut/IPC events map to service calls.
+  - CLI/shortcut/IPC events map to service calls through `src/main/cli-runtime.ts`, `src/main/ipc-runtime.ts`, and `src/main/overlay-runtime.ts`.
   - Overlay and MPV state sync through dedicated services.
   - Runtime options and mining flows are coordinated via service boundaries.
 - **Shutdown:**
-  - `app-lifecycle-service` registers cleanup hooks (`will-quit`) while teardown behavior stays delegated to focused services from `main.ts`.
+  - `app-lifecycle-service` registers cleanup hooks (`will-quit`) while teardown behavior stays delegated to focused services from `src/main/*` composition modules.
 
 ```mermaid
 flowchart TD
@@ -177,26 +194,28 @@ flowchart TD
   classDef runtime fill:#494d64,stroke:#8aadf4,color:#cad3f5,stroke-width:2px;
   classDef shutdown fill:#494d64,stroke:#a6da95,color:#cad3f5,stroke-width:2px;
 
-  Args["CLI args / env"] --> Startup["startup-service"]
+  Args["CLI args / env"] --> Startup["src/main/startup.ts\nstartup-service"]
   class Args,Startup phase;
 
   Startup --> Decision{"generate-config?"}
   class Decision decision;
 
   Decision -->|yes| WriteConfig["write config + exit"]
-  Decision -->|no| Lifecycle["app-lifecycle-service"]
-  class WriteConfig,Lifecycle phase;
+  Decision -->|no| AppLifecycle["src/main/app-lifecycle.ts\napp-lifecycle-service"]
+  class WriteConfig,AppLifecycle phase;
 
-  Lifecycle --> Ready["app-ready flow\n(config + websocket policy + tracker/tokenizer init)"]
+  AppLifecycle --> Ready["src/main/startup-lifecycle.ts\napp-ready flow\n(config + websocket policy + tracker/tokenizer init + state init)"]
   class Ready phase;
 
-  Ready --> RuntimeBus["event loop:\nIPC + shortcuts + mpv events"]
-  RuntimeBus --> Overlay["overlay visibility + mining actions"]
-  RuntimeBus --> Subtitle["subtitle + secondary-subtitle processing"]
-  RuntimeBus --> Subsync["subsync / jimaku integration actions"]
-  class RuntimeBus,Overlay,Subtitle,Subsync runtime;
+  Ready --> Runtime["src/main/* runtime modules:\nipc-runtime, cli-runtime, overlay-runtime, subsync-runtime"]
+  class Runtime runtime;
 
-  RuntimeBus --> WillQuit["Electron will-quit"]
+  Runtime --> Overlay["overlay visibility + mining actions"]
+  Runtime --> Subtitle["subtitle + secondary-subtitle processing"]
+  Runtime --> Subsync["subsync / jimaku integration actions"]
+  class Overlay,Subtitle,Subsync runtime;
+
+  Runtime --> WillQuit["Electron will-quit"]
   WillQuit --> Cleanup["service-level teardown\n(unregister hooks, close resources)"]
   class WillQuit,Cleanup shutdown;
 ```
@@ -207,11 +226,14 @@ flowchart TD
 - **Better testability:** most behavior can be tested without Electron windows/mpv.
 - **Better reviewability:** PRs can be scoped to one subsystem.
 - **Backward compatibility:** CLI flags and IPC channels can remain stable while internals evolve.
+- **Extracted composition root:** TASK-27 refactored `main.ts` into focused modules under `src/main/`, isolating startup, lifecycle, IPC, CLI, and domain-specific runtime wiring.
+- **Split MPV service:** TASK-27.4 separated `mpv-service.ts` into transport (`mpv-transport.ts`), protocol (`mpv-protocol.ts`), state (`mpv-state.ts`), and properties (`mpv-properties.ts`) layers for improved maintainability.
 
 ## Extension Rules
 
-- Add behavior to an existing service or a new `src/core/services/*` file, not as ad-hoc logic in `main.ts`.
+- Add behavior to an existing service in `src/core/services/*` or create a new focused module in `src/main/` for composition-level logic — not as ad-hoc logic in `main.ts`.
 - Keep service APIs explicit and narrowly scoped.
 - Prefer additive changes that preserve existing CLI flags and IPC channel behavior.
 - Add/update unit tests for each service extraction or behavior change.
 - For cross-cutting changes, extract-first then refactor internals after parity is verified.
+- When adding new IPC channels or CLI commands, register them in the appropriate `src/main/` module (`ipc-runtime.ts` for IPC, `cli-runtime.ts` for CLI).
