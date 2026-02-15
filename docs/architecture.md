@@ -16,11 +16,23 @@ SubMiner uses a service-oriented Electron architecture with a composition-orient
 
 ```text
 src/
-  main.ts                  # Composition root — lifecycle wiring and state ownership
+  main.ts                  # Entry point — delegates to src/main/ composition modules
   preload.ts               # Electron preload bridge
   types.ts                 # Shared type definitions
+  main/                    # Composition root modules (extracted from main.ts)
+    app-lifecycle.ts       # Electron lifecycle event registration
+    cli-runtime.ts         # CLI command handling and dispatch
+    dependencies.ts        # Shared dependency builders for IPC/runtime
+    ipc-mpv-command.ts     # MPV command composition helpers
+    ipc-runtime.ts         # IPC channel registration and handlers
+    overlay-runtime.ts      # Overlay window/modal selection and state
+    overlay-shortcuts-runtime.ts # Overlay keyboard shortcut handling
+    startup.ts              # Startup bootstrap flow (argv/env processing)
+    startup-lifecycle.ts    # App-ready initialization sequence
+    state.ts                # Application runtime state container
+    subsync-runtime.ts      # Subsync command orchestration
   core/
-    services/              # ~55 focused service modules (see below)
+    services/              # ~60 focused service modules (see below)
     utils/                 # Pure helpers and coercion/config utilities
   cli/                     # CLI parsing and help output
   config/                  # Config schema, defaults, validation, template generation
@@ -36,10 +48,10 @@ src/
 
 ### Service Layer (`src/core/services/`)
 
-- **Startup** — `startup-service`, `app-lifecycle-service`
-- **Overlay** — `overlay-manager-service`, `overlay-window-service`, `overlay-visibility-service`, `overlay-bridge-service`, `overlay-runtime-init-service`
-- **Shortcuts** — `shortcut-service`, `overlay-shortcut-service`, `overlay-shortcut-handler`, `shortcut-fallback-service`, `numeric-shortcut-service`
-- **MPV** — `mpv-service`, `mpv-control-service`, `mpv-render-metrics-service`
+- **Startup** — `startup-service`, `app-lifecycle-service`, `app-ready-service`
+- **Overlay** — `overlay-manager-service`, `overlay-window-service`, `overlay-visibility-service`, `overlay-bridge-service`, `overlay-runtime-init-service`, `overlay-content-measurement-service`
+- **Shortcuts** — `shortcut-service`, `overlay-shortcut-service`, `overlay-shortcut-handler`, `shortcut-fallback-service`, `numeric-shortcut-service`, `numeric-shortcut-session-service`
+- **MPV** — `mpv-service`, `mpv-control-service`, `mpv-render-metrics-service`, `mpv-transport`, `mpv-protocol`, `mpv-state`, `mpv-properties`
 - **IPC** — `ipc-service`, `ipc-command-service`, `runtime-options-ipc-service`
 - **Mining** — `mining-service`, `field-grouping-service`, `field-grouping-overlay-service`, `anki-jimaku-service`, `anki-jimaku-ipc-service`
 - **Subtitles** — `subtitle-ws-service`, `subtitle-position-service`, `secondary-subtitle-service`, `tokenizer-service`

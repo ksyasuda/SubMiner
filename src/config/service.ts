@@ -445,9 +445,14 @@ export class ConfigService {
         : isObject(ac.openRouter)
           ? ac.openRouter
           : {};
+      const { nPlusOne: _nPlusOneConfigFromAnkiConnect, ...ankiConnectWithoutNPlusOne } =
+        ac as Record<string, unknown>;
+
       resolved.ankiConnect = {
         ...resolved.ankiConnect,
-        ...(isObject(ac) ? (ac as Partial<ResolvedConfig["ankiConnect"]>) : {}),
+        ...(isObject(ankiConnectWithoutNPlusOne)
+          ? (ankiConnectWithoutNPlusOne as Partial<ResolvedConfig["ankiConnect"]>)
+          : {}),
         fields: {
           ...resolved.ankiConnect.fields,
           ...(isObject(ac.fields)
@@ -598,17 +603,26 @@ export class ConfigService {
           behavior.nPlusOneHighlightEnabled,
         );
         if (legacyNPlusOneHighlightEnabled !== undefined) {
-        resolved.ankiConnect.nPlusOne.highlightEnabled =
-          legacyNPlusOneHighlightEnabled;
+          resolved.ankiConnect.nPlusOne.highlightEnabled =
+            legacyNPlusOneHighlightEnabled;
           warn(
             "ankiConnect.behavior.nPlusOneHighlightEnabled",
             behavior.nPlusOneHighlightEnabled,
             DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled,
             "Legacy key is deprecated; use ankiConnect.nPlusOne.highlightEnabled",
           );
+        } else if (nPlusOneConfig.highlightEnabled !== undefined) {
+          warn(
+            "ankiConnect.nPlusOne.highlightEnabled",
+            nPlusOneConfig.highlightEnabled,
+            resolved.ankiConnect.nPlusOne.highlightEnabled,
+            "Expected boolean.",
+          );
+          resolved.ankiConnect.nPlusOne.highlightEnabled =
+            DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled;
         } else {
-        resolved.ankiConnect.nPlusOne.highlightEnabled =
-          DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled;
+          resolved.ankiConnect.nPlusOne.highlightEnabled =
+            DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled;
         }
       }
 
@@ -734,6 +748,7 @@ export class ConfigService {
           resolved.ankiConnect.nPlusOne.decks,
           "Expected an array of strings.",
         );
+        resolved.ankiConnect.nPlusOne.decks = [];
       }
 
       if (

@@ -10,7 +10,11 @@ import {
   KikuFieldGroupingRequestData,
 } from "../../types";
 import { sortJimakuFiles } from "../../jimaku/utils";
-import { registerAnkiJimakuIpcHandlers } from "./anki-jimaku-ipc-service";
+import type { AnkiJimakuIpcDeps } from "./anki-jimaku-ipc-service";
+
+export type RegisterAnkiJimakuIpcRuntimeHandler = (
+  deps: AnkiJimakuIpcDeps,
+) => void;
 
 interface MpvClientLike {
   connected: boolean;
@@ -60,7 +64,7 @@ export interface AnkiJimakuIpcRuntimeOptions {
 
 export function registerAnkiJimakuIpcRuntimeService(
   options: AnkiJimakuIpcRuntimeOptions,
-  registerHandlers: typeof registerAnkiJimakuIpcHandlers = registerAnkiJimakuIpcHandlers,
+  registerHandlers: RegisterAnkiJimakuIpcRuntimeHandler,
 ): void {
   registerHandlers({
     setAnkiConnectEnabled: (enabled) => {
@@ -107,6 +111,13 @@ export function registerAnkiJimakuIpcRuntimeService(
         subtitleTimingTracker.cleanup();
         console.log("AnkiConnect subtitle timing history cleared");
       }
+    },
+    refreshKnownWords: async () => {
+      const integration = options.getAnkiIntegration();
+      if (!integration) {
+        throw new Error("AnkiConnect integration not enabled");
+      }
+      await integration.refreshKnownWordCache();
     },
     respondFieldGrouping: (choice) => {
       const resolver = options.getFieldGroupingResolver();
