@@ -86,71 +86,51 @@ src/renderer/
 
 ```mermaid
 flowchart TD
-  classDef root fill:#c6a0f6,stroke:#181926,color:#181926,stroke-width:2px;
-  classDef orchestration fill:#494d64,stroke:#b7bdf8,color:#cad3f5,stroke-width:2px;
-  classDef domain fill:#494d64,stroke:#8aadf4,color:#cad3f5,stroke-width:2px;
-  classDef boundary fill:#494d64,stroke:#a6da95,color:#cad3f5,stroke-width:2px;
+  classDef root fill:#c6a0f6,stroke:#24273a,color:#24273a,stroke-width:2px
+  classDef comp fill:#b7bdf8,stroke:#24273a,color:#24273a,stroke-width:1.5px
+  classDef svc fill:#8aadf4,stroke:#24273a,color:#24273a,stroke-width:1.5px
+  classDef ext fill:#a6da95,stroke:#24273a,color:#24273a,stroke-width:1.5px
 
-  subgraph Entry["Entrypoint"]
-    Main["src/main.ts\nentry point"]
+  Main["src/main.ts"]:::root
+
+  subgraph Composition["Composition Modules"]
+    Startup["Startup & Lifecycle"]:::comp
+    IpcCli["IPC & CLI Wiring"]:::comp
+    Overlay["Overlay & Shortcuts"]:::comp
+    Subsync["Subsync"]:::comp
   end
-  class Main root;
 
-  subgraph MainModules["src/main/ Composition Modules"]
-    Startup["startup.ts\nbootstrap flow"]
-    AppLifecycle["app-lifecycle.ts\nlifecycle events"]
-    StartupLifecycle["startup-lifecycle.ts\napp-ready sequence"]
-    State["state.ts\nruntime state container"]
-    IpcRuntime["ipc-runtime.ts\nIPC handlers"]
-    CliRuntime["cli-runtime.ts\nCLI dispatch"]
-    OverlayRuntime["overlay-runtime.ts\nwindow/modal"]
-    SubsyncRuntime["subsync-runtime.ts\nsubsync orchestration"]
+  subgraph Services["Domain Services"]
+    OverlaySvc["Overlay Services"]:::svc
+    MpvSvc["MPV Stack"]:::svc
+    MiningSvc["Mining & Subtitles"]:::svc
+    ShortcutIpc["Shortcuts & IPC"]:::svc
   end
-  class Startup,AppLifecycle,StartupLifecycle,State,IpcRuntime,CliRuntime,OverlayRuntime,SubsyncRuntime orchestration;
 
-  subgraph RuntimeServices["Runtime Domain Services"]
-    OverlayMgr["overlay-manager-service"]
-    OverlayWindow["overlay-window-service"]
-    OverlayVisibility["overlay-visibility-service"]
-    Ipc["ipc-service\nipc-command-service"]
-    RuntimeOpts["runtime-options-ipc-service"]
-    Mpv["mpv-service\nmpv-control-service"]
-    MpvTransport["mpv-transport\nmpv-protocol"]
-    Subtitle["subtitle-ws-service\nsecondary-subtitle-service"]
-    Shortcuts["shortcut-service\noverlay-shortcut-service"]
+  subgraph External["External Boundaries"]
+    Config["Config & CLI"]:::ext
+    Trackers["Window Trackers"]:::ext
+    Integrations["Jimaku & Subsync"]:::ext
   end
-  class OverlayMgr,OverlayWindow,OverlayVisibility,Ipc,RuntimeOpts,Mpv,MpvTransport,Subtitle,Shortcuts domain;
 
-  subgraph Adapters["External Boundaries"]
-    Config["src/config/*"]
-    Cli["src/cli/*"]
-    Trackers["src/window-trackers/*"]
-    Integrations["src/jimaku/*\nsrc/subsync/*"]
-  end
-  class Config,Cli,Trackers,Integrations boundary;
+  Main --> Startup
+  Main --> IpcCli
+  Main --> Overlay
+  Main --> Subsync
 
-  Main -->|delegates to| Startup
-  Main -->|registers| AppLifecycle
-  AppLifecycle -->|triggers| StartupLifecycle
-  StartupLifecycle -->|initializes| State
+  Startup --> OverlaySvc
+  IpcCli --> ShortcutIpc
+  Overlay --> OverlaySvc
+  Overlay --> MpvSvc
+  Subsync --> Integrations
 
-  Main -->|builds deps| IpcRuntime
-  Main -->|builds deps| CliRuntime
-  Main -->|builds deps| OverlayRuntime
-  Main -->|builds deps| SubsyncRuntime
+  OverlaySvc --> Trackers
+  MpvSvc --> MiningSvc
+  ShortcutIpc --> Config
 
-  IpcRuntime -->|registers| Ipc
-  IpcRuntime -->|registers| RuntimeOpts
-  CliRuntime -->|registers| Cli
-  OverlayRuntime -->|manages| OverlayMgr
-  OverlayRuntime -->|manages| OverlayWindow
-  OverlayRuntime -->|manages| OverlayVisibility
-
-  Main -->|loads| Config
-
-  Ipc -->|updates| RuntimeOpts
-  Mpv -->|feeds| Subtitle
-  Shortcuts -->|drives| OverlayMgr
+  style Composition fill:#363a4f,stroke:#494d64,color:#cad3f5
+  style Services fill:#363a4f,stroke:#494d64,color:#cad3f5
+  style External fill:#363a4f,stroke:#494d64,color:#cad3f5
 ```
 
 ## Composition Pattern
@@ -189,35 +169,28 @@ This keeps side effects explicit and makes behavior easy to unit-test with fakes
 
 ```mermaid
 flowchart TD
-  classDef phase fill:#494d64,stroke:#b7bdf8,color:#cad3f5,stroke-width:2px;
-  classDef decision fill:#494d64,stroke:#f5a97f,color:#cad3f5,stroke-width:2px;
-  classDef runtime fill:#494d64,stroke:#8aadf4,color:#cad3f5,stroke-width:2px;
-  classDef shutdown fill:#494d64,stroke:#a6da95,color:#cad3f5,stroke-width:2px;
+  classDef phase fill:#b7bdf8,stroke:#24273a,color:#24273a,stroke-width:1.5px
+  classDef decision fill:#f5a97f,stroke:#24273a,color:#24273a,stroke-width:1.5px
+  classDef runtime fill:#8aadf4,stroke:#24273a,color:#24273a,stroke-width:1.5px
+  classDef shutdown fill:#a6da95,stroke:#24273a,color:#24273a,stroke-width:1.5px
 
-  Args["CLI args / env"] --> Startup["src/main/startup.ts\nstartup-service"]
-  class Args,Startup phase;
+  Args["CLI args / env"]:::phase --> Startup["src/main/startup.ts"]:::phase
 
-  Startup --> Decision{"generate-config?"}
-  class Decision decision;
+  Startup --> Decision{"generate-config?"}:::decision
 
-  Decision -->|yes| WriteConfig["write config + exit"]
-  Decision -->|no| AppLifecycle["src/main/app-lifecycle.ts\napp-lifecycle-service"]
-  class WriteConfig,AppLifecycle phase;
+  Decision -->|yes| WriteConfig["Write config + exit"]:::phase
+  Decision -->|no| AppLifecycle["src/main/app-lifecycle.ts"]:::phase
 
-  AppLifecycle --> Ready["src/main/startup-lifecycle.ts\napp-ready flow\n(config + websocket policy + tracker/tokenizer init + state init)"]
-  class Ready phase;
+  AppLifecycle --> Ready["src/main/startup-lifecycle.ts\nConfig · WebSocket · Tracker · Tokenizer · State"]:::phase
 
-  Ready --> Runtime["src/main/* runtime modules:\nipc-runtime, cli-runtime, overlay-runtime, subsync-runtime"]
-  class Runtime runtime;
+  Ready --> Runtime["Runtime Modules\nipc · cli · overlay · subsync"]:::runtime
 
-  Runtime --> Overlay["overlay visibility + mining actions"]
-  Runtime --> Subtitle["subtitle + secondary-subtitle processing"]
-  Runtime --> Subsync["subsync / jimaku integration actions"]
-  class Overlay,Subtitle,Subsync runtime;
+  Runtime --> Overlay["Overlay & Mining"]:::runtime
+  Runtime --> Subtitle["Subtitle Processing"]:::runtime
+  Runtime --> SubsyncInt["Subsync & Jimaku"]:::runtime
 
-  Runtime --> WillQuit["Electron will-quit"]
-  WillQuit --> Cleanup["service-level teardown\n(unregister hooks, close resources)"]
-  class WillQuit,Cleanup shutdown;
+  Runtime --> WillQuit["Electron will-quit"]:::shutdown
+  WillQuit --> Cleanup["Service Teardown"]:::shutdown
 ```
 
 ## Why This Design

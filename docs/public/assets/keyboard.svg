@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="kb" x1="2" y1="10" x2="46" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c084fc"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="12" width="44" height="30" rx="5" fill="url(#kb)" opacity="0.12"/>
+  <rect x="2" y="12" width="44" height="30" rx="5" stroke="url(#kb)" stroke-width="1.5" fill="none"/>
+  <rect x="6" y="16" width="8" height="6" rx="2" fill="url(#kb)"/>
+  <rect x="16" y="16" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
+  <rect x="26" y="16" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
+  <rect x="36" y="16" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
+  <rect x="6" y="24" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
+  <rect x="16" y="24" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
+  <rect x="26" y="24" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
+  <rect x="36" y="24" width="8" height="6" rx="2" fill="url(#kb)"/>
+  <rect x="6" y="32" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
+  <rect x="16" y="32" width="16" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
+  <rect x="34" y="32" width="10" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
+</svg>

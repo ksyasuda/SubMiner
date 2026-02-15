@@ -25,6 +25,7 @@ The visible overlay renders subtitles as tokenized, clickable word spans. Each w
 - Right-click to pause/resume
 - Right-click + drag to reposition subtitles
 - Modal dialogs for Jimaku search, field grouping, subsync, and runtime options
+- **N+1 highlighting** — known words from your Anki deck are visually highlighted
 
 Toggle with `Alt+Shift+O` (global) or `y-t` (mpv plugin).
 
@@ -106,7 +107,7 @@ When a card is created, SubMiner uses the secondary subtitle text as the transla
 
 ## Field Grouping (Kiku)
 
-If you mine the same word from different sentences, SubMiner can merge the cards instead of creating duplicates. This feature is designed for use with [Kiku](https://github.com/donkuri/Kiku) and similar note types that support grouped fields.
+If you mine the same word from different sentences, SubMiner can merge the cards instead of creating duplicates. This feature is designed for use with [Kiku](https://github.com/youyoumu/kiku) and similar note types that support grouped fields.
 
 ### How It Works
 
@@ -151,3 +152,41 @@ If your subtitle file is out of sync with the audio, SubMiner can resynchronize 
 4. SubMiner runs the sync and reloads the corrected subtitle.
 
 Install the sync tools separately — see [Troubleshooting](/troubleshooting#subtitle-sync-subsync) if the tools are not found.
+
+## N+1 Word Highlighting
+
+When enabled, SubMiner highlights words you already know in your Anki deck, making it easier to spot new (N+1) vocabulary during immersion.
+
+### How It Works
+
+1. SubMiner periodically syncs with Anki to build a local cache of known words (expressions/headwords from your configured decks)
+2. As subtitles appear, known words are visually highlighted in the visible overlay
+3. Unknown words remain unhighlighted — these are your potential mining targets
+
+### Enabling N+1 Mode
+
+```json
+{
+  "ankiConnect": {
+    "nPlusOne": {
+      "highlightEnabled": true,
+      "refreshMinutes": 1440,
+      "matchMode": "headword",
+      "decks": ["Learning::Japanese"]
+    }
+  }
+}
+```
+
+| Option | Description |
+|--------|-------------|
+| `highlightEnabled` | Turn on/off the highlighting feature |
+| `refreshMinutes` | How often to refresh the known-word cache (default: 1440 = daily) |
+| `matchMode` | `"headword"` (dictionary form) or `"surface"` (exact text match) |
+| `decks` | Which Anki decks to consider "known" (empty = uses `ankiConnect.deck`) |
+
+### Use Cases
+
+- **Immersion tracking**: Quickly identify which sentences contain only known words vs. those with new vocabulary
+- **Mining focus**: Target sentences with exactly one unknown word (true N+1)
+- **Progress visualization**: See your growing vocabulary visually represented in real content
