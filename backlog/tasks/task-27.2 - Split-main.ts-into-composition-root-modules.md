@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - backend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-14 23:59'
+updated_date: '2026-02-15 00:43'
 labels:
   - 'owner:backend'
   - 'owner:architect'
@@ -77,3 +77,9 @@ Progress update (2026-02-14): committed `bbfe2a9` (`refactor: extract overlay sh
 
 Remaining for TASK-27.2: continue extracting remaining `main.ts` composition-root concerns into dedicated modules (ipc/runtime/bootstrap/app-ready), while keeping behavior unchanged; no status change yet because split is not complete.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Refactored IPC runtime registration in `main.ts` to pass `ankiJimaku` deps through `createAnkiJimakuIpcRuntimeServiceDeps(...)` and removed the bespoke `buildIpcRuntimeServicesParams()` helper; registration remains in `main.ts` via `registerIpcRuntimeServices({ ... })` with shared runtime service builders.
+<!-- SECTION:FINAL_SUMMARY:END -->
