@@ -98,6 +98,7 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
   getMpvClient: AnkiJimakuIpcRuntimeOptions["getMpvClient"];
   getAnkiIntegration: AnkiJimakuIpcRuntimeOptions["getAnkiIntegration"];
   setAnkiIntegration: AnkiJimakuIpcRuntimeOptions["setAnkiIntegration"];
+  getKnownWordCacheStatePath: AnkiJimakuIpcRuntimeOptions["getKnownWordCacheStatePath"];
   showDesktopNotification: AnkiJimakuIpcRuntimeOptions["showDesktopNotification"];
   createFieldGroupingCallback: AnkiJimakuIpcRuntimeOptions["createFieldGroupingCallback"];
   broadcastRuntimeOptionsChanged: AnkiJimakuIpcRuntimeOptions["broadcastRuntimeOptionsChanged"];
@@ -224,6 +225,7 @@ export function createAnkiJimakuIpcRuntimeServiceDeps(
     getMpvClient: params.getMpvClient,
     getAnkiIntegration: params.getAnkiIntegration,
     setAnkiIntegration: params.setAnkiIntegration,
+    getKnownWordCacheStatePath: params.getKnownWordCacheStatePath,
     showDesktopNotification: params.showDesktopNotification,
     createFieldGroupingCallback: params.createFieldGroupingCallback,
     broadcastRuntimeOptionsChanged: params.broadcastRuntimeOptionsChanged,

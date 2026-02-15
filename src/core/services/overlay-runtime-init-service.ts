@@ -35,6 +35,7 @@ export function initializeOverlayRuntimeService(options: {
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
+  getKnownWordCacheStatePath: () => string;
 }): {
   invisibleOverlayVisible: boolean;
 } {
@@ -98,6 +99,7 @@ export function initializeOverlayRuntimeService(options: {
       },
       options.showDesktopNotification,
       options.createFieldGroupingCallback(),
+      options.getKnownWordCacheStatePath(),
     );
     integration.start();
     options.setAnkiIntegration(integration);

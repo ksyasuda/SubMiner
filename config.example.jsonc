@@ -79,6 +79,12 @@
       "overwriteImage": true,
       "mediaInsertMode": "append",
       "highlightWord": true,
+      "nPlusOneHighlightEnabled": false,
+      "nPlusOneRefreshMinutes": 1440,
+      "nPlusOne": {
+        "decks": []
+      },
+      "nPlusOneMatchMode": "headword",
       "notificationType": "osd",
       "autoUpdateNewCards": true
     },

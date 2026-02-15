@@ -284,6 +284,11 @@ body.settings-modal-open #subtitleContainer {
   position: relative;
 }
 
+#subtitleRoot .word.word-known {
+  color: #a6da95;
+  text-shadow: 0 0 6px rgba(166, 218, 149, 0.35);
+}
+
 #subtitleRoot .word:hover {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;

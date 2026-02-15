@@ -118,6 +118,7 @@ This example is intentionally compact. The option table below documents availabl
 | `url`                | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                    |
 | `pollingRate`        | number (ms)                             | How often to check for new cards (default: `3000`)                                                                                        |
 | `deck`               | string                                  | Anki deck to monitor for new cards                                                                                                        |
+| `ankiConnect.nPlusOne.decks`     | array of strings                        | Decks used for N+1 known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                                   |
 | `fields.audio`                  | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                   |
 | `fields.image`                  | string                                  | Card field for images (default: `Picture`)                                                                                                |
 | `fields.sentence`               | string                                  | Card field for sentences (default: `Sentence`)                                                                                            |
@@ -148,6 +149,10 @@ This example is intentionally compact. The option table below documents availabl
 | `behavior.overwriteImage`       | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `behavior.mediaInsertMode` (default: `true`)      |
 | `behavior.mediaInsertMode`      | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                     |
 | `behavior.highlightWord`        | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                  |
+| `ankiConnect.nPlusOne.highlightEnabled` | `true`, `false`                   | Enable fast local highlighting for words already known in Anki (default: `false`)                                                       |
+| `ankiConnect.nPlusOne.matchMode` | `"headword"`, `"surface"`      | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
+| `ankiConnect.nPlusOne.refreshMinutes`   | number                             | Minutes between known-word cache refreshes (default: `1440`)                                                                              |
+| `ankiConnect.nPlusOne.decks`     | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                            |
 | `behavior.notificationType`     | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                       |
 | `behavior.autoUpdateNewCards`   | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                  |
 | `metadata.pattern`              | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                                  |
@@ -161,6 +166,35 @@ SubMiner supports the [Lapis](https://github.com/donkuri/lapis) and [Kiku](https
 When enabled, sentence cards automatically set `IsSentenceCard` to `"x"` and populate the `Expression` field. Audio cards set `IsAudioCard` to `"x"`.
 
 Kiku extends Lapis with **field grouping** — when a duplicate card is detected (same Word/Expression), SubMiner merges the two cards' content into one using Kiku's `data-group-id` HTML structure, organizing each mining instance into separate pages within the note.
+
+### N+1 Word Highlighting
+
+When `ankiConnect.nPlusOne.highlightEnabled` is enabled, SubMiner builds a local cache of known words from Anki to highlight already learned tokens in subtitle rendering.
+
+Known-word cache policy:
+
+- Initial sync runs when the integration starts if the cache is missing or stale.
+- `ankiConnect.nPlusOne.refreshMinutes` controls the minimum time between refreshes; between refreshes, cached words are reused without querying Anki.
+- `ankiConnect.nPlusOne.decks` accepts one or more decks. If empty, it uses the legacy single `ankiConnect.deck` value as scope.
+- Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
+- The cache is automatically invalidated when the configured scope changes (for example, when deck changes).
+- Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.nPlusOne.matchMode` to `"surface"` for raw subtitle text matching.
+- `ankiConnect.behavior.nPlusOne*` legacy keys (`nPlusOneHighlightEnabled`, `nPlusOneRefreshMinutes`, `nPlusOneMatchMode`) are deprecated and only kept for backward compatibility.
+- If AnkiConnect is unreachable, the cache remains in its previous state and an on-screen/system status message is shown.
+- Known-word sync activity is logged at `INFO`/`DEBUG` level with the `anki` logger scope and includes scope, notes returned, and word counts.
+
+To refresh roughly once per day, set:
+
+```json
+{
+  "ankiConnect": {
+    "nPlusOne": {
+      "highlightEnabled": true,
+      "refreshMinutes": 1440
+    }
+  }
+}
+```
 
 <video controls playsinline preload="metadata" poster="/assets/kiku-integration-poster.jpg" style="width: 100%; max-width: 960px;">
   <source :src="'/assets/kiku-integration.webm'" type="video/webm" />

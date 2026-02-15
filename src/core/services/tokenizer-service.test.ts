@@ -14,6 +14,8 @@ function makeDeps(
     setYomitanParserReadyPromise: () => {},
     getYomitanParserInitPromise: () => null,
     setYomitanParserInitPromise: () => {},
+    isKnownWord: () => false,
+    getKnownWordMatchMode: () => "headword",
     tokenizeWithMecab: async () => null,
     ...overrides,
   };
@@ -32,7 +34,7 @@ test("tokenizeSubtitleService normalizes newlines before mecab fallback", async 
       tokenizeWithMecab: async (text) => {
         tokenizeInput = text;
         return [
-          {
+        {
             surface: "猫ですね",
             reading: "ネコデスネ",
             headword: "猫ですね",
@@ -40,6 +42,7 @@ test("tokenizeSubtitleService normalizes newlines before mecab fallback", async 
             endPos: 4,
             partOfSpeech: PartOfSpeech.other,
             isMerged: true,
+            isKnown: false,
           },
         ];
       },
@@ -64,6 +67,7 @@ test("tokenizeSubtitleService falls back to mecab tokens when available", async 
           endPos: 1,
           partOfSpeech: PartOfSpeech.noun,
           isMerged: false,
+          isKnown: false,
         },
       ],
     }),
@@ -126,4 +130,78 @@ test("tokenizeSubtitleService uses Yomitan parser result when available", async 
   assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.surface, "猫です");
   assert.equal(result.tokens?.[0]?.reading, "ねこです");
+  assert.equal(result.tokens?.[0]?.isKnown, false);
+});
+
+test("tokenizeSubtitleService marks tokens as known using callback", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      isKnownWord: (text) => text === "猫",
+      tokenizeWithMecab: async () => [
+        {
+          surface: "猫",
+          reading: "ネコ",
+          headword: "猫",
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(result.text, "猫です");
+  assert.equal(result.tokens?.[0]?.isKnown, true);
+});
+
+test("tokenizeSubtitleService checks known words by headword, not surface", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      isKnownWord: (text) => text === "猫です",
+      tokenizeWithMecab: async () => [
+        {
+          surface: "猫",
+          reading: "ネコ",
+          headword: "猫です",
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(result.text, "猫です");
+  assert.equal(result.tokens?.[0]?.isKnown, true);
+});
+
+test("tokenizeSubtitleService checks known words by surface when configured", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      getKnownWordMatchMode: () => "surface",
+      isKnownWord: (text) => text === "猫",
+      tokenizeWithMecab: async () => [
+        {
+          surface: "猫",
+          reading: "ネコ",
+          headword: "猫です",
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(result.text, "猫です");
+  assert.equal(result.tokens?.[0]?.isKnown, true);
 });

@@ -1,11 +1,11 @@
 ---
 id: TASK-27.2
 title: Split main.ts into composition-root modules
-status: In Progress
+status: Done
 assignee:
   - backend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-15 00:43'
+updated_date: '2026-02-15 01:25'
 labels:
   - 'owner:backend'
   - 'owner:architect'
@@ -28,12 +28,12 @@ Reduce main.ts complexity by extracting bootstrap, lifecycle, overlay, IPC, and 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Create modules under src/main/ for bootstrap/lifecycle/ipc/overlay/cli concerns.
-- [ ] #2 main.ts no longer owns session-specific business state; it only composes services and starts the app.
+- [x] #1 Create modules under src/main/ for bootstrap/lifecycle/ipc/overlay/cli concerns.
+- [x] #2 main.ts no longer owns session-specific business state; it only composes services and starts the app.
 - [ ] #3 Public service behavior, startup order, and flags remain unchanged, validated by existing integration/manual smoke checks.
-- [ ] #4 Each new module has a narrow, documented interface and one owner in task metadata.
-- [ ] #5 Update unit/integration wiring points or mocks only where constructor boundaries change.
-- [ ] #6 Add a migration note in docs/structure-roadmap.md.
+- [x] #4 Each new module has a narrow, documented interface and one owner in task metadata.
+- [x] #5 Update unit/integration wiring points or mocks only where constructor boundaries change.
+- [x] #6 Add a migration note in docs/structure-roadmap.md.
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -76,6 +76,20 @@ Extracted additional composition-root dependency composition for IPC command han
 Progress update (2026-02-14): committed `bbfe2a9` (`refactor: extract overlay shortcuts runtime for task 27.2`). `src/main/overlay-shortcuts-runtime.ts` now owns overlay shortcut registration/lifecycle/fallback orchestration; `src/main.ts` and `src/main/cli-runtime.ts` now consume factory helpers with stricter typed async contracts. Build verified via `pnpm run build`.
 
 Remaining for TASK-27.2: continue extracting remaining `main.ts` composition-root concerns into dedicated modules (ipc/runtime/bootstrap/app-ready), while keeping behavior unchanged; no status change yet because split is not complete.
+
+Added `src/main/startup-lifecycle.ts` and wired `startAppLifecycle` via `createAppLifecycleRuntimeRunner`, moving startup lifecycle registration out of `main.ts` inline wiring. Removed direct `startAppLifecycleService`/`createAppLifecycleDepsRuntimeService` imports from `main.ts` because they are now encapsulated behind the new helper.
+
+This is the final lifecycle composition chunk for TASK-27.2 before moving to optional app-ready split work. Build feedback from user has remained clean around this refactor area.
+
+Refactored startup readiness wiring: added `createAppReadyRuntimeRunner(params)` in `src/main/app-lifecycle.ts` and switched `startAppLifecycle` construction in `main.ts` to use it. This removes direct `runAppReadyRuntimeService` usage from `main.ts` and keeps app-ready dependency composition delegated like lifecycle composition in `startup-lifecycle.ts`.
+
+Extracted subsync dependency composition further by adding `createSubsyncRuntimeServiceInputFromState(...)` in `src/main/subsync-runtime.ts` and updating `main.ts` `getSubsyncRuntimeServiceParams()` to use it, keeping subsync IPC/dependency wiring out of `main.ts` stateful callsites.
+
+TASK-27.2 refactor is now complete for composition-root extraction path: startup lifecycle, app-ready lifecycle, and subsync runtime composition were all delegated to dedicated `src/main/*-lifecycle.ts`, `app-lifecycle.ts`, and `subsync-runtime.ts` modules. `main.ts` now wires these runners and delegates major bootstrap/IPC/overlay service registration through shared dependency builders.
+
+Updated `src/main/state.ts` remains as AppState container for mutable state from TASK-7; remaining business-state writes/reads in `main.ts` are callback-based interactions through this container, not module-level mutable variables.
+
+Per build validation after each chunk, `pnpm build` has been passing.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

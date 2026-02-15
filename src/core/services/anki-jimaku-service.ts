@@ -33,6 +33,7 @@ export interface AnkiJimakuIpcRuntimeOptions {
   getMpvClient: () => MpvClientLike | null;
   getAnkiIntegration: () => AnkiIntegration | null;
   setAnkiIntegration: (integration: AnkiIntegration | null) => void;
+  getKnownWordCacheStatePath: () => string;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
@@ -87,6 +88,7 @@ export function registerAnkiJimakuIpcRuntimeService(
           },
           options.showDesktopNotification,
           options.createFieldGroupingCallback(),
+          options.getKnownWordCacheStatePath(),
         );
         integration.start();
         options.setAnkiIntegration(integration);
