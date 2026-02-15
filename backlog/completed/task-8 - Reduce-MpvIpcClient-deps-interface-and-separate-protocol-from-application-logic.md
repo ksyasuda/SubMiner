@@ -3,9 +3,10 @@ id: TASK-8
 title: >-
   Reduce MpvIpcClient deps interface and separate protocol from application
   logic
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-11 08:20'
+updated_date: '2026-02-15 07:00'
 labels:
   - refactor
   - mpv
@@ -36,3 +37,9 @@ Separating these would let the protocol layer be simpler and testable, while app
 - [ ] #3 MpvIpcClient is testable without mocking 22 callbacks
 - [ ] #4 Existing behavior preserved
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Superseded by TASK-27.4 which absorbed this task's full scope (protocol/application separation, deps interface reduction from 22 properties to protocol-level concerns, event-based app reactions). All acceptance criteria met by TASK-27.4.
+<!-- SECTION:FINAL_SUMMARY:END -->

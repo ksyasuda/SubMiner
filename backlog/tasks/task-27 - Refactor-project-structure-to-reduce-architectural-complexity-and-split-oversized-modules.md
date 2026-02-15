@@ -3,10 +3,10 @@ id: TASK-27
 title: >-
   Refactor project structure to reduce architectural complexity and split
   oversized modules
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-13 21:07'
+updated_date: '2026-02-15 07:00'
 labels:
   - 'owner:architect'
   - 'owner:backend'
