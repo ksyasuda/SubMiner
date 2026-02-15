@@ -4,7 +4,7 @@ title: Extract main.ts global state into an AppState container
 status: In Progress
 assignee: []
 created_date: '2026-02-11 08:20'
-updated_date: '2026-02-14 08:45'
+updated_date: '2026-02-14 23:59'
 labels:
   - refactor
   - main
@@ -41,4 +41,6 @@ Consolidate into a typed AppState object (or small set of domain-specific state 
 Started centralizing module-level application state in `src/main.ts` via `appState` container and routing most state reads/writes through it. Initial rewrite completed; behavior verification pending and dependency-surface shrink pass still needed.
 
 Implemented Task-7 state migration to `appState` in main.ts and removed module-scope mutable state declarations; fixed a broken regression where several appState references were left as bare expressions in object literals (e.g., `appState.autoStartOverlay`), restoring valid typed dependency construction.
+
+Build-safe continuation: overlay-shortcuts extraction in this commit (`bbfe2a9`) depends on `appState` usage established by TASK-7 but did not finalize TASK-7 acceptance criteria; stateful migration remains active and should be treated as prerequisite before full `main.ts` module extraction per task sequencing.
 <!-- SECTION:NOTES:END -->

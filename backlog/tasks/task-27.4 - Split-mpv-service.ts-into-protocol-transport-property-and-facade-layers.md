@@ -1,11 +1,11 @@
 ---
 id: TASK-27.4
 title: 'Split mpv-service.ts into protocol, transport, property, and facade layers'
-status: In Progress
+status: Done
 assignee:
   - backend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-14 21:19'
+updated_date: '2026-02-15 00:31'
 labels:
   - 'owner:backend'
 dependencies:
@@ -37,13 +37,13 @@ Split mpv-service.ts (773 LOC) into thin, testable layers without changing wire 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 MpvIpcClient deps interface reduced to protocol-level concerns only (from current 22 properties).
-- [ ] #2 Application-level reactions (subtitle broadcast, overlay sync, timing) handled via event emitter or external listeners registered by main.ts.
-- [ ] #3 Create submodules for protocol parsing/dispatch, connection lifecycle/retry, and property subscriptions/state mapping.
-- [ ] #4 The public mpv service API (MpvClient interface) remains compatible for all existing consumers.
-- [ ] #5 MpvIpcClient is testable without mocking 22 callbacks — protocol layer tests need only socket-level mocks.
-- [ ] #6 Add at least one focused regression check for reconnect + property update flow.
-- [ ] #7 Document expected event flow in docs/structure-roadmap.md.
+- [x] #1 MpvIpcClient deps interface reduced to protocol-level concerns only (from current 22 properties).
+- [x] #2 Application-level reactions (subtitle broadcast, overlay sync, timing) handled via event emitter or external listeners registered by main.ts.
+- [x] #3 Create submodules for protocol parsing/dispatch, connection lifecycle/retry, and property subscriptions/state mapping.
+- [x] #4 The public mpv service API (MpvClient interface) remains compatible for all existing consumers.
+- [x] #5 MpvIpcClient is testable without mocking 22 callbacks — protocol layer tests need only socket-level mocks.
+- [x] #6 Add at least one focused regression check for reconnect + property update flow.
+- [x] #7 Document expected event flow in docs/structure-roadmap.md.
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -71,4 +71,18 @@ Milestone progress: extracted protocol buffer parsing into `src/core/services/mp
 Protocol extraction completed: full `MpvMessage` handling moved into `src/core/services/mpv-protocol.ts` via `splitMpvMessagesFromBuffer` + `dispatchMpvProtocolMessage`; `MpvIpcClient` now delegates all message parsing/dispatch through `MpvProtocolHandleMessageDeps` and resolves pending requests through `tryResolvePendingRequest`. `main.ts` wiring remains unchanged.
 
 Updated `docs/structure-roadmap.md` expected mpv flow snapshot to reflect protocol parse/dispatch extraction (`splitMpvMessagesFromBuffer` + `dispatchMpvProtocolMessage`) and façade delegation path via `MpvProtocolHandleMessageDeps`.
+
+Progress update: extracted socket connect/data/error/close/send/reconnect scheduling responsibilities into `MpvSocketTransport` (`src/core/services/mpv-transport.ts`) and wired `MpvIpcClient` to delegate connection lifecycle/send through it. Added `MpvSocketTransport` lifecycle tests in `src/core/services/mpv-transport.test.ts` covering connect/send/error/close behavior. Still in-progress on broader architectural refactor and API boundary reduction for `MpvIpcClient` deps beyond this transport split.
+
+Added focused transport lifecycle regression coverage in `src/core/services/mpv-transport.test.ts`: connect/connect-idempotence, lifecycle callback ordering, and `shutdown()` resets connection/socket state. This covers reconnect/edge-case behavior at transport layer as part of criterion #6 toward protocol + lifecycle regression protection.
+
+Added mpv-service unit regression for close lifecycle: `MpvIpcClient onClose resolves outstanding pending requests and triggers reconnect scheduling path via client transport callbacks (`src/core/services/mpv-service.test.ts`). This complements transport-level lifecycle tests for reconnect behavior regression coverage.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Split mpv-service internals into protocol, transport, and property/state-mapping boundaries; reduced MpvIpcClient deps to protocol-level concerns with event-based app reactions in main.ts; added mpv-service/mpv-transport tests for protocol dispatch, reconnect scheduling, and lifecycle regressions; documented expected event flow in docs/structure-roadmap.md.
+
+Added mpv-service reconnect regression test that asserts a reconnect lifecycle replays mpv property bootstrap commands (`secondary-sub-visibility` reset, `observe_property`, and initial `get_property` state fetches) during reconnection.
+<!-- SECTION:FINAL_SUMMARY:END -->

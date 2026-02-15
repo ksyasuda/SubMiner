@@ -187,6 +187,86 @@ test("MpvIpcClient scheduleReconnect clears existing reconnect timer", () => {
   assert.equal(connectCalled, true);
 });
 
+test("MpvIpcClient onClose resolves outstanding requests and schedules reconnect", () => {
+  const timers: Array<ReturnType<typeof setTimeout> | null> = [];
+  const client = new MpvIpcClient(
+    "/tmp/mpv.sock",
+    makeDeps({
+      getReconnectTimer: () => null,
+      setReconnectTimer: (timer) => {
+        timers.push(timer);
+      },
+    }),
+  );
+
+  const resolved: Array<unknown> = [];
+  (client as any).pendingRequests.set(1, (message: unknown) => {
+    resolved.push(message);
+  });
+
+  let reconnectConnectCount = 0;
+  (client as any).connect = () => {
+    reconnectConnectCount += 1;
+  };
+
+  const originalSetTimeout = globalThis.setTimeout;
+  (globalThis as any).setTimeout = (handler: () => void, _delay: number) => {
+    handler();
+    return 1 as unknown as ReturnType<typeof setTimeout>;
+  };
+
+  try {
+    (client as any).transport.callbacks.onClose();
+  } finally {
+    (globalThis as any).setTimeout = originalSetTimeout;
+  }
+
+  assert.equal(resolved.length, 1);
+  assert.deepEqual(resolved[0], { request_id: 1, error: "disconnected" });
+  assert.equal(reconnectConnectCount, 1);
+  assert.equal(timers.length, 1);
+});
+
+test("MpvIpcClient reconnect replays property subscriptions and initial state requests", () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient("/tmp/mpv.sock", makeDeps());
+  (client as any).send = (command: unknown) => {
+    commands.push(command);
+    return true;
+  };
+
+  const callbacks = (client as any).transport.callbacks;
+  callbacks.onConnect();
+
+  commands.length = 0;
+  callbacks.onConnect();
+
+  const hasSecondaryVisibilityReset = commands.some(
+    (command) =>
+      Array.isArray((command as { command: unknown[] }).command) &&
+      (command as { command: unknown[] }).command[0] === "set_property" &&
+      (command as { command: unknown[] }).command[1] === "secondary-sub-visibility" &&
+      (command as { command: unknown[] }).command[2] === "no",
+  );
+  const hasTrackSubscription = commands.some(
+    (command) =>
+      Array.isArray((command as { command: unknown[] }).command) &&
+      (command as { command: unknown[] }).command[0] === "observe_property" &&
+      (command as { command: unknown[] }).command[1] === 1 &&
+      (command as { command: unknown[] }).command[2] === "sub-text",
+  );
+  const hasPathRequest = commands.some(
+    (command) =>
+      Array.isArray((command as { command: unknown[] }).command) &&
+      (command as { command: unknown[] }).command[0] === "get_property" &&
+      (command as { command: unknown[] }).command[1] === "path",
+  );
+
+  assert.equal(hasSecondaryVisibilityReset, true);
+  assert.equal(hasTrackSubscription, true);
+  assert.equal(hasPathRequest, true);
+});
+
 test("MpvIpcClient captures and disables secondary subtitle visibility on request", async () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient("/tmp/mpv.sock", makeDeps());

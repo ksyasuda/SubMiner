@@ -1,3 +1,5 @@
+import * as net from "net";
+
 export function getMpvReconnectDelay(
   attempt: number,
   hasConnectedOnce: boolean,
@@ -51,4 +53,117 @@ export function scheduleMpvReconnect(
     }, delay),
   );
   return deps.attempt + 1;
+}
+
+export interface MpvSocketMessagePayload {
+  command: unknown[];
+  request_id?: number;
+}
+
+interface MpvSocketTransportEvents {
+  onConnect: () => void;
+  onData: (data: Buffer) => void;
+  onError: (error: Error) => void;
+  onClose: () => void;
+}
+
+export interface MpvSocketTransportOptions {
+  socketPath: string;
+  onConnect: () => void;
+  onData: (data: Buffer) => void;
+  onError: (error: Error) => void;
+  onClose: () => void;
+}
+
+export class MpvSocketTransport {
+  private socketPath: string;
+  private readonly callbacks: MpvSocketTransportEvents;
+  private socketRef: net.Socket | null = null;
+  public socket: net.Socket | null = null;
+  public connected = false;
+  public connecting = false;
+
+  constructor(options: MpvSocketTransportOptions) {
+    this.socketPath = options.socketPath;
+    this.callbacks = {
+      onConnect: options.onConnect,
+      onData: options.onData,
+      onError: options.onError,
+      onClose: options.onClose,
+    };
+  }
+
+  setSocketPath(socketPath: string): void {
+    this.socketPath = socketPath;
+  }
+
+  connect(): void {
+    if (this.connected || this.connecting) {
+      return;
+    }
+
+    if (this.socketRef) {
+      this.socketRef.destroy();
+    }
+
+    this.connecting = true;
+    this.socketRef = new net.Socket();
+    this.socket = this.socketRef;
+
+    this.socketRef.on("connect", () => {
+      this.connected = true;
+      this.connecting = false;
+      this.callbacks.onConnect();
+    });
+
+    this.socketRef.on("data", (data: Buffer) => {
+      this.callbacks.onData(data);
+    });
+
+    this.socketRef.on("error", (error: Error) => {
+      this.connected = false;
+      this.connecting = false;
+      this.callbacks.onError(error);
+    });
+
+    this.socketRef.on("close", () => {
+      this.connected = false;
+      this.connecting = false;
+      this.callbacks.onClose();
+    });
+
+    this.socketRef.connect(this.socketPath);
+  }
+
+  send(payload: MpvSocketMessagePayload): boolean {
+    if (!this.connected || !this.socketRef) {
+      return false;
+    }
+
+    const message = JSON.stringify(payload) + "\n";
+    this.socketRef.write(message);
+    return true;
+  }
+
+  shutdown(): void {
+    if (this.socketRef) {
+      this.socketRef.destroy();
+    }
+    this.socketRef = null;
+    this.socket = null;
+    this.connected = false;
+    this.connecting = false;
+  }
+
+  getSocket(): net.Socket | null {
+    return this.socketRef;
+  }
+
+  get isConnected(): boolean {
+    return this.connected;
+  }
+
+  get isConnecting(): boolean {
+    return this.connecting;
+  }
 }
