@@ -216,41 +216,132 @@ export function mergeTokens(
         }
         return mergedHeadword;
       })();
-      result.push({
-        surface: prev.surface + token.word,
-        reading: prev.reading + tokenReading,
-        headword: prev.headword,
-        startPos: prev.startPos,
-        endPos: end,
-        partOfSpeech: prev.partOfSpeech,
-        isMerged: true,
-        isKnown: headwordForKnownMatch
-          ? isKnownWord(headwordForKnownMatch)
-          : false,
-      });
-    } else {
-      const headwordForKnownMatch = (() => {
-        if (knownWordMatchMode === "surface") {
-          return token.word;
-        }
-        return token.headword;
-      })();
-      result.push({
-        surface: token.word,
-        reading: tokenReading,
-        headword: token.headword,
-        startPos: start,
-        endPos: end,
-        partOfSpeech: token.partOfSpeech,
-        isMerged: false,
-        isKnown: headwordForKnownMatch
-          ? isKnownWord(headwordForKnownMatch)
-          : false,
-      });
-    }
+        result.push({
+          surface: prev.surface + token.word,
+          reading: prev.reading + tokenReading,
+          headword: prev.headword,
+          startPos: prev.startPos,
+          endPos: end,
+          partOfSpeech: prev.partOfSpeech,
+          pos2: prev.pos2 ?? token.pos2,
+          pos3: prev.pos3 ?? token.pos3,
+          isMerged: true,
+          isKnown: headwordForKnownMatch
+            ? isKnownWord(headwordForKnownMatch)
+            : false,
+          isNPlusOneTarget: false,
+        });
+      } else {
+        const headwordForKnownMatch = (() => {
+          if (knownWordMatchMode === "surface") {
+            return token.word;
+          }
+          return token.headword;
+        })();
+        result.push({
+          surface: token.word,
+          reading: tokenReading,
+          headword: token.headword,
+          startPos: start,
+          endPos: end,
+          partOfSpeech: token.partOfSpeech,
+          pos2: token.pos2,
+          pos3: token.pos3,
+          isMerged: false,
+          isKnown: headwordForKnownMatch
+            ? isKnownWord(headwordForKnownMatch)
+            : false,
+          isNPlusOneTarget: false,
+        });
+      }
 
     lastStandaloneToken = token;
   }
 
   return result;
+}
+
+const SENTENCE_BOUNDARY_SURFACES = new Set(["。", "？", "！", "?", "!", "…", "\u2026"]);
+
+export function isNPlusOneCandidateToken(token: MergedToken): boolean {
+  if (token.isKnown) {
+    return false;
+  }
+
+  if (token.partOfSpeech === PartOfSpeech.particle) {
+    return false;
+  }
+
+  if (token.partOfSpeech === PartOfSpeech.bound_auxiliary) {
+    return false;
+  }
+
+  if (token.partOfSpeech === PartOfSpeech.symbol) {
+    return false;
+  }
+
+  if (token.partOfSpeech === PartOfSpeech.noun && token.pos2 === "固有名詞") {
+    return false;
+  }
+
+  if (token.pos3 && token.pos3.startsWith("助数詞")) {
+    return false;
+  }
+
+  if (token.surface.trim().length === 0) {
+    return false;
+  }
+
+  return true;
+}
+
+function isSentenceBoundaryToken(token: MergedToken): boolean {
+  if (token.partOfSpeech !== PartOfSpeech.symbol) {
+    return false;
+  }
+
+  return SENTENCE_BOUNDARY_SURFACES.has(token.surface);
+}
+
+export function markNPlusOneTargets(tokens: MergedToken[]): MergedToken[] {
+  if (tokens.length === 0) {
+    return [];
+  }
+
+  const markedTokens = tokens.map((token) => ({
+    ...token,
+    isNPlusOneTarget: false,
+  }));
+
+  let sentenceStart = 0;
+
+  const markSentence = (start: number, endExclusive: number): void => {
+    const sentenceCandidates: number[] = [];
+    for (let i = start; i < endExclusive; i++) {
+      if (isNPlusOneCandidateToken(markedTokens[i])) {
+        sentenceCandidates.push(i);
+      }
+    }
+
+    if (sentenceCandidates.length === 1) {
+      markedTokens[sentenceCandidates[0]] = {
+        ...markedTokens[sentenceCandidates[0]],
+        isNPlusOneTarget: true,
+      };
+    }
+  };
+
+  for (let i = 0; i < markedTokens.length; i++) {
+    const token = markedTokens[i];
+    if (isSentenceBoundaryToken(token)) {
+      markSentence(sentenceStart, i);
+      sentenceStart = i + 1;
+    }
+  }
+
+  if (sentenceStart < markedTokens.length) {
+    markSentence(sentenceStart, markedTokens.length);
+  }
+
+  return markedTokens;
 }

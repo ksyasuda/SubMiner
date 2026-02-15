@@ -170,6 +170,8 @@ This example is intentionally compact. The option table below documents availabl
 | `behavior.mediaInsertMode`      | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                     |
 | `behavior.highlightWord`        | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                  |
 | `ankiConnect.nPlusOne.highlightEnabled` | `true`, `false`                   | Enable fast local highlighting for words already known in Anki (default: `false`)                                                       |
+| `ankiConnect.nPlusOne.nPlusOne`      | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`). |
+| `ankiConnect.nPlusOne.knownWord`      | hex color string                        | Legacy known-word color kept for backward compatibility (default: `"#a6da95"`).                                                     |
 | `ankiConnect.nPlusOne.matchMode` | `"headword"`, `"surface"`      | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
 | `ankiConnect.nPlusOne.refreshMinutes`   | number                             | Minutes between known-word cache refreshes (default: `1440`)                                                                              |
 | `ankiConnect.nPlusOne.decks`     | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                            |
@@ -195,6 +197,8 @@ Known-word cache policy:
 
 - Initial sync runs when the integration starts if the cache is missing or stale.
 - `ankiConnect.nPlusOne.refreshMinutes` controls the minimum time between refreshes; between refreshes, cached words are reused without querying Anki.
+- `ankiConnect.nPlusOne.nPlusOne` sets the color for the single target token when exactly one eligible unknown word exists.
+- `ankiConnect.nPlusOne.knownWord` sets the legacy known-word highlight color for tokens already in Anki.
 - `ankiConnect.nPlusOne.decks` accepts one or more decks. If empty, it uses the legacy single `ankiConnect.deck` value as scope.
 - Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
 - The cache is automatically invalidated when the configured scope changes (for example, when deck changes).

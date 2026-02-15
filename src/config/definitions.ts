@@ -128,6 +128,8 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
       refreshMinutes: 1440,
       matchMode: "headword",
       decks: [],
+      nPlusOne: "#c6a0f6",
+      knownWord: "#a6da95",
     },
     metadata: {
       pattern: "[SubMiner] %f (%t)",
@@ -179,6 +181,8 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     fontWeight: "normal",
     fontStyle: "normal",
     backgroundColor: "rgba(54, 58, 79, 0.5)",
+    nPlusOneColor: "#c6a0f6",
+    knownWordColor: "#a6da95",
     secondary: {
       fontSize: 24,
       fontColor: "#ffffff",
@@ -320,6 +324,18 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.decks,
     description:
       "Decks used for N+1 known-word cache scope. Supports one or more deck names.",
+  },
+  {
+    path: "ankiConnect.nPlusOne.nPlusOne",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.nPlusOne,
+    description: "Color used for the single N+1 target token highlight.",
+  },
+  {
+    path: "ankiConnect.nPlusOne.knownWord",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.knownWord,
+    description: "Color used for legacy known-word highlights.",
   },
   {
     path: "ankiConnect.isKiku.fieldGrouping",

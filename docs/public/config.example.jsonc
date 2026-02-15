@@ -86,7 +86,9 @@
       "highlightEnabled": false,
       "refreshMinutes": 1440,
       "matchMode": "headword",
-      "decks": []
+      "decks": [],
+      "nPlusOne": "#c6a0f6",
+      "knownWord": "#a6da95"
     },
     "metadata": {
       "pattern": "[SubMiner] %f (%t)"
@@ -153,6 +155,8 @@
     "fontWeight": "normal",
     "fontStyle": "normal",
     "backgroundColor": "rgba(54, 58, 79, 0.5)",
+    "nPlusOneColor": "#c6a0f6",
+    "knownWordColor": "#a6da95",
     "secondary": {
       "fontSize": 24,
       "fontColor": "#ffffff",

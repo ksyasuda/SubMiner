@@ -313,7 +313,7 @@ test("runSubsyncManualService resolves string sid values from mpv stream propert
   writeExecutableScript(alassPath, "#!/bin/sh\nexit 0\n");
   writeExecutableScript(
     ffsubsyncPath,
-    `#!/bin/sh\n: > "${ffsubsyncLogPath}"\nfor arg in "$@"; do\n  printf '%s\\n' "$arg" >> "${ffsubsyncLogPath}"\ndone\nprev=""\nfor arg in "$@"; do\n  if [ "$prev" = "-o" ]; then\n    : > "$arg"\n  fi\n  prev="$arg"\ndone`,
+    `#!/bin/sh\nmkdir -p "${tmpDir}"\n: > "${ffsubsyncLogPath}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${ffsubsyncLogPath}"; done\nprev=""\nout=""\nfor arg in "$@"; do\n  if [ "$prev" = "--reference-stream" ]; then :; fi\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then : > "$out"; fi`,
   );
 
   const deps = makeDeps({
@@ -354,9 +354,11 @@ test("runSubsyncManualService resolves string sid values from mpv stream propert
 
   assert.equal(result.ok, true);
   assert.equal(result.message, "Subtitle synchronized with ffsubsync");
-  const ffsubsyncArgs = fs.readFileSync(ffsubsyncLogPath, "utf8").trim().split("\n");
-  const outputIndex = ffsubsyncArgs.findIndex((value) => value === "-o");
-  assert.ok(outputIndex >= 0);
-  const outputPath = ffsubsyncArgs[outputIndex + 1];
+  const ffArgs = fs.readFileSync(ffsubsyncLogPath, "utf8").trim().split("\n");
+  const syncOutputIndex = ffArgs.indexOf("-o");
+  assert.equal(syncOutputIndex >= 0, true);
+  const outputPath = ffArgs[syncOutputIndex + 1];
+  assert.equal(typeof outputPath, "string");
+  assert.ok(outputPath.length > 0);
   assert.equal(fs.readFileSync(outputPath, "utf8"), "");
 });

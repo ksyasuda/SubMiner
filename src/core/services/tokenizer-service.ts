@@ -1,5 +1,5 @@
 import { BrowserWindow, Extension, session } from "electron";
-import { mergeTokens } from "../../token-merger";
+import { markNPlusOneTargets, mergeTokens } from "../../token-merger";
 import {
   MergedToken,
   NPlusOneMatchMode,
@@ -91,6 +91,25 @@ function resolveKnownWordText(
   matchMode: NPlusOneMatchMode,
 ): string {
   return matchMode === "surface" ? surface : headword;
+}
+
+function applyKnownWordMarking(
+  tokens: MergedToken[],
+  isKnownWord: (text: string) => boolean,
+  knownWordMatchMode: NPlusOneMatchMode,
+): MergedToken[] {
+  return tokens.map((token) => {
+    const matchText = resolveKnownWordText(
+      token.surface,
+      token.headword,
+      knownWordMatchMode,
+    );
+
+    return {
+      ...token,
+      isKnown: token.isKnown || (matchText ? isKnownWord(matchText) : false),
+    };
+  });
 }
 
 function extractYomitanHeadword(segment: YomitanParseSegment): string {
@@ -187,6 +206,7 @@ function mapYomitanParseResultsToMergedTokens(
       endPos: end,
       partOfSpeech: PartOfSpeech.other,
       isMerged: true,
+      isNPlusOneTarget: false,
       isKnown: (() => {
         const matchText = resolveKnownWordText(
           surface,
@@ -368,13 +388,23 @@ export async function tokenizeSubtitleService(
 
   const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps);
   if (yomitanTokens && yomitanTokens.length > 0) {
-    return { text: displayText, tokens: yomitanTokens };
+    const knownMarkedTokens = applyKnownWordMarking(
+      yomitanTokens,
+      deps.isKnownWord,
+      deps.getKnownWordMatchMode(),
+    );
+    return { text: displayText, tokens: markNPlusOneTargets(knownMarkedTokens) };
   }
 
   try {
     const mecabTokens = await deps.tokenizeWithMecab(tokenizeText);
     if (mecabTokens && mecabTokens.length > 0) {
-      return { text: displayText, tokens: mecabTokens };
+      const knownMarkedTokens = applyKnownWordMarking(
+        mecabTokens,
+        deps.isKnownWord,
+        deps.getKnownWordMatchMode(),
+      );
+      return { text: displayText, tokens: markNPlusOneTargets(knownMarkedTokens) };
     }
   } catch (err) {
     console.error("Tokenization error:", (err as Error).message);

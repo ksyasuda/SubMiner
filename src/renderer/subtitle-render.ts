@@ -23,13 +23,13 @@ function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
 
     if (surface.includes("\n")) {
       const parts = surface.split("\n");
-      for (let i = 0; i < parts.length; i += 1) {
-        if (parts[i]) {
-          const span = document.createElement("span");
-          span.className = token.isKnown ? "word word-known" : "word";
-          span.textContent = parts[i];
-          if (token.reading) span.dataset.reading = token.reading;
-          if (token.headword) span.dataset.headword = token.headword;
+        for (let i = 0; i < parts.length; i += 1) {
+          if (parts[i]) {
+            const span = document.createElement("span");
+            span.className = computeWordClass(token);
+            span.textContent = parts[i];
+            if (token.reading) span.dataset.reading = token.reading;
+            if (token.headword) span.dataset.headword = token.headword;
           fragment.appendChild(span);
         }
         if (i < parts.length - 1) {
@@ -40,7 +40,7 @@ function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
     }
 
     const span = document.createElement("span");
-    span.className = token.isKnown ? "word word-known" : "word";
+    span.className = computeWordClass(token);
     span.textContent = surface;
     if (token.reading) span.dataset.reading = token.reading;
     if (token.headword) span.dataset.headword = token.headword;
@@ -48,6 +48,18 @@ function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
   }
 
   root.appendChild(fragment);
+}
+
+function computeWordClass(token: MergedToken): string {
+  if (token.isNPlusOneTarget) {
+    return "word word-n-plus-one";
+  }
+
+  if (token.isKnown) {
+    return "word word-known";
+  }
+
+  return "word";
 }
 
 function renderCharacterLevel(root: HTMLElement, text: string): void {
@@ -172,6 +184,19 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     if (style.backgroundColor) {
       ctx.dom.subtitleContainer.style.background = style.backgroundColor;
     }
+
+    const knownWordColor =
+      style.knownWordColor ?? ctx.state.knownWordColor ?? "#a6da95";
+    const nPlusOneColor =
+      style.nPlusOneColor ?? ctx.state.nPlusOneColor ?? "#c6a0f6";
+
+    ctx.state.knownWordColor = knownWordColor;
+    ctx.state.nPlusOneColor = nPlusOneColor;
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-known-word-color",
+      knownWordColor,
+    );
+    ctx.dom.subtitleRoot.style.setProperty("--subtitle-n-plus-one-color", nPlusOneColor);
 
     const secondaryStyle = style.secondary;
     if (!secondaryStyle) return;
