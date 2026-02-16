@@ -137,6 +137,55 @@ test("accepts valid ankiConnect n+1 behavior values", () => {
   assert.equal(config.ankiConnect.nPlusOne.refreshMinutes, 120);
 });
 
+test("validates ankiConnect n+1 minimum sentence word count", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "minSentenceWords": 0
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(
+    config.ankiConnect.nPlusOne.minSentenceWords,
+    DEFAULT_CONFIG.ankiConnect.nPlusOne.minSentenceWords,
+  );
+  assert.ok(
+    warnings.some(
+      (warning) => warning.path === "ankiConnect.nPlusOne.minSentenceWords",
+    ),
+  );
+});
+
+test("accepts valid ankiConnect n+1 minimum sentence word count", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "minSentenceWords": 4
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.ankiConnect.nPlusOne.minSentenceWords, 4);
+});
+
 test("validates ankiConnect n+1 match mode values", () => {
   const dir = makeTempDir();
   fs.writeFileSync(
@@ -328,5 +377,6 @@ test("template generator includes known keys", () => {
   assert.match(output, /"nPlusOne"\s*:\s*\{/);
   assert.match(output, /"nPlusOne": "#c6a0f6"/);
   assert.match(output, /"knownWord": "#a6da95"/);
+  assert.match(output, /"minSentenceWords": 3/);
   assert.match(output, /auto-generated from src\/config\/definitions.ts/);
 });

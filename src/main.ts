@@ -896,6 +896,8 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
       getKnownWordMatchMode: () =>
         appState.ankiIntegration?.getKnownWordMatchMode() ??
         getResolvedConfig().ankiConnect.nPlusOne.matchMode,
+      getMinSentenceWordsForNPlusOne: () =>
+        getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,
       getJlptLevel: (text) => appState.jlptLevelLookup(text),
       getJlptEnabled: () =>
         getResolvedConfig().subtitleStyle.enableJlpt,

@@ -87,6 +87,7 @@
       "refreshMinutes": 1440,
       "matchMode": "headword",
       "decks": [],
+      "minSentenceWords": 3,
       "nPlusOne": "#c6a0f6",
       "knownWord": "#a6da95"
     },

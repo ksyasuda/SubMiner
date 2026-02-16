@@ -476,10 +476,11 @@ test("tokenizeSubtitleService selects one N+1 target token", async () => {
           endPos: 2,
           partOfSpeech: PartOfSpeech.noun,
           isMerged: false,
-          isKnown: false,
+      isKnown: false,
           isNPlusOneTarget: false,
         },
       ],
+      getMinSentenceWordsForNPlusOne: () => 2,
     }),
   );
 
@@ -561,6 +562,7 @@ test("tokenizeSubtitleService applies N+1 target marking to Yomitan results", as
       getYomitanParserWindow: () => parserWindow,
       tokenizeWithMecab: async () => null,
       isKnownWord: (text) => text === "です",
+      getMinSentenceWordsForNPlusOne: () => 2,
     }),
   );
 
@@ -569,6 +571,43 @@ test("tokenizeSubtitleService applies N+1 target marking to Yomitan results", as
   assert.equal(result.tokens?.[0]?.surface, "猫");
   assert.equal(result.tokens?.[0]?.isNPlusOneTarget, true);
   assert.equal(result.tokens?.[1]?.isNPlusOneTarget, false);
+});
+
+test("tokenizeSubtitleService does not color 1-2 word sentences by default", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      tokenizeWithMecab: async () => [
+        {
+          surface: "私",
+          reading: "ワタシ",
+          headword: "私",
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: true,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: "犬",
+          reading: "イヌ",
+          headword: "犬",
+          startPos: 1,
+          endPos: 2,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(
+    result.tokens?.some((token) => token.isNPlusOneTarget),
+    false,
+  );
 });
 
 test("tokenizeSubtitleService checks known words by headword, not surface", async () => {

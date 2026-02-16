@@ -305,7 +305,10 @@ function isSentenceBoundaryToken(token: MergedToken): boolean {
   return SENTENCE_BOUNDARY_SURFACES.has(token.surface);
 }
 
-export function markNPlusOneTargets(tokens: MergedToken[]): MergedToken[] {
+export function markNPlusOneTargets(
+  tokens: MergedToken[],
+  minSentenceWords = 3,
+): MergedToken[] {
   if (tokens.length === 0) {
     return [];
   }
@@ -316,16 +319,28 @@ export function markNPlusOneTargets(tokens: MergedToken[]): MergedToken[] {
   }));
 
   let sentenceStart = 0;
+  const minimumSentenceWords = Number.isInteger(minSentenceWords)
+    ? Math.max(1, minSentenceWords)
+    : 3;
 
   const markSentence = (start: number, endExclusive: number): void => {
     const sentenceCandidates: number[] = [];
+    let sentenceWordCount = 0;
     for (let i = start; i < endExclusive; i++) {
-      if (isNPlusOneCandidateToken(markedTokens[i])) {
+      const token = markedTokens[i];
+      if (!isSentenceBoundaryToken(token) && token.surface.trim().length > 0) {
+        sentenceWordCount += 1;
+      }
+
+      if (isNPlusOneCandidateToken(token)) {
         sentenceCandidates.push(i);
       }
     }
 
-    if (sentenceCandidates.length === 1) {
+    if (
+      sentenceWordCount >= minimumSentenceWords &&
+      sentenceCandidates.length === 1
+    ) {
       markedTokens[sentenceCandidates[0]] = {
         ...markedTokens[sentenceCandidates[0]],
         isNPlusOneTarget: true,

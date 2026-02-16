@@ -698,6 +698,32 @@ export class ConfigService {
           DEFAULT_CONFIG.ankiConnect.nPlusOne.refreshMinutes;
       }
 
+      const nPlusOneMinSentenceWords = asNumber(
+        nPlusOneConfig.minSentenceWords,
+      );
+      const hasValidNPlusOneMinSentenceWords =
+        nPlusOneMinSentenceWords !== undefined &&
+        Number.isInteger(nPlusOneMinSentenceWords) &&
+        nPlusOneMinSentenceWords > 0;
+      if (nPlusOneMinSentenceWords !== undefined) {
+        if (hasValidNPlusOneMinSentenceWords) {
+          resolved.ankiConnect.nPlusOne.minSentenceWords =
+            nPlusOneMinSentenceWords;
+        } else {
+          warn(
+            "ankiConnect.nPlusOne.minSentenceWords",
+            nPlusOneConfig.minSentenceWords,
+            resolved.ankiConnect.nPlusOne.minSentenceWords,
+            "Expected a positive integer.",
+          );
+          resolved.ankiConnect.nPlusOne.minSentenceWords =
+            DEFAULT_CONFIG.ankiConnect.nPlusOne.minSentenceWords;
+        }
+      } else {
+        resolved.ankiConnect.nPlusOne.minSentenceWords =
+          DEFAULT_CONFIG.ankiConnect.nPlusOne.minSentenceWords;
+      }
+
       const nPlusOneMatchMode = asString(nPlusOneConfig.matchMode);
       const legacyNPlusOneMatchMode = asString(behavior.nPlusOneMatchMode);
       const hasValidNPlusOneMatchMode =

@@ -172,6 +172,7 @@ When enabled, SubMiner highlights words you already know in your Anki deck, maki
       "highlightEnabled": true,
       "refreshMinutes": 1440,
       "matchMode": "headword",
+      "minSentenceWords": 3,
       "decks": ["Learning::Japanese"]
     }
   }
@@ -183,6 +184,7 @@ When enabled, SubMiner highlights words you already know in your Anki deck, maki
 | `highlightEnabled` | Turn on/off the highlighting feature |
 | `refreshMinutes` | How often to refresh the known-word cache (default: 1440 = daily) |
 | `matchMode` | `"headword"` (dictionary form) or `"surface"` (exact text match) |
+| `minSentenceWords` | Minimum sentence length in tokens required to allow N+1 highlighting (default: `3`) |
 | `decks` | Which Anki decks to consider "known" (empty = uses `ankiConnect.deck`) |
 
 ### Use Cases

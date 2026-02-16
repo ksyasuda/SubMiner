@@ -173,6 +173,7 @@ This example is intentionally compact. The option table below documents availabl
 | `ankiConnect.nPlusOne.nPlusOne`      | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`). |
 | `ankiConnect.nPlusOne.knownWord`      | hex color string                        | Legacy known-word color kept for backward compatibility (default: `"#a6da95"`).                                                     |
 | `ankiConnect.nPlusOne.matchMode` | `"headword"`, `"surface"`      | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
+| `ankiConnect.nPlusOne.minSentenceWords` | number                        | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`). |
 | `ankiConnect.nPlusOne.refreshMinutes`   | number                             | Minutes between known-word cache refreshes (default: `1440`)                                                                              |
 | `ankiConnect.nPlusOne.decks`     | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                            |
 | `behavior.notificationType`     | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                       |
@@ -198,6 +199,7 @@ Known-word cache policy:
 - Initial sync runs when the integration starts if the cache is missing or stale.
 - `ankiConnect.nPlusOne.refreshMinutes` controls the minimum time between refreshes; between refreshes, cached words are reused without querying Anki.
 - `ankiConnect.nPlusOne.nPlusOne` sets the color for the single target token when exactly one eligible unknown word exists.
+- `ankiConnect.nPlusOne.minSentenceWords` sets the minimum token count required in a sentence for N+1 highlighting (default: `3`).
 - `ankiConnect.nPlusOne.knownWord` sets the legacy known-word highlight color for tokens already in Anki.
 - `ankiConnect.nPlusOne.decks` accepts one or more decks. If empty, it uses the legacy single `ankiConnect.deck` value as scope.
 - Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
