@@ -558,6 +558,8 @@ See `config.example.jsonc` for detailed configuration options.
 | `jlptColors`      | object      | JLPT level underline colors object (`N1`..`N5`)                               |
 | `secondary`       | object      | Override any of the above for secondary subtitles (optional)                  |
 
+JLPT underlining is powered by offline term-meta bank files at runtime. See [`docs/jlpt-vocab-bundle.md`](jlpt-vocab-bundle.md) for required files, source/version refresh steps, and deterministic fallback behavior.
+
 Secondary subtitle defaults: `fontSize: 24`, `fontColor: "#ffffff"`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
 
 **See `config.example.jsonc`** for the complete list of subtitle style configuration options.

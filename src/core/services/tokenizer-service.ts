@@ -32,6 +32,12 @@ type YomitanParseLine = YomitanParseSegment[];
 const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
+const JLPT_LEVEL_LOOKUP_CACHE_LIMIT = 2048;
+
+const jlptLevelLookupCaches = new WeakMap<
+  (text: string) => JlptLevel | null,
+  Map<string, JlptLevel | null>
+>();
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object");
@@ -73,6 +79,43 @@ export interface TokenizerDepsRuntimeOptions {
   getJlptLevel: (text: string) => JlptLevel | null;
   getJlptEnabled?: () => boolean;
   getMecabTokenizer: () => MecabTokenizerLike | null;
+}
+
+function getCachedJlptLevel(
+  lookupText: string,
+  getJlptLevel: (text: string) => JlptLevel | null,
+): JlptLevel | null {
+  const normalizedText = lookupText.trim();
+  if (!normalizedText) {
+    return null;
+  }
+
+  let cache = jlptLevelLookupCaches.get(getJlptLevel);
+  if (!cache) {
+    cache = new Map<string, JlptLevel | null>();
+    jlptLevelLookupCaches.set(getJlptLevel, cache);
+  }
+
+  if (cache.has(normalizedText)) {
+    return cache.get(normalizedText) ?? null;
+  }
+
+  let level: JlptLevel | null;
+  try {
+    level = getJlptLevel(normalizedText);
+  } catch {
+    level = null;
+  }
+
+  cache.set(normalizedText, level);
+  while (cache.size > JLPT_LEVEL_LOOKUP_CACHE_LIMIT) {
+    const firstKey = cache.keys().next().value;
+    if (firstKey !== undefined) {
+      cache.delete(firstKey);
+    }
+  }
+
+  return level;
 }
 
 export function createTokenizerDepsRuntimeService(
@@ -326,13 +369,17 @@ function applyJlptMarking(
       return { ...token, jlptLevel: undefined };
     }
 
-    const primaryLevel = getJlptLevel(resolveJlptLookupText(token));
-    const fallbackLevel = getJlptLevel(token.surface);
+    const primaryLevel = getCachedJlptLevel(
+      resolveJlptLookupText(token),
+      getJlptLevel,
+    );
+    const fallbackLevel =
+      primaryLevel === null ? getCachedJlptLevel(token.surface, getJlptLevel) : null;
 
-  return {
-    ...token,
-    jlptLevel: primaryLevel ?? fallbackLevel ?? token.jlptLevel,
-  };
+    return {
+      ...token,
+      jlptLevel: primaryLevel ?? fallbackLevel ?? token.jlptLevel,
+    };
   });
 }
 
