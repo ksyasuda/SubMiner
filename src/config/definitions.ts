@@ -128,6 +128,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
       refreshMinutes: 1440,
       matchMode: "headword",
       decks: [],
+      minSentenceWords: 3,
       nPlusOne: "#c6a0f6",
       knownWord: "#a6da95",
     },
@@ -332,6 +333,13 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     kind: "number",
     defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.refreshMinutes,
     description: "Minutes between known-word cache refreshes.",
+  },
+  {
+    path: "ankiConnect.nPlusOne.minSentenceWords",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.minSentenceWords,
+    description:
+      "Minimum sentence word count required for N+1 targeting (default: 3).",
   },
   {
     path: "ankiConnect.nPlusOne.decks",

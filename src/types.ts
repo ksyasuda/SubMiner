@@ -239,6 +239,7 @@ export interface AnkiConnectConfig {
     decks?: string[];
     nPlusOne?: string;
     knownWord?: string;
+    minSentenceWords?: number;
   };
   behavior?: {
       overwriteAudio?: boolean;
@@ -399,6 +400,7 @@ export interface ResolvedConfig {
       decks: string[];
       nPlusOne: string;
       knownWord: string;
+      minSentenceWords: number;
     };
     behavior: {
       overwriteAudio: boolean;

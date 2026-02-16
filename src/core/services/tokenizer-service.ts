@@ -59,6 +59,7 @@ export interface TokenizerServiceDeps {
   getKnownWordMatchMode: () => NPlusOneMatchMode;
   getJlptLevel: (text: string) => JlptLevel | null;
   getJlptEnabled?: () => boolean;
+  getMinSentenceWordsForNPlusOne?: () => number;
   tokenizeWithMecab: (text: string) => Promise<MergedToken[] | null>;
 }
 
@@ -78,6 +79,7 @@ export interface TokenizerDepsRuntimeOptions {
   getKnownWordMatchMode: () => NPlusOneMatchMode;
   getJlptLevel: (text: string) => JlptLevel | null;
   getJlptEnabled?: () => boolean;
+  getMinSentenceWordsForNPlusOne?: () => number;
   getMecabTokenizer: () => MecabTokenizerLike | null;
 }
 
@@ -133,6 +135,8 @@ export function createTokenizerDepsRuntimeService(
     getKnownWordMatchMode: options.getKnownWordMatchMode,
     getJlptLevel: options.getJlptLevel,
     getJlptEnabled: options.getJlptEnabled,
+    getMinSentenceWordsForNPlusOne:
+      options.getMinSentenceWordsForNPlusOne ?? (() => 3),
     tokenizeWithMecab: async (text) => {
       const mecabTokenizer = options.getMecabTokenizer();
       if (!mecabTokenizer) {
@@ -724,6 +728,14 @@ export async function tokenizeSubtitleService(
   text: string,
   deps: TokenizerServiceDeps,
 ): Promise<SubtitleData> {
+  const minSentenceWordsForNPlusOne = deps.getMinSentenceWordsForNPlusOne?.();
+  const sanitizedMinSentenceWordsForNPlusOne =
+    minSentenceWordsForNPlusOne !== undefined &&
+    Number.isInteger(minSentenceWordsForNPlusOne) &&
+    minSentenceWordsForNPlusOne > 0
+      ? minSentenceWordsForNPlusOne
+      : 3;
+
   const displayText = text
     .replace(/\r\n/g, "\n")
     .replace(/\\N/g, "\n")
@@ -747,10 +759,16 @@ export async function tokenizeSubtitleService(
       deps.isKnownWord,
       deps.getKnownWordMatchMode(),
     );
-    const jlptMarkedTokens = jlptEnabled
-      ? applyJlptMarking(knownMarkedTokens, deps.getJlptLevel)
-      : knownMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
-    return { text: displayText, tokens: markNPlusOneTargets(jlptMarkedTokens) };
+      const jlptMarkedTokens = jlptEnabled
+        ? applyJlptMarking(knownMarkedTokens, deps.getJlptLevel)
+        : knownMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
+    return {
+      text: displayText,
+      tokens: markNPlusOneTargets(
+        jlptMarkedTokens,
+        sanitizedMinSentenceWordsForNPlusOne,
+      ),
+    };
   }
 
   try {
@@ -764,7 +782,13 @@ export async function tokenizeSubtitleService(
       const jlptMarkedTokens = jlptEnabled
         ? applyJlptMarking(knownMarkedTokens, deps.getJlptLevel)
         : knownMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
-      return { text: displayText, tokens: markNPlusOneTargets(jlptMarkedTokens) };
+      return {
+        text: displayText,
+        tokens: markNPlusOneTargets(
+          jlptMarkedTokens,
+          sanitizedMinSentenceWordsForNPlusOne,
+        ),
+      };
     }
   } catch (err) {
     console.error("Tokenization error:", (err as Error).message);
