@@ -1,9 +1,10 @@
 ---
 id: TASK-33
 title: Restrict mpv socket connection logs to debug mode in Electron
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-13 19:39'
+updated_date: '2026-02-16 03:05'
 labels:
   - electron
   - logging
@@ -29,6 +30,12 @@ In normal operation, Electron should not spam logs while waiting for mpv socket 
 - [ ] #5 No functional change to socket connection/retry behavior besides logging level gating.
 - [ ] #6 If connection fails and retries continue, keep a debug-only or final-error log policy consistent with existing logging severity conventions.
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented debug-gated MPV socket noise suppression in normal mode while preserving reconnect behavior. Added an internal check for SUBMINER_LOG_LEVEL==='debug' and wrapped socket reconnect-attempt, close, and error logs so regular startup/reconnect loops no longer emit per-interval messages unless debug logging is enabled. Kept existing connection-success flow unchanged. Validation: `pnpm run build`, `node --test dist/core/services/mpv-service.test.js`.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

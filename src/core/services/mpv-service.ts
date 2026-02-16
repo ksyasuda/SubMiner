@@ -19,6 +19,10 @@ import {
 } from "./mpv-transport";
 import { resolveCurrentAudioStreamIndex } from "./mpv-state";
 
+const isDebugLoggingEnabled = (): boolean => {
+  return (process.env.SUBMINER_LOG_LEVEL || "").toLowerCase() === "debug";
+};
+
 export {
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
 } from "./mpv-protocol";
@@ -129,11 +133,15 @@ export class MpvIpcClient implements MpvClient {
         this.processBuffer();
       },
       onError: (err: Error) => {
-        console.error("MPV socket error:", err.message);
+        if (isDebugLoggingEnabled()) {
+          console.error("MPV socket error:", err.message);
+        }
         this.failPendingRequests();
       },
       onClose: () => {
-        console.log("MPV socket closed");
+        if (isDebugLoggingEnabled()) {
+          console.log("MPV socket closed");
+        }
         this.connected = false;
         this.connecting = false;
         this.socket = null;
@@ -194,9 +202,11 @@ export class MpvIpcClient implements MpvClient {
       getReconnectTimer: () => this.deps.getReconnectTimer(),
       setReconnectTimer: (timer) => this.deps.setReconnectTimer(timer),
       onReconnectAttempt: (attempt, delay) => {
-        console.log(
-          `Attempting to reconnect to MPV (attempt ${attempt}, delay ${delay}ms)...`,
-        );
+        if (isDebugLoggingEnabled()) {
+          console.log(
+            `Attempting to reconnect to MPV (attempt ${attempt}, delay ${delay}ms)...`,
+          );
+        }
       },
       connect: () => {
         this.connect();
