@@ -24,6 +24,7 @@ type RuntimeShortcutConfig = Omit<Required<ShortcutsConfig>, "multiCopyTimeoutMs
 const HEX_COLOR_RE =
   /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
+// Fallbacks mirror the session overlay's default subtitle/word color scheme.
 const FALLBACK_COLORS = {
   knownWordColor: "#a6da95",
   nPlusOneColor: "#c6a0f6",
@@ -297,11 +298,15 @@ function formatBindingHint(info: SessionHelpBindingInfo): string {
   return "Y-H";
 }
 
-function createShortcutRow(row: SessionHelpItem): HTMLButtonElement {
+function createShortcutRow(
+  row: SessionHelpItem,
+  globalIndex: number,
+): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "session-help-item";
   button.tabIndex = -1;
+  button.dataset.sessionHelpIndex = String(globalIndex);
 
   const left = document.createElement("div");
   left.className = "session-help-item-left";
@@ -345,7 +350,6 @@ const SECTION_ICON: Record<string, string> = {
 function createSectionNode(
   section: SessionHelpSection,
   sectionIndex: number,
-  onSelect: (index: number) => void,
   globalIndexMap: number[],
 ): HTMLElement {
   const sectionNode = document.createElement("section");
@@ -361,9 +365,8 @@ function createSectionNode(
   list.className = "session-help-item-list";
 
   section.rows.forEach((row, rowIndex) => {
-    const button = createShortcutRow(row);
     const globalIndex = globalIndexMap[sectionIndex] + rowIndex;
-    button.addEventListener("click", () => onSelect(globalIndex));
+    const button = createShortcutRow(row, globalIndex);
     list.appendChild(button);
   });
 
@@ -389,6 +392,8 @@ export function createSessionHelpModal(
   let focusGuard: ((event: FocusEvent) => void) | null = null;
   let windowFocusGuard: (() => void) | null = null;
   let modalPointerFocusGuard: ((event: Event) => void) | null = null;
+  let isRecoveringModalFocus = false;
+  let lastFocusRecoveryAt = 0;
 
   function getItems(): HTMLButtonElement[] {
     return Array.from(
@@ -400,8 +405,8 @@ export function createSessionHelpModal(
     const items = getItems();
     if (items.length === 0) return;
 
-    const next =
-      ((index % items.length) + items.length) % items.length;
+    const wrappedIndex = index % items.length;
+    const next = wrappedIndex < 0 ? wrappedIndex + items.length : wrappedIndex;
     ctx.state.sessionHelpSelectedIndex = next;
 
     items.forEach((item, idx) => {
@@ -423,27 +428,39 @@ export function createSessionHelpModal(
     );
   }
 
-  function focusFallbackTarget(): void {
+  function focusFallbackTarget(): boolean {
     void window.electronAPI.focusMainWindow();
     const items = getItems();
     const firstItem = items.find((item) => item.offsetParent !== null);
     if (firstItem) {
       firstItem.focus({ preventScroll: true });
-      return;
+      return document.activeElement === firstItem;
     }
 
     if (ctx.dom.sessionHelpClose instanceof HTMLElement) {
       ctx.dom.sessionHelpClose.focus({ preventScroll: true });
-      return;
+      return document.activeElement === ctx.dom.sessionHelpClose;
     }
 
     window.focus();
+    return false;
   }
 
   function enforceModalFocus(): void {
     if (!ctx.state.sessionHelpModalOpen) return;
     if (!isSessionHelpModalFocusTarget(document.activeElement)) {
+      if (isRecoveringModalFocus) return;
+
+      const now = Date.now();
+      if (now - lastFocusRecoveryAt < 120) return;
+
+      isRecoveringModalFocus = true;
+      lastFocusRecoveryAt = now;
       focusFallbackTarget();
+
+      window.setTimeout(() => {
+        isRecoveringModalFocus = false;
+      }, 120);
     }
   }
 
@@ -470,9 +487,6 @@ export function createSessionHelpModal(
       const sectionNode = createSectionNode(
         section,
         sectionIndex,
-        (selectionIndex) => {
-          setSelected(selectionIndex);
-        },
         indexOffsets,
       );
       ctx.dom.sessionHelpContent.appendChild(sectionNode);
@@ -506,14 +520,12 @@ export function createSessionHelpModal(
       enforceModalFocus();
     };
     ctx.dom.sessionHelpModal.addEventListener("pointerdown", modalPointerFocusGuard);
-    ctx.dom.sessionHelpModal.addEventListener("mousedown", modalPointerFocusGuard);
     ctx.dom.sessionHelpModal.addEventListener("click", modalPointerFocusGuard);
   }
 
   function removePointerFocusListener(): void {
     if (!modalPointerFocusGuard) return;
     ctx.dom.sessionHelpModal.removeEventListener("pointerdown", modalPointerFocusGuard);
-    ctx.dom.sessionHelpModal.removeEventListener("mousedown", modalPointerFocusGuard);
     ctx.dom.sessionHelpModal.removeEventListener("click", modalPointerFocusGuard);
     modalPointerFocusGuard = null;
   }
@@ -536,37 +548,56 @@ export function createSessionHelpModal(
     windowFocusGuard = null;
   }
 
-  async function render(): Promise<void> {
-    const [keybindings, styleConfig, shortcuts] = await Promise.all([
-      window.electronAPI.getKeybindings(),
-      window.electronAPI.getSubtitleStyle(),
-      window.electronAPI.getConfiguredShortcuts(),
-    ]);
+  function showRenderError(message: string): void {
+    helpSections = [];
+    helpFilterValue = "";
+    ctx.dom.sessionHelpFilter.value = "";
+    ctx.dom.sessionHelpContent.classList.add("session-help-content-no-results");
+    ctx.dom.sessionHelpContent.textContent = message;
+    ctx.state.sessionHelpSelectedIndex = 0;
+  }
 
-    const bindingSections = buildBindingSections(keybindings);
-    if (bindingSections.length > 0) {
-      const playback = bindingSections.find(
-        (section) => section.title === "Playback and navigation",
-      );
-      if (playback) {
-        playback.title = "MPV shortcuts";
+  async function render(): Promise<boolean> {
+    try {
+      const [keybindings, styleConfig, shortcuts] = await Promise.all([
+        window.electronAPI.getKeybindings(),
+        window.electronAPI.getSubtitleStyle(),
+        window.electronAPI.getConfiguredShortcuts(),
+      ]);
+
+      const bindingSections = buildBindingSections(keybindings);
+      if (bindingSections.length > 0) {
+        const playback = bindingSections.find(
+          (section) => section.title === "Playback and navigation",
+        );
+        if (playback) {
+          playback.title = "MPV shortcuts";
+        }
       }
-    }
 
-    const shortcutSections = buildOverlayShortcutSections(shortcuts);
-    if (shortcutSections.length > 0) {
-      shortcutSections[0].title = "Overlay shortcuts (configurable)";
+      const shortcutSections = buildOverlayShortcutSections(shortcuts);
+      if (shortcutSections.length > 0) {
+        shortcutSections[0].title = "Overlay shortcuts (configurable)";
+      }
+      const colorSection = buildColorSection(styleConfig ?? {});
+      helpSections = [...bindingSections, ...shortcutSections, colorSection];
+      applyFilterAndRender();
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to load session help data.";
+      showRenderError(`Session help failed to load: ${message}`);
+      return false;
     }
-    const colorSection = buildColorSection(styleConfig ?? {});
-    helpSections = [...bindingSections, ...shortcutSections, colorSection];
-    applyFilterAndRender();
   }
 
   async function openSessionHelpModal(opening: SessionHelpBindingInfo): Promise<void> {
     openBinding = opening;
     priorFocus = document.activeElement;
 
-    await render();
+    const dataLoaded = await render();
 
     ctx.dom.sessionHelpShortcut.textContent = `Session help opened with ${formatBindingHint(openBinding)}`;
     if (openBinding.fallbackUnavailable) {
@@ -577,8 +608,15 @@ export function createSessionHelpModal(
     } else {
       ctx.dom.sessionHelpWarning.textContent = "";
     }
-    ctx.dom.sessionHelpStatus.textContent =
-      "Use Arrow keys, J/K/H/L, mouse, click, or / then type to filter. Esc closes.";
+    if (dataLoaded) {
+      ctx.dom.sessionHelpStatus.textContent =
+        "Use Arrow keys, J/K/H/L, mouse, click, or / then type to filter. Esc closes.";
+    } else {
+      ctx.dom.sessionHelpStatus.textContent =
+        "Session help data is unavailable right now. Press Esc to close.";
+      ctx.dom.sessionHelpWarning.textContent =
+        "Unable to load latest shortcut settings from the runtime.";
+    }
 
     ctx.state.sessionHelpModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
@@ -634,6 +672,7 @@ export function createSessionHelpModal(
     }
 
     if (ctx.dom.overlay instanceof HTMLElement) {
+      // Overlay remains `tabindex="-1"` to allow programmatic focus for fallback.
       ctx.dom.overlay.focus({ preventScroll: true });
     }
     if (ctx.platform.shouldToggleMouseIgnore) {
@@ -725,6 +764,16 @@ export function createSessionHelpModal(
         event.preventDefault();
         focusFallbackTarget();
       }
+    });
+
+    ctx.dom.sessionHelpContent.addEventListener("click", (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const row = target.closest(".session-help-item") as HTMLElement | null;
+      if (!row) return;
+      const index = Number.parseInt(row.dataset.sessionHelpIndex ?? "", 10);
+      if (!Number.isFinite(index)) return;
+      setSelected(index);
     });
 
     ctx.dom.sessionHelpClose.addEventListener("click", () => {
