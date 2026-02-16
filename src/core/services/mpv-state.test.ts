@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveCurrentAudioStreamIndex } from "./mpv-state";
+import { resolveCurrentAudioStreamIndex } from "./mpv-service";
 
 test("resolveCurrentAudioStreamIndex returns selected ff-index when no current track id", () => {
   assert.equal(

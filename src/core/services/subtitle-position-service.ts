@@ -1,7 +1,40 @@
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
-import { SubtitlePosition } from "../../types";
+import { SecondarySubMode, SubtitlePosition } from "../../types";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:subtitle-position");
+
+export interface CycleSecondarySubModeDeps {
+  getSecondarySubMode: () => SecondarySubMode;
+  setSecondarySubMode: (mode: SecondarySubMode) => void;
+  getLastSecondarySubToggleAtMs: () => number;
+  setLastSecondarySubToggleAtMs: (timestampMs: number) => void;
+  broadcastSecondarySubMode: (mode: SecondarySubMode) => void;
+  showMpvOsd: (text: string) => void;
+  now?: () => number;
+}
+
+const SECONDARY_SUB_CYCLE: SecondarySubMode[] = ["hidden", "visible", "hover"];
+const SECONDARY_SUB_TOGGLE_DEBOUNCE_MS = 120;
+
+export function cycleSecondarySubModeService(
+  deps: CycleSecondarySubModeDeps,
+): void {
+  const now = deps.now ? deps.now() : Date.now();
+  if (now - deps.getLastSecondarySubToggleAtMs() < SECONDARY_SUB_TOGGLE_DEBOUNCE_MS) {
+    return;
+  }
+  deps.setLastSecondarySubToggleAtMs(now);
+
+  const currentMode = deps.getSecondarySubMode();
+  const currentIndex = SECONDARY_SUB_CYCLE.indexOf(currentMode);
+  const nextMode = SECONDARY_SUB_CYCLE[(currentIndex + 1) % SECONDARY_SUB_CYCLE.length];
+  deps.setSecondarySubMode(nextMode);
+  deps.broadcastSecondarySubMode(nextMode);
+  deps.showMpvOsd(`Secondary subtitle: ${nextMode}`);
+}
 
 function getSubtitlePositionFilePath(
   mediaPath: string,
@@ -97,7 +130,7 @@ export function loadSubtitlePositionService(options: {
     }
     return options.fallbackPosition;
   } catch (err) {
-    console.error("Failed to load subtitle position:", (err as Error).message);
+    logger.error("Failed to load subtitle position:", (err as Error).message);
     return options.fallbackPosition;
   }
 }
@@ -111,7 +144,7 @@ export function saveSubtitlePositionService(options: {
 }): void {
   if (!options.currentMediaPath) {
     options.onQueuePending(options.position);
-    console.warn("Queued subtitle position save - no media path yet");
+    logger.warn("Queued subtitle position save - no media path yet");
     return;
   }
 
@@ -123,7 +156,7 @@ export function saveSubtitlePositionService(options: {
     );
     options.onPersisted();
   } catch (err) {
-    console.error("Failed to save subtitle position:", (err as Error).message);
+    logger.error("Failed to save subtitle position:", (err as Error).message);
   }
 }
 
@@ -154,8 +187,8 @@ export function updateCurrentMediaPathService(options: {
       );
       options.setSubtitlePosition(options.pendingSubtitlePosition);
       options.clearPendingSubtitlePosition();
-    } catch (err) {
-      console.error(
+  } catch (err) {
+      logger.error(
         "Failed to persist queued subtitle position:",
         (err as Error).message,
       );

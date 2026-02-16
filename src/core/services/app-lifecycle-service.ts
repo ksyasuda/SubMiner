@@ -1,4 +1,7 @@
 import { CliArgs, CliCommandSource } from "../../cli/args";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:app-lifecycle");
 
 export interface AppLifecycleServiceDeps {
   shouldStartApp: (args: CliArgs) => boolean;
@@ -57,7 +60,7 @@ export function createAppLifecycleDepsRuntimeService(
     logNoRunningInstance: options.logNoRunningInstance,
     whenReady: (handler) => {
       options.app.whenReady().then(handler).catch((error) => {
-        console.error("App ready handler failed:", error);
+        logger.error("App ready handler failed:", error);
       });
     },
     onWindowAllClosed: (handler) => {
@@ -91,7 +94,7 @@ export function startAppLifecycleService(
     try {
       deps.handleCliCommand(deps.parseArgs(argv), "second-instance");
     } catch (error) {
-      console.error("Failed to handle second-instance CLI command:", error);
+      logger.error("Failed to handle second-instance CLI command:", error);
     }
   });
 

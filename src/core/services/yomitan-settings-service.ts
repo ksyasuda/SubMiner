@@ -1,4 +1,7 @@
 import { BrowserWindow, Extension, session } from "electron";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:yomitan-settings");
 
 export interface OpenYomitanSettingsWindowOptions {
   yomitanExt: Extension | null;
@@ -9,14 +12,14 @@ export interface OpenYomitanSettingsWindowOptions {
 export function openYomitanSettingsWindow(
   options: OpenYomitanSettingsWindowOptions,
 ): void {
-  console.log("openYomitanSettings called");
+  logger.info("openYomitanSettings called");
 
   if (!options.yomitanExt) {
-    console.error(
+    logger.error(
       "Yomitan extension not loaded - yomitanExt is:",
       options.yomitanExt,
     );
-    console.error(
+    logger.error(
       "This may be due to Manifest V3 service worker issues with Electron",
     );
     return;
@@ -24,12 +27,12 @@ export function openYomitanSettingsWindow(
 
   const existingWindow = options.getExistingWindow();
   if (existingWindow && !existingWindow.isDestroyed()) {
-    console.log("Settings window already exists, focusing");
+    logger.info("Settings window already exists, focusing");
     existingWindow.focus();
     return;
   }
 
-  console.log("Creating new settings window for extension:", options.yomitanExt.id);
+  logger.info("Creating new settings window for extension:", options.yomitanExt.id);
 
   const settingsWindow = new BrowserWindow({
     width: 1200,
@@ -44,7 +47,7 @@ export function openYomitanSettingsWindow(
   options.setWindow(settingsWindow);
 
   const settingsUrl = `chrome-extension://${options.yomitanExt.id}/settings.html`;
-  console.log("Loading settings URL:", settingsUrl);
+  logger.info("Loading settings URL:", settingsUrl);
 
   let loadAttempts = 0;
   const maxAttempts = 3;
@@ -53,13 +56,13 @@ export function openYomitanSettingsWindow(
     settingsWindow
       .loadURL(settingsUrl)
       .then(() => {
-        console.log("Settings URL loaded successfully");
+        logger.info("Settings URL loaded successfully");
       })
       .catch((err: Error) => {
-        console.error("Failed to load settings URL:", err);
+        logger.error("Failed to load settings URL:", err);
         loadAttempts++;
         if (loadAttempts < maxAttempts && !settingsWindow.isDestroyed()) {
-          console.log(
+          logger.info(
             `Retrying in 500ms (attempt ${loadAttempts + 1}/${maxAttempts})`,
           );
           setTimeout(attemptLoad, 500);
@@ -72,7 +75,7 @@ export function openYomitanSettingsWindow(
   settingsWindow.webContents.on(
     "did-fail-load",
     (_event, errorCode, errorDescription) => {
-      console.error(
+      logger.error(
         "Settings page failed to load:",
         errorCode,
         errorDescription,
@@ -81,7 +84,7 @@ export function openYomitanSettingsWindow(
   );
 
   settingsWindow.webContents.on("did-finish-load", () => {
-    console.log("Settings page loaded successfully");
+    logger.info("Settings page loaded successfully");
   });
 
   setTimeout(() => {

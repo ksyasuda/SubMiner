@@ -1,4 +1,7 @@
 import { BrowserWindow, globalShortcut } from "electron";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:shortcut");
 
 export interface GlobalShortcutConfig {
   toggleVisibleOverlayGlobal: string | null | undefined;
@@ -38,7 +41,7 @@ export function registerGlobalShortcutsService(
       },
     );
     if (!toggleVisibleRegistered) {
-      console.warn(
+      logger.warn(
         `Failed to register global shortcut toggleVisibleOverlayGlobal: ${visibleShortcut}`,
       );
     }
@@ -56,7 +59,7 @@ export function registerGlobalShortcutsService(
       },
     );
     if (!toggleInvisibleRegistered) {
-      console.warn(
+      logger.warn(
         `Failed to register global shortcut toggleInvisibleOverlayGlobal: ${invisibleShortcut}`,
       );
     }
@@ -65,7 +68,7 @@ export function registerGlobalShortcutsService(
     normalizedInvisible &&
     normalizedInvisible === normalizedVisible
   ) {
-    console.warn(
+    logger.warn(
       "Skipped registering toggleInvisibleOverlayGlobal because it collides with toggleVisibleOverlayGlobal",
     );
   }
@@ -77,7 +80,7 @@ export function registerGlobalShortcutsService(
         normalizedJimaku === normalizedInvisible ||
         normalizedJimaku === normalizedSettings)
     ) {
-      console.warn(
+      logger.warn(
         "Skipped registering openJimaku because it collides with another global shortcut",
       );
     } else {
@@ -88,7 +91,7 @@ export function registerGlobalShortcutsService(
         },
       );
       if (!openJimakuRegistered) {
-        console.warn(
+        logger.warn(
           `Failed to register global shortcut openJimaku: ${options.shortcuts.openJimaku}`,
         );
       }
@@ -99,7 +102,7 @@ export function registerGlobalShortcutsService(
     options.onOpenYomitanSettings();
   });
   if (!settingsRegistered) {
-    console.warn("Failed to register global shortcut: Alt+Shift+Y");
+    logger.warn("Failed to register global shortcut: Alt+Shift+Y");
   }
 
   if (options.isDev) {
@@ -110,7 +113,7 @@ export function registerGlobalShortcutsService(
       }
     });
     if (!devtoolsRegistered) {
-      console.warn("Failed to register global shortcut: F12");
+      logger.warn("Failed to register global shortcut: F12");
     }
   }
 }

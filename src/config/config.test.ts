@@ -36,6 +36,46 @@ test("parses jsonc and warns/falls back on invalid value", () => {
   assert.ok(service.getWarnings().some((w) => w.path === "websocket.port"));
 });
 
+test("accepts valid logging.level", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "logging": {
+        "level": "warn"
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.logging.level, "warn");
+});
+
+test("falls back for invalid logging.level and reports warning", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "logging": {
+        "level": "trace"
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.logging.level, DEFAULT_CONFIG.logging.level);
+  assert.ok(
+    warnings.some((warning) => warning.path === "logging.level"),
+  );
+});
+
 test("parses invisible overlay config and new global shortcuts", () => {
   const dir = makeTempDir();
   fs.writeFileSync(
@@ -372,6 +412,7 @@ test("falls back to default when ankiConnect n+1 deck list is invalid", () => {
 test("template generator includes known keys", () => {
   const output = generateConfigTemplate(DEFAULT_CONFIG);
   assert.match(output, /"ankiConnect":/);
+  assert.match(output, /"logging":/);
   assert.match(output, /"websocket":/);
   assert.match(output, /"youtubeSubgen":/);
   assert.match(output, /"nPlusOne"\s*:\s*\{/);

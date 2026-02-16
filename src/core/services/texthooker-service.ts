@@ -1,6 +1,9 @@
 import * as fs from "fs";
 import * as http from "http";
 import * as path from "path";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:texthooker");
 
 export class TexthookerService {
   private server: http.Server | null = null;
@@ -12,7 +15,7 @@ export class TexthookerService {
   public start(port: number): http.Server | null {
     const texthookerPath = this.getTexthookerPath();
     if (!texthookerPath) {
-      console.error("texthooker-ui not found");
+      logger.error("texthooker-ui not found");
       return null;
     }
 
@@ -48,7 +51,7 @@ export class TexthookerService {
     });
 
     this.server.listen(port, "127.0.0.1", () => {
-      console.log(`Texthooker server running at http://127.0.0.1:${port}`);
+      logger.info(`Texthooker server running at http://127.0.0.1:${port}`);
     });
 
     return this.server;

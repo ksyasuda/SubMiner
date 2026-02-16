@@ -2,6 +2,7 @@ import { ipcMain, IpcMainEvent } from "electron";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { createLogger } from "../../logger";
 import {
   JimakuApiResponse,
   JimakuDownloadQuery,
@@ -15,6 +16,8 @@ import {
   KikuMergePreviewRequest,
   KikuMergePreviewResponse,
 } from "../../types";
+
+const logger = createLogger("main:anki-jimaku-ipc");
 
 export interface AnkiJimakuIpcDeps {
   setAnkiConnectEnabled: (enabled: boolean) => void;
@@ -147,7 +150,7 @@ export function registerAnkiJimakuIpcHandlers(
         }
       }
 
-      console.log(
+      logger.info(
         `[jimaku] download-file name="${query.name}" entryId=${query.entryId}`,
       );
       const result = await deps.downloadToFile(query.url, targetPath, {
@@ -156,10 +159,10 @@ export function registerAnkiJimakuIpcHandlers(
       });
 
       if (result.ok) {
-        console.log(`[jimaku] download-file saved to ${result.path}`);
+        logger.info(`[jimaku] download-file saved to ${result.path}`);
         deps.onDownloadedSubtitle(result.path);
       } else {
-        console.error(
+        logger.error(
           `[jimaku] download-file failed: ${result.error?.error ?? "unknown error"}`,
         );
       }

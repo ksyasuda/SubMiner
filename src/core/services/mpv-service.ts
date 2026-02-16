@@ -17,11 +17,85 @@ import {
   scheduleMpvReconnect,
   MpvSocketTransport,
 } from "./mpv-transport";
-import { resolveCurrentAudioStreamIndex } from "./mpv-state";
+import { createLogger } from "../../logger";
 
-const isDebugLoggingEnabled = (): boolean => {
-  return (process.env.SUBMINER_LOG_LEVEL || "").toLowerCase() === "debug";
+const logger = createLogger("main:mpv");
+
+export type MpvTrackProperty = {
+  type?: string;
+  id?: number;
+  selected?: boolean;
+  "ff-index"?: number;
 };
+
+export function resolveCurrentAudioStreamIndex(
+  tracks: Array<MpvTrackProperty> | null | undefined,
+  currentAudioTrackId: number | null,
+): number | null {
+  if (!Array.isArray(tracks)) {
+    return null;
+  }
+
+  const audioTracks = tracks.filter((track) => track.type === "audio");
+  const activeTrack =
+    audioTracks.find((track) => track.id === currentAudioTrackId) ||
+    audioTracks.find((track) => track.selected === true);
+
+  const ffIndex = activeTrack?.["ff-index"];
+  return typeof ffIndex === "number" && Number.isInteger(ffIndex) && ffIndex >= 0
+    ? ffIndex
+    : null;
+}
+
+export interface MpvRuntimeClientLike {
+  connected: boolean;
+  send: (payload: { command: (string | number)[] }) => void;
+  replayCurrentSubtitle?: () => void;
+  playNextSubtitle?: () => void;
+  setSubVisibility?: (visible: boolean) => void;
+}
+
+export function showMpvOsdRuntimeService(
+  mpvClient: MpvRuntimeClientLike | null,
+  text: string,
+  fallbackLog: (text: string) => void = (line) => logger.info(line),
+): void {
+  if (mpvClient && mpvClient.connected) {
+    mpvClient.send({ command: ["show-text", text, "3000"] });
+    return;
+  }
+  fallbackLog(`OSD (MPV not connected): ${text}`);
+}
+
+export function replayCurrentSubtitleRuntimeService(
+  mpvClient: MpvRuntimeClientLike | null,
+): void {
+  if (!mpvClient?.replayCurrentSubtitle) return;
+  mpvClient.replayCurrentSubtitle();
+}
+
+export function playNextSubtitleRuntimeService(
+  mpvClient: MpvRuntimeClientLike | null,
+): void {
+  if (!mpvClient?.playNextSubtitle) return;
+  mpvClient.playNextSubtitle();
+}
+
+export function sendMpvCommandRuntimeService(
+  mpvClient: MpvRuntimeClientLike | null,
+  command: (string | number)[],
+): void {
+  if (!mpvClient) return;
+  mpvClient.send({ command });
+}
+
+export function setMpvSubVisibilityRuntimeService(
+  mpvClient: MpvRuntimeClientLike | null,
+  visible: boolean,
+): void {
+  if (!mpvClient?.setSubVisibility) return;
+  mpvClient.setSubVisibility(visible);
+}
 
 export {
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
@@ -104,7 +178,7 @@ export class MpvIpcClient implements MpvClient {
     this.transport = new MpvSocketTransport({
       socketPath,
       onConnect: () => {
-        console.log("Connected to MPV socket");
+        logger.info("Connected to MPV socket");
         this.connected = true;
         this.connecting = false;
         this.socket = this.transport.getSocket();
@@ -118,7 +192,7 @@ export class MpvIpcClient implements MpvClient {
           this.deps.autoStartOverlay ||
           this.deps.getResolvedConfig().auto_start_overlay === true;
         if (this.firstConnection && shouldAutoStart) {
-          console.log("Auto-starting overlay, hiding mpv subtitles");
+          logger.info("Auto-starting overlay, hiding mpv subtitles");
           setTimeout(() => {
             this.deps.setOverlayVisible(true);
           }, 100);
@@ -133,15 +207,11 @@ export class MpvIpcClient implements MpvClient {
         this.processBuffer();
       },
       onError: (err: Error) => {
-        if (isDebugLoggingEnabled()) {
-          console.error("MPV socket error:", err.message);
-        }
+        logger.debug("MPV socket error:", err.message);
         this.failPendingRequests();
       },
       onClose: () => {
-        if (isDebugLoggingEnabled()) {
-          console.log("MPV socket closed");
-        }
+        logger.debug("MPV socket closed");
         this.connected = false;
         this.connecting = false;
         this.socket = null;
@@ -202,11 +272,9 @@ export class MpvIpcClient implements MpvClient {
       getReconnectTimer: () => this.deps.getReconnectTimer(),
       setReconnectTimer: (timer) => this.deps.setReconnectTimer(timer),
       onReconnectAttempt: (attempt, delay) => {
-        if (isDebugLoggingEnabled()) {
-          console.log(
-            `Attempting to reconnect to MPV (attempt ${attempt}, delay ${delay}ms)...`,
-          );
-        }
+        logger.debug(
+          `Attempting to reconnect to MPV (attempt ${attempt}, delay ${delay}ms)...`,
+        );
       },
       connect: () => {
         this.connect();
@@ -221,7 +289,7 @@ export class MpvIpcClient implements MpvClient {
         this.handleMessage(message);
       },
       (line, error) => {
-        console.error("Failed to parse MPV message:", line, error);
+        logger.error("Failed to parse MPV message:", line, error);
       },
     );
     this.buffer = parsed.nextBuffer;

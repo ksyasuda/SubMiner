@@ -1,6 +1,9 @@
 import { BrowserWindow, Extension, session } from "electron";
 import * as fs from "fs";
 import * as path from "path";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:yomitan-extension-loader");
 
 export interface YomitanExtensionLoaderDeps {
   userDataPath: string;
@@ -49,7 +52,7 @@ function ensureExtensionCopy(sourceDir: string, userDataPath: string): string {
     fs.mkdirSync(extensionsRoot, { recursive: true });
     fs.rmSync(targetDir, { recursive: true, force: true });
     fs.cpSync(sourceDir, targetDir, { recursive: true });
-    console.log(`Copied yomitan extension to ${targetDir}`);
+    logger.info(`Copied yomitan extension to ${targetDir}`);
   }
 
   return targetDir;
@@ -75,8 +78,8 @@ export async function loadYomitanExtensionService(
   }
 
   if (!extPath) {
-    console.error("Yomitan extension not found in any search path");
-    console.error("Install Yomitan to one of:", searchPaths);
+    logger.error("Yomitan extension not found in any search path");
+    logger.error("Install Yomitan to one of:", searchPaths);
     return null;
   }
 
@@ -102,8 +105,8 @@ export async function loadYomitanExtensionService(
     deps.setYomitanExtension(extension);
     return extension;
   } catch (err) {
-    console.error("Failed to load Yomitan extension:", (err as Error).message);
-    console.error("Full error:", err);
+    logger.error("Failed to load Yomitan extension:", (err as Error).message);
+    logger.error("Full error:", err);
     deps.setYomitanExtension(null);
     return null;
   }

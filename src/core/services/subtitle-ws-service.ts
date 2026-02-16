@@ -2,6 +2,9 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import WebSocket from "ws";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:subtitle-ws");
 
 export function hasMpvWebsocketPlugin(): boolean {
   const mpvWebsocketPath = path.join(
@@ -24,7 +27,7 @@ export class SubtitleWebSocketService {
     this.server = new WebSocket.Server({ port, host: "127.0.0.1" });
 
     this.server.on("connection", (ws: WebSocket) => {
-      console.log("WebSocket client connected");
+      logger.info("WebSocket client connected");
       const currentText = getCurrentSubtitleText();
       if (currentText) {
         ws.send(JSON.stringify({ sentence: currentText }));
@@ -32,10 +35,10 @@ export class SubtitleWebSocketService {
     });
 
     this.server.on("error", (err: Error) => {
-      console.error("WebSocket server error:", err.message);
+      logger.error("WebSocket server error:", err.message);
     });
 
-    console.log(`Subtitle WebSocket server running on ws://127.0.0.1:${port}`);
+    logger.info(`Subtitle WebSocket server running on ws://127.0.0.1:${port}`);
   }
 
   public broadcast(text: string): void {

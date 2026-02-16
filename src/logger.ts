@@ -1,4 +1,5 @@
 export type LogLevel = "debug" | "info" | "warn" | "error";
+export type LogLevelSource = "cli" | "config";
 
 type LogMethod = (message: string, ...meta: unknown[]) => void;
 
@@ -18,8 +19,23 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 40,
 };
 
+const DEFAULT_LOG_LEVEL: LogLevel = "info";
+
+let cliLogLevel: LogLevel | undefined;
+let configLogLevel: LogLevel | undefined;
+
 function pad(value: number): string {
   return String(value).padStart(2, "0");
+}
+
+function normalizeLogLevel(level: string | undefined): LogLevel | undefined {
+  const normalized = (level || "").toLowerCase() as LogLevel;
+  return LOG_LEVELS.includes(normalized) ? normalized : undefined;
+}
+
+function getEnvLogLevel(): LogLevel | undefined {
+  if (!process || !process.env) return undefined;
+  return normalizeLogLevel(process.env.SUBMINER_LOG_LEVEL);
 }
 
 function formatTimestamp(date: Date): string {
@@ -33,15 +49,29 @@ function formatTimestamp(date: Date): string {
 }
 
 function resolveMinLevel(): LogLevel {
-  const raw =
-    typeof process !== "undefined" && process?.env
-      ? process.env.SUBMINER_LOG_LEVEL
-      : undefined;
-  const normalized = (raw || "").toLowerCase() as LogLevel;
-  if (LOG_LEVELS.includes(normalized)) {
-    return normalized;
+  const envLevel = getEnvLogLevel();
+  if (cliLogLevel) {
+    return cliLogLevel;
   }
-  return "info";
+  if (envLevel) {
+    return envLevel;
+  }
+  if (configLogLevel) {
+    return configLogLevel;
+  }
+  return DEFAULT_LOG_LEVEL;
+}
+
+export function setLogLevel(
+  level: string | undefined,
+  source: LogLevelSource = "cli",
+): void {
+  const normalized = normalizeLogLevel(level);
+  if (source === "cli") {
+    cliLogLevel = normalized;
+  } else {
+    configLogLevel = normalized;
+  }
 }
 
 function normalizeError(error: Error): { message: string; stack?: string } {

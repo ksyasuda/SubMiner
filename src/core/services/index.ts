@@ -11,7 +11,6 @@ export {
 } from "./overlay-shortcut-service";
 export { createOverlayShortcutRuntimeHandlers } from "./overlay-shortcut-handler";
 export { createCliCommandDepsRuntimeService, handleCliCommandService } from "./cli-command-service";
-export { cycleSecondarySubModeService } from "./secondary-subtitle-service";
 export {
   copyCurrentSubtitleService,
   handleMineSentenceDigitService,
@@ -23,18 +22,14 @@ export {
 } from "./mining-service";
 export { createAppLifecycleDepsRuntimeService, startAppLifecycleService } from "./app-lifecycle-service";
 export {
-  playNextSubtitleRuntimeService,
-  replayCurrentSubtitleRuntimeService,
-  sendMpvCommandRuntimeService,
-  setMpvSubVisibilityRuntimeService,
-  showMpvOsdRuntimeService,
-} from "./mpv-control-service";
+  cycleSecondarySubModeService,
+} from "./subtitle-position-service";
 export {
   getInitialInvisibleOverlayVisibilityService,
   isAutoUpdateEnabledRuntimeService,
   shouldAutoInitializeOverlayRuntimeFromConfigService,
   shouldBindVisibleOverlayToMpvSubVisibilityService,
-} from "./runtime-config-service";
+} from "./startup-service";
 export { openYomitanSettingsWindow } from "./yomitan-settings-service";
 export { createTokenizerDepsRuntimeService, tokenizeSubtitleService } from "./tokenizer-service";
 export { createJlptVocabularyLookupService } from "./jlpt-vocab-service";
@@ -74,7 +69,18 @@ export {
   updateInvisibleOverlayVisibilityService,
   updateVisibleOverlayVisibilityService,
 } from "./overlay-visibility-service";
-export { MpvIpcClient, MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY } from "./mpv-service";
+export {
+  MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+  MpvIpcClient,
+  MpvRuntimeClientLike,
+  MpvTrackProperty,
+  playNextSubtitleRuntimeService,
+  replayCurrentSubtitleRuntimeService,
+  resolveCurrentAudioStreamIndex,
+  sendMpvCommandRuntimeService,
+  setMpvSubVisibilityRuntimeService,
+  showMpvOsdRuntimeService,
+} from "./mpv-service";
 export {
   applyMpvSubtitleRenderMetricsPatchService,
   DEFAULT_MPV_SUBTITLE_RENDER_METRICS,

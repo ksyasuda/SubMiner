@@ -5,7 +5,7 @@ import {
   isAutoUpdateEnabledRuntimeService,
   shouldAutoInitializeOverlayRuntimeFromConfigService,
   shouldBindVisibleOverlayToMpvSubVisibilityService,
-} from "./runtime-config-service";
+} from "./startup-service";
 
 const BASE_CONFIG = {
   auto_start_overlay: false,
