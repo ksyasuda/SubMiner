@@ -7,6 +7,7 @@ import {
   PartOfSpeech,
   SubtitleData,
   Token,
+  FrequencyDictionaryLookup,
 } from "../../types";
 import {
   shouldIgnoreJlptForMecabPos1,
@@ -35,10 +36,15 @@ const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 const JLPT_LEVEL_LOOKUP_CACHE_LIMIT = 2048;
+const FREQUENCY_RANK_LOOKUP_CACHE_LIMIT = 2048;
 
 const jlptLevelLookupCaches = new WeakMap<
   (text: string) => JlptLevel | null,
   Map<string, JlptLevel | null>
+>();
+const frequencyRankLookupCaches = new WeakMap<
+  FrequencyDictionaryLookup,
+  Map<string, number | null>
 >();
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -61,6 +67,8 @@ export interface TokenizerServiceDeps {
   getKnownWordMatchMode: () => NPlusOneMatchMode;
   getJlptLevel: (text: string) => JlptLevel | null;
   getJlptEnabled?: () => boolean;
+  getFrequencyDictionaryEnabled?: () => boolean;
+  getFrequencyRank?: FrequencyDictionaryLookup;
   getMinSentenceWordsForNPlusOne?: () => number;
   tokenizeWithMecab: (text: string) => Promise<MergedToken[] | null>;
 }
@@ -81,6 +89,8 @@ export interface TokenizerDepsRuntimeOptions {
   getKnownWordMatchMode: () => NPlusOneMatchMode;
   getJlptLevel: (text: string) => JlptLevel | null;
   getJlptEnabled?: () => boolean;
+  getFrequencyDictionaryEnabled?: () => boolean;
+  getFrequencyRank?: FrequencyDictionaryLookup;
   getMinSentenceWordsForNPlusOne?: () => number;
   getMecabTokenizer: () => MecabTokenizerLike | null;
 }
@@ -122,6 +132,52 @@ function getCachedJlptLevel(
   return level;
 }
 
+function normalizeFrequencyLookupText(rawText: string): string {
+  return rawText.trim().toLowerCase();
+}
+
+function getCachedFrequencyRank(
+  lookupText: string,
+  getFrequencyRank: FrequencyDictionaryLookup,
+): number | null {
+  const normalizedText = normalizeFrequencyLookupText(lookupText);
+  if (!normalizedText) {
+    return null;
+  }
+
+  let cache = frequencyRankLookupCaches.get(getFrequencyRank);
+  if (!cache) {
+    cache = new Map<string, number | null>();
+    frequencyRankLookupCaches.set(getFrequencyRank, cache);
+  }
+
+  if (cache.has(normalizedText)) {
+    return cache.get(normalizedText) ?? null;
+  }
+
+  let rank: number | null;
+  try {
+    rank = getFrequencyRank(normalizedText);
+  } catch {
+    rank = null;
+  }
+  if (rank !== null) {
+    if (!Number.isFinite(rank) || rank <= 0) {
+      rank = null;
+    }
+  }
+
+  cache.set(normalizedText, rank);
+  while (cache.size > FREQUENCY_RANK_LOOKUP_CACHE_LIMIT) {
+    const firstKey = cache.keys().next().value;
+    if (firstKey !== undefined) {
+      cache.delete(firstKey);
+    }
+  }
+
+  return rank;
+}
+
 export function createTokenizerDepsRuntimeService(
   options: TokenizerDepsRuntimeOptions,
 ): TokenizerServiceDeps {
@@ -137,6 +193,8 @@ export function createTokenizerDepsRuntimeService(
     getKnownWordMatchMode: options.getKnownWordMatchMode,
     getJlptLevel: options.getJlptLevel,
     getJlptEnabled: options.getJlptEnabled,
+    getFrequencyDictionaryEnabled: options.getFrequencyDictionaryEnabled,
+    getFrequencyRank: options.getFrequencyRank,
     getMinSentenceWordsForNPlusOne:
       options.getMinSentenceWordsForNPlusOne ?? (() => 3),
     tokenizeWithMecab: async (text) => {
@@ -180,6 +238,34 @@ function applyKnownWordMarking(
     return {
       ...token,
       isKnown: token.isKnown || (matchText ? isKnownWord(matchText) : false),
+    };
+  });
+}
+
+function resolveFrequencyLookupText(token: MergedToken): string {
+  if (token.headword && token.headword.length > 0) {
+    return token.headword;
+  }
+  if (token.reading && token.reading.length > 0) {
+    return token.reading;
+  }
+  return token.surface;
+}
+
+function applyFrequencyMarking(
+  tokens: MergedToken[],
+  getFrequencyRank: FrequencyDictionaryLookup,
+): MergedToken[] {
+  return tokens.map((token) => {
+    const lookupText = resolveFrequencyLookupText(token);
+    if (!lookupText) {
+      return { ...token, frequencyRank: undefined };
+    }
+
+    const rank = getCachedFrequencyRank(lookupText, getFrequencyRank);
+    return {
+      ...token,
+      frequencyRank: rank ?? undefined,
     };
   });
 }
@@ -753,6 +839,8 @@ export async function tokenizeSubtitleService(
     .replace(/\s+/g, " ")
     .trim();
   const jlptEnabled = deps.getJlptEnabled?.() !== false;
+  const frequencyEnabled = deps.getFrequencyDictionaryEnabled?.() !== false;
+  const frequencyLookup = deps.getFrequencyRank;
 
   const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps);
   if (yomitanTokens && yomitanTokens.length > 0) {
@@ -761,9 +849,16 @@ export async function tokenizeSubtitleService(
       deps.isKnownWord,
       deps.getKnownWordMatchMode(),
     );
-      const jlptMarkedTokens = jlptEnabled
-        ? applyJlptMarking(knownMarkedTokens, deps.getJlptLevel)
-        : knownMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
+    const frequencyMarkedTokens =
+      frequencyEnabled && frequencyLookup
+        ? applyFrequencyMarking(knownMarkedTokens, frequencyLookup)
+        : knownMarkedTokens.map((token) => ({
+          ...token,
+          frequencyRank: undefined,
+        }));
+    const jlptMarkedTokens = jlptEnabled
+      ? applyJlptMarking(frequencyMarkedTokens, deps.getJlptLevel)
+      : frequencyMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
     return {
       text: displayText,
       tokens: markNPlusOneTargets(
@@ -781,9 +876,16 @@ export async function tokenizeSubtitleService(
         deps.isKnownWord,
         deps.getKnownWordMatchMode(),
       );
+      const frequencyMarkedTokens =
+        frequencyEnabled && frequencyLookup
+          ? applyFrequencyMarking(knownMarkedTokens, frequencyLookup)
+          : knownMarkedTokens.map((token) => ({
+            ...token,
+            frequencyRank: undefined,
+          }));
       const jlptMarkedTokens = jlptEnabled
-        ? applyJlptMarking(knownMarkedTokens, deps.getJlptLevel)
-        : knownMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
+        ? applyJlptMarking(frequencyMarkedTokens, deps.getJlptLevel)
+        : frequencyMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
       return {
         text: displayText,
         tokens: markNPlusOneTargets(

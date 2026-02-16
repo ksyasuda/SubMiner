@@ -7,6 +7,7 @@ import type {
   SubtitlePosition,
   KikuFieldGroupingChoice,
   JlptLevel,
+  FrequencyDictionaryLookup,
 } from "../types";
 import type { CliArgs } from "../cli/args";
 import type { SubtitleTimingTracker } from "../subtitle-timing-tracker";
@@ -55,6 +56,7 @@ export interface AppState {
   autoStartOverlay: boolean;
   texthookerOnlyMode: boolean;
   jlptLevelLookup: (term: string) => JlptLevel | null;
+  frequencyRankLookup: FrequencyDictionaryLookup;
 }
 
 export interface AppStateInitialValues {
@@ -115,6 +117,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     autoStartOverlay: values.autoStartOverlay ?? false,
     texthookerOnlyMode: values.texthookerOnlyMode ?? false,
     jlptLevelLookup: () => null,
+    frequencyRankLookup: () => null,
   };
 }
 

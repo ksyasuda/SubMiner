@@ -76,6 +76,15 @@ export type RendererState = {
   jlptN3Color: string;
   jlptN4Color: string;
   jlptN5Color: string;
+  frequencyDictionaryEnabled: boolean;
+  frequencyDictionaryTopX: number;
+  frequencyDictionaryMode: "single" | "banded";
+  frequencyDictionarySingleColor: string;
+  frequencyDictionaryBand1Color: string;
+  frequencyDictionaryBand2Color: string;
+  frequencyDictionaryBand3Color: string;
+  frequencyDictionaryBand4Color: string;
+  frequencyDictionaryBand5Color: string;
 
   keybindingsMap: Map<string, (string | number)[]>;
   chordPending: boolean;
@@ -140,6 +149,15 @@ export function createRendererState(): RendererState {
     jlptN3Color: "#f9e2af",
     jlptN4Color: "#a6e3a1",
     jlptN5Color: "#8aadf4",
+    frequencyDictionaryEnabled: false,
+    frequencyDictionaryTopX: 1000,
+    frequencyDictionaryMode: "single",
+    frequencyDictionarySingleColor: "#f5a97f",
+    frequencyDictionaryBand1Color: "#ed8796",
+    frequencyDictionaryBand2Color: "#f5a97f",
+    frequencyDictionaryBand3Color: "#f9e2af",
+    frequencyDictionaryBand4Color: "#a6e3a1",
+    frequencyDictionaryBand5Color: "#8aadf4",
 
     keybindingsMap: new Map(),
     chordPending: false,

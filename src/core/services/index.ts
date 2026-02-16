@@ -32,6 +32,7 @@ export {
 } from "./startup-service";
 export { openYomitanSettingsWindow } from "./yomitan-settings-service";
 export { createTokenizerDepsRuntimeService, tokenizeSubtitleService } from "./tokenizer-service";
+export { createFrequencyDictionaryLookupService } from "./frequency-dictionary-service";
 export { createJlptVocabularyLookupService } from "./jlpt-vocab-service";
 export {
   getIgnoredPos1Entries,

@@ -151,6 +151,20 @@
   // ==========================================
   "subtitleStyle": {
     "enableJlpt": false,
+    "frequencyDictionary": {
+      "enabled": false,
+      "sourcePath": "",
+      "topX": 1000,
+      "mode": "single",
+      "singleColor": "#f5a97f",
+      "bandedColors": [
+        "#ed8796",
+        "#f5a97f",
+        "#f9e2af",
+        "#a6e3a1",
+        "#8aadf4"
+      ]
+    },
     "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif",
     "fontSize": 35,
     "fontColor": "#cad3f5",
