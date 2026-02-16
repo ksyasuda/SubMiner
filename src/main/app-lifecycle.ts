@@ -32,6 +32,7 @@ export interface AppReadyRuntimeDepsFactoryInput {
   hasMpvWebsocketPlugin: AppReadyRuntimeDeps["hasMpvWebsocketPlugin"];
   startSubtitleWebsocket: AppReadyRuntimeDeps["startSubtitleWebsocket"];
   log: AppReadyRuntimeDeps["log"];
+  setLogLevel: AppReadyRuntimeDeps["setLogLevel"];
   createMecabTokenizerAndCheck: AppReadyRuntimeDeps["createMecabTokenizerAndCheck"];
   createSubtitleTimingTracker: AppReadyRuntimeDeps["createSubtitleTimingTracker"];
   loadYomitanExtension: AppReadyRuntimeDeps["loadYomitanExtension"];
@@ -77,6 +78,7 @@ export function createAppReadyRuntimeDeps(
     hasMpvWebsocketPlugin: params.hasMpvWebsocketPlugin,
     startSubtitleWebsocket: params.startSubtitleWebsocket,
     log: params.log,
+    setLogLevel: params.setLogLevel,
     createMecabTokenizerAndCheck: params.createMecabTokenizerAndCheck,
     createSubtitleTimingTracker: params.createSubtitleTimingTracker,
     loadYomitanExtension: params.loadYomitanExtension,

@@ -54,8 +54,7 @@ test("runStartupBootstrapRuntimeService configures startup state and starts life
   const result = runStartupBootstrapRuntimeService({
     argv: ["node", "main.ts", "--verbose"],
     parseArgs: () => args,
-    setLogLevelEnv: (level) => calls.push(`setLog:${level}`),
-    enableVerboseLogging: () => calls.push("enableVerbose"),
+    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
     forceX11Backend: () => calls.push("forceX11"),
     enforceUnsupportedWaylandMode: () => calls.push("enforceWayland"),
     getDefaultSocketPath: () => "/tmp/default.sock",
@@ -71,10 +70,36 @@ test("runStartupBootstrapRuntimeService configures startup state and starts life
   assert.equal(result.autoStartOverlay, true);
   assert.equal(result.texthookerOnlyMode, true);
   assert.deepEqual(calls, [
-    "enableVerbose",
+    "setLog:debug:cli",
     "forceX11",
     "enforceWayland",
     "startLifecycle",
+  ]);
+});
+
+test("runStartupBootstrapRuntimeService prefers --log-level over --verbose", () => {
+  const calls: string[] = [];
+  const args = makeArgs({
+    logLevel: "warn",
+    verbose: true,
+  });
+
+  runStartupBootstrapRuntimeService({
+    argv: ["node", "main.ts", "--log-level", "warn", "--verbose"],
+    parseArgs: () => args,
+    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
+    forceX11Backend: () => calls.push("forceX11"),
+    enforceUnsupportedWaylandMode: () => calls.push("enforceWayland"),
+    getDefaultSocketPath: () => "/tmp/default.sock",
+    defaultTexthookerPort: 5174,
+    runGenerateConfigFlow: () => false,
+    startAppLifecycle: () => calls.push("startLifecycle"),
+  });
+
+  assert.deepEqual(calls.slice(0, 3), [
+    "setLog:warn:cli",
+    "forceX11",
+    "enforceWayland",
   ]);
 });
 
@@ -85,8 +110,7 @@ test("runStartupBootstrapRuntimeService skips lifecycle when generate-config flo
   const result = runStartupBootstrapRuntimeService({
     argv: ["node", "main.ts", "--generate-config"],
     parseArgs: () => args,
-    setLogLevelEnv: (level) => calls.push(`setLog:${level}`),
-    enableVerboseLogging: () => calls.push("enableVerbose"),
+    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
     forceX11Backend: () => calls.push("forceX11"),
     enforceUnsupportedWaylandMode: () => calls.push("enforceWayland"),
     getDefaultSocketPath: () => "/tmp/default.sock",
@@ -99,7 +123,7 @@ test("runStartupBootstrapRuntimeService skips lifecycle when generate-config flo
   assert.equal(result.texthookerPort, 5174);
   assert.equal(result.backendOverride, null);
   assert.deepEqual(calls, [
-    "setLog:warn",
+    "setLog:warn:cli",
     "forceX11",
     "enforceWayland",
   ]);

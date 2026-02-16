@@ -1,12 +1,12 @@
 import { CliArgs } from "../cli/args";
 import type { ResolvedConfig } from "../types";
 import type { StartupBootstrapRuntimeDeps } from "../core/services/startup-service";
+import type { LogLevelSource } from "../logger";
 
 export interface StartupBootstrapRuntimeFactoryDeps {
   argv: string[];
   parseArgs: (argv: string[]) => CliArgs;
-  setLogLevelEnv: (level: string) => void;
-  enableVerboseLogging: () => void;
+  setLogLevel: (level: string, source: LogLevelSource) => void;
   forceX11Backend: (args: CliArgs) => void;
   enforceUnsupportedWaylandMode: (args: CliArgs) => void;
   shouldStartApp: (args: CliArgs) => boolean;
@@ -34,8 +34,7 @@ export function createStartupBootstrapRuntimeDeps(
   return {
     argv: params.argv,
     parseArgs: params.parseArgs,
-    setLogLevelEnv: params.setLogLevelEnv,
-    enableVerboseLogging: params.enableVerboseLogging,
+    setLogLevel: params.setLogLevel,
     forceX11Backend: (args: CliArgs) => params.forceX11Backend(args),
     enforceUnsupportedWaylandMode: (args: CliArgs) =>
       params.enforceUnsupportedWaylandMode(args),

@@ -1,6 +1,9 @@
 import { BrowserWindow } from "electron";
 import * as path from "path";
 import { WindowGeometry } from "../../types";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:overlay-window");
 
 export type OverlayWindowKind = "visible" | "invisible";
 
@@ -86,13 +89,13 @@ export function createOverlayWindowService(
       query: { layer: kind === "visible" ? "visible" : "invisible" },
     })
     .catch((err) => {
-      console.error("Failed to load HTML file:", err);
+      logger.error("Failed to load HTML file:", err);
     });
 
   window.webContents.on(
     "did-fail-load",
     (_event, errorCode, errorDescription, validatedURL) => {
-      console.error(
+      logger.error(
         "Page failed to load:",
         errorCode,
         errorDescription,

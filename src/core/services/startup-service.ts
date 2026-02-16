@@ -1,5 +1,6 @@
 import { CliArgs } from "../../cli/args";
-import { ConfigValidationWarning, SecondarySubMode } from "../../types";
+import type { LogLevelSource } from "../../logger";
+import { ConfigValidationWarning, ResolvedConfig, SecondarySubMode } from "../../types";
 
 export interface StartupBootstrapRuntimeState {
   initialArgs: CliArgs;
@@ -10,11 +11,27 @@ export interface StartupBootstrapRuntimeState {
   texthookerOnlyMode: boolean;
 }
 
+interface RuntimeAutoUpdateOptionManagerLike {
+  getOptionValue: (id: "anki.autoUpdateNewCards") => unknown;
+}
+
+export interface RuntimeConfigLike {
+  auto_start_overlay?: boolean;
+  bind_visible_overlay_to_mpv_sub_visibility: boolean;
+  invisibleOverlay: {
+    startupVisibility: "visible" | "hidden" | "platform-default";
+  };
+  ankiConnect?: {
+    behavior?: {
+      autoUpdateNewCards?: boolean;
+    };
+  };
+}
+
 export interface StartupBootstrapRuntimeDeps {
   argv: string[];
   parseArgs: (argv: string[]) => CliArgs;
-  setLogLevelEnv: (level: string) => void;
-  enableVerboseLogging: () => void;
+  setLogLevel: (level: string, source: LogLevelSource) => void;
   forceX11Backend: (args: CliArgs) => void;
   enforceUnsupportedWaylandMode: (args: CliArgs) => void;
   getDefaultSocketPath: () => string;
@@ -29,9 +46,9 @@ export function runStartupBootstrapRuntimeService(
   const initialArgs = deps.parseArgs(deps.argv);
 
   if (initialArgs.logLevel) {
-    deps.setLogLevelEnv(initialArgs.logLevel);
+    deps.setLogLevel(initialArgs.logLevel, "cli");
   } else if (initialArgs.verbose) {
-    deps.enableVerboseLogging();
+    deps.setLogLevel("debug", "cli");
   }
 
   deps.forceX11Backend(initialArgs);
@@ -61,6 +78,9 @@ interface AppReadyConfigLike {
     enabled?: boolean | "auto";
     port?: number;
   };
+  logging?: {
+    level?: "debug" | "info" | "warn" | "error";
+  };
 }
 
 export interface AppReadyRuntimeDeps {
@@ -71,6 +91,7 @@ export interface AppReadyRuntimeDeps {
   getResolvedConfig: () => AppReadyConfigLike;
   getConfigWarnings: () => ConfigValidationWarning[];
   logConfigWarning: (warning: ConfigValidationWarning) => void;
+  setLogLevel: (level: string, source: LogLevelSource) => void;
   initRuntimeOptionsManager: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   defaultSecondarySubMode: SecondarySubMode;
@@ -87,6 +108,40 @@ export interface AppReadyRuntimeDeps {
   handleInitialArgs: () => void;
 }
 
+export function getInitialInvisibleOverlayVisibilityService(
+  config: RuntimeConfigLike,
+  platform: NodeJS.Platform,
+): boolean {
+  const visibility = config.invisibleOverlay.startupVisibility;
+  if (visibility === "visible") return true;
+  if (visibility === "hidden") return false;
+  if (platform === "linux") return false;
+  return true;
+}
+
+export function shouldAutoInitializeOverlayRuntimeFromConfigService(
+  config: RuntimeConfigLike,
+): boolean {
+  if (config.auto_start_overlay === true) return true;
+  if (config.invisibleOverlay.startupVisibility === "visible") return true;
+  return false;
+}
+
+export function shouldBindVisibleOverlayToMpvSubVisibilityService(
+  config: RuntimeConfigLike,
+): boolean {
+  return config.bind_visible_overlay_to_mpv_sub_visibility;
+}
+
+export function isAutoUpdateEnabledRuntimeService(
+  config: ResolvedConfig | RuntimeConfigLike,
+  runtimeOptionsManager: RuntimeAutoUpdateOptionManagerLike | null,
+): boolean {
+  const value = runtimeOptionsManager?.getOptionValue("anki.autoUpdateNewCards");
+  if (typeof value === "boolean") return value;
+  return (config as ResolvedConfig).ankiConnect?.behavior?.autoUpdateNewCards !== false;
+}
+
 export async function runAppReadyRuntimeService(
   deps: AppReadyRuntimeDeps,
 ): Promise<void> {
@@ -97,6 +152,7 @@ export async function runAppReadyRuntimeService(
 
   deps.reloadConfig();
   const config = deps.getResolvedConfig();
+  deps.setLogLevel(config.logging?.level ?? "info", "config");
   for (const warning of deps.getConfigWarnings()) {
     deps.logConfigWarning(warning);
   }

@@ -68,6 +68,7 @@ import {
 import {
   getSubsyncConfig,
 } from "./subsync/utils";
+import { createLogger, setLogLevel, type LogLevelSource } from "./logger";
 import {
   parseArgs,
   shouldStartApp,
@@ -228,17 +229,21 @@ const isDev =
   process.argv.includes("--dev") || process.argv.includes("--debug");
 const texthookerService = new TexthookerService();
 const subtitleWsService = new SubtitleWebSocketService();
+const logger = createLogger("main");
 let jlptDictionaryLookupInitialized = false;
 let jlptDictionaryLookupInitialization: Promise<void> | null = null;
 const appLogger = {
   logInfo: (message: string) => {
-    console.log(message);
+    logger.info(message);
   },
   logWarning: (message: string) => {
-    console.warn(message);
+    logger.warn(message);
+  },
+  logError: (message: string, details: unknown) => {
+    logger.error(message, details);
   },
   logNoRunningInstance: () => {
-    console.error("No running instance. Use --start to launch the app.");
+    logger.error("No running instance. Use --start to launch the app.");
   },
   logConfigWarning: (warning: {
     path: string;
@@ -246,7 +251,7 @@ const appLogger = {
     value: unknown;
     fallback: unknown;
   }) => {
-    console.warn(
+    logger.warn(
       `[config] ${warning.path}: ${warning.message} value=${JSON.stringify(warning.value)} fallback=${JSON.stringify(warning.fallback)}`,
     );
   },
@@ -274,9 +279,7 @@ process.on("SIGTERM", () => {
 const overlayManager = createOverlayManagerService();
 const overlayContentMeasurementStore = createOverlayContentMeasurementStoreService({
   now: () => Date.now(),
-  warn: (message: string) => {
-    console.warn(message);
-  },
+  warn: (message: string) => logger.warn(message),
 });
 const overlayModalRuntime = createOverlayModalRuntimeService({
   getMainWindow: () => overlayManager.getMainWindow(),
@@ -509,7 +512,7 @@ async function initializeJlptDictionaryLookup(): Promise<void> {
   appState.jlptLevelLookup = await createJlptVocabularyLookupService({
     searchPaths: getJlptDictionarySearchPaths(),
     log: (message) => {
-      console.log(`[JLPT] ${message}`);
+      logger.info(`[JLPT] ${message}`);
     },
   });
 }
@@ -593,11 +596,8 @@ const startupState = runStartupBootstrapRuntimeService(
   createStartupBootstrapRuntimeDeps({
     argv: process.argv,
     parseArgs: (argv: string[]) => parseArgs(argv),
-    setLogLevelEnv: (level: string) => {
-      process.env.SUBMINER_LOG_LEVEL = level;
-    },
-    enableVerboseLogging: () => {
-      process.env.SUBMINER_LOG_LEVEL = "debug";
+    setLogLevel: (level: string, source: LogLevelSource) => {
+      setLogLevel(level, source);
     },
     forceX11Backend: (args: CliArgs) => {
       forceX11Backend(args);
@@ -624,7 +624,7 @@ const startupState = runStartupBootstrapRuntimeService(
       app.quit();
     },
     onGenerateConfigError: (error: Error) => {
-      console.error(`Failed to generate config: ${error.message}`);
+      logger.error(`Failed to generate config: ${error.message}`);
       process.exitCode = 1;
       app.quit();
     },
@@ -655,6 +655,8 @@ const startupState = runStartupBootstrapRuntimeService(
         getResolvedConfig: () => getResolvedConfig(),
         getConfigWarnings: () => configService.getWarnings(),
         logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
+        setLogLevel: (level: string, source: LogLevelSource) =>
+          setLogLevel(level, source),
         initRuntimeOptionsManager: () => {
           appState.runtimeOptionsManager = new RuntimeOptionsManager(
             () => configService.getConfig().ankiConnect,
@@ -759,7 +761,7 @@ function handleCliCommand(
     shouldOpenBrowser: () => getResolvedConfig().texthooker?.openBrowser !== false,
     openInBrowser: (url: string) => {
       void shell.openExternal(url).catch((error) => {
-        console.error(`Failed to open browser for texthooker URL: ${url}`, error);
+        logger.error(`Failed to open browser for texthooker URL: ${url}`, error);
       });
     },
     isOverlayInitialized: () => appState.overlayRuntimeInitialized,
@@ -787,13 +789,13 @@ function handleCliCommand(
     getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
     schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
     log: (message: string) => {
-      console.log(message);
+      logger.info(message);
     },
     warn: (message: string) => {
-      console.warn(message);
+      logger.warn(message);
     },
     error: (message: string, err: unknown) => {
-      console.error(message, err);
+      logger.error(message, err);
     },
   });
 }
@@ -1092,7 +1094,7 @@ function showMpvOsd(text: string): void {
     appState.mpvClient,
     text,
     (line) => {
-      console.log(line);
+      logger.info(line);
     },
   );
 }
@@ -1249,7 +1251,7 @@ function handleMineSentenceDigit(count: number): void {
         appState.mpvClient?.currentSecondarySubText || undefined,
       showMpvOsd: (text) => showMpvOsd(text),
       logError: (message, err) => {
-        console.error(message, err);
+        logger.error(message, err);
       },
     },
   );

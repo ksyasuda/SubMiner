@@ -348,6 +348,9 @@ export interface Config {
   jimaku?: JimakuConfig;
   invisibleOverlay?: InvisibleOverlayConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
+  logging?: {
+    level?: "debug" | "info" | "warn" | "error";
+  };
 }
 
 export type RawConfig = Config;
@@ -444,6 +447,9 @@ export interface ResolvedConfig {
     whisperBin: string;
     whisperModel: string;
     primarySubLanguages: string[];
+  };
+  logging: {
+    level: "debug" | "info" | "warn" | "error";
   };
 }
 

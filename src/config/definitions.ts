@@ -75,6 +75,9 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     enabled: "auto",
     port: 6677,
   },
+  logging: {
+    level: "info",
+  },
   texthooker: {
     openBrowser: true,
   },
@@ -277,6 +280,13 @@ export const RUNTIME_OPTION_REGISTRY: RuntimeOptionRegistryEntry[] = [
 
 export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
   {
+    path: "logging.level",
+    kind: "enum",
+    enumValues: ["debug", "info", "warn", "error"],
+    defaultValue: DEFAULT_CONFIG.logging.level,
+    description: "Minimum log level for runtime logging.",
+  },
+  {
     path: "websocket.enabled",
     kind: "enum",
     enumValues: ["auto", "true", "false"],
@@ -459,6 +469,14 @@ export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
       "Auto mode disables built-in server if mpv_websocket is detected.",
     ],
     key: "websocket",
+  },
+  {
+    title: "Logging",
+    description: [
+      "Controls logging verbosity.",
+      "Set to debug for full runtime diagnostics.",
+    ],
+    key: "logging",
   },
   {
     title: "AnkiConnect Integration",

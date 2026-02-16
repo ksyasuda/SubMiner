@@ -19,6 +19,9 @@ import {
   SubsyncResolvedConfig,
 } from "../../subsync/utils";
 import { isRemoteMediaPath } from "../../jimaku/utils";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:subsync");
 
 interface FileExtractionResult {
   path: string;
@@ -361,7 +364,7 @@ async function runSubsyncAutoInternal(
         return alassResult;
       }
     } catch (error) {
-      console.warn("Auto alass sync failed, trying ffsubsync fallback:", error);
+      logger.warn("Auto alass sync failed, trying ffsubsync fallback:", error);
     } finally {
       if (secondaryExtraction) {
         cleanupTemporaryFile(secondaryExtraction);

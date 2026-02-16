@@ -1,4 +1,7 @@
 import { OverlayContentMeasurement, OverlayContentRect, OverlayLayer } from "../../types";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:overlay-content-measurement");
 const MAX_VIEWPORT = 10000;
 const MAX_RECT_DIMENSION = 10000;
 const MAX_RECT_OFFSET = 50000;
@@ -107,7 +110,7 @@ export function createOverlayContentMeasurementStoreService(options?: {
   warn?: (message: string) => void;
 }) {
   const now = options?.now ?? (() => Date.now());
-  const warn = options?.warn ?? ((message: string) => console.warn(message));
+  const warn = options?.warn ?? ((message: string) => logger.warn(message));
   const latestByLayer: OverlayMeasurementStore = {
     visible: null,
     invisible: null,

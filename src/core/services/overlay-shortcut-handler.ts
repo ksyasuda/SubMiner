@@ -1,5 +1,8 @@
 import { ConfiguredShortcuts } from "../utils/shortcut-config";
 import { OverlayShortcutHandlers } from "./overlay-shortcut-service";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:overlay-shortcut-handler");
 
 export interface OverlayShortcutFallbackHandlers {
   openRuntimeOptions: () => void;
@@ -38,7 +41,7 @@ function wrapAsync(
 ): () => void {
   return () => {
     task().catch((err) => {
-      console.error(`${logLabel} failed:`, err);
+      logger.error(`${logLabel} failed:`, err);
       deps.showMpvOsd(`${osdLabel}: ${(err as Error).message}`);
     });
   };

@@ -12,6 +12,7 @@ function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
     getResolvedConfig: () => ({ websocket: { enabled: "auto" }, secondarySub: {} }),
     getConfigWarnings: () => [],
     logConfigWarning: () => calls.push("logConfigWarning"),
+    setLogLevel: (level, source) => calls.push(`setLogLevel:${level}:${source}`),
     initRuntimeOptionsManager: () => calls.push("initRuntimeOptionsManager"),
     setSecondarySubMode: (mode) => calls.push(`setSecondarySubMode:${mode}`),
     defaultSecondarySubMode: "hover",
@@ -54,4 +55,16 @@ test("runAppReadyRuntimeService logs defer message when overlay not auto-started
       "log:Overlay runtime deferred: waiting for explicit overlay command.",
     ),
   );
+});
+
+test("runAppReadyRuntimeService applies config logging level during app-ready", async () => {
+  const { deps, calls } = makeDeps({
+    getResolvedConfig: () => ({
+      websocket: { enabled: "auto" },
+      secondarySub: {},
+      logging: { level: "warn" },
+    }),
+  });
+  await runAppReadyRuntimeService(deps);
+  assert.ok(calls.includes("setLogLevel:warn:config"));
 });

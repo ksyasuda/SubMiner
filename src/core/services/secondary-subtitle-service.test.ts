@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SecondarySubMode } from "../../types";
-import { cycleSecondarySubModeService } from "./secondary-subtitle-service";
+import { cycleSecondarySubModeService } from "./subtitle-position-service";
 
 test("cycleSecondarySubModeService cycles and emits broadcast + OSD", () => {
   let mode: SecondarySubMode = "hover";

@@ -1,6 +1,9 @@
 import { globalShortcut } from "electron";
 import { ConfiguredShortcuts } from "../utils/shortcut-config";
 import { isGlobalShortcutRegisteredSafe } from "./shortcut-fallback-service";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("main:overlay-shortcut-service");
 
 export interface OverlayShortcutHandlers {
   copySubtitle: () => void;
@@ -39,7 +42,7 @@ export function registerOverlayShortcutsService(
     }
     const ok = globalShortcut.register(accelerator, handler);
     if (!ok) {
-      console.warn(
+      logger.warn(
         `Failed to register overlay shortcut ${label}: ${accelerator}`,
       );
       return;

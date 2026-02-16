@@ -196,6 +196,20 @@ export class ConfigService {
       }
     }
 
+    if (isObject(src.logging)) {
+      const logLevel = asString(src.logging.level);
+      if (logLevel === "debug" || logLevel === "info" || logLevel === "warn" || logLevel === "error") {
+        resolved.logging.level = logLevel;
+      } else if (src.logging.level !== undefined) {
+        warn(
+          "logging.level",
+          src.logging.level,
+          resolved.logging.level,
+          "Expected debug, info, warn, or error.",
+        );
+      }
+    }
+
     if (Array.isArray(src.keybindings)) {
       resolved.keybindings = src.keybindings.filter(
         (

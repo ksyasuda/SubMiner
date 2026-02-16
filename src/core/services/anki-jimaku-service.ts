@@ -11,6 +11,7 @@ import {
 } from "../../types";
 import { sortJimakuFiles } from "../../jimaku/utils";
 import type { AnkiJimakuIpcDeps } from "./anki-jimaku-ipc-service";
+import { createLogger } from "../../logger";
 
 export type RegisterAnkiJimakuIpcRuntimeHandler = (
   deps: AnkiJimakuIpcDeps,
@@ -62,6 +63,8 @@ export interface AnkiJimakuIpcRuntimeOptions {
   ) => Promise<{ ok: true; path: string } | { ok: false; error: { error: string; code?: number; retryAfter?: number } }>;
 }
 
+const logger = createLogger("main:anki-jimaku");
+
 export function registerAnkiJimakuIpcRuntimeService(
   options: AnkiJimakuIpcRuntimeOptions,
   registerHandlers: RegisterAnkiJimakuIpcRuntimeHandler,
@@ -96,11 +99,11 @@ export function registerAnkiJimakuIpcRuntimeService(
         );
         integration.start();
         options.setAnkiIntegration(integration);
-        console.log("AnkiConnect integration enabled");
+        logger.info("AnkiConnect integration enabled");
       } else if (!enabled && ankiIntegration) {
         ankiIntegration.destroy();
         options.setAnkiIntegration(null);
-        console.log("AnkiConnect integration disabled");
+        logger.info("AnkiConnect integration disabled");
       }
 
       options.broadcastRuntimeOptionsChanged();
@@ -109,7 +112,7 @@ export function registerAnkiJimakuIpcRuntimeService(
       const subtitleTimingTracker = options.getSubtitleTimingTracker();
       if (subtitleTimingTracker) {
         subtitleTimingTracker.cleanup();
-        console.log("AnkiConnect subtitle timing history cleared");
+        logger.info("AnkiConnect subtitle timing history cleared");
       }
     },
     refreshKnownWords: async () => {
@@ -139,7 +142,7 @@ export function registerAnkiJimakuIpcRuntimeService(
     },
     getJimakuMediaInfo: () => options.parseMediaInfo(options.getCurrentMediaPath()),
     searchJimakuEntries: async (query) => {
-      console.log(`[jimaku] search-entries query: "${query.query}"`);
+      logger.info(`[jimaku] search-entries query: "${query.query}"`);
       const response = await options.jimakuFetchJson<JimakuEntry[]>(
         "/api/entries/search",
         {
@@ -149,13 +152,13 @@ export function registerAnkiJimakuIpcRuntimeService(
       );
       if (!response.ok) return response;
       const maxResults = options.getJimakuMaxEntryResults();
-      console.log(
+      logger.info(
         `[jimaku] search-entries returned ${response.data.length} results (capped to ${maxResults})`,
       );
       return { ok: true, data: response.data.slice(0, maxResults) };
     },
     listJimakuFiles: async (query) => {
-      console.log(
+      logger.info(
         `[jimaku] list-files entryId=${query.entryId} episode=${query.episode ?? "all"}`,
       );
       const response = await options.jimakuFetchJson<JimakuFileEntry[]>(
@@ -169,7 +172,7 @@ export function registerAnkiJimakuIpcRuntimeService(
         response.data,
         options.getJimakuLanguagePreference(),
       );
-      console.log(`[jimaku] list-files returned ${sorted.length} files`);
+      logger.info(`[jimaku] list-files returned ${sorted.length} files`);
       return { ok: true, data: sorted };
     },
     resolveJimakuApiKey: () => options.resolveJimakuApiKey(),
