@@ -209,6 +209,7 @@ const ANILIST_DEVELOPER_SETTINGS_URL = "https://anilist.co/settings/developer";
 const ANILIST_UPDATE_MIN_WATCH_RATIO = 0.85;
 const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
+const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
 
 let anilistCurrentMediaKey: string | null = null;
 let anilistCurrentMediaDurationSec: number | null = null;
@@ -864,6 +865,17 @@ function buildAnilistAttemptKey(mediaKey: string, episode: number): string {
   return `${mediaKey}::${episode}`;
 }
 
+function rememberAnilistAttemptedUpdateKey(key: string): void {
+  anilistAttemptedUpdateKeys.add(key);
+  if (anilistAttemptedUpdateKeys.size <= ANILIST_MAX_ATTEMPTED_UPDATE_KEYS) {
+    return;
+  }
+  const oldestKey = anilistAttemptedUpdateKeys.values().next().value;
+  if (typeof oldestKey === "string") {
+    anilistAttemptedUpdateKeys.delete(oldestKey);
+  }
+}
+
 async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
   if (anilistUpdateInFlight) {
     return;
@@ -921,13 +933,13 @@ async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
       guess.episode,
     );
     if (result.status === "updated") {
-      anilistAttemptedUpdateKeys.add(attemptKey);
+      rememberAnilistAttemptedUpdateKey(attemptKey);
       showMpvOsd(result.message);
       logger.info(result.message);
       return;
     }
     if (result.status === "skipped") {
-      anilistAttemptedUpdateKeys.add(attemptKey);
+      rememberAnilistAttemptedUpdateKey(attemptKey);
       logger.info(result.message);
       return;
     }
