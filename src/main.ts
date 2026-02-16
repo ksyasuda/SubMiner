@@ -470,20 +470,23 @@ function loadSubtitlePosition(): SubtitlePosition | null {
 function getJlptDictionarySearchPaths(): string[] {
   const homeDir = os.homedir();
   const dictionaryRoots = [
-    // Source checkout paths (development + source tree)
+    // Development/runtime source trees where the repo is checked out.
     path.join(__dirname, "..", "..", "vendor", "yomitan-jlpt-vocab"),
     path.join(app.getAppPath(), "vendor", "yomitan-jlpt-vocab"),
-    // Runtime package bundle paths
+
+    // Packaged app resources (Electron build output layout).
     path.join(process.resourcesPath, "yomitan-jlpt-vocab"),
     path.join(process.resourcesPath, "app.asar", "vendor", "yomitan-jlpt-vocab"),
-    // User-configurable override locations
+
+    // User override/config directories for manually installed dictionaries.
     USER_DATA_PATH,
     app.getPath("userData"),
     path.join(homeDir, ".config", "SubMiner"),
     path.join(homeDir, ".config", "subminer"),
     path.join(homeDir, "Library", "Application Support", "SubMiner"),
     path.join(homeDir, "Library", "Application Support", "subminer"),
-    // CLI invocation path (when launched from project root)
+
+    // Last-resort fallback: current working directory (local CLI/test runs).
     process.cwd(),
   ];
 

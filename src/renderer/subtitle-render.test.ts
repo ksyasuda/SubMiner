@@ -55,10 +55,19 @@ test("computeWordClass preserves known and n+1 classes while adding JLPT classes
 });
 
 test("JLPT CSS rules use underline-only styling in renderer stylesheet", () => {
-  const cssText = fs.readFileSync(
-    path.join(process.cwd(), "dist", "renderer", "style.css"),
-    "utf-8",
-  );
+  const distCssPath = path.join(process.cwd(), "dist", "renderer", "style.css");
+  const srcCssPath = path.join(process.cwd(), "src", "renderer", "style.css");
+
+  const cssPath = fs.existsSync(distCssPath)
+    ? distCssPath
+    : srcCssPath;
+  if (!fs.existsSync(cssPath)) {
+    assert.fail(
+      "JLPT CSS file missing. Run `pnpm run build` first, or ensure src/renderer/style.css exists.",
+    );
+  }
+
+  const cssText = fs.readFileSync(cssPath, "utf-8");
 
   for (let level = 1; level <= 5; level += 1) {
     const block = extractClassBlock(cssText, level);

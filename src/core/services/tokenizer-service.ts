@@ -183,6 +183,10 @@ function isKanaChar(char: string): boolean {
   );
 }
 
+/**
+ * Detects repeated-kana speech-like tokens (e.g. 「ああああ」, 「ははは」, 「うーん」 style patterns)
+ * so they are not JLPT-labeled when they are mostly expressive particles/sfx.
+ */
 function isRepeatedKanaSfx(text: string): boolean {
   const normalized = text.trim();
   if (!normalized) {
