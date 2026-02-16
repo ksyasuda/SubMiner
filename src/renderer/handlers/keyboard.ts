@@ -21,6 +21,9 @@ export function createKeyboardHandlers(
     updateInvisiblePositionEditHud: () => void;
   },
 ) {
+  // Timeout for the modal chord capture window (e.g. Y followed by H/K).
+  const CHORD_TIMEOUT_MS = 1000;
+
   const CHORD_MAP = new Map<string, { type: "mpv" | "electron"; command?: string[]; action?: () => void }>([
     ["KeyS", { type: "mpv", command: ["script-message", "subminer-start"] }],
     ["Shift+KeyS", { type: "mpv", command: ["script-message", "subminer-stop"] }],
@@ -257,7 +260,7 @@ export function createKeyboardHandlers(
         ctx.state.chordPending = true;
         ctx.state.chordTimeout = setTimeout(() => {
           resetChord();
-        }, 1000);
+        }, CHORD_TIMEOUT_MS);
         return;
       }
 
