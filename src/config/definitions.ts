@@ -226,6 +226,10 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     languagePreference: "ja",
     maxEntryResults: 10,
   },
+  anilist: {
+    enabled: false,
+    accessToken: "",
+  },
   youtubeSubgen: {
     mode: "automatic",
     whisperBin: "",
@@ -468,6 +472,18 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     description: "Maximum Jimaku search results returned.",
   },
   {
+    path: "anilist.enabled",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.anilist.enabled,
+    description: "Enable AniList post-watch progress updates.",
+  },
+  {
+    path: "anilist.accessToken",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.anilist.accessToken,
+    description: "AniList access token used for post-watch updates.",
+  },
+  {
     path: "youtubeSubgen.mode",
     kind: "enum",
     enumValues: ["automatic", "preprocess", "off"],
@@ -599,6 +615,11 @@ export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
       "Defaults for subminer YouTube subtitle extraction/transcription mode.",
     ],
     key: "youtubeSubgen",
+  },
+  {
+    title: "Anilist",
+    description: ["Anilist API credentials and update behavior."],
+    key: "anilist",
   },
 ];
 

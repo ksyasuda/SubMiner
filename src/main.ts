@@ -132,6 +132,11 @@ import {
   triggerFieldGroupingService,
   updateLastCardFromClipboardService,
 } from "./core/services";
+import {
+  guessAnilistMediaInfo,
+  type AnilistMediaGuess,
+  updateAnilistPostWatchProgress,
+} from "./core/services/anilist/anilist-updater";
 import { applyRuntimeOptionResultRuntimeService } from "./core/services/runtime-options-ipc-service";
 import {
   createAppReadyRuntimeRunner,
@@ -169,9 +174,14 @@ import {
 import { createMediaRuntimeService } from "./main/media-runtime";
 import { createOverlayVisibilityRuntimeService } from "./main/overlay-visibility-runtime";
 import {
+  type AppState,
   applyStartupState,
   createAppState,
 } from "./main/state";
+import {
+  isAllowedAnilistExternalUrl,
+  isAllowedAnilistSetupNavigationUrl,
+} from "./main/anilist-url-guard";
 import { createStartupBootstrapRuntimeDeps } from "./main/startup";
 import { createAppLifecycleRuntimeRunner } from "./main/startup-lifecycle";
 import {
@@ -192,6 +202,22 @@ const DEFAULT_MPV_LOG_FILE = path.join(
   "SubMiner",
   "mp.log",
 );
+const ANILIST_SETUP_CLIENT_ID_URL = "https://anilist.co/api/v2/oauth/authorize";
+const ANILIST_SETUP_RESPONSE_TYPE = "token";
+const ANILIST_DEFAULT_CLIENT_ID = "36084";
+const ANILIST_DEVELOPER_SETTINGS_URL = "https://anilist.co/settings/developer";
+const ANILIST_UPDATE_MIN_WATCH_RATIO = 0.85;
+const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
+const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
+
+let anilistCurrentMediaKey: string | null = null;
+let anilistCurrentMediaDurationSec: number | null = null;
+let anilistCurrentMediaGuess: AnilistMediaGuess | null = null;
+let anilistCurrentMediaGuessPromise: Promise<AnilistMediaGuess | null> | null = null;
+let anilistLastDurationProbeAtMs = 0;
+let anilistUpdateInFlight = false;
+const anilistAttemptedUpdateKeys = new Set<string>();
+
 function resolveConfigDir(): string {
   const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
   const baseDirs = Array.from(
@@ -572,6 +598,346 @@ async function jimakuFetchJson<T>(
   });
 }
 
+function setAnilistClientSecretState(partial: Partial<AppState["anilistClientSecretState"]>): void {
+  appState.anilistClientSecretState = {
+    ...appState.anilistClientSecretState,
+    ...partial,
+  };
+}
+
+function isAnilistTrackingEnabled(resolved: ResolvedConfig): boolean {
+  return resolved.anilist.enabled;
+}
+
+function buildAnilistSetupUrl(): string {
+  const authorizeUrl = new URL(ANILIST_SETUP_CLIENT_ID_URL);
+  authorizeUrl.searchParams.set("client_id", ANILIST_DEFAULT_CLIENT_ID);
+  authorizeUrl.searchParams.set("response_type", ANILIST_SETUP_RESPONSE_TYPE);
+  return authorizeUrl.toString();
+}
+
+function openAnilistSetupInBrowser(): void {
+  const authorizeUrl = buildAnilistSetupUrl();
+  void shell.openExternal(authorizeUrl).catch((error) => {
+    logger.error("Failed to open AniList authorize URL in browser", error);
+  });
+}
+
+function loadAnilistSetupFallback(setupWindow: BrowserWindow, reason: string): void {
+  const authorizeUrl = buildAnilistSetupUrl();
+  const fallbackHtml = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AniList Setup</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 24px; background: #0b1020; color: #e5e7eb; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    p { margin: 10px 0; line-height: 1.45; color: #cbd5e1; }
+    a { color: #93c5fd; word-break: break-all; }
+    .box { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 16px; }
+    .reason { color: #fca5a5; }
+  </style>
+</head>
+<body>
+  <h1>AniList Setup</h1>
+  <div class="box">
+    <p class="reason">Embedded AniList page did not render: ${reason}</p>
+    <p>We attempted to open the authorize URL in your default browser automatically.</p>
+    <p>Use one of these links to continue setup:</p>
+    <p><a href="${authorizeUrl}">${authorizeUrl}</a></p>
+    <p><a href="${ANILIST_DEVELOPER_SETTINGS_URL}">${ANILIST_DEVELOPER_SETTINGS_URL}</a></p>
+    <p>After login/authorization, copy the token into <code>anilist.accessToken</code>.</p>
+  </div>
+</body>
+</html>`;
+  void setupWindow.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(fallbackHtml)}`,
+  );
+}
+
+function openAnilistSetupWindow(): void {
+  if (appState.anilistSetupWindow) {
+    appState.anilistSetupWindow.focus();
+    return;
+  }
+
+  const setupWindow = new BrowserWindow({
+    width: 1000,
+    height: 760,
+    title: "Anilist Setup",
+    show: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  setupWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (!isAllowedAnilistExternalUrl(url)) {
+      logger.warn("Blocked unsafe AniList setup external URL", { url });
+      return { action: "deny" };
+    }
+    void shell.openExternal(url);
+    return { action: "deny" };
+  });
+  setupWindow.webContents.on("will-navigate", (event, url) => {
+    if (isAllowedAnilistSetupNavigationUrl(url)) {
+      return;
+    }
+    event.preventDefault();
+    logger.warn("Blocked unsafe AniList setup navigation URL", { url });
+  });
+
+  setupWindow.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL) => {
+      logger.error("AniList setup window failed to load", {
+        errorCode,
+        errorDescription,
+        validatedURL,
+      });
+      openAnilistSetupInBrowser();
+      if (!setupWindow.isDestroyed()) {
+        loadAnilistSetupFallback(
+          setupWindow,
+          `${errorDescription} (${errorCode})`,
+        );
+      }
+    },
+  );
+
+  setupWindow.webContents.on("did-finish-load", () => {
+    const loadedUrl = setupWindow.webContents.getURL();
+    if (!loadedUrl || loadedUrl === "about:blank") {
+      logger.warn("AniList setup loaded a blank page; using fallback");
+      openAnilistSetupInBrowser();
+      if (!setupWindow.isDestroyed()) {
+        loadAnilistSetupFallback(setupWindow, "blank page");
+      }
+    }
+  });
+
+  void setupWindow.loadURL(buildAnilistSetupUrl()).catch((error) => {
+    logger.error("AniList setup loadURL rejected", error);
+    openAnilistSetupInBrowser();
+    if (!setupWindow.isDestroyed()) {
+      loadAnilistSetupFallback(
+        setupWindow,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  });
+
+  setupWindow.on("closed", () => {
+    appState.anilistSetupWindow = null;
+    appState.anilistSetupPageOpened = false;
+  });
+
+  appState.anilistSetupWindow = setupWindow;
+  appState.anilistSetupPageOpened = true;
+}
+
+async function refreshAnilistClientSecretState(options?: { force?: boolean }): Promise<string | null> {
+  const resolved = getResolvedConfig();
+  const now = Date.now();
+  void options;
+  if (!isAnilistTrackingEnabled(resolved)) {
+    setAnilistClientSecretState({
+      status: "not_checked",
+      source: "none",
+      message: "anilist tracking disabled",
+      resolvedAt: null,
+      errorAt: null,
+    });
+    appState.anilistSetupPageOpened = false;
+    return null;
+  }
+  const rawAccessToken = resolved.anilist.accessToken.trim();
+  if (rawAccessToken.length > 0) {
+    setAnilistClientSecretState({
+      status: "resolved",
+      source: "literal",
+      message: "using configured anilist.accessToken",
+      resolvedAt: now,
+      errorAt: null,
+    });
+    appState.anilistSetupPageOpened = false;
+    return rawAccessToken;
+  }
+
+  setAnilistClientSecretState({
+    status: "error",
+    source: "none",
+    message: "cannot authenticate without anilist.accessToken",
+    resolvedAt: null,
+    errorAt: now,
+  });
+  if (
+    isAnilistTrackingEnabled(resolved) &&
+    !appState.anilistSetupPageOpened
+  ) {
+    openAnilistSetupWindow();
+  }
+  return null;
+}
+
+function getCurrentAnilistMediaKey(): string | null {
+  const path = appState.currentMediaPath?.trim();
+  return path && path.length > 0 ? path : null;
+}
+
+function resetAnilistMediaTracking(mediaKey: string | null): void {
+  anilistCurrentMediaKey = mediaKey;
+  anilistCurrentMediaDurationSec = null;
+  anilistCurrentMediaGuess = null;
+  anilistCurrentMediaGuessPromise = null;
+  anilistLastDurationProbeAtMs = 0;
+}
+
+async function maybeProbeAnilistDuration(mediaKey: string): Promise<number | null> {
+  if (anilistCurrentMediaKey !== mediaKey) {
+    return null;
+  }
+  if (
+    typeof anilistCurrentMediaDurationSec === "number" &&
+    anilistCurrentMediaDurationSec > 0
+  ) {
+    return anilistCurrentMediaDurationSec;
+  }
+  const now = Date.now();
+  if (now - anilistLastDurationProbeAtMs < ANILIST_DURATION_RETRY_INTERVAL_MS) {
+    return null;
+  }
+  anilistLastDurationProbeAtMs = now;
+
+  try {
+    const durationCandidate = await appState.mpvClient?.requestProperty("duration");
+    const duration =
+      typeof durationCandidate === "number" && Number.isFinite(durationCandidate)
+        ? durationCandidate
+        : null;
+    if (duration && duration > 0 && anilistCurrentMediaKey === mediaKey) {
+      anilistCurrentMediaDurationSec = duration;
+      return duration;
+    }
+  } catch (error) {
+    logger.warn("AniList duration probe failed:", error);
+  }
+  return null;
+}
+
+async function ensureAnilistMediaGuess(mediaKey: string): Promise<AnilistMediaGuess | null> {
+  if (anilistCurrentMediaKey !== mediaKey) {
+    return null;
+  }
+  if (anilistCurrentMediaGuess) {
+    return anilistCurrentMediaGuess;
+  }
+  if (anilistCurrentMediaGuessPromise) {
+    return anilistCurrentMediaGuessPromise;
+  }
+
+  const mediaPathForGuess = mediaRuntime.resolveMediaPathForJimaku(
+    appState.currentMediaPath,
+  );
+  anilistCurrentMediaGuessPromise = guessAnilistMediaInfo(
+    mediaPathForGuess,
+    appState.currentMediaTitle,
+  )
+    .then((guess) => {
+      if (anilistCurrentMediaKey === mediaKey) {
+        anilistCurrentMediaGuess = guess;
+      }
+      return guess;
+    })
+    .finally(() => {
+      if (anilistCurrentMediaKey === mediaKey) {
+        anilistCurrentMediaGuessPromise = null;
+      }
+    });
+  return anilistCurrentMediaGuessPromise;
+}
+
+function buildAnilistAttemptKey(mediaKey: string, episode: number): string {
+  return `${mediaKey}::${episode}`;
+}
+
+async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
+  if (anilistUpdateInFlight) {
+    return;
+  }
+
+  const resolved = getResolvedConfig();
+  if (!isAnilistTrackingEnabled(resolved)) {
+    return;
+  }
+
+  const mediaKey = getCurrentAnilistMediaKey();
+  if (!mediaKey || !appState.mpvClient) {
+    return;
+  }
+  if (anilistCurrentMediaKey !== mediaKey) {
+    resetAnilistMediaTracking(mediaKey);
+  }
+
+  const watchedSeconds = appState.mpvClient.currentTimePos;
+  if (
+    !Number.isFinite(watchedSeconds) ||
+    watchedSeconds < ANILIST_UPDATE_MIN_WATCH_SECONDS
+  ) {
+    return;
+  }
+
+  const duration = await maybeProbeAnilistDuration(mediaKey);
+  if (!duration || duration <= 0) {
+    return;
+  }
+  if (watchedSeconds / duration < ANILIST_UPDATE_MIN_WATCH_RATIO) {
+    return;
+  }
+
+  const guess = await ensureAnilistMediaGuess(mediaKey);
+  if (!guess?.title || !guess.episode || guess.episode <= 0) {
+    return;
+  }
+
+  const attemptKey = buildAnilistAttemptKey(mediaKey, guess.episode);
+  if (anilistAttemptedUpdateKeys.has(attemptKey)) {
+    return;
+  }
+
+  anilistUpdateInFlight = true;
+  try {
+    const accessToken = await refreshAnilistClientSecretState();
+    if (!accessToken) {
+      showMpvOsd("AniList: access token not configured");
+      return;
+    }
+    const result = await updateAnilistPostWatchProgress(
+      accessToken,
+      guess.title,
+      guess.episode,
+    );
+    if (result.status === "updated") {
+      anilistAttemptedUpdateKeys.add(attemptKey);
+      showMpvOsd(result.message);
+      logger.info(result.message);
+      return;
+    }
+    if (result.status === "skipped") {
+      anilistAttemptedUpdateKeys.add(attemptKey);
+      logger.info(result.message);
+      return;
+    }
+    showMpvOsd(`AniList: ${result.message}`);
+    logger.warn(result.message);
+  } finally {
+    anilistUpdateInFlight = false;
+  }
+}
+
 function loadSubtitlePosition(): SubtitlePosition | null {
   appState.subtitlePosition = loadSubtitlePositionService({
     currentMediaPath: appState.currentMediaPath,
@@ -655,6 +1021,7 @@ const startupState = runStartupBootstrapRuntimeService(
         reloadConfig: () => {
           configService.reloadConfig();
           appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
+          void refreshAnilistClientSecretState({ force: true });
         },
         getResolvedConfig: () => getResolvedConfig(),
         getConfigWarnings: () => configService.getWarnings(),
@@ -731,6 +1098,10 @@ const startupState = runStartupBootstrapRuntimeService(
         if (appState.ankiIntegration) {
           appState.ankiIntegration.destroy();
         }
+        if (appState.anilistSetupWindow) {
+          appState.anilistSetupWindow.destroy();
+        }
+        appState.anilistSetupWindow = null;
       },
       shouldRestoreWindowsOnActivate: () =>
         appState.overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
@@ -745,6 +1116,7 @@ const startupState = runStartupBootstrapRuntimeService(
 );
 
 applyStartupState(appState, startupState);
+void refreshAnilistClientSecretState({ force: true });
 
 function handleCliCommand(
   args: CliArgs,
@@ -828,16 +1200,24 @@ function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
     broadcastToOverlayWindows("secondary-subtitle:set", text);
   });
   mpvClient.on("subtitle-timing", ({ text, start, end }) => {
-    if (!text.trim() || !appState.subtitleTimingTracker) {
-      return;
+    if (text.trim() && appState.subtitleTimingTracker) {
+      appState.subtitleTimingTracker.recordSubtitle(text, start, end);
     }
-    appState.subtitleTimingTracker.recordSubtitle(text, start, end);
+    void maybeRunAnilistPostWatchUpdate();
   });
   mpvClient.on("media-path-change", ({ path }) => {
     mediaRuntime.updateCurrentMediaPath(path);
+    const mediaKey = getCurrentAnilistMediaKey();
+    resetAnilistMediaTracking(mediaKey);
+    if (mediaKey) {
+      void maybeProbeAnilistDuration(mediaKey);
+      void ensureAnilistMediaGuess(mediaKey);
+    }
   });
   mpvClient.on("media-title-change", ({ title }) => {
     mediaRuntime.updateCurrentMediaTitle(title);
+    anilistCurrentMediaGuess = null;
+    anilistCurrentMediaGuessPromise = null;
   });
   mpvClient.on("subtitle-metrics-change", ({ patch }) => {
     updateMpvSubtitleRenderMetrics(patch);

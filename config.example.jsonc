@@ -38,6 +38,15 @@
   },
 
   // ==========================================
+  // Logging
+  // Controls logging verbosity.
+  // Set to debug for full runtime diagnostics.
+  // ==========================================
+  "logging": {
+    "level": "info"
+  },
+
+  // ==========================================
   // AnkiConnect Integration
   // Automatic Anki updates and media generation options.
   // ==========================================
@@ -87,6 +96,7 @@
       "refreshMinutes": 1440,
       "matchMode": "headword",
       "decks": [],
+      "minSentenceWords": 3,
       "nPlusOne": "#c6a0f6",
       "knownWord": "#a6da95"
     },
@@ -165,6 +175,20 @@
       "N4": "#a6e3a1",
       "N5": "#8aadf4"
     },
+    "frequencyDictionary": {
+      "enabled": false,
+      "sourcePath": "",
+      "topX": 1000,
+      "mode": "single",
+      "singleColor": "#f5a97f",
+      "bandedColors": [
+        "#ed8796",
+        "#f5a97f",
+        "#f9e2af",
+        "#a6e3a1",
+        "#8aadf4"
+      ]
+    },
     "secondary": {
       "fontSize": 24,
       "fontColor": "#ffffff",
@@ -227,5 +251,14 @@
       "ja",
       "jpn"
     ]
+  },
+
+  // ==========================================
+  // Anilist
+  // Anilist API credentials and update behavior.
+  // ==========================================
+  "anilist": {
+    "enabled": false,
+    "accessToken": ""
   }
 }

@@ -333,6 +333,11 @@ export interface JimakuConfig {
   maxEntryResults?: number;
 }
 
+export interface AnilistConfig {
+  enabled?: boolean;
+  accessToken?: string;
+}
+
 export interface InvisibleOverlayConfig {
   startupVisibility?: "platform-default" | "visible" | "hidden";
 }
@@ -359,6 +364,7 @@ export interface Config {
   auto_start_overlay?: boolean;
   bind_visible_overlay_to_mpv_sub_visibility?: boolean;
   jimaku?: JimakuConfig;
+  anilist?: AnilistConfig;
   invisibleOverlay?: InvisibleOverlayConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
   logging?: {
@@ -463,6 +469,10 @@ export interface ResolvedConfig {
     apiBaseUrl: string;
     languagePreference: JimakuLanguagePreference;
     maxEntryResults: number;
+  };
+  anilist: {
+    enabled: boolean;
+    accessToken: string;
   };
   invisibleOverlay: Required<InvisibleOverlayConfig>;
   youtubeSubgen: YoutubeSubgenConfig & {

@@ -18,10 +18,19 @@ import type { RuntimeOptionsManager } from "../runtime-options";
 import type { MecabTokenizer } from "../mecab-tokenizer";
 import type { BaseWindowTracker } from "../window-trackers";
 
+export interface AnilistSecretResolutionState {
+  status: "not_checked" | "resolved" | "error";
+  source: "none" | "literal" | "command";
+  message: string | null;
+  resolvedAt: number | null;
+  errorAt: number | null;
+}
+
 export interface AppState {
   yomitanExt: Extension | null;
   yomitanSettingsWindow: BrowserWindow | null;
   yomitanParserWindow: BrowserWindow | null;
+  anilistSetupWindow: BrowserWindow | null;
   yomitanParserReadyPromise: Promise<void> | null;
   yomitanParserInitPromise: Promise<boolean> | null;
   mpvClient: MpvIpcClient | null;
@@ -33,6 +42,7 @@ export interface AppState {
   currentMediaPath: string | null;
   currentMediaTitle: string | null;
   pendingSubtitlePosition: SubtitlePosition | null;
+  anilistClientSecretState: AnilistSecretResolutionState;
   mecabTokenizer: MecabTokenizer | null;
   keybindings: Keybinding[];
   subtitleTimingTracker: SubtitleTimingTracker | null;
@@ -57,6 +67,7 @@ export interface AppState {
   texthookerOnlyMode: boolean;
   jlptLevelLookup: (term: string) => JlptLevel | null;
   frequencyRankLookup: FrequencyDictionaryLookup;
+  anilistSetupPageOpened: boolean;
 }
 
 export interface AppStateInitialValues {
@@ -81,6 +92,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     yomitanExt: null,
     yomitanSettingsWindow: null,
     yomitanParserWindow: null,
+    anilistSetupWindow: null,
     yomitanParserReadyPromise: null,
     yomitanParserInitPromise: null,
     mpvClient: null,
@@ -92,6 +104,13 @@ export function createAppState(values: AppStateInitialValues): AppState {
     currentMediaPath: null,
     currentMediaTitle: null,
     pendingSubtitlePosition: null,
+    anilistClientSecretState: {
+      status: "not_checked",
+      source: "none",
+      message: null,
+      resolvedAt: null,
+      errorAt: null,
+    },
     mecabTokenizer: null,
     keybindings: [],
     subtitleTimingTracker: null,
@@ -118,6 +137,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     texthookerOnlyMode: values.texthookerOnlyMode ?? false,
     jlptLevelLookup: () => null,
     frequencyRankLookup: () => null,
+    anilistSetupPageOpened: false,
   };
 }
 
