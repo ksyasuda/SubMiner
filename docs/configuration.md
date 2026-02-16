@@ -556,7 +556,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `backgroundColor` | string      | Any CSS color, including `"transparent"` (default: `"rgba(54, 58, 79, 0.5)"`) |
 | `enableJlpt`      | boolean     | Enable JLPT level underline styling (`false` by default)                        |
 | `frequencyDictionary.enabled` | boolean | Enable frequency highlighting from dictionary lookups (`false` by default) |
-| `frequencyDictionary.sourcePath` | string | Optional absolute path used for dictionary discovery (defaults to built-in paths) |
+| `frequencyDictionary.sourcePath` | string | Path to a local frequency dictionary root. Leave empty or omit to use the built-in bundled dictionary search paths. |
 | `frequencyDictionary.topX` | number | Only color tokens whose frequency rank is `<= topX` (`1000` by default) |
 | `frequencyDictionary.mode` | string | `"single"` or `"banded"` (`"single"` by default) |
 | `frequencyDictionary.singleColor` | string | Color used for all highlighted tokens in single mode |
@@ -568,7 +568,15 @@ See `config.example.jsonc` for detailed configuration options.
 
 JLPT underlining is powered by offline term-meta bank files at runtime. See [`docs/jlpt-vocab-bundle.md`](jlpt-vocab-bundle.md) for required files, source/version refresh steps, and deterministic fallback behavior.
 
-Frequency dictionary highlighting uses the same dictionary file format as JLPT bundle lookups (`term_meta_bank_*.json` under discovered dictionary directories). A token is highlighted when it has a positive integer `frequencyRank` (lower is more common) and the rank is within `topX`. In `single` mode all highlights use `singleColor`; in `banded` mode tokens map to five ascending color bands from most common to least common inside the topX window.
+Frequency dictionary highlighting uses the same dictionary file format as JLPT bundle lookups (`term_meta_bank_*.json` under discovered dictionary directories). A token is highlighted when it has a positive integer `frequencyRank` (lower is more common) and the rank is within `topX`.
+
+Lookup behavior:
+
+- Set `frequencyDictionary.sourcePath` to a directory containing `term_meta_bank_*.json` for a fully custom source.
+- If `sourcePath` is missing or empty, SubMiner uses bundled defaults from `vendor/jiten_freq_global` (packaged under `<resources>/jiten_freq_global` in distribution builds).
+- In both cases, only terms with a valid `frequencyRank` are used; everything else falls back to no highlighting.
+
+In `single` mode all highlights use `singleColor`; in `banded` mode tokens map to five ascending color bands from most common to least common inside the topX window.
 
 Secondary subtitle defaults: `fontSize: 24`, `fontColor: "#ffffff"`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
 
