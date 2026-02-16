@@ -22,8 +22,7 @@ function createToken(overrides: Partial<MergedToken>): MergedToken {
   };
 }
 
-function extractClassBlock(cssText: string, level: number): string {
-  const selector = `#subtitleRoot .word.word-jlpt-n${level}`;
+function extractClassBlock(cssText: string, selector: string): string {
   const start = cssText.indexOf(selector);
   if (start < 0) return "";
 
@@ -54,6 +53,87 @@ test("computeWordClass preserves known and n+1 classes while adding JLPT classes
   );
 });
 
+test("computeWordClass adds frequency class for single mode when rank is within topX", () => {
+  const token = createToken({
+    surface: "猫",
+    frequencyRank: 50,
+  });
+
+  const actual = computeWordClass(
+    token,
+    {
+      enabled: true,
+      topX: 100,
+      mode: "single",
+      singleColor: "#000000",
+      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
+    },
+  );
+
+  assert.equal(actual, "word word-frequency-single");
+});
+
+test("computeWordClass adds frequency class when rank equals topX", () => {
+  const token = createToken({
+    surface: "水",
+    frequencyRank: 100,
+  });
+
+  const actual = computeWordClass(
+    token,
+    {
+      enabled: true,
+      topX: 100,
+      mode: "single",
+      singleColor: "#000000",
+      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
+    },
+  );
+
+  assert.equal(actual, "word word-frequency-single");
+});
+
+test("computeWordClass adds frequency class for banded mode", () => {
+  const token = createToken({
+    surface: "犬",
+    frequencyRank: 250,
+  });
+
+  const actual = computeWordClass(
+    token,
+    {
+      enabled: true,
+      topX: 1000,
+      mode: "banded",
+      singleColor: "#000000",
+      bandedColors:
+        ["#111111", "#222222", "#333333", "#444444", "#555555"] as const,
+    },
+  );
+
+  assert.equal(actual, "word word-frequency-band-2");
+});
+
+test("computeWordClass skips frequency class when rank is out of topX", () => {
+  const token = createToken({
+    surface: "犬",
+    frequencyRank: 1200,
+  });
+
+  const actual = computeWordClass(
+    token,
+    {
+      enabled: true,
+      topX: 1000,
+      mode: "single",
+      singleColor: "#000000",
+      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
+    },
+  );
+
+  assert.equal(actual, "word");
+});
+
 test("JLPT CSS rules use underline-only styling in renderer stylesheet", () => {
   const distCssPath = path.join(process.cwd(), "dist", "renderer", "style.css");
   const srcCssPath = path.join(process.cwd(), "src", "renderer", "style.css");
@@ -70,11 +150,25 @@ test("JLPT CSS rules use underline-only styling in renderer stylesheet", () => {
   const cssText = fs.readFileSync(cssPath, "utf-8");
 
   for (let level = 1; level <= 5; level += 1) {
-    const block = extractClassBlock(cssText, level);
+    const block = extractClassBlock(
+      cssText,
+      `#subtitleRoot .word.word-jlpt-n${level}`,
+    );
     assert.ok(block.length > 0, `word-jlpt-n${level} class should exist`);
     assert.match(block, /text-decoration-line:\s*underline;/);
     assert.match(block, /text-decoration-thickness:\s*2px;/);
     assert.match(block, /text-underline-offset:\s*4px;/);
     assert.match(block, /color:\s*inherit;/);
+  }
+
+  for (let band = 1; band <= 5; band += 1) {
+    const block = extractClassBlock(
+      cssText,
+      band === 1
+        ? "#subtitleRoot .word.word-frequency-single"
+        : `#subtitleRoot .word.word-frequency-band-${band}`,
+    );
+    assert.ok(block.length > 0, `frequency class word-frequency-${band === 1 ? "single" : `band-${band}`} should exist`);
+    assert.match(block, /color:\s*var\(/);
   }
 });

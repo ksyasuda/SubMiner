@@ -705,6 +705,39 @@ function isExecutable(filePath: string): boolean {
   }
 }
 
+function resolveMacAppBinaryCandidate(candidate: string): string {
+  if (process.platform !== "darwin") return "";
+
+  const direct = resolveBinaryPathCandidate(candidate);
+  if (!direct) return "";
+
+  if (isExecutable(direct)) {
+    return direct;
+  }
+
+  const appIndex = direct.indexOf(".app/");
+  const appPath =
+    direct.endsWith(".app") && direct.includes(".app")
+      ? direct
+      : appIndex >= 0
+        ? direct.slice(0, appIndex + ".app".length)
+        : "";
+  if (!appPath) return "";
+
+  const candidates = [
+    path.join(appPath, "Contents", "MacOS", "SubMiner"),
+    path.join(appPath, "Contents", "MacOS", "subminer"),
+  ];
+
+  for (const candidateBinary of candidates) {
+    if (isExecutable(candidateBinary)) {
+      return candidateBinary;
+    }
+  }
+
+  return "";
+}
+
 function commandExists(command: string): boolean {
   const pathEnv = process.env.PATH ?? "";
   for (const dir of pathEnv.split(path.delimiter)) {
@@ -1666,8 +1699,8 @@ function findAppBinary(selfPath: string): string | null {
   ].filter((candidate): candidate is string => Boolean(candidate));
 
   for (const envPath of envPaths) {
-    const resolved = resolveBinaryPathCandidate(envPath);
-    if (resolved && isExecutable(resolved)) {
+    const resolved = resolveMacAppBinaryCandidate(envPath);
+    if (resolved) {
       return resolved;
     }
   }
@@ -2636,6 +2669,7 @@ function startMpv(
   targetKind: "file" | "url",
   args: Args,
   socketPath: string,
+  appPath: string,
   preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
 ): void {
   if (
@@ -2692,6 +2726,9 @@ function startMpv(
   if (preloadedSubtitles?.secondaryPath) {
     mpvArgs.push(`--sub-file=${preloadedSubtitles.secondaryPath}`);
   }
+  mpvArgs.push(
+    `--script-opts=subminer-binary_path=${appPath},subminer-socket_path=${socketPath}`,
+  );
   mpvArgs.push(`--log-file=${getMpvLogPath()}`);
 
   try {
@@ -2833,6 +2870,7 @@ async function main(): Promise<void> {
     selectedTarget.kind,
     args,
     mpvSocketPath,
+    appPath,
     preloadedSubtitles,
   );
 

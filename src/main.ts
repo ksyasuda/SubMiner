@@ -162,6 +162,10 @@ import {
   createJlptDictionaryRuntimeService,
   getJlptDictionarySearchPaths,
 } from "./main/jlpt-runtime";
+import {
+  createFrequencyDictionaryRuntimeService,
+  getFrequencyDictionarySearchPaths,
+} from "./main/frequency-dictionary-runtime";
 import { createMediaRuntimeService } from "./main/media-runtime";
 import { createOverlayVisibilityRuntimeService } from "./main/overlay-visibility-runtime";
 import {
@@ -350,6 +354,39 @@ const jlptDictionaryRuntime = createJlptDictionaryRuntimeService({
   },
   log: (message) => {
     logger.info(`[JLPT] ${message}`);
+  },
+});
+
+const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService({
+  isFrequencyDictionaryEnabled: () =>
+    getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+  getSearchPaths: () =>
+    getFrequencyDictionarySearchPaths({
+      getDictionaryRoots: () => [
+        path.join(__dirname, "..", "..", "vendor", "jiten_freq_global"),
+        path.join(__dirname, "..", "..", "vendor", "frequency-dictionary"),
+        path.join(app.getAppPath(), "vendor", "jiten_freq_global"),
+        path.join(app.getAppPath(), "vendor", "frequency-dictionary"),
+        path.join(process.resourcesPath, "jiten_freq_global"),
+        path.join(process.resourcesPath, "frequency-dictionary"),
+        path.join(process.resourcesPath, "app.asar", "vendor", "jiten_freq_global"),
+        path.join(process.resourcesPath, "app.asar", "vendor", "frequency-dictionary"),
+        USER_DATA_PATH,
+        app.getPath("userData"),
+        path.join(os.homedir(), ".config", "SubMiner"),
+        path.join(os.homedir(), ".config", "subminer"),
+        path.join(os.homedir(), "Library", "Application Support", "SubMiner"),
+        path.join(os.homedir(), "Library", "Application Support", "subminer"),
+        process.cwd(),
+      ].filter((dictionaryRoot) => dictionaryRoot),
+      getSourcePath: () =>
+        getResolvedConfig().subtitleStyle.frequencyDictionary.sourcePath,
+    }),
+  setFrequencyRankLookup: (lookup) => {
+    appState.frequencyRankLookup = lookup;
+  },
+  log: (message) => {
+    logger.info(`[Frequency] ${message}`);
   },
 });
 
@@ -844,6 +881,7 @@ function updateMpvSubtitleRenderMetrics(
 
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
   await jlptDictionaryRuntime.ensureJlptDictionaryLookup();
+  await frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup();
   return tokenizeSubtitleService(
     text,
     createTokenizerDepsRuntimeService({
@@ -870,6 +908,9 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
       getJlptLevel: (text) => appState.jlptLevelLookup(text),
       getJlptEnabled: () =>
         getResolvedConfig().subtitleStyle.enableJlpt,
+      getFrequencyDictionaryEnabled: () =>
+        getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+      getFrequencyRank: (text) => appState.frequencyRankLookup(text),
       getMecabTokenizer: () => appState.mecabTokenizer,
     }),
   );
@@ -1345,6 +1386,8 @@ registerIpcRuntimeServices({
           nPlusOneColor: resolvedConfig.ankiConnect.nPlusOne.nPlusOne,
           knownWordColor: resolvedConfig.ankiConnect.nPlusOne.knownWord,
           enableJlpt: resolvedConfig.subtitleStyle.enableJlpt,
+          frequencyDictionary:
+            resolvedConfig.subtitleStyle.frequencyDictionary,
         };
       },
     saveSubtitlePosition: (position: unknown) =>

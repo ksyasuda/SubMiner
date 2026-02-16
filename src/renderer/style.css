@@ -255,6 +255,12 @@ body {
   --subtitle-jlpt-n3-color: #f9e2af;
   --subtitle-jlpt-n4-color: #a6e3a1;
   --subtitle-jlpt-n5-color: #8aadf4;
+  --subtitle-frequency-single-color: #f5a97f;
+  --subtitle-frequency-band-1-color: #ed8796;
+  --subtitle-frequency-band-2-color: #f5a97f;
+  --subtitle-frequency-band-3-color: #f9e2af;
+  --subtitle-frequency-band-4-color: #a6e3a1;
+  --subtitle-frequency-band-5-color: #8aadf4;
   text-shadow:
     2px 2px 4px rgba(0, 0, 0, 0.8),
     -1px -1px 2px rgba(0, 0, 0, 0.5);
@@ -344,6 +350,39 @@ body.settings-modal-open #subtitleContainer {
   text-underline-offset: 4px;
   text-decoration-color: var(--subtitle-jlpt-n5-color, #8aadf4);
   text-decoration-style: solid;
+}
+
+#subtitleRoot .word.word-frequency-single,
+#subtitleRoot .word.word-frequency-band-1,
+#subtitleRoot .word.word-frequency-band-2,
+#subtitleRoot .word.word-frequency-band-3,
+#subtitleRoot .word.word-frequency-band-4,
+#subtitleRoot .word.word-frequency-band-5 {
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
+}
+
+#subtitleRoot .word.word-frequency-single {
+  color: var(--subtitle-frequency-single-color, #f5a97f);
+}
+
+#subtitleRoot .word.word-frequency-band-1 {
+  color: var(--subtitle-frequency-band-1-color, #ed8796);
+}
+
+#subtitleRoot .word.word-frequency-band-2 {
+  color: var(--subtitle-frequency-band-2-color, #f5a97f);
+}
+
+#subtitleRoot .word.word-frequency-band-3 {
+  color: var(--subtitle-frequency-band-3-color, #f9e2af);
+}
+
+#subtitleRoot .word.word-frequency-band-4 {
+  color: var(--subtitle-frequency-band-4-color, #a6e3a1);
+}
+
+#subtitleRoot .word.word-frequency-band-5 {
+  color: var(--subtitle-frequency-band-5-color, #8aadf4);
 }
 
 #subtitleRoot .word:hover {

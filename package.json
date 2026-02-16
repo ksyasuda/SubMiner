@@ -104,6 +104,10 @@
         "to": "yomitan-jlpt-vocab"
       },
       {
+        "from": "vendor/jiten_freq_global",
+        "to": "jiten_freq_global"
+      },
+      {
         "from": "assets",
         "to": "assets"
       },

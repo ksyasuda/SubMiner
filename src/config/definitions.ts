@@ -195,6 +195,20 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
       N4: "#a6e3a1",
       N5: "#8aadf4",
     },
+    frequencyDictionary: {
+      enabled: false,
+      sourcePath: "",
+      topX: 1000,
+      mode: "single",
+      singleColor: "#f5a97f",
+      bandedColors: [
+        "#ed8796",
+        "#f5a97f",
+        "#f9e2af",
+        "#a6e3a1",
+        "#8aadf4",
+      ],
+    },
     secondary: {
       fontSize: 24,
       fontColor: "#ffffff",
@@ -305,6 +319,48 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     defaultValue: DEFAULT_CONFIG.subtitleStyle.enableJlpt,
     description: "Enable JLPT vocabulary level underlines. "
       + "When disabled, JLPT tagging lookup and underlines are skipped.",
+  },
+  {
+    path: "subtitleStyle.frequencyDictionary.enabled",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.subtitleStyle.frequencyDictionary.enabled,
+    description:
+      "Enable frequency-dictionary-based highlighting based on token rank.",
+  },
+  {
+    path: "subtitleStyle.frequencyDictionary.sourcePath",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.subtitleStyle.frequencyDictionary.sourcePath,
+    description:
+      "Optional absolute path to a frequency dictionary directory."
+      + " If empty, built-in discovery search paths are used.",
+  },
+  {
+    path: "subtitleStyle.frequencyDictionary.topX",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.subtitleStyle.frequencyDictionary.topX,
+    description: "Only color tokens with frequency rank <= topX (default: 1000).",
+  },
+  {
+    path: "subtitleStyle.frequencyDictionary.mode",
+    kind: "enum",
+    enumValues: ["single", "banded"],
+    defaultValue: DEFAULT_CONFIG.subtitleStyle.frequencyDictionary.mode,
+    description:
+      "single: use one color for all matching tokens. banded: use color ramp by frequency band.",
+  },
+  {
+    path: "subtitleStyle.frequencyDictionary.singleColor",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.subtitleStyle.frequencyDictionary.singleColor,
+    description: "Color used when frequencyDictionary.mode is `single`.",
+  },
+  {
+    path: "subtitleStyle.frequencyDictionary.bandedColors",
+    kind: "array",
+    defaultValue: DEFAULT_CONFIG.subtitleStyle.frequencyDictionary.bandedColors,
+    description:
+      "Five colors used for rank bands when mode is `banded` (from most common to least within topX).",
   },
   {
     path: "ankiConnect.enabled",

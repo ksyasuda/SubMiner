@@ -55,7 +55,10 @@ export interface MergedToken {
   isKnown: boolean;
   isNPlusOneTarget: boolean;
   jlptLevel?: JlptLevel;
+  frequencyRank?: number;
 }
+
+export type FrequencyDictionaryLookup = (term: string) => number | null;
 
 export type JlptLevel = "N1" | "N2" | "N3" | "N4" | "N5";
 
@@ -283,6 +286,14 @@ export interface SubtitleStyleConfig {
     N4: string;
     N5: string;
   };
+  frequencyDictionary?: {
+    enabled?: boolean;
+    sourcePath?: string;
+    topX?: number;
+    mode?: FrequencyDictionaryMode;
+    singleColor?: string;
+    bandedColors?: [string, string, string, string, string];
+  };
   secondary?: {
     fontFamily?: string;
     fontSize?: number;
@@ -292,6 +303,8 @@ export interface SubtitleStyleConfig {
     backgroundColor?: string;
   };
 }
+
+export type FrequencyDictionaryMode = "single" | "banded";
 
 export interface ShortcutsConfig {
   toggleVisibleOverlayGlobal?: string | null;
@@ -431,8 +444,18 @@ export interface ResolvedConfig {
   shortcuts: Required<ShortcutsConfig>;
   secondarySub: Required<SecondarySubConfig>;
   subsync: Required<SubsyncConfig>;
-  subtitleStyle: Required<Omit<SubtitleStyleConfig, "secondary">> & {
+  subtitleStyle: Required<
+    Omit<SubtitleStyleConfig, "secondary" | "frequencyDictionary">
+  > & {
     secondary: Required<NonNullable<SubtitleStyleConfig["secondary"]>>;
+    frequencyDictionary: {
+      enabled: boolean;
+      sourcePath: string;
+      topX: number;
+      mode: FrequencyDictionaryMode;
+      singleColor: string;
+      bandedColors: [string, string, string, string, string];
+    };
   };
   auto_start_overlay: boolean;
   bind_visible_overlay_to_mpv_sub_visibility: boolean;
