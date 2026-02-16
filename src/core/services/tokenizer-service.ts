@@ -1,4 +1,4 @@
-import { BrowserWindow, Extension, session } from "electron";
+import type { BrowserWindow, Extension } from "electron";
 import { markNPlusOneTargets, mergeTokens } from "../../token-merger";
 import {
   JlptLevel,
@@ -252,20 +252,67 @@ function resolveFrequencyLookupText(token: MergedToken): string {
   return token.surface;
 }
 
+function getFrequencyLookupTextCandidates(token: MergedToken): string[] {
+  const tokenWithCandidates = token as MergedToken & {
+    frequencyLookupTerms?: string[];
+  };
+  const lookupTextCandidates: string[] = [];
+  const addLookupText = (text: string | undefined): void => {
+    if (!text) {
+      return;
+    }
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return;
+    }
+    lookupTextCandidates.push(trimmed);
+  };
+
+  if (Array.isArray(tokenWithCandidates.frequencyLookupTerms)) {
+    for (const term of tokenWithCandidates.frequencyLookupTerms) {
+      addLookupText(term);
+    }
+  }
+
+  addLookupText(resolveFrequencyLookupText(token));
+
+  const uniqueLookupTerms: string[] = [];
+  const seen = new Set<string>();
+  for (const term of lookupTextCandidates) {
+    if (seen.has(term)) {
+      continue;
+    }
+    seen.add(term);
+    uniqueLookupTerms.push(term);
+  }
+
+  return uniqueLookupTerms;
+}
+
 function applyFrequencyMarking(
   tokens: MergedToken[],
   getFrequencyRank: FrequencyDictionaryLookup,
 ): MergedToken[] {
   return tokens.map((token) => {
-    const lookupText = resolveFrequencyLookupText(token);
-    if (!lookupText) {
+    const lookupTexts = getFrequencyLookupTextCandidates(token);
+    if (lookupTexts.length === 0) {
       return { ...token, frequencyRank: undefined };
     }
 
-    const rank = getCachedFrequencyRank(lookupText, getFrequencyRank);
+    let bestRank: number | null = null;
+    for (const lookupText of lookupTexts) {
+      const rank = getCachedFrequencyRank(lookupText, getFrequencyRank);
+      if (rank === null) {
+        continue;
+      }
+      if (bestRank === null || rank < bestRank) {
+        bestRank = rank;
+      }
+    }
+
     return {
       ...token,
-      frequencyRank: rank ?? undefined,
+      frequencyRank: bestRank ?? undefined,
     };
   });
 }
@@ -397,7 +444,7 @@ function isYomitanParseResultItem(
   if (!isObject(value)) {
     return false;
   }
-  if ((value as YomitanParseResultItem).source !== "scanning-parser") {
+  if (!isString((value as YomitanParseResultItem).source)) {
     return false;
   }
   if (!Array.isArray((value as YomitanParseResultItem).content)) {
@@ -452,6 +499,27 @@ function extractYomitanHeadword(segment: YomitanParseSegment): string {
   return "";
 }
 
+function extractYomitanHeadwords(segment: YomitanParseSegment): string[] {
+  const headwords = segment.headwords;
+  if (!isYomitanHeadwordRows(headwords)) {
+    return [];
+  }
+
+  const results: string[] = [];
+  for (const group of headwords) {
+    for (const candidate of group) {
+      if (isString(candidate.term)) {
+        const term = candidate.term.trim();
+        if (term.length > 0) {
+          results.push(term);
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
 function applyJlptMarking(
   tokens: MergedToken[],
   getJlptLevel: (text: string) => JlptLevel | null,
@@ -475,29 +543,27 @@ function applyJlptMarking(
   });
 }
 
-function mapYomitanParseResultsToMergedTokens(
-  parseResults: unknown,
+interface YomitanParseCandidate {
+  source: string;
+  index: number;
+  tokens: MergedToken[];
+}
+
+function mapYomitanParseResultItemToMergedTokens(
+  parseResult: YomitanParseResultItem,
   isKnownWord: (text: string) => boolean,
   knownWordMatchMode: NPlusOneMatchMode,
-): MergedToken[] | null {
-  if (!Array.isArray(parseResults) || parseResults.length === 0) {
+): YomitanParseCandidate | null {
+  const content = parseResult.content;
+  if (!Array.isArray(content) || content.length === 0) {
     return null;
   }
 
-  const scanningItems = parseResults.filter(
-    (item): item is YomitanParseResultItem => isYomitanParseResultItem(item),
-  );
-
-  if (scanningItems.length === 0) {
-    return null;
-  }
-
-  const primaryItem =
-    scanningItems.find((item) => item.index === 0) || scanningItems[0];
-  const content = primaryItem.content;
-  if (!Array.isArray(content)) {
-    return null;
-  }
+  const source = String(parseResult.source ?? "");
+  const index =
+    typeof parseResult.index === "number" && Number.isInteger(parseResult.index)
+      ? parseResult.index
+      : 0;
 
   const tokens: MergedToken[] = [];
   let charOffset = 0;
@@ -509,60 +575,117 @@ function mapYomitanParseResultsToMergedTokens(
     }
     validLineCount += 1;
 
-    let surface = "";
-    let reading = "";
-    let headword = "";
-
     for (const segment of line) {
       const segmentText = segment.text;
       if (!segmentText || segmentText.length === 0) {
         continue;
       }
 
-      surface += segmentText;
+      const start = charOffset;
+      const end = start + segmentText.length;
+      charOffset = end;
 
-      if (typeof segment.reading === "string") {
-        reading += segment.reading;
-      }
+      const headword = extractYomitanHeadword(segment) || segmentText;
+      const frequencyLookupTerms = extractYomitanHeadwords(segment);
 
-      if (!headword) {
-        headword = extractYomitanHeadword(segment);
-      }
+      tokens.push({
+        surface: segmentText,
+        reading: typeof segment.reading === "string" ? segment.reading : "",
+        headword,
+        startPos: start,
+        endPos: end,
+        partOfSpeech: PartOfSpeech.other,
+        pos1: "",
+        isMerged: true,
+        isNPlusOneTarget: false,
+        isKnown: (() => {
+          const matchText = resolveKnownWordText(
+            segmentText,
+            headword,
+            knownWordMatchMode,
+          );
+          return matchText ? isKnownWord(matchText) : false;
+        })(),
+        frequencyLookupTerms:
+          frequencyLookupTerms.length > 0 ? frequencyLookupTerms : undefined,
+      });
     }
-
-    if (!surface) {
-      continue;
-    }
-
-    const start = charOffset;
-    const end = start + surface.length;
-    charOffset = end;
-
-    tokens.push({
-      surface,
-      reading,
-      headword: headword || surface,
-      startPos: start,
-      endPos: end,
-      partOfSpeech: PartOfSpeech.other,
-      pos1: "",
-      isMerged: true,
-      isNPlusOneTarget: false,
-      isKnown: (() => {
-        const matchText = resolveKnownWordText(
-          surface,
-          headword,
-          knownWordMatchMode,
-        );
-        return matchText ? isKnownWord(matchText) : false;
-      })(),
-    });
   }
 
-  if (validLineCount === 0) {
+  if (validLineCount === 0 || tokens.length === 0) {
     return null;
   }
-  return tokens.length > 0 ? tokens : null;
+
+  return { source, index, tokens };
+}
+
+function selectBestYomitanParseCandidate(
+  candidates: YomitanParseCandidate[],
+): MergedToken[] | null {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const scanningCandidates = candidates.filter(
+    (candidate) => candidate.source === "scanning-parser",
+  );
+  const mecabCandidates = candidates.filter(
+    (candidate) => candidate.source === "mecab",
+  );
+
+  const getBestByTokenCount = (
+    items: YomitanParseCandidate[],
+  ): YomitanParseCandidate | null => items.length === 0
+    ? null
+    : items.reduce((best, current) =>
+      current.tokens.length > best.tokens.length ? current : best,
+    );
+
+  if (scanningCandidates.length > 0) {
+    const bestScanning = getBestByTokenCount(scanningCandidates);
+    if (bestScanning && bestScanning.tokens.length > 1) {
+      return bestScanning.tokens;
+    }
+
+    const bestMecab = getBestByTokenCount(mecabCandidates);
+    if (
+      bestMecab &&
+      bestMecab.tokens.length > (bestScanning?.tokens.length ?? 0)
+    ) {
+      return bestMecab.tokens;
+    }
+
+    return bestScanning ? bestScanning.tokens : null;
+  }
+
+  const bestCandidate = getBestByTokenCount(candidates);
+  return bestCandidate ? bestCandidate.tokens : null;
+}
+
+function mapYomitanParseResultsToMergedTokens(
+  parseResults: unknown,
+  isKnownWord: (text: string) => boolean,
+  knownWordMatchMode: NPlusOneMatchMode,
+): MergedToken[] | null {
+  if (!Array.isArray(parseResults) || parseResults.length === 0) {
+    return null;
+  }
+
+  const candidates = parseResults
+    .filter((item): item is YomitanParseResultItem =>
+      isYomitanParseResultItem(item),
+    )
+    .map((item) =>
+      mapYomitanParseResultItemToMergedTokens(
+        item,
+        isKnownWord,
+        knownWordMatchMode,
+      ),
+    )
+    .filter((candidate): candidate is YomitanParseCandidate => candidate !== null);
+
+  const bestCandidate = selectBestYomitanParseCandidate(candidates);
+  return bestCandidate;
 }
 
 function pickClosestMecabPos1(
@@ -664,6 +787,7 @@ async function enrichYomitanPos1(
 async function ensureYomitanParserWindow(
   deps: TokenizerServiceDeps,
 ): Promise<boolean> {
+  const electron = await import("electron");
   const yomitanExt = deps.getYomitanExt();
   if (!yomitanExt) {
     return false;
@@ -680,6 +804,7 @@ async function ensureYomitanParserWindow(
   }
 
   const initPromise = (async () => {
+    const { BrowserWindow, session } = electron;
     const parserWindow = new BrowserWindow({
       show: false,
       width: 800,
@@ -786,7 +911,7 @@ async function parseWithYomitanInternalParser(
         optionsContext: { index: profileIndex },
         scanLength,
         useInternalParser: true,
-        useMecabParser: false
+        useMecabParser: true
       });
     })();
   `;

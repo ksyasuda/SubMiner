@@ -228,6 +228,223 @@ test("tokenizeSubtitleService applies frequency dictionary ranks", async () => {
   assert.equal(result.tokens?.[1]?.frequencyRank, 1200);
 });
 
+test("tokenizeSubtitleService uses all Yomitan headword candidates for frequency lookup", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  {
+                    text: "猫です",
+                    reading: "ねこです",
+                    headwords: [
+                      [{ term: "猫です" }],
+                      [{ term: "猫" }],
+                    ],
+                  },
+                ],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      getFrequencyRank: (text) => (text === "猫" ? 40 : text === "猫です" ? 1200 : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 40);
+});
+
+test("tokenizeSubtitleService prefers exact headword frequency over surface/reading when available", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  {
+                    text: "猫",
+                    reading: "ねこ",
+                    headwords: [[{ term: "ネコ" }]],
+                  },
+                ],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      getFrequencyRank: (text) => (text === "猫" ? 1200 : text === "ネコ" ? 8 : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 8);
+});
+
+test("tokenizeSubtitleService keeps no frequency when only reading matches and headword candidates miss", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  {
+                    text: "猫",
+                    reading: "ねこ",
+                    headwords: [[{ term: "猫です" }]],
+                  },
+                ],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      getFrequencyRank: (text) => (text === "ねこ" ? 77 : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+});
+
+test("tokenizeSubtitleService ignores invalid frequency ranks and takes best valid headword candidate", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  {
+                    text: "猫です",
+                    reading: "ねこです",
+                    headwords: [
+                      [{ term: "猫" }],
+                      [{ term: "猫です" }],
+                    ],
+                  },
+                ],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      getFrequencyRank: (text) => (text === "猫" ? Number.NaN : text === "猫です" ? 500 : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 500);
+});
+
+test("tokenizeSubtitleService handles real-word frequency candidates and prefers most frequent term", async () => {
+  const result = await tokenizeSubtitleService(
+    "昨日",
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  {
+                    text: "昨日",
+                    reading: "きのう",
+                    headwords: [
+                      [{ term: "昨日" }],
+                      [{ term: "きのう" }],
+                    ],
+                  },
+                ],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      getFrequencyRank: (text) => (text === "きのう" ? 120 : text === "昨日" ? 40 : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 40);
+});
+
+test("tokenizeSubtitleService ignores candidates with no dictionary rank when higher-frequency candidate exists", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  {
+                    text: "猫",
+                    reading: "ねこ",
+                    headwords: [
+                      [{ term: "猫" }],
+                      [{ term: "猫です" }],
+                      [{ term: "unknown-term" }],
+                    ],
+                  },
+                ],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      getFrequencyRank: (text) => (text === "unknown-term" ? -1 : text === "猫" ? 88 : text === "猫です" ? 9000 : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 88);
+});
+
 test("tokenizeSubtitleService ignores frequency lookup failures", async () => {
   const result = await tokenizeSubtitleService(
     "猫",
@@ -557,10 +774,147 @@ test("tokenizeSubtitleService uses Yomitan parser result when available", async 
   );
 
   assert.equal(result.text, "猫です");
-  assert.equal(result.tokens?.length, 1);
-  assert.equal(result.tokens?.[0]?.surface, "猫です");
-  assert.equal(result.tokens?.[0]?.reading, "ねこです");
+  assert.equal(result.tokens?.length, 2);
+  assert.equal(result.tokens?.[0]?.surface, "猫");
+  assert.equal(result.tokens?.[0]?.reading, "ねこ");
   assert.equal(result.tokens?.[0]?.isKnown, false);
+  assert.equal(result.tokens?.[1]?.surface, "です");
+  assert.equal(result.tokens?.[1]?.reading, "です");
+  assert.equal(result.tokens?.[1]?.isKnown, false);
+});
+
+test("tokenizeSubtitleService prefers mecab parser tokens when scanning parser returns one token", async () => {
+  const result = await tokenizeSubtitleService(
+    "俺は小園にいきたい",
+    makeDeps({
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  {
+                    text: "俺は小園にいきたい",
+                    reading: "おれは小園にいきたい",
+                    headwords: [[{ term: "俺は小園にいきたい" }]],
+                  },
+                ],
+              ],
+            },
+            {
+              source: "mecab",
+              index: 0,
+              content: [
+                [{ text: "俺", reading: "おれ", headwords: [[{ term: "俺" }]] }],
+                [{ text: "は", reading: "は", headwords: [[{ term: "は" }]] }],
+                [{ text: "小園", reading: "おうえん", headwords: [[{ term: "小園" }]] }],
+                [{ text: "に", reading: "に", headwords: [[{ term: "に" }]] }],
+                [{ text: "いきたい", reading: "いきたい", headwords: [[{ term: "いきたい" }]] }],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      getFrequencyDictionaryEnabled: () => true,
+      tokenizeWithMecab: async () => null,
+      getFrequencyRank: (text) =>
+        text === "小園" ? 25 : text === "いきたい" ? 1500 : null,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 5);
+  assert.equal(result.tokens?.map((token) => token.surface).join(","), "俺,は,小園,に,いきたい");
+  assert.equal(result.tokens?.[2]?.surface, "小園");
+  assert.equal(result.tokens?.[2]?.frequencyRank, 25);
+});
+
+test("tokenizeSubtitleService keeps scanning parser tokens when they are already split", async () => {
+  const result = await tokenizeSubtitleService(
+    "小園に行きたい",
+    makeDeps({
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [{ text: "小園", reading: "おうえん", headwords: [[{ term: "小園" }]] }],
+                [{ text: "に", reading: "に", headwords: [[{ term: "に" }]] }],
+                [{ text: "行きたい", reading: "いきたい", headwords: [[{ term: "行きたい" }]] }],
+              ],
+            },
+            {
+              source: "mecab",
+              index: 0,
+              content: [
+                [{ text: "小", reading: "お", headwords: [[{ term: "小" }]] }],
+                [{ text: "園", reading: "えん", headwords: [[{ term: "園" }]] }],
+                [{ text: "に", reading: "に", headwords: [[{ term: "に" }]] }],
+                [{ text: "行き", reading: "いき", headwords: [[{ term: "行き" }]] }],
+                [{ text: "たい", reading: "たい", headwords: [[{ term: "たい" }]] }],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === "小園" ? 20 : null),
+      tokenizeWithMecab: async () => null,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 3);
+  assert.equal(
+    result.tokens?.map((token) => token.surface).join(","),
+    "小園,に,行きたい",
+  );
+  assert.equal(result.tokens?.[0]?.frequencyRank, 20);
+  assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
+  assert.equal(result.tokens?.[2]?.frequencyRank, undefined);
+});
+
+test("tokenizeSubtitleService still assigns frequency to non-known Yomitan tokens", async () => {
+  const result = await tokenizeSubtitleService(
+    "小園に",
+    makeDeps({
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  { text: "小園", reading: "おうえん", headwords: [[{ term: "小園" }]] },
+                ],
+                [
+                  { text: "に", reading: "に", headwords: [[{ term: "に" }]] },
+                ],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === "小園" ? 75 : text === "に" ? 3000 : null),
+      isKnownWord: (text) => text === "小園",
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 2);
+  assert.equal(result.tokens?.[0]?.isKnown, true);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 75);
+  assert.equal(result.tokens?.[1]?.isKnown, false);
+  assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
 });
 
 test("tokenizeSubtitleService marks tokens as known using callback", async () => {
@@ -587,6 +941,63 @@ test("tokenizeSubtitleService marks tokens as known using callback", async () =>
 
   assert.equal(result.text, "猫です");
   assert.equal(result.tokens?.[0]?.isKnown, true);
+});
+
+test("tokenizeSubtitleService still assigns frequency rank to non-known tokens", async () => {
+  const result = await tokenizeSubtitleService(
+    "既知未知",
+    makeDeps({
+      tokenizeWithMecab: async () => [
+        {
+          surface: "既知",
+          reading: "キチ",
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: "",
+          pos2: "",
+          pos3: "",
+          pos4: "",
+          inflectionType: "",
+          inflectionForm: "",
+          headword: "既知",
+          katakanaReading: "キチ",
+          pronunciation: "キチ",
+          startPos: 0,
+          endPos: 2,
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: "未知",
+          reading: "ミチ",
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: "",
+          pos2: "",
+          pos3: "",
+          pos4: "",
+          inflectionType: "",
+          inflectionForm: "",
+          headword: "未知",
+          katakanaReading: "ミチ",
+          pronunciation: "ミチ",
+          startPos: 2,
+          endPos: 4,
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === "既知" ? 20 : text === "未知" ? 30 : null),
+      isKnownWord: (text) => text === "既知",
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 2);
+  assert.equal(result.tokens?.[0]?.isKnown, true);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 20);
+  assert.equal(result.tokens?.[1]?.isKnown, false);
+  assert.equal(result.tokens?.[1]?.frequencyRank, 30);
 });
 
 test("tokenizeSubtitleService selects one N+1 target token", async () => {

@@ -86,14 +86,29 @@ export function parseMecabLine(line: string): Token | null {
   };
 }
 
+export interface MecabTokenizerOptions {
+  mecabCommand?: string;
+  dictionaryPath?: string;
+}
+
 export class MecabTokenizer {
   private mecabPath: string | null = null;
+  private mecabCommand: string;
+  private dictionaryPath: string | null;
   private available: boolean = false;
   private enabled: boolean = true;
 
+  constructor(options: MecabTokenizerOptions = {}) {
+    this.mecabCommand = options.mecabCommand?.trim() || "mecab";
+    this.dictionaryPath = options.dictionaryPath?.trim() || null;
+  }
+
   async checkAvailability(): Promise<boolean> {
     try {
-      const result = execSync("which mecab", { encoding: "utf-8" }).trim();
+      const command = this.mecabCommand;
+      const result = command.includes("/")
+        ? command
+        : execSync(`which ${command}`, { encoding: "utf-8" }).trim();
       if (result) {
         this.mecabPath = result;
         this.available = true;
@@ -114,7 +129,11 @@ export class MecabTokenizer {
     }
 
     return new Promise((resolve) => {
-      const mecab = spawn("mecab", [], {
+      const mecabArgs: string[] = [];
+      if (this.dictionaryPath) {
+        mecabArgs.push("-d", this.dictionaryPath);
+      }
+      const mecab = spawn(this.mecabPath ?? this.mecabCommand, mecabArgs, {
         stdio: ["pipe", "pipe", "pipe"],
       });
 
@@ -146,6 +165,21 @@ export class MecabTokenizer {
           const token = parseMecabLine(line);
           if (token) {
             tokens.push(token);
+          }
+        }
+
+        if (tokens.length === 0 && text.trim().length > 0) {
+          const trimmedStdout = stdout.trim();
+          const trimmedStderr = stderr.trim();
+          if (trimmedStdout) {
+            log.warn(
+              "MeCab returned no parseable tokens.",
+              `command=${this.mecabPath ?? this.mecabCommand}`,
+              `stdout=${trimmedStdout.slice(0, 1024)}`,
+            );
+          }
+          if (trimmedStderr) {
+            log.warn("MeCab stderr while tokenizing:", trimmedStderr);
           }
         }
 

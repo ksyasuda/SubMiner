@@ -4,6 +4,8 @@
   "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
   "main": "dist/main.js",
   "scripts": {
+    "get-frequency": "bun run scripts/get_frequency.ts",
+    "get-frequency:electron": "bun build scripts/get_frequency.ts --format=cjs --target=node --outfile dist/scripts/get_frequency.js --external electron && electron dist/scripts/get_frequency.js",
     "build": "tsc && pnpm run build:renderer && cp src/renderer/index.html src/renderer/style.css dist/renderer/ && bash scripts/build-macos-helper.sh",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js --sourcemap",
     "check:main-lines": "bash scripts/check-main-lines.sh",

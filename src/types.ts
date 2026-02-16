@@ -56,6 +56,7 @@ export interface MergedToken {
   isNPlusOneTarget: boolean;
   jlptLevel?: JlptLevel;
   frequencyRank?: number;
+  frequencyLookupTerms?: string[];
 }
 
 export type FrequencyDictionaryLookup = (term: string) => number | null;
