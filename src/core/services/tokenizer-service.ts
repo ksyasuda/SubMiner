@@ -1,12 +1,15 @@
 import { BrowserWindow, Extension, session } from "electron";
 import { markNPlusOneTargets, mergeTokens } from "../../token-merger";
 import {
+  JlptLevel,
   MergedToken,
   NPlusOneMatchMode,
   PartOfSpeech,
   SubtitleData,
   Token,
 } from "../../types";
+import { shouldIgnoreJlptForMecabPos1 } from "./jlpt-token-filter-config";
+import { shouldIgnoreJlptByTerm } from "./jlpt-excluded-terms";
 
 interface YomitanParseHeadword {
   term?: unknown;
@@ -34,6 +37,8 @@ export interface TokenizerServiceDeps {
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
   isKnownWord: (text: string) => boolean;
   getKnownWordMatchMode: () => NPlusOneMatchMode;
+  getJlptLevel: (text: string) => JlptLevel | null;
+  getJlptEnabled?: () => boolean;
   tokenizeWithMecab: (text: string) => Promise<MergedToken[] | null>;
 }
 
@@ -51,6 +56,8 @@ export interface TokenizerDepsRuntimeOptions {
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
   isKnownWord: (text: string) => boolean;
   getKnownWordMatchMode: () => NPlusOneMatchMode;
+  getJlptLevel: (text: string) => JlptLevel | null;
+  getJlptEnabled?: () => boolean;
   getMecabTokenizer: () => MecabTokenizerLike | null;
 }
 
@@ -67,6 +74,8 @@ export function createTokenizerDepsRuntimeService(
     setYomitanParserInitPromise: options.setYomitanParserInitPromise,
     isKnownWord: options.isKnownWord,
     getKnownWordMatchMode: options.getKnownWordMatchMode,
+    getJlptLevel: options.getJlptLevel,
+    getJlptEnabled: options.getJlptEnabled,
     tokenizeWithMecab: async (text) => {
       const mecabTokenizer = options.getMecabTokenizer();
       if (!mecabTokenizer) {
@@ -112,6 +121,142 @@ function applyKnownWordMarking(
   });
 }
 
+function resolveJlptLookupText(token: MergedToken): string {
+  if (token.headword && token.headword.length > 0) {
+    return token.headword;
+  }
+  if (token.reading && token.reading.length > 0) {
+    return token.reading;
+  }
+  return token.surface;
+}
+
+function normalizeJlptTextForExclusion(text: string): string {
+  const raw = text.trim();
+  if (!raw) {
+    return "";
+  }
+
+  let normalized = "";
+  for (const char of raw) {
+    const code = char.codePointAt(0);
+    if (code === undefined) {
+      continue;
+    }
+
+    if (code >= 0x30a1 && code <= 0x30f6) {
+      normalized += String.fromCodePoint(code - 0x60);
+      continue;
+    }
+
+    normalized += char;
+  }
+
+  return normalized;
+}
+
+function isKanaChar(char: string): boolean {
+  const code = char.codePointAt(0);
+  if (code === undefined) {
+    return false;
+  }
+
+  return (
+    (code >= 0x3041 && code <= 0x3096) ||
+    (code >= 0x309b && code <= 0x309f) ||
+    (code >= 0x30a0 && code <= 0x30fa) ||
+    (code >= 0x30fd && code <= 0x30ff)
+  );
+}
+
+function isRepeatedKanaSfx(text: string): boolean {
+  const normalized = text.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const chars = [...normalized];
+  if (!chars.every(isKanaChar)) {
+    return false;
+  }
+
+  const counts = new Map<string, number>();
+  let hasAdjacentRepeat = false;
+
+  for (let i = 0; i < chars.length; i += 1) {
+    const char = chars[i];
+    counts.set(char, (counts.get(char) ?? 0) + 1);
+    if (i > 0 && chars[i] === chars[i - 1]) {
+      hasAdjacentRepeat = true;
+    }
+  }
+
+  const topCount = Math.max(...counts.values());
+  if (chars.length <= 2) {
+    return hasAdjacentRepeat || topCount >= 2;
+  }
+
+  if (hasAdjacentRepeat) {
+    return true;
+  }
+
+  return topCount >= Math.ceil(chars.length / 2);
+}
+
+function isJlptEligibleToken(token: MergedToken): boolean {
+  if (token.pos1 && shouldIgnoreJlptForMecabPos1(token.pos1)) return false;
+
+  const candidates = [
+    resolveJlptLookupText(token),
+    token.surface,
+    token.reading,
+    token.headword,
+  ].filter((candidate): candidate is string => typeof candidate === "string" && candidate.length > 0);
+
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizeJlptTextForExclusion(candidate);
+    if (!normalizedCandidate) {
+      continue;
+    }
+
+    const trimmedCandidate = candidate.trim();
+    if (
+      shouldIgnoreJlptByTerm(trimmedCandidate) ||
+      shouldIgnoreJlptByTerm(normalizedCandidate)
+    ) {
+      return false;
+    }
+
+    if (
+      isRepeatedKanaSfx(candidate) ||
+      isRepeatedKanaSfx(normalizedCandidate)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function applyJlptMarking(
+  tokens: MergedToken[],
+  getJlptLevel: (text: string) => JlptLevel | null,
+): MergedToken[] {
+  return tokens.map((token) => {
+    if (!isJlptEligibleToken(token)) {
+      return { ...token, jlptLevel: undefined };
+    }
+
+    const primaryLevel = getJlptLevel(resolveJlptLookupText(token));
+    const fallbackLevel = getJlptLevel(token.surface);
+
+    return {
+      ...token,
+      jlptLevel: primaryLevel ?? fallbackLevel ?? token.jlptLevel,
+    };
+  });
+}
+
 function extractYomitanHeadword(segment: YomitanParseSegment): string {
   const headwords = segment.headwords;
   if (!Array.isArray(headwords) || headwords.length === 0) {
@@ -131,6 +276,7 @@ function mapYomitanParseResultsToMergedTokens(
   parseResults: unknown,
   isKnownWord: (text: string) => boolean,
   knownWordMatchMode: NPlusOneMatchMode,
+  getJlptLevel: (text: string) => JlptLevel | null,
 ): MergedToken[] | null {
   if (!Array.isArray(parseResults) || parseResults.length === 0) {
     return null;
@@ -205,6 +351,7 @@ function mapYomitanParseResultsToMergedTokens(
       startPos: start,
       endPos: end,
       partOfSpeech: PartOfSpeech.other,
+      pos1: "",
       isMerged: true,
       isNPlusOneTarget: false,
       isKnown: (() => {
@@ -219,6 +366,94 @@ function mapYomitanParseResultsToMergedTokens(
   }
 
   return tokens.length > 0 ? tokens : null;
+}
+
+function pickClosestMecabPos1(
+  token: MergedToken,
+  mecabTokens: MergedToken[],
+): string | undefined {
+  if (mecabTokens.length === 0) {
+    return undefined;
+  }
+
+  const tokenStart = token.startPos ?? 0;
+  const tokenEnd = token.endPos ?? tokenStart + token.surface.length;
+
+  let bestPos1: string | undefined;
+  let bestOverlap = 0;
+  let bestSpan = 0;
+  let bestStart = Number.MAX_SAFE_INTEGER;
+
+  for (const mecabToken of mecabTokens) {
+    if (!mecabToken.pos1) {
+      continue;
+    }
+
+    const mecabStart = mecabToken.startPos ?? 0;
+    const mecabEnd = mecabToken.endPos ?? mecabStart + mecabToken.surface.length;
+    const overlapStart = Math.max(tokenStart, mecabStart);
+    const overlapEnd = Math.min(tokenEnd, mecabEnd);
+    const overlap = Math.max(0, overlapEnd - overlapStart);
+    if (overlap === 0) {
+      continue;
+    }
+
+    const span = mecabEnd - mecabStart;
+    if (
+      overlap > bestOverlap ||
+      (overlap === bestOverlap &&
+        (span > bestSpan ||
+          (span === bestSpan && mecabStart < bestStart)))
+    ) {
+      bestOverlap = overlap;
+      bestSpan = span;
+      bestStart = mecabStart;
+      bestPos1 = mecabToken.pos1;
+    }
+  }
+
+  return bestOverlap > 0 ? bestPos1 : undefined;
+}
+
+async function enrichYomitanPos1(
+  tokens: MergedToken[],
+  deps: TokenizerServiceDeps,
+  text: string,
+): Promise<MergedToken[]> {
+  if (!tokens || tokens.length === 0) {
+    return tokens;
+  }
+
+  let mecabTokens: MergedToken[] | null = null;
+  try {
+    mecabTokens = await deps.tokenizeWithMecab(text);
+  } catch (err) {
+    console.warn(
+      "Failed to enrich Yomitan tokens with MeCab POS:",
+      (err as Error).message,
+    );
+    return tokens;
+  }
+
+  if (!mecabTokens || mecabTokens.length === 0) {
+    return tokens;
+  }
+
+  return tokens.map((token) => {
+    if (token.pos1) {
+      return token;
+    }
+
+    const pos1 = pickClosestMecabPos1(token, mecabTokens);
+    if (!pos1) {
+      return token;
+    }
+
+    return {
+      ...token,
+      pos1,
+    };
+  });
 }
 
 async function ensureYomitanParserWindow(
@@ -356,11 +591,17 @@ async function parseWithYomitanInternalParser(
       script,
       true,
     );
-    return mapYomitanParseResultsToMergedTokens(
+    const yomitanTokens = mapYomitanParseResultsToMergedTokens(
       parseResults,
       deps.isKnownWord,
       deps.getKnownWordMatchMode(),
+      deps.getJlptLevel,
     );
+    if (!yomitanTokens || yomitanTokens.length === 0) {
+      return null;
+    }
+
+    return enrichYomitanPos1(yomitanTokens, deps, text);
   } catch (err) {
     console.error("Yomitan parser request failed:", (err as Error).message);
     return null;
@@ -385,6 +626,7 @@ export async function tokenizeSubtitleService(
     .replace(/\n/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  const jlptEnabled = deps.getJlptEnabled?.() !== false;
 
   const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps);
   if (yomitanTokens && yomitanTokens.length > 0) {
@@ -393,7 +635,10 @@ export async function tokenizeSubtitleService(
       deps.isKnownWord,
       deps.getKnownWordMatchMode(),
     );
-    return { text: displayText, tokens: markNPlusOneTargets(knownMarkedTokens) };
+    const jlptMarkedTokens = jlptEnabled
+      ? applyJlptMarking(knownMarkedTokens, deps.getJlptLevel)
+      : knownMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
+    return { text: displayText, tokens: markNPlusOneTargets(jlptMarkedTokens) };
   }
 
   try {
@@ -404,7 +649,10 @@ export async function tokenizeSubtitleService(
         deps.isKnownWord,
         deps.getKnownWordMatchMode(),
       );
-      return { text: displayText, tokens: markNPlusOneTargets(knownMarkedTokens) };
+      const jlptMarkedTokens = jlptEnabled
+        ? applyJlptMarking(knownMarkedTokens, deps.getJlptLevel)
+        : knownMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
+      return { text: displayText, tokens: markNPlusOneTargets(jlptMarkedTokens) };
     }
   } catch (err) {
     console.error("Tokenization error:", (err as Error).message);

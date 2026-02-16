@@ -1,7 +1,7 @@
 ---
 id: TASK-23.3
 title: Render JLPT token underlines with level-based colors in subtitle lines
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-13 16:42'
 labels: []
@@ -18,14 +18,14 @@ Render JLPT-aware token annotations as token-length colored underlines in the su
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 For each token with JLPT level, renderer draws an underline matching token width/length.
-- [ ] #2 Underlines use distinct colors by JLPT level (e.g., N5/N4/N3/N2/N1) and mapping is consistent/documented.
-- [ ] #3 Non-tagged tokens remain visually unchanged.
-- [ ] #4 Rendering does not alter line height/selection behavior or break wrapping behavior.
-- [ ] #5 Feature degrades gracefully when level data is missing or lookup is unavailable.
+- [x] #1 For each token with JLPT level, renderer draws an underline matching token width/length.
+- [x] #2 Underlines use distinct colors by JLPT level (e.g., N5/N4/N3/N2/N1) and mapping is consistent/documented.
+- [x] #3 Non-tagged tokens remain visually unchanged.
+- [x] #4 Rendering does not alter line height/selection behavior or break wrapping behavior.
+- [x] #5 Feature degrades gracefully when level data is missing or lookup is unavailable.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Visual output validated for all mapped JLPT levels with no legibility/layout regressions.
+- [x] #1 Visual output validated for all mapped JLPT levels with no legibility/layout regressions.
 <!-- DOD:END -->
