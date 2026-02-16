@@ -121,7 +121,11 @@ test("createOverlayShortcutRuntimeHandlers reports async failures via OSD", asyn
     await new Promise((resolve) => setImmediate(resolve));
 
     assert.equal(logs.length, 1);
-    assert.equal(logs[0]?.[0], "markLastCardAsAudioCard failed:");
+    assert.equal(typeof logs[0]?.[0], "string");
+    assert.ok(String(logs[0]?.[0]).includes("markLastCardAsAudioCard failed:"));
+    assert.ok(
+      String(logs[0]?.[0]).includes("audio boom"),
+    );
     assert.ok(osd.some((entry) => entry.includes("Audio card failed: audio boom")));
   } finally {
     console.error = originalError;

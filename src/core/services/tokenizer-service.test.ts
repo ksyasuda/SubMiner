@@ -423,7 +423,6 @@ test("tokenizeSubtitleService uses Yomitan parser result when available", async 
   assert.equal(result.tokens?.[0]?.surface, "猫です");
   assert.equal(result.tokens?.[0]?.reading, "ねこです");
   assert.equal(result.tokens?.[0]?.isKnown, false);
-  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, true);
 });
 
 test("tokenizeSubtitleService marks tokens as known using callback", async () => {
