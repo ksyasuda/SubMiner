@@ -138,9 +138,10 @@ export async function dispatchMpvProtocolMessage(
         end: deps.getCurrentSubEnd(),
       });
     } else if (msg.name === "sub-end") {
-      deps.setCurrentSubEnd((msg.data as number) || 0);
-      if (deps.getPendingPauseAtSubEnd() && deps.getCurrentSubEnd() > 0) {
-        deps.setPauseAtTime(deps.getCurrentSubEnd());
+      const subEnd = (msg.data as number) || 0;
+      deps.setCurrentSubEnd(subEnd);
+      if (deps.getPendingPauseAtSubEnd() && subEnd > 0) {
+        deps.setPauseAtTime(subEnd);
         deps.setPendingPauseAtSubEnd(false);
         deps.sendCommand({ command: ["set_property", "pause", false] });
       }
