@@ -54,6 +54,14 @@ export type RendererDom = {
   subsyncSourceSelect: HTMLSelectElement;
   subsyncRunButton: HTMLButtonElement;
   subsyncStatus: HTMLDivElement;
+
+  sessionHelpModal: HTMLDivElement;
+  sessionHelpClose: HTMLButtonElement;
+  sessionHelpShortcut: HTMLDivElement;
+  sessionHelpWarning: HTMLDivElement;
+  sessionHelpStatus: HTMLDivElement;
+  sessionHelpFilter: HTMLInputElement;
+  sessionHelpContent: HTMLDivElement;
 };
 
 function getRequiredElement<T extends HTMLElement>(id: string): T {
@@ -127,5 +135,13 @@ export function resolveRendererDom(): RendererDom {
     subsyncSourceSelect: getRequiredElement<HTMLSelectElement>("subsyncSourceSelect"),
     subsyncRunButton: getRequiredElement<HTMLButtonElement>("subsyncRun"),
     subsyncStatus: getRequiredElement<HTMLDivElement>("subsyncStatus"),
+
+    sessionHelpModal: getRequiredElement<HTMLDivElement>("sessionHelpModal"),
+    sessionHelpClose: getRequiredElement<HTMLButtonElement>("sessionHelpClose"),
+    sessionHelpShortcut: getRequiredElement<HTMLDivElement>("sessionHelpShortcut"),
+    sessionHelpWarning: getRequiredElement<HTMLDivElement>("sessionHelpWarning"),
+    sessionHelpStatus: getRequiredElement<HTMLDivElement>("sessionHelpStatus"),
+    sessionHelpFilter: getRequiredElement<HTMLInputElement>("sessionHelpFilter"),
+    sessionHelpContent: getRequiredElement<HTMLDivElement>("sessionHelpContent"),
   };
 }

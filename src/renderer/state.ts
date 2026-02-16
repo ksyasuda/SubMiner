@@ -54,6 +54,9 @@ export type RendererState = {
   subsyncSourceTracks: SubsyncSourceTrack[];
   subsyncSubmitting: boolean;
 
+  sessionHelpModalOpen: boolean;
+  sessionHelpSelectedIndex: number;
+
   mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics | null;
   invisiblePositionEditMode: boolean;
   invisiblePositionEditStartX: number;
@@ -126,6 +129,9 @@ export function createRendererState(): RendererState {
     subsyncModalOpen: false,
     subsyncSourceTracks: [],
     subsyncSubmitting: false,
+
+    sessionHelpModalOpen: false,
+    sessionHelpSelectedIndex: 0,
 
     mpvSubtitleRenderMetrics: null,
     invisiblePositionEditMode: false,

@@ -73,6 +73,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   toggleVisibleOverlay: IpcDepsRuntimeOptions["toggleVisibleOverlay"];
   tokenizeCurrentSubtitle: IpcDepsRuntimeOptions["tokenizeCurrentSubtitle"];
   getCurrentSubtitleAss: IpcDepsRuntimeOptions["getCurrentSubtitleAss"];
+  focusMainWindow?: IpcDepsRuntimeOptions["focusMainWindow"];
   getMpvSubtitleRenderMetrics: IpcDepsRuntimeOptions["getMpvSubtitleRenderMetrics"];
   getSubtitlePosition: IpcDepsRuntimeOptions["getSubtitlePosition"];
   getSubtitleStyle: IpcDepsRuntimeOptions["getSubtitleStyle"];
@@ -80,6 +81,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getMecabTokenizer: IpcDepsRuntimeOptions["getMecabTokenizer"];
   handleMpvCommand: IpcDepsRuntimeOptions["handleMpvCommand"];
   getKeybindings: IpcDepsRuntimeOptions["getKeybindings"];
+  getConfiguredShortcuts: IpcDepsRuntimeOptions["getConfiguredShortcuts"];
   getSecondarySubMode: IpcDepsRuntimeOptions["getSecondarySubMode"];
   getMpvClient: IpcDepsRuntimeOptions["getMpvClient"];
   runSubsyncManual: IpcDepsRuntimeOptions["runSubsyncManual"];
@@ -204,6 +206,8 @@ export function createMainIpcRuntimeServiceDeps(
     getMecabTokenizer: params.getMecabTokenizer,
     handleMpvCommand: params.handleMpvCommand,
     getKeybindings: params.getKeybindings,
+    getConfiguredShortcuts: params.getConfiguredShortcuts,
+    focusMainWindow: params.focusMainWindow ?? (() => {}),
     getSecondarySubMode: params.getSecondarySubMode,
     getMpvClient: params.getMpvClient,
     runSubsyncManual: params.runSubsyncManual,

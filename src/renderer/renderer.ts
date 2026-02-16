@@ -29,6 +29,7 @@ import { createKeyboardHandlers } from "./handlers/keyboard.js";
 import { createMouseHandlers } from "./handlers/mouse.js";
 import { createJimakuModal } from "./modals/jimaku.js";
 import { createKikuModal } from "./modals/kiku.js";
+import { createSessionHelpModal } from "./modals/session-help.js";
 import { createRuntimeOptionsModal } from "./modals/runtime-options.js";
 import { createSubsyncModal } from "./modals/subsync.js";
 import { createPositioningController } from "./positioning.js";
@@ -49,7 +50,8 @@ function isAnySettingsModalOpen(): boolean {
     ctx.state.runtimeOptionsModalOpen ||
     ctx.state.subsyncModalOpen ||
     ctx.state.kikuModalOpen ||
-    ctx.state.jimakuModalOpen
+    ctx.state.jimakuModalOpen ||
+    ctx.state.sessionHelpModalOpen
   );
 }
 
@@ -58,7 +60,8 @@ function isAnyModalOpen(): boolean {
     ctx.state.jimakuModalOpen ||
     ctx.state.kikuModalOpen ||
     ctx.state.runtimeOptionsModalOpen ||
-    ctx.state.subsyncModalOpen
+    ctx.state.subsyncModalOpen ||
+    ctx.state.sessionHelpModalOpen
   );
 }
 
@@ -84,6 +87,10 @@ const subsyncModal = createSubsyncModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const sessionHelpModal = createSessionHelpModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
 const kikuModal = createKikuModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
@@ -97,6 +104,8 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleSubsyncKeydown: subsyncModal.handleSubsyncKeydown,
   handleKikuKeydown: kikuModal.handleKikuKeydown,
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
+  handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
+  openSessionHelpModal: sessionHelpModal.openSessionHelpModal,
   saveInvisiblePositionEdit: positioning.saveInvisiblePositionEdit,
   cancelInvisiblePositionEdit: positioning.cancelInvisiblePositionEdit,
   setInvisiblePositionEditMode: positioning.setInvisiblePositionEditMode,
@@ -178,6 +187,7 @@ async function init(): Promise<void> {
   kikuModal.wireDomEvents();
   runtimeOptionsModal.wireDomEvents();
   subsyncModal.wireDomEvents();
+  sessionHelpModal.wireDomEvents();
 
   window.electronAPI.onRuntimeOptionsChanged((options: RuntimeOptionState[]) => {
     runtimeOptionsModal.updateRuntimeOptions(options);

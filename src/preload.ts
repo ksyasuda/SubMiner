@@ -46,6 +46,7 @@ import type {
   RuntimeOptionValue,
   MpvSubtitleRenderMetrics,
   OverlayContentMeasurement,
+  ShortcutsConfig,
 } from "./types";
 
 const overlayLayerArg = process.argv.find((arg) =>
@@ -145,6 +146,8 @@ const electronAPI: ElectronAPI = {
 
   getKeybindings: (): Promise<Keybinding[]> =>
     ipcRenderer.invoke("get-keybindings"),
+  getConfiguredShortcuts: (): Promise<Required<ShortcutsConfig>> =>
+    ipcRenderer.invoke("get-config-shortcuts"),
 
   getJimakuMediaInfo: (): Promise<JimakuMediaInfo> =>
     ipcRenderer.invoke("jimaku:get-media-info"),
@@ -200,6 +203,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke("get-secondary-sub-mode"),
   getCurrentSecondarySub: (): Promise<string> =>
     ipcRenderer.invoke("get-current-secondary-sub"),
+  focusMainWindow: () =>
+    ipcRenderer.invoke("focus-main-window") as Promise<void>,
   getSubtitleStyle: (): Promise<SubtitleStyleConfig | null> =>
     ipcRenderer.invoke("get-subtitle-style"),
   onSubsyncManualOpen: (callback: (payload: SubsyncManualPayload) => void) => {
