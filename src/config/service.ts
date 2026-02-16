@@ -442,6 +442,18 @@ export class ConfigService {
             : {}),
         },
       };
+
+      const enableJlpt = asBoolean((src.subtitleStyle as { enableJlpt?: unknown }).enableJlpt);
+      if (enableJlpt !== undefined) {
+        resolved.subtitleStyle.enableJlpt = enableJlpt;
+      } else if ((src.subtitleStyle as { enableJlpt?: unknown }).enableJlpt !== undefined) {
+        warn(
+          "subtitleStyle.enableJlpt",
+          (src.subtitleStyle as { enableJlpt?: unknown }).enableJlpt,
+          resolved.subtitleStyle.enableJlpt,
+          "Expected boolean.",
+        );
+      }
     }
 
     if (isObject(src.ankiConnect)) {

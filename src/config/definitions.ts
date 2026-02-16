@@ -174,6 +174,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     ffmpeg_path: "",
   },
   subtitleStyle: {
+    enableJlpt: false,
     fontFamily:
       "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif",
     fontSize: 35,
@@ -183,6 +184,13 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     backgroundColor: "rgba(54, 58, 79, 0.5)",
     nPlusOneColor: "#c6a0f6",
     knownWordColor: "#a6da95",
+    jlptColors: {
+      N1: "#ed8796",
+      N2: "#f5a97f",
+      N3: "#f9e2af",
+      N4: "#a6e3a1",
+      N5: "#8aadf4",
+    },
     secondary: {
       fontSize: 24,
       fontColor: "#ffffff",
@@ -279,6 +287,13 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     kind: "number",
     defaultValue: DEFAULT_CONFIG.websocket.port,
     description: "Built-in subtitle websocket server port.",
+  },
+  {
+    path: "subtitleStyle.enableJlpt",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.subtitleStyle.enableJlpt,
+    description: "Enable JLPT vocabulary level underlines. "
+      + "When disabled, JLPT tagging lookup and underlines are skipped.",
   },
   {
     path: "ankiConnect.enabled",

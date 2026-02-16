@@ -1,7 +1,7 @@
 ---
 id: TASK-23.2
 title: Bundle JLPT Yomitan dictionary assets for offline local lookup
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-02-13 16:42'
 labels: []
@@ -18,13 +18,16 @@ Package and include the JLPT Yomitan extension dictionary assets in SubMiner so 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 JLPT dictionary asset from the existing Yomitan extension is added to the repository/build output in a tracked, offline-available location.
-- [ ] #2 The loader locates and opens the JLPT dictionary file deterministically at runtime.
+- [x] #1 JLPT dictionary asset from the existing Yomitan extension is added to the repository/build output in a tracked, offline-available location.
+- [x] #2 The loader locates and opens the JLPT dictionary file deterministically at runtime.
 - [ ] #3 Dictionary version/source is documented so future updates are explicit and reproducible.
 - [ ] #4 Dictionary bundle size and load impact are documented in task notes or project docs.
 <!-- AC:END -->
 
+## Note
+- Full dictionary source/version/performance notes are intentionally deferred for now (out of scope in this pass).
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Dictionary data is bundled and consumable during development and packaged app runs.
+- [x] #1 Dictionary data is bundled and consumable during development and packaged app runs.
 <!-- DOD:END -->

@@ -59,6 +59,7 @@ export async function loadYomitanExtensionService(
   deps: YomitanExtensionLoaderDeps,
 ): Promise<Extension | null> {
   const searchPaths = [
+    path.join(__dirname, "..", "..", "vendor", "yomitan"),
     path.join(__dirname, "..", "..", "..", "vendor", "yomitan"),
     path.join(process.resourcesPath, "yomitan"),
     "/usr/share/SubMiner/yomitan",

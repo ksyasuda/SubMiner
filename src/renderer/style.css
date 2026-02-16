@@ -250,6 +250,11 @@ body {
   color: #cad3f5;
   --subtitle-known-word-color: #a6da95;
   --subtitle-n-plus-one-color: #c6a0f6;
+  --subtitle-jlpt-n1-color: #ed8796;
+  --subtitle-jlpt-n2-color: #f5a97f;
+  --subtitle-jlpt-n3-color: #f9e2af;
+  --subtitle-jlpt-n4-color: #a6e3a1;
+  --subtitle-jlpt-n5-color: #8aadf4;
   text-shadow:
     2px 2px 4px rgba(0, 0, 0, 0.8),
     -1px -1px 2px rgba(0, 0, 0, 0.5);
@@ -294,6 +299,51 @@ body.settings-modal-open #subtitleContainer {
 #subtitleRoot .word.word-n-plus-one {
   color: var(--subtitle-n-plus-one-color, #c6a0f6);
   text-shadow: 0 0 6px rgba(198, 160, 246, 0.35);
+}
+
+#subtitleRoot .word.word-jlpt-n1 {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--subtitle-jlpt-n1-color, #ed8796);
+  text-decoration-style: solid;
+}
+
+#subtitleRoot .word.word-jlpt-n2 {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--subtitle-jlpt-n2-color, #f5a97f);
+  text-decoration-style: solid;
+}
+
+#subtitleRoot .word.word-jlpt-n3 {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--subtitle-jlpt-n3-color, #f9e2af);
+  text-decoration-style: solid;
+}
+
+#subtitleRoot .word.word-jlpt-n4 {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--subtitle-jlpt-n4-color, #a6e3a1);
+  text-decoration-style: solid;
+}
+
+#subtitleRoot .word.word-jlpt-n5 {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--subtitle-jlpt-n5-color, #8aadf4);
+  text-decoration-style: solid;
 }
 
 #subtitleRoot .word:hover {
