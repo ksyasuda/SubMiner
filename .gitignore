@@ -31,3 +31,5 @@ docs/.vitepress/cache/
 docs/.vitepress/dist/
 test/*
 .worktrees/
+.codex/*
+.agents/*

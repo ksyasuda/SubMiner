@@ -121,12 +121,22 @@ Detailed guides live in [`docs/`](docs/README.md):
 
 This project includes the following third-party components:
 
-- **[Yomitan](https://github.com/yomidevs/yomitan)** — GPL-3.0
-- **[texthooker-ui](https://github.com/Renji-XD/texthooker-ui)** — MIT
+- **[Yomitan](https://github.com/yomidevs/yomitan)** - Pop-up dictionary
+- **[texthooker-ui](https://github.com/ksyasuda/texthooker-ui/tree/subminer)** - Texthooker Page
+- **[yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab)** - JLPT Yomitan Dictionary
+- **[Jiten Frequency Dictionary](https://jiten.moe/)** - Frequency Dictionary
 
 ### Acknowledgments
 
-This project was inspired by **[GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner)**'s subtitle overlay and Yomitan integration
+- **[GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner)** — Inspiration for the subtitle overlay and Yomitan integration
+- **[Jimaku.cc](https://jimaku.cc)** — Japanese subtitle provider
+
+This project cherry-picks features from the following MPV scripts, ported to TypeScript:
+
+- **[mpvacious](https://github.com/Ajatt-Tools/mpvacious)** — Sentence mining, screenshotting, and card updating logic
+- **[Anacreon-Script (animecards)](https://github.com/friedrich-de/Anacreon-Script)** — Copy/paste to card update flow
+- **[autosubsync-mpv](https://github.com/joaquintorres/autosubsync-mpv)** — Subtitle synchronization
+
 
 ## License
 
