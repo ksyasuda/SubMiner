@@ -92,6 +92,7 @@ export async function runAppReadyRuntimeService(
 ): Promise<void> {
   deps.loadSubtitlePosition();
   deps.resolveKeybindings();
+  await deps.createMecabTokenizerAndCheck();
   deps.createMpvClient();
 
   deps.reloadConfig();
@@ -117,7 +118,6 @@ export async function runAppReadyRuntimeService(
     deps.log("mpv_websocket detected, skipping built-in WebSocket server");
   }
 
-  await deps.createMecabTokenizerAndCheck();
   deps.createSubtitleTimingTracker();
   await deps.loadYomitanExtension();
 

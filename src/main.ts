@@ -95,6 +95,7 @@ import {
   createOverlayContentMeasurementStoreService,
   createOverlayWindowService,
   createTokenizerDepsRuntimeService,
+  createJlptVocabularyLookupService,
   cycleSecondarySubModeService,
   enforceOverlayLayerOrderService,
   ensureOverlayWindowLevelService,
@@ -227,6 +228,8 @@ const isDev =
   process.argv.includes("--dev") || process.argv.includes("--debug");
 const texthookerService = new TexthookerService();
 const subtitleWsService = new SubtitleWebSocketService();
+let jlptDictionaryLookupInitialized = false;
+let jlptDictionaryLookupInitialization: Promise<void> | null = null;
 const appLogger = {
   logInfo: (message: string) => {
     console.log(message);
@@ -462,6 +465,73 @@ function loadSubtitlePosition(): SubtitlePosition | null {
     subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
   });
   return appState.subtitlePosition;
+}
+
+function getJlptDictionarySearchPaths(): string[] {
+  const homeDir = os.homedir();
+  const dictionaryRoots = [
+    // Development/runtime source trees where the repo is checked out.
+    path.join(__dirname, "..", "..", "vendor", "yomitan-jlpt-vocab"),
+    path.join(app.getAppPath(), "vendor", "yomitan-jlpt-vocab"),
+
+    // Packaged app resources (Electron build output layout).
+    path.join(process.resourcesPath, "yomitan-jlpt-vocab"),
+    path.join(process.resourcesPath, "app.asar", "vendor", "yomitan-jlpt-vocab"),
+
+    // User override/config directories for manually installed dictionaries.
+    USER_DATA_PATH,
+    app.getPath("userData"),
+    path.join(homeDir, ".config", "SubMiner"),
+    path.join(homeDir, ".config", "subminer"),
+    path.join(homeDir, "Library", "Application Support", "SubMiner"),
+    path.join(homeDir, "Library", "Application Support", "subminer"),
+
+    // Last-resort fallback: current working directory (local CLI/test runs).
+    process.cwd(),
+  ];
+
+  const searchPaths: string[] = [];
+  for (const dictionaryRoot of dictionaryRoots) {
+    searchPaths.push(dictionaryRoot);
+    searchPaths.push(path.join(dictionaryRoot, "vendor", "yomitan-jlpt-vocab"));
+    searchPaths.push(path.join(dictionaryRoot, "yomitan-jlpt-vocab"));
+  }
+
+  const uniquePaths = new Set<string>();
+  for (const searchPath of searchPaths) {
+    uniquePaths.add(searchPath);
+  }
+
+  return [...uniquePaths];
+}
+
+async function initializeJlptDictionaryLookup(): Promise<void> {
+  appState.jlptLevelLookup = await createJlptVocabularyLookupService({
+    searchPaths: getJlptDictionarySearchPaths(),
+    log: (message) => {
+      console.log(`[JLPT] ${message}`);
+    },
+  });
+}
+
+async function ensureJlptDictionaryLookup(): Promise<void> {
+  if (!getResolvedConfig().subtitleStyle.enableJlpt) {
+    return;
+  }
+  if (jlptDictionaryLookupInitialized) {
+    return;
+  }
+  if (!jlptDictionaryLookupInitialization) {
+    jlptDictionaryLookupInitialization = initializeJlptDictionaryLookup()
+      .then(() => {
+        jlptDictionaryLookupInitialized = true;
+      })
+      .catch((error) => {
+        jlptDictionaryLookupInitialization = null;
+        throw error;
+      });
+  }
+  await jlptDictionaryLookupInitialization;
 }
 
 function saveSubtitlePosition(position: SubtitlePosition): void {
@@ -804,6 +874,7 @@ function updateMpvSubtitleRenderMetrics(
 }
 
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
+  await ensureJlptDictionaryLookup();
   return tokenizeSubtitleService(
     text,
     createTokenizerDepsRuntimeService({
@@ -825,6 +896,9 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
       getKnownWordMatchMode: () =>
         appState.ankiIntegration?.getKnownWordMatchMode() ??
         getResolvedConfig().ankiConnect.nPlusOne.matchMode,
+      getJlptLevel: (text) => appState.jlptLevelLookup(text),
+      getJlptEnabled: () =>
+        getResolvedConfig().subtitleStyle.enableJlpt,
       getMecabTokenizer: () => appState.mecabTokenizer,
     }),
   );
@@ -1345,6 +1419,7 @@ registerIpcRuntimeServices({
           ...resolvedConfig.subtitleStyle,
           nPlusOneColor: resolvedConfig.ankiConnect.nPlusOne.nPlusOne,
           knownWordColor: resolvedConfig.ankiConnect.nPlusOne.knownWord,
+          enableJlpt: resolvedConfig.subtitleStyle.enableJlpt,
         };
       },
     saveSubtitlePosition: (position: unknown) =>

@@ -48,12 +48,16 @@ export interface MergedToken {
   startPos: number;
   endPos: number;
   partOfSpeech: PartOfSpeech;
+  pos1?: string;
   pos2?: string;
   pos3?: string;
   isMerged: boolean;
   isKnown: boolean;
   isNPlusOneTarget: boolean;
+  jlptLevel?: JlptLevel;
 }
+
+export type JlptLevel = "N1" | "N2" | "N3" | "N4" | "N5";
 
 export interface WindowGeometry {
   x: number;
@@ -262,6 +266,7 @@ export interface AnkiConnectConfig {
 }
 
 export interface SubtitleStyleConfig {
+  enableJlpt?: boolean;
   fontFamily?: string;
   fontSize?: number;
   fontColor?: string;
@@ -270,6 +275,13 @@ export interface SubtitleStyleConfig {
   backgroundColor?: string;
   nPlusOneColor?: string;
   knownWordColor?: string;
+  jlptColors?: {
+    N1: string;
+    N2: string;
+    N3: string;
+    N4: string;
+    N5: string;
+  };
   secondary?: {
     fontFamily?: string;
     fontSize?: number;

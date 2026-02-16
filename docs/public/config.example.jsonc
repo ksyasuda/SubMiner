@@ -149,6 +149,7 @@
   // Primary and secondary subtitle styling.
   // ==========================================
   "subtitleStyle": {
+    "enableJlpt": false,
     "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif",
     "fontSize": 35,
     "fontColor": "#cad3f5",
@@ -157,6 +158,13 @@
     "backgroundColor": "rgba(54, 58, 79, 0.5)",
     "nPlusOneColor": "#c6a0f6",
     "knownWordColor": "#a6da95",
+    "jlptColors": {
+      "N1": "#ed8796",
+      "N2": "#f5a97f",
+      "N3": "#f9e2af",
+      "N4": "#a6e3a1",
+      "N5": "#8aadf4"
+    },
     "secondary": {
       "fontSize": 24,
       "fontColor": "#ffffff",

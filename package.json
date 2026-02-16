@@ -98,6 +98,10 @@
         "to": "yomitan"
       },
       {
+        "from": "vendor/yomitan-jlpt-vocab",
+        "to": "yomitan-jlpt-vocab"
+      },
+      {
         "from": "assets",
         "to": "assets"
       },

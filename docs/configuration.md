@@ -552,11 +552,25 @@ See `config.example.jsonc` for detailed configuration options.
 | `fontWeight`      | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"normal"`)     |
 | `fontStyle`       | string      | `"normal"` or `"italic"` (default: `"normal"`)                                |
 | `backgroundColor` | string      | Any CSS color, including `"transparent"` (default: `"rgba(54, 58, 79, 0.5)"`) |
+| `enableJlpt`      | boolean     | Enable JLPT level underline styling (`false` by default)                        |
+| `nPlusOneColor`   | string      | Existing n+1 highlight color (default: `#c6a0f6`)                            |
+| `knownWordColor`  | string      | Existing known-word highlight color (default: `#a6da95`)                       |
+| `jlptColors`      | object      | JLPT level underline colors object (`N1`..`N5`)                               |
 | `secondary`       | object      | Override any of the above for secondary subtitles (optional)                  |
 
 Secondary subtitle defaults: `fontSize: 24`, `fontColor: "#ffffff"`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
 
 **See `config.example.jsonc`** for the complete list of subtitle style configuration options.
+
+`jlptColors` keys are:
+
+| Key  | Default   | Description                              |
+| ---- | --------- | ---------------------------------------- |
+| `N1` | `#ed8796` | JLPT N1 underline color                  |
+| `N2` | `#f5a97f` | JLPT N2 underline color                  |
+| `N3` | `#f9e2af` | JLPT N3 underline color                  |
+| `N4` | `#a6e3a1` | JLPT N4 underline color                  |
+| `N5` | `#8aadf4` | JLPT N5 underline color                  |
 
 ### Texthooker
 

@@ -46,10 +46,17 @@ The `subminer` wrapper uses a [Bun](https://bun.sh) shebang, so `bun` must be on
 ### From Source
 
 ```bash
-git clone https://github.com/ksyasuda/SubMiner.git
+git clone --recurse-submodules https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
 make build
 make install
+```
+
+If you already cloned without submodules:
+
+```bash
+cd SubMiner
+git submodule update --init --recursive
 ```
 
 For macOS builds, signing, and platform-specific details, see [docs/installation.md](docs/installation.md).
