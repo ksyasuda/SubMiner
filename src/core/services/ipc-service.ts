@@ -21,8 +21,10 @@ export interface IpcServiceDeps {
   setMecabEnabled: (enabled: boolean) => void;
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
+  getConfiguredShortcuts: () => unknown;
   getSecondarySubMode: () => unknown;
   getCurrentSecondarySub: () => string;
+  focusMainWindow: () => void;
   runSubsyncManual: (request: unknown) => Promise<unknown>;
   getAnkiConnectStatus: () => boolean;
   getRuntimeOptions: () => unknown;
@@ -33,6 +35,7 @@ export interface IpcServiceDeps {
 
 interface WindowLike {
   isDestroyed: () => boolean;
+  focus: () => void;
   setIgnoreMouseEvents: (
     ignore: boolean,
     options?: { forward?: boolean },
@@ -69,8 +72,10 @@ export interface IpcDepsRuntimeOptions {
   getMecabTokenizer: () => MecabTokenizerLike | null;
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
+  getConfiguredShortcuts: () => unknown;
   getSecondarySubMode: () => unknown;
   getMpvClient: () => MpvClientLike | null;
+  focusMainWindow: () => void;
   runSubsyncManual: (request: unknown) => Promise<unknown>;
   getAnkiConnectStatus: () => boolean;
   getRuntimeOptions: () => unknown;
@@ -120,9 +125,15 @@ export function createIpcDepsRuntimeService(
     },
     handleMpvCommand: options.handleMpvCommand,
     getKeybindings: options.getKeybindings,
+    getConfiguredShortcuts: options.getConfiguredShortcuts,
     getSecondarySubMode: options.getSecondarySubMode,
     getCurrentSecondarySub: () =>
       options.getMpvClient()?.currentSecondarySubText || "",
+    focusMainWindow: () => {
+      const mainWindow = options.getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.focus();
+    },
     runSubsyncManual: options.runSubsyncManual,
     getAnkiConnectStatus: options.getAnkiConnectStatus,
     getRuntimeOptions: options.getRuntimeOptions,
@@ -229,12 +240,20 @@ export function registerIpcHandlersService(deps: IpcServiceDeps): void {
     return deps.getKeybindings();
   });
 
+  ipcMain.handle("get-config-shortcuts", () => {
+    return deps.getConfiguredShortcuts();
+  });
+
   ipcMain.handle("get-secondary-sub-mode", () => {
     return deps.getSecondarySubMode();
   });
 
   ipcMain.handle("get-current-secondary-sub", () => {
     return deps.getCurrentSecondarySub();
+  });
+
+  ipcMain.handle("focus-main-window", () => {
+    deps.focusMainWindow();
   });
 
   ipcMain.handle("subsync:run-manual", async (_event, request: unknown) => {

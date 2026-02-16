@@ -626,6 +626,7 @@ export interface ElectronAPI {
   setMecabEnabled: (enabled: boolean) => void;
   sendMpvCommand: (command: (string | number)[]) => void;
   getKeybindings: () => Promise<Keybinding[]>;
+  getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
   getJimakuMediaInfo: () => Promise<JimakuMediaInfo>;
   jimakuSearchEntries: (
     query: JimakuSearchQuery,
@@ -646,6 +647,7 @@ export interface ElectronAPI {
   onSecondarySubMode: (callback: (mode: SecondarySubMode) => void) => void;
   getSecondarySubMode: () => Promise<SecondarySubMode>;
   getCurrentSecondarySub: () => Promise<string>;
+  focusMainWindow: () => Promise<void>;
   getSubtitleStyle: () => Promise<SubtitleStyleConfig | null>;
   onSubsyncManualOpen: (
     callback: (payload: SubsyncManualPayload) => void,

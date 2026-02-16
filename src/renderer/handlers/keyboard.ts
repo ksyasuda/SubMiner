@@ -8,6 +8,12 @@ export function createKeyboardHandlers(
     handleSubsyncKeydown: (e: KeyboardEvent) => boolean;
     handleKikuKeydown: (e: KeyboardEvent) => boolean;
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
+    handleSessionHelpKeydown: (e: KeyboardEvent) => boolean;
+    openSessionHelpModal: (opening: {
+      bindingKey: "KeyH" | "KeyK";
+      fallbackUsed: boolean;
+      fallbackUnavailable: boolean;
+    }) => void;
     saveInvisiblePositionEdit: () => void;
     cancelInvisiblePositionEdit: () => void;
     setInvisiblePositionEditMode: (enabled: boolean) => void;
@@ -60,6 +66,47 @@ export function createKeyboardHandlers(
       e.shiftKey &&
       (e.ctrlKey || e.metaKey)
     );
+  }
+
+  function resolveSessionHelpChordBinding(): {
+    bindingKey: "KeyH" | "KeyK";
+    fallbackUsed: boolean;
+    fallbackUnavailable: boolean;
+  } {
+    const firstChoice = "KeyH";
+    if (!ctx.state.keybindingsMap.has("KeyH")) {
+      return {
+        bindingKey: firstChoice,
+        fallbackUsed: false,
+        fallbackUnavailable: false,
+      };
+    }
+
+    if (ctx.state.keybindingsMap.has("KeyK")) {
+      return {
+        bindingKey: "KeyK",
+        fallbackUsed: true,
+        fallbackUnavailable: true,
+      };
+    }
+
+    return {
+      bindingKey: "KeyK",
+      fallbackUsed: true,
+      fallbackUnavailable: false,
+    };
+  }
+
+  function applySessionHelpChordBinding(): void {
+    CHORD_MAP.delete("KeyH");
+    CHORD_MAP.delete("KeyK");
+    const info = resolveSessionHelpChordBinding();
+    CHORD_MAP.set(info.bindingKey, {
+      type: "electron",
+      action: () => {
+        options.openSessionHelpModal(info);
+      },
+    });
   }
 
   function handleInvisiblePositionEditKeydown(e: KeyboardEvent): boolean {
@@ -163,6 +210,10 @@ export function createKeyboardHandlers(
         options.handleJimakuKeydown(e);
         return;
       }
+      if (ctx.state.sessionHelpModalOpen) {
+        options.handleSessionHelpKeydown(e);
+        return;
+      }
 
       if (ctx.state.chordPending) {
         const modifierKeys = [
@@ -202,6 +253,7 @@ export function createKeyboardHandlers(
         !e.repeat
       ) {
         e.preventDefault();
+        applySessionHelpChordBinding();
         ctx.state.chordPending = true;
         ctx.state.chordTimeout = setTimeout(() => {
           resetChord();
