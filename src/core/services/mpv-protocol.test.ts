@@ -172,19 +172,19 @@ test("dispatchMpvProtocolMessage pauses on sub-end when pendingPauseAtSubEnd is 
 
 test("splitMpvMessagesFromBuffer parses complete lines and preserves partial buffer", () => {
   const parsed = splitMpvMessagesFromBuffer(
-    "{\"event\":\"shutdown\"}\\n{\"event\":\"property-change\",\"name\":\"media-title\",\"data\":\"x\"}\\n{\"partial\"",
+    '{"event":"shutdown"}\n{"event":"property-change","name":"media-title","data":"x"}\n{"partial"',
   );
 
   assert.equal(parsed.messages.length, 2);
   assert.equal(parsed.nextBuffer, "{\"partial\"");
   assert.equal(parsed.messages[0].event, "shutdown");
-  assert.equal(parsed.messages[1].name, "property-change");
+  assert.equal(parsed.messages[1].name, "media-title");
 });
 
 test("splitMpvMessagesFromBuffer reports invalid JSON lines", () => {
   const errors: Array<{ line: string; error?: string }> = [];
 
-  splitMpvMessagesFromBuffer("{\"event\":\"x\"}\\n{invalid}\\n", undefined, (line, error) => {
+  splitMpvMessagesFromBuffer('{"event":"x"}\n{invalid}\n', undefined, (line, error) => {
     errors.push({ line, error: String(error) });
   });
 

@@ -32,16 +32,6 @@ class FakeSocket extends EventEmitter {
   }
 }
 
-function withSocketMock<T>(fn: () => T): T {
-  const OriginalSocket = net.Socket;
-  (net as any).Socket = FakeSocket as any;
-  try {
-    return fn();
-  } finally {
-    (net as any).Socket = OriginalSocket;
-  }
-}
-
 const wait = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 test("getMpvReconnectDelay follows existing reconnect ramp", () => {
@@ -104,140 +94,134 @@ test("scheduleMpvReconnect clears existing timer and increments attempt", () => 
 
 test("MpvSocketTransport connects and sends payloads over a live socket", async () => {
   const events: string[] = [];
-  await withSocketMock(async () => {
-    const transport = new MpvSocketTransport({
-      socketPath: "/tmp/mpv.sock",
-      onConnect: () => {
-        events.push("connect");
-      },
-      onData: () => {
-        events.push("data");
-      },
-      onError: () => {
-        events.push("error");
-      },
-      onClose: () => {
-        events.push("close");
-      },
-    });
-
-    const payload: MpvSocketMessagePayload = {
-      command: ["sub-seek", 1],
-      request_id: 1,
-    };
-
-    assert.equal(transport.send(payload), false);
-
-    transport.connect();
-    await wait();
-
-    assert.equal(events.includes("connect"), true);
-    assert.equal(transport.send(payload), true);
-
-    const fakeSocket = transport.getSocket() as unknown as FakeSocket;
-    assert.equal(fakeSocket.connectedPaths.at(0), "/tmp/mpv.sock");
-    assert.equal(fakeSocket.writePayloads.length, 1);
-    assert.equal(fakeSocket.writePayloads.at(0), `${JSON.stringify(payload)}\n`);
+  const transport = new MpvSocketTransport({
+    socketPath: "/tmp/mpv.sock",
+    onConnect: () => {
+      events.push("connect");
+    },
+    onData: () => {
+      events.push("data");
+    },
+    onError: () => {
+      events.push("error");
+    },
+    onClose: () => {
+      events.push("close");
+    },
+    socketFactory: () => new FakeSocket() as unknown as net.Socket,
   });
+
+  const payload: MpvSocketMessagePayload = {
+    command: ["sub-seek", 1],
+    request_id: 1,
+  };
+
+  assert.equal(transport.send(payload), false);
+
+  transport.connect();
+  await wait();
+
+  assert.equal(events.includes("connect"), true);
+  assert.equal(transport.send(payload), true);
+
+  const fakeSocket = transport.getSocket() as unknown as FakeSocket;
+  assert.equal(fakeSocket.connectedPaths.at(0), "/tmp/mpv.sock");
+  assert.equal(fakeSocket.writePayloads.length, 1);
+  assert.equal(fakeSocket.writePayloads.at(0), `${JSON.stringify(payload)}\n`);
 });
 
 test("MpvSocketTransport reports lifecycle transitions and callback order", async () => {
   const events: string[] = [];
   const fakeError = new Error("boom");
-
-  await withSocketMock(async () => {
-    const transport = new MpvSocketTransport({
-      socketPath: "/tmp/mpv.sock",
-      onConnect: () => {
-        events.push("connect");
-      },
-      onData: () => {
-        events.push("data");
-      },
-      onError: () => {
-        events.push("error");
-      },
-      onClose: () => {
-        events.push("close");
-      },
-    });
-
-    transport.connect();
-    await wait();
-
-    const socket = transport.getSocket() as unknown as FakeSocket;
-    socket.emit("error", fakeError);
-    socket.emit("data", Buffer.from("{}"));
-    socket.destroy();
-    await wait();
-
-    assert.equal(events.includes("connect"), true);
-    assert.equal(events.includes("data"), true);
-    assert.equal(events.includes("error"), true);
-    assert.equal(events.includes("close"), true);
-    assert.equal(transport.isConnected, false);
-    assert.equal(transport.isConnecting, false);
-    assert.equal(socket.destroyed, true);
+  const transport = new MpvSocketTransport({
+    socketPath: "/tmp/mpv.sock",
+    onConnect: () => {
+      events.push("connect");
+    },
+    onData: () => {
+      events.push("data");
+    },
+    onError: () => {
+      events.push("error");
+    },
+    onClose: () => {
+      events.push("close");
+    },
+    socketFactory: () => new FakeSocket() as unknown as net.Socket,
   });
+
+  transport.connect();
+  await wait();
+
+  const socket = transport.getSocket() as unknown as FakeSocket;
+  socket.emit("error", fakeError);
+  socket.emit("data", Buffer.from("{}"));
+  socket.destroy();
+  await wait();
+
+  assert.equal(events.includes("connect"), true);
+  assert.equal(events.includes("data"), true);
+  assert.equal(events.includes("error"), true);
+  assert.equal(events.includes("close"), true);
+  assert.equal(transport.isConnected, false);
+  assert.equal(transport.isConnecting, false);
+  assert.equal(socket.destroyed, true);
 });
 
 test("MpvSocketTransport ignores connect requests while already connecting or connected", async () => {
   const events: string[] = [];
-
-  await withSocketMock(async () => {
-    const transport = new MpvSocketTransport({
-      socketPath: "/tmp/mpv.sock",
-      onConnect: () => {
-        events.push("connect");
-      },
-      onData: () => {
-        events.push("data");
-      },
-      onError: () => {
-        events.push("error");
-      },
-      onClose: () => {
-        events.push("close");
-      },
-    });
-
-    transport.connect();
-    transport.connect();
-    await wait();
-
-    assert.equal(events.includes("connect"), true);
-    const socket = transport.getSocket() as unknown as FakeSocket;
-    socket.emit("close");
-    await wait();
-
-    transport.connect();
-    await wait();
-
-    assert.equal(events.filter((entry) => entry === "connect").length, 2);
+  const transport = new MpvSocketTransport({
+    socketPath: "/tmp/mpv.sock",
+    onConnect: () => {
+      events.push("connect");
+    },
+    onData: () => {
+      events.push("data");
+    },
+    onError: () => {
+      events.push("error");
+    },
+    onClose: () => {
+      events.push("close");
+    },
+    socketFactory: () => new FakeSocket() as unknown as net.Socket,
   });
+
+  transport.connect();
+  transport.connect();
+  await wait();
+
+  assert.equal(events.includes("connect"), true);
+  const socket = transport.getSocket() as unknown as FakeSocket;
+  socket.emit("close");
+  await wait();
+
+  transport.connect();
+  await wait();
+
+  assert.equal(events.filter((entry) => entry === "connect").length, 2);
 });
 
 test("MpvSocketTransport.shutdown clears socket and lifecycle flags", async () => {
-  await withSocketMock(async () => {
-    const transport = new MpvSocketTransport({
-      socketPath: "/tmp/mpv.sock",
-      onConnect: () => {
-      },
-      onData: () => {
-      },
-      onError: () => {
-      },
-      onClose: () => {
-      },
-    });
-
-    transport.connect();
-    await wait();
-    assert.equal(transport.isConnected, true);
-
-    transport.shutdown();
-    assert.equal(transport.isConnected, false);
-    assert.equal(transport.isConnecting, false);
-    assert.equal(transport.getSocket(), null);
+  const transport = new MpvSocketTransport({
+    socketPath: "/tmp/mpv.sock",
+    onConnect: () => {
+    },
+    onData: () => {
+    },
+    onError: () => {
+    },
+    onClose: () => {
+    },
+    socketFactory: () => new FakeSocket() as unknown as net.Socket,
   });
+
+  transport.connect();
+  await wait();
+  assert.equal(transport.isConnected, true);
+
+  transport.shutdown();
+  assert.equal(transport.isConnected, false);
+  assert.equal(transport.isConnecting, false);
+  assert.equal(transport.getSocket(), null);
 });

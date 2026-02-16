@@ -73,11 +73,13 @@ export interface MpvSocketTransportOptions {
   onData: (data: Buffer) => void;
   onError: (error: Error) => void;
   onClose: () => void;
+  socketFactory?: () => net.Socket;
 }
 
 export class MpvSocketTransport {
   private socketPath: string;
   private readonly callbacks: MpvSocketTransportEvents;
+  private readonly socketFactory: () => net.Socket;
   private socketRef: net.Socket | null = null;
   public socket: net.Socket | null = null;
   public connected = false;
@@ -85,6 +87,7 @@ export class MpvSocketTransport {
 
   constructor(options: MpvSocketTransportOptions) {
     this.socketPath = options.socketPath;
+    this.socketFactory = options.socketFactory ?? (() => new net.Socket());
     this.callbacks = {
       onConnect: options.onConnect,
       onData: options.onData,
@@ -107,7 +110,7 @@ export class MpvSocketTransport {
     }
 
     this.connecting = true;
-    this.socketRef = new net.Socket();
+    this.socketRef = this.socketFactory();
     this.socket = this.socketRef;
 
     this.socketRef.on("connect", () => {
