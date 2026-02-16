@@ -97,6 +97,7 @@ function collectDictionaryFromPath(
   for (const bank of JLPT_BANK_FILES) {
     const bankPath = path.join(dictionaryPath, bank.filename);
     if (!fs.existsSync(bankPath)) {
+      log(`JLPT bank file missing for ${bank.level}: ${bankPath}`);
       continue;
     }
 
@@ -104,6 +105,7 @@ function collectDictionaryFromPath(
     try {
       rawText = fs.readFileSync(bankPath, "utf-8");
     } catch {
+      log(`Failed to read JLPT bank file ${bankPath}`);
       continue;
     }
 
@@ -111,10 +113,22 @@ function collectDictionaryFromPath(
     try {
       rawEntries = JSON.parse(rawText) as unknown;
     } catch {
+      log(`Failed to parse JLPT bank file as JSON: ${bankPath}`);
       continue;
     }
 
+    if (!Array.isArray(rawEntries)) {
+      log(
+        `JLPT bank file has unsupported format (expected JSON array): ${bankPath}`,
+      );
+      continue;
+    }
+
+    const beforeSize = terms.size;
     addEntriesToMap(rawEntries, bank.level, terms, log);
+    if (terms.size === beforeSize) {
+      log(`JLPT bank file contained no extractable entries: ${bankPath}`);
+    }
   }
 
   return terms;
@@ -124,8 +138,9 @@ export async function createJlptVocabularyLookupService(
   options: JlptVocabLookupOptions,
 ): Promise<(term: string) => JlptLevel | null> {
   const attemptedPaths: string[] = [];
-  let foundDirectoryCount = 0;
+  let foundDictionaryPathCount = 0;
   let foundBankCount = 0;
+  const resolvedBanks: string[] = [];
   for (const dictionaryPath of options.searchPaths) {
     attemptedPaths.push(dictionaryPath);
     if (!fs.existsSync(dictionaryPath)) {
@@ -136,10 +151,11 @@ export async function createJlptVocabularyLookupService(
       continue;
     }
 
-    foundDirectoryCount += 1;
+    foundDictionaryPathCount += 1;
 
     const terms = collectDictionaryFromPath(dictionaryPath, options.log);
     if (terms.size > 0) {
+      resolvedBanks.push(dictionaryPath);
       foundBankCount += 1;
       options.log(
         `JLPT dictionary loaded from ${dictionaryPath} (${terms.size} entries)`,
@@ -159,10 +175,13 @@ export async function createJlptVocabularyLookupService(
   options.log(
     `JLPT dictionary not found. Searched ${attemptedPaths.length} candidate path(s): ${attemptedPaths.join(", ")}`,
   );
-  if (foundDirectoryCount > 0 && foundBankCount === 0) {
+  if (foundDictionaryPathCount > 0 && foundBankCount === 0) {
     options.log(
       "JLPT dictionary directories found, but none contained valid term_meta_bank_*.json files.",
     );
+  }
+  if (resolvedBanks.length > 0 && foundBankCount > 0) {
+    options.log(`JLPT dictionary search matched path(s): ${resolvedBanks.join(", ")}`);
   }
   return NOOP_LOOKUP;
 }
