@@ -28,6 +28,31 @@ local function is_linux()
 	return not is_windows() and not is_macos()
 end
 
+local function normalize_binary_path_candidate(candidate)
+	if type(candidate) ~= "string" then
+		return nil
+	end
+	local trimmed = candidate:match("^%s*(.-)%s*$") or ""
+	if trimmed == "" then
+		return nil
+	end
+	if #trimmed >= 2 then
+		local first = trimmed:sub(1, 1)
+		local last = trimmed:sub(-1)
+		if (first == '"' and last == '"') or (first == "'" and last == "'") then
+			trimmed = trimmed:sub(2, -2)
+		end
+	end
+	return trimmed ~= "" and trimmed or nil
+end
+
+local function binary_candidates_from_app_path(app_path)
+	return {
+		utils.join_path(app_path, "Contents", "MacOS", "SubMiner"),
+		utils.join_path(app_path, "Contents", "MacOS", "subminer"),
+	}
+end
+
 local opts = {
 	binary_path = "",
 	socket_path = default_socket_path(),
@@ -131,12 +156,68 @@ end
 
 local function file_exists(path)
 	local info = utils.file_info(path)
-	return info ~= nil
+	if not info then return false end
+	if info.is_dir ~= nil then
+		return not info.is_dir
+	end
+	return true
+end
+
+local function resolve_binary_candidate(candidate)
+	local normalized = normalize_binary_path_candidate(candidate)
+	if not normalized then
+		return nil
+	end
+
+	if file_exists(normalized) then
+		return normalized
+	end
+
+	if not normalized:lower():find("%.app") then
+		return nil
+	end
+
+	local app_root = normalized
+	if not app_root:lower():match("%.app$") then
+		app_root = normalized:match("(.+%.app)")
+	end
+	if not app_root then
+		return nil
+	end
+
+	for _, path in ipairs(binary_candidates_from_app_path(app_root)) do
+		if file_exists(path) then
+			return path
+		end
+	end
+
+	return nil
+end
+
+local function find_binary_override()
+	local candidates = {
+		resolve_binary_candidate(os.getenv("SUBMINER_APPIMAGE_PATH")),
+		resolve_binary_candidate(os.getenv("SUBMINER_BINARY_PATH")),
+	}
+
+	for _, path in ipairs(candidates) do
+		if path and path ~= "" then
+			return path
+		end
+	end
+
+	return nil
 end
 
 local function find_binary()
-	if opts.binary_path ~= "" and file_exists(opts.binary_path) then
-		return opts.binary_path
+	local override = find_binary_override()
+	if override then
+		return override
+	end
+
+	local configured = resolve_binary_candidate(opts.binary_path)
+	if configured then
+		return configured
 	end
 
 	local search_paths = {

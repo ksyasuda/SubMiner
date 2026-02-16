@@ -555,12 +555,20 @@ See `config.example.jsonc` for detailed configuration options.
 | `fontStyle`       | string      | `"normal"` or `"italic"` (default: `"normal"`)                                |
 | `backgroundColor` | string      | Any CSS color, including `"transparent"` (default: `"rgba(54, 58, 79, 0.5)"`) |
 | `enableJlpt`      | boolean     | Enable JLPT level underline styling (`false` by default)                        |
+| `frequencyDictionary.enabled` | boolean | Enable frequency highlighting from dictionary lookups (`false` by default) |
+| `frequencyDictionary.sourcePath` | string | Optional absolute path used for dictionary discovery (defaults to built-in paths) |
+| `frequencyDictionary.topX` | number | Only color tokens whose frequency rank is `<= topX` (`1000` by default) |
+| `frequencyDictionary.mode` | string | `"single"` or `"banded"` (`"single"` by default) |
+| `frequencyDictionary.singleColor` | string | Color used for all highlighted tokens in single mode |
+| `frequencyDictionary.bandedColors` | string[] | Array of five hex colors used for ranked bands in banded mode |
 | `nPlusOneColor`   | string      | Existing n+1 highlight color (default: `#c6a0f6`)                            |
 | `knownWordColor`  | string      | Existing known-word highlight color (default: `#a6da95`)                       |
 | `jlptColors`      | object      | JLPT level underline colors object (`N1`..`N5`)                               |
 | `secondary`       | object      | Override any of the above for secondary subtitles (optional)                  |
 
 JLPT underlining is powered by offline term-meta bank files at runtime. See [`docs/jlpt-vocab-bundle.md`](jlpt-vocab-bundle.md) for required files, source/version refresh steps, and deterministic fallback behavior.
+
+Frequency dictionary highlighting uses the same dictionary file format as JLPT bundle lookups (`term_meta_bank_*.json` under discovered dictionary directories). A token is highlighted when it has a positive integer `frequencyRank` (lower is more common) and the rank is within `topX`. In `single` mode all highlights use `singleColor`; in `banded` mode tokens map to five ascending color bands from most common to least common inside the topX window.
 
 Secondary subtitle defaults: `fontSize: 24`, `fontColor: "#ffffff"`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
 
