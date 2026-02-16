@@ -23,15 +23,35 @@ function createToken(overrides: Partial<MergedToken>): MergedToken {
 }
 
 function extractClassBlock(cssText: string, selector: string): string {
-  const start = cssText.indexOf(selector);
-  if (start < 0) return "";
+  const ruleRegex = /([^{}]+)\{([^}]*)\}/g;
+  let match: RegExpExecArray | null = null;
+  let fallbackBlock = "";
 
-  const openBrace = cssText.indexOf("{", start);
-  if (openBrace < 0) return "";
-  const closeBrace = cssText.indexOf("}", openBrace);
-  if (closeBrace < 0) return "";
+  while ((match = ruleRegex.exec(cssText)) !== null) {
+    const selectorsBlock = match[1]?.trim() ?? "";
+    const selectorBlock = match[2] ?? "";
 
-  return cssText.slice(openBrace + 1, closeBrace);
+    const selectors = selectorsBlock
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+
+    if (selectors.includes(selector)) {
+      if (selectors.length === 1) {
+        return selectorBlock;
+      }
+
+      if (!fallbackBlock) {
+        fallbackBlock = selectorBlock;
+      }
+    }
+  }
+
+  if (fallbackBlock) {
+    return fallbackBlock;
+  }
+
+  return "";
 }
 
 test("computeWordClass preserves known and n+1 classes while adding JLPT classes", () => {
@@ -173,10 +193,16 @@ test("computeWordClass uses configured band count for banded mode", () => {
     topX: 4,
     mode: "banded",
     singleColor: "#000000",
-    bandedColors: ["#111111", "#222222", "#333333"] as any,
+    bandedColors: [
+      "#111111",
+      "#222222",
+      "#333333",
+      "#444444",
+      "#555555",
+    ],
   } as any);
 
-  assert.equal(actual, "word word-frequency-band-1");
+  assert.equal(actual, "word word-frequency-band-3");
 });
 
 test("computeWordClass skips frequency class when rank is out of topX", () => {
