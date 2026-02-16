@@ -96,7 +96,6 @@ import {
   createOverlayContentMeasurementStoreService,
   createOverlayWindowService,
   createTokenizerDepsRuntimeService,
-  createJlptVocabularyLookupService,
   cycleSecondarySubModeService,
   enforceOverlayLayerOrderService,
   ensureOverlayWindowLevelService,
@@ -129,13 +128,9 @@ import {
   shouldAutoInitializeOverlayRuntimeFromConfigService,
   shouldBindVisibleOverlayToMpvSubVisibilityService,
   showMpvOsdRuntimeService,
-  syncInvisibleOverlayMousePassthroughService,
   tokenizeSubtitleService,
   triggerFieldGroupingService,
-  updateCurrentMediaPathService,
-  updateInvisibleOverlayVisibilityService,
   updateLastCardFromClipboardService,
-  updateVisibleOverlayVisibilityService,
 } from "./core/services";
 import { applyRuntimeOptionResultRuntimeService } from "./core/services/runtime-options-ipc-service";
 import {
@@ -163,6 +158,12 @@ import {
 import {
   createOverlayShortcutsRuntimeService,
 } from "./main/overlay-shortcuts-runtime";
+import {
+  createJlptDictionaryRuntimeService,
+  getJlptDictionarySearchPaths,
+} from "./main/jlpt-runtime";
+import { createMediaRuntimeService } from "./main/media-runtime";
+import { createOverlayVisibilityRuntimeService } from "./main/overlay-visibility-runtime";
 import {
   applyStartupState,
   createAppState,
@@ -230,8 +231,6 @@ const isDev =
 const texthookerService = new TexthookerService();
 const subtitleWsService = new SubtitleWebSocketService();
 const logger = createLogger("main");
-let jlptDictionaryLookupInitialized = false;
-let jlptDictionaryLookupInitialization: Promise<void> | null = null;
 const appLogger = {
   logInfo: (message: string) => {
     logger.info(message);
@@ -328,6 +327,32 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
   },
 });
 
+const jlptDictionaryRuntime = createJlptDictionaryRuntimeService({
+  isJlptEnabled: () => getResolvedConfig().subtitleStyle.enableJlpt,
+  getSearchPaths: () =>
+    getJlptDictionarySearchPaths({
+      getDictionaryRoots: () => [
+        path.join(__dirname, "..", "..", "vendor", "yomitan-jlpt-vocab"),
+        path.join(app.getAppPath(), "vendor", "yomitan-jlpt-vocab"),
+        path.join(process.resourcesPath, "yomitan-jlpt-vocab"),
+        path.join(process.resourcesPath, "app.asar", "vendor", "yomitan-jlpt-vocab"),
+        USER_DATA_PATH,
+        app.getPath("userData"),
+        path.join(os.homedir(), ".config", "SubMiner"),
+        path.join(os.homedir(), ".config", "subminer"),
+        path.join(os.homedir(), "Library", "Application Support", "SubMiner"),
+        path.join(os.homedir(), "Library", "Application Support", "subminer"),
+        process.cwd(),
+      ],
+    }),
+  setJlptLevelLookup: (lookup) => {
+    appState.jlptLevelLookup = lookup;
+  },
+  log: (message) => {
+    logger.info(`[JLPT] ${message}`);
+  },
+});
+
 function getFieldGroupingResolver(): ((choice: KikuFieldGroupingChoice) => void) | null {
   return appState.fieldGroupingResolver;
 }
@@ -369,6 +394,55 @@ const createFieldGroupingCallback =
   fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, "subtitle-positions");
+
+const mediaRuntime = createMediaRuntimeService({
+  isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
+  loadSubtitlePosition: () => loadSubtitlePosition(),
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getPendingSubtitlePosition: () => appState.pendingSubtitlePosition,
+  getSubtitlePositionsDir: () => SUBTITLE_POSITIONS_DIR,
+  setCurrentMediaPath: (nextPath: string | null) => {
+    appState.currentMediaPath = nextPath;
+  },
+  clearPendingSubtitlePosition: () => {
+    appState.pendingSubtitlePosition = null;
+  },
+  setSubtitlePosition: (position: SubtitlePosition | null) => {
+    appState.subtitlePosition = position;
+  },
+  broadcastSubtitlePosition: (position) => {
+    broadcastToOverlayWindows("subtitle-position:set", position);
+  },
+  getCurrentMediaTitle: () => appState.currentMediaTitle,
+  setCurrentMediaTitle: (title) => {
+    appState.currentMediaTitle = title;
+  },
+});
+
+const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService({
+  getMainWindow: () => overlayManager.getMainWindow(),
+  getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
+  getWindowTracker: () => appState.windowTracker,
+  getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
+  setTrackerNotReadyWarningShown: (shown: boolean) => {
+    appState.trackerNotReadyWarningShown = shown;
+  },
+  updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
+    updateVisibleOverlayBounds(geometry),
+  updateInvisibleOverlayBounds: (geometry: WindowGeometry) =>
+    updateInvisibleOverlayBounds(geometry),
+  ensureOverlayWindowLevel: (window) => {
+    ensureOverlayWindowLevel(window);
+  },
+  enforceOverlayLayerOrder: () => {
+    enforceOverlayLayerOrder();
+  },
+  syncOverlayShortcuts: () => {
+    overlayShortcutsRuntime.syncOverlayShortcuts();
+  },
+});
 
 function getRuntimeOptionsState(): RuntimeOptionState[] { if (!appState.runtimeOptionsManager) return []; return appState.runtimeOptionsManager.listOptions(); }
 
@@ -470,73 +544,6 @@ function loadSubtitlePosition(): SubtitlePosition | null {
   return appState.subtitlePosition;
 }
 
-function getJlptDictionarySearchPaths(): string[] {
-  const homeDir = os.homedir();
-  const dictionaryRoots = [
-    // Development/runtime source trees where the repo is checked out.
-    path.join(__dirname, "..", "..", "vendor", "yomitan-jlpt-vocab"),
-    path.join(app.getAppPath(), "vendor", "yomitan-jlpt-vocab"),
-
-    // Packaged app resources (Electron build output layout).
-    path.join(process.resourcesPath, "yomitan-jlpt-vocab"),
-    path.join(process.resourcesPath, "app.asar", "vendor", "yomitan-jlpt-vocab"),
-
-    // User override/config directories for manually installed dictionaries.
-    USER_DATA_PATH,
-    app.getPath("userData"),
-    path.join(homeDir, ".config", "SubMiner"),
-    path.join(homeDir, ".config", "subminer"),
-    path.join(homeDir, "Library", "Application Support", "SubMiner"),
-    path.join(homeDir, "Library", "Application Support", "subminer"),
-
-    // Last-resort fallback: current working directory (local CLI/test runs).
-    process.cwd(),
-  ];
-
-  const searchPaths: string[] = [];
-  for (const dictionaryRoot of dictionaryRoots) {
-    searchPaths.push(dictionaryRoot);
-    searchPaths.push(path.join(dictionaryRoot, "vendor", "yomitan-jlpt-vocab"));
-    searchPaths.push(path.join(dictionaryRoot, "yomitan-jlpt-vocab"));
-  }
-
-  const uniquePaths = new Set<string>();
-  for (const searchPath of searchPaths) {
-    uniquePaths.add(searchPath);
-  }
-
-  return [...uniquePaths];
-}
-
-async function initializeJlptDictionaryLookup(): Promise<void> {
-  appState.jlptLevelLookup = await createJlptVocabularyLookupService({
-    searchPaths: getJlptDictionarySearchPaths(),
-    log: (message) => {
-      logger.info(`[JLPT] ${message}`);
-    },
-  });
-}
-
-async function ensureJlptDictionaryLookup(): Promise<void> {
-  if (!getResolvedConfig().subtitleStyle.enableJlpt) {
-    return;
-  }
-  if (jlptDictionaryLookupInitialized) {
-    return;
-  }
-  if (!jlptDictionaryLookupInitialization) {
-    jlptDictionaryLookupInitialization = initializeJlptDictionaryLookup()
-      .then(() => {
-        jlptDictionaryLookupInitialized = true;
-      })
-      .catch((error) => {
-        jlptDictionaryLookupInitialization = null;
-        throw error;
-      });
-  }
-  await jlptDictionaryLookupInitialization;
-}
-
 function saveSubtitlePosition(position: SubtitlePosition): void {
   appState.subtitlePosition = position;
   saveSubtitlePositionService({
@@ -550,46 +557,6 @@ function saveSubtitlePosition(position: SubtitlePosition): void {
       appState.pendingSubtitlePosition = null;
     },
   });
-}
-
-function updateCurrentMediaPath(mediaPath: unknown): void {
-  if (typeof mediaPath !== "string" || !isRemoteMediaPath(mediaPath)) {
-    appState.currentMediaTitle = null;
-  }
-  updateCurrentMediaPathService({
-    mediaPath,
-    currentMediaPath: appState.currentMediaPath,
-    pendingSubtitlePosition: appState.pendingSubtitlePosition,
-    subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
-    loadSubtitlePosition: () => loadSubtitlePosition(),
-    setCurrentMediaPath: (nextPath) => {
-      appState.currentMediaPath = nextPath;
-    },
-    clearPendingSubtitlePosition: () => {
-      appState.pendingSubtitlePosition = null;
-    },
-    setSubtitlePosition: (position) => {
-      appState.subtitlePosition = position;
-    },
-    broadcastSubtitlePosition: (position) => {
-      broadcastToOverlayWindows("subtitle-position:set", position);
-    },
-  });
-}
-
-function updateCurrentMediaTitle(mediaTitle: unknown): void {
-  if (typeof mediaTitle === "string") {
-    const sanitized = mediaTitle.trim();
-    appState.currentMediaTitle = sanitized.length > 0 ? sanitized : null;
-    return;
-  }
-  appState.currentMediaTitle = null;
-}
-
-function resolveMediaPathForJimaku(mediaPath: string | null): string | null {
-  return mediaPath && isRemoteMediaPath(mediaPath) && appState.currentMediaTitle
-    ? appState.currentMediaTitle
-    : mediaPath;
 }
 
 const startupState = runStartupBootstrapRuntimeService(
@@ -733,8 +700,8 @@ const startupState = runStartupBootstrapRuntimeService(
       restoreWindowsOnActivate: () => {
         createMainWindow();
         createInvisibleWindow();
-        updateVisibleOverlayVisibility();
-        updateInvisibleOverlayVisibility();
+        overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+        overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
       },
     }),
   }),
@@ -830,10 +797,10 @@ function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
     appState.subtitleTimingTracker.recordSubtitle(text, start, end);
   });
   mpvClient.on("media-path-change", ({ path }) => {
-    updateCurrentMediaPath(path);
+    mediaRuntime.updateCurrentMediaPath(path);
   });
   mpvClient.on("media-title-change", ({ title }) => {
-    updateCurrentMediaTitle(title);
+    mediaRuntime.updateCurrentMediaTitle(title);
   });
   mpvClient.on("subtitle-metrics-change", ({ patch }) => {
     updateMpvSubtitleRenderMetrics(patch);
@@ -876,7 +843,7 @@ function updateMpvSubtitleRenderMetrics(
 }
 
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
-  await ensureJlptDictionaryLookup();
+  await jlptDictionaryRuntime.ensureJlptDictionaryLookup();
   return tokenizeSubtitleService(
     text,
     createTokenizerDepsRuntimeService({
@@ -1015,10 +982,10 @@ function initializeOverlayRuntime(): void {
       isInvisibleOverlayVisible: () =>
         overlayManager.getInvisibleOverlayVisible(),
       updateVisibleOverlayVisibility: () => {
-        updateVisibleOverlayVisibility();
+        overlayVisibilityRuntime.updateVisibleOverlayVisibility();
       },
       updateInvisibleOverlayVisibility: () => {
-        updateInvisibleOverlayVisibility();
+        overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
       },
       getOverlayWindows: () => getOverlayWindows(),
       syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
@@ -1272,65 +1239,18 @@ function refreshOverlayShortcuts(): void {
   overlayShortcutsRuntime.refreshOverlayShortcuts();
 }
 
-function updateVisibleOverlayVisibility(): void {
-  updateVisibleOverlayVisibilityService(
-    {
-      visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
-      mainWindow: overlayManager.getMainWindow(),
-      windowTracker: appState.windowTracker,
-      trackerNotReadyWarningShown: appState.trackerNotReadyWarningShown,
-      setTrackerNotReadyWarningShown: (shown) => {
-        appState.trackerNotReadyWarningShown = shown;
-      },
-      updateVisibleOverlayBounds: (geometry) => updateVisibleOverlayBounds(geometry),
-      ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-      enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
-      syncOverlayShortcuts: () => syncOverlayShortcuts(),
-    },
-  );
-}
-
-function updateInvisibleOverlayVisibility(): void {
-  updateInvisibleOverlayVisibilityService(
-    {
-      invisibleWindow: overlayManager.getInvisibleWindow(),
-      visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
-      invisibleOverlayVisible: overlayManager.getInvisibleOverlayVisible(),
-      windowTracker: appState.windowTracker,
-      updateInvisibleOverlayBounds: (geometry) => updateInvisibleOverlayBounds(geometry),
-      ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-      enforceOverlayLayerOrder: () => enforceOverlayLayerOrder(),
-      syncOverlayShortcuts: () => syncOverlayShortcuts(),
-    },
-  );
-}
-
-function syncInvisibleOverlayMousePassthrough(): void {
-  syncInvisibleOverlayMousePassthroughService({
-    hasInvisibleWindow: () => {
-      const invisibleWindow = overlayManager.getInvisibleWindow();
-      return Boolean(invisibleWindow && !invisibleWindow.isDestroyed());
-    },
-    setIgnoreMouseEvents: (ignore, extra) => {
-      const invisibleWindow = overlayManager.getInvisibleWindow();
-      if (!invisibleWindow || invisibleWindow.isDestroyed()) return;
-      invisibleWindow.setIgnoreMouseEvents(ignore, extra);
-    },
-    visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
-    invisibleOverlayVisible: overlayManager.getInvisibleOverlayVisible(),
-  });
-}
-
 function setVisibleOverlayVisible(visible: boolean): void {
   setVisibleOverlayVisibleService({
     visible,
     setVisibleOverlayVisibleState: (nextVisible) => {
       overlayManager.setVisibleOverlayVisible(nextVisible);
     },
-    updateVisibleOverlayVisibility: () => updateVisibleOverlayVisibility(),
-    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
+    updateVisibleOverlayVisibility: () =>
+      overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+    updateInvisibleOverlayVisibility: () =>
+      overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
     syncInvisibleOverlayMousePassthrough: () =>
-      syncInvisibleOverlayMousePassthrough(),
+      overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
     shouldBindVisibleOverlayToMpvSubVisibility: () =>
       shouldBindVisibleOverlayToMpvSubVisibility(),
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
@@ -1346,9 +1266,10 @@ function setInvisibleOverlayVisible(visible: boolean): void {
     setInvisibleOverlayVisibleState: (nextVisible) => {
       overlayManager.setInvisibleOverlayVisible(nextVisible);
     },
-    updateInvisibleOverlayVisibility: () => updateInvisibleOverlayVisibility(),
+    updateInvisibleOverlayVisibility: () =>
+      overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
     syncInvisibleOverlayMousePassthrough: () =>
-      syncInvisibleOverlayMousePassthrough(),
+      overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
   });
 }
 
@@ -1464,7 +1385,7 @@ registerIpcRuntimeServices({
       resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
     ) => setFieldGroupingResolver(resolver),
     parseMediaInfo: (mediaPath: string | null) =>
-      parseMediaInfo(resolveMediaPathForJimaku(mediaPath)),
+      parseMediaInfo(mediaRuntime.resolveMediaPathForJimaku(mediaPath)),
     getCurrentMediaPath: () => appState.currentMediaPath,
     jimakuFetchJson: <T>(
       endpoint: string,
