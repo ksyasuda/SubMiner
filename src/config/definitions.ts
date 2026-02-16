@@ -196,7 +196,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
       N5: "#8aadf4",
     },
     frequencyDictionary: {
-      enabled: true,
+      enabled: false,
       sourcePath: "",
       topX: 1000,
       mode: "single",
