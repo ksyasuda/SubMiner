@@ -45,6 +45,21 @@ function asColor(value: unknown): string | undefined {
   return hexColorPattern.test(text) ? text : undefined;
 }
 
+function asFrequencyBandedColors(
+  value: unknown,
+): [string, string, string, string, string] | undefined {
+  if (!Array.isArray(value) || value.length !== 5) {
+    return undefined;
+  }
+
+  const colors = value.map((item) => asColor(item));
+  if (colors.some((color) => color === undefined)) {
+    return undefined;
+  }
+
+  return colors as [string, string, string, string, string];
+}
+
 export class ConfigService {
   private readonly configDir: string;
   private readonly configFileJsonc: string;
@@ -466,6 +481,108 @@ export class ConfigService {
           (src.subtitleStyle as { enableJlpt?: unknown }).enableJlpt,
           resolved.subtitleStyle.enableJlpt,
           "Expected boolean.",
+        );
+      }
+
+      const frequencyDictionary = isObject(
+        (src.subtitleStyle as { frequencyDictionary?: unknown })
+          .frequencyDictionary,
+      )
+        ? ((src.subtitleStyle as { frequencyDictionary?: unknown })
+            .frequencyDictionary as Record<string, unknown>)
+        : {};
+      const frequencyEnabled = asBoolean(
+        (frequencyDictionary as { enabled?: unknown }).enabled,
+      );
+      if (frequencyEnabled !== undefined) {
+        resolved.subtitleStyle.frequencyDictionary.enabled = frequencyEnabled;
+      } else if (
+        (frequencyDictionary as { enabled?: unknown }).enabled !== undefined
+      ) {
+        warn(
+          "subtitleStyle.frequencyDictionary.enabled",
+          (frequencyDictionary as { enabled?: unknown }).enabled,
+          resolved.subtitleStyle.frequencyDictionary.enabled,
+          "Expected boolean.",
+        );
+      }
+
+      const sourcePath = asString(
+        (frequencyDictionary as { sourcePath?: unknown }).sourcePath,
+      );
+      if (sourcePath !== undefined) {
+        resolved.subtitleStyle.frequencyDictionary.sourcePath = sourcePath;
+      } else if (
+        (frequencyDictionary as { sourcePath?: unknown }).sourcePath !== undefined
+      ) {
+        warn(
+          "subtitleStyle.frequencyDictionary.sourcePath",
+          (frequencyDictionary as { sourcePath?: unknown }).sourcePath,
+          resolved.subtitleStyle.frequencyDictionary.sourcePath,
+          "Expected string.",
+        );
+      }
+
+      const topX = asNumber((frequencyDictionary as { topX?: unknown }).topX);
+      if (
+        topX !== undefined &&
+        Number.isInteger(topX) &&
+        topX > 0
+      ) {
+        resolved.subtitleStyle.frequencyDictionary.topX = Math.floor(topX);
+      } else if ((frequencyDictionary as { topX?: unknown }).topX !== undefined) {
+        warn(
+          "subtitleStyle.frequencyDictionary.topX",
+          (frequencyDictionary as { topX?: unknown }).topX,
+          resolved.subtitleStyle.frequencyDictionary.topX,
+          "Expected a positive integer.",
+        );
+      }
+
+      const frequencyMode = frequencyDictionary.mode;
+      if (
+        frequencyMode === "single" ||
+        frequencyMode === "banded"
+      ) {
+        resolved.subtitleStyle.frequencyDictionary.mode = frequencyMode;
+      } else if (frequencyMode !== undefined) {
+        warn(
+          "subtitleStyle.frequencyDictionary.mode",
+          frequencyDictionary.mode,
+          resolved.subtitleStyle.frequencyDictionary.mode,
+          "Expected 'single' or 'banded'.",
+        );
+      }
+
+      const singleColor = asColor(
+        (frequencyDictionary as { singleColor?: unknown }).singleColor,
+      );
+      if (singleColor !== undefined) {
+        resolved.subtitleStyle.frequencyDictionary.singleColor = singleColor;
+      } else if (
+        (frequencyDictionary as { singleColor?: unknown }).singleColor !== undefined
+      ) {
+        warn(
+          "subtitleStyle.frequencyDictionary.singleColor",
+          (frequencyDictionary as { singleColor?: unknown }).singleColor,
+          resolved.subtitleStyle.frequencyDictionary.singleColor,
+          "Expected hex color.",
+        );
+      }
+
+      const bandedColors = asFrequencyBandedColors(
+        (frequencyDictionary as { bandedColors?: unknown }).bandedColors,
+      );
+      if (bandedColors !== undefined) {
+        resolved.subtitleStyle.frequencyDictionary.bandedColors = bandedColors;
+      } else if (
+        (frequencyDictionary as { bandedColors?: unknown }).bandedColors !== undefined
+      ) {
+        warn(
+          "subtitleStyle.frequencyDictionary.bandedColors",
+          (frequencyDictionary as { bandedColors?: unknown }).bandedColors,
+          resolved.subtitleStyle.frequencyDictionary.bandedColors,
+          "Expected an array of five hex colors.",
         );
       }
     }

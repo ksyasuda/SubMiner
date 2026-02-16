@@ -6,6 +6,14 @@ import type {
 } from "../types";
 import type { RendererContext } from "./context";
 
+type FrequencyRenderSettings = {
+  enabled: boolean;
+  topX: number;
+  mode: "single" | "banded";
+  singleColor: string;
+  bandedColors: [string, string, string, string, string];
+};
+
 function normalizeSubtitle(text: string, trim = true): string {
   if (!text) return "";
 
@@ -24,7 +32,88 @@ function sanitizeHexColor(value: unknown, fallback: string): string {
     : fallback;
 }
 
-function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
+const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
+  enabled: false,
+  topX: 1000,
+  mode: "single",
+  singleColor: "#f5a97f",
+  bandedColors: ["#ed8796", "#f5a97f", "#f9e2af", "#a6e3a1", "#8aadf4"],
+};
+
+function sanitizeFrequencyTopX(value: unknown, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return fallback;
+  }
+  return Math.max(1, Math.floor(value));
+}
+
+function sanitizeFrequencyBandedColors(
+  value: unknown,
+  fallback: FrequencyRenderSettings["bandedColors"],
+): FrequencyRenderSettings["bandedColors"] {
+  if (!Array.isArray(value) || value.length !== 5) {
+    return fallback;
+  }
+
+  return [
+    sanitizeHexColor(value[0], fallback[0]),
+    sanitizeHexColor(value[1], fallback[1]),
+    sanitizeHexColor(value[2], fallback[2]),
+    sanitizeHexColor(value[3], fallback[3]),
+    sanitizeHexColor(value[4], fallback[4]),
+  ];
+}
+
+function getFrequencyDictionaryClass(
+  token: MergedToken,
+  settings: FrequencyRenderSettings,
+): string {
+  if (!settings.enabled) {
+    return "";
+  }
+
+  if (typeof token.frequencyRank !== "number" || !Number.isFinite(token.frequencyRank)) {
+    return "";
+  }
+
+  const rank = Math.max(1, Math.floor(token.frequencyRank));
+  const topX = sanitizeFrequencyTopX(settings.topX, DEFAULT_FREQUENCY_RENDER_SETTINGS.topX);
+  if (rank > topX) {
+    return "";
+  }
+
+  if (settings.mode === "banded") {
+    const bandCount = settings.bandedColors.length;
+    const normalizedBand = Math.ceil((rank / topX) * bandCount);
+    const band = Math.min(bandCount, Math.max(1, normalizedBand));
+    return `word-frequency-band-${band}`;
+  }
+
+  return "word-frequency-single";
+}
+
+function renderWithTokens(
+  root: HTMLElement,
+  tokens: MergedToken[],
+  frequencyRenderSettings?: Partial<FrequencyRenderSettings>,
+): void {
+  const resolvedFrequencyRenderSettings = {
+    ...DEFAULT_FREQUENCY_RENDER_SETTINGS,
+    ...frequencyRenderSettings,
+    bandedColors: sanitizeFrequencyBandedColors(
+      frequencyRenderSettings?.bandedColors,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.bandedColors,
+    ),
+    topX: sanitizeFrequencyTopX(
+      frequencyRenderSettings?.topX,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.topX,
+    ),
+    singleColor: sanitizeHexColor(
+      frequencyRenderSettings?.singleColor,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.singleColor,
+    ),
+  };
+
   const fragment = document.createDocumentFragment();
 
   for (const token of tokens) {
@@ -35,7 +124,10 @@ function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
         for (let i = 0; i < parts.length; i += 1) {
           if (parts[i]) {
             const span = document.createElement("span");
-            span.className = computeWordClass(token);
+            span.className = computeWordClass(
+              token,
+              resolvedFrequencyRenderSettings,
+            );
             span.textContent = parts[i];
             if (token.reading) span.dataset.reading = token.reading;
             if (token.headword) span.dataset.headword = token.headword;
@@ -49,7 +141,7 @@ function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
     }
 
     const span = document.createElement("span");
-    span.className = computeWordClass(token);
+    span.className = computeWordClass(token, resolvedFrequencyRenderSettings);
     span.textContent = surface;
     if (token.reading) span.dataset.reading = token.reading;
     if (token.headword) span.dataset.headword = token.headword;
@@ -59,7 +151,27 @@ function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
   root.appendChild(fragment);
 }
 
-export function computeWordClass(token: MergedToken): string {
+export function computeWordClass(
+  token: MergedToken,
+  frequencySettings?: Partial<FrequencyRenderSettings>,
+): string {
+  const resolvedFrequencySettings = {
+    ...DEFAULT_FREQUENCY_RENDER_SETTINGS,
+    ...frequencySettings,
+    bandedColors: sanitizeFrequencyBandedColors(
+      frequencySettings?.bandedColors,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.bandedColors,
+    ),
+    topX: sanitizeFrequencyTopX(
+      frequencySettings?.topX,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.topX,
+    ),
+    singleColor: sanitizeHexColor(
+      frequencySettings?.singleColor,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.singleColor,
+    ),
+  };
+
   const classes = ["word"];
 
   if (token.isNPlusOneTarget) {
@@ -70,6 +182,16 @@ export function computeWordClass(token: MergedToken): string {
 
   if (token.jlptLevel) {
     classes.push(`word-jlpt-${token.jlptLevel.toLowerCase()}`);
+  }
+
+  if (!token.isKnown && !token.isNPlusOneTarget) {
+    const frequencyClass = getFrequencyDictionaryClass(
+      token,
+      resolvedFrequencySettings,
+    );
+    if (frequencyClass) {
+      classes.push(frequencyClass);
+    }
   }
 
   return classes.join(" ");
@@ -139,10 +261,30 @@ export function createSubtitleRenderer(ctx: RendererContext) {
 
     const normalized = normalizeSubtitle(text);
     if (tokens && tokens.length > 0) {
-      renderWithTokens(ctx.dom.subtitleRoot, tokens);
+      renderWithTokens(
+        ctx.dom.subtitleRoot,
+        tokens,
+        getFrequencyRenderSettings(),
+      );
       return;
     }
     renderCharacterLevel(ctx.dom.subtitleRoot, normalized);
+  }
+
+  function getFrequencyRenderSettings(): Partial<FrequencyRenderSettings> {
+    return {
+      enabled: ctx.state.frequencyDictionaryEnabled,
+      topX: ctx.state.frequencyDictionaryTopX,
+      mode: ctx.state.frequencyDictionaryMode,
+      singleColor: ctx.state.frequencyDictionarySingleColor,
+      bandedColors: [
+        ctx.state.frequencyDictionaryBand1Color,
+        ctx.state.frequencyDictionaryBand2Color,
+        ctx.state.frequencyDictionaryBand3Color,
+        ctx.state.frequencyDictionaryBand4Color,
+        ctx.state.frequencyDictionaryBand5Color,
+      ] as [string, string, string, string, string],
+    };
   }
 
   function renderSecondarySub(text: string): void {
@@ -236,6 +378,66 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n3-color", jlptColors.N3);
     ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n4-color", jlptColors.N4);
     ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n5-color", jlptColors.N5);
+    const frequencyDictionarySettings = style.frequencyDictionary ?? {};
+    const frequencyEnabled =
+      frequencyDictionarySettings.enabled ?? ctx.state.frequencyDictionaryEnabled;
+    const frequencyTopX = sanitizeFrequencyTopX(
+      frequencyDictionarySettings.topX,
+      ctx.state.frequencyDictionaryTopX,
+    );
+    const frequencyMode = frequencyDictionarySettings.mode
+      ? frequencyDictionarySettings.mode
+      : ctx.state.frequencyDictionaryMode;
+    const frequencySingleColor = sanitizeHexColor(
+      frequencyDictionarySettings.singleColor,
+      ctx.state.frequencyDictionarySingleColor,
+    );
+    const frequencyBandedColors = sanitizeFrequencyBandedColors(
+      frequencyDictionarySettings.bandedColors,
+      [
+        ctx.state.frequencyDictionaryBand1Color,
+        ctx.state.frequencyDictionaryBand2Color,
+        ctx.state.frequencyDictionaryBand3Color,
+        ctx.state.frequencyDictionaryBand4Color,
+        ctx.state.frequencyDictionaryBand5Color,
+      ] as [string, string, string, string, string],
+    );
+
+    ctx.state.frequencyDictionaryEnabled = frequencyEnabled;
+    ctx.state.frequencyDictionaryTopX = frequencyTopX;
+    ctx.state.frequencyDictionaryMode = frequencyMode;
+    ctx.state.frequencyDictionarySingleColor = frequencySingleColor;
+    [
+      ctx.state.frequencyDictionaryBand1Color,
+      ctx.state.frequencyDictionaryBand2Color,
+      ctx.state.frequencyDictionaryBand3Color,
+      ctx.state.frequencyDictionaryBand4Color,
+      ctx.state.frequencyDictionaryBand5Color,
+    ] = frequencyBandedColors;
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-frequency-single-color",
+      frequencySingleColor,
+    );
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-frequency-band-1-color",
+      frequencyBandedColors[0],
+    );
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-frequency-band-2-color",
+      frequencyBandedColors[1],
+    );
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-frequency-band-3-color",
+      frequencyBandedColors[2],
+    );
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-frequency-band-4-color",
+      frequencyBandedColors[3],
+    );
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-frequency-band-5-color",
+      frequencyBandedColors[4],
+    );
 
     const secondaryStyle = style.secondary;
     if (!secondaryStyle) return;
