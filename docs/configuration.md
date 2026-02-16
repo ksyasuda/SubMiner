@@ -52,6 +52,7 @@ The configuration file includes several main sections:
 - [**Auto Subtitle Sync**](#auto-subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
 - [**Invisible Overlay**](#invisible-overlay) - Startup visibility behavior for the invisible mining layer
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
+- [**AniList**](#anilist) - Optional post-watch progress updates
 - [**Keybindings**](#keybindings) - MPV command shortcuts
 - [**Runtime Option Palette**](#runtime-option-palette) - Live, session-only option toggles
 - [**Secondary Subtitles**](#secondary-subtitles) - Dual subtitle track support
@@ -360,6 +361,26 @@ Configure Jimaku API access and defaults:
 Jimaku is rate limited; if you hit a limit, SubMiner will surface the retry delay from the API response.
 
 Set `openBrowser` to `false` to only print the URL without opening a browser.
+
+### AniList
+
+AniList integration is opt-in and disabled by default. Enable it and provide an access token to allow SubMiner to update your watched episode progress after playback.
+
+```json
+{
+  "anilist": {
+    "enabled": true,
+    "accessToken": "YOUR_ANILIST_ACCESS_TOKEN"
+  }
+}
+```
+
+| Option | Values | Description |
+| ------ | ------ | ----------- |
+| `enabled` | `true`, `false` | Enable AniList post-watch progress updates (default: `false`) |
+| `accessToken` | string | AniList access token used for authenticated GraphQL updates (default: empty string) |
+
+When `enabled` is `true` and `accessToken` is empty, SubMiner opens an AniList setup helper window. Keep `enabled` as `false` to disable all AniList setup/update behavior.
 
 ### Keybindings
 
