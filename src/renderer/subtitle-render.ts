@@ -15,6 +15,15 @@ function normalizeSubtitle(text: string, trim = true): string {
   return trim ? normalized.trim() : normalized;
 }
 
+const HEX_COLOR_PATTERN =
+  /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+function sanitizeHexColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && HEX_COLOR_PATTERN.test(value.trim())
+    ? value.trim()
+    : fallback;
+}
+
 function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
   const fragment = document.createDocumentFragment();
 
@@ -50,16 +59,20 @@ function renderWithTokens(root: HTMLElement, tokens: MergedToken[]): void {
   root.appendChild(fragment);
 }
 
-function computeWordClass(token: MergedToken): string {
+export function computeWordClass(token: MergedToken): string {
+  const classes = ["word"];
+
   if (token.isNPlusOneTarget) {
-    return "word word-n-plus-one";
+    classes.push("word-n-plus-one");
+  } else if (token.isKnown) {
+    classes.push("word-known");
   }
 
-  if (token.isKnown) {
-    return "word word-known";
+  if (token.jlptLevel) {
+    classes.push(`word-jlpt-${token.jlptLevel.toLowerCase()}`);
   }
 
-  return "word";
+  return classes.join(" ");
 }
 
 function renderCharacterLevel(root: HTMLElement, text: string): void {
@@ -189,6 +202,22 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       style.knownWordColor ?? ctx.state.knownWordColor ?? "#a6da95";
     const nPlusOneColor =
       style.nPlusOneColor ?? ctx.state.nPlusOneColor ?? "#c6a0f6";
+    const jlptColors = {
+      N1: ctx.state.jlptN1Color ?? "#ed8796",
+      N2: ctx.state.jlptN2Color ?? "#f5a97f",
+      N3: ctx.state.jlptN3Color ?? "#f9e2af",
+      N4: ctx.state.jlptN4Color ?? "#a6e3a1",
+      N5: ctx.state.jlptN5Color ?? "#8aadf4",
+      ...(style.jlptColors
+        ? {
+          N1: sanitizeHexColor(style.jlptColors?.N1, ctx.state.jlptN1Color),
+          N2: sanitizeHexColor(style.jlptColors?.N2, ctx.state.jlptN2Color),
+          N3: sanitizeHexColor(style.jlptColors?.N3, ctx.state.jlptN3Color),
+          N4: sanitizeHexColor(style.jlptColors?.N4, ctx.state.jlptN4Color),
+          N5: sanitizeHexColor(style.jlptColors?.N5, ctx.state.jlptN5Color),
+        }
+        : {}),
+    };
 
     ctx.state.knownWordColor = knownWordColor;
     ctx.state.nPlusOneColor = nPlusOneColor;
@@ -197,6 +226,16 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       knownWordColor,
     );
     ctx.dom.subtitleRoot.style.setProperty("--subtitle-n-plus-one-color", nPlusOneColor);
+    ctx.state.jlptN1Color = jlptColors.N1;
+    ctx.state.jlptN2Color = jlptColors.N2;
+    ctx.state.jlptN3Color = jlptColors.N3;
+    ctx.state.jlptN4Color = jlptColors.N4;
+    ctx.state.jlptN5Color = jlptColors.N5;
+    ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n1-color", jlptColors.N1);
+    ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n2-color", jlptColors.N2);
+    ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n3-color", jlptColors.N3);
+    ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n4-color", jlptColors.N4);
+    ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n5-color", jlptColors.N5);
 
     const secondaryStyle = style.secondary;
     if (!secondaryStyle) return;

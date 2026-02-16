@@ -21,6 +21,7 @@ function makeDeps(
     setYomitanParserInitPromise: () => {},
     isKnownWord: () => false,
     getKnownWordMatchMode: () => "headword",
+    getJlptLevel: () => null,
     tokenizeWithMecab: async () => null,
     ...overrides,
   };
@@ -43,9 +44,170 @@ function makeDepsFromMecabTokenizer(
     getMecabTokenizer: () => ({
       tokenize,
     }),
+    getJlptLevel: () => null,
     ...overrides,
   });
 }
+
+test("tokenizeSubtitleService assigns JLPT level to parsed Yomitan tokens", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDeps({
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  {
+                    text: "猫",
+                    reading: "ねこ",
+                    headwords: [[{ term: "猫" }]],
+                  },
+                  {
+                    text: "です",
+                    reading: "です",
+                    headwords: [[{ term: "です" }]],
+                  },
+                ],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      tokenizeWithMecab: async () => null,
+      getJlptLevel: (text) => (text === "猫" ? "N5" : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.jlptLevel, "N5");
+});
+
+test("tokenizeSubtitleService skips JLPT level for excluded demonstratives", async () => {
+  const result = await tokenizeSubtitleService(
+    "この",
+    makeDeps({
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  {
+                    text: "この",
+                    reading: "この",
+                    headwords: [[{ term: "この" }]],
+                  },
+                ],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      tokenizeWithMecab: async () => null,
+      getJlptLevel: (text) => (text === "この" ? "N5" : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
+});
+
+test("tokenizeSubtitleService skips JLPT level for repeated kana SFX", async () => {
+  const result = await tokenizeSubtitleService(
+    "ああ",
+    makeDeps({
+      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanParserWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          executeJavaScript: async () => [
+            {
+              source: "scanning-parser",
+              index: 0,
+              content: [
+                [
+                  {
+                    text: "ああ",
+                    reading: "ああ",
+                    headwords: [[{ term: "ああ" }]],
+                  },
+                ],
+              ],
+            },
+          ],
+        },
+      } as unknown as Electron.BrowserWindow),
+      tokenizeWithMecab: async () => null,
+      getJlptLevel: (text) => (text === "ああ" ? "N5" : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
+});
+
+test("tokenizeSubtitleService assigns JLPT level to mecab tokens", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫です",
+    makeDepsFromMecabTokenizer(async () => [
+      {
+        word: "猫",
+        partOfSpeech: PartOfSpeech.noun,
+        pos1: "",
+        pos2: "",
+        pos3: "",
+        pos4: "",
+        inflectionType: "",
+        inflectionForm: "",
+        headword: "猫",
+        katakanaReading: "ネコ",
+        pronunciation: "ネコ",
+      },
+    ], {
+      getJlptLevel: (text) => (text === "猫" ? "N4" : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.jlptLevel, "N4");
+});
+
+test("tokenizeSubtitleService skips JLPT level for mecab tokens marked as ineligible", async () => {
+  const result = await tokenizeSubtitleService(
+    "は",
+    makeDepsFromMecabTokenizer(async () => [
+      {
+        word: "は",
+        partOfSpeech: PartOfSpeech.particle,
+        pos1: "助詞",
+        pos2: "",
+        pos3: "",
+        pos4: "",
+        inflectionType: "",
+        inflectionForm: "",
+        headword: "は",
+        katakanaReading: "ハ",
+        pronunciation: "ハ",
+      },
+    ], {
+      getJlptLevel: (text) => (text === "は" ? "N5" : null),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.pos1, "助詞");
+  assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
+});
 
 test("tokenizeSubtitleService returns null tokens for empty normalized text", async () => {
   const result = await tokenizeSubtitleService(" \\n  ", makeDeps());

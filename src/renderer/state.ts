@@ -71,6 +71,11 @@ export type RendererState = {
 
   knownWordColor: string;
   nPlusOneColor: string;
+  jlptN1Color: string;
+  jlptN2Color: string;
+  jlptN3Color: string;
+  jlptN4Color: string;
+  jlptN5Color: string;
 
   keybindingsMap: Map<string, (string | number)[]>;
   chordPending: boolean;
@@ -130,6 +135,11 @@ export function createRendererState(): RendererState {
 
     knownWordColor: "#a6da95",
     nPlusOneColor: "#c6a0f6",
+    jlptN1Color: "#ed8796",
+    jlptN2Color: "#f5a97f",
+    jlptN3Color: "#f9e2af",
+    jlptN4Color: "#a6e3a1",
+    jlptN5Color: "#8aadf4",
 
     keybindingsMap: new Map(),
     chordPending: false,

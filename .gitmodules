@@ -2,3 +2,6 @@
 	path = vendor/texthooker-ui
 	url = https://github.com/ksyasuda/texthooker-ui.git
 	branch = subminer
+[submodule "vendor/yomitan-jlpt-vocab"]
+	path = vendor/yomitan-jlpt-vocab
+	url = https://github.com/stephenmk/yomitan-jlpt-vocab

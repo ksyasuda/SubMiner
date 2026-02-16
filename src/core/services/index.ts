@@ -37,6 +37,7 @@ export {
 } from "./runtime-config-service";
 export { openYomitanSettingsWindow } from "./yomitan-settings-service";
 export { createTokenizerDepsRuntimeService, tokenizeSubtitleService } from "./tokenizer-service";
+export { createJlptVocabularyLookupService } from "./jlpt-vocab-service";
 export { loadYomitanExtensionService } from "./yomitan-extension-loader-service";
 export {
   getJimakuLanguagePreferenceService,

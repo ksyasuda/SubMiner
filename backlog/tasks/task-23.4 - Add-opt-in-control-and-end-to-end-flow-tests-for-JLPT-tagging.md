@@ -1,7 +1,7 @@
 ---
 id: TASK-23.4
 title: Add opt-in control and end-to-end flow + tests for JLPT tagging
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-02-13 16:42'
 labels: []
@@ -18,11 +18,14 @@ Add user/config setting to enable JLPT tagging, wire the feature toggle through 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 JLPT tagging is opt-in and defaults to disabled.
-- [ ] #2 When disabled, lookup/rendering pipeline does not execute JLPT processing.
-- [ ] #3 When enabled, end-to-end flow tags subtitle words via token-level lookup and rendering.
+- [x] #1 JLPT tagging is opt-in and defaults to disabled.
+- [x] #2 When disabled, lookup/rendering pipeline does not execute JLPT processing.
+- [x] #3 When enabled, end-to-end flow tags subtitle words via token-level lookup and rendering.
 - [ ] #4 Add tests covering at least one positive match, one non-match, and disabled state.
 <!-- AC:END -->
+
+## Note
+- Full end-to-end + disabled-state test coverage remains pending as an explicit follow-up item.
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
