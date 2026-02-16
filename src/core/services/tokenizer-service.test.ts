@@ -228,6 +228,75 @@ test("tokenizeSubtitleService applies frequency dictionary ranks", async () => {
   assert.equal(result.tokens?.[1]?.frequencyRank, 1200);
 });
 
+test("tokenizeSubtitleService ignores frequency lookup failures", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫",
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      tokenizeWithMecab: async () => [
+        {
+          headword: "猫",
+          surface: "猫",
+          reading: "ネコ",
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      getFrequencyRank: () => {
+        throw new Error("frequency lookup unavailable");
+      },
+    }),
+  );
+
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+});
+
+test("tokenizeSubtitleService ignores invalid frequency ranks", async () => {
+  const result = await tokenizeSubtitleService(
+    "猫",
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      tokenizeWithMecab: async () => [
+        {
+          headword: "猫",
+          surface: "猫",
+          reading: "ネコ",
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: "です",
+          surface: "です",
+          reading: "デス",
+          startPos: 1,
+          endPos: 2,
+          partOfSpeech: PartOfSpeech.bound_auxiliary,
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      getFrequencyRank: (text) => {
+        if (text === "猫") return Number.NaN;
+        if (text === "です") return -1;
+        return 100;
+      },
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 2);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+  assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
+});
+
 test("tokenizeSubtitleService skips frequency lookups when disabled", async () => {
   let frequencyCalls = 0;
   const result = await tokenizeSubtitleService(

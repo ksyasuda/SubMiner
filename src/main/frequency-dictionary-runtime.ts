@@ -17,6 +17,9 @@ export interface FrequencyDictionaryRuntimeDeps {
 let frequencyDictionaryLookupInitialized = false;
 let frequencyDictionaryLookupInitialization: Promise<void> | null = null;
 
+// Frequency dictionary services are initialized lazily as a process-wide singleton.
+// Initialization is idempotent and intentionally shared across callers.
+
 export function getFrequencyDictionarySearchPaths(
   deps: FrequencyDictionarySearchPathDeps,
 ): string[] {
@@ -24,6 +27,8 @@ export function getFrequencyDictionarySearchPaths(
   const sourcePath = deps.getSourcePath?.();
 
   const rawSearchPaths: string[] = [];
+  // User-provided path takes precedence over bundled/default roots.
+  // Root list should include `vendor/jiten_freq_global` in callers.
   if (sourcePath && sourcePath.trim()) {
     rawSearchPaths.push(sourcePath.trim());
     rawSearchPaths.push(path.join(sourcePath.trim(), "frequency-dictionary"));
@@ -64,8 +69,9 @@ export async function ensureFrequencyDictionaryLookup(
         frequencyDictionaryLookupInitialized = true;
       })
       .catch((error) => {
-        frequencyDictionaryLookupInitialization = null;
-        throw error;
+        frequencyDictionaryLookupInitialized = true;
+        deps.log(`Failed to initialize frequency dictionary: ${String(error)}`);
+        deps.setFrequencyRankLookup(() => null);
       });
   }
   await frequencyDictionaryLookupInitialization;
