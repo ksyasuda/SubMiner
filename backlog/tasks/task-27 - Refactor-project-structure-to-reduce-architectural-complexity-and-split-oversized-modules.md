@@ -3,10 +3,10 @@ id: TASK-27
 title: >-
   Refactor project structure to reduce architectural complexity and split
   oversized modules
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-15 07:00'
+updated_date: '2026-02-16 01:34'
 labels:
   - 'owner:architect'
   - 'owner:backend'
@@ -51,7 +51,7 @@ Order matters to avoid merge conflicts:
 4. **TASK-27.5** — renderer positioning.ts split (downscoped; after 27.2 to avoid import-path conflicts)
 
 ### Phase 3 — Stabilization
-- **TASK-27.6** — Quality gates and CI enforcement
+- **TASK-27.7** — Finalization and validation cleanup
 
 ## Smoke Test Checklist (applies to all subtasks)
 Every subtask must verify before merging:
@@ -78,6 +78,12 @@ Every subtask must verify before merging:
 5. **Simplified ownership model** — Removed multi-owner ceremony since this is effectively a solo project. Kept labels for categorical tracking only.
 6. **Added global smoke test checklist** — No end-to-end or renderer tests exist, so manual verification is the safety net for every subtask.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+TASK-27 completed: plan execution sequence completed through all major refactor subtasks. Done status now confirmed for 27.1 (ownership mapping), 27.2 (main.ts split), 27.3 (anki-integration service-domain extraction), 27.4 (mpv-service split), 27.5 (renderer positioning split), and 27.7 (final validation summary, build + tests). Remaining work is now outside TASK-27 scope.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

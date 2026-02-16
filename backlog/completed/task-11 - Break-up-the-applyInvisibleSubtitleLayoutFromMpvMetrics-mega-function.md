@@ -1,10 +1,10 @@
 ---
 id: TASK-11
 title: Break up the applyInvisibleSubtitleLayoutFromMpvMetrics mega function
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-11 08:21'
-updated_date: '2026-02-15 07:00'
+updated_date: '2026-02-16 01:34'
 labels:
   - refactor
   - renderer
@@ -33,14 +33,22 @@ This can be done independently of or as part of TASK-6 (renderer split).
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 No single function exceeds ~50 lines in the positioning logic
-- [ ] #2 Helper functions are pure where possible (take inputs, return outputs)
-- [ ] #3 Platform-specific branches isolated into dedicated helpers
-- [ ] #4 Invisible overlay positioning still works correctly on Linux and macOS
+- [x] #1 No single function exceeds ~50 lines in the positioning logic
+- [x] #2 Helper functions are pure where possible (take inputs, return outputs)
+- [x] #3 Platform-specific branches isolated into dedicated helpers
+- [x] #4 Invisible overlay positioning still works correctly on Linux and macOS
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Reparented as a dependency of TASK-27.5: the mega-function lives in positioning.ts (513 LOC), which is the exact file TASK-27.5 targets for splitting. Decomposing this function is a natural part of that file split. Should be executed together with TASK-27.5.
+Helpers were split so positioning math, base layout, and typography/vertical handling are no longer in one monolith; see `src/renderer/positioning/invisible-layout.ts` and peer files.
+
+Applied as part of TASK-27.5 with helper extraction: moved mpv subtitle layout orchestration to `invisible-layout.ts` and extracted metric/base/style helpers into `invisible-layout-metrics.ts` and `invisible-layout-helpers.ts`.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Decomposition of `applyInvisibleSubtitleLayoutFromMpvMetrics` completed as part of TASK-27.5: function body split into metric/layout/typography helpers and small coordinator preserved. Manual validation completed by user; behavior remains stable.
+<!-- SECTION:FINAL_SUMMARY:END -->
