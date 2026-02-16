@@ -1,4 +1,4 @@
-import { NotificationOptions } from "./types";
+import { NotificationOptions } from "../types";
 
 export interface UiFeedbackState {
   progressDepth: number;
