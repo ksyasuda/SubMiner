@@ -270,6 +270,28 @@ When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but
 
 These shortcuts are only active when the overlay window is visible and automatically disabled when hidden.
 
+### Session help modal
+
+The session help modal is opened with `Y-H` by default (falls back to `Y-K` if needed) and shows the current session keybindings and color legend.
+
+You can filter the modal quickly with `/`:
+
+- Type any part of the action name or shortcut in the search bar.
+- Search is case-insensitive and ignores spaces/punctuation (`+`, `-`, `_`, `/`) so `ctrl w`, `ctrl+w`, and `ctrl+s` all match.
+- Results are filtered across active MPV shortcuts, configured overlay shortcuts, and color legend items.
+
+While the modal is open:
+
+- `Esc`: close the modal (or clear the filter when text is entered)
+- `↑/↓`, `j/k`: move selection
+- Mouse/trackpad: click to select and activate rows
+
+The list is generated at runtime from:
+
+- Your active mpv keybindings (`keybindings`).
+- Your configured overlay shortcuts (`shortcuts`, including runtime-loaded config values).
+- Current subtitle color settings from `subtitleStyle`.
+
 ### Auto-Start Overlay
 
 Control whether the overlay automatically becomes visible when it connects to mpv:

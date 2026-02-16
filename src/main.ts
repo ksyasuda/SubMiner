@@ -1365,6 +1365,13 @@ registerIpcRuntimeServices({
     getMainWindow: () => overlayManager.getMainWindow(),
     getVisibleOverlayVisibility: () => overlayManager.getVisibleOverlayVisible(),
     getInvisibleOverlayVisibility: () => overlayManager.getInvisibleOverlayVisible(),
+    focusMainWindow: () => {
+      const mainWindow = overlayManager.getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!mainWindow.isFocused()) {
+        mainWindow.focus();
+      }
+    },
     onOverlayModalClosed: (modal: string) => {
       handleOverlayModalClosed(modal as OverlayHostedModal);
     },
@@ -1396,6 +1403,7 @@ registerIpcRuntimeServices({
     handleMpvCommand: (command: (string | number)[]) =>
       handleMpvCommandFromIpc(command),
     getKeybindings: () => appState.keybindings,
+    getConfiguredShortcuts: () => getConfiguredShortcuts(),
     getSecondarySubMode: () => appState.secondarySubMode,
     getMpvClient: () => appState.mpvClient,
     runSubsyncManual: (request: unknown) =>
