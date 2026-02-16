@@ -16,8 +16,8 @@ interface YomitanParseHeadword {
 }
 
 interface YomitanParseSegment {
-  text?: unknown;
-  reading?: unknown;
+  text?: string;
+  reading?: string;
   headwords?: unknown;
 }
 
@@ -25,6 +25,20 @@ interface YomitanParseResultItem {
   source?: unknown;
   index?: unknown;
   content?: unknown;
+}
+
+type YomitanParseLine = YomitanParseSegment[];
+
+const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
+const KATAKANA_CODEPOINT_START = 0x30a1;
+const KATAKANA_CODEPOINT_END = 0x30f6;
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object");
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
 }
 
 export interface TokenizerServiceDeps {
@@ -144,8 +158,8 @@ function normalizeJlptTextForExclusion(text: string): string {
       continue;
     }
 
-    if (code >= 0x30a1 && code <= 0x30f6) {
-      normalized += String.fromCodePoint(code - 0x60);
+    if (code >= KATAKANA_CODEPOINT_START && code <= KATAKANA_CODEPOINT_END) {
+      normalized += String.fromCodePoint(code - KATAKANA_TO_HIRAGANA_OFFSET);
       continue;
     }
 
@@ -238,6 +252,67 @@ function isJlptEligibleToken(token: MergedToken): boolean {
   return true;
 }
 
+function isYomitanParseResultItem(
+  value: unknown,
+): value is YomitanParseResultItem {
+  if (!isObject(value)) {
+    return false;
+  }
+  if ((value as YomitanParseResultItem).source !== "scanning-parser") {
+    return false;
+  }
+  if (!Array.isArray((value as YomitanParseResultItem).content)) {
+    return false;
+  }
+  return true;
+}
+
+function isYomitanParseLine(value: unknown): value is YomitanParseLine {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  return value.every((segment) => {
+    if (!isObject(segment)) {
+      return false;
+    }
+
+    const candidate = segment as YomitanParseSegment;
+    return isString(candidate.text);
+  });
+}
+
+function isYomitanHeadwordRows(value: unknown): value is YomitanParseHeadword[][] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (group) =>
+        Array.isArray(group) &&
+        group.every((item) =>
+          isObject(item) && isString((item as YomitanParseHeadword).term),
+        ),
+    )
+  );
+}
+
+function extractYomitanHeadword(segment: YomitanParseSegment): string {
+  const headwords = segment.headwords;
+  if (!isYomitanHeadwordRows(headwords)) {
+    return "";
+  }
+
+  for (const group of headwords) {
+    if (group.length > 0) {
+      const firstHeadword = group[0] as YomitanParseHeadword;
+      if (isString(firstHeadword?.term)) {
+        return firstHeadword.term;
+      }
+    }
+  }
+
+  return "";
+}
+
 function applyJlptMarking(
   tokens: MergedToken[],
   getJlptLevel: (text: string) => JlptLevel | null,
@@ -250,46 +325,25 @@ function applyJlptMarking(
     const primaryLevel = getJlptLevel(resolveJlptLookupText(token));
     const fallbackLevel = getJlptLevel(token.surface);
 
-    return {
-      ...token,
-      jlptLevel: primaryLevel ?? fallbackLevel ?? token.jlptLevel,
-    };
+  return {
+    ...token,
+    jlptLevel: primaryLevel ?? fallbackLevel ?? token.jlptLevel,
+  };
   });
-}
-
-function extractYomitanHeadword(segment: YomitanParseSegment): string {
-  const headwords = segment.headwords;
-  if (!Array.isArray(headwords) || headwords.length === 0) {
-    return "";
-  }
-
-  const firstGroup = headwords[0];
-  if (!Array.isArray(firstGroup) || firstGroup.length === 0) {
-    return "";
-  }
-
-  const firstHeadword = firstGroup[0] as YomitanParseHeadword;
-  return typeof firstHeadword?.term === "string" ? firstHeadword.term : "";
 }
 
 function mapYomitanParseResultsToMergedTokens(
   parseResults: unknown,
   isKnownWord: (text: string) => boolean,
   knownWordMatchMode: NPlusOneMatchMode,
-  getJlptLevel: (text: string) => JlptLevel | null,
 ): MergedToken[] | null {
   if (!Array.isArray(parseResults) || parseResults.length === 0) {
     return null;
   }
 
-  const scanningItems = parseResults.filter((item) => {
-    const resultItem = item as YomitanParseResultItem;
-    return (
-      resultItem &&
-      resultItem.source === "scanning-parser" &&
-      Array.isArray(resultItem.content)
-    );
-  }) as YomitanParseResultItem[];
+  const scanningItems = parseResults.filter(
+    (item): item is YomitanParseResultItem => isYomitanParseResultItem(item),
+  );
 
   if (scanningItems.length === 0) {
     return null;
@@ -304,24 +358,21 @@ function mapYomitanParseResultsToMergedTokens(
 
   const tokens: MergedToken[] = [];
   let charOffset = 0;
+  let validLineCount = 0;
 
   for (const line of content) {
-    if (!Array.isArray(line)) {
+    if (!isYomitanParseLine(line)) {
       continue;
     }
+    validLineCount += 1;
 
     let surface = "";
     let reading = "";
     let headword = "";
 
-    for (const rawSegment of line) {
-      const segment = rawSegment as YomitanParseSegment;
-      if (!segment || typeof segment !== "object") {
-        continue;
-      }
-
+    for (const segment of line) {
       const segmentText = segment.text;
-      if (typeof segmentText !== "string" || segmentText.length === 0) {
+      if (!segmentText || segmentText.length === 0) {
         continue;
       }
 
@@ -365,6 +416,9 @@ function mapYomitanParseResultsToMergedTokens(
     });
   }
 
+  if (validLineCount === 0) {
+    return null;
+  }
   return tokens.length > 0 ? tokens : null;
 }
 
@@ -428,14 +482,22 @@ async function enrichYomitanPos1(
   try {
     mecabTokens = await deps.tokenizeWithMecab(text);
   } catch (err) {
+    const error = err as Error;
     console.warn(
       "Failed to enrich Yomitan tokens with MeCab POS:",
-      (err as Error).message,
+      error.message,
+      `tokenCount=${tokens.length}`,
+      `textLength=${text.length}`,
     );
     return tokens;
   }
 
   if (!mecabTokens || mecabTokens.length === 0) {
+    console.warn(
+      "MeCab enrichment returned no tokens; preserving Yomitan token output.",
+      `tokenCount=${tokens.length}`,
+      `textLength=${text.length}`,
+    );
     return tokens;
   }
 
@@ -591,11 +653,10 @@ async function parseWithYomitanInternalParser(
       script,
       true,
     );
-    const yomitanTokens = mapYomitanParseResultsToMergedTokens(
+  const yomitanTokens = mapYomitanParseResultsToMergedTokens(
       parseResults,
       deps.isKnownWord,
       deps.getKnownWordMatchMode(),
-      deps.getJlptLevel,
     );
     if (!yomitanTokens || yomitanTokens.length === 0) {
       return null;
