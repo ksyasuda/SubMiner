@@ -161,6 +161,11 @@ function getCachedFrequencyRank(
   } catch {
     rank = null;
   }
+  if (rank !== null) {
+    if (!Number.isFinite(rank) || rank <= 0) {
+      rank = null;
+    }
+  }
 
   cache.set(normalizedText, rank);
   while (cache.size > FREQUENCY_RANK_LOOKUP_CACHE_LIMIT) {

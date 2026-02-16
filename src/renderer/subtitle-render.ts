@@ -83,8 +83,9 @@ function getFrequencyDictionaryClass(
   }
 
   if (settings.mode === "banded") {
-    const normalizedBand = Math.ceil((rank / topX) * 5);
-    const band = Math.min(5, Math.max(1, normalizedBand));
+    const bandCount = settings.bandedColors.length;
+    const normalizedBand = Math.ceil((rank / topX) * bandCount);
+    const band = Math.min(bandCount, Math.max(1, normalizedBand));
     return `word-frequency-band-${band}`;
   }
 
@@ -183,12 +184,14 @@ export function computeWordClass(
     classes.push(`word-jlpt-${token.jlptLevel.toLowerCase()}`);
   }
 
-  const frequencyClass = getFrequencyDictionaryClass(
-    token,
-    resolvedFrequencySettings,
-  );
-  if (frequencyClass) {
-    classes.push(frequencyClass);
+  if (!token.isKnown && !token.isNPlusOneTarget) {
+    const frequencyClass = getFrequencyDictionaryClass(
+      token,
+      resolvedFrequencySettings,
+    );
+    if (frequencyClass) {
+      classes.push(frequencyClass);
+    }
   }
 
   return classes.join(" ");

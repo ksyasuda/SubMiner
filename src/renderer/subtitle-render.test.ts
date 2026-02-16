@@ -53,6 +53,54 @@ test("computeWordClass preserves known and n+1 classes while adding JLPT classes
   );
 });
 
+test("computeWordClass does not add frequency class to known or N+1 terms", () => {
+  const known = createToken({
+    isKnown: true,
+    frequencyRank: 10,
+    surface: "既知",
+  });
+  const nPlusOne = createToken({
+    isNPlusOneTarget: true,
+    frequencyRank: 10,
+    surface: "目標",
+  });
+  const frequency = createToken({
+    frequencyRank: 10,
+    surface: "頻度",
+  });
+
+  assert.equal(
+    computeWordClass(known, {
+      enabled: true,
+      topX: 100,
+      mode: "single",
+      singleColor: "#000000",
+      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
+    }),
+    "word word-known",
+  );
+  assert.equal(
+    computeWordClass(nPlusOne, {
+      enabled: true,
+      topX: 100,
+      mode: "single",
+      singleColor: "#000000",
+      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
+    }),
+    "word word-n-plus-one",
+  );
+  assert.equal(
+    computeWordClass(frequency, {
+      enabled: true,
+      topX: 100,
+      mode: "single",
+      singleColor: "#000000",
+      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
+    }),
+    "word word-frequency-single",
+  );
+});
+
 test("computeWordClass adds frequency class for single mode when rank is within topX", () => {
   const token = createToken({
     surface: "猫",
@@ -112,6 +160,23 @@ test("computeWordClass adds frequency class for banded mode", () => {
   );
 
   assert.equal(actual, "word word-frequency-band-2");
+});
+
+test("computeWordClass uses configured band count for banded mode", () => {
+  const token = createToken({
+    surface: "犬",
+    frequencyRank: 2,
+  });
+
+  const actual = computeWordClass(token, {
+    enabled: true,
+    topX: 4,
+    mode: "banded",
+    singleColor: "#000000",
+    bandedColors: ["#111111", "#222222", "#333333"] as any,
+  } as any);
+
+  assert.equal(actual, "word word-frequency-band-1");
 });
 
 test("computeWordClass skips frequency class when rank is out of topX", () => {

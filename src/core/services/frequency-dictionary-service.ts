@@ -100,7 +100,10 @@ function collectDictionaryFromPath(
   let fileNames: string[];
   try {
     fileNames = fs.readdirSync(dictionaryPath);
-  } catch {
+  } catch (error) {
+    log(
+      `Failed to read frequency dictionary directory ${dictionaryPath}: ${String(error)}`,
+    );
     return terms;
   }
 
@@ -150,10 +153,21 @@ export async function createFrequencyDictionaryLookupService(
 
   for (const dictionaryPath of options.searchPaths) {
     attemptedPaths.push(dictionaryPath);
-    if (!fs.existsSync(dictionaryPath)) {
+    let isDirectory = false;
+
+    try {
+      if (!fs.existsSync(dictionaryPath)) {
+        continue;
+      }
+      isDirectory = fs.statSync(dictionaryPath).isDirectory();
+    } catch (error) {
+      options.log(
+        `Failed to inspect frequency dictionary path ${dictionaryPath}: ${String(error)}`,
+      );
       continue;
     }
-    if (!fs.statSync(dictionaryPath).isDirectory()) {
+
+    if (!isDirectory) {
       continue;
     }
 
@@ -186,4 +200,3 @@ export async function createFrequencyDictionaryLookupService(
 
   return NOOP_LOOKUP;
 }
-
