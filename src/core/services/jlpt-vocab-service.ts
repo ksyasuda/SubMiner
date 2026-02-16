@@ -15,6 +15,13 @@ const JLPT_BANK_FILES: { level: JlptLevel; filename: string }[] = [
   { level: "N4", filename: "term_meta_bank_4.json" },
   { level: "N5", filename: "term_meta_bank_5.json" },
 ];
+const JLPT_LEVEL_PRECEDENCE: Record<JlptLevel, number> = {
+  N1: 5,
+  N2: 4,
+  N3: 3,
+  N4: 2,
+  N5: 1,
+};
 
 const NOOP_LOOKUP = (): null => null;
 
@@ -38,6 +45,14 @@ function addEntriesToMap(
   terms: Map<string, JlptLevel>,
   log: (message: string) => void,
 ): void {
+  const shouldUpdateLevel = (
+    existingLevel: JlptLevel | undefined,
+    incomingLevel: JlptLevel,
+  ): boolean =>
+    existingLevel === undefined ||
+    JLPT_LEVEL_PRECEDENCE[incomingLevel] >
+      JLPT_LEVEL_PRECEDENCE[existingLevel];
+
   if (!Array.isArray(rawEntries)) {
     return;
   }
@@ -61,55 +76,14 @@ function addEntriesToMap(
       continue;
     }
 
-    if (!terms.has(normalizedTerm)) {
+    const existingLevel = terms.get(normalizedTerm);
+    if (shouldUpdateLevel(existingLevel, level)) {
       terms.set(normalizedTerm, level);
       continue;
-    }
-
-    if (terms.get(normalizedTerm) !== "N1" && level === "N1") {
-      terms.set(normalizedTerm, level);
-      continue;
-    }
-
-    if (terms.get(normalizedTerm) !== "N1" && terms.get(normalizedTerm) !== "N2" && level === "N2") {
-      terms.set(normalizedTerm, level);
-      continue;
-    }
-
-    if (
-      terms.get(normalizedTerm) !== "N1" &&
-      terms.get(normalizedTerm) !== "N2" &&
-      terms.get(normalizedTerm) !== "N3" &&
-      level === "N3"
-    ) {
-      terms.set(normalizedTerm, level);
-      continue;
-    }
-
-    if (
-      terms.get(normalizedTerm) !== "N1" &&
-      terms.get(normalizedTerm) !== "N2" &&
-      terms.get(normalizedTerm) !== "N3" &&
-      terms.get(normalizedTerm) !== "N4" &&
-      level === "N4"
-    ) {
-      terms.set(normalizedTerm, level);
-      continue;
-    }
-
-    if (
-      terms.get(normalizedTerm) !== "N1" &&
-      terms.get(normalizedTerm) !== "N2" &&
-      terms.get(normalizedTerm) !== "N3" &&
-      terms.get(normalizedTerm) !== "N4" &&
-      terms.get(normalizedTerm) !== "N5" &&
-      level === "N5"
-    ) {
-      terms.set(normalizedTerm, level);
     }
 
     log(
-      `JLPT dictionary already has ${normalizedTerm} as ${terms.get(normalizedTerm)}; keeping that level instead of ${level}`,
+      `JLPT dictionary already has ${normalizedTerm} as ${existingLevel}; keeping that level instead of ${level}`,
     );
   }
 }

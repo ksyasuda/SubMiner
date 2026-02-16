@@ -469,106 +469,37 @@ function loadSubtitlePosition(): SubtitlePosition | null {
 
 function getJlptDictionarySearchPaths(): string[] {
   const homeDir = os.homedir();
-  const userDataPath = app.getPath("userData");
-  return [
+  const dictionaryRoots = [
+    // Source checkout paths (development + source tree)
     path.join(__dirname, "..", "..", "vendor", "yomitan-jlpt-vocab"),
-    path.join(
-      __dirname,
-      "..",
-      "..",
-      "vendor",
-      "yomitan-jlpt-vocab",
-      "yomitan-jlpt-vocab",
-    ),
-    path.join(__dirname, "..", "..", "..", "vendor", "yomitan-jlpt-vocab"),
-    path.join(
-      __dirname,
-      "..",
-      "..",
-      "..",
-      "vendor",
-      "yomitan-jlpt-vocab",
-      "yomitan-jlpt-vocab",
-    ),
-    path.join(process.resourcesPath, "yomitan-jlpt-vocab"),
-    path.join(
-      process.resourcesPath,
-      "yomitan-jlpt-vocab",
-      "yomitan-jlpt-vocab",
-    ),
     path.join(app.getAppPath(), "vendor", "yomitan-jlpt-vocab"),
-    path.join(
-      app.getAppPath(),
-      "vendor",
-      "yomitan-jlpt-vocab",
-      "yomitan-jlpt-vocab",
-    ),
+    // Runtime package bundle paths
+    path.join(process.resourcesPath, "yomitan-jlpt-vocab"),
     path.join(process.resourcesPath, "app.asar", "vendor", "yomitan-jlpt-vocab"),
-    path.join(
-      process.resourcesPath,
-      "app.asar",
-      "vendor",
-      "yomitan-jlpt-vocab",
-      "yomitan-jlpt-vocab",
-    ),
-    path.join(USER_DATA_PATH, "yomitan-jlpt-vocab"),
-    path.join(USER_DATA_PATH, "yomitan-jlpt-vocab", "yomitan-jlpt-vocab"),
-    path.join(userDataPath, "yomitan-jlpt-vocab"),
-    path.join(userDataPath, "yomitan-jlpt-vocab", "yomitan-jlpt-vocab"),
-    path.join(homeDir, ".config", "SubMiner", "yomitan-jlpt-vocab"),
-    path.join(
-      homeDir,
-      ".config",
-      "SubMiner",
-      "yomitan-jlpt-vocab",
-      "yomitan-jlpt-vocab",
-    ),
-    path.join(homeDir, ".config", "subminer", "yomitan-jlpt-vocab"),
-    path.join(
-      homeDir,
-      ".config",
-      "subminer",
-      "yomitan-jlpt-vocab",
-      "yomitan-jlpt-vocab",
-    ),
-    path.join(
-      homeDir,
-      "Library",
-      "Application Support",
-      "SubMiner",
-      "yomitan-jlpt-vocab",
-    ),
-    path.join(
-      homeDir,
-      "Library",
-      "Application Support",
-      "SubMiner",
-      "yomitan-jlpt-vocab",
-      "yomitan-jlpt-vocab",
-    ),
-    path.join(
-      homeDir,
-      "Library",
-      "Application Support",
-      "subminer",
-      "yomitan-jlpt-vocab",
-    ),
-    path.join(
-      homeDir,
-      "Library",
-      "Application Support",
-      "subminer",
-      "yomitan-jlpt-vocab",
-      "yomitan-jlpt-vocab",
-    ),
-    path.join(process.cwd(), "vendor", "yomitan-jlpt-vocab"),
-    path.join(
-      process.cwd(),
-      "vendor",
-      "yomitan-jlpt-vocab",
-      "yomitan-jlpt-vocab",
-    ),
+    // User-configurable override locations
+    USER_DATA_PATH,
+    app.getPath("userData"),
+    path.join(homeDir, ".config", "SubMiner"),
+    path.join(homeDir, ".config", "subminer"),
+    path.join(homeDir, "Library", "Application Support", "SubMiner"),
+    path.join(homeDir, "Library", "Application Support", "subminer"),
+    // CLI invocation path (when launched from project root)
+    process.cwd(),
   ];
+
+  const searchPaths: string[] = [];
+  for (const dictionaryRoot of dictionaryRoots) {
+    searchPaths.push(dictionaryRoot);
+    searchPaths.push(path.join(dictionaryRoot, "vendor", "yomitan-jlpt-vocab"));
+    searchPaths.push(path.join(dictionaryRoot, "yomitan-jlpt-vocab"));
+  }
+
+  const uniquePaths = new Set<string>();
+  for (const searchPath of searchPaths) {
+    uniquePaths.add(searchPath);
+  }
+
+  return [...uniquePaths];
 }
 
 async function initializeJlptDictionaryLookup(): Promise<void> {

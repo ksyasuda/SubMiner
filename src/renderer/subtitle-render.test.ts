@@ -65,7 +65,7 @@ test("JLPT CSS rules use underline-only styling in renderer stylesheet", () => {
     assert.ok(block.length > 0, `word-jlpt-n${level} class should exist`);
     assert.match(block, /text-decoration-line:\s*underline;/);
     assert.match(block, /text-decoration-thickness:\s*2px;/);
-    assert.match(block, /text-underline-offset:\s*2px;/);
+    assert.match(block, /text-underline-offset:\s*4px;/);
     assert.match(block, /color:\s*inherit;/);
   }
 });
