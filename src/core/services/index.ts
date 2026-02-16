@@ -38,6 +38,16 @@ export {
 export { openYomitanSettingsWindow } from "./yomitan-settings-service";
 export { createTokenizerDepsRuntimeService, tokenizeSubtitleService } from "./tokenizer-service";
 export { createJlptVocabularyLookupService } from "./jlpt-vocab-service";
+export {
+  getIgnoredPos1Entries,
+  JlptIgnoredPos1Entry,
+  JLPT_EXCLUDED_TERMS,
+  JLPT_IGNORED_MECAB_POS1,
+  JLPT_IGNORED_MECAB_POS1_ENTRIES,
+  JLPT_IGNORED_MECAB_POS1_LIST,
+  shouldIgnoreJlptByTerm,
+  shouldIgnoreJlptForMecabPos1,
+} from "./jlpt-token-filter";
 export { loadYomitanExtensionService } from "./yomitan-extension-loader-service";
 export {
   getJimakuLanguagePreferenceService,

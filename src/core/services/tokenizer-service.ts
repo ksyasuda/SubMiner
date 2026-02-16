@@ -8,8 +8,10 @@ import {
   SubtitleData,
   Token,
 } from "../../types";
-import { shouldIgnoreJlptForMecabPos1 } from "./jlpt-token-filter-config";
-import { shouldIgnoreJlptByTerm } from "./jlpt-excluded-terms";
+import {
+  shouldIgnoreJlptForMecabPos1,
+  shouldIgnoreJlptByTerm,
+} from "./jlpt-token-filter";
 
 interface YomitanParseHeadword {
   term?: unknown;
