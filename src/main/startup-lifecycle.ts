@@ -1,7 +1,7 @@
 import { CliArgs, CliCommandSource } from "../cli/args";
-import { createAppLifecycleDepsRuntimeService } from "../core/services";
-import { startAppLifecycleService } from "../core/services/app-lifecycle-service";
-import type { AppLifecycleDepsRuntimeOptions } from "../core/services/app-lifecycle-service";
+import { createAppLifecycleDepsRuntime } from "../core/services";
+import { startAppLifecycle } from "../core/services/app-lifecycle";
+import type { AppLifecycleDepsRuntimeOptions } from "../core/services/app-lifecycle";
 import { createAppLifecycleRuntimeDeps } from "./app-lifecycle";
 
 export interface AppLifecycleRuntimeRunnerParams {
@@ -22,9 +22,9 @@ export function createAppLifecycleRuntimeRunner(
   params: AppLifecycleRuntimeRunnerParams,
 ): (args: CliArgs) => void {
   return (args: CliArgs): void => {
-    startAppLifecycleService(
+    startAppLifecycle(
       args,
-      createAppLifecycleDepsRuntimeService(
+      createAppLifecycleDepsRuntime(
         createAppLifecycleRuntimeDeps({
           app: params.app,
           platform: params.platform,

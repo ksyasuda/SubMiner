@@ -1,7 +1,7 @@
 import type { CliArgs, CliCommandSource } from "../cli/args";
-import { runAppReadyRuntimeService } from "../core/services/startup-service";
-import type { AppReadyRuntimeDeps } from "../core/services/startup-service";
-import type { AppLifecycleDepsRuntimeOptions } from "../core/services/app-lifecycle-service";
+import { runAppReadyRuntime } from "../core/services/startup";
+import type { AppReadyRuntimeDeps } from "../core/services/startup";
+import type { AppLifecycleDepsRuntimeOptions } from "../core/services/app-lifecycle";
 
 export interface AppLifecycleRuntimeDepsFactoryInput {
   app: AppLifecycleDepsRuntimeOptions["app"];
@@ -96,6 +96,6 @@ export function createAppReadyRuntimeRunner(
   params: AppReadyRuntimeDepsFactoryInput,
 ): () => Promise<void> {
   return async () => {
-    await runAppReadyRuntimeService(createAppReadyRuntimeDeps(params));
+    await runAppReadyRuntime(createAppReadyRuntimeDeps(params));
   };
 }

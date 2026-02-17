@@ -1,6 +1,6 @@
 import { CliArgs } from "../cli/args";
 import type { ResolvedConfig } from "../types";
-import type { StartupBootstrapRuntimeDeps } from "../core/services/startup-service";
+import type { StartupBootstrapRuntimeDeps } from "../core/services/startup";
 import type { LogLevelSource } from "../logger";
 
 export interface StartupBootstrapRuntimeFactoryDeps {

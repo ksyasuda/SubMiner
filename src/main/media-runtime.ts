@@ -1,4 +1,4 @@
-import { updateCurrentMediaPathService } from "../core/services";
+import { updateCurrentMediaPath } from "../core/services";
 
 import type { SubtitlePosition } from "../types";
 
@@ -31,7 +31,7 @@ export function createMediaRuntimeService(
         deps.setCurrentMediaTitle(null);
       }
 
-      updateCurrentMediaPathService({
+      updateCurrentMediaPath({
         mediaPath,
         currentMediaPath: deps.getCurrentMediaPath(),
         pendingSubtitlePosition: deps.getPendingSubtitlePosition(),

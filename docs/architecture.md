@@ -222,7 +222,7 @@ flowchart TD
 - **Better reviewability:** PRs can be scoped to one subsystem.
 - **Backward compatibility:** CLI flags and IPC channels can remain stable while internals evolve.
 - **Extracted composition root:** TASK-27 refactored `main.ts` into focused modules under `src/main/`, isolating startup, lifecycle, IPC, CLI, and domain-specific runtime wiring.
-- **Split MPV service:** TASK-27.4 separated `mpv-service.ts` into transport (`mpv-transport.ts`), protocol (`mpv-protocol.ts`), state (`mpv-state.ts`), and properties (`mpv-properties.ts`) layers for improved maintainability.
+- **Split MPV service:** TASK-27.4 separated `mpv.ts` into transport (`mpv-transport.ts`), protocol (`mpv-protocol.ts`), state (`mpv-state.ts`), and properties (`mpv-properties.ts`) layers for improved maintainability.
 
 ## Extension Rules
 

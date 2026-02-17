@@ -3,9 +3,9 @@ import type { BrowserWindow } from "electron";
 import type { BaseWindowTracker } from "../window-trackers";
 import type { WindowGeometry } from "../types";
 import {
-  syncInvisibleOverlayMousePassthroughService,
-  updateInvisibleOverlayVisibilityService,
-  updateVisibleOverlayVisibilityService,
+  syncInvisibleOverlayMousePassthrough,
+  updateInvisibleOverlayVisibility,
+  updateVisibleOverlayVisibility,
 } from "../core/services";
 
 export interface OverlayVisibilityRuntimeDeps {
@@ -48,7 +48,7 @@ export function createOverlayVisibilityRuntimeService(
 
   return {
     updateVisibleOverlayVisibility(): void {
-      updateVisibleOverlayVisibilityService({
+      updateVisibleOverlayVisibility({
         visibleOverlayVisible: deps.getVisibleOverlayVisible(),
         mainWindow: deps.getMainWindow(),
         windowTracker: deps.getWindowTracker(),
@@ -66,7 +66,7 @@ export function createOverlayVisibilityRuntimeService(
     },
 
     updateInvisibleOverlayVisibility(): void {
-      updateInvisibleOverlayVisibilityService({
+      updateInvisibleOverlayVisibility({
         invisibleWindow: deps.getInvisibleWindow(),
         visibleOverlayVisible: deps.getVisibleOverlayVisible(),
         invisibleOverlayVisible: deps.getInvisibleOverlayVisible(),
@@ -81,7 +81,7 @@ export function createOverlayVisibilityRuntimeService(
     },
 
     syncInvisibleOverlayMousePassthrough(): void {
-      syncInvisibleOverlayMousePassthroughService({
+      syncInvisibleOverlayMousePassthrough({
         hasInvisibleWindow,
         setIgnoreMouseEvents,
         visibleOverlayVisible: deps.getVisibleOverlayVisible(),

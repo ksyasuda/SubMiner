@@ -1,8 +1,11 @@
 import { SubsyncResolvedConfig } from "../subsync/utils";
 import type { SubsyncManualPayload, SubsyncManualRunRequest, SubsyncResult } from "../types";
-import type { SubsyncRuntimeDeps } from "../core/services/subsync-runner-service";
+import type { SubsyncRuntimeDeps } from "../core/services/subsync-runner";
 import { createSubsyncRuntimeDeps } from "./dependencies";
-import { runSubsyncManualFromIpcRuntimeService, triggerSubsyncFromConfigRuntimeService } from "../core/services";
+import {
+  runSubsyncManualFromIpcRuntime as runSubsyncManualFromIpcRuntimeCore,
+  triggerSubsyncFromConfigRuntime as triggerSubsyncFromConfigRuntimeCore,
+} from "../core/services";
 
 export interface SubsyncRuntimeServiceInput {
   getMpvClient: SubsyncRuntimeDeps["getMpvClient"];
@@ -51,14 +54,14 @@ export function createSubsyncRuntimeServiceDeps(
 export function triggerSubsyncFromConfigRuntime(
   params: SubsyncRuntimeServiceInput,
 ): Promise<void> {
-  return triggerSubsyncFromConfigRuntimeService(createSubsyncRuntimeServiceDeps(params));
+  return triggerSubsyncFromConfigRuntimeCore(createSubsyncRuntimeServiceDeps(params));
 }
 
 export async function runSubsyncManualFromIpcRuntime(
   request: SubsyncManualRunRequest,
   params: SubsyncRuntimeServiceInput,
 ): Promise<SubsyncResult> {
-  return runSubsyncManualFromIpcRuntimeService(
+  return runSubsyncManualFromIpcRuntimeCore(
     request,
     createSubsyncRuntimeServiceDeps(params),
   );

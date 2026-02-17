@@ -85,53 +85,53 @@ import {
 } from "./core/utils";
 import {
   MpvIpcClient,
-  SubtitleWebSocketService,
-  TexthookerService,
-  applyMpvSubtitleRenderMetricsPatchService,
-  broadcastRuntimeOptionsChangedRuntimeService,
-  copyCurrentSubtitleService,
-  createOverlayManagerService,
-  createFieldGroupingOverlayRuntimeService,
-  createNumericShortcutRuntimeService,
-  createOverlayContentMeasurementStoreService,
-  createOverlayWindowService,
-  createTokenizerDepsRuntimeService,
-  cycleSecondarySubModeService,
-  enforceOverlayLayerOrderService,
-  ensureOverlayWindowLevelService,
-  getInitialInvisibleOverlayVisibilityService,
-  getJimakuLanguagePreferenceService,
-  getJimakuMaxEntryResultsService,
-  handleMineSentenceDigitService,
-  handleMultiCopyDigitService,
+  SubtitleWebSocket,
+  Texthooker,
+  applyMpvSubtitleRenderMetricsPatch,
+  broadcastRuntimeOptionsChangedRuntime,
+  copyCurrentSubtitle as copyCurrentSubtitleCore,
+  createOverlayManager,
+  createFieldGroupingOverlayRuntime,
+  createNumericShortcutRuntime,
+  createOverlayContentMeasurementStore,
+  createOverlayWindow as createOverlayWindowCore,
+  createTokenizerDepsRuntime,
+  cycleSecondarySubMode as cycleSecondarySubModeCore,
+  enforceOverlayLayerOrder as enforceOverlayLayerOrderCore,
+  ensureOverlayWindowLevel as ensureOverlayWindowLevelCore,
+  getInitialInvisibleOverlayVisibility as getInitialInvisibleOverlayVisibilityCore,
+  getJimakuLanguagePreference as getJimakuLanguagePreferenceCore,
+  getJimakuMaxEntryResults as getJimakuMaxEntryResultsCore,
+  handleMineSentenceDigit as handleMineSentenceDigitCore,
+  handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
-  initializeOverlayRuntimeService,
-  isAutoUpdateEnabledRuntimeService,
-  jimakuFetchJsonService,
-  loadSubtitlePositionService,
-  loadYomitanExtensionService,
-  markLastCardAsAudioCardService,
+  initializeOverlayRuntime as initializeOverlayRuntimeCore,
+  isAutoUpdateEnabledRuntime as isAutoUpdateEnabledRuntimeCore,
+  jimakuFetchJson as jimakuFetchJsonCore,
+  loadSubtitlePosition as loadSubtitlePositionCore,
+  loadYomitanExtension as loadYomitanExtensionCore,
+  markLastCardAsAudioCard as markLastCardAsAudioCardCore,
   DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
-  mineSentenceCardService,
+  mineSentenceCard as mineSentenceCardCore,
   ImmersionTrackerService,
   openYomitanSettingsWindow,
-  playNextSubtitleRuntimeService,
-  registerGlobalShortcutsService,
-  replayCurrentSubtitleRuntimeService,
-  resolveJimakuApiKeyService,
-  runStartupBootstrapRuntimeService,
-  saveSubtitlePositionService,
-  sendMpvCommandRuntimeService,
-  setInvisibleOverlayVisibleService,
-  setMpvSubVisibilityRuntimeService,
-  setOverlayDebugVisualizationEnabledRuntimeService,
-  setVisibleOverlayVisibleService,
-  shouldAutoInitializeOverlayRuntimeFromConfigService,
-  shouldBindVisibleOverlayToMpvSubVisibilityService,
-  showMpvOsdRuntimeService,
-  tokenizeSubtitleService,
-  triggerFieldGroupingService,
-  updateLastCardFromClipboardService,
+  playNextSubtitleRuntime,
+  registerGlobalShortcuts as registerGlobalShortcutsCore,
+  replayCurrentSubtitleRuntime,
+  resolveJimakuApiKey as resolveJimakuApiKeyCore,
+  runStartupBootstrapRuntime,
+  saveSubtitlePosition as saveSubtitlePositionCore,
+  sendMpvCommandRuntime,
+  setInvisibleOverlayVisible as setInvisibleOverlayVisibleCore,
+  setMpvSubVisibilityRuntime,
+  setOverlayDebugVisualizationEnabledRuntime,
+  setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
+  shouldAutoInitializeOverlayRuntimeFromConfig as shouldAutoInitializeOverlayRuntimeFromConfigCore,
+  shouldBindVisibleOverlayToMpvSubVisibility as shouldBindVisibleOverlayToMpvSubVisibilityCore,
+  showMpvOsdRuntime,
+  tokenizeSubtitle as tokenizeSubtitleCore,
+  triggerFieldGrouping as triggerFieldGroupingCore,
+  updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from "./core/services";
 import {
   guessAnilistMediaInfo,
@@ -140,7 +140,7 @@ import {
 } from "./core/services/anilist/anilist-updater";
 import { createAnilistTokenStore } from "./core/services/anilist/anilist-token-store";
 import { createAnilistUpdateQueue } from "./core/services/anilist/anilist-update-queue";
-import { applyRuntimeOptionResultRuntimeService } from "./core/services/runtime-options-ipc-service";
+import { applyRuntimeOptionResultRuntime } from "./core/services/runtime-options-ipc";
 import {
   createAppReadyRuntimeRunner,
 } from "./main/app-lifecycle";
@@ -283,8 +283,8 @@ const anilistUpdateQueue = createAnilistUpdateQueue(
 );
 const isDev =
   process.argv.includes("--dev") || process.argv.includes("--debug");
-const texthookerService = new TexthookerService();
-const subtitleWsService = new SubtitleWebSocketService();
+const texthookerService = new Texthooker();
+const subtitleWsService = new SubtitleWebSocket();
 const logger = createLogger("main");
 const appLogger = {
   logInfo: (message: string) => {
@@ -330,8 +330,8 @@ process.on("SIGTERM", () => {
   app.quit();
 });
 
-const overlayManager = createOverlayManagerService();
-const overlayContentMeasurementStore = createOverlayContentMeasurementStoreService({
+const overlayManager = createOverlayManager();
+const overlayContentMeasurementStore = createOverlayContentMeasurementStore({
   now: () => Date.now(),
   warn: (message: string) => logger.warn(message),
 });
@@ -460,7 +460,7 @@ function setFieldGroupingResolver(
   appState.fieldGroupingResolver = wrappedResolver;
 }
 
-const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntimeService<OverlayHostedModal>({
+const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHostedModal>({
   getMainWindow: () => overlayManager.getMainWindow(),
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
   getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
@@ -548,7 +548,7 @@ function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
 }
 
 function broadcastRuntimeOptionsChanged(): void {
-  broadcastRuntimeOptionsChangedRuntimeService(
+  broadcastRuntimeOptionsChangedRuntime(
     () => getRuntimeOptionsState(),
     (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
   );
@@ -567,7 +567,7 @@ function sendToActiveOverlayWindow(
 }
 
 function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
-  setOverlayDebugVisualizationEnabledRuntimeService(
+  setOverlayDebugVisualizationEnabledRuntime(
     appState.overlayDebugVisualizationEnabled,
     enabled,
     (next) => {
@@ -646,32 +646,32 @@ async function getCurrentMpvMediaStateForTracker(): Promise<ImmersionMediaState>
 }
 
 function getInitialInvisibleOverlayVisibility(): boolean {
-  return getInitialInvisibleOverlayVisibilityService(
+  return getInitialInvisibleOverlayVisibilityCore(
     getResolvedConfig(),
     process.platform,
   );
 }
 
 function shouldAutoInitializeOverlayRuntimeFromConfig(): boolean {
-  return shouldAutoInitializeOverlayRuntimeFromConfigService(getResolvedConfig());
+  return shouldAutoInitializeOverlayRuntimeFromConfigCore(getResolvedConfig());
 }
 
 function shouldBindVisibleOverlayToMpvSubVisibility(): boolean {
-  return shouldBindVisibleOverlayToMpvSubVisibilityService(getResolvedConfig());
+  return shouldBindVisibleOverlayToMpvSubVisibilityCore(getResolvedConfig());
 }
 
 function isAutoUpdateEnabledRuntime(): boolean {
-  return isAutoUpdateEnabledRuntimeService(
+  return isAutoUpdateEnabledRuntimeCore(
     getResolvedConfig(),
     appState.runtimeOptionsManager,
   );
 }
 
-function getJimakuLanguagePreference(): JimakuLanguagePreference { return getJimakuLanguagePreferenceService(() => getResolvedConfig(), DEFAULT_CONFIG.jimaku.languagePreference); }
+function getJimakuLanguagePreference(): JimakuLanguagePreference { return getJimakuLanguagePreferenceCore(() => getResolvedConfig(), DEFAULT_CONFIG.jimaku.languagePreference); }
 
-function getJimakuMaxEntryResults(): number { return getJimakuMaxEntryResultsService(() => getResolvedConfig(), DEFAULT_CONFIG.jimaku.maxEntryResults); }
+function getJimakuMaxEntryResults(): number { return getJimakuMaxEntryResultsCore(() => getResolvedConfig(), DEFAULT_CONFIG.jimaku.maxEntryResults); }
 
-async function resolveJimakuApiKey(): Promise<string | null> { return resolveJimakuApiKeyService(() => getResolvedConfig()); }
+async function resolveJimakuApiKey(): Promise<string | null> { return resolveJimakuApiKeyCore(() => getResolvedConfig()); }
 
 function seedImmersionTrackerFromCurrentMedia(): void {
   const tracker = appState.immersionTracker;
@@ -754,7 +754,7 @@ async function jimakuFetchJson<T>(
   endpoint: string,
   query: Record<string, string | number | boolean | null | undefined> = {},
 ): Promise<JimakuApiResponse<T>> {
-  return jimakuFetchJsonService<T>(endpoint, query, {
+  return jimakuFetchJsonCore<T>(endpoint, query, {
     getResolvedConfig: () => getResolvedConfig(),
     defaultBaseUrl: DEFAULT_CONFIG.jimaku.apiBaseUrl,
     defaultMaxEntryResults: DEFAULT_CONFIG.jimaku.maxEntryResults,
@@ -1193,7 +1193,7 @@ async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
 }
 
 function loadSubtitlePosition(): SubtitlePosition | null {
-  appState.subtitlePosition = loadSubtitlePositionService({
+  appState.subtitlePosition = loadSubtitlePositionCore({
     currentMediaPath: appState.currentMediaPath,
     fallbackPosition: getResolvedConfig().subtitlePosition,
     subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
@@ -1203,7 +1203,7 @@ function loadSubtitlePosition(): SubtitlePosition | null {
 
 function saveSubtitlePosition(position: SubtitlePosition): void {
   appState.subtitlePosition = position;
-  saveSubtitlePositionService({
+  saveSubtitlePositionCore({
     position,
     currentMediaPath: appState.currentMediaPath,
     subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
@@ -1216,7 +1216,7 @@ function saveSubtitlePosition(position: SubtitlePosition): void {
   });
 }
 
-const startupState = runStartupBootstrapRuntimeService(
+const startupState = runStartupBootstrapRuntime(
   createStartupBootstrapRuntimeDeps({
     argv: process.argv,
     parseArgs: (argv: string[]) => parseArgs(argv),
@@ -1558,7 +1558,7 @@ function createMpvClientRuntimeService(): MpvIpcClient {
 function updateMpvSubtitleRenderMetrics(
   patch: Partial<MpvSubtitleRenderMetrics>,
 ): void {
-  const { next, changed } = applyMpvSubtitleRenderMetricsPatchService(
+  const { next, changed } = applyMpvSubtitleRenderMetricsPatch(
     appState.mpvSubtitleRenderMetrics,
     patch,
   );
@@ -1573,9 +1573,9 @@ function updateMpvSubtitleRenderMetrics(
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
   await jlptDictionaryRuntime.ensureJlptDictionaryLookup();
   await frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup();
-  return tokenizeSubtitleService(
+  return tokenizeSubtitleCore(
     text,
-    createTokenizerDepsRuntimeService({
+    createTokenizerDepsRuntime({
       getYomitanExt: () => appState.yomitanExt,
       getYomitanParserWindow: () => appState.yomitanParserWindow,
       setYomitanParserWindow: (window) => {
@@ -1621,11 +1621,11 @@ function updateInvisibleOverlayBounds(geometry: WindowGeometry): void {
 }
 
 function ensureOverlayWindowLevel(window: BrowserWindow): void {
-  ensureOverlayWindowLevelService(window);
+  ensureOverlayWindowLevelCore(window);
 }
 
 function enforceOverlayLayerOrder(): void {
-  enforceOverlayLayerOrderService({
+  enforceOverlayLayerOrderCore({
     visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
     invisibleOverlayVisible: overlayManager.getInvisibleOverlayVisible(),
     mainWindow: overlayManager.getMainWindow(),
@@ -1635,7 +1635,7 @@ function enforceOverlayLayerOrder(): void {
 }
 
 async function loadYomitanExtension(): Promise<Extension | null> {
-  return loadYomitanExtensionService({
+  return loadYomitanExtensionCore({
     userDataPath: USER_DATA_PATH,
     getYomitanParserWindow: () => appState.yomitanParserWindow,
     setYomitanParserWindow: (window) => {
@@ -1654,7 +1654,7 @@ async function loadYomitanExtension(): Promise<Extension | null> {
 }
 
 function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
-  return createOverlayWindowService(
+  return createOverlayWindowCore(
     kind,
     {
       isDev,
@@ -1695,7 +1695,7 @@ function initializeOverlayRuntime(): void {
   if (appState.overlayRuntimeInitialized) {
     return;
   }
-  const result = initializeOverlayRuntimeService(
+  const result = initializeOverlayRuntimeCore(
     {
       backendOverride: appState.backendOverride,
       getInitialInvisibleOverlayVisibility: () =>
@@ -1759,7 +1759,7 @@ function openYomitanSettings(): void {
   );
 }
 function registerGlobalShortcuts(): void {
-  registerGlobalShortcutsService(
+  registerGlobalShortcutsCore(
     {
       shortcuts: getConfiguredShortcuts(),
       onToggleVisibleOverlay: () => toggleVisibleOverlay(),
@@ -1774,7 +1774,7 @@ function registerGlobalShortcuts(): void {
 function getConfiguredShortcuts() { return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG); }
 
 function cycleSecondarySubMode(): void {
-  cycleSecondarySubModeService(
+  cycleSecondarySubModeCore(
     {
       getSecondarySubMode: () => appState.secondarySubMode,
       setSecondarySubMode: (mode: SecondarySubMode) => {
@@ -1794,7 +1794,7 @@ function cycleSecondarySubMode(): void {
 
 function showMpvOsd(text: string): void {
   appendToMpvLog(`[OSD] ${text}`);
-  showMpvOsdRuntimeService(
+  showMpvOsdRuntime(
     appState.mpvClient,
     text,
     (line) => {
@@ -1816,7 +1816,7 @@ function appendToMpvLog(message: string): void {
   }
 }
 
-const numericShortcutRuntime = createNumericShortcutRuntimeService({
+const numericShortcutRuntime = createNumericShortcutRuntime({
   globalShortcut,
   showMpvOsd: (text) => showMpvOsd(text),
   setTimer: (handler, timeoutMs) => setTimeout(handler, timeoutMs),
@@ -1863,7 +1863,7 @@ function startPendingMultiCopy(timeoutMs: number): void {
 }
 
 function handleMultiCopyDigit(count: number): void {
-  handleMultiCopyDigitService(
+  handleMultiCopyDigitCore(
     count,
     {
       subtitleTimingTracker: appState.subtitleTimingTracker,
@@ -1874,7 +1874,7 @@ function handleMultiCopyDigit(count: number): void {
 }
 
 function copyCurrentSubtitle(): void {
-  copyCurrentSubtitleService(
+  copyCurrentSubtitleCore(
     {
       subtitleTimingTracker: appState.subtitleTimingTracker,
       writeClipboardText: (text) => clipboard.writeText(text),
@@ -1884,7 +1884,7 @@ function copyCurrentSubtitle(): void {
 }
 
 async function updateLastCardFromClipboard(): Promise<void> {
-  await updateLastCardFromClipboardService(
+  await updateLastCardFromClipboardCore(
     {
       ankiIntegration: appState.ankiIntegration,
       readClipboardText: () => clipboard.readText(),
@@ -1902,7 +1902,7 @@ async function refreshKnownWordCache(): Promise<void> {
 }
 
 async function triggerFieldGrouping(): Promise<void> {
-  await triggerFieldGroupingService(
+  await triggerFieldGroupingCore(
     {
       ankiIntegration: appState.ankiIntegration,
       showMpvOsd: (text) => showMpvOsd(text),
@@ -1911,7 +1911,7 @@ async function triggerFieldGrouping(): Promise<void> {
 }
 
 async function markLastCardAsAudioCard(): Promise<void> {
-  await markLastCardAsAudioCardService(
+  await markLastCardAsAudioCardCore(
     {
       ankiIntegration: appState.ankiIntegration,
       showMpvOsd: (text) => showMpvOsd(text),
@@ -1920,7 +1920,7 @@ async function markLastCardAsAudioCard(): Promise<void> {
 }
 
 async function mineSentenceCard(): Promise<void> {
-  const created = await mineSentenceCardService(
+  const created = await mineSentenceCardCore(
     {
       ankiIntegration: appState.ankiIntegration,
       mpvClient: appState.mpvClient,
@@ -1949,7 +1949,7 @@ function startPendingMineSentenceMultiple(timeoutMs: number): void {
 }
 
 function handleMineSentenceDigit(count: number): void {
-  handleMineSentenceDigitService(
+  handleMineSentenceDigitCore(
     count,
     {
       subtitleTimingTracker: appState.subtitleTimingTracker,
@@ -1983,7 +1983,7 @@ function refreshOverlayShortcuts(): void {
 }
 
 function setVisibleOverlayVisible(visible: boolean): void {
-  setVisibleOverlayVisibleService({
+  setVisibleOverlayVisibleCore({
     visible,
     setVisibleOverlayVisibleState: (nextVisible) => {
       overlayManager.setVisibleOverlayVisible(nextVisible);
@@ -1998,13 +1998,13 @@ function setVisibleOverlayVisible(visible: boolean): void {
       shouldBindVisibleOverlayToMpvSubVisibility(),
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
     setMpvSubVisibility: (mpvSubVisible) => {
-      setMpvSubVisibilityRuntimeService(appState.mpvClient, mpvSubVisible);
+      setMpvSubVisibilityRuntime(appState.mpvClient, mpvSubVisible);
     },
   });
 }
 
 function setInvisibleOverlayVisible(visible: boolean): void {
-  setInvisibleOverlayVisibleService({
+  setInvisibleOverlayVisibleCore({
     visible,
     setInvisibleOverlayVisibleState: (nextVisible) => {
       overlayManager.setInvisibleOverlayVisible(nextVisible);
@@ -2036,16 +2036,16 @@ function handleMpvCommandFromIpc(command: (string | number)[]): void {
       if (!appState.runtimeOptionsManager) {
         return { ok: false, error: "Runtime options manager unavailable" };
       }
-      return applyRuntimeOptionResultRuntimeService(
+      return applyRuntimeOptionResultRuntime(
         appState.runtimeOptionsManager.cycleOption(id, direction),
         (text) => showMpvOsd(text),
       );
     },
     showMpvOsd: (text: string) => showMpvOsd(text),
-    replayCurrentSubtitle: () => replayCurrentSubtitleRuntimeService(appState.mpvClient),
-    playNextSubtitle: () => playNextSubtitleRuntimeService(appState.mpvClient),
+    replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
+    playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
     sendMpvCommand: (rawCommand: (string | number)[]) =>
-      sendMpvCommandRuntimeService(appState.mpvClient, rawCommand),
+      sendMpvCommandRuntime(appState.mpvClient, rawCommand),
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
     hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
   });

@@ -1,5 +1,5 @@
 import type { RuntimeOptionApplyResult, RuntimeOptionId } from "../types";
-import { handleMpvCommandFromIpcService } from "../core/services";
+import { handleMpvCommandFromIpc } from "../core/services";
 import { createMpvCommandRuntimeServiceDeps } from "./dependencies";
 import { SPECIAL_COMMANDS } from "../config";
 
@@ -22,7 +22,7 @@ export function handleMpvCommandFromIpcRuntime(
   command: (string | number)[],
   deps: MpvCommandFromIpcRuntimeDeps,
 ): void {
-  handleMpvCommandFromIpcService(
+  handleMpvCommandFromIpc(
     command,
     createMpvCommandRuntimeServiceDeps({
       specialCommands: SPECIAL_COMMANDS,

@@ -96,7 +96,7 @@ Run `make help` for a full list of targets. Key ones:
 ## Contributor Notes
 
 - To add or change a config option, update `src/config/definitions.ts` first. Defaults, runtime-option metadata, and generated `config.example.jsonc` are derived from this centralized source.
-- Overlay window/visibility state is owned by `src/core/services/overlay-manager-service.ts`.
+- Overlay window/visibility state is owned by `src/core/services/overlay-manager.ts`.
 - Main process composition is now split across `src/main/` modules (`startup.ts`, `app-lifecycle.ts`, `startup-lifecycle.ts`, `state.ts`, `ipc-runtime.ts`, `cli-runtime.ts`, `overlay-runtime.ts`, `subsync-runtime.ts`).
 - MPV service has been split into transport, protocol, state, and properties layers in `src/core/services/`.
 - Prefer direct inline deps objects in `src/main/` modules for simple pass-through wiring.
