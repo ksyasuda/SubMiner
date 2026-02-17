@@ -3,7 +3,32 @@
   <h1>SubMiner</h1>
 </div>
 
-An all-in-one sentence mining overlay for MPV with AnkiConnect and dictionary (Yomitan) integration.
+An all-in-one immersion mining overlay for MPV with AnkiConnect and dictionary (Yomitan) integration.
+
+## What This Project Is For
+
+SubMiner is for Japanese learners who watch subtitled content in mpv and want a low-friction mining loop:
+
+- stay inside the video while doing lookups
+- mine to Anki quickly without manual copy/paste workflows
+- preserve card context (sentence, audio, screenshot, translation, metadata)
+- reduce tool switching between player, dictionary, and card workflow
+
+## Project Goals
+
+1. Keep immersion continuous by making lookup and mining happen over mpv subtitles.
+2. Preserve card quality with context-rich media and subtitle timing.
+3. Support real daily workflows (subtitle management, sync, known-word awareness, keyboard-first controls).
+4. Stay configurable with sensible defaults and advanced customization.
+5. Evolve quickly and safely with a TypeScript codebase and automated tests that make refactors easier to ship.
+
+## Who It's For
+
+- learners using mpv as their primary immersion player
+- users already working with Yomitan and AnkiConnect
+- miners who care about long-term card quality, not just quick word capture
+
+SubMiner is likely overkill if you only want lightweight dictionary lookup without card enrichment or integrated workflow tools.
 
 ## Features
 

@@ -13,6 +13,7 @@ import {
   shouldIgnoreJlptForMecabPos1,
   shouldIgnoreJlptByTerm,
 } from "./jlpt-token-filter";
+import { createLogger } from "../../logger";
 
 interface YomitanParseHeadword {
   term?: unknown;
@@ -37,6 +38,7 @@ const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 const JLPT_LEVEL_LOOKUP_CACHE_LIMIT = 2048;
 const FREQUENCY_RANK_LOOKUP_CACHE_LIMIT = 2048;
+const logger = createLogger("main:tokenizer");
 
 const jlptLevelLookupCaches = new WeakMap<
   (text: string) => JlptLevel | null,
@@ -70,6 +72,7 @@ export interface TokenizerServiceDeps {
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyRank?: FrequencyDictionaryLookup;
   getMinSentenceWordsForNPlusOne?: () => number;
+  getYomitanGroupDebugEnabled?: () => boolean;
   tokenizeWithMecab: (text: string) => Promise<MergedToken[] | null>;
 }
 
@@ -92,6 +95,7 @@ export interface TokenizerDepsRuntimeOptions {
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyRank?: FrequencyDictionaryLookup;
   getMinSentenceWordsForNPlusOne?: () => number;
+  getYomitanGroupDebugEnabled?: () => boolean;
   getMecabTokenizer: () => MecabTokenizerLike | null;
 }
 
@@ -197,6 +201,8 @@ export function createTokenizerDepsRuntimeService(
     getFrequencyRank: options.getFrequencyRank,
     getMinSentenceWordsForNPlusOne:
       options.getMinSentenceWordsForNPlusOne ?? (() => 3),
+    getYomitanGroupDebugEnabled:
+      options.getYomitanGroupDebugEnabled ?? (() => false),
     tokenizeWithMecab: async (text) => {
       const mecabTokenizer = options.getMecabTokenizer();
       if (!mecabTokenizer) {
@@ -253,40 +259,19 @@ function resolveFrequencyLookupText(token: MergedToken): string {
 }
 
 function getFrequencyLookupTextCandidates(token: MergedToken): string[] {
-  const tokenWithCandidates = token as MergedToken & {
-    frequencyLookupTerms?: string[];
-  };
-  const lookupTextCandidates: string[] = [];
-  const addLookupText = (text: string | undefined): void => {
-    if (!text) {
-      return;
-    }
-    const trimmed = text.trim();
-    if (!trimmed) {
-      return;
-    }
-    lookupTextCandidates.push(trimmed);
-  };
+  const lookupText = resolveFrequencyLookupText(token).trim();
+  return lookupText ? [lookupText] : [];
+}
 
-  if (Array.isArray(tokenWithCandidates.frequencyLookupTerms)) {
-    for (const term of tokenWithCandidates.frequencyLookupTerms) {
-      addLookupText(term);
-    }
+function isFrequencyExcludedByPos(token: MergedToken): boolean {
+  if (
+    token.partOfSpeech === PartOfSpeech.particle ||
+    token.partOfSpeech === PartOfSpeech.bound_auxiliary
+  ) {
+    return true;
   }
 
-  addLookupText(resolveFrequencyLookupText(token));
-
-  const uniqueLookupTerms: string[] = [];
-  const seen = new Set<string>();
-  for (const term of lookupTextCandidates) {
-    if (seen.has(term)) {
-      continue;
-    }
-    seen.add(term);
-    uniqueLookupTerms.push(term);
-  }
-
-  return uniqueLookupTerms;
+  return token.pos1 === "助詞" || token.pos1 === "助動詞";
 }
 
 function applyFrequencyMarking(
@@ -294,6 +279,10 @@ function applyFrequencyMarking(
   getFrequencyRank: FrequencyDictionaryLookup,
 ): MergedToken[] {
   return tokens.map((token) => {
+    if (isFrequencyExcludedByPos(token)) {
+      return { ...token, frequencyRank: undefined };
+    }
+
     const lookupTexts = getFrequencyLookupTextCandidates(token);
     if (lookupTexts.length === 0) {
       return { ...token, frequencyRank: undefined };
@@ -499,27 +488,6 @@ function extractYomitanHeadword(segment: YomitanParseSegment): string {
   return "";
 }
 
-function extractYomitanHeadwords(segment: YomitanParseSegment): string[] {
-  const headwords = segment.headwords;
-  if (!isYomitanHeadwordRows(headwords)) {
-    return [];
-  }
-
-  const results: string[] = [];
-  for (const group of headwords) {
-    for (const candidate of group) {
-      if (isString(candidate.term)) {
-        const term = candidate.term.trim();
-        if (term.length > 0) {
-          results.push(term);
-        }
-      }
-    }
-  }
-
-  return results;
-}
-
 function applyJlptMarking(
   tokens: MergedToken[],
   getJlptLevel: (text: string) => JlptLevel | null,
@@ -575,41 +543,53 @@ function mapYomitanParseResultItemToMergedTokens(
     }
     validLineCount += 1;
 
+    let combinedSurface = "";
+    let combinedReading = "";
+    let combinedHeadword = "";
+
     for (const segment of line) {
       const segmentText = segment.text;
       if (!segmentText || segmentText.length === 0) {
         continue;
       }
 
-      const start = charOffset;
-      const end = start + segmentText.length;
-      charOffset = end;
-
-      const headword = extractYomitanHeadword(segment) || segmentText;
-      const frequencyLookupTerms = extractYomitanHeadwords(segment);
-
-      tokens.push({
-        surface: segmentText,
-        reading: typeof segment.reading === "string" ? segment.reading : "",
-        headword,
-        startPos: start,
-        endPos: end,
-        partOfSpeech: PartOfSpeech.other,
-        pos1: "",
-        isMerged: true,
-        isNPlusOneTarget: false,
-        isKnown: (() => {
-          const matchText = resolveKnownWordText(
-            segmentText,
-            headword,
-            knownWordMatchMode,
-          );
-          return matchText ? isKnownWord(matchText) : false;
-        })(),
-        frequencyLookupTerms:
-          frequencyLookupTerms.length > 0 ? frequencyLookupTerms : undefined,
-      });
+      combinedSurface += segmentText;
+      if (typeof segment.reading === "string") {
+        combinedReading += segment.reading;
+      }
+      if (!combinedHeadword) {
+        combinedHeadword = extractYomitanHeadword(segment);
+      }
     }
+
+    if (!combinedSurface) {
+      continue;
+    }
+
+    const start = charOffset;
+    const end = start + combinedSurface.length;
+    charOffset = end;
+    const headword = combinedHeadword || combinedSurface;
+
+    tokens.push({
+      surface: combinedSurface,
+      reading: combinedReading,
+      headword,
+      startPos: start,
+      endPos: end,
+      partOfSpeech: PartOfSpeech.other,
+      pos1: "",
+      isMerged: true,
+      isNPlusOneTarget: false,
+      isKnown: (() => {
+        const matchText = resolveKnownWordText(
+          combinedSurface,
+          headword,
+          knownWordMatchMode,
+        );
+        return matchText ? isKnownWord(matchText) : false;
+      })(),
+    });
   }
 
   if (validLineCount === 0 || tokens.length === 0) {
@@ -641,13 +621,52 @@ function selectBestYomitanParseCandidate(
       current.tokens.length > best.tokens.length ? current : best,
     );
 
+  const getCandidateScore = (candidate: YomitanParseCandidate): number => {
+    const readableTokenCount = candidate.tokens.filter(
+      (token) => token.reading.trim().length > 0,
+    ).length;
+    const suspiciousKanaFragmentCount = candidate.tokens.filter((token) =>
+      token.reading.trim().length === 0 &&
+      token.surface.length >= 2 &&
+      Array.from(token.surface).every((char) => isKanaChar(char))
+    ).length;
+
+    return (
+      readableTokenCount * 100 -
+      suspiciousKanaFragmentCount * 50 -
+      candidate.tokens.length
+    );
+  };
+
+  const chooseBestCandidate = (
+    items: YomitanParseCandidate[],
+  ): YomitanParseCandidate | null => {
+    if (items.length === 0) {
+      return null;
+    }
+
+    return items.reduce((best, current) => {
+      const bestScore = getCandidateScore(best);
+      const currentScore = getCandidateScore(current);
+      if (currentScore !== bestScore) {
+        return currentScore > bestScore ? current : best;
+      }
+
+      if (current.tokens.length !== best.tokens.length) {
+        return current.tokens.length < best.tokens.length ? current : best;
+      }
+
+      return best;
+    });
+  };
+
   if (scanningCandidates.length > 0) {
     const bestScanning = getBestByTokenCount(scanningCandidates);
     if (bestScanning && bestScanning.tokens.length > 1) {
       return bestScanning.tokens;
     }
 
-    const bestMecab = getBestByTokenCount(mecabCandidates);
+    const bestMecab = chooseBestCandidate(mecabCandidates);
     if (
       bestMecab &&
       bestMecab.tokens.length > (bestScanning?.tokens.length ?? 0)
@@ -658,7 +677,11 @@ function selectBestYomitanParseCandidate(
     return bestScanning ? bestScanning.tokens : null;
   }
 
-  const bestCandidate = getBestByTokenCount(candidates);
+  const multiTokenCandidates = candidates.filter(
+    (candidate) => candidate.tokens.length > 1,
+  );
+  const pool = multiTokenCandidates.length > 0 ? multiTokenCandidates : candidates;
+  const bestCandidate = chooseBestCandidate(pool);
   return bestCandidate ? bestCandidate.tokens : null;
 }
 
@@ -686,6 +709,25 @@ function mapYomitanParseResultsToMergedTokens(
 
   const bestCandidate = selectBestYomitanParseCandidate(candidates);
   return bestCandidate;
+}
+
+function logSelectedYomitanGroups(text: string, tokens: MergedToken[]): void {
+  if (!tokens || tokens.length === 0) {
+    return;
+  }
+
+  logger.info("Selected Yomitan token groups", {
+    text,
+    tokenCount: tokens.length,
+    groups: tokens.map((token, index) => ({
+      index,
+      surface: token.surface,
+      headword: token.headword,
+      reading: token.reading,
+      startPos: token.startPos,
+      endPos: token.endPos,
+    })),
+  });
 }
 
 function pickClosestMecabPos1(
@@ -928,6 +970,10 @@ async function parseWithYomitanInternalParser(
     );
     if (!yomitanTokens || yomitanTokens.length === 0) {
       return null;
+    }
+
+    if (deps.getYomitanGroupDebugEnabled?.() === true) {
+      logSelectedYomitanGroups(text, yomitanTokens);
     }
 
     return enrichYomitanPos1(yomitanTokens, deps, text);
