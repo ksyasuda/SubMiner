@@ -382,6 +382,13 @@ AniList integration is opt-in and disabled by default. Enable it and provide an 
 
 When `enabled` is `true` and `accessToken` is empty, SubMiner opens an AniList setup helper window. Keep `enabled` as `false` to disable all AniList setup/update behavior.
 
+Current post-watch behavior:
+
+- SubMiner attempts an update near episode completion (`>=85%` watched and at least `10` minutes watched).
+- Episode/title detection is `guessit`-first with fallback to SubMiner's filename parser.
+- If `guessit` is unavailable, updates still work via fallback parsing but title matching can be less accurate.
+- If embedded AniList auth UI fails to render, SubMiner opens the authorize URL in your default browser and shows fallback instructions in-app.
+
 ### Keybindings
 
 Add a `keybindings` array to configure keyboard shortcuts that send commands to mpv:
