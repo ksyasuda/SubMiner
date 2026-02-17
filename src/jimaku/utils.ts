@@ -3,6 +3,7 @@ import * as https from "https";
 import * as path from "path";
 import * as fs from "fs";
 import * as childProcess from "child_process";
+import { createLogger } from "../logger";
 import {
   JimakuApiResponse,
   JimakuConfig,
@@ -11,6 +12,8 @@ import {
   JimakuLanguagePreference,
   JimakuMediaInfo,
 } from "../types";
+
+const logger = createLogger("main:jimaku");
 
 function execCommand(
   command: string,
@@ -30,28 +33,26 @@ export async function resolveJimakuApiKey(
   config: JimakuConfig,
 ): Promise<string | null> {
   if (config.apiKey && config.apiKey.trim()) {
-    console.log("[jimaku] API key found in config");
+    logger.debug("API key found in config");
     return config.apiKey.trim();
   }
   if (config.apiKeyCommand && config.apiKeyCommand.trim()) {
     try {
       const { stdout } = await execCommand(config.apiKeyCommand);
       const key = stdout.trim();
-      console.log(
-        `[jimaku] apiKeyCommand result: ${key.length > 0 ? "key obtained" : "empty output"}`,
+      logger.debug(
+        `apiKeyCommand result: ${key.length > 0 ? "key obtained" : "empty output"}`,
       );
       return key.length > 0 ? key : null;
     } catch (err) {
-      console.error(
-        "Failed to run jimaku.apiKeyCommand:",
+      logger.error(
+        "Failed to run jimaku.apiKeyCommand",
         (err as Error).message,
       );
       return null;
     }
   }
-  console.log(
-    "[jimaku] No API key configured (neither apiKey nor apiKeyCommand set)",
-  );
+  logger.debug("No API key configured (neither apiKey nor apiKeyCommand set)");
   return null;
 }
 
@@ -75,7 +76,7 @@ export async function jimakuFetchJson<T>(
     url.searchParams.set(key, String(value));
   }
 
-  console.log(`[jimaku] GET ${url.toString()}`);
+  logger.debug(`GET ${url.toString()}`);
   const transport = url.protocol === "https:" ? https : http;
 
   return new Promise((resolve) => {
@@ -95,13 +96,13 @@ export async function jimakuFetchJson<T>(
         });
         res.on("end", () => {
           const status = res.statusCode || 0;
-          console.log(`[jimaku] Response HTTP ${status} for ${endpoint}`);
+          logger.debug(`Response HTTP ${status} for ${endpoint}`);
           if (status >= 200 && status < 300) {
             try {
               const parsed = JSON.parse(data) as T;
               resolve({ ok: true, data: parsed });
             } catch {
-              console.error(`[jimaku] JSON parse error: ${data.slice(0, 200)}`);
+              logger.error(`JSON parse error: ${data.slice(0, 200)}`);
               resolve({
                 ok: false,
                 error: { error: "Failed to parse Jimaku response JSON." },
@@ -119,7 +120,7 @@ export async function jimakuFetchJson<T>(
           } catch {
             // Ignore parse errors.
           }
-          console.error(`[jimaku] API error: ${errorMessage}`);
+          logger.error(`API error: ${errorMessage}`);
 
           resolve({
             ok: false,
@@ -135,7 +136,7 @@ export async function jimakuFetchJson<T>(
     );
 
     req.on("error", (err) => {
-      console.error(`[jimaku] Network error: ${(err as Error).message}`);
+      logger.error(`Network error: ${(err as Error).message}`);
       resolve({
         ok: false,
         error: { error: `Jimaku request failed: ${(err as Error).message}` },

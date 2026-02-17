@@ -33,7 +33,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     autoStartOverlay: false,
     generateConfig: false,
     backupOverwrite: false,
-    verbose: false,
+    debug: false,
     ...overrides,
   };
 }

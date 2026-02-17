@@ -1,5 +1,8 @@
 import { Notification, nativeImage } from "electron";
 import * as fs from "fs";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("core:notification");
 
 export function showDesktopNotification(
   title: string,
@@ -24,7 +27,7 @@ export function showDesktopNotification(
       if (fs.existsSync(options.icon)) {
         notificationOptions.icon = options.icon;
       } else {
-        console.warn("Notification icon file not found:", options.icon);
+        logger.warn("Notification icon file not found", options.icon);
       }
     } else if (
       typeof options.icon === "string" &&
@@ -36,14 +39,14 @@ export function showDesktopNotification(
           Buffer.from(base64Data, "base64"),
         );
         if (image.isEmpty()) {
-          console.warn(
+          logger.warn(
             "Notification icon created from base64 is empty - image format may not be supported by Electron",
           );
         } else {
           notificationOptions.icon = image;
         }
       } catch (err) {
-        console.error("Failed to create notification icon from base64:", err);
+        logger.error("Failed to create notification icon from base64", err);
       }
     } else {
       notificationOptions.icon = options.icon;

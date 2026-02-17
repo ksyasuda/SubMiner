@@ -1,4 +1,7 @@
 import { CliArgs, shouldStartApp } from "../../cli/args";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("core:electron-backend");
 
 function getElectronOzonePlatformHint(): string | null {
   const hint = process.env.ELECTRON_OZONE_PLATFORM_HINT?.trim().toLowerCase();
@@ -34,6 +37,6 @@ export function enforceUnsupportedWaylandMode(args: CliArgs): void {
 
   const message =
     "Unsupported Electron backend: Wayland. Set ELECTRON_OZONE_PLATFORM_HINT=x11 and restart SubMiner.";
-  console.error(message);
+  logger.error(message);
   throw new Error(message);
 }

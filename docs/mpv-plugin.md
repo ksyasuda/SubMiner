@@ -155,6 +155,9 @@ The `subminer-start` message accepts overrides:
 script-message subminer-start backend=hyprland socket=/custom/path texthooker=no log-level=debug
 ```
 
+`log-level` here controls only logging verbosity passed to SubMiner.
+`--debug` is a separate app/dev-mode flag in the main CLI and should not be used here for logging.
+
 ## Lifecycle
 
 - **File loaded**: If `auto_start=yes`, the plugin starts the overlay and applies visibility preferences after a short delay.

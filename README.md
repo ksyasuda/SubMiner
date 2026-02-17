@@ -73,6 +73,12 @@ subminer -T video.mkv           # disable texthooker
 subminer https://youtu.be/...   # YouTube playback
 ```
 
+### CLI Logging and Dev Mode
+
+- Use `--log-level` to control logger verbosity (for example `--log-level debug`).
+- Use `--dev` and `--debug` only for app/dev-mode behavior; they are not tied to logging level.
+- Default logging remains `info` unless you pass `--log-level`.
+
 ## MPV Plugin
 
 ```bash

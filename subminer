@@ -617,8 +617,7 @@ Options:
                          Audio format for extraction (default: m4a)
       --yt-subgen-keep-temp
                          Keep YouTube subtitle temp directory
-  -v, --verbose          Enable verbose/debug logging
-      --log-level LEVEL  Set log level: debug, info, warn, error
+       --log-level LEVEL  Set log level: debug, info, warn, error
   -R, --rofi             Use rofi file browser instead of fzf for video selection
   -S, --start-overlay    Auto-start SubMiner overlay after MPV socket is ready
   -T, --no-texthooker    Disable texthooker-ui server
@@ -2379,12 +2378,6 @@ function parseArgs(
       continue;
     }
 
-    if (arg === "-v" || arg === "--verbose") {
-      parsed.logLevel = "debug";
-      i += 1;
-      continue;
-    }
-
     if (arg === "--log-level") {
       const value = argv[i + 1];
       if (!value || !isValidLogLevel(value)) {
@@ -2488,8 +2481,7 @@ function startOverlay(
   );
 
   const overlayArgs = ["--start", "--backend", backend, "--socket", socketPath];
-  if (args.logLevel === "debug") overlayArgs.push("--verbose");
-  else if (args.logLevel !== "info")
+  if (args.logLevel !== "info")
     overlayArgs.push("--log-level", args.logLevel);
   if (args.useTexthooker) overlayArgs.push("--texthooker");
 
@@ -2506,8 +2498,7 @@ function startOverlay(
 
 function launchTexthookerOnly(appPath: string, args: Args): never {
   const overlayArgs = ["--texthooker"];
-  if (args.logLevel === "debug") overlayArgs.push("--verbose");
-  else if (args.logLevel !== "info")
+  if (args.logLevel !== "info")
     overlayArgs.push("--log-level", args.logLevel);
 
   log("info", args.logLevel, "Launching texthooker mode...");
@@ -2523,8 +2514,7 @@ function stopOverlay(args: Args): void {
     log("info", args.logLevel, "Stopping SubMiner overlay...");
 
     const stopArgs = ["--stop"];
-    if (args.logLevel === "debug") stopArgs.push("--verbose");
-    else if (args.logLevel !== "info")
+    if (args.logLevel !== "info")
       stopArgs.push("--log-level", args.logLevel);
 
     spawnSync(state.appPath, stopArgs, { stdio: "ignore" });

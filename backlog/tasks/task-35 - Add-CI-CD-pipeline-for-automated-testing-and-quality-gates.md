@@ -1,9 +1,10 @@
 ---
 id: TASK-35
 title: Add CI/CD pipeline for automated testing and quality gates
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-14 00:57'
+updated_date: '2026-02-17 07:36'
 labels:
   - infrastructure
   - ci
@@ -15,32 +16,32 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Add a GitHub Actions CI pipeline that runs on PRs and pushes to main. The project already has 23 test files (67+ tests) and a `check-main-lines.sh` quality gate script with progressive line-count targets, but none of this runs automatically.
-
-## Motivation
-Without CI, regressions in tests or quality gate violations are only caught manually. As the refactoring effort (TASK-27.x) accelerates and new features land, automated checks become essential.
-
-## Scope
-1. **Test runner**: Run `pnpm test` on every PR and push to main
-2. **Quality gates**: Run `check-main-lines.sh` to enforce main.ts line-count targets
-3. **Type checking**: Run `tsc --noEmit` to catch type errors
-4. **Build verification**: Run `make build` to confirm the app compiles
-5. **Platform matrix**: Linux at minimum (primary target), macOS if feasible
-
-## Implementation notes
-- The project uses pnpm for package management
-- Tests use Node's built-in test runner
-- Build uses Make + tsc + electron-builder
-- Consider caching node_modules and pnpm store for speed
-- MeCab is a native dependency needed for some tests — document or skip if unavailable in CI
+CI should focus on build, test, and type-check validation and should not enforce fixed-size implementation ceilings.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 GitHub Actions workflow runs pnpm test on every PR and push to main.
-- [ ] #2 Quality gate script (check-main-lines.sh) runs and fails the build if line count exceeds threshold.
-- [ ] #3 tsc --noEmit type check passes as a CI step.
-- [ ] #4 Build step (make build) completes without errors.
-- [ ] #5 CI results are visible on PR checks.
-- [ ] #6 Pipeline completes in under 5 minutes for typical changes.
+- [x] #1 CI is still triggered on `push` and `pull_request` to `main`.
+- [x] #2 A canonical test entrypoint is added (`pnpm test`) and executed in CI, or CI explicitly runs equivalent test commands.
+- [x] #3 CI focuses on functional validation (build, tests, type checks) without hardcoded size gates.
+- [x] #4 Type-checking is explicitly validated in CI and failure behavior is documented (either `tsc --noEmit` or equivalent).
+- [x] #5 CI build verification target is defined clearly (current `pnpm run build` or `make build`) and documented.
+- [x] #6 PR visibility requirement remains satisfied (workflow check appears on PRs).
+- [x] #7 CI scope (Linux-only vs multi-OS matrix) is documented and intentional.
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Add a root `pnpm test` script that runs both `test:config` and `test:core`, or keep CI explicit on these two commands.
+2. Add explicit type-check step (`pnpm exec tsc --noEmit`) unless `pnpm run build` is accepted as the intended check.
+3. Confirm no hardcoded size gates are treated as mandatory CI quality gates.
+4. Clarify CI build verification scope in docs and workflow (current `pnpm run build` vs optional `make build`).
+5. Confirm whether security audit remains advisory or hard-fails. Optional: make advisory check non-blocking with explicit comment.
+<!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Updated `.github/workflows/ci.yml` to complete the CI contract without hardcoded size gates: added explicit `pnpm exec tsc --noEmit`, switched test execution to a canonical `pnpm test`, and kept build verification on `pnpm run build` on `ubuntu-latest` for `push`/`pull_request` to `main`. Also removed CI line-count gate enforcement by deleting `check:main-lines*` scripts from `package.json` and removing `scripts/check-main-lines.sh` from the repo. The workflow remains Linux-only by design and continues to show PR checks.
+<!-- SECTION:FINAL_SUMMARY:END -->

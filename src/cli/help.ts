@@ -26,16 +26,15 @@ SubMiner CLI commands:
   --mark-audio-card            Mark last card as audio card
   --open-runtime-options       Open runtime options palette
   --auto-start-overlay  Auto-hide mpv subtitles on connect (show overlay)
-  --socket PATH         Override MPV IPC socket/pipe path
-  --backend BACKEND     Override window tracker backend (auto, hyprland, sway, x11, macos)
-  --port PORT           Texthooker server port (default: ${defaultTexthookerPort})
-  --verbose             Enable debug logging (equivalent to --log-level debug)
-  --log-level LEVEL     Set log level: debug, info, warn, error
-  --generate-config     Generate default config.jsonc from centralized config registry
-  --config-path PATH    Target config path for --generate-config
-  --backup-overwrite    With --generate-config, backup and overwrite existing file
-  --dev                 Run in development mode
-  --debug               Alias for --dev
-  --help                Show this help
+   --socket PATH         Override MPV IPC socket/pipe path
+   --backend BACKEND     Override window tracker backend (auto, hyprland, sway, x11, macos)
+   --port PORT           Texthooker server port (default: ${defaultTexthookerPort})
+    --debug               Enable app/dev mode
+    --log-level LEVEL     Set log level: debug, info, warn, error
+   --generate-config     Generate default config.jsonc from centralized config registry
+   --config-path PATH    Target config path for --generate-config
+   --backup-overwrite    With --generate-config, backup and overwrite existing file
+   --dev                 Alias for --debug (app/dev mode)
+    --help                Show this help
 `);
 }

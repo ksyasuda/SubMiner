@@ -12,7 +12,7 @@ test("parseArgs parses booleans and value flags", () => {
     "6000",
     "--log-level",
     "warn",
-    "--verbose",
+    "--debug",
   ]);
 
   assert.equal(args.start, true);
@@ -20,7 +20,7 @@ test("parseArgs parses booleans and value flags", () => {
   assert.equal(args.backend, "hyprland");
   assert.equal(args.texthookerPort, 6000);
   assert.equal(args.logLevel, "warn");
-  assert.equal(args.verbose, true);
+  assert.equal(args.debug, true);
 });
 
 test("parseArgs ignores missing value after --log-level", () => {
@@ -38,7 +38,7 @@ test("hasExplicitCommand and shouldStartApp preserve command intent", () => {
   assert.equal(hasExplicitCommand(toggle), true);
   assert.equal(shouldStartApp(toggle), true);
 
-  const noCommand = parseArgs(["--verbose"]);
+  const noCommand = parseArgs(["--log-level", "warn"]);
   assert.equal(hasExplicitCommand(noCommand), false);
   assert.equal(shouldStartApp(noCommand), false);
 

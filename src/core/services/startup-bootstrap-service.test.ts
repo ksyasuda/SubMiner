@@ -35,7 +35,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     autoStartOverlay: false,
     generateConfig: false,
     backupOverwrite: false,
-    verbose: false,
+    debug: false,
     ...overrides,
   };
 }
@@ -43,7 +43,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
 test("runStartupBootstrapRuntimeService configures startup state and starts lifecycle", () => {
   const calls: string[] = [];
   const args = makeArgs({
-    verbose: true,
+    logLevel: "debug",
     socketPath: "/tmp/custom.sock",
     texthookerPort: 9001,
     backend: "x11",
@@ -52,7 +52,7 @@ test("runStartupBootstrapRuntimeService configures startup state and starts life
   });
 
   const result = runStartupBootstrapRuntimeService({
-    argv: ["node", "main.ts", "--verbose"],
+    argv: ["node", "main.ts", "--log-level", "debug"],
     parseArgs: () => args,
     setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
     forceX11Backend: () => calls.push("forceX11"),
@@ -77,15 +77,14 @@ test("runStartupBootstrapRuntimeService configures startup state and starts life
   ]);
 });
 
-test("runStartupBootstrapRuntimeService prefers --log-level over --verbose", () => {
+test("runStartupBootstrapRuntimeService keeps log-level precedence for repeated calls", () => {
   const calls: string[] = [];
   const args = makeArgs({
     logLevel: "warn",
-    verbose: true,
   });
 
   runStartupBootstrapRuntimeService({
-    argv: ["node", "main.ts", "--log-level", "warn", "--verbose"],
+    argv: ["node", "main.ts", "--log-level", "warn"],
     parseArgs: () => args,
     setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
     forceX11Backend: () => calls.push("forceX11"),
@@ -101,6 +100,27 @@ test("runStartupBootstrapRuntimeService prefers --log-level over --verbose", () 
     "forceX11",
     "enforceWayland",
   ]);
+});
+
+test("runStartupBootstrapRuntimeService keeps --debug separate from log verbosity", () => {
+  const calls: string[] = [];
+  const args = makeArgs({
+    debug: true,
+  });
+
+  runStartupBootstrapRuntimeService({
+    argv: ["node", "main.ts", "--debug"],
+    parseArgs: () => args,
+    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
+    forceX11Backend: () => calls.push("forceX11"),
+    enforceUnsupportedWaylandMode: () => calls.push("enforceWayland"),
+    getDefaultSocketPath: () => "/tmp/default.sock",
+    defaultTexthookerPort: 5174,
+    runGenerateConfigFlow: () => false,
+    startAppLifecycle: () => calls.push("startLifecycle"),
+  });
+
+  assert.deepEqual(calls, ["forceX11", "enforceWayland", "startLifecycle"]);
 });
 
 test("runStartupBootstrapRuntimeService skips lifecycle when generate-config flow handled", () => {

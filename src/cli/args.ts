@@ -31,7 +31,7 @@ export interface CliArgs {
   socketPath?: string;
   backend?: string;
   texthookerPort?: number;
-  verbose: boolean;
+  debug: boolean;
   logLevel?: "debug" | "info" | "warn" | "error";
 }
 
@@ -67,7 +67,7 @@ export function parseArgs(argv: string[]): CliArgs {
     autoStartOverlay: false,
     generateConfig: false,
     backupOverwrite: false,
-    verbose: false,
+    debug: false,
   };
 
   const readValue = (value?: string): string | undefined => {
@@ -114,7 +114,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === "--generate-config") args.generateConfig = true;
     else if (arg === "--backup-overwrite") args.backupOverwrite = true;
     else if (arg === "--help") args.help = true;
-    else if (arg === "--verbose") args.verbose = true;
+    else if (arg === "--debug") args.debug = true;
     else if (arg.startsWith("--log-level=")) {
       const value = arg.split("=", 2)[1]?.toLowerCase();
       if (
