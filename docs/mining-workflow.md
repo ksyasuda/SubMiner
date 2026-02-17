@@ -192,3 +192,19 @@ When enabled, SubMiner highlights words you already know in your Anki deck, maki
 - **Immersion tracking**: Quickly identify which sentences contain only known words vs. those with new vocabulary
 - **Mining focus**: Target sentences with exactly one unknown word (true N+1)
 - **Progress visualization**: See your growing vocabulary visually represented in real content
+
+### Immersion Tracking Storage
+
+Immersion data is persisted to SQLite when enabled in `immersionTracking`:
+
+```json
+{
+  "immersionTracking": {
+    "enabled": true,
+    "dbPath": ""
+  }
+}
+```
+
+- `dbPath` can be empty (default) to use SubMiner’s app-data `immersion.sqlite`.
+- Set an explicit path to move the database (for backups, cloud syncing, or easier inspection).

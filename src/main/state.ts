@@ -12,6 +12,7 @@ import type {
 import type { CliArgs } from "../cli/args";
 import type { SubtitleTimingTracker } from "../subtitle-timing-tracker";
 import type { AnkiIntegration } from "../anki-integration";
+import type { ImmersionTrackerService } from "../core/services";
 import type { MpvIpcClient } from "../core/services";
 import { DEFAULT_MPV_SUBTITLE_RENDER_METRICS } from "../core/services";
 import type { RuntimeOptionsManager } from "../runtime-options";
@@ -54,6 +55,7 @@ export interface AppState {
   mecabTokenizer: MecabTokenizer | null;
   keybindings: Keybinding[];
   subtitleTimingTracker: SubtitleTimingTracker | null;
+  immersionTracker: ImmersionTrackerService | null;
   ankiIntegration: AnkiIntegration | null;
   secondarySubMode: SecondarySubMode;
   lastSecondarySubToggleAtMs: number;
@@ -123,6 +125,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     mecabTokenizer: null,
     keybindings: [],
     subtitleTimingTracker: null,
+    immersionTracker: null,
     ankiIntegration: null,
     secondarySubMode: "hover",
     lastSecondarySubToggleAtMs: 0,

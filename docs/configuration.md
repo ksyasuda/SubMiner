@@ -61,6 +61,7 @@ The configuration file includes several main sections:
 - [**Subtitle Style**](#subtitle-style) - Appearance customization
 - [**Texthooker**](#texthooker) - Control browser opening behavior
 - [**WebSocket Server**](#websocket-server) - Built-in subtitle broadcasting server
+- [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite
 - [**YouTube Subtitle Generation**](#youtube-subtitle-generation) - Launcher defaults for yt-dlp + local whisper fallback
 
 ### AnkiConnect
@@ -692,6 +693,32 @@ See `config.example.jsonc` for detailed configuration options.
 | --------- | ------------------------- | -------------------------------------------------------- |
 | `enabled` | `true`, `false`, `"auto"` | `"auto"` (default) disables if mpv_websocket is detected |
 | `port`    | number                    | WebSocket server port (default: 6677)                    |
+
+### Immersion Tracking
+
+Enable or disable local immersion analytics stored in SQLite for mined subtitles and media sessions:
+
+```json
+{
+  "immersionTracking": {
+    "enabled": true,
+    "dbPath": ""
+  }
+}
+```
+
+| Option     | Values                     | Description |
+| ---------- | -------------------------- | ----------- |
+| `enabled`  | `true`, `false`            | Enable immersion tracking. Defaults to `true`. |
+| `dbPath`   | string                     | Optional SQLite database path. Leave empty to use default app-data path at `<config dir>/immersion.sqlite`. |
+
+When `dbPath` is blank or omitted, SubMiner writes telemetry and session summaries to the default app-data location:
+
+```text
+<config directory>/immersion.sqlite
+```
+
+Set `dbPath` only if you want to relocate the database (for backup, syncing, or inspection workflows). The database is created when tracking starts for the first time.
 
 ### YouTube Subtitle Generation
 

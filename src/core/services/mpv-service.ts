@@ -117,6 +117,8 @@ export interface MpvIpcClientEventMap {
   "subtitle-change": { text: string; isOverlayVisible: boolean };
   "subtitle-ass-change": { text: string };
   "subtitle-timing": { text: string; start: number; end: number };
+  "time-pos-change": { time: number };
+  "pause-change": { paused: boolean };
   "secondary-subtitle-change": { text: string };
   "media-path-change": { path: string };
   "media-title-change": { title: string | null };
@@ -258,9 +260,13 @@ export class MpvIpcClient implements MpvClient {
 
   connect(): void {
     if (this.connected || this.connecting) {
+      logger.debug(
+        `MPV IPC connect request skipped; connected=${this.connected}, connecting=${this.connecting}`,
+      );
       return;
     }
 
+    logger.info("MPV IPC connect requested.");
     this.connecting = true;
     this.transport.connect();
   }
@@ -312,6 +318,12 @@ export class MpvIpcClient implements MpvClient {
       },
       emitSubtitleTiming: (payload) => {
         this.emit("subtitle-timing", payload);
+      },
+      emitTimePosChange: (payload) => {
+        this.emit("time-pos-change", payload);
+      },
+      emitPauseChange: (payload) => {
+        this.emit("pause-change", payload);
       },
       emitSecondarySubtitleChange: (payload) => {
         this.emit("secondary-subtitle-change", payload);

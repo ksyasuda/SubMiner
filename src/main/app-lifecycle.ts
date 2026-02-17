@@ -35,6 +35,7 @@ export interface AppReadyRuntimeDepsFactoryInput {
   setLogLevel: AppReadyRuntimeDeps["setLogLevel"];
   createMecabTokenizerAndCheck: AppReadyRuntimeDeps["createMecabTokenizerAndCheck"];
   createSubtitleTimingTracker: AppReadyRuntimeDeps["createSubtitleTimingTracker"];
+  createImmersionTracker?: AppReadyRuntimeDeps["createImmersionTracker"];
   loadYomitanExtension: AppReadyRuntimeDeps["loadYomitanExtension"];
   texthookerOnlyMode: AppReadyRuntimeDeps["texthookerOnlyMode"];
   shouldAutoInitializeOverlayRuntimeFromConfig: AppReadyRuntimeDeps["shouldAutoInitializeOverlayRuntimeFromConfig"];
@@ -81,6 +82,7 @@ export function createAppReadyRuntimeDeps(
     setLogLevel: params.setLogLevel,
     createMecabTokenizerAndCheck: params.createMecabTokenizerAndCheck,
     createSubtitleTimingTracker: params.createSubtitleTimingTracker,
+    createImmersionTracker: params.createImmersionTracker,
     loadYomitanExtension: params.loadYomitanExtension,
     texthookerOnlyMode: params.texthookerOnlyMode,
     shouldAutoInitializeOverlayRuntimeFromConfig:

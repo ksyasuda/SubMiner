@@ -485,6 +485,32 @@ export class ConfigService {
       );
     }
 
+    if (isObject(src.immersionTracking)) {
+      const enabled = asBoolean(src.immersionTracking.enabled);
+      if (enabled !== undefined) {
+        resolved.immersionTracking.enabled = enabled;
+      } else if (src.immersionTracking.enabled !== undefined) {
+        warn(
+          "immersionTracking.enabled",
+          src.immersionTracking.enabled,
+          resolved.immersionTracking.enabled,
+          "Expected boolean.",
+        );
+      }
+
+      const dbPath = asString(src.immersionTracking.dbPath);
+      if (dbPath !== undefined) {
+        resolved.immersionTracking.dbPath = dbPath;
+      } else if (src.immersionTracking.dbPath !== undefined) {
+        warn(
+          "immersionTracking.dbPath",
+          src.immersionTracking.dbPath,
+          resolved.immersionTracking.dbPath,
+          "Expected string.",
+        );
+      }
+    }
+
     if (isObject(src.subtitleStyle)) {
       resolved.subtitleStyle = {
         ...resolved.subtitleStyle,
