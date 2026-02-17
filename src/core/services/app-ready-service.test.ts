@@ -62,6 +62,24 @@ test("runAppReadyRuntimeService logs when createImmersionTracker dependency is m
   );
 });
 
+test("runAppReadyRuntimeService logs and continues when createImmersionTracker throws", async () => {
+  const { deps, calls } = makeDeps({
+    createImmersionTracker: () => {
+      calls.push("createImmersionTracker");
+      throw new Error("immersion init failed");
+    },
+  });
+  await runAppReadyRuntimeService(deps);
+  assert.ok(calls.includes("createImmersionTracker"));
+  assert.ok(
+    calls.includes(
+      "log:Runtime ready: createImmersionTracker failed: immersion init failed",
+    ),
+  );
+  assert.ok(calls.includes("initializeOverlayRuntime"));
+  assert.ok(calls.includes("handleInitialArgs"));
+});
+
 test("runAppReadyRuntimeService logs defer message when overlay not auto-started", async () => {
   const { deps, calls } = makeDeps({
     shouldAutoInitializeOverlayRuntimeFromConfig: () => false,

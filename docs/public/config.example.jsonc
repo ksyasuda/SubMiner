@@ -46,6 +46,14 @@
     "level": "info"
   },
 
+  // Immersion Tracking
+  // Persist mined subtitle/session telemetry for analytics.
+  // ==========================================
+  "immersionTracking": {
+    "enabled": true,
+    "dbPath": ""
+  },
+
   // ==========================================
   // AnkiConnect Integration
   // Automatic Anki updates and media generation options.
