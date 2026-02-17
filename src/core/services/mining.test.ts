@@ -54,9 +54,9 @@ test("mineSentenceCard handles missing integration and disconnected mpv", async 
 
   assert.equal(
     await mineSentenceCard({
-    ankiIntegration: null,
-    mpvClient: null,
-    showMpvOsd: (text) => osd.push(text),
+      ankiIntegration: null,
+      mpvClient: null,
+      showMpvOsd: (text) => osd.push(text),
     }),
     false,
   );
@@ -64,19 +64,19 @@ test("mineSentenceCard handles missing integration and disconnected mpv", async 
 
   assert.equal(
     await mineSentenceCard({
-    ankiIntegration: {
-      updateLastAddedFromClipboard: async () => {},
-      triggerFieldGroupingForLastAddedCard: async () => {},
-      markLastCardAsAudioCard: async () => {},
-      createSentenceCard: async () => false,
-    },
-    mpvClient: {
-      connected: false,
-      currentSubText: "line",
-      currentSubStart: 1,
-      currentSubEnd: 2,
-    },
-    showMpvOsd: (text) => osd.push(text),
+      ankiIntegration: {
+        updateLastAddedFromClipboard: async () => {},
+        triggerFieldGroupingForLastAddedCard: async () => {},
+        markLastCardAsAudioCard: async () => {},
+        createSentenceCard: async () => false,
+      },
+      mpvClient: {
+        connected: false,
+        currentSubText: "line",
+        currentSubStart: 1,
+        currentSubEnd: 2,
+      },
+      showMpvOsd: (text) => osd.push(text),
     }),
     false,
   );
@@ -180,7 +180,7 @@ test("handleMineSentenceDigit reports async create failures", async () => {
   assert.equal(cardsMined, 0);
 });
 
-test("handleMineSentenceDigitService increments successful card count", async () => {
+test("handleMineSentenceDigit increments successful card count", async () => {
   const osd: string[] = [];
   let cardsMined = 0;
 

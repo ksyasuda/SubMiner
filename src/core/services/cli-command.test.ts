@@ -342,7 +342,6 @@ test("handleCliCommand runs AniList retry command", async () => {
   assert.ok(calls.includes("retryAnilistQueue"));
   assert.ok(calls.includes("log:AniList retry processed."));
 });
-
 test("handleCliCommand runs refresh-known-words command", () => {
   const { deps, calls } = createDeps();
 
