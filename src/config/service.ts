@@ -443,6 +443,32 @@ export class ConfigService {
       }
     }
 
+    if (isObject(src.anilist)) {
+      const enabled = asBoolean(src.anilist.enabled);
+      if (enabled !== undefined) {
+        resolved.anilist.enabled = enabled;
+      } else if (src.anilist.enabled !== undefined) {
+        warn(
+          "anilist.enabled",
+          src.anilist.enabled,
+          resolved.anilist.enabled,
+          "Expected boolean.",
+        );
+      }
+
+      const accessToken = asString(src.anilist.accessToken);
+      if (accessToken !== undefined) {
+        resolved.anilist.accessToken = accessToken;
+      } else if (src.anilist.accessToken !== undefined) {
+        warn(
+          "anilist.accessToken",
+          src.anilist.accessToken,
+          resolved.anilist.accessToken,
+          "Expected string.",
+        );
+      }
+    }
+
     if (asBoolean(src.auto_start_overlay) !== undefined) {
       resolved.auto_start_overlay = src.auto_start_overlay as boolean;
     }

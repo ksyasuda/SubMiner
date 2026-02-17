@@ -1,9 +1,10 @@
 ---
 id: TASK-29
 title: Add Anilist integration for post-watch updates
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-02-13 17:57'
+updated_date: '2026-02-17 04:19'
 labels:
   - anilist
   - anime
@@ -39,6 +40,12 @@ Requirements:
 - [ ] #6 Anilist integration code is modularized to allow future feature additions without major refactor (clear service boundaries/interfaces).
 - [ ] #7 Error states and duplicate/duplicate-inconsistent updates are handled deterministically (idempotent where practical).
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Completed child tasks TASK-29.1 and TASK-29.2: secure token persistence/fallback and persistent retry queue with backoff/dead-letter are now implemented.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

@@ -17,6 +17,30 @@ test("loads defaults when config is missing", () => {
   const config = service.getConfig();
   assert.equal(config.websocket.port, DEFAULT_CONFIG.websocket.port);
   assert.equal(config.ankiConnect.behavior.autoUpdateNewCards, true);
+  assert.equal(config.anilist.enabled, false);
+});
+
+test("parses anilist.enabled and warns for invalid value", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "anilist": {
+        "enabled": "yes"
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.anilist.enabled, DEFAULT_CONFIG.anilist.enabled);
+  assert.ok(warnings.some((warning) => warning.path === "anilist.enabled"));
+
+  service.patchRawConfig({ anilist: { enabled: true } });
+  assert.equal(service.getConfig().anilist.enabled, true);
 });
 
 test("parses jsonc and warns/falls back on invalid value", () => {
