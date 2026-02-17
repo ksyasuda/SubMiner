@@ -113,6 +113,7 @@ import {
   markLastCardAsAudioCardService,
   DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
   mineSentenceCardService,
+  ImmersionTrackerService,
   openYomitanSettingsWindow,
   playNextSubtitleRuntimeService,
   registerGlobalShortcutsService,
@@ -262,6 +263,7 @@ function resolveConfigDir(): string {
 const CONFIG_DIR = resolveConfigDir();
 const USER_DATA_PATH = CONFIG_DIR;
 const DEFAULT_MPV_LOG_PATH = process.env.SUBMINER_MPV_LOG?.trim() || DEFAULT_MPV_LOG_FILE;
+const DEFAULT_IMMERSION_DB_PATH = path.join(USER_DATA_PATH, "immersion.sqlite");
 const configService = new ConfigService(CONFIG_DIR);
 const anilistTokenStore = createAnilistTokenStore(
   path.join(USER_DATA_PATH, ANILIST_TOKEN_STORE_FILE),
@@ -580,6 +582,68 @@ function openRuntimeOptionsPalette(): void {
 }
 
 function getResolvedConfig() { return configService.getConfig(); }
+function getConfiguredImmersionDbPath(): string {
+  const configuredDbPath = getResolvedConfig().immersionTracking?.dbPath?.trim();
+  return configuredDbPath
+    ? configuredDbPath
+    : DEFAULT_IMMERSION_DB_PATH;
+}
+
+let isImmersionTrackerMediaSeedInProgress = false;
+
+type ImmersionMediaState = {
+  path: string | null;
+  title: string | null;
+};
+
+async function readMpvPropertyAsString(
+  mpvClient: MpvIpcClient | null | undefined,
+  propertyName: string,
+): Promise<string | null> {
+  if (!mpvClient) {
+    return null;
+  }
+  try {
+    const value = await mpvClient.requestProperty(propertyName);
+    return typeof value === "string" ? value.trim() || null : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getCurrentMpvMediaStateForTracker(): Promise<ImmersionMediaState> {
+  const statePath = appState.currentMediaPath?.trim() || null;
+  if (statePath) {
+    return {
+      path: statePath,
+      title: appState.currentMediaTitle?.trim() || null,
+    };
+  }
+
+  const mpvClient = appState.mpvClient;
+  const trackedPath = mpvClient?.currentVideoPath?.trim() || null;
+  if (trackedPath) {
+    return {
+      path: trackedPath,
+      title: appState.currentMediaTitle?.trim() || null,
+    };
+  }
+
+  const [pathFromProperty, filenameFromProperty, titleFromProperty] =
+    await Promise.all([
+      readMpvPropertyAsString(mpvClient, "path"),
+      readMpvPropertyAsString(mpvClient, "filename"),
+      readMpvPropertyAsString(mpvClient, "media-title"),
+    ]);
+
+  const resolvedPath = pathFromProperty || filenameFromProperty || null;
+  const resolvedTitle = appState.currentMediaTitle?.trim() || titleFromProperty || null;
+
+  return {
+    path: resolvedPath,
+    title: resolvedTitle,
+  };
+}
 
 function getInitialInvisibleOverlayVisibility(): boolean {
   return getInitialInvisibleOverlayVisibilityService(
@@ -608,6 +672,83 @@ function getJimakuLanguagePreference(): JimakuLanguagePreference { return getJim
 function getJimakuMaxEntryResults(): number { return getJimakuMaxEntryResultsService(() => getResolvedConfig(), DEFAULT_CONFIG.jimaku.maxEntryResults); }
 
 async function resolveJimakuApiKey(): Promise<string | null> { return resolveJimakuApiKeyService(() => getResolvedConfig()); }
+
+function seedImmersionTrackerFromCurrentMedia(): void {
+  const tracker = appState.immersionTracker;
+  if (!tracker) {
+    logger.debug("Immersion tracker seeding skipped: tracker not initialized.");
+    return;
+  }
+  if (isImmersionTrackerMediaSeedInProgress) {
+    logger.debug(
+      "Immersion tracker seeding already in progress; skipping duplicate call.",
+    );
+    return;
+  }
+  logger.debug("Starting immersion tracker media-state seed loop.");
+  isImmersionTrackerMediaSeedInProgress = true;
+
+  void (async () => {
+    const waitMs = 250;
+    const attempts = 120;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const mediaState = await getCurrentMpvMediaStateForTracker();
+      if (mediaState.path) {
+        logger.info(
+          `Seeded immersion tracker media state at attempt ${attempt + 1}/${attempts}: ` +
+            `${mediaState.path}`,
+        );
+        tracker.handleMediaChange(mediaState.path, mediaState.title);
+        return;
+      }
+
+      const mpvClient = appState.mpvClient;
+      if (!mpvClient || !mpvClient.connected) {
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        continue;
+      }
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+    }
+
+    logger.info(
+      "Immersion tracker seed failed: media path still unavailable after startup warmup",
+    );
+  })().finally(() => {
+    isImmersionTrackerMediaSeedInProgress = false;
+  });
+}
+
+function syncImmersionTrackerFromCurrentMediaState(): void {
+  const tracker = appState.immersionTracker;
+  if (!tracker) {
+    logger.debug(
+      "Immersion tracker sync skipped: tracker not initialized yet.",
+    );
+    return;
+  }
+
+  const pathFromState = appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim();
+  if (pathFromState) {
+    logger.debug(
+      "Immersion tracker sync using path from current media state.",
+    );
+    tracker.handleMediaChange(pathFromState, appState.currentMediaTitle);
+    return;
+  }
+
+  if (!isImmersionTrackerMediaSeedInProgress) {
+    logger.debug(
+      "Immersion tracker sync did not find media path; starting seed loop.",
+    );
+    seedImmersionTrackerFromCurrentMedia();
+  } else {
+    logger.debug(
+      "Immersion tracker sync found seed loop already running.",
+    );
+  }
+}
 
 async function jimakuFetchJson<T>(
   endpoint: string,
@@ -1176,6 +1317,26 @@ const startupState = runStartupBootstrapRuntimeService(
           const tracker = new SubtitleTimingTracker();
           appState.subtitleTimingTracker = tracker;
         },
+        createImmersionTracker: () => {
+          const config = getResolvedConfig();
+          if (config.immersionTracking?.enabled === false) {
+            logger.info("Immersion tracking disabled in config");
+            return;
+          }
+          logger.debug(
+            "Immersion tracker startup requested: creating tracker service.",
+          );
+          const dbPath = getConfiguredImmersionDbPath();
+          logger.info(`Creating immersion tracker with dbPath=${dbPath}`);
+          appState.immersionTracker = new ImmersionTrackerService({
+            dbPath,
+          });
+          if (appState.mpvClient && !appState.mpvClient.connected) {
+            logger.info("Auto-connecting MPV client for immersion tracking");
+            appState.mpvClient.connect();
+          }
+          seedImmersionTrackerFromCurrentMedia();
+        },
         loadYomitanExtension: async () => {
           await loadYomitanExtension();
         },
@@ -1207,6 +1368,10 @@ const startupState = runStartupBootstrapRuntimeService(
         }
         if (appState.subtitleTimingTracker) {
           appState.subtitleTimingTracker.destroy();
+        }
+        if (appState.immersionTracker) {
+          appState.immersionTracker.destroy();
+          appState.immersionTracker = null;
         }
         if (appState.ankiIntegration) {
           appState.ankiIntegration.destroy();
@@ -1292,6 +1457,15 @@ function handleCliCommand(
 
 function handleInitialArgs(): void {
   if (!appState.initialArgs) return;
+  if (
+    !appState.texthookerOnlyMode &&
+    appState.immersionTracker &&
+    appState.mpvClient &&
+    !appState.mpvClient.connected
+  ) {
+    logger.info("Auto-connecting MPV client for immersion tracking");
+    appState.mpvClient.connect();
+  }
   handleCliCommand(appState.initialArgs, "initial");
 }
 
@@ -1314,9 +1488,14 @@ function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
     broadcastToOverlayWindows("secondary-subtitle:set", text);
   });
   mpvClient.on("subtitle-timing", ({ text, start, end }) => {
-    if (text.trim() && appState.subtitleTimingTracker) {
-      appState.subtitleTimingTracker.recordSubtitle(text, start, end);
+    if (!text.trim()) {
+      return;
     }
+    appState.immersionTracker?.recordSubtitleLine(text, start, end);
+    if (!appState.subtitleTimingTracker) {
+      return;
+    }
+    appState.subtitleTimingTracker.recordSubtitle(text, start, end);
     void maybeRunAnilistPostWatchUpdate().catch((error) => {
       logger.error("AniList post-watch update failed unexpectedly", error);
     });
@@ -1329,11 +1508,20 @@ function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
       void maybeProbeAnilistDuration(mediaKey);
       void ensureAnilistMediaGuess(mediaKey);
     }
+    syncImmersionTrackerFromCurrentMediaState();
   });
   mpvClient.on("media-title-change", ({ title }) => {
     mediaRuntime.updateCurrentMediaTitle(title);
     anilistCurrentMediaGuess = null;
     anilistCurrentMediaGuessPromise = null;
+    appState.immersionTracker?.handleMediaTitleUpdate(title);
+    syncImmersionTrackerFromCurrentMediaState();
+  });
+  mpvClient.on("time-pos-change", ({ time }) => {
+    appState.immersionTracker?.recordPlaybackPosition(time);
+  });
+  mpvClient.on("pause-change", ({ paused }) => {
+    appState.immersionTracker?.recordPauseState(paused);
   });
   mpvClient.on("subtitle-metrics-change", ({ patch }) => {
     updateMpvSubtitleRenderMetrics(patch);
@@ -1357,6 +1545,7 @@ function createMpvClientRuntimeService(): MpvIpcClient {
     },
   });
   bindMpvClientEventHandlers(mpvClient);
+  mpvClient.connect();
   return mpvClient;
 }
 
@@ -1395,7 +1584,11 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
         appState.yomitanParserInitPromise = promise;
       },
       isKnownWord: (text) =>
-        Boolean(appState.ankiIntegration?.isKnownWord(text)),
+        (() => {
+          const hit = Boolean(appState.ankiIntegration?.isKnownWord(text));
+          appState.immersionTracker?.recordLookup(hit);
+          return hit;
+        })(),
       getKnownWordMatchMode: () =>
         appState.ankiIntegration?.getKnownWordMatchMode() ??
         getResolvedConfig().ankiConnect.nPlusOne.matchMode,
@@ -1721,13 +1914,16 @@ async function markLastCardAsAudioCard(): Promise<void> {
 }
 
 async function mineSentenceCard(): Promise<void> {
-  await mineSentenceCardService(
+  const created = await mineSentenceCardService(
     {
       ankiIntegration: appState.ankiIntegration,
       mpvClient: appState.mpvClient,
       showMpvOsd: (text) => showMpvOsd(text),
     },
   );
+  if (created) {
+    appState.immersionTracker?.recordCardsMined(1);
+  }
 }
 
 function cancelPendingMineSentenceMultiple(): void {
@@ -1757,6 +1953,9 @@ function handleMineSentenceDigit(count: number): void {
       showMpvOsd: (text) => showMpvOsd(text),
       logError: (message, err) => {
         logger.error(message, err);
+      },
+      onCardsMined: (cards) => {
+        appState.immersionTracker?.recordCardsMined(cards);
       },
     },
   );

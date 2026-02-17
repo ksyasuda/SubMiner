@@ -24,6 +24,7 @@ function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
       calls.push("createMecabTokenizerAndCheck");
     },
     createSubtitleTimingTracker: () => calls.push("createSubtitleTimingTracker"),
+    createImmersionTracker: () => calls.push("createImmersionTracker"),
     loadYomitanExtension: async () => {
       calls.push("loadYomitanExtension");
     },
@@ -43,6 +44,22 @@ test("runAppReadyRuntimeService starts websocket in auto mode when plugin missin
   await runAppReadyRuntimeService(deps);
   assert.ok(calls.includes("startSubtitleWebsocket:9001"));
   assert.ok(calls.includes("initializeOverlayRuntime"));
+  assert.ok(calls.includes("createImmersionTracker"));
+  assert.ok(
+    calls.includes("log:Runtime ready: invoking createImmersionTracker."),
+  );
+});
+
+test("runAppReadyRuntimeService logs when createImmersionTracker dependency is missing", async () => {
+  const { deps, calls } = makeDeps({
+    createImmersionTracker: undefined,
+  });
+  await runAppReadyRuntimeService(deps);
+  assert.ok(
+    calls.includes(
+      "log:Runtime ready: createImmersionTracker dependency is missing.",
+    ),
+  );
 });
 
 test("runAppReadyRuntimeService logs defer message when overlay not auto-started", async () => {

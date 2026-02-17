@@ -2440,11 +2440,33 @@ function parseArgs(
       fail(`Unknown option: ${arg}`);
     }
 
-    break;
+    if (!parsed.target) {
+      if (isUrlTarget(arg)) {
+        parsed.target = arg;
+        parsed.targetKind = "url";
+      } else {
+        const resolved = resolvePathMaybe(arg);
+        if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+          parsed.target = resolved;
+          parsed.targetKind = "file";
+        } else if (
+          fs.existsSync(resolved) &&
+          fs.statSync(resolved).isDirectory()
+        ) {
+          parsed.directory = resolved;
+        } else {
+          fail(`Not a file, directory, or supported URL: ${arg}`);
+        }
+      }
+      i += 1;
+      continue;
+    }
+
+    fail(`Unexpected positional argument: ${arg}`);
   }
 
   const positional = argv.slice(i);
-  if (positional.length > 0) {
+  if (positional.length > 0 && !parsed.target && !parsed.directory) {
     const target = positional[0];
     if (isUrlTarget(target)) {
       parsed.target = target;

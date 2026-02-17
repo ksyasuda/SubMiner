@@ -52,19 +52,23 @@ test("copyCurrentSubtitleService copies current subtitle text", () => {
 test("mineSentenceCardService handles missing integration and disconnected mpv", async () => {
   const osd: string[] = [];
 
-  await mineSentenceCardService({
+  assert.equal(
+    await mineSentenceCardService({
     ankiIntegration: null,
     mpvClient: null,
     showMpvOsd: (text) => osd.push(text),
-  });
+    }),
+    false,
+  );
   assert.equal(osd.at(-1), "AnkiConnect integration not enabled");
 
-  await mineSentenceCardService({
+    assert.equal(
+    await mineSentenceCardService({
     ankiIntegration: {
       updateLastAddedFromClipboard: async () => {},
       triggerFieldGroupingForLastAddedCard: async () => {},
       markLastCardAsAudioCard: async () => {},
-      createSentenceCard: async () => {},
+      createSentenceCard: async () => false,
     },
     mpvClient: {
       connected: false,
@@ -73,7 +77,9 @@ test("mineSentenceCardService handles missing integration and disconnected mpv",
       currentSubEnd: 2,
     },
     showMpvOsd: (text) => osd.push(text),
-  });
+    }),
+    false,
+  );
 
   assert.equal(osd.at(-1), "MPV not connected");
 });
@@ -86,13 +92,14 @@ test("mineSentenceCardService creates sentence card from mpv subtitle state", as
     secondarySub?: string;
   }> = [];
 
-  await mineSentenceCardService({
+  const createdCard = await mineSentenceCardService({
     ankiIntegration: {
       updateLastAddedFromClipboard: async () => {},
       triggerFieldGroupingForLastAddedCard: async () => {},
       markLastCardAsAudioCard: async () => {},
       createSentenceCard: async (sentence, startTime, endTime, secondarySub) => {
         created.push({ sentence, startTime, endTime, secondarySub });
+        return true;
       },
     },
     mpvClient: {
@@ -105,6 +112,7 @@ test("mineSentenceCardService creates sentence card from mpv subtitle state", as
     showMpvOsd: () => {},
   });
 
+  assert.equal(createdCard, true);
   assert.deepEqual(created, [
     {
       sentence: "subtitle line",
@@ -136,6 +144,7 @@ test("handleMultiCopyDigitService copies available history and reports truncatio
 test("handleMineSentenceDigitService reports async create failures", async () => {
   const osd: string[] = [];
   const logs: Array<{ message: string; err: unknown }> = [];
+  let cardsMined = 0;
 
   handleMineSentenceDigitService(2, {
     subtitleTimingTracker: {
@@ -157,6 +166,9 @@ test("handleMineSentenceDigitService reports async create failures", async () =>
     getCurrentSecondarySubText: () => "sub2",
     showMpvOsd: (text) => osd.push(text),
     logError: (message, err) => logs.push({ message, err }),
+    onCardsMined: (count) => {
+      cardsMined += count;
+    },
   });
 
   await new Promise((resolve) => setImmediate(resolve));
@@ -165,4 +177,37 @@ test("handleMineSentenceDigitService reports async create failures", async () =>
   assert.equal(logs[0]?.message, "mineSentenceMultiple failed:");
   assert.equal((logs[0]?.err as Error).message, "mine boom");
   assert.ok(osd.some((entry) => entry.includes("Mine sentence failed: mine boom")));
+  assert.equal(cardsMined, 0);
+});
+
+test("handleMineSentenceDigitService increments successful card count", async () => {
+  const osd: string[] = [];
+  let cardsMined = 0;
+
+  handleMineSentenceDigitService(2, {
+    subtitleTimingTracker: {
+      getRecentBlocks: () => ["one", "two"],
+      getCurrentSubtitle: () => null,
+      findTiming: (text) =>
+        text === "one"
+          ? { startTime: 1, endTime: 3 }
+          : { startTime: 4, endTime: 7 },
+    },
+    ankiIntegration: {
+      updateLastAddedFromClipboard: async () => {},
+      triggerFieldGroupingForLastAddedCard: async () => {},
+      markLastCardAsAudioCard: async () => {},
+      createSentenceCard: async () => true,
+    },
+    getCurrentSecondarySubText: () => "sub2",
+    showMpvOsd: (text) => osd.push(text),
+    logError: () => {},
+    onCardsMined: (count) => {
+      cardsMined += count;
+    },
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(cardsMined, 1);
 });

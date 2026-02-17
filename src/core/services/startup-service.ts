@@ -99,6 +99,7 @@ export interface AppReadyRuntimeDeps {
   log: (message: string) => void;
   createMecabTokenizerAndCheck: () => Promise<void>;
   createSubtitleTimingTracker: () => void;
+  createImmersionTracker?: () => void;
   loadYomitanExtension: () => Promise<void>;
   texthookerOnlyMode: boolean;
   shouldAutoInitializeOverlayRuntimeFromConfig: () => boolean;
@@ -173,6 +174,12 @@ export async function runAppReadyRuntimeService(
   }
 
   deps.createSubtitleTimingTracker();
+  if (deps.createImmersionTracker) {
+    deps.log("Runtime ready: invoking createImmersionTracker.");
+    deps.createImmersionTracker();
+  } else {
+    deps.log("Runtime ready: createImmersionTracker dependency is missing.");
+  }
   await deps.loadYomitanExtension();
 
   if (deps.texthookerOnlyMode) {

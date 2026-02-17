@@ -239,6 +239,9 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   invisibleOverlay: {
     startupVisibility: "platform-default",
   },
+  immersionTracking: {
+    enabled: true,
+  },
 };
 
 export const DEFAULT_ANKI_CONNECT_CONFIG = DEFAULT_CONFIG.ankiConnect;
@@ -509,6 +512,19 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     description:
       "Comma-separated primary subtitle language priority used by the launcher.",
   },
+  {
+    path: "immersionTracking.enabled",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.enabled,
+    description: "Enable immersion tracking for mined subtitle metadata.",
+  },
+  {
+    path: "immersionTracking.dbPath",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.dbPath,
+    description:
+      "Optional SQLite database path for immersion tracking. Empty value uses the default app data path.",
+  },
 ];
 
 export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
@@ -620,6 +636,14 @@ export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: "Anilist",
     description: ["Anilist API credentials and update behavior."],
     key: "anilist",
+  },
+  {
+    title: "Immersion Tracking",
+    description: [
+      "Enable/disable immersion tracking.",
+      "Set dbPath to override the default sqlite database location.",
+    ],
+    key: "immersionTracking",
   },
 ];
 

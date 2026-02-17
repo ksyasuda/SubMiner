@@ -89,6 +89,7 @@ export {
 } from "./mpv-render-metrics-service";
 export { createOverlayContentMeasurementStoreService } from "./overlay-content-measurement-service";
 export { handleMpvCommandFromIpcService } from "./ipc-command-service";
+export { ImmersionTrackerService } from "./immersion-tracker-service";
 export { createFieldGroupingOverlayRuntimeService } from "./field-grouping-overlay-service";
 export { createNumericShortcutRuntimeService } from "./numeric-shortcut-service";
 export { runStartupBootstrapRuntimeService } from "./startup-service";
