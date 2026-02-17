@@ -1323,19 +1323,25 @@ const startupState = runStartupBootstrapRuntimeService(
             logger.info("Immersion tracking disabled in config");
             return;
           }
-          logger.debug(
-            "Immersion tracker startup requested: creating tracker service.",
-          );
-          const dbPath = getConfiguredImmersionDbPath();
-          logger.info(`Creating immersion tracker with dbPath=${dbPath}`);
-          appState.immersionTracker = new ImmersionTrackerService({
-            dbPath,
-          });
-          if (appState.mpvClient && !appState.mpvClient.connected) {
-            logger.info("Auto-connecting MPV client for immersion tracking");
-            appState.mpvClient.connect();
+          try {
+            logger.debug(
+              "Immersion tracker startup requested: creating tracker service.",
+            );
+            const dbPath = getConfiguredImmersionDbPath();
+            logger.info(`Creating immersion tracker with dbPath=${dbPath}`);
+            appState.immersionTracker = new ImmersionTrackerService({
+              dbPath,
+            });
+            logger.debug("Immersion tracker initialized successfully.");
+            if (appState.mpvClient && !appState.mpvClient.connected) {
+              logger.info("Auto-connecting MPV client for immersion tracking");
+              appState.mpvClient.connect();
+            }
+            seedImmersionTrackerFromCurrentMedia();
+          } catch (error) {
+            logger.warn("Immersion tracker startup failed; disabling tracking.", error);
+            appState.immersionTracker = null;
           }
-          seedImmersionTrackerFromCurrentMedia();
         },
         loadYomitanExtension: async () => {
           await loadYomitanExtension();
