@@ -2466,7 +2466,11 @@ function parseArgs(
   }
 
   const positional = argv.slice(i);
-  if (positional.length > 0 && !parsed.target && !parsed.directory) {
+  if (positional.length > 0) {
+    if (parsed.target || parsed.directory) {
+      fail(`Unexpected positional argument: ${positional[0]}`);
+    }
+
     const target = positional[0];
     if (isUrlTarget(target)) {
       parsed.target = target;
@@ -2484,6 +2488,10 @@ function parseArgs(
       } else {
         fail(`Not a file, directory, or supported URL: ${target}`);
       }
+    }
+
+    if (positional.length > 1) {
+      fail(`Unexpected positional argument: ${positional[1]}`);
     }
   }
 
