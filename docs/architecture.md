@@ -103,6 +103,7 @@ flowchart TD
   end
 
   subgraph Svc["Services — src/core/services/"]
+    direction LR
     Mpv["MPV Stack<br/>transport · protocol<br/>state · properties"]:::svc
     Overlay["Overlay<br/>manager · window<br/>visibility · bridge"]:::svc
     Mining["Mining & Subtitles<br/>mining · field-grouping<br/>subtitle-ws · tokenizer"]:::svc
@@ -117,6 +118,7 @@ flowchart TD
   end
 
   subgraph Ext["External Systems"]
+    direction LR
     mpv["mpv"]:::ext
     Anki["AnkiConnect"]:::ext
     Jimaku["Jimaku API"]:::ext

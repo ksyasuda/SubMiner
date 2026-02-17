@@ -276,9 +276,7 @@ local function build_command_args(action, overrides)
 
 	table.insert(args, "--" .. action)
 	local log_level = normalize_log_level(overrides.log_level or opts.log_level)
-	if log_level == "debug" then
-		table.insert(args, "--verbose")
-	elseif log_level ~= "info" then
+	if log_level ~= "info" then
 		table.insert(args, "--log-level")
 		table.insert(args, log_level)
 	end
@@ -421,9 +419,7 @@ end
 local function build_texthooker_args()
 	local args = { state.binary_path, "--texthooker", "--port", tostring(opts.texthooker_port) }
 	local log_level = normalize_log_level(opts.log_level)
-	if log_level == "debug" then
-		table.insert(args, "--verbose")
-	elseif log_level ~= "info" then
+	if log_level ~= "info" then
 		table.insert(args, "--log-level")
 		table.insert(args, log_level)
 	end

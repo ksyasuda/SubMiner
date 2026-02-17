@@ -35,7 +35,8 @@ make build-macos-unsigned # macOS DMG + ZIP (unsigned)
 ## Running Locally
 
 ```bash
-pnpm run dev    # builds + launches with --start --dev flags
+pnpm run dev    # builds + launches with --start --dev
+electron . --start --dev --log-level debug   # equivalent Electron launch with verbose logging
 ```
 
 ## Testing

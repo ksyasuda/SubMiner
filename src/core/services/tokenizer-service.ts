@@ -791,7 +791,7 @@ async function enrichYomitanPos1(
     mecabTokens = await deps.tokenizeWithMecab(text);
   } catch (err) {
     const error = err as Error;
-    console.warn(
+    logger.warn(
       "Failed to enrich Yomitan tokens with MeCab POS:",
       error.message,
       `tokenCount=${tokens.length}`,
@@ -801,7 +801,7 @@ async function enrichYomitanPos1(
   }
 
   if (!mecabTokens || mecabTokens.length === 0) {
-    console.warn(
+    logger.warn(
       "MeCab enrichment returned no tokens; preserving Yomitan token output.",
       `tokenCount=${tokens.length}`,
       `textLength=${text.length}`,
@@ -886,7 +886,7 @@ async function ensureYomitanParserWindow(
       }
       return true;
     } catch (err) {
-      console.error(
+      logger.error(
         "Failed to initialize Yomitan parser window:",
         (err as Error).message,
       );
@@ -977,8 +977,8 @@ async function parseWithYomitanInternalParser(
     }
 
     return enrichYomitanPos1(yomitanTokens, deps, text);
-  } catch (err) {
-    console.error("Yomitan parser request failed:", (err as Error).message);
+    } catch (err) {
+    logger.error("Yomitan parser request failed:", (err as Error).message);
     return null;
   }
 }
@@ -1066,7 +1066,7 @@ export async function tokenizeSubtitleService(
       };
     }
   } catch (err) {
-    console.error("Tokenization error:", (err as Error).message);
+    logger.error("Tokenization error:", (err as Error).message);
   }
 
   return { text: displayText, tokens: null };

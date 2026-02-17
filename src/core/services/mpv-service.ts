@@ -178,7 +178,7 @@ export class MpvIpcClient implements MpvClient {
     this.transport = new MpvSocketTransport({
       socketPath,
       onConnect: () => {
-        logger.info("Connected to MPV socket");
+        logger.debug("Connected to MPV socket");
         this.connected = true;
         this.connecting = false;
         this.socket = this.transport.getSocket();
@@ -192,7 +192,7 @@ export class MpvIpcClient implements MpvClient {
           this.deps.autoStartOverlay ||
           this.deps.getResolvedConfig().auto_start_overlay === true;
         if (this.firstConnection && shouldAutoStart) {
-          logger.info("Auto-starting overlay, hiding mpv subtitles");
+          logger.debug("Auto-starting overlay, hiding mpv subtitles");
           setTimeout(() => {
             this.deps.setOverlayVisible(true);
           }, 100);

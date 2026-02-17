@@ -14,6 +14,13 @@ SubMiner connects to mpv via a Unix socket (or named pipe on Windows). If the so
 
 SubMiner retries the connection automatically with increasing delays (200 ms, 500 ms, 1 s, 2 s on first connect; 1 s, 2 s, 5 s, 10 s on reconnect). If mpv exits and restarts, the overlay reconnects without needing a restart.
 
+## Logging and App Mode
+
+- Default log output is `info`.
+- Use `--log-level` for more/less output.
+- Use `--dev`/`--debug` only to force app/dev mode (for example to get dev behavior from the overlay/app); they do not change log verbosity.
+- You can combine both, for example `SubMiner.AppImage --start --dev --log-level debug`, when you need maximum diagnostics.
+
 **"Failed to parse MPV message"**
 
 Logged when a malformed JSON line arrives from the mpv socket. Usually harmless — SubMiner skips the bad line and continues. If it happens constantly, check that nothing else is writing to the same socket path.

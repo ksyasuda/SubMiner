@@ -47,8 +47,6 @@ export function runStartupBootstrapRuntimeService(
 
   if (initialArgs.logLevel) {
     deps.setLogLevel(initialArgs.logLevel, "cli");
-  } else if (initialArgs.verbose) {
-    deps.setLogLevel("debug", "cli");
   }
 
   deps.forceX11Backend(initialArgs);

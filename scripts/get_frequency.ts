@@ -11,7 +11,7 @@ interface CliOptions {
   input: string;
   dictionaryPath: string;
   emitPretty: boolean;
-  emitVerbose: boolean;
+  emitDiagnostics: boolean;
   mecabCommand?: string;
   mecabDictionaryPath?: string;
   forceMecabOnly?: boolean;
@@ -35,7 +35,7 @@ function parseCliArgs(argv: string[]): CliOptions {
   let inputParts: string[] = [];
   let dictionaryPath = path.join(process.cwd(), "vendor", "jiten_freq_global");
   let emitPretty = false;
-  let emitVerbose = false;
+  let emitDiagnostics = false;
   let mecabCommand: string | undefined;
   let mecabDictionaryPath: string | undefined;
   let forceMecabOnly = false;
@@ -307,8 +307,8 @@ function parseCliArgs(argv: string[]): CliOptions {
       continue;
     }
 
-    if (arg === "--verbose") {
-      emitVerbose = true;
+    if (arg === "--diagnostics") {
+      emitDiagnostics = true;
       continue;
     }
 
@@ -336,7 +336,7 @@ function parseCliArgs(argv: string[]): CliOptions {
       input: stdin,
       dictionaryPath,
       emitPretty,
-      emitVerbose,
+      emitDiagnostics,
       forceMecabOnly,
       yomitanExtensionPath,
       yomitanUserDataPath,
@@ -360,7 +360,7 @@ function parseCliArgs(argv: string[]): CliOptions {
     input,
     dictionaryPath,
     emitPretty,
-    emitVerbose,
+    emitDiagnostics,
     forceMecabOnly,
     yomitanExtensionPath,
     yomitanUserDataPath,
@@ -382,10 +382,10 @@ function parseCliArgs(argv: string[]): CliOptions {
 
 function printUsage(): void {
   process.stdout.write(`Usage:
-  pnpm run get-frequency [--pretty] [--verbose] [--dictionary <path>] [--mecab-command <path>] [--mecab-dictionary <path>] <text>
+   pnpm run get-frequency [--pretty] [--diagnostics] [--dictionary <path>] [--mecab-command <path>] [--mecab-dictionary <path>] <text>
 
   --pretty               Pretty-print JSON output.
-  --verbose               Include merged-frequency diagnostics and lookup term details.
+  --diagnostics            Include merged-frequency lookup-term details.
   --force-mecab          Skip Yomitan parser initialization and force MeCab fallback.
   --yomitan-extension <path> Optional path to a Yomitan extension directory.
   --yomitan-user-data <path> Optional Electron userData directory for Yomitan state.
@@ -828,7 +828,7 @@ async function main(): Promise<void> {
     const mergedCount = subtitleData.tokens?.filter((token) => token.isMerged).length ?? 0;
     const tokens =
       subtitleData.tokens?.map((token) =>
-        args.emitVerbose
+        args.emitDiagnostics
           ? simplifyTokenWithVerbose(token, getFrequencyRank)
           : simplifyToken(token),
       ) ?? null;

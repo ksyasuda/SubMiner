@@ -2,6 +2,9 @@ import * as fs from "fs";
 import * as path from "path";
 import * as readline from "readline";
 import { CliArgs } from "../../cli/args";
+import { createLogger } from "../../logger";
+
+const logger = createLogger("core:config-gen");
 
 function formatBackupTimestamp(date = new Date()): string {
   const pad = (v: number): string => String(v).padStart(2, "0");
@@ -40,13 +43,13 @@ export async function generateDefaultConfigFile(
       const backupPath = `${targetPath}.bak.${formatBackupTimestamp()}`;
       fs.copyFileSync(targetPath, backupPath);
       fs.writeFileSync(targetPath, template, "utf-8");
-      console.log(`Backed up existing config to ${backupPath}`);
-      console.log(`Generated config at ${targetPath}`);
+      logger.info(`Backed up existing config to ${backupPath}`);
+      logger.info(`Generated config at ${targetPath}`);
       return 0;
     }
 
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
-      console.error(
+      logger.error(
         `Config exists at ${targetPath}. Re-run with --backup-overwrite to back up and overwrite.`,
       );
       return 1;
@@ -56,15 +59,15 @@ export async function generateDefaultConfigFile(
       `Config exists at ${targetPath}. Back up and overwrite? [y/N] `,
     );
     if (!confirmed) {
-      console.log("Config generation cancelled.");
+      logger.info("Config generation cancelled.");
       return 0;
     }
 
     const backupPath = `${targetPath}.bak.${formatBackupTimestamp()}`;
     fs.copyFileSync(targetPath, backupPath);
     fs.writeFileSync(targetPath, template, "utf-8");
-    console.log(`Backed up existing config to ${backupPath}`);
-    console.log(`Generated config at ${targetPath}`);
+    logger.info(`Backed up existing config to ${backupPath}`);
+    logger.info(`Generated config at ${targetPath}`);
     return 0;
   }
 
@@ -73,6 +76,6 @@ export async function generateDefaultConfigFile(
     fs.mkdirSync(parentDir, { recursive: true });
   }
   fs.writeFileSync(targetPath, template, "utf-8");
-  console.log(`Generated config at ${targetPath}`);
+  logger.info(`Generated config at ${targetPath}`);
   return 0;
 }

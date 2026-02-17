@@ -22,6 +22,8 @@ subminer -r -d ~/Anime            # Recursive search
 subminer video.mkv                # Play specific file
 subminer https://youtu.be/...     # Play a YouTube URL
 subminer ytsearch:"jp news"       # Play first YouTube search result
+subminer --log-level debug video.mkv # Enable verbose logs for launch/debugging
+subminer --log-level warn video.mkv  # Set logging level explicitly
 
 # Options
 subminer -T video.mkv             # Disable texthooker server
@@ -40,9 +42,18 @@ SubMiner.AppImage --show-visible-overlay              # Force show visible overl
 SubMiner.AppImage --hide-visible-overlay              # Force hide visible overlay
 SubMiner.AppImage --show-invisible-overlay            # Force show invisible overlay
 SubMiner.AppImage --hide-invisible-overlay            # Force hide invisible overlay
+SubMiner.AppImage --start --dev                         # Enable app/dev mode only
+SubMiner.AppImage --start --debug                       # Alias for --dev
+SubMiner.AppImage --start --log-level debug             # Force verbose logging without app/dev mode
 SubMiner.AppImage --settings              # Open Yomitan settings
 SubMiner.AppImage --help                  # Show all options
 ```
+
+### Logging and App Mode
+
+- `--log-level` controls logger verbosity.
+- `--dev` and `--debug` are app/dev-mode switches; they are not log-level aliases.
+- Use both when needed, for example `SubMiner.AppImage --start --dev --log-level debug`.
 
 ### MPV Profile Example (mpv.conf)
 
