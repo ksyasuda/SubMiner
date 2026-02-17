@@ -52,6 +52,7 @@ The configuration file includes several main sections:
 - [**Auto Subtitle Sync**](#auto-subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
 - [**Invisible Overlay**](#invisible-overlay) - Startup visibility behavior for the invisible mining layer
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
+- [**AniList**](#anilist) - Optional post-watch progress updates
 - [**Keybindings**](#keybindings) - MPV command shortcuts
 - [**Runtime Option Palette**](#runtime-option-palette) - Live, session-only option toggles
 - [**Secondary Subtitles**](#secondary-subtitles) - Dual subtitle track support
@@ -382,6 +383,48 @@ Configure Jimaku API access and defaults:
 Jimaku is rate limited; if you hit a limit, SubMiner will surface the retry delay from the API response.
 
 Set `openBrowser` to `false` to only print the URL without opening a browser.
+
+### AniList
+
+AniList integration is opt-in and disabled by default. Enable it and provide an access token to allow SubMiner to update your watched episode progress after playback.
+
+```json
+{
+  "anilist": {
+    "enabled": true,
+    "accessToken": "YOUR_ANILIST_ACCESS_TOKEN"
+  }
+}
+```
+
+| Option | Values | Description |
+| ------ | ------ | ----------- |
+| `enabled` | `true`, `false` | Enable AniList post-watch progress updates (default: `false`) |
+| `accessToken` | string | AniList access token used for authenticated GraphQL updates (default: empty string) |
+
+When `enabled` is `true` and `accessToken` is empty, SubMiner opens an AniList setup helper window. Keep `enabled` as `false` to disable all AniList setup/update behavior.
+
+Current post-watch behavior:
+
+- SubMiner attempts an update near episode completion (`>=85%` watched and at least `10` minutes watched).
+- Episode/title detection is `guessit`-first with fallback to SubMiner's filename parser.
+- If `guessit` is unavailable, updates still work via fallback parsing but title matching can be less accurate.
+- If embedded AniList auth UI fails to render, SubMiner opens the authorize URL in your default browser and shows fallback instructions in-app.
+- Failed updates are retried with a persistent backoff queue in the background.
+
+Setup flow details:
+
+1. Set `anilist.enabled` to `true`.
+2. Leave `anilist.accessToken` empty and restart SubMiner to trigger setup.
+3. Approve access in AniList (browser window or system browser fallback).
+4. Copy the returned token and paste it into `anilist.accessToken`.
+5. Save config and restart SubMiner.
+
+Token + detection notes:
+
+- `anilist.accessToken` can be set directly in config; SubMiner also stores the token locally for reuse if config token is later blank.
+- Detection quality is best when `guessit` is installed and available on `PATH`.
+- When `guessit` cannot parse or is missing, SubMiner falls back automatically to internal filename parsing.
 
 ### Keybindings
 
