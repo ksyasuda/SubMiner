@@ -162,6 +162,7 @@ test("monthly rollups are grouped by calendar month", async () => {
         0,
         0,
         0,
+        0,
         0
       )
     `);
@@ -215,6 +216,7 @@ test("monthly rollups are grouped by calendar month", async () => {
         1,
         1,
         1,
+        0,
         0,
         0,
         0,
