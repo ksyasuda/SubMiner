@@ -2,12 +2,12 @@
 layout: home
 
 title: SubMiner
-titleTemplate: Sentence Mining Overlay for MPV
+titleTemplate: Immersion Mining Workflow for MPV
 
 hero:
   name: SubMiner
-  text: Sentence Mining for MPV
-  tagline: Click on subtitles. Look up words. Mine to Anki. All without leaving the video.
+  text: Built for Immersion Mining
+  tagline: A self-contained MPV overlay for Japanese study. Look up words, mine cards, and enrich Anki without breaking playback flow.
   image:
     src: /assets/SubMiner.png
     alt: SubMiner logo
@@ -19,8 +19,8 @@ hero:
       text: Mining Workflow
       link: /mining-workflow
     - theme: alt
-      text: Configuration
-      link: /configuration
+      text: Is This For Me?
+      link: "#who-this-is-for"
 
 features:
   - icon:
@@ -134,6 +134,48 @@ features:
 
 <div class="demo-section">
 
+## What SubMiner Is For
+
+SubMiner is for people who learn Japanese by watching subtitled content in mpv and want a low-friction mining loop:
+
+- stay inside the video while looking up words
+- send mined content to Anki quickly
+- keep media context (audio, screenshot, timestamp, subtitle context) attached to each card
+- reduce tool switching between player, dictionary, and card workflow
+
+</div>
+
+<div class="workflow-section">
+
+## Project Goals
+
+<div class="workflow-steps">
+  <div class="workflow-step">
+    <div class="step-title">1. Keep Immersion Continuous</div>
+    <div class="step-desc">Minimize context switching by making lookup and mining happen directly over mpv subtitles.</div>
+  </div>
+  <div class="workflow-step">
+    <div class="step-title">2. Preserve Card Quality</div>
+    <div class="step-desc">Attach sentence context, audio, image, and translation so mined cards stay reviewable and useful long-term.</div>
+  </div>
+  <div class="workflow-step">
+    <div class="step-title">3. Support Real Workflows</div>
+    <div class="step-desc">Handle day-to-day immersion needs: subtitle management, syncing, known-word awareness, and keyboard-first controls.</div>
+  </div>
+  <div class="workflow-step">
+    <div class="step-title">4. Stay Configurable</div>
+    <div class="step-desc">Offer defaults that work out of the box, while still letting advanced users shape behavior around their note type and setup.</div>
+  </div>
+  <div class="workflow-step">
+    <div class="step-title">5. Evolve Safely</div>
+    <div class="step-desc">Use a modular TypeScript codebase and automated tests so features can ship faster without breaking core mining behavior.</div>
+  </div>
+</div>
+
+</div>
+
+<div class="demo-section">
+
 ## See It in Action
 
 SubMiner sits as a transparent overlay on top of mpv. Subtitles appear as interactive, clickable text — click a word to look it up with Yomitan, then add it to Anki with one click.
@@ -142,6 +184,18 @@ SubMiner sits as a transparent overlay on top of mpv. Subtitles appear as intera
   <source :src="'/assets/card-mine.webm'" type="video/webm" />
   Your browser does not support the video tag.
 </video>
+
+</div>
+
+<div class="workflow-section">
+
+## Who This Is For
+
+- learners using mpv as their main immersion player
+- users who already rely on Yomitan + AnkiConnect
+- miners who care about preserving context on cards, not just raw words
+
+SubMiner is likely overkill if you only want lightweight lookup without card enrichment, overlay controls, or integrated workflow tooling.
 
 </div>
 

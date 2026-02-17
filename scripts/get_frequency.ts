@@ -385,7 +385,7 @@ function printUsage(): void {
   pnpm run get-frequency [--pretty] [--verbose] [--dictionary <path>] [--mecab-command <path>] [--mecab-dictionary <path>] <text>
 
   --pretty               Pretty-print JSON output.
-  --verbose               Include merged-frequency diagnostics and lookup terms.
+  --verbose               Include merged-frequency diagnostics and lookup term details.
   --force-mecab          Skip Yomitan parser initialization and force MeCab fallback.
   --yomitan-extension <path> Optional path to a Yomitan extension directory.
   --yomitan-user-data <path> Optional Electron userData directory for Yomitan state.
@@ -413,41 +413,8 @@ type FrequencyCandidate = {
 };
 
 function getFrequencyLookupTextCandidates(token: MergedToken): string[] {
-  const tokenWithCandidates = token as MergedToken & {
-    frequencyLookupTerms?: string[];
-  };
-  const lookupTextCandidates: string[] = [];
-  const addLookupText = (text: string | undefined): void => {
-    if (!text) {
-      return;
-    }
-    const trimmed = text.trim();
-    if (!trimmed) {
-      return;
-    }
-    lookupTextCandidates.push(trimmed);
-  };
-
-  if (Array.isArray(tokenWithCandidates.frequencyLookupTerms)) {
-    for (const term of tokenWithCandidates.frequencyLookupTerms) {
-      addLookupText(term);
-    }
-  }
-
-  addLookupText(token.headword);
-  addLookupText(token.reading);
-  addLookupText(token.surface);
-
-  const uniqueLookupTerms: string[] = [];
-  const seen = new Set<string>();
-  for (const term of lookupTextCandidates) {
-    if (seen.has(term)) {
-      continue;
-    }
-    seen.add(term);
-    uniqueLookupTerms.push(term);
-  }
-  return uniqueLookupTerms;
+  const lookupText = token.headword?.trim() || token.reading?.trim() || token.surface.trim();
+  return lookupText ? [lookupText] : [];
 }
 
 function getBestFrequencyLookupCandidate(
@@ -488,10 +455,6 @@ function simplifyTokenWithVerbose(
   token: MergedToken,
   getFrequencyRank: FrequencyDictionaryLookup,
 ): Record<string, unknown> {
-  const tokenWithCandidates = token as MergedToken & {
-    frequencyLookupTerms?: string[];
-  };
-  const frequencyLookupTerms = tokenWithCandidates.frequencyLookupTerms;
   const candidates = getFrequencyLookupTextCandidates(token).map((term) => ({
     term,
     rank: getFrequencyRank(term),
@@ -518,10 +481,6 @@ function simplifyTokenWithVerbose(
     isNPlusOneTarget: token.isNPlusOneTarget,
     frequencyRank: token.frequencyRank,
     jlptLevel: token.jlptLevel,
-    frequencyLookupTerms:
-      Array.isArray(frequencyLookupTerms) && frequencyLookupTerms.length > 0
-        ? frequencyLookupTerms
-        : undefined,
     frequencyCandidates: candidates,
     frequencyBestLookupTerm: bestCandidate?.term ?? null,
     frequencyBestLookupRank: bestCandidate?.rank ?? null,
@@ -535,6 +494,25 @@ interface YomitanRuntimeState {
   parserInitPromise: Promise<boolean> | null;
   available: boolean;
   note?: string;
+}
+
+function destroyUnknownParserWindow(window: unknown): void {
+  if (!window || typeof window !== "object") {
+    return;
+  }
+  const candidate = window as {
+    isDestroyed?: () => boolean;
+    destroy?: () => void;
+  };
+  if (typeof candidate.isDestroyed !== "function") {
+    return;
+  }
+  if (typeof candidate.destroy !== "function") {
+    return;
+  }
+  if (!candidate.isDestroyed()) {
+    candidate.destroy();
+  }
 }
 
 async function createYomitanRuntimeState(
@@ -775,133 +753,141 @@ function renderColoredLine(
 }
 
 async function main(): Promise<void> {
-  const args = parseCliArgs(process.argv.slice(2));
-  const getFrequencyRank = await getFrequencyLookup(args.dictionaryPath);
+  let electronModule: (typeof import("electron")) | null = null;
+  let yomitanState: YomitanRuntimeState | null = null;
 
-  const mecabTokenizer = new MecabTokenizer({
-    mecabCommand: args.mecabCommand,
-    dictionaryPath: args.mecabDictionaryPath,
-  });
-  const isMecabAvailable = await mecabTokenizer.checkAvailability();
-  if (!isMecabAvailable) {
-    throw new Error(
-      "MeCab is not available on this system. Install/run environment with MeCab to tokenize input.",
-    );
-  }
+  try {
+    const args = parseCliArgs(process.argv.slice(2));
+    const getFrequencyRank = await getFrequencyLookup(args.dictionaryPath);
 
-  const app = await import("electron").catch(() => null);
-  if (app && args.yomitanUserDataPath) {
-    app.app.setPath("userData", args.yomitanUserDataPath);
-  }
-  const yomitanState =
-    !args.forceMecabOnly
-      ? await createYomitanRuntimeStateWithSearch(
-          app?.app?.getPath ? app.app.getPath("userData") : process.cwd(),
-          args.yomitanExtensionPath,
-        )
-      : null;
-  const hasYomitan = Boolean(yomitanState?.available && yomitanState?.yomitanExt);
+    const mecabTokenizer = new MecabTokenizer({
+      mecabCommand: args.mecabCommand,
+      dictionaryPath: args.mecabDictionaryPath,
+    });
+    const isMecabAvailable = await mecabTokenizer.checkAvailability();
+    if (!isMecabAvailable) {
+      throw new Error(
+        "MeCab is not available on this system. Install/run environment with MeCab to tokenize input.",
+      );
+    }
 
-  const deps = createTokenizerDepsRuntimeService({
-    getYomitanExt: () =>
-      (hasYomitan ? yomitanState!.yomitanExt : null) as never,
-    getYomitanParserWindow: () =>
-      (hasYomitan ? yomitanState!.parserWindow : null) as never,
-    setYomitanParserWindow: (window) => {
-      if (!hasYomitan) {
-        return;
-      }
-      yomitanState!.parserWindow = window;
-    },
-    getYomitanParserReadyPromise: () =>
-      (hasYomitan ? yomitanState!.parserReadyPromise : null) as never,
-    setYomitanParserReadyPromise: (promise) => {
-      if (!hasYomitan) {
-        return;
-      }
-      yomitanState!.parserReadyPromise = promise;
-    },
-    getYomitanParserInitPromise: () =>
-      (hasYomitan ? yomitanState!.parserInitPromise : null) as never,
-    setYomitanParserInitPromise: (promise) => {
-      if (!hasYomitan) {
-        return;
-      }
-      yomitanState!.parserInitPromise = promise;
-    },
-    isKnownWord: () => false,
-    getKnownWordMatchMode: () => "headword",
-    getJlptLevel: () => null,
-    getFrequencyDictionaryEnabled: () => true,
-    getFrequencyRank,
-    getMecabTokenizer: () => ({
-      tokenize: (text: string) => mecabTokenizer.tokenize(text),
-    }),
-  });
+    electronModule = await import("electron").catch(() => null);
+    if (electronModule && args.yomitanUserDataPath) {
+      electronModule.app.setPath("userData", args.yomitanUserDataPath);
+    }
+    yomitanState =
+      !args.forceMecabOnly
+        ? await createYomitanRuntimeStateWithSearch(
+            electronModule?.app?.getPath
+              ? electronModule.app.getPath("userData")
+              : process.cwd(),
+            args.yomitanExtensionPath,
+          )
+        : null;
+    const hasYomitan = Boolean(yomitanState?.available && yomitanState?.yomitanExt);
 
-  const subtitleData = await tokenizeSubtitleService(args.input, deps);
-  const tokenCount = subtitleData.tokens?.length ?? 0;
-  const mergedCount = subtitleData.tokens?.filter((token) => token.isMerged).length ?? 0;
-  const hasYomitanCandidates = Boolean(
-    subtitleData.tokens?.some((token) => {
-      const frequencyLookupTerms = (
-        token as MergedToken & { frequencyLookupTerms?: string[] }
-      ).frequencyLookupTerms;
-      return Array.isArray(frequencyLookupTerms) && frequencyLookupTerms.length > 0;
-    }) ?? false,
-  );
-  const tokens =
-    subtitleData.tokens?.map((token) =>
-      args.emitVerbose
-        ? simplifyTokenWithVerbose(token, getFrequencyRank)
-        : simplifyToken(token),
-    ) ?? null;
-  const diagnostics = {
-    yomitan: {
-      available: Boolean(yomitanState?.available),
-      loaded: hasYomitan,
-      forceMecabOnly: args.forceMecabOnly,
-      note: yomitanState?.note ?? null,
-    },
-    mecab: {
-      command: args.mecabCommand ?? "mecab",
-      dictionaryPath: args.mecabDictionaryPath ?? null,
-      available: isMecabAvailable,
-    },
-    tokenizer: {
-      sourceHint:
-        tokenCount === 0
-          ? "none"
-          : hasYomitan ? "yomitan-merged" : "mecab-merge",
-      mergedTokenCount: mergedCount,
-      totalTokenCount: tokenCount,
-    },
-  };
-  if (tokens === null) {
-    diagnostics.mecab["status"] = "no-tokens";
-    diagnostics.mecab["note"] =
-      "MeCab returned no parseable tokens. This is often caused by a missing/invalid MeCab dictionary path.";
-  } else {
-    diagnostics.mecab["status"] = "ok";
-  }
+    const deps = createTokenizerDepsRuntimeService({
+      getYomitanExt: () =>
+        (hasYomitan ? yomitanState!.yomitanExt : null) as never,
+      getYomitanParserWindow: () =>
+        (hasYomitan ? yomitanState!.parserWindow : null) as never,
+      setYomitanParserWindow: (window) => {
+        if (!hasYomitan) {
+          return;
+        }
+        yomitanState!.parserWindow = window;
+      },
+      getYomitanParserReadyPromise: () =>
+        (hasYomitan ? yomitanState!.parserReadyPromise : null) as never,
+      setYomitanParserReadyPromise: (promise) => {
+        if (!hasYomitan) {
+          return;
+        }
+        yomitanState!.parserReadyPromise = promise;
+      },
+      getYomitanParserInitPromise: () =>
+        (hasYomitan ? yomitanState!.parserInitPromise : null) as never,
+      setYomitanParserInitPromise: (promise) => {
+        if (!hasYomitan) {
+          return;
+        }
+        yomitanState!.parserInitPromise = promise;
+      },
+      isKnownWord: () => false,
+      getKnownWordMatchMode: () => "headword",
+      getJlptLevel: () => null,
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank,
+      getMecabTokenizer: () => ({
+        tokenize: (text: string) => mecabTokenizer.tokenize(text),
+      }),
+    });
 
-  const output = {
-    input: args.input,
-    tokenizerText: subtitleData.text,
-    tokens,
-    diagnostics,
-  };
+    const subtitleData = await tokenizeSubtitleService(args.input, deps);
+    const tokenCount = subtitleData.tokens?.length ?? 0;
+    const mergedCount = subtitleData.tokens?.filter((token) => token.isMerged).length ?? 0;
+    const tokens =
+      subtitleData.tokens?.map((token) =>
+        args.emitVerbose
+          ? simplifyTokenWithVerbose(token, getFrequencyRank)
+          : simplifyToken(token),
+      ) ?? null;
+    const diagnostics = {
+      yomitan: {
+        available: Boolean(yomitanState?.available),
+        loaded: hasYomitan,
+        forceMecabOnly: args.forceMecabOnly,
+        note: yomitanState?.note ?? null,
+      },
+      mecab: {
+        command: args.mecabCommand ?? "mecab",
+        dictionaryPath: args.mecabDictionaryPath ?? null,
+        available: isMecabAvailable,
+      },
+      tokenizer: {
+        sourceHint:
+          tokenCount === 0
+            ? "none"
+            : hasYomitan ? "yomitan-merged" : "mecab-merge",
+        mergedTokenCount: mergedCount,
+        totalTokenCount: tokenCount,
+      },
+    };
+    if (tokens === null) {
+      diagnostics.mecab["status"] = "no-tokens";
+      diagnostics.mecab["note"] =
+        "MeCab returned no parseable tokens. This is often caused by a missing/invalid MeCab dictionary path.";
+    } else {
+      diagnostics.mecab["status"] = "ok";
+    }
 
-  const json = JSON.stringify(output, null, args.emitPretty ? 2 : undefined);
-  process.stdout.write(`${json}\n`);
+    const output = {
+      input: args.input,
+      tokenizerText: subtitleData.text,
+      tokens,
+      diagnostics,
+    };
 
-  if (args.emitColoredLine && subtitleData.tokens) {
-    const coloredLine = renderColoredLine(subtitleData.text, subtitleData.tokens, args);
-    process.stdout.write(`${coloredLine}\n`);
+    const json = JSON.stringify(output, null, args.emitPretty ? 2 : undefined);
+    process.stdout.write(`${json}\n`);
+
+    if (args.emitColoredLine && subtitleData.tokens) {
+      const coloredLine = renderColoredLine(subtitleData.text, subtitleData.tokens, args);
+      process.stdout.write(`${coloredLine}\n`);
+    }
+  } finally {
+    destroyUnknownParserWindow(yomitanState?.parserWindow ?? null);
+    if (electronModule?.app) {
+      electronModule.app.quit();
+    }
   }
 }
 
-main().catch((error) => {
-  console.error(`Error: ${(error as Error).message}`);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error(`Error: ${(error as Error).message}`);
+    process.exit(1);
+  });
