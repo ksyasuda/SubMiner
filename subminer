@@ -706,10 +706,12 @@ function isExecutable(filePath: string): boolean {
 }
 
 function resolveMacAppBinaryCandidate(candidate: string): string {
-  if (process.platform !== "darwin") return "";
-
   const direct = resolveBinaryPathCandidate(candidate);
   if (!direct) return "";
+
+  if (process.platform !== "darwin") {
+    return isExecutable(direct) ? direct : "";
+  }
 
   if (isExecutable(direct)) {
     return direct;
