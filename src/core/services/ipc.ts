@@ -31,6 +31,11 @@ export interface IpcServiceDeps {
   setRuntimeOption: (id: string, value: unknown) => unknown;
   cycleRuntimeOption: (id: string, direction: 1 | -1) => unknown;
   reportOverlayContentBounds: (payload: unknown) => void;
+  getAnilistStatus: () => unknown;
+  clearAnilistToken: () => void;
+  openAnilistSetup: () => void;
+  getAnilistQueueStatus: () => unknown;
+  retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
 }
 
 interface WindowLike {
@@ -82,6 +87,11 @@ export interface IpcDepsRuntimeOptions {
   setRuntimeOption: (id: string, value: unknown) => unknown;
   cycleRuntimeOption: (id: string, direction: 1 | -1) => unknown;
   reportOverlayContentBounds: (payload: unknown) => void;
+  getAnilistStatus: () => unknown;
+  clearAnilistToken: () => void;
+  openAnilistSetup: () => void;
+  getAnilistQueueStatus: () => unknown;
+  retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
 }
 
 export function createIpcDepsRuntime(
@@ -140,6 +150,11 @@ export function createIpcDepsRuntime(
     setRuntimeOption: options.setRuntimeOption,
     cycleRuntimeOption: options.cycleRuntimeOption,
     reportOverlayContentBounds: options.reportOverlayContentBounds,
+    getAnilistStatus: options.getAnilistStatus,
+    clearAnilistToken: options.clearAnilistToken,
+    openAnilistSetup: options.openAnilistSetup,
+    getAnilistQueueStatus: options.getAnilistQueueStatus,
+    retryAnilistQueueNow: options.retryAnilistQueueNow,
   };
 }
 
@@ -278,5 +293,27 @@ export function registerIpcHandlers(deps: IpcServiceDeps): void {
 
   ipcMain.on("overlay-content-bounds:report", (_event: IpcMainEvent, payload: unknown) => {
     deps.reportOverlayContentBounds(payload);
+  });
+
+  ipcMain.handle("anilist:get-status", () => {
+    return deps.getAnilistStatus();
+  });
+
+  ipcMain.handle("anilist:clear-token", () => {
+    deps.clearAnilistToken();
+    return { ok: true };
+  });
+
+  ipcMain.handle("anilist:open-setup", () => {
+    deps.openAnilistSetup();
+    return { ok: true };
+  });
+
+  ipcMain.handle("anilist:get-queue-status", () => {
+    return deps.getAnilistQueueStatus();
+  });
+
+  ipcMain.handle("anilist:retry-now", async () => {
+    return await deps.retryAnilistQueueNow();
   });
 }

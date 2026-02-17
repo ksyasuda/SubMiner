@@ -28,6 +28,10 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     markAudioCard: false,
     refreshKnownWords: false,
     openRuntimeOptions: false,
+    anilistStatus: false,
+    anilistLogout: false,
+    anilistSetup: false,
+    anilistRetryQueue: false,
     texthooker: false,
     help: false,
     autoStartOverlay: false,
@@ -124,6 +128,35 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     openRuntimeOptionsPalette: () => {
       calls.push("openRuntimeOptionsPalette");
+    },
+    getAnilistStatus: () => ({
+      tokenStatus: "resolved",
+      tokenSource: "stored",
+      tokenMessage: null,
+      tokenResolvedAt: 1,
+      tokenErrorAt: null,
+      queuePending: 2,
+      queueReady: 1,
+      queueDeadLetter: 0,
+      queueLastAttemptAt: 2,
+      queueLastError: null,
+    }),
+    clearAnilistToken: () => {
+      calls.push("clearAnilistToken");
+    },
+    openAnilistSetup: () => {
+      calls.push("openAnilistSetup");
+    },
+    getAnilistQueueStatus: () => ({
+      pending: 2,
+      ready: 1,
+      deadLetter: 0,
+      lastAttemptAt: null,
+      lastError: null,
+    }),
+    retryAnilistQueue: async () => {
+      calls.push("retryAnilistQueue");
+      return { ok: true, message: "AniList retry processed." };
     },
     printHelp: () => {
       calls.push("printHelp");
@@ -281,6 +314,8 @@ test("handleCliCommand handles visibility and utility command dispatches", () =>
     },
     { args: { toggleSecondarySub: true }, expected: "cycleSecondarySubMode" },
     { args: { openRuntimeOptions: true }, expected: "openRuntimeOptionsPalette" },
+    { args: { anilistLogout: true }, expected: "clearAnilistToken" },
+    { args: { anilistSetup: true }, expected: "openAnilistSetup" },
   ];
 
   for (const entry of cases) {
@@ -291,6 +326,21 @@ test("handleCliCommand handles visibility and utility command dispatches", () =>
       `expected call missing for args ${JSON.stringify(entry.args)}: ${entry.expected}`,
     );
   }
+});
+
+test("handleCliCommand logs AniList status details", () => {
+  const { deps, calls } = createDeps();
+  handleCliCommand(makeArgs({ anilistStatus: true }), "initial", deps);
+  assert.ok(calls.some((value) => value.startsWith("log:AniList token status:")));
+  assert.ok(calls.some((value) => value.startsWith("log:AniList queue:")));
+});
+
+test("handleCliCommand runs AniList retry command", async () => {
+  const { deps, calls } = createDeps();
+  handleCliCommand(makeArgs({ anilistRetryQueue: true }), "initial", deps);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(calls.includes("retryAnilistQueue"));
+  assert.ok(calls.includes("log:AniList retry processed."));
 });
 
 test("handleCliCommand runs refresh-known-words command", () => {

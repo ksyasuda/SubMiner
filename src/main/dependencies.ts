@@ -90,6 +90,11 @@ export interface MainIpcRuntimeServiceDepsParams {
   setRuntimeOption: IpcDepsRuntimeOptions["setRuntimeOption"];
   cycleRuntimeOption: IpcDepsRuntimeOptions["cycleRuntimeOption"];
   reportOverlayContentBounds: IpcDepsRuntimeOptions["reportOverlayContentBounds"];
+  getAnilistStatus: IpcDepsRuntimeOptions["getAnilistStatus"];
+  clearAnilistToken: IpcDepsRuntimeOptions["clearAnilistToken"];
+  openAnilistSetup: IpcDepsRuntimeOptions["openAnilistSetup"];
+  getAnilistQueueStatus: IpcDepsRuntimeOptions["getAnilistQueueStatus"];
+  retryAnilistQueueNow: IpcDepsRuntimeOptions["retryAnilistQueueNow"];
 }
 
 export interface AnkiJimakuIpcRuntimeServiceDepsParams {
@@ -154,6 +159,13 @@ export interface CliCommandRuntimeServiceDepsParams {
     markLastCardAsAudioCard:
       CliCommandDepsRuntimeOptions["mining"]["markLastCardAsAudioCard"];
   };
+  anilist: {
+    getStatus: CliCommandDepsRuntimeOptions["anilist"]["getStatus"];
+    clearToken: CliCommandDepsRuntimeOptions["anilist"]["clearToken"];
+    openSetup: CliCommandDepsRuntimeOptions["anilist"]["openSetup"];
+    getQueueStatus: CliCommandDepsRuntimeOptions["anilist"]["getQueueStatus"];
+    retryQueueNow: CliCommandDepsRuntimeOptions["anilist"]["retryQueueNow"];
+  };
   ui: {
     openYomitanSettings: CliCommandDepsRuntimeOptions["ui"]["openYomitanSettings"];
     cycleSecondarySubMode: CliCommandDepsRuntimeOptions["ui"]["cycleSecondarySubMode"];
@@ -216,6 +228,11 @@ export function createMainIpcRuntimeServiceDeps(
     setRuntimeOption: params.setRuntimeOption,
     cycleRuntimeOption: params.cycleRuntimeOption,
     reportOverlayContentBounds: params.reportOverlayContentBounds,
+    getAnilistStatus: params.getAnilistStatus,
+    clearAnilistToken: params.clearAnilistToken,
+    openAnilistSetup: params.openAnilistSetup,
+    getAnilistQueueStatus: params.getAnilistQueueStatus,
+    retryAnilistQueueNow: params.retryAnilistQueueNow,
   };
 }
 
@@ -282,6 +299,13 @@ export function createCliCommandRuntimeServiceDeps(
       triggerFieldGrouping: params.mining.triggerFieldGrouping,
       triggerSubsyncFromConfig: params.mining.triggerSubsyncFromConfig,
       markLastCardAsAudioCard: params.mining.markLastCardAsAudioCard,
+    },
+    anilist: {
+      getStatus: params.anilist.getStatus,
+      clearToken: params.anilist.clearToken,
+      openSetup: params.anilist.openSetup,
+      getQueueStatus: params.anilist.getQueueStatus,
+      retryQueueNow: params.anilist.retryQueueNow,
     },
     ui: {
       openYomitanSettings: params.ui.openYomitanSettings,

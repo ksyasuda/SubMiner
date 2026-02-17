@@ -46,4 +46,14 @@ test("hasExplicitCommand and shouldStartApp preserve command intent", () => {
   assert.equal(refreshKnownWords.help, false);
   assert.equal(hasExplicitCommand(refreshKnownWords), true);
   assert.equal(shouldStartApp(refreshKnownWords), false);
+
+  const anilistStatus = parseArgs(["--anilist-status"]);
+  assert.equal(anilistStatus.anilistStatus, true);
+  assert.equal(hasExplicitCommand(anilistStatus), true);
+  assert.equal(shouldStartApp(anilistStatus), false);
+
+  const anilistRetryQueue = parseArgs(["--anilist-retry-queue"]);
+  assert.equal(anilistRetryQueue.anilistRetryQueue, true);
+  assert.equal(hasExplicitCommand(anilistRetryQueue), true);
+  assert.equal(shouldStartApp(anilistRetryQueue), false);
 });
