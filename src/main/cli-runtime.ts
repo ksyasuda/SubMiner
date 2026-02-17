@@ -26,6 +26,11 @@ export interface CliCommandRuntimeServiceContext {
   triggerFieldGrouping: () => Promise<void>;
   triggerSubsyncFromConfig: () => Promise<void>;
   markLastCardAsAudioCard: () => Promise<void>;
+  getAnilistStatus: CliCommandRuntimeServiceDepsParams["anilist"]["getStatus"];
+  clearAnilistToken: CliCommandRuntimeServiceDepsParams["anilist"]["clearToken"];
+  openAnilistSetup: CliCommandRuntimeServiceDepsParams["anilist"]["openSetup"];
+  getAnilistQueueStatus: CliCommandRuntimeServiceDepsParams["anilist"]["getQueueStatus"];
+  retryAnilistQueueNow: CliCommandRuntimeServiceDepsParams["anilist"]["retryQueueNow"];
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -71,13 +76,20 @@ function createCliCommandDepsFromContext(
     mining: {
       copyCurrentSubtitle: context.copyCurrentSubtitle,
       startPendingMultiCopy: context.startPendingMultiCopy,
-    mineSentenceCard: context.mineSentenceCard,
-    startPendingMineSentenceMultiple: context.startPendingMineSentenceMultiple,
-    updateLastCardFromClipboard: context.updateLastCardFromClipboard,
-    refreshKnownWords: context.refreshKnownWordCache,
-    triggerFieldGrouping: context.triggerFieldGrouping,
-    triggerSubsyncFromConfig: context.triggerSubsyncFromConfig,
-    markLastCardAsAudioCard: context.markLastCardAsAudioCard,
+      mineSentenceCard: context.mineSentenceCard,
+      startPendingMineSentenceMultiple: context.startPendingMineSentenceMultiple,
+      updateLastCardFromClipboard: context.updateLastCardFromClipboard,
+      refreshKnownWords: context.refreshKnownWordCache,
+      triggerFieldGrouping: context.triggerFieldGrouping,
+      triggerSubsyncFromConfig: context.triggerSubsyncFromConfig,
+      markLastCardAsAudioCard: context.markLastCardAsAudioCard,
+    },
+    anilist: {
+      getStatus: context.getAnilistStatus,
+      clearToken: context.clearAnilistToken,
+      openSetup: context.openAnilistSetup,
+      getQueueStatus: context.getAnilistQueueStatus,
+      retryQueueNow: context.retryAnilistQueueNow,
     },
     ui: {
       openYomitanSettings: context.openYomitanSettings,

@@ -18,4 +18,6 @@ test("printHelp includes configured texthooker port", () => {
   assert.match(output, /--help\s+Show this help/);
   assert.match(output, /default: 7777/);
   assert.match(output, /--refresh-known-words/);
+  assert.match(output, /--anilist-status/);
+  assert.match(output, /--anilist-retry-queue/);
 });

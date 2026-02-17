@@ -25,6 +25,10 @@ SubMiner CLI commands:
   --trigger-subsync            Run subtitle sync
   --mark-audio-card            Mark last card as audio card
   --open-runtime-options       Open runtime options palette
+  --anilist-status             Show AniList token and retry queue status
+  --anilist-logout             Clear stored AniList token
+  --anilist-setup              Open AniList setup flow in app/browser
+  --anilist-retry-queue        Retry next ready AniList queue item now
   --auto-start-overlay  Auto-hide mpv subtitles on connect (show overlay)
    --socket PATH         Override MPV IPC socket/pipe path
    --backend BACKEND     Override window tracker backend (auto, hyprland, sway, x11, macos)

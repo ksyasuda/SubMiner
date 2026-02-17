@@ -35,6 +35,28 @@ export interface CliCommandServiceDeps {
   triggerSubsyncFromConfig: () => Promise<void>;
   markLastCardAsAudioCard: () => Promise<void>;
   openRuntimeOptionsPalette: () => void;
+  getAnilistStatus: () => {
+    tokenStatus: "not_checked" | "resolved" | "error";
+    tokenSource: "none" | "literal" | "stored";
+    tokenMessage: string | null;
+    tokenResolvedAt: number | null;
+    tokenErrorAt: number | null;
+    queuePending: number;
+    queueReady: number;
+    queueDeadLetter: number;
+    queueLastAttemptAt: number | null;
+    queueLastError: string | null;
+  };
+  clearAnilistToken: () => void;
+  openAnilistSetup: () => void;
+  getAnilistQueueStatus: () => {
+    pending: number;
+    ready: number;
+    deadLetter: number;
+    lastAttemptAt: number | null;
+    lastError: string | null;
+  };
+  retryAnilistQueue: () => Promise<{ ok: boolean; message: string }>;
   printHelp: () => void;
   hasMainWindow: () => boolean;
   getMultiCopyTimeoutMs: () => number;
@@ -97,6 +119,14 @@ interface UiCliRuntime {
   printHelp: () => void;
 }
 
+interface AnilistCliRuntime {
+  getStatus: CliCommandServiceDeps["getAnilistStatus"];
+  clearToken: CliCommandServiceDeps["clearAnilistToken"];
+  openSetup: CliCommandServiceDeps["openAnilistSetup"];
+  getQueueStatus: CliCommandServiceDeps["getAnilistQueueStatus"];
+  retryQueueNow: CliCommandServiceDeps["retryAnilistQueue"];
+}
+
 interface AppCliRuntime {
   stop: () => void;
   hasMainWindow: () => boolean;
@@ -107,6 +137,7 @@ export interface CliCommandDepsRuntimeOptions {
   texthooker: TexthookerCliRuntime;
   overlay: OverlayCliRuntime;
   mining: MiningCliRuntime;
+  anilist: AnilistCliRuntime;
   ui: UiCliRuntime;
   app: AppCliRuntime;
   getMultiCopyTimeoutMs: () => number;
@@ -167,6 +198,11 @@ export function createCliCommandDepsRuntime(
     triggerSubsyncFromConfig: options.mining.triggerSubsyncFromConfig,
     markLastCardAsAudioCard: options.mining.markLastCardAsAudioCard,
     openRuntimeOptionsPalette: options.ui.openRuntimeOptionsPalette,
+    getAnilistStatus: options.anilist.getStatus,
+    clearAnilistToken: options.anilist.clearToken,
+    openAnilistSetup: options.anilist.openSetup,
+    getAnilistQueueStatus: options.anilist.getQueueStatus,
+    retryAnilistQueue: options.anilist.retryQueueNow,
     printHelp: options.ui.printHelp,
     hasMainWindow: options.app.hasMainWindow,
     getMultiCopyTimeoutMs: options.getMultiCopyTimeoutMs,
@@ -175,6 +211,11 @@ export function createCliCommandDepsRuntime(
     warn: options.warn,
     error: options.error,
   };
+}
+
+function formatTimestamp(value: number | null): string {
+  if (!value) return "never";
+  return new Date(value).toISOString();
 }
 
 function runAsyncWithOsd(
@@ -217,6 +258,10 @@ export function handleCliCommand(
     args.triggerSubsync ||
     args.markAudioCard ||
     args.openRuntimeOptions ||
+    args.anilistStatus ||
+    args.anilistLogout ||
+    args.anilistSetup ||
+    args.anilistRetryQueue ||
     args.texthooker ||
     args.help;
   const ignoreStartOnly = source === "second-instance" && args.start && !hasNonStartAction;
@@ -331,6 +376,47 @@ export function handleCliCommand(
     );
   } else if (args.openRuntimeOptions) {
     deps.openRuntimeOptionsPalette();
+  } else if (args.anilistStatus) {
+    const status = deps.getAnilistStatus();
+    deps.log(
+      `AniList token status: ${status.tokenStatus} (source=${status.tokenSource})`,
+    );
+    if (status.tokenMessage) {
+      deps.log(`AniList token message: ${status.tokenMessage}`);
+    }
+    deps.log(
+      `AniList token timestamps: resolved=${formatTimestamp(status.tokenResolvedAt)}, error=${formatTimestamp(status.tokenErrorAt)}`,
+    );
+    deps.log(
+      `AniList queue: pending=${status.queuePending}, ready=${status.queueReady}, deadLetter=${status.queueDeadLetter}`,
+    );
+    deps.log(
+      `AniList queue timestamps: lastAttempt=${formatTimestamp(status.queueLastAttemptAt)}`,
+    );
+    if (status.queueLastError) {
+      deps.warn(`AniList queue last error: ${status.queueLastError}`);
+    }
+  } else if (args.anilistLogout) {
+    deps.clearAnilistToken();
+    deps.log("Cleared stored AniList token.");
+  } else if (args.anilistSetup) {
+    deps.openAnilistSetup();
+    deps.log("Opened AniList setup flow.");
+  } else if (args.anilistRetryQueue) {
+    const queueStatus = deps.getAnilistQueueStatus();
+    deps.log(
+      `AniList queue before retry: pending=${queueStatus.pending}, ready=${queueStatus.ready}, deadLetter=${queueStatus.deadLetter}`,
+    );
+    runAsyncWithOsd(
+      async () => {
+        const result = await deps.retryAnilistQueue();
+        if (result.ok) deps.log(result.message);
+        else deps.warn(result.message);
+      },
+      deps,
+      "retryAnilistQueue",
+      "AniList retry failed",
+    );
   } else if (args.texthooker) {
     const texthookerPort = deps.getTexthookerPort();
     deps.ensureTexthookerRunning(texthookerPort);

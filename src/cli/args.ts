@@ -22,6 +22,10 @@ export interface CliArgs {
   triggerSubsync: boolean;
   markAudioCard: boolean;
   openRuntimeOptions: boolean;
+  anilistStatus: boolean;
+  anilistLogout: boolean;
+  anilistSetup: boolean;
+  anilistRetryQueue: boolean;
   texthooker: boolean;
   help: boolean;
   autoStartOverlay: boolean;
@@ -62,6 +66,10 @@ export function parseArgs(argv: string[]): CliArgs {
     triggerSubsync: false,
     markAudioCard: false,
     openRuntimeOptions: false,
+    anilistStatus: false,
+    anilistLogout: false,
+    anilistSetup: false,
+    anilistRetryQueue: false,
     texthooker: false,
     help: false,
     autoStartOverlay: false,
@@ -109,6 +117,10 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === "--trigger-subsync") args.triggerSubsync = true;
     else if (arg === "--mark-audio-card") args.markAudioCard = true;
     else if (arg === "--open-runtime-options") args.openRuntimeOptions = true;
+    else if (arg === "--anilist-status") args.anilistStatus = true;
+    else if (arg === "--anilist-logout") args.anilistLogout = true;
+    else if (arg === "--anilist-setup") args.anilistSetup = true;
+    else if (arg === "--anilist-retry-queue") args.anilistRetryQueue = true;
     else if (arg === "--texthooker") args.texthooker = true;
     else if (arg === "--auto-start-overlay") args.autoStartOverlay = true;
     else if (arg === "--generate-config") args.generateConfig = true;
@@ -190,6 +202,10 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.openRuntimeOptions ||
+    args.anilistStatus ||
+    args.anilistLogout ||
+    args.anilistSetup ||
+    args.anilistRetryQueue ||
     args.texthooker ||
     args.generateConfig ||
     args.help

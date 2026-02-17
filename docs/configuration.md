@@ -427,6 +427,21 @@ Token + detection notes:
 - Detection quality is best when `guessit` is installed and available on `PATH`.
 - When `guessit` cannot parse or is missing, SubMiner falls back automatically to internal filename parsing.
 
+AniList CLI commands:
+
+- `--anilist-status`: print current AniList token resolution state and retry queue counters.
+- `--anilist-logout`: clear stored AniList token from local persisted state.
+- `--anilist-setup`: open AniList setup/auth flow helper window.
+- `--anilist-retry-queue`: process one ready retry queue item immediately.
+
+AniList IPC channels:
+
+- `anilist:get-status`: return token status + retry queue state snapshot.
+- `anilist:clear-token`: clear stored AniList token and reset token status state.
+- `anilist:open-setup`: open AniList setup/auth flow helper window.
+- `anilist:get-queue-status`: return retry queue state snapshot.
+- `anilist:retry-now`: process one ready retry queue item immediately.
+
 ### Keybindings
 
 Add a `keybindings` array to configure keyboard shortcuts that send commands to mpv:

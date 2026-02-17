@@ -776,6 +776,44 @@ function refreshAnilistRetryQueueState(): void {
   };
 }
 
+function getAnilistStatusSnapshot() {
+  return {
+    tokenStatus: appState.anilistClientSecretState.status,
+    tokenSource: appState.anilistClientSecretState.source,
+    tokenMessage: appState.anilistClientSecretState.message,
+    tokenResolvedAt: appState.anilistClientSecretState.resolvedAt,
+    tokenErrorAt: appState.anilistClientSecretState.errorAt,
+    queuePending: appState.anilistRetryQueueState.pending,
+    queueReady: appState.anilistRetryQueueState.ready,
+    queueDeadLetter: appState.anilistRetryQueueState.deadLetter,
+    queueLastAttemptAt: appState.anilistRetryQueueState.lastAttemptAt,
+    queueLastError: appState.anilistRetryQueueState.lastError,
+  };
+}
+
+function getAnilistQueueStatusSnapshot() {
+  refreshAnilistRetryQueueState();
+  return {
+    pending: appState.anilistRetryQueueState.pending,
+    ready: appState.anilistRetryQueueState.ready,
+    deadLetter: appState.anilistRetryQueueState.deadLetter,
+    lastAttemptAt: appState.anilistRetryQueueState.lastAttemptAt,
+    lastError: appState.anilistRetryQueueState.lastError,
+  };
+}
+
+function clearAnilistTokenState(): void {
+  anilistTokenStore.clearToken();
+  anilistCachedAccessToken = null;
+  setAnilistClientSecretState({
+    status: "not_checked",
+    source: "none",
+    message: "stored token cleared",
+    resolvedAt: null,
+    errorAt: null,
+  });
+}
+
 function isAnilistTrackingEnabled(resolved: ResolvedConfig): boolean {
   return resolved.anilist.enabled;
 }
@@ -1070,18 +1108,21 @@ function rememberAnilistAttemptedUpdateKey(key: string): void {
   }
 }
 
-async function processNextAnilistRetryUpdate(): Promise<void> {
+async function processNextAnilistRetryUpdate(): Promise<{
+  ok: boolean;
+  message: string;
+}> {
   const queued = anilistUpdateQueue.nextReady();
   refreshAnilistRetryQueueState();
   if (!queued) {
-    return;
+    return { ok: true, message: "AniList queue has no ready items." };
   }
 
   appState.anilistRetryQueueState.lastAttemptAt = Date.now();
   const accessToken = await refreshAnilistClientSecretState();
   if (!accessToken) {
     appState.anilistRetryQueueState.lastError = "AniList token unavailable for queued retry.";
-    return;
+    return { ok: false, message: appState.anilistRetryQueueState.lastError };
   }
 
   const result = await updateAnilistPostWatchProgress(
@@ -1095,12 +1136,13 @@ async function processNextAnilistRetryUpdate(): Promise<void> {
     appState.anilistRetryQueueState.lastError = null;
     refreshAnilistRetryQueueState();
     logger.info(`[AniList queue] ${result.message}`);
-    return;
+    return { ok: true, message: result.message };
   }
 
   anilistUpdateQueue.markFailure(queued.key, result.message);
   appState.anilistRetryQueueState.lastError = result.message;
   refreshAnilistRetryQueueState();
+  return { ok: false, message: result.message };
 }
 
 async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
@@ -1441,6 +1483,11 @@ function handleCliCommand(
     triggerFieldGrouping: () => triggerFieldGrouping(),
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    getAnilistStatus: () => getAnilistStatusSnapshot(),
+    clearAnilistToken: () => clearAnilistTokenState(),
+    openAnilistSetup: () => openAnilistSetupWindow(),
+    getAnilistQueueStatus: () => getAnilistQueueStatusSnapshot(),
+    retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
     openYomitanSettings: () => openYomitanSettings(),
     cycleSecondarySubMode: () => cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
@@ -2115,6 +2162,11 @@ registerIpcRuntimeServices({
     reportOverlayContentBounds: (payload: unknown) => {
       overlayContentMeasurementStore.report(payload);
     },
+    getAnilistStatus: () => getAnilistStatusSnapshot(),
+    clearAnilistToken: () => clearAnilistTokenState(),
+    openAnilistSetup: () => openAnilistSetupWindow(),
+    getAnilistQueueStatus: () => getAnilistQueueStatusSnapshot(),
+    retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
   },
   ankiJimakuDeps: createAnkiJimakuIpcRuntimeServiceDeps({
     patchAnkiConnectEnabled: (enabled: boolean) => {
