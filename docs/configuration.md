@@ -388,6 +388,21 @@ Current post-watch behavior:
 - Episode/title detection is `guessit`-first with fallback to SubMiner's filename parser.
 - If `guessit` is unavailable, updates still work via fallback parsing but title matching can be less accurate.
 - If embedded AniList auth UI fails to render, SubMiner opens the authorize URL in your default browser and shows fallback instructions in-app.
+- Failed updates are retried with a persistent backoff queue in the background.
+
+Setup flow details:
+
+1. Set `anilist.enabled` to `true`.
+2. Leave `anilist.accessToken` empty and restart SubMiner to trigger setup.
+3. Approve access in AniList (browser window or system browser fallback).
+4. Copy the returned token and paste it into `anilist.accessToken`.
+5. Save config and restart SubMiner.
+
+Token + detection notes:
+
+- `anilist.accessToken` can be set directly in config; SubMiner also stores the token locally for reuse if config token is later blank.
+- Detection quality is best when `guessit` is installed and available on `PATH`.
+- When `guessit` cannot parse or is missing, SubMiner falls back automatically to internal filename parsing.
 
 ### Keybindings
 

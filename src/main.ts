@@ -1317,7 +1317,9 @@ function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
     if (text.trim() && appState.subtitleTimingTracker) {
       appState.subtitleTimingTracker.recordSubtitle(text, start, end);
     }
-    void maybeRunAnilistPostWatchUpdate();
+    void maybeRunAnilistPostWatchUpdate().catch((error) => {
+      logger.error("AniList post-watch update failed unexpectedly", error);
+    });
   });
   mpvClient.on("media-path-change", ({ path }) => {
     mediaRuntime.updateCurrentMediaPath(path);
