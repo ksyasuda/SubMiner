@@ -29,7 +29,7 @@ environment.toml
 .vitepress/dist/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
-test/*
+tests/*
 .worktrees/
 .codex/*
 .agents/*

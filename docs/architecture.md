@@ -84,53 +84,63 @@ src/renderer/
 
 ## Flow Diagram
 
+The main process has three layers: `main.ts` delegates to composition modules that wire together domain services. The renderer runs in a separate Electron process, connected through `preload.ts`.
+
 ```mermaid
 flowchart TD
-  classDef root fill:#c6a0f6,stroke:#24273a,color:#24273a,stroke-width:2px
-  classDef comp fill:#b7bdf8,stroke:#24273a,color:#24273a,stroke-width:1.5px
-  classDef svc fill:#8aadf4,stroke:#24273a,color:#24273a,stroke-width:1.5px
-  classDef ext fill:#a6da95,stroke:#24273a,color:#24273a,stroke-width:1.5px
+  classDef entry fill:#c6a0f6,stroke:#363a4f,color:#24273a,stroke-width:2px
+  classDef comp fill:#b7bdf8,stroke:#363a4f,color:#24273a,stroke-width:1.5px
+  classDef svc fill:#8aadf4,stroke:#363a4f,color:#24273a,stroke-width:1.5px
+  classDef bridge fill:#f5a97f,stroke:#363a4f,color:#24273a,stroke-width:1.5px
+  classDef rend fill:#8bd5ca,stroke:#363a4f,color:#24273a,stroke-width:1.5px
+  classDef ext fill:#a6da95,stroke:#363a4f,color:#24273a,stroke-width:1.5px
 
-  Main["src/main.ts"]:::root
+  Main["main.ts"]:::entry
 
-  subgraph Composition["Composition Modules"]
-    Startup["Startup & Lifecycle"]:::comp
-    IpcCli["IPC & CLI Wiring"]:::comp
-    Overlay["Overlay & Shortcuts"]:::comp
-    Subsync["Subsync"]:::comp
+  subgraph Comp["Composition — src/main/"]
+    Startup["Startup & Lifecycle<br/>startup · app-lifecycle<br/>startup-lifecycle · state"]:::comp
+    Wiring["Runtime Wiring<br/>ipc-runtime · cli-runtime<br/>overlay-runtime · subsync-runtime"]:::comp
   end
 
-  subgraph Services["Domain Services"]
-    OverlaySvc["Overlay Services"]:::svc
-    MpvSvc["MPV Stack"]:::svc
-    MiningSvc["Mining & Subtitles"]:::svc
-    ShortcutIpc["Shortcuts & IPC"]:::svc
+  subgraph Svc["Services — src/core/services/"]
+    Mpv["MPV Stack<br/>transport · protocol<br/>state · properties"]:::svc
+    Overlay["Overlay<br/>manager · window<br/>visibility · bridge"]:::svc
+    Mining["Mining & Subtitles<br/>mining · field-grouping<br/>subtitle-ws · tokenizer"]:::svc
+    Integrations["Integrations<br/>jimaku · subsync<br/>texthooker · yomitan"]:::svc
   end
 
-  subgraph External["External Boundaries"]
-    Config["Config & CLI"]:::ext
-    Trackers["Window Trackers"]:::ext
-    Integrations["Jimaku & Subsync"]:::ext
+  Bridge(["preload.ts — Electron IPC"]):::bridge
+
+  subgraph Rend["Renderer — src/renderer/"]
+    Orchestration["renderer.ts<br/>orchestration · IPC wiring"]:::rend
+    UI["subtitle-render · positioning<br/>handlers · modals"]:::rend
   end
 
-  Main --> Startup
-  Main --> IpcCli
-  Main --> Overlay
-  Main --> Subsync
+  subgraph Ext["External Systems"]
+    mpv["mpv"]:::ext
+    Anki["AnkiConnect"]:::ext
+    Jimaku["Jimaku API"]:::ext
+    Tracker["Window Tracker"]:::ext
+  end
 
-  Startup --> OverlaySvc
-  IpcCli --> ShortcutIpc
-  Overlay --> OverlaySvc
-  Overlay --> MpvSvc
-  Subsync --> Integrations
+  Main -->|delegates| Comp
+  Startup -->|initializes| Svc
+  Wiring -->|dispatches to| Svc
 
-  OverlaySvc --> Trackers
-  MpvSvc --> MiningSvc
-  ShortcutIpc --> Config
+  Overlay <--> Bridge
+  Mining <--> Bridge
+  Bridge <--> Orchestration
+  Orchestration --> UI
 
-  style Composition fill:#363a4f,stroke:#494d64,color:#cad3f5
-  style Services fill:#363a4f,stroke:#494d64,color:#cad3f5
-  style External fill:#363a4f,stroke:#494d64,color:#cad3f5
+  Mpv <-->|JSON socket| mpv
+  Mining -->|HTTP| Anki
+  Integrations -->|HTTP| Jimaku
+  Overlay --> Tracker
+
+  style Comp fill:#363a4f,stroke:#494d64,color:#cad3f5
+  style Svc fill:#363a4f,stroke:#494d64,color:#cad3f5
+  style Rend fill:#363a4f,stroke:#494d64,color:#cad3f5
+  style Ext fill:#363a4f,stroke:#494d64,color:#cad3f5
 ```
 
 ## Composition Pattern
@@ -154,43 +164,53 @@ The composition root (`src/main.ts`) delegates to focused modules in `src/main/`
 
 This keeps side effects explicit and makes behavior easy to unit-test with fakes.
 
-## Lifecycle Model
+## Program Lifecycle
 
-- **Startup:**
-  - `src/main/startup.ts` (`startup-service`) handles initial argv/env/backend setup and decides generate-config flow vs app lifecycle start.
-  - `src/main/app-lifecycle.ts` (`app-lifecycle-service`) handles Electron single-instance + lifecycle event registration.
-  - `src/main/startup-lifecycle.ts` performs ready-time initialization (config load, websocket policy, tokenizer/tracker setup, overlay auto-init decisions).
-- **Runtime:**
-  - CLI/shortcut/IPC events map to service calls through `src/main/cli-runtime.ts`, `src/main/ipc-runtime.ts`, and `src/main/overlay-runtime.ts`.
-  - Overlay and MPV state sync through dedicated services.
-  - Runtime options and mining flows are coordinated via service boundaries.
-- **Shutdown:**
-  - `app-lifecycle-service` registers cleanup hooks (`will-quit`) while teardown behavior stays delegated to focused services from `src/main/*` composition modules.
+- **Startup:** `startup.ts` parses CLI args and detects the compositor backend. If `--generate-config` is passed, it writes the template and exits. Otherwise `app-lifecycle.ts` acquires the single-instance lock and registers Electron lifecycle hooks.
+- **Initialization:** Once `app.whenReady()` fires, `startup-lifecycle.ts` loads config, resolves keybindings, creates the mpv client, initializes the MeCab tokenizer, starts the window tracker, and applies WebSocket policy — then creates the overlay window and establishes the IPC bridge.
+- **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, and keyboard shortcuts all route through the composition layer to domain services, which update state and broadcast to the renderer.
+- **Shutdown:** Electron's `will-quit` triggers service teardown — closes the mpv socket, unregisters shortcuts, stops WebSocket and texthooker servers, destroys the window tracker, and cleans up Anki state.
 
 ```mermaid
 flowchart TD
-  classDef phase fill:#b7bdf8,stroke:#24273a,color:#24273a,stroke-width:1.5px
-  classDef decision fill:#f5a97f,stroke:#24273a,color:#24273a,stroke-width:1.5px
-  classDef runtime fill:#8aadf4,stroke:#24273a,color:#24273a,stroke-width:1.5px
-  classDef shutdown fill:#a6da95,stroke:#24273a,color:#24273a,stroke-width:1.5px
+  classDef start fill:#c6a0f6,stroke:#363a4f,color:#24273a,stroke-width:2px
+  classDef phase fill:#b7bdf8,stroke:#363a4f,color:#24273a,stroke-width:1.5px
+  classDef decision fill:#f5a97f,stroke:#363a4f,color:#24273a,stroke-width:1.5px
+  classDef init fill:#8aadf4,stroke:#363a4f,color:#24273a,stroke-width:1.5px
+  classDef runtime fill:#8bd5ca,stroke:#363a4f,color:#24273a,stroke-width:1.5px
+  classDef shutdown fill:#ed8796,stroke:#363a4f,color:#24273a,stroke-width:1.5px
 
-  Args["CLI args / env"]:::phase --> Startup["src/main/startup.ts"]:::phase
+  CLI["CLI args & environment"]:::start
+  CLI --> Parse["startup.ts<br/>Parse argv · detect backend · resolve config"]:::phase
+  Parse --> GenCheck{"--generate-config?"}:::decision
+  GenCheck -->|yes| GenExit["Write config template & exit"]:::phase
+  GenCheck -->|no| Lifecycle["app-lifecycle.ts<br/>Acquire single-instance lock<br/>Register Electron lifecycle hooks"]:::phase
+  Lifecycle -->|"app.whenReady()"| Ready["startup-lifecycle.ts"]:::phase
 
-  Startup --> Decision{"generate-config?"}:::decision
+  Ready --> Init
+  subgraph Init["Initialization"]
+    direction LR
+    Config["Load config<br/>resolve keybindings"]:::init
+    Runtime["Create mpv client<br/>init MeCab tokenizer"]:::init
+    Platform["Start window tracker<br/>WebSocket policy"]:::init
+  end
 
-  Decision -->|yes| WriteConfig["Write config + exit"]:::phase
-  Decision -->|no| AppLifecycle["src/main/app-lifecycle.ts"]:::phase
+  Init --> Create["Create overlay window<br/>Establish IPC bridge<br/>Load Yomitan extension"]:::phase
 
-  AppLifecycle --> Ready["src/main/startup-lifecycle.ts\nConfig · WebSocket · Tracker · Tokenizer · State"]:::phase
+  Create --> Loop
+  subgraph Loop["Runtime — event-driven"]
+    direction LR
+    Events["mpv · IPC · CLI<br/>shortcut events"]:::runtime
+    Dispatch["Route to service<br/>via composition layer"]:::runtime
+    State["Update state<br/>broadcast to renderer"]:::runtime
+    Events --> Dispatch --> State
+  end
 
-  Ready --> Runtime["Runtime Modules\nipc · cli · overlay · subsync"]:::runtime
+  Loop -->|"app close"| Quit["Electron will-quit"]:::shutdown
+  Quit --> Teardown["Close mpv socket · unregister shortcuts<br/>Stop WebSocket & texthooker<br/>Destroy tracker · clean Anki state"]:::shutdown
 
-  Runtime --> Overlay["Overlay & Mining"]:::runtime
-  Runtime --> Subtitle["Subtitle Processing"]:::runtime
-  Runtime --> SubsyncInt["Subsync & Jimaku"]:::runtime
-
-  Runtime --> WillQuit["Electron will-quit"]:::shutdown
-  WillQuit --> Cleanup["Service Teardown"]:::shutdown
+  style Init fill:#363a4f,stroke:#494d64,color:#cad3f5
+  style Loop fill:#363a4f,stroke:#494d64,color:#cad3f5
 ```
 
 ## Why This Design
