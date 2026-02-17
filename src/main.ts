@@ -137,6 +137,8 @@ import {
   type AnilistMediaGuess,
   updateAnilistPostWatchProgress,
 } from "./core/services/anilist/anilist-updater";
+import { createAnilistTokenStore } from "./core/services/anilist/anilist-token-store";
+import { createAnilistUpdateQueue } from "./core/services/anilist/anilist-update-queue";
 import { applyRuntimeOptionResultRuntimeService } from "./core/services/runtime-options-ipc-service";
 import {
   createAppReadyRuntimeRunner,
@@ -205,11 +207,14 @@ const DEFAULT_MPV_LOG_FILE = path.join(
 const ANILIST_SETUP_CLIENT_ID_URL = "https://anilist.co/api/v2/oauth/authorize";
 const ANILIST_SETUP_RESPONSE_TYPE = "token";
 const ANILIST_DEFAULT_CLIENT_ID = "36084";
+const ANILIST_REDIRECT_URI = "https://anilist.subminer.moe/";
 const ANILIST_DEVELOPER_SETTINGS_URL = "https://anilist.co/settings/developer";
 const ANILIST_UPDATE_MIN_WATCH_RATIO = 0.85;
 const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
+const ANILIST_TOKEN_STORE_FILE = "anilist-token-store.json";
+const ANILIST_RETRY_QUEUE_FILE = "anilist-retry-queue.json";
 
 let anilistCurrentMediaKey: string | null = null;
 let anilistCurrentMediaDurationSec: number | null = null;
@@ -218,6 +223,7 @@ let anilistCurrentMediaGuessPromise: Promise<AnilistMediaGuess | null> | null = 
 let anilistLastDurationProbeAtMs = 0;
 let anilistUpdateInFlight = false;
 const anilistAttemptedUpdateKeys = new Set<string>();
+let anilistCachedAccessToken: string | null = null;
 
 function resolveConfigDir(): string {
   const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
@@ -257,6 +263,22 @@ const CONFIG_DIR = resolveConfigDir();
 const USER_DATA_PATH = CONFIG_DIR;
 const DEFAULT_MPV_LOG_PATH = process.env.SUBMINER_MPV_LOG?.trim() || DEFAULT_MPV_LOG_FILE;
 const configService = new ConfigService(CONFIG_DIR);
+const anilistTokenStore = createAnilistTokenStore(
+  path.join(USER_DATA_PATH, ANILIST_TOKEN_STORE_FILE),
+  {
+    info: (message: string) => console.info(message),
+    warn: (message: string, details?: unknown) => console.warn(message, details),
+    error: (message: string, details?: unknown) => console.error(message, details),
+  },
+);
+const anilistUpdateQueue = createAnilistUpdateQueue(
+  path.join(USER_DATA_PATH, ANILIST_RETRY_QUEUE_FILE),
+  {
+    info: (message: string) => console.info(message),
+    warn: (message: string, details?: unknown) => console.warn(message, details),
+    error: (message: string, details?: unknown) => console.error(message, details),
+  },
+);
 const isDev =
   process.argv.includes("--dev") || process.argv.includes("--debug");
 const texthookerService = new TexthookerService();
@@ -606,6 +628,13 @@ function setAnilistClientSecretState(partial: Partial<AppState["anilistClientSec
   };
 }
 
+function refreshAnilistRetryQueueState(): void {
+  appState.anilistRetryQueueState = {
+    ...appState.anilistRetryQueueState,
+    ...anilistUpdateQueue.getSnapshot(),
+  };
+}
+
 function isAnilistTrackingEnabled(resolved: ResolvedConfig): boolean {
   return resolved.anilist.enabled;
 }
@@ -614,6 +643,7 @@ function buildAnilistSetupUrl(): string {
   const authorizeUrl = new URL(ANILIST_SETUP_CLIENT_ID_URL);
   authorizeUrl.searchParams.set("client_id", ANILIST_DEFAULT_CLIENT_ID);
   authorizeUrl.searchParams.set("response_type", ANILIST_SETUP_RESPONSE_TYPE);
+  authorizeUrl.searchParams.set("redirect_uri", ANILIST_REDIRECT_URI);
   return authorizeUrl.toString();
 }
 
@@ -743,8 +773,8 @@ function openAnilistSetupWindow(): void {
 async function refreshAnilistClientSecretState(options?: { force?: boolean }): Promise<string | null> {
   const resolved = getResolvedConfig();
   const now = Date.now();
-  void options;
   if (!isAnilistTrackingEnabled(resolved)) {
+    anilistCachedAccessToken = null;
     setAnilistClientSecretState({
       status: "not_checked",
       source: "none",
@@ -757,6 +787,10 @@ async function refreshAnilistClientSecretState(options?: { force?: boolean }): P
   }
   const rawAccessToken = resolved.anilist.accessToken.trim();
   if (rawAccessToken.length > 0) {
+    if (options?.force || rawAccessToken !== anilistCachedAccessToken) {
+      anilistTokenStore.saveToken(rawAccessToken);
+    }
+    anilistCachedAccessToken = rawAccessToken;
     setAnilistClientSecretState({
       status: "resolved",
       source: "literal",
@@ -768,6 +802,25 @@ async function refreshAnilistClientSecretState(options?: { force?: boolean }): P
     return rawAccessToken;
   }
 
+  if (!options?.force && anilistCachedAccessToken && anilistCachedAccessToken.length > 0) {
+    return anilistCachedAccessToken;
+  }
+
+  const storedToken = anilistTokenStore.loadToken()?.trim() ?? "";
+  if (storedToken.length > 0) {
+    anilistCachedAccessToken = storedToken;
+    setAnilistClientSecretState({
+      status: "resolved",
+      source: "stored",
+      message: "using stored anilist access token",
+      resolvedAt: now,
+      errorAt: null,
+    });
+    appState.anilistSetupPageOpened = false;
+    return storedToken;
+  }
+
+  anilistCachedAccessToken = null;
   setAnilistClientSecretState({
     status: "error",
     source: "none",
@@ -876,6 +929,39 @@ function rememberAnilistAttemptedUpdateKey(key: string): void {
   }
 }
 
+async function processNextAnilistRetryUpdate(): Promise<void> {
+  const queued = anilistUpdateQueue.nextReady();
+  refreshAnilistRetryQueueState();
+  if (!queued) {
+    return;
+  }
+
+  appState.anilistRetryQueueState.lastAttemptAt = Date.now();
+  const accessToken = await refreshAnilistClientSecretState();
+  if (!accessToken) {
+    appState.anilistRetryQueueState.lastError = "AniList token unavailable for queued retry.";
+    return;
+  }
+
+  const result = await updateAnilistPostWatchProgress(
+    accessToken,
+    queued.title,
+    queued.episode,
+  );
+  if (result.status === "updated" || result.status === "skipped") {
+    anilistUpdateQueue.markSuccess(queued.key);
+    rememberAnilistAttemptedUpdateKey(queued.key);
+    appState.anilistRetryQueueState.lastError = null;
+    refreshAnilistRetryQueueState();
+    logger.info(`[AniList queue] ${result.message}`);
+    return;
+  }
+
+  anilistUpdateQueue.markFailure(queued.key, result.message);
+  appState.anilistRetryQueueState.lastError = result.message;
+  refreshAnilistRetryQueueState();
+}
+
 async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
   if (anilistUpdateInFlight) {
     return;
@@ -922,8 +1008,16 @@ async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
 
   anilistUpdateInFlight = true;
   try {
+    await processNextAnilistRetryUpdate();
+
     const accessToken = await refreshAnilistClientSecretState();
     if (!accessToken) {
+      anilistUpdateQueue.enqueue(attemptKey, guess.title, guess.episode);
+      anilistUpdateQueue.markFailure(
+        attemptKey,
+        "cannot authenticate without anilist.accessToken",
+      );
+      refreshAnilistRetryQueueState();
       showMpvOsd("AniList: access token not configured");
       return;
     }
@@ -934,15 +1028,22 @@ async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
     );
     if (result.status === "updated") {
       rememberAnilistAttemptedUpdateKey(attemptKey);
+      anilistUpdateQueue.markSuccess(attemptKey);
+      refreshAnilistRetryQueueState();
       showMpvOsd(result.message);
       logger.info(result.message);
       return;
     }
     if (result.status === "skipped") {
       rememberAnilistAttemptedUpdateKey(attemptKey);
+      anilistUpdateQueue.markSuccess(attemptKey);
+      refreshAnilistRetryQueueState();
       logger.info(result.message);
       return;
     }
+    anilistUpdateQueue.enqueue(attemptKey, guess.title, guess.episode);
+    anilistUpdateQueue.markFailure(attemptKey, result.message);
+    refreshAnilistRetryQueueState();
     showMpvOsd(`AniList: ${result.message}`);
     logger.warn(result.message);
   } finally {
@@ -1129,6 +1230,7 @@ const startupState = runStartupBootstrapRuntimeService(
 
 applyStartupState(appState, startupState);
 void refreshAnilistClientSecretState({ force: true });
+refreshAnilistRetryQueueState();
 
 function handleCliCommand(
   args: CliArgs,

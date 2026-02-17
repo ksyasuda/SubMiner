@@ -20,10 +20,18 @@ import type { BaseWindowTracker } from "../window-trackers";
 
 export interface AnilistSecretResolutionState {
   status: "not_checked" | "resolved" | "error";
-  source: "none" | "literal" | "command";
+  source: "none" | "literal" | "stored";
   message: string | null;
   resolvedAt: number | null;
   errorAt: number | null;
+}
+
+export interface AnilistRetryQueueState {
+  pending: number;
+  ready: number;
+  deadLetter: number;
+  lastAttemptAt: number | null;
+  lastError: string | null;
 }
 
 export interface AppState {
@@ -68,6 +76,7 @@ export interface AppState {
   jlptLevelLookup: (term: string) => JlptLevel | null;
   frequencyRankLookup: FrequencyDictionaryLookup;
   anilistSetupPageOpened: boolean;
+  anilistRetryQueueState: AnilistRetryQueueState;
 }
 
 export interface AppStateInitialValues {
@@ -138,6 +147,13 @@ export function createAppState(values: AppStateInitialValues): AppState {
     jlptLevelLookup: () => null,
     frequencyRankLookup: () => null,
     anilistSetupPageOpened: false,
+    anilistRetryQueueState: {
+      pending: 0,
+      ready: 0,
+      deadLetter: 0,
+      lastAttemptAt: null,
+      lastError: null,
+    },
   };
 }
 
