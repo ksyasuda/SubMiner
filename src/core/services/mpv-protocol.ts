@@ -30,6 +30,7 @@ export const MPV_REQUEST_ID_SUB_BORDER_SIZE = 119;
 export const MPV_REQUEST_ID_SUB_SHADOW_OFFSET = 120;
 export const MPV_REQUEST_ID_SUB_ASS_OVERRIDE = 121;
 export const MPV_REQUEST_ID_SUB_USE_MARGINS = 122;
+export const MPV_REQUEST_ID_PAUSE = 123;
 export const MPV_REQUEST_ID_TRACK_LIST_SECONDARY = 200;
 export const MPV_REQUEST_ID_TRACK_LIST_AUDIO = 201;
 
@@ -60,6 +61,8 @@ export interface MpvProtocolHandleMessageDeps {
   getCurrentSubEnd: () => number;
   emitMediaPathChange: (payload: { path: string }) => void;
   emitMediaTitleChange: (payload: { title: string | null }) => void;
+  emitTimePosChange: (payload: { time: number }) => void;
+  emitPauseChange: (payload: { paused: boolean }) => void;
   emitSubtitleMetricsChange: (payload: Partial<MpvSubtitleRenderMetrics>) => void;
   setCurrentSecondarySubText: (text: string) => void;
   resolvePendingRequest: (requestId: number, message: MpvMessage) => boolean;
@@ -160,6 +163,7 @@ export async function dispatchMpvProtocolMessage(
       );
       deps.syncCurrentAudioStreamIndex();
     } else if (msg.name === "time-pos") {
+      deps.emitTimePosChange({ time: (msg.data as number) || 0 });
       deps.setCurrentTimePos((msg.data as number) || 0);
       if (
         deps.getPauseAtTime() !== null &&
@@ -168,6 +172,8 @@ export async function dispatchMpvProtocolMessage(
         deps.setPauseAtTime(null);
         deps.sendCommand({ command: ["set_property", "pause", true] });
       }
+    } else if (msg.name === "pause") {
+      deps.emitPauseChange({ paused: asBoolean(msg.data, false) });
     } else if (msg.name === "media-title") {
       deps.emitMediaTitleChange({
         title: typeof msg.data === "string" ? msg.data.trim() : null,
@@ -348,6 +354,8 @@ export async function dispatchMpvProtocolMessage(
           deps.getSubtitleMetrics().subUseMargins,
         ),
       });
+    } else if (msg.request_id === MPV_REQUEST_ID_PAUSE) {
+      deps.emitPauseChange({ paused: asBoolean(msg.data, false) });
     } else if (msg.request_id === MPV_REQUEST_ID_OSD_HEIGHT) {
       deps.emitSubtitleMetricsChange({ osdHeight: msg.data as number });
     } else if (msg.request_id === MPV_REQUEST_ID_OSD_DIMENSIONS) {
