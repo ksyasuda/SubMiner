@@ -48,28 +48,29 @@ test("startSession generates UUID-like session identifiers", () => {
   }
 });
 
-test("destroy finalizes session with a single telemetry flush path", () => {
+test("destroy finalizes active session and persists final telemetry", () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
 
   try {
     tracker = new ImmersionTrackerService({ dbPath });
-    const privateApi = tracker as unknown as {
-      flushTelemetry: (force?: boolean) => void;
-    };
-
-    let flushCalls = 0;
-    const originalFlushTelemetry = privateApi.flushTelemetry.bind(tracker);
-    privateApi.flushTelemetry = (force?: boolean): void => {
-      flushCalls += 1;
-      originalFlushTelemetry(force);
-    };
 
     tracker.handleMediaChange("/tmp/episode-2.mkv", "Episode 2");
     tracker.recordSubtitleLine("Hello immersion", 0, 1);
     tracker.destroy();
 
-    assert.equal(flushCalls, 1);
+    const db = new DatabaseSync(dbPath);
+    const sessionRow = db
+      .prepare("SELECT ended_at_ms FROM imm_sessions LIMIT 1")
+      .get() as { ended_at_ms: number | null } | null;
+    const telemetryCountRow = db
+      .prepare("SELECT COUNT(*) AS total FROM imm_session_telemetry")
+      .get() as { total: number };
+    db.close();
+
+    assert.ok(sessionRow);
+    assert.ok(Number(sessionRow?.ended_at_ms ?? 0) > 0);
+    assert.ok(Number(telemetryCountRow.total) >= 2);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

@@ -210,7 +210,6 @@ export class ImmersionTrackerService {
 
   destroy(): void {
     if (this.isDestroyed) return;
-    this.isDestroyed = true;
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
@@ -220,6 +219,7 @@ export class ImmersionTrackerService {
       this.maintenanceTimer = null;
     }
     this.finalizeActiveSession();
+    this.isDestroyed = true;
     this.db.close();
   }
 
