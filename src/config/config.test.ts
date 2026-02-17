@@ -18,6 +18,8 @@ test("loads defaults when config is missing", () => {
   assert.equal(config.websocket.port, DEFAULT_CONFIG.websocket.port);
   assert.equal(config.ankiConnect.behavior.autoUpdateNewCards, true);
   assert.equal(config.anilist.enabled, false);
+  assert.equal(config.immersionTracking.enabled, true);
+  assert.equal(config.immersionTracking.dbPath, undefined);
 });
 
 test("parses anilist.enabled and warns for invalid value", () => {
@@ -41,6 +43,26 @@ test("parses anilist.enabled and warns for invalid value", () => {
 
   service.patchRawConfig({ anilist: { enabled: true } });
   assert.equal(service.getConfig().anilist.enabled, true);
+});
+
+test("accepts immersion tracking config values", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "immersionTracking": {
+        "enabled": false,
+        "dbPath": "/tmp/immersions/custom.sqlite"
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.immersionTracking.enabled, false);
+  assert.equal(config.immersionTracking.dbPath, "/tmp/immersions/custom.sqlite");
 });
 
 test("parses jsonc and warns/falls back on invalid value", () => {

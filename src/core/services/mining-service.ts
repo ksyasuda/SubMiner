@@ -13,7 +13,7 @@ interface AnkiIntegrationLike {
     startTime: number,
     endTime: number,
     secondarySub?: string,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 }
 
 interface MpvClientLike {
@@ -111,21 +111,21 @@ export async function mineSentenceCardService(deps: {
   ankiIntegration: AnkiIntegrationLike | null;
   mpvClient: MpvClientLike | null;
   showMpvOsd: (text: string) => void;
-}): Promise<void> {
+}): Promise<boolean> {
   const anki = requireAnkiIntegration(deps.ankiIntegration, deps.showMpvOsd);
-  if (!anki) return;
+  if (!anki) return false;
 
   const mpvClient = deps.mpvClient;
   if (!mpvClient || !mpvClient.connected) {
     deps.showMpvOsd("MPV not connected");
-    return;
+    return false;
   }
   if (!mpvClient.currentSubText) {
     deps.showMpvOsd("No current subtitle");
-    return;
+    return false;
   }
 
-  await anki.createSentenceCard(
+  return await anki.createSentenceCard(
     mpvClient.currentSubText,
     mpvClient.currentSubStart,
     mpvClient.currentSubEnd,
@@ -141,6 +141,7 @@ export function handleMineSentenceDigitService(
     getCurrentSecondarySubText: () => string | undefined;
     showMpvOsd: (text: string) => void;
     logError: (message: string, err: unknown) => void;
+    onCardsMined?: (count: number) => void;
   },
 ): void {
   if (!deps.subtitleTimingTracker || !deps.ankiIntegration) return;
@@ -165,6 +166,7 @@ export function handleMineSentenceDigitService(
   const rangeStart = Math.min(...timings.map((t) => t.startTime));
   const rangeEnd = Math.max(...timings.map((t) => t.endTime));
   const sentence = blocks.join(" ");
+  const cardsToMine = 1;
   deps.ankiIntegration
     .createSentenceCard(
       sentence,
@@ -172,6 +174,11 @@ export function handleMineSentenceDigitService(
       rangeEnd,
       deps.getCurrentSecondarySubText(),
     )
+    .then((created) => {
+      if (created) {
+        deps.onCardsMined?.(cardsToMine);
+      }
+    })
     .catch((err) => {
       deps.logError("mineSentenceMultiple failed:", err);
       deps.showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);

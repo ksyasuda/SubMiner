@@ -21,6 +21,7 @@ import {
   MPV_REQUEST_ID_SUBTEXT,
   MPV_REQUEST_ID_SUBTEXT_ASS,
   MPV_REQUEST_ID_SUB_USE_MARGINS,
+  MPV_REQUEST_ID_PAUSE,
 } from "./mpv-protocol";
 
 type MpvProtocolCommand = {
@@ -57,6 +58,7 @@ const MPV_SUBTITLE_PROPERTY_OBSERVATIONS: string[] = [
   "sub-shadow-offset",
   "sub-ass-override",
   "sub-use-margins",
+  "pause",
   "media-title",
 ];
 
@@ -75,6 +77,10 @@ const MPV_INITIAL_PROPERTY_REQUESTS: Array<MpvProtocolCommand> = [
   },
   {
     command: ["get_property", "media-title"],
+  },
+  {
+    command: ["get_property", "pause"],
+    request_id: MPV_REQUEST_ID_PAUSE,
   },
   {
     command: ["get_property", "secondary-sub-text"],

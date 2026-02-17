@@ -260,5 +260,15 @@
   "anilist": {
     "enabled": false,
     "accessToken": ""
+  },
+
+  // ==========================================
+  // Immersion Tracking
+  // Enable/disable immersion tracking.
+  // Set dbPath to override the default app data path.
+  // ==========================================
+  "immersionTracking": {
+    "enabled": true,
+    "dbPath": ""
   }
 }

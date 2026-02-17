@@ -351,6 +351,11 @@ export interface YoutubeSubgenConfig {
   primarySubLanguages?: string[];
 }
 
+export interface ImmersionTrackingConfig {
+  enabled?: boolean;
+  dbPath?: string;
+}
+
 export interface Config {
   subtitlePosition?: SubtitlePosition;
   keybindings?: Keybinding[];
@@ -367,6 +372,7 @@ export interface Config {
   anilist?: AnilistConfig;
   invisibleOverlay?: InvisibleOverlayConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
+  immersionTracking?: ImmersionTrackingConfig;
   logging?: {
     level?: "debug" | "info" | "warn" | "error";
   };
@@ -480,6 +486,10 @@ export interface ResolvedConfig {
     whisperBin: string;
     whisperModel: string;
     primarySubLanguages: string[];
+  };
+  immersionTracking: {
+    enabled: boolean;
+    dbPath?: string;
   };
   logging: {
     level: "debug" | "info" | "warn" | "error";

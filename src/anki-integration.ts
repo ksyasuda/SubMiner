@@ -1054,7 +1054,7 @@ export class AnkiIntegration {
     startTime: number,
     endTime: number,
     secondarySubText?: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     return this.cardCreationService.createSentenceCard(
       sentence,
       startTime,

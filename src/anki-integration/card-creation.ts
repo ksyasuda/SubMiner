@@ -460,23 +460,23 @@ export class CardCreationService {
     startTime: number,
     endTime: number,
     secondarySubText?: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (this.deps.isUpdateInProgress()) {
       this.deps.showOsdNotification("Anki update already in progress");
-      return;
+      return false;
     }
 
     const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
     const sentenceCardModel = sentenceCardConfig.model;
     if (!sentenceCardModel) {
       this.deps.showOsdNotification("sentenceCardModel not configured");
-      return;
+      return false;
     }
 
     const mpvClient = this.deps.getMpvClient();
     if (!mpvClient || !mpvClient.currentVideoPath) {
       this.deps.showOsdNotification("No video loaded");
-      return;
+      return false;
     }
 
     const maxMediaDuration = this.deps.getConfig().media?.maxMediaDuration ?? 30;
@@ -488,7 +488,8 @@ export class CardCreationService {
     }
 
     this.deps.showOsdNotification("Creating sentence card...");
-    await this.deps.withUpdateProgress("Creating sentence card", async () => {
+    try {
+      return await this.deps.withUpdateProgress("Creating sentence card", async () => {
       const videoPath = mpvClient.currentVideoPath;
       const fields: Record<string, string> = {};
       const errors: string[] = [];
@@ -533,7 +534,7 @@ export class CardCreationService {
         this.deps.showOsdNotification(
           `Sentence card failed: ${(error as Error).message}`,
         );
-        return;
+        return false;
       }
 
       try {
@@ -637,7 +638,18 @@ export class CardCreationService {
       const errorSuffix =
         errors.length > 0 ? `${errors.join(", ")} failed` : undefined;
       await this.deps.showNotification(noteId, label, errorSuffix);
+      return true;
     });
+    } catch (error) {
+      log.error(
+        "Error creating sentence card:",
+        (error as Error).message,
+      );
+      this.deps.showOsdNotification(
+        `Sentence card failed: ${(error as Error).message}`,
+      );
+      return false;
+    }
   }
 
   private getResolvedSentenceAudioFieldName(noteInfo: CardCreationNoteInfo): string | null {
