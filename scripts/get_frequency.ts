@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import { createTokenizerDepsRuntimeService, tokenizeSubtitleService } from "../src/core/services/tokenizer-service.js";
-import { createFrequencyDictionaryLookupService } from "../src/core/services/frequency-dictionary-service.js";
+import { createTokenizerDepsRuntime, tokenizeSubtitle } from "../src/core/services/tokenizer.js";
+import { createFrequencyDictionaryLookup } from "../src/core/services/index.js";
 import { MecabTokenizer } from "../src/mecab-tokenizer.js";
 import type { MergedToken, FrequencyDictionaryLookup } from "../src/types.js";
 
@@ -537,11 +537,11 @@ async function createYomitanRuntimeState(
 
   try {
     await electronImport.app.whenReady();
-    const loadYomitanExtensionService = (
+    const loadYomitanExtension = (
       await import(
-        "../src/core/services/yomitan-extension-loader-service.js"
+        "../src/core/services/yomitan-extension-loader.js"
       )
-    ).loadYomitanExtensionService as (
+    ).loadYomitanExtension as (
       options: {
         userDataPath: string;
         getYomitanParserWindow: () => unknown;
@@ -552,7 +552,7 @@ async function createYomitanRuntimeState(
       },
     ) => Promise<unknown>;
 
-    const extension = await loadYomitanExtensionService({
+    const extension = await loadYomitanExtension({
       userDataPath,
       getYomitanParserWindow: () => state.parserWindow,
       setYomitanParserWindow: (window) => {
@@ -623,7 +623,7 @@ async function createYomitanRuntimeStateWithSearch(
 }
 
 async function getFrequencyLookup(dictionaryPath: string): Promise<FrequencyDictionaryLookup> {
-  return createFrequencyDictionaryLookupService({
+  return createFrequencyDictionaryLookup({
     searchPaths: [dictionaryPath],
     log: (message) => {
       // Keep script output pure JSON by default
@@ -786,7 +786,7 @@ async function main(): Promise<void> {
         : null;
     const hasYomitan = Boolean(yomitanState?.available && yomitanState?.yomitanExt);
 
-    const deps = createTokenizerDepsRuntimeService({
+    const deps = createTokenizerDepsRuntime({
       getYomitanExt: () =>
         (hasYomitan ? yomitanState!.yomitanExt : null) as never,
       getYomitanParserWindow: () =>
@@ -823,7 +823,7 @@ async function main(): Promise<void> {
       }),
     });
 
-    const subtitleData = await tokenizeSubtitleService(args.input, deps);
+    const subtitleData = await tokenizeSubtitle(args.input, deps);
     const tokenCount = subtitleData.tokens?.length ?? 0;
     const mergedCount = subtitleData.tokens?.filter((token) => token.isMerged).length ?? 0;
     const tokens =

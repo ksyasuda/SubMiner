@@ -1,5 +1,5 @@
 import { ConfiguredShortcuts } from "../utils/shortcut-config";
-import { OverlayShortcutHandlers } from "./overlay-shortcut-service";
+import { OverlayShortcutHandlers } from "./overlay-shortcut";
 import { createLogger } from "../../logger";
 
 const logger = createLogger("main:overlay-shortcut-handler");

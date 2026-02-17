@@ -4,15 +4,15 @@ import {
   SubsyncManualPayload,
 } from "../types";
 import { SubsyncResolvedConfig } from "../subsync/utils";
-import type { SubsyncRuntimeDeps } from "../core/services/subsync-runner-service";
-import type { IpcDepsRuntimeOptions } from "../core/services/ipc-service";
-import type { AnkiJimakuIpcRuntimeOptions } from "../core/services/anki-jimaku-service";
-import type { CliCommandDepsRuntimeOptions } from "../core/services/cli-command-service";
-import type { HandleMpvCommandFromIpcOptions } from "../core/services/ipc-command-service";
+import type { SubsyncRuntimeDeps } from "../core/services/subsync-runner";
+import type { IpcDepsRuntimeOptions } from "../core/services/ipc";
+import type { AnkiJimakuIpcRuntimeOptions } from "../core/services/anki-jimaku";
+import type { CliCommandDepsRuntimeOptions } from "../core/services/cli-command";
+import type { HandleMpvCommandFromIpcOptions } from "../core/services/ipc-command";
 import {
-  cycleRuntimeOptionFromIpcRuntimeService,
-  setRuntimeOptionFromIpcRuntimeService,
-} from "../core/services/runtime-options-ipc-service";
+  cycleRuntimeOptionFromIpcRuntime,
+  setRuntimeOptionFromIpcRuntime,
+} from "../core/services/runtime-options-ipc";
 import { RuntimeOptionsManager } from "../runtime-options";
 
 export interface RuntimeOptionsIpcDepsParams {
@@ -35,14 +35,14 @@ export function createRuntimeOptionsIpcDeps(params: RuntimeOptionsIpcDepsParams)
 } {
   return {
     setRuntimeOption: (id, value) =>
-      setRuntimeOptionFromIpcRuntimeService(
+      setRuntimeOptionFromIpcRuntime(
         params.getRuntimeOptionsManager(),
         id as RuntimeOptionId,
         value as RuntimeOptionValue,
         (text) => params.showMpvOsd(text),
       ),
     cycleRuntimeOption: (id, direction) =>
-      cycleRuntimeOptionFromIpcRuntimeService(
+      cycleRuntimeOptionFromIpcRuntime(
         params.getRuntimeOptionsManager(),
         id as RuntimeOptionId,
         direction,

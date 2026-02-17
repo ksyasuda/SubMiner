@@ -1,4 +1,4 @@
-import { handleCliCommandService, createCliCommandDepsRuntimeService } from "../core/services";
+import { handleCliCommand, createCliCommandDepsRuntime } from "../core/services";
 import type { CliArgs, CliCommandSource } from "../cli/args";
 import { createCliCommandRuntimeServiceDeps, CliCommandRuntimeServiceDepsParams } from "./dependencies";
 
@@ -102,10 +102,10 @@ export function handleCliCommandRuntimeService(
   source: CliCommandSource,
   params: CliCommandRuntimeServiceDepsParams,
 ): void {
-  const deps = createCliCommandDepsRuntimeService(
+  const deps = createCliCommandDepsRuntime(
     createCliCommandRuntimeServiceDeps(params),
   );
-  handleCliCommandService(args, source, deps);
+  handleCliCommand(args, source, deps);
 }
 
 export function handleCliCommandRuntimeServiceWithContext(

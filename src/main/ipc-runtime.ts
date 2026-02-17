@@ -1,9 +1,9 @@
 import {
-  createIpcDepsRuntimeService,
-  registerAnkiJimakuIpcRuntimeService,
-  registerIpcHandlersService,
+  createIpcDepsRuntime,
+  registerAnkiJimakuIpcRuntime,
+  registerIpcHandlers,
 } from "../core/services";
-import { registerAnkiJimakuIpcHandlers } from "../core/services/anki-jimaku-ipc-service";
+import { registerAnkiJimakuIpcHandlers } from "../core/services/anki-jimaku-ipc";
 import {
   createAnkiJimakuIpcRuntimeServiceDeps,
   AnkiJimakuIpcRuntimeServiceDepsParams,
@@ -25,15 +25,15 @@ export interface RegisterIpcRuntimeServicesParams {
 export function registerMainIpcRuntimeServices(
   params: MainIpcRuntimeServiceDepsParams,
 ): void {
-  registerIpcHandlersService(
-    createIpcDepsRuntimeService(createMainIpcRuntimeServiceDeps(params)),
+  registerIpcHandlers(
+    createIpcDepsRuntime(createMainIpcRuntimeServiceDeps(params)),
   );
 }
 
 export function registerAnkiJimakuIpcRuntimeServices(
   params: AnkiJimakuIpcRuntimeServiceDepsParams,
 ): void {
-  registerAnkiJimakuIpcRuntimeService(
+  registerAnkiJimakuIpcRuntime(
     createAnkiJimakuIpcRuntimeServiceDeps(params),
     registerAnkiJimakuIpcHandlers,
   );

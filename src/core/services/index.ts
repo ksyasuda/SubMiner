@@ -1,39 +1,39 @@
-export { TexthookerService } from "./texthooker-service";
-export { hasMpvWebsocketPlugin, SubtitleWebSocketService } from "./subtitle-ws-service";
-export { registerGlobalShortcutsService } from "./shortcut-service";
-export { createIpcDepsRuntimeService, registerIpcHandlersService } from "./ipc-service";
-export { shortcutMatchesInputForLocalFallback } from "./shortcut-fallback-service";
+export { Texthooker } from "./texthooker";
+export { hasMpvWebsocketPlugin, SubtitleWebSocket } from "./subtitle-ws";
+export { registerGlobalShortcuts } from "./shortcut";
+export { createIpcDepsRuntime, registerIpcHandlers } from "./ipc";
+export { shortcutMatchesInputForLocalFallback } from "./shortcut-fallback";
 export {
-  refreshOverlayShortcutsRuntimeService,
-  registerOverlayShortcutsService,
-  syncOverlayShortcutsRuntimeService,
-  unregisterOverlayShortcutsRuntimeService,
-} from "./overlay-shortcut-service";
+  refreshOverlayShortcutsRuntime,
+  registerOverlayShortcuts,
+  syncOverlayShortcutsRuntime,
+  unregisterOverlayShortcutsRuntime,
+} from "./overlay-shortcut";
 export { createOverlayShortcutRuntimeHandlers } from "./overlay-shortcut-handler";
-export { createCliCommandDepsRuntimeService, handleCliCommandService } from "./cli-command-service";
+export { createCliCommandDepsRuntime, handleCliCommand } from "./cli-command";
 export {
-  copyCurrentSubtitleService,
-  handleMineSentenceDigitService,
-  handleMultiCopyDigitService,
-  markLastCardAsAudioCardService,
-  mineSentenceCardService,
-  triggerFieldGroupingService,
-  updateLastCardFromClipboardService,
-} from "./mining-service";
-export { createAppLifecycleDepsRuntimeService, startAppLifecycleService } from "./app-lifecycle-service";
+  copyCurrentSubtitle,
+  handleMineSentenceDigit,
+  handleMultiCopyDigit,
+  markLastCardAsAudioCard,
+  mineSentenceCard,
+  triggerFieldGrouping,
+  updateLastCardFromClipboard,
+} from "./mining";
+export { createAppLifecycleDepsRuntime, startAppLifecycle } from "./app-lifecycle";
 export {
-  cycleSecondarySubModeService,
-} from "./subtitle-position-service";
+  cycleSecondarySubMode,
+} from "./subtitle-position";
 export {
-  getInitialInvisibleOverlayVisibilityService,
-  isAutoUpdateEnabledRuntimeService,
-  shouldAutoInitializeOverlayRuntimeFromConfigService,
-  shouldBindVisibleOverlayToMpvSubVisibilityService,
-} from "./startup-service";
-export { openYomitanSettingsWindow } from "./yomitan-settings-service";
-export { createTokenizerDepsRuntimeService, tokenizeSubtitleService } from "./tokenizer-service";
-export { createFrequencyDictionaryLookupService } from "./frequency-dictionary-service";
-export { createJlptVocabularyLookupService } from "./jlpt-vocab-service";
+  getInitialInvisibleOverlayVisibility,
+  isAutoUpdateEnabledRuntime,
+  shouldAutoInitializeOverlayRuntimeFromConfig,
+  shouldBindVisibleOverlayToMpvSubVisibility,
+} from "./startup";
+export { openYomitanSettingsWindow } from "./yomitan-settings";
+export { createTokenizerDepsRuntime, tokenizeSubtitle } from "./tokenizer";
+export { createFrequencyDictionaryLookup } from "./frequency-dictionary";
+export { createJlptVocabularyLookup } from "./jlpt-vocab";
 export {
   getIgnoredPos1Entries,
   JlptIgnoredPos1Entry,
@@ -44,59 +44,59 @@ export {
   shouldIgnoreJlptByTerm,
   shouldIgnoreJlptForMecabPos1,
 } from "./jlpt-token-filter";
-export { loadYomitanExtensionService } from "./yomitan-extension-loader-service";
+export { loadYomitanExtension } from "./yomitan-extension-loader";
 export {
-  getJimakuLanguagePreferenceService,
-  getJimakuMaxEntryResultsService,
-  jimakuFetchJsonService,
-  resolveJimakuApiKeyService,
-} from "./jimaku-service";
+  getJimakuLanguagePreference,
+  getJimakuMaxEntryResults,
+  jimakuFetchJson,
+  resolveJimakuApiKey,
+} from "./jimaku";
 export {
-  loadSubtitlePositionService,
-  saveSubtitlePositionService,
-  updateCurrentMediaPathService,
-} from "./subtitle-position-service";
+  loadSubtitlePosition,
+  saveSubtitlePosition,
+  updateCurrentMediaPath,
+} from "./subtitle-position";
 export {
-  createOverlayWindowService,
-  enforceOverlayLayerOrderService,
-  ensureOverlayWindowLevelService,
-  updateOverlayWindowBoundsService,
-} from "./overlay-window-service";
-export { initializeOverlayRuntimeService } from "./overlay-runtime-init-service";
+  createOverlayWindow,
+  enforceOverlayLayerOrder,
+  ensureOverlayWindowLevel,
+  updateOverlayWindowBounds,
+} from "./overlay-window";
+export { initializeOverlayRuntime } from "./overlay-runtime-init";
 export {
-  setInvisibleOverlayVisibleService,
-  setVisibleOverlayVisibleService,
-  syncInvisibleOverlayMousePassthroughService,
-  updateInvisibleOverlayVisibilityService,
-  updateVisibleOverlayVisibilityService,
-} from "./overlay-visibility-service";
+  setInvisibleOverlayVisible,
+  setVisibleOverlayVisible,
+  syncInvisibleOverlayMousePassthrough,
+  updateInvisibleOverlayVisibility,
+  updateVisibleOverlayVisibility,
+} from "./overlay-visibility";
 export {
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
   MpvIpcClient,
   MpvRuntimeClientLike,
   MpvTrackProperty,
-  playNextSubtitleRuntimeService,
-  replayCurrentSubtitleRuntimeService,
+  playNextSubtitleRuntime,
+  replayCurrentSubtitleRuntime,
   resolveCurrentAudioStreamIndex,
-  sendMpvCommandRuntimeService,
-  setMpvSubVisibilityRuntimeService,
-  showMpvOsdRuntimeService,
-} from "./mpv-service";
+  sendMpvCommandRuntime,
+  setMpvSubVisibilityRuntime,
+  showMpvOsdRuntime,
+} from "./mpv";
 export {
-  applyMpvSubtitleRenderMetricsPatchService,
+  applyMpvSubtitleRenderMetricsPatch,
   DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
   sanitizeMpvSubtitleRenderMetrics,
-} from "./mpv-render-metrics-service";
-export { createOverlayContentMeasurementStoreService } from "./overlay-content-measurement-service";
-export { handleMpvCommandFromIpcService } from "./ipc-command-service";
+} from "./mpv-render-metrics";
+export { createOverlayContentMeasurementStore } from "./overlay-content-measurement";
+export { handleMpvCommandFromIpc } from "./ipc-command";
+export { createFieldGroupingOverlayRuntime } from "./field-grouping-overlay";
+export { createNumericShortcutRuntime } from "./numeric-shortcut";
+export { runStartupBootstrapRuntime } from "./startup";
+export { runSubsyncManualFromIpcRuntime, triggerSubsyncFromConfigRuntime } from "./subsync-runner";
+export { registerAnkiJimakuIpcRuntime } from "./anki-jimaku";
 export { ImmersionTrackerService } from "./immersion-tracker-service";
-export { createFieldGroupingOverlayRuntimeService } from "./field-grouping-overlay-service";
-export { createNumericShortcutRuntimeService } from "./numeric-shortcut-service";
-export { runStartupBootstrapRuntimeService } from "./startup-service";
-export { runSubsyncManualFromIpcRuntimeService, triggerSubsyncFromConfigRuntimeService } from "./subsync-runner-service";
-export { registerAnkiJimakuIpcRuntimeService } from "./anki-jimaku-service";
 export {
-  broadcastRuntimeOptionsChangedRuntimeService,
-  createOverlayManagerService,
-  setOverlayDebugVisualizationEnabledRuntimeService,
-} from "./overlay-manager-service";
+  broadcastRuntimeOptionsChangedRuntime,
+  createOverlayManager,
+  setOverlayDebugVisualizationEnabledRuntime,
+} from "./overlay-manager";

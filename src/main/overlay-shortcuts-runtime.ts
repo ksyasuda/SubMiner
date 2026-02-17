@@ -4,10 +4,10 @@ import {
   shortcutMatchesInputForLocalFallback,
 } from "../core/services";
 import {
-  refreshOverlayShortcutsRuntimeService,
-  registerOverlayShortcutsService,
-  syncOverlayShortcutsRuntimeService,
-  unregisterOverlayShortcutsRuntimeService,
+  refreshOverlayShortcutsRuntime,
+  registerOverlayShortcuts,
+  syncOverlayShortcutsRuntime,
+  unregisterOverlayShortcutsRuntime,
 } from "../core/services";
 import { runOverlayShortcutLocalFallback } from "../core/services/overlay-shortcut-handler";
 
@@ -102,7 +102,7 @@ export function createOverlayShortcutsRuntimeService(
       ),
     registerOverlayShortcuts: () => {
       input.setShortcutsRegistered(
-        registerOverlayShortcutsService(
+        registerOverlayShortcuts(
           input.getConfiguredShortcuts(),
           handlers.overlayHandlers,
         ),
@@ -110,7 +110,7 @@ export function createOverlayShortcutsRuntimeService(
     },
     unregisterOverlayShortcuts: () => {
       input.setShortcutsRegistered(
-        unregisterOverlayShortcutsRuntimeService(
+        unregisterOverlayShortcutsRuntime(
           input.getShortcutsRegistered(),
           getShortcutLifecycleDeps(),
         ),
@@ -118,7 +118,7 @@ export function createOverlayShortcutsRuntimeService(
     },
     syncOverlayShortcuts: () => {
       input.setShortcutsRegistered(
-        syncOverlayShortcutsRuntimeService(
+        syncOverlayShortcutsRuntime(
           shouldOverlayShortcutsBeActive(),
           input.getShortcutsRegistered(),
           getShortcutLifecycleDeps(),
@@ -127,7 +127,7 @@ export function createOverlayShortcutsRuntimeService(
     },
     refreshOverlayShortcuts: () => {
       input.setShortcutsRegistered(
-        refreshOverlayShortcutsRuntimeService(
+        refreshOverlayShortcutsRuntime(
           shouldOverlayShortcutsBeActive(),
           input.getShortcutsRegistered(),
           getShortcutLifecycleDeps(),

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import { createTokenizerDepsRuntimeService, tokenizeSubtitleService } from "../src/core/services/tokenizer-service.js";
+import { createTokenizerDepsRuntime, tokenizeSubtitle } from "../src/core/services/tokenizer.js";
 import { MecabTokenizer } from "../src/mecab-tokenizer.js";
 import type { MergedToken } from "../src/types.js";
 
@@ -563,7 +563,7 @@ async function main(): Promise<void> {
     yomitan.parserReadyPromise = runtime.parserReadyPromise;
     yomitan.parserInitPromise = runtime.parserInitPromise;
 
-    const deps = createTokenizerDepsRuntimeService({
+    const deps = createTokenizerDepsRuntime({
       getYomitanExt: () => yomitan.extension,
       getYomitanParserWindow: () => yomitan.parserWindow,
       setYomitanParserWindow: (window) => {
@@ -585,7 +585,7 @@ async function main(): Promise<void> {
       }),
     });
 
-    const subtitleData = await tokenizeSubtitleService(args.input, deps);
+    const subtitleData = await tokenizeSubtitle(args.input, deps);
     const tokenizeText = normalizeTokenizerText(args.input);
     let rawParseResults: unknown = null;
     if (

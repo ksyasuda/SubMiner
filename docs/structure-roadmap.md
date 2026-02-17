@@ -8,8 +8,8 @@ Date: 2026-02-14
 | --- | --- | --- | --- |
 | `src/main.ts` | Bootstrap / composition root / orchestration | Active | Main entrypoint owns startup, lifecycle orchestration, service construction, state mutation surfaces, and IPC bindings |
 | `src/anki-integration.ts` | Domain service orchestration / integrations | Active | 2.6k+ LOC, high cyclomatic coupling to mpv/subtitle timing and mining flows |
-| `src/core/services/mpv-service.ts` | MPV protocol + app state bridge | Active | ~780 LOC, large protocol and behavior mix, 22-entry dep interface |
-| `src/core/services/subsync-service.ts` | Subsync orchestration (ffsubsync/alass workflows) | Active | ~494 LOC, file IO + mpv command orchestration + result shaping |
+| `src/core/services/mpv.ts` | MPV protocol + app state bridge | Active | ~780 LOC, large protocol and behavior mix, 22-entry dep interface |
+| `src/core/services/subsync.ts` | Subsync orchestration (ffsubsync/alass workflows) | Active | ~494 LOC, file IO + mpv command orchestration + result shaping |
 | `src/renderer/positioning.ts` | Renderer positioning layout policy | Active (downstream of TASK-27.5) | 513 LOC, layout/rules + platform-specific behavior in one module |
 | `src/config/service.ts` | Config load/validation | Active support | ~601 LOC, central schema validation + mutation APIs |
 | `src/types.ts` | Shared contract surface | Active support | ~640 LOC, foundational type exports driving module boundaries |
@@ -34,7 +34,7 @@ Date: 2026-02-14
   - Electron event loop (`app.whenReady`, `process` signals)
   - startup/bootstrap services, service adapters in `src/core/services`
 
-### `src/core/services/mpv-service.ts` (protocol + facade)
+### `src/core/services/mpv.ts` (protocol + facade)
 
 - **Core exports**: `MpvIpcClient`, `MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY`, `MpvIpcClientDeps`
 - **Primary responsibilities / API**:
@@ -45,9 +45,9 @@ Date: 2026-02-14
   - state restoration (`restorePreviousSecondarySubVisibility`)
 - **Current caller set**:
   - `src/main.ts` (construction + lifecycle + service invocations)
-  - `src/core/services/mpv-control-service.ts` (runtime control API)
-  - `src/core/services/subsync-service.ts` (`requestProperty`, request ID usage)
-  - tests under `src/core/services/mpv-service.test.ts`
+  - `src/main/ipc-mpv-command.ts` (runtime control API)
+  - `src/core/services/subsync.ts` (`requestProperty`, request ID usage)
+  - tests under `src/core/services/mpv.test.ts`
 - **Observed coupling risk**:
   - `MpvIpcClientDeps` mixes protocol config with app-level side effects (subtitle broadcast, tokenizer, overlay updates, config reads)
 
@@ -61,15 +61,15 @@ Date: 2026-02-14
 - **State dependencies (constructor)**:
   - config, subtitle timing tracker, mpv client, OSD/notification callbacks
 - **Primary callers**:
-  - `src/core/services/overlay-runtime-init-service.ts` (initial integration creation)
-  - `src/core/services/anki-jimaku-service.ts` (enable/disable and field-grouping RPC)
-  - `src/core/services/mining-service.ts` (delegates mining actions)
+  - `src/core/services/overlay-runtime-init.ts` (initial integration creation)
+  - `src/core/services/anki-jimaku.ts` (enable/disable and field-grouping RPC)
+  - `src/core/services/mining.ts` (delegates mining actions)
 
-### `src/core/services/subsync-service.ts`
+### `src/core/services/subsync.ts`
 
 - **Exports**: `runSubsyncManualService`, `openSubsyncManualPickerService`, `triggerSubsyncFromConfigService`
 - **Caller set**:
-  - `src/core/services/subsync-runner-service.ts` (runtime wrappers)
+  - `src/core/services/subsync-runner.ts` (runtime wrappers)
   - `src/core/services/mpv-jimaku/`? (through runtime services and IPC command handlers)
 
 ### `src/config/service.ts`

@@ -1,7 +1,7 @@
 import * as path from "path";
 import type { JlptLevel } from "../types";
 
-import { createJlptVocabularyLookupService } from "../core/services";
+import { createJlptVocabularyLookup } from "../core/services";
 
 export interface JlptDictionarySearchPathDeps {
   getDictionaryRoots: () => string[];
@@ -39,7 +39,7 @@ export async function initializeJlptDictionaryLookup(
   deps: JlptDictionaryRuntimeDeps,
 ): Promise<void> {
   deps.setJlptLevelLookup(
-    await createJlptVocabularyLookupService({
+    await createJlptVocabularyLookup({
       searchPaths: deps.getSearchPaths(),
       log: deps.log,
     }),

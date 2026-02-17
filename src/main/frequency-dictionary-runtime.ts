@@ -1,6 +1,6 @@
 import * as path from "path";
 import type { FrequencyDictionaryLookup } from "../types";
-import { createFrequencyDictionaryLookupService } from "../core/services";
+import { createFrequencyDictionaryLookup } from "../core/services";
 
 export interface FrequencyDictionarySearchPathDeps {
   getDictionaryRoots: () => string[];
@@ -47,7 +47,7 @@ export function getFrequencyDictionarySearchPaths(
 export async function initializeFrequencyDictionaryLookup(
   deps: FrequencyDictionaryRuntimeDeps,
 ): Promise<void> {
-  const lookup = await createFrequencyDictionaryLookupService({
+  const lookup = await createFrequencyDictionaryLookup({
     searchPaths: deps.getSearchPaths(),
     log: deps.log,
   });
