@@ -8,7 +8,9 @@ export interface AppLifecycleServiceDeps {
   parseArgs: (argv: string[]) => CliArgs;
   requestSingleInstanceLock: () => boolean;
   quitApp: () => void;
-  onSecondInstance: (handler: (_event: unknown, argv: string[]) => void) => void;
+  onSecondInstance: (
+    handler: (_event: unknown, argv: string[]) => void,
+  ) => void;
   handleCliCommand: (args: CliArgs, source: CliCommandSource) => void;
   printHelp: () => void;
   logNoRunningInstance: () => void;
@@ -53,18 +55,27 @@ export function createAppLifecycleDepsRuntime(
     requestSingleInstanceLock: () => options.app.requestSingleInstanceLock(),
     quitApp: () => options.app.quit(),
     onSecondInstance: (handler) => {
-      options.app.on("second-instance", handler as (...args: unknown[]) => void);
+      options.app.on(
+        "second-instance",
+        handler as (...args: unknown[]) => void,
+      );
     },
     handleCliCommand: options.handleCliCommand,
     printHelp: options.printHelp,
     logNoRunningInstance: options.logNoRunningInstance,
     whenReady: (handler) => {
-      options.app.whenReady().then(handler).catch((error) => {
-        logger.error("App ready handler failed:", error);
-      });
+      options.app
+        .whenReady()
+        .then(handler)
+        .catch((error) => {
+          logger.error("App ready handler failed:", error);
+        });
     },
     onWindowAllClosed: (handler) => {
-      options.app.on("window-all-closed", handler as (...args: unknown[]) => void);
+      options.app.on(
+        "window-all-closed",
+        handler as (...args: unknown[]) => void,
+      );
     },
     onWillQuit: (handler) => {
       options.app.on("will-quit", handler as (...args: unknown[]) => void);

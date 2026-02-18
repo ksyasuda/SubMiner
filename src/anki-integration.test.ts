@@ -28,7 +28,10 @@ function createIntegrationTestContext(
   };
 
   const stateDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), options.stateDirPrefix ?? "subminer-anki-integration-"),
+    path.join(
+      os.tmpdir(),
+      options.stateDirPrefix ?? "subminer-anki-integration-",
+    ),
   );
   const knownWordCacheStatePath = path.join(stateDir, "known-words-cache.json");
 

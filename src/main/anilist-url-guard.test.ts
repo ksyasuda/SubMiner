@@ -20,7 +20,9 @@ test("allows only AniList https URLs for external opens", () => {
 
 test("allows only AniList https or data URLs for setup navigation", () => {
   assert.equal(
-    isAllowedAnilistSetupNavigationUrl("https://anilist.co/api/v2/oauth/authorize"),
+    isAllowedAnilistSetupNavigationUrl(
+      "https://anilist.co/api/v2/oauth/authorize",
+    ),
     true,
   );
   assert.equal(
@@ -33,5 +35,8 @@ test("allows only AniList https or data URLs for setup navigation", () => {
     isAllowedAnilistSetupNavigationUrl("https://example.com/redirect"),
     false,
   );
-  assert.equal(isAllowedAnilistSetupNavigationUrl("javascript:alert(1)"), false);
+  assert.equal(
+    isAllowedAnilistSetupNavigationUrl("javascript:alert(1)"),
+    false,
+  );
 });

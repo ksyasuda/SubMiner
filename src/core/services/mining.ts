@@ -44,7 +44,9 @@ export function handleMultiCopyDigit(
   const actualCount = blocks.length;
   deps.writeClipboardText(blocks.join("\n\n"));
   if (actualCount < count) {
-    deps.showMpvOsd(`Only ${actualCount} lines available, copied ${actualCount}`);
+    deps.showMpvOsd(
+      `Only ${actualCount} lines available, copied ${actualCount}`,
+    );
   } else {
     deps.showMpvOsd(`Copied ${actualCount} lines`);
   }

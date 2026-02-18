@@ -1,5 +1,9 @@
 import { SubsyncResolvedConfig } from "../subsync/utils";
-import type { SubsyncManualPayload, SubsyncManualRunRequest, SubsyncResult } from "../types";
+import type {
+  SubsyncManualPayload,
+  SubsyncManualRunRequest,
+  SubsyncResult,
+} from "../types";
 import type { SubsyncRuntimeDeps } from "../core/services/subsync-runner";
 import { createSubsyncRuntimeDeps } from "./dependencies";
 import {
@@ -54,7 +58,9 @@ export function createSubsyncRuntimeServiceDeps(
 export function triggerSubsyncFromConfigRuntime(
   params: SubsyncRuntimeServiceInput,
 ): Promise<void> {
-  return triggerSubsyncFromConfigRuntimeCore(createSubsyncRuntimeServiceDeps(params));
+  return triggerSubsyncFromConfigRuntimeCore(
+    createSubsyncRuntimeServiceDeps(params),
+  );
 }
 
 export async function runSubsyncManualFromIpcRuntime(

@@ -77,8 +77,7 @@ export async function runSubsyncManualFromIpcRuntime(
     isSubsyncInProgress: triggerDeps.isSubsyncInProgress,
     setSubsyncInProgress: triggerDeps.setSubsyncInProgress,
     showMpvOsd: triggerDeps.showMpvOsd,
-    runWithSpinner: (task) =>
-      triggerDeps.runWithSubsyncSpinner(() => task()),
+    runWithSpinner: (task) => triggerDeps.runWithSubsyncSpinner(() => task()),
     runSubsyncManual: (subsyncRequest) =>
       runSubsyncManual(subsyncRequest, triggerDeps),
   });

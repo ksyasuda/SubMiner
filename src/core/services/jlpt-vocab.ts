@@ -50,8 +50,7 @@ function addEntriesToMap(
     incomingLevel: JlptLevel,
   ): boolean =>
     existingLevel === undefined ||
-    JLPT_LEVEL_PRECEDENCE[incomingLevel] >
-      JLPT_LEVEL_PRECEDENCE[existingLevel];
+    JLPT_LEVEL_PRECEDENCE[incomingLevel] > JLPT_LEVEL_PRECEDENCE[existingLevel];
 
   if (!Array.isArray(rawEntries)) {
     return;
@@ -163,7 +162,7 @@ export async function createJlptVocabularyLookup(
       return (term: string): JlptLevel | null => {
         if (!term) return null;
         const normalized = normalizeJlptTerm(term);
-        return normalized ? terms.get(normalized) ?? null : null;
+        return normalized ? (terms.get(normalized) ?? null) : null;
       };
     }
 
@@ -181,7 +180,9 @@ export async function createJlptVocabularyLookup(
     );
   }
   if (resolvedBanks.length > 0 && foundBankCount > 0) {
-    options.log(`JLPT dictionary search matched path(s): ${resolvedBanks.join(", ")}`);
+    options.log(
+      `JLPT dictionary search matched path(s): ${resolvedBanks.join(", ")}`,
+    );
   }
   return NOOP_LOOKUP;
 }

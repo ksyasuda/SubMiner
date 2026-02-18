@@ -7,8 +7,5 @@ export function normalizeDisplayText(text: string): string {
 }
 
 export function normalizeTokenizerInput(displayText: string): string {
-  return displayText
-    .replace(/\n/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return displayText.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
 }

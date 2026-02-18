@@ -8,8 +8,9 @@ test("createFieldGroupingOverlayRuntime sends overlay messages and sets restore 
   let visible = false;
   const restore = new Set<"runtime-options" | "subsync">();
 
-  const runtime =
-    createFieldGroupingOverlayRuntime<"runtime-options" | "subsync">({
+  const runtime = createFieldGroupingOverlayRuntime<
+    "runtime-options" | "subsync"
+  >({
     getMainWindow: () => ({
       isDestroyed: () => false,
       webContents: {
@@ -28,7 +29,7 @@ test("createFieldGroupingOverlayRuntime sends overlay messages and sets restore 
     getResolver: () => null,
     setResolver: () => {},
     getRestoreVisibleOverlayOnModalClose: () => restore,
-    });
+  });
 
   const ok = runtime.sendToVisibleOverlay("runtime-options:open", undefined, {
     restoreOnModalClose: "runtime-options",
@@ -42,20 +43,21 @@ test("createFieldGroupingOverlayRuntime sends overlay messages and sets restore 
 
 test("createFieldGroupingOverlayRuntime callback cancels when send fails", async () => {
   let resolver: ((choice: KikuFieldGroupingChoice) => void) | null = null;
-  const runtime =
-    createFieldGroupingOverlayRuntime<"runtime-options" | "subsync">({
-      getMainWindow: () => null,
-      getVisibleOverlayVisible: () => false,
-      getInvisibleOverlayVisible: () => false,
-      setVisibleOverlayVisible: () => {},
-      setInvisibleOverlayVisible: () => {},
-      getResolver: () => resolver,
-      setResolver: (next) => {
-        resolver = next;
-      },
-      getRestoreVisibleOverlayOnModalClose: () =>
-        new Set<"runtime-options" | "subsync">(),
-    });
+  const runtime = createFieldGroupingOverlayRuntime<
+    "runtime-options" | "subsync"
+  >({
+    getMainWindow: () => null,
+    getVisibleOverlayVisible: () => false,
+    getInvisibleOverlayVisible: () => false,
+    setVisibleOverlayVisible: () => {},
+    setInvisibleOverlayVisible: () => {},
+    getResolver: () => resolver,
+    setResolver: (next) => {
+      resolver = next;
+    },
+    getRestoreVisibleOverlayOnModalClose: () =>
+      new Set<"runtime-options" | "subsync">(),
+  });
 
   const callback = runtime.createFieldGroupingCallback();
   const result = await callback({

@@ -43,7 +43,11 @@ test("anilist update queue enqueues, snapshots, and dequeues success", () => {
     ready: 0,
     deadLetter: 0,
   });
-  assert.ok(loggerState.info.some((message) => message.includes("Queued AniList retry")));
+  assert.ok(
+    loggerState.info.some((message) =>
+      message.includes("Queued AniList retry"),
+    ),
+  );
 });
 
 test("anilist update queue applies retry backoff and dead-letter", () => {
@@ -89,5 +93,8 @@ test("anilist update queue persists and reloads from disk", () => {
     ready: 1,
     deadLetter: 0,
   });
-  assert.equal(queueB.nextReady(Number.MAX_SAFE_INTEGER)?.title, "Persist Demo");
+  assert.equal(
+    queueB.nextReady(Number.MAX_SAFE_INTEGER)?.title,
+    "Persist Demo",
+  );
 });

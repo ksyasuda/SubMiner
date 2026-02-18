@@ -77,8 +77,9 @@ export function resolveRendererDom(): RendererDom {
     subtitleRoot: getRequiredElement<HTMLElement>("subtitleRoot"),
     subtitleContainer: getRequiredElement<HTMLElement>("subtitleContainer"),
     overlay: getRequiredElement<HTMLElement>("overlay"),
-    secondarySubContainer:
-      getRequiredElement<HTMLElement>("secondarySubContainer"),
+    secondarySubContainer: getRequiredElement<HTMLElement>(
+      "secondarySubContainer",
+    ),
     secondarySubRoot: getRequiredElement<HTMLElement>("secondarySubRoot"),
 
     jimakuModal: getRequiredElement<HTMLDivElement>("jimakuModal"),
@@ -88,60 +89,89 @@ export function resolveRendererDom(): RendererDom {
     jimakuSearchButton: getRequiredElement<HTMLButtonElement>("jimakuSearch"),
     jimakuCloseButton: getRequiredElement<HTMLButtonElement>("jimakuClose"),
     jimakuStatus: getRequiredElement<HTMLDivElement>("jimakuStatus"),
-    jimakuEntriesSection: getRequiredElement<HTMLDivElement>("jimakuEntriesSection"),
+    jimakuEntriesSection: getRequiredElement<HTMLDivElement>(
+      "jimakuEntriesSection",
+    ),
     jimakuEntriesList: getRequiredElement<HTMLUListElement>("jimakuEntries"),
-    jimakuFilesSection: getRequiredElement<HTMLDivElement>("jimakuFilesSection"),
+    jimakuFilesSection:
+      getRequiredElement<HTMLDivElement>("jimakuFilesSection"),
     jimakuFilesList: getRequiredElement<HTMLUListElement>("jimakuFiles"),
     jimakuBroadenButton: getRequiredElement<HTMLButtonElement>("jimakuBroaden"),
 
     kikuModal: getRequiredElement<HTMLDivElement>("kikuFieldGroupingModal"),
     kikuCard1: getRequiredElement<HTMLDivElement>("kikuCard1"),
     kikuCard2: getRequiredElement<HTMLDivElement>("kikuCard2"),
-    kikuCard1Expression: getRequiredElement<HTMLDivElement>("kikuCard1Expression"),
-    kikuCard2Expression: getRequiredElement<HTMLDivElement>("kikuCard2Expression"),
+    kikuCard1Expression: getRequiredElement<HTMLDivElement>(
+      "kikuCard1Expression",
+    ),
+    kikuCard2Expression: getRequiredElement<HTMLDivElement>(
+      "kikuCard2Expression",
+    ),
     kikuCard1Sentence: getRequiredElement<HTMLDivElement>("kikuCard1Sentence"),
     kikuCard2Sentence: getRequiredElement<HTMLDivElement>("kikuCard2Sentence"),
     kikuCard1Meta: getRequiredElement<HTMLDivElement>("kikuCard1Meta"),
     kikuCard2Meta: getRequiredElement<HTMLDivElement>("kikuCard2Meta"),
-    kikuConfirmButton: getRequiredElement<HTMLButtonElement>("kikuConfirmButton"),
+    kikuConfirmButton:
+      getRequiredElement<HTMLButtonElement>("kikuConfirmButton"),
     kikuCancelButton: getRequiredElement<HTMLButtonElement>("kikuCancelButton"),
-    kikuDeleteDuplicateCheckbox:
-      getRequiredElement<HTMLInputElement>("kikuDeleteDuplicate"),
+    kikuDeleteDuplicateCheckbox: getRequiredElement<HTMLInputElement>(
+      "kikuDeleteDuplicate",
+    ),
     kikuSelectionStep: getRequiredElement<HTMLDivElement>("kikuSelectionStep"),
     kikuPreviewStep: getRequiredElement<HTMLDivElement>("kikuPreviewStep"),
     kikuPreviewJson: getRequiredElement<HTMLPreElement>("kikuPreviewJson"),
     kikuPreviewCompactButton:
       getRequiredElement<HTMLButtonElement>("kikuPreviewCompact"),
-    kikuPreviewFullButton: getRequiredElement<HTMLButtonElement>("kikuPreviewFull"),
+    kikuPreviewFullButton:
+      getRequiredElement<HTMLButtonElement>("kikuPreviewFull"),
     kikuPreviewError: getRequiredElement<HTMLDivElement>("kikuPreviewError"),
     kikuBackButton: getRequiredElement<HTMLButtonElement>("kikuBackButton"),
-    kikuFinalConfirmButton:
-      getRequiredElement<HTMLButtonElement>("kikuFinalConfirmButton"),
-    kikuFinalCancelButton:
-      getRequiredElement<HTMLButtonElement>("kikuFinalCancelButton"),
+    kikuFinalConfirmButton: getRequiredElement<HTMLButtonElement>(
+      "kikuFinalConfirmButton",
+    ),
+    kikuFinalCancelButton: getRequiredElement<HTMLButtonElement>(
+      "kikuFinalCancelButton",
+    ),
     kikuHint: getRequiredElement<HTMLDivElement>("kikuHint"),
 
-    runtimeOptionsModal: getRequiredElement<HTMLDivElement>("runtimeOptionsModal"),
-    runtimeOptionsClose: getRequiredElement<HTMLButtonElement>("runtimeOptionsClose"),
-    runtimeOptionsList: getRequiredElement<HTMLUListElement>("runtimeOptionsList"),
-    runtimeOptionsStatus: getRequiredElement<HTMLDivElement>("runtimeOptionsStatus"),
+    runtimeOptionsModal: getRequiredElement<HTMLDivElement>(
+      "runtimeOptionsModal",
+    ),
+    runtimeOptionsClose: getRequiredElement<HTMLButtonElement>(
+      "runtimeOptionsClose",
+    ),
+    runtimeOptionsList:
+      getRequiredElement<HTMLUListElement>("runtimeOptionsList"),
+    runtimeOptionsStatus: getRequiredElement<HTMLDivElement>(
+      "runtimeOptionsStatus",
+    ),
 
     subsyncModal: getRequiredElement<HTMLDivElement>("subsyncModal"),
     subsyncCloseButton: getRequiredElement<HTMLButtonElement>("subsyncClose"),
-    subsyncEngineAlass: getRequiredElement<HTMLInputElement>("subsyncEngineAlass"),
-    subsyncEngineFfsubsync:
-      getRequiredElement<HTMLInputElement>("subsyncEngineFfsubsync"),
-    subsyncSourceLabel: getRequiredElement<HTMLLabelElement>("subsyncSourceLabel"),
-    subsyncSourceSelect: getRequiredElement<HTMLSelectElement>("subsyncSourceSelect"),
+    subsyncEngineAlass:
+      getRequiredElement<HTMLInputElement>("subsyncEngineAlass"),
+    subsyncEngineFfsubsync: getRequiredElement<HTMLInputElement>(
+      "subsyncEngineFfsubsync",
+    ),
+    subsyncSourceLabel:
+      getRequiredElement<HTMLLabelElement>("subsyncSourceLabel"),
+    subsyncSourceSelect: getRequiredElement<HTMLSelectElement>(
+      "subsyncSourceSelect",
+    ),
     subsyncRunButton: getRequiredElement<HTMLButtonElement>("subsyncRun"),
     subsyncStatus: getRequiredElement<HTMLDivElement>("subsyncStatus"),
 
     sessionHelpModal: getRequiredElement<HTMLDivElement>("sessionHelpModal"),
     sessionHelpClose: getRequiredElement<HTMLButtonElement>("sessionHelpClose"),
-    sessionHelpShortcut: getRequiredElement<HTMLDivElement>("sessionHelpShortcut"),
-    sessionHelpWarning: getRequiredElement<HTMLDivElement>("sessionHelpWarning"),
+    sessionHelpShortcut: getRequiredElement<HTMLDivElement>(
+      "sessionHelpShortcut",
+    ),
+    sessionHelpWarning:
+      getRequiredElement<HTMLDivElement>("sessionHelpWarning"),
     sessionHelpStatus: getRequiredElement<HTMLDivElement>("sessionHelpStatus"),
-    sessionHelpFilter: getRequiredElement<HTMLInputElement>("sessionHelpFilter"),
-    sessionHelpContent: getRequiredElement<HTMLDivElement>("sessionHelpContent"),
+    sessionHelpFilter:
+      getRequiredElement<HTMLInputElement>("sessionHelpFilter"),
+    sessionHelpContent:
+      getRequiredElement<HTMLDivElement>("sessionHelpContent"),
   };
 }

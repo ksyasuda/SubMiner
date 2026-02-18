@@ -8,7 +8,10 @@ export interface TokenMergerProvider {
 
 type TokenMergerProviderFactory = () => TokenMergerProvider;
 
-const tokenMergerProviderFactories = new Map<string, TokenMergerProviderFactory>();
+const tokenMergerProviderFactories = new Map<
+  string,
+  TokenMergerProviderFactory
+>();
 
 export function registerTokenMergerProvider(
   id: string,

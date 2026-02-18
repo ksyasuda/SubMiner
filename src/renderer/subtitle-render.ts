@@ -72,12 +72,18 @@ function getFrequencyDictionaryClass(
     return "";
   }
 
-  if (typeof token.frequencyRank !== "number" || !Number.isFinite(token.frequencyRank)) {
+  if (
+    typeof token.frequencyRank !== "number" ||
+    !Number.isFinite(token.frequencyRank)
+  ) {
     return "";
   }
 
   const rank = Math.max(1, Math.floor(token.frequencyRank));
-  const topX = sanitizeFrequencyTopX(settings.topX, DEFAULT_FREQUENCY_RENDER_SETTINGS.topX);
+  const topX = sanitizeFrequencyTopX(
+    settings.topX,
+    DEFAULT_FREQUENCY_RENDER_SETTINGS.topX,
+  );
   if (rank > topX) {
     return "";
   }
@@ -121,16 +127,16 @@ function renderWithTokens(
 
     if (surface.includes("\n")) {
       const parts = surface.split("\n");
-        for (let i = 0; i < parts.length; i += 1) {
-          if (parts[i]) {
-            const span = document.createElement("span");
-            span.className = computeWordClass(
-              token,
-              resolvedFrequencyRenderSettings,
-            );
-            span.textContent = parts[i];
-            if (token.reading) span.dataset.reading = token.reading;
-            if (token.headword) span.dataset.headword = token.headword;
+      for (let i = 0; i < parts.length; i += 1) {
+        if (parts[i]) {
+          const span = document.createElement("span");
+          span.className = computeWordClass(
+            token,
+            resolvedFrequencyRenderSettings,
+          );
+          span.textContent = parts[i];
+          if (token.reading) span.dataset.reading = token.reading;
+          if (token.headword) span.dataset.headword = token.headword;
           fragment.appendChild(span);
         }
         if (i < parts.length - 1) {
@@ -214,7 +220,10 @@ function renderCharacterLevel(root: HTMLElement, text: string): void {
   root.appendChild(fragment);
 }
 
-function renderPlainTextPreserveLineBreaks(root: HTMLElement, text: string): void {
+function renderPlainTextPreserveLineBreaks(
+  root: HTMLElement,
+  text: string,
+): void {
   const lines = text.split("\n");
   const fragment = document.createDocumentFragment();
 
@@ -255,7 +264,10 @@ export function createSubtitleRenderer(ctx: RendererContext) {
         1,
         normalizedInvisible.split("\n").length,
       );
-      renderPlainTextPreserveLineBreaks(ctx.dom.subtitleRoot, normalizedInvisible);
+      renderPlainTextPreserveLineBreaks(
+        ctx.dom.subtitleRoot,
+        normalizedInvisible,
+      );
       return;
     }
 
@@ -331,10 +343,13 @@ export function createSubtitleRenderer(ctx: RendererContext) {
   function applySubtitleStyle(style: SubtitleStyleConfig | null): void {
     if (!style) return;
 
-    if (style.fontFamily) ctx.dom.subtitleRoot.style.fontFamily = style.fontFamily;
-    if (style.fontSize) ctx.dom.subtitleRoot.style.fontSize = `${style.fontSize}px`;
+    if (style.fontFamily)
+      ctx.dom.subtitleRoot.style.fontFamily = style.fontFamily;
+    if (style.fontSize)
+      ctx.dom.subtitleRoot.style.fontSize = `${style.fontSize}px`;
     if (style.fontColor) ctx.dom.subtitleRoot.style.color = style.fontColor;
-    if (style.fontWeight) ctx.dom.subtitleRoot.style.fontWeight = style.fontWeight;
+    if (style.fontWeight)
+      ctx.dom.subtitleRoot.style.fontWeight = style.fontWeight;
     if (style.fontStyle) ctx.dom.subtitleRoot.style.fontStyle = style.fontStyle;
     if (style.backgroundColor) {
       ctx.dom.subtitleContainer.style.background = style.backgroundColor;
@@ -352,12 +367,12 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       N5: ctx.state.jlptN5Color ?? "#8aadf4",
       ...(style.jlptColors
         ? {
-          N1: sanitizeHexColor(style.jlptColors?.N1, ctx.state.jlptN1Color),
-          N2: sanitizeHexColor(style.jlptColors?.N2, ctx.state.jlptN2Color),
-          N3: sanitizeHexColor(style.jlptColors?.N3, ctx.state.jlptN3Color),
-          N4: sanitizeHexColor(style.jlptColors?.N4, ctx.state.jlptN4Color),
-          N5: sanitizeHexColor(style.jlptColors?.N5, ctx.state.jlptN5Color),
-        }
+            N1: sanitizeHexColor(style.jlptColors?.N1, ctx.state.jlptN1Color),
+            N2: sanitizeHexColor(style.jlptColors?.N2, ctx.state.jlptN2Color),
+            N3: sanitizeHexColor(style.jlptColors?.N3, ctx.state.jlptN3Color),
+            N4: sanitizeHexColor(style.jlptColors?.N4, ctx.state.jlptN4Color),
+            N5: sanitizeHexColor(style.jlptColors?.N5, ctx.state.jlptN5Color),
+          }
         : {}),
     };
 
@@ -367,20 +382,39 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       "--subtitle-known-word-color",
       knownWordColor,
     );
-    ctx.dom.subtitleRoot.style.setProperty("--subtitle-n-plus-one-color", nPlusOneColor);
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-n-plus-one-color",
+      nPlusOneColor,
+    );
     ctx.state.jlptN1Color = jlptColors.N1;
     ctx.state.jlptN2Color = jlptColors.N2;
     ctx.state.jlptN3Color = jlptColors.N3;
     ctx.state.jlptN4Color = jlptColors.N4;
     ctx.state.jlptN5Color = jlptColors.N5;
-    ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n1-color", jlptColors.N1);
-    ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n2-color", jlptColors.N2);
-    ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n3-color", jlptColors.N3);
-    ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n4-color", jlptColors.N4);
-    ctx.dom.subtitleRoot.style.setProperty("--subtitle-jlpt-n5-color", jlptColors.N5);
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-jlpt-n1-color",
+      jlptColors.N1,
+    );
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-jlpt-n2-color",
+      jlptColors.N2,
+    );
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-jlpt-n3-color",
+      jlptColors.N3,
+    );
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-jlpt-n4-color",
+      jlptColors.N4,
+    );
+    ctx.dom.subtitleRoot.style.setProperty(
+      "--subtitle-jlpt-n5-color",
+      jlptColors.N5,
+    );
     const frequencyDictionarySettings = style.frequencyDictionary ?? {};
     const frequencyEnabled =
-      frequencyDictionarySettings.enabled ?? ctx.state.frequencyDictionaryEnabled;
+      frequencyDictionarySettings.enabled ??
+      ctx.state.frequencyDictionaryEnabled;
     const frequencyTopX = sanitizeFrequencyTopX(
       frequencyDictionarySettings.topX,
       ctx.state.frequencyDictionaryTopX,
@@ -458,7 +492,8 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       ctx.dom.secondarySubRoot.style.fontStyle = secondaryStyle.fontStyle;
     }
     if (secondaryStyle.backgroundColor) {
-      ctx.dom.secondarySubContainer.style.background = secondaryStyle.backgroundColor;
+      ctx.dom.secondarySubContainer.style.background =
+        secondaryStyle.backgroundColor;
     }
   }
 

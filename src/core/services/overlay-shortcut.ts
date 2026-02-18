@@ -214,9 +214,6 @@ export function refreshOverlayShortcutsRuntime(
   shortcutsRegistered: boolean,
   deps: OverlayShortcutLifecycleDeps,
 ): boolean {
-  const cleared = unregisterOverlayShortcutsRuntime(
-    shortcutsRegistered,
-    deps,
-  );
+  const cleared = unregisterOverlayShortcutsRuntime(shortcutsRegistered, deps);
   return syncOverlayShortcutsRuntime(shouldBeActive, cleared, deps);
 }

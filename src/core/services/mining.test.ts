@@ -97,7 +97,12 @@ test("mineSentenceCard creates sentence card from mpv subtitle state", async () 
       updateLastAddedFromClipboard: async () => {},
       triggerFieldGroupingForLastAddedCard: async () => {},
       markLastCardAsAudioCard: async () => {},
-      createSentenceCard: async (sentence, startTime, endTime, secondarySub) => {
+      createSentenceCard: async (
+        sentence,
+        startTime,
+        endTime,
+        secondarySub,
+      ) => {
         created.push({ sentence, startTime, endTime, secondarySub });
         return true;
       },
@@ -176,7 +181,9 @@ test("handleMineSentenceDigit reports async create failures", async () => {
   assert.equal(logs.length, 1);
   assert.equal(logs[0]?.message, "mineSentenceMultiple failed:");
   assert.equal((logs[0]?.err as Error).message, "mine boom");
-  assert.ok(osd.some((entry) => entry.includes("Mine sentence failed: mine boom")));
+  assert.ok(
+    osd.some((entry) => entry.includes("Mine sentence failed: mine boom")),
+  );
   assert.equal(cardsMined, 0);
 });
 

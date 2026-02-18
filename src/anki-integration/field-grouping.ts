@@ -20,7 +20,10 @@ interface FieldGroupingDeps {
   };
   isUpdateInProgress: () => boolean;
   getDeck?: () => string | undefined;
-  withUpdateProgress: <T>(initialMessage: string, action: () => Promise<T>) => Promise<T>;
+  withUpdateProgress: <T>(
+    initialMessage: string,
+    action: () => Promise<T>,
+  ) => Promise<T>;
   showOsdNotification: (text: string) => void;
   findNotes: (
     query: string,
@@ -29,7 +32,9 @@ interface FieldGroupingDeps {
     },
   ) => Promise<number[]>;
   notesInfo: (noteIds: number[]) => Promise<FieldGroupingNoteInfo[]>;
-  extractFields: (fields: Record<string, { value: string }>) => Record<string, string>;
+  extractFields: (
+    fields: Record<string, { value: string }>,
+  ) => Record<string, string>;
   findDuplicateNote: (
     expression: string,
     excludeNoteId: number,
@@ -90,81 +95,83 @@ export class FieldGroupingService {
     }
 
     try {
-      await this.deps.withUpdateProgress("Grouping duplicate cards", async () => {
-        const deck = this.deps.getDeck ? this.deps.getDeck() : undefined;
-        const query = deck ? `"deck:${deck}" added:1` : "added:1";
-        const noteIds = await this.deps.findNotes(query);
-        if (!noteIds || noteIds.length === 0) {
-          this.deps.showOsdNotification("No recently added cards found");
-          return;
-        }
+      await this.deps.withUpdateProgress(
+        "Grouping duplicate cards",
+        async () => {
+          const deck = this.deps.getDeck ? this.deps.getDeck() : undefined;
+          const query = deck ? `"deck:${deck}" added:1` : "added:1";
+          const noteIds = await this.deps.findNotes(query);
+          if (!noteIds || noteIds.length === 0) {
+            this.deps.showOsdNotification("No recently added cards found");
+            return;
+          }
 
-        const noteId = Math.max(...noteIds);
-        const notesInfoResult = await this.deps.notesInfo([noteId]);
-        const notesInfo = notesInfoResult as FieldGroupingNoteInfo[];
-        if (!notesInfo || notesInfo.length === 0) {
-          this.deps.showOsdNotification("Card not found");
-          return;
-        }
-        const noteInfoBeforeUpdate = notesInfo[0];
-        const fields = this.deps.extractFields(noteInfoBeforeUpdate.fields);
-        const expressionText = fields.expression || fields.word || "";
-        if (!expressionText) {
-          this.deps.showOsdNotification("No expression/word field found");
-          return;
-        }
+          const noteId = Math.max(...noteIds);
+          const notesInfoResult = await this.deps.notesInfo([noteId]);
+          const notesInfo = notesInfoResult as FieldGroupingNoteInfo[];
+          if (!notesInfo || notesInfo.length === 0) {
+            this.deps.showOsdNotification("Card not found");
+            return;
+          }
+          const noteInfoBeforeUpdate = notesInfo[0];
+          const fields = this.deps.extractFields(noteInfoBeforeUpdate.fields);
+          const expressionText = fields.expression || fields.word || "";
+          if (!expressionText) {
+            this.deps.showOsdNotification("No expression/word field found");
+            return;
+          }
 
-        const duplicateNoteId = await this.deps.findDuplicateNote(
-          expressionText,
-          noteId,
-          noteInfoBeforeUpdate,
-        );
-        if (duplicateNoteId === null) {
-          this.deps.showOsdNotification("No duplicate card found");
-          return;
-        }
+          const duplicateNoteId = await this.deps.findDuplicateNote(
+            expressionText,
+            noteId,
+            noteInfoBeforeUpdate,
+          );
+          if (duplicateNoteId === null) {
+            this.deps.showOsdNotification("No duplicate card found");
+            return;
+          }
 
-        if (
-          !this.deps.hasAllConfiguredFields(noteInfoBeforeUpdate, [
-            this.deps.getSentenceCardImageFieldName(),
-          ])
-        ) {
-          await this.deps.processNewCard(noteId, { skipKikuFieldGrouping: true });
-        }
+          if (
+            !this.deps.hasAllConfiguredFields(noteInfoBeforeUpdate, [
+              this.deps.getSentenceCardImageFieldName(),
+            ])
+          ) {
+            await this.deps.processNewCard(noteId, {
+              skipKikuFieldGrouping: true,
+            });
+          }
 
-        const refreshedInfoResult = await this.deps.notesInfo([noteId]);
-        const refreshedInfo = refreshedInfoResult as FieldGroupingNoteInfo[];
-        if (!refreshedInfo || refreshedInfo.length === 0) {
-          this.deps.showOsdNotification("Card not found");
-          return;
-        }
+          const refreshedInfoResult = await this.deps.notesInfo([noteId]);
+          const refreshedInfo = refreshedInfoResult as FieldGroupingNoteInfo[];
+          if (!refreshedInfo || refreshedInfo.length === 0) {
+            this.deps.showOsdNotification("Card not found");
+            return;
+          }
 
-        const noteInfo = refreshedInfo[0];
+          const noteInfo = refreshedInfo[0];
 
-        if (sentenceCardConfig.kikuFieldGrouping === "auto") {
-          await this.deps.handleFieldGroupingAuto(
+          if (sentenceCardConfig.kikuFieldGrouping === "auto") {
+            await this.deps.handleFieldGroupingAuto(
+              duplicateNoteId,
+              noteId,
+              noteInfo,
+              expressionText,
+            );
+            return;
+          }
+          const handled = await this.deps.handleFieldGroupingManual(
             duplicateNoteId,
             noteId,
             noteInfo,
             expressionText,
           );
-          return;
-        }
-        const handled = await this.deps.handleFieldGroupingManual(
-          duplicateNoteId,
-          noteId,
-          noteInfo,
-          expressionText,
-        );
-        if (!handled) {
-          this.deps.showOsdNotification("Field grouping cancelled");
-        }
-      });
-    } catch (error) {
-      log.error(
-        "Error triggering field grouping:",
-        (error as Error).message,
+          if (!handled) {
+            this.deps.showOsdNotification("Field grouping cancelled");
+          }
+        },
       );
+    } catch (error) {
+      log.error("Error triggering field grouping:", (error as Error).message);
       this.deps.showOsdNotification(
         `Field grouping failed: ${(error as Error).message}`,
       );

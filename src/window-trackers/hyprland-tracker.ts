@@ -136,7 +136,9 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
       }
 
       if (
-        commandLine.includes(`--input-ipc-server=${this.targetMpvSocketPath}`) ||
+        commandLine.includes(
+          `--input-ipc-server=${this.targetMpvSocketPath}`,
+        ) ||
         commandLine.includes(`--input-ipc-server ${this.targetMpvSocketPath}`)
       ) {
         return mpvWindow;

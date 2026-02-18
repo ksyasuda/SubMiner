@@ -123,10 +123,10 @@ test("createOverlayShortcutRuntimeHandlers reports async failures via OSD", asyn
     assert.equal(logs.length, 1);
     assert.equal(typeof logs[0]?.[0], "string");
     assert.ok(String(logs[0]?.[0]).includes("markLastCardAsAudioCard failed:"));
+    assert.ok(String(logs[0]?.[0]).includes("audio boom"));
     assert.ok(
-      String(logs[0]?.[0]).includes("audio boom"),
+      osd.some((entry) => entry.includes("Audio card failed: audio boom")),
     );
-    assert.ok(osd.some((entry) => entry.includes("Audio card failed: audio boom")));
   } finally {
     console.error = originalError;
   }
@@ -134,7 +134,8 @@ test("createOverlayShortcutRuntimeHandlers reports async failures via OSD", asyn
 
 test("runOverlayShortcutLocalFallback dispatches matching actions with timeout", () => {
   const handled: string[] = [];
-  const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> = [];
+  const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> =
+    [];
   const shortcuts = makeShortcuts({
     copySubtitleMultiple: "Ctrl+M",
     multiCopyTimeoutMs: 4321,
@@ -170,11 +171,14 @@ test("runOverlayShortcutLocalFallback dispatches matching actions with timeout",
 
   assert.equal(result, true);
   assert.deepEqual(handled, ["copySubtitleMultiple:4321"]);
-  assert.deepEqual(matched, [{ accelerator: "Ctrl+M", allowWhenRegistered: false }]);
+  assert.deepEqual(matched, [
+    { accelerator: "Ctrl+M", allowWhenRegistered: false },
+  ]);
 });
 
 test("runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-sub toggle", () => {
-  const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> = [];
+  const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> =
+    [];
   const shortcuts = makeShortcuts({
     toggleSecondarySub: "Ctrl+2",
   });
@@ -205,11 +209,14 @@ test("runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-s
   );
 
   assert.equal(result, true);
-  assert.deepEqual(matched, [{ accelerator: "Ctrl+2", allowWhenRegistered: true }]);
+  assert.deepEqual(matched, [
+    { accelerator: "Ctrl+2", allowWhenRegistered: true },
+  ]);
 });
 
 test("runOverlayShortcutLocalFallback allows registered-global jimaku shortcut", () => {
-  const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> = [];
+  const matched: Array<{ accelerator: string; allowWhenRegistered: boolean }> =
+    [];
   const shortcuts = makeShortcuts({
     openJimaku: "Ctrl+J",
   });
@@ -240,7 +247,9 @@ test("runOverlayShortcutLocalFallback allows registered-global jimaku shortcut",
   );
 
   assert.equal(result, true);
-  assert.deepEqual(matched, [{ accelerator: "Ctrl+J", allowWhenRegistered: true }]);
+  assert.deepEqual(matched, [
+    { accelerator: "Ctrl+J", allowWhenRegistered: true },
+  ]);
 });
 
 test("runOverlayShortcutLocalFallback returns false when no action matches", () => {

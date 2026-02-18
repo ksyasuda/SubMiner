@@ -46,7 +46,8 @@ export class KnownWordCacheManager {
 
   constructor(private readonly deps: KnownWordCacheDeps) {
     this.statePath = path.normalize(
-      deps.knownWordCacheStatePath || path.join(process.cwd(), "known-words-cache.json"),
+      deps.knownWordCacheStatePath ||
+        path.join(process.cwd(), "known-words-cache.json"),
     );
   }
 
@@ -140,7 +141,10 @@ export class KnownWordCacheManager {
         fs.unlinkSync(this.statePath);
       }
     } catch (error) {
-      log.warn("Failed to clear known-word cache state:", (error as Error).message);
+      log.warn(
+        "Failed to clear known-word cache state:",
+        (error as Error).message,
+      );
     }
   }
 
@@ -171,7 +175,9 @@ export class KnownWordCacheManager {
         const chunkSize = 50;
         for (let i = 0; i < noteIds.length; i += chunkSize) {
           const chunk = noteIds.slice(i, i + chunkSize);
-          const notesInfoResult = (await this.deps.client.notesInfo(chunk)) as unknown[];
+          const notesInfoResult = (await this.deps.client.notesInfo(
+            chunk,
+          )) as unknown[];
           const notesInfo = notesInfoResult as KnownWordCacheNoteInfo[];
 
           for (const noteInfo of notesInfo) {
@@ -196,7 +202,9 @@ export class KnownWordCacheManager {
       );
     } catch (error) {
       log.warn("Failed to refresh known-word cache:", (error as Error).message);
-      this.deps.showStatusNotification("AnkiConnect: unable to refresh known words");
+      this.deps.showStatusNotification(
+        "AnkiConnect: unable to refresh known words",
+      );
     } finally {
       this.isRefreshingKnownWords = false;
     }
@@ -313,7 +321,10 @@ export class KnownWordCacheManager {
       this.knownWordsLastRefreshedAtMs = parsed.refreshedAtMs;
       this.knownWordsScope = parsed.scope;
     } catch (error) {
-      log.warn("Failed to load known-word cache state:", (error as Error).message);
+      log.warn(
+        "Failed to load known-word cache state:",
+        (error as Error).message,
+      );
       this.knownWords = new Set();
       this.knownWordsLastRefreshedAtMs = 0;
       this.knownWordsScope = this.getKnownWordCacheScope();
@@ -330,7 +341,10 @@ export class KnownWordCacheManager {
       };
       fs.writeFileSync(this.statePath, JSON.stringify(state), "utf-8");
     } catch (error) {
-      log.warn("Failed to persist known-word cache state:", (error as Error).message);
+      log.warn(
+        "Failed to persist known-word cache state:",
+        (error as Error).message,
+      );
     }
   }
 
@@ -349,11 +363,16 @@ export class KnownWordCacheManager {
     return true;
   }
 
-  private extractKnownWordsFromNoteInfo(noteInfo: KnownWordCacheNoteInfo): string[] {
+  private extractKnownWordsFromNoteInfo(
+    noteInfo: KnownWordCacheNoteInfo,
+  ): string[] {
     const words: string[] = [];
     const preferredFields = ["Expression", "Word"];
     for (const preferredField of preferredFields) {
-      const fieldName = resolveFieldName(Object.keys(noteInfo.fields), preferredField);
+      const fieldName = resolveFieldName(
+        Object.keys(noteInfo.fields),
+        preferredField,
+      );
       if (!fieldName) continue;
 
       const raw = noteInfo.fields[fieldName]?.value;
@@ -387,12 +406,14 @@ function resolveFieldName(
   if (exact) return exact;
 
   const lower = preferredName.toLowerCase();
-  return availableFieldNames.find((name) => name.toLowerCase() === lower) || null;
+  return (
+    availableFieldNames.find((name) => name.toLowerCase() === lower) || null
+  );
 }
 
 function escapeAnkiSearchValue(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
-    .replace(/\"/g, "\\\"")
+    .replace(/\"/g, '\\"')
     .replace(/([:*?()\[\]{}])/g, "\\$1");
 }

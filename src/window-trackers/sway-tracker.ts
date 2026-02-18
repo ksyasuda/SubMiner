@@ -83,9 +83,10 @@ export class SwayWindowTracker extends BaseWindowTracker {
       return windows[0] || null;
     }
 
-    return windows.find((candidate) =>
-      this.isWindowForTargetSocket(candidate),
-    ) || null;
+    return (
+      windows.find((candidate) => this.isWindowForTargetSocket(candidate)) ||
+      null
+    );
   }
 
   private isWindowForTargetSocket(node: SwayNode): boolean {

@@ -26,7 +26,10 @@ function toMeasuredRect(rect: DOMRect): OverlayContentRect | null {
   };
 }
 
-function unionRects(a: OverlayContentRect, b: OverlayContentRect): OverlayContentRect {
+function unionRects(
+  a: OverlayContentRect,
+  b: OverlayContentRect,
+): OverlayContentRect {
   const left = Math.min(a.x, b.x);
   const top = Math.min(a.y, b.y);
   const right = Math.max(a.x + a.width, b.x + b.width);
@@ -48,7 +51,9 @@ function collectContentRect(ctx: RendererContext): OverlayContentRect | null {
 
   const subtitleHasContent = hasVisibleTextContent(ctx.dom.subtitleRoot);
   if (subtitleHasContent) {
-    const subtitleRect = toMeasuredRect(ctx.dom.subtitleRoot.getBoundingClientRect());
+    const subtitleRect = toMeasuredRect(
+      ctx.dom.subtitleRoot.getBoundingClientRect(),
+    );
     if (subtitleRect) {
       combinedRect = subtitleRect;
     }
