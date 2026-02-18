@@ -185,13 +185,7 @@ export function createKeyboardHandlers(
   }
 
   async function setupMpvInputForwarding(): Promise<void> {
-    const keybindings: Keybinding[] = await window.electronAPI.getKeybindings();
-    ctx.state.keybindingsMap = new Map();
-    for (const binding of keybindings) {
-      if (binding.command) {
-        ctx.state.keybindingsMap.set(binding.key, binding.command);
-      }
-    }
+    updateKeybindings(await window.electronAPI.getKeybindings());
 
     document.addEventListener('keydown', (e: KeyboardEvent) => {
       const yomitanPopup = document.querySelector('iframe[id^="yomitan-popup"]');
@@ -293,7 +287,17 @@ export function createKeyboardHandlers(
     });
   }
 
+  function updateKeybindings(keybindings: Keybinding[]): void {
+    ctx.state.keybindingsMap = new Map();
+    for (const binding of keybindings) {
+      if (binding.command) {
+        ctx.state.keybindingsMap.set(binding.key, binding.command);
+      }
+    }
+  }
+
   return {
     setupMpvInputForwarding,
+    updateKeybindings,
   };
 }

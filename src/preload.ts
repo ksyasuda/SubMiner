@@ -48,6 +48,7 @@ import type {
   MpvSubtitleRenderMetrics,
   OverlayContentMeasurement,
   ShortcutsConfig,
+  ConfigHotReloadPayload,
 } from './types';
 
 const overlayLayerArg = process.argv.find((arg) => arg.startsWith('--overlay-layer='));
@@ -235,6 +236,14 @@ const electronAPI: ElectronAPI = {
   },
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => {
     ipcRenderer.send('overlay-content-bounds:report', measurement);
+  },
+  onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => {
+    ipcRenderer.on(
+      'config:hot-reload',
+      (_event: IpcRendererEvent, payload: ConfigHotReloadPayload) => {
+        callback(payload);
+      },
+    );
   },
 };
 

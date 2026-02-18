@@ -715,11 +715,16 @@ export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'AnkiConnect Integration',
     description: ['Automatic Anki updates and media generation options.'],
+    notes: [
+      'Hot-reload: AI translation settings update live while SubMiner is running.',
+      'Most other AnkiConnect settings still require restart.',
+    ],
     key: 'ankiConnect',
   },
   {
     title: 'Keyboard Shortcuts',
     description: ['Overlay keyboard shortcuts. Set a shortcut to null to disable.'],
+    notes: ['Hot-reload: shortcut changes apply live and update the session help modal on reopen.'],
     key: 'shortcuts',
   },
   {
@@ -737,11 +742,15 @@ export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
       'Extra keybindings that are merged with built-in defaults.',
       'Set command to null to disable a default keybinding.',
     ],
+    notes: [
+      'Hot-reload: keybinding changes apply live and update the session help modal on reopen.',
+    ],
     key: 'keybindings',
   },
   {
     title: 'Subtitle Appearance',
     description: ['Primary and secondary subtitle styling.'],
+    notes: ['Hot-reload: subtitle style changes apply live without restarting SubMiner.'],
     key: 'subtitleStyle',
   },
   {
@@ -750,6 +759,7 @@ export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
       'Dual subtitle track options.',
       'Used by subminer YouTube subtitle generation as secondary language preferences.',
     ],
+    notes: ['Hot-reload: defaultMode updates live while SubMiner is running.'],
     key: 'secondarySub',
   },
   {

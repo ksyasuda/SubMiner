@@ -23,6 +23,9 @@ import {
   shell,
   protocol,
   Extension,
+  Menu,
+  Tray,
+  nativeImage,
 } from 'electron';
 
 protocol.registerSchemesAsPrivileged([
@@ -57,6 +60,7 @@ import type {
   RuntimeOptionState,
   MpvSubtitleRenderMetrics,
   ResolvedConfig,
+  ConfigHotReloadPayload,
 } from './types';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { AnkiIntegration } from './anki-integration';
@@ -119,6 +123,7 @@ import {
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   authenticateWithPasswordRuntime,
+  createConfigHotReloadRuntime,
   resolveJellyfinPlaybackPlanRuntime,
   jellyfinTicksToSecondsRuntime,
   sendMpvCommandRuntime,
@@ -194,6 +199,7 @@ const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
 const ANILIST_TOKEN_STORE_FILE = 'anilist-token-store.json';
 const ANILIST_RETRY_QUEUE_FILE = 'anilist-retry-queue.json';
+const TRAY_TOOLTIP = 'SubMiner';
 
 let anilistCurrentMediaKey: string | null = null;
 let anilistCurrentMediaDurationSec: number | null = null;
@@ -357,6 +363,7 @@ const appState = createAppState({
   mpvSocketPath: getDefaultSocketPath(),
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
 });
+let appTray: Tray | null = null;
 const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
   getConfiguredShortcuts: () => getConfiguredShortcuts(),
   getShortcutsRegistered: () => appState.shortcutsRegistered,
@@ -393,6 +400,64 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
   },
   cancelPendingMineSentenceMultiple: () => {
     cancelPendingMineSentenceMultiple();
+  },
+});
+
+const configHotReloadRuntime = createConfigHotReloadRuntime({
+  getCurrentConfig: () => getResolvedConfig(),
+  reloadConfigStrict: () => configService.reloadConfigStrict(),
+  watchConfigPath: (configPath, onChange) => {
+    const watchTarget = fs.existsSync(configPath) ? configPath : path.dirname(configPath);
+    const watcher = fs.watch(watchTarget, (_eventType, filename) => {
+      if (watchTarget === configPath) {
+        onChange();
+        return;
+      }
+
+      const normalized =
+        typeof filename === 'string' ? filename : filename ? String(filename) : undefined;
+      if (!normalized || normalized === 'config.json' || normalized === 'config.jsonc') {
+        onChange();
+      }
+    });
+    return {
+      close: () => {
+        watcher.close();
+      },
+    };
+  },
+  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearTimeout: (timeout) => clearTimeout(timeout),
+  debounceMs: 250,
+  onHotReloadApplied: (diff, config) => {
+    const payload = buildConfigHotReloadPayload(config);
+    appState.keybindings = payload.keybindings;
+
+    if (diff.hotReloadFields.includes('shortcuts')) {
+      refreshGlobalAndOverlayShortcuts();
+    }
+
+    if (diff.hotReloadFields.includes('secondarySub.defaultMode')) {
+      appState.secondarySubMode = payload.secondarySubMode;
+      broadcastToOverlayWindows('secondary-subtitle:mode', payload.secondarySubMode);
+    }
+
+    if (diff.hotReloadFields.includes('ankiConnect.ai') && appState.ankiIntegration) {
+      appState.ankiIntegration.applyRuntimeConfigPatch({ ai: config.ankiConnect.ai });
+    }
+
+    if (diff.hotReloadFields.length > 0) {
+      broadcastToOverlayWindows('config:hot-reload', payload);
+    }
+  },
+  onRestartRequired: (fields) => {
+    const message = `Config updated; restart required for: ${fields.join(', ')}`;
+    showMpvOsd(message);
+    showDesktopNotification('SubMiner', { body: message });
+  },
+  onInvalidConfig: (message) => {
+    showMpvOsd(message);
+    showDesktopNotification('SubMiner', { body: message });
   },
 });
 
@@ -590,6 +655,28 @@ function openRuntimeOptionsPalette(): void {
 function getResolvedConfig() {
   return configService.getConfig();
 }
+
+function resolveSubtitleStyleForRenderer(config: ResolvedConfig) {
+  if (!config.subtitleStyle) {
+    return null;
+  }
+  return {
+    ...config.subtitleStyle,
+    nPlusOneColor: config.ankiConnect.nPlusOne.nPlusOne,
+    knownWordColor: config.ankiConnect.nPlusOne.knownWord,
+    enableJlpt: config.subtitleStyle.enableJlpt,
+    frequencyDictionary: config.subtitleStyle.frequencyDictionary,
+  };
+}
+
+function buildConfigHotReloadPayload(config: ResolvedConfig): ConfigHotReloadPayload {
+  return {
+    keybindings: resolveKeybindings(config, DEFAULT_KEYBINDINGS),
+    subtitleStyle: resolveSubtitleStyleForRenderer(config),
+    secondarySubMode: config.secondarySub.defaultMode,
+  };
+}
+
 function getResolvedJellyfinConfig() {
   return getResolvedConfig().jellyfin;
 }
@@ -2084,6 +2171,7 @@ const startupState = runStartupBootstrapRuntime(
         reloadConfig: () => {
           configService.reloadConfig();
           appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
+          configHotReloadRuntime.start();
           void refreshAnilistClientSecretState({ force: true });
         },
         getResolvedConfig: () => getResolvedConfig(),
@@ -2172,11 +2260,13 @@ const startupState = runStartupBootstrapRuntime(
         },
         texthookerOnlyMode: appState.texthookerOnlyMode,
         shouldAutoInitializeOverlayRuntimeFromConfig: () =>
-          shouldAutoInitializeOverlayRuntimeFromConfig(),
+          appState.backgroundMode ? false : shouldAutoInitializeOverlayRuntimeFromConfig(),
         initializeOverlayRuntime: () => initializeOverlayRuntime(),
         handleInitialArgs: () => handleInitialArgs(),
       }),
       onWillQuitCleanup: () => {
+        destroyTray();
+        configHotReloadRuntime.stop();
         restorePreviousSecondarySubVisibility();
         globalShortcut.unregisterAll();
         subtitleWsService.stop();
@@ -2224,6 +2314,7 @@ const startupState = runStartupBootstrapRuntime(
         overlayVisibilityRuntime.updateVisibleOverlayVisibility();
         overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
       },
+      shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
     }),
   }),
 );
@@ -2296,6 +2387,9 @@ function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): 
 
 function handleInitialArgs(): void {
   if (!appState.initialArgs) return;
+  if (appState.backgroundMode) {
+    ensureTray();
+  }
   if (
     !appState.texthookerOnlyMode &&
     appState.immersionTracker &&
@@ -2529,6 +2623,103 @@ function createInvisibleWindow(): BrowserWindow {
   return window;
 }
 
+function resolveTrayIconPath(): string | null {
+  const candidates = [
+    path.join(process.resourcesPath, 'assets', 'SubMiner.png'),
+    path.join(app.getAppPath(), 'assets', 'SubMiner.png'),
+    path.join(__dirname, '..', 'assets', 'SubMiner.png'),
+    path.join(__dirname, '..', '..', 'assets', 'SubMiner.png'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function buildTrayMenu(): Menu {
+  return Menu.buildFromTemplate([
+    {
+      label: 'Open Overlay',
+      click: () => {
+        if (!appState.overlayRuntimeInitialized) {
+          initializeOverlayRuntime();
+        }
+        setVisibleOverlayVisible(true);
+      },
+    },
+    {
+      label: 'Open Yomitan Settings',
+      click: () => {
+        openYomitanSettings();
+      },
+    },
+    {
+      label: 'Open Runtime Options',
+      click: () => {
+        if (!appState.overlayRuntimeInitialized) {
+          initializeOverlayRuntime();
+        }
+        openRuntimeOptionsPalette();
+      },
+    },
+    {
+      label: 'Configure Jellyfin',
+      click: () => {
+        openJellyfinSetupWindow();
+      },
+    },
+    {
+      label: 'Configure AniList',
+      click: () => {
+        openAnilistSetupWindow();
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+}
+
+function ensureTray(): void {
+  if (appTray) {
+    appTray.setContextMenu(buildTrayMenu());
+    return;
+  }
+
+  const iconPath = resolveTrayIconPath();
+  let trayIcon = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
+  if (trayIcon.isEmpty()) {
+    logger.warn('Tray icon asset not found; using empty icon placeholder.');
+  }
+  if (process.platform === 'linux' && !trayIcon.isEmpty()) {
+    trayIcon = trayIcon.resize({ width: 20, height: 20 });
+  }
+
+  appTray = new Tray(trayIcon);
+  appTray.setToolTip(TRAY_TOOLTIP);
+  appTray.setContextMenu(buildTrayMenu());
+  appTray.on('click', () => {
+    if (!appState.overlayRuntimeInitialized) {
+      initializeOverlayRuntime();
+    }
+    setVisibleOverlayVisible(true);
+  });
+}
+
+function destroyTray(): void {
+  if (!appTray) {
+    return;
+  }
+  appTray.destroy();
+  appTray = null;
+}
+
 function initializeOverlayRuntime(): void {
   if (appState.overlayRuntimeInitialized) {
     return;
@@ -2598,6 +2789,12 @@ function registerGlobalShortcuts(): void {
     isDev,
     getMainWindow: () => overlayManager.getMainWindow(),
   });
+}
+
+function refreshGlobalAndOverlayShortcuts(): void {
+  globalShortcut.unregisterAll();
+  registerGlobalShortcuts();
+  syncOverlayShortcuts();
 }
 
 function getConfiguredShortcuts() {
@@ -2916,17 +3113,7 @@ registerIpcRuntimeServices({
     getSubtitlePosition: () => loadSubtitlePosition(),
     getSubtitleStyle: () => {
       const resolvedConfig = getResolvedConfig();
-      if (!resolvedConfig.subtitleStyle) {
-        return null;
-      }
-
-      return {
-        ...resolvedConfig.subtitleStyle,
-        nPlusOneColor: resolvedConfig.ankiConnect.nPlusOne.nPlusOne,
-        knownWordColor: resolvedConfig.ankiConnect.nPlusOne.knownWord,
-        enableJlpt: resolvedConfig.subtitleStyle.enableJlpt,
-        frequencyDictionary: resolvedConfig.subtitleStyle.frequencyDictionary,
-      };
+      return resolveSubtitleStyleForRenderer(resolvedConfig);
     },
     saveSubtitlePosition: (position: unknown) => saveSubtitlePosition(position as SubtitlePosition),
     getMecabTokenizer: () => appState.mecabTokenizer,

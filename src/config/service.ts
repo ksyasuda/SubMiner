@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { parse as parseJsonc } from 'jsonc-parser';
+import { parse as parseJsonc, type ParseError } from 'jsonc-parser';
 import { Config, ConfigValidationWarning, RawConfig, ResolvedConfig } from '../types';
 import { DEFAULT_CONFIG, deepCloneConfig, deepMergeRawConfig } from './definitions';
 
@@ -8,6 +8,19 @@ interface LoadResult {
   config: RawConfig;
   path: string;
 }
+
+export type ReloadConfigStrictResult =
+  | {
+      ok: true;
+      config: ResolvedConfig;
+      warnings: ConfigValidationWarning[];
+      path: string;
+    }
+  | {
+      ok: false;
+      error: string;
+      path: string;
+    };
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -91,6 +104,26 @@ export class ConfigService {
     return this.getConfig();
   }
 
+  reloadConfigStrict(): ReloadConfigStrictResult {
+    const loadResult = this.loadRawConfigStrict();
+    if (!loadResult.ok) {
+      return loadResult;
+    }
+
+    const { config, path: configPath } = loadResult;
+    this.rawConfig = config;
+    this.configPathInUse = configPath;
+    const { resolved, warnings } = this.resolveConfig(config);
+    this.resolvedConfig = resolved;
+    this.warnings = warnings;
+    return {
+      ok: true,
+      config: this.getConfig(),
+      warnings: [...warnings],
+      path: configPath,
+    };
+  }
+
   saveRawConfig(config: RawConfig): void {
     if (!fs.existsSync(this.configDir)) {
       fs.mkdirSync(this.configDir, { recursive: true });
@@ -112,6 +145,20 @@ export class ConfigService {
   }
 
   private loadRawConfig(): LoadResult {
+    const strictResult = this.loadRawConfigStrict();
+    if (strictResult.ok) {
+      return strictResult;
+    }
+    return { config: {}, path: strictResult.path };
+  }
+
+  private loadRawConfigStrict():
+    | (LoadResult & { ok: true })
+    | {
+        ok: false;
+        error: string;
+        path: string;
+      } {
     const configPath = fs.existsSync(this.configFileJsonc)
       ? this.configFileJsonc
       : fs.existsSync(this.configFileJson)
@@ -119,18 +166,29 @@ export class ConfigService {
         : this.configFileJsonc;
 
     if (!fs.existsSync(configPath)) {
-      return { config: {}, path: configPath };
+      return { ok: true, config: {}, path: configPath };
     }
 
     try {
       const data = fs.readFileSync(configPath, 'utf-8');
-      const parsed = configPath.endsWith('.jsonc') ? parseJsonc(data) : JSON.parse(data);
+      const parsed = configPath.endsWith('.jsonc')
+        ? (() => {
+            const errors: ParseError[] = [];
+            const result = parseJsonc(data, errors);
+            if (errors.length > 0) {
+              throw new Error(`Invalid JSONC (${errors[0]?.error ?? 'unknown'})`);
+            }
+            return result;
+          })()
+        : JSON.parse(data);
       return {
+        ok: true,
         config: isObject(parsed) ? (parsed as Config) : {},
         path: configPath,
       };
-    } catch {
-      return { config: {}, path: configPath };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown parse error';
+      return { ok: false, error: message, path: configPath };
     }
   }
 

@@ -24,6 +24,7 @@ import type {
   SubtitleData,
   SubtitlePosition,
   SubsyncManualPayload,
+  ConfigHotReloadPayload,
 } from '../types';
 import { createKeyboardHandlers } from './handlers/keyboard.js';
 import { createMouseHandlers } from './handlers/mouse.js';
@@ -195,6 +196,12 @@ async function init(): Promise<void> {
 
   window.electronAPI.onRuntimeOptionsChanged((options: RuntimeOptionState[]) => {
     runtimeOptionsModal.updateRuntimeOptions(options);
+  });
+  window.electronAPI.onConfigHotReload((payload: ConfigHotReloadPayload) => {
+    keyboardHandlers.updateKeybindings(payload.keybindings);
+    subtitleRenderer.applySubtitleStyle(payload.subtitleStyle);
+    subtitleRenderer.updateSecondarySubMode(payload.secondarySubMode);
+    measurementReporter.schedule();
   });
   window.electronAPI.onOpenRuntimeOptions(() => {
     runtimeOptionsModal.openRuntimeOptionsModal().catch(() => {

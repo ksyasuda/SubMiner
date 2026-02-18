@@ -11,6 +11,21 @@ You can use both together—install the plugin for on-demand control, but use `s
 
 `subminer` is implemented as a Bun script and runs directly via shebang (no `bun run` needed), for example: `subminer video.mkv`.
 
+## Live Config Reload
+
+While SubMiner is running, it watches your active config file and applies safe updates automatically.
+
+Live-updated settings:
+
+- `subtitleStyle`
+- `keybindings`
+- `shortcuts`
+- `secondarySub.defaultMode`
+- `ankiConnect.ai`
+
+Invalid config edits are rejected; SubMiner keeps the previous valid runtime config and shows an error notification.
+For restart-required sections, SubMiner shows a restart-needed notification.
+
 ## Commands
 
 ```bash
@@ -46,6 +61,7 @@ subminer yt -o ~/subs https://youtu.be/...  # YouTube subcommand: output directo
 subminer yt --mode preprocess --whisper-bin /path/to/whisper-cli --whisper-model /path/to/model.bin https://youtu.be/...  # Pre-generate subtitle tracks before playback
 
 # Direct AppImage control
+SubMiner.AppImage --background             # Start in background (tray + IPC wait, minimal logs)
 SubMiner.AppImage --start --texthooker   # Start overlay with texthooker
 SubMiner.AppImage --texthooker           # Launch texthooker only (no overlay window)
 SubMiner.AppImage --stop                  # Stop overlay
@@ -73,6 +89,8 @@ SubMiner.AppImage --help                  # Show all options
 
 - `--log-level` controls logger verbosity.
 - `--dev` and `--debug` are app/dev-mode switches; they are not log-level aliases.
+- `--background` defaults to quieter logging (`warn`) unless `--log-level` is set.
+- Linux desktop launcher starts SubMiner with `--background` by default.
 - Use both when needed, for example `SubMiner.AppImage --start --dev --log-level debug`.
 
 ### Launcher Subcommands

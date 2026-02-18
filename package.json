@@ -17,7 +17,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:config:dist": "node --test dist/config/config.test.js",
-    "test:core:dist": "node --test dist/cli/args.test.js dist/cli/help.test.js dist/core/services/cli-command.test.js dist/core/services/ipc.test.js dist/core/services/field-grouping-overlay.test.js dist/core/services/numeric-shortcut-session.test.js dist/core/services/secondary-subtitle.test.js dist/core/services/mpv-render-metrics.test.js dist/core/services/overlay-content-measurement.test.js dist/core/services/mpv-control.test.js dist/core/services/mpv.test.js dist/core/services/runtime-options-ipc.test.js dist/core/services/runtime-config.test.js dist/core/services/tokenizer.test.js dist/core/services/subsync.test.js dist/core/services/overlay-bridge.test.js dist/core/services/overlay-manager.test.js dist/core/services/overlay-shortcut-handler.test.js dist/core/services/mining.test.js dist/core/services/anki-jimaku.test.js dist/core/services/jellyfin.test.js dist/core/services/jellyfin-remote.test.js dist/core/services/immersion-tracker-service.test.js dist/core/services/app-ready.test.js dist/core/services/startup-bootstrap.test.js dist/core/services/anilist/anilist-token-store.test.js dist/core/services/anilist/anilist-update-queue.test.js dist/subsync/utils.test.js dist/main/anilist-url-guard.test.js",
+    "test:core:dist": "node --test dist/cli/args.test.js dist/cli/help.test.js dist/core/services/cli-command.test.js dist/core/services/ipc.test.js dist/core/services/field-grouping-overlay.test.js dist/core/services/numeric-shortcut-session.test.js dist/core/services/secondary-subtitle.test.js dist/core/services/mpv-render-metrics.test.js dist/core/services/overlay-content-measurement.test.js dist/core/services/mpv-control.test.js dist/core/services/mpv.test.js dist/core/services/runtime-options-ipc.test.js dist/core/services/runtime-config.test.js dist/core/services/config-hot-reload.test.js dist/core/services/tokenizer.test.js dist/core/services/subsync.test.js dist/core/services/overlay-bridge.test.js dist/core/services/overlay-manager.test.js dist/core/services/overlay-shortcut-handler.test.js dist/core/services/mining.test.js dist/core/services/anki-jimaku.test.js dist/core/services/jellyfin.test.js dist/core/services/jellyfin-remote.test.js dist/core/services/immersion-tracker-service.test.js dist/core/services/app-ready.test.js dist/core/services/startup-bootstrap.test.js dist/core/services/anilist/anilist-token-store.test.js dist/core/services/anilist/anilist-update-queue.test.js dist/subsync/utils.test.js dist/main/anilist-url-guard.test.js",
     "test:subtitle:dist": "echo \"Subtitle tests are currently not configured\"",
     "test": "bun run test:config && bun run test:core",
     "test:config": "bun run build && bun run test:config:dist",
@@ -77,7 +77,10 @@
       "target": [
         "AppImage"
       ],
-      "category": "AudioVideo"
+      "category": "AudioVideo",
+      "executableArgs": [
+        "--background"
+      ]
     },
     "mac": {
       "target": [

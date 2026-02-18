@@ -18,6 +18,7 @@
 - **Subtitle Download & Sync** — Search Jimaku, sync with alass or ffsubsync — all from the player
 - **Queue Control In-Player** — Drop videos on overlay to load/queue in mpv; `Ctrl/Cmd+A` appends clipboard path
 - **Keyboard-Driven** — Mine, copy, cycle display modes, and navigate from configurable shortcuts
+- **Config Hot Reload** — Apply subtitle style and shortcut updates from `config.jsonc` without restarting
 - **Japanese Tokenization** — MeCab-powered word boundary detection with smart grouping
 
 ## Requirements
@@ -67,6 +68,8 @@ For macOS builds and platform details, see the [installation docs](docs/installa
    ```bash
    subminer video.mkv
    ```
+
+Config tip: while SubMiner is running, safe config edits (subtitle style, keybindings, shortcuts, secondary subtitle default mode, and `ankiConnect.ai`) hot-reload automatically.
 
 ```bash
 subminer                        # pick video from cwd (fzf)

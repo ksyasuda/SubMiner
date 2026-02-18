@@ -42,6 +42,25 @@ SubMiner.AppImage --generate-config --backup-overwrite
 
 Invalid config values are handled with warn-and-fallback behavior: SubMiner logs the bad key/value and continues with the default for that option.
 
+### Hot-Reload Behavior
+
+SubMiner watches the active config file (`config.jsonc` or `config.json`) while running and applies supported updates automatically.
+
+Hot-reloadable fields:
+
+- `subtitleStyle`
+- `keybindings`
+- `shortcuts`
+- `secondarySub.defaultMode`
+- `ankiConnect.ai`
+
+When these values change, SubMiner applies them live. Invalid config edits are rejected and the previous valid runtime config remains active.
+
+Restart-required changes:
+
+- Any other config sections still require restart.
+- SubMiner shows an on-screen/system notification listing restart-required sections when they change.
+
 ### Configuration Options Overview
 
 The configuration file includes several main sections:
@@ -295,6 +314,8 @@ The list is generated at runtime from:
 - Your active mpv keybindings (`keybindings`).
 - Your configured overlay shortcuts (`shortcuts`, including runtime-loaded config values).
 - Current subtitle color settings from `subtitleStyle`.
+
+When config hot-reload updates shortcut/keybinding/style values, close and reopen the help modal to refresh the displayed entries.
 
 ### Auto-Start Overlay
 

@@ -258,6 +258,55 @@ test('parses jsonc and warns/falls back on invalid value', () => {
   assert.ok(service.getWarnings().some((w) => w.path === 'websocket.port'));
 });
 
+test('reloadConfigStrict rejects invalid jsonc and preserves previous config', () => {
+  const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
+  fs.writeFileSync(
+    configPath,
+    `{
+    "logging": {
+      "level": "warn"
+    }
+  }`,
+  );
+
+  const service = new ConfigService(dir);
+  assert.equal(service.getConfig().logging.level, 'warn');
+
+  fs.writeFileSync(
+    configPath,
+    `{
+    "logging":`,
+  );
+
+  const result = service.reloadConfigStrict();
+  assert.equal(result.ok, false);
+  if (result.ok) {
+    throw new Error('Expected strict reload to fail on invalid JSONC.');
+  }
+  assert.equal(result.path, configPath);
+  assert.equal(service.getConfig().logging.level, 'warn');
+});
+
+test('reloadConfigStrict rejects invalid json and preserves previous config', () => {
+  const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.json');
+  fs.writeFileSync(configPath, JSON.stringify({ logging: { level: 'error' } }, null, 2));
+
+  const service = new ConfigService(dir);
+  assert.equal(service.getConfig().logging.level, 'error');
+
+  fs.writeFileSync(configPath, '{"logging":');
+
+  const result = service.reloadConfigStrict();
+  assert.equal(result.ok, false);
+  if (result.ok) {
+    throw new Error('Expected strict reload to fail on invalid JSON.');
+  }
+  assert.equal(result.path, configPath);
+  assert.equal(service.getConfig().logging.level, 'error');
+});
+
 test('accepts valid logging.level', () => {
   const dir = makeTempDir();
   fs.writeFileSync(

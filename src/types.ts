@@ -709,6 +709,12 @@ export type JimakuDownloadResult =
   | { ok: true; path: string }
   | { ok: false; error: JimakuApiError };
 
+export interface ConfigHotReloadPayload {
+  keybindings: Keybinding[];
+  subtitleStyle: SubtitleStyleConfig | null;
+  secondarySubMode: SecondarySubMode;
+}
+
 export interface ElectronAPI {
   getOverlayLayer: () => 'visible' | 'invisible' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
@@ -763,6 +769,7 @@ export interface ElectronAPI {
   appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
   notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku') => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
+  onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;
 }
 
 declare global {
