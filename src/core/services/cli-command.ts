@@ -49,6 +49,7 @@ export interface CliCommandServiceDeps {
   };
   clearAnilistToken: () => void;
   openAnilistSetup: () => void;
+  openJellyfinSetup: () => void;
   getAnilistQueueStatus: () => {
     pending: number;
     ready: number;
@@ -57,6 +58,7 @@ export interface CliCommandServiceDeps {
     lastError: string | null;
   };
   retryAnilistQueue: () => Promise<{ ok: boolean; message: string }>;
+  runJellyfinCommand: (args: CliArgs) => Promise<void>;
   printHelp: () => void;
   hasMainWindow: () => boolean;
   getMultiCopyTimeoutMs: () => number;
@@ -138,6 +140,10 @@ export interface CliCommandDepsRuntimeOptions {
   overlay: OverlayCliRuntime;
   mining: MiningCliRuntime;
   anilist: AnilistCliRuntime;
+  jellyfin: {
+    openSetup: () => void;
+    runCommand: (args: CliArgs) => Promise<void>;
+  };
   ui: UiCliRuntime;
   app: AppCliRuntime;
   getMultiCopyTimeoutMs: () => number;
@@ -201,8 +207,10 @@ export function createCliCommandDepsRuntime(
     getAnilistStatus: options.anilist.getStatus,
     clearAnilistToken: options.anilist.clearToken,
     openAnilistSetup: options.anilist.openSetup,
+    openJellyfinSetup: options.jellyfin.openSetup,
     getAnilistQueueStatus: options.anilist.getQueueStatus,
     retryAnilistQueue: options.anilist.retryQueueNow,
+    runJellyfinCommand: options.jellyfin.runCommand,
     printHelp: options.ui.printHelp,
     hasMainWindow: options.app.hasMainWindow,
     getMultiCopyTimeoutMs: options.getMultiCopyTimeoutMs,
@@ -262,9 +270,18 @@ export function handleCliCommand(
     args.anilistLogout ||
     args.anilistSetup ||
     args.anilistRetryQueue ||
+    args.jellyfin ||
+    args.jellyfinLogin ||
+    args.jellyfinLogout ||
+    args.jellyfinLibraries ||
+    args.jellyfinItems ||
+    args.jellyfinSubtitles ||
+    args.jellyfinPlay ||
+    args.jellyfinRemoteAnnounce ||
     args.texthooker ||
     args.help;
-  const ignoreStartOnly = source === "second-instance" && args.start && !hasNonStartAction;
+  const ignoreStartOnly =
+    source === "second-instance" && args.start && !hasNonStartAction;
   if (ignoreStartOnly) {
     deps.log("Ignoring --start because SubMiner is already running.");
     return;
@@ -402,6 +419,9 @@ export function handleCliCommand(
   } else if (args.anilistSetup) {
     deps.openAnilistSetup();
     deps.log("Opened AniList setup flow.");
+  } else if (args.jellyfin) {
+    deps.openJellyfinSetup();
+    deps.log("Opened Jellyfin setup flow.");
   } else if (args.anilistRetryQueue) {
     const queueStatus = deps.getAnilistQueueStatus();
     deps.log(
@@ -416,6 +436,21 @@ export function handleCliCommand(
       deps,
       "retryAnilistQueue",
       "AniList retry failed",
+    );
+  } else if (
+    args.jellyfinLogin ||
+    args.jellyfinLogout ||
+    args.jellyfinLibraries ||
+    args.jellyfinItems ||
+    args.jellyfinSubtitles ||
+    args.jellyfinPlay ||
+    args.jellyfinRemoteAnnounce
+  ) {
+    runAsyncWithOsd(
+      () => deps.runJellyfinCommand(args),
+      deps,
+      "runJellyfinCommand",
+      "Jellyfin command failed",
     );
   } else if (args.texthooker) {
     const texthookerPort = deps.getTexthookerPort();

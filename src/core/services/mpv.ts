@@ -1,9 +1,5 @@
 import { EventEmitter } from "events";
-import {
-  Config,
-  MpvClient,
-  MpvSubtitleRenderMetrics,
-} from "../../types";
+import { Config, MpvClient, MpvSubtitleRenderMetrics } from "../../types";
 import {
   dispatchMpvProtocolMessage,
   MPV_REQUEST_ID_TRACK_LIST_AUDIO,
@@ -12,11 +8,11 @@ import {
   MpvProtocolHandleMessageDeps,
   splitMpvMessagesFromBuffer,
 } from "./mpv-protocol";
-import { requestMpvInitialState, subscribeToMpvProperties } from "./mpv-properties";
 import {
-  scheduleMpvReconnect,
-  MpvSocketTransport,
-} from "./mpv-transport";
+  requestMpvInitialState,
+  subscribeToMpvProperties,
+} from "./mpv-properties";
+import { scheduleMpvReconnect, MpvSocketTransport } from "./mpv-transport";
 import { createLogger } from "../../logger";
 
 const logger = createLogger("main:mpv");
@@ -42,7 +38,9 @@ export function resolveCurrentAudioStreamIndex(
     audioTracks.find((track) => track.selected === true);
 
   const ffIndex = activeTrack?.["ff-index"];
-  return typeof ffIndex === "number" && Number.isInteger(ffIndex) && ffIndex >= 0
+  return typeof ffIndex === "number" &&
+    Number.isInteger(ffIndex) &&
+    ffIndex >= 0
     ? ffIndex
     : null;
 }
@@ -97,9 +95,7 @@ export function setMpvSubVisibilityRuntime(
   mpvClient.setSubVisibility(visible);
 }
 
-export {
-  MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
-} from "./mpv-protocol";
+export { MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY } from "./mpv-protocol";
 
 export interface MpvIpcClientProtocolDeps {
   getResolvedConfig: () => Config;
@@ -114,6 +110,7 @@ export interface MpvIpcClientProtocolDeps {
 export interface MpvIpcClientDeps extends MpvIpcClientProtocolDeps {}
 
 export interface MpvIpcClientEventMap {
+  "connection-change": { connected: boolean };
   "subtitle-change": { text: string; isOverlayVisible: boolean };
   "subtitle-ass-change": { text: string };
   "subtitle-timing": { text: string; start: number; end: number };
@@ -171,10 +168,7 @@ export class MpvIpcClient implements MpvClient {
   private nextDynamicRequestId = 1000;
   private pendingRequests = new Map<number, (message: MpvMessage) => void>();
 
-  constructor(
-    socketPath: string,
-    deps: MpvIpcClientDeps,
-  ) {
+  constructor(socketPath: string, deps: MpvIpcClientDeps) {
     this.deps = deps;
 
     this.transport = new MpvSocketTransport({
@@ -184,6 +178,7 @@ export class MpvIpcClient implements MpvClient {
         this.connected = true;
         this.connecting = false;
         this.socket = this.transport.getSocket();
+        this.emit("connection-change", { connected: true });
         this.reconnectAttempt = 0;
         this.hasConnectedOnce = true;
         this.setSecondarySubVisibility(false);
@@ -217,6 +212,7 @@ export class MpvIpcClient implements MpvClient {
         this.connected = false;
         this.connecting = false;
         this.socket = null;
+        this.emit("connection-change", { connected: false });
         this.failPendingRequests();
         this.scheduleReconnect();
       },
@@ -512,7 +508,11 @@ export class MpvIpcClient implements MpvClient {
     const previous = this.previousSecondarySubVisibility;
     if (previous === null) return;
     this.send({
-      command: ["set_property", "secondary-sub-visibility", previous ? "yes" : "no"],
+      command: [
+        "set_property",
+        "secondary-sub-visibility",
+        previous ? "yes" : "no",
+      ],
     });
     this.previousSecondarySubVisibility = null;
   }

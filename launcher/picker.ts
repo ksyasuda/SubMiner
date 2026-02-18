@@ -185,11 +185,14 @@ function showRofiIconMenu(
   if (initialQuery) rofiArgs.push("-filter", initialQuery);
   if (themePath) {
     rofiArgs.push("-theme", themePath);
+    rofiArgs.push("-theme-str", "configuration { show-icons: true; }");
+    rofiArgs.push("-theme-str", "element-icon { enabled: true; size: 3em; }");
   } else {
     rofiArgs.push(
       "-theme-str",
-      'configuration { font: "Noto Sans CJK JP Regular 8";}',
+      'configuration { font: "Noto Sans CJK JP Regular 8"; show-icons: true; }',
     );
+    rofiArgs.push("-theme-str", "element-icon { enabled: true; size: 3em; }");
   }
 
   const lines = entries.map((entry) =>
@@ -197,11 +200,12 @@ function showRofiIconMenu(
       ? `${entry.label}\u0000icon\u001f${entry.iconPath}`
       : entry.label
   );
+  const input = Buffer.from(`${lines.join("\n")}\n`, "utf8");
   const result = spawnSync(
     "rofi",
     rofiArgs,
     {
-      input: `${lines.join("\n")}\n`,
+      input,
       encoding: "utf8",
       stdio: ["pipe", "pipe", "ignore"],
     },

@@ -35,10 +35,7 @@ export const MPV_REQUEST_ID_TRACK_LIST_SECONDARY = 200;
 export const MPV_REQUEST_ID_TRACK_LIST_AUDIO = 201;
 
 export type MpvMessageParser = (message: MpvMessage) => void;
-export type MpvParseErrorHandler = (
-  line: string,
-  error: unknown,
-) => void;
+export type MpvParseErrorHandler = (line: string, error: unknown) => void;
 
 export interface MpvProtocolParseResult {
   messages: MpvMessage[];
@@ -46,12 +43,21 @@ export interface MpvProtocolParseResult {
 }
 
 export interface MpvProtocolHandleMessageDeps {
-  getResolvedConfig: () => { secondarySub?: { secondarySubLanguages?: Array<string> } };
+  getResolvedConfig: () => {
+    secondarySub?: { secondarySubLanguages?: Array<string> };
+  };
   getSubtitleMetrics: () => MpvSubtitleRenderMetrics;
   isVisibleOverlayVisible: () => boolean;
-  emitSubtitleChange: (payload: { text: string; isOverlayVisible: boolean }) => void;
+  emitSubtitleChange: (payload: {
+    text: string;
+    isOverlayVisible: boolean;
+  }) => void;
   emitSubtitleAssChange: (payload: { text: string }) => void;
-  emitSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
+  emitSubtitleTiming: (payload: {
+    text: string;
+    start: number;
+    end: number;
+  }) => void;
   emitSecondarySubtitleChange: (payload: { text: string }) => void;
   getCurrentSubText: () => string;
   setCurrentSubText: (text: string) => void;
@@ -63,7 +69,9 @@ export interface MpvProtocolHandleMessageDeps {
   emitMediaTitleChange: (payload: { title: string | null }) => void;
   emitTimePosChange: (payload: { time: number }) => void;
   emitPauseChange: (payload: { paused: boolean }) => void;
-  emitSubtitleMetricsChange: (payload: Partial<MpvSubtitleRenderMetrics>) => void;
+  emitSubtitleMetricsChange: (
+    payload: Partial<MpvSubtitleRenderMetrics>,
+  ) => void;
   setCurrentSecondarySubText: (text: string) => void;
   resolvePendingRequest: (requestId: number, message: MpvMessage) => boolean;
   setSecondarySubVisibility: (visible: boolean) => void;
@@ -87,7 +95,10 @@ export interface MpvProtocolHandleMessageDeps {
       "ff-index"?: number;
     }>,
   ) => void;
-  sendCommand: (payload: { command: unknown[]; request_id?: number }) => boolean;
+  sendCommand: (payload: {
+    command: unknown[];
+    request_id?: number;
+  }) => boolean;
   restorePreviousSecondarySubVisibility: () => void;
 }
 
@@ -129,7 +140,10 @@ export async function dispatchMpvProtocolMessage(
     if (msg.name === "sub-text") {
       const nextSubText = (msg.data as string) || "";
       const overlayVisible = deps.isVisibleOverlayVisible();
-      deps.emitSubtitleChange({ text: nextSubText, isOverlayVisible: overlayVisible });
+      deps.emitSubtitleChange({
+        text: nextSubText,
+        isOverlayVisible: overlayVisible,
+      });
       deps.setCurrentSubText(nextSubText);
     } else if (msg.name === "sub-text-ass") {
       deps.emitSubtitleAssChange({ text: (msg.data as string) || "" });
@@ -378,10 +392,7 @@ export async function dispatchMpvProtocolMessage(
   }
 }
 
-export function asBoolean(
-  value: unknown,
-  fallback: boolean,
-): boolean {
+export function asBoolean(value: unknown, fallback: boolean): boolean {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
   if (typeof value === "string") {
@@ -392,10 +403,7 @@ export function asBoolean(
   return fallback;
 }
 
-export function asFiniteNumber(
-  value: unknown,
-  fallback: number,
-): number {
+export function asFiniteNumber(value: unknown, fallback: number): number {
   const nextValue = Number(value);
   return Number.isFinite(nextValue) ? nextValue : fallback;
 }

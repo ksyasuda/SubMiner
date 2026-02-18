@@ -270,7 +270,9 @@ const electronAPI: ElectronAPI = {
       callback();
     });
   },
-  notifyOverlayModalClosed: (modal: "runtime-options" | "subsync" | "jimaku") => {
+  notifyOverlayModalClosed: (
+    modal: "runtime-options" | "subsync" | "jimaku",
+  ) => {
     ipcRenderer.send("overlay:modal-closed", modal);
   },
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => {

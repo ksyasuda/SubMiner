@@ -1,5 +1,5 @@
-import fs from "node:fs";
 import path from "node:path";
+import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import type { Args, JellyfinSessionConfig, JellyfinLibraryEntry, JellyfinItemEntry, JellyfinGroupEntry } from "./types.js";
 import { log, fail } from "./log.js";
@@ -115,6 +115,39 @@ export async function resolveJellyfinSelection(
   session: JellyfinSessionConfig,
   themePath: string | null = null,
 ): Promise<string> {
+  const asNumberOrNull = (value: unknown): number | null => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return null;
+    return value;
+  };
+  const compareByName = (left: string, right: string): number =>
+    left.localeCompare(right, undefined, { sensitivity: "base", numeric: true });
+  const sortEntries = (
+    entries: Array<{
+      type: string;
+      name: string;
+      parentIndex: number | null;
+      index: number | null;
+      display: string;
+    }>,
+  ) =>
+    entries.sort((left, right) => {
+      if (left.type === "Episode" && right.type === "Episode") {
+        const leftSeason = left.parentIndex ?? Number.MAX_SAFE_INTEGER;
+        const rightSeason = right.parentIndex ?? Number.MAX_SAFE_INTEGER;
+        if (leftSeason !== rightSeason) return leftSeason - rightSeason;
+        const leftEpisode = left.index ?? Number.MAX_SAFE_INTEGER;
+        const rightEpisode = right.index ?? Number.MAX_SAFE_INTEGER;
+        if (leftEpisode !== rightEpisode) return leftEpisode - rightEpisode;
+      }
+      if (left.type !== right.type) {
+        const leftEpisodeLike = left.type === "Episode";
+        const rightEpisodeLike = right.type === "Episode";
+        if (leftEpisodeLike && !rightEpisodeLike) return -1;
+        if (!leftEpisodeLike && rightEpisodeLike) return 1;
+      }
+      return compareByName(left.display, right.display);
+    });
+
   const libsPayload = await jellyfinApiRequest<{ Items?: Array<Record<string, unknown>> }>(
     session,
     `/Users/${session.userId}/Views`,
@@ -194,6 +227,7 @@ export async function resolveJellyfinSelection(
     .filter((entry) => entry.id.length > 0);
 
   let contentParentId = libraryId;
+  let contentRecursive = true;
   const selectedGroupId = pickGroup(
     session,
     groups,
@@ -222,6 +256,7 @@ export async function resolveJellyfinSelection(
       })
       .filter((entry) => entry.id.length > 0);
     if (seasons.length > 0) {
+      const seasonsById = new Map(seasons.map((entry) => [entry.id, entry]));
       const selectedSeasonId = pickGroup(
         session,
         seasons,
@@ -232,6 +267,10 @@ export async function resolveJellyfinSelection(
       );
       if (!selectedSeasonId) fail("No Jellyfin season selected.");
       contentParentId = selectedSeasonId;
+      const selectedSeason = seasonsById.get(selectedSeasonId);
+      if (selectedSeason?.type === "Season") {
+        contentRecursive = false;
+      }
     }
   }
 
@@ -241,7 +280,7 @@ export async function resolveJellyfinSelection(
       TotalRecordCount?: number;
     }>(
       session,
-      `/Users/${session.userId}/Items?ParentId=${encodeURIComponent(contentParentId)}&Recursive=true&SortBy=SortName&SortOrder=Ascending&Limit=500&StartIndex=${startIndex}`,
+      `/Users/${session.userId}/Items?ParentId=${encodeURIComponent(contentParentId)}&Recursive=${contentRecursive ? "true" : "false"}&SortBy=SortName&SortOrder=Ascending&Limit=500&StartIndex=${startIndex}`,
     );
 
   const allEntries: Array<Record<string, unknown>> = [];
@@ -259,7 +298,8 @@ export async function resolveJellyfinSelection(
     if (page.length < 500) break;
   }
 
-  let items: JellyfinItemEntry[] = allEntries
+  let items: JellyfinItemEntry[] = sortEntries(
+    allEntries
     .filter((item) => {
       const type = typeof item.Type === "string" ? item.Type : "";
       return type === "Movie" || type === "Episode" || type === "Audio";
@@ -268,12 +308,21 @@ export async function resolveJellyfinSelection(
       id: typeof item.Id === "string" ? item.Id : "",
       name: typeof item.Name === "string" ? item.Name : "",
       type: typeof item.Type === "string" ? item.Type : "Item",
+      parentIndex: asNumberOrNull(item.ParentIndexNumber),
+      index: asNumberOrNull(item.IndexNumber),
       display: formatJellyfinItemDisplay(item),
     }))
-    .filter((item) => item.id.length > 0);
+    .filter((item) => item.id.length > 0),
+  ).map(({ id, name, type, display }) => ({
+    id,
+    name,
+    type,
+    display,
+  }));
 
   if (items.length === 0) {
-    items = allEntries
+    items = sortEntries(
+      allEntries
       .filter((item) => {
         const type = typeof item.Type === "string" ? item.Type : "";
         if (type === "Folder" || type === "CollectionFolder") return false;
@@ -292,9 +341,17 @@ export async function resolveJellyfinSelection(
         id: typeof item.Id === "string" ? item.Id : "",
         name: typeof item.Name === "string" ? item.Name : "",
         type: typeof item.Type === "string" ? item.Type : "Item",
+        parentIndex: asNumberOrNull(item.ParentIndexNumber),
+        index: asNumberOrNull(item.IndexNumber),
         display: formatJellyfinItemDisplay(item),
       }))
-      .filter((item) => item.id.length > 0);
+      .filter((item) => item.id.length > 0),
+    ).map(({ id, name, type, display }) => ({
+      id,
+      name,
+      type,
+      display,
+    }));
   }
 
   const itemId = pickItem(session, items, args.useRofi, ensureJellyfinIcon, "", themePath);
@@ -335,19 +392,23 @@ export async function runJellyfinPlayMenu(
 
   const itemId = await resolveJellyfinSelection(args, session, rofiTheme);
   log("debug", args.logLevel, `Jellyfin selection resolved: itemId=${itemId}`);
-  try {
-    fs.rmSync(mpvSocketPath, { force: true });
-  } catch {
-    // ignore cleanup errors
-  }
   log("debug", args.logLevel, `Ensuring MPV IPC socket is ready: ${mpvSocketPath}`);
-  launchMpvIdleDetached(mpvSocketPath, appPath, args);
-  const mpvReady = await waitForUnixSocketReady(mpvSocketPath, 8000);
+  let mpvReady = false;
+  if (fs.existsSync(mpvSocketPath)) {
+    mpvReady = await waitForUnixSocketReady(mpvSocketPath, 250);
+  }
+  if (!mpvReady) {
+    await launchMpvIdleDetached(mpvSocketPath, appPath, args);
+    mpvReady = await waitForUnixSocketReady(mpvSocketPath, 8000);
+  }
   log(
     "debug",
     args.logLevel,
     `MPV socket ready check result: ${mpvReady ? "ready" : "not ready"}`,
   );
+  if (!mpvReady) {
+    fail(`MPV IPC socket not ready: ${mpvSocketPath}`);
+  }
   const forwarded = ["--start", "--jellyfin-play", "--jellyfin-item-id", itemId];
   if (args.logLevel !== "info") forwarded.push("--log-level", args.logLevel);
   runAppCommandWithInheritLogged(appPath, forwarded, args.logLevel, "jellyfin-play");

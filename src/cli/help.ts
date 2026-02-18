@@ -1,44 +1,79 @@
 export function printHelp(defaultTexthookerPort: number): void {
+  const tty = process.stdout?.isTTY ?? false;
+  const B = tty ? "\x1b[1m" : "";
+  const D = tty ? "\x1b[2m" : "";
+  const R = tty ? "\x1b[0m" : "";
+
   console.log(`
-SubMiner CLI commands:
-  --start               Start MPV IPC connection and overlay control loop
-  --stop                Stop the running overlay app
-  --toggle              Toggle visible subtitle overlay visibility (legacy alias)
-  --toggle-visible-overlay    Toggle visible subtitle overlay visibility
-  --toggle-invisible-overlay  Toggle invisible interactive overlay visibility
-  --settings            Open Yomitan settings window
-  --texthooker          Launch texthooker only (no overlay window)
-  --show                Force show visible overlay (legacy alias)
-  --hide                Force hide visible overlay (legacy alias)
-  --show-visible-overlay       Force show visible subtitle overlay
-  --hide-visible-overlay       Force hide visible subtitle overlay
-  --show-invisible-overlay     Force show invisible interactive overlay
-  --hide-invisible-overlay     Force hide invisible interactive overlay
-  --copy-subtitle              Copy current subtitle text
-  --copy-subtitle-multiple     Start multi-copy mode
-  --mine-sentence              Mine sentence card from current subtitle
-  --mine-sentence-multiple     Start multi-mine sentence mode
-   --update-last-card-from-clipboard  Update last card from clipboard
-   --refresh-known-words          Refresh known words cache now
-   --toggle-secondary-sub       Cycle secondary subtitle mode
-  --trigger-field-grouping     Trigger Kiku field grouping
-  --trigger-subsync            Run subtitle sync
-  --mark-audio-card            Mark last card as audio card
-  --open-runtime-options       Open runtime options palette
-  --anilist-status             Show AniList token and retry queue status
-  --anilist-logout             Clear stored AniList token
-  --anilist-setup              Open AniList setup flow in app/browser
-  --anilist-retry-queue        Retry next ready AniList queue item now
-  --auto-start-overlay  Auto-hide mpv subtitles on connect (show overlay)
-   --socket PATH         Override MPV IPC socket/pipe path
-   --backend BACKEND     Override window tracker backend (auto, hyprland, sway, x11, macos)
-   --port PORT           Texthooker server port (default: ${defaultTexthookerPort})
-    --debug               Enable app/dev mode
-    --log-level LEVEL     Set log level: debug, info, warn, error
-   --generate-config     Generate default config.jsonc from centralized config registry
-   --config-path PATH    Target config path for --generate-config
-   --backup-overwrite    With --generate-config, backup and overwrite existing file
-   --dev                 Alias for --debug (app/dev mode)
-    --help                Show this help
+${B}SubMiner${R} — Japanese sentence mining with mpv + Yomitan
+
+${B}Usage:${R} subminer ${D}[command] [options]${R}
+
+${B}Session${R}
+  --start                        Connect to mpv and launch overlay
+  --stop                         Stop the running instance
+  --texthooker                   Start texthooker server only ${D}(no overlay)${R}
+
+${B}Overlay${R}
+  --toggle-visible-overlay       Toggle subtitle overlay
+  --toggle-invisible-overlay     Toggle interactive overlay ${D}(Yomitan lookup)${R}
+  --show-visible-overlay         Show subtitle overlay
+  --hide-visible-overlay         Hide subtitle overlay
+  --show-invisible-overlay       Show interactive overlay
+  --hide-invisible-overlay       Hide interactive overlay
+  --settings                     Open Yomitan settings window
+  --auto-start-overlay           Auto-hide mpv subs, show overlay on connect
+
+${B}Mining${R}
+  --mine-sentence                Create Anki card from current subtitle
+  --mine-sentence-multiple       Select multiple lines, then mine
+  --copy-subtitle                Copy current subtitle to clipboard
+  --copy-subtitle-multiple       Enter multi-line copy mode
+  --update-last-card-from-clipboard  Update last Anki card from clipboard
+  --mark-audio-card              Mark last card as audio-only
+  --trigger-field-grouping       Run Kiku field grouping
+  --trigger-subsync              Run subtitle sync
+  --toggle-secondary-sub         Cycle secondary subtitle mode
+  --refresh-known-words          Refresh known words cache
+  --open-runtime-options         Open runtime options palette
+
+${B}AniList${R}
+  --anilist-setup                Open AniList authentication flow
+  --anilist-status               Show token and retry queue status
+  --anilist-logout               Clear stored AniList token
+  --anilist-retry-queue          Retry next queued update
+
+${B}Jellyfin${R}
+  --jellyfin                     Open Jellyfin setup window
+  --jellyfin-login               Authenticate and store session token
+  --jellyfin-logout              Clear stored session data
+  --jellyfin-libraries           List available libraries
+  --jellyfin-items               List items from a library
+  --jellyfin-subtitles           List subtitle tracks for an item
+  --jellyfin-subtitle-urls       Print subtitle download URLs only
+  --jellyfin-play                Stream an item in mpv
+  --jellyfin-remote-announce     Broadcast cast-target capability
+
+  ${D}Jellyfin options:${R}
+  --jellyfin-server ${D}URL${R}          Server URL ${D}(overrides config)${R}
+  --jellyfin-username ${D}NAME${R}       Username for login
+  --jellyfin-password ${D}PASS${R}       Password for login
+  --jellyfin-library-id ${D}ID${R}       Library to browse
+  --jellyfin-item-id ${D}ID${R}          Item to play or inspect
+  --jellyfin-search ${D}QUERY${R}        Filter items by search term
+  --jellyfin-limit ${D}N${R}             Max items returned
+  --jellyfin-audio-stream-index ${D}N${R}       Audio stream override
+  --jellyfin-subtitle-stream-index ${D}N${R}    Subtitle stream override
+
+${B}Options${R}
+  --socket ${D}PATH${R}                  mpv IPC socket path
+  --backend ${D}BACKEND${R}              Window tracker ${D}(auto, hyprland, sway, x11, macos)${R}
+  --port ${D}PORT${R}                    Texthooker server port ${D}(default: ${defaultTexthookerPort})${R}
+  --log-level ${D}LEVEL${R}              ${D}debug | info | warn | error${R}
+  --debug                        Enable debug mode ${D}(alias: --dev)${R}
+  --generate-config              Write default config.jsonc
+  --config-path ${D}PATH${R}             Target path for --generate-config
+  --backup-overwrite             Backup existing config before overwrite
+  --help                         Show this help
 `);
 }

@@ -19,7 +19,10 @@ type SessionHelpSection = {
   title: string;
   rows: SessionHelpItem[];
 };
-type RuntimeShortcutConfig = Omit<Required<ShortcutsConfig>, "multiCopyTimeoutMs">;
+type RuntimeShortcutConfig = Omit<
+  Required<ShortcutsConfig>,
+  "multiCopyTimeoutMs"
+>;
 
 const HEX_COLOR_RE =
   /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
@@ -84,7 +87,10 @@ const OVERLAY_SHORTCUTS: Array<{
 }> = [
   { key: "copySubtitle", label: "Copy subtitle" },
   { key: "copySubtitleMultiple", label: "Copy subtitle (multi)" },
-  { key: "updateLastCardFromClipboard", label: "Update last card from clipboard" },
+  {
+    key: "updateLastCardFromClipboard",
+    label: "Update last card from clipboard",
+  },
   { key: "triggerFieldGrouping", label: "Trigger field grouping" },
   { key: "triggerSubsync", label: "Open subtitle sync controls" },
   { key: "mineSentence", label: "Mine sentence" },
@@ -128,10 +134,14 @@ function describeCommand(command: (string | number)[]): string {
   if (first === "sub-seek" && typeof command[1] === "number") {
     return `Shift subtitle by ${command[1]} ms`;
   }
-  if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) return "Open subtitle sync controls";
-  if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN) return "Open runtime options";
-  if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) return "Replay current subtitle";
-  if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE) return "Play next subtitle";
+  if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER)
+    return "Open subtitle sync controls";
+  if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN)
+    return "Open runtime options";
+  if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE)
+    return "Replay current subtitle";
+  if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE)
+    return "Play next subtitle";
   if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
     const [, rawId, rawDirection] = first.split(":");
     return `Cycle runtime option ${rawId || "option"} ${rawDirection === "prev" ? "previous" : "next"}`;
@@ -154,7 +164,11 @@ function sectionForCommand(command: (string | number)[]): string {
     return "Playback and navigation";
   }
 
-  if (first === "show-text" || first === "show-progress" || first.startsWith("osd")) {
+  if (
+    first === "show-text" ||
+    first === "show-progress" ||
+    first.startsWith("osd")
+  ) {
     return "Visual feedback";
   }
 
@@ -221,38 +235,80 @@ function buildColorSection(style: {
     rows: [
       {
         shortcut: "Known words",
-        action: normalizeColor(style.knownWordColor, FALLBACK_COLORS.knownWordColor),
-        color: normalizeColor(style.knownWordColor, FALLBACK_COLORS.knownWordColor),
+        action: normalizeColor(
+          style.knownWordColor,
+          FALLBACK_COLORS.knownWordColor,
+        ),
+        color: normalizeColor(
+          style.knownWordColor,
+          FALLBACK_COLORS.knownWordColor,
+        ),
       },
       {
         shortcut: "N+1 words",
-        action: normalizeColor(style.nPlusOneColor, FALLBACK_COLORS.nPlusOneColor),
-        color: normalizeColor(style.nPlusOneColor, FALLBACK_COLORS.nPlusOneColor),
+        action: normalizeColor(
+          style.nPlusOneColor,
+          FALLBACK_COLORS.nPlusOneColor,
+        ),
+        color: normalizeColor(
+          style.nPlusOneColor,
+          FALLBACK_COLORS.nPlusOneColor,
+        ),
       },
       {
         shortcut: "JLPT N1",
-        action: normalizeColor(style.jlptColors?.N1, FALLBACK_COLORS.jlptN1Color),
-        color: normalizeColor(style.jlptColors?.N1, FALLBACK_COLORS.jlptN1Color),
+        action: normalizeColor(
+          style.jlptColors?.N1,
+          FALLBACK_COLORS.jlptN1Color,
+        ),
+        color: normalizeColor(
+          style.jlptColors?.N1,
+          FALLBACK_COLORS.jlptN1Color,
+        ),
       },
       {
         shortcut: "JLPT N2",
-        action: normalizeColor(style.jlptColors?.N2, FALLBACK_COLORS.jlptN2Color),
-        color: normalizeColor(style.jlptColors?.N2, FALLBACK_COLORS.jlptN2Color),
+        action: normalizeColor(
+          style.jlptColors?.N2,
+          FALLBACK_COLORS.jlptN2Color,
+        ),
+        color: normalizeColor(
+          style.jlptColors?.N2,
+          FALLBACK_COLORS.jlptN2Color,
+        ),
       },
       {
         shortcut: "JLPT N3",
-        action: normalizeColor(style.jlptColors?.N3, FALLBACK_COLORS.jlptN3Color),
-        color: normalizeColor(style.jlptColors?.N3, FALLBACK_COLORS.jlptN3Color),
+        action: normalizeColor(
+          style.jlptColors?.N3,
+          FALLBACK_COLORS.jlptN3Color,
+        ),
+        color: normalizeColor(
+          style.jlptColors?.N3,
+          FALLBACK_COLORS.jlptN3Color,
+        ),
       },
       {
         shortcut: "JLPT N4",
-        action: normalizeColor(style.jlptColors?.N4, FALLBACK_COLORS.jlptN4Color),
-        color: normalizeColor(style.jlptColors?.N4, FALLBACK_COLORS.jlptN4Color),
+        action: normalizeColor(
+          style.jlptColors?.N4,
+          FALLBACK_COLORS.jlptN4Color,
+        ),
+        color: normalizeColor(
+          style.jlptColors?.N4,
+          FALLBACK_COLORS.jlptN4Color,
+        ),
       },
       {
         shortcut: "JLPT N5",
-        action: normalizeColor(style.jlptColors?.N5, FALLBACK_COLORS.jlptN5Color),
-        color: normalizeColor(style.jlptColors?.N5, FALLBACK_COLORS.jlptN5Color),
+        action: normalizeColor(
+          style.jlptColors?.N5,
+          FALLBACK_COLORS.jlptN5Color,
+        ),
+        color: normalizeColor(
+          style.jlptColors?.N5,
+          FALLBACK_COLORS.jlptN5Color,
+        ),
       },
     ],
   };
@@ -423,8 +479,7 @@ export function createSessionHelpModal(
 
   function isSessionHelpModalFocusTarget(target: EventTarget | null): boolean {
     return (
-      target instanceof Element &&
-      ctx.dom.sessionHelpModal.contains(target)
+      target instanceof Element && ctx.dom.sessionHelpModal.contains(target)
     );
   }
 
@@ -493,7 +548,9 @@ export function createSessionHelpModal(
     });
 
     if (getItems().length === 0) {
-      ctx.dom.sessionHelpContent.classList.add("session-help-content-no-results");
+      ctx.dom.sessionHelpContent.classList.add(
+        "session-help-content-no-results",
+      );
       ctx.dom.sessionHelpContent.textContent = helpFilterValue
         ? "No matching shortcuts found."
         : "No active session shortcuts found.";
@@ -501,7 +558,9 @@ export function createSessionHelpModal(
       return;
     }
 
-    ctx.dom.sessionHelpContent.classList.remove("session-help-content-no-results");
+    ctx.dom.sessionHelpContent.classList.remove(
+      "session-help-content-no-results",
+    );
 
     if (isFilterInputFocused()) return;
 
@@ -519,14 +578,23 @@ export function createSessionHelpModal(
       requestOverlayFocus();
       enforceModalFocus();
     };
-    ctx.dom.sessionHelpModal.addEventListener("pointerdown", modalPointerFocusGuard);
+    ctx.dom.sessionHelpModal.addEventListener(
+      "pointerdown",
+      modalPointerFocusGuard,
+    );
     ctx.dom.sessionHelpModal.addEventListener("click", modalPointerFocusGuard);
   }
 
   function removePointerFocusListener(): void {
     if (!modalPointerFocusGuard) return;
-    ctx.dom.sessionHelpModal.removeEventListener("pointerdown", modalPointerFocusGuard);
-    ctx.dom.sessionHelpModal.removeEventListener("click", modalPointerFocusGuard);
+    ctx.dom.sessionHelpModal.removeEventListener(
+      "pointerdown",
+      modalPointerFocusGuard,
+    );
+    ctx.dom.sessionHelpModal.removeEventListener(
+      "click",
+      modalPointerFocusGuard,
+    );
     modalPointerFocusGuard = null;
   }
 
@@ -593,7 +661,9 @@ export function createSessionHelpModal(
     }
   }
 
-  async function openSessionHelpModal(opening: SessionHelpBindingInfo): Promise<void> {
+  async function openSessionHelpModal(
+    opening: SessionHelpBindingInfo,
+  ): Promise<void> {
     openBinding = opening;
     priorFocus = document.activeElement;
 
@@ -604,7 +674,8 @@ export function createSessionHelpModal(
       ctx.dom.sessionHelpWarning.textContent =
         "Both Y-H and Y-K are bound; Y-K remains the fallback for this session.";
     } else if (openBinding.fallbackUsed) {
-      ctx.dom.sessionHelpWarning.textContent = "Y-H is already bound; using Y-K as fallback.";
+      ctx.dom.sessionHelpWarning.textContent =
+        "Y-H is already bound; using Y-K as fallback.";
     } else {
       ctx.dom.sessionHelpWarning.textContent = "";
     }
@@ -655,7 +726,10 @@ export function createSessionHelpModal(
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.sessionHelpModal.classList.add("hidden");
     ctx.dom.sessionHelpModal.setAttribute("aria-hidden", "true");
-    if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
+    if (
+      !ctx.state.isOverSubtitle &&
+      !options.modalStateReader.isAnyModalOpen()
+    ) {
       ctx.dom.overlay.classList.remove("interactive");
     }
 
@@ -676,7 +750,10 @@ export function createSessionHelpModal(
       ctx.dom.overlay.focus({ preventScroll: true });
     }
     if (ctx.platform.shouldToggleMouseIgnore) {
-      if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
+      if (
+        !ctx.state.isOverSubtitle &&
+        !options.modalStateReader.isAnyModalOpen()
+      ) {
         window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
       } else {
         window.electronAPI.setIgnoreMouseEvents(false);
@@ -716,13 +793,7 @@ export function createSessionHelpModal(
     const items = getItems();
     if (items.length === 0) return true;
 
-    if (
-      e.key === "/" &&
-      !e.ctrlKey &&
-      !e.metaKey &&
-      !e.altKey &&
-      !e.shiftKey
-    ) {
+    if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
       e.preventDefault();
       focusFilterInput();
       return true;
@@ -730,21 +801,13 @@ export function createSessionHelpModal(
 
     const key = e.key.toLowerCase();
 
-    if (
-      key === "arrowdown" ||
-      key === "j" ||
-      key === "l"
-    ) {
+    if (key === "arrowdown" || key === "j" || key === "l") {
       e.preventDefault();
       setSelected(ctx.state.sessionHelpSelectedIndex + 1);
       return true;
     }
 
-    if (
-      key === "arrowup" ||
-      key === "k" ||
-      key === "h"
-    ) {
+    if (key === "arrowup" || key === "k" || key === "h") {
       e.preventDefault();
       setSelected(ctx.state.sessionHelpSelectedIndex - 1);
       return true;
@@ -759,22 +822,28 @@ export function createSessionHelpModal(
       applyFilterAndRender();
     });
 
-    ctx.dom.sessionHelpFilter.addEventListener("keydown", (event: KeyboardEvent) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        focusFallbackTarget();
-      }
-    });
+    ctx.dom.sessionHelpFilter.addEventListener(
+      "keydown",
+      (event: KeyboardEvent) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          focusFallbackTarget();
+        }
+      },
+    );
 
-    ctx.dom.sessionHelpContent.addEventListener("click", (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const row = target.closest(".session-help-item") as HTMLElement | null;
-      if (!row) return;
-      const index = Number.parseInt(row.dataset.sessionHelpIndex ?? "", 10);
-      if (!Number.isFinite(index)) return;
-      setSelected(index);
-    });
+    ctx.dom.sessionHelpContent.addEventListener(
+      "click",
+      (event: MouseEvent) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const row = target.closest(".session-help-item") as HTMLElement | null;
+        if (!row) return;
+        const index = Number.parseInt(row.dataset.sessionHelpIndex ?? "", 10);
+        if (!Number.isFinite(index)) return;
+        setSelected(index);
+      },
+    );
 
     ctx.dom.sessionHelpClose.addEventListener("click", () => {
       closeSessionHelpModal();

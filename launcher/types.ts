@@ -48,7 +48,8 @@ export const DEFAULT_MPV_SUBMINER_ARGS = [
   "--sid=auto",
   "--secondary-sid=auto",
   "--secondary-sub-visibility=no",
-  "--slang=ja,jpn,en,eng",
+  "--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us",
+  "--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us",
 ] as const;
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -88,6 +89,13 @@ export interface Args {
   jellyfinLogin: boolean;
   jellyfinLogout: boolean;
   jellyfinPlay: boolean;
+  jellyfinDiscovery: boolean;
+  doctor: boolean;
+  configPath: boolean;
+  configShow: boolean;
+  mpvIdle: boolean;
+  mpvSocket: boolean;
+  mpvStatus: boolean;
   jellyfinServer: string;
   jellyfinUsername: string;
   jellyfinPassword: string;

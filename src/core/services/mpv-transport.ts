@@ -38,9 +38,7 @@ export interface MpvReconnectSchedulerDeps {
   connect: () => void;
 }
 
-export function scheduleMpvReconnect(
-  deps: MpvReconnectSchedulerDeps,
-): number {
+export function scheduleMpvReconnect(deps: MpvReconnectSchedulerDeps): number {
   const reconnectTimer = deps.getReconnectTimer();
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);

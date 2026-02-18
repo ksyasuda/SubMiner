@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import type { Args } from "./types.js";
 import { log, fail } from "./log.js";
 import {
@@ -13,6 +14,7 @@ import { showRofiMenu, showFzfMenu, collectVideos } from "./picker.js";
 import {
   state, startMpv, startOverlay, stopOverlay, launchTexthookerOnly,
   findAppBinary, waitForSocket, loadSubtitleIntoMpv, runAppCommandWithInherit,
+  launchMpvIdleDetached, waitForUnixSocketReady,
 } from "./mpv.js";
 import { generateYoutubeSubtitles } from "./youtube.js";
 import { runJellyfinPlayMenu } from "./jellyfin.js";
@@ -94,6 +96,77 @@ function registerCleanup(args: Args): void {
   });
 }
 
+function resolveMainConfigPath(): string {
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+  const baseDirs = Array.from(new Set([xdgConfigHome, path.join(os.homedir(), ".config")]));
+  const appNames = ["SubMiner", "subminer"];
+  for (const baseDir of baseDirs) {
+    for (const appName of appNames) {
+      const jsoncPath = path.join(baseDir, appName, "config.jsonc");
+      if (fs.existsSync(jsoncPath)) return jsoncPath;
+      const jsonPath = path.join(baseDir, appName, "config.json");
+      if (fs.existsSync(jsonPath)) return jsonPath;
+    }
+  }
+  return path.join(baseDirs[0], "SubMiner", "config.jsonc");
+}
+
+function runDoctor(args: Args, appPath: string | null, mpvSocketPath: string): never {
+  const checks: Array<{ label: string; ok: boolean; detail: string }> = [
+    {
+      label: "app binary",
+      ok: Boolean(appPath),
+      detail: appPath || "not found (set SUBMINER_APPIMAGE_PATH)",
+    },
+    {
+      label: "mpv",
+      ok: commandExists("mpv"),
+      detail: commandExists("mpv") ? "found" : "missing",
+    },
+    {
+      label: "yt-dlp",
+      ok: commandExists("yt-dlp"),
+      detail: commandExists("yt-dlp") ? "found" : "missing (optional unless YouTube URLs)",
+    },
+    {
+      label: "ffmpeg",
+      ok: commandExists("ffmpeg"),
+      detail: commandExists("ffmpeg") ? "found" : "missing (optional unless subtitle generation)",
+    },
+    {
+      label: "fzf",
+      ok: commandExists("fzf"),
+      detail: commandExists("fzf") ? "found" : "missing (optional if using rofi)",
+    },
+    {
+      label: "rofi",
+      ok: commandExists("rofi"),
+      detail: commandExists("rofi") ? "found" : "missing (optional if using fzf)",
+    },
+    {
+      label: "config",
+      ok: fs.existsSync(resolveMainConfigPath()),
+      detail: resolveMainConfigPath(),
+    },
+    {
+      label: "mpv socket path",
+      ok: true,
+      detail: mpvSocketPath,
+    },
+  ];
+
+  const hasHardFailure = checks.some(
+    (entry) => entry.label === "app binary" || entry.label === "mpv"
+      ? !entry.ok
+      : false,
+  );
+
+  for (const check of checks) {
+    log(check.ok ? "info" : "warn", args.logLevel, `[doctor] ${check.label}: ${check.detail}`);
+  }
+  process.exit(hasHardFailure ? 1 : 0);
+}
+
 async function main(): Promise<void> {
   const scriptPath = process.argv[1] || "subminer";
   const scriptName = path.basename(scriptPath);
@@ -106,6 +179,43 @@ async function main(): Promise<void> {
   log("debug", args.logLevel, `Wrapper log level set to: ${args.logLevel}`);
 
   const appPath = findAppBinary(process.argv[1] || "subminer");
+  if (args.doctor) {
+    runDoctor(args, appPath, mpvSocketPath);
+  }
+
+  if (args.configPath) {
+    process.stdout.write(`${resolveMainConfigPath()}\n`);
+    return;
+  }
+
+  if (args.configShow) {
+    const configPath = resolveMainConfigPath();
+    if (!fs.existsSync(configPath)) {
+      fail(`Config file not found: ${configPath}`);
+    }
+    const contents = fs.readFileSync(configPath, "utf8");
+    process.stdout.write(contents);
+    if (!contents.endsWith("\n")) {
+      process.stdout.write("\n");
+    }
+    return;
+  }
+
+  if (args.mpvSocket) {
+    process.stdout.write(`${mpvSocketPath}\n`);
+    return;
+  }
+
+  if (args.mpvStatus) {
+    const ready = await waitForUnixSocketReady(mpvSocketPath, 500);
+    log(
+      ready ? "info" : "warn",
+      args.logLevel,
+      `[mpv] socket ${ready ? "ready" : "not ready"}: ${mpvSocketPath}`,
+    );
+    process.exit(ready ? 0 : 1);
+  }
+
   if (!appPath) {
     if (process.platform === "darwin") {
       fail(
@@ -117,6 +227,16 @@ async function main(): Promise<void> {
     );
   }
   state.appPath = appPath;
+
+  if (args.mpvIdle) {
+    await launchMpvIdleDetached(mpvSocketPath, appPath, args);
+    const ready = await waitForUnixSocketReady(mpvSocketPath, 8000);
+    if (!ready) {
+      fail(`MPV IPC socket not ready after idle launch: ${mpvSocketPath}`);
+    }
+    log("info", args.logLevel, `[mpv] idle instance ready on ${mpvSocketPath}`);
+    return;
+  }
 
   if (args.texthookerOnly) {
     launchTexthookerOnly(appPath, args);
@@ -164,6 +284,12 @@ async function main(): Promise<void> {
       fail("rofi not found. Install rofi or omit -R for fzf.");
     }
     await runJellyfinPlayMenu(appPath, args, scriptPath, mpvSocketPath);
+  }
+
+  if (args.jellyfinDiscovery) {
+    const forwarded = ["--start"];
+    if (args.logLevel !== "info") forwarded.push("--log-level", args.logLevel);
+    runAppCommandWithInherit(appPath, forwarded);
   }
 
   if (!args.target) {
