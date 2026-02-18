@@ -45,23 +45,21 @@ export function sendToVisibleOverlayRuntime<T extends string>(options: {
   return true;
 }
 
-export function createFieldGroupingCallbackRuntime<T extends string>(
-  options: {
-    getVisibleOverlayVisible: () => boolean;
-    getInvisibleOverlayVisible: () => boolean;
-    setVisibleOverlayVisible: (visible: boolean) => void;
-    setInvisibleOverlayVisible: (visible: boolean) => void;
-    getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
-    setResolver: (
-      resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
-    ) => void;
-    sendToVisibleOverlay: (
-      channel: string,
-      payload?: unknown,
-      runtimeOptions?: { restoreOnModalClose?: T },
-    ) => boolean;
-  },
-): (data: KikuFieldGroupingRequestData) => Promise<KikuFieldGroupingChoice> {
+export function createFieldGroupingCallbackRuntime<T extends string>(options: {
+  getVisibleOverlayVisible: () => boolean;
+  getInvisibleOverlayVisible: () => boolean;
+  setVisibleOverlayVisible: (visible: boolean) => void;
+  setInvisibleOverlayVisible: (visible: boolean) => void;
+  getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
+  setResolver: (
+    resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
+  ) => void;
+  sendToVisibleOverlay: (
+    channel: string,
+    payload?: unknown,
+    runtimeOptions?: { restoreOnModalClose?: T },
+  ) => boolean;
+}): (data: KikuFieldGroupingRequestData) => Promise<KikuFieldGroupingChoice> {
   return createFieldGroupingCallback({
     getVisibleOverlayVisible: options.getVisibleOverlayVisible,
     getInvisibleOverlayVisible: options.getInvisibleOverlayVisible,

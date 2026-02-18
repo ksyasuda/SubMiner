@@ -51,7 +51,19 @@
   // ==========================================
   "immersionTracking": {
     "enabled": true,
-    "dbPath": ""
+    "dbPath": "",
+    "batchSize": 25,
+    "flushIntervalMs": 500,
+    "queueCap": 1000,
+    "payloadCapBytes": 256,
+    "maintenanceIntervalMs": 86400000,
+    "retention": {
+      "eventsDays": 7,
+      "telemetryDays": 30,
+      "dailyRollupsDays": 365,
+      "monthlyRollupsDays": 1825,
+      "vacuumIntervalDays": 7
+    }
   },
 
   // ==========================================
@@ -268,5 +280,39 @@
   "anilist": {
     "enabled": false,
     "accessToken": ""
+  },
+
+  // ==========================================
+  // Jellyfin
+  // Optional Jellyfin integration for auth, browsing, and playback launch.
+  // Access token is stored in config and should be treated as a secret.
+  // ==========================================
+  "jellyfin": {
+    "enabled": false,
+    "serverUrl": "",
+    "username": "",
+    "accessToken": "",
+    "userId": "",
+    "deviceId": "subminer",
+    "clientName": "SubMiner",
+    "clientVersion": "0.1.0",
+    "defaultLibraryId": "",
+    "remoteControlEnabled": true,
+    "remoteControlAutoConnect": true,
+    "autoAnnounce": false,
+    "remoteControlDeviceName": "SubMiner",
+    "pullPictures": false,
+    "iconCacheDir": "/tmp/subminer-jellyfin-icons",
+    "directPlayPreferred": true,
+    "directPlayContainers": [
+      "mkv",
+      "mp4",
+      "webm",
+      "mov",
+      "flac",
+      "mp3",
+      "aac"
+    ],
+    "transcodeVideoCodec": "h264"
   }
 }

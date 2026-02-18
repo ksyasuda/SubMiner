@@ -38,11 +38,13 @@ export function shouldIgnoreJlptByTerm(term: string): boolean {
 export const JLPT_IGNORED_MECAB_POS1_ENTRIES = [
   {
     pos1: "助詞",
-    reason: "Particles (ko/kara/nagara etc.): mostly grammatical glue, not independent vocabulary.",
+    reason:
+      "Particles (ko/kara/nagara etc.): mostly grammatical glue, not independent vocabulary.",
   },
   {
     pos1: "助動詞",
-    reason: "Auxiliary verbs (past tense, politeness, modality): grammar helpers.",
+    reason:
+      "Auxiliary verbs (past tense, politeness, modality): grammar helpers.",
   },
   {
     pos1: "記号",
@@ -54,7 +56,7 @@ export const JLPT_IGNORED_MECAB_POS1_ENTRIES = [
   },
   {
     pos1: "連体詞",
-    reason: "Adnominal forms (e.g. demonstratives like \"この\").",
+    reason: 'Adnominal forms (e.g. demonstratives like "この").',
   },
   {
     pos1: "感動詞",
@@ -62,7 +64,8 @@ export const JLPT_IGNORED_MECAB_POS1_ENTRIES = [
   },
   {
     pos1: "接続詞",
-    reason: "Conjunctions that connect clauses, usually not target vocab items.",
+    reason:
+      "Conjunctions that connect clauses, usually not target vocab items.",
   },
   {
     pos1: "接頭詞",

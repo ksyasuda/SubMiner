@@ -1,6 +1,10 @@
 import { CliArgs } from "../../cli/args";
 import type { LogLevelSource } from "../../logger";
-import { ConfigValidationWarning, ResolvedConfig, SecondarySubMode } from "../../types";
+import {
+  ConfigValidationWarning,
+  ResolvedConfig,
+  SecondarySubMode,
+} from "../../types";
 
 export interface StartupBootstrapRuntimeState {
   initialArgs: CliArgs;
@@ -100,6 +104,7 @@ export interface AppReadyRuntimeDeps {
   createMecabTokenizerAndCheck: () => Promise<void>;
   createSubtitleTimingTracker: () => void;
   createImmersionTracker?: () => void;
+  startJellyfinRemoteSession?: () => Promise<void>;
   loadYomitanExtension: () => Promise<void>;
   texthookerOnlyMode: boolean;
   shouldAutoInitializeOverlayRuntimeFromConfig: () => boolean;
@@ -136,9 +141,14 @@ export function isAutoUpdateEnabledRuntime(
   config: ResolvedConfig | RuntimeConfigLike,
   runtimeOptionsManager: RuntimeAutoUpdateOptionManagerLike | null,
 ): boolean {
-  const value = runtimeOptionsManager?.getOptionValue("anki.autoUpdateNewCards");
+  const value = runtimeOptionsManager?.getOptionValue(
+    "anki.autoUpdateNewCards",
+  );
   if (typeof value === "boolean") return value;
-  return (config as ResolvedConfig).ankiConnect?.behavior?.autoUpdateNewCards !== false;
+  return (
+    (config as ResolvedConfig).ankiConnect?.behavior?.autoUpdateNewCards !==
+    false
+  );
 }
 
 export async function runAppReadyRuntime(
@@ -179,12 +189,17 @@ export async function runAppReadyRuntime(
     try {
       deps.createImmersionTracker();
     } catch (error) {
-      deps.log(`Runtime ready: createImmersionTracker failed: ${(error as Error).message}`);
+      deps.log(
+        `Runtime ready: createImmersionTracker failed: ${(error as Error).message}`,
+      );
     }
   } else {
     deps.log("Runtime ready: createImmersionTracker dependency is missing.");
   }
   await deps.loadYomitanExtension();
+  if (deps.startJellyfinRemoteSession) {
+    await deps.startJellyfinRemoteSession();
+  }
 
   if (deps.texthookerOnlyMode) {
     deps.log("Texthooker-only mode enabled; skipping overlay window.");

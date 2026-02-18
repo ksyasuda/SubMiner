@@ -20,10 +20,11 @@ export {
   triggerFieldGrouping,
   updateLastCardFromClipboard,
 } from "./mining";
-export { createAppLifecycleDepsRuntime, startAppLifecycle } from "./app-lifecycle";
 export {
-  cycleSecondarySubMode,
-} from "./subtitle-position";
+  createAppLifecycleDepsRuntime,
+  startAppLifecycle,
+} from "./app-lifecycle";
+export { cycleSecondarySubMode } from "./subtitle-position";
 export {
   getInitialInvisibleOverlayVisibility,
   isAutoUpdateEnabledRuntime,
@@ -92,9 +93,24 @@ export { handleMpvCommandFromIpc } from "./ipc-command";
 export { createFieldGroupingOverlayRuntime } from "./field-grouping-overlay";
 export { createNumericShortcutRuntime } from "./numeric-shortcut";
 export { runStartupBootstrapRuntime } from "./startup";
-export { runSubsyncManualFromIpcRuntime, triggerSubsyncFromConfigRuntime } from "./subsync-runner";
+export {
+  runSubsyncManualFromIpcRuntime,
+  triggerSubsyncFromConfigRuntime,
+} from "./subsync-runner";
 export { registerAnkiJimakuIpcRuntime } from "./anki-jimaku";
 export { ImmersionTrackerService } from "./immersion-tracker-service";
+export {
+  authenticateWithPassword as authenticateWithPasswordRuntime,
+  listItems as listJellyfinItemsRuntime,
+  listLibraries as listJellyfinLibrariesRuntime,
+  listSubtitleTracks as listJellyfinSubtitleTracksRuntime,
+  resolvePlaybackPlan as resolveJellyfinPlaybackPlanRuntime,
+  ticksToSeconds as jellyfinTicksToSecondsRuntime,
+} from "./jellyfin";
+export {
+  buildJellyfinTimelinePayload,
+  JellyfinRemoteSessionService,
+} from "./jellyfin-remote";
 export {
   broadcastRuntimeOptionsChangedRuntime,
   createOverlayManager,

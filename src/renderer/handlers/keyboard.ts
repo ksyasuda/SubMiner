@@ -24,13 +24,28 @@ export function createKeyboardHandlers(
   // Timeout for the modal chord capture window (e.g. Y followed by H/K).
   const CHORD_TIMEOUT_MS = 1000;
 
-  const CHORD_MAP = new Map<string, { type: "mpv" | "electron"; command?: string[]; action?: () => void }>([
+  const CHORD_MAP = new Map<
+    string,
+    { type: "mpv" | "electron"; command?: string[]; action?: () => void }
+  >([
     ["KeyS", { type: "mpv", command: ["script-message", "subminer-start"] }],
-    ["Shift+KeyS", { type: "mpv", command: ["script-message", "subminer-stop"] }],
+    [
+      "Shift+KeyS",
+      { type: "mpv", command: ["script-message", "subminer-stop"] },
+    ],
     ["KeyT", { type: "mpv", command: ["script-message", "subminer-toggle"] }],
-    ["KeyI", { type: "mpv", command: ["script-message", "subminer-toggle-invisible"] }],
-    ["Shift+KeyI", { type: "mpv", command: ["script-message", "subminer-show-invisible"] }],
-    ["KeyU", { type: "mpv", command: ["script-message", "subminer-hide-invisible"] }],
+    [
+      "KeyI",
+      { type: "mpv", command: ["script-message", "subminer-toggle-invisible"] },
+    ],
+    [
+      "Shift+KeyI",
+      { type: "mpv", command: ["script-message", "subminer-show-invisible"] },
+    ],
+    [
+      "KeyU",
+      { type: "mpv", command: ["script-message", "subminer-hide-invisible"] },
+    ],
     ["KeyO", { type: "mpv", command: ["script-message", "subminer-options"] }],
     ["KeyR", { type: "mpv", command: ["script-message", "subminer-restart"] }],
     ["KeyC", { type: "mpv", command: ["script-message", "subminer-status"] }],
@@ -48,7 +63,8 @@ export function createKeyboardHandlers(
     if (target.tagName === "IFRAME" && target.id?.startsWith("yomitan-popup")) {
       return true;
     }
-    if (target.closest && target.closest('iframe[id^="yomitan-popup"]')) return true;
+    if (target.closest && target.closest('iframe[id^="yomitan-popup"]'))
+      return true;
     return false;
   }
 
@@ -193,7 +209,9 @@ export function createKeyboardHandlers(
     }
 
     document.addEventListener("keydown", (e: KeyboardEvent) => {
-      const yomitanPopup = document.querySelector('iframe[id^="yomitan-popup"]');
+      const yomitanPopup = document.querySelector(
+        'iframe[id^="yomitan-popup"]',
+      );
       if (yomitanPopup) return;
       if (handleInvisiblePositionEditKeydown(e)) return;
 

@@ -29,8 +29,5 @@ test("resolveCurrentAudioStreamIndex prefers matching current audio track id", (
 });
 
 test("resolveCurrentAudioStreamIndex returns null when tracks are not an array", () => {
-  assert.equal(
-    resolveCurrentAudioStreamIndex(null, null),
-    null,
-  );
+  assert.equal(resolveCurrentAudioStreamIndex(null, null), null);
 });

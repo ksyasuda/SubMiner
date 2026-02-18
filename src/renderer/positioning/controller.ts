@@ -32,7 +32,8 @@ export function createPositioningController(
     {
       applyInvisibleSubtitleOffsetPosition:
         invisibleOffset.applyInvisibleSubtitleOffsetPosition,
-      updateInvisiblePositionEditHud: invisibleOffset.updateInvisiblePositionEditHud,
+      updateInvisiblePositionEditHud:
+        invisibleOffset.updateInvisiblePositionEditHud,
     },
   );
 

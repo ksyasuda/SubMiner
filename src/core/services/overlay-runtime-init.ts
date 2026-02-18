@@ -26,12 +26,19 @@ export function initializeOverlayRuntime(options: {
   getMpvSocketPath: () => string;
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   getSubtitleTimingTracker: () => unknown | null;
-  getMpvClient: () => { send?: (payload: { command: string[] }) => void } | null;
+  getMpvClient: () => {
+    send?: (payload: { command: string[] }) => void;
+  } | null;
   getRuntimeOptionsManager: () => {
-    getEffectiveAnkiConnectConfig: (config?: AnkiConnectConfig) => AnkiConnectConfig;
+    getEffectiveAnkiConnectConfig: (
+      config?: AnkiConnectConfig,
+    ) => AnkiConnectConfig;
   } | null;
   setAnkiIntegration: (integration: unknown | null) => void;
-  showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  showDesktopNotification: (
+    title: string,
+    options: { body?: string; icon?: string },
+  ) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -41,7 +48,8 @@ export function initializeOverlayRuntime(options: {
 } {
   options.createMainWindow();
   options.createInvisibleWindow();
-  const invisibleOverlayVisible = options.getInitialInvisibleOverlayVisibility();
+  const invisibleOverlayVisible =
+    options.getInitialInvisibleOverlayVisibility();
   options.registerGlobalShortcuts();
 
   const windowTracker = createWindowTracker(

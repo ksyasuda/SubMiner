@@ -103,7 +103,9 @@ test("triggerSubsyncFromConfig reports failures to OSD", async () => {
     }),
   );
 
-  assert.ok(osd.some((line) => line.startsWith("Subsync failed: MPV not connected")));
+  assert.ok(
+    osd.some((line) => line.startsWith("Subsync failed: MPV not connected")),
+  );
 });
 
 test("runSubsyncManual requires a source track for alass", async () => {
@@ -163,14 +165,8 @@ test("runSubsyncManual constructs ffsubsync command and returns success", async 
 
   fs.writeFileSync(videoPath, "video");
   fs.writeFileSync(primaryPath, "sub");
-  writeExecutableScript(
-    ffmpegPath,
-    "#!/bin/sh\nexit 0\n",
-  );
-  writeExecutableScript(
-    alassPath,
-    "#!/bin/sh\nexit 0\n",
-  );
+  writeExecutableScript(ffmpegPath, "#!/bin/sh\nexit 0\n");
+  writeExecutableScript(alassPath, "#!/bin/sh\nexit 0\n");
   writeExecutableScript(
     ffsubsyncPath,
     `#!/bin/sh\n: > "${ffsubsyncLogPath}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${ffsubsyncLogPath}"; done\nout=\"\"\nprev=\"\"\nfor arg in \"$@\"; do\n  if [ \"$prev\" = \"-o\" ]; then out=\"$arg\"; fi\n  prev=\"$arg\"\ndone\nif [ -n \"$out\" ]; then : > \"$out\"; fi\nexit 0\n`,

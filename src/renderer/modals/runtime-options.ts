@@ -24,14 +24,18 @@ export function createRuntimeOptionsModal(
     ctx.dom.runtimeOptionsStatus.classList.toggle("error", isError);
   }
 
-  function getRuntimeOptionDisplayValue(option: RuntimeOptionState): RuntimeOptionValue {
+  function getRuntimeOptionDisplayValue(
+    option: RuntimeOptionState,
+  ): RuntimeOptionValue {
     return ctx.state.runtimeOptionDraftValues.get(option.id) ?? option.value;
   }
 
   function getSelectedRuntimeOption(): RuntimeOptionState | null {
     if (ctx.state.runtimeOptions.length === 0) return null;
     if (ctx.state.runtimeOptionSelectedIndex < 0) return null;
-    if (ctx.state.runtimeOptionSelectedIndex >= ctx.state.runtimeOptions.length) {
+    if (
+      ctx.state.runtimeOptionSelectedIndex >= ctx.state.runtimeOptions.length
+    ) {
       return null;
     }
     return ctx.state.runtimeOptions[ctx.state.runtimeOptionSelectedIndex];
@@ -42,7 +46,10 @@ export function createRuntimeOptionsModal(
     ctx.state.runtimeOptions.forEach((option, index) => {
       const li = document.createElement("li");
       li.className = "runtime-options-item";
-      li.classList.toggle("active", index === ctx.state.runtimeOptionSelectedIndex);
+      li.classList.toggle(
+        "active",
+        index === ctx.state.runtimeOptionSelectedIndex,
+      );
 
       const label = document.createElement("div");
       label.className = "runtime-options-label";
@@ -113,14 +120,20 @@ export function createRuntimeOptionsModal(
     if (!option || option.allowedValues.length === 0) return;
 
     const currentValue = getRuntimeOptionDisplayValue(option);
-    const currentIndex = option.allowedValues.findIndex((value) => value === currentValue);
+    const currentIndex = option.allowedValues.findIndex(
+      (value) => value === currentValue,
+    );
     const safeIndex = currentIndex >= 0 ? currentIndex : 0;
     const nextIndex =
       direction === 1
         ? (safeIndex + 1) % option.allowedValues.length
-        : (safeIndex - 1 + option.allowedValues.length) % option.allowedValues.length;
+        : (safeIndex - 1 + option.allowedValues.length) %
+          option.allowedValues.length;
 
-    ctx.state.runtimeOptionDraftValues.set(option.id, option.allowedValues[nextIndex]);
+    ctx.state.runtimeOptionDraftValues.set(
+      option.id,
+      option.allowedValues[nextIndex],
+    );
     renderRuntimeOptionsList();
     setRuntimeOptionsStatus(
       `Selected ${option.label}: ${formatRuntimeOptionValue(option.allowedValues[nextIndex])}`,
@@ -140,7 +153,10 @@ export function createRuntimeOptionsModal(
     }
 
     if (result.option) {
-      ctx.state.runtimeOptionDraftValues.set(result.option.id, result.option.value);
+      ctx.state.runtimeOptionDraftValues.set(
+        result.option.id,
+        result.option.value,
+      );
     }
 
     const latest = await window.electronAPI.getRuntimeOptions();
@@ -160,7 +176,10 @@ export function createRuntimeOptionsModal(
 
     setRuntimeOptionsStatus("");
 
-    if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
+    if (
+      !ctx.state.isOverSubtitle &&
+      !options.modalStateReader.isAnyModalOpen()
+    ) {
       ctx.dom.overlay.classList.remove("interactive");
     }
   }

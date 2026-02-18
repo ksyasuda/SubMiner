@@ -400,7 +400,10 @@ function isJlptEligibleToken(token: MergedToken): boolean {
     token.surface,
     token.reading,
     token.headword,
-  ].filter((candidate): candidate is string => typeof candidate === "string" && candidate.length > 0);
+  ].filter(
+    (candidate): candidate is string =>
+      typeof candidate === "string" && candidate.length > 0,
+  );
 
   for (const candidate of candidates) {
     const normalizedCandidate = normalizeJlptTextForExclusion(candidate);
@@ -457,14 +460,17 @@ function isYomitanParseLine(value: unknown): value is YomitanParseLine {
   });
 }
 
-function isYomitanHeadwordRows(value: unknown): value is YomitanParseHeadword[][] {
+function isYomitanHeadwordRows(
+  value: unknown,
+): value is YomitanParseHeadword[][] {
   return (
     Array.isArray(value) &&
     value.every(
       (group) =>
         Array.isArray(group) &&
-        group.every((item) =>
-          isObject(item) && isString((item as YomitanParseHeadword).term),
+        group.every(
+          (item) =>
+            isObject(item) && isString((item as YomitanParseHeadword).term),
         ),
     )
   );
@@ -502,7 +508,9 @@ function applyJlptMarking(
       getJlptLevel,
     );
     const fallbackLevel =
-      primaryLevel === null ? getCachedJlptLevel(token.surface, getJlptLevel) : null;
+      primaryLevel === null
+        ? getCachedJlptLevel(token.surface, getJlptLevel)
+        : null;
 
     return {
       ...token,
@@ -615,20 +623,22 @@ function selectBestYomitanParseCandidate(
 
   const getBestByTokenCount = (
     items: YomitanParseCandidate[],
-  ): YomitanParseCandidate | null => items.length === 0
-    ? null
-    : items.reduce((best, current) =>
-      current.tokens.length > best.tokens.length ? current : best,
-    );
+  ): YomitanParseCandidate | null =>
+    items.length === 0
+      ? null
+      : items.reduce((best, current) =>
+          current.tokens.length > best.tokens.length ? current : best,
+        );
 
   const getCandidateScore = (candidate: YomitanParseCandidate): number => {
     const readableTokenCount = candidate.tokens.filter(
       (token) => token.reading.trim().length > 0,
     ).length;
-    const suspiciousKanaFragmentCount = candidate.tokens.filter((token) =>
-      token.reading.trim().length === 0 &&
-      token.surface.length >= 2 &&
-      Array.from(token.surface).every((char) => isKanaChar(char))
+    const suspiciousKanaFragmentCount = candidate.tokens.filter(
+      (token) =>
+        token.reading.trim().length === 0 &&
+        token.surface.length >= 2 &&
+        Array.from(token.surface).every((char) => isKanaChar(char)),
     ).length;
 
     return (
@@ -680,7 +690,8 @@ function selectBestYomitanParseCandidate(
   const multiTokenCandidates = candidates.filter(
     (candidate) => candidate.tokens.length > 1,
   );
-  const pool = multiTokenCandidates.length > 0 ? multiTokenCandidates : candidates;
+  const pool =
+    multiTokenCandidates.length > 0 ? multiTokenCandidates : candidates;
   const bestCandidate = chooseBestCandidate(pool);
   return bestCandidate ? bestCandidate.tokens : null;
 }
@@ -705,7 +716,9 @@ function mapYomitanParseResultsToMergedTokens(
         knownWordMatchMode,
       ),
     )
-    .filter((candidate): candidate is YomitanParseCandidate => candidate !== null);
+    .filter(
+      (candidate): candidate is YomitanParseCandidate => candidate !== null,
+    );
 
   const bestCandidate = selectBestYomitanParseCandidate(candidates);
   return bestCandidate;
@@ -752,7 +765,8 @@ function pickClosestMecabPos1(
     }
 
     const mecabStart = mecabToken.startPos ?? 0;
-    const mecabEnd = mecabToken.endPos ?? mecabStart + mecabToken.surface.length;
+    const mecabEnd =
+      mecabToken.endPos ?? mecabStart + mecabToken.surface.length;
     const overlapStart = Math.max(tokenStart, mecabStart);
     const overlapEnd = Math.min(tokenEnd, mecabEnd);
     const overlap = Math.max(0, overlapEnd - overlapStart);
@@ -764,8 +778,7 @@ function pickClosestMecabPos1(
     if (
       overlap > bestOverlap ||
       (overlap === bestOverlap &&
-        (span > bestSpan ||
-          (span === bestSpan && mecabStart < bestStart)))
+        (span > bestSpan || (span === bestSpan && mecabStart < bestStart)))
     ) {
       bestOverlap = overlap;
       bestSpan = span;
@@ -879,7 +892,9 @@ async function ensureYomitanParserWindow(
     });
 
     try {
-      await parserWindow.loadURL(`chrome-extension://${yomitanExt.id}/search.html`);
+      await parserWindow.loadURL(
+        `chrome-extension://${yomitanExt.id}/search.html`,
+      );
       const readyPromise = deps.getYomitanParserReadyPromise();
       if (readyPromise) {
         await readyPromise;
@@ -963,7 +978,7 @@ async function parseWithYomitanInternalParser(
       script,
       true,
     );
-  const yomitanTokens = mapYomitanParseResultsToMergedTokens(
+    const yomitanTokens = mapYomitanParseResultsToMergedTokens(
       parseResults,
       deps.isKnownWord,
       deps.getKnownWordMatchMode(),
@@ -977,7 +992,7 @@ async function parseWithYomitanInternalParser(
     }
 
     return enrichYomitanPos1(yomitanTokens, deps, text);
-    } catch (err) {
+  } catch (err) {
     logger.error("Yomitan parser request failed:", (err as Error).message);
     return null;
   }
@@ -1013,7 +1028,10 @@ export async function tokenizeSubtitle(
   const frequencyEnabled = deps.getFrequencyDictionaryEnabled?.() !== false;
   const frequencyLookup = deps.getFrequencyRank;
 
-  const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps);
+  const yomitanTokens = await parseWithYomitanInternalParser(
+    tokenizeText,
+    deps,
+  );
   if (yomitanTokens && yomitanTokens.length > 0) {
     const knownMarkedTokens = applyKnownWordMarking(
       yomitanTokens,
@@ -1024,12 +1042,15 @@ export async function tokenizeSubtitle(
       frequencyEnabled && frequencyLookup
         ? applyFrequencyMarking(knownMarkedTokens, frequencyLookup)
         : knownMarkedTokens.map((token) => ({
-          ...token,
-          frequencyRank: undefined,
-        }));
+            ...token,
+            frequencyRank: undefined,
+          }));
     const jlptMarkedTokens = jlptEnabled
       ? applyJlptMarking(frequencyMarkedTokens, deps.getJlptLevel)
-      : frequencyMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
+      : frequencyMarkedTokens.map((token) => ({
+          ...token,
+          jlptLevel: undefined,
+        }));
     return {
       text: displayText,
       tokens: markNPlusOneTargets(
@@ -1051,12 +1072,15 @@ export async function tokenizeSubtitle(
         frequencyEnabled && frequencyLookup
           ? applyFrequencyMarking(knownMarkedTokens, frequencyLookup)
           : knownMarkedTokens.map((token) => ({
-            ...token,
-            frequencyRank: undefined,
-          }));
+              ...token,
+              frequencyRank: undefined,
+            }));
       const jlptMarkedTokens = jlptEnabled
         ? applyJlptMarking(frequencyMarkedTokens, deps.getJlptLevel)
-        : frequencyMarkedTokens.map((token) => ({ ...token, jlptLevel: undefined }));
+        : frequencyMarkedTokens.map((token) => ({
+            ...token,
+            jlptLevel: undefined,
+          }));
       return {
         text: displayText,
         tokens: markNPlusOneTargets(

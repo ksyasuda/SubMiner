@@ -158,7 +158,10 @@ export function createJimakuModal(
     }
   }
 
-  async function loadFiles(entryId: number, episode: number | null): Promise<void> {
+  async function loadFiles(
+    entryId: number,
+    episode: number | null,
+  ): Promise<void> {
     setJimakuStatus("Loading files...");
     ctx.state.jimakuFiles = [];
     ctx.state.selectedFileIndex = 0;
@@ -224,11 +227,12 @@ export function createJimakuModal(
     const file = ctx.state.jimakuFiles[index];
     setJimakuStatus("Downloading subtitle...");
 
-    const result: JimakuDownloadResult = await window.electronAPI.jimakuDownloadFile({
-      entryId: ctx.state.currentEntryId,
-      url: file.url,
-      name: file.name,
-    });
+    const result: JimakuDownloadResult =
+      await window.electronAPI.jimakuDownloadFile({
+        entryId: ctx.state.currentEntryId,
+        url: file.url,
+        name: file.name,
+      });
 
     if (result.ok) {
       setJimakuStatus(`Downloaded and loaded: ${result.path}`);
@@ -265,8 +269,12 @@ export function createJimakuModal(
       .getJimakuMediaInfo()
       .then((info: JimakuMediaInfo) => {
         ctx.dom.jimakuTitleInput.value = info.title || "";
-        ctx.dom.jimakuSeasonInput.value = info.season ? String(info.season) : "";
-        ctx.dom.jimakuEpisodeInput.value = info.episode ? String(info.episode) : "";
+        ctx.dom.jimakuSeasonInput.value = info.season
+          ? String(info.season)
+          : "";
+        ctx.dom.jimakuEpisodeInput.value = info.episode
+          ? String(info.episode)
+          : "";
         ctx.state.currentEpisodeFilter = info.episode ?? null;
 
         if (info.confidence === "high" && info.title && info.episode) {
@@ -291,7 +299,10 @@ export function createJimakuModal(
     ctx.dom.jimakuModal.setAttribute("aria-hidden", "true");
     window.electronAPI.notifyOverlayModalClosed("jimaku");
 
-    if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
+    if (
+      !ctx.state.isOverSubtitle &&
+      !options.modalStateReader.isAnyModalOpen()
+    ) {
       ctx.dom.overlay.classList.remove("interactive");
     }
 
@@ -334,10 +345,16 @@ export function createJimakuModal(
     if (e.key === "ArrowUp") {
       e.preventDefault();
       if (ctx.state.jimakuFiles.length > 0) {
-        ctx.state.selectedFileIndex = Math.max(0, ctx.state.selectedFileIndex - 1);
+        ctx.state.selectedFileIndex = Math.max(
+          0,
+          ctx.state.selectedFileIndex - 1,
+        );
         renderFiles();
       } else if (ctx.state.jimakuEntries.length > 0) {
-        ctx.state.selectedEntryIndex = Math.max(0, ctx.state.selectedEntryIndex - 1);
+        ctx.state.selectedEntryIndex = Math.max(
+          0,
+          ctx.state.selectedEntryIndex - 1,
+        );
         renderEntries();
       }
       return true;

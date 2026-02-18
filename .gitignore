@@ -6,6 +6,9 @@ out/
 dist/
 release/
 
+# Launcher build artifact (produced by make build-launcher)
+subminer
+
 # Logs
 *.log
 npm-debug.log*

@@ -62,7 +62,9 @@ export function createMediaRuntimeService(
     },
 
     resolveMediaPathForJimaku(mediaPath: string | null): string | null {
-      return mediaPath && deps.isRemoteMediaPath(mediaPath) && deps.getCurrentMediaTitle()
+      return mediaPath &&
+        deps.isRemoteMediaPath(mediaPath) &&
+        deps.getCurrentMediaTitle()
         ? deps.getCurrentMediaTitle()
         : mediaPath;
     },

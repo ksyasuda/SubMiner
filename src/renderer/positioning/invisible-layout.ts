@@ -11,7 +11,10 @@ import {
 } from "./invisible-layout-metrics.js";
 
 export type MpvSubtitleLayoutController = {
-  applyInvisibleSubtitleLayoutFromMpvMetrics: (metrics: MpvSubtitleRenderMetrics, source: string) => void;
+  applyInvisibleSubtitleLayoutFromMpvMetrics: (
+    metrics: MpvSubtitleRenderMetrics,
+    source: string,
+  ) => void;
 };
 
 export function createMpvSubtitleLayoutController(
@@ -29,10 +32,15 @@ export function createMpvSubtitleLayoutController(
     ctx.state.mpvSubtitleRenderMetrics = metrics;
 
     const geometry = calculateSubtitleMetrics(ctx, metrics);
-    const alignment = calculateSubtitlePosition(metrics, geometry.pxPerScaledPixel, 2);
+    const alignment = calculateSubtitlePosition(
+      metrics,
+      geometry.pxPerScaledPixel,
+      2,
+    );
 
     applySubtitleFontSize(geometry.effectiveFontSize);
-    const effectiveBorderSize = metrics.subBorderSize * geometry.pxPerScaledPixel;
+    const effectiveBorderSize =
+      metrics.subBorderSize * geometry.pxPerScaledPixel;
 
     document.documentElement.style.setProperty(
       "--sub-border-size",
@@ -81,7 +89,10 @@ export function createMpvSubtitleLayoutController(
     options.applyInvisibleSubtitleOffsetPosition();
     options.updateInvisiblePositionEditHud();
 
-    console.log("[invisible-overlay] Applied mpv subtitle render metrics from", source);
+    console.log(
+      "[invisible-overlay] Applied mpv subtitle render metrics from",
+      source,
+    );
   }
 
   return {

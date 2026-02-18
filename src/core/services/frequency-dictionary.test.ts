@@ -8,7 +8,9 @@ import { createFrequencyDictionaryLookup } from "./frequency-dictionary";
 
 test("createFrequencyDictionaryLookup logs parse errors and returns no-op for invalid dictionaries", async () => {
   const logs: string[] = [];
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "subminer-frequency-dict-"));
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "subminer-frequency-dict-"),
+  );
   const bankPath = path.join(tempDir, "term_meta_bank_1.json");
   fs.writeFileSync(bankPath, "{ invalid json");
 
@@ -23,9 +25,10 @@ test("createFrequencyDictionaryLookup logs parse errors and returns no-op for in
 
   assert.equal(rank, null);
   assert.equal(
-    logs.some((entry) =>
-      entry.includes("Failed to parse frequency dictionary file as JSON") &&
-      entry.includes("term_meta_bank_1.json")
+    logs.some(
+      (entry) =>
+        entry.includes("Failed to parse frequency dictionary file as JSON") &&
+        entry.includes("term_meta_bank_1.json"),
     ),
     true,
   );
@@ -33,7 +36,10 @@ test("createFrequencyDictionaryLookup logs parse errors and returns no-op for in
 
 test("createFrequencyDictionaryLookup continues with no-op lookup when search path is missing", async () => {
   const logs: string[] = [];
-  const missingPath = path.join(os.tmpdir(), "subminer-frequency-dict-missing-dir");
+  const missingPath = path.join(
+    os.tmpdir(),
+    "subminer-frequency-dict-missing-dir",
+  );
   const lookup = await createFrequencyDictionaryLookup({
     searchPaths: [missingPath],
     log: (message) => {

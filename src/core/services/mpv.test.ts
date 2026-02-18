@@ -12,7 +12,7 @@ function makeDeps(
   overrides: Partial<MpvIpcClientProtocolDeps> = {},
 ): MpvIpcClientDeps {
   return {
-    getResolvedConfig: () => ({} as any),
+    getResolvedConfig: () => ({}) as any,
     autoStartOverlay: false,
     setOverlayVisible: () => {},
     shouldBindVisibleOverlayToMpvSubVisibility: () => false,
@@ -23,10 +23,13 @@ function makeDeps(
   };
 }
 
-function invokeHandleMessage(client: MpvIpcClient, msg: unknown): Promise<void> {
-  return (client as unknown as { handleMessage: (msg: unknown) => Promise<void> }).handleMessage(
-    msg,
-  );
+function invokeHandleMessage(
+  client: MpvIpcClient,
+  msg: unknown,
+): Promise<void> {
+  return (
+    client as unknown as { handleMessage: (msg: unknown) => Promise<void> }
+  ).handleMessage(msg);
 }
 
 test("MpvIpcClient resolves pending request by request_id", async () => {
@@ -67,14 +70,14 @@ test("MpvIpcClient parses JSON line protocol in processBuffer", () => {
     seen.push(msg);
   };
   (client as any).buffer =
-    "{\"event\":\"property-change\",\"name\":\"path\",\"data\":\"a\"}\n{\"request_id\":1,\"data\":\"ok\"}\n{\"partial\":";
+    '{"event":"property-change","name":"path","data":"a"}\n{"request_id":1,"data":"ok"}\n{"partial":';
 
   (client as any).processBuffer();
 
   assert.equal(seen.length, 2);
   assert.equal(seen[0].name, "path");
   assert.equal(seen[1].request_id, 1);
-  assert.equal((client as any).buffer, "{\"partial\":");
+  assert.equal((client as any).buffer, '{"partial":');
 });
 
 test("MpvIpcClient request rejects when disconnected", async () => {
@@ -170,7 +173,9 @@ test("MpvIpcClient scheduleReconnect clears existing reconnect timer", () => {
     handler();
     return 1 as unknown as ReturnType<typeof setTimeout>;
   };
-  (globalThis as any).clearTimeout = (timer: ReturnType<typeof setTimeout> | null) => {
+  (globalThis as any).clearTimeout = (
+    timer: ReturnType<typeof setTimeout> | null,
+  ) => {
     cleared.push(timer);
   };
 
@@ -245,7 +250,8 @@ test("MpvIpcClient reconnect replays property subscriptions and initial state re
     (command) =>
       Array.isArray((command as { command: unknown[] }).command) &&
       (command as { command: unknown[] }).command[0] === "set_property" &&
-      (command as { command: unknown[] }).command[1] === "secondary-sub-visibility" &&
+      (command as { command: unknown[] }).command[1] ===
+        "secondary-sub-visibility" &&
       (command as { command: unknown[] }).command[2] === "no",
   );
   const hasTrackSubscription = commands.some(

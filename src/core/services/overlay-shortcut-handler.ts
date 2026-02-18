@@ -205,11 +205,7 @@ export function runOverlayShortcutLocalFallback(
   for (const action of actions) {
     if (!action.accelerator) continue;
     if (
-      matcher(
-        input,
-        action.accelerator,
-        action.allowWhenRegistered === true,
-      )
+      matcher(input, action.accelerator, action.allowWhenRegistered === true)
     ) {
       action.run();
       return true;

@@ -53,32 +53,33 @@ test("tokenizeSubtitle assigns JLPT level to parsed Yomitan tokens", async () =>
   const result = await tokenizeSubtitle(
     "猫です",
     makeDeps({
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "猫",
-                    reading: "ねこ",
-                    headwords: [[{ term: "猫" }]],
-                  },
-                  {
-                    text: "です",
-                    reading: "です",
-                    headwords: [[{ term: "です" }]],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "猫",
+                      reading: "ねこ",
+                      headwords: [[{ term: "猫" }]],
+                    },
+                    {
+                      text: "です",
+                      reading: "です",
+                      headwords: [[{ term: "です" }]],
+                    },
+                  ],
                 ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
       tokenizeWithMecab: async () => null,
       getJlptLevel: (text) => (text === "猫" ? "N5" : null),
     }),
@@ -92,39 +93,42 @@ test("tokenizeSubtitle caches JLPT lookups across repeated tokens", async () => 
   let lookupCalls = 0;
   const result = await tokenizeSubtitle(
     "猫猫",
-    makeDepsFromMecabTokenizer(async () => [
+    makeDepsFromMecabTokenizer(
+      async () => [
+        {
+          word: "猫",
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: "",
+          pos2: "",
+          pos3: "",
+          pos4: "",
+          inflectionType: "",
+          inflectionForm: "",
+          headword: "猫",
+          katakanaReading: "ネコ",
+          pronunciation: "ネコ",
+        },
+        {
+          word: "猫",
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: "",
+          pos2: "",
+          pos3: "",
+          pos4: "",
+          inflectionType: "",
+          inflectionForm: "",
+          headword: "猫",
+          katakanaReading: "ネコ",
+          pronunciation: "ネコ",
+        },
+      ],
       {
-        word: "猫",
-        partOfSpeech: PartOfSpeech.noun,
-        pos1: "",
-        pos2: "",
-        pos3: "",
-        pos4: "",
-        inflectionType: "",
-        inflectionForm: "",
-        headword: "猫",
-        katakanaReading: "ネコ",
-        pronunciation: "ネコ",
+        getJlptLevel: (text) => {
+          lookupCalls += 1;
+          return text === "猫" ? "N5" : null;
+        },
       },
-      {
-        word: "猫",
-        partOfSpeech: PartOfSpeech.noun,
-        pos1: "",
-        pos2: "",
-        pos3: "",
-        pos4: "",
-        inflectionType: "",
-        inflectionForm: "",
-        headword: "猫",
-        katakanaReading: "ネコ",
-        pronunciation: "ネコ",
-      },
-    ], {
-      getJlptLevel: (text) => {
-        lookupCalls += 1;
-        return text === "猫" ? "N5" : null;
-      },
-    }),
+    ),
   );
 
   assert.equal(result.tokens?.length, 2);
@@ -136,23 +140,26 @@ test("tokenizeSubtitle caches JLPT lookups across repeated tokens", async () => 
 test("tokenizeSubtitle leaves JLPT unset for non-matching tokens", async () => {
   const result = await tokenizeSubtitle(
     "猫",
-    makeDepsFromMecabTokenizer(async () => [
+    makeDepsFromMecabTokenizer(
+      async () => [
+        {
+          word: "猫",
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: "",
+          pos2: "",
+          pos3: "",
+          pos4: "",
+          inflectionType: "",
+          inflectionForm: "",
+          headword: "猫",
+          katakanaReading: "ネコ",
+          pronunciation: "ネコ",
+        },
+      ],
       {
-        word: "猫",
-        partOfSpeech: PartOfSpeech.noun,
-        pos1: "",
-        pos2: "",
-        pos3: "",
-        pos4: "",
-        inflectionType: "",
-        inflectionForm: "",
-        headword: "猫",
-        katakanaReading: "ネコ",
-        pronunciation: "ネコ",
+        getJlptLevel: () => null,
       },
-    ], {
-      getJlptLevel: () => null,
-    }),
+    ),
   );
 
   assert.equal(result.tokens?.length, 1);
@@ -162,8 +169,8 @@ test("tokenizeSubtitle leaves JLPT unset for non-matching tokens", async () => {
 test("tokenizeSubtitle skips JLPT lookups when disabled", async () => {
   let lookupCalls = 0;
   const result = await tokenizeSubtitle(
-      "猫です",
-      makeDeps({
+    "猫です",
+    makeDeps({
       tokenizeWithMecab: async () => [
         {
           headword: "猫",
@@ -233,31 +240,30 @@ test("tokenizeSubtitle uses only selected Yomitan headword for frequency lookup"
     "猫です",
     makeDeps({
       getFrequencyDictionaryEnabled: () => true,
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "猫です",
-                    reading: "ねこです",
-                    headwords: [
-                      [{ term: "猫です" }],
-                      [{ term: "猫" }],
-                    ],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "猫です",
+                      reading: "ねこです",
+                      headwords: [[{ term: "猫です" }], [{ term: "猫" }]],
+                    },
+                  ],
                 ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
-      getFrequencyRank: (text) => (text === "猫" ? 40 : text === "猫です" ? 1200 : null),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
+      getFrequencyRank: (text) =>
+        text === "猫" ? 40 : text === "猫です" ? 1200 : null,
     }),
   );
 
@@ -270,46 +276,48 @@ test("tokenizeSubtitle keeps furigana-split Yomitan segments as one token", asyn
     "友達と話した",
     makeDeps({
       getFrequencyDictionaryEnabled: () => true,
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "友",
-                    reading: "とも",
-                    headwords: [[{ term: "友達" }]],
-                  },
-                  {
-                    text: "達",
-                    reading: "だち",
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "友",
+                      reading: "とも",
+                      headwords: [[{ term: "友達" }]],
+                    },
+                    {
+                      text: "達",
+                      reading: "だち",
+                    },
+                  ],
+                  [
+                    {
+                      text: "と",
+                      reading: "と",
+                      headwords: [[{ term: "と" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "話した",
+                      reading: "はなした",
+                      headwords: [[{ term: "話す" }]],
+                    },
+                  ],
                 ],
-                [
-                  {
-                    text: "と",
-                    reading: "と",
-                    headwords: [[{ term: "と" }]],
-                  },
-                ],
-                [
-                  {
-                    text: "話した",
-                    reading: "はなした",
-                    headwords: [[{ term: "話す" }]],
-                  },
-                ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
-      getFrequencyRank: (text) => (text === "友達" ? 22 : text === "話す" ? 90 : null),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
+      getFrequencyRank: (text) =>
+        text === "友達" ? 22 : text === "話す" ? 90 : null,
     }),
   );
 
@@ -329,28 +337,30 @@ test("tokenizeSubtitle prefers exact headword frequency over surface/reading whe
     "猫です",
     makeDeps({
       getFrequencyDictionaryEnabled: () => true,
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "猫",
-                    reading: "ねこ",
-                    headwords: [[{ term: "ネコ" }]],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "猫",
+                      reading: "ねこ",
+                      headwords: [[{ term: "ネコ" }]],
+                    },
+                  ],
                 ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
-      getFrequencyRank: (text) => (text === "猫" ? 1200 : text === "ネコ" ? 8 : null),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
+      getFrequencyRank: (text) =>
+        text === "猫" ? 1200 : text === "ネコ" ? 8 : null,
     }),
   );
 
@@ -363,27 +373,28 @@ test("tokenizeSubtitle keeps no frequency when only reading matches and headword
     "猫です",
     makeDeps({
       getFrequencyDictionaryEnabled: () => true,
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "猫",
-                    reading: "ねこ",
-                    headwords: [[{ term: "猫です" }]],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "猫",
+                      reading: "ねこ",
+                      headwords: [[{ term: "猫です" }]],
+                    },
+                  ],
                 ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
       getFrequencyRank: (text) => (text === "ねこ" ? 77 : null),
     }),
   );
@@ -397,31 +408,30 @@ test("tokenizeSubtitle ignores invalid frequency rank on selected headword", asy
     "猫です",
     makeDeps({
       getFrequencyDictionaryEnabled: () => true,
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "猫です",
-                    reading: "ねこです",
-                    headwords: [
-                      [{ term: "猫" }],
-                      [{ term: "猫です" }],
-                    ],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "猫です",
+                      reading: "ねこです",
+                      headwords: [[{ term: "猫" }], [{ term: "猫です" }]],
+                    },
+                  ],
                 ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
-      getFrequencyRank: (text) => (text === "猫" ? Number.NaN : text === "猫です" ? 500 : null),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
+      getFrequencyRank: (text) =>
+        text === "猫" ? Number.NaN : text === "猫です" ? 500 : null,
     }),
   );
 
@@ -434,31 +444,30 @@ test("tokenizeSubtitle handles real-word frequency candidates and prefers most f
     "昨日",
     makeDeps({
       getFrequencyDictionaryEnabled: () => true,
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "昨日",
-                    reading: "きのう",
-                    headwords: [
-                      [{ term: "昨日" }],
-                      [{ term: "きのう" }],
-                    ],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "昨日",
+                      reading: "きのう",
+                      headwords: [[{ term: "昨日" }], [{ term: "きのう" }]],
+                    },
+                  ],
                 ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
-      getFrequencyRank: (text) => (text === "きのう" ? 120 : text === "昨日" ? 40 : null),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
+      getFrequencyRank: (text) =>
+        text === "きのう" ? 120 : text === "昨日" ? 40 : null,
     }),
   );
 
@@ -471,32 +480,40 @@ test("tokenizeSubtitle ignores candidates with no dictionary rank when higher-fr
     "猫です",
     makeDeps({
       getFrequencyDictionaryEnabled: () => true,
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "猫",
-                    reading: "ねこ",
-                    headwords: [
-                      [{ term: "猫" }],
-                      [{ term: "猫です" }],
-                      [{ term: "unknown-term" }],
-                    ],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "猫",
+                      reading: "ねこ",
+                      headwords: [
+                        [{ term: "猫" }],
+                        [{ term: "猫です" }],
+                        [{ term: "unknown-term" }],
+                      ],
+                    },
+                  ],
                 ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
-      getFrequencyRank: (text) => (text === "unknown-term" ? -1 : text === "猫" ? 88 : text === "猫です" ? 9000 : null),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
+      getFrequencyRank: (text) =>
+        text === "unknown-term"
+          ? -1
+          : text === "猫"
+            ? 88
+            : text === "猫です"
+              ? 9000
+              : null,
     }),
   );
 
@@ -536,27 +553,28 @@ test("tokenizeSubtitle skips frequency rank when Yomitan token is enriched as pa
     "は",
     makeDeps({
       getFrequencyDictionaryEnabled: () => true,
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "は",
-                    reading: "は",
-                    headwords: [[{ term: "は" }]],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "は",
+                      reading: "は",
+                      headwords: [[{ term: "は" }]],
+                    },
+                  ],
                 ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
       tokenizeWithMecab: async () => [
         {
           headword: "は",
@@ -657,27 +675,28 @@ test("tokenizeSubtitle skips JLPT level for excluded demonstratives", async () =
   const result = await tokenizeSubtitle(
     "この",
     makeDeps({
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "この",
-                    reading: "この",
-                    headwords: [[{ term: "この" }]],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "この",
+                      reading: "この",
+                      headwords: [[{ term: "この" }]],
+                    },
+                  ],
                 ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
       tokenizeWithMecab: async () => null,
       getJlptLevel: (text) => (text === "この" ? "N5" : null),
     }),
@@ -691,27 +710,28 @@ test("tokenizeSubtitle skips JLPT level for repeated kana SFX", async () => {
   const result = await tokenizeSubtitle(
     "ああ",
     makeDeps({
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "ああ",
-                    reading: "ああ",
-                    headwords: [[{ term: "ああ" }]],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "ああ",
+                      reading: "ああ",
+                      headwords: [[{ term: "ああ" }]],
+                    },
+                  ],
                 ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
       tokenizeWithMecab: async () => null,
       getJlptLevel: (text) => (text === "ああ" ? "N5" : null),
     }),
@@ -724,23 +744,26 @@ test("tokenizeSubtitle skips JLPT level for repeated kana SFX", async () => {
 test("tokenizeSubtitle assigns JLPT level to mecab tokens", async () => {
   const result = await tokenizeSubtitle(
     "猫です",
-    makeDepsFromMecabTokenizer(async () => [
+    makeDepsFromMecabTokenizer(
+      async () => [
+        {
+          word: "猫",
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: "",
+          pos2: "",
+          pos3: "",
+          pos4: "",
+          inflectionType: "",
+          inflectionForm: "",
+          headword: "猫",
+          katakanaReading: "ネコ",
+          pronunciation: "ネコ",
+        },
+      ],
       {
-        word: "猫",
-        partOfSpeech: PartOfSpeech.noun,
-        pos1: "",
-        pos2: "",
-        pos3: "",
-        pos4: "",
-        inflectionType: "",
-        inflectionForm: "",
-        headword: "猫",
-        katakanaReading: "ネコ",
-        pronunciation: "ネコ",
+        getJlptLevel: (text) => (text === "猫" ? "N4" : null),
       },
-    ], {
-      getJlptLevel: (text) => (text === "猫" ? "N4" : null),
-    }),
+    ),
   );
 
   assert.equal(result.tokens?.length, 1);
@@ -750,23 +773,26 @@ test("tokenizeSubtitle assigns JLPT level to mecab tokens", async () => {
 test("tokenizeSubtitle skips JLPT level for mecab tokens marked as ineligible", async () => {
   const result = await tokenizeSubtitle(
     "は",
-    makeDepsFromMecabTokenizer(async () => [
+    makeDepsFromMecabTokenizer(
+      async () => [
+        {
+          word: "は",
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: "助詞",
+          pos2: "",
+          pos3: "",
+          pos4: "",
+          inflectionType: "",
+          inflectionForm: "",
+          headword: "は",
+          katakanaReading: "ハ",
+          pronunciation: "ハ",
+        },
+      ],
       {
-        word: "は",
-        partOfSpeech: PartOfSpeech.particle,
-        pos1: "助詞",
-        pos2: "",
-        pos3: "",
-        pos4: "",
-        inflectionType: "",
-        inflectionForm: "",
-        headword: "は",
-        katakanaReading: "ハ",
-        pronunciation: "ハ",
+        getJlptLevel: (text) => (text === "は" ? "N5" : null),
       },
-    ], {
-      getJlptLevel: (text) => (text === "は" ? "N5" : null),
-    }),
+    ),
   );
 
   assert.equal(result.tokens?.length, 1);
@@ -787,7 +813,7 @@ test("tokenizeSubtitle normalizes newlines before mecab fallback", async () => {
       tokenizeWithMecab: async (text) => {
         tokenizeInput = text;
         return [
-        {
+          {
             surface: "猫ですね",
             reading: "ネコデスネ",
             headword: "猫ですね",
@@ -877,7 +903,7 @@ test("tokenizeSubtitle uses Yomitan parser result when available", async () => {
   const result = await tokenizeSubtitle(
     "猫です",
     makeDeps({
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
       getYomitanParserWindow: () => parserWindow,
       tokenizeWithMecab: async () => null,
     }),
@@ -904,38 +930,39 @@ test("tokenizeSubtitle logs selected Yomitan groups when debug toggle is enabled
     await tokenizeSubtitle(
       "友達と話した",
       makeDeps({
-        getYomitanExt: () => ({ id: "dummy-ext" } as any),
-        getYomitanParserWindow: () => ({
-          isDestroyed: () => false,
-          webContents: {
-            executeJavaScript: async () => [
-              {
-                source: "scanning-parser",
-                index: 0,
-                content: [
-                  [
-                    {
-                      text: "友",
-                      reading: "とも",
-                      headwords: [[{ term: "友達" }]],
-                    },
-                    {
-                      text: "達",
-                      reading: "だち",
-                    },
+        getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+        getYomitanParserWindow: () =>
+          ({
+            isDestroyed: () => false,
+            webContents: {
+              executeJavaScript: async () => [
+                {
+                  source: "scanning-parser",
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: "友",
+                        reading: "とも",
+                        headwords: [[{ term: "友達" }]],
+                      },
+                      {
+                        text: "達",
+                        reading: "だち",
+                      },
+                    ],
+                    [
+                      {
+                        text: "と",
+                        reading: "と",
+                        headwords: [[{ term: "と" }]],
+                      },
+                    ],
                   ],
-                  [
-                    {
-                      text: "と",
-                      reading: "と",
-                      headwords: [[{ term: "と" }]],
-                    },
-                  ],
-                ],
-              },
-            ],
-          },
-        } as unknown as Electron.BrowserWindow),
+                },
+              ],
+            },
+          }) as unknown as Electron.BrowserWindow,
         tokenizeWithMecab: async () => null,
         getYomitanGroupDebugEnabled: () => true,
       }),
@@ -960,31 +987,32 @@ test("tokenizeSubtitle does not log Yomitan groups when debug toggle is disabled
     await tokenizeSubtitle(
       "友達と話した",
       makeDeps({
-        getYomitanExt: () => ({ id: "dummy-ext" } as any),
-        getYomitanParserWindow: () => ({
-          isDestroyed: () => false,
-          webContents: {
-            executeJavaScript: async () => [
-              {
-                source: "scanning-parser",
-                index: 0,
-                content: [
-                  [
-                    {
-                      text: "友",
-                      reading: "とも",
-                      headwords: [[{ term: "友達" }]],
-                    },
-                    {
-                      text: "達",
-                      reading: "だち",
-                    },
+        getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+        getYomitanParserWindow: () =>
+          ({
+            isDestroyed: () => false,
+            webContents: {
+              executeJavaScript: async () => [
+                {
+                  source: "scanning-parser",
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: "友",
+                        reading: "とも",
+                        headwords: [[{ term: "友達" }]],
+                      },
+                      {
+                        text: "達",
+                        reading: "だち",
+                      },
+                    ],
                   ],
-                ],
-              },
-            ],
-          },
-        } as unknown as Electron.BrowserWindow),
+                },
+              ],
+            },
+          }) as unknown as Electron.BrowserWindow,
         tokenizeWithMecab: async () => null,
         getYomitanGroupDebugEnabled: () => false,
       }),
@@ -1028,7 +1056,7 @@ test("tokenizeSubtitle preserves segmented Yomitan line as one token", async () 
   const result = await tokenizeSubtitle(
     "猫です",
     makeDeps({
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
       getYomitanParserWindow: () => parserWindow,
       tokenizeWithMecab: async () => null,
     }),
@@ -1046,38 +1074,69 @@ test("tokenizeSubtitle prefers mecab parser tokens when scanning parser returns 
   const result = await tokenizeSubtitle(
     "俺は小園にいきたい",
     makeDeps({
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  {
-                    text: "俺は小園にいきたい",
-                    reading: "おれは小園にいきたい",
-                    headwords: [[{ term: "俺は小園にいきたい" }]],
-                  },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "俺は小園にいきたい",
+                      reading: "おれは小園にいきたい",
+                      headwords: [[{ term: "俺は小園にいきたい" }]],
+                    },
+                  ],
                 ],
-              ],
-            },
-            {
-              source: "mecab",
-              index: 0,
-              content: [
-                [{ text: "俺", reading: "おれ", headwords: [[{ term: "俺" }]] }],
-                [{ text: "は", reading: "は", headwords: [[{ term: "は" }]] }],
-                [{ text: "小園", reading: "おうえん", headwords: [[{ term: "小園" }]] }],
-                [{ text: "に", reading: "に", headwords: [[{ term: "に" }]] }],
-                [{ text: "いきたい", reading: "いきたい", headwords: [[{ term: "いきたい" }]] }],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
+              },
+              {
+                source: "mecab",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "俺",
+                      reading: "おれ",
+                      headwords: [[{ term: "俺" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "は",
+                      reading: "は",
+                      headwords: [[{ term: "は" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "小園",
+                      reading: "おうえん",
+                      headwords: [[{ term: "小園" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "に",
+                      reading: "に",
+                      headwords: [[{ term: "に" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "いきたい",
+                      reading: "いきたい",
+                      headwords: [[{ term: "いきたい" }]],
+                    },
+                  ],
+                ],
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
       getFrequencyDictionaryEnabled: () => true,
       tokenizeWithMecab: async () => null,
       getFrequencyRank: (text) =>
@@ -1086,7 +1145,10 @@ test("tokenizeSubtitle prefers mecab parser tokens when scanning parser returns 
   );
 
   assert.equal(result.tokens?.length, 5);
-  assert.equal(result.tokens?.map((token) => token.surface).join(","), "俺,は,小園,に,いきたい");
+  assert.equal(
+    result.tokens?.map((token) => token.surface).join(","),
+    "俺,は,小園,に,いきたい",
+  );
   assert.equal(result.tokens?.[2]?.surface, "小園");
   assert.equal(result.tokens?.[2]?.frequencyRank, 25);
 });
@@ -1095,34 +1157,83 @@ test("tokenizeSubtitle keeps scanning parser tokens when they are already split"
   const result = await tokenizeSubtitle(
     "小園に行きたい",
     makeDeps({
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [{ text: "小園", reading: "おうえん", headwords: [[{ term: "小園" }]] }],
-                [{ text: "に", reading: "に", headwords: [[{ term: "に" }]] }],
-                [{ text: "行きたい", reading: "いきたい", headwords: [[{ term: "行きたい" }]] }],
-              ],
-            },
-            {
-              source: "mecab",
-              index: 0,
-              content: [
-                [{ text: "小", reading: "お", headwords: [[{ term: "小" }]] }],
-                [{ text: "園", reading: "えん", headwords: [[{ term: "園" }]] }],
-                [{ text: "に", reading: "に", headwords: [[{ term: "に" }]] }],
-                [{ text: "行き", reading: "いき", headwords: [[{ term: "行き" }]] }],
-                [{ text: "たい", reading: "たい", headwords: [[{ term: "たい" }]] }],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "小園",
+                      reading: "おうえん",
+                      headwords: [[{ term: "小園" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "に",
+                      reading: "に",
+                      headwords: [[{ term: "に" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "行きたい",
+                      reading: "いきたい",
+                      headwords: [[{ term: "行きたい" }]],
+                    },
+                  ],
+                ],
+              },
+              {
+                source: "mecab",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "小",
+                      reading: "お",
+                      headwords: [[{ term: "小" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "園",
+                      reading: "えん",
+                      headwords: [[{ term: "園" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "に",
+                      reading: "に",
+                      headwords: [[{ term: "に" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "行き",
+                      reading: "いき",
+                      headwords: [[{ term: "行き" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "たい",
+                      reading: "たい",
+                      headwords: [[{ term: "たい" }]],
+                    },
+                  ],
+                ],
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
       getFrequencyDictionaryEnabled: () => true,
       getFrequencyRank: (text) => (text === "小園" ? 20 : null),
       tokenizeWithMecab: async () => null,
@@ -1143,50 +1254,108 @@ test("tokenizeSubtitle prefers parse candidates with fewer fragment-only kana to
   const result = await tokenizeSubtitle(
     "俺は公園にいきたい",
     makeDeps({
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "mecab-fragmented",
-              index: 0,
-              content: [
-                [{ text: "俺", reading: "おれ", headwords: [[{ term: "俺" }]] }],
-                [{ text: "は", reading: "", headwords: [[{ term: "は" }]] }],
-                [{ text: "公園", reading: "こうえん", headwords: [[{ term: "公園" }]] }],
-                [{ text: "にい", reading: "", headwords: [[{ term: "兄" }], [{ term: "二位" }]] }],
-                [{ text: "きたい", reading: "", headwords: [[{ term: "期待" }], [{ term: "来る" }]] }],
-              ],
-            },
-            {
-              source: "mecab",
-              index: 0,
-              content: [
-                [{ text: "俺", reading: "おれ", headwords: [[{ term: "俺" }]] }],
-                [{ text: "は", reading: "は", headwords: [[{ term: "は" }]] }],
-                [{ text: "公園", reading: "こうえん", headwords: [[{ term: "公園" }]] }],
-                [{ text: "に", reading: "に", headwords: [[{ term: "に" }]] }],
-                [{ text: "行きたい", reading: "いきたい", headwords: [[{ term: "行きたい" }]] }],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "mecab-fragmented",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "俺",
+                      reading: "おれ",
+                      headwords: [[{ term: "俺" }]],
+                    },
+                  ],
+                  [{ text: "は", reading: "", headwords: [[{ term: "は" }]] }],
+                  [
+                    {
+                      text: "公園",
+                      reading: "こうえん",
+                      headwords: [[{ term: "公園" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "にい",
+                      reading: "",
+                      headwords: [[{ term: "兄" }], [{ term: "二位" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "きたい",
+                      reading: "",
+                      headwords: [[{ term: "期待" }], [{ term: "来る" }]],
+                    },
+                  ],
+                ],
+              },
+              {
+                source: "mecab",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "俺",
+                      reading: "おれ",
+                      headwords: [[{ term: "俺" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "は",
+                      reading: "は",
+                      headwords: [[{ term: "は" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "公園",
+                      reading: "こうえん",
+                      headwords: [[{ term: "公園" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "に",
+                      reading: "に",
+                      headwords: [[{ term: "に" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "行きたい",
+                      reading: "いきたい",
+                      headwords: [[{ term: "行きたい" }]],
+                    },
+                  ],
+                ],
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
       getFrequencyDictionaryEnabled: () => true,
       getFrequencyRank: (text) =>
         text === "俺"
           ? 51
           : text === "公園"
-          ? 2304
-          : text === "行きたい"
-          ? 1500
-          : null,
+            ? 2304
+            : text === "行きたい"
+              ? 1500
+              : null,
       tokenizeWithMecab: async () => null,
     }),
   );
 
-  assert.equal(result.tokens?.map((token) => token.surface).join(","), "俺,は,公園,に,行きたい");
+  assert.equal(
+    result.tokens?.map((token) => token.surface).join(","),
+    "俺,は,公園,に,行きたい",
+  );
   assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
   assert.equal(result.tokens?.[3]?.frequencyRank, undefined);
   assert.equal(result.tokens?.[4]?.frequencyRank, 1500);
@@ -1196,28 +1365,38 @@ test("tokenizeSubtitle still assigns frequency to non-known Yomitan tokens", asy
   const result = await tokenizeSubtitle(
     "小園に",
     makeDeps({
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
-      getYomitanParserWindow: () => ({
-        isDestroyed: () => false,
-        webContents: {
-          executeJavaScript: async () => [
-            {
-              source: "scanning-parser",
-              index: 0,
-              content: [
-                [
-                  { text: "小園", reading: "おうえん", headwords: [[{ term: "小園" }]] },
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: "scanning-parser",
+                index: 0,
+                content: [
+                  [
+                    {
+                      text: "小園",
+                      reading: "おうえん",
+                      headwords: [[{ term: "小園" }]],
+                    },
+                  ],
+                  [
+                    {
+                      text: "に",
+                      reading: "に",
+                      headwords: [[{ term: "に" }]],
+                    },
+                  ],
                 ],
-                [
-                  { text: "に", reading: "に", headwords: [[{ term: "に" }]] },
-                ],
-              ],
-            },
-          ],
-        },
-      } as unknown as Electron.BrowserWindow),
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
       getFrequencyDictionaryEnabled: () => true,
-      getFrequencyRank: (text) => (text === "小園" ? 75 : text === "に" ? 3000 : null),
+      getFrequencyRank: (text) =>
+        text === "小園" ? 75 : text === "に" ? 3000 : null,
       isKnownWord: (text) => text === "小園",
     }),
   );
@@ -1232,23 +1411,26 @@ test("tokenizeSubtitle still assigns frequency to non-known Yomitan tokens", asy
 test("tokenizeSubtitle marks tokens as known using callback", async () => {
   const result = await tokenizeSubtitle(
     "猫です",
-    makeDepsFromMecabTokenizer(async () => [
+    makeDepsFromMecabTokenizer(
+      async () => [
+        {
+          word: "猫",
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: "",
+          pos2: "",
+          pos3: "",
+          pos4: "",
+          inflectionType: "",
+          inflectionForm: "",
+          headword: "猫",
+          katakanaReading: "ネコ",
+          pronunciation: "ネコ",
+        },
+      ],
       {
-        word: "猫",
-        partOfSpeech: PartOfSpeech.noun,
-        pos1: "",
-        pos2: "",
-        pos3: "",
-        pos4: "",
-        inflectionType: "",
-        inflectionForm: "",
-        headword: "猫",
-        katakanaReading: "ネコ",
-        pronunciation: "ネコ",
+        isKnownWord: (text) => text === "猫",
       },
-    ], {
-      isKnownWord: (text) => text === "猫",
-    }),
+    ),
   );
 
   assert.equal(result.text, "猫です");
@@ -1300,7 +1482,8 @@ test("tokenizeSubtitle still assigns frequency rank to non-known tokens", async 
         },
       ],
       getFrequencyDictionaryEnabled: () => true,
-      getFrequencyRank: (text) => (text === "既知" ? 20 : text === "未知" ? 30 : null),
+      getFrequencyRank: (text) =>
+        text === "既知" ? 20 : text === "未知" ? 30 : null,
       isKnownWord: (text) => text === "既知",
     }),
   );
@@ -1336,7 +1519,7 @@ test("tokenizeSubtitle selects one N+1 target token", async () => {
           endPos: 2,
           partOfSpeech: PartOfSpeech.noun,
           isMerged: false,
-      isKnown: false,
+          isKnown: false,
           isNPlusOneTarget: false,
         },
       ],
@@ -1344,7 +1527,8 @@ test("tokenizeSubtitle selects one N+1 target token", async () => {
     }),
   );
 
-  const targets = result.tokens?.filter((token) => token.isNPlusOneTarget) ?? [];
+  const targets =
+    result.tokens?.filter((token) => token.isNPlusOneTarget) ?? [];
   assert.equal(targets.length, 1);
   assert.equal(targets[0]?.surface, "犬");
 });
@@ -1394,23 +1578,23 @@ test("tokenizeSubtitle applies N+1 target marking to Yomitan results", async () 
         {
           source: "scanning-parser",
           index: 0,
-      content: [
-        [
-          {
-            text: "猫",
-            reading: "ねこ",
-            headwords: [[{ term: "猫" }]],
-          },
-        ],
-        [
-          {
-            text: "です",
-            reading: "です",
-            headwords: [[{ term: "です" }]],
-          },
-        ],
-      ],
-    },
+          content: [
+            [
+              {
+                text: "猫",
+                reading: "ねこ",
+                headwords: [[{ term: "猫" }]],
+              },
+            ],
+            [
+              {
+                text: "です",
+                reading: "です",
+                headwords: [[{ term: "です" }]],
+              },
+            ],
+          ],
+        },
       ],
     },
   } as unknown as Electron.BrowserWindow;
@@ -1418,7 +1602,7 @@ test("tokenizeSubtitle applies N+1 target marking to Yomitan results", async () 
   const result = await tokenizeSubtitle(
     "猫です",
     makeDeps({
-      getYomitanExt: () => ({ id: "dummy-ext" } as any),
+      getYomitanExt: () => ({ id: "dummy-ext" }) as any,
       getYomitanParserWindow: () => parserWindow,
       tokenizeWithMecab: async () => null,
       isKnownWord: (text) => text === "です",
@@ -1473,23 +1657,26 @@ test("tokenizeSubtitle does not color 1-2 word sentences by default", async () =
 test("tokenizeSubtitle checks known words by headword, not surface", async () => {
   const result = await tokenizeSubtitle(
     "猫です",
-    makeDepsFromMecabTokenizer(async () => [
+    makeDepsFromMecabTokenizer(
+      async () => [
+        {
+          word: "猫",
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: "",
+          pos2: "",
+          pos3: "",
+          pos4: "",
+          inflectionType: "",
+          inflectionForm: "",
+          headword: "猫です",
+          katakanaReading: "ネコ",
+          pronunciation: "ネコ",
+        },
+      ],
       {
-        word: "猫",
-        partOfSpeech: PartOfSpeech.noun,
-        pos1: "",
-        pos2: "",
-        pos3: "",
-        pos4: "",
-        inflectionType: "",
-        inflectionForm: "",
-        headword: "猫です",
-        katakanaReading: "ネコ",
-        pronunciation: "ネコ",
+        isKnownWord: (text) => text === "猫です",
       },
-    ], {
-      isKnownWord: (text) => text === "猫です",
-    }),
+    ),
   );
 
   assert.equal(result.text, "猫です");
@@ -1499,24 +1686,27 @@ test("tokenizeSubtitle checks known words by headword, not surface", async () =>
 test("tokenizeSubtitle checks known words by surface when configured", async () => {
   const result = await tokenizeSubtitle(
     "猫です",
-    makeDepsFromMecabTokenizer(async () => [
+    makeDepsFromMecabTokenizer(
+      async () => [
+        {
+          word: "猫",
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: "",
+          pos2: "",
+          pos3: "",
+          pos4: "",
+          inflectionType: "",
+          inflectionForm: "",
+          headword: "猫です",
+          katakanaReading: "ネコ",
+          pronunciation: "ネコ",
+        },
+      ],
       {
-        word: "猫",
-        partOfSpeech: PartOfSpeech.noun,
-        pos1: "",
-        pos2: "",
-        pos3: "",
-        pos4: "",
-        inflectionType: "",
-        inflectionForm: "",
-        headword: "猫です",
-        katakanaReading: "ネコ",
-        pronunciation: "ネコ",
+        getKnownWordMatchMode: () => "surface",
+        isKnownWord: (text) => text === "猫",
       },
-    ], {
-      getKnownWordMatchMode: () => "surface",
-      isKnownWord: (text) => text === "猫",
-    }),
+    ),
   );
 
   assert.equal(result.text, "猫です");

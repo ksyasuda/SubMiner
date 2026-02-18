@@ -32,6 +32,15 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     anilistLogout: false,
     anilistSetup: false,
     anilistRetryQueue: false,
+    jellyfin: false,
+    jellyfinLogin: false,
+    jellyfinLogout: false,
+    jellyfinLibraries: false,
+    jellyfinItems: false,
+    jellyfinSubtitles: false,
+    jellyfinSubtitleUrlsOnly: false,
+    jellyfinPlay: false,
+    jellyfinRemoteAnnounce: false,
     texthooker: false,
     help: false,
     autoStartOverlay: false,
@@ -147,6 +156,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     openAnilistSetup: () => {
       calls.push("openAnilistSetup");
     },
+    openJellyfinSetup: () => {
+      calls.push("openJellyfinSetup");
+    },
     getAnilistQueueStatus: () => ({
       pending: 2,
       ready: 1,
@@ -157,6 +169,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     retryAnilistQueue: async () => {
       calls.push("retryAnilistQueue");
       return { ok: true, message: "AniList retry processed." };
+    },
+    runJellyfinCommand: async () => {
+      calls.push("runJellyfinCommand");
     },
     printHelp: () => {
       calls.push("printHelp");
@@ -187,8 +202,13 @@ test("handleCliCommand ignores --start for second-instance without actions", () 
 
   handleCliCommand(args, "second-instance", deps);
 
-  assert.ok(calls.includes("log:Ignoring --start because SubMiner is already running."));
-  assert.equal(calls.some((value) => value.includes("connectMpvClient")), false);
+  assert.ok(
+    calls.includes("log:Ignoring --start because SubMiner is already running."),
+  );
+  assert.equal(
+    calls.some((value) => value.includes("connectMpvClient")),
+    false,
+  );
 });
 
 test("handleCliCommand runs texthooker flow with browser open", () => {
@@ -198,9 +218,7 @@ test("handleCliCommand runs texthooker flow with browser open", () => {
   handleCliCommand(args, "initial", deps);
 
   assert.ok(calls.includes("ensureTexthookerRunning:5174"));
-  assert.ok(
-    calls.includes("openTexthookerInBrowser:http://127.0.0.1:5174"),
-  );
+  assert.ok(calls.includes("openTexthookerInBrowser:http://127.0.0.1:5174"));
 });
 
 test("handleCliCommand reports async mine errors to OSD", async () => {
@@ -213,7 +231,9 @@ test("handleCliCommand reports async mine errors to OSD", async () => {
   handleCliCommand(makeArgs({ mineSentence: true }), "initial", deps);
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.ok(calls.some((value) => value.startsWith("error:mineSentenceCard failed:")));
+  assert.ok(
+    calls.some((value) => value.startsWith("error:mineSentenceCard failed:")),
+  );
   assert.ok(osd.some((value) => value.includes("Mine sentence failed: boom")));
 });
 
@@ -247,7 +267,10 @@ test("handleCliCommand warns when texthooker port override used while running", 
       "warn:Ignoring --port override because the texthooker server is already running.",
     ),
   );
-  assert.equal(calls.some((value) => value === "setTexthookerPort:9999"), false);
+  assert.equal(
+    calls.some((value) => value === "setTexthookerPort:9999"),
+    false,
+  );
 });
 
 test("handleCliCommand prints help and stops app when no window exists", () => {
@@ -272,9 +295,13 @@ test("handleCliCommand reports async trigger-subsync errors to OSD", async () =>
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.ok(
-    calls.some((value) => value.startsWith("error:triggerSubsyncFromConfig failed:")),
+    calls.some((value) =>
+      value.startsWith("error:triggerSubsyncFromConfig failed:"),
+    ),
   );
-  assert.ok(osd.some((value) => value.includes("Subsync failed: subsync boom")));
+  assert.ok(
+    osd.some((value) => value.includes("Subsync failed: subsync boom")),
+  );
 });
 
 test("handleCliCommand stops app for --stop command", () => {
@@ -292,7 +319,10 @@ test("handleCliCommand still runs non-start actions on second-instance", () => {
     deps,
   );
   assert.ok(calls.includes("toggleVisibleOverlay"));
-  assert.equal(calls.some((value) => value === "connectMpvClient"), true);
+  assert.equal(
+    calls.some((value) => value === "connectMpvClient"),
+    true,
+  );
 });
 
 test("handleCliCommand handles visibility and utility command dispatches", () => {
@@ -300,22 +330,44 @@ test("handleCliCommand handles visibility and utility command dispatches", () =>
     args: Partial<CliArgs>;
     expected: string;
   }> = [
-    { args: { toggleInvisibleOverlay: true }, expected: "toggleInvisibleOverlay" },
+    {
+      args: { toggleInvisibleOverlay: true },
+      expected: "toggleInvisibleOverlay",
+    },
     { args: { settings: true }, expected: "openYomitanSettingsDelayed:1000" },
-    { args: { showVisibleOverlay: true }, expected: "setVisibleOverlayVisible:true" },
-    { args: { hideVisibleOverlay: true }, expected: "setVisibleOverlayVisible:false" },
-    { args: { showInvisibleOverlay: true }, expected: "setInvisibleOverlayVisible:true" },
-    { args: { hideInvisibleOverlay: true }, expected: "setInvisibleOverlayVisible:false" },
+    {
+      args: { showVisibleOverlay: true },
+      expected: "setVisibleOverlayVisible:true",
+    },
+    {
+      args: { hideVisibleOverlay: true },
+      expected: "setVisibleOverlayVisible:false",
+    },
+    {
+      args: { showInvisibleOverlay: true },
+      expected: "setInvisibleOverlayVisible:true",
+    },
+    {
+      args: { hideInvisibleOverlay: true },
+      expected: "setInvisibleOverlayVisible:false",
+    },
     { args: { copySubtitle: true }, expected: "copyCurrentSubtitle" },
-    { args: { copySubtitleMultiple: true }, expected: "startPendingMultiCopy:2500" },
+    {
+      args: { copySubtitleMultiple: true },
+      expected: "startPendingMultiCopy:2500",
+    },
     {
       args: { mineSentenceMultiple: true },
       expected: "startPendingMineSentenceMultiple:2500",
     },
     { args: { toggleSecondarySub: true }, expected: "cycleSecondarySubMode" },
-    { args: { openRuntimeOptions: true }, expected: "openRuntimeOptionsPalette" },
+    {
+      args: { openRuntimeOptions: true },
+      expected: "openRuntimeOptionsPalette",
+    },
     { args: { anilistLogout: true }, expected: "clearAnilistToken" },
     { args: { anilistSetup: true }, expected: "openAnilistSetup" },
+    { args: { jellyfin: true }, expected: "openJellyfinSetup" },
   ];
 
   for (const entry of cases) {
@@ -331,7 +383,9 @@ test("handleCliCommand handles visibility and utility command dispatches", () =>
 test("handleCliCommand logs AniList status details", () => {
   const { deps, calls } = createDeps();
   handleCliCommand(makeArgs({ anilistStatus: true }), "initial", deps);
-  assert.ok(calls.some((value) => value.startsWith("log:AniList token status:")));
+  assert.ok(
+    calls.some((value) => value.startsWith("log:AniList token status:")),
+  );
   assert.ok(calls.some((value) => value.startsWith("log:AniList queue:")));
 });
 
@@ -341,6 +395,56 @@ test("handleCliCommand runs AniList retry command", async () => {
   await new Promise((resolve) => setImmediate(resolve));
   assert.ok(calls.includes("retryAnilistQueue"));
   assert.ok(calls.includes("log:AniList retry processed."));
+});
+
+test("handleCliCommand does not dispatch runJellyfinCommand for non-Jellyfin commands", () => {
+  const nonJellyfinArgs: Array<Partial<CliArgs>> = [
+    { start: true },
+    { copySubtitle: true },
+    { toggleVisibleOverlay: true },
+  ];
+
+  for (const args of nonJellyfinArgs) {
+    const { deps, calls } = createDeps();
+    handleCliCommand(makeArgs(args), "initial", deps);
+    const runJellyfinCallCount = calls.filter(
+      (value) => value === "runJellyfinCommand",
+    ).length;
+    assert.equal(
+      runJellyfinCallCount,
+      0,
+      `Unexpected Jellyfin dispatch for args ${JSON.stringify(args)}`,
+    );
+  }
+});
+
+test("handleCliCommand runs jellyfin command dispatcher", async () => {
+  const { deps, calls } = createDeps();
+  handleCliCommand(makeArgs({ jellyfinLibraries: true }), "initial", deps);
+  handleCliCommand(makeArgs({ jellyfinSubtitles: true }), "initial", deps);
+  await new Promise((resolve) => setImmediate(resolve));
+  const runJellyfinCallCount = calls.filter(
+    (value) => value === "runJellyfinCommand",
+  ).length;
+  assert.equal(runJellyfinCallCount, 2);
+});
+
+test("handleCliCommand reports jellyfin command errors to OSD", async () => {
+  const { deps, calls, osd } = createDeps({
+    runJellyfinCommand: async () => {
+      throw new Error("server offline");
+    },
+  });
+
+  handleCliCommand(makeArgs({ jellyfinLibraries: true }), "initial", deps);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(
+    calls.some((value) => value.startsWith("error:runJellyfinCommand failed:")),
+  );
+  assert.ok(
+    osd.some((value) => value.includes("Jellyfin command failed: server offline")),
+  );
 });
 
 test("handleCliCommand runs refresh-known-words command", () => {
@@ -364,5 +468,9 @@ test("handleCliCommand reports async refresh-known-words errors to OSD", async (
   assert.ok(
     calls.some((value) => value.startsWith("error:refreshKnownWords failed:")),
   );
-  assert.ok(osd.some((value) => value.includes("Refresh known words failed: refresh boom")));
+  assert.ok(
+    osd.some((value) =>
+      value.includes("Refresh known words failed: refresh boom"),
+    ),
+  );
 });

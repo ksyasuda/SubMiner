@@ -83,8 +83,7 @@ export async function translateSentenceWithAi(
   );
   const model = request.model || "openai/gpt-4o-mini";
   const targetLanguage = request.targetLanguage || "English";
-  const prompt =
-    request.systemPrompt?.trim() || DEFAULT_AI_SYSTEM_PROMPT;
+  const prompt = request.systemPrompt?.trim() || DEFAULT_AI_SYSTEM_PROMPT;
 
   try {
     const response = await axios.post(

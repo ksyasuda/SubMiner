@@ -36,6 +36,7 @@ export interface AppReadyRuntimeDepsFactoryInput {
   createMecabTokenizerAndCheck: AppReadyRuntimeDeps["createMecabTokenizerAndCheck"];
   createSubtitleTimingTracker: AppReadyRuntimeDeps["createSubtitleTimingTracker"];
   createImmersionTracker?: AppReadyRuntimeDeps["createImmersionTracker"];
+  startJellyfinRemoteSession?: AppReadyRuntimeDeps["startJellyfinRemoteSession"];
   loadYomitanExtension: AppReadyRuntimeDeps["loadYomitanExtension"];
   texthookerOnlyMode: AppReadyRuntimeDeps["texthookerOnlyMode"];
   shouldAutoInitializeOverlayRuntimeFromConfig: AppReadyRuntimeDeps["shouldAutoInitializeOverlayRuntimeFromConfig"];
@@ -83,6 +84,7 @@ export function createAppReadyRuntimeDeps(
     createMecabTokenizerAndCheck: params.createMecabTokenizerAndCheck,
     createSubtitleTimingTracker: params.createSubtitleTimingTracker,
     createImmersionTracker: params.createImmersionTracker,
+    startJellyfinRemoteSession: params.startJellyfinRemoteSession,
     loadYomitanExtension: params.loadYomitanExtension,
     texthookerOnlyMode: params.texthookerOnlyMode,
     shouldAutoInitializeOverlayRuntimeFromConfig:

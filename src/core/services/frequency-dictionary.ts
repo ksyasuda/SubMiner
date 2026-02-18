@@ -44,11 +44,7 @@ function asFrequencyDictionaryEntry(
     return null;
   }
 
-  const [term, _id, meta] = entry as [
-    unknown,
-    unknown,
-    unknown,
-  ];
+  const [term, _id, meta] = entry as [unknown, unknown, unknown];
   if (typeof term !== "string") {
     return null;
   }

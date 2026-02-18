@@ -53,6 +53,7 @@ The configuration file includes several main sections:
 - [**Invisible Overlay**](#invisible-overlay) - Startup visibility behavior for the invisible mining layer
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
 - [**AniList**](#anilist) - Optional post-watch progress updates
+- [**Jellyfin**](#jellyfin) - Optional Jellyfin auth, library listing, and playback launch
 - [**Keybindings**](#keybindings) - MPV command shortcuts
 - [**Runtime Option Palette**](#runtime-option-palette) - Live, session-only option toggles
 - [**Secondary Subtitles**](#secondary-subtitles) - Dual subtitle track support
@@ -442,6 +443,69 @@ AniList IPC channels:
 - `anilist:get-queue-status`: return retry queue state snapshot.
 - `anilist:retry-now`: process one ready retry queue item immediately.
 
+### Jellyfin
+
+Jellyfin integration is optional and disabled by default. When enabled, SubMiner can authenticate, list libraries/items, and resolve direct/transcoded playback URLs for mpv launch.
+
+```json
+{
+  "jellyfin": {
+    "enabled": true,
+    "serverUrl": "http://127.0.0.1:8096",
+    "username": "",
+    "accessToken": "",
+    "userId": "",
+    "remoteControlEnabled": true,
+    "remoteControlAutoConnect": true,
+    "autoAnnounce": false,
+    "remoteControlDeviceName": "SubMiner",
+    "defaultLibraryId": "",
+    "directPlayPreferred": true,
+    "directPlayContainers": ["mkv", "mp4", "webm", "mov", "flac", "mp3", "aac"],
+    "transcodeVideoCodec": "h264"
+  }
+}
+```
+
+| Option | Values | Description |
+| ------ | ------ | ----------- |
+| `enabled` | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`) |
+| `serverUrl` | string (URL) | Jellyfin server base URL |
+| `username` | string | Default username used by `--jellyfin-login` |
+| `accessToken` | string | Stored Jellyfin access token (treat as secret) |
+| `userId` | string | Jellyfin user id bound to token/session |
+| `deviceId` | string | Client device id sent in auth headers (default: `subminer`) |
+| `clientName` | string | Client name sent in auth headers (default: `SubMiner`) |
+| `clientVersion` | string | Client version sent in auth headers (default: `0.1.0`) |
+| `defaultLibraryId` | string | Default library id for `--jellyfin-items` when CLI value is omitted |
+| `remoteControlEnabled` | `true`, `false` | Enable Jellyfin cast/remote-control session support |
+| `remoteControlAutoConnect` | `true`, `false` | Auto-connect Jellyfin remote session on app startup |
+| `autoAnnounce` | `true`, `false` | Auto-run cast-target visibility announce check on connect (default: `false`) |
+| `remoteControlDeviceName` | string | Device name shown in Jellyfin cast/device lists |
+| `pullPictures` | `true`, `false` | Enable poster/icon fetching for launcher Jellyfin pickers |
+| `iconCacheDir` | string | Cache directory for launcher-fetched Jellyfin poster icons |
+| `directPlayPreferred` | `true`, `false` | Prefer direct stream URLs before transcoding |
+| `directPlayContainers` | string[] | Container allowlist for direct play decisions |
+| `transcodeVideoCodec` | string | Preferred transcode video codec fallback (default: `h264`) |
+
+Jellyfin direct app CLI commands (`SubMiner.AppImage ...`):
+
+- `--jellyfin`: open the in-app Jellyfin setup window (server/user/password form).
+- `--jellyfin-login` with `--jellyfin-server`, `--jellyfin-username`, `--jellyfin-password`: authenticate and store token/session data.
+- `--jellyfin-logout`: clear stored Jellyfin token/session data.
+- `--jellyfin-libraries`: list available Jellyfin libraries.
+- `--jellyfin-items`: list playable items (`--jellyfin-library-id`, optional `--jellyfin-search`, `--jellyfin-limit`).
+- `--jellyfin-play`: resolve playback URL and launch (`--jellyfin-item-id`, optional audio/subtitle stream index overrides; requires connected mpv IPC).
+- `--jellyfin-remote-announce`: force capability announce + visibility check in Jellyfin sessions (debug helper).
+- `--jellyfin-server`: optional server URL override for Jellyfin commands.
+
+Launcher subcommand equivalents:
+
+- `subminer jellyfin` (or `subminer jf`) opens setup.
+- `subminer jellyfin -l --server ... --username ... --password ...` logs in.
+- `subminer jellyfin -p` opens play picker.
+- `subminer jellyfin -d` starts cast discovery mode.
+
 ### Keybindings
 
 Add a `keybindings` array to configure keyboard shortcuts that send commands to mpv:
@@ -717,15 +781,37 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
 {
   "immersionTracking": {
     "enabled": true,
-    "dbPath": ""
+    "dbPath": "",
+    "batchSize": 25,
+    "flushIntervalMs": 500,
+    "queueCap": 1000,
+    "payloadCapBytes": 256,
+    "maintenanceIntervalMs": 86400000,
+    "retention": {
+      "eventsDays": 7,
+      "telemetryDays": 30,
+      "dailyRollupsDays": 365,
+      "monthlyRollupsDays": 1825,
+      "vacuumIntervalDays": 7
+    }
   }
 }
 ```
 
-| Option     | Values                     | Description |
-| ---------- | -------------------------- | ----------- |
-| `enabled`  | `true`, `false`            | Enable immersion tracking. Defaults to `true`. |
-| `dbPath`   | string                     | Optional SQLite database path. Leave empty to use default app-data path at `<config dir>/immersion.sqlite`. |
+| Option | Values | Description |
+| --- | --- | --- |
+| `enabled` | `true`, `false` | Enable immersion tracking. Defaults to `true`. |
+| `dbPath` | string | Optional SQLite database path. Leave empty to use default app-data path at `<config dir>/immersion.sqlite`. |
+| `batchSize` | integer (`1`-`10000`) | Buffered writes per transaction. Default `25`. |
+| `flushIntervalMs` | integer (`50`-`60000`) | Maximum queue delay before flush. Default `500ms`. |
+| `queueCap` | integer (`100`-`100000`) | In-memory queue cap. Overflow drops oldest writes. Default `1000`. |
+| `payloadCapBytes` | integer (`64`-`8192`) | Event payload byte cap before truncation marker. Default `256`. |
+| `maintenanceIntervalMs` | integer (`60000`-`604800000`) | Prune + rollup maintenance cadence. Default `86400000` (24h). |
+| `retention.eventsDays` | integer (`1`-`3650`) | Raw event retention window. Default `7` days. |
+| `retention.telemetryDays` | integer (`1`-`3650`) | Telemetry retention window. Default `30` days. |
+| `retention.dailyRollupsDays` | integer (`1`-`36500`) | Daily rollup retention window. Default `365` days. |
+| `retention.monthlyRollupsDays` | integer (`1`-`36500`) | Monthly rollup retention window. Default `1825` days (~5 years). |
+| `retention.vacuumIntervalDays` | integer (`1`-`3650`) | Minimum spacing between `VACUUM` passes. Default `7` days. |
 
 When `dbPath` is blank or omitted, SubMiner writes telemetry and session summaries to the default app-data location:
 
@@ -734,6 +820,8 @@ When `dbPath` is blank or omitted, SubMiner writes telemetry and session summari
 ```
 
 Set `dbPath` only if you want to relocate the database (for backup, syncing, or inspection workflows). The database is created when tracking starts for the first time.
+
+See [Immersion Tracking Storage](/immersion-tracking) for schema details, query templates, retention/rollup behavior, and backend portability notes.
 
 ### YouTube Subtitle Generation
 
