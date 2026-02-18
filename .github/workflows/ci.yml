@@ -39,6 +39,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build (TypeScript check)
+        # Keep explicit typecheck for fast fail before full build/bundle.
         run: bun run tsc --noEmit
 
       - name: Build (bundle)

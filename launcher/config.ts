@@ -216,12 +216,18 @@ function ensureTarget(target: string, parsed: Args): void {
     return;
   }
   const resolved = resolvePathMaybe(target);
-  if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+  let stat: fs.Stats | null = null;
+  try {
+    stat = fs.statSync(resolved);
+  } catch {
+    stat = null;
+  }
+  if (stat?.isFile()) {
     parsed.target = resolved;
     parsed.targetKind = 'file';
     return;
   }
-  if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+  if (stat?.isDirectory()) {
     parsed.directory = resolved;
     return;
   }

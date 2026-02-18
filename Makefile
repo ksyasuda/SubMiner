@@ -54,7 +54,7 @@ help:
 		"  dev-toggle       Toggle overlay in a running local Electron app" \
 		"  dev-stop         Stop a running local Electron app" \
 		"  docs-dev         Run VitePress docs dev server" \
-		"  docs       Build VitePress static docs" \
+		"  docs            Build VitePress static docs" \
 		"  docs-preview     Preview built VitePress docs" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
 		"  install-macos    Install macOS wrapper/theme/app artifacts" \
@@ -134,7 +134,9 @@ build-macos-unsigned: deps
 build-launcher:
 	@printf '%s\n' "[INFO] Bundling launcher script"
 	@bun build ./launcher/main.ts --target=bun --packages=bundle --outfile=subminer
-	@python3 -c 'from pathlib import Path; p=Path("subminer"); c=p.read_text(); c=("#!/usr/bin/env bun\n"+c) if not c.startswith("#!/usr/bin/env bun\n") else c; p.write_text(c)'
+	@if ! head -1 subminer | grep -q '^#!/usr/bin/env bun'; then \
+		{ printf '#!/usr/bin/env bun\n'; cat subminer; } > subminer.tmp && mv subminer.tmp subminer; \
+	fi
 	@chmod +x subminer
 
 clean:
