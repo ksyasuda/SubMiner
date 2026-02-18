@@ -4,14 +4,14 @@ title: 'Phase 6 (Optional): Reorganize services by domain directories'
 status: Done
 assignee: []
 created_date: '2026-02-10 18:46'
-updated_date: '2026-02-11 03:35'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies:
   - TASK-1.5
 references:
   - plan.md
 parent_task_id: TASK-1
-ordinal: 3000
+ordinal: 4000
 ---
 
 ## Description

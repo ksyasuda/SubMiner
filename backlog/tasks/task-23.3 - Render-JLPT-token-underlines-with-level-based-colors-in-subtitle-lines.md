@@ -4,10 +4,12 @@ title: Render JLPT token underlines with level-based colors in subtitle lines
 status: Done
 assignee: []
 created_date: '2026-02-13 16:42'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 parent_task_id: TASK-23
 priority: high
+ordinal: 44000
 ---
 
 ## Description

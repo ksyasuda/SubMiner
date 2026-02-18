@@ -4,10 +4,11 @@ title: Add runtime toggle to log selected Yomitan token groups
 status: Done
 assignee: []
 created_date: '2026-02-16 23:38'
-updated_date: '2026-02-16 23:41'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 priority: low
+ordinal: 22000
 ---
 
 ## Description

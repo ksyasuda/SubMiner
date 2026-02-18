@@ -4,11 +4,12 @@ title: Drive Yomitan group debug logging from overlay debug mode (Y-D)
 status: Done
 assignee: []
 created_date: '2026-02-16 23:48'
-updated_date: '2026-02-16 23:50'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 parent_task_id: TASK-63
 priority: low
+ordinal: 21000
 ---
 
 ## Description

@@ -4,9 +4,10 @@ title: Ensure parser utility scripts exit immediately after output
 status: Done
 assignee: []
 created_date: '2026-02-16 22:35'
-updated_date: '2026-02-16 22:37'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
+ordinal: 24000
 ---
 
 ## Description

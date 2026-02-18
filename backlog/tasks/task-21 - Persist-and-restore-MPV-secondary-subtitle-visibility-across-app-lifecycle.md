@@ -4,10 +4,11 @@ title: Persist and restore MPV secondary subtitle visibility across app lifecycl
 status: Done
 assignee: []
 created_date: '2026-02-13 07:59'
-updated_date: '2026-02-13 08:01'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 priority: high
+ordinal: 46000
 ---
 
 ## Description

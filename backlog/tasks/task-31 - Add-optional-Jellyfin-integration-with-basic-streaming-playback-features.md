@@ -1,15 +1,16 @@
 ---
 id: TASK-31
 title: Add optional Jellyfin integration with basic streaming/ playback features
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-02-13 18:38'
-updated_date: '2026-02-18 02:54'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 references:
   - TASK-64
   - docs/plans/2026-02-17-jellyfin-cast-remote-playback.md
+ordinal: 57000
 ---
 
 ## Description
@@ -21,8 +22,8 @@ Implement optional Jellyfin integration so SubMiner can act as a lightweight Jel
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Add a configurable Jellyfin integration path that can be enabled/disabled without impacting core non-Jellyfin functionality.
-- [ ] #2 Support authenticating against a user-selected Jellyfin server (server URL + credentials/token) and securely storing/reusing connection settings.
-- [ ] #3 Allow discovery or manual selection of movies/tv shows/music libraries and playback items from the connected Jellyfin server.
+- [x] #2 Support authenticating against a user-selected Jellyfin server (server URL + credentials/token) and securely storing/reusing connection settings.
+- [x] #3 Allow discovery or manual selection of movies/tv shows/music libraries and playback items from the connected Jellyfin server.
 - [x] #4 Enable playback from Jellyfin items via existing player pipeline with a dedicated selection/launch flow.
 - [x] #5 Honor Jellyfin playback options so direct play is attempted first when media/profiles are compatible.
 - [x] #6 Fall back to Jellyfin-managed transcoding when direct play is not possible, passing required transcode parameters to the player.

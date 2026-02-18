@@ -4,13 +4,14 @@ title: Fix second-instance --start when texthooker-only instance is running
 status: Done
 assignee: []
 created_date: '2026-02-11 23:47'
-updated_date: '2026-02-11 23:47'
+updated_date: '2026-02-18 04:11'
 labels:
   - bugfix
   - cli
   - overlay
 dependencies: []
 priority: high
+ordinal: 51000
 ---
 
 ## Description

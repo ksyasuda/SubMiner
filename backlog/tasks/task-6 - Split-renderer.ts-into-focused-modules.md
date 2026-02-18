@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-11 08:20'
-updated_date: '2026-02-11 20:45'
+updated_date: '2026-02-18 04:11'
 labels:
   - refactor
   - renderer
@@ -16,6 +16,7 @@ dependencies:
 references:
   - src/renderer/renderer.ts
 priority: high
+ordinal: 52000
 ---
 
 ## Description

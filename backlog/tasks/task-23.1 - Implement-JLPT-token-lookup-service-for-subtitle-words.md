@@ -4,11 +4,12 @@ title: Implement JLPT token lookup service for subtitle words
 status: Done
 assignee: []
 created_date: '2026-02-13 16:42'
-updated_date: '2026-02-16 02:01'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 parent_task_id: TASK-23
 priority: high
+ordinal: 32000
 ---
 
 ## Description

@@ -4,7 +4,7 @@ title: Implement AniList retry/backoff queue for failed post-watch updates
 status: Done
 assignee: []
 created_date: '2026-02-17 04:13'
-updated_date: '2026-02-17 04:19'
+updated_date: '2026-02-18 04:11'
 labels:
   - anilist
   - reliability
@@ -12,6 +12,7 @@ labels:
 dependencies: []
 parent_task_id: TASK-29
 priority: medium
+ordinal: 19000
 ---
 
 ## Acceptance Criteria

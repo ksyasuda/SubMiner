@@ -4,7 +4,7 @@ title: Extract main.ts global state into an AppState container
 status: Done
 assignee: []
 created_date: '2026-02-11 08:20'
-updated_date: '2026-02-15 04:30'
+updated_date: '2026-02-18 04:11'
 labels:
   - refactor
   - main
@@ -14,6 +14,7 @@ dependencies: []
 references:
   - src/main.ts
 priority: high
+ordinal: 38000
 ---
 
 ## Description

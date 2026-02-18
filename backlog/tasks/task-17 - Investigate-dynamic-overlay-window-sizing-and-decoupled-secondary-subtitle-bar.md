@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-12 02:27'
-updated_date: '2026-02-12 09:42'
+updated_date: '2026-02-18 04:11'
 labels:
   - overlay
   - ux
@@ -14,6 +14,7 @@ dependencies: []
 documentation:
   - overlay_window.md
 priority: high
+ordinal: 47000
 ---
 
 ## Description

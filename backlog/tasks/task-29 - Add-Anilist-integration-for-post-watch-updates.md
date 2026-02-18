@@ -4,7 +4,7 @@ title: Add Anilist integration for post-watch updates
 status: Done
 assignee: []
 created_date: '2026-02-13 17:57'
-updated_date: '2026-02-17 09:27'
+updated_date: '2026-02-18 04:11'
 labels:
   - anilist
   - anime
@@ -13,6 +13,7 @@ labels:
   - api
 dependencies: []
 priority: medium
+ordinal: 16000
 ---
 
 ## Description

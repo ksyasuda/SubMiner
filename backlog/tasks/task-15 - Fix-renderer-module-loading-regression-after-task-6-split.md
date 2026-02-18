@@ -4,13 +4,14 @@ title: Fix renderer module loading regression after task 6 split
 status: Done
 assignee: []
 created_date: '2026-02-12 00:45'
-updated_date: '2026-02-12 00:46'
+updated_date: '2026-02-18 04:11'
 labels:
   - regression
   - overlay
   - renderer
 dependencies: []
 priority: high
+ordinal: 49000
 ---
 
 ## Description

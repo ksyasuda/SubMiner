@@ -4,13 +4,14 @@ title: Ensure subminer launcher shows visible overlay on startup
 status: Done
 assignee: []
 created_date: '2026-02-12 00:22'
-updated_date: '2026-02-12 00:23'
+updated_date: '2026-02-18 04:11'
 labels:
   - bugfix
   - launcher
   - overlay
 dependencies: []
 priority: high
+ordinal: 50000
 ---
 
 ## Description

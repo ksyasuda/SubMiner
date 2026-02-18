@@ -4,7 +4,7 @@ title: Consolidate fragmented JLPT utility modules
 status: Done
 assignee: []
 created_date: '2026-02-16 04:47'
-updated_date: '2026-02-16 04:57'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 references:
@@ -15,6 +15,7 @@ references:
   - >-
     /home/sudacode/projects/japanese/SubMiner/src/core/services/jlpt-ignored-mecab-pos1.ts
 priority: medium
+ordinal: 30000
 ---
 
 ## Description

@@ -4,9 +4,10 @@ title: Remove hard-coded particle term exclusions from frequency lookup
 status: Done
 assignee: []
 created_date: '2026-02-16 22:20'
-updated_date: '2026-02-16 22:21'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
+ordinal: 25000
 ---
 
 ## Description

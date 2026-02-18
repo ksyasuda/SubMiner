@@ -5,7 +5,7 @@ status: Done
 assignee:
   - frontend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-15 23:59'
+updated_date: '2026-02-18 04:11'
 labels:
   - refactor
   - renderer
@@ -21,6 +21,7 @@ documentation:
   - docs/architecture.md
 parent_task_id: TASK-27
 priority: low
+ordinal: 36000
 ---
 
 ## Description

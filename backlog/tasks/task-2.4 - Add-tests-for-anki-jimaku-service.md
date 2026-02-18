@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-10 18:56'
-updated_date: '2026-02-11 03:35'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies:
   - TASK-2.1
@@ -13,7 +13,7 @@ references:
   - investigation.md
   - src/core/services/anki-jimaku-service.ts
 parent_task_id: TASK-2
-ordinal: 6000
+ordinal: 7000
 ---
 
 ## Description
