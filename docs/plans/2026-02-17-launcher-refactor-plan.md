@@ -31,6 +31,7 @@ modules into a single file.
 ### Task 1: Create launcher/ directory and types.ts
 
 **Files:**
+
 - Create: `launcher/types.ts`
 
 **Step 1: Create the launcher directory**
@@ -70,6 +71,7 @@ git commit -m "refactor(launcher): extract types and constants to launcher/types
 ### Task 2: Create launcher/log.ts
 
 **Files:**
+
 - Create: `launcher/log.ts`
 
 **Step 1: Create `launcher/log.ts`**
@@ -83,7 +85,7 @@ Extract from `subminer` (lines 583-724):
 Add at top:
 
 ```typescript
-import type { LogLevel } from "./types.js";
+import type { LogLevel } from './types.js';
 ```
 
 All functions must be `export`ed. Keep `import fs from "node:fs"` and `import path from "node:path"` for the logging file operations.
@@ -108,6 +110,7 @@ git commit -m "refactor(launcher): extract logging to launcher/log.ts"
 ### Task 3: Create launcher/util.ts
 
 **Files:**
+
 - Create: `launcher/util.ts`
 
 **Step 1: Create `launcher/util.ts`**
@@ -133,12 +136,12 @@ Extract from `subminer`:
 Add at top:
 
 ```typescript
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import { spawn } from "node:child_process";
-import type { CommandExecOptions, CommandExecResult } from "./types.js";
-import { log } from "./log.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { spawn } from 'node:child_process';
+import type { CommandExecOptions, CommandExecResult } from './types.js';
+import { log } from './log.js';
 ```
 
 `runExternalCommand()` currently references `state.youtubeSubgenChildren`. Change this to accept the set as a parameter:
@@ -176,6 +179,7 @@ git commit -m "refactor(launcher): extract utilities to launcher/util.ts"
 ### Task 4: Create launcher/config.ts
 
 **Files:**
+
 - Create: `launcher/config.ts`
 
 **Step 1: Create `launcher/config.ts`**
@@ -191,24 +195,29 @@ Extract from `subminer`:
 Add imports:
 
 ```typescript
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import { parse as parseJsonc } from "jsonc-parser";
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { parse as parseJsonc } from 'jsonc-parser';
 import type {
-  LogLevel, YoutubeSubgenMode, Backend, Args,
-  LauncherYoutubeSubgenConfig, LauncherJellyfinConfig, PluginRuntimeConfig,
+  LogLevel,
+  YoutubeSubgenMode,
+  Backend,
+  Args,
+  LauncherYoutubeSubgenConfig,
+  LauncherJellyfinConfig,
+  PluginRuntimeConfig,
   JimakuLanguagePreference,
-} from "./types.js";
+} from './types.js';
 import {
-  DEFAULT_SOCKET_PATH, DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS,
-  DEFAULT_YOUTUBE_SECONDARY_SUB_LANGS, DEFAULT_YOUTUBE_SUBGEN_OUT_DIR,
+  DEFAULT_SOCKET_PATH,
+  DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS,
+  DEFAULT_YOUTUBE_SECONDARY_SUB_LANGS,
+  DEFAULT_YOUTUBE_SUBGEN_OUT_DIR,
   DEFAULT_JIMAKU_API_BASE_URL,
-} from "./types.js";
-import { log, fail } from "./log.js";
-import {
-  resolvePathMaybe, isUrlTarget, uniqueNormalizedLangCodes, parseBoolLike,
-} from "./util.js";
+} from './types.js';
+import { log, fail } from './log.js';
+import { resolvePathMaybe, isUrlTarget, uniqueNormalizedLangCodes, parseBoolLike } from './util.js';
 ```
 
 `parseArgs()` calls `inferWhisperLanguage()` — that function will live in `youtube.ts`. For now, inline it or import it. Since `youtube.ts` hasn't been created yet, the simplest approach is to move `inferWhisperLanguage()` into `util.ts` (it's a pure string function with no domain coupling) and import it from there.
@@ -235,6 +244,7 @@ git commit -m "refactor(launcher): extract config loading and arg parsing to lau
 ### Task 5: Create launcher/jimaku.ts
 
 **Files:**
+
 - Create: `launcher/jimaku.ts`
 
 **Step 1: Create `launcher/jimaku.ts`**
@@ -242,11 +252,13 @@ git commit -m "refactor(launcher): extract config loading and arg parsing to lau
 Extract from `subminer`:
 
 Local types (keep unexported or export as needed):
+
 - `JimakuEntry` (line 74), `JimakuFileEntry` (line 88), `JimakuApiError` (line 95),
   `JimakuApiResponse` (line 101), `JimakuDownloadResult` (line 105),
   `JimakuConfig` (line 109), `JimakuMediaInfo` (line 117)
 
 Functions:
+
 - `getRetryAfter()` (line 126)
 - `matchEpisodeFromName()` (line 135)
 - `detectSeasonFromDir()` (line 184)
@@ -268,14 +280,14 @@ Functions:
 Add imports:
 
 ```typescript
-import fs from "node:fs";
-import path from "node:path";
-import http from "node:http";
-import https from "node:https";
-import { spawnSync } from "node:child_process";
-import type { Args, JimakuLanguagePreference } from "./types.js";
-import { DEFAULT_JIMAKU_API_BASE_URL } from "./types.js";
-import { commandExists } from "./util.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import http from 'node:http';
+import https from 'node:https';
+import { spawnSync } from 'node:child_process';
+import type { Args, JimakuLanguagePreference } from './types.js';
+import { DEFAULT_JIMAKU_API_BASE_URL } from './types.js';
+import { commandExists } from './util.js';
 ```
 
 Export all functions that are used by other modules (at minimum `buildJimakuConfig`, `normalizeJimakuSearchInput`, `isValidSubtitleCandidateFile`, `mapPreferenceToLanguages`, `parseMediaInfo`, `resolveJimakuApiKey`, `jimakuFetchJson`, `sortJimakuFiles`, `downloadToFile`).
@@ -298,6 +310,7 @@ git commit -m "refactor(launcher): extract Jimaku API to launcher/jimaku.ts"
 ### Task 6: Create launcher/picker.ts
 
 **Files:**
+
 - Create: `launcher/picker.ts`
 
 **Step 1: Create `launcher/picker.ts`**
@@ -323,14 +336,14 @@ Extract from `subminer`:
 Add imports:
 
 ```typescript
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import { spawnSync } from "node:child_process";
-import type { LogLevel } from "./types.js";
-import { VIDEO_EXTENSIONS, ROFI_THEME_FILE } from "./types.js";
-import { log, fail } from "./log.js";
-import { commandExists, realpathMaybe } from "./util.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
+import type { LogLevel } from './types.js';
+import { VIDEO_EXTENSIONS, ROFI_THEME_FILE } from './types.js';
+import { log, fail } from './log.js';
+import { commandExists, realpathMaybe } from './util.js';
 ```
 
 The Jellyfin picker functions (`pickLibrary`, `pickItem`, `pickGroup`) take a `JellyfinSessionConfig` parameter. Since that type is local to `jellyfin.ts`, define a minimal interface locally in picker.ts or accept it as a generic object with `serverUrl` and `accessToken` fields. The cleanest approach: export `JellyfinSessionConfig` from `jellyfin.ts` and import it in `picker.ts`. But since jellyfin.ts doesn't exist yet, define the shape inline for now:
@@ -366,6 +379,7 @@ git commit -m "refactor(launcher): extract picker UI to launcher/picker.ts"
 ### Task 7: Create launcher/mpv.ts
 
 **Files:**
+
 - Create: `launcher/mpv.ts`
 
 **Step 1: Create `launcher/mpv.ts`**
@@ -373,9 +387,11 @@ git commit -m "refactor(launcher): extract picker UI to launcher/picker.ts"
 Extract from `subminer`:
 
 State object (line 598):
+
 - `state` — export it so `main.ts` and `util.ts` (via `runExternalCommand`) can access it
 
 IPC functions:
+
 - `sendMpvCommand()` (line 1802)
 - `sendMpvCommandWithResponse()` (line 1872) — also needs `MpvResponseEnvelope` (line 1866)
 - `getMpvTracks()` (line 1938)
@@ -386,6 +402,7 @@ IPC functions:
 - `waitForSocket()` (line 3280)
 
 Process management:
+
 - `detectBackend()` (line 2041)
 - `resolveMacAppBinaryCandidate()` (line 735)
 - `findAppBinary()` (line 2264)
@@ -398,18 +415,23 @@ Process management:
 Add imports:
 
 ```typescript
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import net from "node:net";
-import { spawn, spawnSync } from "node:child_process";
-import type { LogLevel, Backend, Args } from "./types.js";
-import { DEFAULT_SOCKET_PATH, DEFAULT_MPV_SUBMINER_ARGS } from "./types.js";
-import { log, fail, getMpvLogPath } from "./log.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import net from 'node:net';
+import { spawn, spawnSync } from 'node:child_process';
+import type { LogLevel, Backend, Args } from './types.js';
+import { DEFAULT_SOCKET_PATH, DEFAULT_MPV_SUBMINER_ARGS } from './types.js';
+import { log, fail, getMpvLogPath } from './log.js';
 import {
-  commandExists, isExecutable, resolvePathMaybe, realpathMaybe,
-  isYoutubeTarget, uniqueNormalizedLangCodes, sleep,
-} from "./util.js";
+  commandExists,
+  isExecutable,
+  resolvePathMaybe,
+  realpathMaybe,
+  isYoutubeTarget,
+  uniqueNormalizedLangCodes,
+  sleep,
+} from './util.js';
 ```
 
 Export `state` and all functions.
@@ -432,6 +454,7 @@ git commit -m "refactor(launcher): extract mpv management to launcher/mpv.ts"
 ### Task 8: Create launcher/youtube.ts
 
 **Files:**
+
 - Create: `launcher/youtube.ts`
 
 **Step 1: Create `launcher/youtube.ts`**
@@ -439,6 +462,7 @@ git commit -m "refactor(launcher): extract mpv management to launcher/mpv.ts"
 Extract from `subminer`:
 
 Language/classification helpers:
+
 - `toYtdlpLangPattern()` (line 1527)
 - `filenameHasLanguageTag()` (line 1535)
 - `classifyLanguage()` (line 1541)
@@ -446,33 +470,41 @@ Language/classification helpers:
 - `sourceTag()` (line 1570)
 
 Subtitle operations:
+
 - `pickBestCandidate()` (line 1673)
 - `scanSubtitleCandidates()` (line 1687)
 - `convertToSrt()` (line 1715)
 - `findAudioFile()` (line 1726)
 
 Whisper:
+
 - `runWhisper()` (line 1749)
 - `convertAudioForWhisper()` (line 1780)
 - `resolveWhisperBinary()` (line 2394)
 
 Main pipeline:
+
 - `generateYoutubeSubtitles()` (line 2401)
 
 Add imports:
 
 ```typescript
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import type { Args, SubtitleCandidate, YoutubeSubgenOutputs } from "./types.js";
-import { YOUTUBE_SUB_EXTENSIONS, YOUTUBE_AUDIO_EXTENSIONS } from "./types.js";
-import { log } from "./log.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import type { Args, SubtitleCandidate, YoutubeSubgenOutputs } from './types.js';
+import { YOUTUBE_SUB_EXTENSIONS, YOUTUBE_AUDIO_EXTENSIONS } from './types.js';
+import { log } from './log.js';
 import {
-  resolvePathMaybe, uniqueNormalizedLangCodes, normalizeLangCode,
-  escapeRegExp, normalizeBasename, sanitizeToken, runExternalCommand,
-} from "./util.js";
-import { state } from "./mpv.js";
+  resolvePathMaybe,
+  uniqueNormalizedLangCodes,
+  normalizeLangCode,
+  escapeRegExp,
+  normalizeBasename,
+  sanitizeToken,
+  runExternalCommand,
+} from './util.js';
+import { state } from './mpv.js';
 ```
 
 `generateYoutubeSubtitles()` calls `runExternalCommand()` — pass `state.youtubeSubgenChildren` as the `childTracker` parameter.
@@ -497,6 +529,7 @@ git commit -m "refactor(launcher): extract YouTube subtitle pipeline to launcher
 ### Task 9: Create launcher/jellyfin.ts
 
 **Files:**
+
 - Create: `launcher/jellyfin.ts`
 
 **Step 1: Create `launcher/jellyfin.ts`**
@@ -504,12 +537,14 @@ git commit -m "refactor(launcher): extract YouTube subtitle pipeline to launcher
 Extract from `subminer`:
 
 Local types (or imported from types.ts if moved in Task 6):
+
 - `JellyfinSessionConfig` (line 944)
 - `JellyfinLibraryEntry` (line 951)
 - `JellyfinItemEntry` (line 957)
 - `JellyfinGroupEntry` (line 964)
 
 Functions:
+
 - `sanitizeServerUrl()` (line 971)
 - `jellyfinApiRequest()` (line 975)
 - `formatJellyfinItemDisplay()` (line 1264)
@@ -519,15 +554,19 @@ Functions:
 Add imports:
 
 ```typescript
-import type { Args } from "./types.js";
-import { log, fail } from "./log.js";
-import { commandExists } from "./util.js";
+import type { Args } from './types.js';
+import { log, fail } from './log.js';
+import { commandExists } from './util.js';
 import {
-  pickLibrary, pickItem, pickGroup, promptOptionalJellyfinSearch,
-  findRofiTheme, showRofiFlatMenu,
-} from "./picker.js";
-import { loadLauncherJellyfinConfig } from "./config.js";
-import { runAppCommandWithInherit } from "./main.js";
+  pickLibrary,
+  pickItem,
+  pickGroup,
+  promptOptionalJellyfinSearch,
+  findRofiTheme,
+  showRofiFlatMenu,
+} from './picker.js';
+import { loadLauncherJellyfinConfig } from './config.js';
+import { runAppCommandWithInherit } from './main.js';
 ```
 
 Note: `runJellyfinPlayMenu()` calls `runAppCommandWithInherit()` which lives in `main.ts`. This creates a potential circular dependency (main -> jellyfin -> main). Solution: move `runAppCommandWithInherit()` to `mpv.ts` (it spawns a process and exits, which is process management). Or keep it in `util.ts`. The cleanest placement is `mpv.ts` since it calls the app binary.
@@ -552,6 +591,7 @@ git commit -m "refactor(launcher): extract Jellyfin integration to launcher/jell
 ### Task 10: Create launcher/main.ts
 
 **Files:**
+
 - Create: `launcher/main.ts`
 
 **Step 1: Create `launcher/main.ts`**
@@ -567,24 +607,38 @@ Extract from `subminer`:
 Add imports:
 
 ```typescript
-import fs from "node:fs";
-import path from "node:path";
-import type { Args } from "./types.js";
-import { log, fail } from "./log.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import type { Args } from './types.js';
+import { log, fail } from './log.js';
 import {
-  commandExists, isUrlTarget, isYoutubeTarget, resolvePathMaybe, realpathMaybe,
-} from "./util.js";
+  commandExists,
+  isUrlTarget,
+  isYoutubeTarget,
+  resolvePathMaybe,
+  realpathMaybe,
+} from './util.js';
 import {
-  parseArgs, loadLauncherYoutubeSubgenConfig, loadLauncherJellyfinConfig,
-  readPluginRuntimeConfig, usage,
-} from "./config.js";
-import { showRofiMenu, showFzfMenu, collectVideos } from "./picker.js";
+  parseArgs,
+  loadLauncherYoutubeSubgenConfig,
+  loadLauncherJellyfinConfig,
+  readPluginRuntimeConfig,
+  usage,
+} from './config.js';
+import { showRofiMenu, showFzfMenu, collectVideos } from './picker.js';
 import {
-  state, startMpv, startOverlay, stopOverlay, launchTexthookerOnly,
-  findAppBinary, waitForSocket, loadSubtitleIntoMpv, runAppCommandWithInherit,
-} from "./mpv.js";
-import { generateYoutubeSubtitles } from "./youtube.js";
-import { runJellyfinPlayMenu } from "./jellyfin.js";
+  state,
+  startMpv,
+  startOverlay,
+  stopOverlay,
+  launchTexthookerOnly,
+  findAppBinary,
+  waitForSocket,
+  loadSubtitleIntoMpv,
+  runAppCommandWithInherit,
+} from './mpv.js';
+import { generateYoutubeSubtitles } from './youtube.js';
+import { runJellyfinPlayMenu } from './jellyfin.js';
 ```
 
 End with:
@@ -614,6 +668,7 @@ git commit -m "refactor(launcher): extract main entrypoint to launcher/main.ts"
 ### Task 11: Add build-launcher Makefile target and verify
 
 **Files:**
+
 - Modify: `Makefile`
 
 **Step 1: Add build-launcher target to Makefile**
@@ -670,6 +725,7 @@ git commit -m "build: add build-launcher Makefile target for bundled subminer sc
 ### Task 12: Delete old monolithic subminer and final verification
 
 **Files:**
+
 - Delete: the old `subminer` file content (it's now a build artifact generated by `make build-launcher`)
 
 **Step 1: Verify the launcher/ source is complete**
@@ -733,6 +789,7 @@ The main risk is `main.ts` <-> `jellyfin.ts`. `runJellyfinPlayMenu()` calls `run
 ### The `state` Object
 
 `state` is defined in `mpv.ts` and exported. It's imported by:
+
 - `main.ts` (reads `mpvProc`, calls `stopOverlay`)
 - `youtube.ts` (passes `state.youtubeSubgenChildren` to `runExternalCommand`)
 - `mpv.ts` itself (mutates all fields)

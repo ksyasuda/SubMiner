@@ -94,10 +94,12 @@ Imports: types from `types.ts`, logging from `log.ts`, url/path helpers from `ut
 Jimaku subtitle API client and media filename parsing:
 
 Local types (not exported to other modules):
+
 - `JimakuEntry`, `JimakuFileEntry`, `JimakuApiError`, `JimakuApiResponse`,
   `JimakuDownloadResult`, `JimakuConfig`, `JimakuMediaInfo`
 
 Functions:
+
 - API: `resolveJimakuApiKey()`, `jimakuFetchJson()`, `downloadToFile()`, `getRetryAfter()`
 - Media parsing: `parseMediaInfo()`, `parseMediaInfoWithGuessit()`, `parseGuessitOutput()`,
   `matchEpisodeFromName()`, `detectSeasonFromDir()`, `cleanupTitle()`
@@ -112,9 +114,11 @@ Imports: types from `types.ts`, logging from `log.ts`, command helpers from `uti
 Jellyfin API client and interactive library/item browsing:
 
 Local types:
+
 - `JellyfinSessionConfig`, `JellyfinLibraryEntry`, `JellyfinItemEntry`, `JellyfinGroupEntry`
 
 Functions:
+
 - API: `sanitizeServerUrl()`, `jellyfinApiRequest()`
 - Display: `formatJellyfinItemDisplay()`
 - Browsing: `resolveJellyfinSelection()`, `promptOptionalJellyfinSearch()`
@@ -128,6 +132,7 @@ utility functions from `util.ts`
 YouTube subtitle generation pipeline (yt-dlp + whisper fallback):
 
 Functions:
+
 - Pipeline: `generateYoutubeSubtitles()` (main orchestrator)
 - Subtitle scanning: `scanSubtitleCandidates()`, `pickBestCandidate()`,
   `classifyLanguage()`, `filenameHasLanguageTag()`
@@ -143,6 +148,7 @@ Imports: types from `types.ts`, logging from `log.ts`, `runExternalCommand()` fr
 Rofi and fzf menu UI used by both video browsing and Jellyfin browsing:
 
 Functions:
+
 - Generic menus: `showRofiFlatMenu()`, `showFzfFlatMenu()`
 - Video menus: `showRofiMenu()`, `showFzfMenu()`, `buildRofiMenu()`, `buildFzfMenu()`
 - Video discovery: `collectVideos()`
@@ -158,6 +164,7 @@ Imports: types from `types.ts`, logging from `log.ts`, `commandExists()` from `u
 mpv process lifecycle, IPC socket communication, and overlay management:
 
 Exports:
+
 - `state` object (`mpvProc`, `overlayProc`, `youtubeSubgenChildren`, `appPath`, etc.)
 - IPC: `sendMpvCommand()`, `sendMpvCommandWithResponse()`
 - Track detection: `getMpvTracks()`, `waitForSubtitleTrackList()`, `findPreferredSubtitleTrack()`,
@@ -175,6 +182,7 @@ Imports: types from `types.ts`, logging from `log.ts`, helpers from `util.ts`
 Entrypoint — pure orchestration with no domain logic:
 
 Functions:
+
 - `main()` — top-level flow
 - `chooseTarget()` — resolve file/URL target
 - `registerCleanup()` — SIGINT/SIGTERM handlers

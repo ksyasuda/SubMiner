@@ -1,18 +1,8 @@
-import {
-  RuntimeOptionApplyResult,
-  RuntimeOptionId,
-  RuntimeOptionValue,
-} from "../../types";
+import { RuntimeOptionApplyResult, RuntimeOptionId, RuntimeOptionValue } from '../../types';
 
 export interface RuntimeOptionsManagerLike {
-  setOptionValue: (
-    id: RuntimeOptionId,
-    value: RuntimeOptionValue,
-  ) => RuntimeOptionApplyResult;
-  cycleOption: (
-    id: RuntimeOptionId,
-    direction: 1 | -1,
-  ) => RuntimeOptionApplyResult;
+  setOptionValue: (id: RuntimeOptionId, value: RuntimeOptionValue) => RuntimeOptionApplyResult;
+  cycleOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
 }
 
 export function applyRuntimeOptionResultRuntime(
@@ -32,12 +22,9 @@ export function setRuntimeOptionFromIpcRuntime(
   showMpvOsd: (text: string) => void,
 ): RuntimeOptionApplyResult {
   if (!manager) {
-    return { ok: false, error: "Runtime options manager unavailable" };
+    return { ok: false, error: 'Runtime options manager unavailable' };
   }
-  const result = applyRuntimeOptionResultRuntime(
-    manager.setOptionValue(id, value),
-    showMpvOsd,
-  );
+  const result = applyRuntimeOptionResultRuntime(manager.setOptionValue(id, value), showMpvOsd);
   if (!result.ok && result.error) {
     showMpvOsd(result.error);
   }
@@ -51,12 +38,9 @@ export function cycleRuntimeOptionFromIpcRuntime(
   showMpvOsd: (text: string) => void,
 ): RuntimeOptionApplyResult {
   if (!manager) {
-    return { ok: false, error: "Runtime options manager unavailable" };
+    return { ok: false, error: 'Runtime options manager unavailable' };
   }
-  const result = applyRuntimeOptionResultRuntime(
-    manager.cycleOption(id, direction),
-    showMpvOsd,
-  );
+  const result = applyRuntimeOptionResultRuntime(manager.cycleOption(id, direction), showMpvOsd);
   if (!result.ok && result.error) {
     showMpvOsd(result.error);
   }

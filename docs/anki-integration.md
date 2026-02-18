@@ -194,19 +194,19 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
 
 ### What Gets Merged
 
-| Field | Merge behavior |
-| --- | --- |
+| Field    | Merge behavior                                                 |
+| -------- | -------------------------------------------------------------- |
 | Sentence | Both sentences preserved, labeled `[Original]` / `[Duplicate]` |
-| Audio | Both `[sound:...]` entries kept |
-| Image | Both images kept |
+| Audio    | Both `[sound:...]` entries kept                                |
+| Image    | Both images kept                                               |
 
 ### Keyboard Shortcuts in the Modal
 
-| Key | Action |
-| --- | --- |
-| `1` / `2` | Select card 1 or card 2 to keep |
-| `Enter` | Confirm selection |
-| `Esc` | Cancel (keep both cards unchanged) |
+| Key       | Action                             |
+| --------- | ---------------------------------- |
+| `1` / `2` | Select card 1 or card 2 to keep    |
+| `Enter`   | Confirm selection                  |
+| `Esc`     | Cancel (keep both cards unchanged) |
 
 ## Full Config Example
 
@@ -221,7 +221,7 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
       "image": "Picture",
       "sentence": "Sentence",
       "miscInfo": "MiscInfo",
-      "translation": "SelectionText"
+      "translation": "SelectionText",
     },
     "media": {
       "generateAudio": true,
@@ -230,33 +230,33 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
       "imageFormat": "jpg",
       "imageQuality": 92,
       "audioPadding": 0.5,
-      "maxMediaDuration": 30
+      "maxMediaDuration": 30,
     },
     "behavior": {
       "overwriteAudio": true,
       "overwriteImage": true,
       "mediaInsertMode": "append",
       "autoUpdateNewCards": true,
-      "notificationType": "osd"
+      "notificationType": "osd",
     },
     "ai": {
       "enabled": false,
       "apiKey": "",
       "model": "openai/gpt-4o-mini",
       "baseUrl": "https://openrouter.ai/api",
-      "targetLanguage": "English"
+      "targetLanguage": "English",
     },
     "isKiku": {
       "enabled": false,
       "fieldGrouping": "disabled",
-      "deleteDuplicateInAuto": true
+      "deleteDuplicateInAuto": true,
     },
     "isLapis": {
       "enabled": false,
       "sentenceCardModel": "Japanese sentences",
       "sentenceCardSentenceField": "Sentence",
-      "sentenceCardAudioField": "SentenceAudio"
-    }
-  }
+      "sentenceCardAudioField": "SentenceAudio",
+    },
+  },
 }
 ```

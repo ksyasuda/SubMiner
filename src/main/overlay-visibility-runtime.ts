@@ -1,12 +1,12 @@
-import type { BrowserWindow } from "electron";
+import type { BrowserWindow } from 'electron';
 
-import type { BaseWindowTracker } from "../window-trackers";
-import type { WindowGeometry } from "../types";
+import type { BaseWindowTracker } from '../window-trackers';
+import type { WindowGeometry } from '../types';
 import {
   syncInvisibleOverlayMousePassthrough,
   updateInvisibleOverlayVisibility,
   updateVisibleOverlayVisibility,
-} from "../core/services";
+} from '../core/services';
 
 export interface OverlayVisibilityRuntimeDeps {
   getMainWindow: () => BrowserWindow | null;
@@ -39,7 +39,7 @@ export function createOverlayVisibilityRuntimeService(
 
   const setIgnoreMouseEvents = (
     ignore: boolean,
-    options?: Parameters<BrowserWindow["setIgnoreMouseEvents"]>[1],
+    options?: Parameters<BrowserWindow['setIgnoreMouseEvents']>[1],
   ): void => {
     const invisibleWindow = deps.getInvisibleWindow();
     if (!invisibleWindow || invisibleWindow.isDestroyed()) return;
@@ -58,8 +58,7 @@ export function createOverlayVisibilityRuntimeService(
         },
         updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
           deps.updateVisibleOverlayBounds(geometry),
-        ensureOverlayWindowLevel: (window: BrowserWindow) =>
-          deps.ensureOverlayWindowLevel(window),
+        ensureOverlayWindowLevel: (window: BrowserWindow) => deps.ensureOverlayWindowLevel(window),
         enforceOverlayLayerOrder: () => deps.enforceOverlayLayerOrder(),
         syncOverlayShortcuts: () => deps.syncOverlayShortcuts(),
       });
@@ -73,8 +72,7 @@ export function createOverlayVisibilityRuntimeService(
         windowTracker: deps.getWindowTracker(),
         updateInvisibleOverlayBounds: (geometry: WindowGeometry) =>
           deps.updateInvisibleOverlayBounds(geometry),
-        ensureOverlayWindowLevel: (window: BrowserWindow) =>
-          deps.ensureOverlayWindowLevel(window),
+        ensureOverlayWindowLevel: (window: BrowserWindow) => deps.ensureOverlayWindowLevel(window),
         enforceOverlayLayerOrder: () => deps.enforceOverlayLayerOrder(),
         syncOverlayShortcuts: () => deps.syncOverlayShortcuts(),
       });

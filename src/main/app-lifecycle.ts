@@ -1,10 +1,10 @@
-import type { CliArgs, CliCommandSource } from "../cli/args";
-import { runAppReadyRuntime } from "../core/services/startup";
-import type { AppReadyRuntimeDeps } from "../core/services/startup";
-import type { AppLifecycleDepsRuntimeOptions } from "../core/services/app-lifecycle";
+import type { CliArgs, CliCommandSource } from '../cli/args';
+import { runAppReadyRuntime } from '../core/services/startup';
+import type { AppReadyRuntimeDeps } from '../core/services/startup';
+import type { AppLifecycleDepsRuntimeOptions } from '../core/services/app-lifecycle';
 
 export interface AppLifecycleRuntimeDepsFactoryInput {
-  app: AppLifecycleDepsRuntimeOptions["app"];
+  app: AppLifecycleDepsRuntimeOptions['app'];
   platform: NodeJS.Platform;
   shouldStartApp: (args: CliArgs) => boolean;
   parseArgs: (argv: string[]) => CliArgs;
@@ -18,30 +18,30 @@ export interface AppLifecycleRuntimeDepsFactoryInput {
 }
 
 export interface AppReadyRuntimeDepsFactoryInput {
-  loadSubtitlePosition: AppReadyRuntimeDeps["loadSubtitlePosition"];
-  resolveKeybindings: AppReadyRuntimeDeps["resolveKeybindings"];
-  createMpvClient: AppReadyRuntimeDeps["createMpvClient"];
-  reloadConfig: AppReadyRuntimeDeps["reloadConfig"];
-  getResolvedConfig: AppReadyRuntimeDeps["getResolvedConfig"];
-  getConfigWarnings: AppReadyRuntimeDeps["getConfigWarnings"];
-  logConfigWarning: AppReadyRuntimeDeps["logConfigWarning"];
-  initRuntimeOptionsManager: AppReadyRuntimeDeps["initRuntimeOptionsManager"];
-  setSecondarySubMode: AppReadyRuntimeDeps["setSecondarySubMode"];
-  defaultSecondarySubMode: AppReadyRuntimeDeps["defaultSecondarySubMode"];
-  defaultWebsocketPort: AppReadyRuntimeDeps["defaultWebsocketPort"];
-  hasMpvWebsocketPlugin: AppReadyRuntimeDeps["hasMpvWebsocketPlugin"];
-  startSubtitleWebsocket: AppReadyRuntimeDeps["startSubtitleWebsocket"];
-  log: AppReadyRuntimeDeps["log"];
-  setLogLevel: AppReadyRuntimeDeps["setLogLevel"];
-  createMecabTokenizerAndCheck: AppReadyRuntimeDeps["createMecabTokenizerAndCheck"];
-  createSubtitleTimingTracker: AppReadyRuntimeDeps["createSubtitleTimingTracker"];
-  createImmersionTracker?: AppReadyRuntimeDeps["createImmersionTracker"];
-  startJellyfinRemoteSession?: AppReadyRuntimeDeps["startJellyfinRemoteSession"];
-  loadYomitanExtension: AppReadyRuntimeDeps["loadYomitanExtension"];
-  texthookerOnlyMode: AppReadyRuntimeDeps["texthookerOnlyMode"];
-  shouldAutoInitializeOverlayRuntimeFromConfig: AppReadyRuntimeDeps["shouldAutoInitializeOverlayRuntimeFromConfig"];
-  initializeOverlayRuntime: AppReadyRuntimeDeps["initializeOverlayRuntime"];
-  handleInitialArgs: AppReadyRuntimeDeps["handleInitialArgs"];
+  loadSubtitlePosition: AppReadyRuntimeDeps['loadSubtitlePosition'];
+  resolveKeybindings: AppReadyRuntimeDeps['resolveKeybindings'];
+  createMpvClient: AppReadyRuntimeDeps['createMpvClient'];
+  reloadConfig: AppReadyRuntimeDeps['reloadConfig'];
+  getResolvedConfig: AppReadyRuntimeDeps['getResolvedConfig'];
+  getConfigWarnings: AppReadyRuntimeDeps['getConfigWarnings'];
+  logConfigWarning: AppReadyRuntimeDeps['logConfigWarning'];
+  initRuntimeOptionsManager: AppReadyRuntimeDeps['initRuntimeOptionsManager'];
+  setSecondarySubMode: AppReadyRuntimeDeps['setSecondarySubMode'];
+  defaultSecondarySubMode: AppReadyRuntimeDeps['defaultSecondarySubMode'];
+  defaultWebsocketPort: AppReadyRuntimeDeps['defaultWebsocketPort'];
+  hasMpvWebsocketPlugin: AppReadyRuntimeDeps['hasMpvWebsocketPlugin'];
+  startSubtitleWebsocket: AppReadyRuntimeDeps['startSubtitleWebsocket'];
+  log: AppReadyRuntimeDeps['log'];
+  setLogLevel: AppReadyRuntimeDeps['setLogLevel'];
+  createMecabTokenizerAndCheck: AppReadyRuntimeDeps['createMecabTokenizerAndCheck'];
+  createSubtitleTimingTracker: AppReadyRuntimeDeps['createSubtitleTimingTracker'];
+  createImmersionTracker?: AppReadyRuntimeDeps['createImmersionTracker'];
+  startJellyfinRemoteSession?: AppReadyRuntimeDeps['startJellyfinRemoteSession'];
+  loadYomitanExtension: AppReadyRuntimeDeps['loadYomitanExtension'];
+  texthookerOnlyMode: AppReadyRuntimeDeps['texthookerOnlyMode'];
+  shouldAutoInitializeOverlayRuntimeFromConfig: AppReadyRuntimeDeps['shouldAutoInitializeOverlayRuntimeFromConfig'];
+  initializeOverlayRuntime: AppReadyRuntimeDeps['initializeOverlayRuntime'];
+  handleInitialArgs: AppReadyRuntimeDeps['handleInitialArgs'];
 }
 
 export function createAppLifecycleRuntimeDeps(

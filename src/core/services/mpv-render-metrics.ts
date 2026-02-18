@@ -1,5 +1,5 @@
-import { MpvSubtitleRenderMetrics } from "../../types";
-import { asBoolean, asFiniteNumber, asString } from "../utils/coerce";
+import { MpvSubtitleRenderMetrics } from '../../types';
+import { asBoolean, asFiniteNumber, asString } from '../utils/coerce';
 
 export const DEFAULT_MPV_SUBTITLE_RENDER_METRICS: MpvSubtitleRenderMetrics = {
   subPos: 100,
@@ -7,13 +7,13 @@ export const DEFAULT_MPV_SUBTITLE_RENDER_METRICS: MpvSubtitleRenderMetrics = {
   subScale: 1,
   subMarginY: 34,
   subMarginX: 19,
-  subFont: "sans-serif",
+  subFont: 'sans-serif',
   subSpacing: 0,
   subBold: false,
   subItalic: false,
   subBorderSize: 2.5,
   subShadowOffset: 0,
-  subAssOverride: "yes",
+  subAssOverride: 'yes',
   subScaleByWindow: true,
   subUseMargins: true,
   osdHeight: 720,
@@ -35,12 +35,12 @@ export function updateMpvSubtitleRenderMetrics(
   const patchOsd = patch.osdDimensions;
   const nextOsdDimensions =
     patchOsd &&
-    typeof patchOsd.w === "number" &&
-    typeof patchOsd.h === "number" &&
-    typeof patchOsd.ml === "number" &&
-    typeof patchOsd.mr === "number" &&
-    typeof patchOsd.mt === "number" &&
-    typeof patchOsd.mb === "number"
+    typeof patchOsd.w === 'number' &&
+    typeof patchOsd.h === 'number' &&
+    typeof patchOsd.ml === 'number' &&
+    typeof patchOsd.mr === 'number' &&
+    typeof patchOsd.mt === 'number' &&
+    typeof patchOsd.mb === 'number'
       ? {
           w: asFiniteNumber(patchOsd.w, 0, 1, 100000),
           h: asFiniteNumber(patchOsd.h, 0, 1, 100000),
@@ -63,23 +63,10 @@ export function updateMpvSubtitleRenderMetrics(
     subSpacing: asFiniteNumber(patch.subSpacing, current.subSpacing, -100, 100),
     subBold: asBoolean(patch.subBold, current.subBold),
     subItalic: asBoolean(patch.subItalic, current.subItalic),
-    subBorderSize: asFiniteNumber(
-      patch.subBorderSize,
-      current.subBorderSize,
-      0,
-      100,
-    ),
-    subShadowOffset: asFiniteNumber(
-      patch.subShadowOffset,
-      current.subShadowOffset,
-      0,
-      100,
-    ),
+    subBorderSize: asFiniteNumber(patch.subBorderSize, current.subBorderSize, 0, 100),
+    subShadowOffset: asFiniteNumber(patch.subShadowOffset, current.subShadowOffset, 0, 100),
     subAssOverride: asString(patch.subAssOverride, current.subAssOverride),
-    subScaleByWindow: asBoolean(
-      patch.subScaleByWindow,
-      current.subScaleByWindow,
-    ),
+    subScaleByWindow: asBoolean(patch.subScaleByWindow, current.subScaleByWindow),
     subUseMargins: asBoolean(patch.subUseMargins, current.subUseMargins),
     osdHeight: asFiniteNumber(patch.osdHeight, current.osdHeight, 1, 10000),
     osdDimensions: nextOsdDimensions,
@@ -107,7 +94,6 @@ export function applyMpvSubtitleRenderMetricsPatch(
     next.subScaleByWindow !== current.subScaleByWindow ||
     next.subUseMargins !== current.subUseMargins ||
     next.osdHeight !== current.osdHeight ||
-    JSON.stringify(next.osdDimensions) !==
-      JSON.stringify(current.osdDimensions);
+    JSON.stringify(next.osdDimensions) !== JSON.stringify(current.osdDimensions);
   return { next, changed };
 }

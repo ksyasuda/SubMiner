@@ -13,6 +13,7 @@
 ### Task 1: Add Remote-Control Config Surface
 
 **Files:**
+
 - Modify: `src/types.ts`
 - Modify: `src/config/definitions.ts`
 - Test: `src/config/definitions.test.ts` (if present) and/or config-related tests already in repo
@@ -20,7 +21,7 @@
 **Step 1: Write failing config tests**
 
 ```ts
-test("default jellyfin remote control config is enabled", () => {
+test('default jellyfin remote control config is enabled', () => {
   assert.equal(DEFAULT_CONFIG.jellyfin.remoteControlEnabled, true);
   assert.equal(DEFAULT_CONFIG.jellyfin.remoteControlAutoConnect, true);
 });
@@ -60,6 +61,7 @@ git commit -m "feat: add jellyfin remote-control configuration defaults"
 ### Task 2: Add Jellyfin Remote Session Service (Connection + Capabilities)
 
 **Files:**
+
 - Create: `src/core/services/jellyfin-remote.ts`
 - Modify: `src/core/services/index.ts` (if export barrel used)
 - Test: `src/core/services/jellyfin-remote.test.ts`
@@ -67,11 +69,11 @@ git commit -m "feat: add jellyfin remote-control configuration defaults"
 **Step 1: Write failing lifecycle/capabilities tests**
 
 ```ts
-test("JellyfinRemoteSession posts capabilities on connect", async () => {
+test('JellyfinRemoteSession posts capabilities on connect', async () => {
   // fake client, connect, assert post_capabilities called once
 });
 
-test("JellyfinRemoteSession reconnects after websocket disconnect", async () => {
+test('JellyfinRemoteSession reconnects after websocket disconnect', async () => {
   // emit disconnect, assert reconnect backoff scheduling
 });
 ```
@@ -110,6 +112,7 @@ git commit -m "feat: add jellyfin remote session service with capability registr
 ### Task 3: Extract Shared Jellyfin->mpv Playback Orchestrator
 
 **Files:**
+
 - Modify: `src/main.ts`
 - Optionally create: `src/core/services/jellyfin-playback-orchestrator.ts`
 - Test: `src/core/services/jellyfin-playback-orchestrator.test.ts` or `src/main` service-level tests
@@ -117,7 +120,7 @@ git commit -m "feat: add jellyfin remote session service with capability registr
 **Step 1: Write failing test for shared playback handler**
 
 ```ts
-test("playJellyfinItemInMpv applies defaults and loads file", async () => {
+test('playJellyfinItemInMpv applies defaults and loads file', async () => {
   // assert sub-auto no, loadfile replace, force-media-title, sid logic
 });
 ```
@@ -151,6 +154,7 @@ git commit -m "refactor: share jellyfin mpv playback orchestration"
 ### Task 4: Bridge Inbound Remote Events to mpv Controls
 
 **Files:**
+
 - Modify: `src/core/services/jellyfin-remote.ts`
 - Modify: `src/main.ts`
 - Test: `src/core/services/jellyfin-remote.test.ts`
@@ -158,9 +162,9 @@ git commit -m "refactor: share jellyfin mpv playback orchestration"
 **Step 1: Add failing event-mapping tests**
 
 ```ts
-test("Play event triggers shared jellyfin playback", async () => {});
-test("Playstate Pause/Unpause/Stop/Seek map to mpv commands", async () => {});
-test("GeneralCommand stream index updates are handled safely", async () => {});
+test('Play event triggers shared jellyfin playback', async () => {});
+test('Playstate Pause/Unpause/Stop/Seek map to mpv commands', async () => {});
+test('GeneralCommand stream index updates are handled safely', async () => {});
 ```
 
 **Step 2: Run tests to verify failure**
@@ -189,6 +193,7 @@ git commit -m "feat: map jellyfin remote control events to mpv playback"
 ### Task 5: Add Timeline Reporting (Playing/Progress/Stopped)
 
 **Files:**
+
 - Modify: `src/core/services/jellyfin-remote.ts`
 - Modify: `src/main.ts`
 - Test: `src/core/services/jellyfin-remote.test.ts`
@@ -196,8 +201,8 @@ git commit -m "feat: map jellyfin remote control events to mpv playback"
 **Step 1: Add failing timeline payload tests**
 
 ```ts
-test("timeline start/progress/stop payloads include item and position ticks", async () => {});
-test("timeline reporting errors are swallowed and logged", async () => {});
+test('timeline start/progress/stop payloads include item and position ticks', async () => {});
+test('timeline reporting errors are swallowed and logged', async () => {});
 ```
 
 **Step 2: Run tests to verify failure**
@@ -227,6 +232,7 @@ git commit -m "feat: report jellyfin cast timeline from mpv state"
 ### Task 6: Wire Lifecycle Startup/Shutdown and CLI Controls
 
 **Files:**
+
 - Modify: `src/main.ts`
 - Modify: `src/main/state.ts`
 - Modify: `src/cli/args.ts` (optional status/debug flag)
@@ -235,8 +241,8 @@ git commit -m "feat: report jellyfin cast timeline from mpv state"
 **Step 1: Add failing startup lifecycle tests**
 
 ```ts
-test("remote session auto-starts when jellyfin remoteControlAutoConnect true", () => {});
-test("remote session stops during app shutdown", () => {});
+test('remote session auto-starts when jellyfin remoteControlAutoConnect true', () => {});
+test('remote session stops during app shutdown', () => {});
 ```
 
 **Step 2: Run tests to verify failure**
@@ -266,6 +272,7 @@ git commit -m "feat: wire jellyfin remote session into app lifecycle"
 ### Task 7: Documentation + Regression Validation
 
 **Files:**
+
 - Modify: `docs/jellyfin-integration.md`
 - Modify: `docs/mpv-plugin.md` (if workflow mentions cast target)
 

@@ -17,11 +17,15 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Send playback start/progress/stop updates from SubMiner to Jellyfin during cast sessions and document configuration/usage/troubleshooting for the new mode.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 SubMiner posts playing/progress/stopped updates for casted sessions at a reasonable interval.
 - [ ] #2 Timeline reporting failures do not crash playback and are logged at debug/warn levels.
 - [ ] #3 Jellyfin integration docs include cast-to-device setup, expected behavior, and troubleshooting.

@@ -1,40 +1,44 @@
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import { Command } from "commander";
-import { parse as parseJsonc } from "jsonc-parser";
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { Command } from 'commander';
+import { parse as parseJsonc } from 'jsonc-parser';
 import type {
-  LogLevel, YoutubeSubgenMode, Backend, Args,
-  LauncherYoutubeSubgenConfig, LauncherJellyfinConfig, PluginRuntimeConfig,
-} from "./types.js";
+  LogLevel,
+  YoutubeSubgenMode,
+  Backend,
+  Args,
+  LauncherYoutubeSubgenConfig,
+  LauncherJellyfinConfig,
+  PluginRuntimeConfig,
+} from './types.js';
 import {
-  DEFAULT_SOCKET_PATH, DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS,
-  DEFAULT_YOUTUBE_SECONDARY_SUB_LANGS, DEFAULT_YOUTUBE_SUBGEN_OUT_DIR,
+  DEFAULT_SOCKET_PATH,
+  DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS,
+  DEFAULT_YOUTUBE_SECONDARY_SUB_LANGS,
+  DEFAULT_YOUTUBE_SUBGEN_OUT_DIR,
   DEFAULT_JIMAKU_API_BASE_URL,
-} from "./types.js";
-import { log, fail } from "./log.js";
+} from './types.js';
+import { log, fail } from './log.js';
 import {
-  resolvePathMaybe, isUrlTarget, uniqueNormalizedLangCodes, parseBoolLike,
+  resolvePathMaybe,
+  isUrlTarget,
+  uniqueNormalizedLangCodes,
+  parseBoolLike,
   inferWhisperLanguage,
-} from "./util.js";
+} from './util.js';
 
 export function loadLauncherYoutubeSubgenConfig(): LauncherYoutubeSubgenConfig {
-  const configDir = path.join(os.homedir(), ".config", "SubMiner");
-  const jsoncPath = path.join(configDir, "config.jsonc");
-  const jsonPath = path.join(configDir, "config.json");
-  const configPath = fs.existsSync(jsoncPath)
-    ? jsoncPath
-    : fs.existsSync(jsonPath)
-      ? jsonPath
-      : "";
+  const configDir = path.join(os.homedir(), '.config', 'SubMiner');
+  const jsoncPath = path.join(configDir, 'config.jsonc');
+  const jsonPath = path.join(configDir, 'config.json');
+  const configPath = fs.existsSync(jsoncPath) ? jsoncPath : fs.existsSync(jsonPath) ? jsonPath : '';
   if (!configPath) return {};
 
   try {
-    const data = fs.readFileSync(configPath, "utf8");
-    const parsed = configPath.endsWith(".jsonc")
-      ? parseJsonc(data)
-      : JSON.parse(data);
-    if (!parsed || typeof parsed !== "object") return {};
+    const data = fs.readFileSync(configPath, 'utf8');
+    const parsed = configPath.endsWith('.jsonc') ? parseJsonc(data) : JSON.parse(data);
+    if (!parsed || typeof parsed !== 'object') return {};
     const root = parsed as {
       youtubeSubgen?: unknown;
       secondarySub?: { secondarySubLanguages?: unknown };
@@ -42,83 +46,70 @@ export function loadLauncherYoutubeSubgenConfig(): LauncherYoutubeSubgenConfig {
     };
     const youtubeSubgen = root.youtubeSubgen;
     const mode =
-      youtubeSubgen && typeof youtubeSubgen === "object"
+      youtubeSubgen && typeof youtubeSubgen === 'object'
         ? (youtubeSubgen as { mode?: unknown }).mode
         : undefined;
     const whisperBin =
-      youtubeSubgen && typeof youtubeSubgen === "object"
+      youtubeSubgen && typeof youtubeSubgen === 'object'
         ? (youtubeSubgen as { whisperBin?: unknown }).whisperBin
         : undefined;
     const whisperModel =
-      youtubeSubgen && typeof youtubeSubgen === "object"
+      youtubeSubgen && typeof youtubeSubgen === 'object'
         ? (youtubeSubgen as { whisperModel?: unknown }).whisperModel
         : undefined;
     const primarySubLanguagesRaw =
-      youtubeSubgen && typeof youtubeSubgen === "object"
+      youtubeSubgen && typeof youtubeSubgen === 'object'
         ? (youtubeSubgen as { primarySubLanguages?: unknown }).primarySubLanguages
         : undefined;
     const secondarySubLanguagesRaw = root.secondarySub?.secondarySubLanguages;
     const primarySubLanguages = Array.isArray(primarySubLanguagesRaw)
-      ? primarySubLanguagesRaw.filter(
-          (value): value is string => typeof value === "string",
-        )
+      ? primarySubLanguagesRaw.filter((value): value is string => typeof value === 'string')
       : undefined;
     const secondarySubLanguages = Array.isArray(secondarySubLanguagesRaw)
-      ? secondarySubLanguagesRaw.filter(
-          (value): value is string => typeof value === "string",
-        )
+      ? secondarySubLanguagesRaw.filter((value): value is string => typeof value === 'string')
       : undefined;
     const jimaku = root.jimaku;
     const jimakuApiKey =
-      jimaku && typeof jimaku === "object"
-        ? (jimaku as { apiKey?: unknown }).apiKey
-        : undefined;
+      jimaku && typeof jimaku === 'object' ? (jimaku as { apiKey?: unknown }).apiKey : undefined;
     const jimakuApiKeyCommand =
-      jimaku && typeof jimaku === "object"
+      jimaku && typeof jimaku === 'object'
         ? (jimaku as { apiKeyCommand?: unknown }).apiKeyCommand
         : undefined;
     const jimakuApiBaseUrl =
-      jimaku && typeof jimaku === "object"
+      jimaku && typeof jimaku === 'object'
         ? (jimaku as { apiBaseUrl?: unknown }).apiBaseUrl
         : undefined;
-    const jimakuLanguagePreference = jimaku && typeof jimaku === "object"
-      ? (jimaku as { languagePreference?: unknown }).languagePreference
-      : undefined;
+    const jimakuLanguagePreference =
+      jimaku && typeof jimaku === 'object'
+        ? (jimaku as { languagePreference?: unknown }).languagePreference
+        : undefined;
     const jimakuMaxEntryResults =
-      jimaku && typeof jimaku === "object"
+      jimaku && typeof jimaku === 'object'
         ? (jimaku as { maxEntryResults?: unknown }).maxEntryResults
         : undefined;
     const resolvedJimakuLanguagePreference =
-      jimakuLanguagePreference === "ja" ||
-      jimakuLanguagePreference === "en" ||
-      jimakuLanguagePreference === "none"
+      jimakuLanguagePreference === 'ja' ||
+      jimakuLanguagePreference === 'en' ||
+      jimakuLanguagePreference === 'none'
         ? jimakuLanguagePreference
         : undefined;
     const resolvedJimakuMaxEntryResults =
-      typeof jimakuMaxEntryResults === "number" &&
+      typeof jimakuMaxEntryResults === 'number' &&
       Number.isFinite(jimakuMaxEntryResults) &&
       jimakuMaxEntryResults > 0
         ? Math.floor(jimakuMaxEntryResults)
         : undefined;
 
     return {
-      mode:
-        mode === "automatic" || mode === "preprocess" || mode === "off"
-          ? mode
-          : undefined,
-      whisperBin: typeof whisperBin === "string" ? whisperBin : undefined,
-      whisperModel: typeof whisperModel === "string" ? whisperModel : undefined,
+      mode: mode === 'automatic' || mode === 'preprocess' || mode === 'off' ? mode : undefined,
+      whisperBin: typeof whisperBin === 'string' ? whisperBin : undefined,
+      whisperModel: typeof whisperModel === 'string' ? whisperModel : undefined,
       primarySubLanguages,
       secondarySubLanguages,
-      jimakuApiKey: typeof jimakuApiKey === "string" ? jimakuApiKey : undefined,
+      jimakuApiKey: typeof jimakuApiKey === 'string' ? jimakuApiKey : undefined,
       jimakuApiKeyCommand:
-        typeof jimakuApiKeyCommand === "string"
-          ? jimakuApiKeyCommand
-          : undefined,
-      jimakuApiBaseUrl:
-        typeof jimakuApiBaseUrl === "string"
-          ? jimakuApiBaseUrl
-          : undefined,
+        typeof jimakuApiKeyCommand === 'string' ? jimakuApiKeyCommand : undefined,
+      jimakuApiBaseUrl: typeof jimakuApiBaseUrl === 'string' ? jimakuApiBaseUrl : undefined,
       jimakuLanguagePreference: resolvedJimakuLanguagePreference,
       jimakuMaxEntryResults: resolvedJimakuMaxEntryResults,
     };
@@ -128,48 +119,29 @@ export function loadLauncherYoutubeSubgenConfig(): LauncherYoutubeSubgenConfig {
 }
 
 export function loadLauncherJellyfinConfig(): LauncherJellyfinConfig {
-  const configDir = path.join(os.homedir(), ".config", "SubMiner");
-  const jsoncPath = path.join(configDir, "config.jsonc");
-  const jsonPath = path.join(configDir, "config.json");
-  const configPath = fs.existsSync(jsoncPath)
-    ? jsoncPath
-    : fs.existsSync(jsonPath)
-      ? jsonPath
-      : "";
+  const configDir = path.join(os.homedir(), '.config', 'SubMiner');
+  const jsoncPath = path.join(configDir, 'config.jsonc');
+  const jsonPath = path.join(configDir, 'config.json');
+  const configPath = fs.existsSync(jsoncPath) ? jsoncPath : fs.existsSync(jsonPath) ? jsonPath : '';
   if (!configPath) return {};
 
   try {
-    const data = fs.readFileSync(configPath, "utf8");
-    const parsed = configPath.endsWith(".jsonc")
-      ? parseJsonc(data)
-      : JSON.parse(data);
-    if (!parsed || typeof parsed !== "object") return {};
+    const data = fs.readFileSync(configPath, 'utf8');
+    const parsed = configPath.endsWith('.jsonc') ? parseJsonc(data) : JSON.parse(data);
+    if (!parsed || typeof parsed !== 'object') return {};
     const jellyfin = (parsed as { jellyfin?: unknown }).jellyfin;
-    if (!jellyfin || typeof jellyfin !== "object") return {};
+    if (!jellyfin || typeof jellyfin !== 'object') return {};
     const typed = jellyfin as Record<string, unknown>;
     return {
-      enabled:
-        typeof typed.enabled === "boolean" ? typed.enabled : undefined,
-      serverUrl:
-        typeof typed.serverUrl === "string" ? typed.serverUrl : undefined,
-      username:
-        typeof typed.username === "string" ? typed.username : undefined,
-      accessToken:
-        typeof typed.accessToken === "string" ? typed.accessToken : undefined,
-      userId:
-        typeof typed.userId === "string" ? typed.userId : undefined,
+      enabled: typeof typed.enabled === 'boolean' ? typed.enabled : undefined,
+      serverUrl: typeof typed.serverUrl === 'string' ? typed.serverUrl : undefined,
+      username: typeof typed.username === 'string' ? typed.username : undefined,
+      accessToken: typeof typed.accessToken === 'string' ? typed.accessToken : undefined,
+      userId: typeof typed.userId === 'string' ? typed.userId : undefined,
       defaultLibraryId:
-        typeof typed.defaultLibraryId === "string"
-          ? typed.defaultLibraryId
-          : undefined,
-      pullPictures:
-        typeof typed.pullPictures === "boolean"
-          ? typed.pullPictures
-          : undefined,
-      iconCacheDir:
-        typeof typed.iconCacheDir === "string"
-          ? typed.iconCacheDir
-          : undefined,
+        typeof typed.defaultLibraryId === 'string' ? typed.defaultLibraryId : undefined,
+      pullPictures: typeof typed.pullPictures === 'boolean' ? typed.pullPictures : undefined,
+      iconCacheDir: typeof typed.iconCacheDir === 'string' ? typed.iconCacheDir : undefined,
     };
   } catch {
     return {};
@@ -177,12 +149,11 @@ export function loadLauncherJellyfinConfig(): LauncherJellyfinConfig {
 }
 
 function getPluginConfigCandidates(): string[] {
-  const xdgConfigHome =
-    process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
   return Array.from(
     new Set([
-      path.join(xdgConfigHome, "mpv", "script-opts", "subminer.conf"),
-      path.join(os.homedir(), ".config", "mpv", "script-opts", "subminer.conf"),
+      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+      path.join(os.homedir(), '.config', 'mpv', 'script-opts', 'subminer.conf'),
     ]),
   );
 }
@@ -197,14 +168,14 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
   for (const configPath of candidates) {
     if (!fs.existsSync(configPath)) continue;
     try {
-      const content = fs.readFileSync(configPath, "utf8");
+      const content = fs.readFileSync(configPath, 'utf8');
       const lines = content.split(/\r?\n/);
       for (const line of lines) {
         const trimmed = line.trim();
-        if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
+        if (trimmed.length === 0 || trimmed.startsWith('#')) continue;
         const autoStartMatch = trimmed.match(/^auto_start\s*=\s*(.+)$/i);
         if (autoStartMatch) {
-          const value = (autoStartMatch[1] || "").split("#", 1)[0]?.trim() || "";
+          const value = (autoStartMatch[1] || '').split('#', 1)[0]?.trim() || '';
           const parsed = parseBoolLike(value);
           if (parsed !== null) {
             runtimeConfig.autoStartOverlay = parsed;
@@ -214,28 +185,24 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
 
         const socketMatch = trimmed.match(/^socket_path\s*=\s*(.+)$/i);
         if (socketMatch) {
-          const value = (socketMatch[1] || "").split("#", 1)[0]?.trim() || "";
+          const value = (socketMatch[1] || '').split('#', 1)[0]?.trim() || '';
           if (value) runtimeConfig.socketPath = value;
         }
       }
       log(
-        "debug",
+        'debug',
         logLevel,
-        `Using mpv plugin settings from ${configPath}: auto_start=${runtimeConfig.autoStartOverlay ? "yes" : "no"} socket_path=${runtimeConfig.socketPath}`,
+        `Using mpv plugin settings from ${configPath}: auto_start=${runtimeConfig.autoStartOverlay ? 'yes' : 'no'} socket_path=${runtimeConfig.socketPath}`,
       );
       return runtimeConfig;
     } catch {
-      log(
-        "warn",
-        logLevel,
-        `Failed to read ${configPath}; using launcher defaults`,
-      );
+      log('warn', logLevel, `Failed to read ${configPath}; using launcher defaults`);
       return runtimeConfig;
     }
   }
 
   log(
-    "debug",
+    'debug',
     logLevel,
     `No mpv subminer.conf found; using launcher defaults (auto_start=no socket_path=${runtimeConfig.socketPath})`,
   );
@@ -245,13 +212,13 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
 function ensureTarget(target: string, parsed: Args): void {
   if (isUrlTarget(target)) {
     parsed.target = target;
-    parsed.targetKind = "url";
+    parsed.targetKind = 'url';
     return;
   }
   const resolved = resolvePathMaybe(target);
   if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
     parsed.target = resolved;
-    parsed.targetKind = "file";
+    parsed.targetKind = 'file';
     return;
   }
   if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
@@ -262,7 +229,7 @@ function ensureTarget(target: string, parsed: Args): void {
 }
 
 function parseLogLevel(value: string): LogLevel {
-  if (value === "debug" || value === "info" || value === "warn" || value === "error") {
+  if (value === 'debug' || value === 'info' || value === 'warn' || value === 'error') {
     return value;
   }
   fail(`Invalid log level: ${value} (must be debug, info, warn, or error)`);
@@ -270,14 +237,14 @@ function parseLogLevel(value: string): LogLevel {
 
 function parseYoutubeMode(value: string): YoutubeSubgenMode {
   const normalized = value.toLowerCase();
-  if (normalized === "automatic" || normalized === "preprocess" || normalized === "off") {
+  if (normalized === 'automatic' || normalized === 'preprocess' || normalized === 'off') {
     return normalized as YoutubeSubgenMode;
   }
   fail(`Invalid yt-subgen mode: ${value} (must be automatic, preprocess, or off)`);
 }
 
 function parseBackend(value: string): Backend {
-  if (value === "auto" || value === "hyprland" || value === "x11" || value === "macos") {
+  if (value === 'auto' || value === 'hyprland' || value === 'x11' || value === 'macos') {
     return value as Backend;
   }
   fail(`Invalid backend: ${value} (must be auto, hyprland, x11, or macos)`);
@@ -285,42 +252,42 @@ function parseBackend(value: string): Backend {
 
 function applyRootOptions(program: Command): void {
   program
-    .option("-b, --backend <backend>", "Display backend")
-    .option("-d, --directory <dir>", "Directory to browse")
-    .option("-r, --recursive", "Search directories recursively")
-    .option("-p, --profile <profile>", "MPV profile")
-    .option("--start", "Explicitly start overlay")
-    .option("--log-level <level>", "Log level")
-    .option("-R, --rofi", "Use rofi picker")
-    .option("-S, --start-overlay", "Auto-start overlay")
-    .option("-T, --no-texthooker", "Disable texthooker-ui server");
+    .option('-b, --backend <backend>', 'Display backend')
+    .option('-d, --directory <dir>', 'Directory to browse')
+    .option('-r, --recursive', 'Search directories recursively')
+    .option('-p, --profile <profile>', 'MPV profile')
+    .option('--start', 'Explicitly start overlay')
+    .option('--log-level <level>', 'Log level')
+    .option('-R, --rofi', 'Use rofi picker')
+    .option('-S, --start-overlay', 'Auto-start overlay')
+    .option('-T, --no-texthooker', 'Disable texthooker-ui server');
 }
 
 function hasTopLevelCommand(argv: string[]): boolean {
   const commandNames = new Set([
-    "jellyfin",
-    "jf",
-    "yt",
-    "youtube",
-    "doctor",
-    "config",
-    "mpv",
-    "texthooker",
-    "help",
+    'jellyfin',
+    'jf',
+    'yt',
+    'youtube',
+    'doctor',
+    'config',
+    'mpv',
+    'texthooker',
+    'help',
   ]);
   const optionsWithValue = new Set([
-    "-b",
-    "--backend",
-    "-d",
-    "--directory",
-    "-p",
-    "--profile",
-    "--log-level",
+    '-b',
+    '--backend',
+    '-d',
+    '--directory',
+    '-p',
+    '--profile',
+    '--log-level',
   ]);
   for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i] || "";
-    if (token === "--") return false;
-    if (token.startsWith("-")) {
+    const token = argv[i] || '';
+    if (token === '--') return false;
+    if (token.startsWith('-')) {
       if (optionsWithValue.has(token)) {
         i += 1;
       }
@@ -336,13 +303,13 @@ export function parseArgs(
   scriptName: string,
   launcherConfig: LauncherYoutubeSubgenConfig,
 ): Args {
-  const envMode = (process.env.SUBMINER_YT_SUBGEN_MODE || "").toLowerCase();
+  const envMode = (process.env.SUBMINER_YT_SUBGEN_MODE || '').toLowerCase();
   const defaultMode: YoutubeSubgenMode =
-    envMode === "preprocess" || envMode === "off" || envMode === "automatic"
+    envMode === 'preprocess' || envMode === 'off' || envMode === 'automatic'
       ? (envMode as YoutubeSubgenMode)
       : launcherConfig.mode
         ? launcherConfig.mode
-        : "automatic";
+        : 'automatic';
   const configuredSecondaryLangs = uniqueNormalizedLangCodes(
     launcherConfig.secondarySubLanguages ?? [],
   );
@@ -357,30 +324,23 @@ export function parseArgs(
     configuredSecondaryLangs.length > 0
       ? configuredSecondaryLangs
       : [...DEFAULT_YOUTUBE_SECONDARY_SUB_LANGS];
-  const youtubeAudioLangs = uniqueNormalizedLangCodes([
-    ...primarySubLangs,
-    ...secondarySubLangs,
-  ]);
+  const youtubeAudioLangs = uniqueNormalizedLangCodes([...primarySubLangs, ...secondarySubLangs]);
   const parsed: Args = {
-    backend: "auto",
-    directory: ".",
+    backend: 'auto',
+    directory: '.',
     recursive: false,
-    profile: "subminer",
+    profile: 'subminer',
     startOverlay: false,
     youtubeSubgenMode: defaultMode,
-    whisperBin: process.env.SUBMINER_WHISPER_BIN || launcherConfig.whisperBin || "",
-    whisperModel:
-      process.env.SUBMINER_WHISPER_MODEL || launcherConfig.whisperModel || "",
-    youtubeSubgenOutDir:
-      process.env.SUBMINER_YT_SUBGEN_OUT_DIR || DEFAULT_YOUTUBE_SUBGEN_OUT_DIR,
-    youtubeSubgenAudioFormat: process.env.SUBMINER_YT_SUBGEN_AUDIO_FORMAT || "m4a",
-    youtubeSubgenKeepTemp: process.env.SUBMINER_YT_SUBGEN_KEEP_TEMP === "1",
-    jimakuApiKey: process.env.SUBMINER_JIMAKU_API_KEY || "",
-    jimakuApiKeyCommand: process.env.SUBMINER_JIMAKU_API_KEY_COMMAND || "",
-    jimakuApiBaseUrl:
-      process.env.SUBMINER_JIMAKU_API_BASE_URL || DEFAULT_JIMAKU_API_BASE_URL,
-    jimakuLanguagePreference:
-      launcherConfig.jimakuLanguagePreference || "ja",
+    whisperBin: process.env.SUBMINER_WHISPER_BIN || launcherConfig.whisperBin || '',
+    whisperModel: process.env.SUBMINER_WHISPER_MODEL || launcherConfig.whisperModel || '',
+    youtubeSubgenOutDir: process.env.SUBMINER_YT_SUBGEN_OUT_DIR || DEFAULT_YOUTUBE_SUBGEN_OUT_DIR,
+    youtubeSubgenAudioFormat: process.env.SUBMINER_YT_SUBGEN_AUDIO_FORMAT || 'm4a',
+    youtubeSubgenKeepTemp: process.env.SUBMINER_YT_SUBGEN_KEEP_TEMP === '1',
+    jimakuApiKey: process.env.SUBMINER_JIMAKU_API_KEY || '',
+    jimakuApiKeyCommand: process.env.SUBMINER_JIMAKU_API_KEY_COMMAND || '',
+    jimakuApiBaseUrl: process.env.SUBMINER_JIMAKU_API_BASE_URL || DEFAULT_JIMAKU_API_BASE_URL,
+    jimakuLanguagePreference: launcherConfig.jimakuLanguagePreference || 'ja',
     jimakuMaxEntryResults: launcherConfig.jimakuMaxEntryResults || 10,
     jellyfin: false,
     jellyfinLogin: false,
@@ -393,58 +353,53 @@ export function parseArgs(
     mpvIdle: false,
     mpvSocket: false,
     mpvStatus: false,
-    jellyfinServer: "",
-    jellyfinUsername: "",
-    jellyfinPassword: "",
+    jellyfinServer: '',
+    jellyfinUsername: '',
+    jellyfinPassword: '',
     youtubePrimarySubLangs: primarySubLangs,
     youtubeSecondarySubLangs: secondarySubLangs,
     youtubeAudioLangs,
-    youtubeWhisperSourceLanguage: inferWhisperLanguage(primarySubLangs, "ja"),
+    youtubeWhisperSourceLanguage: inferWhisperLanguage(primarySubLangs, 'ja'),
     useTexthooker: true,
     autoStartOverlay: false,
     texthookerOnly: false,
     useRofi: false,
-    logLevel: "info",
-    target: "",
-    targetKind: "",
+    logLevel: 'info',
+    target: '',
+    targetKind: '',
   };
 
   if (launcherConfig.jimakuApiKey) parsed.jimakuApiKey = launcherConfig.jimakuApiKey;
   if (launcherConfig.jimakuApiKeyCommand)
     parsed.jimakuApiKeyCommand = launcherConfig.jimakuApiKeyCommand;
-  if (launcherConfig.jimakuApiBaseUrl)
-    parsed.jimakuApiBaseUrl = launcherConfig.jimakuApiBaseUrl;
+  if (launcherConfig.jimakuApiBaseUrl) parsed.jimakuApiBaseUrl = launcherConfig.jimakuApiBaseUrl;
   if (launcherConfig.jimakuLanguagePreference)
     parsed.jimakuLanguagePreference = launcherConfig.jimakuLanguagePreference;
   if (launcherConfig.jimakuMaxEntryResults !== undefined)
     parsed.jimakuMaxEntryResults = launcherConfig.jimakuMaxEntryResults;
 
-  let jellyfinInvocation:
-    | {
-      action?: string;
-      discovery?: boolean;
-      play?: boolean;
-      login?: boolean;
-      logout?: boolean;
-      setup?: boolean;
-      server?: string;
-      username?: string;
-      password?: string;
-      logLevel?: string;
-    }
-    | null = null;
-  let ytInvocation:
-    | {
-      target?: string;
-      mode?: string;
-      outDir?: string;
-      keepTemp?: boolean;
-      whisperBin?: string;
-      whisperModel?: string;
-      ytSubgenAudioFormat?: string;
-      logLevel?: string;
-    }
-    | null = null;
+  let jellyfinInvocation: {
+    action?: string;
+    discovery?: boolean;
+    play?: boolean;
+    login?: boolean;
+    logout?: boolean;
+    setup?: boolean;
+    server?: string;
+    username?: string;
+    password?: string;
+    logLevel?: string;
+  } | null = null;
+  let ytInvocation: {
+    target?: string;
+    mode?: string;
+    outDir?: string;
+    keepTemp?: boolean;
+    whisperBin?: string;
+    whisperModel?: string;
+    ytSubgenAudioFormat?: string;
+    logLevel?: string;
+  } | null = null;
   let configInvocation: { action: string; logLevel?: string } | null = null;
   let mpvInvocation: { action: string; logLevel?: string } | null = null;
   let doctorLogLevel: string | null = null;
@@ -453,7 +408,7 @@ export function parseArgs(
   const commandProgram = new Command();
   commandProgram
     .name(scriptName)
-    .description("Launch MPV with SubMiner sentence mining overlay")
+    .description('Launch MPV with SubMiner sentence mining overlay')
     .showHelpAfterError(true)
     .enablePositionalOptions()
     .allowExcessArguments(false)
@@ -464,29 +419,29 @@ export function parseArgs(
   const rootProgram = new Command();
   rootProgram
     .name(scriptName)
-    .description("Launch MPV with SubMiner sentence mining overlay")
-    .usage("[options] [command] [target]")
+    .description('Launch MPV with SubMiner sentence mining overlay')
+    .usage('[options] [command] [target]')
     .showHelpAfterError(true)
     .allowExcessArguments(false)
     .allowUnknownOption(false)
     .exitOverride()
-    .argument("[target]", "file, directory, or URL");
+    .argument('[target]', 'file, directory, or URL');
   applyRootOptions(rootProgram);
 
   commandProgram
-    .command("jellyfin")
-    .alias("jf")
-    .description("Jellyfin workflows")
-    .argument("[action]", "setup|discovery|play|login|logout")
-    .option("-d, --discovery", "Cast discovery mode")
-    .option("-p, --play", "Interactive play picker")
-    .option("-l, --login", "Login flow")
-    .option("--logout", "Clear token/session")
-    .option("--setup", "Open setup window")
-    .option("-s, --server <url>", "Jellyfin server URL")
-    .option("-u, --username <name>", "Jellyfin username")
-    .option("-w, --password <pass>", "Jellyfin password")
-    .option("--log-level <level>", "Log level")
+    .command('jellyfin')
+    .alias('jf')
+    .description('Jellyfin workflows')
+    .argument('[action]', 'setup|discovery|play|login|logout')
+    .option('-d, --discovery', 'Cast discovery mode')
+    .option('-p, --play', 'Interactive play picker')
+    .option('-l, --login', 'Login flow')
+    .option('--logout', 'Clear token/session')
+    .option('--setup', 'Open setup window')
+    .option('-s, --server <url>', 'Jellyfin server URL')
+    .option('-u, --username <name>', 'Jellyfin username')
+    .option('-w, --password <pass>', 'Jellyfin password')
+    .option('--log-level <level>', 'Log level')
     .action((action: string | undefined, options: Record<string, unknown>) => {
       jellyfinInvocation = {
         action,
@@ -495,115 +450,105 @@ export function parseArgs(
         login: options.login === true,
         logout: options.logout === true,
         setup: options.setup === true,
-        server: typeof options.server === "string" ? options.server : undefined,
-        username: typeof options.username === "string" ? options.username : undefined,
-        password: typeof options.password === "string" ? options.password : undefined,
-        logLevel:
-          typeof options.logLevel === "string" ? options.logLevel : undefined,
+        server: typeof options.server === 'string' ? options.server : undefined,
+        username: typeof options.username === 'string' ? options.username : undefined,
+        password: typeof options.password === 'string' ? options.password : undefined,
+        logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
       };
     });
 
   commandProgram
-    .command("yt")
-    .alias("youtube")
-    .description("YouTube workflows")
-    .argument("[target]", "YouTube URL or ytsearch: query")
-    .option("-m, --mode <mode>", "Subtitle generation mode")
-    .option("-o, --out-dir <dir>", "Subtitle output dir")
-    .option("--keep-temp", "Keep temp files")
-    .option("--whisper-bin <path>", "whisper.cpp CLI path")
-    .option("--whisper-model <path>", "whisper model path")
-    .option("--yt-subgen-audio-format <format>", "Audio extraction format")
-    .option("--log-level <level>", "Log level")
+    .command('yt')
+    .alias('youtube')
+    .description('YouTube workflows')
+    .argument('[target]', 'YouTube URL or ytsearch: query')
+    .option('-m, --mode <mode>', 'Subtitle generation mode')
+    .option('-o, --out-dir <dir>', 'Subtitle output dir')
+    .option('--keep-temp', 'Keep temp files')
+    .option('--whisper-bin <path>', 'whisper.cpp CLI path')
+    .option('--whisper-model <path>', 'whisper model path')
+    .option('--yt-subgen-audio-format <format>', 'Audio extraction format')
+    .option('--log-level <level>', 'Log level')
     .action((target: string | undefined, options: Record<string, unknown>) => {
       ytInvocation = {
         target,
-        mode: typeof options.mode === "string" ? options.mode : undefined,
-        outDir: typeof options.outDir === "string" ? options.outDir : undefined,
+        mode: typeof options.mode === 'string' ? options.mode : undefined,
+        outDir: typeof options.outDir === 'string' ? options.outDir : undefined,
         keepTemp: options.keepTemp === true,
-        whisperBin:
-          typeof options.whisperBin === "string" ? options.whisperBin : undefined,
-        whisperModel:
-          typeof options.whisperModel === "string" ? options.whisperModel : undefined,
+        whisperBin: typeof options.whisperBin === 'string' ? options.whisperBin : undefined,
+        whisperModel: typeof options.whisperModel === 'string' ? options.whisperModel : undefined,
         ytSubgenAudioFormat:
-          typeof options.ytSubgenAudioFormat === "string"
-            ? options.ytSubgenAudioFormat
-            : undefined,
-        logLevel:
-          typeof options.logLevel === "string" ? options.logLevel : undefined,
+          typeof options.ytSubgenAudioFormat === 'string' ? options.ytSubgenAudioFormat : undefined,
+        logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
       };
     });
 
   commandProgram
-    .command("doctor")
-    .description("Run dependency and environment checks")
-    .option("--log-level <level>", "Log level")
+    .command('doctor')
+    .description('Run dependency and environment checks')
+    .option('--log-level <level>', 'Log level')
     .action((options: Record<string, unknown>) => {
       parsed.doctor = true;
-      doctorLogLevel =
-        typeof options.logLevel === "string" ? options.logLevel : null;
+      doctorLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
     });
 
   commandProgram
-    .command("config")
-    .description("Config helpers")
-    .argument("[action]", "path|show", "path")
-    .option("--log-level <level>", "Log level")
+    .command('config')
+    .description('Config helpers')
+    .argument('[action]', 'path|show', 'path')
+    .option('--log-level <level>', 'Log level')
     .action((action: string, options: Record<string, unknown>) => {
       configInvocation = {
         action,
-        logLevel:
-          typeof options.logLevel === "string" ? options.logLevel : undefined,
+        logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
       };
     });
 
   commandProgram
-    .command("mpv")
-    .description("MPV helpers")
-    .argument("[action]", "status|socket|idle", "status")
-    .option("--log-level <level>", "Log level")
+    .command('mpv')
+    .description('MPV helpers')
+    .argument('[action]', 'status|socket|idle', 'status')
+    .option('--log-level <level>', 'Log level')
     .action((action: string, options: Record<string, unknown>) => {
       mpvInvocation = {
         action,
-        logLevel:
-          typeof options.logLevel === "string" ? options.logLevel : undefined,
+        logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
       };
     });
 
   commandProgram
-    .command("texthooker")
-    .description("Launch texthooker-only mode")
-    .option("--log-level <level>", "Log level")
+    .command('texthooker')
+    .description('Launch texthooker-only mode')
+    .option('--log-level <level>', 'Log level')
     .action((options: Record<string, unknown>) => {
       parsed.texthookerOnly = true;
-      texthookerLogLevel =
-        typeof options.logLevel === "string" ? options.logLevel : null;
+      texthookerLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
     });
 
   const selectedProgram = hasTopLevelCommand(argv) ? commandProgram : rootProgram;
   try {
-    selectedProgram.parse(["node", scriptName, ...argv]);
+    selectedProgram.parse(['node', scriptName, ...argv]);
   } catch (error) {
     const commanderError = error as { code?: string; message?: string };
-    if (commanderError?.code === "commander.helpDisplayed") {
+    if (commanderError?.code === 'commander.helpDisplayed') {
       process.exit(0);
     }
     fail(commanderError?.message || String(error));
   }
 
   const options = selectedProgram.opts<Record<string, unknown>>();
-  if (typeof options.backend === "string") {
+  if (typeof options.backend === 'string') {
     parsed.backend = parseBackend(options.backend);
   }
-  if (typeof options.directory === "string") {
+  if (typeof options.directory === 'string') {
     parsed.directory = options.directory;
   }
   if (options.recursive === true) parsed.recursive = true;
-  if (typeof options.profile === "string") {
+  if (typeof options.profile === 'string') {
     parsed.profile = options.profile;
   }
   if (options.start === true) parsed.startOverlay = true;
-  if (typeof options.logLevel === "string") {
+  if (typeof options.logLevel === 'string') {
     parsed.logLevel = parseLogLevel(options.logLevel);
   }
   if (options.rofi === true) parsed.useRofi = true;
@@ -611,7 +556,7 @@ export function parseArgs(
   if (options.texthooker === false) parsed.useTexthooker = false;
 
   const rootTarget = rootProgram.processedArgs[0];
-  if (typeof rootTarget === "string" && rootTarget) {
+  if (typeof rootTarget === 'string' && rootTarget) {
     ensureTarget(rootTarget, parsed);
   }
 
@@ -619,23 +564,29 @@ export function parseArgs(
     if (jellyfinInvocation.logLevel) {
       parsed.logLevel = parseLogLevel(jellyfinInvocation.logLevel);
     }
-    const action = (jellyfinInvocation.action || "").toLowerCase();
-    if (action && !["setup", "discovery", "play", "login", "logout"].includes(action)) {
+    const action = (jellyfinInvocation.action || '').toLowerCase();
+    if (action && !['setup', 'discovery', 'play', 'login', 'logout'].includes(action)) {
       fail(`Unknown jellyfin action: ${jellyfinInvocation.action}`);
     }
 
-    parsed.jellyfinServer = jellyfinInvocation.server || "";
-    parsed.jellyfinUsername = jellyfinInvocation.username || "";
-    parsed.jellyfinPassword = jellyfinInvocation.password || "";
+    parsed.jellyfinServer = jellyfinInvocation.server || '';
+    parsed.jellyfinUsername = jellyfinInvocation.username || '';
+    parsed.jellyfinPassword = jellyfinInvocation.password || '';
 
     const modeFlags = {
-      setup: jellyfinInvocation.setup || action === "setup",
-      discovery: jellyfinInvocation.discovery || action === "discovery",
-      play: jellyfinInvocation.play || action === "play",
-      login: jellyfinInvocation.login || action === "login",
-      logout: jellyfinInvocation.logout || action === "logout",
+      setup: jellyfinInvocation.setup || action === 'setup',
+      discovery: jellyfinInvocation.discovery || action === 'discovery',
+      play: jellyfinInvocation.play || action === 'play',
+      login: jellyfinInvocation.login || action === 'login',
+      logout: jellyfinInvocation.logout || action === 'logout',
     };
-    if (!modeFlags.setup && !modeFlags.discovery && !modeFlags.play && !modeFlags.login && !modeFlags.logout) {
+    if (
+      !modeFlags.setup &&
+      !modeFlags.discovery &&
+      !modeFlags.play &&
+      !modeFlags.login &&
+      !modeFlags.logout
+    ) {
       modeFlags.setup = true;
     }
 
@@ -679,9 +630,9 @@ export function parseArgs(
     if (configInvocation.logLevel) {
       parsed.logLevel = parseLogLevel(configInvocation.logLevel);
     }
-    const action = (configInvocation.action || "path").toLowerCase();
-    if (action === "path") parsed.configPath = true;
-    else if (action === "show") parsed.configShow = true;
+    const action = (configInvocation.action || 'path').toLowerCase();
+    if (action === 'path') parsed.configPath = true;
+    else if (action === 'show') parsed.configShow = true;
     else fail(`Unknown config action: ${configInvocation.action}`);
   }
 
@@ -689,10 +640,10 @@ export function parseArgs(
     if (mpvInvocation.logLevel) {
       parsed.logLevel = parseLogLevel(mpvInvocation.logLevel);
     }
-    const action = (mpvInvocation.action || "status").toLowerCase();
-    if (action === "status") parsed.mpvStatus = true;
-    else if (action === "socket") parsed.mpvSocket = true;
-    else if (action === "idle" || action === "start") parsed.mpvIdle = true;
+    const action = (mpvInvocation.action || 'status').toLowerCase();
+    if (action === 'status') parsed.mpvStatus = true;
+    else if (action === 'socket') parsed.mpvSocket = true;
+    else if (action === 'idle' || action === 'start') parsed.mpvIdle = true;
     else fail(`Unknown mpv action: ${mpvInvocation.action}`);
   }
 

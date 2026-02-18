@@ -1,12 +1,12 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import test from 'node:test';
+import assert from 'node:assert/strict';
 import {
   broadcastRuntimeOptionsChangedRuntime,
   createOverlayManager,
   setOverlayDebugVisualizationEnabledRuntime,
-} from "./overlay-manager";
+} from './overlay-manager';
 
-test("overlay manager initializes with empty windows and hidden overlays", () => {
+test('overlay manager initializes with empty windows and hidden overlays', () => {
   const manager = createOverlayManager();
   assert.equal(manager.getMainWindow(), null);
   assert.equal(manager.getInvisibleWindow(), null);
@@ -15,7 +15,7 @@ test("overlay manager initializes with empty windows and hidden overlays", () =>
   assert.deepEqual(manager.getOverlayWindows(), []);
 });
 
-test("overlay manager stores window references and returns stable window order", () => {
+test('overlay manager stores window references and returns stable window order', () => {
   const manager = createOverlayManager();
   const visibleWindow = {
     isDestroyed: () => false,
@@ -29,15 +29,12 @@ test("overlay manager stores window references and returns stable window order",
 
   assert.equal(manager.getMainWindow(), visibleWindow);
   assert.equal(manager.getInvisibleWindow(), invisibleWindow);
-  assert.equal(manager.getOverlayWindow("visible"), visibleWindow);
-  assert.equal(manager.getOverlayWindow("invisible"), invisibleWindow);
-  assert.deepEqual(manager.getOverlayWindows(), [
-    visibleWindow,
-    invisibleWindow,
-  ]);
+  assert.equal(manager.getOverlayWindow('visible'), visibleWindow);
+  assert.equal(manager.getOverlayWindow('invisible'), invisibleWindow);
+  assert.deepEqual(manager.getOverlayWindows(), [visibleWindow, invisibleWindow]);
 });
 
-test("overlay manager excludes destroyed windows", () => {
+test('overlay manager excludes destroyed windows', () => {
   const manager = createOverlayManager();
   manager.setMainWindow({
     isDestroyed: () => true,
@@ -49,7 +46,7 @@ test("overlay manager excludes destroyed windows", () => {
   assert.equal(manager.getOverlayWindows().length, 1);
 });
 
-test("overlay manager stores visibility state", () => {
+test('overlay manager stores visibility state', () => {
   const manager = createOverlayManager();
 
   manager.setVisibleOverlayVisible(true);
@@ -58,7 +55,7 @@ test("overlay manager stores visibility state", () => {
   assert.equal(manager.getInvisibleOverlayVisible(), true);
 });
 
-test("overlay manager broadcasts to non-destroyed windows", () => {
+test('overlay manager broadcasts to non-destroyed windows', () => {
   const manager = createOverlayManager();
   const calls: unknown[][] = [];
   const aliveWindow = {
@@ -78,12 +75,12 @@ test("overlay manager broadcasts to non-destroyed windows", () => {
 
   manager.setMainWindow(aliveWindow);
   manager.setInvisibleWindow(deadWindow);
-  manager.broadcastToOverlayWindows("x", 1, "a");
+  manager.broadcastToOverlayWindows('x', 1, 'a');
 
-  assert.deepEqual(calls, [["x", 1, "a"]]);
+  assert.deepEqual(calls, [['x', 1, 'a']]);
 });
 
-test("overlay manager applies bounds by layer", () => {
+test('overlay manager applies bounds by layer', () => {
   const manager = createOverlayManager();
   const visibleCalls: Electron.Rectangle[] = [];
   const invisibleCalls: Electron.Rectangle[] = [];
@@ -102,13 +99,13 @@ test("overlay manager applies bounds by layer", () => {
   manager.setMainWindow(visibleWindow);
   manager.setInvisibleWindow(invisibleWindow);
 
-  manager.setOverlayWindowBounds("visible", {
+  manager.setOverlayWindowBounds('visible', {
     x: 10,
     y: 20,
     width: 30,
     height: 40,
   });
-  manager.setOverlayWindowBounds("invisible", {
+  manager.setOverlayWindowBounds('invisible', {
     x: 1,
     y: 2,
     width: 3,
@@ -119,7 +116,7 @@ test("overlay manager applies bounds by layer", () => {
   assert.deepEqual(invisibleCalls, [{ x: 1, y: 2, width: 3, height: 4 }]);
 });
 
-test("runtime-option and debug broadcasts use expected channels", () => {
+test('runtime-option and debug broadcasts use expected channels', () => {
   const broadcasts: unknown[][] = [];
   broadcastRuntimeOptionsChangedRuntime(
     () => [],
@@ -141,7 +138,7 @@ test("runtime-option and debug broadcasts use expected channels", () => {
   assert.equal(changed, true);
   assert.equal(state, true);
   assert.deepEqual(broadcasts, [
-    ["runtime-options:changed", []],
-    ["overlay-debug-visualization:set", true],
+    ['runtime-options:changed', []],
+    ['overlay-debug-visualization:set', true],
   ]);
 });

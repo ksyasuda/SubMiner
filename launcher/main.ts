@@ -1,64 +1,68 @@
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import type { Args } from "./types.js";
-import { log, fail } from "./log.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import type { Args } from './types.js';
+import { log, fail } from './log.js';
+import { commandExists, isYoutubeTarget, resolvePathMaybe, realpathMaybe } from './util.js';
 import {
-  commandExists, isYoutubeTarget, resolvePathMaybe, realpathMaybe,
-} from "./util.js";
-import {
-  parseArgs, loadLauncherYoutubeSubgenConfig, loadLauncherJellyfinConfig,
+  parseArgs,
+  loadLauncherYoutubeSubgenConfig,
+  loadLauncherJellyfinConfig,
   readPluginRuntimeConfig,
-} from "./config.js";
-import { showRofiMenu, showFzfMenu, collectVideos } from "./picker.js";
+} from './config.js';
+import { showRofiMenu, showFzfMenu, collectVideos } from './picker.js';
 import {
-  state, startMpv, startOverlay, stopOverlay, launchTexthookerOnly,
-  findAppBinary, waitForSocket, loadSubtitleIntoMpv, runAppCommandWithInherit,
-  launchMpvIdleDetached, waitForUnixSocketReady,
-} from "./mpv.js";
-import { generateYoutubeSubtitles } from "./youtube.js";
-import { runJellyfinPlayMenu } from "./jellyfin.js";
+  state,
+  startMpv,
+  startOverlay,
+  stopOverlay,
+  launchTexthookerOnly,
+  findAppBinary,
+  waitForSocket,
+  loadSubtitleIntoMpv,
+  runAppCommandWithInherit,
+  launchMpvIdleDetached,
+  waitForUnixSocketReady,
+} from './mpv.js';
+import { generateYoutubeSubtitles } from './youtube.js';
+import { runJellyfinPlayMenu } from './jellyfin.js';
 
 function checkDependencies(args: Args): void {
   const missing: string[] = [];
 
-  if (!commandExists("mpv")) missing.push("mpv");
+  if (!commandExists('mpv')) missing.push('mpv');
 
-  if (
-    args.targetKind === "url" &&
-    isYoutubeTarget(args.target) &&
-    !commandExists("yt-dlp")
-  ) {
-    missing.push("yt-dlp");
+  if (args.targetKind === 'url' && isYoutubeTarget(args.target) && !commandExists('yt-dlp')) {
+    missing.push('yt-dlp');
   }
 
   if (
-    args.targetKind === "url" &&
+    args.targetKind === 'url' &&
     isYoutubeTarget(args.target) &&
-    args.youtubeSubgenMode !== "off" &&
-    !commandExists("ffmpeg")
+    args.youtubeSubgenMode !== 'off' &&
+    !commandExists('ffmpeg')
   ) {
-    missing.push("ffmpeg");
+    missing.push('ffmpeg');
   }
 
-  if (missing.length > 0) fail(`Missing dependencies: ${missing.join(" ")}`);
+  if (missing.length > 0) fail(`Missing dependencies: ${missing.join(' ')}`);
 }
 
 function checkPickerDependencies(args: Args): void {
   if (args.useRofi) {
-    if (!commandExists("rofi")) fail("Missing dependency: rofi");
+    if (!commandExists('rofi')) fail('Missing dependency: rofi');
     return;
   }
 
-  if (!commandExists("fzf")) fail("Missing dependency: fzf");
+  if (!commandExists('fzf')) fail('Missing dependency: fzf');
 }
 
 async function chooseTarget(
   args: Args,
   scriptPath: string,
-): Promise<{ target: string; kind: "file" | "url" } | null> {
+): Promise<{ target: string; kind: 'file' | 'url' } | null> {
   if (args.target) {
-    return { target: args.target, kind: args.targetKind as "file" | "url" };
+    return { target: args.target, kind: args.targetKind as 'file' | 'url' };
   }
 
   const searchDir = realpathMaybe(resolvePathMaybe(args.directory));
@@ -71,104 +75,98 @@ async function chooseTarget(
     fail(`No video files found in: ${searchDir}`);
   }
 
-  log(
-    "info",
-    args.logLevel,
-    `Browsing: ${searchDir} (${videos.length} videos found)`,
-  );
+  log('info', args.logLevel, `Browsing: ${searchDir} (${videos.length} videos found)`);
 
   const selected = args.useRofi
     ? showRofiMenu(videos, searchDir, args.recursive, scriptPath, args.logLevel)
     : showFzfMenu(videos);
 
   if (!selected) return null;
-  return { target: selected, kind: "file" };
+  return { target: selected, kind: 'file' };
 }
 
 function registerCleanup(args: Args): void {
-  process.on("SIGINT", () => {
+  process.on('SIGINT', () => {
     stopOverlay(args);
     process.exit(130);
   });
-  process.on("SIGTERM", () => {
+  process.on('SIGTERM', () => {
     stopOverlay(args);
     process.exit(143);
   });
 }
 
 function resolveMainConfigPath(): string {
-  const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
-  const baseDirs = Array.from(new Set([xdgConfigHome, path.join(os.homedir(), ".config")]));
-  const appNames = ["SubMiner", "subminer"];
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
+  const baseDirs = Array.from(new Set([xdgConfigHome, path.join(os.homedir(), '.config')]));
+  const appNames = ['SubMiner', 'subminer'];
   for (const baseDir of baseDirs) {
     for (const appName of appNames) {
-      const jsoncPath = path.join(baseDir, appName, "config.jsonc");
+      const jsoncPath = path.join(baseDir, appName, 'config.jsonc');
       if (fs.existsSync(jsoncPath)) return jsoncPath;
-      const jsonPath = path.join(baseDir, appName, "config.json");
+      const jsonPath = path.join(baseDir, appName, 'config.json');
       if (fs.existsSync(jsonPath)) return jsonPath;
     }
   }
-  return path.join(baseDirs[0], "SubMiner", "config.jsonc");
+  return path.join(baseDirs[0], 'SubMiner', 'config.jsonc');
 }
 
 function runDoctor(args: Args, appPath: string | null, mpvSocketPath: string): never {
   const checks: Array<{ label: string; ok: boolean; detail: string }> = [
     {
-      label: "app binary",
+      label: 'app binary',
       ok: Boolean(appPath),
-      detail: appPath || "not found (set SUBMINER_APPIMAGE_PATH)",
+      detail: appPath || 'not found (set SUBMINER_APPIMAGE_PATH)',
     },
     {
-      label: "mpv",
-      ok: commandExists("mpv"),
-      detail: commandExists("mpv") ? "found" : "missing",
+      label: 'mpv',
+      ok: commandExists('mpv'),
+      detail: commandExists('mpv') ? 'found' : 'missing',
     },
     {
-      label: "yt-dlp",
-      ok: commandExists("yt-dlp"),
-      detail: commandExists("yt-dlp") ? "found" : "missing (optional unless YouTube URLs)",
+      label: 'yt-dlp',
+      ok: commandExists('yt-dlp'),
+      detail: commandExists('yt-dlp') ? 'found' : 'missing (optional unless YouTube URLs)',
     },
     {
-      label: "ffmpeg",
-      ok: commandExists("ffmpeg"),
-      detail: commandExists("ffmpeg") ? "found" : "missing (optional unless subtitle generation)",
+      label: 'ffmpeg',
+      ok: commandExists('ffmpeg'),
+      detail: commandExists('ffmpeg') ? 'found' : 'missing (optional unless subtitle generation)',
     },
     {
-      label: "fzf",
-      ok: commandExists("fzf"),
-      detail: commandExists("fzf") ? "found" : "missing (optional if using rofi)",
+      label: 'fzf',
+      ok: commandExists('fzf'),
+      detail: commandExists('fzf') ? 'found' : 'missing (optional if using rofi)',
     },
     {
-      label: "rofi",
-      ok: commandExists("rofi"),
-      detail: commandExists("rofi") ? "found" : "missing (optional if using fzf)",
+      label: 'rofi',
+      ok: commandExists('rofi'),
+      detail: commandExists('rofi') ? 'found' : 'missing (optional if using fzf)',
     },
     {
-      label: "config",
+      label: 'config',
       ok: fs.existsSync(resolveMainConfigPath()),
       detail: resolveMainConfigPath(),
     },
     {
-      label: "mpv socket path",
+      label: 'mpv socket path',
       ok: true,
       detail: mpvSocketPath,
     },
   ];
 
-  const hasHardFailure = checks.some(
-    (entry) => entry.label === "app binary" || entry.label === "mpv"
-      ? !entry.ok
-      : false,
+  const hasHardFailure = checks.some((entry) =>
+    entry.label === 'app binary' || entry.label === 'mpv' ? !entry.ok : false,
   );
 
   for (const check of checks) {
-    log(check.ok ? "info" : "warn", args.logLevel, `[doctor] ${check.label}: ${check.detail}`);
+    log(check.ok ? 'info' : 'warn', args.logLevel, `[doctor] ${check.label}: ${check.detail}`);
   }
   process.exit(hasHardFailure ? 1 : 0);
 }
 
 async function main(): Promise<void> {
-  const scriptPath = process.argv[1] || "subminer";
+  const scriptPath = process.argv[1] || 'subminer';
   const scriptName = path.basename(scriptPath);
   const launcherConfig = loadLauncherYoutubeSubgenConfig();
   const launcherJellyfinConfig = loadLauncherJellyfinConfig();
@@ -176,9 +174,9 @@ async function main(): Promise<void> {
   const pluginRuntimeConfig = readPluginRuntimeConfig(args.logLevel);
   const mpvSocketPath = pluginRuntimeConfig.socketPath;
 
-  log("debug", args.logLevel, `Wrapper log level set to: ${args.logLevel}`);
+  log('debug', args.logLevel, `Wrapper log level set to: ${args.logLevel}`);
 
-  const appPath = findAppBinary(process.argv[1] || "subminer");
+  const appPath = findAppBinary(process.argv[1] || 'subminer');
   if (args.doctor) {
     runDoctor(args, appPath, mpvSocketPath);
   }
@@ -193,10 +191,10 @@ async function main(): Promise<void> {
     if (!fs.existsSync(configPath)) {
       fail(`Config file not found: ${configPath}`);
     }
-    const contents = fs.readFileSync(configPath, "utf8");
+    const contents = fs.readFileSync(configPath, 'utf8');
     process.stdout.write(contents);
-    if (!contents.endsWith("\n")) {
-      process.stdout.write("\n");
+    if (!contents.endsWith('\n')) {
+      process.stdout.write('\n');
     }
     return;
   }
@@ -209,22 +207,20 @@ async function main(): Promise<void> {
   if (args.mpvStatus) {
     const ready = await waitForUnixSocketReady(mpvSocketPath, 500);
     log(
-      ready ? "info" : "warn",
+      ready ? 'info' : 'warn',
       args.logLevel,
-      `[mpv] socket ${ready ? "ready" : "not ready"}: ${mpvSocketPath}`,
+      `[mpv] socket ${ready ? 'ready' : 'not ready'}: ${mpvSocketPath}`,
     );
     process.exit(ready ? 0 : 1);
   }
 
   if (!appPath) {
-    if (process.platform === "darwin") {
+    if (process.platform === 'darwin') {
       fail(
-        "SubMiner app binary not found. Install SubMiner.app to /Applications or ~/Applications, or set SUBMINER_APPIMAGE_PATH.",
+        'SubMiner app binary not found. Install SubMiner.app to /Applications or ~/Applications, or set SUBMINER_APPIMAGE_PATH.',
       );
     }
-    fail(
-      "SubMiner AppImage not found. Install to ~/.local/bin/ or set SUBMINER_APPIMAGE_PATH.",
-    );
+    fail('SubMiner AppImage not found. Install to ~/.local/bin/ or set SUBMINER_APPIMAGE_PATH.');
   }
   state.appPath = appPath;
 
@@ -234,7 +230,7 @@ async function main(): Promise<void> {
     if (!ready) {
       fail(`MPV IPC socket not ready after idle launch: ${mpvSocketPath}`);
     }
-    log("info", args.logLevel, `[mpv] idle instance ready on ${mpvSocketPath}`);
+    log('info', args.logLevel, `[mpv] idle instance ready on ${mpvSocketPath}`);
     return;
   }
 
@@ -243,52 +239,52 @@ async function main(): Promise<void> {
   }
 
   if (args.jellyfin) {
-    const forwarded = ["--jellyfin"];
-    if (args.logLevel !== "info") forwarded.push("--log-level", args.logLevel);
+    const forwarded = ['--jellyfin'];
+    if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
     runAppCommandWithInherit(appPath, forwarded);
   }
 
   if (args.jellyfinLogin) {
-    const serverUrl = args.jellyfinServer || launcherJellyfinConfig.serverUrl || "";
-    const username = args.jellyfinUsername || launcherJellyfinConfig.username || "";
-    const password = args.jellyfinPassword || "";
+    const serverUrl = args.jellyfinServer || launcherJellyfinConfig.serverUrl || '';
+    const username = args.jellyfinUsername || launcherJellyfinConfig.username || '';
+    const password = args.jellyfinPassword || '';
     if (!serverUrl || !username || !password) {
       fail(
-        "--jellyfin-login requires server, username, and password. Pass flags or run `subminer --jellyfin`.",
+        '--jellyfin-login requires server, username, and password. Pass flags or run `subminer --jellyfin`.',
       );
     }
     const forwarded = [
-      "--jellyfin-login",
-      "--jellyfin-server",
+      '--jellyfin-login',
+      '--jellyfin-server',
       serverUrl,
-      "--jellyfin-username",
+      '--jellyfin-username',
       username,
-      "--jellyfin-password",
+      '--jellyfin-password',
       password,
     ];
-    if (args.logLevel !== "info") forwarded.push("--log-level", args.logLevel);
+    if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
     runAppCommandWithInherit(appPath, forwarded);
   }
 
   if (args.jellyfinLogout) {
-    const forwarded = ["--jellyfin-logout"];
-    if (args.logLevel !== "info") forwarded.push("--log-level", args.logLevel);
+    const forwarded = ['--jellyfin-logout'];
+    if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
     runAppCommandWithInherit(appPath, forwarded);
   }
 
   if (args.jellyfinPlay) {
-    if (!args.useRofi && !commandExists("fzf")) {
-      fail("fzf not found. Install fzf or use -R for rofi.");
+    if (!args.useRofi && !commandExists('fzf')) {
+      fail('fzf not found. Install fzf or use -R for rofi.');
     }
-    if (args.useRofi && !commandExists("rofi")) {
-      fail("rofi not found. Install rofi or omit -R for fzf.");
+    if (args.useRofi && !commandExists('rofi')) {
+      fail('rofi not found. Install rofi or omit -R for fzf.');
     }
     await runJellyfinPlayMenu(appPath, args, scriptPath, mpvSocketPath);
   }
 
   if (args.jellyfinDiscovery) {
-    const forwarded = ["--start"];
-    if (args.logLevel !== "info") forwarded.push("--log-level", args.logLevel);
+    const forwarded = ['--start'];
+    if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
     runAppCommandWithInherit(appPath, forwarded);
   }
 
@@ -296,16 +292,16 @@ async function main(): Promise<void> {
     checkPickerDependencies(args);
   }
 
-  const targetChoice = await chooseTarget(args, process.argv[1] || "subminer");
+  const targetChoice = await chooseTarget(args, process.argv[1] || 'subminer');
   if (!targetChoice) {
-    log("info", args.logLevel, "No video selected, exiting");
+    log('info', args.logLevel, 'No video selected, exiting');
     process.exit(0);
   }
 
   checkDependencies({
     ...args,
     target: targetChoice ? targetChoice.target : args.target,
-    targetKind: targetChoice ? targetChoice.kind : "url",
+    targetKind: targetChoice ? targetChoice.kind : 'url',
   });
 
   registerCleanup(args);
@@ -313,35 +309,29 @@ async function main(): Promise<void> {
   let selectedTarget = targetChoice
     ? {
         target: targetChoice.target,
-        kind: targetChoice.kind as "file" | "url",
+        kind: targetChoice.kind as 'file' | 'url',
       }
-    : { target: args.target, kind: "url" as const };
+    : { target: args.target, kind: 'url' as const };
 
-  const isYoutubeUrl =
-    selectedTarget.kind === "url" && isYoutubeTarget(selectedTarget.target);
-  let preloadedSubtitles:
-    | { primaryPath?: string; secondaryPath?: string }
-    | undefined;
+  const isYoutubeUrl = selectedTarget.kind === 'url' && isYoutubeTarget(selectedTarget.target);
+  let preloadedSubtitles: { primaryPath?: string; secondaryPath?: string } | undefined;
 
-  if (isYoutubeUrl && args.youtubeSubgenMode === "preprocess") {
-    log("info", args.logLevel, "YouTube subtitle mode: preprocess");
-    const generated = await generateYoutubeSubtitles(
-      selectedTarget.target,
-      args,
-    );
+  if (isYoutubeUrl && args.youtubeSubgenMode === 'preprocess') {
+    log('info', args.logLevel, 'YouTube subtitle mode: preprocess');
+    const generated = await generateYoutubeSubtitles(selectedTarget.target, args);
     preloadedSubtitles = {
       primaryPath: generated.primaryPath,
       secondaryPath: generated.secondaryPath,
     };
     log(
-      "info",
+      'info',
       args.logLevel,
-      `YouTube preprocess result: primary=${generated.primaryPath ? "ready" : "missing"}, secondary=${generated.secondaryPath ? "ready" : "missing"}`,
+      `YouTube preprocess result: primary=${generated.primaryPath ? 'ready' : 'missing'}, secondary=${generated.secondaryPath ? 'ready' : 'missing'}`,
     );
-  } else if (isYoutubeUrl && args.youtubeSubgenMode === "automatic") {
-    log("info", args.logLevel, "YouTube subtitle mode: automatic (background)");
+  } else if (isYoutubeUrl && args.youtubeSubgenMode === 'automatic') {
+    log('info', args.logLevel, 'YouTube subtitle mode: automatic (background)');
   } else if (isYoutubeUrl) {
-    log("info", args.logLevel, "YouTube subtitle mode: off");
+    log('info', args.logLevel, 'YouTube subtitle mode: off');
   }
 
   startMpv(
@@ -353,28 +343,20 @@ async function main(): Promise<void> {
     preloadedSubtitles,
   );
 
-  if (isYoutubeUrl && args.youtubeSubgenMode === "automatic") {
-    void generateYoutubeSubtitles(
-      selectedTarget.target,
-      args,
-      async (lang, subtitlePath) => {
+  if (isYoutubeUrl && args.youtubeSubgenMode === 'automatic') {
+    void generateYoutubeSubtitles(selectedTarget.target, args, async (lang, subtitlePath) => {
       try {
-        await loadSubtitleIntoMpv(
-          mpvSocketPath,
-          subtitlePath,
-          lang === "primary",
-          args.logLevel,
-        );
+        await loadSubtitleIntoMpv(mpvSocketPath, subtitlePath, lang === 'primary', args.logLevel);
       } catch (error) {
         log(
-          "warn",
+          'warn',
           args.logLevel,
           `Generated subtitle ready but failed to load in mpv: ${(error as Error).message}`,
         );
       }
     }).catch((error) => {
       log(
-        "warn",
+        'warn',
         args.logLevel,
         `Background subtitle generation failed: ${(error as Error).message}`,
       );
@@ -386,30 +368,26 @@ async function main(): Promise<void> {
     args.startOverlay || args.autoStartOverlay || pluginRuntimeConfig.autoStartOverlay;
   if (shouldStartOverlay) {
     if (ready) {
-      log(
-        "info",
-        args.logLevel,
-        "MPV IPC socket ready, starting SubMiner overlay",
-      );
+      log('info', args.logLevel, 'MPV IPC socket ready, starting SubMiner overlay');
     } else {
       log(
-        "info",
+        'info',
         args.logLevel,
-        "MPV IPC socket not ready after timeout, starting SubMiner overlay anyway",
+        'MPV IPC socket not ready after timeout, starting SubMiner overlay anyway',
       );
     }
     await startOverlay(appPath, args, mpvSocketPath);
   } else if (ready) {
     log(
-      "info",
+      'info',
       args.logLevel,
-      "MPV IPC socket ready, overlay auto-start disabled (use y-s to start)",
+      'MPV IPC socket ready, overlay auto-start disabled (use y-s to start)',
     );
   } else {
     log(
-      "info",
+      'info',
       args.logLevel,
-      "MPV IPC socket not ready yet, overlay auto-start disabled (use y-s to start)",
+      'MPV IPC socket not ready yet, overlay auto-start disabled (use y-s to start)',
     );
   }
 
@@ -419,7 +397,7 @@ async function main(): Promise<void> {
       resolve();
       return;
     }
-    state.mpvProc.on("exit", (code) => {
+    state.mpvProc.on('exit', (code) => {
       stopOverlay(args);
       process.exitCode = code ?? 0;
       resolve();

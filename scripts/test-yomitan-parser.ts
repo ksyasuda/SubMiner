@@ -1,11 +1,11 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import process from "node:process";
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import process from 'node:process';
 
-import { createTokenizerDepsRuntime, tokenizeSubtitle } from "../src/core/services/tokenizer.js";
-import { MecabTokenizer } from "../src/mecab-tokenizer.js";
-import type { MergedToken } from "../src/types.js";
+import { createTokenizerDepsRuntime, tokenizeSubtitle } from '../src/core/services/tokenizer.js';
+import { MecabTokenizer } from '../src/mecab-tokenizer.js';
+import type { MergedToken } from '../src/types.js';
 
 interface CliOptions {
   input: string;
@@ -55,11 +55,7 @@ interface YomitanRuntimeState {
   parserInitPromise: Promise<boolean> | null;
 }
 
-const DEFAULT_YOMITAN_USER_DATA_PATH = path.join(
-  os.homedir(),
-  ".config",
-  "SubMiner",
-);
+const DEFAULT_YOMITAN_USER_DATA_PATH = path.join(os.homedir(), '.config', 'SubMiner');
 
 function destroyParserWindow(window: Electron.BrowserWindow | null): void {
   if (!window || window.isDestroyed()) {
@@ -70,7 +66,7 @@ function destroyParserWindow(window: Electron.BrowserWindow | null): void {
 
 async function shutdownYomitanRuntime(yomitan: YomitanRuntimeState): Promise<void> {
   destroyParserWindow(yomitan.parserWindow);
-  const electronModule = await import("electron").catch(() => null);
+  const electronModule = await import('electron').catch(() => null);
   if (electronModule?.app) {
     electronModule.app.quit();
   }
@@ -91,94 +87,90 @@ function parseCliArgs(argv: string[]): CliOptions {
     const arg = args.shift();
     if (!arg) break;
 
-    if (arg === "--help" || arg === "-h") {
+    if (arg === '--help' || arg === '-h') {
       printUsage();
       process.exit(0);
     }
 
-    if (arg === "--pretty") {
+    if (arg === '--pretty') {
       emitPretty = true;
       continue;
     }
 
-    if (arg === "--json") {
+    if (arg === '--json') {
       emitJson = true;
       continue;
     }
 
-    if (arg === "--force-mecab") {
+    if (arg === '--force-mecab') {
       forceMecabOnly = true;
       continue;
     }
 
-    if (arg === "--yomitan-extension") {
+    if (arg === '--yomitan-extension') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --yomitan-extension");
+        throw new Error('Missing value for --yomitan-extension');
       }
       yomitanExtensionPath = path.resolve(next);
       continue;
     }
 
-    if (arg.startsWith("--yomitan-extension=")) {
-      yomitanExtensionPath = path.resolve(
-        arg.slice("--yomitan-extension=".length),
-      );
+    if (arg.startsWith('--yomitan-extension=')) {
+      yomitanExtensionPath = path.resolve(arg.slice('--yomitan-extension='.length));
       continue;
     }
 
-    if (arg === "--yomitan-user-data") {
+    if (arg === '--yomitan-user-data') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --yomitan-user-data");
+        throw new Error('Missing value for --yomitan-user-data');
       }
       yomitanUserDataPath = path.resolve(next);
       continue;
     }
 
-    if (arg.startsWith("--yomitan-user-data=")) {
-      yomitanUserDataPath = path.resolve(
-        arg.slice("--yomitan-user-data=".length),
-      );
+    if (arg.startsWith('--yomitan-user-data=')) {
+      yomitanUserDataPath = path.resolve(arg.slice('--yomitan-user-data='.length));
       continue;
     }
 
-    if (arg === "--mecab-command") {
+    if (arg === '--mecab-command') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --mecab-command");
+        throw new Error('Missing value for --mecab-command');
       }
       mecabCommand = next;
       continue;
     }
 
-    if (arg.startsWith("--mecab-command=")) {
-      mecabCommand = arg.slice("--mecab-command=".length);
+    if (arg.startsWith('--mecab-command=')) {
+      mecabCommand = arg.slice('--mecab-command='.length);
       continue;
     }
 
-    if (arg === "--mecab-dictionary") {
+    if (arg === '--mecab-dictionary') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --mecab-dictionary");
+        throw new Error('Missing value for --mecab-dictionary');
       }
       mecabDictionaryPath = next;
       continue;
     }
 
-    if (arg.startsWith("--mecab-dictionary=")) {
-      mecabDictionaryPath = arg.slice("--mecab-dictionary=".length);
+    if (arg.startsWith('--mecab-dictionary=')) {
+      mecabDictionaryPath = arg.slice('--mecab-dictionary='.length);
       continue;
     }
 
-    if (arg.startsWith("-")) {
+    if (arg.startsWith('-')) {
       throw new Error(`Unknown flag: ${arg}`);
     }
 
     inputParts.push(arg);
   }
 
-  const input = inputParts.join(" ").trim();
+  const input = inputParts.join(' ').trim();
   if (input.length > 0) {
     return {
       input,
@@ -192,11 +184,9 @@ function parseCliArgs(argv: string[]): CliOptions {
     };
   }
 
-  const stdin = fs.readFileSync(0, "utf8").trim();
+  const stdin = fs.readFileSync(0, 'utf8').trim();
   if (!stdin) {
-    throw new Error(
-      "Please provide input text as arguments or via stdin.",
-    );
+    throw new Error('Please provide input text as arguments or via stdin.');
   }
 
   return {
@@ -227,30 +217,24 @@ function printUsage(): void {
 }
 
 function normalizeDisplayText(text: string): string {
-  return text
-    .replace(/\r\n/g, "\n")
-    .replace(/\\N/g, "\n")
-    .replace(/\\n/g, "\n")
-    .trim();
+  return text.replace(/\r\n/g, '\n').replace(/\\N/g, '\n').replace(/\\n/g, '\n').trim();
 }
 
 function normalizeTokenizerText(text: string): string {
-  return normalizeDisplayText(text)
-    .replace(/\n/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return normalizeDisplayText(text).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object");
+  return Boolean(value && typeof value === 'object');
 }
 
 function isHeadwordRows(value: unknown): value is YomitanParseHeadword[][] {
   return (
     Array.isArray(value) &&
-    value.every((row) =>
-      Array.isArray(row) &&
-      row.every((entry) => isObject(entry) && typeof entry.term === "string")
+    value.every(
+      (row) =>
+        Array.isArray(row) &&
+        row.every((entry) => isObject(entry) && typeof entry.term === 'string'),
     )
   );
 }
@@ -285,11 +269,11 @@ function mapParseResultsToCandidates(parseResults: unknown): ParsedCandidate[] {
       continue;
     }
     const parseItem = item as YomitanParseResultItem;
-    if (!Array.isArray(parseItem.content) || typeof parseItem.source !== "string") {
+    if (!Array.isArray(parseItem.content) || typeof parseItem.source !== 'string') {
       continue;
     }
 
-    const candidateTokens: ParsedCandidate["tokens"] = [];
+    const candidateTokens: ParsedCandidate['tokens'] = [];
     let charOffset = 0;
     let validLineCount = 0;
 
@@ -298,13 +282,13 @@ function mapParseResultsToCandidates(parseResults: unknown): ParsedCandidate[] {
         continue;
       }
       const lineSegments = line as YomitanParseSegment[];
-      if (lineSegments.some((segment) => typeof segment.text !== "string")) {
+      if (lineSegments.some((segment) => typeof segment.text !== 'string')) {
         continue;
       }
       validLineCount += 1;
 
       for (const segment of lineSegments) {
-        const surface = (segment.text as string) ?? "";
+        const surface = (segment.text as string) ?? '';
         if (!surface) {
           continue;
         }
@@ -314,7 +298,7 @@ function mapParseResultsToCandidates(parseResults: unknown): ParsedCandidate[] {
         const headwordTerms = extractHeadwordTerms(segment);
         candidateTokens.push({
           surface,
-          reading: typeof segment.reading === "string" ? segment.reading : "",
+          reading: typeof segment.reading === 'string' ? segment.reading : '',
           headword: headwordTerms[0] ?? surface,
           startPos,
           endPos,
@@ -329,7 +313,7 @@ function mapParseResultsToCandidates(parseResults: unknown): ParsedCandidate[] {
     candidates.push({
       source: parseItem.source,
       index:
-        typeof parseItem.index === "number" && Number.isInteger(parseItem.index)
+        typeof parseItem.index === 'number' && Number.isInteger(parseItem.index)
           ? parseItem.index
           : 0,
       tokens: candidateTokens,
@@ -386,14 +370,14 @@ function findSelectedCandidateIndexes(
 function resolveYomitanExtensionPath(explicitPath?: string): string | null {
   const candidates = [
     explicitPath ? path.resolve(explicitPath) : null,
-    path.resolve(process.cwd(), "vendor", "yomitan"),
+    path.resolve(process.cwd(), 'vendor', 'yomitan'),
   ];
 
   for (const candidate of candidates) {
     if (!candidate) {
       continue;
     }
-    if (fs.existsSync(path.join(candidate, "manifest.json"))) {
+    if (fs.existsSync(path.join(candidate, 'manifest.json'))) {
       return candidate;
     }
   }
@@ -401,9 +385,7 @@ function resolveYomitanExtensionPath(explicitPath?: string): string | null {
   return null;
 }
 
-async function setupYomitanRuntime(
-  options: CliOptions,
-): Promise<YomitanRuntimeState> {
+async function setupYomitanRuntime(options: CliOptions): Promise<YomitanRuntimeState> {
   const state: YomitanRuntimeState = {
     available: false,
     note: null,
@@ -414,42 +396,38 @@ async function setupYomitanRuntime(
   };
 
   if (options.forceMecabOnly) {
-    state.note = "force-mecab enabled";
+    state.note = 'force-mecab enabled';
     return state;
   }
 
-  const electronModule = await import("electron").catch((error) => {
-    state.note = error instanceof Error ? error.message : "electron import failed";
+  const electronModule = await import('electron').catch((error) => {
+    state.note = error instanceof Error ? error.message : 'electron import failed';
     return null;
   });
   if (!electronModule?.app || !electronModule?.session) {
-    state.note = "electron runtime not available in this process";
+    state.note = 'electron runtime not available in this process';
     return state;
   }
 
   if (options.yomitanUserDataPath) {
-    electronModule.app.setPath("userData", options.yomitanUserDataPath);
+    electronModule.app.setPath('userData', options.yomitanUserDataPath);
   }
   await electronModule.app.whenReady();
 
   const extensionPath = resolveYomitanExtensionPath(options.yomitanExtensionPath);
   if (!extensionPath) {
-    state.note = "no Yomitan extension directory found";
+    state.note = 'no Yomitan extension directory found';
     return state;
   }
 
   try {
-    state.extension = await electronModule.session.defaultSession.loadExtension(
-      extensionPath,
-      { allowFileAccess: true },
-    );
+    state.extension = await electronModule.session.defaultSession.loadExtension(extensionPath, {
+      allowFileAccess: true,
+    });
     state.available = true;
     return state;
   } catch (error) {
-    state.note =
-      error instanceof Error
-        ? error.message
-        : "failed to load Yomitan extension";
+    state.note = error instanceof Error ? error.message : 'failed to load Yomitan extension';
     state.available = false;
     return state;
   }
@@ -501,12 +479,14 @@ function renderTextOutput(payload: Record<string, unknown>): void {
   process.stdout.write(`Input: ${String(payload.input)}\n`);
   process.stdout.write(`Tokenizer text: ${String(payload.tokenizerText)}\n`);
   process.stdout.write(`Yomitan available: ${String(payload.yomitanAvailable)}\n`);
-  process.stdout.write(`Yomitan note: ${String(payload.yomitanNote ?? "")}\n`);
-  process.stdout.write(`Selected candidate indexes: ${JSON.stringify(payload.selectedCandidateIndexes)}\n`);
-  process.stdout.write("\nFinal selected tokens:\n");
+  process.stdout.write(`Yomitan note: ${String(payload.yomitanNote ?? '')}\n`);
+  process.stdout.write(
+    `Selected candidate indexes: ${JSON.stringify(payload.selectedCandidateIndexes)}\n`,
+  );
+  process.stdout.write('\nFinal selected tokens:\n');
   const finalTokens = payload.finalTokens as Array<Record<string, unknown>> | null;
   if (!finalTokens || finalTokens.length === 0) {
-    process.stdout.write("  (none)\n");
+    process.stdout.write('  (none)\n');
   } else {
     for (let i = 0; i < finalTokens.length; i += 1) {
       const token = finalTokens[i];
@@ -516,10 +496,10 @@ function renderTextOutput(payload: Record<string, unknown>): void {
     }
   }
 
-  process.stdout.write("\nYomitan parse candidates:\n");
+  process.stdout.write('\nYomitan parse candidates:\n');
   const candidates = payload.candidates as Array<Record<string, unknown>>;
   if (!candidates || candidates.length === 0) {
-    process.stdout.write("  (none)\n");
+    process.stdout.write('  (none)\n');
     return;
   }
 
@@ -559,7 +539,7 @@ async function main(): Promise<void> {
     });
     const isMecabAvailable = await mecabTokenizer.checkAvailability();
     if (!isMecabAvailable) {
-      throw new Error("MeCab is not available on this system.");
+      throw new Error('MeCab is not available on this system.');
     }
 
     const runtime = await setupYomitanRuntime(args);
@@ -585,7 +565,7 @@ async function main(): Promise<void> {
         yomitan.parserInitPromise = promise;
       },
       isKnownWord: () => false,
-      getKnownWordMatchMode: () => "headword",
+      getKnownWordMatchMode: () => 'headword',
       getJlptLevel: () => null,
       getMecabTokenizer: () => ({
         tokenize: (text: string) => mecabTokenizer.tokenize(text),
@@ -639,9 +619,7 @@ async function main(): Promise<void> {
     };
 
     if (args.emitJson) {
-      process.stdout.write(
-        `${JSON.stringify(payload, null, args.emitPretty ? 2 : undefined)}\n`,
-      );
+      process.stdout.write(`${JSON.stringify(payload, null, args.emitPretty ? 2 : undefined)}\n`);
     } else {
       renderTextOutput(payload);
     }

@@ -1,14 +1,14 @@
-import fs from "node:fs";
-import path from "node:path";
-import type { LogLevel } from "./types.js";
-import { DEFAULT_MPV_LOG_FILE } from "./types.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import type { LogLevel } from './types.js';
+import { DEFAULT_MPV_LOG_FILE } from './types.js';
 
 export const COLORS = {
-  red: "\x1b[0;31m",
-  green: "\x1b[0;32m",
-  yellow: "\x1b[0;33m",
-  cyan: "\x1b[0;36m",
-  reset: "\x1b[0m",
+  red: '\x1b[0;31m',
+  green: '\x1b[0;32m',
+  yellow: '\x1b[0;33m',
+  cyan: '\x1b[0;36m',
+  reset: '\x1b[0m',
 };
 
 export const LOG_PRI: Record<LogLevel, number> = {
@@ -32,11 +32,7 @@ export function appendToMpvLog(message: string): void {
   const logPath = getMpvLogPath();
   try {
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
-    fs.appendFileSync(
-      logPath,
-      `[${new Date().toISOString()}] ${message}\n`,
-      { encoding: "utf8" },
-    );
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${message}\n`, { encoding: 'utf8' });
   } catch {
     // ignore logging failures
   }
@@ -45,16 +41,14 @@ export function appendToMpvLog(message: string): void {
 export function log(level: LogLevel, configured: LogLevel, message: string): void {
   if (!shouldLog(level, configured)) return;
   const color =
-    level === "info"
+    level === 'info'
       ? COLORS.green
-      : level === "warn"
+      : level === 'warn'
         ? COLORS.yellow
-        : level === "error"
+        : level === 'error'
           ? COLORS.red
           : COLORS.cyan;
-  process.stdout.write(
-    `${color}[${level.toUpperCase()}]${COLORS.reset} ${message}\n`,
-  );
+  process.stdout.write(`${color}[${level.toUpperCase()}]${COLORS.reset} ${message}\n`);
   appendToMpvLog(`[${level.toUpperCase()}] ${message}`);
 }
 

@@ -1,10 +1,10 @@
-import * as crypto from "crypto";
-import * as fs from "fs";
-import * as path from "path";
-import { SecondarySubMode, SubtitlePosition } from "../../types";
-import { createLogger } from "../../logger";
+import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+import { SecondarySubMode, SubtitlePosition } from '../../types';
+import { createLogger } from '../../logger';
 
-const logger = createLogger("main:subtitle-position");
+const logger = createLogger('main:subtitle-position');
 
 export interface CycleSecondarySubModeDeps {
   getSecondarySubMode: () => SecondarySubMode;
@@ -16,34 +16,27 @@ export interface CycleSecondarySubModeDeps {
   now?: () => number;
 }
 
-const SECONDARY_SUB_CYCLE: SecondarySubMode[] = ["hidden", "visible", "hover"];
+const SECONDARY_SUB_CYCLE: SecondarySubMode[] = ['hidden', 'visible', 'hover'];
 const SECONDARY_SUB_TOGGLE_DEBOUNCE_MS = 120;
 
 export function cycleSecondarySubMode(deps: CycleSecondarySubModeDeps): void {
   const now = deps.now ? deps.now() : Date.now();
-  if (
-    now - deps.getLastSecondarySubToggleAtMs() <
-    SECONDARY_SUB_TOGGLE_DEBOUNCE_MS
-  ) {
+  if (now - deps.getLastSecondarySubToggleAtMs() < SECONDARY_SUB_TOGGLE_DEBOUNCE_MS) {
     return;
   }
   deps.setLastSecondarySubToggleAtMs(now);
 
   const currentMode = deps.getSecondarySubMode();
   const currentIndex = SECONDARY_SUB_CYCLE.indexOf(currentMode);
-  const nextMode =
-    SECONDARY_SUB_CYCLE[(currentIndex + 1) % SECONDARY_SUB_CYCLE.length];
+  const nextMode = SECONDARY_SUB_CYCLE[(currentIndex + 1) % SECONDARY_SUB_CYCLE.length];
   deps.setSecondarySubMode(nextMode);
   deps.broadcastSecondarySubMode(nextMode);
   deps.showMpvOsd(`Secondary subtitle: ${nextMode}`);
 }
 
-function getSubtitlePositionFilePath(
-  mediaPath: string,
-  subtitlePositionsDir: string,
-): string {
+function getSubtitlePositionFilePath(mediaPath: string, subtitlePositionsDir: string): string {
   const key = normalizeMediaPathForSubtitlePosition(mediaPath);
-  const hash = crypto.createHash("sha256").update(key).digest("hex");
+  const hash = crypto.createHash('sha256').update(key).digest('hex');
   return path.join(subtitlePositionsDir, `${hash}.json`);
 }
 
@@ -51,10 +44,7 @@ function normalizeMediaPathForSubtitlePosition(mediaPath: string): string {
   const trimmed = mediaPath.trim();
   if (!trimmed) return trimmed;
 
-  if (
-    /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed) ||
-    /^ytsearch:/.test(trimmed)
-  ) {
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed) || /^ytsearch:/.test(trimmed)) {
     return trimmed;
   }
 
@@ -68,7 +58,7 @@ function normalizeMediaPathForSubtitlePosition(mediaPath: string): string {
     normalized = resolved;
   }
 
-  if (process.platform === "win32") {
+  if (process.platform === 'win32') {
     normalized = normalized.toLowerCase();
   }
 
@@ -84,10 +74,7 @@ function persistSubtitlePosition(
   if (!fs.existsSync(subtitlePositionsDir)) {
     fs.mkdirSync(subtitlePositionsDir, { recursive: true });
   }
-  const positionPath = getSubtitlePositionFilePath(
-    currentMediaPath,
-    subtitlePositionsDir,
-  );
+  const positionPath = getSubtitlePositionFilePath(currentMediaPath, subtitlePositionsDir);
   fs.writeFileSync(positionPath, JSON.stringify(position, null, 2));
 }
 
@@ -110,22 +97,18 @@ export function loadSubtitlePosition(
       return options.fallbackPosition;
     }
 
-    const data = fs.readFileSync(positionPath, "utf-8");
+    const data = fs.readFileSync(positionPath, 'utf-8');
     const parsed = JSON.parse(data) as Partial<SubtitlePosition>;
-    if (
-      parsed &&
-      typeof parsed.yPercent === "number" &&
-      Number.isFinite(parsed.yPercent)
-    ) {
+    if (parsed && typeof parsed.yPercent === 'number' && Number.isFinite(parsed.yPercent)) {
       const position: SubtitlePosition = { yPercent: parsed.yPercent };
       if (
-        typeof parsed.invisibleOffsetXPx === "number" &&
+        typeof parsed.invisibleOffsetXPx === 'number' &&
         Number.isFinite(parsed.invisibleOffsetXPx)
       ) {
         position.invisibleOffsetXPx = parsed.invisibleOffsetXPx;
       }
       if (
-        typeof parsed.invisibleOffsetYPx === "number" &&
+        typeof parsed.invisibleOffsetYPx === 'number' &&
         Number.isFinite(parsed.invisibleOffsetYPx)
       ) {
         position.invisibleOffsetYPx = parsed.invisibleOffsetYPx;
@@ -134,7 +117,7 @@ export function loadSubtitlePosition(
     }
     return options.fallbackPosition;
   } catch (err) {
-    logger.error("Failed to load subtitle position:", (err as Error).message);
+    logger.error('Failed to load subtitle position:', (err as Error).message);
     return options.fallbackPosition;
   }
 }
@@ -148,7 +131,7 @@ export function saveSubtitlePosition(options: {
 }): void {
   if (!options.currentMediaPath) {
     options.onQueuePending(options.position);
-    logger.warn("Queued subtitle position save - no media path yet");
+    logger.warn('Queued subtitle position save - no media path yet');
     return;
   }
 
@@ -160,7 +143,7 @@ export function saveSubtitlePosition(options: {
     );
     options.onPersisted();
   } catch (err) {
-    logger.error("Failed to save subtitle position:", (err as Error).message);
+    logger.error('Failed to save subtitle position:', (err as Error).message);
   }
 }
 
@@ -176,7 +159,7 @@ export function updateCurrentMediaPath(options: {
   broadcastSubtitlePosition: (position: SubtitlePosition | null) => void;
 }): void {
   const nextPath =
-    typeof options.mediaPath === "string" && options.mediaPath.trim().length > 0
+    typeof options.mediaPath === 'string' && options.mediaPath.trim().length > 0
       ? options.mediaPath
       : null;
   if (nextPath === options.currentMediaPath) return;
@@ -192,10 +175,7 @@ export function updateCurrentMediaPath(options: {
       options.setSubtitlePosition(options.pendingSubtitlePosition);
       options.clearPendingSubtitlePosition();
     } catch (err) {
-      logger.error(
-        "Failed to persist queued subtitle position:",
-        (err as Error).message,
-      );
+      logger.error('Failed to persist queued subtitle position:', (err as Error).message);
     }
   }
 

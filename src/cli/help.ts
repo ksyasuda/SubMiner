@@ -1,8 +1,8 @@
 export function printHelp(defaultTexthookerPort: number): void {
   const tty = process.stdout?.isTTY ?? false;
-  const B = tty ? "\x1b[1m" : "";
-  const D = tty ? "\x1b[2m" : "";
-  const R = tty ? "\x1b[0m" : "";
+  const B = tty ? '\x1b[1m' : '';
+  const D = tty ? '\x1b[2m' : '';
+  const R = tty ? '\x1b[0m' : '';
 
   console.log(`
 ${B}SubMiner${R} — Japanese sentence mining with mpv + Yomitan

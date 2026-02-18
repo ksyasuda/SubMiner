@@ -1,11 +1,11 @@
-import { BrowserWindow } from "electron";
-import * as path from "path";
-import { WindowGeometry } from "../../types";
-import { createLogger } from "../../logger";
+import { BrowserWindow } from 'electron';
+import * as path from 'path';
+import { WindowGeometry } from '../../types';
+import { createLogger } from '../../logger';
 
-const logger = createLogger("main:overlay-window");
+const logger = createLogger('main:overlay-window');
 
-export type OverlayWindowKind = "visible" | "invisible";
+export type OverlayWindowKind = 'visible' | 'invisible';
 
 export function updateOverlayWindowBounds(
   geometry: WindowGeometry,
@@ -21,8 +21,8 @@ export function updateOverlayWindowBounds(
 }
 
 export function ensureOverlayWindowLevel(window: BrowserWindow): void {
-  if (process.platform === "darwin") {
-    window.setAlwaysOnTop(true, "screen-saver", 1);
+  if (process.platform === 'darwin') {
+    window.setAlwaysOnTop(true, 'screen-saver', 1);
     window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     window.setFullScreenable(false);
     return;
@@ -37,8 +37,7 @@ export function enforceOverlayLayerOrder(options: {
   invisibleWindow: BrowserWindow | null;
   ensureOverlayWindowLevel: (window: BrowserWindow) => void;
 }): void {
-  if (!options.visibleOverlayVisible || !options.invisibleOverlayVisible)
-    return;
+  if (!options.visibleOverlayVisible || !options.invisibleOverlayVisible) return;
   if (!options.mainWindow || options.mainWindow.isDestroyed()) return;
   if (!options.invisibleWindow || options.invisibleWindow.isDestroyed()) return;
 
@@ -73,7 +72,7 @@ export function createOverlayWindow(
     hasShadow: false,
     focusable: true,
     webPreferences: {
-      preload: path.join(__dirname, "..", "..", "preload.js"),
+      preload: path.join(__dirname, '..', '..', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,
@@ -83,46 +82,38 @@ export function createOverlayWindow(
 
   options.ensureOverlayWindowLevel(window);
 
-  const htmlPath = path.join(__dirname, "..", "..", "renderer", "index.html");
+  const htmlPath = path.join(__dirname, '..', '..', 'renderer', 'index.html');
 
   window
     .loadFile(htmlPath, {
-      query: { layer: kind === "visible" ? "visible" : "invisible" },
+      query: { layer: kind === 'visible' ? 'visible' : 'invisible' },
     })
     .catch((err) => {
-      logger.error("Failed to load HTML file:", err);
+      logger.error('Failed to load HTML file:', err);
     });
 
-  window.webContents.on(
-    "did-fail-load",
-    (_event, errorCode, errorDescription, validatedURL) => {
-      logger.error(
-        "Page failed to load:",
-        errorCode,
-        errorDescription,
-        validatedURL,
-      );
-    },
-  );
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    logger.error('Page failed to load:', errorCode, errorDescription, validatedURL);
+  });
 
-  window.webContents.on("did-finish-load", () => {
+  window.webContents.on('did-finish-load', () => {
     options.onRuntimeOptionsChanged();
     window.webContents.send(
-      "overlay-debug-visualization:set",
+      'overlay-debug-visualization:set',
       options.overlayDebugVisualizationEnabled,
     );
   });
 
-  if (kind === "visible") {
-    window.webContents.on("devtools-opened", () => {
+  if (kind === 'visible') {
+    window.webContents.on('devtools-opened', () => {
       options.setOverlayDebugVisualizationEnabled(true);
     });
-    window.webContents.on("devtools-closed", () => {
+    window.webContents.on('devtools-closed', () => {
       options.setOverlayDebugVisualizationEnabled(false);
     });
   }
 
-  window.webContents.on("before-input-event", (event, input) => {
+  window.webContents.on('before-input-event', (event, input) => {
     if (!options.isOverlayVisible(kind)) return;
     if (!options.tryHandleOverlayShortcutLocalFallback(input)) return;
     event.preventDefault();
@@ -130,18 +121,18 @@ export function createOverlayWindow(
 
   window.hide();
 
-  window.on("closed", () => {
+  window.on('closed', () => {
     options.onWindowClosed(kind);
   });
 
-  window.on("blur", () => {
+  window.on('blur', () => {
     if (!window.isDestroyed()) {
       options.ensureOverlayWindowLevel(window);
     }
   });
 
-  if (options.isDev && kind === "visible") {
-    window.webContents.openDevTools({ mode: "detach" });
+  if (options.isDev && kind === 'visible') {
+    window.webContents.openDevTools({ mode: 'detach' });
   }
 
   return window;

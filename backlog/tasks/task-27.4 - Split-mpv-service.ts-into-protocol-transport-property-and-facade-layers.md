@@ -22,22 +22,27 @@ ordinal: 41000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Split mpv-service.ts (773 LOC) into thin, testable layers without changing wire protocol behavior.
 
 **This task absorbs the scope of TASK-8** (Reduce MpvIpcClient deps interface and separate protocol from application logic). The work proceeds in two phases:
 
 ### Phase A (was TASK-8): Separate protocol from application logic
+
 - Reduce the 22-property `MpvIpcClientDeps` interface to protocol-level concerns only
 - Move application-level reactions (subtitle broadcast, overlay visibility sync, timing tracking) to event emitter or external listener pattern
 - Make MpvIpcClient testable without mocking 22 callbacks
 
 ### Phase B: Physical file split
+
 - Create submodules for: protocol parsing/dispatch, connection lifecycle/retry, property subscriptions/state mapping
 - Wire the public facade to maintain API compatibility for all existing consumers
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 MpvIpcClient deps interface reduced to protocol-level concerns only (from current 22 properties).
 - [x] #2 Application-level reactions (subtitle broadcast, overlay sync, timing) handled via event emitter or external listeners registered by main.ts.
 - [x] #3 Create submodules for protocol parsing/dispatch, connection lifecycle/retry, and property subscriptions/state mapping.
@@ -50,9 +55,11 @@ Split mpv-service.ts (773 LOC) into thin, testable layers without changing wire 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 ## TASK-8 Absorption
 
 TASK-8 and TASK-27.4 overlapped significantly:
+
 - TASK-8: "Separate protocol from application logic" + shrink deps interface
 - TASK-27.4: "Split into protocol, transport, property, and facade layers"
 
@@ -61,6 +68,7 @@ TASK-27.4 is TASK-8 + physical file splitting. Running them as separate tasks wo
 **TASK-8 should be marked as superseded** once this task begins.
 
 ## Dependency Note
+
 Original plan listed TASK-8 as a dependency. Since TASK-8's scope is now absorbed here, the only remaining dependency is TASK-27.1 (inventory/contracts map).
 
 Started prep: reviewed mpv-service coupling and prepared sequence for protocol/application split; no code split performed yet due current focus on keeping 27.2/27.3 sequencing compatible.
@@ -78,12 +86,15 @@ Progress update: extracted socket connect/data/error/close/send/reconnect schedu
 Added focused transport lifecycle regression coverage in `src/core/services/mpv-transport.test.ts`: connect/connect-idempotence, lifecycle callback ordering, and `shutdown()` resets connection/socket state. This covers reconnect/edge-case behavior at transport layer as part of criterion #6 toward protocol + lifecycle regression protection.
 
 Added mpv-service unit regression for close lifecycle: `MpvIpcClient onClose resolves outstanding pending requests and triggers reconnect scheduling path via client transport callbacks (`src/core/services/mpv-service.test.ts`). This complements transport-level lifecycle tests for reconnect behavior regression coverage.
+
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Split mpv-service internals into protocol, transport, and property/state-mapping boundaries; reduced MpvIpcClient deps to protocol-level concerns with event-based app reactions in main.ts; added mpv-service/mpv-transport tests for protocol dispatch, reconnect scheduling, and lifecycle regressions; documented expected event flow in docs/structure-roadmap.md.
 
 Added mpv-service reconnect regression test that asserts a reconnect lifecycle replays mpv property bootstrap commands (`secondary-sub-visibility` reset, `observe_property`, and initial `get_property` state fetches) during reconnection.
+
 <!-- SECTION:FINAL_SUMMARY:END -->

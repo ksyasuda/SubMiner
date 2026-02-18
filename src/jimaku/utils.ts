@@ -1,9 +1,9 @@
-import * as http from "http";
-import * as https from "https";
-import * as path from "path";
-import * as fs from "fs";
-import * as childProcess from "child_process";
-import { createLogger } from "../logger";
+import * as http from 'http';
+import * as https from 'https';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as childProcess from 'child_process';
+import { createLogger } from '../logger';
 import {
   JimakuApiResponse,
   JimakuConfig,
@@ -11,13 +11,11 @@ import {
   JimakuFileEntry,
   JimakuLanguagePreference,
   JimakuMediaInfo,
-} from "../types";
+} from '../types';
 
-const logger = createLogger("main:jimaku");
+const logger = createLogger('main:jimaku');
 
-function execCommand(
-  command: string,
-): Promise<{ stdout: string; stderr: string }> {
+function execCommand(command: string): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     childProcess.exec(command, { timeout: 10000 }, (err, stdout, stderr) => {
       if (err) {
@@ -29,35 +27,28 @@ function execCommand(
   });
 }
 
-export async function resolveJimakuApiKey(
-  config: JimakuConfig,
-): Promise<string | null> {
+export async function resolveJimakuApiKey(config: JimakuConfig): Promise<string | null> {
   if (config.apiKey && config.apiKey.trim()) {
-    logger.debug("API key found in config");
+    logger.debug('API key found in config');
     return config.apiKey.trim();
   }
   if (config.apiKeyCommand && config.apiKeyCommand.trim()) {
     try {
       const { stdout } = await execCommand(config.apiKeyCommand);
       const key = stdout.trim();
-      logger.debug(
-        `apiKeyCommand result: ${key.length > 0 ? "key obtained" : "empty output"}`,
-      );
+      logger.debug(`apiKeyCommand result: ${key.length > 0 ? 'key obtained' : 'empty output'}`);
       return key.length > 0 ? key : null;
     } catch (err) {
-      logger.error(
-        "Failed to run jimaku.apiKeyCommand",
-        (err as Error).message,
-      );
+      logger.error('Failed to run jimaku.apiKeyCommand', (err as Error).message);
       return null;
     }
   }
-  logger.debug("No API key configured (neither apiKey nor apiKeyCommand set)");
+  logger.debug('No API key configured (neither apiKey nor apiKeyCommand set)');
   return null;
 }
 
 function getRetryAfter(headers: http.IncomingHttpHeaders): number | undefined {
-  const value = headers["x-ratelimit-reset-after"];
+  const value = headers['x-ratelimit-reset-after'];
   if (!value) return undefined;
   const raw = Array.isArray(value) ? value[0] : value;
   const parsed = Number.parseFloat(raw);
@@ -77,24 +68,24 @@ export async function jimakuFetchJson<T>(
   }
 
   logger.debug(`GET ${url.toString()}`);
-  const transport = url.protocol === "https:" ? https : http;
+  const transport = url.protocol === 'https:' ? https : http;
 
   return new Promise((resolve) => {
     const req = transport.request(
       url,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
           Authorization: options.apiKey,
-          "User-Agent": "SubMiner",
+          'User-Agent': 'SubMiner',
         },
       },
       (res) => {
-        let data = "";
-        res.on("data", (chunk) => {
+        let data = '';
+        res.on('data', (chunk) => {
           data += chunk.toString();
         });
-        res.on("end", () => {
+        res.on('end', () => {
           const status = res.statusCode || 0;
           logger.debug(`Response HTTP ${status} for ${endpoint}`);
           if (status >= 200 && status < 300) {
@@ -105,7 +96,7 @@ export async function jimakuFetchJson<T>(
               logger.error(`JSON parse error: ${data.slice(0, 200)}`);
               resolve({
                 ok: false,
-                error: { error: "Failed to parse Jimaku response JSON." },
+                error: { error: 'Failed to parse Jimaku response JSON.' },
               });
             }
             return;
@@ -127,15 +118,14 @@ export async function jimakuFetchJson<T>(
             error: {
               error: errorMessage,
               code: status || undefined,
-              retryAfter:
-                status === 429 ? getRetryAfter(res.headers) : undefined,
+              retryAfter: status === 429 ? getRetryAfter(res.headers) : undefined,
             },
           });
         });
       },
     );
 
-    req.on("error", (err) => {
+    req.on('error', (err) => {
       logger.error(`Network error: ${(err as Error).message}`);
       resolve({
         ok: false,
@@ -151,7 +141,7 @@ function matchEpisodeFromName(name: string): {
   season: number | null;
   episode: number | null;
   index: number | null;
-  confidence: "high" | "medium" | "low";
+  confidence: 'high' | 'medium' | 'low';
 } {
   const seasonEpisode = name.match(/S(\d{1,2})E(\d{1,3})/i);
   if (seasonEpisode && seasonEpisode.index !== undefined) {
@@ -159,7 +149,7 @@ function matchEpisodeFromName(name: string): {
       season: Number.parseInt(seasonEpisode[1], 10),
       episode: Number.parseInt(seasonEpisode[2], 10),
       index: seasonEpisode.index,
-      confidence: "high",
+      confidence: 'high',
     };
   }
 
@@ -169,7 +159,7 @@ function matchEpisodeFromName(name: string): {
       season: Number.parseInt(alt[1], 10),
       episode: Number.parseInt(alt[2], 10),
       index: alt.index,
-      confidence: "high",
+      confidence: 'high',
     };
   }
 
@@ -179,7 +169,7 @@ function matchEpisodeFromName(name: string): {
       season: null,
       episode: Number.parseInt(epOnly[1], 10),
       index: epOnly.index,
-      confidence: "medium",
+      confidence: 'medium',
     };
   }
 
@@ -189,11 +179,11 @@ function matchEpisodeFromName(name: string): {
       season: null,
       episode: Number.parseInt(numeric[1], 10),
       index: numeric.index,
-      confidence: "medium",
+      confidence: 'medium',
     };
   }
 
-  return { season: null, episode: null, index: null, confidence: "low" };
+  return { season: null, episode: null, index: null, confidence: 'low' };
 }
 
 function detectSeasonFromDir(mediaPath: string): number | null {
@@ -206,32 +196,32 @@ function detectSeasonFromDir(mediaPath: string): number | null {
 
 function cleanupTitle(value: string): string {
   return value
-    .replace(/^[\s-–—]+/, "")
-    .replace(/[\s-–—]+$/, "")
-    .replace(/\s+/g, " ")
+    .replace(/^[\s-–—]+/, '')
+    .replace(/[\s-–—]+$/, '')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
 export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
   if (!mediaPath) {
     return {
-      title: "",
+      title: '',
       season: null,
       episode: null,
-      confidence: "low",
-      filename: "",
-      rawTitle: "",
+      confidence: 'low',
+      filename: '',
+      rawTitle: '',
     };
   }
 
   const normalizedMediaPath = normalizeMediaPathForJimaku(mediaPath);
   const filename = path.basename(normalizedMediaPath);
-  let name = filename.replace(/\.[^/.]+$/, "");
-  name = name.replace(/\[[^\]]*]/g, " ");
-  name = name.replace(/\(\d{4}\)/g, " ");
-  name = name.replace(/[._]/g, " ");
-  name = name.replace(/[–—]/g, "-");
-  name = name.replace(/\s+/g, " ").trim();
+  let name = filename.replace(/\.[^/.]+$/, '');
+  name = name.replace(/\[[^\]]*]/g, ' ');
+  name = name.replace(/\(\d{4}\)/g, ' ');
+  name = name.replace(/[._]/g, ' ');
+  name = name.replace(/[–—]/g, '-');
+  name = name.replace(/\s+/g, ' ').trim();
 
   const parsed = matchEpisodeFromName(name);
   let titlePart = name;
@@ -239,8 +229,7 @@ export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
     titlePart = name.slice(0, parsed.index);
   }
 
-  const seasonFromDir =
-    parsed.season ?? detectSeasonFromDir(normalizedMediaPath);
+  const seasonFromDir = parsed.season ?? detectSeasonFromDir(normalizedMediaPath);
   const title = cleanupTitle(titlePart || name);
 
   return {
@@ -262,45 +251,39 @@ function normalizeMediaPathForJimaku(mediaPath: string): string {
   try {
     const parsedUrl = new URL(trimmed);
     const titleParam =
-      parsedUrl.searchParams.get("title") ||
-      parsedUrl.searchParams.get("name") ||
-      parsedUrl.searchParams.get("q");
+      parsedUrl.searchParams.get('title') ||
+      parsedUrl.searchParams.get('name') ||
+      parsedUrl.searchParams.get('q');
     if (titleParam && titleParam.trim()) return titleParam.trim();
 
-    const pathParts = parsedUrl.pathname.split("/").filter(Boolean).reverse();
+    const pathParts = parsedUrl.pathname.split('/').filter(Boolean).reverse();
     const candidate = pathParts.find((part) => {
-      const decoded = decodeURIComponent(part || "").replace(/\.[^/.]+$/, "");
+      const decoded = decodeURIComponent(part || '').replace(/\.[^/.]+$/, '');
       const lowered = decoded.toLowerCase();
-      return (
-        lowered.length > 2 &&
-        !/^[0-9.]+$/.test(lowered) &&
-        !/^[a-f0-9]{16,}$/i.test(lowered)
-      );
+      return lowered.length > 2 && !/^[0-9.]+$/.test(lowered) && !/^[a-f0-9]{16,}$/i.test(lowered);
     });
 
-    return decodeURIComponent(
-      candidate || parsedUrl.hostname.replace(/^www\./, ""),
-    );
+    return decodeURIComponent(candidate || parsedUrl.hostname.replace(/^www\./, ''));
   } catch {
     return trimmed;
   }
 }
 
 function formatLangScore(name: string, pref: JimakuLanguagePreference): number {
-  if (pref === "none") return 0;
+  if (pref === 'none') return 0;
   const upper = name.toUpperCase();
   const hasJa =
     /(^|[\W_])JA([\W_]|$)/.test(upper) ||
     /(^|[\W_])JPN([\W_]|$)/.test(upper) ||
-    upper.includes(".JA.");
+    upper.includes('.JA.');
   const hasEn =
     /(^|[\W_])EN([\W_]|$)/.test(upper) ||
     /(^|[\W_])ENG([\W_]|$)/.test(upper) ||
-    upper.includes(".EN.");
-  if (pref === "ja") {
+    upper.includes('.EN.');
+  if (pref === 'ja') {
     if (hasJa) return 2;
     if (hasEn) return 1;
-  } else if (pref === "en") {
+  } else if (pref === 'en') {
     if (hasEn) return 2;
     if (hasJa) return 1;
   }
@@ -311,10 +294,9 @@ export function sortJimakuFiles(
   files: JimakuFileEntry[],
   pref: JimakuLanguagePreference,
 ): JimakuFileEntry[] {
-  if (pref === "none") return files;
+  if (pref === 'none') return files;
   return [...files].sort((a, b) => {
-    const scoreDiff =
-      formatLangScore(b.name, pref) - formatLangScore(a.name, pref);
+    const scoreDiff = formatLangScore(b.name, pref) - formatLangScore(a.name, pref);
     if (scoreDiff !== 0) return scoreDiff;
     return a.name.localeCompare(b.name);
   });
@@ -333,22 +315,20 @@ export async function downloadToFile(
   if (redirectCount > 3) {
     return {
       ok: false,
-      error: { error: "Too many redirects while downloading subtitle." },
+      error: { error: 'Too many redirects while downloading subtitle.' },
     };
   }
 
   return new Promise((resolve) => {
     const parsedUrl = new URL(url);
-    const transport = parsedUrl.protocol === "https:" ? https : http;
+    const transport = parsedUrl.protocol === 'https:' ? https : http;
 
     const req = transport.get(parsedUrl, { headers }, (res) => {
       const status = res.statusCode || 0;
       if ([301, 302, 303, 307, 308].includes(status) && res.headers.location) {
         const redirectUrl = new URL(res.headers.location, parsedUrl).toString();
         res.resume();
-        downloadToFile(redirectUrl, destPath, headers, redirectCount + 1).then(
-          resolve,
-        );
+        downloadToFile(redirectUrl, destPath, headers, redirectCount + 1).then(resolve);
         return;
       }
 
@@ -366,12 +346,12 @@ export async function downloadToFile(
 
       const fileStream = fs.createWriteStream(destPath);
       res.pipe(fileStream);
-      fileStream.on("finish", () => {
+      fileStream.on('finish', () => {
         fileStream.close(() => {
           resolve({ ok: true, path: destPath });
         });
       });
-      fileStream.on("error", (err: Error) => {
+      fileStream.on('error', (err: Error) => {
         resolve({
           ok: false,
           error: {
@@ -381,7 +361,7 @@ export async function downloadToFile(
       });
     });
 
-    req.on("error", (err) => {
+    req.on('error', (err) => {
       resolve({
         ok: false,
         error: { error: `Download request failed: ${(err as Error).message}` },

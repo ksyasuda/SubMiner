@@ -1,5 +1,5 @@
-import { TokenMergerProvider } from "../../token-mergers";
-import { MergedToken, Token } from "../../types";
+import { TokenMergerProvider } from '../../token-mergers';
+import { MergedToken, Token } from '../../types';
 
 export function mergeStage(
   mergerProvider: TokenMergerProvider | null,

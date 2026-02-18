@@ -6,22 +6,16 @@ interface GlobalShortcutLike {
 export interface NumericShortcutRuntimeOptions {
   globalShortcut: GlobalShortcutLike;
   showMpvOsd: (text: string) => void;
-  setTimer: (
-    handler: () => void,
-    timeoutMs: number,
-  ) => ReturnType<typeof setTimeout>;
+  setTimer: (handler: () => void, timeoutMs: number) => ReturnType<typeof setTimeout>;
   clearTimer: (timer: ReturnType<typeof setTimeout>) => void;
 }
 
-export function createNumericShortcutRuntime(
-  options: NumericShortcutRuntimeOptions,
-) {
+export function createNumericShortcutRuntime(options: NumericShortcutRuntimeOptions) {
   const createSession = () =>
     createNumericShortcutSession({
       registerShortcut: (accelerator, handler) =>
         options.globalShortcut.register(accelerator, handler),
-      unregisterShortcut: (accelerator) =>
-        options.globalShortcut.unregister(accelerator),
+      unregisterShortcut: (accelerator) => options.globalShortcut.unregister(accelerator),
       setTimer: options.setTimer,
       clearTimer: options.clearTimer,
       showMpvOsd: options.showMpvOsd,
@@ -41,10 +35,7 @@ export interface NumericShortcutSessionMessages {
 export interface NumericShortcutSessionDeps {
   registerShortcut: (accelerator: string, handler: () => void) => boolean;
   unregisterShortcut: (accelerator: string) => void;
-  setTimer: (
-    handler: () => void,
-    timeoutMs: number,
-  ) => ReturnType<typeof setTimeout>;
+  setTimer: (handler: () => void, timeoutMs: number) => ReturnType<typeof setTimeout>;
   clearTimer: (timer: ReturnType<typeof setTimeout>) => void;
   showMpvOsd: (text: string) => void;
 }
@@ -61,7 +52,7 @@ export function createNumericShortcutSession(deps: NumericShortcutSessionDeps) {
   let digitShortcuts: string[] = [];
   let escapeShortcut: string | null = null;
 
-  let cancelledMessage = "Cancelled";
+  let cancelledMessage = 'Cancelled';
 
   const cancel = (showCancelled = false): void => {
     if (!active) return;
@@ -87,13 +78,9 @@ export function createNumericShortcutSession(deps: NumericShortcutSessionDeps) {
     }
   };
 
-  const start = ({
-    timeoutMs,
-    onDigit,
-    messages,
-  }: NumericShortcutSessionStartParams): void => {
+  const start = ({ timeoutMs, onDigit, messages }: NumericShortcutSessionStartParams): void => {
     cancel();
-    cancelledMessage = messages.cancelled ?? "Cancelled";
+    cancelledMessage = messages.cancelled ?? 'Cancelled';
     active = true;
 
     for (let i = 1; i <= 9; i++) {
@@ -110,11 +97,11 @@ export function createNumericShortcutSession(deps: NumericShortcutSessionDeps) {
     }
 
     if (
-      deps.registerShortcut("Escape", () => {
+      deps.registerShortcut('Escape', () => {
         cancel(true);
       })
     ) {
-      escapeShortcut = "Escape";
+      escapeShortcut = 'Escape';
     }
 
     timeout = deps.setTimer(() => {

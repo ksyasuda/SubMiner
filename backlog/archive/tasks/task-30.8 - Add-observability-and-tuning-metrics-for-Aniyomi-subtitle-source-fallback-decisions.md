@@ -16,11 +16,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add lightweight telemetry/analytics hooks (local logs + optional structured counters) to measure how Aniyomi/anime streaming source selection behaves, including soft-sub preference, hard-sub fallback usage, and ffmpeg+Jimaku post-processing outcomes, to support source ranking tuning.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Track per-playback decision metadata including chosen source, language match score, subtitle mode (soft/hard), and reason for source preference ordering.
 - [ ] #2 Emit success/failure counters for hard-sub stripping attempts (started/succeeded/failed/unsupported codec) with reason codes.
 - [ ] #3 Log whether Jimaku subtitle attachment was available and successfully loaded for ffmpeg-assisted flows.

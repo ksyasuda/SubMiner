@@ -16,8 +16,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { execSync } from "child_process";
-import { BaseWindowTracker } from "./base-tracker";
+import { execSync } from 'child_process';
+import { BaseWindowTracker } from './base-tracker';
 
 export class X11WindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -42,8 +42,8 @@ export class X11WindowTracker extends BaseWindowTracker {
 
   private pollGeometry(): void {
     try {
-      const windowIds = execSync("xdotool search --class mpv", {
-        encoding: "utf-8",
+      const windowIds = execSync('xdotool search --class mpv', {
+        encoding: 'utf-8',
       }).trim();
 
       if (!windowIds) {
@@ -64,7 +64,7 @@ export class X11WindowTracker extends BaseWindowTracker {
       }
 
       const winInfo = execSync(`xwininfo -id ${windowId}`, {
-        encoding: "utf-8",
+        encoding: 'utf-8',
       });
 
       const xMatch = winInfo.match(/Absolute upper-left X:\s*(\d+)/);
@@ -120,7 +120,7 @@ export class X11WindowTracker extends BaseWindowTracker {
 
   private getWindowPid(windowId: string): number | null {
     const windowPid = execSync(`xprop -id ${windowId} _NET_WM_PID`, {
-      encoding: "utf-8",
+      encoding: 'utf-8',
     });
     const pidMatch = windowPid.match(/= (\d+)/);
     if (!pidMatch) {
@@ -133,7 +133,7 @@ export class X11WindowTracker extends BaseWindowTracker {
 
   private getWindowCommandLine(pid: number): string | null {
     const commandLine = execSync(`ps -p ${pid} -o args=`, {
-      encoding: "utf-8",
+      encoding: 'utf-8',
     }).trim();
     return commandLine || null;
   }

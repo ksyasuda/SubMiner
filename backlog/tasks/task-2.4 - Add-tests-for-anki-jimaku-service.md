@@ -19,11 +19,15 @@ ordinal: 7000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add dedicated tests for `anki-jimaku-service.ts` focusing on IPC handler registration, request dispatch, and error handling behavior.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 IPC registration behavior is validated for all channels exposed by this service.
 - [x] #2 Success-path behavior for core handler flows is validated.
 - [x] #3 Failure-path behavior is validated with expected error propagation.
@@ -33,9 +37,11 @@ Add dedicated tests for `anki-jimaku-service.ts` focusing on IPC handler registr
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Added a lightweight registration-injection seam to `registerAnkiJimakuIpcRuntimeService` so runtime behavior can be tested without Electron IPC globals.
 
 Added `src/core/services/anki-jimaku-service.test.ts` with coverage for:
+
 - runtime handler surface registration
 - integration disable path and runtime-options broadcast
 - subtitle history clear and field-grouping response callbacks
@@ -46,4 +52,5 @@ Added `src/core/services/anki-jimaku-service.test.ts` with coverage for:
 Updated `package.json` `test:core` to include `dist/core/services/anki-jimaku-service.test.js`.
 
 Verification: `pnpm run test:core` passed (21/21).
+
 <!-- SECTION:NOTES:END -->

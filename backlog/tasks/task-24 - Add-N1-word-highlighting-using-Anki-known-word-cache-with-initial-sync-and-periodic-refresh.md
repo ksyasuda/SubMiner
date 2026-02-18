@@ -16,11 +16,15 @@ ordinal: 37000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Implement subtitle highlighting for words already known in Anki (N+1 workflow support) by introducing a one-time bootstrap query of the user’s Anki known-word set, storing it locally, and refreshing it periodically to reflect deck updates. The feature should allow fast in-session lookups to determine known words and visually distinguish them in subtitle rendering.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Add an opt-in setting/feature flag for N+1 highlighting and default it to disabled for backward-compatible behavior.
 - [x] #2 Implement a one-time import/sync that queries known-word data from Anki into a local store on first enable or explicit refresh.
 - [x] #3 Store known words locally in an efficient structure for fast lookup during subtitle rendering.
@@ -36,10 +40,14 @@ Implement subtitle highlighting for words already known in Anki (N+1 workflow su
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Implemented in refactor via merge from task-24-known-word-refresh (commits 854b8fb, e8f2431, ed5a249). Includes manual/periodic known-word cache refresh, opt-in N+1 highlighting path, cache persistence behavior, CLI refresh command, and related tests/docs updates.
+
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [x] #1 N+1 known-word highlighting is configurable, performs local cached lookups, and is demonstrated to update correctly after periodic/manual refresh.
 <!-- DOD:END -->

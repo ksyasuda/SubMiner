@@ -4,13 +4,13 @@
 
 ### System Dependencies
 
-| Dependency | Required | Notes |
-| --- | --- | --- |
-| mpv | Yes | Must support IPC sockets (`--input-ipc-server`) |
-| ffmpeg | For media | Audio extraction and screenshot generation |
-| MeCab + mecab-ipadic | No | Optional fallback tokenizer for Japanese |
-| fuse2 | Linux only | Required for AppImage |
-| yt-dlp | No | Recommended for YouTube playback and subtitle extraction |
+| Dependency           | Required   | Notes                                                    |
+| -------------------- | ---------- | -------------------------------------------------------- |
+| mpv                  | Yes        | Must support IPC sockets (`--input-ipc-server`)          |
+| ffmpeg               | For media  | Audio extraction and screenshot generation               |
+| MeCab + mecab-ipadic | No         | Optional fallback tokenizer for Japanese                 |
+| fuse2                | Linux only | Required for AppImage                                    |
+| yt-dlp               | No         | Recommended for YouTube playback and subtitle extraction |
 
 ### Platform-Specific
 
@@ -24,15 +24,15 @@
 
 ### Optional Tools
 
-| Tool | Purpose |
-| --- | --- |
-| fzf | Terminal-based video picker (default) |
-| rofi | GUI-based video picker |
-| chafa | Thumbnail previews in fzf |
-| ffmpegthumbnailer | Generate video thumbnails for picker |
-| alass | Subtitle sync engine (preferred) |
-| ffsubsync | Subtitle sync engine (fallback) |
-| Bun | Required for the `subminer` wrapper script |
+| Tool              | Purpose                                    |
+| ----------------- | ------------------------------------------ |
+| fzf               | Terminal-based video picker (default)      |
+| rofi              | GUI-based video picker                     |
+| chafa             | Thumbnail previews in fzf                  |
+| ffmpegthumbnailer | Generate video thumbnails for picker       |
+| alass             | Subtitle sync engine (preferred)           |
+| ffsubsync         | Subtitle sync engine (fallback)            |
+| Bun               | Required for the `subminer` wrapper script |
 
 ## Linux
 
@@ -162,18 +162,18 @@ cp plugin/subminer.conf ~/.config/mpv/script-opts/
 
 All keybindings use a `y` chord prefix — press `y`, then the second key:
 
-| Chord | Action |
-| --- | --- |
+| Chord | Action                                |
+| ----- | ------------------------------------- |
 | `y-y` | Open SubMiner menu (fuzzy-searchable) |
-| `y-s` | Start overlay |
-| `y-S` | Stop overlay |
-| `y-t` | Toggle visible overlay |
-| `y-i` | Toggle invisible overlay |
-| `y-I` | Show invisible overlay |
-| `y-u` | Hide invisible overlay |
-| `y-o` | Open Yomitan settings |
-| `y-r` | Restart overlay |
-| `y-c` | Check overlay status |
+| `y-s` | Start overlay                         |
+| `y-S` | Stop overlay                          |
+| `y-t` | Toggle visible overlay                |
+| `y-i` | Toggle invisible overlay              |
+| `y-I` | Show invisible overlay                |
+| `y-u` | Hide invisible overlay                |
+| `y-o` | Open Yomitan settings                 |
+| `y-r` | Restart overlay                       |
+| `y-c` | Check overlay status                  |
 
 See [MPV Plugin](/mpv-plugin) for the full configuration reference, script messages, and binary auto-detection details.
 

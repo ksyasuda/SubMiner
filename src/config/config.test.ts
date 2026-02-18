@@ -1,17 +1,17 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import { ConfigService } from "./service";
-import { DEFAULT_CONFIG, RUNTIME_OPTION_REGISTRY } from "./definitions";
-import { generateConfigTemplate } from "./template";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { ConfigService } from './service';
+import { DEFAULT_CONFIG, RUNTIME_OPTION_REGISTRY } from './definitions';
+import { generateConfigTemplate } from './template';
 
 function makeTempDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "subminer-config-test-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-config-test-'));
 }
 
-test("loads defaults when config is missing", () => {
+test('loads defaults when config is missing', () => {
   const dir = makeTempDir();
   const service = new ConfigService(dir);
   const config = service.getConfig();
@@ -21,9 +21,9 @@ test("loads defaults when config is missing", () => {
   assert.equal(config.jellyfin.remoteControlEnabled, true);
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, false);
-  assert.equal(config.jellyfin.remoteControlDeviceName, "SubMiner");
+  assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
   assert.equal(config.immersionTracking.enabled, true);
-  assert.equal(config.immersionTracking.dbPath, "");
+  assert.equal(config.immersionTracking.dbPath, '');
   assert.equal(config.immersionTracking.batchSize, 25);
   assert.equal(config.immersionTracking.flushIntervalMs, 500);
   assert.equal(config.immersionTracking.queueCap, 1000);
@@ -36,16 +36,16 @@ test("loads defaults when config is missing", () => {
   assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 7);
 });
 
-test("parses anilist.enabled and warns for invalid value", () => {
+test('parses anilist.enabled and warns for invalid value', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "anilist": {
         "enabled": "yes"
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
@@ -53,16 +53,16 @@ test("parses anilist.enabled and warns for invalid value", () => {
   const warnings = service.getWarnings();
 
   assert.equal(config.anilist.enabled, DEFAULT_CONFIG.anilist.enabled);
-  assert.ok(warnings.some((warning) => warning.path === "anilist.enabled"));
+  assert.ok(warnings.some((warning) => warning.path === 'anilist.enabled'));
 
   service.patchRawConfig({ anilist: { enabled: true } });
   assert.equal(service.getConfig().anilist.enabled, true);
 });
 
-test("parses jellyfin remote control fields", () => {
+test('parses jellyfin remote control fields', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "jellyfin": {
         "enabled": true,
@@ -73,31 +73,31 @@ test("parses jellyfin remote control fields", () => {
         "remoteControlDeviceName": "SubMiner"
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
   assert.equal(config.jellyfin.enabled, true);
-  assert.equal(config.jellyfin.serverUrl, "http://127.0.0.1:8096");
+  assert.equal(config.jellyfin.serverUrl, 'http://127.0.0.1:8096');
   assert.equal(config.jellyfin.remoteControlEnabled, true);
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, true);
-  assert.equal(config.jellyfin.remoteControlDeviceName, "SubMiner");
+  assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
 });
 
-test("parses jellyfin.enabled and remoteControlEnabled disabled combinations", () => {
+test('parses jellyfin.enabled and remoteControlEnabled disabled combinations', () => {
   const disabledDir = makeTempDir();
   fs.writeFileSync(
-    path.join(disabledDir, "config.jsonc"),
+    path.join(disabledDir, 'config.jsonc'),
     `{
       "jellyfin": {
         "enabled": false,
         "remoteControlEnabled": false
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const disabledService = new ConfigService(disabledDir);
@@ -109,22 +109,21 @@ test("parses jellyfin.enabled and remoteControlEnabled disabled combinations", (
       .getWarnings()
       .some(
         (warning) =>
-          warning.path === "jellyfin.enabled" ||
-          warning.path === "jellyfin.remoteControlEnabled",
+          warning.path === 'jellyfin.enabled' || warning.path === 'jellyfin.remoteControlEnabled',
       ),
     false,
   );
 
   const mixedDir = makeTempDir();
   fs.writeFileSync(
-    path.join(mixedDir, "config.jsonc"),
+    path.join(mixedDir, 'config.jsonc'),
     `{
       "jellyfin": {
         "enabled": true,
         "remoteControlEnabled": false
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const mixedService = new ConfigService(mixedDir);
@@ -136,17 +135,16 @@ test("parses jellyfin.enabled and remoteControlEnabled disabled combinations", (
       .getWarnings()
       .some(
         (warning) =>
-          warning.path === "jellyfin.enabled" ||
-          warning.path === "jellyfin.remoteControlEnabled",
+          warning.path === 'jellyfin.enabled' || warning.path === 'jellyfin.remoteControlEnabled',
       ),
     false,
   );
 });
 
-test("accepts immersion tracking config values", () => {
+test('accepts immersion tracking config values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "immersionTracking": {
         "enabled": false,
@@ -165,17 +163,14 @@ test("accepts immersion tracking config values", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
   assert.equal(config.immersionTracking.enabled, false);
-  assert.equal(
-    config.immersionTracking.dbPath,
-    "/tmp/immersions/custom.sqlite",
-  );
+  assert.equal(config.immersionTracking.dbPath, '/tmp/immersions/custom.sqlite');
   assert.equal(config.immersionTracking.batchSize, 50);
   assert.equal(config.immersionTracking.flushIntervalMs, 750);
   assert.equal(config.immersionTracking.queueCap, 2000);
@@ -188,10 +183,10 @@ test("accepts immersion tracking config values", () => {
   assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 14);
 });
 
-test("falls back for invalid immersion tracking tuning values", () => {
+test('falls back for invalid immersion tracking tuning values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "immersionTracking": {
         "batchSize": 0,
@@ -208,7 +203,7 @@ test("falls back for invalid immersion tracking tuning values", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
@@ -226,102 +221,71 @@ test("falls back for invalid immersion tracking tuning values", () => {
   assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 1825);
   assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 7);
 
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.batchSize'));
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.flushIntervalMs'));
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.queueCap'));
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.payloadCapBytes'));
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.maintenanceIntervalMs'));
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.retention.eventsDays'));
   assert.ok(
-    warnings.some((warning) => warning.path === "immersionTracking.batchSize"),
+    warnings.some((warning) => warning.path === 'immersionTracking.retention.telemetryDays'),
   );
   assert.ok(
-    warnings.some(
-      (warning) => warning.path === "immersionTracking.flushIntervalMs",
-    ),
+    warnings.some((warning) => warning.path === 'immersionTracking.retention.dailyRollupsDays'),
   );
   assert.ok(
-    warnings.some((warning) => warning.path === "immersionTracking.queueCap"),
+    warnings.some((warning) => warning.path === 'immersionTracking.retention.monthlyRollupsDays'),
   );
   assert.ok(
-    warnings.some(
-      (warning) => warning.path === "immersionTracking.payloadCapBytes",
-    ),
-  );
-  assert.ok(
-    warnings.some(
-      (warning) => warning.path === "immersionTracking.maintenanceIntervalMs",
-    ),
-  );
-  assert.ok(
-    warnings.some(
-      (warning) => warning.path === "immersionTracking.retention.eventsDays",
-    ),
-  );
-  assert.ok(
-    warnings.some(
-      (warning) => warning.path === "immersionTracking.retention.telemetryDays",
-    ),
-  );
-  assert.ok(
-    warnings.some(
-      (warning) =>
-        warning.path === "immersionTracking.retention.dailyRollupsDays",
-    ),
-  );
-  assert.ok(
-    warnings.some(
-      (warning) =>
-        warning.path === "immersionTracking.retention.monthlyRollupsDays",
-    ),
-  );
-  assert.ok(
-    warnings.some(
-      (warning) =>
-        warning.path === "immersionTracking.retention.vacuumIntervalDays",
-    ),
+    warnings.some((warning) => warning.path === 'immersionTracking.retention.vacuumIntervalDays'),
   );
 });
 
-test("parses jsonc and warns/falls back on invalid value", () => {
+test('parses jsonc and warns/falls back on invalid value', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       // invalid websocket port
       "websocket": { "port": "bad" }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
   assert.equal(config.websocket.port, DEFAULT_CONFIG.websocket.port);
-  assert.ok(service.getWarnings().some((w) => w.path === "websocket.port"));
+  assert.ok(service.getWarnings().some((w) => w.path === 'websocket.port'));
 });
 
-test("accepts valid logging.level", () => {
+test('accepts valid logging.level', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "logging": {
         "level": "warn"
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
-  assert.equal(config.logging.level, "warn");
+  assert.equal(config.logging.level, 'warn');
 });
 
-test("falls back for invalid logging.level and reports warning", () => {
+test('falls back for invalid logging.level and reports warning', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "logging": {
         "level": "trace"
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
@@ -329,13 +293,13 @@ test("falls back for invalid logging.level and reports warning", () => {
   const warnings = service.getWarnings();
 
   assert.equal(config.logging.level, DEFAULT_CONFIG.logging.level);
-  assert.ok(warnings.some((warning) => warning.path === "logging.level"));
+  assert.ok(warnings.some((warning) => warning.path === 'logging.level'));
 });
 
-test("parses invisible overlay config and new global shortcuts", () => {
+test('parses invisible overlay config and new global shortcuts', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "shortcuts": {
         "toggleVisibleOverlayGlobal": "Alt+Shift+U",
@@ -350,36 +314,32 @@ test("parses invisible overlay config and new global shortcuts", () => {
         "primarySubLanguages": ["ja", "jpn", "jp"]
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
-  assert.equal(config.shortcuts.toggleVisibleOverlayGlobal, "Alt+Shift+U");
-  assert.equal(config.shortcuts.toggleInvisibleOverlayGlobal, "Alt+Shift+I");
-  assert.equal(config.shortcuts.openJimaku, "Ctrl+Alt+J");
-  assert.equal(config.invisibleOverlay.startupVisibility, "hidden");
+  assert.equal(config.shortcuts.toggleVisibleOverlayGlobal, 'Alt+Shift+U');
+  assert.equal(config.shortcuts.toggleInvisibleOverlayGlobal, 'Alt+Shift+I');
+  assert.equal(config.shortcuts.openJimaku, 'Ctrl+Alt+J');
+  assert.equal(config.invisibleOverlay.startupVisibility, 'hidden');
   assert.equal(config.bind_visible_overlay_to_mpv_sub_visibility, false);
-  assert.deepEqual(config.youtubeSubgen.primarySubLanguages, [
-    "ja",
-    "jpn",
-    "jp",
-  ]);
+  assert.deepEqual(config.youtubeSubgen.primarySubLanguages, ['ja', 'jpn', 'jp']);
 });
 
-test("runtime options registry is centralized", () => {
+test('runtime options registry is centralized', () => {
   const ids = RUNTIME_OPTION_REGISTRY.map((entry) => entry.id);
   assert.deepEqual(ids, [
-    "anki.autoUpdateNewCards",
-    "anki.nPlusOneMatchMode",
-    "anki.kikuFieldGrouping",
+    'anki.autoUpdateNewCards',
+    'anki.nPlusOneMatchMode',
+    'anki.kikuFieldGrouping',
   ]);
 });
 
-test("validates ankiConnect n+1 behavior values", () => {
+test('validates ankiConnect n+1 behavior values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -388,7 +348,7 @@ test("validates ankiConnect n+1 behavior values", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
@@ -403,22 +363,14 @@ test("validates ankiConnect n+1 behavior values", () => {
     config.ankiConnect.nPlusOne.refreshMinutes,
     DEFAULT_CONFIG.ankiConnect.nPlusOne.refreshMinutes,
   );
-  assert.ok(
-    warnings.some(
-      (warning) => warning.path === "ankiConnect.nPlusOne.highlightEnabled",
-    ),
-  );
-  assert.ok(
-    warnings.some(
-      (warning) => warning.path === "ankiConnect.nPlusOne.refreshMinutes",
-    ),
-  );
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.highlightEnabled'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.refreshMinutes'));
 });
 
-test("accepts valid ankiConnect n+1 behavior values", () => {
+test('accepts valid ankiConnect n+1 behavior values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -427,7 +379,7 @@ test("accepts valid ankiConnect n+1 behavior values", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
@@ -437,10 +389,10 @@ test("accepts valid ankiConnect n+1 behavior values", () => {
   assert.equal(config.ankiConnect.nPlusOne.refreshMinutes, 120);
 });
 
-test("validates ankiConnect n+1 minimum sentence word count", () => {
+test('validates ankiConnect n+1 minimum sentence word count', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -448,7 +400,7 @@ test("validates ankiConnect n+1 minimum sentence word count", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
@@ -459,17 +411,13 @@ test("validates ankiConnect n+1 minimum sentence word count", () => {
     config.ankiConnect.nPlusOne.minSentenceWords,
     DEFAULT_CONFIG.ankiConnect.nPlusOne.minSentenceWords,
   );
-  assert.ok(
-    warnings.some(
-      (warning) => warning.path === "ankiConnect.nPlusOne.minSentenceWords",
-    ),
-  );
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.minSentenceWords'));
 });
 
-test("accepts valid ankiConnect n+1 minimum sentence word count", () => {
+test('accepts valid ankiConnect n+1 minimum sentence word count', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -477,7 +425,7 @@ test("accepts valid ankiConnect n+1 minimum sentence word count", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
@@ -486,10 +434,10 @@ test("accepts valid ankiConnect n+1 minimum sentence word count", () => {
   assert.equal(config.ankiConnect.nPlusOne.minSentenceWords, 4);
 });
 
-test("validates ankiConnect n+1 match mode values", () => {
+test('validates ankiConnect n+1 match mode values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -497,7 +445,7 @@ test("validates ankiConnect n+1 match mode values", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
@@ -508,17 +456,13 @@ test("validates ankiConnect n+1 match mode values", () => {
     config.ankiConnect.nPlusOne.matchMode,
     DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode,
   );
-  assert.ok(
-    warnings.some(
-      (warning) => warning.path === "ankiConnect.nPlusOne.matchMode",
-    ),
-  );
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.matchMode'));
 });
 
-test("accepts valid ankiConnect n+1 match mode values", () => {
+test('accepts valid ankiConnect n+1 match mode values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -526,19 +470,19 @@ test("accepts valid ankiConnect n+1 match mode values", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
-  assert.equal(config.ankiConnect.nPlusOne.matchMode, "surface");
+  assert.equal(config.ankiConnect.nPlusOne.matchMode, 'surface');
 });
 
-test("validates ankiConnect n+1 color values", () => {
+test('validates ankiConnect n+1 color values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -547,37 +491,26 @@ test("validates ankiConnect n+1 color values", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
-  assert.equal(
-    config.ankiConnect.nPlusOne.nPlusOne,
-    DEFAULT_CONFIG.ankiConnect.nPlusOne.nPlusOne,
-  );
+  assert.equal(config.ankiConnect.nPlusOne.nPlusOne, DEFAULT_CONFIG.ankiConnect.nPlusOne.nPlusOne);
   assert.equal(
     config.ankiConnect.nPlusOne.knownWord,
     DEFAULT_CONFIG.ankiConnect.nPlusOne.knownWord,
   );
-  assert.ok(
-    warnings.some(
-      (warning) => warning.path === "ankiConnect.nPlusOne.nPlusOne",
-    ),
-  );
-  assert.ok(
-    warnings.some(
-      (warning) => warning.path === "ankiConnect.nPlusOne.knownWord",
-    ),
-  );
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.nPlusOne'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.knownWord'));
 });
 
-test("accepts valid ankiConnect n+1 color values", () => {
+test('accepts valid ankiConnect n+1 color values', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -586,20 +519,20 @@ test("accepts valid ankiConnect n+1 color values", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
-  assert.equal(config.ankiConnect.nPlusOne.nPlusOne, "#c6a0f6");
-  assert.equal(config.ankiConnect.nPlusOne.knownWord, "#a6da95");
+  assert.equal(config.ankiConnect.nPlusOne.nPlusOne, '#c6a0f6');
+  assert.equal(config.ankiConnect.nPlusOne.knownWord, '#a6da95');
 });
 
-test("supports legacy ankiConnect.behavior N+1 settings as fallback", () => {
+test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "behavior": {
@@ -609,7 +542,7 @@ test("supports legacy ankiConnect.behavior N+1 settings as fallback", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
@@ -618,21 +551,21 @@ test("supports legacy ankiConnect.behavior N+1 settings as fallback", () => {
 
   assert.equal(config.ankiConnect.nPlusOne.highlightEnabled, true);
   assert.equal(config.ankiConnect.nPlusOne.refreshMinutes, 90);
-  assert.equal(config.ankiConnect.nPlusOne.matchMode, "surface");
+  assert.equal(config.ankiConnect.nPlusOne.matchMode, 'surface');
   assert.ok(
     warnings.some(
       (warning) =>
-        warning.path === "ankiConnect.behavior.nPlusOneHighlightEnabled" ||
-        warning.path === "ankiConnect.behavior.nPlusOneRefreshMinutes" ||
-        warning.path === "ankiConnect.behavior.nPlusOneMatchMode",
+        warning.path === 'ankiConnect.behavior.nPlusOneHighlightEnabled' ||
+        warning.path === 'ankiConnect.behavior.nPlusOneRefreshMinutes' ||
+        warning.path === 'ankiConnect.behavior.nPlusOneMatchMode',
     ),
   );
 });
 
-test("accepts valid ankiConnect n+1 deck list", () => {
+test('accepts valid ankiConnect n+1 deck list', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -640,19 +573,19 @@ test("accepts valid ankiConnect n+1 deck list", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
-  assert.deepEqual(config.ankiConnect.nPlusOne.decks, ["Deck One", "Deck Two"]);
+  assert.deepEqual(config.ankiConnect.nPlusOne.decks, ['Deck One', 'Deck Two']);
 });
 
-test("falls back to default when ankiConnect n+1 deck list is invalid", () => {
+test('falls back to default when ankiConnect n+1 deck list is invalid', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
-    path.join(dir, "config.jsonc"),
+    path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "nPlusOne": {
@@ -660,7 +593,7 @@ test("falls back to default when ankiConnect n+1 deck list is invalid", () => {
         }
       }
     }`,
-    "utf-8",
+    'utf-8',
   );
 
   const service = new ConfigService(dir);
@@ -668,12 +601,10 @@ test("falls back to default when ankiConnect n+1 deck list is invalid", () => {
   const warnings = service.getWarnings();
 
   assert.deepEqual(config.ankiConnect.nPlusOne.decks, []);
-  assert.ok(
-    warnings.some((warning) => warning.path === "ankiConnect.nPlusOne.decks"),
-  );
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.decks'));
 });
 
-test("template generator includes known keys", () => {
+test('template generator includes known keys', () => {
   const output = generateConfigTemplate(DEFAULT_CONFIG);
   assert.match(output, /"ankiConnect":/);
   assert.match(output, /"logging":/);

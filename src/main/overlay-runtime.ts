@@ -1,7 +1,7 @@
-import type { BrowserWindow } from "electron";
+import type { BrowserWindow } from 'electron';
 
-type OverlayHostedModal = "runtime-options" | "subsync" | "jimaku";
-type OverlayHostLayer = "visible" | "invisible";
+type OverlayHostedModal = 'runtime-options' | 'subsync' | 'jimaku';
+type OverlayHostLayer = 'visible' | 'invisible';
 
 export interface OverlayWindowResolver {
   getMainWindow: () => BrowserWindow | null;
@@ -19,14 +19,9 @@ export interface OverlayModalRuntime {
   getRestoreVisibleOverlayOnModalClose: () => Set<OverlayHostedModal>;
 }
 
-export function createOverlayModalRuntimeService(
-  deps: OverlayWindowResolver,
-): OverlayModalRuntime {
+export function createOverlayModalRuntimeService(deps: OverlayWindowResolver): OverlayModalRuntime {
   const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
-  const overlayModalAutoShownLayer = new Map<
-    OverlayHostedModal,
-    OverlayHostLayer
-  >();
+  const overlayModalAutoShownLayer = new Map<OverlayHostedModal, OverlayHostLayer>();
 
   const getTargetOverlayWindow = (): {
     window: BrowserWindow;
@@ -36,21 +31,18 @@ export function createOverlayModalRuntimeService(
     const invisibleWindow = deps.getInvisibleWindow();
 
     if (visibleMainWindow && !visibleMainWindow.isDestroyed()) {
-      return { window: visibleMainWindow, layer: "visible" };
+      return { window: visibleMainWindow, layer: 'visible' };
     }
 
     if (invisibleWindow && !invisibleWindow.isDestroyed()) {
-      return { window: invisibleWindow, layer: "invisible" };
+      return { window: invisibleWindow, layer: 'invisible' };
     }
 
     return null;
   };
 
-  const showOverlayWindowForModal = (
-    window: BrowserWindow,
-    layer: OverlayHostLayer,
-  ): void => {
-    if (layer === "invisible" && typeof window.showInactive === "function") {
+  const showOverlayWindowForModal = (window: BrowserWindow, layer: OverlayHostLayer): void => {
+    if (layer === 'invisible' && typeof window.showInactive === 'function') {
       window.showInactive();
     } else {
       window.show();
@@ -89,12 +81,8 @@ export function createOverlayModalRuntimeService(
     }
 
     if (targetWindow.webContents.isLoading()) {
-      targetWindow.webContents.once("did-finish-load", () => {
-        if (
-          targetWindow &&
-          !targetWindow.isDestroyed() &&
-          !targetWindow.webContents.isLoading()
-        ) {
+      targetWindow.webContents.once('did-finish-load', () => {
+        if (targetWindow && !targetWindow.isDestroyed() && !targetWindow.webContents.isLoading()) {
           sendNow();
         }
       });
@@ -106,8 +94,8 @@ export function createOverlayModalRuntimeService(
   };
 
   const openRuntimeOptionsPalette = (): void => {
-    sendToActiveOverlayWindow("runtime-options:open", undefined, {
-      restoreOnModalClose: "runtime-options",
+    sendToActiveOverlayWindow('runtime-options:open', undefined, {
+      restoreOnModalClose: 'runtime-options',
     });
   };
 
@@ -122,7 +110,7 @@ export function createOverlayModalRuntimeService(
     );
     if (shouldKeepLayerVisible) return;
 
-    if (layer === "visible") {
+    if (layer === 'visible') {
       const mainWindow = deps.getMainWindow();
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.hide();
@@ -139,8 +127,7 @@ export function createOverlayModalRuntimeService(
     sendToActiveOverlayWindow,
     openRuntimeOptionsPalette,
     handleOverlayModalClosed,
-    getRestoreVisibleOverlayOnModalClose: () =>
-      restoreVisibleOverlayOnModalClose,
+    getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
   };
 }
 

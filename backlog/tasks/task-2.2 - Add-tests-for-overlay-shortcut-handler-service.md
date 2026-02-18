@@ -19,11 +19,15 @@ ordinal: 9000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add dedicated tests for `overlay-shortcut-handler.ts`, covering shortcut runtime handlers, fallback behavior, and key edge/error paths.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Shortcut registration/unregistration handler behavior is covered.
 - [x] #2 Fallback handling paths are covered for valid and invalid input.
 - [x] #3 Error and guard behavior is covered for missing dependencies/state.
@@ -33,7 +37,9 @@ Add dedicated tests for `overlay-shortcut-handler.ts`, covering shortcut runtime
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Added `src/core/services/overlay-shortcut-handler.test.ts` with coverage for:
+
 - runtime handler dispatch for sync and async actions
 - async error propagation to OSD/log handling
 - local fallback action matching, including timeout forwarding
@@ -43,4 +49,5 @@ Added `src/core/services/overlay-shortcut-handler.test.ts` with coverage for:
 Updated `package.json` `test:core` to include `dist/core/services/overlay-shortcut-handler.test.js`.
 
 Verification: `pnpm run test:core` passed (19/19 at completion of this ticket).
+
 <!-- SECTION:NOTES:END -->

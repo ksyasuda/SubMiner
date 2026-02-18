@@ -1,4 +1,4 @@
-export type SubsyncEngine = "alass" | "ffsubsync";
+export type SubsyncEngine = 'alass' | 'ffsubsync';
 
 export interface SubsyncCommandResult {
   ok: boolean;
@@ -14,33 +14,22 @@ export interface SubsyncEngineExecutionContext {
   inputSubtitlePath: string;
   outputPath: string;
   audioStreamIndex: number | null;
-  resolveExecutablePath: (
-    configuredPath: string,
-    commandName: string,
-  ) => string;
+  resolveExecutablePath: (configuredPath: string, commandName: string) => string;
   resolvedPaths: {
     alassPath: string;
     ffsubsyncPath: string;
   };
-  runCommand: (
-    command: string,
-    args: string[],
-  ) => Promise<SubsyncCommandResult>;
+  runCommand: (command: string, args: string[]) => Promise<SubsyncCommandResult>;
 }
 
 export interface SubsyncEngineProvider {
   engine: SubsyncEngine;
-  execute: (
-    context: SubsyncEngineExecutionContext,
-  ) => Promise<SubsyncCommandResult>;
+  execute: (context: SubsyncEngineExecutionContext) => Promise<SubsyncCommandResult>;
 }
 
 type SubsyncEngineProviderFactory = () => SubsyncEngineProvider;
 
-const subsyncEngineProviderFactories = new Map<
-  SubsyncEngine,
-  SubsyncEngineProviderFactory
->();
+const subsyncEngineProviderFactories = new Map<SubsyncEngine, SubsyncEngineProviderFactory>();
 
 export function registerSubsyncEngineProvider(
   engine: SubsyncEngine,
@@ -52,22 +41,17 @@ export function registerSubsyncEngineProvider(
   subsyncEngineProviderFactories.set(engine, factory);
 }
 
-export function createSubsyncEngineProvider(
-  engine: SubsyncEngine,
-): SubsyncEngineProvider | null {
+export function createSubsyncEngineProvider(engine: SubsyncEngine): SubsyncEngineProvider | null {
   const factory = subsyncEngineProviderFactories.get(engine);
   if (!factory) return null;
   return factory();
 }
 
 function registerDefaultSubsyncEngineProviders(): void {
-  registerSubsyncEngineProvider("alass", () => ({
-    engine: "alass",
+  registerSubsyncEngineProvider('alass', () => ({
+    engine: 'alass',
     execute: async (context: SubsyncEngineExecutionContext) => {
-      const alassPath = context.resolveExecutablePath(
-        context.resolvedPaths.alassPath,
-        "alass",
-      );
+      const alassPath = context.resolveExecutablePath(context.resolvedPaths.alassPath, 'alass');
       return context.runCommand(alassPath, [
         context.referenceFilePath,
         context.inputSubtitlePath,
@@ -76,22 +60,16 @@ function registerDefaultSubsyncEngineProviders(): void {
     },
   }));
 
-  registerSubsyncEngineProvider("ffsubsync", () => ({
-    engine: "ffsubsync",
+  registerSubsyncEngineProvider('ffsubsync', () => ({
+    engine: 'ffsubsync',
     execute: async (context: SubsyncEngineExecutionContext) => {
       const ffsubsyncPath = context.resolveExecutablePath(
         context.resolvedPaths.ffsubsyncPath,
-        "ffsubsync",
+        'ffsubsync',
       );
-      const args = [
-        context.videoPath,
-        "-i",
-        context.inputSubtitlePath,
-        "-o",
-        context.outputPath,
-      ];
+      const args = [context.videoPath, '-i', context.inputSubtitlePath, '-o', context.outputPath];
       if (context.audioStreamIndex !== null) {
-        args.push("--reference-stream", `0:${context.audioStreamIndex}`);
+        args.push('--reference-stream', `0:${context.audioStreamIndex}`);
       }
       return context.runCommand(ffsubsyncPath, args);
     },

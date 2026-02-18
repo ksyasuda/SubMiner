@@ -1,12 +1,9 @@
-import { BrowserWindow, ipcMain, IpcMainEvent } from "electron";
+import { BrowserWindow, ipcMain, IpcMainEvent } from 'electron';
 
 export interface IpcServiceDeps {
   getInvisibleWindow: () => WindowLike | null;
   isVisibleOverlayVisible: () => boolean;
-  setInvisibleIgnoreMouseEvents: (
-    ignore: boolean,
-    options?: { forward?: boolean },
-  ) => void;
+  setInvisibleIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   onOverlayModalClosed: (modal: string) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
@@ -48,10 +45,7 @@ export interface IpcServiceDeps {
 interface WindowLike {
   isDestroyed: () => boolean;
   focus: () => void;
-  setIgnoreMouseEvents: (
-    ignore: boolean,
-    options?: { forward?: boolean },
-  ) => void;
+  setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   webContents: {
     toggleDevTools: () => void;
   };
@@ -105,9 +99,7 @@ export interface IpcDepsRuntimeOptions {
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
 }
 
-export function createIpcDepsRuntime(
-  options: IpcDepsRuntimeOptions,
-): IpcServiceDeps {
+export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcServiceDeps {
   return {
     getInvisibleWindow: () => options.getInvisibleWindow(),
     isVisibleOverlayVisible: options.getVisibleOverlayVisibility,
@@ -148,8 +140,7 @@ export function createIpcDepsRuntime(
     getKeybindings: options.getKeybindings,
     getConfiguredShortcuts: options.getConfiguredShortcuts,
     getSecondarySubMode: options.getSecondarySubMode,
-    getCurrentSecondarySub: () =>
-      options.getMpvClient()?.currentSecondarySubText || "",
+    getCurrentSecondarySub: () => options.getMpvClient()?.currentSecondarySubText || '',
     focusMainWindow: () => {
       const mainWindow = options.getMainWindow();
       if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -171,12 +162,8 @@ export function createIpcDepsRuntime(
 
 export function registerIpcHandlers(deps: IpcServiceDeps): void {
   ipcMain.on(
-    "set-ignore-mouse-events",
-    (
-      event: IpcMainEvent,
-      ignore: boolean,
-      options: { forward?: boolean } = {},
-    ) => {
+    'set-ignore-mouse-events',
+    (event: IpcMainEvent, ignore: boolean, options: { forward?: boolean } = {}) => {
       const senderWindow = BrowserWindow.fromWebContents(event.sender);
       if (senderWindow && !senderWindow.isDestroyed()) {
         const invisibleWindow = deps.getInvisibleWindow();
@@ -194,152 +181,137 @@ export function registerIpcHandlers(deps: IpcServiceDeps): void {
     },
   );
 
-  ipcMain.on("overlay:modal-closed", (_event: IpcMainEvent, modal: string) => {
+  ipcMain.on('overlay:modal-closed', (_event: IpcMainEvent, modal: string) => {
     deps.onOverlayModalClosed(modal);
   });
 
-  ipcMain.on("open-yomitan-settings", () => {
+  ipcMain.on('open-yomitan-settings', () => {
     deps.openYomitanSettings();
   });
 
-  ipcMain.on("quit-app", () => {
+  ipcMain.on('quit-app', () => {
     deps.quitApp();
   });
 
-  ipcMain.on("toggle-dev-tools", () => {
+  ipcMain.on('toggle-dev-tools', () => {
     deps.toggleDevTools();
   });
 
-  ipcMain.handle("get-overlay-visibility", () => {
+  ipcMain.handle('get-overlay-visibility', () => {
     return deps.getVisibleOverlayVisibility();
   });
 
-  ipcMain.on("toggle-overlay", () => {
+  ipcMain.on('toggle-overlay', () => {
     deps.toggleVisibleOverlay();
   });
 
-  ipcMain.handle("get-visible-overlay-visibility", () => {
+  ipcMain.handle('get-visible-overlay-visibility', () => {
     return deps.getVisibleOverlayVisibility();
   });
 
-  ipcMain.handle("get-invisible-overlay-visibility", () => {
+  ipcMain.handle('get-invisible-overlay-visibility', () => {
     return deps.getInvisibleOverlayVisibility();
   });
 
-  ipcMain.handle("get-current-subtitle", async () => {
+  ipcMain.handle('get-current-subtitle', async () => {
     return await deps.tokenizeCurrentSubtitle();
   });
 
-  ipcMain.handle("get-current-subtitle-ass", () => {
+  ipcMain.handle('get-current-subtitle-ass', () => {
     return deps.getCurrentSubtitleAss();
   });
 
-  ipcMain.handle("get-mpv-subtitle-render-metrics", () => {
+  ipcMain.handle('get-mpv-subtitle-render-metrics', () => {
     return deps.getMpvSubtitleRenderMetrics();
   });
 
-  ipcMain.handle("get-subtitle-position", () => {
+  ipcMain.handle('get-subtitle-position', () => {
     return deps.getSubtitlePosition();
   });
 
-  ipcMain.handle("get-subtitle-style", () => {
+  ipcMain.handle('get-subtitle-style', () => {
     return deps.getSubtitleStyle();
   });
 
-  ipcMain.on(
-    "save-subtitle-position",
-    (_event: IpcMainEvent, position: unknown) => {
-      deps.saveSubtitlePosition(position);
-    },
-  );
+  ipcMain.on('save-subtitle-position', (_event: IpcMainEvent, position: unknown) => {
+    deps.saveSubtitlePosition(position);
+  });
 
-  ipcMain.handle("get-mecab-status", () => {
+  ipcMain.handle('get-mecab-status', () => {
     return deps.getMecabStatus();
   });
 
-  ipcMain.on("set-mecab-enabled", (_event: IpcMainEvent, enabled: boolean) => {
+  ipcMain.on('set-mecab-enabled', (_event: IpcMainEvent, enabled: boolean) => {
     deps.setMecabEnabled(enabled);
   });
 
-  ipcMain.on(
-    "mpv-command",
-    (_event: IpcMainEvent, command: (string | number)[]) => {
-      deps.handleMpvCommand(command);
-    },
-  );
+  ipcMain.on('mpv-command', (_event: IpcMainEvent, command: (string | number)[]) => {
+    deps.handleMpvCommand(command);
+  });
 
-  ipcMain.handle("get-keybindings", () => {
+  ipcMain.handle('get-keybindings', () => {
     return deps.getKeybindings();
   });
 
-  ipcMain.handle("get-config-shortcuts", () => {
+  ipcMain.handle('get-config-shortcuts', () => {
     return deps.getConfiguredShortcuts();
   });
 
-  ipcMain.handle("get-secondary-sub-mode", () => {
+  ipcMain.handle('get-secondary-sub-mode', () => {
     return deps.getSecondarySubMode();
   });
 
-  ipcMain.handle("get-current-secondary-sub", () => {
+  ipcMain.handle('get-current-secondary-sub', () => {
     return deps.getCurrentSecondarySub();
   });
 
-  ipcMain.handle("focus-main-window", () => {
+  ipcMain.handle('focus-main-window', () => {
     deps.focusMainWindow();
   });
 
-  ipcMain.handle("subsync:run-manual", async (_event, request: unknown) => {
+  ipcMain.handle('subsync:run-manual', async (_event, request: unknown) => {
     return await deps.runSubsyncManual(request);
   });
 
-  ipcMain.handle("get-anki-connect-status", () => {
+  ipcMain.handle('get-anki-connect-status', () => {
     return deps.getAnkiConnectStatus();
   });
 
-  ipcMain.handle("runtime-options:get", () => {
+  ipcMain.handle('runtime-options:get', () => {
     return deps.getRuntimeOptions();
   });
 
-  ipcMain.handle(
-    "runtime-options:set",
-    (_event, id: string, value: unknown) => {
-      return deps.setRuntimeOption(id, value);
-    },
-  );
+  ipcMain.handle('runtime-options:set', (_event, id: string, value: unknown) => {
+    return deps.setRuntimeOption(id, value);
+  });
 
-  ipcMain.handle(
-    "runtime-options:cycle",
-    (_event, id: string, direction: 1 | -1) => {
-      return deps.cycleRuntimeOption(id, direction);
-    },
-  );
+  ipcMain.handle('runtime-options:cycle', (_event, id: string, direction: 1 | -1) => {
+    return deps.cycleRuntimeOption(id, direction);
+  });
 
-  ipcMain.on(
-    "overlay-content-bounds:report",
-    (_event: IpcMainEvent, payload: unknown) => {
-      deps.reportOverlayContentBounds(payload);
-    },
-  );
+  ipcMain.on('overlay-content-bounds:report', (_event: IpcMainEvent, payload: unknown) => {
+    deps.reportOverlayContentBounds(payload);
+  });
 
-  ipcMain.handle("anilist:get-status", () => {
+  ipcMain.handle('anilist:get-status', () => {
     return deps.getAnilistStatus();
   });
 
-  ipcMain.handle("anilist:clear-token", () => {
+  ipcMain.handle('anilist:clear-token', () => {
     deps.clearAnilistToken();
     return { ok: true };
   });
 
-  ipcMain.handle("anilist:open-setup", () => {
+  ipcMain.handle('anilist:open-setup', () => {
     deps.openAnilistSetup();
     return { ok: true };
   });
 
-  ipcMain.handle("anilist:get-queue-status", () => {
+  ipcMain.handle('anilist:get-queue-status', () => {
     return deps.getAnilistQueueStatus();
   });
 
-  ipcMain.handle("anilist:retry-now", async () => {
+  ipcMain.handle('anilist:retry-now', async () => {
     return await deps.retryAnilistQueueNow();
   });
 }

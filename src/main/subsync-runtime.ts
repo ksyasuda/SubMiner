@@ -1,32 +1,28 @@
-import { SubsyncResolvedConfig } from "../subsync/utils";
-import type {
-  SubsyncManualPayload,
-  SubsyncManualRunRequest,
-  SubsyncResult,
-} from "../types";
-import type { SubsyncRuntimeDeps } from "../core/services/subsync-runner";
-import { createSubsyncRuntimeDeps } from "./dependencies";
+import { SubsyncResolvedConfig } from '../subsync/utils';
+import type { SubsyncManualPayload, SubsyncManualRunRequest, SubsyncResult } from '../types';
+import type { SubsyncRuntimeDeps } from '../core/services/subsync-runner';
+import { createSubsyncRuntimeDeps } from './dependencies';
 import {
   runSubsyncManualFromIpcRuntime as runSubsyncManualFromIpcRuntimeCore,
   triggerSubsyncFromConfigRuntime as triggerSubsyncFromConfigRuntimeCore,
-} from "../core/services";
+} from '../core/services';
 
 export interface SubsyncRuntimeServiceInput {
-  getMpvClient: SubsyncRuntimeDeps["getMpvClient"];
+  getMpvClient: SubsyncRuntimeDeps['getMpvClient'];
   getResolvedSubsyncConfig: () => SubsyncResolvedConfig;
-  isSubsyncInProgress: SubsyncRuntimeDeps["isSubsyncInProgress"];
-  setSubsyncInProgress: SubsyncRuntimeDeps["setSubsyncInProgress"];
-  showMpvOsd: SubsyncRuntimeDeps["showMpvOsd"];
+  isSubsyncInProgress: SubsyncRuntimeDeps['isSubsyncInProgress'];
+  setSubsyncInProgress: SubsyncRuntimeDeps['setSubsyncInProgress'];
+  showMpvOsd: SubsyncRuntimeDeps['showMpvOsd'];
   openManualPicker: (payload: SubsyncManualPayload) => void;
 }
 
 export interface SubsyncRuntimeServiceStateInput {
-  getMpvClient: SubsyncRuntimeServiceInput["getMpvClient"];
-  getResolvedSubsyncConfig: SubsyncRuntimeServiceInput["getResolvedSubsyncConfig"];
+  getMpvClient: SubsyncRuntimeServiceInput['getMpvClient'];
+  getResolvedSubsyncConfig: SubsyncRuntimeServiceInput['getResolvedSubsyncConfig'];
   getSubsyncInProgress: () => boolean;
-  setSubsyncInProgress: SubsyncRuntimeServiceInput["setSubsyncInProgress"];
-  showMpvOsd: SubsyncRuntimeServiceInput["showMpvOsd"];
-  openManualPicker: SubsyncRuntimeServiceInput["openManualPicker"];
+  setSubsyncInProgress: SubsyncRuntimeServiceInput['setSubsyncInProgress'];
+  showMpvOsd: SubsyncRuntimeServiceInput['showMpvOsd'];
+  openManualPicker: SubsyncRuntimeServiceInput['openManualPicker'];
 }
 
 export function createSubsyncRuntimeServiceInputFromState(
@@ -55,20 +51,13 @@ export function createSubsyncRuntimeServiceDeps(
   });
 }
 
-export function triggerSubsyncFromConfigRuntime(
-  params: SubsyncRuntimeServiceInput,
-): Promise<void> {
-  return triggerSubsyncFromConfigRuntimeCore(
-    createSubsyncRuntimeServiceDeps(params),
-  );
+export function triggerSubsyncFromConfigRuntime(params: SubsyncRuntimeServiceInput): Promise<void> {
+  return triggerSubsyncFromConfigRuntimeCore(createSubsyncRuntimeServiceDeps(params));
 }
 
 export async function runSubsyncManualFromIpcRuntime(
   request: SubsyncManualRunRequest,
   params: SubsyncRuntimeServiceInput,
 ): Promise<SubsyncResult> {
-  return runSubsyncManualFromIpcRuntimeCore(
-    request,
-    createSubsyncRuntimeServiceDeps(params),
-  );
+  return runSubsyncManualFromIpcRuntimeCore(request, createSubsyncRuntimeServiceDeps(params));
 }

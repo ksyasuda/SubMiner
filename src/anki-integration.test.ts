@@ -1,9 +1,9 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import { AnkiIntegration } from "./anki-integration";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { AnkiIntegration } from './anki-integration';
 
 interface IntegrationTestContext {
   integration: AnkiIntegration;
@@ -28,12 +28,9 @@ function createIntegrationTestContext(
   };
 
   const stateDir = fs.mkdtempSync(
-    path.join(
-      os.tmpdir(),
-      options.stateDirPrefix ?? "subminer-anki-integration-",
-    ),
+    path.join(os.tmpdir(), options.stateDirPrefix ?? 'subminer-anki-integration-'),
   );
-  const knownWordCacheStatePath = path.join(stateDir, "known-words-cache.json");
+  const knownWordCacheStatePath = path.join(stateDir, 'known-words-cache.json');
 
   const client = {
     findNotes: async () => {
@@ -81,7 +78,7 @@ function createIntegrationTestContext(
     knownWordsScope: string;
     knownWordsLastRefreshedAtMs: number;
   };
-  privateState.knownWordsScope = "is:note";
+  privateState.knownWordsScope = 'is:note';
   privateState.knownWordsLastRefreshedAtMs = Date.now();
 
   return {
@@ -95,7 +92,7 @@ function cleanupIntegrationTestContext(ctx: IntegrationTestContext): void {
   fs.rmSync(ctx.stateDir, { recursive: true, force: true });
 }
 
-test("AnkiIntegration.refreshKnownWordCache bypasses stale checks", async () => {
+test('AnkiIntegration.refreshKnownWordCache bypasses stale checks', async () => {
   const ctx = createIntegrationTestContext();
 
   try {
@@ -108,10 +105,10 @@ test("AnkiIntegration.refreshKnownWordCache bypasses stale checks", async () => 
   }
 });
 
-test("AnkiIntegration.refreshKnownWordCache skips work when highlight mode is disabled", async () => {
+test('AnkiIntegration.refreshKnownWordCache skips work when highlight mode is disabled', async () => {
   const ctx = createIntegrationTestContext({
     highlightEnabled: false,
-    stateDirPrefix: "subminer-anki-integration-disabled-",
+    stateDirPrefix: 'subminer-anki-integration-disabled-',
   });
 
   try {
@@ -124,7 +121,7 @@ test("AnkiIntegration.refreshKnownWordCache skips work when highlight mode is di
   }
 });
 
-test("AnkiIntegration.refreshKnownWordCache deduplicates concurrent refreshes", async () => {
+test('AnkiIntegration.refreshKnownWordCache deduplicates concurrent refreshes', async () => {
   let releaseFindNotes: (() => void) | undefined;
   const findNotesPromise = new Promise<void>((resolve) => {
     releaseFindNotes = resolve;
@@ -135,7 +132,7 @@ test("AnkiIntegration.refreshKnownWordCache deduplicates concurrent refreshes", 
       await findNotesPromise;
       return [] as number[];
     },
-    stateDirPrefix: "subminer-anki-integration-concurrent-",
+    stateDirPrefix: 'subminer-anki-integration-concurrent-',
   });
 
   const first = ctx.integration.refreshKnownWordCache();

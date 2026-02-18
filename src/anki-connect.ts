@@ -16,12 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import axios, { AxiosInstance } from "axios";
-import http from "http";
-import https from "https";
-import { createLogger } from "./logger";
+import axios, { AxiosInstance } from 'axios';
+import http from 'http';
+import https from 'https';
+import { createLogger } from './logger';
 
-const log = createLogger("anki");
+const log = createLogger('anki');
 
 interface AnkiConnectRequest {
   action: string;
@@ -74,23 +74,23 @@ export class AnkiConnectClient {
   }
 
   private isRetryableError(error: unknown): boolean {
-    if (!error || typeof error !== "object") return false;
+    if (!error || typeof error !== 'object') return false;
 
     const code = (error as Record<string, unknown>).code;
     const message =
-      typeof (error as Record<string, unknown>).message === "string"
+      typeof (error as Record<string, unknown>).message === 'string'
         ? ((error as Record<string, unknown>).message as string).toLowerCase()
-        : "";
+        : '';
 
     return (
-      code === "ECONNRESET" ||
-      code === "ETIMEDOUT" ||
-      code === "ENOTFOUND" ||
-      code === "ECONNREFUSED" ||
-      code === "EPIPE" ||
-      message.includes("socket hang up") ||
-      message.includes("network error") ||
-      message.includes("timeout")
+      code === 'ECONNRESET' ||
+      code === 'ETIMEDOUT' ||
+      code === 'ENOTFOUND' ||
+      code === 'ECONNREFUSED' ||
+      code === 'EPIPE' ||
+      message.includes('socket hang up') ||
+      message.includes('network error') ||
+      message.includes('timeout')
     );
   }
 
@@ -102,24 +102,19 @@ export class AnkiConnectClient {
     const maxRetries = options.maxRetries ?? 3;
     let lastError: Error | null = null;
 
-    const isMediaUpload = action === "storeMediaFile";
+    const isMediaUpload = action === 'storeMediaFile';
     const requestTimeout = options.timeout || (isMediaUpload ? 30000 : 10000);
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         if (attempt > 0) {
-          const delay = Math.min(
-            this.backoffMs * Math.pow(2, attempt - 1),
-            this.maxBackoffMs,
-          );
-          log.info(
-            `AnkiConnect retry ${attempt}/${maxRetries} after ${delay}ms delay`,
-          );
+          const delay = Math.min(this.backoffMs * Math.pow(2, attempt - 1), this.maxBackoffMs);
+          log.info(`AnkiConnect retry ${attempt}/${maxRetries} after ${delay}ms delay`);
           await this.sleep(delay);
         }
 
         const response = await this.client.post<AnkiConnectResponse>(
-          "",
+          '',
           {
             action,
             version: 6,
@@ -149,36 +144,28 @@ export class AnkiConnectClient {
               lastError.message,
             );
           } else if (this.consecutiveFailures === this.maxConsecutiveFailures) {
-            log.error(
-              "AnkiConnect: Too many consecutive failures, suppressing further error logs",
-            );
+            log.error('AnkiConnect: Too many consecutive failures, suppressing further error logs');
           }
           throw lastError;
         }
       }
     }
 
-    throw lastError || new Error("Unknown error");
+    throw lastError || new Error('Unknown error');
   }
 
-  async findNotes(
-    query: string,
-    options?: { maxRetries?: number },
-  ): Promise<number[]> {
-    const result = await this.invoke("findNotes", { query }, options);
+  async findNotes(query: string, options?: { maxRetries?: number }): Promise<number[]> {
+    const result = await this.invoke('findNotes', { query }, options);
     return (result as number[]) || [];
   }
 
   async notesInfo(noteIds: number[]): Promise<Record<string, unknown>[]> {
-    const result = await this.invoke("notesInfo", { notes: noteIds });
+    const result = await this.invoke('notesInfo', { notes: noteIds });
     return (result as Record<string, unknown>[]) || [];
   }
 
-  async updateNoteFields(
-    noteId: number,
-    fields: Record<string, string>,
-  ): Promise<void> {
-    await this.invoke("updateNoteFields", {
+  async updateNoteFields(noteId: number, fields: Record<string, string>): Promise<void> {
+    await this.invoke('updateNoteFields', {
       note: {
         id: noteId,
         fields,
@@ -187,12 +174,12 @@ export class AnkiConnectClient {
   }
 
   async storeMediaFile(filename: string, data: Buffer): Promise<void> {
-    const base64Data = data.toString("base64");
+    const base64Data = data.toString('base64');
     const sizeKB = Math.round(base64Data.length / 1024);
     log.info(`Uploading media file: ${filename} (${sizeKB}KB)`);
 
     await this.invoke(
-      "storeMediaFile",
+      'storeMediaFile',
       {
         filename,
         data: base64Data,
@@ -206,19 +193,19 @@ export class AnkiConnectClient {
     modelName: string,
     fields: Record<string, string>,
   ): Promise<number> {
-    const result = await this.invoke("addNote", {
+    const result = await this.invoke('addNote', {
       note: { deckName, modelName, fields },
     });
     return result as number;
   }
 
   async deleteNotes(noteIds: number[]): Promise<void> {
-    await this.invoke("deleteNotes", { notes: noteIds });
+    await this.invoke('deleteNotes', { notes: noteIds });
   }
 
   async retrieveMediaFile(filename: string): Promise<string> {
-    const result = await this.invoke("retrieveMediaFile", { filename });
-    return (result as string) || "";
+    const result = await this.invoke('retrieveMediaFile', { filename });
+    return (result as string) || '';
   }
 
   resetBackoff(): void {

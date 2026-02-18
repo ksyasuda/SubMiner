@@ -1,11 +1,8 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import {
-  createNumericShortcutRuntime,
-  createNumericShortcutSession,
-} from "./numeric-shortcut";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createNumericShortcutRuntime, createNumericShortcutSession } from './numeric-shortcut';
 
-test("createNumericShortcutRuntime creates sessions wired to globalShortcut", () => {
+test('createNumericShortcutRuntime creates sessions wired to globalShortcut', () => {
   const registered: string[] = [];
   const unregistered: string[] = [];
   const osd: string[] = [];
@@ -35,22 +32,22 @@ test("createNumericShortcutRuntime creates sessions wired to globalShortcut", ()
     timeoutMs: 5000,
     onDigit: () => {},
     messages: {
-      prompt: "Select count",
-      timeout: "Timed out",
+      prompt: 'Select count',
+      timeout: 'Timed out',
     },
   });
 
   assert.equal(session.isActive(), true);
-  assert.ok(registered.includes("1"));
-  assert.ok(registered.includes("Escape"));
-  assert.equal(osd[0], "Select count");
+  assert.ok(registered.includes('1'));
+  assert.ok(registered.includes('Escape'));
+  assert.equal(osd[0], 'Select count');
 
-  handlers.get("Escape")?.();
+  handlers.get('Escape')?.();
   assert.equal(session.isActive(), false);
-  assert.ok(unregistered.includes("Escape"));
+  assert.ok(unregistered.includes('Escape'));
 });
 
-test("numeric shortcut session handles digit selection and unregisters shortcuts", () => {
+test('numeric shortcut session handles digit selection and unregisters shortcuts', () => {
   const handlers = new Map<string, () => void>();
   const unregistered: string[] = [];
   const osd: string[] = [];
@@ -77,24 +74,24 @@ test("numeric shortcut session handles digit selection and unregisters shortcuts
       digits.push(digit);
     },
     messages: {
-      prompt: "Pick a digit",
-      timeout: "Timed out",
+      prompt: 'Pick a digit',
+      timeout: 'Timed out',
     },
   });
 
   assert.equal(session.isActive(), true);
-  assert.equal(osd[0], "Pick a digit");
-  assert.ok(handlers.has("3"));
-  handlers.get("3")?.();
+  assert.equal(osd[0], 'Pick a digit');
+  assert.ok(handlers.has('3'));
+  handlers.get('3')?.();
 
   assert.deepEqual(digits, [3]);
   assert.equal(session.isActive(), false);
-  assert.ok(unregistered.includes("Escape"));
-  assert.ok(unregistered.includes("1"));
-  assert.ok(unregistered.includes("9"));
+  assert.ok(unregistered.includes('Escape'));
+  assert.ok(unregistered.includes('1'));
+  assert.ok(unregistered.includes('9'));
 });
 
-test("numeric shortcut session emits timeout message", () => {
+test('numeric shortcut session emits timeout message', () => {
   const osd: string[] = [];
   const session = createNumericShortcutSession({
     registerShortcut: () => true,
@@ -113,17 +110,17 @@ test("numeric shortcut session emits timeout message", () => {
     timeoutMs: 5000,
     onDigit: () => {},
     messages: {
-      prompt: "Pick a digit",
-      timeout: "Timed out",
-      cancelled: "Aborted",
+      prompt: 'Pick a digit',
+      timeout: 'Timed out',
+      cancelled: 'Aborted',
     },
   });
 
   assert.equal(session.isActive(), false);
-  assert.ok(osd.includes("Timed out"));
+  assert.ok(osd.includes('Timed out'));
 });
 
-test("numeric shortcut session handles escape cancellation", () => {
+test('numeric shortcut session handles escape cancellation', () => {
   const handlers = new Map<string, () => void>();
   const osd: string[] = [];
   const session = createNumericShortcutSession({
@@ -145,12 +142,12 @@ test("numeric shortcut session handles escape cancellation", () => {
     timeoutMs: 5000,
     onDigit: () => {},
     messages: {
-      prompt: "Pick a digit",
-      timeout: "Timed out",
-      cancelled: "Aborted",
+      prompt: 'Pick a digit',
+      timeout: 'Timed out',
+      cancelled: 'Aborted',
     },
   });
-  handlers.get("Escape")?.();
+  handlers.get('Escape')?.();
   assert.equal(session.isActive(), false);
-  assert.ok(osd.includes("Aborted"));
+  assert.ok(osd.includes('Aborted'));
 });

@@ -1,8 +1,8 @@
-import { BrowserWindow } from "electron";
-import { RuntimeOptionState, WindowGeometry } from "../../types";
-import { updateOverlayWindowBounds } from "./overlay-window";
+import { BrowserWindow } from 'electron';
+import { RuntimeOptionState, WindowGeometry } from '../../types';
+import { updateOverlayWindowBounds } from './overlay-window';
 
-type OverlayLayer = "visible" | "invisible";
+type OverlayLayer = 'visible' | 'invisible';
 
 export interface OverlayManager {
   getMainWindow: () => BrowserWindow | null;
@@ -10,10 +10,7 @@ export interface OverlayManager {
   getInvisibleWindow: () => BrowserWindow | null;
   setInvisibleWindow: (window: BrowserWindow | null) => void;
   getOverlayWindow: (layer: OverlayLayer) => BrowserWindow | null;
-  setOverlayWindowBounds: (
-    layer: OverlayLayer,
-    geometry: WindowGeometry,
-  ) => void;
+  setOverlayWindowBounds: (layer: OverlayLayer, geometry: WindowGeometry) => void;
   getVisibleOverlayVisible: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
   getInvisibleOverlayVisible: () => boolean;
@@ -37,13 +34,9 @@ export function createOverlayManager(): OverlayManager {
     setInvisibleWindow: (window) => {
       invisibleWindow = window;
     },
-    getOverlayWindow: (layer) =>
-      layer === "visible" ? mainWindow : invisibleWindow,
+    getOverlayWindow: (layer) => (layer === 'visible' ? mainWindow : invisibleWindow),
     setOverlayWindowBounds: (layer, geometry) => {
-      updateOverlayWindowBounds(
-        geometry,
-        layer === "visible" ? mainWindow : invisibleWindow,
-      );
+      updateOverlayWindowBounds(geometry, layer === 'visible' ? mainWindow : invisibleWindow);
     },
     getVisibleOverlayVisible: () => visibleOverlayVisible,
     setVisibleOverlayVisible: (visible) => {
@@ -82,10 +75,7 @@ export function broadcastRuntimeOptionsChangedRuntime(
   getRuntimeOptionsState: () => RuntimeOptionState[],
   broadcastToOverlayWindows: (channel: string, ...args: unknown[]) => void,
 ): void {
-  broadcastToOverlayWindows(
-    "runtime-options:changed",
-    getRuntimeOptionsState(),
-  );
+  broadcastToOverlayWindows('runtime-options:changed', getRuntimeOptionsState());
 }
 
 export function setOverlayDebugVisualizationEnabledRuntime(
@@ -96,6 +86,6 @@ export function setOverlayDebugVisualizationEnabledRuntime(
 ): boolean {
   if (currentEnabled === nextEnabled) return false;
   setState(nextEnabled);
-  broadcastToOverlayWindows("overlay-debug-visualization:set", nextEnabled);
+  broadcastToOverlayWindows('overlay-debug-visualization:set', nextEnabled);
   return true;
 }

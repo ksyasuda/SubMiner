@@ -16,11 +16,15 @@ ordinal: 34000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Implement an opt-in JLPT token annotation feature that annotates subtitle words with JLPT level in-session. The feature should use a bundled dictionary source from the existing JLPT Yomitan extension, parse/query its dictionary file to determine whether a token appears and its JLPT level, and render token-level visual tags as a colored underline spanning each token length. Colors must correspond to JLPT levels (e.g., N5/N4/N3/N2/N1) using a consistent mapping.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Add an opt-in setting/feature flag so JLPT tagging is disabled by default and can be enabled per user/session as requested.
 - [x] #2 Bundle the existing JLPT Yomitan extension package/data into the project so lookups can be performed offline from local files.
 - [x] #3 Implement token-level dictionary lookup against the bundled JLPT dictionary file to determine presence and JLPT level for words in subtitle lines.
@@ -34,7 +38,9 @@ Implement an opt-in JLPT token annotation feature that annotates subtitle words 
 <!-- AC:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [x] #1 Feature has a clear toggle and persistence of preference if applicable.
 - [x] #2 JLPT rendering is visually verified for all supported levels with distinct colors and no overlap/regression in subtitle legibility.
 <!-- DOD:END -->

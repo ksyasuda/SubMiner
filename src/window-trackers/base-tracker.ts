@@ -16,7 +16,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { WindowGeometry } from "../types";
+import { WindowGeometry } from '../types';
 
 export type GeometryChangeCallback = (geometry: WindowGeometry) => void;
 export type WindowFoundCallback = (geometry: WindowGeometry) => void;

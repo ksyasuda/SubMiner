@@ -9,15 +9,15 @@ import type {
   RuntimeOptionValue,
   SubtitlePosition,
   SubsyncSourceTrack,
-} from "../types";
+} from '../types';
 
-export type KikuModalStep = "select" | "preview";
-export type KikuPreviewMode = "compact" | "full";
+export type KikuModalStep = 'select' | 'preview';
+export type KikuPreviewMode = 'compact' | 'full';
 
 export type ChordAction =
-  | { type: "mpv"; command: string[] }
-  | { type: "electron"; action: () => void }
-  | { type: "noop" };
+  | { type: 'mpv'; command: string[] }
+  | { type: 'electron'; action: () => void }
+  | { type: 'noop' };
 
 export type RendererState = {
   isOverSubtitle: boolean;
@@ -81,7 +81,7 @@ export type RendererState = {
   jlptN5Color: string;
   frequencyDictionaryEnabled: boolean;
   frequencyDictionaryTopX: number;
-  frequencyDictionaryMode: "single" | "banded";
+  frequencyDictionaryMode: 'single' | 'banded';
   frequencyDictionarySingleColor: string;
   frequencyDictionaryBand1Color: string;
   frequencyDictionaryBand2Color: string;
@@ -115,8 +115,8 @@ export function createRendererState(): RendererState {
     kikuSelectedCard: 1,
     kikuOriginalData: null,
     kikuDuplicateData: null,
-    kikuModalStep: "select",
-    kikuPreviewMode: "compact",
+    kikuModalStep: 'select',
+    kikuPreviewMode: 'compact',
     kikuPendingChoice: null,
     kikuPreviewCompactData: null,
     kikuPreviewFullData: null,
@@ -145,25 +145,25 @@ export function createRendererState(): RendererState {
     invisiblePositionEditHud: null,
     currentInvisibleSubtitleLineCount: 1,
 
-    lastHoverSelectionKey: "",
+    lastHoverSelectionKey: '',
     lastHoverSelectionNode: null,
 
-    knownWordColor: "#a6da95",
-    nPlusOneColor: "#c6a0f6",
-    jlptN1Color: "#ed8796",
-    jlptN2Color: "#f5a97f",
-    jlptN3Color: "#f9e2af",
-    jlptN4Color: "#a6e3a1",
-    jlptN5Color: "#8aadf4",
+    knownWordColor: '#a6da95',
+    nPlusOneColor: '#c6a0f6',
+    jlptN1Color: '#ed8796',
+    jlptN2Color: '#f5a97f',
+    jlptN3Color: '#f9e2af',
+    jlptN4Color: '#a6e3a1',
+    jlptN5Color: '#8aadf4',
     frequencyDictionaryEnabled: false,
     frequencyDictionaryTopX: 1000,
-    frequencyDictionaryMode: "single",
-    frequencyDictionarySingleColor: "#f5a97f",
-    frequencyDictionaryBand1Color: "#ed8796",
-    frequencyDictionaryBand2Color: "#f5a97f",
-    frequencyDictionaryBand3Color: "#f9e2af",
-    frequencyDictionaryBand4Color: "#a6e3a1",
-    frequencyDictionaryBand5Color: "#8aadf4",
+    frequencyDictionaryMode: 'single',
+    frequencyDictionarySingleColor: '#f5a97f',
+    frequencyDictionaryBand1Color: '#ed8796',
+    frequencyDictionaryBand2Color: '#f5a97f',
+    frequencyDictionaryBand3Color: '#f9e2af',
+    frequencyDictionaryBand4Color: '#a6e3a1',
+    frequencyDictionaryBand5Color: '#8aadf4',
 
     keybindingsMap: new Map(),
     chordPending: false,

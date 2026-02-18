@@ -16,11 +16,15 @@ ordinal: 57000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Implement optional Jellyfin integration so SubMiner can act as a lightweight Jellyfin client similar to jellyfin-mpv-shim. The feature should support connecting to Jellyfin servers, browsing playable media, and launching playback through SubMiner, including direct play when possible and transparent transcoding when required.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Add a configurable Jellyfin integration path that can be enabled/disabled without impacting core non-Jellyfin functionality.
 - [x] #2 Support authenticating against a user-selected Jellyfin server (server URL + credentials/token) and securely storing/reusing connection settings.
 - [x] #3 Allow discovery or manual selection of movies/tv shows/music libraries and playback items from the connected Jellyfin server.
@@ -35,9 +39,11 @@ Implement optional Jellyfin integration so SubMiner can act as a lightweight Jel
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Status snapshot (2026-02-18): TASK-31 is mostly complete and now tracks remaining closure work only for #2 and #3.
 
 Completed acceptance criteria and evidence:
+
 - #1 Optional/disabled Jellyfin integration boundary verified.
   - Added tests in `src/core/services/app-ready.test.ts`, `src/core/services/cli-command.test.ts`, `src/core/services/startup-bootstrap.test.ts`, `src/core/services/jellyfin-remote.test.ts`, and `src/config/config.test.ts` to prove disabled paths do not impact core non-Jellyfin functionality and that Jellyfin side effects are gated.
 - #4 Jellyfin playback launch through existing pipeline verified.
@@ -52,20 +58,23 @@ Completed acceptance criteria and evidence:
 - #9 Docs + key integration tests/mocks completed.
 
 Key verification runs (all passing):
+
 - `pnpm run build`
 - `node --test dist/core/services/app-ready.test.js dist/core/services/cli-command.test.js dist/core/services/startup-bootstrap.test.js dist/core/services/jellyfin-remote.test.js dist/config/config.test.js`
 - `node --test dist/core/services/jellyfin.test.js dist/core/services/cli-command.test.js`
 - `pnpm run test:fast`
 
 Open acceptance criteria (remaining work):
+
 - #2 Authentication/settings persistence hardening and explicit lifecycle validation:
-  1) login -> persist -> restart -> token reuse verification
-  2) token-expiry re-auth/recovery path verification
-  3) document storage guarantees/edge cases
+  1. login -> persist -> restart -> token reuse verification
+  2. token-expiry re-auth/recovery path verification
+  3. document storage guarantees/edge cases
 - #3 Library discovery/manual selection UX closure across intended media scope:
-  1) explicit verification for movies/TV/music discovery and selection paths
-  2) document any intentionally out-of-scope media types/flows
+  1. explicit verification for movies/TV/music discovery and selection paths
+  2. document any intentionally out-of-scope media types/flows
 
 Task relationship:
+
 - TASK-64 remains a focused implementation slice under this epic and provides foundational cast/remote playback work referenced by this task.
 <!-- SECTION:NOTES:END -->

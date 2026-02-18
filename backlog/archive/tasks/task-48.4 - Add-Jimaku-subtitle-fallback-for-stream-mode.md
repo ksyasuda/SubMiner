@@ -17,11 +17,15 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 When a resolved stream lacks JP/primary-language tracks, fetch subtitles from Jimaku and inject them for playback, overriding non-primary subtitle defaults in streaming mode according to config.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Detect missing primary subtitle from stream metadata and trigger Jimaku lookup for matching episode.
 - [ ] #2 Load fetched Jimaku subtitles into playback pipeline and mark them as the primary subtitle track.
 - [ ] #3 Fallback is only used in streaming mode and should not alter subtitle behavior outside streaming.
@@ -30,5 +34,7 @@ When a resolved stream lacks JP/primary-language tracks, fetch subtitles from Ji
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Superseded by TASK-51. Jimaku fallback for streams deferred along with entire streaming flow.
+
 <!-- SECTION:NOTES:END -->

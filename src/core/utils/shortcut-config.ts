@@ -1,4 +1,4 @@
-import { Config } from "../../types";
+import { Config } from '../../types';
 
 export interface ConfiguredShortcuts {
   toggleVisibleOverlayGlobal: string | null | undefined;
@@ -21,13 +21,9 @@ export function resolveConfiguredShortcuts(
   config: Config,
   defaultConfig: Config,
 ): ConfiguredShortcuts {
-  const normalizeShortcut = (
-    value: string | null | undefined,
-  ): string | null | undefined => {
-    if (typeof value !== "string") return value;
-    return value
-      .replace(/\bKey([A-Z])\b/g, "$1")
-      .replace(/\bDigit([0-9])\b/g, "$1");
+  const normalizeShortcut = (value: string | null | undefined): string | null | undefined => {
+    if (typeof value !== 'string') return value;
+    return value.replace(/\bKey([A-Z])\b/g, '$1').replace(/\bDigit([0-9])\b/g, '$1');
   };
 
   return {
@@ -43,42 +39,34 @@ export function resolveConfiguredShortcuts(
       config.shortcuts?.copySubtitle ?? defaultConfig.shortcuts?.copySubtitle,
     ),
     copySubtitleMultiple: normalizeShortcut(
-      config.shortcuts?.copySubtitleMultiple ??
-        defaultConfig.shortcuts?.copySubtitleMultiple,
+      config.shortcuts?.copySubtitleMultiple ?? defaultConfig.shortcuts?.copySubtitleMultiple,
     ),
     updateLastCardFromClipboard: normalizeShortcut(
       config.shortcuts?.updateLastCardFromClipboard ??
         defaultConfig.shortcuts?.updateLastCardFromClipboard,
     ),
     triggerFieldGrouping: normalizeShortcut(
-      config.shortcuts?.triggerFieldGrouping ??
-        defaultConfig.shortcuts?.triggerFieldGrouping,
+      config.shortcuts?.triggerFieldGrouping ?? defaultConfig.shortcuts?.triggerFieldGrouping,
     ),
     triggerSubsync: normalizeShortcut(
-      config.shortcuts?.triggerSubsync ??
-        defaultConfig.shortcuts?.triggerSubsync,
+      config.shortcuts?.triggerSubsync ?? defaultConfig.shortcuts?.triggerSubsync,
     ),
     mineSentence: normalizeShortcut(
       config.shortcuts?.mineSentence ?? defaultConfig.shortcuts?.mineSentence,
     ),
     mineSentenceMultiple: normalizeShortcut(
-      config.shortcuts?.mineSentenceMultiple ??
-        defaultConfig.shortcuts?.mineSentenceMultiple,
+      config.shortcuts?.mineSentenceMultiple ?? defaultConfig.shortcuts?.mineSentenceMultiple,
     ),
     multiCopyTimeoutMs:
-      config.shortcuts?.multiCopyTimeoutMs ??
-      defaultConfig.shortcuts?.multiCopyTimeoutMs ??
-      5000,
+      config.shortcuts?.multiCopyTimeoutMs ?? defaultConfig.shortcuts?.multiCopyTimeoutMs ?? 5000,
     toggleSecondarySub: normalizeShortcut(
-      config.shortcuts?.toggleSecondarySub ??
-        defaultConfig.shortcuts?.toggleSecondarySub,
+      config.shortcuts?.toggleSecondarySub ?? defaultConfig.shortcuts?.toggleSecondarySub,
     ),
     markAudioCard: normalizeShortcut(
       config.shortcuts?.markAudioCard ?? defaultConfig.shortcuts?.markAudioCard,
     ),
     openRuntimeOptions: normalizeShortcut(
-      config.shortcuts?.openRuntimeOptions ??
-        defaultConfig.shortcuts?.openRuntimeOptions,
+      config.shortcuts?.openRuntimeOptions ?? defaultConfig.shortcuts?.openRuntimeOptions,
     ),
     openJimaku: normalizeShortcut(
       config.shortcuts?.openJimaku ?? defaultConfig.shortcuts?.openJimaku,

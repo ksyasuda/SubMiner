@@ -1,6 +1,6 @@
-import * as path from "path";
-import type { FrequencyDictionaryLookup } from "../types";
-import { createFrequencyDictionaryLookup } from "../core/services";
+import * as path from 'path';
+import type { FrequencyDictionaryLookup } from '../types';
+import { createFrequencyDictionaryLookup } from '../core/services';
 
 export interface FrequencyDictionarySearchPathDeps {
   getDictionaryRoots: () => string[];
@@ -31,18 +31,14 @@ export function getFrequencyDictionarySearchPaths(
   // Root list should include `vendor/jiten_freq_global` in callers.
   if (sourcePath && sourcePath.trim()) {
     rawSearchPaths.push(sourcePath.trim());
-    rawSearchPaths.push(path.join(sourcePath.trim(), "frequency-dictionary"));
-    rawSearchPaths.push(
-      path.join(sourcePath.trim(), "vendor", "frequency-dictionary"),
-    );
+    rawSearchPaths.push(path.join(sourcePath.trim(), 'frequency-dictionary'));
+    rawSearchPaths.push(path.join(sourcePath.trim(), 'vendor', 'frequency-dictionary'));
   }
 
   for (const dictionaryRoot of dictionaryRoots) {
     rawSearchPaths.push(dictionaryRoot);
-    rawSearchPaths.push(path.join(dictionaryRoot, "frequency-dictionary"));
-    rawSearchPaths.push(
-      path.join(dictionaryRoot, "vendor", "frequency-dictionary"),
-    );
+    rawSearchPaths.push(path.join(dictionaryRoot, 'frequency-dictionary'));
+    rawSearchPaths.push(path.join(dictionaryRoot, 'vendor', 'frequency-dictionary'));
   }
 
   return [...new Set(rawSearchPaths)];
@@ -68,27 +64,23 @@ export async function ensureFrequencyDictionaryLookup(
     return;
   }
   if (!frequencyDictionaryLookupInitialization) {
-    frequencyDictionaryLookupInitialization =
-      initializeFrequencyDictionaryLookup(deps)
-        .then(() => {
-          frequencyDictionaryLookupInitialized = true;
-        })
-        .catch((error) => {
-          frequencyDictionaryLookupInitialized = true;
-          deps.log(
-            `Failed to initialize frequency dictionary: ${String(error)}`,
-          );
-          deps.setFrequencyRankLookup(() => null);
-        });
+    frequencyDictionaryLookupInitialization = initializeFrequencyDictionaryLookup(deps)
+      .then(() => {
+        frequencyDictionaryLookupInitialized = true;
+      })
+      .catch((error) => {
+        frequencyDictionaryLookupInitialized = true;
+        deps.log(`Failed to initialize frequency dictionary: ${String(error)}`);
+        deps.setFrequencyRankLookup(() => null);
+      });
   }
   await frequencyDictionaryLookupInitialization;
 }
 
-export function createFrequencyDictionaryRuntimeService(
-  deps: FrequencyDictionaryRuntimeDeps,
-): { ensureFrequencyDictionaryLookup: () => Promise<void> } {
+export function createFrequencyDictionaryRuntimeService(deps: FrequencyDictionaryRuntimeDeps): {
+  ensureFrequencyDictionaryLookup: () => Promise<void>;
+} {
   return {
-    ensureFrequencyDictionaryLookup: () =>
-      ensureFrequencyDictionaryLookup(deps),
+    ensureFrequencyDictionaryLookup: () => ensureFrequencyDictionaryLookup(deps),
   };
 }

@@ -16,13 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { ExecFileException, execFile } from "child_process";
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
-import { createLogger } from "./logger";
+import { ExecFileException, execFile } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { createLogger } from './logger';
 
-const log = createLogger("media");
+const log = createLogger('media');
 
 export class MediaGenerator {
   private tempDir: string;
@@ -30,8 +30,8 @@ export class MediaGenerator {
   private av1EncoderPromise: Promise<string | null> | null = null;
 
   constructor(tempDir?: string) {
-    this.tempDir = tempDir || path.join(os.tmpdir(), "subminer-media");
-    this.notifyIconDir = path.join(os.tmpdir(), "subminer-notify");
+    this.tempDir = tempDir || path.join(os.tmpdir(), 'subminer-media');
+    this.notifyIconDir = path.join(os.tmpdir(), 'subminer-notify');
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true });
     }
@@ -54,7 +54,7 @@ export class MediaGenerator {
       const oneHourAgo = Date.now() - 60 * 60 * 1000;
 
       for (const file of files) {
-        if (!file.endsWith(".png")) continue;
+        if (!file.endsWith('.png')) continue;
         const filePath = path.join(this.notifyIconDir, file);
         try {
           const stat = fs.statSync(filePath);
@@ -66,7 +66,7 @@ export class MediaGenerator {
         }
       }
     } catch (err) {
-      log.error("Failed to cleanup old notification icons:", err);
+      log.error('Failed to cleanup old notification icons:', err);
     }
   }
 
@@ -91,10 +91,8 @@ export class MediaGenerator {
   }
 
   private ffmpegError(label: string, error: ExecFileException): Error {
-    if (error.code === "ENOENT") {
-      return new Error(
-        "FFmpeg not found. Install FFmpeg to enable media generation.",
-      );
+    if (error.code === 'ENOENT') {
+      return new Error('FFmpeg not found. Install FFmpeg to enable media generation.');
     }
     return new Error(`FFmpeg ${label} failed: ${error.message}`);
   }
@@ -104,8 +102,8 @@ export class MediaGenerator {
 
     this.av1EncoderPromise = new Promise((resolve) => {
       execFile(
-        "ffmpeg",
-        ["-hide_banner", "-encoders"],
+        'ffmpeg',
+        ['-hide_banner', '-encoders'],
         { timeout: 10000 },
         (error, stdout, stderr) => {
           if (error) {
@@ -113,8 +111,8 @@ export class MediaGenerator {
             return;
           }
 
-          const output = `${stdout || ""}\n${stderr || ""}`;
-          const candidates = ["libaom-av1", "libsvtav1", "librav1e"];
+          const output = `${stdout || ''}\n${stderr || ''}`;
+          const candidates = ['libaom-av1', 'libsvtav1', 'librav1e'];
           for (const encoder of candidates) {
             if (output.includes(encoder)) {
               resolve(encoder);
@@ -141,38 +139,21 @@ export class MediaGenerator {
 
     return new Promise((resolve, reject) => {
       const outputPath = path.join(this.tempDir, `audio_${Date.now()}.mp3`);
-      const args: string[] = [
-        "-ss",
-        start.toString(),
-        "-t",
-        duration.toString(),
-        "-i",
-        videoPath,
-      ];
+      const args: string[] = ['-ss', start.toString(), '-t', duration.toString(), '-i', videoPath];
 
       if (
-        typeof audioStreamIndex === "number" &&
+        typeof audioStreamIndex === 'number' &&
         Number.isInteger(audioStreamIndex) &&
         audioStreamIndex >= 0
       ) {
-        args.push("-map", `0:${audioStreamIndex}`);
+        args.push('-map', `0:${audioStreamIndex}`);
       }
 
-      args.push(
-        "-vn",
-        "-acodec",
-        "libmp3lame",
-        "-q:a",
-        "2",
-        "-ar",
-        "44100",
-        "-y",
-        outputPath,
-      );
+      args.push('-vn', '-acodec', 'libmp3lame', '-q:a', '2', '-ar', '44100', '-y', outputPath);
 
-      execFile("ffmpeg", args, { timeout: 30000 }, (error) => {
+      execFile('ffmpeg', args, { timeout: 30000 }, (error) => {
         if (error) {
-          reject(this.ffmpegError("audio generation", error));
+          reject(this.ffmpegError('audio generation', error));
           return;
         }
 
@@ -191,67 +172,55 @@ export class MediaGenerator {
     videoPath: string,
     timestamp: number,
     options: {
-      format: "jpg" | "png" | "webp";
+      format: 'jpg' | 'png' | 'webp';
       quality?: number;
       maxWidth?: number;
       maxHeight?: number;
     },
   ): Promise<Buffer> {
     const { format, quality = 92, maxWidth, maxHeight } = options;
-    const ext = format === "webp" ? "webp" : format === "png" ? "png" : "jpg";
+    const ext = format === 'webp' ? 'webp' : format === 'png' ? 'png' : 'jpg';
     const codecMap: Record<string, string> = {
-      jpg: "mjpeg",
-      png: "png",
-      webp: "webp",
+      jpg: 'mjpeg',
+      png: 'png',
+      webp: 'webp',
     };
 
-    const args: string[] = [
-      "-ss",
-      timestamp.toString(),
-      "-i",
-      videoPath,
-      "-vframes",
-      "1",
-    ];
+    const args: string[] = ['-ss', timestamp.toString(), '-i', videoPath, '-vframes', '1'];
 
     const vfParts: string[] = [];
     if (maxWidth && maxWidth > 0 && maxHeight && maxHeight > 0) {
-      vfParts.push(
-        `scale=w=${maxWidth}:h=${maxHeight}:force_original_aspect_ratio=decrease`,
-      );
+      vfParts.push(`scale=w=${maxWidth}:h=${maxHeight}:force_original_aspect_ratio=decrease`);
     } else if (maxWidth && maxWidth > 0) {
       vfParts.push(`scale=w=${maxWidth}:h=-2`);
     } else if (maxHeight && maxHeight > 0) {
       vfParts.push(`scale=w=-2:h=${maxHeight}`);
     }
     if (vfParts.length > 0) {
-      args.push("-vf", vfParts.join(","));
+      args.push('-vf', vfParts.join(','));
     }
 
-    args.push("-c:v", codecMap[format]);
+    args.push('-c:v', codecMap[format]);
 
-    if (format !== "png") {
+    if (format !== 'png') {
       const clampedQuality = Math.max(1, Math.min(100, quality));
-      if (format === "jpg") {
+      if (format === 'jpg') {
         const qv = Math.round(2 + (100 - clampedQuality) * (29 / 99));
-        args.push("-q:v", qv.toString());
+        args.push('-q:v', qv.toString());
       } else {
-        args.push("-q:v", clampedQuality.toString());
+        args.push('-q:v', clampedQuality.toString());
       }
     }
 
-    args.push("-y");
+    args.push('-y');
 
     return new Promise((resolve, reject) => {
-      const outputPath = path.join(
-        this.tempDir,
-        `screenshot_${Date.now()}.${ext}`,
-      );
+      const outputPath = path.join(this.tempDir, `screenshot_${Date.now()}.${ext}`);
       args.push(outputPath);
 
-      execFile("ffmpeg", args, { timeout: 30000 }, (error) => {
+      execFile('ffmpeg', args, { timeout: 30000 }, (error) => {
         if (error) {
-          reject(this.ffmpegError("screenshot generation", error));
+          reject(this.ffmpegError('screenshot generation', error));
           return;
         }
 
@@ -271,36 +240,30 @@ export class MediaGenerator {
    * Always outputs PNG format (known-good for Electron + Linux notification daemons).
    * Scaled to 256px width for fast encoding and small file size.
    */
-  async generateNotificationIcon(
-    videoPath: string,
-    timestamp: number,
-  ): Promise<Buffer> {
+  async generateNotificationIcon(videoPath: string, timestamp: number): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const outputPath = path.join(
-        this.tempDir,
-        `notify_icon_${Date.now()}.png`,
-      );
+      const outputPath = path.join(this.tempDir, `notify_icon_${Date.now()}.png`);
 
       execFile(
-        "ffmpeg",
+        'ffmpeg',
         [
-          "-ss",
+          '-ss',
           timestamp.toString(),
-          "-i",
+          '-i',
           videoPath,
-          "-vframes",
-          "1",
-          "-vf",
-          "scale=256:256:force_original_aspect_ratio=decrease,pad=256:256:(ow-iw)/2:(oh-ih)/2:black",
-          "-c:v",
-          "png",
-          "-y",
+          '-vframes',
+          '1',
+          '-vf',
+          'scale=256:256:force_original_aspect_ratio=decrease,pad=256:256:(ow-iw)/2:(oh-ih)/2:black',
+          '-c:v',
+          'png',
+          '-y',
           outputPath,
         ],
         { timeout: 30000 },
         (error) => {
           if (error) {
-            reject(this.ffmpegError("notification icon generation", error));
+            reject(this.ffmpegError('notification icon generation', error));
             return;
           }
 
@@ -338,9 +301,7 @@ export class MediaGenerator {
     const vfParts: string[] = [];
     vfParts.push(`fps=${clampedFps}`);
     if (maxWidth && maxWidth > 0 && maxHeight && maxHeight > 0) {
-      vfParts.push(
-        `scale=w=${maxWidth}:h=${maxHeight}:force_original_aspect_ratio=decrease`,
-      );
+      vfParts.push(`scale=w=${maxWidth}:h=${maxHeight}:force_original_aspect_ratio=decrease`);
     } else if (maxWidth && maxWidth > 0) {
       vfParts.push(`scale=w=${maxWidth}:h=-2`);
     } else if (maxHeight && maxHeight > 0) {
@@ -350,52 +311,42 @@ export class MediaGenerator {
     const av1Encoder = await this.detectAv1Encoder();
     if (!av1Encoder) {
       throw new Error(
-        "No supported AV1 encoder found for animated AVIF (tried libaom-av1, libsvtav1, librav1e).",
+        'No supported AV1 encoder found for animated AVIF (tried libaom-av1, libsvtav1, librav1e).',
       );
     }
 
     return new Promise((resolve, reject) => {
-      const outputPath = path.join(
-        this.tempDir,
-        `animation_${Date.now()}.avif`,
-      );
+      const outputPath = path.join(this.tempDir, `animation_${Date.now()}.avif`);
 
-      const encoderArgs: string[] = ["-c:v", av1Encoder];
-      if (av1Encoder === "libaom-av1") {
-        encoderArgs.push(
-          "-crf",
-          clampedCrf.toString(),
-          "-b:v",
-          "0",
-          "-cpu-used",
-          "8",
-        );
-      } else if (av1Encoder === "libsvtav1") {
-        encoderArgs.push("-crf", clampedCrf.toString(), "-preset", "8");
+      const encoderArgs: string[] = ['-c:v', av1Encoder];
+      if (av1Encoder === 'libaom-av1') {
+        encoderArgs.push('-crf', clampedCrf.toString(), '-b:v', '0', '-cpu-used', '8');
+      } else if (av1Encoder === 'libsvtav1') {
+        encoderArgs.push('-crf', clampedCrf.toString(), '-preset', '8');
       } else {
         // librav1e
-        encoderArgs.push("-qp", clampedCrf.toString(), "-speed", "8");
+        encoderArgs.push('-qp', clampedCrf.toString(), '-speed', '8');
       }
 
       execFile(
-        "ffmpeg",
+        'ffmpeg',
         [
-          "-ss",
+          '-ss',
           start.toString(),
-          "-t",
+          '-t',
           duration.toString(),
-          "-i",
+          '-i',
           videoPath,
-          "-vf",
-          vfParts.join(","),
+          '-vf',
+          vfParts.join(','),
           ...encoderArgs,
-          "-y",
+          '-y',
           outputPath,
         ],
         { timeout: 60000 },
         (error) => {
           if (error) {
-            reject(this.ffmpegError("animation generation", error));
+            reject(this.ffmpegError('animation generation', error));
             return;
           }
 
@@ -417,7 +368,7 @@ export class MediaGenerator {
         fs.rmSync(this.tempDir, { recursive: true, force: true });
       }
     } catch (err) {
-      log.error("Failed to cleanup media generator temp directory:", err);
+      log.error('Failed to cleanup media generator temp directory:', err);
     }
   }
 }

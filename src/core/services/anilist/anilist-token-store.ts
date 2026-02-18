@@ -1,6 +1,6 @@
-import * as fs from "fs";
-import * as path from "path";
-import { safeStorage } from "electron";
+import * as fs from 'fs';
+import * as path from 'path';
+import { safeStorage } from 'electron';
 
 interface PersistedTokenPayload {
   encryptedToken?: string;
@@ -23,7 +23,7 @@ function ensureDirectory(filePath: string): void {
 
 function writePayload(filePath: string, payload: PersistedTokenPayload): void {
   ensureDirectory(filePath);
-  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
 }
 
 export function createAnilistTokenStore(
@@ -40,33 +40,25 @@ export function createAnilistTokenStore(
         return null;
       }
       try {
-        const raw = fs.readFileSync(filePath, "utf-8");
+        const raw = fs.readFileSync(filePath, 'utf-8');
         const parsed = JSON.parse(raw) as PersistedTokenPayload;
-        if (
-          typeof parsed.encryptedToken === "string" &&
-          parsed.encryptedToken.length > 0
-        ) {
-          const encrypted = Buffer.from(parsed.encryptedToken, "base64");
+        if (typeof parsed.encryptedToken === 'string' && parsed.encryptedToken.length > 0) {
+          const encrypted = Buffer.from(parsed.encryptedToken, 'base64');
           if (!safeStorage.isEncryptionAvailable()) {
-            logger.warn(
-              "AniList token encryption is not available on this system.",
-            );
+            logger.warn('AniList token encryption is not available on this system.');
             return null;
           }
           const decrypted = safeStorage.decryptString(encrypted).trim();
           return decrypted.length > 0 ? decrypted : null;
         }
-        if (
-          typeof parsed.plaintextToken === "string" &&
-          parsed.plaintextToken.trim().length > 0
-        ) {
+        if (typeof parsed.plaintextToken === 'string' && parsed.plaintextToken.trim().length > 0) {
           // Legacy fallback: migrate plaintext token to encrypted storage on load.
           const plaintext = parsed.plaintextToken.trim();
           this.saveToken(plaintext);
           return plaintext;
         }
       } catch (error) {
-        logger.error("Failed to read AniList token store.", error);
+        logger.error('Failed to read AniList token store.', error);
       }
       return null;
     },
@@ -79,9 +71,7 @@ export function createAnilistTokenStore(
       }
       try {
         if (!safeStorage.isEncryptionAvailable()) {
-          logger.warn(
-            "AniList token encryption unavailable; storing token in plaintext fallback.",
-          );
+          logger.warn('AniList token encryption unavailable; storing token in plaintext fallback.');
           writePayload(filePath, {
             plaintextToken: trimmed,
             updatedAt: Date.now(),
@@ -90,11 +80,11 @@ export function createAnilistTokenStore(
         }
         const encrypted = safeStorage.encryptString(trimmed);
         writePayload(filePath, {
-          encryptedToken: encrypted.toString("base64"),
+          encryptedToken: encrypted.toString('base64'),
           updatedAt: Date.now(),
         });
       } catch (error) {
-        logger.error("Failed to persist AniList token.", error);
+        logger.error('Failed to persist AniList token.', error);
       }
     },
 
@@ -102,9 +92,9 @@ export function createAnilistTokenStore(
       if (!fs.existsSync(filePath)) return;
       try {
         fs.unlinkSync(filePath);
-        logger.info("Cleared stored AniList token.");
+        logger.info('Cleared stored AniList token.');
       } catch (error) {
-        logger.error("Failed to clear stored AniList token.", error);
+        logger.error('Failed to clear stored AniList token.', error);
       }
     },
   };

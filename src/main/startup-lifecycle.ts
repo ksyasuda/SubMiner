@@ -1,11 +1,11 @@
-import { CliArgs, CliCommandSource } from "../cli/args";
-import { createAppLifecycleDepsRuntime } from "../core/services";
-import { startAppLifecycle } from "../core/services/app-lifecycle";
-import type { AppLifecycleDepsRuntimeOptions } from "../core/services/app-lifecycle";
-import { createAppLifecycleRuntimeDeps } from "./app-lifecycle";
+import { CliArgs, CliCommandSource } from '../cli/args';
+import { createAppLifecycleDepsRuntime } from '../core/services';
+import { startAppLifecycle } from '../core/services/app-lifecycle';
+import type { AppLifecycleDepsRuntimeOptions } from '../core/services/app-lifecycle';
+import { createAppLifecycleRuntimeDeps } from './app-lifecycle';
 
 export interface AppLifecycleRuntimeRunnerParams {
-  app: AppLifecycleDepsRuntimeOptions["app"];
+  app: AppLifecycleDepsRuntimeOptions['app'];
   platform: NodeJS.Platform;
   shouldStartApp: (args: CliArgs) => boolean;
   parseArgs: (argv: string[]) => CliArgs;

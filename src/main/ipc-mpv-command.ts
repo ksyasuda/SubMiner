@@ -1,15 +1,12 @@
-import type { RuntimeOptionApplyResult, RuntimeOptionId } from "../types";
-import { handleMpvCommandFromIpc } from "../core/services";
-import { createMpvCommandRuntimeServiceDeps } from "./dependencies";
-import { SPECIAL_COMMANDS } from "../config";
+import type { RuntimeOptionApplyResult, RuntimeOptionId } from '../types';
+import { handleMpvCommandFromIpc } from '../core/services';
+import { createMpvCommandRuntimeServiceDeps } from './dependencies';
+import { SPECIAL_COMMANDS } from '../config';
 
 export interface MpvCommandFromIpcRuntimeDeps {
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
-  cycleRuntimeOption: (
-    id: RuntimeOptionId,
-    direction: 1 | -1,
-  ) => RuntimeOptionApplyResult;
+  cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
   replayCurrentSubtitle: () => void;
   playNextSubtitle: () => void;

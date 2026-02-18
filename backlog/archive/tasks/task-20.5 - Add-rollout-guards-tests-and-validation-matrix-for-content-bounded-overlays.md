@@ -13,11 +13,15 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add safety controls and verification coverage for the new content-bounded overlay architecture and secondary top-bar window.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Feature flag or equivalent rollout guard exists for switching to new sizing/window behavior.
 - [ ] #2 Service-level/unit tests cover bounds clamping, jitter thresholding, invalid measurement fallback, and per-layer updates.
 - [ ] #3 Manual validation checklist documents and verifies wrap/no-wrap, style changes, monitor moves, tracker churn, modal interactions, and simultaneous overlay states.

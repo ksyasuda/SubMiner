@@ -15,11 +15,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add a typed preload and main-IPC contract for streaming queries and playback resolution so the renderer can initiate search/list/resolve without embedding network/provider logic in UI code.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Define IPC handlers in main with input/output schema validation and timeouts.
 - [ ] #2 Expose corresponding functions in preload `window.electronAPI` and ElectronAPI types.
 - [ ] #3 Reuse existing mpv command channel for playback and add a dedicated request/response flow for resolver actions.
@@ -31,11 +35,15 @@ Add a typed preload and main-IPC contract for streaming queries and playback res
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Phase 3 — API surface: IPC/preload contract for resolver operations
+
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [ ] #1 Renderer code can query providers without importing Node-only modules.
 - [ ] #2 IPC paths have clear names and consistent response shapes across all calls.
 - [ ] #3 Error paths return explicit machine-readable codes mapped to user-visible messages.

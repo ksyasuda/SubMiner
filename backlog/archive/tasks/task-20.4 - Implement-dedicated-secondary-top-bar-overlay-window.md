@@ -13,11 +13,15 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Create and integrate a dedicated secondary subtitle overlay window with independent lifecycle, z-order, bounds, and pointer policy, decoupled from primary visible/invisible overlay windows.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 A third overlay window dedicated to secondary subtitles is created and managed alongside existing visible/invisible windows.
 - [ ] #2 Secondary window visibility follows secondary mode semantics (`hidden`/`visible`/`hover`) independent of primary overlay visibility.
 - [ ] #3 Secondary subtitle text/mode/style updates are routed directly to the secondary window renderer path.

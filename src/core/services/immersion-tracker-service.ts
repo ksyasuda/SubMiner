@@ -1,9 +1,9 @@
-import crypto from "node:crypto";
-import path from "node:path";
-import { spawn } from "node:child_process";
-import { DatabaseSync } from "node:sqlite";
-import * as fs from "node:fs";
-import { createLogger } from "../../logger";
+import crypto from 'node:crypto';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { DatabaseSync } from 'node:sqlite';
+import * as fs from 'node:fs';
+import { createLogger } from '../../logger';
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_QUEUE_CAP = 1_000;
@@ -82,7 +82,7 @@ interface SessionState extends TelemetryAccumulator {
 }
 
 interface QueuedWrite {
-  kind: "telemetry" | "event";
+  kind: 'telemetry' | 'event';
   sessionId: number;
   sampleMs?: number;
   totalWatchedMs?: number;
@@ -163,7 +163,7 @@ export interface ImmersionSessionRollupRow {
 }
 
 export class ImmersionTrackerService {
-  private readonly logger = createLogger("main:immersion-tracker");
+  private readonly logger = createLogger('main:immersion-tracker');
   private readonly db: DatabaseSync;
   private readonly queue: QueuedWrite[] = [];
   private readonly queueCap: number;
@@ -186,11 +186,11 @@ export class ImmersionTrackerService {
   private lastVacuumMs = 0;
   private isDestroyed = false;
   private sessionState: SessionState | null = null;
-  private currentVideoKey = "";
-  private currentMediaPathOrUrl = "";
+  private currentVideoKey = '';
+  private currentMediaPathOrUrl = '';
   private lastQueueWriteAtMs = 0;
-  private readonly telemetryInsertStmt: ReturnType<DatabaseSync["prepare"]>;
-  private readonly eventInsertStmt: ReturnType<DatabaseSync["prepare"]>;
+  private readonly telemetryInsertStmt: ReturnType<DatabaseSync['prepare']>;
+  private readonly eventInsertStmt: ReturnType<DatabaseSync['prepare']>;
 
   constructor(options: ImmersionTrackerOptions) {
     this.dbPath = options.dbPath;
@@ -200,18 +200,8 @@ export class ImmersionTrackerService {
     }
 
     const policy = options.policy ?? {};
-    this.queueCap = this.resolveBoundedInt(
-      policy.queueCap,
-      DEFAULT_QUEUE_CAP,
-      100,
-      100_000,
-    );
-    this.batchSize = this.resolveBoundedInt(
-      policy.batchSize,
-      DEFAULT_BATCH_SIZE,
-      1,
-      10_000,
-    );
+    this.queueCap = this.resolveBoundedInt(policy.queueCap, DEFAULT_QUEUE_CAP, 100, 100_000);
+    this.batchSize = this.resolveBoundedInt(policy.batchSize, DEFAULT_BATCH_SIZE, 1, 10_000);
     this.flushIntervalMs = this.resolveBoundedInt(
       policy.flushIntervalMs,
       DEFAULT_FLUSH_INTERVAL_MS,
@@ -232,36 +222,41 @@ export class ImmersionTrackerService {
     );
 
     const retention = policy.retention ?? {};
-    this.eventsRetentionMs = this.resolveBoundedInt(
-      retention.eventsDays,
-      Math.floor(DEFAULT_EVENTS_RETENTION_MS / 86_400_000),
-      1,
-      3650,
-    ) * 86_400_000;
-    this.telemetryRetentionMs = this.resolveBoundedInt(
-      retention.telemetryDays,
-      Math.floor(DEFAULT_TELEMETRY_RETENTION_MS / 86_400_000),
-      1,
-      3650,
-    ) * 86_400_000;
-    this.dailyRollupRetentionMs = this.resolveBoundedInt(
-      retention.dailyRollupsDays,
-      Math.floor(DEFAULT_DAILY_ROLLUP_RETENTION_MS / 86_400_000),
-      1,
-      36500,
-    ) * 86_400_000;
-    this.monthlyRollupRetentionMs = this.resolveBoundedInt(
-      retention.monthlyRollupsDays,
-      Math.floor(DEFAULT_MONTHLY_ROLLUP_RETENTION_MS / 86_400_000),
-      1,
-      36500,
-    ) * 86_400_000;
-    this.vacuumIntervalMs = this.resolveBoundedInt(
-      retention.vacuumIntervalDays,
-      Math.floor(DEFAULT_VACUUM_INTERVAL_MS / 86_400_000),
-      1,
-      3650,
-    ) * 86_400_000;
+    this.eventsRetentionMs =
+      this.resolveBoundedInt(
+        retention.eventsDays,
+        Math.floor(DEFAULT_EVENTS_RETENTION_MS / 86_400_000),
+        1,
+        3650,
+      ) * 86_400_000;
+    this.telemetryRetentionMs =
+      this.resolveBoundedInt(
+        retention.telemetryDays,
+        Math.floor(DEFAULT_TELEMETRY_RETENTION_MS / 86_400_000),
+        1,
+        3650,
+      ) * 86_400_000;
+    this.dailyRollupRetentionMs =
+      this.resolveBoundedInt(
+        retention.dailyRollupsDays,
+        Math.floor(DEFAULT_DAILY_ROLLUP_RETENTION_MS / 86_400_000),
+        1,
+        36500,
+      ) * 86_400_000;
+    this.monthlyRollupRetentionMs =
+      this.resolveBoundedInt(
+        retention.monthlyRollupsDays,
+        Math.floor(DEFAULT_MONTHLY_ROLLUP_RETENTION_MS / 86_400_000),
+        1,
+        36500,
+      ) * 86_400_000;
+    this.vacuumIntervalMs =
+      this.resolveBoundedInt(
+        retention.vacuumIntervalDays,
+        Math.floor(DEFAULT_VACUUM_INTERVAL_MS / 86_400_000),
+        1,
+        3650,
+      ) * 86_400_000;
     this.lastMaintenanceMs = Date.now();
 
     this.db = new DatabaseSync(this.dbPath);
@@ -327,10 +322,7 @@ export class ImmersionTrackerService {
     return prepared.all(limit) as unknown as SessionSummaryQueryRow[];
   }
 
-  async getSessionTimeline(
-    sessionId: number,
-    limit = 200,
-  ): Promise<SessionTimelineRow[]> {
+  async getSessionTimeline(sessionId: number, limit = 200): Promise<SessionTimelineRow[]> {
     const prepared = this.db.prepare(`
       SELECT
         sample_ms AS sampleMs,
@@ -352,11 +344,9 @@ export class ImmersionTrackerService {
     totalSessions: number;
     activeSessions: number;
   }> {
-    const sessions = this.db.prepare(
-      "SELECT COUNT(*) AS total FROM imm_sessions",
-    );
+    const sessions = this.db.prepare('SELECT COUNT(*) AS total FROM imm_sessions');
     const active = this.db.prepare(
-      "SELECT COUNT(*) AS total FROM imm_sessions WHERE ended_at_ms IS NULL",
+      'SELECT COUNT(*) AS total FROM imm_sessions WHERE ended_at_ms IS NULL',
     );
     const totalSessions = Number(sessions.get()?.total ?? 0);
     const activeSessions = Number(active.get()?.total ?? 0);
@@ -409,15 +399,15 @@ export class ImmersionTrackerService {
     const normalizedPath = this.normalizeMediaPath(mediaPath);
     const normalizedTitle = this.normalizeText(mediaTitle);
     this.logger.info(
-      `handleMediaChange called with path=${normalizedPath || "<empty>"} title=${normalizedTitle || "<empty>"}`,
+      `handleMediaChange called with path=${normalizedPath || '<empty>'} title=${normalizedTitle || '<empty>'}`,
     );
     if (normalizedPath === this.currentMediaPathOrUrl) {
       if (normalizedTitle && normalizedTitle !== this.currentVideoKey) {
         this.currentVideoKey = normalizedTitle;
         this.updateVideoTitleForActiveSession(normalizedTitle);
-        this.logger.debug("Media title updated for existing session");
+        this.logger.debug('Media title updated for existing session');
       } else {
-        this.logger.debug("Media change ignored; path unchanged");
+        this.logger.debug('Media change ignored; path unchanged');
       }
       return;
     }
@@ -425,16 +415,13 @@ export class ImmersionTrackerService {
     this.currentMediaPathOrUrl = normalizedPath;
     this.currentVideoKey = normalizedTitle;
     if (!normalizedPath) {
-      this.logger.info("Media path cleared; immersion session tracking paused");
+      this.logger.info('Media path cleared; immersion session tracking paused');
       return;
     }
 
-    const sourceType = this.isRemoteSource(normalizedPath)
-      ? SOURCE_TYPE_REMOTE
-      : SOURCE_TYPE_LOCAL;
+    const sourceType = this.isRemoteSource(normalizedPath) ? SOURCE_TYPE_REMOTE : SOURCE_TYPE_LOCAL;
     const videoKey = this.buildVideoKey(normalizedPath, sourceType);
-    const canonicalTitle =
-      normalizedTitle || this.deriveCanonicalTitle(normalizedPath);
+    const canonicalTitle = normalizedTitle || this.deriveCanonicalTitle(normalizedPath);
     const sourcePath = sourceType === SOURCE_TYPE_LOCAL ? normalizedPath : null;
     const sourceUrl = sourceType === SOURCE_TYPE_REMOTE ? normalizedPath : null;
 
@@ -452,11 +439,7 @@ export class ImmersionTrackerService {
       `Starting immersion session for path=${normalizedPath} videoId=${sessionInfo.videoId}`,
     );
     this.startSession(sessionInfo.videoId, sessionInfo.startedAtMs);
-    this.captureVideoMetadataAsync(
-      sessionInfo.videoId,
-      sourceType,
-      normalizedPath,
-    );
+    this.captureVideoMetadataAsync(sessionInfo.videoId, sourceType, normalizedPath);
   }
 
   handleMediaTitleUpdate(mediaTitle: string | null): void {
@@ -480,7 +463,7 @@ export class ImmersionTrackerService {
     this.sessionState.pendingTelemetry = true;
 
     this.recordWrite({
-      kind: "event",
+      kind: 'event',
       sessionId: this.sessionState.sessionId,
       sampleMs: Date.now(),
       lineIndex: this.sessionState.currentLineIndex,
@@ -490,7 +473,7 @@ export class ImmersionTrackerService {
       cardsDelta: 0,
       eventType: EVENT_SUBTITLE_LINE,
       payloadJson: this.sanitizePayload({
-        event: "subtitle-line",
+        event: 'subtitle-line',
         text: cleaned,
         words: metrics.words,
       }),
@@ -498,11 +481,7 @@ export class ImmersionTrackerService {
   }
 
   recordPlaybackPosition(mediaTimeSec: number | null): void {
-    if (
-      !this.sessionState ||
-      mediaTimeSec === null ||
-      !Number.isFinite(mediaTimeSec)
-    ) {
+    if (!this.sessionState || mediaTimeSec === null || !Number.isFinite(mediaTimeSec)) {
       return;
     }
     const nowMs = Date.now();
@@ -528,7 +507,7 @@ export class ImmersionTrackerService {
           this.sessionState.seekForwardCount += 1;
           this.sessionState.pendingTelemetry = true;
           this.recordWrite({
-            kind: "event",
+            kind: 'event',
             sessionId: this.sessionState.sessionId,
             sampleMs: nowMs,
             eventType: EVENT_SEEK_FORWARD,
@@ -545,7 +524,7 @@ export class ImmersionTrackerService {
           this.sessionState.seekBackwardCount += 1;
           this.sessionState.pendingTelemetry = true;
           this.recordWrite({
-            kind: "event",
+            kind: 'event',
             sessionId: this.sessionState.sessionId,
             sampleMs: nowMs,
             eventType: EVENT_SEEK_BACKWARD,
@@ -577,7 +556,7 @@ export class ImmersionTrackerService {
       this.sessionState.lastPauseStartMs = nowMs;
       this.sessionState.pauseCount += 1;
       this.recordWrite({
-        kind: "event",
+        kind: 'event',
         sessionId: this.sessionState.sessionId,
         sampleMs: nowMs,
         eventType: EVENT_PAUSE_START,
@@ -592,7 +571,7 @@ export class ImmersionTrackerService {
         this.sessionState.lastPauseStartMs = null;
       }
       this.recordWrite({
-        kind: "event",
+        kind: 'event',
         sessionId: this.sessionState.sessionId,
         sampleMs: nowMs,
         eventType: EVENT_PAUSE_END,
@@ -613,7 +592,7 @@ export class ImmersionTrackerService {
     }
     this.sessionState.pendingTelemetry = true;
     this.recordWrite({
-      kind: "event",
+      kind: 'event',
       sessionId: this.sessionState.sessionId,
       sampleMs: Date.now(),
       eventType: EVENT_LOOKUP,
@@ -630,7 +609,7 @@ export class ImmersionTrackerService {
     this.sessionState.cardsMined += count;
     this.sessionState.pendingTelemetry = true;
     this.recordWrite({
-      kind: "event",
+      kind: 'event',
       sessionId: this.sessionState.sessionId,
       sampleMs: Date.now(),
       eventType: EVENT_CARD_MINED,
@@ -645,7 +624,7 @@ export class ImmersionTrackerService {
     this.sessionState.mediaBufferEvents += 1;
     this.sessionState.pendingTelemetry = true;
     this.recordWrite({
-      kind: "event",
+      kind: 'event',
       sessionId: this.sessionState.sessionId,
       sampleMs: Date.now(),
       eventType: EVENT_MEDIA_BUFFER,
@@ -663,13 +642,11 @@ export class ImmersionTrackerService {
       const overflow = this.queue.length - this.queueCap + 1;
       this.queue.splice(0, overflow);
       this.droppedWriteCount += overflow;
-      this.logger.warn(
-        `Immersion tracker queue overflow; dropped ${overflow} oldest writes`,
-      );
+      this.logger.warn(`Immersion tracker queue overflow; dropped ${overflow} oldest writes`);
     }
     this.queue.push(write);
     this.lastQueueWriteAtMs = Date.now();
-    if (write.kind === "event" || this.queue.length >= this.batchSize) {
+    if (write.kind === 'event' || this.queue.length >= this.batchSize) {
       this.scheduleFlush(0);
     }
   }
@@ -679,7 +656,7 @@ export class ImmersionTrackerService {
       return;
     }
     this.recordWrite({
-      kind: "telemetry",
+      kind: 'telemetry',
       sessionId: this.sessionState.sessionId,
       sampleMs: Date.now(),
       totalWatchedMs: this.sessionState.totalWatchedMs,
@@ -721,24 +698,18 @@ export class ImmersionTrackerService {
       return;
     }
 
-    const batch = this.queue.splice(
-      0,
-      Math.min(this.batchSize, this.queue.length),
-    );
+    const batch = this.queue.splice(0, Math.min(this.batchSize, this.queue.length));
     this.writeLock.locked = true;
     try {
-      this.db.exec("BEGIN IMMEDIATE");
+      this.db.exec('BEGIN IMMEDIATE');
       for (const write of batch) {
         this.flushSingle(write);
       }
-      this.db.exec("COMMIT");
+      this.db.exec('COMMIT');
     } catch (error) {
-      this.db.exec("ROLLBACK");
+      this.db.exec('ROLLBACK');
       this.queue.unshift(...batch);
-      this.logger.warn(
-        "Immersion tracker flush failed, retrying later",
-        error as Error,
-      );
+      this.logger.warn('Immersion tracker flush failed, retrying later', error as Error);
     } finally {
       this.writeLock.locked = false;
       this.flushScheduled = false;
@@ -749,7 +720,7 @@ export class ImmersionTrackerService {
   }
 
   private flushSingle(write: QueuedWrite): void {
-    if (write.kind === "telemetry") {
+    if (write.kind === 'telemetry') {
       this.telemetryInsertStmt.run(
         write.sessionId,
         write.sampleMs!,
@@ -784,10 +755,10 @@ export class ImmersionTrackerService {
   }
 
   private applyPragmas(): void {
-    this.db.exec("PRAGMA journal_mode = WAL");
-    this.db.exec("PRAGMA synchronous = NORMAL");
-    this.db.exec("PRAGMA foreign_keys = ON");
-    this.db.exec("PRAGMA busy_timeout = 2500");
+    this.db.exec('PRAGMA journal_mode = WAL');
+    this.db.exec('PRAGMA synchronous = NORMAL');
+    this.db.exec('PRAGMA foreign_keys = ON');
+    this.db.exec('PRAGMA busy_timeout = 2500');
   }
 
   private ensureSchema(): void {
@@ -799,9 +770,7 @@ export class ImmersionTrackerService {
     `);
 
     const currentVersion = this.db
-      .prepare(
-        "SELECT schema_version FROM imm_schema_version ORDER BY schema_version DESC LIMIT 1",
-      )
+      .prepare('SELECT schema_version FROM imm_schema_version ORDER BY schema_version DESC LIMIT 1')
       .get() as { schema_version: number } | null;
     if (currentVersion?.schema_version === SCHEMA_VERSION) {
       return;
@@ -972,33 +941,23 @@ export class ImmersionTrackerService {
       const dayCutoff = Math.floor(dailyCutoff / 86_400_000);
       const monthCutoff = this.toMonthKey(monthlyCutoff);
 
+      this.db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(eventCutoff);
+      this.db.prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`).run(telemetryCutoff);
+      this.db.prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`).run(dayCutoff);
+      this.db.prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`).run(monthCutoff);
       this.db
-        .prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`)
-        .run(eventCutoff);
-      this.db
-        .prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`)
-        .run(telemetryCutoff);
-      this.db
-        .prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`)
-        .run(dayCutoff);
-      this.db
-        .prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`)
-        .run(monthCutoff);
-      this.db
-        .prepare(
-          `DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`,
-        )
+        .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
         .run(telemetryCutoff);
       this.runRollupMaintenance();
 
       if (nowMs - this.lastVacuumMs >= this.vacuumIntervalMs && !this.writeLock.locked) {
-        this.db.exec("VACUUM");
+        this.db.exec('VACUUM');
         this.lastVacuumMs = nowMs;
       }
       this.lastMaintenanceMs = nowMs;
     } catch (error) {
       this.logger.warn(
-        "Immersion tracker maintenance failed, will retry later",
+        'Immersion tracker maintenance failed, will retry later',
         (error as Error).message,
       );
     }
@@ -1096,7 +1055,7 @@ export class ImmersionTrackerService {
       pendingTelemetry: true,
     };
     this.recordWrite({
-      kind: "telemetry",
+      kind: 'telemetry',
       sessionId,
       sampleMs: nowMs,
       totalWatchedMs: 0,
@@ -1131,24 +1090,14 @@ export class ImmersionTrackerService {
         ) VALUES (?, ?, ?, ?, ?, ?)
       `,
       )
-      .run(
-        sessionUuid,
-        videoId,
-        startedAtMs,
-        SESSION_STATUS_ACTIVE,
-        startedAtMs,
-        startedAtMs,
-      );
+      .run(sessionUuid, videoId, startedAtMs, SESSION_STATUS_ACTIVE, startedAtMs, startedAtMs);
   }
 
   private finalizeActiveSession(): void {
     if (!this.sessionState) return;
     const endedAt = Date.now();
     if (this.sessionState.lastPauseStartMs) {
-      this.sessionState.pauseMs += Math.max(
-        0,
-        endedAt - this.sessionState.lastPauseStartMs,
-      );
+      this.sessionState.pauseMs += Math.max(0, endedAt - this.sessionState.lastPauseStartMs);
       this.sessionState.lastPauseStartMs = null;
     }
     const finalWallNow = endedAt;
@@ -1167,14 +1116,9 @@ export class ImmersionTrackerService {
 
     this.db
       .prepare(
-        "UPDATE imm_sessions SET ended_at_ms = ?, status = ?, updated_at_ms = ? WHERE session_id = ?",
+        'UPDATE imm_sessions SET ended_at_ms = ?, status = ?, updated_at_ms = ? WHERE session_id = ?',
       )
-      .run(
-        endedAt,
-        SESSION_STATUS_ENDED,
-        Date.now(),
-        this.sessionState.sessionId,
-      );
+      .run(endedAt, SESSION_STATUS_ENDED, Date.now(), this.sessionState.sessionId);
     this.sessionState = null;
   }
 
@@ -1188,18 +1132,12 @@ export class ImmersionTrackerService {
     },
   ): number {
     const existing = this.db
-      .prepare("SELECT video_id FROM imm_videos WHERE video_key = ?")
+      .prepare('SELECT video_id FROM imm_videos WHERE video_key = ?')
       .get(videoKey) as { video_id: number } | null;
     if (existing?.video_id) {
       this.db
-        .prepare(
-          "UPDATE imm_videos SET canonical_title = ?, updated_at_ms = ? WHERE video_id = ?",
-        )
-        .run(
-          details.canonicalTitle || "unknown",
-          Date.now(),
-          existing.video_id,
-        );
+        .prepare('UPDATE imm_videos SET canonical_title = ?, updated_at_ms = ? WHERE video_id = ?')
+        .run(details.canonicalTitle || 'unknown', Date.now(), existing.video_id);
       return existing.video_id;
     }
 
@@ -1214,7 +1152,7 @@ export class ImmersionTrackerService {
     `);
     const result = insert.run(
       videoKey,
-      details.canonicalTitle || "unknown",
+      details.canonicalTitle || 'unknown',
       details.sourceType,
       details.sourcePath,
       details.sourceUrl,
@@ -1276,28 +1214,19 @@ export class ImmersionTrackerService {
       );
   }
 
-  private captureVideoMetadataAsync(
-    videoId: number,
-    sourceType: number,
-    mediaPath: string,
-  ): void {
+  private captureVideoMetadataAsync(videoId: number, sourceType: number, mediaPath: string): void {
     if (sourceType !== SOURCE_TYPE_LOCAL) return;
     void (async () => {
       try {
         const metadata = await this.getLocalVideoMetadata(mediaPath);
         this.updateVideoMetadata(videoId, metadata);
       } catch (error) {
-        this.logger.warn(
-          "Unable to capture local video metadata",
-          (error as Error).message,
-        );
+        this.logger.warn('Unable to capture local video metadata', (error as Error).message);
       }
     })();
   }
 
-  private async getLocalVideoMetadata(
-    mediaPath: string,
-  ): Promise<VideoMetadata> {
+  private async getLocalVideoMetadata(mediaPath: string): Promise<VideoMetadata> {
     const hash = await this.computeSha256(mediaPath);
     const info = await this.runFfprobe(mediaPath);
     const stat = await fs.promises.stat(mediaPath);
@@ -1322,10 +1251,10 @@ export class ImmersionTrackerService {
   private async computeSha256(mediaPath: string): Promise<string | null> {
     return new Promise((resolve) => {
       const file = fs.createReadStream(mediaPath);
-      const digest = crypto.createHash("sha256");
-      file.on("data", (chunk) => digest.update(chunk));
-      file.on("end", () => resolve(digest.digest("hex")));
-      file.on("error", () => resolve(null));
+      const digest = crypto.createHash('sha256');
+      file.on('data', (chunk) => digest.update(chunk));
+      file.on('end', () => resolve(digest.digest('hex')));
+      file.on('error', () => resolve(null));
     });
   }
 
@@ -1340,28 +1269,28 @@ export class ImmersionTrackerService {
     audioCodecId: number | null;
   }> {
     return new Promise((resolve) => {
-      const child = spawn("ffprobe", [
-        "-v",
-        "error",
-        "-print_format",
-        "json",
-        "-show_entries",
-        "stream=codec_type,codec_tag_string,width,height,avg_frame_rate,bit_rate",
-        "-show_entries",
-        "format=duration,bit_rate",
+      const child = spawn('ffprobe', [
+        '-v',
+        'error',
+        '-print_format',
+        'json',
+        '-show_entries',
+        'stream=codec_type,codec_tag_string,width,height,avg_frame_rate,bit_rate',
+        '-show_entries',
+        'format=duration,bit_rate',
         mediaPath,
       ]);
 
-      let output = "";
-      let errorOutput = "";
-      child.stdout.on("data", (chunk) => {
-        output += chunk.toString("utf-8");
+      let output = '';
+      let errorOutput = '';
+      child.stdout.on('data', (chunk) => {
+        output += chunk.toString('utf-8');
       });
-      child.stderr.on("data", (chunk) => {
-        errorOutput += chunk.toString("utf-8");
+      child.stderr.on('data', (chunk) => {
+        errorOutput += chunk.toString('utf-8');
       });
-      child.on("error", () => resolve(this.emptyMetadata()));
-      child.on("close", () => {
+      child.on('error', () => resolve(this.emptyMetadata()));
+      child.on('close', () => {
         if (errorOutput && output.length === 0) {
           resolve(this.emptyMetadata());
           return;
@@ -1382,12 +1311,8 @@ export class ImmersionTrackerService {
 
           const durationText = parsed.format?.duration;
           const bitrateText = parsed.format?.bit_rate;
-          const durationMs = Number(durationText)
-            ? Math.round(Number(durationText) * 1000)
-            : null;
-          const bitrateKbps = Number(bitrateText)
-            ? Math.round(Number(bitrateText) / 1000)
-            : null;
+          const durationMs = Number(durationText) ? Math.round(Number(durationText) * 1000) : null;
+          const bitrateKbps = Number(bitrateText) ? Math.round(Number(bitrateText) / 1000) : null;
 
           let codecId: number | null = null;
           let containerId: number | null = null;
@@ -1397,14 +1322,14 @@ export class ImmersionTrackerService {
           let audioCodecId: number | null = null;
 
           for (const stream of parsed.streams ?? []) {
-            if (stream.codec_type === "video") {
+            if (stream.codec_type === 'video') {
               widthPx = this.toNullableInt(stream.width);
               heightPx = this.toNullableInt(stream.height);
               fpsX100 = this.parseFps(stream.avg_frame_rate);
               codecId = this.hashToCode(stream.codec_tag_string);
               containerId = 0;
             }
-            if (stream.codec_type === "audio") {
+            if (stream.codec_type === 'audio') {
               audioCodecId = this.hashToCode(stream.codec_tag_string);
               if (audioCodecId && audioCodecId > 0) {
                 break;
@@ -1452,8 +1377,8 @@ export class ImmersionTrackerService {
   }
 
   private parseFps(value?: string): number | null {
-    if (!value || typeof value !== "string") return null;
-    const [num, den] = value.split("/");
+    if (!value || typeof value !== 'string') return null;
+    const [num, den] = value.split('/');
     const n = Number(num);
     const d = Number(den);
     if (!Number.isFinite(n) || !Number.isFinite(d) || d === 0) return null;
@@ -1472,9 +1397,7 @@ export class ImmersionTrackerService {
 
   private sanitizePayload(payload: Record<string, unknown>): string {
     const json = JSON.stringify(payload);
-    return json.length <= this.maxPayloadBytes
-      ? json
-      : JSON.stringify({ truncated: true });
+    return json.length <= this.maxPayloadBytes ? json : JSON.stringify({ truncated: true });
   }
 
   private calculateTextMetrics(value: string): {
@@ -1494,13 +1417,13 @@ export class ImmersionTrackerService {
   }
 
   private normalizeMediaPath(mediaPath: string | null): string {
-    if (!mediaPath || !mediaPath.trim()) return "";
+    if (!mediaPath || !mediaPath.trim()) return '';
     return mediaPath.trim();
   }
 
   private normalizeText(value: string | null | undefined): string {
-    if (!value) return "";
-    return value.trim().replace(/\s+/g, " ");
+    if (!value) return '';
+    return value.trim().replace(/\s+/g, ' ');
   }
 
   private buildVideoKey(mediaPath: string, sourceType: number): string {
@@ -1518,33 +1441,30 @@ export class ImmersionTrackerService {
     if (this.isRemoteSource(mediaPath)) {
       try {
         const parsed = new URL(mediaPath);
-        const parts = parsed.pathname.split("/").filter(Boolean);
+        const parts = parsed.pathname.split('/').filter(Boolean);
         if (parts.length > 0) {
           const leaf = decodeURIComponent(parts[parts.length - 1]);
-          return this.normalizeText(leaf.replace(/\.[^/.]+$/, ""));
+          return this.normalizeText(leaf.replace(/\.[^/.]+$/, ''));
         }
-        return this.normalizeText(parsed.hostname) || "unknown";
+        return this.normalizeText(parsed.hostname) || 'unknown';
       } catch {
         return this.normalizeText(mediaPath);
       }
     }
 
     const filename = path.basename(mediaPath);
-    return this.normalizeText(filename.replace(/\.[^/.]+$/, ""));
+    return this.normalizeText(filename.replace(/\.[^/.]+$/, ''));
   }
 
   private toNullableInt(value: number | null | undefined): number | null {
-    if (value === null || value === undefined || !Number.isFinite(value))
-      return null;
+    if (value === null || value === undefined || !Number.isFinite(value)) return null;
     return value;
   }
 
   private updateVideoTitleForActiveSession(canonicalTitle: string): void {
     if (!this.sessionState) return;
     this.db
-      .prepare(
-        "UPDATE imm_videos SET canonical_title = ?, updated_at_ms = ? WHERE video_id = ?",
-      )
+      .prepare('UPDATE imm_videos SET canonical_title = ?, updated_at_ms = ? WHERE video_id = ?')
       .run(canonicalTitle, Date.now(), this.sessionState.videoId);
   }
 }

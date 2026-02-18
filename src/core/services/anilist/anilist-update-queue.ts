@@ -1,5 +1,5 @@
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs';
+import * as path from 'path';
 
 const INITIAL_BACKOFF_MS = 30_000;
 const MAX_BACKOFF_MS = 6 * 60 * 60 * 1000;
@@ -43,8 +43,7 @@ function ensureDir(filePath: string): void {
 }
 
 function clampBackoffMs(attemptCount: number): number {
-  const computed =
-    INITIAL_BACKOFF_MS * Math.pow(2, Math.max(0, attemptCount - 1));
+  const computed = INITIAL_BACKOFF_MS * Math.pow(2, Math.max(0, attemptCount - 1));
   return Math.min(MAX_BACKOFF_MS, computed);
 }
 
@@ -63,9 +62,9 @@ export function createAnilistUpdateQueue(
     try {
       ensureDir(filePath);
       const payload: AnilistRetryQueuePayload = { pending, deadLetter };
-      fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
+      fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
     } catch (error) {
-      logger.error("Failed to persist AniList retry queue.", error);
+      logger.error('Failed to persist AniList retry queue.', error);
     }
   };
 
@@ -74,42 +73,40 @@ export function createAnilistUpdateQueue(
       return;
     }
     try {
-      const raw = fs.readFileSync(filePath, "utf-8");
+      const raw = fs.readFileSync(filePath, 'utf-8');
       const parsed = JSON.parse(raw) as AnilistRetryQueuePayload;
       const parsedPending = Array.isArray(parsed.pending) ? parsed.pending : [];
-      const parsedDeadLetter = Array.isArray(parsed.deadLetter)
-        ? parsed.deadLetter
-        : [];
+      const parsedDeadLetter = Array.isArray(parsed.deadLetter) ? parsed.deadLetter : [];
       pending = parsedPending
         .filter(
           (item): item is AnilistQueuedUpdate =>
             item &&
-            typeof item.key === "string" &&
-            typeof item.title === "string" &&
-            typeof item.episode === "number" &&
+            typeof item.key === 'string' &&
+            typeof item.title === 'string' &&
+            typeof item.episode === 'number' &&
             item.episode > 0 &&
-            typeof item.createdAt === "number" &&
-            typeof item.attemptCount === "number" &&
-            typeof item.nextAttemptAt === "number" &&
-            (typeof item.lastError === "string" || item.lastError === null),
+            typeof item.createdAt === 'number' &&
+            typeof item.attemptCount === 'number' &&
+            typeof item.nextAttemptAt === 'number' &&
+            (typeof item.lastError === 'string' || item.lastError === null),
         )
         .slice(0, MAX_ITEMS);
       deadLetter = parsedDeadLetter
         .filter(
           (item): item is AnilistQueuedUpdate =>
             item &&
-            typeof item.key === "string" &&
-            typeof item.title === "string" &&
-            typeof item.episode === "number" &&
+            typeof item.key === 'string' &&
+            typeof item.title === 'string' &&
+            typeof item.episode === 'number' &&
             item.episode > 0 &&
-            typeof item.createdAt === "number" &&
-            typeof item.attemptCount === "number" &&
-            typeof item.nextAttemptAt === "number" &&
-            (typeof item.lastError === "string" || item.lastError === null),
+            typeof item.createdAt === 'number' &&
+            typeof item.attemptCount === 'number' &&
+            typeof item.nextAttemptAt === 'number' &&
+            (typeof item.lastError === 'string' || item.lastError === null),
         )
         .slice(0, MAX_ITEMS);
     } catch (error) {
-      logger.error("Failed to load AniList retry queue.", error);
+      logger.error('Failed to load AniList retry queue.', error);
     }
   };
 
@@ -166,7 +163,7 @@ export function createAnilistUpdateQueue(
           ...item,
           nextAttemptAt: nowMs,
         });
-        logger.warn("AniList retry moved to dead-letter queue.", {
+        logger.warn('AniList retry moved to dead-letter queue.', {
           key,
           reason,
           attempts: item.attemptCount,
@@ -176,7 +173,7 @@ export function createAnilistUpdateQueue(
       }
       item.nextAttemptAt = nowMs + clampBackoffMs(item.attemptCount);
       persist();
-      logger.warn("AniList retry scheduled with backoff.", {
+      logger.warn('AniList retry scheduled with backoff.', {
         key,
         attemptCount: item.attemptCount,
         nextAttemptAt: item.nextAttemptAt,
@@ -185,9 +182,7 @@ export function createAnilistUpdateQueue(
     },
 
     getSnapshot(nowMs: number = Date.now()): AnilistRetryQueueSnapshot {
-      const ready = pending.filter(
-        (item) => item.nextAttemptAt <= nowMs,
-      ).length;
+      const ready = pending.filter((item) => item.nextAttemptAt <= nowMs).length;
       return {
         pending: pending.length,
         ready,

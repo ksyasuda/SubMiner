@@ -1,10 +1,10 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { printHelp } from "./help";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { printHelp } from './help';
 
-test("printHelp includes configured texthooker port", () => {
+test('printHelp includes configured texthooker port', () => {
   const original = console.log;
-  let output = "";
+  let output = '';
   console.log = (value?: unknown) => {
     output += String(value);
   };

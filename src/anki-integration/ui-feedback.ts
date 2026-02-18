@@ -1,4 +1,4 @@
-import { NotificationOptions } from "../types";
+import { NotificationOptions } from '../types';
 
 export interface UiFeedbackState {
   progressDepth: number;
@@ -22,7 +22,7 @@ export function createUiFeedbackState(): UiFeedbackState {
   return {
     progressDepth: 0,
     progressTimer: null,
-    progressMessage: "",
+    progressMessage: '',
     progressFrame: 0,
   };
 }
@@ -31,14 +31,14 @@ export function showStatusNotification(
   message: string,
   context: UiFeedbackNotificationContext,
 ): void {
-  const type = context.getNotificationType() || "osd";
+  const type = context.getNotificationType() || 'osd';
 
-  if (type === "osd" || type === "both") {
+  if (type === 'osd' || type === 'both') {
     context.showOsd(message);
   }
 
-  if (type === "system" || type === "both") {
-    context.showSystemNotification("SubMiner", { body: message });
+  if (type === 'system' || type === 'both') {
+    context.showSystemNotification('SubMiner', { body: message });
   }
 }
 
@@ -54,9 +54,7 @@ export function beginUpdateProgress(
   state.progressFrame = 0;
   showProgressTick(`${state.progressMessage}`);
   state.progressTimer = setInterval(() => {
-    showProgressTick(
-      `${state.progressMessage} ${["|", "/", "-", "\\"][state.progressFrame % 4]}`,
-    );
+    showProgressTick(`${state.progressMessage} ${['|', '/', '-', '\\'][state.progressFrame % 4]}`);
     state.progressFrame += 1;
   }, 180);
 }
@@ -72,7 +70,7 @@ export function endUpdateProgress(
     clearProgressTimer(state.progressTimer);
     state.progressTimer = null;
   }
-  state.progressMessage = "";
+  state.progressMessage = '';
   state.progressFrame = 0;
 }
 
@@ -81,7 +79,7 @@ export function showProgressTick(
   showOsdNotification: (text: string) => void,
 ): void {
   if (!state.progressMessage) return;
-  const frames = ["|", "/", "-", "\\"];
+  const frames = ['|', '/', '-', '\\'];
   const frame = frames[state.progressFrame % frames.length];
   state.progressFrame += 1;
   showOsdNotification(`${state.progressMessage} ${frame}`);

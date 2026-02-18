@@ -1,14 +1,14 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import test from 'node:test';
+import assert from 'node:assert/strict';
 import {
   playNextSubtitleRuntime,
   replayCurrentSubtitleRuntime,
   sendMpvCommandRuntime,
   setMpvSubVisibilityRuntime,
   showMpvOsdRuntime,
-} from "./mpv";
+} from './mpv';
 
-test("showMpvOsdRuntime sends show-text when connected", () => {
+test('showMpvOsdRuntime sends show-text when connected', () => {
   const commands: (string | number)[][] = [];
   showMpvOsdRuntime(
     {
@@ -17,38 +17,38 @@ test("showMpvOsdRuntime sends show-text when connected", () => {
         commands.push(command);
       },
     },
-    "hello",
+    'hello',
   );
-  assert.deepEqual(commands, [["show-text", "hello", "3000"]]);
+  assert.deepEqual(commands, [['show-text', 'hello', '3000']]);
 });
 
-test("showMpvOsdRuntime logs fallback when disconnected", () => {
+test('showMpvOsdRuntime logs fallback when disconnected', () => {
   const logs: string[] = [];
   showMpvOsdRuntime(
     {
       connected: false,
       send: () => {},
     },
-    "hello",
+    'hello',
     (line) => {
       logs.push(line);
     },
   );
-  assert.deepEqual(logs, ["OSD (MPV not connected): hello"]);
+  assert.deepEqual(logs, ['OSD (MPV not connected): hello']);
 });
 
-test("mpv runtime command wrappers call expected client methods", () => {
+test('mpv runtime command wrappers call expected client methods', () => {
   const calls: string[] = [];
   const client = {
     connected: true,
     send: ({ command }: { command: (string | number)[] }) => {
-      calls.push(`send:${command.join(",")}`);
+      calls.push(`send:${command.join(',')}`);
     },
     replayCurrentSubtitle: () => {
-      calls.push("replay");
+      calls.push('replay');
     },
     playNextSubtitle: () => {
-      calls.push("next");
+      calls.push('next');
     },
     setSubVisibility: (visible: boolean) => {
       calls.push(`subVisible:${visible}`);
@@ -57,13 +57,8 @@ test("mpv runtime command wrappers call expected client methods", () => {
 
   replayCurrentSubtitleRuntime(client);
   playNextSubtitleRuntime(client);
-  sendMpvCommandRuntime(client, ["script-message", "x"]);
+  sendMpvCommandRuntime(client, ['script-message', 'x']);
   setMpvSubVisibilityRuntime(client, false);
 
-  assert.deepEqual(calls, [
-    "replay",
-    "next",
-    "send:script-message,x",
-    "subVisible:false",
-  ]);
+  assert.deepEqual(calls, ['replay', 'next', 'send:script-message,x', 'subVisible:false']);
 });

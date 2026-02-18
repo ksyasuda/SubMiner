@@ -24,11 +24,15 @@ ordinal: 40000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Reduce main.ts complexity by extracting bootstrap, lifecycle, overlay, IPC, and CLI wiring into explicit modules while keeping runtime behavior unchanged.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Create modules under src/main/ for bootstrap/lifecycle/ipc/overlay/cli concerns.
 - [x] #2 main.ts no longer owns session-specific business state; it only composes services and starts the app.
 - [ ] #3 Public service behavior, startup order, and flags remain unchanged, validated by existing integration/manual smoke checks.
@@ -40,6 +44,7 @@ Reduce main.ts complexity by extracting bootstrap, lifecycle, overlay, IPC, and 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 ## Dependency Context
 
 **TASK-7 is a hard prerequisite.** main.ts currently has 30+ module-level `let` declarations (mpvClient, yomitanExt, reconnectTimer, currentSubText, subtitlePosition, keybindings, ankiIntegration, secondarySubMode, etc.). Splitting main.ts into src/main/ submodules without first consolidating this state into a typed AppState container would scatter mutable state across files, making data flow even harder to trace.
@@ -49,10 +54,12 @@ Reduce main.ts complexity by extracting bootstrap, lifecycle, overlay, IPC, and 
 **Sequencing note:** This task should run AFTER TASK-27.3 (anki-integration split) completes, because AnkiIntegration is instantiated and heavily wired in main.ts. Changing both the composition root and the Anki facade simultaneously creates integration risk. Let 27.3 stabilize the Anki module boundaries first, then split main.ts around the stable API.
 
 ## Folded-in work from TASK-9 and TASK-10
+
 TASK-9 (remove trivial wrappers) and TASK-10 (naming conventions) have been deprioritized to low. Their scope is largely subsumed by this task:
+
 - When main.ts is split into composition-root modules, trivial wrappers will naturally be eliminated or inlined at each module boundary.
 - Naming conventions should be standardized per-module as they are extracted, not as a separate global pass.
-Refer to TASK-9 and TASK-10 acceptance criteria as checklists during execution of this task.
+  Refer to TASK-9 and TASK-10 acceptance criteria as checklists during execution of this task.
 
 Deferred until TASK-7 validation and TASK-27.3 completion to avoid import-order/state scattering during composition-root extraction.
 
@@ -91,10 +98,13 @@ TASK-27.2 refactor is now complete for composition-root extraction path: startup
 Updated `src/main/state.ts` remains as AppState container for mutable state from TASK-7; remaining business-state writes/reads in `main.ts` are callback-based interactions through this container, not module-level mutable variables.
 
 Per build validation after each chunk, `pnpm build` has been passing.
+
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Refactored IPC runtime registration in `main.ts` to pass `ankiJimaku` deps through `createAnkiJimakuIpcRuntimeServiceDeps(...)` and removed the bespoke `buildIpcRuntimeServicesParams()` helper; registration remains in `main.ts` via `registerIpcRuntimeServices({ ... })` with shared runtime service builders.
+
 <!-- SECTION:FINAL_SUMMARY:END -->

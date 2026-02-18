@@ -15,11 +15,15 @@ ordinal: 35000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add user/config setting to enable JLPT tagging, wire the feature toggle through subtitle processing/rendering, and add tests/verification for positive match, non-match, and disabled-mode behavior.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 JLPT tagging is opt-in and defaults to disabled.
 - [x] #2 When disabled, lookup/rendering pipeline does not execute JLPT processing.
 - [x] #3 When enabled, end-to-end flow tags subtitle words via token-level lookup and rendering.
@@ -27,6 +31,8 @@ Add user/config setting to enable JLPT tagging, wire the feature toggle through 
 <!-- AC:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [x] #1 End-to-end option behavior and opt-in state persistence are implemented and verified.
 <!-- DOD:END -->

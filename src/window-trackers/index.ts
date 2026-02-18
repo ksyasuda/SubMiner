@@ -16,32 +16,32 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { BaseWindowTracker } from "./base-tracker";
-import { HyprlandWindowTracker } from "./hyprland-tracker";
-import { SwayWindowTracker } from "./sway-tracker";
-import { X11WindowTracker } from "./x11-tracker";
-import { MacOSWindowTracker } from "./macos-tracker";
-import { createLogger } from "../logger";
+import { BaseWindowTracker } from './base-tracker';
+import { HyprlandWindowTracker } from './hyprland-tracker';
+import { SwayWindowTracker } from './sway-tracker';
+import { X11WindowTracker } from './x11-tracker';
+import { MacOSWindowTracker } from './macos-tracker';
+import { createLogger } from '../logger';
 
-const log = createLogger("tracker");
+const log = createLogger('tracker');
 
-export type Compositor = "hyprland" | "sway" | "x11" | "macos" | null;
-export type Backend = "auto" | Exclude<Compositor, null>;
+export type Compositor = 'hyprland' | 'sway' | 'x11' | 'macos' | null;
+export type Backend = 'auto' | Exclude<Compositor, null>;
 
 export function detectCompositor(): Compositor {
-  if (process.platform === "darwin") return "macos";
-  if (process.env.HYPRLAND_INSTANCE_SIGNATURE) return "hyprland";
-  if (process.env.SWAYSOCK) return "sway";
-  if (process.platform === "linux") return "x11";
+  if (process.platform === 'darwin') return 'macos';
+  if (process.env.HYPRLAND_INSTANCE_SIGNATURE) return 'hyprland';
+  if (process.env.SWAYSOCK) return 'sway';
+  if (process.platform === 'linux') return 'x11';
   return null;
 }
 
 function normalizeCompositor(value: string): Compositor | null {
   const normalized = value.trim().toLowerCase();
-  if (normalized === "hyprland") return "hyprland";
-  if (normalized === "sway") return "sway";
-  if (normalized === "x11") return "x11";
-  if (normalized === "macos") return "macos";
+  if (normalized === 'hyprland') return 'hyprland';
+  if (normalized === 'sway') return 'sway';
+  if (normalized === 'x11') return 'x11';
+  if (normalized === 'macos') return 'macos';
   return null;
 }
 
@@ -51,31 +51,27 @@ export function createWindowTracker(
 ): BaseWindowTracker | null {
   let compositor = detectCompositor();
 
-  if (override && override !== "auto") {
+  if (override && override !== 'auto') {
     const normalized = normalizeCompositor(override);
     if (normalized) {
       compositor = normalized;
     } else {
-      log.warn(
-        `Unsupported backend override "${override}", falling back to auto.`,
-      );
+      log.warn(`Unsupported backend override "${override}", falling back to auto.`);
     }
   }
-  log.info(`Detected compositor: ${compositor || "none"}`);
+  log.info(`Detected compositor: ${compositor || 'none'}`);
 
   switch (compositor) {
-    case "hyprland":
-      return new HyprlandWindowTracker(
-        targetMpvSocketPath?.trim() || undefined,
-      );
-    case "sway":
+    case 'hyprland':
+      return new HyprlandWindowTracker(targetMpvSocketPath?.trim() || undefined);
+    case 'sway':
       return new SwayWindowTracker(targetMpvSocketPath?.trim() || undefined);
-    case "x11":
+    case 'x11':
       return new X11WindowTracker(targetMpvSocketPath?.trim() || undefined);
-    case "macos":
+    case 'macos':
       return new MacOSWindowTracker(targetMpvSocketPath?.trim() || undefined);
     default:
-      log.warn("No supported compositor detected. Window tracking disabled.");
+      log.warn('No supported compositor detected. Window tracking disabled.');
       return null;
   }
 }

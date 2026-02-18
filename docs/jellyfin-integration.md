@@ -32,8 +32,8 @@ SubMiner includes an optional Jellyfin CLI integration for:
     "iconCacheDir": "/tmp/subminer-jellyfin-icons",
     "directPlayPreferred": true,
     "directPlayContainers": ["mkv", "mp4", "webm", "mov", "flac", "mp3", "aac"],
-    "transcodeVideoCodec": "h264"
-  }
+    "transcodeVideoCodec": "h264",
+  },
 }
 ```
 

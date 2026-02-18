@@ -20,6 +20,7 @@ priority: low
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 main.ts contains many trivial single-line wrapper functions that add indirection without value:
 
 ```typescript
@@ -37,10 +38,13 @@ function ensureOverlayWindowLevel(window: BrowserWindow): void {
 Similarly, config accessor wrappers like `getJimakuLanguagePreference()`, `getJimakuMaxEntryResults()`, `resolveJimakuApiKey()` are pure boilerplate.
 
 After TASK-7 (AppState container), many of these can be eliminated by having services access the state container directly, or by using the service functions directly at call sites without local wrappers.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Trivial pass-through wrappers eliminated (call service/manager directly)
 - [ ] #2 Config accessor wrappers replaced with direct calls or a config accessor helper
 - [ ] #3 main.ts line count reduced
@@ -50,11 +54,15 @@ After TASK-7 (AppState container), many of these can be eliminated by having ser
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Priority changed from medium to low: this work is largely subsumed by TASK-27.2 (split main.ts). When main.ts is decomposed into composition-root modules, trivial wrappers will naturally be eliminated or inlined. Recommend folding remaining wrapper cleanup into TASK-27.2 rather than tracking separately. Keep this ticket as a checklist reference but don't execute independently.
+
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Subsumed by TASK-27.2 (main.ts split). Trivial wrappers were eliminated or inlined as composition-root modules were extracted. main.ts reduced from ~2000+ LOC to 1384 with state routed through appState container. Standalone wrapper removal pass no longer needed.
+
 <!-- SECTION:FINAL_SUMMARY:END -->

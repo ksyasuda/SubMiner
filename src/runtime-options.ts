@@ -22,8 +22,8 @@ import {
   RuntimeOptionId,
   RuntimeOptionState,
   RuntimeOptionValue,
-} from "./types";
-import { RUNTIME_OPTION_REGISTRY, RuntimeOptionRegistryEntry } from "./config";
+} from './types';
+import { RUNTIME_OPTION_REGISTRY, RuntimeOptionRegistryEntry } from './config';
 
 type RuntimeOverrides = Record<string, unknown>;
 
@@ -32,10 +32,10 @@ function deepClone<T>(value: T): T {
 }
 
 function getPathValue(source: Record<string, unknown>, path: string): unknown {
-  const parts = path.split(".");
+  const parts = path.split('.');
   let current: unknown = source;
   for (const part of parts) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
       return undefined;
     }
     current = (current as Record<string, unknown>)[part];
@@ -43,12 +43,8 @@ function getPathValue(source: Record<string, unknown>, path: string): unknown {
   return current;
 }
 
-function setPathValue(
-  target: Record<string, unknown>,
-  path: string,
-  value: unknown,
-): void {
-  const parts = path.split(".");
+function setPathValue(target: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = path.split('.');
   let current = target;
   for (let i = 0; i < parts.length; i += 1) {
     const part = parts[i];
@@ -59,16 +55,14 @@ function setPathValue(
     }
 
     const next = current[part];
-    if (!next || typeof next !== "object" || Array.isArray(next)) {
+    if (!next || typeof next !== 'object' || Array.isArray(next)) {
       current[part] = {};
     }
     current = current[part] as Record<string, unknown>;
   }
 }
 
-function allowedValues(
-  definition: RuntimeOptionRegistryEntry,
-): RuntimeOptionValue[] {
+function allowedValues(definition: RuntimeOptionRegistryEntry): RuntimeOptionValue[] {
   return [...definition.allowedValues];
 }
 
@@ -76,10 +70,10 @@ function isAllowedValue(
   definition: RuntimeOptionRegistryEntry,
   value: RuntimeOptionValue,
 ): boolean {
-  if (definition.valueType === "boolean") {
-    return typeof value === "boolean";
+  if (definition.valueType === 'boolean') {
+    return typeof value === 'boolean';
   }
-  return typeof value === "string" && definition.allowedValues.includes(value);
+  return typeof value === 'string' && definition.allowedValues.includes(value);
 }
 
 export class RuntimeOptionsManager {
@@ -87,10 +81,7 @@ export class RuntimeOptionsManager {
   private readonly applyAnkiPatch: (patch: Partial<AnkiConnectConfig>) => void;
   private readonly onOptionsChanged: (options: RuntimeOptionState[]) => void;
   private runtimeOverrides: RuntimeOverrides = {};
-  private readonly definitions = new Map<
-    RuntimeOptionId,
-    RuntimeOptionRegistryEntry
-  >();
+  private readonly definitions = new Map<RuntimeOptionId, RuntimeOptionRegistryEntry>();
 
   constructor(
     getAnkiConfig: () => AnkiConnectConfig,
@@ -107,9 +98,7 @@ export class RuntimeOptionsManager {
     }
   }
 
-  private getEffectiveValue(
-    definition: RuntimeOptionRegistryEntry,
-  ): RuntimeOptionValue {
+  private getEffectiveValue(definition: RuntimeOptionRegistryEntry): RuntimeOptionValue {
     const override = getPathValue(this.runtimeOverrides, definition.path);
     if (override !== undefined) return override as RuntimeOptionValue;
 
@@ -146,10 +135,7 @@ export class RuntimeOptionsManager {
     return this.getEffectiveValue(definition);
   }
 
-  setOptionValue(
-    id: RuntimeOptionId,
-    value: RuntimeOptionValue,
-  ): RuntimeOptionApplyResult {
+  setOptionValue(id: RuntimeOptionId, value: RuntimeOptionValue): RuntimeOptionApplyResult {
     const definition = this.definitions.get(id);
     if (!definition) {
       return { ok: false, error: `Unknown runtime option: ${id}` };
@@ -184,10 +170,7 @@ export class RuntimeOptionsManager {
     };
   }
 
-  cycleOption(
-    id: RuntimeOptionId,
-    direction: 1 | -1,
-  ): RuntimeOptionApplyResult {
+  cycleOption(id: RuntimeOptionId, direction: 1 | -1): RuntimeOptionApplyResult {
     const definition = this.definitions.get(id);
     if (!definition) {
       return { ok: false, error: `Unknown runtime option: ${id}` };
@@ -208,9 +191,7 @@ export class RuntimeOptionsManager {
     return this.setOptionValue(id, values[nextIndex]);
   }
 
-  getEffectiveAnkiConnectConfig(
-    baseConfig?: AnkiConnectConfig,
-  ): AnkiConnectConfig {
+  getEffectiveAnkiConnectConfig(baseConfig?: AnkiConnectConfig): AnkiConnectConfig {
     const source = baseConfig ?? this.getAnkiConfig();
     const effective: AnkiConnectConfig = deepClone(source);
 
@@ -218,12 +199,8 @@ export class RuntimeOptionsManager {
       const override = getPathValue(this.runtimeOverrides, definition.path);
       if (override === undefined) continue;
 
-      const subPath = definition.path.replace(/^ankiConnect\./, "");
-      setPathValue(
-        effective as unknown as Record<string, unknown>,
-        subPath,
-        override,
-      );
+      const subPath = definition.path.replace(/^ankiConnect\./, '');
+      setPathValue(effective as unknown as Record<string, unknown>, subPath, override);
     }
 
     return effective;
