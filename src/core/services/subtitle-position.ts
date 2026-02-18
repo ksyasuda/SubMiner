@@ -19,18 +19,20 @@ export interface CycleSecondarySubModeDeps {
 const SECONDARY_SUB_CYCLE: SecondarySubMode[] = ["hidden", "visible", "hover"];
 const SECONDARY_SUB_TOGGLE_DEBOUNCE_MS = 120;
 
-export function cycleSecondarySubMode(
-  deps: CycleSecondarySubModeDeps,
-): void {
+export function cycleSecondarySubMode(deps: CycleSecondarySubModeDeps): void {
   const now = deps.now ? deps.now() : Date.now();
-  if (now - deps.getLastSecondarySubToggleAtMs() < SECONDARY_SUB_TOGGLE_DEBOUNCE_MS) {
+  if (
+    now - deps.getLastSecondarySubToggleAtMs() <
+    SECONDARY_SUB_TOGGLE_DEBOUNCE_MS
+  ) {
     return;
   }
   deps.setLastSecondarySubToggleAtMs(now);
 
   const currentMode = deps.getSecondarySubMode();
   const currentIndex = SECONDARY_SUB_CYCLE.indexOf(currentMode);
-  const nextMode = SECONDARY_SUB_CYCLE[(currentIndex + 1) % SECONDARY_SUB_CYCLE.length];
+  const nextMode =
+    SECONDARY_SUB_CYCLE[(currentIndex + 1) % SECONDARY_SUB_CYCLE.length];
   deps.setSecondarySubMode(nextMode);
   deps.broadcastSecondarySubMode(nextMode);
   deps.showMpvOsd(`Secondary subtitle: ${nextMode}`);
@@ -89,10 +91,12 @@ function persistSubtitlePosition(
   fs.writeFileSync(positionPath, JSON.stringify(position, null, 2));
 }
 
-export function loadSubtitlePosition(options: {
-  currentMediaPath: string | null;
-  fallbackPosition: SubtitlePosition;
-} & { subtitlePositionsDir: string }): SubtitlePosition | null {
+export function loadSubtitlePosition(
+  options: {
+    currentMediaPath: string | null;
+    fallbackPosition: SubtitlePosition;
+  } & { subtitlePositionsDir: string },
+): SubtitlePosition | null {
   if (!options.currentMediaPath) {
     return options.fallbackPosition;
   }
@@ -187,7 +191,7 @@ export function updateCurrentMediaPath(options: {
       );
       options.setSubtitlePosition(options.pendingSubtitlePosition);
       options.clearPendingSubtitlePosition();
-  } catch (err) {
+    } catch (err) {
       logger.error(
         "Failed to persist queued subtitle position:",
         (err as Error).message,

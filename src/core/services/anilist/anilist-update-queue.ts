@@ -43,7 +43,8 @@ function ensureDir(filePath: string): void {
 }
 
 function clampBackoffMs(attemptCount: number): number {
-  const computed = INITIAL_BACKOFF_MS * Math.pow(2, Math.max(0, attemptCount - 1));
+  const computed =
+    INITIAL_BACKOFF_MS * Math.pow(2, Math.max(0, attemptCount - 1));
   return Math.min(MAX_BACKOFF_MS, computed);
 }
 
@@ -184,7 +185,9 @@ export function createAnilistUpdateQueue(
     },
 
     getSnapshot(nowMs: number = Date.now()): AnilistRetryQueueSnapshot {
-      const ready = pending.filter((item) => item.nextAttemptAt <= nowMs).length;
+      const ready = pending.filter(
+        (item) => item.nextAttemptAt <= nowMs,
+      ).length;
       return {
         pending: pending.length,
         ready,

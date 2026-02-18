@@ -74,7 +74,10 @@ export function applyPlatformFontCompensation(
 function calculateGeometry(
   metrics: MpvSubtitleRenderMetrics,
   osdToCssScale: number,
-): Omit<SubtitleLayoutGeometry, "marginY" | "marginX" | "pxPerScaledPixel" | "effectiveFontSize"> {
+): Omit<
+  SubtitleLayoutGeometry,
+  "marginY" | "marginX" | "pxPerScaledPixel" | "effectiveFontSize"
+> {
   const dims = metrics.osdDimensions;
   const renderAreaHeight = dims ? dims.h / osdToCssScale : window.innerHeight;
   const renderAreaWidth = dims ? dims.w / osdToCssScale : window.innerWidth;
@@ -88,7 +91,10 @@ function calculateGeometry(
   const rightInset = anchorToVideoArea ? videoRightInset : 0;
   const topInset = anchorToVideoArea ? videoTopInset : 0;
   const bottomInset = anchorToVideoArea ? videoBottomInset : 0;
-  const horizontalAvailable = Math.max(0, renderAreaWidth - leftInset - rightInset);
+  const horizontalAvailable = Math.max(
+    0,
+    renderAreaWidth - leftInset - rightInset,
+  );
 
   return {
     renderAreaHeight,
@@ -113,11 +119,16 @@ export function calculateSubtitleMetrics(
     window.devicePixelRatio || 1,
   );
   const geometry = calculateGeometry(metrics, osdToCssScale);
-  const videoHeight = geometry.renderAreaHeight - geometry.topInset - geometry.bottomInset;
-  const scaleRefHeight = metrics.subScaleByWindow ? geometry.renderAreaHeight : videoHeight;
+  const videoHeight =
+    geometry.renderAreaHeight - geometry.topInset - geometry.bottomInset;
+  const scaleRefHeight = metrics.subScaleByWindow
+    ? geometry.renderAreaHeight
+    : videoHeight;
   const pxPerScaledPixel = Math.max(0.1, scaleRefHeight / 720);
   const computedFontSize =
-    metrics.subFontSize * metrics.subScale * (ctx.platform.isLinuxPlatform ? 1 : pxPerScaledPixel);
+    metrics.subFontSize *
+    metrics.subScale *
+    (ctx.platform.isLinuxPlatform ? 1 : pxPerScaledPixel);
   const effectiveFontSize = applyPlatformFontCompensation(
     computedFontSize,
     ctx.platform.isMacOSPlatform,

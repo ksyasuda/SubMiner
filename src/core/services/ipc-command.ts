@@ -72,8 +72,12 @@ export async function runSubsyncManualFromIpc(
     isSubsyncInProgress: () => boolean;
     setSubsyncInProgress: (inProgress: boolean) => void;
     showMpvOsd: (text: string) => void;
-    runWithSpinner: (task: () => Promise<SubsyncResult>) => Promise<SubsyncResult>;
-    runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
+    runWithSpinner: (
+      task: () => Promise<SubsyncResult>,
+    ) => Promise<SubsyncResult>;
+    runSubsyncManual: (
+      request: SubsyncManualRunRequest,
+    ) => Promise<SubsyncResult>;
   },
 ): Promise<SubsyncResult> {
   if (options.isSubsyncInProgress()) {

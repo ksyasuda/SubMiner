@@ -14,6 +14,7 @@ import type { SubtitleTimingTracker } from "../subtitle-timing-tracker";
 import type { AnkiIntegration } from "../anki-integration";
 import type { ImmersionTrackerService } from "../core/services";
 import type { MpvIpcClient } from "../core/services";
+import type { JellyfinRemoteSessionService } from "../core/services";
 import { DEFAULT_MPV_SUBTITLE_RENDER_METRICS } from "../core/services";
 import type { RuntimeOptionsManager } from "../runtime-options";
 import type { MecabTokenizer } from "../mecab-tokenizer";
@@ -40,9 +41,11 @@ export interface AppState {
   yomitanSettingsWindow: BrowserWindow | null;
   yomitanParserWindow: BrowserWindow | null;
   anilistSetupWindow: BrowserWindow | null;
+  jellyfinSetupWindow: BrowserWindow | null;
   yomitanParserReadyPromise: Promise<void> | null;
   yomitanParserInitPromise: Promise<boolean> | null;
   mpvClient: MpvIpcClient | null;
+  jellyfinRemoteSession: JellyfinRemoteSessionService | null;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   currentSubText: string;
   currentSubAssText: string;
@@ -104,9 +107,11 @@ export function createAppState(values: AppStateInitialValues): AppState {
     yomitanSettingsWindow: null,
     yomitanParserWindow: null,
     anilistSetupWindow: null,
+    jellyfinSetupWindow: null,
     yomitanParserReadyPromise: null,
     yomitanParserInitPromise: null,
     mpvClient: null,
+    jellyfinRemoteSession: null,
     reconnectTimer: null,
     currentSubText: "",
     currentSubAssText: "",

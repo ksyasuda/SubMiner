@@ -26,7 +26,8 @@ export function createSubsyncModal(
       option.textContent = track.label;
       ctx.dom.subsyncSourceSelect.appendChild(option);
     }
-    ctx.dom.subsyncSourceSelect.disabled = ctx.state.subsyncSourceTracks.length === 0;
+    ctx.dom.subsyncSourceSelect.disabled =
+      ctx.state.subsyncSourceTracks.length === 0;
   }
 
   function closeSubsyncModal(): void {
@@ -39,7 +40,10 @@ export function createSubsyncModal(
     ctx.dom.subsyncModal.setAttribute("aria-hidden", "true");
     window.electronAPI.notifyOverlayModalClosed("subsync");
 
-    if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
+    if (
+      !ctx.state.isOverSubtitle &&
+      !options.modalStateReader.isAnyModalOpen()
+    ) {
       ctx.dom.overlay.classList.remove("interactive");
     }
   }

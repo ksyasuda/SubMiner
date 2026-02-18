@@ -1,8 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  runStartupBootstrapRuntime,
-} from "./startup";
+import { runStartupBootstrapRuntime } from "./startup";
 import { CliArgs } from "../../cli/args";
 
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
@@ -34,6 +32,15 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     anilistLogout: false,
     anilistSetup: false,
     anilistRetryQueue: false,
+    jellyfin: false,
+    jellyfinLogin: false,
+    jellyfinLogout: false,
+    jellyfinLibraries: false,
+    jellyfinItems: false,
+    jellyfinSubtitles: false,
+    jellyfinSubtitleUrlsOnly: false,
+    jellyfinPlay: false,
+    jellyfinRemoteAnnounce: false,
     texthooker: false,
     help: false,
     autoStartOverlay: false,
@@ -106,6 +113,35 @@ test("runStartupBootstrapRuntime keeps log-level precedence for repeated calls",
   ]);
 });
 
+test("runStartupBootstrapRuntime remains lifecycle-stable with Jellyfin CLI flags", () => {
+  const calls: string[] = [];
+  const args = makeArgs({
+    jellyfin: true,
+    jellyfinLibraries: true,
+    socketPath: "/tmp/stable.sock",
+    texthookerPort: 8888,
+  });
+
+  const result = runStartupBootstrapRuntime({
+    argv: ["node", "main.ts", "--jellyfin", "--jellyfin-libraries"],
+    parseArgs: () => args,
+    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
+    forceX11Backend: () => calls.push("forceX11"),
+    enforceUnsupportedWaylandMode: () => calls.push("enforceWayland"),
+    getDefaultSocketPath: () => "/tmp/default.sock",
+    defaultTexthookerPort: 5174,
+    runGenerateConfigFlow: () => false,
+    startAppLifecycle: () => calls.push("startLifecycle"),
+  });
+
+  assert.equal(result.mpvSocketPath, "/tmp/stable.sock");
+  assert.equal(result.texthookerPort, 8888);
+  assert.equal(result.backendOverride, null);
+  assert.equal(result.autoStartOverlay, false);
+  assert.equal(result.texthookerOnlyMode, false);
+  assert.deepEqual(calls, ["forceX11", "enforceWayland", "startLifecycle"]);
+});
+
 test("runStartupBootstrapRuntime keeps --debug separate from log verbosity", () => {
   const calls: string[] = [];
   const args = makeArgs({
@@ -146,9 +182,5 @@ test("runStartupBootstrapRuntime skips lifecycle when generate-config flow handl
   assert.equal(result.mpvSocketPath, "/tmp/default.sock");
   assert.equal(result.texthookerPort, 5174);
   assert.equal(result.backendOverride, null);
-  assert.deepEqual(calls, [
-    "setLog:warn:cli",
-    "forceX11",
-    "enforceWayland",
-  ]);
+  assert.deepEqual(calls, ["setLog:warn:cli", "forceX11", "enforceWayland"]);
 });

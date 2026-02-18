@@ -18,8 +18,22 @@ test("loads defaults when config is missing", () => {
   assert.equal(config.websocket.port, DEFAULT_CONFIG.websocket.port);
   assert.equal(config.ankiConnect.behavior.autoUpdateNewCards, true);
   assert.equal(config.anilist.enabled, false);
+  assert.equal(config.jellyfin.remoteControlEnabled, true);
+  assert.equal(config.jellyfin.remoteControlAutoConnect, true);
+  assert.equal(config.jellyfin.autoAnnounce, false);
+  assert.equal(config.jellyfin.remoteControlDeviceName, "SubMiner");
   assert.equal(config.immersionTracking.enabled, true);
-  assert.equal(config.immersionTracking.dbPath, undefined);
+  assert.equal(config.immersionTracking.dbPath, "");
+  assert.equal(config.immersionTracking.batchSize, 25);
+  assert.equal(config.immersionTracking.flushIntervalMs, 500);
+  assert.equal(config.immersionTracking.queueCap, 1000);
+  assert.equal(config.immersionTracking.payloadCapBytes, 256);
+  assert.equal(config.immersionTracking.maintenanceIntervalMs, 86_400_000);
+  assert.equal(config.immersionTracking.retention.eventsDays, 7);
+  assert.equal(config.immersionTracking.retention.telemetryDays, 30);
+  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 365);
+  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 1825);
+  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 7);
 });
 
 test("parses anilist.enabled and warns for invalid value", () => {
@@ -45,6 +59,90 @@ test("parses anilist.enabled and warns for invalid value", () => {
   assert.equal(service.getConfig().anilist.enabled, true);
 });
 
+test("parses jellyfin remote control fields", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "jellyfin": {
+        "enabled": true,
+        "serverUrl": "http://127.0.0.1:8096",
+        "remoteControlEnabled": true,
+        "remoteControlAutoConnect": true,
+        "autoAnnounce": true,
+        "remoteControlDeviceName": "SubMiner"
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.jellyfin.enabled, true);
+  assert.equal(config.jellyfin.serverUrl, "http://127.0.0.1:8096");
+  assert.equal(config.jellyfin.remoteControlEnabled, true);
+  assert.equal(config.jellyfin.remoteControlAutoConnect, true);
+  assert.equal(config.jellyfin.autoAnnounce, true);
+  assert.equal(config.jellyfin.remoteControlDeviceName, "SubMiner");
+});
+
+test("parses jellyfin.enabled and remoteControlEnabled disabled combinations", () => {
+  const disabledDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(disabledDir, "config.jsonc"),
+    `{
+      "jellyfin": {
+        "enabled": false,
+        "remoteControlEnabled": false
+      }
+    }`,
+    "utf-8",
+  );
+
+  const disabledService = new ConfigService(disabledDir);
+  const disabledConfig = disabledService.getConfig();
+  assert.equal(disabledConfig.jellyfin.enabled, false);
+  assert.equal(disabledConfig.jellyfin.remoteControlEnabled, false);
+  assert.equal(
+    disabledService
+      .getWarnings()
+      .some(
+        (warning) =>
+          warning.path === "jellyfin.enabled" ||
+          warning.path === "jellyfin.remoteControlEnabled",
+      ),
+    false,
+  );
+
+  const mixedDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(mixedDir, "config.jsonc"),
+    `{
+      "jellyfin": {
+        "enabled": true,
+        "remoteControlEnabled": false
+      }
+    }`,
+    "utf-8",
+  );
+
+  const mixedService = new ConfigService(mixedDir);
+  const mixedConfig = mixedService.getConfig();
+  assert.equal(mixedConfig.jellyfin.enabled, true);
+  assert.equal(mixedConfig.jellyfin.remoteControlEnabled, false);
+  assert.equal(
+    mixedService
+      .getWarnings()
+      .some(
+        (warning) =>
+          warning.path === "jellyfin.enabled" ||
+          warning.path === "jellyfin.remoteControlEnabled",
+      ),
+    false,
+  );
+});
+
 test("accepts immersion tracking config values", () => {
   const dir = makeTempDir();
   fs.writeFileSync(
@@ -52,7 +150,19 @@ test("accepts immersion tracking config values", () => {
     `{
       "immersionTracking": {
         "enabled": false,
-        "dbPath": "/tmp/immersions/custom.sqlite"
+        "dbPath": "/tmp/immersions/custom.sqlite",
+        "batchSize": 50,
+        "flushIntervalMs": 750,
+        "queueCap": 2000,
+        "payloadCapBytes": 512,
+        "maintenanceIntervalMs": 3600000,
+        "retention": {
+          "eventsDays": 14,
+          "telemetryDays": 45,
+          "dailyRollupsDays": 730,
+          "monthlyRollupsDays": 3650,
+          "vacuumIntervalDays": 14
+        }
       }
     }`,
     "utf-8",
@@ -62,7 +172,109 @@ test("accepts immersion tracking config values", () => {
   const config = service.getConfig();
 
   assert.equal(config.immersionTracking.enabled, false);
-  assert.equal(config.immersionTracking.dbPath, "/tmp/immersions/custom.sqlite");
+  assert.equal(
+    config.immersionTracking.dbPath,
+    "/tmp/immersions/custom.sqlite",
+  );
+  assert.equal(config.immersionTracking.batchSize, 50);
+  assert.equal(config.immersionTracking.flushIntervalMs, 750);
+  assert.equal(config.immersionTracking.queueCap, 2000);
+  assert.equal(config.immersionTracking.payloadCapBytes, 512);
+  assert.equal(config.immersionTracking.maintenanceIntervalMs, 3_600_000);
+  assert.equal(config.immersionTracking.retention.eventsDays, 14);
+  assert.equal(config.immersionTracking.retention.telemetryDays, 45);
+  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 730);
+  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 3650);
+  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 14);
+});
+
+test("falls back for invalid immersion tracking tuning values", () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, "config.jsonc"),
+    `{
+      "immersionTracking": {
+        "batchSize": 0,
+        "flushIntervalMs": 1,
+        "queueCap": 5,
+        "payloadCapBytes": 16,
+        "maintenanceIntervalMs": 1000,
+        "retention": {
+          "eventsDays": 0,
+          "telemetryDays": 99999,
+          "dailyRollupsDays": 0,
+          "monthlyRollupsDays": 999999,
+          "vacuumIntervalDays": 0
+        }
+      }
+    }`,
+    "utf-8",
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.immersionTracking.batchSize, 25);
+  assert.equal(config.immersionTracking.flushIntervalMs, 500);
+  assert.equal(config.immersionTracking.queueCap, 1000);
+  assert.equal(config.immersionTracking.payloadCapBytes, 256);
+  assert.equal(config.immersionTracking.maintenanceIntervalMs, 86_400_000);
+  assert.equal(config.immersionTracking.retention.eventsDays, 7);
+  assert.equal(config.immersionTracking.retention.telemetryDays, 30);
+  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 365);
+  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 1825);
+  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 7);
+
+  assert.ok(
+    warnings.some((warning) => warning.path === "immersionTracking.batchSize"),
+  );
+  assert.ok(
+    warnings.some(
+      (warning) => warning.path === "immersionTracking.flushIntervalMs",
+    ),
+  );
+  assert.ok(
+    warnings.some((warning) => warning.path === "immersionTracking.queueCap"),
+  );
+  assert.ok(
+    warnings.some(
+      (warning) => warning.path === "immersionTracking.payloadCapBytes",
+    ),
+  );
+  assert.ok(
+    warnings.some(
+      (warning) => warning.path === "immersionTracking.maintenanceIntervalMs",
+    ),
+  );
+  assert.ok(
+    warnings.some(
+      (warning) => warning.path === "immersionTracking.retention.eventsDays",
+    ),
+  );
+  assert.ok(
+    warnings.some(
+      (warning) => warning.path === "immersionTracking.retention.telemetryDays",
+    ),
+  );
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === "immersionTracking.retention.dailyRollupsDays",
+    ),
+  );
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === "immersionTracking.retention.monthlyRollupsDays",
+    ),
+  );
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === "immersionTracking.retention.vacuumIntervalDays",
+    ),
+  );
 });
 
 test("parses jsonc and warns/falls back on invalid value", () => {
@@ -117,9 +329,7 @@ test("falls back for invalid logging.level and reports warning", () => {
   const warnings = service.getWarnings();
 
   assert.equal(config.logging.level, DEFAULT_CONFIG.logging.level);
-  assert.ok(
-    warnings.some((warning) => warning.path === "logging.level"),
-  );
+  assert.ok(warnings.some((warning) => warning.path === "logging.level"));
 });
 
 test("parses invisible overlay config and new global shortcuts", () => {
@@ -150,7 +360,11 @@ test("parses invisible overlay config and new global shortcuts", () => {
   assert.equal(config.shortcuts.openJimaku, "Ctrl+Alt+J");
   assert.equal(config.invisibleOverlay.startupVisibility, "hidden");
   assert.equal(config.bind_visible_overlay_to_mpv_sub_visibility, false);
-  assert.deepEqual(config.youtubeSubgen.primarySubLanguages, ["ja", "jpn", "jp"]);
+  assert.deepEqual(config.youtubeSubgen.primarySubLanguages, [
+    "ja",
+    "jpn",
+    "jp",
+  ]);
 });
 
 test("runtime options registry is centralized", () => {
@@ -295,8 +509,8 @@ test("validates ankiConnect n+1 match mode values", () => {
     DEFAULT_CONFIG.ankiConnect.nPlusOne.matchMode,
   );
   assert.ok(
-    warnings.some((warning) =>
-      warning.path === "ankiConnect.nPlusOne.matchMode",
+    warnings.some(
+      (warning) => warning.path === "ankiConnect.nPlusOne.matchMode",
     ),
   );
 });
@@ -349,10 +563,14 @@ test("validates ankiConnect n+1 color values", () => {
     DEFAULT_CONFIG.ankiConnect.nPlusOne.knownWord,
   );
   assert.ok(
-    warnings.some((warning) => warning.path === "ankiConnect.nPlusOne.nPlusOne"),
+    warnings.some(
+      (warning) => warning.path === "ankiConnect.nPlusOne.nPlusOne",
+    ),
   );
   assert.ok(
-    warnings.some((warning) => warning.path === "ankiConnect.nPlusOne.knownWord"),
+    warnings.some(
+      (warning) => warning.path === "ankiConnect.nPlusOne.knownWord",
+    ),
   );
 });
 

@@ -10,10 +10,7 @@ export interface UiFeedbackState {
 export interface UiFeedbackNotificationContext {
   getNotificationType: () => string | undefined;
   showOsd: (text: string) => void;
-  showSystemNotification: (
-    title: string,
-    options: NotificationOptions,
-  ) => void;
+  showSystemNotification: (title: string, options: NotificationOptions) => void;
 }
 
 export interface UiFeedbackOptions {
@@ -57,7 +54,9 @@ export function beginUpdateProgress(
   state.progressFrame = 0;
   showProgressTick(`${state.progressMessage}`);
   state.progressTimer = setInterval(() => {
-    showProgressTick(`${state.progressMessage} ${["|", "/", "-", "\\"][state.progressFrame % 4]}`);
+    showProgressTick(
+      `${state.progressMessage} ${["|", "/", "-", "\\"][state.progressFrame % 4]}`,
+    );
     state.progressFrame += 1;
   }, 180);
 }

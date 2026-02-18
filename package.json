@@ -4,8 +4,8 @@
   "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
   "main": "dist/main.js",
   "scripts": {
-    "get-frequency": "bun run scripts/get_frequency.ts",
-    "get-frequency:electron": "bun build scripts/get_frequency.ts --format=cjs --target=node --outfile dist/scripts/get_frequency.js --external electron && electron dist/scripts/get_frequency.js",
+    "get-frequency": "bun run scripts/get_frequency.ts --pretty --color-top-x 10000 --yomitan-user-data ~/.config/SubMiner --colorized-line",
+    "get-frequency:electron": "bun build scripts/get_frequency.ts --format=cjs --target=node --outfile dist/scripts/get_frequency.js --external electron && electron dist/scripts/get_frequency.js --pretty --color-top-x 10000 --yomitan-user-data ~/.config/SubMiner --colorized-line",
     "test-yomitan-parser": "bun run scripts/test-yomitan-parser.ts",
     "test-yomitan-parser:electron": "bun build scripts/test-yomitan-parser.ts --format=cjs --target=node --outfile dist/scripts/test-yomitan-parser.js --external electron && electron dist/scripts/test-yomitan-parser.js",
     "build": "tsc && pnpm run build:renderer && cp src/renderer/index.html src/renderer/style.css dist/renderer/ && bash scripts/build-macos-helper.sh",
@@ -14,7 +14,7 @@
     "docs:build": "VITE_EXTRA_EXTENSIONS=jsonc vitepress build docs",
     "docs:preview": "VITE_EXTRA_EXTENSIONS=jsonc vitepress preview docs --host 0.0.0.0 --port 4173 --strictPort",
     "test:config:dist": "node --test dist/config/config.test.js",
-    "test:core:dist": "node --test dist/cli/args.test.js dist/cli/help.test.js dist/core/services/cli-command.test.js dist/core/services/ipc.test.js dist/core/services/field-grouping-overlay.test.js dist/core/services/numeric-shortcut-session.test.js dist/core/services/secondary-subtitle.test.js dist/core/services/mpv-render-metrics.test.js dist/core/services/overlay-content-measurement.test.js dist/core/services/mpv-control.test.js dist/core/services/mpv.test.js dist/core/services/runtime-options-ipc.test.js dist/core/services/runtime-config.test.js dist/core/services/tokenizer.test.js dist/core/services/subsync.test.js dist/core/services/overlay-bridge.test.js dist/core/services/overlay-manager.test.js dist/core/services/overlay-shortcut-handler.test.js dist/core/services/mining.test.js dist/core/services/anki-jimaku.test.js dist/core/services/immersion-tracker-service.test.js dist/core/services/app-ready.test.js dist/core/services/startup-bootstrap.test.js dist/core/services/anilist/anilist-token-store.test.js dist/core/services/anilist/anilist-update-queue.test.js dist/subsync/utils.test.js dist/main/anilist-url-guard.test.js",
+    "test:core:dist": "node --test dist/cli/args.test.js dist/cli/help.test.js dist/core/services/cli-command.test.js dist/core/services/ipc.test.js dist/core/services/field-grouping-overlay.test.js dist/core/services/numeric-shortcut-session.test.js dist/core/services/secondary-subtitle.test.js dist/core/services/mpv-render-metrics.test.js dist/core/services/overlay-content-measurement.test.js dist/core/services/mpv-control.test.js dist/core/services/mpv.test.js dist/core/services/runtime-options-ipc.test.js dist/core/services/runtime-config.test.js dist/core/services/tokenizer.test.js dist/core/services/subsync.test.js dist/core/services/overlay-bridge.test.js dist/core/services/overlay-manager.test.js dist/core/services/overlay-shortcut-handler.test.js dist/core/services/mining.test.js dist/core/services/anki-jimaku.test.js dist/core/services/jellyfin.test.js dist/core/services/jellyfin-remote.test.js dist/core/services/immersion-tracker-service.test.js dist/core/services/app-ready.test.js dist/core/services/startup-bootstrap.test.js dist/core/services/anilist/anilist-token-store.test.js dist/core/services/anilist/anilist-update-queue.test.js dist/subsync/utils.test.js dist/main/anilist-url-guard.test.js",
     "test:subtitle:dist": "echo \"Subtitle tests are currently not configured\"",
     "test": "pnpm run test:config && pnpm run test:core",
     "test:config": "pnpm run build && pnpm run test:config:dist",
@@ -46,6 +46,7 @@
   "dependencies": {
     "@catppuccin/vitepress": "^0.1.2",
     "axios": "^1.13.5",
+    "commander": "^14.0.3",
     "jsonc-parser": "^3.3.1",
     "mermaid": "^11.12.2",
     "ws": "^8.19.0"

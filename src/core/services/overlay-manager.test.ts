@@ -17,8 +17,12 @@ test("overlay manager initializes with empty windows and hidden overlays", () =>
 
 test("overlay manager stores window references and returns stable window order", () => {
   const manager = createOverlayManager();
-  const visibleWindow = { isDestroyed: () => false } as unknown as Electron.BrowserWindow;
-  const invisibleWindow = { isDestroyed: () => false } as unknown as Electron.BrowserWindow;
+  const visibleWindow = {
+    isDestroyed: () => false,
+  } as unknown as Electron.BrowserWindow;
+  const invisibleWindow = {
+    isDestroyed: () => false,
+  } as unknown as Electron.BrowserWindow;
 
   manager.setMainWindow(visibleWindow);
   manager.setInvisibleWindow(invisibleWindow);
@@ -27,13 +31,20 @@ test("overlay manager stores window references and returns stable window order",
   assert.equal(manager.getInvisibleWindow(), invisibleWindow);
   assert.equal(manager.getOverlayWindow("visible"), visibleWindow);
   assert.equal(manager.getOverlayWindow("invisible"), invisibleWindow);
-  assert.deepEqual(manager.getOverlayWindows(), [visibleWindow, invisibleWindow]);
+  assert.deepEqual(manager.getOverlayWindows(), [
+    visibleWindow,
+    invisibleWindow,
+  ]);
 });
 
 test("overlay manager excludes destroyed windows", () => {
   const manager = createOverlayManager();
-  manager.setMainWindow({ isDestroyed: () => true } as unknown as Electron.BrowserWindow);
-  manager.setInvisibleWindow({ isDestroyed: () => false } as unknown as Electron.BrowserWindow);
+  manager.setMainWindow({
+    isDestroyed: () => true,
+  } as unknown as Electron.BrowserWindow);
+  manager.setInvisibleWindow({
+    isDestroyed: () => false,
+  } as unknown as Electron.BrowserWindow);
 
   assert.equal(manager.getOverlayWindows().length, 1);
 });

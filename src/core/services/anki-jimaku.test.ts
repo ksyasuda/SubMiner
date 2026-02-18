@@ -24,7 +24,10 @@ function createHarness(): RuntimeHarness {
     fieldGroupingResolver: null as ((choice: unknown) => void) | null,
     patches: [] as boolean[],
     broadcasts: 0,
-    fetchCalls: [] as Array<{ endpoint: string; query?: Record<string, unknown> }>,
+    fetchCalls: [] as Array<{
+      endpoint: string;
+      query?: Record<string, unknown>;
+    }>,
     sentCommands: [] as Array<{ command: string[] }>,
   };
 
@@ -45,8 +48,7 @@ function createHarness(): RuntimeHarness {
     setAnkiIntegration: (integration) => {
       state.ankiIntegration = integration;
     },
-    getKnownWordCacheStatePath: () =>
-      "/tmp/subminer-known-words-cache.json",
+    getKnownWordCacheStatePath: () => "/tmp/subminer-known-words-cache.json",
     showDesktopNotification: () => {},
     createFieldGroupingCallback: () => async () => ({
       keepNoteId: 1,
@@ -71,7 +73,10 @@ function createHarness(): RuntimeHarness {
     }),
     getCurrentMediaPath: () => "/tmp/video.mkv",
     jimakuFetchJson: async (endpoint, query) => {
-      state.fetchCalls.push({ endpoint, query: query as Record<string, unknown> });
+      state.fetchCalls.push({
+        endpoint,
+        query: query as Record<string, unknown>,
+      });
       return {
         ok: true,
         data: [
@@ -92,12 +97,12 @@ function createHarness(): RuntimeHarness {
   };
 
   let registered: Record<string, (...args: unknown[]) => unknown> = {};
-  registerAnkiJimakuIpcRuntime(
-    options,
-    (deps) => {
-      registered = deps as unknown as Record<string, (...args: unknown[]) => unknown>;
-    },
-  );
+  registerAnkiJimakuIpcRuntime(options, (deps) => {
+    registered = deps as unknown as Record<
+      string,
+      (...args: unknown[]) => unknown
+    >;
+  });
 
   return { options, registered, state };
 }
@@ -177,9 +182,11 @@ test("clearAnkiHistory and respondFieldGrouping execute runtime callbacks", () =
 
   const originalGetTracker = options.getSubtitleTimingTracker;
   options.getSubtitleTimingTracker = () =>
-    ({ cleanup: () => {
-      cleaned += 1;
-    } }) as never;
+    ({
+      cleanup: () => {
+        cleaned += 1;
+      },
+    }) as never;
 
   const choice = {
     keepNoteId: 10,

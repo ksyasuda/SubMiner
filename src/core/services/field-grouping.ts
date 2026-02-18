@@ -9,7 +9,9 @@ export function createFieldGroupingCallback(options: {
   setVisibleOverlayVisible: (visible: boolean) => void;
   setInvisibleOverlayVisible: (visible: boolean) => void;
   getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
-  setResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
+  setResolver: (
+    resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
+  ) => void;
   sendRequestToVisibleOverlay: (data: KikuFieldGroupingRequestData) => boolean;
 }): (data: KikuFieldGroupingRequestData) => Promise<KikuFieldGroupingChoice> {
   return async (

@@ -55,6 +55,13 @@ test("createIpcDepsRuntime wires AniList handlers", async () => {
     ready: 0,
     deadLetter: 0,
   });
-  assert.deepEqual(await deps.retryAnilistQueueNow(), { ok: true, message: "done" });
-  assert.deepEqual(calls, ["clearAnilistToken", "openAnilistSetup", "retryAnilistQueueNow"]);
+  assert.deepEqual(await deps.retryAnilistQueueNow(), {
+    ok: true,
+    message: "done",
+  });
+  assert.deepEqual(calls, [
+    "clearAnilistToken",
+    "openAnilistSetup",
+    "retryAnilistQueueNow",
+  ]);
 });

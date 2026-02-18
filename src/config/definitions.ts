@@ -201,13 +201,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
       topX: 1000,
       mode: "single",
       singleColor: "#f5a97f",
-      bandedColors: [
-        "#ed8796",
-        "#f5a97f",
-        "#f9e2af",
-        "#a6e3a1",
-        "#8aadf4",
-      ],
+      bandedColors: ["#ed8796", "#f5a97f", "#f9e2af", "#a6e3a1", "#8aadf4"],
     },
     secondary: {
       fontSize: 24,
@@ -230,6 +224,26 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     enabled: false,
     accessToken: "",
   },
+  jellyfin: {
+    enabled: false,
+    serverUrl: "",
+    username: "",
+    accessToken: "",
+    userId: "",
+    deviceId: "subminer",
+    clientName: "SubMiner",
+    clientVersion: "0.1.0",
+    defaultLibraryId: "",
+    remoteControlEnabled: true,
+    remoteControlAutoConnect: true,
+    autoAnnounce: false,
+    remoteControlDeviceName: "SubMiner",
+    pullPictures: false,
+    iconCacheDir: "/tmp/subminer-jellyfin-icons",
+    directPlayPreferred: true,
+    directPlayContainers: ["mkv", "mp4", "webm", "mov", "flac", "mp3", "aac"],
+    transcodeVideoCodec: "h264",
+  },
   youtubeSubgen: {
     mode: "automatic",
     whisperBin: "",
@@ -241,6 +255,19 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   },
   immersionTracking: {
     enabled: true,
+    dbPath: "",
+    batchSize: 25,
+    flushIntervalMs: 500,
+    queueCap: 1000,
+    payloadCapBytes: 256,
+    maintenanceIntervalMs: 24 * 60 * 60 * 1000,
+    retention: {
+      eventsDays: 7,
+      telemetryDays: 30,
+      dailyRollupsDays: 365,
+      monthlyRollupsDays: 5 * 365,
+      vacuumIntervalDays: 7,
+    },
   },
 };
 
@@ -324,8 +351,9 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     path: "subtitleStyle.enableJlpt",
     kind: "boolean",
     defaultValue: DEFAULT_CONFIG.subtitleStyle.enableJlpt,
-    description: "Enable JLPT vocabulary level underlines. "
-      + "When disabled, JLPT tagging lookup and underlines are skipped.",
+    description:
+      "Enable JLPT vocabulary level underlines. " +
+      "When disabled, JLPT tagging lookup and underlines are skipped.",
   },
   {
     path: "subtitleStyle.frequencyDictionary.enabled",
@@ -339,14 +367,15 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     kind: "string",
     defaultValue: DEFAULT_CONFIG.subtitleStyle.frequencyDictionary.sourcePath,
     description:
-      "Optional absolute path to a frequency dictionary directory."
-      + " If empty, built-in discovery search paths are used.",
+      "Optional absolute path to a frequency dictionary directory." +
+      " If empty, built-in discovery search paths are used.",
   },
   {
     path: "subtitleStyle.frequencyDictionary.topX",
     kind: "number",
     defaultValue: DEFAULT_CONFIG.subtitleStyle.frequencyDictionary.topX,
-    description: "Only color tokens with frequency rank <= topX (default: 1000).",
+    description:
+      "Only color tokens with frequency rank <= topX (default: 1000).",
   },
   {
     path: "subtitleStyle.frequencyDictionary.mode",
@@ -399,7 +428,8 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     path: "ankiConnect.nPlusOne.highlightEnabled",
     kind: "boolean",
     defaultValue: DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled,
-    description: "Enable fast local highlighting for words already known in Anki.",
+    description:
+      "Enable fast local highlighting for words already known in Anki.",
   },
   {
     path: "ankiConnect.nPlusOne.refreshMinutes",
@@ -487,6 +517,89 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     description: "AniList access token used for post-watch updates.",
   },
   {
+    path: "jellyfin.enabled",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.jellyfin.enabled,
+    description:
+      "Enable optional Jellyfin integration and CLI control commands.",
+  },
+  {
+    path: "jellyfin.serverUrl",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.jellyfin.serverUrl,
+    description:
+      "Base Jellyfin server URL (for example: http://localhost:8096).",
+  },
+  {
+    path: "jellyfin.username",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.jellyfin.username,
+    description: "Default Jellyfin username used during CLI login.",
+  },
+  {
+    path: "jellyfin.defaultLibraryId",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.jellyfin.defaultLibraryId,
+    description: "Optional default Jellyfin library ID for item listing.",
+  },
+  {
+    path: "jellyfin.remoteControlEnabled",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.jellyfin.remoteControlEnabled,
+    description: "Enable Jellyfin remote cast control mode.",
+  },
+  {
+    path: "jellyfin.remoteControlAutoConnect",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.jellyfin.remoteControlAutoConnect,
+    description: "Auto-connect to the configured remote control target.",
+  },
+  {
+    path: "jellyfin.autoAnnounce",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.jellyfin.autoAnnounce,
+    description:
+      "When enabled, automatically trigger remote announce/visibility check on websocket connect.",
+  },
+  {
+    path: "jellyfin.remoteControlDeviceName",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.jellyfin.remoteControlDeviceName,
+    description: "Device name reported for Jellyfin remote control sessions.",
+  },
+  {
+    path: "jellyfin.pullPictures",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.jellyfin.pullPictures,
+    description: "Enable Jellyfin poster/icon fetching for launcher menus.",
+  },
+  {
+    path: "jellyfin.iconCacheDir",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.jellyfin.iconCacheDir,
+    description: "Directory used by launcher for cached Jellyfin poster icons.",
+  },
+  {
+    path: "jellyfin.directPlayPreferred",
+    kind: "boolean",
+    defaultValue: DEFAULT_CONFIG.jellyfin.directPlayPreferred,
+    description:
+      "Try direct play before server-managed transcoding when possible.",
+  },
+  {
+    path: "jellyfin.directPlayContainers",
+    kind: "array",
+    defaultValue: DEFAULT_CONFIG.jellyfin.directPlayContainers,
+    description: "Container allowlist for direct play decisions.",
+  },
+  {
+    path: "jellyfin.transcodeVideoCodec",
+    kind: "string",
+    defaultValue: DEFAULT_CONFIG.jellyfin.transcodeVideoCodec,
+    description:
+      "Preferred transcode video codec when direct play is unavailable.",
+  },
+  {
     path: "youtubeSubgen.mode",
     kind: "enum",
     enumValues: ["automatic", "preprocess", "off"],
@@ -497,7 +610,8 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     path: "youtubeSubgen.whisperBin",
     kind: "string",
     defaultValue: DEFAULT_CONFIG.youtubeSubgen.whisperBin,
-    description: "Path to whisper.cpp CLI used as fallback transcription engine.",
+    description:
+      "Path to whisper.cpp CLI used as fallback transcription engine.",
   },
   {
     path: "youtubeSubgen.whisperModel",
@@ -524,6 +638,66 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     defaultValue: DEFAULT_CONFIG.immersionTracking.dbPath,
     description:
       "Optional SQLite database path for immersion tracking. Empty value uses the default app data path.",
+  },
+  {
+    path: "immersionTracking.batchSize",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.batchSize,
+    description: "Buffered telemetry/event writes per SQLite transaction.",
+  },
+  {
+    path: "immersionTracking.flushIntervalMs",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.flushIntervalMs,
+    description: "Max delay before queue flush in milliseconds.",
+  },
+  {
+    path: "immersionTracking.queueCap",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.queueCap,
+    description: "In-memory write queue cap before overflow policy applies.",
+  },
+  {
+    path: "immersionTracking.payloadCapBytes",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.payloadCapBytes,
+    description: "Max JSON payload size per event before truncation.",
+  },
+  {
+    path: "immersionTracking.maintenanceIntervalMs",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.maintenanceIntervalMs,
+    description: "Maintenance cadence (prune + rollup + vacuum checks).",
+  },
+  {
+    path: "immersionTracking.retention.eventsDays",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.retention.eventsDays,
+    description: "Raw event retention window in days.",
+  },
+  {
+    path: "immersionTracking.retention.telemetryDays",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.retention.telemetryDays,
+    description: "Telemetry retention window in days.",
+  },
+  {
+    path: "immersionTracking.retention.dailyRollupsDays",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.retention.dailyRollupsDays,
+    description: "Daily rollup retention window in days.",
+  },
+  {
+    path: "immersionTracking.retention.monthlyRollupsDays",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.retention.monthlyRollupsDays,
+    description: "Monthly rollup retention window in days.",
+  },
+  {
+    path: "immersionTracking.retention.vacuumIntervalDays",
+    kind: "number",
+    defaultValue: DEFAULT_CONFIG.immersionTracking.retention.vacuumIntervalDays,
+    description: "Minimum days between VACUUM runs.",
   },
 ];
 
@@ -638,10 +812,19 @@ export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: "anilist",
   },
   {
+    title: "Jellyfin",
+    description: [
+      "Optional Jellyfin integration for auth, browsing, and playback launch.",
+      "Access token is stored in config and should be treated as a secret.",
+    ],
+    key: "jellyfin",
+  },
+  {
     title: "Immersion Tracking",
     description: [
       "Enable/disable immersion tracking.",
       "Set dbPath to override the default sqlite database location.",
+      "Policy tuning is available for queue, flush, and retention values.",
     ],
     key: "immersionTracking",
   },

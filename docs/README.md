@@ -15,13 +15,15 @@ make docs-preview # Preview built site at http://localhost:4173
 ### Getting Started
 
 - [Installation](/installation) — Requirements, Linux/macOS/Windows install, mpv plugin setup
-- [Usage](/usage) — `subminer` wrapper, mpv plugin, keybindings, YouTube playback
+- [Usage](/usage) — `subminer` wrapper + subcommands (`jellyfin`, `yt`, `doctor`, `config`, `mpv`, `texthooker`), mpv plugin, keybindings
 - [Mining Workflow](/mining-workflow) — End-to-end sentence mining guide, overlay layers, card creation
 
 ### Reference
 
 - [Configuration](/configuration) — Full config file reference and option details
+- [Immersion Tracking](/immersion-tracking) — SQLite schema, retention/rollup policies, query templates, and extension points
 - [Anki Integration](/anki-integration) — AnkiConnect setup, field mapping, media generation, field grouping
+- [Jellyfin Integration](/jellyfin-integration) — Optional Jellyfin auth, cast discovery, remote control, and playback launch
 - [MPV Plugin](/mpv-plugin) — Chord keybindings, subminer.conf options, script messages
 - [Troubleshooting](/troubleshooting) — Common issues and solutions by category
 

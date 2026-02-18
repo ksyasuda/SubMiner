@@ -56,7 +56,9 @@ export class PollingRunner {
 
     this.deps.setUpdateInProgress(true);
     try {
-      const query = this.deps.getDeck() ? `"deck:${this.deps.getDeck()}" added:1` : "added:1";
+      const query = this.deps.getDeck()
+        ? `"deck:${this.deps.getDeck()}" added:1`
+        : "added:1";
       const noteIds = await this.deps.findNotes(query, {
         maxRetries: 0,
       });

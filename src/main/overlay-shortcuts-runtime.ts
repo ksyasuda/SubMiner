@@ -90,7 +90,8 @@ export function createOverlayShortcutsRuntimeService(
     };
   };
 
-  const shouldOverlayShortcutsBeActive = () => input.isOverlayRuntimeInitialized();
+  const shouldOverlayShortcutsBeActive = () =>
+    input.isOverlayRuntimeInitialized();
 
   return {
     tryHandleOverlayShortcutLocalFallback: (inputEvent) =>

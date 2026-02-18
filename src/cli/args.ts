@@ -26,6 +26,15 @@ export interface CliArgs {
   anilistLogout: boolean;
   anilistSetup: boolean;
   anilistRetryQueue: boolean;
+  jellyfin: boolean;
+  jellyfinLogin: boolean;
+  jellyfinLogout: boolean;
+  jellyfinLibraries: boolean;
+  jellyfinItems: boolean;
+  jellyfinSubtitles: boolean;
+  jellyfinSubtitleUrlsOnly: boolean;
+  jellyfinPlay: boolean;
+  jellyfinRemoteAnnounce: boolean;
   texthooker: boolean;
   help: boolean;
   autoStartOverlay: boolean;
@@ -35,6 +44,15 @@ export interface CliArgs {
   socketPath?: string;
   backend?: string;
   texthookerPort?: number;
+  jellyfinServer?: string;
+  jellyfinUsername?: string;
+  jellyfinPassword?: string;
+  jellyfinLibraryId?: string;
+  jellyfinItemId?: string;
+  jellyfinSearch?: string;
+  jellyfinLimit?: number;
+  jellyfinAudioStreamIndex?: number;
+  jellyfinSubtitleStreamIndex?: number;
   debug: boolean;
   logLevel?: "debug" | "info" | "warn" | "error";
 }
@@ -70,6 +88,15 @@ export function parseArgs(argv: string[]): CliArgs {
     anilistLogout: false,
     anilistSetup: false,
     anilistRetryQueue: false,
+    jellyfin: false,
+    jellyfinLogin: false,
+    jellyfinLogout: false,
+    jellyfinLibraries: false,
+    jellyfinItems: false,
+    jellyfinSubtitles: false,
+    jellyfinSubtitleUrlsOnly: false,
+    jellyfinPlay: false,
+    jellyfinRemoteAnnounce: false,
     texthooker: false,
     help: false,
     autoStartOverlay: false,
@@ -105,9 +132,11 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === "--hide-invisible-overlay")
       args.hideInvisibleOverlay = true;
     else if (arg === "--copy-subtitle") args.copySubtitle = true;
-    else if (arg === "--copy-subtitle-multiple") args.copySubtitleMultiple = true;
+    else if (arg === "--copy-subtitle-multiple")
+      args.copySubtitleMultiple = true;
     else if (arg === "--mine-sentence") args.mineSentence = true;
-    else if (arg === "--mine-sentence-multiple") args.mineSentenceMultiple = true;
+    else if (arg === "--mine-sentence-multiple")
+      args.mineSentenceMultiple = true;
     else if (arg === "--update-last-card-from-clipboard")
       args.updateLastCardFromClipboard = true;
     else if (arg === "--refresh-known-words") args.refreshKnownWords = true;
@@ -121,6 +150,17 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === "--anilist-logout") args.anilistLogout = true;
     else if (arg === "--anilist-setup") args.anilistSetup = true;
     else if (arg === "--anilist-retry-queue") args.anilistRetryQueue = true;
+    else if (arg === "--jellyfin") args.jellyfin = true;
+    else if (arg === "--jellyfin-login") args.jellyfinLogin = true;
+    else if (arg === "--jellyfin-logout") args.jellyfinLogout = true;
+    else if (arg === "--jellyfin-libraries") args.jellyfinLibraries = true;
+    else if (arg === "--jellyfin-items") args.jellyfinItems = true;
+    else if (arg === "--jellyfin-subtitles") args.jellyfinSubtitles = true;
+    else if (arg === "--jellyfin-subtitle-urls") {
+      args.jellyfinSubtitles = true;
+      args.jellyfinSubtitleUrlsOnly = true;
+    } else if (arg === "--jellyfin-play") args.jellyfinPlay = true;
+    else if (arg === "--jellyfin-remote-announce") args.jellyfinRemoteAnnounce = true;
     else if (arg === "--texthooker") args.texthooker = true;
     else if (arg === "--auto-start-overlay") args.autoStartOverlay = true;
     else if (arg === "--generate-config") args.generateConfig = true;
@@ -171,6 +211,66 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === "--port") {
       const value = Number(readValue(argv[i + 1]));
       if (!Number.isNaN(value)) args.texthookerPort = value;
+    } else if (arg.startsWith("--jellyfin-server=")) {
+      const value = arg.split("=", 2)[1];
+      if (value) args.jellyfinServer = value;
+    } else if (arg === "--jellyfin-server") {
+      const value = readValue(argv[i + 1]);
+      if (value) args.jellyfinServer = value;
+    } else if (arg.startsWith("--jellyfin-username=")) {
+      const value = arg.split("=", 2)[1];
+      if (value) args.jellyfinUsername = value;
+    } else if (arg === "--jellyfin-username") {
+      const value = readValue(argv[i + 1]);
+      if (value) args.jellyfinUsername = value;
+    } else if (arg.startsWith("--jellyfin-password=")) {
+      const value = arg.split("=", 2)[1];
+      if (value) args.jellyfinPassword = value;
+    } else if (arg === "--jellyfin-password") {
+      const value = readValue(argv[i + 1]);
+      if (value) args.jellyfinPassword = value;
+    } else if (arg.startsWith("--jellyfin-library-id=")) {
+      const value = arg.split("=", 2)[1];
+      if (value) args.jellyfinLibraryId = value;
+    } else if (arg === "--jellyfin-library-id") {
+      const value = readValue(argv[i + 1]);
+      if (value) args.jellyfinLibraryId = value;
+    } else if (arg.startsWith("--jellyfin-item-id=")) {
+      const value = arg.split("=", 2)[1];
+      if (value) args.jellyfinItemId = value;
+    } else if (arg === "--jellyfin-item-id") {
+      const value = readValue(argv[i + 1]);
+      if (value) args.jellyfinItemId = value;
+    } else if (arg.startsWith("--jellyfin-search=")) {
+      const value = arg.split("=", 2)[1];
+      if (value) args.jellyfinSearch = value;
+    } else if (arg === "--jellyfin-search") {
+      const value = readValue(argv[i + 1]);
+      if (value) args.jellyfinSearch = value;
+    } else if (arg.startsWith("--jellyfin-limit=")) {
+      const value = Number(arg.split("=", 2)[1]);
+      if (Number.isFinite(value) && value > 0)
+        args.jellyfinLimit = Math.floor(value);
+    } else if (arg === "--jellyfin-limit") {
+      const value = Number(readValue(argv[i + 1]));
+      if (Number.isFinite(value) && value > 0)
+        args.jellyfinLimit = Math.floor(value);
+    } else if (arg.startsWith("--jellyfin-audio-stream-index=")) {
+      const value = Number(arg.split("=", 2)[1]);
+      if (Number.isInteger(value) && value >= 0)
+        args.jellyfinAudioStreamIndex = value;
+    } else if (arg === "--jellyfin-audio-stream-index") {
+      const value = Number(readValue(argv[i + 1]));
+      if (Number.isInteger(value) && value >= 0)
+        args.jellyfinAudioStreamIndex = value;
+    } else if (arg.startsWith("--jellyfin-subtitle-stream-index=")) {
+      const value = Number(arg.split("=", 2)[1]);
+      if (Number.isInteger(value) && value >= 0)
+        args.jellyfinSubtitleStreamIndex = value;
+    } else if (arg === "--jellyfin-subtitle-stream-index") {
+      const value = Number(readValue(argv[i + 1]));
+      if (Number.isInteger(value) && value >= 0)
+        args.jellyfinSubtitleStreamIndex = value;
     }
   }
 
@@ -206,6 +306,14 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.anilistLogout ||
     args.anilistSetup ||
     args.anilistRetryQueue ||
+    args.jellyfin ||
+    args.jellyfinLogin ||
+    args.jellyfinLogout ||
+    args.jellyfinLibraries ||
+    args.jellyfinItems ||
+    args.jellyfinSubtitles ||
+    args.jellyfinPlay ||
+    args.jellyfinRemoteAnnounce ||
     args.texthooker ||
     args.generateConfig ||
     args.help
@@ -229,6 +337,8 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.openRuntimeOptions ||
+    args.jellyfin ||
+    args.jellyfinPlay ||
     args.texthooker
   ) {
     return true;

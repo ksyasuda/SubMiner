@@ -71,7 +71,22 @@ subminer -r -d ~/Anime          # recursive search
 subminer -p gpu-hq video.mkv    # override mpv profile
 subminer -T video.mkv           # disable texthooker
 subminer https://youtu.be/...   # YouTube playback
+subminer jellyfin -d            # Jellyfin cast discovery mode
+subminer doctor                 # dependency/config/socket diagnostics
+subminer config path            # print active config file path
+subminer mpv status             # mpv socket readiness check
 ```
+
+### Launcher Subcommands
+
+- `subminer jellyfin` / `subminer jf` — Jellyfin workflows (`-d` discovery, `-p` play, `-l` login)
+- `subminer yt` / `subminer youtube` — YouTube shorthand (`-o/--out-dir`, `-m/--mode`)
+- `subminer doctor` — quick environment health checks
+- `subminer config path|show` — inspect active config path/content
+- `subminer mpv status|socket|idle` — mpv socket and idle-launch helpers
+- `subminer texthooker` — texthooker-only shortcut
+
+Use `subminer <subcommand> -h` for command-specific help pages (for example `subminer jellyfin -h`).
 
 ### CLI Logging and Dev Mode
 

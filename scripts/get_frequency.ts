@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { createTokenizerDepsRuntime, tokenizeSubtitle } from "../src/core/services/tokenizer.js";
-import { createFrequencyDictionaryLookup } from "../src/core/services/index.js";
+import { createFrequencyDictionaryLookup } from "../src/core/services/frequency-dictionary.js";
 import { MecabTokenizer } from "../src/mecab-tokenizer.js";
 import type { MergedToken, FrequencyDictionaryLookup } from "../src/types.js";
 
@@ -496,6 +496,27 @@ interface YomitanRuntimeState {
   note?: string;
 }
 
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 function destroyUnknownParserWindow(window: unknown): void {
   if (!window || typeof window !== "object") {
     return;
@@ -785,30 +806,31 @@ async function main(): Promise<void> {
           )
         : null;
     const hasYomitan = Boolean(yomitanState?.available && yomitanState?.yomitanExt);
+    let useYomitan = hasYomitan;
 
     const deps = createTokenizerDepsRuntime({
       getYomitanExt: () =>
-        (hasYomitan ? yomitanState!.yomitanExt : null) as never,
+        (useYomitan ? yomitanState!.yomitanExt : null) as never,
       getYomitanParserWindow: () =>
-        (hasYomitan ? yomitanState!.parserWindow : null) as never,
+        (useYomitan ? yomitanState!.parserWindow : null) as never,
       setYomitanParserWindow: (window) => {
-        if (!hasYomitan) {
+        if (!useYomitan) {
           return;
         }
         yomitanState!.parserWindow = window;
       },
       getYomitanParserReadyPromise: () =>
-        (hasYomitan ? yomitanState!.parserReadyPromise : null) as never,
+        (useYomitan ? yomitanState!.parserReadyPromise : null) as never,
       setYomitanParserReadyPromise: (promise) => {
-        if (!hasYomitan) {
+        if (!useYomitan) {
           return;
         }
         yomitanState!.parserReadyPromise = promise;
       },
       getYomitanParserInitPromise: () =>
-        (hasYomitan ? yomitanState!.parserInitPromise : null) as never,
+        (useYomitan ? yomitanState!.parserInitPromise : null) as never,
       setYomitanParserInitPromise: (promise) => {
-        if (!hasYomitan) {
+        if (!useYomitan) {
           return;
         }
         yomitanState!.parserInitPromise = promise;
@@ -823,7 +845,31 @@ async function main(): Promise<void> {
       }),
     });
 
-    const subtitleData = await tokenizeSubtitle(args.input, deps);
+    let subtitleData;
+    if (useYomitan) {
+      try {
+        subtitleData = await withTimeout(
+          tokenizeSubtitle(args.input, deps),
+          8000,
+          "Yomitan tokenizer",
+        );
+      } catch (error) {
+        useYomitan = false;
+        destroyUnknownParserWindow(yomitanState?.parserWindow ?? null);
+        if (yomitanState) {
+          yomitanState.parserWindow = null;
+          yomitanState.parserReadyPromise = null;
+          yomitanState.parserInitPromise = null;
+          const fallbackNote = error instanceof Error ? error.message : "Yomitan tokenizer timed out";
+          yomitanState.note = yomitanState.note
+            ? `${yomitanState.note}; ${fallbackNote}`
+            : fallbackNote;
+        }
+        subtitleData = await tokenizeSubtitle(args.input, deps);
+      }
+    } else {
+      subtitleData = await tokenizeSubtitle(args.input, deps);
+    }
     const tokenCount = subtitleData.tokens?.length ?? 0;
     const mergedCount = subtitleData.tokens?.filter((token) => token.isMerged).length ?? 0;
     const tokens =
@@ -835,7 +881,7 @@ async function main(): Promise<void> {
     const diagnostics = {
       yomitan: {
         available: Boolean(yomitanState?.available),
-        loaded: hasYomitan,
+        loaded: useYomitan,
         forceMecabOnly: args.forceMecabOnly,
         note: yomitanState?.note ?? null,
       },
@@ -848,7 +894,7 @@ async function main(): Promise<void> {
         sourceHint:
           tokenCount === 0
             ? "none"
-            : hasYomitan ? "yomitan-merged" : "mecab-merge",
+            : useYomitan ? "yomitan-merged" : "mecab-merge",
         mergedTokenCount: mergedCount,
         totalTokenCount: tokenCount,
       },

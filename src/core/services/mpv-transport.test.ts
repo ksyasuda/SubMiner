@@ -60,7 +60,9 @@ test("scheduleMpvReconnect clears existing timer and increments attempt", () => 
     handler();
     return 1 as unknown as ReturnType<typeof setTimeout>;
   };
-  (globalThis as any).clearTimeout = (timer: ReturnType<typeof setTimeout> | null) => {
+  (globalThis as any).clearTimeout = (
+    timer: ReturnType<typeof setTimeout> | null,
+  ) => {
     cleared.push(timer);
   };
 
@@ -205,14 +207,10 @@ test("MpvSocketTransport ignores connect requests while already connecting or co
 test("MpvSocketTransport.shutdown clears socket and lifecycle flags", async () => {
   const transport = new MpvSocketTransport({
     socketPath: "/tmp/mpv.sock",
-    onConnect: () => {
-    },
-    onData: () => {
-    },
-    onError: () => {
-    },
-    onClose: () => {
-    },
+    onConnect: () => {},
+    onData: () => {},
+    onError: () => {},
+    onClose: () => {},
     socketFactory: () => new FakeSocket() as unknown as net.Socket,
   });
 

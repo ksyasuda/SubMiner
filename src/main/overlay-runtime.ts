@@ -23,7 +23,10 @@ export function createOverlayModalRuntimeService(
   deps: OverlayWindowResolver,
 ): OverlayModalRuntime {
   const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
-  const overlayModalAutoShownLayer = new Map<OverlayHostedModal, OverlayHostLayer>();
+  const overlayModalAutoShownLayer = new Map<
+    OverlayHostedModal,
+    OverlayHostLayer
+  >();
 
   const getTargetOverlayWindow = (): {
     window: BrowserWindow;
@@ -43,7 +46,10 @@ export function createOverlayModalRuntimeService(
     return null;
   };
 
-  const showOverlayWindowForModal = (window: BrowserWindow, layer: OverlayHostLayer): void => {
+  const showOverlayWindowForModal = (
+    window: BrowserWindow,
+    layer: OverlayHostLayer,
+  ): void => {
     if (layer === "invisible" && typeof window.showInactive === "function") {
       window.showInactive();
     } else {
@@ -133,7 +139,8 @@ export function createOverlayModalRuntimeService(
     sendToActiveOverlayWindow,
     openRuntimeOptionsPalette,
     handleOverlayModalClosed,
-    getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
+    getRestoreVisibleOverlayOnModalClose: () =>
+      restoreVisibleOverlayOnModalClose,
   };
 }
 

@@ -5,21 +5,31 @@ const PREFERRED_Y_PERCENT_MIN = 2;
 const PREFERRED_Y_PERCENT_MAX = 80;
 
 export type SubtitlePositionController = {
-  applyStoredSubtitlePosition: (position: SubtitlePosition | null, source: string) => void;
+  applyStoredSubtitlePosition: (
+    position: SubtitlePosition | null,
+    source: string,
+  ) => void;
   getCurrentYPercent: () => number;
   applyYPercent: (yPercent: number) => void;
   persistSubtitlePositionPatch: (patch: Partial<SubtitlePosition>) => void;
 };
 
 function clampYPercent(yPercent: number): number {
-  return Math.max(PREFERRED_Y_PERCENT_MIN, Math.min(PREFERRED_Y_PERCENT_MAX, yPercent));
+  return Math.max(
+    PREFERRED_Y_PERCENT_MIN,
+    Math.min(PREFERRED_Y_PERCENT_MAX, yPercent),
+  );
 }
 
 function getPersistedYPercent(
   ctx: RendererContext,
   position: SubtitlePosition | null,
 ): number {
-  if (!position || typeof position.yPercent !== "number" || !Number.isFinite(position.yPercent)) {
+  if (
+    !position ||
+    typeof position.yPercent !== "number" ||
+    !Number.isFinite(position.yPercent)
+  ) {
     return ctx.state.persistedSubtitlePosition.yPercent;
   }
 
@@ -66,12 +76,12 @@ function getNextPersistedPosition(
       typeof patch.invisibleOffsetXPx === "number" &&
       Number.isFinite(patch.invisibleOffsetXPx)
         ? patch.invisibleOffsetXPx
-        : ctx.state.persistedSubtitlePosition.invisibleOffsetXPx ?? 0,
+        : (ctx.state.persistedSubtitlePosition.invisibleOffsetXPx ?? 0),
     invisibleOffsetYPx:
       typeof patch.invisibleOffsetYPx === "number" &&
       Number.isFinite(patch.invisibleOffsetYPx)
         ? patch.invisibleOffsetYPx
-        : ctx.state.persistedSubtitlePosition.invisibleOffsetYPx ?? 0,
+        : (ctx.state.persistedSubtitlePosition.invisibleOffsetYPx ?? 0),
   };
 }
 
@@ -83,8 +93,11 @@ export function createInMemorySubtitlePositionController(
       return ctx.state.currentYPercent;
     }
 
-    const marginBottom = parseFloat(ctx.dom.subtitleContainer.style.marginBottom) || 60;
-    ctx.state.currentYPercent = clampYPercent((marginBottom / window.innerHeight) * 100);
+    const marginBottom =
+      parseFloat(ctx.dom.subtitleContainer.style.marginBottom) || 60;
+    ctx.state.currentYPercent = clampYPercent(
+      (marginBottom / window.innerHeight) * 100,
+    );
     return ctx.state.currentYPercent;
   }
 
@@ -101,13 +114,18 @@ export function createInMemorySubtitlePositionController(
     ctx.dom.subtitleContainer.style.marginBottom = `${marginBottom}px`;
   }
 
-  function persistSubtitlePositionPatch(patch: Partial<SubtitlePosition>): void {
+  function persistSubtitlePositionPatch(
+    patch: Partial<SubtitlePosition>,
+  ): void {
     const nextPosition = getNextPersistedPosition(ctx, patch);
     ctx.state.persistedSubtitlePosition = nextPosition;
     window.electronAPI.saveSubtitlePosition(nextPosition);
   }
 
-  function applyStoredSubtitlePosition(position: SubtitlePosition | null, source: string): void {
+  function applyStoredSubtitlePosition(
+    position: SubtitlePosition | null,
+    source: string,
+  ): void {
     updatePersistedSubtitlePosition(ctx, position);
     if (position && position.yPercent !== undefined) {
       applyYPercent(position.yPercent);

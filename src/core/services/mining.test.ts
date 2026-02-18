@@ -54,9 +54,9 @@ test("mineSentenceCard handles missing integration and disconnected mpv", async 
 
   assert.equal(
     await mineSentenceCard({
-    ankiIntegration: null,
-    mpvClient: null,
-    showMpvOsd: (text) => osd.push(text),
+      ankiIntegration: null,
+      mpvClient: null,
+      showMpvOsd: (text) => osd.push(text),
     }),
     false,
   );
@@ -64,19 +64,19 @@ test("mineSentenceCard handles missing integration and disconnected mpv", async 
 
   assert.equal(
     await mineSentenceCard({
-    ankiIntegration: {
-      updateLastAddedFromClipboard: async () => {},
-      triggerFieldGroupingForLastAddedCard: async () => {},
-      markLastCardAsAudioCard: async () => {},
-      createSentenceCard: async () => false,
-    },
-    mpvClient: {
-      connected: false,
-      currentSubText: "line",
-      currentSubStart: 1,
-      currentSubEnd: 2,
-    },
-    showMpvOsd: (text) => osd.push(text),
+      ankiIntegration: {
+        updateLastAddedFromClipboard: async () => {},
+        triggerFieldGroupingForLastAddedCard: async () => {},
+        markLastCardAsAudioCard: async () => {},
+        createSentenceCard: async () => false,
+      },
+      mpvClient: {
+        connected: false,
+        currentSubText: "line",
+        currentSubStart: 1,
+        currentSubEnd: 2,
+      },
+      showMpvOsd: (text) => osd.push(text),
     }),
     false,
   );
@@ -97,7 +97,12 @@ test("mineSentenceCard creates sentence card from mpv subtitle state", async () 
       updateLastAddedFromClipboard: async () => {},
       triggerFieldGroupingForLastAddedCard: async () => {},
       markLastCardAsAudioCard: async () => {},
-      createSentenceCard: async (sentence, startTime, endTime, secondarySub) => {
+      createSentenceCard: async (
+        sentence,
+        startTime,
+        endTime,
+        secondarySub,
+      ) => {
         created.push({ sentence, startTime, endTime, secondarySub });
         return true;
       },
@@ -176,11 +181,13 @@ test("handleMineSentenceDigit reports async create failures", async () => {
   assert.equal(logs.length, 1);
   assert.equal(logs[0]?.message, "mineSentenceMultiple failed:");
   assert.equal((logs[0]?.err as Error).message, "mine boom");
-  assert.ok(osd.some((entry) => entry.includes("Mine sentence failed: mine boom")));
+  assert.ok(
+    osd.some((entry) => entry.includes("Mine sentence failed: mine boom")),
+  );
   assert.equal(cardsMined, 0);
 });
 
-test("handleMineSentenceDigitService increments successful card count", async () => {
+test("handleMineSentenceDigit increments successful card count", async () => {
   const osd: string[] = [];
   let cardsMined = 0;
 

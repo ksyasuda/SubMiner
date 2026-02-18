@@ -22,9 +22,14 @@ test("guessAnilistMediaInfo uses guessit output when available", async () => {
     }
   ).execFile = ((...args: unknown[]) => {
     const callback = args[args.length - 1];
-    const cb = typeof callback === "function"
-      ? (callback as (error: Error | null, stdout: string, stderr: string) => void)
-      : null;
+    const cb =
+      typeof callback === "function"
+        ? (callback as (
+            error: Error | null,
+            stdout: string,
+            stderr: string,
+          ) => void)
+        : null;
     cb?.(null, JSON.stringify({ title: "Guessit Title", episode: 7 }), "");
     return {} as childProcess.ChildProcess;
   }) as typeof childProcess.execFile;
@@ -53,9 +58,14 @@ test("guessAnilistMediaInfo falls back to parser when guessit fails", async () =
     }
   ).execFile = ((...args: unknown[]) => {
     const callback = args[args.length - 1];
-    const cb = typeof callback === "function"
-      ? (callback as (error: Error | null, stdout: string, stderr: string) => void)
-      : null;
+    const cb =
+      typeof callback === "function"
+        ? (callback as (
+            error: Error | null,
+            stdout: string,
+            stderr: string,
+          ) => void)
+        : null;
     cb?.(new Error("guessit not found"), "", "");
     return {} as childProcess.ChildProcess;
   }) as typeof childProcess.execFile;
@@ -115,7 +125,11 @@ test("updateAnilistPostWatchProgress updates progress when behind", async () => 
   }) as typeof fetch;
 
   try {
-    const result = await updateAnilistPostWatchProgress("token", "Demo Show", 3);
+    const result = await updateAnilistPostWatchProgress(
+      "token",
+      "Demo Show",
+      3,
+    );
     assert.equal(result.status, "updated");
     assert.match(result.message, /episode 3/i);
   } finally {
@@ -145,7 +159,11 @@ test("updateAnilistPostWatchProgress skips when progress already reached", async
   }) as typeof fetch;
 
   try {
-    const result = await updateAnilistPostWatchProgress("token", "Skip Show", 10);
+    const result = await updateAnilistPostWatchProgress(
+      "token",
+      "Skip Show",
+      10,
+    );
     assert.equal(result.status, "skipped");
     assert.match(result.message, /already at episode/i);
   } finally {

@@ -216,46 +216,46 @@ export function mergeTokens(
         }
         return mergedHeadword;
       })();
-        result.push({
-          surface: prev.surface + token.word,
-          reading: prev.reading + tokenReading,
-          headword: prev.headword,
-          startPos: prev.startPos,
-          endPos: end,
-          partOfSpeech: prev.partOfSpeech,
-          pos1: prev.pos1 ?? token.pos1,
-          pos2: prev.pos2 ?? token.pos2,
-          pos3: prev.pos3 ?? token.pos3,
-          isMerged: true,
-          isKnown: headwordForKnownMatch
-            ? isKnownWord(headwordForKnownMatch)
-            : false,
-          isNPlusOneTarget: false,
-        });
-      } else {
-        const headwordForKnownMatch = (() => {
-          if (knownWordMatchMode === "surface") {
-            return token.word;
-          }
-          return token.headword;
-        })();
-        result.push({
-          surface: token.word,
-          reading: tokenReading,
-          headword: token.headword,
-          startPos: start,
-          endPos: end,
-          partOfSpeech: token.partOfSpeech,
-          pos1: token.pos1,
-          pos2: token.pos2,
-          pos3: token.pos3,
-          isMerged: false,
-          isKnown: headwordForKnownMatch
-            ? isKnownWord(headwordForKnownMatch)
-            : false,
-          isNPlusOneTarget: false,
-        });
-      }
+      result.push({
+        surface: prev.surface + token.word,
+        reading: prev.reading + tokenReading,
+        headword: prev.headword,
+        startPos: prev.startPos,
+        endPos: end,
+        partOfSpeech: prev.partOfSpeech,
+        pos1: prev.pos1 ?? token.pos1,
+        pos2: prev.pos2 ?? token.pos2,
+        pos3: prev.pos3 ?? token.pos3,
+        isMerged: true,
+        isKnown: headwordForKnownMatch
+          ? isKnownWord(headwordForKnownMatch)
+          : false,
+        isNPlusOneTarget: false,
+      });
+    } else {
+      const headwordForKnownMatch = (() => {
+        if (knownWordMatchMode === "surface") {
+          return token.word;
+        }
+        return token.headword;
+      })();
+      result.push({
+        surface: token.word,
+        reading: tokenReading,
+        headword: token.headword,
+        startPos: start,
+        endPos: end,
+        partOfSpeech: token.partOfSpeech,
+        pos1: token.pos1,
+        pos2: token.pos2,
+        pos3: token.pos3,
+        isMerged: false,
+        isKnown: headwordForKnownMatch
+          ? isKnownWord(headwordForKnownMatch)
+          : false,
+        isNPlusOneTarget: false,
+      });
+    }
 
     lastStandaloneToken = token;
   }
@@ -263,7 +263,15 @@ export function mergeTokens(
   return result;
 }
 
-const SENTENCE_BOUNDARY_SURFACES = new Set(["。", "？", "！", "?", "!", "…", "\u2026"]);
+const SENTENCE_BOUNDARY_SURFACES = new Set([
+  "。",
+  "？",
+  "！",
+  "?",
+  "!",
+  "…",
+  "\u2026",
+]);
 
 export function isNPlusOneCandidateToken(token: MergedToken): boolean {
   if (token.isKnown) {

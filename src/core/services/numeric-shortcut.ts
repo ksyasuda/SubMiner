@@ -41,7 +41,10 @@ export interface NumericShortcutSessionMessages {
 export interface NumericShortcutSessionDeps {
   registerShortcut: (accelerator: string, handler: () => void) => boolean;
   unregisterShortcut: (accelerator: string) => void;
-  setTimer: (handler: () => void, timeoutMs: number) => ReturnType<typeof setTimeout>;
+  setTimer: (
+    handler: () => void,
+    timeoutMs: number,
+  ) => ReturnType<typeof setTimeout>;
   clearTimer: (timer: ReturnType<typeof setTimeout>) => void;
   showMpvOsd: (text: string) => void;
 }
@@ -52,9 +55,7 @@ export interface NumericShortcutSessionStartParams {
   messages: NumericShortcutSessionMessages;
 }
 
-export function createNumericShortcutSession(
-  deps: NumericShortcutSessionDeps,
-) {
+export function createNumericShortcutSession(deps: NumericShortcutSessionDeps) {
   let active = false;
   let timeout: ReturnType<typeof setTimeout> | null = null;
   let digitShortcuts: string[] = [];

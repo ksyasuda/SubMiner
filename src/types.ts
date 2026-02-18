@@ -245,13 +245,13 @@ export interface AnkiConnectConfig {
     minSentenceWords?: number;
   };
   behavior?: {
-      overwriteAudio?: boolean;
-      overwriteImage?: boolean;
-      mediaInsertMode?: "append" | "prepend";
-      highlightWord?: boolean;
-      notificationType?: "osd" | "system" | "both" | "none";
-      autoUpdateNewCards?: boolean;
-    };
+    overwriteAudio?: boolean;
+    overwriteImage?: boolean;
+    mediaInsertMode?: "append" | "prepend";
+    highlightWord?: boolean;
+    notificationType?: "osd" | "system" | "both" | "none";
+    autoUpdateNewCards?: boolean;
+  };
   metadata?: {
     pattern?: string;
   };
@@ -338,6 +338,27 @@ export interface AnilistConfig {
   accessToken?: string;
 }
 
+export interface JellyfinConfig {
+  enabled?: boolean;
+  serverUrl?: string;
+  username?: string;
+  accessToken?: string;
+  userId?: string;
+  deviceId?: string;
+  clientName?: string;
+  clientVersion?: string;
+  defaultLibraryId?: string;
+  remoteControlEnabled?: boolean;
+  remoteControlAutoConnect?: boolean;
+  autoAnnounce?: boolean;
+  remoteControlDeviceName?: string;
+  pullPictures?: boolean;
+  iconCacheDir?: string;
+  directPlayPreferred?: boolean;
+  directPlayContainers?: string[];
+  transcodeVideoCodec?: string;
+}
+
 export interface InvisibleOverlayConfig {
   startupVisibility?: "platform-default" | "visible" | "hidden";
 }
@@ -354,6 +375,18 @@ export interface YoutubeSubgenConfig {
 export interface ImmersionTrackingConfig {
   enabled?: boolean;
   dbPath?: string;
+  batchSize?: number;
+  flushIntervalMs?: number;
+  queueCap?: number;
+  payloadCapBytes?: number;
+  maintenanceIntervalMs?: number;
+  retention?: {
+    eventsDays?: number;
+    telemetryDays?: number;
+    dailyRollupsDays?: number;
+    monthlyRollupsDays?: number;
+    vacuumIntervalDays?: number;
+  };
 }
 
 export interface Config {
@@ -370,6 +403,7 @@ export interface Config {
   bind_visible_overlay_to_mpv_sub_visibility?: boolean;
   jimaku?: JimakuConfig;
   anilist?: AnilistConfig;
+  jellyfin?: JellyfinConfig;
   invisibleOverlay?: InvisibleOverlayConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
@@ -480,6 +514,26 @@ export interface ResolvedConfig {
     enabled: boolean;
     accessToken: string;
   };
+  jellyfin: {
+    enabled: boolean;
+    serverUrl: string;
+    username: string;
+    accessToken: string;
+    userId: string;
+    deviceId: string;
+    clientName: string;
+    clientVersion: string;
+    defaultLibraryId: string;
+    remoteControlEnabled: boolean;
+    remoteControlAutoConnect: boolean;
+    autoAnnounce: boolean;
+    remoteControlDeviceName: string;
+    pullPictures: boolean;
+    iconCacheDir: string;
+    directPlayPreferred: boolean;
+    directPlayContainers: string[];
+    transcodeVideoCodec: string;
+  };
   invisibleOverlay: Required<InvisibleOverlayConfig>;
   youtubeSubgen: YoutubeSubgenConfig & {
     mode: YoutubeSubgenMode;
@@ -490,6 +544,18 @@ export interface ResolvedConfig {
   immersionTracking: {
     enabled: boolean;
     dbPath?: string;
+    batchSize: number;
+    flushIntervalMs: number;
+    queueCap: number;
+    payloadCapBytes: number;
+    maintenanceIntervalMs: number;
+    retention: {
+      eventsDays: number;
+      telemetryDays: number;
+      dailyRollupsDays: number;
+      monthlyRollupsDays: number;
+      vacuumIntervalDays: number;
+    };
   };
   logging: {
     level: "debug" | "info" | "warn" | "error";
@@ -719,7 +785,9 @@ export interface ElectronAPI {
   ) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
-  notifyOverlayModalClosed: (modal: "runtime-options" | "subsync" | "jimaku") => void;
+  notifyOverlayModalClosed: (
+    modal: "runtime-options" | "subsync" | "jimaku",
+  ) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
 }
 

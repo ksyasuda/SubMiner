@@ -1,4 +1,4 @@
-.PHONY: help deps build install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
+.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_FILE := subminer.rasi
@@ -131,6 +131,12 @@ build-macos-unsigned: deps
 	@pnpm -C vendor/texthooker-ui build
 	@pnpm run build:mac:unsigned
 
+build-launcher:
+	@printf '%s\n' "[INFO] Bundling launcher script"
+	@bun build ./launcher/main.ts --target=bun --packages=bundle --outfile=subminer
+	@python3 -c 'from pathlib import Path; p=Path("subminer"); c=p.read_text(); c=("#!/usr/bin/env bun\n"+c) if not c.startswith("#!/usr/bin/env bun\n") else c; p.write_text(c)'
+	@chmod +x subminer
+
 clean:
 	@printf '%s\n' "[INFO] Removing build artifacts"
 	@rm -f release/SubMiner-*.AppImage
@@ -170,7 +176,7 @@ dev-stop: ensure-pnpm
 	@pnpm exec electron . --stop
 
 
-install-linux:
+install-linux: build-launcher
 	@printf '%s\n' "[INFO] Installing Linux wrapper/theme artifacts"
 	@install -d "$(BINDIR)"
 	@install -m 0755 "./$(APP_NAME)" "$(BINDIR)/$(APP_NAME)"
@@ -184,7 +190,7 @@ install-linux:
 	fi
 	@printf '%s\n' "Installed to:" "  $(BINDIR)/subminer" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
 
-install-macos:
+install-macos: build-launcher
 	@printf '%s\n' "[INFO] Installing macOS wrapper/theme/app artifacts"
 	@install -d "$(BINDIR)"
 	@install -m 0755 "./$(APP_NAME)" "$(BINDIR)/$(APP_NAME)"

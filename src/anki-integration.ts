@@ -210,16 +210,8 @@ export class AnkiIntegration {
             audioPadding,
             audioStreamIndex,
           ),
-        generateScreenshot: (
-          videoPath,
-          timestamp,
-          options,
-        ) =>
-          this.mediaGenerator.generateScreenshot(
-            videoPath,
-            timestamp,
-            options,
-          ),
+        generateScreenshot: (videoPath, timestamp, options) =>
+          this.mediaGenerator.generateScreenshot(videoPath, timestamp, options),
         generateAnimatedImage: (
           videoPath,
           startTime,
@@ -243,8 +235,10 @@ export class AnkiIntegration {
       beginUpdateProgress: (initialMessage: string) =>
         this.beginUpdateProgress(initialMessage),
       endUpdateProgress: () => this.endUpdateProgress(),
-      withUpdateProgress: <T>(initialMessage: string, action: () => Promise<T>) =>
-        this.withUpdateProgress(initialMessage, action),
+      withUpdateProgress: <T>(
+        initialMessage: string,
+        action: () => Promise<T>,
+      ) => this.withUpdateProgress(initialMessage, action),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
       resolveNoteFieldName: (noteInfo, preferredName) =>
@@ -272,11 +266,14 @@ export class AnkiIntegration {
       },
     });
     this.fieldGroupingService = new FieldGroupingService({
-      getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
+      getEffectiveSentenceCardConfig: () =>
+        this.getEffectiveSentenceCardConfig(),
       isUpdateInProgress: () => this.updateInProgress,
       getDeck: () => this.config.deck,
-      withUpdateProgress: <T>(initialMessage: string, action: () => Promise<T>) =>
-        this.withUpdateProgress(initialMessage, action),
+      withUpdateProgress: <T>(
+        initialMessage: string,
+        action: () => Promise<T>,
+      ) => this.withUpdateProgress(initialMessage, action),
       showOsdNotification: (text: string) => this.showOsdNotification(text),
       findNotes: async (query, options) =>
         (await this.client.findNotes(query, options)) as number[],
@@ -287,8 +284,7 @@ export class AnkiIntegration {
         this.findDuplicateNote(expression, noteId, noteInfo),
       hasAllConfiguredFields: (noteInfo, configuredFieldNames) =>
         this.hasAllConfiguredFields(noteInfo, configuredFieldNames),
-      processNewCard: (noteId, options) =>
-        this.processNewCard(noteId, options),
+      processNewCard: (noteId, options) => this.processNewCard(noteId, options),
       getSentenceCardImageFieldName: () => this.config.fields?.image,
       resolveFieldName: (availableFieldNames, preferredName) =>
         this.resolveFieldName(availableFieldNames, preferredName),
@@ -307,7 +303,12 @@ export class AnkiIntegration {
           includeGeneratedMedia,
         ),
       getNoteFieldMap: (noteInfo) => this.getNoteFieldMap(noteInfo),
-      handleFieldGroupingAuto: (originalNoteId, newNoteId, newNoteInfo, expression) =>
+      handleFieldGroupingAuto: (
+        originalNoteId,
+        newNoteId,
+        newNoteInfo,
+        expression,
+      ) =>
         this.handleFieldGroupingAuto(
           originalNoteId,
           newNoteId,
@@ -558,7 +559,8 @@ export class AnkiIntegration {
             if (!imageFieldName) {
               log.warn("Image field not found on note, skipping image update");
             } else {
-              const existingImage = noteInfo.fields[imageFieldName]?.value || "";
+              const existingImage =
+                noteInfo.fields[imageFieldName]?.value || "";
               updatedFields[imageFieldName] = this.mergeFieldValue(
                 existingImage,
                 `<img src="${imageFilename}">`,
@@ -782,7 +784,9 @@ export class AnkiIntegration {
   private generateImageFilename(): string {
     const timestamp = Date.now();
     const ext =
-      this.config.media?.imageType === "avif" ? "avif" : this.config.media?.imageFormat;
+      this.config.media?.imageType === "avif"
+        ? "avif"
+        : this.config.media?.imageFormat;
     return `image_${timestamp}.${ext}`;
   }
 
@@ -792,10 +796,7 @@ export class AnkiIntegration {
       showOsd: (text: string) => {
         this.showOsdNotification(text);
       },
-      showSystemNotification: (
-        title: string,
-        options: NotificationOptions,
-      ) => {
+      showSystemNotification: (title: string, options: NotificationOptions) => {
         if (this.notificationCallback) {
           this.notificationCallback(title, options);
         }
@@ -804,9 +805,13 @@ export class AnkiIntegration {
   }
 
   private beginUpdateProgress(initialMessage: string): void {
-    beginUpdateProgress(this.uiFeedbackState, initialMessage, (text: string) => {
-      this.showOsdNotification(text);
-    });
+    beginUpdateProgress(
+      this.uiFeedbackState,
+      initialMessage,
+      (text: string) => {
+        this.showOsdNotification(text);
+      },
+    );
   }
 
   private endUpdateProgress(): void {
@@ -816,12 +821,9 @@ export class AnkiIntegration {
   }
 
   private showProgressTick(): void {
-    showProgressTick(
-      this.uiFeedbackState,
-      (text: string) => {
-        this.showOsdNotification(text);
-      },
-    );
+    showProgressTick(this.uiFeedbackState, (text: string) => {
+      this.showOsdNotification(text);
+    });
   }
 
   private async withUpdateProgress<T>(
@@ -893,9 +895,7 @@ export class AnkiIntegration {
     if (this.parseWarningKeys.has(key)) return;
     this.parseWarningKeys.add(key);
     const suffix = detail ? ` (${detail})` : "";
-    log.warn(
-      `Field grouping parse warning [${fieldName}] ${reason}${suffix}`,
-    );
+    log.warn(`Field grouping parse warning [${fieldName}] ${reason}${suffix}`);
   }
 
   private setCardTypeFields(
@@ -1284,10 +1284,16 @@ export class AnkiIntegration {
   private getStrictSpanGroupingFields(): Set<string> {
     const strictFields = new Set(this.strictGroupingFieldDefaults);
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-    strictFields.add((sentenceCardConfig.sentenceField || "sentence").toLowerCase());
-    strictFields.add((sentenceCardConfig.audioField || "sentenceaudio").toLowerCase());
-    if (this.config.fields?.image) strictFields.add(this.config.fields.image.toLowerCase());
-    if (this.config.fields?.miscInfo) strictFields.add(this.config.fields.miscInfo.toLowerCase());
+    strictFields.add(
+      (sentenceCardConfig.sentenceField || "sentence").toLowerCase(),
+    );
+    strictFields.add(
+      (sentenceCardConfig.audioField || "sentenceaudio").toLowerCase(),
+    );
+    if (this.config.fields?.image)
+      strictFields.add(this.config.fields.image.toLowerCase());
+    if (this.config.fields?.miscInfo)
+      strictFields.add(this.config.fields.miscInfo.toLowerCase());
     return strictFields;
   }
 
@@ -1445,7 +1451,8 @@ export class AnkiIntegration {
         if (imageBuffer) {
           await this.client.storeMediaFile(imageFilename, imageBuffer);
           result.imageField =
-            this.config.fields?.image || DEFAULT_ANKI_CONNECT_CONFIG.fields.image;
+            this.config.fields?.image ||
+            DEFAULT_ANKI_CONNECT_CONFIG.fields.image;
           result.imageValue = `<img src="${imageFilename}">`;
           if (this.config.fields?.miscInfo && !result.miscInfoValue) {
             result.miscInfoValue = this.formatMiscInfoPattern(
@@ -1657,7 +1664,7 @@ export class AnkiIntegration {
     const keepNotesInfoResult = await this.client.notesInfo([keepNoteId]);
     const keepNotesInfo = keepNotesInfoResult as unknown as NoteInfo[];
     if (!keepNotesInfo || keepNotesInfo.length === 0) {
-    log.warn("Keep note not found:", keepNoteId);
+      log.warn("Keep note not found:", keepNoteId);
       return;
     }
     const keepNoteInfo = keepNotesInfo[0];
@@ -1703,10 +1710,7 @@ export class AnkiIntegration {
         sentenceCardConfig.kikuDeleteDuplicateInAuto,
       );
     } catch (error) {
-      log.error(
-        "Field grouping auto merge failed:",
-        (error as Error).message,
-      );
+      log.error("Field grouping auto merge failed:", (error as Error).message);
       this.showOsdNotification(
         `Field grouping failed: ${(error as Error).message}`,
       );
@@ -1720,9 +1724,7 @@ export class AnkiIntegration {
     expression: string,
   ): Promise<boolean> {
     if (!this.fieldGroupingCallback) {
-      log.warn(
-        "No field grouping callback registered, skipping manual mode",
-      );
+      log.warn("No field grouping callback registered, skipping manual mode");
       this.showOsdNotification("Field grouping UI unavailable");
       return false;
     }
@@ -1754,7 +1756,10 @@ export class AnkiIntegration {
         hasAudio:
           this.hasFieldValue(originalNoteInfo, this.config.fields?.audio) ||
           this.hasFieldValue(originalNoteInfo, sentenceCardConfig.audioField),
-        hasImage: this.hasFieldValue(originalNoteInfo, this.config.fields?.image),
+        hasImage: this.hasFieldValue(
+          originalNoteInfo,
+          this.config.fields?.image,
+        ),
         isOriginal: true,
       };
 
@@ -1903,10 +1908,7 @@ export class AnkiIntegration {
           : this.config.isKiku,
     };
 
-    if (
-      wasEnabled &&
-      this.config.nPlusOne?.highlightEnabled === false
-    ) {
+    if (wasEnabled && this.config.nPlusOne?.highlightEnabled === false) {
       this.stopKnownWordCacheLifecycle();
       this.knownWordCache.clearKnownWordCacheState();
     } else {
@@ -1921,7 +1923,6 @@ export class AnkiIntegration {
       this.pollingRunner.start();
     }
   }
-
 
   destroy(): void {
     this.stop();

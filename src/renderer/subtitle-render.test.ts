@@ -95,7 +95,13 @@ test("computeWordClass does not add frequency class to known or N+1 terms", () =
       topX: 100,
       mode: "single",
       singleColor: "#000000",
-      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
+      bandedColors: [
+        "#000000",
+        "#000000",
+        "#000000",
+        "#000000",
+        "#000000",
+      ] as const,
     }),
     "word word-known",
   );
@@ -105,7 +111,13 @@ test("computeWordClass does not add frequency class to known or N+1 terms", () =
       topX: 100,
       mode: "single",
       singleColor: "#000000",
-      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
+      bandedColors: [
+        "#000000",
+        "#000000",
+        "#000000",
+        "#000000",
+        "#000000",
+      ] as const,
     }),
     "word word-n-plus-one",
   );
@@ -115,7 +127,13 @@ test("computeWordClass does not add frequency class to known or N+1 terms", () =
       topX: 100,
       mode: "single",
       singleColor: "#000000",
-      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
+      bandedColors: [
+        "#000000",
+        "#000000",
+        "#000000",
+        "#000000",
+        "#000000",
+      ] as const,
     }),
     "word word-frequency-single",
   );
@@ -127,16 +145,19 @@ test("computeWordClass adds frequency class for single mode when rank is within 
     frequencyRank: 50,
   });
 
-  const actual = computeWordClass(
-    token,
-    {
-      enabled: true,
-      topX: 100,
-      mode: "single",
-      singleColor: "#000000",
-      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
-    },
-  );
+  const actual = computeWordClass(token, {
+    enabled: true,
+    topX: 100,
+    mode: "single",
+    singleColor: "#000000",
+    bandedColors: [
+      "#000000",
+      "#000000",
+      "#000000",
+      "#000000",
+      "#000000",
+    ] as const,
+  });
 
   assert.equal(actual, "word word-frequency-single");
 });
@@ -147,16 +168,19 @@ test("computeWordClass adds frequency class when rank equals topX", () => {
     frequencyRank: 100,
   });
 
-  const actual = computeWordClass(
-    token,
-    {
-      enabled: true,
-      topX: 100,
-      mode: "single",
-      singleColor: "#000000",
-      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
-    },
-  );
+  const actual = computeWordClass(token, {
+    enabled: true,
+    topX: 100,
+    mode: "single",
+    singleColor: "#000000",
+    bandedColors: [
+      "#000000",
+      "#000000",
+      "#000000",
+      "#000000",
+      "#000000",
+    ] as const,
+  });
 
   assert.equal(actual, "word word-frequency-single");
 });
@@ -167,17 +191,19 @@ test("computeWordClass adds frequency class for banded mode", () => {
     frequencyRank: 250,
   });
 
-  const actual = computeWordClass(
-    token,
-    {
-      enabled: true,
-      topX: 1000,
-      mode: "banded",
-      singleColor: "#000000",
-      bandedColors:
-        ["#111111", "#222222", "#333333", "#444444", "#555555"] as const,
-    },
-  );
+  const actual = computeWordClass(token, {
+    enabled: true,
+    topX: 1000,
+    mode: "banded",
+    singleColor: "#000000",
+    bandedColors: [
+      "#111111",
+      "#222222",
+      "#333333",
+      "#444444",
+      "#555555",
+    ] as const,
+  });
 
   assert.equal(actual, "word word-frequency-band-2");
 });
@@ -193,13 +219,7 @@ test("computeWordClass uses configured band count for banded mode", () => {
     topX: 4,
     mode: "banded",
     singleColor: "#000000",
-    bandedColors: [
-      "#111111",
-      "#222222",
-      "#333333",
-      "#444444",
-      "#555555",
-    ],
+    bandedColors: ["#111111", "#222222", "#333333", "#444444", "#555555"],
   } as any);
 
   assert.equal(actual, "word word-frequency-band-3");
@@ -211,16 +231,19 @@ test("computeWordClass skips frequency class when rank is out of topX", () => {
     frequencyRank: 1200,
   });
 
-  const actual = computeWordClass(
-    token,
-    {
-      enabled: true,
-      topX: 1000,
-      mode: "single",
-      singleColor: "#000000",
-      bandedColors: ["#000000", "#000000", "#000000", "#000000", "#000000"] as const,
-    },
-  );
+  const actual = computeWordClass(token, {
+    enabled: true,
+    topX: 1000,
+    mode: "single",
+    singleColor: "#000000",
+    bandedColors: [
+      "#000000",
+      "#000000",
+      "#000000",
+      "#000000",
+      "#000000",
+    ] as const,
+  });
 
   assert.equal(actual, "word");
 });
@@ -229,9 +252,7 @@ test("JLPT CSS rules use underline-only styling in renderer stylesheet", () => {
   const distCssPath = path.join(process.cwd(), "dist", "renderer", "style.css");
   const srcCssPath = path.join(process.cwd(), "src", "renderer", "style.css");
 
-  const cssPath = fs.existsSync(distCssPath)
-    ? distCssPath
-    : srcCssPath;
+  const cssPath = fs.existsSync(distCssPath) ? distCssPath : srcCssPath;
   if (!fs.existsSync(cssPath)) {
     assert.fail(
       "JLPT CSS file missing. Run `pnpm run build` first, or ensure src/renderer/style.css exists.",
@@ -259,7 +280,10 @@ test("JLPT CSS rules use underline-only styling in renderer stylesheet", () => {
         ? "#subtitleRoot .word.word-frequency-single"
         : `#subtitleRoot .word.word-frequency-band-${band}`,
     );
-    assert.ok(block.length > 0, `frequency class word-frequency-${band === 1 ? "single" : `band-${band}`} should exist`);
+    assert.ok(
+      block.length > 0,
+      `frequency class word-frequency-${band === 1 ? "single" : `band-${band}`} should exist`,
+    );
     assert.match(block, /color:\s*var\(/);
   }
 });
