@@ -29,7 +29,9 @@ export interface SubsyncRuntimeDepsParams {
   openManualPicker: (payload: SubsyncManualPayload) => void;
 }
 
-export function createRuntimeOptionsIpcDeps(params: RuntimeOptionsIpcDepsParams): {
+export function createRuntimeOptionsIpcDeps(
+  params: RuntimeOptionsIpcDepsParams,
+): {
   setRuntimeOption: (id: string, value: unknown) => unknown;
   cycleRuntimeOption: (id: string, direction: 1 | -1) => unknown;
 } {
@@ -51,7 +53,9 @@ export function createRuntimeOptionsIpcDeps(params: RuntimeOptionsIpcDepsParams)
   };
 }
 
-export function createSubsyncRuntimeDeps(params: SubsyncRuntimeDepsParams): SubsyncRuntimeDeps {
+export function createSubsyncRuntimeDeps(
+  params: SubsyncRuntimeDepsParams,
+): SubsyncRuntimeDeps {
   return {
     getMpvClient: params.getMpvClient,
     getResolvedSubsyncConfig: params.getResolvedSubsyncConfig,
@@ -145,19 +149,14 @@ export interface CliCommandRuntimeServiceDepsParams {
   };
   mining: {
     copyCurrentSubtitle: CliCommandDepsRuntimeOptions["mining"]["copyCurrentSubtitle"];
-    startPendingMultiCopy:
-      CliCommandDepsRuntimeOptions["mining"]["startPendingMultiCopy"];
+    startPendingMultiCopy: CliCommandDepsRuntimeOptions["mining"]["startPendingMultiCopy"];
     mineSentenceCard: CliCommandDepsRuntimeOptions["mining"]["mineSentenceCard"];
-    startPendingMineSentenceMultiple:
-      CliCommandDepsRuntimeOptions["mining"]["startPendingMineSentenceMultiple"];
-    updateLastCardFromClipboard:
-      CliCommandDepsRuntimeOptions["mining"]["updateLastCardFromClipboard"];
+    startPendingMineSentenceMultiple: CliCommandDepsRuntimeOptions["mining"]["startPendingMineSentenceMultiple"];
+    updateLastCardFromClipboard: CliCommandDepsRuntimeOptions["mining"]["updateLastCardFromClipboard"];
     refreshKnownWords: CliCommandDepsRuntimeOptions["mining"]["refreshKnownWords"];
     triggerFieldGrouping: CliCommandDepsRuntimeOptions["mining"]["triggerFieldGrouping"];
-    triggerSubsyncFromConfig:
-      CliCommandDepsRuntimeOptions["mining"]["triggerSubsyncFromConfig"];
-    markLastCardAsAudioCard:
-      CliCommandDepsRuntimeOptions["mining"]["markLastCardAsAudioCard"];
+    triggerSubsyncFromConfig: CliCommandDepsRuntimeOptions["mining"]["triggerSubsyncFromConfig"];
+    markLastCardAsAudioCard: CliCommandDepsRuntimeOptions["mining"]["markLastCardAsAudioCard"];
   };
   anilist: {
     getStatus: CliCommandDepsRuntimeOptions["anilist"]["getStatus"];
@@ -166,11 +165,14 @@ export interface CliCommandRuntimeServiceDepsParams {
     getQueueStatus: CliCommandDepsRuntimeOptions["anilist"]["getQueueStatus"];
     retryQueueNow: CliCommandDepsRuntimeOptions["anilist"]["retryQueueNow"];
   };
+  jellyfin: {
+    openSetup: CliCommandDepsRuntimeOptions["jellyfin"]["openSetup"];
+    runCommand: CliCommandDepsRuntimeOptions["jellyfin"]["runCommand"];
+  };
   ui: {
     openYomitanSettings: CliCommandDepsRuntimeOptions["ui"]["openYomitanSettings"];
     cycleSecondarySubMode: CliCommandDepsRuntimeOptions["ui"]["cycleSecondarySubMode"];
-    openRuntimeOptionsPalette:
-      CliCommandDepsRuntimeOptions["ui"]["openRuntimeOptionsPalette"];
+    openRuntimeOptionsPalette: CliCommandDepsRuntimeOptions["ui"]["openRuntimeOptionsPalette"];
     printHelp: CliCommandDepsRuntimeOptions["ui"]["printHelp"];
   };
   app: {
@@ -293,7 +295,8 @@ export function createCliCommandRuntimeServiceDeps(
       copyCurrentSubtitle: params.mining.copyCurrentSubtitle,
       startPendingMultiCopy: params.mining.startPendingMultiCopy,
       mineSentenceCard: params.mining.mineSentenceCard,
-      startPendingMineSentenceMultiple: params.mining.startPendingMineSentenceMultiple,
+      startPendingMineSentenceMultiple:
+        params.mining.startPendingMineSentenceMultiple,
       updateLastCardFromClipboard: params.mining.updateLastCardFromClipboard,
       refreshKnownWords: params.mining.refreshKnownWords,
       triggerFieldGrouping: params.mining.triggerFieldGrouping,
@@ -306,6 +309,10 @@ export function createCliCommandRuntimeServiceDeps(
       openSetup: params.anilist.openSetup,
       getQueueStatus: params.anilist.getQueueStatus,
       retryQueueNow: params.anilist.retryQueueNow,
+    },
+    jellyfin: {
+      openSetup: params.jellyfin.openSetup,
+      runCommand: params.jellyfin.runCommand,
     },
     ui: {
       openYomitanSettings: params.ui.openYomitanSettings,

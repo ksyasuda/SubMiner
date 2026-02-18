@@ -41,6 +41,7 @@ protocol.registerSchemesAsPrivileged([
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs";
+import { spawn } from "node:child_process";
 import { MecabTokenizer } from "./mecab-tokenizer";
 import type {
   JimakuApiResponse,
@@ -65,14 +66,9 @@ import {
   isRemoteMediaPath,
   parseMediaInfo,
 } from "./jimaku/utils";
-import {
-  getSubsyncConfig,
-} from "./subsync/utils";
+import { getSubsyncConfig } from "./subsync/utils";
 import { createLogger, setLogLevel, type LogLevelSource } from "./logger";
-import {
-  parseArgs,
-  shouldStartApp,
-} from "./cli/args";
+import { parseArgs, shouldStartApp } from "./cli/args";
 import type { CliArgs, CliCommandSource } from "./cli/args";
 import { printHelp } from "./cli/help";
 import {
@@ -110,9 +106,13 @@ import {
   jimakuFetchJson as jimakuFetchJsonCore,
   loadSubtitlePosition as loadSubtitlePositionCore,
   loadYomitanExtension as loadYomitanExtensionCore,
+  listJellyfinItemsRuntime,
+  listJellyfinLibrariesRuntime,
+  listJellyfinSubtitleTracksRuntime,
   markLastCardAsAudioCard as markLastCardAsAudioCardCore,
   DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
   ImmersionTrackerService,
+  JellyfinRemoteSessionService,
   mineSentenceCard as mineSentenceCardCore,
   openYomitanSettingsWindow,
   playNextSubtitleRuntime,
@@ -121,6 +121,9 @@ import {
   resolveJimakuApiKey as resolveJimakuApiKeyCore,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
+  authenticateWithPasswordRuntime,
+  resolveJellyfinPlaybackPlanRuntime,
+  jellyfinTicksToSecondsRuntime,
   sendMpvCommandRuntime,
   setInvisibleOverlayVisible as setInvisibleOverlayVisibleCore,
   setMpvSubVisibilityRuntime,
@@ -141,19 +144,11 @@ import {
 import { createAnilistTokenStore } from "./core/services/anilist/anilist-token-store";
 import { createAnilistUpdateQueue } from "./core/services/anilist/anilist-update-queue";
 import { applyRuntimeOptionResultRuntime } from "./core/services/runtime-options-ipc";
-import {
-  createAppReadyRuntimeRunner,
-} from "./main/app-lifecycle";
+import { createAppReadyRuntimeRunner } from "./main/app-lifecycle";
 import { handleMpvCommandFromIpcRuntime } from "./main/ipc-mpv-command";
-import {
-  registerIpcRuntimeServices,
-} from "./main/ipc-runtime";
-import {
-  createAnkiJimakuIpcRuntimeServiceDeps,
-} from "./main/dependencies";
-import {
-  handleCliCommandRuntimeServiceWithContext,
-} from "./main/cli-runtime";
+import { registerIpcRuntimeServices } from "./main/ipc-runtime";
+import { createAnkiJimakuIpcRuntimeServiceDeps } from "./main/dependencies";
+import { handleCliCommandRuntimeServiceWithContext } from "./main/cli-runtime";
 import {
   runSubsyncManualFromIpcRuntime,
   triggerSubsyncFromConfigRuntime,
@@ -163,9 +158,7 @@ import {
   createOverlayModalRuntimeService,
   type OverlayHostedModal,
 } from "./main/overlay-runtime";
-import {
-  createOverlayShortcutsRuntimeService,
-} from "./main/overlay-shortcuts-runtime";
+import { createOverlayShortcutsRuntimeService } from "./main/overlay-shortcuts-runtime";
 import {
   createJlptDictionaryRuntimeService,
   getJlptDictionarySearchPaths,
@@ -176,11 +169,7 @@ import {
 } from "./main/frequency-dictionary-runtime";
 import { createMediaRuntimeService } from "./main/media-runtime";
 import { createOverlayVisibilityRuntimeService } from "./main/overlay-visibility-runtime";
-import {
-  type AppState,
-  applyStartupState,
-  createAppState,
-} from "./main/state";
+import { type AppState, applyStartupState, createAppState } from "./main/state";
 import {
   isAllowedAnilistExternalUrl,
   isAllowedAnilistSetupNavigationUrl,
@@ -220,11 +209,53 @@ const ANILIST_RETRY_QUEUE_FILE = "anilist-retry-queue.json";
 let anilistCurrentMediaKey: string | null = null;
 let anilistCurrentMediaDurationSec: number | null = null;
 let anilistCurrentMediaGuess: AnilistMediaGuess | null = null;
-let anilistCurrentMediaGuessPromise: Promise<AnilistMediaGuess | null> | null = null;
+let anilistCurrentMediaGuessPromise: Promise<AnilistMediaGuess | null> | null =
+  null;
 let anilistLastDurationProbeAtMs = 0;
 let anilistUpdateInFlight = false;
 const anilistAttemptedUpdateKeys = new Set<string>();
 let anilistCachedAccessToken: string | null = null;
+let jellyfinPlayQuitOnDisconnectArmed = false;
+const JELLYFIN_LANG_PREF = "ja,jp,jpn,japanese,en,eng,english,enUS,en-US";
+const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
+const JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS = 3000;
+const JELLYFIN_MPV_CONNECT_TIMEOUT_MS = 3000;
+const JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS = 20000;
+const MPV_JELLYFIN_DEFAULT_ARGS = [
+  "--sub-auto=fuzzy",
+  "--sub-file-paths=.;subs;subtitles",
+  "--sid=auto",
+  "--secondary-sid=auto",
+  "--secondary-sub-visibility=no",
+  "--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us",
+  "--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us",
+] as const;
+
+type ActiveJellyfinRemotePlaybackState = {
+  itemId: string;
+  mediaSourceId?: string;
+  audioStreamIndex?: number | null;
+  subtitleStreamIndex?: number | null;
+  playMethod: "DirectPlay" | "Transcode";
+};
+
+let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
+let jellyfinRemoteLastProgressAtMs = 0;
+let jellyfinMpvAutoLaunchInFlight: Promise<boolean> | null = null;
+
+function applyJellyfinMpvDefaults(client: MpvIpcClient): void {
+  sendMpvCommandRuntime(client, ["set_property", "sub-auto", "fuzzy"]);
+  sendMpvCommandRuntime(client, ["set_property", "aid", "auto"]);
+  sendMpvCommandRuntime(client, ["set_property", "sid", "auto"]);
+  sendMpvCommandRuntime(client, ["set_property", "secondary-sid", "auto"]);
+  sendMpvCommandRuntime(client, [
+    "set_property",
+    "secondary-sub-visibility",
+    "no",
+  ]);
+  sendMpvCommandRuntime(client, ["set_property", "alang", JELLYFIN_LANG_PREF]);
+  sendMpvCommandRuntime(client, ["set_property", "slang", JELLYFIN_LANG_PREF]);
+}
 
 function resolveConfigDir(): string {
   const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
@@ -262,23 +293,28 @@ function resolveConfigDir(): string {
 
 const CONFIG_DIR = resolveConfigDir();
 const USER_DATA_PATH = CONFIG_DIR;
-const DEFAULT_MPV_LOG_PATH = process.env.SUBMINER_MPV_LOG?.trim() || DEFAULT_MPV_LOG_FILE;
+const DEFAULT_MPV_LOG_PATH =
+  process.env.SUBMINER_MPV_LOG?.trim() || DEFAULT_MPV_LOG_FILE;
 const DEFAULT_IMMERSION_DB_PATH = path.join(USER_DATA_PATH, "immersion.sqlite");
 const configService = new ConfigService(CONFIG_DIR);
 const anilistTokenStore = createAnilistTokenStore(
   path.join(USER_DATA_PATH, ANILIST_TOKEN_STORE_FILE),
   {
     info: (message: string) => console.info(message),
-    warn: (message: string, details?: unknown) => console.warn(message, details),
-    error: (message: string, details?: unknown) => console.error(message, details),
+    warn: (message: string, details?: unknown) =>
+      console.warn(message, details),
+    error: (message: string, details?: unknown) =>
+      console.error(message, details),
   },
 );
 const anilistUpdateQueue = createAnilistUpdateQueue(
   path.join(USER_DATA_PATH, ANILIST_RETRY_QUEUE_FILE),
   {
     info: (message: string) => console.info(message),
-    warn: (message: string, details?: unknown) => console.warn(message, details),
-    error: (message: string, details?: unknown) => console.error(message, details),
+    warn: (message: string, details?: unknown) =>
+      console.warn(message, details),
+    error: (message: string, details?: unknown) =>
+      console.error(message, details),
   },
 );
 const isDev =
@@ -390,7 +426,12 @@ const jlptDictionaryRuntime = createJlptDictionaryRuntimeService({
         path.join(__dirname, "..", "..", "vendor", "yomitan-jlpt-vocab"),
         path.join(app.getAppPath(), "vendor", "yomitan-jlpt-vocab"),
         path.join(process.resourcesPath, "yomitan-jlpt-vocab"),
-        path.join(process.resourcesPath, "app.asar", "vendor", "yomitan-jlpt-vocab"),
+        path.join(
+          process.resourcesPath,
+          "app.asar",
+          "vendor",
+          "yomitan-jlpt-vocab",
+        ),
         USER_DATA_PATH,
         app.getPath("userData"),
         path.join(os.homedir(), ".config", "SubMiner"),
@@ -413,23 +454,34 @@ const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService({
     getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
   getSearchPaths: () =>
     getFrequencyDictionarySearchPaths({
-      getDictionaryRoots: () => [
-        path.join(__dirname, "..", "..", "vendor", "jiten_freq_global"),
-        path.join(__dirname, "..", "..", "vendor", "frequency-dictionary"),
-        path.join(app.getAppPath(), "vendor", "jiten_freq_global"),
-        path.join(app.getAppPath(), "vendor", "frequency-dictionary"),
-        path.join(process.resourcesPath, "jiten_freq_global"),
-        path.join(process.resourcesPath, "frequency-dictionary"),
-        path.join(process.resourcesPath, "app.asar", "vendor", "jiten_freq_global"),
-        path.join(process.resourcesPath, "app.asar", "vendor", "frequency-dictionary"),
-        USER_DATA_PATH,
-        app.getPath("userData"),
-        path.join(os.homedir(), ".config", "SubMiner"),
-        path.join(os.homedir(), ".config", "subminer"),
-        path.join(os.homedir(), "Library", "Application Support", "SubMiner"),
-        path.join(os.homedir(), "Library", "Application Support", "subminer"),
-        process.cwd(),
-      ].filter((dictionaryRoot) => dictionaryRoot),
+      getDictionaryRoots: () =>
+        [
+          path.join(__dirname, "..", "..", "vendor", "jiten_freq_global"),
+          path.join(__dirname, "..", "..", "vendor", "frequency-dictionary"),
+          path.join(app.getAppPath(), "vendor", "jiten_freq_global"),
+          path.join(app.getAppPath(), "vendor", "frequency-dictionary"),
+          path.join(process.resourcesPath, "jiten_freq_global"),
+          path.join(process.resourcesPath, "frequency-dictionary"),
+          path.join(
+            process.resourcesPath,
+            "app.asar",
+            "vendor",
+            "jiten_freq_global",
+          ),
+          path.join(
+            process.resourcesPath,
+            "app.asar",
+            "vendor",
+            "frequency-dictionary",
+          ),
+          USER_DATA_PATH,
+          app.getPath("userData"),
+          path.join(os.homedir(), ".config", "SubMiner"),
+          path.join(os.homedir(), ".config", "subminer"),
+          path.join(os.homedir(), "Library", "Application Support", "SubMiner"),
+          path.join(os.homedir(), "Library", "Application Support", "subminer"),
+          process.cwd(),
+        ].filter((dictionaryRoot) => dictionaryRoot),
       getSourcePath: () =>
         getResolvedConfig().subtitleStyle.frequencyDictionary.sourcePath,
     }),
@@ -441,7 +493,9 @@ const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService({
   },
 });
 
-function getFieldGroupingResolver(): ((choice: KikuFieldGroupingChoice) => void) | null {
+function getFieldGroupingResolver():
+  | ((choice: KikuFieldGroupingChoice) => void)
+  | null {
   return appState.fieldGroupingResolver;
 }
 
@@ -460,24 +514,27 @@ function setFieldGroupingResolver(
   appState.fieldGroupingResolver = wrappedResolver;
 }
 
-const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHostedModal>({
-  getMainWindow: () => overlayManager.getMainWindow(),
-  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
-  setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-  setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
-  getResolver: () => getFieldGroupingResolver(),
-  setResolver: (resolver) => setFieldGroupingResolver(resolver),
-  getRestoreVisibleOverlayOnModalClose: () =>
-    overlayModalRuntime.getRestoreVisibleOverlayOnModalClose(),
-  sendToVisibleOverlay: (channel, payload, runtimeOptions) => {
-    return overlayModalRuntime.sendToActiveOverlayWindow(
-      channel,
-      payload,
-      runtimeOptions,
-    );
-  },
-});
+const fieldGroupingOverlayRuntime =
+  createFieldGroupingOverlayRuntime<OverlayHostedModal>({
+    getMainWindow: () => overlayManager.getMainWindow(),
+    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getInvisibleOverlayVisible: () =>
+      overlayManager.getInvisibleOverlayVisible(),
+    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+    setInvisibleOverlayVisible: (visible) =>
+      setInvisibleOverlayVisible(visible),
+    getResolver: () => getFieldGroupingResolver(),
+    setResolver: (resolver) => setFieldGroupingResolver(resolver),
+    getRestoreVisibleOverlayOnModalClose: () =>
+      overlayModalRuntime.getRestoreVisibleOverlayOnModalClose(),
+    sendToVisibleOverlay: (channel, payload, runtimeOptions) => {
+      return overlayModalRuntime.sendToActiveOverlayWindow(
+        channel,
+        payload,
+        runtimeOptions,
+      );
+    },
+  });
 const createFieldGroupingCallback =
   fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
@@ -532,7 +589,10 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService({
   },
 });
 
-function getRuntimeOptionsState(): RuntimeOptionState[] { if (!appState.runtimeOptionsManager) return []; return appState.runtimeOptionsManager.listOptions(); }
+function getRuntimeOptionsState(): RuntimeOptionState[] {
+  if (!appState.runtimeOptionsManager) return [];
+  return appState.runtimeOptionsManager.listOptions();
+}
 
 function getOverlayWindows(): BrowserWindow[] {
   return overlayManager.getOverlayWindows();
@@ -581,12 +641,723 @@ function openRuntimeOptionsPalette(): void {
   overlayModalRuntime.openRuntimeOptionsPalette();
 }
 
-function getResolvedConfig() { return configService.getConfig(); }
+function getResolvedConfig() {
+  return configService.getConfig();
+}
+function getResolvedJellyfinConfig() {
+  return getResolvedConfig().jellyfin;
+}
+
+function getJellyfinClientInfo(config = getResolvedJellyfinConfig()) {
+  const clientName = config.clientName || DEFAULT_CONFIG.jellyfin.clientName;
+  const clientVersion =
+    config.clientVersion || DEFAULT_CONFIG.jellyfin.clientVersion;
+  const deviceId = config.deviceId || DEFAULT_CONFIG.jellyfin.deviceId;
+  return {
+    clientName,
+    clientVersion,
+    deviceId,
+  };
+}
+
+async function waitForMpvConnected(timeoutMs = 7000): Promise<boolean> {
+  const client = appState.mpvClient;
+  if (!client) return false;
+  if (client.connected) return true;
+  try {
+    client.connect();
+  } catch {}
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (appState.mpvClient?.connected) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return Boolean(appState.mpvClient?.connected);
+}
+
+function launchMpvIdleForJellyfinPlayback(): void {
+  const socketPath = appState.mpvSocketPath;
+  if (process.platform !== "win32") {
+    try {
+      fs.rmSync(socketPath, { force: true });
+    } catch {
+      // ignore stale socket cleanup errors
+    }
+  }
+
+  const scriptOpts = `--script-opts=subminer-binary_path=${process.execPath},subminer-socket_path=${socketPath}`;
+  const mpvArgs = [
+    ...MPV_JELLYFIN_DEFAULT_ARGS,
+    "--idle=yes",
+    scriptOpts,
+    `--log-file=${DEFAULT_MPV_LOG_PATH}`,
+    `--input-ipc-server=${socketPath}`,
+  ];
+  const proc = spawn("mpv", mpvArgs, {
+    detached: true,
+    stdio: "ignore",
+  });
+  proc.on("error", (error) => {
+    logger.warn("Failed to launch mpv for Jellyfin remote playback", error);
+  });
+  proc.unref();
+  logger.info(`Launched mpv for Jellyfin playback on socket: ${socketPath}`);
+}
+
+async function ensureMpvConnectedForJellyfinPlayback(): Promise<boolean> {
+  if (!appState.mpvClient) {
+    appState.mpvClient = createMpvClientRuntimeService();
+  }
+
+  const connected = await waitForMpvConnected(JELLYFIN_MPV_CONNECT_TIMEOUT_MS);
+  if (connected) return true;
+
+  if (!jellyfinMpvAutoLaunchInFlight) {
+    jellyfinMpvAutoLaunchInFlight = (async () => {
+      launchMpvIdleForJellyfinPlayback();
+      return waitForMpvConnected(JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS);
+    })().finally(() => {
+      jellyfinMpvAutoLaunchInFlight = null;
+    });
+  }
+
+  return jellyfinMpvAutoLaunchInFlight;
+}
+
+function secondsToJellyfinTicks(seconds: number): number {
+  if (!Number.isFinite(seconds)) return 0;
+  return Math.max(0, Math.floor(seconds * JELLYFIN_TICKS_PER_SECOND));
+}
+
+async function reportJellyfinRemoteProgress(force = false): Promise<void> {
+  if (!activeJellyfinRemotePlayback) return;
+  const session = appState.jellyfinRemoteSession;
+  if (!session || !session.isConnected()) return;
+  const now = Date.now();
+  if (!force && now - jellyfinRemoteLastProgressAtMs < JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS) {
+    return;
+  }
+
+  try {
+    const position = await appState.mpvClient?.requestProperty("time-pos");
+    const paused = await appState.mpvClient?.requestProperty("pause");
+    await session.reportProgress({
+      itemId: activeJellyfinRemotePlayback.itemId,
+      mediaSourceId: activeJellyfinRemotePlayback.mediaSourceId,
+      positionTicks: secondsToJellyfinTicks(Number(position) || 0),
+      isPaused: paused === true,
+      playMethod: activeJellyfinRemotePlayback.playMethod,
+      audioStreamIndex: activeJellyfinRemotePlayback.audioStreamIndex,
+      subtitleStreamIndex: activeJellyfinRemotePlayback.subtitleStreamIndex,
+      eventName: "timeupdate",
+    });
+    jellyfinRemoteLastProgressAtMs = now;
+  } catch (error) {
+    logger.debug("Failed to report Jellyfin remote progress", error);
+  }
+}
+
+async function reportJellyfinRemoteStopped(): Promise<void> {
+  if (!activeJellyfinRemotePlayback) return;
+  const session = appState.jellyfinRemoteSession;
+  if (!session || !session.isConnected()) {
+    activeJellyfinRemotePlayback = null;
+    return;
+  }
+  try {
+    await session.reportStopped({
+      itemId: activeJellyfinRemotePlayback.itemId,
+      mediaSourceId: activeJellyfinRemotePlayback.mediaSourceId,
+      playMethod: activeJellyfinRemotePlayback.playMethod,
+      audioStreamIndex: activeJellyfinRemotePlayback.audioStreamIndex,
+      subtitleStreamIndex: activeJellyfinRemotePlayback.subtitleStreamIndex,
+      eventName: "stop",
+    });
+  } catch (error) {
+    logger.debug("Failed to report Jellyfin remote stop", error);
+  } finally {
+    activeJellyfinRemotePlayback = null;
+  }
+}
+
+async function playJellyfinItemInMpv(params: {
+  session: {
+    serverUrl: string;
+    accessToken: string;
+    userId: string;
+    username: string;
+  };
+  clientInfo: ReturnType<typeof getJellyfinClientInfo>;
+  jellyfinConfig: ReturnType<typeof getResolvedJellyfinConfig>;
+  itemId: string;
+  audioStreamIndex?: number;
+  subtitleStreamIndex?: number;
+  startTimeTicksOverride?: number;
+  setQuitOnDisconnectArm?: boolean;
+}): Promise<void> {
+  const connected = await ensureMpvConnectedForJellyfinPlayback();
+  if (!connected || !appState.mpvClient) {
+    throw new Error(
+      "MPV not connected and auto-launch failed. Ensure mpv is installed and available in PATH.",
+    );
+  }
+
+  const plan = await resolveJellyfinPlaybackPlanRuntime(
+    params.session,
+    params.clientInfo,
+    params.jellyfinConfig,
+    {
+      itemId: params.itemId,
+      audioStreamIndex: params.audioStreamIndex,
+      subtitleStreamIndex: params.subtitleStreamIndex,
+    },
+  );
+
+  applyJellyfinMpvDefaults(appState.mpvClient);
+  sendMpvCommandRuntime(appState.mpvClient, ["set_property", "sub-auto", "no"]);
+  sendMpvCommandRuntime(appState.mpvClient, ["loadfile", plan.url, "replace"]);
+  if (params.setQuitOnDisconnectArm !== false) {
+    jellyfinPlayQuitOnDisconnectArmed = false;
+    setTimeout(() => {
+      jellyfinPlayQuitOnDisconnectArmed = true;
+    }, 3000);
+  }
+  sendMpvCommandRuntime(appState.mpvClient, [
+    "set_property",
+    "force-media-title",
+    `[Jellyfin/${plan.mode}] ${plan.title}`,
+  ]);
+  sendMpvCommandRuntime(appState.mpvClient, ["set_property", "sid", "no"]);
+  setTimeout(() => {
+    sendMpvCommandRuntime(appState.mpvClient, ["set_property", "sid", "no"]);
+  }, 500);
+
+  const startTimeTicks =
+    typeof params.startTimeTicksOverride === "number"
+      ? Math.max(0, params.startTimeTicksOverride)
+      : plan.startTimeTicks;
+  if (startTimeTicks > 0) {
+    sendMpvCommandRuntime(appState.mpvClient, [
+      "seek",
+      jellyfinTicksToSecondsRuntime(startTimeTicks),
+      "absolute+exact",
+    ]);
+  }
+
+  void (async () => {
+    try {
+      const normalizeLang = (value: unknown): string =>
+        String(value || "")
+          .trim()
+          .toLowerCase()
+          .replace(/_/g, "-");
+      const isJapanese = (value: string): boolean => {
+        const v = normalizeLang(value);
+        return (
+          v === "ja" ||
+          v === "jp" ||
+          v === "jpn" ||
+          v === "japanese" ||
+          v.startsWith("ja-") ||
+          v.startsWith("jp-")
+        );
+      };
+      const isEnglish = (value: string): boolean => {
+        const v = normalizeLang(value);
+        return (
+          v === "en" ||
+          v === "eng" ||
+          v === "english" ||
+          v === "enus" ||
+          v === "en-us" ||
+          v.startsWith("en-")
+        );
+      };
+      const isLikelyHearingImpaired = (title: string): boolean =>
+        /\b(hearing impaired|sdh|closed captions?|cc)\b/i.test(title);
+      const pickBestTrackId = (
+        tracks: Array<{
+          id: number;
+          lang: string;
+          title: string;
+          external: boolean;
+        }>,
+        languageMatcher: (value: string) => boolean,
+        excludeId: number | null = null,
+      ): number | null => {
+        const ranked = tracks
+          .filter((track) => languageMatcher(track.lang))
+          .filter((track) => track.id !== excludeId)
+          .map((track) => ({
+            track,
+            score:
+              (track.external ? 100 : 0) +
+              (isLikelyHearingImpaired(track.title) ? -10 : 10) +
+              (/\bdefault\b/i.test(track.title) ? 3 : 0),
+          }))
+          .sort((a, b) => b.score - a.score);
+        return ranked[0]?.track.id ?? null;
+      };
+
+      const tracks = await listJellyfinSubtitleTracksRuntime(
+        params.session,
+        params.clientInfo,
+        params.itemId,
+      );
+      const externalTracks = tracks.filter((track) => Boolean(track.deliveryUrl));
+
+      if (externalTracks.length === 0) return;
+      await new Promise<void>((resolve) => setTimeout(resolve, 300));
+      const seenUrls = new Set<string>();
+      for (const track of externalTracks) {
+        if (!track.deliveryUrl) continue;
+        if (seenUrls.has(track.deliveryUrl)) continue;
+        seenUrls.add(track.deliveryUrl);
+        const labelBase = (track.title || track.language || "").trim();
+        const label = labelBase || `Jellyfin Subtitle ${track.index}`;
+        sendMpvCommandRuntime(appState.mpvClient, [
+          "sub-add",
+          track.deliveryUrl,
+          "cached",
+          label,
+          track.language || "",
+        ]);
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 250));
+      const trackListRaw = await appState.mpvClient?.requestProperty("track-list");
+      const subtitleTracks = Array.isArray(trackListRaw)
+        ? trackListRaw
+            .filter((track): track is Record<string, unknown> =>
+              Boolean(track) &&
+              typeof track === "object" &&
+              track.type === "sub" &&
+              typeof track.id === "number",
+            )
+            .map((track) => ({
+              id: track.id as number,
+              lang: String(track.lang || ""),
+              title: String(track.title || ""),
+              external: track.external === true,
+            }))
+        : [];
+
+      const japanesePrimaryId = pickBestTrackId(subtitleTracks, isJapanese);
+      if (japanesePrimaryId !== null) {
+        sendMpvCommandRuntime(appState.mpvClient, [
+          "set_property",
+          "sid",
+          japanesePrimaryId,
+        ]);
+      } else {
+        sendMpvCommandRuntime(appState.mpvClient, ["set_property", "sid", "no"]);
+      }
+
+      const englishSecondaryId = pickBestTrackId(
+        subtitleTracks,
+        isEnglish,
+        japanesePrimaryId,
+      );
+      if (englishSecondaryId !== null) {
+        sendMpvCommandRuntime(appState.mpvClient, [
+          "set_property",
+          "secondary-sid",
+          englishSecondaryId,
+        ]);
+      }
+    } catch (error) {
+      logger.debug("Failed to preload Jellyfin external subtitles", error);
+    }
+  })();
+
+  activeJellyfinRemotePlayback = {
+    itemId: params.itemId,
+    mediaSourceId: undefined,
+    audioStreamIndex: plan.audioStreamIndex,
+    subtitleStreamIndex: plan.subtitleStreamIndex,
+    playMethod: plan.mode === "direct" ? "DirectPlay" : "Transcode",
+  };
+  jellyfinRemoteLastProgressAtMs = 0;
+  void appState.jellyfinRemoteSession?.reportPlaying({
+    itemId: params.itemId,
+    mediaSourceId: undefined,
+    playMethod: activeJellyfinRemotePlayback.playMethod,
+    audioStreamIndex: plan.audioStreamIndex,
+    subtitleStreamIndex: plan.subtitleStreamIndex,
+    eventName: "start",
+  });
+  showMpvOsd(`Jellyfin ${plan.mode}: ${plan.title}`);
+}
+
+async function runJellyfinCommand(args: CliArgs): Promise<void> {
+  const jellyfinConfig = getResolvedJellyfinConfig();
+  const serverUrl =
+    args.jellyfinServer?.trim() ||
+    jellyfinConfig.serverUrl ||
+    DEFAULT_CONFIG.jellyfin.serverUrl;
+  const clientInfo = getJellyfinClientInfo(jellyfinConfig);
+
+  if (args.jellyfinLogout) {
+    configService.patchRawConfig({
+      jellyfin: {
+        accessToken: "",
+        userId: "",
+      },
+    });
+    logger.info("Cleared stored Jellyfin access token.");
+    return;
+  }
+
+  if (args.jellyfinLogin) {
+    const username = (args.jellyfinUsername || jellyfinConfig.username).trim();
+    const password = args.jellyfinPassword || "";
+    const session = await authenticateWithPasswordRuntime(
+      serverUrl,
+      username,
+      password,
+      clientInfo,
+    );
+    configService.patchRawConfig({
+      jellyfin: {
+        enabled: true,
+        serverUrl: session.serverUrl,
+        username: session.username,
+        accessToken: session.accessToken,
+        userId: session.userId,
+        deviceId: clientInfo.deviceId,
+        clientName: clientInfo.clientName,
+        clientVersion: clientInfo.clientVersion,
+      },
+    });
+    logger.info(`Jellyfin login succeeded for ${session.username}.`);
+    return;
+  }
+
+  const accessToken = jellyfinConfig.accessToken;
+  const userId = jellyfinConfig.userId;
+  if (!serverUrl || !accessToken || !userId) {
+    throw new Error("Missing Jellyfin session. Run --jellyfin-login first.");
+  }
+  const session = {
+    serverUrl,
+    accessToken,
+    userId,
+    username: jellyfinConfig.username,
+  };
+
+  if (args.jellyfinRemoteAnnounce) {
+    await startJellyfinRemoteSession();
+    const remoteSession = appState.jellyfinRemoteSession;
+    if (!remoteSession) {
+      logger.warn("Jellyfin remote session is not available.");
+      return;
+    }
+    const visible = await remoteSession.advertiseNow();
+    if (visible) {
+      logger.info("Jellyfin cast target is visible in server sessions.");
+    } else {
+      logger.warn(
+        "Jellyfin remote announce sent, but cast target is not visible in server sessions yet.",
+      );
+    }
+    return;
+  }
+
+  if (args.jellyfinLibraries) {
+    const libraries = await listJellyfinLibrariesRuntime(session, clientInfo);
+    if (libraries.length === 0) {
+      logger.info("No Jellyfin libraries found.");
+      return;
+    }
+    for (const library of libraries) {
+      logger.info(
+        `Jellyfin library: ${library.name} [${library.id}] (${library.collectionType || library.type || "unknown"})`,
+      );
+    }
+    return;
+  }
+
+  if (args.jellyfinItems) {
+    const libraryId = args.jellyfinLibraryId || jellyfinConfig.defaultLibraryId;
+    if (!libraryId) {
+      throw new Error(
+        "Missing Jellyfin library id. Use --jellyfin-library-id or set jellyfin.defaultLibraryId.",
+      );
+    }
+    const items = await listJellyfinItemsRuntime(session, clientInfo, {
+      libraryId,
+      searchTerm: args.jellyfinSearch,
+      limit: args.jellyfinLimit ?? 100,
+    });
+    if (items.length === 0) {
+      logger.info("No Jellyfin items found for the selected library/search.");
+      return;
+    }
+    for (const item of items) {
+      logger.info(`Jellyfin item: ${item.title} [${item.id}] (${item.type})`);
+    }
+    return;
+  }
+
+  if (args.jellyfinSubtitles) {
+    if (!args.jellyfinItemId) {
+      throw new Error("Missing --jellyfin-item-id for --jellyfin-subtitles.");
+    }
+    const tracks = await listJellyfinSubtitleTracksRuntime(
+      session,
+      clientInfo,
+      args.jellyfinItemId,
+    );
+    if (tracks.length === 0) {
+      logger.info("No Jellyfin subtitle tracks found for item.");
+      return;
+    }
+    for (const track of tracks) {
+      if (args.jellyfinSubtitleUrlsOnly) {
+        if (track.deliveryUrl) logger.info(track.deliveryUrl);
+        continue;
+      }
+      logger.info(
+        `Jellyfin subtitle: index=${track.index} lang=${track.language || "unknown"} title="${track.title || "-"}" method=${track.deliveryMethod || "unknown"} codec=${track.codec || "unknown"} default=${track.isDefault ? "yes" : "no"} forced=${track.isForced ? "yes" : "no"} external=${track.isExternal ? "yes" : "no"} url=${track.deliveryUrl || "-"}`,
+      );
+    }
+    return;
+  }
+
+  if (args.jellyfinPlay) {
+    if (!args.jellyfinItemId) {
+      logger.warn("Ignoring --jellyfin-play without --jellyfin-item-id.");
+      return;
+    }
+    await playJellyfinItemInMpv({
+      session,
+      clientInfo,
+      jellyfinConfig,
+      itemId: args.jellyfinItemId,
+      audioStreamIndex: args.jellyfinAudioStreamIndex,
+      subtitleStreamIndex: args.jellyfinSubtitleStreamIndex,
+      setQuitOnDisconnectArm: true,
+    });
+    return;
+  }
+}
+
+function asInteger(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isInteger(value)) return undefined;
+  return value;
+}
+
+function getConfiguredJellyfinSession(): {
+  serverUrl: string;
+  accessToken: string;
+  userId: string;
+  username: string;
+} | null {
+  const jellyfinConfig = getResolvedJellyfinConfig();
+  if (!jellyfinConfig.serverUrl || !jellyfinConfig.accessToken || !jellyfinConfig.userId) {
+    return null;
+  }
+  return {
+    serverUrl: jellyfinConfig.serverUrl,
+    accessToken: jellyfinConfig.accessToken,
+    userId: jellyfinConfig.userId,
+    username: jellyfinConfig.username,
+  };
+}
+
+async function handleJellyfinRemotePlay(payload: unknown): Promise<void> {
+  const session = getConfiguredJellyfinSession();
+  if (!session) return;
+  const clientInfo = getJellyfinClientInfo();
+  const jellyfinConfig = getResolvedJellyfinConfig();
+  const data =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
+  const itemIds = Array.isArray(data.ItemIds)
+    ? data.ItemIds.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  const itemId = itemIds[0];
+  if (!itemId) {
+    logger.warn("Ignoring Jellyfin remote Play event without ItemIds.");
+    return;
+  }
+  await playJellyfinItemInMpv({
+    session,
+    clientInfo,
+    jellyfinConfig,
+    itemId,
+    audioStreamIndex: asInteger(data.AudioStreamIndex),
+    subtitleStreamIndex: asInteger(data.SubtitleStreamIndex),
+    startTimeTicksOverride: asInteger(data.StartPositionTicks),
+    setQuitOnDisconnectArm: false,
+  });
+}
+
+async function handleJellyfinRemotePlaystate(payload: unknown): Promise<void> {
+  const data =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
+  const command = String(data.Command || "");
+  const client = appState.mpvClient;
+  if (!client) return;
+  if (command === "Pause") {
+    sendMpvCommandRuntime(client, ["set_property", "pause", "yes"]);
+    await reportJellyfinRemoteProgress(true);
+    return;
+  }
+  if (command === "Unpause") {
+    sendMpvCommandRuntime(client, ["set_property", "pause", "no"]);
+    await reportJellyfinRemoteProgress(true);
+    return;
+  }
+  if (command === "PlayPause") {
+    sendMpvCommandRuntime(client, ["cycle", "pause"]);
+    await reportJellyfinRemoteProgress(true);
+    return;
+  }
+  if (command === "Stop") {
+    sendMpvCommandRuntime(client, ["stop"]);
+    await reportJellyfinRemoteStopped();
+    return;
+  }
+  if (command === "Seek") {
+    const seekTicks = asInteger(data.SeekPositionTicks);
+    if (seekTicks !== undefined) {
+      sendMpvCommandRuntime(client, [
+        "seek",
+        jellyfinTicksToSecondsRuntime(seekTicks),
+        "absolute+exact",
+      ]);
+      await reportJellyfinRemoteProgress(true);
+    }
+  }
+}
+
+async function handleJellyfinRemoteGeneralCommand(payload: unknown): Promise<void> {
+  const data =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
+  const command = String(data.Name || "");
+  const args =
+    data.Arguments && typeof data.Arguments === "object"
+      ? (data.Arguments as Record<string, unknown>)
+      : {};
+  const client = appState.mpvClient;
+  if (!client) return;
+
+  if (command === "SetAudioStreamIndex") {
+    const index = asInteger(args.Index);
+    if (index !== undefined) {
+      sendMpvCommandRuntime(client, ["set_property", "aid", index]);
+      if (activeJellyfinRemotePlayback) {
+        activeJellyfinRemotePlayback.audioStreamIndex = index;
+      }
+      await reportJellyfinRemoteProgress(true);
+    }
+    return;
+  }
+  if (command === "SetSubtitleStreamIndex") {
+    const index = asInteger(args.Index);
+    if (index !== undefined) {
+      sendMpvCommandRuntime(client, [
+        "set_property",
+        "sid",
+        index < 0 ? "no" : index,
+      ]);
+      if (activeJellyfinRemotePlayback) {
+        activeJellyfinRemotePlayback.subtitleStreamIndex = index < 0 ? null : index;
+      }
+      await reportJellyfinRemoteProgress(true);
+    }
+    return;
+  }
+
+  logger.debug(`Ignoring unsupported Jellyfin GeneralCommand: ${command}`);
+}
+
+async function startJellyfinRemoteSession(): Promise<void> {
+  const jellyfinConfig = getResolvedJellyfinConfig();
+  if (jellyfinConfig.remoteControlEnabled === false) return;
+  if (jellyfinConfig.remoteControlAutoConnect === false) return;
+  if (!jellyfinConfig.serverUrl || !jellyfinConfig.accessToken || !jellyfinConfig.userId) {
+    return;
+  }
+  if (appState.jellyfinRemoteSession) {
+    appState.jellyfinRemoteSession.stop();
+    appState.jellyfinRemoteSession = null;
+  }
+
+  const service = new JellyfinRemoteSessionService({
+    serverUrl: jellyfinConfig.serverUrl,
+    accessToken: jellyfinConfig.accessToken,
+    deviceId: jellyfinConfig.deviceId || DEFAULT_CONFIG.jellyfin.deviceId,
+    clientName: jellyfinConfig.clientName || DEFAULT_CONFIG.jellyfin.clientName,
+    clientVersion:
+      jellyfinConfig.clientVersion || DEFAULT_CONFIG.jellyfin.clientVersion,
+    deviceName:
+      jellyfinConfig.remoteControlDeviceName ||
+      jellyfinConfig.clientName ||
+      DEFAULT_CONFIG.jellyfin.clientName,
+    capabilities: {
+      PlayableMediaTypes: "Video,Audio",
+      SupportedCommands:
+        "Play,Playstate,PlayMediaSource,SetAudioStreamIndex,SetSubtitleStreamIndex,Mute,Unmute,SetVolume,DisplayContent",
+      SupportsMediaControl: true,
+    },
+    onConnected: () => {
+      logger.info("Jellyfin remote websocket connected.");
+      if (jellyfinConfig.autoAnnounce) {
+        void service.advertiseNow().then((registered) => {
+          if (registered) {
+            logger.info("Jellyfin cast target is visible to server sessions.");
+          } else {
+            logger.warn(
+              "Jellyfin remote connected but device not visible in server sessions yet.",
+            );
+          }
+        });
+      }
+    },
+    onDisconnected: () => {
+      logger.warn("Jellyfin remote websocket disconnected; retrying.");
+    },
+    onPlay: (payload) => {
+      void handleJellyfinRemotePlay(payload).catch((error) => {
+        logger.warn("Failed handling Jellyfin remote Play event", error);
+      });
+    },
+    onPlaystate: (payload) => {
+      void handleJellyfinRemotePlaystate(payload).catch((error) => {
+        logger.warn("Failed handling Jellyfin remote Playstate event", error);
+      });
+    },
+    onGeneralCommand: (payload) => {
+      void handleJellyfinRemoteGeneralCommand(payload).catch((error) => {
+        logger.warn("Failed handling Jellyfin remote GeneralCommand event", error);
+      });
+    },
+  });
+  service.start();
+  appState.jellyfinRemoteSession = service;
+  logger.info(
+    `Jellyfin remote session enabled (${jellyfinConfig.remoteControlDeviceName || jellyfinConfig.clientName || "SubMiner"}).`,
+  );
+}
+
+function stopJellyfinRemoteSession(): void {
+  if (!appState.jellyfinRemoteSession) return;
+  appState.jellyfinRemoteSession.stop();
+  appState.jellyfinRemoteSession = null;
+  activeJellyfinRemotePlayback = null;
+}
+
 function getConfiguredImmersionDbPath(): string {
-  const configuredDbPath = getResolvedConfig().immersionTracking?.dbPath?.trim();
-  return configuredDbPath
-    ? configuredDbPath
-    : DEFAULT_IMMERSION_DB_PATH;
+  const configuredDbPath =
+    getResolvedConfig().immersionTracking?.dbPath?.trim();
+  return configuredDbPath ? configuredDbPath : DEFAULT_IMMERSION_DB_PATH;
 }
 
 let isImmersionTrackerMediaSeedInProgress = false;
@@ -637,7 +1408,8 @@ async function getCurrentMpvMediaStateForTracker(): Promise<ImmersionMediaState>
     ]);
 
   const resolvedPath = pathFromProperty || filenameFromProperty || null;
-  const resolvedTitle = appState.currentMediaTitle?.trim() || titleFromProperty || null;
+  const resolvedTitle =
+    appState.currentMediaTitle?.trim() || titleFromProperty || null;
 
   return {
     path: resolvedPath,
@@ -667,11 +1439,23 @@ function isAutoUpdateEnabledRuntime(): boolean {
   );
 }
 
-function getJimakuLanguagePreference(): JimakuLanguagePreference { return getJimakuLanguagePreferenceCore(() => getResolvedConfig(), DEFAULT_CONFIG.jimaku.languagePreference); }
+function getJimakuLanguagePreference(): JimakuLanguagePreference {
+  return getJimakuLanguagePreferenceCore(
+    () => getResolvedConfig(),
+    DEFAULT_CONFIG.jimaku.languagePreference,
+  );
+}
 
-function getJimakuMaxEntryResults(): number { return getJimakuMaxEntryResultsCore(() => getResolvedConfig(), DEFAULT_CONFIG.jimaku.maxEntryResults); }
+function getJimakuMaxEntryResults(): number {
+  return getJimakuMaxEntryResultsCore(
+    () => getResolvedConfig(),
+    DEFAULT_CONFIG.jimaku.maxEntryResults,
+  );
+}
 
-async function resolveJimakuApiKey(): Promise<string | null> { return resolveJimakuApiKeyCore(() => getResolvedConfig()); }
+async function resolveJimakuApiKey(): Promise<string | null> {
+  return resolveJimakuApiKeyCore(() => getResolvedConfig());
+}
 
 function seedImmersionTrackerFromCurrentMedia(): void {
   const tracker = appState.immersionTracker;
@@ -729,11 +1513,11 @@ function syncImmersionTrackerFromCurrentMediaState(): void {
     return;
   }
 
-  const pathFromState = appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim();
+  const pathFromState =
+    appState.currentMediaPath?.trim() ||
+    appState.mpvClient?.currentVideoPath?.trim();
   if (pathFromState) {
-    logger.debug(
-      "Immersion tracker sync using path from current media state.",
-    );
+    logger.debug("Immersion tracker sync using path from current media state.");
     tracker.handleMediaChange(pathFromState, appState.currentMediaTitle);
     return;
   }
@@ -744,9 +1528,7 @@ function syncImmersionTrackerFromCurrentMediaState(): void {
     );
     seedImmersionTrackerFromCurrentMedia();
   } else {
-    logger.debug(
-      "Immersion tracker sync found seed loop already running.",
-    );
+    logger.debug("Immersion tracker sync found seed loop already running.");
   }
 }
 
@@ -762,7 +1544,9 @@ async function jimakuFetchJson<T>(
   });
 }
 
-function setAnilistClientSecretState(partial: Partial<AppState["anilistClientSecretState"]>): void {
+function setAnilistClientSecretState(
+  partial: Partial<AppState["anilistClientSecretState"]>,
+): void {
   appState.anilistClientSecretState = {
     ...appState.anilistClientSecretState,
     ...partial,
@@ -833,7 +1617,10 @@ function openAnilistSetupInBrowser(): void {
   });
 }
 
-function loadAnilistSetupFallback(setupWindow: BrowserWindow, reason: string): void {
+function loadAnilistSetupFallback(
+  setupWindow: BrowserWindow,
+  reason: string,
+): void {
   const authorizeUrl = buildAnilistSetupUrl();
   const fallbackHtml = `<!doctype html>
 <html>
@@ -949,7 +1736,125 @@ function openAnilistSetupWindow(): void {
   appState.anilistSetupPageOpened = true;
 }
 
-async function refreshAnilistClientSecretState(options?: { force?: boolean }): Promise<string | null> {
+function openJellyfinSetupWindow(): void {
+  if (appState.jellyfinSetupWindow) {
+    appState.jellyfinSetupWindow.focus();
+    return;
+  }
+
+  const setupWindow = new BrowserWindow({
+    width: 520,
+    height: 560,
+    title: "Jellyfin Setup",
+    show: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  const defaults = getResolvedJellyfinConfig();
+  const defaultServer = defaults.serverUrl || "http://127.0.0.1:8096";
+  const defaultUser = defaults.username || "";
+
+  const formHtml = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Jellyfin Setup</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #0b1020; color: #e5e7eb; }
+    main { padding: 20px; }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    p { margin: 0 0 14px; color: #cbd5e1; font-size: 13px; line-height: 1.4; }
+    label { display: block; margin: 10px 0 4px; font-size: 13px; }
+    input { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #334155; border-radius: 8px; background: #111827; color: #e5e7eb; }
+    button { margin-top: 16px; width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; background: #2563eb; color: #f8fafc; }
+    .hint { margin-top: 12px; font-size: 12px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Jellyfin Setup</h1>
+    <p>Login info is used to fetch a token and save Jellyfin config values.</p>
+    <form id="form">
+      <label for="server">Server URL</label>
+      <input id="server" name="server" value="${defaultServer.replace(/"/g, "&quot;")}" required />
+      <label for="username">Username</label>
+      <input id="username" name="username" value="${defaultUser.replace(/"/g, "&quot;")}" required />
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" required />
+      <button type="submit">Save and Login</button>
+      <div class="hint">Equivalent CLI: --jellyfin-login --jellyfin-server ... --jellyfin-username ... --jellyfin-password ...</div>
+    </form>
+  </main>
+  <script>
+    const form = document.getElementById("form");
+    form?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const params = new URLSearchParams();
+      params.set("server", String(data.get("server") || ""));
+      params.set("username", String(data.get("username") || ""));
+      params.set("password", String(data.get("password") || ""));
+      window.location.href = "subminer://jellyfin-setup?" + params.toString();
+    });
+  </script>
+</body>
+</html>`;
+
+  setupWindow.webContents.on("will-navigate", (event, url) => {
+    if (!url.startsWith("subminer://jellyfin-setup")) return;
+    event.preventDefault();
+    void (async () => {
+      try {
+        const parsed = new URL(url);
+        const server = parsed.searchParams.get("server") || "";
+        const username = parsed.searchParams.get("username") || "";
+        const password = parsed.searchParams.get("password") || "";
+        const session = await authenticateWithPasswordRuntime(
+          server,
+          username,
+          password,
+          getJellyfinClientInfo(),
+        );
+        configService.patchRawConfig({
+          jellyfin: {
+            enabled: true,
+            serverUrl: session.serverUrl,
+            username: session.username,
+            accessToken: session.accessToken,
+            userId: session.userId,
+          },
+        });
+        logger.info(`Jellyfin setup saved for ${session.username}.`);
+        showMpvOsd("Jellyfin login success");
+        if (!setupWindow.isDestroyed()) {
+          setupWindow.close();
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error("Jellyfin setup failed", error);
+        showMpvOsd(`Jellyfin login failed: ${message}`);
+      }
+    })();
+  });
+
+  void setupWindow.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(formHtml)}`,
+  );
+
+  setupWindow.on("closed", () => {
+    appState.jellyfinSetupWindow = null;
+  });
+
+  appState.jellyfinSetupWindow = setupWindow;
+}
+
+async function refreshAnilistClientSecretState(options?: {
+  force?: boolean;
+}): Promise<string | null> {
   const resolved = getResolvedConfig();
   const now = Date.now();
   if (!isAnilistTrackingEnabled(resolved)) {
@@ -981,7 +1886,11 @@ async function refreshAnilistClientSecretState(options?: { force?: boolean }): P
     return rawAccessToken;
   }
 
-  if (!options?.force && anilistCachedAccessToken && anilistCachedAccessToken.length > 0) {
+  if (
+    !options?.force &&
+    anilistCachedAccessToken &&
+    anilistCachedAccessToken.length > 0
+  ) {
     return anilistCachedAccessToken;
   }
 
@@ -1007,10 +1916,7 @@ async function refreshAnilistClientSecretState(options?: { force?: boolean }): P
     resolvedAt: null,
     errorAt: now,
   });
-  if (
-    isAnilistTrackingEnabled(resolved) &&
-    !appState.anilistSetupPageOpened
-  ) {
+  if (isAnilistTrackingEnabled(resolved) && !appState.anilistSetupPageOpened) {
     openAnilistSetupWindow();
   }
   return null;
@@ -1029,7 +1935,9 @@ function resetAnilistMediaTracking(mediaKey: string | null): void {
   anilistLastDurationProbeAtMs = 0;
 }
 
-async function maybeProbeAnilistDuration(mediaKey: string): Promise<number | null> {
+async function maybeProbeAnilistDuration(
+  mediaKey: string,
+): Promise<number | null> {
   if (anilistCurrentMediaKey !== mediaKey) {
     return null;
   }
@@ -1046,9 +1954,11 @@ async function maybeProbeAnilistDuration(mediaKey: string): Promise<number | nul
   anilistLastDurationProbeAtMs = now;
 
   try {
-    const durationCandidate = await appState.mpvClient?.requestProperty("duration");
+    const durationCandidate =
+      await appState.mpvClient?.requestProperty("duration");
     const duration =
-      typeof durationCandidate === "number" && Number.isFinite(durationCandidate)
+      typeof durationCandidate === "number" &&
+      Number.isFinite(durationCandidate)
         ? durationCandidate
         : null;
     if (duration && duration > 0 && anilistCurrentMediaKey === mediaKey) {
@@ -1061,7 +1971,9 @@ async function maybeProbeAnilistDuration(mediaKey: string): Promise<number | nul
   return null;
 }
 
-async function ensureAnilistMediaGuess(mediaKey: string): Promise<AnilistMediaGuess | null> {
+async function ensureAnilistMediaGuess(
+  mediaKey: string,
+): Promise<AnilistMediaGuess | null> {
   if (anilistCurrentMediaKey !== mediaKey) {
     return null;
   }
@@ -1121,7 +2033,8 @@ async function processNextAnilistRetryUpdate(): Promise<{
   appState.anilistRetryQueueState.lastAttemptAt = Date.now();
   const accessToken = await refreshAnilistClientSecretState();
   if (!accessToken) {
-    appState.anilistRetryQueueState.lastError = "AniList token unavailable for queued retry.";
+    appState.anilistRetryQueueState.lastError =
+      "AniList token unavailable for queued retry.";
     return { ok: false, message: appState.anilistRetryQueueState.lastError };
   }
 
@@ -1276,7 +2189,8 @@ const startupState = runStartupBootstrapRuntime(
     defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
     configDir: CONFIG_DIR,
     defaultConfig: DEFAULT_CONFIG,
-    generateConfigTemplate: (config: ResolvedConfig) => generateConfigTemplate(config),
+    generateConfigTemplate: (config: ResolvedConfig) =>
+      generateConfigTemplate(config),
     generateDefaultConfigFile: (
       args: CliArgs,
       options: {
@@ -1316,7 +2230,9 @@ const startupState = runStartupBootstrapRuntime(
         },
         reloadConfig: () => {
           configService.reloadConfig();
-          appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
+          appLogger.logInfo(
+            `Using config file: ${configService.getConfigPath()}`,
+          );
           void refreshAnilistClientSecretState({ force: true });
         },
         getResolvedConfig: () => getResolvedConfig(),
@@ -1371,8 +2287,23 @@ const startupState = runStartupBootstrapRuntime(
             );
             const dbPath = getConfiguredImmersionDbPath();
             logger.info(`Creating immersion tracker with dbPath=${dbPath}`);
+            const policy = config.immersionTracking;
             appState.immersionTracker = new ImmersionTrackerService({
               dbPath,
+              policy: {
+                batchSize: policy.batchSize,
+                flushIntervalMs: policy.flushIntervalMs,
+                queueCap: policy.queueCap,
+                payloadCapBytes: policy.payloadCapBytes,
+                maintenanceIntervalMs: policy.maintenanceIntervalMs,
+                retention: {
+                  eventsDays: policy.retention.eventsDays,
+                  telemetryDays: policy.retention.telemetryDays,
+                  dailyRollupsDays: policy.retention.dailyRollupsDays,
+                  monthlyRollupsDays: policy.retention.monthlyRollupsDays,
+                  vacuumIntervalDays: policy.retention.vacuumIntervalDays,
+                },
+              },
             });
             logger.debug("Immersion tracker initialized successfully.");
             if (appState.mpvClient && !appState.mpvClient.connected) {
@@ -1381,12 +2312,18 @@ const startupState = runStartupBootstrapRuntime(
             }
             seedImmersionTrackerFromCurrentMedia();
           } catch (error) {
-            logger.warn("Immersion tracker startup failed; disabling tracking.", error);
+            logger.warn(
+              "Immersion tracker startup failed; disabling tracking.",
+              error,
+            );
             appState.immersionTracker = null;
           }
         },
         loadYomitanExtension: async () => {
           await loadYomitanExtension();
+        },
+        startJellyfinRemoteSession: async () => {
+          await startJellyfinRemoteSession();
         },
         texthookerOnlyMode: appState.texthookerOnlyMode,
         shouldAutoInitializeOverlayRuntimeFromConfig: () =>
@@ -1399,7 +2336,10 @@ const startupState = runStartupBootstrapRuntime(
         globalShortcut.unregisterAll();
         subtitleWsService.stop();
         texthookerService.stop();
-        if (appState.yomitanParserWindow && !appState.yomitanParserWindow.isDestroyed()) {
+        if (
+          appState.yomitanParserWindow &&
+          !appState.yomitanParserWindow.isDestroyed()
+        ) {
           appState.yomitanParserWindow.destroy();
         }
         appState.yomitanParserWindow = null;
@@ -1428,9 +2368,15 @@ const startupState = runStartupBootstrapRuntime(
           appState.anilistSetupWindow.destroy();
         }
         appState.anilistSetupWindow = null;
+        if (appState.jellyfinSetupWindow) {
+          appState.jellyfinSetupWindow.destroy();
+        }
+        appState.jellyfinSetupWindow = null;
+        stopJellyfinRemoteSession();
       },
       shouldRestoreWindowsOnActivate: () =>
-        appState.overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
+        appState.overlayRuntimeInitialized &&
+        BrowserWindow.getAllWindows().length === 0,
       restoreWindowsOnActivate: () => {
         createMainWindow();
         createInvisibleWindow();
@@ -1461,10 +2407,14 @@ function handleCliCommand(
     setTexthookerPort: (port: number) => {
       appState.texthookerPort = port;
     },
-    shouldOpenBrowser: () => getResolvedConfig().texthooker?.openBrowser !== false,
+    shouldOpenBrowser: () =>
+      getResolvedConfig().texthooker?.openBrowser !== false,
     openInBrowser: (url: string) => {
       void shell.openExternal(url).catch((error) => {
-        logger.error(`Failed to open browser for texthooker URL: ${url}`, error);
+        logger.error(
+          `Failed to open browser for texthooker URL: ${url}`,
+          error,
+        );
       });
     },
     isOverlayInitialized: () => appState.overlayRuntimeInitialized,
@@ -1472,9 +2422,11 @@ function handleCliCommand(
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
     toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
     setVisibleOverlay: (visible: boolean) => setVisibleOverlayVisible(visible),
-    setInvisibleOverlay: (visible: boolean) => setInvisibleOverlayVisible(visible),
+    setInvisibleOverlay: (visible: boolean) =>
+      setInvisibleOverlayVisible(visible),
     copyCurrentSubtitle: () => copyCurrentSubtitle(),
-    startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
+    startPendingMultiCopy: (timeoutMs: number) =>
+      startPendingMultiCopy(timeoutMs),
     mineSentenceCard: () => mineSentenceCard(),
     startPendingMineSentenceMultiple: (timeoutMs: number) =>
       startPendingMineSentenceMultiple(timeoutMs),
@@ -1486,8 +2438,11 @@ function handleCliCommand(
     getAnilistStatus: () => getAnilistStatusSnapshot(),
     clearAnilistToken: () => clearAnilistTokenState(),
     openAnilistSetup: () => openAnilistSetupWindow(),
+    openJellyfinSetup: () => openJellyfinSetupWindow(),
     getAnilistQueueStatus: () => getAnilistQueueStatusSnapshot(),
     retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
+    runJellyfinCommand: (argsFromCommand: CliArgs) =>
+      runJellyfinCommand(argsFromCommand),
     openYomitanSettings: () => openYomitanSettings(),
     cycleSecondarySubMode: () => cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
@@ -1523,6 +2478,17 @@ function handleInitialArgs(): void {
 }
 
 function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
+  mpvClient.on("connection-change", ({ connected }) => {
+    if (connected) return;
+    void reportJellyfinRemoteStopped();
+    if (!appState.initialArgs?.jellyfinPlay) return;
+    if (appState.overlayRuntimeInitialized) return;
+    if (!jellyfinPlayQuitOnDisconnectArmed) return;
+    setTimeout(() => {
+      if (appState.mpvClient?.connected) return;
+      app.quit();
+    }, 500);
+  });
   mpvClient.on("subtitle-change", ({ text }) => {
     appState.currentSubText = text;
     subtitleWsService.broadcast(text);
@@ -1555,6 +2521,9 @@ function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
   });
   mpvClient.on("media-path-change", ({ path }) => {
     mediaRuntime.updateCurrentMediaPath(path);
+    if (!path) {
+      void reportJellyfinRemoteStopped();
+    }
     const mediaKey = getCurrentAnilistMediaKey();
     resetAnilistMediaTracking(mediaKey);
     if (mediaKey) {
@@ -1572,9 +2541,11 @@ function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
   });
   mpvClient.on("time-pos-change", ({ time }) => {
     appState.immersionTracker?.recordPlaybackPosition(time);
+    void reportJellyfinRemoteProgress(false);
   });
   mpvClient.on("pause-change", ({ paused }) => {
     appState.immersionTracker?.recordPauseState(paused);
+    void reportJellyfinRemoteProgress(true);
   });
   mpvClient.on("subtitle-metrics-change", ({ patch }) => {
     updateMpvSubtitleRenderMetrics(patch);
@@ -1648,12 +2619,12 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
       getMinSentenceWordsForNPlusOne: () =>
         getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,
       getJlptLevel: (text) => appState.jlptLevelLookup(text),
-      getJlptEnabled: () =>
-        getResolvedConfig().subtitleStyle.enableJlpt,
+      getJlptEnabled: () => getResolvedConfig().subtitleStyle.enableJlpt,
       getFrequencyDictionaryEnabled: () =>
         getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
       getFrequencyRank: (text) => appState.frequencyRankLookup(text),
-      getYomitanGroupDebugEnabled: () => appState.overlayDebugVisualizationEnabled,
+      getYomitanGroupDebugEnabled: () =>
+        appState.overlayDebugVisualizationEnabled,
       getMecabTokenizer: () => appState.mecabTokenizer,
     }),
   );
@@ -1701,30 +2672,27 @@ async function loadYomitanExtension(): Promise<Extension | null> {
 }
 
 function createOverlayWindow(kind: "visible" | "invisible"): BrowserWindow {
-  return createOverlayWindowCore(
-    kind,
-    {
-      isDev,
-      overlayDebugVisualizationEnabled: appState.overlayDebugVisualizationEnabled,
-      ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-      onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-      setOverlayDebugVisualizationEnabled: (enabled) =>
-        setOverlayDebugVisualizationEnabled(enabled),
-      isOverlayVisible: (windowKind) =>
-        windowKind === "visible"
-          ? overlayManager.getVisibleOverlayVisible()
-          : overlayManager.getInvisibleOverlayVisible(),
-      tryHandleOverlayShortcutLocalFallback: (input) =>
-        overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
-      onWindowClosed: (windowKind) => {
-        if (windowKind === "visible") {
-          overlayManager.setMainWindow(null);
-        } else {
-          overlayManager.setInvisibleWindow(null);
-        }
-      },
+  return createOverlayWindowCore(kind, {
+    isDev,
+    overlayDebugVisualizationEnabled: appState.overlayDebugVisualizationEnabled,
+    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+    onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+    setOverlayDebugVisualizationEnabled: (enabled) =>
+      setOverlayDebugVisualizationEnabled(enabled),
+    isOverlayVisible: (windowKind) =>
+      windowKind === "visible"
+        ? overlayManager.getVisibleOverlayVisible()
+        : overlayManager.getInvisibleOverlayVisible(),
+    tryHandleOverlayShortcutLocalFallback: (input) =>
+      overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
+    onWindowClosed: (windowKind) => {
+      if (windowKind === "visible") {
+        overlayManager.setMainWindow(null);
+      } else {
+        overlayManager.setInvisibleWindow(null);
+      }
     },
-  );
+  });
 }
 
 function createMainWindow(): BrowserWindow {
@@ -1742,112 +2710,102 @@ function initializeOverlayRuntime(): void {
   if (appState.overlayRuntimeInitialized) {
     return;
   }
-  const result = initializeOverlayRuntimeCore(
-    {
-      backendOverride: appState.backendOverride,
-      getInitialInvisibleOverlayVisibility: () =>
-        getInitialInvisibleOverlayVisibility(),
-      createMainWindow: () => {
-        createMainWindow();
-      },
-      createInvisibleWindow: () => {
-        createInvisibleWindow();
-      },
-      registerGlobalShortcuts: () => {
-        registerGlobalShortcuts();
-      },
-      updateVisibleOverlayBounds: (geometry) => {
-        updateVisibleOverlayBounds(geometry);
-      },
-      updateInvisibleOverlayBounds: (geometry) => {
-        updateInvisibleOverlayBounds(geometry);
-      },
-      isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      isInvisibleOverlayVisible: () =>
-        overlayManager.getInvisibleOverlayVisible(),
-      updateVisibleOverlayVisibility: () => {
-        overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-      },
-      updateInvisibleOverlayVisibility: () => {
-        overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
-      },
-      getOverlayWindows: () => getOverlayWindows(),
-      syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
-      setWindowTracker: (tracker) => {
-        appState.windowTracker = tracker;
-      },
-      getResolvedConfig: () => getResolvedConfig(),
-      getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
-      getMpvClient: () => appState.mpvClient,
-      getMpvSocketPath: () => appState.mpvSocketPath,
-      getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-      setAnkiIntegration: (integration) => {
-        appState.ankiIntegration = integration as AnkiIntegration | null;
-      },
-      showDesktopNotification,
-      createFieldGroupingCallback: () => createFieldGroupingCallback(),
-      getKnownWordCacheStatePath: () =>
-        path.join(USER_DATA_PATH, "known-words-cache.json"),
+  const result = initializeOverlayRuntimeCore({
+    backendOverride: appState.backendOverride,
+    getInitialInvisibleOverlayVisibility: () =>
+      getInitialInvisibleOverlayVisibility(),
+    createMainWindow: () => {
+      createMainWindow();
     },
-  );
+    createInvisibleWindow: () => {
+      createInvisibleWindow();
+    },
+    registerGlobalShortcuts: () => {
+      registerGlobalShortcuts();
+    },
+    updateVisibleOverlayBounds: (geometry) => {
+      updateVisibleOverlayBounds(geometry);
+    },
+    updateInvisibleOverlayBounds: (geometry) => {
+      updateInvisibleOverlayBounds(geometry);
+    },
+    isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    isInvisibleOverlayVisible: () =>
+      overlayManager.getInvisibleOverlayVisible(),
+    updateVisibleOverlayVisibility: () => {
+      overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+    },
+    updateInvisibleOverlayVisibility: () => {
+      overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
+    },
+    getOverlayWindows: () => getOverlayWindows(),
+    syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
+    setWindowTracker: (tracker) => {
+      appState.windowTracker = tracker;
+    },
+    getResolvedConfig: () => getResolvedConfig(),
+    getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+    getMpvClient: () => appState.mpvClient,
+    getMpvSocketPath: () => appState.mpvSocketPath,
+    getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
+    setAnkiIntegration: (integration) => {
+      appState.ankiIntegration = integration as AnkiIntegration | null;
+    },
+    showDesktopNotification,
+    createFieldGroupingCallback: () => createFieldGroupingCallback(),
+    getKnownWordCacheStatePath: () =>
+      path.join(USER_DATA_PATH, "known-words-cache.json"),
+  });
   overlayManager.setInvisibleOverlayVisible(result.invisibleOverlayVisible);
   appState.overlayRuntimeInitialized = true;
 }
 
 function openYomitanSettings(): void {
-  openYomitanSettingsWindow(
-    {
-      yomitanExt: appState.yomitanExt,
-      getExistingWindow: () => appState.yomitanSettingsWindow,
-      setWindow: (window: BrowserWindow | null) => {
-        appState.yomitanSettingsWindow = window;
-      },
+  openYomitanSettingsWindow({
+    yomitanExt: appState.yomitanExt,
+    getExistingWindow: () => appState.yomitanSettingsWindow,
+    setWindow: (window: BrowserWindow | null) => {
+      appState.yomitanSettingsWindow = window;
     },
-  );
+  });
 }
 function registerGlobalShortcuts(): void {
-  registerGlobalShortcutsCore(
-    {
-      shortcuts: getConfiguredShortcuts(),
-      onToggleVisibleOverlay: () => toggleVisibleOverlay(),
-      onToggleInvisibleOverlay: () => toggleInvisibleOverlay(),
-      onOpenYomitanSettings: () => openYomitanSettings(),
-      isDev,
-      getMainWindow: () => overlayManager.getMainWindow(),
-    },
-  );
+  registerGlobalShortcutsCore({
+    shortcuts: getConfiguredShortcuts(),
+    onToggleVisibleOverlay: () => toggleVisibleOverlay(),
+    onToggleInvisibleOverlay: () => toggleInvisibleOverlay(),
+    onOpenYomitanSettings: () => openYomitanSettings(),
+    isDev,
+    getMainWindow: () => overlayManager.getMainWindow(),
+  });
 }
 
-function getConfiguredShortcuts() { return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG); }
+function getConfiguredShortcuts() {
+  return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG);
+}
 
 function cycleSecondarySubMode(): void {
-  cycleSecondarySubModeCore(
-    {
-      getSecondarySubMode: () => appState.secondarySubMode,
-      setSecondarySubMode: (mode: SecondarySubMode) => {
-        appState.secondarySubMode = mode;
-      },
-      getLastSecondarySubToggleAtMs: () => appState.lastSecondarySubToggleAtMs,
-      setLastSecondarySubToggleAtMs: (timestampMs: number) => {
-        appState.lastSecondarySubToggleAtMs = timestampMs;
-      },
-      broadcastSecondarySubMode: (mode: SecondarySubMode) => {
-        broadcastToOverlayWindows("secondary-subtitle:mode", mode);
-      },
-      showMpvOsd: (text: string) => showMpvOsd(text),
+  cycleSecondarySubModeCore({
+    getSecondarySubMode: () => appState.secondarySubMode,
+    setSecondarySubMode: (mode: SecondarySubMode) => {
+      appState.secondarySubMode = mode;
     },
-  );
+    getLastSecondarySubToggleAtMs: () => appState.lastSecondarySubToggleAtMs,
+    setLastSecondarySubToggleAtMs: (timestampMs: number) => {
+      appState.lastSecondarySubToggleAtMs = timestampMs;
+    },
+    broadcastSecondarySubMode: (mode: SecondarySubMode) => {
+      broadcastToOverlayWindows("secondary-subtitle:mode", mode);
+    },
+    showMpvOsd: (text: string) => showMpvOsd(text),
+  });
 }
 
 function showMpvOsd(text: string): void {
   appendToMpvLog(`[OSD] ${text}`);
-  showMpvOsdRuntime(
-    appState.mpvClient,
-    text,
-    (line) => {
-      logger.info(line);
-    },
-  );
+  showMpvOsdRuntime(appState.mpvClient, text, (line) => {
+    logger.info(line);
+  });
 }
 
 function appendToMpvLog(message: string): void {
@@ -1875,7 +2833,8 @@ const mineSentenceSession = numericShortcutRuntime.createSession();
 function getSubsyncRuntimeServiceParams() {
   return createSubsyncRuntimeServiceInputFromState({
     getMpvClient: () => appState.mpvClient,
-    getResolvedSubsyncConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
+    getResolvedSubsyncConfig: () =>
+      getSubsyncConfig(getResolvedConfig().subsync),
     getSubsyncInProgress: () => appState.subsyncInProgress,
     setSubsyncInProgress: (inProgress: boolean) => {
       appState.subsyncInProgress = inProgress;
@@ -1910,34 +2869,27 @@ function startPendingMultiCopy(timeoutMs: number): void {
 }
 
 function handleMultiCopyDigit(count: number): void {
-  handleMultiCopyDigitCore(
-    count,
-    {
-      subtitleTimingTracker: appState.subtitleTimingTracker,
-      writeClipboardText: (text) => clipboard.writeText(text),
-      showMpvOsd: (text) => showMpvOsd(text),
-    },
-  );
+  handleMultiCopyDigitCore(count, {
+    subtitleTimingTracker: appState.subtitleTimingTracker,
+    writeClipboardText: (text) => clipboard.writeText(text),
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 function copyCurrentSubtitle(): void {
-  copyCurrentSubtitleCore(
-    {
-      subtitleTimingTracker: appState.subtitleTimingTracker,
-      writeClipboardText: (text) => clipboard.writeText(text),
-      showMpvOsd: (text) => showMpvOsd(text),
-    },
-  );
+  copyCurrentSubtitleCore({
+    subtitleTimingTracker: appState.subtitleTimingTracker,
+    writeClipboardText: (text) => clipboard.writeText(text),
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 async function updateLastCardFromClipboard(): Promise<void> {
-  await updateLastCardFromClipboardCore(
-    {
-      ankiIntegration: appState.ankiIntegration,
-      readClipboardText: () => clipboard.readText(),
-      showMpvOsd: (text) => showMpvOsd(text),
-    },
-  );
+  await updateLastCardFromClipboardCore({
+    ankiIntegration: appState.ankiIntegration,
+    readClipboardText: () => clipboard.readText(),
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 async function refreshKnownWordCache(): Promise<void> {
@@ -1949,31 +2901,25 @@ async function refreshKnownWordCache(): Promise<void> {
 }
 
 async function triggerFieldGrouping(): Promise<void> {
-  await triggerFieldGroupingCore(
-    {
-      ankiIntegration: appState.ankiIntegration,
-      showMpvOsd: (text) => showMpvOsd(text),
-    },
-  );
+  await triggerFieldGroupingCore({
+    ankiIntegration: appState.ankiIntegration,
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 async function markLastCardAsAudioCard(): Promise<void> {
-  await markLastCardAsAudioCardCore(
-    {
-      ankiIntegration: appState.ankiIntegration,
-      showMpvOsd: (text) => showMpvOsd(text),
-    },
-  );
+  await markLastCardAsAudioCardCore({
+    ankiIntegration: appState.ankiIntegration,
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
 }
 
 async function mineSentenceCard(): Promise<void> {
-  const created = await mineSentenceCardCore(
-    {
-      ankiIntegration: appState.ankiIntegration,
-      mpvClient: appState.mpvClient,
-      showMpvOsd: (text) => showMpvOsd(text),
-    },
-  );
+  const created = await mineSentenceCardCore({
+    ankiIntegration: appState.ankiIntegration,
+    mpvClient: appState.mpvClient,
+    showMpvOsd: (text) => showMpvOsd(text),
+  });
   if (created) {
     appState.immersionTracker?.recordCardsMined(1);
   }
@@ -1996,22 +2942,19 @@ function startPendingMineSentenceMultiple(timeoutMs: number): void {
 }
 
 function handleMineSentenceDigit(count: number): void {
-  handleMineSentenceDigitCore(
-    count,
-    {
-      subtitleTimingTracker: appState.subtitleTimingTracker,
-      ankiIntegration: appState.ankiIntegration,
-      getCurrentSecondarySubText: () =>
-        appState.mpvClient?.currentSecondarySubText || undefined,
-      showMpvOsd: (text) => showMpvOsd(text),
-      logError: (message, err) => {
-        logger.error(message, err);
-      },
-      onCardsMined: (cards) => {
-        appState.immersionTracker?.recordCardsMined(cards);
-      },
+  handleMineSentenceDigitCore(count, {
+    subtitleTimingTracker: appState.subtitleTimingTracker,
+    ankiIntegration: appState.ankiIntegration,
+    getCurrentSecondarySubText: () =>
+      appState.mpvClient?.currentSecondarySubText || undefined,
+    showMpvOsd: (text) => showMpvOsd(text),
+    logError: (message, err) => {
+      logger.error(message, err);
     },
-  );
+    onCardsMined: (cards) => {
+      appState.immersionTracker?.recordCardsMined(cards);
+    },
+  });
 }
 
 function registerOverlayShortcuts(): void {
@@ -2043,7 +2986,8 @@ function setVisibleOverlayVisible(visible: boolean): void {
       overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
     shouldBindVisibleOverlayToMpvSubVisibility: () =>
       shouldBindVisibleOverlayToMpvSubVisibility(),
-    isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
+    isMpvConnected: () =>
+      Boolean(appState.mpvClient && appState.mpvClient.connected),
     setMpvSubVisibility: (mpvSubVisible) => {
       setMpvSubVisibilityRuntime(appState.mpvClient, mpvSubVisible);
     },
@@ -2069,8 +3013,12 @@ function toggleVisibleOverlay(): void {
 function toggleInvisibleOverlay(): void {
   setInvisibleOverlayVisible(!overlayManager.getInvisibleOverlayVisible());
 }
-function setOverlayVisible(visible: boolean): void { setVisibleOverlayVisible(visible); }
-function toggleOverlay(): void { toggleVisibleOverlay(); }
+function setOverlayVisible(visible: boolean): void {
+  setVisibleOverlayVisible(visible);
+}
+function toggleOverlay(): void {
+  toggleVisibleOverlay();
+}
 function handleOverlayModalClosed(modal: OverlayHostedModal): void {
   overlayModalRuntime.handleOverlayModalClosed(modal);
 }
@@ -2089,11 +3037,13 @@ function handleMpvCommandFromIpc(command: (string | number)[]): void {
       );
     },
     showMpvOsd: (text: string) => showMpvOsd(text),
-    replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
+    replayCurrentSubtitle: () =>
+      replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
     sendMpvCommand: (rawCommand: (string | number)[]) =>
       sendMpvCommandRuntime(appState.mpvClient, rawCommand),
-    isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
+    isMpvConnected: () =>
+      Boolean(appState.mpvClient && appState.mpvClient.connected),
     hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
   });
 }
@@ -2101,7 +3051,10 @@ function handleMpvCommandFromIpc(command: (string | number)[]): void {
 async function runSubsyncManualFromIpc(
   request: SubsyncManualRunRequest,
 ): Promise<SubsyncResult> {
-  return runSubsyncManualFromIpcRuntime(request, getSubsyncRuntimeServiceParams());
+  return runSubsyncManualFromIpcRuntime(
+    request,
+    getSubsyncRuntimeServiceParams(),
+  );
 }
 
 registerIpcRuntimeServices({
@@ -2112,8 +3065,10 @@ registerIpcRuntimeServices({
   mainDeps: {
     getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
     getMainWindow: () => overlayManager.getMainWindow(),
-    getVisibleOverlayVisibility: () => overlayManager.getVisibleOverlayVisible(),
-    getInvisibleOverlayVisibility: () => overlayManager.getInvisibleOverlayVisible(),
+    getVisibleOverlayVisibility: () =>
+      overlayManager.getVisibleOverlayVisible(),
+    getInvisibleOverlayVisibility: () =>
+      overlayManager.getInvisibleOverlayVisible(),
     focusMainWindow: () => {
       const mainWindow = overlayManager.getMainWindow();
       if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -2131,21 +3086,20 @@ registerIpcRuntimeServices({
     getCurrentSubtitleAss: () => appState.currentSubAssText,
     getMpvSubtitleRenderMetrics: () => appState.mpvSubtitleRenderMetrics,
     getSubtitlePosition: () => loadSubtitlePosition(),
-      getSubtitleStyle: () => {
-        const resolvedConfig = getResolvedConfig();
-        if (!resolvedConfig.subtitleStyle) {
-          return null;
-        }
+    getSubtitleStyle: () => {
+      const resolvedConfig = getResolvedConfig();
+      if (!resolvedConfig.subtitleStyle) {
+        return null;
+      }
 
-        return {
-          ...resolvedConfig.subtitleStyle,
-          nPlusOneColor: resolvedConfig.ankiConnect.nPlusOne.nPlusOne,
-          knownWordColor: resolvedConfig.ankiConnect.nPlusOne.knownWord,
-          enableJlpt: resolvedConfig.subtitleStyle.enableJlpt,
-          frequencyDictionary:
-            resolvedConfig.subtitleStyle.frequencyDictionary,
-        };
-      },
+      return {
+        ...resolvedConfig.subtitleStyle,
+        nPlusOneColor: resolvedConfig.ankiConnect.nPlusOne.nPlusOne,
+        knownWordColor: resolvedConfig.ankiConnect.nPlusOne.knownWord,
+        enableJlpt: resolvedConfig.subtitleStyle.enableJlpt,
+        frequencyDictionary: resolvedConfig.subtitleStyle.frequencyDictionary,
+      };
+    },
     saveSubtitlePosition: (position: unknown) =>
       saveSubtitlePosition(position as SubtitlePosition),
     getMecabTokenizer: () => appState.mecabTokenizer,

@@ -1,6 +1,12 @@
-import { handleCliCommand, createCliCommandDepsRuntime } from "../core/services";
+import {
+  handleCliCommand,
+  createCliCommandDepsRuntime,
+} from "../core/services";
 import type { CliArgs, CliCommandSource } from "../cli/args";
-import { createCliCommandRuntimeServiceDeps, CliCommandRuntimeServiceDepsParams } from "./dependencies";
+import {
+  createCliCommandRuntimeServiceDeps,
+  CliCommandRuntimeServiceDepsParams,
+} from "./dependencies";
 
 export interface CliCommandRuntimeServiceContext {
   getSocketPath: () => string;
@@ -31,6 +37,8 @@ export interface CliCommandRuntimeServiceContext {
   openAnilistSetup: CliCommandRuntimeServiceDepsParams["anilist"]["openSetup"];
   getAnilistQueueStatus: CliCommandRuntimeServiceDepsParams["anilist"]["getQueueStatus"];
   retryAnilistQueueNow: CliCommandRuntimeServiceDepsParams["anilist"]["retryQueueNow"];
+  openJellyfinSetup: CliCommandRuntimeServiceDepsParams["jellyfin"]["openSetup"];
+  runJellyfinCommand: CliCommandRuntimeServiceDepsParams["jellyfin"]["runCommand"];
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -49,7 +57,8 @@ export interface CliCommandRuntimeServiceContextHandlers {
 }
 
 function createCliCommandDepsFromContext(
-  context: CliCommandRuntimeServiceContext & CliCommandRuntimeServiceContextHandlers,
+  context: CliCommandRuntimeServiceContext &
+    CliCommandRuntimeServiceContextHandlers,
 ): CliCommandRuntimeServiceDepsParams {
   return {
     mpv: {
@@ -77,7 +86,8 @@ function createCliCommandDepsFromContext(
       copyCurrentSubtitle: context.copyCurrentSubtitle,
       startPendingMultiCopy: context.startPendingMultiCopy,
       mineSentenceCard: context.mineSentenceCard,
-      startPendingMineSentenceMultiple: context.startPendingMineSentenceMultiple,
+      startPendingMineSentenceMultiple:
+        context.startPendingMineSentenceMultiple,
       updateLastCardFromClipboard: context.updateLastCardFromClipboard,
       refreshKnownWords: context.refreshKnownWordCache,
       triggerFieldGrouping: context.triggerFieldGrouping,
@@ -90,6 +100,10 @@ function createCliCommandDepsFromContext(
       openSetup: context.openAnilistSetup,
       getQueueStatus: context.getAnilistQueueStatus,
       retryQueueNow: context.retryAnilistQueueNow,
+    },
+    jellyfin: {
+      openSetup: context.openJellyfinSetup,
+      runCommand: context.runJellyfinCommand,
     },
     ui: {
       openYomitanSettings: context.openYomitanSettings,
@@ -123,7 +137,12 @@ export function handleCliCommandRuntimeService(
 export function handleCliCommandRuntimeServiceWithContext(
   args: CliArgs,
   source: CliCommandSource,
-  context: CliCommandRuntimeServiceContext & CliCommandRuntimeServiceContextHandlers,
+  context: CliCommandRuntimeServiceContext &
+    CliCommandRuntimeServiceContextHandlers,
 ): void {
-  handleCliCommandRuntimeService(args, source, createCliCommandDepsFromContext(context));
+  handleCliCommandRuntimeService(
+    args,
+    source,
+    createCliCommandDepsFromContext(context),
+  );
 }

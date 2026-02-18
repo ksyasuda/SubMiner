@@ -20,6 +20,93 @@ export const state = {
   stopRequested: false,
 };
 
+const DETACHED_IDLE_MPV_PID_FILE = path.join(
+  os.tmpdir(),
+  "subminer-idle-mpv.pid",
+);
+
+function readTrackedDetachedMpvPid(): number | null {
+  try {
+    const raw = fs.readFileSync(DETACHED_IDLE_MPV_PID_FILE, "utf8").trim();
+    const pid = Number.parseInt(raw, 10);
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearTrackedDetachedMpvPid(): void {
+  try {
+    fs.rmSync(DETACHED_IDLE_MPV_PID_FILE, { force: true });
+  } catch {
+    // ignore
+  }
+}
+
+function trackDetachedMpvPid(pid: number): void {
+  try {
+    fs.writeFileSync(DETACHED_IDLE_MPV_PID_FILE, String(pid), "utf8");
+  } catch {
+    // ignore
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function processLooksLikeMpv(pid: number): boolean {
+  if (process.platform !== "linux") return true;
+  try {
+    const cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8");
+    return cmdline.includes("mpv");
+  } catch {
+    return false;
+  }
+}
+
+async function terminateTrackedDetachedMpv(logLevel: LogLevel): Promise<void> {
+  const pid = readTrackedDetachedMpvPid();
+  if (!pid) return;
+  if (!isProcessAlive(pid)) {
+    clearTrackedDetachedMpvPid();
+    return;
+  }
+  if (!processLooksLikeMpv(pid)) {
+    clearTrackedDetachedMpvPid();
+    return;
+  }
+
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    clearTrackedDetachedMpvPid();
+    return;
+  }
+
+  const deadline = Date.now() + 1500;
+  while (Date.now() < deadline) {
+    if (!isProcessAlive(pid)) {
+      clearTrackedDetachedMpvPid();
+      return;
+    }
+    await sleep(100);
+  }
+
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // ignore
+  }
+  clearTrackedDetachedMpvPid();
+  log("debug", logLevel, `Terminated stale detached mpv pid=${pid}`);
+}
+
 export function makeTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
@@ -525,6 +612,8 @@ export function stopOverlay(args: Args): void {
     }
   }
   state.youtubeSubgenChildren.clear();
+
+  void terminateTrackedDetachedMpv(args.logLevel);
 }
 
 function buildAppEnv(): NodeJS.ProcessEnv {
@@ -595,7 +684,15 @@ export function launchMpvIdleDetached(
   socketPath: string,
   appPath: string,
   args: Args,
-): void {
+): Promise<void> {
+  return (async () => {
+    await terminateTrackedDetachedMpv(args.logLevel);
+    try {
+      fs.rmSync(socketPath, { force: true });
+    } catch {
+      // ignore
+    }
+
   const mpvArgs: string[] = [];
   if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
   mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
@@ -609,7 +706,11 @@ export function launchMpvIdleDetached(
     stdio: "ignore",
     detached: true,
   });
+  if (typeof proc.pid === "number" && proc.pid > 0) {
+    trackDetachedMpvPid(proc.pid);
+  }
   proc.unref();
+  })();
 }
 
 async function sleepMs(ms: number): Promise<void> {

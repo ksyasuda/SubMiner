@@ -51,7 +51,9 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
   return {
     state,
     deps: {
-      getResolvedConfig: () => ({ secondarySub: { secondarySubLanguages: ["ja"] } }),
+      getResolvedConfig: () => ({
+        secondarySub: { secondarySubLanguages: ["ja"] },
+      }),
       getSubtitleMetrics: () => metrics,
       isVisibleOverlayVisible: () => false,
       emitSubtitleChange: (payload) => state.events.push(payload),
@@ -94,16 +96,16 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
         state.commands.push(payload);
         return true;
       },
-        restorePreviousSecondarySubVisibility: () => {
-          state.restored += 1;
-        },
-        setPreviousSecondarySubVisibility: () => {
-          // intentionally not tracked in this unit test
-        },
-        ...overrides,
+      restorePreviousSecondarySubVisibility: () => {
+        state.restored += 1;
       },
-    };
-  }
+      setPreviousSecondarySubVisibility: () => {
+        // intentionally not tracked in this unit test
+      },
+      ...overrides,
+    },
+  };
+}
 
 test("dispatchMpvProtocolMessage emits subtitle text on property change", async () => {
   const { deps, state } = createDeps();
@@ -131,7 +133,9 @@ test("dispatchMpvProtocolMessage sets secondary subtitle track based on track li
     deps,
   );
 
-  assert.deepEqual(state.commands, [{ command: ["set_property", "secondary-sid", 2] }]);
+  assert.deepEqual(state.commands, [
+    { command: ["set_property", "secondary-sid", 2] },
+  ]);
 });
 
 test("dispatchMpvProtocolMessage restores secondary visibility on shutdown", async () => {
@@ -166,10 +170,9 @@ test("dispatchMpvProtocolMessage pauses on sub-end when pendingPauseAtSubEnd is 
   assert.equal(pendingPauseAtSubEnd, false);
   assert.equal(pauseAtTime, 42);
   assert.deepEqual(state.events, [{ text: "字幕", start: 0, end: 0 }]);
-  assert.deepEqual(
-    state.commands[state.commands.length - 1],
-    { command: ["set_property", "pause", false] },
-  );
+  assert.deepEqual(state.commands[state.commands.length - 1], {
+    command: ["set_property", "pause", false],
+  });
 });
 
 test("splitMpvMessagesFromBuffer parses complete lines and preserves partial buffer", () => {
@@ -178,7 +181,7 @@ test("splitMpvMessagesFromBuffer parses complete lines and preserves partial buf
   );
 
   assert.equal(parsed.messages.length, 2);
-  assert.equal(parsed.nextBuffer, "{\"partial\"");
+  assert.equal(parsed.nextBuffer, '{"partial"');
   assert.equal(parsed.messages[0].event, "shutdown");
   assert.equal(parsed.messages[1].name, "media-title");
 });
@@ -186,9 +189,13 @@ test("splitMpvMessagesFromBuffer parses complete lines and preserves partial buf
 test("splitMpvMessagesFromBuffer reports invalid JSON lines", () => {
   const errors: Array<{ line: string; error?: string }> = [];
 
-  splitMpvMessagesFromBuffer('{"event":"x"}\n{invalid}\n', undefined, (line, error) => {
-    errors.push({ line, error: String(error) });
-  });
+  splitMpvMessagesFromBuffer(
+    '{"event":"x"}\n{invalid}\n',
+    undefined,
+    (line, error) => {
+      errors.push({ line, error: String(error) });
+    },
+  );
 
   assert.equal(errors.length, 1);
   assert.equal(errors[0].line, "{invalid}");

@@ -176,22 +176,6 @@ features:
 
 <div class="demo-section">
 
-## CLI Quick Reference
-
-```bash
-subminer                    # Default picker + playback workflow
-subminer jellyfin -d        # Jellyfin cast discovery mode (foreground)
-subminer jellyfin -p        # Jellyfin play picker
-subminer yt -o ~/subs URL   # YouTube subcommand with output dir shortcut
-subminer doctor             # Dependency/config/socket health checks
-subminer config path        # Active config file path
-subminer config show        # Print active config
-subminer mpv status         # MPV socket readiness
-subminer texthooker         # Texthooker-only mode
-```
-
-See [Usage](/usage) for full command and option coverage.
-
 ## See It in Action
 
 <video controls playsinline preload="metadata" poster="/assets/demo-poster.jpg">

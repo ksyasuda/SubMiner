@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { Command } from "commander";
 import { parse as parseJsonc } from "jsonc-parser";
 import type {
   LogLevel, YoutubeSubgenMode, Backend, Args,
@@ -16,72 +17,6 @@ import {
   resolvePathMaybe, isUrlTarget, uniqueNormalizedLangCodes, parseBoolLike,
   inferWhisperLanguage,
 } from "./util.js";
-
-export function usage(scriptName: string): string {
-  return `subminer - Launch MPV with SubMiner sentence mining overlay
-
-Usage: ${scriptName} [OPTIONS] [FILE|DIRECTORY|URL]
-
-Options:
-  -b, --backend BACKEND  Display backend to use: auto, hyprland, x11, macos (default: auto)
-  -d, --directory DIR    Directory to browse for videos (default: current directory)
-  -r, --recursive        Search for videos recursively
-  -p, --profile PROFILE  MPV profile to use (default: subminer)
-      --start            Explicitly start SubMiner overlay
-      --yt-subgen-mode MODE
-                         YouTube subtitle generation mode: automatic, preprocess, off (default: automatic)
-      --whisper-bin PATH whisper.cpp CLI binary (used for fallback transcription)
-      --whisper-model PATH
-                         whisper model file path (used for fallback transcription)
-      --yt-subgen-out-dir DIR
-                         Output directory for generated YouTube subtitles (default: ${DEFAULT_YOUTUBE_SUBGEN_OUT_DIR})
-      --yt-subgen-audio-format FORMAT
-                         Audio format for extraction (default: m4a)
-      --yt-subgen-keep-temp
-                         Keep YouTube subtitle temp directory
-       --log-level LEVEL  Set log level: debug, info, warn, error
-  -R, --rofi             Use rofi file browser instead of fzf for video selection
-  -S, --start-overlay    Auto-start SubMiner overlay after MPV socket is ready
-  -T, --no-texthooker    Disable texthooker-ui server
-      --texthooker       Launch only texthooker page (no MPV/overlay workflow)
-      --jellyfin         Open Jellyfin setup window in the app
-      --jellyfin-login   Login via app CLI (requires server/username/password)
-      --jellyfin-logout  Clear Jellyfin token/session via app CLI
-      --jellyfin-play    Pick Jellyfin library/item and play in mpv
-      --jellyfin-server URL
-                         Jellyfin server URL (for login/play menu API)
-      --jellyfin-username NAME
-                         Jellyfin username (for login)
-      --jellyfin-password PASS
-                         Jellyfin password (for login)
-  -h, --help             Show this help message
-
-Environment:
-  SUBMINER_APPIMAGE_PATH      Path to SubMiner AppImage/binary (optional override)
-  SUBMINER_ROFI_THEME         Path to rofi theme file (optional override)
-  SUBMINER_YT_SUBGEN_MODE     automatic, preprocess, off (optional default)
-  SUBMINER_WHISPER_BIN        whisper.cpp binary path (optional fallback)
-  SUBMINER_WHISPER_MODEL      whisper model path (optional fallback)
-  SUBMINER_YT_SUBGEN_OUT_DIR  Generated subtitle output directory
-
-Examples:
-  ${scriptName}                        # Browse current directory with fzf
-  ${scriptName} -R                     # Browse current directory with rofi
-  ${scriptName} -d ~/Videos            # Browse ~/Videos
-  ${scriptName} -r -d ~/Anime          # Recursively browse ~/Anime
-  ${scriptName} video.mkv              # Play specific file
-  ${scriptName} https://youtu.be/...   # Play a YouTube URL
-  ${scriptName} ytsearch:query         # Play first YouTube search result
-  ${scriptName} --yt-subgen-mode preprocess --whisper-bin /path/whisper-cli --whisper-model /path/model.bin https://youtu.be/...
-  ${scriptName} video.mkv              # Play with subminer profile
-  ${scriptName} -p gpu-hq video.mkv    # Play with gpu-hq profile
-  ${scriptName} -b x11 video.mkv       # Force x11 backend
-  ${scriptName} -S video.mkv           # Start overlay immediately after MPV launch
-  ${scriptName} --texthooker           # Launch only texthooker page
-  ${scriptName} --jellyfin             # Open Jellyfin setup form window
-  ${scriptName} --jellyfin-play        # Pick Jellyfin library/item and play
-`;
-}
 
 export function loadLauncherYoutubeSubgenConfig(): LauncherYoutubeSubgenConfig {
   const configDir = path.join(os.homedir(), ".config", "SubMiner");
@@ -307,6 +242,47 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
   return runtimeConfig;
 }
 
+function ensureTarget(target: string, parsed: Args): void {
+  if (isUrlTarget(target)) {
+    parsed.target = target;
+    parsed.targetKind = "url";
+    return;
+  }
+  const resolved = resolvePathMaybe(target);
+  if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+    parsed.target = resolved;
+    parsed.targetKind = "file";
+    return;
+  }
+  if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+    parsed.directory = resolved;
+    return;
+  }
+  fail(`Not a file, directory, or supported URL: ${target}`);
+}
+
+function parseLogLevel(value: string): LogLevel {
+  if (value === "debug" || value === "info" || value === "warn" || value === "error") {
+    return value;
+  }
+  fail(`Invalid log level: ${value} (must be debug, info, warn, or error)`);
+}
+
+function parseYoutubeMode(value: string): YoutubeSubgenMode {
+  const normalized = value.toLowerCase();
+  if (normalized === "automatic" || normalized === "preprocess" || normalized === "off") {
+    return normalized as YoutubeSubgenMode;
+  }
+  fail(`Invalid yt-subgen mode: ${value} (must be automatic, preprocess, or off)`);
+}
+
+function parseBackend(value: string): Backend {
+  if (value === "auto" || value === "hyprland" || value === "x11" || value === "macos") {
+    return value as Backend;
+  }
+  fail(`Invalid backend: ${value} (must be auto, hyprland, x11, or macos)`);
+}
+
 export function parseArgs(
   argv: string[],
   scriptName: string,
@@ -362,6 +338,13 @@ export function parseArgs(
     jellyfinLogin: false,
     jellyfinLogout: false,
     jellyfinPlay: false,
+    jellyfinDiscovery: false,
+    doctor: false,
+    configPath: false,
+    configShow: false,
+    mpvIdle: false,
+    mpvSocket: false,
+    mpvStatus: false,
     jellyfinServer: "",
     jellyfinUsername: "",
     jellyfinPassword: "",
@@ -388,307 +371,277 @@ export function parseArgs(
   if (launcherConfig.jimakuMaxEntryResults !== undefined)
     parsed.jimakuMaxEntryResults = launcherConfig.jimakuMaxEntryResults;
 
-  const isValidLogLevel = (value: string): value is LogLevel =>
-    value === "debug" ||
-    value === "info" ||
-    value === "warn" ||
-    value === "error";
-  const isValidYoutubeSubgenMode = (value: string): value is YoutubeSubgenMode =>
-    value === "automatic" || value === "preprocess" || value === "off";
-
-  let i = 0;
-  while (i < argv.length) {
-    const arg = argv[i];
-
-    if (arg === "-b" || arg === "--backend") {
-      const value = argv[i + 1];
-      if (!value) fail("--backend requires a value");
-      if (!["auto", "hyprland", "x11", "macos"].includes(value)) {
-        fail(
-          `Invalid backend: ${value} (must be auto, hyprland, x11, or macos)`,
-        );
-      }
-      parsed.backend = value as Backend;
-      i += 2;
-      continue;
+  let jellyfinInvocation:
+    | {
+      action?: string;
+      discovery?: boolean;
+      play?: boolean;
+      login?: boolean;
+      logout?: boolean;
+      setup?: boolean;
+      server?: string;
+      username?: string;
+      password?: string;
+      logLevel?: string;
     }
-
-    if (arg === "-d" || arg === "--directory") {
-      const value = argv[i + 1];
-      if (!value) fail("--directory requires a value");
-      parsed.directory = value;
-      i += 2;
-      continue;
+    | null = null;
+  let ytInvocation:
+    | {
+      target?: string;
+      mode?: string;
+      outDir?: string;
+      keepTemp?: boolean;
+      whisperBin?: string;
+      whisperModel?: string;
+      ytSubgenAudioFormat?: string;
+      logLevel?: string;
     }
+    | null = null;
+  let configInvocation: { action: string; logLevel?: string } | null = null;
+  let mpvInvocation: { action: string; logLevel?: string } | null = null;
+  let doctorLogLevel: string | null = null;
+  let texthookerLogLevel: string | null = null;
 
-    if (arg === "-r" || arg === "--recursive") {
-      parsed.recursive = true;
-      i += 1;
-      continue;
-    }
+  const program = new Command();
+  program
+    .name(scriptName)
+    .description("Launch MPV with SubMiner sentence mining overlay")
+    .showHelpAfterError(true)
+    .enablePositionalOptions()
+    .allowExcessArguments(false)
+    .allowUnknownOption(false)
+    .exitOverride()
+    .argument("[target]", "file, directory, or URL")
+    .option("-b, --backend <backend>", "Display backend")
+    .option("-d, --directory <dir>", "Directory to browse")
+    .option("-r, --recursive", "Search directories recursively")
+    .option("-p, --profile <profile>", "MPV profile")
+    .option("--start", "Explicitly start overlay")
+    .option("--log-level <level>", "Log level")
+    .option("-R, --rofi", "Use rofi picker")
+    .option("-S, --start-overlay", "Auto-start overlay")
+    .option("-T, --no-texthooker", "Disable texthooker-ui server");
 
-    if (arg === "-p" || arg === "--profile") {
-      const value = argv[i + 1];
-      if (!value) fail("--profile requires a value");
-      parsed.profile = value;
-      i += 2;
-      continue;
-    }
+  program
+    .command("jellyfin")
+    .alias("jf")
+    .description("Jellyfin workflows")
+    .argument("[action]", "setup|discovery|play|login|logout")
+    .option("-d, --discovery", "Cast discovery mode")
+    .option("-p, --play", "Interactive play picker")
+    .option("-l, --login", "Login flow")
+    .option("--logout", "Clear token/session")
+    .option("--setup", "Open setup window")
+    .option("-s, --server <url>", "Jellyfin server URL")
+    .option("-u, --username <name>", "Jellyfin username")
+    .option("-w, --password <pass>", "Jellyfin password")
+    .option("--log-level <level>", "Log level")
+    .action((action: string | undefined, options: Record<string, unknown>) => {
+      jellyfinInvocation = {
+        action,
+        discovery: options.discovery === true,
+        play: options.play === true,
+        login: options.login === true,
+        logout: options.logout === true,
+        setup: options.setup === true,
+        server: typeof options.server === "string" ? options.server : undefined,
+        username: typeof options.username === "string" ? options.username : undefined,
+        password: typeof options.password === "string" ? options.password : undefined,
+        logLevel:
+          typeof options.logLevel === "string" ? options.logLevel : undefined,
+      };
+    });
 
-    if (arg === "--start") {
-      parsed.startOverlay = true;
-      i += 1;
-      continue;
-    }
+  program
+    .command("yt")
+    .alias("youtube")
+    .description("YouTube workflows")
+    .argument("[target]", "YouTube URL or ytsearch: query")
+    .option("-m, --mode <mode>", "Subtitle generation mode")
+    .option("-o, --out-dir <dir>", "Subtitle output dir")
+    .option("--keep-temp", "Keep temp files")
+    .option("--whisper-bin <path>", "whisper.cpp CLI path")
+    .option("--whisper-model <path>", "whisper model path")
+    .option("--yt-subgen-audio-format <format>", "Audio extraction format")
+    .option("--log-level <level>", "Log level")
+    .action((target: string | undefined, options: Record<string, unknown>) => {
+      ytInvocation = {
+        target,
+        mode: typeof options.mode === "string" ? options.mode : undefined,
+        outDir: typeof options.outDir === "string" ? options.outDir : undefined,
+        keepTemp: options.keepTemp === true,
+        whisperBin:
+          typeof options.whisperBin === "string" ? options.whisperBin : undefined,
+        whisperModel:
+          typeof options.whisperModel === "string" ? options.whisperModel : undefined,
+        ytSubgenAudioFormat:
+          typeof options.ytSubgenAudioFormat === "string"
+            ? options.ytSubgenAudioFormat
+            : undefined,
+        logLevel:
+          typeof options.logLevel === "string" ? options.logLevel : undefined,
+      };
+    });
 
-    if (arg === "--yt-subgen-mode" || arg === "--youtube-subgen-mode") {
-      const value = (argv[i + 1] || "").toLowerCase();
-      if (!isValidYoutubeSubgenMode(value)) {
-        fail(
-          `Invalid yt-subgen mode: ${value || ""} (must be automatic, preprocess, or off)`,
-        );
-      }
-      parsed.youtubeSubgenMode = value;
-      i += 2;
-      continue;
-    }
+  program
+    .command("doctor")
+    .description("Run dependency and environment checks")
+    .option("--log-level <level>", "Log level")
+    .action((options: Record<string, unknown>) => {
+      parsed.doctor = true;
+      doctorLogLevel =
+        typeof options.logLevel === "string" ? options.logLevel : null;
+    });
 
-    if (
-      arg.startsWith("--yt-subgen-mode=") ||
-      arg.startsWith("--youtube-subgen-mode=")
-    ) {
-      const value = arg.split("=", 2)[1]?.toLowerCase() || "";
-      if (!isValidYoutubeSubgenMode(value)) {
-        fail(
-          `Invalid yt-subgen mode: ${value || ""} (must be automatic, preprocess, or off)`,
-        );
-      }
-      parsed.youtubeSubgenMode = value;
-      i += 1;
-      continue;
-    }
+  program
+    .command("config")
+    .description("Config helpers")
+    .argument("[action]", "path|show", "path")
+    .option("--log-level <level>", "Log level")
+    .action((action: string, options: Record<string, unknown>) => {
+      configInvocation = {
+        action,
+        logLevel:
+          typeof options.logLevel === "string" ? options.logLevel : undefined,
+      };
+    });
 
-    if (arg === "--whisper-bin") {
-      const value = argv[i + 1];
-      if (!value) fail("--whisper-bin requires a value");
-      parsed.whisperBin = value;
-      i += 2;
-      continue;
-    }
+  program
+    .command("mpv")
+    .description("MPV helpers")
+    .argument("[action]", "status|socket|idle", "status")
+    .option("--log-level <level>", "Log level")
+    .action((action: string, options: Record<string, unknown>) => {
+      mpvInvocation = {
+        action,
+        logLevel:
+          typeof options.logLevel === "string" ? options.logLevel : undefined,
+      };
+    });
 
-    if (arg.startsWith("--whisper-bin=")) {
-      const value = arg.slice("--whisper-bin=".length);
-      if (!value) fail("--whisper-bin requires a value");
-      parsed.whisperBin = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--whisper-model") {
-      const value = argv[i + 1];
-      if (!value) fail("--whisper-model requires a value");
-      parsed.whisperModel = value;
-      i += 2;
-      continue;
-    }
-
-    if (arg.startsWith("--whisper-model=")) {
-      const value = arg.slice("--whisper-model=".length);
-      if (!value) fail("--whisper-model requires a value");
-      parsed.whisperModel = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--yt-subgen-out-dir") {
-      const value = argv[i + 1];
-      if (!value) fail("--yt-subgen-out-dir requires a value");
-      parsed.youtubeSubgenOutDir = value;
-      i += 2;
-      continue;
-    }
-
-    if (arg.startsWith("--yt-subgen-out-dir=")) {
-      const value = arg.slice("--yt-subgen-out-dir=".length);
-      if (!value) fail("--yt-subgen-out-dir requires a value");
-      parsed.youtubeSubgenOutDir = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--yt-subgen-audio-format") {
-      const value = argv[i + 1];
-      if (!value) fail("--yt-subgen-audio-format requires a value");
-      parsed.youtubeSubgenAudioFormat = value;
-      i += 2;
-      continue;
-    }
-
-    if (arg.startsWith("--yt-subgen-audio-format=")) {
-      const value = arg.slice("--yt-subgen-audio-format=".length);
-      if (!value) fail("--yt-subgen-audio-format requires a value");
-      parsed.youtubeSubgenAudioFormat = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--yt-subgen-keep-temp") {
-      parsed.youtubeSubgenKeepTemp = true;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--log-level") {
-      const value = argv[i + 1];
-      if (!value || !isValidLogLevel(value)) {
-        fail(
-          `Invalid log level: ${value ?? ""} (must be debug, info, warn, or error)`,
-        );
-      }
-      parsed.logLevel = value;
-      i += 2;
-      continue;
-    }
-
-    if (arg.startsWith("--log-level=")) {
-      const value = arg.slice("--log-level=".length);
-      if (!isValidLogLevel(value)) {
-        fail(
-          `Invalid log level: ${value} (must be debug, info, warn, or error)`,
-        );
-      }
-      parsed.logLevel = value;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "-R" || arg === "--rofi") {
-      parsed.useRofi = true;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "-S" || arg === "--start-overlay") {
-      parsed.autoStartOverlay = true;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "-T" || arg === "--no-texthooker") {
-      parsed.useTexthooker = false;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--texthooker") {
+  program
+    .command("texthooker")
+    .description("Launch texthooker-only mode")
+    .option("--log-level <level>", "Log level")
+    .action((options: Record<string, unknown>) => {
       parsed.texthookerOnly = true;
-      i += 1;
-      continue;
-    }
+      texthookerLogLevel =
+        typeof options.logLevel === "string" ? options.logLevel : null;
+    });
 
-    if (arg === "--jellyfin") {
-      parsed.jellyfin = true;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--jellyfin-login") {
-      parsed.jellyfinLogin = true;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--jellyfin-logout") {
-      parsed.jellyfinLogout = true;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--jellyfin-play") {
-      parsed.jellyfinPlay = true;
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--jellyfin-server") {
-      const value = argv[i + 1];
-      if (!value) fail("--jellyfin-server requires a value");
-      parsed.jellyfinServer = value;
-      i += 2;
-      continue;
-    }
-
-    if (arg.startsWith("--jellyfin-server=")) {
-      parsed.jellyfinServer = arg.split("=", 2)[1] || "";
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--jellyfin-username") {
-      const value = argv[i + 1];
-      if (!value) fail("--jellyfin-username requires a value");
-      parsed.jellyfinUsername = value;
-      i += 2;
-      continue;
-    }
-
-    if (arg.startsWith("--jellyfin-username=")) {
-      parsed.jellyfinUsername = arg.split("=", 2)[1] || "";
-      i += 1;
-      continue;
-    }
-
-    if (arg === "--jellyfin-password") {
-      const value = argv[i + 1];
-      if (!value) fail("--jellyfin-password requires a value");
-      parsed.jellyfinPassword = value;
-      i += 2;
-      continue;
-    }
-
-    if (arg.startsWith("--jellyfin-password=")) {
-      parsed.jellyfinPassword = arg.split("=", 2)[1] || "";
-      i += 1;
-      continue;
-    }
-
-    if (arg === "-h" || arg === "--help") {
-      process.stdout.write(usage(scriptName));
+  try {
+    program.parse(["node", scriptName, ...argv]);
+  } catch (error) {
+    const commanderError = error as { code?: string; message?: string };
+    if (commanderError?.code === "commander.helpDisplayed") {
       process.exit(0);
     }
-
-    if (arg === "--") {
-      i += 1;
-      break;
-    }
-
-    if (arg.startsWith("-")) {
-      fail(`Unknown option: ${arg}`);
-    }
-
-    break;
+    fail(commanderError?.message || String(error));
   }
 
-  const positional = argv.slice(i);
-  if (positional.length > 0) {
-    const target = positional[0];
-    if (isUrlTarget(target)) {
-      parsed.target = target;
-      parsed.targetKind = "url";
-    } else {
-      const resolved = resolvePathMaybe(target);
-      if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
-        parsed.target = resolved;
-        parsed.targetKind = "file";
-      } else if (
-        fs.existsSync(resolved) &&
-        fs.statSync(resolved).isDirectory()
-      ) {
-        parsed.directory = resolved;
-      } else {
-        fail(`Not a file, directory, or supported URL: ${target}`);
-      }
+  const options = program.opts<Record<string, unknown>>();
+  if (typeof options.backend === "string") {
+    parsed.backend = parseBackend(options.backend);
+  }
+  if (typeof options.directory === "string") {
+    parsed.directory = options.directory;
+  }
+  if (options.recursive === true) parsed.recursive = true;
+  if (typeof options.profile === "string") {
+    parsed.profile = options.profile;
+  }
+  if (options.start === true) parsed.startOverlay = true;
+  if (typeof options.logLevel === "string") {
+    parsed.logLevel = parseLogLevel(options.logLevel);
+  }
+  if (options.rofi === true) parsed.useRofi = true;
+  if (options.startOverlay === true) parsed.autoStartOverlay = true;
+  if (options.texthooker === false) parsed.useTexthooker = false;
+
+  const rootTarget = program.processedArgs[0];
+  if (typeof rootTarget === "string" && rootTarget) {
+    ensureTarget(rootTarget, parsed);
+  }
+
+  if (jellyfinInvocation) {
+    if (jellyfinInvocation.logLevel) {
+      parsed.logLevel = parseLogLevel(jellyfinInvocation.logLevel);
     }
+    const action = (jellyfinInvocation.action || "").toLowerCase();
+    if (action && !["setup", "discovery", "play", "login", "logout"].includes(action)) {
+      fail(`Unknown jellyfin action: ${jellyfinInvocation.action}`);
+    }
+
+    parsed.jellyfinServer = jellyfinInvocation.server || "";
+    parsed.jellyfinUsername = jellyfinInvocation.username || "";
+    parsed.jellyfinPassword = jellyfinInvocation.password || "";
+
+    const modeFlags = {
+      setup: jellyfinInvocation.setup || action === "setup",
+      discovery: jellyfinInvocation.discovery || action === "discovery",
+      play: jellyfinInvocation.play || action === "play",
+      login: jellyfinInvocation.login || action === "login",
+      logout: jellyfinInvocation.logout || action === "logout",
+    };
+    if (!modeFlags.setup && !modeFlags.discovery && !modeFlags.play && !modeFlags.login && !modeFlags.logout) {
+      modeFlags.setup = true;
+    }
+
+    parsed.jellyfin = Boolean(modeFlags.setup);
+    parsed.jellyfinDiscovery = Boolean(modeFlags.discovery);
+    parsed.jellyfinPlay = Boolean(modeFlags.play);
+    parsed.jellyfinLogin = Boolean(modeFlags.login);
+    parsed.jellyfinLogout = Boolean(modeFlags.logout);
+  }
+
+  if (ytInvocation) {
+    if (ytInvocation.logLevel) {
+      parsed.logLevel = parseLogLevel(ytInvocation.logLevel);
+    }
+    const mode = ytInvocation.mode;
+    if (mode) parsed.youtubeSubgenMode = parseYoutubeMode(mode);
+    const outDir = ytInvocation.outDir;
+    if (outDir) parsed.youtubeSubgenOutDir = outDir;
+    if (ytInvocation.keepTemp) {
+      parsed.youtubeSubgenKeepTemp = true;
+    }
+    if (ytInvocation.whisperBin) parsed.whisperBin = ytInvocation.whisperBin;
+    if (ytInvocation.whisperModel) parsed.whisperModel = ytInvocation.whisperModel;
+    if (ytInvocation.ytSubgenAudioFormat) {
+      parsed.youtubeSubgenAudioFormat = ytInvocation.ytSubgenAudioFormat;
+    }
+    if (ytInvocation.target) {
+      ensureTarget(ytInvocation.target, parsed);
+    }
+  }
+
+  if (doctorLogLevel) {
+    parsed.logLevel = parseLogLevel(doctorLogLevel);
+  }
+
+  if (texthookerLogLevel) {
+    parsed.logLevel = parseLogLevel(texthookerLogLevel);
+  }
+
+  if (configInvocation !== null) {
+    if (configInvocation.logLevel) {
+      parsed.logLevel = parseLogLevel(configInvocation.logLevel);
+    }
+    const action = (configInvocation.action || "path").toLowerCase();
+    if (action === "path") parsed.configPath = true;
+    else if (action === "show") parsed.configShow = true;
+    else fail(`Unknown config action: ${configInvocation.action}`);
+  }
+
+  if (mpvInvocation !== null) {
+    if (mpvInvocation.logLevel) {
+      parsed.logLevel = parseLogLevel(mpvInvocation.logLevel);
+    }
+    const action = (mpvInvocation.action || "status").toLowerCase();
+    if (action === "status") parsed.mpvStatus = true;
+    else if (action === "socket") parsed.mpvSocket = true;
+    else if (action === "idle" || action === "start") parsed.mpvIdle = true;
+    else fail(`Unknown mpv action: ${mpvInvocation.action}`);
   }
 
   return parsed;
