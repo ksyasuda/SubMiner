@@ -37,7 +37,7 @@ SubMiner.AppImage --generate-config --backup-overwrite
 - `--generate-config` writes a default JSONC config template.
 - If the target file exists, SubMiner prompts to create a timestamped backup and overwrite.
 - In non-interactive shells, use `--backup-overwrite` to explicitly back up and overwrite.
-- `pnpm run generate:config-example` regenerates both repository `config.example.jsonc` and docs-served `/config.example.jsonc` from the same centralized defaults.
+- `bun run generate:config-example` regenerates both repository `config.example.jsonc` and docs-served `/config.example.jsonc` from the same centralized defaults.
 - `make generate-config` builds and runs the same default-config generator via local Electron.
 
 Invalid config values are handled with warn-and-fallback behavior: SubMiner logs the bad key/value and continues with the default for that option.

@@ -46,26 +46,6 @@
     "level": "info"
   },
 
-  // Immersion Tracking
-  // Persist mined subtitle/session telemetry for analytics.
-  // ==========================================
-  "immersionTracking": {
-    "enabled": true,
-    "dbPath": "",
-    "batchSize": 25,
-    "flushIntervalMs": 500,
-    "queueCap": 1000,
-    "payloadCapBytes": 256,
-    "maintenanceIntervalMs": 86400000,
-    "retention": {
-      "eventsDays": 7,
-      "telemetryDays": 30,
-      "dailyRollupsDays": 365,
-      "monthlyRollupsDays": 1825,
-      "vacuumIntervalDays": 7
-    }
-  },
-
   // ==========================================
   // AnkiConnect Integration
   // Automatic Anki updates and media generation options.
@@ -314,5 +294,28 @@
       "aac"
     ],
     "transcodeVideoCodec": "h264"
+  },
+
+  // ==========================================
+  // Immersion Tracking
+  // Enable/disable immersion tracking.
+  // Set dbPath to override the default sqlite database location.
+  // Policy tuning is available for queue, flush, and retention values.
+  // ==========================================
+  "immersionTracking": {
+    "enabled": true,
+    "dbPath": "",
+    "batchSize": 25,
+    "flushIntervalMs": 500,
+    "queueCap": 1000,
+    "payloadCapBytes": 256,
+    "maintenanceIntervalMs": 86400000,
+    "retention": {
+      "eventsDays": 7,
+      "telemetryDays": 30,
+      "dailyRollupsDays": 365,
+      "monthlyRollupsDays": 1825,
+      "vacuumIntervalDays": 7
+    }
   }
 }

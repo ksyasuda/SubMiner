@@ -3,8 +3,7 @@
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (LTS)
-- [pnpm](https://pnpm.io/)
-- [Bun](https://bun.sh) (for the `subminer` wrapper script)
+- [Bun](https://bun.sh)
 
 ## Setup
 
@@ -13,15 +12,15 @@ git clone https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
 make deps
 # or manually:
-pnpm install
-pnpm -C vendor/texthooker-ui install
+bun install
+bun --cwd vendor/texthooker-ui install
 ```
 
 ## Building
 
 ```bash
 # TypeScript compile (fast, for development)
-pnpm run build
+bun run build
 
 # Full platform build (includes texthooker-ui + AppImage/DMG)
 make build
@@ -35,16 +34,16 @@ make build-macos-unsigned # macOS DMG + ZIP (unsigned)
 ## Running Locally
 
 ```bash
-pnpm run dev    # builds + launches with --start --dev
+bun run dev    # builds + launches with --start --dev
 electron . --start --dev --log-level debug   # equivalent Electron launch with verbose logging
 ```
 
 ## Testing
 
 ```bash
-pnpm run test:config       # Config schema and validation tests (build + run)
-pnpm run test:core         # Core service tests (~67 tests) (build + run)
-pnpm run test:subtitle     # Subtitle pipeline tests (build + run)
+bun run test:config       # Config schema and validation tests (build + run)
+bun run test:core         # Core service tests (~67 tests) (build + run)
+bun run test:subtitle     # Subtitle pipeline tests (build + run)
 ```
 
 All legacy test commands build first, then run via Node's built-in test runner (`node --test`).
@@ -52,11 +51,11 @@ All legacy test commands build first, then run via Node's built-in test runner (
 For faster iteration while editing test code:
 
 ```bash
-pnpm run build             # one-time compile
-pnpm run test:config:dist  # no rebuild
-pnpm run test:core:dist    # no rebuild
-pnpm run test:subtitle:dist # no rebuild
-pnpm run test:fast         # run all tests without rebuild (assumes build is already current)
+bun run build             # one-time compile
+bun run test:config:dist  # no rebuild
+bun run test:core:dist    # no rebuild
+bun run test:subtitle:dist # no rebuild
+bun run test:fast         # run all tests without rebuild (assumes build is already current)
 ```
 
 ## Config Generation
@@ -67,7 +66,7 @@ make generate-config
 
 # Regenerate the repo's config.example.jsonc from centralized defaults
 make generate-example-config
-# or: pnpm run generate:config-example
+# or: bun run generate:config-example
 ```
 
 ## Documentation Site

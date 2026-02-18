@@ -299,7 +299,8 @@
   // ==========================================
   // Immersion Tracking
   // Enable/disable immersion tracking.
-  // Set dbPath to override the default app data path.
+  // Set dbPath to override the default sqlite database location.
+  // Policy tuning is available for queue, flush, and retention values.
   // ==========================================
   "immersionTracking": {
     "enabled": true,

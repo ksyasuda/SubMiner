@@ -213,7 +213,7 @@ function parseCliArgs(argv: string[]): CliOptions {
 
 function printUsage(): void {
   process.stdout.write(`Usage:
-  pnpm run test-yomitan-parser:electron -- [--pretty] [--json] [--yomitan-extension <path>] [--yomitan-user-data <path>] [--mecab-command <path>] [--mecab-dictionary <path>] <text>
+  bun run test-yomitan-parser:electron -- [--pretty] [--json] [--yomitan-extension <path>] [--yomitan-user-data <path>] [--mecab-command <path>] [--mecab-dictionary <path>] <text>
 
   --pretty               Pretty-print JSON output.
   --json                 Emit machine-readable JSON output.

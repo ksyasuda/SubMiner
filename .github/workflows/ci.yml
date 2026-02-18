@@ -15,37 +15,31 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 9
+          bun-version: latest
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install
+        run: bun install --frozen-lockfile
 
       - name: Build (TypeScript check)
-        run: pnpm exec tsc --noEmit
+        run: bun run tsc --noEmit
 
       - name: Build (bundle)
-        run: pnpm run build
+        run: bun run build
 
       - name: Test suite
-        run: pnpm test
+        run: bun run test
 
       - name: Security audit
-        run: pnpm audit --audit-level=high
+        run: bun audit
         continue-on-error: true
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
 
       - name: Build Bun subminer wrapper
         run: make build-launcher
