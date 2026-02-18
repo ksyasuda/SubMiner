@@ -79,6 +79,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     enabled: false,
     url: 'http://127.0.0.1:8765',
     pollingRate: 3000,
+    tags: ['SubMiner'],
     fields: {
       audio: 'ExpressionAudio',
       image: 'Picture',
@@ -396,6 +397,13 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     kind: 'number',
     defaultValue: DEFAULT_CONFIG.ankiConnect.pollingRate,
     description: 'Polling interval in milliseconds.',
+  },
+  {
+    path: 'ankiConnect.tags',
+    kind: 'array',
+    defaultValue: DEFAULT_CONFIG.ankiConnect.tags,
+    description:
+      'Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.',
   },
   {
     path: 'ankiConnect.behavior.autoUpdateNewCards',

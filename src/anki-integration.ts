@@ -175,7 +175,9 @@ export class AnkiIntegration {
       getMpvClient: () => this.mpvClient,
       getDeck: () => this.config.deck,
       client: {
-        addNote: (deck, modelName, fields) => this.client.addNote(deck, modelName, fields),
+        addNote: (deck, modelName, fields, tags) =>
+          this.client.addNote(deck, modelName, fields, tags),
+        addTags: (noteIds, tags) => this.client.addTags(noteIds, tags),
         notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
         updateNoteFields: (noteId, fields) =>
           this.client.updateNoteFields(noteId, fields) as Promise<void>,
@@ -293,6 +295,25 @@ export class AnkiIntegration {
 
   private stopKnownWordCacheLifecycle(): void {
     this.knownWordCache.stopLifecycle();
+  }
+
+  private getConfiguredAnkiTags(): string[] {
+    if (!Array.isArray(this.config.tags)) {
+      return [];
+    }
+    return [...new Set(this.config.tags.map((tag) => tag.trim()).filter((tag) => tag.length > 0))];
+  }
+
+  private async addConfiguredTagsToNote(noteId: number): Promise<void> {
+    const tags = this.getConfiguredAnkiTags();
+    if (tags.length === 0) {
+      return;
+    }
+    try {
+      await this.client.addTags([noteId], tags);
+    } catch (error) {
+      log.warn('Failed to add tags to card:', (error as Error).message);
+    }
   }
 
   async refreshKnownWordCache(): Promise<void> {
@@ -512,6 +533,7 @@ export class AnkiIntegration {
 
       if (updatePerformed) {
         await this.client.updateNoteFields(noteId, updatedFields);
+        await this.addConfiguredTagsToNote(noteId);
         log.info('Updated card fields for:', expressionText);
         await this.showNotification(noteId, expressionText);
       }
@@ -1465,6 +1487,7 @@ export class AnkiIntegration {
 
     if (Object.keys(mergedFields).length > 0) {
       await this.client.updateNoteFields(keepNoteId, mergedFields);
+      await this.addConfiguredTagsToNote(keepNoteId);
     }
 
     if (deleteDuplicate) {
@@ -1621,6 +1644,7 @@ export class AnkiIntegration {
     await this.client.updateNoteFields(noteId, {
       [resolvedMiscField]: nextValue,
     });
+    await this.addConfiguredTagsToNote(noteId);
   }
 
   applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>): void {

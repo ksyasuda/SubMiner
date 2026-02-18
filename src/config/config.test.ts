@@ -17,6 +17,7 @@ test('loads defaults when config is missing', () => {
   const config = service.getConfig();
   assert.equal(config.websocket.port, DEFAULT_CONFIG.websocket.port);
   assert.equal(config.ankiConnect.behavior.autoUpdateNewCards, true);
+  assert.deepEqual(config.ankiConnect.tags, ['SubMiner']);
   assert.equal(config.anilist.enabled, false);
   assert.equal(config.jellyfin.remoteControlEnabled, true);
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
@@ -256,6 +257,28 @@ test('parses jsonc and warns/falls back on invalid value', () => {
   const config = service.getConfig();
   assert.equal(config.websocket.port, DEFAULT_CONFIG.websocket.port);
   assert.ok(service.getWarnings().some((w) => w.path === 'websocket.port'));
+});
+
+test('accepts trailing commas in jsonc', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "websocket": {
+        "enabled": "auto",
+        "port": 7788,
+      },
+      "youtubeSubgen": {
+        "primarySubLanguages": ["ja", "en",],
+      },
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  assert.equal(config.websocket.port, 7788);
+  assert.deepEqual(config.youtubeSubgen.primarySubLanguages, ['ja', 'en']);
 });
 
 test('reloadConfigStrict rejects invalid jsonc and preserves previous config', () => {
@@ -629,6 +652,44 @@ test('accepts valid ankiConnect n+1 deck list', () => {
   const config = service.getConfig();
 
   assert.deepEqual(config.ankiConnect.nPlusOne.decks, ['Deck One', 'Deck Two']);
+});
+
+test('accepts valid ankiConnect tags list', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "tags": ["SubMiner", "Mining"]
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.deepEqual(config.ankiConnect.tags, ['SubMiner', 'Mining']);
+});
+
+test('falls back to default when ankiConnect tags list is invalid', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "tags": ["SubMiner", 123]
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.deepEqual(config.ankiConnect.tags, ['SubMiner']);
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.tags'));
 });
 
 test('falls back to default when ankiConnect n+1 deck list is invalid', () => {

@@ -15,6 +15,7 @@ export interface AppLifecycleRuntimeDepsFactoryInput {
   onWillQuitCleanup: () => void;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
+  shouldQuitOnWindowAllClosed: () => boolean;
 }
 
 export interface AppReadyRuntimeDepsFactoryInput {
@@ -59,6 +60,7 @@ export function createAppLifecycleRuntimeDeps(
     onWillQuitCleanup: params.onWillQuitCleanup,
     shouldRestoreWindowsOnActivate: params.shouldRestoreWindowsOnActivate,
     restoreWindowsOnActivate: params.restoreWindowsOnActivate,
+    shouldQuitOnWindowAllClosed: params.shouldQuitOnWindowAllClosed,
   };
 }
 

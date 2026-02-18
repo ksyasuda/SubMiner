@@ -5,6 +5,7 @@ import { CliArgs } from '../../cli/args';
 
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
+    background: false,
     start: false,
     stop: false,
     toggle: false,
@@ -80,6 +81,7 @@ test('runStartupBootstrapRuntime configures startup state and starts lifecycle',
   assert.equal(result.backendOverride, 'x11');
   assert.equal(result.autoStartOverlay, true);
   assert.equal(result.texthookerOnlyMode, true);
+  assert.equal(result.backgroundMode, false);
   assert.deepEqual(calls, ['setLog:debug:cli', 'forceX11', 'enforceWayland', 'startLifecycle']);
 });
 
@@ -130,6 +132,7 @@ test('runStartupBootstrapRuntime remains lifecycle-stable with Jellyfin CLI flag
   assert.equal(result.backendOverride, null);
   assert.equal(result.autoStartOverlay, false);
   assert.equal(result.texthookerOnlyMode, false);
+  assert.equal(result.backgroundMode, false);
   assert.deepEqual(calls, ['forceX11', 'enforceWayland', 'startLifecycle']);
 });
 
@@ -173,5 +176,26 @@ test('runStartupBootstrapRuntime skips lifecycle when generate-config flow handl
   assert.equal(result.mpvSocketPath, '/tmp/default.sock');
   assert.equal(result.texthookerPort, 5174);
   assert.equal(result.backendOverride, null);
+  assert.equal(result.backgroundMode, false);
   assert.deepEqual(calls, ['setLog:warn:cli', 'forceX11', 'enforceWayland']);
+});
+
+test('runStartupBootstrapRuntime enables quiet background mode by default', () => {
+  const calls: string[] = [];
+  const args = makeArgs({ background: true });
+
+  const result = runStartupBootstrapRuntime({
+    argv: ['node', 'main.ts', '--background'],
+    parseArgs: () => args,
+    setLogLevel: (level, source) => calls.push(`setLog:${level}:${source}`),
+    forceX11Backend: () => calls.push('forceX11'),
+    enforceUnsupportedWaylandMode: () => calls.push('enforceWayland'),
+    getDefaultSocketPath: () => '/tmp/default.sock',
+    defaultTexthookerPort: 5174,
+    runGenerateConfigFlow: () => false,
+    startAppLifecycle: () => calls.push('startLifecycle'),
+  });
+
+  assert.equal(result.backgroundMode, true);
+  assert.deepEqual(calls, ['setLog:warn:cli', 'forceX11', 'enforceWayland', 'startLifecycle']);
 });

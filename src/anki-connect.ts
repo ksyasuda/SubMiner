@@ -192,11 +192,33 @@ export class AnkiConnectClient {
     deckName: string,
     modelName: string,
     fields: Record<string, string>,
+    tags: string[] = [],
   ): Promise<number> {
+    const note: {
+      deckName: string;
+      modelName: string;
+      fields: Record<string, string>;
+      tags?: string[];
+    } = { deckName, modelName, fields };
+    if (tags.length > 0) {
+      note.tags = tags;
+    }
+
     const result = await this.invoke('addNote', {
-      note: { deckName, modelName, fields },
+      note,
     });
     return result as number;
+  }
+
+  async addTags(noteIds: number[], tags: string[]): Promise<void> {
+    if (noteIds.length === 0 || tags.length === 0) {
+      return;
+    }
+
+    await this.invoke('addTags', {
+      notes: noteIds,
+      tags: tags.join(' '),
+    });
   }
 
   async deleteNotes(noteIds: number[]): Promise<void> {

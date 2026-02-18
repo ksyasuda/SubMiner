@@ -183,13 +183,14 @@ After installing, confirm SubMiner is working:
 
 ```bash
 # Start the overlay (connects to mpv IPC)
-subminer video.mkv
+subminer --start video.mkv
 
 # Useful launch modes for troubleshooting
 subminer --log-level debug video.mkv
 SubMiner.AppImage --start --log-level debug
 
 # Or with direct AppImage control
+SubMiner.AppImage --background  # Background tray service mode
 SubMiner.AppImage --start
 SubMiner.AppImage --start --dev
 SubMiner.AppImage --help    # Show all CLI options

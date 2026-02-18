@@ -5,6 +5,7 @@ import { CliCommandServiceDeps, handleCliCommand } from './cli-command';
 
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
+    background: false,
     start: false,
     stop: false,
     toggle: false,

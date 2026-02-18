@@ -364,8 +364,7 @@ async function main(): Promise<void> {
   }
 
   const ready = await waitForSocket(mpvSocketPath);
-  const shouldStartOverlay =
-    args.startOverlay || args.autoStartOverlay || pluginRuntimeConfig.autoStartOverlay;
+  const shouldStartOverlay = args.startOverlay || args.autoStartOverlay;
   if (shouldStartOverlay) {
     if (ready) {
       log('info', args.logLevel, 'MPV IPC socket ready, starting SubMiner overlay');

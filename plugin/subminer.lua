@@ -281,25 +281,9 @@ local function build_command_args(action, overrides)
 		table.insert(args, log_level)
 	end
 
-	local needs_start_context = (
-		action == "start"
-		or action == "toggle"
-		or action == "show"
-		or action == "hide"
-		or action == "toggle-visible-overlay"
-		or action == "show-visible-overlay"
-		or action == "hide-visible-overlay"
-		or action == "toggle-invisible-overlay"
-		or action == "show-invisible-overlay"
-		or action == "hide-invisible-overlay"
-	)
+	local needs_start_context = action == "start"
 
 	if needs_start_context then
-		-- Explicitly request MPV IPC connection for active overlay control.
-		if action ~= "start" then
-			table.insert(args, "--start")
-		end
-
 		local backend = resolve_backend(overrides.backend)
 		if backend and backend ~= "" then
 			table.insert(args, "--backend")

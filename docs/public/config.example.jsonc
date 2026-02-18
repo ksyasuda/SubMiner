@@ -56,6 +56,9 @@
     "enabled": false,
     "url": "http://127.0.0.1:8765",
     "pollingRate": 3000,
+    "tags": [
+      "SubMiner"
+    ],
     "fields": {
       "audio": "ExpressionAudio",
       "image": "Picture",

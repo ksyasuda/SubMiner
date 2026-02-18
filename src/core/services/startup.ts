@@ -9,6 +9,7 @@ export interface StartupBootstrapRuntimeState {
   backendOverride: string | null;
   autoStartOverlay: boolean;
   texthookerOnlyMode: boolean;
+  backgroundMode: boolean;
 }
 
 interface RuntimeAutoUpdateOptionManagerLike {
@@ -47,6 +48,8 @@ export function runStartupBootstrapRuntime(
 
   if (initialArgs.logLevel) {
     deps.setLogLevel(initialArgs.logLevel, 'cli');
+  } else if (initialArgs.background) {
+    deps.setLogLevel('warn', 'cli');
   }
 
   deps.forceX11Backend(initialArgs);
@@ -59,6 +62,7 @@ export function runStartupBootstrapRuntime(
     backendOverride: initialArgs.backend ?? null,
     autoStartOverlay: initialArgs.autoStartOverlay,
     texthookerOnlyMode: initialArgs.texthooker,
+    backgroundMode: initialArgs.background,
   };
 
   if (!deps.runGenerateConfigFlow(initialArgs)) {

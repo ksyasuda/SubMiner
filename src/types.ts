@@ -194,6 +194,7 @@ export interface AnkiConnectConfig {
   enabled?: boolean;
   url?: string;
   pollingRate?: number;
+  tags?: string[];
   fields?: {
     audio?: string;
     image?: string;
@@ -423,6 +424,7 @@ export interface ResolvedConfig {
     enabled: boolean;
     url: string;
     pollingRate: number;
+    tags: string[];
     fields: {
       audio: string;
       image: string;

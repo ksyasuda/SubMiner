@@ -78,6 +78,7 @@ export interface AppState {
   backendOverride: string | null;
   autoStartOverlay: boolean;
   texthookerOnlyMode: boolean;
+  backgroundMode: boolean;
   jlptLevelLookup: (term: string) => JlptLevel | null;
   frequencyRankLookup: FrequencyDictionaryLookup;
   anilistSetupPageOpened: boolean;
@@ -90,6 +91,7 @@ export interface AppStateInitialValues {
   backendOverride?: string | null;
   autoStartOverlay?: boolean;
   texthookerOnlyMode?: boolean;
+  backgroundMode?: boolean;
 }
 
 export interface StartupState {
@@ -99,6 +101,7 @@ export interface StartupState {
   backendOverride: AppState['backendOverride'];
   autoStartOverlay: AppState['autoStartOverlay'];
   texthookerOnlyMode: AppState['texthookerOnlyMode'];
+  backgroundMode: AppState['backgroundMode'];
 }
 
 export function createAppState(values: AppStateInitialValues): AppState {
@@ -152,6 +155,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     backendOverride: values.backendOverride ?? null,
     autoStartOverlay: values.autoStartOverlay ?? false,
     texthookerOnlyMode: values.texthookerOnlyMode ?? false,
+    backgroundMode: values.backgroundMode ?? false,
     jlptLevelLookup: () => null,
     frequencyRankLookup: () => null,
     anilistSetupPageOpened: false,
@@ -172,4 +176,5 @@ export function applyStartupState(appState: AppState, startupState: StartupState
   appState.backendOverride = startupState.backendOverride;
   appState.autoStartOverlay = startupState.autoStartOverlay;
   appState.texthookerOnlyMode = startupState.texthookerOnlyMode;
+  appState.backgroundMode = startupState.backgroundMode;
 }

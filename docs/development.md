@@ -36,6 +36,7 @@ make build-macos-unsigned # macOS DMG + ZIP (unsigned)
 ```bash
 bun run dev    # builds + launches with --start --dev
 electron . --start --dev --log-level debug   # equivalent Electron launch with verbose logging
+electron . --background                       # tray/background mode, minimal default logging
 ```
 
 ## Testing
@@ -97,6 +98,7 @@ Run `make help` for a full list of targets. Key ones:
 - To add or change a config option, update `src/config/definitions.ts` first. Defaults, runtime-option metadata, and generated `config.example.jsonc` are derived from this centralized source.
 - Overlay window/visibility state is owned by `src/core/services/overlay-manager.ts`.
 - Main process composition is now split across `src/main/` modules (`startup.ts`, `app-lifecycle.ts`, `startup-lifecycle.ts`, `state.ts`, `ipc-runtime.ts`, `cli-runtime.ts`, `overlay-runtime.ts`, `subsync-runtime.ts`).
+- Linux packaged desktop launches pass `--background` using electron-builder `build.linux.executableArgs` in `package.json`.
 - MPV service has been split into transport, protocol, state, and properties layers in `src/core/services/`.
 - Prefer direct inline deps objects in `src/main/` modules for simple pass-through wiring.
 - Add a helper/adapter service only when it performs meaningful adaptation, validation, or reuse (not identity mapping).

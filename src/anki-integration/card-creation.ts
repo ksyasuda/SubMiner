@@ -16,7 +16,13 @@ export interface CardCreationNoteInfo {
 type CardKind = 'sentence' | 'audio';
 
 interface CardCreationClient {
-  addNote(deck: string, modelName: string, fields: Record<string, string>): Promise<number>;
+  addNote(
+    deck: string,
+    modelName: string,
+    fields: Record<string, string>,
+    tags?: string[],
+  ): Promise<number>;
+  addTags(noteIds: number[], tags: string[]): Promise<void>;
   notesInfo(noteIds: number[]): Promise<unknown>;
   updateNoteFields(noteId: number, fields: Record<string, string>): Promise<void>;
   storeMediaFile(filename: string, data: Buffer): Promise<void>;
@@ -100,6 +106,26 @@ interface CardCreationDeps {
 
 export class CardCreationService {
   constructor(private readonly deps: CardCreationDeps) {}
+
+  private getConfiguredAnkiTags(): string[] {
+    const tags = this.deps.getConfig().tags;
+    if (!Array.isArray(tags)) {
+      return [];
+    }
+    return [...new Set(tags.map((tag) => tag.trim()).filter((tag) => tag.length > 0))];
+  }
+
+  private async addConfiguredTagsToNote(noteId: number): Promise<void> {
+    const tags = this.getConfiguredAnkiTags();
+    if (tags.length === 0) {
+      return;
+    }
+    try {
+      await this.deps.client.addTags([noteId], tags);
+    } catch (error) {
+      log.warn('Failed to add tags to card:', (error as Error).message);
+    }
+  }
 
   async updateLastAddedFromClipboard(clipboardText: string): Promise<void> {
     try {
@@ -272,6 +298,7 @@ export class CardCreationService {
 
         if (updatePerformed) {
           await this.deps.client.updateNoteFields(noteId, updatedFields);
+          await this.addConfiguredTagsToNote(noteId);
           const label = expressionText || noteId;
           log.info('Updated card from clipboard:', label);
           const errorSuffix = errors.length > 0 ? `${errors.join(', ')} failed` : undefined;
@@ -408,6 +435,7 @@ export class CardCreationService {
         }
 
         await this.deps.client.updateNoteFields(noteId, updatedFields);
+        await this.addConfiguredTagsToNote(noteId);
         const label = expressionText || noteId;
         log.info('Marked card as audio card:', label);
         const errorSuffix = errors.length > 0 ? `${errors.join(', ')} failed` : undefined;
@@ -490,7 +518,12 @@ export class CardCreationService {
         const deck = this.deps.getConfig().deck || 'Default';
         let noteId: number;
         try {
-          noteId = await this.deps.client.addNote(deck, sentenceCardModel, fields);
+          noteId = await this.deps.client.addNote(
+            deck,
+            sentenceCardModel,
+            fields,
+            this.getConfiguredAnkiTags(),
+          );
           log.info('Created sentence card:', noteId);
           this.deps.trackLastAddedNoteId?.(noteId);
         } catch (error) {

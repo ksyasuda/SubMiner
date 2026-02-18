@@ -66,7 +66,8 @@ For macOS builds and platform details, see the [installation docs](docs/installa
    ```
 3. Launch SubMiner:
    ```bash
-   subminer video.mkv
+   subminer --start video.mkv
+   SubMiner.AppImage --background  # tray/background mode (desktop launcher default)
    ```
 
 Config tip: while SubMiner is running, safe config edits (subtitle style, keybindings, shortcuts, secondary subtitle default mode, and `ankiConnect.ai`) hot-reload automatically.
@@ -100,7 +101,7 @@ Use `subminer <subcommand> -h` for command-specific help pages (for example `sub
 
 - Use `--log-level` to control logger verbosity (for example `--log-level debug`).
 - Use `--dev` and `--debug` only for app/dev-mode behavior; they are not tied to logging level.
-- Default logging remains `info` unless you pass `--log-level`.
+- Default logging is `info`, except `--background` mode defaults to `warn` unless `--log-level` is set.
 
 ### Overlay Queue Controls
 

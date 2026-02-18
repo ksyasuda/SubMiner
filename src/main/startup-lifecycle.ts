@@ -16,6 +16,7 @@ export interface AppLifecycleRuntimeRunnerParams {
   onWillQuitCleanup: () => void;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
+  shouldQuitOnWindowAllClosed: () => boolean;
 }
 
 export function createAppLifecycleRuntimeRunner(
@@ -37,6 +38,7 @@ export function createAppLifecycleRuntimeRunner(
           onWillQuitCleanup: params.onWillQuitCleanup,
           shouldRestoreWindowsOnActivate: params.shouldRestoreWindowsOnActivate,
           restoreWindowsOnActivate: params.restoreWindowsOnActivate,
+          shouldQuitOnWindowAllClosed: params.shouldQuitOnWindowAllClosed,
         }),
       ),
     );

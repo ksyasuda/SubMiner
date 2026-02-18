@@ -24,7 +24,6 @@ import {
   resolvePathMaybe,
   isUrlTarget,
   uniqueNormalizedLangCodes,
-  parseBoolLike,
   inferWhisperLanguage,
 } from './util.js';
 
@@ -160,7 +159,6 @@ function getPluginConfigCandidates(): string[] {
 
 export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig {
   const runtimeConfig: PluginRuntimeConfig = {
-    autoStartOverlay: false,
     socketPath: DEFAULT_SOCKET_PATH,
   };
   const candidates = getPluginConfigCandidates();
@@ -173,16 +171,6 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
       for (const line of lines) {
         const trimmed = line.trim();
         if (trimmed.length === 0 || trimmed.startsWith('#')) continue;
-        const autoStartMatch = trimmed.match(/^auto_start\s*=\s*(.+)$/i);
-        if (autoStartMatch) {
-          const value = (autoStartMatch[1] || '').split('#', 1)[0]?.trim() || '';
-          const parsed = parseBoolLike(value);
-          if (parsed !== null) {
-            runtimeConfig.autoStartOverlay = parsed;
-          }
-          continue;
-        }
-
         const socketMatch = trimmed.match(/^socket_path\s*=\s*(.+)$/i);
         if (socketMatch) {
           const value = (socketMatch[1] || '').split('#', 1)[0]?.trim() || '';
@@ -192,7 +180,7 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
       log(
         'debug',
         logLevel,
-        `Using mpv plugin settings from ${configPath}: auto_start=${runtimeConfig.autoStartOverlay ? 'yes' : 'no'} socket_path=${runtimeConfig.socketPath}`,
+        `Using mpv plugin settings from ${configPath}: socket_path=${runtimeConfig.socketPath}`,
       );
       return runtimeConfig;
     } catch {
@@ -204,7 +192,7 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
   log(
     'debug',
     logLevel,
-    `No mpv subminer.conf found; using launcher defaults (auto_start=no socket_path=${runtimeConfig.socketPath})`,
+    `No mpv subminer.conf found; using launcher defaults (socket_path=${runtimeConfig.socketPath})`,
   );
   return runtimeConfig;
 }

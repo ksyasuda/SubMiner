@@ -4,12 +4,12 @@ There are two ways to use SubMiner — the `subminer` wrapper script or the mpv 
 
 | Approach            | Best For                                                                                                                                                                                                       |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, starts the overlay automatically, and cleans up on exit.                                                                   |
+| **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, and manages app commands. Overlay start is explicit (`--start`, `-S`, or `y-s`).                                           |
 | **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control visible and invisible overlay layers. Requires `--input-ipc-server=/tmp/subminer-socket`. |
 
 You can use both together—install the plugin for on-demand control, but use `subminer` when you want the streamlined workflow.
 
-`subminer` is implemented as a Bun script and runs directly via shebang (no `bun run` needed), for example: `subminer video.mkv`.
+`subminer` is implemented as a Bun script and runs directly via shebang (no `bun run` needed), for example: `subminer --start video.mkv`.
 
 ## Live Config Reload
 
@@ -35,6 +35,7 @@ subminer -R                       # Use rofi instead of fzf
 subminer -d ~/Videos              # Specific directory
 subminer -r -d ~/Anime            # Recursive search
 subminer video.mkv                # Play specific file
+subminer --start video.mkv        # Play + explicitly start overlay
 subminer https://youtu.be/...     # Play a YouTube URL
 subminer ytsearch:"jp news"       # Play first YouTube search result
 subminer --log-level debug video.mkv # Enable verbose logs for launch/debugging
@@ -90,7 +91,8 @@ SubMiner.AppImage --help                  # Show all options
 - `--log-level` controls logger verbosity.
 - `--dev` and `--debug` are app/dev-mode switches; they are not log-level aliases.
 - `--background` defaults to quieter logging (`warn`) unless `--log-level` is set.
-- Linux desktop launcher starts SubMiner with `--background` by default.
+- `--background` launched from a terminal detaches and returns the prompt; stop it with tray Quit or `SubMiner.AppImage --stop`.
+- Linux desktop launcher starts SubMiner with `--background` by default (via electron-builder `linux.executableArgs`).
 - Use both when needed, for example `SubMiner.AppImage --start --dev --log-level debug`.
 
 ### Launcher Subcommands

@@ -10,6 +10,7 @@ ${B}SubMiner${R} — Japanese sentence mining with mpv + Yomitan
 ${B}Usage:${R} subminer ${D}[command] [options]${R}
 
 ${B}Session${R}
+  --background                   Start in tray/background mode
   --start                        Connect to mpv and launch overlay
   --stop                         Stop the running instance
   --texthooker                   Start texthooker server only ${D}(no overlay)${R}

@@ -1,4 +1,5 @@
 export interface CliArgs {
+  background: boolean;
   start: boolean;
   stop: boolean;
   toggle: boolean;
@@ -61,6 +62,7 @@ export type CliCommandSource = 'initial' | 'second-instance';
 
 export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
+    background: false,
     start: false,
     stop: false,
     toggle: false,
@@ -115,7 +117,8 @@ export function parseArgs(argv: string[]): CliArgs {
     const arg = argv[i];
     if (!arg.startsWith('--')) continue;
 
-    if (arg === '--start') args.start = true;
+    if (arg === '--background') args.background = true;
+    else if (arg === '--start') args.start = true;
     else if (arg === '--stop') args.stop = true;
     else if (arg === '--toggle') args.toggle = true;
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
@@ -255,6 +258,7 @@ export function parseArgs(argv: string[]): CliArgs {
 
 export function hasExplicitCommand(args: CliArgs): boolean {
   return (
+    args.background ||
     args.start ||
     args.stop ||
     args.toggle ||
@@ -299,6 +303,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
 export function shouldStartApp(args: CliArgs): boolean {
   if (args.stop && !args.start) return false;
   if (
+    args.background ||
     args.start ||
     args.toggle ||
     args.toggleVisibleOverlay ||

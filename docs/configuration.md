@@ -35,6 +35,7 @@ SubMiner.AppImage --generate-config --backup-overwrite
 ```
 
 - `--generate-config` writes a default JSONC config template.
+- JSONC config supports comments and trailing commas.
 - If the target file exists, SubMiner prompts to create a timestamped backup and overwrite.
 - In non-interactive shells, use `--backup-overwrite` to explicitly back up and overwrite.
 - `bun run generate:config-example` regenerates both repository `config.example.jsonc` and docs-served `/config.example.jsonc` from the same centralized defaults.
@@ -94,6 +95,7 @@ Enable automatic Anki card creation and updates with media generation:
     "enabled": true,
     "url": "http://127.0.0.1:8765",
     "pollingRate": 3000,
+    "tags": ["SubMiner"],
     "deck": "Learning::Japanese",
     "fields": {
       "audio": "ExpressionAudio",
@@ -159,6 +161,7 @@ This example is intentionally compact. The option table below documents availabl
 | `enabled`                               | `true`, `false`                         | Enable AnkiConnect integration (default: `false`)                                                                                             |
 | `url`                                   | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                        |
 | `pollingRate`                           | number (ms)                             | How often to check for new cards (default: `3000`)                                                                                            |
+| `tags`                                  | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                 |
 | `deck`                                  | string                                  | Anki deck to monitor for new cards                                                                                                            |
 | `ankiConnect.nPlusOne.decks`            | array of strings                        | Decks used for N+1 known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                            |
 | `fields.audio`                          | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                       |

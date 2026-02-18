@@ -21,6 +21,7 @@ export interface AppLifecycleServiceDeps {
   onWillQuitCleanup: () => void;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
+  shouldQuitOnWindowAllClosed: () => boolean;
 }
 
 interface AppLike {
@@ -42,6 +43,7 @@ export interface AppLifecycleDepsRuntimeOptions {
   onWillQuitCleanup: () => void;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
+  shouldQuitOnWindowAllClosed: () => boolean;
 }
 
 export function createAppLifecycleDepsRuntime(
@@ -80,6 +82,7 @@ export function createAppLifecycleDepsRuntime(
     onWillQuitCleanup: options.onWillQuitCleanup,
     shouldRestoreWindowsOnActivate: options.shouldRestoreWindowsOnActivate,
     restoreWindowsOnActivate: options.restoreWindowsOnActivate,
+    shouldQuitOnWindowAllClosed: options.shouldQuitOnWindowAllClosed,
   };
 }
 
@@ -119,7 +122,7 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
   });
 
   deps.onWindowAllClosed(() => {
-    if (!deps.isDarwinPlatform()) {
+    if (!deps.isDarwinPlatform() && deps.shouldQuitOnWindowAllClosed()) {
       deps.quitApp();
     }
   });

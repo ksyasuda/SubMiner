@@ -174,7 +174,10 @@ export class ConfigService {
       const parsed = configPath.endsWith('.jsonc')
         ? (() => {
             const errors: ParseError[] = [];
-            const result = parseJsonc(data, errors);
+            const result = parseJsonc(data, errors, {
+              allowTrailingComma: true,
+              disallowComments: false,
+            });
             if (errors.length > 0) {
               throw new Error(`Invalid JSONC (${errors[0]?.error ?? 'unknown'})`);
             }
@@ -888,6 +891,32 @@ export class ConfigService {
           ...(isObject(ac.isKiku) ? (ac.isKiku as ResolvedConfig['ankiConnect']['isKiku']) : {}),
         },
       };
+
+      if (Array.isArray(ac.tags)) {
+        const normalizedTags = ac.tags
+          .filter((entry): entry is string => typeof entry === 'string')
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0);
+        if (normalizedTags.length === ac.tags.length) {
+          resolved.ankiConnect.tags = [...new Set(normalizedTags)];
+        } else {
+          resolved.ankiConnect.tags = DEFAULT_CONFIG.ankiConnect.tags;
+          warn(
+            'ankiConnect.tags',
+            ac.tags,
+            resolved.ankiConnect.tags,
+            'Expected an array of non-empty strings.',
+          );
+        }
+      } else if (ac.tags !== undefined) {
+        resolved.ankiConnect.tags = DEFAULT_CONFIG.ankiConnect.tags;
+        warn(
+          'ankiConnect.tags',
+          ac.tags,
+          resolved.ankiConnect.tags,
+          'Expected an array of strings.',
+        );
+      }
 
       const legacy = ac as Record<string, unknown>;
       const mapLegacy = (key: string, apply: (value: unknown) => void): void => {

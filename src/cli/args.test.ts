@@ -4,6 +4,7 @@ import { hasExplicitCommand, parseArgs, shouldStartApp } from './args';
 
 test('parseArgs parses booleans and value flags', () => {
   const args = parseArgs([
+    '--background',
     '--start',
     '--socket',
     '/tmp/mpv.sock',
@@ -22,6 +23,7 @@ test('parseArgs parses booleans and value flags', () => {
     '2',
   ]);
 
+  assert.equal(args.background, true);
   assert.equal(args.start, true);
   assert.equal(args.socketPath, '/tmp/mpv.sock');
   assert.equal(args.backend, 'hyprland');
@@ -93,4 +95,9 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(jellyfinRemoteAnnounce.jellyfinRemoteAnnounce, true);
   assert.equal(hasExplicitCommand(jellyfinRemoteAnnounce), true);
   assert.equal(shouldStartApp(jellyfinRemoteAnnounce), false);
+
+  const background = parseArgs(['--background']);
+  assert.equal(background.background, true);
+  assert.equal(hasExplicitCommand(background), true);
+  assert.equal(shouldStartApp(background), true);
 });
