@@ -128,15 +128,16 @@ async function anilistGraphQl<T>(
     return {
       errors: [
         {
-          message:
-            error instanceof Error ? error.message : String(error),
+          message: error instanceof Error ? error.message : String(error),
         },
       ],
     };
   }
 }
 
-function firstErrorMessage<T>(response: AnilistGraphQlResponse<T>): string | null {
+function firstErrorMessage<T>(
+  response: AnilistGraphQlResponse<T>,
+): string | null {
   const firstError = response.errors?.find((item) => Boolean(item?.message));
   return firstError?.message ?? null;
 }
@@ -163,11 +164,7 @@ function pickBestSearchResult(
 
   const normalizedTarget = normalizeTitle(title);
   const exact = candidates.find((item) => {
-    const titles = [
-      item.title?.romaji,
-      item.title?.english,
-      item.title?.native,
-    ]
+    const titles = [item.title?.romaji, item.title?.english, item.title?.native]
       .filter((value): value is string => typeof value === "string")
       .map((value) => normalizeTitle(value));
     return titles.includes(normalizedTarget);
@@ -240,7 +237,10 @@ export async function updateAnilistPostWatchProgress(
   );
   const searchError = firstErrorMessage(searchResponse);
   if (searchError) {
-    return { status: "error", message: `AniList search failed: ${searchError}` };
+    return {
+      status: "error",
+      message: `AniList search failed: ${searchError}`,
+    };
   }
 
   const media = searchResponse.data?.Page?.media ?? [];
@@ -266,10 +266,14 @@ export async function updateAnilistPostWatchProgress(
   );
   const entryError = firstErrorMessage(entryResponse);
   if (entryError) {
-    return { status: "error", message: `AniList entry lookup failed: ${entryError}` };
+    return {
+      status: "error",
+      message: `AniList entry lookup failed: ${entryError}`,
+    };
   }
 
-  const currentProgress = entryResponse.data?.Media?.mediaListEntry?.progress ?? 0;
+  const currentProgress =
+    entryResponse.data?.Media?.mediaListEntry?.progress ?? 0;
   if (typeof currentProgress === "number" && currentProgress >= episode) {
     return {
       status: "skipped",

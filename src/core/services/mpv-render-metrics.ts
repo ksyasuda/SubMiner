@@ -76,7 +76,10 @@ export function updateMpvSubtitleRenderMetrics(
       100,
     ),
     subAssOverride: asString(patch.subAssOverride, current.subAssOverride),
-    subScaleByWindow: asBoolean(patch.subScaleByWindow, current.subScaleByWindow),
+    subScaleByWindow: asBoolean(
+      patch.subScaleByWindow,
+      current.subScaleByWindow,
+    ),
     subUseMargins: asBoolean(patch.subUseMargins, current.subUseMargins),
     osdHeight: asFiniteNumber(patch.osdHeight, current.osdHeight, 1, 10000),
     osdDimensions: nextOsdDimensions,
@@ -104,6 +107,7 @@ export function applyMpvSubtitleRenderMetricsPatch(
     next.subScaleByWindow !== current.subScaleByWindow ||
     next.subUseMargins !== current.subUseMargins ||
     next.osdHeight !== current.osdHeight ||
-    JSON.stringify(next.osdDimensions) !== JSON.stringify(current.osdDimensions);
+    JSON.stringify(next.osdDimensions) !==
+      JSON.stringify(current.osdDimensions);
   return { next, changed };
 }

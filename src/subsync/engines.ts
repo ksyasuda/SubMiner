@@ -22,7 +22,10 @@ export interface SubsyncEngineExecutionContext {
     alassPath: string;
     ffsubsyncPath: string;
   };
-  runCommand: (command: string, args: string[]) => Promise<SubsyncCommandResult>;
+  runCommand: (
+    command: string,
+    args: string[],
+  ) => Promise<SubsyncCommandResult>;
 }
 
 export interface SubsyncEngineProvider {
@@ -34,7 +37,10 @@ export interface SubsyncEngineProvider {
 
 type SubsyncEngineProviderFactory = () => SubsyncEngineProvider;
 
-const subsyncEngineProviderFactories = new Map<SubsyncEngine, SubsyncEngineProviderFactory>();
+const subsyncEngineProviderFactories = new Map<
+  SubsyncEngine,
+  SubsyncEngineProviderFactory
+>();
 
 export function registerSubsyncEngineProvider(
   engine: SubsyncEngine,

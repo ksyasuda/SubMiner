@@ -28,7 +28,10 @@ interface FileExtractionResult {
   temporary: boolean;
 }
 
-function summarizeCommandFailure(command: string, result: CommandResult): string {
+function summarizeCommandFailure(
+  command: string,
+  result: CommandResult,
+): string {
   const parts = [
     `code=${result.code ?? "n/a"}`,
     result.stderr ? `stderr: ${result.stderr}` : "",
@@ -62,7 +65,9 @@ function parseTrackId(value: unknown): number | null {
     const trimmed = value.trim();
     if (!trimmed.length) return null;
     const parsed = Number(trimmed);
-    return Number.isInteger(parsed) && String(parsed) === trimmed ? parsed : null;
+    return Number.isInteger(parsed) && String(parsed) === trimmed
+      ? parsed
+      : null;
   }
   return null;
 }
@@ -261,10 +266,7 @@ async function runFfsubsyncSync(
   return runCommand(ffsubsyncPath, args);
 }
 
-function loadSyncedSubtitle(
-  client: MpvClientLike,
-  pathToLoad: string,
-): void {
+function loadSyncedSubtitle(client: MpvClientLike, pathToLoad: string): void {
   if (!client.connected) {
     throw new Error("MPV disconnected while loading subtitle");
   }
@@ -411,7 +413,10 @@ export async function runSubsyncManual(
     try {
       validateFfsubsyncReference(context.videoPath);
     } catch (error) {
-      return { ok: false, message: `ffsubsync synchronization failed: ${(error as Error).message}` };
+      return {
+        ok: false,
+        message: `ffsubsync synchronization failed: ${(error as Error).message}`,
+      };
     }
     return subsyncToReference(
       "ffsubsync",

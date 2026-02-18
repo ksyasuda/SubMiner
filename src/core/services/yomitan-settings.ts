@@ -32,7 +32,10 @@ export function openYomitanSettingsWindow(
     return;
   }
 
-  logger.info("Creating new settings window for extension:", options.yomitanExt.id);
+  logger.info(
+    "Creating new settings window for extension:",
+    options.yomitanExt.id,
+  );
 
   const settingsWindow = new BrowserWindow({
     width: 1200,

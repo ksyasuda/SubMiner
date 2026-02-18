@@ -17,7 +17,10 @@ export interface TranslationProvider {
 
 type TranslationProviderFactory = () => TranslationProvider;
 
-const translationProviderFactories = new Map<string, TranslationProviderFactory>();
+const translationProviderFactories = new Map<
+  string,
+  TranslationProviderFactory
+>();
 
 export function registerTranslationProvider(
   id: string,
@@ -94,9 +97,8 @@ function registerDefaultTranslationProviders(): void {
         },
       );
 
-      const content = (response.data as { choices?: unknown[] })?.choices?.[0] as
-        | { message?: { content?: unknown } }
-        | undefined;
+      const content = (response.data as { choices?: unknown[] })
+        ?.choices?.[0] as { message?: { content?: unknown } } | undefined;
       const translated = extractAiText(content?.message?.content);
       return translated || null;
     },

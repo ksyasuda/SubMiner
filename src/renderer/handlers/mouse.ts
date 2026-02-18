@@ -4,7 +4,10 @@ export function createMouseHandlers(
   ctx: RendererContext,
   options: {
     modalStateReader: ModalStateReader;
-    applyInvisibleSubtitleLayoutFromMpvMetrics: (metrics: any, source: string) => void;
+    applyInvisibleSubtitleLayoutFromMpvMetrics: (
+      metrics: any,
+      source: string,
+    ) => void;
     applyYPercent: (yPercent: number) => void;
     getCurrentYPercent: () => number;
     persistSubtitlePositionPatch: (patch: { yPercent: number }) => void;
@@ -26,7 +29,11 @@ export function createMouseHandlers(
   function handleMouseLeave(): void {
     ctx.state.isOverSubtitle = false;
     const yomitanPopup = document.querySelector('iframe[id^="yomitan-popup"]');
-    if (!yomitanPopup && !options.modalStateReader.isAnyModalOpen() && !ctx.state.invisiblePositionEditMode) {
+    if (
+      !yomitanPopup &&
+      !options.modalStateReader.isAnyModalOpen() &&
+      !ctx.state.invisiblePositionEditMode
+    ) {
       ctx.dom.overlay.classList.remove("interactive");
       if (ctx.platform.shouldToggleMouseIgnore) {
         window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
@@ -70,7 +77,10 @@ export function createMouseHandlers(
     });
   }
 
-  function getCaretTextPointRange(clientX: number, clientY: number): Range | null {
+  function getCaretTextPointRange(
+    clientX: number,
+    clientY: number,
+  ): Range | null {
     const documentWithCaretApi = document as Document & {
       caretRangeFromPoint?: (x: number, y: number) => Range | null;
       caretPositionFromPoint?: (
@@ -84,7 +94,10 @@ export function createMouseHandlers(
     }
 
     if (typeof documentWithCaretApi.caretPositionFromPoint === "function") {
-      const caretPosition = documentWithCaretApi.caretPositionFromPoint(clientX, clientY);
+      const caretPosition = documentWithCaretApi.caretPositionFromPoint(
+        clientX,
+        clientY,
+      );
       if (!caretPosition) return null;
       const range = document.createRange();
       range.setStart(caretPosition.offsetNode, caretPosition.offset);
@@ -103,7 +116,9 @@ export function createMouseHandlers(
 
     const clampedOffset = Math.max(0, Math.min(offset, text.length));
     const probeIndex =
-      clampedOffset >= text.length ? Math.max(0, text.length - 1) : clampedOffset;
+      clampedOffset >= text.length
+        ? Math.max(0, text.length - 1)
+        : clampedOffset;
 
     if (wordSegmenter) {
       for (const part of wordSegmenter.segment(text)) {
@@ -117,7 +132,9 @@ export function createMouseHandlers(
     }
 
     const isBoundary = (char: string): boolean =>
-      /[\s\u3000.,!?;:()[\]{}"'`~<>/\\|@#$%^&*+=\-、。・「」『』【】〈〉《》]/.test(char);
+      /[\s\u3000.,!?;:()[\]{}"'`~<>/\\|@#$%^&*+=\-、。・「」『』【】〈〉《》]/.test(
+        char,
+      );
 
     const probeChar = text[probeIndex];
     if (!probeChar || isBoundary(probeChar)) return null;
@@ -148,7 +165,10 @@ export function createMouseHandlers(
     if (!ctx.dom.subtitleRoot.contains(caretRange.startContainer)) return;
 
     const textNode = caretRange.startContainer as Text;
-    const wordBounds = getWordBoundsAtOffset(textNode.data, caretRange.startOffset);
+    const wordBounds = getWordBoundsAtOffset(
+      textNode.data,
+      caretRange.startOffset,
+    );
     if (!wordBounds) return;
 
     const selectionKey = `${wordBounds.start}:${wordBounds.end}:${textNode.data.slice(
@@ -242,10 +262,15 @@ export function createMouseHandlers(
             element.id &&
             element.id.startsWith("yomitan-popup")
           ) {
-            if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
+            if (
+              !ctx.state.isOverSubtitle &&
+              !options.modalStateReader.isAnyModalOpen()
+            ) {
               ctx.dom.overlay.classList.remove("interactive");
               if (ctx.platform.shouldToggleMouseIgnore) {
-                window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
+                window.electronAPI.setIgnoreMouseEvents(true, {
+                  forward: true,
+                });
               }
             }
           }

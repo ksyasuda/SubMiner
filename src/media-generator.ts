@@ -62,10 +62,7 @@ export class MediaGenerator {
             fs.unlinkSync(filePath);
           }
         } catch (err) {
-          log.debug(
-            `Failed to clean up ${filePath}:`,
-            (err as Error).message,
-          );
+          log.debug(`Failed to clean up ${filePath}:`, (err as Error).message);
         }
       }
     } catch (err) {
@@ -374,12 +371,7 @@ export class MediaGenerator {
           "8",
         );
       } else if (av1Encoder === "libsvtav1") {
-        encoderArgs.push(
-          "-crf",
-          clampedCrf.toString(),
-          "-preset",
-          "8",
-        );
+        encoderArgs.push("-crf", clampedCrf.toString(), "-preset", "8");
       } else {
         // librav1e
         encoderArgs.push("-qp", clampedCrf.toString(), "-speed", "8");

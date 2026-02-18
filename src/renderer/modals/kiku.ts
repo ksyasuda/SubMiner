@@ -20,8 +20,14 @@ export function createKikuModal(
   }
 
   function updateKikuCardSelection(): void {
-    ctx.dom.kikuCard1.classList.toggle("active", ctx.state.kikuSelectedCard === 1);
-    ctx.dom.kikuCard2.classList.toggle("active", ctx.state.kikuSelectedCard === 2);
+    ctx.dom.kikuCard1.classList.toggle(
+      "active",
+      ctx.state.kikuSelectedCard === 1,
+    );
+    ctx.dom.kikuCard2.classList.toggle(
+      "active",
+      ctx.state.kikuSelectedCard === 2,
+    );
   }
 
   function setKikuModalStep(step: "select" | "preview"): void {
@@ -50,7 +56,9 @@ export function createKikuModal(
       ctx.state.kikuPreviewMode === "compact"
         ? ctx.state.kikuPreviewCompactData
         : ctx.state.kikuPreviewFullData;
-    ctx.dom.kikuPreviewJson.textContent = payload ? JSON.stringify(payload, null, 2) : "{}";
+    ctx.dom.kikuPreviewJson.textContent = payload
+      ? JSON.stringify(payload, null, 2)
+      : "{}";
     updateKikuPreviewToggle();
   }
 
@@ -78,7 +86,8 @@ export function createKikuModal(
     ctx.state.kikuSelectedCard = 1;
 
     ctx.dom.kikuCard1Expression.textContent = data.original.expression;
-    ctx.dom.kikuCard1Sentence.textContent = data.original.sentencePreview || "(no sentence)";
+    ctx.dom.kikuCard1Sentence.textContent =
+      data.original.sentencePreview || "(no sentence)";
     ctx.dom.kikuCard1Meta.textContent = formatMediaMeta(data.original);
 
     ctx.dom.kikuCard2Expression.textContent = data.duplicate.expression;
@@ -123,7 +132,10 @@ export function createKikuModal(
     ctx.state.kikuOriginalData = null;
     ctx.state.kikuDuplicateData = null;
 
-    if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
+    if (
+      !ctx.state.isOverSubtitle &&
+      !options.modalStateReader.isAnyModalOpen()
+    ) {
       ctx.dom.overlay.classList.remove("interactive");
     }
   }

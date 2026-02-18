@@ -10,7 +10,10 @@ export interface OverlayManager {
   getInvisibleWindow: () => BrowserWindow | null;
   setInvisibleWindow: (window: BrowserWindow | null) => void;
   getOverlayWindow: (layer: OverlayLayer) => BrowserWindow | null;
-  setOverlayWindowBounds: (layer: OverlayLayer, geometry: WindowGeometry) => void;
+  setOverlayWindowBounds: (
+    layer: OverlayLayer,
+    geometry: WindowGeometry,
+  ) => void;
   getVisibleOverlayVisible: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
   getInvisibleOverlayVisible: () => boolean;
@@ -79,7 +82,10 @@ export function broadcastRuntimeOptionsChangedRuntime(
   getRuntimeOptionsState: () => RuntimeOptionState[],
   broadcastToOverlayWindows: (channel: string, ...args: unknown[]) => void,
 ): void {
-  broadcastToOverlayWindows("runtime-options:changed", getRuntimeOptionsState());
+  broadcastToOverlayWindows(
+    "runtime-options:changed",
+    getRuntimeOptionsState(),
+  );
 }
 
 export function setOverlayDebugVisualizationEnabledRuntime(

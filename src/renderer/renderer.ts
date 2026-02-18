@@ -132,7 +132,10 @@ async function init(): Promise<void> {
 
   window.electronAPI.onSubtitlePosition((position: SubtitlePosition | null) => {
     if (ctx.platform.isInvisibleLayer) {
-      positioning.applyInvisibleStoredSubtitlePosition(position, "media-change");
+      positioning.applyInvisibleStoredSubtitlePosition(
+        position,
+        "media-change",
+      );
     } else {
       positioning.applyStoredSubtitlePosition(position, "media-change");
     }
@@ -140,10 +143,15 @@ async function init(): Promise<void> {
   });
 
   if (ctx.platform.isInvisibleLayer) {
-    window.electronAPI.onMpvSubtitleRenderMetrics((metrics: MpvSubtitleRenderMetrics) => {
-      positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(metrics, "event");
-      measurementReporter.schedule();
-    });
+    window.electronAPI.onMpvSubtitleRenderMetrics(
+      (metrics: MpvSubtitleRenderMetrics) => {
+        positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(
+          metrics,
+          "event",
+        );
+        measurementReporter.schedule();
+      },
+    );
     window.electronAPI.onOverlayDebugVisualization((enabled: boolean) => {
       document.body.classList.toggle("debug-invisible-visualization", enabled);
     });
@@ -162,8 +170,12 @@ async function init(): Promise<void> {
     measurementReporter.schedule();
   });
 
-  subtitleRenderer.updateSecondarySubMode(await window.electronAPI.getSecondarySubMode());
-  subtitleRenderer.renderSecondarySub(await window.electronAPI.getCurrentSecondarySub());
+  subtitleRenderer.updateSecondarySubMode(
+    await window.electronAPI.getSecondarySubMode(),
+  );
+  subtitleRenderer.renderSecondarySub(
+    await window.electronAPI.getCurrentSecondarySub(),
+  );
   measurementReporter.schedule();
 
   const hoverTarget = ctx.platform.isInvisibleLayer
@@ -171,8 +183,14 @@ async function init(): Promise<void> {
     : ctx.dom.subtitleContainer;
   hoverTarget.addEventListener("mouseenter", mouseHandlers.handleMouseEnter);
   hoverTarget.addEventListener("mouseleave", mouseHandlers.handleMouseLeave);
-  ctx.dom.secondarySubContainer.addEventListener("mouseenter", mouseHandlers.handleMouseEnter);
-  ctx.dom.secondarySubContainer.addEventListener("mouseleave", mouseHandlers.handleMouseLeave);
+  ctx.dom.secondarySubContainer.addEventListener(
+    "mouseenter",
+    mouseHandlers.handleMouseEnter,
+  );
+  ctx.dom.secondarySubContainer.addEventListener(
+    "mouseleave",
+    mouseHandlers.handleMouseLeave,
+  );
 
   mouseHandlers.setupInvisibleHoverSelection();
   positioning.setupInvisiblePositionEditHud();
@@ -189,9 +207,11 @@ async function init(): Promise<void> {
   subsyncModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
 
-  window.electronAPI.onRuntimeOptionsChanged((options: RuntimeOptionState[]) => {
-    runtimeOptionsModal.updateRuntimeOptions(options);
-  });
+  window.electronAPI.onRuntimeOptionsChanged(
+    (options: RuntimeOptionState[]) => {
+      runtimeOptionsModal.updateRuntimeOptions(options);
+    },
+  );
   window.electronAPI.onOpenRuntimeOptions(() => {
     runtimeOptionsModal.openRuntimeOptionsModal().catch(() => {
       runtimeOptionsModal.setRuntimeOptionsStatus(
@@ -209,7 +229,10 @@ async function init(): Promise<void> {
     subsyncModal.openSubsyncModal(payload);
   });
   window.electronAPI.onKikuFieldGroupingRequest(
-    (data: { original: KikuDuplicateCardInfo; duplicate: KikuDuplicateCardInfo }) => {
+    (data: {
+      original: KikuDuplicateCardInfo;
+      duplicate: KikuDuplicateCardInfo;
+    }) => {
       kikuModal.openKikuFieldGroupingModal(data);
     },
   );
@@ -220,7 +243,9 @@ async function init(): Promise<void> {
 
   await keyboardHandlers.setupMpvInputForwarding();
 
-  subtitleRenderer.applySubtitleStyle(await window.electronAPI.getSubtitleStyle());
+  subtitleRenderer.applySubtitleStyle(
+    await window.electronAPI.getSubtitleStyle(),
+  );
 
   if (ctx.platform.isInvisibleLayer) {
     positioning.applyInvisibleStoredSubtitlePosition(

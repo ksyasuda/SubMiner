@@ -2,7 +2,10 @@ import type { SubtitlePosition } from "../../types";
 import type { ModalStateReader, RendererContext } from "../context";
 
 export type InvisibleOffsetController = {
-  applyInvisibleStoredSubtitlePosition: (position: SubtitlePosition | null, source: string) => void;
+  applyInvisibleStoredSubtitlePosition: (
+    position: SubtitlePosition | null,
+    source: string,
+  ) => void;
   applyInvisibleSubtitleOffsetPosition: () => void;
   updateInvisiblePositionEditHud: () => void;
   setInvisiblePositionEditMode: (enabled: boolean) => void;
@@ -15,9 +18,7 @@ function formatEditHudText(offsetX: number, offsetY: number): string {
   return `Position Edit  Ctrl/Cmd+Shift+P toggle  Arrow keys move  Enter/Ctrl+S save  Esc cancel  x:${Math.round(offsetX)} y:${Math.round(offsetY)}`;
 }
 
-function createEditPositionText(
-  ctx: RendererContext,
-): string {
+function createEditPositionText(ctx: RendererContext): string {
   return formatEditHudText(
     ctx.state.invisibleSubtitleOffsetXPx,
     ctx.state.invisibleSubtitleOffsetYPx,
@@ -32,7 +33,8 @@ function applyOffsetByBasePosition(ctx: RendererContext): void {
   if (ctx.state.invisibleLayoutBaseBottomPx !== null) {
     ctx.dom.subtitleContainer.style.bottom = `${Math.max(
       0,
-      ctx.state.invisibleLayoutBaseBottomPx + ctx.state.invisibleSubtitleOffsetYPx,
+      ctx.state.invisibleLayoutBaseBottomPx +
+        ctx.state.invisibleSubtitleOffsetYPx,
     )}px`;
     ctx.dom.subtitleContainer.style.top = "";
     return;
@@ -59,14 +61,19 @@ export function createInvisibleOffsetController(
     document.body.classList.toggle("invisible-position-edit", enabled);
 
     if (enabled) {
-      ctx.state.invisiblePositionEditStartX = ctx.state.invisibleSubtitleOffsetXPx;
-      ctx.state.invisiblePositionEditStartY = ctx.state.invisibleSubtitleOffsetYPx;
+      ctx.state.invisiblePositionEditStartX =
+        ctx.state.invisibleSubtitleOffsetXPx;
+      ctx.state.invisiblePositionEditStartY =
+        ctx.state.invisibleSubtitleOffsetYPx;
       ctx.dom.overlay.classList.add("interactive");
       if (ctx.platform.shouldToggleMouseIgnore) {
         window.electronAPI.setIgnoreMouseEvents(false);
       }
     } else {
-      if (!ctx.state.isOverSubtitle && !modalStateReader.isAnySettingsModalOpen()) {
+      if (
+        !ctx.state.isOverSubtitle &&
+        !modalStateReader.isAnySettingsModalOpen()
+      ) {
         ctx.dom.overlay.classList.remove("interactive");
         if (ctx.platform.shouldToggleMouseIgnore) {
           window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
@@ -79,14 +86,18 @@ export function createInvisibleOffsetController(
 
   function updateInvisiblePositionEditHud(): void {
     if (!ctx.state.invisiblePositionEditHud) return;
-    ctx.state.invisiblePositionEditHud.textContent = createEditPositionText(ctx);
+    ctx.state.invisiblePositionEditHud.textContent =
+      createEditPositionText(ctx);
   }
 
   function applyInvisibleSubtitleOffsetPosition(): void {
     applyOffsetByBasePosition(ctx);
   }
 
-  function applyInvisibleStoredSubtitlePosition(position: SubtitlePosition | null, source: string): void {
+  function applyInvisibleStoredSubtitlePosition(
+    position: SubtitlePosition | null,
+    source: string,
+  ): void {
     if (
       position &&
       typeof position.yPercent === "number" &&
@@ -100,11 +111,13 @@ export function createInvisibleOffsetController(
 
     if (position) {
       const nextX =
-        typeof position.invisibleOffsetXPx === "number" && Number.isFinite(position.invisibleOffsetXPx)
+        typeof position.invisibleOffsetXPx === "number" &&
+        Number.isFinite(position.invisibleOffsetXPx)
           ? position.invisibleOffsetXPx
           : 0;
       const nextY =
-        typeof position.invisibleOffsetYPx === "number" && Number.isFinite(position.invisibleOffsetYPx)
+        typeof position.invisibleOffsetYPx === "number" &&
+        Number.isFinite(position.invisibleOffsetYPx)
           ? position.invisibleOffsetYPx
           : 0;
       ctx.state.invisibleSubtitleOffsetXPx = nextX;
@@ -135,8 +148,10 @@ export function createInvisibleOffsetController(
   }
 
   function cancelInvisiblePositionEdit(): void {
-    ctx.state.invisibleSubtitleOffsetXPx = ctx.state.invisiblePositionEditStartX;
-    ctx.state.invisibleSubtitleOffsetYPx = ctx.state.invisiblePositionEditStartY;
+    ctx.state.invisibleSubtitleOffsetXPx =
+      ctx.state.invisiblePositionEditStartX;
+    ctx.state.invisibleSubtitleOffsetYPx =
+      ctx.state.invisiblePositionEditStartY;
     applyOffsetByBasePosition(ctx);
     setInvisiblePositionEditMode(false);
   }

@@ -3,7 +3,10 @@ import { BrowserWindow, ipcMain, IpcMainEvent } from "electron";
 export interface IpcServiceDeps {
   getInvisibleWindow: () => WindowLike | null;
   isVisibleOverlayVisible: () => boolean;
-  setInvisibleIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
+  setInvisibleIgnoreMouseEvents: (
+    ignore: boolean,
+    options?: { forward?: boolean },
+  ) => void;
   onOverlayModalClosed: (modal: string) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
@@ -17,7 +20,11 @@ export interface IpcServiceDeps {
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: unknown) => void;
-  getMecabStatus: () => { available: boolean; enabled: boolean; path: string | null };
+  getMecabStatus: () => {
+    available: boolean;
+    enabled: boolean;
+    path: string | null;
+  };
   setMecabEnabled: (enabled: boolean) => void;
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
@@ -51,7 +58,11 @@ interface WindowLike {
 }
 
 interface MecabTokenizerLike {
-  getStatus: () => { available: boolean; enabled: boolean; path: string | null };
+  getStatus: () => {
+    available: boolean;
+    enabled: boolean;
+    path: string | null;
+  };
   setEnabled: (enabled: boolean) => void;
 }
 
@@ -235,9 +246,12 @@ export function registerIpcHandlers(deps: IpcServiceDeps): void {
     return deps.getSubtitleStyle();
   });
 
-  ipcMain.on("save-subtitle-position", (_event: IpcMainEvent, position: unknown) => {
-    deps.saveSubtitlePosition(position);
-  });
+  ipcMain.on(
+    "save-subtitle-position",
+    (_event: IpcMainEvent, position: unknown) => {
+      deps.saveSubtitlePosition(position);
+    },
+  );
 
   ipcMain.handle("get-mecab-status", () => {
     return deps.getMecabStatus();
@@ -247,9 +261,12 @@ export function registerIpcHandlers(deps: IpcServiceDeps): void {
     deps.setMecabEnabled(enabled);
   });
 
-  ipcMain.on("mpv-command", (_event: IpcMainEvent, command: (string | number)[]) => {
-    deps.handleMpvCommand(command);
-  });
+  ipcMain.on(
+    "mpv-command",
+    (_event: IpcMainEvent, command: (string | number)[]) => {
+      deps.handleMpvCommand(command);
+    },
+  );
 
   ipcMain.handle("get-keybindings", () => {
     return deps.getKeybindings();
@@ -283,17 +300,26 @@ export function registerIpcHandlers(deps: IpcServiceDeps): void {
     return deps.getRuntimeOptions();
   });
 
-  ipcMain.handle("runtime-options:set", (_event, id: string, value: unknown) => {
-    return deps.setRuntimeOption(id, value);
-  });
+  ipcMain.handle(
+    "runtime-options:set",
+    (_event, id: string, value: unknown) => {
+      return deps.setRuntimeOption(id, value);
+    },
+  );
 
-  ipcMain.handle("runtime-options:cycle", (_event, id: string, direction: 1 | -1) => {
-    return deps.cycleRuntimeOption(id, direction);
-  });
+  ipcMain.handle(
+    "runtime-options:cycle",
+    (_event, id: string, direction: 1 | -1) => {
+      return deps.cycleRuntimeOption(id, direction);
+    },
+  );
 
-  ipcMain.on("overlay-content-bounds:report", (_event: IpcMainEvent, payload: unknown) => {
-    deps.reportOverlayContentBounds(payload);
-  });
+  ipcMain.on(
+    "overlay-content-bounds:report",
+    (_event: IpcMainEvent, payload: unknown) => {
+      deps.reportOverlayContentBounds(payload);
+    },
+  );
 
   ipcMain.handle("anilist:get-status", () => {
     return deps.getAnilistStatus();

@@ -33,7 +33,10 @@ export class SubtitlePipeline {
     const tokenizeText = normalizeTokenizerInput(displayText);
 
     try {
-      const tokens = await tokenizeStage(this.deps.getTokenizer(), tokenizeText);
+      const tokens = await tokenizeStage(
+        this.deps.getTokenizer(),
+        tokenizeText,
+      );
       const mergedTokens = mergeStage(this.deps.getTokenMerger(), tokens);
       if (!mergedTokens || mergedTokens.length === 0) {
         return { text: displayText, tokens: null };

@@ -23,7 +23,9 @@ interface MpvClientLike {
 }
 
 interface RuntimeOptionsManagerLike {
-  getEffectiveAnkiConnectConfig: (config?: AnkiConnectConfig) => AnkiConnectConfig;
+  getEffectiveAnkiConnectConfig: (
+    config?: AnkiConnectConfig,
+  ) => AnkiConnectConfig;
 }
 
 interface SubtitleTimingTrackerLike {
@@ -39,13 +41,20 @@ export interface AnkiJimakuIpcRuntimeOptions {
   getAnkiIntegration: () => AnkiIntegration | null;
   setAnkiIntegration: (integration: AnkiIntegration | null) => void;
   getKnownWordCacheStatePath: () => string;
-  showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  showDesktopNotification: (
+    title: string,
+    options: { body?: string; icon?: string },
+  ) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   broadcastRuntimeOptionsChanged: () => void;
-  getFieldGroupingResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
-  setFieldGroupingResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
+  getFieldGroupingResolver: () =>
+    | ((choice: KikuFieldGroupingChoice) => void)
+    | null;
+  setFieldGroupingResolver: (
+    resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
+  ) => void;
   parseMediaInfo: (mediaPath: string | null) => JimakuMediaInfo;
   getCurrentMediaPath: () => string | null;
   jimakuFetchJson: <T>(
@@ -60,7 +69,13 @@ export interface AnkiJimakuIpcRuntimeOptions {
     url: string,
     destPath: string,
     headers: Record<string, string>,
-  ) => Promise<{ ok: true; path: string } | { ok: false; error: { error: string; code?: number; retryAfter?: number } }>;
+  ) => Promise<
+    | { ok: true; path: string }
+    | {
+        ok: false;
+        error: { error: string; code?: number; retryAfter?: number };
+      }
+  >;
 }
 
 const logger = createLogger("main:anki-jimaku");
@@ -80,7 +95,9 @@ export function registerAnkiJimakuIpcRuntime(
       if (enabled && !ankiIntegration && subtitleTimingTracker && mpvClient) {
         const runtimeOptionsManager = options.getRuntimeOptionsManager();
         const effectiveAnkiConfig = runtimeOptionsManager
-          ? runtimeOptionsManager.getEffectiveAnkiConnectConfig(config.ankiConnect)
+          ? runtimeOptionsManager.getEffectiveAnkiConnectConfig(
+              config.ankiConnect,
+            )
           : config.ankiConnect;
         const integration = new AnkiIntegration(
           effectiveAnkiConfig as never,
@@ -140,7 +157,8 @@ export function registerAnkiJimakuIpcRuntime(
         request.deleteDuplicate,
       );
     },
-    getJimakuMediaInfo: () => options.parseMediaInfo(options.getCurrentMediaPath()),
+    getJimakuMediaInfo: () =>
+      options.parseMediaInfo(options.getCurrentMediaPath()),
     searchJimakuEntries: async (query) => {
       logger.info(`[jimaku] search-entries query: "${query.query}"`);
       const response = await options.jimakuFetchJson<JimakuEntry[]>(

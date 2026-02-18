@@ -69,17 +69,11 @@ export function createWindowTracker(
         targetMpvSocketPath?.trim() || undefined,
       );
     case "sway":
-      return new SwayWindowTracker(
-        targetMpvSocketPath?.trim() || undefined,
-      );
+      return new SwayWindowTracker(targetMpvSocketPath?.trim() || undefined);
     case "x11":
-      return new X11WindowTracker(
-        targetMpvSocketPath?.trim() || undefined,
-      );
+      return new X11WindowTracker(targetMpvSocketPath?.trim() || undefined);
     case "macos":
-      return new MacOSWindowTracker(
-        targetMpvSocketPath?.trim() || undefined,
-      );
+      return new MacOSWindowTracker(targetMpvSocketPath?.trim() || undefined);
     default:
       log.warn("No supported compositor detected. Window tracking disabled.");
       return null;

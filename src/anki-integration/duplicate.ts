@@ -14,7 +14,10 @@ export interface DuplicateDetectionDeps {
   ) => Promise<unknown>;
   notesInfo: (noteIds: number[]) => Promise<unknown>;
   getDeck: () => string | null | undefined;
-  resolveFieldName: (noteInfo: NoteInfo, preferredName: string) => string | null;
+  resolveFieldName: (
+    noteInfo: NoteInfo,
+    preferredName: string,
+  ) => string | null;
   logWarn: (message: string, error: unknown) => void;
 }
 
@@ -44,7 +47,9 @@ export async function findDuplicateNote(
   const query = `${deckPrefix}"${escapedFieldName}:${escapedExpression}"`;
 
   try {
-    const noteIds = (await deps.findNotes(query, { maxRetries: 0 }) as number[]);
+    const noteIds = (await deps.findNotes(query, {
+      maxRetries: 0,
+    })) as number[];
     return await findFirstExactDuplicateNoteId(
       noteIds,
       excludeNoteId,

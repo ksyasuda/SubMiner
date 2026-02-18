@@ -34,7 +34,8 @@ const hasSafeStorage =
 
 const originalSafeStorage: SafeStorageLike | null = hasSafeStorage
   ? {
-      isEncryptionAvailable: safeStorageApi.isEncryptionAvailable as () => boolean,
+      isEncryptionAvailable:
+        safeStorageApi.isEncryptionAvailable as () => boolean,
       encryptString: safeStorageApi.encryptString as (value: string) => Buffer,
       decryptString: safeStorageApi.decryptString as (value: Buffer) => string,
     }
@@ -87,76 +88,92 @@ function restoreSafeStorage(): void {
   ).decryptString = originalSafeStorage.decryptString;
 }
 
-test("anilist token store saves and loads encrypted token", { skip: !hasSafeStorage }, () => {
-  mockSafeStorage(true);
-  try {
+test(
+  "anilist token store saves and loads encrypted token",
+  { skip: !hasSafeStorage },
+  () => {
+    mockSafeStorage(true);
+    try {
+      const filePath = createTempTokenFile();
+      const store = createAnilistTokenStore(filePath, createLogger());
+      store.saveToken("  demo-token  ");
+
+      const payload = JSON.parse(fs.readFileSync(filePath, "utf-8")) as {
+        encryptedToken?: string;
+        plaintextToken?: string;
+      };
+      assert.equal(typeof payload.encryptedToken, "string");
+      assert.equal(payload.plaintextToken, undefined);
+      assert.equal(store.loadToken(), "demo-token");
+    } finally {
+      restoreSafeStorage();
+    }
+  },
+);
+
+test(
+  "anilist token store falls back to plaintext when encryption unavailable",
+  { skip: !hasSafeStorage },
+  () => {
+    mockSafeStorage(false);
+    try {
+      const filePath = createTempTokenFile();
+      const store = createAnilistTokenStore(filePath, createLogger());
+      store.saveToken("plain-token");
+
+      const payload = JSON.parse(fs.readFileSync(filePath, "utf-8")) as {
+        plaintextToken?: string;
+      };
+      assert.equal(payload.plaintextToken, "plain-token");
+      assert.equal(store.loadToken(), "plain-token");
+    } finally {
+      restoreSafeStorage();
+    }
+  },
+);
+
+test(
+  "anilist token store migrates legacy plaintext to encrypted",
+  { skip: !hasSafeStorage },
+  () => {
     const filePath = createTempTokenFile();
-    const store = createAnilistTokenStore(filePath, createLogger());
-    store.saveToken("  demo-token  ");
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({ plaintextToken: "legacy-token", updatedAt: Date.now() }),
+      "utf-8",
+    );
 
-    const payload = JSON.parse(fs.readFileSync(filePath, "utf-8")) as {
-      encryptedToken?: string;
-      plaintextToken?: string;
-    };
-    assert.equal(typeof payload.encryptedToken, "string");
-    assert.equal(payload.plaintextToken, undefined);
-    assert.equal(store.loadToken(), "demo-token");
-  } finally {
-    restoreSafeStorage();
-  }
-});
+    mockSafeStorage(true);
+    try {
+      const store = createAnilistTokenStore(filePath, createLogger());
+      assert.equal(store.loadToken(), "legacy-token");
 
-test("anilist token store falls back to plaintext when encryption unavailable", { skip: !hasSafeStorage }, () => {
-  mockSafeStorage(false);
-  try {
-    const filePath = createTempTokenFile();
-    const store = createAnilistTokenStore(filePath, createLogger());
-    store.saveToken("plain-token");
+      const payload = JSON.parse(fs.readFileSync(filePath, "utf-8")) as {
+        encryptedToken?: string;
+        plaintextToken?: string;
+      };
+      assert.equal(typeof payload.encryptedToken, "string");
+      assert.equal(payload.plaintextToken, undefined);
+    } finally {
+      restoreSafeStorage();
+    }
+  },
+);
 
-    const payload = JSON.parse(fs.readFileSync(filePath, "utf-8")) as {
-      plaintextToken?: string;
-    };
-    assert.equal(payload.plaintextToken, "plain-token");
-    assert.equal(store.loadToken(), "plain-token");
-  } finally {
-    restoreSafeStorage();
-  }
-});
-
-test("anilist token store migrates legacy plaintext to encrypted", { skip: !hasSafeStorage }, () => {
-  const filePath = createTempTokenFile();
-  fs.writeFileSync(
-    filePath,
-    JSON.stringify({ plaintextToken: "legacy-token", updatedAt: Date.now() }),
-    "utf-8",
-  );
-
-  mockSafeStorage(true);
-  try {
-    const store = createAnilistTokenStore(filePath, createLogger());
-    assert.equal(store.loadToken(), "legacy-token");
-
-    const payload = JSON.parse(fs.readFileSync(filePath, "utf-8")) as {
-      encryptedToken?: string;
-      plaintextToken?: string;
-    };
-    assert.equal(typeof payload.encryptedToken, "string");
-    assert.equal(payload.plaintextToken, undefined);
-  } finally {
-    restoreSafeStorage();
-  }
-});
-
-test("anilist token store clears persisted token file", { skip: !hasSafeStorage }, () => {
-  mockSafeStorage(true);
-  try {
-    const filePath = createTempTokenFile();
-    const store = createAnilistTokenStore(filePath, createLogger());
-    store.saveToken("to-clear");
-    assert.equal(fs.existsSync(filePath), true);
-    store.clearToken();
-    assert.equal(fs.existsSync(filePath), false);
-  } finally {
-    restoreSafeStorage();
-  }
-});
+test(
+  "anilist token store clears persisted token file",
+  { skip: !hasSafeStorage },
+  () => {
+    mockSafeStorage(true);
+    try {
+      const filePath = createTempTokenFile();
+      const store = createAnilistTokenStore(filePath, createLogger());
+      store.saveToken("to-clear");
+      assert.equal(fs.existsSync(filePath), true);
+      store.clearToken();
+      assert.equal(fs.existsSync(filePath), false);
+    } finally {
+      restoreSafeStorage();
+    }
+  },
+);

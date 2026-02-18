@@ -37,7 +37,8 @@ export function enforceOverlayLayerOrder(options: {
   invisibleWindow: BrowserWindow | null;
   ensureOverlayWindowLevel: (window: BrowserWindow) => void;
 }): void {
-  if (!options.visibleOverlayVisible || !options.invisibleOverlayVisible) return;
+  if (!options.visibleOverlayVisible || !options.invisibleOverlayVisible)
+    return;
   if (!options.mainWindow || options.mainWindow.isDestroyed()) return;
   if (!options.invisibleWindow || options.invisibleWindow.isDestroyed()) return;
 

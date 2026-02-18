@@ -45,9 +45,7 @@ export interface AnkiJimakuIpcDeps {
   onDownloadedSubtitle: (pathToSubtitle: string) => void;
 }
 
-export function registerAnkiJimakuIpcHandlers(
-  deps: AnkiJimakuIpcDeps,
-): void {
+export function registerAnkiJimakuIpcHandlers(deps: AnkiJimakuIpcDeps): void {
   ipcMain.on(
     "set-anki-connect-enabled",
     (_event: IpcMainEvent, enabled: boolean) => {
@@ -106,7 +104,10 @@ export function registerAnkiJimakuIpcHandlers(
 
   ipcMain.handle(
     "jimaku:download-file",
-    async (_event, query: JimakuDownloadQuery): Promise<JimakuDownloadResult> => {
+    async (
+      _event,
+      query: JimakuDownloadQuery,
+    ): Promise<JimakuDownloadResult> => {
       const apiKey = await deps.resolveJimakuApiKey();
       if (!apiKey) {
         return {

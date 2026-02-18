@@ -55,7 +55,8 @@ export function resolveConfiguredShortcuts(
         defaultConfig.shortcuts?.triggerFieldGrouping,
     ),
     triggerSubsync: normalizeShortcut(
-      config.shortcuts?.triggerSubsync ?? defaultConfig.shortcuts?.triggerSubsync,
+      config.shortcuts?.triggerSubsync ??
+        defaultConfig.shortcuts?.triggerSubsync,
     ),
     mineSentence: normalizeShortcut(
       config.shortcuts?.mineSentence ?? defaultConfig.shortcuts?.mineSentence,

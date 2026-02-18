@@ -1,4 +1,8 @@
-import { OverlayContentMeasurement, OverlayContentRect, OverlayLayer } from "../../types";
+import {
+  OverlayContentMeasurement,
+  OverlayContentRect,
+  OverlayLayer,
+} from "../../types";
 import { createLogger } from "../../logger";
 
 const logger = createLogger("main:overlay-content-measurement");
@@ -8,7 +12,10 @@ const MAX_RECT_OFFSET = 50000;
 const MAX_FUTURE_TIMESTAMP_MS = 60_000;
 const INVALID_LOG_THROTTLE_MS = 10_000;
 
-type OverlayMeasurementStore = Record<OverlayLayer, OverlayContentMeasurement | null>;
+type OverlayMeasurementStore = Record<
+  OverlayLayer,
+  OverlayContentMeasurement | null
+>;
 
 export function sanitizeOverlayContentMeasurement(
   payload: unknown,
@@ -20,15 +27,28 @@ export function sanitizeOverlayContentMeasurement(
     layer?: unknown;
     measuredAtMs?: unknown;
     viewport?: { width?: unknown; height?: unknown };
-    contentRect?: { x?: unknown; y?: unknown; width?: unknown; height?: unknown } | null;
+    contentRect?: {
+      x?: unknown;
+      y?: unknown;
+      width?: unknown;
+      height?: unknown;
+    } | null;
   };
 
   if (candidate.layer !== "visible" && candidate.layer !== "invisible") {
     return null;
   }
 
-  const viewportWidth = readFiniteInRange(candidate.viewport?.width, 1, MAX_VIEWPORT);
-  const viewportHeight = readFiniteInRange(candidate.viewport?.height, 1, MAX_VIEWPORT);
+  const viewportWidth = readFiniteInRange(
+    candidate.viewport?.width,
+    1,
+    MAX_VIEWPORT,
+  );
+  const viewportHeight = readFiniteInRange(
+    candidate.viewport?.height,
+    1,
+    MAX_VIEWPORT,
+  );
 
   if (!Number.isFinite(viewportWidth) || !Number.isFinite(viewportHeight)) {
     return null;
@@ -56,9 +76,7 @@ export function sanitizeOverlayContentMeasurement(
   };
 }
 
-function sanitizeOverlayContentRect(
-  rect: unknown,
-): OverlayContentRect | null {
+function sanitizeOverlayContentRect(rect: unknown): OverlayContentRect | null {
   if (rect === null || rect === undefined) {
     return null;
   }
@@ -91,11 +109,7 @@ function sanitizeOverlayContentRect(
   return { x, y, width, height };
 }
 
-function readFiniteInRange(
-  value: unknown,
-  min: number,
-  max: number,
-): number {
+function readFiniteInRange(value: unknown, min: number, max: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return Number.NaN;
   }
@@ -141,7 +155,9 @@ export function createOverlayContentMeasurementStore(options?: {
     return measurement;
   }
 
-  function getLatestByLayer(layer: OverlayLayer): OverlayContentMeasurement | null {
+  function getLatestByLayer(
+    layer: OverlayLayer,
+  ): OverlayContentMeasurement | null {
     return latestByLayer[layer];
   }
 

@@ -239,7 +239,8 @@ export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
     titlePart = name.slice(0, parsed.index);
   }
 
-  const seasonFromDir = parsed.season ?? detectSeasonFromDir(normalizedMediaPath);
+  const seasonFromDir =
+    parsed.season ?? detectSeasonFromDir(normalizedMediaPath);
   const title = cleanupTitle(titlePart || name);
 
   return {
@@ -277,7 +278,9 @@ function normalizeMediaPathForJimaku(mediaPath: string): string {
       );
     });
 
-    return decodeURIComponent(candidate || parsedUrl.hostname.replace(/^www\./, ""));
+    return decodeURIComponent(
+      candidate || parsedUrl.hostname.replace(/^www\./, ""),
+    );
   } catch {
     return trimmed;
   }
