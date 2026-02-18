@@ -16,7 +16,9 @@ ordinal: 18000
 ---
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Access token is stored in secure local storage rather than plain config.
 - [ ] #2 Token connect/disconnect UX supports revocation/logout and re-auth setup.
 - [ ] #3 Startup flow validates token presence/state and surfaces actionable errors.
@@ -26,11 +28,15 @@ ordinal: 18000
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Implemented secure AniList token lifecycle: config token persists to encrypted token store, stored token fallback is auto-resolved at runtime, and auth state source now distinguishes literal vs stored.
+
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [ ] #1 Token lifecycle module wired into AniList update/auth flow.
 - [ ] #2 Unit/integration coverage added for token storage and logout paths.
 <!-- DOD:END -->

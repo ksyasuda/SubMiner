@@ -2,8 +2,8 @@ import {
   createIpcDepsRuntime,
   registerAnkiJimakuIpcRuntime,
   registerIpcHandlers,
-} from "../core/services";
-import { registerAnkiJimakuIpcHandlers } from "../core/services/anki-jimaku-ipc";
+} from '../core/services';
+import { registerAnkiJimakuIpcHandlers } from '../core/services/anki-jimaku-ipc';
 import {
   createAnkiJimakuIpcRuntimeServiceDeps,
   AnkiJimakuIpcRuntimeServiceDepsParams,
@@ -11,23 +11,16 @@ import {
   MainIpcRuntimeServiceDepsParams,
   createRuntimeOptionsIpcDeps,
   RuntimeOptionsIpcDepsParams,
-} from "./dependencies";
+} from './dependencies';
 
 export interface RegisterIpcRuntimeServicesParams {
   runtimeOptions: RuntimeOptionsIpcDepsParams;
-  mainDeps: Omit<
-    MainIpcRuntimeServiceDepsParams,
-    "setRuntimeOption" | "cycleRuntimeOption"
-  >;
+  mainDeps: Omit<MainIpcRuntimeServiceDepsParams, 'setRuntimeOption' | 'cycleRuntimeOption'>;
   ankiJimakuDeps: AnkiJimakuIpcRuntimeServiceDepsParams;
 }
 
-export function registerMainIpcRuntimeServices(
-  params: MainIpcRuntimeServiceDepsParams,
-): void {
-  registerIpcHandlers(
-    createIpcDepsRuntime(createMainIpcRuntimeServiceDeps(params)),
-  );
+export function registerMainIpcRuntimeServices(params: MainIpcRuntimeServiceDepsParams): void {
+  registerIpcHandlers(createIpcDepsRuntime(createMainIpcRuntimeServiceDeps(params)));
 }
 
 export function registerAnkiJimakuIpcRuntimeServices(
@@ -39,9 +32,7 @@ export function registerAnkiJimakuIpcRuntimeServices(
   );
 }
 
-export function registerIpcRuntimeServices(
-  params: RegisterIpcRuntimeServicesParams,
-): void {
+export function registerIpcRuntimeServices(params: RegisterIpcRuntimeServicesParams): void {
   const runtimeOptionsIpcDeps = createRuntimeOptionsIpcDeps({
     getRuntimeOptionsManager: params.runtimeOptions.getRuntimeOptionsManager,
     showMpvOsd: params.runtimeOptions.showMpvOsd,

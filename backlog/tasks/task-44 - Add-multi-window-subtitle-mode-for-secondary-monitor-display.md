@@ -16,12 +16,15 @@ priority: low
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Support rendering the subtitle overlay on a secondary display at a larger, more readable size while the video plays full-screen on the primary monitor.
 
 ## Motivation
+
 For study-focused sessions, reading subtitles overlaid on video at normal size can cause eye strain. Users with multiple monitors would benefit from a dedicated subtitle display — larger font, clean background, with full tokenization and click-to-lookup functionality — while the video plays unobstructed on the main screen.
 
 ## Features
+
 1. **Detached subtitle window**: A second Electron BrowserWindow that mirrors the current subtitle content
 2. **Configurable placement**: User selects which monitor and position for the subtitle window
 3. **Independent styling**: The detached window can have different font size, background opacity, and layout than the overlay
@@ -30,6 +33,7 @@ For study-focused sessions, reading subtitles overlaid on video at normal size c
 6. **Toggle**: Shortcut to quickly enable/disable the secondary display
 
 ## Technical considerations
+
 - Electron supports multi-monitor via `screen.getAllDisplays()` and `BrowserWindow` bounds
 - The detached window should receive subtitle updates via IPC from the main process (same path as the overlay)
 - Overlay on the primary monitor could optionally be hidden when the detached window is active
@@ -38,7 +42,9 @@ For study-focused sessions, reading subtitles overlaid on video at normal size c
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 A detached subtitle window can be opened on a secondary monitor.
 - [ ] #2 Subtitle content is synchronized in real-time between overlay and detached window.
 - [ ] #3 Detached window has independently configurable font size and styling.

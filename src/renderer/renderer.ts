@@ -24,20 +24,20 @@ import type {
   SubtitleData,
   SubtitlePosition,
   SubsyncManualPayload,
-} from "../types";
-import { createKeyboardHandlers } from "./handlers/keyboard.js";
-import { createMouseHandlers } from "./handlers/mouse.js";
-import { createJimakuModal } from "./modals/jimaku.js";
-import { createKikuModal } from "./modals/kiku.js";
-import { createSessionHelpModal } from "./modals/session-help.js";
-import { createRuntimeOptionsModal } from "./modals/runtime-options.js";
-import { createSubsyncModal } from "./modals/subsync.js";
-import { createPositioningController } from "./positioning.js";
-import { createOverlayContentMeasurementReporter } from "./overlay-content-measurement.js";
-import { createRendererState } from "./state.js";
-import { createSubtitleRenderer } from "./subtitle-render.js";
-import { resolveRendererDom } from "./utils/dom.js";
-import { resolvePlatformInfo } from "./utils/platform.js";
+} from '../types';
+import { createKeyboardHandlers } from './handlers/keyboard.js';
+import { createMouseHandlers } from './handlers/mouse.js';
+import { createJimakuModal } from './modals/jimaku.js';
+import { createKikuModal } from './modals/kiku.js';
+import { createSessionHelpModal } from './modals/session-help.js';
+import { createRuntimeOptionsModal } from './modals/runtime-options.js';
+import { createSubsyncModal } from './modals/subsync.js';
+import { createPositioningController } from './positioning.js';
+import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
+import { createRendererState } from './state.js';
+import { createSubtitleRenderer } from './subtitle-render.js';
+import { resolveRendererDom } from './utils/dom.js';
+import { resolvePlatformInfo } from './utils/platform.js';
 
 const ctx = {
   dom: resolveRendererDom(),
@@ -67,7 +67,7 @@ function isAnyModalOpen(): boolean {
 
 function syncSettingsModalSubtitleSuppression(): void {
   const suppressSubtitles = isAnySettingsModalOpen();
-  document.body.classList.toggle("settings-modal-open", suppressSubtitles);
+  document.body.classList.toggle('settings-modal-open', suppressSubtitles);
   if (suppressSubtitles) {
     ctx.state.isOverSubtitle = false;
   }
@@ -109,8 +109,7 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   saveInvisiblePositionEdit: positioning.saveInvisiblePositionEdit,
   cancelInvisiblePositionEdit: positioning.cancelInvisiblePositionEdit,
   setInvisiblePositionEditMode: positioning.setInvisiblePositionEditMode,
-  applyInvisibleSubtitleOffsetPosition:
-    positioning.applyInvisibleSubtitleOffsetPosition,
+  applyInvisibleSubtitleOffsetPosition: positioning.applyInvisibleSubtitleOffsetPosition,
   updateInvisiblePositionEditHud: positioning.updateInvisiblePositionEditHud,
 });
 const mouseHandlers = createMouseHandlers(ctx, {
@@ -132,28 +131,20 @@ async function init(): Promise<void> {
 
   window.electronAPI.onSubtitlePosition((position: SubtitlePosition | null) => {
     if (ctx.platform.isInvisibleLayer) {
-      positioning.applyInvisibleStoredSubtitlePosition(
-        position,
-        "media-change",
-      );
+      positioning.applyInvisibleStoredSubtitlePosition(position, 'media-change');
     } else {
-      positioning.applyStoredSubtitlePosition(position, "media-change");
+      positioning.applyStoredSubtitlePosition(position, 'media-change');
     }
     measurementReporter.schedule();
   });
 
   if (ctx.platform.isInvisibleLayer) {
-    window.electronAPI.onMpvSubtitleRenderMetrics(
-      (metrics: MpvSubtitleRenderMetrics) => {
-        positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(
-          metrics,
-          "event",
-        );
-        measurementReporter.schedule();
-      },
-    );
+    window.electronAPI.onMpvSubtitleRenderMetrics((metrics: MpvSubtitleRenderMetrics) => {
+      positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(metrics, 'event');
+      measurementReporter.schedule();
+    });
     window.electronAPI.onOverlayDebugVisualization((enabled: boolean) => {
-      document.body.classList.toggle("debug-invisible-visualization", enabled);
+      document.body.classList.toggle('debug-invisible-visualization', enabled);
     });
   }
 
@@ -170,34 +161,24 @@ async function init(): Promise<void> {
     measurementReporter.schedule();
   });
 
-  subtitleRenderer.updateSecondarySubMode(
-    await window.electronAPI.getSecondarySubMode(),
-  );
-  subtitleRenderer.renderSecondarySub(
-    await window.electronAPI.getCurrentSecondarySub(),
-  );
+  subtitleRenderer.updateSecondarySubMode(await window.electronAPI.getSecondarySubMode());
+  subtitleRenderer.renderSecondarySub(await window.electronAPI.getCurrentSecondarySub());
   measurementReporter.schedule();
 
   const hoverTarget = ctx.platform.isInvisibleLayer
     ? ctx.dom.subtitleRoot
     : ctx.dom.subtitleContainer;
-  hoverTarget.addEventListener("mouseenter", mouseHandlers.handleMouseEnter);
-  hoverTarget.addEventListener("mouseleave", mouseHandlers.handleMouseLeave);
-  ctx.dom.secondarySubContainer.addEventListener(
-    "mouseenter",
-    mouseHandlers.handleMouseEnter,
-  );
-  ctx.dom.secondarySubContainer.addEventListener(
-    "mouseleave",
-    mouseHandlers.handleMouseLeave,
-  );
+  hoverTarget.addEventListener('mouseenter', mouseHandlers.handleMouseEnter);
+  hoverTarget.addEventListener('mouseleave', mouseHandlers.handleMouseLeave);
+  ctx.dom.secondarySubContainer.addEventListener('mouseenter', mouseHandlers.handleMouseEnter);
+  ctx.dom.secondarySubContainer.addEventListener('mouseleave', mouseHandlers.handleMouseLeave);
 
   mouseHandlers.setupInvisibleHoverSelection();
   positioning.setupInvisiblePositionEditHud();
   mouseHandlers.setupResizeHandler();
   mouseHandlers.setupSelectionObserver();
   mouseHandlers.setupYomitanObserver();
-  window.addEventListener("resize", () => {
+  window.addEventListener('resize', () => {
     measurementReporter.schedule();
   });
 
@@ -207,18 +188,13 @@ async function init(): Promise<void> {
   subsyncModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
 
-  window.electronAPI.onRuntimeOptionsChanged(
-    (options: RuntimeOptionState[]) => {
-      runtimeOptionsModal.updateRuntimeOptions(options);
-    },
-  );
+  window.electronAPI.onRuntimeOptionsChanged((options: RuntimeOptionState[]) => {
+    runtimeOptionsModal.updateRuntimeOptions(options);
+  });
   window.electronAPI.onOpenRuntimeOptions(() => {
     runtimeOptionsModal.openRuntimeOptionsModal().catch(() => {
-      runtimeOptionsModal.setRuntimeOptionsStatus(
-        "Failed to load runtime options",
-        true,
-      );
-      window.electronAPI.notifyOverlayModalClosed("runtime-options");
+      runtimeOptionsModal.setRuntimeOptionsStatus('Failed to load runtime options', true);
+      window.electronAPI.notifyOverlayModalClosed('runtime-options');
       syncSettingsModalSubtitleSuppression();
     });
   });
@@ -229,10 +205,7 @@ async function init(): Promise<void> {
     subsyncModal.openSubsyncModal(payload);
   });
   window.electronAPI.onKikuFieldGroupingRequest(
-    (data: {
-      original: KikuDuplicateCardInfo;
-      duplicate: KikuDuplicateCardInfo;
-    }) => {
+    (data: { original: KikuDuplicateCardInfo; duplicate: KikuDuplicateCardInfo }) => {
       kikuModal.openKikuFieldGroupingModal(data);
     },
   );
@@ -243,23 +216,21 @@ async function init(): Promise<void> {
 
   await keyboardHandlers.setupMpvInputForwarding();
 
-  subtitleRenderer.applySubtitleStyle(
-    await window.electronAPI.getSubtitleStyle(),
-  );
+  subtitleRenderer.applySubtitleStyle(await window.electronAPI.getSubtitleStyle());
 
   if (ctx.platform.isInvisibleLayer) {
     positioning.applyInvisibleStoredSubtitlePosition(
       await window.electronAPI.getSubtitlePosition(),
-      "startup",
+      'startup',
     );
     positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(
       await window.electronAPI.getMpvSubtitleRenderMetrics(),
-      "startup",
+      'startup',
     );
   } else {
     positioning.applyStoredSubtitlePosition(
       await window.electronAPI.getSubtitlePosition(),
-      "startup",
+      'startup',
     );
     measurementReporter.schedule();
   }
@@ -271,8 +242,8 @@ async function init(): Promise<void> {
   measurementReporter.emitNow();
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
 } else {
   void init();
 }

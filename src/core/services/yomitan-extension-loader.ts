@@ -1,9 +1,9 @@
-import { BrowserWindow, Extension, session } from "electron";
-import * as fs from "fs";
-import * as path from "path";
-import { createLogger } from "../../logger";
+import { BrowserWindow, Extension, session } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
+import { createLogger } from '../../logger';
 
-const logger = createLogger("main:yomitan-extension-loader");
+const logger = createLogger('main:yomitan-extension-loader');
 
 export interface YomitanExtensionLoaderDeps {
   userDataPath: string;
@@ -15,30 +15,26 @@ export interface YomitanExtensionLoaderDeps {
 }
 
 function ensureExtensionCopy(sourceDir: string, userDataPath: string): string {
-  if (process.platform === "win32") {
+  if (process.platform === 'win32') {
     return sourceDir;
   }
 
-  const extensionsRoot = path.join(userDataPath, "extensions");
-  const targetDir = path.join(extensionsRoot, "yomitan");
+  const extensionsRoot = path.join(userDataPath, 'extensions');
+  const targetDir = path.join(extensionsRoot, 'yomitan');
 
-  const sourceManifest = path.join(sourceDir, "manifest.json");
-  const targetManifest = path.join(targetDir, "manifest.json");
+  const sourceManifest = path.join(sourceDir, 'manifest.json');
+  const targetManifest = path.join(targetDir, 'manifest.json');
 
   let shouldCopy = !fs.existsSync(targetDir);
-  if (
-    !shouldCopy &&
-    fs.existsSync(sourceManifest) &&
-    fs.existsSync(targetManifest)
-  ) {
+  if (!shouldCopy && fs.existsSync(sourceManifest) && fs.existsSync(targetManifest)) {
     try {
       const sourceVersion = (
-        JSON.parse(fs.readFileSync(sourceManifest, "utf-8")) as {
+        JSON.parse(fs.readFileSync(sourceManifest, 'utf-8')) as {
           version: string;
         }
       ).version;
       const targetVersion = (
-        JSON.parse(fs.readFileSync(targetManifest, "utf-8")) as {
+        JSON.parse(fs.readFileSync(targetManifest, 'utf-8')) as {
           version: string;
         }
       ).version;
@@ -62,11 +58,11 @@ export async function loadYomitanExtension(
   deps: YomitanExtensionLoaderDeps,
 ): Promise<Extension | null> {
   const searchPaths = [
-    path.join(__dirname, "..", "..", "vendor", "yomitan"),
-    path.join(__dirname, "..", "..", "..", "vendor", "yomitan"),
-    path.join(process.resourcesPath, "yomitan"),
-    "/usr/share/SubMiner/yomitan",
-    path.join(deps.userDataPath, "yomitan"),
+    path.join(__dirname, '..', '..', 'vendor', 'yomitan'),
+    path.join(__dirname, '..', '..', '..', 'vendor', 'yomitan'),
+    path.join(process.resourcesPath, 'yomitan'),
+    '/usr/share/SubMiner/yomitan',
+    path.join(deps.userDataPath, 'yomitan'),
   ];
 
   let extPath: string | null = null;
@@ -78,8 +74,8 @@ export async function loadYomitanExtension(
   }
 
   if (!extPath) {
-    logger.error("Yomitan extension not found in any search path");
-    logger.error("Install Yomitan to one of:", searchPaths);
+    logger.error('Yomitan extension not found in any search path');
+    logger.error('Install Yomitan to one of:', searchPaths);
     return null;
   }
 
@@ -105,8 +101,8 @@ export async function loadYomitanExtension(
     deps.setYomitanExtension(extension);
     return extension;
   } catch (err) {
-    logger.error("Failed to load Yomitan extension:", (err as Error).message);
-    logger.error("Full error:", err);
+    logger.error('Failed to load Yomitan extension:', (err as Error).message);
+    logger.error('Full error:', err);
     deps.setYomitanExtension(null);
     return null;
   }

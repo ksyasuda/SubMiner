@@ -16,31 +16,31 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { spawn, execSync } from "child_process";
-import { PartOfSpeech, Token, MecabStatus } from "./types";
-import { createLogger } from "./logger";
+import { spawn, execSync } from 'child_process';
+import { PartOfSpeech, Token, MecabStatus } from './types';
+import { createLogger } from './logger';
 
 export { PartOfSpeech };
 
-const log = createLogger("mecab");
+const log = createLogger('mecab');
 
 function mapPartOfSpeech(pos1: string): PartOfSpeech {
   switch (pos1) {
-    case "名詞":
+    case '名詞':
       return PartOfSpeech.noun;
-    case "動詞":
+    case '動詞':
       return PartOfSpeech.verb;
-    case "形容詞":
+    case '形容詞':
       return PartOfSpeech.i_adjective;
-    case "形状詞":
-    case "形容動詞":
+    case '形状詞':
+    case '形容動詞':
       return PartOfSpeech.na_adjective;
-    case "助詞":
+    case '助詞':
       return PartOfSpeech.particle;
-    case "助動詞":
+    case '助動詞':
       return PartOfSpeech.bound_auxiliary;
-    case "記号":
-    case "補助記号":
+    case '記号':
+    case '補助記号':
       return PartOfSpeech.symbol;
     default:
       return PartOfSpeech.other;
@@ -48,28 +48,28 @@ function mapPartOfSpeech(pos1: string): PartOfSpeech {
 }
 
 export function parseMecabLine(line: string): Token | null {
-  if (!line || line === "EOS" || line.trim() === "") {
+  if (!line || line === 'EOS' || line.trim() === '') {
     return null;
   }
 
-  const tabIndex = line.indexOf("\t");
+  const tabIndex = line.indexOf('\t');
   if (tabIndex === -1) {
     return null;
   }
 
   const surface = line.substring(0, tabIndex);
   const featureString = line.substring(tabIndex + 1);
-  const features = featureString.split(",");
+  const features = featureString.split(',');
 
-  const pos1 = features[0] || "";
-  const pos2 = features[1] || "";
-  const pos3 = features[2] || "";
-  const pos4 = features[3] || "";
-  const inflectionType = features[4] || "";
-  const inflectionForm = features[5] || "";
+  const pos1 = features[0] || '';
+  const pos2 = features[1] || '';
+  const pos3 = features[2] || '';
+  const pos4 = features[3] || '';
+  const inflectionType = features[4] || '';
+  const inflectionForm = features[5] || '';
   const lemma = features[6] || surface;
-  const reading = features[7] || "";
-  const pronunciation = features[8] || "";
+  const reading = features[7] || '';
+  const pronunciation = features[8] || '';
 
   return {
     word: surface,
@@ -80,9 +80,9 @@ export function parseMecabLine(line: string): Token | null {
     pos4,
     inflectionType,
     inflectionForm,
-    headword: lemma !== "*" ? lemma : surface,
-    katakanaReading: reading !== "*" ? reading : "",
-    pronunciation: pronunciation !== "*" ? pronunciation : "",
+    headword: lemma !== '*' ? lemma : surface,
+    katakanaReading: reading !== '*' ? reading : '',
+    pronunciation: pronunciation !== '*' ? pronunciation : '',
   };
 }
 
@@ -99,24 +99,24 @@ export class MecabTokenizer {
   private enabled: boolean = true;
 
   constructor(options: MecabTokenizerOptions = {}) {
-    this.mecabCommand = options.mecabCommand?.trim() || "mecab";
+    this.mecabCommand = options.mecabCommand?.trim() || 'mecab';
     this.dictionaryPath = options.dictionaryPath?.trim() || null;
   }
 
   async checkAvailability(): Promise<boolean> {
     try {
       const command = this.mecabCommand;
-      const result = command.includes("/")
+      const result = command.includes('/')
         ? command
-        : execSync(`which ${command}`, { encoding: "utf-8" }).trim();
+        : execSync(`which ${command}`, { encoding: 'utf-8' }).trim();
       if (result) {
         this.mecabPath = result;
         this.available = true;
-        log.info("MeCab found at:", this.mecabPath);
+        log.info('MeCab found at:', this.mecabPath);
         return true;
       }
     } catch (err) {
-      log.info("MeCab not found on system");
+      log.info('MeCab not found on system');
     }
 
     this.available = false;
@@ -131,34 +131,34 @@ export class MecabTokenizer {
     return new Promise((resolve) => {
       const mecabArgs: string[] = [];
       if (this.dictionaryPath) {
-        mecabArgs.push("-d", this.dictionaryPath);
+        mecabArgs.push('-d', this.dictionaryPath);
       }
       const mecab = spawn(this.mecabPath ?? this.mecabCommand, mecabArgs, {
-        stdio: ["pipe", "pipe", "pipe"],
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
 
-      let stdout = "";
-      let stderr = "";
+      let stdout = '';
+      let stderr = '';
 
-      mecab.stdout.on("data", (data: Buffer) => {
+      mecab.stdout.on('data', (data: Buffer) => {
         stdout += data.toString();
       });
 
-      mecab.stderr.on("data", (data: Buffer) => {
+      mecab.stderr.on('data', (data: Buffer) => {
         stderr += data.toString();
       });
 
-      mecab.on("close", (code: number | null) => {
+      mecab.on('close', (code: number | null) => {
         if (code !== 0) {
-          log.error("MeCab process exited with code:", code);
+          log.error('MeCab process exited with code:', code);
           if (stderr) {
-            log.error("MeCab stderr:", stderr);
+            log.error('MeCab stderr:', stderr);
           }
           resolve(null);
           return;
         }
 
-        const lines = stdout.split("\n");
+        const lines = stdout.split('\n');
         const tokens: Token[] = [];
 
         for (const line of lines) {
@@ -173,21 +173,21 @@ export class MecabTokenizer {
           const trimmedStderr = stderr.trim();
           if (trimmedStdout) {
             log.warn(
-              "MeCab returned no parseable tokens.",
+              'MeCab returned no parseable tokens.',
               `command=${this.mecabPath ?? this.mecabCommand}`,
               `stdout=${trimmedStdout.slice(0, 1024)}`,
             );
           }
           if (trimmedStderr) {
-            log.warn("MeCab stderr while tokenizing:", trimmedStderr);
+            log.warn('MeCab stderr while tokenizing:', trimmedStderr);
           }
         }
 
         resolve(tokens);
       });
 
-      mecab.on("error", (err: Error) => {
-        log.error("Failed to spawn MeCab:", err.message);
+      mecab.on('error', (err: Error) => {
+        log.error('Failed to spawn MeCab:', err.message);
         resolve(null);
       });
 

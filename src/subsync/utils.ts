@@ -1,7 +1,7 @@
-import * as fs from "fs";
-import * as childProcess from "child_process";
-import { DEFAULT_CONFIG } from "../config";
-import { SubsyncConfig, SubsyncMode } from "../types";
+import * as fs from 'fs';
+import * as childProcess from 'child_process';
+import { DEFAULT_CONFIG } from '../config';
+import { SubsyncConfig, SubsyncMode } from '../types';
 
 export interface MpvTrack {
   id?: number;
@@ -11,8 +11,8 @@ export interface MpvTrack {
   lang?: string;
   title?: string;
   codec?: string;
-  "ff-index"?: number;
-  "external-filename"?: string;
+  'ff-index'?: number;
+  'external-filename'?: string;
 }
 
 export interface SubsyncResolvedConfig {
@@ -23,9 +23,9 @@ export interface SubsyncResolvedConfig {
 }
 
 const DEFAULT_SUBSYNC_EXECUTABLE_PATHS = {
-  alass: "/usr/bin/alass",
-  ffsubsync: "/usr/bin/ffsubsync",
-  ffmpeg: "/usr/bin/ffmpeg",
+  alass: '/usr/bin/alass',
+  ffsubsync: '/usr/bin/ffsubsync',
+  ffmpeg: '/usr/bin/ffmpeg',
 } as const;
 
 export interface SubsyncContext {
@@ -44,9 +44,7 @@ export interface CommandResult {
   error?: string;
 }
 
-export function getSubsyncConfig(
-  config: SubsyncConfig | undefined,
-): SubsyncResolvedConfig {
+export function getSubsyncConfig(config: SubsyncConfig | undefined): SubsyncResolvedConfig {
   const resolvePath = (value: string | undefined, fallback: string): string => {
     const trimmed = value?.trim();
     return trimmed && trimmed.length > 0 ? trimmed : fallback;
@@ -54,23 +52,14 @@ export function getSubsyncConfig(
 
   return {
     defaultMode: config?.defaultMode ?? DEFAULT_CONFIG.subsync.defaultMode,
-    alassPath: resolvePath(
-      config?.alass_path,
-      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.alass,
-    ),
-    ffsubsyncPath: resolvePath(
-      config?.ffsubsync_path,
-      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffsubsync,
-    ),
-    ffmpegPath: resolvePath(
-      config?.ffmpeg_path,
-      DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffmpeg,
-    ),
+    alassPath: resolvePath(config?.alass_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.alass),
+    ffsubsyncPath: resolvePath(config?.ffsubsync_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffsubsync),
+    ffmpegPath: resolvePath(config?.ffmpeg_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffmpeg),
   };
 }
 
 export function hasPathSeparators(value: string): boolean {
-  return value.includes("/") || value.includes("\\");
+  return value.includes('/') || value.includes('\\');
 }
 
 export function fileExists(pathOrEmpty: string): boolean {
@@ -83,17 +72,14 @@ export function fileExists(pathOrEmpty: string): boolean {
 }
 
 export function formatTrackLabel(track: MpvTrack): string {
-  const trackId = typeof track.id === "number" ? track.id : -1;
-  const source = track.external ? "External" : "Internal";
-  const lang = track.lang || track.title || "unknown";
-  const active = track.selected ? " (active)" : "";
+  const trackId = typeof track.id === 'number' ? track.id : -1;
+  const source = track.external ? 'External' : 'Internal';
+  const lang = track.lang || track.title || 'unknown';
+  const active = track.selected ? ' (active)' : '';
   return `${source} #${trackId} - ${lang}${active}`;
 }
 
-export function getTrackById(
-  tracks: MpvTrack[],
-  trackId: number | null,
-): MpvTrack | null {
+export function getTrackById(tracks: MpvTrack[], trackId: number | null): MpvTrack | null {
   if (trackId === null) return null;
   return tracks.find((track) => track.id === trackId) ?? null;
 }
@@ -102,15 +88,15 @@ export function codecToExtension(codec: string | undefined): string | null {
   if (!codec) return null;
   const normalized = codec.toLowerCase();
   if (
-    normalized === "subrip" ||
-    normalized === "srt" ||
-    normalized === "text" ||
-    normalized === "mov_text"
+    normalized === 'subrip' ||
+    normalized === 'srt' ||
+    normalized === 'text' ||
+    normalized === 'mov_text'
   )
-    return "srt";
-  if (normalized === "ass" || normalized === "ssa") return "ass";
-  if (normalized === "webvtt" || normalized === "vtt") return "vtt";
-  if (normalized === "ttml") return "ttml";
+    return 'srt';
+  if (normalized === 'ass' || normalized === 'ssa') return 'ass';
+  if (normalized === 'webvtt' || normalized === 'vtt') return 'vtt';
+  if (normalized === 'ttml') return 'ttml';
   return null;
 }
 
@@ -121,21 +107,21 @@ export function runCommand(
 ): Promise<CommandResult> {
   return new Promise((resolve) => {
     const child = childProcess.spawn(executable, args, {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
-    let stdout = "";
-    let stderr = "";
+    let stdout = '';
+    let stderr = '';
     const timeout = setTimeout(() => {
-      child.kill("SIGKILL");
+      child.kill('SIGKILL');
     }, timeoutMs);
 
-    child.stdout.on("data", (chunk: Buffer) => {
+    child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
     });
-    child.stderr.on("data", (chunk: Buffer) => {
+    child.stderr.on('data', (chunk: Buffer) => {
       stderr += chunk.toString();
     });
-    child.on("error", (error: Error) => {
+    child.on('error', (error: Error) => {
       clearTimeout(timeout);
       resolve({
         ok: false,
@@ -145,7 +131,7 @@ export function runCommand(
         error: error.message,
       });
     });
-    child.on("close", (code: number | null) => {
+    child.on('close', (code: number | null) => {
       clearTimeout(timeout);
       resolve({
         ok: code === 0,

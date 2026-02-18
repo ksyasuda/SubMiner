@@ -1,17 +1,17 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import test from 'node:test';
+import assert from 'node:assert/strict';
 import {
   getInitialInvisibleOverlayVisibility,
   isAutoUpdateEnabledRuntime,
   shouldAutoInitializeOverlayRuntimeFromConfig,
   shouldBindVisibleOverlayToMpvSubVisibility,
-} from "./startup";
+} from './startup';
 
 const BASE_CONFIG = {
   auto_start_overlay: false,
   bind_visible_overlay_to_mpv_sub_visibility: true,
   invisibleOverlay: {
-    startupVisibility: "platform-default" as const,
+    startupVisibility: 'platform-default' as const,
   },
   ankiConnect: {
     behavior: {
@@ -20,36 +20,27 @@ const BASE_CONFIG = {
   },
 };
 
-test("getInitialInvisibleOverlayVisibility handles visibility + platform", () => {
+test('getInitialInvisibleOverlayVisibility handles visibility + platform', () => {
   assert.equal(
     getInitialInvisibleOverlayVisibility(
-      { ...BASE_CONFIG, invisibleOverlay: { startupVisibility: "visible" } },
-      "linux",
+      { ...BASE_CONFIG, invisibleOverlay: { startupVisibility: 'visible' } },
+      'linux',
     ),
     true,
   );
   assert.equal(
     getInitialInvisibleOverlayVisibility(
-      { ...BASE_CONFIG, invisibleOverlay: { startupVisibility: "hidden" } },
-      "darwin",
+      { ...BASE_CONFIG, invisibleOverlay: { startupVisibility: 'hidden' } },
+      'darwin',
     ),
     false,
   );
-  assert.equal(
-    getInitialInvisibleOverlayVisibility(BASE_CONFIG, "linux"),
-    false,
-  );
-  assert.equal(
-    getInitialInvisibleOverlayVisibility(BASE_CONFIG, "darwin"),
-    true,
-  );
+  assert.equal(getInitialInvisibleOverlayVisibility(BASE_CONFIG, 'linux'), false);
+  assert.equal(getInitialInvisibleOverlayVisibility(BASE_CONFIG, 'darwin'), true);
 });
 
-test("shouldAutoInitializeOverlayRuntimeFromConfig respects auto start and visible startup", () => {
-  assert.equal(
-    shouldAutoInitializeOverlayRuntimeFromConfig(BASE_CONFIG),
-    false,
-  );
+test('shouldAutoInitializeOverlayRuntimeFromConfig respects auto start and visible startup', () => {
+  assert.equal(shouldAutoInitializeOverlayRuntimeFromConfig(BASE_CONFIG), false);
   assert.equal(
     shouldAutoInitializeOverlayRuntimeFromConfig({
       ...BASE_CONFIG,
@@ -60,13 +51,13 @@ test("shouldAutoInitializeOverlayRuntimeFromConfig respects auto start and visib
   assert.equal(
     shouldAutoInitializeOverlayRuntimeFromConfig({
       ...BASE_CONFIG,
-      invisibleOverlay: { startupVisibility: "visible" },
+      invisibleOverlay: { startupVisibility: 'visible' },
     }),
     true,
   );
 });
 
-test("shouldBindVisibleOverlayToMpvSubVisibility returns config value", () => {
+test('shouldBindVisibleOverlayToMpvSubVisibility returns config value', () => {
   assert.equal(shouldBindVisibleOverlayToMpvSubVisibility(BASE_CONFIG), true);
   assert.equal(
     shouldBindVisibleOverlayToMpvSubVisibility({
@@ -77,7 +68,7 @@ test("shouldBindVisibleOverlayToMpvSubVisibility returns config value", () => {
   );
 });
 
-test("isAutoUpdateEnabledRuntime prefers runtime option and falls back to config", () => {
+test('isAutoUpdateEnabledRuntime prefers runtime option and falls back to config', () => {
   assert.equal(
     isAutoUpdateEnabledRuntime(BASE_CONFIG, {
       getOptionValue: () => false,

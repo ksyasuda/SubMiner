@@ -20,11 +20,15 @@ ordinal: 54000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add a script that offloads macOS package builds to a remote Mac mini over SSH, then syncs release artifacts back to the local workspace.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Script supports remote host and path configuration.
 - [x] #2 Script supports signed and unsigned macOS build modes.
 - [x] #3 Script syncs project sources to remote and copies release artifacts back locally.
@@ -33,7 +37,9 @@ Add a script that offloads macOS package builds to a remote Mac mini over SSH, t
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Added `scripts/build-external.sh` with:
+
 - Defaults for host alias (`mac-mini`) and remote path (`~/build/SubMiner`)
 - Argument flags: `--host`, `--remote-path`, `--signed`, `--unsigned`, `--skip-sync`, `--sync-only`
 - Rsync-based upload excluding heavyweight build artifacts and local dependencies

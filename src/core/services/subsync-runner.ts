@@ -1,17 +1,13 @@
-import {
-  SubsyncManualPayload,
-  SubsyncManualRunRequest,
-  SubsyncResult,
-} from "../../types";
-import { SubsyncResolvedConfig } from "../../subsync/utils";
-import { runSubsyncManualFromIpc } from "./ipc-command";
+import { SubsyncManualPayload, SubsyncManualRunRequest, SubsyncResult } from '../../types';
+import { SubsyncResolvedConfig } from '../../subsync/utils';
+import { runSubsyncManualFromIpc } from './ipc-command';
 import {
   TriggerSubsyncFromConfigDeps,
   runSubsyncManual,
   triggerSubsyncFromConfig,
-} from "./subsync";
+} from './subsync';
 
-const AUTOSUBSYNC_SPINNER_FRAMES = ["|", "/", "-", "\\"];
+const AUTOSUBSYNC_SPINNER_FRAMES = ['|', '/', '-', '\\'];
 
 interface MpvClientLike {
   connected: boolean;
@@ -32,7 +28,7 @@ export interface SubsyncRuntimeDeps {
 async function runWithSubsyncSpinnerService<T>(
   task: () => Promise<T>,
   showMpvOsd: (text: string) => void,
-  label = "Subsync: syncing",
+  label = 'Subsync: syncing',
 ): Promise<T> {
   let frame = 0;
   showMpvOsd(`${label} ${AUTOSUBSYNC_SPINNER_FRAMES[0]}`);
@@ -47,9 +43,7 @@ async function runWithSubsyncSpinnerService<T>(
   }
 }
 
-function buildTriggerSubsyncDeps(
-  deps: SubsyncRuntimeDeps,
-): TriggerSubsyncFromConfigDeps {
+function buildTriggerSubsyncDeps(deps: SubsyncRuntimeDeps): TriggerSubsyncFromConfigDeps {
   return {
     getMpvClient: deps.getMpvClient,
     getResolvedConfig: deps.getResolvedSubsyncConfig,
@@ -62,9 +56,7 @@ function buildTriggerSubsyncDeps(
   };
 }
 
-export async function triggerSubsyncFromConfigRuntime(
-  deps: SubsyncRuntimeDeps,
-): Promise<void> {
+export async function triggerSubsyncFromConfigRuntime(deps: SubsyncRuntimeDeps): Promise<void> {
   await triggerSubsyncFromConfig(buildTriggerSubsyncDeps(deps));
 }
 
@@ -78,7 +70,6 @@ export async function runSubsyncManualFromIpcRuntime(
     setSubsyncInProgress: triggerDeps.setSubsyncInProgress,
     showMpvOsd: triggerDeps.showMpvOsd,
     runWithSpinner: (task) => triggerDeps.runWithSubsyncSpinner(() => task()),
-    runSubsyncManual: (subsyncRequest) =>
-      runSubsyncManual(subsyncRequest, triggerDeps),
+    runSubsyncManual: (subsyncRequest) => runSubsyncManual(subsyncRequest, triggerDeps),
   });
 }

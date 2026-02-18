@@ -1,8 +1,8 @@
-import { ConfiguredShortcuts } from "../utils/shortcut-config";
-import { OverlayShortcutHandlers } from "./overlay-shortcut";
-import { createLogger } from "../../logger";
+import { ConfiguredShortcuts } from '../utils/shortcut-config';
+import { OverlayShortcutHandlers } from './overlay-shortcut';
+import { createLogger } from '../../logger';
 
-const logger = createLogger("main:overlay-shortcut-handler");
+const logger = createLogger('main:overlay-shortcut-handler');
 
 export interface OverlayShortcutFallbackHandlers {
   openRuntimeOptions: () => void;
@@ -47,9 +47,7 @@ function wrapAsync(
   };
 }
 
-export function createOverlayShortcutRuntimeHandlers(
-  deps: OverlayShortcutRuntimeDeps,
-): {
+export function createOverlayShortcutRuntimeHandlers(deps: OverlayShortcutRuntimeDeps): {
   overlayHandlers: OverlayShortcutHandlers;
   fallbackHandlers: OverlayShortcutFallbackHandlers;
 } {
@@ -63,26 +61,26 @@ export function createOverlayShortcutRuntimeHandlers(
     updateLastCardFromClipboard: wrapAsync(
       () => deps.updateLastCardFromClipboard(),
       deps,
-      "updateLastCardFromClipboard",
-      "Update failed",
+      'updateLastCardFromClipboard',
+      'Update failed',
     ),
     triggerFieldGrouping: wrapAsync(
       () => deps.triggerFieldGrouping(),
       deps,
-      "triggerFieldGrouping",
-      "Field grouping failed",
+      'triggerFieldGrouping',
+      'Field grouping failed',
     ),
     triggerSubsync: wrapAsync(
       () => deps.triggerSubsync(),
       deps,
-      "triggerSubsyncFromConfig",
-      "Subsync failed",
+      'triggerSubsyncFromConfig',
+      'Subsync failed',
     ),
     mineSentence: wrapAsync(
       () => deps.mineSentence(),
       deps,
-      "mineSentenceCard",
-      "Mine sentence failed",
+      'mineSentenceCard',
+      'Mine sentence failed',
     ),
     mineSentenceMultiple: (timeoutMs) => {
       deps.mineSentenceMultiple(timeoutMs);
@@ -91,8 +89,8 @@ export function createOverlayShortcutRuntimeHandlers(
     markAudioCard: wrapAsync(
       () => deps.markAudioCard(),
       deps,
-      "markLastCardAsAudioCard",
-      "Audio card failed",
+      'markLastCardAsAudioCard',
+      'Audio card failed',
     ),
     openRuntimeOptions: () => {
       deps.openRuntimeOptions();
@@ -122,11 +120,7 @@ export function createOverlayShortcutRuntimeHandlers(
 export function runOverlayShortcutLocalFallback(
   input: Electron.Input,
   shortcuts: ConfiguredShortcuts,
-  matcher: (
-    input: Electron.Input,
-    accelerator: string,
-    allowWhenRegistered?: boolean,
-  ) => boolean,
+  matcher: (input: Electron.Input, accelerator: string, allowWhenRegistered?: boolean) => boolean,
   handlers: OverlayShortcutFallbackHandlers,
 ): boolean {
   const actions: Array<{
@@ -204,9 +198,7 @@ export function runOverlayShortcutLocalFallback(
 
   for (const action of actions) {
     if (!action.accelerator) continue;
-    if (
-      matcher(input, action.accelerator, action.allowWhenRegistered === true)
-    ) {
+    if (matcher(input, action.accelerator, action.allowWhenRegistered === true)) {
       action.run();
       return true;
     }

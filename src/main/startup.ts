@@ -1,7 +1,7 @@
-import { CliArgs } from "../cli/args";
-import type { ResolvedConfig } from "../types";
-import type { StartupBootstrapRuntimeDeps } from "../core/services/startup";
-import type { LogLevelSource } from "../logger";
+import { CliArgs } from '../cli/args';
+import type { ResolvedConfig } from '../types';
+import type { StartupBootstrapRuntimeDeps } from '../core/services/startup';
+import type { LogLevelSource } from '../logger';
 
 export interface StartupBootstrapRuntimeFactoryDeps {
   argv: string[];
@@ -36,8 +36,7 @@ export function createStartupBootstrapRuntimeDeps(
     parseArgs: params.parseArgs,
     setLogLevel: params.setLogLevel,
     forceX11Backend: (args: CliArgs) => params.forceX11Backend(args),
-    enforceUnsupportedWaylandMode: (args: CliArgs) =>
-      params.enforceUnsupportedWaylandMode(args),
+    enforceUnsupportedWaylandMode: (args: CliArgs) => params.enforceUnsupportedWaylandMode(args),
     getDefaultSocketPath: params.getDefaultSocketPath,
     defaultTexthookerPort: params.defaultTexthookerPort,
     runGenerateConfigFlow: (args: CliArgs) => {

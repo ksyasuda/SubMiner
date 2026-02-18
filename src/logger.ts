@@ -1,5 +1,5 @@
-export type LogLevel = "debug" | "info" | "warn" | "error";
-export type LogLevelSource = "cli" | "config";
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevelSource = 'cli' | 'config';
 
 type LogMethod = (message: string, ...meta: unknown[]) => void;
 
@@ -11,7 +11,7 @@ type Logger = {
   child: (childScope: string) => Logger;
 };
 
-const LOG_LEVELS: LogLevel[] = ["debug", "info", "warn", "error"];
+const LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error'];
 const LEVEL_PRIORITY: Record<LogLevel, number> = {
   debug: 10,
   info: 20,
@@ -19,17 +19,17 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 40,
 };
 
-const DEFAULT_LOG_LEVEL: LogLevel = "info";
+const DEFAULT_LOG_LEVEL: LogLevel = 'info';
 
 let cliLogLevel: LogLevel | undefined;
 let configLogLevel: LogLevel | undefined;
 
 function pad(value: number): string {
-  return String(value).padStart(2, "0");
+  return String(value).padStart(2, '0');
 }
 
 function normalizeLogLevel(level: string | undefined): LogLevel | undefined {
-  const normalized = (level || "").toLowerCase() as LogLevel;
+  const normalized = (level || '').toLowerCase() as LogLevel;
   return LOG_LEVELS.includes(normalized) ? normalized : undefined;
 }
 
@@ -62,12 +62,9 @@ function resolveMinLevel(): LogLevel {
   return DEFAULT_LOG_LEVEL;
 }
 
-export function setLogLevel(
-  level: string | undefined,
-  source: LogLevelSource = "cli",
-): void {
+export function setLogLevel(level: string | undefined, source: LogLevelSource = 'cli'): void {
   const normalized = normalizeLogLevel(level);
-  if (source === "cli") {
+  if (source === 'cli') {
     cliLogLevel = normalized;
   } else {
     configLogLevel = normalized;
@@ -85,20 +82,20 @@ function sanitizeMeta(value: unknown): unknown {
   if (value instanceof Error) {
     return normalizeError(value);
   }
-  if (typeof value === "bigint") {
+  if (typeof value === 'bigint') {
     return value.toString();
   }
   return value;
 }
 
 function safeStringify(value: unknown): string {
-  if (typeof value === "string") {
+  if (typeof value === 'string') {
     return value;
   }
   if (
-    typeof value === "number" ||
-    typeof value === "boolean" ||
-    typeof value === "undefined" ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'undefined' ||
     value === null
   ) {
     return String(value);
@@ -110,12 +107,7 @@ function safeStringify(value: unknown): string {
   }
 }
 
-function emit(
-  level: LogLevel,
-  scope: string,
-  message: string,
-  meta: unknown[],
-): void {
+function emit(level: LogLevel, scope: string, message: string, meta: unknown[]): void {
   const minLevel = resolveMinLevel();
   if (LEVEL_PRIORITY[level] < LEVEL_PRIORITY[minLevel]) {
     return;
@@ -126,11 +118,11 @@ function emit(
   const normalizedMeta = meta.map(sanitizeMeta);
 
   if (normalizedMeta.length === 0) {
-    if (level === "error") {
+    if (level === 'error') {
       console.error(prefix);
-    } else if (level === "warn") {
+    } else if (level === 'warn') {
       console.warn(prefix);
-    } else if (level === "debug") {
+    } else if (level === 'debug') {
       console.debug(prefix);
     } else {
       console.info(prefix);
@@ -138,14 +130,14 @@ function emit(
     return;
   }
 
-  const serialized = normalizedMeta.map(safeStringify).join(" ");
+  const serialized = normalizedMeta.map(safeStringify).join(' ');
   const finalMessage = `${prefix} ${serialized}`;
 
-  if (level === "error") {
+  if (level === 'error') {
     console.error(finalMessage);
-  } else if (level === "warn") {
+  } else if (level === 'warn') {
     console.warn(finalMessage);
-  } else if (level === "debug") {
+  } else if (level === 'debug') {
     console.debug(finalMessage);
   } else {
     console.info(finalMessage);
@@ -155,7 +147,7 @@ function emit(
 export function createLogger(scope: string): Logger {
   const baseScope = scope.trim();
   if (!baseScope) {
-    throw new Error("Logger scope is required");
+    throw new Error('Logger scope is required');
   }
 
   const logAt = (level: LogLevel): LogMethod => {
@@ -165,14 +157,14 @@ export function createLogger(scope: string): Logger {
   };
 
   return {
-    debug: logAt("debug"),
-    info: logAt("info"),
-    warn: logAt("warn"),
-    error: logAt("error"),
+    debug: logAt('debug'),
+    info: logAt('info'),
+    warn: logAt('warn'),
+    error: logAt('error'),
     child: (childScope: string): Logger => {
       const normalizedChild = childScope.trim();
       if (!normalizedChild) {
-        throw new Error("Child logger scope is required");
+        throw new Error('Child logger scope is required');
       }
       return createLogger(`${baseScope}:${normalizedChild}`);
     },

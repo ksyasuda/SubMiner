@@ -1,12 +1,12 @@
-import { BrowserWindow } from "electron";
-import { AnkiIntegration } from "../../anki-integration";
-import { BaseWindowTracker, createWindowTracker } from "../../window-trackers";
+import { BrowserWindow } from 'electron';
+import { AnkiIntegration } from '../../anki-integration';
+import { BaseWindowTracker, createWindowTracker } from '../../window-trackers';
 import {
   AnkiConnectConfig,
   KikuFieldGroupingChoice,
   KikuFieldGroupingRequestData,
   WindowGeometry,
-} from "../../types";
+} from '../../types';
 
 export function initializeOverlayRuntime(options: {
   backendOverride: string | null;
@@ -30,15 +30,10 @@ export function initializeOverlayRuntime(options: {
     send?: (payload: { command: string[] }) => void;
   } | null;
   getRuntimeOptionsManager: () => {
-    getEffectiveAnkiConnectConfig: (
-      config?: AnkiConnectConfig,
-    ) => AnkiConnectConfig;
+    getEffectiveAnkiConnectConfig: (config?: AnkiConnectConfig) => AnkiConnectConfig;
   } | null;
   setAnkiIntegration: (integration: unknown | null) => void;
-  showDesktopNotification: (
-    title: string,
-    options: { body?: string; icon?: string },
-  ) => void;
+  showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -48,14 +43,10 @@ export function initializeOverlayRuntime(options: {
 } {
   options.createMainWindow();
   options.createInvisibleWindow();
-  const invisibleOverlayVisible =
-    options.getInitialInvisibleOverlayVisibility();
+  const invisibleOverlayVisible = options.getInitialInvisibleOverlayVisibility();
   options.registerGlobalShortcuts();
 
-  const windowTracker = createWindowTracker(
-    options.backendOverride,
-    options.getMpvSocketPath(),
-  );
+  const windowTracker = createWindowTracker(options.backendOverride, options.getMpvSocketPath());
   options.setWindowTracker(windowTracker);
   if (windowTracker) {
     windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
@@ -86,22 +77,18 @@ export function initializeOverlayRuntime(options: {
   const mpvClient = options.getMpvClient();
   const runtimeOptionsManager = options.getRuntimeOptionsManager();
 
-  if (
-    config.ankiConnect &&
-    subtitleTimingTracker &&
-    mpvClient &&
-    runtimeOptionsManager
-  ) {
-    const effectiveAnkiConfig =
-      runtimeOptionsManager.getEffectiveAnkiConnectConfig(config.ankiConnect);
+  if (config.ankiConnect && subtitleTimingTracker && mpvClient && runtimeOptionsManager) {
+    const effectiveAnkiConfig = runtimeOptionsManager.getEffectiveAnkiConnectConfig(
+      config.ankiConnect,
+    );
     const integration = new AnkiIntegration(
       effectiveAnkiConfig,
       subtitleTimingTracker as never,
       mpvClient as never,
       (text: string) => {
-        if (mpvClient && typeof mpvClient.send === "function") {
+        if (mpvClient && typeof mpvClient.send === 'function') {
           mpvClient.send({
-            command: ["show-text", text, "3000"],
+            command: ['show-text', text, '3000'],
           });
         }
       },

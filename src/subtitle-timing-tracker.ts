@@ -114,9 +114,7 @@ export class SubtitleTimingTracker {
     return lastEntry ? lastEntry.displayText : null;
   }
 
-  private findFuzzyMatch(
-    text: string,
-  ): { startTime: number; endTime: number } | null {
+  private findFuzzyMatch(text: string): { startTime: number; endTime: number } | null {
     let bestMatch: TimingEntry | null = null;
     let bestScore = 0;
 
@@ -167,20 +165,20 @@ export class SubtitleTimingTracker {
 
   private normalizeText(text: string): string {
     return text
-      .replace(/\\N/g, " ")
-      .replace(/\\n/g, " ")
-      .replace(/\n/g, " ")
-      .replace(/{[^}]*}/g, "")
-      .replace(/\s+/g, " ")
+      .replace(/\\N/g, ' ')
+      .replace(/\\n/g, ' ')
+      .replace(/\n/g, ' ')
+      .replace(/{[^}]*}/g, '')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 
   private prepareDisplayText(text: string): string {
     // Convert ASS/SSA newlines to real newlines, strip tags
     return text
-      .replace(/\\N/g, "\n")
-      .replace(/\\n/g, "\n")
-      .replace(/{[^}]*}/g, "")
+      .replace(/\\N/g, '\n')
+      .replace(/\\n/g, '\n')
+      .replace(/{[^}]*}/g, '')
       .trim();
   }
 
@@ -199,9 +197,7 @@ export class SubtitleTimingTracker {
       }
     }
     // Clean up old history entries
-    this.history = this.history.filter(
-      (entry) => now - entry.timestamp <= this.ttlMs,
-    );
+    this.history = this.history.filter((entry) => now - entry.timestamp <= this.ttlMs);
   }
 
   destroy(): void {

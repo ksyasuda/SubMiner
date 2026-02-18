@@ -18,10 +18,13 @@ ordinal: 15000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 ## Updated scope
+
 Implement SQLite-first immersion tracking for mining sessions optimized for speed/size and designed for a future external DB adapter.
 
 ## Runtime defaults
+
 - Flush batch policy: flush every `25` telemetry points or `500ms`.
 - SQLite: `journal_mode = WAL`, `synchronous = NORMAL`, `foreign_keys = ON`, `busy_timeout = 2500ms`.
 - Query target: `<150ms p95` for session/video/time-window reads at ~1M rows.
@@ -136,23 +139,28 @@ CREATE INDEX idx_rollups_month_video ON imm_monthly_rollups(rollup_month, video_
 ```
 
 Notes
+
 - Integer enums keep hot rows narrow and fast; resolve labels in app layer.
 - JSON fields are only for non-core overflow attributes (bounded by policy).
 - `source_type`/`status`/`subtitle_mode` are compact enums and keep strings out of high-frequency rows.
 - This schema is a v1 contract for TASK-32 adapter work later.
 
 ## Future portability
+
 - Keep all analytics logic behind a storage interface in TASK-32.
 - Keep raw SQL/DDL details inside adapters.
 
 ## Execution principle
+
 - Tracking is strictly asynchronous and must never block hot paths.
 - Tokenization/rendering pipelines must not await DB operations.
 - If tracker queue is saturated, user experience must remain unchanged; telemetry may be dropped with bounded loss and explicit internal warning/logging.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 A SQLite database schema is defined and created automatically (or initialized on startup) for immersion tracking if not present.
 - [x] #2 Recorded events persist at least the following fields per session/item: video name, video directory/URL, video length, lines seen, words/tokens seen, cards mined.
 - [x] #3 Tracking defaults to storing data in SQLite without requiring additional DB setup for local usage.
@@ -180,6 +188,7 @@ Notes
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Progress review (2026-02-17): `src/core/services/immersion-tracker-service.ts` now implements SQLite-first schema init, WAL/NORMAL pragmas, async queue + batch flush (25/500ms), queue cap 1000 with drop-oldest overflow policy, payload clamp (256B), retention pruning (events 7d, telemetry 30d, daily 365d, monthly 5y), startup+24h maintenance, weekly vacuum, rollup maintenance, and query paths (`getSessionSummaries`, `getSessionTimeline`, `getDailyRollups`, `getMonthlyRollups`, `getQueryHints`).
 
 Metadata capture is implemented for local media via ffprobe/stat/SHA-256 (`captureVideoMetadataAsync`, `getLocalVideoMetadata`) with safe null handling for missing fields.
@@ -195,10 +204,13 @@ Implementation docs now include query templates and storage behavior in `docs/im
 Validation/tests expanded: `src/config/config.test.ts` now covers immersion tuning parse+fallback warnings; `src/core/services/immersion-tracker-service.test.ts` adds minimum persisted/retrievable field checks and configurable policy checks.
 
 Verification run: `pnpm run build && node --test dist/config/config.test.js dist/core/services/immersion-tracker-service.test.js` passed; sqlite-specific tracker tests are skipped automatically in environments without `node:sqlite` support.
+
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [x] #1 SQLite tracking table(s), migration history table, and indices created as part of startup or init path.
 - [x] #2 Unit/integration coverage (or validated test plan) confirms minimum fields are persisted and retrievable.
 - [x] #3 README or docs updated with storage schema, retention defaults, and extension points.

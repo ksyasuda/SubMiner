@@ -22,11 +22,15 @@ ordinal: 5000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add meaningful behavior tests for high-risk services called out in plan.md: mpv, subsync, tokenizer, and expanded CLI command coverage.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 `mpv` service has focused tests for protocol parsing, event dispatch, request/response matching, reconnection, and subtitle extraction behavior.
 - [x] #2 `subsync` service has focused tests for engine path resolution, command construction, timeout/error handling, and result parsing.
 - [x] #3 `tokenizer` service has focused tests for parser readiness, token extraction, fallback behavior, and edge-case inputs.
@@ -37,6 +41,7 @@ Add meaningful behavior tests for high-risk services called out in plan.md: mpv,
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
+
 1. Add focused tests for `tokenizer-service.ts` behavior (normalization, Yomitan-unavailable fallback, mecab fallback success/error paths, empty input handling).
 2. Add focused tests for `subsync-service.ts` command/engine selection and failure handling using mocked command utilities where feasible.
 3. Add focused tests for `mpv-service.ts` protocol handling (line parsing, request-response routing, property-change dispatch) with lightweight socket stubs.
@@ -47,6 +52,7 @@ Add meaningful behavior tests for high-risk services called out in plan.md: mpv,
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Added new tokenizer behavior tests in `src/core/services/tokenizer-service.test.ts` covering empty normalized input, newline normalization, mecab fallback success, and mecab error fallback-to-null.
 
 Added new mpv protocol tests in `src/core/services/mpv-service.test.ts` covering JSON line-buffer parsing, property-change subtitle dispatch behavior, and request/response resolution by `request_id`.
@@ -72,4 +78,5 @@ Added subsync command-construction tests using executable stubs for both engines
 Expanded CLI dispatch tests with broad branch coverage for visibility/settings/copy/multi-copy/mining/open-runtime-options/stop/help/second-instance behaviors and async error propagation.
 
 Verification: `pnpm run test:core` passes with 18 green tests including newly added `dist/subsync/utils.test.js`.
+
 <!-- SECTION:NOTES:END -->

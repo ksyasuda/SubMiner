@@ -1,6 +1,6 @@
-import { BrowserWindow, screen } from "electron";
-import { BaseWindowTracker } from "../../window-trackers";
-import { WindowGeometry } from "../../types";
+import { BrowserWindow, screen } from 'electron';
+import { BaseWindowTracker } from '../../window-trackers';
+import { WindowGeometry } from '../../types';
 
 export function updateVisibleOverlayVisibility(args: {
   visibleOverlayVisible: boolean;
@@ -88,7 +88,7 @@ export function updateInvisibleOverlayVisibility(args: {
 
   const showInvisibleWithoutFocus = (): void => {
     args.ensureOverlayWindowLevel(args.invisibleWindow!);
-    if (typeof args.invisibleWindow!.showInactive === "function") {
+    if (typeof args.invisibleWindow!.showInactive === 'function') {
       args.invisibleWindow!.showInactive();
     } else {
       args.invisibleWindow!.show();
@@ -159,10 +159,7 @@ export function setVisibleOverlayVisible(options: {
   options.updateVisibleOverlayVisibility();
   options.updateInvisibleOverlayVisibility();
   options.syncInvisibleOverlayMousePassthrough();
-  if (
-    options.shouldBindVisibleOverlayToMpvSubVisibility() &&
-    options.isMpvConnected()
-  ) {
+  if (options.shouldBindVisibleOverlayToMpvSubVisibility() && options.isMpvConnected()) {
     options.setMpvSubVisibility(!options.visible);
   }
 }

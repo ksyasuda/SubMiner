@@ -1,4 +1,4 @@
-import WebSocket from "ws";
+import WebSocket from 'ws';
 
 export interface JellyfinRemoteSessionMessage {
   MessageType?: string;
@@ -40,10 +40,10 @@ export interface JellyfinTimelinePayload {
 }
 
 interface JellyfinRemoteSocket {
-  on(event: "open", listener: () => void): this;
-  on(event: "close", listener: () => void): this;
-  on(event: "error", listener: (error: Error) => void): this;
-  on(event: "message", listener: (data: unknown) => void): this;
+  on(event: 'open', listener: () => void): this;
+  on(event: 'close', listener: () => void): this;
+  on(event: 'error', listener: (error: Error) => void): this;
+  on(event: 'message', listener: (data: unknown) => void): this;
   close(): void;
 }
 
@@ -79,21 +79,21 @@ export interface JellyfinRemoteSessionServiceOptions {
 }
 
 function normalizeServerUrl(serverUrl: string): string {
-  return serverUrl.trim().replace(/\/+$/, "");
+  return serverUrl.trim().replace(/\/+$/, '');
 }
 
 function clampVolume(value: number | undefined): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) return 100;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 100;
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 function normalizeTicks(value: number | undefined): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
   return Math.max(0, Math.floor(value));
 }
 
 function parseMessageData(value: unknown): unknown {
-  if (typeof value !== "string") return value;
+  if (typeof value !== 'string') return value;
   const trimmed = value.trim();
   if (!trimmed) return value;
   try {
@@ -105,15 +105,15 @@ function parseMessageData(value: unknown): unknown {
 
 function parseInboundMessage(rawData: unknown): JellyfinRemoteSessionMessage | null {
   const serialized =
-    typeof rawData === "string"
+    typeof rawData === 'string'
       ? rawData
       : Buffer.isBuffer(rawData)
-        ? rawData.toString("utf8")
+        ? rawData.toString('utf8')
         : null;
   if (!serialized) return null;
   try {
     const parsed = JSON.parse(serialized) as JellyfinRemoteSessionMessage;
-    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed || typeof parsed !== 'object') return null;
     return parsed;
   } catch {
     return null;
@@ -121,7 +121,7 @@ function parseInboundMessage(rawData: unknown): JellyfinRemoteSessionMessage | n
 }
 
 function asNullableInteger(value: number | null | undefined): number | null {
-  if (typeof value !== "number" || !Number.isInteger(value)) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value)) return null;
   return value;
 }
 
@@ -131,9 +131,9 @@ function createDefaultCapabilities(): {
   SupportsMediaControl: boolean;
 } {
   return {
-    PlayableMediaTypes: "Video,Audio",
+    PlayableMediaTypes: 'Video,Audio',
     SupportedCommands:
-      "Play,Playstate,PlayMediaSource,SetAudioStreamIndex,SetSubtitleStreamIndex,Mute,Unmute,SetVolume,DisplayContent",
+      'Play,Playstate,PlayMediaSource,SetAudioStreamIndex,SetSubtitleStreamIndex,Mute,Unmute,SetVolume,DisplayContent',
     SupportsMediaControl: true,
   };
 }
@@ -161,14 +161,14 @@ export function buildJellyfinTimelinePayload(
     CanSeek: state.canSeek !== false,
     VolumeLevel: clampVolume(state.volumeLevel),
     PlaybackRate:
-      typeof state.playbackRate === "number" && Number.isFinite(state.playbackRate)
+      typeof state.playbackRate === 'number' && Number.isFinite(state.playbackRate)
         ? state.playbackRate
         : 1,
-    PlayMethod: state.playMethod || "DirectPlay",
+    PlayMethod: state.playMethod || 'DirectPlay',
     AudioStreamIndex: asNullableInteger(state.audioStreamIndex),
     SubtitleStreamIndex: asNullableInteger(state.subtitleStreamIndex),
     PlaylistItemId: state.playlistItemId,
-    EventName: state.eventName || "timeupdate",
+    EventName: state.eventName || 'timeupdate',
   };
 }
 
@@ -220,8 +220,8 @@ export class JellyfinRemoteSessionService {
       ...createDefaultCapabilities(),
       ...(options.capabilities ?? {}),
     };
-    const clientName = options.clientName || "SubMiner";
-    const clientVersion = options.clientVersion || "0.1.0";
+    const clientName = options.clientName || 'SubMiner';
+    const clientVersion = options.clientVersion || '0.1.0';
     const deviceName = options.deviceName || clientName;
     this.authHeader = buildAuthorizationHeader({
       clientName,
@@ -268,30 +268,21 @@ export class JellyfinRemoteSessionService {
     return this.isRegisteredOnServer();
   }
 
-  public async reportPlaying(
-    state: JellyfinTimelinePlaybackState,
-  ): Promise<boolean> {
-    return this.postTimeline("/Sessions/Playing", {
+  public async reportPlaying(state: JellyfinTimelinePlaybackState): Promise<boolean> {
+    return this.postTimeline('/Sessions/Playing', {
       ...buildJellyfinTimelinePayload(state),
-      EventName: state.eventName || "start",
+      EventName: state.eventName || 'start',
     });
   }
 
-  public async reportProgress(
-    state: JellyfinTimelinePlaybackState,
-  ): Promise<boolean> {
-    return this.postTimeline(
-      "/Sessions/Playing/Progress",
-      buildJellyfinTimelinePayload(state),
-    );
+  public async reportProgress(state: JellyfinTimelinePlaybackState): Promise<boolean> {
+    return this.postTimeline('/Sessions/Playing/Progress', buildJellyfinTimelinePayload(state));
   }
 
-  public async reportStopped(
-    state: JellyfinTimelinePlaybackState,
-  ): Promise<boolean> {
-    return this.postTimeline("/Sessions/Playing/Stopped", {
+  public async reportStopped(state: JellyfinTimelinePlaybackState): Promise<boolean> {
+    return this.postTimeline('/Sessions/Playing/Stopped', {
       ...buildJellyfinTimelinePayload(state),
-      EventName: state.eventName || "stop",
+      EventName: state.eventName || 'stop',
     });
   }
 
@@ -305,7 +296,7 @@ export class JellyfinRemoteSessionService {
     this.socket = socket;
     let disconnected = false;
 
-    socket.on("open", () => {
+    socket.on('open', () => {
       if (this.socket !== socket || !this.running) return;
       this.connected = true;
       this.reconnectAttempt = 0;
@@ -313,7 +304,7 @@ export class JellyfinRemoteSessionService {
       void this.postCapabilities();
     });
 
-    socket.on("message", (rawData) => {
+    socket.on('message', (rawData) => {
       this.handleInboundMessage(rawData);
     });
 
@@ -330,8 +321,8 @@ export class JellyfinRemoteSessionService {
       }
     };
 
-    socket.on("close", handleDisconnect);
-    socket.on("error", handleDisconnect);
+    socket.on('close', handleDisconnect);
+    socket.on('error', handleDisconnect);
   }
 
   private scheduleReconnect(): void {
@@ -351,18 +342,18 @@ export class JellyfinRemoteSessionService {
 
   private createSocketUrl(): string {
     const baseUrl = new URL(`${this.serverUrl}/`);
-    const socketUrl = new URL("/socket", baseUrl);
-    socketUrl.protocol = baseUrl.protocol === "https:" ? "wss:" : "ws:";
-    socketUrl.searchParams.set("api_key", this.accessToken);
-    socketUrl.searchParams.set("deviceId", this.deviceId);
+    const socketUrl = new URL('/socket', baseUrl);
+    socketUrl.protocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    socketUrl.searchParams.set('api_key', this.accessToken);
+    socketUrl.searchParams.set('deviceId', this.deviceId);
     return socketUrl.toString();
   }
 
   private createSocket(url: string): JellyfinRemoteSocket {
     const headers: JellyfinRemoteSocketHeaders = {
       Authorization: this.authHeader,
-      "X-Emby-Authorization": this.authHeader,
-      "X-Emby-Token": this.accessToken,
+      'X-Emby-Authorization': this.authHeader,
+      'X-Emby-Token': this.accessToken,
     };
     if (this.socketHeadersFactory) {
       return this.socketHeadersFactory(url, headers);
@@ -375,50 +366,42 @@ export class JellyfinRemoteSessionService {
 
   private async postCapabilities(): Promise<void> {
     const payload = this.capabilities;
-    const fullEndpointOk = await this.postJson(
-      "/Sessions/Capabilities/Full",
-      payload,
-    );
+    const fullEndpointOk = await this.postJson('/Sessions/Capabilities/Full', payload);
     if (fullEndpointOk) return;
-    await this.postJson("/Sessions/Capabilities", payload);
+    await this.postJson('/Sessions/Capabilities', payload);
   }
 
   private async isRegisteredOnServer(): Promise<boolean> {
     try {
       const response = await this.fetchImpl(`${this.serverUrl}/Sessions`, {
-        method: "GET",
+        method: 'GET',
         headers: {
           Authorization: this.authHeader,
-          "X-Emby-Authorization": this.authHeader,
-          "X-Emby-Token": this.accessToken,
+          'X-Emby-Authorization': this.authHeader,
+          'X-Emby-Token': this.accessToken,
         },
       });
       if (!response.ok) return false;
       const sessions = (await response.json()) as Array<Record<string, unknown>>;
-      return sessions.some(
-        (session) => String(session.DeviceId || "") === this.deviceId,
-      );
+      return sessions.some((session) => String(session.DeviceId || '') === this.deviceId);
     } catch {
       return false;
     }
   }
 
-  private async postTimeline(
-    path: string,
-    payload: JellyfinTimelinePayload,
-  ): Promise<boolean> {
+  private async postTimeline(path: string, payload: JellyfinTimelinePayload): Promise<boolean> {
     return this.postJson(path, payload);
   }
 
   private async postJson(path: string, payload: unknown): Promise<boolean> {
     try {
       const response = await this.fetchImpl(`${this.serverUrl}${path}`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: this.authHeader,
-          "X-Emby-Authorization": this.authHeader,
-          "X-Emby-Token": this.accessToken,
+          'X-Emby-Authorization': this.authHeader,
+          'X-Emby-Token': this.accessToken,
         },
         body: JSON.stringify(payload),
       });
@@ -433,15 +416,15 @@ export class JellyfinRemoteSessionService {
     if (!message) return;
     const messageType = message.MessageType;
     const payload = parseMessageData(message.Data);
-    if (messageType === "Play") {
+    if (messageType === 'Play') {
       this.onPlay?.(payload);
       return;
     }
-    if (messageType === "Playstate") {
+    if (messageType === 'Playstate') {
       this.onPlaystate?.(payload);
       return;
     }
-    if (messageType === "GeneralCommand") {
+    if (messageType === 'GeneralCommand') {
       this.onGeneralCommand?.(payload);
     }
   }

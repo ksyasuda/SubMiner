@@ -1,4 +1,4 @@
-import { JellyfinConfig } from "../../types";
+import { JellyfinConfig } from '../../types';
 
 const JELLYFIN_TICKS_PER_SECOND = 10_000_000;
 
@@ -23,7 +23,7 @@ export interface JellyfinPlaybackSelection {
 }
 
 export interface JellyfinPlaybackPlan {
-  mode: "direct" | "transcode";
+  mode: 'direct' | 'transcode';
   url: string;
   title: string;
   startTimeTicks: number;
@@ -105,15 +105,15 @@ export interface JellyfinClientInfo {
 }
 
 function normalizeBaseUrl(value: string): string {
-  return value.trim().replace(/\/+$/, "");
+  return value.trim().replace(/\/+$/, '');
 }
 
-function ensureString(value: unknown, fallback = ""): string {
-  return typeof value === "string" ? value : fallback;
+function ensureString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
 }
 
 function asIntegerOrNull(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) ? value : null;
+  return typeof value === 'number' && Number.isInteger(value) ? value : null;
 }
 
 function resolveDeliveryUrl(
@@ -126,8 +126,8 @@ function resolveDeliveryUrl(
   if (deliveryUrl) {
     if (stream.IsExternalUrl === true) return deliveryUrl;
     const resolved = new URL(deliveryUrl, `${session.serverUrl}/`);
-    if (!resolved.searchParams.has("api_key")) {
-      resolved.searchParams.set("api_key", session.accessToken);
+    if (!resolved.searchParams.has('api_key')) {
+      resolved.searchParams.set('api_key', session.accessToken);
     }
     return resolved.toString();
   }
@@ -136,31 +136,28 @@ function resolveDeliveryUrl(
   if (streamIndex === null || !itemId || !mediaSourceId) return null;
   const codec = ensureString(stream.Codec).toLowerCase();
   const ext =
-    codec === "subrip"
-      ? "srt"
-      : codec === "webvtt"
-        ? "vtt"
-        : codec === "vtt"
-          ? "vtt"
-          : codec === "ass"
-            ? "ass"
-            : codec === "ssa"
-              ? "ssa"
-              : "srt";
+    codec === 'subrip'
+      ? 'srt'
+      : codec === 'webvtt'
+        ? 'vtt'
+        : codec === 'vtt'
+          ? 'vtt'
+          : codec === 'ass'
+            ? 'ass'
+            : codec === 'ssa'
+              ? 'ssa'
+              : 'srt';
   const fallback = new URL(
     `/Videos/${encodeURIComponent(itemId)}/${encodeURIComponent(mediaSourceId)}/Subtitles/${streamIndex}/Stream.${ext}`,
     `${session.serverUrl}/`,
   );
-  if (!fallback.searchParams.has("api_key")) {
-    fallback.searchParams.set("api_key", session.accessToken);
+  if (!fallback.searchParams.has('api_key')) {
+    fallback.searchParams.set('api_key', session.accessToken);
   }
   return fallback.toString();
 }
 
-function createAuthorizationHeader(
-  client: JellyfinClientInfo,
-  token?: string,
-): string {
+function createAuthorizationHeader(client: JellyfinClientInfo, token?: string): string {
   const parts = [
     `Client="${client.clientName}"`,
     `Device="${client.clientName}"`,
@@ -168,7 +165,7 @@ function createAuthorizationHeader(
     `Version="${client.clientVersion}"`,
   ];
   if (token) parts.push(`Token="${token}"`);
-  return `MediaBrowser ${parts.join(", ")}`;
+  return `MediaBrowser ${parts.join(', ')}`;
 }
 
 async function jellyfinRequestJson<T>(
@@ -178,12 +175,9 @@ async function jellyfinRequestJson<T>(
   client: JellyfinClientInfo,
 ): Promise<T> {
   const headers = new Headers(init.headers ?? {});
-  headers.set("Content-Type", "application/json");
-  headers.set(
-    "Authorization",
-    createAuthorizationHeader(client, session.accessToken),
-  );
-  headers.set("X-Emby-Token", session.accessToken);
+  headers.set('Content-Type', 'application/json');
+  headers.set('Authorization', createAuthorizationHeader(client, session.accessToken));
+  headers.set('X-Emby-Token', session.accessToken);
 
   const response = await fetch(`${session.serverUrl}${path}`, {
     ...init,
@@ -191,14 +185,10 @@ async function jellyfinRequestJson<T>(
   });
 
   if (response.status === 401 || response.status === 403) {
-    throw new Error(
-      "Jellyfin authentication failed (invalid or expired token).",
-    );
+    throw new Error('Jellyfin authentication failed (invalid or expired token).');
   }
   if (!response.ok) {
-    throw new Error(
-      `Jellyfin request failed (${response.status} ${response.statusText}).`,
-    );
+    throw new Error(`Jellyfin request failed (${response.status} ${response.statusText}).`);
   }
   return response.json() as Promise<T>;
 }
@@ -210,21 +200,21 @@ function createDirectPlayUrl(
   plan: JellyfinPlaybackPlan,
 ): string {
   const query = new URLSearchParams({
-    static: "true",
+    static: 'true',
     api_key: session.accessToken,
     MediaSourceId: ensureString(mediaSource.Id),
   });
   if (mediaSource.LiveStreamId) {
-    query.set("LiveStreamId", mediaSource.LiveStreamId);
+    query.set('LiveStreamId', mediaSource.LiveStreamId);
   }
   if (plan.audioStreamIndex !== null) {
-    query.set("AudioStreamIndex", String(plan.audioStreamIndex));
+    query.set('AudioStreamIndex', String(plan.audioStreamIndex));
   }
   if (plan.subtitleStreamIndex !== null) {
-    query.set("SubtitleStreamIndex", String(plan.subtitleStreamIndex));
+    query.set('SubtitleStreamIndex', String(plan.subtitleStreamIndex));
   }
   if (plan.startTimeTicks > 0) {
-    query.set("StartTimeTicks", String(plan.startTimeTicks));
+    query.set('StartTimeTicks', String(plan.startTimeTicks));
   }
   return `${session.serverUrl}/Videos/${itemId}/stream?${query.toString()}`;
 }
@@ -238,26 +228,17 @@ function createTranscodeUrl(
 ): string {
   if (mediaSource.TranscodingUrl) {
     const url = new URL(`${session.serverUrl}${mediaSource.TranscodingUrl}`);
-    if (!url.searchParams.has("api_key")) {
-      url.searchParams.set("api_key", session.accessToken);
+    if (!url.searchParams.has('api_key')) {
+      url.searchParams.set('api_key', session.accessToken);
     }
-    if (
-      !url.searchParams.has("AudioStreamIndex") &&
-      plan.audioStreamIndex !== null
-    ) {
-      url.searchParams.set("AudioStreamIndex", String(plan.audioStreamIndex));
+    if (!url.searchParams.has('AudioStreamIndex') && plan.audioStreamIndex !== null) {
+      url.searchParams.set('AudioStreamIndex', String(plan.audioStreamIndex));
     }
-    if (
-      !url.searchParams.has("SubtitleStreamIndex") &&
-      plan.subtitleStreamIndex !== null
-    ) {
-      url.searchParams.set(
-        "SubtitleStreamIndex",
-        String(plan.subtitleStreamIndex),
-      );
+    if (!url.searchParams.has('SubtitleStreamIndex') && plan.subtitleStreamIndex !== null) {
+      url.searchParams.set('SubtitleStreamIndex', String(plan.subtitleStreamIndex));
     }
-    if (!url.searchParams.has("StartTimeTicks") && plan.startTimeTicks > 0) {
-      url.searchParams.set("StartTimeTicks", String(plan.startTimeTicks));
+    if (!url.searchParams.has('StartTimeTicks') && plan.startTimeTicks > 0) {
+      url.searchParams.set('StartTimeTicks', String(plan.startTimeTicks));
     }
     return url.toString();
   }
@@ -265,17 +246,17 @@ function createTranscodeUrl(
   const query = new URLSearchParams({
     api_key: session.accessToken,
     MediaSourceId: ensureString(mediaSource.Id),
-    VideoCodec: ensureString(config.transcodeVideoCodec, "h264"),
-    TranscodingContainer: "ts",
+    VideoCodec: ensureString(config.transcodeVideoCodec, 'h264'),
+    TranscodingContainer: 'ts',
   });
   if (plan.audioStreamIndex !== null) {
-    query.set("AudioStreamIndex", String(plan.audioStreamIndex));
+    query.set('AudioStreamIndex', String(plan.audioStreamIndex));
   }
   if (plan.subtitleStreamIndex !== null) {
-    query.set("SubtitleStreamIndex", String(plan.subtitleStreamIndex));
+    query.set('SubtitleStreamIndex', String(plan.subtitleStreamIndex));
   }
   if (plan.startTimeTicks > 0) {
-    query.set("StartTimeTicks", String(plan.startTimeTicks));
+    query.set('StartTimeTicks', String(plan.startTimeTicks));
   }
   return `${session.serverUrl}/Videos/${itemId}/master.m3u8?${query.toString()}`;
 }
@@ -288,7 +269,7 @@ function getStreamDefaults(source: JellyfinMediaSource): {
 
   const streams = Array.isArray(source.MediaStreams) ? source.MediaStreams : [];
   const defaultAudio = streams.find(
-    (stream) => stream.Type === "Audio" && stream.IsDefault === true,
+    (stream) => stream.Type === 'Audio' && stream.IsDefault === true,
   );
   return {
     audioStreamIndex: asIntegerOrNull(defaultAudio?.Index),
@@ -296,19 +277,16 @@ function getStreamDefaults(source: JellyfinMediaSource): {
 }
 
 function getDisplayTitle(item: JellyfinItem): string {
-  if (item.Type === "Episode") {
+  if (item.Type === 'Episode') {
     const season = asIntegerOrNull(item.ParentIndexNumber) ?? 0;
     const episode = asIntegerOrNull(item.IndexNumber) ?? 0;
-    const prefix = item.SeriesName ? `${item.SeriesName} ` : "";
-    return `${prefix}S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")} ${ensureString(item.Name).trim()}`.trim();
+    const prefix = item.SeriesName ? `${item.SeriesName} ` : '';
+    return `${prefix}S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')} ${ensureString(item.Name).trim()}`.trim();
   }
-  return ensureString(item.Name).trim() || "Jellyfin Item";
+  return ensureString(item.Name).trim() || 'Jellyfin Item';
 }
 
-function shouldPreferDirectPlay(
-  source: JellyfinMediaSource,
-  config: JellyfinConfig,
-): boolean {
+function shouldPreferDirectPlay(source: JellyfinMediaSource, config: JellyfinConfig): boolean {
   if (source.SupportsDirectStream !== true) return false;
   if (config.directPlayPreferred === false) return false;
 
@@ -327,14 +305,14 @@ export async function authenticateWithPassword(
   client: JellyfinClientInfo,
 ): Promise<JellyfinAuthSession> {
   const normalizedUrl = normalizeBaseUrl(serverUrl);
-  if (!normalizedUrl) throw new Error("Missing Jellyfin server URL.");
-  if (!username.trim()) throw new Error("Missing Jellyfin username.");
-  if (!password) throw new Error("Missing Jellyfin password.");
+  if (!normalizedUrl) throw new Error('Missing Jellyfin server URL.');
+  if (!username.trim()) throw new Error('Missing Jellyfin username.');
+  if (!password) throw new Error('Missing Jellyfin password.');
 
   const response = await fetch(`${normalizedUrl}/Users/AuthenticateByName`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       Authorization: createAuthorizationHeader(client),
     },
     body: JSON.stringify({
@@ -344,19 +322,17 @@ export async function authenticateWithPassword(
   });
 
   if (response.status === 401 || response.status === 403) {
-    throw new Error("Invalid Jellyfin username or password.");
+    throw new Error('Invalid Jellyfin username or password.');
   }
   if (!response.ok) {
-    throw new Error(
-      `Jellyfin login failed (${response.status} ${response.statusText}).`,
-    );
+    throw new Error(`Jellyfin login failed (${response.status} ${response.statusText}).`);
   }
 
   const payload = (await response.json()) as JellyfinAuthResponse;
   const accessToken = ensureString(payload.AccessToken);
   const userId = ensureString(payload.User?.Id);
   if (!accessToken || !userId) {
-    throw new Error("Jellyfin login response missing token/user.");
+    throw new Error('Jellyfin login response missing token/user.');
   }
 
   return {
@@ -373,7 +349,7 @@ export async function listLibraries(
 ): Promise<JellyfinLibrary[]> {
   const payload = await jellyfinRequestJson<JellyfinItemsResponse>(
     `/Users/${session.userId}/Views`,
-    { method: "GET" },
+    { method: 'GET' },
     session,
     client,
   );
@@ -381,10 +357,8 @@ export async function listLibraries(
   const items = Array.isArray(payload.Items) ? payload.Items : [];
   return items.map((item) => ({
     id: ensureString(item.Id),
-    name: ensureString(item.Name, "Untitled"),
-    collectionType: ensureString(
-      (item as { CollectionType?: string }).CollectionType,
-    ),
+    name: ensureString(item.Name, 'Untitled'),
+    collectionType: ensureString((item as { CollectionType?: string }).CollectionType),
     type: ensureString(item.Type),
   }));
 }
@@ -398,24 +372,24 @@ export async function listItems(
     limit?: number;
   },
 ): Promise<Array<{ id: string; name: string; type: string; title: string }>> {
-  if (!options.libraryId) throw new Error("Missing Jellyfin library id.");
+  if (!options.libraryId) throw new Error('Missing Jellyfin library id.');
 
   const query = new URLSearchParams({
     ParentId: options.libraryId,
-    Recursive: "true",
-    IncludeItemTypes: "Movie,Episode,Audio",
-    Fields: "MediaSources,UserData",
-    SortBy: "SortName",
-    SortOrder: "Ascending",
+    Recursive: 'true',
+    IncludeItemTypes: 'Movie,Episode,Audio',
+    Fields: 'MediaSources,UserData',
+    SortBy: 'SortName',
+    SortOrder: 'Ascending',
     Limit: String(options.limit ?? 100),
   });
   if (options.searchTerm?.trim()) {
-    query.set("SearchTerm", options.searchTerm.trim());
+    query.set('SearchTerm', options.searchTerm.trim());
   }
 
   const payload = await jellyfinRequestJson<JellyfinItemsResponse>(
     `/Users/${session.userId}/Items?${query.toString()}`,
-    { method: "GET" },
+    { method: 'GET' },
     session,
     client,
   );
@@ -433,46 +407,41 @@ export async function listSubtitleTracks(
   client: JellyfinClientInfo,
   itemId: string,
 ): Promise<JellyfinSubtitleTrack[]> {
-  if (!itemId.trim()) throw new Error("Missing Jellyfin item id.");
+  if (!itemId.trim()) throw new Error('Missing Jellyfin item id.');
   let source: JellyfinMediaSource | undefined;
 
   try {
-    const playbackInfo =
-      await jellyfinRequestJson<JellyfinPlaybackInfoResponse>(
-        `/Items/${itemId}/PlaybackInfo?UserId=${encodeURIComponent(session.userId)}`,
-        {
-          method: "POST",
-          body: JSON.stringify({ UserId: session.userId }),
-        },
-        session,
-        client,
-      );
-    source = Array.isArray(playbackInfo.MediaSources)
-      ? playbackInfo.MediaSources[0]
-      : undefined;
+    const playbackInfo = await jellyfinRequestJson<JellyfinPlaybackInfoResponse>(
+      `/Items/${itemId}/PlaybackInfo?UserId=${encodeURIComponent(session.userId)}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ UserId: session.userId }),
+      },
+      session,
+      client,
+    );
+    source = Array.isArray(playbackInfo.MediaSources) ? playbackInfo.MediaSources[0] : undefined;
   } catch {}
 
   if (!source) {
     const item = await jellyfinRequestJson<JellyfinItem>(
       `/Users/${session.userId}/Items/${itemId}?Fields=MediaSources`,
-      { method: "GET" },
+      { method: 'GET' },
       session,
       client,
     );
-    source = Array.isArray(item.MediaSources)
-      ? item.MediaSources[0]
-      : undefined;
+    source = Array.isArray(item.MediaSources) ? item.MediaSources[0] : undefined;
   }
 
   if (!source) {
-    throw new Error("No playable media source found for Jellyfin item.");
+    throw new Error('No playable media source found for Jellyfin item.');
   }
   const mediaSourceId = ensureString(source.Id);
 
   const streams = Array.isArray(source.MediaStreams) ? source.MediaStreams : [];
   const tracks: JellyfinSubtitleTrack[] = [];
   for (const stream of streams) {
-    if (stream.Type !== "Subtitle") continue;
+    if (stream.Type !== 'Subtitle') continue;
     const index = asIntegerOrNull(stream.Index);
     if (index === null) continue;
     tracks.push({
@@ -497,33 +466,27 @@ export async function resolvePlaybackPlan(
   selection: JellyfinPlaybackSelection,
 ): Promise<JellyfinPlaybackPlan> {
   if (!selection.itemId) {
-    throw new Error("Missing Jellyfin item id.");
+    throw new Error('Missing Jellyfin item id.');
   }
 
   const item = await jellyfinRequestJson<JellyfinItem>(
     `/Users/${session.userId}/Items/${selection.itemId}?Fields=MediaSources,UserData`,
-    { method: "GET" },
+    { method: 'GET' },
     session,
     client,
   );
-  const source = Array.isArray(item.MediaSources)
-    ? item.MediaSources[0]
-    : undefined;
+  const source = Array.isArray(item.MediaSources) ? item.MediaSources[0] : undefined;
   if (!source) {
-    throw new Error("No playable media source found for Jellyfin item.");
+    throw new Error('No playable media source found for Jellyfin item.');
   }
 
   const defaults = getStreamDefaults(source);
-  const audioStreamIndex =
-    selection.audioStreamIndex ?? defaults.audioStreamIndex ?? null;
+  const audioStreamIndex = selection.audioStreamIndex ?? defaults.audioStreamIndex ?? null;
   const subtitleStreamIndex = selection.subtitleStreamIndex ?? null;
-  const startTimeTicks = Math.max(
-    0,
-    asIntegerOrNull(item.UserData?.PlaybackPositionTicks) ?? 0,
-  );
+  const startTimeTicks = Math.max(0, asIntegerOrNull(item.UserData?.PlaybackPositionTicks) ?? 0);
   const basePlan: JellyfinPlaybackPlan = {
-    mode: "transcode",
-    url: "",
+    mode: 'transcode',
+    url: '',
     title: getDisplayTitle(item),
     startTimeTicks,
     audioStreamIndex,
@@ -533,36 +496,25 @@ export async function resolvePlaybackPlan(
   if (shouldPreferDirectPlay(source, config)) {
     return {
       ...basePlan,
-      mode: "direct",
+      mode: 'direct',
       url: createDirectPlayUrl(session, selection.itemId, source, basePlan),
     };
   }
-  if (
-    source.SupportsTranscoding !== true &&
-    source.SupportsDirectStream === true
-  ) {
+  if (source.SupportsTranscoding !== true && source.SupportsDirectStream === true) {
     return {
       ...basePlan,
-      mode: "direct",
+      mode: 'direct',
       url: createDirectPlayUrl(session, selection.itemId, source, basePlan),
     };
   }
   if (source.SupportsTranscoding !== true) {
-    throw new Error(
-      "Jellyfin item cannot be streamed by direct play or transcoding.",
-    );
+    throw new Error('Jellyfin item cannot be streamed by direct play or transcoding.');
   }
 
   return {
     ...basePlan,
-    mode: "transcode",
-    url: createTranscodeUrl(
-      session,
-      selection.itemId,
-      source,
-      basePlan,
-      config,
-    ),
+    mode: 'transcode',
+    url: createTranscodeUrl(session, selection.itemId, source, basePlan, config),
   };
 }
 

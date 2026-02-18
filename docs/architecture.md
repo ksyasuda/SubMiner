@@ -155,6 +155,7 @@ Most runtime code follows a dependency-injection pattern:
 4. Call the service from lifecycle/command wiring points.
 
 The composition root (`src/main.ts`) delegates to focused modules in `src/main/`:
+
 - `startup.ts` — argv/env processing and bootstrap flow
 - `app-lifecycle.ts` — Electron lifecycle event registration
 - `startup-lifecycle.ts` — app-ready initialization sequence

@@ -1,61 +1,56 @@
-import path from "node:path";
-import os from "node:os";
+import path from 'node:path';
+import os from 'node:os';
 
 export const VIDEO_EXTENSIONS = new Set([
-  "mkv",
-  "mp4",
-  "avi",
-  "webm",
-  "mov",
-  "flv",
-  "wmv",
-  "m4v",
-  "ts",
-  "m2ts",
+  'mkv',
+  'mp4',
+  'avi',
+  'webm',
+  'mov',
+  'flv',
+  'wmv',
+  'm4v',
+  'ts',
+  'm2ts',
 ]);
 
-export const ROFI_THEME_FILE = "subminer.rasi";
-export const DEFAULT_SOCKET_PATH = "/tmp/subminer-socket";
-export const DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS = ["ja", "jpn"];
-export const DEFAULT_YOUTUBE_SECONDARY_SUB_LANGS = ["en", "eng"];
-export const YOUTUBE_SUB_EXTENSIONS = new Set([".srt", ".vtt", ".ass"]);
+export const ROFI_THEME_FILE = 'subminer.rasi';
+export const DEFAULT_SOCKET_PATH = '/tmp/subminer-socket';
+export const DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS = ['ja', 'jpn'];
+export const DEFAULT_YOUTUBE_SECONDARY_SUB_LANGS = ['en', 'eng'];
+export const YOUTUBE_SUB_EXTENSIONS = new Set(['.srt', '.vtt', '.ass']);
 export const YOUTUBE_AUDIO_EXTENSIONS = new Set([
-  ".m4a",
-  ".mp3",
-  ".webm",
-  ".opus",
-  ".wav",
-  ".aac",
-  ".flac",
+  '.m4a',
+  '.mp3',
+  '.webm',
+  '.opus',
+  '.wav',
+  '.aac',
+  '.flac',
 ]);
 export const DEFAULT_YOUTUBE_SUBGEN_OUT_DIR = path.join(
   os.homedir(),
-  ".cache",
-  "subminer",
-  "youtube-subs",
+  '.cache',
+  'subminer',
+  'youtube-subs',
 );
-export const DEFAULT_MPV_LOG_FILE = path.join(
-  os.homedir(),
-  ".cache",
-  "SubMiner",
-  "mp.log",
-);
-export const DEFAULT_YOUTUBE_YTDL_FORMAT = "bestvideo*+bestaudio/best";
-export const DEFAULT_JIMAKU_API_BASE_URL = "https://jimaku.cc";
+export const DEFAULT_MPV_LOG_FILE = path.join(os.homedir(), '.cache', 'SubMiner', 'mp.log');
+export const DEFAULT_YOUTUBE_YTDL_FORMAT = 'bestvideo*+bestaudio/best';
+export const DEFAULT_JIMAKU_API_BASE_URL = 'https://jimaku.cc';
 export const DEFAULT_MPV_SUBMINER_ARGS = [
-  "--sub-auto=fuzzy",
-  "--sub-file-paths=.;subs;subtitles",
-  "--sid=auto",
-  "--secondary-sid=auto",
-  "--secondary-sub-visibility=no",
-  "--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us",
-  "--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us",
+  '--sub-auto=fuzzy',
+  '--sub-file-paths=.;subs;subtitles',
+  '--sid=auto',
+  '--secondary-sid=auto',
+  '--secondary-sub-visibility=no',
+  '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
+  '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
 ] as const;
 
-export type LogLevel = "debug" | "info" | "warn" | "error";
-export type YoutubeSubgenMode = "automatic" | "preprocess" | "off";
-export type Backend = "auto" | "hyprland" | "x11" | "macos";
-export type JimakuLanguagePreference = "ja" | "en" | "none";
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type YoutubeSubgenMode = 'automatic' | 'preprocess' | 'off';
+export type Backend = 'auto' | 'hyprland' | 'x11' | 'macos';
+export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
 
 export interface Args {
   backend: Backend;
@@ -79,7 +74,7 @@ export interface Args {
   useRofi: boolean;
   logLevel: LogLevel;
   target: string;
-  targetKind: "" | "file" | "url";
+  targetKind: '' | 'file' | 'url';
   jimakuApiKey: string;
   jimakuApiKeyCommand: string;
   jimakuApiBaseUrl: string;
@@ -147,10 +142,10 @@ export interface CommandExecResult {
 
 export interface SubtitleCandidate {
   path: string;
-  lang: "primary" | "secondary";
+  lang: 'primary' | 'secondary';
   ext: string;
   size: number;
-  source: "manual" | "auto" | "whisper" | "whisper-translate";
+  source: 'manual' | 'auto' | 'whisper' | 'whisper-translate';
 }
 
 export interface YoutubeSubgenOutputs {

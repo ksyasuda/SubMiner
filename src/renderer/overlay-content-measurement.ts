@@ -1,5 +1,5 @@
-import type { OverlayContentMeasurement, OverlayContentRect } from "../types";
-import type { RendererContext } from "./context";
+import type { OverlayContentMeasurement, OverlayContentRect } from '../types';
+import type { RendererContext } from './context';
 
 const MEASUREMENT_DEBOUNCE_MS = 80;
 
@@ -26,10 +26,7 @@ function toMeasuredRect(rect: DOMRect): OverlayContentRect | null {
   };
 }
 
-function unionRects(
-  a: OverlayContentRect,
-  b: OverlayContentRect,
-): OverlayContentRect {
+function unionRects(a: OverlayContentRect, b: OverlayContentRect): OverlayContentRect {
   const left = Math.min(a.x, b.x);
   const top = Math.min(a.y, b.y);
   const right = Math.max(a.x + a.width, b.x + b.width);
@@ -51,9 +48,7 @@ function collectContentRect(ctx: RendererContext): OverlayContentRect | null {
 
   const subtitleHasContent = hasVisibleTextContent(ctx.dom.subtitleRoot);
   if (subtitleHasContent) {
-    const subtitleRect = toMeasuredRect(
-      ctx.dom.subtitleRoot.getBoundingClientRect(),
-    );
+    const subtitleRect = toMeasuredRect(ctx.dom.subtitleRoot.getBoundingClientRect());
     if (subtitleRect) {
       combinedRect = subtitleRect;
     }
@@ -61,13 +56,9 @@ function collectContentRect(ctx: RendererContext): OverlayContentRect | null {
 
   const secondaryHasContent = hasVisibleTextContent(ctx.dom.secondarySubRoot);
   if (secondaryHasContent) {
-    const secondaryRect = toMeasuredRect(
-      ctx.dom.secondarySubContainer.getBoundingClientRect(),
-    );
+    const secondaryRect = toMeasuredRect(ctx.dom.secondarySubContainer.getBoundingClientRect());
     if (secondaryRect) {
-      combinedRect = combinedRect
-        ? unionRects(combinedRect, secondaryRect)
-        : secondaryRect;
+      combinedRect = combinedRect ? unionRects(combinedRect, secondaryRect) : secondaryRect;
     }
   }
 

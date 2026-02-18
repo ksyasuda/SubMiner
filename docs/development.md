@@ -83,14 +83,14 @@ make docs-preview # Preview built site at http://localhost:4173
 
 Run `make help` for a full list of targets. Key ones:
 
-| Target | Description |
-| --- | --- |
-| `make build` | Build platform package for detected OS |
-| `make install` | Install platform artifacts (wrapper, theme, AppImage/app bundle) |
-| `make install-plugin` | Install mpv Lua plugin and config |
-| `make deps` | Install JS dependencies (root + texthooker-ui) |
-| `make generate-config` | Generate default config from centralized registry |
-| `make docs-dev` | Run VitePress dev server |
+| Target                 | Description                                                      |
+| ---------------------- | ---------------------------------------------------------------- |
+| `make build`           | Build platform package for detected OS                           |
+| `make install`         | Install platform artifacts (wrapper, theme, AppImage/app bundle) |
+| `make install-plugin`  | Install mpv Lua plugin and config                                |
+| `make deps`            | Install JS dependencies (root + texthooker-ui)                   |
+| `make generate-config` | Generate default config from centralized registry                |
+| `make docs-dev`        | Run VitePress dev server                                         |
 
 ## Contributor Notes
 
@@ -104,13 +104,13 @@ Run `make help` for a full list of targets. Key ones:
 
 ## Environment Variables
 
-| Variable | Description |
-| --- | --- |
-| `SUBMINER_APPIMAGE_PATH` | Override AppImage location for subminer script |
-| `SUBMINER_BINARY_PATH` | Alias for `SUBMINER_APPIMAGE_PATH` |
-| `SUBMINER_YT_SUBGEN_MODE` | Override `youtubeSubgen.mode` for launcher |
-| `SUBMINER_WHISPER_BIN` | Override `youtubeSubgen.whisperBin` for launcher |
-| `SUBMINER_WHISPER_MODEL` | Override `youtubeSubgen.whisperModel` for launcher |
-| `SUBMINER_YT_SUBGEN_OUT_DIR` | Override generated subtitle output directory |
-| `SUBMINER_YT_SUBGEN_AUDIO_FORMAT` | Override extraction format used for whisper fallback |
-| `SUBMINER_YT_SUBGEN_KEEP_TEMP` | Set to `1` to keep temporary subtitle-generation workspace |
+| Variable                          | Description                                                |
+| --------------------------------- | ---------------------------------------------------------- |
+| `SUBMINER_APPIMAGE_PATH`          | Override AppImage location for subminer script             |
+| `SUBMINER_BINARY_PATH`            | Alias for `SUBMINER_APPIMAGE_PATH`                         |
+| `SUBMINER_YT_SUBGEN_MODE`         | Override `youtubeSubgen.mode` for launcher                 |
+| `SUBMINER_WHISPER_BIN`            | Override `youtubeSubgen.whisperBin` for launcher           |
+| `SUBMINER_WHISPER_MODEL`          | Override `youtubeSubgen.whisperModel` for launcher         |
+| `SUBMINER_YT_SUBGEN_OUT_DIR`      | Override generated subtitle output directory               |
+| `SUBMINER_YT_SUBGEN_AUDIO_FORMAT` | Override extraction format used for whisper fallback       |
+| `SUBMINER_YT_SUBGEN_KEEP_TEMP`    | Set to `1` to keep temporary subtitle-generation workspace |

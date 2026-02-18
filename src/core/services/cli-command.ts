@@ -1,8 +1,4 @@
-import {
-  CliArgs,
-  CliCommandSource,
-  commandNeedsOverlayRuntime,
-} from "../../cli/args";
+import { CliArgs, CliCommandSource, commandNeedsOverlayRuntime } from '../../cli/args';
 
 export interface CliCommandServiceDeps {
   getMpvSocketPath: () => string;
@@ -36,8 +32,8 @@ export interface CliCommandServiceDeps {
   markLastCardAsAudioCard: () => Promise<void>;
   openRuntimeOptionsPalette: () => void;
   getAnilistStatus: () => {
-    tokenStatus: "not_checked" | "resolved" | "error";
-    tokenSource: "none" | "literal" | "stored";
+    tokenStatus: 'not_checked' | 'resolved' | 'error';
+    tokenSource: 'none' | 'literal' | 'stored';
     tokenMessage: string | null;
     tokenResolvedAt: number | null;
     tokenErrorAt: number | null;
@@ -122,11 +118,11 @@ interface UiCliRuntime {
 }
 
 interface AnilistCliRuntime {
-  getStatus: CliCommandServiceDeps["getAnilistStatus"];
-  clearToken: CliCommandServiceDeps["clearAnilistToken"];
-  openSetup: CliCommandServiceDeps["openAnilistSetup"];
-  getQueueStatus: CliCommandServiceDeps["getAnilistQueueStatus"];
-  retryQueueNow: CliCommandServiceDeps["retryAnilistQueue"];
+  getStatus: CliCommandServiceDeps['getAnilistStatus'];
+  clearToken: CliCommandServiceDeps['clearAnilistToken'];
+  openSetup: CliCommandServiceDeps['openAnilistSetup'];
+  getQueueStatus: CliCommandServiceDeps['getAnilistQueueStatus'];
+  retryQueueNow: CliCommandServiceDeps['retryAnilistQueue'];
 }
 
 interface AppCliRuntime {
@@ -195,8 +191,7 @@ export function createCliCommandDepsRuntime(
     copyCurrentSubtitle: options.mining.copyCurrentSubtitle,
     startPendingMultiCopy: options.mining.startPendingMultiCopy,
     mineSentenceCard: options.mining.mineSentenceCard,
-    startPendingMineSentenceMultiple:
-      options.mining.startPendingMineSentenceMultiple,
+    startPendingMineSentenceMultiple: options.mining.startPendingMineSentenceMultiple,
     updateLastCardFromClipboard: options.mining.updateLastCardFromClipboard,
     refreshKnownWords: options.mining.refreshKnownWords,
     cycleSecondarySubMode: options.ui.cycleSecondarySubMode,
@@ -222,7 +217,7 @@ export function createCliCommandDepsRuntime(
 }
 
 function formatTimestamp(value: number | null): string {
-  if (!value) return "never";
+  if (!value) return 'never';
   return new Date(value).toISOString();
 }
 
@@ -240,7 +235,7 @@ function runAsyncWithOsd(
 
 export function handleCliCommand(
   args: CliArgs,
-  source: CliCommandSource = "initial",
+  source: CliCommandSource = 'initial',
   deps: CliCommandServiceDeps,
 ): void {
   const hasNonStartAction =
@@ -280,19 +275,16 @@ export function handleCliCommand(
     args.jellyfinRemoteAnnounce ||
     args.texthooker ||
     args.help;
-  const ignoreStartOnly =
-    source === "second-instance" && args.start && !hasNonStartAction;
+  const ignoreStartOnly = source === 'second-instance' && args.start && !hasNonStartAction;
   if (ignoreStartOnly) {
-    deps.log("Ignoring --start because SubMiner is already running.");
+    deps.log('Ignoring --start because SubMiner is already running.');
     return;
   }
 
   const shouldStart =
     args.start ||
-    (source === "initial" &&
-      (args.toggle ||
-        args.toggleVisibleOverlay ||
-        args.toggleInvisibleOverlay));
+    (source === 'initial' &&
+      (args.toggle || args.toggleVisibleOverlay || args.toggleInvisibleOverlay));
   const needsOverlayRuntime = commandNeedsOverlayRuntime(args);
 
   if (args.socketPath !== undefined) {
@@ -302,16 +294,14 @@ export function handleCliCommand(
 
   if (args.texthookerPort !== undefined) {
     if (deps.isTexthookerRunning()) {
-      deps.warn(
-        "Ignoring --port override because the texthooker server is already running.",
-      );
+      deps.warn('Ignoring --port override because the texthooker server is already running.');
     } else {
       deps.setTexthookerPort(args.texthookerPort);
     }
   }
 
   if (args.stop) {
-    deps.log("Stopping SubMiner...");
+    deps.log('Stopping SubMiner...');
     deps.stopApp();
     return;
   }
@@ -349,8 +339,8 @@ export function handleCliCommand(
     runAsyncWithOsd(
       () => deps.mineSentenceCard(),
       deps,
-      "mineSentenceCard",
-      "Mine sentence failed",
+      'mineSentenceCard',
+      'Mine sentence failed',
     );
   } else if (args.mineSentenceMultiple) {
     deps.startPendingMineSentenceMultiple(deps.getMultiCopyTimeoutMs());
@@ -358,15 +348,15 @@ export function handleCliCommand(
     runAsyncWithOsd(
       () => deps.updateLastCardFromClipboard(),
       deps,
-      "updateLastCardFromClipboard",
-      "Update failed",
+      'updateLastCardFromClipboard',
+      'Update failed',
     );
   } else if (args.refreshKnownWords) {
     runAsyncWithOsd(
       () => deps.refreshKnownWords(),
       deps,
-      "refreshKnownWords",
-      "Refresh known words failed",
+      'refreshKnownWords',
+      'Refresh known words failed',
     );
   } else if (args.toggleSecondarySub) {
     deps.cycleSecondarySubMode();
@@ -374,30 +364,28 @@ export function handleCliCommand(
     runAsyncWithOsd(
       () => deps.triggerFieldGrouping(),
       deps,
-      "triggerFieldGrouping",
-      "Field grouping failed",
+      'triggerFieldGrouping',
+      'Field grouping failed',
     );
   } else if (args.triggerSubsync) {
     runAsyncWithOsd(
       () => deps.triggerSubsyncFromConfig(),
       deps,
-      "triggerSubsyncFromConfig",
-      "Subsync failed",
+      'triggerSubsyncFromConfig',
+      'Subsync failed',
     );
   } else if (args.markAudioCard) {
     runAsyncWithOsd(
       () => deps.markLastCardAsAudioCard(),
       deps,
-      "markLastCardAsAudioCard",
-      "Audio card failed",
+      'markLastCardAsAudioCard',
+      'Audio card failed',
     );
   } else if (args.openRuntimeOptions) {
     deps.openRuntimeOptionsPalette();
   } else if (args.anilistStatus) {
     const status = deps.getAnilistStatus();
-    deps.log(
-      `AniList token status: ${status.tokenStatus} (source=${status.tokenSource})`,
-    );
+    deps.log(`AniList token status: ${status.tokenStatus} (source=${status.tokenSource})`);
     if (status.tokenMessage) {
       deps.log(`AniList token message: ${status.tokenMessage}`);
     }
@@ -407,21 +395,19 @@ export function handleCliCommand(
     deps.log(
       `AniList queue: pending=${status.queuePending}, ready=${status.queueReady}, deadLetter=${status.queueDeadLetter}`,
     );
-    deps.log(
-      `AniList queue timestamps: lastAttempt=${formatTimestamp(status.queueLastAttemptAt)}`,
-    );
+    deps.log(`AniList queue timestamps: lastAttempt=${formatTimestamp(status.queueLastAttemptAt)}`);
     if (status.queueLastError) {
       deps.warn(`AniList queue last error: ${status.queueLastError}`);
     }
   } else if (args.anilistLogout) {
     deps.clearAnilistToken();
-    deps.log("Cleared stored AniList token.");
+    deps.log('Cleared stored AniList token.');
   } else if (args.anilistSetup) {
     deps.openAnilistSetup();
-    deps.log("Opened AniList setup flow.");
+    deps.log('Opened AniList setup flow.');
   } else if (args.jellyfin) {
     deps.openJellyfinSetup();
-    deps.log("Opened Jellyfin setup flow.");
+    deps.log('Opened Jellyfin setup flow.');
   } else if (args.anilistRetryQueue) {
     const queueStatus = deps.getAnilistQueueStatus();
     deps.log(
@@ -434,8 +420,8 @@ export function handleCliCommand(
         else deps.warn(result.message);
       },
       deps,
-      "retryAnilistQueue",
-      "AniList retry failed",
+      'retryAnilistQueue',
+      'AniList retry failed',
     );
   } else if (
     args.jellyfinLogin ||
@@ -449,8 +435,8 @@ export function handleCliCommand(
     runAsyncWithOsd(
       () => deps.runJellyfinCommand(args),
       deps,
-      "runJellyfinCommand",
-      "Jellyfin command failed",
+      'runJellyfinCommand',
+      'Jellyfin command failed',
     );
   } else if (args.texthooker) {
     const texthookerPort = deps.getTexthookerPort();

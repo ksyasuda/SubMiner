@@ -1,11 +1,11 @@
-import fs from "node:fs";
-import path from "node:path";
-import http from "node:http";
-import https from "node:https";
-import { spawnSync } from "node:child_process";
-import type { Args, JimakuLanguagePreference } from "./types.js";
-import { DEFAULT_JIMAKU_API_BASE_URL } from "./types.js";
-import { commandExists } from "./util.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import http from 'node:http';
+import https from 'node:https';
+import { spawnSync } from 'node:child_process';
+import type { Args, JimakuLanguagePreference } from './types.js';
+import { DEFAULT_JIMAKU_API_BASE_URL } from './types.js';
+import { commandExists } from './util.js';
 
 export interface JimakuEntry {
   id: number;
@@ -34,13 +34,9 @@ interface JimakuApiError {
   retryAfter?: number;
 }
 
-type JimakuApiResponse<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: JimakuApiError };
+type JimakuApiResponse<T> = { ok: true; data: T } | { ok: false; error: JimakuApiError };
 
-type JimakuDownloadResult =
-  | { ok: true; path: string }
-  | { ok: false; error: JimakuApiError };
+type JimakuDownloadResult = { ok: true; path: string } | { ok: false; error: JimakuApiError };
 
 interface JimakuConfig {
   apiKey: string;
@@ -54,13 +50,13 @@ interface JimakuMediaInfo {
   title: string;
   season: number | null;
   episode: number | null;
-  confidence: "high" | "medium" | "low";
+  confidence: 'high' | 'medium' | 'low';
   filename: string;
   rawTitle: string;
 }
 
 function getRetryAfter(headers: http.IncomingHttpHeaders): number | undefined {
-  const value = headers["x-ratelimit-reset-after"];
+  const value = headers['x-ratelimit-reset-after'];
   if (!value) return undefined;
   const raw = Array.isArray(value) ? value[0] : value;
   const parsed = Number.parseFloat(raw);
@@ -72,7 +68,7 @@ export function matchEpisodeFromName(name: string): {
   season: number | null;
   episode: number | null;
   index: number | null;
-  confidence: "high" | "medium" | "low";
+  confidence: 'high' | 'medium' | 'low';
 } {
   const seasonEpisode = name.match(/S(\d{1,2})E(\d{1,3})/i);
   if (seasonEpisode && seasonEpisode.index !== undefined) {
@@ -80,7 +76,7 @@ export function matchEpisodeFromName(name: string): {
       season: Number.parseInt(seasonEpisode[1], 10),
       episode: Number.parseInt(seasonEpisode[2], 10),
       index: seasonEpisode.index,
-      confidence: "high",
+      confidence: 'high',
     };
   }
 
@@ -90,7 +86,7 @@ export function matchEpisodeFromName(name: string): {
       season: Number.parseInt(alt[1], 10),
       episode: Number.parseInt(alt[2], 10),
       index: alt.index,
-      confidence: "high",
+      confidence: 'high',
     };
   }
 
@@ -100,7 +96,7 @@ export function matchEpisodeFromName(name: string): {
       season: null,
       episode: Number.parseInt(epOnly[1], 10),
       index: epOnly.index,
-      confidence: "medium",
+      confidence: 'medium',
     };
   }
 
@@ -110,11 +106,11 @@ export function matchEpisodeFromName(name: string): {
       season: null,
       episode: Number.parseInt(numeric[1], 10),
       index: numeric.index,
-      confidence: "medium",
+      confidence: 'medium',
     };
   }
 
-  return { season: null, episode: null, index: null, confidence: "low" };
+  return { season: null, episode: null, index: null, confidence: 'low' };
 }
 
 function detectSeasonFromDir(mediaPath: string): number | null {
@@ -125,10 +121,7 @@ function detectSeasonFromDir(mediaPath: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parseGuessitOutput(
-  mediaPath: string,
-  stdout: string,
-): JimakuMediaInfo | null {
+function parseGuessitOutput(mediaPath: string, stdout: string): JimakuMediaInfo | null {
   const payload = stdout.trim();
   if (!payload) return null;
 
@@ -142,15 +135,15 @@ function parseGuessitOutput(
       episode_list?: Array<number | string>;
     };
     const season =
-      typeof parsed.season === "number"
+      typeof parsed.season === 'number'
         ? parsed.season
-        : typeof parsed.season === "string"
+        : typeof parsed.season === 'string'
           ? Number.parseInt(parsed.season, 10)
           : null;
     const directEpisode =
-      typeof parsed.episode === "number"
+      typeof parsed.episode === 'number'
         ? parsed.episode
-        : typeof parsed.episode === "string"
+        : typeof parsed.episode === 'string'
           ? Number.parseInt(parsed.episode, 10)
           : null;
     const episodeFromList =
@@ -158,29 +151,23 @@ function parseGuessitOutput(
         ? Number.parseInt(String(parsed.episode_list[0]), 10)
         : null;
     const episodeValue =
-      directEpisode !== null && Number.isFinite(directEpisode)
-        ? directEpisode
-        : episodeFromList;
-    const episode =
-      Number.isFinite(episodeValue as number) ? (episodeValue as number) : null;
-    const title = (
-      parsed.title ||
-      parsed.title_original ||
-      parsed.series ||
-      ""
-    ).trim();
+      directEpisode !== null && Number.isFinite(directEpisode) ? directEpisode : episodeFromList;
+    const episode = Number.isFinite(episodeValue as number) ? (episodeValue as number) : null;
+    const title = (parsed.title || parsed.title_original || parsed.series || '').trim();
     const hasStructuredData =
-      title.length > 0 || Number.isFinite(season as number) || Number.isFinite(episodeValue as number);
+      title.length > 0 ||
+      Number.isFinite(season as number) ||
+      Number.isFinite(episodeValue as number);
 
     if (!hasStructuredData) return null;
 
     return {
-      title: title || "",
+      title: title || '',
       season: Number.isFinite(season as number) ? season : detectSeasonFromDir(mediaPath),
       episode: episode,
-      confidence: "high",
+      confidence: 'high',
       filename: path.basename(mediaPath),
-      rawTitle: path.basename(mediaPath).replace(/\.[^/.]+$/, ""),
+      rawTitle: path.basename(mediaPath).replace(/\.[^/.]+$/, ''),
     };
   } catch {
     return null;
@@ -188,18 +175,18 @@ function parseGuessitOutput(
 }
 
 function parseMediaInfoWithGuessit(mediaPath: string): JimakuMediaInfo | null {
-  if (!commandExists("guessit")) return null;
+  if (!commandExists('guessit')) return null;
 
   try {
     const fileName = path.basename(mediaPath);
-    const result = spawnSync("guessit", ["--json", fileName], {
+    const result = spawnSync('guessit', ['--json', fileName], {
       cwd: path.dirname(mediaPath),
-      encoding: "utf8",
+      encoding: 'utf8',
       maxBuffer: 2_000_000,
       windowsHide: true,
     });
     if (result.error || result.status !== 0) return null;
-    return parseGuessitOutput(mediaPath, result.stdout || "");
+    return parseGuessitOutput(mediaPath, result.stdout || '');
   } catch {
     return null;
   }
@@ -207,27 +194,27 @@ function parseMediaInfoWithGuessit(mediaPath: string): JimakuMediaInfo | null {
 
 function cleanupTitle(value: string): string {
   return value
-    .replace(/^[\s-–—]+/, "")
-    .replace(/[\s-–—]+$/, "")
-    .replace(/\s+/g, " ")
+    .replace(/^[\s-–—]+/, '')
+    .replace(/[\s-–—]+$/, '')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
 function formatLangScore(name: string, pref: JimakuLanguagePreference): number {
-  if (pref === "none") return 0;
+  if (pref === 'none') return 0;
   const upper = name.toUpperCase();
   const hasJa =
     /(^|[\W_])JA([\W_]|$)/.test(upper) ||
     /(^|[\W_])JPN([\W_]|$)/.test(upper) ||
-    upper.includes(".JA.");
+    upper.includes('.JA.');
   const hasEn =
     /(^|[\W_])EN([\W_]|$)/.test(upper) ||
     /(^|[\W_])ENG([\W_]|$)/.test(upper) ||
-    upper.includes(".EN.");
-  if (pref === "ja") {
+    upper.includes('.EN.');
+  if (pref === 'ja') {
     if (hasJa) return 2;
     if (hasEn) return 1;
-  } else if (pref === "en") {
+  } else if (pref === 'en') {
     if (hasEn) return 2;
     if (hasJa) return 1;
   }
@@ -242,11 +229,11 @@ export async function resolveJimakuApiKey(config: JimakuConfig): Promise<string 
     try {
       const commandResult = spawnSync(config.apiKeyCommand, {
         shell: true,
-        encoding: "utf8",
+        encoding: 'utf8',
         timeout: 10000,
       });
       if (commandResult.error) return null;
-      const key = (commandResult.stdout || "").trim();
+      const key = (commandResult.stdout || '').trim();
       return key.length > 0 ? key : null;
     } catch {
       return null;
@@ -268,22 +255,22 @@ export function jimakuFetchJson<T>(
 
   return new Promise((resolve) => {
     const requestUrl = new URL(url.toString());
-    const transport = requestUrl.protocol === "https:" ? https : http;
+    const transport = requestUrl.protocol === 'https:' ? https : http;
     const req = transport.request(
       requestUrl,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
           Authorization: options.apiKey,
-          "User-Agent": "SubMiner",
+          'User-Agent': 'SubMiner',
         },
       },
       (res) => {
-        let data = "";
-        res.on("data", (chunk) => {
+        let data = '';
+        res.on('data', (chunk) => {
           data += chunk.toString();
         });
-        res.on("end", () => {
+        res.on('end', () => {
           const status = res.statusCode || 0;
           if (status >= 200 && status < 300) {
             try {
@@ -292,7 +279,7 @@ export function jimakuFetchJson<T>(
             } catch {
               resolve({
                 ok: false,
-                error: { error: "Failed to parse Jimaku response JSON." },
+                error: { error: 'Failed to parse Jimaku response JSON.' },
               });
             }
             return;
@@ -313,15 +300,14 @@ export function jimakuFetchJson<T>(
             error: {
               error: errorMessage,
               code: status || undefined,
-              retryAfter:
-                status === 429 ? getRetryAfter(res.headers) : undefined,
+              retryAfter: status === 429 ? getRetryAfter(res.headers) : undefined,
             },
           });
         });
       },
     );
 
-    req.on("error", (error) => {
+    req.on('error', (error) => {
       resolve({
         ok: false,
         error: { error: `Jimaku request failed: ${(error as Error).message}` },
@@ -335,12 +321,12 @@ export function jimakuFetchJson<T>(
 export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
   if (!mediaPath) {
     return {
-      title: "",
+      title: '',
       season: null,
       episode: null,
-      confidence: "low",
-      filename: "",
-      rawTitle: "",
+      confidence: 'low',
+      filename: '',
+      rawTitle: '',
     };
   }
 
@@ -348,12 +334,12 @@ export function parseMediaInfo(mediaPath: string | null): JimakuMediaInfo {
   if (guessitInfo) return guessitInfo;
 
   const filename = path.basename(mediaPath);
-  let name = filename.replace(/\.[^/.]+$/, "");
-  name = name.replace(/\[[^\]]*]/g, " ");
-  name = name.replace(/\(\d{4}\)/g, " ");
-  name = name.replace(/[._]/g, " ");
-  name = name.replace(/[–—]/g, "-");
-  name = name.replace(/\s+/g, " ").trim();
+  let name = filename.replace(/\.[^/.]+$/, '');
+  name = name.replace(/\[[^\]]*]/g, ' ');
+  name = name.replace(/\(\d{4}\)/g, ' ');
+  name = name.replace(/[._]/g, ' ');
+  name = name.replace(/[–—]/g, '-');
+  name = name.replace(/\s+/g, ' ').trim();
 
   const parsed = matchEpisodeFromName(name);
   let titlePart = name;
@@ -378,7 +364,7 @@ export function sortJimakuFiles(
   files: JimakuFileEntry[],
   pref: JimakuLanguagePreference,
 ): JimakuFileEntry[] {
-  if (pref === "none") return files;
+  if (pref === 'none') return files;
   return [...files].sort((a, b) => {
     const scoreDiff = formatLangScore(b.name, pref) - formatLangScore(a.name, pref);
     if (scoreDiff !== 0) return scoreDiff;
@@ -395,22 +381,20 @@ export async function downloadToFile(
   if (redirectCount > 3) {
     return {
       ok: false,
-      error: { error: "Too many redirects while downloading subtitle." },
+      error: { error: 'Too many redirects while downloading subtitle.' },
     };
   }
 
   return new Promise((resolve) => {
     const parsedUrl = new URL(url);
-    const transport = parsedUrl.protocol === "https:" ? https : http;
+    const transport = parsedUrl.protocol === 'https:' ? https : http;
 
     const req = transport.get(parsedUrl, { headers }, (res) => {
       const status = res.statusCode || 0;
       if ([301, 302, 303, 307, 308].includes(status) && res.headers.location) {
         const redirectUrl = new URL(res.headers.location, parsedUrl).toString();
         res.resume();
-        downloadToFile(redirectUrl, destPath, headers, redirectCount + 1).then(
-          resolve,
-        );
+        downloadToFile(redirectUrl, destPath, headers, redirectCount + 1).then(resolve);
         return;
       }
 
@@ -428,12 +412,12 @@ export async function downloadToFile(
 
       const fileStream = fs.createWriteStream(destPath);
       res.pipe(fileStream);
-      fileStream.on("finish", () => {
+      fileStream.on('finish', () => {
         fileStream.close(() => {
           resolve({ ok: true, path: destPath });
         });
       });
-      fileStream.on("error", (err: Error) => {
+      fileStream.on('error', (err: Error) => {
         resolve({
           ok: false,
           error: { error: `Failed to save subtitle: ${err.message}` },
@@ -441,7 +425,7 @@ export async function downloadToFile(
       });
     });
 
-    req.on("error", (err) => {
+    req.on('error', (err) => {
       resolve({
         ok: false,
         error: {
@@ -454,45 +438,34 @@ export async function downloadToFile(
 
 export function isValidSubtitleCandidateFile(filename: string): boolean {
   const ext = path.extname(filename).toLowerCase();
-  return (
-    ext === ".srt" ||
-    ext === ".vtt" ||
-    ext === ".ass" ||
-    ext === ".ssa" ||
-    ext === ".sub"
-  );
+  return ext === '.srt' || ext === '.vtt' || ext === '.ass' || ext === '.ssa' || ext === '.sub';
 }
 
 export function mapPreferenceToLanguages(preference: JimakuLanguagePreference): string[] {
-  if (preference === "en") return ["en", "eng"];
-  if (preference === "none") return [];
-  return ["ja", "jpn"];
+  if (preference === 'en') return ['en', 'eng'];
+  if (preference === 'none') return [];
+  return ['ja', 'jpn'];
 }
 
 export function normalizeJimakuSearchInput(mediaPath: string): string {
-  const trimmed = (mediaPath || "").trim();
-  if (!trimmed) return "";
+  const trimmed = (mediaPath || '').trim();
+  if (!trimmed) return '';
   if (!/^https?:\/\/.*/.test(trimmed)) return trimmed;
 
   try {
     const url = new URL(trimmed);
     const titleParam =
-      url.searchParams.get("title") || url.searchParams.get("name") ||
-      url.searchParams.get("q");
+      url.searchParams.get('title') || url.searchParams.get('name') || url.searchParams.get('q');
     if (titleParam && titleParam.trim()) return titleParam.trim();
 
-    const pathParts = url.pathname.split("/").filter(Boolean).reverse();
+    const pathParts = url.pathname.split('/').filter(Boolean).reverse();
     const candidate = pathParts.find((part) => {
-      const decoded = decodeURIComponent(part || "").replace(/\.[^/.]+$/, "");
+      const decoded = decodeURIComponent(part || '').replace(/\.[^/.]+$/, '');
       const lowered = decoded.toLowerCase();
-      return (
-        lowered.length > 2 &&
-        !/^[0-9.]+$/.test(lowered) &&
-        !/^[a-f0-9]{16,}$/i.test(lowered)
-      );
+      return lowered.length > 2 && !/^[0-9.]+$/.test(lowered) && !/^[a-f0-9]{16,}$/i.test(lowered);
     });
 
-    const fallback = candidate || url.hostname.replace(/^www\./, "");
+    const fallback = candidate || url.hostname.replace(/^www\./, '');
     return sanitizeJimakuQueryInput(decodeURIComponent(fallback));
   } catch {
     return trimmed;
@@ -501,9 +474,9 @@ export function normalizeJimakuSearchInput(mediaPath: string): string {
 
 export function sanitizeJimakuQueryInput(value: string): string {
   return value
-    .replace(/^\s*-\s*/, "")
-    .replace(/[^\w\s\-'".:(),]/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/^\s*-\s*/, '')
+    .replace(/[^\w\s\-'".:(),]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 

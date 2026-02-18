@@ -1,10 +1,10 @@
-import type { MpvSubtitleRenderMetrics } from "../../types";
-import type { RendererContext } from "../context";
+import type { MpvSubtitleRenderMetrics } from '../../types';
+import type { RendererContext } from '../context';
 
 const INVISIBLE_MACOS_VERTICAL_NUDGE_PX = 5;
-const INVISIBLE_MACOS_LINE_HEIGHT_SINGLE = "0.92";
-const INVISIBLE_MACOS_LINE_HEIGHT_MULTI = "1.2";
-const INVISIBLE_MACOS_LINE_HEIGHT_MULTI_DENSE = "1.3";
+const INVISIBLE_MACOS_LINE_HEIGHT_SINGLE = '0.92';
+const INVISIBLE_MACOS_LINE_HEIGHT_MULTI = '1.2';
+const INVISIBLE_MACOS_LINE_HEIGHT_MULTI_DENSE = '1.3';
 
 export function applyContainerBaseLayout(
   ctx: RendererContext,
@@ -17,32 +17,32 @@ export function applyContainerBaseLayout(
 ): void {
   const { horizontalAvailable, leftInset, marginX, hAlign } = params;
 
-  ctx.dom.subtitleContainer.style.position = "absolute";
+  ctx.dom.subtitleContainer.style.position = 'absolute';
   ctx.dom.subtitleContainer.style.maxWidth = `${horizontalAvailable}px`;
   ctx.dom.subtitleContainer.style.width = `${horizontalAvailable}px`;
-  ctx.dom.subtitleContainer.style.padding = "0";
-  ctx.dom.subtitleContainer.style.background = "transparent";
-  ctx.dom.subtitleContainer.style.marginBottom = "0";
-  ctx.dom.subtitleContainer.style.pointerEvents = "none";
+  ctx.dom.subtitleContainer.style.padding = '0';
+  ctx.dom.subtitleContainer.style.background = 'transparent';
+  ctx.dom.subtitleContainer.style.marginBottom = '0';
+  ctx.dom.subtitleContainer.style.pointerEvents = 'none';
   ctx.dom.subtitleContainer.style.left = `${leftInset + marginX}px`;
-  ctx.dom.subtitleContainer.style.right = "";
-  ctx.dom.subtitleContainer.style.transform = "";
-  ctx.dom.subtitleContainer.style.textAlign = "";
+  ctx.dom.subtitleContainer.style.right = '';
+  ctx.dom.subtitleContainer.style.transform = '';
+  ctx.dom.subtitleContainer.style.textAlign = '';
 
   if (hAlign === 0) {
-    ctx.dom.subtitleContainer.style.textAlign = "left";
-    ctx.dom.subtitleRoot.style.textAlign = "left";
+    ctx.dom.subtitleContainer.style.textAlign = 'left';
+    ctx.dom.subtitleRoot.style.textAlign = 'left';
   } else if (hAlign === 2) {
-    ctx.dom.subtitleContainer.style.textAlign = "right";
-    ctx.dom.subtitleRoot.style.textAlign = "right";
+    ctx.dom.subtitleContainer.style.textAlign = 'right';
+    ctx.dom.subtitleRoot.style.textAlign = 'right';
   } else {
-    ctx.dom.subtitleContainer.style.textAlign = "center";
-    ctx.dom.subtitleRoot.style.textAlign = "center";
+    ctx.dom.subtitleContainer.style.textAlign = 'center';
+    ctx.dom.subtitleRoot.style.textAlign = 'center';
   }
 
-  ctx.dom.subtitleRoot.style.display = "inline-block";
-  ctx.dom.subtitleRoot.style.maxWidth = "100%";
-  ctx.dom.subtitleRoot.style.pointerEvents = "auto";
+  ctx.dom.subtitleRoot.style.display = 'inline-block';
+  ctx.dom.subtitleRoot.style.maxWidth = '100%';
+  ctx.dom.subtitleRoot.style.pointerEvents = 'auto';
 }
 
 export function applyVerticalPosition(
@@ -59,38 +59,30 @@ export function applyVerticalPosition(
 ): void {
   const lineCount = Math.max(1, ctx.state.currentInvisibleSubtitleLineCount);
   const multiline = lineCount > 1;
-  const baselineCompensationFactor =
-    lineCount >= 3 ? 0.46 : multiline ? 0.58 : 0.7;
-  const baselineCompensationPx = Math.max(
-    0,
-    params.effectiveFontSize * baselineCompensationFactor,
-  );
+  const baselineCompensationFactor = lineCount >= 3 ? 0.46 : multiline ? 0.58 : 0.7;
+  const baselineCompensationPx = Math.max(0, params.effectiveFontSize * baselineCompensationFactor);
 
   if (params.vAlign === 2) {
     ctx.dom.subtitleContainer.style.top = `${Math.max(
       0,
       params.topInset + params.marginY - baselineCompensationPx,
     )}px`;
-    ctx.dom.subtitleContainer.style.bottom = "";
+    ctx.dom.subtitleContainer.style.bottom = '';
     return;
   }
 
   if (params.vAlign === 1) {
-    ctx.dom.subtitleContainer.style.top = "50%";
-    ctx.dom.subtitleContainer.style.bottom = "";
-    ctx.dom.subtitleContainer.style.transform = "translateY(-50%)";
+    ctx.dom.subtitleContainer.style.top = '50%';
+    ctx.dom.subtitleContainer.style.bottom = '';
+    ctx.dom.subtitleContainer.style.transform = 'translateY(-50%)';
     return;
   }
 
-  const subPosMargin =
-    ((100 - params.metrics.subPos) / 100) * params.renderAreaHeight;
+  const subPosMargin = ((100 - params.metrics.subPos) / 100) * params.renderAreaHeight;
   const effectiveMargin = Math.max(params.marginY, subPosMargin);
-  const bottomPx = Math.max(
-    0,
-    params.bottomInset + effectiveMargin + baselineCompensationPx,
-  );
+  const bottomPx = Math.max(0, params.bottomInset + effectiveMargin + baselineCompensationPx);
 
-  ctx.dom.subtitleContainer.style.top = "";
+  ctx.dom.subtitleContainer.style.top = '';
   ctx.dom.subtitleContainer.style.bottom = `${bottomPx}px`;
 }
 
@@ -98,7 +90,7 @@ function resolveFontFamily(rawFont: string): string {
   const strippedFont = rawFont
     .replace(
       /\s+(Regular|Bold|Italic|Light|Medium|Semi\s*Bold|Extra\s*Bold|Extra\s*Light|Thin|Black|Heavy|Demi\s*Bold|Book|Condensed)\s*$/i,
-      "",
+      '',
     )
     .trim();
 
@@ -107,11 +99,8 @@ function resolveFontFamily(rawFont: string): string {
     : `"${rawFont}", sans-serif`;
 }
 
-function resolveLineHeight(
-  lineCount: number,
-  isMacOSPlatform: boolean,
-): string {
-  if (!isMacOSPlatform) return "normal";
+function resolveLineHeight(lineCount: number, isMacOSPlatform: boolean): string {
+  if (!isMacOSPlatform) return 'normal';
   if (lineCount >= 3) return INVISIBLE_MACOS_LINE_HEIGHT_MULTI_DENSE;
   if (lineCount >= 2) return INVISIBLE_MACOS_LINE_HEIGHT_MULTI;
   return INVISIBLE_MACOS_LINE_HEIGHT_SINGLE;
@@ -126,20 +115,15 @@ function resolveLetterSpacing(
     return `${spacing * pxPerScaledPixel * (isMacOSPlatform ? 0.7 : 1)}px`;
   }
 
-  return isMacOSPlatform ? "-0.02em" : "0px";
+  return isMacOSPlatform ? '-0.02em' : '0px';
 }
 
 function applyComputedLineHeightCompensation(
   ctx: RendererContext,
   effectiveFontSize: number,
 ): void {
-  const computedLineHeight = parseFloat(
-    getComputedStyle(ctx.dom.subtitleRoot).lineHeight,
-  );
-  if (
-    !Number.isFinite(computedLineHeight) ||
-    computedLineHeight <= effectiveFontSize
-  ) {
+  const computedLineHeight = parseFloat(getComputedStyle(ctx.dom.subtitleRoot).lineHeight);
+  if (!Number.isFinite(computedLineHeight) || computedLineHeight <= effectiveFontSize) {
     return;
   }
 
@@ -182,31 +166,21 @@ export function applyTypography(
   const isMacOSPlatform = ctx.platform.isMacOSPlatform;
 
   ctx.dom.subtitleRoot.style.setProperty(
-    "line-height",
+    'line-height',
     resolveLineHeight(lineCount, isMacOSPlatform),
-    isMacOSPlatform ? "important" : "",
+    isMacOSPlatform ? 'important' : '',
   );
-  ctx.dom.subtitleRoot.style.fontFamily = resolveFontFamily(
-    params.metrics.subFont,
-  );
+  ctx.dom.subtitleRoot.style.fontFamily = resolveFontFamily(params.metrics.subFont);
   ctx.dom.subtitleRoot.style.setProperty(
-    "letter-spacing",
-    resolveLetterSpacing(
-      params.metrics.subSpacing,
-      params.pxPerScaledPixel,
-      isMacOSPlatform,
-    ),
-    isMacOSPlatform ? "important" : "",
+    'letter-spacing',
+    resolveLetterSpacing(params.metrics.subSpacing, params.pxPerScaledPixel, isMacOSPlatform),
+    isMacOSPlatform ? 'important' : '',
   );
-  ctx.dom.subtitleRoot.style.fontKerning = isMacOSPlatform ? "auto" : "none";
-  ctx.dom.subtitleRoot.style.fontWeight = params.metrics.subBold
-    ? "700"
-    : "400";
-  ctx.dom.subtitleRoot.style.fontStyle = params.metrics.subItalic
-    ? "italic"
-    : "normal";
-  ctx.dom.subtitleRoot.style.transform = "";
-  ctx.dom.subtitleRoot.style.transformOrigin = "";
+  ctx.dom.subtitleRoot.style.fontKerning = isMacOSPlatform ? 'auto' : 'none';
+  ctx.dom.subtitleRoot.style.fontWeight = params.metrics.subBold ? '700' : '400';
+  ctx.dom.subtitleRoot.style.fontStyle = params.metrics.subItalic ? 'italic' : 'normal';
+  ctx.dom.subtitleRoot.style.transform = '';
+  ctx.dom.subtitleRoot.style.transformOrigin = '';
 
   applyComputedLineHeightCompensation(ctx, params.effectiveFontSize);
   applyMacOSAdjustments(ctx);

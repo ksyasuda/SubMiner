@@ -16,11 +16,15 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Implement content-bounded sizing for visible/invisible windows using measured rects plus tracker origin, with robust clamping and jitter resistance.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Bounds algorithm applies configurable padding, minimum size, display-workarea clamp, and integer snap.
 - [ ] #2 Main-process bounds updates are thresholded/debounced to reduce jitter and unnecessary `setBounds` churn.
 - [ ] #3 When no valid measurement exists, layer falls back to safe tracker/display bounds without breaking interaction.

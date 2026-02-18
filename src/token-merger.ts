@@ -16,18 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { PartOfSpeech, Token, MergedToken } from "./types";
+import { PartOfSpeech, Token, MergedToken } from './types';
 
 export function isNoun(tok: Token): boolean {
   return tok.partOfSpeech === PartOfSpeech.noun;
 }
 
 export function isProperNoun(tok: Token): boolean {
-  return tok.partOfSpeech === PartOfSpeech.noun && tok.pos2 === "固有名詞";
+  return tok.partOfSpeech === PartOfSpeech.noun && tok.pos2 === '固有名詞';
 }
 
 export function ignoreReading(tok: Token): boolean {
-  return tok.partOfSpeech === PartOfSpeech.symbol && tok.pos2 === "文字";
+  return tok.partOfSpeech === PartOfSpeech.symbol && tok.pos2 === '文字';
 }
 
 export function isCopula(tok: Token): boolean {
@@ -35,7 +35,7 @@ export function isCopula(tok: Token): boolean {
   if (!raw) {
     return false;
   }
-  return ["特殊・ダ", "特殊・デス", "特殊|だ", "特殊|デス"].includes(raw);
+  return ['特殊・ダ', '特殊・デス', '特殊|だ', '特殊|デス'].includes(raw);
 }
 
 export function isAuxVerb(tok: Token): boolean {
@@ -48,55 +48,46 @@ export function isContinuativeForm(tok: Token): boolean {
   }
   const inflectionForm = tok.inflectionForm;
   const isContinuative =
-    inflectionForm === "連用デ接続" ||
-    inflectionForm === "連用タ接続" ||
-    inflectionForm.startsWith("連用形");
+    inflectionForm === '連用デ接続' ||
+    inflectionForm === '連用タ接続' ||
+    inflectionForm.startsWith('連用形');
 
   if (!isContinuative) {
     return false;
   }
-  return tok.headword !== "ない";
+  return tok.headword !== 'ない';
 }
 
 export function isVerbSuffix(tok: Token): boolean {
-  return (
-    tok.partOfSpeech === PartOfSpeech.verb &&
-    (tok.pos2 === "非自立" || tok.pos2 === "接尾")
-  );
+  return tok.partOfSpeech === PartOfSpeech.verb && (tok.pos2 === '非自立' || tok.pos2 === '接尾');
 }
 
 export function isTatteParticle(tok: Token): boolean {
   return (
     tok.partOfSpeech === PartOfSpeech.particle &&
-    tok.pos2 === "接続助詞" &&
-    tok.headword === "たって"
+    tok.pos2 === '接続助詞' &&
+    tok.headword === 'たって'
   );
 }
 
 export function isBaParticle(tok: Token): boolean {
-  return (
-    tok.partOfSpeech === PartOfSpeech.particle &&
-    tok.pos2 === "接続助詞" &&
-    tok.word === "ば"
-  );
+  return tok.partOfSpeech === PartOfSpeech.particle && tok.pos2 === '接続助詞' && tok.word === 'ば';
 }
 
 export function isTeDeParticle(tok: Token): boolean {
   return (
     tok.partOfSpeech === PartOfSpeech.particle &&
-    tok.pos2 === "接続助詞" &&
-    ["て", "で", "ちゃ"].includes(tok.word)
+    tok.pos2 === '接続助詞' &&
+    ['て', 'で', 'ちゃ'].includes(tok.word)
   );
 }
 
 export function isTaDaParticle(tok: Token): boolean {
-  return isAuxVerb(tok) && ["た", "だ"].includes(tok.word);
+  return isAuxVerb(tok) && ['た', 'だ'].includes(tok.word);
 }
 
 export function isVerb(tok: Token): boolean {
-  return [PartOfSpeech.verb, PartOfSpeech.bound_auxiliary].includes(
-    tok.partOfSpeech,
-  );
+  return [PartOfSpeech.verb, PartOfSpeech.bound_auxiliary].includes(tok.partOfSpeech);
 }
 
 export function isVerbNonIndependent(): boolean {
@@ -104,30 +95,26 @@ export function isVerbNonIndependent(): boolean {
 }
 
 export function canReceiveAuxiliary(tok: Token): boolean {
-  return [
-    PartOfSpeech.verb,
-    PartOfSpeech.bound_auxiliary,
-    PartOfSpeech.i_adjective,
-  ].includes(tok.partOfSpeech);
+  return [PartOfSpeech.verb, PartOfSpeech.bound_auxiliary, PartOfSpeech.i_adjective].includes(
+    tok.partOfSpeech,
+  );
 }
 
 export function isNounSuffix(tok: Token): boolean {
-  return tok.partOfSpeech === PartOfSpeech.verb && tok.pos2 === "接尾";
+  return tok.partOfSpeech === PartOfSpeech.verb && tok.pos2 === '接尾';
 }
 
 export function isCounter(tok: Token): boolean {
   return (
     tok.partOfSpeech === PartOfSpeech.noun &&
     tok.pos3 !== undefined &&
-    tok.pos3.startsWith("助数詞")
+    tok.pos3.startsWith('助数詞')
   );
 }
 
 export function isNumeral(tok: Token): boolean {
   return (
-    tok.partOfSpeech === PartOfSpeech.noun &&
-    tok.pos2 !== undefined &&
-    tok.pos2.startsWith("数")
+    tok.partOfSpeech === PartOfSpeech.noun && tok.pos2 !== undefined && tok.pos2.startsWith('数')
   );
 }
 
@@ -144,11 +131,7 @@ export function shouldMerge(lastStandaloneToken: Token, token: Token): boolean {
     }
   }
 
-  if (
-    isNoun(lastStandaloneToken) &&
-    !isProperNoun(lastStandaloneToken) &&
-    isNounSuffix(token)
-  ) {
+  if (isNoun(lastStandaloneToken) && !isProperNoun(lastStandaloneToken) && isNounSuffix(token)) {
     return true;
   }
 
@@ -182,7 +165,7 @@ export function shouldMerge(lastStandaloneToken: Token, token: Token): boolean {
 export function mergeTokens(
   tokens: Token[],
   isKnownWord: (text: string) => boolean = () => false,
-  knownWordMatchMode: "headword" | "surface" = "headword",
+  knownWordMatchMode: 'headword' | 'surface' = 'headword',
 ): MergedToken[] {
   if (!tokens || tokens.length === 0) {
     return [];
@@ -203,15 +186,13 @@ export function mergeTokens(
       shouldMergeToken = shouldMerge(lastStandaloneToken, token);
     }
 
-    const tokenReading = ignoreReading(token)
-      ? ""
-      : token.katakanaReading || token.word;
+    const tokenReading = ignoreReading(token) ? '' : token.katakanaReading || token.word;
 
     if (shouldMergeToken && result.length > 0) {
       const prev = result.pop()!;
       const mergedHeadword = prev.headword;
       const headwordForKnownMatch = (() => {
-        if (knownWordMatchMode === "surface") {
+        if (knownWordMatchMode === 'surface') {
           return prev.surface;
         }
         return mergedHeadword;
@@ -227,14 +208,12 @@ export function mergeTokens(
         pos2: prev.pos2 ?? token.pos2,
         pos3: prev.pos3 ?? token.pos3,
         isMerged: true,
-        isKnown: headwordForKnownMatch
-          ? isKnownWord(headwordForKnownMatch)
-          : false,
+        isKnown: headwordForKnownMatch ? isKnownWord(headwordForKnownMatch) : false,
         isNPlusOneTarget: false,
       });
     } else {
       const headwordForKnownMatch = (() => {
-        if (knownWordMatchMode === "surface") {
+        if (knownWordMatchMode === 'surface') {
           return token.word;
         }
         return token.headword;
@@ -250,9 +229,7 @@ export function mergeTokens(
         pos2: token.pos2,
         pos3: token.pos3,
         isMerged: false,
-        isKnown: headwordForKnownMatch
-          ? isKnownWord(headwordForKnownMatch)
-          : false,
+        isKnown: headwordForKnownMatch ? isKnownWord(headwordForKnownMatch) : false,
         isNPlusOneTarget: false,
       });
     }
@@ -263,15 +240,7 @@ export function mergeTokens(
   return result;
 }
 
-const SENTENCE_BOUNDARY_SURFACES = new Set([
-  "。",
-  "？",
-  "！",
-  "?",
-  "!",
-  "…",
-  "\u2026",
-]);
+const SENTENCE_BOUNDARY_SURFACES = new Set(['。', '？', '！', '?', '!', '…', '\u2026']);
 
 export function isNPlusOneCandidateToken(token: MergedToken): boolean {
   if (token.isKnown) {
@@ -290,11 +259,11 @@ export function isNPlusOneCandidateToken(token: MergedToken): boolean {
     return false;
   }
 
-  if (token.partOfSpeech === PartOfSpeech.noun && token.pos2 === "固有名詞") {
+  if (token.partOfSpeech === PartOfSpeech.noun && token.pos2 === '固有名詞') {
     return false;
   }
 
-  if (token.pos3 && token.pos3.startsWith("助数詞")) {
+  if (token.pos3 && token.pos3.startsWith('助数詞')) {
     return false;
   }
 
@@ -313,10 +282,7 @@ function isSentenceBoundaryToken(token: MergedToken): boolean {
   return SENTENCE_BOUNDARY_SURFACES.has(token.surface);
 }
 
-export function markNPlusOneTargets(
-  tokens: MergedToken[],
-  minSentenceWords = 3,
-): MergedToken[] {
+export function markNPlusOneTargets(tokens: MergedToken[], minSentenceWords = 3): MergedToken[] {
   if (tokens.length === 0) {
     return [];
   }
@@ -345,10 +311,7 @@ export function markNPlusOneTargets(
       }
     }
 
-    if (
-      sentenceWordCount >= minimumSentenceWords &&
-      sentenceCandidates.length === 1
-    ) {
+    if (sentenceWordCount >= minimumSentenceWords && sentenceCandidates.length === 1) {
       markedTokens[sentenceCandidates[0]] = {
         ...markedTokens[sentenceCandidates[0]],
         isNPlusOneTarget: true,

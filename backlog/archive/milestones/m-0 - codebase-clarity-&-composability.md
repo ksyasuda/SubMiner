@@ -1,6 +1,6 @@
 ---
 id: m-0
-title: "Codebase Clarity & Composability"
+title: 'Codebase Clarity & Composability'
 ---
 
 ## Description

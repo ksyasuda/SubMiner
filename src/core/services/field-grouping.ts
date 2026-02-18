@@ -1,7 +1,4 @@
-import {
-  KikuFieldGroupingChoice,
-  KikuFieldGroupingRequestData,
-} from "../../types";
+import { KikuFieldGroupingChoice, KikuFieldGroupingRequestData } from '../../types';
 
 export function createFieldGroupingCallback(options: {
   getVisibleOverlayVisible: () => boolean;
@@ -9,14 +6,10 @@ export function createFieldGroupingCallback(options: {
   setVisibleOverlayVisible: (visible: boolean) => void;
   setInvisibleOverlayVisible: (visible: boolean) => void;
   getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
-  setResolver: (
-    resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
-  ) => void;
+  setResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
   sendRequestToVisibleOverlay: (data: KikuFieldGroupingRequestData) => boolean;
 }): (data: KikuFieldGroupingRequestData) => Promise<KikuFieldGroupingChoice> {
-  return async (
-    data: KikuFieldGroupingRequestData,
-  ): Promise<KikuFieldGroupingChoice> => {
+  return async (data: KikuFieldGroupingRequestData): Promise<KikuFieldGroupingChoice> => {
     return new Promise((resolve) => {
       if (options.getResolver()) {
         resolve({

@@ -1,18 +1,15 @@
-import {
-  handleCliCommand,
-  createCliCommandDepsRuntime,
-} from "../core/services";
-import type { CliArgs, CliCommandSource } from "../cli/args";
+import { handleCliCommand, createCliCommandDepsRuntime } from '../core/services';
+import type { CliArgs, CliCommandSource } from '../cli/args';
 import {
   createCliCommandRuntimeServiceDeps,
   CliCommandRuntimeServiceDepsParams,
-} from "./dependencies";
+} from './dependencies';
 
 export interface CliCommandRuntimeServiceContext {
   getSocketPath: () => string;
   setSocketPath: (socketPath: string) => void;
-  getClient: CliCommandRuntimeServiceDepsParams["mpv"]["getClient"];
-  showOsd: CliCommandRuntimeServiceDepsParams["mpv"]["showOsd"];
+  getClient: CliCommandRuntimeServiceDepsParams['mpv']['getClient'];
+  showOsd: CliCommandRuntimeServiceDepsParams['mpv']['showOsd'];
   getTexthookerPort: () => number;
   setTexthookerPort: (port: number) => void;
   shouldOpenBrowser: () => boolean;
@@ -32,13 +29,13 @@ export interface CliCommandRuntimeServiceContext {
   triggerFieldGrouping: () => Promise<void>;
   triggerSubsyncFromConfig: () => Promise<void>;
   markLastCardAsAudioCard: () => Promise<void>;
-  getAnilistStatus: CliCommandRuntimeServiceDepsParams["anilist"]["getStatus"];
-  clearAnilistToken: CliCommandRuntimeServiceDepsParams["anilist"]["clearToken"];
-  openAnilistSetup: CliCommandRuntimeServiceDepsParams["anilist"]["openSetup"];
-  getAnilistQueueStatus: CliCommandRuntimeServiceDepsParams["anilist"]["getQueueStatus"];
-  retryAnilistQueueNow: CliCommandRuntimeServiceDepsParams["anilist"]["retryQueueNow"];
-  openJellyfinSetup: CliCommandRuntimeServiceDepsParams["jellyfin"]["openSetup"];
-  runJellyfinCommand: CliCommandRuntimeServiceDepsParams["jellyfin"]["runCommand"];
+  getAnilistStatus: CliCommandRuntimeServiceDepsParams['anilist']['getStatus'];
+  clearAnilistToken: CliCommandRuntimeServiceDepsParams['anilist']['clearToken'];
+  openAnilistSetup: CliCommandRuntimeServiceDepsParams['anilist']['openSetup'];
+  getAnilistQueueStatus: CliCommandRuntimeServiceDepsParams['anilist']['getQueueStatus'];
+  retryAnilistQueueNow: CliCommandRuntimeServiceDepsParams['anilist']['retryQueueNow'];
+  openJellyfinSetup: CliCommandRuntimeServiceDepsParams['jellyfin']['openSetup'];
+  runJellyfinCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runCommand'];
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -53,12 +50,11 @@ export interface CliCommandRuntimeServiceContext {
 }
 
 export interface CliCommandRuntimeServiceContextHandlers {
-  texthookerService: CliCommandRuntimeServiceDepsParams["texthooker"]["service"];
+  texthookerService: CliCommandRuntimeServiceDepsParams['texthooker']['service'];
 }
 
 function createCliCommandDepsFromContext(
-  context: CliCommandRuntimeServiceContext &
-    CliCommandRuntimeServiceContextHandlers,
+  context: CliCommandRuntimeServiceContext & CliCommandRuntimeServiceContextHandlers,
 ): CliCommandRuntimeServiceDepsParams {
   return {
     mpv: {
@@ -86,8 +82,7 @@ function createCliCommandDepsFromContext(
       copyCurrentSubtitle: context.copyCurrentSubtitle,
       startPendingMultiCopy: context.startPendingMultiCopy,
       mineSentenceCard: context.mineSentenceCard,
-      startPendingMineSentenceMultiple:
-        context.startPendingMineSentenceMultiple,
+      startPendingMineSentenceMultiple: context.startPendingMineSentenceMultiple,
       updateLastCardFromClipboard: context.updateLastCardFromClipboard,
       refreshKnownWords: context.refreshKnownWordCache,
       triggerFieldGrouping: context.triggerFieldGrouping,
@@ -128,21 +123,14 @@ export function handleCliCommandRuntimeService(
   source: CliCommandSource,
   params: CliCommandRuntimeServiceDepsParams,
 ): void {
-  const deps = createCliCommandDepsRuntime(
-    createCliCommandRuntimeServiceDeps(params),
-  );
+  const deps = createCliCommandDepsRuntime(createCliCommandRuntimeServiceDeps(params));
   handleCliCommand(args, source, deps);
 }
 
 export function handleCliCommandRuntimeServiceWithContext(
   args: CliArgs,
   source: CliCommandSource,
-  context: CliCommandRuntimeServiceContext &
-    CliCommandRuntimeServiceContextHandlers,
+  context: CliCommandRuntimeServiceContext & CliCommandRuntimeServiceContextHandlers,
 ): void {
-  handleCliCommandRuntimeService(
-    args,
-    source,
-    createCliCommandDepsFromContext(context),
-  );
+  handleCliCommandRuntimeService(args, source, createCliCommandDepsFromContext(context));
 }

@@ -21,11 +21,15 @@ ordinal: 3000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Address identified correctness and code-quality issues from plan.md, including race conditions, unsafe typing, callback rejection handling, and runtime naming cleanup.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Debug `console.log`/`console.warn` usage in overlay visibility logic is removed or replaced with structured logging where needed.
 - [x] #2 Tokenizer type mismatch is fixed without unsafe `as never` casting.
 - [x] #3 Field grouping resolver handling is made concurrency-safe against overlapping requests.
@@ -37,6 +41,7 @@ Address identified correctness and code-quality issues from plan.md, including r
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
+
 1. Remove or replace debug `console.log`/`console.warn` usage in `overlay-visibility-service.ts` while preserving useful operational logging semantics.
 2. Confirm and fix unsafe tokenizer casting paths (already partially addressed during Phase 2) and ensure no remaining `as never` escape hatches in tokenizer dependency flows.
 3. Make field grouping resolver handling in `main.ts` concurrency-safe by adding request sequencing and stale-resolution guards.
@@ -47,6 +52,7 @@ Address identified correctness and code-quality issues from plan.md, including r
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Removed debug overlay-visibility `console.log`/`console.warn` statements from `overlay-visibility-service.ts`.
 
 Eliminated unsafe tokenizer cast path during prior consolidation (`createTokenizerDepsRuntimeService` now uses typed `Token[]` and `mergeTokens(rawTokens)` without `as never`).
@@ -80,10 +86,13 @@ Automated interactive-smoke surrogate 2 (outside sandbox): started app, sent `--
 Observed expected reconnect behavior when MPV socket was absent (`ENOENT /tmp/subminer-socket`), with no regressions in startup/bootstrap flow.
 
 Note: this environment is headless, so visual overlay rendering cannot be directly confirmed; command-path and process-lifecycle smoke checks passed.
+
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Completed Phase 4 by removing debug logging noise, fixing unsafe typing and concurrency risks, adding async rejection handling, completing naming cleanup, and validating startup/command-path behavior through repeated build/test and live Electron smoke runs.
+
 <!-- SECTION:FINAL_SUMMARY:END -->

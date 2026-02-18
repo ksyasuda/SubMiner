@@ -16,10 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { AnkiConnectClient } from "./anki-connect";
-import { SubtitleTimingTracker } from "./subtitle-timing-tracker";
-import { MediaGenerator } from "./media-generator";
-import path from "path";
+import { AnkiConnectClient } from './anki-connect';
+import { SubtitleTimingTracker } from './subtitle-timing-tracker';
+import { MediaGenerator } from './media-generator';
+import path from 'path';
 import {
   AnkiConnectConfig,
   KikuDuplicateCardInfo,
@@ -28,9 +28,9 @@ import {
   MpvClient,
   NotificationOptions,
   NPlusOneMatchMode,
-} from "./types";
-import { DEFAULT_ANKI_CONNECT_CONFIG } from "./config";
-import { createLogger } from "./logger";
+} from './types';
+import { DEFAULT_ANKI_CONNECT_CONFIG } from './config';
+import { createLogger } from './logger';
 import {
   createUiFeedbackState,
   beginUpdateProgress,
@@ -39,21 +39,21 @@ import {
   showStatusNotification,
   withUpdateProgress,
   UiFeedbackState,
-} from "./anki-integration/ui-feedback";
-import { KnownWordCacheManager } from "./anki-integration/known-word-cache";
-import { PollingRunner } from "./anki-integration/polling";
-import { findDuplicateNote as findDuplicateNoteForAnkiIntegration } from "./anki-integration/duplicate";
-import { CardCreationService } from "./anki-integration/card-creation";
-import { FieldGroupingService } from "./anki-integration/field-grouping";
+} from './anki-integration/ui-feedback';
+import { KnownWordCacheManager } from './anki-integration/known-word-cache';
+import { PollingRunner } from './anki-integration/polling';
+import { findDuplicateNote as findDuplicateNoteForAnkiIntegration } from './anki-integration/duplicate';
+import { CardCreationService } from './anki-integration/card-creation';
+import { FieldGroupingService } from './anki-integration/field-grouping';
 
-const log = createLogger("anki").child("integration");
+const log = createLogger('anki').child('integration');
 
 interface NoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
 }
 
-type CardKind = "sentence" | "audio";
+type CardKind = 'sentence' | 'audio';
 
 export class AnkiIntegration {
   private client: AnkiConnectClient;
@@ -64,18 +64,17 @@ export class AnkiIntegration {
   private previousNoteIds = new Set<number>();
   private mpvClient: MpvClient;
   private osdCallback: ((text: string) => void) | null = null;
-  private notificationCallback:
-    | ((title: string, options: NotificationOptions) => void)
-    | null = null;
+  private notificationCallback: ((title: string, options: NotificationOptions) => void) | null =
+    null;
   private updateInProgress = false;
   private uiFeedbackState: UiFeedbackState = createUiFeedbackState();
   private parseWarningKeys = new Set<string>();
   private readonly strictGroupingFieldDefaults = new Set<string>([
-    "picture",
-    "sentence",
-    "sentenceaudio",
-    "sentencefurigana",
-    "miscinfo",
+    'picture',
+    'sentence',
+    'sentenceaudio',
+    'sentencefurigana',
+    'miscinfo',
   ]);
   private fieldGroupingCallback:
     | ((data: {
@@ -92,10 +91,7 @@ export class AnkiIntegration {
     timingTracker: SubtitleTimingTracker,
     mpvClient: MpvClient,
     osdCallback?: (text: string) => void,
-    notificationCallback?: (
-      title: string,
-      options: NotificationOptions,
-    ) => void,
+    notificationCallback?: (title: string, options: NotificationOptions) => void,
     fieldGroupingCallback?: (data: {
       original: KikuDuplicateCardInfo;
       duplicate: KikuDuplicateCardInfo;
@@ -147,22 +143,18 @@ export class AnkiIntegration {
       client: {
         findNotes: async (query, options) =>
           (await this.client.findNotes(query, options)) as unknown,
-        notesInfo: async (noteIds) =>
-          (await this.client.notesInfo(noteIds)) as unknown,
+        notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
       },
       getConfig: () => this.config,
       knownWordCacheStatePath,
-      showStatusNotification: (message: string) =>
-        this.showStatusNotification(message),
+      showStatusNotification: (message: string) => this.showStatusNotification(message),
     });
     this.pollingRunner = new PollingRunner({
       getDeck: () => this.config.deck,
-      getPollingRate: () =>
-        this.config.pollingRate || DEFAULT_ANKI_CONNECT_CONFIG.pollingRate,
+      getPollingRate: () => this.config.pollingRate || DEFAULT_ANKI_CONNECT_CONFIG.pollingRate,
       findNotes: async (query, options) =>
         (await this.client.findNotes(query, options)) as number[],
-      shouldAutoUpdateNewCards: () =>
-        this.config.behavior?.autoUpdateNewCards !== false,
+      shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId) => this.processNewCard(noteId),
       isUpdateInProgress: () => this.updateInProgress,
       setUpdateInProgress: (value) => {
@@ -172,8 +164,7 @@ export class AnkiIntegration {
       setTrackedNoteIds: (noteIds) => {
         this.previousNoteIds = noteIds;
       },
-      showStatusNotification: (message: string) =>
-        this.showStatusNotification(message),
+      showStatusNotification: (message: string) => this.showStatusNotification(message),
       logDebug: (...args) => log.debug(args[0] as string, ...args.slice(1)),
       logInfo: (...args) => log.info(args[0] as string, ...args.slice(1)),
       logWarn: (...args) => log.warn(args[0] as string, ...args.slice(1)),
@@ -184,25 +175,16 @@ export class AnkiIntegration {
       getMpvClient: () => this.mpvClient,
       getDeck: () => this.config.deck,
       client: {
-        addNote: (deck, modelName, fields) =>
-          this.client.addNote(deck, modelName, fields),
-        notesInfo: async (noteIds) =>
-          (await this.client.notesInfo(noteIds)) as unknown,
+        addNote: (deck, modelName, fields) => this.client.addNote(deck, modelName, fields),
+        notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
         updateNoteFields: (noteId, fields) =>
           this.client.updateNoteFields(noteId, fields) as Promise<void>,
-        storeMediaFile: (filename, data) =>
-          this.client.storeMediaFile(filename, data),
+        storeMediaFile: (filename, data) => this.client.storeMediaFile(filename, data),
         findNotes: async (query, options) =>
           (await this.client.findNotes(query, options)) as number[],
       },
       mediaGenerator: {
-        generateAudio: (
-          videoPath,
-          startTime,
-          endTime,
-          audioPadding,
-          audioStreamIndex,
-        ) =>
+        generateAudio: (videoPath, startTime, endTime, audioPadding, audioStreamIndex) =>
           this.mediaGenerator.generateAudio(
             videoPath,
             startTime,
@@ -212,13 +194,7 @@ export class AnkiIntegration {
           ),
         generateScreenshot: (videoPath, timestamp, options) =>
           this.mediaGenerator.generateScreenshot(videoPath, timestamp, options),
-        generateAnimatedImage: (
-          videoPath,
-          startTime,
-          endTime,
-          audioPadding,
-          options,
-        ) =>
+        generateAnimatedImage: (videoPath, startTime, endTime, audioPadding, options) =>
           this.mediaGenerator.generateAnimatedImage(
             videoPath,
             startTime,
@@ -228,35 +204,28 @@ export class AnkiIntegration {
           ),
       },
       showOsdNotification: (text: string) => this.showOsdNotification(text),
-      showStatusNotification: (message: string) =>
-        this.showStatusNotification(message),
+      showStatusNotification: (message: string) => this.showStatusNotification(message),
       showNotification: (noteId, label, errorSuffix) =>
         this.showNotification(noteId, label, errorSuffix),
-      beginUpdateProgress: (initialMessage: string) =>
-        this.beginUpdateProgress(initialMessage),
+      beginUpdateProgress: (initialMessage: string) => this.beginUpdateProgress(initialMessage),
       endUpdateProgress: () => this.endUpdateProgress(),
-      withUpdateProgress: <T>(
-        initialMessage: string,
-        action: () => Promise<T>,
-      ) => this.withUpdateProgress(initialMessage, action),
+      withUpdateProgress: <T>(initialMessage: string, action: () => Promise<T>) =>
+        this.withUpdateProgress(initialMessage, action),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
       resolveNoteFieldName: (noteInfo, preferredName) =>
         this.resolveNoteFieldName(noteInfo, preferredName),
       extractFields: (fields) => this.extractFields(fields),
-      processSentence: (mpvSentence, noteFields) =>
-        this.processSentence(mpvSentence, noteFields),
+      processSentence: (mpvSentence, noteFields) => this.processSentence(mpvSentence, noteFields),
       setCardTypeFields: (updatedFields, availableFieldNames, cardKind) =>
         this.setCardTypeFields(updatedFields, availableFieldNames, cardKind),
       mergeFieldValue: (existing, newValue, overwrite) =>
         this.mergeFieldValue(existing, newValue, overwrite),
       formatMiscInfoPattern: (fallbackFilename, startTimeSeconds) =>
         this.formatMiscInfoPattern(fallbackFilename, startTimeSeconds),
-      getEffectiveSentenceCardConfig: () =>
-        this.getEffectiveSentenceCardConfig(),
+      getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
       getFallbackDurationSeconds: () => this.getFallbackDurationSeconds(),
-      appendKnownWordsFromNoteInfo: (noteInfo) =>
-        this.appendKnownWordsFromNoteInfo(noteInfo),
+      appendKnownWordsFromNoteInfo: (noteInfo) => this.appendKnownWordsFromNoteInfo(noteInfo),
       isUpdateInProgress: () => this.updateInProgress,
       setUpdateInProgress: (value) => {
         this.updateInProgress = value;
@@ -266,19 +235,15 @@ export class AnkiIntegration {
       },
     });
     this.fieldGroupingService = new FieldGroupingService({
-      getEffectiveSentenceCardConfig: () =>
-        this.getEffectiveSentenceCardConfig(),
+      getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
       isUpdateInProgress: () => this.updateInProgress,
       getDeck: () => this.config.deck,
-      withUpdateProgress: <T>(
-        initialMessage: string,
-        action: () => Promise<T>,
-      ) => this.withUpdateProgress(initialMessage, action),
+      withUpdateProgress: <T>(initialMessage: string, action: () => Promise<T>) =>
+        this.withUpdateProgress(initialMessage, action),
       showOsdNotification: (text: string) => this.showOsdNotification(text),
       findNotes: async (query, options) =>
         (await this.client.findNotes(query, options)) as number[],
-      notesInfo: async (noteIds) =>
-        (await this.client.notesInfo(noteIds)) as unknown as NoteInfo[],
+      notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown as NoteInfo[],
       extractFields: (fields) => this.extractFields(fields),
       findDuplicateNote: (expression, noteId, noteInfo) =>
         this.findDuplicateNote(expression, noteId, noteInfo),
@@ -303,30 +268,10 @@ export class AnkiIntegration {
           includeGeneratedMedia,
         ),
       getNoteFieldMap: (noteInfo) => this.getNoteFieldMap(noteInfo),
-      handleFieldGroupingAuto: (
-        originalNoteId,
-        newNoteId,
-        newNoteInfo,
-        expression,
-      ) =>
-        this.handleFieldGroupingAuto(
-          originalNoteId,
-          newNoteId,
-          newNoteInfo,
-          expression,
-        ),
-      handleFieldGroupingManual: (
-        originalNoteId,
-        newNoteId,
-        newNoteInfo,
-        expression,
-      ) =>
-        this.handleFieldGroupingManual(
-          originalNoteId,
-          newNoteId,
-          newNoteInfo,
-          expression,
-        ),
+      handleFieldGroupingAuto: (originalNoteId, newNoteId, newNoteInfo, expression) =>
+        this.handleFieldGroupingAuto(originalNoteId, newNoteId, newNoteInfo, expression),
+      handleFieldGroupingManual: (originalNoteId, newNoteId, newNoteInfo, expression) =>
+        this.handleFieldGroupingManual(originalNoteId, newNoteId, newNoteInfo, expression),
     });
   }
 
@@ -335,10 +280,7 @@ export class AnkiIntegration {
   }
 
   getKnownWordMatchMode(): NPlusOneMatchMode {
-    return (
-      this.config.nPlusOne?.matchMode ??
-      DEFAULT_ANKI_CONNECT_CONFIG.nPlusOne.matchMode
-    );
+    return this.config.nPlusOne?.matchMode ?? DEFAULT_ANKI_CONNECT_CONFIG.nPlusOne.matchMode;
   }
 
   private isKnownWordCacheEnabled(): boolean {
@@ -385,7 +327,7 @@ export class AnkiIntegration {
 
   private getKikuConfig(): {
     enabled: boolean;
-    fieldGrouping?: "auto" | "manual" | "disabled";
+    fieldGrouping?: 'auto' | 'manual' | 'disabled';
     deleteDuplicateInAuto?: boolean;
   } {
     const kiku = this.config.isKiku;
@@ -402,7 +344,7 @@ export class AnkiIntegration {
     audioField: string;
     lapisEnabled: boolean;
     kikuEnabled: boolean;
-    kikuFieldGrouping: "auto" | "manual" | "disabled";
+    kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
     kikuDeleteDuplicateInAuto: boolean;
   } {
     const lapis = this.getLapisConfig();
@@ -410,14 +352,11 @@ export class AnkiIntegration {
 
     return {
       model: lapis.sentenceCardModel,
-      sentenceField: lapis.sentenceCardSentenceField || "Sentence",
-      audioField: lapis.sentenceCardAudioField || "SentenceAudio",
+      sentenceField: lapis.sentenceCardSentenceField || 'Sentence',
+      audioField: lapis.sentenceCardAudioField || 'SentenceAudio',
       lapisEnabled: lapis.enabled,
       kikuEnabled: kiku.enabled,
-      kikuFieldGrouping: (kiku.fieldGrouping || "disabled") as
-        | "auto"
-        | "manual"
-        | "disabled",
+      kikuFieldGrouping: (kiku.fieldGrouping || 'disabled') as 'auto' | 'manual' | 'disabled',
       kikuDeleteDuplicateInAuto: kiku.deleteDuplicateInAuto !== false,
     };
   }
@@ -427,10 +366,7 @@ export class AnkiIntegration {
       this.stop();
     }
 
-    log.info(
-      "Starting AnkiConnect integration with polling rate:",
-      this.config.pollingRate,
-    );
+    log.info('Starting AnkiConnect integration with polling rate:', this.config.pollingRate);
     this.startKnownWordCacheLifecycle();
     this.pollingRunner.start();
   }
@@ -438,7 +374,7 @@ export class AnkiIntegration {
   stop(): void {
     this.pollingRunner.stop();
     this.stopKnownWordCacheLifecycle();
-    log.info("Stopped AnkiConnect integration");
+    log.info('Stopped AnkiConnect integration');
   }
 
   private poll(): void {
@@ -449,12 +385,12 @@ export class AnkiIntegration {
     noteId: number,
     options?: { skipKikuFieldGrouping?: boolean },
   ): Promise<void> {
-    this.beginUpdateProgress("Updating card");
+    this.beginUpdateProgress('Updating card');
     try {
       const notesInfoResult = await this.client.notesInfo([noteId]);
       const notesInfo = notesInfoResult as unknown as NoteInfo[];
       if (!notesInfo || notesInfo.length === 0) {
-        log.warn("Card not found:", noteId);
+        log.warn('Card not found:', noteId);
         return;
       }
 
@@ -462,9 +398,9 @@ export class AnkiIntegration {
       this.appendKnownWordsFromNoteInfo(noteInfo);
       const fields = this.extractFields(noteInfo.fields);
 
-      const expressionText = fields.expression || fields.word || "";
+      const expressionText = fields.expression || fields.word || '';
       if (!expressionText) {
-        log.warn("No expression/word field found in card:", noteId);
+        log.warn('No expression/word field found in card:', noteId);
         return;
       }
 
@@ -472,23 +408,14 @@ export class AnkiIntegration {
       if (
         !options?.skipKikuFieldGrouping &&
         sentenceCardConfig.kikuEnabled &&
-        sentenceCardConfig.kikuFieldGrouping !== "disabled"
+        sentenceCardConfig.kikuFieldGrouping !== 'disabled'
       ) {
-        const duplicateNoteId = await this.findDuplicateNote(
-          expressionText,
-          noteId,
-          noteInfo,
-        );
+        const duplicateNoteId = await this.findDuplicateNote(expressionText, noteId, noteInfo);
         if (duplicateNoteId !== null) {
-          if (sentenceCardConfig.kikuFieldGrouping === "auto") {
-            await this.handleFieldGroupingAuto(
-              duplicateNoteId,
-              noteId,
-              noteInfo,
-              expressionText,
-            );
+          if (sentenceCardConfig.kikuFieldGrouping === 'auto') {
+            await this.handleFieldGroupingAuto(duplicateNoteId, noteId, noteInfo, expressionText);
             return;
-          } else if (sentenceCardConfig.kikuFieldGrouping === "manual") {
+          } else if (sentenceCardConfig.kikuFieldGrouping === 'manual') {
             const handled = await this.handleFieldGroupingManual(
               duplicateNoteId,
               noteId,
@@ -506,10 +433,7 @@ export class AnkiIntegration {
       const sentenceField = sentenceCardConfig.sentenceField;
 
       if (sentenceField && this.mpvClient.currentSubText) {
-        const processedSentence = this.processSentence(
-          this.mpvClient.currentSubText,
-          fields,
-        );
+        const processedSentence = this.processSentence(this.mpvClient.currentSubText, fields);
         updatedFields[sentenceField] = processedSentence;
         updatePerformed = true;
       }
@@ -521,11 +445,9 @@ export class AnkiIntegration {
 
           if (audioBuffer) {
             await this.client.storeMediaFile(audioFilename, audioBuffer);
-            const sentenceAudioField =
-              this.getResolvedSentenceAudioFieldName(noteInfo);
+            const sentenceAudioField = this.getResolvedSentenceAudioFieldName(noteInfo);
             if (sentenceAudioField) {
-              const existingAudio =
-                noteInfo.fields[sentenceAudioField]?.value || "";
+              const existingAudio = noteInfo.fields[sentenceAudioField]?.value || '';
               updatedFields[sentenceAudioField] = this.mergeFieldValue(
                 existingAudio,
                 `[sound:${audioFilename}]`,
@@ -536,10 +458,8 @@ export class AnkiIntegration {
             updatePerformed = true;
           }
         } catch (error) {
-          log.error("Failed to generate audio:", (error as Error).message);
-          this.showOsdNotification(
-            `Audio generation failed: ${(error as Error).message}`,
-          );
+          log.error('Failed to generate audio:', (error as Error).message);
+          this.showOsdNotification(`Audio generation failed: ${(error as Error).message}`);
         }
       }
 
@@ -557,10 +477,9 @@ export class AnkiIntegration {
               DEFAULT_ANKI_CONNECT_CONFIG.fields.image,
             );
             if (!imageFieldName) {
-              log.warn("Image field not found on note, skipping image update");
+              log.warn('Image field not found on note, skipping image update');
             } else {
-              const existingImage =
-                noteInfo.fields[imageFieldName]?.value || "";
+              const existingImage = noteInfo.fields[imageFieldName]?.value || '';
               updatedFields[imageFieldName] = this.mergeFieldValue(
                 existingImage,
                 `<img src="${imageFilename}">`,
@@ -571,16 +490,14 @@ export class AnkiIntegration {
             }
           }
         } catch (error) {
-          log.error("Failed to generate image:", (error as Error).message);
-          this.showOsdNotification(
-            `Image generation failed: ${(error as Error).message}`,
-          );
+          log.error('Failed to generate image:', (error as Error).message);
+          this.showOsdNotification(`Image generation failed: ${(error as Error).message}`);
         }
       }
 
       if (this.config.fields?.miscInfo) {
         const miscInfo = this.formatMiscInfoPattern(
-          miscInfoFilename || "",
+          miscInfoFilename || '',
           this.mpvClient.currentSubStart,
         );
         const miscInfoField = this.resolveConfiguredFieldName(
@@ -595,41 +512,35 @@ export class AnkiIntegration {
 
       if (updatePerformed) {
         await this.client.updateNoteFields(noteId, updatedFields);
-        log.info("Updated card fields for:", expressionText);
+        log.info('Updated card fields for:', expressionText);
         await this.showNotification(noteId, expressionText);
       }
     } catch (error) {
-      if ((error as Error).message.includes("note was not found")) {
-        log.warn("Card was deleted before update:", noteId);
+      if ((error as Error).message.includes('note was not found')) {
+        log.warn('Card was deleted before update:', noteId);
       } else {
-        log.error("Error processing new card:", (error as Error).message);
+        log.error('Error processing new card:', (error as Error).message);
       }
     } finally {
       this.endUpdateProgress();
     }
   }
 
-  private extractFields(
-    fields: Record<string, { value: string }>,
-  ): Record<string, string> {
+  private extractFields(fields: Record<string, { value: string }>): Record<string, string> {
     const result: Record<string, string> = {};
     for (const [key, value] of Object.entries(fields)) {
-      result[key.toLowerCase()] = value.value || "";
+      result[key.toLowerCase()] = value.value || '';
     }
     return result;
   }
 
-  private processSentence(
-    mpvSentence: string,
-    noteFields: Record<string, string>,
-  ): string {
+  private processSentence(mpvSentence: string, noteFields: Record<string, string>): string {
     if (this.config.behavior?.highlightWord === false) {
       return mpvSentence;
     }
 
-    const sentenceFieldName =
-      this.config.fields?.sentence?.toLowerCase() || "sentence";
-    const existingSentence = noteFields[sentenceFieldName] || "";
+    const sentenceFieldName = this.config.fields?.sentence?.toLowerCase() || 'sentence';
+    const existingSentence = noteFields[sentenceFieldName] || '';
 
     const highlightMatch = existingSentence.match(/<b>(.*?)<\/b>/);
     if (!highlightMatch || !highlightMatch[1]) {
@@ -682,7 +593,7 @@ export class AnkiIntegration {
     const videoPath = this.mpvClient.currentVideoPath;
     const timestamp = this.mpvClient.currentTimePos || 0;
 
-    if (this.config.media?.imageType === "avif") {
+    if (this.config.media?.imageType === 'avif') {
       let startTime = this.mpvClient.currentSubStart;
       let endTime = this.mpvClient.currentSubEnd;
 
@@ -706,7 +617,7 @@ export class AnkiIntegration {
       );
     } else {
       return this.mediaGenerator.generateScreenshot(videoPath, timestamp, {
-        format: this.config.media?.imageFormat as "jpg" | "png" | "webp",
+        format: this.config.media?.imageFormat as 'jpg' | 'png' | 'webp',
         quality: this.config.media?.imageQuality,
         maxWidth: this.config.media?.imageMaxWidth,
         maxHeight: this.config.media?.imageMaxHeight,
@@ -714,23 +625,18 @@ export class AnkiIntegration {
     }
   }
 
-  private formatMiscInfoPattern(
-    fallbackFilename: string,
-    startTimeSeconds?: number,
-  ): string {
+  private formatMiscInfoPattern(fallbackFilename: string, startTimeSeconds?: number): string {
     if (!this.config.metadata?.pattern) {
-      return "";
+      return '';
     }
 
-    const currentVideoPath = this.mpvClient.currentVideoPath || "";
-    const videoFilename = currentVideoPath
-      ? path.basename(currentVideoPath)
-      : "";
+    const currentVideoPath = this.mpvClient.currentVideoPath || '';
+    const videoFilename = currentVideoPath ? path.basename(currentVideoPath) : '';
     const filenameWithExt = videoFilename || fallbackFilename;
-    const filenameWithoutExt = filenameWithExt.replace(/\.[^.]+$/, "");
+    const filenameWithoutExt = filenameWithExt.replace(/\.[^.]+$/, '');
 
     const currentTimePos =
-      typeof startTimeSeconds === "number" && Number.isFinite(startTimeSeconds)
+      typeof startTimeSeconds === 'number' && Number.isFinite(startTimeSeconds)
         ? startTimeSeconds
         : this.mpvClient.currentTimePos;
     let totalMilliseconds = 0;
@@ -746,31 +652,24 @@ export class AnkiIntegration {
     }
 
     const totalSeconds = Math.floor(totalMilliseconds / 1000);
-    const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
-    const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(
-      2,
-      "0",
-    );
-    const seconds = String(totalSeconds % 60).padStart(2, "0");
-    const milliseconds = String(totalMilliseconds % 1000).padStart(3, "0");
+    const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+    const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+    const seconds = String(totalSeconds % 60).padStart(2, '0');
+    const milliseconds = String(totalMilliseconds % 1000).padStart(3, '0');
 
     let result = this.config.metadata?.pattern
       .replace(/%f/g, filenameWithoutExt)
       .replace(/%F/g, filenameWithExt)
       .replace(/%t/g, `${hours}:${minutes}:${seconds}`)
       .replace(/%T/g, `${hours}:${minutes}:${seconds}:${milliseconds}`)
-      .replace(/<br>/g, "\n");
+      .replace(/<br>/g, '\n');
 
     return result;
   }
 
   private getFallbackDurationSeconds(): number {
     const configured = this.config.media?.fallbackDuration;
-    if (
-      typeof configured === "number" &&
-      Number.isFinite(configured) &&
-      configured > 0
-    ) {
+    if (typeof configured === 'number' && Number.isFinite(configured) && configured > 0) {
       return configured;
     }
     return DEFAULT_ANKI_CONNECT_CONFIG.media.fallbackDuration;
@@ -783,10 +682,7 @@ export class AnkiIntegration {
 
   private generateImageFilename(): string {
     const timestamp = Date.now();
-    const ext =
-      this.config.media?.imageType === "avif"
-        ? "avif"
-        : this.config.media?.imageFormat;
+    const ext = this.config.media?.imageType === 'avif' ? 'avif' : this.config.media?.imageFormat;
     return `image_${timestamp}.${ext}`;
   }
 
@@ -805,13 +701,9 @@ export class AnkiIntegration {
   }
 
   private beginUpdateProgress(initialMessage: string): void {
-    beginUpdateProgress(
-      this.uiFeedbackState,
-      initialMessage,
-      (text: string) => {
-        this.showOsdNotification(text);
-      },
-    );
+    beginUpdateProgress(this.uiFeedbackState, initialMessage, (text: string) => {
+      this.showOsdNotification(text);
+    });
   }
 
   private endUpdateProgress(): void {
@@ -850,15 +742,12 @@ export class AnkiIntegration {
       this.osdCallback(text);
     } else if (this.mpvClient && this.mpvClient.send) {
       this.mpvClient.send({
-        command: ["show-text", text, "3000"],
+        command: ['show-text', text, '3000'],
       });
     }
   }
 
-  private resolveFieldName(
-    availableFieldNames: string[],
-    preferredName: string,
-  ): string | null {
+  private resolveFieldName(availableFieldNames: string[], preferredName: string): string | null {
     const exact = availableFieldNames.find((name) => name === preferredName);
     if (exact) return exact;
 
@@ -867,10 +756,7 @@ export class AnkiIntegration {
     return ci || null;
   }
 
-  private resolveNoteFieldName(
-    noteInfo: NoteInfo,
-    preferredName?: string,
-  ): string | null {
+  private resolveNoteFieldName(noteInfo: NoteInfo, preferredName?: string): string | null {
     if (!preferredName) return null;
     return this.resolveFieldName(Object.keys(noteInfo.fields), preferredName);
   }
@@ -886,15 +772,11 @@ export class AnkiIntegration {
     return null;
   }
 
-  private warnFieldParseOnce(
-    fieldName: string,
-    reason: string,
-    detail?: string,
-  ): void {
+  private warnFieldParseOnce(fieldName: string, reason: string, detail?: string): void {
     const key = `${fieldName.toLowerCase()}::${reason}`;
     if (this.parseWarningKeys.has(key)) return;
     this.parseWarningKeys.add(key);
-    const suffix = detail ? ` (${detail})` : "";
+    const suffix = detail ? ` (${detail})` : '';
     log.warn(`Field grouping parse warning [${fieldName}] ${reason}${suffix}`);
   }
 
@@ -903,33 +785,27 @@ export class AnkiIntegration {
     availableFieldNames: string[],
     cardKind: CardKind,
   ): void {
-    const audioFlagNames = ["IsAudioCard"];
+    const audioFlagNames = ['IsAudioCard'];
 
-    if (cardKind === "sentence") {
-      const sentenceFlag = this.resolveFieldName(
-        availableFieldNames,
-        "IsSentenceCard",
-      );
+    if (cardKind === 'sentence') {
+      const sentenceFlag = this.resolveFieldName(availableFieldNames, 'IsSentenceCard');
       if (sentenceFlag) {
-        updatedFields[sentenceFlag] = "x";
+        updatedFields[sentenceFlag] = 'x';
       }
 
       for (const audioFlagName of audioFlagNames) {
-        const resolved = this.resolveFieldName(
-          availableFieldNames,
-          audioFlagName,
-        );
+        const resolved = this.resolveFieldName(availableFieldNames, audioFlagName);
         if (resolved && resolved !== sentenceFlag) {
-          updatedFields[resolved] = "";
+          updatedFields[resolved] = '';
         }
       }
 
       const wordAndSentenceFlag = this.resolveFieldName(
         availableFieldNames,
-        "IsWordAndSentenceCard",
+        'IsWordAndSentenceCard',
       );
       if (wordAndSentenceFlag && wordAndSentenceFlag !== sentenceFlag) {
-        updatedFields[wordAndSentenceFlag] = "";
+        updatedFields[wordAndSentenceFlag] = '';
       }
       return;
     }
@@ -943,26 +819,20 @@ export class AnkiIntegration {
     );
     const audioFlagName = resolvedAudioFlags[0] || null;
     if (audioFlagName) {
-      updatedFields[audioFlagName] = "x";
+      updatedFields[audioFlagName] = 'x';
     }
     for (const extraAudioFlag of resolvedAudioFlags.slice(1)) {
-      updatedFields[extraAudioFlag] = "";
+      updatedFields[extraAudioFlag] = '';
     }
 
-    const sentenceFlag = this.resolveFieldName(
-      availableFieldNames,
-      "IsSentenceCard",
-    );
+    const sentenceFlag = this.resolveFieldName(availableFieldNames, 'IsSentenceCard');
     if (sentenceFlag && sentenceFlag !== audioFlagName) {
-      updatedFields[sentenceFlag] = "";
+      updatedFields[sentenceFlag] = '';
     }
 
-    const wordAndSentenceFlag = this.resolveFieldName(
-      availableFieldNames,
-      "IsWordAndSentenceCard",
-    );
+    const wordAndSentenceFlag = this.resolveFieldName(availableFieldNames, 'IsWordAndSentenceCard');
     if (wordAndSentenceFlag && wordAndSentenceFlag !== audioFlagName) {
-      updatedFields[wordAndSentenceFlag] = "";
+      updatedFields[wordAndSentenceFlag] = '';
     }
   }
 
@@ -975,13 +845,13 @@ export class AnkiIntegration {
       ? `Updated card: ${label} (${errorSuffix})`
       : `Updated card: ${label}`;
 
-    const type = this.config.behavior?.notificationType || "osd";
+    const type = this.config.behavior?.notificationType || 'osd';
 
-    if (type === "osd" || type === "both") {
+    if (type === 'osd' || type === 'both') {
       this.showOsdNotification(message);
     }
 
-    if ((type === "system" || type === "both") && this.notificationCallback) {
+    if ((type === 'system' || type === 'both') && this.notificationCallback) {
       let notificationIconPath: string | undefined;
 
       if (this.mpvClient && this.mpvClient.currentVideoPath) {
@@ -992,42 +862,32 @@ export class AnkiIntegration {
             timestamp,
           );
           if (iconBuffer && iconBuffer.length > 0) {
-            notificationIconPath =
-              this.mediaGenerator.writeNotificationIconToFile(
-                iconBuffer,
-                noteId,
-              );
+            notificationIconPath = this.mediaGenerator.writeNotificationIconToFile(
+              iconBuffer,
+              noteId,
+            );
           }
         } catch (err) {
-          log.warn(
-            "Failed to generate notification icon:",
-            (err as Error).message,
-          );
+          log.warn('Failed to generate notification icon:', (err as Error).message);
         }
       }
 
-      this.notificationCallback("Anki Card Updated", {
+      this.notificationCallback('Anki Card Updated', {
         body: message,
         icon: notificationIconPath,
       });
 
       if (notificationIconPath) {
-        this.mediaGenerator.scheduleNotificationIconCleanup(
-          notificationIconPath,
-        );
+        this.mediaGenerator.scheduleNotificationIconCleanup(notificationIconPath);
       }
     }
   }
 
-  private mergeFieldValue(
-    existing: string,
-    newValue: string,
-    overwrite: boolean,
-  ): string {
+  private mergeFieldValue(existing: string, newValue: string, overwrite: boolean): string {
     if (overwrite || !existing.trim()) {
       return newValue;
     }
-    if (this.config.behavior?.mediaInsertMode === "prepend") {
+    if (this.config.behavior?.mediaInsertMode === 'prepend') {
       return newValue + existing;
     }
     return existing + newValue;
@@ -1068,35 +928,27 @@ export class AnkiIntegration {
     excludeNoteId: number,
     noteInfo: NoteInfo,
   ): Promise<number | null> {
-    return findDuplicateNoteForAnkiIntegration(
-      expression,
-      excludeNoteId,
-      noteInfo,
-      {
-        findNotes: async (query, options) =>
-          (await this.client.findNotes(query, options)) as unknown,
-        notesInfo: async (noteIds) =>
-          (await this.client.notesInfo(noteIds)) as unknown,
-        getDeck: () => this.config.deck,
-        resolveFieldName: (info, preferredName) =>
-          this.resolveNoteFieldName(info, preferredName),
-        logWarn: (message, error) => {
-          log.warn(message, (error as Error).message);
-        },
+    return findDuplicateNoteForAnkiIntegration(expression, excludeNoteId, noteInfo, {
+      findNotes: async (query, options) => (await this.client.findNotes(query, options)) as unknown,
+      notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
+      getDeck: () => this.config.deck,
+      resolveFieldName: (info, preferredName) => this.resolveNoteFieldName(info, preferredName),
+      logWarn: (message, error) => {
+        log.warn(message, (error as Error).message);
       },
-    );
+    });
   }
 
   private getGroupableFieldNames(): string[] {
     const fields: string[] = [];
-    fields.push("Sentence");
-    fields.push("SentenceAudio");
-    fields.push("Picture");
+    fields.push('Sentence');
+    fields.push('SentenceAudio');
+    fields.push('Picture');
     if (this.config.fields?.image) fields.push(this.config.fields?.image);
     if (this.config.fields?.sentence) fields.push(this.config.fields?.sentence);
     if (
       this.config.fields?.audio &&
-      this.config.fields?.audio.toLowerCase() !== "expressionaudio"
+      this.config.fields?.audio.toLowerCase() !== 'expressionaudio'
     ) {
       fields.push(this.config.fields?.audio);
     }
@@ -1104,40 +956,38 @@ export class AnkiIntegration {
     const sentenceAudioField = sentenceCardConfig.audioField;
     if (!fields.includes(sentenceAudioField)) fields.push(sentenceAudioField);
     if (this.config.fields?.miscInfo) fields.push(this.config.fields?.miscInfo);
-    fields.push("SentenceFurigana");
+    fields.push('SentenceFurigana');
     return fields;
   }
 
   private getPreferredSentenceAudioFieldName(): string {
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-    return sentenceCardConfig.audioField || "SentenceAudio";
+    return sentenceCardConfig.audioField || 'SentenceAudio';
   }
 
   private getResolvedSentenceAudioFieldName(noteInfo: NoteInfo): string | null {
     return (
-      this.resolveNoteFieldName(
-        noteInfo,
-        this.getPreferredSentenceAudioFieldName(),
-      ) || this.resolveConfiguredFieldName(noteInfo, this.config.fields?.audio)
+      this.resolveNoteFieldName(noteInfo, this.getPreferredSentenceAudioFieldName()) ||
+      this.resolveConfiguredFieldName(noteInfo, this.config.fields?.audio)
     );
   }
 
   private extractUngroupedValue(value: string): string {
     const groupedSpanRegex = /<span\s+data-group-id="[^"]*">[\s\S]*?<\/span>/gi;
-    const ungrouped = value.replace(groupedSpanRegex, "").trim();
+    const ungrouped = value.replace(groupedSpanRegex, '').trim();
     if (ungrouped) return ungrouped;
     return value.trim();
   }
 
   private extractLastSoundTag(value: string): string {
     const matches = value.match(/\[sound:[^\]]+\]/g);
-    if (!matches || matches.length === 0) return "";
+    if (!matches || matches.length === 0) return '';
     return matches[matches.length - 1];
   }
 
   private extractLastImageTag(value: string): string {
     const matches = value.match(/<img\b[^>]*>/gi);
-    if (!matches || matches.length === 0) return "";
+    if (!matches || matches.length === 0) return '';
     return matches[matches.length - 1];
   }
 
@@ -1147,12 +997,9 @@ export class AnkiIntegration {
   }
 
   private ensureImageGroupId(imageTag: string, groupId: number): string {
-    if (!imageTag) return "";
+    if (!imageTag) return '';
     if (/data-group-id=/i.test(imageTag)) {
-      return imageTag.replace(
-        /data-group-id="[^"]*"/i,
-        `data-group-id="${groupId}"`,
-      );
+      return imageTag.replace(/data-group-id="[^"]*"/i, `data-group-id="${groupId}"`);
     }
     return imageTag.replace(/<img\b/i, `<img data-group-id="${groupId}"`);
   }
@@ -1168,7 +1015,7 @@ export class AnkiIntegration {
       const rawId = malformed[1];
       const groupId = Number(rawId);
       if (!Number.isFinite(groupId) || groupId <= 0) {
-        this.warnFieldParseOnce(fieldName, "invalid-group-id", rawId);
+        this.warnFieldParseOnce(fieldName, 'invalid-group-id', rawId);
       }
     }
 
@@ -1177,22 +1024,19 @@ export class AnkiIntegration {
     while ((match = spanRegex.exec(value)) !== null) {
       const groupId = Number(match[1]);
       if (!Number.isFinite(groupId) || groupId <= 0) continue;
-      const content = this.normalizeStrictGroupedValue(
-        match[2] || "",
-        fieldName,
-      );
+      const content = this.normalizeStrictGroupedValue(match[2] || '', fieldName);
       if (!content) {
-        this.warnFieldParseOnce(fieldName, "empty-group-content");
-        log.debug("Skipping span with empty normalized content", {
+        this.warnFieldParseOnce(fieldName, 'empty-group-content');
+        log.debug('Skipping span with empty normalized content', {
           fieldName,
-          rawContent: (match[2] || "").slice(0, 120),
+          rawContent: (match[2] || '').slice(0, 120),
         });
         continue;
       }
       entries.push({ groupId, content });
     }
     if (entries.length === 0 && /<span\b/i.test(value)) {
-      this.warnFieldParseOnce(fieldName, "no-usable-span-entries");
+      this.warnFieldParseOnce(fieldName, 'no-usable-span-entries');
     }
     return entries;
   }
@@ -1236,14 +1080,14 @@ export class AnkiIntegration {
       if (idMatch) {
         const parsed = Number(idMatch[1]);
         if (!Number.isFinite(parsed) || parsed <= 0) {
-          this.warnFieldParseOnce("Picture", "invalid-group-id", idMatch[1]);
+          this.warnFieldParseOnce('Picture', 'invalid-group-id', idMatch[1]);
         } else {
           groupId = parsed;
         }
       }
       const normalizedTag = this.ensureImageGroupId(tag, groupId);
       if (!normalizedTag) {
-        this.warnFieldParseOnce("Picture", "empty-image-tag");
+        this.warnFieldParseOnce('Picture', 'empty-image-tag');
         continue;
       }
       result.push({ groupId, tag: normalizedTag });
@@ -1251,29 +1095,23 @@ export class AnkiIntegration {
     return result;
   }
 
-  private normalizeStrictGroupedValue(
-    value: string,
-    fieldName: string,
-  ): string {
+  private normalizeStrictGroupedValue(value: string, fieldName: string): string {
     const ungrouped = this.extractUngroupedValue(value);
-    if (!ungrouped) return "";
+    if (!ungrouped) return '';
 
     const normalizedField = fieldName.toLowerCase();
-    if (
-      normalizedField === "sentenceaudio" ||
-      normalizedField === "expressionaudio"
-    ) {
+    if (normalizedField === 'sentenceaudio' || normalizedField === 'expressionaudio') {
       const lastSoundTag = this.extractLastSoundTag(ungrouped);
       if (!lastSoundTag) {
-        this.warnFieldParseOnce(fieldName, "missing-sound-tag");
+        this.warnFieldParseOnce(fieldName, 'missing-sound-tag');
       }
       return lastSoundTag || ungrouped;
     }
 
-    if (normalizedField === "picture") {
+    if (normalizedField === 'picture') {
       const lastImageTag = this.extractLastImageTag(ungrouped);
       if (!lastImageTag) {
-        this.warnFieldParseOnce(fieldName, "missing-image-tag");
+        this.warnFieldParseOnce(fieldName, 'missing-image-tag');
       }
       return lastImageTag || ungrouped;
     }
@@ -1284,16 +1122,10 @@ export class AnkiIntegration {
   private getStrictSpanGroupingFields(): Set<string> {
     const strictFields = new Set(this.strictGroupingFieldDefaults);
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-    strictFields.add(
-      (sentenceCardConfig.sentenceField || "sentence").toLowerCase(),
-    );
-    strictFields.add(
-      (sentenceCardConfig.audioField || "sentenceaudio").toLowerCase(),
-    );
-    if (this.config.fields?.image)
-      strictFields.add(this.config.fields.image.toLowerCase());
-    if (this.config.fields?.miscInfo)
-      strictFields.add(this.config.fields.miscInfo.toLowerCase());
+    strictFields.add((sentenceCardConfig.sentenceField || 'sentence').toLowerCase());
+    strictFields.add((sentenceCardConfig.audioField || 'sentenceaudio').toLowerCase());
+    if (this.config.fields?.image) strictFields.add(this.config.fields.image.toLowerCase());
+    if (this.config.fields?.miscInfo) strictFields.add(this.config.fields.miscInfo.toLowerCase());
     return strictFields;
   }
 
@@ -1310,11 +1142,8 @@ export class AnkiIntegration {
     fieldName: string,
   ): string {
     if (this.shouldUseStrictSpanGrouping(fieldName)) {
-      if (fieldName.toLowerCase() === "picture") {
-        const keepEntries = this.parsePictureEntries(
-          existingValue,
-          keepGroupId,
-        );
+      if (fieldName.toLowerCase() === 'picture') {
+        const keepEntries = this.parsePictureEntries(existingValue, keepGroupId);
         const sourceEntries = this.parsePictureEntries(newValue, sourceGroupId);
         if (keepEntries.length === 0 && sourceEntries.length === 0) {
           return existingValue || newValue;
@@ -1329,34 +1158,21 @@ export class AnkiIntegration {
           seen.add(normalized);
           mergedTags.push(normalized);
         }
-        return mergedTags.join("");
+        return mergedTags.join('');
       }
 
-      const keepEntries = this.parseStrictEntries(
-        existingValue,
-        keepGroupId,
-        fieldName,
-      );
-      const sourceEntries = this.parseStrictEntries(
-        newValue,
-        sourceGroupId,
-        fieldName,
-      );
+      const keepEntries = this.parseStrictEntries(existingValue, keepGroupId, fieldName);
+      const sourceEntries = this.parseStrictEntries(newValue, sourceGroupId, fieldName);
       if (keepEntries.length === 0 && sourceEntries.length === 0) {
         return existingValue || newValue;
       }
       if (sourceEntries.length === 0) {
         return keepEntries
-          .map(
-            (entry) =>
-              `<span data-group-id="${entry.groupId}">${entry.content}</span>`,
-          )
-          .join("");
+          .map((entry) => `<span data-group-id="${entry.groupId}">${entry.content}</span>`)
+          .join('');
       }
       const merged = [...keepEntries];
-      const seen = new Set(
-        keepEntries.map((entry) => `${entry.groupId}::${entry.content}`),
-      );
+      const seen = new Set(keepEntries.map((entry) => `${entry.groupId}::${entry.content}`));
       for (const entry of sourceEntries) {
         const key = `${entry.groupId}::${entry.content}`;
         if (seen.has(key)) continue;
@@ -1365,11 +1181,8 @@ export class AnkiIntegration {
       }
       if (merged.length === 0) return existingValue;
       return merged
-        .map(
-          (entry) =>
-            `<span data-group-id="${entry.groupId}">${entry.content}</span>`,
-        )
-        .join("");
+        .map((entry) => `<span data-group-id="${entry.groupId}">${entry.content}</span>`)
+        .join('');
     }
 
     if (!existingValue.trim()) return newValue;
@@ -1378,15 +1191,12 @@ export class AnkiIntegration {
     const hasGroups = /data-group-id/.test(existingValue);
 
     if (!hasGroups) {
-      return (
-        `<span data-group-id="${keepGroupId}">${existingValue}</span>\n` +
-        newValue
-      );
+      return `<span data-group-id="${keepGroupId}">${existingValue}</span>\n` + newValue;
     }
 
     const groupedSpanRegex = /<span\s+data-group-id="[^"]*">[\s\S]*?<\/span>/g;
     let lastEnd = 0;
-    let result = "";
+    let result = '';
     let match;
 
     while ((match = groupedSpanRegex.exec(existingValue)) !== null) {
@@ -1394,7 +1204,7 @@ export class AnkiIntegration {
       if (before.trim()) {
         result += `<span data-group-id="${keepGroupId}">${before.trim()}</span>\n`;
       }
-      result += match[0] + "\n";
+      result += match[0] + '\n';
       lastEnd = match.index + match[0].length;
     }
 
@@ -1403,7 +1213,7 @@ export class AnkiIntegration {
       result += `\n<span data-group-id="${keepGroupId}">${after.trim()}</span>`;
     }
 
-    return result + "\n" + newValue;
+    return result + '\n' + newValue;
   }
 
   private async generateMediaForMerge(): Promise<{
@@ -1437,10 +1247,7 @@ export class AnkiIntegration {
           }
         }
       } catch (error) {
-        log.error(
-          "Failed to generate audio for merge:",
-          (error as Error).message,
-        );
+        log.error('Failed to generate audio for merge:', (error as Error).message);
       }
     }
 
@@ -1450,9 +1257,7 @@ export class AnkiIntegration {
         const imageBuffer = await this.generateImage();
         if (imageBuffer) {
           await this.client.storeMediaFile(imageFilename, imageBuffer);
-          result.imageField =
-            this.config.fields?.image ||
-            DEFAULT_ANKI_CONNECT_CONFIG.fields.image;
+          result.imageField = this.config.fields?.image || DEFAULT_ANKI_CONNECT_CONFIG.fields.image;
           result.imageValue = `<img src="${imageFilename}">`;
           if (this.config.fields?.miscInfo && !result.miscInfoValue) {
             result.miscInfoValue = this.formatMiscInfoPattern(
@@ -1462,24 +1267,18 @@ export class AnkiIntegration {
           }
         }
       } catch (error) {
-        log.error(
-          "Failed to generate image for merge:",
-          (error as Error).message,
-        );
+        log.error('Failed to generate image for merge:', (error as Error).message);
       }
     }
 
     return result;
   }
 
-  private getResolvedFieldValue(
-    noteInfo: NoteInfo,
-    preferredFieldName?: string,
-  ): string {
-    if (!preferredFieldName) return "";
+  private getResolvedFieldValue(noteInfo: NoteInfo, preferredFieldName?: string): string {
+    if (!preferredFieldName) return '';
     const resolved = this.resolveNoteFieldName(noteInfo, preferredFieldName);
-    if (!resolved) return "";
-    return noteInfo.fields[resolved]?.value || "";
+    if (!resolved) return '';
+    return noteInfo.fields[resolved]?.value || '';
   }
 
   private async computeFieldGroupingMergedFields(
@@ -1498,32 +1297,29 @@ export class AnkiIntegration {
         deleteNoteInfo,
         preferredFieldName,
       );
-      const keepResolved = this.resolveFieldName(
-        keepFieldNames,
-        preferredFieldName,
-      );
+      const keepResolved = this.resolveFieldName(keepFieldNames, preferredFieldName);
       if (keepResolved) {
         resolvedKeepFieldByPreferred.set(preferredFieldName, keepResolved);
       }
     }
 
-    if (!sourceFields["SentenceFurigana"] && sourceFields["Sentence"]) {
-      sourceFields["SentenceFurigana"] = sourceFields["Sentence"];
+    if (!sourceFields['SentenceFurigana'] && sourceFields['Sentence']) {
+      sourceFields['SentenceFurigana'] = sourceFields['Sentence'];
     }
-    if (!sourceFields["Sentence"] && sourceFields["SentenceFurigana"]) {
-      sourceFields["Sentence"] = sourceFields["SentenceFurigana"];
+    if (!sourceFields['Sentence'] && sourceFields['SentenceFurigana']) {
+      sourceFields['Sentence'] = sourceFields['SentenceFurigana'];
     }
-    if (!sourceFields["Expression"] && sourceFields["Word"]) {
-      sourceFields["Expression"] = sourceFields["Word"];
+    if (!sourceFields['Expression'] && sourceFields['Word']) {
+      sourceFields['Expression'] = sourceFields['Word'];
     }
-    if (!sourceFields["Word"] && sourceFields["Expression"]) {
-      sourceFields["Word"] = sourceFields["Expression"];
+    if (!sourceFields['Word'] && sourceFields['Expression']) {
+      sourceFields['Word'] = sourceFields['Expression'];
     }
-    if (!sourceFields["SentenceAudio"] && sourceFields["ExpressionAudio"]) {
-      sourceFields["SentenceAudio"] = sourceFields["ExpressionAudio"];
+    if (!sourceFields['SentenceAudio'] && sourceFields['ExpressionAudio']) {
+      sourceFields['SentenceAudio'] = sourceFields['ExpressionAudio'];
     }
-    if (!sourceFields["ExpressionAudio"] && sourceFields["SentenceAudio"]) {
-      sourceFields["ExpressionAudio"] = sourceFields["SentenceAudio"];
+    if (!sourceFields['ExpressionAudio'] && sourceFields['SentenceAudio']) {
+      sourceFields['ExpressionAudio'] = sourceFields['SentenceAudio'];
     }
 
     if (
@@ -1540,18 +1336,10 @@ export class AnkiIntegration {
 
     if (includeGeneratedMedia) {
       const media = await this.generateMediaForMerge();
-      if (
-        media.audioField &&
-        media.audioValue &&
-        !sourceFields[media.audioField]
-      ) {
+      if (media.audioField && media.audioValue && !sourceFields[media.audioField]) {
         sourceFields[media.audioField] = media.audioValue;
       }
-      if (
-        media.imageField &&
-        media.imageValue &&
-        !sourceFields[media.imageField]
-      ) {
+      if (media.imageField && media.imageValue && !sourceFields[media.imageField]) {
         sourceFields[media.imageField] = media.imageValue;
       }
       if (
@@ -1565,22 +1353,21 @@ export class AnkiIntegration {
 
     const mergedFields: Record<string, string> = {};
     for (const preferredFieldName of groupableFields) {
-      const keepFieldName =
-        resolvedKeepFieldByPreferred.get(preferredFieldName);
+      const keepFieldName = resolvedKeepFieldByPreferred.get(preferredFieldName);
       if (!keepFieldName) continue;
 
       const keepFieldNormalized = keepFieldName.toLowerCase();
       if (
-        keepFieldNormalized === "expression" ||
-        keepFieldNormalized === "expressionfurigana" ||
-        keepFieldNormalized === "expressionreading" ||
-        keepFieldNormalized === "expressionaudio"
+        keepFieldNormalized === 'expression' ||
+        keepFieldNormalized === 'expressionfurigana' ||
+        keepFieldNormalized === 'expressionreading' ||
+        keepFieldNormalized === 'expressionaudio'
       ) {
         continue;
       }
 
-      const existingValue = keepNoteInfo.fields[keepFieldName]?.value || "";
-      const newValue = sourceFields[preferredFieldName] || "";
+      const existingValue = keepNoteInfo.fields[keepFieldName]?.value || '';
+      const newValue = sourceFields[preferredFieldName] || '';
       const isStrictField = this.shouldUseStrictSpanGrouping(keepFieldName);
       if (!existingValue.trim() && !newValue.trim()) continue;
 
@@ -1611,11 +1398,11 @@ export class AnkiIntegration {
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
     const resolvedSentenceAudioField = this.resolveFieldName(
       keepFieldNames,
-      sentenceCardConfig.audioField || "SentenceAudio",
+      sentenceCardConfig.audioField || 'SentenceAudio',
     );
     const resolvedExpressionAudioField = this.resolveFieldName(
       keepFieldNames,
-      this.config.fields?.audio || "ExpressionAudio",
+      this.config.fields?.audio || 'ExpressionAudio',
     );
     if (
       resolvedSentenceAudioField &&
@@ -1625,7 +1412,7 @@ export class AnkiIntegration {
       const mergedSentenceAudioValue =
         mergedFields[resolvedSentenceAudioField] ||
         keepNoteInfo.fields[resolvedSentenceAudioField]?.value ||
-        "";
+        '';
       if (mergedSentenceAudioValue.trim()) {
         mergedFields[resolvedExpressionAudioField] = mergedSentenceAudioValue;
       }
@@ -1637,7 +1424,7 @@ export class AnkiIntegration {
   private getNoteFieldMap(noteInfo: NoteInfo): Record<string, string> {
     const fields: Record<string, string> = {};
     for (const [name, field] of Object.entries(noteInfo.fields)) {
-      fields[name] = field?.value || "";
+      fields[name] = field?.value || '';
     }
     return fields;
   }
@@ -1664,7 +1451,7 @@ export class AnkiIntegration {
     const keepNotesInfoResult = await this.client.notesInfo([keepNoteId]);
     const keepNotesInfo = keepNotesInfoResult as unknown as NoteInfo[];
     if (!keepNotesInfo || keepNotesInfo.length === 0) {
-      log.warn("Keep note not found:", keepNoteId);
+      log.warn('Keep note not found:', keepNoteId);
       return;
     }
     const keepNoteInfo = keepNotesInfo[0];
@@ -1685,7 +1472,7 @@ export class AnkiIntegration {
       this.previousNoteIds.delete(deleteNoteId);
     }
 
-    log.info("Merged duplicate card:", expression, "into note:", keepNoteId);
+    log.info('Merged duplicate card:', expression, 'into note:', keepNoteId);
     this.showStatusNotification(
       deleteDuplicate
         ? `Merged duplicate: ${expression}`
@@ -1710,10 +1497,8 @@ export class AnkiIntegration {
         sentenceCardConfig.kikuDeleteDuplicateInAuto,
       );
     } catch (error) {
-      log.error("Field grouping auto merge failed:", (error as Error).message);
-      this.showOsdNotification(
-        `Field grouping failed: ${(error as Error).message}`,
-      );
+      log.error('Field grouping auto merge failed:', (error as Error).message);
+      this.showOsdNotification(`Field grouping failed: ${(error as Error).message}`);
     }
   }
 
@@ -1724,17 +1509,14 @@ export class AnkiIntegration {
     expression: string,
   ): Promise<boolean> {
     if (!this.fieldGroupingCallback) {
-      log.warn("No field grouping callback registered, skipping manual mode");
-      this.showOsdNotification("Field grouping UI unavailable");
+      log.warn('No field grouping callback registered, skipping manual mode');
+      this.showOsdNotification('Field grouping UI unavailable');
       return false;
     }
 
     try {
-      const originalNotesInfoResult = await this.client.notesInfo([
-        originalNoteId,
-      ]);
-      const originalNotesInfo =
-        originalNotesInfoResult as unknown as NoteInfo[];
+      const originalNotesInfoResult = await this.client.notesInfo([originalNoteId]);
+      const originalNotesInfo = originalNotesInfoResult as unknown as NoteInfo[];
       if (!originalNotesInfo || originalNotesInfo.length === 0) {
         return false;
       }
@@ -1746,20 +1528,14 @@ export class AnkiIntegration {
 
       const originalCard: KikuDuplicateCardInfo = {
         noteId: originalNoteId,
-        expression:
-          originalFields.expression || originalFields.word || expression,
+        expression: originalFields.expression || originalFields.word || expression,
         sentencePreview: this.truncateSentence(
-          originalFields[
-            (sentenceCardConfig.sentenceField || "sentence").toLowerCase()
-          ] || "",
+          originalFields[(sentenceCardConfig.sentenceField || 'sentence').toLowerCase()] || '',
         ),
         hasAudio:
           this.hasFieldValue(originalNoteInfo, this.config.fields?.audio) ||
           this.hasFieldValue(originalNoteInfo, sentenceCardConfig.audioField),
-        hasImage: this.hasFieldValue(
-          originalNoteInfo,
-          this.config.fields?.image,
-        ),
+        hasImage: this.hasFieldValue(originalNoteInfo, this.config.fields?.image),
         isOriginal: true,
       };
 
@@ -1767,11 +1543,9 @@ export class AnkiIntegration {
         noteId: newNoteId,
         expression: newFields.expression || newFields.word || expression,
         sentencePreview: this.truncateSentence(
-          newFields[
-            (sentenceCardConfig.sentenceField || "sentence").toLowerCase()
-          ] ||
+          newFields[(sentenceCardConfig.sentenceField || 'sentence').toLowerCase()] ||
             this.mpvClient.currentSubText ||
-            "",
+            '',
         ),
         hasAudio:
           this.hasFieldValue(newNoteInfo, this.config.fields?.audio) ||
@@ -1786,14 +1560,13 @@ export class AnkiIntegration {
       });
 
       if (choice.cancelled) {
-        this.showOsdNotification("Field grouping cancelled");
+        this.showOsdNotification('Field grouping cancelled');
         return false;
       }
 
       const keepNoteId = choice.keepNoteId;
       const deleteNoteId = choice.deleteNoteId;
-      const deleteNoteInfo =
-        deleteNoteId === newNoteId ? newNoteInfo : originalNoteInfo;
+      const deleteNoteInfo = deleteNoteId === newNoteId ? newNoteInfo : originalNoteInfo;
 
       await this.performFieldGroupingMerge(
         keepNoteId,
@@ -1804,27 +1577,19 @@ export class AnkiIntegration {
       );
       return true;
     } catch (error) {
-      log.error(
-        "Field grouping manual merge failed:",
-        (error as Error).message,
-      );
-      this.showOsdNotification(
-        `Field grouping failed: ${(error as Error).message}`,
-      );
+      log.error('Field grouping manual merge failed:', (error as Error).message);
+      this.showOsdNotification(`Field grouping failed: ${(error as Error).message}`);
       return false;
     }
   }
 
   private truncateSentence(sentence: string): string {
-    const clean = sentence.replace(/<[^>]*>/g, "").trim();
+    const clean = sentence.replace(/<[^>]*>/g, '').trim();
     if (clean.length <= 100) return clean;
-    return clean.substring(0, 100) + "...";
+    return clean.substring(0, 100) + '...';
   }
 
-  private hasFieldValue(
-    noteInfo: NoteInfo,
-    preferredFieldName?: string,
-  ): boolean {
+  private hasFieldValue(noteInfo: NoteInfo, preferredFieldName?: string): boolean {
     const resolved = this.resolveNoteFieldName(noteInfo, preferredFieldName);
     if (!resolved) return false;
     return Boolean(noteInfo.fields[resolved]?.value);
@@ -1834,34 +1599,23 @@ export class AnkiIntegration {
     noteInfo: NoteInfo,
     configuredFieldNames: (string | undefined)[],
   ): boolean {
-    const requiredFields = configuredFieldNames.filter(
-      (fieldName): fieldName is string => Boolean(fieldName),
+    const requiredFields = configuredFieldNames.filter((fieldName): fieldName is string =>
+      Boolean(fieldName),
     );
     if (requiredFields.length === 0) return true;
-    return requiredFields.every((fieldName) =>
-      this.hasFieldValue(noteInfo, fieldName),
-    );
+    return requiredFields.every((fieldName) => this.hasFieldValue(noteInfo, fieldName));
   }
 
-  private async refreshMiscInfoField(
-    noteId: number,
-    noteInfo: NoteInfo,
-  ): Promise<void> {
+  private async refreshMiscInfoField(noteId: number, noteInfo: NoteInfo): Promise<void> {
     if (!this.config.fields?.miscInfo || !this.config.metadata?.pattern) return;
 
-    const resolvedMiscField = this.resolveNoteFieldName(
-      noteInfo,
-      this.config.fields?.miscInfo,
-    );
+    const resolvedMiscField = this.resolveNoteFieldName(noteInfo, this.config.fields?.miscInfo);
     if (!resolvedMiscField) return;
 
-    const nextValue = this.formatMiscInfoPattern(
-      "",
-      this.mpvClient.currentSubStart,
-    );
+    const nextValue = this.formatMiscInfoPattern('', this.mpvClient.currentSubStart);
     if (!nextValue) return;
 
-    const currentValue = noteInfo.fields[resolvedMiscField]?.value || "";
+    const currentValue = noteInfo.fields[resolvedMiscField]?.value || '';
     if (currentValue === nextValue) return;
 
     await this.client.updateNoteFields(noteId, {
@@ -1887,9 +1641,7 @@ export class AnkiIntegration {
           ? { ...this.config.fields, ...patch.fields }
           : this.config.fields,
       media:
-        patch.media !== undefined
-          ? { ...this.config.media, ...patch.media }
-          : this.config.media,
+        patch.media !== undefined ? { ...this.config.media, ...patch.media } : this.config.media,
       behavior:
         patch.behavior !== undefined
           ? { ...this.config.behavior, ...patch.behavior }

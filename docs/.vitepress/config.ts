@@ -1,94 +1,91 @@
-const repositoryName = process.env.GITHUB_REPOSITORY?.split("/")[1];
-const base =
-  process.env.GITHUB_ACTIONS && repositoryName ? `/${repositoryName}/` : "/";
+const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')[1];
+const base = process.env.GITHUB_ACTIONS && repositoryName ? `/${repositoryName}/` : '/';
 
 export default {
-  title: "SubMiner Docs",
+  title: 'SubMiner Docs',
   description:
-    "SubMiner: an MPV immersion-mining overlay with Yomitan and AnkiConnect integration.",
+    'SubMiner: an MPV immersion-mining overlay with Yomitan and AnkiConnect integration.',
   base,
   head: [
-    ["link", { rel: "icon", href: "/favicon.ico", sizes: "any" }],
+    ['link', { rel: 'icon', href: '/favicon.ico', sizes: 'any' }],
     [
-      "link",
+      'link',
       {
-        rel: "icon",
-        type: "image/png",
-        href: "/favicon-32x32.png",
-        sizes: "32x32",
+        rel: 'icon',
+        type: 'image/png',
+        href: '/favicon-32x32.png',
+        sizes: '32x32',
       },
     ],
     [
-      "link",
+      'link',
       {
-        rel: "icon",
-        type: "image/png",
-        href: "/favicon-16x16.png",
-        sizes: "16x16",
+        rel: 'icon',
+        type: 'image/png',
+        href: '/favicon-16x16.png',
+        sizes: '16x16',
       },
     ],
     [
-      "link",
+      'link',
       {
-        rel: "apple-touch-icon",
-        href: "/apple-touch-icon.png",
-        sizes: "180x180",
+        rel: 'apple-touch-icon',
+        href: '/apple-touch-icon.png',
+        sizes: '180x180',
       },
     ],
   ],
-  appearance: "dark",
+  appearance: 'dark',
   cleanUrls: true,
   lastUpdated: true,
   markdown: {
     theme: {
-      light: "catppuccin-latte",
-      dark: "catppuccin-macchiato",
+      light: 'catppuccin-latte',
+      dark: 'catppuccin-macchiato',
     },
   },
   themeConfig: {
     logo: {
-      light: "/assets/SubMiner.png",
-      dark: "/assets/SubMiner.png",
+      light: '/assets/SubMiner.png',
+      dark: '/assets/SubMiner.png',
     },
-    siteTitle: "SubMiner Docs",
+    siteTitle: 'SubMiner Docs',
     nav: [
-      { text: "Home", link: "/" },
-      { text: "Get Started", link: "/installation" },
-      { text: "Mining", link: "/mining-workflow" },
-      { text: "Configuration", link: "/configuration" },
-      { text: "Troubleshooting", link: "/troubleshooting" },
+      { text: 'Home', link: '/' },
+      { text: 'Get Started', link: '/installation' },
+      { text: 'Mining', link: '/mining-workflow' },
+      { text: 'Configuration', link: '/configuration' },
+      { text: 'Troubleshooting', link: '/troubleshooting' },
     ],
     sidebar: [
       {
-        text: "Getting Started",
+        text: 'Getting Started',
         items: [
-          { text: "Overview", link: "/" },
-          { text: "Installation", link: "/installation" },
-          { text: "Usage", link: "/usage" },
-          { text: "Mining Workflow", link: "/mining-workflow" },
+          { text: 'Overview', link: '/' },
+          { text: 'Installation', link: '/installation' },
+          { text: 'Usage', link: '/usage' },
+          { text: 'Mining Workflow', link: '/mining-workflow' },
         ],
       },
       {
-        text: "Reference",
+        text: 'Reference',
         items: [
-          { text: "Configuration", link: "/configuration" },
-          { text: "Immersion Tracking", link: "/immersion-tracking" },
-          { text: "Anki Integration", link: "/anki-integration" },
-          { text: "Jellyfin Integration", link: "/jellyfin-integration" },
-          { text: "MPV Plugin", link: "/mpv-plugin" },
-          { text: "Troubleshooting", link: "/troubleshooting" },
+          { text: 'Configuration', link: '/configuration' },
+          { text: 'Immersion Tracking', link: '/immersion-tracking' },
+          { text: 'Anki Integration', link: '/anki-integration' },
+          { text: 'Jellyfin Integration', link: '/jellyfin-integration' },
+          { text: 'MPV Plugin', link: '/mpv-plugin' },
+          { text: 'Troubleshooting', link: '/troubleshooting' },
         ],
       },
       {
-        text: "Development",
+        text: 'Development',
         items: [
-          { text: "Building & Testing", link: "/development" },
-          { text: "Architecture", link: "/architecture" },
+          { text: 'Building & Testing', link: '/development' },
+          { text: 'Architecture', link: '/architecture' },
         ],
       },
     ],
-    socialLinks: [
-      { icon: "github", link: "https://github.com/ksyasuda/SubMiner" },
-    ],
+    socialLinks: [{ icon: 'github', link: 'https://github.com/ksyasuda/SubMiner' }],
   },
 };

@@ -14,12 +14,15 @@ ordinal: 1000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add keybinding that will toggle edit mode on the invisible subtitles allowing for fine-grained control over positioning. use arrow keys and vim hjkl for motion and enter/ctrl+s to save and esc to cancel
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 - Implemented invisible subtitle position edit mode toggle with movement/save/cancel controls.
 - Added persistence for invisible subtitle offsets (`invisibleOffsetXPx`, `invisibleOffsetYPx`) alongside existing `yPercent` subtitle position state.
 - Updated edit mode visuals to highlight invisible subtitle text using the same styling as debug visualization.

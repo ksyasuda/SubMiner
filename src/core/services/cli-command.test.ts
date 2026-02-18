@@ -1,7 +1,7 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { CliArgs } from "../../cli/args";
-import { CliCommandServiceDeps, handleCliCommand } from "./cli-command";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { CliArgs } from '../../cli/args';
+import { CliCommandServiceDeps, handleCliCommand } from './cli-command';
 
 function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
@@ -53,7 +53,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
 
 function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
   const calls: string[] = [];
-  let mpvSocketPath = "/tmp/subminer.sock";
+  let mpvSocketPath = '/tmp/subminer.sock';
   let texthookerPort = 5174;
   const osd: string[] = [];
 
@@ -68,7 +68,7 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     hasMpvClient: () => true,
     connectMpvClient: () => {
-      calls.push("connectMpvClient");
+      calls.push('connectMpvClient');
     },
     isTexthookerRunning: () => false,
     setTexthookerPort: (port) => {
@@ -84,17 +84,17 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
       calls.push(`openTexthookerInBrowser:${url}`);
     },
     stopApp: () => {
-      calls.push("stopApp");
+      calls.push('stopApp');
     },
     isOverlayRuntimeInitialized: () => false,
     initializeOverlayRuntime: () => {
-      calls.push("initializeOverlayRuntime");
+      calls.push('initializeOverlayRuntime');
     },
     toggleVisibleOverlay: () => {
-      calls.push("toggleVisibleOverlay");
+      calls.push('toggleVisibleOverlay');
     },
     toggleInvisibleOverlay: () => {
-      calls.push("toggleInvisibleOverlay");
+      calls.push('toggleInvisibleOverlay');
     },
     openYomitanSettingsDelayed: (delayMs) => {
       calls.push(`openYomitanSettingsDelayed:${delayMs}`);
@@ -106,41 +106,41 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
       calls.push(`setInvisibleOverlayVisible:${visible}`);
     },
     copyCurrentSubtitle: () => {
-      calls.push("copyCurrentSubtitle");
+      calls.push('copyCurrentSubtitle');
     },
     startPendingMultiCopy: (timeoutMs) => {
       calls.push(`startPendingMultiCopy:${timeoutMs}`);
     },
     mineSentenceCard: async () => {
-      calls.push("mineSentenceCard");
+      calls.push('mineSentenceCard');
     },
     startPendingMineSentenceMultiple: (timeoutMs) => {
       calls.push(`startPendingMineSentenceMultiple:${timeoutMs}`);
     },
     updateLastCardFromClipboard: async () => {
-      calls.push("updateLastCardFromClipboard");
+      calls.push('updateLastCardFromClipboard');
     },
     refreshKnownWords: async () => {
-      calls.push("refreshKnownWords");
+      calls.push('refreshKnownWords');
     },
     cycleSecondarySubMode: () => {
-      calls.push("cycleSecondarySubMode");
+      calls.push('cycleSecondarySubMode');
     },
     triggerFieldGrouping: async () => {
-      calls.push("triggerFieldGrouping");
+      calls.push('triggerFieldGrouping');
     },
     triggerSubsyncFromConfig: async () => {
-      calls.push("triggerSubsyncFromConfig");
+      calls.push('triggerSubsyncFromConfig');
     },
     markLastCardAsAudioCard: async () => {
-      calls.push("markLastCardAsAudioCard");
+      calls.push('markLastCardAsAudioCard');
     },
     openRuntimeOptionsPalette: () => {
-      calls.push("openRuntimeOptionsPalette");
+      calls.push('openRuntimeOptionsPalette');
     },
     getAnilistStatus: () => ({
-      tokenStatus: "resolved",
-      tokenSource: "stored",
+      tokenStatus: 'resolved',
+      tokenSource: 'stored',
       tokenMessage: null,
       tokenResolvedAt: 1,
       tokenErrorAt: null,
@@ -151,13 +151,13 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
       queueLastError: null,
     }),
     clearAnilistToken: () => {
-      calls.push("clearAnilistToken");
+      calls.push('clearAnilistToken');
     },
     openAnilistSetup: () => {
-      calls.push("openAnilistSetup");
+      calls.push('openAnilistSetup');
     },
     openJellyfinSetup: () => {
-      calls.push("openJellyfinSetup");
+      calls.push('openJellyfinSetup');
     },
     getAnilistQueueStatus: () => ({
       pending: 2,
@@ -167,14 +167,14 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
       lastError: null,
     }),
     retryAnilistQueue: async () => {
-      calls.push("retryAnilistQueue");
-      return { ok: true, message: "AniList retry processed." };
+      calls.push('retryAnilistQueue');
+      return { ok: true, message: 'AniList retry processed.' };
     },
     runJellyfinCommand: async () => {
-      calls.push("runJellyfinCommand");
+      calls.push('runJellyfinCommand');
     },
     printHelp: () => {
-      calls.push("printHelp");
+      calls.push('printHelp');
     },
     hasMainWindow: () => true,
     getMultiCopyTimeoutMs: () => 2500,
@@ -196,183 +196,161 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
   return { deps, calls, osd };
 }
 
-test("handleCliCommand ignores --start for second-instance without actions", () => {
+test('handleCliCommand ignores --start for second-instance without actions', () => {
   const { deps, calls } = createDeps();
   const args = makeArgs({ start: true });
 
-  handleCliCommand(args, "second-instance", deps);
+  handleCliCommand(args, 'second-instance', deps);
 
-  assert.ok(
-    calls.includes("log:Ignoring --start because SubMiner is already running."),
-  );
+  assert.ok(calls.includes('log:Ignoring --start because SubMiner is already running.'));
   assert.equal(
-    calls.some((value) => value.includes("connectMpvClient")),
+    calls.some((value) => value.includes('connectMpvClient')),
     false,
   );
 });
 
-test("handleCliCommand runs texthooker flow with browser open", () => {
+test('handleCliCommand runs texthooker flow with browser open', () => {
   const { deps, calls } = createDeps();
   const args = makeArgs({ texthooker: true });
 
-  handleCliCommand(args, "initial", deps);
+  handleCliCommand(args, 'initial', deps);
 
-  assert.ok(calls.includes("ensureTexthookerRunning:5174"));
-  assert.ok(calls.includes("openTexthookerInBrowser:http://127.0.0.1:5174"));
+  assert.ok(calls.includes('ensureTexthookerRunning:5174'));
+  assert.ok(calls.includes('openTexthookerInBrowser:http://127.0.0.1:5174'));
 });
 
-test("handleCliCommand reports async mine errors to OSD", async () => {
+test('handleCliCommand reports async mine errors to OSD', async () => {
   const { deps, calls, osd } = createDeps({
     mineSentenceCard: async () => {
-      throw new Error("boom");
+      throw new Error('boom');
     },
   });
 
-  handleCliCommand(makeArgs({ mineSentence: true }), "initial", deps);
+  handleCliCommand(makeArgs({ mineSentence: true }), 'initial', deps);
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.ok(
-    calls.some((value) => value.startsWith("error:mineSentenceCard failed:")),
-  );
-  assert.ok(osd.some((value) => value.includes("Mine sentence failed: boom")));
+  assert.ok(calls.some((value) => value.startsWith('error:mineSentenceCard failed:')));
+  assert.ok(osd.some((value) => value.includes('Mine sentence failed: boom')));
 });
 
-test("handleCliCommand applies socket path and connects on start", () => {
+test('handleCliCommand applies socket path and connects on start', () => {
   const { deps, calls } = createDeps();
 
-  handleCliCommand(
-    makeArgs({ start: true, socketPath: "/tmp/custom.sock" }),
-    "initial",
-    deps,
-  );
+  handleCliCommand(makeArgs({ start: true, socketPath: '/tmp/custom.sock' }), 'initial', deps);
 
-  assert.ok(calls.includes("setMpvSocketPath:/tmp/custom.sock"));
-  assert.ok(calls.includes("setMpvClientSocketPath:/tmp/custom.sock"));
-  assert.ok(calls.includes("connectMpvClient"));
+  assert.ok(calls.includes('setMpvSocketPath:/tmp/custom.sock'));
+  assert.ok(calls.includes('setMpvClientSocketPath:/tmp/custom.sock'));
+  assert.ok(calls.includes('connectMpvClient'));
 });
 
-test("handleCliCommand warns when texthooker port override used while running", () => {
+test('handleCliCommand warns when texthooker port override used while running', () => {
   const { deps, calls } = createDeps({
     isTexthookerRunning: () => true,
   });
 
-  handleCliCommand(
-    makeArgs({ texthookerPort: 9999, texthooker: true }),
-    "initial",
-    deps,
-  );
+  handleCliCommand(makeArgs({ texthookerPort: 9999, texthooker: true }), 'initial', deps);
 
   assert.ok(
     calls.includes(
-      "warn:Ignoring --port override because the texthooker server is already running.",
+      'warn:Ignoring --port override because the texthooker server is already running.',
     ),
   );
   assert.equal(
-    calls.some((value) => value === "setTexthookerPort:9999"),
+    calls.some((value) => value === 'setTexthookerPort:9999'),
     false,
   );
 });
 
-test("handleCliCommand prints help and stops app when no window exists", () => {
+test('handleCliCommand prints help and stops app when no window exists', () => {
   const { deps, calls } = createDeps({
     hasMainWindow: () => false,
   });
 
-  handleCliCommand(makeArgs({ help: true }), "initial", deps);
+  handleCliCommand(makeArgs({ help: true }), 'initial', deps);
 
-  assert.ok(calls.includes("printHelp"));
-  assert.ok(calls.includes("stopApp"));
+  assert.ok(calls.includes('printHelp'));
+  assert.ok(calls.includes('stopApp'));
 });
 
-test("handleCliCommand reports async trigger-subsync errors to OSD", async () => {
+test('handleCliCommand reports async trigger-subsync errors to OSD', async () => {
   const { deps, calls, osd } = createDeps({
     triggerSubsyncFromConfig: async () => {
-      throw new Error("subsync boom");
+      throw new Error('subsync boom');
     },
   });
 
-  handleCliCommand(makeArgs({ triggerSubsync: true }), "initial", deps);
+  handleCliCommand(makeArgs({ triggerSubsync: true }), 'initial', deps);
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.ok(
-    calls.some((value) =>
-      value.startsWith("error:triggerSubsyncFromConfig failed:"),
-    ),
-  );
-  assert.ok(
-    osd.some((value) => value.includes("Subsync failed: subsync boom")),
-  );
+  assert.ok(calls.some((value) => value.startsWith('error:triggerSubsyncFromConfig failed:')));
+  assert.ok(osd.some((value) => value.includes('Subsync failed: subsync boom')));
 });
 
-test("handleCliCommand stops app for --stop command", () => {
+test('handleCliCommand stops app for --stop command', () => {
   const { deps, calls } = createDeps();
-  handleCliCommand(makeArgs({ stop: true }), "initial", deps);
-  assert.ok(calls.includes("log:Stopping SubMiner..."));
-  assert.ok(calls.includes("stopApp"));
+  handleCliCommand(makeArgs({ stop: true }), 'initial', deps);
+  assert.ok(calls.includes('log:Stopping SubMiner...'));
+  assert.ok(calls.includes('stopApp'));
 });
 
-test("handleCliCommand still runs non-start actions on second-instance", () => {
+test('handleCliCommand still runs non-start actions on second-instance', () => {
   const { deps, calls } = createDeps();
-  handleCliCommand(
-    makeArgs({ start: true, toggleVisibleOverlay: true }),
-    "second-instance",
-    deps,
-  );
-  assert.ok(calls.includes("toggleVisibleOverlay"));
+  handleCliCommand(makeArgs({ start: true, toggleVisibleOverlay: true }), 'second-instance', deps);
+  assert.ok(calls.includes('toggleVisibleOverlay'));
   assert.equal(
-    calls.some((value) => value === "connectMpvClient"),
+    calls.some((value) => value === 'connectMpvClient'),
     true,
   );
 });
 
-test("handleCliCommand handles visibility and utility command dispatches", () => {
+test('handleCliCommand handles visibility and utility command dispatches', () => {
   const cases: Array<{
     args: Partial<CliArgs>;
     expected: string;
   }> = [
     {
       args: { toggleInvisibleOverlay: true },
-      expected: "toggleInvisibleOverlay",
+      expected: 'toggleInvisibleOverlay',
     },
-    { args: { settings: true }, expected: "openYomitanSettingsDelayed:1000" },
+    { args: { settings: true }, expected: 'openYomitanSettingsDelayed:1000' },
     {
       args: { showVisibleOverlay: true },
-      expected: "setVisibleOverlayVisible:true",
+      expected: 'setVisibleOverlayVisible:true',
     },
     {
       args: { hideVisibleOverlay: true },
-      expected: "setVisibleOverlayVisible:false",
+      expected: 'setVisibleOverlayVisible:false',
     },
     {
       args: { showInvisibleOverlay: true },
-      expected: "setInvisibleOverlayVisible:true",
+      expected: 'setInvisibleOverlayVisible:true',
     },
     {
       args: { hideInvisibleOverlay: true },
-      expected: "setInvisibleOverlayVisible:false",
+      expected: 'setInvisibleOverlayVisible:false',
     },
-    { args: { copySubtitle: true }, expected: "copyCurrentSubtitle" },
+    { args: { copySubtitle: true }, expected: 'copyCurrentSubtitle' },
     {
       args: { copySubtitleMultiple: true },
-      expected: "startPendingMultiCopy:2500",
+      expected: 'startPendingMultiCopy:2500',
     },
     {
       args: { mineSentenceMultiple: true },
-      expected: "startPendingMineSentenceMultiple:2500",
+      expected: 'startPendingMineSentenceMultiple:2500',
     },
-    { args: { toggleSecondarySub: true }, expected: "cycleSecondarySubMode" },
+    { args: { toggleSecondarySub: true }, expected: 'cycleSecondarySubMode' },
     {
       args: { openRuntimeOptions: true },
-      expected: "openRuntimeOptionsPalette",
+      expected: 'openRuntimeOptionsPalette',
     },
-    { args: { anilistLogout: true }, expected: "clearAnilistToken" },
-    { args: { anilistSetup: true }, expected: "openAnilistSetup" },
-    { args: { jellyfin: true }, expected: "openJellyfinSetup" },
+    { args: { anilistLogout: true }, expected: 'clearAnilistToken' },
+    { args: { anilistSetup: true }, expected: 'openAnilistSetup' },
+    { args: { jellyfin: true }, expected: 'openJellyfinSetup' },
   ];
 
   for (const entry of cases) {
     const { deps, calls } = createDeps();
-    handleCliCommand(makeArgs(entry.args), "initial", deps);
+    handleCliCommand(makeArgs(entry.args), 'initial', deps);
     assert.ok(
       calls.includes(entry.expected),
       `expected call missing for args ${JSON.stringify(entry.args)}: ${entry.expected}`,
@@ -380,24 +358,22 @@ test("handleCliCommand handles visibility and utility command dispatches", () =>
   }
 });
 
-test("handleCliCommand logs AniList status details", () => {
+test('handleCliCommand logs AniList status details', () => {
   const { deps, calls } = createDeps();
-  handleCliCommand(makeArgs({ anilistStatus: true }), "initial", deps);
-  assert.ok(
-    calls.some((value) => value.startsWith("log:AniList token status:")),
-  );
-  assert.ok(calls.some((value) => value.startsWith("log:AniList queue:")));
+  handleCliCommand(makeArgs({ anilistStatus: true }), 'initial', deps);
+  assert.ok(calls.some((value) => value.startsWith('log:AniList token status:')));
+  assert.ok(calls.some((value) => value.startsWith('log:AniList queue:')));
 });
 
-test("handleCliCommand runs AniList retry command", async () => {
+test('handleCliCommand runs AniList retry command', async () => {
   const { deps, calls } = createDeps();
-  handleCliCommand(makeArgs({ anilistRetryQueue: true }), "initial", deps);
+  handleCliCommand(makeArgs({ anilistRetryQueue: true }), 'initial', deps);
   await new Promise((resolve) => setImmediate(resolve));
-  assert.ok(calls.includes("retryAnilistQueue"));
-  assert.ok(calls.includes("log:AniList retry processed."));
+  assert.ok(calls.includes('retryAnilistQueue'));
+  assert.ok(calls.includes('log:AniList retry processed.'));
 });
 
-test("handleCliCommand does not dispatch runJellyfinCommand for non-Jellyfin commands", () => {
+test('handleCliCommand does not dispatch runJellyfinCommand for non-Jellyfin commands', () => {
   const nonJellyfinArgs: Array<Partial<CliArgs>> = [
     { start: true },
     { copySubtitle: true },
@@ -406,10 +382,8 @@ test("handleCliCommand does not dispatch runJellyfinCommand for non-Jellyfin com
 
   for (const args of nonJellyfinArgs) {
     const { deps, calls } = createDeps();
-    handleCliCommand(makeArgs(args), "initial", deps);
-    const runJellyfinCallCount = calls.filter(
-      (value) => value === "runJellyfinCommand",
-    ).length;
+    handleCliCommand(makeArgs(args), 'initial', deps);
+    const runJellyfinCallCount = calls.filter((value) => value === 'runJellyfinCommand').length;
     assert.equal(
       runJellyfinCallCount,
       0,
@@ -418,59 +392,47 @@ test("handleCliCommand does not dispatch runJellyfinCommand for non-Jellyfin com
   }
 });
 
-test("handleCliCommand runs jellyfin command dispatcher", async () => {
+test('handleCliCommand runs jellyfin command dispatcher', async () => {
   const { deps, calls } = createDeps();
-  handleCliCommand(makeArgs({ jellyfinLibraries: true }), "initial", deps);
-  handleCliCommand(makeArgs({ jellyfinSubtitles: true }), "initial", deps);
+  handleCliCommand(makeArgs({ jellyfinLibraries: true }), 'initial', deps);
+  handleCliCommand(makeArgs({ jellyfinSubtitles: true }), 'initial', deps);
   await new Promise((resolve) => setImmediate(resolve));
-  const runJellyfinCallCount = calls.filter(
-    (value) => value === "runJellyfinCommand",
-  ).length;
+  const runJellyfinCallCount = calls.filter((value) => value === 'runJellyfinCommand').length;
   assert.equal(runJellyfinCallCount, 2);
 });
 
-test("handleCliCommand reports jellyfin command errors to OSD", async () => {
+test('handleCliCommand reports jellyfin command errors to OSD', async () => {
   const { deps, calls, osd } = createDeps({
     runJellyfinCommand: async () => {
-      throw new Error("server offline");
+      throw new Error('server offline');
     },
   });
 
-  handleCliCommand(makeArgs({ jellyfinLibraries: true }), "initial", deps);
+  handleCliCommand(makeArgs({ jellyfinLibraries: true }), 'initial', deps);
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.ok(
-    calls.some((value) => value.startsWith("error:runJellyfinCommand failed:")),
-  );
-  assert.ok(
-    osd.some((value) => value.includes("Jellyfin command failed: server offline")),
-  );
+  assert.ok(calls.some((value) => value.startsWith('error:runJellyfinCommand failed:')));
+  assert.ok(osd.some((value) => value.includes('Jellyfin command failed: server offline')));
 });
 
-test("handleCliCommand runs refresh-known-words command", () => {
+test('handleCliCommand runs refresh-known-words command', () => {
   const { deps, calls } = createDeps();
 
-  handleCliCommand(makeArgs({ refreshKnownWords: true }), "initial", deps);
+  handleCliCommand(makeArgs({ refreshKnownWords: true }), 'initial', deps);
 
-  assert.ok(calls.includes("refreshKnownWords"));
+  assert.ok(calls.includes('refreshKnownWords'));
 });
 
-test("handleCliCommand reports async refresh-known-words errors to OSD", async () => {
+test('handleCliCommand reports async refresh-known-words errors to OSD', async () => {
   const { deps, calls, osd } = createDeps({
     refreshKnownWords: async () => {
-      throw new Error("refresh boom");
+      throw new Error('refresh boom');
     },
   });
 
-  handleCliCommand(makeArgs({ refreshKnownWords: true }), "initial", deps);
+  handleCliCommand(makeArgs({ refreshKnownWords: true }), 'initial', deps);
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.ok(
-    calls.some((value) => value.startsWith("error:refreshKnownWords failed:")),
-  );
-  assert.ok(
-    osd.some((value) =>
-      value.includes("Refresh known words failed: refresh boom"),
-    ),
-  );
+  assert.ok(calls.some((value) => value.startsWith('error:refreshKnownWords failed:')));
+  assert.ok(osd.some((value) => value.includes('Refresh known words failed: refresh boom')));
 });

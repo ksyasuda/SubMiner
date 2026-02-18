@@ -1,19 +1,15 @@
-import {
-  RuntimeOptionId,
-  RuntimeOptionValue,
-  SubsyncManualPayload,
-} from "../types";
-import { SubsyncResolvedConfig } from "../subsync/utils";
-import type { SubsyncRuntimeDeps } from "../core/services/subsync-runner";
-import type { IpcDepsRuntimeOptions } from "../core/services/ipc";
-import type { AnkiJimakuIpcRuntimeOptions } from "../core/services/anki-jimaku";
-import type { CliCommandDepsRuntimeOptions } from "../core/services/cli-command";
-import type { HandleMpvCommandFromIpcOptions } from "../core/services/ipc-command";
+import { RuntimeOptionId, RuntimeOptionValue, SubsyncManualPayload } from '../types';
+import { SubsyncResolvedConfig } from '../subsync/utils';
+import type { SubsyncRuntimeDeps } from '../core/services/subsync-runner';
+import type { IpcDepsRuntimeOptions } from '../core/services/ipc';
+import type { AnkiJimakuIpcRuntimeOptions } from '../core/services/anki-jimaku';
+import type { CliCommandDepsRuntimeOptions } from '../core/services/cli-command';
+import type { HandleMpvCommandFromIpcOptions } from '../core/services/ipc-command';
 import {
   cycleRuntimeOptionFromIpcRuntime,
   setRuntimeOptionFromIpcRuntime,
-} from "../core/services/runtime-options-ipc";
-import { RuntimeOptionsManager } from "../runtime-options";
+} from '../core/services/runtime-options-ipc';
+import { RuntimeOptionsManager } from '../runtime-options';
 
 export interface RuntimeOptionsIpcDepsParams {
   getRuntimeOptionsManager: () => RuntimeOptionsManager | null;
@@ -21,7 +17,7 @@ export interface RuntimeOptionsIpcDepsParams {
 }
 
 export interface SubsyncRuntimeDepsParams {
-  getMpvClient: () => ReturnType<SubsyncRuntimeDeps["getMpvClient"]>;
+  getMpvClient: () => ReturnType<SubsyncRuntimeDeps['getMpvClient']>;
   getResolvedSubsyncConfig: () => SubsyncResolvedConfig;
   isSubsyncInProgress: () => boolean;
   setSubsyncInProgress: (inProgress: boolean) => void;
@@ -29,9 +25,7 @@ export interface SubsyncRuntimeDepsParams {
   openManualPicker: (payload: SubsyncManualPayload) => void;
 }
 
-export function createRuntimeOptionsIpcDeps(
-  params: RuntimeOptionsIpcDepsParams,
-): {
+export function createRuntimeOptionsIpcDeps(params: RuntimeOptionsIpcDepsParams): {
   setRuntimeOption: (id: string, value: unknown) => unknown;
   cycleRuntimeOption: (id: string, direction: 1 | -1) => unknown;
 } {
@@ -53,9 +47,7 @@ export function createRuntimeOptionsIpcDeps(
   };
 }
 
-export function createSubsyncRuntimeDeps(
-  params: SubsyncRuntimeDepsParams,
-): SubsyncRuntimeDeps {
+export function createSubsyncRuntimeDeps(params: SubsyncRuntimeDepsParams): SubsyncRuntimeDeps {
   return {
     getMpvClient: params.getMpvClient,
     getResolvedSubsyncConfig: params.getResolvedSubsyncConfig,
@@ -67,136 +59,136 @@ export function createSubsyncRuntimeDeps(
 }
 
 export interface MainIpcRuntimeServiceDepsParams {
-  getInvisibleWindow: IpcDepsRuntimeOptions["getInvisibleWindow"];
-  getMainWindow: IpcDepsRuntimeOptions["getMainWindow"];
-  getVisibleOverlayVisibility: IpcDepsRuntimeOptions["getVisibleOverlayVisibility"];
-  getInvisibleOverlayVisibility: IpcDepsRuntimeOptions["getInvisibleOverlayVisibility"];
-  onOverlayModalClosed: IpcDepsRuntimeOptions["onOverlayModalClosed"];
-  openYomitanSettings: IpcDepsRuntimeOptions["openYomitanSettings"];
-  quitApp: IpcDepsRuntimeOptions["quitApp"];
-  toggleVisibleOverlay: IpcDepsRuntimeOptions["toggleVisibleOverlay"];
-  tokenizeCurrentSubtitle: IpcDepsRuntimeOptions["tokenizeCurrentSubtitle"];
-  getCurrentSubtitleAss: IpcDepsRuntimeOptions["getCurrentSubtitleAss"];
-  focusMainWindow?: IpcDepsRuntimeOptions["focusMainWindow"];
-  getMpvSubtitleRenderMetrics: IpcDepsRuntimeOptions["getMpvSubtitleRenderMetrics"];
-  getSubtitlePosition: IpcDepsRuntimeOptions["getSubtitlePosition"];
-  getSubtitleStyle: IpcDepsRuntimeOptions["getSubtitleStyle"];
-  saveSubtitlePosition: IpcDepsRuntimeOptions["saveSubtitlePosition"];
-  getMecabTokenizer: IpcDepsRuntimeOptions["getMecabTokenizer"];
-  handleMpvCommand: IpcDepsRuntimeOptions["handleMpvCommand"];
-  getKeybindings: IpcDepsRuntimeOptions["getKeybindings"];
-  getConfiguredShortcuts: IpcDepsRuntimeOptions["getConfiguredShortcuts"];
-  getSecondarySubMode: IpcDepsRuntimeOptions["getSecondarySubMode"];
-  getMpvClient: IpcDepsRuntimeOptions["getMpvClient"];
-  runSubsyncManual: IpcDepsRuntimeOptions["runSubsyncManual"];
-  getAnkiConnectStatus: IpcDepsRuntimeOptions["getAnkiConnectStatus"];
-  getRuntimeOptions: IpcDepsRuntimeOptions["getRuntimeOptions"];
-  setRuntimeOption: IpcDepsRuntimeOptions["setRuntimeOption"];
-  cycleRuntimeOption: IpcDepsRuntimeOptions["cycleRuntimeOption"];
-  reportOverlayContentBounds: IpcDepsRuntimeOptions["reportOverlayContentBounds"];
-  getAnilistStatus: IpcDepsRuntimeOptions["getAnilistStatus"];
-  clearAnilistToken: IpcDepsRuntimeOptions["clearAnilistToken"];
-  openAnilistSetup: IpcDepsRuntimeOptions["openAnilistSetup"];
-  getAnilistQueueStatus: IpcDepsRuntimeOptions["getAnilistQueueStatus"];
-  retryAnilistQueueNow: IpcDepsRuntimeOptions["retryAnilistQueueNow"];
+  getInvisibleWindow: IpcDepsRuntimeOptions['getInvisibleWindow'];
+  getMainWindow: IpcDepsRuntimeOptions['getMainWindow'];
+  getVisibleOverlayVisibility: IpcDepsRuntimeOptions['getVisibleOverlayVisibility'];
+  getInvisibleOverlayVisibility: IpcDepsRuntimeOptions['getInvisibleOverlayVisibility'];
+  onOverlayModalClosed: IpcDepsRuntimeOptions['onOverlayModalClosed'];
+  openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
+  quitApp: IpcDepsRuntimeOptions['quitApp'];
+  toggleVisibleOverlay: IpcDepsRuntimeOptions['toggleVisibleOverlay'];
+  tokenizeCurrentSubtitle: IpcDepsRuntimeOptions['tokenizeCurrentSubtitle'];
+  getCurrentSubtitleAss: IpcDepsRuntimeOptions['getCurrentSubtitleAss'];
+  focusMainWindow?: IpcDepsRuntimeOptions['focusMainWindow'];
+  getMpvSubtitleRenderMetrics: IpcDepsRuntimeOptions['getMpvSubtitleRenderMetrics'];
+  getSubtitlePosition: IpcDepsRuntimeOptions['getSubtitlePosition'];
+  getSubtitleStyle: IpcDepsRuntimeOptions['getSubtitleStyle'];
+  saveSubtitlePosition: IpcDepsRuntimeOptions['saveSubtitlePosition'];
+  getMecabTokenizer: IpcDepsRuntimeOptions['getMecabTokenizer'];
+  handleMpvCommand: IpcDepsRuntimeOptions['handleMpvCommand'];
+  getKeybindings: IpcDepsRuntimeOptions['getKeybindings'];
+  getConfiguredShortcuts: IpcDepsRuntimeOptions['getConfiguredShortcuts'];
+  getSecondarySubMode: IpcDepsRuntimeOptions['getSecondarySubMode'];
+  getMpvClient: IpcDepsRuntimeOptions['getMpvClient'];
+  runSubsyncManual: IpcDepsRuntimeOptions['runSubsyncManual'];
+  getAnkiConnectStatus: IpcDepsRuntimeOptions['getAnkiConnectStatus'];
+  getRuntimeOptions: IpcDepsRuntimeOptions['getRuntimeOptions'];
+  setRuntimeOption: IpcDepsRuntimeOptions['setRuntimeOption'];
+  cycleRuntimeOption: IpcDepsRuntimeOptions['cycleRuntimeOption'];
+  reportOverlayContentBounds: IpcDepsRuntimeOptions['reportOverlayContentBounds'];
+  getAnilistStatus: IpcDepsRuntimeOptions['getAnilistStatus'];
+  clearAnilistToken: IpcDepsRuntimeOptions['clearAnilistToken'];
+  openAnilistSetup: IpcDepsRuntimeOptions['openAnilistSetup'];
+  getAnilistQueueStatus: IpcDepsRuntimeOptions['getAnilistQueueStatus'];
+  retryAnilistQueueNow: IpcDepsRuntimeOptions['retryAnilistQueueNow'];
 }
 
 export interface AnkiJimakuIpcRuntimeServiceDepsParams {
-  patchAnkiConnectEnabled: AnkiJimakuIpcRuntimeOptions["patchAnkiConnectEnabled"];
-  getResolvedConfig: AnkiJimakuIpcRuntimeOptions["getResolvedConfig"];
-  getRuntimeOptionsManager: AnkiJimakuIpcRuntimeOptions["getRuntimeOptionsManager"];
-  getSubtitleTimingTracker: AnkiJimakuIpcRuntimeOptions["getSubtitleTimingTracker"];
-  getMpvClient: AnkiJimakuIpcRuntimeOptions["getMpvClient"];
-  getAnkiIntegration: AnkiJimakuIpcRuntimeOptions["getAnkiIntegration"];
-  setAnkiIntegration: AnkiJimakuIpcRuntimeOptions["setAnkiIntegration"];
-  getKnownWordCacheStatePath: AnkiJimakuIpcRuntimeOptions["getKnownWordCacheStatePath"];
-  showDesktopNotification: AnkiJimakuIpcRuntimeOptions["showDesktopNotification"];
-  createFieldGroupingCallback: AnkiJimakuIpcRuntimeOptions["createFieldGroupingCallback"];
-  broadcastRuntimeOptionsChanged: AnkiJimakuIpcRuntimeOptions["broadcastRuntimeOptionsChanged"];
-  getFieldGroupingResolver: AnkiJimakuIpcRuntimeOptions["getFieldGroupingResolver"];
-  setFieldGroupingResolver: AnkiJimakuIpcRuntimeOptions["setFieldGroupingResolver"];
-  parseMediaInfo: AnkiJimakuIpcRuntimeOptions["parseMediaInfo"];
-  getCurrentMediaPath: AnkiJimakuIpcRuntimeOptions["getCurrentMediaPath"];
-  jimakuFetchJson: AnkiJimakuIpcRuntimeOptions["jimakuFetchJson"];
-  getJimakuMaxEntryResults: AnkiJimakuIpcRuntimeOptions["getJimakuMaxEntryResults"];
-  getJimakuLanguagePreference: AnkiJimakuIpcRuntimeOptions["getJimakuLanguagePreference"];
-  resolveJimakuApiKey: AnkiJimakuIpcRuntimeOptions["resolveJimakuApiKey"];
-  isRemoteMediaPath: AnkiJimakuIpcRuntimeOptions["isRemoteMediaPath"];
-  downloadToFile: AnkiJimakuIpcRuntimeOptions["downloadToFile"];
+  patchAnkiConnectEnabled: AnkiJimakuIpcRuntimeOptions['patchAnkiConnectEnabled'];
+  getResolvedConfig: AnkiJimakuIpcRuntimeOptions['getResolvedConfig'];
+  getRuntimeOptionsManager: AnkiJimakuIpcRuntimeOptions['getRuntimeOptionsManager'];
+  getSubtitleTimingTracker: AnkiJimakuIpcRuntimeOptions['getSubtitleTimingTracker'];
+  getMpvClient: AnkiJimakuIpcRuntimeOptions['getMpvClient'];
+  getAnkiIntegration: AnkiJimakuIpcRuntimeOptions['getAnkiIntegration'];
+  setAnkiIntegration: AnkiJimakuIpcRuntimeOptions['setAnkiIntegration'];
+  getKnownWordCacheStatePath: AnkiJimakuIpcRuntimeOptions['getKnownWordCacheStatePath'];
+  showDesktopNotification: AnkiJimakuIpcRuntimeOptions['showDesktopNotification'];
+  createFieldGroupingCallback: AnkiJimakuIpcRuntimeOptions['createFieldGroupingCallback'];
+  broadcastRuntimeOptionsChanged: AnkiJimakuIpcRuntimeOptions['broadcastRuntimeOptionsChanged'];
+  getFieldGroupingResolver: AnkiJimakuIpcRuntimeOptions['getFieldGroupingResolver'];
+  setFieldGroupingResolver: AnkiJimakuIpcRuntimeOptions['setFieldGroupingResolver'];
+  parseMediaInfo: AnkiJimakuIpcRuntimeOptions['parseMediaInfo'];
+  getCurrentMediaPath: AnkiJimakuIpcRuntimeOptions['getCurrentMediaPath'];
+  jimakuFetchJson: AnkiJimakuIpcRuntimeOptions['jimakuFetchJson'];
+  getJimakuMaxEntryResults: AnkiJimakuIpcRuntimeOptions['getJimakuMaxEntryResults'];
+  getJimakuLanguagePreference: AnkiJimakuIpcRuntimeOptions['getJimakuLanguagePreference'];
+  resolveJimakuApiKey: AnkiJimakuIpcRuntimeOptions['resolveJimakuApiKey'];
+  isRemoteMediaPath: AnkiJimakuIpcRuntimeOptions['isRemoteMediaPath'];
+  downloadToFile: AnkiJimakuIpcRuntimeOptions['downloadToFile'];
 }
 
 export interface CliCommandRuntimeServiceDepsParams {
   mpv: {
-    getSocketPath: CliCommandDepsRuntimeOptions["mpv"]["getSocketPath"];
-    setSocketPath: CliCommandDepsRuntimeOptions["mpv"]["setSocketPath"];
-    getClient: CliCommandDepsRuntimeOptions["mpv"]["getClient"];
-    showOsd: CliCommandDepsRuntimeOptions["mpv"]["showOsd"];
+    getSocketPath: CliCommandDepsRuntimeOptions['mpv']['getSocketPath'];
+    setSocketPath: CliCommandDepsRuntimeOptions['mpv']['setSocketPath'];
+    getClient: CliCommandDepsRuntimeOptions['mpv']['getClient'];
+    showOsd: CliCommandDepsRuntimeOptions['mpv']['showOsd'];
   };
   texthooker: {
-    service: CliCommandDepsRuntimeOptions["texthooker"]["service"];
-    getPort: CliCommandDepsRuntimeOptions["texthooker"]["getPort"];
-    setPort: CliCommandDepsRuntimeOptions["texthooker"]["setPort"];
-    shouldOpenBrowser: CliCommandDepsRuntimeOptions["texthooker"]["shouldOpenBrowser"];
-    openInBrowser: CliCommandDepsRuntimeOptions["texthooker"]["openInBrowser"];
+    service: CliCommandDepsRuntimeOptions['texthooker']['service'];
+    getPort: CliCommandDepsRuntimeOptions['texthooker']['getPort'];
+    setPort: CliCommandDepsRuntimeOptions['texthooker']['setPort'];
+    shouldOpenBrowser: CliCommandDepsRuntimeOptions['texthooker']['shouldOpenBrowser'];
+    openInBrowser: CliCommandDepsRuntimeOptions['texthooker']['openInBrowser'];
   };
   overlay: {
-    isInitialized: CliCommandDepsRuntimeOptions["overlay"]["isInitialized"];
-    initialize: CliCommandDepsRuntimeOptions["overlay"]["initialize"];
-    toggleVisible: CliCommandDepsRuntimeOptions["overlay"]["toggleVisible"];
-    toggleInvisible: CliCommandDepsRuntimeOptions["overlay"]["toggleInvisible"];
-    setVisible: CliCommandDepsRuntimeOptions["overlay"]["setVisible"];
-    setInvisible: CliCommandDepsRuntimeOptions["overlay"]["setInvisible"];
+    isInitialized: CliCommandDepsRuntimeOptions['overlay']['isInitialized'];
+    initialize: CliCommandDepsRuntimeOptions['overlay']['initialize'];
+    toggleVisible: CliCommandDepsRuntimeOptions['overlay']['toggleVisible'];
+    toggleInvisible: CliCommandDepsRuntimeOptions['overlay']['toggleInvisible'];
+    setVisible: CliCommandDepsRuntimeOptions['overlay']['setVisible'];
+    setInvisible: CliCommandDepsRuntimeOptions['overlay']['setInvisible'];
   };
   mining: {
-    copyCurrentSubtitle: CliCommandDepsRuntimeOptions["mining"]["copyCurrentSubtitle"];
-    startPendingMultiCopy: CliCommandDepsRuntimeOptions["mining"]["startPendingMultiCopy"];
-    mineSentenceCard: CliCommandDepsRuntimeOptions["mining"]["mineSentenceCard"];
-    startPendingMineSentenceMultiple: CliCommandDepsRuntimeOptions["mining"]["startPendingMineSentenceMultiple"];
-    updateLastCardFromClipboard: CliCommandDepsRuntimeOptions["mining"]["updateLastCardFromClipboard"];
-    refreshKnownWords: CliCommandDepsRuntimeOptions["mining"]["refreshKnownWords"];
-    triggerFieldGrouping: CliCommandDepsRuntimeOptions["mining"]["triggerFieldGrouping"];
-    triggerSubsyncFromConfig: CliCommandDepsRuntimeOptions["mining"]["triggerSubsyncFromConfig"];
-    markLastCardAsAudioCard: CliCommandDepsRuntimeOptions["mining"]["markLastCardAsAudioCard"];
+    copyCurrentSubtitle: CliCommandDepsRuntimeOptions['mining']['copyCurrentSubtitle'];
+    startPendingMultiCopy: CliCommandDepsRuntimeOptions['mining']['startPendingMultiCopy'];
+    mineSentenceCard: CliCommandDepsRuntimeOptions['mining']['mineSentenceCard'];
+    startPendingMineSentenceMultiple: CliCommandDepsRuntimeOptions['mining']['startPendingMineSentenceMultiple'];
+    updateLastCardFromClipboard: CliCommandDepsRuntimeOptions['mining']['updateLastCardFromClipboard'];
+    refreshKnownWords: CliCommandDepsRuntimeOptions['mining']['refreshKnownWords'];
+    triggerFieldGrouping: CliCommandDepsRuntimeOptions['mining']['triggerFieldGrouping'];
+    triggerSubsyncFromConfig: CliCommandDepsRuntimeOptions['mining']['triggerSubsyncFromConfig'];
+    markLastCardAsAudioCard: CliCommandDepsRuntimeOptions['mining']['markLastCardAsAudioCard'];
   };
   anilist: {
-    getStatus: CliCommandDepsRuntimeOptions["anilist"]["getStatus"];
-    clearToken: CliCommandDepsRuntimeOptions["anilist"]["clearToken"];
-    openSetup: CliCommandDepsRuntimeOptions["anilist"]["openSetup"];
-    getQueueStatus: CliCommandDepsRuntimeOptions["anilist"]["getQueueStatus"];
-    retryQueueNow: CliCommandDepsRuntimeOptions["anilist"]["retryQueueNow"];
+    getStatus: CliCommandDepsRuntimeOptions['anilist']['getStatus'];
+    clearToken: CliCommandDepsRuntimeOptions['anilist']['clearToken'];
+    openSetup: CliCommandDepsRuntimeOptions['anilist']['openSetup'];
+    getQueueStatus: CliCommandDepsRuntimeOptions['anilist']['getQueueStatus'];
+    retryQueueNow: CliCommandDepsRuntimeOptions['anilist']['retryQueueNow'];
   };
   jellyfin: {
-    openSetup: CliCommandDepsRuntimeOptions["jellyfin"]["openSetup"];
-    runCommand: CliCommandDepsRuntimeOptions["jellyfin"]["runCommand"];
+    openSetup: CliCommandDepsRuntimeOptions['jellyfin']['openSetup'];
+    runCommand: CliCommandDepsRuntimeOptions['jellyfin']['runCommand'];
   };
   ui: {
-    openYomitanSettings: CliCommandDepsRuntimeOptions["ui"]["openYomitanSettings"];
-    cycleSecondarySubMode: CliCommandDepsRuntimeOptions["ui"]["cycleSecondarySubMode"];
-    openRuntimeOptionsPalette: CliCommandDepsRuntimeOptions["ui"]["openRuntimeOptionsPalette"];
-    printHelp: CliCommandDepsRuntimeOptions["ui"]["printHelp"];
+    openYomitanSettings: CliCommandDepsRuntimeOptions['ui']['openYomitanSettings'];
+    cycleSecondarySubMode: CliCommandDepsRuntimeOptions['ui']['cycleSecondarySubMode'];
+    openRuntimeOptionsPalette: CliCommandDepsRuntimeOptions['ui']['openRuntimeOptionsPalette'];
+    printHelp: CliCommandDepsRuntimeOptions['ui']['printHelp'];
   };
   app: {
-    stop: CliCommandDepsRuntimeOptions["app"]["stop"];
-    hasMainWindow: CliCommandDepsRuntimeOptions["app"]["hasMainWindow"];
+    stop: CliCommandDepsRuntimeOptions['app']['stop'];
+    hasMainWindow: CliCommandDepsRuntimeOptions['app']['hasMainWindow'];
   };
-  getMultiCopyTimeoutMs: CliCommandDepsRuntimeOptions["getMultiCopyTimeoutMs"];
-  schedule: CliCommandDepsRuntimeOptions["schedule"];
-  log: CliCommandDepsRuntimeOptions["log"];
-  warn: CliCommandDepsRuntimeOptions["warn"];
-  error: CliCommandDepsRuntimeOptions["error"];
+  getMultiCopyTimeoutMs: CliCommandDepsRuntimeOptions['getMultiCopyTimeoutMs'];
+  schedule: CliCommandDepsRuntimeOptions['schedule'];
+  log: CliCommandDepsRuntimeOptions['log'];
+  warn: CliCommandDepsRuntimeOptions['warn'];
+  error: CliCommandDepsRuntimeOptions['error'];
 }
 
 export interface MpvCommandRuntimeServiceDepsParams {
-  specialCommands: HandleMpvCommandFromIpcOptions["specialCommands"];
-  runtimeOptionsCycle: HandleMpvCommandFromIpcOptions["runtimeOptionsCycle"];
-  triggerSubsyncFromConfig: HandleMpvCommandFromIpcOptions["triggerSubsyncFromConfig"];
-  openRuntimeOptionsPalette: HandleMpvCommandFromIpcOptions["openRuntimeOptionsPalette"];
-  showMpvOsd: HandleMpvCommandFromIpcOptions["showMpvOsd"];
-  mpvReplaySubtitle: HandleMpvCommandFromIpcOptions["mpvReplaySubtitle"];
-  mpvPlayNextSubtitle: HandleMpvCommandFromIpcOptions["mpvPlayNextSubtitle"];
-  mpvSendCommand: HandleMpvCommandFromIpcOptions["mpvSendCommand"];
-  isMpvConnected: HandleMpvCommandFromIpcOptions["isMpvConnected"];
-  hasRuntimeOptionsManager: HandleMpvCommandFromIpcOptions["hasRuntimeOptionsManager"];
+  specialCommands: HandleMpvCommandFromIpcOptions['specialCommands'];
+  runtimeOptionsCycle: HandleMpvCommandFromIpcOptions['runtimeOptionsCycle'];
+  triggerSubsyncFromConfig: HandleMpvCommandFromIpcOptions['triggerSubsyncFromConfig'];
+  openRuntimeOptionsPalette: HandleMpvCommandFromIpcOptions['openRuntimeOptionsPalette'];
+  showMpvOsd: HandleMpvCommandFromIpcOptions['showMpvOsd'];
+  mpvReplaySubtitle: HandleMpvCommandFromIpcOptions['mpvReplaySubtitle'];
+  mpvPlayNextSubtitle: HandleMpvCommandFromIpcOptions['mpvPlayNextSubtitle'];
+  mpvSendCommand: HandleMpvCommandFromIpcOptions['mpvSendCommand'];
+  isMpvConnected: HandleMpvCommandFromIpcOptions['isMpvConnected'];
+  hasRuntimeOptionsManager: HandleMpvCommandFromIpcOptions['hasRuntimeOptionsManager'];
 }
 
 export function createMainIpcRuntimeServiceDeps(
@@ -295,8 +287,7 @@ export function createCliCommandRuntimeServiceDeps(
       copyCurrentSubtitle: params.mining.copyCurrentSubtitle,
       startPendingMultiCopy: params.mining.startPendingMultiCopy,
       mineSentenceCard: params.mining.mineSentenceCard,
-      startPendingMineSentenceMultiple:
-        params.mining.startPendingMineSentenceMultiple,
+      startPendingMineSentenceMultiple: params.mining.startPendingMineSentenceMultiple,
       updateLastCardFromClipboard: params.mining.updateLastCardFromClipboard,
       refreshKnownWords: params.mining.refreshKnownWords,
       triggerFieldGrouping: params.mining.triggerFieldGrouping,

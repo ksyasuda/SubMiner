@@ -1,5 +1,5 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 export interface FrequencyDictionaryLookupOptions {
   searchPaths: string[];
@@ -19,16 +19,16 @@ function normalizeFrequencyTerm(value: string): string {
 }
 
 function extractFrequencyDisplayValue(meta: unknown): number | null {
-  if (!meta || typeof meta !== "object") return null;
+  if (!meta || typeof meta !== 'object') return null;
   const frequency = (meta as { frequency?: unknown }).frequency;
-  if (!frequency || typeof frequency !== "object") return null;
+  if (!frequency || typeof frequency !== 'object') return null;
   const displayValue = (frequency as { displayValue?: unknown }).displayValue;
-  if (typeof displayValue === "number") {
+  if (typeof displayValue === 'number') {
     if (!Number.isFinite(displayValue) || displayValue <= 0) return null;
     return Math.floor(displayValue);
   }
-  if (typeof displayValue === "string") {
-    const normalized = displayValue.trim().replace(/,/g, "");
+  if (typeof displayValue === 'string') {
+    const normalized = displayValue.trim().replace(/,/g, '');
     const parsed = Number.parseInt(normalized, 10);
     if (!Number.isFinite(parsed) || parsed <= 0) return null;
     return parsed;
@@ -37,15 +37,13 @@ function extractFrequencyDisplayValue(meta: unknown): number | null {
   return null;
 }
 
-function asFrequencyDictionaryEntry(
-  entry: unknown,
-): FrequencyDictionaryEntry | null {
+function asFrequencyDictionaryEntry(entry: unknown): FrequencyDictionaryEntry | null {
   if (!Array.isArray(entry) || entry.length < 3) {
     return null;
   }
 
   const [term, _id, meta] = entry as [unknown, unknown, unknown];
-  if (typeof term !== "string") {
+  if (typeof term !== 'string') {
     return null;
   }
 
@@ -97,15 +95,11 @@ function collectDictionaryFromPath(
   try {
     fileNames = fs.readdirSync(dictionaryPath);
   } catch (error) {
-    log(
-      `Failed to read frequency dictionary directory ${dictionaryPath}: ${String(error)}`,
-    );
+    log(`Failed to read frequency dictionary directory ${dictionaryPath}: ${String(error)}`);
     return terms;
   }
 
-  const bankFiles = fileNames
-    .filter((name) => FREQUENCY_BANK_FILE_GLOB.test(name))
-    .sort();
+  const bankFiles = fileNames.filter((name) => FREQUENCY_BANK_FILE_GLOB.test(name)).sort();
 
   if (bankFiles.length === 0) {
     return terms;
@@ -115,7 +109,7 @@ function collectDictionaryFromPath(
     const bankPath = path.join(dictionaryPath, bankFile);
     let rawText: string;
     try {
-      rawText = fs.readFileSync(bankPath, "utf-8");
+      rawText = fs.readFileSync(bankPath, 'utf-8');
     } catch {
       log(`Failed to read frequency dictionary file ${bankPath}`);
       continue;
@@ -132,9 +126,7 @@ function collectDictionaryFromPath(
     const beforeSize = terms.size;
     addEntriesToMap(rawEntries, terms, log);
     if (terms.size === beforeSize) {
-      log(
-        `Frequency dictionary file contained no extractable entries: ${bankPath}`,
-      );
+      log(`Frequency dictionary file contained no extractable entries: ${bankPath}`);
     }
   }
 
@@ -170,9 +162,7 @@ export async function createFrequencyDictionaryLookup(
     foundDictionaryPathCount += 1;
     const terms = collectDictionaryFromPath(dictionaryPath, options.log);
     if (terms.size > 0) {
-      options.log(
-        `Frequency dictionary loaded from ${dictionaryPath} (${terms.size} entries)`,
-      );
+      options.log(`Frequency dictionary loaded from ${dictionaryPath} (${terms.size} entries)`);
       return (term: string): number | null => {
         const normalized = normalizeFrequencyTerm(term);
         if (!normalized) return null;
@@ -186,11 +176,11 @@ export async function createFrequencyDictionaryLookup(
   }
 
   options.log(
-    `Frequency dictionary not found. Searched ${attemptedPaths.length} candidate path(s): ${attemptedPaths.join(", ")}`,
+    `Frequency dictionary not found. Searched ${attemptedPaths.length} candidate path(s): ${attemptedPaths.join(', ')}`,
   );
   if (foundDictionaryPathCount > 0) {
     options.log(
-      "Frequency dictionary directories found, but no usable term_meta_bank_*.json files were loaded.",
+      'Frequency dictionary directories found, but no usable term_meta_bank_*.json files were loaded.',
     );
   }
 

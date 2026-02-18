@@ -97,8 +97,8 @@ deps:
 ensure-bun:
 	@command -v bun >/dev/null 2>&1 || { printf '%s\n' "[ERROR] bun not found"; exit 1; }
 
-pretty:
-	@bunx prettier --write 'src/**/*.ts'
+pretty: ensure-bun
+	@bun run format
 
 build:
 	@printf '%s\n' "[INFO] Detected platform: $(PLATFORM)"

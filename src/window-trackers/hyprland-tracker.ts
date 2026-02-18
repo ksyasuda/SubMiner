@@ -16,12 +16,12 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import * as net from "net";
-import { execSync } from "child_process";
-import { BaseWindowTracker } from "./base-tracker";
-import { createLogger } from "../logger";
+import * as net from 'net';
+import { execSync } from 'child_process';
+import { BaseWindowTracker } from './base-tracker';
+import { createLogger } from '../logger';
 
-const log = createLogger("tracker").child("hyprland");
+const log = createLogger('tracker').child('hyprland');
 
 interface HyprlandClient {
   class: string;
@@ -60,39 +60,39 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
   private connectEventSocket(): void {
     const hyprlandSig = process.env.HYPRLAND_INSTANCE_SIGNATURE;
     if (!hyprlandSig) {
-      log.info("HYPRLAND_INSTANCE_SIGNATURE not set, skipping event socket");
+      log.info('HYPRLAND_INSTANCE_SIGNATURE not set, skipping event socket');
       return;
     }
 
-    const xdgRuntime = process.env.XDG_RUNTIME_DIR || "/tmp";
+    const xdgRuntime = process.env.XDG_RUNTIME_DIR || '/tmp';
     const socketPath = `${xdgRuntime}/hypr/${hyprlandSig}/.socket2.sock`;
     this.eventSocket = new net.Socket();
 
-    this.eventSocket.on("connect", () => {
-      log.info("Connected to Hyprland event socket");
+    this.eventSocket.on('connect', () => {
+      log.info('Connected to Hyprland event socket');
     });
 
-    this.eventSocket.on("data", (data: Buffer) => {
-      const events = data.toString().split("\n");
+    this.eventSocket.on('data', (data: Buffer) => {
+      const events = data.toString().split('\n');
       for (const event of events) {
         if (
-          event.includes("movewindow") ||
-          event.includes("windowtitle") ||
-          event.includes("openwindow") ||
-          event.includes("closewindow") ||
-          event.includes("fullscreen")
+          event.includes('movewindow') ||
+          event.includes('windowtitle') ||
+          event.includes('openwindow') ||
+          event.includes('closewindow') ||
+          event.includes('fullscreen')
         ) {
           this.pollGeometry();
         }
       }
     });
 
-    this.eventSocket.on("error", (err: Error) => {
-      log.error("Hyprland event socket error:", err.message);
+    this.eventSocket.on('error', (err: Error) => {
+      log.error('Hyprland event socket error:', err.message);
     });
 
-    this.eventSocket.on("close", () => {
-      log.info("Hyprland event socket closed");
+    this.eventSocket.on('close', () => {
+      log.info('Hyprland event socket closed');
     });
 
     this.eventSocket.connect(socketPath);
@@ -100,7 +100,7 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
 
   private pollGeometry(): void {
     try {
-      const output = execSync("hyprctl clients -j", { encoding: "utf-8" });
+      const output = execSync('hyprctl clients -j', { encoding: 'utf-8' });
       const clients: HyprlandClient[] = JSON.parse(output);
       const mpvWindow = this.findTargetWindow(clients);
 
@@ -120,7 +120,7 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
   }
 
   private findTargetWindow(clients: HyprlandClient[]): HyprlandClient | null {
-    const mpvWindows = clients.filter((client) => client.class === "mpv");
+    const mpvWindows = clients.filter((client) => client.class === 'mpv');
     if (!this.targetMpvSocketPath) {
       return mpvWindows[0] || null;
     }
@@ -136,9 +136,7 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
       }
 
       if (
-        commandLine.includes(
-          `--input-ipc-server=${this.targetMpvSocketPath}`,
-        ) ||
+        commandLine.includes(`--input-ipc-server=${this.targetMpvSocketPath}`) ||
         commandLine.includes(`--input-ipc-server ${this.targetMpvSocketPath}`)
       ) {
         return mpvWindow;
@@ -150,7 +148,7 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
 
   private getWindowCommandLine(pid: number): string | null {
     const commandLine = execSync(`ps -p ${pid} -o args=`, {
-      encoding: "utf-8",
+      encoding: 'utf-8',
     }).trim();
     return commandLine || null;
   }

@@ -16,11 +16,15 @@ ordinal: 43000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Create a help modal that auto-generates its content from the project/app layout and current configuration, showing the active keybindings and color keys for the current session in a presentable way. The modal should be navigable with arrow keys and Vim-style hjkl-style movement behavior internally but without labeling hjkl in UI, and support mouse interaction. Escape closes/goes back. Open the modal with `y-h`, and if that binding is already taken, use `y-k` as fallback.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Help modal content is generated automatically from current keybinding config and project/app layout rather than hardcoded static text.
 - [x] #2 Modal displays current session keybindings and active color-key mappings in a clear, grouped layout with section separation for readability.
 - [x] #3 Modal can be opened with `y-h` when available; if `y-h` is already bound, modal opens with `y-k` instead.
@@ -34,6 +38,8 @@ Create a help modal that auto-generates its content from the project/app layout 
 <!-- AC:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [x] #1 Auto-generated help modal displays up-to-date keybinding + color mapping data and supports both keyboard (arrow/fallback path) and mouse navigation with Escape-to-close.
 <!-- DOD:END -->

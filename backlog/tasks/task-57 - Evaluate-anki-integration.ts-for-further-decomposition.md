@@ -15,9 +15,11 @@ priority: low
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 anki-integration.ts remains the largest file at 1930 lines despite having domain modules extracted to `src/anki-integration/` directory.
 
 Current state:
+
 - Main file: `src/anki-integration.ts` (1930 lines)
 - Extracted modules:
   - card-creation.ts (727 lines)
@@ -31,16 +33,20 @@ Current state:
 This task is to evaluate whether the main anki-integration.ts file can be further decomposed or if 1930 lines is acceptable for a main integration class.
 
 Evaluation criteria:
+
 1. Are there remaining cohesive units that could be extracted?
 2. Is the remaining code primarily orchestration logic (which is acceptable to be longer)?
 3. Would further splitting improve or hurt readability?
 4. Are there internal classes or helpers that could be standalone?
 
 Deliverable: A decision document with recommendations - either proceed with further decomposition or document why the current state is acceptable.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Review anki-integration.ts structure and identify remaining cohesive units
 - [ ] #2 Evaluate if extraction would improve or hurt maintainability
 - [ ] #3 Document decision with rationale

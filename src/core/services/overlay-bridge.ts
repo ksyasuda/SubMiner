@@ -1,9 +1,6 @@
-import {
-  KikuFieldGroupingChoice,
-  KikuFieldGroupingRequestData,
-} from "../../types";
-import { createFieldGroupingCallback } from "./field-grouping";
-import { BrowserWindow } from "electron";
+import { KikuFieldGroupingChoice, KikuFieldGroupingRequestData } from '../../types';
+import { createFieldGroupingCallback } from './field-grouping';
+import { BrowserWindow } from 'electron';
 
 export function sendToVisibleOverlayRuntime<T extends string>(options: {
   mainWindow: BrowserWindow | null;
@@ -30,7 +27,7 @@ export function sendToVisibleOverlayRuntime<T extends string>(options: {
     }
   };
   if (options.mainWindow.webContents.isLoading()) {
-    options.mainWindow.webContents.once("did-finish-load", () => {
+    options.mainWindow.webContents.once('did-finish-load', () => {
       if (
         options.mainWindow &&
         !options.mainWindow.isDestroyed() &&
@@ -51,9 +48,7 @@ export function createFieldGroupingCallbackRuntime<T extends string>(options: {
   setVisibleOverlayVisible: (visible: boolean) => void;
   setInvisibleOverlayVisible: (visible: boolean) => void;
   getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
-  setResolver: (
-    resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
-  ) => void;
+  setResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
   sendToVisibleOverlay: (
     channel: string,
     payload?: unknown,
@@ -68,6 +63,6 @@ export function createFieldGroupingCallbackRuntime<T extends string>(options: {
     getResolver: options.getResolver,
     setResolver: options.setResolver,
     sendRequestToVisibleOverlay: (data) =>
-      options.sendToVisibleOverlay("kiku:field-grouping-request", data),
+      options.sendToVisibleOverlay('kiku:field-grouping-request', data),
   });
 }

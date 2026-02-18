@@ -1,15 +1,15 @@
-import type { ConfiguredShortcuts } from "../core/utils/shortcut-config";
+import type { ConfiguredShortcuts } from '../core/utils/shortcut-config';
 import {
   createOverlayShortcutRuntimeHandlers,
   shortcutMatchesInputForLocalFallback,
-} from "../core/services";
+} from '../core/services';
 import {
   refreshOverlayShortcutsRuntime,
   registerOverlayShortcuts,
   syncOverlayShortcutsRuntime,
   unregisterOverlayShortcutsRuntime,
-} from "../core/services";
-import { runOverlayShortcutLocalFallback } from "../core/services/overlay-shortcut-handler";
+} from '../core/services';
+import { runOverlayShortcutLocalFallback } from '../core/services/overlay-shortcut-handler';
 
 export interface OverlayShortcutRuntimeServiceInput {
   getConfiguredShortcuts: () => ConfiguredShortcuts;
@@ -85,13 +85,11 @@ export function createOverlayShortcutsRuntimeService(
       getConfiguredShortcuts: () => input.getConfiguredShortcuts(),
       getOverlayHandlers: () => handlers.overlayHandlers,
       cancelPendingMultiCopy: () => input.cancelPendingMultiCopy(),
-      cancelPendingMineSentenceMultiple: () =>
-        input.cancelPendingMineSentenceMultiple(),
+      cancelPendingMineSentenceMultiple: () => input.cancelPendingMineSentenceMultiple(),
     };
   };
 
-  const shouldOverlayShortcutsBeActive = () =>
-    input.isOverlayRuntimeInitialized();
+  const shouldOverlayShortcutsBeActive = () => input.isOverlayRuntimeInitialized();
 
   return {
     tryHandleOverlayShortcutLocalFallback: (inputEvent) =>
@@ -103,10 +101,7 @@ export function createOverlayShortcutsRuntimeService(
       ),
     registerOverlayShortcuts: () => {
       input.setShortcutsRegistered(
-        registerOverlayShortcuts(
-          input.getConfiguredShortcuts(),
-          handlers.overlayHandlers,
-        ),
+        registerOverlayShortcuts(input.getConfiguredShortcuts(), handlers.overlayHandlers),
       );
     },
     unregisterOverlayShortcuts: () => {

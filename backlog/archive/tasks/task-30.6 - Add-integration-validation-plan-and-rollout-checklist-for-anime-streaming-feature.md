@@ -16,11 +16,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Create a concrete validation task that defines end-to-end acceptance checks for config loading, resolver behavior, IPC contract correctness, UI flow, and mpv-triggered launch. The checklist should be actionable and align with existing project conventions so completion can be verified without guesswork.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Define test scenarios for config success/failure cases, including invalid provider config and feature disabled mode.
 - [ ] #2 Define search/list/resolve API contract tests and error-code assertions (empty, timeout, auth error, no playable URL).
 - [ ] #3 Define renderer UX checks for modal state transitions, loading indicators, empty results, selection, and play invocation.
@@ -33,11 +37,15 @@ Create a concrete validation task that defines end-to-end acceptance checks for 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Phase 6 — Validation: rollout, smoke tests, and release readiness checklist
+
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [ ] #1 Checklist covers happy-path and failure-path for each task dependency.
 - [ ] #2 Verification steps are executable without external tooling assumptions.
 - [ ] #3 No task can be marked done without explicit evidence fields filled in.

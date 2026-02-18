@@ -22,11 +22,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Implement SubMiner streaming mode end-to-end behind a `-s`/`--stream` flag. In stream mode, use the vendored ani-cli resolution flow to get playable stream URLs instead of local file/YouTube URL handling. If resolved streams do not expose Japanese subtitles, fetch matching subtitles from Jimaku and load them into mpv as the active primary subtitle track, overwriting the current non-primary/non-Japanese default according to subminer primary-subtitle configuration.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 When `subminer -s` is used, resolution should pass a search/query through ani-cli stream logic and play the resolved stream source.
 - [ ] #2 If the stream includes a Japanese subtitle track, preserve and select the configured primary subtitle language behavior without Jimaku injection.
 - [ ] #3 If no Japanese (or configured primary language) subtitle exists in stream metadata, fetch and inject Jimaku subtitles before playback starts.
@@ -37,11 +41,15 @@ Implement SubMiner streaming mode end-to-end behind a `-s`/`--stream` flag. In s
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Superseded by TASK-51. End-to-end stream wiring to ani-cli is deferred.
+
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [ ] #1 CLI exposes both `-s` and `--stream` in help/config and validation.
 - [ ] #2 Implementation includes a clear fallback path when stream subtitles are absent and Jimaku search/download fails gracefully.
 - [ ] #3 Subtitles loading path avoids temp-file leaks; temporary media/subtitle artifacts are cleaned up on exit.

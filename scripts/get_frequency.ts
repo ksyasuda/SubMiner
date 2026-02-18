@@ -1,11 +1,11 @@
-import fs from "node:fs";
-import path from "node:path";
-import process from "node:process";
+import fs from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
 
-import { createTokenizerDepsRuntime, tokenizeSubtitle } from "../src/core/services/tokenizer.js";
-import { createFrequencyDictionaryLookup } from "../src/core/services/frequency-dictionary.js";
-import { MecabTokenizer } from "../src/mecab-tokenizer.js";
-import type { MergedToken, FrequencyDictionaryLookup } from "../src/types.js";
+import { createTokenizerDepsRuntime, tokenizeSubtitle } from '../src/core/services/tokenizer.js';
+import { createFrequencyDictionaryLookup } from '../src/core/services/frequency-dictionary.js';
+import { MecabTokenizer } from '../src/mecab-tokenizer.js';
+import type { MergedToken, FrequencyDictionaryLookup } from '../src/types.js';
 
 interface CliOptions {
   input: string;
@@ -18,7 +18,7 @@ interface CliOptions {
   yomitanExtensionPath?: string;
   yomitanUserDataPath?: string;
   emitColoredLine: boolean;
-  colorMode: "single" | "banded";
+  colorMode: 'single' | 'banded';
   colorTopX: number;
   colorSingle: string;
   colorBand1: string;
@@ -33,7 +33,7 @@ interface CliOptions {
 function parseCliArgs(argv: string[]): CliOptions {
   const args = [...argv];
   let inputParts: string[] = [];
-  let dictionaryPath = path.join(process.cwd(), "vendor", "jiten_freq_global");
+  let dictionaryPath = path.join(process.cwd(), 'vendor', 'jiten_freq_global');
   let emitPretty = false;
   let emitDiagnostics = false;
   let mecabCommand: string | undefined;
@@ -42,295 +42,289 @@ function parseCliArgs(argv: string[]): CliOptions {
   let yomitanExtensionPath: string | undefined;
   let yomitanUserDataPath: string | undefined;
   let emitColoredLine = false;
-  let colorMode: "single" | "banded" = "single";
+  let colorMode: 'single' | 'banded' = 'single';
   let colorTopX = 1000;
-  let colorSingle = "#f5a97f";
-  let colorBand1 = "#ed8796";
-  let colorBand2 = "#f5a97f";
-  let colorBand3 = "#f9e2af";
-  let colorBand4 = "#a6e3a1";
-  let colorBand5 = "#8aadf4";
-  let colorKnown = "#a6da95";
-  let colorNPlusOne = "#c6a0f6";
+  let colorSingle = '#f5a97f';
+  let colorBand1 = '#ed8796';
+  let colorBand2 = '#f5a97f';
+  let colorBand3 = '#f9e2af';
+  let colorBand4 = '#a6e3a1';
+  let colorBand5 = '#8aadf4';
+  let colorKnown = '#a6da95';
+  let colorNPlusOne = '#c6a0f6';
 
   while (args.length > 0) {
     const arg = args.shift();
     if (!arg) break;
 
-    if (arg === "--help" || arg === "-h") {
+    if (arg === '--help' || arg === '-h') {
       printUsage();
       process.exit(0);
     }
 
-    if (arg === "--dictionary") {
+    if (arg === '--dictionary') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --dictionary");
+        throw new Error('Missing value for --dictionary');
       }
       dictionaryPath = path.resolve(next);
       continue;
     }
 
-    if (arg === "--mecab-command") {
+    if (arg === '--mecab-command') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --mecab-command");
+        throw new Error('Missing value for --mecab-command');
       }
       mecabCommand = next;
       continue;
     }
 
-    if (arg === "--mecab-dictionary") {
+    if (arg === '--mecab-dictionary') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --mecab-dictionary");
+        throw new Error('Missing value for --mecab-dictionary');
       }
       mecabDictionaryPath = next;
       continue;
     }
 
-    if (arg === "--yomitan-extension") {
+    if (arg === '--yomitan-extension') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --yomitan-extension");
+        throw new Error('Missing value for --yomitan-extension');
       }
       yomitanExtensionPath = path.resolve(next);
       continue;
     }
 
-    if (arg === "--yomitan-user-data") {
+    if (arg === '--yomitan-user-data') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --yomitan-user-data");
+        throw new Error('Missing value for --yomitan-user-data');
       }
       yomitanUserDataPath = path.resolve(next);
       continue;
     }
 
-    if (arg === "--colorized-line") {
+    if (arg === '--colorized-line') {
       emitColoredLine = true;
       continue;
     }
 
-    if (arg === "--color-mode") {
+    if (arg === '--color-mode') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --color-mode");
+        throw new Error('Missing value for --color-mode');
       }
-      if (next !== "single" && next !== "banded") {
+      if (next !== 'single' && next !== 'banded') {
         throw new Error("--color-mode must be 'single' or 'banded'");
       }
       colorMode = next;
       continue;
     }
 
-    if (arg === "--color-top-x") {
+    if (arg === '--color-top-x') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --color-top-x");
+        throw new Error('Missing value for --color-top-x');
       }
       const parsed = Number.parseInt(next, 10);
       if (!Number.isFinite(parsed) || parsed <= 0) {
-        throw new Error("--color-top-x must be a positive integer");
+        throw new Error('--color-top-x must be a positive integer');
       }
       colorTopX = parsed;
       continue;
     }
 
-    if (arg === "--color-single") {
+    if (arg === '--color-single') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --color-single");
+        throw new Error('Missing value for --color-single');
       }
       colorSingle = next;
       continue;
     }
 
-    if (arg === "--color-band-1") {
+    if (arg === '--color-band-1') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --color-band-1");
+        throw new Error('Missing value for --color-band-1');
       }
       colorBand1 = next;
       continue;
     }
 
-    if (arg === "--color-band-2") {
+    if (arg === '--color-band-2') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --color-band-2");
+        throw new Error('Missing value for --color-band-2');
       }
       colorBand2 = next;
       continue;
     }
 
-    if (arg === "--color-band-3") {
+    if (arg === '--color-band-3') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --color-band-3");
+        throw new Error('Missing value for --color-band-3');
       }
       colorBand3 = next;
       continue;
     }
 
-    if (arg === "--color-band-4") {
+    if (arg === '--color-band-4') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --color-band-4");
+        throw new Error('Missing value for --color-band-4');
       }
       colorBand4 = next;
       continue;
     }
 
-    if (arg === "--color-band-5") {
+    if (arg === '--color-band-5') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --color-band-5");
+        throw new Error('Missing value for --color-band-5');
       }
       colorBand5 = next;
       continue;
     }
 
-    if (arg === "--color-known") {
+    if (arg === '--color-known') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --color-known");
+        throw new Error('Missing value for --color-known');
       }
       colorKnown = next;
       continue;
     }
 
-    if (arg === "--color-n-plus-one") {
+    if (arg === '--color-n-plus-one') {
       const next = args.shift();
       if (!next) {
-        throw new Error("Missing value for --color-n-plus-one");
+        throw new Error('Missing value for --color-n-plus-one');
       }
       colorNPlusOne = next;
       continue;
     }
 
-    if (arg.startsWith("--dictionary=")) {
-      dictionaryPath = path.resolve(arg.slice("--dictionary=".length));
+    if (arg.startsWith('--dictionary=')) {
+      dictionaryPath = path.resolve(arg.slice('--dictionary='.length));
       continue;
     }
 
-    if (arg.startsWith("--mecab-command=")) {
-      mecabCommand = arg.slice("--mecab-command=".length);
+    if (arg.startsWith('--mecab-command=')) {
+      mecabCommand = arg.slice('--mecab-command='.length);
       continue;
     }
 
-    if (arg.startsWith("--mecab-dictionary=")) {
-      mecabDictionaryPath = arg.slice("--mecab-dictionary=".length);
+    if (arg.startsWith('--mecab-dictionary=')) {
+      mecabDictionaryPath = arg.slice('--mecab-dictionary='.length);
       continue;
     }
 
-    if (arg.startsWith("--yomitan-extension=")) {
-      yomitanExtensionPath = path.resolve(
-        arg.slice("--yomitan-extension=".length),
-      );
+    if (arg.startsWith('--yomitan-extension=')) {
+      yomitanExtensionPath = path.resolve(arg.slice('--yomitan-extension='.length));
       continue;
     }
 
-    if (arg.startsWith("--yomitan-user-data=")) {
-      yomitanUserDataPath = path.resolve(
-        arg.slice("--yomitan-user-data=".length),
-      );
+    if (arg.startsWith('--yomitan-user-data=')) {
+      yomitanUserDataPath = path.resolve(arg.slice('--yomitan-user-data='.length));
       continue;
     }
 
-    if (arg.startsWith("--colorized-line")) {
+    if (arg.startsWith('--colorized-line')) {
       emitColoredLine = true;
       continue;
     }
 
-    if (arg.startsWith("--color-mode=")) {
-      const value = arg.slice("--color-mode=".length);
-      if (value !== "single" && value !== "banded") {
+    if (arg.startsWith('--color-mode=')) {
+      const value = arg.slice('--color-mode='.length);
+      if (value !== 'single' && value !== 'banded') {
         throw new Error("--color-mode must be 'single' or 'banded'");
       }
       colorMode = value;
       continue;
     }
 
-    if (arg.startsWith("--color-top-x=")) {
-      const value = arg.slice("--color-top-x=".length);
+    if (arg.startsWith('--color-top-x=')) {
+      const value = arg.slice('--color-top-x='.length);
       const parsed = Number.parseInt(value, 10);
       if (!Number.isFinite(parsed) || parsed <= 0) {
-        throw new Error("--color-top-x must be a positive integer");
+        throw new Error('--color-top-x must be a positive integer');
       }
       colorTopX = parsed;
       continue;
     }
 
-    if (arg.startsWith("--color-single=")) {
-      colorSingle = arg.slice("--color-single=".length);
+    if (arg.startsWith('--color-single=')) {
+      colorSingle = arg.slice('--color-single='.length);
       continue;
     }
 
-    if (arg.startsWith("--color-band-1=")) {
-      colorBand1 = arg.slice("--color-band-1=".length);
+    if (arg.startsWith('--color-band-1=')) {
+      colorBand1 = arg.slice('--color-band-1='.length);
       continue;
     }
 
-    if (arg.startsWith("--color-band-2=")) {
-      colorBand2 = arg.slice("--color-band-2=".length);
+    if (arg.startsWith('--color-band-2=')) {
+      colorBand2 = arg.slice('--color-band-2='.length);
       continue;
     }
 
-    if (arg.startsWith("--color-band-3=")) {
-      colorBand3 = arg.slice("--color-band-3=".length);
+    if (arg.startsWith('--color-band-3=')) {
+      colorBand3 = arg.slice('--color-band-3='.length);
       continue;
     }
 
-    if (arg.startsWith("--color-band-4=")) {
-      colorBand4 = arg.slice("--color-band-4=".length);
+    if (arg.startsWith('--color-band-4=')) {
+      colorBand4 = arg.slice('--color-band-4='.length);
       continue;
     }
 
-    if (arg.startsWith("--color-band-5=")) {
-      colorBand5 = arg.slice("--color-band-5=".length);
+    if (arg.startsWith('--color-band-5=')) {
+      colorBand5 = arg.slice('--color-band-5='.length);
       continue;
     }
 
-    if (arg.startsWith("--color-known=")) {
-      colorKnown = arg.slice("--color-known=".length);
+    if (arg.startsWith('--color-known=')) {
+      colorKnown = arg.slice('--color-known='.length);
       continue;
     }
 
-    if (arg.startsWith("--color-n-plus-one=")) {
-      colorNPlusOne = arg.slice("--color-n-plus-one=".length);
+    if (arg.startsWith('--color-n-plus-one=')) {
+      colorNPlusOne = arg.slice('--color-n-plus-one='.length);
       continue;
     }
 
-    if (arg === "--pretty") {
+    if (arg === '--pretty') {
       emitPretty = true;
       continue;
     }
 
-    if (arg === "--diagnostics") {
+    if (arg === '--diagnostics') {
       emitDiagnostics = true;
       continue;
     }
 
-    if (arg === "--force-mecab") {
+    if (arg === '--force-mecab') {
       forceMecabOnly = true;
       continue;
     }
 
-    if (arg.startsWith("-")) {
+    if (arg.startsWith('-')) {
       throw new Error(`Unknown flag: ${arg}`);
     }
 
     inputParts.push(arg);
   }
 
-  const input = inputParts.join(" ").trim();
+  const input = inputParts.join(' ').trim();
   if (!input) {
-    const stdin = fs.readFileSync(0, "utf8").trim();
+    const stdin = fs.readFileSync(0, 'utf8').trim();
     if (!stdin) {
-      throw new Error(
-        "Please provide input text as arguments or via stdin.",
-      );
+      throw new Error('Please provide input text as arguments or via stdin.');
     }
     return {
       input: stdin,
@@ -378,7 +372,7 @@ function parseCliArgs(argv: string[]): CliOptions {
     mecabCommand,
     mecabDictionaryPath,
   };
-  }
+}
 
 function printUsage(): void {
   process.stdout.write(`Usage:
@@ -425,7 +419,7 @@ function getBestFrequencyLookupCandidate(
   let best: FrequencyCandidate | null = null;
   for (const term of lookupTexts) {
     const rank = getFrequencyRank(term);
-    if (typeof rank !== "number" || !Number.isFinite(rank) || rank <= 0) {
+    if (typeof rank !== 'number' || !Number.isFinite(rank) || rank <= 0) {
       continue;
     }
     if (!best || rank < best.rank) {
@@ -455,19 +449,17 @@ function simplifyTokenWithVerbose(
   token: MergedToken,
   getFrequencyRank: FrequencyDictionaryLookup,
 ): Record<string, unknown> {
-  const candidates = getFrequencyLookupTextCandidates(token).map((term) => ({
-    term,
-    rank: getFrequencyRank(term),
-  })).filter((candidate) =>
-    typeof candidate.rank === "number" &&
-    Number.isFinite(candidate.rank) &&
-    candidate.rank > 0
-  );
+  const candidates = getFrequencyLookupTextCandidates(token)
+    .map((term) => ({
+      term,
+      rank: getFrequencyRank(term),
+    }))
+    .filter(
+      (candidate) =>
+        typeof candidate.rank === 'number' && Number.isFinite(candidate.rank) && candidate.rank > 0,
+    );
 
-  const bestCandidate = getBestFrequencyLookupCandidate(
-    token,
-    getFrequencyRank,
-  );
+  const bestCandidate = getBestFrequencyLookupCandidate(token, getFrequencyRank);
 
   return {
     surface: token.surface,
@@ -496,11 +488,7 @@ interface YomitanRuntimeState {
   note?: string;
 }
 
-function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  label: string,
-): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`${label} timed out after ${timeoutMs}ms`));
@@ -518,17 +506,17 @@ function withTimeout<T>(
 }
 
 function destroyUnknownParserWindow(window: unknown): void {
-  if (!window || typeof window !== "object") {
+  if (!window || typeof window !== 'object') {
     return;
   }
   const candidate = window as {
     isDestroyed?: () => boolean;
     destroy?: () => void;
   };
-  if (typeof candidate.isDestroyed !== "function") {
+  if (typeof candidate.isDestroyed !== 'function') {
     return;
   }
-  if (typeof candidate.destroy !== "function") {
+  if (typeof candidate.destroy !== 'function') {
     return;
   }
   if (!candidate.isDestroyed()) {
@@ -536,9 +524,7 @@ function destroyUnknownParserWindow(window: unknown): void {
   }
 }
 
-async function createYomitanRuntimeState(
-  userDataPath: string,
-): Promise<YomitanRuntimeState> {
+async function createYomitanRuntimeState(userDataPath: string): Promise<YomitanRuntimeState> {
   const state: YomitanRuntimeState = {
     yomitanExt: null,
     parserWindow: null,
@@ -547,31 +533,26 @@ async function createYomitanRuntimeState(
     available: false,
   };
 
-  const electronImport = await import("electron").catch((error) => {
-    state.note = error instanceof Error ? error.message : "unknown error";
+  const electronImport = await import('electron').catch((error) => {
+    state.note = error instanceof Error ? error.message : 'unknown error';
     return null;
   });
   if (!electronImport || !electronImport.app || !electronImport.app.whenReady) {
-    state.note = "electron runtime not available in this process";
+    state.note = 'electron runtime not available in this process';
     return state;
   }
 
   try {
     await electronImport.app.whenReady();
-    const loadYomitanExtension = (
-      await import(
-        "../src/core/services/yomitan-extension-loader.js"
-      )
-    ).loadYomitanExtension as (
-      options: {
-        userDataPath: string;
-        getYomitanParserWindow: () => unknown;
-        setYomitanParserWindow: (window: unknown) => void;
-        setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
-        setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
-        setYomitanExtension: (extension: unknown) => void;
-      },
-    ) => Promise<unknown>;
+    const loadYomitanExtension = (await import('../src/core/services/yomitan-extension-loader.js'))
+      .loadYomitanExtension as (options: {
+      userDataPath: string;
+      getYomitanParserWindow: () => unknown;
+      setYomitanParserWindow: (window: unknown) => void;
+      setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
+      setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
+      setYomitanExtension: (extension: unknown) => void;
+    }) => Promise<unknown>;
 
     const extension = await loadYomitanExtension({
       userDataPath,
@@ -591,7 +572,7 @@ async function createYomitanRuntimeState(
     });
 
     if (!extension) {
-      state.note = "yomitan extension is not available";
+      state.note = 'yomitan extension is not available';
       return state;
     }
 
@@ -599,10 +580,7 @@ async function createYomitanRuntimeState(
     state.available = true;
     return state;
   } catch (error) {
-    state.note =
-      error instanceof Error
-        ? error.message
-        : "failed to initialize yomitan extension";
+    state.note = error instanceof Error ? error.message : 'failed to initialize yomitan extension';
     return state;
   }
 }
@@ -611,21 +589,16 @@ async function createYomitanRuntimeStateWithSearch(
   userDataPath: string,
   extensionPath?: string,
 ): Promise<YomitanRuntimeState> {
-  const preferredPath = extensionPath
-    ? path.resolve(extensionPath)
-    : undefined;
-  const defaultVendorPath = path.resolve(process.cwd(), "vendor", "yomitan");
-  const candidates = [
-    ...(preferredPath ? [preferredPath] : []),
-    defaultVendorPath,
-  ];
+  const preferredPath = extensionPath ? path.resolve(extensionPath) : undefined;
+  const defaultVendorPath = path.resolve(process.cwd(), 'vendor', 'yomitan');
+  const candidates = [...(preferredPath ? [preferredPath] : []), defaultVendorPath];
 
   for (const candidate of candidates) {
     if (!candidate) {
       continue;
     }
     try {
-      if (fs.existsSync(path.join(candidate, "manifest.json"))) {
+      if (fs.existsSync(path.join(candidate, 'manifest.json'))) {
         const state = await createYomitanRuntimeState(userDataPath);
         if (state.available) {
           return state;
@@ -648,33 +621,33 @@ async function getFrequencyLookup(dictionaryPath: string): Promise<FrequencyDict
     searchPaths: [dictionaryPath],
     log: (message) => {
       // Keep script output pure JSON by default
-      if (process.env.DEBUG_FREQUENCY === "1") {
+      if (process.env.DEBUG_FREQUENCY === '1') {
         console.error(message);
       }
     },
   });
 }
 
-const ANSI_RESET = "\u001b[0m";
-const ANSI_FG_PREFIX = "\u001b[38;2";
+const ANSI_RESET = '\u001b[0m';
+const ANSI_FG_PREFIX = '\u001b[38;2';
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 function parseHexRgb(input: string): [number, number, number] | null {
-  const normalized = input.trim().replace(/^#/, "");
+  const normalized = input.trim().replace(/^#/, '');
   if (!HEX_COLOR_PATTERN.test(`#${normalized}`)) {
     return null;
   }
-  const expanded = normalized.length === 3
-    ? normalized.split("").map((char) => `${char}${char}`).join("")
-    : normalized;
+  const expanded =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((char) => `${char}${char}`)
+          .join('')
+      : normalized;
   const r = Number.parseInt(expanded.substring(0, 2), 16);
   const g = Number.parseInt(expanded.substring(2, 4), 16);
   const b = Number.parseInt(expanded.substring(4, 6), 16);
-  if (
-    !Number.isFinite(r) ||
-    !Number.isFinite(g) ||
-    !Number.isFinite(b)
-  ) {
+  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) {
     return null;
   }
   return [r, g, b];
@@ -691,16 +664,16 @@ function wrapWithForeground(text: string, color: string): string {
 function getBandColor(
   rank: number,
   colorTopX: number,
-  colorMode: "single" | "banded",
+  colorMode: 'single' | 'banded',
   colorSingle: string,
   bandedColors: [string, string, string, string, string],
 ): string {
   const topX = Math.max(1, Math.floor(colorTopX));
   const safeRank = Math.max(1, Math.floor(rank));
   if (safeRank > topX) {
-    return "";
+    return '';
   }
-  if (colorMode === "single") {
+  if (colorMode === 'single') {
     return colorSingle;
   }
   const normalizedBand = Math.ceil((safeRank / topX) * bandedColors.length);
@@ -715,23 +688,19 @@ function getTokenColor(token: MergedToken, args: CliOptions): string {
   if (token.isKnown) {
     return args.colorKnown;
   }
-  if (typeof token.frequencyRank === "number" && Number.isFinite(token.frequencyRank)) {
-    return getBandColor(
-      token.frequencyRank,
-      args.colorTopX,
-      args.colorMode,
-      args.colorSingle,
-      [args.colorBand1, args.colorBand2, args.colorBand3, args.colorBand4, args.colorBand5],
-    );
+  if (typeof token.frequencyRank === 'number' && Number.isFinite(token.frequencyRank)) {
+    return getBandColor(token.frequencyRank, args.colorTopX, args.colorMode, args.colorSingle, [
+      args.colorBand1,
+      args.colorBand2,
+      args.colorBand3,
+      args.colorBand4,
+      args.colorBand5,
+    ]);
   }
-  return "";
+  return '';
 }
 
-function renderColoredLine(
-  text: string,
-  tokens: MergedToken[],
-  args: CliOptions,
-): string {
+function renderColoredLine(text: string, tokens: MergedToken[], args: CliOptions): string {
   if (!args.emitColoredLine) {
     return text;
   }
@@ -749,10 +718,12 @@ function renderColoredLine(
   });
 
   let cursor = 0;
-  let output = "";
+  let output = '';
   for (const token of ordered) {
     const start = token.startPos ?? 0;
-    const end = token.endPos ?? (token.startPos ? token.startPos + token.surface.length : token.surface.length);
+    const end =
+      token.endPos ??
+      (token.startPos ? token.startPos + token.surface.length : token.surface.length);
     if (start < 0 || end < 0 || end < start) {
       continue;
     }
@@ -774,7 +745,7 @@ function renderColoredLine(
 }
 
 async function main(): Promise<void> {
-  let electronModule: (typeof import("electron")) | null = null;
+  let electronModule: typeof import('electron') | null = null;
   let yomitanState: YomitanRuntimeState | null = null;
 
   try {
@@ -788,31 +759,26 @@ async function main(): Promise<void> {
     const isMecabAvailable = await mecabTokenizer.checkAvailability();
     if (!isMecabAvailable) {
       throw new Error(
-        "MeCab is not available on this system. Install/run environment with MeCab to tokenize input.",
+        'MeCab is not available on this system. Install/run environment with MeCab to tokenize input.',
       );
     }
 
-    electronModule = await import("electron").catch(() => null);
+    electronModule = await import('electron').catch(() => null);
     if (electronModule && args.yomitanUserDataPath) {
-      electronModule.app.setPath("userData", args.yomitanUserDataPath);
+      electronModule.app.setPath('userData', args.yomitanUserDataPath);
     }
-    yomitanState =
-      !args.forceMecabOnly
-        ? await createYomitanRuntimeStateWithSearch(
-            electronModule?.app?.getPath
-              ? electronModule.app.getPath("userData")
-              : process.cwd(),
-            args.yomitanExtensionPath,
-          )
-        : null;
+    yomitanState = !args.forceMecabOnly
+      ? await createYomitanRuntimeStateWithSearch(
+          electronModule?.app?.getPath ? electronModule.app.getPath('userData') : process.cwd(),
+          args.yomitanExtensionPath,
+        )
+      : null;
     const hasYomitan = Boolean(yomitanState?.available && yomitanState?.yomitanExt);
     let useYomitan = hasYomitan;
 
     const deps = createTokenizerDepsRuntime({
-      getYomitanExt: () =>
-        (useYomitan ? yomitanState!.yomitanExt : null) as never,
-      getYomitanParserWindow: () =>
-        (useYomitan ? yomitanState!.parserWindow : null) as never,
+      getYomitanExt: () => (useYomitan ? yomitanState!.yomitanExt : null) as never,
+      getYomitanParserWindow: () => (useYomitan ? yomitanState!.parserWindow : null) as never,
       setYomitanParserWindow: (window) => {
         if (!useYomitan) {
           return;
@@ -836,7 +802,7 @@ async function main(): Promise<void> {
         yomitanState!.parserInitPromise = promise;
       },
       isKnownWord: () => false,
-      getKnownWordMatchMode: () => "headword",
+      getKnownWordMatchMode: () => 'headword',
       getJlptLevel: () => null,
       getFrequencyDictionaryEnabled: () => true,
       getFrequencyRank,
@@ -851,7 +817,7 @@ async function main(): Promise<void> {
         subtitleData = await withTimeout(
           tokenizeSubtitle(args.input, deps),
           8000,
-          "Yomitan tokenizer",
+          'Yomitan tokenizer',
         );
       } catch (error) {
         useYomitan = false;
@@ -860,7 +826,8 @@ async function main(): Promise<void> {
           yomitanState.parserWindow = null;
           yomitanState.parserReadyPromise = null;
           yomitanState.parserInitPromise = null;
-          const fallbackNote = error instanceof Error ? error.message : "Yomitan tokenizer timed out";
+          const fallbackNote =
+            error instanceof Error ? error.message : 'Yomitan tokenizer timed out';
           yomitanState.note = yomitanState.note
             ? `${yomitanState.note}; ${fallbackNote}`
             : fallbackNote;
@@ -886,25 +853,22 @@ async function main(): Promise<void> {
         note: yomitanState?.note ?? null,
       },
       mecab: {
-        command: args.mecabCommand ?? "mecab",
+        command: args.mecabCommand ?? 'mecab',
         dictionaryPath: args.mecabDictionaryPath ?? null,
         available: isMecabAvailable,
       },
       tokenizer: {
-        sourceHint:
-          tokenCount === 0
-            ? "none"
-            : useYomitan ? "yomitan-merged" : "mecab-merge",
+        sourceHint: tokenCount === 0 ? 'none' : useYomitan ? 'yomitan-merged' : 'mecab-merge',
         mergedTokenCount: mergedCount,
         totalTokenCount: tokenCount,
       },
     };
     if (tokens === null) {
-      diagnostics.mecab["status"] = "no-tokens";
-      diagnostics.mecab["note"] =
-        "MeCab returned no parseable tokens. This is often caused by a missing/invalid MeCab dictionary path.";
+      diagnostics.mecab['status'] = 'no-tokens';
+      diagnostics.mecab['note'] =
+        'MeCab returned no parseable tokens. This is often caused by a missing/invalid MeCab dictionary path.';
     } else {
-      diagnostics.mecab["status"] = "ok";
+      diagnostics.mecab['status'] = 'ok';
     }
 
     const output = {

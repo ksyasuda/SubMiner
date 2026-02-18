@@ -27,9 +27,11 @@ ordinal: 36000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Split positioning.ts (513 LOC) — the only oversized file in the renderer — into focused modules. The rest of the renderer structure is already well-organized and does not need reorganization.
 
 ## Current Renderer State (already good)
+
 - `renderer.ts` (241 lines) — pure composition, well-factored
 - `state.ts` (132 lines), `context.ts` (14 lines), `subtitle-render.ts` (206 lines) — reasonable sizes
 - `handlers/keyboard.ts` (238 lines), `handlers/mouse.ts` (271 lines) — focused
@@ -37,11 +39,15 @@ Split positioning.ts (513 LOC) — the only oversized file in the renderer — i
 - Communication already uses explicit `ctx` pattern and function parameters, not globals
 
 ## What Actually Needs Work
+
 `positioning.ts` mixes visible overlay positioning, invisible overlay positioning, MPV subtitle render metrics layout, and position persistence. These are distinct concerns that should be separate modules.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Split positioning.ts into at least 2 focused modules (e.g., visible-positioning and invisible-positioning, or by concern: layout, persistence, metrics).
 - [x] #2 No module exceeds 300 LOC.
 - [x] #3 Existing overlay behavior (subtitle positioning, drag, invisible layer metrics) unchanged.
@@ -52,6 +58,7 @@ Split positioning.ts (513 LOC) — the only oversized file in the renderer — i
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 TASK-11 decomposition is implemented as part of this task by moving the prior monolithic mpv-metrics function into dedicated helper modules.
 
 Refactored renderer positioning into focused modules via a new controller barrel plus helpers: position-state, invisible-offset, invisible-layout, invisible-layout-metrics, and invisible-layout-helpers.
@@ -63,10 +70,13 @@ Validation done in this run: TypeScript build passes (`npm run build`). Manual b
 `src/renderer/positioning.ts` now re-exports `createPositioningController` from `./positioning/controller.js`.
 
 Acceptance updates: checked #1 (at least two focused modules) and #2 (no module >300 LOC).
+
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Completed the renderer positioning split. `src/renderer/positioning.ts` is now a thin re-export and logic is decomposed into focused modules (`controller.ts`, `position-state.ts`, `invisible-offset.ts`, `invisible-layout.ts`, `invisible-layout-helpers.ts`, `invisible-layout-metrics.ts`). Kept `renderer.ts` call-sites unchanged and preserved APIs via controller return shape. Verified by `npm run build` and user manual validation.
+
 <!-- SECTION:FINAL_SUMMARY:END -->

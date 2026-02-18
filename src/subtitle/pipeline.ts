@@ -1,12 +1,9 @@
-import { TokenMergerProvider } from "../token-mergers";
-import { TokenizerProvider } from "../tokenizers";
-import { SubtitleData } from "../types";
-import {
-  normalizeDisplayText,
-  normalizeTokenizerInput,
-} from "./stages/normalize";
-import { tokenizeStage } from "./stages/tokenize";
-import { mergeStage } from "./stages/merge";
+import { TokenMergerProvider } from '../token-mergers';
+import { TokenizerProvider } from '../tokenizers';
+import { SubtitleData } from '../types';
+import { normalizeDisplayText, normalizeTokenizerInput } from './stages/normalize';
+import { tokenizeStage } from './stages/tokenize';
+import { mergeStage } from './stages/merge';
 
 export interface SubtitlePipelineDeps {
   getTokenizer: () => TokenizerProvider | null;
@@ -33,10 +30,7 @@ export class SubtitlePipeline {
     const tokenizeText = normalizeTokenizerInput(displayText);
 
     try {
-      const tokens = await tokenizeStage(
-        this.deps.getTokenizer(),
-        tokenizeText,
-      );
+      const tokens = await tokenizeStage(this.deps.getTokenizer(), tokenizeText);
       const mergedTokens = mergeStage(this.deps.getTokenMerger(), tokens);
       if (!mergedTokens || mergedTokens.length === 0) {
         return { text: displayText, tokens: null };

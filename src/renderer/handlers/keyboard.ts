@@ -1,5 +1,5 @@
-import type { Keybinding } from "../../types";
-import type { RendererContext } from "../context";
+import type { Keybinding } from '../../types';
+import type { RendererContext } from '../context';
 
 export function createKeyboardHandlers(
   ctx: RendererContext,
@@ -10,7 +10,7 @@ export function createKeyboardHandlers(
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
     handleSessionHelpKeydown: (e: KeyboardEvent) => boolean;
     openSessionHelpModal: (opening: {
-      bindingKey: "KeyH" | "KeyK";
+      bindingKey: 'KeyH' | 'KeyK';
       fallbackUsed: boolean;
       fallbackUnavailable: boolean;
     }) => void;
@@ -26,56 +26,40 @@ export function createKeyboardHandlers(
 
   const CHORD_MAP = new Map<
     string,
-    { type: "mpv" | "electron"; command?: string[]; action?: () => void }
+    { type: 'mpv' | 'electron'; command?: string[]; action?: () => void }
   >([
-    ["KeyS", { type: "mpv", command: ["script-message", "subminer-start"] }],
-    [
-      "Shift+KeyS",
-      { type: "mpv", command: ["script-message", "subminer-stop"] },
-    ],
-    ["KeyT", { type: "mpv", command: ["script-message", "subminer-toggle"] }],
-    [
-      "KeyI",
-      { type: "mpv", command: ["script-message", "subminer-toggle-invisible"] },
-    ],
-    [
-      "Shift+KeyI",
-      { type: "mpv", command: ["script-message", "subminer-show-invisible"] },
-    ],
-    [
-      "KeyU",
-      { type: "mpv", command: ["script-message", "subminer-hide-invisible"] },
-    ],
-    ["KeyO", { type: "mpv", command: ["script-message", "subminer-options"] }],
-    ["KeyR", { type: "mpv", command: ["script-message", "subminer-restart"] }],
-    ["KeyC", { type: "mpv", command: ["script-message", "subminer-status"] }],
-    ["KeyY", { type: "mpv", command: ["script-message", "subminer-menu"] }],
-    [
-      "KeyD",
-      { type: "electron", action: () => window.electronAPI.toggleDevTools() },
-    ],
+    ['KeyS', { type: 'mpv', command: ['script-message', 'subminer-start'] }],
+    ['Shift+KeyS', { type: 'mpv', command: ['script-message', 'subminer-stop'] }],
+    ['KeyT', { type: 'mpv', command: ['script-message', 'subminer-toggle'] }],
+    ['KeyI', { type: 'mpv', command: ['script-message', 'subminer-toggle-invisible'] }],
+    ['Shift+KeyI', { type: 'mpv', command: ['script-message', 'subminer-show-invisible'] }],
+    ['KeyU', { type: 'mpv', command: ['script-message', 'subminer-hide-invisible'] }],
+    ['KeyO', { type: 'mpv', command: ['script-message', 'subminer-options'] }],
+    ['KeyR', { type: 'mpv', command: ['script-message', 'subminer-restart'] }],
+    ['KeyC', { type: 'mpv', command: ['script-message', 'subminer-status'] }],
+    ['KeyY', { type: 'mpv', command: ['script-message', 'subminer-menu'] }],
+    ['KeyD', { type: 'electron', action: () => window.electronAPI.toggleDevTools() }],
   ]);
 
   function isInteractiveTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Element)) return false;
-    if (target.closest(".modal")) return true;
+    if (target.closest('.modal')) return true;
     if (ctx.dom.subtitleContainer.contains(target)) return true;
-    if (target.tagName === "IFRAME" && target.id?.startsWith("yomitan-popup")) {
+    if (target.tagName === 'IFRAME' && target.id?.startsWith('yomitan-popup')) {
       return true;
     }
-    if (target.closest && target.closest('iframe[id^="yomitan-popup"]'))
-      return true;
+    if (target.closest && target.closest('iframe[id^="yomitan-popup"]')) return true;
     return false;
   }
 
   function keyEventToString(e: KeyboardEvent): string {
     const parts: string[] = [];
-    if (e.ctrlKey) parts.push("Ctrl");
-    if (e.altKey) parts.push("Alt");
-    if (e.shiftKey) parts.push("Shift");
-    if (e.metaKey) parts.push("Meta");
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    if (e.metaKey) parts.push('Meta');
     parts.push(e.code);
-    return parts.join("+");
+    return parts.join('+');
   }
 
   function isInvisiblePositionToggleShortcut(e: KeyboardEvent): boolean {
@@ -88,12 +72,12 @@ export function createKeyboardHandlers(
   }
 
   function resolveSessionHelpChordBinding(): {
-    bindingKey: "KeyH" | "KeyK";
+    bindingKey: 'KeyH' | 'KeyK';
     fallbackUsed: boolean;
     fallbackUnavailable: boolean;
   } {
-    const firstChoice = "KeyH";
-    if (!ctx.state.keybindingsMap.has("KeyH")) {
+    const firstChoice = 'KeyH';
+    if (!ctx.state.keybindingsMap.has('KeyH')) {
       return {
         bindingKey: firstChoice,
         fallbackUsed: false,
@@ -101,27 +85,27 @@ export function createKeyboardHandlers(
       };
     }
 
-    if (ctx.state.keybindingsMap.has("KeyK")) {
+    if (ctx.state.keybindingsMap.has('KeyK')) {
       return {
-        bindingKey: "KeyK",
+        bindingKey: 'KeyK',
         fallbackUsed: true,
         fallbackUnavailable: true,
       };
     }
 
     return {
-      bindingKey: "KeyK",
+      bindingKey: 'KeyK',
       fallbackUsed: true,
       fallbackUnavailable: false,
     };
   }
 
   function applySessionHelpChordBinding(): void {
-    CHORD_MAP.delete("KeyH");
-    CHORD_MAP.delete("KeyK");
+    CHORD_MAP.delete('KeyH');
+    CHORD_MAP.delete('KeyK');
     const info = resolveSessionHelpChordBinding();
     CHORD_MAP.set(info.bindingKey, {
-      type: "electron",
+      type: 'electron',
       action: () => {
         options.openSessionHelpModal(info);
       },
@@ -147,40 +131,40 @@ export function createKeyboardHandlers(
       ? ctx.platform.invisiblePositionStepFastPx
       : ctx.platform.invisiblePositionStepPx;
 
-    if (e.key === "Escape") {
+    if (e.key === 'Escape') {
       e.preventDefault();
       options.cancelInvisiblePositionEdit();
       return true;
     }
 
-    if (e.key === "Enter" || ((e.ctrlKey || e.metaKey) && e.code === "KeyS")) {
+    if (e.key === 'Enter' || ((e.ctrlKey || e.metaKey) && e.code === 'KeyS')) {
       e.preventDefault();
       options.saveInvisiblePositionEdit();
       return true;
     }
 
     if (
-      e.key === "ArrowUp" ||
-      e.key === "ArrowDown" ||
-      e.key === "ArrowLeft" ||
-      e.key === "ArrowRight" ||
-      e.key === "h" ||
-      e.key === "j" ||
-      e.key === "k" ||
-      e.key === "l" ||
-      e.key === "H" ||
-      e.key === "J" ||
-      e.key === "K" ||
-      e.key === "L"
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown' ||
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight' ||
+      e.key === 'h' ||
+      e.key === 'j' ||
+      e.key === 'k' ||
+      e.key === 'l' ||
+      e.key === 'H' ||
+      e.key === 'J' ||
+      e.key === 'K' ||
+      e.key === 'L'
     ) {
       e.preventDefault();
-      if (e.key === "ArrowUp" || e.key === "k" || e.key === "K") {
+      if (e.key === 'ArrowUp' || e.key === 'k' || e.key === 'K') {
         ctx.state.invisibleSubtitleOffsetYPx += step;
-      } else if (e.key === "ArrowDown" || e.key === "j" || e.key === "J") {
+      } else if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 'J') {
         ctx.state.invisibleSubtitleOffsetYPx -= step;
-      } else if (e.key === "ArrowLeft" || e.key === "h" || e.key === "H") {
+      } else if (e.key === 'ArrowLeft' || e.key === 'h' || e.key === 'H') {
         ctx.state.invisibleSubtitleOffsetXPx -= step;
-      } else if (e.key === "ArrowRight" || e.key === "l" || e.key === "L") {
+      } else if (e.key === 'ArrowRight' || e.key === 'l' || e.key === 'L') {
         ctx.state.invisibleSubtitleOffsetXPx += step;
       }
       options.applyInvisibleSubtitleOffsetPosition();
@@ -208,10 +192,8 @@ export function createKeyboardHandlers(
       }
     }
 
-    document.addEventListener("keydown", (e: KeyboardEvent) => {
-      const yomitanPopup = document.querySelector(
-        'iframe[id^="yomitan-popup"]',
-      );
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
+      const yomitanPopup = document.querySelector('iframe[id^="yomitan-popup"]');
       if (yomitanPopup) return;
       if (handleInvisiblePositionEditKeydown(e)) return;
 
@@ -238,14 +220,14 @@ export function createKeyboardHandlers(
 
       if (ctx.state.chordPending) {
         const modifierKeys = [
-          "ShiftLeft",
-          "ShiftRight",
-          "ControlLeft",
-          "ControlRight",
-          "AltLeft",
-          "AltRight",
-          "MetaLeft",
-          "MetaRight",
+          'ShiftLeft',
+          'ShiftRight',
+          'ControlLeft',
+          'ControlRight',
+          'AltLeft',
+          'AltRight',
+          'MetaLeft',
+          'MetaRight',
         ];
         if (modifierKeys.includes(e.code)) {
           return;
@@ -256,23 +238,16 @@ export function createKeyboardHandlers(
         const action = CHORD_MAP.get(secondKey);
         resetChord();
         if (action) {
-          if (action.type === "mpv" && action.command) {
+          if (action.type === 'mpv' && action.command) {
             window.electronAPI.sendMpvCommand(action.command);
-          } else if (action.type === "electron" && action.action) {
+          } else if (action.type === 'electron' && action.action) {
             action.action();
           }
         }
         return;
       }
 
-      if (
-        e.code === "KeyY" &&
-        !e.ctrlKey &&
-        !e.altKey &&
-        !e.shiftKey &&
-        !e.metaKey &&
-        !e.repeat
-      ) {
+      if (e.code === 'KeyY' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && !e.repeat) {
         e.preventDefault();
         applySessionHelpChordBinding();
         ctx.state.chordPending = true;
@@ -291,14 +266,14 @@ export function createKeyboardHandlers(
       }
     });
 
-    document.addEventListener("mousedown", (e: MouseEvent) => {
+    document.addEventListener('mousedown', (e: MouseEvent) => {
       if (e.button === 2 && !isInteractiveTarget(e.target)) {
         e.preventDefault();
-        window.electronAPI.sendMpvCommand(["cycle", "pause"]);
+        window.electronAPI.sendMpvCommand(['cycle', 'pause']);
       }
     });
 
-    document.addEventListener("contextmenu", (e: Event) => {
+    document.addEventListener('contextmenu', (e: Event) => {
       if (!isInteractiveTarget(e.target)) {
         e.preventDefault();
       }

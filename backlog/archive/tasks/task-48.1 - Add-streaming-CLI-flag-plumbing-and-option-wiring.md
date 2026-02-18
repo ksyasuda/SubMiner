@@ -16,11 +16,15 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add the `-s`/`--stream` option end-to-end in SubMiner CLI and configuration handling, including defaults, help text, parsing/validation, and explicit routing so streaming mode is only enabled when requested.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Introduce `-s` short option and `--stream` long option in CLI parsing without breaking existing flags.
 - [ ] #2 When set, the resulting config state reflects streaming mode enabled and is propagated to playback/session startup.
 - [ ] #3 When unset, behavior remains identical to current non-streaming flows.
@@ -29,5 +33,7 @@ Add the `-s`/`--stream` option end-to-end in SubMiner CLI and configuration hand
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Superseded by TASK-51. CLI stream mode work deferred until streaming architecture is revisited.
+
 <!-- SECTION:NOTES:END -->

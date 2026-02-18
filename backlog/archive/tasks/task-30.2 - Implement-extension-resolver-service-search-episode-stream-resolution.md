@@ -15,11 +15,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Build a dedicated service in main process that queries configured extension repos and normalizes results into a unified internal model, including optional playback metadata. Keep transport abstracted so future backends (local process, remote API, Manatán-compatible source) can be swapped without changing renderer contracts.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Create a typed internal model for source, series, episode, and playable candidate with fields for quality/audio/headers/referrer/userAgent.
 - [ ] #2 Implement provider abstraction with pluggable fetch/execution strategy from config.
 - [ ] #3 Add services for searchAnime, listEpisodes, resolveStream (or equivalent) with cancellation/error boundaries.
@@ -30,11 +34,15 @@ Build a dedicated service in main process that queries configured extension repo
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Phase 2 — Core service: provider integration and stream resolution
+
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [ ] #1 Resolver never leaks raw provider payload to renderer.
 - [ ] #2 Streaming URL output includes reason for failure when unavailable.
 - [ ] #3 Service boundaries allow unit-level validation of request/response mapping logic.

@@ -135,55 +135,55 @@ This example is intentionally compact. The option table below documents availabl
 
 **Requirements:** [AnkiConnect](https://github.com/FooSoft/anki-connect) plugin must be installed and running in Anki. ffmpeg must be installed for media generation.
 
-| Option               | Values                                  | Description                                                                                                                               |
-| -------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`            | `true`, `false`                         | Enable AnkiConnect integration (default: `false`)                                                                                         |
-| `url`                | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                    |
-| `pollingRate`        | number (ms)                             | How often to check for new cards (default: `3000`)                                                                                        |
-| `deck`               | string                                  | Anki deck to monitor for new cards                                                                                                        |
-| `ankiConnect.nPlusOne.decks`     | array of strings                        | Decks used for N+1 known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                                   |
-| `fields.audio`                  | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                   |
-| `fields.image`                  | string                                  | Card field for images (default: `Picture`)                                                                                                |
-| `fields.sentence`               | string                                  | Card field for sentences (default: `Sentence`)                                                                                            |
-| `fields.miscInfo`               | string                                  | Card field for metadata (default: `"MiscInfo"`, set to `null` to disable)                                                                 |
-| `fields.translation`            | string                                  | Card field for sentence-card translation/back text (default: `SelectionText`)                                                            |
-| `ai.enabled`            | `true`, `false`                         | Use AI translation for sentence cards. Also auto-attempted when secondary subtitle is missing.                                           |
-| `ai.alwaysUseAiTranslation` | `true`, `false`                     | When `true`, always use AI translation even if secondary subtitles exist. When `false`, AI is used only when no secondary subtitle exists. |
-| `ai.apiKey`             | string                                  | API key for your OpenAI-compatible endpoint (required for translation).                                                                    |
-| `ai.model`              | string                                  | Model id for your OpenAI-compatible endpoint (default: `openai/gpt-4o-mini`).                                                             |
-| `ai.baseUrl`            | string (URL)                            | OpenAI-compatible API base URL; accepts with or without `/v1`.                                                                            |
-| `ai.targetLanguage`     | string                                  | Target language name used in translation prompt (default: `English`).                                                                     |
-| `ai.systemPrompt`       | string                                  | System prompt used for translation (default returns translation text only).                                                               |
-| `media.generateAudio`           | `true`, `false`                         | Generate audio clips from video (default: `true`)                                                                                         |
-| `media.generateImage`           | `true`, `false`                         | Generate image/animation screenshots (default: `true`)                                                                                    |
-| `media.imageType`               | `"static"`, `"avif"`                    | Image type: static screenshot or animated AVIF (default: `"static"`)                                                                      |
-| `media.imageFormat`             | `"jpg"`, `"png"`, `"webp"`              | Image format (default: `"jpg"`)                                                                                                           |
-| `media.imageQuality`            | number (1-100)                          | Image quality for JPG/WebP; PNG ignores this (default: `92`)                                                                              |
-| `media.imageMaxWidth`           | number (px)                             | Optional max width for static screenshots. Unset keeps source width.                                                                       |
-| `media.imageMaxHeight`          | number (px)                             | Optional max height for static screenshots. Unset keeps source height.                                                                      |
-| `media.animatedFps`             | number (1-60)                           | FPS for animated AVIF (default: `10`)                                                                                                     |
-| `media.animatedMaxWidth`        | number (px)                             | Max width for animated AVIF (default: `640`)                                                                                              |
-| `media.animatedMaxHeight`       | number (px)                             | Optional max height for animated AVIF. Unset keeps source aspect-constrained height.                                                       |
-| `media.animatedCrf`             | number (0-63)                           | CRF quality for AVIF; lower = higher quality (default: `35`)                                                                              |
-| `media.audioPadding`            | number (seconds)                        | Padding around audio clip timing (default: `0.5`)                                                                                         |
-| `media.fallbackDuration`        | number (seconds)                        | Default duration if timing unavailable (default: `3.0`)                                                                                   |
-| `media.maxMediaDuration`        | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                                     |
-| `behavior.overwriteAudio`       | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended per `behavior.mediaInsertMode` (default: `true`)        |
-| `behavior.overwriteImage`       | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `behavior.mediaInsertMode` (default: `true`)      |
-| `behavior.mediaInsertMode`      | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                     |
-| `behavior.highlightWord`        | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                  |
-| `ankiConnect.nPlusOne.highlightEnabled` | `true`, `false`                   | Enable fast local highlighting for words already known in Anki (default: `false`)                                                       |
-| `ankiConnect.nPlusOne.nPlusOne`      | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`). |
-| `ankiConnect.nPlusOne.knownWord`      | hex color string                        | Legacy known-word color kept for backward compatibility (default: `"#a6da95"`).                                                     |
-| `ankiConnect.nPlusOne.matchMode` | `"headword"`, `"surface"`      | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
-| `ankiConnect.nPlusOne.minSentenceWords` | number                        | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`). |
-| `ankiConnect.nPlusOne.refreshMinutes`   | number                             | Minutes between known-word cache refreshes (default: `1440`)                                                                              |
-| `ankiConnect.nPlusOne.decks`     | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                            |
-| `behavior.notificationType`     | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                       |
-| `behavior.autoUpdateNewCards`   | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                  |
-| `metadata.pattern`              | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                                  |
-| `isLapis`            | object                                  | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel, sentenceCardSentenceField, sentenceCardAudioField }`                    |
-| `isKiku`             | object                                  | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`) |
+| Option                                  | Values                                  | Description                                                                                                                                   |
+| --------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                               | `true`, `false`                         | Enable AnkiConnect integration (default: `false`)                                                                                             |
+| `url`                                   | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                        |
+| `pollingRate`                           | number (ms)                             | How often to check for new cards (default: `3000`)                                                                                            |
+| `deck`                                  | string                                  | Anki deck to monitor for new cards                                                                                                            |
+| `ankiConnect.nPlusOne.decks`            | array of strings                        | Decks used for N+1 known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                            |
+| `fields.audio`                          | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                       |
+| `fields.image`                          | string                                  | Card field for images (default: `Picture`)                                                                                                    |
+| `fields.sentence`                       | string                                  | Card field for sentences (default: `Sentence`)                                                                                                |
+| `fields.miscInfo`                       | string                                  | Card field for metadata (default: `"MiscInfo"`, set to `null` to disable)                                                                     |
+| `fields.translation`                    | string                                  | Card field for sentence-card translation/back text (default: `SelectionText`)                                                                 |
+| `ai.enabled`                            | `true`, `false`                         | Use AI translation for sentence cards. Also auto-attempted when secondary subtitle is missing.                                                |
+| `ai.alwaysUseAiTranslation`             | `true`, `false`                         | When `true`, always use AI translation even if secondary subtitles exist. When `false`, AI is used only when no secondary subtitle exists.    |
+| `ai.apiKey`                             | string                                  | API key for your OpenAI-compatible endpoint (required for translation).                                                                       |
+| `ai.model`                              | string                                  | Model id for your OpenAI-compatible endpoint (default: `openai/gpt-4o-mini`).                                                                 |
+| `ai.baseUrl`                            | string (URL)                            | OpenAI-compatible API base URL; accepts with or without `/v1`.                                                                                |
+| `ai.targetLanguage`                     | string                                  | Target language name used in translation prompt (default: `English`).                                                                         |
+| `ai.systemPrompt`                       | string                                  | System prompt used for translation (default returns translation text only).                                                                   |
+| `media.generateAudio`                   | `true`, `false`                         | Generate audio clips from video (default: `true`)                                                                                             |
+| `media.generateImage`                   | `true`, `false`                         | Generate image/animation screenshots (default: `true`)                                                                                        |
+| `media.imageType`                       | `"static"`, `"avif"`                    | Image type: static screenshot or animated AVIF (default: `"static"`)                                                                          |
+| `media.imageFormat`                     | `"jpg"`, `"png"`, `"webp"`              | Image format (default: `"jpg"`)                                                                                                               |
+| `media.imageQuality`                    | number (1-100)                          | Image quality for JPG/WebP; PNG ignores this (default: `92`)                                                                                  |
+| `media.imageMaxWidth`                   | number (px)                             | Optional max width for static screenshots. Unset keeps source width.                                                                          |
+| `media.imageMaxHeight`                  | number (px)                             | Optional max height for static screenshots. Unset keeps source height.                                                                        |
+| `media.animatedFps`                     | number (1-60)                           | FPS for animated AVIF (default: `10`)                                                                                                         |
+| `media.animatedMaxWidth`                | number (px)                             | Max width for animated AVIF (default: `640`)                                                                                                  |
+| `media.animatedMaxHeight`               | number (px)                             | Optional max height for animated AVIF. Unset keeps source aspect-constrained height.                                                          |
+| `media.animatedCrf`                     | number (0-63)                           | CRF quality for AVIF; lower = higher quality (default: `35`)                                                                                  |
+| `media.audioPadding`                    | number (seconds)                        | Padding around audio clip timing (default: `0.5`)                                                                                             |
+| `media.fallbackDuration`                | number (seconds)                        | Default duration if timing unavailable (default: `3.0`)                                                                                       |
+| `media.maxMediaDuration`                | number (seconds)                        | Max duration for generated media from multi-line copy (default: `30`, `0` to disable)                                                         |
+| `behavior.overwriteAudio`               | `true`, `false`                         | Replace existing audio on updates; when `false`, new audio is appended/prepended per `behavior.mediaInsertMode` (default: `true`)             |
+| `behavior.overwriteImage`               | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `behavior.mediaInsertMode` (default: `true`)          |
+| `behavior.mediaInsertMode`              | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                         |
+| `behavior.highlightWord`                | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                      |
+| `ankiConnect.nPlusOne.highlightEnabled` | `true`, `false`                         | Enable fast local highlighting for words already known in Anki (default: `false`)                                                             |
+| `ankiConnect.nPlusOne.nPlusOne`         | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`).               |
+| `ankiConnect.nPlusOne.knownWord`        | hex color string                        | Legacy known-word color kept for backward compatibility (default: `"#a6da95"`).                                                               |
+| `ankiConnect.nPlusOne.matchMode`        | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
+| `ankiConnect.nPlusOne.minSentenceWords` | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                        |
+| `ankiConnect.nPlusOne.refreshMinutes`   | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                  |
+| `ankiConnect.nPlusOne.decks`            | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                               |
+| `behavior.notificationType`             | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                           |
+| `behavior.autoUpdateNewCards`           | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                      |
+| `metadata.pattern`                      | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                                      |
+| `isLapis`                               | object                                  | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel, sentenceCardSentenceField, sentenceCardAudioField }`                        |
+| `isKiku`                                | object                                  | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)     |
 
 **Kiku / Lapis Note Type Support:**
 
@@ -252,17 +252,17 @@ To refresh roughly once per day, set:
 
 When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but not automatically updated. Use these keyboard shortcuts for manual control:
 
-| Shortcut       | Action                                                                                                       |
-| -------------- | ------------------------------------------------------------------------------------------------------------ |
-| `Ctrl+C`       | Copy the current subtitle line to clipboard (preserves line breaks)                                          |
-| `Ctrl+Shift+C` | Enter multi-copy mode. Press `1-9` to copy that many recent lines, or `Esc` to cancel. Timeout: 3 seconds    |
-| `Ctrl+V`       | Update the last added Anki card using subtitles from clipboard                                               |
-| `Ctrl+G`       | Trigger Kiku duplicate field grouping for the last added card (only when `behavior.autoUpdateNewCards` is `false`)    |
-| `Ctrl+S`       | Create a sentence card from the current subtitle line                                                        |
-| `Ctrl+Shift+S` | Enter multi-mine mode. Press `1-9` to create a sentence card from that many recent lines, or `Esc` to cancel |
-| `Ctrl+Shift+V` | Cycle secondary subtitle display mode (hidden → visible → hover)                                             |
-| `Ctrl+Shift+A` | Mark the last added Anki card as an audio card (sets IsAudioCard, SentenceAudio, Sentence, Picture)          |
-| `Ctrl+Shift+O` | Open runtime options palette (session-only live toggles)                                                      |
+| Shortcut       | Action                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `Ctrl+C`       | Copy the current subtitle line to clipboard (preserves line breaks)                                                |
+| `Ctrl+Shift+C` | Enter multi-copy mode. Press `1-9` to copy that many recent lines, or `Esc` to cancel. Timeout: 3 seconds          |
+| `Ctrl+V`       | Update the last added Anki card using subtitles from clipboard                                                     |
+| `Ctrl+G`       | Trigger Kiku duplicate field grouping for the last added card (only when `behavior.autoUpdateNewCards` is `false`) |
+| `Ctrl+S`       | Create a sentence card from the current subtitle line                                                              |
+| `Ctrl+Shift+S` | Enter multi-mine mode. Press `1-9` to create a sentence card from that many recent lines, or `Esc` to cancel       |
+| `Ctrl+Shift+V` | Cycle secondary subtitle display mode (hidden → visible → hover)                                                   |
+| `Ctrl+Shift+A` | Mark the last added Anki card as an audio card (sets IsAudioCard, SentenceAudio, Sentence, Picture)                |
+| `Ctrl+Shift+O` | Open runtime options palette (session-only live toggles)                                                           |
 
 **Multi-line copy workflow:**
 
@@ -321,8 +321,8 @@ Control whether toggling the visible overlay also toggles MPV subtitle visibilit
 }
 ```
 
-| Option                                        | Values          | Description |
-| --------------------------------------------- | --------------- | ----------- |
+| Option                                       | Values          | Description                                                                                                                                                                              |
+| -------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bind_visible_overlay_to_mpv_sub_visibility` | `true`, `false` | When `true` (default), visible overlay hides MPV primary/secondary subtitles and restores them when hidden. When `false`, visible overlay toggles do not change MPV subtitle visibility. |
 
 ### Auto Subtitle Sync
@@ -340,12 +340,12 @@ Sync the active subtitle track using `alass` (preferred) or `ffsubsync`:
 }
 ```
 
-| Option           | Values               | Description |
-| ---------------- | -------------------- | ----------- |
+| Option           | Values               | Description                                                                                                 |
+| ---------------- | -------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `defaultMode`    | `"auto"`, `"manual"` | `auto`: try `alass` against secondary subtitle, then fallback to `ffsubsync`; `manual`: open overlay picker |
-| `alass_path`     | string path          | Path to `alass` executable. Empty or `null` falls back to `/usr/bin/alass`. |
-| `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` falls back to `/usr/bin/ffsubsync`. |
-| `ffmpeg_path`    | string path          | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`. |
+| `alass_path`     | string path          | Path to `alass` executable. Empty or `null` falls back to `/usr/bin/alass`.                                 |
+| `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` falls back to `/usr/bin/ffsubsync`.                         |
+| `ffmpeg_path`    | string path          | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.  |
 
 Default trigger is `Ctrl+Alt+S` via `shortcuts.triggerSubsync`.
 Customize it there, or set it to `null` to disable.
@@ -355,6 +355,7 @@ Customize it there, or set it to `null` to disable.
 SubMiner includes a second subtitle mining layer that can be visually invisible while still interactive for Yomitan lookups.
 
 - `invisibleOverlay.startupVisibility` values:
+
 1. `"platform-default"`: hidden on Wayland, visible on Windows/macOS/other sessions.
 2. `"visible"`: always shown on startup.
 3. `"hidden"`: always hidden on startup.
@@ -399,10 +400,10 @@ AniList integration is opt-in and disabled by default. Enable it and provide an 
 }
 ```
 
-| Option | Values | Description |
-| ------ | ------ | ----------- |
-| `enabled` | `true`, `false` | Enable AniList post-watch progress updates (default: `false`) |
-| `accessToken` | string | AniList access token used for authenticated GraphQL updates (default: empty string) |
+| Option        | Values          | Description                                                                         |
+| ------------- | --------------- | ----------------------------------------------------------------------------------- |
+| `enabled`     | `true`, `false` | Enable AniList post-watch progress updates (default: `false`)                       |
+| `accessToken` | string          | AniList access token used for authenticated GraphQL updates (default: empty string) |
 
 When `enabled` is `true` and `accessToken` is empty, SubMiner opens an AniList setup helper window. Keep `enabled` as `false` to disable all AniList setup/update behavior.
 
@@ -467,26 +468,26 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 }
 ```
 
-| Option | Values | Description |
-| ------ | ------ | ----------- |
-| `enabled` | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`) |
-| `serverUrl` | string (URL) | Jellyfin server base URL |
-| `username` | string | Default username used by `--jellyfin-login` |
-| `accessToken` | string | Stored Jellyfin access token (treat as secret) |
-| `userId` | string | Jellyfin user id bound to token/session |
-| `deviceId` | string | Client device id sent in auth headers (default: `subminer`) |
-| `clientName` | string | Client name sent in auth headers (default: `SubMiner`) |
-| `clientVersion` | string | Client version sent in auth headers (default: `0.1.0`) |
-| `defaultLibraryId` | string | Default library id for `--jellyfin-items` when CLI value is omitted |
-| `remoteControlEnabled` | `true`, `false` | Enable Jellyfin cast/remote-control session support |
-| `remoteControlAutoConnect` | `true`, `false` | Auto-connect Jellyfin remote session on app startup |
-| `autoAnnounce` | `true`, `false` | Auto-run cast-target visibility announce check on connect (default: `false`) |
-| `remoteControlDeviceName` | string | Device name shown in Jellyfin cast/device lists |
-| `pullPictures` | `true`, `false` | Enable poster/icon fetching for launcher Jellyfin pickers |
-| `iconCacheDir` | string | Cache directory for launcher-fetched Jellyfin poster icons |
-| `directPlayPreferred` | `true`, `false` | Prefer direct stream URLs before transcoding |
-| `directPlayContainers` | string[] | Container allowlist for direct play decisions |
-| `transcodeVideoCodec` | string | Preferred transcode video codec fallback (default: `h264`) |
+| Option                     | Values          | Description                                                                  |
+| -------------------------- | --------------- | ---------------------------------------------------------------------------- |
+| `enabled`                  | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`)              |
+| `serverUrl`                | string (URL)    | Jellyfin server base URL                                                     |
+| `username`                 | string          | Default username used by `--jellyfin-login`                                  |
+| `accessToken`              | string          | Stored Jellyfin access token (treat as secret)                               |
+| `userId`                   | string          | Jellyfin user id bound to token/session                                      |
+| `deviceId`                 | string          | Client device id sent in auth headers (default: `subminer`)                  |
+| `clientName`               | string          | Client name sent in auth headers (default: `SubMiner`)                       |
+| `clientVersion`            | string          | Client version sent in auth headers (default: `0.1.0`)                       |
+| `defaultLibraryId`         | string          | Default library id for `--jellyfin-items` when CLI value is omitted          |
+| `remoteControlEnabled`     | `true`, `false` | Enable Jellyfin cast/remote-control session support                          |
+| `remoteControlAutoConnect` | `true`, `false` | Auto-connect Jellyfin remote session on app startup                          |
+| `autoAnnounce`             | `true`, `false` | Auto-run cast-target visibility announce check on connect (default: `false`) |
+| `remoteControlDeviceName`  | string          | Device name shown in Jellyfin cast/device lists                              |
+| `pullPictures`             | `true`, `false` | Enable poster/icon fetching for launcher Jellyfin pickers                    |
+| `iconCacheDir`             | string          | Cache directory for launcher-fetched Jellyfin poster icons                   |
+| `directPlayPreferred`      | `true`, `false` | Prefer direct stream URLs before transcoding                                 |
+| `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                |
+| `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                   |
 
 Jellyfin direct app CLI commands (`SubMiner.AppImage ...`):
 
@@ -630,22 +631,22 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                        | Values           | Description                                                                                                                          |
-| ----------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `toggleVisibleOverlayGlobal`  | string \| `null` | Global accelerator for toggling visible subtitle overlay (default: `"Alt+Shift+O"`)                                               |
-| `toggleInvisibleOverlayGlobal` | string \| `null` | Global accelerator for toggling invisible interactive overlay (default: `"Alt+Shift+I"`)                                         |
-| `copySubtitle`                | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                                                           |
-| `copySubtitleMultiple`        | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                                                              |
-| `updateLastCardFromClipboard` | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                                                       |
-| `triggerFieldGrouping`        | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when `behavior.autoUpdateNewCards` is `false`) |
-| `triggerSubsync`              | string \| `null` | Accelerator for running Subsync (default: `"Ctrl+Alt+S"`)                                                                           |
-| `mineSentence`                | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`)                                       |
-| `mineSentenceMultiple`        | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)                                                |
-| `multiCopyTimeoutMs`          | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                                                      |
-| `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                              |
-| `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                              |
-| `openRuntimeOptions`          | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                  |
-| `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                              |
+| Option                         | Values           | Description                                                                                                                                   |
+| ------------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toggleVisibleOverlayGlobal`   | string \| `null` | Global accelerator for toggling visible subtitle overlay (default: `"Alt+Shift+O"`)                                                           |
+| `toggleInvisibleOverlayGlobal` | string \| `null` | Global accelerator for toggling invisible interactive overlay (default: `"Alt+Shift+I"`)                                                      |
+| `copySubtitle`                 | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                                                                    |
+| `copySubtitleMultiple`         | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                                                                       |
+| `updateLastCardFromClipboard`  | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                                                                |
+| `triggerFieldGrouping`         | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when `behavior.autoUpdateNewCards` is `false`) |
+| `triggerSubsync`               | string \| `null` | Accelerator for running Subsync (default: `"Ctrl+Alt+S"`)                                                                                     |
+| `mineSentence`                 | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`)                                                |
+| `mineSentenceMultiple`         | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)                                                         |
+| `multiCopyTimeoutMs`           | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                                                               |
+| `toggleSecondarySub`           | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                                       |
+| `markAudioCard`                | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                       |
+| `openRuntimeOptions`           | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                           |
+| `openJimaku`                   | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                     |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 
@@ -663,8 +664,8 @@ Set the initial vertical subtitle position (measured from the bottom of the scre
 }
 ```
 
-| Option     | Values          | Description                                                        |
-| ---------- | --------------- | ------------------------------------------------------------------ |
+| Option     | Values           | Description                                                            |
+| ---------- | ---------------- | ---------------------------------------------------------------------- |
 | `yPercent` | number (0 - 100) | Distance from the bottom as a percent of screen height (default: `10`) |
 
 ### Subtitle Style
@@ -691,25 +692,25 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option            | Values      | Description                                                                   |
-| ----------------- | ----------- | ----------------------------------------------------------------------------- |
-| `fontFamily`      | string      | CSS font-family value (default: `"Noto Sans CJK JP Regular, ..."`)            |
-| `fontSize`        | number (px) | Font size in pixels (default: `35`)                                           |
-| `fontColor`       | string      | Any CSS color value (default: `"#cad3f5"`)                                    |
-| `fontWeight`      | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"normal"`)     |
-| `fontStyle`       | string      | `"normal"` or `"italic"` (default: `"normal"`)                                |
-| `backgroundColor` | string      | Any CSS color, including `"transparent"` (default: `"rgba(54, 58, 79, 0.5)"`) |
-| `enableJlpt`      | boolean     | Enable JLPT level underline styling (`false` by default)                        |
-| `frequencyDictionary.enabled` | boolean | Enable frequency highlighting from dictionary lookups (`false` by default) |
-| `frequencyDictionary.sourcePath` | string | Path to a local frequency dictionary root. Leave empty or omit to use the built-in bundled dictionary search paths. |
-| `frequencyDictionary.topX` | number | Only color tokens whose frequency rank is `<= topX` (`1000` by default) |
-| `frequencyDictionary.mode` | string | `"single"` or `"banded"` (`"single"` by default) |
-| `frequencyDictionary.singleColor` | string | Color used for all highlighted tokens in single mode |
-| `frequencyDictionary.bandedColors` | string[] | Array of five hex colors used for ranked bands in banded mode |
-| `nPlusOneColor`   | string      | Existing n+1 highlight color (default: `#c6a0f6`)                            |
-| `knownWordColor`  | string      | Existing known-word highlight color (default: `#a6da95`)                       |
-| `jlptColors`      | object      | JLPT level underline colors object (`N1`..`N5`)                               |
-| `secondary`       | object      | Override any of the above for secondary subtitles (optional)                  |
+| Option                             | Values      | Description                                                                                                         |
+| ---------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| `fontFamily`                       | string      | CSS font-family value (default: `"Noto Sans CJK JP Regular, ..."`)                                                  |
+| `fontSize`                         | number (px) | Font size in pixels (default: `35`)                                                                                 |
+| `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                          |
+| `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"normal"`)                                           |
+| `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                      |
+| `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgba(54, 58, 79, 0.5)"`)                                       |
+| `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                            |
+| `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                          |
+| `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use the built-in bundled dictionary search paths. |
+| `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                             |
+| `frequencyDictionary.mode`         | string      | `"single"` or `"banded"` (`"single"` by default)                                                                    |
+| `frequencyDictionary.singleColor`  | string      | Color used for all highlighted tokens in single mode                                                                |
+| `frequencyDictionary.bandedColors` | string[]    | Array of five hex colors used for ranked bands in banded mode                                                       |
+| `nPlusOneColor`                    | string      | Existing n+1 highlight color (default: `#c6a0f6`)                                                                   |
+| `knownWordColor`                   | string      | Existing known-word highlight color (default: `#a6da95`)                                                            |
+| `jlptColors`                       | object      | JLPT level underline colors object (`N1`..`N5`)                                                                     |
+| `secondary`                        | object      | Override any of the above for secondary subtitles (optional)                                                        |
 
 JLPT underlining is powered by offline term-meta bank files at runtime. See [`docs/jlpt-vocab-bundle.md`](jlpt-vocab-bundle.md) for required files, source/version refresh steps, and deterministic fallback behavior.
 
@@ -729,13 +730,13 @@ Secondary subtitle defaults: `fontSize: 24`, `fontColor: "#ffffff"`, `background
 
 `jlptColors` keys are:
 
-| Key  | Default   | Description                              |
-| ---- | --------- | ---------------------------------------- |
-| `N1` | `#ed8796` | JLPT N1 underline color                  |
-| `N2` | `#f5a97f` | JLPT N2 underline color                  |
-| `N3` | `#f9e2af` | JLPT N3 underline color                  |
-| `N4` | `#a6e3a1` | JLPT N4 underline color                  |
-| `N5` | `#8aadf4` | JLPT N5 underline color                  |
+| Key  | Default   | Description             |
+| ---- | --------- | ----------------------- |
+| `N1` | `#ed8796` | JLPT N1 underline color |
+| `N2` | `#f5a97f` | JLPT N2 underline color |
+| `N3` | `#f9e2af` | JLPT N3 underline color |
+| `N4` | `#a6e3a1` | JLPT N4 underline color |
+| `N5` | `#8aadf4` | JLPT N5 underline color |
 
 ### Texthooker
 
@@ -798,20 +799,20 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
 }
 ```
 
-| Option | Values | Description |
-| --- | --- | --- |
-| `enabled` | `true`, `false` | Enable immersion tracking. Defaults to `true`. |
-| `dbPath` | string | Optional SQLite database path. Leave empty to use default app-data path at `<config dir>/immersion.sqlite`. |
-| `batchSize` | integer (`1`-`10000`) | Buffered writes per transaction. Default `25`. |
-| `flushIntervalMs` | integer (`50`-`60000`) | Maximum queue delay before flush. Default `500ms`. |
-| `queueCap` | integer (`100`-`100000`) | In-memory queue cap. Overflow drops oldest writes. Default `1000`. |
-| `payloadCapBytes` | integer (`64`-`8192`) | Event payload byte cap before truncation marker. Default `256`. |
-| `maintenanceIntervalMs` | integer (`60000`-`604800000`) | Prune + rollup maintenance cadence. Default `86400000` (24h). |
-| `retention.eventsDays` | integer (`1`-`3650`) | Raw event retention window. Default `7` days. |
-| `retention.telemetryDays` | integer (`1`-`3650`) | Telemetry retention window. Default `30` days. |
-| `retention.dailyRollupsDays` | integer (`1`-`36500`) | Daily rollup retention window. Default `365` days. |
-| `retention.monthlyRollupsDays` | integer (`1`-`36500`) | Monthly rollup retention window. Default `1825` days (~5 years). |
-| `retention.vacuumIntervalDays` | integer (`1`-`3650`) | Minimum spacing between `VACUUM` passes. Default `7` days. |
+| Option                         | Values                        | Description                                                                                                 |
+| ------------------------------ | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `enabled`                      | `true`, `false`               | Enable immersion tracking. Defaults to `true`.                                                              |
+| `dbPath`                       | string                        | Optional SQLite database path. Leave empty to use default app-data path at `<config dir>/immersion.sqlite`. |
+| `batchSize`                    | integer (`1`-`10000`)         | Buffered writes per transaction. Default `25`.                                                              |
+| `flushIntervalMs`              | integer (`50`-`60000`)        | Maximum queue delay before flush. Default `500ms`.                                                          |
+| `queueCap`                     | integer (`100`-`100000`)      | In-memory queue cap. Overflow drops oldest writes. Default `1000`.                                          |
+| `payloadCapBytes`              | integer (`64`-`8192`)         | Event payload byte cap before truncation marker. Default `256`.                                             |
+| `maintenanceIntervalMs`        | integer (`60000`-`604800000`) | Prune + rollup maintenance cadence. Default `86400000` (24h).                                               |
+| `retention.eventsDays`         | integer (`1`-`3650`)          | Raw event retention window. Default `7` days.                                                               |
+| `retention.telemetryDays`      | integer (`1`-`3650`)          | Telemetry retention window. Default `30` days.                                                              |
+| `retention.dailyRollupsDays`   | integer (`1`-`36500`)         | Daily rollup retention window. Default `365` days.                                                          |
+| `retention.monthlyRollupsDays` | integer (`1`-`36500`)         | Monthly rollup retention window. Default `1825` days (~5 years).                                            |
+| `retention.vacuumIntervalDays` | integer (`1`-`3650`)          | Minimum spacing between `VACUUM` passes. Default `7` days.                                                  |
 
 When `dbPath` is blank or omitted, SubMiner writes telemetry and session summaries to the default app-data location:
 
@@ -838,14 +839,15 @@ Set defaults used by the `subminer` launcher for YouTube subtitle extraction/tra
 }
 ```
 
-| Option         | Values                                  | Description |
-| -------------- | --------------------------------------- | ----------- |
-| `mode`         | `"automatic"`, `"preprocess"`, `"off"` | `automatic`: play immediately and load generated subtitles in background; `preprocess`: generate before playback; `off`: disable launcher generation. |
-| `whisperBin`   | string path                             | Path to `whisper.cpp` CLI binary used as fallback transcription engine. |
-| `whisperModel` | string path                             | Path to whisper model used by fallback transcription. |
-| `primarySubLanguages` | string[]                          | Primary subtitle language priority for YouTube subtitle generation (default `["ja", "jpn"]`). |
+| Option                | Values                                 | Description                                                                                                                                           |
+| --------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                | `"automatic"`, `"preprocess"`, `"off"` | `automatic`: play immediately and load generated subtitles in background; `preprocess`: generate before playback; `off`: disable launcher generation. |
+| `whisperBin`          | string path                            | Path to `whisper.cpp` CLI binary used as fallback transcription engine.                                                                               |
+| `whisperModel`        | string path                            | Path to whisper model used by fallback transcription.                                                                                                 |
+| `primarySubLanguages` | string[]                               | Primary subtitle language priority for YouTube subtitle generation (default `["ja", "jpn"]`).                                                         |
 
 YouTube language targets are derived from subtitle config:
+
 - primary track: `youtubeSubgen.primarySubLanguages` (falls back to `["ja","jpn"]`)
 - secondary track: `secondarySub.secondarySubLanguages` (falls back to English when empty)
 

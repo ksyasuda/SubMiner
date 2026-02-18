@@ -17,14 +17,14 @@
  */
 
 export enum PartOfSpeech {
-  noun = "noun",
-  verb = "verb",
-  i_adjective = "i_adjective",
-  na_adjective = "na_adjective",
-  particle = "particle",
-  bound_auxiliary = "bound_auxiliary",
-  symbol = "symbol",
-  other = "other",
+  noun = 'noun',
+  verb = 'verb',
+  i_adjective = 'i_adjective',
+  na_adjective = 'na_adjective',
+  particle = 'particle',
+  bound_auxiliary = 'bound_auxiliary',
+  symbol = 'symbol',
+  other = 'other',
 }
 
 export interface Token {
@@ -60,7 +60,7 @@ export interface MergedToken {
 
 export type FrequencyDictionaryLookup = (term: string) => number | null;
 
-export type JlptLevel = "N1" | "N2" | "N3" | "N4" | "N5";
+export type JlptLevel = 'N1' | 'N2' | 'N3' | 'N4' | 'N5';
 
 export interface WindowGeometry {
   x: number;
@@ -84,7 +84,7 @@ export interface Keybinding {
   command: (string | number)[] | null;
 }
 
-export type SecondarySubMode = "hidden" | "visible" | "hover";
+export type SecondarySubMode = 'hidden' | 'visible' | 'hover';
 
 export interface SecondarySubConfig {
   secondarySubLanguages?: string[];
@@ -92,7 +92,7 @@ export interface SecondarySubConfig {
   defaultMode?: SecondarySubMode;
 }
 
-export type SubsyncMode = "auto" | "manual";
+export type SubsyncMode = 'auto' | 'manual';
 
 export interface SubsyncConfig {
   defaultMode?: SubsyncMode;
@@ -102,7 +102,7 @@ export interface SubsyncConfig {
 }
 
 export interface WebSocketConfig {
-  enabled?: boolean | "auto";
+  enabled?: boolean | 'auto';
   port?: number;
 }
 
@@ -160,17 +160,17 @@ export interface KikuMergePreviewResponse {
 }
 
 export type RuntimeOptionId =
-  | "anki.autoUpdateNewCards"
-  | "anki.kikuFieldGrouping"
-  | "anki.nPlusOneMatchMode";
+  | 'anki.autoUpdateNewCards'
+  | 'anki.kikuFieldGrouping'
+  | 'anki.nPlusOneMatchMode';
 
-export type RuntimeOptionScope = "ankiConnect";
+export type RuntimeOptionScope = 'ankiConnect';
 
-export type RuntimeOptionValueType = "boolean" | "enum";
+export type RuntimeOptionValueType = 'boolean' | 'enum';
 
 export type RuntimeOptionValue = boolean | string;
 
-export type NPlusOneMatchMode = "headword" | "surface";
+export type NPlusOneMatchMode = 'headword' | 'surface';
 
 export interface RuntimeOptionState {
   id: RuntimeOptionId;
@@ -222,8 +222,8 @@ export interface AnkiConnectConfig {
   media?: {
     generateAudio?: boolean;
     generateImage?: boolean;
-    imageType?: "static" | "avif";
-    imageFormat?: "jpg" | "png" | "webp";
+    imageType?: 'static' | 'avif';
+    imageFormat?: 'jpg' | 'png' | 'webp';
     imageQuality?: number;
     imageMaxWidth?: number;
     imageMaxHeight?: number;
@@ -247,9 +247,9 @@ export interface AnkiConnectConfig {
   behavior?: {
     overwriteAudio?: boolean;
     overwriteImage?: boolean;
-    mediaInsertMode?: "append" | "prepend";
+    mediaInsertMode?: 'append' | 'prepend';
     highlightWord?: boolean;
-    notificationType?: "osd" | "system" | "both" | "none";
+    notificationType?: 'osd' | 'system' | 'both' | 'none';
     autoUpdateNewCards?: boolean;
   };
   metadata?: {
@@ -264,7 +264,7 @@ export interface AnkiConnectConfig {
   };
   isKiku?: {
     enabled?: boolean;
-    fieldGrouping?: "auto" | "manual" | "disabled";
+    fieldGrouping?: 'auto' | 'manual' | 'disabled';
     deleteDuplicateInAuto?: boolean;
   };
 }
@@ -304,7 +304,7 @@ export interface SubtitleStyleConfig {
   };
 }
 
-export type FrequencyDictionaryMode = "single" | "banded";
+export type FrequencyDictionaryMode = 'single' | 'banded';
 
 export interface ShortcutsConfig {
   toggleVisibleOverlayGlobal?: string | null;
@@ -323,7 +323,7 @@ export interface ShortcutsConfig {
   openJimaku?: string | null;
 }
 
-export type JimakuLanguagePreference = "ja" | "en" | "none";
+export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
 
 export interface JimakuConfig {
   apiKey?: string;
@@ -360,10 +360,10 @@ export interface JellyfinConfig {
 }
 
 export interface InvisibleOverlayConfig {
-  startupVisibility?: "platform-default" | "visible" | "hidden";
+  startupVisibility?: 'platform-default' | 'visible' | 'hidden';
 }
 
-export type YoutubeSubgenMode = "automatic" | "preprocess" | "off";
+export type YoutubeSubgenMode = 'automatic' | 'preprocess' | 'off';
 
 export interface YoutubeSubgenConfig {
   mode?: YoutubeSubgenMode;
@@ -408,7 +408,7 @@ export interface Config {
   youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
   logging?: {
-    level?: "debug" | "info" | "warn" | "error";
+    level?: 'debug' | 'info' | 'warn' | 'error';
   };
 }
 
@@ -442,8 +442,8 @@ export interface ResolvedConfig {
     media: {
       generateAudio: boolean;
       generateImage: boolean;
-      imageType: "static" | "avif";
-      imageFormat: "jpg" | "png" | "webp";
+      imageType: 'static' | 'avif';
+      imageFormat: 'jpg' | 'png' | 'webp';
       imageQuality: number;
       imageMaxWidth?: number;
       imageMaxHeight?: number;
@@ -467,9 +467,9 @@ export interface ResolvedConfig {
     behavior: {
       overwriteAudio: boolean;
       overwriteImage: boolean;
-      mediaInsertMode: "append" | "prepend";
+      mediaInsertMode: 'append' | 'prepend';
       highlightWord: boolean;
-      notificationType: "osd" | "system" | "both" | "none";
+      notificationType: 'osd' | 'system' | 'both' | 'none';
       autoUpdateNewCards: boolean;
     };
     metadata: {
@@ -483,17 +483,15 @@ export interface ResolvedConfig {
     };
     isKiku: {
       enabled: boolean;
-      fieldGrouping: "auto" | "manual" | "disabled";
+      fieldGrouping: 'auto' | 'manual' | 'disabled';
       deleteDuplicateInAuto: boolean;
     };
   };
   shortcuts: Required<ShortcutsConfig>;
   secondarySub: Required<SecondarySubConfig>;
   subsync: Required<SubsyncConfig>;
-  subtitleStyle: Required<
-    Omit<SubtitleStyleConfig, "secondary" | "frequencyDictionary">
-  > & {
-    secondary: Required<NonNullable<SubtitleStyleConfig["secondary"]>>;
+  subtitleStyle: Required<Omit<SubtitleStyleConfig, 'secondary' | 'frequencyDictionary'>> & {
+    secondary: Required<NonNullable<SubtitleStyleConfig['secondary']>>;
     frequencyDictionary: {
       enabled: boolean;
       sourcePath: string;
@@ -558,7 +556,7 @@ export interface ResolvedConfig {
     };
   };
   logging: {
-    level: "debug" | "info" | "warn" | "error";
+    level: 'debug' | 'info' | 'warn' | 'error';
   };
 }
 
@@ -579,7 +577,7 @@ export interface SubsyncManualPayload {
 }
 
 export interface SubsyncManualRunRequest {
-  engine: "alass" | "ffsubsync";
+  engine: 'alass' | 'ffsubsync';
   sourceTrackId?: number | null;
 }
 
@@ -619,7 +617,7 @@ export interface MpvSubtitleRenderMetrics {
   } | null;
 }
 
-export type OverlayLayer = "visible" | "invisible";
+export type OverlayLayer = 'visible' | 'invisible';
 
 export interface OverlayContentRect {
   x: number;
@@ -644,7 +642,7 @@ export interface MecabStatus {
   path: string | null;
 }
 
-export type JimakuConfidence = "high" | "medium" | "low";
+export type JimakuConfidence = 'high' | 'medium' | 'low';
 
 export interface JimakuMediaInfo {
   title: string;
@@ -700,34 +698,25 @@ export interface JimakuApiError {
   retryAfter?: number;
 }
 
-export type JimakuApiResponse<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: JimakuApiError };
+export type JimakuApiResponse<T> = { ok: true; data: T } | { ok: false; error: JimakuApiError };
 
 export type JimakuDownloadResult =
   | { ok: true; path: string }
   | { ok: false; error: JimakuApiError };
 
 export interface ElectronAPI {
-  getOverlayLayer: () => "visible" | "invisible" | null;
+  getOverlayLayer: () => 'visible' | 'invisible' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
   onVisibility: (callback: (visible: boolean) => void) => void;
-  onSubtitlePosition: (
-    callback: (position: SubtitlePosition | null) => void,
-  ) => void;
+  onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;
   getOverlayVisibility: () => Promise<boolean>;
   getCurrentSubtitle: () => Promise<SubtitleData>;
   getCurrentSubtitleAss: () => Promise<string>;
   getMpvSubtitleRenderMetrics: () => Promise<MpvSubtitleRenderMetrics>;
-  onMpvSubtitleRenderMetrics: (
-    callback: (metrics: MpvSubtitleRenderMetrics) => void,
-  ) => void;
+  onMpvSubtitleRenderMetrics: (callback: (metrics: MpvSubtitleRenderMetrics) => void) => void;
   onSubtitleAss: (callback: (assText: string) => void) => void;
   onOverlayDebugVisualization: (callback: (enabled: boolean) => void) => void;
-  setIgnoreMouseEvents: (
-    ignore: boolean,
-    options?: { forward?: boolean },
-  ) => void;
+  setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   openYomitanSettings: () => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
@@ -737,15 +726,9 @@ export interface ElectronAPI {
   getKeybindings: () => Promise<Keybinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
   getJimakuMediaInfo: () => Promise<JimakuMediaInfo>;
-  jimakuSearchEntries: (
-    query: JimakuSearchQuery,
-  ) => Promise<JimakuApiResponse<JimakuEntry[]>>;
-  jimakuListFiles: (
-    query: JimakuFilesQuery,
-  ) => Promise<JimakuApiResponse<JimakuFileEntry[]>>;
-  jimakuDownloadFile: (
-    query: JimakuDownloadQuery,
-  ) => Promise<JimakuDownloadResult>;
+  jimakuSearchEntries: (query: JimakuSearchQuery) => Promise<JimakuApiResponse<JimakuEntry[]>>;
+  jimakuListFiles: (query: JimakuFilesQuery) => Promise<JimakuApiResponse<JimakuFileEntry[]>>;
+  jimakuDownloadFile: (query: JimakuDownloadQuery) => Promise<JimakuDownloadResult>;
   quitApp: () => void;
   toggleDevTools: () => void;
   toggleOverlay: () => void;
@@ -758,36 +741,21 @@ export interface ElectronAPI {
   getCurrentSecondarySub: () => Promise<string>;
   focusMainWindow: () => Promise<void>;
   getSubtitleStyle: () => Promise<SubtitleStyleConfig | null>;
-  onSubsyncManualOpen: (
-    callback: (payload: SubsyncManualPayload) => void,
-  ) => void;
-  runSubsyncManual: (
-    request: SubsyncManualRunRequest,
-  ) => Promise<SubsyncResult>;
-  onKikuFieldGroupingRequest: (
-    callback: (data: KikuFieldGroupingRequestData) => void,
-  ) => void;
-  kikuBuildMergePreview: (
-    request: KikuMergePreviewRequest,
-  ) => Promise<KikuMergePreviewResponse>;
+  onSubsyncManualOpen: (callback: (payload: SubsyncManualPayload) => void) => void;
+  runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
+  onKikuFieldGroupingRequest: (callback: (data: KikuFieldGroupingRequestData) => void) => void;
+  kikuBuildMergePreview: (request: KikuMergePreviewRequest) => Promise<KikuMergePreviewResponse>;
   kikuFieldGroupingRespond: (choice: KikuFieldGroupingChoice) => void;
   getRuntimeOptions: () => Promise<RuntimeOptionState[]>;
   setRuntimeOptionValue: (
     id: RuntimeOptionId,
     value: RuntimeOptionValue,
   ) => Promise<RuntimeOptionApplyResult>;
-  cycleRuntimeOption: (
-    id: RuntimeOptionId,
-    direction: 1 | -1,
-  ) => Promise<RuntimeOptionApplyResult>;
-  onRuntimeOptionsChanged: (
-    callback: (options: RuntimeOptionState[]) => void,
-  ) => void;
+  cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => Promise<RuntimeOptionApplyResult>;
+  onRuntimeOptionsChanged: (callback: (options: RuntimeOptionState[]) => void) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
-  notifyOverlayModalClosed: (
-    modal: "runtime-options" | "subsync" | "jimaku",
-  ) => void;
+  notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku') => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
 }
 

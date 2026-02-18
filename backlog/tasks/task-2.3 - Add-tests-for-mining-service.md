@@ -19,11 +19,15 @@ ordinal: 8000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add dedicated behavior tests for `mining-service.ts` covering sentence/card mining orchestration and error boundaries.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Happy-path behavior is covered for mining entry points.
 - [x] #2 Guard/early-return behavior is covered for missing runtime state.
 - [x] #3 Error paths are covered with expected logging/OSD behavior.
@@ -33,7 +37,9 @@ Add dedicated behavior tests for `mining-service.ts` covering sentence/card mini
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Added `src/core/services/mining-service.test.ts` with focused coverage for:
+
 - `copyCurrentSubtitleService` guard and success behavior
 - `mineSentenceCardService` integration/connection guards and success path
 - `handleMultiCopyDigitService` history-copy behavior with truncation messaging
@@ -42,4 +48,5 @@ Added `src/core/services/mining-service.test.ts` with focused coverage for:
 Updated `package.json` `test:core` to include `dist/core/services/mining-service.test.js`.
 
 Verification: `pnpm run test:core` passed (20/20 after adding mining tests).
+
 <!-- SECTION:NOTES:END -->

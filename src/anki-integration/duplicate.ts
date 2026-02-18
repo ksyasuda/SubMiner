@@ -8,16 +8,10 @@ export interface NoteInfo {
 }
 
 export interface DuplicateDetectionDeps {
-  findNotes: (
-    query: string,
-    options?: { maxRetries?: number },
-  ) => Promise<unknown>;
+  findNotes: (query: string, options?: { maxRetries?: number }) => Promise<unknown>;
   notesInfo: (noteIds: number[]) => Promise<unknown>;
   getDeck: () => string | null | undefined;
-  resolveFieldName: (
-    noteInfo: NoteInfo,
-    preferredName: string,
-  ) => string | null;
+  resolveFieldName: (noteInfo: NoteInfo, preferredName: string) => string | null;
   logWarn: (message: string, error: unknown) => void;
 }
 
@@ -27,12 +21,9 @@ export async function findDuplicateNote(
   noteInfo: NoteInfo,
   deps: DuplicateDetectionDeps,
 ): Promise<number | null> {
-  let fieldName = "";
+  let fieldName = '';
   for (const name of Object.keys(noteInfo.fields)) {
-    if (
-      ["word", "expression"].includes(name.toLowerCase()) &&
-      noteInfo.fields[name].value
-    ) {
+    if (['word', 'expression'].includes(name.toLowerCase()) && noteInfo.fields[name].value) {
       fieldName = name;
       break;
     }
@@ -41,24 +32,16 @@ export async function findDuplicateNote(
 
   const escapedFieldName = escapeAnkiSearchValue(fieldName);
   const escapedExpression = escapeAnkiSearchValue(expression);
-  const deckPrefix = deps.getDeck()
-    ? `"deck:${escapeAnkiSearchValue(deps.getDeck()!)}" `
-    : "";
+  const deckPrefix = deps.getDeck() ? `"deck:${escapeAnkiSearchValue(deps.getDeck()!)}" ` : '';
   const query = `${deckPrefix}"${escapedFieldName}:${escapedExpression}"`;
 
   try {
     const noteIds = (await deps.findNotes(query, {
       maxRetries: 0,
     })) as number[];
-    return await findFirstExactDuplicateNoteId(
-      noteIds,
-      excludeNoteId,
-      fieldName,
-      expression,
-      deps,
-    );
+    return await findFirstExactDuplicateNoteId(noteIds, excludeNoteId, fieldName, expression, deps);
   } catch (error) {
-    deps.logWarn("Duplicate search failed:", error);
+    deps.logWarn('Duplicate search failed:', error);
     return null;
   }
 }
@@ -85,7 +68,7 @@ function findFirstExactDuplicateNoteId(
       for (const noteInfo of notesInfo) {
         const resolvedField = deps.resolveFieldName(noteInfo, fieldName);
         if (!resolvedField) continue;
-        const candidateValue = noteInfo.fields[resolvedField]?.value || "";
+        const candidateValue = noteInfo.fields[resolvedField]?.value || '';
         if (normalizeDuplicateValue(candidateValue) === normalizedExpression) {
           return noteInfo.noteId;
         }
@@ -96,12 +79,12 @@ function findFirstExactDuplicateNoteId(
 }
 
 function normalizeDuplicateValue(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
+  return value.replace(/\s+/g, ' ').trim();
 }
 
 function escapeAnkiSearchValue(value: string): string {
   return value
-    .replace(/\\/g, "\\\\")
+    .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
-    .replace(/([:*?()[\]{}])/g, "\\$1");
+    .replace(/([:*?()[\]{}])/g, '\\$1');
 }

@@ -1,17 +1,17 @@
-import * as childProcess from "child_process";
+import * as childProcess from 'child_process';
 
-import { parseMediaInfo } from "../../../jimaku/utils";
+import { parseMediaInfo } from '../../../jimaku/utils';
 
-const ANILIST_GRAPHQL_URL = "https://graphql.anilist.co";
+const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 
 export interface AnilistMediaGuess {
   title: string;
   episode: number | null;
-  source: "guessit" | "fallback";
+  source: 'guessit' | 'fallback';
 }
 
 export interface AnilistPostWatchUpdateResult {
-  status: "updated" | "skipped" | "error";
+  status: 'updated' | 'skipped' | 'error';
   message: string;
 }
 
@@ -58,8 +58,8 @@ interface AnilistSaveEntryData {
 function runGuessit(target: string): Promise<string> {
   return new Promise((resolve, reject) => {
     childProcess.execFile(
-      "guessit",
-      [target, "--json"],
+      'guessit',
+      [target, '--json'],
       { timeout: 5000, maxBuffer: 1024 * 1024 },
       (error, stdout) => {
         if (error) {
@@ -73,7 +73,7 @@ function runGuessit(target: string): Promise<string> {
 }
 
 function firstString(value: unknown): string | null {
-  if (typeof value === "string") {
+  if (typeof value === 'string') {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
   }
@@ -87,10 +87,10 @@ function firstString(value: unknown): string | null {
 }
 
 function firstPositiveInteger(value: unknown): number | null {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
     return value;
   }
-  if (typeof value === "string") {
+  if (typeof value === 'string') {
     const parsed = Number.parseInt(value, 10);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   }
@@ -104,7 +104,7 @@ function firstPositiveInteger(value: unknown): number | null {
 }
 
 function normalizeTitle(text: string): string {
-  return text.trim().toLowerCase().replace(/\s+/g, " ");
+  return text.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 async function anilistGraphQl<T>(
@@ -114,9 +114,9 @@ async function anilistGraphQl<T>(
 ): Promise<AnilistGraphQlResponse<T>> {
   try {
     const response = await fetch(ANILIST_GRAPHQL_URL, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({ query, variables }),
@@ -135,9 +135,7 @@ async function anilistGraphQl<T>(
   }
 }
 
-function firstErrorMessage<T>(
-  response: AnilistGraphQlResponse<T>,
-): string | null {
+function firstErrorMessage<T>(response: AnilistGraphQlResponse<T>): string | null {
   const firstError = response.errors?.find((item) => Boolean(item?.message));
   return firstError?.message ?? null;
 }
@@ -165,17 +163,14 @@ function pickBestSearchResult(
   const normalizedTarget = normalizeTitle(title);
   const exact = candidates.find((item) => {
     const titles = [item.title?.romaji, item.title?.english, item.title?.native]
-      .filter((value): value is string => typeof value === "string")
+      .filter((value): value is string => typeof value === 'string')
       .map((value) => normalizeTitle(value));
     return titles.includes(normalizedTarget);
   });
 
   const selected = exact ?? candidates[0];
   const selectedTitle =
-    selected.title?.english ||
-    selected.title?.romaji ||
-    selected.title?.native ||
-    title;
+    selected.title?.english || selected.title?.romaji || selected.title?.native || title;
   return { id: selected.id, title: selectedTitle };
 }
 
@@ -192,7 +187,7 @@ export async function guessAnilistMediaInfo(
       const title = firstString(parsed.title);
       const episode = firstPositiveInteger(parsed.episode);
       if (title) {
-        return { title, episode, source: "guessit" };
+        return { title, episode, source: 'guessit' };
       }
     } catch {
       // Ignore guessit failures and fall back to internal parser.
@@ -207,7 +202,7 @@ export async function guessAnilistMediaInfo(
   return {
     title: parsed.title.trim(),
     episode: parsed.episode,
-    source: "fallback",
+    source: 'fallback',
   };
 }
 
@@ -238,7 +233,7 @@ export async function updateAnilistPostWatchProgress(
   const searchError = firstErrorMessage(searchResponse);
   if (searchError) {
     return {
-      status: "error",
+      status: 'error',
       message: `AniList search failed: ${searchError}`,
     };
   }
@@ -246,7 +241,7 @@ export async function updateAnilistPostWatchProgress(
   const media = searchResponse.data?.Page?.media ?? [];
   const picked = pickBestSearchResult(title, episode, media);
   if (!picked) {
-    return { status: "error", message: "AniList search returned no matches." };
+    return { status: 'error', message: 'AniList search returned no matches.' };
   }
 
   const entryResponse = await anilistGraphQl<AnilistMediaEntryData>(
@@ -267,16 +262,15 @@ export async function updateAnilistPostWatchProgress(
   const entryError = firstErrorMessage(entryResponse);
   if (entryError) {
     return {
-      status: "error",
+      status: 'error',
       message: `AniList entry lookup failed: ${entryError}`,
     };
   }
 
-  const currentProgress =
-    entryResponse.data?.Media?.mediaListEntry?.progress ?? 0;
-  if (typeof currentProgress === "number" && currentProgress >= episode) {
+  const currentProgress = entryResponse.data?.Media?.mediaListEntry?.progress ?? 0;
+  if (typeof currentProgress === 'number' && currentProgress >= episode) {
     return {
-      status: "skipped",
+      status: 'skipped',
       message: `AniList already at episode ${currentProgress} (${picked.title}).`,
     };
   }
@@ -295,11 +289,11 @@ export async function updateAnilistPostWatchProgress(
   );
   const saveError = firstErrorMessage(saveResponse);
   if (saveError) {
-    return { status: "error", message: `AniList update failed: ${saveError}` };
+    return { status: 'error', message: `AniList update failed: ${saveError}` };
   }
 
   return {
-    status: "updated",
+    status: 'updated',
     message: `AniList updated "${picked.title}" to episode ${episode}.`,
   };
 }

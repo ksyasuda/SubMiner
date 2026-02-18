@@ -1,14 +1,11 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { KikuFieldGroupingChoice } from "../../types";
-import {
-  createFieldGroupingCallbackRuntime,
-  sendToVisibleOverlayRuntime,
-} from "./overlay-bridge";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { KikuFieldGroupingChoice } from '../../types';
+import { createFieldGroupingCallbackRuntime, sendToVisibleOverlayRuntime } from './overlay-bridge';
 
-test("sendToVisibleOverlayRuntime restores visibility flag when opening hidden overlay modal", () => {
+test('sendToVisibleOverlayRuntime restores visibility flag when opening hidden overlay modal', () => {
   const sent: unknown[][] = [];
-  const restoreSet = new Set<"runtime-options" | "subsync">();
+  const restoreSet = new Set<'runtime-options' | 'subsync'>();
   let visibleOverlayVisible = false;
 
   const ok = sendToVisibleOverlayRuntime({
@@ -25,22 +22,20 @@ test("sendToVisibleOverlayRuntime restores visibility flag when opening hidden o
     setVisibleOverlayVisible: (visible: boolean) => {
       visibleOverlayVisible = visible;
     },
-    channel: "runtime-options:open",
-    restoreOnModalClose: "runtime-options",
+    channel: 'runtime-options:open',
+    restoreOnModalClose: 'runtime-options',
     restoreVisibleOverlayOnModalClose: restoreSet,
   });
 
   assert.equal(ok, true);
   assert.equal(visibleOverlayVisible, true);
-  assert.equal(restoreSet.has("runtime-options"), true);
-  assert.deepEqual(sent, [["runtime-options:open"]]);
+  assert.equal(restoreSet.has('runtime-options'), true);
+  assert.deepEqual(sent, [['runtime-options:open']]);
 });
 
-test("createFieldGroupingCallbackRuntime cancels when overlay request cannot be sent", async () => {
+test('createFieldGroupingCallbackRuntime cancels when overlay request cannot be sent', async () => {
   let resolver: ((choice: KikuFieldGroupingChoice) => void) | null = null;
-  const callback = createFieldGroupingCallbackRuntime<
-    "runtime-options" | "subsync"
-  >({
+  const callback = createFieldGroupingCallbackRuntime<'runtime-options' | 'subsync'>({
     getVisibleOverlayVisible: () => false,
     getInvisibleOverlayVisible: () => false,
     setVisibleOverlayVisible: () => {},
@@ -55,16 +50,16 @@ test("createFieldGroupingCallbackRuntime cancels when overlay request cannot be 
   const result = await callback({
     original: {
       noteId: 1,
-      expression: "a",
-      sentencePreview: "a",
+      expression: 'a',
+      sentencePreview: 'a',
       hasAudio: false,
       hasImage: false,
       isOriginal: true,
     },
     duplicate: {
       noteId: 2,
-      expression: "b",
-      sentencePreview: "b",
+      expression: 'b',
+      sentencePreview: 'b',
       hasAudio: false,
       hasImage: false,
       isOriginal: false,

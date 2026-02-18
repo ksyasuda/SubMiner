@@ -14,11 +14,15 @@ dependencies: []
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Implement an in-app episode browser invoked by Ctrl+E when mpv is open and connected to the Electron UI. The viewer should use the currently supplied directory (if app was launched with one) or fallback to the parent directory of the currently playing video. It should enumerate all available video files in target directory and sort them deterministically, then display them in a polished list/gallery with thumbnails in the Electron UI. Thumbnail behavior should prioritize existing matching images in the directory; otherwise generate thumbnails asynchronously in the background and update the modal as they become available. The same menu infrastructure should be shared with the planned Jellyfin integration and designed so it can display additional Jellyfin-sourced metadata without UI rewrites. It should also support launching/using an alternate picker mode compatible with external launcher UX patterns (e.g., via fzf/rofi), showing the same episode list/metadata in those contexts.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Pressing Ctrl+E in connected mode opens an episode viewer modal and closes/overlays correctly in the Electron app.
 - [ ] #2 Episode browser source directory is resolved from CLI-provided path when present, else from currently playing video's parent directory.
 - [ ] #3 Browser enumerates all supported video files in target directory and sorts them deterministically (e.g., natural/season-episode aware when possible).
@@ -34,7 +38,9 @@ Implement an in-app episode browser invoked by Ctrl+E when mpv is open and conne
 <!-- AC:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [ ] #1 Feature supports Ctrl+E invocation from connected mpv session.
 - [ ] #2 Directory fallback behavior is implemented and validated with both passed-in and default paths.
 - [ ] #3 Video listing excludes unsupported formats and is correctly sorted.
