@@ -140,10 +140,11 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Build Bun subminer wrapper
+        run: make build-launcher
+
       - name: Verify Bun subminer wrapper
-        run: |
-          chmod +x subminer
-          ./subminer --help >/dev/null
+        run: ./subminer --help >/dev/null
 
       - name: Get version from tag
         id: version
