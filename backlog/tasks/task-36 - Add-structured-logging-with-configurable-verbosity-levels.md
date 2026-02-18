@@ -4,13 +4,14 @@ title: Add structured logging with configurable verbosity levels
 status: Done
 assignee: []
 created_date: '2026-02-14 00:59'
-updated_date: '2026-02-17 04:16'
+updated_date: '2026-02-18 04:11'
 labels:
   - infrastructure
   - developer-experience
   - observability
 dependencies: []
 priority: medium
+ordinal: 20000
 ---
 
 ## Description

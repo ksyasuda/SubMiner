@@ -4,13 +4,14 @@ title: Add CI/CD pipeline for automated testing and quality gates
 status: Done
 assignee: []
 created_date: '2026-02-14 00:57'
-updated_date: '2026-02-17 07:36'
+updated_date: '2026-02-18 04:11'
 labels:
   - infrastructure
   - ci
   - quality
 dependencies: []
 priority: high
+ordinal: 17000
 ---
 
 ## Description

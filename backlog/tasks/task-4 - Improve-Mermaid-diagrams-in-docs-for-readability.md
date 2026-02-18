@@ -4,10 +4,11 @@ title: Improve Mermaid diagrams in docs for readability
 status: Done
 assignee: []
 created_date: '2026-02-11 07:11'
-updated_date: '2026-02-11 07:11'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 priority: medium
+ordinal: 55000
 ---
 
 ## Description

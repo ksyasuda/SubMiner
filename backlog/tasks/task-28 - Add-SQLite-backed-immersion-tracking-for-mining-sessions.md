@@ -4,7 +4,7 @@ title: Add SQLite-backed immersion tracking for mining sessions
 status: Done
 assignee: []
 created_date: '2026-02-13 17:52'
-updated_date: '2026-02-18 02:36'
+updated_date: '2026-02-18 04:11'
 labels:
   - analytics
   - backend
@@ -12,6 +12,7 @@ labels:
   - immersion
 dependencies: []
 priority: medium
+ordinal: 15000
 ---
 
 ## Description

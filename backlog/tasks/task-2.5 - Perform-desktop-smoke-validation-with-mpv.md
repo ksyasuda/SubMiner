@@ -4,7 +4,7 @@ title: Perform desktop smoke validation with mpv
 status: Done
 assignee: []
 created_date: '2026-02-10 18:56'
-updated_date: '2026-02-11 03:35'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies:
   - TASK-2.2
@@ -14,7 +14,7 @@ references:
   - investigation.md
   - docs/refactor-main-checklist.md
 parent_task_id: TASK-2
-ordinal: 12000
+ordinal: 13000
 ---
 
 ## Description

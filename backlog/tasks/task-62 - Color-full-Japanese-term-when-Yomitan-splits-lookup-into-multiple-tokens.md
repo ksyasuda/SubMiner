@@ -4,10 +4,11 @@ title: Color full Japanese term when Yomitan splits lookup into multiple tokens
 status: Done
 assignee: []
 created_date: '2026-02-16 23:03'
-updated_date: '2026-02-16 23:11'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 priority: medium
+ordinal: 23000
 ---
 
 ## Description

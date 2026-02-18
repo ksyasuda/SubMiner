@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-11 08:20'
-updated_date: '2026-02-11 17:46'
+updated_date: '2026-02-18 04:11'
 labels:
   - refactor
   - types
@@ -17,6 +17,7 @@ references:
   - src/types.ts
   - src/main.ts
 priority: high
+ordinal: 53000
 ---
 
 ## Description

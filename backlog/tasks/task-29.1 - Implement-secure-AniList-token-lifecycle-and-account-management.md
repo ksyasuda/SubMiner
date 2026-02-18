@@ -4,7 +4,7 @@ title: Implement secure AniList token lifecycle and account management
 status: Done
 assignee: []
 created_date: '2026-02-17 04:12'
-updated_date: '2026-02-17 04:19'
+updated_date: '2026-02-18 04:11'
 labels:
   - anilist
   - security
@@ -12,6 +12,7 @@ labels:
 dependencies: []
 parent_task_id: TASK-29
 priority: medium
+ordinal: 18000
 ---
 
 ## Acceptance Criteria

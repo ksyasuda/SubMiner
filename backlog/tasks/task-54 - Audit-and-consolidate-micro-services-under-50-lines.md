@@ -4,12 +4,13 @@ title: Audit and consolidate micro-services under 50 lines
 status: Done
 assignee: []
 created_date: '2026-02-16 04:47'
-updated_date: '2026-02-16 05:04'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 references:
   - /home/sudacode/projects/japanese/SubMiner/src/core/services/
 priority: medium
+ordinal: 29000
 ---
 
 ## Description

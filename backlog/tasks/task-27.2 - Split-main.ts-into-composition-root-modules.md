@@ -5,7 +5,7 @@ status: Done
 assignee:
   - backend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-15 01:25'
+updated_date: '2026-02-18 04:11'
 labels:
   - 'owner:backend'
   - 'owner:architect'
@@ -18,6 +18,7 @@ documentation:
   - docs/architecture.md
 parent_task_id: TASK-27
 priority: high
+ordinal: 40000
 ---
 
 ## Description

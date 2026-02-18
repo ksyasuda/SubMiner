@@ -4,7 +4,7 @@ title: Restrict mpv socket connection logs to debug mode in Electron
 status: Done
 assignee: []
 created_date: '2026-02-13 19:39'
-updated_date: '2026-02-16 03:05'
+updated_date: '2026-02-18 04:11'
 labels:
   - electron
   - logging
@@ -13,6 +13,7 @@ labels:
   - quality
 dependencies: []
 priority: high
+ordinal: 31000
 ---
 
 ## Description

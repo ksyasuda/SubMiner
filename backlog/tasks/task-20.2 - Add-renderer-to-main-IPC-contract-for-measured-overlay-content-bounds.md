@@ -4,11 +4,12 @@ title: Add renderer-to-main IPC contract for measured overlay content bounds
 status: Done
 assignee: []
 created_date: '2026-02-12 08:47'
-updated_date: '2026-02-13 08:05'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 parent_task_id: TASK-20
 priority: medium
+ordinal: 45000
 ---
 
 ## Description

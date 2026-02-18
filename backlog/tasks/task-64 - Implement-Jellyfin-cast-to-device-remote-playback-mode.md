@@ -1,11 +1,11 @@
 ---
 id: TASK-64
 title: Implement Jellyfin cast-to-device remote playback mode
-status: In Progress
+status: Done
 assignee:
   - '@sudacode'
 created_date: '2026-02-17 21:25'
-updated_date: '2026-02-18 02:56'
+updated_date: '2026-02-18 04:11'
 labels:
   - jellyfin
   - mpv
@@ -14,6 +14,7 @@ dependencies: []
 references:
   - TASK-31
 priority: high
+ordinal: 56000
 ---
 
 ## Description
@@ -25,7 +26,7 @@ Deliver a jellyfin-mpv-shim-like experience in SubMiner so Jellyfin users can ca
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 SubMiner can register itself as a playable remote device in Jellyfin and appears in cast-to-device targets while connected.
-- [ ] #2 When a user casts an item from Jellyfin, SubMiner opens playback in mpv using existing Jellyfin/SubMiner defaults for subtitle behavior.
+- [x] #2 When a user casts an item from Jellyfin, SubMiner opens playback in mpv using existing Jellyfin/SubMiner defaults for subtitle behavior.
 - [x] #3 Remote playback control events from Jellyfin (play/pause/seek/stop and stream selection where available) are handled by SubMiner without breaking existing CLI-driven playback flows.
 - [x] #4 SubMiner reports playback state/progress back to Jellyfin so server/client state remains synchronized for now playing and resume behavior.
 - [x] #5 Automated tests cover new remote-session/event-handling behavior and existing Jellyfin playback flows remain green.

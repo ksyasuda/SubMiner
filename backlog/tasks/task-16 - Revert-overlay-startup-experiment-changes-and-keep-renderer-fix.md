@@ -4,13 +4,14 @@ title: Revert overlay startup experiment changes and keep renderer fix
 status: Done
 assignee: []
 created_date: '2026-02-12 01:45'
-updated_date: '2026-02-12 01:46'
+updated_date: '2026-02-18 04:11'
 labels:
   - regression
   - overlay
   - launcher
 dependencies: []
 priority: high
+ordinal: 48000
 ---
 
 ## Description

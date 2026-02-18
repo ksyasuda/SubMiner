@@ -5,7 +5,7 @@ status: Done
 assignee:
   - backend
 created_date: '2026-02-13 17:13'
-updated_date: '2026-02-14 08:43'
+updated_date: '2026-02-18 04:11'
 labels:
   - refactor
   - documentation
@@ -16,6 +16,7 @@ documentation:
   - docs/structure-roadmap.md
 parent_task_id: TASK-27
 priority: high
+ordinal: 42000
 ---
 
 ## Description

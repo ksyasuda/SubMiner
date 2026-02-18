@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-10 18:56'
-updated_date: '2026-02-11 03:35'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies:
   - TASK-1
@@ -20,7 +20,7 @@ references:
   - src/ipc/
   - src/core/services/index.ts
 parent_task_id: TASK-2
-ordinal: 10000
+ordinal: 11000
 ---
 
 ## Description

@@ -4,9 +4,10 @@ title: Restrict Yomitan frequency lookup to selected headword only
 status: Done
 assignee: []
 created_date: '2026-02-16 22:16'
-updated_date: '2026-02-16 22:18'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
+ordinal: 26000
 ---
 
 ## Description

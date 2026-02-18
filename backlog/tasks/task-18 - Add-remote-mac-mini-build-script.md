@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-11 16:48'
-updated_date: '2026-02-11 16:48'
+updated_date: '2026-02-18 04:11'
 labels:
   - build
   - macos
@@ -14,6 +14,7 @@ dependencies: []
 references:
   - scripts/build-external.sh
 priority: medium
+ordinal: 54000
 ---
 
 ## Description

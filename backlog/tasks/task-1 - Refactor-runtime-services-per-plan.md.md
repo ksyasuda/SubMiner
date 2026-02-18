@@ -4,12 +4,12 @@ title: Refactor runtime services per plan.md
 status: Done
 assignee: []
 created_date: '2026-02-10 18:46'
-updated_date: '2026-02-11 03:35'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 references:
   - plan.md
-ordinal: 1000
+ordinal: 2000
 ---
 
 ## Description

@@ -6,13 +6,14 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-02-13 16:47'
-updated_date: '2026-02-16 06:48'
+updated_date: '2026-02-18 04:11'
 labels: []
 dependencies: []
 documentation:
   - /Users/sudacode/.codex/worktrees/2089/SubMiner/docs/configuration.md
   - /Users/sudacode/.codex/worktrees/2089/SubMiner/docs/jlpt-vocab-bundle.md
 priority: high
+ordinal: 28000
 ---
 
 ## Description
