@@ -283,6 +283,54 @@ function parseBackend(value: string): Backend {
   fail(`Invalid backend: ${value} (must be auto, hyprland, x11, or macos)`);
 }
 
+function applyRootOptions(program: Command): void {
+  program
+    .option("-b, --backend <backend>", "Display backend")
+    .option("-d, --directory <dir>", "Directory to browse")
+    .option("-r, --recursive", "Search directories recursively")
+    .option("-p, --profile <profile>", "MPV profile")
+    .option("--start", "Explicitly start overlay")
+    .option("--log-level <level>", "Log level")
+    .option("-R, --rofi", "Use rofi picker")
+    .option("-S, --start-overlay", "Auto-start overlay")
+    .option("-T, --no-texthooker", "Disable texthooker-ui server");
+}
+
+function hasTopLevelCommand(argv: string[]): boolean {
+  const commandNames = new Set([
+    "jellyfin",
+    "jf",
+    "yt",
+    "youtube",
+    "doctor",
+    "config",
+    "mpv",
+    "texthooker",
+    "help",
+  ]);
+  const optionsWithValue = new Set([
+    "-b",
+    "--backend",
+    "-d",
+    "--directory",
+    "-p",
+    "--profile",
+    "--log-level",
+  ]);
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i] || "";
+    if (token === "--") return false;
+    if (token.startsWith("-")) {
+      if (optionsWithValue.has(token)) {
+        i += 1;
+      }
+      continue;
+    }
+    return commandNames.has(token);
+  }
+  return false;
+}
+
 export function parseArgs(
   argv: string[],
   scriptName: string,
@@ -402,27 +450,30 @@ export function parseArgs(
   let doctorLogLevel: string | null = null;
   let texthookerLogLevel: string | null = null;
 
-  const program = new Command();
-  program
+  const commandProgram = new Command();
+  commandProgram
     .name(scriptName)
     .description("Launch MPV with SubMiner sentence mining overlay")
     .showHelpAfterError(true)
     .enablePositionalOptions()
     .allowExcessArguments(false)
     .allowUnknownOption(false)
-    .exitOverride()
-    .argument("[target]", "file, directory, or URL")
-    .option("-b, --backend <backend>", "Display backend")
-    .option("-d, --directory <dir>", "Directory to browse")
-    .option("-r, --recursive", "Search directories recursively")
-    .option("-p, --profile <profile>", "MPV profile")
-    .option("--start", "Explicitly start overlay")
-    .option("--log-level <level>", "Log level")
-    .option("-R, --rofi", "Use rofi picker")
-    .option("-S, --start-overlay", "Auto-start overlay")
-    .option("-T, --no-texthooker", "Disable texthooker-ui server");
+    .exitOverride();
+  applyRootOptions(commandProgram);
 
-  program
+  const rootProgram = new Command();
+  rootProgram
+    .name(scriptName)
+    .description("Launch MPV with SubMiner sentence mining overlay")
+    .usage("[options] [command] [target]")
+    .showHelpAfterError(true)
+    .allowExcessArguments(false)
+    .allowUnknownOption(false)
+    .exitOverride()
+    .argument("[target]", "file, directory, or URL");
+  applyRootOptions(rootProgram);
+
+  commandProgram
     .command("jellyfin")
     .alias("jf")
     .description("Jellyfin workflows")
@@ -452,7 +503,7 @@ export function parseArgs(
       };
     });
 
-  program
+  commandProgram
     .command("yt")
     .alias("youtube")
     .description("YouTube workflows")
@@ -483,7 +534,7 @@ export function parseArgs(
       };
     });
 
-  program
+  commandProgram
     .command("doctor")
     .description("Run dependency and environment checks")
     .option("--log-level <level>", "Log level")
@@ -493,7 +544,7 @@ export function parseArgs(
         typeof options.logLevel === "string" ? options.logLevel : null;
     });
 
-  program
+  commandProgram
     .command("config")
     .description("Config helpers")
     .argument("[action]", "path|show", "path")
@@ -506,7 +557,7 @@ export function parseArgs(
       };
     });
 
-  program
+  commandProgram
     .command("mpv")
     .description("MPV helpers")
     .argument("[action]", "status|socket|idle", "status")
@@ -519,7 +570,7 @@ export function parseArgs(
       };
     });
 
-  program
+  commandProgram
     .command("texthooker")
     .description("Launch texthooker-only mode")
     .option("--log-level <level>", "Log level")
@@ -529,8 +580,9 @@ export function parseArgs(
         typeof options.logLevel === "string" ? options.logLevel : null;
     });
 
+  const selectedProgram = hasTopLevelCommand(argv) ? commandProgram : rootProgram;
   try {
-    program.parse(["node", scriptName, ...argv]);
+    selectedProgram.parse(["node", scriptName, ...argv]);
   } catch (error) {
     const commanderError = error as { code?: string; message?: string };
     if (commanderError?.code === "commander.helpDisplayed") {
@@ -539,7 +591,7 @@ export function parseArgs(
     fail(commanderError?.message || String(error));
   }
 
-  const options = program.opts<Record<string, unknown>>();
+  const options = selectedProgram.opts<Record<string, unknown>>();
   if (typeof options.backend === "string") {
     parsed.backend = parseBackend(options.backend);
   }
@@ -558,7 +610,7 @@ export function parseArgs(
   if (options.startOverlay === true) parsed.autoStartOverlay = true;
   if (options.texthooker === false) parsed.useTexthooker = false;
 
-  const rootTarget = program.processedArgs[0];
+  const rootTarget = rootProgram.processedArgs[0];
   if (typeof rootTarget === "string" && rootTarget) {
     ensureTarget(rootTarget, parsed);
   }

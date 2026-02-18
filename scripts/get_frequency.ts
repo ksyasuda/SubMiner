@@ -382,7 +382,7 @@ function parseCliArgs(argv: string[]): CliOptions {
 
 function printUsage(): void {
   process.stdout.write(`Usage:
-   pnpm run get-frequency [--pretty] [--diagnostics] [--dictionary <path>] [--mecab-command <path>] [--mecab-dictionary <path>] <text>
+   bun run get-frequency [--pretty] [--diagnostics] [--dictionary <path>] [--mecab-command <path>] [--mecab-dictionary <path>] <text>
 
   --pretty               Pretty-print JSON output.
   --diagnostics            Include merged-frequency lookup-term details.

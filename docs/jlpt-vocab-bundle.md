@@ -58,4 +58,4 @@ Practical guidance:
 - Keep the JLPT bundle inside `vendor/yomitan-jlpt-vocab` to avoid network lookups.
 - Measure bundle size with:
   - `du -sh vendor/yomitan-jlpt-vocab`
-- If the JLPT source is updated, re-run `pnpm run build:appimage` / packaging and confirm startup logs do not report missing banks.
+- If the JLPT source is updated, re-run `bun run build:appimage` / packaging and confirm startup logs do not report missing banks.

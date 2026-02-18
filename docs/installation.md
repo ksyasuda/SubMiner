@@ -82,9 +82,9 @@ brew install mpv mecab mecab-ipadic
 ```bash
 git clone https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
-pnpm install
-cd vendor/texthooker-ui && pnpm install && pnpm build && cd ../..
-pnpm run build:mac
+bun install
+cd vendor/texthooker-ui && bun install && bun run build && cd ../..
+bun run build:mac
 ```
 
 The built app will be available in the `release` directory (`.dmg` and `.zip`).
@@ -92,7 +92,7 @@ The built app will be available in the `release` directory (`.dmg` and `.zip`).
 For unsigned local builds:
 
 ```bash
-pnpm run build:mac:unsigned
+bun run build:mac:unsigned
 ```
 
 ### Accessibility Permission

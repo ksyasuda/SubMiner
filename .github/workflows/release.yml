@@ -17,28 +17,27 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 9
+          bun-version: latest
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install
+        run: bun install --frozen-lockfile
 
       - name: Build texthooker-ui
         run: |
           cd vendor/texthooker-ui
-          pnpm install
-          pnpm build
+          bun install
+          bun run build
 
       - name: Build AppImage
-        run: pnpm run build:appimage
+        run: bun run build:appimage
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -56,16 +55,15 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 9
+          bun-version: latest
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
 
       - name: Validate macOS signing/notarization secrets
         run: |
@@ -88,16 +86,16 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Install dependencies
-        run: pnpm install
+        run: bun install --frozen-lockfile
 
       - name: Build texthooker-ui
         run: |
           cd vendor/texthooker-ui
-          pnpm install
-          pnpm build
+          bun install
+          bun run build
 
       - name: Build signed + notarized macOS artifacts
-        run: pnpm run build:mac
+        run: bun run build:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}

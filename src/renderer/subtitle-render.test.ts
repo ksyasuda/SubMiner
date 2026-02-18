@@ -255,7 +255,7 @@ test("JLPT CSS rules use underline-only styling in renderer stylesheet", () => {
   const cssPath = fs.existsSync(distCssPath) ? distCssPath : srcCssPath;
   if (!fs.existsSync(cssPath)) {
     assert.fail(
-      "JLPT CSS file missing. Run `pnpm run build` first, or ensure src/renderer/style.css exists.",
+      "JLPT CSS file missing. Run `bun run build` first, or ensure src/renderer/style.css exists.",
     );
   }
 
