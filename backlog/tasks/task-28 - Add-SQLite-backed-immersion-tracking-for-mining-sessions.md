@@ -1,10 +1,10 @@
 ---
 id: TASK-28
 title: Add SQLite-backed immersion tracking for mining sessions
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-13 17:52'
-updated_date: '2026-02-13 19:37'
+updated_date: '2026-02-18 02:36'
 labels:
   - analytics
   - backend
@@ -152,39 +152,59 @@ Notes
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A SQLite database schema is defined and created automatically (or initialized on startup) for immersion tracking if not present.
-- [ ] #2 Recorded events persist at least the following fields per session/item: video name, video directory/URL, video length, lines seen, words/tokens seen, cards mined.
-- [ ] #3 Tracking defaults to storing data in SQLite without requiring additional DB setup for local usage.
-- [ ] #4 Additional extractable metadata from video files is captured and stored when available (e.g., dimensions, duration, codec, fps, file size/hash, optional screenshot path).
-- [ ] #5 Tracking does not degrade mining throughput and handles duplicate/missing metadata fields safely.
-- [ ] #6 Query/read paths exist to support future richer statistics generation (e.g., totals by video, throughput, quality metrics).
-- [ ] #7 Schema design and implementation include clear migration/versioning strategy for future fields.
-- [ ] #8 Schema uses compact numeric/tiny integer types where practical and minimizes repeated TEXT payloads to balance write/read speed and file size.
-- [ ] #9 High-frequency writes are batched (or buffered) with periodic checkpoints so writes do not fsync per telemetry point.
-- [ ] #10 Event retention and rollup strategy is documented: raw event retention, summary tables, and compaction policy to bound DB size.
-- [ ] #11 Query performance targets are addressed with index strategy and a documented plan for index coverage (session-by-video, time-window, event-type, card/count lookups).
-- [ ] #12 Migration/versioning strategy supports future backend portability without requiring analytics-layer rewrite (schema version table + adapter boundary specified).
-- [ ] #13 Task defines operational defaults: flush every 25 events or 500ms, WAL+NORMAL, queue cap of 1000 rows, in-flight payload cap of 256B, and explicit overflow behavior.
-- [ ] #14 Task defines retention defaults and maintenance cadence: events 7d, telemetry 30d, daily 365d, monthly 5y, startup + 24h prune and idle-weekly vacuum.
-- [ ] #15 Task documents expected query performance target (150ms p95) and storage growth guardrails for typical local usage up to ~1M events.
-- [ ] #16 #13 Concrete DDL (tables + indexes + pragmas) is captured in task docs and used as implementation reference.
-- [ ] #17 #14 v1 retention policy, batch policy, and maintenance schedule are explicitly implemented and configurable.
-- [ ] #18 #15 Query templates for timeline/throughput/rollups are defined in implementation docs.
-- [ ] #19 #16 Queue cap, payload cap, and overflow behavior are implemented and documented.
-- [ ] #20 #20 All tracking writes are strictly asynchronous and non-blocking from tokenization/render loops; hot paths must never await persistence.
-- [ ] #21 #21 Queue saturation handling is explicit: bounded queue with deterministic policy (drop oldest, drop newest, or backpressure) and no impact on on-screen token colorization or line rendering.
-- [ ] #22 #22 Tracker failures/timeouts are swallowed from hot path with optional background retry and failure counters/logging for observability.
+- [x] #1 A SQLite database schema is defined and created automatically (or initialized on startup) for immersion tracking if not present.
+- [x] #2 Recorded events persist at least the following fields per session/item: video name, video directory/URL, video length, lines seen, words/tokens seen, cards mined.
+- [x] #3 Tracking defaults to storing data in SQLite without requiring additional DB setup for local usage.
+- [x] #4 Additional extractable metadata from video files is captured and stored when available (e.g., dimensions, duration, codec, fps, file size/hash, optional screenshot path).
+- [x] #5 Tracking does not degrade mining throughput and handles duplicate/missing metadata fields safely.
+- [x] #6 Query/read paths exist to support future richer statistics generation (e.g., totals by video, throughput, quality metrics).
+- [x] #7 Schema design and implementation include clear migration/versioning strategy for future fields.
+- [x] #8 Schema uses compact numeric/tiny integer types where practical and minimizes repeated TEXT payloads to balance write/read speed and file size.
+- [x] #9 High-frequency writes are batched (or buffered) with periodic checkpoints so writes do not fsync per telemetry point.
+- [x] #10 Event retention and rollup strategy is documented: raw event retention, summary tables, and compaction policy to bound DB size.
+- [x] #11 Query performance targets are addressed with index strategy and a documented plan for index coverage (session-by-video, time-window, event-type, card/count lookups).
+- [x] #12 Migration/versioning strategy supports future backend portability without requiring analytics-layer rewrite (schema version table + adapter boundary specified).
+- [x] #13 Task defines operational defaults: flush every 25 events or 500ms, WAL+NORMAL, queue cap of 1000 rows, in-flight payload cap of 256B, and explicit overflow behavior.
+- [x] #14 Task defines retention defaults and maintenance cadence: events 7d, telemetry 30d, daily 365d, monthly 5y, startup + 24h prune and idle-weekly vacuum.
+- [x] #15 Task documents expected query performance target (150ms p95) and storage growth guardrails for typical local usage up to ~1M events.
+- [x] #16 #13 Concrete DDL (tables + indexes + pragmas) is captured in task docs and used as implementation reference.
+- [x] #17 #14 v1 retention policy, batch policy, and maintenance schedule are explicitly implemented and configurable.
+- [x] #18 #15 Query templates for timeline/throughput/rollups are defined in implementation docs.
+- [x] #19 #16 Queue cap, payload cap, and overflow behavior are implemented and documented.
+- [x] #20 #20 All tracking writes are strictly asynchronous and non-blocking from tokenization/render loops; hot paths must never await persistence.
+- [x] #21 #21 Queue saturation handling is explicit: bounded queue with deterministic policy (drop oldest, drop newest, or backpressure) and no impact on on-screen token colorization or line rendering.
+- [x] #22 #22 Tracker failures/timeouts are swallowed from hot path with optional background retry and failure counters/logging for observability.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Progress review (2026-02-17): `src/core/services/immersion-tracker-service.ts` now implements SQLite-first schema init, WAL/NORMAL pragmas, async queue + batch flush (25/500ms), queue cap 1000 with drop-oldest overflow policy, payload clamp (256B), retention pruning (events 7d, telemetry 30d, daily 365d, monthly 5y), startup+24h maintenance, weekly vacuum, rollup maintenance, and query paths (`getSessionSummaries`, `getSessionTimeline`, `getDailyRollups`, `getMonthlyRollups`, `getQueryHints`).
+
+Metadata capture is implemented for local media via ffprobe/stat/SHA-256 (`captureVideoMetadataAsync`, `getLocalVideoMetadata`) with safe null handling for missing fields.
+
+Remaining scope before close: AC #17 and #18 are still open. Current retention/batch defaults are hardcoded constants (implemented but not externally configurable), and there is no dedicated implementation doc section defining query templates for timeline/throughput/rollups outside code.
+
+Tests present in `src/core/services/immersion-tracker-service.test.ts` validate session UUIDs, session finalization telemetry persistence, monthly rollups, and prepared statement reuse; broader retrievability coverage may still be expanded later if desired.
+
+Completed remaining scope (2026-02-18): retention/batch/maintenance defaults are now externally configurable under `immersionTracking` (`batchSize`, `flushIntervalMs`, `queueCap`, `payloadCapBytes`, `maintenanceIntervalMs`, and nested `retention.*` day windows). Runtime wiring now passes config policy into `ImmersionTrackerService` and service applies bounded values with safe fallbacks.
+
+Implementation docs now include query templates and storage behavior in `docs/immersion-tracking.md` (timeline, throughput summary, daily/monthly rollups), plus config reference updates in `docs/configuration.md` and examples.
+
+Validation/tests expanded: `src/config/config.test.ts` now covers immersion tuning parse+fallback warnings; `src/core/services/immersion-tracker-service.test.ts` adds minimum persisted/retrievable field checks and configurable policy checks.
+
+Verification run: `pnpm run build && node --test dist/config/config.test.js dist/core/services/immersion-tracker-service.test.js` passed; sqlite-specific tracker tests are skipped automatically in environments without `node:sqlite` support.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 SQLite tracking table(s), migration history table, and indices created as part of startup or init path.
-- [ ] #2 Unit/integration coverage (or validated test plan) confirms minimum fields are persisted and retrievable.
-- [ ] #3 README or docs updated with storage schema, retention defaults, and extension points.
-- [ ] #4 Migration and retention defaults are documented (pruning frequency, rollup cadence, expected disk growth profile).
-- [ ] #5 Performance-safe write path behavior is documented (batch commit interval/size, WAL mode, sync mode).
-- [ ] #6 A follow-up ticket captures and tracks non-SQLite backend abstraction work.
-- [ ] #7 The implementation doc includes the exact schema, migration version, and index set.
-- [ ] #8 Performance-size tradeoffs are clearly documented (batching, enum columns, bounded JSON, TTL retention).
-- [ ] #9 Rollup/retention behavior is in place with explicit defaults and cleanup cadence.
+- [x] #1 SQLite tracking table(s), migration history table, and indices created as part of startup or init path.
+- [x] #2 Unit/integration coverage (or validated test plan) confirms minimum fields are persisted and retrievable.
+- [x] #3 README or docs updated with storage schema, retention defaults, and extension points.
+- [x] #4 Migration and retention defaults are documented (pruning frequency, rollup cadence, expected disk growth profile).
+- [x] #5 Performance-safe write path behavior is documented (batch commit interval/size, WAL mode, sync mode).
+- [x] #6 A follow-up ticket captures and tracks non-SQLite backend abstraction work.
+- [x] #7 The implementation doc includes the exact schema, migration version, and index set.
+- [x] #8 Performance-size tradeoffs are clearly documented (batching, enum columns, bounded JSON, TTL retention).
+- [x] #9 Rollup/retention behavior is in place with explicit defaults and cleanup cadence.
 <!-- DOD:END -->

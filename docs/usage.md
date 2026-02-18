@@ -30,7 +30,20 @@ subminer -T video.mkv             # Disable texthooker server
 subminer -b x11 video.mkv         # Force X11 backend
 subminer video.mkv                # Uses mpv profile "subminer" by default
 subminer -p gpu-hq video.mkv      # Override mpv profile
-subminer --yt-subgen-mode preprocess --whisper-bin /path/to/whisper-cli --whisper-model /path/to/model.bin https://youtu.be/...  # Pre-generate subtitle tracks before playback
+subminer jellyfin                 # Open Jellyfin setup window (subcommand form)
+subminer jellyfin -l --server http://127.0.0.1:8096 --username me --password 'secret'
+subminer jellyfin --logout        # Clear stored Jellyfin token/session data
+subminer jellyfin -p              # Interactive Jellyfin library/item picker + playback
+subminer jellyfin -d              # Jellyfin cast-discovery mode (foreground app)
+subminer doctor                   # Dependency + config + socket diagnostics
+subminer config path              # Print active config path
+subminer config show              # Print active config contents
+subminer mpv socket               # Print active mpv socket path
+subminer mpv status               # Exit 0 if socket is ready, else exit 1
+subminer mpv idle                 # Launch detached idle mpv with SubMiner defaults
+subminer texthooker               # Launch texthooker-only mode
+subminer yt -o ~/subs https://youtu.be/...  # YouTube subcommand: output directory shortcut
+subminer yt --mode preprocess --whisper-bin /path/to/whisper-cli --whisper-model /path/to/model.bin https://youtu.be/...  # Pre-generate subtitle tracks before playback
 
 # Direct AppImage control
 SubMiner.AppImage --start --texthooker   # Start overlay with texthooker
@@ -46,6 +59,13 @@ SubMiner.AppImage --start --dev                         # Enable app/dev mode on
 SubMiner.AppImage --start --debug                       # Alias for --dev
 SubMiner.AppImage --start --log-level debug             # Force verbose logging without app/dev mode
 SubMiner.AppImage --settings              # Open Yomitan settings
+SubMiner.AppImage --jellyfin              # Open Jellyfin setup window
+SubMiner.AppImage --jellyfin-login --jellyfin-server http://127.0.0.1:8096 --jellyfin-username me --jellyfin-password 'secret'
+SubMiner.AppImage --jellyfin-logout       # Clear stored Jellyfin token/session data
+SubMiner.AppImage --jellyfin-libraries
+SubMiner.AppImage --jellyfin-items --jellyfin-library-id LIBRARY_ID --jellyfin-search anime --jellyfin-limit 20
+SubMiner.AppImage --jellyfin-play --jellyfin-item-id ITEM_ID --jellyfin-audio-stream-index 1 --jellyfin-subtitle-stream-index 2  # Requires connected mpv IPC (--start or plugin workflow)
+SubMiner.AppImage --jellyfin-remote-announce  # Force cast-target capability announce + visibility check
 SubMiner.AppImage --help                  # Show all options
 ```
 
@@ -55,12 +75,26 @@ SubMiner.AppImage --help                  # Show all options
 - `--dev` and `--debug` are app/dev-mode switches; they are not log-level aliases.
 - Use both when needed, for example `SubMiner.AppImage --start --dev --log-level debug`.
 
+### Launcher Subcommands
+
+- `subminer jellyfin` / `subminer jf`: Jellyfin-focused workflow aliases.
+- `subminer yt` / `subminer youtube`: YouTube-focused shorthand flags (`-o`, `-m`).
+- `subminer doctor`: health checks for core dependencies and runtime paths.
+- `subminer config`: config helpers (`path`, `show`).
+- `subminer mpv`: mpv helpers (`status`, `socket`, `idle`).
+- `subminer texthooker`: texthooker-only shortcut (same behavior as `--texthooker`).
+- Subcommand help pages are available (for example `subminer jellyfin -h`, `subminer yt -h`).
+
+Use subcommands for Jellyfin/YouTube command families (`subminer jellyfin ...`, `subminer yt ...`).
+Top-level launcher flags like `--jellyfin-*` and `--yt-subgen-*` are intentionally rejected.
+
 ### MPV Profile Example (mpv.conf)
 
 `subminer` passes the following MPV options directly on launch by default:
 
 - `--input-ipc-server=/tmp/subminer-socket` (or your configured socket path)
-- `--slang=ja,jpn,en,eng`
+- `--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us`
+- `--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us`
 - `--sub-auto=fuzzy`
 - `--sub-file-paths=.;subs;subtitles`
 - `--sid=auto`
@@ -74,8 +108,9 @@ You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency wh
 # IPC socket (must match SubMiner config)
 input-ipc-server=/tmp/subminer-socket
 
-# Prefer JP subs, then EN
-slang=ja,jpn,en,eng
+# Prefer JP/EN audio + subtitle language variants
+alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us
+slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us
 
 # Auto-load external subtitles
 sub-auto=fuzzy
@@ -115,6 +150,8 @@ Notes:
 | `Alt+Shift+O` | Toggle visible overlay    |
 | `Alt+Shift+I` | Toggle invisible overlay  |
 | `Alt+Shift+Y` | Open Yomitan settings     |
+
+`Alt+Shift+Y` is a fixed global shortcut; it is not part of `shortcuts` config.
 
 ### Overlay Controls (Configurable)
 

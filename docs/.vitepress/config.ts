@@ -72,7 +72,9 @@ export default {
         text: "Reference",
         items: [
           { text: "Configuration", link: "/configuration" },
+          { text: "Immersion Tracking", link: "/immersion-tracking" },
           { text: "Anki Integration", link: "/anki-integration" },
+          { text: "Jellyfin Integration", link: "/jellyfin-integration" },
           { text: "MPV Plugin", link: "/mpv-plugin" },
           { text: "Troubleshooting", link: "/troubleshooting" },
         ],
