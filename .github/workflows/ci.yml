@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-audit:
+  build-test-audit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,6 +25,16 @@ jobs:
         with:
           node-version: 22
 
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -35,10 +45,13 @@ jobs:
         run: bun run build
 
       - name: Test suite
-        run: bun run test
+        run: bun run test:fast
+
+      - name: Build docs
+        run: bun run docs:build
 
       - name: Security audit
-        run: bun audit
+        run: bun audit --audit-level high
         continue-on-error: true
 
       - name: Build Bun subminer wrapper
