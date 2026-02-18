@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
@@ -54,6 +55,12 @@ interface YomitanRuntimeState {
   parserInitPromise: Promise<boolean> | null;
 }
 
+const DEFAULT_YOMITAN_USER_DATA_PATH = path.join(
+  os.homedir(),
+  ".config",
+  "SubMiner",
+);
+
 function destroyParserWindow(window: Electron.BrowserWindow | null): void {
   if (!window || window.isDestroyed()) {
     return;
@@ -72,11 +79,11 @@ async function shutdownYomitanRuntime(yomitan: YomitanRuntimeState): Promise<voi
 function parseCliArgs(argv: string[]): CliOptions {
   const args = [...argv];
   const inputParts: string[] = [];
-  let emitPretty = false;
+  let emitPretty = true;
   let emitJson = false;
   let forceMecabOnly = false;
   let yomitanExtensionPath: string | undefined;
-  let yomitanUserDataPath: string | undefined;
+  let yomitanUserDataPath: string | undefined = DEFAULT_YOMITAN_USER_DATA_PATH;
   let mecabCommand: string | undefined;
   let mecabDictionaryPath: string | undefined;
 
@@ -212,7 +219,7 @@ function printUsage(): void {
   --json                 Emit machine-readable JSON output.
   --force-mecab          Skip Yomitan parser setup and test MeCab fallback only.
   --yomitan-extension <path> Optional path to Yomitan extension directory.
-  --yomitan-user-data <path> Optional Electron userData directory.
+  --yomitan-user-data <path> Optional Electron userData directory (default: ~/.config/SubMiner).
   --mecab-command <path> Optional MeCab binary path (default: mecab).
   --mecab-dictionary <path> Optional MeCab dictionary directory.
   -h, --help             Show usage.

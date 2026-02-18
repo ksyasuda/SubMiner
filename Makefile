@@ -134,7 +134,7 @@ build-macos-unsigned: deps
 build-launcher:
 	@printf '%s\n' "[INFO] Bundling launcher script"
 	@bun build ./launcher/main.ts --target=bun --packages=bundle --outfile=subminer
-	@sed -i '1s|^// @bun|#!/usr/bin/env bun\n// @bun|' subminer
+	@python3 -c 'from pathlib import Path; p=Path("subminer"); c=p.read_text(); c=("#!/usr/bin/env bun\n"+c) if not c.startswith("#!/usr/bin/env bun\n") else c; p.write_text(c)'
 	@chmod +x subminer
 
 clean:
