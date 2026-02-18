@@ -45,6 +45,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
       calls.push('retryAnilistQueueNow');
       return { ok: true, message: 'done' };
     },
+    appendClipboardVideoToQueue: () => ({ ok: true, message: 'queued' }),
   });
 
   assert.deepEqual(deps.getAnilistStatus(), { tokenStatus: 'resolved' });

@@ -86,6 +86,7 @@ export {
   sanitizeMpvSubtitleRenderMetrics,
 } from './mpv-render-metrics';
 export { createOverlayContentMeasurementStore } from './overlay-content-measurement';
+export { parseClipboardVideoPath } from './overlay-drop';
 export { handleMpvCommandFromIpc } from './ipc-command';
 export { createFieldGroupingOverlayRuntime } from './field-grouping-overlay';
 export { createNumericShortcutRuntime } from './numeric-shortcut';

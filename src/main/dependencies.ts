@@ -91,6 +91,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   openAnilistSetup: IpcDepsRuntimeOptions['openAnilistSetup'];
   getAnilistQueueStatus: IpcDepsRuntimeOptions['getAnilistQueueStatus'];
   retryAnilistQueueNow: IpcDepsRuntimeOptions['retryAnilistQueueNow'];
+  appendClipboardVideoToQueue: IpcDepsRuntimeOptions['appendClipboardVideoToQueue'];
 }
 
 export interface AnkiJimakuIpcRuntimeServiceDepsParams {
@@ -227,6 +228,7 @@ export function createMainIpcRuntimeServiceDeps(
     openAnilistSetup: params.openAnilistSetup,
     getAnilistQueueStatus: params.getAnilistQueueStatus,
     retryAnilistQueueNow: params.retryAnilistQueueNow,
+    appendClipboardVideoToQueue: params.appendClipboardVideoToQueue,
   };
 }
 

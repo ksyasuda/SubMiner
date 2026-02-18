@@ -129,7 +129,7 @@ Configure in `ankiConnect.isKiku`. See [Anki Integration](/anki-integration#fiel
 
 SubMiner integrates with [Jimaku](https://jimaku.cc) to search and download subtitle files for anime directly from the overlay.
 
-1. Open the Jimaku modal via the configured shortcut (`Ctrl+Alt+J` by default).
+1. Open the Jimaku modal via the configured shortcut (`Ctrl+Shift+J` by default).
 2. SubMiner auto-fills the search from the current video filename (title, season, episode).
 3. Browse matching entries and select a subtitle file to download.
 4. The subtitle is loaded into mpv as a new track.

@@ -19,6 +19,7 @@ export function createKeyboardHandlers(
     setInvisiblePositionEditMode: (enabled: boolean) => void;
     applyInvisibleSubtitleOffsetPosition: () => void;
     updateInvisiblePositionEditHud: () => void;
+    appendClipboardVideoToQueue: () => void;
   },
 ) {
   // Timeout for the modal chord capture window (e.g. Y followed by H/K).
@@ -254,6 +255,18 @@ export function createKeyboardHandlers(
         ctx.state.chordTimeout = setTimeout(() => {
           resetChord();
         }, CHORD_TIMEOUT_MS);
+        return;
+      }
+
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.code === 'KeyA' &&
+        !e.repeat
+      ) {
+        e.preventDefault();
+        options.appendClipboardVideoToQueue();
         return;
       }
 

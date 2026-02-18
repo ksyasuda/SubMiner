@@ -174,8 +174,14 @@ Notes:
 | `Arrow keys`         | Move invisible subtitles while edit mode is active |
 | `Enter` / `Ctrl+S`   | Save invisible subtitle position in edit mode      |
 | `Esc`                | Cancel invisible subtitle position edit mode       |
+| `Ctrl/Cmd+A`         | Append clipboard video path to MPV playlist        |
 
 These keybindings only work when the overlay window has focus. See [Configuration](/configuration) for customization.
+
+### Drag-and-drop Queueing
+
+- Drag and drop one or more video files onto the overlay to replace current playback (`loadfile ... replace` for first file, then append remainder).
+- Hold `Shift` while dropping to append all dropped files to the current MPV playlist.
 
 ## How It Works
 

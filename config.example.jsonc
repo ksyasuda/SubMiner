@@ -118,6 +118,8 @@
   // ==========================================
   // Keyboard Shortcuts
   // Overlay keyboard shortcuts. Set a shortcut to null to disable.
+  // Fixed (non-configurable) overlay shortcuts:
+  // - Ctrl/Cmd+A: append clipboard video path to MPV playlist
   // ==========================================
   "shortcuts": {
     "toggleVisibleOverlayGlobal": "Alt+Shift+O",

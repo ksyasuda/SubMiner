@@ -1,21 +1,22 @@
 ---
 id: TASK-39
 title: Add hot-reload for non-destructive config changes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-14 02:04'
+updated_date: '2026-02-18 09:29'
 labels:
   - config
   - developer-experience
   - quality-of-life
 dependencies: []
 priority: low
+ordinal: 59000
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-
 Watch the config file for changes and apply non-destructive updates (colors, font sizes, subtitle modes, overlay opacity, keybindings) without requiring an app restart.
 
 ## Motivation
@@ -49,13 +50,11 @@ Currently all config is loaded at startup. Users tweaking visual settings (font 
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
-
-- [ ] #1 Config file changes are detected automatically via file watcher.
-- [ ] #2 Hot-reloadable fields are applied immediately without restart.
-- [ ] #3 Restart-required fields trigger a user-visible notification.
-- [ ] #4 File change events are debounced to handle editor save patterns.
-- [ ] #5 Invalid config changes are rejected with an error notification, keeping the previous valid config.
-- [ ] #6 Renderer receives updated styles/settings via IPC without full page reload.
+- [x] #1 Config file changes are detected automatically via file watcher.
+- [x] #2 Hot-reloadable fields are applied immediately without restart.
+- [x] #3 Restart-required fields trigger a user-visible notification.
+- [x] #4 File change events are debounced to handle editor save patterns.
+- [x] #5 Invalid config changes are rejected with an error notification, keeping the previous valid config.
+- [x] #6 Renderer receives updated styles/settings via IPC without full page reload.
 <!-- AC:END -->

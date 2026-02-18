@@ -38,6 +38,7 @@ import { createRendererState } from './state.js';
 import { createSubtitleRenderer } from './subtitle-render.js';
 import { resolveRendererDom } from './utils/dom.js';
 import { resolvePlatformInfo } from './utils/platform.js';
+import { buildMpvLoadfileCommands, collectDroppedVideoPaths } from '../core/services/overlay-drop.js';
 
 const ctx = {
   dom: resolveRendererDom(),
@@ -111,6 +112,9 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   setInvisiblePositionEditMode: positioning.setInvisiblePositionEditMode,
   applyInvisibleSubtitleOffsetPosition: positioning.applyInvisibleSubtitleOffsetPosition,
   updateInvisiblePositionEditHud: positioning.updateInvisiblePositionEditHud,
+  appendClipboardVideoToQueue: () => {
+    void window.electronAPI.appendClipboardVideoToQueue();
+  },
 });
 const mouseHandlers = createMouseHandlers(ctx, {
   modalStateReader: { isAnySettingsModalOpen, isAnyModalOpen },
@@ -178,6 +182,7 @@ async function init(): Promise<void> {
   mouseHandlers.setupResizeHandler();
   mouseHandlers.setupSelectionObserver();
   mouseHandlers.setupYomitanObserver();
+  setupDragDropToMpvQueue();
   window.addEventListener('resize', () => {
     measurementReporter.schedule();
   });
@@ -240,6 +245,69 @@ async function init(): Promise<void> {
   }
 
   measurementReporter.emitNow();
+}
+
+function setupDragDropToMpvQueue(): void {
+  let dragDepth = 0;
+
+  const setDropInteractive = (): void => {
+    ctx.dom.overlay.classList.add('interactive');
+    if (ctx.platform.shouldToggleMouseIgnore) {
+      window.electronAPI.setIgnoreMouseEvents(false);
+    }
+  };
+
+  const clearDropInteractive = (): void => {
+    dragDepth = 0;
+    if (isAnyModalOpen() || ctx.state.isOverSubtitle || ctx.state.invisiblePositionEditMode) {
+      return;
+    }
+    ctx.dom.overlay.classList.remove('interactive');
+    if (ctx.platform.shouldToggleMouseIgnore) {
+      window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
+    }
+  };
+
+  document.addEventListener('dragenter', (event: DragEvent) => {
+    if (!event.dataTransfer) return;
+    dragDepth += 1;
+    setDropInteractive();
+  });
+
+  document.addEventListener('dragover', (event: DragEvent) => {
+    if (dragDepth <= 0 || !event.dataTransfer) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  });
+
+  document.addEventListener('dragleave', () => {
+    if (dragDepth <= 0) return;
+    dragDepth -= 1;
+    if (dragDepth === 0) {
+      clearDropInteractive();
+    }
+  });
+
+  document.addEventListener('drop', (event: DragEvent) => {
+    if (!event.dataTransfer) return;
+    event.preventDefault();
+
+    const droppedPaths = collectDroppedVideoPaths(event.dataTransfer);
+    const loadCommands = buildMpvLoadfileCommands(droppedPaths, event.shiftKey);
+    for (const command of loadCommands) {
+      window.electronAPI.sendMpvCommand(command);
+    }
+    if (loadCommands.length > 0) {
+      const action = event.shiftKey ? 'Queued' : 'Loaded';
+      window.electronAPI.sendMpvCommand([
+        'show-text',
+        `${action} ${loadCommands.length} file${loadCommands.length === 1 ? '' : 's'}`,
+        '1500',
+      ]);
+    }
+
+    clearDropInteractive();
+  });
 }
 
 if (document.readyState === 'loading') {

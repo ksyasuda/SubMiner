@@ -40,6 +40,7 @@ export interface IpcServiceDeps {
   openAnilistSetup: () => void;
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
+  appendClipboardVideoToQueue: () => { ok: boolean; message: string };
 }
 
 interface WindowLike {
@@ -97,6 +98,7 @@ export interface IpcDepsRuntimeOptions {
   openAnilistSetup: () => void;
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
+  appendClipboardVideoToQueue: () => { ok: boolean; message: string };
 }
 
 export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcServiceDeps {
@@ -157,6 +159,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     openAnilistSetup: options.openAnilistSetup,
     getAnilistQueueStatus: options.getAnilistQueueStatus,
     retryAnilistQueueNow: options.retryAnilistQueueNow,
+    appendClipboardVideoToQueue: options.appendClipboardVideoToQueue,
   };
 }
 
@@ -313,5 +316,9 @@ export function registerIpcHandlers(deps: IpcServiceDeps): void {
 
   ipcMain.handle('anilist:retry-now', async () => {
     return await deps.retryAnilistQueueNow();
+  });
+
+  ipcMain.handle('clipboard:append-video-to-queue', () => {
+    return deps.appendClipboardVideoToQueue();
   });
 }

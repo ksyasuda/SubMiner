@@ -111,6 +111,7 @@ import {
   JellyfinRemoteSessionService,
   mineSentenceCard as mineSentenceCardCore,
   openYomitanSettingsWindow,
+  parseClipboardVideoPath,
   playNextSubtitleRuntime,
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
@@ -2862,6 +2863,30 @@ async function runSubsyncManualFromIpc(request: SubsyncManualRunRequest): Promis
   return runSubsyncManualFromIpcRuntime(request, getSubsyncRuntimeServiceParams());
 }
 
+function appendClipboardVideoToQueue(): { ok: boolean; message: string } {
+  const mpvClient = appState.mpvClient;
+  if (!mpvClient || !mpvClient.connected) {
+    return { ok: false, message: 'MPV is not connected.' };
+  }
+
+  const clipboardText = clipboard.readText();
+  const parsedPath = parseClipboardVideoPath(clipboardText);
+  if (!parsedPath) {
+    showMpvOsd('Clipboard does not contain a supported video path.');
+    return { ok: false, message: 'Clipboard does not contain a supported video path.' };
+  }
+
+  const resolvedPath = path.resolve(parsedPath);
+  if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+    showMpvOsd('Clipboard path is not a readable file.');
+    return { ok: false, message: 'Clipboard path is not a readable file.' };
+  }
+
+  sendMpvCommandRuntime(mpvClient, ['loadfile', resolvedPath, 'append']);
+  showMpvOsd(`Queued from clipboard: ${path.basename(resolvedPath)}`);
+  return { ok: true, message: `Queued ${resolvedPath}` };
+}
+
 registerIpcRuntimeServices({
   runtimeOptions: {
     getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
@@ -2922,6 +2947,7 @@ registerIpcRuntimeServices({
     openAnilistSetup: () => openAnilistSetupWindow(),
     getAnilistQueueStatus: () => getAnilistQueueStatusSnapshot(),
     retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
+    appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
   },
   ankiJimakuDeps: createAnkiJimakuIpcRuntimeServiceDeps({
     patchAnkiConnectEnabled: (enabled: boolean) => {

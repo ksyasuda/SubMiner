@@ -16,6 +16,7 @@
 - **N+1 Highlighting** — Marks known vocabulary from your Anki deck so you can spot new words at a glance
 - **Texthooker & WebSocket** — Built-in texthooker page with WebSocket streaming for external tools
 - **Subtitle Download & Sync** — Search Jimaku, sync with alass or ffsubsync — all from the player
+- **Queue Control In-Player** — Drop videos on overlay to load/queue in mpv; `Ctrl/Cmd+A` appends clipboard path
 - **Keyboard-Driven** — Mine, copy, cycle display modes, and navigate from configurable shortcuts
 - **Japanese Tokenization** — MeCab-powered word boundary detection with smart grouping
 
@@ -97,6 +98,13 @@ Use `subminer <subcommand> -h` for command-specific help pages (for example `sub
 - Use `--log-level` to control logger verbosity (for example `--log-level debug`).
 - Use `--dev` and `--debug` only for app/dev-mode behavior; they are not tied to logging level.
 - Default logging remains `info` unless you pass `--log-level`.
+
+### Overlay Queue Controls
+
+- Drag/drop video file(s) onto overlay:
+  - default: replace current playback with first file, append remaining dropped files
+  - hold `Shift`: append all dropped files
+- Press `Ctrl/Cmd+A` to append the clipboard path when it points to a readable local video file.
 
 ## MPV Plugin
 

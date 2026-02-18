@@ -263,6 +263,7 @@ When `behavior.autoUpdateNewCards` is set to `false`, new cards are detected but
 | `Ctrl+Shift+V` | Cycle secondary subtitle display mode (hidden → visible → hover)                                                   |
 | `Ctrl+Shift+A` | Mark the last added Anki card as an audio card (sets IsAudioCard, SentenceAudio, Sentence, Picture)                |
 | `Ctrl+Shift+O` | Open runtime options palette (session-only live toggles)                                                           |
+| `Ctrl/Cmd+A`   | Append clipboard video path to MPV playlist (fixed, not currently configurable)                                    |
 
 **Multi-line copy workflow:**
 

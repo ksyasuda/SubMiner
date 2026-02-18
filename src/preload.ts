@@ -36,6 +36,7 @@ import type {
   SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
+  ClipboardAppendResult,
   KikuFieldGroupingRequestData,
   KikuFieldGroupingChoice,
   KikuMergePreviewRequest,
@@ -227,6 +228,8 @@ const electronAPI: ElectronAPI = {
       callback();
     });
   },
+  appendClipboardVideoToQueue: (): Promise<ClipboardAppendResult> =>
+    ipcRenderer.invoke('clipboard:append-video-to-queue'),
   notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku') => {
     ipcRenderer.send('overlay:modal-closed', modal);
   },

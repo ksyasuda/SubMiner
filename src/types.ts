@@ -586,6 +586,11 @@ export interface SubsyncResult {
   message: string;
 }
 
+export interface ClipboardAppendResult {
+  ok: boolean;
+  message: string;
+}
+
 export interface SubtitleData {
   text: string;
   tokens: MergedToken[] | null;
@@ -755,6 +760,7 @@ export interface ElectronAPI {
   onRuntimeOptionsChanged: (callback: (options: RuntimeOptionState[]) => void) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
+  appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
   notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku') => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
 }
