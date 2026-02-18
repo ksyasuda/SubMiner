@@ -13,7 +13,7 @@ cd SubMiner
 make deps
 # or manually:
 bun install
-bun --cwd vendor/texthooker-ui install
+cd vendor/texthooker-ui && bun install
 ```
 
 ## Building
