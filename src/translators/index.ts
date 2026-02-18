@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from 'axios';
 
 export interface TranslationRequest {
   sentence: string;
@@ -17,54 +17,46 @@ export interface TranslationProvider {
 
 type TranslationProviderFactory = () => TranslationProvider;
 
-const translationProviderFactories = new Map<
-  string,
-  TranslationProviderFactory
->();
+const translationProviderFactories = new Map<string, TranslationProviderFactory>();
 
-export function registerTranslationProvider(
-  id: string,
-  factory: TranslationProviderFactory,
-): void {
+export function registerTranslationProvider(id: string, factory: TranslationProviderFactory): void {
   if (translationProviderFactories.has(id)) {
     return;
   }
   translationProviderFactories.set(id, factory);
 }
 
-export function createTranslationProvider(
-  id = "openai-compatible",
-): TranslationProvider | null {
+export function createTranslationProvider(id = 'openai-compatible'): TranslationProvider | null {
   const factory = translationProviderFactories.get(id);
   if (!factory) return null;
   return factory();
 }
 
 function extractAiText(content: unknown): string {
-  if (typeof content === "string") {
+  if (typeof content === 'string') {
     return content.trim();
   }
   if (!Array.isArray(content)) {
-    return "";
+    return '';
   }
   const parts: string[] = [];
   for (const item of content) {
     if (
       item &&
-      typeof item === "object" &&
-      "type" in item &&
-      (item as { type?: unknown }).type === "text" &&
-      "text" in item &&
-      typeof (item as { text?: unknown }).text === "string"
+      typeof item === 'object' &&
+      'type' in item &&
+      (item as { type?: unknown }).type === 'text' &&
+      'text' in item &&
+      typeof (item as { text?: unknown }).text === 'string'
     ) {
       parts.push((item as { text: string }).text);
     }
   }
-  return parts.join("").trim();
+  return parts.join('').trim();
 }
 
 function normalizeOpenAiBaseUrl(baseUrl: string): string {
-  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  const trimmed = baseUrl.trim().replace(/\/+$/, '');
   if (/\/v1$/i.test(trimmed)) {
     return trimmed;
   }
@@ -72,8 +64,8 @@ function normalizeOpenAiBaseUrl(baseUrl: string): string {
 }
 
 function registerDefaultTranslationProviders(): void {
-  registerTranslationProvider("openai-compatible", () => ({
-    id: "openai-compatible",
+  registerTranslationProvider('openai-compatible', () => ({
+    id: 'openai-compatible',
     translate: async (request: TranslationRequest): Promise<string | null> => {
       const response = await axios.post(
         `${normalizeOpenAiBaseUrl(request.baseUrl)}/chat/completions`,
@@ -81,9 +73,9 @@ function registerDefaultTranslationProviders(): void {
           model: request.model,
           temperature: 0,
           messages: [
-            { role: "system", content: request.systemPrompt },
+            { role: 'system', content: request.systemPrompt },
             {
-              role: "user",
+              role: 'user',
               content: `Translate this text to ${request.targetLanguage}:\n\n${request.sentence}`,
             },
           ],
@@ -91,14 +83,15 @@ function registerDefaultTranslationProviders(): void {
         {
           headers: {
             Authorization: `Bearer ${request.apiKey}`,
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           timeout: request.timeoutMs ?? 15000,
         },
       );
 
-      const content = (response.data as { choices?: unknown[] })
-        ?.choices?.[0] as { message?: { content?: unknown } } | undefined;
+      const content = (response.data as { choices?: unknown[] })?.choices?.[0] as
+        | { message?: { content?: unknown } }
+        | undefined;
       const translated = extractAiText(content?.message?.content);
       return translated || null;
     },

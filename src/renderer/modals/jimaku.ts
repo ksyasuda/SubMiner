@@ -4,21 +4,21 @@ import type {
   JimakuEntry,
   JimakuFileEntry,
   JimakuMediaInfo,
-} from "../../types";
-import type { ModalStateReader, RendererContext } from "../context";
+} from '../../types';
+import type { ModalStateReader, RendererContext } from '../context';
 
 export function createJimakuModal(
   ctx: RendererContext,
   options: {
-    modalStateReader: Pick<ModalStateReader, "isAnyModalOpen">;
+    modalStateReader: Pick<ModalStateReader, 'isAnyModalOpen'>;
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
   function setJimakuStatus(message: string, isError = false): void {
     ctx.dom.jimakuStatus.textContent = message;
     ctx.dom.jimakuStatus.style.color = isError
-      ? "rgba(255, 120, 120, 0.95)"
-      : "rgba(255, 255, 255, 0.8)";
+      ? 'rgba(255, 120, 120, 0.95)'
+      : 'rgba(255, 255, 255, 0.8)';
   }
 
   function resetJimakuLists(): void {
@@ -28,11 +28,11 @@ export function createJimakuModal(
     ctx.state.selectedFileIndex = 0;
     ctx.state.currentEntryId = null;
 
-    ctx.dom.jimakuEntriesList.innerHTML = "";
-    ctx.dom.jimakuFilesList.innerHTML = "";
-    ctx.dom.jimakuEntriesSection.classList.add("hidden");
-    ctx.dom.jimakuFilesSection.classList.add("hidden");
-    ctx.dom.jimakuBroadenButton.classList.add("hidden");
+    ctx.dom.jimakuEntriesList.innerHTML = '';
+    ctx.dom.jimakuFilesList.innerHTML = '';
+    ctx.dom.jimakuEntriesSection.classList.add('hidden');
+    ctx.dom.jimakuFilesSection.classList.add('hidden');
+    ctx.dom.jimakuBroadenButton.classList.add('hidden');
   }
 
   function formatEntryLabel(entry: JimakuEntry): string {
@@ -43,29 +43,29 @@ export function createJimakuModal(
   }
 
   function renderEntries(): void {
-    ctx.dom.jimakuEntriesList.innerHTML = "";
+    ctx.dom.jimakuEntriesList.innerHTML = '';
     if (ctx.state.jimakuEntries.length === 0) {
-      ctx.dom.jimakuEntriesSection.classList.add("hidden");
+      ctx.dom.jimakuEntriesSection.classList.add('hidden');
       return;
     }
 
-    ctx.dom.jimakuEntriesSection.classList.remove("hidden");
+    ctx.dom.jimakuEntriesSection.classList.remove('hidden');
     ctx.state.jimakuEntries.forEach((entry, index) => {
-      const li = document.createElement("li");
+      const li = document.createElement('li');
       li.textContent = formatEntryLabel(entry);
 
       if (entry.japanese_name) {
-        const sub = document.createElement("div");
-        sub.className = "jimaku-subtext";
+        const sub = document.createElement('div');
+        sub.className = 'jimaku-subtext';
         sub.textContent = entry.japanese_name;
         li.appendChild(sub);
       }
 
       if (index === ctx.state.selectedEntryIndex) {
-        li.classList.add("active");
+        li.classList.add('active');
       }
 
-      li.addEventListener("click", () => {
+      li.addEventListener('click', () => {
         selectEntry(index);
       });
 
@@ -74,8 +74,8 @@ export function createJimakuModal(
   }
 
   function formatBytes(size: number): string {
-    if (!Number.isFinite(size)) return "";
-    const units = ["B", "KB", "MB", "GB"];
+    if (!Number.isFinite(size)) return '';
+    const units = ['B', 'KB', 'MB', 'GB'];
     let value = size;
     let idx = 0;
     while (value >= 1024 && idx < units.length - 1) {
@@ -86,27 +86,27 @@ export function createJimakuModal(
   }
 
   function renderFiles(): void {
-    ctx.dom.jimakuFilesList.innerHTML = "";
+    ctx.dom.jimakuFilesList.innerHTML = '';
     if (ctx.state.jimakuFiles.length === 0) {
-      ctx.dom.jimakuFilesSection.classList.add("hidden");
+      ctx.dom.jimakuFilesSection.classList.add('hidden');
       return;
     }
 
-    ctx.dom.jimakuFilesSection.classList.remove("hidden");
+    ctx.dom.jimakuFilesSection.classList.remove('hidden');
     ctx.state.jimakuFiles.forEach((file, index) => {
-      const li = document.createElement("li");
+      const li = document.createElement('li');
       li.textContent = file.name;
 
-      const sub = document.createElement("div");
-      sub.className = "jimaku-subtext";
+      const sub = document.createElement('div');
+      sub.className = 'jimaku-subtext';
       sub.textContent = `${formatBytes(file.size)} • ${file.last_modified}`;
       li.appendChild(sub);
 
       if (index === ctx.state.selectedFileIndex) {
-        li.classList.add("active");
+        li.classList.add('active');
       }
 
-      li.addEventListener("click", () => {
+      li.addEventListener('click', () => {
         void selectFile(index);
       });
 
@@ -125,20 +125,21 @@ export function createJimakuModal(
   async function performJimakuSearch(): Promise<void> {
     const { query, episode } = getSearchQuery();
     if (!query) {
-      setJimakuStatus("Enter a title before searching.", true);
+      setJimakuStatus('Enter a title before searching.', true);
       return;
     }
 
     resetJimakuLists();
-    setJimakuStatus("Searching Jimaku...");
+    setJimakuStatus('Searching Jimaku...');
     ctx.state.currentEpisodeFilter = episode;
 
-    const response: JimakuApiResponse<JimakuEntry[]> =
-      await window.electronAPI.jimakuSearchEntries({ query });
+    const response: JimakuApiResponse<JimakuEntry[]> = await window.electronAPI.jimakuSearchEntries(
+      { query },
+    );
     if (!response.ok) {
       const retry = response.error.retryAfter
         ? ` Retry after ${response.error.retryAfter.toFixed(1)}s.`
-        : "";
+        : '';
       setJimakuStatus(`${response.error.error}${retry}`, true);
       return;
     }
@@ -147,37 +148,35 @@ export function createJimakuModal(
     ctx.state.selectedEntryIndex = 0;
 
     if (ctx.state.jimakuEntries.length === 0) {
-      setJimakuStatus("No entries found.");
+      setJimakuStatus('No entries found.');
       return;
     }
 
-    setJimakuStatus("Select an entry.");
+    setJimakuStatus('Select an entry.');
     renderEntries();
     if (ctx.state.jimakuEntries.length === 1) {
       void selectEntry(0);
     }
   }
 
-  async function loadFiles(
-    entryId: number,
-    episode: number | null,
-  ): Promise<void> {
-    setJimakuStatus("Loading files...");
+  async function loadFiles(entryId: number, episode: number | null): Promise<void> {
+    setJimakuStatus('Loading files...');
     ctx.state.jimakuFiles = [];
     ctx.state.selectedFileIndex = 0;
 
-    ctx.dom.jimakuFilesList.innerHTML = "";
-    ctx.dom.jimakuFilesSection.classList.add("hidden");
+    ctx.dom.jimakuFilesList.innerHTML = '';
+    ctx.dom.jimakuFilesSection.classList.add('hidden');
 
-    const response: JimakuApiResponse<JimakuFileEntry[]> =
-      await window.electronAPI.jimakuListFiles({
+    const response: JimakuApiResponse<JimakuFileEntry[]> = await window.electronAPI.jimakuListFiles(
+      {
         entryId,
         episode,
-      });
+      },
+    );
     if (!response.ok) {
       const retry = response.error.retryAfter
         ? ` Retry after ${response.error.retryAfter.toFixed(1)}s.`
-        : "";
+        : '';
       setJimakuStatus(`${response.error.error}${retry}`, true);
       return;
     }
@@ -185,16 +184,16 @@ export function createJimakuModal(
     ctx.state.jimakuFiles = response.data;
     if (ctx.state.jimakuFiles.length === 0) {
       if (episode !== null) {
-        setJimakuStatus("No files found for this episode.");
-        ctx.dom.jimakuBroadenButton.classList.remove("hidden");
+        setJimakuStatus('No files found for this episode.');
+        ctx.dom.jimakuBroadenButton.classList.remove('hidden');
       } else {
-        setJimakuStatus("No files found.");
+        setJimakuStatus('No files found.');
       }
       return;
     }
 
-    ctx.dom.jimakuBroadenButton.classList.add("hidden");
-    setJimakuStatus("Select a subtitle file.");
+    ctx.dom.jimakuBroadenButton.classList.add('hidden');
+    setJimakuStatus('Select a subtitle file.');
     renderFiles();
     if (ctx.state.jimakuFiles.length === 1) {
       await selectFile(0);
@@ -220,19 +219,18 @@ export function createJimakuModal(
     renderFiles();
 
     if (ctx.state.currentEntryId === null) {
-      setJimakuStatus("Select an entry first.", true);
+      setJimakuStatus('Select an entry first.', true);
       return;
     }
 
     const file = ctx.state.jimakuFiles[index];
-    setJimakuStatus("Downloading subtitle...");
+    setJimakuStatus('Downloading subtitle...');
 
-    const result: JimakuDownloadResult =
-      await window.electronAPI.jimakuDownloadFile({
-        entryId: ctx.state.currentEntryId,
-        url: file.url,
-        name: file.name,
-      });
+    const result: JimakuDownloadResult = await window.electronAPI.jimakuDownloadFile({
+      entryId: ctx.state.currentEntryId,
+      url: file.url,
+      name: file.name,
+    });
 
     if (result.ok) {
       setJimakuStatus(`Downloaded and loaded: ${result.path}`);
@@ -241,7 +239,7 @@ export function createJimakuModal(
 
     const retry = result.error.retryAfter
       ? ` Retry after ${result.error.retryAfter.toFixed(1)}s.`
-      : "";
+      : '';
     setJimakuStatus(`${result.error.error}${retry}`, true);
   }
 
@@ -249,7 +247,7 @@ export function createJimakuModal(
     const active = document.activeElement;
     if (!active) return false;
     const tag = active.tagName.toLowerCase();
-    return tag === "input" || tag === "textarea";
+    return tag === 'input' || tag === 'textarea';
   }
 
   function openJimakuModal(): void {
@@ -258,35 +256,31 @@ export function createJimakuModal(
 
     ctx.state.jimakuModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
-    ctx.dom.overlay.classList.add("interactive");
-    ctx.dom.jimakuModal.classList.remove("hidden");
-    ctx.dom.jimakuModal.setAttribute("aria-hidden", "false");
+    ctx.dom.overlay.classList.add('interactive');
+    ctx.dom.jimakuModal.classList.remove('hidden');
+    ctx.dom.jimakuModal.setAttribute('aria-hidden', 'false');
 
-    setJimakuStatus("Loading media info...");
+    setJimakuStatus('Loading media info...');
     resetJimakuLists();
 
     window.electronAPI
       .getJimakuMediaInfo()
       .then((info: JimakuMediaInfo) => {
-        ctx.dom.jimakuTitleInput.value = info.title || "";
-        ctx.dom.jimakuSeasonInput.value = info.season
-          ? String(info.season)
-          : "";
-        ctx.dom.jimakuEpisodeInput.value = info.episode
-          ? String(info.episode)
-          : "";
+        ctx.dom.jimakuTitleInput.value = info.title || '';
+        ctx.dom.jimakuSeasonInput.value = info.season ? String(info.season) : '';
+        ctx.dom.jimakuEpisodeInput.value = info.episode ? String(info.episode) : '';
         ctx.state.currentEpisodeFilter = info.episode ?? null;
 
-        if (info.confidence === "high" && info.title && info.episode) {
+        if (info.confidence === 'high' && info.title && info.episode) {
           void performJimakuSearch();
         } else if (info.title) {
-          setJimakuStatus("Check title/season/episode and press Search.");
+          setJimakuStatus('Check title/season/episode and press Search.');
         } else {
-          setJimakuStatus("Enter title/season/episode and press Search.");
+          setJimakuStatus('Enter title/season/episode and press Search.');
         }
       })
       .catch(() => {
-        setJimakuStatus("Failed to load media info.", true);
+        setJimakuStatus('Failed to load media info.', true);
       });
   }
 
@@ -295,36 +289,33 @@ export function createJimakuModal(
 
     ctx.state.jimakuModalOpen = false;
     options.syncSettingsModalSubtitleSuppression();
-    ctx.dom.jimakuModal.classList.add("hidden");
-    ctx.dom.jimakuModal.setAttribute("aria-hidden", "true");
-    window.electronAPI.notifyOverlayModalClosed("jimaku");
+    ctx.dom.jimakuModal.classList.add('hidden');
+    ctx.dom.jimakuModal.setAttribute('aria-hidden', 'true');
+    window.electronAPI.notifyOverlayModalClosed('jimaku');
 
-    if (
-      !ctx.state.isOverSubtitle &&
-      !options.modalStateReader.isAnyModalOpen()
-    ) {
-      ctx.dom.overlay.classList.remove("interactive");
+    if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
+      ctx.dom.overlay.classList.remove('interactive');
     }
 
     resetJimakuLists();
   }
 
   function handleJimakuKeydown(e: KeyboardEvent): boolean {
-    if (e.key === "Escape") {
+    if (e.key === 'Escape') {
       e.preventDefault();
       closeJimakuModal();
       return true;
     }
 
     if (isTextInputFocused()) {
-      if (e.key === "Enter") {
+      if (e.key === 'Enter') {
         e.preventDefault();
         void performJimakuSearch();
       }
       return true;
     }
 
-    if (e.key === "ArrowDown") {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (ctx.state.jimakuFiles.length > 0) {
         ctx.state.selectedFileIndex = Math.min(
@@ -342,25 +333,19 @@ export function createJimakuModal(
       return true;
     }
 
-    if (e.key === "ArrowUp") {
+    if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (ctx.state.jimakuFiles.length > 0) {
-        ctx.state.selectedFileIndex = Math.max(
-          0,
-          ctx.state.selectedFileIndex - 1,
-        );
+        ctx.state.selectedFileIndex = Math.max(0, ctx.state.selectedFileIndex - 1);
         renderFiles();
       } else if (ctx.state.jimakuEntries.length > 0) {
-        ctx.state.selectedEntryIndex = Math.max(
-          0,
-          ctx.state.selectedEntryIndex - 1,
-        );
+        ctx.state.selectedEntryIndex = Math.max(0, ctx.state.selectedEntryIndex - 1);
         renderEntries();
       }
       return true;
     }
 
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       e.preventDefault();
       if (ctx.state.jimakuFiles.length > 0) {
         void selectFile(ctx.state.selectedFileIndex);
@@ -376,15 +361,15 @@ export function createJimakuModal(
   }
 
   function wireDomEvents(): void {
-    ctx.dom.jimakuSearchButton.addEventListener("click", () => {
+    ctx.dom.jimakuSearchButton.addEventListener('click', () => {
       void performJimakuSearch();
     });
-    ctx.dom.jimakuCloseButton.addEventListener("click", () => {
+    ctx.dom.jimakuCloseButton.addEventListener('click', () => {
       closeJimakuModal();
     });
-    ctx.dom.jimakuBroadenButton.addEventListener("click", () => {
+    ctx.dom.jimakuBroadenButton.addEventListener('click', () => {
       if (ctx.state.currentEntryId !== null) {
-        ctx.dom.jimakuBroadenButton.classList.add("hidden");
+        ctx.dom.jimakuBroadenButton.classList.add('hidden');
         void loadFiles(ctx.state.currentEntryId, null);
       }
     });

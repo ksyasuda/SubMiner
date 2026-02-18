@@ -22,9 +22,11 @@ ordinal: 52000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 renderer.ts is 2,754 lines with 94 functions handling 6+ distinct concerns: subtitle rendering, invisible overlay positioning, 4 modal UIs (Jimaku, Kiku, RuntimeOptions, Subsync), event handlers, keyboard chord system, and platform-specific layout. 16+ module-level state variables track overlapping modal states.
 
 Proposed structure:
+
 ```
 src/renderer/
 ├── renderer.ts          (entry point, initialization, IPC listeners)
@@ -45,10 +47,13 @@ src/renderer/
 ```
 
 Note: The renderer runs in Electron's renderer process, so module bundling considerations (esbuild/webpack or Electron's native ESM) need to be evaluated.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 renderer.ts reduced to <400 lines (init + IPC wiring)
 - [x] #2 Each modal UI in its own module
 - [x] #3 Positioning logic extracted with helper functions replacing the 211-line mega function
@@ -60,6 +65,7 @@ Note: The renderer runs in Electron's renderer process, so module bundling consi
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
+
 1. Create shared renderer infrastructure modules (`state.ts`, `platform.ts`, `dom.ts`) and a typed context for cross-module dependencies.
 2. Extract subtitle render and secondary subtitle logic into `subtitle-render.ts` with behavior-preserving APIs.
 3. Extract invisible/visible subtitle positioning and offset edit logic into `positioning.ts`, splitting the mega layout function into helper functions.
@@ -72,6 +78,7 @@ Note: The renderer runs in Electron's renderer process, so module bundling consi
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Reviewed src/renderer/renderer.ts structure and build wiring (tsc CommonJS output loaded by Electron). Confirmed renderer module splitting can be done safely without introducing a new bundler in this task.
 
 Implemented renderer modularization with a centralized `RendererState` and shared context (`src/renderer/state.ts`, `src/renderer/context.ts`).
@@ -87,14 +94,17 @@ Split interaction logic into `src/renderer/handlers/keyboard.ts` and `src/render
 Reduced `src/renderer/renderer.ts` to entrypoint/orchestration (225 lines) with IPC wiring and module composition only.
 
 Validation: `pnpm run build` passed; `pnpm run test:core` passed (21/21).
+
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Refactored the Electron renderer implementation from a monolithic file into focused modules while preserving runtime behavior and IPC integration.
 
 What changed:
+
 - Replaced ad hoc renderer globals with a centralized mutable state container in `src/renderer/state.ts`, wired through a shared renderer context (`src/renderer/context.ts`).
 - Isolated platform/environment detection and DOM element resolution into `src/renderer/utils/platform.ts` and `src/renderer/utils/dom.ts`.
 - Extracted subtitle rendering and subtitle style/secondary subtitle behavior into `src/renderer/subtitle-render.ts`.
@@ -110,10 +120,12 @@ What changed:
 - Rewrote `src/renderer/renderer.ts` to an initialization/orchestration entrypoint (225 lines), retaining IPC listeners and module composition only.
 
 Why:
+
 - Addressed architectural and maintainability issues in a large mixed-concern renderer file by enforcing concern boundaries and explicit dependencies.
 - Improved testability and future change safety by reducing hidden cross-function/module state coupling.
 
 Validation:
+
 - `pnpm run build` succeeded.
 - `pnpm run test:core` succeeded (21 passing tests).
 <!-- SECTION:FINAL_SUMMARY:END -->

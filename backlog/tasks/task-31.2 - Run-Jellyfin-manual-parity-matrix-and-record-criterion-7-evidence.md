@@ -21,11 +21,15 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Validate real playback behavior against Jellyfin server media in a reproducible manual matrix, then capture evidence needed to confidently close TASK-31 acceptance criterion #7.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Manual verification covers at least one movie and one TV episode and confirms playback shows expected title/episode identity where applicable.
 - [ ] #2 Manual verification confirms subtitle track selection behavior during playback, including enable/disable or track change flows where available.
 - [ ] #3 Manual verification confirms audio track selection behavior during playback for media with multiple audio tracks.

@@ -1,9 +1,6 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import {
-  AnkiJimakuIpcRuntimeOptions,
-  registerAnkiJimakuIpcRuntime,
-} from "./anki-jimaku";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { AnkiJimakuIpcRuntimeOptions, registerAnkiJimakuIpcRuntime } from './anki-jimaku';
 
 interface RuntimeHarness {
   options: AnkiJimakuIpcRuntimeOptions;
@@ -48,7 +45,7 @@ function createHarness(): RuntimeHarness {
     setAnkiIntegration: (integration) => {
       state.ankiIntegration = integration;
     },
-    getKnownWordCacheStatePath: () => "/tmp/subminer-known-words-cache.json",
+    getKnownWordCacheStatePath: () => '/tmp/subminer-known-words-cache.json',
     showDesktopNotification: () => {},
     createFieldGroupingCallback: () => async () => ({
       keepNoteId: 1,
@@ -64,14 +61,14 @@ function createHarness(): RuntimeHarness {
       state.fieldGroupingResolver = resolver as never;
     },
     parseMediaInfo: () => ({
-      title: "video",
-      confidence: "high",
-      rawTitle: "video",
-      filename: "video.mkv",
+      title: 'video',
+      confidence: 'high',
+      rawTitle: 'video',
+      filename: 'video.mkv',
       season: null,
       episode: null,
     }),
-    getCurrentMediaPath: () => "/tmp/video.mkv",
+    getCurrentMediaPath: () => '/tmp/video.mkv',
     jimakuFetchJson: async (endpoint, query) => {
       state.fetchCalls.push({
         endpoint,
@@ -80,15 +77,15 @@ function createHarness(): RuntimeHarness {
       return {
         ok: true,
         data: [
-          { id: 1, name: "a" },
-          { id: 2, name: "b" },
-          { id: 3, name: "c" },
+          { id: 1, name: 'a' },
+          { id: 2, name: 'b' },
+          { id: 3, name: 'c' },
         ] as never,
       };
     },
     getJimakuMaxEntryResults: () => 2,
-    getJimakuLanguagePreference: () => "ja",
-    resolveJimakuApiKey: async () => "token",
+    getJimakuLanguagePreference: () => 'ja',
+    resolveJimakuApiKey: async () => 'token',
     isRemoteMediaPath: () => false,
     downloadToFile: async (url, destPath) => ({
       ok: true,
@@ -98,50 +95,47 @@ function createHarness(): RuntimeHarness {
 
   let registered: Record<string, (...args: unknown[]) => unknown> = {};
   registerAnkiJimakuIpcRuntime(options, (deps) => {
-    registered = deps as unknown as Record<
-      string,
-      (...args: unknown[]) => unknown
-    >;
+    registered = deps as unknown as Record<string, (...args: unknown[]) => unknown>;
   });
 
   return { options, registered, state };
 }
 
-test("registerAnkiJimakuIpcRuntime provides full handler surface", () => {
+test('registerAnkiJimakuIpcRuntime provides full handler surface', () => {
   const { registered } = createHarness();
   const expected = [
-    "setAnkiConnectEnabled",
-    "clearAnkiHistory",
-    "refreshKnownWords",
-    "respondFieldGrouping",
-    "buildKikuMergePreview",
-    "getJimakuMediaInfo",
-    "searchJimakuEntries",
-    "listJimakuFiles",
-    "resolveJimakuApiKey",
-    "getCurrentMediaPath",
-    "isRemoteMediaPath",
-    "downloadToFile",
-    "onDownloadedSubtitle",
+    'setAnkiConnectEnabled',
+    'clearAnkiHistory',
+    'refreshKnownWords',
+    'respondFieldGrouping',
+    'buildKikuMergePreview',
+    'getJimakuMediaInfo',
+    'searchJimakuEntries',
+    'listJimakuFiles',
+    'resolveJimakuApiKey',
+    'getCurrentMediaPath',
+    'isRemoteMediaPath',
+    'downloadToFile',
+    'onDownloadedSubtitle',
   ];
 
   for (const key of expected) {
-    assert.equal(typeof registered[key], "function", `missing handler: ${key}`);
+    assert.equal(typeof registered[key], 'function', `missing handler: ${key}`);
   }
 });
 
-test("refreshKnownWords throws when integration is unavailable", async () => {
+test('refreshKnownWords throws when integration is unavailable', async () => {
   const { registered } = createHarness();
 
   await assert.rejects(
     async () => {
       await registered.refreshKnownWords();
     },
-    { message: "AnkiConnect integration not enabled" },
+    { message: 'AnkiConnect integration not enabled' },
   );
 });
 
-test("refreshKnownWords delegates to integration", async () => {
+test('refreshKnownWords delegates to integration', async () => {
   const { registered, state } = createHarness();
   let refreshed = 0;
   state.ankiIntegration = {
@@ -155,7 +149,7 @@ test("refreshKnownWords delegates to integration", async () => {
   assert.equal(refreshed, 1);
 });
 
-test("setAnkiConnectEnabled disables active integration and broadcasts changes", () => {
+test('setAnkiConnectEnabled disables active integration and broadcasts changes', () => {
   const { registered, state } = createHarness();
   let destroyed = 0;
   state.ankiIntegration = {
@@ -172,7 +166,7 @@ test("setAnkiConnectEnabled disables active integration and broadcasts changes",
   assert.equal(state.broadcasts, 1);
 });
 
-test("clearAnkiHistory and respondFieldGrouping execute runtime callbacks", () => {
+test('clearAnkiHistory and respondFieldGrouping execute runtime callbacks', () => {
   const { registered, state, options } = createHarness();
   let cleaned = 0;
   let resolvedChoice: unknown = null;
@@ -204,7 +198,7 @@ test("clearAnkiHistory and respondFieldGrouping execute runtime callbacks", () =
   assert.equal(state.fieldGroupingResolver, null);
 });
 
-test("buildKikuMergePreview returns guard error when integration is missing", async () => {
+test('buildKikuMergePreview returns guard error when integration is missing', async () => {
   const { registered } = createHarness();
 
   const result = await registered.buildKikuMergePreview({
@@ -215,11 +209,11 @@ test("buildKikuMergePreview returns guard error when integration is missing", as
 
   assert.deepEqual(result, {
     ok: false,
-    error: "AnkiConnect integration not enabled",
+    error: 'AnkiConnect integration not enabled',
   });
 });
 
-test("buildKikuMergePreview delegates to integration when available", async () => {
+test('buildKikuMergePreview delegates to integration when available', async () => {
   const { registered, state } = createHarness();
   const calls: unknown[] = [];
   state.ankiIntegration = {
@@ -243,21 +237,19 @@ test("buildKikuMergePreview delegates to integration when available", async () =
   assert.deepEqual(result, { ok: true });
 });
 
-test("searchJimakuEntries caps results and onDownloadedSubtitle sends sub-add to mpv", async () => {
+test('searchJimakuEntries caps results and onDownloadedSubtitle sends sub-add to mpv', async () => {
   const { registered, state } = createHarness();
 
-  const searchResult = await registered.searchJimakuEntries({ query: "test" });
+  const searchResult = await registered.searchJimakuEntries({ query: 'test' });
   assert.deepEqual(state.fetchCalls, [
     {
-      endpoint: "/api/entries/search",
-      query: { anime: true, query: "test" },
+      endpoint: '/api/entries/search',
+      query: { anime: true, query: 'test' },
     },
   ]);
   assert.equal((searchResult as { ok: boolean }).ok, true);
   assert.equal((searchResult as { data: unknown[] }).data.length, 2);
 
-  registered.onDownloadedSubtitle("/tmp/subtitle.ass");
-  assert.deepEqual(state.sentCommands, [
-    { command: ["sub-add", "/tmp/subtitle.ass", "select"] },
-  ]);
+  registered.onDownloadedSubtitle('/tmp/subtitle.ass');
+  assert.deepEqual(state.sentCommands, [{ command: ['sub-add', '/tmp/subtitle.ass', 'select'] }]);
 });

@@ -4,7 +4,7 @@ import {
   RuntimeOptionValue,
   SubsyncManualRunRequest,
   SubsyncResult,
-} from "../../types";
+} from '../../types';
 
 export interface HandleMpvCommandFromIpcOptions {
   specialCommands: {
@@ -16,10 +16,7 @@ export interface HandleMpvCommandFromIpcOptions {
   };
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
-  runtimeOptionsCycle: (
-    id: RuntimeOptionId,
-    direction: 1 | -1,
-  ) => RuntimeOptionApplyResult;
+  runtimeOptionsCycle: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
   mpvReplaySubtitle: () => void;
   mpvPlayNextSubtitle: () => void;
@@ -32,7 +29,7 @@ export function handleMpvCommandFromIpc(
   command: (string | number)[],
   options: HandleMpvCommandFromIpcOptions,
 ): void {
-  const first = typeof command[0] === "string" ? command[0] : "";
+  const first = typeof command[0] === 'string' ? command[0] : '';
   if (first === options.specialCommands.SUBSYNC_TRIGGER) {
     options.triggerSubsyncFromConfig();
     return;
@@ -45,9 +42,9 @@ export function handleMpvCommandFromIpc(
 
   if (first.startsWith(options.specialCommands.RUNTIME_OPTION_CYCLE_PREFIX)) {
     if (!options.hasRuntimeOptionsManager()) return;
-    const [, idToken, directionToken] = first.split(":");
+    const [, idToken, directionToken] = first.split(':');
     const id = idToken as RuntimeOptionId;
-    const direction: 1 | -1 = directionToken === "prev" ? -1 : 1;
+    const direction: 1 | -1 = directionToken === 'prev' ? -1 : 1;
     const result = options.runtimeOptionsCycle(id, direction);
     if (!result.ok && result.error) {
       options.showMpvOsd(result.error);
@@ -72,24 +69,18 @@ export async function runSubsyncManualFromIpc(
     isSubsyncInProgress: () => boolean;
     setSubsyncInProgress: (inProgress: boolean) => void;
     showMpvOsd: (text: string) => void;
-    runWithSpinner: (
-      task: () => Promise<SubsyncResult>,
-    ) => Promise<SubsyncResult>;
-    runSubsyncManual: (
-      request: SubsyncManualRunRequest,
-    ) => Promise<SubsyncResult>;
+    runWithSpinner: (task: () => Promise<SubsyncResult>) => Promise<SubsyncResult>;
+    runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
   },
 ): Promise<SubsyncResult> {
   if (options.isSubsyncInProgress()) {
-    const busy = "Subsync already running";
+    const busy = 'Subsync already running';
     options.showMpvOsd(busy);
     return { ok: false, message: busy };
   }
   try {
     options.setSubsyncInProgress(true);
-    const result = await options.runWithSpinner(() =>
-      options.runSubsyncManual(request),
-    );
+    const result = await options.runWithSpinner(() => options.runSubsyncManual(request));
     options.showMpvOsd(result.message);
     return result;
   } catch (error) {

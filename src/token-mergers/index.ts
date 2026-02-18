@@ -1,5 +1,5 @@
-import { mergeTokens as defaultMergeTokens } from "../token-merger";
-import { MergedToken, Token } from "../types";
+import { mergeTokens as defaultMergeTokens } from '../token-merger';
+import { MergedToken, Token } from '../types';
 
 export interface TokenMergerProvider {
   id: string;
@@ -8,15 +8,9 @@ export interface TokenMergerProvider {
 
 type TokenMergerProviderFactory = () => TokenMergerProvider;
 
-const tokenMergerProviderFactories = new Map<
-  string,
-  TokenMergerProviderFactory
->();
+const tokenMergerProviderFactories = new Map<string, TokenMergerProviderFactory>();
 
-export function registerTokenMergerProvider(
-  id: string,
-  factory: TokenMergerProviderFactory,
-): void {
+export function registerTokenMergerProvider(id: string, factory: TokenMergerProviderFactory): void {
   if (tokenMergerProviderFactories.has(id)) {
     return;
   }
@@ -27,17 +21,15 @@ export function getRegisteredTokenMergerProviderIds(): string[] {
   return Array.from(tokenMergerProviderFactories.keys());
 }
 
-export function createTokenMergerProvider(
-  id = "default",
-): TokenMergerProvider | null {
+export function createTokenMergerProvider(id = 'default'): TokenMergerProvider | null {
   const factory = tokenMergerProviderFactories.get(id);
   if (!factory) return null;
   return factory();
 }
 
 function registerDefaultTokenMergerProviders(): void {
-  registerTokenMergerProvider("default", () => ({
-    id: "default",
+  registerTokenMergerProvider('default', () => ({
+    id: 'default',
     merge: (tokens: Token[]) => defaultMergeTokens(tokens),
   }));
 }

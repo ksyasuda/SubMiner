@@ -1,10 +1,6 @@
-import { CliArgs } from "../../cli/args";
-import type { LogLevelSource } from "../../logger";
-import {
-  ConfigValidationWarning,
-  ResolvedConfig,
-  SecondarySubMode,
-} from "../../types";
+import { CliArgs } from '../../cli/args';
+import type { LogLevelSource } from '../../logger';
+import { ConfigValidationWarning, ResolvedConfig, SecondarySubMode } from '../../types';
 
 export interface StartupBootstrapRuntimeState {
   initialArgs: CliArgs;
@@ -16,14 +12,14 @@ export interface StartupBootstrapRuntimeState {
 }
 
 interface RuntimeAutoUpdateOptionManagerLike {
-  getOptionValue: (id: "anki.autoUpdateNewCards") => unknown;
+  getOptionValue: (id: 'anki.autoUpdateNewCards') => unknown;
 }
 
 export interface RuntimeConfigLike {
   auto_start_overlay?: boolean;
   bind_visible_overlay_to_mpv_sub_visibility: boolean;
   invisibleOverlay: {
-    startupVisibility: "visible" | "hidden" | "platform-default";
+    startupVisibility: 'visible' | 'hidden' | 'platform-default';
   };
   ankiConnect?: {
     behavior?: {
@@ -50,7 +46,7 @@ export function runStartupBootstrapRuntime(
   const initialArgs = deps.parseArgs(deps.argv);
 
   if (initialArgs.logLevel) {
-    deps.setLogLevel(initialArgs.logLevel, "cli");
+    deps.setLogLevel(initialArgs.logLevel, 'cli');
   }
 
   deps.forceX11Backend(initialArgs);
@@ -77,11 +73,11 @@ interface AppReadyConfigLike {
     defaultMode?: SecondarySubMode;
   };
   websocket?: {
-    enabled?: boolean | "auto";
+    enabled?: boolean | 'auto';
     port?: number;
   };
   logging?: {
-    level?: "debug" | "info" | "warn" | "error";
+    level?: 'debug' | 'info' | 'warn' | 'error';
   };
 }
 
@@ -117,23 +113,19 @@ export function getInitialInvisibleOverlayVisibility(
   platform: NodeJS.Platform,
 ): boolean {
   const visibility = config.invisibleOverlay.startupVisibility;
-  if (visibility === "visible") return true;
-  if (visibility === "hidden") return false;
-  if (platform === "linux") return false;
+  if (visibility === 'visible') return true;
+  if (visibility === 'hidden') return false;
+  if (platform === 'linux') return false;
   return true;
 }
 
-export function shouldAutoInitializeOverlayRuntimeFromConfig(
-  config: RuntimeConfigLike,
-): boolean {
+export function shouldAutoInitializeOverlayRuntimeFromConfig(config: RuntimeConfigLike): boolean {
   if (config.auto_start_overlay === true) return true;
-  if (config.invisibleOverlay.startupVisibility === "visible") return true;
+  if (config.invisibleOverlay.startupVisibility === 'visible') return true;
   return false;
 }
 
-export function shouldBindVisibleOverlayToMpvSubVisibility(
-  config: RuntimeConfigLike,
-): boolean {
+export function shouldBindVisibleOverlayToMpvSubVisibility(config: RuntimeConfigLike): boolean {
   return config.bind_visible_overlay_to_mpv_sub_visibility;
 }
 
@@ -141,19 +133,12 @@ export function isAutoUpdateEnabledRuntime(
   config: ResolvedConfig | RuntimeConfigLike,
   runtimeOptionsManager: RuntimeAutoUpdateOptionManagerLike | null,
 ): boolean {
-  const value = runtimeOptionsManager?.getOptionValue(
-    "anki.autoUpdateNewCards",
-  );
-  if (typeof value === "boolean") return value;
-  return (
-    (config as ResolvedConfig).ankiConnect?.behavior?.autoUpdateNewCards !==
-    false
-  );
+  const value = runtimeOptionsManager?.getOptionValue('anki.autoUpdateNewCards');
+  if (typeof value === 'boolean') return value;
+  return (config as ResolvedConfig).ankiConnect?.behavior?.autoUpdateNewCards !== false;
 }
 
-export async function runAppReadyRuntime(
-  deps: AppReadyRuntimeDeps,
-): Promise<void> {
+export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<void> {
   deps.loadSubtitlePosition();
   deps.resolveKeybindings();
   await deps.createMecabTokenizerAndCheck();
@@ -161,40 +146,33 @@ export async function runAppReadyRuntime(
 
   deps.reloadConfig();
   const config = deps.getResolvedConfig();
-  deps.setLogLevel(config.logging?.level ?? "info", "config");
+  deps.setLogLevel(config.logging?.level ?? 'info', 'config');
   for (const warning of deps.getConfigWarnings()) {
     deps.logConfigWarning(warning);
   }
   deps.initRuntimeOptionsManager();
-  deps.setSecondarySubMode(
-    config.secondarySub?.defaultMode ?? deps.defaultSecondarySubMode,
-  );
+  deps.setSecondarySubMode(config.secondarySub?.defaultMode ?? deps.defaultSecondarySubMode);
 
   const wsConfig = config.websocket || {};
-  const wsEnabled = wsConfig.enabled ?? "auto";
+  const wsEnabled = wsConfig.enabled ?? 'auto';
   const wsPort = wsConfig.port || deps.defaultWebsocketPort;
 
-  if (
-    wsEnabled === true ||
-    (wsEnabled === "auto" && !deps.hasMpvWebsocketPlugin())
-  ) {
+  if (wsEnabled === true || (wsEnabled === 'auto' && !deps.hasMpvWebsocketPlugin())) {
     deps.startSubtitleWebsocket(wsPort);
-  } else if (wsEnabled === "auto") {
-    deps.log("mpv_websocket detected, skipping built-in WebSocket server");
+  } else if (wsEnabled === 'auto') {
+    deps.log('mpv_websocket detected, skipping built-in WebSocket server');
   }
 
   deps.createSubtitleTimingTracker();
   if (deps.createImmersionTracker) {
-    deps.log("Runtime ready: invoking createImmersionTracker.");
+    deps.log('Runtime ready: invoking createImmersionTracker.');
     try {
       deps.createImmersionTracker();
     } catch (error) {
-      deps.log(
-        `Runtime ready: createImmersionTracker failed: ${(error as Error).message}`,
-      );
+      deps.log(`Runtime ready: createImmersionTracker failed: ${(error as Error).message}`);
     }
   } else {
-    deps.log("Runtime ready: createImmersionTracker dependency is missing.");
+    deps.log('Runtime ready: createImmersionTracker dependency is missing.');
   }
   await deps.loadYomitanExtension();
   if (deps.startJellyfinRemoteSession) {
@@ -202,11 +180,11 @@ export async function runAppReadyRuntime(
   }
 
   if (deps.texthookerOnlyMode) {
-    deps.log("Texthooker-only mode enabled; skipping overlay window.");
+    deps.log('Texthooker-only mode enabled; skipping overlay window.');
   } else if (deps.shouldAutoInitializeOverlayRuntimeFromConfig()) {
     deps.initializeOverlayRuntime();
   } else {
-    deps.log("Overlay runtime deferred: waiting for explicit overlay command.");
+    deps.log('Overlay runtime deferred: waiting for explicit overlay command.');
   }
 
   deps.handleInitialArgs();

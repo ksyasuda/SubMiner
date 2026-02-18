@@ -15,11 +15,15 @@ ordinal: 44000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Render JLPT-aware token annotations as token-length colored underlines in the subtitle UI based on returned JLPT levels, without changing existing subtitle layout or primary interaction behavior.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 For each token with JLPT level, renderer draws an underline matching token width/length.
 - [x] #2 Underlines use distinct colors by JLPT level (e.g., N5/N4/N3/N2/N1) and mapping is consistent/documented.
 - [x] #3 Non-tagged tokens remain visually unchanged.
@@ -28,6 +32,8 @@ Render JLPT-aware token annotations as token-length colored underlines in the su
 <!-- AC:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [x] #1 Visual output validated for all mapped JLPT levels with no legibility/layout regressions.
 <!-- DOD:END -->

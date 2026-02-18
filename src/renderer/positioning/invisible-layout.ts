@@ -1,14 +1,11 @@
-import type { MpvSubtitleRenderMetrics } from "../../types";
-import type { RendererContext } from "../context";
+import type { MpvSubtitleRenderMetrics } from '../../types';
+import type { RendererContext } from '../context';
 import {
   applyContainerBaseLayout,
   applyTypography,
   applyVerticalPosition,
-} from "./invisible-layout-helpers.js";
-import {
-  calculateSubtitleMetrics,
-  calculateSubtitlePosition,
-} from "./invisible-layout-metrics.js";
+} from './invisible-layout-helpers.js';
+import { calculateSubtitleMetrics, calculateSubtitlePosition } from './invisible-layout-metrics.js';
 
 export type MpvSubtitleLayoutController = {
   applyInvisibleSubtitleLayoutFromMpvMetrics: (
@@ -32,20 +29,12 @@ export function createMpvSubtitleLayoutController(
     ctx.state.mpvSubtitleRenderMetrics = metrics;
 
     const geometry = calculateSubtitleMetrics(ctx, metrics);
-    const alignment = calculateSubtitlePosition(
-      metrics,
-      geometry.pxPerScaledPixel,
-      2,
-    );
+    const alignment = calculateSubtitlePosition(metrics, geometry.pxPerScaledPixel, 2);
 
     applySubtitleFontSize(geometry.effectiveFontSize);
-    const effectiveBorderSize =
-      metrics.subBorderSize * geometry.pxPerScaledPixel;
+    const effectiveBorderSize = metrics.subBorderSize * geometry.pxPerScaledPixel;
 
-    document.documentElement.style.setProperty(
-      "--sub-border-size",
-      `${effectiveBorderSize}px`,
-    );
+    document.documentElement.style.setProperty('--sub-border-size', `${effectiveBorderSize}px`);
 
     applyContainerBaseLayout(ctx, {
       horizontalAvailable: Math.max(
@@ -73,26 +62,18 @@ export function createMpvSubtitleLayoutController(
       effectiveFontSize: geometry.effectiveFontSize,
     });
 
-    ctx.state.invisibleLayoutBaseLeftPx =
-      parseFloat(ctx.dom.subtitleContainer.style.left) || 0;
+    ctx.state.invisibleLayoutBaseLeftPx = parseFloat(ctx.dom.subtitleContainer.style.left) || 0;
 
     const parsedBottom = parseFloat(ctx.dom.subtitleContainer.style.bottom);
-    ctx.state.invisibleLayoutBaseBottomPx = Number.isFinite(parsedBottom)
-      ? parsedBottom
-      : null;
+    ctx.state.invisibleLayoutBaseBottomPx = Number.isFinite(parsedBottom) ? parsedBottom : null;
 
     const parsedTop = parseFloat(ctx.dom.subtitleContainer.style.top);
-    ctx.state.invisibleLayoutBaseTopPx = Number.isFinite(parsedTop)
-      ? parsedTop
-      : null;
+    ctx.state.invisibleLayoutBaseTopPx = Number.isFinite(parsedTop) ? parsedTop : null;
 
     options.applyInvisibleSubtitleOffsetPosition();
     options.updateInvisiblePositionEditHud();
 
-    console.log(
-      "[invisible-overlay] Applied mpv subtitle render metrics from",
-      source,
-    );
+    console.log('[invisible-overlay] Applied mpv subtitle render metrics from', source);
   }
 
   return {

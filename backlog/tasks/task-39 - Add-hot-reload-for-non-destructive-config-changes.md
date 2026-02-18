@@ -15,12 +15,15 @@ priority: low
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Watch the config file for changes and apply non-destructive updates (colors, font sizes, subtitle modes, overlay opacity, keybindings) without requiring an app restart.
 
 ## Motivation
+
 Currently all config is loaded at startup. Users tweaking visual settings (font size, colors, subtitle positioning) must restart the app after every change, which breaks their video session. Hot-reload for safe config values would dramatically improve the tuning experience.
 
 ## Scope
+
 1. Watch the config file using `fs.watch` or similar
 2. On change, re-parse and re-validate the config
 3. Categorize config fields as hot-reloadable vs restart-required
@@ -29,6 +32,7 @@ Currently all config is loaded at startup. Users tweaking visual settings (font 
 6. Debounce file-change events (editors save multiple times rapidly)
 
 ## Hot-reloadable candidates
+
 - Font family, size, weight, color
 - Subtitle background opacity/color
 - Secondary subtitle display mode
@@ -37,6 +41,7 @@ Currently all config is loaded at startup. Users tweaking visual settings (font 
 - AI translation provider settings
 
 ## Restart-required (NOT hot-reloadable)
+
 - Anki field mappings (affects card creation pipeline)
 - MeCab path / tokenizer settings
 - MPV socket path
@@ -44,7 +49,9 @@ Currently all config is loaded at startup. Users tweaking visual settings (font 
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Config file changes are detected automatically via file watcher.
 - [ ] #2 Hot-reloadable fields are applied immediately without restart.
 - [ ] #3 Restart-required fields trigger a user-visible notification.

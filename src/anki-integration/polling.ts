@@ -56,9 +56,7 @@ export class PollingRunner {
 
     this.deps.setUpdateInProgress(true);
     try {
-      const query = this.deps.getDeck()
-        ? `"deck:${this.deps.getDeck()}" added:1`
-        : "added:1";
+      const query = this.deps.getDeck() ? `"deck:${this.deps.getDeck()}" added:1` : 'added:1';
       const noteIds = await this.deps.findNotes(query, {
         maxRetries: 0,
       });
@@ -68,19 +66,15 @@ export class PollingRunner {
       if (!this.initialized) {
         this.deps.setTrackedNoteIds(currentNoteIds);
         this.initialized = true;
-        this.deps.logInfo(
-          `AnkiConnect initialized with ${currentNoteIds.size} existing cards`,
-        );
+        this.deps.logInfo(`AnkiConnect initialized with ${currentNoteIds.size} existing cards`);
         this.backoffMs = 200;
         return;
       }
 
-      const newNoteIds = Array.from(currentNoteIds).filter(
-        (id) => !previousNoteIds.has(id),
-      );
+      const newNoteIds = Array.from(currentNoteIds).filter((id) => !previousNoteIds.has(id));
 
       if (newNoteIds.length > 0) {
-        this.deps.logInfo("Found new cards:", newNoteIds);
+        this.deps.logInfo('Found new cards:', newNoteIds);
 
         for (const noteId of newNoteIds) {
           previousNoteIds.add(noteId);
@@ -93,13 +87,13 @@ export class PollingRunner {
           }
         } else {
           this.deps.logInfo(
-            "New card detected (auto-update disabled). Press Ctrl+V to update from clipboard.",
+            'New card detected (auto-update disabled). Press Ctrl+V to update from clipboard.',
           );
         }
       }
 
       if (this.backoffMs > 200) {
-        this.deps.logInfo("AnkiConnect connection restored");
+        this.deps.logInfo('AnkiConnect connection restored');
       }
       this.backoffMs = 200;
     } catch (error) {
@@ -107,8 +101,8 @@ export class PollingRunner {
       this.backoffMs = Math.min(this.backoffMs * 2, this.maxBackoffMs);
       this.nextPollTime = Date.now() + this.backoffMs;
       if (!wasBackingOff) {
-        this.deps.logWarn("AnkiConnect polling failed, backing off...");
-        this.deps.showStatusNotification("AnkiConnect: unable to connect");
+        this.deps.logWarn('AnkiConnect polling failed, backing off...');
+        this.deps.showStatusNotification('AnkiConnect: unable to connect');
       }
       this.deps.logWarn((error as Error).message);
     } finally {

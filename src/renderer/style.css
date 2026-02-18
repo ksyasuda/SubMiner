@@ -29,8 +29,7 @@ body {
   overflow: hidden;
   background: transparent;
   font-family:
-    "Noto Sans CJK JP Regular", "Noto Sans CJK JP", "Arial Unicode MS", Arial,
-    sans-serif;
+    'Noto Sans CJK JP Regular', 'Noto Sans CJK JP', 'Arial Unicode MS', Arial, sans-serif;
 }
 
 #overlay {
@@ -392,7 +391,7 @@ body.settings-modal-open #subtitleContainer {
 
 #subtitleRoot br {
   display: block;
-  content: "";
+  content: '';
   margin-bottom: 0.3em;
 }
 
@@ -558,7 +557,7 @@ body.settings-modal-open #secondarySubContainer {
   opacity: 1;
 }
 
-iframe[id^="yomitan-popup"] {
+iframe[id^='yomitan-popup'] {
   pointer-events: auto !important;
   z-index: 2147483647 !important;
 }
@@ -991,7 +990,9 @@ iframe[id^="yomitan-popup"] {
   color: rgba(255, 255, 255, 0.95);
   white-space: nowrap;
   padding: 4px 9px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
   border-radius: 999px;
   background: rgba(137, 180, 255, 0.16);
   border: 1px solid rgba(137, 180, 255, 0.35);

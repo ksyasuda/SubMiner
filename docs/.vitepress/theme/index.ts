@@ -143,9 +143,7 @@ async function renderMermaidBlocks() {
   if (typeof document === 'undefined') {
     return;
   }
-  const blocks = Array.from(
-    document.querySelectorAll<HTMLElement>('div.language-mermaid'),
-  );
+  const blocks = Array.from(document.querySelectorAll<HTMLElement>('div.language-mermaid'));
   if (blocks.length === 0) {
     return;
   }

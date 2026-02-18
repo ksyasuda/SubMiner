@@ -4,17 +4,17 @@ Date: 2026-02-14
 
 ## 1) Oversized refactor candidates (>=400 LOC)
 
-| File | Concern | Status | Reason |
-| --- | --- | --- | --- |
-| `src/main.ts` | Bootstrap / composition root / orchestration | Active | Main entrypoint owns startup, lifecycle orchestration, service construction, state mutation surfaces, and IPC bindings |
-| `src/anki-integration.ts` | Domain service orchestration / integrations | Active | 2.6k+ LOC, high cyclomatic coupling to mpv/subtitle timing and mining flows |
-| `src/core/services/mpv.ts` | MPV protocol + app state bridge | Active | ~780 LOC, large protocol and behavior mix, 22-entry dep interface |
-| `src/core/services/subsync.ts` | Subsync orchestration (ffsubsync/alass workflows) | Active | ~494 LOC, file IO + mpv command orchestration + result shaping |
-| `src/renderer/positioning.ts` | Renderer positioning layout policy | Active (downstream of TASK-27.5) | 513 LOC, layout/rules + platform-specific behavior in one module |
-| `src/config/service.ts` | Config load/validation | Active support | ~601 LOC, central schema validation + mutation APIs |
-| `src/types.ts` | Shared contract surface | Active support | ~640 LOC, foundational type exports driving module boundaries |
-| `src/config/definitions.ts` | Config schema/registry definitions | Active support | ~480 LOC, dense constants/interfaces used by config runtime and docs |
-| `src/media-generator.ts` | Media generation helpers | Active support | ~431 LOC, utility-heavy with multiple generation flows |
+| File                           | Concern                                           | Status                           | Reason                                                                                                                 |
+| ------------------------------ | ------------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `src/main.ts`                  | Bootstrap / composition root / orchestration      | Active                           | Main entrypoint owns startup, lifecycle orchestration, service construction, state mutation surfaces, and IPC bindings |
+| `src/anki-integration.ts`      | Domain service orchestration / integrations       | Active                           | 2.6k+ LOC, high cyclomatic coupling to mpv/subtitle timing and mining flows                                            |
+| `src/core/services/mpv.ts`     | MPV protocol + app state bridge                   | Active                           | ~780 LOC, large protocol and behavior mix, 22-entry dep interface                                                      |
+| `src/core/services/subsync.ts` | Subsync orchestration (ffsubsync/alass workflows) | Active                           | ~494 LOC, file IO + mpv command orchestration + result shaping                                                         |
+| `src/renderer/positioning.ts`  | Renderer positioning layout policy                | Active (downstream of TASK-27.5) | 513 LOC, layout/rules + platform-specific behavior in one module                                                       |
+| `src/config/service.ts`        | Config load/validation                            | Active support                   | ~601 LOC, central schema validation + mutation APIs                                                                    |
+| `src/types.ts`                 | Shared contract surface                           | Active support                   | ~640 LOC, foundational type exports driving module boundaries                                                          |
+| `src/config/definitions.ts`    | Config schema/registry definitions                | Active support                   | ~480 LOC, dense constants/interfaces used by config runtime and docs                                                   |
+| `src/media-generator.ts`       | Media generation helpers                          | Active support                   | ~431 LOC, utility-heavy with multiple generation flows                                                                 |
 
 ## 2) API contracts by target file
 
@@ -102,24 +102,29 @@ Adopted sequence (from TASK-27 parent):
 ## 4) Compatibility and migration risks per split
 
 ### TASK-27.3 / anki integration surface
+
 - Risk: interface breakage in field-grouping preview/build/enable flow
 - Mitigation: keep constructor params and public methods stable; preserve IPC payload shapes
 
 ### TASK-27.2 (composition root)
+
 - Risk: lifecycle/cleanup regressions from moving startup hooks and shutdown behavior
 - Mitigation: preserve service construction order and keep existing event registration boundaries
 
 Migration note:
-   - `src/main.ts` now delegates composition edges to `src/main/startup.ts`, `src/main/app-lifecycle.ts`, `src/main/startup-lifecycle.ts`, `src/main/ipc-runtime.ts`, `src/main/cli-runtime.ts`, and `src/main/subsync-runtime.ts`.
+
+- `src/main.ts` now delegates composition edges to `src/main/startup.ts`, `src/main/app-lifecycle.ts`, `src/main/startup-lifecycle.ts`, `src/main/ipc-runtime.ts`, `src/main/cli-runtime.ts`, and `src/main/subsync-runtime.ts`.
 - Overlay/modal interaction has been moved into `src/main/overlay-runtime.ts` (window selection, modal restore set tracking, runtime-options palette/modal close handling) so `main.ts` now uses a dedicated runtime service for modal routing instead of inline window bookkeeping.
 - Stateful runtime session data has moved to `src/main/state.ts` via `createAppState()` so `main.ts` no longer owns the `AppState` shape inline, only importing and mutating the shared state instance.
 - Behavioral contract remains stable: startup flow, CLI dispatch, IPC handlers, and subsync orchestration keep existing external behavior; only dependency wiring moved out of `main.ts`.
 
 ### TASK-27.4 (mpv-service)
+
 - Risk: request/deps interface changes could break control and subsync interactions
 - Mitigation: preserve public `MpvClient` methods, request semantics, and reconnect events while splitting internal modules
 
 ### TASK-27.4 expected event flow snapshot (current)
+
 - `connect()` establishes socket and starts `observe_property` subscriptions via `subscribeToProperties()`.
 - `processBuffer()` uses `splitMpvMessagesFromBuffer()` to parse JSON lines and route each message to `handleMessage()`.
 - `dispatchMpvProtocolMessage()` now owns protocol-level handling for:
@@ -132,6 +137,7 @@ Migration note:
   - timer callback calls `connect()` after exponential-ish delay
 
 ### TASK-27.5 (renderer positioning)
+
 - Risk: UI placement drift on platform edge cases
 - Mitigation: keep existing DOM state updates and geometry math in place while refactoring module boundaries
 

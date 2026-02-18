@@ -1,4 +1,4 @@
-import type { BrowserWindow, Extension } from "electron";
+import type { BrowserWindow, Extension } from 'electron';
 
 import type {
   Keybinding,
@@ -8,21 +8,21 @@ import type {
   KikuFieldGroupingChoice,
   JlptLevel,
   FrequencyDictionaryLookup,
-} from "../types";
-import type { CliArgs } from "../cli/args";
-import type { SubtitleTimingTracker } from "../subtitle-timing-tracker";
-import type { AnkiIntegration } from "../anki-integration";
-import type { ImmersionTrackerService } from "../core/services";
-import type { MpvIpcClient } from "../core/services";
-import type { JellyfinRemoteSessionService } from "../core/services";
-import { DEFAULT_MPV_SUBTITLE_RENDER_METRICS } from "../core/services";
-import type { RuntimeOptionsManager } from "../runtime-options";
-import type { MecabTokenizer } from "../mecab-tokenizer";
-import type { BaseWindowTracker } from "../window-trackers";
+} from '../types';
+import type { CliArgs } from '../cli/args';
+import type { SubtitleTimingTracker } from '../subtitle-timing-tracker';
+import type { AnkiIntegration } from '../anki-integration';
+import type { ImmersionTrackerService } from '../core/services';
+import type { MpvIpcClient } from '../core/services';
+import type { JellyfinRemoteSessionService } from '../core/services';
+import { DEFAULT_MPV_SUBTITLE_RENDER_METRICS } from '../core/services';
+import type { RuntimeOptionsManager } from '../runtime-options';
+import type { MecabTokenizer } from '../mecab-tokenizer';
+import type { BaseWindowTracker } from '../window-trackers';
 
 export interface AnilistSecretResolutionState {
-  status: "not_checked" | "resolved" | "error";
-  source: "none" | "literal" | "stored";
+  status: 'not_checked' | 'resolved' | 'error';
+  source: 'none' | 'literal' | 'stored';
   message: string | null;
   resolvedAt: number | null;
   errorAt: number | null;
@@ -93,12 +93,12 @@ export interface AppStateInitialValues {
 }
 
 export interface StartupState {
-  initialArgs: Exclude<AppState["initialArgs"], null>;
-  mpvSocketPath: AppState["mpvSocketPath"];
-  texthookerPort: AppState["texthookerPort"];
-  backendOverride: AppState["backendOverride"];
-  autoStartOverlay: AppState["autoStartOverlay"];
-  texthookerOnlyMode: AppState["texthookerOnlyMode"];
+  initialArgs: Exclude<AppState['initialArgs'], null>;
+  mpvSocketPath: AppState['mpvSocketPath'];
+  texthookerPort: AppState['texthookerPort'];
+  backendOverride: AppState['backendOverride'];
+  autoStartOverlay: AppState['autoStartOverlay'];
+  texthookerOnlyMode: AppState['texthookerOnlyMode'];
 }
 
 export function createAppState(values: AppStateInitialValues): AppState {
@@ -113,16 +113,16 @@ export function createAppState(values: AppStateInitialValues): AppState {
     mpvClient: null,
     jellyfinRemoteSession: null,
     reconnectTimer: null,
-    currentSubText: "",
-    currentSubAssText: "",
+    currentSubText: '',
+    currentSubAssText: '',
     windowTracker: null,
     subtitlePosition: null,
     currentMediaPath: null,
     currentMediaTitle: null,
     pendingSubtitlePosition: null,
     anilistClientSecretState: {
-      status: "not_checked",
-      source: "none",
+      status: 'not_checked',
+      source: 'none',
       message: null,
       resolvedAt: null,
       errorAt: null,
@@ -132,7 +132,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     subtitleTimingTracker: null,
     immersionTracker: null,
     ankiIntegration: null,
-    secondarySubMode: "hover",
+    secondarySubMode: 'hover',
     lastSecondarySubToggleAtMs: 0,
     previousSecondarySubVisibility: null,
     mpvSubtitleRenderMetrics: {
@@ -165,10 +165,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
   };
 }
 
-export function applyStartupState(
-  appState: AppState,
-  startupState: StartupState,
-): void {
+export function applyStartupState(appState: AppState, startupState: StartupState): void {
   appState.initialArgs = startupState.initialArgs;
   appState.mpvSocketPath = startupState.mpvSocketPath;
   appState.texthookerPort = startupState.texthookerPort;

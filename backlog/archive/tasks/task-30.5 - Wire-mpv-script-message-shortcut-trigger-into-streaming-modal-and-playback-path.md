@@ -18,11 +18,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Allow users to open streaming selection from within mpv via keybind/menu and route that intent into renderer modal and playback flow without requiring separate window focus changes.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Add/extend mpv Lua plugin or existing command registry to emit a custom action for opening the streaming picker.
 - [ ] #2 Handle this action in main IPC/mpv-command pipeline and forward to renderer modal state.
 - [ ] #3 Add at least one default keybinding/menu entry documented in config/plugin notes.
@@ -33,11 +37,15 @@ Allow users to open streaming selection from within mpv via keybind/menu and rou
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Phase 5 — In-player entry: mpv trigger/menu integration
+
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [ ] #1 No duplicate mpv command parsing between picker and legacy commands.
 - [ ] #2 Feature can be used in overlay and mpv-only mode where applicable.
 - [ ] #3 No dependency on modal open state when launched by mpv trigger.

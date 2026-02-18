@@ -21,18 +21,18 @@ input-ipc-server=/tmp/subminer-socket
 
 All keybindings use a `y` chord prefix — press `y`, then the second key:
 
-| Chord | Action |
-| --- | --- |
-| `y-y` | Open menu |
-| `y-s` | Start overlay |
-| `y-S` | Stop overlay |
-| `y-t` | Toggle visible overlay |
+| Chord | Action                   |
+| ----- | ------------------------ |
+| `y-y` | Open menu                |
+| `y-s` | Start overlay            |
+| `y-S` | Stop overlay             |
+| `y-t` | Toggle visible overlay   |
 | `y-i` | Toggle invisible overlay |
-| `y-I` | Show invisible overlay |
-| `y-u` | Hide invisible overlay |
-| `y-o` | Open settings window |
-| `y-r` | Restart overlay |
-| `y-c` | Check status |
+| `y-I` | Show invisible overlay   |
+| `y-u` | Hide invisible overlay   |
+| `y-o` | Open settings window     |
+| `y-r` | Restart overlay          |
+| `y-c` | Check status             |
 
 ## Menu
 
@@ -90,34 +90,37 @@ log_level=info
 
 ### Option Reference
 
-| Option | Default | Values | Description |
-| --- | --- | --- | --- |
-| `binary_path` | `""` (auto-detect) | file path | Path to SubMiner binary |
-| `socket_path` | `/tmp/subminer-socket` | file path | MPV IPC socket path |
-| `texthooker_enabled` | `yes` | `yes` / `no` | Enable texthooker server |
-| `texthooker_port` | `5174` | 1–65535 | Texthooker server port |
-| `backend` | `auto` | `auto`, `hyprland`, `sway`, `x11`, `macos` | Window manager backend |
-| `auto_start` | `no` | `yes` / `no` | Auto-start overlay on file load |
-| `auto_start_visible_overlay` | `no` | `yes` / `no` | Show visible layer on auto-start |
-| `auto_start_invisible_overlay` | `platform-default` | `platform-default`, `visible`, `hidden` | Invisible layer on auto-start |
-| `osd_messages` | `yes` | `yes` / `no` | Show OSD status messages |
-| `log_level` | `info` | `debug`, `info`, `warn`, `error` | Log verbosity |
+| Option                         | Default                | Values                                     | Description                      |
+| ------------------------------ | ---------------------- | ------------------------------------------ | -------------------------------- |
+| `binary_path`                  | `""` (auto-detect)     | file path                                  | Path to SubMiner binary          |
+| `socket_path`                  | `/tmp/subminer-socket` | file path                                  | MPV IPC socket path              |
+| `texthooker_enabled`           | `yes`                  | `yes` / `no`                               | Enable texthooker server         |
+| `texthooker_port`              | `5174`                 | 1–65535                                    | Texthooker server port           |
+| `backend`                      | `auto`                 | `auto`, `hyprland`, `sway`, `x11`, `macos` | Window manager backend           |
+| `auto_start`                   | `no`                   | `yes` / `no`                               | Auto-start overlay on file load  |
+| `auto_start_visible_overlay`   | `no`                   | `yes` / `no`                               | Show visible layer on auto-start |
+| `auto_start_invisible_overlay` | `platform-default`     | `platform-default`, `visible`, `hidden`    | Invisible layer on auto-start    |
+| `osd_messages`                 | `yes`                  | `yes` / `no`                               | Show OSD status messages         |
+| `log_level`                    | `info`                 | `debug`, `info`, `warn`, `error`           | Log verbosity                    |
 
 ## Binary Auto-Detection
 
 When `binary_path` is empty, the plugin searches platform-specific locations:
 
 **Linux:**
+
 1. `~/.local/bin/SubMiner.AppImage`
 2. `/opt/SubMiner/SubMiner.AppImage`
 3. `/usr/local/bin/SubMiner`
 4. `/usr/bin/SubMiner`
 
 **macOS:**
+
 1. `/Applications/SubMiner.app/Contents/MacOS/SubMiner`
 2. `~/Applications/SubMiner.app/Contents/MacOS/SubMiner`
 
 **Windows:**
+
 1. `C:\Program Files\SubMiner\SubMiner.exe`
 2. `C:\Program Files (x86)\SubMiner\SubMiner.exe`
 3. `C:\SubMiner\SubMiner.exe`

@@ -1,4 +1,4 @@
-export type OverlayLayer = "visible" | "invisible";
+export type OverlayLayer = 'visible' | 'invisible';
 
 export type PlatformInfo = {
   overlayLayer: OverlayLayer;
@@ -14,21 +14,19 @@ export type PlatformInfo = {
 export function resolvePlatformInfo(): PlatformInfo {
   const overlayLayerFromPreload = window.electronAPI.getOverlayLayer();
   const overlayLayerFromQuery =
-    new URLSearchParams(window.location.search).get("layer") === "invisible"
-      ? "invisible"
-      : "visible";
+    new URLSearchParams(window.location.search).get('layer') === 'invisible'
+      ? 'invisible'
+      : 'visible';
 
   const overlayLayer: OverlayLayer =
-    overlayLayerFromPreload === "visible" ||
-    overlayLayerFromPreload === "invisible"
+    overlayLayerFromPreload === 'visible' || overlayLayerFromPreload === 'invisible'
       ? overlayLayerFromPreload
       : overlayLayerFromQuery;
 
-  const isInvisibleLayer = overlayLayer === "invisible";
-  const isLinuxPlatform = navigator.platform.toLowerCase().includes("linux");
+  const isInvisibleLayer = overlayLayer === 'invisible';
+  const isLinuxPlatform = navigator.platform.toLowerCase().includes('linux');
   const isMacOSPlatform =
-    navigator.platform.toLowerCase().includes("mac") ||
-    /mac/i.test(navigator.userAgent);
+    navigator.platform.toLowerCase().includes('mac') || /mac/i.test(navigator.userAgent);
 
   return {
     overlayLayer,
@@ -36,7 +34,7 @@ export function resolvePlatformInfo(): PlatformInfo {
     isLinuxPlatform,
     isMacOSPlatform,
     shouldToggleMouseIgnore: !isLinuxPlatform,
-    invisiblePositionEditToggleCode: "KeyP",
+    invisiblePositionEditToggleCode: 'KeyP',
     invisiblePositionStepPx: 1,
     invisiblePositionStepFastPx: 4,
   };

@@ -1,9 +1,9 @@
-import { globalShortcut } from "electron";
-import { ConfiguredShortcuts } from "../utils/shortcut-config";
-import { isGlobalShortcutRegisteredSafe } from "./shortcut-fallback";
-import { createLogger } from "../../logger";
+import { globalShortcut } from 'electron';
+import { ConfiguredShortcuts } from '../utils/shortcut-config';
+import { isGlobalShortcutRegisteredSafe } from './shortcut-fallback';
+import { createLogger } from '../../logger';
 
-const logger = createLogger("main:overlay-shortcut-service");
+const logger = createLogger('main:overlay-shortcut-service');
 
 export interface OverlayShortcutHandlers {
   copySubtitle: () => void;
@@ -42,9 +42,7 @@ export function registerOverlayShortcuts(
     }
     const ok = globalShortcut.register(accelerator, handler);
     if (!ok) {
-      logger.warn(
-        `Failed to register overlay shortcut ${label}: ${accelerator}`,
-      );
+      logger.warn(`Failed to register overlay shortcut ${label}: ${accelerator}`);
       return;
     }
     registeredAny = true;
@@ -54,23 +52,19 @@ export function registerOverlayShortcuts(
     registerOverlayShortcut(
       shortcuts.copySubtitleMultiple,
       () => handlers.copySubtitleMultiple(shortcuts.multiCopyTimeoutMs),
-      "copySubtitleMultiple",
+      'copySubtitleMultiple',
     );
   }
 
   if (shortcuts.copySubtitle) {
-    registerOverlayShortcut(
-      shortcuts.copySubtitle,
-      () => handlers.copySubtitle(),
-      "copySubtitle",
-    );
+    registerOverlayShortcut(shortcuts.copySubtitle, () => handlers.copySubtitle(), 'copySubtitle');
   }
 
   if (shortcuts.triggerFieldGrouping) {
     registerOverlayShortcut(
       shortcuts.triggerFieldGrouping,
       () => handlers.triggerFieldGrouping(),
-      "triggerFieldGrouping",
+      'triggerFieldGrouping',
     );
   }
 
@@ -78,23 +72,19 @@ export function registerOverlayShortcuts(
     registerOverlayShortcut(
       shortcuts.triggerSubsync,
       () => handlers.triggerSubsync(),
-      "triggerSubsync",
+      'triggerSubsync',
     );
   }
 
   if (shortcuts.mineSentence) {
-    registerOverlayShortcut(
-      shortcuts.mineSentence,
-      () => handlers.mineSentence(),
-      "mineSentence",
-    );
+    registerOverlayShortcut(shortcuts.mineSentence, () => handlers.mineSentence(), 'mineSentence');
   }
 
   if (shortcuts.mineSentenceMultiple) {
     registerOverlayShortcut(
       shortcuts.mineSentenceMultiple,
       () => handlers.mineSentenceMultiple(shortcuts.multiCopyTimeoutMs),
-      "mineSentenceMultiple",
+      'mineSentenceMultiple',
     );
   }
 
@@ -102,7 +92,7 @@ export function registerOverlayShortcuts(
     registerOverlayShortcut(
       shortcuts.toggleSecondarySub,
       () => handlers.toggleSecondarySub(),
-      "toggleSecondarySub",
+      'toggleSecondarySub',
     );
   }
 
@@ -110,7 +100,7 @@ export function registerOverlayShortcuts(
     registerOverlayShortcut(
       shortcuts.updateLastCardFromClipboard,
       () => handlers.updateLastCardFromClipboard(),
-      "updateLastCardFromClipboard",
+      'updateLastCardFromClipboard',
     );
   }
 
@@ -118,7 +108,7 @@ export function registerOverlayShortcuts(
     registerOverlayShortcut(
       shortcuts.markAudioCard,
       () => handlers.markAudioCard(),
-      "markAudioCard",
+      'markAudioCard',
     );
   }
 
@@ -126,23 +116,17 @@ export function registerOverlayShortcuts(
     registerOverlayShortcut(
       shortcuts.openRuntimeOptions,
       () => handlers.openRuntimeOptions(),
-      "openRuntimeOptions",
+      'openRuntimeOptions',
     );
   }
   if (shortcuts.openJimaku) {
-    registerOverlayShortcut(
-      shortcuts.openJimaku,
-      () => handlers.openJimaku(),
-      "openJimaku",
-    );
+    registerOverlayShortcut(shortcuts.openJimaku, () => handlers.openJimaku(), 'openJimaku');
   }
 
   return registeredAny;
 }
 
-export function unregisterOverlayShortcuts(
-  shortcuts: ConfiguredShortcuts,
-): void {
+export function unregisterOverlayShortcuts(shortcuts: ConfiguredShortcuts): void {
   if (shortcuts.copySubtitle) {
     globalShortcut.unregister(shortcuts.copySubtitle);
   }
@@ -178,13 +162,8 @@ export function unregisterOverlayShortcuts(
   }
 }
 
-export function registerOverlayShortcutsRuntime(
-  deps: OverlayShortcutLifecycleDeps,
-): boolean {
-  return registerOverlayShortcuts(
-    deps.getConfiguredShortcuts(),
-    deps.getOverlayHandlers(),
-  );
+export function registerOverlayShortcutsRuntime(deps: OverlayShortcutLifecycleDeps): boolean {
+  return registerOverlayShortcuts(deps.getConfiguredShortcuts(), deps.getOverlayHandlers());
 }
 
 export function unregisterOverlayShortcutsRuntime(

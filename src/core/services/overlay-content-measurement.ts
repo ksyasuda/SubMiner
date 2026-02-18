@@ -1,27 +1,20 @@
-import {
-  OverlayContentMeasurement,
-  OverlayContentRect,
-  OverlayLayer,
-} from "../../types";
-import { createLogger } from "../../logger";
+import { OverlayContentMeasurement, OverlayContentRect, OverlayLayer } from '../../types';
+import { createLogger } from '../../logger';
 
-const logger = createLogger("main:overlay-content-measurement");
+const logger = createLogger('main:overlay-content-measurement');
 const MAX_VIEWPORT = 10000;
 const MAX_RECT_DIMENSION = 10000;
 const MAX_RECT_OFFSET = 50000;
 const MAX_FUTURE_TIMESTAMP_MS = 60_000;
 const INVALID_LOG_THROTTLE_MS = 10_000;
 
-type OverlayMeasurementStore = Record<
-  OverlayLayer,
-  OverlayContentMeasurement | null
->;
+type OverlayMeasurementStore = Record<OverlayLayer, OverlayContentMeasurement | null>;
 
 export function sanitizeOverlayContentMeasurement(
   payload: unknown,
   nowMs: number,
 ): OverlayContentMeasurement | null {
-  if (!payload || typeof payload !== "object") return null;
+  if (!payload || typeof payload !== 'object') return null;
 
   const candidate = payload as {
     layer?: unknown;
@@ -35,20 +28,12 @@ export function sanitizeOverlayContentMeasurement(
     } | null;
   };
 
-  if (candidate.layer !== "visible" && candidate.layer !== "invisible") {
+  if (candidate.layer !== 'visible' && candidate.layer !== 'invisible') {
     return null;
   }
 
-  const viewportWidth = readFiniteInRange(
-    candidate.viewport?.width,
-    1,
-    MAX_VIEWPORT,
-  );
-  const viewportHeight = readFiniteInRange(
-    candidate.viewport?.height,
-    1,
-    MAX_VIEWPORT,
-  );
+  const viewportWidth = readFiniteInRange(candidate.viewport?.width, 1, MAX_VIEWPORT);
+  const viewportHeight = readFiniteInRange(candidate.viewport?.height, 1, MAX_VIEWPORT);
 
   if (!Number.isFinite(viewportWidth) || !Number.isFinite(viewportHeight)) {
     return null;
@@ -81,7 +66,7 @@ function sanitizeOverlayContentRect(rect: unknown): OverlayContentRect | null {
     return null;
   }
 
-  if (!rect || typeof rect !== "object") {
+  if (!rect || typeof rect !== 'object') {
     return null;
   }
 
@@ -110,7 +95,7 @@ function sanitizeOverlayContentRect(rect: unknown): OverlayContentRect | null {
 }
 
 function readFiniteInRange(value: unknown, min: number, max: number): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
     return Number.NaN;
   }
   if (value < min || value > max) {
@@ -138,10 +123,7 @@ export function createOverlayContentMeasurementStore(options?: {
     const measurement = sanitizeOverlayContentMeasurement(payload, nowMs);
     if (!measurement) {
       droppedInvalid += 1;
-      if (
-        droppedInvalid > 0 &&
-        nowMs - lastInvalidLogAtMs >= INVALID_LOG_THROTTLE_MS
-      ) {
+      if (droppedInvalid > 0 && nowMs - lastInvalidLogAtMs >= INVALID_LOG_THROTTLE_MS) {
         warn(
           `[overlay-content-bounds] Dropped ${droppedInvalid} invalid measurement payload(s) in the last ${INVALID_LOG_THROTTLE_MS}ms.`,
         );
@@ -155,9 +137,7 @@ export function createOverlayContentMeasurementStore(options?: {
     return measurement;
   }
 
-  function getLatestByLayer(
-    layer: OverlayLayer,
-  ): OverlayContentMeasurement | null {
+  function getLatestByLayer(layer: OverlayLayer): OverlayContentMeasurement | null {
     return latestByLayer[layer];
   }
 

@@ -1,4 +1,4 @@
-import { MpvSubtitleRenderMetrics } from "../../types";
+import { MpvSubtitleRenderMetrics } from '../../types';
 
 export type MpvMessage = {
   event?: string;
@@ -48,16 +48,9 @@ export interface MpvProtocolHandleMessageDeps {
   };
   getSubtitleMetrics: () => MpvSubtitleRenderMetrics;
   isVisibleOverlayVisible: () => boolean;
-  emitSubtitleChange: (payload: {
-    text: string;
-    isOverlayVisible: boolean;
-  }) => void;
+  emitSubtitleChange: (payload: { text: string; isOverlayVisible: boolean }) => void;
   emitSubtitleAssChange: (payload: { text: string }) => void;
-  emitSubtitleTiming: (payload: {
-    text: string;
-    start: number;
-    end: number;
-  }) => void;
+  emitSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
   emitSecondarySubtitleChange: (payload: { text: string }) => void;
   getCurrentSubText: () => string;
   setCurrentSubText: (text: string) => void;
@@ -69,9 +62,7 @@ export interface MpvProtocolHandleMessageDeps {
   emitMediaTitleChange: (payload: { title: string | null }) => void;
   emitTimePosChange: (payload: { time: number }) => void;
   emitPauseChange: (payload: { paused: boolean }) => void;
-  emitSubtitleMetricsChange: (
-    payload: Partial<MpvSubtitleRenderMetrics>,
-  ) => void;
+  emitSubtitleMetricsChange: (payload: Partial<MpvSubtitleRenderMetrics>) => void;
   setCurrentSecondarySubText: (text: string) => void;
   resolvePendingRequest: (requestId: number, message: MpvMessage) => boolean;
   setSecondarySubVisibility: (visible: boolean) => void;
@@ -92,13 +83,10 @@ export interface MpvProtocolHandleMessageDeps {
       type?: string;
       id?: number;
       selected?: boolean;
-      "ff-index"?: number;
+      'ff-index'?: number;
     }>,
   ) => void;
-  sendCommand: (payload: {
-    command: unknown[];
-    request_id?: number;
-  }) => boolean;
+  sendCommand: (payload: { command: unknown[]; request_id?: number }) => boolean;
   restorePreviousSecondarySubVisibility: () => void;
 }
 
@@ -107,8 +95,8 @@ export function splitMpvMessagesFromBuffer(
   onMessage?: MpvMessageParser,
   onError?: MpvParseErrorHandler,
 ): MpvProtocolParseResult {
-  const lines = buffer.split("\n");
-  const nextBuffer = lines.pop() || "";
+  const lines = buffer.split('\n');
+  const nextBuffer = lines.pop() || '';
   const messages: MpvMessage[] = [];
 
   for (const line of lines) {
@@ -136,47 +124,45 @@ export async function dispatchMpvProtocolMessage(
   msg: MpvMessage,
   deps: MpvProtocolHandleMessageDeps,
 ): Promise<void> {
-  if (msg.event === "property-change") {
-    if (msg.name === "sub-text") {
-      const nextSubText = (msg.data as string) || "";
+  if (msg.event === 'property-change') {
+    if (msg.name === 'sub-text') {
+      const nextSubText = (msg.data as string) || '';
       const overlayVisible = deps.isVisibleOverlayVisible();
       deps.emitSubtitleChange({
         text: nextSubText,
         isOverlayVisible: overlayVisible,
       });
       deps.setCurrentSubText(nextSubText);
-    } else if (msg.name === "sub-text-ass") {
-      deps.emitSubtitleAssChange({ text: (msg.data as string) || "" });
-    } else if (msg.name === "sub-start") {
+    } else if (msg.name === 'sub-text-ass') {
+      deps.emitSubtitleAssChange({ text: (msg.data as string) || '' });
+    } else if (msg.name === 'sub-start') {
       deps.setCurrentSubStart((msg.data as number) || 0);
       deps.emitSubtitleTiming({
         text: deps.getCurrentSubText(),
         start: deps.getCurrentSubStart(),
         end: deps.getCurrentSubEnd(),
       });
-    } else if (msg.name === "sub-end") {
+    } else if (msg.name === 'sub-end') {
       const subEnd = (msg.data as number) || 0;
       deps.setCurrentSubEnd(subEnd);
       if (deps.getPendingPauseAtSubEnd() && subEnd > 0) {
         deps.setPauseAtTime(subEnd);
         deps.setPendingPauseAtSubEnd(false);
-        deps.sendCommand({ command: ["set_property", "pause", false] });
+        deps.sendCommand({ command: ['set_property', 'pause', false] });
       }
       deps.emitSubtitleTiming({
         text: deps.getCurrentSubText(),
         start: deps.getCurrentSubStart(),
         end: deps.getCurrentSubEnd(),
       });
-    } else if (msg.name === "secondary-sub-text") {
-      const nextSubText = (msg.data as string) || "";
+    } else if (msg.name === 'secondary-sub-text') {
+      const nextSubText = (msg.data as string) || '';
       deps.setCurrentSecondarySubText(nextSubText);
       deps.emitSecondarySubtitleChange({ text: nextSubText });
-    } else if (msg.name === "aid") {
-      deps.setCurrentAudioTrackId(
-        typeof msg.data === "number" ? (msg.data as number) : null,
-      );
+    } else if (msg.name === 'aid') {
+      deps.setCurrentAudioTrackId(typeof msg.data === 'number' ? (msg.data as number) : null);
       deps.syncCurrentAudioStreamIndex();
-    } else if (msg.name === "time-pos") {
+    } else if (msg.name === 'time-pos') {
       deps.emitTimePosChange({ time: (msg.data as number) || 0 });
       deps.setCurrentTimePos((msg.data as number) || 0);
       if (
@@ -184,65 +170,59 @@ export async function dispatchMpvProtocolMessage(
         deps.getCurrentTimePos() >= (deps.getPauseAtTime() as number)
       ) {
         deps.setPauseAtTime(null);
-        deps.sendCommand({ command: ["set_property", "pause", true] });
+        deps.sendCommand({ command: ['set_property', 'pause', true] });
       }
-    } else if (msg.name === "pause") {
+    } else if (msg.name === 'pause') {
       deps.emitPauseChange({ paused: asBoolean(msg.data, false) });
-    } else if (msg.name === "media-title") {
+    } else if (msg.name === 'media-title') {
       deps.emitMediaTitleChange({
-        title: typeof msg.data === "string" ? msg.data.trim() : null,
+        title: typeof msg.data === 'string' ? msg.data.trim() : null,
       });
-    } else if (msg.name === "path") {
-      const path = (msg.data as string) || "";
+    } else if (msg.name === 'path') {
+      const path = (msg.data as string) || '';
       deps.setCurrentVideoPath(path);
       deps.emitMediaPathChange({ path });
       deps.autoLoadSecondarySubTrack();
       deps.syncCurrentAudioStreamIndex();
-    } else if (msg.name === "sub-pos") {
+    } else if (msg.name === 'sub-pos') {
       deps.emitSubtitleMetricsChange({ subPos: msg.data as number });
-    } else if (msg.name === "sub-font-size") {
+    } else if (msg.name === 'sub-font-size') {
       deps.emitSubtitleMetricsChange({ subFontSize: msg.data as number });
-    } else if (msg.name === "sub-scale") {
+    } else if (msg.name === 'sub-scale') {
       deps.emitSubtitleMetricsChange({ subScale: msg.data as number });
-    } else if (msg.name === "sub-margin-y") {
+    } else if (msg.name === 'sub-margin-y') {
       deps.emitSubtitleMetricsChange({ subMarginY: msg.data as number });
-    } else if (msg.name === "sub-margin-x") {
+    } else if (msg.name === 'sub-margin-x') {
       deps.emitSubtitleMetricsChange({ subMarginX: msg.data as number });
-    } else if (msg.name === "sub-font") {
+    } else if (msg.name === 'sub-font') {
       deps.emitSubtitleMetricsChange({ subFont: msg.data as string });
-    } else if (msg.name === "sub-spacing") {
+    } else if (msg.name === 'sub-spacing') {
       deps.emitSubtitleMetricsChange({ subSpacing: msg.data as number });
-    } else if (msg.name === "sub-bold") {
+    } else if (msg.name === 'sub-bold') {
       deps.emitSubtitleMetricsChange({
         subBold: asBoolean(msg.data, deps.getSubtitleMetrics().subBold),
       });
-    } else if (msg.name === "sub-italic") {
+    } else if (msg.name === 'sub-italic') {
       deps.emitSubtitleMetricsChange({
         subItalic: asBoolean(msg.data, deps.getSubtitleMetrics().subItalic),
       });
-    } else if (msg.name === "sub-border-size") {
+    } else if (msg.name === 'sub-border-size') {
       deps.emitSubtitleMetricsChange({ subBorderSize: msg.data as number });
-    } else if (msg.name === "sub-shadow-offset") {
+    } else if (msg.name === 'sub-shadow-offset') {
       deps.emitSubtitleMetricsChange({ subShadowOffset: msg.data as number });
-    } else if (msg.name === "sub-ass-override") {
+    } else if (msg.name === 'sub-ass-override') {
       deps.emitSubtitleMetricsChange({ subAssOverride: msg.data as string });
-    } else if (msg.name === "sub-scale-by-window") {
+    } else if (msg.name === 'sub-scale-by-window') {
       deps.emitSubtitleMetricsChange({
-        subScaleByWindow: asBoolean(
-          msg.data,
-          deps.getSubtitleMetrics().subScaleByWindow,
-        ),
+        subScaleByWindow: asBoolean(msg.data, deps.getSubtitleMetrics().subScaleByWindow),
       });
-    } else if (msg.name === "sub-use-margins") {
+    } else if (msg.name === 'sub-use-margins') {
       deps.emitSubtitleMetricsChange({
-        subUseMargins: asBoolean(
-          msg.data,
-          deps.getSubtitleMetrics().subUseMargins,
-        ),
+        subUseMargins: asBoolean(msg.data, deps.getSubtitleMetrics().subUseMargins),
       });
-    } else if (msg.name === "osd-height") {
+    } else if (msg.name === 'osd-height') {
       deps.emitSubtitleMetricsChange({ osdHeight: msg.data as number });
-    } else if (msg.name === "osd-dimensions") {
+    } else if (msg.name === 'osd-dimensions') {
       const dims = msg.data as Record<string, unknown> | null;
       if (!dims) {
         deps.emitSubtitleMetricsChange({ osdDimensions: null });
@@ -259,7 +239,7 @@ export async function dispatchMpvProtocolMessage(
         });
       }
     }
-  } else if (msg.event === "shutdown") {
+  } else if (msg.event === 'shutdown') {
     deps.restorePreviousSecondarySubVisibility();
   } else if (msg.request_id) {
     if (deps.resolvePendingRequest(msg.request_id, msg)) {
@@ -279,12 +259,12 @@ export async function dispatchMpvProtocolMessage(
       if (Array.isArray(tracks)) {
         const config = deps.getResolvedConfig();
         const languages = config.secondarySub?.secondarySubLanguages || [];
-        const subTracks = tracks.filter((track) => track.type === "sub");
+        const subTracks = tracks.filter((track) => track.type === 'sub');
         for (const language of languages) {
           const match = subTracks.find((track) => track.lang === language);
           if (match) {
             deps.sendCommand({
-              command: ["set_property", "secondary-sid", match.id],
+              command: ['set_property', 'secondary-sid', match.id],
             });
             break;
           }
@@ -296,27 +276,25 @@ export async function dispatchMpvProtocolMessage(
           type?: string;
           id?: number;
           selected?: boolean;
-          "ff-index"?: number;
+          'ff-index'?: number;
         }>,
       );
     } else if (msg.request_id === MPV_REQUEST_ID_SUBTEXT) {
-      const nextSubText = (msg.data as string) || "";
+      const nextSubText = (msg.data as string) || '';
       deps.setCurrentSubText(nextSubText);
       deps.emitSubtitleChange({
         text: nextSubText,
         isOverlayVisible: deps.isVisibleOverlayVisible(),
       });
     } else if (msg.request_id === MPV_REQUEST_ID_SUBTEXT_ASS) {
-      deps.emitSubtitleAssChange({ text: (msg.data as string) || "" });
+      deps.emitSubtitleAssChange({ text: (msg.data as string) || '' });
     } else if (msg.request_id === MPV_REQUEST_ID_PATH) {
-      deps.emitMediaPathChange({ path: (msg.data as string) || "" });
+      deps.emitMediaPathChange({ path: (msg.data as string) || '' });
     } else if (msg.request_id === MPV_REQUEST_ID_AID) {
-      deps.setCurrentAudioTrackId(
-        typeof msg.data === "number" ? (msg.data as number) : null,
-      );
+      deps.setCurrentAudioTrackId(typeof msg.data === 'number' ? (msg.data as number) : null);
       deps.syncCurrentAudioStreamIndex();
     } else if (msg.request_id === MPV_REQUEST_ID_SECONDARY_SUBTEXT) {
-      const nextSubText = (msg.data as string) || "";
+      const nextSubText = (msg.data as string) || '';
       deps.setCurrentSecondarySubText(nextSubText);
       deps.emitSecondarySubtitleChange({ text: nextSubText });
     } else if (msg.request_id === MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY) {
@@ -356,17 +334,11 @@ export async function dispatchMpvProtocolMessage(
       deps.emitSubtitleMetricsChange({ subAssOverride: msg.data as string });
     } else if (msg.request_id === MPV_REQUEST_ID_SUB_SCALE_BY_WINDOW) {
       deps.emitSubtitleMetricsChange({
-        subScaleByWindow: asBoolean(
-          msg.data,
-          deps.getSubtitleMetrics().subScaleByWindow,
-        ),
+        subScaleByWindow: asBoolean(msg.data, deps.getSubtitleMetrics().subScaleByWindow),
       });
     } else if (msg.request_id === MPV_REQUEST_ID_SUB_USE_MARGINS) {
       deps.emitSubtitleMetricsChange({
-        subUseMargins: asBoolean(
-          msg.data,
-          deps.getSubtitleMetrics().subUseMargins,
-        ),
+        subUseMargins: asBoolean(msg.data, deps.getSubtitleMetrics().subUseMargins),
       });
     } else if (msg.request_id === MPV_REQUEST_ID_PAUSE) {
       deps.emitPauseChange({ paused: asBoolean(msg.data, false) });
@@ -393,12 +365,12 @@ export async function dispatchMpvProtocolMessage(
 }
 
 export function asBoolean(value: unknown, fallback: boolean): boolean {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value !== 0;
-  if (typeof value === "string") {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase();
-    if (["yes", "true", "1"].includes(normalized)) return true;
-    if (["no", "false", "0"].includes(normalized)) return false;
+    if (['yes', 'true', '1'].includes(normalized)) return true;
+    if (['no', 'false', '0'].includes(normalized)) return false;
   }
   return fallback;
 }
@@ -409,14 +381,14 @@ export function asFiniteNumber(value: unknown, fallback: number): number {
 }
 
 export function parseVisibilityProperty(value: unknown): boolean | null {
-  if (typeof value === "boolean") return value;
-  if (typeof value !== "string") return null;
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return null;
 
   const normalized = value.trim().toLowerCase();
-  if (normalized === "yes" || normalized === "true" || normalized === "1") {
+  if (normalized === 'yes' || normalized === 'true' || normalized === '1') {
     return true;
   }
-  if (normalized === "no" || normalized === "false" || normalized === "0") {
+  if (normalized === 'no' || normalized === 'false' || normalized === '0') {
     return false;
   }
 

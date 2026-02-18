@@ -18,7 +18,7 @@ Watch for in-flight refactors. If repo changes introduced drift, update only:
 - README.md
 - docs/**/*.md
 - config.example.jsonc
-- docs/public/config.example.jsonc <-- generated automatically with make pnpm run generate:config-example
+- docs/public/config.example.jsonc <-- generated automatically with make generate-example-config / bun run generate:config-example
 - package.json scripts/config references (only if needed)
 
 Rules:

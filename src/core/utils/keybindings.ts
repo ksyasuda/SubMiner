@@ -1,9 +1,6 @@
-import { Config, Keybinding } from "../../types";
+import { Config, Keybinding } from '../../types';
 
-export function resolveKeybindings(
-  config: Config,
-  defaultKeybindings: Keybinding[],
-): Keybinding[] {
+export function resolveKeybindings(config: Config, defaultKeybindings: Keybinding[]): Keybinding[] {
   const userBindings = config.keybindings || [];
   const bindingMap = new Map<string, (string | number)[] | null>();
 

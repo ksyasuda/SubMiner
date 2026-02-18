@@ -22,6 +22,7 @@ ordinal: 39000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Split anki-integration.ts (2,679 LOC, 60+ methods) into cohesive modules with clear handoff contracts. Keep a stable facade API to avoid broad call-site churn.
 
 ## Target Decomposition (7 modules)
@@ -37,10 +38,13 @@ Based on method clustering analysis:
 7. **ui-feedback** (~150 LOC) — progress tracking, OSD notifications, status notifications
 
 Plus a **facade** (`src/anki-integration/index.ts`) that re-exports the public API for backward compatibility.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Extract at least 6 modules matching the decomposition map above (7 recommended).
 - [ ] #2 Keep a stable facade API in src/anki-integration/index.ts so external callers (main.ts, mining-service) don't change.
 - [ ] #3 Field grouping cluster (~900 LOC) is extracted as its own module — it's the largest single concern.
@@ -54,16 +58,19 @@ Plus a **facade** (`src/anki-integration/index.ts`) that re-exports the public A
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 ## Execution Notes
 
 This task is self-contained — anki-integration.ts is a single class with a clear public API consumed by main.ts and mining-service. Internal restructuring doesn't affect other files as long as the facade is maintained.
 
 **Should run first in Phase 2** because:
+
 - It's the largest file (2,679 LOC vs 1,392 for main.ts)
 - Its public API is narrow (class constructor + ~5 public methods)
 - main.ts instantiates AnkiIntegration, so stabilizing its API before splitting main.ts avoids double-refactoring
 
 ## Key Risk
+
 The class has 15 private state fields that create implicit coupling between methods. The `updateLastAddedFromClipboard` method alone is ~230 lines and touches polling state, media generation, and card updates. Extraction order matters: start with the leaf clusters (ai-translation, ui-feedback, duplicate-detection) and work inward toward the stateful core (polling, card-creation, field-grouping).
 
 Started TASK-27.3 with a surgical extraction of the duplicate-detection cluster into `src/anki-integration-duplicate.ts` and refactoring `AnkiIntegration.findDuplicateNote()` to delegate all deck query, search escaping, and normalization logic to the new module while preserving behavior. This reduces `anki-integration.ts` by removing three private duplicate-parsing methods and keeps callsites unchanged. Remaining decomposition work still needed across polling/card-creation/field-grouping/notification clusters from the task map.
@@ -71,4 +78,5 @@ Started TASK-27.3 with a surgical extraction of the duplicate-detection cluster 
 Second extraction pass completed: moved sentence-translation decision + AI fallback behavior out of `createSentenceCard` into `src/anki-integration/ai.ts` as `resolveSentenceBackText(...)`, with `AnkiIntegration` now delegating translation result generation to this function. This further isolates AI concerns from card-creation flow while keeping behavior and defaults intact.
 
 Refactor for TASK-27.3 is complete and build passes after cleanup of ui-feedback delegation (src/anki-integration.ts, src/anki-integration-ui-feedback.ts).
+
 <!-- SECTION:NOTES:END -->

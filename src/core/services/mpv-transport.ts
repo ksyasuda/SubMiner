@@ -1,9 +1,6 @@
-import * as net from "net";
+import * as net from 'net';
 
-export function getMpvReconnectDelay(
-  attempt: number,
-  hasConnectedOnce: boolean,
-): number {
+export function getMpvReconnectDelay(attempt: number, hasConnectedOnce: boolean): number {
   if (hasConnectedOnce) {
     if (attempt < 2) {
       return 1000;
@@ -111,23 +108,23 @@ export class MpvSocketTransport {
     this.socketRef = this.socketFactory();
     this.socket = this.socketRef;
 
-    this.socketRef.on("connect", () => {
+    this.socketRef.on('connect', () => {
       this.connected = true;
       this.connecting = false;
       this.callbacks.onConnect();
     });
 
-    this.socketRef.on("data", (data: Buffer) => {
+    this.socketRef.on('data', (data: Buffer) => {
       this.callbacks.onData(data);
     });
 
-    this.socketRef.on("error", (error: Error) => {
+    this.socketRef.on('error', (error: Error) => {
       this.connected = false;
       this.connecting = false;
       this.callbacks.onError(error);
     });
 
-    this.socketRef.on("close", () => {
+    this.socketRef.on('close', () => {
       this.connected = false;
       this.connecting = false;
       this.callbacks.onClose();
@@ -141,7 +138,7 @@ export class MpvSocketTransport {
       return false;
     }
 
-    const message = JSON.stringify(payload) + "\n";
+    const message = JSON.stringify(payload) + '\n';
     this.socketRef.write(message);
     return true;
   }

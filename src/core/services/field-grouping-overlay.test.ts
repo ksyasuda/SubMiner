@@ -1,16 +1,14 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { KikuFieldGroupingChoice } from "../../types";
-import { createFieldGroupingOverlayRuntime } from "./field-grouping-overlay";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { KikuFieldGroupingChoice } from '../../types';
+import { createFieldGroupingOverlayRuntime } from './field-grouping-overlay';
 
-test("createFieldGroupingOverlayRuntime sends overlay messages and sets restore flag", () => {
+test('createFieldGroupingOverlayRuntime sends overlay messages and sets restore flag', () => {
   const sent: unknown[][] = [];
   let visible = false;
-  const restore = new Set<"runtime-options" | "subsync">();
+  const restore = new Set<'runtime-options' | 'subsync'>();
 
-  const runtime = createFieldGroupingOverlayRuntime<
-    "runtime-options" | "subsync"
-  >({
+  const runtime = createFieldGroupingOverlayRuntime<'runtime-options' | 'subsync'>({
     getMainWindow: () => ({
       isDestroyed: () => false,
       webContents: {
@@ -31,21 +29,19 @@ test("createFieldGroupingOverlayRuntime sends overlay messages and sets restore 
     getRestoreVisibleOverlayOnModalClose: () => restore,
   });
 
-  const ok = runtime.sendToVisibleOverlay("runtime-options:open", undefined, {
-    restoreOnModalClose: "runtime-options",
+  const ok = runtime.sendToVisibleOverlay('runtime-options:open', undefined, {
+    restoreOnModalClose: 'runtime-options',
   });
 
   assert.equal(ok, true);
   assert.equal(visible, true);
-  assert.equal(restore.has("runtime-options"), true);
-  assert.deepEqual(sent, [["runtime-options:open"]]);
+  assert.equal(restore.has('runtime-options'), true);
+  assert.deepEqual(sent, [['runtime-options:open']]);
 });
 
-test("createFieldGroupingOverlayRuntime callback cancels when send fails", async () => {
+test('createFieldGroupingOverlayRuntime callback cancels when send fails', async () => {
   let resolver: ((choice: KikuFieldGroupingChoice) => void) | null = null;
-  const runtime = createFieldGroupingOverlayRuntime<
-    "runtime-options" | "subsync"
-  >({
+  const runtime = createFieldGroupingOverlayRuntime<'runtime-options' | 'subsync'>({
     getMainWindow: () => null,
     getVisibleOverlayVisible: () => false,
     getInvisibleOverlayVisible: () => false,
@@ -55,24 +51,23 @@ test("createFieldGroupingOverlayRuntime callback cancels when send fails", async
     setResolver: (next) => {
       resolver = next;
     },
-    getRestoreVisibleOverlayOnModalClose: () =>
-      new Set<"runtime-options" | "subsync">(),
+    getRestoreVisibleOverlayOnModalClose: () => new Set<'runtime-options' | 'subsync'>(),
   });
 
   const callback = runtime.createFieldGroupingCallback();
   const result = await callback({
     original: {
       noteId: 1,
-      expression: "a",
-      sentencePreview: "a",
+      expression: 'a',
+      sentencePreview: 'a',
       hasAudio: false,
       hasImage: false,
       isOriginal: true,
     },
     duplicate: {
       noteId: 2,
-      expression: "b",
-      sentencePreview: "b",
+      expression: 'b',
+      sentencePreview: 'b',
       hasAudio: false,
       hasImage: false,
       isOriginal: false,

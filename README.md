@@ -46,7 +46,10 @@ The `subminer` wrapper uses a [Bun](https://bun.sh) shebang, so `bun` must be on
 ```bash
 git clone --recurse-submodules https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
-make build && make install
+bun install
+cd vendor/texthooker-ui && bun install && cd ../..
+make build
+make install
 ```
 
 For macOS builds and platform details, see the [installation docs](docs/installation.md).
@@ -54,6 +57,7 @@ For macOS builds and platform details, see the [installation docs](docs/installa
 ## Quick Start
 
 1. Copy [`config.example.jsonc`](config.example.jsonc) to `~/.config/SubMiner/config.jsonc`
+   - Regenerate anytime from source: `make generate-example-config` or `bun run generate:config-example`
 2. Start mpv with IPC:
    ```bash
    mpv --input-ipc-server=/tmp/subminer-socket video.mkv

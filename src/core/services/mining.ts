@@ -37,16 +37,14 @@ export function handleMultiCopyDigit(
   const availableCount = Math.min(count, 200);
   const blocks = deps.subtitleTimingTracker.getRecentBlocks(availableCount);
   if (blocks.length === 0) {
-    deps.showMpvOsd("No subtitle history available");
+    deps.showMpvOsd('No subtitle history available');
     return;
   }
 
   const actualCount = blocks.length;
-  deps.writeClipboardText(blocks.join("\n\n"));
+  deps.writeClipboardText(blocks.join('\n\n'));
   if (actualCount < count) {
-    deps.showMpvOsd(
-      `Only ${actualCount} lines available, copied ${actualCount}`,
-    );
+    deps.showMpvOsd(`Only ${actualCount} lines available, copied ${actualCount}`);
   } else {
     deps.showMpvOsd(`Copied ${actualCount} lines`);
   }
@@ -58,16 +56,16 @@ export function copyCurrentSubtitle(deps: {
   showMpvOsd: (text: string) => void;
 }): void {
   if (!deps.subtitleTimingTracker) {
-    deps.showMpvOsd("Subtitle tracker not available");
+    deps.showMpvOsd('Subtitle tracker not available');
     return;
   }
   const currentSubtitle = deps.subtitleTimingTracker.getCurrentSubtitle();
   if (!currentSubtitle) {
-    deps.showMpvOsd("No current subtitle");
+    deps.showMpvOsd('No current subtitle');
     return;
   }
   deps.writeClipboardText(currentSubtitle);
-  deps.showMpvOsd("Copied subtitle");
+  deps.showMpvOsd('Copied subtitle');
 }
 
 function requireAnkiIntegration(
@@ -75,7 +73,7 @@ function requireAnkiIntegration(
   showMpvOsd: (text: string) => void,
 ): AnkiIntegrationLike | null {
   if (!ankiIntegration) {
-    showMpvOsd("AnkiConnect integration not enabled");
+    showMpvOsd('AnkiConnect integration not enabled');
     return null;
   }
   return ankiIntegration;
@@ -119,11 +117,11 @@ export async function mineSentenceCard(deps: {
 
   const mpvClient = deps.mpvClient;
   if (!mpvClient || !mpvClient.connected) {
-    deps.showMpvOsd("MPV not connected");
+    deps.showMpvOsd('MPV not connected');
     return false;
   }
   if (!mpvClient.currentSubText) {
-    deps.showMpvOsd("No current subtitle");
+    deps.showMpvOsd('No current subtitle');
     return false;
   }
 
@@ -150,7 +148,7 @@ export function handleMineSentenceDigit(
 
   const blocks = deps.subtitleTimingTracker.getRecentBlocks(count);
   if (blocks.length === 0) {
-    deps.showMpvOsd("No subtitle history available");
+    deps.showMpvOsd('No subtitle history available');
     return;
   }
 
@@ -161,28 +159,23 @@ export function handleMineSentenceDigit(
   }
 
   if (timings.length === 0) {
-    deps.showMpvOsd("Subtitle timing not found");
+    deps.showMpvOsd('Subtitle timing not found');
     return;
   }
 
   const rangeStart = Math.min(...timings.map((t) => t.startTime));
   const rangeEnd = Math.max(...timings.map((t) => t.endTime));
-  const sentence = blocks.join(" ");
+  const sentence = blocks.join(' ');
   const cardsToMine = 1;
   deps.ankiIntegration
-    .createSentenceCard(
-      sentence,
-      rangeStart,
-      rangeEnd,
-      deps.getCurrentSecondarySubText(),
-    )
+    .createSentenceCard(sentence, rangeStart, rangeEnd, deps.getCurrentSecondarySubText())
     .then((created) => {
       if (created) {
         deps.onCardsMined?.(cardsToMine);
       }
     })
     .catch((err) => {
-      deps.logError("mineSentenceMultiple failed:", err);
+      deps.logError('mineSentenceMultiple failed:', err);
       deps.showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
     });
 }

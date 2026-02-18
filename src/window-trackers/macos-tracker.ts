@@ -16,20 +16,20 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { execFile } from "child_process";
-import * as path from "path";
-import * as fs from "fs";
-import * as os from "os";
-import { BaseWindowTracker } from "./base-tracker";
-import { createLogger } from "../logger";
+import { execFile } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import { BaseWindowTracker } from './base-tracker';
+import { createLogger } from '../logger';
 
-const log = createLogger("tracker").child("macos");
+const log = createLogger('tracker').child('macos');
 
 export class MacOSWindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private pollInFlight = false;
   private helperPath: string | null = null;
-  private helperType: "binary" | "swift" | null = null;
+  private helperType: 'binary' | 'swift' | null = null;
   private lastExecErrorFingerprint: string | null = null;
   private lastExecErrorLoggedAtMs = 0;
   private readonly targetMpvSocketPath: string | null;
@@ -40,19 +40,14 @@ export class MacOSWindowTracker extends BaseWindowTracker {
     this.detectHelper();
   }
 
-  private materializeAsarHelper(
-    sourcePath: string,
-    helperType: "binary" | "swift",
-  ): string | null {
-    if (!sourcePath.includes(".asar")) {
+  private materializeAsarHelper(sourcePath: string, helperType: 'binary' | 'swift'): string | null {
+    if (!sourcePath.includes('.asar')) {
       return sourcePath;
     }
 
     const fileName =
-      helperType === "binary"
-        ? "get-mpv-window-macos"
-        : "get-mpv-window-macos.swift";
-    const targetDir = path.join(os.tmpdir(), "subminer", "helpers");
+      helperType === 'binary' ? 'get-mpv-window-macos' : 'get-mpv-window-macos.swift';
+    const targetDir = path.join(os.tmpdir(), 'subminer', 'helpers');
     const targetPath = path.join(targetDir, fileName);
 
     try {
@@ -67,10 +62,7 @@ export class MacOSWindowTracker extends BaseWindowTracker {
     }
   }
 
-  private tryUseHelper(
-    candidatePath: string,
-    helperType: "binary" | "swift",
-  ): boolean {
+  private tryUseHelper(candidatePath: string, helperType: 'binary' | 'swift'): boolean {
     if (!fs.existsSync(candidatePath)) {
       return false;
     }
@@ -91,63 +83,46 @@ export class MacOSWindowTracker extends BaseWindowTracker {
 
     // Fall back to Swift helper first when filtering by socket path to avoid
     // stale prebuilt binaries that don't support the new socket filter argument.
-    const swiftPath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "scripts",
-      "get-mpv-window-macos.swift",
-    );
-    if (shouldFilterBySocket && this.tryUseHelper(swiftPath, "swift")) {
+    const swiftPath = path.join(__dirname, '..', '..', 'scripts', 'get-mpv-window-macos.swift');
+    if (shouldFilterBySocket && this.tryUseHelper(swiftPath, 'swift')) {
       return;
     }
 
     // Prefer resources path (outside asar) in packaged apps.
     const resourcesPath = process.resourcesPath;
     if (resourcesPath) {
-      const resourcesBinaryPath = path.join(
-        resourcesPath,
-        "scripts",
-        "get-mpv-window-macos",
-      );
-      if (this.tryUseHelper(resourcesBinaryPath, "binary")) {
+      const resourcesBinaryPath = path.join(resourcesPath, 'scripts', 'get-mpv-window-macos');
+      if (this.tryUseHelper(resourcesBinaryPath, 'binary')) {
         return;
       }
     }
 
     // Dist binary path (development / unpacked installs).
-    const distBinaryPath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "scripts",
-      "get-mpv-window-macos",
-    );
-    if (this.tryUseHelper(distBinaryPath, "binary")) {
+    const distBinaryPath = path.join(__dirname, '..', '..', 'scripts', 'get-mpv-window-macos');
+    if (this.tryUseHelper(distBinaryPath, 'binary')) {
       return;
     }
 
     // Fall back to Swift script for development or if binary filtering is not
     // supported in the current environment.
-    if (this.tryUseHelper(swiftPath, "swift")) {
+    if (this.tryUseHelper(swiftPath, 'swift')) {
       return;
     }
 
-    log.warn("macOS window tracking helper not found");
+    log.warn('macOS window tracking helper not found');
   }
 
   private maybeLogExecError(err: Error, stderr: string): void {
     const now = Date.now();
     const fingerprint = `${err.message}|${stderr.trim()}`;
     const shouldLog =
-      this.lastExecErrorFingerprint !== fingerprint ||
-      now - this.lastExecErrorLoggedAtMs >= 5000;
+      this.lastExecErrorFingerprint !== fingerprint || now - this.lastExecErrorLoggedAtMs >= 5000;
     if (!shouldLog) {
       return;
     }
     this.lastExecErrorFingerprint = fingerprint;
     this.lastExecErrorLoggedAtMs = now;
-    log.warn("macOS helper execution failed", {
+    log.warn('macOS helper execution failed', {
       helperPath: this.helperPath,
       helperType: this.helperType,
       error: err.message,
@@ -176,8 +151,8 @@ export class MacOSWindowTracker extends BaseWindowTracker {
 
     // Use Core Graphics API via Swift helper for reliable window detection
     // This works with both bundled and unbundled mpv installations
-    const command = this.helperType === "binary" ? this.helperPath : "swift";
-    const args = this.helperType === "binary" ? [] : [this.helperPath];
+    const command = this.helperType === 'binary' ? this.helperPath : 'swift';
+    const args = this.helperType === 'binary' ? [] : [this.helperPath];
     if (this.targetMpvSocketPath) {
       args.push(this.targetMpvSocketPath);
     }
@@ -186,21 +161,21 @@ export class MacOSWindowTracker extends BaseWindowTracker {
       command,
       args,
       {
-        encoding: "utf-8",
+        encoding: 'utf-8',
         timeout: 1000,
         maxBuffer: 1024 * 1024,
       },
       (err, stdout, stderr) => {
         if (err) {
-          this.maybeLogExecError(err, stderr || "");
+          this.maybeLogExecError(err, stderr || '');
           this.updateGeometry(null);
           this.pollInFlight = false;
           return;
         }
 
-        const result = (stdout || "").trim();
-        if (result && result !== "not-found") {
-          const parts = result.split(",");
+        const result = (stdout || '').trim();
+        if (result && result !== 'not-found') {
+          const parts = result.split(',');
           if (parts.length === 4) {
             const x = parseInt(parts[0], 10);
             const y = parseInt(parts[1], 10);

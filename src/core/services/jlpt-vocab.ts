@@ -1,7 +1,7 @@
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs';
+import * as path from 'path';
 
-import type { JlptLevel } from "../../types";
+import type { JlptLevel } from '../../types';
 
 export interface JlptVocabLookupOptions {
   searchPaths: string[];
@@ -9,11 +9,11 @@ export interface JlptVocabLookupOptions {
 }
 
 const JLPT_BANK_FILES: { level: JlptLevel; filename: string }[] = [
-  { level: "N1", filename: "term_meta_bank_1.json" },
-  { level: "N2", filename: "term_meta_bank_2.json" },
-  { level: "N3", filename: "term_meta_bank_3.json" },
-  { level: "N4", filename: "term_meta_bank_4.json" },
-  { level: "N5", filename: "term_meta_bank_5.json" },
+  { level: 'N1', filename: 'term_meta_bank_1.json' },
+  { level: 'N2', filename: 'term_meta_bank_2.json' },
+  { level: 'N3', filename: 'term_meta_bank_3.json' },
+  { level: 'N4', filename: 'term_meta_bank_4.json' },
+  { level: 'N5', filename: 'term_meta_bank_5.json' },
 ];
 const JLPT_LEVEL_PRECEDENCE: Record<JlptLevel, number> = {
   N1: 5,
@@ -30,13 +30,10 @@ function normalizeJlptTerm(value: string): string {
 }
 
 function hasFrequencyDisplayValue(meta: unknown): boolean {
-  if (!meta || typeof meta !== "object") return false;
+  if (!meta || typeof meta !== 'object') return false;
   const frequency = (meta as { frequency?: unknown }).frequency;
-  if (!frequency || typeof frequency !== "object") return false;
-  return Object.prototype.hasOwnProperty.call(
-    frequency as Record<string, unknown>,
-    "displayValue",
-  );
+  if (!frequency || typeof frequency !== 'object') return false;
+  return Object.prototype.hasOwnProperty.call(frequency as Record<string, unknown>, 'displayValue');
 }
 
 function addEntriesToMap(
@@ -62,7 +59,7 @@ function addEntriesToMap(
     }
 
     const [term, _entryId, meta] = rawEntry as [unknown, unknown, unknown];
-    if (typeof term !== "string") {
+    if (typeof term !== 'string') {
       continue;
     }
 
@@ -102,7 +99,7 @@ function collectDictionaryFromPath(
 
     let rawText: string;
     try {
-      rawText = fs.readFileSync(bankPath, "utf-8");
+      rawText = fs.readFileSync(bankPath, 'utf-8');
     } catch {
       log(`Failed to read JLPT bank file ${bankPath}`);
       continue;
@@ -117,9 +114,7 @@ function collectDictionaryFromPath(
     }
 
     if (!Array.isArray(rawEntries)) {
-      log(
-        `JLPT bank file has unsupported format (expected JSON array): ${bankPath}`,
-      );
+      log(`JLPT bank file has unsupported format (expected JSON array): ${bankPath}`);
       continue;
     }
 
@@ -156,9 +151,7 @@ export async function createJlptVocabularyLookup(
     if (terms.size > 0) {
       resolvedBanks.push(dictionaryPath);
       foundBankCount += 1;
-      options.log(
-        `JLPT dictionary loaded from ${dictionaryPath} (${terms.size} entries)`,
-      );
+      options.log(`JLPT dictionary loaded from ${dictionaryPath} (${terms.size} entries)`);
       return (term: string): JlptLevel | null => {
         if (!term) return null;
         const normalized = normalizeJlptTerm(term);
@@ -172,17 +165,15 @@ export async function createJlptVocabularyLookup(
   }
 
   options.log(
-    `JLPT dictionary not found. Searched ${attemptedPaths.length} candidate path(s): ${attemptedPaths.join(", ")}`,
+    `JLPT dictionary not found. Searched ${attemptedPaths.length} candidate path(s): ${attemptedPaths.join(', ')}`,
   );
   if (foundDictionaryPathCount > 0 && foundBankCount === 0) {
     options.log(
-      "JLPT dictionary directories found, but none contained valid term_meta_bank_*.json files.",
+      'JLPT dictionary directories found, but none contained valid term_meta_bank_*.json files.',
     );
   }
   if (resolvedBanks.length > 0 && foundBankCount > 0) {
-    options.log(
-      `JLPT dictionary search matched path(s): ${resolvedBanks.join(", ")}`,
-    );
+    options.log(`JLPT dictionary search matched path(s): ${resolvedBanks.join(', ')}`);
   }
   return NOOP_LOOKUP;
 }

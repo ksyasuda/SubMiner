@@ -1,16 +1,10 @@
-import {
-  JimakuApiResponse,
-  JimakuConfig,
-  JimakuLanguagePreference,
-} from "../../types";
+import { JimakuApiResponse, JimakuConfig, JimakuLanguagePreference } from '../../types';
 import {
   jimakuFetchJson as jimakuFetchJsonRequest,
   resolveJimakuApiKey as resolveJimakuApiKeyFromConfig,
-} from "../../jimaku/utils";
+} from '../../jimaku/utils';
 
-export function getJimakuConfig(
-  getResolvedConfig: () => { jimaku?: JimakuConfig },
-): JimakuConfig {
+export function getJimakuConfig(getResolvedConfig: () => { jimaku?: JimakuConfig }): JimakuConfig {
   const config = getResolvedConfig();
   return config.jimaku ?? {};
 }
@@ -37,7 +31,7 @@ export function getJimakuMaxEntryResults(
 ): number {
   const config = getJimakuConfig(getResolvedConfig);
   const value = config.maxEntryResults;
-  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return Math.floor(value);
   }
   return defaultValue;
@@ -64,18 +58,14 @@ export async function jimakuFetchJson<T>(
     return {
       ok: false,
       error: {
-        error:
-          "Jimaku API key not set. Configure jimaku.apiKey or jimaku.apiKeyCommand.",
+        error: 'Jimaku API key not set. Configure jimaku.apiKey or jimaku.apiKeyCommand.',
         code: 401,
       },
     };
   }
 
   return jimakuFetchJsonRequest<T>(endpoint, query, {
-    baseUrl: getJimakuBaseUrl(
-      options.getResolvedConfig,
-      options.defaultBaseUrl,
-    ),
+    baseUrl: getJimakuBaseUrl(options.getResolvedConfig, options.defaultBaseUrl),
     apiKey,
   });
 }

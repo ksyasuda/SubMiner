@@ -15,11 +15,15 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add user-configurable controls for Aniyomi streaming subtitle behavior, including preferred language profile, soft-vs-hard source preference, ffmpeg-assisted hard-sub removal behavior, and policy toggles so quality and fallback behavior can be tuned without code changes.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Add settings UI fields to define preferred subtitle/audiotrack language order (e.g., en, ja) and enable/disable hard-sub fallback mode.
 - [ ] #2 Add explicit toggle for enabling hard-sub stripping via ffmpeg and configurable timeout/quality limits to avoid long waits.
 - [ ] #3 Expose source ranking preferences for soft-sub vs hard-sub sources and optional fallback to native/transcoded source when preferred modes are unavailable.

@@ -5,7 +5,6 @@
  * Copy to $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) and edit as needed.
  */
 {
-
   // ==========================================
   // Overlay Auto-Start
   // When overlay connects to mpv, automatically show overlay and hide mpv subtitles.
@@ -24,7 +23,7 @@
   // Control whether browser opens automatically for texthooker.
   // ==========================================
   "texthooker": {
-    "openBrowser": true
+    "openBrowser": true,
   },
 
   // ==========================================
@@ -34,7 +33,7 @@
   // ==========================================
   "websocket": {
     "enabled": "auto",
-    "port": 6677
+    "port": 6677,
   },
 
   // ==========================================
@@ -43,27 +42,7 @@
   // Set to debug for full runtime diagnostics.
   // ==========================================
   "logging": {
-    "level": "info"
-  },
-
-  // Immersion Tracking
-  // Persist mined subtitle/session telemetry for analytics.
-  // ==========================================
-  "immersionTracking": {
-    "enabled": true,
-    "dbPath": "",
-    "batchSize": 25,
-    "flushIntervalMs": 500,
-    "queueCap": 1000,
-    "payloadCapBytes": 256,
-    "maintenanceIntervalMs": 86400000,
-    "retention": {
-      "eventsDays": 7,
-      "telemetryDays": 30,
-      "dailyRollupsDays": 365,
-      "monthlyRollupsDays": 1825,
-      "vacuumIntervalDays": 7
-    }
+    "level": "info",
   },
 
   // ==========================================
@@ -79,7 +58,7 @@
       "image": "Picture",
       "sentence": "Sentence",
       "miscInfo": "MiscInfo",
-      "translation": "SelectionText"
+      "translation": "SelectionText",
     },
     "ai": {
       "enabled": false,
@@ -88,7 +67,7 @@
       "model": "openai/gpt-4o-mini",
       "baseUrl": "https://openrouter.ai/api",
       "targetLanguage": "English",
-      "systemPrompt": "You are a translation engine. Return only the translated text with no explanations."
+      "systemPrompt": "You are a translation engine. Return only the translated text with no explanations.",
     },
     "media": {
       "generateAudio": true,
@@ -101,7 +80,7 @@
       "animatedCrf": 35,
       "audioPadding": 0.5,
       "fallbackDuration": 3,
-      "maxMediaDuration": 30
+      "maxMediaDuration": 30,
     },
     "behavior": {
       "overwriteAudio": true,
@@ -109,7 +88,7 @@
       "mediaInsertMode": "append",
       "highlightWord": true,
       "notificationType": "osd",
-      "autoUpdateNewCards": true
+      "autoUpdateNewCards": true,
     },
     "nPlusOne": {
       "highlightEnabled": false,
@@ -118,22 +97,22 @@
       "decks": [],
       "minSentenceWords": 3,
       "nPlusOne": "#c6a0f6",
-      "knownWord": "#a6da95"
+      "knownWord": "#a6da95",
     },
     "metadata": {
-      "pattern": "[SubMiner] %f (%t)"
+      "pattern": "[SubMiner] %f (%t)",
     },
     "isLapis": {
       "enabled": false,
       "sentenceCardModel": "Japanese sentences",
       "sentenceCardSentenceField": "Sentence",
-      "sentenceCardAudioField": "SentenceAudio"
+      "sentenceCardAudioField": "SentenceAudio",
     },
     "isKiku": {
       "enabled": false,
       "fieldGrouping": "disabled",
-      "deleteDuplicateInAuto": true
-    }
+      "deleteDuplicateInAuto": true,
+    },
   },
 
   // ==========================================
@@ -154,7 +133,7 @@
     "toggleSecondarySub": "CommandOrControl+Shift+V",
     "markAudioCard": "CommandOrControl+Shift+A",
     "openRuntimeOptions": "CommandOrControl+Shift+O",
-    "openJimaku": "Ctrl+Shift+J"
+    "openJimaku": "Ctrl+Shift+J",
   },
 
   // ==========================================
@@ -164,7 +143,7 @@
   // This edit-mode shortcut is fixed and is not currently configurable.
   // ==========================================
   "invisibleOverlay": {
-    "startupVisibility": "platform-default"
+    "startupVisibility": "platform-default",
   },
 
   // ==========================================
@@ -193,7 +172,7 @@
       "N2": "#f5a97f",
       "N3": "#f9e2af",
       "N4": "#a6e3a1",
-      "N5": "#8aadf4"
+      "N5": "#8aadf4",
     },
     "frequencyDictionary": {
       "enabled": false,
@@ -201,13 +180,7 @@
       "topX": 1000,
       "mode": "single",
       "singleColor": "#f5a97f",
-      "bandedColors": [
-        "#ed8796",
-        "#f5a97f",
-        "#f9e2af",
-        "#a6e3a1",
-        "#8aadf4"
-      ]
+      "bandedColors": ["#ed8796", "#f5a97f", "#f9e2af", "#a6e3a1", "#8aadf4"],
     },
     "secondary": {
       "fontSize": 24,
@@ -215,8 +188,8 @@
       "backgroundColor": "transparent",
       "fontWeight": "normal",
       "fontStyle": "normal",
-      "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif"
-    }
+      "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif",
+    },
   },
 
   // ==========================================
@@ -227,7 +200,7 @@
   "secondarySub": {
     "secondarySubLanguages": [],
     "autoLoadSecondarySub": false,
-    "defaultMode": "hover"
+    "defaultMode": "hover",
   },
 
   // ==========================================
@@ -238,7 +211,7 @@
     "defaultMode": "auto",
     "alass_path": "",
     "ffsubsync_path": "",
-    "ffmpeg_path": ""
+    "ffmpeg_path": "",
   },
 
   // ==========================================
@@ -246,7 +219,7 @@
   // Initial vertical subtitle position from the bottom.
   // ==========================================
   "subtitlePosition": {
-    "yPercent": 10
+    "yPercent": 10,
   },
 
   // ==========================================
@@ -256,7 +229,7 @@
   "jimaku": {
     "apiBaseUrl": "https://jimaku.cc",
     "languagePreference": "ja",
-    "maxEntryResults": 10
+    "maxEntryResults": 10,
   },
 
   // ==========================================
@@ -267,10 +240,7 @@
     "mode": "automatic",
     "whisperBin": "",
     "whisperModel": "",
-    "primarySubLanguages": [
-      "ja",
-      "jpn"
-    ]
+    "primarySubLanguages": ["ja", "jpn"],
   },
 
   // ==========================================
@@ -279,7 +249,7 @@
   // ==========================================
   "anilist": {
     "enabled": false,
-    "accessToken": ""
+    "accessToken": "",
   },
 
   // ==========================================
@@ -304,15 +274,30 @@
     "pullPictures": false,
     "iconCacheDir": "/tmp/subminer-jellyfin-icons",
     "directPlayPreferred": true,
-    "directPlayContainers": [
-      "mkv",
-      "mp4",
-      "webm",
-      "mov",
-      "flac",
-      "mp3",
-      "aac"
-    ],
-    "transcodeVideoCodec": "h264"
-  }
+    "directPlayContainers": ["mkv", "mp4", "webm", "mov", "flac", "mp3", "aac"],
+    "transcodeVideoCodec": "h264",
+  },
+
+  // ==========================================
+  // Immersion Tracking
+  // Enable/disable immersion tracking.
+  // Set dbPath to override the default sqlite database location.
+  // Policy tuning is available for queue, flush, and retention values.
+  // ==========================================
+  "immersionTracking": {
+    "enabled": true,
+    "dbPath": "",
+    "batchSize": 25,
+    "flushIntervalMs": 500,
+    "queueCap": 1000,
+    "payloadCapBytes": 256,
+    "maintenanceIntervalMs": 86400000,
+    "retention": {
+      "eventsDays": 7,
+      "telemetryDays": 30,
+      "dailyRollupsDays": 365,
+      "monthlyRollupsDays": 1825,
+      "vacuumIntervalDays": 7,
+    },
+  },
 }

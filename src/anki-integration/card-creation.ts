@@ -1,36 +1,26 @@
-import { DEFAULT_ANKI_CONNECT_CONFIG } from "../config";
-import { AnkiConnectConfig } from "../types";
-import { createLogger } from "../logger";
-import { SubtitleTimingTracker } from "../subtitle-timing-tracker";
-import { MediaGenerator } from "../media-generator";
-import { MpvClient } from "../types";
-import { resolveSentenceBackText } from "./ai";
+import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
+import { AnkiConnectConfig } from '../types';
+import { createLogger } from '../logger';
+import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
+import { MediaGenerator } from '../media-generator';
+import { MpvClient } from '../types';
+import { resolveSentenceBackText } from './ai';
 
-const log = createLogger("anki").child("integration.card-creation");
+const log = createLogger('anki').child('integration.card-creation');
 
 export interface CardCreationNoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
 }
 
-type CardKind = "sentence" | "audio";
+type CardKind = 'sentence' | 'audio';
 
 interface CardCreationClient {
-  addNote(
-    deck: string,
-    modelName: string,
-    fields: Record<string, string>,
-  ): Promise<number>;
+  addNote(deck: string, modelName: string, fields: Record<string, string>): Promise<number>;
   notesInfo(noteIds: number[]): Promise<unknown>;
-  updateNoteFields(
-    noteId: number,
-    fields: Record<string, string>,
-  ): Promise<void>;
+  updateNoteFields(noteId: number, fields: Record<string, string>): Promise<void>;
   storeMediaFile(filename: string, data: Buffer): Promise<void>;
-  findNotes(
-    query: string,
-    options?: { maxRetries?: number },
-  ): Promise<number[]>;
+  findNotes(query: string, options?: { maxRetries?: number }): Promise<number[]>;
 }
 
 interface CardCreationMediaGenerator {
@@ -45,7 +35,7 @@ interface CardCreationMediaGenerator {
     path: string,
     timestamp: number,
     options: {
-      format: "jpg" | "png" | "webp";
+      format: 'jpg' | 'png' | 'webp';
       quality?: number;
       maxWidth?: number;
       maxHeight?: number;
@@ -74,53 +64,31 @@ interface CardCreationDeps {
   mediaGenerator: CardCreationMediaGenerator;
   showOsdNotification: (text: string) => void;
   showStatusNotification: (message: string) => void;
-  showNotification: (
-    noteId: number,
-    label: string | number,
-    errorSuffix?: string,
-  ) => Promise<void>;
+  showNotification: (noteId: number, label: string | number, errorSuffix?: string) => Promise<void>;
   beginUpdateProgress: (initialMessage: string) => void;
   endUpdateProgress: () => void;
-  withUpdateProgress: <T>(
-    initialMessage: string,
-    action: () => Promise<T>,
-  ) => Promise<T>;
+  withUpdateProgress: <T>(initialMessage: string, action: () => Promise<T>) => Promise<T>;
   resolveConfiguredFieldName: (
     noteInfo: CardCreationNoteInfo,
     ...preferredNames: (string | undefined)[]
   ) => string | null;
-  resolveNoteFieldName: (
-    noteInfo: CardCreationNoteInfo,
-    preferredName?: string,
-  ) => string | null;
-  extractFields: (
-    fields: Record<string, { value: string }>,
-  ) => Record<string, string>;
-  processSentence: (
-    mpvSentence: string,
-    noteFields: Record<string, string>,
-  ) => string;
+  resolveNoteFieldName: (noteInfo: CardCreationNoteInfo, preferredName?: string) => string | null;
+  extractFields: (fields: Record<string, { value: string }>) => Record<string, string>;
+  processSentence: (mpvSentence: string, noteFields: Record<string, string>) => string;
   setCardTypeFields: (
     updatedFields: Record<string, string>,
     availableFieldNames: string[],
     cardKind: CardKind,
   ) => void;
-  mergeFieldValue: (
-    existing: string,
-    newValue: string,
-    overwrite: boolean,
-  ) => string;
-  formatMiscInfoPattern: (
-    fallbackFilename: string,
-    startTimeSeconds?: number,
-  ) => string;
+  mergeFieldValue: (existing: string, newValue: string, overwrite: boolean) => string;
+  formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
   getEffectiveSentenceCardConfig: () => {
     model?: string;
     sentenceField: string;
     audioField: string;
     lapisEnabled: boolean;
     kikuEnabled: boolean;
-    kikuFieldGrouping: "auto" | "manual" | "disabled";
+    kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
     kikuDeleteDuplicateInAuto: boolean;
   };
   getFallbackDurationSeconds: () => number;
@@ -136,13 +104,13 @@ export class CardCreationService {
   async updateLastAddedFromClipboard(clipboardText: string): Promise<void> {
     try {
       if (!clipboardText || !clipboardText.trim()) {
-        this.deps.showOsdNotification("Clipboard is empty");
+        this.deps.showOsdNotification('Clipboard is empty');
         return;
       }
 
       const mpvClient = this.deps.getMpvClient();
       if (!mpvClient || !mpvClient.currentVideoPath) {
-        this.deps.showOsdNotification("No video loaded");
+        this.deps.showOsdNotification('No video loaded');
         return;
       }
 
@@ -152,7 +120,7 @@ export class CardCreationService {
         .filter((block) => block.length > 0);
 
       if (blocks.length === 0) {
-        this.deps.showOsdNotification("No subtitle blocks found in clipboard");
+        this.deps.showOsdNotification('No subtitle blocks found in clipboard');
         return;
       }
 
@@ -166,17 +134,14 @@ export class CardCreationService {
       }
 
       if (timings.length === 0) {
-        this.deps.showOsdNotification(
-          "Subtitle timing not found; copy again while playing",
-        );
+        this.deps.showOsdNotification('Subtitle timing not found; copy again while playing');
         return;
       }
 
       const rangeStart = Math.min(...timings.map((entry) => entry.startTime));
       let rangeEnd = Math.max(...timings.map((entry) => entry.endTime));
 
-      const maxMediaDuration =
-        this.deps.getConfig().media?.maxMediaDuration ?? 30;
+      const maxMediaDuration = this.deps.getConfig().media?.maxMediaDuration ?? 30;
       if (maxMediaDuration > 0 && rangeEnd - rangeStart > maxMediaDuration) {
         log.warn(
           `Media range ${(rangeEnd - rangeStart).toFixed(1)}s exceeds cap of ${maxMediaDuration}s, clamping`,
@@ -184,18 +149,18 @@ export class CardCreationService {
         rangeEnd = rangeStart + maxMediaDuration;
       }
 
-      this.deps.showOsdNotification("Updating card from clipboard...");
-      this.deps.beginUpdateProgress("Updating card from clipboard");
+      this.deps.showOsdNotification('Updating card from clipboard...');
+      this.deps.beginUpdateProgress('Updating card from clipboard');
       this.deps.setUpdateInProgress(true);
 
       try {
         const deck = this.deps.getDeck?.() ?? this.deps.getConfig().deck;
-        const query = deck ? `"deck:${deck}" added:1` : "added:1";
+        const query = deck ? `"deck:${deck}" added:1` : 'added:1';
         const noteIds = (await this.deps.client.findNotes(query, {
           maxRetries: 0,
         })) as number[];
         if (!noteIds || noteIds.length === 0) {
-          this.deps.showOsdNotification("No recently added cards found");
+          this.deps.showOsdNotification('No recently added cards found');
           return;
         }
 
@@ -204,19 +169,17 @@ export class CardCreationService {
           noteId,
         ])) as CardCreationNoteInfo[];
         if (!notesInfoResult || notesInfoResult.length === 0) {
-          this.deps.showOsdNotification("Card not found");
+          this.deps.showOsdNotification('Card not found');
           return;
         }
 
         const noteInfo = notesInfoResult[0];
         const fields = this.deps.extractFields(noteInfo.fields);
-        const expressionText = fields.expression || fields.word || "";
-        const sentenceAudioField =
-          this.getResolvedSentenceAudioFieldName(noteInfo);
-        const sentenceField =
-          this.deps.getEffectiveSentenceCardConfig().sentenceField;
+        const expressionText = fields.expression || fields.word || '';
+        const sentenceAudioField = this.getResolvedSentenceAudioFieldName(noteInfo);
+        const sentenceField = this.deps.getEffectiveSentenceCardConfig().sentenceField;
 
-        const sentence = blocks.join(" ");
+        const sentence = blocks.join(' ');
         const updatedFields: Record<string, string> = {};
         let updatePerformed = false;
         const errors: string[] = [];
@@ -244,8 +207,7 @@ export class CardCreationService {
             if (audioBuffer) {
               await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
               if (sentenceAudioField) {
-                const existingAudio =
-                  noteInfo.fields[sentenceAudioField]?.value || "";
+                const existingAudio = noteInfo.fields[sentenceAudioField]?.value || '';
                 updatedFields[sentenceAudioField] = this.deps.mergeFieldValue(
                   existingAudio,
                   `[sound:${audioFilename}]`,
@@ -256,8 +218,8 @@ export class CardCreationService {
               updatePerformed = true;
             }
           } catch (error) {
-            log.error("Failed to generate audio:", (error as Error).message);
-            errors.push("audio");
+            log.error('Failed to generate audio:', (error as Error).message);
+            errors.push('audio');
           }
         }
 
@@ -278,12 +240,9 @@ export class CardCreationService {
                 DEFAULT_ANKI_CONNECT_CONFIG.fields.image,
               );
               if (!imageFieldName) {
-                log.warn(
-                  "Image field not found on note, skipping image update",
-                );
+                log.warn('Image field not found on note, skipping image update');
               } else {
-                const existingImage =
-                  noteInfo.fields[imageFieldName]?.value || "";
+                const existingImage = noteInfo.fields[imageFieldName]?.value || '';
                 updatedFields[imageFieldName] = this.deps.mergeFieldValue(
                   existingImage,
                   `<img src="${imageFilename}">`,
@@ -294,16 +253,13 @@ export class CardCreationService {
               }
             }
           } catch (error) {
-            log.error("Failed to generate image:", (error as Error).message);
-            errors.push("image");
+            log.error('Failed to generate image:', (error as Error).message);
+            errors.push('image');
           }
         }
 
         if (this.deps.getConfig().fields?.miscInfo) {
-          const miscInfo = this.deps.formatMiscInfoPattern(
-            miscInfoFilename || "",
-            rangeStart,
-          );
+          const miscInfo = this.deps.formatMiscInfoPattern(miscInfoFilename || '', rangeStart);
           const miscInfoField = this.deps.resolveConfiguredFieldName(
             noteInfo,
             this.deps.getConfig().fields?.miscInfo,
@@ -317,9 +273,8 @@ export class CardCreationService {
         if (updatePerformed) {
           await this.deps.client.updateNoteFields(noteId, updatedFields);
           const label = expressionText || noteId;
-          log.info("Updated card from clipboard:", label);
-          const errorSuffix =
-            errors.length > 0 ? `${errors.join(", ")} failed` : undefined;
+          log.info('Updated card from clipboard:', label);
+          const errorSuffix = errors.length > 0 ? `${errors.join(', ')} failed` : undefined;
           await this.deps.showNotification(noteId, label, errorSuffix);
         }
       } finally {
@@ -327,31 +282,26 @@ export class CardCreationService {
         this.deps.endUpdateProgress();
       }
     } catch (error) {
-      log.error(
-        "Error updating card from clipboard:",
-        (error as Error).message,
-      );
-      this.deps.showOsdNotification(
-        `Update failed: ${(error as Error).message}`,
-      );
+      log.error('Error updating card from clipboard:', (error as Error).message);
+      this.deps.showOsdNotification(`Update failed: ${(error as Error).message}`);
     }
   }
 
   async markLastCardAsAudioCard(): Promise<void> {
     if (this.deps.isUpdateInProgress()) {
-      this.deps.showOsdNotification("Anki update already in progress");
+      this.deps.showOsdNotification('Anki update already in progress');
       return;
     }
 
     try {
       const mpvClient = this.deps.getMpvClient();
       if (!mpvClient || !mpvClient.currentVideoPath) {
-        this.deps.showOsdNotification("No video loaded");
+        this.deps.showOsdNotification('No video loaded');
         return;
       }
 
       if (!mpvClient.currentSubText) {
-        this.deps.showOsdNotification("No current subtitle");
+        this.deps.showOsdNotification('No current subtitle');
         return;
       }
 
@@ -365,19 +315,18 @@ export class CardCreationService {
         endTime = currentTime + fallback;
       }
 
-      const maxMediaDuration =
-        this.deps.getConfig().media?.maxMediaDuration ?? 30;
+      const maxMediaDuration = this.deps.getConfig().media?.maxMediaDuration ?? 30;
       if (maxMediaDuration > 0 && endTime - startTime > maxMediaDuration) {
         endTime = startTime + maxMediaDuration;
       }
 
-      this.deps.showOsdNotification("Marking card as audio card...");
-      await this.deps.withUpdateProgress("Marking audio card", async () => {
+      this.deps.showOsdNotification('Marking card as audio card...');
+      await this.deps.withUpdateProgress('Marking audio card', async () => {
         const deck = this.deps.getDeck?.() ?? this.deps.getConfig().deck;
-        const query = deck ? `"deck:${deck}" added:1` : "added:1";
+        const query = deck ? `"deck:${deck}" added:1` : 'added:1';
         const noteIds = (await this.deps.client.findNotes(query)) as number[];
         if (!noteIds || noteIds.length === 0) {
-          this.deps.showOsdNotification("No recently added cards found");
+          this.deps.showOsdNotification('No recently added cards found');
           return;
         }
 
@@ -386,30 +335,23 @@ export class CardCreationService {
           noteId,
         ])) as CardCreationNoteInfo[];
         if (!notesInfoResult || notesInfoResult.length === 0) {
-          this.deps.showOsdNotification("Card not found");
+          this.deps.showOsdNotification('Card not found');
           return;
         }
 
         const noteInfo = notesInfoResult[0];
         const fields = this.deps.extractFields(noteInfo.fields);
-        const expressionText = fields.expression || fields.word || "";
+        const expressionText = fields.expression || fields.word || '';
 
         const updatedFields: Record<string, string> = {};
         const errors: string[] = [];
         let miscInfoFilename: string | null = null;
 
-        this.deps.setCardTypeFields(
-          updatedFields,
-          Object.keys(noteInfo.fields),
-          "audio",
-        );
+        this.deps.setCardTypeFields(updatedFields, Object.keys(noteInfo.fields), 'audio');
 
         const sentenceField = this.deps.getConfig().fields?.sentence;
         if (sentenceField) {
-          const processedSentence = this.deps.processSentence(
-            mpvClient.currentSubText,
-            fields,
-          );
+          const processedSentence = this.deps.processSentence(mpvClient.currentSubText, fields);
           updatedFields[sentenceField] = processedSentence;
         }
 
@@ -429,11 +371,8 @@ export class CardCreationService {
             miscInfoFilename = audioFilename;
           }
         } catch (error) {
-          log.error(
-            "Failed to generate audio for audio card:",
-            (error as Error).message,
-          );
-          errors.push("audio");
+          log.error('Failed to generate audio for audio card:', (error as Error).message);
+          errors.push('audio');
         }
 
         if (this.deps.getConfig().media?.generateImage) {
@@ -452,19 +391,13 @@ export class CardCreationService {
               miscInfoFilename = imageFilename;
             }
           } catch (error) {
-            log.error(
-              "Failed to generate image for audio card:",
-              (error as Error).message,
-            );
-            errors.push("image");
+            log.error('Failed to generate image for audio card:', (error as Error).message);
+            errors.push('image');
           }
         }
 
         if (this.deps.getConfig().fields?.miscInfo) {
-          const miscInfo = this.deps.formatMiscInfoPattern(
-            miscInfoFilename || "",
-            startTime,
-          );
+          const miscInfo = this.deps.formatMiscInfoPattern(miscInfoFilename || '', startTime);
           const miscInfoField = this.deps.resolveConfiguredFieldName(
             noteInfo,
             this.deps.getConfig().fields?.miscInfo,
@@ -476,16 +409,13 @@ export class CardCreationService {
 
         await this.deps.client.updateNoteFields(noteId, updatedFields);
         const label = expressionText || noteId;
-        log.info("Marked card as audio card:", label);
-        const errorSuffix =
-          errors.length > 0 ? `${errors.join(", ")} failed` : undefined;
+        log.info('Marked card as audio card:', label);
+        const errorSuffix = errors.length > 0 ? `${errors.join(', ')} failed` : undefined;
         await this.deps.showNotification(noteId, label, errorSuffix);
       });
     } catch (error) {
-      log.error("Error marking card as audio card:", (error as Error).message);
-      this.deps.showOsdNotification(
-        `Audio card failed: ${(error as Error).message}`,
-      );
+      log.error('Error marking card as audio card:', (error as Error).message);
+      this.deps.showOsdNotification(`Audio card failed: ${(error as Error).message}`);
     }
   }
 
@@ -496,25 +426,24 @@ export class CardCreationService {
     secondarySubText?: string,
   ): Promise<boolean> {
     if (this.deps.isUpdateInProgress()) {
-      this.deps.showOsdNotification("Anki update already in progress");
+      this.deps.showOsdNotification('Anki update already in progress');
       return false;
     }
 
     const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
     const sentenceCardModel = sentenceCardConfig.model;
     if (!sentenceCardModel) {
-      this.deps.showOsdNotification("sentenceCardModel not configured");
+      this.deps.showOsdNotification('sentenceCardModel not configured');
       return false;
     }
 
     const mpvClient = this.deps.getMpvClient();
     if (!mpvClient || !mpvClient.currentVideoPath) {
-      this.deps.showOsdNotification("No video loaded");
+      this.deps.showOsdNotification('No video loaded');
       return false;
     }
 
-    const maxMediaDuration =
-      this.deps.getConfig().media?.maxMediaDuration ?? 30;
+    const maxMediaDuration = this.deps.getConfig().media?.maxMediaDuration ?? 30;
     if (maxMediaDuration > 0 && endTime - startTime > maxMediaDuration) {
       log.warn(
         `Sentence card media range ${(endTime - startTime).toFixed(1)}s exceeds cap of ${maxMediaDuration}s, clamping`,
@@ -522,213 +451,158 @@ export class CardCreationService {
       endTime = startTime + maxMediaDuration;
     }
 
-    this.deps.showOsdNotification("Creating sentence card...");
+    this.deps.showOsdNotification('Creating sentence card...');
     try {
-      return await this.deps.withUpdateProgress(
-        "Creating sentence card",
-        async () => {
-          const videoPath = mpvClient.currentVideoPath;
-          const fields: Record<string, string> = {};
-          const errors: string[] = [];
-          let miscInfoFilename: string | null = null;
+      return await this.deps.withUpdateProgress('Creating sentence card', async () => {
+        const videoPath = mpvClient.currentVideoPath;
+        const fields: Record<string, string> = {};
+        const errors: string[] = [];
+        let miscInfoFilename: string | null = null;
 
-          const sentenceField = sentenceCardConfig.sentenceField;
-          const audioFieldName =
-            sentenceCardConfig.audioField || "SentenceAudio";
-          const translationField =
-            this.deps.getConfig().fields?.translation || "SelectionText";
-          let resolvedMiscInfoField: string | null = null;
-          let resolvedSentenceAudioField: string = audioFieldName;
-          let resolvedExpressionAudioField: string | null = null;
+        const sentenceField = sentenceCardConfig.sentenceField;
+        const audioFieldName = sentenceCardConfig.audioField || 'SentenceAudio';
+        const translationField = this.deps.getConfig().fields?.translation || 'SelectionText';
+        let resolvedMiscInfoField: string | null = null;
+        let resolvedSentenceAudioField: string = audioFieldName;
+        let resolvedExpressionAudioField: string | null = null;
 
-          fields[sentenceField] = sentence;
+        fields[sentenceField] = sentence;
 
-          const backText = await resolveSentenceBackText(
-            {
-              sentence,
-              secondarySubText,
-              config: this.deps.getConfig().ai || {},
-            },
-            {
-              logWarning: (message: string) => log.warn(message),
-            },
-          );
-          if (backText) {
-            fields[translationField] = backText;
+        const backText = await resolveSentenceBackText(
+          {
+            sentence,
+            secondarySubText,
+            config: this.deps.getConfig().ai || {},
+          },
+          {
+            logWarning: (message: string) => log.warn(message),
+          },
+        );
+        if (backText) {
+          fields[translationField] = backText;
+        }
+
+        if (sentenceCardConfig.lapisEnabled || sentenceCardConfig.kikuEnabled) {
+          fields.IsSentenceCard = 'x';
+          fields.Expression = sentence;
+        }
+
+        const deck = this.deps.getConfig().deck || 'Default';
+        let noteId: number;
+        try {
+          noteId = await this.deps.client.addNote(deck, sentenceCardModel, fields);
+          log.info('Created sentence card:', noteId);
+          this.deps.trackLastAddedNoteId?.(noteId);
+        } catch (error) {
+          log.error('Failed to create sentence card:', (error as Error).message);
+          this.deps.showOsdNotification(`Sentence card failed: ${(error as Error).message}`);
+          return false;
+        }
+
+        try {
+          const noteInfoResult = await this.deps.client.notesInfo([noteId]);
+          const noteInfos = noteInfoResult as CardCreationNoteInfo[];
+          if (noteInfos.length > 0) {
+            const createdNoteInfo = noteInfos[0];
+            this.deps.appendKnownWordsFromNoteInfo(createdNoteInfo);
+            resolvedSentenceAudioField =
+              this.deps.resolveNoteFieldName(createdNoteInfo, audioFieldName) || audioFieldName;
+            resolvedExpressionAudioField = this.deps.resolveConfiguredFieldName(
+              createdNoteInfo,
+              this.deps.getConfig().fields?.audio || 'ExpressionAudio',
+            );
+            resolvedMiscInfoField = this.deps.resolveConfiguredFieldName(
+              createdNoteInfo,
+              this.deps.getConfig().fields?.miscInfo,
+            );
+
+            const cardTypeFields: Record<string, string> = {};
+            this.deps.setCardTypeFields(
+              cardTypeFields,
+              Object.keys(createdNoteInfo.fields),
+              'sentence',
+            );
+            if (Object.keys(cardTypeFields).length > 0) {
+              await this.deps.client.updateNoteFields(noteId, cardTypeFields);
+            }
           }
+        } catch (error) {
+          log.error('Failed to normalize sentence card type fields:', (error as Error).message);
+          errors.push('card type fields');
+        }
 
-          if (
-            sentenceCardConfig.lapisEnabled ||
-            sentenceCardConfig.kikuEnabled
-          ) {
-            fields.IsSentenceCard = "x";
-            fields.Expression = sentence;
+        const mediaFields: Record<string, string> = {};
+
+        try {
+          const audioFilename = this.generateAudioFilename();
+          const audioBuffer = await this.mediaGenerateAudio(videoPath, startTime, endTime);
+
+          if (audioBuffer) {
+            await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
+            const audioValue = `[sound:${audioFilename}]`;
+            mediaFields[resolvedSentenceAudioField] = audioValue;
+            if (
+              resolvedExpressionAudioField &&
+              resolvedExpressionAudioField !== resolvedSentenceAudioField
+            ) {
+              mediaFields[resolvedExpressionAudioField] = audioValue;
+            }
+            miscInfoFilename = audioFilename;
           }
+        } catch (error) {
+          log.error('Failed to generate sentence audio:', (error as Error).message);
+          errors.push('audio');
+        }
 
-          const deck = this.deps.getConfig().deck || "Default";
-          let noteId: number;
+        try {
+          const imageFilename = this.generateImageFilename();
+          const imageBuffer = await this.generateImageBuffer(videoPath, startTime, endTime);
+
+          const imageField = this.deps.getConfig().fields?.image;
+          if (imageBuffer && imageField) {
+            await this.deps.client.storeMediaFile(imageFilename, imageBuffer);
+            mediaFields[imageField] = `<img src="${imageFilename}">`;
+            miscInfoFilename = imageFilename;
+          }
+        } catch (error) {
+          log.error('Failed to generate sentence image:', (error as Error).message);
+          errors.push('image');
+        }
+
+        if (this.deps.getConfig().fields?.miscInfo) {
+          const miscInfo = this.deps.formatMiscInfoPattern(miscInfoFilename || '', startTime);
+          if (miscInfo && resolvedMiscInfoField) {
+            mediaFields[resolvedMiscInfoField] = miscInfo;
+          }
+        }
+
+        if (Object.keys(mediaFields).length > 0) {
           try {
-            noteId = await this.deps.client.addNote(
-              deck,
-              sentenceCardModel,
-              fields,
-            );
-            log.info("Created sentence card:", noteId);
-            this.deps.trackLastAddedNoteId?.(noteId);
+            await this.deps.client.updateNoteFields(noteId, mediaFields);
           } catch (error) {
-            log.error(
-              "Failed to create sentence card:",
-              (error as Error).message,
-            );
-            this.deps.showOsdNotification(
-              `Sentence card failed: ${(error as Error).message}`,
-            );
-            return false;
+            log.error('Failed to update sentence card media:', (error as Error).message);
+            errors.push('media update');
           }
+        }
 
-          try {
-            const noteInfoResult = await this.deps.client.notesInfo([noteId]);
-            const noteInfos = noteInfoResult as CardCreationNoteInfo[];
-            if (noteInfos.length > 0) {
-              const createdNoteInfo = noteInfos[0];
-              this.deps.appendKnownWordsFromNoteInfo(createdNoteInfo);
-              resolvedSentenceAudioField =
-                this.deps.resolveNoteFieldName(
-                  createdNoteInfo,
-                  audioFieldName,
-                ) || audioFieldName;
-              resolvedExpressionAudioField =
-                this.deps.resolveConfiguredFieldName(
-                  createdNoteInfo,
-                  this.deps.getConfig().fields?.audio || "ExpressionAudio",
-                );
-              resolvedMiscInfoField = this.deps.resolveConfiguredFieldName(
-                createdNoteInfo,
-                this.deps.getConfig().fields?.miscInfo,
-              );
-
-              const cardTypeFields: Record<string, string> = {};
-              this.deps.setCardTypeFields(
-                cardTypeFields,
-                Object.keys(createdNoteInfo.fields),
-                "sentence",
-              );
-              if (Object.keys(cardTypeFields).length > 0) {
-                await this.deps.client.updateNoteFields(noteId, cardTypeFields);
-              }
-            }
-          } catch (error) {
-            log.error(
-              "Failed to normalize sentence card type fields:",
-              (error as Error).message,
-            );
-            errors.push("card type fields");
-          }
-
-          const mediaFields: Record<string, string> = {};
-
-          try {
-            const audioFilename = this.generateAudioFilename();
-            const audioBuffer = await this.mediaGenerateAudio(
-              videoPath,
-              startTime,
-              endTime,
-            );
-
-            if (audioBuffer) {
-              await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
-              const audioValue = `[sound:${audioFilename}]`;
-              mediaFields[resolvedSentenceAudioField] = audioValue;
-              if (
-                resolvedExpressionAudioField &&
-                resolvedExpressionAudioField !== resolvedSentenceAudioField
-              ) {
-                mediaFields[resolvedExpressionAudioField] = audioValue;
-              }
-              miscInfoFilename = audioFilename;
-            }
-          } catch (error) {
-            log.error(
-              "Failed to generate sentence audio:",
-              (error as Error).message,
-            );
-            errors.push("audio");
-          }
-
-          try {
-            const imageFilename = this.generateImageFilename();
-            const imageBuffer = await this.generateImageBuffer(
-              videoPath,
-              startTime,
-              endTime,
-            );
-
-            const imageField = this.deps.getConfig().fields?.image;
-            if (imageBuffer && imageField) {
-              await this.deps.client.storeMediaFile(imageFilename, imageBuffer);
-              mediaFields[imageField] = `<img src="${imageFilename}">`;
-              miscInfoFilename = imageFilename;
-            }
-          } catch (error) {
-            log.error(
-              "Failed to generate sentence image:",
-              (error as Error).message,
-            );
-            errors.push("image");
-          }
-
-          if (this.deps.getConfig().fields?.miscInfo) {
-            const miscInfo = this.deps.formatMiscInfoPattern(
-              miscInfoFilename || "",
-              startTime,
-            );
-            if (miscInfo && resolvedMiscInfoField) {
-              mediaFields[resolvedMiscInfoField] = miscInfo;
-            }
-          }
-
-          if (Object.keys(mediaFields).length > 0) {
-            try {
-              await this.deps.client.updateNoteFields(noteId, mediaFields);
-            } catch (error) {
-              log.error(
-                "Failed to update sentence card media:",
-                (error as Error).message,
-              );
-              errors.push("media update");
-            }
-          }
-
-          const label =
-            sentence.length > 30 ? sentence.substring(0, 30) + "..." : sentence;
-          const errorSuffix =
-            errors.length > 0 ? `${errors.join(", ")} failed` : undefined;
-          await this.deps.showNotification(noteId, label, errorSuffix);
-          return true;
-        },
-      );
+        const label = sentence.length > 30 ? sentence.substring(0, 30) + '...' : sentence;
+        const errorSuffix = errors.length > 0 ? `${errors.join(', ')} failed` : undefined;
+        await this.deps.showNotification(noteId, label, errorSuffix);
+        return true;
+      });
     } catch (error) {
-      log.error("Error creating sentence card:", (error as Error).message);
-      this.deps.showOsdNotification(
-        `Sentence card failed: ${(error as Error).message}`,
-      );
+      log.error('Error creating sentence card:', (error as Error).message);
+      this.deps.showOsdNotification(`Sentence card failed: ${(error as Error).message}`);
       return false;
     }
   }
 
-  private getResolvedSentenceAudioFieldName(
-    noteInfo: CardCreationNoteInfo,
-  ): string | null {
+  private getResolvedSentenceAudioFieldName(noteInfo: CardCreationNoteInfo): string | null {
     return (
       this.deps.resolveNoteFieldName(
         noteInfo,
-        this.deps.getEffectiveSentenceCardConfig().audioField ||
-          "SentenceAudio",
-      ) ||
-      this.deps.resolveConfiguredFieldName(
-        noteInfo,
-        this.deps.getConfig().fields?.audio,
-      )
+        this.deps.getEffectiveSentenceCardConfig().audioField || 'SentenceAudio',
+      ) || this.deps.resolveConfiguredFieldName(noteInfo, this.deps.getConfig().fields?.audio)
     );
   }
 
@@ -763,7 +637,7 @@ export class CardCreationService {
 
     const timestamp = mpvClient.currentTimePos || 0;
 
-    if (this.deps.getConfig().media?.imageType === "avif") {
+    if (this.deps.getConfig().media?.imageType === 'avif') {
       let imageStart = startTime;
       let imageEnd = endTime;
 
@@ -788,10 +662,7 @@ export class CardCreationService {
     }
 
     return this.deps.mediaGenerator.generateScreenshot(videoPath, timestamp, {
-      format: this.deps.getConfig().media?.imageFormat as
-        | "jpg"
-        | "png"
-        | "webp",
+      format: this.deps.getConfig().media?.imageFormat as 'jpg' | 'png' | 'webp',
       quality: this.deps.getConfig().media?.imageQuality,
       maxWidth: this.deps.getConfig().media?.imageMaxWidth,
       maxHeight: this.deps.getConfig().media?.imageMaxHeight,
@@ -806,8 +677,8 @@ export class CardCreationService {
   private generateImageFilename(): string {
     const timestamp = Date.now();
     const ext =
-      this.deps.getConfig().media?.imageType === "avif"
-        ? "avif"
+      this.deps.getConfig().media?.imageType === 'avif'
+        ? 'avif'
         : this.deps.getConfig().media?.imageFormat;
     return `image_${timestamp}.${ext}`;
   }

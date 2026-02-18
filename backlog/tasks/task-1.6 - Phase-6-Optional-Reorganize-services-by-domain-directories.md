@@ -17,11 +17,15 @@ ordinal: 4000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 If service flattening remains hard to navigate after Phases 1-5, optionally move modules into domain-based folders and update imports.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 A clear go/no-go decision for domain restructuring is documented based on post-phase-5 codebase state.
 - [ ] #2 If executed, service modules are reorganized into domain folders with no import or runtime breakage.
 - [x] #3 Build and core test commands pass after any directory reorganization.
@@ -30,6 +34,7 @@ If service flattening remains hard to navigate after Phases 1-5, optionally move
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
+
 1. Assess post-phase-5 directory complexity and determine whether domain reorganization is still justified.
 2. If complexity remains acceptable, record a no-go decision and keep current structure stable.
 3. If complexity is still problematic, perform import-safe domain reorganization and re-run build/tests.
@@ -38,9 +43,11 @@ If service flattening remains hard to navigate after Phases 1-5, optionally move
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Decision: no-go on Phase 6 directory reorganization for now. After Phases 1-5, service/module consolidation and test expansion have improved maintainability without introducing a high-risk import churn.
 
 Rationale: preserving path stability now reduces regression risk while Phase 4 smoke validation remains open and large refactor commits are still stabilizing.
 
 Verification baseline remains green (`pnpm run test:core`) with current structure.
+
 <!-- SECTION:NOTES:END -->

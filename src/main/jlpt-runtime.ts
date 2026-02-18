@@ -1,7 +1,7 @@
-import * as path from "path";
-import type { JlptLevel } from "../types";
+import * as path from 'path';
+import type { JlptLevel } from '../types';
 
-import { createJlptVocabularyLookup } from "../core/services";
+import { createJlptVocabularyLookup } from '../core/services';
 
 export interface JlptDictionarySearchPathDeps {
   getDictionaryRoots: () => string[];
@@ -19,16 +19,14 @@ export interface JlptDictionaryRuntimeDeps {
 let jlptDictionaryLookupInitialized = false;
 let jlptDictionaryLookupInitialization: Promise<void> | null = null;
 
-export function getJlptDictionarySearchPaths(
-  deps: JlptDictionarySearchPathDeps,
-): string[] {
+export function getJlptDictionarySearchPaths(deps: JlptDictionarySearchPathDeps): string[] {
   const dictionaryRoots = deps.getDictionaryRoots();
 
   const searchPaths: string[] = [];
   for (const dictionaryRoot of dictionaryRoots) {
     searchPaths.push(dictionaryRoot);
-    searchPaths.push(path.join(dictionaryRoot, "vendor", "yomitan-jlpt-vocab"));
-    searchPaths.push(path.join(dictionaryRoot, "yomitan-jlpt-vocab"));
+    searchPaths.push(path.join(dictionaryRoot, 'vendor', 'yomitan-jlpt-vocab'));
+    searchPaths.push(path.join(dictionaryRoot, 'yomitan-jlpt-vocab'));
   }
 
   const uniquePaths = new Set<string>(searchPaths);
@@ -46,9 +44,7 @@ export async function initializeJlptDictionaryLookup(
   );
 }
 
-export async function ensureJlptDictionaryLookup(
-  deps: JlptDictionaryRuntimeDeps,
-): Promise<void> {
+export async function ensureJlptDictionaryLookup(deps: JlptDictionaryRuntimeDeps): Promise<void> {
   if (!deps.isJlptEnabled()) {
     return;
   }
@@ -68,9 +64,9 @@ export async function ensureJlptDictionaryLookup(
   await jlptDictionaryLookupInitialization;
 }
 
-export function createJlptDictionaryRuntimeService(
-  deps: JlptDictionaryRuntimeDeps,
-): { ensureJlptDictionaryLookup: () => Promise<void> } {
+export function createJlptDictionaryRuntimeService(deps: JlptDictionaryRuntimeDeps): {
+  ensureJlptDictionaryLookup: () => Promise<void>;
+} {
   return {
     ensureJlptDictionaryLookup: () => ensureJlptDictionaryLookup(deps),
   };

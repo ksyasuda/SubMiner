@@ -20,11 +20,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Drive TASK-31 to completion by collecting and documenting verification evidence for the remaining acceptance criteria (#2, #5, #6, #8), then update criterion status based on observed behavior and any explicit scope limits.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Authentication flow against a user-selected Jellyfin server is verified, including persisted/reused connection settings and token reuse behavior across restart.
 - [ ] #2 Direct-play-first behavior is verified for compatible media profiles, with evidence that attempt order matches expected policy.
 - [ ] #3 Transcoding fallback behavior is verified for incompatible media, including correct transcode parameter handoff to playback.

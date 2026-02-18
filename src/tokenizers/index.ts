@@ -1,5 +1,5 @@
-import { MecabTokenizer } from "../mecab-tokenizer";
-import { MecabStatus, Token } from "../types";
+import { MecabTokenizer } from '../mecab-tokenizer';
+import { MecabStatus, Token } from '../types';
 
 export interface TokenizerProvider {
   id: string;
@@ -13,10 +13,7 @@ type TokenizerProviderFactory = () => TokenizerProvider;
 
 const tokenizerProviderFactories = new Map<string, TokenizerProviderFactory>();
 
-export function registerTokenizerProvider(
-  id: string,
-  factory: TokenizerProviderFactory,
-): void {
+export function registerTokenizerProvider(id: string, factory: TokenizerProviderFactory): void {
   if (tokenizerProviderFactories.has(id)) {
     return;
   }
@@ -27,9 +24,7 @@ export function getRegisteredTokenizerProviderIds(): string[] {
   return Array.from(tokenizerProviderFactories.keys());
 }
 
-export function createTokenizerProvider(
-  id = "mecab",
-): TokenizerProvider | null {
+export function createTokenizerProvider(id = 'mecab'): TokenizerProvider | null {
   const factory = tokenizerProviderFactories.get(id);
   if (!factory) {
     return null;
@@ -38,10 +33,10 @@ export function createTokenizerProvider(
 }
 
 function registerDefaultTokenizerProviders(): void {
-  registerTokenizerProvider("mecab", () => {
+  registerTokenizerProvider('mecab', () => {
     const mecab = new MecabTokenizer();
     return {
-      id: "mecab",
+      id: 'mecab',
       checkAvailability: () => mecab.checkAvailability(),
       tokenize: (text: string) => mecab.tokenize(text),
       getStatus: () => mecab.getStatus(),

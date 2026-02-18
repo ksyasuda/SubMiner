@@ -1,5 +1,5 @@
-import { TokenizerProvider } from "../../tokenizers";
-import { Token } from "../../types";
+import { TokenizerProvider } from '../../tokenizers';
+import { Token } from '../../types';
 
 export async function tokenizeStage(
   tokenizerProvider: TokenizerProvider | null,

@@ -1,4 +1,4 @@
-import { AnkiIntegration } from "../../anki-integration";
+import { AnkiIntegration } from '../../anki-integration';
 import {
   AnkiConnectConfig,
   JimakuApiResponse,
@@ -8,14 +8,12 @@ import {
   JimakuMediaInfo,
   KikuFieldGroupingChoice,
   KikuFieldGroupingRequestData,
-} from "../../types";
-import { sortJimakuFiles } from "../../jimaku/utils";
-import type { AnkiJimakuIpcDeps } from "./anki-jimaku-ipc";
-import { createLogger } from "../../logger";
+} from '../../types';
+import { sortJimakuFiles } from '../../jimaku/utils';
+import type { AnkiJimakuIpcDeps } from './anki-jimaku-ipc';
+import { createLogger } from '../../logger';
 
-export type RegisterAnkiJimakuIpcRuntimeHandler = (
-  deps: AnkiJimakuIpcDeps,
-) => void;
+export type RegisterAnkiJimakuIpcRuntimeHandler = (deps: AnkiJimakuIpcDeps) => void;
 
 interface MpvClientLike {
   connected: boolean;
@@ -23,9 +21,7 @@ interface MpvClientLike {
 }
 
 interface RuntimeOptionsManagerLike {
-  getEffectiveAnkiConnectConfig: (
-    config?: AnkiConnectConfig,
-  ) => AnkiConnectConfig;
+  getEffectiveAnkiConnectConfig: (config?: AnkiConnectConfig) => AnkiConnectConfig;
 }
 
 interface SubtitleTimingTrackerLike {
@@ -41,20 +37,13 @@ export interface AnkiJimakuIpcRuntimeOptions {
   getAnkiIntegration: () => AnkiIntegration | null;
   setAnkiIntegration: (integration: AnkiIntegration | null) => void;
   getKnownWordCacheStatePath: () => string;
-  showDesktopNotification: (
-    title: string,
-    options: { body?: string; icon?: string },
-  ) => void;
+  showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   broadcastRuntimeOptionsChanged: () => void;
-  getFieldGroupingResolver: () =>
-    | ((choice: KikuFieldGroupingChoice) => void)
-    | null;
-  setFieldGroupingResolver: (
-    resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
-  ) => void;
+  getFieldGroupingResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
+  setFieldGroupingResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
   parseMediaInfo: (mediaPath: string | null) => JimakuMediaInfo;
   getCurrentMediaPath: () => string | null;
   jimakuFetchJson: <T>(
@@ -78,7 +67,7 @@ export interface AnkiJimakuIpcRuntimeOptions {
   >;
 }
 
-const logger = createLogger("main:anki-jimaku");
+const logger = createLogger('main:anki-jimaku');
 
 export function registerAnkiJimakuIpcRuntime(
   options: AnkiJimakuIpcRuntimeOptions,
@@ -95,9 +84,7 @@ export function registerAnkiJimakuIpcRuntime(
       if (enabled && !ankiIntegration && subtitleTimingTracker && mpvClient) {
         const runtimeOptionsManager = options.getRuntimeOptionsManager();
         const effectiveAnkiConfig = runtimeOptionsManager
-          ? runtimeOptionsManager.getEffectiveAnkiConnectConfig(
-              config.ankiConnect,
-            )
+          ? runtimeOptionsManager.getEffectiveAnkiConnectConfig(config.ankiConnect)
           : config.ankiConnect;
         const integration = new AnkiIntegration(
           effectiveAnkiConfig as never,
@@ -106,7 +93,7 @@ export function registerAnkiJimakuIpcRuntime(
           (text: string) => {
             if (mpvClient) {
               mpvClient.send({
-                command: ["show-text", text, "3000"],
+                command: ['show-text', text, '3000'],
               });
             }
           },
@@ -116,11 +103,11 @@ export function registerAnkiJimakuIpcRuntime(
         );
         integration.start();
         options.setAnkiIntegration(integration);
-        logger.info("AnkiConnect integration enabled");
+        logger.info('AnkiConnect integration enabled');
       } else if (!enabled && ankiIntegration) {
         ankiIntegration.destroy();
         options.setAnkiIntegration(null);
-        logger.info("AnkiConnect integration disabled");
+        logger.info('AnkiConnect integration disabled');
       }
 
       options.broadcastRuntimeOptionsChanged();
@@ -129,13 +116,13 @@ export function registerAnkiJimakuIpcRuntime(
       const subtitleTimingTracker = options.getSubtitleTimingTracker();
       if (subtitleTimingTracker) {
         subtitleTimingTracker.cleanup();
-        logger.info("AnkiConnect subtitle timing history cleared");
+        logger.info('AnkiConnect subtitle timing history cleared');
       }
     },
     refreshKnownWords: async () => {
       const integration = options.getAnkiIntegration();
       if (!integration) {
-        throw new Error("AnkiConnect integration not enabled");
+        throw new Error('AnkiConnect integration not enabled');
       }
       await integration.refreshKnownWordCache();
     },
@@ -149,7 +136,7 @@ export function registerAnkiJimakuIpcRuntime(
     buildKikuMergePreview: async (request) => {
       const integration = options.getAnkiIntegration();
       if (!integration) {
-        return { ok: false, error: "AnkiConnect integration not enabled" };
+        return { ok: false, error: 'AnkiConnect integration not enabled' };
       }
       return integration.buildFieldGroupingPreview(
         request.keepNoteId,
@@ -157,17 +144,13 @@ export function registerAnkiJimakuIpcRuntime(
         request.deleteDuplicate,
       );
     },
-    getJimakuMediaInfo: () =>
-      options.parseMediaInfo(options.getCurrentMediaPath()),
+    getJimakuMediaInfo: () => options.parseMediaInfo(options.getCurrentMediaPath()),
     searchJimakuEntries: async (query) => {
       logger.info(`[jimaku] search-entries query: "${query.query}"`);
-      const response = await options.jimakuFetchJson<JimakuEntry[]>(
-        "/api/entries/search",
-        {
-          anime: true,
-          query: query.query,
-        },
-      );
+      const response = await options.jimakuFetchJson<JimakuEntry[]>('/api/entries/search', {
+        anime: true,
+        query: query.query,
+      });
       if (!response.ok) return response;
       const maxResults = options.getJimakuMaxEntryResults();
       logger.info(
@@ -176,9 +159,7 @@ export function registerAnkiJimakuIpcRuntime(
       return { ok: true, data: response.data.slice(0, maxResults) };
     },
     listJimakuFiles: async (query) => {
-      logger.info(
-        `[jimaku] list-files entryId=${query.entryId} episode=${query.episode ?? "all"}`,
-      );
+      logger.info(`[jimaku] list-files entryId=${query.entryId} episode=${query.episode ?? 'all'}`);
       const response = await options.jimakuFetchJson<JimakuFileEntry[]>(
         `/api/entries/${query.entryId}/files`,
         {
@@ -186,22 +167,18 @@ export function registerAnkiJimakuIpcRuntime(
         },
       );
       if (!response.ok) return response;
-      const sorted = sortJimakuFiles(
-        response.data,
-        options.getJimakuLanguagePreference(),
-      );
+      const sorted = sortJimakuFiles(response.data, options.getJimakuLanguagePreference());
       logger.info(`[jimaku] list-files returned ${sorted.length} files`);
       return { ok: true, data: sorted };
     },
     resolveJimakuApiKey: () => options.resolveJimakuApiKey(),
     getCurrentMediaPath: () => options.getCurrentMediaPath(),
     isRemoteMediaPath: (mediaPath) => options.isRemoteMediaPath(mediaPath),
-    downloadToFile: (url, destPath, headers) =>
-      options.downloadToFile(url, destPath, headers),
+    downloadToFile: (url, destPath, headers) => options.downloadToFile(url, destPath, headers),
     onDownloadedSubtitle: (pathToSubtitle) => {
       const mpvClient = options.getMpvClient();
       if (mpvClient && mpvClient.connected) {
-        mpvClient.send({ command: ["sub-add", pathToSubtitle, "select"] });
+        mpvClient.send({ command: ['sub-add', pathToSubtitle, 'select'] });
       }
     },
   });

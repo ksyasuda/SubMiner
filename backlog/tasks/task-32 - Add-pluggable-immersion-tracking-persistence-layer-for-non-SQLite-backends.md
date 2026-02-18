@@ -19,32 +19,38 @@ priority: low
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 ## Scope
+
 Create a storage abstraction for immersion analytics so existing SQLite-first tracking can evolve to external backends (PostgreSQL/MySQL/other) without rewriting core analytics behavior.
 
 ## Backend portability and performance contract
+
 - Define a canonical interface that avoids SQL dialect leakage and returns stable query result shapes for session, video, and trend analytics.
 - Decouple all `TASK-28` persistence callers from raw SQLite access behind a repository/adapter boundary.
 - Keep domain model and query DTOs backend-agnostic; SQL specifics live in adapters.
 
 ## Target architecture
+
 - Add provider config: `storage.provider` default `sqlite`.
 - Use dependency injection/service factory to select adapter at startup.
 - Add adapter contract tests to validate `Session`, `Video`, `Telemetry`, `Event`, and `Rollup` operations behave identically across backends.
 - Include migration and rollout contract with compatibility/rollback notes.
 
 ## Numeric operational constraints to preserve (from TASK-28)
+
 - All adapters must support write batching (or equivalent) with flush cadence equivalent to 25 records or 500ms.
 - All adapters must enforce bounded in-memory write queue (default 1000 rows) and explicit overflow policy.
 - All adapters should preserve index/query shapes needed for ~150ms p95 read targets on session/video/time-window queries at ~1M events.
 - All adapters should support retention semantics equivalent to: events 7d, telemetry 30d, daily rollups 365d, monthly rollups 5y, and prune-on-startup + every 24h + idle vacuum schedule.
 
 ## Async and isolation constraint
+
 - Adapter API must support enqueue/write-queue semantics so tokenization/render loops never block on persistence.
 - Background worker owns DB I/O; storage adapter exposes non-blocking API surface to tracking pipeline.
 
-Acceptance Criteria:
---------------------------------------------------
+## Acceptance Criteria:
+
 - [ ] #1 Define a stable `ImmersionTrackingStore` interface covering session lifecycle, telemetry counters, event writes, and analytics queries (timeline, video stats, throughput, and streak/trend summaries).
 - [ ] #2 Implement a DI-bound storage repository that encapsulates all DB interaction behind the interface.
 - [ ] #3 Refactor `TASK-28`-related data writes/reads in the tracking pipeline to depend on the abstraction (not raw SQLite calls).
@@ -55,8 +61,8 @@ Acceptance Criteria:
 - [ ] #8 Expose retention and write profile defaults in backend contracts: 25 events/500ms batching, queue cap 1000, event payload cap 256B, overflow policy, and retention windows equivalent to TASK-28.
 - [ ] #9 Preserve performance contract semantics in adapters: query/index assumptions for sub-150ms p95 local reads on ~1M event scale and same read-path shapes as TASK-28.
 
-Definition of Done:
---------------------------------------------------
+## Definition of Done:
+
 - [ ] #1 Storage interface with required method signatures and query contracts is documented in code and backlog docs.
 - [ ] #2 Default SQLite adapter remains the primary implementation and passes existing/ planned immersion tracking expectations.
 - [ ] #3 Non-SQLite implementation path is explicitly represented in config and adapter scaffolding.
@@ -66,7 +72,9 @@ Definition of Done:
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Define a stable `ImmersionTrackingStore` interface covering session lifecycle, telemetry counters, event writes, and analytics queries (timeline, video stats, throughput, and streak/trend summaries).
 - [ ] #2 Implement a DI-bound storage repository that encapsulates all DB interaction behind the interface.
 - [ ] #3 Refactor `TASK-28`-related data writes/reads in the tracking pipeline to depend on the abstraction (not raw SQLite calls).
@@ -83,11 +91,15 @@ Definition of Done:
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Priority deferred from medium to low: this is premature until TASK-28 (SQLite tracking) ships and a concrete second backend need emerges. The SQLite-first design in TASK-28 already accounts for future portability via schema contracts and adapter boundaries. Revisit after TASK-28 has been in use.
+
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
+
 <!-- DOD:BEGIN -->
+
 - [ ] #1 Storage interface with required method signatures and query contracts is documented in code and backlog docs.
 - [ ] #2 Default SQLite adapter remains the primary implementation and passes existing/ planned immersion tracking expectations.
 - [ ] #3 Non-SQLite implementation path is explicitly represented in config and adapter scaffolding.

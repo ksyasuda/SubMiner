@@ -16,8 +16,8 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { execSync } from "child_process";
-import { BaseWindowTracker } from "./base-tracker";
+import { execSync } from 'child_process';
+import { BaseWindowTracker } from './base-tracker';
 
 interface SwayRect {
   x: number;
@@ -58,7 +58,7 @@ export class SwayWindowTracker extends BaseWindowTracker {
 
   private collectMpvWindows(node: SwayNode): SwayNode[] {
     const windows: SwayNode[] = [];
-    if (node.app_id === "mpv" || node.window_properties?.class === "mpv") {
+    if (node.app_id === 'mpv' || node.window_properties?.class === 'mpv') {
       windows.push(node);
     }
 
@@ -83,10 +83,7 @@ export class SwayWindowTracker extends BaseWindowTracker {
       return windows[0] || null;
     }
 
-    return (
-      windows.find((candidate) => this.isWindowForTargetSocket(candidate)) ||
-      null
-    );
+    return windows.find((candidate) => this.isWindowForTargetSocket(candidate)) || null;
   }
 
   private isWindowForTargetSocket(node: SwayNode): boolean {
@@ -107,14 +104,14 @@ export class SwayWindowTracker extends BaseWindowTracker {
 
   private getWindowCommandLine(pid: number): string | null {
     const commandLine = execSync(`ps -p ${pid} -o args=`, {
-      encoding: "utf-8",
+      encoding: 'utf-8',
     }).trim();
     return commandLine || null;
   }
 
   private pollGeometry(): void {
     try {
-      const output = execSync("swaymsg -t get_tree", { encoding: "utf-8" });
+      const output = execSync('swaymsg -t get_tree', { encoding: 'utf-8' });
       const tree: SwayNode = JSON.parse(output);
       const mpvWindow = this.findTargetSocketWindow(tree);
 

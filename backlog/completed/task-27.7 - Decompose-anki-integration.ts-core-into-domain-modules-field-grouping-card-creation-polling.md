@@ -25,21 +25,26 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 TASK-27.3 extracted leaf clusters (duplicate-detection 102 LOC, ai-translation 158 LOC, ui-feedback 107 LOC) but the core class remains at 2935 LOC. The heavy decomposition from the original TASK-27.3 plan was never executed.
 
 Remaining extractions from the original plan:
+
 1. **field-grouping** (~900 LOC) — `triggerFieldGroupingForLastAddedCard`, `applyFieldGrouping`, `computeFieldGroupingMergedFields`, `buildFieldGroupingPreview`, `performFieldGroupingMerge`, `handleFieldGroupingAuto`, `handleFieldGroupingManual`, plus ~15 span/parse/normalize helpers
 2. **card-creation** (~350 LOC) — `createSentenceCard`, `setCardTypeFields`, `extractFields`, `processSentence`, field resolution helpers
 3. **polling/lifecycle** (~250 LOC) — `start`, `stop`, `poll`, `pollOnce`, `processNewCard`
 
 Also consolidate the scattered extraction files into `src/anki-integration/`:
+
 - `src/anki-integration-duplicate.ts` → `src/anki-integration/duplicate.ts`
 - `src/anki-integration-ui-feedback.ts` → `src/anki-integration/ui-feedback.ts`
 - `src/anki-integration/ai.ts` (already there)
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 anki-integration.ts reduced below 800 LOC (facade + private state wiring only)
 - [ ] #2 Field-grouping cluster (~900 LOC) extracted as its own module under src/anki-integration/
 - [ ] #3 Card-creation and polling/lifecycle extracted as separate modules
@@ -51,5 +56,7 @@ Also consolidate the scattered extraction files into `src/anki-integration/`:
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Implemented and stabilized the anki-integration refactor + transport/protocol fixes needed to keep 27.7 moving: fixed MPV protocol sub-end timing behavior, corrected split-buffer test fixtures, added injectable mpv transport socket factory to eliminate readonly Socket monkey-patching, and resolved TypeScript strictness issues in card-creation path (typed notesInfo cast, option signature/field guards/audio stream index). Updated related tests and build outputs accordingly. Validation results: `bun run build` passes and targeted suites pass: `src/core/services/mpv-protocol.test.ts`, `src/core/services/mpv-transport.test.ts`, `src/anki-integration.test.ts` (16/16).
+
 <!-- SECTION:FINAL_SUMMARY:END -->

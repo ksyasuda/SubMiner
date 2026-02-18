@@ -1,11 +1,5 @@
-import {
-  KikuFieldGroupingChoice,
-  KikuFieldGroupingRequestData,
-} from "../../types";
-import {
-  createFieldGroupingCallbackRuntime,
-  sendToVisibleOverlayRuntime,
-} from "./overlay-bridge";
+import { KikuFieldGroupingChoice, KikuFieldGroupingRequestData } from '../../types';
+import { createFieldGroupingCallbackRuntime, sendToVisibleOverlayRuntime } from './overlay-bridge';
 
 interface WindowLike {
   isDestroyed: () => boolean;
@@ -21,9 +15,7 @@ export interface FieldGroupingOverlayRuntimeOptions<T extends string> {
   setVisibleOverlayVisible: (visible: boolean) => void;
   setInvisibleOverlayVisible: (visible: boolean) => void;
   getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
-  setResolver: (
-    resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
-  ) => void;
+  setResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
   getRestoreVisibleOverlayOnModalClose: () => Set<T>;
   sendToVisibleOverlay?: (
     channel: string,
@@ -59,8 +51,7 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
       channel,
       payload,
       restoreOnModalClose: runtimeOptions?.restoreOnModalClose,
-      restoreVisibleOverlayOnModalClose:
-        options.getRestoreVisibleOverlayOnModalClose(),
+      restoreVisibleOverlayOnModalClose: options.getRestoreVisibleOverlayOnModalClose(),
     });
   };
 

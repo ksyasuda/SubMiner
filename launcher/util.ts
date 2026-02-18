@@ -1,9 +1,9 @@
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import { spawn } from "node:child_process";
-import type { LogLevel, CommandExecOptions, CommandExecResult } from "./types.js";
-import { log } from "./log.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { spawn } from 'node:child_process';
+import type { LogLevel, CommandExecOptions, CommandExecResult } from './types.js';
+import { log } from './log.js';
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,7 +19,7 @@ export function isExecutable(filePath: string): boolean {
 }
 
 export function commandExists(command: string): boolean {
-  const pathEnv = process.env.PATH ?? "";
+  const pathEnv = process.env.PATH ?? '';
   for (const dir of pathEnv.split(path.delimiter)) {
     if (!dir) continue;
     const full = path.join(dir, command);
@@ -29,7 +29,7 @@ export function commandExists(command: string): boolean {
 }
 
 export function resolvePathMaybe(input: string): string {
-  if (input.startsWith("~")) {
+  if (input.startsWith('~')) {
     return path.join(os.homedir(), input.slice(1));
   }
   return input;
@@ -37,8 +37,8 @@ export function resolvePathMaybe(input: string): string {
 
 export function resolveBinaryPathCandidate(input: string): string {
   const trimmed = input.trim();
-  if (!trimmed) return "";
-  const unquoted = trimmed.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
+  if (!trimmed) return '';
+  const unquoted = trimmed.replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1');
   return resolvePathMaybe(unquoted);
 }
 
@@ -55,22 +55,19 @@ export function isUrlTarget(target: string): boolean {
 }
 
 export function isYoutubeTarget(target: string): boolean {
-  return (
-    /^ytsearch:/.test(target) ||
-    /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(target)
-  );
+  return /^ytsearch:/.test(target) || /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(target);
 }
 
 export function sanitizeToken(value: string): string {
   return String(value)
     .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 export function normalizeBasename(value: string, fallback: string): string {
-  const safe = sanitizeToken(value.replace(/[\\/]+/g, "-"));
+  const safe = sanitizeToken(value.replace(/[\\/]+/g, '-'));
   if (safe) return safe;
   const fallbackSafe = sanitizeToken(fallback);
   if (fallbackSafe) return fallbackSafe;
@@ -78,7 +75,10 @@ export function normalizeBasename(value: string, fallback: string): string {
 }
 
 export function normalizeLangCode(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '');
 }
 
 export function uniqueNormalizedLangCodes(values: string[]): string[] {
@@ -94,25 +94,15 @@ export function uniqueNormalizedLangCodes(values: string[]): string[] {
 }
 
 export function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function parseBoolLike(value: string): boolean | null {
   const normalized = value.trim().toLowerCase();
-  if (
-    normalized === "yes" ||
-    normalized === "true" ||
-    normalized === "1" ||
-    normalized === "on"
-  ) {
+  if (normalized === 'yes' || normalized === 'true' || normalized === '1' || normalized === 'on') {
     return true;
   }
-  if (
-    normalized === "no" ||
-    normalized === "false" ||
-    normalized === "0" ||
-    normalized === "off"
-  ) {
+  if (normalized === 'no' || normalized === 'false' || normalized === '0' || normalized === 'off') {
     return false;
   }
   return null;
@@ -120,7 +110,7 @@ export function parseBoolLike(value: string): boolean | null {
 
 export function inferWhisperLanguage(langCodes: string[], fallback: string): string {
   for (const lang of uniqueNormalizedLangCodes(langCodes)) {
-    if (lang === "jpn") return "ja";
+    if (lang === 'jpn') return 'ja';
     if (lang.length >= 2) return lang.slice(0, 2);
   }
   return fallback;
@@ -134,29 +124,29 @@ export function runExternalCommand(
 ): Promise<CommandExecResult> {
   const allowFailure = opts.allowFailure === true;
   const captureStdout = opts.captureStdout === true;
-  const configuredLogLevel = opts.logLevel ?? "info";
+  const configuredLogLevel = opts.logLevel ?? 'info';
   const commandLabel = opts.commandLabel || executable;
   const streamOutput = opts.streamOutput === true;
 
   return new Promise((resolve, reject) => {
-    log("debug", configuredLogLevel, `[${commandLabel}] spawn: ${executable} ${args.join(" ")}`);
+    log('debug', configuredLogLevel, `[${commandLabel}] spawn: ${executable} ${args.join(' ')}`);
     const child = spawn(executable, args, {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, ...opts.env },
     });
     childTracker?.add(child);
 
-    let stdout = "";
-    let stderr = "";
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
+    let stdout = '';
+    let stderr = '';
+    let stdoutBuffer = '';
+    let stderrBuffer = '';
     const flushLines = (
       buffer: string,
       level: LogLevel,
       sink: (remaining: string) => void,
     ): void => {
       const lines = buffer.split(/\r?\n/);
-      const remaining = lines.pop() ?? "";
+      const remaining = lines.pop() ?? '';
       for (const line of lines) {
         const trimmed = line.trim();
         if (trimmed.length > 0) {
@@ -166,56 +156,54 @@ export function runExternalCommand(
       sink(remaining);
     };
 
-    child.stdout.on("data", (chunk: Buffer) => {
+    child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       if (captureStdout) stdout += text;
       if (streamOutput) {
         stdoutBuffer += text;
-        flushLines(stdoutBuffer, "debug", (remaining) => {
+        flushLines(stdoutBuffer, 'debug', (remaining) => {
           stdoutBuffer = remaining;
         });
       }
     });
 
-    child.stderr.on("data", (chunk: Buffer) => {
+    child.stderr.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       stderr += text;
       if (streamOutput) {
         stderrBuffer += text;
-        flushLines(stderrBuffer, "debug", (remaining) => {
+        flushLines(stderrBuffer, 'debug', (remaining) => {
           stderrBuffer = remaining;
         });
       }
     });
 
-    child.on("error", (error) => {
+    child.on('error', (error) => {
       childTracker?.delete(child);
       reject(new Error(`Failed to start "${executable}": ${error.message}`));
     });
 
-    child.on("close", (code) => {
+    child.on('close', (code) => {
       childTracker?.delete(child);
       if (streamOutput) {
         const trailingOut = stdoutBuffer.trim();
         if (trailingOut.length > 0) {
-          log("debug", configuredLogLevel, `[${commandLabel}] ${trailingOut}`);
+          log('debug', configuredLogLevel, `[${commandLabel}] ${trailingOut}`);
         }
         const trailingErr = stderrBuffer.trim();
         if (trailingErr.length > 0) {
-          log("debug", configuredLogLevel, `[${commandLabel}] ${trailingErr}`);
+          log('debug', configuredLogLevel, `[${commandLabel}] ${trailingErr}`);
         }
       }
       log(
-        code === 0 ? "debug" : "warn",
+        code === 0 ? 'debug' : 'warn',
         configuredLogLevel,
         `[${commandLabel}] exit code ${code ?? 1}`,
       );
       if (code !== 0 && !allowFailure) {
-        const commandString = `${executable} ${args.join(" ")}`;
+        const commandString = `${executable} ${args.join(' ')}`;
         reject(
-          new Error(
-            `Command failed (${commandString}): ${stderr.trim() || `exit code ${code}`}`,
-          ),
+          new Error(`Command failed (${commandString}): ${stderr.trim() || `exit code ${code}`}`),
         );
         return;
       }

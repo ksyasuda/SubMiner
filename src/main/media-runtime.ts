@@ -1,6 +1,6 @@
-import { updateCurrentMediaPath } from "../core/services";
+import { updateCurrentMediaPath } from '../core/services';
 
-import type { SubtitlePosition } from "../types";
+import type { SubtitlePosition } from '../types';
 
 export interface MediaRuntimeDeps {
   isRemoteMediaPath: (mediaPath: string) => boolean;
@@ -22,12 +22,10 @@ export interface MediaRuntimeService {
   resolveMediaPathForJimaku: (mediaPath: string | null) => string | null;
 }
 
-export function createMediaRuntimeService(
-  deps: MediaRuntimeDeps,
-): MediaRuntimeService {
+export function createMediaRuntimeService(deps: MediaRuntimeDeps): MediaRuntimeService {
   return {
     updateCurrentMediaPath(mediaPath: unknown): void {
-      if (typeof mediaPath !== "string" || !deps.isRemoteMediaPath(mediaPath)) {
+      if (typeof mediaPath !== 'string' || !deps.isRemoteMediaPath(mediaPath)) {
         deps.setCurrentMediaTitle(null);
       }
 
@@ -53,7 +51,7 @@ export function createMediaRuntimeService(
     },
 
     updateCurrentMediaTitle(mediaTitle: unknown): void {
-      if (typeof mediaTitle === "string") {
+      if (typeof mediaTitle === 'string') {
         const sanitized = mediaTitle.trim();
         deps.setCurrentMediaTitle(sanitized.length > 0 ? sanitized : null);
         return;
@@ -62,9 +60,7 @@ export function createMediaRuntimeService(
     },
 
     resolveMediaPathForJimaku(mediaPath: string | null): string | null {
-      return mediaPath &&
-        deps.isRemoteMediaPath(mediaPath) &&
-        deps.getCurrentMediaTitle()
+      return mediaPath && deps.isRemoteMediaPath(mediaPath) && deps.getCurrentMediaTitle()
         ? deps.getCurrentMediaTitle()
         : mediaPath;
     },

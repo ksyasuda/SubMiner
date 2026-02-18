@@ -26,11 +26,15 @@ ordinal: 11000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Remove unused module-architecture scaffolding and IPC abstraction files identified as dead code, and clean service barrel exports that are not needed outside service internals.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Files under `src/core/{action-bus.ts,actions.ts,app-context.ts,module-registry.ts,module.ts}` are removed if unreferenced.
 - [x] #2 Unused `src/modules/` and `src/ipc/` scaffolding files are removed if unreferenced.
 - [x] #3 `src/core/services/index.ts` no longer exports symbols that are only consumed internally (`isGlobalShortcutRegisteredSafe`).
@@ -40,6 +44,7 @@ Remove unused module-architecture scaffolding and IPC abstraction files identifi
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
+
 1. Verify all candidate files are truly unreferenced in runtime/test paths.
 2. Delete dead scaffolding files and folders.
 3. Remove unnecessary service barrel exports and fix any import fallout.
@@ -49,11 +54,13 @@ Remove unused module-architecture scaffolding and IPC abstraction files identifi
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Removed unused scaffolding files from `src/core/`, `src/modules/`, and `src/ipc/` that were unreferenced by runtime code.
 
 Updated `src/core/services/index.ts` to stop re-exporting `isGlobalShortcutRegisteredSafe`, which is only used internally by service files.
 
 Verification:
+
 - `pnpm run build` passed
 - `pnpm run test:core` passed (18/18)
 <!-- SECTION:NOTES:END -->

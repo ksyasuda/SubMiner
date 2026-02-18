@@ -17,11 +17,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Improve the Aniyomi/anime extension streaming flow to prefer English-capable sources with soft subtitles, and automatically recover when only hard-subbed streams are available by stripping embedded subtitles with ffmpeg and attaching external Jimaku subtitle files into mpv.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 During source scoring/selection, prefer providers/sources that declare or expose soft subtitles for English audio or subtitle tracks over hard-subbed alternatives.
 - [ ] #2 Add a config option for preferred language targets (default English) and fallback policy (favor soft subtitles, then hard-sub fallback).
 - [ ] #3 Detect when a resolved stream is hard-sub-only and a soft-sub source is unavailable for the same episode.

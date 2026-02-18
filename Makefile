@@ -1,4 +1,4 @@
-.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-pnpm generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
+.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_FILE := subminer.rasi
@@ -54,7 +54,7 @@ help:
 		"  dev-toggle       Toggle overlay in a running local Electron app" \
 		"  dev-stop         Stop a running local Electron app" \
 		"  docs-dev         Run VitePress docs dev server" \
-		"  docs       Build VitePress static docs" \
+		"  docs            Build VitePress static docs" \
 		"  docs-preview     Preview built VitePress docs" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
 		"  install-macos    Install macOS wrapper/theme/app artifacts" \
@@ -90,15 +90,15 @@ print-dirs:
 		"MACOS_ZIP_SRC=$(MACOS_ZIP_SRC)"
 
 deps:
-	@$(MAKE) --no-print-directory ensure-pnpm
-	@pnpm install
-	@pnpm -C vendor/texthooker-ui install
+	@$(MAKE) --no-print-directory ensure-bun
+	@bun install
+	@cd vendor/texthooker-ui && bun install
 
-ensure-pnpm:
-	@command -v pnpm >/dev/null 2>&1 || { printf '%s\n' "[ERROR] pnpm not found"; exit 1; }
+ensure-bun:
+	@command -v bun >/dev/null 2>&1 || { printf '%s\n' "[ERROR] bun not found"; exit 1; }
 
-pretty:
-	@pnpm exec prettier --write 'src/**/*.ts'
+pretty: ensure-bun
+	@bun run format
 
 build:
 	@printf '%s\n' "[INFO] Detected platform: $(PLATFORM)"
@@ -118,23 +118,25 @@ install:
 
 build-linux: deps
 	@printf '%s\n' "[INFO] Building Linux package (AppImage)"
-	@pnpm -C vendor/texthooker-ui build
-	@pnpm run build:appimage
+	@cd vendor/texthooker-ui && bun run build
+	@bun run build:appimage
 
 build-macos: deps
 	@printf '%s\n' "[INFO] Building macOS package (DMG + ZIP)"
-	@pnpm -C vendor/texthooker-ui build
-	@pnpm run build:mac
+	@cd vendor/texthooker-ui && bun run build
+	@bun run build:mac
 
 build-macos-unsigned: deps
 	@printf '%s\n' "[INFO] Building macOS package (DMG + ZIP, unsigned)"
-	@pnpm -C vendor/texthooker-ui build
-	@pnpm run build:mac:unsigned
+	@cd vendor/texthooker-ui && bun run build
+	@bun run build:mac:unsigned
 
 build-launcher:
 	@printf '%s\n' "[INFO] Bundling launcher script"
 	@bun build ./launcher/main.ts --target=bun --packages=bundle --outfile=subminer
-	@python3 -c 'from pathlib import Path; p=Path("subminer"); c=p.read_text(); c=("#!/usr/bin/env bun\n"+c) if not c.startswith("#!/usr/bin/env bun\n") else c; p.write_text(c)'
+	@if ! head -1 subminer | grep -q '^#!/usr/bin/env bun'; then \
+		{ printf '#!/usr/bin/env bun\n'; cat subminer; } > subminer.tmp && mv subminer.tmp subminer; \
+	fi
 	@chmod +x subminer
 
 clean:
@@ -144,36 +146,36 @@ clean:
 	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
 	@rm -rf dist release
 
-generate-config: ensure-pnpm
-	@pnpm run build
-	@pnpm exec electron . --generate-config
+generate-config: ensure-bun
+	@bun run build
+	@bun run electron . --generate-config
 
-generate-example-config: ensure-pnpm
-	@pnpm run build
-	@pnpm run generate:config-example
+generate-example-config: ensure-bun
+	@bun run build
+	@bun run generate:config-example
 
-docs-dev: ensure-pnpm
-	@pnpm run docs:dev
+docs-dev: ensure-bun
+	@bun run docs:dev
 
-docs: ensure-pnpm
-	@pnpm run docs:build
+docs: ensure-bun
+	@bun run docs:build
 
-docs-preview: ensure-pnpm
-	@pnpm run docs:preview
+docs-preview: ensure-bun
+	@bun run docs:preview
 
-dev-start: ensure-pnpm
-	@pnpm run build
-	@pnpm exec electron . --start
+dev-start: ensure-bun
+	@bun run build
+	@bun run electron . --start
 
-dev-start-macos: ensure-pnpm
-	@pnpm run build
-	@pnpm exec electron . --start --backend macos
+dev-start-macos: ensure-bun
+	@bun run build
+	@bun run electron . --start --backend macos
 
-dev-toggle: ensure-pnpm
-	@pnpm exec electron . --toggle
+dev-toggle: ensure-bun
+	@bun run electron . --toggle
 
-dev-stop: ensure-pnpm
-	@pnpm exec electron . --stop
+dev-stop: ensure-bun
+	@bun run electron . --stop
 
 
 install-linux: build-launcher
