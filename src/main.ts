@@ -90,6 +90,7 @@ import {
   createFieldGroupingOverlayRuntime,
   createNumericShortcutRuntime,
   createOverlayContentMeasurementStore,
+  createSubtitleProcessingController,
   createOverlayWindow as createOverlayWindowCore,
   createTokenizerDepsRuntime,
   cycleSecondarySubMode as cycleSecondarySubModeCore,
@@ -236,6 +237,8 @@ type ActiveJellyfinRemotePlaybackState = {
 let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
 let jellyfinRemoteLastProgressAtMs = 0;
 let jellyfinMpvAutoLaunchInFlight: Promise<boolean> | null = null;
+let backgroundWarmupsStarted = false;
+let yomitanLoadInFlight: Promise<Extension | null> | null = null;
 
 function applyJellyfinMpvDefaults(client: MpvIpcClient): void {
   sendMpvCommandRuntime(client, ['set_property', 'sub-auto', 'fuzzy']);
@@ -364,6 +367,21 @@ const appState = createAppState({
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
 });
 let appTray: Tray | null = null;
+const subtitleProcessingController = createSubtitleProcessingController({
+  tokenizeSubtitle: async (text: string) => {
+    if (getOverlayWindows().length === 0) {
+      return null;
+    }
+    return await tokenizeSubtitle(text);
+  },
+  emitSubtitle: (payload) => {
+    broadcastToOverlayWindows('subtitle:set', payload);
+  },
+  logDebug: (message) => {
+    logger.debug(`[subtitle-processing] ${message}`);
+  },
+  now: () => Date.now(),
+});
 const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
   getConfiguredShortcuts: () => getConfiguredShortcuts(),
   getShortcutsRegistered: () => appState.shortcutsRegistered,
@@ -2205,9 +2223,7 @@ const startupState = runStartupBootstrapRuntime(
         },
         log: (message) => appLogger.logInfo(message),
         createMecabTokenizerAndCheck: async () => {
-          const tokenizer = new MecabTokenizer();
-          appState.mecabTokenizer = tokenizer;
-          await tokenizer.checkAvailability();
+          await createMecabTokenizerAndCheck();
         },
         createSubtitleTimingTracker: () => {
           const tracker = new SubtitleTimingTracker();
@@ -2258,11 +2274,21 @@ const startupState = runStartupBootstrapRuntime(
         startJellyfinRemoteSession: async () => {
           await startJellyfinRemoteSession();
         },
+        prewarmSubtitleDictionaries: async () => {
+          await prewarmSubtitleDictionaries();
+        },
+        startBackgroundWarmups: () => {
+          startBackgroundWarmups();
+        },
         texthookerOnlyMode: appState.texthookerOnlyMode,
         shouldAutoInitializeOverlayRuntimeFromConfig: () =>
           appState.backgroundMode ? false : shouldAutoInitializeOverlayRuntimeFromConfig(),
         initializeOverlayRuntime: () => initializeOverlayRuntime(),
         handleInitialArgs: () => handleInitialArgs(),
+        logDebug: (message: string) => {
+          logger.debug(message);
+        },
+        now: () => Date.now(),
       }),
       onWillQuitCleanup: () => {
         destroyTray();
@@ -2417,12 +2443,7 @@ function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
   mpvClient.on('subtitle-change', ({ text }) => {
     appState.currentSubText = text;
     subtitleWsService.broadcast(text);
-    void (async () => {
-      if (getOverlayWindows().length > 0) {
-        const subtitleData = await tokenizeSubtitle(text);
-        broadcastToOverlayWindows('subtitle:set', subtitleData);
-      }
-    })();
+    subtitleProcessingController.onSubtitleChange(text);
   });
   mpvClient.on('subtitle-ass-change', ({ text }) => {
     appState.currentSubAssText = text;
@@ -2548,6 +2569,56 @@ async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
   );
 }
 
+async function createMecabTokenizerAndCheck(): Promise<void> {
+  if (!appState.mecabTokenizer) {
+    appState.mecabTokenizer = new MecabTokenizer();
+  }
+  await appState.mecabTokenizer.checkAvailability();
+}
+
+async function prewarmSubtitleDictionaries(): Promise<void> {
+  await Promise.all([
+    jlptDictionaryRuntime.ensureJlptDictionaryLookup(),
+    frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup(),
+  ]);
+}
+
+function launchBackgroundWarmupTask(label: string, task: () => Promise<void>): void {
+  const startedAtMs = Date.now();
+  void task()
+    .then(() => {
+      logger.debug(`[startup-warmup] ${label} completed in ${Date.now() - startedAtMs}ms`);
+    })
+    .catch((error) => {
+      logger.warn(`[startup-warmup] ${label} failed: ${(error as Error).message}`);
+    });
+}
+
+function startBackgroundWarmups(): void {
+  if (backgroundWarmupsStarted) {
+    return;
+  }
+  if (appState.texthookerOnlyMode) {
+    return;
+  }
+
+  backgroundWarmupsStarted = true;
+  launchBackgroundWarmupTask('mecab', async () => {
+    await createMecabTokenizerAndCheck();
+  });
+  launchBackgroundWarmupTask('yomitan-extension', async () => {
+    await ensureYomitanExtensionLoaded();
+  });
+  launchBackgroundWarmupTask('subtitle-dictionaries', async () => {
+    await prewarmSubtitleDictionaries();
+  });
+  if (getResolvedConfig().jellyfin.remoteControlAutoConnect) {
+    launchBackgroundWarmupTask('jellyfin-remote-session', async () => {
+      await startJellyfinRemoteSession();
+    });
+  }
+}
+
 function updateVisibleOverlayBounds(geometry: WindowGeometry): void {
   overlayManager.setOverlayWindowBounds('visible', geometry);
 }
@@ -2587,6 +2658,20 @@ async function loadYomitanExtension(): Promise<Extension | null> {
       appState.yomitanExt = extension;
     },
   });
+}
+
+async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
+  if (appState.yomitanExt) {
+    return appState.yomitanExt;
+  }
+  if (yomitanLoadInFlight) {
+    return yomitanLoadInFlight;
+  }
+
+  yomitanLoadInFlight = loadYomitanExtension().finally(() => {
+    yomitanLoadInFlight = null;
+  });
+  return yomitanLoadInFlight;
 }
 
 function createOverlayWindow(kind: 'visible' | 'invisible'): BrowserWindow {
@@ -2769,15 +2854,26 @@ function initializeOverlayRuntime(): void {
   });
   overlayManager.setInvisibleOverlayVisible(result.invisibleOverlayVisible);
   appState.overlayRuntimeInitialized = true;
+  startBackgroundWarmups();
 }
 
 function openYomitanSettings(): void {
-  openYomitanSettingsWindow({
-    yomitanExt: appState.yomitanExt,
-    getExistingWindow: () => appState.yomitanSettingsWindow,
-    setWindow: (window: BrowserWindow | null) => {
-      appState.yomitanSettingsWindow = window;
-    },
+  void (async () => {
+    const extension = await ensureYomitanExtensionLoaded();
+    if (!extension) {
+      logger.warn('Unable to open Yomitan settings: extension failed to load.');
+      return;
+    }
+
+    openYomitanSettingsWindow({
+      yomitanExt: extension,
+      getExistingWindow: () => appState.yomitanSettingsWindow,
+      setWindow: (window: BrowserWindow | null) => {
+        appState.yomitanSettingsWindow = window;
+      },
+    });
+  })().catch((error) => {
+    logger.error('Failed to open Yomitan settings window.', error);
   });
 }
 function registerGlobalShortcuts(): void {
@@ -3108,6 +3204,7 @@ registerIpcRuntimeServices({
     quitApp: () => app.quit(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
     tokenizeCurrentSubtitle: () => tokenizeSubtitle(appState.currentSubText),
+    getCurrentSubtitleRaw: () => appState.currentSubText,
     getCurrentSubtitleAss: () => appState.currentSubAssText,
     getMpvSubtitleRenderMetrics: () => appState.mpvSubtitleRenderMetrics,
     getSubtitlePosition: () => loadSubtitlePosition(),

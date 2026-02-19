@@ -12,6 +12,7 @@ export interface IpcServiceDeps {
   toggleVisibleOverlay: () => void;
   getInvisibleOverlayVisibility: () => boolean;
   tokenizeCurrentSubtitle: () => Promise<unknown>;
+  getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
   getMpvSubtitleRenderMetrics: () => unknown;
   getSubtitlePosition: () => unknown;
@@ -75,6 +76,7 @@ export interface IpcDepsRuntimeOptions {
   quitApp: () => void;
   toggleVisibleOverlay: () => void;
   tokenizeCurrentSubtitle: () => Promise<unknown>;
+  getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
   getMpvSubtitleRenderMetrics: () => unknown;
   getSubtitlePosition: () => unknown;
@@ -122,6 +124,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     toggleVisibleOverlay: options.toggleVisibleOverlay,
     getInvisibleOverlayVisibility: options.getInvisibleOverlayVisibility,
     tokenizeCurrentSubtitle: options.tokenizeCurrentSubtitle,
+    getCurrentSubtitleRaw: options.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: options.getCurrentSubtitleAss,
     getMpvSubtitleRenderMetrics: options.getMpvSubtitleRenderMetrics,
     getSubtitlePosition: options.getSubtitlePosition,
@@ -218,6 +221,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps): void {
 
   ipcMain.handle('get-current-subtitle', async () => {
     return await deps.tokenizeCurrentSubtitle();
+  });
+
+  ipcMain.handle('get-current-subtitle-raw', () => {
+    return deps.getCurrentSubtitleRaw();
   });
 
   ipcMain.handle('get-current-subtitle-ass', () => {

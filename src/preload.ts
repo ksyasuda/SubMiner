@@ -83,6 +83,7 @@ const electronAPI: ElectronAPI = {
 
   getOverlayVisibility: (): Promise<boolean> => ipcRenderer.invoke('get-overlay-visibility'),
   getCurrentSubtitle: (): Promise<SubtitleData> => ipcRenderer.invoke('get-current-subtitle'),
+  getCurrentSubtitleRaw: (): Promise<string> => ipcRenderer.invoke('get-current-subtitle-raw'),
   getCurrentSubtitleAss: (): Promise<string> => ipcRenderer.invoke('get-current-subtitle-ass'),
   getMpvSubtitleRenderMetrics: () => ipcRenderer.invoke('get-mpv-subtitle-render-metrics'),
   onMpvSubtitleRenderMetrics: (callback: (metrics: MpvSubtitleRenderMetrics) => void) => {

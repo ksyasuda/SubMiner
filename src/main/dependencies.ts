@@ -68,6 +68,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   quitApp: IpcDepsRuntimeOptions['quitApp'];
   toggleVisibleOverlay: IpcDepsRuntimeOptions['toggleVisibleOverlay'];
   tokenizeCurrentSubtitle: IpcDepsRuntimeOptions['tokenizeCurrentSubtitle'];
+  getCurrentSubtitleRaw: IpcDepsRuntimeOptions['getCurrentSubtitleRaw'];
   getCurrentSubtitleAss: IpcDepsRuntimeOptions['getCurrentSubtitleAss'];
   focusMainWindow?: IpcDepsRuntimeOptions['focusMainWindow'];
   getMpvSubtitleRenderMetrics: IpcDepsRuntimeOptions['getMpvSubtitleRenderMetrics'];
@@ -205,6 +206,7 @@ export function createMainIpcRuntimeServiceDeps(
     quitApp: params.quitApp,
     toggleVisibleOverlay: params.toggleVisibleOverlay,
     tokenizeCurrentSubtitle: params.tokenizeCurrentSubtitle,
+    getCurrentSubtitleRaw: params.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: params.getCurrentSubtitleAss,
     getMpvSubtitleRenderMetrics: params.getMpvSubtitleRenderMetrics,
     getSubtitlePosition: params.getSubtitlePosition,

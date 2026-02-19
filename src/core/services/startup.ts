@@ -106,10 +106,14 @@ export interface AppReadyRuntimeDeps {
   createImmersionTracker?: () => void;
   startJellyfinRemoteSession?: () => Promise<void>;
   loadYomitanExtension: () => Promise<void>;
+  prewarmSubtitleDictionaries?: () => Promise<void>;
+  startBackgroundWarmups: () => void;
   texthookerOnlyMode: boolean;
   shouldAutoInitializeOverlayRuntimeFromConfig: () => boolean;
   initializeOverlayRuntime: () => void;
   handleInitialArgs: () => void;
+  logDebug?: (message: string) => void;
+  now?: () => number;
 }
 
 export function getInitialInvisibleOverlayVisibility(
@@ -143,9 +147,12 @@ export function isAutoUpdateEnabledRuntime(
 }
 
 export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<void> {
+  const now = deps.now ?? (() => Date.now());
+  const startupStartedAtMs = now();
+  deps.logDebug?.('App-ready critical path started.');
+
   deps.loadSubtitlePosition();
   deps.resolveKeybindings();
-  await deps.createMecabTokenizerAndCheck();
   deps.createMpvClient();
 
   deps.reloadConfig();
@@ -178,10 +185,6 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   } else {
     deps.log('Runtime ready: createImmersionTracker dependency is missing.');
   }
-  await deps.loadYomitanExtension();
-  if (deps.startJellyfinRemoteSession) {
-    await deps.startJellyfinRemoteSession();
-  }
 
   if (deps.texthookerOnlyMode) {
     deps.log('Texthooker-only mode enabled; skipping overlay window.');
@@ -192,4 +195,6 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   }
 
   deps.handleInitialArgs();
+  deps.startBackgroundWarmups();
+  deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
 }

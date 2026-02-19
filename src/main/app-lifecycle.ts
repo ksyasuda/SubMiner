@@ -39,10 +39,14 @@ export interface AppReadyRuntimeDepsFactoryInput {
   createImmersionTracker?: AppReadyRuntimeDeps['createImmersionTracker'];
   startJellyfinRemoteSession?: AppReadyRuntimeDeps['startJellyfinRemoteSession'];
   loadYomitanExtension: AppReadyRuntimeDeps['loadYomitanExtension'];
+  prewarmSubtitleDictionaries?: AppReadyRuntimeDeps['prewarmSubtitleDictionaries'];
+  startBackgroundWarmups: AppReadyRuntimeDeps['startBackgroundWarmups'];
   texthookerOnlyMode: AppReadyRuntimeDeps['texthookerOnlyMode'];
   shouldAutoInitializeOverlayRuntimeFromConfig: AppReadyRuntimeDeps['shouldAutoInitializeOverlayRuntimeFromConfig'];
   initializeOverlayRuntime: AppReadyRuntimeDeps['initializeOverlayRuntime'];
   handleInitialArgs: AppReadyRuntimeDeps['handleInitialArgs'];
+  logDebug?: AppReadyRuntimeDeps['logDebug'];
+  now?: AppReadyRuntimeDeps['now'];
 }
 
 export function createAppLifecycleRuntimeDeps(
@@ -88,11 +92,15 @@ export function createAppReadyRuntimeDeps(
     createImmersionTracker: params.createImmersionTracker,
     startJellyfinRemoteSession: params.startJellyfinRemoteSession,
     loadYomitanExtension: params.loadYomitanExtension,
+    prewarmSubtitleDictionaries: params.prewarmSubtitleDictionaries,
+    startBackgroundWarmups: params.startBackgroundWarmups,
     texthookerOnlyMode: params.texthookerOnlyMode,
     shouldAutoInitializeOverlayRuntimeFromConfig:
       params.shouldAutoInitializeOverlayRuntimeFromConfig,
     initializeOverlayRuntime: params.initializeOverlayRuntime,
     handleInitialArgs: params.handleInitialArgs,
+    logDebug: params.logDebug,
+    now: params.now,
   };
 }
 

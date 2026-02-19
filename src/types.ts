@@ -724,6 +724,7 @@ export interface ElectronAPI {
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;
   getOverlayVisibility: () => Promise<boolean>;
   getCurrentSubtitle: () => Promise<SubtitleData>;
+  getCurrentSubtitleRaw: () => Promise<string>;
   getCurrentSubtitleAss: () => Promise<string>;
   getMpvSubtitleRenderMetrics: () => Promise<MpvSubtitleRenderMetrics>;
   onMpvSubtitleRenderMetrics: (callback: (metrics: MpvSubtitleRenderMetrics) => void) => void;

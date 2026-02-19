@@ -15,6 +15,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     quitApp: () => {},
     toggleVisibleOverlay: () => {},
     tokenizeCurrentSubtitle: async () => null,
+    getCurrentSubtitleRaw: () => '',
     getCurrentSubtitleAss: () => '',
     getMpvSubtitleRenderMetrics: () => null,
     getSubtitlePosition: () => null,

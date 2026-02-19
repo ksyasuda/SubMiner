@@ -170,7 +170,7 @@ This keeps side effects explicit and makes behavior easy to unit-test with fakes
 ## Program Lifecycle
 
 - **Startup:** `startup.ts` parses CLI args and detects the compositor backend. If `--generate-config` is passed, it writes the template and exits. Otherwise `app-lifecycle.ts` acquires the single-instance lock and registers Electron lifecycle hooks.
-- **Initialization:** Once `app.whenReady()` fires, `startup-lifecycle.ts` loads config, resolves keybindings, creates the mpv client, initializes the MeCab tokenizer, starts the window tracker, and applies WebSocket policy — then creates the overlay window and establishes the IPC bridge.
+- **Initialization:** Once `app.whenReady()` fires, `startup-lifecycle.ts` runs a short critical path first (config reload, keybindings, mpv client, overlay setup, IPC bridge), then schedules non-critical warmups in the background (MeCab availability check, Yomitan extension load, dictionary prewarm, optional Jellyfin remote startup).
 - **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, and keyboard shortcuts all route through the composition layer to domain services, which update state and broadcast to the renderer.
 - **Shutdown:** Electron's `will-quit` triggers service teardown — closes the mpv socket, unregisters shortcuts, stops WebSocket and texthooker servers, destroys the window tracker, and cleans up Anki state.
 
@@ -194,13 +194,14 @@ flowchart TD
   subgraph Init["Initialization"]
     direction LR
     Config["Load config<br/>resolve keybindings"]:::init
-    Runtime["Create mpv client<br/>init MeCab tokenizer"]:::init
+    Runtime["Create mpv client<br/>init runtime options"]:::init
     Platform["Start window tracker<br/>WebSocket policy"]:::init
   end
 
-  Init --> Create["Create overlay window<br/>Establish IPC bridge<br/>Load Yomitan extension"]:::phase
+  Init --> Create["Create overlay window<br/>Establish IPC bridge"]:::phase
+  Create --> Warm["Background warmups<br/>MeCab · Yomitan · dictionaries · Jellyfin"]:::phase
 
-  Create --> Loop
+  Warm --> Loop
   subgraph Loop["Runtime — event-driven"]
     direction LR
     Events["mpv · IPC · CLI<br/>shortcut events"]:::runtime

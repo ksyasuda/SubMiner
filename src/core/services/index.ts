@@ -30,6 +30,7 @@ export {
 } from './startup';
 export { openYomitanSettingsWindow } from './yomitan-settings';
 export { createTokenizerDepsRuntime, tokenizeSubtitle } from './tokenizer';
+export { createSubtitleProcessingController } from './subtitle-processing-controller';
 export { createFrequencyDictionaryLookup } from './frequency-dictionary';
 export { createJlptVocabularyLookup } from './jlpt-vocab';
 export {

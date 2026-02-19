@@ -13,6 +13,17 @@ Watch video → See subtitle → Click word → Yomitan lookup → Add to Anki
                                               sentence, audio, image, translation
 ```
 
+## Subtitle Delivery Path (Startup + Runtime)
+
+SubMiner now prioritizes subtitle responsiveness over heavy initialization:
+
+1. The first subtitle render is **plain text first** (no tokenization wait).
+2. Tokenized enrichment (word spans, known-word flags, JLPT/frequency metadata) is applied right after parsing completes.
+3. Under rapid subtitle churn, SubMiner uses a **latest-only tokenization queue** so stale lines are dropped instead of building lag.
+4. MeCab, Yomitan extension load, and dictionary prewarm run as background warmups after overlay initialization.
+
+This keeps early playback snappy and avoids mpv-side sluggishness while startup work completes.
+
 ## The Two Overlay Layers
 
 SubMiner uses two overlay layers, each serving a different purpose.

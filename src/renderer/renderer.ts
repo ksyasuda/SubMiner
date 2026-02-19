@@ -153,7 +153,7 @@ async function init(): Promise<void> {
     });
   }
 
-  const initialSubtitle = await window.electronAPI.getCurrentSubtitle();
+  const initialSubtitle = await window.electronAPI.getCurrentSubtitleRaw();
   subtitleRenderer.renderSubtitle(initialSubtitle);
   measurementReporter.schedule();
 

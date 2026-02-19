@@ -34,10 +34,18 @@ function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
     loadYomitanExtension: async () => {
       calls.push('loadYomitanExtension');
     },
+    prewarmSubtitleDictionaries: async () => {
+      calls.push('prewarmSubtitleDictionaries');
+    },
+    startBackgroundWarmups: () => {
+      calls.push('startBackgroundWarmups');
+    },
     texthookerOnlyMode: false,
     shouldAutoInitializeOverlayRuntimeFromConfig: () => true,
     initializeOverlayRuntime: () => calls.push('initializeOverlayRuntime'),
     handleInitialArgs: () => calls.push('handleInitialArgs'),
+    logDebug: (message) => calls.push(`debug:${message}`),
+    now: () => 1000,
     ...overrides,
   };
   return { deps, calls };
@@ -51,7 +59,7 @@ test('runAppReadyRuntime starts websocket in auto mode when plugin missing', asy
   assert.ok(calls.includes('startSubtitleWebsocket:9001'));
   assert.ok(calls.includes('initializeOverlayRuntime'));
   assert.ok(calls.includes('createImmersionTracker'));
-  assert.ok(calls.includes('startJellyfinRemoteSession'));
+  assert.ok(calls.includes('startBackgroundWarmups'));
   assert.ok(calls.includes('log:Runtime ready: invoking createImmersionTracker.'));
 });
 
@@ -63,10 +71,10 @@ test('runAppReadyRuntime skips Jellyfin remote startup when dependency is not wi
   await runAppReadyRuntime(deps);
 
   assert.equal(calls.includes('startJellyfinRemoteSession'), false);
-  assert.ok(calls.includes('createMecabTokenizerAndCheck'));
   assert.ok(calls.includes('createMpvClient'));
   assert.ok(calls.includes('createSubtitleTimingTracker'));
   assert.ok(calls.includes('handleInitialArgs'));
+  assert.ok(calls.includes('startBackgroundWarmups'));
   assert.ok(
     calls.includes('initializeOverlayRuntime') ||
       calls.includes('log:Overlay runtime deferred: waiting for explicit overlay command.'),
@@ -115,4 +123,29 @@ test('runAppReadyRuntime applies config logging level during app-ready', async (
   });
   await runAppReadyRuntime(deps);
   assert.ok(calls.includes('setLogLevel:warn:config'));
+});
+
+test('runAppReadyRuntime does not await background warmups', async () => {
+  const calls: string[] = [];
+  let releaseWarmup: (() => void) | undefined;
+  const warmupGate = new Promise<void>((resolve) => {
+    releaseWarmup = resolve;
+  });
+  const { deps } = makeDeps({
+    startBackgroundWarmups: () => {
+      calls.push('startBackgroundWarmups');
+      void warmupGate.then(() => {
+        calls.push('warmupDone');
+      });
+    },
+    handleInitialArgs: () => {
+      calls.push('handleInitialArgs');
+    },
+  });
+
+  await runAppReadyRuntime(deps);
+  assert.deepEqual(calls.slice(0, 2), ['handleInitialArgs', 'startBackgroundWarmups']);
+  assert.equal(calls.includes('warmupDone'), false);
+  assert.ok(releaseWarmup);
+  releaseWarmup();
 });
