@@ -1,4 +1,4 @@
-.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun ensure-pnpm generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
+.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_FILE := subminer.rasi
@@ -91,15 +91,11 @@ print-dirs:
 
 deps:
 	@$(MAKE) --no-print-directory ensure-bun
-	@$(MAKE) --no-print-directory ensure-pnpm
 	@bun install
-	@cd vendor/texthooker-ui && pnpm install --frozen-lockfile
+	@cd vendor/texthooker-ui && bun install --frozen-lockfile
 
 ensure-bun:
 	@command -v bun >/dev/null 2>&1 || { printf '%s\n' "[ERROR] bun not found"; exit 1; }
-
-ensure-pnpm:
-	@command -v pnpm >/dev/null 2>&1 || { printf '%s\n' "[ERROR] pnpm not found"; exit 1; }
 
 pretty: ensure-bun
 	@bun run format
@@ -122,17 +118,17 @@ install:
 
 build-linux: deps
 	@printf '%s\n' "[INFO] Building Linux package (AppImage)"
-	@cd vendor/texthooker-ui && pnpm run build
+	@cd vendor/texthooker-ui && bun run build
 	@bun run build:appimage
 
 build-macos: deps
 	@printf '%s\n' "[INFO] Building macOS package (DMG + ZIP)"
-	@cd vendor/texthooker-ui && pnpm run build
+	@cd vendor/texthooker-ui && bun run build
 	@bun run build:mac
 
 build-macos-unsigned: deps
 	@printf '%s\n' "[INFO] Building macOS package (DMG + ZIP, unsigned)"
-	@cd vendor/texthooker-ui && pnpm run build
+	@cd vendor/texthooker-ui && bun run build
 	@bun run build:mac:unsigned
 
 build-launcher:
