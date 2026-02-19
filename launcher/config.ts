@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { Command } from 'commander';
 import { parse as parseJsonc } from 'jsonc-parser';
+import { resolveConfigFilePath } from '../src/config/path-resolution.js';
 import type {
   LogLevel,
   YoutubeSubgenMode,
@@ -27,12 +28,17 @@ import {
   inferWhisperLanguage,
 } from './util.js';
 
+function resolveLauncherMainConfigPath(): string {
+  return resolveConfigFilePath({
+    xdgConfigHome: process.env.XDG_CONFIG_HOME,
+    homeDir: os.homedir(),
+    existsSync: fs.existsSync,
+  });
+}
+
 export function loadLauncherYoutubeSubgenConfig(): LauncherYoutubeSubgenConfig {
-  const configDir = path.join(os.homedir(), '.config', 'SubMiner');
-  const jsoncPath = path.join(configDir, 'config.jsonc');
-  const jsonPath = path.join(configDir, 'config.json');
-  const configPath = fs.existsSync(jsoncPath) ? jsoncPath : fs.existsSync(jsonPath) ? jsonPath : '';
-  if (!configPath) return {};
+  const configPath = resolveLauncherMainConfigPath();
+  if (!fs.existsSync(configPath)) return {};
 
   try {
     const data = fs.readFileSync(configPath, 'utf8');
@@ -118,11 +124,8 @@ export function loadLauncherYoutubeSubgenConfig(): LauncherYoutubeSubgenConfig {
 }
 
 export function loadLauncherJellyfinConfig(): LauncherJellyfinConfig {
-  const configDir = path.join(os.homedir(), '.config', 'SubMiner');
-  const jsoncPath = path.join(configDir, 'config.jsonc');
-  const jsonPath = path.join(configDir, 'config.json');
-  const configPath = fs.existsSync(jsoncPath) ? jsoncPath : fs.existsSync(jsonPath) ? jsonPath : '';
-  if (!configPath) return {};
+  const configPath = resolveLauncherMainConfigPath();
+  if (!fs.existsSync(configPath)) return {};
 
   try {
     const data = fs.readFileSync(configPath, 'utf8');

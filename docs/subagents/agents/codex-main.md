@@ -1,7 +1,7 @@
 # Agent: codex-main
 
 - alias: planner-exec
-- mission: Track config-gated keybinding task request
+- mission: Unify config path resolution across app + launcher
 - status: handoff
 - branch: main
 - started_at: 2026-02-19T08:06:28Z
@@ -9,6 +9,10 @@
 
 ## Current Work (newest first)
 
+- [2026-02-19T09:05:26Z] handoff: completed TASK-70 (Done); unified config path resolution into shared `src/config/path-resolution.ts`, wired app+launcher call sites, added precedence tests, verified build/tests/launcher bundle, and checked AC/DoD in Backlog.
+- [2026-02-19T09:05:26Z] test: `bun run build && node --test dist/config/path-resolution.test.js dist/config/config.test.js && bun build ./launcher/main.ts --target=bun --packages=bundle --outfile=/tmp/subminer-task70` -> pass.
+- [2026-02-19T08:57:36Z] progress: plan saved to `docs/plans/2026-02-19-task-70-unify-config-path-resolution.md`, mirrored to backlog TASK-70 `planSet`; moving to edit/test execution.
+- [2026-02-19T08:52:23Z] intent: execute TASK-70 by reading full backlog context, writing implementation plan via writing-plans skill, then executing via executing-plans skill with parallel subagents where possible.
 - [2026-02-19T08:41:44Z] handoff: created backlog TASK-84 for config-gated keybindings + disabled-feature integration non-loading (Jellyfin example) with tests/docs acceptance criteria.
 - [2026-02-19T08:41:22Z] intent: create backlog task for config-gated keybindings so disabled features become no-ops and feature modules (example: Jellyfin) are not loaded when disabled.
 - [2026-02-19T08:40:53Z] handoff: completed TASK-83 simplification; removed configurable sentence/audio field overrides for Lapis sentence cards and verified.
@@ -31,6 +35,14 @@
 
 - `docs/subagents/INDEX.md`
 - `docs/subagents/agents/codex-main.md`
+- `docs/plans/2026-02-19-task-70-unify-config-path-resolution.md`
+- `src/config/path-resolution.ts`
+- `src/config/path-resolution.test.ts`
+- `launcher/main.ts`
+- `launcher/config.ts`
+- `src/main.ts`
+- `package.json`
+- `backlog/tasks/task-70 - Unify-config-path-resolution-across-main-and-launcher.md`
 - `backlog/tasks/task-84 - Gate-feature-dependent-keybindings-behind-config-flags.md`
 - `src/config/service.ts`
 - `src/config/config.test.ts`
@@ -61,4 +73,4 @@
 
 ## Next Step
 
-- Await user prioritization / implementation request for TASK-84.
+- Await user review; optional next step is commit for TASK-70 changes.

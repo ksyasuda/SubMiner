@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { resolveConfigFilePath } from '../src/config/path-resolution.js';
 import type { Args } from './types.js';
 import { log, fail } from './log.js';
 import { commandExists, isYoutubeTarget, resolvePathMaybe, realpathMaybe } from './util.js';
@@ -97,18 +98,11 @@ function registerCleanup(args: Args): void {
 }
 
 function resolveMainConfigPath(): string {
-  const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
-  const baseDirs = Array.from(new Set([xdgConfigHome, path.join(os.homedir(), '.config')]));
-  const appNames = ['SubMiner', 'subminer'];
-  for (const baseDir of baseDirs) {
-    for (const appName of appNames) {
-      const jsoncPath = path.join(baseDir, appName, 'config.jsonc');
-      if (fs.existsSync(jsoncPath)) return jsoncPath;
-      const jsonPath = path.join(baseDir, appName, 'config.json');
-      if (fs.existsSync(jsonPath)) return jsonPath;
-    }
-  }
-  return path.join(baseDirs[0], 'SubMiner', 'config.jsonc');
+  return resolveConfigFilePath({
+    xdgConfigHome: process.env.XDG_CONFIG_HOME,
+    homeDir: os.homedir(),
+    existsSync: fs.existsSync,
+  });
 }
 
 function runDoctor(args: Args, appPath: string | null, mpvSocketPath: string): never {

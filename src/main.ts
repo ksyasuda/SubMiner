@@ -184,6 +184,7 @@ import {
   DEFAULT_KEYBINDINGS,
   generateConfigTemplate,
 } from './config';
+import { resolveConfigDir } from './config/path-resolution';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -252,41 +253,11 @@ function applyJellyfinMpvDefaults(client: MpvIpcClient): void {
   sendMpvCommandRuntime(client, ['set_property', 'slang', JELLYFIN_LANG_PREF]);
 }
 
-function resolveConfigDir(): string {
-  const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
-  const baseDirs = Array.from(
-    new Set([
-      xdgConfigHome || path.join(os.homedir(), '.config'),
-      path.join(os.homedir(), '.config'),
-    ]),
-  );
-  const appNames = ['SubMiner', 'subminer'];
-
-  for (const baseDir of baseDirs) {
-    for (const appName of appNames) {
-      const dir = path.join(baseDir, appName);
-      if (
-        fs.existsSync(path.join(dir, 'config.jsonc')) ||
-        fs.existsSync(path.join(dir, 'config.json'))
-      ) {
-        return dir;
-      }
-    }
-  }
-
-  for (const baseDir of baseDirs) {
-    for (const appName of appNames) {
-      const dir = path.join(baseDir, appName);
-      if (fs.existsSync(dir)) {
-        return dir;
-      }
-    }
-  }
-
-  return path.join(baseDirs[0], 'SubMiner');
-}
-
-const CONFIG_DIR = resolveConfigDir();
+const CONFIG_DIR = resolveConfigDir({
+  xdgConfigHome: process.env.XDG_CONFIG_HOME,
+  homeDir: os.homedir(),
+  existsSync: fs.existsSync,
+});
 const USER_DATA_PATH = CONFIG_DIR;
 const DEFAULT_MPV_LOG_PATH = process.env.SUBMINER_MPV_LOG?.trim() || DEFAULT_MPV_LOG_FILE;
 const DEFAULT_IMMERSION_DB_PATH = path.join(USER_DATA_PATH, 'immersion.sqlite');
