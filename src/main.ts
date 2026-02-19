@@ -26,6 +26,7 @@ import {
   Menu,
   Tray,
   nativeImage,
+  dialog,
 } from 'electron';
 
 protocol.registerSchemesAsPrivileged([
@@ -61,6 +62,7 @@ import type {
   MpvSubtitleRenderMetrics,
   ResolvedConfig,
   ConfigHotReloadPayload,
+  ConfigValidationWarning,
 } from './types';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { AnkiIntegration } from './anki-integration';
@@ -333,6 +335,40 @@ const appLogger = {
     );
   },
 };
+
+function formatConfigValue(value: unknown): string {
+  if (value === undefined) {
+    return 'undefined';
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function buildConfigWarningSummary(
+  configPath: string,
+  warnings: ConfigValidationWarning[],
+): string {
+  const lines = [
+    `[config] Validation found ${warnings.length} issue(s). File: ${configPath}`,
+    ...warnings.map(
+      (warning, index) =>
+        `[config] ${index + 1}. ${warning.path}: ${warning.message} actual=${formatConfigValue(warning.value)} fallback=${formatConfigValue(warning.fallback)}`,
+    ),
+  ];
+  return lines.join('\n');
+}
+
+function failStartupFromConfig(title: string, details: string): never {
+  logger.error(details);
+  dialog.showErrorBox(title, details);
+  process.exitCode = 1;
+  app.quit();
+  throw new Error(details);
+}
 
 function getDefaultSocketPath(): string {
   if (process.platform === 'win32') {
@@ -2187,8 +2223,22 @@ const startupState = runStartupBootstrapRuntime(
           appState.mpvClient = createMpvClientRuntimeService();
         },
         reloadConfig: () => {
-          configService.reloadConfig();
-          appLogger.logInfo(`Using config file: ${configService.getConfigPath()}`);
+          const result = configService.reloadConfigStrict();
+          if (!result.ok) {
+            failStartupFromConfig(
+              'SubMiner config parse error',
+              `Failed to parse config file at:\n${result.path}\n\nError: ${result.error}\n\nFix the config file and restart SubMiner.`,
+            );
+          }
+
+          appLogger.logInfo(`Using config file: ${result.path}`);
+          if (result.warnings.length > 0) {
+            appLogger.logWarning(buildConfigWarningSummary(result.path, result.warnings));
+            showDesktopNotification('SubMiner', {
+              body: `${result.warnings.length} config validation issue(s) detected. Defaults were applied where possible. File: ${result.path}`,
+            });
+          }
+
           configHotReloadRuntime.start();
           void refreshAnilistClientSecretState({ force: true });
         },
@@ -2285,6 +2335,17 @@ const startupState = runStartupBootstrapRuntime(
           appState.backgroundMode ? false : shouldAutoInitializeOverlayRuntimeFromConfig(),
         initializeOverlayRuntime: () => initializeOverlayRuntime(),
         handleInitialArgs: () => handleInitialArgs(),
+        onCriticalConfigErrors: (errors: string[]) => {
+          const configPath = configService.getConfigPath();
+          const details = [
+            `Critical config validation failed. File: ${configPath}`,
+            '',
+            ...errors.map((error, index) => `${index + 1}. ${error}`),
+            '',
+            'Fix the config file and restart SubMiner.',
+          ].join('\n');
+          failStartupFromConfig('SubMiner config validation error', details);
+        },
         logDebug: (message: string) => {
           logger.debug(message);
         },

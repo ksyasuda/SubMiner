@@ -149,3 +149,92 @@ test('runAppReadyRuntime does not await background warmups', async () => {
   assert.ok(releaseWarmup);
   releaseWarmup();
 });
+
+test('runAppReadyRuntime exits before service init when critical anki mappings are invalid', async () => {
+  const capturedErrors: string[][] = [];
+  const { deps, calls } = makeDeps({
+    getResolvedConfig: () => ({
+      websocket: { enabled: 'auto' },
+      secondarySub: {},
+      ankiConnect: {
+        enabled: true,
+        fields: {
+          audio: 'ExpressionAudio',
+          image: 'Picture',
+          sentence: '   ',
+          miscInfo: 'MiscInfo',
+          translation: '',
+        },
+      },
+    }),
+    onCriticalConfigErrors: (errors) => {
+      capturedErrors.push(errors);
+    },
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assert.equal(capturedErrors.length, 1);
+  assert.deepEqual(capturedErrors[0], [
+    'ankiConnect.fields.sentence must be a non-empty string when ankiConnect is enabled.',
+    'ankiConnect.fields.translation must be a non-empty string when ankiConnect is enabled.',
+  ]);
+  assert.ok(calls.includes('reloadConfig'));
+  assert.equal(calls.includes('createMpvClient'), false);
+  assert.equal(calls.includes('initRuntimeOptionsManager'), false);
+  assert.equal(calls.includes('startBackgroundWarmups'), false);
+});
+
+test('runAppReadyRuntime aggregates multiple critical anki mapping errors', async () => {
+  const capturedErrors: string[][] = [];
+  const { deps, calls } = makeDeps({
+    getResolvedConfig: () => ({
+      websocket: { enabled: 'auto' },
+      secondarySub: {},
+      ankiConnect: {
+        enabled: true,
+        fields: {
+          audio: ' ',
+          image: '',
+          sentence: '\t',
+          miscInfo: '   ',
+          translation: '',
+        },
+      },
+    }),
+    onCriticalConfigErrors: (errors) => {
+      capturedErrors.push(errors);
+    },
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assert.equal(capturedErrors.length, 1);
+  assert.equal(capturedErrors[0].length, 5);
+  assert.ok(
+    capturedErrors[0].includes(
+      'ankiConnect.fields.audio must be a non-empty string when ankiConnect is enabled.',
+    ),
+  );
+  assert.ok(
+    capturedErrors[0].includes(
+      'ankiConnect.fields.image must be a non-empty string when ankiConnect is enabled.',
+    ),
+  );
+  assert.ok(
+    capturedErrors[0].includes(
+      'ankiConnect.fields.sentence must be a non-empty string when ankiConnect is enabled.',
+    ),
+  );
+  assert.ok(
+    capturedErrors[0].includes(
+      'ankiConnect.fields.miscInfo must be a non-empty string when ankiConnect is enabled.',
+    ),
+  );
+  assert.ok(
+    capturedErrors[0].includes(
+      'ankiConnect.fields.translation must be a non-empty string when ankiConnect is enabled.',
+    ),
+  );
+  assert.equal(calls.includes('loadSubtitlePosition'), false);
+});

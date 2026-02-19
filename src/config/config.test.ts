@@ -368,6 +368,29 @@ test('falls back for invalid logging.level and reports warning', () => {
   assert.ok(warnings.some((warning) => warning.path === 'logging.level'));
 });
 
+test('warns and ignores unknown top-level config keys', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "websocket": {
+        "port": 7788
+      },
+      "unknownFeatureFlag": {
+        "enabled": true
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.websocket.port, 7788);
+  assert.ok(warnings.some((warning) => warning.path === 'unknownFeatureFlag'));
+});
+
 test('parses invisible overlay config and new global shortcuts', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
@@ -631,6 +654,147 @@ test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {
         warning.path === 'ankiConnect.behavior.nPlusOneRefreshMinutes' ||
         warning.path === 'ankiConnect.behavior.nPlusOneMatchMode',
     ),
+  );
+});
+
+test('warns when ankiConnect.openRouter is used and migrates to ai', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "openRouter": {
+          "model": "openrouter/test-model"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal((config.ankiConnect.ai as Record<string, unknown>).model, 'openrouter/test-model');
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === 'ankiConnect.openRouter' && warning.message.includes('ankiConnect.ai'),
+    ),
+  );
+});
+
+test('falls back and warns when legacy ankiConnect migration values are invalid', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "audioField": 123,
+        "generateAudio": "yes",
+        "imageType": "gif",
+        "imageQuality": -1,
+        "mediaInsertMode": "middle",
+        "notificationType": "toast"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.ankiConnect.fields.audio, DEFAULT_CONFIG.ankiConnect.fields.audio);
+  assert.equal(
+    config.ankiConnect.media.generateAudio,
+    DEFAULT_CONFIG.ankiConnect.media.generateAudio,
+  );
+  assert.equal(config.ankiConnect.media.imageType, DEFAULT_CONFIG.ankiConnect.media.imageType);
+  assert.equal(
+    config.ankiConnect.media.imageQuality,
+    DEFAULT_CONFIG.ankiConnect.media.imageQuality,
+  );
+  assert.equal(
+    config.ankiConnect.behavior.mediaInsertMode,
+    DEFAULT_CONFIG.ankiConnect.behavior.mediaInsertMode,
+  );
+  assert.equal(
+    config.ankiConnect.behavior.notificationType,
+    DEFAULT_CONFIG.ankiConnect.behavior.notificationType,
+  );
+
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.audioField'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.generateAudio'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.imageType'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.imageQuality'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.mediaInsertMode'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.notificationType'));
+});
+
+test('maps valid legacy ankiConnect values to equivalent modern config', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "audioField": "AudioLegacy",
+        "imageField": "ImageLegacy",
+        "generateAudio": false,
+        "imageType": "avif",
+        "imageFormat": "webp",
+        "imageQuality": 88,
+        "mediaInsertMode": "prepend",
+        "notificationType": "both",
+        "autoUpdateNewCards": false
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.ankiConnect.fields.audio, 'AudioLegacy');
+  assert.equal(config.ankiConnect.fields.image, 'ImageLegacy');
+  assert.equal(config.ankiConnect.media.generateAudio, false);
+  assert.equal(config.ankiConnect.media.imageType, 'avif');
+  assert.equal(config.ankiConnect.media.imageFormat, 'webp');
+  assert.equal(config.ankiConnect.media.imageQuality, 88);
+  assert.equal(config.ankiConnect.behavior.mediaInsertMode, 'prepend');
+  assert.equal(config.ankiConnect.behavior.notificationType, 'both');
+  assert.equal(config.ankiConnect.behavior.autoUpdateNewCards, false);
+});
+
+test('ignores deprecated isLapis sentence-card field overrides', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "isLapis": {
+          "enabled": true,
+          "sentenceCardModel": "Japanese sentences",
+          "sentenceCardSentenceField": "CustomSentence",
+          "sentenceCardAudioField": "CustomAudio"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  const lapisConfig = config.ankiConnect.isLapis as Record<string, unknown>;
+  assert.equal(lapisConfig.sentenceCardSentenceField, undefined);
+  assert.equal(lapisConfig.sentenceCardAudioField, undefined);
+  assert.ok(
+    warnings.some((warning) => warning.path === 'ankiConnect.isLapis.sentenceCardSentenceField'),
+  );
+  assert.ok(
+    warnings.some((warning) => warning.path === 'ankiConnect.isLapis.sentenceCardAudioField'),
   );
 });
 

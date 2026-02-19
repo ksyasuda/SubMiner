@@ -45,6 +45,7 @@ export interface AppReadyRuntimeDepsFactoryInput {
   shouldAutoInitializeOverlayRuntimeFromConfig: AppReadyRuntimeDeps['shouldAutoInitializeOverlayRuntimeFromConfig'];
   initializeOverlayRuntime: AppReadyRuntimeDeps['initializeOverlayRuntime'];
   handleInitialArgs: AppReadyRuntimeDeps['handleInitialArgs'];
+  onCriticalConfigErrors?: AppReadyRuntimeDeps['onCriticalConfigErrors'];
   logDebug?: AppReadyRuntimeDeps['logDebug'];
   now?: AppReadyRuntimeDeps['now'];
 }
@@ -99,6 +100,7 @@ export function createAppReadyRuntimeDeps(
       params.shouldAutoInitializeOverlayRuntimeFromConfig,
     initializeOverlayRuntime: params.initializeOverlayRuntime,
     handleInitialArgs: params.handleInitialArgs,
+    onCriticalConfigErrors: params.onCriticalConfigErrors,
     logDebug: params.logDebug,
     now: params.now,
   };

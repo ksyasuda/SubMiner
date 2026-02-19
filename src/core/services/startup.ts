@@ -76,6 +76,16 @@ interface AppReadyConfigLike {
   secondarySub?: {
     defaultMode?: SecondarySubMode;
   };
+  ankiConnect?: {
+    enabled?: boolean;
+    fields?: {
+      audio?: string;
+      image?: string;
+      sentence?: string;
+      miscInfo?: string;
+      translation?: string;
+    };
+  };
   websocket?: {
     enabled?: boolean | 'auto';
     port?: number;
@@ -113,7 +123,36 @@ export interface AppReadyRuntimeDeps {
   initializeOverlayRuntime: () => void;
   handleInitialArgs: () => void;
   logDebug?: (message: string) => void;
+  onCriticalConfigErrors?: (errors: string[]) => void;
   now?: () => number;
+}
+
+const REQUIRED_ANKI_FIELD_MAPPING_KEYS = [
+  'audio',
+  'image',
+  'sentence',
+  'miscInfo',
+  'translation',
+] as const;
+
+function getStartupCriticalConfigErrors(config: AppReadyConfigLike): string[] {
+  if (!config.ankiConnect?.enabled) {
+    return [];
+  }
+
+  const errors: string[] = [];
+  const fields = config.ankiConnect.fields ?? {};
+
+  for (const key of REQUIRED_ANKI_FIELD_MAPPING_KEYS) {
+    const value = fields[key];
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      errors.push(
+        `ankiConnect.fields.${key} must be a non-empty string when ankiConnect is enabled.`,
+      );
+    }
+  }
+
+  return errors;
 }
 
 export function getInitialInvisibleOverlayVisibility(
@@ -151,16 +190,25 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   const startupStartedAtMs = now();
   deps.logDebug?.('App-ready critical path started.');
 
-  deps.loadSubtitlePosition();
-  deps.resolveKeybindings();
-  deps.createMpvClient();
-
   deps.reloadConfig();
   const config = deps.getResolvedConfig();
+  const criticalConfigErrors = getStartupCriticalConfigErrors(config);
+  if (criticalConfigErrors.length > 0) {
+    deps.onCriticalConfigErrors?.(criticalConfigErrors);
+    deps.logDebug?.(
+      `App-ready critical path aborted after config validation in ${now() - startupStartedAtMs}ms.`,
+    );
+    return;
+  }
+
   deps.setLogLevel(config.logging?.level ?? 'info', 'config');
   for (const warning of deps.getConfigWarnings()) {
     deps.logConfigWarning(warning);
   }
+
+  deps.loadSubtitlePosition();
+  deps.resolveKeybindings();
+  deps.createMpvClient();
   deps.initRuntimeOptionsManager();
   deps.setSecondarySubMode(config.secondarySub?.defaultMode ?? deps.defaultSecondarySubMode);
 

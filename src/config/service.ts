@@ -212,6 +212,12 @@ export class ConfigService {
     };
 
     const src = isObject(raw) ? raw : {};
+    const knownTopLevelKeys = new Set(Object.keys(resolved));
+    for (const key of Object.keys(src)) {
+      if (!knownTopLevelKeys.has(key)) {
+        warn(key, src[key], undefined, 'Unknown top-level config key; ignored.');
+      }
+    }
 
     if (isObject(src.texthooker)) {
       const openBrowser = asBoolean(src.texthooker.openBrowser);
@@ -849,14 +855,57 @@ export class ConfigService {
     if (isObject(src.ankiConnect)) {
       const ac = src.ankiConnect;
       const behavior = isObject(ac.behavior) ? (ac.behavior as Record<string, unknown>) : {};
+      const fields = isObject(ac.fields) ? (ac.fields as Record<string, unknown>) : {};
+      const media = isObject(ac.media) ? (ac.media as Record<string, unknown>) : {};
+      const metadata = isObject(ac.metadata) ? (ac.metadata as Record<string, unknown>) : {};
       const aiSource = isObject(ac.ai) ? ac.ai : isObject(ac.openRouter) ? ac.openRouter : {};
+      const legacyKeys = new Set([
+        'audioField',
+        'imageField',
+        'sentenceField',
+        'miscInfoField',
+        'miscInfoPattern',
+        'generateAudio',
+        'generateImage',
+        'imageType',
+        'imageFormat',
+        'imageQuality',
+        'imageMaxWidth',
+        'imageMaxHeight',
+        'animatedFps',
+        'animatedMaxWidth',
+        'animatedMaxHeight',
+        'animatedCrf',
+        'audioPadding',
+        'fallbackDuration',
+        'maxMediaDuration',
+        'overwriteAudio',
+        'overwriteImage',
+        'mediaInsertMode',
+        'highlightWord',
+        'notificationType',
+        'autoUpdateNewCards',
+      ]);
+
+      if (ac.openRouter !== undefined) {
+        warn(
+          'ankiConnect.openRouter',
+          ac.openRouter,
+          resolved.ankiConnect.ai,
+          'Deprecated key; use ankiConnect.ai instead.',
+        );
+      }
+
       const { nPlusOne: _nPlusOneConfigFromAnkiConnect, ...ankiConnectWithoutNPlusOne } =
         ac as Record<string, unknown>;
+      const ankiConnectWithoutLegacy = Object.fromEntries(
+        Object.entries(ankiConnectWithoutNPlusOne).filter(([key]) => !legacyKeys.has(key)),
+      );
 
       resolved.ankiConnect = {
         ...resolved.ankiConnect,
-        ...(isObject(ankiConnectWithoutNPlusOne)
-          ? (ankiConnectWithoutNPlusOne as Partial<ResolvedConfig['ankiConnect']>)
+        ...(isObject(ankiConnectWithoutLegacy)
+          ? (ankiConnectWithoutLegacy as Partial<ResolvedConfig['ankiConnect']>)
           : {}),
         fields: {
           ...resolved.ankiConnect.fields,
@@ -884,13 +933,58 @@ export class ConfigService {
         },
         isLapis: {
           ...resolved.ankiConnect.isLapis,
-          ...(isObject(ac.isLapis) ? (ac.isLapis as ResolvedConfig['ankiConnect']['isLapis']) : {}),
         },
         isKiku: {
           ...resolved.ankiConnect.isKiku,
           ...(isObject(ac.isKiku) ? (ac.isKiku as ResolvedConfig['ankiConnect']['isKiku']) : {}),
         },
       };
+
+      if (isObject(ac.isLapis)) {
+        const lapisEnabled = asBoolean(ac.isLapis.enabled);
+        if (lapisEnabled !== undefined) {
+          resolved.ankiConnect.isLapis.enabled = lapisEnabled;
+        } else if (ac.isLapis.enabled !== undefined) {
+          warn(
+            'ankiConnect.isLapis.enabled',
+            ac.isLapis.enabled,
+            resolved.ankiConnect.isLapis.enabled,
+            'Expected boolean.',
+          );
+        }
+
+        const sentenceCardModel = asString(ac.isLapis.sentenceCardModel);
+        if (sentenceCardModel !== undefined) {
+          resolved.ankiConnect.isLapis.sentenceCardModel = sentenceCardModel;
+        } else if (ac.isLapis.sentenceCardModel !== undefined) {
+          warn(
+            'ankiConnect.isLapis.sentenceCardModel',
+            ac.isLapis.sentenceCardModel,
+            resolved.ankiConnect.isLapis.sentenceCardModel,
+            'Expected string.',
+          );
+        }
+
+        if (ac.isLapis.sentenceCardSentenceField !== undefined) {
+          warn(
+            'ankiConnect.isLapis.sentenceCardSentenceField',
+            ac.isLapis.sentenceCardSentenceField,
+            'Sentence',
+            'Deprecated key; sentence-card sentence field is fixed to Sentence.',
+          );
+        }
+
+        if (ac.isLapis.sentenceCardAudioField !== undefined) {
+          warn(
+            'ankiConnect.isLapis.sentenceCardAudioField',
+            ac.isLapis.sentenceCardAudioField,
+            'SentenceAudio',
+            'Deprecated key; sentence-card audio field is fixed to SentenceAudio.',
+          );
+        }
+      } else if (ac.isLapis !== undefined) {
+        warn('ankiConnect.isLapis', ac.isLapis, resolved.ankiConnect.isLapis, 'Expected object.');
+      }
 
       if (Array.isArray(ac.tags)) {
         const normalizedTags = ac.tags
@@ -919,89 +1013,344 @@ export class ConfigService {
       }
 
       const legacy = ac as Record<string, unknown>;
-      const mapLegacy = (key: string, apply: (value: unknown) => void): void => {
-        if (legacy[key] !== undefined) apply(legacy[key]);
+      const hasOwn = (obj: Record<string, unknown>, key: string): boolean =>
+        Object.prototype.hasOwnProperty.call(obj, key);
+      const asIntegerInRange = (value: unknown, min: number, max: number): number | undefined => {
+        const parsed = asNumber(value);
+        if (parsed === undefined || !Number.isInteger(parsed) || parsed < min || parsed > max) {
+          return undefined;
+        }
+        return parsed;
+      };
+      const asPositiveInteger = (value: unknown): number | undefined => {
+        const parsed = asNumber(value);
+        if (parsed === undefined || !Number.isInteger(parsed) || parsed <= 0) {
+          return undefined;
+        }
+        return parsed;
+      };
+      const asPositiveNumber = (value: unknown): number | undefined => {
+        const parsed = asNumber(value);
+        if (parsed === undefined || parsed <= 0) {
+          return undefined;
+        }
+        return parsed;
+      };
+      const asNonNegativeNumber = (value: unknown): number | undefined => {
+        const parsed = asNumber(value);
+        if (parsed === undefined || parsed < 0) {
+          return undefined;
+        }
+        return parsed;
+      };
+      const asImageType = (value: unknown): 'static' | 'avif' | undefined => {
+        return value === 'static' || value === 'avif' ? value : undefined;
+      };
+      const asImageFormat = (value: unknown): 'jpg' | 'png' | 'webp' | undefined => {
+        return value === 'jpg' || value === 'png' || value === 'webp' ? value : undefined;
+      };
+      const asMediaInsertMode = (value: unknown): 'append' | 'prepend' | undefined => {
+        return value === 'append' || value === 'prepend' ? value : undefined;
+      };
+      const asNotificationType = (
+        value: unknown,
+      ): 'osd' | 'system' | 'both' | 'none' | undefined => {
+        return value === 'osd' || value === 'system' || value === 'both' || value === 'none'
+          ? value
+          : undefined;
+      };
+      const mapLegacy = <T>(
+        key: string,
+        parse: (value: unknown) => T | undefined,
+        apply: (value: T) => void,
+        fallback: unknown,
+        message: string,
+      ): void => {
+        const value = legacy[key];
+        if (value === undefined) return;
+        const parsed = parse(value);
+        if (parsed === undefined) {
+          warn(`ankiConnect.${key}`, value, fallback, message);
+          return;
+        }
+        apply(parsed);
       };
 
-      mapLegacy('audioField', (value) => {
-        resolved.ankiConnect.fields.audio = value as string;
-      });
-      mapLegacy('imageField', (value) => {
-        resolved.ankiConnect.fields.image = value as string;
-      });
-      mapLegacy('sentenceField', (value) => {
-        resolved.ankiConnect.fields.sentence = value as string;
-      });
-      mapLegacy('miscInfoField', (value) => {
-        resolved.ankiConnect.fields.miscInfo = value as string;
-      });
-      mapLegacy('miscInfoPattern', (value) => {
-        resolved.ankiConnect.metadata.pattern = value as string;
-      });
-      mapLegacy('generateAudio', (value) => {
-        resolved.ankiConnect.media.generateAudio = value as boolean;
-      });
-      mapLegacy('generateImage', (value) => {
-        resolved.ankiConnect.media.generateImage = value as boolean;
-      });
-      mapLegacy('imageType', (value) => {
-        resolved.ankiConnect.media.imageType = value as 'static' | 'avif';
-      });
-      mapLegacy('imageFormat', (value) => {
-        resolved.ankiConnect.media.imageFormat = value as 'jpg' | 'png' | 'webp';
-      });
-      mapLegacy('imageQuality', (value) => {
-        resolved.ankiConnect.media.imageQuality = value as number;
-      });
-      mapLegacy('imageMaxWidth', (value) => {
-        resolved.ankiConnect.media.imageMaxWidth = value as number;
-      });
-      mapLegacy('imageMaxHeight', (value) => {
-        resolved.ankiConnect.media.imageMaxHeight = value as number;
-      });
-      mapLegacy('animatedFps', (value) => {
-        resolved.ankiConnect.media.animatedFps = value as number;
-      });
-      mapLegacy('animatedMaxWidth', (value) => {
-        resolved.ankiConnect.media.animatedMaxWidth = value as number;
-      });
-      mapLegacy('animatedMaxHeight', (value) => {
-        resolved.ankiConnect.media.animatedMaxHeight = value as number;
-      });
-      mapLegacy('animatedCrf', (value) => {
-        resolved.ankiConnect.media.animatedCrf = value as number;
-      });
-      mapLegacy('audioPadding', (value) => {
-        resolved.ankiConnect.media.audioPadding = value as number;
-      });
-      mapLegacy('fallbackDuration', (value) => {
-        resolved.ankiConnect.media.fallbackDuration = value as number;
-      });
-      mapLegacy('maxMediaDuration', (value) => {
-        resolved.ankiConnect.media.maxMediaDuration = value as number;
-      });
-      mapLegacy('overwriteAudio', (value) => {
-        resolved.ankiConnect.behavior.overwriteAudio = value as boolean;
-      });
-      mapLegacy('overwriteImage', (value) => {
-        resolved.ankiConnect.behavior.overwriteImage = value as boolean;
-      });
-      mapLegacy('mediaInsertMode', (value) => {
-        resolved.ankiConnect.behavior.mediaInsertMode = value as 'append' | 'prepend';
-      });
-      mapLegacy('highlightWord', (value) => {
-        resolved.ankiConnect.behavior.highlightWord = value as boolean;
-      });
-      mapLegacy('notificationType', (value) => {
-        resolved.ankiConnect.behavior.notificationType = value as
-          | 'osd'
-          | 'system'
-          | 'both'
-          | 'none';
-      });
-      mapLegacy('autoUpdateNewCards', (value) => {
-        resolved.ankiConnect.behavior.autoUpdateNewCards = value as boolean;
-      });
+      if (!hasOwn(fields, 'audio')) {
+        mapLegacy(
+          'audioField',
+          asString,
+          (value) => {
+            resolved.ankiConnect.fields.audio = value;
+          },
+          resolved.ankiConnect.fields.audio,
+          'Expected string.',
+        );
+      }
+      if (!hasOwn(fields, 'image')) {
+        mapLegacy(
+          'imageField',
+          asString,
+          (value) => {
+            resolved.ankiConnect.fields.image = value;
+          },
+          resolved.ankiConnect.fields.image,
+          'Expected string.',
+        );
+      }
+      if (!hasOwn(fields, 'sentence')) {
+        mapLegacy(
+          'sentenceField',
+          asString,
+          (value) => {
+            resolved.ankiConnect.fields.sentence = value;
+          },
+          resolved.ankiConnect.fields.sentence,
+          'Expected string.',
+        );
+      }
+      if (!hasOwn(fields, 'miscInfo')) {
+        mapLegacy(
+          'miscInfoField',
+          asString,
+          (value) => {
+            resolved.ankiConnect.fields.miscInfo = value;
+          },
+          resolved.ankiConnect.fields.miscInfo,
+          'Expected string.',
+        );
+      }
+      if (!hasOwn(metadata, 'pattern')) {
+        mapLegacy(
+          'miscInfoPattern',
+          asString,
+          (value) => {
+            resolved.ankiConnect.metadata.pattern = value;
+          },
+          resolved.ankiConnect.metadata.pattern,
+          'Expected string.',
+        );
+      }
+      if (!hasOwn(media, 'generateAudio')) {
+        mapLegacy(
+          'generateAudio',
+          asBoolean,
+          (value) => {
+            resolved.ankiConnect.media.generateAudio = value;
+          },
+          resolved.ankiConnect.media.generateAudio,
+          'Expected boolean.',
+        );
+      }
+      if (!hasOwn(media, 'generateImage')) {
+        mapLegacy(
+          'generateImage',
+          asBoolean,
+          (value) => {
+            resolved.ankiConnect.media.generateImage = value;
+          },
+          resolved.ankiConnect.media.generateImage,
+          'Expected boolean.',
+        );
+      }
+      if (!hasOwn(media, 'imageType')) {
+        mapLegacy(
+          'imageType',
+          asImageType,
+          (value) => {
+            resolved.ankiConnect.media.imageType = value;
+          },
+          resolved.ankiConnect.media.imageType,
+          "Expected 'static' or 'avif'.",
+        );
+      }
+      if (!hasOwn(media, 'imageFormat')) {
+        mapLegacy(
+          'imageFormat',
+          asImageFormat,
+          (value) => {
+            resolved.ankiConnect.media.imageFormat = value;
+          },
+          resolved.ankiConnect.media.imageFormat,
+          "Expected 'jpg', 'png', or 'webp'.",
+        );
+      }
+      if (!hasOwn(media, 'imageQuality')) {
+        mapLegacy(
+          'imageQuality',
+          (value) => asIntegerInRange(value, 1, 100),
+          (value) => {
+            resolved.ankiConnect.media.imageQuality = value;
+          },
+          resolved.ankiConnect.media.imageQuality,
+          'Expected integer between 1 and 100.',
+        );
+      }
+      if (!hasOwn(media, 'imageMaxWidth')) {
+        mapLegacy(
+          'imageMaxWidth',
+          asPositiveInteger,
+          (value) => {
+            resolved.ankiConnect.media.imageMaxWidth = value;
+          },
+          resolved.ankiConnect.media.imageMaxWidth,
+          'Expected positive integer.',
+        );
+      }
+      if (!hasOwn(media, 'imageMaxHeight')) {
+        mapLegacy(
+          'imageMaxHeight',
+          asPositiveInteger,
+          (value) => {
+            resolved.ankiConnect.media.imageMaxHeight = value;
+          },
+          resolved.ankiConnect.media.imageMaxHeight,
+          'Expected positive integer.',
+        );
+      }
+      if (!hasOwn(media, 'animatedFps')) {
+        mapLegacy(
+          'animatedFps',
+          (value) => asIntegerInRange(value, 1, 60),
+          (value) => {
+            resolved.ankiConnect.media.animatedFps = value;
+          },
+          resolved.ankiConnect.media.animatedFps,
+          'Expected integer between 1 and 60.',
+        );
+      }
+      if (!hasOwn(media, 'animatedMaxWidth')) {
+        mapLegacy(
+          'animatedMaxWidth',
+          asPositiveInteger,
+          (value) => {
+            resolved.ankiConnect.media.animatedMaxWidth = value;
+          },
+          resolved.ankiConnect.media.animatedMaxWidth,
+          'Expected positive integer.',
+        );
+      }
+      if (!hasOwn(media, 'animatedMaxHeight')) {
+        mapLegacy(
+          'animatedMaxHeight',
+          asPositiveInteger,
+          (value) => {
+            resolved.ankiConnect.media.animatedMaxHeight = value;
+          },
+          resolved.ankiConnect.media.animatedMaxHeight,
+          'Expected positive integer.',
+        );
+      }
+      if (!hasOwn(media, 'animatedCrf')) {
+        mapLegacy(
+          'animatedCrf',
+          (value) => asIntegerInRange(value, 0, 63),
+          (value) => {
+            resolved.ankiConnect.media.animatedCrf = value;
+          },
+          resolved.ankiConnect.media.animatedCrf,
+          'Expected integer between 0 and 63.',
+        );
+      }
+      if (!hasOwn(media, 'audioPadding')) {
+        mapLegacy(
+          'audioPadding',
+          asNonNegativeNumber,
+          (value) => {
+            resolved.ankiConnect.media.audioPadding = value;
+          },
+          resolved.ankiConnect.media.audioPadding,
+          'Expected non-negative number.',
+        );
+      }
+      if (!hasOwn(media, 'fallbackDuration')) {
+        mapLegacy(
+          'fallbackDuration',
+          asPositiveNumber,
+          (value) => {
+            resolved.ankiConnect.media.fallbackDuration = value;
+          },
+          resolved.ankiConnect.media.fallbackDuration,
+          'Expected positive number.',
+        );
+      }
+      if (!hasOwn(media, 'maxMediaDuration')) {
+        mapLegacy(
+          'maxMediaDuration',
+          asNonNegativeNumber,
+          (value) => {
+            resolved.ankiConnect.media.maxMediaDuration = value;
+          },
+          resolved.ankiConnect.media.maxMediaDuration,
+          'Expected non-negative number.',
+        );
+      }
+      if (!hasOwn(behavior, 'overwriteAudio')) {
+        mapLegacy(
+          'overwriteAudio',
+          asBoolean,
+          (value) => {
+            resolved.ankiConnect.behavior.overwriteAudio = value;
+          },
+          resolved.ankiConnect.behavior.overwriteAudio,
+          'Expected boolean.',
+        );
+      }
+      if (!hasOwn(behavior, 'overwriteImage')) {
+        mapLegacy(
+          'overwriteImage',
+          asBoolean,
+          (value) => {
+            resolved.ankiConnect.behavior.overwriteImage = value;
+          },
+          resolved.ankiConnect.behavior.overwriteImage,
+          'Expected boolean.',
+        );
+      }
+      if (!hasOwn(behavior, 'mediaInsertMode')) {
+        mapLegacy(
+          'mediaInsertMode',
+          asMediaInsertMode,
+          (value) => {
+            resolved.ankiConnect.behavior.mediaInsertMode = value;
+          },
+          resolved.ankiConnect.behavior.mediaInsertMode,
+          "Expected 'append' or 'prepend'.",
+        );
+      }
+      if (!hasOwn(behavior, 'highlightWord')) {
+        mapLegacy(
+          'highlightWord',
+          asBoolean,
+          (value) => {
+            resolved.ankiConnect.behavior.highlightWord = value;
+          },
+          resolved.ankiConnect.behavior.highlightWord,
+          'Expected boolean.',
+        );
+      }
+      if (!hasOwn(behavior, 'notificationType')) {
+        mapLegacy(
+          'notificationType',
+          asNotificationType,
+          (value) => {
+            resolved.ankiConnect.behavior.notificationType = value;
+          },
+          resolved.ankiConnect.behavior.notificationType,
+          "Expected 'osd', 'system', 'both', or 'none'.",
+        );
+      }
+      if (!hasOwn(behavior, 'autoUpdateNewCards')) {
+        mapLegacy(
+          'autoUpdateNewCards',
+          asBoolean,
+          (value) => {
+            resolved.ankiConnect.behavior.autoUpdateNewCards = value;
+          },
+          resolved.ankiConnect.behavior.autoUpdateNewCards,
+          'Expected boolean.',
+        );
+      }
 
       const nPlusOneConfig = isObject(ac.nPlusOne) ? (ac.nPlusOne as Record<string, unknown>) : {};
 
