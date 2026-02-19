@@ -49,7 +49,7 @@ The `subminer` wrapper uses a [Bun](https://bun.sh) shebang, so `bun` must be on
 git clone --recurse-submodules https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
 bun install
-cd vendor/texthooker-ui && bun install && cd ../..
+cd vendor/texthooker-ui && pnpm install --frozen-lockfile && cd ../..
 make build
 make install
 ```

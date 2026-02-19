@@ -13,7 +13,7 @@ cd SubMiner
 make deps
 # or manually:
 bun install
-cd vendor/texthooker-ui && bun install
+cd vendor/texthooker-ui && pnpm install --frozen-lockfile
 ```
 
 ## Building

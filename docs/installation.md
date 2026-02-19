@@ -83,7 +83,7 @@ brew install mpv mecab mecab-ipadic
 git clone https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
 bun install
-cd vendor/texthooker-ui && bun install && bun run build && cd ../..
+cd vendor/texthooker-ui && pnpm install --frozen-lockfile && pnpm run build && cd ../..
 bun run build:mac
 ```
 
