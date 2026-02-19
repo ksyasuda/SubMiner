@@ -6,6 +6,13 @@ RUN_ONCE_SCRIPT="$SCRIPT_DIR/docs-sweep-once.sh"
 INTERVAL_SECONDS="${INTERVAL_SECONDS:-300}"
 REPO="${REPO:-$HOME/projects/japanese/SubMiner}"
 LOG_FILE="${LOG_FILE:-$REPO/.codex-doc-sweep.log}"
+SUBAGENT_ROOT="${SUBAGENT_ROOT:-$REPO/docs/subagents}"
+SUBAGENT_INDEX_FILE="${SUBAGENT_INDEX_FILE:-$SUBAGENT_ROOT/INDEX.md}"
+SUBAGENT_COLLAB_FILE="${SUBAGENT_COLLAB_FILE:-$SUBAGENT_ROOT/collaboration.md}"
+SUBAGENT_AGENTS_DIR="${SUBAGENT_AGENTS_DIR:-$SUBAGENT_ROOT/agents}"
+AGENT_ID="${AGENT_ID:-docs-sweep}"
+AGENT_ID_SAFE="$(printf '%s' "$AGENT_ID" | tr -c 'A-Za-z0-9._-' '_')"
+AGENT_FILE="${AGENT_FILE:-$SUBAGENT_AGENTS_DIR/${AGENT_ID_SAFE}.md}"
 REPORT_WITH_CODEX=false
 REPORT_TIMEOUT_SECONDS="${REPORT_TIMEOUT_SECONDS:-120}"
 REPORT_AGENT_CMD="${REPORT_AGENT_CMD:-codex exec}"
@@ -23,6 +30,12 @@ Usage: scripts/docs-sweep-watch.sh [options]
 Options:
   -r, --report  One-off: summarize current log with Codex and exit.
   -h, --help    Show this help message.
+
+Environment:
+  AGENT_ID            Stable agent id (default: docs-sweep)
+  AGENT_ALIAS         Human label shown in logs/coordination (default: Docs Sweep)
+  AGENT_MISSION       One-line focus for this run
+  SUBAGENT_ROOT       Coordination root (default: docs/subagents)
 EOF
 }
 
@@ -53,28 +66,47 @@ trim_log_runs() {
 }
 
 run_report() {
-	if [[ ! -f "$LOG_FILE" ]]; then
-		echo "[REPORT] log file not found: $LOG_FILE"
-		return
+	local has_log=false
+	local has_index=false
+	local has_collab=false
+	local has_agent_file=false
+	if [[ -s "$LOG_FILE" ]]; then
+		has_log=true
 	fi
-
-	if [[ ! -s "$LOG_FILE" ]]; then
-		echo "[REPORT] log file empty: $LOG_FILE"
+	if [[ -s "$SUBAGENT_INDEX_FILE" ]]; then
+		has_index=true
+	fi
+	if [[ -s "$SUBAGENT_COLLAB_FILE" ]]; then
+		has_collab=true
+	fi
+	if [[ -s "$AGENT_FILE" ]]; then
+		has_agent_file=true
+	fi
+	if [[ "$has_log" != "true" && "$has_index" != "true" && "$has_collab" != "true" && "$has_agent_file" != "true" ]]; then
+		echo "[REPORT] no inputs; missing/empty files:"
+		echo "[REPORT] - $LOG_FILE"
+		echo "[REPORT] - $SUBAGENT_INDEX_FILE"
+		echo "[REPORT] - $SUBAGENT_COLLAB_FILE"
+		echo "[REPORT] - $AGENT_FILE"
 		return
 	fi
 
 	local report_prompt
 	read -r -d '' report_prompt << EOF || true
-Summarize docs sweep log. Output:
+Summarize docs sweep state. Output:
 - Changes made (short bullets; file-focused when possible)
+- Agent coordination updates from sharded docs/subagents files
 - Open questions / uncertainty
 - Left undone / follow-up items
 
 Constraints:
 - Be concise.
 - If uncertain, say uncertain.
-Read this file directly:
+Read these files directly if present:
 $LOG_FILE
+$SUBAGENT_INDEX_FILE
+$SUBAGENT_COLLAB_FILE
+$AGENT_FILE
 EOF
 
 	echo "[REPORT] codex summary start"
@@ -130,7 +162,7 @@ fi
 stop_requested=false
 trap 'stop_requested=true' INT TERM
 
-echo "Starting docs sweep watcher (interval: ${INTERVAL_SECONDS}s). Press Ctrl+C to stop."
+echo "Starting docs sweep watcher (interval: ${INTERVAL_SECONDS}s, subagent_root: ${SUBAGENT_ROOT}). Press Ctrl+C to stop."
 
 while true; do
 	run_started_at="$(date -Is)"
