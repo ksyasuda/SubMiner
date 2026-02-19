@@ -136,8 +136,6 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     isLapis: {
       enabled: false,
       sentenceCardModel: 'Japanese sentences',
-      sentenceCardSentenceField: 'Sentence',
-      sentenceCardAudioField: 'SentenceAudio',
     },
     isKiku: {
       enabled: false,

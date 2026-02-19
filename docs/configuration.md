@@ -139,9 +139,7 @@ Enable automatic Anki card creation and updates with media generation:
     },
     "isLapis": {
       "enabled": true,
-      "sentenceCardModel": "Japanese sentences",
-      "sentenceCardSentenceField": "Sentence",
-      "sentenceCardAudioField": "SentenceAudio"
+      "sentenceCardModel": "Japanese sentences"
     },
     "isKiku": {
       "enabled": false,
@@ -204,7 +202,7 @@ This example is intentionally compact. The option table below documents availabl
 | `behavior.notificationType`             | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                           |
 | `behavior.autoUpdateNewCards`           | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                      |
 | `metadata.pattern`                      | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                                      |
-| `isLapis`                               | object                                  | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel, sentenceCardSentenceField, sentenceCardAudioField }`                        |
+| `isLapis`                               | object                                  | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel }`. Sentence/audio field names are fixed to `Sentence` and `SentenceAudio`.  |
 | `isKiku`                                | object                                  | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)     |
 
 **Kiku / Lapis Note Type Support:**
@@ -231,6 +229,7 @@ Known-word cache policy:
 - The cache is automatically invalidated when the configured scope changes (for example, when deck changes).
 - Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.nPlusOne.matchMode` to `"surface"` for raw subtitle text matching.
 - `ankiConnect.behavior.nPlusOne*` legacy keys (`nPlusOneHighlightEnabled`, `nPlusOneRefreshMinutes`, `nPlusOneMatchMode`) are deprecated and only kept for backward compatibility.
+- Legacy top-level `ankiConnect` migration keys (for example `audioField`, `generateAudio`, `imageType`) are compatibility-only, validated before mapping, and ignored with a warning when invalid.
 - If AnkiConnect is unreachable, the cache remains in its previous state and an on-screen/system status message is shown.
 - Known-word sync activity is logged at `INFO`/`DEBUG` level with the `anki` logger scope and includes scope, notes returned, and word counts.
 

@@ -93,7 +93,7 @@ Create a standalone sentence card without going through Yomitan:
 - **Mine current sentence**: `Ctrl/Cmd+S` (configurable via `shortcuts.mineSentence`)
 - **Mine multiple lines**: `Ctrl/Cmd+Shift+S` followed by a digit 1–9 to select how many recent subtitle lines to combine.
 
-The sentence card uses the note type configured in `isLapis.sentenceCardModel` with the sentence and audio fields mapped by `isLapis.sentenceCardSentenceField` and `isLapis.sentenceCardAudioField`.
+The sentence card uses the note type configured in `isLapis.sentenceCardModel` and always maps sentence/audio to `Sentence` and `SentenceAudio`.
 
 ### 3. Mark as Audio Card
 

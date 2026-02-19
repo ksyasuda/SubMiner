@@ -334,15 +334,11 @@ export class AnkiIntegration {
   private getLapisConfig(): {
     enabled: boolean;
     sentenceCardModel?: string;
-    sentenceCardSentenceField?: string;
-    sentenceCardAudioField?: string;
   } {
     const lapis = this.config.isLapis;
     return {
       enabled: lapis?.enabled === true,
       sentenceCardModel: lapis?.sentenceCardModel,
-      sentenceCardSentenceField: lapis?.sentenceCardSentenceField,
-      sentenceCardAudioField: lapis?.sentenceCardAudioField,
     };
   }
 
@@ -373,8 +369,8 @@ export class AnkiIntegration {
 
     return {
       model: lapis.sentenceCardModel,
-      sentenceField: lapis.sentenceCardSentenceField || 'Sentence',
-      audioField: lapis.sentenceCardAudioField || 'SentenceAudio',
+      sentenceField: 'Sentence',
+      audioField: 'SentenceAudio',
       lapisEnabled: lapis.enabled,
       kikuEnabled: kiku.enabled,
       kikuFieldGrouping: (kiku.fieldGrouping || 'disabled') as 'auto' | 'manual' | 'disabled',

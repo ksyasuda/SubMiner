@@ -159,9 +159,7 @@ SubMiner can create standalone sentence cards (without a word/expression) using 
 "ankiConnect": {
   "isLapis": {
     "enabled": true,
-    "sentenceCardModel": "Japanese sentences",
-    "sentenceCardSentenceField": "Sentence",
-    "sentenceCardAudioField": "SentenceAudio"
+    "sentenceCardModel": "Japanese sentences"
   }
 }
 ```
@@ -254,8 +252,6 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
     "isLapis": {
       "enabled": false,
       "sentenceCardModel": "Japanese sentences",
-      "sentenceCardSentenceField": "Sentence",
-      "sentenceCardAudioField": "SentenceAudio",
     },
   },
 }

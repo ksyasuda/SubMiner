@@ -260,8 +260,6 @@ export interface AnkiConnectConfig {
   isLapis?: {
     enabled?: boolean;
     sentenceCardModel?: string;
-    sentenceCardSentenceField?: string;
-    sentenceCardAudioField?: string;
   };
   isKiku?: {
     enabled?: boolean;
@@ -480,8 +478,6 @@ export interface ResolvedConfig {
     isLapis: {
       enabled: boolean;
       sentenceCardModel: string;
-      sentenceCardSentenceField: string;
-      sentenceCardAudioField: string;
     };
     isKiku: {
       enabled: boolean;
