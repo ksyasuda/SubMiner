@@ -2709,12 +2709,21 @@ function createInvisibleWindow(): BrowserWindow {
 }
 
 function resolveTrayIconPath(): string | null {
-  const candidates = [
-    path.join(process.resourcesPath, 'assets', 'SubMiner.png'),
-    path.join(app.getAppPath(), 'assets', 'SubMiner.png'),
-    path.join(__dirname, '..', 'assets', 'SubMiner.png'),
-    path.join(__dirname, '..', '..', 'assets', 'SubMiner.png'),
+  const iconNames =
+    process.platform === 'darwin'
+      ? ['SubMinerTemplate.png', 'SubMinerTemplate@2x.png', 'SubMiner.png']
+      : ['SubMiner.png'];
+
+  const baseDirs = [
+    path.join(process.resourcesPath, 'assets'),
+    path.join(app.getAppPath(), 'assets'),
+    path.join(__dirname, '..', 'assets'),
+    path.join(__dirname, '..', '..', 'assets'),
   ];
+
+  const candidates = baseDirs.flatMap((baseDir) =>
+    iconNames.map((iconName) => path.join(baseDir, iconName)),
+  );
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
       return candidate;
