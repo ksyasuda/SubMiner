@@ -37,9 +37,16 @@ import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { createRendererState } from './state.js';
 import { createSubtitleRenderer } from './subtitle-render.js';
+import {
+  createRendererRecoveryController,
+  registerRendererGlobalErrorHandlers,
+} from './error-recovery.js';
 import { resolveRendererDom } from './utils/dom.js';
 import { resolvePlatformInfo } from './utils/platform.js';
-import { buildMpvLoadfileCommands, collectDroppedVideoPaths } from '../core/services/overlay-drop.js';
+import {
+  buildMpvLoadfileCommands,
+  collectDroppedVideoPaths,
+} from '../core/services/overlay-drop.js';
 
 const ctx = {
   dom: resolveRendererDom(),
@@ -126,44 +133,165 @@ const mouseHandlers = createMouseHandlers(ctx, {
   persistSubtitlePositionPatch: positioning.persistSubtitlePositionPatch,
 });
 
+let lastSubtitlePreview = '';
+let lastSecondarySubtitlePreview = '';
+let overlayErrorToastTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function truncateForErrorLog(text: string): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= 180) {
+    return normalized;
+  }
+  return `${normalized.slice(0, 177)}...`;
+}
+
+function getActiveModal(): string | null {
+  if (ctx.state.jimakuModalOpen) return 'jimaku';
+  if (ctx.state.kikuModalOpen) return 'kiku';
+  if (ctx.state.runtimeOptionsModalOpen) return 'runtime-options';
+  if (ctx.state.subsyncModalOpen) return 'subsync';
+  if (ctx.state.sessionHelpModalOpen) return 'session-help';
+  return null;
+}
+
+function dismissActiveUiAfterError(): void {
+  if (ctx.state.jimakuModalOpen) {
+    jimakuModal.closeJimakuModal();
+  }
+  if (ctx.state.runtimeOptionsModalOpen) {
+    runtimeOptionsModal.closeRuntimeOptionsModal();
+  }
+  if (ctx.state.subsyncModalOpen) {
+    subsyncModal.closeSubsyncModal();
+  }
+  if (ctx.state.kikuModalOpen) {
+    kikuModal.cancelKikuFieldGrouping();
+  }
+  if (ctx.state.sessionHelpModalOpen) {
+    sessionHelpModal.closeSessionHelpModal();
+  }
+
+  syncSettingsModalSubtitleSuppression();
+}
+
+function restoreOverlayInteractionAfterError(): void {
+  ctx.state.isOverSubtitle = false;
+  if (ctx.state.invisiblePositionEditMode) {
+    positioning.setInvisiblePositionEditMode(false);
+  }
+  ctx.dom.overlay.classList.remove('interactive');
+  if (ctx.platform.shouldToggleMouseIgnore) {
+    window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
+  }
+}
+
+function showOverlayErrorToast(message: string): void {
+  if (overlayErrorToastTimeout) {
+    clearTimeout(overlayErrorToastTimeout);
+    overlayErrorToastTimeout = null;
+  }
+  ctx.dom.overlayErrorToast.textContent = message;
+  ctx.dom.overlayErrorToast.classList.remove('hidden');
+  overlayErrorToastTimeout = setTimeout(() => {
+    ctx.dom.overlayErrorToast.classList.add('hidden');
+    ctx.dom.overlayErrorToast.textContent = '';
+    overlayErrorToastTimeout = null;
+  }, 3200);
+}
+
+const recovery = createRendererRecoveryController({
+  dismissActiveUi: dismissActiveUiAfterError,
+  restoreOverlayInteraction: restoreOverlayInteractionAfterError,
+  showToast: showOverlayErrorToast,
+  getSnapshot: () => ({
+    activeModal: getActiveModal(),
+    subtitlePreview: lastSubtitlePreview,
+    secondarySubtitlePreview: lastSecondarySubtitlePreview,
+    isOverlayInteractive: ctx.dom.overlay.classList.contains('interactive'),
+    isOverSubtitle: ctx.state.isOverSubtitle,
+    invisiblePositionEditMode: ctx.state.invisiblePositionEditMode,
+    overlayLayer: ctx.platform.overlayLayer,
+  }),
+  logError: (payload) => {
+    console.error('renderer overlay recovery', payload);
+  },
+});
+
+registerRendererGlobalErrorHandlers(window, recovery);
+
+function runGuarded(action: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (error) {
+    recovery.handleError(error, { source: 'callback', action });
+  }
+}
+
+function runGuardedAsync(action: string, fn: () => Promise<void> | void): void {
+  Promise.resolve()
+    .then(fn)
+    .catch((error) => {
+      recovery.handleError(error, { source: 'callback', action });
+    });
+}
+
 async function init(): Promise<void> {
   document.body.classList.add(`layer-${ctx.platform.overlayLayer}`);
 
   window.electronAPI.onSubtitle((data: SubtitleData) => {
-    subtitleRenderer.renderSubtitle(data);
-    measurementReporter.schedule();
+    runGuarded('subtitle:update', () => {
+      if (typeof data === 'string') {
+        lastSubtitlePreview = truncateForErrorLog(data);
+      } else if (data && typeof data.text === 'string') {
+        lastSubtitlePreview = truncateForErrorLog(data.text);
+      }
+      subtitleRenderer.renderSubtitle(data);
+      measurementReporter.schedule();
+    });
   });
 
   window.electronAPI.onSubtitlePosition((position: SubtitlePosition | null) => {
-    if (ctx.platform.isInvisibleLayer) {
-      positioning.applyInvisibleStoredSubtitlePosition(position, 'media-change');
-    } else {
-      positioning.applyStoredSubtitlePosition(position, 'media-change');
-    }
-    measurementReporter.schedule();
+    runGuarded('subtitle-position:update', () => {
+      if (ctx.platform.isInvisibleLayer) {
+        positioning.applyInvisibleStoredSubtitlePosition(position, 'media-change');
+      } else {
+        positioning.applyStoredSubtitlePosition(position, 'media-change');
+      }
+      measurementReporter.schedule();
+    });
   });
 
   if (ctx.platform.isInvisibleLayer) {
     window.electronAPI.onMpvSubtitleRenderMetrics((metrics: MpvSubtitleRenderMetrics) => {
-      positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(metrics, 'event');
-      measurementReporter.schedule();
+      runGuarded('mpv-metrics:update', () => {
+        positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(metrics, 'event');
+        measurementReporter.schedule();
+      });
     });
     window.electronAPI.onOverlayDebugVisualization((enabled: boolean) => {
-      document.body.classList.toggle('debug-invisible-visualization', enabled);
+      runGuarded('overlay-debug-visualization:update', () => {
+        document.body.classList.toggle('debug-invisible-visualization', enabled);
+      });
     });
   }
 
   const initialSubtitle = await window.electronAPI.getCurrentSubtitleRaw();
+  lastSubtitlePreview = truncateForErrorLog(initialSubtitle);
   subtitleRenderer.renderSubtitle(initialSubtitle);
   measurementReporter.schedule();
 
   window.electronAPI.onSecondarySub((text: string) => {
-    subtitleRenderer.renderSecondarySub(text);
-    measurementReporter.schedule();
+    runGuarded('secondary-subtitle:update', () => {
+      lastSecondarySubtitlePreview = truncateForErrorLog(text);
+      subtitleRenderer.renderSecondarySub(text);
+      measurementReporter.schedule();
+    });
   });
   window.electronAPI.onSecondarySubMode((mode: SecondarySubMode) => {
-    subtitleRenderer.updateSecondarySubMode(mode);
-    measurementReporter.schedule();
+    runGuarded('secondary-subtitle-mode:update', () => {
+      subtitleRenderer.updateSecondarySubMode(mode);
+      measurementReporter.schedule();
+    });
   });
 
   subtitleRenderer.updateSecondarySubMode(await window.electronAPI.getSecondarySubMode());
@@ -195,30 +323,44 @@ async function init(): Promise<void> {
   sessionHelpModal.wireDomEvents();
 
   window.electronAPI.onRuntimeOptionsChanged((options: RuntimeOptionState[]) => {
-    runtimeOptionsModal.updateRuntimeOptions(options);
+    runGuarded('runtime-options:changed', () => {
+      runtimeOptionsModal.updateRuntimeOptions(options);
+    });
   });
   window.electronAPI.onConfigHotReload((payload: ConfigHotReloadPayload) => {
-    keyboardHandlers.updateKeybindings(payload.keybindings);
-    subtitleRenderer.applySubtitleStyle(payload.subtitleStyle);
-    subtitleRenderer.updateSecondarySubMode(payload.secondarySubMode);
-    measurementReporter.schedule();
+    runGuarded('config:hot-reload', () => {
+      keyboardHandlers.updateKeybindings(payload.keybindings);
+      subtitleRenderer.applySubtitleStyle(payload.subtitleStyle);
+      subtitleRenderer.updateSecondarySubMode(payload.secondarySubMode);
+      measurementReporter.schedule();
+    });
   });
   window.electronAPI.onOpenRuntimeOptions(() => {
-    runtimeOptionsModal.openRuntimeOptionsModal().catch(() => {
-      runtimeOptionsModal.setRuntimeOptionsStatus('Failed to load runtime options', true);
-      window.electronAPI.notifyOverlayModalClosed('runtime-options');
-      syncSettingsModalSubtitleSuppression();
+    runGuardedAsync('runtime-options:open', async () => {
+      try {
+        await runtimeOptionsModal.openRuntimeOptionsModal();
+      } catch {
+        runtimeOptionsModal.setRuntimeOptionsStatus('Failed to load runtime options', true);
+        window.electronAPI.notifyOverlayModalClosed('runtime-options');
+        syncSettingsModalSubtitleSuppression();
+      }
     });
   });
   window.electronAPI.onOpenJimaku(() => {
-    jimakuModal.openJimakuModal();
+    runGuarded('jimaku:open', () => {
+      jimakuModal.openJimakuModal();
+    });
   });
   window.electronAPI.onSubsyncManualOpen((payload: SubsyncManualPayload) => {
-    subsyncModal.openSubsyncModal(payload);
+    runGuarded('subsync:manual-open', () => {
+      subsyncModal.openSubsyncModal(payload);
+    });
   });
   window.electronAPI.onKikuFieldGroupingRequest(
     (data: { original: KikuDuplicateCardInfo; duplicate: KikuDuplicateCardInfo }) => {
-      kikuModal.openKikuFieldGroupingModal(data);
+      runGuarded('kiku:field-grouping-open', () => {
+        kikuModal.openKikuFieldGroupingModal(data);
+      });
     },
   );
 
@@ -318,7 +460,9 @@ function setupDragDropToMpvQueue(): void {
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', () => {
+    runGuardedAsync('bootstrap:init', init);
+  });
 } else {
-  void init();
+  runGuardedAsync('bootstrap:init', init);
 }

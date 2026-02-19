@@ -64,6 +64,12 @@ Shown when SubMiner tries to update a card that no longer exists, or when AnkiCo
 - On macOS/Windows, `setIgnoreMouseEvents` toggles automatically. If clicks stop working, toggle the overlay off and back on (`Alt+Shift+O`).
 - Make sure you are hovering over the subtitle area — the overlay only becomes interactive when the cursor is over subtitle text.
 
+**Overlay briefly freezes after a modal/runtime error**
+
+- Renderer errors now trigger an automatic recovery path. You should see a short toast ("Renderer error recovered. Overlay is still running.").
+- Recovery closes any open modal and restores click-through/shortcuts automatically without interrupting mpv playback.
+- If errors keep recurring, open DevTools (`Alt+Shift+I`) and inspect the `renderer overlay recovery` error payload for stack trace + modal/subtitle context.
+
 **Overlay is on the wrong monitor or position**
 
 SubMiner positions the overlay by tracking the mpv window. If tracking fails:

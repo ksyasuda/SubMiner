@@ -1,9 +1,10 @@
 ---
 id: TASK-37
 title: Add error boundary and recovery in renderer overlay
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-14 01:01'
+updated_date: '2026-02-19 21:50'
 labels:
   - renderer
   - reliability
@@ -41,10 +42,22 @@ If a renderer modal throws (e.g., jimaku API timeout, DOM manipulation error, ma
 
 <!-- AC:BEGIN -->
 
-- [ ] #1 Unhandled errors in modal flows are caught and do not crash the overlay.
-- [ ] #2 After an error, the overlay returns to a functional state (subtitles render, shortcuts work).
-- [ ] #3 A brief toast/notification informs the user that an error occurred.
-- [ ] #4 Global unhandledrejection and onerror handlers are registered as safety nets.
-- [ ] #5 Error details are logged with context (stack trace, active modal, subtitle state).
-- [ ] #6 mpv playback is never interrupted by renderer errors.
+- [x] #1 Unhandled errors in modal flows are caught and do not crash the overlay.
+- [x] #2 After an error, the overlay returns to a functional state (subtitles render, shortcuts work).
+- [x] #3 A brief toast/notification informs the user that an error occurred.
+- [x] #4 Global unhandledrejection and onerror handlers are registered as safety nets.
+- [x] #5 Error details are logged with context (stack trace, active modal, subtitle state).
+- [x] #6 mpv playback is never interrupted by renderer errors.
 <!-- AC:END -->
+
+## Implementation Notes
+
+- Added renderer recovery module with guarded callback boundaries and global `window.onerror` / `window.unhandledrejection` handlers.
+- Recovery now uses modal close/cancel APIs (including Kiku cancel) to preserve cleanup semantics and avoid hanging pending callbacks.
+- Added overlay recovery toast UI and contextual recovery logging payloads.
+- Added regression coverage in `src/renderer/error-recovery.test.ts` and wired it into `test:core:dist`.
+
+## Verification
+
+- `bun run build`
+- `bun run test:core:dist`

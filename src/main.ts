@@ -2782,6 +2782,12 @@ function ensureTray(): void {
   if (trayIcon.isEmpty()) {
     logger.warn('Tray icon asset not found; using empty icon placeholder.');
   }
+  if (process.platform === 'darwin' && !trayIcon.isEmpty()) {
+    // macOS status bar expects a small monochrome-like template icon.
+    // Feeding the full-size app icon can produce oversized/non-interactive items.
+    trayIcon = trayIcon.resize({ width: 18, height: 18, quality: 'best' });
+    trayIcon.setTemplateImage(true);
+  }
   if (process.platform === 'linux' && !trayIcon.isEmpty()) {
     trayIcon = trayIcon.resize({ width: 20, height: 20 });
   }

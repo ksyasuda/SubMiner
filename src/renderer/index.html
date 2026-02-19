@@ -30,6 +30,12 @@
   <body>
     <!-- Programmatic focus fallback target for Electron/window focus management. -->
     <div id="overlay" tabindex="-1">
+      <div
+        id="overlayErrorToast"
+        class="overlay-error-toast hidden"
+        role="status"
+        aria-live="polite"
+      ></div>
       <div id="secondarySubContainer" class="secondary-sub-hidden">
         <div id="secondarySubRoot"></div>
       </div>

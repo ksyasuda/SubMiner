@@ -2,6 +2,7 @@ export type RendererDom = {
   subtitleRoot: HTMLElement;
   subtitleContainer: HTMLElement;
   overlay: HTMLElement;
+  overlayErrorToast: HTMLDivElement;
   secondarySubContainer: HTMLElement;
   secondarySubRoot: HTMLElement;
 
@@ -77,6 +78,7 @@ export function resolveRendererDom(): RendererDom {
     subtitleRoot: getRequiredElement<HTMLElement>('subtitleRoot'),
     subtitleContainer: getRequiredElement<HTMLElement>('subtitleContainer'),
     overlay: getRequiredElement<HTMLElement>('overlay'),
+    overlayErrorToast: getRequiredElement<HTMLDivElement>('overlayErrorToast'),
     secondarySubContainer: getRequiredElement<HTMLElement>('secondarySubContainer'),
     secondarySubRoot: getRequiredElement<HTMLElement>('secondarySubRoot'),
 

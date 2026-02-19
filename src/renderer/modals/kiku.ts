@@ -290,6 +290,7 @@ export function createKikuModal(
   }
 
   return {
+    cancelKikuFieldGrouping,
     closeKikuFieldGroupingModal,
     handleKikuKeydown,
     openKikuFieldGroupingModal,

@@ -47,6 +47,32 @@ body {
   pointer-events: auto;
 }
 
+.overlay-error-toast {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 148, 148, 0.5);
+  background: rgba(48, 12, 12, 0.9);
+  color: rgba(255, 238, 238, 0.98);
+  font-size: 13px;
+  line-height: 1.35;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+  z-index: 1300;
+}
+
+.overlay-error-toast:not(.hidden) {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .modal {
   position: absolute;
   inset: 0;

@@ -4,7 +4,7 @@ title: Run Electron app as background tray service with IPC startup
 status: Done
 assignee: []
 created_date: '2026-02-18 08:48'
-updated_date: '2026-02-18 10:17'
+updated_date: '2026-02-19 21:50'
 labels:
   - electron
   - tray
@@ -51,6 +51,8 @@ Background launch now detaches from terminal via new `src/main-entry.ts` bootstr
 Background detached child now suppresses Node runtime warnings (`NODE_NO_WARNINGS=1`) and strips `VK_INSTANCE_LAYERS` when it contains `lsfg` to reduce non-actionable startup noise in background mode.
 
 Updated package entrypoint to `dist/main-entry.js` and docs usage note for detached background behavior.
+
+macOS follow-up: tray icon handling now normalizes to status-bar-safe form (`18x18` resize + template image mode) to prevent oversized/non-interactive menu bar icons when running in `--background` mode.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
