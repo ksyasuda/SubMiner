@@ -241,6 +241,7 @@ export function mergeTokens(
 }
 
 const SENTENCE_BOUNDARY_SURFACES = new Set(['。', '？', '！', '?', '!', '…', '\u2026']);
+const N_PLUS_ONE_IGNORED_POS1 = new Set(['助詞', '助動詞', '記号', '補助記号']);
 
 export function isNPlusOneCandidateToken(token: MergedToken): boolean {
   if (token.isKnown) {
@@ -264,6 +265,10 @@ export function isNPlusOneCandidateToken(token: MergedToken): boolean {
   }
 
   if (token.pos3 && token.pos3.startsWith('助数詞')) {
+    return false;
+  }
+
+  if (token.pos1 && N_PLUS_ONE_IGNORED_POS1.has(token.pos1)) {
     return false;
   }
 

@@ -1583,6 +1583,266 @@ test('tokenizeSubtitle applies N+1 target marking to Yomitan results', async () 
   assert.equal(result.tokens?.[1]?.isNPlusOneTarget, false);
 });
 
+test('tokenizeSubtitle ignores Yomitan functional tokens when evaluating N+1 candidates', async () => {
+  const parserWindow = {
+    isDestroyed: () => false,
+    webContents: {
+      executeJavaScript: async () => [
+        {
+          source: 'scanning-parser',
+          index: 0,
+          content: [
+            [{ text: '私', reading: 'わたし', headwords: [[{ term: '私' }]] }],
+            [{ text: 'も', reading: 'も', headwords: [[{ term: 'も' }]] }],
+            [{ text: 'あの', reading: 'あの', headwords: [[{ term: 'あの' }]] }],
+            [{ text: '仮面', reading: 'かめん', headwords: [[{ term: '仮面' }]] }],
+            [{ text: 'が', reading: 'が', headwords: [[{ term: 'が' }]] }],
+            [{ text: '欲しい', reading: 'ほしい', headwords: [[{ term: '欲しい' }]] }],
+            [{ text: 'です', reading: 'です', headwords: [[{ term: 'です' }]] }],
+          ],
+        },
+      ],
+    },
+  } as unknown as Electron.BrowserWindow;
+
+  const result = await tokenizeSubtitle(
+    '私も あの仮面が欲しいです',
+    makeDeps({
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () => parserWindow,
+      tokenizeWithMecab: async () => [
+        {
+          surface: '私',
+          reading: 'ワタシ',
+          headword: '私',
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          isMerged: false,
+          isKnown: true,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: 'も',
+          reading: 'モ',
+          headword: 'も',
+          startPos: 1,
+          endPos: 2,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: 'あの',
+          reading: 'アノ',
+          headword: 'あの',
+          startPos: 2,
+          endPos: 4,
+          partOfSpeech: PartOfSpeech.other,
+          pos1: '連体詞',
+          isMerged: false,
+          isKnown: true,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: '仮面',
+          reading: 'カメン',
+          headword: '仮面',
+          startPos: 4,
+          endPos: 6,
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: 'が',
+          reading: 'ガ',
+          headword: 'が',
+          startPos: 6,
+          endPos: 7,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: '欲しい',
+          reading: 'ホシイ',
+          headword: '欲しい',
+          startPos: 7,
+          endPos: 10,
+          partOfSpeech: PartOfSpeech.i_adjective,
+          pos1: '形容詞',
+          isMerged: false,
+          isKnown: true,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: 'です',
+          reading: 'デス',
+          headword: 'です',
+          startPos: 10,
+          endPos: 12,
+          partOfSpeech: PartOfSpeech.bound_auxiliary,
+          pos1: '助動詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      isKnownWord: (text) => text === '私' || text === 'あの' || text === '欲しい',
+    }),
+  );
+
+  const targets = result.tokens?.filter((token) => token.isNPlusOneTarget) ?? [];
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0]?.surface, '仮面');
+});
+
+test('tokenizeSubtitle keeps correct MeCab pos1 enrichment when Yomitan offsets skip spaces', async () => {
+  const parserWindow = {
+    isDestroyed: () => false,
+    webContents: {
+      executeJavaScript: async () => [
+        {
+          source: 'scanning-parser',
+          index: 0,
+          content: [
+            [{ text: '私', reading: 'わたし', headwords: [[{ term: '私' }]] }],
+            [{ text: 'も', reading: 'も', headwords: [[{ term: 'も' }]] }],
+            [{ text: 'あの', reading: 'あの', headwords: [[{ term: 'あの' }]] }],
+            [{ text: '仮面', reading: 'かめん', headwords: [[{ term: '仮面' }]] }],
+            [{ text: 'が', reading: 'が', headwords: [[{ term: 'が' }]] }],
+            [{ text: '欲しい', reading: 'ほしい', headwords: [[{ term: '欲しい' }]] }],
+            [{ text: 'です', reading: 'です', headwords: [[{ term: 'です' }]] }],
+          ],
+        },
+      ],
+    },
+  } as unknown as Electron.BrowserWindow;
+
+  const result = await tokenizeSubtitle(
+    '私も あの仮面が欲しいです',
+    makeDeps({
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () => parserWindow,
+      tokenizeWithMecab: async () => [
+        {
+          surface: '私',
+          reading: 'ワタシ',
+          headword: '私',
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          isMerged: false,
+          isKnown: true,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: 'も',
+          reading: 'モ',
+          headword: 'も',
+          startPos: 1,
+          endPos: 2,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: ' ',
+          reading: '',
+          headword: ' ',
+          startPos: 2,
+          endPos: 3,
+          partOfSpeech: PartOfSpeech.symbol,
+          pos1: '記号',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: 'あの',
+          reading: 'アノ',
+          headword: 'あの',
+          startPos: 3,
+          endPos: 5,
+          partOfSpeech: PartOfSpeech.other,
+          pos1: '連体詞',
+          isMerged: false,
+          isKnown: true,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: '仮面',
+          reading: 'カメン',
+          headword: '仮面',
+          startPos: 5,
+          endPos: 7,
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: 'が',
+          reading: 'ガ',
+          headword: 'が',
+          startPos: 7,
+          endPos: 8,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: '欲しい',
+          reading: 'ホシイ',
+          headword: '欲しい',
+          startPos: 8,
+          endPos: 11,
+          partOfSpeech: PartOfSpeech.i_adjective,
+          pos1: '形容詞',
+          isMerged: false,
+          isKnown: true,
+          isNPlusOneTarget: false,
+        },
+        {
+          surface: 'です',
+          reading: 'デス',
+          headword: 'です',
+          startPos: 11,
+          endPos: 13,
+          partOfSpeech: PartOfSpeech.bound_auxiliary,
+          pos1: '助動詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      isKnownWord: (text) => text === '私' || text === 'あの' || text === '欲しい',
+    }),
+  );
+
+  const targets = result.tokens?.filter((token) => token.isNPlusOneTarget) ?? [];
+  const gaToken = result.tokens?.find((token) => token.surface === 'が');
+  const desuToken = result.tokens?.find((token) => token.surface === 'です');
+  assert.equal(gaToken?.pos1, '助詞');
+  assert.equal(desuToken?.pos1, '助動詞');
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0]?.surface, '仮面');
+});
+
 test('tokenizeSubtitle does not color 1-2 word sentences by default', async () => {
   const result = await tokenizeSubtitle(
     '猫です',
@@ -1677,4 +1937,57 @@ test('tokenizeSubtitle checks known words by surface when configured', async () 
 
   assert.equal(result.text, '猫です');
   assert.equal(result.tokens?.[0]?.isKnown, true);
+});
+
+test('createTokenizerDepsRuntime checks MeCab availability before first tokenize call', async () => {
+  let available = false;
+  let checkCalls = 0;
+
+  const deps = createTokenizerDepsRuntime({
+    getYomitanExt: () => null,
+    getYomitanParserWindow: () => null,
+    setYomitanParserWindow: () => {},
+    getYomitanParserReadyPromise: () => null,
+    setYomitanParserReadyPromise: () => {},
+    getYomitanParserInitPromise: () => null,
+    setYomitanParserInitPromise: () => {},
+    isKnownWord: () => false,
+    getKnownWordMatchMode: () => 'headword',
+    getJlptLevel: () => null,
+    getMecabTokenizer: () => ({
+      getStatus: () => ({ available }),
+      checkAvailability: async () => {
+        checkCalls += 1;
+        available = true;
+        return true;
+      },
+      tokenize: async () => {
+        if (!available) {
+          return null;
+        }
+        return [
+          {
+            word: '仮面',
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            pos2: '一般',
+            pos3: '',
+            pos4: '',
+            inflectionType: '',
+            inflectionForm: '',
+            headword: '仮面',
+            katakanaReading: 'カメン',
+            pronunciation: 'カメン',
+          },
+        ];
+      },
+    }),
+  });
+
+  const first = await tokenizeSubtitle('仮面', deps);
+  const second = await tokenizeSubtitle('仮面', deps);
+
+  assert.equal(checkCalls, 1);
+  assert.equal(first.tokens?.[0]?.surface, '仮面');
+  assert.equal(second.tokens?.[0]?.surface, '仮面');
 });
