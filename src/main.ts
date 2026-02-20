@@ -195,6 +195,7 @@ import {
   createBuildSaveSubtitlePositionMainDepsHandler,
 } from './main/runtime/subtitle-position-main-deps';
 import { registerProtocolUrlHandlers } from './main/runtime/protocol-url-handlers';
+import { createBuildRegisterProtocolUrlHandlersMainDepsHandler } from './main/runtime/protocol-url-handlers-main-deps';
 import { createHandleJellyfinAuthCommands } from './main/runtime/jellyfin-cli-auth';
 import { createRunJellyfinCommandHandler } from './main/runtime/jellyfin-command-dispatch';
 import { createBuildRunJellyfinCommandMainDepsHandler } from './main/runtime/jellyfin-command-dispatch-main-deps';
@@ -1892,7 +1893,8 @@ const saveSubtitlePosition = createSaveSubtitlePositionHandler(
 
 registerSubminerProtocolClient();
 
-registerProtocolUrlHandlers({
+const buildRegisterProtocolUrlHandlersMainDepsHandler =
+  createBuildRegisterProtocolUrlHandlersMainDepsHandler({
   registerOpenUrl: (listener) => {
     app.on('open-url', listener);
   },
@@ -1908,6 +1910,7 @@ registerProtocolUrlHandlers({
     logger.warn('Unhandled second-instance protocol URL', { rawUrl });
   },
 });
+registerProtocolUrlHandlers(buildRegisterProtocolUrlHandlersMainDepsHandler());
 
 const buildOnWillQuitCleanupDepsHandler = createBuildOnWillQuitCleanupDepsHandler({
     destroyTray: () => destroyTray(),
@@ -2511,23 +2514,25 @@ function getConfiguredShortcuts() {
   return getConfiguredShortcutsHandler();
 }
 
+const buildCycleSecondarySubModeMainDepsHandler = createBuildCycleSecondarySubModeMainDepsHandler(
+  {
+    getSecondarySubMode: () => appState.secondarySubMode,
+    setSecondarySubMode: (mode: SecondarySubMode) => {
+      appState.secondarySubMode = mode;
+    },
+    getLastSecondarySubToggleAtMs: () => appState.lastSecondarySubToggleAtMs,
+    setLastSecondarySubToggleAtMs: (timestampMs: number) => {
+      appState.lastSecondarySubToggleAtMs = timestampMs;
+    },
+    broadcastToOverlayWindows: (channel, mode) => {
+      broadcastToOverlayWindows(channel, mode);
+    },
+    showMpvOsd: (text: string) => showMpvOsd(text),
+  },
+);
+
 function cycleSecondarySubMode(): void {
-  cycleSecondarySubModeCore(
-    createBuildCycleSecondarySubModeMainDepsHandler({
-      getSecondarySubMode: () => appState.secondarySubMode,
-      setSecondarySubMode: (mode: SecondarySubMode) => {
-        appState.secondarySubMode = mode;
-      },
-      getLastSecondarySubToggleAtMs: () => appState.lastSecondarySubToggleAtMs,
-      setLastSecondarySubToggleAtMs: (timestampMs: number) => {
-        appState.lastSecondarySubToggleAtMs = timestampMs;
-      },
-      broadcastToOverlayWindows: (channel, mode) => {
-        broadcastToOverlayWindows(channel, mode);
-      },
-      showMpvOsd: (text: string) => showMpvOsd(text),
-    })(),
-  );
+  cycleSecondarySubModeCore(buildCycleSecondarySubModeMainDepsHandler());
 }
 
 const buildAppendToMpvLogMainDepsHandler = createBuildAppendToMpvLogMainDepsHandler({
