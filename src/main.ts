@@ -289,7 +289,6 @@ import {
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
 } from './main/runtime/overlay-window-layout-main-deps';
 import { buildTrayMenuTemplateRuntime, resolveTrayIconPathRuntime } from './main/runtime/tray-runtime';
-import { createDestroyTrayHandler, createEnsureTrayHandler } from './main/runtime/tray-lifecycle';
 import { createInitializeOverlayRuntimeHandler } from './main/runtime/overlay-runtime-bootstrap';
 import { createOpenYomitanSettingsHandler } from './main/runtime/yomitan-settings-opener';
 import {
@@ -393,19 +392,10 @@ import {
   createBuildCreateOverlayWindowMainDepsHandler,
 } from './main/runtime/overlay-window-factory-main-deps';
 import {
-  createBuildTrayMenuTemplateHandler,
-  createResolveTrayIconPathHandler,
-} from './main/runtime/tray-main-actions';
-import {
-  createBuildResolveTrayIconPathMainDepsHandler,
-  createBuildTrayMenuTemplateMainDepsHandler,
-} from './main/runtime/tray-main-deps';
-import {
-  createBuildDestroyTrayMainDepsHandler,
-  createBuildEnsureTrayMainDepsHandler,
   createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler,
   createBuildOpenYomitanSettingsMainDepsHandler,
 } from './main/runtime/app-runtime-main-deps';
+import { createTrayRuntimeHandlers } from './main/runtime/tray-runtime-handlers';
 import { createYomitanExtensionRuntime } from './main/runtime/yomitan-extension-runtime';
 import { createBuildInitializeOverlayRuntimeOptionsHandler } from './main/runtime/overlay-runtime-options';
 import { createBuildInitializeOverlayRuntimeMainDepsHandler } from './main/runtime/overlay-runtime-options-main-deps';
@@ -2525,7 +2515,7 @@ function resolveTrayIconPath(): string | null {
 }
 
 function buildTrayMenu(): Menu {
-  return Menu.buildFromTemplate(buildTrayMenuTemplateHandler());
+  return buildTrayMenuHandler();
 }
 
 function ensureTray(): void {
@@ -3036,8 +3026,13 @@ const createInvisibleWindowHandler = createCreateInvisibleWindowHandler<BrowserW
     setInvisibleWindow: (window) => overlayManager.setInvisibleWindow(window),
   })(),
 );
-const resolveTrayIconPathHandler = createResolveTrayIconPathHandler(
-  createBuildResolveTrayIconPathMainDepsHandler({
+const {
+  resolveTrayIconPath: resolveTrayIconPathHandler,
+  buildTrayMenu: buildTrayMenuHandler,
+  ensureTray: ensureTrayHandler,
+  destroyTray: destroyTrayHandler,
+} = createTrayRuntimeHandlers({
+  resolveTrayIconPathDeps: {
     resolveTrayIconPathRuntime,
     platform: process.platform,
     resourcesPath: process.resourcesPath,
@@ -3045,10 +3040,8 @@ const resolveTrayIconPathHandler = createResolveTrayIconPathHandler(
     dirname: __dirname,
     joinPath: (...parts) => path.join(...parts),
     fileExists: (candidate) => fs.existsSync(candidate),
-  })(),
-);
-const buildTrayMenuTemplateHandler = createBuildTrayMenuTemplateHandler(
-  createBuildTrayMenuTemplateMainDepsHandler({
+  },
+  buildTrayMenuTemplateDeps: {
     buildTrayMenuTemplateRuntime,
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
@@ -3058,16 +3051,12 @@ const buildTrayMenuTemplateHandler = createBuildTrayMenuTemplateHandler(
     openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
     openAnilistSetupWindow: () => openAnilistSetupWindow(),
     quitApp: () => app.quit(),
-  })(),
-);
-const ensureTrayHandler = createEnsureTrayHandler(
-  createBuildEnsureTrayMainDepsHandler({
+  },
+  ensureTrayDeps: {
     getTray: () => appTray,
     setTray: (tray) => {
       appTray = tray as Tray | null;
     },
-    buildTrayMenu: () => buildTrayMenu(),
-    resolveTrayIconPath: () => resolveTrayIconPath(),
     createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
     createEmptyImage: () => nativeImage.createEmpty(),
     createTray: (icon) => new Tray(icon as never),
@@ -3077,16 +3066,15 @@ const ensureTrayHandler = createEnsureTrayHandler(
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
     setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-  })(),
-);
-const destroyTrayHandler = createDestroyTrayHandler(
-  createBuildDestroyTrayMainDepsHandler({
+  },
+  destroyTrayDeps: {
     getTray: () => appTray,
     setTray: (tray) => {
       appTray = tray as Tray | null;
     },
-  })(),
-);
+  },
+  buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
+});
 const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,
