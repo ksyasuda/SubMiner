@@ -15,6 +15,18 @@ type FocusableWindowLike = {
   focus: () => void;
 };
 
+type JellyfinSetupWebContentsLike = {
+  on: (event: 'will-navigate', handler: (event: unknown, url: string) => void) => void;
+};
+
+type JellyfinSetupWindowLike = FocusableWindowLike & {
+  webContents: JellyfinSetupWebContentsLike;
+  loadURL: (url: string) => unknown;
+  on: (event: 'closed', handler: () => void) => void;
+  isDestroyed: () => boolean;
+  close: () => void;
+};
+
 function escapeHtmlAttr(value: string): string {
   return value.replace(/"/g, '&quot;');
 }
@@ -167,5 +179,84 @@ export function createHandleJellyfinSetupWindowOpenedHandler(deps: {
 }) {
   return (): void => {
     deps.setSetupWindow();
+  };
+}
+
+export function createOpenJellyfinSetupWindowHandler<TWindow extends JellyfinSetupWindowLike>(deps: {
+  maybeFocusExistingSetupWindow: () => boolean;
+  createSetupWindow: () => TWindow;
+  getResolvedJellyfinConfig: () => { serverUrl?: string | null; username?: string | null };
+  buildSetupFormHtml: (defaultServer: string, defaultUser: string) => string;
+  parseSubmissionUrl: (rawUrl: string) => { server: string; username: string; password: string } | null;
+  authenticateWithPassword: (
+    server: string,
+    username: string,
+    password: string,
+    clientInfo: JellyfinClientInfo,
+  ) => Promise<JellyfinSession>;
+  getJellyfinClientInfo: () => JellyfinClientInfo;
+  patchJellyfinConfig: (session: JellyfinSession) => void;
+  logInfo: (message: string) => void;
+  logError: (message: string, error: unknown) => void;
+  showMpvOsd: (message: string) => void;
+  clearSetupWindow: () => void;
+  setSetupWindow: (window: TWindow) => void;
+  encodeURIComponent: (value: string) => string;
+}) {
+  return (): void => {
+    if (deps.maybeFocusExistingSetupWindow()) {
+      return;
+    }
+
+    const setupWindow = deps.createSetupWindow();
+    const defaults = deps.getResolvedJellyfinConfig();
+    const defaultServer = defaults.serverUrl || 'http://127.0.0.1:8096';
+    const defaultUser = defaults.username || '';
+    const formHtml = deps.buildSetupFormHtml(defaultServer, defaultUser);
+    const handleSubmission = createHandleJellyfinSetupSubmissionHandler({
+      parseSubmissionUrl: (rawUrl) => deps.parseSubmissionUrl(rawUrl),
+      authenticateWithPassword: (server, username, password, clientInfo) =>
+        deps.authenticateWithPassword(server, username, password, clientInfo),
+      getJellyfinClientInfo: () => deps.getJellyfinClientInfo(),
+      patchJellyfinConfig: (session) => deps.patchJellyfinConfig(session),
+      logInfo: (message) => deps.logInfo(message),
+      logError: (message, error) => deps.logError(message, error),
+      showMpvOsd: (message) => deps.showMpvOsd(message),
+      closeSetupWindow: () => {
+        if (!setupWindow.isDestroyed()) {
+          setupWindow.close();
+        }
+      },
+    });
+    const handleNavigation = createHandleJellyfinSetupNavigationHandler({
+      setupSchemePrefix: 'subminer://jellyfin-setup',
+      handleSubmission: (rawUrl) => handleSubmission(rawUrl),
+      logError: (message, error) => deps.logError(message, error),
+    });
+    const handleWindowClosed = createHandleJellyfinSetupWindowClosedHandler({
+      clearSetupWindow: () => deps.clearSetupWindow(),
+    });
+    const handleWindowOpened = createHandleJellyfinSetupWindowOpenedHandler({
+      setSetupWindow: () => deps.setSetupWindow(setupWindow),
+    });
+
+    setupWindow.webContents.on('will-navigate', (event, url) => {
+      handleNavigation({
+        url,
+        preventDefault: () => {
+          if (event && typeof event === 'object' && 'preventDefault' in event) {
+            const typedEvent = event as { preventDefault?: () => void };
+            typedEvent.preventDefault?.();
+          }
+        },
+      });
+    });
+    void setupWindow.loadURL(
+      `data:text/html;charset=utf-8,${deps.encodeURIComponent(formHtml)}`,
+    );
+    setupWindow.on('closed', () => {
+      handleWindowClosed();
+    });
+    handleWindowOpened();
   };
 }

@@ -112,31 +112,26 @@ import {
   createWaitForMpvConnectedHandler,
 } from './main/runtime/jellyfin-remote-connection';
 import {
-  createHandleJellyfinSetupWindowClosedHandler,
   buildJellyfinSetupFormHtml,
-  createHandleJellyfinSetupNavigationHandler,
-  createHandleJellyfinSetupWindowOpenedHandler,
-  createHandleJellyfinSetupSubmissionHandler,
+  createOpenJellyfinSetupWindowHandler,
   createMaybeFocusExistingJellyfinSetupWindowHandler,
   parseJellyfinSetupSubmissionUrl,
 } from './main/runtime/jellyfin-setup-window';
 import {
-  createHandleAnilistSetupWindowClosedHandler,
-  createHandleAnilistSetupWindowOpenedHandler,
   createMaybeFocusExistingAnilistSetupWindowHandler,
-  createAnilistSetupDidFailLoadHandler,
-  createAnilistSetupDidFinishLoadHandler,
-  createAnilistSetupDidNavigateHandler,
-  createAnilistSetupFallbackHandler,
-  createAnilistSetupWillNavigateHandler,
-  createAnilistSetupWillRedirectHandler,
-  createAnilistSetupWindowOpenHandler,
-  createHandleManualAnilistSetupSubmissionHandler,
+  createOpenAnilistSetupWindowHandler,
 } from './main/runtime/anilist-setup-window';
 import {
   createEnsureAnilistMediaGuessHandler,
   createMaybeProbeAnilistDurationHandler,
 } from './main/runtime/anilist-media-guess';
+import {
+  createGetAnilistMediaGuessRuntimeStateHandler,
+  createGetCurrentAnilistMediaKeyHandler,
+  createResetAnilistMediaGuessStateHandler,
+  createResetAnilistMediaTrackingHandler,
+  createSetAnilistMediaGuessRuntimeStateHandler,
+} from './main/runtime/anilist-media-state';
 import {
   buildAnilistAttemptKey,
   createMaybeRunAnilistPostWatchUpdateHandler,
@@ -149,21 +144,23 @@ import {
 } from './main/runtime/subtitle-position';
 import { registerProtocolUrlHandlers } from './main/runtime/protocol-url-handlers';
 import { createHandleJellyfinAuthCommands } from './main/runtime/jellyfin-cli-auth';
+import { createRunJellyfinCommandHandler } from './main/runtime/jellyfin-command-dispatch';
 import { createHandleJellyfinListCommands } from './main/runtime/jellyfin-cli-list';
 import { createHandleJellyfinPlayCommand } from './main/runtime/jellyfin-cli-play';
 import { createHandleJellyfinRemoteAnnounceCommand } from './main/runtime/jellyfin-cli-remote-announce';
+import { createPlayJellyfinItemInMpvHandler } from './main/runtime/jellyfin-playback-launch';
+import { createPreloadJellyfinExternalSubtitlesHandler } from './main/runtime/jellyfin-subtitle-preload';
 import {
   createStartJellyfinRemoteSessionHandler,
   createStopJellyfinRemoteSessionHandler,
 } from './main/runtime/jellyfin-remote-session-lifecycle';
 import { createHandleInitialArgsHandler } from './main/runtime/initial-args-handler';
+import { createBuildHandleInitialArgsMainDepsHandler } from './main/runtime/initial-args-main-deps';
 import { createHandleTexthookerOnlyModeTransitionHandler } from './main/runtime/cli-command-prechecks';
 import { createCliCommandContext } from './main/runtime/cli-command-context';
-import {
-  createBindMpvClientEventHandlers,
-  createHandleMpvConnectionChangeHandler,
-  createHandleMpvSubtitleTimingHandler,
-} from './main/runtime/mpv-client-event-bindings';
+import { createBindMpvMainEventHandlersHandler } from './main/runtime/mpv-main-event-bindings';
+import { createBuildBindMpvMainEventHandlersMainDepsHandler } from './main/runtime/mpv-main-event-main-deps';
+import { createBuildMpvClientRuntimeServiceFactoryDepsHandler } from './main/runtime/mpv-client-runtime-service-main-deps';
 import { createMpvClientRuntimeServiceFactory } from './main/runtime/mpv-client-runtime-service';
 import { createUpdateMpvSubtitleRenderMetricsHandler } from './main/runtime/mpv-subtitle-render-metrics';
 import {
@@ -185,7 +182,16 @@ import {
   createRefreshGlobalAndOverlayShortcutsHandler,
   createRegisterGlobalShortcutsHandler,
 } from './main/runtime/global-shortcuts';
+import {
+  createBuildGetConfiguredShortcutsMainDepsHandler,
+  createBuildRefreshGlobalAndOverlayShortcutsMainDepsHandler,
+  createBuildRegisterGlobalShortcutsMainDepsHandler,
+} from './main/runtime/global-shortcuts-main-deps';
 import { createAppendToMpvLogHandler, createShowMpvOsdHandler } from './main/runtime/mpv-osd-log';
+import {
+  createBuildAppendToMpvLogMainDepsHandler,
+  createBuildShowMpvOsdMainDepsHandler,
+} from './main/runtime/mpv-osd-log-main-deps';
 import {
   createCancelNumericShortcutSessionHandler,
   createStartNumericShortcutSessionHandler,
@@ -230,15 +236,43 @@ import {
   createCreateOverlayWindowHandler,
 } from './main/runtime/overlay-window-factory';
 import {
+  createBuildCreateInvisibleWindowMainDepsHandler,
+  createBuildCreateMainWindowMainDepsHandler,
+  createBuildCreateOverlayWindowMainDepsHandler,
+} from './main/runtime/overlay-window-factory-main-deps';
+import {
   createBuildTrayMenuTemplateHandler,
   createResolveTrayIconPathHandler,
 } from './main/runtime/tray-main-actions';
+import {
+  createBuildResolveTrayIconPathMainDepsHandler,
+  createBuildTrayMenuTemplateMainDepsHandler,
+} from './main/runtime/tray-main-deps';
+import {
+  createBuildDestroyTrayMainDepsHandler,
+  createBuildEnsureTrayMainDepsHandler,
+  createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler,
+  createBuildOpenYomitanSettingsMainDepsHandler,
+} from './main/runtime/app-runtime-main-deps';
 import {
   createEnsureYomitanExtensionLoadedHandler,
   createLoadYomitanExtensionHandler,
 } from './main/runtime/yomitan-extension-loader';
 import { createBuildInitializeOverlayRuntimeOptionsHandler } from './main/runtime/overlay-runtime-options';
+import { createBuildInitializeOverlayRuntimeMainDepsHandler } from './main/runtime/overlay-runtime-options-main-deps';
 import { createBuildCliCommandContextDepsHandler } from './main/runtime/cli-command-context-deps';
+import { createBuildCliCommandContextMainDepsHandler } from './main/runtime/cli-command-context-main-deps';
+import {
+  createOnWillQuitCleanupHandler,
+  createRestoreWindowsOnActivateHandler,
+  createShouldRestoreWindowsOnActivateHandler,
+} from './main/runtime/app-lifecycle-actions';
+import { createBuildOnWillQuitCleanupDepsHandler } from './main/runtime/app-lifecycle-main-cleanup';
+import {
+  createBuildRestoreWindowsOnActivateMainDepsHandler,
+  createBuildShouldRestoreWindowsOnActivateMainDepsHandler,
+} from './main/runtime/app-lifecycle-main-activate';
+import { createBuildStartupBootstrapRuntimeFactoryDepsHandler } from './main/runtime/startup-bootstrap-deps-builder';
 import {
   buildRestartRequiredConfigMessage,
   createConfigHotReloadAppliedHandler,
@@ -953,206 +987,62 @@ const ensureMpvConnectedForJellyfinPlayback = createEnsureMpvConnectedForJellyfi
   autoLaunchTimeoutMs: JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS,
 });
 
-async function playJellyfinItemInMpv(params: {
-  session: {
-    serverUrl: string;
-    accessToken: string;
-    userId: string;
-    username: string;
-  };
-  clientInfo: ReturnType<typeof getJellyfinClientInfo>;
-  jellyfinConfig: ReturnType<typeof getResolvedJellyfinConfig>;
-  itemId: string;
-  audioStreamIndex?: number;
-  subtitleStreamIndex?: number;
-  startTimeTicksOverride?: number;
-  setQuitOnDisconnectArm?: boolean;
-}): Promise<void> {
-  const connected = await ensureMpvConnectedForJellyfinPlayback();
-  if (!connected || !appState.mpvClient) {
-    throw new Error(
-      'MPV not connected and auto-launch failed. Ensure mpv is installed and available in PATH.',
-    );
-  }
+const preloadJellyfinExternalSubtitles = createPreloadJellyfinExternalSubtitlesHandler({
+  listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
+    listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
+  getMpvClient: () => appState.mpvClient,
+  sendMpvCommand: (command) => {
+    sendMpvCommandRuntime(appState.mpvClient, command);
+  },
+  wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+  logDebug: (message, error) => {
+    logger.debug(message, error);
+  },
+});
 
-  const plan = await resolveJellyfinPlaybackPlanRuntime(
-    params.session,
-    params.clientInfo,
-    params.jellyfinConfig,
-    {
-      itemId: params.itemId,
-      audioStreamIndex: params.audioStreamIndex,
-      subtitleStreamIndex: params.subtitleStreamIndex,
-    },
-  );
-
-  applyJellyfinMpvDefaults(appState.mpvClient);
-  sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'sub-auto', 'no']);
-  sendMpvCommandRuntime(appState.mpvClient, ['loadfile', plan.url, 'replace']);
-  if (params.setQuitOnDisconnectArm !== false) {
+const playJellyfinItemInMpv = createPlayJellyfinItemInMpvHandler({
+  ensureMpvConnectedForPlayback: () => ensureMpvConnectedForJellyfinPlayback(),
+  getMpvClient: () => appState.mpvClient,
+  resolvePlaybackPlan: (params) =>
+    resolveJellyfinPlaybackPlanRuntime(
+      params.session,
+      params.clientInfo,
+      params.jellyfinConfig as ReturnType<typeof getResolvedJellyfinConfig>,
+      {
+        itemId: params.itemId,
+        audioStreamIndex: params.audioStreamIndex ?? undefined,
+        subtitleStreamIndex: params.subtitleStreamIndex ?? undefined,
+      },
+    ),
+  applyJellyfinMpvDefaults: (mpvClient) =>
+    applyJellyfinMpvDefaults((mpvClient as unknown) as MpvIpcClient),
+  sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
+  armQuitOnDisconnect: () => {
     jellyfinPlayQuitOnDisconnectArmed = false;
     setTimeout(() => {
       jellyfinPlayQuitOnDisconnectArmed = true;
     }, 3000);
-  }
-  sendMpvCommandRuntime(appState.mpvClient, [
-    'set_property',
-    'force-media-title',
-    `[Jellyfin/${plan.mode}] ${plan.title}`,
-  ]);
-  sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'sid', 'no']);
-  setTimeout(() => {
-    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'sid', 'no']);
-  }, 500);
-
-  const startTimeTicks =
-    typeof params.startTimeTicksOverride === 'number'
-      ? Math.max(0, params.startTimeTicksOverride)
-      : plan.startTimeTicks;
-  if (startTimeTicks > 0) {
-    sendMpvCommandRuntime(appState.mpvClient, [
-      'seek',
-      jellyfinTicksToSecondsRuntime(startTimeTicks),
-      'absolute+exact',
-    ]);
-  }
-
-  void (async () => {
-    try {
-      const normalizeLang = (value: unknown): string =>
-        String(value || '')
-          .trim()
-          .toLowerCase()
-          .replace(/_/g, '-');
-      const isJapanese = (value: string): boolean => {
-        const v = normalizeLang(value);
-        return (
-          v === 'ja' ||
-          v === 'jp' ||
-          v === 'jpn' ||
-          v === 'japanese' ||
-          v.startsWith('ja-') ||
-          v.startsWith('jp-')
-        );
-      };
-      const isEnglish = (value: string): boolean => {
-        const v = normalizeLang(value);
-        return (
-          v === 'en' ||
-          v === 'eng' ||
-          v === 'english' ||
-          v === 'enus' ||
-          v === 'en-us' ||
-          v.startsWith('en-')
-        );
-      };
-      const isLikelyHearingImpaired = (title: string): boolean =>
-        /\b(hearing impaired|sdh|closed captions?|cc)\b/i.test(title);
-      const pickBestTrackId = (
-        tracks: Array<{
-          id: number;
-          lang: string;
-          title: string;
-          external: boolean;
-        }>,
-        languageMatcher: (value: string) => boolean,
-        excludeId: number | null = null,
-      ): number | null => {
-        const ranked = tracks
-          .filter((track) => languageMatcher(track.lang))
-          .filter((track) => track.id !== excludeId)
-          .map((track) => ({
-            track,
-            score:
-              (track.external ? 100 : 0) +
-              (isLikelyHearingImpaired(track.title) ? -10 : 10) +
-              (/\bdefault\b/i.test(track.title) ? 3 : 0),
-          }))
-          .sort((a, b) => b.score - a.score);
-        return ranked[0]?.track.id ?? null;
-      };
-
-      const tracks = await listJellyfinSubtitleTracksRuntime(
-        params.session,
-        params.clientInfo,
-        params.itemId,
-      );
-      const externalTracks = tracks.filter((track) => Boolean(track.deliveryUrl));
-
-      if (externalTracks.length === 0) return;
-      await new Promise<void>((resolve) => setTimeout(resolve, 300));
-      const seenUrls = new Set<string>();
-      for (const track of externalTracks) {
-        if (!track.deliveryUrl) continue;
-        if (seenUrls.has(track.deliveryUrl)) continue;
-        seenUrls.add(track.deliveryUrl);
-        const labelBase = (track.title || track.language || '').trim();
-        const label = labelBase || `Jellyfin Subtitle ${track.index}`;
-        sendMpvCommandRuntime(appState.mpvClient, [
-          'sub-add',
-          track.deliveryUrl,
-          'cached',
-          label,
-          track.language || '',
-        ]);
-      }
-      await new Promise<void>((resolve) => setTimeout(resolve, 250));
-      const trackListRaw = await appState.mpvClient?.requestProperty('track-list');
-      const subtitleTracks = Array.isArray(trackListRaw)
-        ? trackListRaw
-            .filter(
-              (track): track is Record<string, unknown> =>
-                Boolean(track) &&
-                typeof track === 'object' &&
-                track.type === 'sub' &&
-                typeof track.id === 'number',
-            )
-            .map((track) => ({
-              id: track.id as number,
-              lang: String(track.lang || ''),
-              title: String(track.title || ''),
-              external: track.external === true,
-            }))
-        : [];
-
-      const japanesePrimaryId = pickBestTrackId(subtitleTracks, isJapanese);
-      if (japanesePrimaryId !== null) {
-        sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'sid', japanesePrimaryId]);
-      } else {
-        sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'sid', 'no']);
-      }
-
-      const englishSecondaryId = pickBestTrackId(subtitleTracks, isEnglish, japanesePrimaryId);
-      if (englishSecondaryId !== null) {
-        sendMpvCommandRuntime(appState.mpvClient, [
-          'set_property',
-          'secondary-sid',
-          englishSecondaryId,
-        ]);
-      }
-    } catch (error) {
-      logger.debug('Failed to preload Jellyfin external subtitles', error);
-    }
-  })();
-
-  activeJellyfinRemotePlayback = {
-    itemId: params.itemId,
-    mediaSourceId: undefined,
-    audioStreamIndex: plan.audioStreamIndex,
-    subtitleStreamIndex: plan.subtitleStreamIndex,
-    playMethod: plan.mode === 'direct' ? 'DirectPlay' : 'Transcode',
-  };
-  jellyfinRemoteLastProgressAtMs = 0;
-  void appState.jellyfinRemoteSession?.reportPlaying({
-    itemId: params.itemId,
-    mediaSourceId: undefined,
-    playMethod: activeJellyfinRemotePlayback.playMethod,
-    audioStreamIndex: plan.audioStreamIndex,
-    subtitleStreamIndex: plan.subtitleStreamIndex,
-    eventName: 'start',
-  });
-  showMpvOsd(`Jellyfin ${plan.mode}: ${plan.title}`);
-}
+  },
+  schedule: (callback, delayMs) => {
+    setTimeout(callback, delayMs);
+  },
+  convertTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
+  preloadExternalSubtitles: (params) => {
+    void preloadJellyfinExternalSubtitles(params);
+  },
+  setActivePlayback: (state) => {
+    activeJellyfinRemotePlayback = state as ActiveJellyfinRemotePlaybackState;
+  },
+  setLastProgressAtMs: (value) => {
+    jellyfinRemoteLastProgressAtMs = value;
+  },
+  reportPlaying: (payload) => {
+    void appState.jellyfinRemoteSession?.reportPlaying(payload);
+  },
+  showMpvOsd: (text) => {
+    showMpvOsd(text);
+  },
+});
 
 const handleJellyfinAuthCommands = createHandleJellyfinAuthCommands({
   patchRawConfig: (patch) => {
@@ -1212,61 +1102,15 @@ const stopJellyfinRemoteSession = createStopJellyfinRemoteSessionHandler({
   },
 });
 
-async function runJellyfinCommand(args: CliArgs): Promise<void> {
-  const jellyfinConfig = getResolvedJellyfinConfig();
-  const serverUrl =
-    args.jellyfinServer?.trim() || jellyfinConfig.serverUrl || DEFAULT_CONFIG.jellyfin.serverUrl;
-  const clientInfo = getJellyfinClientInfo(jellyfinConfig);
-
-  if (
-    await handleJellyfinAuthCommands({
-      args,
-      jellyfinConfig,
-      serverUrl,
-      clientInfo,
-    })
-  ) {
-    return;
-  }
-
-  const accessToken = jellyfinConfig.accessToken;
-  const userId = jellyfinConfig.userId;
-  if (!serverUrl || !accessToken || !userId) {
-    throw new Error('Missing Jellyfin session. Run --jellyfin-login first.');
-  }
-  const session = {
-    serverUrl,
-    accessToken,
-    userId,
-    username: jellyfinConfig.username,
-  };
-
-  if (await handleJellyfinRemoteAnnounceCommand(args)) {
-    return;
-  }
-
-  if (
-    await handleJellyfinListCommands({
-      args,
-      session,
-      clientInfo,
-      jellyfinConfig,
-    })
-  ) {
-    return;
-  }
-
-  if (
-    await handleJellyfinPlayCommand({
-      args,
-      session,
-      clientInfo,
-      jellyfinConfig,
-    })
-  ) {
-    return;
-  }
-}
+const runJellyfinCommand = createRunJellyfinCommandHandler({
+  getJellyfinConfig: () => getResolvedJellyfinConfig(),
+  defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl,
+  getJellyfinClientInfo: (jellyfinConfig) => getJellyfinClientInfo(jellyfinConfig),
+  handleAuthCommands: (params) => handleJellyfinAuthCommands(params),
+  handleRemoteAnnounceCommand: (args) => handleJellyfinRemoteAnnounceCommand(args),
+  handleListCommands: (params) => handleJellyfinListCommands(params),
+  handlePlayCommand: (params) => handleJellyfinPlayCommand(params),
+});
 
 const notifyAnilistSetup = createNotifyAnilistSetupHandler({
   hasMpvClient: () => Boolean(appState.mpvClient),
@@ -1319,167 +1163,83 @@ const registerSubminerProtocolClient = createRegisterSubminerProtocolClientHandl
 });
 
 function openAnilistSetupWindow(): void {
-  const maybeFocusExistingAnilistSetupWindow = createMaybeFocusExistingAnilistSetupWindowHandler({
-    getSetupWindow: () => appState.anilistSetupWindow,
-  });
-  if (maybeFocusExistingAnilistSetupWindow()) {
-    return;
-  }
-
-  const setupWindow = new BrowserWindow({
-    width: 1000,
-    height: 760,
-    title: 'Anilist Setup',
-    show: true,
-    autoHideMenuBar: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-  });
-  const authorizeUrl = buildAnilistSetupUrl({
-    authorizeUrl: ANILIST_SETUP_CLIENT_ID_URL,
-    clientId: ANILIST_DEFAULT_CLIENT_ID,
-    responseType: ANILIST_SETUP_RESPONSE_TYPE,
-  });
-  const consumeCallbackUrl = (rawUrl: string): boolean => consumeAnilistSetupTokenFromUrl(rawUrl);
-  const openSetupInBrowser = () =>
-    openAnilistSetupInBrowser({
-      authorizeUrl,
-      openExternal: (url) => shell.openExternal(url),
-      logError: (message, error) => logger.error(message, error),
-    });
-  const loadManualTokenEntry = () =>
-    loadAnilistManualTokenEntry({
-      setupWindow,
-      authorizeUrl,
-      developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-      logWarn: (message, data) => logger.warn(message, data),
-    });
-  const handleManualAnilistSetupSubmission = createHandleManualAnilistSetupSubmissionHandler({
-    consumeCallbackUrl: (rawUrl) => consumeCallbackUrl(rawUrl),
+  createOpenAnilistSetupWindowHandler({
+    maybeFocusExistingSetupWindow: createMaybeFocusExistingAnilistSetupWindowHandler({
+      getSetupWindow: () => appState.anilistSetupWindow,
+    }),
+    createSetupWindow: () =>
+      new BrowserWindow({
+        width: 1000,
+        height: 760,
+        title: 'Anilist Setup',
+        show: true,
+        autoHideMenuBar: true,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+        },
+      }),
+    buildAuthorizeUrl: () =>
+      buildAnilistSetupUrl({
+        authorizeUrl: ANILIST_SETUP_CLIENT_ID_URL,
+        clientId: ANILIST_DEFAULT_CLIENT_ID,
+        responseType: ANILIST_SETUP_RESPONSE_TYPE,
+      }),
+    consumeCallbackUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
+    openSetupInBrowser: (authorizeUrl) =>
+      openAnilistSetupInBrowser({
+        authorizeUrl,
+        openExternal: (url) => shell.openExternal(url),
+        logError: (message, error) => logger.error(message, error),
+      }),
+    loadManualTokenEntry: (setupWindow, authorizeUrl) =>
+      loadAnilistManualTokenEntry({
+        setupWindow: setupWindow as BrowserWindow,
+        authorizeUrl,
+        developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
+        logWarn: (message, data) => logger.warn(message, data),
+      }),
     redirectUri: ANILIST_REDIRECT_URI,
-    logWarn: (message) => logger.warn(message),
-  });
-  const anilistSetupFallback = createAnilistSetupFallbackHandler({
-    authorizeUrl,
     developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-    setupWindow,
-    openSetupInBrowser,
-    loadManualTokenEntry,
-    logError: (message, details) => logger.error(message, details),
-    logWarn: (message) => logger.warn(message),
-  });
-  const handleAnilistSetupWindowOpen = createAnilistSetupWindowOpenHandler({
     isAllowedExternalUrl: (url) => isAllowedAnilistExternalUrl(url),
-    openExternal: (url) => {
-      void shell.openExternal(url);
-    },
-    logWarn: (message, details) => logger.warn(message, details),
-  });
-  const handleAnilistSetupWillNavigate = createAnilistSetupWillNavigateHandler({
-    handleManualSubmission: (url) => handleManualAnilistSetupSubmission(url),
-    consumeCallbackUrl: (url) => consumeCallbackUrl(url),
-    redirectUri: ANILIST_REDIRECT_URI,
     isAllowedNavigationUrl: (url) => isAllowedAnilistSetupNavigationUrl(url),
     logWarn: (message, details) => logger.warn(message, details),
-  });
-  const handleAnilistSetupWillRedirect = createAnilistSetupWillRedirectHandler({
-    consumeCallbackUrl: (url) => consumeCallbackUrl(url),
-  });
-  const handleAnilistSetupDidNavigate = createAnilistSetupDidNavigateHandler({
-    consumeCallbackUrl: (url) => consumeCallbackUrl(url),
-  });
-  const handleAnilistSetupDidFailLoad = createAnilistSetupDidFailLoadHandler({
-    onLoadFailure: (details) => anilistSetupFallback.onLoadFailure(details),
-  });
-  const handleAnilistSetupDidFinishLoad = createAnilistSetupDidFinishLoadHandler({
-    getLoadedUrl: () => setupWindow.webContents.getURL(),
-    onBlankPageLoaded: () => anilistSetupFallback.onBlankPageLoaded(),
-  });
-  const handleAnilistSetupWindowClosed = createHandleAnilistSetupWindowClosedHandler({
+    logError: (message, details) => logger.error(message, details),
     clearSetupWindow: () => {
       appState.anilistSetupWindow = null;
     },
     setSetupPageOpened: (opened) => {
       appState.anilistSetupPageOpened = opened;
     },
-  });
-  const handleAnilistSetupWindowOpened = createHandleAnilistSetupWindowOpenedHandler({
-    setSetupWindow: () => {
-      appState.anilistSetupWindow = setupWindow;
+    setSetupWindow: (setupWindow) => {
+      appState.anilistSetupWindow = setupWindow as BrowserWindow;
     },
-    setSetupPageOpened: (opened) => {
-      appState.anilistSetupPageOpened = opened;
+    openExternal: (url) => {
+      void shell.openExternal(url);
     },
-  });
-
-  setupWindow.webContents.setWindowOpenHandler(({ url }) => handleAnilistSetupWindowOpen({ url }));
-  setupWindow.webContents.on('will-navigate', (event, url) => {
-    handleAnilistSetupWillNavigate({
-      url,
-      preventDefault: () => event.preventDefault(),
-    });
-  });
-  setupWindow.webContents.on('will-redirect', (event, url) => {
-    handleAnilistSetupWillRedirect({
-      url,
-      preventDefault: () => event.preventDefault(),
-    });
-  });
-  setupWindow.webContents.on('did-navigate', (_event, url) => {
-    handleAnilistSetupDidNavigate(url);
-  });
-
-  setupWindow.webContents.on(
-    'did-fail-load',
-    (_event, errorCode, errorDescription, validatedURL) => {
-      handleAnilistSetupDidFailLoad({
-        errorCode,
-        errorDescription,
-        validatedURL,
-      });
-    },
-  );
-
-  setupWindow.webContents.on('did-finish-load', () => {
-    handleAnilistSetupDidFinishLoad();
-  });
-
-  loadManualTokenEntry();
-
-  setupWindow.on('closed', () => {
-    handleAnilistSetupWindowClosed();
-  });
-
-  handleAnilistSetupWindowOpened();
+  })();
 }
 
 function openJellyfinSetupWindow(): void {
-  const maybeFocusExistingJellyfinSetupWindow = createMaybeFocusExistingJellyfinSetupWindowHandler({
-    getSetupWindow: () => appState.jellyfinSetupWindow,
-  });
-  if (maybeFocusExistingJellyfinSetupWindow()) {
-    return;
-  }
-
-  const setupWindow = new BrowserWindow({
-    width: 520,
-    height: 560,
-    title: 'Jellyfin Setup',
-    show: true,
-    autoHideMenuBar: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-  });
-
-  const defaults = getResolvedJellyfinConfig();
-  const defaultServer = defaults.serverUrl || 'http://127.0.0.1:8096';
-  const defaultUser = defaults.username || '';
-  const formHtml = buildJellyfinSetupFormHtml(defaultServer, defaultUser);
-  const handleJellyfinSetupSubmission = createHandleJellyfinSetupSubmissionHandler({
+  createOpenJellyfinSetupWindowHandler({
+    maybeFocusExistingSetupWindow: createMaybeFocusExistingJellyfinSetupWindowHandler({
+      getSetupWindow: () => appState.jellyfinSetupWindow,
+    }),
+    createSetupWindow: () =>
+      new BrowserWindow({
+        width: 520,
+        height: 560,
+        title: 'Jellyfin Setup',
+        show: true,
+        autoHideMenuBar: true,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+        },
+      }),
+    getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
+    buildSetupFormHtml: (defaultServer, defaultUser) =>
+      buildJellyfinSetupFormHtml(defaultServer, defaultUser),
     parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
     authenticateWithPassword: (server, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(server, username, password, clientInfo),
@@ -1498,42 +1258,14 @@ function openJellyfinSetupWindow(): void {
     logInfo: (message) => logger.info(message),
     logError: (message, error) => logger.error(message, error),
     showMpvOsd: (message) => showMpvOsd(message),
-    closeSetupWindow: () => {
-      if (!setupWindow.isDestroyed()) {
-        setupWindow.close();
-      }
-    },
-  });
-  const handleJellyfinSetupNavigation = createHandleJellyfinSetupNavigationHandler({
-    setupSchemePrefix: 'subminer://jellyfin-setup',
-    handleSubmission: (rawUrl) => handleJellyfinSetupSubmission(rawUrl),
-    logError: (message, error) => logger.error(message, error),
-  });
-  const handleJellyfinSetupWindowClosed = createHandleJellyfinSetupWindowClosedHandler({
     clearSetupWindow: () => {
       appState.jellyfinSetupWindow = null;
     },
-  });
-  const handleJellyfinSetupWindowOpened = createHandleJellyfinSetupWindowOpenedHandler({
-    setSetupWindow: () => {
-      appState.jellyfinSetupWindow = setupWindow;
+    setSetupWindow: (window) => {
+      appState.jellyfinSetupWindow = window;
     },
-  });
-
-  setupWindow.webContents.on('will-navigate', (event, url) => {
-    handleJellyfinSetupNavigation({
-      url,
-      preventDefault: () => event.preventDefault(),
-    });
-  });
-
-  void setupWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(formHtml)}`);
-
-  setupWindow.on('closed', () => {
-    handleJellyfinSetupWindowClosed();
-  });
-
-  handleJellyfinSetupWindowOpened();
+    encodeURIComponent: (value) => encodeURIComponent(value),
+  })();
 }
 
 const refreshAnilistClientSecretState = createRefreshAnilistClientSecretStateHandler({
@@ -1560,40 +1292,62 @@ const refreshAnilistClientSecretState = createRefreshAnilistClientSecretStateHan
   now: () => Date.now(),
 });
 
-function getCurrentAnilistMediaKey(): string | null {
-  const path = appState.currentMediaPath?.trim();
-  return path && path.length > 0 ? path : null;
-}
-
-function resetAnilistMediaTracking(mediaKey: string | null): void {
-  anilistCurrentMediaKey = mediaKey;
-  anilistCurrentMediaDurationSec = null;
-  anilistCurrentMediaGuess = null;
-  anilistCurrentMediaGuessPromise = null;
-  anilistLastDurationProbeAtMs = 0;
-}
-
-const getAnilistMediaGuessRuntimeState = () => ({
-  mediaKey: anilistCurrentMediaKey,
-  mediaDurationSec: anilistCurrentMediaDurationSec,
-  mediaGuess: anilistCurrentMediaGuess,
-  mediaGuessPromise: anilistCurrentMediaGuessPromise,
-  lastDurationProbeAtMs: anilistLastDurationProbeAtMs,
+const getCurrentAnilistMediaKey = createGetCurrentAnilistMediaKeyHandler({
+  getCurrentMediaPath: () => appState.currentMediaPath,
 });
 
-const setAnilistMediaGuessRuntimeState = (state: {
-  mediaKey: string | null;
-  mediaDurationSec: number | null;
-  mediaGuess: AnilistMediaGuess | null;
-  mediaGuessPromise: Promise<AnilistMediaGuess | null> | null;
-  lastDurationProbeAtMs: number;
-}) => {
-  anilistCurrentMediaKey = state.mediaKey;
-  anilistCurrentMediaDurationSec = state.mediaDurationSec;
-  anilistCurrentMediaGuess = state.mediaGuess;
-  anilistCurrentMediaGuessPromise = state.mediaGuessPromise;
-  anilistLastDurationProbeAtMs = state.lastDurationProbeAtMs;
-};
+const resetAnilistMediaTracking = createResetAnilistMediaTrackingHandler({
+  setMediaKey: (value) => {
+    anilistCurrentMediaKey = value;
+  },
+  setMediaDurationSec: (value) => {
+    anilistCurrentMediaDurationSec = value;
+  },
+  setMediaGuess: (value) => {
+    anilistCurrentMediaGuess = value;
+  },
+  setMediaGuessPromise: (value) => {
+    anilistCurrentMediaGuessPromise = value;
+  },
+  setLastDurationProbeAtMs: (value) => {
+    anilistLastDurationProbeAtMs = value;
+  },
+});
+
+const getAnilistMediaGuessRuntimeState = createGetAnilistMediaGuessRuntimeStateHandler({
+  getMediaKey: () => anilistCurrentMediaKey,
+  getMediaDurationSec: () => anilistCurrentMediaDurationSec,
+  getMediaGuess: () => anilistCurrentMediaGuess,
+  getMediaGuessPromise: () => anilistCurrentMediaGuessPromise,
+  getLastDurationProbeAtMs: () => anilistLastDurationProbeAtMs,
+});
+
+const setAnilistMediaGuessRuntimeState = createSetAnilistMediaGuessRuntimeStateHandler({
+  setMediaKey: (value) => {
+    anilistCurrentMediaKey = value;
+  },
+  setMediaDurationSec: (value) => {
+    anilistCurrentMediaDurationSec = value;
+  },
+  setMediaGuess: (value) => {
+    anilistCurrentMediaGuess = value;
+  },
+  setMediaGuessPromise: (value) => {
+    anilistCurrentMediaGuessPromise = value;
+  },
+  setLastDurationProbeAtMs: (value) => {
+    anilistLastDurationProbeAtMs = value;
+  },
+});
+
+const resetAnilistMediaGuessState = createResetAnilistMediaGuessStateHandler({
+  setMediaGuess: (value) => {
+    anilistCurrentMediaGuess = value;
+  },
+  setMediaGuessPromise: (value) => {
+    anilistCurrentMediaGuessPromise = value;
+  },
+});
 
 const maybeProbeAnilistDuration = createMaybeProbeAnilistDurationHandler({
   getState: () => getAnilistMediaGuessRuntimeState(),
@@ -1737,8 +1491,70 @@ registerProtocolUrlHandlers({
   },
 });
 
-const startupState = runStartupBootstrapRuntime(
-  createStartupBootstrapRuntimeDeps({
+const onWillQuitCleanupHandler = createOnWillQuitCleanupHandler(
+  createBuildOnWillQuitCleanupDepsHandler({
+    destroyTray: () => destroyTray(),
+    stopConfigHotReload: () => configHotReloadRuntime.stop(),
+    restorePreviousSecondarySubVisibility: () => restorePreviousSecondarySubVisibility(),
+    unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
+    stopSubtitleWebsocket: () => subtitleWsService.stop(),
+    stopTexthookerService: () => texthookerService.stop(),
+    getYomitanParserWindow: () => appState.yomitanParserWindow,
+    clearYomitanParserState: () => {
+      appState.yomitanParserWindow = null;
+      appState.yomitanParserReadyPromise = null;
+      appState.yomitanParserInitPromise = null;
+    },
+    getWindowTracker: () => appState.windowTracker,
+    getMpvSocket: () => appState.mpvClient?.socket ?? null,
+    getReconnectTimer: () => appState.reconnectTimer,
+    clearReconnectTimerRef: () => {
+      appState.reconnectTimer = null;
+    },
+    getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+    getImmersionTracker: () => appState.immersionTracker,
+    clearImmersionTracker: () => {
+      appState.immersionTracker = null;
+    },
+    getAnkiIntegration: () => appState.ankiIntegration,
+    getAnilistSetupWindow: () => appState.anilistSetupWindow,
+    clearAnilistSetupWindow: () => {
+      appState.anilistSetupWindow = null;
+    },
+    getJellyfinSetupWindow: () => appState.jellyfinSetupWindow,
+    clearJellyfinSetupWindow: () => {
+      appState.jellyfinSetupWindow = null;
+    },
+    stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
+  })(),
+);
+
+const shouldRestoreWindowsOnActivateHandler = createShouldRestoreWindowsOnActivateHandler(
+  createBuildShouldRestoreWindowsOnActivateMainDepsHandler({
+    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+    getAllWindowCount: () => BrowserWindow.getAllWindows().length,
+  })(),
+);
+
+const restoreWindowsOnActivateHandler = createRestoreWindowsOnActivateHandler(
+  createBuildRestoreWindowsOnActivateMainDepsHandler({
+    createMainWindow: () => {
+      createMainWindow();
+    },
+    createInvisibleWindow: () => {
+      createInvisibleWindow();
+    },
+    updateVisibleOverlayVisibility: () => {
+      overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+    },
+    updateInvisibleOverlayVisibility: () => {
+      overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
+    },
+  })(),
+);
+
+const buildStartupBootstrapRuntimeFactoryDepsHandler =
+  createBuildStartupBootstrapRuntimeFactoryDepsHandler({
     argv: process.argv,
     parseArgs: (argv: string[]) => parseArgs(argv),
     setLogLevel: (level: string, source: LogLevelSource) => {
@@ -1887,59 +1703,15 @@ const startupState = runStartupBootstrapRuntime(
         },
         now: () => Date.now(),
       }),
-      onWillQuitCleanup: () => {
-        destroyTray();
-        configHotReloadRuntime.stop();
-        restorePreviousSecondarySubVisibility();
-        globalShortcut.unregisterAll();
-        subtitleWsService.stop();
-        texthookerService.stop();
-        if (appState.yomitanParserWindow && !appState.yomitanParserWindow.isDestroyed()) {
-          appState.yomitanParserWindow.destroy();
-        }
-        appState.yomitanParserWindow = null;
-        appState.yomitanParserReadyPromise = null;
-        appState.yomitanParserInitPromise = null;
-        if (appState.windowTracker) {
-          appState.windowTracker.stop();
-        }
-        if (appState.mpvClient && appState.mpvClient.socket) {
-          appState.mpvClient.socket.destroy();
-        }
-        if (appState.reconnectTimer) {
-          clearTimeout(appState.reconnectTimer);
-        }
-        if (appState.subtitleTimingTracker) {
-          appState.subtitleTimingTracker.destroy();
-        }
-        if (appState.immersionTracker) {
-          appState.immersionTracker.destroy();
-          appState.immersionTracker = null;
-        }
-        if (appState.ankiIntegration) {
-          appState.ankiIntegration.destroy();
-        }
-        if (appState.anilistSetupWindow) {
-          appState.anilistSetupWindow.destroy();
-        }
-        appState.anilistSetupWindow = null;
-        if (appState.jellyfinSetupWindow) {
-          appState.jellyfinSetupWindow.destroy();
-        }
-        appState.jellyfinSetupWindow = null;
-        stopJellyfinRemoteSession();
-      },
-      shouldRestoreWindowsOnActivate: () =>
-        appState.overlayRuntimeInitialized && BrowserWindow.getAllWindows().length === 0,
-      restoreWindowsOnActivate: () => {
-        createMainWindow();
-        createInvisibleWindow();
-        overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-        overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
-      },
+      onWillQuitCleanup: () => onWillQuitCleanupHandler(),
+      shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
+      restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
       shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
     }),
-  }),
+  });
+
+const startupState = runStartupBootstrapRuntime(
+  createStartupBootstrapRuntimeDeps(buildStartupBootstrapRuntimeFactoryDepsHandler()),
 );
 
 applyStartupState(appState, startupState);
@@ -1962,106 +1734,77 @@ function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): 
 }
 
 function handleInitialArgs(): void {
-  createHandleInitialArgsHandler({
-    getInitialArgs: () => appState.initialArgs,
-    isBackgroundMode: () => appState.backgroundMode,
-    ensureTray: () => ensureTray(),
-    isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
-    hasImmersionTracker: () => Boolean(appState.immersionTracker),
-    getMpvClient: () => appState.mpvClient,
-    logInfo: (message) => logger.info(message),
-    handleCliCommand: (args, source) => handleCliCommand(args, source),
-  })();
+  createHandleInitialArgsHandler(
+    createBuildHandleInitialArgsMainDepsHandler({
+      getInitialArgs: () => appState.initialArgs,
+      isBackgroundMode: () => appState.backgroundMode,
+      ensureTray: () => ensureTray(),
+      isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
+      hasImmersionTracker: () => Boolean(appState.immersionTracker),
+      getMpvClient: () => appState.mpvClient,
+      logInfo: (message) => logger.info(message),
+      handleCliCommand: (args, source) => handleCliCommand(args, source),
+    })(),
+  )();
 }
 
-function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
-  const handleMpvConnectionChange = createHandleMpvConnectionChangeHandler({
-    reportJellyfinRemoteStopped: () => {
-      void reportJellyfinRemoteStopped();
-    },
-    hasInitialJellyfinPlayArg: () => Boolean(appState.initialArgs?.jellyfinPlay),
-    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-    isQuitOnDisconnectArmed: () => jellyfinPlayQuitOnDisconnectArmed,
+const bindMpvClientEventHandlers = createBindMpvMainEventHandlersHandler(
+  createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState,
+    getQuitOnDisconnectArmed: () => jellyfinPlayQuitOnDisconnectArmed,
     scheduleQuitCheck: (callback) => {
       setTimeout(callback, 500);
     },
-    isMpvConnected: () => Boolean(appState.mpvClient?.connected),
     quitApp: () => app.quit(),
-  });
-  const handleMpvSubtitleTiming = createHandleMpvSubtitleTimingHandler({
-    recordImmersionSubtitleLine: (text, start, end) => {
-      appState.immersionTracker?.recordSubtitleLine(text, start, end);
-    },
-    hasSubtitleTimingTracker: () => Boolean(appState.subtitleTimingTracker),
-    recordSubtitleTiming: (text, start, end) => {
-      appState.subtitleTimingTracker?.recordSubtitle(text, start, end);
+    reportJellyfinRemoteStopped: () => {
+      void reportJellyfinRemoteStopped();
     },
     maybeRunAnilistPostWatchUpdate: () => maybeRunAnilistPostWatchUpdate(),
-    logError: (message, error) => logger.error(message, error),
-  });
-  createBindMpvClientEventHandlers({
-    onConnectionChange: (payload) => {
-      handleMpvConnectionChange(payload);
+    logSubtitleTimingError: (message, error) => logger.error(message, error),
+    broadcastToOverlayWindows: (channel, payload) => {
+      broadcastToOverlayWindows(channel, payload);
     },
-    onSubtitleChange: ({ text }) => {
-      appState.currentSubText = text;
-      broadcastToOverlayWindows('subtitle:set', { text, tokens: null });
+    onSubtitleChange: (text) => {
       subtitleProcessingController.onSubtitleChange(text);
     },
-    onSubtitleAssChange: ({ text }) => {
-      appState.currentSubAssText = text;
-      broadcastToOverlayWindows('subtitle-ass:set', text);
-    },
-    onSecondarySubtitleChange: ({ text }) => {
-      broadcastToOverlayWindows('secondary-subtitle:set', text);
-    },
-    onSubtitleTiming: (payload) => {
-      handleMpvSubtitleTiming(payload);
-    },
-    onMediaPathChange: ({ path }) => {
+    updateCurrentMediaPath: (path) => {
       mediaRuntime.updateCurrentMediaPath(path);
-      if (!path) {
-        void reportJellyfinRemoteStopped();
-      }
-      const mediaKey = getCurrentAnilistMediaKey();
+    },
+    getCurrentAnilistMediaKey: () => getCurrentAnilistMediaKey(),
+    resetAnilistMediaTracking: (mediaKey) => {
       resetAnilistMediaTracking(mediaKey);
-      if (mediaKey) {
-        void maybeProbeAnilistDuration(mediaKey);
-        void ensureAnilistMediaGuess(mediaKey);
-      }
+    },
+    maybeProbeAnilistDuration: (mediaKey) => {
+      void maybeProbeAnilistDuration(mediaKey);
+    },
+    ensureAnilistMediaGuess: (mediaKey) => {
+      void ensureAnilistMediaGuess(mediaKey);
+    },
+    syncImmersionMediaState: () => {
       immersionMediaRuntime.syncFromCurrentMediaState();
     },
-    onMediaTitleChange: ({ title }) => {
+    updateCurrentMediaTitle: (title) => {
       mediaRuntime.updateCurrentMediaTitle(title);
-      anilistCurrentMediaGuess = null;
-      anilistCurrentMediaGuessPromise = null;
-      appState.immersionTracker?.handleMediaTitleUpdate(title);
-      immersionMediaRuntime.syncFromCurrentMediaState();
     },
-    onTimePosChange: ({ time }) => {
-      appState.immersionTracker?.recordPlaybackPosition(time);
-      void reportJellyfinRemoteProgress(false);
+    resetAnilistMediaGuessState: () => {
+      resetAnilistMediaGuessState();
     },
-    onPauseChange: ({ paused }) => {
-      appState.immersionTracker?.recordPauseState(paused);
-      void reportJellyfinRemoteProgress(true);
+    reportJellyfinRemoteProgress: (forceImmediate) => {
+      void reportJellyfinRemoteProgress(forceImmediate);
     },
-    onSubtitleMetricsChange: ({ patch }) => {
+    updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
     },
-    onSecondarySubtitleVisibility: ({ visible }) => {
-      appState.previousSecondarySubVisibility = visible;
-    },
-  })(mpvClient);
-}
+  })(),
+);
 
 function createMpvClientRuntimeService(): MpvIpcClient {
-  return createMpvClientRuntimeServiceFactory({
-    createClient: MpvIpcClient,
-    socketPath: appState.mpvSocketPath,
-    options: {
+  return createMpvClientRuntimeServiceFactory(
+    createBuildMpvClientRuntimeServiceFactoryDepsHandler({
+      createClient: MpvIpcClient,
+      getSocketPath: () => appState.mpvSocketPath,
       getResolvedConfig: () => getResolvedConfig(),
-      autoStartOverlay: appState.autoStartOverlay,
+      isAutoStartOverlayEnabled: () => appState.autoStartOverlay,
       setOverlayVisible: (visible: boolean) => setOverlayVisible(visible),
       shouldBindVisibleOverlayToMpvSubVisibility: () =>
         configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
@@ -2070,9 +1813,9 @@ function createMpvClientRuntimeService(): MpvIpcClient {
       setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
         appState.reconnectTimer = timer;
       },
-    },
-    bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
-  })();
+      bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
+    })(),
+  )();
 }
 
 const updateMpvSubtitleRenderMetricsRuntime = createUpdateMpvSubtitleRenderMetricsHandler({
@@ -2221,91 +1964,47 @@ function buildTrayMenu(): Menu {
 }
 
 function ensureTray(): void {
-  createEnsureTrayHandler({
-    getTray: () => appTray,
-    setTray: (tray) => {
-      appTray = tray as Tray | null;
-    },
-    buildTrayMenu: () => buildTrayMenu(),
-    resolveTrayIconPath: () => resolveTrayIconPath(),
-    createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
-    createEmptyImage: () => nativeImage.createEmpty(),
-    createTray: (icon) => new Tray(icon as never),
-    trayTooltip: TRAY_TOOLTIP,
-    platform: process.platform,
-    logWarn: (message) => logger.warn(message),
-    ensureOverlayVisibleFromTrayClick: () => {
-      if (!appState.overlayRuntimeInitialized) {
-        initializeOverlayRuntime();
-      }
-      setVisibleOverlayVisible(true);
-    },
-  })();
+  ensureTrayHandler();
 }
 
 function destroyTray(): void {
-  createDestroyTrayHandler({
-    getTray: () => appTray,
-    setTray: (tray) => {
-      appTray = tray as Tray | null;
-    },
-  })();
+  destroyTrayHandler();
 }
 
 function initializeOverlayRuntime(): void {
-  createInitializeOverlayRuntimeHandler({
-    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-    initializeOverlayRuntimeCore: (options) => initializeOverlayRuntimeCore(options),
-    buildOptions: () => buildInitializeOverlayRuntimeOptionsHandler(),
-    setInvisibleOverlayVisible: (visible) => {
-      overlayManager.setInvisibleOverlayVisible(visible);
-    },
-    setOverlayRuntimeInitialized: (initialized) => {
-      appState.overlayRuntimeInitialized = initialized;
-    },
-    startBackgroundWarmups: () => startBackgroundWarmups(),
-  })();
+  initializeOverlayRuntimeHandler();
 }
 
 function openYomitanSettings(): void {
-  createOpenYomitanSettingsHandler({
-    ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
-    openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow }) => {
-      openYomitanSettingsWindow({
-        yomitanExt: yomitanExt as Extension,
-        getExistingWindow: () => getExistingWindow() as BrowserWindow | null,
-        setWindow: (window) => setWindow(window as BrowserWindow | null),
-      });
-    },
-    getExistingWindow: () => appState.yomitanSettingsWindow,
-    setWindow: (window) => {
-      appState.yomitanSettingsWindow = window as BrowserWindow | null;
-    },
-    logWarn: (message) => logger.warn(message),
-    logError: (message, error) => logger.error(message, error),
-  })();
+  openYomitanSettingsHandler();
 }
 
 const getConfiguredShortcutsHandler = createGetConfiguredShortcutsHandler({
-  getResolvedConfig: () => getResolvedConfig(),
-  defaultConfig: DEFAULT_CONFIG,
-  resolveConfiguredShortcuts,
+  ...createBuildGetConfiguredShortcutsMainDepsHandler({
+    getResolvedConfig: () => getResolvedConfig(),
+    defaultConfig: DEFAULT_CONFIG,
+    resolveConfiguredShortcuts,
+  })(),
 });
 
 const registerGlobalShortcutsHandler = createRegisterGlobalShortcutsHandler({
-  getConfiguredShortcuts: () => getConfiguredShortcuts(),
-  registerGlobalShortcutsCore,
-  onToggleVisibleOverlay: () => toggleVisibleOverlay(),
-  onToggleInvisibleOverlay: () => toggleInvisibleOverlay(),
-  onOpenYomitanSettings: () => openYomitanSettings(),
-  isDev,
-  getMainWindow: () => overlayManager.getMainWindow(),
+  ...createBuildRegisterGlobalShortcutsMainDepsHandler({
+    getConfiguredShortcuts: () => getConfiguredShortcuts(),
+    registerGlobalShortcutsCore,
+    toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
+    openYomitanSettings: () => openYomitanSettings(),
+    isDev,
+    getMainWindow: () => overlayManager.getMainWindow(),
+  })(),
 });
 
 const refreshGlobalAndOverlayShortcutsHandler = createRefreshGlobalAndOverlayShortcutsHandler({
-  unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
-  registerGlobalShortcuts: () => registerGlobalShortcuts(),
-  syncOverlayShortcuts: () => syncOverlayShortcuts(),
+  ...createBuildRefreshGlobalAndOverlayShortcutsMainDepsHandler({
+    unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
+    registerGlobalShortcuts: () => registerGlobalShortcuts(),
+    syncOverlayShortcuts: () => syncOverlayShortcuts(),
+  })(),
 });
 
 function registerGlobalShortcuts(): void {
@@ -2338,18 +2037,23 @@ function cycleSecondarySubMode(): void {
 }
 
 const appendToMpvLogHandler = createAppendToMpvLogHandler({
-  logPath: DEFAULT_MPV_LOG_PATH,
-  dirname: (targetPath) => path.dirname(targetPath),
-  mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
-  appendFileSync: (targetPath, data, options) => fs.appendFileSync(targetPath, data, options),
-  now: () => new Date(),
+  ...createBuildAppendToMpvLogMainDepsHandler({
+    logPath: DEFAULT_MPV_LOG_PATH,
+    dirname: (targetPath) => path.dirname(targetPath),
+    mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
+    appendFileSync: (targetPath, data, options) => fs.appendFileSync(targetPath, data, options),
+    now: () => new Date(),
+  })(),
 });
 
 const showMpvOsdHandler = createShowMpvOsdHandler({
-  appendToMpvLog: (message) => appendToMpvLog(message),
-  showMpvOsdRuntime,
-  getMpvClient: () => appState.mpvClient,
-  logInfo: (line) => logger.info(line),
+  ...createBuildShowMpvOsdMainDepsHandler({
+    appendToMpvLog: (message) => appendToMpvLog(message),
+    showMpvOsdRuntime: (mpvClient, text, fallbackLog) =>
+      showMpvOsdRuntime(mpvClient as never, text, fallbackLog),
+    getMpvClient: () => appState.mpvClient,
+    logInfo: (line) => logger.info(line),
+  })(),
 });
 
 function showMpvOsd(text: string): void {
@@ -2560,106 +2264,136 @@ const handleMpvCommandFromIpcHandler = createHandleMpvCommandFromIpcHandler({
 const runSubsyncManualFromIpcHandler = createRunSubsyncManualFromIpcHandler({
   runManualFromIpc: (request: SubsyncManualRunRequest) => subsyncRuntime.runManualFromIpc(request),
 });
-const buildCliCommandContextDepsHandler = createBuildCliCommandContextDepsHandler({
-  getSocketPath: () => appState.mpvSocketPath,
-  setSocketPath: (socketPath: string) => {
-    appState.mpvSocketPath = socketPath;
-  },
-  getMpvClient: () => appState.mpvClient,
-  showOsd: (text: string) => showMpvOsd(text),
-  texthookerService,
-  getTexthookerPort: () => appState.texthookerPort,
-  setTexthookerPort: (port: number) => {
-    appState.texthookerPort = port;
-  },
-  shouldOpenBrowser: () => getResolvedConfig().texthooker?.openBrowser !== false,
-  openExternal: (url: string) => shell.openExternal(url),
-  logBrowserOpenError: (url: string, error: unknown) =>
-    logger.error(`Failed to open browser for texthooker URL: ${url}`, error),
-  isOverlayInitialized: () => appState.overlayRuntimeInitialized,
-  initializeOverlay: () => initializeOverlayRuntime(),
-  toggleVisibleOverlay: () => toggleVisibleOverlay(),
-  toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
-  setVisibleOverlay: (visible: boolean) => setVisibleOverlayVisible(visible),
-  setInvisibleOverlay: (visible: boolean) => setInvisibleOverlayVisible(visible),
-  copyCurrentSubtitle: () => copyCurrentSubtitle(),
-  startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
-  mineSentenceCard: () => mineSentenceCard(),
-  startPendingMineSentenceMultiple: (timeoutMs: number) =>
-    startPendingMineSentenceMultiple(timeoutMs),
-  updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-  refreshKnownWordCache: () => refreshKnownWordCache(),
-  triggerFieldGrouping: () => triggerFieldGrouping(),
-  triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-  markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
-  getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
-  clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
-  openAnilistSetup: () => openAnilistSetupWindow(),
-  openJellyfinSetup: () => openJellyfinSetupWindow(),
-  getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
-  retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
-  runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
-  openYomitanSettings: () => openYomitanSettings(),
-  cycleSecondarySubMode: () => cycleSecondarySubMode(),
-  openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-  printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-  stopApp: () => app.quit(),
-  hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
-  getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
-  schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
-  logInfo: (message: string) => logger.info(message),
-  logWarn: (message: string) => logger.warn(message),
-  logError: (message: string, err: unknown) => logger.error(message, err),
-});
-const createOverlayWindowHandler = createCreateOverlayWindowHandler<BrowserWindow>({
-  createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
-  isDev,
-  getOverlayDebugVisualizationEnabled: () => appState.overlayDebugVisualizationEnabled,
-  ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-  onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-  setOverlayDebugVisualizationEnabled: (enabled) => setOverlayDebugVisualizationEnabled(enabled),
-  isOverlayVisible: (windowKind) =>
-    windowKind === 'visible'
-      ? overlayManager.getVisibleOverlayVisible()
-      : overlayManager.getInvisibleOverlayVisible(),
-  tryHandleOverlayShortcutLocalFallback: (input) =>
-    overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
-  onWindowClosed: (windowKind) => {
-    if (windowKind === 'visible') {
-      overlayManager.setMainWindow(null);
-    } else {
-      overlayManager.setInvisibleWindow(null);
-    }
-  },
-});
-const createMainWindowHandler = createCreateMainWindowHandler<BrowserWindow>({
-  createOverlayWindow: (kind) => createOverlayWindow(kind),
-  setMainWindow: (window) => overlayManager.setMainWindow(window),
-});
-const createInvisibleWindowHandler = createCreateInvisibleWindowHandler<BrowserWindow>({
-  createOverlayWindow: (kind) => createOverlayWindow(kind),
-  setInvisibleWindow: (window) => overlayManager.setInvisibleWindow(window),
-});
-const resolveTrayIconPathHandler = createResolveTrayIconPathHandler({
-  resolveTrayIconPathRuntime,
-  platform: process.platform,
-  resourcesPath: process.resourcesPath,
-  appPath: app.getAppPath(),
-  dirname: __dirname,
-  joinPath: (...parts) => path.join(...parts),
-  fileExists: (candidate) => fs.existsSync(candidate),
-});
-const buildTrayMenuTemplateHandler = createBuildTrayMenuTemplateHandler({
-  buildTrayMenuTemplateRuntime,
-  initializeOverlayRuntime: () => initializeOverlayRuntime(),
-  isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-  setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-  openYomitanSettings: () => openYomitanSettings(),
-  openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-  openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
-  openAnilistSetupWindow: () => openAnilistSetupWindow(),
-  quitApp: () => app.quit(),
-});
+const buildCliCommandContextDepsHandler = createBuildCliCommandContextDepsHandler(
+  createBuildCliCommandContextMainDepsHandler({
+    appState,
+    texthookerService,
+    getResolvedConfig: () => getResolvedConfig(),
+    openExternal: (url: string) => shell.openExternal(url),
+    logBrowserOpenError: (url: string, error: unknown) =>
+      logger.error(`Failed to open browser for texthooker URL: ${url}`, error),
+    showMpvOsd: (text: string) => showMpvOsd(text),
+    initializeOverlayRuntime: () => initializeOverlayRuntime(),
+    toggleVisibleOverlay: () => toggleVisibleOverlay(),
+    toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
+    setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
+    setInvisibleOverlayVisible: (visible: boolean) => setInvisibleOverlayVisible(visible),
+    copyCurrentSubtitle: () => copyCurrentSubtitle(),
+    startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
+    mineSentenceCard: () => mineSentenceCard(),
+    startPendingMineSentenceMultiple: (timeoutMs: number) =>
+      startPendingMineSentenceMultiple(timeoutMs),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    refreshKnownWordCache: () => refreshKnownWordCache(),
+    triggerFieldGrouping: () => triggerFieldGrouping(),
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
+    clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
+    openAnilistSetupWindow: () => openAnilistSetupWindow(),
+    openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
+    getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
+    processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
+    runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
+    openYomitanSettings: () => openYomitanSettings(),
+    cycleSecondarySubMode: () => cycleSecondarySubMode(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+    stopApp: () => app.quit(),
+    hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
+    getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
+    schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
+    logInfo: (message: string) => logger.info(message),
+    logWarn: (message: string) => logger.warn(message),
+    logError: (message: string, err: unknown) => logger.error(message, err),
+  })(),
+);
+const createOverlayWindowHandler = createCreateOverlayWindowHandler<BrowserWindow>(
+  createBuildCreateOverlayWindowMainDepsHandler<BrowserWindow>({
+    createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
+    isDev,
+    getOverlayDebugVisualizationEnabled: () => appState.overlayDebugVisualizationEnabled,
+    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+    onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+    setOverlayDebugVisualizationEnabled: (enabled) => setOverlayDebugVisualizationEnabled(enabled),
+    isOverlayVisible: (windowKind) =>
+      windowKind === 'visible'
+        ? overlayManager.getVisibleOverlayVisible()
+        : overlayManager.getInvisibleOverlayVisible(),
+    tryHandleOverlayShortcutLocalFallback: (input) =>
+      overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
+    onWindowClosed: (windowKind) => {
+      if (windowKind === 'visible') {
+        overlayManager.setMainWindow(null);
+      } else {
+        overlayManager.setInvisibleWindow(null);
+      }
+    },
+  })(),
+);
+const createMainWindowHandler = createCreateMainWindowHandler<BrowserWindow>(
+  createBuildCreateMainWindowMainDepsHandler<BrowserWindow>({
+    createOverlayWindow: (kind) => createOverlayWindow(kind),
+    setMainWindow: (window) => overlayManager.setMainWindow(window),
+  })(),
+);
+const createInvisibleWindowHandler = createCreateInvisibleWindowHandler<BrowserWindow>(
+  createBuildCreateInvisibleWindowMainDepsHandler<BrowserWindow>({
+    createOverlayWindow: (kind) => createOverlayWindow(kind),
+    setInvisibleWindow: (window) => overlayManager.setInvisibleWindow(window),
+  })(),
+);
+const resolveTrayIconPathHandler = createResolveTrayIconPathHandler(
+  createBuildResolveTrayIconPathMainDepsHandler({
+    resolveTrayIconPathRuntime,
+    platform: process.platform,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+    dirname: __dirname,
+    joinPath: (...parts) => path.join(...parts),
+    fileExists: (candidate) => fs.existsSync(candidate),
+  })(),
+);
+const buildTrayMenuTemplateHandler = createBuildTrayMenuTemplateHandler(
+  createBuildTrayMenuTemplateMainDepsHandler({
+    buildTrayMenuTemplateRuntime,
+    initializeOverlayRuntime: () => initializeOverlayRuntime(),
+    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+    openYomitanSettings: () => openYomitanSettings(),
+    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+    openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
+    openAnilistSetupWindow: () => openAnilistSetupWindow(),
+    quitApp: () => app.quit(),
+  })(),
+);
+const ensureTrayHandler = createEnsureTrayHandler(
+  createBuildEnsureTrayMainDepsHandler({
+    getTray: () => appTray,
+    setTray: (tray) => {
+      appTray = tray as Tray | null;
+    },
+    buildTrayMenu: () => buildTrayMenu(),
+    resolveTrayIconPath: () => resolveTrayIconPath(),
+    createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
+    createEmptyImage: () => nativeImage.createEmpty(),
+    createTray: (icon) => new Tray(icon as never),
+    trayTooltip: TRAY_TOOLTIP,
+    platform: process.platform,
+    logWarn: (message) => logger.warn(message),
+    initializeOverlayRuntime: () => initializeOverlayRuntime(),
+    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+  })(),
+);
+const destroyTrayHandler = createDestroyTrayHandler(
+  createBuildDestroyTrayMainDepsHandler({
+    getTray: () => appTray,
+    setTray: (tray) => {
+      appTray = tray as Tray | null;
+    },
+  })(),
+);
 const loadYomitanExtensionHandler = createLoadYomitanExtensionHandler({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,
@@ -2685,50 +2419,67 @@ const ensureYomitanExtensionLoadedHandler = createEnsureYomitanExtensionLoadedHa
   },
   loadYomitanExtension: () => loadYomitanExtension(),
 });
-const buildInitializeOverlayRuntimeOptionsHandler = createBuildInitializeOverlayRuntimeOptionsHandler({
-  getBackendOverride: () => appState.backendOverride,
-  getInitialInvisibleOverlayVisibility: () =>
-    configDerivedRuntime.getInitialInvisibleOverlayVisibility(),
-  createMainWindow: () => {
-    createMainWindow();
-  },
-  createInvisibleWindow: () => {
-    createInvisibleWindow();
-  },
-  registerGlobalShortcuts: () => {
-    registerGlobalShortcuts();
-  },
-  updateVisibleOverlayBounds: (geometry) => {
-    updateVisibleOverlayBounds(geometry);
-  },
-  updateInvisibleOverlayBounds: (geometry) => {
-    updateInvisibleOverlayBounds(geometry);
-  },
-  isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  isInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
-  updateVisibleOverlayVisibility: () => {
-    overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-  },
-  updateInvisibleOverlayVisibility: () => {
-    overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
-  },
-  getOverlayWindows: () => getOverlayWindows(),
-  syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
-  setWindowTracker: (tracker) => {
-    appState.windowTracker = tracker as never;
-  },
-  getResolvedConfig: () => getResolvedConfig(),
-  getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
-  getMpvClient: () => appState.mpvClient,
-  getMpvSocketPath: () => appState.mpvSocketPath,
-  getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-  setAnkiIntegration: (integration) => {
-    appState.ankiIntegration = integration as AnkiIntegration | null;
-  },
-  showDesktopNotification,
-  createFieldGroupingCallback: () => createFieldGroupingCallback() as never,
-  getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
-});
+const buildInitializeOverlayRuntimeOptionsHandler = createBuildInitializeOverlayRuntimeOptionsHandler(
+  createBuildInitializeOverlayRuntimeMainDepsHandler({
+    appState,
+    overlayManager: {
+      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
+    },
+    overlayVisibilityRuntime: {
+      updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+      updateInvisibleOverlayVisibility: () =>
+        overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
+    },
+    overlayShortcutsRuntime: {
+      syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
+    },
+    getInitialInvisibleOverlayVisibility: () =>
+      configDerivedRuntime.getInitialInvisibleOverlayVisibility(),
+    createMainWindow: () => createMainWindow(),
+    createInvisibleWindow: () => createInvisibleWindow(),
+    registerGlobalShortcuts: () => registerGlobalShortcuts(),
+    updateVisibleOverlayBounds: (geometry) => updateVisibleOverlayBounds(geometry),
+    updateInvisibleOverlayBounds: (geometry) => updateInvisibleOverlayBounds(geometry),
+    getOverlayWindows: () => getOverlayWindows(),
+    getResolvedConfig: () => getResolvedConfig(),
+    showDesktopNotification,
+    createFieldGroupingCallback: () => createFieldGroupingCallback() as never,
+    getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
+  })(),
+);
+const initializeOverlayRuntimeHandler = createInitializeOverlayRuntimeHandler(
+  createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler({
+    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+    initializeOverlayRuntimeCore: (options) => initializeOverlayRuntimeCore(options as never),
+    buildOptions: () => buildInitializeOverlayRuntimeOptionsHandler(),
+    setInvisibleOverlayVisible: (visible) => {
+      overlayManager.setInvisibleOverlayVisible(visible);
+    },
+    setOverlayRuntimeInitialized: (initialized) => {
+      appState.overlayRuntimeInitialized = initialized;
+    },
+    startBackgroundWarmups: () => startBackgroundWarmups(),
+  })(),
+);
+const openYomitanSettingsHandler = createOpenYomitanSettingsHandler(
+  createBuildOpenYomitanSettingsMainDepsHandler({
+    ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
+    openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow }) => {
+      openYomitanSettingsWindow({
+        yomitanExt: yomitanExt as Extension,
+        getExistingWindow: () => getExistingWindow() as BrowserWindow | null,
+        setWindow: (window) => setWindow(window as BrowserWindow | null),
+      });
+    },
+    getExistingWindow: () => appState.yomitanSettingsWindow,
+    setWindow: (window) => {
+      appState.yomitanSettingsWindow = window as BrowserWindow | null;
+    },
+    logWarn: (message) => logger.warn(message),
+    logError: (message, error) => logger.error(message, error),
+  })(),
+);
 
 async function updateLastCardFromClipboard(): Promise<void> {
   await updateLastCardFromClipboardHandler();

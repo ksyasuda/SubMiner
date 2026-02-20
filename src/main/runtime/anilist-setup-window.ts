@@ -8,6 +8,18 @@ type FocusableWindowLike = {
   focus: () => void;
 };
 
+type AnilistSetupWebContentsLike = {
+  setWindowOpenHandler: (...args: any[]) => unknown;
+  on: (...args: any[]) => unknown;
+  getURL: () => string;
+};
+
+type AnilistSetupWindowLike = FocusableWindowLike & {
+  webContents: AnilistSetupWebContentsLike;
+  on: (...args: any[]) => unknown;
+  isDestroyed: () => boolean;
+};
+
 export function createHandleManualAnilistSetupSubmissionHandler(deps: {
   consumeCallbackUrl: (rawUrl: string) => boolean;
   redirectUri: string;
@@ -177,5 +189,135 @@ export function createAnilistSetupFallbackHandler(deps: {
         deps.loadManualTokenEntry();
       }
     },
+  };
+}
+
+export function createOpenAnilistSetupWindowHandler<TWindow extends AnilistSetupWindowLike>(deps: {
+  maybeFocusExistingSetupWindow: () => boolean;
+  createSetupWindow: () => TWindow;
+  buildAuthorizeUrl: () => string;
+  consumeCallbackUrl: (rawUrl: string) => boolean;
+  openSetupInBrowser: (authorizeUrl: string) => void;
+  loadManualTokenEntry: (setupWindow: TWindow, authorizeUrl: string) => void;
+  redirectUri: string;
+  developerSettingsUrl: string;
+  isAllowedExternalUrl: (url: string) => boolean;
+  isAllowedNavigationUrl: (url: string) => boolean;
+  logWarn: (message: string, details?: unknown) => void;
+  logError: (message: string, details: unknown) => void;
+  clearSetupWindow: () => void;
+  setSetupPageOpened: (opened: boolean) => void;
+  setSetupWindow: (window: TWindow) => void;
+  openExternal: (url: string) => void;
+}) {
+  return (): void => {
+    if (deps.maybeFocusExistingSetupWindow()) {
+      return;
+    }
+
+    const setupWindow = deps.createSetupWindow();
+    const authorizeUrl = deps.buildAuthorizeUrl();
+    const consumeCallbackUrl = (rawUrl: string): boolean => deps.consumeCallbackUrl(rawUrl);
+    const openSetupInBrowser = () => deps.openSetupInBrowser(authorizeUrl);
+    const loadManualTokenEntry = () => deps.loadManualTokenEntry(setupWindow, authorizeUrl);
+    const handleManualSubmission = createHandleManualAnilistSetupSubmissionHandler({
+      consumeCallbackUrl: (rawUrl) => consumeCallbackUrl(rawUrl),
+      redirectUri: deps.redirectUri,
+      logWarn: (message) => deps.logWarn(message),
+    });
+    const fallback = createAnilistSetupFallbackHandler({
+      authorizeUrl,
+      developerSettingsUrl: deps.developerSettingsUrl,
+      setupWindow,
+      openSetupInBrowser,
+      loadManualTokenEntry,
+      logError: (message, details) => deps.logError(message, details),
+      logWarn: (message) => deps.logWarn(message),
+    });
+    const handleWindowOpen = createAnilistSetupWindowOpenHandler({
+      isAllowedExternalUrl: (url) => deps.isAllowedExternalUrl(url),
+      openExternal: (url) => deps.openExternal(url),
+      logWarn: (message, details) => deps.logWarn(message, details),
+    });
+    const handleWillNavigate = createAnilistSetupWillNavigateHandler({
+      handleManualSubmission: (url) => handleManualSubmission(url),
+      consumeCallbackUrl: (url) => consumeCallbackUrl(url),
+      redirectUri: deps.redirectUri,
+      isAllowedNavigationUrl: (url) => deps.isAllowedNavigationUrl(url),
+      logWarn: (message, details) => deps.logWarn(message, details),
+    });
+    const handleWillRedirect = createAnilistSetupWillRedirectHandler({
+      consumeCallbackUrl: (url) => consumeCallbackUrl(url),
+    });
+    const handleDidNavigate = createAnilistSetupDidNavigateHandler({
+      consumeCallbackUrl: (url) => consumeCallbackUrl(url),
+    });
+    const handleDidFailLoad = createAnilistSetupDidFailLoadHandler({
+      onLoadFailure: (details) => fallback.onLoadFailure(details),
+    });
+    const handleDidFinishLoad = createAnilistSetupDidFinishLoadHandler({
+      getLoadedUrl: () => setupWindow.webContents.getURL(),
+      onBlankPageLoaded: () => fallback.onBlankPageLoaded(),
+    });
+    const handleWindowClosed = createHandleAnilistSetupWindowClosedHandler({
+      clearSetupWindow: () => deps.clearSetupWindow(),
+      setSetupPageOpened: (opened) => deps.setSetupPageOpened(opened),
+    });
+    const handleWindowOpened = createHandleAnilistSetupWindowOpenedHandler({
+      setSetupWindow: () => deps.setSetupWindow(setupWindow),
+      setSetupPageOpened: (opened) => deps.setSetupPageOpened(opened),
+    });
+
+    setupWindow.webContents.setWindowOpenHandler(({ url }: { url: string }) =>
+      handleWindowOpen({ url }),
+    );
+    setupWindow.webContents.on('will-navigate', (event: unknown, url: string) => {
+      handleWillNavigate({
+        url,
+        preventDefault: () => {
+          if (event && typeof event === 'object' && 'preventDefault' in event) {
+            const typedEvent = event as { preventDefault?: () => void };
+            typedEvent.preventDefault?.();
+          }
+        },
+      });
+    });
+    setupWindow.webContents.on('will-redirect', (event: unknown, url: string) => {
+      handleWillRedirect({
+        url,
+        preventDefault: () => {
+          if (event && typeof event === 'object' && 'preventDefault' in event) {
+            const typedEvent = event as { preventDefault?: () => void };
+            typedEvent.preventDefault?.();
+          }
+        },
+      });
+    });
+    setupWindow.webContents.on('did-navigate', (_event: unknown, url: string) => {
+      handleDidNavigate(url);
+    });
+    setupWindow.webContents.on(
+      'did-fail-load',
+      (
+        _event: unknown,
+        errorCode: number,
+        errorDescription: string,
+        validatedURL: string,
+      ) => {
+        handleDidFailLoad({
+          errorCode,
+          errorDescription,
+          validatedURL,
+        });
+      },
+    );
+    setupWindow.webContents.on('did-finish-load', () => {
+      handleDidFinishLoad();
+    });
+    loadManualTokenEntry();
+    setupWindow.on('closed', () => {
+      handleWindowClosed();
+    });
+    handleWindowOpened();
   };
 }
