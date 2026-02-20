@@ -1203,8 +1203,10 @@ const buildSendToActiveOverlayWindowMainDepsHandler =
     sendToActiveOverlayWindowRuntime: (channel, payload, runtimeOptions) =>
       overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
   });
+const sendToActiveOverlayWindowMainDeps =
+  buildSendToActiveOverlayWindowMainDepsHandler();
 const sendToActiveOverlayWindowHandler = createSendToActiveOverlayWindowHandler(
-  buildSendToActiveOverlayWindowMainDepsHandler(),
+  sendToActiveOverlayWindowMainDeps,
 );
 
 function sendToActiveOverlayWindow(
@@ -1224,8 +1226,10 @@ const buildSetOverlayDebugVisualizationEnabledMainDepsHandler =
     },
     broadcastToOverlayWindows: (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
   });
+const setOverlayDebugVisualizationEnabledMainDeps =
+  buildSetOverlayDebugVisualizationEnabledMainDepsHandler();
 const setOverlayDebugVisualizationEnabledHandler = createSetOverlayDebugVisualizationEnabledHandler(
-  buildSetOverlayDebugVisualizationEnabledMainDepsHandler(),
+  setOverlayDebugVisualizationEnabledMainDeps,
 );
 
 function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
@@ -1236,8 +1240,10 @@ const buildOpenRuntimeOptionsPaletteMainDepsHandler =
   createBuildOpenRuntimeOptionsPaletteMainDepsHandler({
     openRuntimeOptionsPaletteRuntime: () => overlayModalRuntime.openRuntimeOptionsPalette(),
   });
+const openRuntimeOptionsPaletteMainDeps =
+  buildOpenRuntimeOptionsPaletteMainDepsHandler();
 const openRuntimeOptionsPaletteHandler = createOpenRuntimeOptionsPaletteHandler(
-  buildOpenRuntimeOptionsPaletteMainDepsHandler(),
+  openRuntimeOptionsPaletteMainDeps,
 );
 
 function openRuntimeOptionsPalette(): void {
@@ -1253,8 +1259,10 @@ const buildGetResolvedJellyfinConfigMainDepsHandler =
   getResolvedConfig: () => getResolvedConfig(),
   loadStoredToken: () => jellyfinTokenStore.loadToken(),
 });
+const getResolvedJellyfinConfigMainDeps =
+  buildGetResolvedJellyfinConfigMainDepsHandler();
 const getResolvedJellyfinConfigHandler = createGetResolvedJellyfinConfigHandler(
-  buildGetResolvedJellyfinConfigMainDepsHandler(),
+  getResolvedJellyfinConfigMainDeps,
 );
 
 function getResolvedJellyfinConfig() {
@@ -1265,8 +1273,10 @@ const buildGetJellyfinClientInfoMainDepsHandler = createBuildGetJellyfinClientIn
   getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
   getDefaultJellyfinConfig: () => DEFAULT_CONFIG.jellyfin,
 });
+const getJellyfinClientInfoMainDeps =
+  buildGetJellyfinClientInfoMainDepsHandler();
 const getJellyfinClientInfoHandler = createGetJellyfinClientInfoHandler(
-  buildGetJellyfinClientInfoMainDepsHandler(),
+  getJellyfinClientInfoMainDeps,
 );
 
 function getJellyfinClientInfo(config = getResolvedJellyfinConfig()) {
@@ -1278,8 +1288,9 @@ const buildWaitForMpvConnectedMainDepsHandler = createBuildWaitForMpvConnectedMa
   now: () => Date.now(),
   sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
 });
+const waitForMpvConnectedMainDeps = buildWaitForMpvConnectedMainDepsHandler();
 const waitForMpvConnected = createWaitForMpvConnectedHandler(
-  buildWaitForMpvConnectedMainDepsHandler(),
+  waitForMpvConnectedMainDeps,
 );
 
 const buildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler =
@@ -1300,8 +1311,10 @@ const buildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler =
     logWarn: (message, error) => logger.warn(message, error),
     logInfo: (message) => logger.info(message),
   });
+const launchMpvIdleForJellyfinPlaybackMainDeps =
+  buildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler();
 const launchMpvIdleForJellyfinPlayback = createLaunchMpvIdleForJellyfinPlaybackHandler(
-  buildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler(),
+  launchMpvIdleForJellyfinPlaybackMainDeps,
 );
 
 const buildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler =
@@ -1320,8 +1333,10 @@ const buildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler =
     connectTimeoutMs: JELLYFIN_MPV_CONNECT_TIMEOUT_MS,
     autoLaunchTimeoutMs: JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS,
   });
+const ensureMpvConnectedForJellyfinPlaybackMainDeps =
+  buildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler();
 const ensureMpvConnectedForJellyfinPlayback = createEnsureMpvConnectedForJellyfinPlaybackHandler(
-  buildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler(),
+  ensureMpvConnectedForJellyfinPlaybackMainDeps,
 );
 
 const buildPreloadJellyfinExternalSubtitlesMainDepsHandler =
@@ -1337,8 +1352,10 @@ const buildPreloadJellyfinExternalSubtitlesMainDepsHandler =
       logger.debug(message, error);
     },
   });
+const preloadJellyfinExternalSubtitlesMainDeps =
+  buildPreloadJellyfinExternalSubtitlesMainDepsHandler();
 const preloadJellyfinExternalSubtitles = createPreloadJellyfinExternalSubtitlesHandler(
-  buildPreloadJellyfinExternalSubtitlesMainDepsHandler(),
+  preloadJellyfinExternalSubtitlesMainDeps,
 );
 
 const buildPlayJellyfinItemInMpvMainDepsHandler = createBuildPlayJellyfinItemInMpvMainDepsHandler({
@@ -1384,8 +1401,9 @@ const buildPlayJellyfinItemInMpvMainDepsHandler = createBuildPlayJellyfinItemInM
     showMpvOsd(text);
   },
 });
+const playJellyfinItemInMpvMainDeps = buildPlayJellyfinItemInMpvMainDepsHandler();
 const playJellyfinItemInMpv = createPlayJellyfinItemInMpvHandler(
-  buildPlayJellyfinItemInMpvMainDepsHandler(),
+  playJellyfinItemInMpvMainDeps,
 );
 
 const buildHandleJellyfinAuthCommandsMainDepsHandler =
