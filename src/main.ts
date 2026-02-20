@@ -101,6 +101,7 @@ import {
   createBuildRegisterSubminerProtocolClientMainDepsHandler,
 } from './main/runtime/anilist-setup-protocol-main-deps';
 import { createRefreshAnilistClientSecretStateHandler } from './main/runtime/anilist-token-refresh';
+import { createBuildRefreshAnilistClientSecretStateMainDepsHandler } from './main/runtime/anilist-token-refresh-main-deps';
 import {
   createHandleJellyfinRemoteGeneralCommand,
   createHandleJellyfinRemotePlay,
@@ -146,14 +147,20 @@ import {
   createMaybeFocusExistingJellyfinSetupWindowHandler,
   parseJellyfinSetupSubmissionUrl,
 } from './main/runtime/jellyfin-setup-window';
+import { createBuildOpenJellyfinSetupWindowMainDepsHandler } from './main/runtime/jellyfin-setup-window-main-deps';
 import {
   createMaybeFocusExistingAnilistSetupWindowHandler,
   createOpenAnilistSetupWindowHandler,
 } from './main/runtime/anilist-setup-window';
+import { createBuildOpenAnilistSetupWindowMainDepsHandler } from './main/runtime/anilist-setup-window-main-deps';
 import {
   createEnsureAnilistMediaGuessHandler,
   createMaybeProbeAnilistDurationHandler,
 } from './main/runtime/anilist-media-guess';
+import {
+  createBuildEnsureAnilistMediaGuessMainDepsHandler,
+  createBuildMaybeProbeAnilistDurationMainDepsHandler,
+} from './main/runtime/anilist-media-guess-main-deps';
 import {
   createGetAnilistMediaGuessRuntimeStateHandler,
   createGetCurrentAnilistMediaKeyHandler,
@@ -162,18 +169,34 @@ import {
   createSetAnilistMediaGuessRuntimeStateHandler,
 } from './main/runtime/anilist-media-state';
 import {
+  createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler,
+  createBuildGetCurrentAnilistMediaKeyMainDepsHandler,
+  createBuildResetAnilistMediaGuessStateMainDepsHandler,
+  createBuildResetAnilistMediaTrackingMainDepsHandler,
+  createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler,
+} from './main/runtime/anilist-media-state-main-deps';
+import {
   buildAnilistAttemptKey,
   createMaybeRunAnilistPostWatchUpdateHandler,
   createProcessNextAnilistRetryUpdateHandler,
   rememberAnilistAttemptedUpdateKey,
 } from './main/runtime/anilist-post-watch';
 import {
+  createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler,
+  createBuildProcessNextAnilistRetryUpdateMainDepsHandler,
+} from './main/runtime/anilist-post-watch-main-deps';
+import {
   createLoadSubtitlePositionHandler,
   createSaveSubtitlePositionHandler,
 } from './main/runtime/subtitle-position';
+import {
+  createBuildLoadSubtitlePositionMainDepsHandler,
+  createBuildSaveSubtitlePositionMainDepsHandler,
+} from './main/runtime/subtitle-position-main-deps';
 import { registerProtocolUrlHandlers } from './main/runtime/protocol-url-handlers';
 import { createHandleJellyfinAuthCommands } from './main/runtime/jellyfin-cli-auth';
 import { createRunJellyfinCommandHandler } from './main/runtime/jellyfin-command-dispatch';
+import { createBuildRunJellyfinCommandMainDepsHandler } from './main/runtime/jellyfin-command-dispatch-main-deps';
 import { createHandleJellyfinListCommands } from './main/runtime/jellyfin-cli-list';
 import { createHandleJellyfinPlayCommand } from './main/runtime/jellyfin-cli-play';
 import { createHandleJellyfinRemoteAnnounceCommand } from './main/runtime/jellyfin-cli-remote-announce';
@@ -183,7 +206,6 @@ import {
   createBuildHandleJellyfinPlayCommandMainDepsHandler,
   createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler,
 } from './main/runtime/jellyfin-cli-main-deps';
-import { createBuildRunJellyfinCommandMainDepsHandler } from './main/runtime/jellyfin-command-dispatch-main-deps';
 import {
   createGetJellyfinClientInfoHandler,
   createGetResolvedJellyfinConfigHandler,
@@ -209,10 +231,15 @@ import {
 } from './main/runtime/dictionary-runtime-main-deps';
 import { createPlayJellyfinItemInMpvHandler } from './main/runtime/jellyfin-playback-launch';
 import { createPreloadJellyfinExternalSubtitlesHandler } from './main/runtime/jellyfin-subtitle-preload';
+import { createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler } from './main/runtime/jellyfin-subtitle-preload-main-deps';
 import {
   createStartJellyfinRemoteSessionHandler,
   createStopJellyfinRemoteSessionHandler,
 } from './main/runtime/jellyfin-remote-session-lifecycle';
+import {
+  createBuildStartJellyfinRemoteSessionMainDepsHandler,
+  createBuildStopJellyfinRemoteSessionMainDepsHandler,
+} from './main/runtime/jellyfin-remote-session-main-deps';
 import { createHandleInitialArgsHandler } from './main/runtime/initial-args-handler';
 import { createBuildHandleInitialArgsMainDepsHandler } from './main/runtime/initial-args-main-deps';
 import { createHandleTexthookerOnlyModeTransitionHandler } from './main/runtime/cli-command-prechecks';
@@ -221,6 +248,10 @@ import {
   createGetFieldGroupingResolverHandler,
   createSetFieldGroupingResolverHandler,
 } from './main/runtime/field-grouping-resolver';
+import {
+  createBuildGetFieldGroupingResolverMainDepsHandler,
+  createBuildSetFieldGroupingResolverMainDepsHandler,
+} from './main/runtime/field-grouping-resolver-main-deps';
 import { createBuildFieldGroupingOverlayMainDepsHandler } from './main/runtime/field-grouping-overlay-main-deps';
 import { createCliCommandContext } from './main/runtime/cli-command-context';
 import { createBindMpvMainEventHandlersHandler } from './main/runtime/mpv-main-event-bindings';
@@ -238,11 +269,21 @@ import {
   createStartBackgroundWarmupsHandler,
 } from './main/runtime/startup-warmups';
 import {
+  createBuildLaunchBackgroundWarmupTaskMainDepsHandler,
+  createBuildStartBackgroundWarmupsMainDepsHandler,
+} from './main/runtime/startup-warmups-main-deps';
+import {
   createEnforceOverlayLayerOrderHandler,
   createEnsureOverlayWindowLevelHandler,
   createUpdateInvisibleOverlayBoundsHandler,
   createUpdateVisibleOverlayBoundsHandler,
 } from './main/runtime/overlay-window-layout';
+import {
+  createBuildEnforceOverlayLayerOrderMainDepsHandler,
+  createBuildEnsureOverlayWindowLevelMainDepsHandler,
+  createBuildUpdateInvisibleOverlayBoundsMainDepsHandler,
+  createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
+} from './main/runtime/overlay-window-layout-main-deps';
 import { buildTrayMenuTemplateRuntime, resolveTrayIconPathRuntime } from './main/runtime/tray-runtime';
 import { createDestroyTrayHandler, createEnsureTrayHandler } from './main/runtime/tray-lifecycle';
 import { createInitializeOverlayRuntimeHandler } from './main/runtime/overlay-runtime-bootstrap';
@@ -268,11 +309,21 @@ import {
   createStartNumericShortcutSessionHandler,
 } from './main/runtime/numeric-shortcut-session-handlers';
 import {
+  createBuildCancelNumericShortcutSessionMainDepsHandler,
+  createBuildStartNumericShortcutSessionMainDepsHandler,
+} from './main/runtime/numeric-shortcut-session-main-deps';
+import {
   createRefreshOverlayShortcutsHandler,
   createRegisterOverlayShortcutsHandler,
   createSyncOverlayShortcutsHandler,
   createUnregisterOverlayShortcutsHandler,
 } from './main/runtime/overlay-shortcuts-lifecycle';
+import {
+  createBuildRefreshOverlayShortcutsMainDepsHandler,
+  createBuildRegisterOverlayShortcutsMainDepsHandler,
+  createBuildSyncOverlayShortcutsMainDepsHandler,
+  createBuildUnregisterOverlayShortcutsMainDepsHandler,
+} from './main/runtime/overlay-shortcuts-lifecycle-main-deps';
 import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/overlay-shortcuts-runtime-main-deps';
 import {
   createMarkLastCardAsAudioCardHandler,
@@ -282,16 +333,34 @@ import {
   createUpdateLastCardFromClipboardHandler,
 } from './main/runtime/anki-actions';
 import {
+  createBuildMarkLastCardAsAudioCardMainDepsHandler,
+  createBuildMineSentenceCardMainDepsHandler,
+  createBuildRefreshKnownWordCacheMainDepsHandler,
+  createBuildTriggerFieldGroupingMainDepsHandler,
+  createBuildUpdateLastCardFromClipboardMainDepsHandler,
+} from './main/runtime/anki-actions-main-deps';
+import {
   createCopyCurrentSubtitleHandler,
   createHandleMineSentenceDigitHandler,
   createHandleMultiCopyDigitHandler,
 } from './main/runtime/mining-actions';
+import {
+  createBuildCopyCurrentSubtitleMainDepsHandler,
+  createBuildHandleMineSentenceDigitMainDepsHandler,
+  createBuildHandleMultiCopyDigitMainDepsHandler,
+} from './main/runtime/mining-actions-main-deps';
 import {
   createSetInvisibleOverlayVisibleHandler,
   createSetVisibleOverlayVisibleHandler,
   createToggleInvisibleOverlayHandler,
   createToggleVisibleOverlayHandler,
 } from './main/runtime/overlay-visibility-actions';
+import {
+  createBuildSetInvisibleOverlayVisibleMainDepsHandler,
+  createBuildSetVisibleOverlayVisibleMainDepsHandler,
+  createBuildToggleInvisibleOverlayMainDepsHandler,
+  createBuildToggleVisibleOverlayMainDepsHandler,
+} from './main/runtime/overlay-visibility-actions-main-deps';
 import { createBuildOverlayVisibilityRuntimeMainDepsHandler } from './main/runtime/overlay-visibility-runtime-main-deps';
 import {
   createAppendClipboardVideoToQueueHandler,
@@ -299,6 +368,12 @@ import {
   createSetOverlayVisibleHandler,
   createToggleOverlayHandler,
 } from './main/runtime/overlay-main-actions';
+import {
+  createBuildAppendClipboardVideoToQueueMainDepsHandler,
+  createBuildHandleOverlayModalClosedMainDepsHandler,
+  createBuildSetOverlayVisibleMainDepsHandler,
+  createBuildToggleOverlayMainDepsHandler,
+} from './main/runtime/overlay-main-actions-main-deps';
 import {
   createBroadcastRuntimeOptionsChangedHandler,
   createGetRuntimeOptionsStateHandler,
@@ -319,6 +394,11 @@ import {
   createHandleMpvCommandFromIpcHandler,
   createRunSubsyncManualFromIpcHandler,
 } from './main/runtime/ipc-bridge-actions';
+import {
+  createBuildHandleMpvCommandFromIpcMainDepsHandler,
+  createBuildRunSubsyncManualFromIpcMainDepsHandler,
+} from './main/runtime/ipc-bridge-actions-main-deps';
+import { createBuildMpvCommandFromIpcRuntimeMainDepsHandler } from './main/runtime/ipc-mpv-command-main-deps';
 import {
   createCreateInvisibleWindowHandler,
   createCreateMainWindowHandler,
@@ -347,6 +427,10 @@ import {
   createEnsureYomitanExtensionLoadedHandler,
   createLoadYomitanExtensionHandler,
 } from './main/runtime/yomitan-extension-loader';
+import {
+  createBuildEnsureYomitanExtensionLoadedMainDepsHandler,
+  createBuildLoadYomitanExtensionMainDepsHandler,
+} from './main/runtime/yomitan-extension-loader-main-deps';
 import { createBuildInitializeOverlayRuntimeOptionsHandler } from './main/runtime/overlay-runtime-options';
 import { createBuildInitializeOverlayRuntimeMainDepsHandler } from './main/runtime/overlay-runtime-options-main-deps';
 import { createBuildCliCommandContextDepsHandler } from './main/runtime/cli-command-context-deps';
@@ -914,15 +998,21 @@ const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService(
   })(),
 );
 
-const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler({
+const buildGetFieldGroupingResolverMainDepsHandler = createBuildGetFieldGroupingResolverMainDepsHandler(
+  {
   getResolver: () => appState.fieldGroupingResolver,
-});
+  },
+);
+const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler(
+  buildGetFieldGroupingResolverMainDepsHandler(),
+);
 
 function getFieldGroupingResolver(): ((choice: KikuFieldGroupingChoice) => void) | null {
   return getFieldGroupingResolverHandler();
 }
 
-const setFieldGroupingResolverHandler = createSetFieldGroupingResolverHandler({
+const buildSetFieldGroupingResolverMainDepsHandler = createBuildSetFieldGroupingResolverMainDepsHandler(
+  {
   setResolver: (resolver) => {
     appState.fieldGroupingResolver = resolver;
   },
@@ -931,7 +1021,11 @@ const setFieldGroupingResolverHandler = createSetFieldGroupingResolverHandler({
     return appState.fieldGroupingResolverSequence;
   },
   getSequence: () => appState.fieldGroupingResolverSequence,
-});
+  },
+);
+const setFieldGroupingResolverHandler = createSetFieldGroupingResolverHandler(
+  buildSetFieldGroupingResolverMainDepsHandler(),
+);
 
 function setFieldGroupingResolver(
   resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
@@ -1183,18 +1277,22 @@ const ensureMpvConnectedForJellyfinPlayback = createEnsureMpvConnectedForJellyfi
   buildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler(),
 );
 
-const preloadJellyfinExternalSubtitles = createPreloadJellyfinExternalSubtitlesHandler({
-  listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
-    listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
-  getMpvClient: () => appState.mpvClient,
-  sendMpvCommand: (command) => {
-    sendMpvCommandRuntime(appState.mpvClient, command);
-  },
-  wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-  logDebug: (message, error) => {
-    logger.debug(message, error);
-  },
-});
+const buildPreloadJellyfinExternalSubtitlesMainDepsHandler =
+  createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler({
+    listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
+      listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
+    getMpvClient: () => appState.mpvClient,
+    sendMpvCommand: (command) => {
+      sendMpvCommandRuntime(appState.mpvClient, command);
+    },
+    wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    logDebug: (message, error) => {
+      logger.debug(message, error);
+    },
+  });
+const preloadJellyfinExternalSubtitles = createPreloadJellyfinExternalSubtitlesHandler(
+  buildPreloadJellyfinExternalSubtitlesMainDepsHandler(),
+);
 
 const playJellyfinItemInMpv = createPlayJellyfinItemInMpvHandler({
   ensureMpvConnectedForPlayback: () => ensureMpvConnectedForJellyfinPlayback(),
@@ -1288,7 +1386,8 @@ const handleJellyfinRemoteAnnounceCommand = createHandleJellyfinRemoteAnnounceCo
   buildHandleJellyfinRemoteAnnounceCommandMainDepsHandler(),
 );
 
-const startJellyfinRemoteSession = createStartJellyfinRemoteSessionHandler({
+const buildStartJellyfinRemoteSessionMainDepsHandler =
+  createBuildStartJellyfinRemoteSessionMainDepsHandler({
   getJellyfinConfig: () => getResolvedJellyfinConfig(),
   getCurrentSession: () => appState.jellyfinRemoteSession,
   setCurrentSession: (session) => {
@@ -1304,8 +1403,12 @@ const startJellyfinRemoteSession = createStartJellyfinRemoteSessionHandler({
   logInfo: (message) => logger.info(message),
   logWarn: (message, details) => logger.warn(message, details),
 });
+const startJellyfinRemoteSession = createStartJellyfinRemoteSessionHandler(
+  buildStartJellyfinRemoteSessionMainDepsHandler(),
+);
 
-const stopJellyfinRemoteSession = createStopJellyfinRemoteSessionHandler({
+const buildStopJellyfinRemoteSessionMainDepsHandler =
+  createBuildStopJellyfinRemoteSessionMainDepsHandler({
   getCurrentSession: () => appState.jellyfinRemoteSession,
   setCurrentSession: (session) => {
     appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
@@ -1314,6 +1417,9 @@ const stopJellyfinRemoteSession = createStopJellyfinRemoteSessionHandler({
     activeJellyfinRemotePlayback = null;
   },
 });
+const stopJellyfinRemoteSession = createStopJellyfinRemoteSessionHandler(
+  buildStopJellyfinRemoteSessionMainDepsHandler(),
+);
 
 const buildRunJellyfinCommandMainDepsHandler = createBuildRunJellyfinCommandMainDepsHandler({
   getJellyfinConfig: () => getResolvedJellyfinConfig(),
@@ -1395,66 +1501,68 @@ const registerSubminerProtocolClient = createRegisterSubminerProtocolClientHandl
   buildRegisterSubminerProtocolClientMainDepsHandler(),
 );
 
-function openAnilistSetupWindow(): void {
-  createOpenAnilistSetupWindowHandler({
-    maybeFocusExistingSetupWindow: createMaybeFocusExistingAnilistSetupWindowHandler({
-      getSetupWindow: () => appState.anilistSetupWindow,
+const buildOpenAnilistSetupWindowMainDepsHandler = createBuildOpenAnilistSetupWindowMainDepsHandler({
+  maybeFocusExistingSetupWindow: createMaybeFocusExistingAnilistSetupWindowHandler({
+    getSetupWindow: () => appState.anilistSetupWindow,
+  }),
+  createSetupWindow: () =>
+    new BrowserWindow({
+      width: 1000,
+      height: 760,
+      title: 'Anilist Setup',
+      show: true,
+      autoHideMenuBar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
     }),
-    createSetupWindow: () =>
-      new BrowserWindow({
-        width: 1000,
-        height: 760,
-        title: 'Anilist Setup',
-        show: true,
-        autoHideMenuBar: true,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true,
-        },
-      }),
-    buildAuthorizeUrl: () =>
-      buildAnilistSetupUrl({
-        authorizeUrl: ANILIST_SETUP_CLIENT_ID_URL,
-        clientId: ANILIST_DEFAULT_CLIENT_ID,
-        responseType: ANILIST_SETUP_RESPONSE_TYPE,
-      }),
-    consumeCallbackUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
-    openSetupInBrowser: (authorizeUrl) =>
-      openAnilistSetupInBrowser({
-        authorizeUrl,
-        openExternal: (url) => shell.openExternal(url),
-        logError: (message, error) => logger.error(message, error),
-      }),
-    loadManualTokenEntry: (setupWindow, authorizeUrl) =>
-      loadAnilistManualTokenEntry({
-        setupWindow: setupWindow as BrowserWindow,
-        authorizeUrl,
-        developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-        logWarn: (message, data) => logger.warn(message, data),
-      }),
-    redirectUri: ANILIST_REDIRECT_URI,
-    developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-    isAllowedExternalUrl: (url) => isAllowedAnilistExternalUrl(url),
-    isAllowedNavigationUrl: (url) => isAllowedAnilistSetupNavigationUrl(url),
-    logWarn: (message, details) => logger.warn(message, details),
-    logError: (message, details) => logger.error(message, details),
-    clearSetupWindow: () => {
-      appState.anilistSetupWindow = null;
-    },
-    setSetupPageOpened: (opened) => {
-      appState.anilistSetupPageOpened = opened;
-    },
-    setSetupWindow: (setupWindow) => {
-      appState.anilistSetupWindow = setupWindow as BrowserWindow;
-    },
-    openExternal: (url) => {
-      void shell.openExternal(url);
-    },
-  })();
+  buildAuthorizeUrl: () =>
+    buildAnilistSetupUrl({
+      authorizeUrl: ANILIST_SETUP_CLIENT_ID_URL,
+      clientId: ANILIST_DEFAULT_CLIENT_ID,
+      responseType: ANILIST_SETUP_RESPONSE_TYPE,
+    }),
+  consumeCallbackUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
+  openSetupInBrowser: (authorizeUrl) =>
+    openAnilistSetupInBrowser({
+      authorizeUrl,
+      openExternal: (url) => shell.openExternal(url),
+      logError: (message, error) => logger.error(message, error),
+    }),
+  loadManualTokenEntry: (setupWindow, authorizeUrl) =>
+    loadAnilistManualTokenEntry({
+      setupWindow: setupWindow as BrowserWindow,
+      authorizeUrl,
+      developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
+      logWarn: (message, data) => logger.warn(message, data),
+    }),
+  redirectUri: ANILIST_REDIRECT_URI,
+  developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
+  isAllowedExternalUrl: (url) => isAllowedAnilistExternalUrl(url),
+  isAllowedNavigationUrl: (url) => isAllowedAnilistSetupNavigationUrl(url),
+  logWarn: (message, details) => logger.warn(message, details),
+  logError: (message, details) => logger.error(message, details),
+  clearSetupWindow: () => {
+    appState.anilistSetupWindow = null;
+  },
+  setSetupPageOpened: (opened) => {
+    appState.anilistSetupPageOpened = opened;
+  },
+  setSetupWindow: (setupWindow) => {
+    appState.anilistSetupWindow = setupWindow as BrowserWindow;
+  },
+  openExternal: (url) => {
+    void shell.openExternal(url);
+  },
+});
+
+function openAnilistSetupWindow(): void {
+  createOpenAnilistSetupWindowHandler(buildOpenAnilistSetupWindowMainDepsHandler())();
 }
 
-function openJellyfinSetupWindow(): void {
-  createOpenJellyfinSetupWindowHandler({
+const buildOpenJellyfinSetupWindowMainDepsHandler =
+  createBuildOpenJellyfinSetupWindowMainDepsHandler({
     maybeFocusExistingSetupWindow: createMaybeFocusExistingJellyfinSetupWindowHandler({
       getSetupWindow: () => appState.jellyfinSetupWindow,
     }),
@@ -1495,41 +1603,53 @@ function openJellyfinSetupWindow(): void {
       appState.jellyfinSetupWindow = null;
     },
     setSetupWindow: (window) => {
-      appState.jellyfinSetupWindow = window;
+      appState.jellyfinSetupWindow = window as BrowserWindow;
     },
     encodeURIComponent: (value) => encodeURIComponent(value),
-  })();
+  });
+
+function openJellyfinSetupWindow(): void {
+  createOpenJellyfinSetupWindowHandler(buildOpenJellyfinSetupWindowMainDepsHandler())();
 }
 
-const refreshAnilistClientSecretState = createRefreshAnilistClientSecretStateHandler({
-  getResolvedConfig: () => getResolvedConfig(),
-  isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config),
-  getCachedAccessToken: () => anilistCachedAccessToken,
-  setCachedAccessToken: (token) => {
-    anilistCachedAccessToken = token;
-  },
-  saveStoredToken: (token) => {
-    anilistTokenStore.saveToken(token);
-  },
-  loadStoredToken: () => anilistTokenStore.loadToken(),
-  setClientSecretState: (state) => {
-    anilistStateRuntime.setClientSecretState(state);
-  },
-  getAnilistSetupPageOpened: () => appState.anilistSetupPageOpened,
-  setAnilistSetupPageOpened: (opened) => {
-    appState.anilistSetupPageOpened = opened;
-  },
-  openAnilistSetupWindow: () => {
-    openAnilistSetupWindow();
-  },
-  now: () => Date.now(),
-});
+const buildRefreshAnilistClientSecretStateMainDepsHandler =
+  createBuildRefreshAnilistClientSecretStateMainDepsHandler({
+    getResolvedConfig: () => getResolvedConfig(),
+    isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
+    getCachedAccessToken: () => anilistCachedAccessToken,
+    setCachedAccessToken: (token) => {
+      anilistCachedAccessToken = token;
+    },
+    saveStoredToken: (token) => {
+      anilistTokenStore.saveToken(token);
+    },
+    loadStoredToken: () => anilistTokenStore.loadToken(),
+    setClientSecretState: (state) => {
+      anilistStateRuntime.setClientSecretState(state);
+    },
+    getAnilistSetupPageOpened: () => appState.anilistSetupPageOpened,
+    setAnilistSetupPageOpened: (opened) => {
+      appState.anilistSetupPageOpened = opened;
+    },
+    openAnilistSetupWindow: () => {
+      openAnilistSetupWindow();
+    },
+    now: () => Date.now(),
+  });
+const refreshAnilistClientSecretState = createRefreshAnilistClientSecretStateHandler(
+  buildRefreshAnilistClientSecretStateMainDepsHandler(),
+);
 
-const getCurrentAnilistMediaKey = createGetCurrentAnilistMediaKeyHandler({
+const buildGetCurrentAnilistMediaKeyMainDepsHandler =
+  createBuildGetCurrentAnilistMediaKeyMainDepsHandler({
   getCurrentMediaPath: () => appState.currentMediaPath,
 });
+const getCurrentAnilistMediaKey = createGetCurrentAnilistMediaKeyHandler(
+  buildGetCurrentAnilistMediaKeyMainDepsHandler(),
+);
 
-const resetAnilistMediaTracking = createResetAnilistMediaTrackingHandler({
+const buildResetAnilistMediaTrackingMainDepsHandler =
+  createBuildResetAnilistMediaTrackingMainDepsHandler({
   setMediaKey: (value) => {
     anilistCurrentMediaKey = value;
   },
@@ -1546,16 +1666,24 @@ const resetAnilistMediaTracking = createResetAnilistMediaTrackingHandler({
     anilistLastDurationProbeAtMs = value;
   },
 });
+const resetAnilistMediaTracking = createResetAnilistMediaTrackingHandler(
+  buildResetAnilistMediaTrackingMainDepsHandler(),
+);
 
-const getAnilistMediaGuessRuntimeState = createGetAnilistMediaGuessRuntimeStateHandler({
+const buildGetAnilistMediaGuessRuntimeStateMainDepsHandler =
+  createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler({
   getMediaKey: () => anilistCurrentMediaKey,
   getMediaDurationSec: () => anilistCurrentMediaDurationSec,
   getMediaGuess: () => anilistCurrentMediaGuess,
   getMediaGuessPromise: () => anilistCurrentMediaGuessPromise,
   getLastDurationProbeAtMs: () => anilistLastDurationProbeAtMs,
 });
+const getAnilistMediaGuessRuntimeState = createGetAnilistMediaGuessRuntimeStateHandler(
+  buildGetAnilistMediaGuessRuntimeStateMainDepsHandler(),
+);
 
-const setAnilistMediaGuessRuntimeState = createSetAnilistMediaGuessRuntimeStateHandler({
+const buildSetAnilistMediaGuessRuntimeStateMainDepsHandler =
+  createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler({
   setMediaKey: (value) => {
     anilistCurrentMediaKey = value;
   },
@@ -1572,8 +1700,12 @@ const setAnilistMediaGuessRuntimeState = createSetAnilistMediaGuessRuntimeStateH
     anilistLastDurationProbeAtMs = value;
   },
 });
+const setAnilistMediaGuessRuntimeState = createSetAnilistMediaGuessRuntimeStateHandler(
+  buildSetAnilistMediaGuessRuntimeStateMainDepsHandler(),
+);
 
-const resetAnilistMediaGuessState = createResetAnilistMediaGuessStateHandler({
+const buildResetAnilistMediaGuessStateMainDepsHandler =
+  createBuildResetAnilistMediaGuessStateMainDepsHandler({
   setMediaGuess: (value) => {
     anilistCurrentMediaGuess = value;
   },
@@ -1581,8 +1713,12 @@ const resetAnilistMediaGuessState = createResetAnilistMediaGuessStateHandler({
     anilistCurrentMediaGuessPromise = value;
   },
 });
+const resetAnilistMediaGuessState = createResetAnilistMediaGuessStateHandler(
+  buildResetAnilistMediaGuessStateMainDepsHandler(),
+);
 
-const maybeProbeAnilistDuration = createMaybeProbeAnilistDurationHandler({
+const buildMaybeProbeAnilistDurationMainDepsHandler =
+  createBuildMaybeProbeAnilistDurationMainDepsHandler({
   getState: () => getAnilistMediaGuessRuntimeState(),
   setState: (state) => {
     setAnilistMediaGuessRuntimeState(state);
@@ -1592,8 +1728,12 @@ const maybeProbeAnilistDuration = createMaybeProbeAnilistDurationHandler({
   requestMpvDuration: async () => appState.mpvClient?.requestProperty('duration'),
   logWarn: (message, error) => logger.warn(message, error),
 });
+const maybeProbeAnilistDuration = createMaybeProbeAnilistDurationHandler(
+  buildMaybeProbeAnilistDurationMainDepsHandler(),
+);
 
-const ensureAnilistMediaGuess = createEnsureAnilistMediaGuessHandler({
+const buildEnsureAnilistMediaGuessMainDepsHandler = createBuildEnsureAnilistMediaGuessMainDepsHandler(
+  {
   getState: () => getAnilistMediaGuessRuntimeState(),
   setState: (state) => {
     setAnilistMediaGuessRuntimeState(state);
@@ -1602,13 +1742,18 @@ const ensureAnilistMediaGuess = createEnsureAnilistMediaGuessHandler({
   getCurrentMediaPath: () => appState.currentMediaPath,
   getCurrentMediaTitle: () => appState.currentMediaTitle,
   guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
-});
+},
+);
+const ensureAnilistMediaGuess = createEnsureAnilistMediaGuessHandler(
+  buildEnsureAnilistMediaGuessMainDepsHandler(),
+);
 
 const rememberAnilistAttemptedUpdate = (key: string): void => {
   rememberAnilistAttemptedUpdateKey(anilistAttemptedUpdateKeys, key, ANILIST_MAX_ATTEMPTED_UPDATE_KEYS);
 };
 
-const processNextAnilistRetryUpdate = createProcessNextAnilistRetryUpdateHandler({
+const buildProcessNextAnilistRetryUpdateMainDepsHandler =
+  createBuildProcessNextAnilistRetryUpdateMainDepsHandler({
   nextReady: () => anilistUpdateQueue.nextReady(),
   refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
   setLastAttemptAt: (value) => {
@@ -1632,8 +1777,12 @@ const processNextAnilistRetryUpdate = createProcessNextAnilistRetryUpdateHandler
   logInfo: (message) => logger.info(message),
   now: () => Date.now(),
 });
+const processNextAnilistRetryUpdate = createProcessNextAnilistRetryUpdateHandler(
+  buildProcessNextAnilistRetryUpdateMainDepsHandler(),
+);
 
-const maybeRunAnilistPostWatchUpdate = createMaybeRunAnilistPostWatchUpdateHandler({
+const buildMaybeRunAnilistPostWatchUpdateMainDepsHandler =
+  createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler({
   getInFlight: () => anilistUpdateInFlight,
   setInFlight: (value) => {
     anilistUpdateInFlight = value;
@@ -1673,8 +1822,11 @@ const maybeRunAnilistPostWatchUpdate = createMaybeRunAnilistPostWatchUpdateHandl
   minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
   minWatchRatio: ANILIST_UPDATE_MIN_WATCH_RATIO,
 });
+const maybeRunAnilistPostWatchUpdate = createMaybeRunAnilistPostWatchUpdateHandler(
+  buildMaybeRunAnilistPostWatchUpdateMainDepsHandler(),
+);
 
-const loadSubtitlePosition = createLoadSubtitlePositionHandler({
+const buildLoadSubtitlePositionMainDepsHandler = createBuildLoadSubtitlePositionMainDepsHandler({
   loadSubtitlePositionCore: () =>
     loadSubtitlePositionCore({
       currentMediaPath: appState.currentMediaPath,
@@ -1685,8 +1837,11 @@ const loadSubtitlePosition = createLoadSubtitlePositionHandler({
     appState.subtitlePosition = position;
   },
 });
+const loadSubtitlePosition = createLoadSubtitlePositionHandler(
+  buildLoadSubtitlePositionMainDepsHandler(),
+);
 
-const saveSubtitlePosition = createSaveSubtitlePositionHandler({
+const buildSaveSubtitlePositionMainDepsHandler = createBuildSaveSubtitlePositionMainDepsHandler({
   saveSubtitlePositionCore: (position) => {
     saveSubtitlePositionCore({
       position,
@@ -1704,6 +1859,9 @@ const saveSubtitlePosition = createSaveSubtitlePositionHandler({
     appState.subtitlePosition = position;
   },
 });
+const saveSubtitlePosition = createSaveSubtitlePositionHandler(
+  buildSaveSubtitlePositionMainDepsHandler(),
+);
 
 registerSubminerProtocolClient();
 
@@ -2142,13 +2300,18 @@ async function prewarmSubtitleDictionaries(): Promise<void> {
   await prewarmSubtitleDictionariesHandler();
 }
 
-const launchBackgroundWarmupTask = createLaunchBackgroundWarmupTaskHandler({
+const buildLaunchBackgroundWarmupTaskMainDepsHandler =
+  createBuildLaunchBackgroundWarmupTaskMainDepsHandler({
   now: () => Date.now(),
   logDebug: (message) => logger.debug(message),
   logWarn: (message) => logger.warn(message),
 });
+const launchBackgroundWarmupTask = createLaunchBackgroundWarmupTaskHandler(
+  buildLaunchBackgroundWarmupTaskMainDepsHandler(),
+);
 
-const startBackgroundWarmups = createStartBackgroundWarmupsHandler({
+const buildStartBackgroundWarmupsMainDepsHandler = createBuildStartBackgroundWarmupsMainDepsHandler(
+  {
   getStarted: () => backgroundWarmupsStarted,
   setStarted: (started) => {
     backgroundWarmupsStarted = started;
@@ -2160,21 +2323,38 @@ const startBackgroundWarmups = createStartBackgroundWarmupsHandler({
   prewarmSubtitleDictionaries: () => prewarmSubtitleDictionaries(),
   shouldAutoConnectJellyfinRemote: () => getResolvedConfig().jellyfin.remoteControlAutoConnect,
   startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
-});
+},
+);
+const startBackgroundWarmups = createStartBackgroundWarmupsHandler(
+  buildStartBackgroundWarmupsMainDepsHandler(),
+);
 
-const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler({
+const buildUpdateVisibleOverlayBoundsMainDepsHandler =
+  createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
   setOverlayWindowBounds: (layer, geometry) => overlayManager.setOverlayWindowBounds(layer, geometry),
 });
+const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
+  buildUpdateVisibleOverlayBoundsMainDepsHandler(),
+);
 
-const updateInvisibleOverlayBounds = createUpdateInvisibleOverlayBoundsHandler({
+const buildUpdateInvisibleOverlayBoundsMainDepsHandler =
+  createBuildUpdateInvisibleOverlayBoundsMainDepsHandler({
   setOverlayWindowBounds: (layer, geometry) => overlayManager.setOverlayWindowBounds(layer, geometry),
 });
+const updateInvisibleOverlayBounds = createUpdateInvisibleOverlayBoundsHandler(
+  buildUpdateInvisibleOverlayBoundsMainDepsHandler(),
+);
 
-const ensureOverlayWindowLevel = createEnsureOverlayWindowLevelHandler({
+const buildEnsureOverlayWindowLevelMainDepsHandler =
+  createBuildEnsureOverlayWindowLevelMainDepsHandler({
   ensureOverlayWindowLevelCore: (window) => ensureOverlayWindowLevelCore(window as BrowserWindow),
 });
+const ensureOverlayWindowLevel = createEnsureOverlayWindowLevelHandler(
+  buildEnsureOverlayWindowLevelMainDepsHandler(),
+);
 
-const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler({
+const buildEnforceOverlayLayerOrderMainDepsHandler =
+  createBuildEnforceOverlayLayerOrderMainDepsHandler({
   enforceOverlayLayerOrderCore: (params) =>
     enforceOverlayLayerOrderCore({
       visibleOverlayVisible: params.visibleOverlayVisible,
@@ -2189,6 +2369,9 @@ const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler({
   getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
   ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window as BrowserWindow),
 });
+const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler(
+  buildEnforceOverlayLayerOrderMainDepsHandler(),
+);
 
 async function loadYomitanExtension(): Promise<Extension | null> {
   return loadYomitanExtensionHandler();
@@ -2328,10 +2511,16 @@ const numericShortcutRuntime = createNumericShortcutRuntime({
 });
 const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
-const cancelPendingMultiCopyHandler = createCancelNumericShortcutSessionHandler({
+const buildCancelPendingMultiCopyMainDepsHandler =
+  createBuildCancelNumericShortcutSessionMainDepsHandler({
   session: multiCopySession,
 });
-const startPendingMultiCopyHandler = createStartNumericShortcutSessionHandler({
+const cancelPendingMultiCopyHandler = createCancelNumericShortcutSessionHandler(
+  buildCancelPendingMultiCopyMainDepsHandler(),
+);
+
+const buildStartPendingMultiCopyMainDepsHandler =
+  createBuildStartNumericShortcutSessionMainDepsHandler({
   session: multiCopySession,
   onDigit: (count) => handleMultiCopyDigit(count),
   messages: {
@@ -2340,10 +2529,20 @@ const startPendingMultiCopyHandler = createStartNumericShortcutSessionHandler({
     cancelled: 'Cancelled',
   },
 });
-const cancelPendingMineSentenceMultipleHandler = createCancelNumericShortcutSessionHandler({
+const startPendingMultiCopyHandler = createStartNumericShortcutSessionHandler(
+  buildStartPendingMultiCopyMainDepsHandler(),
+);
+
+const buildCancelPendingMineSentenceMultipleMainDepsHandler =
+  createBuildCancelNumericShortcutSessionMainDepsHandler({
   session: mineSentenceSession,
 });
-const startPendingMineSentenceMultipleHandler = createStartNumericShortcutSessionHandler({
+const cancelPendingMineSentenceMultipleHandler = createCancelNumericShortcutSessionHandler(
+  buildCancelPendingMineSentenceMultipleMainDepsHandler(),
+);
+
+const buildStartPendingMineSentenceMultipleMainDepsHandler =
+  createBuildStartNumericShortcutSessionMainDepsHandler({
   session: mineSentenceSession,
   onDigit: (count) => handleMineSentenceDigit(count),
   messages: {
@@ -2352,18 +2551,40 @@ const startPendingMineSentenceMultipleHandler = createStartNumericShortcutSessio
     cancelled: 'Cancelled',
   },
 });
-const registerOverlayShortcutsHandler = createRegisterOverlayShortcutsHandler({
+const startPendingMineSentenceMultipleHandler = createStartNumericShortcutSessionHandler(
+  buildStartPendingMineSentenceMultipleMainDepsHandler(),
+);
+
+const buildRegisterOverlayShortcutsMainDepsHandler =
+  createBuildRegisterOverlayShortcutsMainDepsHandler({
   overlayShortcutsRuntime,
 });
-const unregisterOverlayShortcutsHandler = createUnregisterOverlayShortcutsHandler({
+const registerOverlayShortcutsHandler = createRegisterOverlayShortcutsHandler(
+  buildRegisterOverlayShortcutsMainDepsHandler(),
+);
+
+const buildUnregisterOverlayShortcutsMainDepsHandler =
+  createBuildUnregisterOverlayShortcutsMainDepsHandler({
   overlayShortcutsRuntime,
 });
-const syncOverlayShortcutsHandler = createSyncOverlayShortcutsHandler({
+const unregisterOverlayShortcutsHandler = createUnregisterOverlayShortcutsHandler(
+  buildUnregisterOverlayShortcutsMainDepsHandler(),
+);
+
+const buildSyncOverlayShortcutsMainDepsHandler = createBuildSyncOverlayShortcutsMainDepsHandler({
   overlayShortcutsRuntime,
 });
-const refreshOverlayShortcutsHandler = createRefreshOverlayShortcutsHandler({
+const syncOverlayShortcutsHandler = createSyncOverlayShortcutsHandler(
+  buildSyncOverlayShortcutsMainDepsHandler(),
+);
+
+const buildRefreshOverlayShortcutsMainDepsHandler =
+  createBuildRefreshOverlayShortcutsMainDepsHandler({
   overlayShortcutsRuntime,
 });
+const refreshOverlayShortcutsHandler = createRefreshOverlayShortcutsHandler(
+  buildRefreshOverlayShortcutsMainDepsHandler(),
+);
 
 async function triggerSubsyncFromConfig(): Promise<void> {
   await subsyncRuntime.triggerFromConfig();
@@ -2385,31 +2606,45 @@ function copyCurrentSubtitle(): void {
   copyCurrentSubtitleHandler();
 }
 
-const updateLastCardFromClipboardHandler = createUpdateLastCardFromClipboardHandler({
+const buildUpdateLastCardFromClipboardMainDepsHandler =
+  createBuildUpdateLastCardFromClipboardMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   readClipboardText: () => clipboard.readText(),
   showMpvOsd: (text) => showMpvOsd(text),
   updateLastCardFromClipboardCore,
 });
+const updateLastCardFromClipboardHandler = createUpdateLastCardFromClipboardHandler(
+  buildUpdateLastCardFromClipboardMainDepsHandler(),
+);
 
-const refreshKnownWordCacheHandler = createRefreshKnownWordCacheHandler({
+const buildRefreshKnownWordCacheMainDepsHandler = createBuildRefreshKnownWordCacheMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   missingIntegrationMessage: 'AnkiConnect integration not enabled',
 });
+const refreshKnownWordCacheHandler = createRefreshKnownWordCacheHandler(
+  buildRefreshKnownWordCacheMainDepsHandler(),
+);
 
-const triggerFieldGroupingHandler = createTriggerFieldGroupingHandler({
+const buildTriggerFieldGroupingMainDepsHandler = createBuildTriggerFieldGroupingMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   showMpvOsd: (text) => showMpvOsd(text),
   triggerFieldGroupingCore,
 });
+const triggerFieldGroupingHandler = createTriggerFieldGroupingHandler(
+  buildTriggerFieldGroupingMainDepsHandler(),
+);
 
-const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler({
+const buildMarkLastCardAsAudioCardMainDepsHandler =
+  createBuildMarkLastCardAsAudioCardMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   showMpvOsd: (text) => showMpvOsd(text),
   markLastCardAsAudioCardCore,
 });
+const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler(
+  buildMarkLastCardAsAudioCardMainDepsHandler(),
+);
 
-const mineSentenceCardHandler = createMineSentenceCardHandler({
+const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   getMpvClient: () => appState.mpvClient,
   showMpvOsd: (text) => showMpvOsd(text),
@@ -2418,19 +2653,30 @@ const mineSentenceCardHandler = createMineSentenceCardHandler({
     appState.immersionTracker?.recordCardsMined(count);
   },
 });
-const handleMultiCopyDigitHandler = createHandleMultiCopyDigitHandler({
+const mineSentenceCardHandler = createMineSentenceCardHandler(buildMineSentenceCardMainDepsHandler());
+
+const buildHandleMultiCopyDigitMainDepsHandler = createBuildHandleMultiCopyDigitMainDepsHandler({
   getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
   writeClipboardText: (text) => clipboard.writeText(text),
   showMpvOsd: (text) => showMpvOsd(text),
   handleMultiCopyDigitCore,
 });
-const copyCurrentSubtitleHandler = createCopyCurrentSubtitleHandler({
+const handleMultiCopyDigitHandler = createHandleMultiCopyDigitHandler(
+  buildHandleMultiCopyDigitMainDepsHandler(),
+);
+
+const buildCopyCurrentSubtitleMainDepsHandler = createBuildCopyCurrentSubtitleMainDepsHandler({
   getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
   writeClipboardText: (text) => clipboard.writeText(text),
   showMpvOsd: (text) => showMpvOsd(text),
   copyCurrentSubtitleCore,
 });
-const handleMineSentenceDigitHandler = createHandleMineSentenceDigitHandler({
+const copyCurrentSubtitleHandler = createCopyCurrentSubtitleHandler(
+  buildCopyCurrentSubtitleMainDepsHandler(),
+);
+
+const buildHandleMineSentenceDigitMainDepsHandler =
+  createBuildHandleMineSentenceDigitMainDepsHandler({
   getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
   getAnkiIntegration: () => appState.ankiIntegration,
   getCurrentSecondarySubText: () => appState.mpvClient?.currentSecondarySubText || undefined,
@@ -2443,7 +2689,11 @@ const handleMineSentenceDigitHandler = createHandleMineSentenceDigitHandler({
   },
   handleMineSentenceDigitCore,
 });
-const setVisibleOverlayVisibleHandler = createSetVisibleOverlayVisibleHandler({
+const handleMineSentenceDigitHandler = createHandleMineSentenceDigitHandler(
+  buildHandleMineSentenceDigitMainDepsHandler(),
+);
+const buildSetVisibleOverlayVisibleMainDepsHandler =
+  createBuildSetVisibleOverlayVisibleMainDepsHandler({
   setVisibleOverlayVisibleCore,
   setVisibleOverlayVisibleState: (nextVisible) => {
     overlayManager.setVisibleOverlayVisible(nextVisible);
@@ -2459,7 +2709,12 @@ const setVisibleOverlayVisibleHandler = createSetVisibleOverlayVisibleHandler({
     setMpvSubVisibilityRuntime(appState.mpvClient, mpvSubVisible);
   },
 });
-const setInvisibleOverlayVisibleHandler = createSetInvisibleOverlayVisibleHandler({
+const setVisibleOverlayVisibleHandler = createSetVisibleOverlayVisibleHandler(
+  buildSetVisibleOverlayVisibleMainDepsHandler(),
+);
+
+const buildSetInvisibleOverlayVisibleMainDepsHandler =
+  createBuildSetInvisibleOverlayVisibleMainDepsHandler({
   setInvisibleOverlayVisibleCore,
   setInvisibleOverlayVisibleState: (nextVisible) => {
     overlayManager.setInvisibleOverlayVisible(nextVisible);
@@ -2468,24 +2723,49 @@ const setInvisibleOverlayVisibleHandler = createSetInvisibleOverlayVisibleHandle
   syncInvisibleOverlayMousePassthrough: () =>
     overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
 });
-const toggleVisibleOverlayHandler = createToggleVisibleOverlayHandler({
+const setInvisibleOverlayVisibleHandler = createSetInvisibleOverlayVisibleHandler(
+  buildSetInvisibleOverlayVisibleMainDepsHandler(),
+);
+
+const buildToggleVisibleOverlayMainDepsHandler = createBuildToggleVisibleOverlayMainDepsHandler({
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
   setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
 });
-const toggleInvisibleOverlayHandler = createToggleInvisibleOverlayHandler({
+const toggleVisibleOverlayHandler = createToggleVisibleOverlayHandler(
+  buildToggleVisibleOverlayMainDepsHandler(),
+);
+
+const buildToggleInvisibleOverlayMainDepsHandler =
+  createBuildToggleInvisibleOverlayMainDepsHandler({
   getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
   setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
 });
-const setOverlayVisibleHandler = createSetOverlayVisibleHandler({
+const toggleInvisibleOverlayHandler = createToggleInvisibleOverlayHandler(
+  buildToggleInvisibleOverlayMainDepsHandler(),
+);
+
+const buildSetOverlayVisibleMainDepsHandler = createBuildSetOverlayVisibleMainDepsHandler({
   setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
 });
-const toggleOverlayHandler = createToggleOverlayHandler({
+const setOverlayVisibleHandler = createSetOverlayVisibleHandler(
+  buildSetOverlayVisibleMainDepsHandler(),
+);
+
+const buildToggleOverlayMainDepsHandler = createBuildToggleOverlayMainDepsHandler({
   toggleVisibleOverlay: () => toggleVisibleOverlay(),
 });
-const handleOverlayModalClosedHandler = createHandleOverlayModalClosedHandler({
+const toggleOverlayHandler = createToggleOverlayHandler(buildToggleOverlayMainDepsHandler());
+
+const buildHandleOverlayModalClosedMainDepsHandler =
+  createBuildHandleOverlayModalClosedMainDepsHandler({
   handleOverlayModalClosedRuntime: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
 });
-const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHandler({
+const handleOverlayModalClosedHandler = createHandleOverlayModalClosedHandler(
+  buildHandleOverlayModalClosedMainDepsHandler(),
+);
+
+const buildAppendClipboardVideoToQueueMainDepsHandler =
+  createBuildAppendClipboardVideoToQueueMainDepsHandler({
   appendClipboardVideoToQueueRuntime,
   getMpvClient: () => appState.mpvClient,
   readClipboardText: () => clipboard.readText(),
@@ -2494,9 +2774,12 @@ const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHand
     sendMpvCommandRuntime(appState.mpvClient, command);
   },
 });
-const handleMpvCommandFromIpcHandler = createHandleMpvCommandFromIpcHandler({
-  handleMpvCommandFromIpcRuntime,
-  buildMpvCommandDeps: () => ({
+const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHandler(
+  buildAppendClipboardVideoToQueueMainDepsHandler(),
+);
+
+const buildMpvCommandFromIpcRuntimeMainDepsHandler =
+  createBuildMpvCommandFromIpcRuntimeMainDepsHandler({
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     cycleRuntimeOption: (id, direction) => {
@@ -2515,11 +2798,24 @@ const handleMpvCommandFromIpcHandler = createHandleMpvCommandFromIpcHandler({
       sendMpvCommandRuntime(appState.mpvClient, rawCommand),
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
     hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
-  }),
+  });
+
+const buildHandleMpvCommandFromIpcMainDepsHandler =
+  createBuildHandleMpvCommandFromIpcMainDepsHandler({
+  handleMpvCommandFromIpcRuntime,
+  buildMpvCommandDeps: () => buildMpvCommandFromIpcRuntimeMainDepsHandler(),
 });
-const runSubsyncManualFromIpcHandler = createRunSubsyncManualFromIpcHandler({
+const handleMpvCommandFromIpcHandler = createHandleMpvCommandFromIpcHandler(
+  buildHandleMpvCommandFromIpcMainDepsHandler(),
+);
+
+const buildRunSubsyncManualFromIpcMainDepsHandler =
+  createBuildRunSubsyncManualFromIpcMainDepsHandler({
   runManualFromIpc: (request: SubsyncManualRunRequest) => subsyncRuntime.runManualFromIpc(request),
 });
+const runSubsyncManualFromIpcHandler = createRunSubsyncManualFromIpcHandler(
+  buildRunSubsyncManualFromIpcMainDepsHandler(),
+);
 const buildCliCommandContextDepsHandler = createBuildCliCommandContextDepsHandler(
   createBuildCliCommandContextMainDepsHandler({
     appState,
@@ -2650,7 +2946,7 @@ const destroyTrayHandler = createDestroyTrayHandler(
     },
   })(),
 );
-const loadYomitanExtensionHandler = createLoadYomitanExtensionHandler({
+const buildLoadYomitanExtensionMainDepsHandler = createBuildLoadYomitanExtensionMainDepsHandler({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,
   getYomitanParserWindow: () => appState.yomitanParserWindow,
@@ -2667,14 +2963,21 @@ const loadYomitanExtensionHandler = createLoadYomitanExtensionHandler({
     appState.yomitanExt = extension;
   },
 });
-const ensureYomitanExtensionLoadedHandler = createEnsureYomitanExtensionLoadedHandler({
-  getYomitanExtension: () => appState.yomitanExt,
-  getLoadInFlight: () => yomitanLoadInFlight,
-  setLoadInFlight: (promise) => {
-    yomitanLoadInFlight = promise;
-  },
-  loadYomitanExtension: () => loadYomitanExtension(),
-});
+const loadYomitanExtensionHandler = createLoadYomitanExtensionHandler(
+  buildLoadYomitanExtensionMainDepsHandler(),
+);
+const buildEnsureYomitanExtensionLoadedMainDepsHandler =
+  createBuildEnsureYomitanExtensionLoadedMainDepsHandler({
+    getYomitanExtension: () => appState.yomitanExt,
+    getLoadInFlight: () => yomitanLoadInFlight,
+    setLoadInFlight: (promise) => {
+      yomitanLoadInFlight = promise;
+    },
+    loadYomitanExtension: () => loadYomitanExtension(),
+  });
+const ensureYomitanExtensionLoadedHandler = createEnsureYomitanExtensionLoadedHandler(
+  buildEnsureYomitanExtensionLoadedMainDepsHandler(),
+);
 const buildInitializeOverlayRuntimeOptionsHandler = createBuildInitializeOverlayRuntimeOptionsHandler(
   createBuildInitializeOverlayRuntimeMainDepsHandler({
     appState,
