@@ -158,6 +158,18 @@ import {
 } from './main/runtime/jellyfin-remote-session-lifecycle';
 import { createHandleInitialArgsHandler } from './main/runtime/initial-args-handler';
 import { createHandleTexthookerOnlyModeTransitionHandler } from './main/runtime/cli-command-prechecks';
+import { createCliCommandContext } from './main/runtime/cli-command-context';
+import {
+  createBindMpvClientEventHandlers,
+  createHandleMpvConnectionChangeHandler,
+  createHandleMpvSubtitleTimingHandler,
+} from './main/runtime/mpv-client-event-bindings';
+import { createMpvClientRuntimeServiceFactory } from './main/runtime/mpv-client-runtime-service';
+import { createUpdateMpvSubtitleRenderMetricsHandler } from './main/runtime/mpv-subtitle-render-metrics';
+import {
+  createLaunchBackgroundWarmupTaskHandler,
+  createStartBackgroundWarmupsHandler,
+} from './main/runtime/startup-warmups';
 import {
   buildRestartRequiredConfigMessage,
   createConfigHotReloadAppliedHandler,
@@ -460,13 +472,18 @@ const subsyncRuntime = createMainSubsyncRuntime({
 let appTray: Tray | null = null;
 const subtitleProcessingController = createSubtitleProcessingController({
   tokenizeSubtitle: async (text: string) => {
-    if (getOverlayWindows().length === 0) {
+    if (getOverlayWindows().length === 0 && !subtitleWsService.hasClients()) {
       return null;
     }
     return await tokenizeSubtitle(text);
   },
   emitSubtitle: (payload) => {
     broadcastToOverlayWindows('subtitle:set', payload);
+    subtitleWsService.broadcast(payload, {
+      enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+      topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+      mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+    });
   },
   logDebug: (message) => {
     logger.debug(`[subtitle-processing] ${message}`);
@@ -1871,12 +1888,12 @@ function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): 
     logInfo: (message) => logger.info(message),
   })(args);
 
-  handleCliCommandRuntimeServiceWithContext(args, source, {
+  const cliContext = createCliCommandContext({
     getSocketPath: () => appState.mpvSocketPath,
     setSocketPath: (socketPath: string) => {
       appState.mpvSocketPath = socketPath;
     },
-    getClient: () => appState.mpvClient,
+    getMpvClient: () => appState.mpvClient,
     showOsd: (text: string) => showMpvOsd(text),
     texthookerService,
     getTexthookerPort: () => appState.texthookerPort,
@@ -1884,11 +1901,9 @@ function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): 
       appState.texthookerPort = port;
     },
     shouldOpenBrowser: () => getResolvedConfig().texthooker?.openBrowser !== false,
-    openInBrowser: (url: string) => {
-      void shell.openExternal(url).catch((error) => {
-        logger.error(`Failed to open browser for texthooker URL: ${url}`, error);
-      });
-    },
+    openExternal: (url: string) => shell.openExternal(url),
+    logBrowserOpenError: (url: string, error: unknown) =>
+      logger.error(`Failed to open browser for texthooker URL: ${url}`, error),
     isOverlayInitialized: () => appState.overlayRuntimeInitialized,
     initializeOverlay: () => initializeOverlayRuntime(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
@@ -1920,16 +1935,11 @@ function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): 
     hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
     getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
     schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
-    log: (message: string) => {
-      logger.info(message);
-    },
-    warn: (message: string) => {
-      logger.warn(message);
-    },
-    error: (message: string, err: unknown) => {
-      logger.error(message, err);
-    },
+    logInfo: (message: string) => logger.info(message),
+    logWarn: (message: string) => logger.warn(message),
+    logError: (message: string, err: unknown) => logger.error(message, err),
   });
+  handleCliCommandRuntimeServiceWithContext(args, source, cliContext);
 }
 
 function handleInitialArgs(): void {
@@ -1946,104 +1956,119 @@ function handleInitialArgs(): void {
 }
 
 function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
-  mpvClient.on('connection-change', ({ connected }) => {
-    if (connected) return;
-    void reportJellyfinRemoteStopped();
-    if (!appState.initialArgs?.jellyfinPlay) return;
-    if (appState.overlayRuntimeInitialized) return;
-    if (!jellyfinPlayQuitOnDisconnectArmed) return;
-    setTimeout(() => {
-      if (appState.mpvClient?.connected) return;
-      app.quit();
-    }, 500);
-  });
-  mpvClient.on('subtitle-change', ({ text }) => {
-    appState.currentSubText = text;
-    subtitleWsService.broadcast(text);
-    subtitleProcessingController.onSubtitleChange(text);
-  });
-  mpvClient.on('subtitle-ass-change', ({ text }) => {
-    appState.currentSubAssText = text;
-    broadcastToOverlayWindows('subtitle-ass:set', text);
-  });
-  mpvClient.on('secondary-subtitle-change', ({ text }) => {
-    broadcastToOverlayWindows('secondary-subtitle:set', text);
-  });
-  mpvClient.on('subtitle-timing', ({ text, start, end }) => {
-    if (!text.trim()) {
-      return;
-    }
-    appState.immersionTracker?.recordSubtitleLine(text, start, end);
-    if (!appState.subtitleTimingTracker) {
-      return;
-    }
-    appState.subtitleTimingTracker.recordSubtitle(text, start, end);
-    void maybeRunAnilistPostWatchUpdate().catch((error) => {
-      logger.error('AniList post-watch update failed unexpectedly', error);
-    });
-  });
-  mpvClient.on('media-path-change', ({ path }) => {
-    mediaRuntime.updateCurrentMediaPath(path);
-    if (!path) {
+  const handleMpvConnectionChange = createHandleMpvConnectionChangeHandler({
+    reportJellyfinRemoteStopped: () => {
       void reportJellyfinRemoteStopped();
-    }
-    const mediaKey = getCurrentAnilistMediaKey();
-    resetAnilistMediaTracking(mediaKey);
-    if (mediaKey) {
-      void maybeProbeAnilistDuration(mediaKey);
-      void ensureAnilistMediaGuess(mediaKey);
-    }
-    immersionMediaRuntime.syncFromCurrentMediaState();
+    },
+    hasInitialJellyfinPlayArg: () => Boolean(appState.initialArgs?.jellyfinPlay),
+    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+    isQuitOnDisconnectArmed: () => jellyfinPlayQuitOnDisconnectArmed,
+    scheduleQuitCheck: (callback) => {
+      setTimeout(callback, 500);
+    },
+    isMpvConnected: () => Boolean(appState.mpvClient?.connected),
+    quitApp: () => app.quit(),
   });
-  mpvClient.on('media-title-change', ({ title }) => {
-    mediaRuntime.updateCurrentMediaTitle(title);
-    anilistCurrentMediaGuess = null;
-    anilistCurrentMediaGuessPromise = null;
-    appState.immersionTracker?.handleMediaTitleUpdate(title);
-    immersionMediaRuntime.syncFromCurrentMediaState();
+  const handleMpvSubtitleTiming = createHandleMpvSubtitleTimingHandler({
+    recordImmersionSubtitleLine: (text, start, end) => {
+      appState.immersionTracker?.recordSubtitleLine(text, start, end);
+    },
+    hasSubtitleTimingTracker: () => Boolean(appState.subtitleTimingTracker),
+    recordSubtitleTiming: (text, start, end) => {
+      appState.subtitleTimingTracker?.recordSubtitle(text, start, end);
+    },
+    maybeRunAnilistPostWatchUpdate: () => maybeRunAnilistPostWatchUpdate(),
+    logError: (message, error) => logger.error(message, error),
   });
-  mpvClient.on('time-pos-change', ({ time }) => {
-    appState.immersionTracker?.recordPlaybackPosition(time);
-    void reportJellyfinRemoteProgress(false);
-  });
-  mpvClient.on('pause-change', ({ paused }) => {
-    appState.immersionTracker?.recordPauseState(paused);
-    void reportJellyfinRemoteProgress(true);
-  });
-  mpvClient.on('subtitle-metrics-change', ({ patch }) => {
-    updateMpvSubtitleRenderMetrics(patch);
-  });
-  mpvClient.on('secondary-subtitle-visibility', ({ visible }) => {
-    appState.previousSecondarySubVisibility = visible;
-  });
+  createBindMpvClientEventHandlers({
+    onConnectionChange: (payload) => {
+      handleMpvConnectionChange(payload);
+    },
+    onSubtitleChange: ({ text }) => {
+      appState.currentSubText = text;
+      broadcastToOverlayWindows('subtitle:set', { text, tokens: null });
+      subtitleProcessingController.onSubtitleChange(text);
+    },
+    onSubtitleAssChange: ({ text }) => {
+      appState.currentSubAssText = text;
+      broadcastToOverlayWindows('subtitle-ass:set', text);
+    },
+    onSecondarySubtitleChange: ({ text }) => {
+      broadcastToOverlayWindows('secondary-subtitle:set', text);
+    },
+    onSubtitleTiming: (payload) => {
+      handleMpvSubtitleTiming(payload);
+    },
+    onMediaPathChange: ({ path }) => {
+      mediaRuntime.updateCurrentMediaPath(path);
+      if (!path) {
+        void reportJellyfinRemoteStopped();
+      }
+      const mediaKey = getCurrentAnilistMediaKey();
+      resetAnilistMediaTracking(mediaKey);
+      if (mediaKey) {
+        void maybeProbeAnilistDuration(mediaKey);
+        void ensureAnilistMediaGuess(mediaKey);
+      }
+      immersionMediaRuntime.syncFromCurrentMediaState();
+    },
+    onMediaTitleChange: ({ title }) => {
+      mediaRuntime.updateCurrentMediaTitle(title);
+      anilistCurrentMediaGuess = null;
+      anilistCurrentMediaGuessPromise = null;
+      appState.immersionTracker?.handleMediaTitleUpdate(title);
+      immersionMediaRuntime.syncFromCurrentMediaState();
+    },
+    onTimePosChange: ({ time }) => {
+      appState.immersionTracker?.recordPlaybackPosition(time);
+      void reportJellyfinRemoteProgress(false);
+    },
+    onPauseChange: ({ paused }) => {
+      appState.immersionTracker?.recordPauseState(paused);
+      void reportJellyfinRemoteProgress(true);
+    },
+    onSubtitleMetricsChange: ({ patch }) => {
+      updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
+    },
+    onSecondarySubtitleVisibility: ({ visible }) => {
+      appState.previousSecondarySubVisibility = visible;
+    },
+  })(mpvClient);
 }
 
 function createMpvClientRuntimeService(): MpvIpcClient {
-  const mpvClient = new MpvIpcClient(appState.mpvSocketPath, {
-    getResolvedConfig: () => getResolvedConfig(),
-    autoStartOverlay: appState.autoStartOverlay,
-    setOverlayVisible: (visible: boolean) => setOverlayVisible(visible),
-    shouldBindVisibleOverlayToMpvSubVisibility: () =>
-      configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
-    isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    getReconnectTimer: () => appState.reconnectTimer,
-    setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
-      appState.reconnectTimer = timer;
+  return createMpvClientRuntimeServiceFactory({
+    createClient: MpvIpcClient,
+    socketPath: appState.mpvSocketPath,
+    options: {
+      getResolvedConfig: () => getResolvedConfig(),
+      autoStartOverlay: appState.autoStartOverlay,
+      setOverlayVisible: (visible: boolean) => setOverlayVisible(visible),
+      shouldBindVisibleOverlayToMpvSubVisibility: () =>
+        configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
+      isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      getReconnectTimer: () => appState.reconnectTimer,
+      setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
+        appState.reconnectTimer = timer;
+      },
     },
-  });
-  bindMpvClientEventHandlers(mpvClient);
-  mpvClient.connect();
-  return mpvClient;
+    bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
+  })();
 }
 
+const updateMpvSubtitleRenderMetricsRuntime = createUpdateMpvSubtitleRenderMetricsHandler({
+  getCurrentMetrics: () => appState.mpvSubtitleRenderMetrics,
+  setCurrentMetrics: (metrics) => {
+    appState.mpvSubtitleRenderMetrics = metrics;
+  },
+  applyPatch: (current, patch) => applyMpvSubtitleRenderMetricsPatch(current, patch),
+  broadcastMetrics: (metrics) => {
+    broadcastToOverlayWindows('mpv-subtitle-render-metrics:set', metrics);
+  },
+});
+
 function updateMpvSubtitleRenderMetrics(patch: Partial<MpvSubtitleRenderMetrics>): void {
-  const { next, changed } = applyMpvSubtitleRenderMetricsPatch(
-    appState.mpvSubtitleRenderMetrics,
-    patch,
-  );
-  if (!changed) return;
-  appState.mpvSubtitleRenderMetrics = next;
-  broadcastToOverlayWindows('mpv-subtitle-render-metrics:set', appState.mpvSubtitleRenderMetrics);
+  updateMpvSubtitleRenderMetricsRuntime(patch);
 }
 
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
@@ -2101,41 +2126,25 @@ async function prewarmSubtitleDictionaries(): Promise<void> {
   ]);
 }
 
-function launchBackgroundWarmupTask(label: string, task: () => Promise<void>): void {
-  const startedAtMs = Date.now();
-  void task()
-    .then(() => {
-      logger.debug(`[startup-warmup] ${label} completed in ${Date.now() - startedAtMs}ms`);
-    })
-    .catch((error) => {
-      logger.warn(`[startup-warmup] ${label} failed: ${(error as Error).message}`);
-    });
-}
+const launchBackgroundWarmupTask = createLaunchBackgroundWarmupTaskHandler({
+  now: () => Date.now(),
+  logDebug: (message) => logger.debug(message),
+  logWarn: (message) => logger.warn(message),
+});
 
-function startBackgroundWarmups(): void {
-  if (backgroundWarmupsStarted) {
-    return;
-  }
-  if (appState.texthookerOnlyMode) {
-    return;
-  }
-
-  backgroundWarmupsStarted = true;
-  launchBackgroundWarmupTask('mecab', async () => {
-    await createMecabTokenizerAndCheck();
-  });
-  launchBackgroundWarmupTask('yomitan-extension', async () => {
-    await ensureYomitanExtensionLoaded();
-  });
-  launchBackgroundWarmupTask('subtitle-dictionaries', async () => {
-    await prewarmSubtitleDictionaries();
-  });
-  if (getResolvedConfig().jellyfin.remoteControlAutoConnect) {
-    launchBackgroundWarmupTask('jellyfin-remote-session', async () => {
-      await startJellyfinRemoteSession();
-    });
-  }
-}
+const startBackgroundWarmups = createStartBackgroundWarmupsHandler({
+  getStarted: () => backgroundWarmupsStarted,
+  setStarted: (started) => {
+    backgroundWarmupsStarted = started;
+  },
+  isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
+  launchTask: (label, task) => launchBackgroundWarmupTask(label, task),
+  createMecabTokenizerAndCheck: () => createMecabTokenizerAndCheck(),
+  ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded().then(() => {}),
+  prewarmSubtitleDictionaries: () => prewarmSubtitleDictionaries(),
+  shouldAutoConnectJellyfinRemote: () => getResolvedConfig().jellyfin.remoteControlAutoConnect,
+  startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
+});
 
 function updateVisibleOverlayBounds(geometry: WindowGeometry): void {
   overlayManager.setOverlayWindowBounds('visible', geometry);

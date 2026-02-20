@@ -7,7 +7,7 @@ function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-test('subtitle processing emits plain subtitle immediately before tokenized payload', async () => {
+test('subtitle processing emits tokenized payload when tokenization succeeds', async () => {
   const emitted: SubtitleData[] = [];
   const controller = createSubtitleProcessingController({
     tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
@@ -15,13 +15,11 @@ test('subtitle processing emits plain subtitle immediately before tokenized payl
   });
 
   controller.onSubtitleChange('字幕');
-  assert.deepEqual(emitted[0], { text: '字幕', tokens: null });
-
   await flushMicrotasks();
-  assert.deepEqual(emitted[1], { text: '字幕', tokens: [] });
+  assert.deepEqual(emitted, [{ text: '字幕', tokens: [] }]);
 });
 
-test('subtitle processing drops stale tokenization and delivers latest subtitle only', async () => {
+test('subtitle processing drops stale tokenization and delivers latest subtitle only once', async () => {
   const emitted: SubtitleData[] = [];
   let firstResolve: ((value: SubtitleData | null) => void) | undefined;
   const controller = createSubtitleProcessingController({
@@ -43,14 +41,10 @@ test('subtitle processing drops stale tokenization and delivers latest subtitle 
   await flushMicrotasks();
   await flushMicrotasks();
 
-  assert.deepEqual(emitted, [
-    { text: 'first', tokens: null },
-    { text: 'second', tokens: null },
-    { text: 'second', tokens: [] },
-  ]);
+  assert.deepEqual(emitted, [{ text: 'second', tokens: [] }]);
 });
 
-test('subtitle processing skips duplicate plain subtitle emission', async () => {
+test('subtitle processing skips duplicate subtitle emission', async () => {
   const emitted: SubtitleData[] = [];
   let tokenizeCalls = 0;
   const controller = createSubtitleProcessingController({
@@ -66,7 +60,19 @@ test('subtitle processing skips duplicate plain subtitle emission', async () => 
   controller.onSubtitleChange('same');
   await flushMicrotasks();
 
-  const plainEmits = emitted.filter((entry) => entry.tokens === null);
-  assert.equal(plainEmits.length, 1);
+  assert.equal(emitted.length, 1);
   assert.equal(tokenizeCalls, 1);
+});
+
+test('subtitle processing falls back to plain subtitle when tokenization returns null', async () => {
+  const emitted: SubtitleData[] = [];
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async () => null,
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('fallback');
+  await flushMicrotasks();
+
+  assert.deepEqual(emitted, [{ text: 'fallback', tokens: null }]);
 });

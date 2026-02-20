@@ -15,18 +15,10 @@ export function createSubtitleProcessingController(
   deps: SubtitleProcessingControllerDeps,
 ): SubtitleProcessingController {
   let latestText = '';
-  let lastPlainText = '';
+  let lastEmittedText = '';
   let processing = false;
   let staleDropCount = 0;
   const now = deps.now ?? (() => Date.now());
-
-  const emitPlainSubtitle = (text: string): void => {
-    if (text === lastPlainText) {
-      return;
-    }
-    lastPlainText = text;
-    deps.emitSubtitle({ text, tokens: null });
-  };
 
   const processLatest = (): void => {
     if (processing) {
@@ -38,14 +30,20 @@ export function createSubtitleProcessingController(
     void (async () => {
       while (true) {
         const text = latestText;
+        const startedAtMs = now();
+
         if (!text.trim()) {
+          deps.emitSubtitle({ text, tokens: null });
+          lastEmittedText = text;
           break;
         }
 
-        const startedAtMs = now();
-        let tokenized: SubtitleData | null = null;
+        let output: SubtitleData = { text, tokens: null };
         try {
-          tokenized = await deps.tokenizeSubtitle(text);
+          const tokenized = await deps.tokenizeSubtitle(text);
+          if (tokenized) {
+            output = tokenized;
+          }
         } catch (error) {
           deps.logDebug?.(`Subtitle tokenization failed: ${(error as Error).message}`);
         }
@@ -58,12 +56,11 @@ export function createSubtitleProcessingController(
           continue;
         }
 
-        if (tokenized) {
-          deps.emitSubtitle(tokenized);
-          deps.logDebug?.(
-            `Subtitle tokenization delivered; elapsed=${now() - startedAtMs}ms, staleDrops=${staleDropCount}`,
-          );
-        }
+        deps.emitSubtitle(output);
+        lastEmittedText = text;
+        deps.logDebug?.(
+          `Subtitle tokenization delivered; elapsed=${now() - startedAtMs}ms, staleDrops=${staleDropCount}`,
+        );
         break;
       }
     })()
@@ -72,7 +69,7 @@ export function createSubtitleProcessingController(
       })
       .finally(() => {
         processing = false;
-        if (latestText !== lastPlainText) {
+        if (latestText !== lastEmittedText) {
           processLatest();
         }
       });
@@ -83,13 +80,7 @@ export function createSubtitleProcessingController(
       if (text === latestText) {
         return;
       }
-      const plainStartedAtMs = now();
       latestText = text;
-      emitPlainSubtitle(text);
-      deps.logDebug?.(`Subtitle plain emit completed in ${now() - plainStartedAtMs}ms`);
-      if (!text.trim()) {
-        return;
-      }
       processLatest();
     },
   };
