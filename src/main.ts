@@ -256,7 +256,7 @@ import {
   createBuildSetFieldGroupingResolverMainDepsHandler,
 } from './main/runtime/field-grouping-resolver-main-deps';
 import { createBuildFieldGroupingOverlayMainDepsHandler } from './main/runtime/field-grouping-overlay-main-deps';
-import { createCliCommandContext } from './main/runtime/cli-command-context';
+import { createCliCommandContextFactory } from './main/runtime/cli-command-context-factory';
 import { createBindMpvMainEventHandlersHandler } from './main/runtime/mpv-main-event-bindings';
 import { createBuildBindMpvMainEventHandlersMainDepsHandler } from './main/runtime/mpv-main-event-main-deps';
 import { createBuildMpvClientRuntimeServiceFactoryDepsHandler } from './main/runtime/mpv-client-runtime-service-main-deps';
@@ -409,8 +409,6 @@ import {
 import { createYomitanExtensionRuntime } from './main/runtime/yomitan-extension-runtime';
 import { createBuildInitializeOverlayRuntimeOptionsHandler } from './main/runtime/overlay-runtime-options';
 import { createBuildInitializeOverlayRuntimeMainDepsHandler } from './main/runtime/overlay-runtime-options-main-deps';
-import { createBuildCliCommandContextDepsHandler } from './main/runtime/cli-command-context-deps';
-import { createBuildCliCommandContextMainDepsHandler } from './main/runtime/cli-command-context-main-deps';
 import {
   createOnWillQuitCleanupHandler,
   createRestoreWindowsOnActivateHandler,
@@ -2237,7 +2235,7 @@ const handleTexthookerOnlyModeTransitionHandler = createHandleTexthookerOnlyMode
 function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): void {
   handleTexthookerOnlyModeTransitionHandler(args);
 
-  const cliContext = createCliCommandContext(buildCliCommandContextDepsHandler());
+  const cliContext = createCliCommandContextHandler();
   handleCliCommandRuntimeServiceWithContext(args, source, cliContext);
 }
 
@@ -2961,7 +2959,7 @@ const { handleMpvCommandFromIpc: handleMpvCommandFromIpcHandler, runSubsyncManua
       runManualFromIpc: (request) => subsyncRuntime.runManualFromIpc(request),
     },
   });
-const buildCliCommandContextMainDepsHandler = createBuildCliCommandContextMainDepsHandler({
+const createCliCommandContextHandler = createCliCommandContextFactory({
     appState,
     texthookerService,
     getResolvedConfig: () => getResolvedConfig(),
@@ -3003,10 +3001,6 @@ const buildCliCommandContextMainDepsHandler = createBuildCliCommandContextMainDe
     logWarn: (message: string) => logger.warn(message),
     logError: (message: string, err: unknown) => logger.error(message, err),
   });
-const cliCommandContextMainDeps = buildCliCommandContextMainDepsHandler();
-const buildCliCommandContextDepsHandler = createBuildCliCommandContextDepsHandler(
-  cliCommandContextMainDeps,
-);
 const createOverlayWindowHandler = createCreateOverlayWindowHandler<BrowserWindow>(
   createBuildCreateOverlayWindowMainDepsHandler<BrowserWindow>({
     createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
