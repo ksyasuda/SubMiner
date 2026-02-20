@@ -94,6 +94,7 @@ import {
   createNotifyAnilistSetupHandler,
   createRegisterSubminerProtocolClientHandler,
 } from './main/runtime/anilist-setup-protocol';
+import { createRefreshAnilistClientSecretStateHandler } from './main/runtime/anilist-token-refresh';
 import {
   createHandleJellyfinRemoteGeneralCommand,
   createHandleJellyfinRemotePlay,
@@ -110,6 +111,53 @@ import {
   createLaunchMpvIdleForJellyfinPlaybackHandler,
   createWaitForMpvConnectedHandler,
 } from './main/runtime/jellyfin-remote-connection';
+import {
+  createHandleJellyfinSetupWindowClosedHandler,
+  buildJellyfinSetupFormHtml,
+  createHandleJellyfinSetupNavigationHandler,
+  createHandleJellyfinSetupWindowOpenedHandler,
+  createHandleJellyfinSetupSubmissionHandler,
+  createMaybeFocusExistingJellyfinSetupWindowHandler,
+  parseJellyfinSetupSubmissionUrl,
+} from './main/runtime/jellyfin-setup-window';
+import {
+  createHandleAnilistSetupWindowClosedHandler,
+  createHandleAnilistSetupWindowOpenedHandler,
+  createMaybeFocusExistingAnilistSetupWindowHandler,
+  createAnilistSetupDidFailLoadHandler,
+  createAnilistSetupDidFinishLoadHandler,
+  createAnilistSetupDidNavigateHandler,
+  createAnilistSetupFallbackHandler,
+  createAnilistSetupWillNavigateHandler,
+  createAnilistSetupWillRedirectHandler,
+  createAnilistSetupWindowOpenHandler,
+  createHandleManualAnilistSetupSubmissionHandler,
+} from './main/runtime/anilist-setup-window';
+import {
+  createEnsureAnilistMediaGuessHandler,
+  createMaybeProbeAnilistDurationHandler,
+} from './main/runtime/anilist-media-guess';
+import {
+  buildAnilistAttemptKey,
+  createMaybeRunAnilistPostWatchUpdateHandler,
+  createProcessNextAnilistRetryUpdateHandler,
+  rememberAnilistAttemptedUpdateKey,
+} from './main/runtime/anilist-post-watch';
+import {
+  createLoadSubtitlePositionHandler,
+  createSaveSubtitlePositionHandler,
+} from './main/runtime/subtitle-position';
+import { registerProtocolUrlHandlers } from './main/runtime/protocol-url-handlers';
+import { createHandleJellyfinAuthCommands } from './main/runtime/jellyfin-cli-auth';
+import { createHandleJellyfinListCommands } from './main/runtime/jellyfin-cli-list';
+import { createHandleJellyfinPlayCommand } from './main/runtime/jellyfin-cli-play';
+import { createHandleJellyfinRemoteAnnounceCommand } from './main/runtime/jellyfin-cli-remote-announce';
+import {
+  createStartJellyfinRemoteSessionHandler,
+  createStopJellyfinRemoteSessionHandler,
+} from './main/runtime/jellyfin-remote-session-lifecycle';
+import { createHandleInitialArgsHandler } from './main/runtime/initial-args-handler';
+import { createHandleTexthookerOnlyModeTransitionHandler } from './main/runtime/cli-command-prechecks';
 import {
   buildRestartRequiredConfigMessage,
   createConfigHotReloadAppliedHandler,
@@ -1020,45 +1068,78 @@ async function playJellyfinItemInMpv(params: {
   showMpvOsd(`Jellyfin ${plan.mode}: ${plan.title}`);
 }
 
+const handleJellyfinAuthCommands = createHandleJellyfinAuthCommands({
+  patchRawConfig: (patch) => {
+    configService.patchRawConfig(patch);
+  },
+  authenticateWithPassword: (serverUrl, username, password, clientInfo) =>
+    authenticateWithPasswordRuntime(serverUrl, username, password, clientInfo),
+  logInfo: (message) => logger.info(message),
+});
+
+const handleJellyfinListCommands = createHandleJellyfinListCommands({
+  listJellyfinLibraries: (session, clientInfo) => listJellyfinLibrariesRuntime(session, clientInfo),
+  listJellyfinItems: (session, clientInfo, params) =>
+    listJellyfinItemsRuntime(session, clientInfo, params),
+  listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
+    listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
+  logInfo: (message) => logger.info(message),
+});
+
+const handleJellyfinPlayCommand = createHandleJellyfinPlayCommand({
+  playJellyfinItemInMpv: (params) =>
+    playJellyfinItemInMpv(params as Parameters<typeof playJellyfinItemInMpv>[0]),
+  logWarn: (message) => logger.warn(message),
+});
+
+const handleJellyfinRemoteAnnounceCommand = createHandleJellyfinRemoteAnnounceCommand({
+  startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
+  getRemoteSession: () => appState.jellyfinRemoteSession,
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+});
+
+const startJellyfinRemoteSession = createStartJellyfinRemoteSessionHandler({
+  getJellyfinConfig: () => getResolvedJellyfinConfig(),
+  getCurrentSession: () => appState.jellyfinRemoteSession,
+  setCurrentSession: (session) => {
+    appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
+  },
+  createRemoteSessionService: (options) => new JellyfinRemoteSessionService(options),
+  defaultDeviceId: DEFAULT_CONFIG.jellyfin.deviceId,
+  defaultClientName: DEFAULT_CONFIG.jellyfin.clientName,
+  defaultClientVersion: DEFAULT_CONFIG.jellyfin.clientVersion,
+  handlePlay: (payload) => handleJellyfinRemotePlay(payload),
+  handlePlaystate: (payload) => handleJellyfinRemotePlaystate(payload),
+  handleGeneralCommand: (payload) => handleJellyfinRemoteGeneralCommand(payload),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message, details) => logger.warn(message, details),
+});
+
+const stopJellyfinRemoteSession = createStopJellyfinRemoteSessionHandler({
+  getCurrentSession: () => appState.jellyfinRemoteSession,
+  setCurrentSession: (session) => {
+    appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
+  },
+  clearActivePlayback: () => {
+    activeJellyfinRemotePlayback = null;
+  },
+});
+
 async function runJellyfinCommand(args: CliArgs): Promise<void> {
   const jellyfinConfig = getResolvedJellyfinConfig();
   const serverUrl =
     args.jellyfinServer?.trim() || jellyfinConfig.serverUrl || DEFAULT_CONFIG.jellyfin.serverUrl;
   const clientInfo = getJellyfinClientInfo(jellyfinConfig);
 
-  if (args.jellyfinLogout) {
-    configService.patchRawConfig({
-      jellyfin: {
-        accessToken: '',
-        userId: '',
-      },
-    });
-    logger.info('Cleared stored Jellyfin access token.');
-    return;
-  }
-
-  if (args.jellyfinLogin) {
-    const username = (args.jellyfinUsername || jellyfinConfig.username).trim();
-    const password = args.jellyfinPassword || '';
-    const session = await authenticateWithPasswordRuntime(
+  if (
+    await handleJellyfinAuthCommands({
+      args,
+      jellyfinConfig,
       serverUrl,
-      username,
-      password,
       clientInfo,
-    );
-    configService.patchRawConfig({
-      jellyfin: {
-        enabled: true,
-        serverUrl: session.serverUrl,
-        username: session.username,
-        accessToken: session.accessToken,
-        userId: session.userId,
-        deviceId: clientInfo.deviceId,
-        clientName: clientInfo.clientName,
-        clientVersion: clientInfo.clientVersion,
-      },
-    });
-    logger.info(`Jellyfin login succeeded for ${session.username}.`);
+    })
+  ) {
     return;
   }
 
@@ -1074,174 +1155,31 @@ async function runJellyfinCommand(args: CliArgs): Promise<void> {
     username: jellyfinConfig.username,
   };
 
-  if (args.jellyfinRemoteAnnounce) {
-    await startJellyfinRemoteSession();
-    const remoteSession = appState.jellyfinRemoteSession;
-    if (!remoteSession) {
-      logger.warn('Jellyfin remote session is not available.');
-      return;
-    }
-    const visible = await remoteSession.advertiseNow();
-    if (visible) {
-      logger.info('Jellyfin cast target is visible in server sessions.');
-    } else {
-      logger.warn(
-        'Jellyfin remote announce sent, but cast target is not visible in server sessions yet.',
-      );
-    }
+  if (await handleJellyfinRemoteAnnounceCommand(args)) {
     return;
   }
 
-  if (args.jellyfinLibraries) {
-    const libraries = await listJellyfinLibrariesRuntime(session, clientInfo);
-    if (libraries.length === 0) {
-      logger.info('No Jellyfin libraries found.');
-      return;
-    }
-    for (const library of libraries) {
-      logger.info(
-        `Jellyfin library: ${library.name} [${library.id}] (${library.collectionType || library.type || 'unknown'})`,
-      );
-    }
-    return;
-  }
-
-  if (args.jellyfinItems) {
-    const libraryId = args.jellyfinLibraryId || jellyfinConfig.defaultLibraryId;
-    if (!libraryId) {
-      throw new Error(
-        'Missing Jellyfin library id. Use --jellyfin-library-id or set jellyfin.defaultLibraryId.',
-      );
-    }
-    const items = await listJellyfinItemsRuntime(session, clientInfo, {
-      libraryId,
-      searchTerm: args.jellyfinSearch,
-      limit: args.jellyfinLimit ?? 100,
-    });
-    if (items.length === 0) {
-      logger.info('No Jellyfin items found for the selected library/search.');
-      return;
-    }
-    for (const item of items) {
-      logger.info(`Jellyfin item: ${item.title} [${item.id}] (${item.type})`);
-    }
-    return;
-  }
-
-  if (args.jellyfinSubtitles) {
-    if (!args.jellyfinItemId) {
-      throw new Error('Missing --jellyfin-item-id for --jellyfin-subtitles.');
-    }
-    const tracks = await listJellyfinSubtitleTracksRuntime(
-      session,
-      clientInfo,
-      args.jellyfinItemId,
-    );
-    if (tracks.length === 0) {
-      logger.info('No Jellyfin subtitle tracks found for item.');
-      return;
-    }
-    for (const track of tracks) {
-      if (args.jellyfinSubtitleUrlsOnly) {
-        if (track.deliveryUrl) logger.info(track.deliveryUrl);
-        continue;
-      }
-      logger.info(
-        `Jellyfin subtitle: index=${track.index} lang=${track.language || 'unknown'} title="${track.title || '-'}" method=${track.deliveryMethod || 'unknown'} codec=${track.codec || 'unknown'} default=${track.isDefault ? 'yes' : 'no'} forced=${track.isForced ? 'yes' : 'no'} external=${track.isExternal ? 'yes' : 'no'} url=${track.deliveryUrl || '-'}`,
-      );
-    }
-    return;
-  }
-
-  if (args.jellyfinPlay) {
-    if (!args.jellyfinItemId) {
-      logger.warn('Ignoring --jellyfin-play without --jellyfin-item-id.');
-      return;
-    }
-    await playJellyfinItemInMpv({
+  if (
+    await handleJellyfinListCommands({
+      args,
       session,
       clientInfo,
       jellyfinConfig,
-      itemId: args.jellyfinItemId,
-      audioStreamIndex: args.jellyfinAudioStreamIndex,
-      subtitleStreamIndex: args.jellyfinSubtitleStreamIndex,
-      setQuitOnDisconnectArm: true,
-    });
+    })
+  ) {
     return;
   }
-}
 
-async function startJellyfinRemoteSession(): Promise<void> {
-  const jellyfinConfig = getResolvedJellyfinConfig();
-  if (jellyfinConfig.remoteControlEnabled === false) return;
-  if (jellyfinConfig.remoteControlAutoConnect === false) return;
-  if (!jellyfinConfig.serverUrl || !jellyfinConfig.accessToken || !jellyfinConfig.userId) {
+  if (
+    await handleJellyfinPlayCommand({
+      args,
+      session,
+      clientInfo,
+      jellyfinConfig,
+    })
+  ) {
     return;
   }
-  if (appState.jellyfinRemoteSession) {
-    appState.jellyfinRemoteSession.stop();
-    appState.jellyfinRemoteSession = null;
-  }
-
-  const service = new JellyfinRemoteSessionService({
-    serverUrl: jellyfinConfig.serverUrl,
-    accessToken: jellyfinConfig.accessToken,
-    deviceId: jellyfinConfig.deviceId || DEFAULT_CONFIG.jellyfin.deviceId,
-    clientName: jellyfinConfig.clientName || DEFAULT_CONFIG.jellyfin.clientName,
-    clientVersion: jellyfinConfig.clientVersion || DEFAULT_CONFIG.jellyfin.clientVersion,
-    deviceName:
-      jellyfinConfig.remoteControlDeviceName ||
-      jellyfinConfig.clientName ||
-      DEFAULT_CONFIG.jellyfin.clientName,
-    capabilities: {
-      PlayableMediaTypes: 'Video,Audio',
-      SupportedCommands:
-        'Play,Playstate,PlayMediaSource,SetAudioStreamIndex,SetSubtitleStreamIndex,Mute,Unmute,SetVolume,DisplayContent',
-      SupportsMediaControl: true,
-    },
-    onConnected: () => {
-      logger.info('Jellyfin remote websocket connected.');
-      if (jellyfinConfig.autoAnnounce) {
-        void service.advertiseNow().then((registered) => {
-          if (registered) {
-            logger.info('Jellyfin cast target is visible to server sessions.');
-          } else {
-            logger.warn('Jellyfin remote connected but device not visible in server sessions yet.');
-          }
-        });
-      }
-    },
-    onDisconnected: () => {
-      logger.warn('Jellyfin remote websocket disconnected; retrying.');
-    },
-    onPlay: (payload) => {
-      void handleJellyfinRemotePlay(payload).catch((error) => {
-        logger.warn('Failed handling Jellyfin remote Play event', error);
-      });
-    },
-    onPlaystate: (payload) => {
-      void handleJellyfinRemotePlaystate(payload).catch((error) => {
-        logger.warn('Failed handling Jellyfin remote Playstate event', error);
-      });
-    },
-    onGeneralCommand: (payload) => {
-      void handleJellyfinRemoteGeneralCommand(payload).catch((error) => {
-        logger.warn('Failed handling Jellyfin remote GeneralCommand event', error);
-      });
-    },
-  });
-  service.start();
-  appState.jellyfinRemoteSession = service;
-  logger.info(
-    `Jellyfin remote session enabled (${jellyfinConfig.remoteControlDeviceName || jellyfinConfig.clientName || 'SubMiner'}).`,
-  );
-}
-
-function stopJellyfinRemoteSession(): void {
-  if (!appState.jellyfinRemoteSession) return;
-  appState.jellyfinRemoteSession.stop();
-  appState.jellyfinRemoteSession = null;
-  activeJellyfinRemotePlayback = null;
 }
 
 const notifyAnilistSetup = createNotifyAnilistSetupHandler({
@@ -1295,8 +1233,10 @@ const registerSubminerProtocolClient = createRegisterSubminerProtocolClientHandl
 });
 
 function openAnilistSetupWindow(): void {
-  if (appState.anilistSetupWindow) {
-    appState.anilistSetupWindow.focus();
+  const maybeFocusExistingAnilistSetupWindow = createMaybeFocusExistingAnilistSetupWindowHandler({
+    getSetupWindow: () => appState.anilistSetupWindow,
+  });
+  if (maybeFocusExistingAnilistSetupWindow()) {
     return;
   }
 
@@ -1317,131 +1257,123 @@ function openAnilistSetupWindow(): void {
     responseType: ANILIST_SETUP_RESPONSE_TYPE,
   });
   const consumeCallbackUrl = (rawUrl: string): boolean => consumeAnilistSetupTokenFromUrl(rawUrl);
-
-  const handleManualAnilistSetupSubmission = (rawUrl: string): boolean => {
-    if (!rawUrl.startsWith('subminer://anilist-setup')) {
-      return false;
-    }
-    try {
-      const parsed = new URL(rawUrl);
-      const accessToken = parsed.searchParams.get('access_token')?.trim() ?? '';
-      if (accessToken.length > 0) {
-        return consumeCallbackUrl(
-          `${ANILIST_REDIRECT_URI}#access_token=${encodeURIComponent(accessToken)}`,
-        );
-      }
-      logger.warn('AniList setup submission missing access token');
-      return true;
-    } catch {
-      logger.warn('AniList setup submission had invalid callback input');
-      return true;
-    }
-  };
-
-  setupWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (!isAllowedAnilistExternalUrl(url)) {
-      logger.warn('Blocked unsafe AniList setup external URL', { url });
-      return { action: 'deny' };
-    }
-    void shell.openExternal(url);
-    return { action: 'deny' };
+  const openSetupInBrowser = () =>
+    openAnilistSetupInBrowser({
+      authorizeUrl,
+      openExternal: (url) => shell.openExternal(url),
+      logError: (message, error) => logger.error(message, error),
+    });
+  const loadManualTokenEntry = () =>
+    loadAnilistManualTokenEntry({
+      setupWindow,
+      authorizeUrl,
+      developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
+      logWarn: (message, data) => logger.warn(message, data),
+    });
+  const handleManualAnilistSetupSubmission = createHandleManualAnilistSetupSubmissionHandler({
+    consumeCallbackUrl: (rawUrl) => consumeCallbackUrl(rawUrl),
+    redirectUri: ANILIST_REDIRECT_URI,
+    logWarn: (message) => logger.warn(message),
   });
+  const anilistSetupFallback = createAnilistSetupFallbackHandler({
+    authorizeUrl,
+    developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
+    setupWindow,
+    openSetupInBrowser,
+    loadManualTokenEntry,
+    logError: (message, details) => logger.error(message, details),
+    logWarn: (message) => logger.warn(message),
+  });
+  const handleAnilistSetupWindowOpen = createAnilistSetupWindowOpenHandler({
+    isAllowedExternalUrl: (url) => isAllowedAnilistExternalUrl(url),
+    openExternal: (url) => {
+      void shell.openExternal(url);
+    },
+    logWarn: (message, details) => logger.warn(message, details),
+  });
+  const handleAnilistSetupWillNavigate = createAnilistSetupWillNavigateHandler({
+    handleManualSubmission: (url) => handleManualAnilistSetupSubmission(url),
+    consumeCallbackUrl: (url) => consumeCallbackUrl(url),
+    redirectUri: ANILIST_REDIRECT_URI,
+    isAllowedNavigationUrl: (url) => isAllowedAnilistSetupNavigationUrl(url),
+    logWarn: (message, details) => logger.warn(message, details),
+  });
+  const handleAnilistSetupWillRedirect = createAnilistSetupWillRedirectHandler({
+    consumeCallbackUrl: (url) => consumeCallbackUrl(url),
+  });
+  const handleAnilistSetupDidNavigate = createAnilistSetupDidNavigateHandler({
+    consumeCallbackUrl: (url) => consumeCallbackUrl(url),
+  });
+  const handleAnilistSetupDidFailLoad = createAnilistSetupDidFailLoadHandler({
+    onLoadFailure: (details) => anilistSetupFallback.onLoadFailure(details),
+  });
+  const handleAnilistSetupDidFinishLoad = createAnilistSetupDidFinishLoadHandler({
+    getLoadedUrl: () => setupWindow.webContents.getURL(),
+    onBlankPageLoaded: () => anilistSetupFallback.onBlankPageLoaded(),
+  });
+  const handleAnilistSetupWindowClosed = createHandleAnilistSetupWindowClosedHandler({
+    clearSetupWindow: () => {
+      appState.anilistSetupWindow = null;
+    },
+    setSetupPageOpened: (opened) => {
+      appState.anilistSetupPageOpened = opened;
+    },
+  });
+  const handleAnilistSetupWindowOpened = createHandleAnilistSetupWindowOpenedHandler({
+    setSetupWindow: () => {
+      appState.anilistSetupWindow = setupWindow;
+    },
+    setSetupPageOpened: (opened) => {
+      appState.anilistSetupPageOpened = opened;
+    },
+  });
+
+  setupWindow.webContents.setWindowOpenHandler(({ url }) => handleAnilistSetupWindowOpen({ url }));
   setupWindow.webContents.on('will-navigate', (event, url) => {
-    if (handleManualAnilistSetupSubmission(url)) {
-      event.preventDefault();
-      return;
-    }
-    if (consumeCallbackUrl(url)) {
-      event.preventDefault();
-      return;
-    }
-    if (url.startsWith(ANILIST_REDIRECT_URI)) {
-      event.preventDefault();
-      return;
-    }
-    if (url.startsWith(`${ANILIST_REDIRECT_URI}#`)) {
-      event.preventDefault();
-      return;
-    }
-    if (isAllowedAnilistSetupNavigationUrl(url)) {
-      return;
-    }
-    event.preventDefault();
-    logger.warn('Blocked unsafe AniList setup navigation URL', { url });
+    handleAnilistSetupWillNavigate({
+      url,
+      preventDefault: () => event.preventDefault(),
+    });
   });
   setupWindow.webContents.on('will-redirect', (event, url) => {
-    if (!consumeCallbackUrl(url)) {
-      return;
-    }
-    event.preventDefault();
+    handleAnilistSetupWillRedirect({
+      url,
+      preventDefault: () => event.preventDefault(),
+    });
   });
   setupWindow.webContents.on('did-navigate', (_event, url) => {
-    consumeCallbackUrl(url);
+    handleAnilistSetupDidNavigate(url);
   });
 
   setupWindow.webContents.on(
     'did-fail-load',
     (_event, errorCode, errorDescription, validatedURL) => {
-      logger.error('AniList setup window failed to load', {
+      handleAnilistSetupDidFailLoad({
         errorCode,
         errorDescription,
         validatedURL,
       });
-      openAnilistSetupInBrowser({
-        authorizeUrl,
-        openExternal: (url) => shell.openExternal(url),
-        logError: (message, error) => logger.error(message, error),
-      });
-      if (!setupWindow.isDestroyed()) {
-        loadAnilistManualTokenEntry({
-          setupWindow,
-          authorizeUrl,
-          developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-          logWarn: (message, data) => logger.warn(message, data),
-        });
-      }
     },
   );
 
   setupWindow.webContents.on('did-finish-load', () => {
-    const loadedUrl = setupWindow.webContents.getURL();
-    if (!loadedUrl || loadedUrl === 'about:blank') {
-      logger.warn('AniList setup loaded a blank page; using fallback');
-      openAnilistSetupInBrowser({
-        authorizeUrl,
-        openExternal: (url) => shell.openExternal(url),
-        logError: (message, error) => logger.error(message, error),
-      });
-      if (!setupWindow.isDestroyed()) {
-        loadAnilistManualTokenEntry({
-          setupWindow,
-          authorizeUrl,
-          developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-          logWarn: (message, data) => logger.warn(message, data),
-        });
-      }
-    }
+    handleAnilistSetupDidFinishLoad();
   });
 
-  loadAnilistManualTokenEntry({
-    setupWindow,
-    authorizeUrl,
-    developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
-    logWarn: (message, data) => logger.warn(message, data),
-  });
+  loadManualTokenEntry();
 
   setupWindow.on('closed', () => {
-    appState.anilistSetupWindow = null;
-    appState.anilistSetupPageOpened = false;
+    handleAnilistSetupWindowClosed();
   });
 
-  appState.anilistSetupWindow = setupWindow;
-  appState.anilistSetupPageOpened = true;
+  handleAnilistSetupWindowOpened();
 }
 
 function openJellyfinSetupWindow(): void {
-  if (appState.jellyfinSetupWindow) {
-    appState.jellyfinSetupWindow.focus();
+  const maybeFocusExistingJellyfinSetupWindow = createMaybeFocusExistingJellyfinSetupWindowHandler({
+    getSetupWindow: () => appState.jellyfinSetupWindow,
+  });
+  if (maybeFocusExistingJellyfinSetupWindow()) {
     return;
   }
 
@@ -1460,164 +1392,87 @@ function openJellyfinSetupWindow(): void {
   const defaults = getResolvedJellyfinConfig();
   const defaultServer = defaults.serverUrl || 'http://127.0.0.1:8096';
   const defaultUser = defaults.username || '';
-
-  const formHtml = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Jellyfin Setup</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #0b1020; color: #e5e7eb; }
-    main { padding: 20px; }
-    h1 { margin: 0 0 8px; font-size: 22px; }
-    p { margin: 0 0 14px; color: #cbd5e1; font-size: 13px; line-height: 1.4; }
-    label { display: block; margin: 10px 0 4px; font-size: 13px; }
-    input { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #334155; border-radius: 8px; background: #111827; color: #e5e7eb; }
-    button { margin-top: 16px; width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; background: #2563eb; color: #f8fafc; }
-    .hint { margin-top: 12px; font-size: 12px; color: #94a3b8; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Jellyfin Setup</h1>
-    <p>Login info is used to fetch a token and save Jellyfin config values.</p>
-    <form id="form">
-      <label for="server">Server URL</label>
-      <input id="server" name="server" value="${defaultServer.replace(/"/g, '&quot;')}" required />
-      <label for="username">Username</label>
-      <input id="username" name="username" value="${defaultUser.replace(/"/g, '&quot;')}" required />
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" required />
-      <button type="submit">Save and Login</button>
-      <div class="hint">Equivalent CLI: --jellyfin-login --jellyfin-server ... --jellyfin-username ... --jellyfin-password ...</div>
-    </form>
-  </main>
-  <script>
-    const form = document.getElementById("form");
-    form?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const data = new FormData(form);
-      const params = new URLSearchParams();
-      params.set("server", String(data.get("server") || ""));
-      params.set("username", String(data.get("username") || ""));
-      params.set("password", String(data.get("password") || ""));
-      window.location.href = "subminer://jellyfin-setup?" + params.toString();
-    });
-  </script>
-</body>
-</html>`;
+  const formHtml = buildJellyfinSetupFormHtml(defaultServer, defaultUser);
+  const handleJellyfinSetupSubmission = createHandleJellyfinSetupSubmissionHandler({
+    parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
+    authenticateWithPassword: (server, username, password, clientInfo) =>
+      authenticateWithPasswordRuntime(server, username, password, clientInfo),
+    getJellyfinClientInfo: () => getJellyfinClientInfo(),
+    patchJellyfinConfig: (session) => {
+      configService.patchRawConfig({
+        jellyfin: {
+          enabled: true,
+          serverUrl: session.serverUrl,
+          username: session.username,
+          accessToken: session.accessToken,
+          userId: session.userId,
+        },
+      });
+    },
+    logInfo: (message) => logger.info(message),
+    logError: (message, error) => logger.error(message, error),
+    showMpvOsd: (message) => showMpvOsd(message),
+    closeSetupWindow: () => {
+      if (!setupWindow.isDestroyed()) {
+        setupWindow.close();
+      }
+    },
+  });
+  const handleJellyfinSetupNavigation = createHandleJellyfinSetupNavigationHandler({
+    setupSchemePrefix: 'subminer://jellyfin-setup',
+    handleSubmission: (rawUrl) => handleJellyfinSetupSubmission(rawUrl),
+    logError: (message, error) => logger.error(message, error),
+  });
+  const handleJellyfinSetupWindowClosed = createHandleJellyfinSetupWindowClosedHandler({
+    clearSetupWindow: () => {
+      appState.jellyfinSetupWindow = null;
+    },
+  });
+  const handleJellyfinSetupWindowOpened = createHandleJellyfinSetupWindowOpenedHandler({
+    setSetupWindow: () => {
+      appState.jellyfinSetupWindow = setupWindow;
+    },
+  });
 
   setupWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith('subminer://jellyfin-setup')) return;
-    event.preventDefault();
-    void (async () => {
-      try {
-        const parsed = new URL(url);
-        const server = parsed.searchParams.get('server') || '';
-        const username = parsed.searchParams.get('username') || '';
-        const password = parsed.searchParams.get('password') || '';
-        const session = await authenticateWithPasswordRuntime(
-          server,
-          username,
-          password,
-          getJellyfinClientInfo(),
-        );
-        configService.patchRawConfig({
-          jellyfin: {
-            enabled: true,
-            serverUrl: session.serverUrl,
-            username: session.username,
-            accessToken: session.accessToken,
-            userId: session.userId,
-          },
-        });
-        logger.info(`Jellyfin setup saved for ${session.username}.`);
-        showMpvOsd('Jellyfin login success');
-        if (!setupWindow.isDestroyed()) {
-          setupWindow.close();
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logger.error('Jellyfin setup failed', error);
-        showMpvOsd(`Jellyfin login failed: ${message}`);
-      }
-    })();
+    handleJellyfinSetupNavigation({
+      url,
+      preventDefault: () => event.preventDefault(),
+    });
   });
 
   void setupWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(formHtml)}`);
 
   setupWindow.on('closed', () => {
-    appState.jellyfinSetupWindow = null;
+    handleJellyfinSetupWindowClosed();
   });
 
-  appState.jellyfinSetupWindow = setupWindow;
+  handleJellyfinSetupWindowOpened();
 }
 
-async function refreshAnilistClientSecretState(options?: {
-  force?: boolean;
-}): Promise<string | null> {
-  const resolved = getResolvedConfig();
-  const now = Date.now();
-  if (!isAnilistTrackingEnabled(resolved)) {
-    anilistCachedAccessToken = null;
-    anilistStateRuntime.setClientSecretState({
-      status: 'not_checked',
-      source: 'none',
-      message: 'anilist tracking disabled',
-      resolvedAt: null,
-      errorAt: null,
-    });
-    appState.anilistSetupPageOpened = false;
-    return null;
-  }
-  const rawAccessToken = resolved.anilist.accessToken.trim();
-  if (rawAccessToken.length > 0) {
-    if (options?.force || rawAccessToken !== anilistCachedAccessToken) {
-      anilistTokenStore.saveToken(rawAccessToken);
-    }
-    anilistCachedAccessToken = rawAccessToken;
-    anilistStateRuntime.setClientSecretState({
-      status: 'resolved',
-      source: 'literal',
-      message: 'using configured anilist.accessToken',
-      resolvedAt: now,
-      errorAt: null,
-    });
-    appState.anilistSetupPageOpened = false;
-    return rawAccessToken;
-  }
-
-  if (!options?.force && anilistCachedAccessToken && anilistCachedAccessToken.length > 0) {
-    return anilistCachedAccessToken;
-  }
-
-  const storedToken = anilistTokenStore.loadToken()?.trim() ?? '';
-  if (storedToken.length > 0) {
-    anilistCachedAccessToken = storedToken;
-    anilistStateRuntime.setClientSecretState({
-      status: 'resolved',
-      source: 'stored',
-      message: 'using stored anilist access token',
-      resolvedAt: now,
-      errorAt: null,
-    });
-    appState.anilistSetupPageOpened = false;
-    return storedToken;
-  }
-
-  anilistCachedAccessToken = null;
-  anilistStateRuntime.setClientSecretState({
-    status: 'error',
-    source: 'none',
-    message: 'cannot authenticate without anilist.accessToken',
-    resolvedAt: null,
-    errorAt: now,
-  });
-  if (isAnilistTrackingEnabled(resolved) && !appState.anilistSetupPageOpened) {
+const refreshAnilistClientSecretState = createRefreshAnilistClientSecretStateHandler({
+  getResolvedConfig: () => getResolvedConfig(),
+  isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config),
+  getCachedAccessToken: () => anilistCachedAccessToken,
+  setCachedAccessToken: (token) => {
+    anilistCachedAccessToken = token;
+  },
+  saveStoredToken: (token) => {
+    anilistTokenStore.saveToken(token);
+  },
+  loadStoredToken: () => anilistTokenStore.loadToken(),
+  setClientSecretState: (state) => {
+    anilistStateRuntime.setClientSecretState(state);
+  },
+  getAnilistSetupPageOpened: () => appState.anilistSetupPageOpened,
+  setAnilistSetupPageOpened: (opened) => {
+    appState.anilistSetupPageOpened = opened;
+  },
+  openAnilistSetupWindow: () => {
     openAnilistSetupWindow();
-  }
-  return null;
-}
+  },
+  now: () => Date.now(),
+});
 
 function getCurrentAnilistMediaKey(): string | null {
   const path = appState.currentMediaPath?.trim();
@@ -1632,233 +1487,168 @@ function resetAnilistMediaTracking(mediaKey: string | null): void {
   anilistLastDurationProbeAtMs = 0;
 }
 
-async function maybeProbeAnilistDuration(mediaKey: string): Promise<number | null> {
-  if (anilistCurrentMediaKey !== mediaKey) {
-    return null;
-  }
-  if (typeof anilistCurrentMediaDurationSec === 'number' && anilistCurrentMediaDurationSec > 0) {
-    return anilistCurrentMediaDurationSec;
-  }
-  const now = Date.now();
-  if (now - anilistLastDurationProbeAtMs < ANILIST_DURATION_RETRY_INTERVAL_MS) {
-    return null;
-  }
-  anilistLastDurationProbeAtMs = now;
+const getAnilistMediaGuessRuntimeState = () => ({
+  mediaKey: anilistCurrentMediaKey,
+  mediaDurationSec: anilistCurrentMediaDurationSec,
+  mediaGuess: anilistCurrentMediaGuess,
+  mediaGuessPromise: anilistCurrentMediaGuessPromise,
+  lastDurationProbeAtMs: anilistLastDurationProbeAtMs,
+});
 
-  try {
-    const durationCandidate = await appState.mpvClient?.requestProperty('duration');
-    const duration =
-      typeof durationCandidate === 'number' && Number.isFinite(durationCandidate)
-        ? durationCandidate
-        : null;
-    if (duration && duration > 0 && anilistCurrentMediaKey === mediaKey) {
-      anilistCurrentMediaDurationSec = duration;
-      return duration;
-    }
-  } catch (error) {
-    logger.warn('AniList duration probe failed:', error);
-  }
-  return null;
-}
+const setAnilistMediaGuessRuntimeState = (state: {
+  mediaKey: string | null;
+  mediaDurationSec: number | null;
+  mediaGuess: AnilistMediaGuess | null;
+  mediaGuessPromise: Promise<AnilistMediaGuess | null> | null;
+  lastDurationProbeAtMs: number;
+}) => {
+  anilistCurrentMediaKey = state.mediaKey;
+  anilistCurrentMediaDurationSec = state.mediaDurationSec;
+  anilistCurrentMediaGuess = state.mediaGuess;
+  anilistCurrentMediaGuessPromise = state.mediaGuessPromise;
+  anilistLastDurationProbeAtMs = state.lastDurationProbeAtMs;
+};
 
-async function ensureAnilistMediaGuess(mediaKey: string): Promise<AnilistMediaGuess | null> {
-  if (anilistCurrentMediaKey !== mediaKey) {
-    return null;
-  }
-  if (anilistCurrentMediaGuess) {
-    return anilistCurrentMediaGuess;
-  }
-  if (anilistCurrentMediaGuessPromise) {
-    return anilistCurrentMediaGuessPromise;
-  }
+const maybeProbeAnilistDuration = createMaybeProbeAnilistDurationHandler({
+  getState: () => getAnilistMediaGuessRuntimeState(),
+  setState: (state) => {
+    setAnilistMediaGuessRuntimeState(state);
+  },
+  durationRetryIntervalMs: ANILIST_DURATION_RETRY_INTERVAL_MS,
+  now: () => Date.now(),
+  requestMpvDuration: async () => appState.mpvClient?.requestProperty('duration'),
+  logWarn: (message, error) => logger.warn(message, error),
+});
 
-  const mediaPathForGuess = mediaRuntime.resolveMediaPathForJimaku(appState.currentMediaPath);
-  anilistCurrentMediaGuessPromise = guessAnilistMediaInfo(
-    mediaPathForGuess,
-    appState.currentMediaTitle,
-  )
-    .then((guess) => {
-      if (anilistCurrentMediaKey === mediaKey) {
-        anilistCurrentMediaGuess = guess;
-      }
-      return guess;
-    })
-    .finally(() => {
-      if (anilistCurrentMediaKey === mediaKey) {
-        anilistCurrentMediaGuessPromise = null;
-      }
-    });
-  return anilistCurrentMediaGuessPromise;
-}
+const ensureAnilistMediaGuess = createEnsureAnilistMediaGuessHandler({
+  getState: () => getAnilistMediaGuessRuntimeState(),
+  setState: (state) => {
+    setAnilistMediaGuessRuntimeState(state);
+  },
+  resolveMediaPathForJimaku: (currentMediaPath) => mediaRuntime.resolveMediaPathForJimaku(currentMediaPath),
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getCurrentMediaTitle: () => appState.currentMediaTitle,
+  guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
+});
 
-function buildAnilistAttemptKey(mediaKey: string, episode: number): string {
-  return `${mediaKey}::${episode}`;
-}
+const rememberAnilistAttemptedUpdate = (key: string): void => {
+  rememberAnilistAttemptedUpdateKey(anilistAttemptedUpdateKeys, key, ANILIST_MAX_ATTEMPTED_UPDATE_KEYS);
+};
 
-function rememberAnilistAttemptedUpdateKey(key: string): void {
-  anilistAttemptedUpdateKeys.add(key);
-  if (anilistAttemptedUpdateKeys.size <= ANILIST_MAX_ATTEMPTED_UPDATE_KEYS) {
-    return;
-  }
-  const oldestKey = anilistAttemptedUpdateKeys.values().next().value;
-  if (typeof oldestKey === 'string') {
-    anilistAttemptedUpdateKeys.delete(oldestKey);
-  }
-}
+const processNextAnilistRetryUpdate = createProcessNextAnilistRetryUpdateHandler({
+  nextReady: () => anilistUpdateQueue.nextReady(),
+  refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
+  setLastAttemptAt: (value) => {
+    appState.anilistRetryQueueState.lastAttemptAt = value;
+  },
+  setLastError: (value) => {
+    appState.anilistRetryQueueState.lastError = value;
+  },
+  refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
+  updateAnilistPostWatchProgress: (accessToken, title, episode) =>
+    updateAnilistPostWatchProgress(accessToken, title, episode),
+  markSuccess: (key) => {
+    anilistUpdateQueue.markSuccess(key);
+  },
+  rememberAttemptedUpdateKey: (key) => {
+    rememberAnilistAttemptedUpdate(key);
+  },
+  markFailure: (key, message) => {
+    anilistUpdateQueue.markFailure(key, message);
+  },
+  logInfo: (message) => logger.info(message),
+  now: () => Date.now(),
+});
 
-async function processNextAnilistRetryUpdate(): Promise<{
-  ok: boolean;
-  message: string;
-}> {
-  const queued = anilistUpdateQueue.nextReady();
-  anilistStateRuntime.refreshRetryQueueState();
-  if (!queued) {
-    return { ok: true, message: 'AniList queue has no ready items.' };
-  }
-
-  appState.anilistRetryQueueState.lastAttemptAt = Date.now();
-  const accessToken = await refreshAnilistClientSecretState();
-  if (!accessToken) {
-    appState.anilistRetryQueueState.lastError = 'AniList token unavailable for queued retry.';
-    return { ok: false, message: appState.anilistRetryQueueState.lastError };
-  }
-
-  const result = await updateAnilistPostWatchProgress(accessToken, queued.title, queued.episode);
-  if (result.status === 'updated' || result.status === 'skipped') {
-    anilistUpdateQueue.markSuccess(queued.key);
-    rememberAnilistAttemptedUpdateKey(queued.key);
-    appState.anilistRetryQueueState.lastError = null;
-    anilistStateRuntime.refreshRetryQueueState();
-    logger.info(`[AniList queue] ${result.message}`);
-    return { ok: true, message: result.message };
-  }
-
-  anilistUpdateQueue.markFailure(queued.key, result.message);
-  appState.anilistRetryQueueState.lastError = result.message;
-  anilistStateRuntime.refreshRetryQueueState();
-  return { ok: false, message: result.message };
-}
-
-async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
-  if (anilistUpdateInFlight) {
-    return;
-  }
-
-  const resolved = getResolvedConfig();
-  if (!isAnilistTrackingEnabled(resolved)) {
-    return;
-  }
-
-  const mediaKey = getCurrentAnilistMediaKey();
-  if (!mediaKey || !appState.mpvClient) {
-    return;
-  }
-  if (anilistCurrentMediaKey !== mediaKey) {
+const maybeRunAnilistPostWatchUpdate = createMaybeRunAnilistPostWatchUpdateHandler({
+  getInFlight: () => anilistUpdateInFlight,
+  setInFlight: (value) => {
+    anilistUpdateInFlight = value;
+  },
+  getResolvedConfig: () => getResolvedConfig(),
+  isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
+  getCurrentMediaKey: () => getCurrentAnilistMediaKey(),
+  hasMpvClient: () => Boolean(appState.mpvClient),
+  getTrackedMediaKey: () => anilistCurrentMediaKey,
+  resetTrackedMedia: (mediaKey) => {
     resetAnilistMediaTracking(mediaKey);
-  }
+  },
+  getWatchedSeconds: () => appState.mpvClient?.currentTimePos ?? Number.NaN,
+  maybeProbeAnilistDuration: (mediaKey) => maybeProbeAnilistDuration(mediaKey),
+  ensureAnilistMediaGuess: (mediaKey) => ensureAnilistMediaGuess(mediaKey),
+  hasAttemptedUpdateKey: (key) => anilistAttemptedUpdateKeys.has(key),
+  processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
+  refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
+  enqueueRetry: (key, title, episode) => {
+    anilistUpdateQueue.enqueue(key, title, episode);
+  },
+  markRetryFailure: (key, message) => {
+    anilistUpdateQueue.markFailure(key, message);
+  },
+  markRetrySuccess: (key) => {
+    anilistUpdateQueue.markSuccess(key);
+  },
+  refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
+  updateAnilistPostWatchProgress: (accessToken, title, episode) =>
+    updateAnilistPostWatchProgress(accessToken, title, episode),
+  rememberAttemptedUpdateKey: (key) => {
+    rememberAnilistAttemptedUpdate(key);
+  },
+  showMpvOsd: (message) => showMpvOsd(message),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+  minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
+  minWatchRatio: ANILIST_UPDATE_MIN_WATCH_RATIO,
+});
 
-  const watchedSeconds = appState.mpvClient.currentTimePos;
-  if (!Number.isFinite(watchedSeconds) || watchedSeconds < ANILIST_UPDATE_MIN_WATCH_SECONDS) {
-    return;
-  }
+const loadSubtitlePosition = createLoadSubtitlePositionHandler({
+  loadSubtitlePositionCore: () =>
+    loadSubtitlePositionCore({
+      currentMediaPath: appState.currentMediaPath,
+      fallbackPosition: getResolvedConfig().subtitlePosition,
+      subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
+    }),
+  setSubtitlePosition: (position) => {
+    appState.subtitlePosition = position;
+  },
+});
 
-  const duration = await maybeProbeAnilistDuration(mediaKey);
-  if (!duration || duration <= 0) {
-    return;
-  }
-  if (watchedSeconds / duration < ANILIST_UPDATE_MIN_WATCH_RATIO) {
-    return;
-  }
-
-  const guess = await ensureAnilistMediaGuess(mediaKey);
-  if (!guess?.title || !guess.episode || guess.episode <= 0) {
-    return;
-  }
-
-  const attemptKey = buildAnilistAttemptKey(mediaKey, guess.episode);
-  if (anilistAttemptedUpdateKeys.has(attemptKey)) {
-    return;
-  }
-
-  anilistUpdateInFlight = true;
-  try {
-    await processNextAnilistRetryUpdate();
-
-    const accessToken = await refreshAnilistClientSecretState();
-    if (!accessToken) {
-      anilistUpdateQueue.enqueue(attemptKey, guess.title, guess.episode);
-      anilistUpdateQueue.markFailure(attemptKey, 'cannot authenticate without anilist.accessToken');
-      anilistStateRuntime.refreshRetryQueueState();
-      showMpvOsd('AniList: access token not configured');
-      return;
-    }
-    const result = await updateAnilistPostWatchProgress(accessToken, guess.title, guess.episode);
-    if (result.status === 'updated') {
-      rememberAnilistAttemptedUpdateKey(attemptKey);
-      anilistUpdateQueue.markSuccess(attemptKey);
-      anilistStateRuntime.refreshRetryQueueState();
-      showMpvOsd(result.message);
-      logger.info(result.message);
-      return;
-    }
-    if (result.status === 'skipped') {
-      rememberAnilistAttemptedUpdateKey(attemptKey);
-      anilistUpdateQueue.markSuccess(attemptKey);
-      anilistStateRuntime.refreshRetryQueueState();
-      logger.info(result.message);
-      return;
-    }
-    anilistUpdateQueue.enqueue(attemptKey, guess.title, guess.episode);
-    anilistUpdateQueue.markFailure(attemptKey, result.message);
-    anilistStateRuntime.refreshRetryQueueState();
-    showMpvOsd(`AniList: ${result.message}`);
-    logger.warn(result.message);
-  } finally {
-    anilistUpdateInFlight = false;
-  }
-}
-
-function loadSubtitlePosition(): SubtitlePosition | null {
-  appState.subtitlePosition = loadSubtitlePositionCore({
-    currentMediaPath: appState.currentMediaPath,
-    fallbackPosition: getResolvedConfig().subtitlePosition,
-    subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
-  });
-  return appState.subtitlePosition;
-}
-
-function saveSubtitlePosition(position: SubtitlePosition): void {
-  appState.subtitlePosition = position;
-  saveSubtitlePositionCore({
-    position,
-    currentMediaPath: appState.currentMediaPath,
-    subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
-    onQueuePending: (queued) => {
-      appState.pendingSubtitlePosition = queued;
-    },
-    onPersisted: () => {
-      appState.pendingSubtitlePosition = null;
-    },
-  });
-}
+const saveSubtitlePosition = createSaveSubtitlePositionHandler({
+  saveSubtitlePositionCore: (position) => {
+    saveSubtitlePositionCore({
+      position,
+      currentMediaPath: appState.currentMediaPath,
+      subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
+      onQueuePending: (queued) => {
+        appState.pendingSubtitlePosition = queued;
+      },
+      onPersisted: () => {
+        appState.pendingSubtitlePosition = null;
+      },
+    });
+  },
+  setSubtitlePosition: (position) => {
+    appState.subtitlePosition = position;
+  },
+});
 
 registerSubminerProtocolClient();
 
-app.on('open-url', (event, rawUrl) => {
-  event.preventDefault();
-  if (!handleAnilistSetupProtocolUrl(rawUrl)) {
+registerProtocolUrlHandlers({
+  registerOpenUrl: (listener) => {
+    app.on('open-url', listener);
+  },
+  registerSecondInstance: (listener) => {
+    app.on('second-instance', listener);
+  },
+  handleAnilistSetupProtocolUrl: (rawUrl) => handleAnilistSetupProtocolUrl(rawUrl),
+  findAnilistSetupDeepLinkArgvUrl: (argv) => findAnilistSetupDeepLinkArgvUrl(argv),
+  logUnhandledOpenUrl: (rawUrl) => {
     logger.warn('Unhandled app protocol URL', { rawUrl });
-  }
-});
-
-app.on('second-instance', (_event, argv) => {
-  const rawUrl = findAnilistSetupDeepLinkArgvUrl(argv);
-  if (!rawUrl) {
-    return;
-  }
-  if (!handleAnilistSetupProtocolUrl(rawUrl)) {
+  },
+  logUnhandledSecondInstanceUrl: (rawUrl) => {
     logger.warn('Unhandled second-instance protocol URL', { rawUrl });
-  }
+  },
 });
 
 const startupState = runStartupBootstrapRuntime(
@@ -2071,15 +1861,15 @@ void refreshAnilistClientSecretState({ force: true });
 anilistStateRuntime.refreshRetryQueueState();
 
 function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): void {
-  if (
-    appState.texthookerOnlyMode &&
-    !args.texthooker &&
-    (args.start || commandNeedsOverlayRuntime(args))
-  ) {
-    appState.texthookerOnlyMode = false;
-    logger.info('Disabling texthooker-only mode after overlay/start command.');
-    startBackgroundWarmups();
-  }
+  createHandleTexthookerOnlyModeTransitionHandler({
+    isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
+    setTexthookerOnlyMode: (enabled) => {
+      appState.texthookerOnlyMode = enabled;
+    },
+    commandNeedsOverlayRuntime: (inputArgs) => commandNeedsOverlayRuntime(inputArgs),
+    startBackgroundWarmups: () => startBackgroundWarmups(),
+    logInfo: (message) => logger.info(message),
+  })(args);
 
   handleCliCommandRuntimeServiceWithContext(args, source, {
     getSocketPath: () => appState.mpvSocketPath,
@@ -2143,20 +1933,16 @@ function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): 
 }
 
 function handleInitialArgs(): void {
-  if (!appState.initialArgs) return;
-  if (appState.backgroundMode) {
-    ensureTray();
-  }
-  if (
-    !appState.texthookerOnlyMode &&
-    appState.immersionTracker &&
-    appState.mpvClient &&
-    !appState.mpvClient.connected
-  ) {
-    logger.info('Auto-connecting MPV client for immersion tracking');
-    appState.mpvClient.connect();
-  }
-  handleCliCommand(appState.initialArgs, 'initial');
+  createHandleInitialArgsHandler({
+    getInitialArgs: () => appState.initialArgs,
+    isBackgroundMode: () => appState.backgroundMode,
+    ensureTray: () => ensureTray(),
+    isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
+    hasImmersionTracker: () => Boolean(appState.immersionTracker),
+    getMpvClient: () => appState.mpvClient,
+    logInfo: (message) => logger.info(message),
+    handleCliCommand: (args, source) => handleCliCommand(args, source),
+  })();
 }
 
 function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
