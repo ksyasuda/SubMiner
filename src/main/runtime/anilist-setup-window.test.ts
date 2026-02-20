@@ -29,7 +29,7 @@ test('manual anilist setup submission forwards access token to callback consumer
   const handled = handleSubmission('subminer://anilist-setup?access_token=abc123');
   assert.equal(handled, true);
   assert.equal(consumed.length, 1);
-  assert.ok(consumed[0].includes('https://anilist.subminer.moe/#access_token=abc123'));
+  assert.ok(consumed[0]!.includes('https://anilist.subminer.moe/#access_token=abc123'));
 });
 
 test('maybe focus anilist setup window focuses existing window', () => {
@@ -179,7 +179,7 @@ test('anilist setup did-fail-load handler forwards details', () => {
   });
 
   assert.equal(seen.length, 1);
-  assert.equal(seen[0].errorCode, -3);
+  assert.equal(seen[0]!.errorCode, -3);
 });
 
 test('anilist setup did-finish-load handler triggers fallback on blank page', () => {

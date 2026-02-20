@@ -236,7 +236,7 @@ export class KnownWordCacheManager {
     }
 
     if (decks.length === 1) {
-      return `deck:"${escapeAnkiSearchValue(decks[0])}"`;
+      return `deck:"${escapeAnkiSearchValue(decks[0]!)}"`;
     }
 
     const deckQueries = decks.map((deck) => `deck:"${escapeAnkiSearchValue(deck)}"`);

@@ -70,11 +70,11 @@ test('start posts capabilities on socket connect', async () => {
   });
 
   service.start();
-  sockets[0].emit('open');
+  sockets[0]!.emit('open');
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(fetchCalls.length, 1);
-  assert.equal(fetchCalls[0].input, 'http://jellyfin.local:8096/Sessions/Capabilities/Full');
+  assert.equal(fetchCalls[0]!.input, 'http://jellyfin.local:8096/Sessions/Capabilities/Full');
   assert.equal(service.isConnected(), true);
 });
 
@@ -97,9 +97,9 @@ test('socket headers include jellyfin authorization metadata', () => {
 
   service.start();
   assert.equal(seenHeaders.length, 1);
-  assert.ok(seenHeaders[0].Authorization.includes('Client="SubMiner"'));
-  assert.ok(seenHeaders[0].Authorization.includes('DeviceId="device-auth"'));
-  assert.ok(seenHeaders[0]['X-Emby-Authorization']);
+  assert.ok(seenHeaders[0]!['Authorization']!.includes('Client="SubMiner"'));
+  assert.ok(seenHeaders[0]!['Authorization']!.includes('DeviceId="device-auth"'));
+  assert.ok(seenHeaders[0]!['X-Emby-Authorization']);
 });
 
 test('dispatches inbound Play, Playstate, and GeneralCommand messages', () => {
@@ -124,7 +124,7 @@ test('dispatches inbound Play, Playstate, and GeneralCommand messages', () => {
   });
 
   service.start();
-  const socket = sockets[0];
+  const socket = sockets[0]!;
   socket.emit('message', JSON.stringify({ MessageType: 'Play', Data: { ItemId: 'movie-1' } }));
   socket.emit(
     'message',
@@ -174,13 +174,13 @@ test('schedules reconnect with bounded exponential backoff', () => {
   });
 
   service.start();
-  sockets[0].emit('close');
+  sockets[0]!.emit('close');
   pendingTimers.shift()?.();
-  sockets[1].emit('close');
+  sockets[1]!.emit('close');
   pendingTimers.shift()?.();
-  sockets[2].emit('close');
+  sockets[2]!.emit('close');
   pendingTimers.shift()?.();
-  sockets[3].emit('close');
+  sockets[3]!.emit('close');
 
   assert.deepEqual(delays, [100, 200, 400, 400]);
   assert.equal(sockets.length, 4);
@@ -216,7 +216,7 @@ test('Jellyfin remote stop prevents further reconnect/network activity', () => {
 
   service.start();
   assert.equal(sockets.length, 1);
-  sockets[0].emit('close');
+  sockets[0]!.emit('close');
   assert.equal(pendingTimers.length, 1);
 
   service.stop();
@@ -252,7 +252,7 @@ test('reportProgress posts timeline payload and treats failure as non-fatal', as
   });
 
   service.start();
-  sockets[0].emit('open');
+  sockets[0]!.emit('open');
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   const expectedPayload = buildJellyfinTimelinePayload({
@@ -310,7 +310,7 @@ test('advertiseNow validates server registration using Sessions endpoint', async
   });
 
   service.start();
-  sockets[0].emit('open');
+  sockets[0]!.emit('open');
   const ok = await service.advertiseNow();
   assert.equal(ok, true);
   assert.ok(calls.some((url) => url.endsWith('/Sessions')));

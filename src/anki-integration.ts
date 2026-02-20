@@ -411,7 +411,7 @@ export class AnkiIntegration {
         return;
       }
 
-      const noteInfo = notesInfo[0];
+      const noteInfo = notesInfo[0]!;
       this.appendKnownWordsFromNoteInfo(noteInfo);
       const fields = this.extractFields(noteInfo.fields);
 
@@ -1000,13 +1000,13 @@ export class AnkiIntegration {
   private extractLastSoundTag(value: string): string {
     const matches = value.match(/\[sound:[^\]]+\]/g);
     if (!matches || matches.length === 0) return '';
-    return matches[matches.length - 1];
+    return matches[matches.length - 1]!;
   }
 
   private extractLastImageTag(value: string): string {
     const matches = value.match(/<img\b[^>]*>/gi);
     if (!matches || matches.length === 0) return '';
-    return matches[matches.length - 1];
+    return matches[matches.length - 1]!;
   }
 
   private extractImageTags(value: string): string[] {
@@ -1472,7 +1472,7 @@ export class AnkiIntegration {
       log.warn('Keep note not found:', keepNoteId);
       return;
     }
-    const keepNoteInfo = keepNotesInfo[0];
+    const keepNoteInfo = keepNotesInfo[0]!;
     const mergedFields = await this.computeFieldGroupingMergedFields(
       keepNoteId,
       deleteNoteId,
@@ -1539,7 +1539,7 @@ export class AnkiIntegration {
       if (!originalNotesInfo || originalNotesInfo.length === 0) {
         return false;
       }
-      const originalNoteInfo = originalNotesInfo[0];
+      const originalNoteInfo = originalNotesInfo[0]!;
       const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
 
       const originalFields = this.extractFields(originalNoteInfo.fields);

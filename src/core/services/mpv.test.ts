@@ -54,8 +54,8 @@ test('MpvIpcClient handles sub-text property change and broadcasts tokenized sub
   });
 
   assert.equal(events.length, 1);
-  assert.equal(events[0].text, '字幕');
-  assert.equal(events[0].isOverlayVisible, false);
+  assert.equal(events[0]!.text, '字幕');
+  assert.equal(events[0]!.isOverlayVisible, false);
 });
 
 test('MpvIpcClient parses JSON line protocol in processBuffer', () => {
@@ -70,8 +70,8 @@ test('MpvIpcClient parses JSON line protocol in processBuffer', () => {
   (client as any).processBuffer();
 
   assert.equal(seen.length, 2);
-  assert.equal(seen[0].name, 'path');
-  assert.equal(seen[1].request_id, 1);
+  assert.equal(seen[0]!.name, 'path');
+  assert.equal(seen[1]!.request_id, 1);
   assert.equal((client as any).buffer, '{"partial":');
 });
 

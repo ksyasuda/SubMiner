@@ -377,7 +377,7 @@ function isRepeatedKanaSfx(text: string): boolean {
   let hasAdjacentRepeat = false;
 
   for (let i = 0; i < chars.length; i += 1) {
-    const char = chars[i];
+    const char = chars[i]!;
     counts.set(char, (counts.get(char) ?? 0) + 1);
     if (i > 0 && chars[i] === chars[i - 1]) {
       hasAdjacentRepeat = true;

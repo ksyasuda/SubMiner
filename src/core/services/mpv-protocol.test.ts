@@ -177,8 +177,8 @@ test('splitMpvMessagesFromBuffer parses complete lines and preserves partial buf
 
   assert.equal(parsed.messages.length, 2);
   assert.equal(parsed.nextBuffer, '{"partial"');
-  assert.equal(parsed.messages[0].event, 'shutdown');
-  assert.equal(parsed.messages[1].name, 'media-title');
+  assert.equal(parsed.messages[0]!.event, 'shutdown');
+  assert.equal(parsed.messages[1]!.name, 'media-title');
 });
 
 test('splitMpvMessagesFromBuffer reports invalid JSON lines', () => {
@@ -189,7 +189,7 @@ test('splitMpvMessagesFromBuffer reports invalid JSON lines', () => {
   });
 
   assert.equal(errors.length, 1);
-  assert.equal(errors[0].line, '{invalid}');
+  assert.equal(errors[0]!.line, '{invalid}');
 });
 
 test('visibility and boolean parsers handle text values', () => {

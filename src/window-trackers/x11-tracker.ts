@@ -47,10 +47,10 @@ export function parseX11WindowGeometry(winInfo: string): {
     return null;
   }
   return {
-    x: parseInt(xMatch[1], 10),
-    y: parseInt(yMatch[1], 10),
-    width: parseInt(widthMatch[1], 10),
-    height: parseInt(heightMatch[1], 10),
+    x: parseInt(xMatch[1]!, 10),
+    y: parseInt(yMatch[1]!, 10),
+    width: parseInt(widthMatch[1]!, 10),
+    height: parseInt(heightMatch[1]!, 10),
   };
 }
 
@@ -59,7 +59,7 @@ export function parseX11WindowPid(raw: string): number | null {
   if (!pidMatch) {
     return null;
   }
-  const pid = Number.parseInt(pidMatch[1], 10);
+  const pid = Number.parseInt(pidMatch[1]!, 10);
   return Number.isInteger(pid) ? pid : null;
 }
 

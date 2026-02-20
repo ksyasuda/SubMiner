@@ -49,8 +49,8 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler builds expected mpv args', (
 
   launch();
   assert.equal(spawnedArgs.length, 1);
-  assert.ok(spawnedArgs[0].includes('--idle=yes'));
-  assert.ok(spawnedArgs[0].some((arg) => arg.includes('--input-ipc-server=/tmp/subminer.sock')));
+  assert.ok(spawnedArgs[0]!.includes('--idle=yes'));
+  assert.ok(spawnedArgs[0]!.some((arg) => arg.includes('--input-ipc-server=/tmp/subminer.sock')));
   assert.ok(logs.some((entry) => entry.includes('Launched mpv for Jellyfin playback')));
 });
 

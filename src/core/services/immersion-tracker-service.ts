@@ -1443,7 +1443,7 @@ export class ImmersionTrackerService {
         const parsed = new URL(mediaPath);
         const parts = parsed.pathname.split('/').filter(Boolean);
         if (parts.length > 0) {
-          const leaf = decodeURIComponent(parts[parts.length - 1]);
+          const leaf = decodeURIComponent(parts[parts.length - 1]!);
           return this.normalizeText(leaf.replace(/\.[^/.]+$/, ''));
         }
         return this.normalizeText(parsed.hostname) || 'unknown';

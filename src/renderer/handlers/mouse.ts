@@ -126,12 +126,12 @@ export function createMouseHandlers(
     if (!probeChar || isBoundary(probeChar)) return null;
 
     let start = probeIndex;
-    while (start > 0 && !isBoundary(text[start - 1])) {
+    while (start > 0 && !isBoundary(text[start - 1] ?? '')) {
       start -= 1;
     }
 
     let end = probeIndex + 1;
-    while (end < text.length && !isBoundary(text[end])) {
+    while (end < text.length && !isBoundary(text[end] ?? '')) {
       end += 1;
     }
 

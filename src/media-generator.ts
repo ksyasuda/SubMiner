@@ -180,7 +180,7 @@ export class MediaGenerator {
   ): Promise<Buffer> {
     const { format, quality = 92, maxWidth, maxHeight } = options;
     const ext = format === 'webp' ? 'webp' : format === 'png' ? 'png' : 'jpg';
-    const codecMap: Record<string, string> = {
+    const codecMap: Record<'jpg' | 'png' | 'webp', string> = {
       jpg: 'mjpeg',
       png: 'png',
       webp: 'webp',

@@ -35,7 +35,6 @@ export { createFrequencyDictionaryLookup } from './frequency-dictionary';
 export { createJlptVocabularyLookup } from './jlpt-vocab';
 export {
   getIgnoredPos1Entries,
-  JlptIgnoredPos1Entry,
   JLPT_EXCLUDED_TERMS,
   JLPT_IGNORED_MECAB_POS1,
   JLPT_IGNORED_MECAB_POS1_ENTRIES,
@@ -43,6 +42,7 @@ export {
   shouldIgnoreJlptByTerm,
   shouldIgnoreJlptForMecabPos1,
 } from './jlpt-token-filter';
+export type { JlptIgnoredPos1Entry } from './jlpt-token-filter';
 export { loadYomitanExtension } from './yomitan-extension-loader';
 export {
   getJimakuLanguagePreference,
@@ -72,8 +72,6 @@ export {
 export {
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
   MpvIpcClient,
-  MpvRuntimeClientLike,
-  MpvTrackProperty,
   playNextSubtitleRuntime,
   replayCurrentSubtitleRuntime,
   resolveCurrentAudioStreamIndex,
@@ -81,6 +79,7 @@ export {
   setMpvSubVisibilityRuntime,
   showMpvOsdRuntime,
 } from './mpv';
+export type { MpvRuntimeClientLike, MpvTrackProperty } from './mpv';
 export {
   applyMpvSubtitleRenderMetricsPatch,
   DEFAULT_MPV_SUBTITLE_RENDER_METRICS,

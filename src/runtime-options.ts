@@ -47,7 +47,7 @@ function setPathValue(target: Record<string, unknown>, path: string, value: unkn
   const parts = path.split('.');
   let current = target;
   for (let i = 0; i < parts.length; i += 1) {
-    const part = parts[i];
+    const part = parts[i]!;
     const isLeaf = i === parts.length - 1;
     if (isLeaf) {
       current[part] = value;
@@ -188,7 +188,7 @@ export class RuntimeOptionsManager {
       direction === 1
         ? (safeIndex + 1) % values.length
         : (safeIndex - 1 + values.length) % values.length;
-    return this.setOptionValue(id, values[nextIndex]);
+    return this.setOptionValue(id, values[nextIndex]!);
   }
 
   getEffectiveAnkiConnectConfig(baseConfig?: AnkiConnectConfig): AnkiConnectConfig {

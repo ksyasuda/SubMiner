@@ -357,7 +357,7 @@ function createSectionNode(
   list.className = 'session-help-item-list';
 
   section.rows.forEach((row, rowIndex) => {
-    const globalIndex = globalIndexMap[sectionIndex] + rowIndex;
+    const globalIndex = (globalIndexMap[sectionIndex] ?? 0) + rowIndex;
     const button = createShortcutRow(row, globalIndex);
     list.appendChild(button);
   });
@@ -406,6 +406,7 @@ export function createSessionHelpModal(
       item.tabIndex = idx === next ? 0 : -1;
     });
     const activeItem = items[next];
+    if (!activeItem) return;
     activeItem.focus({ preventScroll: true });
     activeItem.scrollIntoView({
       block: 'nearest',
@@ -562,7 +563,7 @@ export function createSessionHelpModal(
 
       const shortcutSections = buildOverlayShortcutSections(shortcuts);
       if (shortcutSections.length > 0) {
-        shortcutSections[0].title = 'Overlay shortcuts (configurable)';
+        shortcutSections[0]!.title = 'Overlay shortcuts (configurable)';
       }
       const colorSection = buildColorSection(styleConfig ?? {});
       helpSections = [...bindingSections, ...shortcutSections, colorSection];

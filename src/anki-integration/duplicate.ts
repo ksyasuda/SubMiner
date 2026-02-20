@@ -23,7 +23,7 @@ export async function findDuplicateNote(
 ): Promise<number | null> {
   let fieldName = '';
   for (const name of Object.keys(noteInfo.fields)) {
-    if (['word', 'expression'].includes(name.toLowerCase()) && noteInfo.fields[name].value) {
+    if (['word', 'expression'].includes(name.toLowerCase()) && noteInfo.fields[name]?.value) {
       fieldName = name;
       break;
     }

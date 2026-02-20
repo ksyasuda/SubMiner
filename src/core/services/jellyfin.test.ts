@@ -119,7 +119,7 @@ test('listItems supports search and formats title', async () => {
         limit: 25,
       },
     );
-    assert.equal(items[0].title, 'Space Show S01E02 Pilot');
+    assert.equal(items[0]!.title, 'Space Show S01E02 Pilot');
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -338,14 +338,14 @@ test('listSubtitleTracks returns all subtitle streams with delivery urls', async
       [2, 3, 4],
     );
     assert.equal(
-      tracks[0].deliveryUrl,
+      tracks[0]!.deliveryUrl,
       'http://jellyfin.local/Videos/movie-1/ms-1/Subtitles/2/Stream.srt?api_key=token',
     );
     assert.equal(
-      tracks[1].deliveryUrl,
+      tracks[1]!.deliveryUrl,
       'http://jellyfin.local/Videos/movie-1/ms-1/Subtitles/3/Stream.srt?api_key=token',
     );
-    assert.equal(tracks[2].deliveryUrl, 'https://cdn.example.com/subs.srt');
+    assert.equal(tracks[2]!.deliveryUrl, 'https://cdn.example.com/subs.srt');
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -556,9 +556,9 @@ test('listSubtitleTracks falls back from PlaybackInfo to item media sources', as
     );
     assert.equal(requestCount, 2);
     assert.equal(tracks.length, 1);
-    assert.equal(tracks[0].index, 11);
+    assert.equal(tracks[0]!.index, 11);
     assert.equal(
-      tracks[0].deliveryUrl,
+      tracks[0]!.deliveryUrl,
       'http://jellyfin.local/Videos/movie-fallback/ms-fallback/Subtitles/11/Stream.srt?api_key=token',
     );
   } finally {

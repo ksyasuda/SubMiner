@@ -199,7 +199,7 @@ export class CardCreationService {
           return;
         }
 
-        const noteInfo = notesInfoResult[0];
+        const noteInfo = notesInfoResult[0]!;
         const fields = this.deps.extractFields(noteInfo.fields);
         const expressionText = fields.expression || fields.word || '';
         const sentenceAudioField = this.getResolvedSentenceAudioFieldName(noteInfo);
@@ -366,7 +366,7 @@ export class CardCreationService {
           return;
         }
 
-        const noteInfo = notesInfoResult[0];
+        const noteInfo = notesInfoResult[0]!;
         const fields = this.deps.extractFields(noteInfo.fields);
         const expressionText = fields.expression || fields.word || '';
 
@@ -536,7 +536,7 @@ export class CardCreationService {
           const noteInfoResult = await this.deps.client.notesInfo([noteId]);
           const noteInfos = noteInfoResult as CardCreationNoteInfo[];
           if (noteInfos.length > 0) {
-            const createdNoteInfo = noteInfos[0];
+            const createdNoteInfo = noteInfos[0]!;
             this.deps.appendKnownWordsFromNoteInfo(createdNoteInfo);
             resolvedSentenceAudioField =
               this.deps.resolveNoteFieldName(createdNoteInfo, audioFieldName) || audioFieldName;

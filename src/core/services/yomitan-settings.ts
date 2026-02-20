@@ -73,7 +73,8 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
 
   setTimeout(() => {
     if (!settingsWindow.isDestroyed()) {
-      settingsWindow.setSize(settingsWindow.getSize()[0], settingsWindow.getSize()[1]);
+      const [width = 0, height = 0] = settingsWindow.getSize();
+      settingsWindow.setSize(width, height);
       settingsWindow.webContents.invalidate();
       settingsWindow.show();
     }

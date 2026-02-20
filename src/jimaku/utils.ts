@@ -51,7 +51,7 @@ function getRetryAfter(headers: http.IncomingHttpHeaders): number | undefined {
   const value = headers['x-ratelimit-reset-after'];
   if (!value) return undefined;
   const raw = Array.isArray(value) ? value[0] : value;
-  const parsed = Number.parseFloat(raw);
+  const parsed = Number.parseFloat(raw!);
   if (!Number.isFinite(parsed)) return undefined;
   return parsed;
 }
@@ -146,8 +146,8 @@ function matchEpisodeFromName(name: string): {
   const seasonEpisode = name.match(/S(\d{1,2})E(\d{1,3})/i);
   if (seasonEpisode && seasonEpisode.index !== undefined) {
     return {
-      season: Number.parseInt(seasonEpisode[1], 10),
-      episode: Number.parseInt(seasonEpisode[2], 10),
+      season: Number.parseInt(seasonEpisode[1]!, 10),
+      episode: Number.parseInt(seasonEpisode[2]!, 10),
       index: seasonEpisode.index,
       confidence: 'high',
     };
@@ -156,8 +156,8 @@ function matchEpisodeFromName(name: string): {
   const alt = name.match(/(\d{1,2})x(\d{1,3})/i);
   if (alt && alt.index !== undefined) {
     return {
-      season: Number.parseInt(alt[1], 10),
-      episode: Number.parseInt(alt[2], 10),
+      season: Number.parseInt(alt[1]!, 10),
+      episode: Number.parseInt(alt[2]!, 10),
       index: alt.index,
       confidence: 'high',
     };
@@ -167,7 +167,7 @@ function matchEpisodeFromName(name: string): {
   if (epOnly && epOnly.index !== undefined) {
     return {
       season: null,
-      episode: Number.parseInt(epOnly[1], 10),
+      episode: Number.parseInt(epOnly[1]!, 10),
       index: epOnly.index,
       confidence: 'medium',
     };
@@ -177,7 +177,7 @@ function matchEpisodeFromName(name: string): {
   if (numeric && numeric.index !== undefined) {
     return {
       season: null,
-      episode: Number.parseInt(numeric[1], 10),
+      episode: Number.parseInt(numeric[1]!, 10),
       index: numeric.index,
       confidence: 'medium',
     };
@@ -190,7 +190,7 @@ function detectSeasonFromDir(mediaPath: string): number | null {
   const parent = path.basename(path.dirname(mediaPath));
   const match = parent.match(/(?:Season|S)\s*(\d{1,2})/i);
   if (!match) return null;
-  const parsed = Number.parseInt(match[1], 10);
+  const parsed = Number.parseInt(match[1]!, 10);
   return Number.isFinite(parsed) ? parsed : null;
 }
 

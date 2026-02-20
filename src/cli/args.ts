@@ -115,7 +115,7 @@ export function parseArgs(argv: string[]): CliArgs {
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
+    if (!arg || !arg.startsWith('--')) continue;
 
     if (arg === '--background') args.background = true;
     else if (arg === '--start') args.start = true;

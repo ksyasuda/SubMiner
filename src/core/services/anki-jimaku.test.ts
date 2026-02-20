@@ -129,7 +129,7 @@ test('refreshKnownWords throws when integration is unavailable', async () => {
 
   await assert.rejects(
     async () => {
-      await registered.refreshKnownWords();
+      await registered.refreshKnownWords!();
     },
     { message: 'AnkiConnect integration not enabled' },
   );
@@ -144,7 +144,7 @@ test('refreshKnownWords delegates to integration', async () => {
     },
   };
 
-  await registered.refreshKnownWords();
+  await registered.refreshKnownWords!();
 
   assert.equal(refreshed, 1);
 });
@@ -158,7 +158,7 @@ test('setAnkiConnectEnabled disables active integration and broadcasts changes',
     },
   };
 
-  registered.setAnkiConnectEnabled(false);
+  registered.setAnkiConnectEnabled!(false);
 
   assert.deepEqual(state.patches, [false]);
   assert.equal(destroyed, 1);
@@ -188,8 +188,8 @@ test('clearAnkiHistory and respondFieldGrouping execute runtime callbacks', () =
     deleteDuplicate: true,
     cancelled: false,
   };
-  registered.clearAnkiHistory();
-  registered.respondFieldGrouping(choice);
+  registered.clearAnkiHistory!();
+  registered.respondFieldGrouping!(choice);
 
   options.getSubtitleTimingTracker = originalGetTracker;
 
@@ -201,7 +201,7 @@ test('clearAnkiHistory and respondFieldGrouping execute runtime callbacks', () =
 test('buildKikuMergePreview returns guard error when integration is missing', async () => {
   const { registered } = createHarness();
 
-  const result = await registered.buildKikuMergePreview({
+  const result = await registered.buildKikuMergePreview!({
     keepNoteId: 1,
     deleteNoteId: 2,
     deleteDuplicate: false,
@@ -227,7 +227,7 @@ test('buildKikuMergePreview delegates to integration when available', async () =
     },
   };
 
-  const result = await registered.buildKikuMergePreview({
+  const result = await registered.buildKikuMergePreview!({
     keepNoteId: 3,
     deleteNoteId: 4,
     deleteDuplicate: true,
@@ -240,7 +240,7 @@ test('buildKikuMergePreview delegates to integration when available', async () =
 test('searchJimakuEntries caps results and onDownloadedSubtitle sends sub-add to mpv', async () => {
   const { registered, state } = createHarness();
 
-  const searchResult = await registered.searchJimakuEntries({ query: 'test' });
+  const searchResult = await registered.searchJimakuEntries!({ query: 'test' });
   assert.deepEqual(state.fetchCalls, [
     {
       endpoint: '/api/entries/search',
@@ -250,6 +250,6 @@ test('searchJimakuEntries caps results and onDownloadedSubtitle sends sub-add to
   assert.equal((searchResult as { ok: boolean }).ok, true);
   assert.equal((searchResult as { data: unknown[] }).data.length, 2);
 
-  registered.onDownloadedSubtitle('/tmp/subtitle.ass');
+  registered.onDownloadedSubtitle!('/tmp/subtitle.ass');
   assert.deepEqual(state.sentCommands, [{ command: ['sub-add', '/tmp/subtitle.ass', 'select'] }]);
 });

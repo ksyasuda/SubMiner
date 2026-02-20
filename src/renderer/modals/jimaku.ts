@@ -204,7 +204,7 @@ export function createJimakuModal(
     if (index < 0 || index >= ctx.state.jimakuEntries.length) return;
 
     ctx.state.selectedEntryIndex = index;
-    ctx.state.currentEntryId = ctx.state.jimakuEntries[index].id;
+    ctx.state.currentEntryId = ctx.state.jimakuEntries[index]!.id;
     renderEntries();
 
     if (ctx.state.currentEntryId !== null) {
@@ -223,7 +223,7 @@ export function createJimakuModal(
       return;
     }
 
-    const file = ctx.state.jimakuFiles[index];
+    const file = ctx.state.jimakuFiles[index]!;
     setJimakuStatus('Downloading subtitle...');
 
     const result: JimakuDownloadResult = await window.electronAPI.jimakuDownloadFile({

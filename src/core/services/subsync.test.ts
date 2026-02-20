@@ -339,6 +339,6 @@ test('runSubsyncManual resolves string sid values from mpv stream properties', a
   assert.equal(syncOutputIndex >= 0, true);
   const outputPath = ffArgs[syncOutputIndex + 1];
   assert.equal(typeof outputPath, 'string');
-  assert.ok(outputPath.length > 0);
-  assert.equal(fs.readFileSync(outputPath, 'utf8'), '');
+  assert.ok(outputPath!.length > 0);
+  assert.equal(fs.readFileSync(outputPath!, 'utf8'), '');
 });

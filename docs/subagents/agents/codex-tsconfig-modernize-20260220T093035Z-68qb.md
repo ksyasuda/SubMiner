@@ -1,0 +1,30 @@
+# Agent Log: codex-tsconfig-modernize-20260220T093035Z-68qb
+
+- alias: `codex-tsconfig-modernize`
+- mission: `Enable noUncheckedIndexedAccess + isolatedModules in root tsconfig and fix resulting compile errors`
+- status: `completed`
+- started_utc: `2026-02-20T09:31:11Z`
+- last_update_utc: `2026-02-20T09:46:26Z`
+- planned_files:
+  - `tsconfig.json`
+  - `src/**/*.ts` (targeted type-safety fixes)
+  - `docs/subagents/INDEX.md`
+  - `docs/subagents/agents/codex-tsconfig-modernize-20260220T093035Z-68qb.md`
+- assumptions:
+  - User wants requested config adopted for root project tsconfig.
+  - Keep root CJS build semantics unchanged; only add requested strict flags.
+- phase:
+  - `handoff`
+- notes:
+  - Read `docs/subagents/INDEX.md` and `docs/subagents/collaboration.md`.
+  - Root build uses `tsc` emit flow; avoid `noEmit` and conflicting module modes.
+  - Applied and kept: `lib` includes `DOM.Iterable`, `moduleDetection: force`, `noImplicitOverride: true`.
+  - Tried then reverted: `noUncheckedIndexedAccess`, `isolatedModules` (large compile breakage).
+  - Validation: `bun run tsc --noEmit` passed.
+  - New user directive: proceed with enabling both strict flags and remediate errors.
+  - Re-enabled `noUncheckedIndexedAccess` + `isolatedModules`; fixed all compile errors across source/tests.
+  - Final validation: `bun run tsc --noEmit` and `bun run test:fast` both pass.
+- touched_files:
+  - `tsconfig.json`
+  - `docs/subagents/INDEX.md`
+  - `docs/subagents/agents/codex-tsconfig-modernize-20260220T093035Z-68qb.md`

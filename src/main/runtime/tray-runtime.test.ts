@@ -38,8 +38,8 @@ test('tray menu template contains expected entries and handlers', () => {
   });
 
   assert.equal(template.length, 7);
-  template[0].click?.();
-  template[5].type === 'separator' ? calls.push('separator') : calls.push('bad');
-  template[6].click?.();
+  template[0]!.click?.();
+  template[5]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
+  template[6]!.click?.();
   assert.deepEqual(calls, ['overlay', 'separator', 'quit']);
 });

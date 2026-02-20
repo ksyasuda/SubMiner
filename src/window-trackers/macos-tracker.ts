@@ -177,10 +177,10 @@ export class MacOSWindowTracker extends BaseWindowTracker {
         if (result && result !== 'not-found') {
           const parts = result.split(',');
           if (parts.length === 4) {
-            const x = parseInt(parts[0], 10);
-            const y = parseInt(parts[1], 10);
-            const width = parseInt(parts[2], 10);
-            const height = parseInt(parts[3], 10);
+            const x = parseInt(parts[0]!, 10);
+            const y = parseInt(parts[1]!, 10);
+            const width = parseInt(parts[2]!, 10);
+            const height = parseInt(parts[3]!, 10);
 
             if (
               Number.isFinite(x) &&

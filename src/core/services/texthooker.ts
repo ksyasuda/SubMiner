@@ -20,7 +20,7 @@ export class Texthooker {
     }
 
     this.server = http.createServer((req, res) => {
-      const urlPath = (req.url || '/').split('?')[0];
+      const urlPath = (req.url || '/').split('?')[0] ?? '/';
       const filePath = path.join(texthookerPath, urlPath === '/' ? 'index.html' : urlPath);
 
       const ext = path.extname(filePath);

@@ -30,7 +30,7 @@ export function createRuntimeOptionsModal(
     if (ctx.state.runtimeOptionSelectedIndex >= ctx.state.runtimeOptions.length) {
       return null;
     }
-    return ctx.state.runtimeOptions[ctx.state.runtimeOptionSelectedIndex];
+    return ctx.state.runtimeOptions[ctx.state.runtimeOptionSelectedIndex] ?? null;
   }
 
   function renderRuntimeOptionsList(): void {
@@ -114,11 +114,11 @@ export function createRuntimeOptionsModal(
         ? (safeIndex + 1) % option.allowedValues.length
         : (safeIndex - 1 + option.allowedValues.length) % option.allowedValues.length;
 
-    ctx.state.runtimeOptionDraftValues.set(option.id, option.allowedValues[nextIndex]);
+    const nextValue = option.allowedValues[nextIndex];
+    if (nextValue === undefined) return;
+    ctx.state.runtimeOptionDraftValues.set(option.id, nextValue);
     renderRuntimeOptionsList();
-    setRuntimeOptionsStatus(
-      `Selected ${option.label}: ${formatRuntimeOptionValue(option.allowedValues[nextIndex])}`,
-    );
+    setRuntimeOptionsStatus(`Selected ${option.label}: ${formatRuntimeOptionValue(nextValue)}`);
   }
 
   async function applySelectedRuntimeOption(): Promise<void> {

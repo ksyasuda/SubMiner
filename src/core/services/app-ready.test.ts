@@ -209,30 +209,31 @@ test('runAppReadyRuntime aggregates multiple critical anki mapping errors', asyn
 
   await runAppReadyRuntime(deps);
 
+  const firstErrorSet = capturedErrors[0]!;
   assert.equal(capturedErrors.length, 1);
-  assert.equal(capturedErrors[0].length, 5);
+  assert.equal(firstErrorSet.length, 5);
   assert.ok(
-    capturedErrors[0].includes(
+    firstErrorSet.includes(
       'ankiConnect.fields.audio must be a non-empty string when ankiConnect is enabled.',
     ),
   );
   assert.ok(
-    capturedErrors[0].includes(
+    firstErrorSet.includes(
       'ankiConnect.fields.image must be a non-empty string when ankiConnect is enabled.',
     ),
   );
   assert.ok(
-    capturedErrors[0].includes(
+    firstErrorSet.includes(
       'ankiConnect.fields.sentence must be a non-empty string when ankiConnect is enabled.',
     ),
   );
   assert.ok(
-    capturedErrors[0].includes(
+    firstErrorSet.includes(
       'ankiConnect.fields.miscInfo must be a non-empty string when ankiConnect is enabled.',
     ),
   );
   assert.ok(
-    capturedErrors[0].includes(
+    firstErrorSet.includes(
       'ankiConnect.fields.translation must be a non-empty string when ankiConnect is enabled.',
     ),
   );

@@ -84,11 +84,11 @@ test('scheduleMpvReconnect clears existing timer and increments attempt', () => 
 
   assert.equal(nextAttempt, 4);
   assert.equal(cleared.length, 1);
-  assert.equal(cleared[0], existing);
+  assert.equal(cleared[0]!, existing);
   assert.equal(setTimers.length, 1);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].attempt, 4);
-  assert.equal(calls[0].delay, getMpvReconnectDelay(3, true));
+  assert.equal(calls[0]!.attempt, 4);
+  assert.equal(calls[0]!.delay, getMpvReconnectDelay(3, true));
   assert.equal(connected, 1);
 });
 

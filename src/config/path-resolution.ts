@@ -54,7 +54,7 @@ export function resolveConfigDir(options: ConfigPathOptions): string {
     }
   }
 
-  return path.join(baseDirs[0], getDefaultAppName(options));
+  return path.join(baseDirs[0]!, getDefaultAppName(options));
 }
 
 export function resolveConfigFilePath(options: ConfigPathOptions): string {
@@ -72,5 +72,5 @@ export function resolveConfigFilePath(options: ConfigPathOptions): string {
     }
   }
 
-  return path.join(baseDirs[0], getDefaultAppName(options), DEFAULT_FILE_NAMES[0]);
+  return path.join(baseDirs[0]!, getDefaultAppName(options), DEFAULT_FILE_NAMES[0]!);
 }

@@ -100,7 +100,7 @@ export class FieldGroupingService {
           this.deps.showOsdNotification('Card not found');
           return;
         }
-        const noteInfoBeforeUpdate = notesInfo[0];
+        const noteInfoBeforeUpdate = notesInfo[0]!;
         const fields = this.deps.extractFields(noteInfoBeforeUpdate.fields);
         const expressionText = fields.expression || fields.word || '';
         if (!expressionText) {
@@ -135,7 +135,7 @@ export class FieldGroupingService {
           return;
         }
 
-        const noteInfo = refreshedInfo[0];
+        const noteInfo = refreshedInfo[0]!;
 
         if (sentenceCardConfig.kikuFieldGrouping === 'auto') {
           await this.deps.handleFieldGroupingAuto(

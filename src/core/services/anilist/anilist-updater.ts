@@ -168,7 +168,7 @@ function pickBestSearchResult(
     return titles.includes(normalizedTarget);
   });
 
-  const selected = exact ?? candidates[0];
+  const selected = exact ?? candidates[0]!;
   const selectedTitle =
     selected.title?.english || selected.title?.romaji || selected.title?.native || title;
   return { id: selected.id, title: selectedTitle };

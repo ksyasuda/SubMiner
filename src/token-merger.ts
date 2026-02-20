@@ -307,6 +307,7 @@ export function markNPlusOneTargets(tokens: MergedToken[], minSentenceWords = 3)
     let sentenceWordCount = 0;
     for (let i = start; i < endExclusive; i++) {
       const token = markedTokens[i];
+      if (!token) continue;
       if (!isSentenceBoundaryToken(token) && token.surface.trim().length > 0) {
         sentenceWordCount += 1;
       }
@@ -317,8 +318,8 @@ export function markNPlusOneTargets(tokens: MergedToken[], minSentenceWords = 3)
     }
 
     if (sentenceWordCount >= minimumSentenceWords && sentenceCandidates.length === 1) {
-      markedTokens[sentenceCandidates[0]] = {
-        ...markedTokens[sentenceCandidates[0]],
+      markedTokens[sentenceCandidates[0]!] = {
+        ...markedTokens[sentenceCandidates[0]!]!,
         isNPlusOneTarget: true,
       };
     }
@@ -326,6 +327,7 @@ export function markNPlusOneTargets(tokens: MergedToken[], minSentenceWords = 3)
 
   for (let i = 0; i < markedTokens.length; i++) {
     const token = markedTokens[i];
+    if (!token) continue;
     if (isSentenceBoundaryToken(token)) {
       markSentence(sentenceStart, i);
       sentenceStart = i + 1;

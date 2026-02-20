@@ -82,8 +82,9 @@ export function serializeSubtitleMarkup(
     const klass = computeWordClass(token, options);
     const parts = token.surface.split('\n');
     for (let index = 0; index < parts.length; index += 1) {
-      if (parts[index]) {
-        chunks.push(`<span class="${klass}">${escapeHtml(parts[index])}</span>`);
+      const part = parts[index];
+      if (part) {
+        chunks.push(`<span class="${klass}">${escapeHtml(part)}</span>`);
       }
       if (index < parts.length - 1) {
         chunks.push('<br>');

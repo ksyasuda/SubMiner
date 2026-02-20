@@ -26,7 +26,7 @@ export function shortcutMatchesInputForLocalFallback(
   const parts = normalized.split('+').filter(Boolean);
   if (parts.length === 0) return false;
 
-  const keyToken = parts[parts.length - 1];
+  const keyToken = parts[parts.length - 1]!;
   const modifierTokens = new Set(parts.slice(0, -1));
   const allowedModifiers = new Set(['shift', 'alt', 'meta', 'control', 'commandorcontrol']);
   for (const token of modifierTokens) {

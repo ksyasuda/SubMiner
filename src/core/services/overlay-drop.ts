@@ -23,7 +23,7 @@ const VIDEO_EXTENSIONS = new Set([
 ]);
 
 function getPathExtension(pathValue: string): string {
-  const normalized = pathValue.split(/[?#]/, 1)[0];
+  const normalized = pathValue.split(/[?#]/, 1)[0] ?? '';
   const dot = normalized.lastIndexOf('.');
   return dot >= 0 ? normalized.slice(dot).toLowerCase() : '';
 }

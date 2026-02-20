@@ -41,7 +41,7 @@ test('handleError logs context and recovers overlay state', () => {
   assert.equal(dismissed, 1);
   assert.equal(restored, 1);
   assert.equal(shown.length, 1);
-  assert.match(shown[0], /recovered/i);
+  assert.match(shown[0]!, /recovered/i);
   assert.equal(payloads.length, 1);
 
   const payload = payloads[0] as {

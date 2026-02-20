@@ -28,7 +28,8 @@ export function cycleSecondarySubMode(deps: CycleSecondarySubModeDeps): void {
 
   const currentMode = deps.getSecondarySubMode();
   const currentIndex = SECONDARY_SUB_CYCLE.indexOf(currentMode);
-  const nextMode = SECONDARY_SUB_CYCLE[(currentIndex + 1) % SECONDARY_SUB_CYCLE.length];
+  const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+  const nextMode = SECONDARY_SUB_CYCLE[(safeIndex + 1) % SECONDARY_SUB_CYCLE.length]!;
   deps.setSecondarySubMode(nextMode);
   deps.broadcastSecondarySubMode(nextMode);
   deps.showMpvOsd(`Secondary subtitle: ${nextMode}`);

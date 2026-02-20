@@ -83,5 +83,5 @@ test('overlay measurement store rate-limits invalid payload warnings', () => {
   now = 11_000;
   store.report({ layer: 'visible' });
   assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /Dropped 3 invalid measurement payload/);
+  assert.match(warnings[0]!, /Dropped 3 invalid measurement payload/);
 });

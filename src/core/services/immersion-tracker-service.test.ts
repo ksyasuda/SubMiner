@@ -124,8 +124,8 @@ testIfSqlite('persists and retrieves minimum immersion tracking fields', async (
 
     const summaries = await tracker.getSessionSummaries(10);
     assert.ok(summaries.length >= 1);
-    assert.ok(summaries[0].linesSeen >= 1);
-    assert.ok(summaries[0].cardsMined >= 2);
+    assert.ok(summaries[0]!.linesSeen >= 1);
+    assert.ok(summaries[0]!.cardsMined >= 2);
 
     tracker.destroy();
 
@@ -376,8 +376,8 @@ testIfSqlite('monthly rollups are grouped by calendar month', async () => {
     const videoRows = rows.filter((row) => row.videoId === 1);
 
     assert.equal(videoRows.length, 2);
-    assert.equal(videoRows[0].rollupDayOrMonth, 202602);
-    assert.equal(videoRows[1].rollupDayOrMonth, 202601);
+    assert.equal(videoRows[0]!.rollupDayOrMonth, 202602);
+    assert.equal(videoRows[1]!.rollupDayOrMonth, 202601);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

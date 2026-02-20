@@ -145,10 +145,11 @@ function renderWithTokens(
     if (surface.includes('\n')) {
       const parts = surface.split('\n');
       for (let i = 0; i < parts.length; i += 1) {
-        if (parts[i]) {
+        const part = parts[i];
+        if (part) {
           const span = document.createElement('span');
           span.className = computeWordClass(token, resolvedFrequencyRenderSettings);
-          span.textContent = parts[i];
+          span.textContent = part;
           if (token.reading) span.dataset.reading = token.reading;
           if (token.headword) span.dataset.headword = token.headword;
           fragment.appendChild(span);
@@ -277,7 +278,7 @@ function renderPlainTextPreserveLineBreaks(root: ParentNode, text: string): void
   const fragment = document.createDocumentFragment();
 
   for (let i = 0; i < lines.length; i += 1) {
-    fragment.appendChild(document.createTextNode(lines[i]));
+    fragment.appendChild(document.createTextNode(lines[i] ?? ''));
     if (i < lines.length - 1) {
       fragment.appendChild(document.createElement('br'));
     }
@@ -361,8 +362,9 @@ export function createSubtitleRenderer(ctx: RendererContext) {
 
     const lines = normalized.split('\n');
     for (let i = 0; i < lines.length; i += 1) {
-      if (lines[i]) {
-        ctx.dom.secondarySubRoot.appendChild(document.createTextNode(lines[i]));
+      const line = lines[i];
+      if (line) {
+        ctx.dom.secondarySubRoot.appendChild(document.createTextNode(line));
       }
       if (i < lines.length - 1) {
         ctx.dom.secondarySubRoot.appendChild(document.createElement('br'));
