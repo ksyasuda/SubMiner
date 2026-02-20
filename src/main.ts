@@ -962,20 +962,29 @@ const buildReportJellyfinRemoteStoppedMainDepsHandler =
   getSession: () => appState.jellyfinRemoteSession,
   logDebug: (message, error) => logger.debug(message, error),
 });
+const reportJellyfinRemoteProgressMainDeps =
+  buildReportJellyfinRemoteProgressMainDepsHandler();
+const reportJellyfinRemoteStoppedMainDeps =
+  buildReportJellyfinRemoteStoppedMainDepsHandler();
 const reportJellyfinRemoteProgress = createReportJellyfinRemoteProgressHandler(
-  buildReportJellyfinRemoteProgressMainDepsHandler(),
+  reportJellyfinRemoteProgressMainDeps,
 );
 const reportJellyfinRemoteStopped = createReportJellyfinRemoteStoppedHandler(
-  buildReportJellyfinRemoteStoppedMainDepsHandler(),
+  reportJellyfinRemoteStoppedMainDeps,
 );
+const handleJellyfinRemotePlayMainDeps = buildHandleJellyfinRemotePlayMainDepsHandler();
+const handleJellyfinRemotePlaystateMainDeps =
+  buildHandleJellyfinRemotePlaystateMainDepsHandler();
+const handleJellyfinRemoteGeneralCommandMainDeps =
+  buildHandleJellyfinRemoteGeneralCommandMainDepsHandler();
 const handleJellyfinRemotePlay = createHandleJellyfinRemotePlay(
-  buildHandleJellyfinRemotePlayMainDepsHandler(),
+  handleJellyfinRemotePlayMainDeps,
 );
 const handleJellyfinRemotePlaystate = createHandleJellyfinRemotePlaystate(
-  buildHandleJellyfinRemotePlaystateMainDepsHandler(),
+  handleJellyfinRemotePlaystateMainDeps,
 );
 const handleJellyfinRemoteGeneralCommand = createHandleJellyfinRemoteGeneralCommand(
-  buildHandleJellyfinRemoteGeneralCommandMainDepsHandler(),
+  handleJellyfinRemoteGeneralCommandMainDeps,
 );
 
 const configHotReloadRuntime = createConfigHotReloadRuntime(buildConfigHotReloadRuntimeMainDepsHandler());
@@ -1031,8 +1040,10 @@ const buildGetFieldGroupingResolverMainDepsHandler = createBuildGetFieldGrouping
   getResolver: () => appState.fieldGroupingResolver,
   },
 );
+const getFieldGroupingResolverMainDeps =
+  buildGetFieldGroupingResolverMainDepsHandler();
 const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler(
-  buildGetFieldGroupingResolverMainDepsHandler(),
+  getFieldGroupingResolverMainDeps,
 );
 
 function getFieldGroupingResolver(): ((choice: KikuFieldGroupingChoice) => void) | null {
@@ -1051,8 +1062,10 @@ const buildSetFieldGroupingResolverMainDepsHandler = createBuildSetFieldGrouping
   getSequence: () => appState.fieldGroupingResolverSequence,
   },
 );
+const setFieldGroupingResolverMainDeps =
+  buildSetFieldGroupingResolverMainDepsHandler();
 const setFieldGroupingResolverHandler = createSetFieldGroupingResolverHandler(
-  buildSetFieldGroupingResolverMainDepsHandler(),
+  setFieldGroupingResolverMainDeps,
 );
 
 function setFieldGroupingResolver(
@@ -1138,8 +1151,9 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
 const buildGetRuntimeOptionsStateMainDepsHandler = createBuildGetRuntimeOptionsStateMainDepsHandler({
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
 });
+const getRuntimeOptionsStateMainDeps = buildGetRuntimeOptionsStateMainDepsHandler();
 const getRuntimeOptionsStateHandler = createGetRuntimeOptionsStateHandler(
-  buildGetRuntimeOptionsStateMainDepsHandler(),
+  getRuntimeOptionsStateMainDeps,
 );
 
 function getRuntimeOptionsState(): RuntimeOptionState[] {
@@ -1154,8 +1168,10 @@ const buildRestorePreviousSecondarySubVisibilityMainDepsHandler =
   createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler({
     getMpvClient: () => appState.mpvClient,
   });
+const restorePreviousSecondarySubVisibilityMainDeps =
+  buildRestorePreviousSecondarySubVisibilityMainDepsHandler();
 const restorePreviousSecondarySubVisibilityHandler = createRestorePreviousSecondarySubVisibilityHandler(
-  buildRestorePreviousSecondarySubVisibilityMainDepsHandler(),
+  restorePreviousSecondarySubVisibilityMainDeps,
 );
 
 function restorePreviousSecondarySubVisibility(): void {
@@ -1172,8 +1188,10 @@ const buildBroadcastRuntimeOptionsChangedMainDepsHandler =
     getRuntimeOptionsState: () => getRuntimeOptionsState(),
     broadcastToOverlayWindows: (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
   });
+const broadcastRuntimeOptionsChangedMainDeps =
+  buildBroadcastRuntimeOptionsChangedMainDepsHandler();
 const broadcastRuntimeOptionsChangedHandler = createBroadcastRuntimeOptionsChangedHandler(
-  buildBroadcastRuntimeOptionsChangedMainDepsHandler(),
+  broadcastRuntimeOptionsChangedMainDeps,
 );
 
 function broadcastRuntimeOptionsChanged(): void {
