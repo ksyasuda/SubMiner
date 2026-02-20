@@ -107,6 +107,14 @@ import {
   createReportJellyfinRemoteStoppedHandler,
 } from './main/runtime/jellyfin-remote-playback';
 import {
+  createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler,
+  createBuildHandleJellyfinRemotePlayMainDepsHandler,
+  createBuildHandleJellyfinRemotePlaystateMainDepsHandler,
+  createBuildReportJellyfinRemoteProgressMainDepsHandler,
+  createBuildReportJellyfinRemoteStoppedMainDepsHandler,
+} from './main/runtime/jellyfin-remote-main-deps';
+import { createBuildSubtitleProcessingControllerMainDepsHandler } from './main/runtime/subtitle-processing-main-deps';
+import {
   createEnsureMpvConnectedForJellyfinPlaybackHandler,
   createLaunchMpvIdleForJellyfinPlaybackHandler,
   createWaitForMpvConnectedHandler,
@@ -156,6 +164,13 @@ import {
   createApplyJellyfinMpvDefaultsHandler,
   createGetDefaultSocketPathHandler,
 } from './main/runtime/mpv-jellyfin-defaults';
+import { createBuildMediaRuntimeMainDepsHandler } from './main/runtime/media-runtime-main-deps';
+import {
+  createBuildDictionaryRootsMainHandler,
+  createBuildFrequencyDictionaryRootsMainHandler,
+  createBuildFrequencyDictionaryRuntimeMainDepsHandler,
+  createBuildJlptDictionaryRuntimeMainDepsHandler,
+} from './main/runtime/dictionary-runtime-main-deps';
 import { createPlayJellyfinItemInMpvHandler } from './main/runtime/jellyfin-playback-launch';
 import { createPreloadJellyfinExternalSubtitlesHandler } from './main/runtime/jellyfin-subtitle-preload';
 import {
@@ -170,6 +185,7 @@ import {
   createGetFieldGroupingResolverHandler,
   createSetFieldGroupingResolverHandler,
 } from './main/runtime/field-grouping-resolver';
+import { createBuildFieldGroupingOverlayMainDepsHandler } from './main/runtime/field-grouping-overlay-main-deps';
 import { createCliCommandContext } from './main/runtime/cli-command-context';
 import { createBindMpvMainEventHandlersHandler } from './main/runtime/mpv-main-event-bindings';
 import { createBuildBindMpvMainEventHandlersMainDepsHandler } from './main/runtime/mpv-main-event-main-deps';
@@ -221,6 +237,7 @@ import {
   createSyncOverlayShortcutsHandler,
   createUnregisterOverlayShortcutsHandler,
 } from './main/runtime/overlay-shortcuts-lifecycle';
+import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/overlay-shortcuts-runtime-main-deps';
 import {
   createMarkLastCardAsAudioCardHandler,
   createMineSentenceCardHandler,
@@ -239,6 +256,7 @@ import {
   createToggleInvisibleOverlayHandler,
   createToggleVisibleOverlayHandler,
 } from './main/runtime/overlay-visibility-actions';
+import { createBuildOverlayVisibilityRuntimeMainDepsHandler } from './main/runtime/overlay-visibility-runtime-main-deps';
 import {
   createAppendClipboardVideoToQueueHandler,
   createHandleOverlayModalClosedHandler,
@@ -306,6 +324,11 @@ import {
   createConfigHotReloadMessageHandler,
   resolveSubtitleStyleForRenderer,
 } from './main/runtime/config-hot-reload-handlers';
+import {
+  createBuildConfigHotReloadAppliedMainDepsHandler,
+  createBuildConfigHotReloadRuntimeMainDepsHandler,
+  createWatchConfigPathHandler,
+} from './main/runtime/config-hot-reload-main-deps';
 import {
   createBuildCriticalConfigErrorMainDepsHandler,
   createBuildReloadConfigMainDepsHandler,
@@ -607,7 +630,8 @@ const subsyncRuntime = createMainSubsyncRuntime({
   },
 });
 let appTray: Tray | null = null;
-const subtitleProcessingController = createSubtitleProcessingController({
+const buildSubtitleProcessingControllerMainDepsHandler =
+  createBuildSubtitleProcessingControllerMainDepsHandler({
   tokenizeSubtitle: async (text: string) => {
     if (getOverlayWindows().length === 0 && !subtitleWsService.hasClients()) {
       return null;
@@ -627,50 +651,96 @@ const subtitleProcessingController = createSubtitleProcessingController({
   },
   now: () => Date.now(),
 });
-const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
-  getConfiguredShortcuts: () => getConfiguredShortcuts(),
-  getShortcutsRegistered: () => appState.shortcutsRegistered,
-  setShortcutsRegistered: (registered) => {
-    appState.shortcutsRegistered = registered;
-  },
-  isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-  showMpvOsd: (text: string) => showMpvOsd(text),
-  openRuntimeOptionsPalette: () => {
-    openRuntimeOptionsPalette();
-  },
-  openJimaku: () => {
-    sendToActiveOverlayWindow('jimaku:open', undefined, {
-      restoreOnModalClose: 'jimaku',
-    });
-  },
-  markAudioCard: () => markLastCardAsAudioCard(),
-  copySubtitleMultiple: (timeoutMs) => {
-    startPendingMultiCopy(timeoutMs);
-  },
-  copySubtitle: () => {
-    copyCurrentSubtitle();
-  },
-  toggleSecondarySubMode: () => cycleSecondarySubMode(),
-  updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-  triggerFieldGrouping: () => triggerFieldGrouping(),
-  triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-  mineSentenceCard: () => mineSentenceCard(),
-  mineSentenceMultiple: (timeoutMs) => {
-    startPendingMineSentenceMultiple(timeoutMs);
-  },
-  cancelPendingMultiCopy: () => {
-    cancelPendingMultiCopy();
-  },
-  cancelPendingMineSentenceMultiple: () => {
-    cancelPendingMineSentenceMultiple();
-  },
-});
+const subtitleProcessingController = createSubtitleProcessingController(
+  buildSubtitleProcessingControllerMainDepsHandler(),
+);
+const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
+  createBuildOverlayShortcutsRuntimeMainDepsHandler({
+    getConfiguredShortcuts: () => getConfiguredShortcuts(),
+    getShortcutsRegistered: () => appState.shortcutsRegistered,
+    setShortcutsRegistered: (registered) => {
+      appState.shortcutsRegistered = registered;
+    },
+    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+    showMpvOsd: (text: string) => showMpvOsd(text),
+    openRuntimeOptionsPalette: () => {
+      openRuntimeOptionsPalette();
+    },
+    openJimaku: () => {
+      sendToActiveOverlayWindow('jimaku:open', undefined, {
+        restoreOnModalClose: 'jimaku',
+      });
+    },
+    markAudioCard: () => markLastCardAsAudioCard(),
+    copySubtitleMultiple: (timeoutMs) => {
+      startPendingMultiCopy(timeoutMs);
+    },
+    copySubtitle: () => {
+      copyCurrentSubtitle();
+    },
+    toggleSecondarySubMode: () => cycleSecondarySubMode(),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
+    triggerFieldGrouping: () => triggerFieldGrouping(),
+    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    mineSentenceCard: () => mineSentenceCard(),
+    mineSentenceMultiple: (timeoutMs) => {
+      startPendingMineSentenceMultiple(timeoutMs);
+    },
+    cancelPendingMultiCopy: () => {
+      cancelPendingMultiCopy();
+    },
+    cancelPendingMineSentenceMultiple: () => {
+      cancelPendingMineSentenceMultiple();
+    },
+  })(),
+);
 
 const notifyConfigHotReloadMessage = createConfigHotReloadMessageHandler({
   showMpvOsd: (message) => showMpvOsd(message),
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
-const handleJellyfinRemotePlay = createHandleJellyfinRemotePlay({
+const watchConfigPathHandler = createWatchConfigPathHandler({
+  fileExists: (targetPath) => fs.existsSync(targetPath),
+  dirname: (targetPath) => path.dirname(targetPath),
+  watchPath: (targetPath, listener) => fs.watch(targetPath, listener),
+});
+const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadAppliedMainDepsHandler({
+  setKeybindings: (keybindings) => {
+    appState.keybindings = keybindings as never;
+  },
+  refreshGlobalAndOverlayShortcuts: () => {
+    refreshGlobalAndOverlayShortcuts();
+  },
+  setSecondarySubMode: (mode) => {
+    appState.secondarySubMode = mode as never;
+  },
+  broadcastToOverlayWindows: (channel, payload) => {
+    broadcastToOverlayWindows(channel, payload);
+  },
+  applyAnkiRuntimeConfigPatch: (patch) => {
+    if (appState.ankiIntegration) {
+      appState.ankiIntegration.applyRuntimeConfigPatch(patch as never);
+    }
+  },
+});
+const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRuntimeMainDepsHandler({
+  getCurrentConfig: () => getResolvedConfig(),
+  reloadConfigStrict: () => configService.reloadConfigStrict(),
+  watchConfigPath: (configPath, onChange) => watchConfigPathHandler(configPath, onChange),
+  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearTimeout: (timeout) => clearTimeout(timeout),
+  debounceMs: 250,
+  onHotReloadApplied: createConfigHotReloadAppliedHandler(buildConfigHotReloadAppliedMainDepsHandler()),
+  onRestartRequired: (fields) => notifyConfigHotReloadMessage(buildRestartRequiredConfigMessage(fields)),
+  onInvalidConfig: notifyConfigHotReloadMessage,
+  onValidationWarnings: (configPath, warnings) => {
+    showDesktopNotification('SubMiner', {
+      body: buildConfigWarningNotificationBody(configPath, warnings),
+    });
+  },
+});
+const buildHandleJellyfinRemotePlayMainDepsHandler =
+  createBuildHandleJellyfinRemotePlayMainDepsHandler({
   getConfiguredSession: () => getConfiguredJellyfinSession(getResolvedJellyfinConfig()),
   getClientInfo: () => getJellyfinClientInfo(),
   getJellyfinConfig: () => getResolvedJellyfinConfig(),
@@ -678,21 +748,24 @@ const handleJellyfinRemotePlay = createHandleJellyfinRemotePlay({
     playJellyfinItemInMpv(params as Parameters<typeof playJellyfinItemInMpv>[0]),
   logWarn: (message) => logger.warn(message),
 });
-const handleJellyfinRemotePlaystate = createHandleJellyfinRemotePlaystate({
+const buildHandleJellyfinRemotePlaystateMainDepsHandler =
+  createBuildHandleJellyfinRemotePlaystateMainDepsHandler({
   getMpvClient: () => appState.mpvClient,
   sendMpvCommand: (client, command) => sendMpvCommandRuntime(client as MpvIpcClient, command),
   reportJellyfinRemoteProgress: (force) => reportJellyfinRemoteProgress(force),
   reportJellyfinRemoteStopped: () => reportJellyfinRemoteStopped(),
   jellyfinTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
 });
-const handleJellyfinRemoteGeneralCommand = createHandleJellyfinRemoteGeneralCommand({
+const buildHandleJellyfinRemoteGeneralCommandMainDepsHandler =
+  createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler({
   getMpvClient: () => appState.mpvClient,
   sendMpvCommand: (client, command) => sendMpvCommandRuntime(client as MpvIpcClient, command),
   getActivePlayback: () => activeJellyfinRemotePlayback,
   reportJellyfinRemoteProgress: (force) => reportJellyfinRemoteProgress(force),
   logDebug: (message) => logger.debug(message),
 });
-const reportJellyfinRemoteProgress = createReportJellyfinRemoteProgressHandler({
+const buildReportJellyfinRemoteProgressMainDepsHandler =
+  createBuildReportJellyfinRemoteProgressMainDepsHandler({
   getActivePlayback: () => activeJellyfinRemotePlayback,
   clearActivePlayback: () => {
     activeJellyfinRemotePlayback = null;
@@ -708,7 +781,8 @@ const reportJellyfinRemoteProgress = createReportJellyfinRemoteProgressHandler({
   ticksPerSecond: JELLYFIN_TICKS_PER_SECOND,
   logDebug: (message, error) => logger.debug(message, error),
 });
-const reportJellyfinRemoteStopped = createReportJellyfinRemoteStoppedHandler({
+const buildReportJellyfinRemoteStoppedMainDepsHandler =
+  createBuildReportJellyfinRemoteStoppedMainDepsHandler({
   getActivePlayback: () => activeJellyfinRemotePlayback,
   clearActivePlayback: () => {
     activeJellyfinRemotePlayback = null;
@@ -716,118 +790,69 @@ const reportJellyfinRemoteStopped = createReportJellyfinRemoteStoppedHandler({
   getSession: () => appState.jellyfinRemoteSession,
   logDebug: (message, error) => logger.debug(message, error),
 });
+const reportJellyfinRemoteProgress = createReportJellyfinRemoteProgressHandler(
+  buildReportJellyfinRemoteProgressMainDepsHandler(),
+);
+const reportJellyfinRemoteStopped = createReportJellyfinRemoteStoppedHandler(
+  buildReportJellyfinRemoteStoppedMainDepsHandler(),
+);
+const handleJellyfinRemotePlay = createHandleJellyfinRemotePlay(
+  buildHandleJellyfinRemotePlayMainDepsHandler(),
+);
+const handleJellyfinRemotePlaystate = createHandleJellyfinRemotePlaystate(
+  buildHandleJellyfinRemotePlaystateMainDepsHandler(),
+);
+const handleJellyfinRemoteGeneralCommand = createHandleJellyfinRemoteGeneralCommand(
+  buildHandleJellyfinRemoteGeneralCommandMainDepsHandler(),
+);
 
-const configHotReloadRuntime = createConfigHotReloadRuntime({
-  getCurrentConfig: () => getResolvedConfig(),
-  reloadConfigStrict: () => configService.reloadConfigStrict(),
-  watchConfigPath: (configPath, onChange) => {
-    const watchTarget = fs.existsSync(configPath) ? configPath : path.dirname(configPath);
-    const watcher = fs.watch(watchTarget, (_eventType, filename) => {
-      if (watchTarget === configPath) {
-        onChange();
-        return;
-      }
+const configHotReloadRuntime = createConfigHotReloadRuntime(buildConfigHotReloadRuntimeMainDepsHandler());
 
-      const normalized =
-        typeof filename === 'string' ? filename : filename ? String(filename) : undefined;
-      if (!normalized || normalized === 'config.json' || normalized === 'config.jsonc') {
-        onChange();
-      }
-    });
-    return {
-      close: () => {
-        watcher.close();
-      },
-    };
-  },
-  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
-  clearTimeout: (timeout) => clearTimeout(timeout),
-  debounceMs: 250,
-  onHotReloadApplied: createConfigHotReloadAppliedHandler({
-    setKeybindings: (keybindings) => {
-      appState.keybindings = keybindings;
-    },
-    refreshGlobalAndOverlayShortcuts: () => {
-      refreshGlobalAndOverlayShortcuts();
-    },
-    setSecondarySubMode: (mode) => {
-      appState.secondarySubMode = mode;
-    },
-    broadcastToOverlayWindows: (channel, payload) => {
-      broadcastToOverlayWindows(channel, payload);
-    },
-    applyAnkiRuntimeConfigPatch: (patch) => {
-      if (appState.ankiIntegration) {
-        appState.ankiIntegration.applyRuntimeConfigPatch(patch);
-      }
-    },
-  }),
-  onRestartRequired: (fields) => notifyConfigHotReloadMessage(buildRestartRequiredConfigMessage(fields)),
-  onInvalidConfig: notifyConfigHotReloadMessage,
-  onValidationWarnings: (configPath, warnings) => {
-    showDesktopNotification('SubMiner', {
-      body: buildConfigWarningNotificationBody(configPath, warnings),
-    });
-  },
+const buildDictionaryRootsHandler = createBuildDictionaryRootsMainHandler({
+  dirname: __dirname,
+  appPath: app.getAppPath(),
+  resourcesPath: process.resourcesPath,
+  userDataPath: USER_DATA_PATH,
+  appUserDataPath: app.getPath('userData'),
+  homeDir: os.homedir(),
+  cwd: process.cwd(),
+  joinPath: (...parts) => path.join(...parts),
+});
+const buildFrequencyDictionaryRootsHandler = createBuildFrequencyDictionaryRootsMainHandler({
+  dirname: __dirname,
+  appPath: app.getAppPath(),
+  resourcesPath: process.resourcesPath,
+  userDataPath: USER_DATA_PATH,
+  appUserDataPath: app.getPath('userData'),
+  homeDir: os.homedir(),
+  cwd: process.cwd(),
+  joinPath: (...parts) => path.join(...parts),
 });
 
-const jlptDictionaryRuntime = createJlptDictionaryRuntimeService({
-  isJlptEnabled: () => getResolvedConfig().subtitleStyle.enableJlpt,
-  getSearchPaths: () =>
-    getJlptDictionarySearchPaths({
-      getDictionaryRoots: () => [
-        path.join(__dirname, '..', '..', 'vendor', 'yomitan-jlpt-vocab'),
-        path.join(app.getAppPath(), 'vendor', 'yomitan-jlpt-vocab'),
-        path.join(process.resourcesPath, 'yomitan-jlpt-vocab'),
-        path.join(process.resourcesPath, 'app.asar', 'vendor', 'yomitan-jlpt-vocab'),
-        USER_DATA_PATH,
-        app.getPath('userData'),
-        path.join(os.homedir(), '.config', 'SubMiner'),
-        path.join(os.homedir(), '.config', 'subminer'),
-        path.join(os.homedir(), 'Library', 'Application Support', 'SubMiner'),
-        path.join(os.homedir(), 'Library', 'Application Support', 'subminer'),
-        process.cwd(),
-      ],
-    }),
-  setJlptLevelLookup: (lookup) => {
-    appState.jlptLevelLookup = lookup;
-  },
-  log: (message) => {
-    logger.info(`[JLPT] ${message}`);
-  },
-});
+const jlptDictionaryRuntime = createJlptDictionaryRuntimeService(
+  createBuildJlptDictionaryRuntimeMainDepsHandler({
+    isJlptEnabled: () => getResolvedConfig().subtitleStyle.enableJlpt,
+    getDictionaryRoots: () => buildDictionaryRootsHandler(),
+    getJlptDictionarySearchPaths,
+    setJlptLevelLookup: (lookup) => {
+      appState.jlptLevelLookup = lookup as never;
+    },
+    logInfo: (message) => logger.info(message),
+  })(),
+);
 
-const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService({
-  isFrequencyDictionaryEnabled: () => getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-  getSearchPaths: () =>
-    getFrequencyDictionarySearchPaths({
-      getDictionaryRoots: () =>
-        [
-          path.join(__dirname, '..', '..', 'vendor', 'jiten_freq_global'),
-          path.join(__dirname, '..', '..', 'vendor', 'frequency-dictionary'),
-          path.join(app.getAppPath(), 'vendor', 'jiten_freq_global'),
-          path.join(app.getAppPath(), 'vendor', 'frequency-dictionary'),
-          path.join(process.resourcesPath, 'jiten_freq_global'),
-          path.join(process.resourcesPath, 'frequency-dictionary'),
-          path.join(process.resourcesPath, 'app.asar', 'vendor', 'jiten_freq_global'),
-          path.join(process.resourcesPath, 'app.asar', 'vendor', 'frequency-dictionary'),
-          USER_DATA_PATH,
-          app.getPath('userData'),
-          path.join(os.homedir(), '.config', 'SubMiner'),
-          path.join(os.homedir(), '.config', 'subminer'),
-          path.join(os.homedir(), 'Library', 'Application Support', 'SubMiner'),
-          path.join(os.homedir(), 'Library', 'Application Support', 'subminer'),
-          process.cwd(),
-        ].filter((dictionaryRoot) => dictionaryRoot),
-      getSourcePath: () => getResolvedConfig().subtitleStyle.frequencyDictionary.sourcePath,
-    }),
-  setFrequencyRankLookup: (lookup) => {
-    appState.frequencyRankLookup = lookup;
-  },
-  log: (message) => {
-    logger.info(`[Frequency] ${message}`);
-  },
-});
+const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService(
+  createBuildFrequencyDictionaryRuntimeMainDepsHandler({
+    isFrequencyDictionaryEnabled: () => getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+    getDictionaryRoots: () => buildFrequencyDictionaryRootsHandler(),
+    getFrequencyDictionarySearchPaths,
+    getSourcePath: () => getResolvedConfig().subtitleStyle.frequencyDictionary.sourcePath,
+    setFrequencyRankLookup: (lookup) => {
+      appState.frequencyRankLookup = lookup as never;
+    },
+    logInfo: (message) => logger.info(message),
+  })(),
+);
 
 const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler({
   getResolver: () => appState.fieldGroupingResolver,
@@ -854,71 +879,79 @@ function setFieldGroupingResolver(
   setFieldGroupingResolverHandler(resolver);
 }
 
-const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHostedModal>({
-  getMainWindow: () => overlayManager.getMainWindow(),
-  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
-  setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-  setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
-  getResolver: () => getFieldGroupingResolver(),
-  setResolver: (resolver) => setFieldGroupingResolver(resolver),
-  getRestoreVisibleOverlayOnModalClose: () =>
-    overlayModalRuntime.getRestoreVisibleOverlayOnModalClose(),
-  sendToVisibleOverlay: (channel, payload, runtimeOptions) => {
-    return overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions);
-  },
-});
+const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHostedModal>(
+  createBuildFieldGroupingOverlayMainDepsHandler<
+    OverlayHostedModal,
+    KikuFieldGroupingChoice
+  >({
+    getMainWindow: () => overlayManager.getMainWindow(),
+    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
+    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+    setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
+    getResolver: () => getFieldGroupingResolver(),
+    setResolver: (resolver) => setFieldGroupingResolver(resolver),
+    getRestoreVisibleOverlayOnModalClose: () =>
+      overlayModalRuntime.getRestoreVisibleOverlayOnModalClose(),
+    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
+      overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+  })(),
+);
 const createFieldGroupingCallback = fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
 
-const mediaRuntime = createMediaRuntimeService({
-  isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
-  loadSubtitlePosition: () => loadSubtitlePosition(),
-  getCurrentMediaPath: () => appState.currentMediaPath,
-  getPendingSubtitlePosition: () => appState.pendingSubtitlePosition,
-  getSubtitlePositionsDir: () => SUBTITLE_POSITIONS_DIR,
-  setCurrentMediaPath: (nextPath: string | null) => {
-    appState.currentMediaPath = nextPath;
-  },
-  clearPendingSubtitlePosition: () => {
-    appState.pendingSubtitlePosition = null;
-  },
-  setSubtitlePosition: (position: SubtitlePosition | null) => {
-    appState.subtitlePosition = position;
-  },
-  broadcastSubtitlePosition: (position) => {
-    broadcastToOverlayWindows('subtitle-position:set', position);
-  },
-  getCurrentMediaTitle: () => appState.currentMediaTitle,
-  setCurrentMediaTitle: (title) => {
-    appState.currentMediaTitle = title;
-  },
-});
+const mediaRuntime = createMediaRuntimeService(
+  createBuildMediaRuntimeMainDepsHandler({
+    isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
+    loadSubtitlePosition: () => loadSubtitlePosition(),
+    getCurrentMediaPath: () => appState.currentMediaPath,
+    getPendingSubtitlePosition: () => appState.pendingSubtitlePosition,
+    getSubtitlePositionsDir: () => SUBTITLE_POSITIONS_DIR,
+    setCurrentMediaPath: (nextPath: string | null) => {
+      appState.currentMediaPath = nextPath;
+    },
+    clearPendingSubtitlePosition: () => {
+      appState.pendingSubtitlePosition = null;
+    },
+    setSubtitlePosition: (position: SubtitlePosition | null) => {
+      appState.subtitlePosition = position;
+    },
+    broadcastToOverlayWindows: (channel, payload) => {
+      broadcastToOverlayWindows(channel, payload);
+    },
+    getCurrentMediaTitle: () => appState.currentMediaTitle,
+    setCurrentMediaTitle: (title) => {
+      appState.currentMediaTitle = title;
+    },
+  })(),
+);
 
-const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService({
-  getMainWindow: () => overlayManager.getMainWindow(),
-  getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
-  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
-  getWindowTracker: () => appState.windowTracker,
-  getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
-  setTrackerNotReadyWarningShown: (shown: boolean) => {
-    appState.trackerNotReadyWarningShown = shown;
-  },
-  updateVisibleOverlayBounds: (geometry: WindowGeometry) => updateVisibleOverlayBounds(geometry),
-  updateInvisibleOverlayBounds: (geometry: WindowGeometry) =>
-    updateInvisibleOverlayBounds(geometry),
-  ensureOverlayWindowLevel: (window) => {
-    ensureOverlayWindowLevel(window);
-  },
-  enforceOverlayLayerOrder: () => {
-    enforceOverlayLayerOrder();
-  },
-  syncOverlayShortcuts: () => {
-    overlayShortcutsRuntime.syncOverlayShortcuts();
-  },
-});
+const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
+  createBuildOverlayVisibilityRuntimeMainDepsHandler({
+    getMainWindow: () => overlayManager.getMainWindow(),
+    getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
+    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
+    getWindowTracker: () => appState.windowTracker,
+    getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
+    setTrackerNotReadyWarningShown: (shown: boolean) => {
+      appState.trackerNotReadyWarningShown = shown;
+    },
+    updateVisibleOverlayBounds: (geometry: WindowGeometry) => updateVisibleOverlayBounds(geometry),
+    updateInvisibleOverlayBounds: (geometry: WindowGeometry) =>
+      updateInvisibleOverlayBounds(geometry),
+    ensureOverlayWindowLevel: (window) => {
+      ensureOverlayWindowLevel(window);
+    },
+    enforceOverlayLayerOrder: () => {
+      enforceOverlayLayerOrder();
+    },
+    syncOverlayShortcuts: () => {
+      overlayShortcutsRuntime.syncOverlayShortcuts();
+    },
+  })(),
+);
 
 const getRuntimeOptionsStateHandler = createGetRuntimeOptionsStateHandler({
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
