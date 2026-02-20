@@ -289,7 +289,6 @@ import {
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
 } from './main/runtime/overlay-window-layout-main-deps';
 import { buildTrayMenuTemplateRuntime, resolveTrayIconPathRuntime } from './main/runtime/tray-runtime';
-import { createInitializeOverlayRuntimeHandler } from './main/runtime/overlay-runtime-bootstrap';
 import {
   createGetConfiguredShortcutsHandler,
   createRefreshGlobalAndOverlayShortcutsHandler,
@@ -381,14 +380,10 @@ import {
 import { createIpcRuntimeHandlers } from './main/runtime/ipc-runtime-handlers';
 import { createBuildMpvCommandFromIpcRuntimeMainDepsHandler } from './main/runtime/ipc-mpv-command-main-deps';
 import { createOverlayWindowRuntimeHandlers } from './main/runtime/overlay-window-runtime-handlers';
-import {
-  createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler,
-} from './main/runtime/app-runtime-main-deps';
+import { createOverlayRuntimeBootstrapHandlers } from './main/runtime/overlay-runtime-bootstrap-handlers';
 import { createTrayRuntimeHandlers } from './main/runtime/tray-runtime-handlers';
 import { createYomitanExtensionRuntime } from './main/runtime/yomitan-extension-runtime';
 import { createYomitanSettingsRuntime } from './main/runtime/yomitan-settings-runtime';
-import { createBuildInitializeOverlayRuntimeOptionsHandler } from './main/runtime/overlay-runtime-options';
-import { createBuildInitializeOverlayRuntimeMainDepsHandler } from './main/runtime/overlay-runtime-options-main-deps';
 import {
   createOnWillQuitCleanupHandler,
   createRestoreWindowsOnActivateHandler,
@@ -3082,49 +3077,47 @@ const yomitanExtensionRuntime = createYomitanExtensionRuntime({
     yomitanLoadInFlight = promise;
   },
 });
-const buildInitializeOverlayRuntimeOptionsHandler = createBuildInitializeOverlayRuntimeOptionsHandler(
-  createBuildInitializeOverlayRuntimeMainDepsHandler({
-    appState,
-    overlayManager: {
-      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
+const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
+  createOverlayRuntimeBootstrapHandlers({
+    initializeOverlayRuntimeMainDeps: {
+      appState,
+      overlayManager: {
+        getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+        getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
+      },
+      overlayVisibilityRuntime: {
+        updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+        updateInvisibleOverlayVisibility: () =>
+          overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
+      },
+      overlayShortcutsRuntime: {
+        syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
+      },
+      getInitialInvisibleOverlayVisibility: () =>
+        configDerivedRuntime.getInitialInvisibleOverlayVisibility(),
+      createMainWindow: () => createMainWindow(),
+      createInvisibleWindow: () => createInvisibleWindow(),
+      registerGlobalShortcuts: () => registerGlobalShortcuts(),
+      updateVisibleOverlayBounds: (geometry) => updateVisibleOverlayBounds(geometry),
+      updateInvisibleOverlayBounds: (geometry) => updateInvisibleOverlayBounds(geometry),
+      getOverlayWindows: () => getOverlayWindows(),
+      getResolvedConfig: () => getResolvedConfig(),
+      showDesktopNotification,
+      createFieldGroupingCallback: () => createFieldGroupingCallback() as never,
+      getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
     },
-    overlayVisibilityRuntime: {
-      updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
-      updateInvisibleOverlayVisibility: () =>
-        overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
+    initializeOverlayRuntimeBootstrapDeps: {
+      isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+      initializeOverlayRuntimeCore: (options) => initializeOverlayRuntimeCore(options as never),
+      setInvisibleOverlayVisible: (visible) => {
+        overlayManager.setInvisibleOverlayVisible(visible);
+      },
+      setOverlayRuntimeInitialized: (initialized) => {
+        appState.overlayRuntimeInitialized = initialized;
+      },
+      startBackgroundWarmups: () => startBackgroundWarmups(),
     },
-    overlayShortcutsRuntime: {
-      syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
-    },
-    getInitialInvisibleOverlayVisibility: () =>
-      configDerivedRuntime.getInitialInvisibleOverlayVisibility(),
-    createMainWindow: () => createMainWindow(),
-    createInvisibleWindow: () => createInvisibleWindow(),
-    registerGlobalShortcuts: () => registerGlobalShortcuts(),
-    updateVisibleOverlayBounds: (geometry) => updateVisibleOverlayBounds(geometry),
-    updateInvisibleOverlayBounds: (geometry) => updateInvisibleOverlayBounds(geometry),
-    getOverlayWindows: () => getOverlayWindows(),
-    getResolvedConfig: () => getResolvedConfig(),
-    showDesktopNotification,
-    createFieldGroupingCallback: () => createFieldGroupingCallback() as never,
-    getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
-  })(),
-);
-const initializeOverlayRuntimeHandler = createInitializeOverlayRuntimeHandler(
-  createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler({
-    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-    initializeOverlayRuntimeCore: (options) => initializeOverlayRuntimeCore(options as never),
-    buildOptions: () => buildInitializeOverlayRuntimeOptionsHandler(),
-    setInvisibleOverlayVisible: (visible) => {
-      overlayManager.setInvisibleOverlayVisible(visible);
-    },
-    setOverlayRuntimeInitialized: (initialized) => {
-      appState.overlayRuntimeInitialized = initialized;
-    },
-    startBackgroundWarmups: () => startBackgroundWarmups(),
-  })(),
-);
+  });
 const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSettingsRuntime({
   ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
   openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow }) => {
