@@ -243,8 +243,7 @@ import {
   createBuildStartJellyfinRemoteSessionMainDepsHandler,
   createBuildStopJellyfinRemoteSessionMainDepsHandler,
 } from './main/runtime/jellyfin-remote-session-main-deps';
-import { createHandleInitialArgsHandler } from './main/runtime/initial-args-handler';
-import { createBuildHandleInitialArgsMainDepsHandler } from './main/runtime/initial-args-main-deps';
+import { createInitialArgsRuntimeHandler } from './main/runtime/initial-args-runtime-handler';
 import { createHandleTexthookerOnlyModeTransitionHandler } from './main/runtime/cli-command-prechecks';
 import { createBuildHandleTexthookerOnlyModeTransitionMainDepsHandler } from './main/runtime/cli-command-prechecks-main-deps';
 import {
@@ -394,7 +393,6 @@ import {
   createBuildRestoreWindowsOnActivateMainDepsHandler,
   createBuildShouldRestoreWindowsOnActivateMainDepsHandler,
 } from './main/runtime/app-lifecycle-main-activate';
-import { createBuildStartupBootstrapRuntimeFactoryDepsHandler } from './main/runtime/startup-bootstrap-deps-builder';
 import {
   buildRestartRequiredConfigMessage,
   createConfigHotReloadAppliedHandler,
@@ -413,8 +411,7 @@ import {
   createBuildReloadConfigMainDepsHandler,
 } from './main/runtime/startup-config-main-deps';
 import { createBuildAppReadyRuntimeMainDepsHandler } from './main/runtime/app-ready-main-deps';
-import { createBuildAppLifecycleRuntimeRunnerMainDepsHandler } from './main/runtime/startup-lifecycle-main-deps';
-import { createBuildStartupBootstrapMainDepsHandler } from './main/runtime/startup-bootstrap-main-deps';
+import { createStartupRuntimeHandlers } from './main/runtime/startup-runtime-handlers';
 import {
   enforceUnsupportedWaylandMode,
   forceX11Backend,
@@ -484,6 +481,8 @@ import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAppReadyRuntimeRunner } from './main/app-lifecycle';
+import { createStartupBootstrapRuntimeDeps } from './main/startup';
+import { createAppLifecycleRuntimeRunner } from './main/startup-lifecycle';
 import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
@@ -500,13 +499,11 @@ import {
 } from './main/frequency-dictionary-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
-import { type AppState, applyStartupState, createAppState } from './main/state';
+import { type AppState, type StartupState, applyStartupState, createAppState } from './main/state';
 import {
   isAllowedAnilistExternalUrl,
   isAllowedAnilistSetupNavigationUrl,
 } from './main/anilist-url-guard';
-import { createStartupBootstrapRuntimeDeps } from './main/startup';
-import { createAppLifecycleRuntimeRunner } from './main/startup-lifecycle';
 import {
   ConfigService,
   DEFAULT_CONFIG,
@@ -2130,8 +2127,12 @@ const buildAppReadyRuntimeMainDepsHandler = createBuildAppReadyRuntimeMainDepsHa
   });
 const appReadyRuntimeRunner = createAppReadyRuntimeRunner(buildAppReadyRuntimeMainDepsHandler());
 
-const buildAppLifecycleRuntimeRunnerMainDepsHandler =
-  createBuildAppLifecycleRuntimeRunnerMainDepsHandler({
+const { appLifecycleRuntimeRunner, runAndApplyStartupState } = createStartupRuntimeHandlers<
+  CliArgs,
+  StartupState,
+  ReturnType<typeof createStartupBootstrapRuntimeDeps>
+>({
+  appLifecycleRuntimeRunnerMainDeps: {
     app,
     platform: process.platform,
     shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
@@ -2145,53 +2146,47 @@ const buildAppLifecycleRuntimeRunnerMainDepsHandler =
     shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
     restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
     shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
-  });
-const appLifecycleRuntimeRunnerMainDeps = buildAppLifecycleRuntimeRunnerMainDepsHandler();
-const appLifecycleRuntimeRunner = createAppLifecycleRuntimeRunner(
-  appLifecycleRuntimeRunnerMainDeps,
-);
+  },
+  createAppLifecycleRuntimeRunner: (params) => createAppLifecycleRuntimeRunner(params),
+  buildStartupBootstrapMainDeps: (startAppLifecycle) => ({
+    argv: process.argv,
+    parseArgs: (argv: string[]) => parseArgs(argv),
+    setLogLevel: (level: string, source: LogLevelSource) => {
+      setLogLevel(level, source);
+    },
+    forceX11Backend: (args: CliArgs) => {
+      forceX11Backend(args);
+    },
+    enforceUnsupportedWaylandMode: (args: CliArgs) => {
+      enforceUnsupportedWaylandMode(args);
+    },
+    shouldStartApp: (args: CliArgs) => shouldStartApp(args),
+    getDefaultSocketPath: () => getDefaultSocketPath(),
+    defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
+    configDir: CONFIG_DIR,
+    defaultConfig: DEFAULT_CONFIG,
+    generateConfigTemplate: (config: ResolvedConfig) => generateConfigTemplate(config),
+    generateDefaultConfigFile: (
+      args: CliArgs,
+      options: {
+        configDir: string;
+        defaultConfig: unknown;
+        generateTemplate: (config: unknown) => string;
+      },
+    ) => generateDefaultConfigFile(args, options),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+    quitApp: () => app.quit(),
+    logGenerateConfigError: (message) => logger.error(message),
+    startAppLifecycle,
+  }),
+  createStartupBootstrapRuntimeDeps: (deps) => createStartupBootstrapRuntimeDeps(deps),
+  runStartupBootstrapRuntime,
+  applyStartupState: (startupState) => applyStartupState(appState, startupState),
+});
 
-const buildStartupBootstrapMainDepsHandler = createBuildStartupBootstrapMainDepsHandler({
-      argv: process.argv,
-      parseArgs: (argv: string[]) => parseArgs(argv),
-      setLogLevel: (level: string, source: LogLevelSource) => {
-        setLogLevel(level, source);
-      },
-      forceX11Backend: (args: CliArgs) => {
-        forceX11Backend(args);
-      },
-      enforceUnsupportedWaylandMode: (args: CliArgs) => {
-        enforceUnsupportedWaylandMode(args);
-      },
-      shouldStartApp: (args: CliArgs) => shouldStartApp(args),
-      getDefaultSocketPath: () => getDefaultSocketPath(),
-      defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
-      configDir: CONFIG_DIR,
-      defaultConfig: DEFAULT_CONFIG,
-      generateConfigTemplate: (config: ResolvedConfig) => generateConfigTemplate(config),
-      generateDefaultConfigFile: (
-        args: CliArgs,
-        options: {
-          configDir: string;
-          defaultConfig: unknown;
-          generateTemplate: (config: unknown) => string;
-        },
-      ) => generateDefaultConfigFile(args, options),
-      setExitCode: (code) => {
-        process.exitCode = code;
-      },
-      quitApp: () => app.quit(),
-      logGenerateConfigError: (message) => logger.error(message),
-      startAppLifecycle: appLifecycleRuntimeRunner,
-    });
-const buildStartupBootstrapRuntimeFactoryDepsHandler =
-  createBuildStartupBootstrapRuntimeFactoryDepsHandler(buildStartupBootstrapMainDepsHandler());
-
-const startupState = runStartupBootstrapRuntime(
-  createStartupBootstrapRuntimeDeps(buildStartupBootstrapRuntimeFactoryDepsHandler()),
-);
-
-applyStartupState(appState, startupState);
+runAndApplyStartupState();
 void refreshAnilistClientSecretState({ force: true });
 anilistStateRuntime.refreshRetryQueueState();
 
@@ -2214,7 +2209,7 @@ function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): 
   handleCliCommandRuntimeServiceWithContext(args, source, cliContext);
 }
 
-const buildHandleInitialArgsMainDepsHandler = createBuildHandleInitialArgsMainDepsHandler({
+const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   getInitialArgs: () => appState.initialArgs,
   isBackgroundMode: () => appState.backgroundMode,
   ensureTray: () => ensureTray(),
@@ -2224,10 +2219,6 @@ const buildHandleInitialArgsMainDepsHandler = createBuildHandleInitialArgsMainDe
   logInfo: (message) => logger.info(message),
   handleCliCommand: (args, source) => handleCliCommand(args, source),
 });
-const handleInitialArgsMainDeps = buildHandleInitialArgsMainDepsHandler();
-const handleInitialArgsRuntimeHandler = createHandleInitialArgsHandler(
-  handleInitialArgsMainDeps,
-);
 
 function handleInitialArgs(): void {
   handleInitialArgsRuntimeHandler();
