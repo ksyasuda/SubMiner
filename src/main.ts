@@ -1467,8 +1467,9 @@ const buildNotifyAnilistSetupMainDepsHandler = createBuildNotifyAnilistSetupMain
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
   logInfo: (message) => logger.info(message),
 });
+const notifyAnilistSetupMainDeps = buildNotifyAnilistSetupMainDepsHandler();
 const notifyAnilistSetup = createNotifyAnilistSetupHandler(
-  buildNotifyAnilistSetupMainDepsHandler(),
+  notifyAnilistSetupMainDeps,
 );
 
 const buildConsumeAnilistSetupTokenFromUrlMainDepsHandler =
@@ -1499,8 +1500,10 @@ const buildConsumeAnilistSetupTokenFromUrlMainDepsHandler =
       }
     },
   });
+const consumeAnilistSetupTokenFromUrlMainDeps =
+  buildConsumeAnilistSetupTokenFromUrlMainDepsHandler();
 const consumeAnilistSetupTokenFromUrl = createConsumeAnilistSetupTokenFromUrlHandler(
-  buildConsumeAnilistSetupTokenFromUrlMainDepsHandler(),
+  consumeAnilistSetupTokenFromUrlMainDeps,
 );
 
 const buildHandleAnilistSetupProtocolUrlMainDepsHandler =
@@ -1508,8 +1511,10 @@ const buildHandleAnilistSetupProtocolUrlMainDepsHandler =
     consumeAnilistSetupTokenFromUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
     logWarn: (message, details) => logger.warn(message, details),
   });
+const handleAnilistSetupProtocolUrlMainDeps =
+  buildHandleAnilistSetupProtocolUrlMainDepsHandler();
 const handleAnilistSetupProtocolUrl = createHandleAnilistSetupProtocolUrlHandler(
-  buildHandleAnilistSetupProtocolUrlMainDepsHandler(),
+  handleAnilistSetupProtocolUrlMainDeps,
 );
 
 const buildRegisterSubminerProtocolClientMainDepsHandler =
@@ -1524,8 +1529,10 @@ const buildRegisterSubminerProtocolClientMainDepsHandler =
         : app.setAsDefaultProtocolClient(scheme),
     logWarn: (message, details) => logger.warn(message, details),
   });
+const registerSubminerProtocolClientMainDeps =
+  buildRegisterSubminerProtocolClientMainDepsHandler();
 const registerSubminerProtocolClient = createRegisterSubminerProtocolClientHandler(
-  buildRegisterSubminerProtocolClientMainDepsHandler(),
+  registerSubminerProtocolClientMainDeps,
 );
 
 const maybeFocusExistingAnilistSetupWindow = createMaybeFocusExistingAnilistSetupWindowHandler({
@@ -1666,8 +1673,10 @@ const buildRefreshAnilistClientSecretStateMainDepsHandler =
     },
     now: () => Date.now(),
   });
+const refreshAnilistClientSecretStateMainDeps =
+  buildRefreshAnilistClientSecretStateMainDepsHandler();
 const refreshAnilistClientSecretState = createRefreshAnilistClientSecretStateHandler(
-  buildRefreshAnilistClientSecretStateMainDepsHandler(),
+  refreshAnilistClientSecretStateMainDeps,
 );
 
 const buildGetCurrentAnilistMediaKeyMainDepsHandler =
