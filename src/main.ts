@@ -381,16 +381,7 @@ import {
 } from './main/runtime/overlay-runtime-main-actions-main-deps';
 import { createIpcRuntimeHandlers } from './main/runtime/ipc-runtime-handlers';
 import { createBuildMpvCommandFromIpcRuntimeMainDepsHandler } from './main/runtime/ipc-mpv-command-main-deps';
-import {
-  createCreateInvisibleWindowHandler,
-  createCreateMainWindowHandler,
-  createCreateOverlayWindowHandler,
-} from './main/runtime/overlay-window-factory';
-import {
-  createBuildCreateInvisibleWindowMainDepsHandler,
-  createBuildCreateMainWindowMainDepsHandler,
-  createBuildCreateOverlayWindowMainDepsHandler,
-} from './main/runtime/overlay-window-factory-main-deps';
+import { createOverlayWindowRuntimeHandlers } from './main/runtime/overlay-window-runtime-handlers';
 import {
   createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler,
   createBuildOpenYomitanSettingsMainDepsHandler,
@@ -2991,14 +2982,19 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
     logWarn: (message: string) => logger.warn(message),
     logError: (message: string, err: unknown) => logger.error(message, err),
   });
-const createOverlayWindowHandler = createCreateOverlayWindowHandler<BrowserWindow>(
-  createBuildCreateOverlayWindowMainDepsHandler<BrowserWindow>({
+const {
+  createOverlayWindow: createOverlayWindowHandler,
+  createMainWindow: createMainWindowHandler,
+  createInvisibleWindow: createInvisibleWindowHandler,
+} = createOverlayWindowRuntimeHandlers<BrowserWindow>({
+  createOverlayWindowDeps: {
     createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
     isDev,
     getOverlayDebugVisualizationEnabled: () => appState.overlayDebugVisualizationEnabled,
     ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
     onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-    setOverlayDebugVisualizationEnabled: (enabled) => setOverlayDebugVisualizationEnabled(enabled),
+    setOverlayDebugVisualizationEnabled: (enabled) =>
+      setOverlayDebugVisualizationEnabled(enabled),
     isOverlayVisible: (windowKind) =>
       windowKind === 'visible'
         ? overlayManager.getVisibleOverlayVisible()
@@ -3012,20 +3008,10 @@ const createOverlayWindowHandler = createCreateOverlayWindowHandler<BrowserWindo
         overlayManager.setInvisibleWindow(null);
       }
     },
-  })(),
-);
-const createMainWindowHandler = createCreateMainWindowHandler<BrowserWindow>(
-  createBuildCreateMainWindowMainDepsHandler<BrowserWindow>({
-    createOverlayWindow: (kind) => createOverlayWindow(kind),
-    setMainWindow: (window) => overlayManager.setMainWindow(window),
-  })(),
-);
-const createInvisibleWindowHandler = createCreateInvisibleWindowHandler<BrowserWindow>(
-  createBuildCreateInvisibleWindowMainDepsHandler<BrowserWindow>({
-    createOverlayWindow: (kind) => createOverlayWindow(kind),
-    setInvisibleWindow: (window) => overlayManager.setInvisibleWindow(window),
-  })(),
-);
+  },
+  setMainWindow: (window) => overlayManager.setMainWindow(window),
+  setInvisibleWindow: (window) => overlayManager.setInvisibleWindow(window),
+});
 const {
   resolveTrayIconPath: resolveTrayIconPathHandler,
   buildTrayMenu: buildTrayMenuHandler,
