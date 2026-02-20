@@ -172,6 +172,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   },
   subtitleStyle: {
     enableJlpt: false,
+    preserveLineBreaks: false,
     fontFamily: 'Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif',
     fontSize: 35,
     fontColor: '#cad3f5',
@@ -342,6 +343,14 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     description:
       'Enable JLPT vocabulary level underlines. ' +
       'When disabled, JLPT tagging lookup and underlines are skipped.',
+  },
+  {
+    path: 'subtitleStyle.preserveLineBreaks',
+    kind: 'boolean',
+    defaultValue: DEFAULT_CONFIG.subtitleStyle.preserveLineBreaks,
+    description:
+      'Preserve line breaks in visible overlay subtitle rendering. ' +
+      'When false, line breaks are flattened to spaces for a single-line flow.',
   },
   {
     path: 'subtitleStyle.frequencyDictionary.enabled',

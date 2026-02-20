@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import type { MergedToken } from '../types';
 import { PartOfSpeech } from '../types.js';
-import { computeWordClass } from './subtitle-render.js';
+import { alignTokensToSourceText, computeWordClass } from './subtitle-render.js';
 
 function createToken(overrides: Partial<MergedToken>): MergedToken {
   return {
@@ -201,6 +201,19 @@ test('computeWordClass skips frequency class when rank is out of topX', () => {
   });
 
   assert.equal(actual, 'word');
+});
+
+test('alignTokensToSourceText preserves newline separators between adjacent token surfaces', () => {
+  const tokens = [
+    createToken({ surface: 'キリキリと', reading: 'きりきりと', headword: 'キリキリと' }),
+    createToken({ surface: 'かかってこい', reading: 'かかってこい', headword: 'かかってこい' }),
+  ];
+
+  const segments = alignTokensToSourceText(tokens, 'キリキリと\nかかってこい');
+  assert.deepEqual(
+    segments.map((segment) => (segment.kind === 'text' ? `text:${segment.text}` : 'token')),
+    ['token', 'text:\n', 'token'],
+  );
 });
 
 test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {

@@ -166,6 +166,7 @@
   // ==========================================
   "subtitleStyle": {
     "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
+    "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
     "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif", // Font family setting.
     "fontSize": 35, // Font size setting.
     "fontColor": "#cad3f5", // Font color setting.

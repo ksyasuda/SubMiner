@@ -9,11 +9,15 @@ type FrequencyRenderSettings = {
   bandedColors: [string, string, string, string, string];
 };
 
-function normalizeSubtitle(text: string, trim = true): string {
+function normalizeSubtitle(text: string, trim = true, collapseLineBreaks = false): string {
   if (!text) return '';
 
   let normalized = text.replace(/\\N/g, '\n').replace(/\\n/g, '\n');
   normalized = normalized.replace(/\{[^}]*\}/g, '');
+  if (collapseLineBreaks) {
+    normalized = normalized.replace(/\n/g, ' ');
+    normalized = normalized.replace(/\s+/g, ' ');
+  }
 
   return trim ? normalized.trim() : normalized;
 }
@@ -90,6 +94,8 @@ function renderWithTokens(
   root: HTMLElement,
   tokens: MergedToken[],
   frequencyRenderSettings?: Partial<FrequencyRenderSettings>,
+  sourceText?: string,
+  preserveLineBreaks = false,
 ): void {
   const resolvedFrequencyRenderSettings = {
     ...DEFAULT_FREQUENCY_RENDER_SETTINGS,
@@ -109,6 +115,29 @@ function renderWithTokens(
   };
 
   const fragment = document.createDocumentFragment();
+
+  if (preserveLineBreaks && sourceText) {
+    const normalizedSource = normalizeSubtitle(sourceText, true, false);
+    const segments = alignTokensToSourceText(tokens, normalizedSource);
+
+    for (const segment of segments) {
+      if (segment.kind === 'text') {
+        renderPlainTextPreserveLineBreaks(fragment, segment.text);
+        continue;
+      }
+
+      const token = segment.token;
+      const span = document.createElement('span');
+      span.className = computeWordClass(token, resolvedFrequencyRenderSettings);
+      span.textContent = token.surface;
+      if (token.reading) span.dataset.reading = token.reading;
+      if (token.headword) span.dataset.headword = token.headword;
+      fragment.appendChild(span);
+    }
+
+    root.appendChild(fragment);
+    return;
+  }
 
   for (const token of tokens) {
     const surface = token.surface;
@@ -140,6 +169,50 @@ function renderWithTokens(
   }
 
   root.appendChild(fragment);
+}
+
+type SubtitleRenderSegment = { kind: 'text'; text: string } | { kind: 'token'; token: MergedToken };
+
+export function alignTokensToSourceText(
+  tokens: MergedToken[],
+  sourceText: string,
+): SubtitleRenderSegment[] {
+  if (tokens.length === 0) {
+    return sourceText ? [{ kind: 'text', text: sourceText }] : [];
+  }
+
+  const segments: SubtitleRenderSegment[] = [];
+  let cursor = 0;
+
+  for (const token of tokens) {
+    const surface = token.surface;
+    if (!surface) {
+      continue;
+    }
+
+    const foundIndex = sourceText.indexOf(surface, cursor);
+    if (foundIndex < 0) {
+      if (cursor < sourceText.length) {
+        segments.push({ kind: 'text', text: sourceText.slice(cursor) });
+      }
+      segments.push({ kind: 'token', token });
+      cursor = sourceText.length;
+      continue;
+    }
+
+    if (foundIndex > cursor) {
+      segments.push({ kind: 'text', text: sourceText.slice(cursor, foundIndex) });
+    }
+
+    segments.push({ kind: 'token', token });
+    cursor = foundIndex + surface.length;
+  }
+
+  if (cursor < sourceText.length) {
+    segments.push({ kind: 'text', text: sourceText.slice(cursor) });
+  }
+
+  return segments;
 }
 
 export function computeWordClass(
@@ -199,7 +272,7 @@ function renderCharacterLevel(root: HTMLElement, text: string): void {
   root.appendChild(fragment);
 }
 
-function renderPlainTextPreserveLineBreaks(root: HTMLElement, text: string): void {
+function renderPlainTextPreserveLineBreaks(root: ParentNode, text: string): void {
   const lines = text.split('\n');
   const fragment = document.createDocumentFragment();
 
@@ -246,7 +319,13 @@ export function createSubtitleRenderer(ctx: RendererContext) {
 
     const normalized = normalizeSubtitle(text);
     if (tokens && tokens.length > 0) {
-      renderWithTokens(ctx.dom.subtitleRoot, tokens, getFrequencyRenderSettings());
+      renderWithTokens(
+        ctx.dom.subtitleRoot,
+        tokens,
+        getFrequencyRenderSettings(),
+        text,
+        ctx.state.preserveSubtitleLineBreaks,
+      );
       return;
     }
     renderCharacterLevel(ctx.dom.subtitleRoot, normalized);
@@ -346,6 +425,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     ctx.state.jlptN3Color = jlptColors.N3;
     ctx.state.jlptN4Color = jlptColors.N4;
     ctx.state.jlptN5Color = jlptColors.N5;
+    ctx.state.preserveSubtitleLineBreaks = style.preserveLineBreaks ?? false;
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n1-color', jlptColors.N1);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n2-color', jlptColors.N2);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n3-color', jlptColors.N3);

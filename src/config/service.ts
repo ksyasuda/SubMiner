@@ -746,6 +746,8 @@ export class ConfigService {
     }
 
     if (isObject(src.subtitleStyle)) {
+      const fallbackSubtitleStyleEnableJlpt = resolved.subtitleStyle.enableJlpt;
+      const fallbackSubtitleStylePreserveLineBreaks = resolved.subtitleStyle.preserveLineBreaks;
       resolved.subtitleStyle = {
         ...resolved.subtitleStyle,
         ...(src.subtitleStyle as ResolvedConfig['subtitleStyle']),
@@ -761,10 +763,28 @@ export class ConfigService {
       if (enableJlpt !== undefined) {
         resolved.subtitleStyle.enableJlpt = enableJlpt;
       } else if ((src.subtitleStyle as { enableJlpt?: unknown }).enableJlpt !== undefined) {
+        resolved.subtitleStyle.enableJlpt = fallbackSubtitleStyleEnableJlpt;
         warn(
           'subtitleStyle.enableJlpt',
           (src.subtitleStyle as { enableJlpt?: unknown }).enableJlpt,
           resolved.subtitleStyle.enableJlpt,
+          'Expected boolean.',
+        );
+      }
+
+      const preserveLineBreaks = asBoolean(
+        (src.subtitleStyle as { preserveLineBreaks?: unknown }).preserveLineBreaks,
+      );
+      if (preserveLineBreaks !== undefined) {
+        resolved.subtitleStyle.preserveLineBreaks = preserveLineBreaks;
+      } else if (
+        (src.subtitleStyle as { preserveLineBreaks?: unknown }).preserveLineBreaks !== undefined
+      ) {
+        resolved.subtitleStyle.preserveLineBreaks = fallbackSubtitleStylePreserveLineBreaks;
+        warn(
+          'subtitleStyle.preserveLineBreaks',
+          (src.subtitleStyle as { preserveLineBreaks?: unknown }).preserveLineBreaks,
+          resolved.subtitleStyle.preserveLineBreaks,
           'Expected boolean.',
         );
       }

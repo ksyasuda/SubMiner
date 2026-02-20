@@ -724,6 +724,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                      |
 | `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                       |
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                            |
+| `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout. |
 | `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                          |
 | `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use the built-in bundled dictionary search paths. |
 | `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                             |

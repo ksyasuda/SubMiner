@@ -24,6 +24,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.jellyfin.autoAnnounce, false);
   assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
+  assert.equal(config.subtitleStyle.preserveLineBreaks, false);
   assert.equal(config.immersionTracking.enabled, true);
   assert.equal(config.immersionTracking.dbPath, '');
   assert.equal(config.immersionTracking.batchSize, 25);
@@ -36,6 +37,44 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.immersionTracking.retention.dailyRollupsDays, 365);
   assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 1825);
   assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 7);
+});
+
+test('parses subtitleStyle.preserveLineBreaks and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "preserveLineBreaks": true
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.preserveLineBreaks, true);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "preserveLineBreaks": "yes"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.preserveLineBreaks,
+    DEFAULT_CONFIG.subtitleStyle.preserveLineBreaks,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.preserveLineBreaks'),
+  );
 });
 
 test('parses anilist.enabled and warns for invalid value', () => {
@@ -885,6 +924,7 @@ test('template generator includes known keys', () => {
   assert.match(output, /"logging":/);
   assert.match(output, /"websocket":/);
   assert.match(output, /"youtubeSubgen":/);
+  assert.match(output, /"preserveLineBreaks": false/);
   assert.match(output, /"nPlusOne"\s*:\s*\{/);
   assert.match(output, /"nPlusOne": "#c6a0f6"/);
   assert.match(output, /"knownWord": "#a6da95"/);
