@@ -22,6 +22,10 @@ cd vendor/texthooker-ui && pnpm install --frozen-lockfile
 # TypeScript compile (fast, for development)
 bun run build
 
+# Generate launcher wrapper artifact
+make build-launcher
+# output: dist/launcher/subminer
+
 # Full platform build (includes texthooker-ui + AppImage/DMG)
 make build
 
@@ -29,6 +33,20 @@ make build
 make build-linux          # Linux AppImage
 make build-macos          # macOS DMG + ZIP (signed)
 make build-macos-unsigned # macOS DMG + ZIP (unsigned)
+```
+
+## Launcher Artifact Workflow
+
+- Source of truth: `launcher/*.ts`
+- Generated output: `dist/launcher/subminer`
+- Do not hand-edit generated launcher output.
+- Install targets (`make install-linux`, `make install-macos`) copy from `dist/launcher/subminer`.
+
+Verify the workflow:
+
+```bash
+make build-launcher
+bash scripts/verify-generated-launcher.sh
 ```
 
 ## Running Locally

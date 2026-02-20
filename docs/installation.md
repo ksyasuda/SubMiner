@@ -58,10 +58,13 @@ The `subminer` wrapper uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https
 git clone https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
 make build
+make build-launcher
 
 # Install platform artifacts (wrapper + theme + AppImage)
 make install
 ```
+
+`make build-launcher` generates the wrapper at `dist/launcher/subminer`. The checked-in launcher source remains `launcher/*.ts`.
 
 ## macOS
 

@@ -2,6 +2,7 @@
 
 APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
+LAUNCHER_OUT := dist/launcher/$(APP_NAME)
 THEME_FILE := subminer.rasi
 PLUGIN_LUA := plugin/subminer.lua
 PLUGIN_CONF := plugin/subminer.conf
@@ -134,11 +135,13 @@ build-macos-unsigned: deps
 
 build-launcher:
 	@printf '%s\n' "[INFO] Bundling launcher script"
-	@bun build ./launcher/main.ts --target=bun --packages=bundle --outfile=subminer
-	@if ! head -1 subminer | grep -q '^#!/usr/bin/env bun'; then \
-		{ printf '#!/usr/bin/env bun\n'; cat subminer; } > subminer.tmp && mv subminer.tmp subminer; \
+	@install -d "$(dir $(LAUNCHER_OUT))"
+	@bun build ./launcher/main.ts --target=bun --packages=bundle --outfile="$(LAUNCHER_OUT)"
+	@if ! head -1 "$(LAUNCHER_OUT)" | grep -q '^#!/usr/bin/env bun'; then \
+		{ printf '#!/usr/bin/env bun\n'; cat "$(LAUNCHER_OUT)"; } > "$(LAUNCHER_OUT).tmp" && mv "$(LAUNCHER_OUT).tmp" "$(LAUNCHER_OUT)"; \
 	fi
-	@chmod +x subminer
+	@chmod +x "$(LAUNCHER_OUT)"
+	@printf '%s\n' "[INFO] Launcher artifact: $(LAUNCHER_OUT)"
 
 clean:
 	@printf '%s\n' "[INFO] Removing build artifacts"
@@ -180,7 +183,7 @@ dev-stop: ensure-bun
 install-linux: build-launcher
 	@printf '%s\n' "[INFO] Installing Linux wrapper/theme artifacts"
 	@install -d "$(BINDIR)"
-	@install -m 0755 "./$(APP_NAME)" "$(BINDIR)/$(APP_NAME)"
+	@install -m 0755 "$(LAUNCHER_OUT)" "$(BINDIR)/$(APP_NAME)"
 	@install -d "$(LINUX_DATA_DIR)/themes"
 	@install -m 0644 "./$(THEME_SOURCE)" "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
 	@if [ -n "$(APPIMAGE_SRC)" ]; then \
@@ -194,7 +197,7 @@ install-linux: build-launcher
 install-macos: build-launcher
 	@printf '%s\n' "[INFO] Installing macOS wrapper/theme/app artifacts"
 	@install -d "$(BINDIR)"
-	@install -m 0755 "./$(APP_NAME)" "$(BINDIR)/$(APP_NAME)"
+	@install -m 0755 "$(LAUNCHER_OUT)" "$(BINDIR)/$(APP_NAME)"
 	@install -d "$(MACOS_DATA_DIR)/themes"
 	@install -m 0644 "./$(THEME_SOURCE)" "$(MACOS_DATA_DIR)/themes/$(THEME_FILE)"
 	@install -d "$(MACOS_APP_DIR)"

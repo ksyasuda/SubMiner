@@ -4,7 +4,7 @@ title: Refactor large files for maintainability and readability
 status: In Progress
 assignee: []
 created_date: '2026-02-19 09:46'
-updated_date: '2026-02-19 10:01'
+updated_date: '2026-02-20 11:42'
 labels:
   - architecture
   - refactor
@@ -31,13 +31,23 @@ Several core files are oversized and high-coupling (`src/main.ts`, `src/anki-int
 
 <!-- SECTION:PLAN:BEGIN -->
 1. Add file-budget guardrails and baseline report.
-2. Split `src/main.ts` into runtime domain modules.
-3. Split `src/anki-integration.ts` into focused collaborators.
-4. Split `src/config/service.ts` by load/migrate/validate/warn phases.
+2. Split `src/main.ts` into runtime domain modules (ongoing; major wiring extracted).
+3. Split `src/anki-integration.ts` into focused collaborators (started; constructor composition decomposed).
+4. Split `src/config/service.ts` by load/migrate/validate/warn phases (started; load/apply flow decomposition in place).
 5. Split immersion tracker service by state, persistence, sync responsibilities.
 6. Clarify generated launcher artifact workflow and docs.
 7. Run full build/test gate and publish maintainability report.
 <!-- SECTION:PLAN:END -->
+
+## Progress Notes
+
+<!-- SECTION:PROGRESS:BEGIN -->
+- 2026-02-20: Large `src/main.ts` composition slices extracted into runtime handler modules (startup, CLI, tray/window/bootstrap, shortcuts, OSD/secondary-sub, numeric/overlay shortcut lifecycle, and related seams) with focused parity tests.
+- 2026-02-20: `src/anki-integration.ts` constructor decomposed into targeted private factory/config methods (`normalizeConfig`, `createKnownWordCache`, `createPollingRunner`, `createCardCreationService`, `createFieldGroupingService`) to reduce orchestration complexity.
+- 2026-02-20: `src/config/service.ts` load/apply duplication reduced by introducing `applyResolvedConfig`, `resolveExistingConfigPath`, and `parseConfigContent`.
+- Validation checkpoint: `bun run build` and focused suites (`dist/config/config.test.js`, `dist/anki-integration.test.js`) passing.
+- Current strategy: prioritize high-ROI extractions (behavioral seams and churn-heavy hotspots) over further low-impact micro-shuffles.
+<!-- SECTION:PROGRESS:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
