@@ -1683,8 +1683,10 @@ const buildGetCurrentAnilistMediaKeyMainDepsHandler =
   createBuildGetCurrentAnilistMediaKeyMainDepsHandler({
   getCurrentMediaPath: () => appState.currentMediaPath,
 });
+const getCurrentAnilistMediaKeyMainDeps =
+  buildGetCurrentAnilistMediaKeyMainDepsHandler();
 const getCurrentAnilistMediaKey = createGetCurrentAnilistMediaKeyHandler(
-  buildGetCurrentAnilistMediaKeyMainDepsHandler(),
+  getCurrentAnilistMediaKeyMainDeps,
 );
 
 const buildResetAnilistMediaTrackingMainDepsHandler =
@@ -1705,8 +1707,10 @@ const buildResetAnilistMediaTrackingMainDepsHandler =
     anilistLastDurationProbeAtMs = value;
   },
 });
+const resetAnilistMediaTrackingMainDeps =
+  buildResetAnilistMediaTrackingMainDepsHandler();
 const resetAnilistMediaTracking = createResetAnilistMediaTrackingHandler(
-  buildResetAnilistMediaTrackingMainDepsHandler(),
+  resetAnilistMediaTrackingMainDeps,
 );
 
 const buildGetAnilistMediaGuessRuntimeStateMainDepsHandler =
@@ -1717,8 +1721,10 @@ const buildGetAnilistMediaGuessRuntimeStateMainDepsHandler =
   getMediaGuessPromise: () => anilistCurrentMediaGuessPromise,
   getLastDurationProbeAtMs: () => anilistLastDurationProbeAtMs,
 });
+const getAnilistMediaGuessRuntimeStateMainDeps =
+  buildGetAnilistMediaGuessRuntimeStateMainDepsHandler();
 const getAnilistMediaGuessRuntimeState = createGetAnilistMediaGuessRuntimeStateHandler(
-  buildGetAnilistMediaGuessRuntimeStateMainDepsHandler(),
+  getAnilistMediaGuessRuntimeStateMainDeps,
 );
 
 const buildSetAnilistMediaGuessRuntimeStateMainDepsHandler =
@@ -1739,8 +1745,10 @@ const buildSetAnilistMediaGuessRuntimeStateMainDepsHandler =
     anilistLastDurationProbeAtMs = value;
   },
 });
+const setAnilistMediaGuessRuntimeStateMainDeps =
+  buildSetAnilistMediaGuessRuntimeStateMainDepsHandler();
 const setAnilistMediaGuessRuntimeState = createSetAnilistMediaGuessRuntimeStateHandler(
-  buildSetAnilistMediaGuessRuntimeStateMainDepsHandler(),
+  setAnilistMediaGuessRuntimeStateMainDeps,
 );
 
 const buildResetAnilistMediaGuessStateMainDepsHandler =
@@ -1752,8 +1760,10 @@ const buildResetAnilistMediaGuessStateMainDepsHandler =
     anilistCurrentMediaGuessPromise = value;
   },
 });
+const resetAnilistMediaGuessStateMainDeps =
+  buildResetAnilistMediaGuessStateMainDepsHandler();
 const resetAnilistMediaGuessState = createResetAnilistMediaGuessStateHandler(
-  buildResetAnilistMediaGuessStateMainDepsHandler(),
+  resetAnilistMediaGuessStateMainDeps,
 );
 
 const buildMaybeProbeAnilistDurationMainDepsHandler =
@@ -1767,8 +1777,10 @@ const buildMaybeProbeAnilistDurationMainDepsHandler =
   requestMpvDuration: async () => appState.mpvClient?.requestProperty('duration'),
   logWarn: (message, error) => logger.warn(message, error),
 });
+const maybeProbeAnilistDurationMainDeps =
+  buildMaybeProbeAnilistDurationMainDepsHandler();
 const maybeProbeAnilistDuration = createMaybeProbeAnilistDurationHandler(
-  buildMaybeProbeAnilistDurationMainDepsHandler(),
+  maybeProbeAnilistDurationMainDeps,
 );
 
 const buildEnsureAnilistMediaGuessMainDepsHandler = createBuildEnsureAnilistMediaGuessMainDepsHandler(
@@ -1783,8 +1795,10 @@ const buildEnsureAnilistMediaGuessMainDepsHandler = createBuildEnsureAnilistMedi
   guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
 },
 );
+const ensureAnilistMediaGuessMainDeps =
+  buildEnsureAnilistMediaGuessMainDepsHandler();
 const ensureAnilistMediaGuess = createEnsureAnilistMediaGuessHandler(
-  buildEnsureAnilistMediaGuessMainDepsHandler(),
+  ensureAnilistMediaGuessMainDeps,
 );
 
 const rememberAnilistAttemptedUpdate = (key: string): void => {
@@ -1816,8 +1830,10 @@ const buildProcessNextAnilistRetryUpdateMainDepsHandler =
   logInfo: (message) => logger.info(message),
   now: () => Date.now(),
 });
+const processNextAnilistRetryUpdateMainDeps =
+  buildProcessNextAnilistRetryUpdateMainDepsHandler();
 const processNextAnilistRetryUpdate = createProcessNextAnilistRetryUpdateHandler(
-  buildProcessNextAnilistRetryUpdateMainDepsHandler(),
+  processNextAnilistRetryUpdateMainDeps,
 );
 
 const buildMaybeRunAnilistPostWatchUpdateMainDepsHandler =
@@ -1861,8 +1877,10 @@ const buildMaybeRunAnilistPostWatchUpdateMainDepsHandler =
   minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
   minWatchRatio: ANILIST_UPDATE_MIN_WATCH_RATIO,
 });
+const maybeRunAnilistPostWatchUpdateMainDeps =
+  buildMaybeRunAnilistPostWatchUpdateMainDepsHandler();
 const maybeRunAnilistPostWatchUpdate = createMaybeRunAnilistPostWatchUpdateHandler(
-  buildMaybeRunAnilistPostWatchUpdateMainDepsHandler(),
+  maybeRunAnilistPostWatchUpdateMainDeps,
 );
 
 const buildLoadSubtitlePositionMainDepsHandler = createBuildLoadSubtitlePositionMainDepsHandler({
@@ -1876,8 +1894,9 @@ const buildLoadSubtitlePositionMainDepsHandler = createBuildLoadSubtitlePosition
     appState.subtitlePosition = position;
   },
 });
+const loadSubtitlePositionMainDeps = buildLoadSubtitlePositionMainDepsHandler();
 const loadSubtitlePosition = createLoadSubtitlePositionHandler(
-  buildLoadSubtitlePositionMainDepsHandler(),
+  loadSubtitlePositionMainDeps,
 );
 
 const buildSaveSubtitlePositionMainDepsHandler = createBuildSaveSubtitlePositionMainDepsHandler({
@@ -1898,8 +1917,9 @@ const buildSaveSubtitlePositionMainDepsHandler = createBuildSaveSubtitlePosition
     appState.subtitlePosition = position;
   },
 });
+const saveSubtitlePositionMainDeps = buildSaveSubtitlePositionMainDepsHandler();
 const saveSubtitlePosition = createSaveSubtitlePositionHandler(
-  buildSaveSubtitlePositionMainDepsHandler(),
+  saveSubtitlePositionMainDeps,
 );
 
 registerSubminerProtocolClient();
@@ -1921,7 +1941,8 @@ const buildRegisterProtocolUrlHandlersMainDepsHandler =
     logger.warn('Unhandled second-instance protocol URL', { rawUrl });
   },
 });
-registerProtocolUrlHandlers(buildRegisterProtocolUrlHandlersMainDepsHandler());
+const registerProtocolUrlHandlersMainDeps = buildRegisterProtocolUrlHandlersMainDepsHandler();
+registerProtocolUrlHandlers(registerProtocolUrlHandlersMainDeps);
 
 const buildOnWillQuitCleanupDepsHandler = createBuildOnWillQuitCleanupDepsHandler({
     destroyTray: () => destroyTray(),
@@ -1965,8 +1986,10 @@ const buildShouldRestoreWindowsOnActivateMainDepsHandler =
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
     getAllWindowCount: () => BrowserWindow.getAllWindows().length,
   });
+const shouldRestoreWindowsOnActivateMainDeps =
+  buildShouldRestoreWindowsOnActivateMainDepsHandler();
 const shouldRestoreWindowsOnActivateHandler = createShouldRestoreWindowsOnActivateHandler(
-  buildShouldRestoreWindowsOnActivateMainDepsHandler(),
+  shouldRestoreWindowsOnActivateMainDeps,
 );
 
 const buildRestoreWindowsOnActivateMainDepsHandler =
@@ -1984,8 +2007,9 @@ const buildRestoreWindowsOnActivateMainDepsHandler =
       overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
     },
   });
+const restoreWindowsOnActivateMainDeps = buildRestoreWindowsOnActivateMainDepsHandler();
 const restoreWindowsOnActivateHandler = createRestoreWindowsOnActivateHandler(
-  buildRestoreWindowsOnActivateMainDepsHandler(),
+  restoreWindowsOnActivateMainDeps,
 );
 
 const buildReloadConfigMainDepsHandler = createBuildReloadConfigMainDepsHandler({
@@ -2011,8 +2035,9 @@ const buildCriticalConfigErrorMainDepsHandler = createBuildCriticalConfigErrorMa
       quit: () => app.quit(),
     },
   });
+const criticalConfigErrorMainDeps = buildCriticalConfigErrorMainDepsHandler();
 const criticalConfigErrorHandler = createCriticalConfigErrorHandler(
-  buildCriticalConfigErrorMainDepsHandler(),
+  criticalConfigErrorMainDeps,
 );
 
 const buildAppReadyRuntimeMainDepsHandler = createBuildAppReadyRuntimeMainDepsHandler({
