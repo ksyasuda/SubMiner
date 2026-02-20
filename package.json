@@ -9,7 +9,7 @@
     "get-frequency:electron": "bun build scripts/get_frequency.ts --format=cjs --target=node --outfile dist/scripts/get_frequency.js --external electron && electron dist/scripts/get_frequency.js --pretty --color-top-x 10000 --yomitan-user-data ~/.config/SubMiner --colorized-line",
     "test-yomitan-parser": "bun run scripts/test-yomitan-parser.ts",
     "test-yomitan-parser:electron": "bun build scripts/test-yomitan-parser.ts --format=cjs --target=node --outfile dist/scripts/test-yomitan-parser.js --external electron && electron dist/scripts/test-yomitan-parser.js",
-    "build": "tsc && bun run build:renderer && cp src/renderer/index.html src/renderer/style.css dist/renderer/ && bash scripts/build-macos-helper.sh",
+    "build": "tsc && bun run build:renderer && cp src/renderer/index.html src/renderer/style.css dist/renderer/ && cp -r src/renderer/fonts dist/renderer/ && bash scripts/build-macos-helper.sh",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js --sourcemap",
     "docs:dev": "VITE_EXTRA_EXTENSIONS=jsonc vitepress dev docs --host 0.0.0.0 --port 5173 --strictPort",
     "docs:build": "VITE_EXTRA_EXTENSIONS=jsonc vitepress build docs",

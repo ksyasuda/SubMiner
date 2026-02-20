@@ -16,6 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+@font-face {
+  font-family: 'M PLUS 1';
+  src: url('./fonts/MPLUS1[wght].ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -29,7 +36,8 @@ body {
   overflow: hidden;
   background: transparent;
   font-family:
-    'Noto Sans CJK JP Regular', 'Noto Sans CJK JP', 'Arial Unicode MS', Arial, sans-serif;
+    'M PLUS 1', 'Noto Sans CJK JP Regular', 'Noto Sans CJK JP', 'Hiragino Sans',
+    'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Arial Unicode MS', Arial, sans-serif;
 }
 
 #overlay {

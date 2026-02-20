@@ -173,7 +173,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   subtitleStyle: {
     enableJlpt: false,
     preserveLineBreaks: false,
-    fontFamily: 'Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif',
+    fontFamily: 'M PLUS 1, Noto Sans CJK JP Regular, Noto Sans CJK JP, Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic, Arial Unicode MS, Arial, sans-serif',
     fontSize: 35,
     fontColor: '#cad3f5',
     fontWeight: 'normal',
@@ -202,7 +202,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
       backgroundColor: 'transparent',
       fontWeight: 'normal',
       fontStyle: 'normal',
-      fontFamily: 'Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif',
+      fontFamily: 'M PLUS 1, Noto Sans CJK JP Regular, Noto Sans CJK JP, Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic, Arial Unicode MS, Arial, sans-serif',
     },
   },
   auto_start_overlay: false,
