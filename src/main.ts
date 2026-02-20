@@ -290,27 +290,9 @@ import { buildTrayMenuTemplateRuntime, resolveTrayIconPathRuntime } from './main
 import { createGlobalShortcutsRuntimeHandlers } from './main/runtime/global-shortcuts-runtime-handlers';
 import { createMpvOsdRuntimeHandlers } from './main/runtime/mpv-osd-runtime-handlers';
 import { createCycleSecondarySubModeRuntimeHandler } from './main/runtime/secondary-sub-mode-runtime-handler';
-import {
-  createCancelNumericShortcutSessionHandler,
-  createStartNumericShortcutSessionHandler,
-} from './main/runtime/numeric-shortcut-session-handlers';
-import {
-  createBuildCancelNumericShortcutSessionMainDepsHandler,
-  createBuildStartNumericShortcutSessionMainDepsHandler,
-} from './main/runtime/numeric-shortcut-session-main-deps';
+import { createNumericShortcutSessionRuntimeHandlers } from './main/runtime/numeric-shortcut-session-runtime-handlers';
 import { createBuildNumericShortcutRuntimeMainDepsHandler } from './main/runtime/numeric-shortcut-runtime-main-deps';
-import {
-  createRefreshOverlayShortcutsHandler,
-  createRegisterOverlayShortcutsHandler,
-  createSyncOverlayShortcutsHandler,
-  createUnregisterOverlayShortcutsHandler,
-} from './main/runtime/overlay-shortcuts-lifecycle';
-import {
-  createBuildRefreshOverlayShortcutsMainDepsHandler,
-  createBuildRegisterOverlayShortcutsMainDepsHandler,
-  createBuildSyncOverlayShortcutsMainDepsHandler,
-  createBuildUnregisterOverlayShortcutsMainDepsHandler,
-} from './main/runtime/overlay-shortcuts-lifecycle-main-deps';
+import { createOverlayShortcutsRuntimeHandlers } from './main/runtime/overlay-shortcuts-runtime-handlers';
 import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/overlay-shortcuts-runtime-main-deps';
 import {
   createMarkLastCardAsAudioCardHandler,
@@ -2565,106 +2547,30 @@ const numericShortcutRuntime = createNumericShortcutRuntime(
 );
 const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
-const buildCancelPendingMultiCopyMainDepsHandler =
-  createBuildCancelNumericShortcutSessionMainDepsHandler({
-  session: multiCopySession,
+const {
+  cancelPendingMultiCopy,
+  startPendingMultiCopy,
+  cancelPendingMineSentenceMultiple,
+  startPendingMineSentenceMultiple,
+} = createNumericShortcutSessionRuntimeHandlers({
+  multiCopySession,
+  mineSentenceSession,
+  onMultiCopyDigit: (count) => handleMultiCopyDigit(count),
+  onMineSentenceDigit: (count) => handleMineSentenceDigit(count),
 });
-const cancelPendingMultiCopyMainDeps =
-  buildCancelPendingMultiCopyMainDepsHandler();
-const cancelPendingMultiCopyHandler = createCancelNumericShortcutSessionHandler(
-  cancelPendingMultiCopyMainDeps,
-);
-
-const buildStartPendingMultiCopyMainDepsHandler =
-  createBuildStartNumericShortcutSessionMainDepsHandler({
-  session: multiCopySession,
-  onDigit: (count) => handleMultiCopyDigit(count),
-  messages: {
-    prompt: 'Copy how many lines? Press 1-9 (Esc to cancel)',
-    timeout: 'Copy timeout',
-    cancelled: 'Cancelled',
+const {
+  registerOverlayShortcuts,
+  unregisterOverlayShortcuts,
+  syncOverlayShortcuts,
+  refreshOverlayShortcuts,
+} = createOverlayShortcutsRuntimeHandlers({
+  overlayShortcutsRuntimeMainDeps: {
+    overlayShortcutsRuntime,
   },
 });
-const startPendingMultiCopyMainDeps =
-  buildStartPendingMultiCopyMainDepsHandler();
-const startPendingMultiCopyHandler = createStartNumericShortcutSessionHandler(
-  startPendingMultiCopyMainDeps,
-);
-
-const buildCancelPendingMineSentenceMultipleMainDepsHandler =
-  createBuildCancelNumericShortcutSessionMainDepsHandler({
-  session: mineSentenceSession,
-});
-const cancelPendingMineSentenceMultipleMainDeps =
-  buildCancelPendingMineSentenceMultipleMainDepsHandler();
-const cancelPendingMineSentenceMultipleHandler = createCancelNumericShortcutSessionHandler(
-  cancelPendingMineSentenceMultipleMainDeps,
-);
-
-const buildStartPendingMineSentenceMultipleMainDepsHandler =
-  createBuildStartNumericShortcutSessionMainDepsHandler({
-  session: mineSentenceSession,
-  onDigit: (count) => handleMineSentenceDigit(count),
-  messages: {
-    prompt: 'Mine how many lines? Press 1-9 (Esc to cancel)',
-    timeout: 'Mine sentence timeout',
-    cancelled: 'Cancelled',
-  },
-});
-const startPendingMineSentenceMultipleMainDeps =
-  buildStartPendingMineSentenceMultipleMainDepsHandler();
-const startPendingMineSentenceMultipleHandler = createStartNumericShortcutSessionHandler(
-  startPendingMineSentenceMultipleMainDeps,
-);
-
-const buildRegisterOverlayShortcutsMainDepsHandler =
-  createBuildRegisterOverlayShortcutsMainDepsHandler({
-  overlayShortcutsRuntime,
-});
-const registerOverlayShortcutsMainDeps =
-  buildRegisterOverlayShortcutsMainDepsHandler();
-const registerOverlayShortcutsHandler = createRegisterOverlayShortcutsHandler(
-  registerOverlayShortcutsMainDeps,
-);
-
-const buildUnregisterOverlayShortcutsMainDepsHandler =
-  createBuildUnregisterOverlayShortcutsMainDepsHandler({
-  overlayShortcutsRuntime,
-});
-const unregisterOverlayShortcutsMainDeps =
-  buildUnregisterOverlayShortcutsMainDepsHandler();
-const unregisterOverlayShortcutsHandler = createUnregisterOverlayShortcutsHandler(
-  unregisterOverlayShortcutsMainDeps,
-);
-
-const buildSyncOverlayShortcutsMainDepsHandler = createBuildSyncOverlayShortcutsMainDepsHandler({
-  overlayShortcutsRuntime,
-});
-const syncOverlayShortcutsMainDeps = buildSyncOverlayShortcutsMainDepsHandler();
-const syncOverlayShortcutsHandler = createSyncOverlayShortcutsHandler(
-  syncOverlayShortcutsMainDeps,
-);
-
-const buildRefreshOverlayShortcutsMainDepsHandler =
-  createBuildRefreshOverlayShortcutsMainDepsHandler({
-  overlayShortcutsRuntime,
-});
-const refreshOverlayShortcutsMainDeps =
-  buildRefreshOverlayShortcutsMainDepsHandler();
-const refreshOverlayShortcutsHandler = createRefreshOverlayShortcutsHandler(
-  refreshOverlayShortcutsMainDeps,
-);
 
 async function triggerSubsyncFromConfig(): Promise<void> {
   await subsyncRuntime.triggerFromConfig();
-}
-
-function cancelPendingMultiCopy(): void {
-  cancelPendingMultiCopyHandler();
-}
-
-function startPendingMultiCopy(timeoutMs: number): void {
-  startPendingMultiCopyHandler(timeoutMs);
 }
 
 function handleMultiCopyDigit(count: number): void {
@@ -3089,31 +2995,8 @@ async function mineSentenceCard(): Promise<void> {
   await mineSentenceCardHandler();
 }
 
-function cancelPendingMineSentenceMultiple(): void {
-  cancelPendingMineSentenceMultipleHandler();
-}
-
-function startPendingMineSentenceMultiple(timeoutMs: number): void {
-  startPendingMineSentenceMultipleHandler(timeoutMs);
-}
-
 function handleMineSentenceDigit(count: number): void {
   handleMineSentenceDigitHandler(count);
-}
-
-function registerOverlayShortcuts(): void {
-  registerOverlayShortcutsHandler();
-}
-
-function unregisterOverlayShortcuts(): void {
-  unregisterOverlayShortcutsHandler();
-}
-
-function syncOverlayShortcuts(): void {
-  syncOverlayShortcutsHandler();
-}
-function refreshOverlayShortcuts(): void {
-  refreshOverlayShortcutsHandler();
 }
 
 function setVisibleOverlayVisible(visible: boolean): void {
