@@ -3,8 +3,10 @@ import test from 'node:test';
 import type { ReloadConfigStrictResult } from '../../config';
 import type { ResolvedConfig } from '../../types';
 import {
+  createBuildConfigHotReloadMessageMainDepsHandler,
   createBuildConfigHotReloadAppliedMainDepsHandler,
   createBuildConfigHotReloadRuntimeMainDepsHandler,
+  createBuildWatchConfigPathMainDepsHandler,
   createWatchConfigPathHandler,
 } from './config-hot-reload-main-deps';
 
@@ -41,6 +43,45 @@ test('watch config path handler filters directory events to config files only', 
 
   watchConfigPath('/tmp/config.jsonc', () => calls.push('change'));
   assert.deepEqual(calls, ['change', 'change', 'change']);
+});
+
+test('watch config path main deps builder maps filesystem callbacks', () => {
+  const calls: string[] = [];
+  const deps = createBuildWatchConfigPathMainDepsHandler({
+    fileExists: () => true,
+    dirname: (targetPath) => {
+      calls.push(`dirname:${targetPath}`);
+      return '/tmp';
+    },
+    watchPath: (targetPath, listener) => {
+      calls.push(`watch:${targetPath}`);
+      listener('change', 'config.jsonc');
+      return { close: () => calls.push('close') };
+    },
+  })();
+
+  assert.equal(deps.fileExists('/tmp/config.jsonc'), true);
+  assert.equal(deps.dirname('/tmp/config.jsonc'), '/tmp');
+  const watcher = deps.watchPath('/tmp/config.jsonc', () => calls.push('listener'));
+  watcher.close();
+  assert.deepEqual(calls, [
+    'dirname:/tmp/config.jsonc',
+    'watch:/tmp/config.jsonc',
+    'listener',
+    'close',
+  ]);
+});
+
+test('config hot reload message main deps builder maps notifications', () => {
+  const calls: string[] = [];
+  const deps = createBuildConfigHotReloadMessageMainDepsHandler({
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    showDesktopNotification: (title) => calls.push(`notify:${title}`),
+  })();
+
+  deps.showMpvOsd('updated');
+  deps.showDesktopNotification('SubMiner', { body: 'updated' });
+  assert.deepEqual(calls, ['osd:updated', 'notify:SubMiner']);
 });
 
 test('config hot reload applied main deps builder maps callbacks', () => {

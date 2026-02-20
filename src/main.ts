@@ -74,6 +74,7 @@ import {
 } from './main/runtime/startup-config';
 import { buildConfigWarningNotificationBody } from './main/config-validation';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
+import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import { createImmersionMediaRuntime } from './main/runtime/immersion-media';
 import { createAnilistStateRuntime } from './main/runtime/anilist-state';
 import { createConfigDerivedRuntime } from './main/runtime/config-derived';
@@ -230,6 +231,7 @@ import {
   createBuildJlptDictionaryRuntimeMainDepsHandler,
 } from './main/runtime/dictionary-runtime-main-deps';
 import { createPlayJellyfinItemInMpvHandler } from './main/runtime/jellyfin-playback-launch';
+import { createBuildPlayJellyfinItemInMpvMainDepsHandler } from './main/runtime/jellyfin-playback-launch-main-deps';
 import { createPreloadJellyfinExternalSubtitlesHandler } from './main/runtime/jellyfin-subtitle-preload';
 import { createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler } from './main/runtime/jellyfin-subtitle-preload-main-deps';
 import {
@@ -259,6 +261,7 @@ import { createBuildBindMpvMainEventHandlersMainDepsHandler } from './main/runti
 import { createBuildMpvClientRuntimeServiceFactoryDepsHandler } from './main/runtime/mpv-client-runtime-service-main-deps';
 import { createMpvClientRuntimeServiceFactory } from './main/runtime/mpv-client-runtime-service';
 import { createUpdateMpvSubtitleRenderMetricsHandler } from './main/runtime/mpv-subtitle-render-metrics';
+import { createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler } from './main/runtime/mpv-subtitle-render-metrics-main-deps';
 import {
   createBuildTokenizerDepsMainHandler,
   createCreateMecabTokenizerAndCheckMainHandler,
@@ -312,6 +315,7 @@ import {
   createBuildCancelNumericShortcutSessionMainDepsHandler,
   createBuildStartNumericShortcutSessionMainDepsHandler,
 } from './main/runtime/numeric-shortcut-session-main-deps';
+import { createBuildNumericShortcutRuntimeMainDepsHandler } from './main/runtime/numeric-shortcut-runtime-main-deps';
 import {
   createRefreshOverlayShortcutsHandler,
   createRegisterOverlayShortcutsHandler,
@@ -453,8 +457,10 @@ import {
   resolveSubtitleStyleForRenderer,
 } from './main/runtime/config-hot-reload-handlers';
 import {
+  createBuildConfigHotReloadMessageMainDepsHandler,
   createBuildConfigHotReloadAppliedMainDepsHandler,
   createBuildConfigHotReloadRuntimeMainDepsHandler,
+  createBuildWatchConfigPathMainDepsHandler,
   createWatchConfigPathHandler,
 } from './main/runtime/config-hot-reload-main-deps';
 import {
@@ -849,15 +855,19 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
   })(),
 );
 
-const notifyConfigHotReloadMessage = createConfigHotReloadMessageHandler({
+const buildConfigHotReloadMessageMainDepsHandler = createBuildConfigHotReloadMessageMainDepsHandler({
   showMpvOsd: (message) => showMpvOsd(message),
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
-const watchConfigPathHandler = createWatchConfigPathHandler({
+const notifyConfigHotReloadMessage = createConfigHotReloadMessageHandler(
+  buildConfigHotReloadMessageMainDepsHandler(),
+);
+const buildWatchConfigPathMainDepsHandler = createBuildWatchConfigPathMainDepsHandler({
   fileExists: (targetPath) => fs.existsSync(targetPath),
   dirname: (targetPath) => path.dirname(targetPath),
   watchPath: (targetPath, listener) => fs.watch(targetPath, listener),
 });
+const watchConfigPathHandler = createWatchConfigPathHandler(buildWatchConfigPathMainDepsHandler());
 const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadAppliedMainDepsHandler({
   setKeybindings: (keybindings) => {
     appState.keybindings = keybindings as never;
@@ -1305,7 +1315,7 @@ const preloadJellyfinExternalSubtitles = createPreloadJellyfinExternalSubtitlesH
   buildPreloadJellyfinExternalSubtitlesMainDepsHandler(),
 );
 
-const playJellyfinItemInMpv = createPlayJellyfinItemInMpvHandler({
+const buildPlayJellyfinItemInMpvMainDepsHandler = createBuildPlayJellyfinItemInMpvMainDepsHandler({
   ensureMpvConnectedForPlayback: () => ensureMpvConnectedForJellyfinPlayback(),
   getMpvClient: () => appState.mpvClient,
   resolvePlaybackPlan: (params) =>
@@ -1348,6 +1358,9 @@ const playJellyfinItemInMpv = createPlayJellyfinItemInMpvHandler({
     showMpvOsd(text);
   },
 });
+const playJellyfinItemInMpv = createPlayJellyfinItemInMpvHandler(
+  buildPlayJellyfinItemInMpvMainDepsHandler(),
+);
 
 const buildHandleJellyfinAuthCommandsMainDepsHandler =
   createBuildHandleJellyfinAuthCommandsMainDepsHandler({
@@ -1985,8 +1998,7 @@ const criticalConfigErrorHandler = createCriticalConfigErrorHandler(
   })(),
 );
 
-const appReadyRuntimeRunner = createAppReadyRuntimeRunner(
-  createBuildAppReadyRuntimeMainDepsHandler({
+const buildAppReadyRuntimeMainDepsHandler = createBuildAppReadyRuntimeMainDepsHandler({
     loadSubtitlePosition: () => loadSubtitlePosition(),
     resolveKeybindings: () => {
       appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
@@ -2032,21 +2044,23 @@ const appReadyRuntimeRunner = createAppReadyRuntimeRunner(
       const tracker = new SubtitleTimingTracker();
       appState.subtitleTimingTracker = tracker;
     },
-    createImmersionTracker: createImmersionTrackerStartupHandler({
-      getResolvedConfig: () => getResolvedConfig(),
-      getConfiguredDbPath: () => immersionMediaRuntime.getConfiguredDbPath(),
-      createTrackerService: (params) => new ImmersionTrackerService(params),
-      setTracker: (tracker) => {
-        appState.immersionTracker = tracker as ImmersionTrackerService | null;
-      },
-      getMpvClient: () => appState.mpvClient,
-      seedTrackerFromCurrentMedia: () => {
-        void immersionMediaRuntime.seedFromCurrentMedia();
-      },
-      logInfo: (message) => logger.info(message),
-      logDebug: (message) => logger.debug(message),
-      logWarn: (message, details) => logger.warn(message, details),
-    }),
+    createImmersionTracker: createImmersionTrackerStartupHandler(
+      createBuildImmersionTrackerStartupMainDepsHandler({
+        getResolvedConfig: () => getResolvedConfig(),
+        getConfiguredDbPath: () => immersionMediaRuntime.getConfiguredDbPath(),
+        createTrackerService: (params) => new ImmersionTrackerService(params),
+        setTracker: (tracker) => {
+          appState.immersionTracker = tracker as ImmersionTrackerService | null;
+        },
+        getMpvClient: () => appState.mpvClient,
+        seedTrackerFromCurrentMedia: () => {
+          void immersionMediaRuntime.seedFromCurrentMedia();
+        },
+        logInfo: (message) => logger.info(message),
+        logDebug: (message) => logger.debug(message),
+        logWarn: (message, details) => logger.warn(message, details),
+      })(),
+    ),
     loadYomitanExtension: async () => {
       await loadYomitanExtension();
     },
@@ -2071,10 +2085,10 @@ const appReadyRuntimeRunner = createAppReadyRuntimeRunner(
       logger.debug(message);
     },
     now: () => Date.now(),
-  })(),
-);
+  });
+const appReadyRuntimeRunner = createAppReadyRuntimeRunner(buildAppReadyRuntimeMainDepsHandler());
 
-const appLifecycleRuntimeRunner = createAppLifecycleRuntimeRunner(
+const buildAppLifecycleRuntimeRunnerMainDepsHandler =
   createBuildAppLifecycleRuntimeRunnerMainDepsHandler({
     app,
     platform: process.platform,
@@ -2089,12 +2103,12 @@ const appLifecycleRuntimeRunner = createAppLifecycleRuntimeRunner(
     shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
     restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
     shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
-  })(),
+  });
+const appLifecycleRuntimeRunner = createAppLifecycleRuntimeRunner(
+  buildAppLifecycleRuntimeRunnerMainDepsHandler(),
 );
 
-const buildStartupBootstrapRuntimeFactoryDepsHandler =
-  createBuildStartupBootstrapRuntimeFactoryDepsHandler(
-    createBuildStartupBootstrapMainDepsHandler({
+const buildStartupBootstrapMainDepsHandler = createBuildStartupBootstrapMainDepsHandler({
       argv: process.argv,
       parseArgs: (argv: string[]) => parseArgs(argv),
       setLogLevel: (level: string, source: LogLevelSource) => {
@@ -2126,8 +2140,9 @@ const buildStartupBootstrapRuntimeFactoryDepsHandler =
       quitApp: () => app.quit(),
       logGenerateConfigError: (message) => logger.error(message),
       startAppLifecycle: appLifecycleRuntimeRunner,
-    })(),
-  );
+    });
+const buildStartupBootstrapRuntimeFactoryDepsHandler =
+  createBuildStartupBootstrapRuntimeFactoryDepsHandler(buildStartupBootstrapMainDepsHandler());
 
 const startupState = runStartupBootstrapRuntime(
   createStartupBootstrapRuntimeDeps(buildStartupBootstrapRuntimeFactoryDepsHandler()),
@@ -2156,19 +2171,22 @@ function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): 
   handleCliCommandRuntimeServiceWithContext(args, source, cliContext);
 }
 
+const buildHandleInitialArgsMainDepsHandler = createBuildHandleInitialArgsMainDepsHandler({
+  getInitialArgs: () => appState.initialArgs,
+  isBackgroundMode: () => appState.backgroundMode,
+  ensureTray: () => ensureTray(),
+  isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
+  hasImmersionTracker: () => Boolean(appState.immersionTracker),
+  getMpvClient: () => appState.mpvClient,
+  logInfo: (message) => logger.info(message),
+  handleCliCommand: (args, source) => handleCliCommand(args, source),
+});
+const handleInitialArgsRuntimeHandler = createHandleInitialArgsHandler(
+  buildHandleInitialArgsMainDepsHandler(),
+);
+
 function handleInitialArgs(): void {
-  createHandleInitialArgsHandler(
-    createBuildHandleInitialArgsMainDepsHandler({
-      getInitialArgs: () => appState.initialArgs,
-      isBackgroundMode: () => appState.backgroundMode,
-      ensureTray: () => ensureTray(),
-      isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
-      hasImmersionTracker: () => Boolean(appState.immersionTracker),
-      getMpvClient: () => appState.mpvClient,
-      logInfo: (message) => logger.info(message),
-      handleCliCommand: (args, source) => handleCliCommand(args, source),
-    })(),
-  )();
+  handleInitialArgsRuntimeHandler();
 }
 
 const bindMpvClientEventHandlers = createBindMpvMainEventHandlersHandler(
@@ -2241,7 +2259,8 @@ function createMpvClientRuntimeService(): MpvIpcClient {
   )();
 }
 
-const updateMpvSubtitleRenderMetricsRuntime = createUpdateMpvSubtitleRenderMetricsHandler({
+const buildUpdateMpvSubtitleRenderMetricsMainDepsHandler =
+  createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler({
   getCurrentMetrics: () => appState.mpvSubtitleRenderMetrics,
   setCurrentMetrics: (metrics) => {
     appState.mpvSubtitleRenderMetrics = metrics;
@@ -2251,6 +2270,9 @@ const updateMpvSubtitleRenderMetricsRuntime = createUpdateMpvSubtitleRenderMetri
     broadcastToOverlayWindows('mpv-subtitle-render-metrics:set', metrics);
   },
 });
+const updateMpvSubtitleRenderMetricsRuntime = createUpdateMpvSubtitleRenderMetricsHandler(
+  buildUpdateMpvSubtitleRenderMetricsMainDepsHandler(),
+);
 
 function updateMpvSubtitleRenderMetrics(patch: Partial<MpvSubtitleRenderMetrics>): void {
   updateMpvSubtitleRenderMetricsRuntime(patch);
@@ -2430,16 +2452,19 @@ function openYomitanSettings(): void {
   openYomitanSettingsHandler();
 }
 
-const getConfiguredShortcutsHandler = createGetConfiguredShortcutsHandler({
-  ...createBuildGetConfiguredShortcutsMainDepsHandler({
+const buildGetConfiguredShortcutsMainDepsHandler = createBuildGetConfiguredShortcutsMainDepsHandler(
+  {
     getResolvedConfig: () => getResolvedConfig(),
     defaultConfig: DEFAULT_CONFIG,
     resolveConfiguredShortcuts,
-  })(),
+  },
+);
+const getConfiguredShortcutsHandler = createGetConfiguredShortcutsHandler({
+  ...buildGetConfiguredShortcutsMainDepsHandler(),
 });
 
-const registerGlobalShortcutsHandler = createRegisterGlobalShortcutsHandler({
-  ...createBuildRegisterGlobalShortcutsMainDepsHandler({
+const buildRegisterGlobalShortcutsMainDepsHandler =
+  createBuildRegisterGlobalShortcutsMainDepsHandler({
     getConfiguredShortcuts: () => getConfiguredShortcuts(),
     registerGlobalShortcutsCore,
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
@@ -2447,15 +2472,19 @@ const registerGlobalShortcutsHandler = createRegisterGlobalShortcutsHandler({
     openYomitanSettings: () => openYomitanSettings(),
     isDev,
     getMainWindow: () => overlayManager.getMainWindow(),
-  })(),
+  });
+const registerGlobalShortcutsHandler = createRegisterGlobalShortcutsHandler({
+  ...buildRegisterGlobalShortcutsMainDepsHandler(),
 });
 
-const refreshGlobalAndOverlayShortcutsHandler = createRefreshGlobalAndOverlayShortcutsHandler({
-  ...createBuildRefreshGlobalAndOverlayShortcutsMainDepsHandler({
+const buildRefreshGlobalAndOverlayShortcutsMainDepsHandler =
+  createBuildRefreshGlobalAndOverlayShortcutsMainDepsHandler({
     unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
     registerGlobalShortcuts: () => registerGlobalShortcuts(),
     syncOverlayShortcuts: () => syncOverlayShortcuts(),
-  })(),
+  });
+const refreshGlobalAndOverlayShortcutsHandler = createRefreshGlobalAndOverlayShortcutsHandler({
+  ...buildRefreshGlobalAndOverlayShortcutsMainDepsHandler(),
 });
 
 function registerGlobalShortcuts(): void {
@@ -2489,24 +2518,26 @@ function cycleSecondarySubMode(): void {
   );
 }
 
+const buildAppendToMpvLogMainDepsHandler = createBuildAppendToMpvLogMainDepsHandler({
+  logPath: DEFAULT_MPV_LOG_PATH,
+  dirname: (targetPath) => path.dirname(targetPath),
+  mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
+  appendFileSync: (targetPath, data, options) => fs.appendFileSync(targetPath, data, options),
+  now: () => new Date(),
+});
 const appendToMpvLogHandler = createAppendToMpvLogHandler({
-  ...createBuildAppendToMpvLogMainDepsHandler({
-    logPath: DEFAULT_MPV_LOG_PATH,
-    dirname: (targetPath) => path.dirname(targetPath),
-    mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
-    appendFileSync: (targetPath, data, options) => fs.appendFileSync(targetPath, data, options),
-    now: () => new Date(),
-  })(),
+  ...buildAppendToMpvLogMainDepsHandler(),
 });
 
+const buildShowMpvOsdMainDepsHandler = createBuildShowMpvOsdMainDepsHandler({
+  appendToMpvLog: (message) => appendToMpvLog(message),
+  showMpvOsdRuntime: (mpvClient, text, fallbackLog) =>
+    showMpvOsdRuntime(mpvClient as never, text, fallbackLog),
+  getMpvClient: () => appState.mpvClient,
+  logInfo: (line) => logger.info(line),
+});
 const showMpvOsdHandler = createShowMpvOsdHandler({
-  ...createBuildShowMpvOsdMainDepsHandler({
-    appendToMpvLog: (message) => appendToMpvLog(message),
-    showMpvOsdRuntime: (mpvClient, text, fallbackLog) =>
-      showMpvOsdRuntime(mpvClient as never, text, fallbackLog),
-    getMpvClient: () => appState.mpvClient,
-    logInfo: (line) => logger.info(line),
-  })(),
+  ...buildShowMpvOsdMainDepsHandler(),
 });
 
 function showMpvOsd(text: string): void {
@@ -2517,12 +2548,15 @@ function appendToMpvLog(message: string): void {
   appendToMpvLogHandler(message);
 }
 
-const numericShortcutRuntime = createNumericShortcutRuntime({
+const buildNumericShortcutRuntimeMainDepsHandler = createBuildNumericShortcutRuntimeMainDepsHandler({
   globalShortcut,
   showMpvOsd: (text) => showMpvOsd(text),
   setTimer: (handler, timeoutMs) => setTimeout(handler, timeoutMs),
   clearTimer: (timer) => clearTimeout(timer),
 });
+const numericShortcutRuntime = createNumericShortcutRuntime(
+  buildNumericShortcutRuntimeMainDepsHandler(),
+);
 const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
 const buildCancelPendingMultiCopyMainDepsHandler =

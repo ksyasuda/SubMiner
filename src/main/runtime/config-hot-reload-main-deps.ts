@@ -4,6 +4,7 @@ import type {
 } from '../../core/services/config-hot-reload';
 import type { ReloadConfigStrictResult } from '../../config';
 import type { ConfigHotReloadPayload, ConfigValidationWarning, ResolvedConfig, SecondarySubMode } from '../../types';
+import type { createConfigHotReloadMessageHandler } from './config-hot-reload-handlers';
 
 type ConfigWatchListener = (eventType: string, filename: string | null) => void;
 
@@ -30,6 +31,28 @@ export function createWatchConfigPathHandler(deps: {
       close: () => watcher.close(),
     };
   };
+}
+
+type WatchConfigPathMainDeps = Parameters<typeof createWatchConfigPathHandler>[0];
+type ConfigHotReloadMessageMainDeps = Parameters<typeof createConfigHotReloadMessageHandler>[0];
+
+export function createBuildWatchConfigPathMainDepsHandler(deps: WatchConfigPathMainDeps) {
+  return (): WatchConfigPathMainDeps => ({
+    fileExists: (targetPath: string) => deps.fileExists(targetPath),
+    dirname: (targetPath: string) => deps.dirname(targetPath),
+    watchPath: (targetPath: string, listener: ConfigWatchListener) =>
+      deps.watchPath(targetPath, listener),
+  });
+}
+
+export function createBuildConfigHotReloadMessageMainDepsHandler(
+  deps: ConfigHotReloadMessageMainDeps,
+) {
+  return (): ConfigHotReloadMessageMainDeps => ({
+    showMpvOsd: (message: string) => deps.showMpvOsd(message),
+    showDesktopNotification: (title: string, options: { body: string }) =>
+      deps.showDesktopNotification(title, options),
+  });
 }
 
 export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
