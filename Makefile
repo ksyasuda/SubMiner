@@ -141,10 +141,8 @@ build-launcher:
 
 clean:
 	@printf '%s\n' "[INFO] Removing build artifacts"
-	@rm -f release/SubMiner-*.AppImage
-	@rm -f release/linux-unpacked/SubMiner
-	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
 	@rm -rf dist release
+	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
 
 generate-config: ensure-bun
 	@bun run build
