@@ -52,6 +52,7 @@ test('config hot reload runtime debounces rapid watch events', () => {
     onHotReloadApplied: () => {},
     onRestartRequired: () => {},
     onInvalidConfig: () => {},
+    onValidationWarnings: () => {},
   };
 
   const runtime = createConfigHotReloadRuntime(deps);
@@ -103,9 +104,59 @@ test('config hot reload runtime reports invalid config and skips apply', () => {
     onInvalidConfig: (message) => {
       invalidMessages.push(message);
     },
+    onValidationWarnings: () => {
+      throw new Error('Validation warnings should not trigger for invalid config.');
+    },
   });
 
   runtime.start();
   assert.equal(watchedChangeCallback, null);
   assert.equal(invalidMessages.length, 1);
+});
+
+test('config hot reload runtime reports validation warnings from reload', () => {
+  let watchedChangeCallback: (() => void) | null = null;
+  const warningCalls: Array<{ path: string; count: number }> = [];
+
+  const runtime = createConfigHotReloadRuntime({
+    getCurrentConfig: () => deepCloneConfig(DEFAULT_CONFIG),
+    reloadConfigStrict: () => ({
+      ok: true,
+      config: deepCloneConfig(DEFAULT_CONFIG),
+      warnings: [
+        {
+          path: 'ankiConnect.openRouter',
+          message: 'Deprecated key; use ankiConnect.ai instead.',
+          value: { enabled: true },
+          fallback: {},
+        },
+      ],
+      path: '/tmp/config.jsonc',
+    }),
+    watchConfigPath: (_path, onChange) => {
+      watchedChangeCallback = onChange;
+      return { close: () => {} };
+    },
+    setTimeout: (callback) => {
+      callback();
+      return 1 as unknown as NodeJS.Timeout;
+    },
+    clearTimeout: () => {},
+    debounceMs: 0,
+    onHotReloadApplied: () => {},
+    onRestartRequired: () => {},
+    onInvalidConfig: () => {},
+    onValidationWarnings: (path, warnings) => {
+      warningCalls.push({ path, count: warnings.length });
+    },
+  });
+
+  runtime.start();
+  assert.equal(warningCalls.length, 0);
+  if (!watchedChangeCallback) {
+    throw new Error('Expected watch callback to be registered.');
+  }
+  const trigger = watchedChangeCallback as () => void;
+  trigger();
+  assert.deepEqual(warningCalls, [{ path: '/tmp/config.jsonc', count: 1 }]);
 });

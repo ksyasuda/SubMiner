@@ -68,7 +68,7 @@ Shown when SubMiner tries to update a card that no longer exists, or when AnkiCo
 
 - Renderer errors now trigger an automatic recovery path. You should see a short toast ("Renderer error recovered. Overlay is still running.").
 - Recovery closes any open modal and restores click-through/shortcuts automatically without interrupting mpv playback.
-- If errors keep recurring, open DevTools (`Alt+Shift+I`) and inspect the `renderer overlay recovery` error payload for stack trace + modal/subtitle context.
+- If errors keep recurring, toggle the overlay's DevTools using the `y-d` mpv chord (or `F12` when running with `--dev`) and inspect the `renderer overlay recovery` error payload for stack trace + modal/subtitle context.
 
 **Overlay is on the wrong monitor or position**
 

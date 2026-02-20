@@ -275,7 +275,11 @@ export function handleCliCommand(
     args.jellyfinRemoteAnnounce ||
     args.texthooker ||
     args.help;
-  const ignoreStartOnly = source === 'second-instance' && args.start && !hasNonStartAction;
+  const ignoreStartOnly =
+    source === 'second-instance' &&
+    args.start &&
+    !hasNonStartAction &&
+    deps.isOverlayRuntimeInitialized();
   if (ignoreStartOnly) {
     deps.log('Ignoring --start because SubMiner is already running.');
     return;
@@ -283,9 +287,11 @@ export function handleCliCommand(
 
   const shouldStart =
     args.start ||
-    (source === 'initial' &&
-      (args.toggle || args.toggleVisibleOverlay || args.toggleInvisibleOverlay));
+    args.toggle ||
+    args.toggleVisibleOverlay ||
+    args.toggleInvisibleOverlay;
   const needsOverlayRuntime = commandNeedsOverlayRuntime(args);
+  const shouldInitializeOverlayRuntime = needsOverlayRuntime || args.start;
 
   if (args.socketPath !== undefined) {
     deps.setMpvSocketPath(args.socketPath);
@@ -306,7 +312,7 @@ export function handleCliCommand(
     return;
   }
 
-  if (needsOverlayRuntime && !deps.isOverlayRuntimeInitialized()) {
+  if (shouldInitializeOverlayRuntime && !deps.isOverlayRuntimeInitialized()) {
     deps.initializeOverlayRuntime();
   }
 

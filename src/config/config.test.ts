@@ -889,4 +889,16 @@ test('template generator includes known keys', () => {
   assert.match(output, /"knownWord": "#a6da95"/);
   assert.match(output, /"minSentenceWords": 3/);
   assert.match(output, /auto-generated from src\/config\/definitions.ts/);
+  assert.match(
+    output,
+    /"level": "info",? \/\/ Minimum log level for runtime logging\. Values: debug \| info \| warn \| error/,
+  );
+  assert.match(
+    output,
+    /"enabled": "auto",? \/\/ Built-in subtitle websocket server mode\. Values: auto \| true \| false/,
+  );
+  assert.match(
+    output,
+    /"enabled": false,? \/\/ Enable AnkiConnect integration\. Values: true \| false/,
+  );
 });

@@ -1,11 +1,11 @@
-# Agent: <agent_id>
+# Agent: `<agent_id>`
 
-- alias: <short label>
-- mission: <one-line focus>
-- status: <planning|editing|testing|blocked|handoff|done>
-- branch: <name>
-- started_at: <UTC ISO>
-- heartbeat_minutes: <n>
+- alias: `<short label>`
+- mission: `<one-line focus>`
+- status: `<planning|editing|testing|blocked|handoff|done>`
+- branch: `<name>`
+- started_at: `<UTC ISO>`
+- heartbeat_minutes: `<n>`
 
 ## Current Work (newest first)
 - [YYYY-MM-DDTHH:MM:SSZ] intent: ...

@@ -218,6 +218,10 @@ async function main(): Promise<void> {
   }
   state.appPath = appPath;
 
+  if (args.appPassthrough) {
+    runAppCommandWithInherit(appPath, args.appArgs);
+  }
+
   if (args.mpvIdle) {
     await launchMpvIdleDetached(mpvSocketPath, appPath, args);
     const ready = await waitForUnixSocketReady(mpvSocketPath, 8000);

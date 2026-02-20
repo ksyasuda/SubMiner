@@ -1,4 +1,5 @@
 import { type ReloadConfigStrictResult } from '../../config';
+import type { ConfigValidationWarning } from '../../types';
 import type { ResolvedConfig } from '../../types';
 
 export interface ConfigHotReloadDiff {
@@ -16,6 +17,7 @@ export interface ConfigHotReloadRuntimeDeps {
   onHotReloadApplied: (diff: ConfigHotReloadDiff, config: ResolvedConfig) => void;
   onRestartRequired: (fields: string[]) => void;
   onInvalidConfig: (message: string) => void;
+  onValidationWarnings: (configPath: string, warnings: ConfigValidationWarning[]) => void;
 }
 
 export interface ConfigHotReloadRuntime {
@@ -105,6 +107,10 @@ export function createConfigHotReloadRuntime(
 
     if (watchedPath !== result.path) {
       watchPath(result.path);
+    }
+
+    if (result.warnings.length > 0) {
+      deps.onValidationWarnings(result.path, result.warnings);
     }
 
     const diff = classifyDiff(prev, result.config);

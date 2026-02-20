@@ -71,9 +71,11 @@ export default {
         text: 'Reference',
         items: [
           { text: 'Configuration', link: '/configuration' },
-          { text: 'Immersion Tracking', link: '/immersion-tracking' },
+          { text: 'Keyboard Shortcuts', link: '/shortcuts' },
           { text: 'Anki Integration', link: '/anki-integration' },
           { text: 'Jellyfin Integration', link: '/jellyfin-integration' },
+          { text: 'Immersion Tracking', link: '/immersion-tracking' },
+          { text: 'JLPT Vocabulary', link: '/jlpt-vocab-bundle' },
           { text: 'MPV Plugin', link: '/mpv-plugin' },
           { text: 'Troubleshooting', link: '/troubleshooting' },
         ],

@@ -1,7 +1,46 @@
 import { ResolvedConfig } from '../types';
-import { CONFIG_TEMPLATE_SECTIONS, DEFAULT_CONFIG, deepCloneConfig } from './definitions';
+import {
+  CONFIG_OPTION_REGISTRY,
+  CONFIG_TEMPLATE_SECTIONS,
+  DEFAULT_CONFIG,
+  deepCloneConfig,
+} from './definitions';
 
-function renderValue(value: unknown, indent = 0): string {
+const OPTION_REGISTRY_BY_PATH = new Map(CONFIG_OPTION_REGISTRY.map((entry) => [entry.path, entry]));
+const TOP_LEVEL_SECTION_DESCRIPTION_BY_KEY = new Map(
+  CONFIG_TEMPLATE_SECTIONS.map((section) => [String(section.key), section.description[0] ?? '']),
+);
+
+function normalizeCommentText(value: string): string {
+  return value.replace(/\s+/g, ' ').replace(/\*\//g, '*\\/').trim();
+}
+
+function humanizeKey(key: string): string {
+  const spaced = key
+    .replace(/_/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function buildInlineOptionComment(path: string, value: unknown): string {
+  const registryEntry = OPTION_REGISTRY_BY_PATH.get(path);
+  const baseDescription = registryEntry?.description ?? TOP_LEVEL_SECTION_DESCRIPTION_BY_KEY.get(path);
+  const description =
+    baseDescription && baseDescription.trim().length > 0
+      ? normalizeCommentText(baseDescription)
+      : `${humanizeKey(path.split('.').at(-1) ?? path)} setting.`;
+
+  if (registryEntry?.enumValues?.length) {
+    return `${description} Values: ${registryEntry.enumValues.join(' | ')}`;
+  }
+  if (typeof value === 'boolean') {
+    return `${description} Values: true | false`;
+  }
+  return description;
+}
+
+function renderValue(value: unknown, indent = 0, path = ''): string {
   const pad = ' '.repeat(indent);
   const nextPad = ' '.repeat(indent + 2);
 
@@ -11,7 +50,7 @@ function renderValue(value: unknown, indent = 0): string {
 
   if (Array.isArray(value)) {
     if (value.length === 0) return '[]';
-    const items = value.map((item) => `${nextPad}${renderValue(item, indent + 2)}`);
+    const items = value.map((item) => `${nextPad}${renderValue(item, indent + 2, `${path}[]`)}`);
     return `\n${items.join(',\n')}\n${pad}`.replace(/^/, '[').concat(']');
   }
 
@@ -20,10 +59,18 @@ function renderValue(value: unknown, indent = 0): string {
       ([, child]) => child !== undefined,
     );
     if (entries.length === 0) return '{}';
-    const lines = entries.map(
-      ([key, child]) => `${nextPad}${JSON.stringify(key)}: ${renderValue(child, indent + 2)}`,
-    );
-    return `\n${lines.join(',\n')}\n${pad}`.replace(/^/, '{').concat('}');
+    const lines = entries.map(([key, child], index) => {
+      const isLast = index === entries.length - 1;
+      const trailingComma = isLast ? '' : ',';
+      const childPath = path ? `${path}.${key}` : key;
+      const renderedChild = renderValue(child, indent + 2, childPath);
+      const comment = buildInlineOptionComment(childPath, child);
+      if (renderedChild.startsWith('\n')) {
+        return `${nextPad}${JSON.stringify(key)}: /* ${comment} */ ${renderedChild}${trailingComma}`;
+      }
+      return `${nextPad}${JSON.stringify(key)}: ${renderedChild}${trailingComma} // ${comment}`;
+    });
+    return `\n${lines.join('\n')}\n${pad}`.replace(/^/, '{').concat('}');
   }
 
   return 'null';
@@ -41,7 +88,17 @@ function renderSection(
     lines.push(`  // ${comment}`);
   }
   lines.push('  // ==========================================');
-  lines.push(`  ${JSON.stringify(key)}: ${renderValue(value, 2)}${isLast ? '' : ','}`);
+  const inlineComment = buildInlineOptionComment(String(key), value);
+  const renderedValue = renderValue(value, 2, String(key));
+  if (renderedValue.startsWith('\n')) {
+    lines.push(
+      `  ${JSON.stringify(key)}: /* ${inlineComment} */ ${renderedValue}${isLast ? '' : ','}`,
+    );
+  } else {
+    lines.push(
+      `  ${JSON.stringify(key)}: ${renderedValue}${isLast ? '' : ','} // ${inlineComment}`,
+    );
+  }
   return lines.join('\n');
 }
 

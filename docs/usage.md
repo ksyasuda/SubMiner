@@ -58,6 +58,7 @@ subminer mpv socket               # Print active mpv socket path
 subminer mpv status               # Exit 0 if socket is ready, else exit 1
 subminer mpv idle                 # Launch detached idle mpv with SubMiner defaults
 subminer texthooker               # Launch texthooker-only mode
+subminer app --anilist            # Pass args directly to SubMiner binary (example: AniList login flow)
 subminer yt -o ~/subs https://youtu.be/...  # YouTube subcommand: output directory shortcut
 subminer yt --mode preprocess --whisper-bin /path/to/whisper-cli --whisper-model /path/to/model.bin https://youtu.be/...  # Pre-generate subtitle tracks before playback
 
@@ -103,6 +104,7 @@ SubMiner.AppImage --help                  # Show all options
 - `subminer config`: config helpers (`path`, `show`).
 - `subminer mpv`: mpv helpers (`status`, `socket`, `idle`).
 - `subminer texthooker`: texthooker-only shortcut (same behavior as `--texthooker`).
+- `subminer app` / `subminer bin`: direct passthrough to the SubMiner binary/AppImage.
 - Subcommand help pages are available (for example `subminer jellyfin -h`, `subminer yt -h`).
 
 Use subcommands for Jellyfin/YouTube command families (`subminer jellyfin ...`, `subminer yt ...`).

@@ -4,7 +4,7 @@ title: Make wrapper stop auto-sending --start by default
 status: Done
 assignee: []
 created_date: '2026-02-18 09:47'
-updated_date: '2026-02-18 10:02'
+updated_date: '2026-02-19 23:18'
 labels:
   - launcher
   - wrapper
@@ -12,6 +12,7 @@ labels:
   - background-mode
 dependencies: []
 priority: high
+ordinal: 68000
 ---
 
 ## Description

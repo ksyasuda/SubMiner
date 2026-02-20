@@ -5,13 +5,14 @@ status: Done
 assignee:
   - codex-main
 created_date: '2026-02-19 08:38'
-updated_date: '2026-02-19 08:40'
+updated_date: '2026-02-19 23:18'
 labels:
   - config
   - anki
   - cleanup
 dependencies: []
 priority: medium
+ordinal: 64000
 ---
 
 ## Description

@@ -4,19 +4,19 @@ title: Add error boundary and recovery in renderer overlay
 status: Done
 assignee: []
 created_date: '2026-02-14 01:01'
-updated_date: '2026-02-19 21:50'
+updated_date: '2026-02-19 23:18'
 labels:
   - renderer
   - reliability
   - error-handling
 dependencies: []
 priority: medium
+ordinal: 60000
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-
 Add a top-level error boundary in the renderer orchestrator that catches unhandled errors in modals and rendering logic, displays a user-friendly error message, and recovers without crashing the overlay.
 
 ## Motivation
@@ -39,9 +39,7 @@ If a renderer modal throws (e.g., jimaku API timeout, DOM manipulation error, ma
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
-
 - [x] #1 Unhandled errors in modal flows are caught and do not crash the overlay.
 - [x] #2 After an error, the overlay returns to a functional state (subtitles render, shortcuts work).
 - [x] #3 A brief toast/notification informs the user that an error occurred.
@@ -52,6 +50,7 @@ If a renderer modal throws (e.g., jimaku API timeout, DOM manipulation error, ma
 
 ## Implementation Notes
 
+<!-- SECTION:NOTES:BEGIN -->
 - Added renderer recovery module with guarded callback boundaries and global `window.onerror` / `window.unhandledrejection` handlers.
 - Recovery now uses modal close/cancel APIs (including Kiku cancel) to preserve cleanup semantics and avoid hanging pending callbacks.
 - Added overlay recovery toast UI and contextual recovery logging payloads.
@@ -61,3 +60,4 @@ If a renderer modal throws (e.g., jimaku API timeout, DOM manipulation error, ma
 
 - `bun run build`
 - `bun run test:core:dist`
+<!-- SECTION:NOTES:END -->

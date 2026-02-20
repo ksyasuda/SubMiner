@@ -4,12 +4,13 @@ title: Allow trailing commas in JSONC config parsing
 status: Done
 assignee: []
 created_date: '2026-02-18 10:13'
-updated_date: '2026-02-18 10:13'
+updated_date: '2026-02-19 23:18'
 labels:
   - config
   - jsonc
 dependencies: []
 priority: medium
+ordinal: 67000
 ---
 
 ## Description

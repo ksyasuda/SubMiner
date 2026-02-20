@@ -15,15 +15,17 @@ make docs-preview # Preview built site at http://localhost:4173
 ### Getting Started
 
 - [Installation](/installation) — Requirements, Linux/macOS/Windows install, mpv plugin setup
-- [Usage](/usage) — `subminer` wrapper + subcommands (`jellyfin`, `yt`, `doctor`, `config`, `mpv`, `texthooker`), mpv plugin, keybindings
+- [Usage](/usage) — `subminer` wrapper + subcommands (`jellyfin`, `yt`, `doctor`, `config`, `mpv`, `texthooker`, `app`), mpv plugin, keybindings
 - [Mining Workflow](/mining-workflow) — End-to-end sentence mining guide, overlay layers, card creation
 
 ### Reference
 
 - [Configuration](/configuration) — Full config file reference and option details
-- [Immersion Tracking](/immersion-tracking) — SQLite schema, retention/rollup policies, query templates, and extension points
+- [Keyboard Shortcuts](/shortcuts) — All global, overlay, mining, and plugin chord shortcuts in one place
 - [Anki Integration](/anki-integration) — AnkiConnect setup, field mapping, media generation, field grouping
 - [Jellyfin Integration](/jellyfin-integration) — Optional Jellyfin auth, cast discovery, remote control, and playback launch
+- [Immersion Tracking](/immersion-tracking) — SQLite schema, retention/rollup policies, query templates, and extension points
+- [JLPT Vocabulary](/jlpt-vocab-bundle) — Bundled term-meta bank for JLPT level underlining and frequency highlighting
 - [MPV Plugin](/mpv-plugin) — Chord keybindings, subminer.conf options, script messages
 - [Troubleshooting](/troubleshooting) — Common issues and solutions by category
 

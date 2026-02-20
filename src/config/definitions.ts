@@ -503,7 +503,8 @@ export const CONFIG_OPTION_REGISTRY: ConfigOptionRegistryEntry[] = [
     path: 'anilist.accessToken',
     kind: 'string',
     defaultValue: DEFAULT_CONFIG.anilist.accessToken,
-    description: 'AniList access token used for post-watch updates.',
+    description:
+      'Optional explicit AniList access token override; leave empty to use locally stored token from setup.',
   },
   {
     path: 'jellyfin.enabled',

@@ -1,0 +1,64 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  createConsumeAnilistSetupTokenFromUrlHandler,
+  createHandleAnilistSetupProtocolUrlHandler,
+  createNotifyAnilistSetupHandler,
+  createRegisterSubminerProtocolClientHandler,
+} from './anilist-setup-protocol';
+
+test('createNotifyAnilistSetupHandler sends OSD when mpv client exists', () => {
+  const calls: string[] = [];
+  const notify = createNotifyAnilistSetupHandler({
+    hasMpvClient: () => true,
+    showMpvOsd: (message) => calls.push(`osd:${message}`),
+    showDesktopNotification: () => calls.push('desktop'),
+    logInfo: () => calls.push('log'),
+  });
+  notify('AniList login success');
+  assert.deepEqual(calls, ['osd:AniList login success']);
+});
+
+test('createConsumeAnilistSetupTokenFromUrlHandler delegates with deps', () => {
+  const consume = createConsumeAnilistSetupTokenFromUrlHandler({
+    consumeAnilistSetupCallbackUrl: (input) => input.rawUrl.includes('access_token=ok'),
+    saveToken: () => {},
+    setCachedToken: () => {},
+    setResolvedState: () => {},
+    setSetupPageOpened: () => {},
+    onSuccess: () => {},
+    closeWindow: () => {},
+  });
+  assert.equal(consume('subminer://anilist-setup?access_token=ok'), true);
+  assert.equal(consume('subminer://anilist-setup'), false);
+});
+
+test('createHandleAnilistSetupProtocolUrlHandler validates scheme and logs missing token', () => {
+  const warnings: string[] = [];
+  const handleProtocolUrl = createHandleAnilistSetupProtocolUrlHandler({
+    consumeAnilistSetupTokenFromUrl: () => false,
+    logWarn: (message) => warnings.push(message),
+  });
+
+  assert.equal(handleProtocolUrl('https://example.com'), false);
+  assert.equal(handleProtocolUrl('subminer://anilist-setup'), true);
+  assert.deepEqual(warnings, ['AniList setup protocol URL missing access token']);
+});
+
+test('createRegisterSubminerProtocolClientHandler registers default app entry', () => {
+  const calls: string[] = [];
+  const register = createRegisterSubminerProtocolClientHandler({
+    isDefaultApp: () => true,
+    getArgv: () => ['electron', './entry.js'],
+    execPath: '/usr/local/bin/electron',
+    resolvePath: (value) => `/resolved/${value}`,
+    setAsDefaultProtocolClient: (_scheme, _path, args) => {
+      calls.push(`register:${String(args?.[0])}`);
+      return true;
+    },
+    logWarn: (message) => calls.push(`warn:${message}`),
+  });
+
+  register();
+  assert.deepEqual(calls, ['register:/resolved/./entry.js']);
+});

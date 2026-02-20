@@ -39,17 +39,17 @@ features:
       src: /assets/dual-layer.svg
       alt: Dual layer icon
     title: Dual-Layer Subtitles
-    details: Interactive visible overlay plus an invisible layer aligned with mpv's own rendering for seamless click-through lookup.
+    details: Interactive visible overlay plus an invisible layer aligned with mpv's own rendering for seamless click-through lookup. Both are independently controllable.
   - icon:
       src: /assets/highlight.svg
       alt: Highlight icon
     title: N+1 Highlighting
     details: Marks words you already know from your Anki deck so you can spot new vocabulary and identify N+1 sentences at a glance.
   - icon:
-      src: /assets/texthooker.svg
-      alt: Texthooker icon
-    title: Texthooker & WebSocket
-    details: Built-in texthooker page that receives subtitles over WebSocket — use it as a clipboard inserter or connect external tools.
+      src: /assets/tokenization.svg
+      alt: Tokenization icon
+    title: Immersion Tracking
+    details: Every subtitle line, word, and mined card is logged to local SQLite. Daily and monthly rollups let you measure your progress over time.
   - icon:
       src: /assets/subtitle-download.svg
       alt: Subtitle download icon
@@ -60,6 +60,11 @@ features:
       alt: Keyboard icon
     title: Keyboard-Driven
     details: Mine sentences, copy subtitles, cycle display modes, and trigger field grouping — all from configurable shortcuts.
+  - icon:
+      src: /assets/texthooker.svg
+      alt: Texthooker icon
+    title: Texthooker & WebSocket
+    details: Built-in texthooker page that receives subtitles over WebSocket — use it as a clipboard inserter or connect external tools.
 ---
 
 <style>
@@ -104,14 +109,20 @@ features:
 
 .workflow-steps {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1px;
   background: var(--vp-c-divider);
   border-radius: 12px;
   overflow: hidden;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 960px) {
+  .workflow-steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
   .workflow-steps {
     grid-template-columns: 1fr;
   }
@@ -158,7 +169,7 @@ features:
   <div class="workflow-step">
     <div class="step-number">02</div>
     <div class="step-title">Look Up</div>
-    <div class="step-desc">Hover over a word in the subtitle overlay and hold Shift to trigger a Yomitan lookup.</div>
+    <div class="step-desc">Hover over a word in the subtitle overlay to trigger a Yomitan lookup — no browser or tab-switching needed.</div>
   </div>
   <div class="workflow-step">
     <div class="step-number">03</div>
@@ -169,6 +180,11 @@ features:
     <div class="step-number">04</div>
     <div class="step-title">Enrich</div>
     <div class="step-desc">SubMiner fills in the sentence, audio clip, screenshot, and translation — no extra steps.</div>
+  </div>
+  <div class="workflow-step">
+    <div class="step-number">05</div>
+    <div class="step-title">Track</div>
+    <div class="step-desc">Every line seen and card mined is logged to local SQLite. Daily and monthly rollups let you measure immersion over time.</div>
   </div>
 </div>
 

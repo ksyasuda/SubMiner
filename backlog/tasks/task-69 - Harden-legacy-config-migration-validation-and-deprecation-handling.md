@@ -5,13 +5,14 @@ status: Done
 assignee:
   - codex-main
 created_date: '2026-02-18 11:35'
-updated_date: '2026-02-19 08:27'
+updated_date: '2026-02-19 23:18'
 labels:
   - config
   - validation
   - safety
 dependencies: []
 priority: high
+ordinal: 65000
 ---
 
 ## Description

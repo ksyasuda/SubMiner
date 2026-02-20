@@ -5,13 +5,14 @@ status: Done
 assignee:
   - codex-main
 created_date: '2026-02-18 11:35'
-updated_date: '2026-02-19 09:05'
+updated_date: '2026-02-19 23:18'
 labels:
   - config
   - launcher
   - consistency
 dependencies: []
 priority: high
+ordinal: 63000
 ---
 
 ## Description

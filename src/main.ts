@@ -49,30 +49,73 @@ import { spawn } from 'node:child_process';
 import { MecabTokenizer } from './mecab-tokenizer';
 import type {
   JimakuApiResponse,
-  JimakuLanguagePreference,
   SubtitleData,
   SubtitlePosition,
   WindowGeometry,
   SecondarySubMode,
-  SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
   KikuFieldGroupingChoice,
   RuntimeOptionState,
   MpvSubtitleRenderMetrics,
   ResolvedConfig,
-  ConfigHotReloadPayload,
-  ConfigValidationWarning,
 } from './types';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { AnkiIntegration } from './anki-integration';
 import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
-import { getSubsyncConfig } from './subsync/utils';
 import { createLogger, setLogLevel, type LogLevelSource } from './logger';
-import { parseArgs, shouldStartApp } from './cli/args';
+import { commandNeedsOverlayRuntime, parseArgs, shouldStartApp } from './cli/args';
 import type { CliArgs, CliCommandSource } from './cli/args';
 import { printHelp } from './cli/help';
+import {
+  createCriticalConfigErrorHandler,
+  createReloadConfigHandler,
+} from './main/runtime/startup-config';
+import { buildConfigWarningNotificationBody } from './main/config-validation';
+import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
+import { createImmersionMediaRuntime } from './main/runtime/immersion-media';
+import { createAnilistStateRuntime } from './main/runtime/anilist-state';
+import { createConfigDerivedRuntime } from './main/runtime/config-derived';
+import { appendClipboardVideoToQueueRuntime } from './main/runtime/clipboard-queue';
+import { createMainSubsyncRuntime } from './main/runtime/subsync-runtime';
+import {
+  buildAnilistSetupUrl,
+  consumeAnilistSetupCallbackUrl,
+  findAnilistSetupDeepLinkArgvUrl,
+  isAnilistTrackingEnabled,
+  loadAnilistManualTokenEntry,
+  loadAnilistSetupFallback,
+  openAnilistSetupInBrowser,
+} from './main/runtime/anilist-setup';
+import {
+  createConsumeAnilistSetupTokenFromUrlHandler,
+  createHandleAnilistSetupProtocolUrlHandler,
+  createNotifyAnilistSetupHandler,
+  createRegisterSubminerProtocolClientHandler,
+} from './main/runtime/anilist-setup-protocol';
+import {
+  createHandleJellyfinRemoteGeneralCommand,
+  createHandleJellyfinRemotePlay,
+  createHandleJellyfinRemotePlaystate,
+  getConfiguredJellyfinSession,
+  type ActiveJellyfinRemotePlaybackState,
+} from './main/runtime/jellyfin-remote-commands';
+import {
+  createReportJellyfinRemoteProgressHandler,
+  createReportJellyfinRemoteStoppedHandler,
+} from './main/runtime/jellyfin-remote-playback';
+import {
+  createEnsureMpvConnectedForJellyfinPlaybackHandler,
+  createLaunchMpvIdleForJellyfinPlaybackHandler,
+  createWaitForMpvConnectedHandler,
+} from './main/runtime/jellyfin-remote-connection';
+import {
+  buildRestartRequiredConfigMessage,
+  createConfigHotReloadAppliedHandler,
+  createConfigHotReloadMessageHandler,
+  resolveSubtitleStyleForRenderer,
+} from './main/runtime/config-hot-reload-handlers';
 import {
   enforceUnsupportedWaylandMode,
   forceX11Backend,
@@ -98,15 +141,10 @@ import {
   cycleSecondarySubMode as cycleSecondarySubModeCore,
   enforceOverlayLayerOrder as enforceOverlayLayerOrderCore,
   ensureOverlayWindowLevel as ensureOverlayWindowLevelCore,
-  getInitialInvisibleOverlayVisibility as getInitialInvisibleOverlayVisibilityCore,
-  getJimakuLanguagePreference as getJimakuLanguagePreferenceCore,
-  getJimakuMaxEntryResults as getJimakuMaxEntryResultsCore,
   handleMineSentenceDigit as handleMineSentenceDigitCore,
   handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
-  isAutoUpdateEnabledRuntime as isAutoUpdateEnabledRuntimeCore,
-  jimakuFetchJson as jimakuFetchJsonCore,
   loadSubtitlePosition as loadSubtitlePositionCore,
   loadYomitanExtension as loadYomitanExtensionCore,
   listJellyfinItemsRuntime,
@@ -118,11 +156,9 @@ import {
   JellyfinRemoteSessionService,
   mineSentenceCard as mineSentenceCardCore,
   openYomitanSettingsWindow,
-  parseClipboardVideoPath,
   playNextSubtitleRuntime,
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
-  resolveJimakuApiKey as resolveJimakuApiKeyCore,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   authenticateWithPasswordRuntime,
@@ -134,8 +170,6 @@ import {
   setMpvSubVisibilityRuntime,
   setOverlayDebugVisualizationEnabledRuntime,
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
-  shouldAutoInitializeOverlayRuntimeFromConfig as shouldAutoInitializeOverlayRuntimeFromConfigCore,
-  shouldBindVisibleOverlayToMpvSubVisibility as shouldBindVisibleOverlayToMpvSubVisibilityCore,
   showMpvOsdRuntime,
   tokenizeSubtitle as tokenizeSubtitleCore,
   triggerFieldGrouping as triggerFieldGroupingCore,
@@ -154,11 +188,6 @@ import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
-import {
-  runSubsyncManualFromIpcRuntime,
-  triggerSubsyncFromConfigRuntime,
-  createSubsyncRuntimeServiceInputFromState,
-} from './main/subsync-runtime';
 import { createOverlayModalRuntimeService, type OverlayHostedModal } from './main/overlay-runtime';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
@@ -189,6 +218,8 @@ import { resolveConfigDir } from './config/path-resolution';
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
 }
+
+app.setName('SubMiner');
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
 const DEFAULT_MPV_LOG_FILE = path.join(os.homedir(), '.cache', 'SubMiner', 'mp.log');
@@ -228,14 +259,6 @@ const MPV_JELLYFIN_DEFAULT_ARGS = [
   '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
   '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
 ] as const;
-
-type ActiveJellyfinRemotePlaybackState = {
-  itemId: string;
-  mediaSourceId?: string;
-  audioStreamIndex?: number | null;
-  subtitleStreamIndex?: number | null;
-  playMethod: 'DirectPlay' | 'Transcode';
-};
 
 let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
 let jellyfinRemoteLastProgressAtMs = 0;
@@ -307,40 +330,6 @@ const appLogger = {
   },
 };
 
-function formatConfigValue(value: unknown): string {
-  if (value === undefined) {
-    return 'undefined';
-  }
-
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
-function buildConfigWarningSummary(
-  configPath: string,
-  warnings: ConfigValidationWarning[],
-): string {
-  const lines = [
-    `[config] Validation found ${warnings.length} issue(s). File: ${configPath}`,
-    ...warnings.map(
-      (warning, index) =>
-        `[config] ${index + 1}. ${warning.path}: ${warning.message} actual=${formatConfigValue(warning.value)} fallback=${formatConfigValue(warning.fallback)}`,
-    ),
-  ];
-  return lines.join('\n');
-}
-
-function failStartupFromConfig(title: string, details: string): never {
-  logger.error(details);
-  dialog.showErrorBox(title, details);
-  process.exitCode = 1;
-  app.quit();
-  throw new Error(details);
-}
-
 function getDefaultSocketPath(): string {
   if (process.platform === 'win32') {
     return '\\\\.\\pipe\\subminer-socket';
@@ -372,6 +361,53 @@ const overlayModalRuntime = createOverlayModalRuntimeService({
 const appState = createAppState({
   mpvSocketPath: getDefaultSocketPath(),
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
+});
+const immersionMediaRuntime = createImmersionMediaRuntime({
+  getResolvedConfig: () => getResolvedConfig(),
+  defaultImmersionDbPath: DEFAULT_IMMERSION_DB_PATH,
+  getTracker: () => appState.immersionTracker,
+  getMpvClient: () => appState.mpvClient,
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getCurrentMediaTitle: () => appState.currentMediaTitle,
+  logDebug: (message) => logger.debug(message),
+  logInfo: (message) => logger.info(message),
+});
+const anilistStateRuntime = createAnilistStateRuntime({
+  getClientSecretState: () => appState.anilistClientSecretState,
+  setClientSecretState: (next) => {
+    appState.anilistClientSecretState = next;
+  },
+  getRetryQueueState: () => appState.anilistRetryQueueState,
+  setRetryQueueState: (next) => {
+    appState.anilistRetryQueueState = next;
+  },
+  getUpdateQueueSnapshot: () => anilistUpdateQueue.getSnapshot(),
+  clearStoredToken: () => anilistTokenStore.clearToken(),
+  clearCachedAccessToken: () => {
+    anilistCachedAccessToken = null;
+  },
+});
+const configDerivedRuntime = createConfigDerivedRuntime({
+  getResolvedConfig: () => getResolvedConfig(),
+  getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
+  platform: process.platform,
+  defaultJimakuLanguagePreference: DEFAULT_CONFIG.jimaku.languagePreference,
+  defaultJimakuMaxEntryResults: DEFAULT_CONFIG.jimaku.maxEntryResults,
+  defaultJimakuApiBaseUrl: DEFAULT_CONFIG.jimaku.apiBaseUrl,
+});
+const subsyncRuntime = createMainSubsyncRuntime({
+  getMpvClient: () => appState.mpvClient,
+  getResolvedConfig: () => getResolvedConfig(),
+  getSubsyncInProgress: () => appState.subsyncInProgress,
+  setSubsyncInProgress: (inProgress) => {
+    appState.subsyncInProgress = inProgress;
+  },
+  showMpvOsd: (text) => showMpvOsd(text),
+  openManualPicker: (payload) => {
+    sendToActiveOverlayWindow('subsync:open-manual', payload, {
+      restoreOnModalClose: 'subsync',
+    });
+  },
 });
 let appTray: Tray | null = null;
 const subtitleProcessingController = createSubtitleProcessingController({
@@ -428,6 +464,57 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService({
   },
 });
 
+const notifyConfigHotReloadMessage = createConfigHotReloadMessageHandler({
+  showMpvOsd: (message) => showMpvOsd(message),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+});
+const handleJellyfinRemotePlay = createHandleJellyfinRemotePlay({
+  getConfiguredSession: () => getConfiguredJellyfinSession(getResolvedJellyfinConfig()),
+  getClientInfo: () => getJellyfinClientInfo(),
+  getJellyfinConfig: () => getResolvedJellyfinConfig(),
+  playJellyfinItem: (params) =>
+    playJellyfinItemInMpv(params as Parameters<typeof playJellyfinItemInMpv>[0]),
+  logWarn: (message) => logger.warn(message),
+});
+const handleJellyfinRemotePlaystate = createHandleJellyfinRemotePlaystate({
+  getMpvClient: () => appState.mpvClient,
+  sendMpvCommand: (client, command) => sendMpvCommandRuntime(client as MpvIpcClient, command),
+  reportJellyfinRemoteProgress: (force) => reportJellyfinRemoteProgress(force),
+  reportJellyfinRemoteStopped: () => reportJellyfinRemoteStopped(),
+  jellyfinTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
+});
+const handleJellyfinRemoteGeneralCommand = createHandleJellyfinRemoteGeneralCommand({
+  getMpvClient: () => appState.mpvClient,
+  sendMpvCommand: (client, command) => sendMpvCommandRuntime(client as MpvIpcClient, command),
+  getActivePlayback: () => activeJellyfinRemotePlayback,
+  reportJellyfinRemoteProgress: (force) => reportJellyfinRemoteProgress(force),
+  logDebug: (message) => logger.debug(message),
+});
+const reportJellyfinRemoteProgress = createReportJellyfinRemoteProgressHandler({
+  getActivePlayback: () => activeJellyfinRemotePlayback,
+  clearActivePlayback: () => {
+    activeJellyfinRemotePlayback = null;
+  },
+  getSession: () => appState.jellyfinRemoteSession,
+  getMpvClient: () => appState.mpvClient,
+  getNow: () => Date.now(),
+  getLastProgressAtMs: () => jellyfinRemoteLastProgressAtMs,
+  setLastProgressAtMs: (value) => {
+    jellyfinRemoteLastProgressAtMs = value;
+  },
+  progressIntervalMs: JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS,
+  ticksPerSecond: JELLYFIN_TICKS_PER_SECOND,
+  logDebug: (message, error) => logger.debug(message, error),
+});
+const reportJellyfinRemoteStopped = createReportJellyfinRemoteStoppedHandler({
+  getActivePlayback: () => activeJellyfinRemotePlayback,
+  clearActivePlayback: () => {
+    activeJellyfinRemotePlayback = null;
+  },
+  getSession: () => appState.jellyfinRemoteSession,
+  logDebug: (message, error) => logger.debug(message, error),
+});
+
 const configHotReloadRuntime = createConfigHotReloadRuntime({
   getCurrentConfig: () => getResolvedConfig(),
   reloadConfigStrict: () => configService.reloadConfigStrict(),
@@ -454,35 +541,31 @@ const configHotReloadRuntime = createConfigHotReloadRuntime({
   setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
   clearTimeout: (timeout) => clearTimeout(timeout),
   debounceMs: 250,
-  onHotReloadApplied: (diff, config) => {
-    const payload = buildConfigHotReloadPayload(config);
-    appState.keybindings = payload.keybindings;
-
-    if (diff.hotReloadFields.includes('shortcuts')) {
+  onHotReloadApplied: createConfigHotReloadAppliedHandler({
+    setKeybindings: (keybindings) => {
+      appState.keybindings = keybindings;
+    },
+    refreshGlobalAndOverlayShortcuts: () => {
       refreshGlobalAndOverlayShortcuts();
-    }
-
-    if (diff.hotReloadFields.includes('secondarySub.defaultMode')) {
-      appState.secondarySubMode = payload.secondarySubMode;
-      broadcastToOverlayWindows('secondary-subtitle:mode', payload.secondarySubMode);
-    }
-
-    if (diff.hotReloadFields.includes('ankiConnect.ai') && appState.ankiIntegration) {
-      appState.ankiIntegration.applyRuntimeConfigPatch({ ai: config.ankiConnect.ai });
-    }
-
-    if (diff.hotReloadFields.length > 0) {
-      broadcastToOverlayWindows('config:hot-reload', payload);
-    }
-  },
-  onRestartRequired: (fields) => {
-    const message = `Config updated; restart required for: ${fields.join(', ')}`;
-    showMpvOsd(message);
-    showDesktopNotification('SubMiner', { body: message });
-  },
-  onInvalidConfig: (message) => {
-    showMpvOsd(message);
-    showDesktopNotification('SubMiner', { body: message });
+    },
+    setSecondarySubMode: (mode) => {
+      appState.secondarySubMode = mode;
+    },
+    broadcastToOverlayWindows: (channel, payload) => {
+      broadcastToOverlayWindows(channel, payload);
+    },
+    applyAnkiRuntimeConfigPatch: (patch) => {
+      if (appState.ankiIntegration) {
+        appState.ankiIntegration.applyRuntimeConfigPatch(patch);
+      }
+    },
+  }),
+  onRestartRequired: (fields) => notifyConfigHotReloadMessage(buildRestartRequiredConfigMessage(fields)),
+  onInvalidConfig: notifyConfigHotReloadMessage,
+  onValidationWarnings: (configPath, warnings) => {
+    showDesktopNotification('SubMiner', {
+      body: buildConfigWarningNotificationBody(configPath, warnings),
+    });
   },
 });
 
@@ -681,27 +764,6 @@ function getResolvedConfig() {
   return configService.getConfig();
 }
 
-function resolveSubtitleStyleForRenderer(config: ResolvedConfig) {
-  if (!config.subtitleStyle) {
-    return null;
-  }
-  return {
-    ...config.subtitleStyle,
-    nPlusOneColor: config.ankiConnect.nPlusOne.nPlusOne,
-    knownWordColor: config.ankiConnect.nPlusOne.knownWord,
-    enableJlpt: config.subtitleStyle.enableJlpt,
-    frequencyDictionary: config.subtitleStyle.frequencyDictionary,
-  };
-}
-
-function buildConfigHotReloadPayload(config: ResolvedConfig): ConfigHotReloadPayload {
-  return {
-    keybindings: resolveKeybindings(config, DEFAULT_KEYBINDINGS),
-    subtitleStyle: resolveSubtitleStyleForRenderer(config),
-    secondarySubMode: config.secondarySub.defaultMode,
-  };
-}
-
 function getResolvedJellyfinConfig() {
   return getResolvedConfig().jellyfin;
 }
@@ -717,126 +779,45 @@ function getJellyfinClientInfo(config = getResolvedJellyfinConfig()) {
   };
 }
 
-async function waitForMpvConnected(timeoutMs = 7000): Promise<boolean> {
-  const client = appState.mpvClient;
-  if (!client) return false;
-  if (client.connected) return true;
-  try {
-    client.connect();
-  } catch {}
+const waitForMpvConnected = createWaitForMpvConnectedHandler({
+  getMpvClient: () => appState.mpvClient,
+  now: () => Date.now(),
+  sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
+});
 
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    if (appState.mpvClient?.connected) return true;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  return Boolean(appState.mpvClient?.connected);
-}
+const launchMpvIdleForJellyfinPlayback = createLaunchMpvIdleForJellyfinPlaybackHandler({
+  getSocketPath: () => appState.mpvSocketPath,
+  platform: process.platform,
+  execPath: process.execPath,
+  defaultMpvLogPath: DEFAULT_MPV_LOG_PATH,
+  defaultMpvArgs: MPV_JELLYFIN_DEFAULT_ARGS,
+  removeSocketPath: (socketPath) => {
+    fs.rmSync(socketPath, { force: true });
+  },
+  spawnMpv: (args) =>
+    spawn('mpv', args, {
+      detached: true,
+      stdio: 'ignore',
+    }),
+  logWarn: (message, error) => logger.warn(message, error),
+  logInfo: (message) => logger.info(message),
+});
 
-function launchMpvIdleForJellyfinPlayback(): void {
-  const socketPath = appState.mpvSocketPath;
-  if (process.platform !== 'win32') {
-    try {
-      fs.rmSync(socketPath, { force: true });
-    } catch {
-      // ignore stale socket cleanup errors
-    }
-  }
-
-  const scriptOpts = `--script-opts=subminer-binary_path=${process.execPath},subminer-socket_path=${socketPath}`;
-  const mpvArgs = [
-    ...MPV_JELLYFIN_DEFAULT_ARGS,
-    '--idle=yes',
-    scriptOpts,
-    `--log-file=${DEFAULT_MPV_LOG_PATH}`,
-    `--input-ipc-server=${socketPath}`,
-  ];
-  const proc = spawn('mpv', mpvArgs, {
-    detached: true,
-    stdio: 'ignore',
-  });
-  proc.on('error', (error) => {
-    logger.warn('Failed to launch mpv for Jellyfin remote playback', error);
-  });
-  proc.unref();
-  logger.info(`Launched mpv for Jellyfin playback on socket: ${socketPath}`);
-}
-
-async function ensureMpvConnectedForJellyfinPlayback(): Promise<boolean> {
-  if (!appState.mpvClient) {
-    appState.mpvClient = createMpvClientRuntimeService();
-  }
-
-  const connected = await waitForMpvConnected(JELLYFIN_MPV_CONNECT_TIMEOUT_MS);
-  if (connected) return true;
-
-  if (!jellyfinMpvAutoLaunchInFlight) {
-    jellyfinMpvAutoLaunchInFlight = (async () => {
-      launchMpvIdleForJellyfinPlayback();
-      return waitForMpvConnected(JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS);
-    })().finally(() => {
-      jellyfinMpvAutoLaunchInFlight = null;
-    });
-  }
-
-  return jellyfinMpvAutoLaunchInFlight;
-}
-
-function secondsToJellyfinTicks(seconds: number): number {
-  if (!Number.isFinite(seconds)) return 0;
-  return Math.max(0, Math.floor(seconds * JELLYFIN_TICKS_PER_SECOND));
-}
-
-async function reportJellyfinRemoteProgress(force = false): Promise<void> {
-  if (!activeJellyfinRemotePlayback) return;
-  const session = appState.jellyfinRemoteSession;
-  if (!session || !session.isConnected()) return;
-  const now = Date.now();
-  if (!force && now - jellyfinRemoteLastProgressAtMs < JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS) {
-    return;
-  }
-
-  try {
-    const position = await appState.mpvClient?.requestProperty('time-pos');
-    const paused = await appState.mpvClient?.requestProperty('pause');
-    await session.reportProgress({
-      itemId: activeJellyfinRemotePlayback.itemId,
-      mediaSourceId: activeJellyfinRemotePlayback.mediaSourceId,
-      positionTicks: secondsToJellyfinTicks(Number(position) || 0),
-      isPaused: paused === true,
-      playMethod: activeJellyfinRemotePlayback.playMethod,
-      audioStreamIndex: activeJellyfinRemotePlayback.audioStreamIndex,
-      subtitleStreamIndex: activeJellyfinRemotePlayback.subtitleStreamIndex,
-      eventName: 'timeupdate',
-    });
-    jellyfinRemoteLastProgressAtMs = now;
-  } catch (error) {
-    logger.debug('Failed to report Jellyfin remote progress', error);
-  }
-}
-
-async function reportJellyfinRemoteStopped(): Promise<void> {
-  if (!activeJellyfinRemotePlayback) return;
-  const session = appState.jellyfinRemoteSession;
-  if (!session || !session.isConnected()) {
-    activeJellyfinRemotePlayback = null;
-    return;
-  }
-  try {
-    await session.reportStopped({
-      itemId: activeJellyfinRemotePlayback.itemId,
-      mediaSourceId: activeJellyfinRemotePlayback.mediaSourceId,
-      playMethod: activeJellyfinRemotePlayback.playMethod,
-      audioStreamIndex: activeJellyfinRemotePlayback.audioStreamIndex,
-      subtitleStreamIndex: activeJellyfinRemotePlayback.subtitleStreamIndex,
-      eventName: 'stop',
-    });
-  } catch (error) {
-    logger.debug('Failed to report Jellyfin remote stop', error);
-  } finally {
-    activeJellyfinRemotePlayback = null;
-  }
-}
+const ensureMpvConnectedForJellyfinPlayback = createEnsureMpvConnectedForJellyfinPlaybackHandler({
+  getMpvClient: () => appState.mpvClient,
+  setMpvClient: (client) => {
+    appState.mpvClient = client as MpvIpcClient | null;
+  },
+  createMpvClient: () => createMpvClientRuntimeService(),
+  waitForMpvConnected: (timeoutMs) => waitForMpvConnected(timeoutMs),
+  launchMpvIdleForJellyfinPlayback: () => launchMpvIdleForJellyfinPlayback(),
+  getAutoLaunchInFlight: () => jellyfinMpvAutoLaunchInFlight,
+  setAutoLaunchInFlight: (promise) => {
+    jellyfinMpvAutoLaunchInFlight = promise;
+  },
+  connectTimeoutMs: JELLYFIN_MPV_CONNECT_TIMEOUT_MS,
+  autoLaunchTimeoutMs: JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS,
+});
 
 async function playJellyfinItemInMpv(params: {
   session: {
@@ -1190,129 +1171,6 @@ async function runJellyfinCommand(args: CliArgs): Promise<void> {
   }
 }
 
-function asInteger(value: unknown): number | undefined {
-  if (typeof value !== 'number' || !Number.isInteger(value)) return undefined;
-  return value;
-}
-
-function getConfiguredJellyfinSession(): {
-  serverUrl: string;
-  accessToken: string;
-  userId: string;
-  username: string;
-} | null {
-  const jellyfinConfig = getResolvedJellyfinConfig();
-  if (!jellyfinConfig.serverUrl || !jellyfinConfig.accessToken || !jellyfinConfig.userId) {
-    return null;
-  }
-  return {
-    serverUrl: jellyfinConfig.serverUrl,
-    accessToken: jellyfinConfig.accessToken,
-    userId: jellyfinConfig.userId,
-    username: jellyfinConfig.username,
-  };
-}
-
-async function handleJellyfinRemotePlay(payload: unknown): Promise<void> {
-  const session = getConfiguredJellyfinSession();
-  if (!session) return;
-  const clientInfo = getJellyfinClientInfo();
-  const jellyfinConfig = getResolvedJellyfinConfig();
-  const data = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-  const itemIds = Array.isArray(data.ItemIds)
-    ? data.ItemIds.filter((entry): entry is string => typeof entry === 'string')
-    : [];
-  const itemId = itemIds[0];
-  if (!itemId) {
-    logger.warn('Ignoring Jellyfin remote Play event without ItemIds.');
-    return;
-  }
-  await playJellyfinItemInMpv({
-    session,
-    clientInfo,
-    jellyfinConfig,
-    itemId,
-    audioStreamIndex: asInteger(data.AudioStreamIndex),
-    subtitleStreamIndex: asInteger(data.SubtitleStreamIndex),
-    startTimeTicksOverride: asInteger(data.StartPositionTicks),
-    setQuitOnDisconnectArm: false,
-  });
-}
-
-async function handleJellyfinRemotePlaystate(payload: unknown): Promise<void> {
-  const data = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-  const command = String(data.Command || '');
-  const client = appState.mpvClient;
-  if (!client) return;
-  if (command === 'Pause') {
-    sendMpvCommandRuntime(client, ['set_property', 'pause', 'yes']);
-    await reportJellyfinRemoteProgress(true);
-    return;
-  }
-  if (command === 'Unpause') {
-    sendMpvCommandRuntime(client, ['set_property', 'pause', 'no']);
-    await reportJellyfinRemoteProgress(true);
-    return;
-  }
-  if (command === 'PlayPause') {
-    sendMpvCommandRuntime(client, ['cycle', 'pause']);
-    await reportJellyfinRemoteProgress(true);
-    return;
-  }
-  if (command === 'Stop') {
-    sendMpvCommandRuntime(client, ['stop']);
-    await reportJellyfinRemoteStopped();
-    return;
-  }
-  if (command === 'Seek') {
-    const seekTicks = asInteger(data.SeekPositionTicks);
-    if (seekTicks !== undefined) {
-      sendMpvCommandRuntime(client, [
-        'seek',
-        jellyfinTicksToSecondsRuntime(seekTicks),
-        'absolute+exact',
-      ]);
-      await reportJellyfinRemoteProgress(true);
-    }
-  }
-}
-
-async function handleJellyfinRemoteGeneralCommand(payload: unknown): Promise<void> {
-  const data = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-  const command = String(data.Name || '');
-  const args =
-    data.Arguments && typeof data.Arguments === 'object'
-      ? (data.Arguments as Record<string, unknown>)
-      : {};
-  const client = appState.mpvClient;
-  if (!client) return;
-
-  if (command === 'SetAudioStreamIndex') {
-    const index = asInteger(args.Index);
-    if (index !== undefined) {
-      sendMpvCommandRuntime(client, ['set_property', 'aid', index]);
-      if (activeJellyfinRemotePlayback) {
-        activeJellyfinRemotePlayback.audioStreamIndex = index;
-      }
-      await reportJellyfinRemoteProgress(true);
-    }
-    return;
-  }
-  if (command === 'SetSubtitleStreamIndex') {
-    const index = asInteger(args.Index);
-    if (index !== undefined) {
-      sendMpvCommandRuntime(client, ['set_property', 'sid', index < 0 ? 'no' : index]);
-      if (activeJellyfinRemotePlayback) {
-        activeJellyfinRemotePlayback.subtitleStreamIndex = index < 0 ? null : index;
-      }
-      await reportJellyfinRemoteProgress(true);
-    }
-    return;
-  }
-
-  logger.debug(`Ignoring unsupported Jellyfin GeneralCommand: ${command}`);
-}
-
 async function startJellyfinRemoteSession(): Promise<void> {
   const jellyfinConfig = getResolvedJellyfinConfig();
   if (jellyfinConfig.remoteControlEnabled === false) return;
@@ -1386,279 +1244,55 @@ function stopJellyfinRemoteSession(): void {
   activeJellyfinRemotePlayback = null;
 }
 
-function getConfiguredImmersionDbPath(): string {
-  const configuredDbPath = getResolvedConfig().immersionTracking?.dbPath?.trim();
-  return configuredDbPath ? configuredDbPath : DEFAULT_IMMERSION_DB_PATH;
-}
+const notifyAnilistSetup = createNotifyAnilistSetupHandler({
+  hasMpvClient: () => Boolean(appState.mpvClient),
+  showMpvOsd: (message) => showMpvOsd(message),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+  logInfo: (message) => logger.info(message),
+});
 
-let isImmersionTrackerMediaSeedInProgress = false;
-
-type ImmersionMediaState = {
-  path: string | null;
-  title: string | null;
-};
-
-async function readMpvPropertyAsString(
-  mpvClient: MpvIpcClient | null | undefined,
-  propertyName: string,
-): Promise<string | null> {
-  if (!mpvClient) {
-    return null;
-  }
-  try {
-    const value = await mpvClient.requestProperty(propertyName);
-    return typeof value === 'string' ? value.trim() || null : null;
-  } catch {
-    return null;
-  }
-}
-
-async function getCurrentMpvMediaStateForTracker(): Promise<ImmersionMediaState> {
-  const statePath = appState.currentMediaPath?.trim() || null;
-  if (statePath) {
-    return {
-      path: statePath,
-      title: appState.currentMediaTitle?.trim() || null,
-    };
-  }
-
-  const mpvClient = appState.mpvClient;
-  const trackedPath = mpvClient?.currentVideoPath?.trim() || null;
-  if (trackedPath) {
-    return {
-      path: trackedPath,
-      title: appState.currentMediaTitle?.trim() || null,
-    };
-  }
-
-  const [pathFromProperty, filenameFromProperty, titleFromProperty] = await Promise.all([
-    readMpvPropertyAsString(mpvClient, 'path'),
-    readMpvPropertyAsString(mpvClient, 'filename'),
-    readMpvPropertyAsString(mpvClient, 'media-title'),
-  ]);
-
-  const resolvedPath = pathFromProperty || filenameFromProperty || null;
-  const resolvedTitle = appState.currentMediaTitle?.trim() || titleFromProperty || null;
-
-  return {
-    path: resolvedPath,
-    title: resolvedTitle,
-  };
-}
-
-function getInitialInvisibleOverlayVisibility(): boolean {
-  return getInitialInvisibleOverlayVisibilityCore(getResolvedConfig(), process.platform);
-}
-
-function shouldAutoInitializeOverlayRuntimeFromConfig(): boolean {
-  return shouldAutoInitializeOverlayRuntimeFromConfigCore(getResolvedConfig());
-}
-
-function shouldBindVisibleOverlayToMpvSubVisibility(): boolean {
-  return shouldBindVisibleOverlayToMpvSubVisibilityCore(getResolvedConfig());
-}
-
-function isAutoUpdateEnabledRuntime(): boolean {
-  return isAutoUpdateEnabledRuntimeCore(getResolvedConfig(), appState.runtimeOptionsManager);
-}
-
-function getJimakuLanguagePreference(): JimakuLanguagePreference {
-  return getJimakuLanguagePreferenceCore(
-    () => getResolvedConfig(),
-    DEFAULT_CONFIG.jimaku.languagePreference,
-  );
-}
-
-function getJimakuMaxEntryResults(): number {
-  return getJimakuMaxEntryResultsCore(
-    () => getResolvedConfig(),
-    DEFAULT_CONFIG.jimaku.maxEntryResults,
-  );
-}
-
-async function resolveJimakuApiKey(): Promise<string | null> {
-  return resolveJimakuApiKeyCore(() => getResolvedConfig());
-}
-
-function seedImmersionTrackerFromCurrentMedia(): void {
-  const tracker = appState.immersionTracker;
-  if (!tracker) {
-    logger.debug('Immersion tracker seeding skipped: tracker not initialized.');
-    return;
-  }
-  if (isImmersionTrackerMediaSeedInProgress) {
-    logger.debug('Immersion tracker seeding already in progress; skipping duplicate call.');
-    return;
-  }
-  logger.debug('Starting immersion tracker media-state seed loop.');
-  isImmersionTrackerMediaSeedInProgress = true;
-
-  void (async () => {
-    const waitMs = 250;
-    const attempts = 120;
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      const mediaState = await getCurrentMpvMediaStateForTracker();
-      if (mediaState.path) {
-        logger.info(
-          `Seeded immersion tracker media state at attempt ${attempt + 1}/${attempts}: ` +
-            `${mediaState.path}`,
-        );
-        tracker.handleMediaChange(mediaState.path, mediaState.title);
-        return;
-      }
-
-      const mpvClient = appState.mpvClient;
-      if (!mpvClient || !mpvClient.connected) {
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-        continue;
-      }
-      if (attempt < attempts - 1) {
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-      }
+const consumeAnilistSetupTokenFromUrl = createConsumeAnilistSetupTokenFromUrlHandler({
+  consumeAnilistSetupCallbackUrl,
+  saveToken: (token) => anilistTokenStore.saveToken(token),
+  setCachedToken: (token) => {
+    anilistCachedAccessToken = token;
+  },
+  setResolvedState: (resolvedAt) => {
+    anilistStateRuntime.setClientSecretState({
+      status: 'resolved',
+      source: 'stored',
+      message: 'saved token from AniList login',
+      resolvedAt,
+      errorAt: null,
+    });
+  },
+  setSetupPageOpened: (opened) => {
+    appState.anilistSetupPageOpened = opened;
+  },
+  onSuccess: () => {
+    notifyAnilistSetup('AniList login success');
+  },
+  closeWindow: () => {
+    if (appState.anilistSetupWindow && !appState.anilistSetupWindow.isDestroyed()) {
+      appState.anilistSetupWindow.close();
     }
+  },
+});
 
-    logger.info('Immersion tracker seed failed: media path still unavailable after startup warmup');
-  })().finally(() => {
-    isImmersionTrackerMediaSeedInProgress = false;
-  });
-}
+const handleAnilistSetupProtocolUrl = createHandleAnilistSetupProtocolUrlHandler({
+  consumeAnilistSetupTokenFromUrl: (rawUrl) => consumeAnilistSetupTokenFromUrl(rawUrl),
+  logWarn: (message, details) => logger.warn(message, details),
+});
 
-function syncImmersionTrackerFromCurrentMediaState(): void {
-  const tracker = appState.immersionTracker;
-  if (!tracker) {
-    logger.debug('Immersion tracker sync skipped: tracker not initialized yet.');
-    return;
-  }
-
-  const pathFromState =
-    appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim();
-  if (pathFromState) {
-    logger.debug('Immersion tracker sync using path from current media state.');
-    tracker.handleMediaChange(pathFromState, appState.currentMediaTitle);
-    return;
-  }
-
-  if (!isImmersionTrackerMediaSeedInProgress) {
-    logger.debug('Immersion tracker sync did not find media path; starting seed loop.');
-    seedImmersionTrackerFromCurrentMedia();
-  } else {
-    logger.debug('Immersion tracker sync found seed loop already running.');
-  }
-}
-
-async function jimakuFetchJson<T>(
-  endpoint: string,
-  query: Record<string, string | number | boolean | null | undefined> = {},
-): Promise<JimakuApiResponse<T>> {
-  return jimakuFetchJsonCore<T>(endpoint, query, {
-    getResolvedConfig: () => getResolvedConfig(),
-    defaultBaseUrl: DEFAULT_CONFIG.jimaku.apiBaseUrl,
-    defaultMaxEntryResults: DEFAULT_CONFIG.jimaku.maxEntryResults,
-    defaultLanguagePreference: DEFAULT_CONFIG.jimaku.languagePreference,
-  });
-}
-
-function setAnilistClientSecretState(partial: Partial<AppState['anilistClientSecretState']>): void {
-  appState.anilistClientSecretState = {
-    ...appState.anilistClientSecretState,
-    ...partial,
-  };
-}
-
-function refreshAnilistRetryQueueState(): void {
-  appState.anilistRetryQueueState = {
-    ...appState.anilistRetryQueueState,
-    ...anilistUpdateQueue.getSnapshot(),
-  };
-}
-
-function getAnilistStatusSnapshot() {
-  return {
-    tokenStatus: appState.anilistClientSecretState.status,
-    tokenSource: appState.anilistClientSecretState.source,
-    tokenMessage: appState.anilistClientSecretState.message,
-    tokenResolvedAt: appState.anilistClientSecretState.resolvedAt,
-    tokenErrorAt: appState.anilistClientSecretState.errorAt,
-    queuePending: appState.anilistRetryQueueState.pending,
-    queueReady: appState.anilistRetryQueueState.ready,
-    queueDeadLetter: appState.anilistRetryQueueState.deadLetter,
-    queueLastAttemptAt: appState.anilistRetryQueueState.lastAttemptAt,
-    queueLastError: appState.anilistRetryQueueState.lastError,
-  };
-}
-
-function getAnilistQueueStatusSnapshot() {
-  refreshAnilistRetryQueueState();
-  return {
-    pending: appState.anilistRetryQueueState.pending,
-    ready: appState.anilistRetryQueueState.ready,
-    deadLetter: appState.anilistRetryQueueState.deadLetter,
-    lastAttemptAt: appState.anilistRetryQueueState.lastAttemptAt,
-    lastError: appState.anilistRetryQueueState.lastError,
-  };
-}
-
-function clearAnilistTokenState(): void {
-  anilistTokenStore.clearToken();
-  anilistCachedAccessToken = null;
-  setAnilistClientSecretState({
-    status: 'not_checked',
-    source: 'none',
-    message: 'stored token cleared',
-    resolvedAt: null,
-    errorAt: null,
-  });
-}
-
-function isAnilistTrackingEnabled(resolved: ResolvedConfig): boolean {
-  return resolved.anilist.enabled;
-}
-
-function buildAnilistSetupUrl(): string {
-  const authorizeUrl = new URL(ANILIST_SETUP_CLIENT_ID_URL);
-  authorizeUrl.searchParams.set('client_id', ANILIST_DEFAULT_CLIENT_ID);
-  authorizeUrl.searchParams.set('response_type', ANILIST_SETUP_RESPONSE_TYPE);
-  authorizeUrl.searchParams.set('redirect_uri', ANILIST_REDIRECT_URI);
-  return authorizeUrl.toString();
-}
-
-function openAnilistSetupInBrowser(): void {
-  const authorizeUrl = buildAnilistSetupUrl();
-  void shell.openExternal(authorizeUrl).catch((error) => {
-    logger.error('Failed to open AniList authorize URL in browser', error);
-  });
-}
-
-function loadAnilistSetupFallback(setupWindow: BrowserWindow, reason: string): void {
-  const authorizeUrl = buildAnilistSetupUrl();
-  const fallbackHtml = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>AniList Setup</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 24px; background: #0b1020; color: #e5e7eb; }
-    h1 { margin: 0 0 12px; font-size: 22px; }
-    p { margin: 10px 0; line-height: 1.45; color: #cbd5e1; }
-    a { color: #93c5fd; word-break: break-all; }
-    .box { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 16px; }
-    .reason { color: #fca5a5; }
-  </style>
-</head>
-<body>
-  <h1>AniList Setup</h1>
-  <div class="box">
-    <p class="reason">Embedded AniList page did not render: ${reason}</p>
-    <p>We attempted to open the authorize URL in your default browser automatically.</p>
-    <p>Use one of these links to continue setup:</p>
-    <p><a href="${authorizeUrl}">${authorizeUrl}</a></p>
-    <p><a href="${ANILIST_DEVELOPER_SETTINGS_URL}">${ANILIST_DEVELOPER_SETTINGS_URL}</a></p>
-    <p>After login/authorization, copy the token into <code>anilist.accessToken</code>.</p>
-  </div>
-</body>
-</html>`;
-  void setupWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fallbackHtml)}`);
-}
+const registerSubminerProtocolClient = createRegisterSubminerProtocolClientHandler({
+  isDefaultApp: () => Boolean(process.defaultApp),
+  getArgv: () => process.argv,
+  execPath: process.execPath,
+  resolvePath: (value) => path.resolve(value),
+  setAsDefaultProtocolClient: (scheme, appPath, args) =>
+    appPath ? app.setAsDefaultProtocolClient(scheme, appPath, args) : app.setAsDefaultProtocolClient(scheme),
+  logWarn: (message, details) => logger.warn(message, details),
+});
 
 function openAnilistSetupWindow(): void {
   if (appState.anilistSetupWindow) {
@@ -1677,6 +1311,32 @@ function openAnilistSetupWindow(): void {
       contextIsolation: true,
     },
   });
+  const authorizeUrl = buildAnilistSetupUrl({
+    authorizeUrl: ANILIST_SETUP_CLIENT_ID_URL,
+    clientId: ANILIST_DEFAULT_CLIENT_ID,
+    responseType: ANILIST_SETUP_RESPONSE_TYPE,
+  });
+  const consumeCallbackUrl = (rawUrl: string): boolean => consumeAnilistSetupTokenFromUrl(rawUrl);
+
+  const handleManualAnilistSetupSubmission = (rawUrl: string): boolean => {
+    if (!rawUrl.startsWith('subminer://anilist-setup')) {
+      return false;
+    }
+    try {
+      const parsed = new URL(rawUrl);
+      const accessToken = parsed.searchParams.get('access_token')?.trim() ?? '';
+      if (accessToken.length > 0) {
+        return consumeCallbackUrl(
+          `${ANILIST_REDIRECT_URI}#access_token=${encodeURIComponent(accessToken)}`,
+        );
+      }
+      logger.warn('AniList setup submission missing access token');
+      return true;
+    } catch {
+      logger.warn('AniList setup submission had invalid callback input');
+      return true;
+    }
+  };
 
   setupWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!isAllowedAnilistExternalUrl(url)) {
@@ -1687,11 +1347,36 @@ function openAnilistSetupWindow(): void {
     return { action: 'deny' };
   });
   setupWindow.webContents.on('will-navigate', (event, url) => {
+    if (handleManualAnilistSetupSubmission(url)) {
+      event.preventDefault();
+      return;
+    }
+    if (consumeCallbackUrl(url)) {
+      event.preventDefault();
+      return;
+    }
+    if (url.startsWith(ANILIST_REDIRECT_URI)) {
+      event.preventDefault();
+      return;
+    }
+    if (url.startsWith(`${ANILIST_REDIRECT_URI}#`)) {
+      event.preventDefault();
+      return;
+    }
     if (isAllowedAnilistSetupNavigationUrl(url)) {
       return;
     }
     event.preventDefault();
     logger.warn('Blocked unsafe AniList setup navigation URL', { url });
+  });
+  setupWindow.webContents.on('will-redirect', (event, url) => {
+    if (!consumeCallbackUrl(url)) {
+      return;
+    }
+    event.preventDefault();
+  });
+  setupWindow.webContents.on('did-navigate', (_event, url) => {
+    consumeCallbackUrl(url);
   });
 
   setupWindow.webContents.on(
@@ -1702,9 +1387,18 @@ function openAnilistSetupWindow(): void {
         errorDescription,
         validatedURL,
       });
-      openAnilistSetupInBrowser();
+      openAnilistSetupInBrowser({
+        authorizeUrl,
+        openExternal: (url) => shell.openExternal(url),
+        logError: (message, error) => logger.error(message, error),
+      });
       if (!setupWindow.isDestroyed()) {
-        loadAnilistSetupFallback(setupWindow, `${errorDescription} (${errorCode})`);
+        loadAnilistManualTokenEntry({
+          setupWindow,
+          authorizeUrl,
+          developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
+          logWarn: (message, data) => logger.warn(message, data),
+        });
       }
     },
   );
@@ -1713,19 +1407,27 @@ function openAnilistSetupWindow(): void {
     const loadedUrl = setupWindow.webContents.getURL();
     if (!loadedUrl || loadedUrl === 'about:blank') {
       logger.warn('AniList setup loaded a blank page; using fallback');
-      openAnilistSetupInBrowser();
+      openAnilistSetupInBrowser({
+        authorizeUrl,
+        openExternal: (url) => shell.openExternal(url),
+        logError: (message, error) => logger.error(message, error),
+      });
       if (!setupWindow.isDestroyed()) {
-        loadAnilistSetupFallback(setupWindow, 'blank page');
+        loadAnilistManualTokenEntry({
+          setupWindow,
+          authorizeUrl,
+          developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
+          logWarn: (message, data) => logger.warn(message, data),
+        });
       }
     }
   });
 
-  void setupWindow.loadURL(buildAnilistSetupUrl()).catch((error) => {
-    logger.error('AniList setup loadURL rejected', error);
-    openAnilistSetupInBrowser();
-    if (!setupWindow.isDestroyed()) {
-      loadAnilistSetupFallback(setupWindow, error instanceof Error ? error.message : String(error));
-    }
+  loadAnilistManualTokenEntry({
+    setupWindow,
+    authorizeUrl,
+    developerSettingsUrl: ANILIST_DEVELOPER_SETTINGS_URL,
+    logWarn: (message, data) => logger.warn(message, data),
   });
 
   setupWindow.on('closed', () => {
@@ -1858,7 +1560,7 @@ async function refreshAnilistClientSecretState(options?: {
   const now = Date.now();
   if (!isAnilistTrackingEnabled(resolved)) {
     anilistCachedAccessToken = null;
-    setAnilistClientSecretState({
+    anilistStateRuntime.setClientSecretState({
       status: 'not_checked',
       source: 'none',
       message: 'anilist tracking disabled',
@@ -1874,7 +1576,7 @@ async function refreshAnilistClientSecretState(options?: {
       anilistTokenStore.saveToken(rawAccessToken);
     }
     anilistCachedAccessToken = rawAccessToken;
-    setAnilistClientSecretState({
+    anilistStateRuntime.setClientSecretState({
       status: 'resolved',
       source: 'literal',
       message: 'using configured anilist.accessToken',
@@ -1892,7 +1594,7 @@ async function refreshAnilistClientSecretState(options?: {
   const storedToken = anilistTokenStore.loadToken()?.trim() ?? '';
   if (storedToken.length > 0) {
     anilistCachedAccessToken = storedToken;
-    setAnilistClientSecretState({
+    anilistStateRuntime.setClientSecretState({
       status: 'resolved',
       source: 'stored',
       message: 'using stored anilist access token',
@@ -1904,7 +1606,7 @@ async function refreshAnilistClientSecretState(options?: {
   }
 
   anilistCachedAccessToken = null;
-  setAnilistClientSecretState({
+  anilistStateRuntime.setClientSecretState({
     status: 'error',
     source: 'none',
     message: 'cannot authenticate without anilist.accessToken',
@@ -2009,7 +1711,7 @@ async function processNextAnilistRetryUpdate(): Promise<{
   message: string;
 }> {
   const queued = anilistUpdateQueue.nextReady();
-  refreshAnilistRetryQueueState();
+  anilistStateRuntime.refreshRetryQueueState();
   if (!queued) {
     return { ok: true, message: 'AniList queue has no ready items.' };
   }
@@ -2026,14 +1728,14 @@ async function processNextAnilistRetryUpdate(): Promise<{
     anilistUpdateQueue.markSuccess(queued.key);
     rememberAnilistAttemptedUpdateKey(queued.key);
     appState.anilistRetryQueueState.lastError = null;
-    refreshAnilistRetryQueueState();
+    anilistStateRuntime.refreshRetryQueueState();
     logger.info(`[AniList queue] ${result.message}`);
     return { ok: true, message: result.message };
   }
 
   anilistUpdateQueue.markFailure(queued.key, result.message);
   appState.anilistRetryQueueState.lastError = result.message;
-  refreshAnilistRetryQueueState();
+  anilistStateRuntime.refreshRetryQueueState();
   return { ok: false, message: result.message };
 }
 
@@ -2086,7 +1788,7 @@ async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
     if (!accessToken) {
       anilistUpdateQueue.enqueue(attemptKey, guess.title, guess.episode);
       anilistUpdateQueue.markFailure(attemptKey, 'cannot authenticate without anilist.accessToken');
-      refreshAnilistRetryQueueState();
+      anilistStateRuntime.refreshRetryQueueState();
       showMpvOsd('AniList: access token not configured');
       return;
     }
@@ -2094,7 +1796,7 @@ async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
     if (result.status === 'updated') {
       rememberAnilistAttemptedUpdateKey(attemptKey);
       anilistUpdateQueue.markSuccess(attemptKey);
-      refreshAnilistRetryQueueState();
+      anilistStateRuntime.refreshRetryQueueState();
       showMpvOsd(result.message);
       logger.info(result.message);
       return;
@@ -2102,13 +1804,13 @@ async function maybeRunAnilistPostWatchUpdate(): Promise<void> {
     if (result.status === 'skipped') {
       rememberAnilistAttemptedUpdateKey(attemptKey);
       anilistUpdateQueue.markSuccess(attemptKey);
-      refreshAnilistRetryQueueState();
+      anilistStateRuntime.refreshRetryQueueState();
       logger.info(result.message);
       return;
     }
     anilistUpdateQueue.enqueue(attemptKey, guess.title, guess.episode);
     anilistUpdateQueue.markFailure(attemptKey, result.message);
-    refreshAnilistRetryQueueState();
+    anilistStateRuntime.refreshRetryQueueState();
     showMpvOsd(`AniList: ${result.message}`);
     logger.warn(result.message);
   } finally {
@@ -2139,6 +1841,25 @@ function saveSubtitlePosition(position: SubtitlePosition): void {
     },
   });
 }
+
+registerSubminerProtocolClient();
+
+app.on('open-url', (event, rawUrl) => {
+  event.preventDefault();
+  if (!handleAnilistSetupProtocolUrl(rawUrl)) {
+    logger.warn('Unhandled app protocol URL', { rawUrl });
+  }
+});
+
+app.on('second-instance', (_event, argv) => {
+  const rawUrl = findAnilistSetupDeepLinkArgvUrl(argv);
+  if (!rawUrl) {
+    return;
+  }
+  if (!handleAnilistSetupProtocolUrl(rawUrl)) {
+    logger.warn('Unhandled second-instance protocol URL', { rawUrl });
+  }
+});
 
 const startupState = runStartupBootstrapRuntime(
   createStartupBootstrapRuntimeDeps({
@@ -2193,26 +1914,19 @@ const startupState = runStartupBootstrapRuntime(
         createMpvClient: () => {
           appState.mpvClient = createMpvClientRuntimeService();
         },
-        reloadConfig: () => {
-          const result = configService.reloadConfigStrict();
-          if (!result.ok) {
-            failStartupFromConfig(
-              'SubMiner config parse error',
-              `Failed to parse config file at:\n${result.path}\n\nError: ${result.error}\n\nFix the config file and restart SubMiner.`,
-            );
-          }
-
-          appLogger.logInfo(`Using config file: ${result.path}`);
-          if (result.warnings.length > 0) {
-            appLogger.logWarning(buildConfigWarningSummary(result.path, result.warnings));
-            showDesktopNotification('SubMiner', {
-              body: `${result.warnings.length} config validation issue(s) detected. Defaults were applied where possible. File: ${result.path}`,
-            });
-          }
-
-          configHotReloadRuntime.start();
-          void refreshAnilistClientSecretState({ force: true });
-        },
+        reloadConfig: createReloadConfigHandler({
+          reloadConfigStrict: () => configService.reloadConfigStrict(),
+          logInfo: (message) => appLogger.logInfo(message),
+          logWarning: (message) => appLogger.logWarning(message),
+          showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+          startConfigHotReload: () => configHotReloadRuntime.start(),
+          refreshAnilistClientSecretState: (options) => refreshAnilistClientSecretState(options),
+          failHandlers: {
+            logError: (details) => logger.error(details),
+            showErrorBox: (title, details) => dialog.showErrorBox(title, details),
+            quit: () => app.quit(),
+          },
+        }),
         getResolvedConfig: () => getResolvedConfig(),
         getConfigWarnings: () => configService.getWarnings(),
         logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
@@ -2250,45 +1964,21 @@ const startupState = runStartupBootstrapRuntime(
           const tracker = new SubtitleTimingTracker();
           appState.subtitleTimingTracker = tracker;
         },
-        createImmersionTracker: () => {
-          const config = getResolvedConfig();
-          if (config.immersionTracking?.enabled === false) {
-            logger.info('Immersion tracking disabled in config');
-            return;
-          }
-          try {
-            logger.debug('Immersion tracker startup requested: creating tracker service.');
-            const dbPath = getConfiguredImmersionDbPath();
-            logger.info(`Creating immersion tracker with dbPath=${dbPath}`);
-            const policy = config.immersionTracking;
-            appState.immersionTracker = new ImmersionTrackerService({
-              dbPath,
-              policy: {
-                batchSize: policy.batchSize,
-                flushIntervalMs: policy.flushIntervalMs,
-                queueCap: policy.queueCap,
-                payloadCapBytes: policy.payloadCapBytes,
-                maintenanceIntervalMs: policy.maintenanceIntervalMs,
-                retention: {
-                  eventsDays: policy.retention.eventsDays,
-                  telemetryDays: policy.retention.telemetryDays,
-                  dailyRollupsDays: policy.retention.dailyRollupsDays,
-                  monthlyRollupsDays: policy.retention.monthlyRollupsDays,
-                  vacuumIntervalDays: policy.retention.vacuumIntervalDays,
-                },
-              },
-            });
-            logger.debug('Immersion tracker initialized successfully.');
-            if (appState.mpvClient && !appState.mpvClient.connected) {
-              logger.info('Auto-connecting MPV client for immersion tracking');
-              appState.mpvClient.connect();
-            }
-            seedImmersionTrackerFromCurrentMedia();
-          } catch (error) {
-            logger.warn('Immersion tracker startup failed; disabling tracking.', error);
-            appState.immersionTracker = null;
-          }
-        },
+        createImmersionTracker: createImmersionTrackerStartupHandler({
+          getResolvedConfig: () => getResolvedConfig(),
+          getConfiguredDbPath: () => immersionMediaRuntime.getConfiguredDbPath(),
+          createTrackerService: (params) => new ImmersionTrackerService(params),
+          setTracker: (tracker) => {
+            appState.immersionTracker = tracker as ImmersionTrackerService | null;
+          },
+          getMpvClient: () => appState.mpvClient,
+          seedTrackerFromCurrentMedia: () => {
+            void immersionMediaRuntime.seedFromCurrentMedia();
+          },
+          logInfo: (message) => logger.info(message),
+          logDebug: (message) => logger.debug(message),
+          logWarn: (message, details) => logger.warn(message, details),
+        }),
         loadYomitanExtension: async () => {
           await loadYomitanExtension();
         },
@@ -2303,20 +1993,19 @@ const startupState = runStartupBootstrapRuntime(
         },
         texthookerOnlyMode: appState.texthookerOnlyMode,
         shouldAutoInitializeOverlayRuntimeFromConfig: () =>
-          appState.backgroundMode ? false : shouldAutoInitializeOverlayRuntimeFromConfig(),
+          appState.backgroundMode
+            ? false
+            : configDerivedRuntime.shouldAutoInitializeOverlayRuntimeFromConfig(),
         initializeOverlayRuntime: () => initializeOverlayRuntime(),
         handleInitialArgs: () => handleInitialArgs(),
-        onCriticalConfigErrors: (errors: string[]) => {
-          const configPath = configService.getConfigPath();
-          const details = [
-            `Critical config validation failed. File: ${configPath}`,
-            '',
-            ...errors.map((error, index) => `${index + 1}. ${error}`),
-            '',
-            'Fix the config file and restart SubMiner.',
-          ].join('\n');
-          failStartupFromConfig('SubMiner config validation error', details);
-        },
+        onCriticalConfigErrors: createCriticalConfigErrorHandler({
+          getConfigPath: () => configService.getConfigPath(),
+          failHandlers: {
+            logError: (message) => logger.error(message),
+            showErrorBox: (title, message) => dialog.showErrorBox(title, message),
+            quit: () => app.quit(),
+          },
+        }),
         logDebug: (message: string) => {
           logger.debug(message);
         },
@@ -2379,9 +2068,19 @@ const startupState = runStartupBootstrapRuntime(
 
 applyStartupState(appState, startupState);
 void refreshAnilistClientSecretState({ force: true });
-refreshAnilistRetryQueueState();
+anilistStateRuntime.refreshRetryQueueState();
 
 function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): void {
+  if (
+    appState.texthookerOnlyMode &&
+    !args.texthooker &&
+    (args.start || commandNeedsOverlayRuntime(args))
+  ) {
+    appState.texthookerOnlyMode = false;
+    logger.info('Disabling texthooker-only mode after overlay/start command.');
+    startBackgroundWarmups();
+  }
+
   handleCliCommandRuntimeServiceWithContext(args, source, {
     getSocketPath: () => appState.mpvSocketPath,
     setSocketPath: (socketPath: string) => {
@@ -2416,11 +2115,11 @@ function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): 
     triggerFieldGrouping: () => triggerFieldGrouping(),
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
-    getAnilistStatus: () => getAnilistStatusSnapshot(),
-    clearAnilistToken: () => clearAnilistTokenState(),
+    getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
+    clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
     openAnilistSetup: () => openAnilistSetupWindow(),
     openJellyfinSetup: () => openJellyfinSetupWindow(),
-    getAnilistQueueStatus: () => getAnilistQueueStatusSnapshot(),
+    getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
     retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
     runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
     openYomitanSettings: () => openYomitanSettings(),
@@ -2508,14 +2207,14 @@ function bindMpvClientEventHandlers(mpvClient: MpvIpcClient): void {
       void maybeProbeAnilistDuration(mediaKey);
       void ensureAnilistMediaGuess(mediaKey);
     }
-    syncImmersionTrackerFromCurrentMediaState();
+    immersionMediaRuntime.syncFromCurrentMediaState();
   });
   mpvClient.on('media-title-change', ({ title }) => {
     mediaRuntime.updateCurrentMediaTitle(title);
     anilistCurrentMediaGuess = null;
     anilistCurrentMediaGuessPromise = null;
     appState.immersionTracker?.handleMediaTitleUpdate(title);
-    syncImmersionTrackerFromCurrentMediaState();
+    immersionMediaRuntime.syncFromCurrentMediaState();
   });
   mpvClient.on('time-pos-change', ({ time }) => {
     appState.immersionTracker?.recordPlaybackPosition(time);
@@ -2538,7 +2237,8 @@ function createMpvClientRuntimeService(): MpvIpcClient {
     getResolvedConfig: () => getResolvedConfig(),
     autoStartOverlay: appState.autoStartOverlay,
     setOverlayVisible: (visible: boolean) => setOverlayVisible(visible),
-    shouldBindVisibleOverlayToMpvSubVisibility: () => shouldBindVisibleOverlayToMpvSubVisibility(),
+    shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
     isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getReconnectTimer: () => appState.reconnectTimer,
     setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
@@ -2858,7 +2558,8 @@ function initializeOverlayRuntime(): void {
   }
   const result = initializeOverlayRuntimeCore({
     backendOverride: appState.backendOverride,
-    getInitialInvisibleOverlayVisibility: () => getInitialInvisibleOverlayVisibility(),
+    getInitialInvisibleOverlayVisibility: () =>
+      configDerivedRuntime.getInitialInvisibleOverlayVisibility(),
     createMainWindow: () => {
       createMainWindow();
     },
@@ -2988,25 +2689,8 @@ const numericShortcutRuntime = createNumericShortcutRuntime({
 const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
 
-function getSubsyncRuntimeServiceParams() {
-  return createSubsyncRuntimeServiceInputFromState({
-    getMpvClient: () => appState.mpvClient,
-    getResolvedSubsyncConfig: () => getSubsyncConfig(getResolvedConfig().subsync),
-    getSubsyncInProgress: () => appState.subsyncInProgress,
-    setSubsyncInProgress: (inProgress: boolean) => {
-      appState.subsyncInProgress = inProgress;
-    },
-    showMpvOsd: (text: string) => showMpvOsd(text),
-    openManualPicker: (payload: SubsyncManualPayload) => {
-      sendToActiveOverlayWindow('subsync:open-manual', payload, {
-        restoreOnModalClose: 'subsync',
-      });
-    },
-  });
-}
-
 async function triggerSubsyncFromConfig(): Promise<void> {
-  await triggerSubsyncFromConfigRuntime(getSubsyncRuntimeServiceParams());
+  await subsyncRuntime.triggerFromConfig();
 }
 
 function cancelPendingMultiCopy(): void {
@@ -3139,7 +2823,8 @@ function setVisibleOverlayVisible(visible: boolean): void {
       overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
     syncInvisibleOverlayMousePassthrough: () =>
       overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
-    shouldBindVisibleOverlayToMpvSubVisibility: () => shouldBindVisibleOverlayToMpvSubVisibility(),
+    shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
     setMpvSubVisibility: (mpvSubVisible) => {
       setMpvSubVisibilityRuntime(appState.mpvClient, mpvSubVisible);
@@ -3200,31 +2885,18 @@ function handleMpvCommandFromIpc(command: (string | number)[]): void {
 }
 
 async function runSubsyncManualFromIpc(request: SubsyncManualRunRequest): Promise<SubsyncResult> {
-  return runSubsyncManualFromIpcRuntime(request, getSubsyncRuntimeServiceParams());
+  return subsyncRuntime.runManualFromIpc(request);
 }
 
 function appendClipboardVideoToQueue(): { ok: boolean; message: string } {
-  const mpvClient = appState.mpvClient;
-  if (!mpvClient || !mpvClient.connected) {
-    return { ok: false, message: 'MPV is not connected.' };
-  }
-
-  const clipboardText = clipboard.readText();
-  const parsedPath = parseClipboardVideoPath(clipboardText);
-  if (!parsedPath) {
-    showMpvOsd('Clipboard does not contain a supported video path.');
-    return { ok: false, message: 'Clipboard does not contain a supported video path.' };
-  }
-
-  const resolvedPath = path.resolve(parsedPath);
-  if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
-    showMpvOsd('Clipboard path is not a readable file.');
-    return { ok: false, message: 'Clipboard path is not a readable file.' };
-  }
-
-  sendMpvCommandRuntime(mpvClient, ['loadfile', resolvedPath, 'append']);
-  showMpvOsd(`Queued from clipboard: ${path.basename(resolvedPath)}`);
-  return { ok: true, message: `Queued ${resolvedPath}` };
+  return appendClipboardVideoToQueueRuntime({
+    getMpvClient: () => appState.mpvClient,
+    readClipboardText: () => clipboard.readText(),
+    showMpvOsd: (text) => showMpvOsd(text),
+    sendMpvCommand: (command) => {
+      sendMpvCommandRuntime(appState.mpvClient, command);
+    },
+  });
 }
 
 registerIpcRuntimeServices({
@@ -3273,10 +2945,10 @@ registerIpcRuntimeServices({
     reportOverlayContentBounds: (payload: unknown) => {
       overlayContentMeasurementStore.report(payload);
     },
-    getAnilistStatus: () => getAnilistStatusSnapshot(),
-    clearAnilistToken: () => clearAnilistTokenState(),
+    getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
+    clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
     openAnilistSetup: () => openAnilistSetupWindow(),
-    getAnilistQueueStatus: () => getAnilistQueueStatusSnapshot(),
+    getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
     retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
     appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
   },
@@ -3305,10 +2977,10 @@ registerIpcRuntimeServices({
     jimakuFetchJson: <T>(
       endpoint: string,
       query?: Record<string, string | number | boolean | null | undefined>,
-    ): Promise<JimakuApiResponse<T>> => jimakuFetchJson<T>(endpoint, query),
-    getJimakuMaxEntryResults: () => getJimakuMaxEntryResults(),
-    getJimakuLanguagePreference: () => getJimakuLanguagePreference(),
-    resolveJimakuApiKey: () => resolveJimakuApiKey(),
+    ): Promise<JimakuApiResponse<T>> => configDerivedRuntime.jimakuFetchJson<T>(endpoint, query),
+    getJimakuMaxEntryResults: () => configDerivedRuntime.getJimakuMaxEntryResults(),
+    getJimakuLanguagePreference: () => configDerivedRuntime.getJimakuLanguagePreference(),
+    resolveJimakuApiKey: () => configDerivedRuntime.resolveJimakuApiKey(),
     isRemoteMediaPath: (mediaPath: string) => isRemoteMediaPath(mediaPath),
     downloadToFile: (url: string, destPath: string, headers: Record<string, string>) =>
       downloadToFile(url, destPath, headers),

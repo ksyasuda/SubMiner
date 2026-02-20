@@ -260,7 +260,28 @@ function applyRootOptions(program: Command): void {
     .option('-T, --no-texthooker', 'Disable texthooker-ui server');
 }
 
+function buildSubcommandHelpText(program: Command): string {
+  const subcommands = program.commands
+    .filter((command) => command.name() !== 'help')
+    .map((command) => {
+      const aliases = command.aliases();
+      const term = aliases.length > 0 ? `${command.name()}|${aliases[0]}` : command.name();
+      return { term, description: command.description() };
+    });
+
+  if (subcommands.length === 0) return '';
+  const longestTerm = Math.max(...subcommands.map((entry) => entry.term.length));
+  const lines = subcommands.map(
+    (entry) => `  ${entry.term.padEnd(longestTerm)}  ${entry.description || ''}`.trimEnd(),
+  );
+  return `\nCommands:\n${lines.join('\n')}\n`;
+}
+
 function hasTopLevelCommand(argv: string[]): boolean {
+  return getTopLevelCommand(argv) !== null;
+}
+
+function getTopLevelCommand(argv: string[]): { name: string; index: number } | null {
   const commandNames = new Set([
     'jellyfin',
     'jf',
@@ -270,6 +291,8 @@ function hasTopLevelCommand(argv: string[]): boolean {
     'config',
     'mpv',
     'texthooker',
+    'app',
+    'bin',
     'help',
   ]);
   const optionsWithValue = new Set([
@@ -283,16 +306,16 @@ function hasTopLevelCommand(argv: string[]): boolean {
   ]);
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i] || '';
-    if (token === '--') return false;
+    if (token === '--') return null;
     if (token.startsWith('-')) {
       if (optionsWithValue.has(token)) {
         i += 1;
       }
       continue;
     }
-    return commandNames.has(token);
+    return commandNames.has(token) ? { name: token, index: i } : null;
   }
-  return false;
+  return null;
 }
 
 export function parseArgs(
@@ -300,6 +323,7 @@ export function parseArgs(
   scriptName: string,
   launcherConfig: LauncherYoutubeSubgenConfig,
 ): Args {
+  const topLevelCommand = getTopLevelCommand(argv);
   const envMode = (process.env.SUBMINER_YT_SUBGEN_MODE || '').toLowerCase();
   const defaultMode: YoutubeSubgenMode =
     envMode === 'preprocess' || envMode === 'off' || envMode === 'automatic'
@@ -350,6 +374,8 @@ export function parseArgs(
     mpvIdle: false,
     mpvSocket: false,
     mpvStatus: false,
+    appPassthrough: false,
+    appArgs: [],
     jellyfinServer: '',
     jellyfinUsername: '',
     jellyfinPassword: '',
@@ -374,6 +400,11 @@ export function parseArgs(
     parsed.jimakuLanguagePreference = launcherConfig.jimakuLanguagePreference;
   if (launcherConfig.jimakuMaxEntryResults !== undefined)
     parsed.jimakuMaxEntryResults = launcherConfig.jimakuMaxEntryResults;
+  if (topLevelCommand && (topLevelCommand.name === 'app' || topLevelCommand.name === 'bin')) {
+    parsed.appPassthrough = true;
+    parsed.appArgs = argv.slice(topLevelCommand.index + 1);
+    return parsed;
+  }
 
   let jellyfinInvocation: {
     action?: string;
@@ -399,6 +430,7 @@ export function parseArgs(
   } | null = null;
   let configInvocation: { action: string; logLevel?: string } | null = null;
   let mpvInvocation: { action: string; logLevel?: string } | null = null;
+  let appInvocation: { appArgs: string[] } | null = null;
   let doctorLogLevel: string | null = null;
   let texthookerLogLevel: string | null = null;
 
@@ -522,6 +554,21 @@ export function parseArgs(
       texthookerLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
     });
 
+  commandProgram
+    .command('app')
+    .alias('bin')
+    .description('Pass arguments directly to SubMiner binary')
+    .allowUnknownOption(true)
+    .allowExcessArguments(true)
+    .argument('[appArgs...]', 'Arguments forwarded to SubMiner app binary')
+    .action((appArgs: string[] | undefined) => {
+      appInvocation = {
+        appArgs: Array.isArray(appArgs) ? appArgs : [],
+      };
+    });
+
+  rootProgram.addHelpText('after', buildSubcommandHelpText(commandProgram));
+
   const selectedProgram = hasTopLevelCommand(argv) ? commandProgram : rootProgram;
   try {
     selectedProgram.parse(['node', scriptName, ...argv]);
@@ -642,6 +689,11 @@ export function parseArgs(
     else if (action === 'socket') parsed.mpvSocket = true;
     else if (action === 'idle' || action === 'start') parsed.mpvIdle = true;
     else fail(`Unknown mpv action: ${mpvInvocation.action}`);
+  }
+
+  if (appInvocation !== null) {
+    parsed.appPassthrough = true;
+    parsed.appArgs = appInvocation.appArgs;
   }
 
   return parsed;

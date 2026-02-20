@@ -4,7 +4,7 @@ title: Run Electron app as background tray service with IPC startup
 status: Done
 assignee: []
 created_date: '2026-02-18 08:48'
-updated_date: '2026-02-19 21:50'
+updated_date: '2026-02-19 23:18'
 labels:
   - electron
   - tray
@@ -12,6 +12,7 @@ labels:
   - desktop-entry
 dependencies: []
 priority: high
+ordinal: 61000
 ---
 
 ## Description

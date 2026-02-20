@@ -413,13 +413,13 @@ Set `openBrowser` to `false` to only print the URL without opening a browser.
 
 ### AniList
 
-AniList integration is opt-in and disabled by default. Enable it and provide an access token to allow SubMiner to update your watched episode progress after playback.
+AniList integration is opt-in and disabled by default. Enable it to allow SubMiner to update watched episode progress after playback.
 
 ```json
 {
   "anilist": {
     "enabled": true,
-    "accessToken": "YOUR_ANILIST_ACCESS_TOKEN"
+    "accessToken": ""
   }
 }
 ```
@@ -427,7 +427,7 @@ AniList integration is opt-in and disabled by default. Enable it and provide an 
 | Option        | Values          | Description                                                                         |
 | ------------- | --------------- | ----------------------------------------------------------------------------------- |
 | `enabled`     | `true`, `false` | Enable AniList post-watch progress updates (default: `false`)                       |
-| `accessToken` | string          | AniList access token used for authenticated GraphQL updates (default: empty string) |
+| `accessToken` | string          | Optional explicit AniList access token override (default: empty string)             |
 
 When `enabled` is `true` and `accessToken` is empty, SubMiner opens an AniList setup helper window. Keep `enabled` as `false` to disable all AniList setup/update behavior.
 
@@ -442,14 +442,13 @@ Current post-watch behavior:
 Setup flow details:
 
 1. Set `anilist.enabled` to `true`.
-2. Leave `anilist.accessToken` empty and restart SubMiner to trigger setup.
-3. Approve access in AniList (browser window or system browser fallback).
-4. Copy the returned token and paste it into `anilist.accessToken`.
-5. Save config and restart SubMiner.
+2. Leave `anilist.accessToken` empty and restart SubMiner (or run `--anilist-setup`) to trigger setup.
+3. Approve access in AniList.
+4. Callback flow returns to SubMiner via `subminer://anilist-setup?...`, and SubMiner stores the token automatically.
 
 Token + detection notes:
 
-- `anilist.accessToken` can be set directly in config; SubMiner also stores the token locally for reuse if config token is later blank.
+- `anilist.accessToken` can be set directly in config; when blank, SubMiner uses the locally stored encrypted token from setup.
 - Detection quality is best when `guessit` is installed and available on `PATH`.
 - When `guessit` cannot parse or is missing, SubMiner falls back automatically to internal filename parsing.
 
