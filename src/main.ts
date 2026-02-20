@@ -1528,10 +1528,11 @@ const registerSubminerProtocolClient = createRegisterSubminerProtocolClientHandl
   buildRegisterSubminerProtocolClientMainDepsHandler(),
 );
 
+const maybeFocusExistingAnilistSetupWindow = createMaybeFocusExistingAnilistSetupWindowHandler({
+  getSetupWindow: () => appState.anilistSetupWindow,
+});
 const buildOpenAnilistSetupWindowMainDepsHandler = createBuildOpenAnilistSetupWindowMainDepsHandler({
-  maybeFocusExistingSetupWindow: createMaybeFocusExistingAnilistSetupWindowHandler({
-    getSetupWindow: () => appState.anilistSetupWindow,
-  }),
+  maybeFocusExistingSetupWindow: maybeFocusExistingAnilistSetupWindow,
   createSetupWindow: () =>
     new BrowserWindow({
       width: 1000,
@@ -1588,11 +1589,12 @@ function openAnilistSetupWindow(): void {
   createOpenAnilistSetupWindowHandler(buildOpenAnilistSetupWindowMainDepsHandler())();
 }
 
+const maybeFocusExistingJellyfinSetupWindow = createMaybeFocusExistingJellyfinSetupWindowHandler({
+  getSetupWindow: () => appState.jellyfinSetupWindow,
+});
 const buildOpenJellyfinSetupWindowMainDepsHandler =
   createBuildOpenJellyfinSetupWindowMainDepsHandler({
-    maybeFocusExistingSetupWindow: createMaybeFocusExistingJellyfinSetupWindowHandler({
-      getSetupWindow: () => appState.jellyfinSetupWindow,
-    }),
+    maybeFocusExistingSetupWindow: maybeFocusExistingJellyfinSetupWindow,
     createSetupWindow: () =>
       new BrowserWindow({
         width: 520,
