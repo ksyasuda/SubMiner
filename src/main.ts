@@ -1417,8 +1417,10 @@ const buildHandleJellyfinAuthCommandsMainDepsHandler =
   clearStoredToken: () => jellyfinTokenStore.clearToken(),
   logInfo: (message) => logger.info(message),
 });
+const handleJellyfinAuthCommandsMainDeps =
+  buildHandleJellyfinAuthCommandsMainDepsHandler();
 const handleJellyfinAuthCommands = createHandleJellyfinAuthCommands(
-  buildHandleJellyfinAuthCommandsMainDepsHandler(),
+  handleJellyfinAuthCommandsMainDeps,
 );
 
 const buildHandleJellyfinListCommandsMainDepsHandler =
@@ -1430,8 +1432,10 @@ const buildHandleJellyfinListCommandsMainDepsHandler =
     listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
   logInfo: (message) => logger.info(message),
 });
+const handleJellyfinListCommandsMainDeps =
+  buildHandleJellyfinListCommandsMainDepsHandler();
 const handleJellyfinListCommands = createHandleJellyfinListCommands(
-  buildHandleJellyfinListCommandsMainDepsHandler(),
+  handleJellyfinListCommandsMainDeps,
 );
 
 const buildHandleJellyfinPlayCommandMainDepsHandler = createBuildHandleJellyfinPlayCommandMainDepsHandler(
@@ -1441,8 +1445,10 @@ const buildHandleJellyfinPlayCommandMainDepsHandler = createBuildHandleJellyfinP
   logWarn: (message) => logger.warn(message),
   },
 );
+const handleJellyfinPlayCommandMainDeps =
+  buildHandleJellyfinPlayCommandMainDepsHandler();
 const handleJellyfinPlayCommand = createHandleJellyfinPlayCommand(
-  buildHandleJellyfinPlayCommandMainDepsHandler(),
+  handleJellyfinPlayCommandMainDeps,
 );
 
 const buildHandleJellyfinRemoteAnnounceCommandMainDepsHandler =
@@ -1452,8 +1458,10 @@ const buildHandleJellyfinRemoteAnnounceCommandMainDepsHandler =
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
 });
+const handleJellyfinRemoteAnnounceCommandMainDeps =
+  buildHandleJellyfinRemoteAnnounceCommandMainDepsHandler();
 const handleJellyfinRemoteAnnounceCommand = createHandleJellyfinRemoteAnnounceCommand(
-  buildHandleJellyfinRemoteAnnounceCommandMainDepsHandler(),
+  handleJellyfinRemoteAnnounceCommandMainDeps,
 );
 
 const buildStartJellyfinRemoteSessionMainDepsHandler =
@@ -1473,8 +1481,10 @@ const buildStartJellyfinRemoteSessionMainDepsHandler =
   logInfo: (message) => logger.info(message),
   logWarn: (message, details) => logger.warn(message, details),
 });
+const startJellyfinRemoteSessionMainDeps =
+  buildStartJellyfinRemoteSessionMainDepsHandler();
 const startJellyfinRemoteSession = createStartJellyfinRemoteSessionHandler(
-  buildStartJellyfinRemoteSessionMainDepsHandler(),
+  startJellyfinRemoteSessionMainDeps,
 );
 
 const buildStopJellyfinRemoteSessionMainDepsHandler =
@@ -2436,8 +2446,10 @@ const buildLaunchBackgroundWarmupTaskMainDepsHandler =
   logDebug: (message) => logger.debug(message),
   logWarn: (message) => logger.warn(message),
 });
+const launchBackgroundWarmupTaskMainDeps =
+  buildLaunchBackgroundWarmupTaskMainDepsHandler();
 const launchBackgroundWarmupTask = createLaunchBackgroundWarmupTaskHandler(
-  buildLaunchBackgroundWarmupTaskMainDepsHandler(),
+  launchBackgroundWarmupTaskMainDeps,
 );
 
 const buildStartBackgroundWarmupsMainDepsHandler = createBuildStartBackgroundWarmupsMainDepsHandler(
@@ -2455,32 +2467,40 @@ const buildStartBackgroundWarmupsMainDepsHandler = createBuildStartBackgroundWar
   startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
 },
 );
+const startBackgroundWarmupsMainDeps =
+  buildStartBackgroundWarmupsMainDepsHandler();
 const startBackgroundWarmups = createStartBackgroundWarmupsHandler(
-  buildStartBackgroundWarmupsMainDepsHandler(),
+  startBackgroundWarmupsMainDeps,
 );
 
 const buildUpdateVisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
   setOverlayWindowBounds: (layer, geometry) => overlayManager.setOverlayWindowBounds(layer, geometry),
 });
+const updateVisibleOverlayBoundsMainDeps =
+  buildUpdateVisibleOverlayBoundsMainDepsHandler();
 const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
-  buildUpdateVisibleOverlayBoundsMainDepsHandler(),
+  updateVisibleOverlayBoundsMainDeps,
 );
 
 const buildUpdateInvisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateInvisibleOverlayBoundsMainDepsHandler({
   setOverlayWindowBounds: (layer, geometry) => overlayManager.setOverlayWindowBounds(layer, geometry),
 });
+const updateInvisibleOverlayBoundsMainDeps =
+  buildUpdateInvisibleOverlayBoundsMainDepsHandler();
 const updateInvisibleOverlayBounds = createUpdateInvisibleOverlayBoundsHandler(
-  buildUpdateInvisibleOverlayBoundsMainDepsHandler(),
+  updateInvisibleOverlayBoundsMainDeps,
 );
 
 const buildEnsureOverlayWindowLevelMainDepsHandler =
   createBuildEnsureOverlayWindowLevelMainDepsHandler({
   ensureOverlayWindowLevelCore: (window) => ensureOverlayWindowLevelCore(window as BrowserWindow),
 });
+const ensureOverlayWindowLevelMainDeps =
+  buildEnsureOverlayWindowLevelMainDepsHandler();
 const ensureOverlayWindowLevel = createEnsureOverlayWindowLevelHandler(
-  buildEnsureOverlayWindowLevelMainDepsHandler(),
+  ensureOverlayWindowLevelMainDeps,
 );
 
 const buildEnforceOverlayLayerOrderMainDepsHandler =
