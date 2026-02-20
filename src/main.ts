@@ -1497,8 +1497,10 @@ const buildStopJellyfinRemoteSessionMainDepsHandler =
     activeJellyfinRemotePlayback = null;
   },
 });
+const stopJellyfinRemoteSessionMainDeps =
+  buildStopJellyfinRemoteSessionMainDepsHandler();
 const stopJellyfinRemoteSession = createStopJellyfinRemoteSessionHandler(
-  buildStopJellyfinRemoteSessionMainDepsHandler(),
+  stopJellyfinRemoteSessionMainDeps,
 );
 
 const buildRunJellyfinCommandMainDepsHandler = createBuildRunJellyfinCommandMainDepsHandler({
@@ -1510,8 +1512,9 @@ const buildRunJellyfinCommandMainDepsHandler = createBuildRunJellyfinCommandMain
   handleListCommands: (params) => handleJellyfinListCommands(params),
   handlePlayCommand: (params) => handleJellyfinPlayCommand(params),
 });
+const runJellyfinCommandMainDeps = buildRunJellyfinCommandMainDepsHandler();
 const runJellyfinCommand = createRunJellyfinCommandHandler(
-  buildRunJellyfinCommandMainDepsHandler(),
+  runJellyfinCommandMainDeps,
 );
 
 const buildNotifyAnilistSetupMainDepsHandler = createBuildNotifyAnilistSetupMainDepsHandler({
@@ -2199,8 +2202,9 @@ const buildAppLifecycleRuntimeRunnerMainDepsHandler =
     restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
     shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
   });
+const appLifecycleRuntimeRunnerMainDeps = buildAppLifecycleRuntimeRunnerMainDepsHandler();
 const appLifecycleRuntimeRunner = createAppLifecycleRuntimeRunner(
-  buildAppLifecycleRuntimeRunnerMainDepsHandler(),
+  appLifecycleRuntimeRunnerMainDeps,
 );
 
 const buildStartupBootstrapMainDepsHandler = createBuildStartupBootstrapMainDepsHandler({
@@ -2276,8 +2280,9 @@ const buildHandleInitialArgsMainDepsHandler = createBuildHandleInitialArgsMainDe
   logInfo: (message) => logger.info(message),
   handleCliCommand: (args, source) => handleCliCommand(args, source),
 });
+const handleInitialArgsMainDeps = buildHandleInitialArgsMainDepsHandler();
 const handleInitialArgsRuntimeHandler = createHandleInitialArgsHandler(
-  buildHandleInitialArgsMainDepsHandler(),
+  handleInitialArgsMainDeps,
 );
 
 function handleInitialArgs(): void {
@@ -2332,8 +2337,9 @@ const buildBindMpvMainEventHandlersMainDepsHandler =
       updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
     },
   });
+const bindMpvMainEventHandlersMainDeps = buildBindMpvMainEventHandlersMainDepsHandler();
 const bindMpvClientEventHandlers = createBindMpvMainEventHandlersHandler(
-  buildBindMpvMainEventHandlersMainDepsHandler(),
+  bindMpvMainEventHandlersMainDeps,
 );
 
 const buildMpvClientRuntimeServiceFactoryMainDepsHandler =
