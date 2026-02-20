@@ -9,8 +9,10 @@ test('get resolved jellyfin config main deps builder maps callbacks', () => {
   const resolved = { jellyfin: { url: 'https://example.com' } };
   const deps = createBuildGetResolvedJellyfinConfigMainDepsHandler({
     getResolvedConfig: () => resolved as never,
+    loadStoredToken: () => 'stored-token',
   })();
   assert.equal(deps.getResolvedConfig(), resolved);
+  assert.equal(deps.loadStoredToken(), 'stored-token');
 });
 
 test('get jellyfin client info main deps builder maps callbacks', () => {

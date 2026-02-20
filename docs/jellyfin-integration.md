@@ -149,8 +149,9 @@ User-visible errors are shown through CLI logs and mpv OSD for:
 
 ## Security Notes and Limitations
 
-- Jellyfin access token is persisted in `config.jsonc`.
-- Treat config files as secrets and avoid committing them.
+- Jellyfin access token is stored in local encrypted token storage after login/setup.
+- `jellyfin.accessToken` remains as an optional explicit override in `config.jsonc`.
+- Treat both token storage and config files as secrets and avoid committing them.
 - Password is used only for login and is not stored.
 - Optional setup UI is available via `--jellyfin`; all actions are also available via CLI flags.
 - `subminer` wrapper uses Jellyfin subcommands (`subminer jellyfin ...`, alias `subminer jf ...`). Use `SubMiner.AppImage` for direct `--jellyfin-libraries` and `--jellyfin-items`.

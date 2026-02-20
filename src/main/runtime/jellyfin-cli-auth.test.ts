@@ -6,6 +6,8 @@ test('jellyfin auth handler processes logout', async () => {
   const calls: string[] = [];
   const handleAuth = createHandleJellyfinAuthCommands({
     patchRawConfig: () => calls.push('patch'),
+    saveStoredToken: () => calls.push('save'),
+    clearStoredToken: () => calls.push('clear'),
     authenticateWithPassword: async () => {
       throw new Error('should not authenticate');
     },
@@ -34,13 +36,15 @@ test('jellyfin auth handler processes logout', async () => {
   });
 
   assert.equal(handled, true);
-  assert.equal(calls[0], 'patch');
+  assert.deepEqual(calls.slice(0, 2), ['clear', 'patch']);
 });
 
 test('jellyfin auth handler processes login', async () => {
   const calls: string[] = [];
   const handleAuth = createHandleJellyfinAuthCommands({
     patchRawConfig: () => calls.push('patch'),
+    saveStoredToken: () => calls.push('save'),
+    clearStoredToken: () => calls.push('clear'),
     authenticateWithPassword: async () => ({
       serverUrl: 'http://localhost',
       username: 'user',
@@ -72,6 +76,7 @@ test('jellyfin auth handler processes login', async () => {
   });
 
   assert.equal(handled, true);
+  assert.ok(calls.includes('save'));
   assert.ok(calls.includes('patch'));
   assert.ok(calls.some((entry) => entry.includes('Jellyfin login succeeded')));
 });
@@ -79,6 +84,8 @@ test('jellyfin auth handler processes login', async () => {
 test('jellyfin auth handler no-ops when no auth command', async () => {
   const handleAuth = createHandleJellyfinAuthCommands({
     patchRawConfig: () => {},
+    saveStoredToken: () => {},
+    clearStoredToken: () => {},
     authenticateWithPassword: async () => ({
       serverUrl: '',
       username: '',

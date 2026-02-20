@@ -1,7 +1,25 @@
 export function createGetResolvedJellyfinConfigHandler(deps: {
   getResolvedConfig: () => { jellyfin: unknown };
+  loadStoredToken: () => string | null | undefined;
 }) {
-  return () => deps.getResolvedConfig().jellyfin as never;
+  return () => {
+    const jellyfin = deps.getResolvedConfig().jellyfin as {
+      accessToken?: string;
+      [key: string]: unknown;
+    };
+    const configToken = jellyfin.accessToken?.trim() ?? '';
+    if (configToken.length > 0) {
+      return jellyfin as never;
+    }
+    const storedToken = deps.loadStoredToken()?.trim() ?? '';
+    if (storedToken.length === 0) {
+      return jellyfin as never;
+    }
+    return {
+      ...jellyfin,
+      accessToken: storedToken,
+    } as never;
+  };
 }
 
 export function createGetJellyfinClientInfoHandler(deps: {

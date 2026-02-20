@@ -49,6 +49,7 @@ test('createHandleJellyfinSetupSubmissionHandler applies successful login', asyn
       userId: 'uid',
     }),
     getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
+    saveStoredToken: () => calls.push('save'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: () => calls.push('info'),
     logError: () => calls.push('error'),
@@ -60,7 +61,7 @@ test('createHandleJellyfinSetupSubmissionHandler applies successful login', asyn
     'subminer://jellyfin-setup?server=http%3A%2F%2Flocalhost&username=a&password=b',
   );
   assert.equal(handled, true);
-  assert.deepEqual(calls, ['patch', 'info', 'osd:Jellyfin login success', 'close']);
+  assert.deepEqual(calls, ['save', 'patch', 'info', 'osd:Jellyfin login success', 'close']);
 });
 
 test('createHandleJellyfinSetupSubmissionHandler reports failure to OSD', async () => {
@@ -71,6 +72,7 @@ test('createHandleJellyfinSetupSubmissionHandler reports failure to OSD', async 
       throw new Error('bad credentials');
     },
     getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
+    saveStoredToken: () => calls.push('save'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: () => calls.push('info'),
     logError: () => calls.push('error'),
@@ -164,6 +166,7 @@ test('createOpenJellyfinSetupWindowHandler no-ops when existing setup window is 
       throw new Error('should not auth');
     },
     getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
+    saveStoredToken: () => {},
     patchJellyfinConfig: () => {},
     logInfo: () => {},
     logError: () => {},
@@ -216,6 +219,7 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
       userId: 'uid',
     }),
     getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
+    saveStoredToken: () => calls.push('save'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: () => calls.push('info'),
     logError: () => calls.push('error'),
@@ -245,6 +249,7 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
   await Promise.resolve();
 
   assert.equal(prevented, true);
+  assert.ok(calls.includes('save'));
   assert.ok(calls.includes('patch'));
   assert.ok(calls.includes('osd:Jellyfin login success'));
   assert.ok(calls.includes('close'));

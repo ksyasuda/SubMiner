@@ -530,6 +530,7 @@ import {
 } from './core/services/anilist/anilist-updater';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
+import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAppReadyRuntimeRunner } from './main/app-lifecycle';
 import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
@@ -581,6 +582,7 @@ const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
 const ANILIST_TOKEN_STORE_FILE = 'anilist-token-store.json';
+const JELLYFIN_TOKEN_STORE_FILE = 'jellyfin-token-store.json';
 const ANILIST_RETRY_QUEUE_FILE = 'anilist-retry-queue.json';
 const TRAY_TOOLTIP = 'SubMiner';
 
@@ -638,6 +640,14 @@ const DEFAULT_IMMERSION_DB_PATH = path.join(USER_DATA_PATH, 'immersion.sqlite');
 const configService = new ConfigService(CONFIG_DIR);
 const anilistTokenStore = createAnilistTokenStore(
   path.join(USER_DATA_PATH, ANILIST_TOKEN_STORE_FILE),
+  {
+    info: (message: string) => console.info(message),
+    warn: (message: string, details?: unknown) => console.warn(message, details),
+    error: (message: string, details?: unknown) => console.error(message, details),
+  },
+);
+const jellyfinTokenStore = createJellyfinTokenStore(
+  path.join(USER_DATA_PATH, JELLYFIN_TOKEN_STORE_FILE),
   {
     info: (message: string) => console.info(message),
     warn: (message: string, details?: unknown) => console.warn(message, details),
@@ -1205,6 +1215,7 @@ function getResolvedConfig() {
 const buildGetResolvedJellyfinConfigMainDepsHandler =
   createBuildGetResolvedJellyfinConfigMainDepsHandler({
   getResolvedConfig: () => getResolvedConfig(),
+  loadStoredToken: () => jellyfinTokenStore.loadToken(),
 });
 const getResolvedJellyfinConfigHandler = createGetResolvedJellyfinConfigHandler(
   buildGetResolvedJellyfinConfigMainDepsHandler(),
@@ -1345,6 +1356,8 @@ const buildHandleJellyfinAuthCommandsMainDepsHandler =
   },
   authenticateWithPassword: (serverUrl, username, password, clientInfo) =>
     authenticateWithPasswordRuntime(serverUrl, username, password, clientInfo),
+  saveStoredToken: (token) => jellyfinTokenStore.saveToken(token),
+  clearStoredToken: () => jellyfinTokenStore.clearToken(),
   logInfo: (message) => logger.info(message),
 });
 const handleJellyfinAuthCommands = createHandleJellyfinAuthCommands(
@@ -1585,13 +1598,14 @@ const buildOpenJellyfinSetupWindowMainDepsHandler =
     authenticateWithPassword: (server, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(server, username, password, clientInfo),
     getJellyfinClientInfo: () => getJellyfinClientInfo(),
+    saveStoredToken: (token) => jellyfinTokenStore.saveToken(token),
     patchJellyfinConfig: (session) => {
       configService.patchRawConfig({
         jellyfin: {
           enabled: true,
           serverUrl: session.serverUrl,
           username: session.username,
-          accessToken: session.accessToken,
+          accessToken: '',
           userId: session.userId,
         },
       });

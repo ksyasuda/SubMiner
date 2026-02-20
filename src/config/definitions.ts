@@ -807,7 +807,8 @@ export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: 'Jellyfin',
     description: [
       'Optional Jellyfin integration for auth, browsing, and playback launch.',
-      'Access token is stored in config and should be treated as a secret.',
+      'Access token is stored in local encrypted token storage after login/setup.',
+      'jellyfin.accessToken remains an optional explicit override in config.',
     ],
     key: 'jellyfin',
   },

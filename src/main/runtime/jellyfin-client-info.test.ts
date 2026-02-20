@@ -9,9 +9,30 @@ test('get resolved jellyfin config returns jellyfin section from resolved config
   const jellyfin = { url: 'https://jellyfin.local' } as never;
   const getConfig = createGetResolvedJellyfinConfigHandler({
     getResolvedConfig: () => ({ jellyfin } as never),
+    loadStoredToken: () => null,
   });
 
   assert.equal(getConfig(), jellyfin);
+});
+
+test('get resolved jellyfin config falls back to stored token when config token is blank', () => {
+  const getConfig = createGetResolvedJellyfinConfigHandler({
+    getResolvedConfig: () =>
+      ({
+        jellyfin: {
+          serverUrl: 'http://localhost:8096',
+          accessToken: '   ',
+          userId: 'uid-1',
+        },
+      }) as never,
+    loadStoredToken: () => 'stored-token',
+  });
+
+  assert.deepEqual(getConfig(), {
+    serverUrl: 'http://localhost:8096',
+    accessToken: 'stored-token',
+    userId: 'uid-1',
+  });
 });
 
 test('jellyfin client info resolves defaults when fields are missing', () => {

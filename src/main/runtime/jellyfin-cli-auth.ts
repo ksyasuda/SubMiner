@@ -39,6 +39,8 @@ export function createHandleJellyfinAuthCommands(deps: {
     password: string,
     clientInfo: JellyfinClientInfo,
   ) => Promise<JellyfinSession>;
+  saveStoredToken: (token: string) => void;
+  clearStoredToken: () => void;
   logInfo: (message: string) => void;
 }) {
   return async (params: {
@@ -48,6 +50,7 @@ export function createHandleJellyfinAuthCommands(deps: {
     clientInfo: JellyfinClientInfo;
   }): Promise<boolean> => {
     if (params.args.jellyfinLogout) {
+      deps.clearStoredToken();
       deps.patchRawConfig({
         jellyfin: {
           accessToken: '',
@@ -70,12 +73,13 @@ export function createHandleJellyfinAuthCommands(deps: {
       password,
       params.clientInfo,
     );
+    deps.saveStoredToken(session.accessToken);
     deps.patchRawConfig({
       jellyfin: {
         enabled: true,
         serverUrl: session.serverUrl,
         username: session.username,
-        accessToken: session.accessToken,
+        accessToken: '',
         userId: session.userId,
         deviceId: params.clientInfo.deviceId,
         clientName: params.clientInfo.clientName,

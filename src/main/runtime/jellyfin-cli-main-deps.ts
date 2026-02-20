@@ -25,6 +25,8 @@ export function createBuildHandleJellyfinAuthCommandsMainDepsHandler(
     patchRawConfig: (patch) => deps.patchRawConfig(patch),
     authenticateWithPassword: (serverUrl, username, password, clientInfo) =>
       deps.authenticateWithPassword(serverUrl, username, password, clientInfo),
+    saveStoredToken: (token) => deps.saveStoredToken(token),
+    clearStoredToken: () => deps.clearStoredToken(),
     logInfo: (message: string) => deps.logInfo(message),
   });
 }

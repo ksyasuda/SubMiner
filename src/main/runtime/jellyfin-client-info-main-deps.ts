@@ -11,6 +11,7 @@ export function createBuildGetResolvedJellyfinConfigMainDepsHandler(
 ) {
   return (): GetResolvedJellyfinConfigMainDeps => ({
     getResolvedConfig: () => deps.getResolvedConfig(),
+    loadStoredToken: () => deps.loadStoredToken(),
   });
 }
 

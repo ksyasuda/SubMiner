@@ -15,6 +15,7 @@ export function createBuildOpenJellyfinSetupWindowMainDepsHandler(
     authenticateWithPassword: (server: string, username: string, password: string, clientInfo) =>
       deps.authenticateWithPassword(server, username, password, clientInfo),
     getJellyfinClientInfo: () => deps.getJellyfinClientInfo(),
+    saveStoredToken: (token: string) => deps.saveStoredToken(token),
     patchJellyfinConfig: (session) => deps.patchJellyfinConfig(session),
     logInfo: (message: string) => deps.logInfo(message),
     logError: (message: string, error: unknown) => deps.logError(message, error),
