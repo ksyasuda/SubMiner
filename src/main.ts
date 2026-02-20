@@ -171,6 +171,44 @@ import {
   createStartBackgroundWarmupsHandler,
 } from './main/runtime/startup-warmups';
 import {
+  createEnforceOverlayLayerOrderHandler,
+  createEnsureOverlayWindowLevelHandler,
+  createUpdateInvisibleOverlayBoundsHandler,
+  createUpdateVisibleOverlayBoundsHandler,
+} from './main/runtime/overlay-window-layout';
+import { buildTrayMenuTemplateRuntime, resolveTrayIconPathRuntime } from './main/runtime/tray-runtime';
+import { createDestroyTrayHandler, createEnsureTrayHandler } from './main/runtime/tray-lifecycle';
+import { createInitializeOverlayRuntimeHandler } from './main/runtime/overlay-runtime-bootstrap';
+import { createOpenYomitanSettingsHandler } from './main/runtime/yomitan-settings-opener';
+import {
+  createGetConfiguredShortcutsHandler,
+  createRefreshGlobalAndOverlayShortcutsHandler,
+  createRegisterGlobalShortcutsHandler,
+} from './main/runtime/global-shortcuts';
+import { createAppendToMpvLogHandler, createShowMpvOsdHandler } from './main/runtime/mpv-osd-log';
+import {
+  createCancelNumericShortcutSessionHandler,
+  createStartNumericShortcutSessionHandler,
+} from './main/runtime/numeric-shortcut-session-handlers';
+import {
+  createRefreshOverlayShortcutsHandler,
+  createRegisterOverlayShortcutsHandler,
+  createSyncOverlayShortcutsHandler,
+  createUnregisterOverlayShortcutsHandler,
+} from './main/runtime/overlay-shortcuts-lifecycle';
+import {
+  createMarkLastCardAsAudioCardHandler,
+  createMineSentenceCardHandler,
+  createRefreshKnownWordCacheHandler,
+  createTriggerFieldGroupingHandler,
+  createUpdateLastCardFromClipboardHandler,
+} from './main/runtime/anki-actions';
+import {
+  createCopyCurrentSubtitleHandler,
+  createHandleMineSentenceDigitHandler,
+  createHandleMultiCopyDigitHandler,
+} from './main/runtime/mining-actions';
+import {
   buildRestartRequiredConfigMessage,
   createConfigHotReloadAppliedHandler,
   createConfigHotReloadMessageHandler,
@@ -2146,27 +2184,33 @@ const startBackgroundWarmups = createStartBackgroundWarmupsHandler({
   startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
 });
 
-function updateVisibleOverlayBounds(geometry: WindowGeometry): void {
-  overlayManager.setOverlayWindowBounds('visible', geometry);
-}
+const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler({
+  setOverlayWindowBounds: (layer, geometry) => overlayManager.setOverlayWindowBounds(layer, geometry),
+});
 
-function updateInvisibleOverlayBounds(geometry: WindowGeometry): void {
-  overlayManager.setOverlayWindowBounds('invisible', geometry);
-}
+const updateInvisibleOverlayBounds = createUpdateInvisibleOverlayBoundsHandler({
+  setOverlayWindowBounds: (layer, geometry) => overlayManager.setOverlayWindowBounds(layer, geometry),
+});
 
-function ensureOverlayWindowLevel(window: BrowserWindow): void {
-  ensureOverlayWindowLevelCore(window);
-}
+const ensureOverlayWindowLevel = createEnsureOverlayWindowLevelHandler({
+  ensureOverlayWindowLevelCore: (window) => ensureOverlayWindowLevelCore(window as BrowserWindow),
+});
 
-function enforceOverlayLayerOrder(): void {
-  enforceOverlayLayerOrderCore({
-    visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
-    invisibleOverlayVisible: overlayManager.getInvisibleOverlayVisible(),
-    mainWindow: overlayManager.getMainWindow(),
-    invisibleWindow: overlayManager.getInvisibleWindow(),
-    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-  });
-}
+const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler({
+  enforceOverlayLayerOrderCore: (params) =>
+    enforceOverlayLayerOrderCore({
+      visibleOverlayVisible: params.visibleOverlayVisible,
+      invisibleOverlayVisible: params.invisibleOverlayVisible,
+      mainWindow: params.mainWindow as BrowserWindow | null,
+      invisibleWindow: params.invisibleWindow as BrowserWindow | null,
+      ensureOverlayWindowLevel: (window) => params.ensureOverlayWindowLevel(window as BrowserWindow),
+    }),
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
+  getMainWindow: () => overlayManager.getMainWindow(),
+  getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
+  ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window as BrowserWindow),
+});
 
 async function loadYomitanExtension(): Promise<Extension | null> {
   return loadYomitanExtensionCore({
@@ -2236,208 +2280,188 @@ function createInvisibleWindow(): BrowserWindow {
 }
 
 function resolveTrayIconPath(): string | null {
-  const iconNames =
-    process.platform === 'darwin'
-      ? ['SubMinerTemplate.png', 'SubMinerTemplate@2x.png', 'SubMiner.png']
-      : ['SubMiner.png'];
-
-  const baseDirs = [
-    path.join(process.resourcesPath, 'assets'),
-    path.join(app.getAppPath(), 'assets'),
-    path.join(__dirname, '..', 'assets'),
-    path.join(__dirname, '..', '..', 'assets'),
-  ];
-
-  const candidates = baseDirs.flatMap((baseDir) =>
-    iconNames.map((iconName) => path.join(baseDir, iconName)),
-  );
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
+  return resolveTrayIconPathRuntime({
+    platform: process.platform,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+    dirname: __dirname,
+    joinPath: (...parts) => path.join(...parts),
+    fileExists: (candidate) => fs.existsSync(candidate),
+  });
 }
 
 function buildTrayMenu(): Menu {
-  return Menu.buildFromTemplate([
-    {
-      label: 'Open Overlay',
-      click: () => {
+  return Menu.buildFromTemplate(
+    buildTrayMenuTemplateRuntime({
+      openOverlay: () => {
         if (!appState.overlayRuntimeInitialized) {
           initializeOverlayRuntime();
         }
         setVisibleOverlayVisible(true);
       },
-    },
-    {
-      label: 'Open Yomitan Settings',
-      click: () => {
+      openYomitanSettings: () => {
         openYomitanSettings();
       },
-    },
-    {
-      label: 'Open Runtime Options',
-      click: () => {
+      openRuntimeOptions: () => {
         if (!appState.overlayRuntimeInitialized) {
           initializeOverlayRuntime();
         }
         openRuntimeOptionsPalette();
       },
-    },
-    {
-      label: 'Configure Jellyfin',
-      click: () => {
+      openJellyfinSetup: () => {
         openJellyfinSetupWindow();
       },
-    },
-    {
-      label: 'Configure AniList',
-      click: () => {
+      openAnilistSetup: () => {
         openAnilistSetupWindow();
       },
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit',
-      click: () => {
+      quitApp: () => {
         app.quit();
       },
-    },
-  ]);
+    }),
+  );
 }
 
 function ensureTray(): void {
-  if (appTray) {
-    appTray.setContextMenu(buildTrayMenu());
-    return;
-  }
-
-  const iconPath = resolveTrayIconPath();
-  let trayIcon = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
-  if (trayIcon.isEmpty()) {
-    logger.warn('Tray icon asset not found; using empty icon placeholder.');
-  }
-  if (process.platform === 'darwin' && !trayIcon.isEmpty()) {
-    // macOS status bar expects a small monochrome-like template icon.
-    // Feeding the full-size app icon can produce oversized/non-interactive items.
-    trayIcon = trayIcon.resize({ width: 18, height: 18, quality: 'best' });
-    trayIcon.setTemplateImage(true);
-  }
-  if (process.platform === 'linux' && !trayIcon.isEmpty()) {
-    trayIcon = trayIcon.resize({ width: 20, height: 20 });
-  }
-
-  appTray = new Tray(trayIcon);
-  appTray.setToolTip(TRAY_TOOLTIP);
-  appTray.setContextMenu(buildTrayMenu());
-  appTray.on('click', () => {
-    if (!appState.overlayRuntimeInitialized) {
-      initializeOverlayRuntime();
-    }
-    setVisibleOverlayVisible(true);
-  });
+  createEnsureTrayHandler({
+    getTray: () => appTray,
+    setTray: (tray) => {
+      appTray = tray as Tray | null;
+    },
+    buildTrayMenu: () => buildTrayMenu(),
+    resolveTrayIconPath: () => resolveTrayIconPath(),
+    createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
+    createEmptyImage: () => nativeImage.createEmpty(),
+    createTray: (icon) => new Tray(icon as never),
+    trayTooltip: TRAY_TOOLTIP,
+    platform: process.platform,
+    logWarn: (message) => logger.warn(message),
+    ensureOverlayVisibleFromTrayClick: () => {
+      if (!appState.overlayRuntimeInitialized) {
+        initializeOverlayRuntime();
+      }
+      setVisibleOverlayVisible(true);
+    },
+  })();
 }
 
 function destroyTray(): void {
-  if (!appTray) {
-    return;
-  }
-  appTray.destroy();
-  appTray = null;
+  createDestroyTrayHandler({
+    getTray: () => appTray,
+    setTray: (tray) => {
+      appTray = tray as Tray | null;
+    },
+  })();
 }
 
 function initializeOverlayRuntime(): void {
-  if (appState.overlayRuntimeInitialized) {
-    return;
-  }
-  const result = initializeOverlayRuntimeCore({
-    backendOverride: appState.backendOverride,
-    getInitialInvisibleOverlayVisibility: () =>
-      configDerivedRuntime.getInitialInvisibleOverlayVisibility(),
-    createMainWindow: () => {
-      createMainWindow();
+  createInitializeOverlayRuntimeHandler({
+    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+    initializeOverlayRuntimeCore: (options) => initializeOverlayRuntimeCore(options),
+    buildOptions: () => ({
+      backendOverride: appState.backendOverride,
+      getInitialInvisibleOverlayVisibility: () =>
+        configDerivedRuntime.getInitialInvisibleOverlayVisibility(),
+      createMainWindow: () => {
+        createMainWindow();
+      },
+      createInvisibleWindow: () => {
+        createInvisibleWindow();
+      },
+      registerGlobalShortcuts: () => {
+        registerGlobalShortcuts();
+      },
+      updateVisibleOverlayBounds: (geometry) => {
+        updateVisibleOverlayBounds(geometry);
+      },
+      updateInvisibleOverlayBounds: (geometry) => {
+        updateInvisibleOverlayBounds(geometry);
+      },
+      isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      isInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
+      updateVisibleOverlayVisibility: () => {
+        overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+      },
+      updateInvisibleOverlayVisibility: () => {
+        overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
+      },
+      getOverlayWindows: () => getOverlayWindows(),
+      syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
+      setWindowTracker: (tracker) => {
+        appState.windowTracker = tracker;
+      },
+      getResolvedConfig: () => getResolvedConfig(),
+      getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+      getMpvClient: () => appState.mpvClient,
+      getMpvSocketPath: () => appState.mpvSocketPath,
+      getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
+      setAnkiIntegration: (integration) => {
+        appState.ankiIntegration = integration as AnkiIntegration | null;
+      },
+      showDesktopNotification,
+      createFieldGroupingCallback: () => createFieldGroupingCallback(),
+      getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
+    }),
+    setInvisibleOverlayVisible: (visible) => {
+      overlayManager.setInvisibleOverlayVisible(visible);
     },
-    createInvisibleWindow: () => {
-      createInvisibleWindow();
+    setOverlayRuntimeInitialized: (initialized) => {
+      appState.overlayRuntimeInitialized = initialized;
     },
-    registerGlobalShortcuts: () => {
-      registerGlobalShortcuts();
-    },
-    updateVisibleOverlayBounds: (geometry) => {
-      updateVisibleOverlayBounds(geometry);
-    },
-    updateInvisibleOverlayBounds: (geometry) => {
-      updateInvisibleOverlayBounds(geometry);
-    },
-    isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    isInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
-    updateVisibleOverlayVisibility: () => {
-      overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-    },
-    updateInvisibleOverlayVisibility: () => {
-      overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
-    },
-    getOverlayWindows: () => getOverlayWindows(),
-    syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
-    setWindowTracker: (tracker) => {
-      appState.windowTracker = tracker;
-    },
-    getResolvedConfig: () => getResolvedConfig(),
-    getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
-    getMpvClient: () => appState.mpvClient,
-    getMpvSocketPath: () => appState.mpvSocketPath,
-    getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-    setAnkiIntegration: (integration) => {
-      appState.ankiIntegration = integration as AnkiIntegration | null;
-    },
-    showDesktopNotification,
-    createFieldGroupingCallback: () => createFieldGroupingCallback(),
-    getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
-  });
-  overlayManager.setInvisibleOverlayVisible(result.invisibleOverlayVisible);
-  appState.overlayRuntimeInitialized = true;
-  startBackgroundWarmups();
+    startBackgroundWarmups: () => startBackgroundWarmups(),
+  })();
 }
 
 function openYomitanSettings(): void {
-  void (async () => {
-    const extension = await ensureYomitanExtensionLoaded();
-    if (!extension) {
-      logger.warn('Unable to open Yomitan settings: extension failed to load.');
-      return;
-    }
-
-    openYomitanSettingsWindow({
-      yomitanExt: extension,
-      getExistingWindow: () => appState.yomitanSettingsWindow,
-      setWindow: (window: BrowserWindow | null) => {
-        appState.yomitanSettingsWindow = window;
-      },
-    });
-  })().catch((error) => {
-    logger.error('Failed to open Yomitan settings window.', error);
-  });
+  createOpenYomitanSettingsHandler({
+    ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
+    openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow }) => {
+      openYomitanSettingsWindow({
+        yomitanExt: yomitanExt as Extension,
+        getExistingWindow: () => getExistingWindow() as BrowserWindow | null,
+        setWindow: (window) => setWindow(window as BrowserWindow | null),
+      });
+    },
+    getExistingWindow: () => appState.yomitanSettingsWindow,
+    setWindow: (window) => {
+      appState.yomitanSettingsWindow = window as BrowserWindow | null;
+    },
+    logWarn: (message) => logger.warn(message),
+    logError: (message, error) => logger.error(message, error),
+  })();
 }
+
+const getConfiguredShortcutsHandler = createGetConfiguredShortcutsHandler({
+  getResolvedConfig: () => getResolvedConfig(),
+  defaultConfig: DEFAULT_CONFIG,
+  resolveConfiguredShortcuts,
+});
+
+const registerGlobalShortcutsHandler = createRegisterGlobalShortcutsHandler({
+  getConfiguredShortcuts: () => getConfiguredShortcuts(),
+  registerGlobalShortcutsCore,
+  onToggleVisibleOverlay: () => toggleVisibleOverlay(),
+  onToggleInvisibleOverlay: () => toggleInvisibleOverlay(),
+  onOpenYomitanSettings: () => openYomitanSettings(),
+  isDev,
+  getMainWindow: () => overlayManager.getMainWindow(),
+});
+
+const refreshGlobalAndOverlayShortcutsHandler = createRefreshGlobalAndOverlayShortcutsHandler({
+  unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
+  registerGlobalShortcuts: () => registerGlobalShortcuts(),
+  syncOverlayShortcuts: () => syncOverlayShortcuts(),
+});
+
 function registerGlobalShortcuts(): void {
-  registerGlobalShortcutsCore({
-    shortcuts: getConfiguredShortcuts(),
-    onToggleVisibleOverlay: () => toggleVisibleOverlay(),
-    onToggleInvisibleOverlay: () => toggleInvisibleOverlay(),
-    onOpenYomitanSettings: () => openYomitanSettings(),
-    isDev,
-    getMainWindow: () => overlayManager.getMainWindow(),
-  });
+  registerGlobalShortcutsHandler();
 }
 
 function refreshGlobalAndOverlayShortcuts(): void {
-  globalShortcut.unregisterAll();
-  registerGlobalShortcuts();
-  syncOverlayShortcuts();
+  refreshGlobalAndOverlayShortcutsHandler();
 }
 
 function getConfiguredShortcuts() {
-  return resolveConfiguredShortcuts(getResolvedConfig(), DEFAULT_CONFIG);
+  return getConfiguredShortcutsHandler();
 }
 
 function cycleSecondarySubMode(): void {
@@ -2457,22 +2481,27 @@ function cycleSecondarySubMode(): void {
   });
 }
 
+const appendToMpvLogHandler = createAppendToMpvLogHandler({
+  logPath: DEFAULT_MPV_LOG_PATH,
+  dirname: (targetPath) => path.dirname(targetPath),
+  mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
+  appendFileSync: (targetPath, data, options) => fs.appendFileSync(targetPath, data, options),
+  now: () => new Date(),
+});
+
+const showMpvOsdHandler = createShowMpvOsdHandler({
+  appendToMpvLog: (message) => appendToMpvLog(message),
+  showMpvOsdRuntime,
+  getMpvClient: () => appState.mpvClient,
+  logInfo: (line) => logger.info(line),
+});
+
 function showMpvOsd(text: string): void {
-  appendToMpvLog(`[OSD] ${text}`);
-  showMpvOsdRuntime(appState.mpvClient, text, (line) => {
-    logger.info(line);
-  });
+  showMpvOsdHandler(text);
 }
 
 function appendToMpvLog(message: string): void {
-  try {
-    fs.mkdirSync(path.dirname(DEFAULT_MPV_LOG_PATH), { recursive: true });
-    fs.appendFileSync(DEFAULT_MPV_LOG_PATH, `[${new Date().toISOString()}] ${message}\n`, {
-      encoding: 'utf8',
-    });
-  } catch {
-    // best-effort logging
-  }
+  appendToMpvLogHandler(message);
 }
 
 const numericShortcutRuntime = createNumericShortcutRuntime({
@@ -2483,128 +2512,167 @@ const numericShortcutRuntime = createNumericShortcutRuntime({
 });
 const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
+const cancelPendingMultiCopyHandler = createCancelNumericShortcutSessionHandler({
+  session: multiCopySession,
+});
+const startPendingMultiCopyHandler = createStartNumericShortcutSessionHandler({
+  session: multiCopySession,
+  onDigit: (count) => handleMultiCopyDigit(count),
+  messages: {
+    prompt: 'Copy how many lines? Press 1-9 (Esc to cancel)',
+    timeout: 'Copy timeout',
+    cancelled: 'Cancelled',
+  },
+});
+const cancelPendingMineSentenceMultipleHandler = createCancelNumericShortcutSessionHandler({
+  session: mineSentenceSession,
+});
+const startPendingMineSentenceMultipleHandler = createStartNumericShortcutSessionHandler({
+  session: mineSentenceSession,
+  onDigit: (count) => handleMineSentenceDigit(count),
+  messages: {
+    prompt: 'Mine how many lines? Press 1-9 (Esc to cancel)',
+    timeout: 'Mine sentence timeout',
+    cancelled: 'Cancelled',
+  },
+});
+const registerOverlayShortcutsHandler = createRegisterOverlayShortcutsHandler({
+  overlayShortcutsRuntime,
+});
+const unregisterOverlayShortcutsHandler = createUnregisterOverlayShortcutsHandler({
+  overlayShortcutsRuntime,
+});
+const syncOverlayShortcutsHandler = createSyncOverlayShortcutsHandler({
+  overlayShortcutsRuntime,
+});
+const refreshOverlayShortcutsHandler = createRefreshOverlayShortcutsHandler({
+  overlayShortcutsRuntime,
+});
 
 async function triggerSubsyncFromConfig(): Promise<void> {
   await subsyncRuntime.triggerFromConfig();
 }
 
 function cancelPendingMultiCopy(): void {
-  multiCopySession.cancel();
+  cancelPendingMultiCopyHandler();
 }
 
 function startPendingMultiCopy(timeoutMs: number): void {
-  multiCopySession.start({
-    timeoutMs,
-    onDigit: (count) => handleMultiCopyDigit(count),
-    messages: {
-      prompt: 'Copy how many lines? Press 1-9 (Esc to cancel)',
-      timeout: 'Copy timeout',
-      cancelled: 'Cancelled',
-    },
-  });
+  startPendingMultiCopyHandler(timeoutMs);
 }
 
 function handleMultiCopyDigit(count: number): void {
-  handleMultiCopyDigitCore(count, {
-    subtitleTimingTracker: appState.subtitleTimingTracker,
-    writeClipboardText: (text) => clipboard.writeText(text),
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  handleMultiCopyDigitHandler(count);
 }
 
 function copyCurrentSubtitle(): void {
-  copyCurrentSubtitleCore({
-    subtitleTimingTracker: appState.subtitleTimingTracker,
-    writeClipboardText: (text) => clipboard.writeText(text),
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  copyCurrentSubtitleHandler();
 }
 
+const updateLastCardFromClipboardHandler = createUpdateLastCardFromClipboardHandler({
+  getAnkiIntegration: () => appState.ankiIntegration,
+  readClipboardText: () => clipboard.readText(),
+  showMpvOsd: (text) => showMpvOsd(text),
+  updateLastCardFromClipboardCore,
+});
+
+const refreshKnownWordCacheHandler = createRefreshKnownWordCacheHandler({
+  getAnkiIntegration: () => appState.ankiIntegration,
+  missingIntegrationMessage: 'AnkiConnect integration not enabled',
+});
+
+const triggerFieldGroupingHandler = createTriggerFieldGroupingHandler({
+  getAnkiIntegration: () => appState.ankiIntegration,
+  showMpvOsd: (text) => showMpvOsd(text),
+  triggerFieldGroupingCore,
+});
+
+const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler({
+  getAnkiIntegration: () => appState.ankiIntegration,
+  showMpvOsd: (text) => showMpvOsd(text),
+  markLastCardAsAudioCardCore,
+});
+
+const mineSentenceCardHandler = createMineSentenceCardHandler({
+  getAnkiIntegration: () => appState.ankiIntegration,
+  getMpvClient: () => appState.mpvClient,
+  showMpvOsd: (text) => showMpvOsd(text),
+  mineSentenceCardCore,
+  recordCardsMined: (count) => {
+    appState.immersionTracker?.recordCardsMined(count);
+  },
+});
+const handleMultiCopyDigitHandler = createHandleMultiCopyDigitHandler({
+  getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+  writeClipboardText: (text) => clipboard.writeText(text),
+  showMpvOsd: (text) => showMpvOsd(text),
+  handleMultiCopyDigitCore,
+});
+const copyCurrentSubtitleHandler = createCopyCurrentSubtitleHandler({
+  getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+  writeClipboardText: (text) => clipboard.writeText(text),
+  showMpvOsd: (text) => showMpvOsd(text),
+  copyCurrentSubtitleCore,
+});
+const handleMineSentenceDigitHandler = createHandleMineSentenceDigitHandler({
+  getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
+  getAnkiIntegration: () => appState.ankiIntegration,
+  getCurrentSecondarySubText: () => appState.mpvClient?.currentSecondarySubText || undefined,
+  showMpvOsd: (text) => showMpvOsd(text),
+  logError: (message, err) => {
+    logger.error(message, err);
+  },
+  onCardsMined: (cards) => {
+    appState.immersionTracker?.recordCardsMined(cards);
+  },
+  handleMineSentenceDigitCore,
+});
+
 async function updateLastCardFromClipboard(): Promise<void> {
-  await updateLastCardFromClipboardCore({
-    ankiIntegration: appState.ankiIntegration,
-    readClipboardText: () => clipboard.readText(),
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  await updateLastCardFromClipboardHandler();
 }
 
 async function refreshKnownWordCache(): Promise<void> {
-  if (!appState.ankiIntegration) {
-    throw new Error('AnkiConnect integration not enabled');
-  }
-
-  await appState.ankiIntegration.refreshKnownWordCache();
+  await refreshKnownWordCacheHandler();
 }
 
 async function triggerFieldGrouping(): Promise<void> {
-  await triggerFieldGroupingCore({
-    ankiIntegration: appState.ankiIntegration,
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  await triggerFieldGroupingHandler();
 }
 
 async function markLastCardAsAudioCard(): Promise<void> {
-  await markLastCardAsAudioCardCore({
-    ankiIntegration: appState.ankiIntegration,
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
+  await markLastCardAsAudioCardHandler();
 }
 
 async function mineSentenceCard(): Promise<void> {
-  const created = await mineSentenceCardCore({
-    ankiIntegration: appState.ankiIntegration,
-    mpvClient: appState.mpvClient,
-    showMpvOsd: (text) => showMpvOsd(text),
-  });
-  if (created) {
-    appState.immersionTracker?.recordCardsMined(1);
-  }
+  await mineSentenceCardHandler();
 }
 
 function cancelPendingMineSentenceMultiple(): void {
-  mineSentenceSession.cancel();
+  cancelPendingMineSentenceMultipleHandler();
 }
 
 function startPendingMineSentenceMultiple(timeoutMs: number): void {
-  mineSentenceSession.start({
-    timeoutMs,
-    onDigit: (count) => handleMineSentenceDigit(count),
-    messages: {
-      prompt: 'Mine how many lines? Press 1-9 (Esc to cancel)',
-      timeout: 'Mine sentence timeout',
-      cancelled: 'Cancelled',
-    },
-  });
+  startPendingMineSentenceMultipleHandler(timeoutMs);
 }
 
 function handleMineSentenceDigit(count: number): void {
-  handleMineSentenceDigitCore(count, {
-    subtitleTimingTracker: appState.subtitleTimingTracker,
-    ankiIntegration: appState.ankiIntegration,
-    getCurrentSecondarySubText: () => appState.mpvClient?.currentSecondarySubText || undefined,
-    showMpvOsd: (text) => showMpvOsd(text),
-    logError: (message, err) => {
-      logger.error(message, err);
-    },
-    onCardsMined: (cards) => {
-      appState.immersionTracker?.recordCardsMined(cards);
-    },
-  });
+  handleMineSentenceDigitHandler(count);
 }
 
 function registerOverlayShortcuts(): void {
-  overlayShortcutsRuntime.registerOverlayShortcuts();
+  registerOverlayShortcutsHandler();
 }
 
 function unregisterOverlayShortcuts(): void {
-  overlayShortcutsRuntime.unregisterOverlayShortcuts();
+  unregisterOverlayShortcutsHandler();
 }
 
 function syncOverlayShortcuts(): void {
-  overlayShortcutsRuntime.syncOverlayShortcuts();
+  syncOverlayShortcutsHandler();
 }
 function refreshOverlayShortcuts(): void {
-  overlayShortcutsRuntime.refreshOverlayShortcuts();
+  refreshOverlayShortcutsHandler();
 }
 
 function setVisibleOverlayVisible(visible: boolean): void {
