@@ -2476,9 +2476,10 @@ const buildGetConfiguredShortcutsMainDepsHandler = createBuildGetConfiguredShort
     resolveConfiguredShortcuts,
   },
 );
-const getConfiguredShortcutsHandler = createGetConfiguredShortcutsHandler({
-  ...buildGetConfiguredShortcutsMainDepsHandler(),
-});
+const getConfiguredShortcutsMainDeps = buildGetConfiguredShortcutsMainDepsHandler();
+const getConfiguredShortcutsHandler = createGetConfiguredShortcutsHandler(
+  getConfiguredShortcutsMainDeps,
+);
 
 const buildRegisterGlobalShortcutsMainDepsHandler =
   createBuildRegisterGlobalShortcutsMainDepsHandler({
@@ -2490,9 +2491,10 @@ const buildRegisterGlobalShortcutsMainDepsHandler =
     isDev,
     getMainWindow: () => overlayManager.getMainWindow(),
   });
-const registerGlobalShortcutsHandler = createRegisterGlobalShortcutsHandler({
-  ...buildRegisterGlobalShortcutsMainDepsHandler(),
-});
+const registerGlobalShortcutsMainDeps = buildRegisterGlobalShortcutsMainDepsHandler();
+const registerGlobalShortcutsHandler = createRegisterGlobalShortcutsHandler(
+  registerGlobalShortcutsMainDeps,
+);
 
 const buildRefreshGlobalAndOverlayShortcutsMainDepsHandler =
   createBuildRefreshGlobalAndOverlayShortcutsMainDepsHandler({
@@ -2500,9 +2502,11 @@ const buildRefreshGlobalAndOverlayShortcutsMainDepsHandler =
     registerGlobalShortcuts: () => registerGlobalShortcuts(),
     syncOverlayShortcuts: () => syncOverlayShortcuts(),
   });
-const refreshGlobalAndOverlayShortcutsHandler = createRefreshGlobalAndOverlayShortcutsHandler({
-  ...buildRefreshGlobalAndOverlayShortcutsMainDepsHandler(),
-});
+const refreshGlobalAndOverlayShortcutsMainDeps =
+  buildRefreshGlobalAndOverlayShortcutsMainDepsHandler();
+const refreshGlobalAndOverlayShortcutsHandler = createRefreshGlobalAndOverlayShortcutsHandler(
+  refreshGlobalAndOverlayShortcutsMainDeps,
+);
 
 function registerGlobalShortcuts(): void {
   registerGlobalShortcutsHandler();
@@ -2544,9 +2548,8 @@ const buildAppendToMpvLogMainDepsHandler = createBuildAppendToMpvLogMainDepsHand
   appendFileSync: (targetPath, data, options) => fs.appendFileSync(targetPath, data, options),
   now: () => new Date(),
 });
-const appendToMpvLogHandler = createAppendToMpvLogHandler({
-  ...buildAppendToMpvLogMainDepsHandler(),
-});
+const appendToMpvLogMainDeps = buildAppendToMpvLogMainDepsHandler();
+const appendToMpvLogHandler = createAppendToMpvLogHandler(appendToMpvLogMainDeps);
 
 const buildShowMpvOsdMainDepsHandler = createBuildShowMpvOsdMainDepsHandler({
   appendToMpvLog: (message) => appendToMpvLog(message),
@@ -2555,9 +2558,8 @@ const buildShowMpvOsdMainDepsHandler = createBuildShowMpvOsdMainDepsHandler({
   getMpvClient: () => appState.mpvClient,
   logInfo: (line) => logger.info(line),
 });
-const showMpvOsdHandler = createShowMpvOsdHandler({
-  ...buildShowMpvOsdMainDepsHandler(),
-});
+const showMpvOsdMainDeps = buildShowMpvOsdMainDepsHandler();
+const showMpvOsdHandler = createShowMpvOsdHandler(showMpvOsdMainDeps);
 
 function showMpvOsd(text: string): void {
   showMpvOsdHandler(text);
