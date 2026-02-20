@@ -2672,8 +2672,9 @@ const buildNumericShortcutRuntimeMainDepsHandler = createBuildNumericShortcutRun
   setTimer: (handler, timeoutMs) => setTimeout(handler, timeoutMs),
   clearTimer: (timer) => clearTimeout(timer),
 });
+const numericShortcutRuntimeMainDeps = buildNumericShortcutRuntimeMainDepsHandler();
 const numericShortcutRuntime = createNumericShortcutRuntime(
-  buildNumericShortcutRuntimeMainDepsHandler(),
+  numericShortcutRuntimeMainDeps,
 );
 const multiCopySession = numericShortcutRuntime.createSession();
 const mineSentenceSession = numericShortcutRuntime.createSession();
@@ -2681,8 +2682,10 @@ const buildCancelPendingMultiCopyMainDepsHandler =
   createBuildCancelNumericShortcutSessionMainDepsHandler({
   session: multiCopySession,
 });
+const cancelPendingMultiCopyMainDeps =
+  buildCancelPendingMultiCopyMainDepsHandler();
 const cancelPendingMultiCopyHandler = createCancelNumericShortcutSessionHandler(
-  buildCancelPendingMultiCopyMainDepsHandler(),
+  cancelPendingMultiCopyMainDeps,
 );
 
 const buildStartPendingMultiCopyMainDepsHandler =
@@ -2695,16 +2698,20 @@ const buildStartPendingMultiCopyMainDepsHandler =
     cancelled: 'Cancelled',
   },
 });
+const startPendingMultiCopyMainDeps =
+  buildStartPendingMultiCopyMainDepsHandler();
 const startPendingMultiCopyHandler = createStartNumericShortcutSessionHandler(
-  buildStartPendingMultiCopyMainDepsHandler(),
+  startPendingMultiCopyMainDeps,
 );
 
 const buildCancelPendingMineSentenceMultipleMainDepsHandler =
   createBuildCancelNumericShortcutSessionMainDepsHandler({
   session: mineSentenceSession,
 });
+const cancelPendingMineSentenceMultipleMainDeps =
+  buildCancelPendingMineSentenceMultipleMainDepsHandler();
 const cancelPendingMineSentenceMultipleHandler = createCancelNumericShortcutSessionHandler(
-  buildCancelPendingMineSentenceMultipleMainDepsHandler(),
+  cancelPendingMineSentenceMultipleMainDeps,
 );
 
 const buildStartPendingMineSentenceMultipleMainDepsHandler =
@@ -2717,39 +2724,48 @@ const buildStartPendingMineSentenceMultipleMainDepsHandler =
     cancelled: 'Cancelled',
   },
 });
+const startPendingMineSentenceMultipleMainDeps =
+  buildStartPendingMineSentenceMultipleMainDepsHandler();
 const startPendingMineSentenceMultipleHandler = createStartNumericShortcutSessionHandler(
-  buildStartPendingMineSentenceMultipleMainDepsHandler(),
+  startPendingMineSentenceMultipleMainDeps,
 );
 
 const buildRegisterOverlayShortcutsMainDepsHandler =
   createBuildRegisterOverlayShortcutsMainDepsHandler({
   overlayShortcutsRuntime,
 });
+const registerOverlayShortcutsMainDeps =
+  buildRegisterOverlayShortcutsMainDepsHandler();
 const registerOverlayShortcutsHandler = createRegisterOverlayShortcutsHandler(
-  buildRegisterOverlayShortcutsMainDepsHandler(),
+  registerOverlayShortcutsMainDeps,
 );
 
 const buildUnregisterOverlayShortcutsMainDepsHandler =
   createBuildUnregisterOverlayShortcutsMainDepsHandler({
   overlayShortcutsRuntime,
 });
+const unregisterOverlayShortcutsMainDeps =
+  buildUnregisterOverlayShortcutsMainDepsHandler();
 const unregisterOverlayShortcutsHandler = createUnregisterOverlayShortcutsHandler(
-  buildUnregisterOverlayShortcutsMainDepsHandler(),
+  unregisterOverlayShortcutsMainDeps,
 );
 
 const buildSyncOverlayShortcutsMainDepsHandler = createBuildSyncOverlayShortcutsMainDepsHandler({
   overlayShortcutsRuntime,
 });
+const syncOverlayShortcutsMainDeps = buildSyncOverlayShortcutsMainDepsHandler();
 const syncOverlayShortcutsHandler = createSyncOverlayShortcutsHandler(
-  buildSyncOverlayShortcutsMainDepsHandler(),
+  syncOverlayShortcutsMainDeps,
 );
 
 const buildRefreshOverlayShortcutsMainDepsHandler =
   createBuildRefreshOverlayShortcutsMainDepsHandler({
   overlayShortcutsRuntime,
 });
+const refreshOverlayShortcutsMainDeps =
+  buildRefreshOverlayShortcutsMainDepsHandler();
 const refreshOverlayShortcutsHandler = createRefreshOverlayShortcutsHandler(
-  buildRefreshOverlayShortcutsMainDepsHandler(),
+  refreshOverlayShortcutsMainDeps,
 );
 
 async function triggerSubsyncFromConfig(): Promise<void> {
@@ -2779,8 +2795,10 @@ const buildUpdateLastCardFromClipboardMainDepsHandler =
   showMpvOsd: (text) => showMpvOsd(text),
   updateLastCardFromClipboardCore,
 });
+const updateLastCardFromClipboardMainDeps =
+  buildUpdateLastCardFromClipboardMainDepsHandler();
 const updateLastCardFromClipboardHandler = createUpdateLastCardFromClipboardHandler(
-  buildUpdateLastCardFromClipboardMainDepsHandler(),
+  updateLastCardFromClipboardMainDeps,
 );
 
 const buildRefreshKnownWordCacheMainDepsHandler = createBuildRefreshKnownWordCacheMainDepsHandler({
