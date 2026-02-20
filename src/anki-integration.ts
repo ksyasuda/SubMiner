@@ -98,7 +98,22 @@ export class AnkiIntegration {
     }) => Promise<KikuFieldGroupingChoice>,
     knownWordCacheStatePath?: string,
   ) {
-    this.config = {
+    this.config = this.normalizeConfig(config);
+    this.client = new AnkiConnectClient(this.config.url!);
+    this.mediaGenerator = new MediaGenerator();
+    this.timingTracker = timingTracker;
+    this.mpvClient = mpvClient;
+    this.osdCallback = osdCallback || null;
+    this.notificationCallback = notificationCallback || null;
+    this.fieldGroupingCallback = fieldGroupingCallback || null;
+    this.knownWordCache = this.createKnownWordCache(knownWordCacheStatePath);
+    this.pollingRunner = this.createPollingRunner();
+    this.cardCreationService = this.createCardCreationService();
+    this.fieldGroupingService = this.createFieldGroupingService();
+  }
+
+  private normalizeConfig(config: AnkiConnectConfig): AnkiConnectConfig {
+    return {
       ...DEFAULT_ANKI_CONNECT_CONFIG,
       ...config,
       fields: {
@@ -131,15 +146,10 @@ export class AnkiIntegration {
         ...(config.isKiku ?? {}),
       },
     } as AnkiConnectConfig;
+  }
 
-    this.client = new AnkiConnectClient(this.config.url!);
-    this.mediaGenerator = new MediaGenerator();
-    this.timingTracker = timingTracker;
-    this.mpvClient = mpvClient;
-    this.osdCallback = osdCallback || null;
-    this.notificationCallback = notificationCallback || null;
-    this.fieldGroupingCallback = fieldGroupingCallback || null;
-    this.knownWordCache = new KnownWordCacheManager({
+  private createKnownWordCache(knownWordCacheStatePath?: string): KnownWordCacheManager {
+    return new KnownWordCacheManager({
       client: {
         findNotes: async (query, options) =>
           (await this.client.findNotes(query, options)) as unknown,
@@ -149,7 +159,10 @@ export class AnkiIntegration {
       knownWordCacheStatePath,
       showStatusNotification: (message: string) => this.showStatusNotification(message),
     });
-    this.pollingRunner = new PollingRunner({
+  }
+
+  private createPollingRunner(): PollingRunner {
+    return new PollingRunner({
       getDeck: () => this.config.deck,
       getPollingRate: () => this.config.pollingRate || DEFAULT_ANKI_CONNECT_CONFIG.pollingRate,
       findNotes: async (query, options) =>
@@ -169,7 +182,10 @@ export class AnkiIntegration {
       logInfo: (...args) => log.info(args[0] as string, ...args.slice(1)),
       logWarn: (...args) => log.warn(args[0] as string, ...args.slice(1)),
     });
-    this.cardCreationService = new CardCreationService({
+  }
+
+  private createCardCreationService(): CardCreationService {
+    return new CardCreationService({
       getConfig: () => this.config,
       getTimingTracker: () => this.timingTracker,
       getMpvClient: () => this.mpvClient,
@@ -236,7 +252,10 @@ export class AnkiIntegration {
         this.previousNoteIds.add(noteId);
       },
     });
-    this.fieldGroupingService = new FieldGroupingService({
+  }
+
+  private createFieldGroupingService(): FieldGroupingService {
+    return new FieldGroupingService({
       getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
       isUpdateInProgress: () => this.updateInProgress,
       getDeck: () => this.config.deck,

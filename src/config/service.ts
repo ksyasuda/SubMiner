@@ -96,12 +96,7 @@ export class ConfigService {
 
   reloadConfig(): ResolvedConfig {
     const { config, path: configPath } = this.loadRawConfig();
-    this.rawConfig = config;
-    this.configPathInUse = configPath;
-    const { resolved, warnings } = this.resolveConfig(config);
-    this.resolvedConfig = resolved;
-    this.warnings = warnings;
-    return this.getConfig();
+    return this.applyResolvedConfig(config, configPath);
   }
 
   reloadConfigStrict(): ReloadConfigStrictResult {
@@ -111,15 +106,11 @@ export class ConfigService {
     }
 
     const { config, path: configPath } = loadResult;
-    this.rawConfig = config;
-    this.configPathInUse = configPath;
-    const { resolved, warnings } = this.resolveConfig(config);
-    this.resolvedConfig = resolved;
-    this.warnings = warnings;
+    const resolvedConfig = this.applyResolvedConfig(config, configPath);
     return {
       ok: true,
-      config: this.getConfig(),
-      warnings: [...warnings],
+      config: resolvedConfig,
+      warnings: this.getWarnings(),
       path: configPath,
     };
   }
@@ -132,11 +123,7 @@ export class ConfigService {
       ? this.configPathInUse
       : this.configFileJsonc;
     fs.writeFileSync(targetPath, JSON.stringify(config, null, 2));
-    this.rawConfig = config;
-    this.configPathInUse = targetPath;
-    const { resolved, warnings } = this.resolveConfig(config);
-    this.resolvedConfig = resolved;
-    this.warnings = warnings;
+    this.applyResolvedConfig(config, targetPath);
   }
 
   patchRawConfig(patch: RawConfig): void {
@@ -159,11 +146,7 @@ export class ConfigService {
         error: string;
         path: string;
       } {
-    const configPath = fs.existsSync(this.configFileJsonc)
-      ? this.configFileJsonc
-      : fs.existsSync(this.configFileJson)
-        ? this.configFileJson
-        : this.configFileJsonc;
+    const configPath = this.resolveExistingConfigPath();
 
     if (!fs.existsSync(configPath)) {
       return { ok: true, config: {}, path: configPath };
@@ -171,19 +154,7 @@ export class ConfigService {
 
     try {
       const data = fs.readFileSync(configPath, 'utf-8');
-      const parsed = configPath.endsWith('.jsonc')
-        ? (() => {
-            const errors: ParseError[] = [];
-            const result = parseJsonc(data, errors, {
-              allowTrailingComma: true,
-              disallowComments: false,
-            });
-            if (errors.length > 0) {
-              throw new Error(`Invalid JSONC (${errors[0]?.error ?? 'unknown'})`);
-            }
-            return result;
-          })()
-        : JSON.parse(data);
+      const parsed = this.parseConfigContent(configPath, data);
       return {
         ok: true,
         config: isObject(parsed) ? (parsed as Config) : {},
@@ -193,6 +164,41 @@ export class ConfigService {
       const message = error instanceof Error ? error.message : 'Unknown parse error';
       return { ok: false, error: message, path: configPath };
     }
+  }
+
+  private applyResolvedConfig(config: RawConfig, configPath: string): ResolvedConfig {
+    this.rawConfig = config;
+    this.configPathInUse = configPath;
+    const { resolved, warnings } = this.resolveConfig(config);
+    this.resolvedConfig = resolved;
+    this.warnings = warnings;
+    return this.getConfig();
+  }
+
+  private resolveExistingConfigPath(): string {
+    if (fs.existsSync(this.configFileJsonc)) {
+      return this.configFileJsonc;
+    }
+    if (fs.existsSync(this.configFileJson)) {
+      return this.configFileJson;
+    }
+    return this.configFileJsonc;
+  }
+
+  private parseConfigContent(configPath: string, data: string): unknown {
+    if (!configPath.endsWith('.jsonc')) {
+      return JSON.parse(data);
+    }
+
+    const errors: ParseError[] = [];
+    const result = parseJsonc(data, errors, {
+      allowTrailingComma: true,
+      disallowComments: false,
+    });
+    if (errors.length > 0) {
+      throw new Error(`Invalid JSONC (${errors[0]?.error ?? 'unknown'})`);
+    }
+    return result;
   }
 
   private resolveConfig(raw: RawConfig): {
