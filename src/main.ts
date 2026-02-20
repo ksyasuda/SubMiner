@@ -380,14 +380,7 @@ import {
   createBuildSendToActiveOverlayWindowMainDepsHandler,
   createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler,
 } from './main/runtime/overlay-runtime-main-actions-main-deps';
-import {
-  createHandleMpvCommandFromIpcHandler,
-  createRunSubsyncManualFromIpcHandler,
-} from './main/runtime/ipc-bridge-actions';
-import {
-  createBuildHandleMpvCommandFromIpcMainDepsHandler,
-  createBuildRunSubsyncManualFromIpcMainDepsHandler,
-} from './main/runtime/ipc-bridge-actions-main-deps';
+import { createIpcRuntimeHandlers } from './main/runtime/ipc-runtime-handlers';
 import { createBuildMpvCommandFromIpcRuntimeMainDepsHandler } from './main/runtime/ipc-mpv-command-main-deps';
 import {
   createCreateInvisibleWindowHandler,
@@ -2957,27 +2950,17 @@ const buildMpvCommandFromIpcRuntimeMainDepsHandler =
     hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
   });
 
-const buildHandleMpvCommandFromIpcMainDepsHandler =
-  createBuildHandleMpvCommandFromIpcMainDepsHandler({
-  handleMpvCommandFromIpcRuntime,
-  buildMpvCommandDeps: () => mpvCommandFromIpcRuntimeMainDeps,
-});
 const mpvCommandFromIpcRuntimeMainDeps = buildMpvCommandFromIpcRuntimeMainDepsHandler();
-const handleMpvCommandFromIpcMainDeps =
-  buildHandleMpvCommandFromIpcMainDepsHandler();
-const handleMpvCommandFromIpcHandler = createHandleMpvCommandFromIpcHandler(
-  handleMpvCommandFromIpcMainDeps,
-);
-
-const buildRunSubsyncManualFromIpcMainDepsHandler =
-  createBuildRunSubsyncManualFromIpcMainDepsHandler({
-  runManualFromIpc: (request: SubsyncManualRunRequest) => subsyncRuntime.runManualFromIpc(request),
-});
-const runSubsyncManualFromIpcMainDeps =
-  buildRunSubsyncManualFromIpcMainDepsHandler();
-const runSubsyncManualFromIpcHandler = createRunSubsyncManualFromIpcHandler(
-  runSubsyncManualFromIpcMainDeps,
-);
+const { handleMpvCommandFromIpc: handleMpvCommandFromIpcHandler, runSubsyncManualFromIpc: runSubsyncManualFromIpcHandler } =
+  createIpcRuntimeHandlers<SubsyncManualRunRequest, Awaited<ReturnType<typeof subsyncRuntime.runManualFromIpc>>>({
+    handleMpvCommandFromIpcDeps: {
+      handleMpvCommandFromIpcRuntime,
+      buildMpvCommandDeps: () => mpvCommandFromIpcRuntimeMainDeps,
+    },
+    runSubsyncManualFromIpcDeps: {
+      runManualFromIpc: (request) => subsyncRuntime.runManualFromIpc(request),
+    },
+  });
 const buildCliCommandContextMainDepsHandler = createBuildCliCommandContextMainDepsHandler({
     appState,
     texthookerService,
