@@ -628,8 +628,9 @@ const buildApplyJellyfinMpvDefaultsMainDepsHandler =
   sendMpvCommandRuntime: (client, command) => sendMpvCommandRuntime(client as never, command),
   jellyfinLangPref: JELLYFIN_LANG_PREF,
 });
+const applyJellyfinMpvDefaultsMainDeps = buildApplyJellyfinMpvDefaultsMainDepsHandler();
 const applyJellyfinMpvDefaultsHandler = createApplyJellyfinMpvDefaultsHandler(
-  buildApplyJellyfinMpvDefaultsMainDepsHandler(),
+  applyJellyfinMpvDefaultsMainDeps,
 );
 
 function applyJellyfinMpvDefaults(client: MpvIpcClient): void {
@@ -701,8 +702,9 @@ const appLogger = {
 const buildGetDefaultSocketPathMainDepsHandler = createBuildGetDefaultSocketPathMainDepsHandler({
   platform: process.platform,
 });
+const getDefaultSocketPathMainDeps = buildGetDefaultSocketPathMainDepsHandler();
 const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler(
-  buildGetDefaultSocketPathMainDepsHandler(),
+  getDefaultSocketPathMainDeps,
 );
 
 function getDefaultSocketPath(): string {
@@ -731,8 +733,10 @@ const buildOverlayModalRuntimeMainDepsHandler = createBuildOverlayModalRuntimeMa
   getMainWindow: () => overlayManager.getMainWindow(),
   getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
 });
+const overlayContentMeasurementStoreMainDeps =
+  buildOverlayContentMeasurementStoreMainDepsHandler();
 const overlayContentMeasurementStore = createOverlayContentMeasurementStore(
-  buildOverlayContentMeasurementStoreMainDepsHandler(),
+  overlayContentMeasurementStoreMainDeps,
 );
 const overlayModalRuntime = createOverlayModalRuntimeService(buildOverlayModalRuntimeMainDepsHandler());
 const appState = createAppState({
@@ -812,8 +816,10 @@ const buildSubtitleProcessingControllerMainDepsHandler =
   },
   now: () => Date.now(),
 });
+const subtitleProcessingControllerMainDeps =
+  buildSubtitleProcessingControllerMainDepsHandler();
 const subtitleProcessingController = createSubtitleProcessingController(
-  buildSubtitleProcessingControllerMainDepsHandler(),
+  subtitleProcessingControllerMainDeps,
 );
 const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
   createBuildOverlayShortcutsRuntimeMainDepsHandler({
@@ -860,8 +866,9 @@ const buildConfigHotReloadMessageMainDepsHandler = createBuildConfigHotReloadMes
   showMpvOsd: (message) => showMpvOsd(message),
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
+const configHotReloadMessageMainDeps = buildConfigHotReloadMessageMainDepsHandler();
 const notifyConfigHotReloadMessage = createConfigHotReloadMessageHandler(
-  buildConfigHotReloadMessageMainDepsHandler(),
+  configHotReloadMessageMainDeps,
 );
 const buildWatchConfigPathMainDepsHandler = createBuildWatchConfigPathMainDepsHandler({
   fileExists: (targetPath) => fs.existsSync(targetPath),
