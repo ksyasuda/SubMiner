@@ -243,9 +243,8 @@ import {
   createBuildStartJellyfinRemoteSessionMainDepsHandler,
   createBuildStopJellyfinRemoteSessionMainDepsHandler,
 } from './main/runtime/jellyfin-remote-session-main-deps';
+import { createCliCommandRuntimeHandler } from './main/runtime/cli-command-runtime-handler';
 import { createInitialArgsRuntimeHandler } from './main/runtime/initial-args-runtime-handler';
-import { createHandleTexthookerOnlyModeTransitionHandler } from './main/runtime/cli-command-prechecks';
-import { createBuildHandleTexthookerOnlyModeTransitionMainDepsHandler } from './main/runtime/cli-command-prechecks-main-deps';
 import {
   createGetFieldGroupingResolverHandler,
   createSetFieldGroupingResolverHandler,
@@ -2190,8 +2189,8 @@ runAndApplyStartupState();
 void refreshAnilistClientSecretState({ force: true });
 anilistStateRuntime.refreshRetryQueueState();
 
-const handleTexthookerOnlyModeTransitionHandler = createHandleTexthookerOnlyModeTransitionHandler(
-  createBuildHandleTexthookerOnlyModeTransitionMainDepsHandler({
+const handleCliCommand = createCliCommandRuntimeHandler({
+  handleTexthookerOnlyModeTransitionMainDeps: {
     isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
     setTexthookerOnlyMode: (enabled) => {
       appState.texthookerOnlyMode = enabled;
@@ -2199,15 +2198,11 @@ const handleTexthookerOnlyModeTransitionHandler = createHandleTexthookerOnlyMode
     commandNeedsOverlayRuntime: (inputArgs) => commandNeedsOverlayRuntime(inputArgs),
     startBackgroundWarmups: () => startBackgroundWarmups(),
     logInfo: (message: string) => logger.info(message),
-  })(),
-);
-
-function handleCliCommand(args: CliArgs, source: CliCommandSource = 'initial'): void {
-  handleTexthookerOnlyModeTransitionHandler(args);
-
-  const cliContext = createCliCommandContextHandler();
-  handleCliCommandRuntimeServiceWithContext(args, source, cliContext);
-}
+  },
+  createCliCommandContext: () => createCliCommandContextHandler(),
+  handleCliCommandRuntimeServiceWithContext: (args, source, cliContext) =>
+    handleCliCommandRuntimeServiceWithContext(args, source, cliContext),
+});
 
 const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   getInitialArgs: () => appState.initialArgs,
