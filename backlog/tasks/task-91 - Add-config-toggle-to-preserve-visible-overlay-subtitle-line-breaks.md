@@ -4,7 +4,7 @@ title: Add config toggle to preserve visible overlay subtitle line breaks
 status: Done
 assignee: []
 created_date: '2026-02-20 06:35'
-updated_date: '2026-02-20 06:42'
+updated_date: '2026-02-20 11:10'
 labels: []
 dependencies: []
 priority: medium
@@ -33,4 +33,8 @@ Renderer now supports line-break-preserving token output via `alignTokensToSourc
 
 Validation:
 - `bun run build && node --test dist/config/config.test.js dist/renderer/subtitle-render.test.js`
+
+Follow-up (2026-02-20): when `preserveLineBreaks=false`, token render path now flattens token `CR/LF` to spaces to avoid accidental `<br>` insertion from token surfaces. Regression coverage added in `src/renderer/subtitle-render.test.ts`.
+
+Follow-up (2026-02-20, second pass): non-preserve renderer now aligns tokens to normalized source text and skips unmatched overlap/tail tokens to prevent duplicated phrase rendering (observed with multiline token + duplicated second-line token payload).
 <!-- SECTION:NOTES:END -->

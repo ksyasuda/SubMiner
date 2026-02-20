@@ -195,8 +195,11 @@ features:
 ## See It in Action
 
 <video controls playsinline preload="metadata" poster="/assets/demo-poster.jpg">
-  <source :src="'/assets/card-mine.webm'" type="video/webm" />
-  Your browser does not support the video tag.
+  <source :src="'/assets/minecard.webm'" type="video/webm" />
+  <source :src="'/assets/minecard.mp4'" type="video/mp4" />
+  <a :href="'/assets/minecard.webm'" target="_blank" rel="noreferrer">
+    <img :src="'/assets/minecard.gif'" alt="SubMiner demo GIF fallback" style="width: 100%; height: auto;" />
+  </a>
 </video>
 
 </div>

@@ -14,9 +14,7 @@
 
 <div align="center">
 
-[![Demo](./assets/demo-poster.jpg)](https://github.com/user-attachments/assets/9235a554-ea51-4284-b14b-7bbf3defaf58)
-
-_Click to watch the demo_
+[![SubMiner demo (GIF preview)](./assets/minecard.gif)](./assets/minecard.mp4)
 
 </div>
 

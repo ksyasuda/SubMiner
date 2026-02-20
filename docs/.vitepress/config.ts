@@ -38,6 +38,7 @@ export default {
   appearance: 'dark',
   cleanUrls: true,
   lastUpdated: true,
+  srcExclude: ['subagents/**'],
   markdown: {
     theme: {
       light: 'catppuccin-latte',
