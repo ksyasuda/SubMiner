@@ -1909,8 +1909,7 @@ registerProtocolUrlHandlers({
   },
 });
 
-const onWillQuitCleanupHandler = createOnWillQuitCleanupHandler(
-  createBuildOnWillQuitCleanupDepsHandler({
+const buildOnWillQuitCleanupDepsHandler = createBuildOnWillQuitCleanupDepsHandler({
     destroyTray: () => destroyTray(),
     stopConfigHotReload: () => configHotReloadRuntime.stop(),
     restorePreviousSecondarySubVisibility: () => restorePreviousSecondarySubVisibility(),
@@ -1944,17 +1943,19 @@ const onWillQuitCleanupHandler = createOnWillQuitCleanupHandler(
       appState.jellyfinSetupWindow = null;
     },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
-  })(),
-);
+  });
+const onWillQuitCleanupHandler = createOnWillQuitCleanupHandler(buildOnWillQuitCleanupDepsHandler());
 
-const shouldRestoreWindowsOnActivateHandler = createShouldRestoreWindowsOnActivateHandler(
+const buildShouldRestoreWindowsOnActivateMainDepsHandler =
   createBuildShouldRestoreWindowsOnActivateMainDepsHandler({
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
     getAllWindowCount: () => BrowserWindow.getAllWindows().length,
-  })(),
+  });
+const shouldRestoreWindowsOnActivateHandler = createShouldRestoreWindowsOnActivateHandler(
+  buildShouldRestoreWindowsOnActivateMainDepsHandler(),
 );
 
-const restoreWindowsOnActivateHandler = createRestoreWindowsOnActivateHandler(
+const buildRestoreWindowsOnActivateMainDepsHandler =
   createBuildRestoreWindowsOnActivateMainDepsHandler({
     createMainWindow: () => {
       createMainWindow();
@@ -1968,11 +1969,12 @@ const restoreWindowsOnActivateHandler = createRestoreWindowsOnActivateHandler(
     updateInvisibleOverlayVisibility: () => {
       overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
     },
-  })(),
+  });
+const restoreWindowsOnActivateHandler = createRestoreWindowsOnActivateHandler(
+  buildRestoreWindowsOnActivateMainDepsHandler(),
 );
 
-const reloadConfigHandler = createReloadConfigHandler(
-  createBuildReloadConfigMainDepsHandler({
+const buildReloadConfigMainDepsHandler = createBuildReloadConfigMainDepsHandler({
     reloadConfigStrict: () => configService.reloadConfigStrict(),
     logInfo: (message) => appLogger.logInfo(message),
     logWarning: (message) => appLogger.logWarning(message),
@@ -1984,18 +1986,19 @@ const reloadConfigHandler = createReloadConfigHandler(
       showErrorBox: (title, details) => dialog.showErrorBox(title, details),
       quit: () => app.quit(),
     },
-  })(),
-);
+  });
+const reloadConfigHandler = createReloadConfigHandler(buildReloadConfigMainDepsHandler());
 
-const criticalConfigErrorHandler = createCriticalConfigErrorHandler(
-  createBuildCriticalConfigErrorMainDepsHandler({
+const buildCriticalConfigErrorMainDepsHandler = createBuildCriticalConfigErrorMainDepsHandler({
     getConfigPath: () => configService.getConfigPath(),
     failHandlers: {
       logError: (message) => logger.error(message),
       showErrorBox: (title, message) => dialog.showErrorBox(title, message),
       quit: () => app.quit(),
     },
-  })(),
+  });
+const criticalConfigErrorHandler = createCriticalConfigErrorHandler(
+  buildCriticalConfigErrorMainDepsHandler(),
 );
 
 const buildAppReadyRuntimeMainDepsHandler = createBuildAppReadyRuntimeMainDepsHandler({
