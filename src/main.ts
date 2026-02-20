@@ -288,12 +288,8 @@ import {
 } from './main/runtime/overlay-window-layout-main-deps';
 import { buildTrayMenuTemplateRuntime, resolveTrayIconPathRuntime } from './main/runtime/tray-runtime';
 import { createGlobalShortcutsRuntimeHandlers } from './main/runtime/global-shortcuts-runtime-handlers';
-import { createAppendToMpvLogHandler, createShowMpvOsdHandler } from './main/runtime/mpv-osd-log';
-import {
-  createBuildAppendToMpvLogMainDepsHandler,
-  createBuildShowMpvOsdMainDepsHandler,
-} from './main/runtime/mpv-osd-log-main-deps';
-import { createBuildCycleSecondarySubModeMainDepsHandler } from './main/runtime/secondary-sub-mode-main-deps';
+import { createMpvOsdRuntimeHandlers } from './main/runtime/mpv-osd-runtime-handlers';
+import { createCycleSecondarySubModeRuntimeHandler } from './main/runtime/secondary-sub-mode-runtime-handler';
 import {
   createCancelNumericShortcutSessionHandler,
   createStartNumericShortcutSessionHandler,
@@ -2522,8 +2518,25 @@ const {
   }),
 });
 
-const buildCycleSecondarySubModeMainDepsHandler = createBuildCycleSecondarySubModeMainDepsHandler(
-  {
+const { appendToMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
+  appendToMpvLogMainDeps: {
+    logPath: DEFAULT_MPV_LOG_PATH,
+    dirname: (targetPath) => path.dirname(targetPath),
+    mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
+    appendFileSync: (targetPath, data, options) => fs.appendFileSync(targetPath, data, options),
+    now: () => new Date(),
+  },
+  buildShowMpvOsdMainDeps: (appendToMpvLogHandler) => ({
+    appendToMpvLog: (message) => appendToMpvLogHandler(message),
+    showMpvOsdRuntime: (mpvClient, text, fallbackLog) =>
+      showMpvOsdRuntime(mpvClient as never, text, fallbackLog),
+    getMpvClient: () => appState.mpvClient,
+    logInfo: (line) => logger.info(line),
+  }),
+});
+
+const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
+  cycleSecondarySubModeMainDeps: {
     getSecondarySubMode: () => appState.secondarySubMode,
     setSecondarySubMode: (mode: SecondarySubMode) => {
       appState.secondarySubMode = mode;
@@ -2537,39 +2550,8 @@ const buildCycleSecondarySubModeMainDepsHandler = createBuildCycleSecondarySubMo
     },
     showMpvOsd: (text: string) => showMpvOsd(text),
   },
-);
-
-function cycleSecondarySubMode(): void {
-  cycleSecondarySubModeCore(buildCycleSecondarySubModeMainDepsHandler());
-}
-
-const buildAppendToMpvLogMainDepsHandler = createBuildAppendToMpvLogMainDepsHandler({
-  logPath: DEFAULT_MPV_LOG_PATH,
-  dirname: (targetPath) => path.dirname(targetPath),
-  mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
-  appendFileSync: (targetPath, data, options) => fs.appendFileSync(targetPath, data, options),
-  now: () => new Date(),
+  cycleSecondarySubMode: (deps) => cycleSecondarySubModeCore(deps),
 });
-const appendToMpvLogMainDeps = buildAppendToMpvLogMainDepsHandler();
-const appendToMpvLogHandler = createAppendToMpvLogHandler(appendToMpvLogMainDeps);
-
-const buildShowMpvOsdMainDepsHandler = createBuildShowMpvOsdMainDepsHandler({
-  appendToMpvLog: (message) => appendToMpvLog(message),
-  showMpvOsdRuntime: (mpvClient, text, fallbackLog) =>
-    showMpvOsdRuntime(mpvClient as never, text, fallbackLog),
-  getMpvClient: () => appState.mpvClient,
-  logInfo: (line) => logger.info(line),
-});
-const showMpvOsdMainDeps = buildShowMpvOsdMainDepsHandler();
-const showMpvOsdHandler = createShowMpvOsdHandler(showMpvOsdMainDeps);
-
-function showMpvOsd(text: string): void {
-  showMpvOsdHandler(text);
-}
-
-function appendToMpvLog(message: string): void {
-  appendToMpvLogHandler(message);
-}
 
 const buildNumericShortcutRuntimeMainDepsHandler = createBuildNumericShortcutRuntimeMainDepsHandler({
   globalShortcut,
