@@ -263,7 +263,7 @@ body {
   max-width: 80%;
   margin-bottom: 60px;
   padding: 12px 20px;
-  background: rgba(54, 58, 79, 0.5);
+  background: rgb(30, 32, 48, 0.88);
   border-radius: 8px;
   pointer-events: auto;
 }

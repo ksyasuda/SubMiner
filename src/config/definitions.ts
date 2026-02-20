@@ -177,7 +177,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     fontColor: '#cad3f5',
     fontWeight: 'normal',
     fontStyle: 'normal',
-    backgroundColor: 'rgba(54, 58, 79, 0.5)',
+    backgroundColor: 'rgb(30, 32, 48, 0.88)',
     nPlusOneColor: '#c6a0f6',
     knownWordColor: '#a6da95',
     jlptColors: {

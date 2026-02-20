@@ -705,7 +705,7 @@ See `config.example.jsonc` for detailed configuration options.
     "fontColor": "#cad3f5",
     "fontWeight": "normal",
     "fontStyle": "normal",
-    "backgroundColor": "rgba(54, 58, 79, 0.5)",
+    "backgroundColor": "rgb(30, 32, 48, 0.88)",
     "secondary": {
       "fontSize": 24,
       "fontColor": "#ffffff",
@@ -722,7 +722,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                          |
 | `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"normal"`)                                           |
 | `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                      |
-| `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgba(54, 58, 79, 0.5)"`)                                       |
+| `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                       |
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                            |
 | `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                          |
 | `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use the built-in bundled dictionary search paths. |

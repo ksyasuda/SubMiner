@@ -171,7 +171,7 @@
     "fontColor": "#cad3f5", // Font color setting.
     "fontWeight": "normal", // Font weight setting.
     "fontStyle": "normal", // Font style setting.
-    "backgroundColor": "rgba(54, 58, 79, 0.5)", // Background color setting.
+    "backgroundColor": "rgb(30, 32, 48, 0.88)", // Background color setting.
     "nPlusOneColor": "#c6a0f6", // N plus one color setting.
     "knownWordColor": "#a6da95", // Known word color setting.
     "jlptColors": {
