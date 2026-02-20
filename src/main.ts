@@ -2189,7 +2189,7 @@ function handleInitialArgs(): void {
   handleInitialArgsRuntimeHandler();
 }
 
-const bindMpvClientEventHandlers = createBindMpvMainEventHandlersHandler(
+const buildBindMpvMainEventHandlersMainDepsHandler =
   createBuildBindMpvMainEventHandlersMainDepsHandler({
     appState,
     getQuitOnDisconnectArmed: () => jellyfinPlayQuitOnDisconnectArmed,
@@ -2236,27 +2236,30 @@ const bindMpvClientEventHandlers = createBindMpvMainEventHandlersHandler(
     updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
     },
-  })(),
+  });
+const bindMpvClientEventHandlers = createBindMpvMainEventHandlersHandler(
+  buildBindMpvMainEventHandlersMainDepsHandler(),
 );
 
+const buildMpvClientRuntimeServiceFactoryMainDepsHandler =
+  createBuildMpvClientRuntimeServiceFactoryDepsHandler({
+    createClient: MpvIpcClient,
+    getSocketPath: () => appState.mpvSocketPath,
+    getResolvedConfig: () => getResolvedConfig(),
+    isAutoStartOverlayEnabled: () => appState.autoStartOverlay,
+    setOverlayVisible: (visible: boolean) => setOverlayVisible(visible),
+    shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
+    isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getReconnectTimer: () => appState.reconnectTimer,
+    setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
+      appState.reconnectTimer = timer;
+    },
+    bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
+  });
+
 function createMpvClientRuntimeService(): MpvIpcClient {
-  return createMpvClientRuntimeServiceFactory(
-    createBuildMpvClientRuntimeServiceFactoryDepsHandler({
-      createClient: MpvIpcClient,
-      getSocketPath: () => appState.mpvSocketPath,
-      getResolvedConfig: () => getResolvedConfig(),
-      isAutoStartOverlayEnabled: () => appState.autoStartOverlay,
-      setOverlayVisible: (visible: boolean) => setOverlayVisible(visible),
-      shouldBindVisibleOverlayToMpvSubVisibility: () =>
-        configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
-      isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      getReconnectTimer: () => appState.reconnectTimer,
-      setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
-        appState.reconnectTimer = timer;
-      },
-      bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
-    })(),
-  )();
+  return createMpvClientRuntimeServiceFactory(buildMpvClientRuntimeServiceFactoryMainDepsHandler())();
 }
 
 const buildUpdateMpvSubtitleRenderMetricsMainDepsHandler =
@@ -2308,19 +2311,25 @@ const buildTokenizerDepsHandler = createBuildTokenizerDepsMainHandler({
   getMecabTokenizer: () => appState.mecabTokenizer,
 });
 
-const createMecabTokenizerAndCheckHandler = createCreateMecabTokenizerAndCheckMainHandler({
+const buildCreateMecabTokenizerAndCheckMainDepsHandler = createCreateMecabTokenizerAndCheckMainHandler(
+  {
   getMecabTokenizer: () => appState.mecabTokenizer,
   setMecabTokenizer: (tokenizer) => {
     appState.mecabTokenizer = tokenizer;
   },
   createMecabTokenizer: () => new MecabTokenizer(),
   checkAvailability: async (tokenizer) => tokenizer.checkAvailability(),
-});
+},
+);
+const createMecabTokenizerAndCheckHandler = buildCreateMecabTokenizerAndCheckMainDepsHandler;
 
-const prewarmSubtitleDictionariesHandler = createPrewarmSubtitleDictionariesMainHandler({
+const buildPrewarmSubtitleDictionariesMainDepsHandler = createPrewarmSubtitleDictionariesMainHandler(
+  {
   ensureJlptDictionaryLookup: () => jlptDictionaryRuntime.ensureJlptDictionaryLookup(),
   ensureFrequencyDictionaryLookup: () => frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup(),
-});
+},
+);
+const prewarmSubtitleDictionariesHandler = buildPrewarmSubtitleDictionariesMainDepsHandler;
 
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
   await jlptDictionaryRuntime.ensureJlptDictionaryLookup();
@@ -2864,8 +2873,7 @@ const buildRunSubsyncManualFromIpcMainDepsHandler =
 const runSubsyncManualFromIpcHandler = createRunSubsyncManualFromIpcHandler(
   buildRunSubsyncManualFromIpcMainDepsHandler(),
 );
-const buildCliCommandContextDepsHandler = createBuildCliCommandContextDepsHandler(
-  createBuildCliCommandContextMainDepsHandler({
+const buildCliCommandContextMainDepsHandler = createBuildCliCommandContextMainDepsHandler({
     appState,
     texthookerService,
     getResolvedConfig: () => getResolvedConfig(),
@@ -2906,7 +2914,9 @@ const buildCliCommandContextDepsHandler = createBuildCliCommandContextDepsHandle
     logInfo: (message: string) => logger.info(message),
     logWarn: (message: string) => logger.warn(message),
     logError: (message: string, err: unknown) => logger.error(message, err),
-  })(),
+  });
+const buildCliCommandContextDepsHandler = createBuildCliCommandContextDepsHandler(
+  buildCliCommandContextMainDepsHandler(),
 );
 const createOverlayWindowHandler = createCreateOverlayWindowHandler<BrowserWindow>(
   createBuildCreateOverlayWindowMainDepsHandler<BrowserWindow>({
