@@ -5,9 +5,14 @@ The SubMiner mpv plugin (`subminer.lua`) provides in-player keybindings to contr
 ## Installation
 
 ```bash
-cp plugin/subminer.lua ~/.config/mpv/scripts/
-cp plugin/subminer.conf ~/.config/mpv/script-opts/
-# or: make install-plugin
+# From release bundle:
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets-0.1.0.tar.gz -O /tmp/subminer-assets.tar.gz
+tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
+mkdir -p ~/.config/SubMiner
+cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
+cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
+cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
+# Or from source checkout: make install-plugin
 ```
 
 mpv must have IPC enabled for SubMiner to connect:

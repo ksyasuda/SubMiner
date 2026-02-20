@@ -154,11 +154,33 @@ mpv must be launched with `--input-ipc-server=/tmp/subminer-socket` for SubMiner
 :::
 
 ```bash
-# Copy plugin files
-cp plugin/subminer.lua ~/.config/mpv/scripts/
-cp plugin/subminer.conf ~/.config/mpv/script-opts/
-# or: make install-plugin
+# Option 1: install from release assets bundle
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets-0.1.0.tar.gz -O /tmp/subminer-assets.tar.gz
+tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
+mkdir -p ~/.config/SubMiner
+cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
+cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
+cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
+
+# Option 2: from source checkout
+# make install-plugin
 ```
+
+## Rofi Theme (Optional)
+
+SubMiner ships a default rofi theme at `assets/themes/subminer.rasi`.
+
+Install path (default auto-detected by `subminer`):
+
+- Linux: `~/.local/share/SubMiner/themes/subminer.rasi`
+- macOS: `~/Library/Application Support/SubMiner/themes/subminer.rasi`
+
+```bash
+mkdir -p ~/.local/share/SubMiner/themes
+cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
+```
+
+Override with `SUBMINER_ROFI_THEME=/absolute/path/to/theme.rasi`.
 
 All keybindings use a `y` chord prefix — press `y`, then the second key:
 

@@ -208,10 +208,19 @@ jobs:
       - name: Verify Bun subminer wrapper
         run: ./subminer --help >/dev/null
 
+      - name: Package optional assets bundle
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          tar -czf "release/subminer-assets-${VERSION}.tar.gz" \
+            config.example.jsonc \
+            plugin/subminer.lua \
+            plugin/subminer.conf \
+            assets/themes/subminer.rasi
+
       - name: Generate checksums
         run: |
           shopt -s nullglob
-          files=(release/*.AppImage release/*.dmg release/*.zip subminer)
+          files=(release/*.AppImage release/*.dmg release/*.zip release/*.tar.gz subminer)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No release artifacts found for checksum generation."
             exit 1
@@ -263,11 +272,21 @@ jobs:
             ### Manual Installation
             See the [README](https://github.com/${{ github.repository }}#installation) for manual installation instructions.
 
+            ### Optional Assets (config example + mpv plugin + rofi theme)
+            1. Download `subminer-assets-*.tar.gz`
+            2. Extract and copy `config.example.jsonc` to `~/.config/SubMiner/config.jsonc`
+            3. Copy `plugin/subminer.lua` to `~/.config/mpv/scripts/`
+            4. Copy `plugin/subminer.conf` to `~/.config/mpv/script-opts/`
+            5. Copy `assets/themes/subminer.rasi` to:
+               - Linux: `~/.local/share/SubMiner/themes/subminer.rasi`
+               - macOS: `~/Library/Application Support/SubMiner/themes/subminer.rasi`
+
             Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.
           files: |
             release/*.AppImage
             release/*.dmg
             release/*.zip
+            release/*.tar.gz
             release/SHA256SUMS.txt
             subminer
           draft: false

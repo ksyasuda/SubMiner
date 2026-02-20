@@ -1,0 +1,28 @@
+# Agent Log: codex-bundle-config-example-20260220T092408Z-a1b2
+
+- alias: codex-bundle-config-example
+- mission: bundle `config.example.jsonc` in release assets tarball + docs/install updates
+- status: completed
+- started_utc: 2026-02-20T09:24:08Z
+- planned_files: `.github/workflows/release.yml`, `README.md`, `docs/installation.md`, `docs/subagents/INDEX.md`, `docs/subagents/collaboration.md`, `docs/subagents/agents/codex-bundle-config-example-20260220T092408Z-a1b2.md`
+- assumptions:
+  - existing workspace changes are from another active session; preserve
+  - release assets tarball is canonical place for optional install files
+- notes:
+  - intent: include `config.example.jsonc` in `subminer-assets-*.tar.gz` so release users can copy a version-matched example config
+  - [2026-02-20T09:24:52Z] phase: edit started (workflow + docs).
+  - [2026-02-20T09:25:44Z] edit: add `config.example.jsonc` to release assets tarball.
+  - [2026-02-20T09:25:44Z] edit: update release notes optional-assets section to include config copy step.
+  - [2026-02-20T09:26:01Z] edit: update `docs/installation.md` + `docs/mpv-plugin.md` install snippets to copy `/tmp/config.example.jsonc`.
+  - [2026-02-20T09:26:28Z] validation: `rg` checks confirm config example referenced in workflow/docs at expected points.
+  - [2026-02-20T09:26:24Z] backlog: linked work in `backlog/tasks/task-88 - Bundle-config-example-in-release-assets-artifact.md` (`TASK-88`).
+  - touched_files:
+    - `.github/workflows/release.yml`
+    - `docs/installation.md`
+    - `docs/mpv-plugin.md`
+    - `backlog/tasks/task-88 - Bundle-config-example-in-release-assets-artifact.md`
+    - `docs/subagents/INDEX.md`
+    - `docs/subagents/collaboration.md`
+    - `docs/subagents/agents/codex-bundle-config-example-20260220T092408Z-a1b2.md`
+  - blockers: none
+  - next_step: ship with current release workflow edits; run release workflow once to validate uploaded tarball contents end-to-end.
