@@ -86,7 +86,24 @@ This is the most common flow. Yomitan creates a card in Anki, and SubMiner detec
 
 Configure which fields to fill in `ankiConnect.fields`. See [Anki Integration](/anki-integration) for details.
 
-### 2. Mine Sentence (Hotkey)
+### 2. Manual Update from Clipboard
+
+If you prefer a hands-on approach (animecards-style), you can copy the current subtitle to the clipboard and then paste it onto the last-added Anki card:
+
+1. Add a word via Yomitan as usual.
+2. Press `Ctrl/Cmd+C` to copy the current subtitle line to the clipboard.
+   - For multiple lines: press `Ctrl/Cmd+Shift+C`, then a digit `1`–`9` to select how many recent subtitle lines to combine. The combined text is copied to the clipboard.
+3. Press `Ctrl/Cmd+V` to update the last-added card with the clipboard contents plus audio, image, and translation — the same fields auto-update would fill.
+
+This is useful when auto-update polling is disabled or when you want explicit control over which subtitle line gets attached to the card.
+
+| Shortcut                    | Action                                    | Config key                            |
+| --------------------------- | ----------------------------------------- | ------------------------------------- |
+| `Ctrl/Cmd+C`               | Copy current subtitle                     | `shortcuts.copySubtitle`              |
+| `Ctrl/Cmd+Shift+C` + digit | Copy multiple recent lines                | `shortcuts.copySubtitleMultiple`      |
+| `Ctrl/Cmd+V`               | Update last card from clipboard           | `shortcuts.updateLastCardFromClipboard` |
+
+### 3. Mine Sentence (Hotkey)
 
 Create a standalone sentence card without going through Yomitan:
 
@@ -95,7 +112,7 @@ Create a standalone sentence card without going through Yomitan:
 
 The sentence card uses the note type configured in `isLapis.sentenceCardModel` and always maps sentence/audio to `Sentence` and `SentenceAudio`.
 
-### 3. Mark as Audio Card
+### 4. Mark as Audio Card
 
 After adding a word via Yomitan, press the audio card shortcut to overwrite the audio with a longer clip spanning the full subtitle timing.
 

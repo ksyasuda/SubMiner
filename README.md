@@ -1,139 +1,95 @@
 <div align="center">
   <img src="assets/SubMiner.png" width="169" alt="SubMiner logo">
   <h1>SubMiner</h1>
-  <p>Immersion mining overlay for mpv — look up words, mine to Anki, and enrich cards with context without leaving the video.</p>
+  <strong>Look up words, mine to Anki, and enrich cards with context — without leaving mpv.</strong>
+  <br /><br />
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Linux](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-informational)]()
+[![Docs](https://img.shields.io/badge/docs-docs.subminer.moe-blueviolet)](https://docs.subminer.moe)
+
 </div>
 
----
+<br />
+
+<div align="center">
 
 [![Demo](./assets/demo-poster.jpg)](https://github.com/user-attachments/assets/9235a554-ea51-4284-b14b-7bbf3defaf58)
 
-## Features
+_Click to watch the demo_
 
-- **Yomitan Integration** — Hover subtitle words to trigger dictionary lookups in the player
-- **Anki Card Enrichment** — Fills sentence, audio, screenshot, and translation on new cards automatically
-- **Dual-Layer Subtitles** — Interactive visible overlay + invisible click-through layer aligned with mpv rendering
-- **N+1 Highlighting** — Marks known vocabulary from your Anki deck so you can spot new words at a glance
-- **Texthooker & WebSocket** — Built-in texthooker page with WebSocket streaming for external tools
-- **Subtitle Download & Sync** — Search Jimaku, sync with alass or ffsubsync — all from the player
-- **Queue Control In-Player** — Drop videos on overlay to load/queue in mpv; `Ctrl/Cmd+A` appends clipboard path
-- **Keyboard-Driven** — Mine, copy, cycle display modes, and navigate from configurable shortcuts
-- **Config Hot Reload** — Apply subtitle style and shortcut updates from `config.jsonc` without restarting
-- **Japanese Tokenization** — MeCab-powered word boundary detection with smart grouping
+</div>
 
-## Requirements
+<br />
 
-- `mpv` with IPC socket support
-- `mecab` and `mecab-ipadic`
-- Linux: Hyprland (`hyprctl`) or X11 (`xdotool` + `xwininfo`)
-- macOS: Accessibility permission for window tracking
+## What it does
 
-Optional: `yt-dlp`, `fzf`, `rofi`, `chafa`, `ffmpegthumbnailer`
+SubMiner is an Electron overlay that sits on top of mpv. It turns your video player into a full sentence-mining workstation:
 
-## Install
+- **Hover to look up** — Yomitan dictionary popups directly on subtitles
+- **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and translation
+- **N+1 highlighting** — Marks known words from your Anki deck so unknown ones jump out
+- **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync, all in-player
+- **Immersion tracking** — SQLite-powered stats on your watch time and mining activity
+- **Texthooker page built in** — WebSocket streaming to external tools, no extra setup
 
-### Linux (AppImage)
+## Quick start
+
+### 1. Install
+
+**Linux (AppImage):**
 
 ```bash
-wget https://github.com/ksyasuda/SubMiner/releases/download/v0.1.0/SubMiner-0.1.0.AppImage -O ~/.local/bin/SubMiner.AppImage
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner-0.1.0.AppImage -O ~/.local/bin/SubMiner.AppImage
 chmod +x ~/.local/bin/SubMiner.AppImage
-wget https://github.com/ksyasuda/SubMiner/releases/download/v0.1.0/subminer -O ~/.local/bin/subminer
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer
 chmod +x ~/.local/bin/subminer
 ```
 
-The `subminer` wrapper uses a [Bun](https://bun.sh) shebang, so `bun` must be on `PATH`.
+> [!NOTE]
+> The `subminer` wrapper uses a [Bun](https://bun.sh) shebang. Make sure `bun` is on your `PATH`.
 
-### From Source
+**From source** or **macOS** — see the [installation guide](https://docs.subminer.moe/installation#from-source).
 
-```bash
-git clone --recurse-submodules https://github.com/ksyasuda/SubMiner.git
-cd SubMiner
-bun install
-cd vendor/texthooker-ui && pnpm install --frozen-lockfile && cd ../..
-make build
-make install
-```
-
-For macOS builds and platform details, see the [installation docs](docs/installation.md).
-
-## Quick Start
-
-1. Copy [`config.example.jsonc`](config.example.jsonc) to `~/.config/SubMiner/config.jsonc`
-   - Regenerate anytime from source: `make generate-example-config` or `bun run generate:config-example`
-2. Start mpv with IPC:
-   ```bash
-   mpv --input-ipc-server=/tmp/subminer-socket video.mkv
-   ```
-3. Launch SubMiner:
-   ```bash
-   subminer --start video.mkv
-   SubMiner.AppImage --background  # tray/background mode (desktop launcher default)
-   ```
-
-Config tip: while SubMiner is running, safe config edits (subtitle style, keybindings, shortcuts, secondary subtitle default mode, and `ankiConnect.ai`) hot-reload automatically.
+### 2. Install the mpv plugin and configuration file
 
 ```bash
-subminer                        # pick video from cwd (fzf)
-subminer -R                     # rofi picker
-subminer -d ~/Videos            # set source directory
-subminer -r -d ~/Anime          # recursive search
-subminer -p gpu-hq video.mkv    # override mpv profile
-subminer -T video.mkv           # disable texthooker
-subminer https://youtu.be/...   # YouTube playback
-subminer jellyfin -d            # Jellyfin cast discovery mode
-subminer doctor                 # dependency/config/socket diagnostics
-subminer config path            # print active config file path
-subminer mpv status             # mpv socket readiness check
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets-0.1.0.tar.gz -O /tmp/subminer-assets.tar.gz
+tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
+cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
+cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
+mkdir -p ~/.config/SubMiner && cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
 ```
 
-### Launcher Subcommands
-
-- `subminer jellyfin` / `subminer jf` — Jellyfin workflows (`-d` discovery, `-p` play, `-l` login)
-- `subminer yt` / `subminer youtube` — YouTube shorthand (`-o/--out-dir`, `-m/--mode`)
-- `subminer doctor` — quick environment health checks
-- `subminer config path|show` — inspect active config path/content
-- `subminer mpv status|socket|idle` — mpv socket and idle-launch helpers
-- `subminer texthooker` — texthooker-only shortcut
-
-Use `subminer <subcommand> -h` for command-specific help pages (for example `subminer jellyfin -h`).
-
-### CLI Logging and Dev Mode
-
-- Use `--log-level` to control logger verbosity (for example `--log-level debug`).
-- Use `--dev` and `--debug` only for app/dev-mode behavior; they are not tied to logging level.
-- Default logging is `info`, except `--background` mode defaults to `warn` unless `--log-level` is set.
-
-### Overlay Queue Controls
-
-- Drag/drop video file(s) onto overlay:
-  - default: replace current playback with first file, append remaining dropped files
-  - hold `Shift`: append all dropped files
-- Press `Ctrl/Cmd+A` to append the clipboard path when it points to a readable local video file.
-
-## MPV Plugin
+### 3. Set up Yomitan Dictionaries
 
 ```bash
-cp plugin/subminer.lua ~/.config/mpv/scripts/
-cp plugin/subminer.conf ~/.config/mpv/script-opts/
-# or: make install-plugin
+subminer app --start --yomitan
 ```
 
-Default chord prefix: `y` (`y-y` menu, `y-s` start, `y-S` stop, `y-t` toggle overlay).
-Jimaku shortcut: `Ctrl+Shift+J`.
+### 4. Mine
+
+```bash
+subminer app --start --background
+subminer video.mkv
+```
+
+## Requirements
+
+| Required                                   | Optional                     |
+| ------------------------------------------ | ---------------------------- |
+| `mpv` with IPC socket                      | `yt-dlp`                     |
+| `mecab` + `mecab-ipadic`                   | `fzf` / `rofi`               |
+| Linux: `hyprctl` or `xdotool` + `xwininfo` | `chafa`, `ffmpegthumbnailer` |
+| macOS: Accessibility permission            |                              |
 
 ## Documentation
 
-Full guides at [**docs/**](docs/README.md):
-[Installation](docs/installation.md) · [Usage](docs/usage.md) · [Mining Workflow](docs/mining-workflow.md) · [Configuration](docs/configuration.md) · [Anki Integration](docs/anki-integration.md) · [MPV Plugin](docs/mpv-plugin.md) · [Troubleshooting](docs/troubleshooting.md) · [Architecture](docs/architecture.md)
+For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.moe](https://docs.subminer.moe).
 
 ## Acknowledgments
 
-- [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner) — Inspiration for the overlay and Yomitan integration
-- [Jimaku.cc](https://jimaku.cc) — Japanese subtitle provider
-- [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script), [autosubsync-mpv](https://github.com/joaquintorres/autosubsync-mpv) — Mining and sync logic ported to TypeScript
-
-**Third-party:**
-[Yomitan](https://github.com/yomidevs/yomitan) · [texthooker-ui](https://github.com/ksyasuda/texthooker-ui/tree/subminer) · [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab) · [Jiten Frequency Dictionary](https://jiten.moe/)
+Built on the shoulders of [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script), and [autosubsync-mpv](https://github.com/joaquintorres/autosubsync-mpv). Subtitles powered by [Jimaku.cc](https://jimaku.cc). Dictionary lookups via [Yomitan](https://github.com/yomidevs/yomitan).
 
 ## License
 

@@ -1,0 +1,24 @@
+# Agent Log — codex-release-mpv-plugin-20260220T035757Z-d4yf
+
+- alias: `codex-release-mpv-plugin`
+- mission: `Package optional release assets bundle (mpv plugin + rofi theme), move theme to assets/themes, update install/docs`
+- status: `completed`
+- started_utc: `2026-02-20T03:57:57Z`
+- planned_files: `.github/workflows/release.yml`, `Makefile`, `launcher/picker.ts`, `README.md`, `docs/installation.md`, `docs/mpv-plugin.md`, `assets/themes/subminer.rasi`, `docs/subagents/INDEX.md`, `docs/subagents/agents/codex-release-mpv-plugin-20260220T035757Z-d4yf.md`
+- assumptions:
+  - `Backlog.md` not configured in repo root (no backlog ticket linkage required).
+  - change limited to release asset generation/upload; no app packaging behavior changes.
+- notes:
+  - [2026-02-20T03:58:30Z] context loaded; proceeding with workflow-only patch.
+  - [2026-02-20T03:58:36Z] edit: added `Package mpv plugin` step to release job; emits `release/subminer-mpv-plugin-<tag>.tar.gz`.
+  - [2026-02-20T03:58:36Z] edit: checksum input now includes `release/*.tar.gz`; release upload globs now include `release/*.tar.gz`.
+  - [2026-02-20T03:58:36Z] edit: release body now includes optional mpv plugin install steps.
+  - [2026-02-20T03:58:36Z] validation: reviewed workflow diff only; no runtime tests executed (CI-config change).
+  - [2026-02-20T03:58:36Z] handoff: ready to merge; preserves existing AppImage/DMG/ZIP flow.
+  - [2026-02-20T04:00:49Z] scope expanded per user request: include default rofi theme, choose `assets/themes` location, update CI/install/docs/readme.
+  - [2026-02-20T04:00:49Z] edit: moved `subminer.rasi` -> `assets/themes/subminer.rasi`; patched Makefile theme install source.
+  - [2026-02-20T04:00:49Z] edit: patched launcher theme discovery to include `<scriptDir>/assets/themes/subminer.rasi` before legacy fallback.
+  - [2026-02-20T04:00:49Z] edit: release bundle renamed to `subminer-assets-<tag>.tar.gz` including plugin + theme; release notes updated.
+  - [2026-02-20T04:00:49Z] edit: docs/readme install snippets updated for new assets bundle path.
+  - [2026-02-20T04:02:26Z] validation: `bun run build` pass.
+  - [2026-02-20T04:02:26Z] handoff: release/install/docs now align on `assets/themes/subminer.rasi` + `subminer-assets-<tag>.tar.gz`.

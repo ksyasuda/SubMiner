@@ -26,7 +26,7 @@
     mantle: #1e2030;
     crust: #181926;
 
-    background-color: @base;
+    background-color: @mantle;
     text-color: @text;
     accent: @mauve;
 }
@@ -37,25 +37,26 @@ configuration {
 }
 
 window {
-    width: 88%;
-    height: 88%;
-    background-color: @base;
-    border: 2px;
-    border-color: @mauve;
-    border-radius: 8px;
+    width: 69%;
+    height: 69%;
+    background-color: @mantle;
+    border: 1px;
+    border-color: @surface1;
+    border-radius: 12px;
 }
 
 mainbox {
     children: [inputbar, listview-split];
     background-color: transparent;
+    padding: 8px;
 }
 
 inputbar {
     children: [prompt, entry];
-    background-color: @surface0;
-    padding: 12px;
-    border-radius: 4px;
-    margin: 8px;
+    background-color: @base;
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin: 4px 4px 0px 4px;
 }
 
 prompt {
@@ -73,53 +74,60 @@ entry {
 listview-split {
     orientation: horizontal;
     children: [listview];
-    spacing: 8px;
     background-color: transparent;
 }
 
 listview {
     columns: 1;
-    lines: 12;
+    lines: 14;
     scrollbar: true;
     background-color: transparent;
-    padding: 4px;
+    padding: 6px 4px;
     fixed-columns: true;
+    spacing: 2px;
 }
 
 element {
-    padding: 4px 8px;
+    padding: 10px 14px;
     background-color: transparent;
-    border-radius: 4px;
+    border-radius: 6px;
 }
 
 element normal.normal {
     background-color: transparent;
-    text-color: @text;
+    text-color: @subtext1;
+}
+
+element alternate.normal {
+    background-color: transparent;
+    text-color: @subtext1;
 }
 
 element selected.normal {
-    background-color: @surface1;
-    text-color: @mauve;
-    border: 2px;
+    background-color: @base;
+    text-color: @text;
+    border: 0px 0px 0px 3px;
     border-color: @mauve;
-    border-radius: 4px;
+    border-radius: 6px;
 }
 
 element-icon {
-    size: 128px;
+    size: 48px;
     background-color: transparent;
-    margin: 0px 4px;
+    margin: 0px 10px 0px 0px;
 }
 
 element-text {
     text-color: inherit;
     background-color: transparent;
-    margin: 50px 0 0 0;
+    vertical-align: 0.5;
 }
 
 scrollbar {
-    width: 4px;
+    width: 3px;
     handle-color: @surface2;
-    handle-width: 4px;
-    background-color: @surface0;
+    handle-width: 3px;
+    background-color: transparent;
+    margin: 4px 0px 4px 4px;
+    border-radius: 2px;
 }

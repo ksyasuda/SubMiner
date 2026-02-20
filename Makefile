@@ -1,6 +1,7 @@
 .PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
 
 APP_NAME := subminer
+THEME_SOURCE := assets/themes/subminer.rasi
 THEME_FILE := subminer.rasi
 PLUGIN_LUA := plugin/subminer.lua
 PLUGIN_CONF := plugin/subminer.conf
@@ -181,7 +182,7 @@ install-linux: build-launcher
 	@install -d "$(BINDIR)"
 	@install -m 0755 "./$(APP_NAME)" "$(BINDIR)/$(APP_NAME)"
 	@install -d "$(LINUX_DATA_DIR)/themes"
-	@install -m 0644 "./$(THEME_FILE)" "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
+	@install -m 0644 "./$(THEME_SOURCE)" "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
 	@if [ -n "$(APPIMAGE_SRC)" ]; then \
 		install -m 0755 "$(APPIMAGE_SRC)" "$(BINDIR)/SubMiner.AppImage"; \
 	else \
@@ -195,7 +196,7 @@ install-macos: build-launcher
 	@install -d "$(BINDIR)"
 	@install -m 0755 "./$(APP_NAME)" "$(BINDIR)/$(APP_NAME)"
 	@install -d "$(MACOS_DATA_DIR)/themes"
-	@install -m 0644 "./$(THEME_FILE)" "$(MACOS_DATA_DIR)/themes/$(THEME_FILE)"
+	@install -m 0644 "./$(THEME_SOURCE)" "$(MACOS_DATA_DIR)/themes/$(THEME_FILE)"
 	@install -d "$(MACOS_APP_DIR)"
 	@if [ -n "$(MACOS_APP_SRC)" ]; then \
 		rm -rf "$(MACOS_APP_DEST)"; \

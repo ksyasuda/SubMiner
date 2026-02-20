@@ -63,6 +63,7 @@ export default {
         items: [
           { text: 'Overview', link: '/' },
           { text: 'Installation', link: '/installation' },
+          { text: 'Launcher Script', link: '/launcher-script' },
           { text: 'Usage', link: '/usage' },
           { text: 'Mining Workflow', link: '/mining-workflow' },
         ],
@@ -88,6 +89,9 @@ export default {
         ],
       },
     ],
+    search: {
+      provider: 'local',
+    },
     socialLinks: [{ icon: 'github', link: 'https://github.com/ksyasuda/SubMiner' }],
   },
 };

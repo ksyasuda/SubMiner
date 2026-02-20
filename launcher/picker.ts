@@ -366,6 +366,8 @@ export function findRofiTheme(scriptPath: string): string | null {
     candidates.push(path.join('/usr/share/SubMiner/themes', ROFI_THEME_FILE));
   }
 
+  candidates.push(path.join(scriptDir, 'assets', 'themes', ROFI_THEME_FILE));
+  candidates.push(path.join(scriptDir, 'themes', ROFI_THEME_FILE));
   candidates.push(path.join(scriptDir, ROFI_THEME_FILE));
 
   for (const candidate of candidates) {
