@@ -290,7 +290,6 @@ import {
 } from './main/runtime/overlay-window-layout-main-deps';
 import { buildTrayMenuTemplateRuntime, resolveTrayIconPathRuntime } from './main/runtime/tray-runtime';
 import { createInitializeOverlayRuntimeHandler } from './main/runtime/overlay-runtime-bootstrap';
-import { createOpenYomitanSettingsHandler } from './main/runtime/yomitan-settings-opener';
 import {
   createGetConfiguredShortcutsHandler,
   createRefreshGlobalAndOverlayShortcutsHandler,
@@ -384,10 +383,10 @@ import { createBuildMpvCommandFromIpcRuntimeMainDepsHandler } from './main/runti
 import { createOverlayWindowRuntimeHandlers } from './main/runtime/overlay-window-runtime-handlers';
 import {
   createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler,
-  createBuildOpenYomitanSettingsMainDepsHandler,
 } from './main/runtime/app-runtime-main-deps';
 import { createTrayRuntimeHandlers } from './main/runtime/tray-runtime-handlers';
 import { createYomitanExtensionRuntime } from './main/runtime/yomitan-extension-runtime';
+import { createYomitanSettingsRuntime } from './main/runtime/yomitan-settings-runtime';
 import { createBuildInitializeOverlayRuntimeOptionsHandler } from './main/runtime/overlay-runtime-options';
 import { createBuildInitializeOverlayRuntimeMainDepsHandler } from './main/runtime/overlay-runtime-options-main-deps';
 import {
@@ -3126,24 +3125,22 @@ const initializeOverlayRuntimeHandler = createInitializeOverlayRuntimeHandler(
     startBackgroundWarmups: () => startBackgroundWarmups(),
   })(),
 );
-const openYomitanSettingsHandler = createOpenYomitanSettingsHandler(
-  createBuildOpenYomitanSettingsMainDepsHandler({
-    ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
-    openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow }) => {
-      openYomitanSettingsWindow({
-        yomitanExt: yomitanExt as Extension,
-        getExistingWindow: () => getExistingWindow() as BrowserWindow | null,
-        setWindow: (window) => setWindow(window as BrowserWindow | null),
-      });
-    },
-    getExistingWindow: () => appState.yomitanSettingsWindow,
-    setWindow: (window) => {
-      appState.yomitanSettingsWindow = window as BrowserWindow | null;
-    },
-    logWarn: (message) => logger.warn(message),
-    logError: (message, error) => logger.error(message, error),
-  })(),
-);
+const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSettingsRuntime({
+  ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
+  openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow }) => {
+    openYomitanSettingsWindow({
+      yomitanExt: yomitanExt as Extension,
+      getExistingWindow: () => getExistingWindow() as BrowserWindow | null,
+      setWindow: (window) => setWindow(window as BrowserWindow | null),
+    });
+  },
+  getExistingWindow: () => appState.yomitanSettingsWindow,
+  setWindow: (window) => {
+    appState.yomitanSettingsWindow = window as BrowserWindow | null;
+  },
+  logWarn: (message) => logger.warn(message),
+  logError: (message, error) => logger.error(message, error),
+});
 
 async function updateLastCardFromClipboard(): Promise<void> {
   await updateLastCardFromClipboardHandler();
