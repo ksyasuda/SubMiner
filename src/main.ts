@@ -354,30 +354,15 @@ import {
   createBuildHandleMineSentenceDigitMainDepsHandler,
   createBuildHandleMultiCopyDigitMainDepsHandler,
 } from './main/runtime/mining-actions-main-deps';
-import {
-  createSetInvisibleOverlayVisibleHandler,
-  createSetVisibleOverlayVisibleHandler,
-  createToggleInvisibleOverlayHandler,
-  createToggleVisibleOverlayHandler,
-} from './main/runtime/overlay-visibility-actions';
-import {
-  createBuildSetInvisibleOverlayVisibleMainDepsHandler,
-  createBuildSetVisibleOverlayVisibleMainDepsHandler,
-  createBuildToggleInvisibleOverlayMainDepsHandler,
-  createBuildToggleVisibleOverlayMainDepsHandler,
-} from './main/runtime/overlay-visibility-actions-main-deps';
 import { createBuildOverlayVisibilityRuntimeMainDepsHandler } from './main/runtime/overlay-visibility-runtime-main-deps';
+import { createOverlayVisibilityRuntime } from './main/runtime/overlay-visibility-runtime';
 import {
   createAppendClipboardVideoToQueueHandler,
   createHandleOverlayModalClosedHandler,
-  createSetOverlayVisibleHandler,
-  createToggleOverlayHandler,
 } from './main/runtime/overlay-main-actions';
 import {
   createBuildAppendClipboardVideoToQueueMainDepsHandler,
   createBuildHandleOverlayModalClosedMainDepsHandler,
-  createBuildSetOverlayVisibleMainDepsHandler,
-  createBuildToggleOverlayMainDepsHandler,
 } from './main/runtime/overlay-main-actions-main-deps';
 import {
   createBroadcastRuntimeOptionsChangedHandler,
@@ -2885,77 +2870,44 @@ const handleMineSentenceDigitMainDeps = buildHandleMineSentenceDigitMainDepsHand
 const handleMineSentenceDigitHandler = createHandleMineSentenceDigitHandler(
   handleMineSentenceDigitMainDeps,
 );
-const buildSetVisibleOverlayVisibleMainDepsHandler =
-  createBuildSetVisibleOverlayVisibleMainDepsHandler({
-  setVisibleOverlayVisibleCore,
-  setVisibleOverlayVisibleState: (nextVisible) => {
-    overlayManager.setVisibleOverlayVisible(nextVisible);
+const {
+  setVisibleOverlayVisible: setVisibleOverlayVisibleHandler,
+  setInvisibleOverlayVisible: setInvisibleOverlayVisibleHandler,
+  toggleVisibleOverlay: toggleVisibleOverlayHandler,
+  toggleInvisibleOverlay: toggleInvisibleOverlayHandler,
+  setOverlayVisible: setOverlayVisibleHandler,
+  toggleOverlay: toggleOverlayHandler,
+} = createOverlayVisibilityRuntime({
+  setVisibleOverlayVisibleDeps: {
+    setVisibleOverlayVisibleCore,
+    setVisibleOverlayVisibleState: (nextVisible) => {
+      overlayManager.setVisibleOverlayVisible(nextVisible);
+    },
+    updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+    updateInvisibleOverlayVisibility: () =>
+      overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
+    syncInvisibleOverlayMousePassthrough: () =>
+      overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
+    shouldBindVisibleOverlayToMpvSubVisibility: () =>
+      configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
+    isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
+    setMpvSubVisibility: (mpvSubVisible) => {
+      setMpvSubVisibilityRuntime(appState.mpvClient, mpvSubVisible);
+    },
   },
-  updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
-  updateInvisibleOverlayVisibility: () => overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
-  syncInvisibleOverlayMousePassthrough: () =>
-    overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
-  shouldBindVisibleOverlayToMpvSubVisibility: () =>
-    configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
-  isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
-  setMpvSubVisibility: (mpvSubVisible) => {
-    setMpvSubVisibilityRuntime(appState.mpvClient, mpvSubVisible);
+  setInvisibleOverlayVisibleDeps: {
+    setInvisibleOverlayVisibleCore,
+    setInvisibleOverlayVisibleState: (nextVisible) => {
+      overlayManager.setInvisibleOverlayVisible(nextVisible);
+    },
+    updateInvisibleOverlayVisibility: () =>
+      overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
+    syncInvisibleOverlayMousePassthrough: () =>
+      overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
   },
-});
-const setVisibleOverlayVisibleMainDeps =
-  buildSetVisibleOverlayVisibleMainDepsHandler();
-const setVisibleOverlayVisibleHandler = createSetVisibleOverlayVisibleHandler(
-  setVisibleOverlayVisibleMainDeps,
-);
-
-const buildSetInvisibleOverlayVisibleMainDepsHandler =
-  createBuildSetInvisibleOverlayVisibleMainDepsHandler({
-  setInvisibleOverlayVisibleCore,
-  setInvisibleOverlayVisibleState: (nextVisible) => {
-    overlayManager.setInvisibleOverlayVisible(nextVisible);
-  },
-  updateInvisibleOverlayVisibility: () => overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
-  syncInvisibleOverlayMousePassthrough: () =>
-    overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
-});
-const setInvisibleOverlayVisibleMainDeps =
-  buildSetInvisibleOverlayVisibleMainDepsHandler();
-const setInvisibleOverlayVisibleHandler = createSetInvisibleOverlayVisibleHandler(
-  setInvisibleOverlayVisibleMainDeps,
-);
-
-const buildToggleVisibleOverlayMainDepsHandler = createBuildToggleVisibleOverlayMainDepsHandler({
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-});
-const toggleVisibleOverlayMainDeps = buildToggleVisibleOverlayMainDepsHandler();
-const toggleVisibleOverlayHandler = createToggleVisibleOverlayHandler(
-  toggleVisibleOverlayMainDeps,
-);
-
-const buildToggleInvisibleOverlayMainDepsHandler =
-  createBuildToggleInvisibleOverlayMainDepsHandler({
   getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
-  setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
 });
-const toggleInvisibleOverlayMainDeps =
-  buildToggleInvisibleOverlayMainDepsHandler();
-const toggleInvisibleOverlayHandler = createToggleInvisibleOverlayHandler(
-  toggleInvisibleOverlayMainDeps,
-);
-
-const buildSetOverlayVisibleMainDepsHandler = createBuildSetOverlayVisibleMainDepsHandler({
-  setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-});
-const setOverlayVisibleMainDeps = buildSetOverlayVisibleMainDepsHandler();
-const setOverlayVisibleHandler = createSetOverlayVisibleHandler(
-  setOverlayVisibleMainDeps,
-);
-
-const buildToggleOverlayMainDepsHandler = createBuildToggleOverlayMainDepsHandler({
-  toggleVisibleOverlay: () => toggleVisibleOverlay(),
-});
-const toggleOverlayHandler = createToggleOverlayHandler(buildToggleOverlayMainDepsHandler());
 
 const buildHandleOverlayModalClosedMainDepsHandler =
   createBuildHandleOverlayModalClosedMainDepsHandler({
