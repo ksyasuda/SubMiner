@@ -287,16 +287,7 @@ import {
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
 } from './main/runtime/overlay-window-layout-main-deps';
 import { buildTrayMenuTemplateRuntime, resolveTrayIconPathRuntime } from './main/runtime/tray-runtime';
-import {
-  createGetConfiguredShortcutsHandler,
-  createRefreshGlobalAndOverlayShortcutsHandler,
-  createRegisterGlobalShortcutsHandler,
-} from './main/runtime/global-shortcuts';
-import {
-  createBuildGetConfiguredShortcutsMainDepsHandler,
-  createBuildRefreshGlobalAndOverlayShortcutsMainDepsHandler,
-  createBuildRegisterGlobalShortcutsMainDepsHandler,
-} from './main/runtime/global-shortcuts-main-deps';
+import { createGlobalShortcutsRuntimeHandlers } from './main/runtime/global-shortcuts-runtime-handlers';
 import { createAppendToMpvLogHandler, createShowMpvOsdHandler } from './main/runtime/mpv-osd-log';
 import {
   createBuildAppendToMpvLogMainDepsHandler,
@@ -2505,56 +2496,31 @@ function openYomitanSettings(): void {
   openYomitanSettingsHandler();
 }
 
-const buildGetConfiguredShortcutsMainDepsHandler = createBuildGetConfiguredShortcutsMainDepsHandler(
-  {
+const {
+  getConfiguredShortcuts,
+  registerGlobalShortcuts,
+  refreshGlobalAndOverlayShortcuts,
+} = createGlobalShortcutsRuntimeHandlers({
+  getConfiguredShortcutsMainDeps: {
     getResolvedConfig: () => getResolvedConfig(),
     defaultConfig: DEFAULT_CONFIG,
     resolveConfiguredShortcuts,
   },
-);
-const getConfiguredShortcutsMainDeps = buildGetConfiguredShortcutsMainDepsHandler();
-const getConfiguredShortcutsHandler = createGetConfiguredShortcutsHandler(
-  getConfiguredShortcutsMainDeps,
-);
-
-const buildRegisterGlobalShortcutsMainDepsHandler =
-  createBuildRegisterGlobalShortcutsMainDepsHandler({
-    getConfiguredShortcuts: () => getConfiguredShortcuts(),
+  buildRegisterGlobalShortcutsMainDeps: (getConfiguredShortcutsHandler) => ({
+    getConfiguredShortcuts: () => getConfiguredShortcutsHandler(),
     registerGlobalShortcutsCore,
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
     toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
     openYomitanSettings: () => openYomitanSettings(),
     isDev,
     getMainWindow: () => overlayManager.getMainWindow(),
-  });
-const registerGlobalShortcutsMainDeps = buildRegisterGlobalShortcutsMainDepsHandler();
-const registerGlobalShortcutsHandler = createRegisterGlobalShortcutsHandler(
-  registerGlobalShortcutsMainDeps,
-);
-
-const buildRefreshGlobalAndOverlayShortcutsMainDepsHandler =
-  createBuildRefreshGlobalAndOverlayShortcutsMainDepsHandler({
+  }),
+  buildRefreshGlobalAndOverlayShortcutsMainDeps: (registerGlobalShortcutsHandler) => ({
     unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
-    registerGlobalShortcuts: () => registerGlobalShortcuts(),
+    registerGlobalShortcuts: () => registerGlobalShortcutsHandler(),
     syncOverlayShortcuts: () => syncOverlayShortcuts(),
-  });
-const refreshGlobalAndOverlayShortcutsMainDeps =
-  buildRefreshGlobalAndOverlayShortcutsMainDepsHandler();
-const refreshGlobalAndOverlayShortcutsHandler = createRefreshGlobalAndOverlayShortcutsHandler(
-  refreshGlobalAndOverlayShortcutsMainDeps,
-);
-
-function registerGlobalShortcuts(): void {
-  registerGlobalShortcutsHandler();
-}
-
-function refreshGlobalAndOverlayShortcuts(): void {
-  refreshGlobalAndOverlayShortcutsHandler();
-}
-
-function getConfiguredShortcuts() {
-  return getConfiguredShortcutsHandler();
-}
+  }),
+});
 
 const buildCycleSecondarySubModeMainDepsHandler = createBuildCycleSecondarySubModeMainDepsHandler(
   {
