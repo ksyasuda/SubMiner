@@ -428,14 +428,7 @@ import {
   createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler,
   createBuildOpenYomitanSettingsMainDepsHandler,
 } from './main/runtime/app-runtime-main-deps';
-import {
-  createEnsureYomitanExtensionLoadedHandler,
-  createLoadYomitanExtensionHandler,
-} from './main/runtime/yomitan-extension-loader';
-import {
-  createBuildEnsureYomitanExtensionLoadedMainDepsHandler,
-  createBuildLoadYomitanExtensionMainDepsHandler,
-} from './main/runtime/yomitan-extension-loader-main-deps';
+import { createYomitanExtensionRuntime } from './main/runtime/yomitan-extension-runtime';
 import { createBuildInitializeOverlayRuntimeOptionsHandler } from './main/runtime/overlay-runtime-options';
 import { createBuildInitializeOverlayRuntimeMainDepsHandler } from './main/runtime/overlay-runtime-options-main-deps';
 import { createBuildCliCommandContextDepsHandler } from './main/runtime/cli-command-context-deps';
@@ -2374,8 +2367,10 @@ const buildUpdateMpvSubtitleRenderMetricsMainDepsHandler =
     broadcastToOverlayWindows('mpv-subtitle-render-metrics:set', metrics);
   },
 });
+const updateMpvSubtitleRenderMetricsMainDeps =
+  buildUpdateMpvSubtitleRenderMetricsMainDepsHandler();
 const updateMpvSubtitleRenderMetricsRuntime = createUpdateMpvSubtitleRenderMetricsHandler(
-  buildUpdateMpvSubtitleRenderMetricsMainDepsHandler(),
+  updateMpvSubtitleRenderMetricsMainDeps,
 );
 
 function updateMpvSubtitleRenderMetrics(patch: Partial<MpvSubtitleRenderMetrics>): void {
@@ -2525,16 +2520,17 @@ const buildEnforceOverlayLayerOrderMainDepsHandler =
   getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
   ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window as BrowserWindow),
 });
+const enforceOverlayLayerOrderMainDeps = buildEnforceOverlayLayerOrderMainDepsHandler();
 const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler(
-  buildEnforceOverlayLayerOrderMainDepsHandler(),
+  enforceOverlayLayerOrderMainDeps,
 );
 
 async function loadYomitanExtension(): Promise<Extension | null> {
-  return loadYomitanExtensionHandler();
+  return yomitanExtensionRuntime.loadYomitanExtension();
 }
 
 async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
-  return ensureYomitanExtensionLoadedHandler();
+  return yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
 }
 
 function createOverlayWindow(kind: 'visible' | 'invisible'): BrowserWindow {
@@ -2811,8 +2807,9 @@ const buildRefreshKnownWordCacheMainDepsHandler = createBuildRefreshKnownWordCac
   getAnkiIntegration: () => appState.ankiIntegration,
   missingIntegrationMessage: 'AnkiConnect integration not enabled',
 });
+const refreshKnownWordCacheMainDeps = buildRefreshKnownWordCacheMainDepsHandler();
 const refreshKnownWordCacheHandler = createRefreshKnownWordCacheHandler(
-  buildRefreshKnownWordCacheMainDepsHandler(),
+  refreshKnownWordCacheMainDeps,
 );
 
 const buildTriggerFieldGroupingMainDepsHandler = createBuildTriggerFieldGroupingMainDepsHandler({
@@ -2820,8 +2817,9 @@ const buildTriggerFieldGroupingMainDepsHandler = createBuildTriggerFieldGrouping
   showMpvOsd: (text) => showMpvOsd(text),
   triggerFieldGroupingCore,
 });
+const triggerFieldGroupingMainDeps = buildTriggerFieldGroupingMainDepsHandler();
 const triggerFieldGroupingHandler = createTriggerFieldGroupingHandler(
-  buildTriggerFieldGroupingMainDepsHandler(),
+  triggerFieldGroupingMainDeps,
 );
 
 const buildMarkLastCardAsAudioCardMainDepsHandler =
@@ -2830,8 +2828,10 @@ const buildMarkLastCardAsAudioCardMainDepsHandler =
   showMpvOsd: (text) => showMpvOsd(text),
   markLastCardAsAudioCardCore,
 });
+const markLastCardAsAudioCardMainDeps =
+  buildMarkLastCardAsAudioCardMainDepsHandler();
 const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler(
-  buildMarkLastCardAsAudioCardMainDepsHandler(),
+  markLastCardAsAudioCardMainDeps,
 );
 
 const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDepsHandler({
@@ -2851,8 +2851,9 @@ const buildHandleMultiCopyDigitMainDepsHandler = createBuildHandleMultiCopyDigit
   showMpvOsd: (text) => showMpvOsd(text),
   handleMultiCopyDigitCore,
 });
+const handleMultiCopyDigitMainDeps = buildHandleMultiCopyDigitMainDepsHandler();
 const handleMultiCopyDigitHandler = createHandleMultiCopyDigitHandler(
-  buildHandleMultiCopyDigitMainDepsHandler(),
+  handleMultiCopyDigitMainDeps,
 );
 
 const buildCopyCurrentSubtitleMainDepsHandler = createBuildCopyCurrentSubtitleMainDepsHandler({
@@ -2861,8 +2862,9 @@ const buildCopyCurrentSubtitleMainDepsHandler = createBuildCopyCurrentSubtitleMa
   showMpvOsd: (text) => showMpvOsd(text),
   copyCurrentSubtitleCore,
 });
+const copyCurrentSubtitleMainDeps = buildCopyCurrentSubtitleMainDepsHandler();
 const copyCurrentSubtitleHandler = createCopyCurrentSubtitleHandler(
-  buildCopyCurrentSubtitleMainDepsHandler(),
+  copyCurrentSubtitleMainDeps,
 );
 
 const buildHandleMineSentenceDigitMainDepsHandler =
@@ -2879,8 +2881,9 @@ const buildHandleMineSentenceDigitMainDepsHandler =
   },
   handleMineSentenceDigitCore,
 });
+const handleMineSentenceDigitMainDeps = buildHandleMineSentenceDigitMainDepsHandler();
 const handleMineSentenceDigitHandler = createHandleMineSentenceDigitHandler(
-  buildHandleMineSentenceDigitMainDepsHandler(),
+  handleMineSentenceDigitMainDeps,
 );
 const buildSetVisibleOverlayVisibleMainDepsHandler =
   createBuildSetVisibleOverlayVisibleMainDepsHandler({
@@ -2899,8 +2902,10 @@ const buildSetVisibleOverlayVisibleMainDepsHandler =
     setMpvSubVisibilityRuntime(appState.mpvClient, mpvSubVisible);
   },
 });
+const setVisibleOverlayVisibleMainDeps =
+  buildSetVisibleOverlayVisibleMainDepsHandler();
 const setVisibleOverlayVisibleHandler = createSetVisibleOverlayVisibleHandler(
-  buildSetVisibleOverlayVisibleMainDepsHandler(),
+  setVisibleOverlayVisibleMainDeps,
 );
 
 const buildSetInvisibleOverlayVisibleMainDepsHandler =
@@ -2913,16 +2918,19 @@ const buildSetInvisibleOverlayVisibleMainDepsHandler =
   syncInvisibleOverlayMousePassthrough: () =>
     overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
 });
+const setInvisibleOverlayVisibleMainDeps =
+  buildSetInvisibleOverlayVisibleMainDepsHandler();
 const setInvisibleOverlayVisibleHandler = createSetInvisibleOverlayVisibleHandler(
-  buildSetInvisibleOverlayVisibleMainDepsHandler(),
+  setInvisibleOverlayVisibleMainDeps,
 );
 
 const buildToggleVisibleOverlayMainDepsHandler = createBuildToggleVisibleOverlayMainDepsHandler({
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
   setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
 });
+const toggleVisibleOverlayMainDeps = buildToggleVisibleOverlayMainDepsHandler();
 const toggleVisibleOverlayHandler = createToggleVisibleOverlayHandler(
-  buildToggleVisibleOverlayMainDepsHandler(),
+  toggleVisibleOverlayMainDeps,
 );
 
 const buildToggleInvisibleOverlayMainDepsHandler =
@@ -2930,15 +2938,18 @@ const buildToggleInvisibleOverlayMainDepsHandler =
   getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
   setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
 });
+const toggleInvisibleOverlayMainDeps =
+  buildToggleInvisibleOverlayMainDepsHandler();
 const toggleInvisibleOverlayHandler = createToggleInvisibleOverlayHandler(
-  buildToggleInvisibleOverlayMainDepsHandler(),
+  toggleInvisibleOverlayMainDeps,
 );
 
 const buildSetOverlayVisibleMainDepsHandler = createBuildSetOverlayVisibleMainDepsHandler({
   setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
 });
+const setOverlayVisibleMainDeps = buildSetOverlayVisibleMainDepsHandler();
 const setOverlayVisibleHandler = createSetOverlayVisibleHandler(
-  buildSetOverlayVisibleMainDepsHandler(),
+  setOverlayVisibleMainDeps,
 );
 
 const buildToggleOverlayMainDepsHandler = createBuildToggleOverlayMainDepsHandler({
@@ -2950,8 +2961,10 @@ const buildHandleOverlayModalClosedMainDepsHandler =
   createBuildHandleOverlayModalClosedMainDepsHandler({
   handleOverlayModalClosedRuntime: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
 });
+const handleOverlayModalClosedMainDeps =
+  buildHandleOverlayModalClosedMainDepsHandler();
 const handleOverlayModalClosedHandler = createHandleOverlayModalClosedHandler(
-  buildHandleOverlayModalClosedMainDepsHandler(),
+  handleOverlayModalClosedMainDeps,
 );
 
 const buildAppendClipboardVideoToQueueMainDepsHandler =
@@ -2964,8 +2977,10 @@ const buildAppendClipboardVideoToQueueMainDepsHandler =
     sendMpvCommandRuntime(appState.mpvClient, command);
   },
 });
+const appendClipboardVideoToQueueMainDeps =
+  buildAppendClipboardVideoToQueueMainDepsHandler();
 const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHandler(
-  buildAppendClipboardVideoToQueueMainDepsHandler(),
+  appendClipboardVideoToQueueMainDeps,
 );
 
 const buildMpvCommandFromIpcRuntimeMainDepsHandler =
@@ -2993,18 +3008,23 @@ const buildMpvCommandFromIpcRuntimeMainDepsHandler =
 const buildHandleMpvCommandFromIpcMainDepsHandler =
   createBuildHandleMpvCommandFromIpcMainDepsHandler({
   handleMpvCommandFromIpcRuntime,
-  buildMpvCommandDeps: () => buildMpvCommandFromIpcRuntimeMainDepsHandler(),
+  buildMpvCommandDeps: () => mpvCommandFromIpcRuntimeMainDeps,
 });
+const mpvCommandFromIpcRuntimeMainDeps = buildMpvCommandFromIpcRuntimeMainDepsHandler();
+const handleMpvCommandFromIpcMainDeps =
+  buildHandleMpvCommandFromIpcMainDepsHandler();
 const handleMpvCommandFromIpcHandler = createHandleMpvCommandFromIpcHandler(
-  buildHandleMpvCommandFromIpcMainDepsHandler(),
+  handleMpvCommandFromIpcMainDeps,
 );
 
 const buildRunSubsyncManualFromIpcMainDepsHandler =
   createBuildRunSubsyncManualFromIpcMainDepsHandler({
   runManualFromIpc: (request: SubsyncManualRunRequest) => subsyncRuntime.runManualFromIpc(request),
 });
+const runSubsyncManualFromIpcMainDeps =
+  buildRunSubsyncManualFromIpcMainDepsHandler();
 const runSubsyncManualFromIpcHandler = createRunSubsyncManualFromIpcHandler(
-  buildRunSubsyncManualFromIpcMainDepsHandler(),
+  runSubsyncManualFromIpcMainDeps,
 );
 const buildCliCommandContextMainDepsHandler = createBuildCliCommandContextMainDepsHandler({
     appState,
@@ -3048,8 +3068,9 @@ const buildCliCommandContextMainDepsHandler = createBuildCliCommandContextMainDe
     logWarn: (message: string) => logger.warn(message),
     logError: (message: string, err: unknown) => logger.error(message, err),
   });
+const cliCommandContextMainDeps = buildCliCommandContextMainDepsHandler();
 const buildCliCommandContextDepsHandler = createBuildCliCommandContextDepsHandler(
-  buildCliCommandContextMainDepsHandler(),
+  cliCommandContextMainDeps,
 );
 const createOverlayWindowHandler = createCreateOverlayWindowHandler<BrowserWindow>(
   createBuildCreateOverlayWindowMainDepsHandler<BrowserWindow>({
@@ -3137,7 +3158,7 @@ const destroyTrayHandler = createDestroyTrayHandler(
     },
   })(),
 );
-const buildLoadYomitanExtensionMainDepsHandler = createBuildLoadYomitanExtensionMainDepsHandler({
+const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,
   getYomitanParserWindow: () => appState.yomitanParserWindow,
@@ -3153,22 +3174,12 @@ const buildLoadYomitanExtensionMainDepsHandler = createBuildLoadYomitanExtension
   setYomitanExtension: (extension) => {
     appState.yomitanExt = extension;
   },
+  getYomitanExtension: () => appState.yomitanExt,
+  getLoadInFlight: () => yomitanLoadInFlight,
+  setLoadInFlight: (promise) => {
+    yomitanLoadInFlight = promise;
+  },
 });
-const loadYomitanExtensionHandler = createLoadYomitanExtensionHandler(
-  buildLoadYomitanExtensionMainDepsHandler(),
-);
-const buildEnsureYomitanExtensionLoadedMainDepsHandler =
-  createBuildEnsureYomitanExtensionLoadedMainDepsHandler({
-    getYomitanExtension: () => appState.yomitanExt,
-    getLoadInFlight: () => yomitanLoadInFlight,
-    setLoadInFlight: (promise) => {
-      yomitanLoadInFlight = promise;
-    },
-    loadYomitanExtension: () => loadYomitanExtension(),
-  });
-const ensureYomitanExtensionLoadedHandler = createEnsureYomitanExtensionLoadedHandler(
-  buildEnsureYomitanExtensionLoadedMainDepsHandler(),
-);
 const buildInitializeOverlayRuntimeOptionsHandler = createBuildInitializeOverlayRuntimeOptionsHandler(
   createBuildInitializeOverlayRuntimeMainDepsHandler({
     appState,
