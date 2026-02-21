@@ -10,7 +10,7 @@ type ConfigPathOptions = {
   defaultAppName?: string;
 };
 
-const DEFAULT_APP_NAMES = ['SubMiner', 'subminer'] as const;
+const DEFAULT_APP_NAMES = ['SubMiner'] as const;
 const DEFAULT_FILE_NAMES = ['config.jsonc', 'config.json'] as const;
 
 export function resolveConfigBaseDirs(

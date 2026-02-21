@@ -29,10 +29,10 @@ test('resolveConfigDir prefers xdg SubMiner config when present', () => {
   assert.equal(resolved, configDir);
 });
 
-test('resolveConfigDir falls back to lowercase subminer candidate', () => {
+test('resolveConfigDir ignores lowercase subminer candidate', () => {
   const homeDir = '/home/tester';
-  const configDir = path.join(homeDir, '.config', 'subminer');
-  const existsSync = existsSyncFrom([path.join(configDir, 'config.json')]);
+  const lowercaseConfigDir = path.join(homeDir, '.config', 'subminer');
+  const existsSync = existsSyncFrom([path.join(lowercaseConfigDir, 'config.json')]);
 
   const resolved = resolveConfigDir({
     xdgConfigHome: '/tmp/missing-xdg',
@@ -40,12 +40,12 @@ test('resolveConfigDir falls back to lowercase subminer candidate', () => {
     existsSync,
   });
 
-  assert.equal(resolved, configDir);
+  assert.equal(resolved, '/tmp/missing-xdg/SubMiner');
 });
 
 test('resolveConfigDir falls back to existing directory when file is missing', () => {
   const homeDir = '/home/tester';
-  const configDir = path.join(homeDir, '.config', 'subminer');
+  const configDir = path.join(homeDir, '.config', 'SubMiner');
   const existsSync = existsSyncFrom([configDir]);
 
   const resolved = resolveConfigDir({
