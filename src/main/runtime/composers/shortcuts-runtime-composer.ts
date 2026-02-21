@@ -5,6 +5,7 @@ import {
   createNumericShortcutSessionRuntimeHandlers,
   createOverlayShortcutsRuntimeHandlers,
 } from '../domains/shortcuts';
+import type { ComposerInputs, ComposerOutputs } from './contracts';
 
 type GlobalShortcutsOptions = Parameters<typeof createGlobalShortcutsRuntimeHandlers>[0];
 type NumericShortcutRuntimeMainDeps = Parameters<
@@ -18,18 +19,18 @@ type OverlayShortcutsMainDeps = Parameters<
   typeof createOverlayShortcutsRuntimeHandlers
 >[0]['overlayShortcutsRuntimeMainDeps'];
 
-export type ShortcutsRuntimeComposerOptions = {
+export type ShortcutsRuntimeComposerOptions = ComposerInputs<{
   globalShortcuts: GlobalShortcutsOptions;
   numericShortcutRuntimeMainDeps: NumericShortcutRuntimeMainDeps;
   numericSessions: NumericSessionOptions;
   overlayShortcutsRuntimeMainDeps: OverlayShortcutsMainDeps;
-};
+}>;
 
-export type ShortcutsRuntimeComposerResult = ReturnType<
-  typeof createGlobalShortcutsRuntimeHandlers
-> &
-  ReturnType<typeof createNumericShortcutSessionRuntimeHandlers> &
-  ReturnType<typeof createOverlayShortcutsRuntimeHandlers>;
+export type ShortcutsRuntimeComposerResult = ComposerOutputs<
+  ReturnType<typeof createGlobalShortcutsRuntimeHandlers> &
+    ReturnType<typeof createNumericShortcutSessionRuntimeHandlers> &
+    ReturnType<typeof createOverlayShortcutsRuntimeHandlers>
+>;
 
 export function composeShortcutRuntimes(
   options: ShortcutsRuntimeComposerOptions,

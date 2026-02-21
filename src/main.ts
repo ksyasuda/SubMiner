@@ -225,6 +225,7 @@ import { createBindMpvMainEventHandlersHandler } from './main/runtime/domains/mp
 import { createBuildBindMpvMainEventHandlersMainDepsHandler } from './main/runtime/domains/mpv';
 import { createBuildMpvClientRuntimeServiceFactoryDepsHandler } from './main/runtime/domains/mpv';
 import { createMpvClientRuntimeServiceFactory } from './main/runtime/domains/mpv';
+import type { MpvClientRuntimeServiceOptions } from './main/runtime/domains/mpv';
 import { createUpdateMpvSubtitleRenderMetricsHandler } from './main/runtime/domains/mpv';
 import { createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler } from './main/runtime/domains/mpv';
 import {
@@ -2006,7 +2007,11 @@ const {
   createMecabTokenizerAndCheck,
   prewarmSubtitleDictionaries,
   startBackgroundWarmups,
-} = composeMpvRuntimeHandlers<ReturnType<typeof createTokenizerDepsRuntime>, SubtitleData>({
+} = composeMpvRuntimeHandlers<
+  MpvIpcClient,
+  ReturnType<typeof createTokenizerDepsRuntime>,
+  SubtitleData
+>({
   bindMpvMainEventHandlersMainDeps: {
     appState,
     getQuitOnDisconnectArmed: () => jellyfinPlayQuitOnDisconnectArmed,
@@ -2055,7 +2060,10 @@ const {
     },
   },
   mpvClientRuntimeServiceFactoryMainDeps: {
-    createClient: MpvIpcClient as unknown as new (socketPath: string, options: unknown) => unknown,
+    createClient: MpvIpcClient as unknown as new (
+      socketPath: string,
+      options: MpvClientRuntimeServiceOptions,
+    ) => MpvIpcClient,
     getSocketPath: () => appState.mpvSocketPath,
     getResolvedConfig: () => getResolvedConfig(),
     isAutoStartOverlayEnabled: () => appState.autoStartOverlay,
@@ -2500,10 +2508,7 @@ const {
   handleMpvCommandFromIpc: handleMpvCommandFromIpcHandler,
   runSubsyncManualFromIpc: runSubsyncManualFromIpcHandler,
   registerIpcRuntimeHandlers,
-} = composeIpcRuntimeHandlers<
-  SubsyncManualRunRequest,
-  Awaited<ReturnType<typeof subsyncRuntime.runManualFromIpc>>
->({
+} = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
@@ -2525,7 +2530,8 @@ const {
     hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
   },
   handleMpvCommandFromIpcRuntime,
-  runSubsyncManualFromIpc: (request) => subsyncRuntime.runManualFromIpc(request),
+  runSubsyncManualFromIpc: (request) =>
+    subsyncRuntime.runManualFromIpc(request as SubsyncManualRunRequest),
   registration: {
     runtimeOptions: {
       getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
@@ -2867,7 +2873,7 @@ function handleMpvCommandFromIpc(command: (string | number)[]): void {
 }
 
 async function runSubsyncManualFromIpc(request: SubsyncManualRunRequest): Promise<SubsyncResult> {
-  return runSubsyncManualFromIpcHandler(request);
+  return runSubsyncManualFromIpcHandler(request) as Promise<SubsyncResult>;
 }
 
 function appendClipboardVideoToQueue(): { ok: boolean; message: string } {

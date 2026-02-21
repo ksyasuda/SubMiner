@@ -1,4 +1,4 @@
-type MpvClientCtorBaseOptions = {
+export type MpvClientRuntimeServiceOptions = {
   getResolvedConfig: () => unknown;
   autoStartOverlay: boolean;
   setOverlayVisible: (visible: boolean) => void;
@@ -12,14 +12,14 @@ type MpvClientLike = {
   connect: () => void;
 };
 
-type MpvClientCtor<TClient extends MpvClientLike, TOptions extends MpvClientCtorBaseOptions> = new (
-  socketPath: string,
-  options: TOptions,
-) => TClient;
+type MpvClientCtor<
+  TClient extends MpvClientLike,
+  TOptions extends MpvClientRuntimeServiceOptions,
+> = new (socketPath: string, options: TOptions) => TClient;
 
 export function createMpvClientRuntimeServiceFactory<
   TClient extends MpvClientLike,
-  TOptions extends MpvClientCtorBaseOptions,
+  TOptions extends MpvClientRuntimeServiceOptions,
 >(deps: {
   createClient: MpvClientCtor<TClient, TOptions>;
   socketPath: string;

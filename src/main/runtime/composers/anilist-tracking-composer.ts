@@ -20,8 +20,9 @@ import {
   createResetAnilistMediaTrackingHandler,
   createSetAnilistMediaGuessRuntimeStateHandler,
 } from '../domains/anilist';
+import type { ComposerInputs, ComposerOutputs } from './contracts';
 
-export type AnilistTrackingComposerOptions = {
+export type AnilistTrackingComposerOptions = ComposerInputs<{
   refreshClientSecretMainDeps: Parameters<
     typeof createBuildRefreshAnilistClientSecretStateMainDepsHandler
   >[0];
@@ -50,9 +51,9 @@ export type AnilistTrackingComposerOptions = {
   maybeRunPostWatchUpdateMainDeps: Parameters<
     typeof createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler
   >[0];
-};
+}>;
 
-export type AnilistTrackingComposerResult = {
+export type AnilistTrackingComposerResult = ComposerOutputs<{
   refreshAnilistClientSecretState: ReturnType<typeof createRefreshAnilistClientSecretStateHandler>;
   getCurrentAnilistMediaKey: ReturnType<typeof createGetCurrentAnilistMediaKeyHandler>;
   resetAnilistMediaTracking: ReturnType<typeof createResetAnilistMediaTrackingHandler>;
@@ -67,7 +68,7 @@ export type AnilistTrackingComposerResult = {
   ensureAnilistMediaGuess: ReturnType<typeof createEnsureAnilistMediaGuessHandler>;
   processNextAnilistRetryUpdate: ReturnType<typeof createProcessNextAnilistRetryUpdateHandler>;
   maybeRunAnilistPostWatchUpdate: ReturnType<typeof createMaybeRunAnilistPostWatchUpdateHandler>;
-};
+}>;
 
 export function composeAnilistTrackingHandlers(
   options: AnilistTrackingComposerOptions,

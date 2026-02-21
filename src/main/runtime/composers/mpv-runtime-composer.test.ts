@@ -48,6 +48,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
   }
 
   const composed = composeMpvRuntimeHandlers<
+    FakeMpvClient,
     { isKnownWord: (text: string) => boolean },
     { text: string }
   >({
@@ -189,7 +190,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
   assert.equal(typeof composed.launchBackgroundWarmupTask, 'function');
   assert.equal(typeof composed.startBackgroundWarmups, 'function');
 
-  const client = composed.createMpvClientRuntimeService() as FakeMpvClient;
+  const client = composed.createMpvClientRuntimeService();
   assert.equal(client.connected, true);
 
   composed.updateMpvSubtitleRenderMetrics({ subPos: 90 });

@@ -1,6 +1,7 @@
 export * from './anilist-setup-composer';
 export * from './anilist-tracking-composer';
 export * from './app-ready-composer';
+export * from './contracts';
 export * from './ipc-runtime-composer';
 export * from './jellyfin-remote-composer';
 export * from './mpv-runtime-composer';

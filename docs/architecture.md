@@ -170,6 +170,12 @@ The composition root (`src/main.ts`) delegates to focused modules in `src/main/`
 - `runtime/composers/anilist-tracking-composer.ts` — AniList media tracking/probe/retry wiring
 - `runtime/composers/mpv-runtime-composer.ts` — MPV event/factory/tokenizer/warmup wiring
 
+Composer modules share contract conventions via `src/main/runtime/composers/contracts.ts`:
+
+- composer input surfaces are declared with `ComposerInputs<T>` so required dependencies cannot be omitted at compile time
+- composer outputs are declared with `ComposerOutputs<T>` to keep result contracts explicit and stable
+- builder return payload extraction should use shared type helpers instead of inline ad-hoc inference
+
 This keeps side effects explicit and makes behavior easy to unit-test with fakes.
 
 ## Program Lifecycle

@@ -2,6 +2,7 @@ import { createBindMpvMainEventHandlersHandler } from '../mpv-main-event-binding
 import { createBuildBindMpvMainEventHandlersMainDepsHandler } from '../mpv-main-event-main-deps';
 import { createBuildMpvClientRuntimeServiceFactoryDepsHandler } from '../mpv-client-runtime-service-main-deps';
 import { createMpvClientRuntimeServiceFactory } from '../mpv-client-runtime-service';
+import type { MpvClientRuntimeServiceOptions } from '../mpv-client-runtime-service';
 import { createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler } from '../mpv-subtitle-render-metrics-main-deps';
 import { createUpdateMpvSubtitleRenderMetricsHandler } from '../mpv-subtitle-render-metrics';
 import {
@@ -17,19 +18,29 @@ import {
   createLaunchBackgroundWarmupTaskHandler as createLaunchBackgroundWarmupTaskFromStartup,
   createStartBackgroundWarmupsHandler as createStartBackgroundWarmupsFromStartup,
 } from '../startup-warmups';
+import type { BuiltMainDeps, ComposerInputs, ComposerOutputs } from './contracts';
 
 type BindMpvMainEventHandlersMainDeps = Parameters<
   typeof createBuildBindMpvMainEventHandlersMainDepsHandler
 >[0];
-type MpvClientRuntimeServiceFactoryMainDeps = Omit<
-  Parameters<typeof createBuildMpvClientRuntimeServiceFactoryDepsHandler>[0],
+type BindMpvMainEventHandlers = ReturnType<typeof createBindMpvMainEventHandlersHandler>;
+type BoundMpvClient = Parameters<BindMpvMainEventHandlers>[0];
+type RuntimeMpvClient = BoundMpvClient & { connect: () => void };
+type MpvClientRuntimeServiceFactoryMainDeps<TMpvClient extends RuntimeMpvClient> = Omit<
+  Parameters<
+    typeof createBuildMpvClientRuntimeServiceFactoryDepsHandler<
+      TMpvClient,
+      unknown,
+      MpvClientRuntimeServiceOptions
+    >
+  >[0],
   'bindEventHandlers'
 >;
 type UpdateMpvSubtitleRenderMetricsMainDeps = Parameters<
   typeof createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler
 >[0];
 type BuildTokenizerDepsMainDeps = Parameters<typeof createBuildTokenizerDepsMainHandler>[0];
-type TokenizerMainDeps = ReturnType<ReturnType<typeof createBuildTokenizerDepsMainHandler>>;
+type TokenizerMainDeps = BuiltMainDeps<typeof createBuildTokenizerDepsMainHandler>;
 type CreateMecabTokenizerAndCheckMainDeps = Parameters<
   typeof createCreateMecabTokenizerAndCheckMainHandler
 >[0];
@@ -44,9 +55,13 @@ type StartBackgroundWarmupsMainDeps = Omit<
   'launchTask' | 'createMecabTokenizerAndCheck' | 'prewarmSubtitleDictionaries'
 >;
 
-export type MpvRuntimeComposerOptions<TTokenizerRuntimeDeps, TTokenizedSubtitle> = {
+export type MpvRuntimeComposerOptions<
+  TMpvClient extends RuntimeMpvClient,
+  TTokenizerRuntimeDeps,
+  TTokenizedSubtitle,
+> = ComposerInputs<{
   bindMpvMainEventHandlersMainDeps: BindMpvMainEventHandlersMainDeps;
-  mpvClientRuntimeServiceFactoryMainDeps: MpvClientRuntimeServiceFactoryMainDeps;
+  mpvClientRuntimeServiceFactoryMainDeps: MpvClientRuntimeServiceFactoryMainDeps<TMpvClient>;
   updateMpvSubtitleRenderMetricsMainDeps: UpdateMpvSubtitleRenderMetricsMainDeps;
   tokenizer: {
     buildTokenizerDepsMainDeps: BuildTokenizerDepsMainDeps;
@@ -59,22 +74,29 @@ export type MpvRuntimeComposerOptions<TTokenizerRuntimeDeps, TTokenizedSubtitle>
     launchBackgroundWarmupTaskMainDeps: LaunchBackgroundWarmupTaskMainDeps;
     startBackgroundWarmupsMainDeps: StartBackgroundWarmupsMainDeps;
   };
-};
+}>;
 
-export type MpvRuntimeComposerResult<TTokenizedSubtitle> = {
-  bindMpvClientEventHandlers: ReturnType<typeof createBindMpvMainEventHandlersHandler>;
-  createMpvClientRuntimeService: () => unknown;
+export type MpvRuntimeComposerResult<
+  TMpvClient extends RuntimeMpvClient,
+  TTokenizedSubtitle,
+> = ComposerOutputs<{
+  bindMpvClientEventHandlers: BindMpvMainEventHandlers;
+  createMpvClientRuntimeService: () => TMpvClient;
   updateMpvSubtitleRenderMetrics: ReturnType<typeof createUpdateMpvSubtitleRenderMetricsHandler>;
   tokenizeSubtitle: (text: string) => Promise<TTokenizedSubtitle>;
   createMecabTokenizerAndCheck: () => Promise<void>;
   prewarmSubtitleDictionaries: () => Promise<void>;
   launchBackgroundWarmupTask: ReturnType<typeof createLaunchBackgroundWarmupTaskFromStartup>;
   startBackgroundWarmups: ReturnType<typeof createStartBackgroundWarmupsFromStartup>;
-};
+}>;
 
-export function composeMpvRuntimeHandlers<TTokenizerRuntimeDeps, TTokenizedSubtitle>(
-  options: MpvRuntimeComposerOptions<TTokenizerRuntimeDeps, TTokenizedSubtitle>,
-): MpvRuntimeComposerResult<TTokenizedSubtitle> {
+export function composeMpvRuntimeHandlers<
+  TMpvClient extends RuntimeMpvClient,
+  TTokenizerRuntimeDeps,
+  TTokenizedSubtitle,
+>(
+  options: MpvRuntimeComposerOptions<TMpvClient, TTokenizerRuntimeDeps, TTokenizedSubtitle>,
+): MpvRuntimeComposerResult<TMpvClient, TTokenizedSubtitle> {
   const bindMpvMainEventHandlersMainDeps = createBuildBindMpvMainEventHandlersMainDepsHandler(
     options.bindMpvMainEventHandlersMainDeps,
   )();
@@ -83,14 +105,16 @@ export function composeMpvRuntimeHandlers<TTokenizerRuntimeDeps, TTokenizedSubti
   );
 
   const buildMpvClientRuntimeServiceFactoryMainDepsHandler =
-    createBuildMpvClientRuntimeServiceFactoryDepsHandler({
+    createBuildMpvClientRuntimeServiceFactoryDepsHandler<
+      TMpvClient,
+      unknown,
+      MpvClientRuntimeServiceOptions
+    >({
       ...options.mpvClientRuntimeServiceFactoryMainDeps,
-      bindEventHandlers: (client) => bindMpvClientEventHandlers(client as never),
+      bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
     });
-  const createMpvClientRuntimeService = (): unknown =>
-    createMpvClientRuntimeServiceFactory(
-      buildMpvClientRuntimeServiceFactoryMainDepsHandler() as never,
-    )();
+  const createMpvClientRuntimeService = (): TMpvClient =>
+    createMpvClientRuntimeServiceFactory(buildMpvClientRuntimeServiceFactoryMainDepsHandler())();
 
   const updateMpvSubtitleRenderMetrics = createUpdateMpvSubtitleRenderMetricsHandler(
     createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler(

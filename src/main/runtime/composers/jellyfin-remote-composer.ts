@@ -10,26 +10,41 @@ import {
   createReportJellyfinRemoteProgressHandler,
   createReportJellyfinRemoteStoppedHandler,
 } from '../domains/jellyfin';
+import type { ComposerInputs, ComposerOutputs } from './contracts';
 
 type RemotePlayPayload = Parameters<ReturnType<typeof createHandleJellyfinRemotePlay>>[0];
 type RemotePlaystatePayload = Parameters<ReturnType<typeof createHandleJellyfinRemotePlaystate>>[0];
-type RemoteGeneralPayload = Parameters<ReturnType<typeof createHandleJellyfinRemoteGeneralCommand>>[0];
+type RemoteGeneralPayload = Parameters<
+  ReturnType<typeof createHandleJellyfinRemoteGeneralCommand>
+>[0];
+type JellyfinRemotePlayMainDeps = Parameters<
+  typeof createBuildHandleJellyfinRemotePlayMainDepsHandler
+>[0];
+type JellyfinRemotePlaystateMainDeps = Parameters<
+  typeof createBuildHandleJellyfinRemotePlaystateMainDepsHandler
+>[0];
+type JellyfinRemoteGeneralMainDeps = Parameters<
+  typeof createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler
+>[0];
+type JellyfinRemoteProgressMainDeps = Parameters<
+  typeof createBuildReportJellyfinRemoteProgressMainDepsHandler
+>[0];
 
-export type JellyfinRemoteComposerOptions = {
-  getConfiguredSession: Parameters<typeof createBuildHandleJellyfinRemotePlayMainDepsHandler>[0]['getConfiguredSession'];
-  getClientInfo: Parameters<typeof createBuildHandleJellyfinRemotePlayMainDepsHandler>[0]['getClientInfo'];
-  getJellyfinConfig: Parameters<typeof createBuildHandleJellyfinRemotePlayMainDepsHandler>[0]['getJellyfinConfig'];
-  playJellyfinItem: Parameters<typeof createBuildHandleJellyfinRemotePlayMainDepsHandler>[0]['playJellyfinItem'];
-  logWarn: Parameters<typeof createBuildHandleJellyfinRemotePlayMainDepsHandler>[0]['logWarn'];
-  getMpvClient: Parameters<typeof createBuildReportJellyfinRemoteProgressMainDepsHandler>[0]['getMpvClient'];
-  sendMpvCommand: Parameters<typeof createBuildHandleJellyfinRemotePlaystateMainDepsHandler>[0]['sendMpvCommand'];
+export type JellyfinRemoteComposerOptions = ComposerInputs<{
+  getConfiguredSession: JellyfinRemotePlayMainDeps['getConfiguredSession'];
+  getClientInfo: JellyfinRemotePlayMainDeps['getClientInfo'];
+  getJellyfinConfig: JellyfinRemotePlayMainDeps['getJellyfinConfig'];
+  playJellyfinItem: JellyfinRemotePlayMainDeps['playJellyfinItem'];
+  logWarn: JellyfinRemotePlayMainDeps['logWarn'];
+  getMpvClient: JellyfinRemoteProgressMainDeps['getMpvClient'];
+  sendMpvCommand: JellyfinRemotePlaystateMainDeps['sendMpvCommand'];
   jellyfinTicksToSeconds: Parameters<
     typeof createBuildHandleJellyfinRemotePlaystateMainDepsHandler
   >[0]['jellyfinTicksToSeconds'];
-  getActivePlayback: Parameters<typeof createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler>[0]['getActivePlayback'];
-  clearActivePlayback: Parameters<typeof createBuildReportJellyfinRemoteProgressMainDepsHandler>[0]['clearActivePlayback'];
-  getSession: Parameters<typeof createBuildReportJellyfinRemoteProgressMainDepsHandler>[0]['getSession'];
-  getNow: Parameters<typeof createBuildReportJellyfinRemoteProgressMainDepsHandler>[0]['getNow'];
+  getActivePlayback: JellyfinRemoteGeneralMainDeps['getActivePlayback'];
+  clearActivePlayback: JellyfinRemoteProgressMainDeps['clearActivePlayback'];
+  getSession: JellyfinRemoteProgressMainDeps['getSession'];
+  getNow: JellyfinRemoteProgressMainDeps['getNow'];
   getLastProgressAtMs: Parameters<
     typeof createBuildReportJellyfinRemoteProgressMainDepsHandler
   >[0]['getLastProgressAtMs'];
@@ -38,16 +53,18 @@ export type JellyfinRemoteComposerOptions = {
   >[0]['setLastProgressAtMs'];
   progressIntervalMs: number;
   ticksPerSecond: number;
-  logDebug: Parameters<typeof createBuildReportJellyfinRemoteProgressMainDepsHandler>[0]['logDebug'];
-};
+  logDebug: Parameters<
+    typeof createBuildReportJellyfinRemoteProgressMainDepsHandler
+  >[0]['logDebug'];
+}>;
 
-export type JellyfinRemoteComposerResult = {
+export type JellyfinRemoteComposerResult = ComposerOutputs<{
   reportJellyfinRemoteProgress: ReturnType<typeof createReportJellyfinRemoteProgressHandler>;
   reportJellyfinRemoteStopped: ReturnType<typeof createReportJellyfinRemoteStoppedHandler>;
   handleJellyfinRemotePlay: (payload: RemotePlayPayload) => Promise<void>;
   handleJellyfinRemotePlaystate: (payload: RemotePlaystatePayload) => Promise<void>;
   handleJellyfinRemoteGeneralCommand: (payload: RemoteGeneralPayload) => Promise<void>;
-};
+}>;
 
 export function composeJellyfinRemoteHandlers(
   options: JellyfinRemoteComposerOptions,
@@ -89,9 +106,7 @@ export function composeJellyfinRemoteHandlers(
     });
   const buildHandleJellyfinRemotePlaystateMainDepsHandler =
     createBuildHandleJellyfinRemotePlaystateMainDepsHandler({
-      getMpvClient: options.getMpvClient as Parameters<
-        typeof createBuildHandleJellyfinRemotePlaystateMainDepsHandler
-      >[0]['getMpvClient'],
+      getMpvClient: options.getMpvClient,
       sendMpvCommand: options.sendMpvCommand,
       reportJellyfinRemoteProgress: (force) => reportJellyfinRemoteProgress(force),
       reportJellyfinRemoteStopped: () => reportJellyfinRemoteStopped(),
@@ -99,9 +114,7 @@ export function composeJellyfinRemoteHandlers(
     });
   const buildHandleJellyfinRemoteGeneralCommandMainDepsHandler =
     createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler({
-      getMpvClient: options.getMpvClient as Parameters<
-        typeof createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler
-      >[0]['getMpvClient'],
+      getMpvClient: options.getMpvClient,
       sendMpvCommand: options.sendMpvCommand,
       getActivePlayback: options.getActivePlayback,
       reportJellyfinRemoteProgress: (force) => reportJellyfinRemoteProgress(force),

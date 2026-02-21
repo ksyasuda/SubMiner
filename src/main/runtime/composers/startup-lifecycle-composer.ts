@@ -10,6 +10,7 @@ import {
 } from '../app-lifecycle-main-activate';
 import { createBuildRegisterProtocolUrlHandlersMainDepsHandler } from '../protocol-url-handlers-main-deps';
 import { registerProtocolUrlHandlers } from '../protocol-url-handlers';
+import type { ComposerInputs, ComposerOutputs } from './contracts';
 
 type RegisterProtocolUrlHandlersMainDeps = Parameters<
   typeof createBuildRegisterProtocolUrlHandlersMainDepsHandler
@@ -22,19 +23,19 @@ type RestoreWindowsOnActivateMainDeps = Parameters<
   typeof createBuildRestoreWindowsOnActivateMainDepsHandler
 >[0];
 
-export type StartupLifecycleComposerOptions = {
+export type StartupLifecycleComposerOptions = ComposerInputs<{
   registerProtocolUrlHandlersMainDeps: RegisterProtocolUrlHandlersMainDeps;
   onWillQuitCleanupMainDeps: OnWillQuitCleanupDeps;
   shouldRestoreWindowsOnActivateMainDeps: ShouldRestoreWindowsOnActivateMainDeps;
   restoreWindowsOnActivateMainDeps: RestoreWindowsOnActivateMainDeps;
-};
+}>;
 
-export type StartupLifecycleComposerResult = {
+export type StartupLifecycleComposerResult = ComposerOutputs<{
   registerProtocolUrlHandlers: () => void;
   onWillQuitCleanup: () => void;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
-};
+}>;
 
 export function composeStartupLifecycleHandlers(
   options: StartupLifecycleComposerOptions,
