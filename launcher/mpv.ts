@@ -416,23 +416,6 @@ export async function loadSubtitleIntoMpv(
   }
 }
 
-export function waitForSocket(socketPath: string, timeoutMs = 10000): Promise<boolean> {
-  const start = Date.now();
-  return new Promise((resolve) => {
-    const timer = setInterval(() => {
-      if (fs.existsSync(socketPath)) {
-        clearInterval(timer);
-        resolve(true);
-        return;
-      }
-      if (Date.now() - start >= timeoutMs) {
-        clearInterval(timer);
-        resolve(false);
-      }
-    }, 100);
-  });
-}
-
 export function startMpv(
   target: string,
   targetKind: 'file' | 'url',
@@ -672,19 +655,6 @@ async function sleepMs(ms: number): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForPathExists(filePath: string, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      if (fs.existsSync(filePath)) return true;
-    } catch {
-      // ignore transient fs errors
-    }
-    await sleepMs(150);
-  }
-  return false;
-}
-
 async function canConnectUnixSocket(socketPath: string): Promise<boolean> {
   return await new Promise<boolean>((resolve) => {
     const socket = net.createConnection(socketPath);
@@ -713,10 +683,13 @@ export async function waitForUnixSocketReady(
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const exists = await waitForPathExists(socketPath, 300);
-    if (exists) {
-      const ready = await canConnectUnixSocket(socketPath);
-      if (ready) return true;
+    try {
+      if (fs.existsSync(socketPath)) {
+        const ready = await canConnectUnixSocket(socketPath);
+        if (ready) return true;
+      }
+    } catch {
+      // ignore transient fs errors
     }
     await sleepMs(150);
   }

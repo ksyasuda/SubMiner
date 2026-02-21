@@ -1,10 +1,10 @@
 ---
 id: TASK-73
 title: Consolidate launcher mpv socket readiness primitives
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-18 11:35'
-updated_date: '2026-02-18 11:35'
+updated_date: '2026-02-21 20:19'
 labels:
   - launcher
   - mpv
@@ -31,15 +31,14 @@ Launcher contains multiple overlapping MPV readiness/polling helpers (`waitForSo
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Single canonical MPV socket readiness helper remains
-- [ ] #2 All launcher callsites use unified helper
-- [ ] #3 Behavior/exit code compatibility maintained for CLI flows
-- [ ] #4 Test coverage added for readiness timeout behavior
+- [x] #1 Single canonical MPV socket readiness helper remains
+- [x] #2 All launcher callsites use unified helper
+- [x] #3 Behavior/exit code compatibility maintained for CLI flows
+- [x] #4 Test coverage added for readiness timeout behavior
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Launcher tests pass
-- [ ] #2 No dead helper functions remain
+- [x] #1 Launcher tests pass
+- [x] #2 No dead helper functions remain
 <!-- DOD:END -->
-

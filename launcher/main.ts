@@ -19,7 +19,6 @@ import {
   stopOverlay,
   launchTexthookerOnly,
   findAppBinary,
-  waitForSocket,
   loadSubtitleIntoMpv,
   runAppCommandWithInherit,
   launchMpvIdleDetached,
@@ -361,7 +360,7 @@ async function main(): Promise<void> {
     });
   }
 
-  const ready = await waitForSocket(mpvSocketPath);
+  const ready = await waitForUnixSocketReady(mpvSocketPath, 10000);
   const shouldStartOverlay = args.startOverlay || args.autoStartOverlay;
   if (shouldStartOverlay) {
     if (ready) {
