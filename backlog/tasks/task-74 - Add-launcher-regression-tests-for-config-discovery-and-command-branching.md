@@ -1,10 +1,10 @@
 ---
 id: TASK-74
 title: Add launcher regression tests for config discovery and command branching
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-18 11:35'
-updated_date: '2026-02-18 11:35'
+updated_date: '2026-02-21 20:21'
 labels:
   - launcher
   - tests
@@ -35,14 +35,13 @@ Launcher currently has no direct test coverage for config discovery behavior and
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Launcher config discovery paths are regression-tested
-- [ ] #2 Core launcher command branches are regression-tested
-- [ ] #3 Tests run in CI/local test gate without external process dependencies
+- [x] #1 Launcher config discovery paths are regression-tested
+- [x] #2 Core launcher command branches are regression-tested
+- [x] #3 Tests run in CI/local test gate without external process dependencies
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Launcher tests included in standard test workflow
-- [ ] #2 Documented how to run launcher tests locally
+- [x] #1 Launcher tests included in standard test workflow
+- [x] #2 Documented how to run launcher tests locally
 <!-- DOD:END -->
-
