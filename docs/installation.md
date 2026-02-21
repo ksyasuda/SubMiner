@@ -65,6 +65,7 @@ make install
 ```
 
 `make build-launcher` generates the wrapper at `dist/launcher/subminer`. The checked-in launcher source remains `launcher/*.ts`.
+Do not use a repo-root `./subminer` artifact when building from source; workflow checks enforce `dist/launcher/subminer` as the only generated path.
 
 ## macOS
 

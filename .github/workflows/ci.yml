@@ -60,3 +60,6 @@ jobs:
 
       - name: Verify Bun subminer wrapper
         run: dist/launcher/subminer --help >/dev/null
+
+      - name: Enforce generated launcher workflow
+        run: bash scripts/verify-generated-launcher.sh

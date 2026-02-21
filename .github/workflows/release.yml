@@ -208,6 +208,9 @@ jobs:
       - name: Verify Bun subminer wrapper
         run: dist/launcher/subminer --help >/dev/null
 
+      - name: Enforce generated launcher workflow
+        run: bash scripts/verify-generated-launcher.sh
+
       - name: Package optional assets bundle
         run: |
           VERSION="${GITHUB_REF#refs/tags/}"
@@ -220,7 +223,7 @@ jobs:
       - name: Generate checksums
         run: |
           shopt -s nullglob
-          files=(release/*.AppImage release/*.dmg release/*.zip release/*.tar.gz subminer)
+          files=(release/*.AppImage release/*.dmg release/*.zip release/*.tar.gz dist/launcher/subminer)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No release artifacts found for checksum generation."
             exit 1
@@ -288,6 +291,6 @@ jobs:
             release/*.zip
             release/*.tar.gz
             release/SHA256SUMS.txt
-            subminer
+            dist/launcher/subminer
           draft: false
           prerelease: false

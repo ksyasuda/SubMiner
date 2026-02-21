@@ -40,6 +40,7 @@ make build-macos-unsigned # macOS DMG + ZIP (unsigned)
 - Source of truth: `launcher/*.ts`
 - Generated output: `dist/launcher/subminer`
 - Do not hand-edit generated launcher output.
+- Repo-root `./subminer` is a stale artifact path and is rejected by verification checks.
 - Install targets (`make install-linux`, `make install-macos`) copy from `dist/launcher/subminer`.
 
 Verify the workflow:
