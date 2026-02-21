@@ -8,6 +8,11 @@
 - heartbeat_minutes: 5
 
 ## Current Work (newest first)
+- [2026-02-21T02:04:12Z] handoff: completed writing-plans request; created 3 backlog tickets (`TASK-93`, `TASK-94`, `TASK-95`) and saved end-to-end execution plan at `docs/plans/2026-02-20-task85-remaining-workstreams-plan.md`.
+- [2026-02-20T12:06:40Z] intent: user requested writing-plans output only: create end-to-end plans + one ticket per remaining workstream (TASK-85 tracking sync, main.ts composition-root completion, oversized hotspot decomposition).
+- [2026-02-20T12:05:35Z] handoff: completed plan + execution for main.ts fan-in reduction slice. Added runtime domain barrels (`src/main/runtime/domains/*`), composed registry (`src/main/runtime/registry.ts`), migrated `src/main.ts` runtime imports to domain paths, and added fan-in guard (`scripts/check-main-runtime-fanin.ts` + package scripts).
+- [2026-02-20T12:05:35Z] test: `bun run build`, `bun run test:config:dist`, `bun run test:core:dist`, `bun run check:main-fanin`, `bun run check:file-budgets` pass; registry unit test now skips in environments lacking `node:sqlite`.
+- [2026-02-20T11:57:58Z] intent: user requested end-to-end execution for main.ts fan-in reduction; using writing-plans then executing-plans flow to add domain barrels + registry composition and migrate `src/main.ts` runtime imports/wiring.
 - [2026-02-20T11:48:28Z] progress: executed cleanup item #4 first: reconciled launcher generated-artifact policy by moving `build-launcher` output to `dist/launcher/subminer` and making install targets consume that path.
 - [2026-02-20T11:48:28Z] progress: added `scripts/verify-generated-launcher.sh` and documented canonical workflow in `docs/development.md` + `docs/installation.md`.
 - [2026-02-20T11:48:28Z] test: `make build-launcher && ls -la dist/launcher/subminer && bash scripts/verify-generated-launcher.sh` passes (warns if stale `./subminer` exists locally).
@@ -25,6 +30,24 @@
 - `scripts/verify-generated-launcher.sh`
 - `docs/development.md`
 - `docs/installation.md`
+- `docs/plans/2026-02-20-main-runtime-fanin-registry-plan.md`
+- `src/main/runtime/domains/anilist.ts`
+- `src/main/runtime/domains/jellyfin.ts`
+- `src/main/runtime/domains/overlay.ts`
+- `src/main/runtime/domains/startup.ts`
+- `src/main/runtime/domains/mpv.ts`
+- `src/main/runtime/domains/shortcuts.ts`
+- `src/main/runtime/domains/ipc.ts`
+- `src/main/runtime/domains/mining.ts`
+- `src/main/runtime/domains/index.ts`
+- `src/main/runtime/registry.ts`
+- `src/main/runtime/registry.test.ts`
+- `scripts/check-main-runtime-fanin.ts`
+- `src/main.ts`
+- `package.json`
+- `docs/file-size-budgets.md`
+- `backlog/tasks/task-71 - Split-main.ts-into-domain-runtime-modules-round-2.md`
+- `backlog/tasks/task-85 - Refactor-large-files-for-maintainability-and-readability.md`
 
 ## Assumptions
 - Review scope = recent TASK-85 refactor commits on `main` (mostly 2026-02-20 series touching `src/main.ts` and `src/main/runtime/*`).
@@ -33,4 +56,4 @@
 - none
 
 ## Next Step
-- Convert review findings into concrete child backlog tasks under TASK-85 (domain-by-domain extraction + import-fan-in reduction + AC/DoD closeout pass).
+- Continue reducing `src/main.ts` runtime import line count (currently 105) by collapsing repeated domain import blocks into central registry destructuring and/or domain-specific runtime composer modules.
