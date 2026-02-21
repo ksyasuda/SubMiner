@@ -9,10 +9,12 @@ test('get resolved jellyfin config main deps builder maps callbacks', () => {
   const resolved = { jellyfin: { url: 'https://example.com' } };
   const deps = createBuildGetResolvedJellyfinConfigMainDepsHandler({
     getResolvedConfig: () => resolved as never,
-    loadStoredToken: () => 'stored-token',
+    loadStoredSession: () => ({ accessToken: 'stored-token', userId: 'uid' }),
+    getEnv: (key: string) => (key === 'TEST' ? 'x' : undefined),
   })();
   assert.equal(deps.getResolvedConfig(), resolved);
-  assert.equal(deps.loadStoredToken(), 'stored-token');
+  assert.deepEqual(deps.loadStoredSession(), { accessToken: 'stored-token', userId: 'uid' });
+  assert.equal(deps.getEnv('TEST'), 'x');
 });
 
 test('get jellyfin client info main deps builder maps callbacks', () => {

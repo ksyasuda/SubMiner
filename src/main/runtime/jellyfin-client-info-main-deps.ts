@@ -11,7 +11,8 @@ export function createBuildGetResolvedJellyfinConfigMainDepsHandler(
 ) {
   return (): GetResolvedJellyfinConfigMainDeps => ({
     getResolvedConfig: () => deps.getResolvedConfig(),
-    loadStoredToken: () => deps.loadStoredToken(),
+    loadStoredSession: () => deps.loadStoredSession(),
+    getEnv: (name: string) => deps.getEnv(name),
   });
 }
 

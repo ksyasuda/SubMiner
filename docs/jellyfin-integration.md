@@ -109,7 +109,7 @@ remote playback target in Jellyfin's cast-to-device menu.
 ### Requirements
 
 - `jellyfin.enabled=true`
-- valid `jellyfin.serverUrl`, `jellyfin.accessToken`, and `jellyfin.userId`
+- valid `jellyfin.serverUrl` and Jellyfin auth session (env override or stored login session)
 - `jellyfin.remoteControlEnabled=true` (default)
 - `jellyfin.remoteControlAutoConnect=true` (default)
 - `jellyfin.autoAnnounce=false` by default (`true` enables auto announce/visibility check logs on connect)
@@ -149,8 +149,8 @@ User-visible errors are shown through CLI logs and mpv OSD for:
 
 ## Security Notes and Limitations
 
-- Jellyfin access token is stored in local encrypted token storage after login/setup.
-- `jellyfin.accessToken` remains as an optional explicit override in `config.jsonc`.
+- Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted token storage after login/setup.
+- Optional environment overrides are supported: `SUBMINER_JELLYFIN_ACCESS_TOKEN` and `SUBMINER_JELLYFIN_USER_ID`.
 - Treat both token storage and config files as secrets and avoid committing them.
 - Password is used only for login and is not stored.
 - Optional setup UI is available via `--jellyfin`; all actions are also available via CLI flags.

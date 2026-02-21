@@ -2,8 +2,8 @@ type JellyfinRemoteConfig = {
   remoteControlEnabled: boolean;
   remoteControlAutoConnect: boolean;
   serverUrl: string;
-  accessToken: string;
-  userId: string;
+  accessToken?: string;
+  userId?: string;
   deviceId: string;
   clientName: string;
   clientVersion: string;

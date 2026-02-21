@@ -117,7 +117,7 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
     clientInfo: JellyfinClientInfo,
   ) => Promise<JellyfinSession>;
   getJellyfinClientInfo: () => JellyfinClientInfo;
-  saveStoredToken: (token: string) => void;
+  saveStoredSession: (session: { accessToken: string; userId: string }) => void;
   patchJellyfinConfig: (session: JellyfinSession) => void;
   logInfo: (message: string) => void;
   logError: (message: string, error: unknown) => void;
@@ -137,7 +137,10 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
         submission.password,
         deps.getJellyfinClientInfo(),
       );
-      deps.saveStoredToken(session.accessToken);
+      deps.saveStoredSession({
+        accessToken: session.accessToken,
+        userId: session.userId,
+      });
       deps.patchJellyfinConfig(session);
       deps.logInfo(`Jellyfin setup saved for ${session.username}.`);
       deps.showMpvOsd('Jellyfin login success');
@@ -197,7 +200,7 @@ export function createOpenJellyfinSetupWindowHandler<TWindow extends JellyfinSet
     clientInfo: JellyfinClientInfo,
   ) => Promise<JellyfinSession>;
   getJellyfinClientInfo: () => JellyfinClientInfo;
-  saveStoredToken: (token: string) => void;
+  saveStoredSession: (session: { accessToken: string; userId: string }) => void;
   patchJellyfinConfig: (session: JellyfinSession) => void;
   logInfo: (message: string) => void;
   logError: (message: string, error: unknown) => void;
@@ -221,7 +224,7 @@ export function createOpenJellyfinSetupWindowHandler<TWindow extends JellyfinSet
       authenticateWithPassword: (server, username, password, clientInfo) =>
         deps.authenticateWithPassword(server, username, password, clientInfo),
       getJellyfinClientInfo: () => deps.getJellyfinClientInfo(),
-      saveStoredToken: (token) => deps.saveStoredToken(token),
+      saveStoredSession: (session) => deps.saveStoredSession(session),
       patchJellyfinConfig: (session) => deps.patchJellyfinConfig(session),
       logInfo: (message) => deps.logInfo(message),
       logError: (message, error) => deps.logError(message, error),

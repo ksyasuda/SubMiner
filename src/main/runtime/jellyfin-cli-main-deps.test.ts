@@ -12,8 +12,8 @@ test('jellyfin auth commands main deps builder maps callbacks', async () => {
   const deps = createBuildHandleJellyfinAuthCommandsMainDepsHandler({
     patchRawConfig: () => calls.push('patch'),
     authenticateWithPassword: async () => ({}) as never,
-    saveStoredToken: () => calls.push('save'),
-    clearStoredToken: () => calls.push('clear'),
+    saveStoredSession: () => calls.push('save'),
+    clearStoredSession: () => calls.push('clear'),
     logInfo: (message) => calls.push(`info:${message}`),
   })();
 
@@ -23,8 +23,8 @@ test('jellyfin auth commands main deps builder maps callbacks', async () => {
     clientName: '',
     clientVersion: '',
   });
-  deps.saveStoredToken('token');
-  deps.clearStoredToken();
+  deps.saveStoredSession({ accessToken: 'token', userId: 'uid' });
+  deps.clearStoredSession();
   deps.logInfo('ok');
   assert.deepEqual(calls, ['patch', 'save', 'clear', 'info:ok']);
 });

@@ -20,10 +20,10 @@ type JellyfinClientInfo = {
 };
 
 type JellyfinConfigLike = {
-  serverUrl: string;
-  accessToken: string;
-  userId: string;
-  username: string;
+  serverUrl?: string;
+  accessToken?: string;
+  userId?: string;
+  username?: string;
 };
 
 function asInteger(value: unknown): number | undefined {
@@ -39,7 +39,7 @@ export function getConfiguredJellyfinSession(config: JellyfinConfigLike): Jellyf
     serverUrl: config.serverUrl,
     accessToken: config.accessToken,
     userId: config.userId,
-    username: config.username,
+    username: config.username || '',
   };
 }
 

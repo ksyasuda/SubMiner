@@ -2,16 +2,27 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { safeStorage } from 'electron';
 
-interface PersistedTokenPayload {
+interface PersistedSessionPayload {
+  encryptedSession?: string;
+  plaintextSession?: {
+    accessToken?: string;
+    userId?: string;
+  };
+  // Legacy payload fields (token only).
   encryptedToken?: string;
   plaintextToken?: string;
   updatedAt?: number;
 }
 
+export interface JellyfinStoredSession {
+  accessToken: string;
+  userId: string;
+}
+
 export interface JellyfinTokenStore {
-  loadToken: () => string | null;
-  saveToken: (token: string) => void;
-  clearToken: () => void;
+  loadSession: () => JellyfinStoredSession | null;
+  saveSession: (session: JellyfinStoredSession) => void;
+  clearSession: () => void;
 }
 
 function ensureDirectory(filePath: string): void {
@@ -21,7 +32,7 @@ function ensureDirectory(filePath: string): void {
   }
 }
 
-function writePayload(filePath: string, payload: PersistedTokenPayload): void {
+function writePayload(filePath: string, payload: PersistedSessionPayload): void {
   ensureDirectory(filePath);
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
 }
@@ -35,65 +46,94 @@ export function createJellyfinTokenStore(
   },
 ): JellyfinTokenStore {
   return {
-    loadToken(): string | null {
+    loadSession(): JellyfinStoredSession | null {
       if (!fs.existsSync(filePath)) {
         return null;
       }
       try {
         const raw = fs.readFileSync(filePath, 'utf-8');
-        const parsed = JSON.parse(raw) as PersistedTokenPayload;
-        if (typeof parsed.encryptedToken === 'string' && parsed.encryptedToken.length > 0) {
-          const encrypted = Buffer.from(parsed.encryptedToken, 'base64');
+        const parsed = JSON.parse(raw) as PersistedSessionPayload;
+
+        if (typeof parsed.encryptedSession === 'string' && parsed.encryptedSession.length > 0) {
+          const encrypted = Buffer.from(parsed.encryptedSession, 'base64');
           if (!safeStorage.isEncryptionAvailable()) {
-            logger.warn('Jellyfin token encryption is not available on this system.');
+            logger.warn('Jellyfin session encryption is not available on this system.');
             return null;
           }
           const decrypted = safeStorage.decryptString(encrypted).trim();
-          return decrypted.length > 0 ? decrypted : null;
+          const session = JSON.parse(decrypted) as Partial<JellyfinStoredSession>;
+          const accessToken = typeof session.accessToken === 'string' ? session.accessToken.trim() : '';
+          const userId = typeof session.userId === 'string' ? session.userId.trim() : '';
+          if (!accessToken || !userId) return null;
+          return { accessToken, userId };
         }
-        if (typeof parsed.plaintextToken === 'string' && parsed.plaintextToken.trim().length > 0) {
-          const plaintext = parsed.plaintextToken.trim();
-          this.saveToken(plaintext);
-          return plaintext;
+
+        if (parsed.plaintextSession && typeof parsed.plaintextSession === 'object') {
+          const accessToken =
+            typeof parsed.plaintextSession.accessToken === 'string'
+              ? parsed.plaintextSession.accessToken.trim()
+              : '';
+          const userId =
+            typeof parsed.plaintextSession.userId === 'string'
+              ? parsed.plaintextSession.userId.trim()
+              : '';
+          if (accessToken && userId) {
+            const session = { accessToken, userId };
+            this.saveSession(session);
+            return session;
+          }
+        }
+
+        if (
+          (typeof parsed.encryptedToken === 'string' && parsed.encryptedToken.length > 0) ||
+          (typeof parsed.plaintextToken === 'string' && parsed.plaintextToken.trim().length > 0)
+        ) {
+          logger.warn('Ignoring legacy Jellyfin token-only store payload because userId is missing.');
         }
       } catch (error) {
-        logger.error('Failed to read Jellyfin token store.', error);
+        logger.error('Failed to read Jellyfin session store.', error);
       }
       return null;
     },
 
-    saveToken(token: string): void {
-      const trimmed = token.trim();
-      if (trimmed.length === 0) {
-        this.clearToken();
+    saveSession(session: JellyfinStoredSession): void {
+      const accessToken = session.accessToken.trim();
+      const userId = session.userId.trim();
+      if (!accessToken || !userId) {
+        this.clearSession();
         return;
       }
       try {
         if (!safeStorage.isEncryptionAvailable()) {
-          logger.warn('Jellyfin token encryption unavailable; storing token in plaintext fallback.');
+          logger.warn(
+            'Jellyfin session encryption unavailable; storing session in plaintext fallback.',
+          );
           writePayload(filePath, {
-            plaintextToken: trimmed,
+            plaintextSession: {
+              accessToken,
+              userId,
+            },
             updatedAt: Date.now(),
           });
           return;
         }
-        const encrypted = safeStorage.encryptString(trimmed);
+        const encrypted = safeStorage.encryptString(JSON.stringify({ accessToken, userId }));
         writePayload(filePath, {
-          encryptedToken: encrypted.toString('base64'),
+          encryptedSession: encrypted.toString('base64'),
           updatedAt: Date.now(),
         });
       } catch (error) {
-        logger.error('Failed to persist Jellyfin token.', error);
+        logger.error('Failed to persist Jellyfin session.', error);
       }
     },
 
-    clearToken(): void {
+    clearSession(): void {
       if (!fs.existsSync(filePath)) return;
       try {
         fs.unlinkSync(filePath);
-        logger.info('Cleared stored Jellyfin token.');
+        logger.info('Cleared stored Jellyfin session.');
       } catch (error) {
-        logger.error('Failed to clear stored Jellyfin token.', error);
+        logger.error('Failed to clear stored Jellyfin session.', error);
       }
     },
   };

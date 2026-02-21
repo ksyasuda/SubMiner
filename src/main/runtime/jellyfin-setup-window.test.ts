@@ -40,6 +40,8 @@ test('parseJellyfinSetupSubmissionUrl parses setup url parameters', () => {
 
 test('createHandleJellyfinSetupSubmissionHandler applies successful login', async () => {
   const calls: string[] = [];
+  let patchPayload: unknown = null;
+  let savedSession: unknown = null;
   const handler = createHandleJellyfinSetupSubmissionHandler({
     parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
     authenticateWithPassword: async () => ({
@@ -49,8 +51,14 @@ test('createHandleJellyfinSetupSubmissionHandler applies successful login', asyn
       userId: 'uid',
     }),
     getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
-    saveStoredToken: () => calls.push('save'),
-    patchJellyfinConfig: () => calls.push('patch'),
+    saveStoredSession: (session) => {
+      savedSession = session;
+      calls.push('save');
+    },
+    patchJellyfinConfig: (session) => {
+      patchPayload = session;
+      calls.push('patch');
+    },
     logInfo: () => calls.push('info'),
     logError: () => calls.push('error'),
     showMpvOsd: (message) => calls.push(`osd:${message}`),
@@ -62,6 +70,13 @@ test('createHandleJellyfinSetupSubmissionHandler applies successful login', asyn
   );
   assert.equal(handled, true);
   assert.deepEqual(calls, ['save', 'patch', 'info', 'osd:Jellyfin login success', 'close']);
+  assert.deepEqual(savedSession, { accessToken: 'token', userId: 'uid' });
+  assert.deepEqual(patchPayload, {
+    serverUrl: 'http://localhost',
+    username: 'user',
+    accessToken: 'token',
+    userId: 'uid',
+  });
 });
 
 test('createHandleJellyfinSetupSubmissionHandler reports failure to OSD', async () => {
@@ -72,7 +87,7 @@ test('createHandleJellyfinSetupSubmissionHandler reports failure to OSD', async 
       throw new Error('bad credentials');
     },
     getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
-    saveStoredToken: () => calls.push('save'),
+    saveStoredSession: () => calls.push('save'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: () => calls.push('info'),
     logError: () => calls.push('error'),
@@ -166,7 +181,7 @@ test('createOpenJellyfinSetupWindowHandler no-ops when existing setup window is 
       throw new Error('should not auth');
     },
     getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
-    saveStoredToken: () => {},
+    saveStoredSession: () => {},
     patchJellyfinConfig: () => {},
     logInfo: () => {},
     logError: () => {},
@@ -219,7 +234,7 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
       userId: 'uid',
     }),
     getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
-    saveStoredToken: () => calls.push('save'),
+    saveStoredSession: () => calls.push('save'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: () => calls.push('info'),
     logError: () => calls.push('error'),

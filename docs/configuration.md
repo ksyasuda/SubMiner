@@ -477,8 +477,6 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
     "enabled": true,
     "serverUrl": "http://127.0.0.1:8096",
     "username": "",
-    "accessToken": "",
-    "userId": "",
     "remoteControlEnabled": true,
     "remoteControlAutoConnect": true,
     "autoAnnounce": false,
@@ -496,8 +494,6 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `enabled`                  | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`)              |
 | `serverUrl`                | string (URL)    | Jellyfin server base URL                                                     |
 | `username`                 | string          | Default username used by `--jellyfin-login`                                  |
-| `accessToken`              | string          | Optional explicit Jellyfin access token override; leave empty to use stored local token |
-| `userId`                   | string          | Jellyfin user id bound to token/session                                      |
 | `deviceId`                 | string          | Client device id sent in auth headers (default: `subminer`)                  |
 | `clientName`               | string          | Client name sent in auth headers (default: `SubMiner`)                       |
 | `clientVersion`            | string          | Client version sent in auth headers (default: `0.1.0`)                       |
@@ -512,7 +508,10 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                |
 | `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                   |
 
-When `jellyfin.accessToken` is empty, SubMiner uses the locally stored encrypted token saved from Jellyfin login/setup.
+Jellyfin auth resolution order:
+
+1. `SUBMINER_JELLYFIN_ACCESS_TOKEN` (and optional `SUBMINER_JELLYFIN_USER_ID`) environment overrides.
+2. Locally stored encrypted Jellyfin session payload saved by login/setup (`accessToken` + `userId`).
 
 Jellyfin direct app CLI commands (`SubMiner.AppImage ...`):
 

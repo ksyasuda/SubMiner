@@ -6,8 +6,8 @@ test('jellyfin auth handler processes logout', async () => {
   const calls: string[] = [];
   const handleAuth = createHandleJellyfinAuthCommands({
     patchRawConfig: () => calls.push('patch'),
-    saveStoredToken: () => calls.push('save'),
-    clearStoredToken: () => calls.push('clear'),
+    saveStoredSession: () => calls.push('save'),
+    clearStoredSession: () => calls.push('clear'),
     authenticateWithPassword: async () => {
       throw new Error('should not authenticate');
     },
@@ -24,8 +24,6 @@ test('jellyfin auth handler processes logout', async () => {
     jellyfinConfig: {
       serverUrl: '',
       username: '',
-      accessToken: '',
-      userId: '',
     },
     serverUrl: 'http://localhost',
     clientInfo: {
@@ -41,10 +39,18 @@ test('jellyfin auth handler processes logout', async () => {
 
 test('jellyfin auth handler processes login', async () => {
   const calls: string[] = [];
+  let patchPayload: unknown = null;
+  let storedSession: unknown = null;
   const handleAuth = createHandleJellyfinAuthCommands({
-    patchRawConfig: () => calls.push('patch'),
-    saveStoredToken: () => calls.push('save'),
-    clearStoredToken: () => calls.push('clear'),
+    patchRawConfig: (patch) => {
+      patchPayload = patch;
+      calls.push('patch');
+    },
+    saveStoredSession: (session) => {
+      storedSession = session;
+      calls.push('save');
+    },
+    clearStoredSession: () => calls.push('clear'),
     authenticateWithPassword: async () => ({
       serverUrl: 'http://localhost',
       username: 'user',
@@ -64,8 +70,6 @@ test('jellyfin auth handler processes login', async () => {
     jellyfinConfig: {
       serverUrl: '',
       username: '',
-      accessToken: '',
-      userId: '',
     },
     serverUrl: 'http://localhost',
     clientInfo: {
@@ -78,14 +82,25 @@ test('jellyfin auth handler processes login', async () => {
   assert.equal(handled, true);
   assert.ok(calls.includes('save'));
   assert.ok(calls.includes('patch'));
+  assert.deepEqual(storedSession, { accessToken: 'token', userId: 'uid' });
+  assert.deepEqual(patchPayload, {
+    jellyfin: {
+      enabled: true,
+      serverUrl: 'http://localhost',
+      username: 'user',
+      deviceId: 'd1',
+      clientName: 'SubMiner',
+      clientVersion: '1.0',
+    },
+  });
   assert.ok(calls.some((entry) => entry.includes('Jellyfin login succeeded')));
 });
 
 test('jellyfin auth handler no-ops when no auth command', async () => {
   const handleAuth = createHandleJellyfinAuthCommands({
     patchRawConfig: () => {},
-    saveStoredToken: () => {},
-    clearStoredToken: () => {},
+    saveStoredSession: () => {},
+    clearStoredSession: () => {},
     authenticateWithPassword: async () => ({
       serverUrl: '',
       username: '',
@@ -105,8 +120,6 @@ test('jellyfin auth handler no-ops when no auth command', async () => {
     jellyfinConfig: {
       serverUrl: '',
       username: '',
-      accessToken: '',
-      userId: '',
     },
     serverUrl: 'http://localhost',
     clientInfo: {

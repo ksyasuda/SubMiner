@@ -342,8 +342,6 @@ export interface JellyfinConfig {
   enabled?: boolean;
   serverUrl?: string;
   username?: string;
-  accessToken?: string;
-  userId?: string;
   deviceId?: string;
   clientName?: string;
   clientVersion?: string;
@@ -515,8 +513,6 @@ export interface ResolvedConfig {
     enabled: boolean;
     serverUrl: string;
     username: string;
-    accessToken: string;
-    userId: string;
     deviceId: string;
     clientName: string;
     clientVersion: string;

@@ -17,7 +17,7 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
       userId: 'uid',
     }),
     getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'dev' }),
-    saveStoredToken: () => calls.push('save'),
+    saveStoredSession: () => calls.push('save'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: (message) => calls.push(`info:${message}`),
     logError: (message) => calls.push(`error:${message}`),
@@ -44,7 +44,7 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     accessToken: 'token',
     userId: 'uid',
   });
-  deps.saveStoredToken('token');
+  deps.saveStoredSession({ accessToken: 'token', userId: 'uid' });
   deps.patchJellyfinConfig({
     serverUrl: 'http://127.0.0.1:8096',
     username: 'alice',

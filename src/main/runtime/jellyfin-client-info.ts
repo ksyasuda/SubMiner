@@ -1,24 +1,37 @@
 export function createGetResolvedJellyfinConfigHandler(deps: {
   getResolvedConfig: () => { jellyfin: unknown };
-  loadStoredToken: () => string | null | undefined;
+  loadStoredSession: () => { accessToken: string; userId: string } | null | undefined;
+  getEnv: (name: string) => string | undefined;
 }) {
   return () => {
     const jellyfin = deps.getResolvedConfig().jellyfin as {
-      accessToken?: string;
+      userId?: string;
       [key: string]: unknown;
     };
-    const configToken = jellyfin.accessToken?.trim() ?? '';
-    if (configToken.length > 0) {
-      return jellyfin as never;
+
+    const envToken = deps.getEnv('SUBMINER_JELLYFIN_ACCESS_TOKEN')?.trim() ?? '';
+    const envUserId = deps.getEnv('SUBMINER_JELLYFIN_USER_ID')?.trim() ?? '';
+    const stored = deps.loadStoredSession();
+    const storedToken = stored?.accessToken?.trim() ?? '';
+    const storedUserId = stored?.userId?.trim() ?? '';
+
+    if (envToken.length > 0) {
+      return {
+        ...jellyfin,
+        accessToken: envToken,
+        userId: envUserId || storedUserId || '',
+      } as never;
     }
-    const storedToken = deps.loadStoredToken()?.trim() ?? '';
-    if (storedToken.length === 0) {
-      return jellyfin as never;
+
+    if (storedToken.length > 0 && storedUserId.length > 0) {
+      return {
+        ...jellyfin,
+        accessToken: storedToken,
+        userId: storedUserId,
+      } as never;
     }
-    return {
-      ...jellyfin,
-      accessToken: storedToken,
-    } as never;
+
+    return jellyfin as never;
   };
 }
 

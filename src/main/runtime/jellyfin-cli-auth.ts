@@ -3,8 +3,6 @@ import type { CliArgs } from '../../cli/args';
 type JellyfinConfig = {
   serverUrl: string;
   username: string;
-  accessToken: string;
-  userId: string;
 };
 
 type JellyfinClientInfo = {
@@ -26,8 +24,6 @@ export function createHandleJellyfinAuthCommands(deps: {
       enabled: boolean;
       serverUrl: string;
       username: string;
-      accessToken: string;
-      userId: string;
       deviceId: string;
       clientName: string;
       clientVersion: string;
@@ -39,8 +35,8 @@ export function createHandleJellyfinAuthCommands(deps: {
     password: string,
     clientInfo: JellyfinClientInfo,
   ) => Promise<JellyfinSession>;
-  saveStoredToken: (token: string) => void;
-  clearStoredToken: () => void;
+  saveStoredSession: (session: { accessToken: string; userId: string }) => void;
+  clearStoredSession: () => void;
   logInfo: (message: string) => void;
 }) {
   return async (params: {
@@ -50,14 +46,11 @@ export function createHandleJellyfinAuthCommands(deps: {
     clientInfo: JellyfinClientInfo;
   }): Promise<boolean> => {
     if (params.args.jellyfinLogout) {
-      deps.clearStoredToken();
+      deps.clearStoredSession();
       deps.patchRawConfig({
-        jellyfin: {
-          accessToken: '',
-          userId: '',
-        },
+        jellyfin: {},
       });
-      deps.logInfo('Cleared stored Jellyfin access token.');
+      deps.logInfo('Cleared stored Jellyfin auth session.');
       return true;
     }
 
@@ -73,14 +66,15 @@ export function createHandleJellyfinAuthCommands(deps: {
       password,
       params.clientInfo,
     );
-    deps.saveStoredToken(session.accessToken);
+    deps.saveStoredSession({
+      accessToken: session.accessToken,
+      userId: session.userId,
+    });
     deps.patchRawConfig({
       jellyfin: {
         enabled: true,
         serverUrl: session.serverUrl,
         username: session.username,
-        accessToken: '',
-        userId: session.userId,
         deviceId: params.clientInfo.deviceId,
         clientName: params.clientInfo.clientName,
         clientVersion: params.clientInfo.clientVersion,

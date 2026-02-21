@@ -273,15 +273,15 @@
   // ==========================================
   // Jellyfin
   // Optional Jellyfin integration for auth, browsing, and playback launch.
-  // Access token is stored in local encrypted token storage after login/setup.
-  // jellyfin.accessToken below remains an optional explicit override.
+  // Auth session (access token + user id) is stored in local encrypted storage after login/setup.
+  // Optional environment overrides:
+  //   SUBMINER_JELLYFIN_ACCESS_TOKEN
+  //   SUBMINER_JELLYFIN_USER_ID
   // ==========================================
   "jellyfin": {
     "enabled": false, // Enable optional Jellyfin integration and CLI control commands. Values: true | false
     "serverUrl": "", // Base Jellyfin server URL (for example: http://localhost:8096).
     "username": "", // Default Jellyfin username used during CLI login.
-    "accessToken": "", // Optional explicit access token override; leave empty to use stored local token.
-    "userId": "", // User id setting.
     "deviceId": "subminer", // Device id setting.
     "clientName": "SubMiner", // Client name setting.
     "clientVersion": "0.1.0", // Client version setting.
