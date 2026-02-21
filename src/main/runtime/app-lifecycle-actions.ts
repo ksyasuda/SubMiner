@@ -8,6 +8,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   destroyYomitanParserWindow: () => void;
   clearYomitanParserState: () => void;
   stopWindowTracker: () => void;
+  flushMpvLog: () => void;
   destroyMpvSocket: () => void;
   clearReconnectTimer: () => void;
   destroySubtitleTimingTracker: () => void;
@@ -29,6 +30,7 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.destroyYomitanParserWindow();
     deps.clearYomitanParserState();
     deps.stopWindowTracker();
+    deps.flushMpvLog();
     deps.destroyMpvSocket();
     deps.clearReconnectTimer();
     deps.destroySubtitleTimingTracker();

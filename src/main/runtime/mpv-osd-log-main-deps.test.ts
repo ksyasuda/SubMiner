@@ -5,7 +5,7 @@ import {
   createBuildShowMpvOsdMainDepsHandler,
 } from './mpv-osd-log-main-deps';
 
-test('append to mpv log main deps map filesystem functions and log path', () => {
+test('append to mpv log main deps map filesystem functions and log path', async () => {
   const calls: string[] = [];
   const deps = createBuildAppendToMpvLogMainDepsHandler({
     logPath: '/tmp/mpv.log',
@@ -13,15 +13,19 @@ test('append to mpv log main deps map filesystem functions and log path', () => 
       calls.push(`dirname:${targetPath}`);
       return '/tmp';
     },
-    mkdirSync: (targetPath) => calls.push(`mkdir:${targetPath}`),
-    appendFileSync: (_targetPath, data) => calls.push(`append:${data}`),
+    mkdir: async (targetPath) => {
+      calls.push(`mkdir:${targetPath}`);
+    },
+    appendFile: async (_targetPath, data) => {
+      calls.push(`append:${data}`);
+    },
     now: () => new Date('2026-02-20T00:00:00.000Z'),
   })();
 
   assert.equal(deps.logPath, '/tmp/mpv.log');
   assert.equal(deps.dirname('/tmp/mpv.log'), '/tmp');
-  deps.mkdirSync('/tmp', { recursive: true });
-  deps.appendFileSync('/tmp/mpv.log', 'line', { encoding: 'utf8' });
+  await deps.mkdir('/tmp', { recursive: true });
+  await deps.appendFile('/tmp/mpv.log', 'line', { encoding: 'utf8' });
   assert.equal(deps.now().toISOString(), '2026-02-20T00:00:00.000Z');
   assert.deepEqual(calls, ['dirname:/tmp/mpv.log', 'mkdir:/tmp', 'append:line']);
 });

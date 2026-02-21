@@ -3,23 +3,51 @@ import type { MpvRuntimeClientLike } from '../../core/services/mpv';
 export function createAppendToMpvLogHandler(deps: {
   logPath: string;
   dirname: (targetPath: string) => string;
-  mkdirSync: (targetPath: string, options: { recursive: boolean }) => void;
-  appendFileSync: (
-    targetPath: string,
-    data: string,
-    options: { encoding: 'utf8' },
-  ) => void;
+  mkdir: (targetPath: string, options: { recursive: boolean }) => Promise<void>;
+  appendFile: (targetPath: string, data: string, options: { encoding: 'utf8' }) => Promise<void>;
   now: () => Date;
 }) {
-  return (message: string): void => {
-    try {
-      deps.mkdirSync(deps.dirname(deps.logPath), { recursive: true });
-      deps.appendFileSync(deps.logPath, `[${deps.now().toISOString()}] ${message}\n`, {
-        encoding: 'utf8',
-      });
-    } catch {
-      // best-effort logging
+  const pendingLines: string[] = [];
+  let drainPromise: Promise<void> | null = null;
+
+  const drainPendingLines = async (): Promise<void> => {
+    while (pendingLines.length > 0) {
+      const chunk = pendingLines.splice(0, pendingLines.length).join('');
+      try {
+        await deps.mkdir(deps.dirname(deps.logPath), { recursive: true });
+        await deps.appendFile(deps.logPath, chunk, { encoding: 'utf8' });
+      } catch {
+        // best-effort logging
+      }
     }
+  };
+
+  const scheduleDrain = (): Promise<void> => {
+    if (drainPromise) return drainPromise;
+    drainPromise = (async () => {
+      try {
+        await drainPendingLines();
+      } finally {
+        drainPromise = null;
+      }
+    })();
+    return drainPromise;
+  };
+
+  const appendToMpvLog = (message: string): void => {
+    pendingLines.push(`[${deps.now().toISOString()}] ${message}\n`);
+    void scheduleDrain();
+  };
+
+  const flushMpvLog = async (): Promise<void> => {
+    while (pendingLines.length > 0 || drainPromise) {
+      await scheduleDrain();
+    }
+  };
+
+  return {
+    appendToMpvLog,
+    flushMpvLog,
   };
 }
 

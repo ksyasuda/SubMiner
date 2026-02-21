@@ -11,10 +11,12 @@ export function createMpvOsdRuntimeHandlers(deps: {
   appendToMpvLogMainDeps: AppendToMpvLogMainDeps;
   buildShowMpvOsdMainDeps: (appendToMpvLog: (message: string) => void) => ShowMpvOsdMainDeps;
 }) {
-  const appendToMpvLogMainDeps =
-    createBuildAppendToMpvLogMainDepsHandler(deps.appendToMpvLogMainDeps)();
-  const appendToMpvLogHandler = createAppendToMpvLogHandler(appendToMpvLogMainDeps);
-  const appendToMpvLog = (message: string) => appendToMpvLogHandler(message);
+  const appendToMpvLogMainDeps = createBuildAppendToMpvLogMainDepsHandler(
+    deps.appendToMpvLogMainDeps,
+  )();
+  const appendToMpvLogRuntime = createAppendToMpvLogHandler(appendToMpvLogMainDeps);
+  const appendToMpvLog = (message: string) => appendToMpvLogRuntime.appendToMpvLog(message);
+  const flushMpvLog = async () => appendToMpvLogRuntime.flushMpvLog();
 
   const showMpvOsdMainDeps = createBuildShowMpvOsdMainDepsHandler(
     deps.buildShowMpvOsdMainDeps(appendToMpvLog),
@@ -24,6 +26,7 @@ export function createMpvOsdRuntimeHandlers(deps: {
 
   return {
     appendToMpvLog,
+    flushMpvLog,
     showMpvOsd,
   };
 }

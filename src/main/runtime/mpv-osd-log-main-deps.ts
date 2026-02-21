@@ -1,17 +1,16 @@
 export function createBuildAppendToMpvLogMainDepsHandler(deps: {
   logPath: string;
   dirname: (targetPath: string) => string;
-  mkdirSync: (targetPath: string, options: { recursive: boolean }) => void;
-  appendFileSync: (targetPath: string, data: string, options: { encoding: 'utf8' }) => void;
+  mkdir: (targetPath: string, options: { recursive: boolean }) => Promise<void>;
+  appendFile: (targetPath: string, data: string, options: { encoding: 'utf8' }) => Promise<void>;
   now: () => Date;
 }) {
   return () => ({
     logPath: deps.logPath,
     dirname: (targetPath: string) => deps.dirname(targetPath),
-    mkdirSync: (targetPath: string, options: { recursive: boolean }) =>
-      deps.mkdirSync(targetPath, options),
-    appendFileSync: (targetPath: string, data: string, options: { encoding: 'utf8' }) =>
-      deps.appendFileSync(targetPath, data, options),
+    mkdir: (targetPath: string, options: { recursive: boolean }) => deps.mkdir(targetPath, options),
+    appendFile: (targetPath: string, data: string, options: { encoding: 'utf8' }) =>
+      deps.appendFile(targetPath, data, options),
     now: () => deps.now(),
   });
 }

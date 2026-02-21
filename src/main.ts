@@ -68,7 +68,11 @@ import { createLogger, setLogLevel, type LogLevelSource } from './logger';
 import { commandNeedsOverlayRuntime, parseArgs, shouldStartApp } from './cli/args';
 import type { CliArgs, CliCommandSource } from './cli/args';
 import { printHelp } from './cli/help';
-import { buildConfigWarningNotificationBody } from './main/config-validation';
+import {
+  buildConfigParseErrorDetails,
+  buildConfigWarningNotificationBody,
+  failStartupFromConfig,
+} from './main/config-validation';
 import { createImmersionMediaRuntime } from './main/runtime/domains/startup';
 import { createAnilistStateRuntime } from './main/runtime/domains/anilist';
 import { createConfigDerivedRuntime } from './main/runtime/domains/startup';
@@ -420,6 +424,7 @@ import {
 } from './main/anilist-url-guard';
 import {
   ConfigService,
+  ConfigStartupParseError,
   DEFAULT_CONFIG,
   DEFAULT_KEYBINDINGS,
   generateConfigTemplate,
@@ -511,7 +516,24 @@ const CONFIG_DIR = resolveConfigDir({
 const USER_DATA_PATH = CONFIG_DIR;
 const DEFAULT_MPV_LOG_PATH = process.env.SUBMINER_MPV_LOG?.trim() || DEFAULT_MPV_LOG_FILE;
 const DEFAULT_IMMERSION_DB_PATH = path.join(USER_DATA_PATH, 'immersion.sqlite');
-const configService = new ConfigService(CONFIG_DIR);
+const configService = (() => {
+  try {
+    return new ConfigService(CONFIG_DIR);
+  } catch (error) {
+    if (error instanceof ConfigStartupParseError) {
+      failStartupFromConfig(
+        'SubMiner config parse error',
+        buildConfigParseErrorDetails(error.path, error.parseError),
+        {
+          logError: (details) => console.error(details),
+          showErrorBox: (title, details) => dialog.showErrorBox(title, details),
+          quit: () => app.quit(),
+        },
+      );
+    }
+    throw error;
+  }
+})();
 const anilistTokenStore = createAnilistTokenStore(
   path.join(USER_DATA_PATH, ANILIST_TOKEN_STORE_FILE),
   {
@@ -1719,6 +1741,7 @@ const saveSubtitlePositionMainDeps = buildSaveSubtitlePositionMainDepsHandler();
 const saveSubtitlePosition = createSaveSubtitlePositionHandler(saveSubtitlePositionMainDeps);
 
 registerSubminerProtocolClient();
+let flushPendingMpvLogWrites = (): void => {};
 const {
   registerProtocolUrlHandlers: registerProtocolUrlHandlersHandler,
   onWillQuitCleanup: onWillQuitCleanupHandler,
@@ -1755,6 +1778,7 @@ const {
       appState.yomitanParserInitPromise = null;
     },
     getWindowTracker: () => appState.windowTracker,
+    flushMpvLog: () => flushPendingMpvLogWrites(),
     getMpvSocket: () => appState.mpvClient?.socket ?? null,
     getReconnectTimer: () => appState.reconnectTimer,
     clearReconnectTimerRef: () => {
@@ -2305,12 +2329,16 @@ const {
   },
 });
 
-const { appendToMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
+const { appendToMpvLog, flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
     logPath: DEFAULT_MPV_LOG_PATH,
     dirname: (targetPath) => path.dirname(targetPath),
-    mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
-    appendFileSync: (targetPath, data, options) => fs.appendFileSync(targetPath, data, options),
+    mkdir: async (targetPath, options) => {
+      await fs.promises.mkdir(targetPath, options);
+    },
+    appendFile: async (targetPath, data, options) => {
+      await fs.promises.appendFile(targetPath, data, options);
+    },
     now: () => new Date(),
   },
   buildShowMpvOsdMainDeps: (appendToMpvLogHandler) => ({
@@ -2321,6 +2349,9 @@ const { appendToMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
     logInfo: (line) => logger.info(line),
   }),
 });
+flushPendingMpvLogWrites = () => {
+  void flushMpvLog();
+};
 
 const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
   cycleSecondarySubModeMainDeps: {

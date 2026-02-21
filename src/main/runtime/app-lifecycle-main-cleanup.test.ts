@@ -25,6 +25,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
     clearYomitanParserState: () => calls.push('clear-yomitan-state'),
 
     getWindowTracker: () => ({ stop: () => calls.push('stop-tracker') }),
+    flushMpvLog: () => calls.push('flush-mpv-log'),
     getMpvSocket: () => ({ destroy: () => calls.push('destroy-socket') }),
     getReconnectTimer: () => reconnectTimer,
     clearReconnectTimerRef: () => {
@@ -53,6 +54,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
 
   assert.ok(calls.includes('destroy-tray'));
   assert.ok(calls.includes('destroy-yomitan-window'));
+  assert.ok(calls.includes('flush-mpv-log'));
   assert.ok(calls.includes('destroy-socket'));
   assert.ok(calls.includes('clear-reconnect-ref'));
   assert.ok(calls.includes('destroy-immersion'));
@@ -77,6 +79,7 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
     }),
     clearYomitanParserState: () => {},
     getWindowTracker: () => null,
+    flushMpvLog: () => {},
     getMpvSocket: () => null,
     getReconnectTimer: () => null,
     clearReconnectTimerRef: () => {},

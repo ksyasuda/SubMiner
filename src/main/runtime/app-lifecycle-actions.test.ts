@@ -18,6 +18,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     destroyYomitanParserWindow: () => calls.push('destroy-yomitan-window'),
     clearYomitanParserState: () => calls.push('clear-yomitan-state'),
     stopWindowTracker: () => calls.push('stop-tracker'),
+    flushMpvLog: () => calls.push('flush-mpv-log'),
     destroyMpvSocket: () => calls.push('destroy-socket'),
     clearReconnectTimer: () => calls.push('clear-reconnect'),
     destroySubtitleTimingTracker: () => calls.push('destroy-subtitle-tracker'),
@@ -31,9 +32,10 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   });
 
   cleanup();
-  assert.equal(calls.length, 19);
+  assert.equal(calls.length, 20);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-jellyfin-remote');
+  assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
 });
 
 test('should restore windows on activate requires initialized runtime and no windows', () => {

@@ -29,6 +29,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   clearYomitanParserState: () => void;
 
   getWindowTracker: () => Stoppable | null;
+  flushMpvLog: () => void;
   getMpvSocket: () => SocketLike | null;
   getReconnectTimer: () => TimerLike | null;
   clearReconnectTimerRef: () => void;
@@ -63,6 +64,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
       const tracker = deps.getWindowTracker();
       tracker?.stop();
     },
+    flushMpvLog: () => deps.flushMpvLog(),
     destroyMpvSocket: () => {
       const socket = deps.getMpvSocket();
       socket?.destroy();

@@ -22,6 +22,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       getYomitanParserWindow: () => null,
       clearYomitanParserState: () => {},
       getWindowTracker: () => null,
+      flushMpvLog: () => {},
       getMpvSocket: () => null,
       getReconnectTimer: () => null,
       clearReconnectTimerRef: () => {},
