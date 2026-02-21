@@ -248,7 +248,7 @@ export class MpvIpcClient implements MpvClient {
       return;
     }
 
-    logger.info('MPV IPC connect requested.');
+    logger.debug('MPV IPC connect requested.');
     this.connecting = true;
     this.transport.connect();
   }

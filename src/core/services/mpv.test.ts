@@ -89,6 +89,50 @@ test('MpvIpcClient requestProperty throws on mpv error response', async () => {
   );
 });
 
+test('MpvIpcClient connect does not log connect-request at info level', () => {
+  const originalLevel = process.env.SUBMINER_LOG_LEVEL;
+  const originalInfo = console.info;
+  const infoLines: string[] = [];
+  process.env.SUBMINER_LOG_LEVEL = 'info';
+  console.info = (message?: unknown) => {
+    infoLines.push(String(message ?? ''));
+  };
+
+  try {
+    const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+    (client as any).transport.connect = () => {};
+    client.connect();
+  } finally {
+    process.env.SUBMINER_LOG_LEVEL = originalLevel;
+    console.info = originalInfo;
+  }
+
+  const requestLogs = infoLines.filter((line) => line.includes('MPV IPC connect requested.'));
+  assert.equal(requestLogs.length, 0);
+});
+
+test('MpvIpcClient connect logs connect-request at debug level', () => {
+  const originalLevel = process.env.SUBMINER_LOG_LEVEL;
+  const originalDebug = console.debug;
+  const debugLines: string[] = [];
+  process.env.SUBMINER_LOG_LEVEL = 'debug';
+  console.debug = (message?: unknown) => {
+    debugLines.push(String(message ?? ''));
+  };
+
+  try {
+    const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+    (client as any).transport.connect = () => {};
+    client.connect();
+  } finally {
+    process.env.SUBMINER_LOG_LEVEL = originalLevel;
+    console.debug = originalDebug;
+  }
+
+  const requestLogs = debugLines.filter((line) => line.includes('MPV IPC connect requested.'));
+  assert.equal(requestLogs.length, 1);
+});
+
 test('MpvIpcClient failPendingRequests resolves outstanding requests as disconnected', () => {
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
   const resolved: unknown[] = [];
