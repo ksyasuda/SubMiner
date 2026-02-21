@@ -16,7 +16,7 @@ SubMiner uses a service-oriented Electron architecture with a composition-orient
 
 ```text
 src/
-  main.ts                  # Entry point — delegates to src/main/ composition modules
+  main.ts                  # Entry point — delegates to runtime composers/domain modules
   preload.ts               # Electron preload bridge
   types.ts                 # Shared type definitions
   main/                    # Composition root modules (extracted from main.ts)
@@ -31,6 +31,9 @@ src/
     startup-lifecycle.ts    # App-ready initialization sequence
     state.ts                # Application runtime state container
     subsync-runtime.ts      # Subsync command orchestration
+    runtime/
+      composers/            # Composition assembly clusters consumed by main.ts
+      domains/              # Domain barrel exports for runtime services
   core/
     services/              # ~60 focused service modules (see below)
     utils/                 # Pure helpers and coercion/config utilities
@@ -154,7 +157,7 @@ Most runtime code follows a dependency-injection pattern:
 3. Build runtime deps in `src/main/` composition modules; extract an adapter/helper only when it adds meaningful behavior or reuse.
 4. Call the service from lifecycle/command wiring points.
 
-The composition root (`src/main.ts`) delegates to focused modules in `src/main/`:
+The composition root (`src/main.ts`) delegates to focused modules in `src/main/` and `src/main/runtime/composers/`:
 
 - `startup.ts` — argv/env processing and bootstrap flow
 - `app-lifecycle.ts` — Electron lifecycle event registration
@@ -164,6 +167,8 @@ The composition root (`src/main.ts`) delegates to focused modules in `src/main/`
 - `cli-runtime.ts` — CLI command parsing and dispatch
 - `overlay-runtime.ts` — overlay window selection and modal state management
 - `subsync-runtime.ts` — subsync command orchestration
+- `runtime/composers/anilist-tracking-composer.ts` — AniList media tracking/probe/retry wiring
+- `runtime/composers/mpv-runtime-composer.ts` — MPV event/factory/tokenizer/warmup wiring
 
 This keeps side effects explicit and makes behavior easy to unit-test with fakes.
 
@@ -228,7 +233,7 @@ flowchart TD
 
 ## Extension Rules
 
-- Add behavior to an existing service in `src/core/services/*` or create a new focused module in `src/main/` for composition-level logic — not as ad-hoc logic in `main.ts`.
+- Add behavior to an existing service in `src/core/services/*` or create a focused composition module in `src/main/` / `src/main/runtime/composers/` — not as ad-hoc logic in `main.ts`.
 - Keep service APIs explicit and narrowly scoped.
 - Prefer additive changes that preserve existing CLI flags and IPC channel behavior.
 - Add/update unit tests for each service extraction or behavior change.

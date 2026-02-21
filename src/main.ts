@@ -425,12 +425,16 @@ import {
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
 import { createMainRuntimeRegistry } from './main/runtime/registry';
-import { composeAnilistSetupHandlers } from './main/runtime/composers/anilist-setup-composer';
-import { composeJellyfinRemoteHandlers } from './main/runtime/composers/jellyfin-remote-composer';
-import { composeIpcRuntimeHandlers } from './main/runtime/composers/ipc-runtime-composer';
-import { composeShortcutRuntimes } from './main/runtime/composers/shortcuts-runtime-composer';
-import { composeStartupLifecycleHandlers } from './main/runtime/composers/startup-lifecycle-composer';
-import { composeAppReadyRuntime } from './main/runtime/composers/app-ready-composer';
+import {
+  composeAnilistSetupHandlers,
+  composeAnilistTrackingHandlers,
+  composeAppReadyRuntime,
+  composeIpcRuntimeHandlers,
+  composeJellyfinRemoteHandlers,
+  composeMpvRuntimeHandlers,
+  composeShortcutRuntimes,
+  composeStartupLifecycleHandlers,
+} from './main/runtime/composers';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -1496,8 +1500,19 @@ function openJellyfinSetupWindow(): void {
   createOpenJellyfinSetupWindowHandler(buildOpenJellyfinSetupWindowMainDepsHandler())();
 }
 
-const buildRefreshAnilistClientSecretStateMainDepsHandler =
-  createBuildRefreshAnilistClientSecretStateMainDepsHandler({
+const {
+  refreshAnilistClientSecretState,
+  getCurrentAnilistMediaKey,
+  resetAnilistMediaTracking,
+  getAnilistMediaGuessRuntimeState,
+  setAnilistMediaGuessRuntimeState,
+  resetAnilistMediaGuessState,
+  maybeProbeAnilistDuration,
+  ensureAnilistMediaGuess,
+  processNextAnilistRetryUpdate,
+  maybeRunAnilistPostWatchUpdate,
+} = composeAnilistTrackingHandlers({
+  refreshClientSecretMainDeps: {
     getResolvedConfig: () => getResolvedConfig(),
     isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
     getCachedAccessToken: () => anilistCachedAccessToken,
@@ -1519,24 +1534,11 @@ const buildRefreshAnilistClientSecretStateMainDepsHandler =
       openAnilistSetupWindow();
     },
     now: () => Date.now(),
-  });
-const refreshAnilistClientSecretStateMainDeps =
-  buildRefreshAnilistClientSecretStateMainDepsHandler();
-const refreshAnilistClientSecretState = createRefreshAnilistClientSecretStateHandler(
-  refreshAnilistClientSecretStateMainDeps,
-);
-
-const buildGetCurrentAnilistMediaKeyMainDepsHandler =
-  createBuildGetCurrentAnilistMediaKeyMainDepsHandler({
+  },
+  getCurrentMediaKeyMainDeps: {
     getCurrentMediaPath: () => appState.currentMediaPath,
-  });
-const getCurrentAnilistMediaKeyMainDeps = buildGetCurrentAnilistMediaKeyMainDepsHandler();
-const getCurrentAnilistMediaKey = createGetCurrentAnilistMediaKeyHandler(
-  getCurrentAnilistMediaKeyMainDeps,
-);
-
-const buildResetAnilistMediaTrackingMainDepsHandler =
-  createBuildResetAnilistMediaTrackingMainDepsHandler({
+  },
+  resetMediaTrackingMainDeps: {
     setMediaKey: (value) => {
       anilistCurrentMediaKey = value;
     },
@@ -1552,28 +1554,15 @@ const buildResetAnilistMediaTrackingMainDepsHandler =
     setLastDurationProbeAtMs: (value) => {
       anilistLastDurationProbeAtMs = value;
     },
-  });
-const resetAnilistMediaTrackingMainDeps = buildResetAnilistMediaTrackingMainDepsHandler();
-const resetAnilistMediaTracking = createResetAnilistMediaTrackingHandler(
-  resetAnilistMediaTrackingMainDeps,
-);
-
-const buildGetAnilistMediaGuessRuntimeStateMainDepsHandler =
-  createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler({
+  },
+  getMediaGuessRuntimeStateMainDeps: {
     getMediaKey: () => anilistCurrentMediaKey,
     getMediaDurationSec: () => anilistCurrentMediaDurationSec,
     getMediaGuess: () => anilistCurrentMediaGuess,
     getMediaGuessPromise: () => anilistCurrentMediaGuessPromise,
     getLastDurationProbeAtMs: () => anilistLastDurationProbeAtMs,
-  });
-const getAnilistMediaGuessRuntimeStateMainDeps =
-  buildGetAnilistMediaGuessRuntimeStateMainDepsHandler();
-const getAnilistMediaGuessRuntimeState = createGetAnilistMediaGuessRuntimeStateHandler(
-  getAnilistMediaGuessRuntimeStateMainDeps,
-);
-
-const buildSetAnilistMediaGuessRuntimeStateMainDepsHandler =
-  createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler({
+  },
+  setMediaGuessRuntimeStateMainDeps: {
     setMediaKey: (value) => {
       anilistCurrentMediaKey = value;
     },
@@ -1589,29 +1578,16 @@ const buildSetAnilistMediaGuessRuntimeStateMainDepsHandler =
     setLastDurationProbeAtMs: (value) => {
       anilistLastDurationProbeAtMs = value;
     },
-  });
-const setAnilistMediaGuessRuntimeStateMainDeps =
-  buildSetAnilistMediaGuessRuntimeStateMainDepsHandler();
-const setAnilistMediaGuessRuntimeState = createSetAnilistMediaGuessRuntimeStateHandler(
-  setAnilistMediaGuessRuntimeStateMainDeps,
-);
-
-const buildResetAnilistMediaGuessStateMainDepsHandler =
-  createBuildResetAnilistMediaGuessStateMainDepsHandler({
+  },
+  resetMediaGuessStateMainDeps: {
     setMediaGuess: (value) => {
       anilistCurrentMediaGuess = value;
     },
     setMediaGuessPromise: (value) => {
       anilistCurrentMediaGuessPromise = value;
     },
-  });
-const resetAnilistMediaGuessStateMainDeps = buildResetAnilistMediaGuessStateMainDepsHandler();
-const resetAnilistMediaGuessState = createResetAnilistMediaGuessStateHandler(
-  resetAnilistMediaGuessStateMainDeps,
-);
-
-const buildMaybeProbeAnilistDurationMainDepsHandler =
-  createBuildMaybeProbeAnilistDurationMainDepsHandler({
+  },
+  maybeProbeDurationMainDeps: {
     getState: () => getAnilistMediaGuessRuntimeState(),
     setState: (state) => {
       setAnilistMediaGuessRuntimeState(state);
@@ -1620,14 +1596,8 @@ const buildMaybeProbeAnilistDurationMainDepsHandler =
     now: () => Date.now(),
     requestMpvDuration: async () => appState.mpvClient?.requestProperty('duration'),
     logWarn: (message, error) => logger.warn(message, error),
-  });
-const maybeProbeAnilistDurationMainDeps = buildMaybeProbeAnilistDurationMainDepsHandler();
-const maybeProbeAnilistDuration = createMaybeProbeAnilistDurationHandler(
-  maybeProbeAnilistDurationMainDeps,
-);
-
-const buildEnsureAnilistMediaGuessMainDepsHandler =
-  createBuildEnsureAnilistMediaGuessMainDepsHandler({
+  },
+  ensureMediaGuessMainDeps: {
     getState: () => getAnilistMediaGuessRuntimeState(),
     setState: (state) => {
       setAnilistMediaGuessRuntimeState(state);
@@ -1637,22 +1607,8 @@ const buildEnsureAnilistMediaGuessMainDepsHandler =
     getCurrentMediaPath: () => appState.currentMediaPath,
     getCurrentMediaTitle: () => appState.currentMediaTitle,
     guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
-  });
-const ensureAnilistMediaGuessMainDeps = buildEnsureAnilistMediaGuessMainDepsHandler();
-const ensureAnilistMediaGuess = createEnsureAnilistMediaGuessHandler(
-  ensureAnilistMediaGuessMainDeps,
-);
-
-const rememberAnilistAttemptedUpdate = (key: string): void => {
-  rememberAnilistAttemptedUpdateKey(
-    anilistAttemptedUpdateKeys,
-    key,
-    ANILIST_MAX_ATTEMPTED_UPDATE_KEYS,
-  );
-};
-
-const buildProcessNextAnilistRetryUpdateMainDepsHandler =
-  createBuildProcessNextAnilistRetryUpdateMainDepsHandler({
+  },
+  processNextRetryUpdateMainDeps: {
     nextReady: () => anilistUpdateQueue.nextReady(),
     refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
     setLastAttemptAt: (value) => {
@@ -1675,14 +1631,8 @@ const buildProcessNextAnilistRetryUpdateMainDepsHandler =
     },
     logInfo: (message) => logger.info(message),
     now: () => Date.now(),
-  });
-const processNextAnilistRetryUpdateMainDeps = buildProcessNextAnilistRetryUpdateMainDepsHandler();
-const processNextAnilistRetryUpdate = createProcessNextAnilistRetryUpdateHandler(
-  processNextAnilistRetryUpdateMainDeps,
-);
-
-const buildMaybeRunAnilistPostWatchUpdateMainDepsHandler =
-  createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler({
+  },
+  maybeRunPostWatchUpdateMainDeps: {
     getInFlight: () => anilistUpdateInFlight,
     setInFlight: (value) => {
       anilistUpdateInFlight = value;
@@ -1721,11 +1671,16 @@ const buildMaybeRunAnilistPostWatchUpdateMainDepsHandler =
     logWarn: (message) => logger.warn(message),
     minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
     minWatchRatio: ANILIST_UPDATE_MIN_WATCH_RATIO,
-  });
-const maybeRunAnilistPostWatchUpdateMainDeps = buildMaybeRunAnilistPostWatchUpdateMainDepsHandler();
-const maybeRunAnilistPostWatchUpdate = createMaybeRunAnilistPostWatchUpdateHandler(
-  maybeRunAnilistPostWatchUpdateMainDeps,
-);
+  },
+});
+
+const rememberAnilistAttemptedUpdate = (key: string): void => {
+  rememberAnilistAttemptedUpdateKey(
+    anilistAttemptedUpdateKeys,
+    key,
+    ANILIST_MAX_ATTEMPTED_UPDATE_KEYS,
+  );
+};
 
 const buildLoadSubtitlePositionMainDepsHandler = createBuildLoadSubtitlePositionMainDepsHandler({
   loadSubtitlePositionCore: () =>
@@ -2043,8 +1998,16 @@ function handleInitialArgs(): void {
   handleInitialArgsRuntimeHandler();
 }
 
-const buildBindMpvMainEventHandlersMainDepsHandler =
-  createBuildBindMpvMainEventHandlersMainDepsHandler({
+const {
+  bindMpvClientEventHandlers,
+  createMpvClientRuntimeService: createMpvClientRuntimeServiceHandler,
+  updateMpvSubtitleRenderMetrics: updateMpvSubtitleRenderMetricsHandler,
+  tokenizeSubtitle,
+  createMecabTokenizerAndCheck,
+  prewarmSubtitleDictionaries,
+  startBackgroundWarmups,
+} = composeMpvRuntimeHandlers<ReturnType<typeof createTokenizerDepsRuntime>, SubtitleData>({
+  bindMpvMainEventHandlersMainDeps: {
     appState,
     getQuitOnDisconnectArmed: () => jellyfinPlayQuitOnDisconnectArmed,
     scheduleQuitCheck: (callback) => {
@@ -2090,15 +2053,9 @@ const buildBindMpvMainEventHandlersMainDepsHandler =
     updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
     },
-  });
-const bindMpvMainEventHandlersMainDeps = buildBindMpvMainEventHandlersMainDepsHandler();
-const bindMpvClientEventHandlers = createBindMpvMainEventHandlersHandler(
-  bindMpvMainEventHandlersMainDeps,
-);
-
-const buildMpvClientRuntimeServiceFactoryMainDepsHandler =
-  createBuildMpvClientRuntimeServiceFactoryDepsHandler({
-    createClient: MpvIpcClient,
+  },
+  mpvClientRuntimeServiceFactoryMainDeps: {
+    createClient: MpvIpcClient as unknown as new (socketPath: string, options: unknown) => unknown,
     getSocketPath: () => appState.mpvSocketPath,
     getResolvedConfig: () => getResolvedConfig(),
     isAutoStartOverlayEnabled: () => appState.autoStartOverlay,
@@ -2110,17 +2067,8 @@ const buildMpvClientRuntimeServiceFactoryMainDepsHandler =
     setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
       appState.reconnectTimer = timer;
     },
-    bindEventHandlers: (client) => bindMpvClientEventHandlers(client),
-  });
-
-function createMpvClientRuntimeService(): MpvIpcClient {
-  return createMpvClientRuntimeServiceFactory(
-    buildMpvClientRuntimeServiceFactoryMainDepsHandler(),
-  )();
-}
-
-const buildUpdateMpvSubtitleRenderMetricsMainDepsHandler =
-  createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler({
+  },
+  updateMpvSubtitleRenderMetricsMainDeps: {
     getCurrentMetrics: () => appState.mpvSubtitleRenderMetrics,
     setCurrentMetrics: (metrics) => {
       appState.mpvSubtitleRenderMetrics = metrics;
@@ -2129,108 +2077,82 @@ const buildUpdateMpvSubtitleRenderMetricsMainDepsHandler =
     broadcastMetrics: (metrics) => {
       broadcastToOverlayWindows('mpv-subtitle-render-metrics:set', metrics);
     },
-  });
-const updateMpvSubtitleRenderMetricsMainDeps = buildUpdateMpvSubtitleRenderMetricsMainDepsHandler();
-const updateMpvSubtitleRenderMetricsRuntime = createUpdateMpvSubtitleRenderMetricsHandler(
-  updateMpvSubtitleRenderMetricsMainDeps,
-);
-
-function updateMpvSubtitleRenderMetrics(patch: Partial<MpvSubtitleRenderMetrics>): void {
-  updateMpvSubtitleRenderMetricsRuntime(patch);
-}
-
-const buildTokenizerDepsHandler = createBuildTokenizerDepsMainHandler({
-  getYomitanExt: () => appState.yomitanExt,
-  getYomitanParserWindow: () => appState.yomitanParserWindow,
-  setYomitanParserWindow: (window) => {
-    appState.yomitanParserWindow = window as BrowserWindow | null;
   },
-  getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
-  setYomitanParserReadyPromise: (promise) => {
-    appState.yomitanParserReadyPromise = promise;
+  tokenizer: {
+    buildTokenizerDepsMainDeps: {
+      getYomitanExt: () => appState.yomitanExt,
+      getYomitanParserWindow: () => appState.yomitanParserWindow,
+      setYomitanParserWindow: (window) => {
+        appState.yomitanParserWindow = window as BrowserWindow | null;
+      },
+      getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
+      setYomitanParserReadyPromise: (promise) => {
+        appState.yomitanParserReadyPromise = promise;
+      },
+      getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
+      setYomitanParserInitPromise: (promise) => {
+        appState.yomitanParserInitPromise = promise;
+      },
+      isKnownWord: (text) => Boolean(appState.ankiIntegration?.isKnownWord(text)),
+      recordLookup: (hit) => {
+        appState.immersionTracker?.recordLookup(hit);
+      },
+      getKnownWordMatchMode: () =>
+        appState.ankiIntegration?.getKnownWordMatchMode() ??
+        getResolvedConfig().ankiConnect.nPlusOne.matchMode,
+      getMinSentenceWordsForNPlusOne: () =>
+        getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,
+      getJlptLevel: (text) => appState.jlptLevelLookup(text),
+      getJlptEnabled: () => getResolvedConfig().subtitleStyle.enableJlpt,
+      getFrequencyDictionaryEnabled: () =>
+        getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+      getFrequencyRank: (text) => appState.frequencyRankLookup(text),
+      getYomitanGroupDebugEnabled: () => appState.overlayDebugVisualizationEnabled,
+      getMecabTokenizer: () => appState.mecabTokenizer,
+    },
+    createTokenizerRuntimeDeps: (deps) =>
+      createTokenizerDepsRuntime(deps as Parameters<typeof createTokenizerDepsRuntime>[0]),
+    tokenizeSubtitle: (text, deps) => tokenizeSubtitleCore(text, deps),
+    createMecabTokenizerAndCheckMainDeps: {
+      getMecabTokenizer: () => appState.mecabTokenizer,
+      setMecabTokenizer: (tokenizer) => {
+        appState.mecabTokenizer = tokenizer as MecabTokenizer | null;
+      },
+      createMecabTokenizer: () => new MecabTokenizer(),
+      checkAvailability: async (tokenizer) => (tokenizer as MecabTokenizer).checkAvailability(),
+    },
+    prewarmSubtitleDictionariesMainDeps: {
+      ensureJlptDictionaryLookup: () => jlptDictionaryRuntime.ensureJlptDictionaryLookup(),
+      ensureFrequencyDictionaryLookup: () =>
+        frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup(),
+    },
   },
-  getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
-  setYomitanParserInitPromise: (promise) => {
-    appState.yomitanParserInitPromise = promise;
+  warmups: {
+    launchBackgroundWarmupTaskMainDeps: {
+      now: () => Date.now(),
+      logDebug: (message) => logger.debug(message),
+      logWarn: (message) => logger.warn(message),
+    },
+    startBackgroundWarmupsMainDeps: {
+      getStarted: () => backgroundWarmupsStarted,
+      setStarted: (started) => {
+        backgroundWarmupsStarted = started;
+      },
+      isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
+      ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded().then(() => {}),
+      shouldAutoConnectJellyfinRemote: () => getResolvedConfig().jellyfin.remoteControlAutoConnect,
+      startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
+    },
   },
-  isKnownWord: (text) => Boolean(appState.ankiIntegration?.isKnownWord(text)),
-  recordLookup: (hit) => {
-    appState.immersionTracker?.recordLookup(hit);
-  },
-  getKnownWordMatchMode: () =>
-    appState.ankiIntegration?.getKnownWordMatchMode() ??
-    getResolvedConfig().ankiConnect.nPlusOne.matchMode,
-  getMinSentenceWordsForNPlusOne: () => getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,
-  getJlptLevel: (text) => appState.jlptLevelLookup(text),
-  getJlptEnabled: () => getResolvedConfig().subtitleStyle.enableJlpt,
-  getFrequencyDictionaryEnabled: () =>
-    getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-  getFrequencyRank: (text) => appState.frequencyRankLookup(text),
-  getYomitanGroupDebugEnabled: () => appState.overlayDebugVisualizationEnabled,
-  getMecabTokenizer: () => appState.mecabTokenizer,
 });
 
-const buildCreateMecabTokenizerAndCheckMainDepsHandler =
-  createCreateMecabTokenizerAndCheckMainHandler({
-    getMecabTokenizer: () => appState.mecabTokenizer,
-    setMecabTokenizer: (tokenizer) => {
-      appState.mecabTokenizer = tokenizer;
-    },
-    createMecabTokenizer: () => new MecabTokenizer(),
-    checkAvailability: async (tokenizer) => tokenizer.checkAvailability(),
-  });
-const createMecabTokenizerAndCheckHandler = buildCreateMecabTokenizerAndCheckMainDepsHandler;
-
-const buildPrewarmSubtitleDictionariesMainDepsHandler =
-  createPrewarmSubtitleDictionariesMainHandler({
-    ensureJlptDictionaryLookup: () => jlptDictionaryRuntime.ensureJlptDictionaryLookup(),
-    ensureFrequencyDictionaryLookup: () =>
-      frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup(),
-  });
-const prewarmSubtitleDictionariesHandler = buildPrewarmSubtitleDictionariesMainDepsHandler;
-
-async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
-  await jlptDictionaryRuntime.ensureJlptDictionaryLookup();
-  await frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup();
-  return tokenizeSubtitleCore(text, createTokenizerDepsRuntime(buildTokenizerDepsHandler()));
+function createMpvClientRuntimeService(): MpvIpcClient {
+  return createMpvClientRuntimeServiceHandler() as MpvIpcClient;
 }
 
-async function createMecabTokenizerAndCheck(): Promise<void> {
-  await createMecabTokenizerAndCheckHandler();
+function updateMpvSubtitleRenderMetrics(patch: Partial<MpvSubtitleRenderMetrics>): void {
+  updateMpvSubtitleRenderMetricsHandler(patch);
 }
-
-async function prewarmSubtitleDictionaries(): Promise<void> {
-  await prewarmSubtitleDictionariesHandler();
-}
-
-const buildLaunchBackgroundWarmupTaskMainDepsHandler =
-  createBuildLaunchBackgroundWarmupTaskMainDepsHandler({
-    now: () => Date.now(),
-    logDebug: (message) => logger.debug(message),
-    logWarn: (message) => logger.warn(message),
-  });
-const launchBackgroundWarmupTaskMainDeps = buildLaunchBackgroundWarmupTaskMainDepsHandler();
-const launchBackgroundWarmupTask = createLaunchBackgroundWarmupTaskHandler(
-  launchBackgroundWarmupTaskMainDeps,
-);
-
-const buildStartBackgroundWarmupsMainDepsHandler = createBuildStartBackgroundWarmupsMainDepsHandler(
-  {
-    getStarted: () => backgroundWarmupsStarted,
-    setStarted: (started) => {
-      backgroundWarmupsStarted = started;
-    },
-    isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
-    launchTask: (label, task) => launchBackgroundWarmupTask(label, task),
-    createMecabTokenizerAndCheck: () => createMecabTokenizerAndCheck(),
-    ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded().then(() => {}),
-    prewarmSubtitleDictionaries: () => prewarmSubtitleDictionaries(),
-    shouldAutoConnectJellyfinRemote: () => getResolvedConfig().jellyfin.remoteControlAutoConnect,
-    startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
-  },
-);
-const startBackgroundWarmupsMainDeps = buildStartBackgroundWarmupsMainDepsHandler();
-const startBackgroundWarmups = createStartBackgroundWarmupsHandler(startBackgroundWarmupsMainDeps);
 
 const buildUpdateVisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
