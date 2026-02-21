@@ -46,6 +46,8 @@ import { findDuplicateNote as findDuplicateNoteForAnkiIntegration } from './anki
 import { CardCreationService } from './anki-integration/card-creation';
 import { FieldGroupingService } from './anki-integration/field-grouping';
 import { FieldGroupingMergeCollaborator } from './anki-integration/field-grouping-merge';
+import { NoteUpdateWorkflow } from './anki-integration/note-update-workflow';
+import { FieldGroupingWorkflow } from './anki-integration/field-grouping-workflow';
 
 const log = createLogger('anki').child('integration');
 
@@ -80,6 +82,8 @@ export class AnkiIntegration {
   private cardCreationService: CardCreationService;
   private fieldGroupingMergeCollaborator: FieldGroupingMergeCollaborator;
   private fieldGroupingService: FieldGroupingService;
+  private noteUpdateWorkflow: NoteUpdateWorkflow;
+  private fieldGroupingWorkflow: FieldGroupingWorkflow;
 
   constructor(
     config: AnkiConnectConfig,
@@ -106,6 +110,8 @@ export class AnkiIntegration {
     this.cardCreationService = this.createCardCreationService();
     this.fieldGroupingMergeCollaborator = this.createFieldGroupingMergeCollaborator();
     this.fieldGroupingService = this.createFieldGroupingService();
+    this.noteUpdateWorkflow = this.createNoteUpdateWorkflow();
+    this.fieldGroupingWorkflow = this.createFieldGroupingWorkflow();
   }
 
   private createFieldGroupingMergeCollaborator(): FieldGroupingMergeCollaborator {
@@ -309,6 +315,90 @@ export class AnkiIntegration {
     });
   }
 
+  private createNoteUpdateWorkflow(): NoteUpdateWorkflow {
+    return new NoteUpdateWorkflow({
+      client: {
+        notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
+        updateNoteFields: (noteId, fields) => this.client.updateNoteFields(noteId, fields),
+        storeMediaFile: (filename, data) => this.client.storeMediaFile(filename, data),
+      },
+      getConfig: () => this.config,
+      getCurrentSubtitleText: () => this.mpvClient.currentSubText,
+      getCurrentSubtitleStart: () => this.mpvClient.currentSubStart,
+      getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
+      appendKnownWordsFromNoteInfo: (noteInfo) => this.appendKnownWordsFromNoteInfo(noteInfo),
+      extractFields: (fields) => this.extractFields(fields),
+      findDuplicateNote: (expression, excludeNoteId, noteInfo) =>
+        this.findDuplicateNote(expression, excludeNoteId, noteInfo),
+      handleFieldGroupingAuto: (originalNoteId, newNoteId, newNoteInfo, expression) =>
+        this.handleFieldGroupingAuto(originalNoteId, newNoteId, newNoteInfo, expression),
+      handleFieldGroupingManual: (originalNoteId, newNoteId, newNoteInfo, expression) =>
+        this.handleFieldGroupingManual(originalNoteId, newNoteId, newNoteInfo, expression),
+      processSentence: (mpvSentence, noteFields) => this.processSentence(mpvSentence, noteFields),
+      resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
+        this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
+      getResolvedSentenceAudioFieldName: (noteInfo) =>
+        this.getResolvedSentenceAudioFieldName(noteInfo),
+      mergeFieldValue: (existing, newValue, overwrite) =>
+        this.mergeFieldValue(existing, newValue, overwrite),
+      generateAudioFilename: () => this.generateAudioFilename(),
+      generateAudio: () => this.generateAudio(),
+      generateImageFilename: () => this.generateImageFilename(),
+      generateImage: () => this.generateImage(),
+      formatMiscInfoPattern: (fallbackFilename, startTimeSeconds) =>
+        this.formatMiscInfoPattern(fallbackFilename, startTimeSeconds),
+      addConfiguredTagsToNote: (noteId) => this.addConfiguredTagsToNote(noteId),
+      showNotification: (noteId, label) => this.showNotification(noteId, label),
+      showOsdNotification: (message) => this.showOsdNotification(message),
+      beginUpdateProgress: (initialMessage) => this.beginUpdateProgress(initialMessage),
+      endUpdateProgress: () => this.endUpdateProgress(),
+      logWarn: (...args) => log.warn(args[0] as string, ...args.slice(1)),
+      logInfo: (...args) => log.info(args[0] as string, ...args.slice(1)),
+      logError: (...args) => log.error(args[0] as string, ...args.slice(1)),
+    });
+  }
+
+  private createFieldGroupingWorkflow(): FieldGroupingWorkflow {
+    return new FieldGroupingWorkflow({
+      client: {
+        notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
+        updateNoteFields: (noteId, fields) => this.client.updateNoteFields(noteId, fields),
+        deleteNotes: (noteIds) => this.client.deleteNotes(noteIds),
+      },
+      getConfig: () => this.config,
+      getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
+      getCurrentSubtitleText: () => this.mpvClient.currentSubText,
+      getFieldGroupingCallback: () => this.fieldGroupingCallback,
+      computeFieldGroupingMergedFields: (
+        keepNoteId,
+        deleteNoteId,
+        keepNoteInfo,
+        deleteNoteInfo,
+        includeGeneratedMedia,
+      ) =>
+        this.fieldGroupingMergeCollaborator.computeFieldGroupingMergedFields(
+          keepNoteId,
+          deleteNoteId,
+          keepNoteInfo,
+          deleteNoteInfo,
+          includeGeneratedMedia,
+        ),
+      extractFields: (fields) => this.extractFields(fields),
+      hasFieldValue: (noteInfo, preferredFieldName) =>
+        this.hasFieldValue(noteInfo, preferredFieldName),
+      addConfiguredTagsToNote: (noteId) => this.addConfiguredTagsToNote(noteId),
+      removeTrackedNoteId: (noteId) => {
+        this.previousNoteIds.delete(noteId);
+      },
+      showStatusNotification: (message) => this.showStatusNotification(message),
+      showNotification: (noteId, label) => this.showNotification(noteId, label),
+      showOsdNotification: (message) => this.showOsdNotification(message),
+      logError: (...args) => log.error(args[0] as string, ...args.slice(1)),
+      logInfo: (...args) => log.info(args[0] as string, ...args.slice(1)),
+      truncateSentence: (sentence) => this.truncateSentence(sentence),
+    });
+  }
+
   isKnownWord(text: string): boolean {
     return this.knownWordCache.isKnownWord(text);
   }
@@ -434,146 +524,7 @@ export class AnkiIntegration {
     noteId: number,
     options?: { skipKikuFieldGrouping?: boolean },
   ): Promise<void> {
-    this.beginUpdateProgress('Updating card');
-    try {
-      const notesInfoResult = await this.client.notesInfo([noteId]);
-      const notesInfo = notesInfoResult as unknown as NoteInfo[];
-      if (!notesInfo || notesInfo.length === 0) {
-        log.warn('Card not found:', noteId);
-        return;
-      }
-
-      const noteInfo = notesInfo[0]!;
-      this.appendKnownWordsFromNoteInfo(noteInfo);
-      const fields = this.extractFields(noteInfo.fields);
-
-      const expressionText = fields.expression || fields.word || '';
-      if (!expressionText) {
-        log.warn('No expression/word field found in card:', noteId);
-        return;
-      }
-
-      const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-      if (
-        !options?.skipKikuFieldGrouping &&
-        sentenceCardConfig.kikuEnabled &&
-        sentenceCardConfig.kikuFieldGrouping !== 'disabled'
-      ) {
-        const duplicateNoteId = await this.findDuplicateNote(expressionText, noteId, noteInfo);
-        if (duplicateNoteId !== null) {
-          if (sentenceCardConfig.kikuFieldGrouping === 'auto') {
-            await this.handleFieldGroupingAuto(duplicateNoteId, noteId, noteInfo, expressionText);
-            return;
-          } else if (sentenceCardConfig.kikuFieldGrouping === 'manual') {
-            const handled = await this.handleFieldGroupingManual(
-              duplicateNoteId,
-              noteId,
-              noteInfo,
-              expressionText,
-            );
-            if (handled) return;
-          }
-        }
-      }
-
-      const updatedFields: Record<string, string> = {};
-      let updatePerformed = false;
-      let miscInfoFilename: string | null = null;
-      const sentenceField = sentenceCardConfig.sentenceField;
-
-      if (sentenceField && this.mpvClient.currentSubText) {
-        const processedSentence = this.processSentence(this.mpvClient.currentSubText, fields);
-        updatedFields[sentenceField] = processedSentence;
-        updatePerformed = true;
-      }
-
-      if (this.config.media?.generateAudio && this.mpvClient) {
-        try {
-          const audioFilename = this.generateAudioFilename();
-          const audioBuffer = await this.generateAudio();
-
-          if (audioBuffer) {
-            await this.client.storeMediaFile(audioFilename, audioBuffer);
-            const sentenceAudioField = this.getResolvedSentenceAudioFieldName(noteInfo);
-            if (sentenceAudioField) {
-              const existingAudio = noteInfo.fields[sentenceAudioField]?.value || '';
-              updatedFields[sentenceAudioField] = this.mergeFieldValue(
-                existingAudio,
-                `[sound:${audioFilename}]`,
-                this.config.behavior?.overwriteAudio !== false,
-              );
-            }
-            miscInfoFilename = audioFilename;
-            updatePerformed = true;
-          }
-        } catch (error) {
-          log.error('Failed to generate audio:', (error as Error).message);
-          this.showOsdNotification(`Audio generation failed: ${(error as Error).message}`);
-        }
-      }
-
-      let imageBuffer: Buffer | null = null;
-      if (this.config.media?.generateImage && this.mpvClient) {
-        try {
-          const imageFilename = this.generateImageFilename();
-          imageBuffer = await this.generateImage();
-
-          if (imageBuffer) {
-            await this.client.storeMediaFile(imageFilename, imageBuffer);
-            const imageFieldName = this.resolveConfiguredFieldName(
-              noteInfo,
-              this.config.fields?.image,
-              DEFAULT_ANKI_CONNECT_CONFIG.fields.image,
-            );
-            if (!imageFieldName) {
-              log.warn('Image field not found on note, skipping image update');
-            } else {
-              const existingImage = noteInfo.fields[imageFieldName]?.value || '';
-              updatedFields[imageFieldName] = this.mergeFieldValue(
-                existingImage,
-                `<img src="${imageFilename}">`,
-                this.config.behavior?.overwriteImage !== false,
-              );
-              miscInfoFilename = imageFilename;
-              updatePerformed = true;
-            }
-          }
-        } catch (error) {
-          log.error('Failed to generate image:', (error as Error).message);
-          this.showOsdNotification(`Image generation failed: ${(error as Error).message}`);
-        }
-      }
-
-      if (this.config.fields?.miscInfo) {
-        const miscInfo = this.formatMiscInfoPattern(
-          miscInfoFilename || '',
-          this.mpvClient.currentSubStart,
-        );
-        const miscInfoField = this.resolveConfiguredFieldName(
-          noteInfo,
-          this.config.fields?.miscInfo,
-        );
-        if (miscInfo && miscInfoField) {
-          updatedFields[miscInfoField] = miscInfo;
-          updatePerformed = true;
-        }
-      }
-
-      if (updatePerformed) {
-        await this.client.updateNoteFields(noteId, updatedFields);
-        await this.addConfiguredTagsToNote(noteId);
-        log.info('Updated card fields for:', expressionText);
-        await this.showNotification(noteId, expressionText);
-      }
-    } catch (error) {
-      if ((error as Error).message.includes('note was not found')) {
-        log.warn('Card was deleted before update:', noteId);
-      } else {
-        log.error('Error processing new card:', (error as Error).message);
-      }
-    } finally {
-      this.endUpdateProgress();
-    }
+    await this.noteUpdateWorkflow.execute(noteId, options);
   }
 
   private extractFields(fields: Record<string, { value: string }>): Record<string, string> {
@@ -1077,66 +1028,14 @@ export class AnkiIntegration {
     );
   }
 
-  private async performFieldGroupingMerge(
-    keepNoteId: number,
-    deleteNoteId: number,
-    deleteNoteInfo: NoteInfo,
-    expression: string,
-    deleteDuplicate = true,
-  ): Promise<void> {
-    const keepNotesInfoResult = await this.client.notesInfo([keepNoteId]);
-    const keepNotesInfo = keepNotesInfoResult as unknown as NoteInfo[];
-    if (!keepNotesInfo || keepNotesInfo.length === 0) {
-      log.warn('Keep note not found:', keepNoteId);
-      return;
-    }
-    const keepNoteInfo = keepNotesInfo[0]!;
-    const mergedFields = await this.fieldGroupingMergeCollaborator.computeFieldGroupingMergedFields(
-      keepNoteId,
-      deleteNoteId,
-      keepNoteInfo,
-      deleteNoteInfo,
-      true,
-    );
-
-    if (Object.keys(mergedFields).length > 0) {
-      await this.client.updateNoteFields(keepNoteId, mergedFields);
-      await this.addConfiguredTagsToNote(keepNoteId);
-    }
-
-    if (deleteDuplicate) {
-      await this.client.deleteNotes([deleteNoteId]);
-      this.previousNoteIds.delete(deleteNoteId);
-    }
-
-    log.info('Merged duplicate card:', expression, 'into note:', keepNoteId);
-    this.showStatusNotification(
-      deleteDuplicate
-        ? `Merged duplicate: ${expression}`
-        : `Grouped duplicate (kept both): ${expression}`,
-    );
-    await this.showNotification(keepNoteId, expression);
-  }
-
   private async handleFieldGroupingAuto(
     originalNoteId: number,
     newNoteId: number,
     newNoteInfo: NoteInfo,
     expression: string,
   ): Promise<void> {
-    try {
-      const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-      await this.performFieldGroupingMerge(
-        originalNoteId,
-        newNoteId,
-        newNoteInfo,
-        expression,
-        sentenceCardConfig.kikuDeleteDuplicateInAuto,
-      );
-    } catch (error) {
-      log.error('Field grouping auto merge failed:', (error as Error).message);
-      this.showOsdNotification(`Field grouping failed: ${(error as Error).message}`);
-    }
+    void expression;
+    await this.fieldGroupingWorkflow.handleAuto(originalNoteId, newNoteId, newNoteInfo);
   }
 
   private async handleFieldGroupingManual(
@@ -1145,79 +1044,8 @@ export class AnkiIntegration {
     newNoteInfo: NoteInfo,
     expression: string,
   ): Promise<boolean> {
-    if (!this.fieldGroupingCallback) {
-      log.warn('No field grouping callback registered, skipping manual mode');
-      this.showOsdNotification('Field grouping UI unavailable');
-      return false;
-    }
-
-    try {
-      const originalNotesInfoResult = await this.client.notesInfo([originalNoteId]);
-      const originalNotesInfo = originalNotesInfoResult as unknown as NoteInfo[];
-      if (!originalNotesInfo || originalNotesInfo.length === 0) {
-        return false;
-      }
-      const originalNoteInfo = originalNotesInfo[0]!;
-      const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-
-      const originalFields = this.extractFields(originalNoteInfo.fields);
-      const newFields = this.extractFields(newNoteInfo.fields);
-
-      const originalCard: KikuDuplicateCardInfo = {
-        noteId: originalNoteId,
-        expression: originalFields.expression || originalFields.word || expression,
-        sentencePreview: this.truncateSentence(
-          originalFields[(sentenceCardConfig.sentenceField || 'sentence').toLowerCase()] || '',
-        ),
-        hasAudio:
-          this.hasFieldValue(originalNoteInfo, this.config.fields?.audio) ||
-          this.hasFieldValue(originalNoteInfo, sentenceCardConfig.audioField),
-        hasImage: this.hasFieldValue(originalNoteInfo, this.config.fields?.image),
-        isOriginal: true,
-      };
-
-      const newCard: KikuDuplicateCardInfo = {
-        noteId: newNoteId,
-        expression: newFields.expression || newFields.word || expression,
-        sentencePreview: this.truncateSentence(
-          newFields[(sentenceCardConfig.sentenceField || 'sentence').toLowerCase()] ||
-            this.mpvClient.currentSubText ||
-            '',
-        ),
-        hasAudio:
-          this.hasFieldValue(newNoteInfo, this.config.fields?.audio) ||
-          this.hasFieldValue(newNoteInfo, sentenceCardConfig.audioField),
-        hasImage: this.hasFieldValue(newNoteInfo, this.config.fields?.image),
-        isOriginal: false,
-      };
-
-      const choice = await this.fieldGroupingCallback({
-        original: originalCard,
-        duplicate: newCard,
-      });
-
-      if (choice.cancelled) {
-        this.showOsdNotification('Field grouping cancelled');
-        return false;
-      }
-
-      const keepNoteId = choice.keepNoteId;
-      const deleteNoteId = choice.deleteNoteId;
-      const deleteNoteInfo = deleteNoteId === newNoteId ? newNoteInfo : originalNoteInfo;
-
-      await this.performFieldGroupingMerge(
-        keepNoteId,
-        deleteNoteId,
-        deleteNoteInfo,
-        expression,
-        choice.deleteDuplicate,
-      );
-      return true;
-    } catch (error) {
-      log.error('Field grouping manual merge failed:', (error as Error).message);
-      this.showOsdNotification(`Field grouping failed: ${(error as Error).message}`);
-      return false;
-    }
+    void expression;
+    return this.fieldGroupingWorkflow.handleManual(originalNoteId, newNoteId, newNoteInfo);
   }
 
   private truncateSentence(sentence: string): string {
