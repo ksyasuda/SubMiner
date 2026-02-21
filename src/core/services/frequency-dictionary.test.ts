@@ -48,3 +48,34 @@ test('createFrequencyDictionaryLookup continues with no-op lookup when search pa
     true,
   );
 });
+
+test('createFrequencyDictionaryLookup aggregates duplicate-term logs into a single summary', async () => {
+  const logs: string[] = [];
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-frequency-dict-'));
+  const bankPath = path.join(tempDir, 'term_meta_bank_1.json');
+  fs.writeFileSync(
+    bankPath,
+    JSON.stringify([
+      ['猫', 1, { frequency: { displayValue: 100 } }],
+      ['猫', 2, { frequency: { displayValue: 120 } }],
+      ['猫', 3, { frequency: { displayValue: 110 } }],
+    ]),
+  );
+
+  const lookup = await createFrequencyDictionaryLookup({
+    searchPaths: [tempDir],
+    log: (message) => {
+      logs.push(message);
+    },
+  });
+
+  assert.equal(lookup('猫'), 100);
+  assert.equal(
+    logs.filter((entry) => entry.includes('Frequency dictionary ignored 2 duplicate term entries')).length,
+    1,
+  );
+  assert.equal(
+    logs.some((entry) => entry.includes('Frequency dictionary duplicate term')),
+    false,
+  );
+});

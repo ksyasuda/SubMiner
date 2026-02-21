@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogLevelSource = 'cli' | 'config';
 
@@ -107,6 +111,25 @@ function safeStringify(value: unknown): string {
   }
 }
 
+function resolveLogFilePath(): string {
+  const envPath = process.env.SUBMINER_MPV_LOG?.trim();
+  if (envPath) {
+    return envPath;
+  }
+  const date = new Date().toISOString().slice(0, 10);
+  return path.join(os.homedir(), '.config', 'SubMiner', 'logs', `SubMiner-${date}.log`);
+}
+
+function appendToLogFile(line: string): void {
+  try {
+    const logPath = resolveLogFilePath();
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    fs.appendFileSync(logPath, `${line}\n`, { encoding: 'utf8' });
+  } catch {
+    // never break runtime due to logging sink failures
+  }
+}
+
 function emit(level: LogLevel, scope: string, message: string, meta: unknown[]): void {
   const minLevel = resolveMinLevel();
   if (LEVEL_PRIORITY[level] < LEVEL_PRIORITY[minLevel]) {
@@ -127,6 +150,7 @@ function emit(level: LogLevel, scope: string, message: string, meta: unknown[]):
     } else {
       console.info(prefix);
     }
+    appendToLogFile(prefix);
     return;
   }
 
@@ -142,6 +166,7 @@ function emit(level: LogLevel, scope: string, message: string, meta: unknown[]):
   } else {
     console.info(finalMessage);
   }
+  appendToLogFile(finalMessage);
 }
 
 export function createLogger(scope: string): Logger {

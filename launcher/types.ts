@@ -34,7 +34,13 @@ export const DEFAULT_YOUTUBE_SUBGEN_OUT_DIR = path.join(
   'subminer',
   'youtube-subs',
 );
-export const DEFAULT_MPV_LOG_FILE = path.join(os.homedir(), '.cache', 'SubMiner', 'mp.log');
+export const DEFAULT_MPV_LOG_FILE = path.join(
+  os.homedir(),
+  '.config',
+  'SubMiner',
+  'logs',
+  `SubMiner-${new Date().toISOString().slice(0, 10)}.log`,
+);
 export const DEFAULT_YOUTUBE_YTDL_FORMAT = 'bestvideo*+bestaudio/best';
 export const DEFAULT_JIMAKU_API_BASE_URL = 'https://jimaku.cc';
 export const DEFAULT_MPV_SUBMINER_ARGS = [

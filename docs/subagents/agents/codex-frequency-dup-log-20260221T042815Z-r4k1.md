@@ -1,0 +1,28 @@
+# Agent Log: codex-frequency-dup-log-20260221T042815Z-r4k1
+
+- alias: codex-frequency-dup-log
+- mission: reduce frequency dictionary duplicate-term startup log spam; keep useful signal
+- status: completed
+- started_utc: 2026-02-21T04:28:15Z
+- last_update_utc: 2026-02-21T04:32:40Z
+- planned_files:
+  - src/core/services/frequency-dictionary.ts
+  - src/core/services/frequency-dictionary.test.ts
+  - docs/subagents/INDEX.md
+- touched_files:
+  - src/core/services/frequency-dictionary.ts
+  - src/core/services/frequency-dictionary.test.ts
+  - docs/subagents/agents/codex-frequency-dup-log-20260221T042815Z-r4k1.md
+  - docs/subagents/INDEX.md
+- key_decisions:
+  - remove per-entry duplicate term logs
+  - keep one aggregate duplicate summary line per bank file at info level
+- assumptions:
+  - duplicate entries are expected in source dictionary and should not produce per-entry info logs
+- verification:
+  - `bun test src/core/services/frequency-dictionary.test.ts` (pass)
+  - full build currently blocked by unrelated Jellyfin WIP type errors on branch
+- blockers:
+  - unrelated branch state prevents full `bun run build`
+- next_step:
+  - optional follow-up: add true debug-level logging API if duplicate diagnostics are needed on demand

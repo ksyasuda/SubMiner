@@ -970,6 +970,12 @@ export class AnkiIntegration {
       notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
       getDeck: () => this.config.deck,
       resolveFieldName: (info, preferredName) => this.resolveNoteFieldName(info, preferredName),
+      logInfo: (message) => {
+        log.info(message);
+      },
+      logDebug: (message) => {
+        log.debug(message);
+      },
       logWarn: (message, error) => {
         log.warn(message, (error as Error).message);
       },

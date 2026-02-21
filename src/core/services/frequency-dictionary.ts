@@ -62,12 +62,12 @@ function asFrequencyDictionaryEntry(entry: unknown): FrequencyDictionaryEntry | 
 function addEntriesToMap(
   rawEntries: unknown,
   terms: Map<string, number>,
-  log: (message: string) => void,
-): void {
+): { duplicateCount: number } {
   if (!Array.isArray(rawEntries)) {
-    return;
+    return { duplicateCount: 0 };
   }
 
+  let duplicateCount = 0;
   for (const rawEntry of rawEntries) {
     const entry = asFrequencyDictionaryEntry(rawEntry);
     if (!entry) {
@@ -79,10 +79,10 @@ function addEntriesToMap(
       continue;
     }
 
-    log(
-      `Frequency dictionary duplicate term ${entry.term} with weaker rank ${entry.rank}; keeping ${currentRank}.`,
-    );
+    duplicateCount += 1;
   }
+
+  return { duplicateCount };
 }
 
 function collectDictionaryFromPath(
@@ -124,7 +124,14 @@ function collectDictionaryFromPath(
     }
 
     const beforeSize = terms.size;
-    addEntriesToMap(rawEntries, terms, log);
+    const { duplicateCount } = addEntriesToMap(rawEntries, terms);
+    if (duplicateCount > 0) {
+      log(
+        `Frequency dictionary ignored ${duplicateCount} duplicate term entr${
+          duplicateCount === 1 ? 'y' : 'ies'
+        } in ${bankPath} (kept strongest rank per term).`,
+      );
+    }
     if (terms.size === beforeSize) {
       log(`Frequency dictionary file contained no extractable entries: ${bankPath}`);
     }

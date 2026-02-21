@@ -487,7 +487,13 @@ if (process.platform === 'linux') {
 app.setName('SubMiner');
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
-const DEFAULT_MPV_LOG_FILE = path.join(os.homedir(), '.cache', 'SubMiner', 'mp.log');
+const DEFAULT_MPV_LOG_FILE = path.join(
+  os.homedir(),
+  '.config',
+  'SubMiner',
+  'logs',
+  `SubMiner-${new Date().toISOString().slice(0, 10)}.log`,
+);
 const ANILIST_SETUP_CLIENT_ID_URL = 'https://anilist.co/api/v2/oauth/authorize';
 const ANILIST_SETUP_RESPONSE_TYPE = 'token';
 const ANILIST_DEFAULT_CLIENT_ID = '36084';
