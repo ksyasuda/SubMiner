@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import type { MergedToken } from '../types';
 import { PartOfSpeech } from '../types.js';
-import { alignTokensToSourceText, computeWordClass } from './subtitle-render.js';
+import { alignTokensToSourceText, computeWordClass, normalizeSubtitle } from './subtitle-render.js';
 
 function createToken(overrides: Partial<MergedToken>): MergedToken {
   return {
@@ -213,6 +213,45 @@ test('alignTokensToSourceText preserves newline separators between adjacent toke
   assert.deepEqual(
     segments.map((segment) => (segment.kind === 'text' ? `text:${segment.text}` : 'token')),
     ['token', 'text:\n', 'token'],
+  );
+});
+
+test('alignTokensToSourceText treats whitespace-only token surfaces as plain text separators', () => {
+  const tokens = [
+    createToken({ surface: '常人が使えば' }),
+    createToken({ surface: ' ' }),
+    createToken({ surface: 'その圧倒的な力に' }),
+    createToken({ surface: '\n' }),
+    createToken({ surface: '体が耐えきれず死に至るが…' }),
+  ];
+
+  const segments = alignTokensToSourceText(tokens, '常人が使えば その圧倒的な力に\n体が耐えきれず死に至るが…');
+  assert.deepEqual(
+    segments.map((segment) => (segment.kind === 'text' ? `text:${segment.text}` : 'token')),
+    ['token', 'text: ', 'token', 'text:\n', 'token'],
+  );
+});
+
+test('alignTokensToSourceText avoids duplicate tail when later token surface does not match source', () => {
+  const tokens = [
+    createToken({ surface: '君たちが潰した拠点に' }),
+    createToken({ surface: '教団の主力は1人もいない' }),
+  ];
+
+  const segments = alignTokensToSourceText(
+    tokens,
+    '君たちが潰した拠点に\n教団の主力は１人もいない',
+  );
+  assert.deepEqual(
+    segments.map((segment) => (segment.kind === 'text' ? `text:${segment.text}` : 'token')),
+    ['token', 'text:\n教団の主力は１人もいない'],
+  );
+});
+
+test('normalizeSubtitle collapses explicit line breaks when collapseLineBreaks is enabled', () => {
+  assert.equal(
+    normalizeSubtitle('常人が使えば\\Nその圧倒的な力に\\n体が耐えきれず死に至るが…', true, true),
+    '常人が使えば その圧倒的な力に 体が耐えきれず死に至るが…',
   );
 });
 

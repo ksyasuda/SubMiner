@@ -9,7 +9,11 @@ type FrequencyRenderSettings = {
   bandedColors: [string, string, string, string, string];
 };
 
-function normalizeSubtitle(text: string, trim = true, collapseLineBreaks = false): string {
+function isWhitespaceOnly(value: string): boolean {
+  return value.trim().length === 0;
+}
+
+export function normalizeSubtitle(text: string, trim = true, collapseLineBreaks = false): string {
   if (!text) return '';
 
   let normalized = text.replace(/\\N/g, '\n').replace(/\\n/g, '\n');
@@ -140,24 +144,13 @@ function renderWithTokens(
   }
 
   for (const token of tokens) {
-    const surface = token.surface;
+    const surface = token.surface.replace(/\n/g, ' ');
+    if (!surface) {
+      continue;
+    }
 
-    if (surface.includes('\n')) {
-      const parts = surface.split('\n');
-      for (let i = 0; i < parts.length; i += 1) {
-        const part = parts[i];
-        if (part) {
-          const span = document.createElement('span');
-          span.className = computeWordClass(token, resolvedFrequencyRenderSettings);
-          span.textContent = part;
-          if (token.reading) span.dataset.reading = token.reading;
-          if (token.headword) span.dataset.headword = token.headword;
-          fragment.appendChild(span);
-        }
-        if (i < parts.length - 1) {
-          fragment.appendChild(document.createElement('br'));
-        }
-      }
+    if (isWhitespaceOnly(surface)) {
+      fragment.appendChild(document.createTextNode(surface));
       continue;
     }
 
@@ -187,17 +180,14 @@ export function alignTokensToSourceText(
 
   for (const token of tokens) {
     const surface = token.surface;
-    if (!surface) {
+    if (!surface || isWhitespaceOnly(surface)) {
       continue;
     }
 
     const foundIndex = sourceText.indexOf(surface, cursor);
     if (foundIndex < 0) {
-      if (cursor < sourceText.length) {
-        segments.push({ kind: 'text', text: sourceText.slice(cursor) });
-      }
-      segments.push({ kind: 'token', token });
-      cursor = sourceText.length;
+      // Token text can diverge from source normalization (e.g., half/full-width forms).
+      // Skip unmatched token to avoid duplicating visible tail text in preserve-line-break mode.
       continue;
     }
 
@@ -318,7 +308,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       return;
     }
 
-    const normalized = normalizeSubtitle(text);
+    const normalized = normalizeSubtitle(text, true, !ctx.state.preserveSubtitleLineBreaks);
     if (tokens && tokens.length > 0) {
       renderWithTokens(
         ctx.dom.subtitleRoot,
