@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildConfigParseErrorDetails,
   buildConfigWarningNotificationBody,
   buildConfigWarningSummary,
   failStartupFromConfig,
@@ -50,6 +51,15 @@ test('buildConfigWarningNotificationBody includes concise warning details', () =
     body,
     /2\. ankiConnect\.isLapis\.sentenceCardSentenceField: Deprecated key; sentence-card sentence field is fixed to Sentence\./,
   );
+});
+
+test('buildConfigParseErrorDetails includes path error and restart guidance', () => {
+  const details = buildConfigParseErrorDetails('/tmp/config.jsonc', 'unexpected token at line 1');
+
+  assert.match(details, /Failed to parse config file at:/);
+  assert.match(details, /\/tmp\/config\.jsonc/);
+  assert.match(details, /Error: unexpected token at line 1/);
+  assert.match(details, /Fix the config file and restart SubMiner\./);
 });
 
 test('failStartupFromConfig invokes handlers and throws', () => {

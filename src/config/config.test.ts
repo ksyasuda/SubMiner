@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ConfigService } from './service';
+import { ConfigService, ConfigStartupParseError } from './service';
 import { DEFAULT_CONFIG, RUNTIME_OPTION_REGISTRY } from './definitions';
 import { generateConfigTemplate } from './template';
 
@@ -37,6 +37,24 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.immersionTracking.retention.dailyRollupsDays, 365);
   assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 1825);
   assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 7);
+});
+
+test('throws actionable startup parse error for malformed config at construction time', () => {
+  const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
+  fs.writeFileSync(configPath, '{"websocket":', 'utf-8');
+
+  assert.throws(
+    () => new ConfigService(dir),
+    (error: unknown) => {
+      assert.ok(error instanceof ConfigStartupParseError);
+      assert.equal(error.path, configPath);
+      assert.ok(error.parseError.length > 0);
+      assert.ok(error.message.includes(configPath));
+      assert.ok(error.message.includes(error.parseError));
+      return true;
+    },
+  );
 });
 
 test('parses subtitleStyle.preserveLineBreaks and warns on invalid values', () => {

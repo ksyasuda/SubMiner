@@ -1,5 +1,6 @@
 import type { ConfigValidationWarning } from '../../types';
 import {
+  buildConfigParseErrorDetails,
   buildConfigWarningNotificationBody,
   buildConfigWarningSummary,
   failStartupFromConfig,
@@ -48,7 +49,7 @@ export function createReloadConfigHandler(deps: ReloadConfigRuntimeDeps): () => 
     if (!result.ok) {
       failStartupFromConfig(
         'SubMiner config parse error',
-        `Failed to parse config file at:\n${result.path}\n\nError: ${result.error}\n\nFix the config file and restart SubMiner.`,
+        buildConfigParseErrorDetails(result.path, result.error),
         deps.failHandlers,
       );
     }

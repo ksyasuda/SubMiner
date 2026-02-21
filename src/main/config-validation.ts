@@ -61,6 +61,17 @@ export function buildConfigWarningNotificationBody(
   ].join('\n');
 }
 
+export function buildConfigParseErrorDetails(configPath: string, parseError: string): string {
+  return [
+    'Failed to parse config file at:',
+    configPath,
+    '',
+    `Error: ${parseError}`,
+    '',
+    'Fix the config file and restart SubMiner.',
+  ].join('\n');
+}
+
 export function failStartupFromConfig(
   title: string,
   details: string,

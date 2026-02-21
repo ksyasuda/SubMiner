@@ -18,12 +18,26 @@ export type ReloadConfigStrictResult =
       path: string;
     };
 
+export class ConfigStartupParseError extends Error {
+  readonly path: string;
+  readonly parseError: string;
+
+  constructor(configPath: string, parseError: string) {
+    super(
+      `Failed to parse startup config at ${configPath}: ${parseError}. Fix the config file and restart SubMiner.`,
+    );
+    this.name = 'ConfigStartupParseError';
+    this.path = configPath;
+    this.parseError = parseError;
+  }
+}
+
 export class ConfigService {
   private readonly configPaths: ConfigPaths;
   private rawConfig: RawConfig = {};
   private resolvedConfig: ResolvedConfig = deepCloneConfig(DEFAULT_CONFIG);
   private warnings: ConfigValidationWarning[] = [];
-  private configPathInUse: string;
+  private configPathInUse!: string;
 
   constructor(configDir: string) {
     this.configPaths = {
@@ -31,8 +45,11 @@ export class ConfigService {
       configFileJsonc: path.join(configDir, 'config.jsonc'),
       configFileJson: path.join(configDir, 'config.json'),
     };
-    this.configPathInUse = this.configPaths.configFileJsonc;
-    this.reloadConfig();
+    const loadResult = loadRawConfigStrict(this.configPaths);
+    if (!loadResult.ok) {
+      throw new ConfigStartupParseError(loadResult.path, loadResult.error);
+    }
+    this.applyResolvedConfig(loadResult.config, loadResult.path);
   }
 
   getConfigPath(): string {

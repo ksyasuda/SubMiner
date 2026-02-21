@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  createCriticalConfigErrorHandler,
-  createReloadConfigHandler,
-} from './startup-config';
+import { createCriticalConfigErrorHandler, createReloadConfigHandler } from './startup-config';
 
 test('createReloadConfigHandler runs success flow with warnings', async () => {
   const calls: string[] = [];
@@ -42,9 +39,7 @@ test('createReloadConfigHandler runs success flow with warnings', async () => {
   assert.ok(calls.some((entry) => entry.startsWith('info:Using config file: /tmp/config.jsonc')));
   assert.ok(calls.some((entry) => entry.startsWith('warn:[config] Validation found 1 issue(s)')));
   assert.ok(
-    calls.some((entry) =>
-      entry.includes('notify:SubMiner:1 config validation issue(s) detected.'),
-    ),
+    calls.some((entry) => entry.includes('notify:SubMiner:1 config validation issue(s) detected.')),
   );
   assert.ok(calls.some((entry) => entry.includes('1. ankiConnect.pollingRate: must be >= 50')));
   assert.ok(calls.includes('hotReload:start'));
@@ -79,6 +74,9 @@ test('createReloadConfigHandler fails startup for parse errors', () => {
   assert.throws(() => reloadConfig(), /Failed to parse config file at:/);
   assert.equal(process.exitCode, 1);
   assert.ok(calls.some((entry) => entry.startsWith('error:Failed to parse config file at:')));
+  assert.ok(calls.some((entry) => entry.includes('/tmp/config.jsonc')));
+  assert.ok(calls.some((entry) => entry.includes('Error: unexpected token')));
+  assert.ok(calls.some((entry) => entry.includes('Fix the config file and restart SubMiner.')));
   assert.ok(
     calls.some((entry) =>
       entry.startsWith('dialog:SubMiner config parse error:Failed to parse config file at:'),
