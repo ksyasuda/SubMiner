@@ -44,10 +44,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build + test
-        run: |
-          bun run build
-          bun run test:fast
+      - name: Test suite (source)
+        run: bun run test:fast
+
+      - name: Build (bundle)
+        run: bun run build
+
+      - name: Dist smoke suite
+        run: bun run test:smoke:dist
 
   build-linux:
     needs: [quality-gate]

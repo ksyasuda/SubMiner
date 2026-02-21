@@ -42,11 +42,14 @@ jobs:
         # Keep explicit typecheck for fast fail before full build/bundle.
         run: bun run tsc --noEmit
 
+      - name: Test suite (source)
+        run: bun run test:fast
+
       - name: Build (bundle)
         run: bun run build
 
-      - name: Test suite
-        run: bun run test:fast
+      - name: Dist smoke suite
+        run: bun run test:smoke:dist
 
       - name: Build docs
         run: bun run docs:build

@@ -61,21 +61,22 @@ electron . --background                       # tray/background mode, minimal de
 ## Testing
 
 ```bash
-bun run test:config       # Config schema and validation tests (build + run)
-bun run test:core         # Core service tests (~67 tests) (build + run)
+bun run test:config       # Source-level config schema/validation tests
+bun run test:core         # Source-level core regression tests (default lane)
 bun run test:subtitle     # Subtitle pipeline tests (build + run)
+bun run test:fast         # Source-level config + core lane (no build prerequisite)
 ```
 
-All legacy test commands build first, then run via Node's built-in test runner (`node --test`).
+Dist-level tests are now an explicit smoke lane used to validate compiled/runtime assumptions.
 
-For faster iteration while editing test code:
+Smoke and optional deep dist commands:
 
 ```bash
-bun run build             # one-time compile
-bun run test:config:dist  # no rebuild
-bun run test:core:dist    # no rebuild
-bun run test:subtitle:dist # no rebuild
-bun run test:fast         # run all tests without rebuild (assumes build is already current)
+bun run build                 # compile dist artifacts
+bun run test:smoke:dist       # explicit smoke scope for compiled runtime
+bun run test:config:dist      # optional full dist config suite
+bun run test:core:dist        # optional full dist core suite
+bun run test:subtitle:dist    # subtitle dist lane (currently placeholder)
 ```
 
 ## Config Generation
@@ -117,6 +118,7 @@ Run `make help` for a full list of targets. Key ones:
 - To add or change a config option, update `src/config/definitions.ts` first. Defaults, runtime-option metadata, and generated `config.example.jsonc` are derived from this centralized source.
 - Overlay window/visibility state is owned by `src/core/services/overlay-manager.ts`.
 - Main process composition is split across `src/main/` modules plus focused runtime composers under `src/main/runtime/composers/*` (for example AniList tracking and MPV runtime assembly clusters).
+- Runtime composer contracts should use shared helpers in `src/main/runtime/composers/contracts.ts` (`ComposerInputs`, `ComposerOutputs`, and `BuiltMainDeps`) so required deps remain compile-time enforced.
 - Runtime domain imports for `src/main.ts` should route through `src/main/runtime/domains/*`; shared domain access point is `src/main/runtime/registry.ts`.
 - Linux packaged desktop launches pass `--background` using electron-builder `build.linux.executableArgs` in `package.json`.
 - MPV service has been split into transport, protocol, state, and properties layers in `src/core/services/`.
