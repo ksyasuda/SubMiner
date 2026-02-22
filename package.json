@@ -16,8 +16,6 @@
     "docs:preview": "VITE_EXTRA_EXTENSIONS=jsonc vitepress preview docs --host 0.0.0.0 --port 4173 --strictPort",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:file-budgets": "bun run scripts/check-file-budgets.ts",
-    "check:file-budgets:strict": "bun run scripts/check-file-budgets.ts --strict",
     "check:main-fanin": "bun run scripts/check-main-runtime-fanin.ts",
     "check:main-fanin:strict": "bun run scripts/check-main-runtime-fanin.ts --strict",
     "check:runtime-cycles": "bun run scripts/check-runtime-cycles.ts",

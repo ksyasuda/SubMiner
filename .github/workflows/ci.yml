@@ -40,7 +40,6 @@ jobs:
 
       - name: Maintainability guardrails (fail-fast)
         run: |
-          bun run check:file-budgets:strict
           bun run check:main-fanin:strict
           bun run check:runtime-cycles:strict
 

@@ -88,7 +88,6 @@ bun run test:subtitle:dist    # subtitle dist lane (currently placeholder)
 Run guardrails locally before opening a PR:
 
 ```bash
-bun run check:file-budgets:strict
 bun run check:main-fanin:strict
 bun run check:runtime-cycles:strict
 ```
@@ -112,10 +111,8 @@ Hotspot budget baselines (2026-02-22):
 
 Troubleshooting guardrail failures:
 
-- File budget hotspot failure: split logic by runtime/domain boundaries and keep orchestration facades thin.
 - Main fan-in failure: move runtime imports behind `src/main/runtime/domains/*` or composer barrels.
 - Runtime cycle failure: break bidirectional imports by extracting shared helpers into leaf modules.
-- Optional broad-budget audit (legacy/global): run `bun run scripts/check-file-budgets.ts --strict --enforce-global`.
 
 ## Config Generation
 
