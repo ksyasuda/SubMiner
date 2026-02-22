@@ -83,6 +83,40 @@ bun run test:core:dist        # optional full dist core suite
 bun run test:subtitle:dist    # subtitle dist lane (currently placeholder)
 ```
 
+## Maintainability Guardrails
+
+Run guardrails locally before opening a PR:
+
+```bash
+bun run check:file-budgets:strict
+bun run check:main-fanin:strict
+bun run check:runtime-cycles:strict
+```
+
+Expected success output includes:
+
+- `[OK] hotspot budget check (strict) — no hotspots over limit`
+- `[OK] main runtime fan-in (strict) — ...`
+- `[OK] runtime cycle check (strict) - ... no cycles detected`
+
+Hotspot budget baselines (2026-02-22):
+
+| File                                      | Baseline LOC | Limit LOC |
+| ----------------------------------------- | ------------ | --------- |
+| `src/main.ts`                             | 2978         | 3150      |
+| `src/config/service.ts`                   | 116          | 140       |
+| `src/core/services/tokenizer.ts`          | 232          | 260       |
+| `launcher/main.ts`                        | 101          | 130       |
+| `src/config/resolve.ts`                   | 33           | 55        |
+| `src/main/runtime/composers/contracts.ts` | 13           | 30        |
+
+Troubleshooting guardrail failures:
+
+- File budget hotspot failure: split logic by runtime/domain boundaries and keep orchestration facades thin.
+- Main fan-in failure: move runtime imports behind `src/main/runtime/domains/*` or composer barrels.
+- Runtime cycle failure: break bidirectional imports by extracting shared helpers into leaf modules.
+- Optional broad-budget audit (legacy/global): run `bun run scripts/check-file-budgets.ts --strict --enforce-global`.
+
 ## Config Generation
 
 ```bash
@@ -124,11 +158,8 @@ Run `make help` for a full list of targets. Key ones:
 - To add/change generated config template blocks/comments, update `src/config/definitions/template-sections.ts`.
 - Keep `src/config/definitions.ts` as the composed public API (`DEFAULT_CONFIG`, registries, template export) that wires domain modules together.
 - Overlay window/visibility state is owned by `src/core/services/overlay-manager.ts`.
-- Main process composition is split across `src/main/` modules plus focused runtime composers under `src/main/runtime/composers/*` (for example AniList tracking and MPV runtime assembly clusters).
-- Runtime composer contracts should use shared helpers in `src/main/runtime/composers/contracts.ts` (`ComposerInputs`, `ComposerOutputs`, and `BuiltMainDeps`) so required deps remain compile-time enforced.
-- Runtime domain imports for `src/main.ts` should route through `src/main/runtime/domains/*`; shared domain access point is `src/main/runtime/registry.ts`.
+- Runtime architecture/module-boundary conventions are documented in [Architecture](/architecture); keep contributor changes aligned with that canonical guide.
 - Linux packaged desktop launches pass `--background` using electron-builder `build.linux.executableArgs` in `package.json`.
-- MPV service has been split into transport, protocol, state, and properties layers in `src/core/services/`.
 - Prefer direct inline deps objects in `src/main/` modules for simple pass-through wiring.
 - Add a helper/adapter service only when it performs meaningful adaptation, validation, or reuse (not identity mapping).
 - See [Architecture](/architecture) for the composition model and extension rules.

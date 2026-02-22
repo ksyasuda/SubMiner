@@ -251,8 +251,8 @@ flowchart TD
 - **Better testability:** most behavior can be tested without Electron windows/mpv.
 - **Better reviewability:** PRs can be scoped to one subsystem.
 - **Backward compatibility:** CLI flags and IPC channels can remain stable while internals evolve.
-- **Extracted composition root:** TASK-27 refactored `main.ts` into focused modules under `src/main/`, isolating startup, lifecycle, IPC, CLI, and domain-specific runtime wiring.
-- **Split MPV service:** TASK-27.4 separated `mpv.ts` into transport (`mpv-transport.ts`), protocol (`mpv-protocol.ts`), state (`mpv-state.ts`), and properties (`mpv-properties.ts`) layers for improved maintainability.
+- **Extracted composition root:** `main.ts` delegates to focused modules under `src/main/` for startup, lifecycle, IPC, CLI, and domain runtime wiring.
+- **Split MPV service layers:** MPV internals are separated into transport (`mpv-transport.ts`), protocol (`mpv-protocol.ts`), state (`mpv-state.ts`), and properties (`mpv-properties.ts`) for maintainability.
 
 ## Extension Rules
 
