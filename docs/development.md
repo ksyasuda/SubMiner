@@ -62,6 +62,7 @@ electron . --background                       # tray/background mode, minimal de
 
 ```bash
 bun run test:config       # Source-level config schema/validation tests
+bun run test:launcher     # Launcher regression tests (config discovery + command routing)
 bun run test:core         # Source-level core regression tests (default lane)
 bun run test:subtitle     # Subtitle pipeline tests (build + run)
 bun run test:fast         # Source-level config + core lane (no build prerequisite)
@@ -115,7 +116,10 @@ Run `make help` for a full list of targets. Key ones:
 
 ## Contributor Notes
 
-- To add or change a config option, update `src/config/definitions.ts` first. Defaults, runtime-option metadata, and generated `config.example.jsonc` are derived from this centralized source.
+- To add/change a config default, edit the matching domain file in `src/config/definitions/defaults-*.ts`.
+- To add/change config option metadata, edit the matching domain file in `src/config/definitions/options-*.ts`.
+- To add/change generated config template blocks/comments, update `src/config/definitions/template-sections.ts`.
+- Keep `src/config/definitions.ts` as the composed public API (`DEFAULT_CONFIG`, registries, template export) that wires domain modules together.
 - Overlay window/visibility state is owned by `src/core/services/overlay-manager.ts`.
 - Main process composition is split across `src/main/` modules plus focused runtime composers under `src/main/runtime/composers/*` (for example AniList tracking and MPV runtime assembly clusters).
 - Runtime composer contracts should use shared helpers in `src/main/runtime/composers/contracts.ts` (`ComposerInputs`, `ComposerOutputs`, and `BuiltMainDeps`) so required deps remain compile-time enforced.

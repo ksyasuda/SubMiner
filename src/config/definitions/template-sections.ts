@@ -1,0 +1,146 @@
+import { ConfigTemplateSection } from './shared';
+
+const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
+  {
+    title: 'Overlay Auto-Start',
+    description: [
+      'When overlay connects to mpv, automatically show overlay and hide mpv subtitles.',
+    ],
+    key: 'auto_start_overlay',
+  },
+  {
+    title: 'Visible Overlay Subtitle Binding',
+    description: [
+      'Control whether visible overlay toggles also toggle MPV subtitle visibility.',
+      'When enabled, visible overlay hides MPV subtitles; when disabled, MPV subtitles are left unchanged.',
+    ],
+    key: 'bind_visible_overlay_to_mpv_sub_visibility',
+  },
+  {
+    title: 'Texthooker Server',
+    description: ['Control whether browser opens automatically for texthooker.'],
+    key: 'texthooker',
+  },
+  {
+    title: 'WebSocket Server',
+    description: [
+      'Built-in WebSocket server broadcasts subtitle text to connected clients.',
+      'Auto mode disables built-in server if mpv_websocket is detected.',
+    ],
+    key: 'websocket',
+  },
+  {
+    title: 'Logging',
+    description: ['Controls logging verbosity.', 'Set to debug for full runtime diagnostics.'],
+    key: 'logging',
+  },
+  {
+    title: 'Keyboard Shortcuts',
+    description: ['Overlay keyboard shortcuts. Set a shortcut to null to disable.'],
+    notes: ['Hot-reload: shortcut changes apply live and update the session help modal on reopen.'],
+    key: 'shortcuts',
+  },
+  {
+    title: 'Invisible Overlay',
+    description: ['Startup behavior for the invisible interactive subtitle mining layer.'],
+    notes: [
+      'Invisible subtitle position edit mode: Ctrl/Cmd+Shift+P to toggle, arrow keys to move, Enter or Ctrl/Cmd+S to save, Esc to cancel.',
+      'This edit-mode shortcut is fixed and is not currently configurable.',
+    ],
+    key: 'invisibleOverlay',
+  },
+  {
+    title: 'Keybindings (MPV Commands)',
+    description: [
+      'Extra keybindings that are merged with built-in defaults.',
+      'Set command to null to disable a default keybinding.',
+    ],
+    notes: [
+      'Hot-reload: keybinding changes apply live and update the session help modal on reopen.',
+    ],
+    key: 'keybindings',
+  },
+  {
+    title: 'Secondary Subtitles',
+    description: [
+      'Dual subtitle track options.',
+      'Used by subminer YouTube subtitle generation as secondary language preferences.',
+    ],
+    notes: ['Hot-reload: defaultMode updates live while SubMiner is running.'],
+    key: 'secondarySub',
+  },
+  {
+    title: 'Auto Subtitle Sync',
+    description: ['Subsync engine and executable paths.'],
+    key: 'subsync',
+  },
+  {
+    title: 'Subtitle Position',
+    description: ['Initial vertical subtitle position from the bottom.'],
+    key: 'subtitlePosition',
+  },
+];
+
+const SUBTITLE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
+  {
+    title: 'Subtitle Appearance',
+    description: ['Primary and secondary subtitle styling.'],
+    notes: ['Hot-reload: subtitle style changes apply live without restarting SubMiner.'],
+    key: 'subtitleStyle',
+  },
+];
+
+const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
+  {
+    title: 'AnkiConnect Integration',
+    description: ['Automatic Anki updates and media generation options.'],
+    notes: [
+      'Hot-reload: AI translation settings update live while SubMiner is running.',
+      'Most other AnkiConnect settings still require restart.',
+    ],
+    key: 'ankiConnect',
+  },
+  {
+    title: 'Jimaku',
+    description: ['Jimaku API configuration and defaults.'],
+    key: 'jimaku',
+  },
+  {
+    title: 'YouTube Subtitle Generation',
+    description: ['Defaults for subminer YouTube subtitle extraction/transcription mode.'],
+    key: 'youtubeSubgen',
+  },
+  {
+    title: 'Anilist',
+    description: ['Anilist API credentials and update behavior.'],
+    key: 'anilist',
+  },
+  {
+    title: 'Jellyfin',
+    description: [
+      'Optional Jellyfin integration for auth, browsing, and playback launch.',
+      'Access token is stored in local encrypted token storage after login/setup.',
+      'jellyfin.accessToken remains an optional explicit override in config.',
+    ],
+    key: 'jellyfin',
+  },
+];
+
+const IMMERSION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
+  {
+    title: 'Immersion Tracking',
+    description: [
+      'Enable/disable immersion tracking.',
+      'Set dbPath to override the default sqlite database location.',
+      'Policy tuning is available for queue, flush, and retention values.',
+    ],
+    key: 'immersionTracking',
+  },
+];
+
+export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
+  ...CORE_TEMPLATE_SECTIONS,
+  ...SUBTITLE_TEMPLATE_SECTIONS,
+  ...INTEGRATION_TEMPLATE_SECTIONS,
+  ...IMMERSION_TEMPLATE_SECTIONS,
+];
