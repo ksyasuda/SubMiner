@@ -24,7 +24,6 @@ function getPersistedYPercent(ctx: RendererContext, position: SubtitlePosition |
 }
 
 function getPersistedOffset(
-  ctx: RendererContext,
   position: SubtitlePosition | null,
   key: 'invisibleOffsetXPx' | 'invisibleOffsetYPx',
 ): number {
@@ -41,8 +40,8 @@ function updatePersistedSubtitlePosition(
 ): void {
   ctx.state.persistedSubtitlePosition = {
     yPercent: getPersistedYPercent(ctx, position),
-    invisibleOffsetXPx: getPersistedOffset(ctx, position, 'invisibleOffsetXPx'),
-    invisibleOffsetYPx: getPersistedOffset(ctx, position, 'invisibleOffsetYPx'),
+    invisibleOffsetXPx: getPersistedOffset(position, 'invisibleOffsetXPx'),
+    invisibleOffsetYPx: getPersistedOffset(position, 'invisibleOffsetYPx'),
   };
 }
 

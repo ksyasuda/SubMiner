@@ -35,7 +35,6 @@ import {
   createUiFeedbackState,
   beginUpdateProgress,
   endUpdateProgress,
-  showProgressTick,
   showStatusNotification,
   withUpdateProgress,
   UiFeedbackState,
@@ -516,10 +515,6 @@ export class AnkiIntegration {
     log.info('Stopped AnkiConnect integration');
   }
 
-  private poll(): void {
-    void this.pollingRunner.poll();
-  }
-
   private async processNewCard(
     noteId: number,
     options?: { skipKikuFieldGrouping?: boolean },
@@ -710,12 +705,6 @@ export class AnkiIntegration {
   private endUpdateProgress(): void {
     endUpdateProgress(this.uiFeedbackState, (timer) => {
       clearInterval(timer);
-    });
-  }
-
-  private showProgressTick(): void {
-    showProgressTick(this.uiFeedbackState, (text: string) => {
-      this.showOsdNotification(text);
     });
   }
 
@@ -1069,24 +1058,6 @@ export class AnkiIntegration {
     );
     if (requiredFields.length === 0) return true;
     return requiredFields.every((fieldName) => this.hasFieldValue(noteInfo, fieldName));
-  }
-
-  private async refreshMiscInfoField(noteId: number, noteInfo: NoteInfo): Promise<void> {
-    if (!this.config.fields?.miscInfo || !this.config.metadata?.pattern) return;
-
-    const resolvedMiscField = this.resolveNoteFieldName(noteInfo, this.config.fields?.miscInfo);
-    if (!resolvedMiscField) return;
-
-    const nextValue = this.formatMiscInfoPattern('', this.mpvClient.currentSubStart);
-    if (!nextValue) return;
-
-    const currentValue = noteInfo.fields[resolvedMiscField]?.value || '';
-    if (currentValue === nextValue) return;
-
-    await this.client.updateNoteFields(noteId, {
-      [resolvedMiscField]: nextValue,
-    });
-    await this.addConfiguredTagsToNote(noteId);
   }
 
   applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>): void {

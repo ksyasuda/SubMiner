@@ -2,7 +2,6 @@ import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import { AnkiConnectConfig } from '../types';
 import { createLogger } from '../logger';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
-import { MediaGenerator } from '../media-generator';
 import { MpvClient } from '../types';
 import { resolveSentenceBackText } from './ai';
 

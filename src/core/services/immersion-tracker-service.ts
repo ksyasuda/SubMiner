@@ -90,13 +90,11 @@ export class ImmersionTrackerService {
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
   private flushScheduled = false;
   private droppedWriteCount = 0;
-  private lastMaintenanceMs = 0;
   private lastVacuumMs = 0;
   private isDestroyed = false;
   private sessionState: SessionState | null = null;
   private currentVideoKey = '';
   private currentMediaPathOrUrl = '';
-  private lastQueueWriteAtMs = 0;
   private readonly telemetryInsertStmt: ReturnType<DatabaseSync['prepare']>;
   private readonly eventInsertStmt: ReturnType<DatabaseSync['prepare']>;
 
@@ -165,8 +163,6 @@ export class ImmersionTrackerService {
         1,
         3650,
       ) * 86_400_000;
-    this.lastMaintenanceMs = Date.now();
-
     this.db = new DatabaseSync(this.dbPath);
     this.applyPragmas();
     this.ensureSchema();
@@ -493,7 +489,6 @@ export class ImmersionTrackerService {
       this.droppedWriteCount += dropped;
       this.logger.warn(`Immersion tracker queue overflow; dropped ${dropped} oldest writes`);
     }
-    this.lastQueueWriteAtMs = Date.now();
     if (write.kind === 'event' || this.queue.length >= this.batchSize) {
       this.scheduleFlush(0);
     }
@@ -782,17 +777,12 @@ export class ImmersionTrackerService {
         this.db.exec('VACUUM');
         this.lastVacuumMs = nowMs;
       }
-      this.lastMaintenanceMs = nowMs;
     } catch (error) {
       this.logger.warn(
         'Immersion tracker maintenance failed, will retry later',
         (error as Error).message,
       );
     }
-  }
-
-  private runRollupMaintenance(): void {
-    runRollupMaintenance(this.db);
   }
 
   private startSession(videoId: number, startedAtMs?: number): void {

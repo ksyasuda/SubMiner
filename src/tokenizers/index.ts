@@ -20,18 +20,6 @@ export function registerTokenizerProvider(id: string, factory: TokenizerProvider
   tokenizerProviderFactories.set(id, factory);
 }
 
-export function getRegisteredTokenizerProviderIds(): string[] {
-  return Array.from(tokenizerProviderFactories.keys());
-}
-
-export function createTokenizerProvider(id = 'mecab'): TokenizerProvider | null {
-  const factory = tokenizerProviderFactories.get(id);
-  if (!factory) {
-    return null;
-  }
-  return factory();
-}
-
 function registerDefaultTokenizerProviders(): void {
   registerTokenizerProvider('mecab', () => {
     const mecab = new MecabTokenizer();

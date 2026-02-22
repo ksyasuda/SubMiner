@@ -5,7 +5,6 @@ import * as os from 'os';
 import { createLogger } from '../../logger';
 import {
   JimakuApiResponse,
-  JimakuDownloadQuery,
   JimakuDownloadResult,
   JimakuEntry,
   JimakuFileEntry,

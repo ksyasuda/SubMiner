@@ -1,11 +1,11 @@
 ---
 id: TASK-98
 title: Shift core tests to source level and trim dist coupling
-status: In Progress
+status: Done
 assignee:
   - opencode
 created_date: '2026-02-21 07:15'
-updated_date: '2026-02-21 09:56'
+updated_date: '2026-02-22 02:35'
 labels:
   - testing
   - maintainability
@@ -77,11 +77,33 @@ Execution updates (2026-02-21):
   - PASS: `bun run test:config:src && bun run test:core:src`
   - PASS: `bun run test:smoke:dist`
   - BLOCKED (pre-existing unrelated workspace errors): `bun run build` currently fails in `src/main.ts` and `src/main/runtime/composers/mpv-runtime-composer.test.ts` from in-flight TASK-96/97 changes present in working tree; not introduced by TASK-98 edits.
+
+2026-02-22 closure verification (current HEAD):
+
+- PASS: `bun run test:fast` (source lane)
+
+- PASS: `bun run build`
+
+- PASS: `bun run test:smoke:dist` (post-build dist smoke lane)
+
+- Timing repro (current HEAD):
+
+- `/usr/bin/time -p bun run test:fast` => `real 2.18`
+
+- `/usr/bin/time -p bun run test:smoke:dist` => `real 0.21`
+
+- Policy re-check: `package.json` keeps source defaults (`test:config`, `test:core`, `test:fast`) and explicit dist smoke (`test:smoke:dist`); CI/release still run source tests before build and dist smoke after build.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed TASK-98 by validating the source-first/dist-smoke test split on current HEAD. Verified `test:fast`, `build`, and `test:smoke:dist` all pass; confirmed CI/release order remains source tests before build and dist smoke after build; captured reproducible timing evidence for the active lanes.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [x] #1 Test command matrix documented in task notes.
-- [ ] #2 CI config updated and passing with new source/dist split.
+- [x] #2 CI config updated and passing with new source/dist split.
 - [x] #3 Performance delta captured with reproducible timing commands.
 <!-- DOD:END -->

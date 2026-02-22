@@ -91,7 +91,7 @@ export async function withUpdateProgress<T>(
   initialMessage: string,
   action: () => Promise<T>,
 ): Promise<T> {
-  beginUpdateProgress(state, initialMessage, (message) =>
+  beginUpdateProgress(state, initialMessage, () =>
     showProgressTick(state, options.showOsdNotification),
   );
   options.setUpdateInProgress(true);

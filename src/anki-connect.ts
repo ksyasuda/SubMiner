@@ -36,15 +36,12 @@ interface AnkiConnectResponse {
 
 export class AnkiConnectClient {
   private client: AxiosInstance;
-  private url: string;
   private backoffMs = 200;
   private maxBackoffMs = 5000;
   private consecutiveFailures = 0;
   private maxConsecutiveFailures = 5;
 
   constructor(url: string) {
-    this.url = url;
-
     const httpAgent = new http.Agent({
       keepAlive: true,
       keepAliveMsecs: 1000,

@@ -1,7 +1,6 @@
 import {
   RuntimeOptionApplyResult,
   RuntimeOptionId,
-  RuntimeOptionValue,
   SubsyncManualRunRequest,
   SubsyncResult,
 } from '../../types';

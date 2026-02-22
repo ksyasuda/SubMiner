@@ -17,16 +17,6 @@ export function registerTokenMergerProvider(id: string, factory: TokenMergerProv
   tokenMergerProviderFactories.set(id, factory);
 }
 
-export function getRegisteredTokenMergerProviderIds(): string[] {
-  return Array.from(tokenMergerProviderFactories.keys());
-}
-
-export function createTokenMergerProvider(id = 'default'): TokenMergerProvider | null {
-  const factory = tokenMergerProviderFactories.get(id);
-  if (!factory) return null;
-  return factory();
-}
-
 function registerDefaultTokenMergerProviders(): void {
   registerTokenMergerProvider('default', () => ({
     id: 'default',
