@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createRendererRecoveryController } from './error-recovery.js';
+import { resolvePlatformInfo } from './utils/platform.js';
 
 test('handleError logs context and recovers overlay state', () => {
   const payloads: unknown[] = [];
@@ -119,4 +120,38 @@ test('nested recovery errors are ignored while current recovery is active', () =
 
   assert.equal(payloads.length, 1);
   assert.equal(restored, 1);
+});
+
+test('resolvePlatformInfo prefers query layer over preload layer', () => {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousNavigator = (globalThis as { navigator?: unknown }).navigator;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getOverlayLayer: () => 'invisible',
+      },
+      location: { search: '?layer=visible' },
+    },
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      platform: 'MacIntel',
+      userAgent: 'Mozilla/5.0 (Macintosh)',
+    },
+  });
+
+  try {
+    const info = resolvePlatformInfo();
+    assert.equal(info.overlayLayer, 'visible');
+    assert.equal(info.isInvisibleLayer, false);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: previousNavigator,
+    });
+  }
 });

@@ -13,15 +13,15 @@ export type PlatformInfo = {
 
 export function resolvePlatformInfo(): PlatformInfo {
   const overlayLayerFromPreload = window.electronAPI.getOverlayLayer();
-  const overlayLayerFromQuery =
-    new URLSearchParams(window.location.search).get('layer') === 'invisible'
-      ? 'invisible'
-      : 'visible';
+  const queryLayer = new URLSearchParams(window.location.search).get('layer');
+  const overlayLayerFromQuery: OverlayLayer | null =
+    queryLayer === 'visible' || queryLayer === 'invisible' ? queryLayer : null;
 
   const overlayLayer: OverlayLayer =
-    overlayLayerFromPreload === 'visible' || overlayLayerFromPreload === 'invisible'
+    overlayLayerFromQuery ??
+    (overlayLayerFromPreload === 'visible' || overlayLayerFromPreload === 'invisible'
       ? overlayLayerFromPreload
-      : overlayLayerFromQuery;
+      : 'visible');
 
   const isInvisibleLayer = overlayLayer === 'invisible';
   const isLinuxPlatform = navigator.platform.toLowerCase().includes('linux');

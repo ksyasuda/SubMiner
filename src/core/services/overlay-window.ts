@@ -75,6 +75,7 @@ export function createOverlayWindow(
       preload: path.join(__dirname, '..', '..', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
       webSecurity: true,
       additionalArguments: [`--overlay-layer=${kind}`],
     },
