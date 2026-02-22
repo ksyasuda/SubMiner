@@ -1,13 +1,19 @@
+import type { JellyfinStoredSession } from '../../core/services/jellyfin-token-store';
+import type { ResolvedConfig } from '../../types';
+
+type ResolvedJellyfinConfig = ResolvedConfig['jellyfin'];
+type ResolvedJellyfinConfigWithSession = ResolvedJellyfinConfig & {
+  accessToken?: string;
+  userId?: string;
+};
+
 export function createGetResolvedJellyfinConfigHandler(deps: {
-  getResolvedConfig: () => { jellyfin: unknown };
-  loadStoredSession: () => { accessToken: string; userId: string } | null | undefined;
+  getResolvedConfig: () => { jellyfin: ResolvedJellyfinConfig };
+  loadStoredSession: () => JellyfinStoredSession | null | undefined;
   getEnv: (name: string) => string | undefined;
 }) {
-  return () => {
-    const jellyfin = deps.getResolvedConfig().jellyfin as {
-      userId?: string;
-      [key: string]: unknown;
-    };
+  return (): ResolvedJellyfinConfigWithSession => {
+    const jellyfin = deps.getResolvedConfig().jellyfin;
 
     const envToken = deps.getEnv('SUBMINER_JELLYFIN_ACCESS_TOKEN')?.trim() ?? '';
     const envUserId = deps.getEnv('SUBMINER_JELLYFIN_USER_ID')?.trim() ?? '';
@@ -20,7 +26,7 @@ export function createGetResolvedJellyfinConfigHandler(deps: {
         ...jellyfin,
         accessToken: envToken,
         userId: envUserId || storedUserId || '',
-      } as never;
+      };
     }
 
     if (storedToken.length > 0 && storedUserId.length > 0) {
@@ -28,24 +34,20 @@ export function createGetResolvedJellyfinConfigHandler(deps: {
         ...jellyfin,
         accessToken: storedToken,
         userId: storedUserId,
-      } as never;
+      };
     }
 
-    return jellyfin as never;
+    return jellyfin;
   };
 }
 
 export function createGetJellyfinClientInfoHandler(deps: {
-  getResolvedJellyfinConfig: () => {
-    clientName?: string;
-    clientVersion?: string;
-    deviceId?: string;
-  };
-  getDefaultJellyfinConfig: () => {
-    clientName?: string;
-    clientVersion?: string;
-    deviceId?: string;
-  };
+  getResolvedJellyfinConfig: () => Partial<
+    Pick<ResolvedJellyfinConfig, 'clientName' | 'clientVersion' | 'deviceId'>
+  >;
+  getDefaultJellyfinConfig: () => Partial<
+    Pick<ResolvedJellyfinConfig, 'clientName' | 'clientVersion' | 'deviceId'>
+  >;
 }) {
   return (
     config = deps.getResolvedJellyfinConfig(),

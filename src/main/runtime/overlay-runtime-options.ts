@@ -5,6 +5,7 @@ import type {
   WindowGeometry,
 } from '../../types';
 import type { BrowserWindow } from 'electron';
+import type { BaseWindowTracker } from '../../window-trackers';
 
 type OverlayRuntimeOptions = {
   backendOverride: string | null;
@@ -20,7 +21,7 @@ type OverlayRuntimeOptions = {
   updateInvisibleOverlayVisibility: () => void;
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
-  setWindowTracker: (tracker: unknown | null) => void;
+  setWindowTracker: (tracker: BaseWindowTracker | null) => void;
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   getSubtitleTimingTracker: () => unknown | null;
   getMpvClient: () => { send?: (payload: { command: string[] }) => void } | null;
@@ -50,7 +51,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
   updateInvisibleOverlayVisibility: () => void;
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
-  setWindowTracker: (tracker: unknown | null) => void;
+  setWindowTracker: (tracker: BaseWindowTracker | null) => void;
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   getSubtitleTimingTracker: () => unknown | null;
   getMpvClient: () => { send?: (payload: { command: string[] }) => void } | null;

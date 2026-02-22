@@ -1,5 +1,7 @@
+import type { Config } from '../../types';
+
 export type MpvClientRuntimeServiceOptions = {
-  getResolvedConfig: () => unknown;
+  getResolvedConfig: () => Config;
   autoStartOverlay: boolean;
   setOverlayVisible: (visible: boolean) => void;
   shouldBindVisibleOverlayToMpvSubVisibility: () => boolean;

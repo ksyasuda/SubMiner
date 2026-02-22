@@ -15,9 +15,7 @@ import {
   createHandleMpvTimePosChangeHandler,
 } from './mpv-main-event-actions';
 
-type MpvEventClient = {
-  on: (...args: any[]) => unknown;
-};
+type MpvEventClient = Parameters<ReturnType<typeof createBindMpvClientEventHandlers>>[0];
 
 export function createBindMpvMainEventHandlersHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
@@ -119,7 +117,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       updateSubtitleRenderMetrics: (patch) => deps.updateSubtitleRenderMetrics(patch),
     });
     const handleMpvSecondarySubtitleVisibility = createHandleMpvSecondarySubtitleVisibilityHandler({
-      setPreviousSecondarySubVisibility: (visible) => deps.setPreviousSecondarySubVisibility(visible),
+      setPreviousSecondarySubVisibility: (visible) =>
+        deps.setPreviousSecondarySubVisibility(visible),
     });
 
     createBindMpvClientEventHandlers({
@@ -134,6 +133,6 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       onPauseChange: handleMpvPauseChange,
       onSubtitleMetricsChange: handleMpvSubtitleMetricsChange,
       onSecondarySubtitleVisibility: handleMpvSecondarySubtitleVisibility,
-    })(mpvClient as never);
+    })(mpvClient);
   };
 }

@@ -1,23 +1,11 @@
-type JellyfinSession = {
-  serverUrl: string;
-  accessToken: string;
-  userId: string;
-  username: string;
-};
+import type { JellyfinAuthSession, JellyfinPlaybackPlan } from '../../core/services/jellyfin';
+import type { JellyfinConfig } from '../../types';
+import type { MpvRuntimeClientLike } from '../../core/services/mpv';
 
 type JellyfinClientInfo = {
   clientName: string;
   clientVersion: string;
   deviceId: string;
-};
-
-type JellyfinPlaybackPlan = {
-  url: string;
-  mode: 'direct' | 'transcode';
-  title: string;
-  startTimeTicks: number;
-  audioStreamIndex?: number | null;
-  subtitleStreamIndex?: number | null;
 };
 
 type ActivePlaybackState = {
@@ -28,26 +16,24 @@ type ActivePlaybackState = {
   playMethod: 'DirectPlay' | 'Transcode';
 };
 
-type MpvClientLike = unknown;
-
 export function createPlayJellyfinItemInMpvHandler(deps: {
   ensureMpvConnectedForPlayback: () => Promise<boolean>;
-  getMpvClient: () => MpvClientLike | null;
+  getMpvClient: () => MpvRuntimeClientLike | null;
   resolvePlaybackPlan: (params: {
-    session: JellyfinSession;
+    session: JellyfinAuthSession;
     clientInfo: JellyfinClientInfo;
-    jellyfinConfig: unknown;
+    jellyfinConfig: JellyfinConfig;
     itemId: string;
     audioStreamIndex?: number | null;
     subtitleStreamIndex?: number | null;
   }) => Promise<JellyfinPlaybackPlan>;
-  applyJellyfinMpvDefaults: (mpvClient: MpvClientLike) => void;
+  applyJellyfinMpvDefaults: (mpvClient: MpvRuntimeClientLike) => void;
   sendMpvCommand: (command: Array<string | number>) => void;
   armQuitOnDisconnect: () => void;
   schedule: (callback: () => void, delayMs: number) => void;
   convertTicksToSeconds: (ticks: number) => number;
   preloadExternalSubtitles: (params: {
-    session: JellyfinSession;
+    session: JellyfinAuthSession;
     clientInfo: JellyfinClientInfo;
     itemId: string;
   }) => void;
@@ -64,9 +50,9 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
   showMpvOsd: (text: string) => void;
 }) {
   return async (params: {
-    session: JellyfinSession;
+    session: JellyfinAuthSession;
     clientInfo: JellyfinClientInfo;
-    jellyfinConfig: unknown;
+    jellyfinConfig: JellyfinConfig;
     itemId: string;
     audioStreamIndex?: number | null;
     subtitleStreamIndex?: number | null;
@@ -96,7 +82,11 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     if (params.setQuitOnDisconnectArm !== false) {
       deps.armQuitOnDisconnect();
     }
-    deps.sendMpvCommand(['set_property', 'force-media-title', `[Jellyfin/${plan.mode}] ${plan.title}`]);
+    deps.sendMpvCommand([
+      'set_property',
+      'force-media-title',
+      `[Jellyfin/${plan.mode}] ${plan.title}`,
+    ]);
     deps.sendMpvCommand(['set_property', 'sid', 'no']);
     deps.schedule(() => {
       deps.sendMpvCommand(['set_property', 'sid', 'no']);

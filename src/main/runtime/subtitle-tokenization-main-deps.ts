@@ -1,30 +1,29 @@
-export function createBuildTokenizerDepsMainHandler(deps: {
-  getYomitanExt: () => unknown;
-  getYomitanParserWindow: () => unknown;
-  setYomitanParserWindow: (window: unknown) => void;
-  getYomitanParserReadyPromise: () => Promise<void> | null;
-  setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
-  getYomitanParserInitPromise: () => Promise<boolean> | null;
-  setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
-  isKnownWord: (text: string) => boolean;
+import type { TokenizerDepsRuntimeOptions } from '../../core/services/tokenizer';
+
+type TokenizerMainDeps = TokenizerDepsRuntimeOptions & {
+  getJlptEnabled: NonNullable<TokenizerDepsRuntimeOptions['getJlptEnabled']>;
+  getFrequencyDictionaryEnabled: NonNullable<
+    TokenizerDepsRuntimeOptions['getFrequencyDictionaryEnabled']
+  >;
+  getFrequencyRank: NonNullable<TokenizerDepsRuntimeOptions['getFrequencyRank']>;
+  getMinSentenceWordsForNPlusOne: NonNullable<
+    TokenizerDepsRuntimeOptions['getMinSentenceWordsForNPlusOne']
+  >;
+  getYomitanGroupDebugEnabled: NonNullable<
+    TokenizerDepsRuntimeOptions['getYomitanGroupDebugEnabled']
+  >;
   recordLookup: (hit: boolean) => void;
-  getKnownWordMatchMode: () => unknown;
-  getMinSentenceWordsForNPlusOne: () => number;
-  getJlptLevel: (text: string) => unknown;
-  getJlptEnabled: () => boolean;
-  getFrequencyDictionaryEnabled: () => boolean;
-  getFrequencyRank: (text: string) => unknown;
-  getYomitanGroupDebugEnabled: () => boolean;
-  getMecabTokenizer: () => unknown;
-}) {
-  return () => ({
-    getYomitanExt: () => deps.getYomitanExt() as never,
-    getYomitanParserWindow: () => deps.getYomitanParserWindow() as never,
-    setYomitanParserWindow: (window: unknown) => deps.setYomitanParserWindow(window),
-    getYomitanParserReadyPromise: () => deps.getYomitanParserReadyPromise() as never,
+};
+
+export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
+  return (): TokenizerDepsRuntimeOptions => ({
+    getYomitanExt: () => deps.getYomitanExt(),
+    getYomitanParserWindow: () => deps.getYomitanParserWindow(),
+    setYomitanParserWindow: (window) => deps.setYomitanParserWindow(window),
+    getYomitanParserReadyPromise: () => deps.getYomitanParserReadyPromise(),
     setYomitanParserReadyPromise: (promise: Promise<void> | null) =>
       deps.setYomitanParserReadyPromise(promise),
-    getYomitanParserInitPromise: () => deps.getYomitanParserInitPromise() as never,
+    getYomitanParserInitPromise: () => deps.getYomitanParserInitPromise(),
     setYomitanParserInitPromise: (promise: Promise<boolean> | null) =>
       deps.setYomitanParserInitPromise(promise),
     isKnownWord: (text: string) => {
@@ -32,14 +31,14 @@ export function createBuildTokenizerDepsMainHandler(deps: {
       deps.recordLookup(hit);
       return hit;
     },
-    getKnownWordMatchMode: () => deps.getKnownWordMatchMode() as never,
+    getKnownWordMatchMode: () => deps.getKnownWordMatchMode(),
     getMinSentenceWordsForNPlusOne: () => deps.getMinSentenceWordsForNPlusOne(),
-    getJlptLevel: (text: string) => deps.getJlptLevel(text) as never,
+    getJlptLevel: (text: string) => deps.getJlptLevel(text),
     getJlptEnabled: () => deps.getJlptEnabled(),
     getFrequencyDictionaryEnabled: () => deps.getFrequencyDictionaryEnabled(),
-    getFrequencyRank: (text: string) => deps.getFrequencyRank(text) as never,
+    getFrequencyRank: (text: string) => deps.getFrequencyRank(text),
     getYomitanGroupDebugEnabled: () => deps.getYomitanGroupDebugEnabled(),
-    getMecabTokenizer: () => deps.getMecabTokenizer() as never,
+    getMecabTokenizer: () => deps.getMecabTokenizer(),
   });
 }
 

@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { BaseWindowTracker } from '../../window-trackers';
 import { createBuildInitializeOverlayRuntimeMainDepsHandler } from './overlay-runtime-options-main-deps';
 
 test('overlay runtime main deps builder maps runtime state and callbacks', () => {
   const calls: string[] = [];
   const appState = {
     backendOverride: 'x11' as string | null,
-    windowTracker: null as unknown,
+    windowTracker: null as BaseWindowTracker | null,
     subtitleTimingTracker: { id: 'tracker' } as unknown,
     mpvClient: null as { send?: (payload: { command: string[] }) => void } | null,
     mpvSocketPath: '/tmp/mpv.sock',
@@ -36,7 +37,12 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
     getOverlayWindows: () => [],
     getResolvedConfig: () => ({}),
     showDesktopNotification: () => calls.push('notify'),
-    createFieldGroupingCallback: () => async () => ({ cancelled: true }),
+    createFieldGroupingCallback: () => async () => ({
+      keepNoteId: 1,
+      deleteNoteId: 2,
+      deleteDuplicate: false,
+      cancelled: true,
+    }),
     getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
   });
 
@@ -58,7 +64,11 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
   deps.syncOverlayShortcuts();
   deps.showDesktopNotification('title', {});
 
-  deps.setWindowTracker({ id: 'tracker' });
+  const tracker = {
+    close: () => {},
+    getWindowGeometry: () => null,
+  } as unknown as BaseWindowTracker;
+  deps.setWindowTracker(tracker);
   deps.setAnkiIntegration({ id: 'anki' });
 
   assert.deepEqual(calls, [
@@ -72,6 +82,6 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
     'sync-shortcuts',
     'notify',
   ]);
-  assert.deepEqual(appState.windowTracker, { id: 'tracker' });
+  assert.equal(appState.windowTracker, tracker);
   assert.deepEqual(appState.ankiIntegration, { id: 'anki' });
 });

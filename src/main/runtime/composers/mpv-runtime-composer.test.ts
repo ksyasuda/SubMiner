@@ -85,7 +85,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
     mpvClientRuntimeServiceFactoryMainDeps: {
       createClient: FakeMpvClient,
       getSocketPath: () => '/tmp/mpv.sock',
-      getResolvedConfig: () => ({}) as never,
+      getResolvedConfig: () => ({ auto_start_overlay: false }),
       isAutoStartOverlayEnabled: () => true,
       setOverlayVisible: () => {},
       shouldBindVisibleOverlayToMpvSubVisibility: () => true,
@@ -118,7 +118,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
         setYomitanParserInitPromise: () => {},
         isKnownWord: (text) => text === 'known',
         recordLookup: () => {},
-        getKnownWordMatchMode: () => 'exact',
+        getKnownWordMatchMode: () => 'headword',
         getMinSentenceWordsForNPlusOne: () => 3,
         getJlptLevel: () => null,
         getJlptEnabled: () => true,

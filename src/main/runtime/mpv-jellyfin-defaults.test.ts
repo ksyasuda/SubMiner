@@ -12,7 +12,7 @@ test('apply jellyfin mpv defaults sends expected property commands', () => {
     jellyfinLangPref: 'ja,jp',
   });
 
-  applyDefaults({});
+  applyDefaults({ connected: true, send: () => {} });
   assert.deepEqual(calls, [
     'set_property:sub-auto:fuzzy',
     'set_property:aid:auto',

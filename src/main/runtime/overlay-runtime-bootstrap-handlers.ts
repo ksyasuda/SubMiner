@@ -6,17 +6,24 @@ import { createBuildInitializeOverlayRuntimeMainDepsHandler } from './overlay-ru
 type InitializeOverlayRuntimeMainDeps = Parameters<
   typeof createBuildInitializeOverlayRuntimeMainDepsHandler
 >[0];
+type InitializeOverlayRuntimeOptions = ReturnType<
+  ReturnType<typeof createBuildInitializeOverlayRuntimeOptionsHandler>
+>;
 type InitializeOverlayRuntimeBootstrapMainDeps = Parameters<
-  typeof createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler
+  typeof createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler<InitializeOverlayRuntimeOptions>
 >[0];
 
 export function createOverlayRuntimeBootstrapHandlers(deps: {
   initializeOverlayRuntimeMainDeps: InitializeOverlayRuntimeMainDeps;
-  initializeOverlayRuntimeBootstrapDeps: Omit<InitializeOverlayRuntimeBootstrapMainDeps, 'buildOptions'>;
+  initializeOverlayRuntimeBootstrapDeps: Omit<
+    InitializeOverlayRuntimeBootstrapMainDeps,
+    'buildOptions'
+  >;
 }) {
-  const buildInitializeOverlayRuntimeOptionsHandler = createBuildInitializeOverlayRuntimeOptionsHandler(
-    createBuildInitializeOverlayRuntimeMainDepsHandler(deps.initializeOverlayRuntimeMainDeps)(),
-  );
+  const buildInitializeOverlayRuntimeOptionsHandler =
+    createBuildInitializeOverlayRuntimeOptionsHandler(
+      createBuildInitializeOverlayRuntimeMainDepsHandler(deps.initializeOverlayRuntimeMainDeps)(),
+    );
   const initializeOverlayRuntime = createInitializeOverlayRuntimeHandler(
     createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler({
       ...deps.initializeOverlayRuntimeBootstrapDeps,

@@ -6,14 +6,14 @@ test('cli command context factory composes main deps and context handlers', () =
   const calls: string[] = [];
   const appState = {
     mpvSocketPath: '/tmp/mpv.sock',
-    mpvClient: null as unknown,
+    mpvClient: null,
     texthookerPort: 5174,
     overlayRuntimeInitialized: false,
   };
 
   const createContext = createCliCommandContextFactory({
     appState,
-    texthookerService: { start: () => null },
+    texthookerService: { isRunning: () => false, start: () => null },
     getResolvedConfig: () => ({ texthooker: { openBrowser: true } }),
     openExternal: async () => {},
     logBrowserOpenError: () => {},
@@ -32,11 +32,28 @@ test('cli command context factory composes main deps and context handlers', () =
     triggerFieldGrouping: async () => {},
     triggerSubsyncFromConfig: async () => {},
     markLastCardAsAudioCard: async () => {},
-    getAnilistStatus: () => ({ status: 'ok' }),
+    getAnilistStatus: () => ({
+      tokenStatus: 'resolved',
+      tokenSource: 'literal',
+      tokenMessage: null,
+      tokenResolvedAt: null,
+      tokenErrorAt: null,
+      queuePending: 0,
+      queueReady: 0,
+      queueDeadLetter: 0,
+      queueLastAttemptAt: null,
+      queueLastError: null,
+    }),
     clearAnilistToken: () => {},
     openAnilistSetupWindow: () => {},
     openJellyfinSetupWindow: () => {},
-    getAnilistQueueStatus: () => ({ queued: 0 }),
+    getAnilistQueueStatus: () => ({
+      pending: 0,
+      ready: 0,
+      deadLetter: 0,
+      lastAttemptAt: null,
+      lastError: null,
+    }),
     processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'ok' }),
     runJellyfinCommand: async () => {},
     openYomitanSettings: () => {},

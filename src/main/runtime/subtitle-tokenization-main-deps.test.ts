@@ -9,8 +9,8 @@ import {
 test('tokenizer deps builder records known-word lookups and maps readers', () => {
   const calls: string[] = [];
   const deps = createBuildTokenizerDepsMainHandler({
-    getYomitanExt: () => ({ id: 'ext' }),
-    getYomitanParserWindow: () => ({ id: 'window' }),
+    getYomitanExt: () => null,
+    getYomitanParserWindow: () => null,
     setYomitanParserWindow: () => calls.push('set-window'),
     getYomitanParserReadyPromise: () => null,
     setYomitanParserReadyPromise: () => calls.push('set-ready'),
@@ -18,22 +18,22 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
     setYomitanParserInitPromise: () => calls.push('set-init'),
     isKnownWord: (text) => text === 'known',
     recordLookup: (hit) => calls.push(`lookup:${hit}`),
-    getKnownWordMatchMode: () => 'exact',
+    getKnownWordMatchMode: () => 'surface',
     getMinSentenceWordsForNPlusOne: () => 3,
     getJlptLevel: () => 'N2',
     getJlptEnabled: () => true,
     getFrequencyDictionaryEnabled: () => true,
     getFrequencyRank: () => 5,
     getYomitanGroupDebugEnabled: () => false,
-    getMecabTokenizer: () => ({ id: 'mecab' }),
+    getMecabTokenizer: () => null,
   })();
 
   assert.equal(deps.isKnownWord('known'), true);
   assert.equal(deps.isKnownWord('unknown'), false);
-  deps.setYomitanParserWindow({});
+  deps.setYomitanParserWindow(null);
   deps.setYomitanParserReadyPromise(null);
   deps.setYomitanParserInitPromise(null);
-  assert.equal(deps.getMinSentenceWordsForNPlusOne(), 3);
+  assert.equal(deps.getMinSentenceWordsForNPlusOne?.(), 3);
   assert.deepEqual(calls, ['lookup:true', 'lookup:false', 'set-window', 'set-ready', 'set-init']);
 });
 

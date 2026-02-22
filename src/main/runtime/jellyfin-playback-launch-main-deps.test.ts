@@ -6,12 +6,14 @@ test('play jellyfin item in mpv main deps builder maps callbacks', async () => {
   const calls: string[] = [];
   const deps = createBuildPlayJellyfinItemInMpvMainDepsHandler({
     ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true }),
+    getMpvClient: () => ({ connected: true, send: () => {} }),
     resolvePlaybackPlan: async () => ({
       url: 'u',
       mode: 'direct',
       title: 't',
       startTimeTicks: 0,
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
     }),
     applyJellyfinMpvDefaults: () => calls.push('defaults'),
     sendMpvCommand: (command) => calls.push(`cmd:${command[0]}`),
@@ -28,18 +30,57 @@ test('play jellyfin item in mpv main deps builder maps callbacks', async () => {
   assert.equal(await deps.ensureMpvConnectedForPlayback(), true);
   assert.equal(typeof deps.getMpvClient(), 'object');
   assert.deepEqual(
-    await deps.resolvePlaybackPlan({ session: {} as never, clientInfo: {} as never, jellyfinConfig: {}, itemId: 'i' }),
-    { url: 'u', mode: 'direct', title: 't', startTimeTicks: 0 },
+    await deps.resolvePlaybackPlan({
+      session: {
+        serverUrl: 'http://localhost:8096',
+        accessToken: 'token',
+        userId: 'uid',
+        username: 'alice',
+      },
+      clientInfo: {
+        clientName: 'SubMiner',
+        clientVersion: '1.0.0',
+        deviceId: 'did',
+      },
+      jellyfinConfig: {},
+      itemId: 'i',
+    }),
+    {
+      url: 'u',
+      mode: 'direct',
+      title: 't',
+      startTimeTicks: 0,
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
+    },
   );
-  deps.applyJellyfinMpvDefaults({});
+  deps.applyJellyfinMpvDefaults({ connected: true, send: () => {} });
   deps.sendMpvCommand(['show-text', 'x']);
   deps.armQuitOnDisconnect();
   deps.schedule(() => {}, 500);
   assert.equal(deps.convertTicksToSeconds(20_000_000), 2);
-  deps.preloadExternalSubtitles({ session: {} as never, clientInfo: {} as never, itemId: 'i' });
+  deps.preloadExternalSubtitles({
+    session: {
+      serverUrl: 'http://localhost:8096',
+      accessToken: 'token',
+      userId: 'uid',
+      username: 'alice',
+    },
+    clientInfo: {
+      clientName: 'SubMiner',
+      clientVersion: '1.0.0',
+      deviceId: 'did',
+    },
+    itemId: 'i',
+  });
   deps.setActivePlayback({ itemId: 'i', mediaSourceId: undefined, playMethod: 'DirectPlay' });
   deps.setLastProgressAtMs(0);
-  deps.reportPlaying({ itemId: 'i', mediaSourceId: undefined, playMethod: 'DirectPlay', eventName: 'start' });
+  deps.reportPlaying({
+    itemId: 'i',
+    mediaSourceId: undefined,
+    playMethod: 'DirectPlay',
+    eventName: 'start',
+  });
   deps.showMpvOsd('ok');
 
   assert.deepEqual(calls, [

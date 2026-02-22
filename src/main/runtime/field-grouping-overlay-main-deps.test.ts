@@ -8,7 +8,12 @@ test('field grouping overlay main deps builder maps window visibility and resolv
   const resolver = (choice: unknown) => calls.push(`resolver:${choice}`);
 
   const deps = createBuildFieldGroupingOverlayMainDepsHandler({
-    getMainWindow: () => ({ id: 'main' }),
+    getMainWindow: () => ({
+      isDestroyed: () => false,
+      webContents: {
+        send: () => {},
+      },
+    }),
     getVisibleOverlayVisible: () => true,
     getInvisibleOverlayVisible: () => false,
     setVisibleOverlayVisible: (visible) => calls.push(`visible:${visible}`),
@@ -24,7 +29,7 @@ test('field grouping overlay main deps builder maps window visibility and resolv
     },
   })();
 
-  assert.deepEqual(deps.getMainWindow(), { id: 'main' });
+  assert.equal(deps.getMainWindow()?.isDestroyed(), false);
   assert.equal(deps.getVisibleOverlayVisible(), true);
   assert.equal(deps.getInvisibleOverlayVisible(), false);
   assert.equal(deps.getResolver(), resolver);

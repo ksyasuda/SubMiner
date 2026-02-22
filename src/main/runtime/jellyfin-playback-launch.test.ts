@@ -54,7 +54,7 @@ test('playback handler drives mpv commands and playback state', async () => {
   const reportPayloads: Array<Record<string, unknown>> = [];
   const handler = createPlayJellyfinItemInMpvHandler({
     ensureMpvConnectedForPlayback: async () => true,
-    getMpvClient: () => ({ connected: true }),
+    getMpvClient: () => ({ connected: true, send: () => {} }),
     resolvePlaybackPlan: async () => ({
       url: 'https://stream.example/video.m3u8',
       mode: 'direct',

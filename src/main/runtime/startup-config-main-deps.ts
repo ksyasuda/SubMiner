@@ -1,18 +1,11 @@
-export function createBuildReloadConfigMainDepsHandler(deps: {
-  reloadConfigStrict: () => unknown;
-  logInfo: (message: string) => void;
-  logWarning: (message: string) => void;
-  showDesktopNotification: (title: string, options: { body: string }) => void;
-  startConfigHotReload: () => void;
-  refreshAnilistClientSecretState: (options: { force: boolean }) => Promise<unknown>;
-  failHandlers: {
-    logError: (details: string) => void;
-    showErrorBox: (title: string, details: string) => void;
-    quit: () => void;
-  };
-}) {
-  return () => ({
-    reloadConfigStrict: () => deps.reloadConfigStrict() as never,
+import type { createCriticalConfigErrorHandler, createReloadConfigHandler } from './startup-config';
+
+type ReloadConfigMainDeps = Parameters<typeof createReloadConfigHandler>[0];
+type CriticalConfigErrorMainDeps = Parameters<typeof createCriticalConfigErrorHandler>[0];
+
+export function createBuildReloadConfigMainDepsHandler(deps: ReloadConfigMainDeps) {
+  return (): ReloadConfigMainDeps => ({
+    reloadConfigStrict: () => deps.reloadConfigStrict(),
     logInfo: (message: string) => deps.logInfo(message),
     logWarning: (message: string) => deps.logWarning(message),
     showDesktopNotification: (title: string, options: { body: string }) =>
@@ -22,25 +15,20 @@ export function createBuildReloadConfigMainDepsHandler(deps: {
       deps.refreshAnilistClientSecretState(options),
     failHandlers: {
       logError: (details: string) => deps.failHandlers.logError(details),
-      showErrorBox: (title: string, details: string) => deps.failHandlers.showErrorBox(title, details),
+      showErrorBox: (title: string, details: string) =>
+        deps.failHandlers.showErrorBox(title, details),
       quit: () => deps.failHandlers.quit(),
     },
   });
 }
 
-export function createBuildCriticalConfigErrorMainDepsHandler(deps: {
-  getConfigPath: () => string;
-  failHandlers: {
-    logError: (details: string) => void;
-    showErrorBox: (title: string, details: string) => void;
-    quit: () => void;
-  };
-}) {
-  return () => ({
+export function createBuildCriticalConfigErrorMainDepsHandler(deps: CriticalConfigErrorMainDeps) {
+  return (): CriticalConfigErrorMainDeps => ({
     getConfigPath: () => deps.getConfigPath(),
     failHandlers: {
       logError: (details: string) => deps.failHandlers.logError(details),
-      showErrorBox: (title: string, details: string) => deps.failHandlers.showErrorBox(title, details),
+      showErrorBox: (title: string, details: string) =>
+        deps.failHandlers.showErrorBox(title, details),
       quit: () => deps.failHandlers.quit(),
     },
   });

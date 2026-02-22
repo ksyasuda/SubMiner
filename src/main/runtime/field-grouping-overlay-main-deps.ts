@@ -1,29 +1,34 @@
-export function createBuildFieldGroupingOverlayMainDepsHandler<
-  TModal extends string,
-  TChoice,
->(deps: {
-  getMainWindow: () => unknown | null;
-  getVisibleOverlayVisible: () => boolean;
-  getInvisibleOverlayVisible: () => boolean;
-  setVisibleOverlayVisible: (visible: boolean) => void;
-  setInvisibleOverlayVisible: (visible: boolean) => void;
-  getResolver: () => ((choice: TChoice) => void) | null;
-  setResolver: (resolver: ((choice: TChoice) => void) | null) => void;
-  getRestoreVisibleOverlayOnModalClose: () => Set<TModal>;
+import type { FieldGroupingOverlayRuntimeOptions } from '../../core/services/field-grouping-overlay';
+
+type FieldGroupingOverlayMainDeps<TModal extends string> = Omit<
+  FieldGroupingOverlayRuntimeOptions<TModal>,
+  'sendToVisibleOverlay'
+> & {
   sendToActiveOverlayWindow: (
     channel: string,
     payload?: unknown,
     runtimeOptions?: { restoreOnModalClose?: TModal },
   ) => boolean;
-}) {
-  return () => ({
-    getMainWindow: () => deps.getMainWindow() as never,
+};
+
+type BuiltFieldGroupingOverlayMainDeps<TModal extends string> =
+  FieldGroupingOverlayRuntimeOptions<TModal> & {
+    sendToVisibleOverlay: NonNullable<
+      FieldGroupingOverlayRuntimeOptions<TModal>['sendToVisibleOverlay']
+    >;
+  };
+
+export function createBuildFieldGroupingOverlayMainDepsHandler<TModal extends string>(
+  deps: FieldGroupingOverlayMainDeps<TModal>,
+) {
+  return (): BuiltFieldGroupingOverlayMainDeps<TModal> => ({
+    getMainWindow: () => deps.getMainWindow(),
     getVisibleOverlayVisible: () => deps.getVisibleOverlayVisible(),
     getInvisibleOverlayVisible: () => deps.getInvisibleOverlayVisible(),
     setVisibleOverlayVisible: (visible: boolean) => deps.setVisibleOverlayVisible(visible),
     setInvisibleOverlayVisible: (visible: boolean) => deps.setInvisibleOverlayVisible(visible),
-    getResolver: () => deps.getResolver() as never,
-    setResolver: (resolver: ((choice: TChoice) => void) | null) => deps.setResolver(resolver),
+    getResolver: () => deps.getResolver(),
+    setResolver: (resolver) => deps.setResolver(resolver),
     getRestoreVisibleOverlayOnModalClose: () => deps.getRestoreVisibleOverlayOnModalClose(),
     sendToVisibleOverlay: (
       channel: string,

@@ -12,7 +12,7 @@ test('apply jellyfin mpv defaults main deps builder maps callbacks', () => {
     jellyfinLangPref: 'ja,jp',
   })();
 
-  deps.sendMpvCommandRuntime({}, ['set_property', 'aid', 'auto']);
+  deps.sendMpvCommandRuntime({ connected: true, send: () => {} }, ['set_property', 'aid', 'auto']);
   assert.equal(deps.jellyfinLangPref, 'ja,jp');
   assert.deepEqual(calls, ['set_property:aid:auto']);
 });

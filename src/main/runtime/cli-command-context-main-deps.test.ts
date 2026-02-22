@@ -6,14 +6,14 @@ test('cli command context main deps builder maps state and callbacks', async () 
   const calls: string[] = [];
   const appState = {
     mpvSocketPath: '/tmp/mpv.sock',
-    mpvClient: null as unknown,
+    mpvClient: null,
     texthookerPort: 5174,
     overlayRuntimeInitialized: false,
   };
 
   const build = createBuildCliCommandContextMainDepsHandler({
     appState,
-    texthookerService: { start: () => null },
+    texthookerService: { isRunning: () => false, start: () => null },
     getResolvedConfig: () => ({ texthooker: { openBrowser: true } }),
     openExternal: async (url) => {
       calls.push(`open:${url}`);
@@ -49,11 +49,28 @@ test('cli command context main deps builder maps state and callbacks', async () 
       calls.push('mark-audio');
     },
 
-    getAnilistStatus: () => ({ status: 'ok' }),
+    getAnilistStatus: () => ({
+      tokenStatus: 'resolved',
+      tokenSource: 'literal',
+      tokenMessage: null,
+      tokenResolvedAt: null,
+      tokenErrorAt: null,
+      queuePending: 0,
+      queueReady: 0,
+      queueDeadLetter: 0,
+      queueLastAttemptAt: null,
+      queueLastError: null,
+    }),
     clearAnilistToken: () => calls.push('clear-token'),
     openAnilistSetupWindow: () => calls.push('open-anilist-setup'),
     openJellyfinSetupWindow: () => calls.push('open-jellyfin-setup'),
-    getAnilistQueueStatus: () => ({ queued: 1 }),
+    getAnilistQueueStatus: () => ({
+      pending: 1,
+      ready: 0,
+      deadLetter: 0,
+      lastAttemptAt: null,
+      lastError: null,
+    }),
     processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'ok' }),
     runJellyfinCommand: async () => {
       calls.push('run-jellyfin');

@@ -3,6 +3,7 @@ import { createBuildBindMpvMainEventHandlersMainDepsHandler } from '../mpv-main-
 import { createBuildMpvClientRuntimeServiceFactoryDepsHandler } from '../mpv-client-runtime-service-main-deps';
 import { createMpvClientRuntimeServiceFactory } from '../mpv-client-runtime-service';
 import type { MpvClientRuntimeServiceOptions } from '../mpv-client-runtime-service';
+import type { Config } from '../../../types';
 import { createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler } from '../mpv-subtitle-render-metrics-main-deps';
 import { createUpdateMpvSubtitleRenderMetricsHandler } from '../mpv-subtitle-render-metrics';
 import {
@@ -30,7 +31,7 @@ type MpvClientRuntimeServiceFactoryMainDeps<TMpvClient extends RuntimeMpvClient>
   Parameters<
     typeof createBuildMpvClientRuntimeServiceFactoryDepsHandler<
       TMpvClient,
-      unknown,
+      Config,
       MpvClientRuntimeServiceOptions
     >
   >[0],
@@ -107,7 +108,7 @@ export function composeMpvRuntimeHandlers<
   const buildMpvClientRuntimeServiceFactoryMainDepsHandler =
     createBuildMpvClientRuntimeServiceFactoryDepsHandler<
       TMpvClient,
-      unknown,
+      Config,
       MpvClientRuntimeServiceOptions
     >({
       ...options.mpvClientRuntimeServiceFactoryMainDeps,

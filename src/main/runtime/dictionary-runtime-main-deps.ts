@@ -1,3 +1,7 @@
+import type { FrequencyDictionaryLookup, JlptLevel } from '../../types';
+
+type JlptLookup = (term: string) => JlptLevel | null;
+
 export function createBuildDictionaryRootsMainHandler(deps: {
   dirname: string;
   appPath: string;
@@ -8,20 +12,19 @@ export function createBuildDictionaryRootsMainHandler(deps: {
   cwd: string;
   joinPath: (...parts: string[]) => string;
 }) {
-  return () =>
-    [
-      deps.joinPath(deps.dirname, '..', '..', 'vendor', 'yomitan-jlpt-vocab'),
-      deps.joinPath(deps.appPath, 'vendor', 'yomitan-jlpt-vocab'),
-      deps.joinPath(deps.resourcesPath, 'yomitan-jlpt-vocab'),
-      deps.joinPath(deps.resourcesPath, 'app.asar', 'vendor', 'yomitan-jlpt-vocab'),
-      deps.userDataPath,
-      deps.appUserDataPath,
-      deps.joinPath(deps.homeDir, '.config', 'SubMiner'),
-      deps.joinPath(deps.homeDir, '.config', 'subminer'),
-      deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'SubMiner'),
-      deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'subminer'),
-      deps.cwd,
-    ];
+  return () => [
+    deps.joinPath(deps.dirname, '..', '..', 'vendor', 'yomitan-jlpt-vocab'),
+    deps.joinPath(deps.appPath, 'vendor', 'yomitan-jlpt-vocab'),
+    deps.joinPath(deps.resourcesPath, 'yomitan-jlpt-vocab'),
+    deps.joinPath(deps.resourcesPath, 'app.asar', 'vendor', 'yomitan-jlpt-vocab'),
+    deps.userDataPath,
+    deps.appUserDataPath,
+    deps.joinPath(deps.homeDir, '.config', 'SubMiner'),
+    deps.joinPath(deps.homeDir, '.config', 'subminer'),
+    deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'SubMiner'),
+    deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'subminer'),
+    deps.cwd,
+  ];
 }
 
 export function createBuildFrequencyDictionaryRootsMainHandler(deps: {
@@ -57,7 +60,7 @@ export function createBuildJlptDictionaryRuntimeMainDepsHandler(deps: {
   isJlptEnabled: () => boolean;
   getDictionaryRoots: () => string[];
   getJlptDictionarySearchPaths: (deps: { getDictionaryRoots: () => string[] }) => string[];
-  setJlptLevelLookup: (lookup: unknown) => void;
+  setJlptLevelLookup: (lookup: JlptLookup) => void;
   logInfo: (message: string) => void;
 }) {
   return () => ({
@@ -66,7 +69,7 @@ export function createBuildJlptDictionaryRuntimeMainDepsHandler(deps: {
       deps.getJlptDictionarySearchPaths({
         getDictionaryRoots: () => deps.getDictionaryRoots(),
       }),
-    setJlptLevelLookup: (lookup: unknown) => deps.setJlptLevelLookup(lookup),
+    setJlptLevelLookup: (lookup: JlptLookup) => deps.setJlptLevelLookup(lookup),
     log: (message: string) => deps.logInfo(`[JLPT] ${message}`),
   });
 }
@@ -79,17 +82,19 @@ export function createBuildFrequencyDictionaryRuntimeMainDepsHandler(deps: {
     getSourcePath: () => string | undefined;
   }) => string[];
   getSourcePath: () => string | undefined;
-  setFrequencyRankLookup: (lookup: unknown) => void;
+  setFrequencyRankLookup: (lookup: FrequencyDictionaryLookup) => void;
   logInfo: (message: string) => void;
 }) {
   return () => ({
     isFrequencyDictionaryEnabled: () => deps.isFrequencyDictionaryEnabled(),
     getSearchPaths: () =>
       deps.getFrequencyDictionarySearchPaths({
-        getDictionaryRoots: () => deps.getDictionaryRoots().filter((dictionaryRoot) => dictionaryRoot),
+        getDictionaryRoots: () =>
+          deps.getDictionaryRoots().filter((dictionaryRoot) => dictionaryRoot),
         getSourcePath: () => deps.getSourcePath(),
       }),
-    setFrequencyRankLookup: (lookup: unknown) => deps.setFrequencyRankLookup(lookup),
+    setFrequencyRankLookup: (lookup: FrequencyDictionaryLookup) =>
+      deps.setFrequencyRankLookup(lookup),
     log: (message: string) => deps.logInfo(`[Frequency] ${message}`),
   });
 }

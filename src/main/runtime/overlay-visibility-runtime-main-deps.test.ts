@@ -1,3 +1,5 @@
+import type { BaseWindowTracker } from '../../window-trackers';
+
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createBuildOverlayVisibilityRuntimeMainDepsHandler } from './overlay-visibility-runtime-main-deps';
@@ -7,13 +9,14 @@ test('overlay visibility runtime main deps builder maps state and geometry callb
   let trackerNotReadyWarningShown = false;
   const mainWindow = { id: 'main' } as never;
   const invisibleWindow = { id: 'invisible' } as never;
+  const tracker = { id: 'tracker' } as unknown as BaseWindowTracker;
 
   const deps = createBuildOverlayVisibilityRuntimeMainDepsHandler({
     getMainWindow: () => mainWindow,
     getInvisibleWindow: () => invisibleWindow,
     getVisibleOverlayVisible: () => true,
     getInvisibleOverlayVisible: () => false,
-    getWindowTracker: () => ({ id: 'tracker' }),
+    getWindowTracker: () => tracker,
     getTrackerNotReadyWarningShown: () => trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown) => {
       trackerNotReadyWarningShown = shown;

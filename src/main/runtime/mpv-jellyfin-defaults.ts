@@ -1,13 +1,10 @@
-type MpvClientLike = unknown;
+import type { MpvRuntimeClientLike } from '../../core/services/mpv';
 
 export function createApplyJellyfinMpvDefaultsHandler(deps: {
-  sendMpvCommandRuntime: (
-    client: MpvClientLike,
-    command: [string, string, string],
-  ) => void;
+  sendMpvCommandRuntime: (client: MpvRuntimeClientLike, command: [string, string, string]) => void;
   jellyfinLangPref: string;
 }) {
-  return (client: MpvClientLike): void => {
+  return (client: MpvRuntimeClientLike): void => {
     deps.sendMpvCommandRuntime(client, ['set_property', 'sub-auto', 'fuzzy']);
     deps.sendMpvCommandRuntime(client, ['set_property', 'aid', 'auto']);
     deps.sendMpvCommandRuntime(client, ['set_property', 'sid', 'auto']);
@@ -18,9 +15,7 @@ export function createApplyJellyfinMpvDefaultsHandler(deps: {
   };
 }
 
-export function createGetDefaultSocketPathHandler(deps: {
-  platform: string;
-}) {
+export function createGetDefaultSocketPathHandler(deps: { platform: string }) {
   return (): string => {
     if (deps.platform === 'win32') {
       return '\\\\.\\pipe\\subminer-socket';

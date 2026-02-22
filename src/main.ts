@@ -514,7 +514,7 @@ let yomitanLoadInFlight: Promise<Extension | null> | null = null;
 
 const buildApplyJellyfinMpvDefaultsMainDepsHandler =
   createBuildApplyJellyfinMpvDefaultsMainDepsHandler({
-    sendMpvCommandRuntime: (client, command) => sendMpvCommandRuntime(client as never, command),
+    sendMpvCommandRuntime: (client, command) => sendMpvCommandRuntime(client, command),
     jellyfinLangPref: JELLYFIN_LANG_PREF,
   });
 const applyJellyfinMpvDefaultsMainDeps = buildApplyJellyfinMpvDefaultsMainDepsHandler();
@@ -522,7 +522,9 @@ const applyJellyfinMpvDefaultsHandler = createApplyJellyfinMpvDefaultsHandler(
   applyJellyfinMpvDefaultsMainDeps,
 );
 
-function applyJellyfinMpvDefaults(client: MpvIpcClient): void {
+function applyJellyfinMpvDefaults(
+  client: Parameters<typeof applyJellyfinMpvDefaultsHandler>[0],
+): void {
   applyJellyfinMpvDefaultsHandler(client);
 }
 
@@ -718,36 +720,35 @@ const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsH
 let appTray: Tray | null = null;
 const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({
-  tokenizeSubtitle: async (text: string) => {
-    if (getOverlayWindows().length === 0 && !subtitleWsService.hasClients()) {
-      return null;
-    }
-    return await tokenizeSubtitle(text);
-  },
-  emitSubtitle: (payload) => {
-    const previousSubtitleText = appState.currentSubtitleData?.text ?? null;
-    const nextSubtitleText = payload?.text ?? null;
-    const subtitleChanged = previousSubtitleText !== nextSubtitleText;
-    appState.currentSubtitleData = payload;
-    if (subtitleChanged) {
-      appState.hoveredSubtitleTokenIndex = null;
-      appState.hoveredSubtitleRevision += 1;
-      applyHoveredTokenOverlay();
-    }
-    broadcastToOverlayWindows('subtitle:set', payload);
-    subtitleWsService.broadcast(payload, {
-      enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-      topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
-      mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
-    });
-  },
-  logDebug: (message) => {
-    logger.debug(`[subtitle-processing] ${message}`);
-  },
-  now: () => Date.now(),
-});
-const subtitleProcessingControllerMainDeps =
-  buildSubtitleProcessingControllerMainDepsHandler();
+    tokenizeSubtitle: async (text: string) => {
+      if (getOverlayWindows().length === 0 && !subtitleWsService.hasClients()) {
+        return null;
+      }
+      return await tokenizeSubtitle(text);
+    },
+    emitSubtitle: (payload) => {
+      const previousSubtitleText = appState.currentSubtitleData?.text ?? null;
+      const nextSubtitleText = payload?.text ?? null;
+      const subtitleChanged = previousSubtitleText !== nextSubtitleText;
+      appState.currentSubtitleData = payload;
+      if (subtitleChanged) {
+        appState.hoveredSubtitleTokenIndex = null;
+        appState.hoveredSubtitleRevision += 1;
+        applyHoveredTokenOverlay();
+      }
+      broadcastToOverlayWindows('subtitle:set', payload);
+      subtitleWsService.broadcast(payload, {
+        enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+        topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+        mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+      });
+    },
+    logDebug: (message) => {
+      logger.debug(`[subtitle-processing] ${message}`);
+    },
+    now: () => Date.now(),
+  });
+const subtitleProcessingControllerMainDeps = buildSubtitleProcessingControllerMainDepsHandler();
 const subtitleProcessingController = createSubtitleProcessingController(
   subtitleProcessingControllerMainDeps,
 );
@@ -811,20 +812,20 @@ const watchConfigPathHandler = createWatchConfigPathHandler(buildWatchConfigPath
 const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadAppliedMainDepsHandler(
   {
     setKeybindings: (keybindings) => {
-      appState.keybindings = keybindings as never;
+      appState.keybindings = keybindings;
     },
     refreshGlobalAndOverlayShortcuts: () => {
       refreshGlobalAndOverlayShortcuts();
     },
     setSecondarySubMode: (mode) => {
-      appState.secondarySubMode = mode as never;
+      appState.secondarySubMode = mode;
     },
     broadcastToOverlayWindows: (channel, payload) => {
       broadcastToOverlayWindows(channel, payload);
     },
     applyAnkiRuntimeConfigPatch: (patch) => {
       if (appState.ankiIntegration) {
-        appState.ankiIntegration.applyRuntimeConfigPatch(patch as never);
+        appState.ankiIntegration.applyRuntimeConfigPatch(patch);
       }
     },
   },
@@ -912,7 +913,7 @@ const jlptDictionaryRuntime = createJlptDictionaryRuntimeService(
     getDictionaryRoots: () => buildDictionaryRootsHandler(),
     getJlptDictionarySearchPaths,
     setJlptLevelLookup: (lookup) => {
-      appState.jlptLevelLookup = lookup as never;
+      appState.jlptLevelLookup = lookup;
     },
     logInfo: (message) => logger.info(message),
   })(),
@@ -926,7 +927,7 @@ const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService(
     getFrequencyDictionarySearchPaths,
     getSourcePath: () => getResolvedConfig().subtitleStyle.frequencyDictionary.sourcePath,
     setFrequencyRankLookup: (lookup) => {
-      appState.frequencyRankLookup = lookup as never;
+      appState.frequencyRankLookup = lookup;
     },
     logInfo: (message) => logger.info(message),
   })(),
@@ -968,7 +969,7 @@ function setFieldGroupingResolver(
 }
 
 const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHostedModal>(
-  createBuildFieldGroupingOverlayMainDepsHandler<OverlayHostedModal, KikuFieldGroupingChoice>({
+  createBuildFieldGroupingOverlayMainDepsHandler<OverlayHostedModal>({
     getMainWindow: () => overlayManager.getMainWindow(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
@@ -1257,8 +1258,7 @@ const buildPlayJellyfinItemInMpvMainDepsHandler = createBuildPlayJellyfinItemInM
         subtitleStreamIndex: params.subtitleStreamIndex ?? undefined,
       },
     ),
-  applyJellyfinMpvDefaults: (mpvClient) =>
-    applyJellyfinMpvDefaults(mpvClient as unknown as MpvIpcClient),
+  applyJellyfinMpvDefaults: (mpvClient) => applyJellyfinMpvDefaults(mpvClient),
   sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
   armQuitOnDisconnect: () => {
     jellyfinPlayQuitOnDisconnectArmed = false;
@@ -2169,10 +2169,7 @@ const {
     },
   },
   mpvClientRuntimeServiceFactoryMainDeps: {
-    createClient: MpvIpcClient as unknown as new (
-      socketPath: string,
-      options: MpvClientRuntimeServiceOptions,
-    ) => MpvIpcClient,
+    createClient: MpvIpcClient,
     getSocketPath: () => appState.mpvSocketPath,
     getResolvedConfig: () => getResolvedConfig(),
     isAutoStartOverlayEnabled: () => appState.autoStartOverlay,
@@ -2434,7 +2431,7 @@ const { appendToMpvLog, flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers(
   buildShowMpvOsdMainDeps: (appendToMpvLogHandler) => ({
     appendToMpvLog: (message) => appendToMpvLogHandler(message),
     showMpvOsdRuntime: (mpvClient, text, fallbackLog) =>
-      showMpvOsdRuntime(mpvClient as never, text, fallbackLog),
+      showMpvOsdRuntime(mpvClient, text, fallbackLog),
     getMpvClient: () => appState.mpvClient,
     logInfo: (line) => logger.info(line),
   }),
@@ -2845,7 +2842,7 @@ const {
     },
     createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
     createEmptyImage: () => nativeImage.createEmpty(),
-    createTray: (icon) => new Tray(icon as never),
+    createTray: (icon) => new Tray(icon as ConstructorParameters<typeof Tray>[0]),
     trayTooltip: TRAY_TOOLTIP,
     platform: process.platform,
     logWarn: (message) => logger.warn(message),
@@ -2910,12 +2907,12 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       getOverlayWindows: () => getOverlayWindows(),
       getResolvedConfig: () => getResolvedConfig(),
       showDesktopNotification,
-      createFieldGroupingCallback: () => createFieldGroupingCallback() as never,
+      createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
     },
     initializeOverlayRuntimeBootstrapDeps: {
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-      initializeOverlayRuntimeCore: (options) => initializeOverlayRuntimeCore(options as never),
+      initializeOverlayRuntimeCore,
       setInvisibleOverlayVisible: (visible) => {
         overlayManager.setInvisibleOverlayVisible(visible);
       },

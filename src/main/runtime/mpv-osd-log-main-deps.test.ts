@@ -32,7 +32,10 @@ test('append to mpv log main deps map filesystem functions and log path', async 
 
 test('show mpv osd main deps map runtime delegates and logging callback', () => {
   const calls: string[] = [];
-  const client = { id: 'mpv' };
+  const client = {
+    connected: true,
+    send: () => {},
+  };
   const deps = createBuildShowMpvOsdMainDepsHandler({
     appendToMpvLog: (message) => calls.push(`append:${message}`),
     showMpvOsdRuntime: (_mpvClient, text, fallbackLog) => {

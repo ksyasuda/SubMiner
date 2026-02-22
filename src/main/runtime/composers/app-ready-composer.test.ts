@@ -5,7 +5,7 @@ import { composeAppReadyRuntime } from './app-ready-composer';
 test('composeAppReadyRuntime returns reload/critical/app-ready handlers', () => {
   const composed = composeAppReadyRuntime({
     reloadConfigMainDeps: {
-      reloadConfigStrict: () => ({ config: {} as never, warnings: [] }),
+      reloadConfigStrict: () => ({ ok: true, path: '/tmp/config.jsonc', warnings: [] }),
       logInfo: () => {},
       logWarning: () => {},
       showDesktopNotification: () => {},

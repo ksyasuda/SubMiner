@@ -1,22 +1,34 @@
 import { createDestroyTrayHandler, createEnsureTrayHandler } from './tray-lifecycle';
-import { createBuildDestroyTrayMainDepsHandler, createBuildEnsureTrayMainDepsHandler } from './app-runtime-main-deps';
-import { createBuildTrayMenuTemplateHandler, createResolveTrayIconPathHandler } from './tray-main-actions';
+import {
+  createBuildDestroyTrayMainDepsHandler,
+  createBuildEnsureTrayMainDepsHandler,
+} from './app-runtime-main-deps';
+import {
+  createBuildTrayMenuTemplateHandler,
+  createResolveTrayIconPathHandler,
+} from './tray-main-actions';
 import {
   createBuildResolveTrayIconPathMainDepsHandler,
   createBuildTrayMenuTemplateMainDepsHandler,
 } from './tray-main-deps';
 
-type ResolveTrayIconPathMainDeps = Parameters<typeof createBuildResolveTrayIconPathMainDepsHandler>[0];
+type ResolveTrayIconPathMainDeps = Parameters<
+  typeof createBuildResolveTrayIconPathMainDepsHandler
+>[0];
 type BuildTrayMenuTemplateMainDeps<TMenuItem> = Parameters<
   typeof createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>
 >[0];
-type EnsureTrayMainDeps = Parameters<typeof createBuildEnsureTrayMainDepsHandler>[0];
-type DestroyTrayMainDeps = Parameters<typeof createBuildDestroyTrayMainDepsHandler>[0];
+type EnsureTrayMainDeps<TTrayMenu> = Parameters<
+  typeof createBuildEnsureTrayMainDepsHandler<TrayLike, TTrayMenu, TrayIconLike>
+>[0];
+type TrayLike = NonNullable<ReturnType<Parameters<typeof createEnsureTrayHandler>[0]['getTray']>>;
+type TrayIconLike = Parameters<Parameters<typeof createEnsureTrayHandler>[0]['createTray']>[0];
+type DestroyTrayMainDeps = Parameters<typeof createBuildDestroyTrayMainDepsHandler<TrayLike>>[0];
 
 export function createTrayRuntimeHandlers<TMenuItem, TMenu>(deps: {
   resolveTrayIconPathDeps: ResolveTrayIconPathMainDeps;
   buildTrayMenuTemplateDeps: BuildTrayMenuTemplateMainDeps<TMenuItem>;
-  ensureTrayDeps: Omit<EnsureTrayMainDeps, 'buildTrayMenu' | 'resolveTrayIconPath'>;
+  ensureTrayDeps: Omit<EnsureTrayMainDeps<TMenu>, 'buildTrayMenu' | 'resolveTrayIconPath'>;
   destroyTrayDeps: DestroyTrayMainDeps;
   buildMenuFromTemplate: (template: TMenuItem[]) => TMenu;
 }) {

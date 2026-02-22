@@ -1,13 +1,16 @@
 import type { CliArgs } from '../../cli/args';
+import type { CliCommandContextFactoryDeps } from './cli-command-context';
+
+type CliCommandContextMainState = {
+  mpvSocketPath: string;
+  mpvClient: ReturnType<CliCommandContextFactoryDeps['getMpvClient']>;
+  texthookerPort: number;
+  overlayRuntimeInitialized: boolean;
+};
 
 export function createBuildCliCommandContextMainDepsHandler(deps: {
-  appState: {
-    mpvSocketPath: string;
-    mpvClient: unknown | null;
-    texthookerPort: number;
-    overlayRuntimeInitialized: boolean;
-  };
-  texthookerService: unknown;
+  appState: CliCommandContextMainState;
+  texthookerService: CliCommandContextFactoryDeps['texthookerService'];
   getResolvedConfig: () => { texthooker?: { openBrowser?: boolean } };
   openExternal: (url: string) => Promise<unknown>;
   logBrowserOpenError: (url: string, error: unknown) => void;
@@ -29,12 +32,12 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   triggerSubsyncFromConfig: () => Promise<void>;
   markLastCardAsAudioCard: () => Promise<void>;
 
-  getAnilistStatus: () => unknown;
+  getAnilistStatus: CliCommandContextFactoryDeps['getAnilistStatus'];
   clearAnilistToken: () => void;
   openAnilistSetupWindow: () => void;
   openJellyfinSetupWindow: () => void;
-  getAnilistQueueStatus: () => unknown;
-  processNextAnilistRetryUpdate: () => Promise<{ ok: boolean; message: string }>;
+  getAnilistQueueStatus: CliCommandContextFactoryDeps['getAnilistQueueStatus'];
+  processNextAnilistRetryUpdate: CliCommandContextFactoryDeps['retryAnilistQueueNow'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
 
   openYomitanSettings: () => void;
@@ -49,14 +52,14 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   logWarn: (message: string) => void;
   logError: (message: string, err: unknown) => void;
 }) {
-  return () => ({
+  return (): CliCommandContextFactoryDeps => ({
     getSocketPath: () => deps.appState.mpvSocketPath,
     setSocketPath: (socketPath: string) => {
       deps.appState.mpvSocketPath = socketPath;
     },
-    getMpvClient: () => deps.appState.mpvClient as never,
+    getMpvClient: () => deps.appState.mpvClient,
     showOsd: (text: string) => deps.showMpvOsd(text),
-    texthookerService: deps.texthookerService as never,
+    texthookerService: deps.texthookerService,
     getTexthookerPort: () => deps.appState.texthookerPort,
     setTexthookerPort: (port: number) => {
       deps.appState.texthookerPort = port;
@@ -80,11 +83,11 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     triggerFieldGrouping: () => deps.triggerFieldGrouping(),
     triggerSubsyncFromConfig: () => deps.triggerSubsyncFromConfig(),
     markLastCardAsAudioCard: () => deps.markLastCardAsAudioCard(),
-    getAnilistStatus: () => deps.getAnilistStatus() as never,
+    getAnilistStatus: () => deps.getAnilistStatus(),
     clearAnilistToken: () => deps.clearAnilistToken(),
     openAnilistSetup: () => deps.openAnilistSetupWindow(),
     openJellyfinSetup: () => deps.openJellyfinSetupWindow(),
-    getAnilistQueueStatus: () => deps.getAnilistQueueStatus() as never,
+    getAnilistQueueStatus: () => deps.getAnilistQueueStatus(),
     retryAnilistQueueNow: () => deps.processNextAnilistRetryUpdate(),
     runJellyfinCommand: (args: CliArgs) => deps.runJellyfinCommand(args),
     openYomitanSettings: () => deps.openYomitanSettings(),
