@@ -18,14 +18,14 @@
 import {
   app,
   BrowserWindow,
-  globalShortcut,
   clipboard,
+  globalShortcut,
   shell,
   protocol,
   Extension,
   Menu,
-  Tray,
   nativeImage,
+  Tray,
   dialog,
 } from 'electron';
 
@@ -42,26 +42,26 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-import * as path from 'path';
-import * as os from 'os';
 import * as fs from 'fs';
 import { spawn } from 'node:child_process';
+import * as os from 'os';
+import * as path from 'path';
 import { MecabTokenizer } from './mecab-tokenizer';
 import type {
   JimakuApiResponse,
-  SubtitleData,
-  SubtitlePosition,
-  WindowGeometry,
-  SecondarySubMode,
-  SubsyncManualRunRequest,
-  SubsyncResult,
   KikuFieldGroupingChoice,
-  RuntimeOptionState,
   MpvSubtitleRenderMetrics,
   ResolvedConfig,
+  RuntimeOptionState,
+  SecondarySubMode,
+  SubtitleData,
+  SubtitlePosition,
+  SubsyncManualRunRequest,
+  SubsyncResult,
+  WindowGeometry,
 } from './types';
-import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { AnkiIntegration } from './anki-integration';
+import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
 import { createLogger, setLogLevel, type LogLevelSource } from './logger';
@@ -73,273 +73,203 @@ import {
   buildConfigWarningNotificationBody,
   failStartupFromConfig,
 } from './main/config-validation';
-import { createImmersionMediaRuntime } from './main/runtime/domains/startup';
-import { createAnilistStateRuntime } from './main/runtime/domains/anilist';
-import { createConfigDerivedRuntime } from './main/runtime/domains/startup';
-import { appendClipboardVideoToQueueRuntime } from './main/runtime/domains/startup';
-import { createMainSubsyncRuntime } from './main/runtime/domains/startup';
 import {
+  buildAnilistAttemptKey,
   buildAnilistSetupUrl,
   consumeAnilistSetupCallbackUrl,
+  createAnilistStateRuntime,
+  createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler,
+  createBuildGetCurrentAnilistMediaKeyMainDepsHandler,
+  createBuildMaybeProbeAnilistDurationMainDepsHandler,
+  createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler,
+  createBuildOpenAnilistSetupWindowMainDepsHandler,
+  createBuildProcessNextAnilistRetryUpdateMainDepsHandler,
+  createBuildRefreshAnilistClientSecretStateMainDepsHandler,
+  createBuildResetAnilistMediaGuessStateMainDepsHandler,
+  createBuildResetAnilistMediaTrackingMainDepsHandler,
+  createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler,
+  createEnsureAnilistMediaGuessHandler,
+  createGetAnilistMediaGuessRuntimeStateHandler,
+  createGetCurrentAnilistMediaKeyHandler,
+  createMaybeFocusExistingAnilistSetupWindowHandler,
+  createMaybeProbeAnilistDurationHandler,
+  createMaybeRunAnilistPostWatchUpdateHandler,
+  createOpenAnilistSetupWindowHandler,
+  createProcessNextAnilistRetryUpdateHandler,
+  createRefreshAnilistClientSecretStateHandler,
+  createResetAnilistMediaGuessStateHandler,
+  createResetAnilistMediaTrackingHandler,
+  createSetAnilistMediaGuessRuntimeStateHandler,
   findAnilistSetupDeepLinkArgvUrl,
   isAnilistTrackingEnabled,
   loadAnilistManualTokenEntry,
   loadAnilistSetupFallback,
   openAnilistSetupInBrowser,
-} from './main/runtime/domains/anilist';
-import { createRefreshAnilistClientSecretStateHandler } from './main/runtime/domains/anilist';
-import { createBuildRefreshAnilistClientSecretStateMainDepsHandler } from './main/runtime/domains/anilist';
-import {
-  getConfiguredJellyfinSession,
-  type ActiveJellyfinRemotePlaybackState,
-  createReportJellyfinRemoteProgressHandler,
-  createReportJellyfinRemoteStoppedHandler,
-  createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler,
-  createBuildHandleJellyfinRemotePlayMainDepsHandler,
-  createBuildHandleJellyfinRemotePlaystateMainDepsHandler,
-  createBuildReportJellyfinRemoteProgressMainDepsHandler,
-  createBuildReportJellyfinRemoteStoppedMainDepsHandler,
-} from './main/runtime/domains/jellyfin';
-import { createBuildSubtitleProcessingControllerMainDepsHandler } from './main/runtime/domains/startup';
-import { createApplyHoveredTokenOverlayHandler } from './main/runtime/mpv-hover-highlight';
-import {
-  createBuildAnilistStateRuntimeMainDepsHandler,
-  createBuildConfigDerivedRuntimeMainDepsHandler,
-  createBuildImmersionMediaRuntimeMainDepsHandler,
-  createBuildMainSubsyncRuntimeMainDepsHandler,
-} from './main/runtime/domains/startup';
-import {
-  createBuildOverlayContentMeasurementStoreMainDepsHandler,
-  createBuildOverlayModalRuntimeMainDepsHandler,
-} from './main/runtime/domains/overlay';
-import {
-  createEnsureMpvConnectedForJellyfinPlaybackHandler,
-  createLaunchMpvIdleForJellyfinPlaybackHandler,
-  createWaitForMpvConnectedHandler,
-} from './main/runtime/domains/jellyfin';
-import {
-  createBuildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler,
-  createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler,
-  createBuildWaitForMpvConnectedMainDepsHandler,
-} from './main/runtime/domains/jellyfin';
-import {
-  buildJellyfinSetupFormHtml,
-  createOpenJellyfinSetupWindowHandler,
-  createMaybeFocusExistingJellyfinSetupWindowHandler,
-  parseJellyfinSetupSubmissionUrl,
-} from './main/runtime/domains/jellyfin';
-import { createBuildOpenJellyfinSetupWindowMainDepsHandler } from './main/runtime/domains/jellyfin';
-import {
-  createMaybeFocusExistingAnilistSetupWindowHandler,
-  createOpenAnilistSetupWindowHandler,
-} from './main/runtime/domains/anilist';
-import { createBuildOpenAnilistSetupWindowMainDepsHandler } from './main/runtime/domains/anilist';
-import {
-  createEnsureAnilistMediaGuessHandler,
-  createMaybeProbeAnilistDurationHandler,
-} from './main/runtime/domains/anilist';
-import {
-  createBuildEnsureAnilistMediaGuessMainDepsHandler,
-  createBuildMaybeProbeAnilistDurationMainDepsHandler,
-} from './main/runtime/domains/anilist';
-import {
-  createGetAnilistMediaGuessRuntimeStateHandler,
-  createGetCurrentAnilistMediaKeyHandler,
-  createResetAnilistMediaGuessStateHandler,
-  createResetAnilistMediaTrackingHandler,
-  createSetAnilistMediaGuessRuntimeStateHandler,
-} from './main/runtime/domains/anilist';
-import {
-  createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler,
-  createBuildGetCurrentAnilistMediaKeyMainDepsHandler,
-  createBuildResetAnilistMediaGuessStateMainDepsHandler,
-  createBuildResetAnilistMediaTrackingMainDepsHandler,
-  createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler,
-} from './main/runtime/domains/anilist';
-import {
-  buildAnilistAttemptKey,
-  createMaybeRunAnilistPostWatchUpdateHandler,
-  createProcessNextAnilistRetryUpdateHandler,
   rememberAnilistAttemptedUpdateKey,
 } from './main/runtime/domains/anilist';
 import {
-  createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler,
-  createBuildProcessNextAnilistRetryUpdateMainDepsHandler,
-} from './main/runtime/domains/anilist';
-import {
-  createLoadSubtitlePositionHandler,
-  createSaveSubtitlePositionHandler,
-} from './main/runtime/domains/overlay';
-import {
-  createBuildLoadSubtitlePositionMainDepsHandler,
-  createBuildSaveSubtitlePositionMainDepsHandler,
-} from './main/runtime/domains/overlay';
-import { createHandleJellyfinAuthCommands } from './main/runtime/domains/jellyfin';
-import { createRunJellyfinCommandHandler } from './main/runtime/domains/jellyfin';
-import { createBuildRunJellyfinCommandMainDepsHandler } from './main/runtime/domains/jellyfin';
-import { createHandleJellyfinListCommands } from './main/runtime/domains/jellyfin';
-import { createHandleJellyfinPlayCommand } from './main/runtime/domains/jellyfin';
-import { createHandleJellyfinRemoteAnnounceCommand } from './main/runtime/domains/jellyfin';
-import {
-  createBuildHandleJellyfinAuthCommandsMainDepsHandler,
-  createBuildHandleJellyfinListCommandsMainDepsHandler,
-  createBuildHandleJellyfinPlayCommandMainDepsHandler,
-  createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler,
-} from './main/runtime/domains/jellyfin';
-import {
-  createGetJellyfinClientInfoHandler,
-  createGetResolvedJellyfinConfigHandler,
-} from './main/runtime/domains/jellyfin';
-import {
-  createBuildGetJellyfinClientInfoMainDepsHandler,
-  createBuildGetResolvedJellyfinConfigMainDepsHandler,
-} from './main/runtime/domains/jellyfin';
-import {
   createApplyJellyfinMpvDefaultsHandler,
-  createGetDefaultSocketPathHandler,
-} from './main/runtime/domains/jellyfin';
-import {
   createBuildApplyJellyfinMpvDefaultsMainDepsHandler,
   createBuildGetDefaultSocketPathMainDepsHandler,
-} from './main/runtime/domains/jellyfin';
-import { createBuildMediaRuntimeMainDepsHandler } from './main/runtime/domains/startup';
-import {
-  createBuildDictionaryRootsMainHandler,
-  createBuildFrequencyDictionaryRootsMainHandler,
-  createBuildFrequencyDictionaryRuntimeMainDepsHandler,
-  createBuildJlptDictionaryRuntimeMainDepsHandler,
-} from './main/runtime/domains/startup';
-import { createPlayJellyfinItemInMpvHandler } from './main/runtime/domains/jellyfin';
-import { createBuildPlayJellyfinItemInMpvMainDepsHandler } from './main/runtime/domains/jellyfin';
-import { createPreloadJellyfinExternalSubtitlesHandler } from './main/runtime/domains/jellyfin';
-import { createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler } from './main/runtime/domains/jellyfin';
-import {
+  createEnsureMpvConnectedForJellyfinPlaybackHandler,
+  createBuildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler,
+  createGetDefaultSocketPathHandler,
+  createGetJellyfinClientInfoHandler,
+  createBuildGetJellyfinClientInfoMainDepsHandler,
+  createHandleJellyfinAuthCommands,
+  createBuildHandleJellyfinAuthCommandsMainDepsHandler,
+  createHandleJellyfinListCommands,
+  createBuildHandleJellyfinListCommandsMainDepsHandler,
+  createHandleJellyfinPlayCommand,
+  createBuildHandleJellyfinPlayCommandMainDepsHandler,
+  createHandleJellyfinRemoteAnnounceCommand,
+  createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler,
+  createHandleJellyfinRemotePlay,
+  createBuildHandleJellyfinRemotePlayMainDepsHandler,
+  createHandleJellyfinRemotePlaystate,
+  createBuildHandleJellyfinRemotePlaystateMainDepsHandler,
+  createHandleJellyfinRemoteGeneralCommand,
+  createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler,
+  createLaunchMpvIdleForJellyfinPlaybackHandler,
+  createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler,
+  createPlayJellyfinItemInMpvHandler,
+  createBuildPlayJellyfinItemInMpvMainDepsHandler,
+  createPreloadJellyfinExternalSubtitlesHandler,
+  createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler,
+  createReportJellyfinRemoteProgressHandler,
+  createBuildReportJellyfinRemoteProgressMainDepsHandler,
+  createReportJellyfinRemoteStoppedHandler,
+  createBuildReportJellyfinRemoteStoppedMainDepsHandler,
   createStartJellyfinRemoteSessionHandler,
-  createStopJellyfinRemoteSessionHandler,
-} from './main/runtime/domains/jellyfin';
-import {
   createBuildStartJellyfinRemoteSessionMainDepsHandler,
+  createStopJellyfinRemoteSessionHandler,
   createBuildStopJellyfinRemoteSessionMainDepsHandler,
+  createRunJellyfinCommandHandler,
+  createBuildRunJellyfinCommandMainDepsHandler,
+  createWaitForMpvConnectedHandler,
+  createBuildWaitForMpvConnectedMainDepsHandler,
+  createOpenJellyfinSetupWindowHandler,
+  createBuildOpenJellyfinSetupWindowMainDepsHandler,
+  createGetResolvedJellyfinConfigHandler,
+  createBuildGetResolvedJellyfinConfigMainDepsHandler,
+  parseJellyfinSetupSubmissionUrl,
+  buildJellyfinSetupFormHtml,
+  createMaybeFocusExistingJellyfinSetupWindowHandler,
 } from './main/runtime/domains/jellyfin';
-import { createCliCommandRuntimeHandler } from './main/runtime/domains/ipc';
-import { createInitialArgsRuntimeHandler } from './main/runtime/domains/ipc';
-import {
-  createGetFieldGroupingResolverHandler,
-  createSetFieldGroupingResolverHandler,
-} from './main/runtime/domains/overlay';
-import {
-  createBuildGetFieldGroupingResolverMainDepsHandler,
-  createBuildSetFieldGroupingResolverMainDepsHandler,
-} from './main/runtime/domains/overlay';
-import { createBuildFieldGroupingOverlayMainDepsHandler } from './main/runtime/domains/overlay';
-import { createCliCommandContextFactory } from './main/runtime/domains/ipc';
-import { createBindMpvMainEventHandlersHandler } from './main/runtime/domains/mpv';
-import { createBuildBindMpvMainEventHandlersMainDepsHandler } from './main/runtime/domains/mpv';
-import { createBuildMpvClientRuntimeServiceFactoryDepsHandler } from './main/runtime/domains/mpv';
-import { createMpvClientRuntimeServiceFactory } from './main/runtime/domains/mpv';
-import type { MpvClientRuntimeServiceOptions } from './main/runtime/domains/mpv';
-import { createUpdateMpvSubtitleRenderMetricsHandler } from './main/runtime/domains/mpv';
-import { createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler } from './main/runtime/domains/mpv';
-import {
-  createBuildTokenizerDepsMainHandler,
-  createCreateMecabTokenizerAndCheckMainHandler,
-  createPrewarmSubtitleDictionariesMainHandler,
-} from './main/runtime/domains/mpv';
-import {
-  createLaunchBackgroundWarmupTaskHandler,
-  createStartBackgroundWarmupsHandler,
-} from './main/runtime/domains/startup';
-import {
-  createBuildLaunchBackgroundWarmupTaskMainDepsHandler,
-  createBuildStartBackgroundWarmupsMainDepsHandler,
-} from './main/runtime/domains/startup';
-import {
-  createEnforceOverlayLayerOrderHandler,
-  createEnsureOverlayWindowLevelHandler,
-  createUpdateInvisibleOverlayBoundsHandler,
-  createUpdateVisibleOverlayBoundsHandler,
-} from './main/runtime/domains/overlay';
-import {
-  createBuildEnforceOverlayLayerOrderMainDepsHandler,
-  createBuildEnsureOverlayWindowLevelMainDepsHandler,
-  createBuildUpdateInvisibleOverlayBoundsMainDepsHandler,
-  createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
-} from './main/runtime/domains/overlay';
-import {
-  buildTrayMenuTemplateRuntime,
-  resolveTrayIconPathRuntime,
-} from './main/runtime/domains/overlay';
-import { createMpvOsdRuntimeHandlers } from './main/runtime/domains/mpv';
-import { createCycleSecondarySubModeRuntimeHandler } from './main/runtime/domains/mpv';
-import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
-import {
-  createMarkLastCardAsAudioCardHandler,
-  createMineSentenceCardHandler,
-  createRefreshKnownWordCacheHandler,
-  createTriggerFieldGroupingHandler,
-  createUpdateLastCardFromClipboardHandler,
-} from './main/runtime/domains/mining';
-import {
-  createBuildMarkLastCardAsAudioCardMainDepsHandler,
-  createBuildMineSentenceCardMainDepsHandler,
-  createBuildRefreshKnownWordCacheMainDepsHandler,
-  createBuildTriggerFieldGroupingMainDepsHandler,
-  createBuildUpdateLastCardFromClipboardMainDepsHandler,
-} from './main/runtime/domains/mining';
-import {
-  createCopyCurrentSubtitleHandler,
-  createHandleMineSentenceDigitHandler,
-  createHandleMultiCopyDigitHandler,
-} from './main/runtime/domains/mining';
-import {
-  createBuildCopyCurrentSubtitleMainDepsHandler,
-  createBuildHandleMineSentenceDigitMainDepsHandler,
-  createBuildHandleMultiCopyDigitMainDepsHandler,
-} from './main/runtime/domains/mining';
-import { createBuildOverlayVisibilityRuntimeMainDepsHandler } from './main/runtime/domains/overlay';
-import { createOverlayVisibilityRuntime } from './main/runtime/domains/overlay';
-import {
-  createAppendClipboardVideoToQueueHandler,
-  createHandleOverlayModalClosedHandler,
-} from './main/runtime/domains/overlay';
-import {
-  createBuildAppendClipboardVideoToQueueMainDepsHandler,
-  createBuildHandleOverlayModalClosedMainDepsHandler,
-} from './main/runtime/domains/overlay';
-import {
-  createBroadcastRuntimeOptionsChangedHandler,
-  createGetRuntimeOptionsStateHandler,
-  createOpenRuntimeOptionsPaletteHandler,
-  createRestorePreviousSecondarySubVisibilityHandler,
-  createSendToActiveOverlayWindowHandler,
-  createSetOverlayDebugVisualizationEnabledHandler,
-} from './main/runtime/domains/overlay';
-import {
-  createBuildBroadcastRuntimeOptionsChangedMainDepsHandler,
-  createBuildGetRuntimeOptionsStateMainDepsHandler,
-  createBuildOpenRuntimeOptionsPaletteMainDepsHandler,
-  createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler,
-  createBuildSendToActiveOverlayWindowMainDepsHandler,
-  createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler,
-} from './main/runtime/domains/overlay';
-import { createOverlayWindowRuntimeHandlers } from './main/runtime/domains/overlay';
-import { createOverlayRuntimeBootstrapHandlers } from './main/runtime/domains/overlay';
-import { createTrayRuntimeHandlers } from './main/runtime/domains/overlay';
-import { createYomitanExtensionRuntime } from './main/runtime/domains/overlay';
-import { createYomitanSettingsRuntime } from './main/runtime/domains/overlay';
-import {
-  buildRestartRequiredConfigMessage,
-  createConfigHotReloadAppliedHandler,
-  createConfigHotReloadMessageHandler,
-  resolveSubtitleStyleForRenderer,
-} from './main/runtime/domains/overlay';
+import type { ActiveJellyfinRemotePlaybackState } from './main/runtime/domains/jellyfin';
+import { getConfiguredJellyfinSession } from './main/runtime/domains/jellyfin';
 import {
   createBuildConfigHotReloadMessageMainDepsHandler,
   createBuildConfigHotReloadAppliedMainDepsHandler,
   createBuildConfigHotReloadRuntimeMainDepsHandler,
   createBuildWatchConfigPathMainDepsHandler,
   createWatchConfigPathHandler,
+  createBuildOverlayContentMeasurementStoreMainDepsHandler,
+  createBuildOverlayModalRuntimeMainDepsHandler,
+  createBuildAppendClipboardVideoToQueueMainDepsHandler,
+  createBuildHandleOverlayModalClosedMainDepsHandler,
+  createBuildLoadSubtitlePositionMainDepsHandler,
+  createBuildSaveSubtitlePositionMainDepsHandler,
+  createBuildFieldGroupingOverlayMainDepsHandler,
+  createBuildGetFieldGroupingResolverMainDepsHandler,
+  createBuildSetFieldGroupingResolverMainDepsHandler,
+  createBuildOverlayVisibilityRuntimeMainDepsHandler,
+  createBuildBroadcastRuntimeOptionsChangedMainDepsHandler,
+  createBuildGetRuntimeOptionsStateMainDepsHandler,
+  createBuildOpenRuntimeOptionsPaletteMainDepsHandler,
+  createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler,
+  createBuildSendToActiveOverlayWindowMainDepsHandler,
+  createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler,
+  createBuildEnforceOverlayLayerOrderMainDepsHandler,
+  createBuildEnsureOverlayWindowLevelMainDepsHandler,
+  createBuildUpdateInvisibleOverlayBoundsMainDepsHandler,
+  createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
+  createOverlayWindowRuntimeHandlers,
+  createOverlayRuntimeBootstrapHandlers,
+  createTrayRuntimeHandlers,
+  createOverlayVisibilityRuntime,
+  createBroadcastRuntimeOptionsChangedHandler,
+  createGetRuntimeOptionsStateHandler,
+  createGetFieldGroupingResolverHandler,
+  createSetFieldGroupingResolverHandler,
+  createOpenRuntimeOptionsPaletteHandler,
+  createRestorePreviousSecondarySubVisibilityHandler,
+  createSendToActiveOverlayWindowHandler,
+  createSetOverlayDebugVisualizationEnabledHandler,
+  createEnforceOverlayLayerOrderHandler,
+  createEnsureOverlayWindowLevelHandler,
+  createUpdateInvisibleOverlayBoundsHandler,
+  createUpdateVisibleOverlayBoundsHandler,
+  createLoadSubtitlePositionHandler,
+  createSaveSubtitlePositionHandler,
+  createAppendClipboardVideoToQueueHandler,
+  createHandleOverlayModalClosedHandler,
+  createConfigHotReloadMessageHandler,
+  createConfigHotReloadAppliedHandler,
+  buildTrayMenuTemplateRuntime,
+  resolveTrayIconPathRuntime,
+  createYomitanExtensionRuntime,
+  createYomitanSettingsRuntime,
+  buildRestartRequiredConfigMessage,
+  resolveSubtitleStyleForRenderer,
 } from './main/runtime/domains/overlay';
+import {
+  createBuildAnilistStateRuntimeMainDepsHandler,
+  createBuildConfigDerivedRuntimeMainDepsHandler,
+  createBuildImmersionMediaRuntimeMainDepsHandler,
+  createBuildMainSubsyncRuntimeMainDepsHandler,
+  createBuildSubtitleProcessingControllerMainDepsHandler,
+  createBuildMediaRuntimeMainDepsHandler,
+  createBuildDictionaryRootsMainHandler,
+  createBuildFrequencyDictionaryRootsMainHandler,
+  createBuildFrequencyDictionaryRuntimeMainDepsHandler,
+  createBuildJlptDictionaryRuntimeMainDepsHandler,
+  createImmersionMediaRuntime,
+  createConfigDerivedRuntime,
+  appendClipboardVideoToQueueRuntime,
+  createMainSubsyncRuntime,
+  createLaunchBackgroundWarmupTaskHandler,
+  createStartBackgroundWarmupsHandler,
+  createBuildLaunchBackgroundWarmupTaskMainDepsHandler,
+  createBuildStartBackgroundWarmupsMainDepsHandler,
+} from './main/runtime/domains/startup';
+import {
+  createBuildBindMpvMainEventHandlersMainDepsHandler,
+  createBuildMpvClientRuntimeServiceFactoryDepsHandler,
+  createMpvClientRuntimeServiceFactory,
+  createBindMpvMainEventHandlersHandler,
+  createBuildTokenizerDepsMainHandler,
+  createCreateMecabTokenizerAndCheckMainHandler,
+  createPrewarmSubtitleDictionariesMainHandler,
+  createUpdateMpvSubtitleRenderMetricsHandler,
+  createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler,
+  createMpvOsdRuntimeHandlers,
+  createCycleSecondarySubModeRuntimeHandler,
+} from './main/runtime/domains/mpv';
+import type { MpvClientRuntimeServiceOptions } from './main/runtime/domains/mpv';
+import {
+  createBuildCopyCurrentSubtitleMainDepsHandler,
+  createBuildHandleMineSentenceDigitMainDepsHandler,
+  createBuildHandleMultiCopyDigitMainDepsHandler,
+  createBuildMarkLastCardAsAudioCardMainDepsHandler,
+  createBuildMineSentenceCardMainDepsHandler,
+  createBuildRefreshKnownWordCacheMainDepsHandler,
+  createBuildTriggerFieldGroupingMainDepsHandler,
+  createBuildUpdateLastCardFromClipboardMainDepsHandler,
+  createMarkLastCardAsAudioCardHandler,
+  createMineSentenceCardHandler,
+  createRefreshKnownWordCacheHandler,
+  createTriggerFieldGroupingHandler,
+  createUpdateLastCardFromClipboardHandler,
+  createCopyCurrentSubtitleHandler,
+  createHandleMineSentenceDigitHandler,
+  createHandleMultiCopyDigitHandler,
+} from './main/runtime/domains/mining';
+import {
+  createCliCommandContextFactory,
+  createInitialArgsRuntimeHandler,
+  createCliCommandRuntimeHandler,
+} from './main/runtime/domains/ipc';
 import {
   enforceUnsupportedWaylandMode,
   forceX11Backend,
@@ -349,17 +279,23 @@ import {
   showDesktopNotification,
 } from './core/utils';
 import {
+  ImmersionTrackerService,
+  JellyfinRemoteSessionService,
   MpvIpcClient,
   SubtitleWebSocket,
   Texthooker,
+  DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
   applyMpvSubtitleRenderMetricsPatch,
+  authenticateWithPasswordRuntime,
   broadcastRuntimeOptionsChangedRuntime,
   copyCurrentSubtitle as copyCurrentSubtitleCore,
-  createOverlayManager,
+  createConfigHotReloadRuntime,
+  createDiscordPresenceService,
   createFieldGroupingOverlayRuntime,
   createOverlayContentMeasurementStore,
-  createSubtitleProcessingController,
+  createOverlayManager,
   createOverlayWindow as createOverlayWindowCore,
+  createSubtitleProcessingController,
   createTokenizerDepsRuntime,
   cycleSecondarySubMode as cycleSecondarySubModeCore,
   enforceOverlayLayerOrder as enforceOverlayLayerOrderCore,
@@ -368,26 +304,21 @@ import {
   handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
-  loadSubtitlePosition as loadSubtitlePositionCore,
-  loadYomitanExtension as loadYomitanExtensionCore,
+  jellyfinTicksToSecondsRuntime,
   listJellyfinItemsRuntime,
   listJellyfinLibrariesRuntime,
   listJellyfinSubtitleTracksRuntime,
+  loadSubtitlePosition as loadSubtitlePositionCore,
+  loadYomitanExtension as loadYomitanExtensionCore,
   markLastCardAsAudioCard as markLastCardAsAudioCardCore,
-  DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
-  ImmersionTrackerService,
-  JellyfinRemoteSessionService,
   mineSentenceCard as mineSentenceCardCore,
   openYomitanSettingsWindow,
   playNextSubtitleRuntime,
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
+  resolveJellyfinPlaybackPlanRuntime,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
-  authenticateWithPasswordRuntime,
-  createConfigHotReloadRuntime,
-  resolveJellyfinPlaybackPlanRuntime,
-  jellyfinTicksToSecondsRuntime,
   sendMpvCommandRuntime,
   setInvisibleOverlayVisible as setInvisibleOverlayVisibleCore,
   setMpvSubVisibilityRuntime,
@@ -398,14 +329,27 @@ import {
   triggerFieldGrouping as triggerFieldGroupingCore,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
+import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
   guessAnilistMediaInfo,
   updateAnilistPostWatchProgress,
 } from './core/services/anilist/anilist-updater';
-import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
-import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
+import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
+import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
+import { createMainRuntimeRegistry } from './main/runtime/registry';
+import { createApplyHoveredTokenOverlayHandler } from './main/runtime/mpv-hover-highlight';
+import {
+  composeAnilistSetupHandlers,
+  composeAnilistTrackingHandlers,
+  composeAppReadyRuntime,
+  composeIpcRuntimeHandlers,
+  composeJellyfinRuntimeHandlers,
+  composeMpvRuntimeHandlers,
+  composeShortcutRuntimes,
+  composeStartupLifecycleHandlers,
+} from './main/runtime/composers';
 import { createStartupBootstrapRuntimeDeps } from './main/startup';
 import { createAppLifecycleRuntimeRunner } from './main/startup-lifecycle';
 import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
@@ -415,13 +359,13 @@ import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService, type OverlayHostedModal } from './main/overlay-runtime';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
-  createJlptDictionaryRuntimeService,
-  getJlptDictionarySearchPaths,
-} from './main/jlpt-runtime';
-import {
   createFrequencyDictionaryRuntimeService,
   getFrequencyDictionarySearchPaths,
 } from './main/frequency-dictionary-runtime';
+import {
+  createJlptDictionaryRuntimeService,
+  getJlptDictionarySearchPaths,
+} from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
 import {
@@ -451,17 +395,6 @@ import {
   generateConfigTemplate,
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
-import { createMainRuntimeRegistry } from './main/runtime/registry';
-import {
-  composeAnilistSetupHandlers,
-  composeAnilistTrackingHandlers,
-  composeAppReadyRuntime,
-  composeIpcRuntimeHandlers,
-  composeJellyfinRemoteHandlers,
-  composeMpvRuntimeHandlers,
-  composeShortcutRuntimes,
-  composeStartupLifecycleHandlers,
-} from './main/runtime/composers';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -651,6 +584,48 @@ const appState = createAppState({
   mpvSocketPath: getDefaultSocketPath(),
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
 });
+const discordPresenceSessionStartedAtMs = Date.now();
+
+function publishDiscordPresence(): void {
+  appState.discordPresenceService?.publish({
+    mediaTitle: appState.currentMediaTitle,
+    mediaPath: appState.currentMediaPath,
+    subtitleText: appState.currentSubText,
+    paused: appState.playbackPaused,
+    connected: Boolean(appState.mpvClient?.connected),
+    sessionStartedAtMs: discordPresenceSessionStartedAtMs,
+  });
+}
+
+function createDiscordRpcClient(clientId: string) {
+  const discordRpc = require('discord-rpc') as {
+    Client: new (opts: { transport: 'ipc' }) => {
+      login: (opts: { clientId: string }) => Promise<void>;
+      setActivity: (activity: Record<string, unknown>) => Promise<void>;
+      clearActivity: () => Promise<void>;
+      destroy: () => void;
+    };
+  };
+  const client = new discordRpc.Client({ transport: 'ipc' });
+
+  return {
+    login: () => client.login({ clientId }),
+    setActivity: (activity: unknown) =>
+      client.setActivity(activity as unknown as Record<string, unknown>),
+    clearActivity: () => client.clearActivity(),
+    destroy: () => client.destroy(),
+  };
+}
+
+async function initializeDiscordPresenceService(): Promise<void> {
+  appState.discordPresenceService = createDiscordPresenceService({
+    config: getResolvedConfig().discordPresence,
+    createClient: (clientId) => createDiscordRpcClient(clientId),
+    logDebug: (message, meta) => logger.debug(message, meta),
+  });
+  await appState.discordPresenceService.start();
+  publishDiscordPresence();
+}
 const applyHoveredTokenOverlay = createApplyHoveredTokenOverlayHandler({
   getMpvClient: () => appState.mpvClient,
   getCurrentSubtitleData: () => appState.currentSubtitleData,
@@ -756,7 +731,7 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
   createBuildOverlayShortcutsRuntimeMainDepsHandler({
     getConfiguredShortcuts: () => getConfiguredShortcuts(),
     getShortcutsRegistered: () => appState.shortcutsRegistered,
-    setShortcutsRegistered: (registered) => {
+    setShortcutsRegistered: (registered: boolean) => {
       appState.shortcutsRegistered = registered;
     },
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
@@ -770,7 +745,7 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
       });
     },
     markAudioCard: () => markLastCardAsAudioCard(),
-    copySubtitleMultiple: (timeoutMs) => {
+    copySubtitleMultiple: (timeoutMs: number) => {
       startPendingMultiCopy(timeoutMs);
     },
     copySubtitle: () => {
@@ -781,7 +756,7 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
     triggerFieldGrouping: () => triggerFieldGrouping(),
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     mineSentenceCard: () => mineSentenceCard(),
-    mineSentenceMultiple: (timeoutMs) => {
+    mineSentenceMultiple: (timeoutMs: number) => {
       startPendingMineSentenceMultiple(timeoutMs);
     },
     cancelPendingMultiCopy: () => {
@@ -851,37 +826,6 @@ const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRun
     },
   },
 );
-const {
-  reportJellyfinRemoteProgress,
-  reportJellyfinRemoteStopped,
-  handleJellyfinRemotePlay,
-  handleJellyfinRemotePlaystate,
-  handleJellyfinRemoteGeneralCommand,
-} = composeJellyfinRemoteHandlers({
-  getConfiguredSession: () => getConfiguredJellyfinSession(getResolvedJellyfinConfig()),
-  getClientInfo: () => getJellyfinClientInfo(),
-  getJellyfinConfig: () => getResolvedJellyfinConfig(),
-  playJellyfinItem: (params) =>
-    playJellyfinItemInMpv(params as Parameters<typeof playJellyfinItemInMpv>[0]),
-  logWarn: (message) => logger.warn(message),
-  getMpvClient: () => appState.mpvClient,
-  sendMpvCommand: (client, command) => sendMpvCommandRuntime(client as MpvIpcClient, command),
-  jellyfinTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
-  getActivePlayback: () => activeJellyfinRemotePlayback,
-  clearActivePlayback: () => {
-    activeJellyfinRemotePlayback = null;
-  },
-  getSession: () => appState.jellyfinRemoteSession,
-  getNow: () => Date.now(),
-  getLastProgressAtMs: () => jellyfinRemoteLastProgressAtMs,
-  setLastProgressAtMs: (value) => {
-    jellyfinRemoteLastProgressAtMs = value;
-  },
-  progressIntervalMs: JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS,
-  ticksPerSecond: JELLYFIN_TICKS_PER_SECOND,
-  logDebug: (message, error) => logger.debug(message, error),
-});
-
 const configHotReloadRuntime = createConfigHotReloadRuntime(
   buildConfigHotReloadRuntimeMainDepsHandler(),
 );
@@ -1143,44 +1087,35 @@ function getResolvedConfig() {
   return configService.getConfig();
 }
 
-const buildGetResolvedJellyfinConfigMainDepsHandler =
-  createBuildGetResolvedJellyfinConfigMainDepsHandler({
+const {
+  getResolvedJellyfinConfig,
+  getJellyfinClientInfo,
+  reportJellyfinRemoteProgress,
+  reportJellyfinRemoteStopped,
+  handleJellyfinRemotePlay,
+  handleJellyfinRemotePlaystate,
+  handleJellyfinRemoteGeneralCommand,
+  playJellyfinItemInMpv,
+  startJellyfinRemoteSession,
+  stopJellyfinRemoteSession,
+  runJellyfinCommand,
+  openJellyfinSetupWindow,
+} = composeJellyfinRuntimeHandlers({
+  getResolvedJellyfinConfigMainDeps: {
     getResolvedConfig: () => getResolvedConfig(),
     loadStoredSession: () => jellyfinTokenStore.loadSession(),
     getEnv: (name) => process.env[name],
-  });
-const getResolvedJellyfinConfigMainDeps = buildGetResolvedJellyfinConfigMainDepsHandler();
-const getResolvedJellyfinConfigHandler = createGetResolvedJellyfinConfigHandler(
-  getResolvedJellyfinConfigMainDeps,
-);
-
-function getResolvedJellyfinConfig() {
-  return getResolvedJellyfinConfigHandler();
-}
-
-const buildGetJellyfinClientInfoMainDepsHandler = createBuildGetJellyfinClientInfoMainDepsHandler({
-  getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
-  getDefaultJellyfinConfig: () => DEFAULT_CONFIG.jellyfin,
-});
-const getJellyfinClientInfoMainDeps = buildGetJellyfinClientInfoMainDepsHandler();
-const getJellyfinClientInfoHandler = createGetJellyfinClientInfoHandler(
-  getJellyfinClientInfoMainDeps,
-);
-
-function getJellyfinClientInfo(config = getResolvedJellyfinConfig()) {
-  return getJellyfinClientInfoHandler(config);
-}
-
-const buildWaitForMpvConnectedMainDepsHandler = createBuildWaitForMpvConnectedMainDepsHandler({
-  getMpvClient: () => appState.mpvClient,
-  now: () => Date.now(),
-  sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
-});
-const waitForMpvConnectedMainDeps = buildWaitForMpvConnectedMainDepsHandler();
-const waitForMpvConnected = createWaitForMpvConnectedHandler(waitForMpvConnectedMainDeps);
-
-const buildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler =
-  createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler({
+  },
+  getJellyfinClientInfoMainDeps: {
+    getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
+    getDefaultJellyfinConfig: () => DEFAULT_CONFIG.jellyfin,
+  },
+  waitForMpvConnectedMainDeps: {
+    getMpvClient: () => appState.mpvClient,
+    now: () => Date.now(),
+    sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
+  },
+  launchMpvIdleForJellyfinPlaybackMainDeps: {
     getSocketPath: () => appState.mpvSocketPath,
     platform: process.platform,
     execPath: process.execPath,
@@ -1196,37 +1131,21 @@ const buildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler =
       }),
     logWarn: (message, error) => logger.warn(message, error),
     logInfo: (message) => logger.info(message),
-  });
-const launchMpvIdleForJellyfinPlaybackMainDeps =
-  buildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler();
-const launchMpvIdleForJellyfinPlayback = createLaunchMpvIdleForJellyfinPlaybackHandler(
-  launchMpvIdleForJellyfinPlaybackMainDeps,
-);
-
-const buildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler =
-  createBuildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler({
+  },
+  ensureMpvConnectedForJellyfinPlaybackMainDeps: {
     getMpvClient: () => appState.mpvClient,
     setMpvClient: (client) => {
       appState.mpvClient = client as MpvIpcClient | null;
     },
     createMpvClient: () => createMpvClientRuntimeService(),
-    waitForMpvConnected: (timeoutMs) => waitForMpvConnected(timeoutMs),
-    launchMpvIdleForJellyfinPlayback: () => launchMpvIdleForJellyfinPlayback(),
     getAutoLaunchInFlight: () => jellyfinMpvAutoLaunchInFlight,
     setAutoLaunchInFlight: (promise) => {
       jellyfinMpvAutoLaunchInFlight = promise;
     },
     connectTimeoutMs: JELLYFIN_MPV_CONNECT_TIMEOUT_MS,
     autoLaunchTimeoutMs: JELLYFIN_MPV_AUTO_LAUNCH_TIMEOUT_MS,
-  });
-const ensureMpvConnectedForJellyfinPlaybackMainDeps =
-  buildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler();
-const ensureMpvConnectedForJellyfinPlayback = createEnsureMpvConnectedForJellyfinPlaybackHandler(
-  ensureMpvConnectedForJellyfinPlaybackMainDeps,
-);
-
-const buildPreloadJellyfinExternalSubtitlesMainDepsHandler =
-  createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler({
+  },
+  preloadJellyfinExternalSubtitlesMainDeps: {
     listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
       listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
     getMpvClient: () => appState.mpvClient,
@@ -1237,60 +1156,66 @@ const buildPreloadJellyfinExternalSubtitlesMainDepsHandler =
     logDebug: (message, error) => {
       logger.debug(message, error);
     },
-  });
-const preloadJellyfinExternalSubtitlesMainDeps =
-  buildPreloadJellyfinExternalSubtitlesMainDepsHandler();
-const preloadJellyfinExternalSubtitles = createPreloadJellyfinExternalSubtitlesHandler(
-  preloadJellyfinExternalSubtitlesMainDeps,
-);
-
-const buildPlayJellyfinItemInMpvMainDepsHandler = createBuildPlayJellyfinItemInMpvMainDepsHandler({
-  ensureMpvConnectedForPlayback: () => ensureMpvConnectedForJellyfinPlayback(),
-  getMpvClient: () => appState.mpvClient,
-  resolvePlaybackPlan: (params) =>
-    resolveJellyfinPlaybackPlanRuntime(
-      params.session,
-      params.clientInfo,
-      params.jellyfinConfig as ReturnType<typeof getResolvedJellyfinConfig>,
-      {
-        itemId: params.itemId,
-        audioStreamIndex: params.audioStreamIndex ?? undefined,
-        subtitleStreamIndex: params.subtitleStreamIndex ?? undefined,
-      },
-    ),
-  applyJellyfinMpvDefaults: (mpvClient) => applyJellyfinMpvDefaults(mpvClient),
-  sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
-  armQuitOnDisconnect: () => {
-    jellyfinPlayQuitOnDisconnectArmed = false;
-    setTimeout(() => {
-      jellyfinPlayQuitOnDisconnectArmed = true;
-    }, 3000);
   },
-  schedule: (callback, delayMs) => {
-    setTimeout(callback, delayMs);
+  playJellyfinItemInMpvMainDeps: {
+    getMpvClient: () => appState.mpvClient,
+    resolvePlaybackPlan: (params) =>
+      resolveJellyfinPlaybackPlanRuntime(
+        params.session,
+        params.clientInfo,
+        params.jellyfinConfig as ReturnType<typeof getResolvedJellyfinConfig>,
+        {
+          itemId: params.itemId,
+          audioStreamIndex: params.audioStreamIndex ?? undefined,
+          subtitleStreamIndex: params.subtitleStreamIndex ?? undefined,
+        },
+      ),
+    applyJellyfinMpvDefaults: (mpvClient) => applyJellyfinMpvDefaults(mpvClient),
+    sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
+    armQuitOnDisconnect: () => {
+      jellyfinPlayQuitOnDisconnectArmed = false;
+      setTimeout(() => {
+        jellyfinPlayQuitOnDisconnectArmed = true;
+      }, 3000);
+    },
+    schedule: (callback, delayMs) => {
+      setTimeout(callback, delayMs);
+    },
+    convertTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
+    setActivePlayback: (state) => {
+      activeJellyfinRemotePlayback = state as ActiveJellyfinRemotePlaybackState;
+    },
+    setLastProgressAtMs: (value) => {
+      jellyfinRemoteLastProgressAtMs = value;
+    },
+    reportPlaying: (payload) => {
+      void appState.jellyfinRemoteSession?.reportPlaying(payload);
+    },
+    showMpvOsd: (text) => {
+      showMpvOsd(text);
+    },
   },
-  convertTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
-  preloadExternalSubtitles: (params) => {
-    void preloadJellyfinExternalSubtitles(params);
+  remoteComposerOptions: {
+    getConfiguredSession: () => getConfiguredJellyfinSession(getResolvedJellyfinConfig()),
+    logWarn: (message) => logger.warn(message),
+    getMpvClient: () => appState.mpvClient,
+    sendMpvCommand: (client, command) => sendMpvCommandRuntime(client as MpvIpcClient, command),
+    jellyfinTicksToSeconds: (ticks) => jellyfinTicksToSecondsRuntime(ticks),
+    getActivePlayback: () => activeJellyfinRemotePlayback,
+    clearActivePlayback: () => {
+      activeJellyfinRemotePlayback = null;
+    },
+    getSession: () => appState.jellyfinRemoteSession,
+    getNow: () => Date.now(),
+    getLastProgressAtMs: () => jellyfinRemoteLastProgressAtMs,
+    setLastProgressAtMs: (value) => {
+      jellyfinRemoteLastProgressAtMs = value;
+    },
+    progressIntervalMs: JELLYFIN_REMOTE_PROGRESS_INTERVAL_MS,
+    ticksPerSecond: JELLYFIN_TICKS_PER_SECOND,
+    logDebug: (message, error) => logger.debug(message, error),
   },
-  setActivePlayback: (state) => {
-    activeJellyfinRemotePlayback = state as ActiveJellyfinRemotePlaybackState;
-  },
-  setLastProgressAtMs: (value) => {
-    jellyfinRemoteLastProgressAtMs = value;
-  },
-  reportPlaying: (payload) => {
-    void appState.jellyfinRemoteSession?.reportPlaying(payload);
-  },
-  showMpvOsd: (text) => {
-    showMpvOsd(text);
-  },
-});
-const playJellyfinItemInMpvMainDeps = buildPlayJellyfinItemInMpvMainDepsHandler();
-const playJellyfinItemInMpv = createPlayJellyfinItemInMpvHandler(playJellyfinItemInMpvMainDeps);
-
-const buildHandleJellyfinAuthCommandsMainDepsHandler =
-  createBuildHandleJellyfinAuthCommandsMainDepsHandler({
+  handleJellyfinAuthCommandsMainDeps: {
     patchRawConfig: (patch) => {
       configService.patchRawConfig(patch);
     },
@@ -1299,14 +1224,8 @@ const buildHandleJellyfinAuthCommandsMainDepsHandler =
     saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
     clearStoredSession: () => jellyfinTokenStore.clearSession(),
     logInfo: (message) => logger.info(message),
-  });
-const handleJellyfinAuthCommandsMainDeps = buildHandleJellyfinAuthCommandsMainDepsHandler();
-const handleJellyfinAuthCommands = createHandleJellyfinAuthCommands(
-  handleJellyfinAuthCommandsMainDeps,
-);
-
-const buildHandleJellyfinListCommandsMainDepsHandler =
-  createBuildHandleJellyfinListCommandsMainDepsHandler({
+  },
+  handleJellyfinListCommandsMainDeps: {
     listJellyfinLibraries: (session, clientInfo) =>
       listJellyfinLibrariesRuntime(session, clientInfo),
     listJellyfinItems: (session, clientInfo, params) =>
@@ -1314,39 +1233,16 @@ const buildHandleJellyfinListCommandsMainDepsHandler =
     listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
       listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
     logInfo: (message) => logger.info(message),
-  });
-const handleJellyfinListCommandsMainDeps = buildHandleJellyfinListCommandsMainDepsHandler();
-const handleJellyfinListCommands = createHandleJellyfinListCommands(
-  handleJellyfinListCommandsMainDeps,
-);
-
-const buildHandleJellyfinPlayCommandMainDepsHandler =
-  createBuildHandleJellyfinPlayCommandMainDepsHandler({
-    playJellyfinItemInMpv: (params) =>
-      playJellyfinItemInMpv(params as Parameters<typeof playJellyfinItemInMpv>[0]),
+  },
+  handleJellyfinPlayCommandMainDeps: {
     logWarn: (message) => logger.warn(message),
-  });
-const handleJellyfinPlayCommandMainDeps = buildHandleJellyfinPlayCommandMainDepsHandler();
-const handleJellyfinPlayCommand = createHandleJellyfinPlayCommand(
-  handleJellyfinPlayCommandMainDeps,
-);
-
-const buildHandleJellyfinRemoteAnnounceCommandMainDepsHandler =
-  createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler({
-    startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
+  },
+  handleJellyfinRemoteAnnounceCommandMainDeps: {
     getRemoteSession: () => appState.jellyfinRemoteSession,
     logInfo: (message) => logger.info(message),
     logWarn: (message) => logger.warn(message),
-  });
-const handleJellyfinRemoteAnnounceCommandMainDeps =
-  buildHandleJellyfinRemoteAnnounceCommandMainDepsHandler();
-const handleJellyfinRemoteAnnounceCommand = createHandleJellyfinRemoteAnnounceCommand(
-  handleJellyfinRemoteAnnounceCommandMainDeps,
-);
-
-const buildStartJellyfinRemoteSessionMainDepsHandler =
-  createBuildStartJellyfinRemoteSessionMainDepsHandler({
-    getJellyfinConfig: () => getResolvedJellyfinConfig(),
+  },
+  startJellyfinRemoteSessionMainDeps: {
     getCurrentSession: () => appState.jellyfinRemoteSession,
     setCurrentSession: (session) => {
       appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
@@ -1355,19 +1251,10 @@ const buildStartJellyfinRemoteSessionMainDepsHandler =
     defaultDeviceId: DEFAULT_CONFIG.jellyfin.deviceId,
     defaultClientName: DEFAULT_CONFIG.jellyfin.clientName,
     defaultClientVersion: DEFAULT_CONFIG.jellyfin.clientVersion,
-    handlePlay: (payload) => handleJellyfinRemotePlay(payload),
-    handlePlaystate: (payload) => handleJellyfinRemotePlaystate(payload),
-    handleGeneralCommand: (payload) => handleJellyfinRemoteGeneralCommand(payload),
     logInfo: (message) => logger.info(message),
     logWarn: (message, details) => logger.warn(message, details),
-  });
-const startJellyfinRemoteSessionMainDeps = buildStartJellyfinRemoteSessionMainDepsHandler();
-const startJellyfinRemoteSession = createStartJellyfinRemoteSessionHandler(
-  startJellyfinRemoteSessionMainDeps,
-);
-
-const buildStopJellyfinRemoteSessionMainDepsHandler =
-  createBuildStopJellyfinRemoteSessionMainDepsHandler({
+  },
+  stopJellyfinRemoteSessionMainDeps: {
     getCurrentSession: () => appState.jellyfinRemoteSession,
     setCurrentSession: (session) => {
       appState.jellyfinRemoteSession = session as typeof appState.jellyfinRemoteSession;
@@ -1375,23 +1262,53 @@ const buildStopJellyfinRemoteSessionMainDepsHandler =
     clearActivePlayback: () => {
       activeJellyfinRemotePlayback = null;
     },
-  });
-const stopJellyfinRemoteSessionMainDeps = buildStopJellyfinRemoteSessionMainDepsHandler();
-const stopJellyfinRemoteSession = createStopJellyfinRemoteSessionHandler(
-  stopJellyfinRemoteSessionMainDeps,
-);
-
-const buildRunJellyfinCommandMainDepsHandler = createBuildRunJellyfinCommandMainDepsHandler({
-  getJellyfinConfig: () => getResolvedJellyfinConfig(),
-  defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl,
-  getJellyfinClientInfo: (jellyfinConfig) => getJellyfinClientInfo(jellyfinConfig),
-  handleAuthCommands: (params) => handleJellyfinAuthCommands(params),
-  handleRemoteAnnounceCommand: (args) => handleJellyfinRemoteAnnounceCommand(args),
-  handleListCommands: (params) => handleJellyfinListCommands(params),
-  handlePlayCommand: (params) => handleJellyfinPlayCommand(params),
+  },
+  runJellyfinCommandMainDeps: {
+    defaultServerUrl: DEFAULT_CONFIG.jellyfin.serverUrl,
+  },
+  maybeFocusExistingJellyfinSetupWindowMainDeps: {
+    getSetupWindow: () => appState.jellyfinSetupWindow,
+  },
+  openJellyfinSetupWindowMainDeps: {
+    createSetupWindow: () =>
+      new BrowserWindow({
+        width: 520,
+        height: 560,
+        title: 'Jellyfin Setup',
+        show: true,
+        autoHideMenuBar: true,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+        },
+      }),
+    buildSetupFormHtml: (defaultServer, defaultUser) =>
+      buildJellyfinSetupFormHtml(defaultServer, defaultUser),
+    parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
+    authenticateWithPassword: (server, username, password, clientInfo) =>
+      authenticateWithPasswordRuntime(server, username, password, clientInfo),
+    saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
+    patchJellyfinConfig: (session) => {
+      configService.patchRawConfig({
+        jellyfin: {
+          enabled: true,
+          serverUrl: session.serverUrl,
+          username: session.username,
+        },
+      });
+    },
+    logInfo: (message) => logger.info(message),
+    logError: (message, error) => logger.error(message, error),
+    showMpvOsd: (message) => showMpvOsd(message),
+    clearSetupWindow: () => {
+      appState.jellyfinSetupWindow = null;
+    },
+    setSetupWindow: (window) => {
+      appState.jellyfinSetupWindow = window as BrowserWindow;
+    },
+    encodeURIComponent: (value) => encodeURIComponent(value),
+  },
 });
-const runJellyfinCommandMainDeps = buildRunJellyfinCommandMainDepsHandler();
-const runJellyfinCommand = createRunJellyfinCommandHandler(runJellyfinCommandMainDeps);
 
 const {
   notifyAnilistSetup,
@@ -1510,57 +1427,6 @@ const buildOpenAnilistSetupWindowMainDepsHandler = createBuildOpenAnilistSetupWi
 
 function openAnilistSetupWindow(): void {
   createOpenAnilistSetupWindowHandler(buildOpenAnilistSetupWindowMainDepsHandler())();
-}
-
-const maybeFocusExistingJellyfinSetupWindow = createMaybeFocusExistingJellyfinSetupWindowHandler({
-  getSetupWindow: () => appState.jellyfinSetupWindow,
-});
-const buildOpenJellyfinSetupWindowMainDepsHandler =
-  createBuildOpenJellyfinSetupWindowMainDepsHandler({
-    maybeFocusExistingSetupWindow: maybeFocusExistingJellyfinSetupWindow,
-    createSetupWindow: () =>
-      new BrowserWindow({
-        width: 520,
-        height: 560,
-        title: 'Jellyfin Setup',
-        show: true,
-        autoHideMenuBar: true,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true,
-        },
-      }),
-    getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
-    buildSetupFormHtml: (defaultServer, defaultUser) =>
-      buildJellyfinSetupFormHtml(defaultServer, defaultUser),
-    parseSubmissionUrl: (rawUrl) => parseJellyfinSetupSubmissionUrl(rawUrl),
-    authenticateWithPassword: (server, username, password, clientInfo) =>
-      authenticateWithPasswordRuntime(server, username, password, clientInfo),
-    getJellyfinClientInfo: () => getJellyfinClientInfo(),
-    saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
-    patchJellyfinConfig: (session) => {
-      configService.patchRawConfig({
-        jellyfin: {
-          enabled: true,
-          serverUrl: session.serverUrl,
-          username: session.username,
-        },
-      });
-    },
-    logInfo: (message) => logger.info(message),
-    logError: (message, error) => logger.error(message, error),
-    showMpvOsd: (message) => showMpvOsd(message),
-    clearSetupWindow: () => {
-      appState.jellyfinSetupWindow = null;
-    },
-    setSetupWindow: (window) => {
-      appState.jellyfinSetupWindow = window as BrowserWindow;
-    },
-    encodeURIComponent: (value) => encodeURIComponent(value),
-  });
-
-function openJellyfinSetupWindow(): void {
-  createOpenJellyfinSetupWindowHandler(buildOpenJellyfinSetupWindowMainDepsHandler())();
 }
 
 const {
@@ -1884,6 +1750,10 @@ const {
       appState.jellyfinSetupWindow = null;
     },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
+    stopDiscordPresenceService: () => {
+      void appState.discordPresenceService?.stop();
+      appState.discordPresenceService = null;
+    },
   },
   shouldRestoreWindowsOnActivateMainDeps: {
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
@@ -2077,6 +1947,7 @@ const { appLifecycleRuntimeRunner, runAndApplyStartupState } =
 runAndApplyStartupState();
 void refreshAnilistClientSecretState({ force: true });
 anilistStateRuntime.refreshRetryQueueState();
+void initializeDiscordPresenceService();
 
 const handleCliCommand = createCliCommandRuntimeHandler({
   handleTexthookerOnlyModeTransitionMainDeps: {
@@ -2138,6 +2009,9 @@ const {
     },
     onSubtitleChange: (text) => {
       subtitleProcessingController.onSubtitleChange(text);
+    },
+    refreshDiscordPresence: () => {
+      publishDiscordPresence();
     },
     updateCurrentMediaPath: (path) => {
       mediaRuntime.updateCurrentMediaPath(path);
