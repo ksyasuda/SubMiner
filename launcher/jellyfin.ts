@@ -127,6 +127,7 @@ export async function resolveJellyfinSelection(
     left.localeCompare(right, undefined, { sensitivity: 'base', numeric: true });
   const sortEntries = (
     entries: Array<{
+      id: string;
       type: string;
       name: string;
       parentIndex: number | null;
@@ -355,10 +356,12 @@ export async function runJellyfinPlayMenu(
   mpvSocketPath: string,
 ): Promise<never> {
   const config = loadLauncherJellyfinConfig();
+  const envAccessToken = (process.env.SUBMINER_JELLYFIN_ACCESS_TOKEN || '').trim();
+  const envUserId = (process.env.SUBMINER_JELLYFIN_USER_ID || '').trim();
   const session: JellyfinSessionConfig = {
     serverUrl: sanitizeServerUrl(args.jellyfinServer || config.serverUrl || ''),
-    accessToken: config.accessToken || '',
-    userId: config.userId || '',
+    accessToken: envAccessToken,
+    userId: envUserId,
     defaultLibraryId: config.defaultLibraryId || '',
     pullPictures: config.pullPictures === true,
     iconCacheDir: config.iconCacheDir || '',
@@ -366,7 +369,7 @@ export async function runJellyfinPlayMenu(
 
   if (!session.serverUrl || !session.accessToken || !session.userId) {
     fail(
-      'Missing Jellyfin session config. Run `subminer --jellyfin` or `subminer --jellyfin-login` first.',
+      'Missing Jellyfin session. Set SUBMINER_JELLYFIN_ACCESS_TOKEN and SUBMINER_JELLYFIN_USER_ID, then retry.',
     );
   }
 

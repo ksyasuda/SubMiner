@@ -22,3 +22,24 @@ test('parseArgs keeps all args after app verbatim', () => {
   assert.equal(parsed.appPassthrough, true);
   assert.deepEqual(parsed.appArgs, ['--start', '--anilist-setup', '-h']);
 });
+
+test('parseArgs maps jellyfin play action and log-level override', () => {
+  const parsed = parseArgs(['jellyfin', 'play', '--log-level', 'debug'], 'subminer', {});
+
+  assert.equal(parsed.jellyfinPlay, true);
+  assert.equal(parsed.logLevel, 'debug');
+});
+
+test('parseArgs maps config show action', () => {
+  const parsed = parseArgs(['config', 'show'], 'subminer', {});
+
+  assert.equal(parsed.configShow, true);
+  assert.equal(parsed.configPath, false);
+});
+
+test('parseArgs maps mpv idle action', () => {
+  const parsed = parseArgs(['mpv', 'idle'], 'subminer', {});
+
+  assert.equal(parsed.mpvIdle, true);
+  assert.equal(parsed.mpvStatus, false);
+});

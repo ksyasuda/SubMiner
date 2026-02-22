@@ -121,8 +121,6 @@ export interface LauncherJellyfinConfig {
   enabled?: boolean;
   serverUrl?: string;
   username?: string;
-  accessToken?: string;
-  userId?: string;
   defaultLibraryId?: string;
   pullPictures?: boolean;
   iconCacheDir?: string;
