@@ -17,6 +17,7 @@ type MpvEventClient = {
 
 export function createHandleMpvConnectionChangeHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
+  refreshDiscordPresence: () => void;
   hasInitialJellyfinPlayArg: () => boolean;
   isOverlayRuntimeInitialized: () => boolean;
   isQuitOnDisconnectArmed: () => boolean;
@@ -25,6 +26,7 @@ export function createHandleMpvConnectionChangeHandler(deps: {
   quitApp: () => void;
 }) {
   return ({ connected }: { connected: boolean }): void => {
+    deps.refreshDiscordPresence();
     if (connected) return;
     deps.reportJellyfinRemoteStopped();
     if (!deps.hasInitialJellyfinPlayArg()) return;

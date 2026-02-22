@@ -47,6 +47,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
     clearJellyfinSetupWindow: () => calls.push('clear-jellyfin-window'),
 
     stopJellyfinRemoteSession: () => calls.push('stop-jellyfin-remote'),
+    stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });
 
   const cleanup = createOnWillQuitCleanupHandler(depsFactory());
@@ -60,6 +61,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
   assert.ok(calls.includes('destroy-immersion'));
   assert.ok(calls.includes('clear-immersion-ref'));
   assert.ok(calls.includes('stop-jellyfin-remote'));
+  assert.ok(calls.includes('stop-discord-presence'));
   assert.equal(reconnectTimer, null);
   assert.equal(immersionTracker, null);
 });
@@ -92,6 +94,7 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
     getJellyfinSetupWindow: () => null,
     clearJellyfinSetupWindow: () => {},
     stopJellyfinRemoteSession: () => {},
+    stopDiscordPresenceService: () => {},
   });
 
   const cleanup = createOnWillQuitCleanupHandler(depsFactory());

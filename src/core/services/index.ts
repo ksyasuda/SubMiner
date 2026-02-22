@@ -109,3 +109,4 @@ export {
   setOverlayDebugVisualizationEnabledRuntime,
 } from './overlay-manager';
 export { createConfigHotReloadRuntime, classifyConfigHotReloadDiff } from './config-hot-reload';
+export { createDiscordPresenceService, buildDiscordPresenceActivity } from './discord-presence';

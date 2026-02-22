@@ -18,10 +18,11 @@ test('subtitle change handler updates state, broadcasts, and forwards', () => {
     setCurrentSubText: (text) => calls.push(`set:${text}`),
     broadcastSubtitle: (payload) => calls.push(`broadcast:${payload.text}`),
     onSubtitleChange: (text) => calls.push(`process:${text}`),
+    refreshDiscordPresence: () => calls.push('presence'),
   });
 
   handler({ text: 'line' });
-  assert.deepEqual(calls, ['set:line', 'broadcast:line', 'process:line']);
+  assert.deepEqual(calls, ['set:line', 'broadcast:line', 'process:line', 'presence']);
 });
 
 test('subtitle ass change handler updates state and broadcasts', () => {
@@ -55,6 +56,7 @@ test('media path change handler reports stop for empty path and probes media key
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
     ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
     syncImmersionMediaState: () => calls.push('sync'),
+    refreshDiscordPresence: () => calls.push('presence'),
   });
 
   handler({ path: '' });
@@ -65,6 +67,7 @@ test('media path change handler reports stop for empty path and probes media key
     'probe:show:1',
     'guess:show:1',
     'sync',
+    'presence',
   ]);
 });
 
@@ -75,10 +78,17 @@ test('media title change handler clears guess state and syncs immersion', () => 
     resetAnilistMediaGuessState: () => calls.push('reset-guess'),
     notifyImmersionTitleUpdate: (title) => calls.push(`notify:${title}`),
     syncImmersionMediaState: () => calls.push('sync'),
+    refreshDiscordPresence: () => calls.push('presence'),
   });
 
   handler({ title: 'Episode 1' });
-  assert.deepEqual(calls, ['title:Episode 1', 'reset-guess', 'notify:Episode 1', 'sync']);
+  assert.deepEqual(calls, [
+    'title:Episode 1',
+    'reset-guess',
+    'notify:Episode 1',
+    'sync',
+    'presence',
+  ]);
 });
 
 test('time-pos and pause handlers report progress with correct urgency', () => {
@@ -86,15 +96,24 @@ test('time-pos and pause handlers report progress with correct urgency', () => {
   const timeHandler = createHandleMpvTimePosChangeHandler({
     recordPlaybackPosition: (time) => calls.push(`time:${time}`),
     reportJellyfinRemoteProgress: (force) => calls.push(`progress:${force ? 'force' : 'normal'}`),
+    refreshDiscordPresence: () => calls.push('presence'),
   });
   const pauseHandler = createHandleMpvPauseChangeHandler({
     recordPauseState: (paused) => calls.push(`pause:${paused ? 'yes' : 'no'}`),
     reportJellyfinRemoteProgress: (force) => calls.push(`progress:${force ? 'force' : 'normal'}`),
+    refreshDiscordPresence: () => calls.push('presence'),
   });
 
   timeHandler({ time: 12.5 });
   pauseHandler({ paused: true });
-  assert.deepEqual(calls, ['time:12.5', 'progress:normal', 'pause:yes', 'progress:force']);
+  assert.deepEqual(calls, [
+    'time:12.5',
+    'progress:normal',
+    'presence',
+    'pause:yes',
+    'progress:force',
+    'presence',
+  ]);
 });
 
 test('subtitle metrics change handler forwards patch payload', () => {

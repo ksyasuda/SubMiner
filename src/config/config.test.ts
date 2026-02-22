@@ -23,6 +23,8 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, false);
   assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
+  assert.equal(config.discordPresence.enabled, false);
+  assert.equal(config.discordPresence.updateIntervalMs, 15_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
   assert.equal(config.subtitleStyle.hoverTokenColor, '#c6a0f6');
@@ -237,6 +239,35 @@ test('parses jellyfin.enabled and remoteControlEnabled disabled combinations', (
       ),
     false,
   );
+});
+
+test('parses discordPresence fields and warns for invalid types', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "discordPresence": {
+        "enabled": true,
+        "clientId": "123456789012345678",
+        "detailsTemplate": "Watching {title}",
+        "stateTemplate": "{status}",
+        "updateIntervalMs": 3000,
+        "debounceMs": 250
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  assert.equal(config.discordPresence.enabled, true);
+  assert.equal(config.discordPresence.clientId, '123456789012345678');
+  assert.equal(config.discordPresence.updateIntervalMs, 3000);
+  assert.equal(config.discordPresence.debounceMs, 250);
+
+  service.patchRawConfig({ discordPresence: { enabled: 'yes' as never } });
+  assert.equal(service.getConfig().discordPresence.enabled, DEFAULT_CONFIG.discordPresence.enabled);
+  assert.ok(service.getWarnings().some((warning) => warning.path === 'discordPresence.enabled'));
 });
 
 test('accepts immersion tracking config values', () => {
@@ -1062,6 +1093,7 @@ test('template generator includes known keys', () => {
   assert.match(output, /"ankiConnect":/);
   assert.match(output, /"logging":/);
   assert.match(output, /"websocket":/);
+  assert.match(output, /"discordPresence":/);
   assert.match(output, /"youtubeSubgen":/);
   assert.match(output, /"preserveLineBreaks": false/);
   assert.match(output, /"nPlusOne"\s*:\s*\{/);

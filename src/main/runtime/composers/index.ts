@@ -4,6 +4,7 @@ export * from './app-ready-composer';
 export * from './contracts';
 export * from './ipc-runtime-composer';
 export * from './jellyfin-remote-composer';
+export * from './jellyfin-runtime-composer';
 export * from './mpv-runtime-composer';
 export * from './shortcuts-runtime-composer';
 export * from './startup-lifecycle-composer';

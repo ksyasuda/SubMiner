@@ -10,6 +10,7 @@ test('mpv connection handler reports stop and quits when disconnect guard passes
   const calls: string[] = [];
   const handler = createHandleMpvConnectionChangeHandler({
     reportJellyfinRemoteStopped: () => calls.push('report-stop'),
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
     hasInitialJellyfinPlayArg: () => true,
     isOverlayRuntimeInitialized: () => false,
     isQuitOnDisconnectArmed: () => true,
@@ -22,7 +23,7 @@ test('mpv connection handler reports stop and quits when disconnect guard passes
   });
 
   handler({ connected: false });
-  assert.deepEqual(calls, ['report-stop', 'schedule', 'quit']);
+  assert.deepEqual(calls, ['presence-refresh', 'report-stop', 'schedule', 'quit']);
 });
 
 test('mpv subtitle timing handler ignores blank subtitle lines', () => {

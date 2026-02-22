@@ -35,6 +35,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   setCurrentSubText: (text: string) => void;
   broadcastSubtitle: (payload: { text: string; tokens: null }) => void;
   onSubtitleChange: (text: string) => void;
+  refreshDiscordPresence: () => void;
 
   setCurrentSubAssText: (text: string) => void;
   broadcastSubtitleAss: (text: string) => void;
@@ -61,6 +62,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   return (mpvClient: MpvEventClient): void => {
     const handleMpvConnectionChange = createHandleMpvConnectionChangeHandler({
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
+      refreshDiscordPresence: () => deps.refreshDiscordPresence(),
       hasInitialJellyfinPlayArg: () => deps.hasInitialJellyfinPlayArg(),
       isOverlayRuntimeInitialized: () => deps.isOverlayRuntimeInitialized(),
       isQuitOnDisconnectArmed: () => deps.isQuitOnDisconnectArmed(),
@@ -80,6 +82,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       setCurrentSubText: (text) => deps.setCurrentSubText(text),
       broadcastSubtitle: (payload) => deps.broadcastSubtitle(payload),
       onSubtitleChange: (text) => deps.onSubtitleChange(text),
+      refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });
     const handleMpvSubtitleAssChange = createHandleMpvSubtitleAssChangeHandler({
       setCurrentSubAssText: (text) => deps.setCurrentSubAssText(text),
@@ -96,22 +99,26 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       maybeProbeAnilistDuration: (mediaKey) => deps.maybeProbeAnilistDuration(mediaKey),
       ensureAnilistMediaGuess: (mediaKey) => deps.ensureAnilistMediaGuess(mediaKey),
       syncImmersionMediaState: () => deps.syncImmersionMediaState(),
+      refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });
     const handleMpvMediaTitleChange = createHandleMpvMediaTitleChangeHandler({
       updateCurrentMediaTitle: (title) => deps.updateCurrentMediaTitle(title),
       resetAnilistMediaGuessState: () => deps.resetAnilistMediaGuessState(),
       notifyImmersionTitleUpdate: (title) => deps.notifyImmersionTitleUpdate(title),
       syncImmersionMediaState: () => deps.syncImmersionMediaState(),
+      refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });
     const handleMpvTimePosChange = createHandleMpvTimePosChangeHandler({
       recordPlaybackPosition: (time) => deps.recordPlaybackPosition(time),
       reportJellyfinRemoteProgress: (forceImmediate) =>
         deps.reportJellyfinRemoteProgress(forceImmediate),
+      refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });
     const handleMpvPauseChange = createHandleMpvPauseChangeHandler({
       recordPauseState: (paused) => deps.recordPauseState(paused),
       reportJellyfinRemoteProgress: (forceImmediate) =>
         deps.reportJellyfinRemoteProgress(forceImmediate),
+      refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });
     const handleMpvSubtitleMetricsChange = createHandleMpvSubtitleMetricsChangeHandler({
       updateSubtitleRenderMetrics: (patch) => deps.updateSubtitleRenderMetrics(patch),

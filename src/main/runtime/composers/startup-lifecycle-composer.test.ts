@@ -35,6 +35,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       getJellyfinSetupWindow: () => null,
       clearJellyfinSetupWindow: () => {},
       stopJellyfinRemoteSession: async () => {},
+      stopDiscordPresenceService: () => {},
     },
     shouldRestoreWindowsOnActivateMainDeps: {
       isOverlayRuntimeInitialized: () => false,

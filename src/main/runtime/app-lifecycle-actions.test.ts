@@ -29,12 +29,13 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     destroyJellyfinSetupWindow: () => calls.push('destroy-jellyfin-window'),
     clearJellyfinSetupWindow: () => calls.push('clear-jellyfin-window'),
     stopJellyfinRemoteSession: () => calls.push('stop-jellyfin-remote'),
+    stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });
 
   cleanup();
-  assert.equal(calls.length, 20);
+  assert.equal(calls.length, 21);
   assert.equal(calls[0], 'destroy-tray');
-  assert.equal(calls[calls.length - 1], 'stop-jellyfin-remote');
+  assert.equal(calls[calls.length - 1], 'stop-discord-presence');
   assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
 });
 

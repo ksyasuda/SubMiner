@@ -42,7 +42,12 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
     runtimeOptions?: { restoreOnModalClose?: T },
   ): boolean => {
     if (options.sendToVisibleOverlay) {
-      return options.sendToVisibleOverlay(channel, payload, runtimeOptions);
+      const wasVisible = options.getVisibleOverlayVisible();
+      const sent = options.sendToVisibleOverlay(channel, payload, runtimeOptions);
+      if (sent && !wasVisible && !options.getVisibleOverlayVisible()) {
+        options.setVisibleOverlayVisible(true);
+      }
+      return sent;
     }
     return sendToVisibleOverlayRuntime({
       mainWindow: options.getMainWindow() as never,

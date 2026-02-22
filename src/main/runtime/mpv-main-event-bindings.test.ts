@@ -28,6 +28,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     setCurrentSubText: (text) => calls.push(`set-sub:${text}`),
     broadcastSubtitle: (payload) => calls.push(`broadcast-sub:${payload.text}`),
     onSubtitleChange: (text) => calls.push(`subtitle-change:${text}`),
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
 
     setCurrentSubAssText: (text) => calls.push(`set-ass:${text}`),
     broadcastSubtitleAss: (text) => calls.push(`broadcast-ass:${text}`),
@@ -73,4 +74,5 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.ok(calls.includes('notify-title:Episode 1'));
   assert.ok(calls.includes('progress:normal'));
   assert.ok(calls.includes('progress:force'));
+  assert.ok(calls.includes('presence-refresh'));
 });

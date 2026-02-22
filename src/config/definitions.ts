@@ -31,7 +31,8 @@ const {
   bind_visible_overlay_to_mpv_sub_visibility,
   invisibleOverlay,
 } = CORE_DEFAULT_CONFIG;
-const { ankiConnect, jimaku, anilist, jellyfin, youtubeSubgen } = INTEGRATIONS_DEFAULT_CONFIG;
+const { ankiConnect, jimaku, anilist, jellyfin, discordPresence, youtubeSubgen } =
+  INTEGRATIONS_DEFAULT_CONFIG;
 const { subtitleStyle } = SUBTITLE_DEFAULT_CONFIG;
 const { immersionTracking } = IMMERSION_DEFAULT_CONFIG;
 
@@ -51,6 +52,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   jimaku,
   anilist,
   jellyfin,
+  discordPresence,
   youtubeSubgen,
   invisibleOverlay,
   immersionTracking,

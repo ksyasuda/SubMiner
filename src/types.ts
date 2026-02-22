@@ -358,6 +358,21 @@ export interface JellyfinConfig {
   transcodeVideoCodec?: string;
 }
 
+export interface DiscordPresenceConfig {
+  enabled?: boolean;
+  clientId?: string;
+  detailsTemplate?: string;
+  stateTemplate?: string;
+  largeImageKey?: string;
+  largeImageText?: string;
+  smallImageKey?: string;
+  smallImageText?: string;
+  buttonLabel?: string;
+  buttonUrl?: string;
+  updateIntervalMs?: number;
+  debounceMs?: number;
+}
+
 export interface InvisibleOverlayConfig {
   startupVisibility?: 'platform-default' | 'visible' | 'hidden';
 }
@@ -403,6 +418,7 @@ export interface Config {
   jimaku?: JimakuConfig;
   anilist?: AnilistConfig;
   jellyfin?: JellyfinConfig;
+  discordPresence?: DiscordPresenceConfig;
   invisibleOverlay?: InvisibleOverlayConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
@@ -527,6 +543,20 @@ export interface ResolvedConfig {
     directPlayPreferred: boolean;
     directPlayContainers: string[];
     transcodeVideoCodec: string;
+  };
+  discordPresence: {
+    enabled: boolean;
+    clientId: string;
+    detailsTemplate: string;
+    stateTemplate: string;
+    largeImageKey: string;
+    largeImageText: string;
+    smallImageKey: string;
+    smallImageText: string;
+    buttonLabel: string;
+    buttonUrl: string;
+    updateIntervalMs: number;
+    debounceMs: number;
   };
   invisibleOverlay: Required<InvisibleOverlayConfig>;
   youtubeSubgen: YoutubeSubgenConfig & {

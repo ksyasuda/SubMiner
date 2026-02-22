@@ -45,6 +45,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   clearJellyfinSetupWindow: () => void;
 
   stopJellyfinRemoteSession: () => void;
+  stopDiscordPresenceService: () => void;
 }) {
   return () => ({
     destroyTray: () => deps.destroyTray(),
@@ -96,5 +97,6 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     },
     clearJellyfinSetupWindow: () => deps.clearJellyfinSetupWindow(),
     stopJellyfinRemoteSession: () => deps.stopJellyfinRemoteSession(),
+    stopDiscordPresenceService: () => deps.stopDiscordPresenceService(),
   });
 }

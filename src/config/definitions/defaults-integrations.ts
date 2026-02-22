@@ -2,7 +2,7 @@ import { ResolvedConfig } from '../../types';
 
 export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   ResolvedConfig,
-  'ankiConnect' | 'jimaku' | 'anilist' | 'jellyfin' | 'youtubeSubgen'
+  'ankiConnect' | 'jimaku' | 'anilist' | 'jellyfin' | 'discordPresence' | 'youtubeSubgen'
 > = {
   ankiConnect: {
     enabled: false,
@@ -98,6 +98,20 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     directPlayPreferred: true,
     directPlayContainers: ['mkv', 'mp4', 'webm', 'mov', 'flac', 'mp3', 'aac'],
     transcodeVideoCodec: 'h264',
+  },
+  discordPresence: {
+    enabled: false,
+    clientId: '',
+    detailsTemplate: 'Mining Japanese',
+    stateTemplate: 'Idle',
+    largeImageKey: 'subminer-logo',
+    largeImageText: 'SubMiner',
+    smallImageKey: 'study',
+    smallImageText: 'Sentence Mining',
+    buttonLabel: '',
+    buttonUrl: '',
+    updateIntervalMs: 15_000,
+    debounceMs: 750,
   },
   youtubeSubgen: {
     mode: 'automatic',

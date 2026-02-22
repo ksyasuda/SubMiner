@@ -124,6 +124,14 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     ],
     key: 'jellyfin',
   },
+  {
+    title: 'Discord Rich Presence',
+    description: [
+      'Optional Discord Rich Presence activity card updates for current playback/study session.',
+      'Requires a Discord application client ID and uploaded asset keys.',
+    ],
+    key: 'discordPresence',
+  },
 ];
 
 const IMMERSION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [

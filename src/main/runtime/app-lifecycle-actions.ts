@@ -19,6 +19,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   destroyJellyfinSetupWindow: () => void;
   clearJellyfinSetupWindow: () => void;
   stopJellyfinRemoteSession: () => void;
+  stopDiscordPresenceService: () => void;
 }) {
   return (): void => {
     deps.destroyTray();
@@ -41,6 +42,7 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.destroyJellyfinSetupWindow();
     deps.clearJellyfinSetupWindow();
     deps.stopJellyfinRemoteSession();
+    deps.stopDiscordPresenceService();
   };
 }
 

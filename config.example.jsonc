@@ -47,6 +47,125 @@
   }, // Controls logging verbosity.
 
   // ==========================================
+  // Keyboard Shortcuts
+  // Overlay keyboard shortcuts. Set a shortcut to null to disable.
+  // Hot-reload: shortcut changes apply live and update the session help modal on reopen.
+  // ==========================================
+  "shortcuts": {
+    "toggleVisibleOverlayGlobal": "Alt+Shift+O", // Toggle visible overlay global setting.
+    "toggleInvisibleOverlayGlobal": "Alt+Shift+I", // Toggle invisible overlay global setting.
+    "copySubtitle": "CommandOrControl+C", // Copy subtitle setting.
+    "copySubtitleMultiple": "CommandOrControl+Shift+C", // Copy subtitle multiple setting.
+    "updateLastCardFromClipboard": "CommandOrControl+V", // Update last card from clipboard setting.
+    "triggerFieldGrouping": "CommandOrControl+G", // Trigger field grouping setting.
+    "triggerSubsync": "Ctrl+Alt+S", // Trigger subsync setting.
+    "mineSentence": "CommandOrControl+S", // Mine sentence setting.
+    "mineSentenceMultiple": "CommandOrControl+Shift+S", // Mine sentence multiple setting.
+    "multiCopyTimeoutMs": 3000, // Timeout for multi-copy/mine modes.
+    "toggleSecondarySub": "CommandOrControl+Shift+V", // Toggle secondary sub setting.
+    "markAudioCard": "CommandOrControl+Shift+A", // Mark audio card setting.
+    "openRuntimeOptions": "CommandOrControl+Shift+O", // Open runtime options setting.
+    "openJimaku": "Ctrl+Shift+J" // Open jimaku setting.
+  }, // Overlay keyboard shortcuts. Set a shortcut to null to disable.
+
+  // ==========================================
+  // Invisible Overlay
+  // Startup behavior for the invisible interactive subtitle mining layer.
+  // Invisible subtitle position edit mode: Ctrl/Cmd+Shift+P to toggle, arrow keys to move, Enter or Ctrl/Cmd+S to save, Esc to cancel.
+  // This edit-mode shortcut is fixed and is not currently configurable.
+  // ==========================================
+  "invisibleOverlay": {
+    "startupVisibility": "platform-default" // Startup visibility setting.
+  }, // Startup behavior for the invisible interactive subtitle mining layer.
+
+  // ==========================================
+  // Keybindings (MPV Commands)
+  // Extra keybindings that are merged with built-in defaults.
+  // Set command to null to disable a default keybinding.
+  // Hot-reload: keybinding changes apply live and update the session help modal on reopen.
+  // ==========================================
+  "keybindings": [], // Extra keybindings that are merged with built-in defaults.
+
+  // ==========================================
+  // Secondary Subtitles
+  // Dual subtitle track options.
+  // Used by subminer YouTube subtitle generation as secondary language preferences.
+  // Hot-reload: defaultMode updates live while SubMiner is running.
+  // ==========================================
+  "secondarySub": {
+    "secondarySubLanguages": [], // Secondary sub languages setting.
+    "autoLoadSecondarySub": false, // Auto load secondary sub setting. Values: true | false
+    "defaultMode": "hover" // Default mode setting.
+  }, // Dual subtitle track options.
+
+  // ==========================================
+  // Auto Subtitle Sync
+  // Subsync engine and executable paths.
+  // ==========================================
+  "subsync": {
+    "defaultMode": "auto", // Subsync default mode. Values: auto | manual
+    "alass_path": "", // Alass path setting.
+    "ffsubsync_path": "", // Ffsubsync path setting.
+    "ffmpeg_path": "" // Ffmpeg path setting.
+  }, // Subsync engine and executable paths.
+
+  // ==========================================
+  // Subtitle Position
+  // Initial vertical subtitle position from the bottom.
+  // ==========================================
+  "subtitlePosition": {
+    "yPercent": 10 // Y percent setting.
+  }, // Initial vertical subtitle position from the bottom.
+
+  // ==========================================
+  // Subtitle Appearance
+  // Primary and secondary subtitle styling.
+  // Hot-reload: subtitle style changes apply live without restarting SubMiner.
+  // ==========================================
+  "subtitleStyle": {
+    "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
+    "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
+    "hoverTokenColor": "#c6a0f6", // Hex color used for hovered subtitle token highlight in mpv.
+    "fontFamily": "M PLUS 1, Noto Sans CJK JP Regular, Noto Sans CJK JP, Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic, Arial Unicode MS, Arial, sans-serif", // Font family setting.
+    "fontSize": 35, // Font size setting.
+    "fontColor": "#cad3f5", // Font color setting.
+    "fontWeight": "normal", // Font weight setting.
+    "fontStyle": "normal", // Font style setting.
+    "backgroundColor": "rgb(30, 32, 48, 0.88)", // Background color setting.
+    "nPlusOneColor": "#c6a0f6", // N plus one color setting.
+    "knownWordColor": "#a6da95", // Known word color setting.
+    "jlptColors": {
+      "N1": "#ed8796", // N1 setting.
+      "N2": "#f5a97f", // N2 setting.
+      "N3": "#f9e2af", // N3 setting.
+      "N4": "#a6e3a1", // N4 setting.
+      "N5": "#8aadf4" // N5 setting.
+    }, // Jlpt colors setting.
+    "frequencyDictionary": {
+      "enabled": false, // Enable frequency-dictionary-based highlighting based on token rank. Values: true | false
+      "sourcePath": "", // Optional absolute path to a frequency dictionary directory. If empty, built-in discovery search paths are used.
+      "topX": 1000, // Only color tokens with frequency rank <= topX (default: 1000).
+      "mode": "single", // single: use one color for all matching tokens. banded: use color ramp by frequency band. Values: single | banded
+      "singleColor": "#f5a97f", // Color used when frequencyDictionary.mode is `single`.
+      "bandedColors": [
+        "#ed8796",
+        "#f5a97f",
+        "#f9e2af",
+        "#a6e3a1",
+        "#8aadf4"
+      ] // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
+    }, // Frequency dictionary setting.
+    "secondary": {
+      "fontSize": 24, // Font size setting.
+      "fontColor": "#ffffff", // Font color setting.
+      "backgroundColor": "transparent", // Background color setting.
+      "fontWeight": "normal", // Font weight setting.
+      "fontStyle": "normal", // Font style setting.
+      "fontFamily": "M PLUS 1, Noto Sans CJK JP Regular, Noto Sans CJK JP, Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic, Arial Unicode MS, Arial, sans-serif" // Font family setting.
+    } // Secondary setting.
+  }, // Primary and secondary subtitle styling.
+
+  // ==========================================
   // AnkiConnect Integration
   // Automatic Anki updates and media generation options.
   // Hot-reload: AI translation settings update live while SubMiner is running.
@@ -120,124 +239,6 @@
   }, // Automatic Anki updates and media generation options.
 
   // ==========================================
-  // Keyboard Shortcuts
-  // Overlay keyboard shortcuts. Set a shortcut to null to disable.
-  // Hot-reload: shortcut changes apply live and update the session help modal on reopen.
-  // ==========================================
-  "shortcuts": {
-    "toggleVisibleOverlayGlobal": "Alt+Shift+O", // Toggle visible overlay global setting.
-    "toggleInvisibleOverlayGlobal": "Alt+Shift+I", // Toggle invisible overlay global setting.
-    "copySubtitle": "CommandOrControl+C", // Copy subtitle setting.
-    "copySubtitleMultiple": "CommandOrControl+Shift+C", // Copy subtitle multiple setting.
-    "updateLastCardFromClipboard": "CommandOrControl+V", // Update last card from clipboard setting.
-    "triggerFieldGrouping": "CommandOrControl+G", // Trigger field grouping setting.
-    "triggerSubsync": "Ctrl+Alt+S", // Trigger subsync setting.
-    "mineSentence": "CommandOrControl+S", // Mine sentence setting.
-    "mineSentenceMultiple": "CommandOrControl+Shift+S", // Mine sentence multiple setting.
-    "multiCopyTimeoutMs": 3000, // Timeout for multi-copy/mine modes.
-    "toggleSecondarySub": "CommandOrControl+Shift+V", // Toggle secondary sub setting.
-    "markAudioCard": "CommandOrControl+Shift+A", // Mark audio card setting.
-    "openRuntimeOptions": "CommandOrControl+Shift+O", // Open runtime options setting.
-    "openJimaku": "Ctrl+Shift+J" // Open jimaku setting.
-  }, // Overlay keyboard shortcuts. Set a shortcut to null to disable.
-
-  // ==========================================
-  // Invisible Overlay
-  // Startup behavior for the invisible interactive subtitle mining layer.
-  // Invisible subtitle position edit mode: Ctrl/Cmd+Shift+P to toggle, arrow keys to move, Enter or Ctrl/Cmd+S to save, Esc to cancel.
-  // This edit-mode shortcut is fixed and is not currently configurable.
-  // ==========================================
-  "invisibleOverlay": {
-    "startupVisibility": "platform-default" // Startup visibility setting.
-  }, // Startup behavior for the invisible interactive subtitle mining layer.
-
-  // ==========================================
-  // Keybindings (MPV Commands)
-  // Extra keybindings that are merged with built-in defaults.
-  // Set command to null to disable a default keybinding.
-  // Hot-reload: keybinding changes apply live and update the session help modal on reopen.
-  // ==========================================
-  "keybindings": [], // Extra keybindings that are merged with built-in defaults.
-
-  // ==========================================
-  // Subtitle Appearance
-  // Primary and secondary subtitle styling.
-  // Hot-reload: subtitle style changes apply live without restarting SubMiner.
-  // ==========================================
-  "subtitleStyle": {
-    "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
-    "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
-    "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif", // Font family setting.
-    "fontSize": 35, // Font size setting.
-    "fontColor": "#cad3f5", // Font color setting.
-    "fontWeight": "normal", // Font weight setting.
-    "fontStyle": "normal", // Font style setting.
-    "backgroundColor": "rgb(30, 32, 48, 0.88)", // Background color setting.
-    "nPlusOneColor": "#c6a0f6", // N plus one color setting.
-    "knownWordColor": "#a6da95", // Known word color setting.
-    "jlptColors": {
-      "N1": "#ed8796", // N1 setting.
-      "N2": "#f5a97f", // N2 setting.
-      "N3": "#f9e2af", // N3 setting.
-      "N4": "#a6e3a1", // N4 setting.
-      "N5": "#8aadf4" // N5 setting.
-    }, // Jlpt colors setting.
-    "frequencyDictionary": {
-      "enabled": false, // Enable frequency-dictionary-based highlighting based on token rank. Values: true | false
-      "sourcePath": "", // Optional absolute path to a frequency dictionary directory. If empty, built-in discovery search paths are used.
-      "topX": 1000, // Only color tokens with frequency rank <= topX (default: 1000).
-      "mode": "single", // single: use one color for all matching tokens. banded: use color ramp by frequency band. Values: single | banded
-      "singleColor": "#f5a97f", // Color used when frequencyDictionary.mode is `single`.
-      "bandedColors": [
-        "#ed8796",
-        "#f5a97f",
-        "#f9e2af",
-        "#a6e3a1",
-        "#8aadf4"
-      ] // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
-    }, // Frequency dictionary setting.
-    "secondary": {
-      "fontSize": 24, // Font size setting.
-      "fontColor": "#ffffff", // Font color setting.
-      "backgroundColor": "transparent", // Background color setting.
-      "fontWeight": "normal", // Font weight setting.
-      "fontStyle": "normal", // Font style setting.
-      "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif" // Font family setting.
-    } // Secondary setting.
-  }, // Primary and secondary subtitle styling.
-
-  // ==========================================
-  // Secondary Subtitles
-  // Dual subtitle track options.
-  // Used by subminer YouTube subtitle generation as secondary language preferences.
-  // Hot-reload: defaultMode updates live while SubMiner is running.
-  // ==========================================
-  "secondarySub": {
-    "secondarySubLanguages": [], // Secondary sub languages setting.
-    "autoLoadSecondarySub": false, // Auto load secondary sub setting. Values: true | false
-    "defaultMode": "hover" // Default mode setting.
-  }, // Dual subtitle track options.
-
-  // ==========================================
-  // Auto Subtitle Sync
-  // Subsync engine and executable paths.
-  // ==========================================
-  "subsync": {
-    "defaultMode": "auto", // Subsync default mode. Values: auto | manual
-    "alass_path": "", // Alass path setting.
-    "ffsubsync_path": "", // Ffsubsync path setting.
-    "ffmpeg_path": "" // Ffmpeg path setting.
-  }, // Subsync engine and executable paths.
-
-  // ==========================================
-  // Subtitle Position
-  // Initial vertical subtitle position from the bottom.
-  // ==========================================
-  "subtitlePosition": {
-    "yPercent": 10 // Y percent setting.
-  }, // Initial vertical subtitle position from the bottom.
-
-  // ==========================================
   // Jimaku
   // Jimaku API configuration and defaults.
   // ==========================================
@@ -273,14 +274,13 @@
   // ==========================================
   // Jellyfin
   // Optional Jellyfin integration for auth, browsing, and playback launch.
-  // Access token is stored in config and should be treated as a secret.
+  // Access token is stored in local encrypted token storage after login/setup.
+  // jellyfin.accessToken remains an optional explicit override in config.
   // ==========================================
   "jellyfin": {
     "enabled": false, // Enable optional Jellyfin integration and CLI control commands. Values: true | false
     "serverUrl": "", // Base Jellyfin server URL (for example: http://localhost:8096).
     "username": "", // Default Jellyfin username used during CLI login.
-    "accessToken": "", // Access token setting.
-    "userId": "", // User id setting.
     "deviceId": "subminer", // Device id setting.
     "clientName": "SubMiner", // Client name setting.
     "clientVersion": "0.1.0", // Client version setting.
@@ -303,6 +303,26 @@
     ], // Container allowlist for direct play decisions.
     "transcodeVideoCodec": "h264" // Preferred transcode video codec when direct play is unavailable.
   }, // Optional Jellyfin integration for auth, browsing, and playback launch.
+
+  // ==========================================
+  // Discord Rich Presence
+  // Optional Discord Rich Presence activity card updates for current playback/study session.
+  // Requires a Discord application client ID and uploaded asset keys.
+  // ==========================================
+  "discordPresence": {
+    "enabled": false, // Enable optional Discord Rich Presence updates. Values: true | false
+    "clientId": "", // Discord application client ID used for Rich Presence.
+    "detailsTemplate": "Mining Japanese", // Details line template for the activity card.
+    "stateTemplate": "Idle", // State line template for the activity card.
+    "largeImageKey": "subminer-logo", // Discord asset key for the large activity image.
+    "largeImageText": "SubMiner", // Hover text for the large activity image.
+    "smallImageKey": "study", // Discord asset key for the small activity image.
+    "smallImageText": "Sentence Mining", // Hover text for the small activity image.
+    "buttonLabel": "", // Optional button label shown on the Discord activity card.
+    "buttonUrl": "", // Optional button URL shown on the Discord activity card.
+    "updateIntervalMs": 15000, // Minimum interval between presence payload updates.
+    "debounceMs": 750 // Debounce delay used to collapse bursty presence updates.
+  }, // Optional Discord Rich Presence activity card updates for current playback/study session.
 
   // ==========================================
   // Immersion Tracking

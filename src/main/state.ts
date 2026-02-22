@@ -16,6 +16,7 @@ import type { AnkiIntegration } from '../anki-integration';
 import type { ImmersionTrackerService } from '../core/services/immersion-tracker-service';
 import type { MpvIpcClient } from '../core/services/mpv';
 import type { JellyfinRemoteSessionService } from '../core/services/jellyfin-remote';
+import type { createDiscordPresenceService } from '../core/services/discord-presence';
 import { DEFAULT_MPV_SUBTITLE_RENDER_METRICS } from '../core/services/mpv-render-metrics';
 import type { RuntimeOptionsManager } from '../runtime-options';
 import type { MecabTokenizer } from '../mecab-tokenizer';
@@ -150,6 +151,7 @@ export interface AppState {
   yomitanParserInitPromise: Promise<boolean> | null;
   mpvClient: MpvIpcClient | null;
   jellyfinRemoteSession: JellyfinRemoteSessionService | null;
+  discordPresenceService: ReturnType<typeof createDiscordPresenceService> | null;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   currentSubText: string;
   currentSubAssText: string;
@@ -160,6 +162,7 @@ export interface AppState {
   subtitlePosition: SubtitlePosition | null;
   currentMediaPath: string | null;
   currentMediaTitle: string | null;
+  playbackPaused: boolean | null;
   pendingSubtitlePosition: SubtitlePosition | null;
   anilistClientSecretState: AnilistSecretResolutionState;
   mecabTokenizer: MecabTokenizer | null;
@@ -222,6 +225,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     yomitanParserInitPromise: null,
     mpvClient: null,
     jellyfinRemoteSession: null,
+    discordPresenceService: null,
     reconnectTimer: null,
     currentSubText: '',
     currentSubAssText: '',
@@ -232,6 +236,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     subtitlePosition: null,
     currentMediaPath: null,
     currentMediaTitle: null,
+    playbackPaused: null,
     pendingSubtitlePosition: null,
     anilistClientSecretState: createInitialAnilistSecretResolutionState(),
     mecabTokenizer: null,

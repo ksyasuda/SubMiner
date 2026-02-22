@@ -1,18 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { NoteUpdateWorkflow } from './note-update-workflow';
-
-type NoteInfo = {
-  noteId: number;
-  fields: Record<string, { value: string }>;
-};
+import {
+  NoteUpdateWorkflow,
+  type NoteUpdateWorkflowDeps,
+  type NoteUpdateWorkflowNoteInfo,
+} from './note-update-workflow';
 
 function createWorkflowHarness() {
   const updates: Array<{ noteId: number; fields: Record<string, string> }> = [];
   const notifications: Array<{ noteId: number; label: string | number }> = [];
   const warnings: string[] = [];
 
-  const deps = {
+  const deps: NoteUpdateWorkflowDeps = {
     client: {
       notesInfo: async (_noteIds: number[]) =>
         [
@@ -23,7 +22,7 @@ function createWorkflowHarness() {
               Sentence: { value: '' },
             },
           },
-        ] satisfies NoteInfo[],
+        ] satisfies NoteUpdateWorkflowNoteInfo[],
       updateNoteFields: async (noteId: number, fields: Record<string, string>) => {
         updates.push({ noteId, fields });
       },
@@ -43,7 +42,7 @@ function createWorkflowHarness() {
       kikuEnabled: false,
       kikuFieldGrouping: 'disabled' as const,
     }),
-    appendKnownWordsFromNoteInfo: (_noteInfo: NoteInfo) => undefined,
+    appendKnownWordsFromNoteInfo: (_noteInfo: NoteUpdateWorkflowNoteInfo) => undefined,
     extractFields: (fields: Record<string, { value: string }>) => {
       const out: Record<string, string> = {};
       for (const [key, value] of Object.entries(fields)) {
@@ -51,17 +50,27 @@ function createWorkflowHarness() {
       }
       return out;
     },
-    findDuplicateNote: async () => null,
-    handleFieldGroupingAuto: async () => undefined,
-    handleFieldGroupingManual: async () => false,
-    processSentence: (text: string) => text,
-    resolveConfiguredFieldName: (noteInfo: NoteInfo, preferred?: string) => {
+    findDuplicateNote: async (_expression, _excludeNoteId, _noteInfo) => null,
+    handleFieldGroupingAuto: async (
+      _originalNoteId,
+      _newNoteId,
+      _newNoteInfo,
+      _expression,
+    ) => undefined,
+    handleFieldGroupingManual: async (
+      _originalNoteId,
+      _newNoteId,
+      _newNoteInfo,
+      _expression,
+    ) => false,
+    processSentence: (text: string, _noteFields: Record<string, string>) => text,
+    resolveConfiguredFieldName: (noteInfo: NoteUpdateWorkflowNoteInfo, preferred?: string) => {
       if (!preferred) return null;
       const names = Object.keys(noteInfo.fields);
       return names.find((name) => name.toLowerCase() === preferred.toLowerCase()) ?? null;
     },
     getResolvedSentenceAudioFieldName: () => null,
-    mergeFieldValue: (_existing: string, next: string) => next,
+    mergeFieldValue: (_existing: string, next: string, _overwrite: boolean) => next,
     generateAudioFilename: () => 'audio_1.mp3',
     generateAudio: async () => null,
     generateImageFilename: () => 'image_1.jpg',
@@ -74,7 +83,7 @@ function createWorkflowHarness() {
     showOsdNotification: (_text: string) => undefined,
     beginUpdateProgress: (_text: string) => undefined,
     endUpdateProgress: () => undefined,
-    logWarn: (message: string) => warnings.push(message),
+    logWarn: (message: string, ..._args: unknown[]) => warnings.push(message),
     logInfo: (_message: string) => undefined,
     logError: (_message: string) => undefined,
   };
@@ -108,4 +117,57 @@ test('NoteUpdateWorkflow no-ops when note info is missing', async () => {
   assert.equal(harness.updates.length, 0);
   assert.equal(harness.notifications.length, 0);
   assert.equal(harness.warnings.length, 1);
+});
+
+test('NoteUpdateWorkflow updates note before auto field grouping merge', async () => {
+  const harness = createWorkflowHarness();
+  const callOrder: string[] = [];
+  let notesInfoCallCount = 0;
+  harness.deps.getEffectiveSentenceCardConfig = () => ({
+    sentenceField: 'Sentence',
+    kikuEnabled: true,
+    kikuFieldGrouping: 'auto',
+  });
+  harness.deps.findDuplicateNote = async () => 99;
+  harness.deps.client.notesInfo = async () => {
+    notesInfoCallCount += 1;
+    if (notesInfoCallCount === 1) {
+      return [
+        {
+          noteId: 42,
+          fields: {
+            Expression: { value: 'taberu' },
+            Sentence: { value: '' },
+          },
+        },
+      ] satisfies NoteUpdateWorkflowNoteInfo[];
+    }
+    return [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          Sentence: { value: 'subtitle-text' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+  };
+  harness.deps.client.updateNoteFields = async (noteId, fields) => {
+    callOrder.push('update');
+    harness.updates.push({ noteId, fields });
+  };
+  harness.deps.handleFieldGroupingAuto = async (
+    _originalNoteId,
+    _newNoteId,
+    newNoteInfo,
+    _expression,
+  ) => {
+    callOrder.push('auto');
+    assert.equal(newNoteInfo.fields.Sentence?.value, 'subtitle-text');
+  };
+
+  await harness.workflow.execute(42);
+
+  assert.deepEqual(callOrder, ['update', 'auto']);
+  assert.equal(harness.updates.length, 1);
 });

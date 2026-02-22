@@ -19,6 +19,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     },
     currentSubText: '',
     currentSubAssText: '',
+    playbackPaused: null,
     previousSecondarySubVisibility: false,
   };
 
@@ -35,7 +36,8 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
       calls.push('anilist-post-watch');
     },
     logSubtitleTimingError: (message) => calls.push(`subtitle-error:${message}`),
-    broadcastToOverlayWindows: (channel, payload) => calls.push(`broadcast:${channel}:${String(payload)}`),
+    broadcastToOverlayWindows: (channel, payload) =>
+      calls.push(`broadcast:${channel}:${String(payload)}`),
     onSubtitleChange: (text) => calls.push(`subtitle-change:${text}`),
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
     getCurrentAnilistMediaKey: () => 'media-key',
@@ -47,6 +49,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     resetAnilistMediaGuessState: () => calls.push('reset-guess'),
     reportJellyfinRemoteProgress: (forceImmediate) => calls.push(`progress:${forceImmediate}`),
     updateSubtitleRenderMetrics: () => calls.push('metrics'),
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
   })();
 
   assert.equal(deps.hasInitialJellyfinPlayArg(), true);
@@ -64,6 +67,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.setCurrentSubText('sub');
   deps.broadcastSubtitle({ text: 'sub', tokens: null });
   deps.onSubtitleChange('sub');
+  deps.refreshDiscordPresence();
   deps.setCurrentSubAssText('ass');
   deps.broadcastSubtitleAss('ass');
   deps.broadcastSecondarySubtitle('sec');
@@ -84,9 +88,11 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
 
   assert.equal(appState.currentSubText, 'sub');
   assert.equal(appState.currentSubAssText, 'ass');
+  assert.equal(appState.playbackPaused, true);
   assert.equal(appState.previousSecondarySubVisibility, true);
   assert.ok(calls.includes('remote-stopped'));
   assert.ok(calls.includes('anilist-post-watch'));
   assert.ok(calls.includes('sync-immersion'));
   assert.ok(calls.includes('metrics'));
+  assert.ok(calls.includes('presence-refresh'));
 });

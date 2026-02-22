@@ -1,5 +1,5 @@
 import { ResolveContext } from './context';
-import { asBoolean, asString, isObject } from './shared';
+import { asBoolean, asNumber, asString, isObject } from './shared';
 
 export function applyIntegrationConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
@@ -84,6 +84,69 @@ export function applyIntegrationConfig(context: ResolveContext): void {
         src.jellyfin.directPlayContainers,
         resolved.jellyfin.directPlayContainers,
         'Expected string array.',
+      );
+    }
+  }
+
+  if (isObject(src.discordPresence)) {
+    const enabled = asBoolean(src.discordPresence.enabled);
+    if (enabled !== undefined) {
+      resolved.discordPresence.enabled = enabled;
+    } else if (src.discordPresence.enabled !== undefined) {
+      warn(
+        'discordPresence.enabled',
+        src.discordPresence.enabled,
+        resolved.discordPresence.enabled,
+        'Expected boolean.',
+      );
+    }
+
+    const stringKeys = [
+      'clientId',
+      'detailsTemplate',
+      'stateTemplate',
+      'largeImageKey',
+      'largeImageText',
+      'smallImageKey',
+      'smallImageText',
+      'buttonLabel',
+      'buttonUrl',
+    ] as const;
+    for (const key of stringKeys) {
+      const value = asString(src.discordPresence[key]);
+      if (value !== undefined) {
+        resolved.discordPresence[key] = value;
+      } else if (src.discordPresence[key] !== undefined) {
+        warn(
+          `discordPresence.${key}`,
+          src.discordPresence[key],
+          resolved.discordPresence[key],
+          'Expected string.',
+        );
+      }
+    }
+
+    const updateIntervalMs = asNumber(src.discordPresence.updateIntervalMs);
+    if (updateIntervalMs !== undefined) {
+      resolved.discordPresence.updateIntervalMs = Math.max(1_000, Math.floor(updateIntervalMs));
+    } else if (src.discordPresence.updateIntervalMs !== undefined) {
+      warn(
+        'discordPresence.updateIntervalMs',
+        src.discordPresence.updateIntervalMs,
+        resolved.discordPresence.updateIntervalMs,
+        'Expected number.',
+      );
+    }
+
+    const debounceMs = asNumber(src.discordPresence.debounceMs);
+    if (debounceMs !== undefined) {
+      resolved.discordPresence.debounceMs = Math.max(0, Math.floor(debounceMs));
+    } else if (src.discordPresence.debounceMs !== undefined) {
+      warn(
+        'discordPresence.debounceMs',
+        src.discordPresence.debounceMs,
+        resolved.discordPresence.debounceMs,
+        'Expected number.',
       );
     }
   }

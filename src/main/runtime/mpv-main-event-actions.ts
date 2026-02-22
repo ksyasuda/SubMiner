@@ -2,11 +2,13 @@ export function createHandleMpvSubtitleChangeHandler(deps: {
   setCurrentSubText: (text: string) => void;
   broadcastSubtitle: (payload: { text: string; tokens: null }) => void;
   onSubtitleChange: (text: string) => void;
+  refreshDiscordPresence: () => void;
 }) {
   return ({ text }: { text: string }): void => {
     deps.setCurrentSubText(text);
     deps.broadcastSubtitle({ text, tokens: null });
     deps.onSubtitleChange(text);
+    deps.refreshDiscordPresence();
   };
 }
 
@@ -36,6 +38,7 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
   maybeProbeAnilistDuration: (mediaKey: string) => void;
   ensureAnilistMediaGuess: (mediaKey: string) => void;
   syncImmersionMediaState: () => void;
+  refreshDiscordPresence: () => void;
 }) {
   return ({ path }: { path: string }): void => {
     deps.updateCurrentMediaPath(path);
@@ -49,6 +52,7 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
       deps.ensureAnilistMediaGuess(mediaKey);
     }
     deps.syncImmersionMediaState();
+    deps.refreshDiscordPresence();
   };
 }
 
@@ -57,32 +61,38 @@ export function createHandleMpvMediaTitleChangeHandler(deps: {
   resetAnilistMediaGuessState: () => void;
   notifyImmersionTitleUpdate: (title: string) => void;
   syncImmersionMediaState: () => void;
+  refreshDiscordPresence: () => void;
 }) {
   return ({ title }: { title: string }): void => {
     deps.updateCurrentMediaTitle(title);
     deps.resetAnilistMediaGuessState();
     deps.notifyImmersionTitleUpdate(title);
     deps.syncImmersionMediaState();
+    deps.refreshDiscordPresence();
   };
 }
 
 export function createHandleMpvTimePosChangeHandler(deps: {
   recordPlaybackPosition: (time: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
+  refreshDiscordPresence: () => void;
 }) {
   return ({ time }: { time: number }): void => {
     deps.recordPlaybackPosition(time);
     deps.reportJellyfinRemoteProgress(false);
+    deps.refreshDiscordPresence();
   };
 }
 
 export function createHandleMpvPauseChangeHandler(deps: {
   recordPauseState: (paused: boolean) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
+  refreshDiscordPresence: () => void;
 }) {
   return ({ paused }: { paused: boolean }): void => {
     deps.recordPauseState(paused);
     deps.reportJellyfinRemoteProgress(true);
+    deps.refreshDiscordPresence();
   };
 }
 

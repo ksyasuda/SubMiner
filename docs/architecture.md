@@ -168,6 +168,7 @@ The composition root (`src/main.ts`) delegates to focused modules in `src/main/`
 - `overlay-runtime.ts` — overlay window selection and modal state management
 - `subsync-runtime.ts` — subsync command orchestration
 - `runtime/composers/anilist-tracking-composer.ts` — AniList media tracking/probe/retry wiring
+- `runtime/composers/jellyfin-runtime-composer.ts` — Jellyfin config/client/playback/command/setup composition wiring
 - `runtime/composers/mpv-runtime-composer.ts` — MPV event/factory/tokenizer/warmup wiring
 
 Composer modules share contract conventions via `src/main/runtime/composers/contracts.ts`:

@@ -98,34 +98,13 @@ export class NoteUpdateWorkflow {
       }
 
       const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
-      if (
+      const shouldRunFieldGrouping =
         !options?.skipKikuFieldGrouping &&
         sentenceCardConfig.kikuEnabled &&
-        sentenceCardConfig.kikuFieldGrouping !== 'disabled'
-      ) {
-        const duplicateNoteId = await this.deps.findDuplicateNote(expressionText, noteId, noteInfo);
-        if (duplicateNoteId !== null) {
-          if (sentenceCardConfig.kikuFieldGrouping === 'auto') {
-            await this.deps.handleFieldGroupingAuto(
-              duplicateNoteId,
-              noteId,
-              noteInfo,
-              expressionText,
-            );
-            return;
-          }
-          if (sentenceCardConfig.kikuFieldGrouping === 'manual') {
-            const handled = await this.deps.handleFieldGroupingManual(
-              duplicateNoteId,
-              noteId,
-              noteInfo,
-              expressionText,
-            );
-            if (handled) {
-              return;
-            }
-          }
-        }
+        sentenceCardConfig.kikuFieldGrouping !== 'disabled';
+      let duplicateNoteId: number | null = null;
+      if (shouldRunFieldGrouping) {
+        duplicateNoteId = await this.deps.findDuplicateNote(expressionText, noteId, noteInfo);
       }
 
       const updatedFields: Record<string, string> = {};
@@ -218,6 +197,37 @@ export class NoteUpdateWorkflow {
         await this.deps.addConfiguredTagsToNote(noteId);
         this.deps.logInfo('Updated card fields for:', expressionText);
         await this.deps.showNotification(noteId, expressionText);
+      }
+
+      if (shouldRunFieldGrouping && duplicateNoteId !== null) {
+        let noteInfoForGrouping = noteInfo;
+        if (updatePerformed) {
+          const refreshedInfoResult = await this.deps.client.notesInfo([noteId]);
+          const refreshedInfo = refreshedInfoResult as NoteUpdateWorkflowNoteInfo[];
+          if (!refreshedInfo || refreshedInfo.length === 0) {
+            this.deps.logWarn('Card not found after update:', noteId);
+            return;
+          }
+          noteInfoForGrouping = refreshedInfo[0]!;
+        }
+
+        if (sentenceCardConfig.kikuFieldGrouping === 'auto') {
+          await this.deps.handleFieldGroupingAuto(
+            duplicateNoteId,
+            noteId,
+            noteInfoForGrouping,
+            expressionText,
+          );
+          return;
+        }
+        if (sentenceCardConfig.kikuFieldGrouping === 'manual') {
+          await this.deps.handleFieldGroupingManual(
+            duplicateNoteId,
+            noteId,
+            noteInfoForGrouping,
+            expressionText,
+          );
+        }
       }
     } catch (error) {
       if ((error as Error).message.includes('note was not found')) {
