@@ -9,6 +9,7 @@ export interface SubtitleProcessingControllerDeps {
 
 export interface SubtitleProcessingController {
   onSubtitleChange: (text: string) => void;
+  refreshCurrentSubtitle: () => void;
 }
 
 export function createSubtitleProcessingController(
@@ -18,6 +19,7 @@ export function createSubtitleProcessingController(
   let lastEmittedText = '';
   let processing = false;
   let staleDropCount = 0;
+  let refreshRequested = false;
   const now = deps.now ?? (() => Date.now());
 
   const processLatest = (): void => {
@@ -30,6 +32,8 @@ export function createSubtitleProcessingController(
     void (async () => {
       while (true) {
         const text = latestText;
+        const forceRefresh = refreshRequested;
+        refreshRequested = false;
         const startedAtMs = now();
 
         if (!text.trim()) {
@@ -69,7 +73,7 @@ export function createSubtitleProcessingController(
       })
       .finally(() => {
         processing = false;
-        if (latestText !== lastEmittedText) {
+        if (refreshRequested || latestText !== lastEmittedText) {
           processLatest();
         }
       });
@@ -81,6 +85,13 @@ export function createSubtitleProcessingController(
         return;
       }
       latestText = text;
+      processLatest();
+    },
+    refreshCurrentSubtitle: () => {
+      if (!latestText.trim()) {
+        return;
+      }
+      refreshRequested = true;
       processLatest();
     },
   };

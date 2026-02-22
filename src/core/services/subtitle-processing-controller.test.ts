@@ -76,3 +76,26 @@ test('subtitle processing falls back to plain subtitle when tokenization returns
 
   assert.deepEqual(emitted, [{ text: 'fallback', tokens: null }]);
 });
+
+test('subtitle processing can refresh current subtitle without text change', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('same');
+  await flushMicrotasks();
+  controller.refreshCurrentSubtitle();
+  await flushMicrotasks();
+
+  assert.equal(tokenizeCalls, 2);
+  assert.deepEqual(emitted, [
+    { text: 'same', tokens: [] },
+    { text: 'same', tokens: [] },
+  ]);
+});

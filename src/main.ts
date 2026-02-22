@@ -2972,6 +2972,9 @@ function setVisibleOverlayVisible(visible: boolean): void {
 
 function setInvisibleOverlayVisible(visible: boolean): void {
   setInvisibleOverlayVisibleHandler(visible);
+  if (visible) {
+    subtitleProcessingController.refreshCurrentSubtitle();
+  }
 }
 
 function toggleVisibleOverlay(): void {
