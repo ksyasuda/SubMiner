@@ -99,6 +99,7 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
   if (isObject(src.subtitleStyle)) {
     const fallbackSubtitleStyleEnableJlpt = resolved.subtitleStyle.enableJlpt;
     const fallbackSubtitleStylePreserveLineBreaks = resolved.subtitleStyle.preserveLineBreaks;
+    const fallbackSubtitleStyleHoverTokenColor = resolved.subtitleStyle.hoverTokenColor;
     resolved.subtitleStyle = {
       ...resolved.subtitleStyle,
       ...(src.subtitleStyle as ResolvedConfig['subtitleStyle']),
@@ -137,6 +138,19 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         (src.subtitleStyle as { preserveLineBreaks?: unknown }).preserveLineBreaks,
         resolved.subtitleStyle.preserveLineBreaks,
         'Expected boolean.',
+      );
+    }
+
+    const hoverTokenColor = asColor((src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor);
+    if (hoverTokenColor !== undefined) {
+      resolved.subtitleStyle.hoverTokenColor = hoverTokenColor;
+    } else if ((src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor !== undefined) {
+      resolved.subtitleStyle.hoverTokenColor = fallbackSubtitleStyleHoverTokenColor;
+      warn(
+        'subtitleStyle.hoverTokenColor',
+        (src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor,
+        resolved.subtitleStyle.hoverTokenColor,
+        'Expected hex color.',
       );
     }
 

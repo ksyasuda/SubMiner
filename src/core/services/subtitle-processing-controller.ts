@@ -9,7 +9,7 @@ export interface SubtitleProcessingControllerDeps {
 
 export interface SubtitleProcessingController {
   onSubtitleChange: (text: string) => void;
-  refreshCurrentSubtitle: () => void;
+  refreshCurrentSubtitle: (textOverride?: string) => void;
 }
 
 export function createSubtitleProcessingController(
@@ -87,7 +87,10 @@ export function createSubtitleProcessingController(
       latestText = text;
       processLatest();
     },
-    refreshCurrentSubtitle: () => {
+    refreshCurrentSubtitle: (textOverride?: string) => {
+      if (typeof textOverride === 'string') {
+        latestText = textOverride;
+      }
       if (!latestText.trim()) {
         return;
       }

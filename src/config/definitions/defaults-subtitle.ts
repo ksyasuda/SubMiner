@@ -4,6 +4,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle'> = {
   subtitleStyle: {
     enableJlpt: false,
     preserveLineBreaks: false,
+    hoverTokenColor: '#c6a0f6',
     fontFamily:
       'M PLUS 1, Noto Sans CJK JP Regular, Noto Sans CJK JP, Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic, Arial Unicode MS, Arial, sans-serif',
     fontSize: 35,

@@ -33,6 +33,7 @@ export function createMpvSubtitleLayoutController(
 
     applySubtitleFontSize(geometry.effectiveFontSize);
     const effectiveBorderSize = metrics.subBorderSize * geometry.pxPerScaledPixel;
+    const effectiveShadowOffset = metrics.subShadowOffset * geometry.pxPerScaledPixel;
 
     document.documentElement.style.setProperty('--sub-border-size', `${effectiveBorderSize}px`);
 
@@ -53,6 +54,8 @@ export function createMpvSubtitleLayoutController(
       bottomInset: geometry.bottomInset,
       marginY: geometry.marginY,
       effectiveFontSize: geometry.effectiveFontSize,
+      borderPx: effectiveBorderSize,
+      shadowPx: effectiveShadowOffset,
       vAlign: alignment.vAlign,
     });
 

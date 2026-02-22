@@ -271,6 +271,7 @@ export interface AnkiConnectConfig {
 export interface SubtitleStyleConfig {
   enableJlpt?: boolean;
   preserveLineBreaks?: boolean;
+  hoverTokenColor?: string;
   fontFamily?: string;
   fontSize?: number;
   fontColor?: string;

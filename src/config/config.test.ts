@@ -25,6 +25,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
+  assert.equal(config.subtitleStyle.hoverTokenColor, '#c6a0f6');
   assert.equal(config.immersionTracking.enabled, true);
   assert.equal(config.immersionTracking.dbPath, '');
   assert.equal(config.immersionTracking.batchSize, 25);
@@ -92,6 +93,44 @@ test('parses subtitleStyle.preserveLineBreaks and warns on invalid values', () =
     invalidService
       .getWarnings()
       .some((warning) => warning.path === 'subtitleStyle.preserveLineBreaks'),
+  );
+});
+
+test('parses subtitleStyle.hoverTokenColor and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "hoverTokenColor": "#c6a0f6"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.hoverTokenColor, '#c6a0f6');
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "hoverTokenColor": "purple"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.hoverTokenColor,
+    DEFAULT_CONFIG.subtitleStyle.hoverTokenColor,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.hoverTokenColor'),
   );
 });
 

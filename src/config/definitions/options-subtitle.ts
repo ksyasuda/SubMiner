@@ -22,6 +22,12 @@ export function buildSubtitleConfigOptionRegistry(
         'When false, line breaks are flattened to spaces for a single-line flow.',
     },
     {
+      path: 'subtitleStyle.hoverTokenColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.hoverTokenColor,
+      description: 'Hex color used for hovered subtitle token highlight in mpv.',
+    },
+    {
       path: 'subtitleStyle.frequencyDictionary.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleStyle.frequencyDictionary.enabled,

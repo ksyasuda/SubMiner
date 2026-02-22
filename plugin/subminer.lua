@@ -92,7 +92,7 @@ local state = {
 local HOVER_MESSAGE_NAME = "subminer-hover-token"
 local HOVER_MESSAGE_NAME_LEGACY = "yomipv-hover-token"
 local DEFAULT_HOVER_BASE_COLOR = "FFFFFF"
-local DEFAULT_HOVER_COLOR = "E7C06A"
+local DEFAULT_HOVER_COLOR = "C6A0F6"
 
 local LOG_LEVEL_PRIORITY = {
 	debug = 10,
@@ -1232,6 +1232,7 @@ local function on_file_loaded()
 end
 
 local function on_shutdown()
+	clear_hover_overlay()
 	if (state.overlay_running or state.texthooker_running) and state.binary_available then
 		subminer_log("info", "lifecycle", "mpv shutting down, stopping SubMiner process")
 		show_osd("Shutting down...")
@@ -1280,6 +1281,9 @@ local function init()
 	mp.register_event("file-loaded", clear_hover_overlay)
 	mp.register_event("end-file", clear_hover_overlay)
 	mp.register_event("shutdown", clear_hover_overlay)
+	mp.add_hook("on_unload", 10, function()
+		clear_hover_overlay()
+	end)
 	mp.observe_property("sub-start", "native", function()
 		clear_hover_overlay()
 	end)

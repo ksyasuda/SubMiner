@@ -3,7 +3,7 @@ import type { SubtitleData } from '../../types';
 export const HOVER_SCRIPT_NAME = 'subminer';
 export const HOVER_TOKEN_MESSAGE = 'subminer-hover-token';
 
-const DEFAULT_HOVER_TOKEN_COLOR = 'E7C06A';
+const DEFAULT_HOVER_TOKEN_COLOR = 'C6A0F6';
 const DEFAULT_TOKEN_COLOR = 'FFFFFF';
 
 export type HoverPayloadToken = {
@@ -28,7 +28,16 @@ type HoverTokenInput = {
   subtitle: SubtitleData | null;
   hoveredTokenIndex: number | null;
   revision: number;
+  hoverColor?: string | null;
 };
+
+function normalizeHexColor(color: string | null | undefined, fallback: string): string {
+  if (typeof color !== 'string') {
+    return fallback;
+  }
+  const normalized = color.trim().replace(/^#/, '').toUpperCase();
+  return /^[0-9A-F]{6}$/.test(normalized) ? normalized : fallback;
+}
 
 function sanitizeSubtitleText(text: string): string {
   return text
@@ -51,7 +60,7 @@ function hasHoveredToken(subtitle: SubtitleData | null, hoveredTokenIndex: numbe
 }
 
 export function buildHoveredTokenPayload(input: HoverTokenInput): HoverTokenPayload {
-  const { subtitle, hoveredTokenIndex, revision } = input;
+  const { subtitle, hoveredTokenIndex, revision, hoverColor } = input;
 
   const tokens: HoverPayloadToken[] = [];
 
@@ -83,7 +92,7 @@ export function buildHoveredTokenPayload(input: HoverTokenInput): HoverTokenPayl
     tokens,
     colors: {
       base: DEFAULT_TOKEN_COLOR,
-      hover: DEFAULT_HOVER_TOKEN_COLOR,
+      hover: normalizeHexColor(hoverColor, DEFAULT_HOVER_TOKEN_COLOR),
     },
   };
 }
@@ -105,6 +114,7 @@ export function createApplyHoveredTokenOverlayHandler(deps: {
   getCurrentSubtitleData: () => SubtitleData | null;
   getHoveredTokenIndex: () => number | null;
   getHoveredSubtitleRevision: () => number;
+  getHoverTokenColor: () => string | null;
 }) {
   return (): void => {
     const mpvClient = deps.getMpvClient();
@@ -115,10 +125,12 @@ export function createApplyHoveredTokenOverlayHandler(deps: {
     const subtitle = deps.getCurrentSubtitleData();
     const hoveredTokenIndex = deps.getHoveredTokenIndex();
     const revision = deps.getHoveredSubtitleRevision();
+    const hoverColor = deps.getHoverTokenColor();
     const payload = buildHoveredTokenPayload({
       subtitle: subtitle && hasHoveredToken(subtitle, hoveredTokenIndex) ? subtitle : null,
       hoveredTokenIndex: hoveredTokenIndex,
       revision,
+      hoverColor,
     });
 
     mpvClient.send({ command: buildHoveredTokenMessageCommand(payload) });

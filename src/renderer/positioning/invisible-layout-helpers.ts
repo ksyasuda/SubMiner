@@ -54,13 +54,13 @@ export function applyVerticalPosition(
     bottomInset: number;
     marginY: number;
     effectiveFontSize: number;
+    borderPx: number;
+    shadowPx: number;
     vAlign: 0 | 1 | 2;
   },
 ): void {
-  const lineCount = Math.max(1, ctx.state.currentInvisibleSubtitleLineCount);
-  const multiline = lineCount > 1;
-  const baselineCompensationFactor = lineCount >= 3 ? 0.46 : multiline ? 0.58 : 0.7;
-  const baselineCompensationPx = Math.max(0, params.effectiveFontSize * baselineCompensationFactor);
+  const usableHeight = Math.max(1, params.renderAreaHeight - params.topInset - params.bottomInset);
+  const baselineCompensationPx = Math.max(0, (params.borderPx + params.shadowPx) * 5);
 
   if (params.vAlign === 2) {
     ctx.dom.subtitleContainer.style.top = `${Math.max(
@@ -78,9 +78,9 @@ export function applyVerticalPosition(
     return;
   }
 
-  const subPosMargin = ((100 - params.metrics.subPos) / 100) * params.renderAreaHeight;
-  const effectiveMargin = Math.max(params.marginY, subPosMargin);
-  const bottomPx = Math.max(0, params.bottomInset + effectiveMargin + baselineCompensationPx);
+  const anchorY =
+    params.topInset + (usableHeight * params.metrics.subPos) / 100 - params.marginY + baselineCompensationPx;
+  const bottomPx = Math.max(0, params.renderAreaHeight - anchorY);
 
   ctx.dom.subtitleContainer.style.top = '';
   ctx.dom.subtitleContainer.style.bottom = `${bottomPx}px`;

@@ -74,7 +74,18 @@ test('buildHoveredTokenPayload normalizes metadata and strips empty tokens', () 
   assert.equal(payload.tokens[0]?.text, '昨日');
   assert.equal(payload.tokens[0]?.index, 0);
   assert.equal(payload.tokens[1]?.index, 1);
-  assert.equal(payload.colors.hover, 'E7C06A');
+  assert.equal(payload.colors.hover, 'C6A0F6');
+});
+
+test('buildHoveredTokenPayload normalizes hover color override', () => {
+  const payload = buildHoveredTokenPayload({
+    subtitle: SUBTITLE,
+    hoveredTokenIndex: 1,
+    revision: 7,
+    hoverColor: '#c6a0f6',
+  });
+
+  assert.equal(payload.colors.hover, 'C6A0F6');
 });
 
 test('buildHoveredTokenMessageCommand sends script-message-to subminer payload', () => {
@@ -111,6 +122,7 @@ test('createApplyHoveredTokenOverlayHandler sends clear payload when hovered tok
     getCurrentSubtitleData: () => SUBTITLE,
     getHoveredTokenIndex: () => null,
     getHoveredSubtitleRevision: () => 3,
+    getHoverTokenColor: () => null,
   });
 
   apply();
@@ -134,6 +146,7 @@ test('createApplyHoveredTokenOverlayHandler sends highlight payload when hover i
     getCurrentSubtitleData: () => SUBTITLE,
     getHoveredTokenIndex: () => 0,
     getHoveredSubtitleRevision: () => 3,
+    getHoverTokenColor: () => '#c6a0f6',
   });
 
   apply();
@@ -142,6 +155,7 @@ test('createApplyHoveredTokenOverlayHandler sends highlight payload when hover i
   assert.equal(parsed.hoveredTokenIndex, 0);
   assert.equal(parsed.subtitle, '昨日は雨だった。');
   assert.equal(parsed.tokens.length, 4);
+  assert.equal(parsed.colors.hover, 'C6A0F6');
   assert.equal(commands[0]?.[0], 'script-message-to');
   assert.equal(commands[0]?.[1], HOVER_SCRIPT_NAME);
 });

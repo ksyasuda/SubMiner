@@ -99,3 +99,16 @@ test('subtitle processing can refresh current subtitle without text change', asy
     { text: 'same', tokens: [] },
   ]);
 });
+
+test('subtitle processing refresh can use explicit text override', async () => {
+  const emitted: SubtitleData[] = [];
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.refreshCurrentSubtitle('initial');
+  await flushMicrotasks();
+
+  assert.deepEqual(emitted, [{ text: 'initial', tokens: [] }]);
+});

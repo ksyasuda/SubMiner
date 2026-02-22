@@ -654,6 +654,7 @@ const applyHoveredTokenOverlay = createApplyHoveredTokenOverlayHandler({
   getCurrentSubtitleData: () => appState.currentSubtitleData,
   getHoveredTokenIndex: () => appState.hoveredSubtitleTokenIndex,
   getHoveredSubtitleRevision: () => appState.hoveredSubtitleRevision,
+  getHoverTokenColor: () => getResolvedConfig().subtitleStyle.hoverTokenColor ?? null,
 });
 const buildImmersionMediaRuntimeMainDepsHandler = createBuildImmersionMediaRuntimeMainDepsHandler({
   getResolvedConfig: () => getResolvedConfig(),
@@ -2973,7 +2974,7 @@ function setVisibleOverlayVisible(visible: boolean): void {
 function setInvisibleOverlayVisible(visible: boolean): void {
   setInvisibleOverlayVisibleHandler(visible);
   if (visible) {
-    subtitleProcessingController.refreshCurrentSubtitle();
+    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
   }
 }
 
