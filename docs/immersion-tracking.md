@@ -36,7 +36,12 @@ Primary index coverage:
 - event timeline/type reads: `idx_events_session_ts`, `idx_events_type_ts`
 - rollup reads: `idx_rollups_day_video`, `idx_rollups_month_video`
 
-Reference implementation lives in `src/core/services/immersion-tracker-service.ts` (`ensureSchema`).
+Ownership boundaries:
+
+- `src/core/services/immersion-tracker-service.ts`: orchestration facade (queueing, flush cadence, runtime event/session coordination).
+- `src/core/services/immersion-tracker/storage.ts`: schema bootstrap, prepared statement construction, and DB record writes/updates.
+- `src/core/services/immersion-tracker/session.ts`: session row lifecycle transitions (start/finalize).
+- `src/core/services/immersion-tracker/metadata.ts`: local media metadata probing (`ffprobe`, sha256, parsed metadata shaping).
 
 ## Retention and Maintenance Defaults
 
@@ -47,7 +52,7 @@ Reference implementation lives in `src/core/services/immersion-tracker-service.t
 - Maintenance cadence: startup + every `24h`
 - Vacuum cadence: idle weekly (`7d` minimum spacing)
 
-Retention cleanup, rollup refresh, and vacuum scheduling are implemented in `runMaintenance` / `runRollupMaintenance`.
+Retention cleanup and rollup refresh stay in service maintenance orchestration + `src/core/services/immersion-tracker/maintenance.ts`.
 
 ## Configurable Policy Knobs
 
