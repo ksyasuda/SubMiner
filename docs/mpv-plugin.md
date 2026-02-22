@@ -38,6 +38,7 @@ All keybindings use a `y` chord prefix — press `y`, then the second key:
 | `y-o` | Open settings window     |
 | `y-r` | Restart overlay          |
 | `y-c` | Check status             |
+| `y-k` | Skip intro (AniSkip)     |
 
 ## Menu
 
@@ -91,6 +92,29 @@ osd_messages=yes
 
 # Logging level: debug, info, warn, error.
 log_level=info
+
+# Enable AniSkip intro detection/markers.
+aniskip_enabled=yes
+
+# Optional title override (launcher fills from guessit when available).
+aniskip_title=
+
+# Optional season override (launcher fills from guessit when available).
+aniskip_season=
+
+# Optional MAL ID override. Leave blank to resolve from media title.
+aniskip_mal_id=
+
+# Optional episode override. Leave blank to detect from filename/title.
+aniskip_episode=
+
+# Show OSD skip button while inside intro range.
+aniskip_show_button=yes
+
+# OSD label + keybinding for intro skip action.
+aniskip_button_text=You can skip by pressing %s
+aniskip_button_key=y-k
+aniskip_button_duration=3
 ```
 
 ### Option Reference
@@ -107,6 +131,15 @@ log_level=info
 | `auto_start_invisible_overlay` | `platform-default`     | `platform-default`, `visible`, `hidden`    | Invisible layer on auto-start    |
 | `osd_messages`                 | `yes`                  | `yes` / `no`                               | Show OSD status messages         |
 | `log_level`                    | `info`                 | `debug`, `info`, `warn`, `error`           | Log verbosity                    |
+| `aniskip_enabled`              | `yes`                  | `yes` / `no`                               | Enable AniSkip intro detection   |
+| `aniskip_title`                | `""`                   | string                                     | Override title used for lookup   |
+| `aniskip_season`               | `""`                   | numeric season                             | Optional season hint             |
+| `aniskip_mal_id`               | `""`                   | numeric MAL id                             | Skip title lookup; use fixed id  |
+| `aniskip_episode`              | `""`                   | numeric episode                            | Skip episode parsing; use fixed  |
+| `aniskip_show_button`          | `yes`                  | `yes` / `no`                               | Show in-range intro skip prompt  |
+| `aniskip_button_text`          | `You can skip by pressing %s` | string                              | OSD prompt format (`%s`=key)     |
+| `aniskip_button_key`           | `y-k`                  | mpv key chord                              | Primary key for intro skip action (`y-k` always works as fallback) |
+| `aniskip_button_duration`      | `3`                    | float seconds                              | OSD hint duration                |
 
 ## Binary Auto-Detection
 
@@ -155,6 +188,8 @@ script-message subminer-menu
 script-message subminer-options
 script-message subminer-restart
 script-message subminer-status
+script-message subminer-aniskip-refresh
+script-message subminer-skip-intro
 ```
 
 The `subminer-start` message accepts overrides:
@@ -165,6 +200,15 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 
 `log-level` here controls only logging verbosity passed to SubMiner.
 `--debug` is a separate app/dev-mode flag in the main CLI and should not be used here for logging.
+
+## AniSkip Intro Skip
+
+- On file load, plugin resolves title + episode, resolves MAL id, then calls AniSkip API.
+- When launched via `subminer`, launcher runs `guessit` first (file targets) and passes title/season/episode to the plugin; fallback is filename-derived title.
+- Install `guessit` for best detection quality (`python3 -m pip install --user guessit`).
+- If OP interval exists, plugin adds `AniSkip Intro Start` and `AniSkip Intro End` chapters.
+- At intro start, plugin shows an OSD hint for the first 3 seconds (`You can skip by pressing y-k` by default).
+- Use `script-message subminer-aniskip-refresh` after changing media metadata/options to retry lookup.
 
 ## Lifecycle
 

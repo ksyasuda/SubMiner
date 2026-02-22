@@ -6,6 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import type { LogLevel, Backend, Args, MpvTrack } from './types.js';
 import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
 import { log, fail, getMpvLogPath } from './log.js';
+import { buildSubminerScriptOpts, inferAniSkipMetadataForFile } from './aniskip-metadata.js';
 import {
   commandExists,
   isExecutable,
@@ -472,7 +473,17 @@ export function startMpv(
   if (preloadedSubtitles?.secondaryPath) {
     mpvArgs.push(`--sub-file=${preloadedSubtitles.secondaryPath}`);
   }
-  mpvArgs.push(`--script-opts=subminer-binary_path=${appPath},subminer-socket_path=${socketPath}`);
+  const aniSkipMetadata =
+    targetKind === 'file' ? inferAniSkipMetadataForFile(target) : null;
+  const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata);
+  if (aniSkipMetadata) {
+    log(
+      'debug',
+      args.logLevel,
+      `AniSkip metadata (${aniSkipMetadata.source}): title="${aniSkipMetadata.title}" season=${aniSkipMetadata.season ?? '-'} episode=${aniSkipMetadata.episode ?? '-'}`,
+    );
+  }
+  mpvArgs.push(`--script-opts=${scriptOpts}`);
   mpvArgs.push(`--log-file=${getMpvLogPath()}`);
 
   try {
