@@ -92,7 +92,8 @@ When the mpv plugin is installed, all commands use a `y` chord prefix — press 
 | `y-o` | Open Yomitan settings                   |
 | `y-r` | Restart overlay                         |
 | `y-c` | Check overlay status                    |
-| `y-d` | Toggle overlay DevTools (dev/debug use) |
+
+When the overlay has focus, press `y` then `d` to toggle DevTools (debugging helper).
 
 ## Drag-and-Drop
 

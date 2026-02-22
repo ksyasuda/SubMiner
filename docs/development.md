@@ -94,20 +94,8 @@ bun run check:runtime-cycles:strict
 
 Expected success output includes:
 
-- `[OK] hotspot budget check (strict) — no hotspots over limit`
 - `[OK] main runtime fan-in (strict) — ...`
 - `[OK] runtime cycle check (strict) - ... no cycles detected`
-
-Hotspot budget baselines (2026-02-22):
-
-| File                                      | Baseline LOC | Limit LOC |
-| ----------------------------------------- | ------------ | --------- |
-| `src/main.ts`                             | 2978         | 3150      |
-| `src/config/service.ts`                   | 116          | 140       |
-| `src/core/services/tokenizer.ts`          | 232          | 260       |
-| `launcher/main.ts`                        | 101          | 130       |
-| `src/config/resolve.ts`                   | 33           | 55        |
-| `src/main/runtime/composers/contracts.ts` | 13           | 30        |
 
 Troubleshooting guardrail failures:
 

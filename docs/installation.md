@@ -30,6 +30,7 @@
 | rofi              | GUI-based video picker                     |
 | chafa             | Thumbnail previews in fzf                  |
 | ffmpegthumbnailer | Generate video thumbnails for picker       |
+| guessit           | Better AniSkip title/season/episode parsing for file playback |
 | alass             | Subtitle sync engine (preferred)           |
 | ffsubsync         | Subtitle sync engine (fallback)            |
 | Bun               | Required for the `subminer` wrapper script |
