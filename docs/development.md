@@ -63,12 +63,15 @@ electron . --background                       # tray/background mode, minimal de
 ```bash
 bun run test:config       # Source-level config schema/validation tests
 bun run test:launcher     # Launcher regression tests (config discovery + command routing)
+bun run test:launcher:smoke:src # Launcher e2e smoke: launcher -> mpv IPC -> overlay start/stop wiring
 bun run test:core         # Source-level core regression tests (default lane)
 bun run test:subtitle     # Subtitle pipeline tests (build + run)
 bun run test:fast         # Source-level config + core lane (no build prerequisite)
 ```
 
 Dist-level tests are now an explicit smoke lane used to validate compiled/runtime assumptions.
+
+Launcher smoke artifacts are written to `.tmp/launcher-smoke` locally and uploaded by CI/release workflows when the smoke step fails.
 
 Smoke and optional deep dist commands:
 

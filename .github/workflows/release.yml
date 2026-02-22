@@ -47,6 +47,17 @@ jobs:
       - name: Test suite (source)
         run: bun run test:fast
 
+      - name: Launcher smoke suite (source)
+        run: bun run test:launcher:smoke:src
+
+      - name: Upload launcher smoke artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-smoke
+          path: .tmp/launcher-smoke/**
+          if-no-files-found: ignore
+
       - name: Build (bundle)
         run: bun run build
 

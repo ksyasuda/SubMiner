@@ -224,4 +224,7 @@ SubMiner.AppImage --help    # Show all CLI options
 
 You should see the overlay appear over mpv. If subtitles are loaded in the video, they will appear as interactive text in the overlay.
 
+Release/pre-release gate: run `bun run test:launcher:smoke:src` to validate launcher -> mpv IPC socket -> overlay start/stop wiring.
+If the smoke lane fails, inspect `.tmp/launcher-smoke` artifacts locally; CI/release quality gates upload the same artifacts on failure.
+
 Next: [Usage](/usage) — learn about the `subminer` wrapper, keybindings, and YouTube playback.

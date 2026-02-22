@@ -2,9 +2,9 @@
 
 - alias: `opencode-task82-smoke`
 - mission: `Execute TASK-82 e2e smoke suite for launcher/mpv/ipc/overlay end-to-end without commit`
-- status: `planning`
+- status: `done`
 - start_utc: `2026-02-22T00:21:50Z`
-- last_update_utc: `2026-02-22T00:21:50Z`
+- last_update_utc: `2026-02-22T00:54:29Z`
 
 ## Intent
 
@@ -19,7 +19,8 @@
 - `package.json`
 - `.github/workflows/*.yml`
 - `docs/development.md`
-- `docs/RELEASING.md`
+- `docs/installation.md`
+- `backlog/tasks/task-82 - Add-end-to-end-smoke-suite-for-launcher-mpv-ipc-and-overlay-runtime.md`
 
 ## Assumptions
 
@@ -29,3 +30,4 @@
 ## Log
 
 - `2026-02-22T00:21:50Z` session started; backlog context loaded; moving to planning.
+- `2026-02-22T00:54:29Z` completed TASK-82 implementation slice: stabilized `launcher/smoke.e2e.test.ts`, wired `test:launcher:smoke:src` into CI/release with artifact upload on failure, updated docs (`development`, `installation`), and verified lanes: `test:launcher:smoke:src`, `test:launcher`, `test:fast`, `build`, `test:smoke:dist`, `docs:build`.
