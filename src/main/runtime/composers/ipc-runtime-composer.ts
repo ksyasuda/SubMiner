@@ -1,4 +1,5 @@
 import type { RegisterIpcRuntimeServicesParams } from '../../ipc-runtime';
+import type { SubsyncManualRunRequest, SubsyncResult } from '../../../types';
 import {
   createBuildMpvCommandFromIpcRuntimeMainDepsHandler,
   createIpcRuntimeHandlers,
@@ -11,7 +12,9 @@ type IpcMainDeps = RegisterIpcRuntimeServicesParams['mainDeps'];
 type IpcMainDepsWithoutHandlers = Omit<IpcMainDeps, 'handleMpvCommand' | 'runSubsyncManual'>;
 type RunSubsyncManual = IpcMainDeps['runSubsyncManual'];
 
-type IpcRuntimeDeps = Parameters<typeof createIpcRuntimeHandlers<unknown, unknown>>[0];
+type IpcRuntimeDeps = Parameters<
+  typeof createIpcRuntimeHandlers<SubsyncManualRunRequest, SubsyncResult>
+>[0];
 
 export type IpcRuntimeComposerOptions = ComposerInputs<{
   mpvCommandMainDeps: Parameters<typeof createBuildMpvCommandFromIpcRuntimeMainDepsHandler>[0];
@@ -38,8 +41,8 @@ export function composeIpcRuntimeHandlers(
     options.mpvCommandMainDeps,
   )();
   const { handleMpvCommandFromIpc, runSubsyncManualFromIpc } = createIpcRuntimeHandlers<
-    unknown,
-    unknown
+    SubsyncManualRunRequest,
+    SubsyncResult
   >({
     handleMpvCommandFromIpcDeps: {
       handleMpvCommandFromIpcRuntime: options.handleMpvCommandFromIpcRuntime,
@@ -56,7 +59,7 @@ export function composeIpcRuntimeHandlers(
       mainDeps: {
         ...options.registration.mainDeps,
         handleMpvCommand: (command) => handleMpvCommandFromIpc(command),
-        runSubsyncManual: (request: unknown) => runSubsyncManualFromIpc(request),
+        runSubsyncManual: (request) => runSubsyncManualFromIpc(request),
       },
       ankiJimakuDeps: options.registration.ankiJimakuDeps,
     });

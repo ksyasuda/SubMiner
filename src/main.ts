@@ -2622,8 +2622,7 @@ const {
     hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
   },
   handleMpvCommandFromIpcRuntime,
-  runSubsyncManualFromIpc: (request) =>
-    subsyncRuntime.runManualFromIpc(request as SubsyncManualRunRequest),
+  runSubsyncManualFromIpc: (request) => subsyncRuntime.runManualFromIpc(request),
   registration: {
     runtimeOptions: {
       getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
@@ -2641,8 +2640,8 @@ const {
           mainWindow.focus();
         }
       },
-      onOverlayModalClosed: (modal: string) => {
-        handleOverlayModalClosed(modal as OverlayHostedModal);
+      onOverlayModalClosed: (modal) => {
+        handleOverlayModalClosed(modal);
       },
       openYomitanSettings: () => openYomitanSettings(),
       quitApp: () => app.quit(),
@@ -2656,8 +2655,7 @@ const {
         const resolvedConfig = getResolvedConfig();
         return resolveSubtitleStyleForRenderer(resolvedConfig);
       },
-      saveSubtitlePosition: (position: unknown) =>
-        saveSubtitlePosition(position as SubtitlePosition),
+      saveSubtitlePosition: (position) => saveSubtitlePosition(position),
       getMecabTokenizer: () => appState.mecabTokenizer,
       getKeybindings: () => appState.keybindings,
       getConfiguredShortcuts: () => getConfiguredShortcuts(),

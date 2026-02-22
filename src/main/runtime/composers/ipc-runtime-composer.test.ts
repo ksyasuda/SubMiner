@@ -4,6 +4,7 @@ import { composeIpcRuntimeHandlers } from './ipc-runtime-composer';
 
 test('composeIpcRuntimeHandlers returns callable IPC handlers and registration bridge', async () => {
   let registered = false;
+  let receivedSourceTrackId: number | null | undefined;
 
   const composed = composeIpcRuntimeHandlers({
     mpvCommandMainDeps: {
@@ -18,10 +19,13 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
       hasRuntimeOptionsManager: () => true,
     },
     handleMpvCommandFromIpcRuntime: () => {},
-    runSubsyncManualFromIpc: async (request) => ({
-      ok: true,
-      received: (request as { value: number }).value,
-    }),
+    runSubsyncManualFromIpc: async (request) => {
+      receivedSourceTrackId = request.sourceTrackId;
+      return {
+        ok: true,
+        message: 'ok',
+      };
+    },
     registration: {
       runtimeOptions: {
         getRuntimeOptionsManager: () => null,
@@ -92,11 +96,12 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
   assert.equal(typeof composed.runSubsyncManualFromIpc, 'function');
   assert.equal(typeof composed.registerIpcRuntimeHandlers, 'function');
 
-  const result = (await composed.runSubsyncManualFromIpc({ value: 7 })) as {
-    ok: boolean;
-    received: number;
-  };
-  assert.deepEqual(result, { ok: true, received: 7 });
+  const result = await composed.runSubsyncManualFromIpc({
+    engine: 'alass',
+    sourceTrackId: 7,
+  });
+  assert.deepEqual(result, { ok: true, message: 'ok' });
+  assert.equal(receivedSourceTrackId, 7);
 
   composed.registerIpcRuntimeHandlers();
   assert.equal(registered, true);

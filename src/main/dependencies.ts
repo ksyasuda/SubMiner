@@ -26,23 +26,17 @@ export interface SubsyncRuntimeDepsParams {
 }
 
 export function createRuntimeOptionsIpcDeps(params: RuntimeOptionsIpcDepsParams): {
-  setRuntimeOption: (id: string, value: unknown) => unknown;
-  cycleRuntimeOption: (id: string, direction: 1 | -1) => unknown;
+  setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
+  cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
 } {
   return {
     setRuntimeOption: (id, value) =>
-      setRuntimeOptionFromIpcRuntime(
-        params.getRuntimeOptionsManager(),
-        id as RuntimeOptionId,
-        value as RuntimeOptionValue,
-        (text) => params.showMpvOsd(text),
+      setRuntimeOptionFromIpcRuntime(params.getRuntimeOptionsManager(), id, value, (text) =>
+        params.showMpvOsd(text),
       ),
     cycleRuntimeOption: (id, direction) =>
-      cycleRuntimeOptionFromIpcRuntime(
-        params.getRuntimeOptionsManager(),
-        id as RuntimeOptionId,
-        direction,
-        (text) => params.showMpvOsd(text),
+      cycleRuntimeOptionFromIpcRuntime(params.getRuntimeOptionsManager(), id, direction, (text) =>
+        params.showMpvOsd(text),
       ),
   };
 }

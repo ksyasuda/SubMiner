@@ -1,11 +1,11 @@
 ---
 id: TASK-80
 title: Strengthen IPC contract typing and runtime payload validation
-status: In Progress
+status: Done
 assignee:
   - opencode-task80-ipc-contract
 created_date: '2026-02-18 11:43'
-updated_date: '2026-02-22 00:21'
+updated_date: '2026-02-22 00:56'
 labels:
   - ipc
   - type-safety
@@ -41,10 +41,10 @@ IPC handlers still rely on many `unknown` payload casts in main process paths. T
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 IPC channels are defined in a typed central contract
-- [ ] #2 Runtime payload validation exists for externally supplied IPC data
-- [ ] #3 Unsafe cast usage in IPC boundary code is materially reduced
-- [ ] #4 Malformed payloads are handled gracefully and test-covered
+- [x] #1 IPC channels are defined in a typed central contract
+- [x] #2 Runtime payload validation exists for externally supplied IPC data
+- [x] #3 Unsafe cast usage in IPC boundary code is materially reduced
+- [x] #4 Malformed payloads are handled gracefully and test-covered
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -65,10 +65,28 @@ Plan of record (2026-02-22):
 2026-02-22: Started execution session opencode-task80-ipc-contract-20260222T001728Z-obrv. Loading IPC boundary code and preparing implementation plan via writing-plans before any code edits.
 
 Saved plan document: docs/plans/2026-02-22-task-80-ipc-contract-validation.md. Proceeding with executing-plans implementation flow as requested.
+
+Implemented central IPC contract module (`src/shared/ipc/contracts.ts`) and boundary validators (`src/shared/ipc/validators.ts`). Migrated preload/main IPC registrations from repeated literals to shared contract constants.
+
+Hardened runtime payload validation at IPC boundaries in `src/core/services/ipc.ts` and `src/core/services/anki-jimaku-ipc.ts` with graceful malformed-payload handling (structured invoke errors or safe no-op for fire-and-forget channels).
+
+Reduced IPC boundary casts by tightening runtime dependency signatures and wiring (`src/main/dependencies.ts`, `src/main.ts`, `src/main/runtime/composers/ipc-runtime-composer.ts`).
+
+Added malformed payload regression coverage in `src/core/services/ipc.test.ts` and new `src/core/services/anki-jimaku-ipc.test.ts`; wired dist lane command list in `package.json`.
+
+Validation run: `bun run build` (pass), `bun run test:core:src` (pass), `bun run test:core:dist` (pass). Updated IPC architecture conventions in `docs/architecture.md`.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented TASK-80 by introducing a centralized IPC contract (`src/shared/ipc/contracts.ts`) and reusable boundary validators (`src/shared/ipc/validators.ts`), then migrating main/preload IPC wiring to those shared definitions. Main-process IPC handlers now validate renderer-supplied payloads before dispatch, returning structured errors for malformed invoke requests and ignoring invalid fire-and-forget payloads safely.
+
+The runtime boundary typing was tightened to remove several unsafe casts in IPC paths (`src/main.ts`, `src/main/dependencies.ts`, `src/main/runtime/composers/ipc-runtime-composer.ts`) while preserving behavior. Added malformed payload tests for both core IPC and Anki/Jimaku IPC handler surfaces (`src/core/services/ipc.test.ts`, `src/core/services/anki-jimaku-ipc.test.ts`), and updated architecture docs with contract/validator ownership and boundary rules (`docs/architecture.md`). Verified with `bun run build`, `bun run test:core:src`, and `bun run test:core:dist` (all passing).
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 IPC-related tests pass
-- [ ] #2 IPC contract docs updated
+- [x] #1 IPC-related tests pass
+- [x] #2 IPC contract docs updated
 <!-- DOD:END -->

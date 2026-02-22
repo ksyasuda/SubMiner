@@ -1,4 +1,4 @@
-import { ipcMain, IpcMainEvent } from 'electron';
+import { ipcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -16,6 +16,14 @@ import {
   KikuMergePreviewRequest,
   KikuMergePreviewResponse,
 } from '../../types';
+import { IPC_CHANNELS } from '../../shared/ipc/contracts';
+import {
+  parseJimakuDownloadQuery,
+  parseJimakuFilesQuery,
+  parseJimakuSearchQuery,
+  parseKikuFieldGroupingChoice,
+  parseKikuMergePreviewRequest,
+} from '../../shared/ipc/validators';
 
 const logger = createLogger('main:anki-jimaku-ipc');
 
@@ -39,54 +47,85 @@ export interface AnkiJimakuIpcDeps {
   onDownloadedSubtitle: (pathToSubtitle: string) => void;
 }
 
-export function registerAnkiJimakuIpcHandlers(deps: AnkiJimakuIpcDeps): void {
-  ipcMain.on('set-anki-connect-enabled', (_event: IpcMainEvent, enabled: boolean) => {
+interface IpcMainRegistrar {
+  on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void;
+  handle: (channel: string, listener: (event: unknown, ...args: unknown[]) => unknown) => void;
+}
+
+export function registerAnkiJimakuIpcHandlers(
+  deps: AnkiJimakuIpcDeps,
+  ipc: IpcMainRegistrar = ipcMain,
+): void {
+  ipc.on(IPC_CHANNELS.command.setAnkiConnectEnabled, (_event: unknown, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') return;
     deps.setAnkiConnectEnabled(enabled);
   });
 
-  ipcMain.on('clear-anki-connect-history', () => {
+  ipc.on(IPC_CHANNELS.command.clearAnkiConnectHistory, () => {
     deps.clearAnkiHistory();
   });
 
-  ipcMain.on('anki:refresh-known-words', async () => {
+  ipc.on(IPC_CHANNELS.command.refreshKnownWords, async () => {
     await deps.refreshKnownWords();
   });
 
-  ipcMain.on(
-    'kiku:field-grouping-respond',
-    (_event: IpcMainEvent, choice: KikuFieldGroupingChoice) => {
-      deps.respondFieldGrouping(choice);
+  ipc.on(IPC_CHANNELS.command.kikuFieldGroupingRespond, (_event: unknown, choice: unknown) => {
+    const parsedChoice = parseKikuFieldGroupingChoice(choice);
+    if (!parsedChoice) return;
+    deps.respondFieldGrouping(parsedChoice);
+  });
+
+  ipc.handle(
+    IPC_CHANNELS.request.kikuBuildMergePreview,
+    async (_event, request: unknown): Promise<KikuMergePreviewResponse> => {
+      const parsedRequest = parseKikuMergePreviewRequest(request);
+      if (!parsedRequest) {
+        return { ok: false, error: 'Invalid merge preview request payload' };
+      }
+      return deps.buildKikuMergePreview(parsedRequest);
     },
   );
 
-  ipcMain.handle(
-    'kiku:build-merge-preview',
-    async (_event, request: KikuMergePreviewRequest): Promise<KikuMergePreviewResponse> => {
-      return deps.buildKikuMergePreview(request);
-    },
-  );
-
-  ipcMain.handle('jimaku:get-media-info', (): JimakuMediaInfo => {
+  ipc.handle(IPC_CHANNELS.request.jimakuGetMediaInfo, (): JimakuMediaInfo => {
     return deps.getJimakuMediaInfo();
   });
 
-  ipcMain.handle(
-    'jimaku:search-entries',
-    async (_event, query: JimakuSearchQuery): Promise<JimakuApiResponse<JimakuEntry[]>> => {
-      return deps.searchJimakuEntries(query);
+  ipc.handle(
+    IPC_CHANNELS.request.jimakuSearchEntries,
+    async (_event, query: unknown): Promise<JimakuApiResponse<JimakuEntry[]>> => {
+      const parsedQuery = parseJimakuSearchQuery(query);
+      if (!parsedQuery) {
+        return { ok: false, error: { error: 'Invalid Jimaku search query payload', code: 400 } };
+      }
+      return deps.searchJimakuEntries(parsedQuery);
     },
   );
 
-  ipcMain.handle(
-    'jimaku:list-files',
-    async (_event, query: JimakuFilesQuery): Promise<JimakuApiResponse<JimakuFileEntry[]>> => {
-      return deps.listJimakuFiles(query);
+  ipc.handle(
+    IPC_CHANNELS.request.jimakuListFiles,
+    async (_event, query: unknown): Promise<JimakuApiResponse<JimakuFileEntry[]>> => {
+      const parsedQuery = parseJimakuFilesQuery(query);
+      if (!parsedQuery) {
+        return { ok: false, error: { error: 'Invalid Jimaku files query payload', code: 400 } };
+      }
+      return deps.listJimakuFiles(parsedQuery);
     },
   );
 
-  ipcMain.handle(
-    'jimaku:download-file',
-    async (_event, query: JimakuDownloadQuery): Promise<JimakuDownloadResult> => {
+  ipc.handle(
+    IPC_CHANNELS.request.jimakuDownloadFile,
+    async (_event, query: unknown): Promise<JimakuDownloadResult> => {
+      const parsedQuery = parseJimakuDownloadQuery(query);
+      if (!parsedQuery) {
+        return {
+          ok: false,
+          error: {
+            error: 'Invalid Jimaku download query payload',
+            code: 400,
+          },
+        };
+      }
+
       const apiKey = await deps.resolveJimakuApiKey();
       if (!apiKey) {
         return {
@@ -106,7 +145,7 @@ export function registerAnkiJimakuIpcHandlers(deps: AnkiJimakuIpcDeps): void {
       const mediaDir = deps.isRemoteMediaPath(currentMediaPath)
         ? fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jimaku-'))
         : path.dirname(path.resolve(currentMediaPath));
-      const safeName = path.basename(query.name);
+      const safeName = path.basename(parsedQuery.name);
       if (!safeName) {
         return { ok: false, error: { error: 'Invalid subtitle filename.' } };
       }
@@ -115,19 +154,21 @@ export function registerAnkiJimakuIpcHandlers(deps: AnkiJimakuIpcDeps): void {
       const baseName = ext ? safeName.slice(0, -ext.length) : safeName;
       let targetPath = path.join(mediaDir, safeName);
       if (fs.existsSync(targetPath)) {
-        targetPath = path.join(mediaDir, `${baseName} (jimaku-${query.entryId})${ext}`);
+        targetPath = path.join(mediaDir, `${baseName} (jimaku-${parsedQuery.entryId})${ext}`);
         let counter = 2;
         while (fs.existsSync(targetPath)) {
           targetPath = path.join(
             mediaDir,
-            `${baseName} (jimaku-${query.entryId}-${counter})${ext}`,
+            `${baseName} (jimaku-${parsedQuery.entryId}-${counter})${ext}`,
           );
           counter += 1;
         }
       }
 
-      logger.info(`[jimaku] download-file name="${query.name}" entryId=${query.entryId}`);
-      const result = await deps.downloadToFile(query.url, targetPath, {
+      logger.info(
+        `[jimaku] download-file name="${parsedQuery.name}" entryId=${parsedQuery.entryId}`,
+      );
+      const result = await deps.downloadToFile(parsedQuery.url, targetPath, {
         Authorization: apiKey,
         'User-Agent': 'SubMiner',
       });

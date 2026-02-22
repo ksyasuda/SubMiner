@@ -178,6 +178,13 @@ Composer modules share contract conventions via `src/main/runtime/composers/cont
 
 This keeps side effects explicit and makes behavior easy to unit-test with fakes.
 
+### IPC Contract + Validation Boundary
+
+- Central channel constants live in `src/shared/ipc/contracts.ts` and are consumed by both main (`ipcMain`) and renderer preload (`ipcRenderer`) wiring.
+- Runtime payload parsers/type guards live in `src/shared/ipc/validators.ts`.
+- Rule: renderer-supplied payloads must be validated at IPC entry points (`src/core/services/ipc.ts`, `src/core/services/anki-jimaku-ipc.ts`) before calling domain handlers.
+- Malformed invoke payloads return explicit structured errors (for example `{ ok: false, error: ... }`) and malformed fire-and-forget payloads are ignored safely.
+
 ### Runtime State Ownership (Migrated Domains)
 
 For domains migrated to reducer-style transitions (for example AniList token/queue/media-guess runtime state), follow these rules:
@@ -255,3 +262,4 @@ flowchart TD
 - Add/update unit tests for each service extraction or behavior change.
 - For cross-cutting changes, extract-first then refactor internals after parity is verified.
 - When adding new IPC channels or CLI commands, register them in the appropriate `src/main/` module (`ipc-runtime.ts` for IPC, `cli-runtime.ts` for CLI).
+- When adding/changing IPC channels, update `src/shared/ipc/contracts.ts`, validate payloads in `src/shared/ipc/validators.ts`, and add malformed-payload tests.

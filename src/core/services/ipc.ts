@@ -1,10 +1,28 @@
 import { BrowserWindow, ipcMain, IpcMainEvent } from 'electron';
+import type {
+  RuntimeOptionId,
+  RuntimeOptionValue,
+  SubtitlePosition,
+  SubsyncManualRunRequest,
+  SubsyncResult,
+} from '../../types';
+import { IPC_CHANNELS, type OverlayHostedModal } from '../../shared/ipc/contracts';
+import {
+  parseMpvCommand,
+  parseOptionalForwardingOptions,
+  parseOverlayHostedModal,
+  parseRuntimeOptionDirection,
+  parseRuntimeOptionId,
+  parseRuntimeOptionValue,
+  parseSubtitlePosition,
+  parseSubsyncManualRunRequest,
+} from '../../shared/ipc/validators';
 
 export interface IpcServiceDeps {
   getInvisibleWindow: () => WindowLike | null;
   isVisibleOverlayVisible: () => boolean;
   setInvisibleIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
-  onOverlayModalClosed: (modal: string) => void;
+  onOverlayModalClosed: (modal: OverlayHostedModal) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleDevTools: () => void;
@@ -17,7 +35,7 @@ export interface IpcServiceDeps {
   getMpvSubtitleRenderMetrics: () => unknown;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
-  saveSubtitlePosition: (position: unknown) => void;
+  saveSubtitlePosition: (position: SubtitlePosition) => void;
   getMecabStatus: () => {
     available: boolean;
     enabled: boolean;
@@ -30,11 +48,11 @@ export interface IpcServiceDeps {
   getSecondarySubMode: () => unknown;
   getCurrentSecondarySub: () => string;
   focusMainWindow: () => void;
-  runSubsyncManual: (request: unknown) => Promise<unknown>;
+  runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
   getAnkiConnectStatus: () => boolean;
   getRuntimeOptions: () => unknown;
-  setRuntimeOption: (id: string, value: unknown) => unknown;
-  cycleRuntimeOption: (id: string, direction: 1 | -1) => unknown;
+  setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
+  cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
   reportOverlayContentBounds: (payload: unknown) => void;
   getAnilistStatus: () => unknown;
   clearAnilistToken: () => void;
@@ -66,12 +84,17 @@ interface MpvClientLike {
   currentSecondarySubText?: string;
 }
 
+interface IpcMainRegistrar {
+  on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void;
+  handle: (channel: string, listener: (event: unknown, ...args: unknown[]) => unknown) => void;
+}
+
 export interface IpcDepsRuntimeOptions {
   getInvisibleWindow: () => WindowLike | null;
   getMainWindow: () => WindowLike | null;
   getVisibleOverlayVisibility: () => boolean;
   getInvisibleOverlayVisibility: () => boolean;
-  onOverlayModalClosed: (modal: string) => void;
+  onOverlayModalClosed: (modal: OverlayHostedModal) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleVisibleOverlay: () => void;
@@ -81,7 +104,7 @@ export interface IpcDepsRuntimeOptions {
   getMpvSubtitleRenderMetrics: () => unknown;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
-  saveSubtitlePosition: (position: unknown) => void;
+  saveSubtitlePosition: (position: SubtitlePosition) => void;
   getMecabTokenizer: () => MecabTokenizerLike | null;
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
@@ -89,11 +112,11 @@ export interface IpcDepsRuntimeOptions {
   getSecondarySubMode: () => unknown;
   getMpvClient: () => MpvClientLike | null;
   focusMainWindow: () => void;
-  runSubsyncManual: (request: unknown) => Promise<unknown>;
+  runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
   getAnkiConnectStatus: () => boolean;
   getRuntimeOptions: () => unknown;
-  setRuntimeOption: (id: string, value: unknown) => unknown;
-  cycleRuntimeOption: (id: string, direction: 1 | -1) => unknown;
+  setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
+  cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
   reportOverlayContentBounds: (payload: unknown) => void;
   getAnilistStatus: () => unknown;
   clearAnilistToken: () => void;
@@ -166,11 +189,13 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
   };
 }
 
-export function registerIpcHandlers(deps: IpcServiceDeps): void {
-  ipcMain.on(
-    'set-ignore-mouse-events',
-    (event: IpcMainEvent, ignore: boolean, options: { forward?: boolean } = {}) => {
-      const senderWindow = BrowserWindow.fromWebContents(event.sender);
+export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar = ipcMain): void {
+  ipc.on(
+    IPC_CHANNELS.command.setIgnoreMouseEvents,
+    (event: unknown, ignore: unknown, options: unknown = {}) => {
+      if (typeof ignore !== 'boolean') return;
+      const parsedOptions = parseOptionalForwardingOptions(options);
+      const senderWindow = BrowserWindow.fromWebContents((event as IpcMainEvent).sender);
       if (senderWindow && !senderWindow.isDestroyed()) {
         const invisibleWindow = deps.getInvisibleWindow();
         if (
@@ -181,151 +206,178 @@ export function registerIpcHandlers(deps: IpcServiceDeps): void {
         ) {
           deps.setInvisibleIgnoreMouseEvents(true, { forward: true });
         } else {
-          senderWindow.setIgnoreMouseEvents(ignore, options);
+          senderWindow.setIgnoreMouseEvents(ignore, parsedOptions);
         }
       }
     },
   );
 
-  ipcMain.on('overlay:modal-closed', (_event: IpcMainEvent, modal: string) => {
-    deps.onOverlayModalClosed(modal);
+  ipc.on(IPC_CHANNELS.command.overlayModalClosed, (_event: unknown, modal: unknown) => {
+    const parsedModal = parseOverlayHostedModal(modal);
+    if (!parsedModal) return;
+    deps.onOverlayModalClosed(parsedModal);
   });
 
-  ipcMain.on('open-yomitan-settings', () => {
+  ipc.on(IPC_CHANNELS.command.openYomitanSettings, () => {
     deps.openYomitanSettings();
   });
 
-  ipcMain.on('quit-app', () => {
+  ipc.on(IPC_CHANNELS.command.quitApp, () => {
     deps.quitApp();
   });
 
-  ipcMain.on('toggle-dev-tools', () => {
+  ipc.on(IPC_CHANNELS.command.toggleDevTools, () => {
     deps.toggleDevTools();
   });
 
-  ipcMain.handle('get-overlay-visibility', () => {
+  ipc.handle(IPC_CHANNELS.request.getOverlayVisibility, () => {
     return deps.getVisibleOverlayVisibility();
   });
 
-  ipcMain.on('toggle-overlay', () => {
+  ipc.on(IPC_CHANNELS.command.toggleOverlay, () => {
     deps.toggleVisibleOverlay();
   });
 
-  ipcMain.handle('get-visible-overlay-visibility', () => {
+  ipc.handle(IPC_CHANNELS.request.getVisibleOverlayVisibility, () => {
     return deps.getVisibleOverlayVisibility();
   });
 
-  ipcMain.handle('get-invisible-overlay-visibility', () => {
+  ipc.handle(IPC_CHANNELS.request.getInvisibleOverlayVisibility, () => {
     return deps.getInvisibleOverlayVisibility();
   });
 
-  ipcMain.handle('get-current-subtitle', async () => {
+  ipc.handle(IPC_CHANNELS.request.getCurrentSubtitle, async () => {
     return await deps.tokenizeCurrentSubtitle();
   });
 
-  ipcMain.handle('get-current-subtitle-raw', () => {
+  ipc.handle(IPC_CHANNELS.request.getCurrentSubtitleRaw, () => {
     return deps.getCurrentSubtitleRaw();
   });
 
-  ipcMain.handle('get-current-subtitle-ass', () => {
+  ipc.handle(IPC_CHANNELS.request.getCurrentSubtitleAss, () => {
     return deps.getCurrentSubtitleAss();
   });
 
-  ipcMain.handle('get-mpv-subtitle-render-metrics', () => {
+  ipc.handle(IPC_CHANNELS.request.getMpvSubtitleRenderMetrics, () => {
     return deps.getMpvSubtitleRenderMetrics();
   });
 
-  ipcMain.handle('get-subtitle-position', () => {
+  ipc.handle(IPC_CHANNELS.request.getSubtitlePosition, () => {
     return deps.getSubtitlePosition();
   });
 
-  ipcMain.handle('get-subtitle-style', () => {
+  ipc.handle(IPC_CHANNELS.request.getSubtitleStyle, () => {
     return deps.getSubtitleStyle();
   });
 
-  ipcMain.on('save-subtitle-position', (_event: IpcMainEvent, position: unknown) => {
-    deps.saveSubtitlePosition(position);
+  ipc.on(IPC_CHANNELS.command.saveSubtitlePosition, (_event: unknown, position: unknown) => {
+    const parsedPosition = parseSubtitlePosition(position);
+    if (!parsedPosition) return;
+    deps.saveSubtitlePosition(parsedPosition);
   });
 
-  ipcMain.handle('get-mecab-status', () => {
+  ipc.handle(IPC_CHANNELS.request.getMecabStatus, () => {
     return deps.getMecabStatus();
   });
 
-  ipcMain.on('set-mecab-enabled', (_event: IpcMainEvent, enabled: boolean) => {
+  ipc.on(IPC_CHANNELS.command.setMecabEnabled, (_event: unknown, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') return;
     deps.setMecabEnabled(enabled);
   });
 
-  ipcMain.on('mpv-command', (_event: IpcMainEvent, command: (string | number)[]) => {
-    deps.handleMpvCommand(command);
+  ipc.on(IPC_CHANNELS.command.mpvCommand, (_event: unknown, command: unknown) => {
+    const parsedCommand = parseMpvCommand(command);
+    if (!parsedCommand) return;
+    deps.handleMpvCommand(parsedCommand);
   });
 
-  ipcMain.handle('get-keybindings', () => {
+  ipc.handle(IPC_CHANNELS.request.getKeybindings, () => {
     return deps.getKeybindings();
   });
 
-  ipcMain.handle('get-config-shortcuts', () => {
+  ipc.handle(IPC_CHANNELS.request.getConfigShortcuts, () => {
     return deps.getConfiguredShortcuts();
   });
 
-  ipcMain.handle('get-secondary-sub-mode', () => {
+  ipc.handle(IPC_CHANNELS.request.getSecondarySubMode, () => {
     return deps.getSecondarySubMode();
   });
 
-  ipcMain.handle('get-current-secondary-sub', () => {
+  ipc.handle(IPC_CHANNELS.request.getCurrentSecondarySub, () => {
     return deps.getCurrentSecondarySub();
   });
 
-  ipcMain.handle('focus-main-window', () => {
+  ipc.handle(IPC_CHANNELS.request.focusMainWindow, () => {
     deps.focusMainWindow();
   });
 
-  ipcMain.handle('subsync:run-manual', async (_event, request: unknown) => {
-    return await deps.runSubsyncManual(request);
+  ipc.handle(IPC_CHANNELS.request.runSubsyncManual, async (_event, request: unknown) => {
+    const parsedRequest = parseSubsyncManualRunRequest(request);
+    if (!parsedRequest) {
+      return { ok: false, message: 'Invalid subsync manual request payload' };
+    }
+    return await deps.runSubsyncManual(parsedRequest);
   });
 
-  ipcMain.handle('get-anki-connect-status', () => {
+  ipc.handle(IPC_CHANNELS.request.getAnkiConnectStatus, () => {
     return deps.getAnkiConnectStatus();
   });
 
-  ipcMain.handle('runtime-options:get', () => {
+  ipc.handle(IPC_CHANNELS.request.getRuntimeOptions, () => {
     return deps.getRuntimeOptions();
   });
 
-  ipcMain.handle('runtime-options:set', (_event, id: string, value: unknown) => {
-    return deps.setRuntimeOption(id, value);
+  ipc.handle(IPC_CHANNELS.request.setRuntimeOption, (_event, id: unknown, value: unknown) => {
+    const parsedId = parseRuntimeOptionId(id);
+    if (!parsedId) {
+      return { ok: false, error: 'Invalid runtime option id' };
+    }
+    const parsedValue = parseRuntimeOptionValue(value);
+    if (parsedValue === null) {
+      return { ok: false, error: 'Invalid runtime option value payload' };
+    }
+    return deps.setRuntimeOption(parsedId, parsedValue);
   });
 
-  ipcMain.handle('runtime-options:cycle', (_event, id: string, direction: 1 | -1) => {
-    return deps.cycleRuntimeOption(id, direction);
+  ipc.handle(IPC_CHANNELS.request.cycleRuntimeOption, (_event, id: unknown, direction: unknown) => {
+    const parsedId = parseRuntimeOptionId(id);
+    if (!parsedId) {
+      return { ok: false, error: 'Invalid runtime option id' };
+    }
+    const parsedDirection = parseRuntimeOptionDirection(direction);
+    if (!parsedDirection) {
+      return { ok: false, error: 'Invalid runtime option cycle direction' };
+    }
+    return deps.cycleRuntimeOption(parsedId, parsedDirection);
   });
 
-  ipcMain.on('overlay-content-bounds:report', (_event: IpcMainEvent, payload: unknown) => {
+  ipc.on(IPC_CHANNELS.command.reportOverlayContentBounds, (_event: unknown, payload: unknown) => {
     deps.reportOverlayContentBounds(payload);
   });
 
-  ipcMain.handle('anilist:get-status', () => {
+  ipc.handle(IPC_CHANNELS.request.getAnilistStatus, () => {
     return deps.getAnilistStatus();
   });
 
-  ipcMain.handle('anilist:clear-token', () => {
+  ipc.handle(IPC_CHANNELS.request.clearAnilistToken, () => {
     deps.clearAnilistToken();
     return { ok: true };
   });
 
-  ipcMain.handle('anilist:open-setup', () => {
+  ipc.handle(IPC_CHANNELS.request.openAnilistSetup, () => {
     deps.openAnilistSetup();
     return { ok: true };
   });
 
-  ipcMain.handle('anilist:get-queue-status', () => {
+  ipc.handle(IPC_CHANNELS.request.getAnilistQueueStatus, () => {
     return deps.getAnilistQueueStatus();
   });
 
-  ipcMain.handle('anilist:retry-now', async () => {
+  ipc.handle(IPC_CHANNELS.request.retryAnilistNow, async () => {
     return await deps.retryAnilistQueueNow();
   });
 
-  ipcMain.handle('clipboard:append-video-to-queue', () => {
+  ipc.handle(IPC_CHANNELS.request.appendClipboardVideoToQueue, () => {
     return deps.appendClipboardVideoToQueue();
   });
 }

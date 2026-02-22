@@ -2,9 +2,9 @@
 
 - alias: `opencode-task80-ipc-contract`
 - mission: `Execute TASK-80 IPC contract typing + runtime payload validation via writing-plans + executing-plans (no commit).`
-- status: `planning`
+- status: `done`
 - started_utc: `2026-02-22T00:17:28Z`
-- last_update_utc: `2026-02-22T00:17:28Z`
+- last_update_utc: `2026-02-22T00:56:00Z`
 
 ## Intent
 
@@ -20,6 +20,22 @@
 - `src/main/**/*.test.ts`
 - `docs/architecture.md`
 
+## Files Touched
+
+- `src/shared/ipc/contracts.ts`
+- `src/shared/ipc/validators.ts`
+- `src/core/services/ipc.ts`
+- `src/core/services/anki-jimaku-ipc.ts`
+- `src/preload.ts`
+- `src/main/dependencies.ts`
+- `src/main.ts`
+- `src/main/runtime/composers/ipc-runtime-composer.ts`
+- `src/main/runtime/composers/ipc-runtime-composer.test.ts`
+- `src/core/services/ipc.test.ts`
+- `src/core/services/anki-jimaku-ipc.test.ts`
+- `package.json`
+- `docs/architecture.md`
+
 ## Assumptions
 
 - TASK-80 scope is main-process IPC boundary; keep external behavior/backward compatibility.
@@ -29,3 +45,6 @@
 ## Phase Log
 
 - `2026-02-22T00:17:28Z` Session started; read backlog overview and TASK-80 details; beginning planning.
+- `2026-02-22T00:21:00Z` Plan written to `docs/plans/2026-02-22-task-80-ipc-contract-validation.md` and recorded in Backlog TASK-80.
+- `2026-02-22T00:55:30Z` Implemented IPC contract/constants + validators and rewired main/preload/anki-jimaku IPC boundary handlers with runtime payload checks and graceful malformed handling.
+- `2026-02-22T00:56:00Z` Validation complete: `bun run build`, `bun run test:core:src`, `bun run test:core:dist` all passing; TASK-80 finalized Done in Backlog.
