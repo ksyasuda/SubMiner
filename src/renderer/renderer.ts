@@ -131,6 +131,9 @@ const mouseHandlers = createMouseHandlers(ctx, {
   applyYPercent: positioning.applyYPercent,
   getCurrentYPercent: positioning.getCurrentYPercent,
   persistSubtitlePositionPatch: positioning.persistSubtitlePositionPatch,
+  reportHoveredTokenIndex: (tokenIndex: number | null) => {
+    window.electronAPI.reportHoveredSubtitleToken(tokenIndex);
+  },
 });
 
 let lastSubtitlePreview = '';
@@ -307,6 +310,7 @@ async function init(): Promise<void> {
   ctx.dom.secondarySubContainer.addEventListener('mouseleave', mouseHandlers.handleMouseLeave);
 
   mouseHandlers.setupInvisibleHoverSelection();
+  mouseHandlers.setupInvisibleTokenHoverReporter();
   positioning.setupInvisiblePositionEditHud();
   mouseHandlers.setupResizeHandler();
   mouseHandlers.setupSelectionObserver();

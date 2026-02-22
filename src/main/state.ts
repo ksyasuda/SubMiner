@@ -4,6 +4,7 @@ import type {
   Keybinding,
   MpvSubtitleRenderMetrics,
   SecondarySubMode,
+  SubtitleData,
   SubtitlePosition,
   KikuFieldGroupingChoice,
   JlptLevel,
@@ -152,6 +153,9 @@ export interface AppState {
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   currentSubText: string;
   currentSubAssText: string;
+  currentSubtitleData: SubtitleData | null;
+  hoveredSubtitleTokenIndex: number | null;
+  hoveredSubtitleRevision: number;
   windowTracker: BaseWindowTracker | null;
   subtitlePosition: SubtitlePosition | null;
   currentMediaPath: string | null;
@@ -221,6 +225,9 @@ export function createAppState(values: AppStateInitialValues): AppState {
     reconnectTimer: null,
     currentSubText: '',
     currentSubAssText: '',
+    currentSubtitleData: null,
+    hoveredSubtitleTokenIndex: null,
+    hoveredSubtitleRevision: 0,
     windowTracker: null,
     subtitlePosition: null,
     currentMediaPath: null,

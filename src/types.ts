@@ -710,6 +710,10 @@ export interface ConfigHotReloadPayload {
   secondarySubMode: SecondarySubMode;
 }
 
+export interface SubtitleHoverTokenPayload {
+  tokenIndex: number | null;
+}
+
 export interface ElectronAPI {
   getOverlayLayer: () => 'visible' | 'invisible' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
@@ -765,6 +769,7 @@ export interface ElectronAPI {
   appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
   notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku') => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
+  reportHoveredSubtitleToken: (tokenIndex: number | null) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;
 }
 

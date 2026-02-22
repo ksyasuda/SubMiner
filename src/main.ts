@@ -92,8 +92,16 @@ import { createBuildRefreshAnilistClientSecretStateMainDepsHandler } from './mai
 import {
   getConfiguredJellyfinSession,
   type ActiveJellyfinRemotePlaybackState,
+  createReportJellyfinRemoteProgressHandler,
+  createReportJellyfinRemoteStoppedHandler,
+  createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler,
+  createBuildHandleJellyfinRemotePlayMainDepsHandler,
+  createBuildHandleJellyfinRemotePlaystateMainDepsHandler,
+  createBuildReportJellyfinRemoteProgressMainDepsHandler,
+  createBuildReportJellyfinRemoteStoppedMainDepsHandler,
 } from './main/runtime/domains/jellyfin';
 import { createBuildSubtitleProcessingControllerMainDepsHandler } from './main/runtime/domains/startup';
+import { createApplyHoveredTokenOverlayHandler } from './main/runtime/mpv-hover-highlight';
 import {
   createBuildAnilistStateRuntimeMainDepsHandler,
   createBuildConfigDerivedRuntimeMainDepsHandler,
@@ -641,6 +649,12 @@ const appState = createAppState({
   mpvSocketPath: getDefaultSocketPath(),
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
 });
+const applyHoveredTokenOverlay = createApplyHoveredTokenOverlayHandler({
+  getMpvClient: () => appState.mpvClient,
+  getCurrentSubtitleData: () => appState.currentSubtitleData,
+  getHoveredTokenIndex: () => appState.hoveredSubtitleTokenIndex,
+  getHoveredSubtitleRevision: () => appState.hoveredSubtitleRevision,
+});
 const buildImmersionMediaRuntimeMainDepsHandler = createBuildImmersionMediaRuntimeMainDepsHandler({
   getResolvedConfig: () => getResolvedConfig(),
   defaultImmersionDbPath: DEFAULT_IMMERSION_DB_PATH,
@@ -703,26 +717,36 @@ const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsH
 let appTray: Tray | null = null;
 const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({
-    tokenizeSubtitle: async (text: string) => {
-      if (getOverlayWindows().length === 0 && !subtitleWsService.hasClients()) {
-        return null;
-      }
-      return await tokenizeSubtitle(text);
-    },
-    emitSubtitle: (payload) => {
-      broadcastToOverlayWindows('subtitle:set', payload);
-      subtitleWsService.broadcast(payload, {
-        enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-        topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
-        mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
-      });
-    },
-    logDebug: (message) => {
-      logger.debug(`[subtitle-processing] ${message}`);
-    },
-    now: () => Date.now(),
-  });
-const subtitleProcessingControllerMainDeps = buildSubtitleProcessingControllerMainDepsHandler();
+  tokenizeSubtitle: async (text: string) => {
+    if (getOverlayWindows().length === 0 && !subtitleWsService.hasClients()) {
+      return null;
+    }
+    return await tokenizeSubtitle(text);
+  },
+  emitSubtitle: (payload) => {
+    const previousSubtitleText = appState.currentSubtitleData?.text ?? null;
+    const nextSubtitleText = payload?.text ?? null;
+    const subtitleChanged = previousSubtitleText !== nextSubtitleText;
+    appState.currentSubtitleData = payload;
+    if (subtitleChanged) {
+      appState.hoveredSubtitleTokenIndex = null;
+      appState.hoveredSubtitleRevision += 1;
+      applyHoveredTokenOverlay();
+    }
+    broadcastToOverlayWindows('subtitle:set', payload);
+    subtitleWsService.broadcast(payload, {
+      enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+      topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+      mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+    });
+  },
+  logDebug: (message) => {
+    logger.debug(`[subtitle-processing] ${message}`);
+  },
+  now: () => Date.now(),
+});
+const subtitleProcessingControllerMainDeps =
+  buildSubtitleProcessingControllerMainDepsHandler();
 const subtitleProcessingController = createSubtitleProcessingController(
   subtitleProcessingControllerMainDeps,
 );
@@ -2671,6 +2695,9 @@ const {
       reportOverlayContentBounds: (payload: unknown) => {
         overlayContentMeasurementStore.report(payload);
       },
+      reportHoveredSubtitleToken: (tokenIndex: number | null) => {
+        reportHoveredSubtitleToken(tokenIndex);
+      },
       getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
       clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
       openAnilistSetup: () => openAnilistSetupWindow(),
@@ -2965,6 +2992,11 @@ function handleOverlayModalClosed(modal: OverlayHostedModal): void {
 
 function handleMpvCommandFromIpc(command: (string | number)[]): void {
   handleMpvCommandFromIpcHandler(command);
+}
+
+function reportHoveredSubtitleToken(tokenIndex: number | null): void {
+  appState.hoveredSubtitleTokenIndex = tokenIndex;
+  applyHoveredTokenOverlay();
 }
 
 async function runSubsyncManualFromIpc(request: SubsyncManualRunRequest): Promise<SubsyncResult> {

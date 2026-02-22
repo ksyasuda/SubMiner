@@ -64,6 +64,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     setRuntimeOption: () => ({ ok: true }),
     cycleRuntimeOption: () => ({ ok: true }),
     reportOverlayContentBounds: () => {},
+    reportHoveredSubtitleToken: () => {},
     getAnilistStatus: () => ({ tokenStatus: 'resolved' }),
     clearAnilistToken: () => {
       calls.push('clearAnilistToken');
@@ -137,6 +138,7 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
         return { ok: true };
       },
       reportOverlayContentBounds: () => {},
+      reportHoveredSubtitleToken: () => {},
       getAnilistStatus: () => ({}),
       clearAnilistToken: () => {},
       openAnilistSetup: () => {},
@@ -212,6 +214,7 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       setRuntimeOption: () => ({ ok: true }),
       cycleRuntimeOption: () => ({ ok: true }),
       reportOverlayContentBounds: () => {},
+      reportHoveredSubtitleToken: () => {},
       getAnilistStatus: () => ({}),
       clearAnilistToken: () => {},
       openAnilistSetup: () => {},

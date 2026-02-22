@@ -134,6 +134,7 @@ function renderWithTokens(
       const span = document.createElement('span');
       span.className = computeWordClass(token, resolvedFrequencyRenderSettings);
       span.textContent = token.surface;
+      span.dataset.tokenIndex = String(segment.tokenIndex);
       if (token.reading) span.dataset.reading = token.reading;
       if (token.headword) span.dataset.headword = token.headword;
       fragment.appendChild(span);
@@ -143,7 +144,11 @@ function renderWithTokens(
     return;
   }
 
-  for (const token of tokens) {
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!token) {
+      continue;
+    }
     const surface = token.surface.replace(/\n/g, ' ');
     if (!surface) {
       continue;
@@ -157,6 +162,7 @@ function renderWithTokens(
     const span = document.createElement('span');
     span.className = computeWordClass(token, resolvedFrequencyRenderSettings);
     span.textContent = surface;
+    span.dataset.tokenIndex = String(index);
     if (token.reading) span.dataset.reading = token.reading;
     if (token.headword) span.dataset.headword = token.headword;
     fragment.appendChild(span);
@@ -165,7 +171,9 @@ function renderWithTokens(
   root.appendChild(fragment);
 }
 
-type SubtitleRenderSegment = { kind: 'text'; text: string } | { kind: 'token'; token: MergedToken };
+type SubtitleRenderSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'token'; token: MergedToken; tokenIndex: number };
 
 export function alignTokensToSourceText(
   tokens: MergedToken[],
@@ -178,7 +186,11 @@ export function alignTokensToSourceText(
   const segments: SubtitleRenderSegment[] = [];
   let cursor = 0;
 
-  for (const token of tokens) {
+  for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex += 1) {
+    const token = tokens[tokenIndex];
+    if (!token) {
+      continue;
+    }
     const surface = token.surface;
     if (!surface || isWhitespaceOnly(surface)) {
       continue;
@@ -195,7 +207,7 @@ export function alignTokensToSourceText(
       segments.push({ kind: 'text', text: sourceText.slice(cursor, foundIndex) });
     }
 
-    segments.push({ kind: 'token', token });
+    segments.push({ kind: 'token', token, tokenIndex });
     cursor = foundIndex + surface.length;
   }
 
@@ -282,6 +294,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     ctx.dom.subtitleRoot.innerHTML = '';
     ctx.state.lastHoverSelectionKey = '';
     ctx.state.lastHoverSelectionNode = null;
+    ctx.state.lastHoveredTokenIndex = null;
 
     let text: string;
     let tokens: MergedToken[] | null;
@@ -304,7 +317,17 @@ export function createSubtitleRenderer(ctx: RendererContext) {
         1,
         normalizedInvisible.split('\n').length,
       );
-      renderPlainTextPreserveLineBreaks(ctx.dom.subtitleRoot, normalizedInvisible);
+      if (tokens && tokens.length > 0) {
+        renderWithTokens(
+          ctx.dom.subtitleRoot,
+          tokens,
+          getFrequencyRenderSettings(),
+          text,
+          true,
+        );
+      } else {
+        renderPlainTextPreserveLineBreaks(ctx.dom.subtitleRoot, normalizedInvisible);
+      }
       return;
     }
 

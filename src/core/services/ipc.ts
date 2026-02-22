@@ -54,6 +54,7 @@ export interface IpcServiceDeps {
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
   reportOverlayContentBounds: (payload: unknown) => void;
+  reportHoveredSubtitleToken: (tokenIndex: number | null) => void;
   getAnilistStatus: () => unknown;
   clearAnilistToken: () => void;
   openAnilistSetup: () => void;
@@ -118,6 +119,7 @@ export interface IpcDepsRuntimeOptions {
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
   reportOverlayContentBounds: (payload: unknown) => void;
+  reportHoveredSubtitleToken: (tokenIndex: number | null) => void;
   getAnilistStatus: () => unknown;
   clearAnilistToken: () => void;
   openAnilistSetup: () => void;
@@ -180,6 +182,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     setRuntimeOption: options.setRuntimeOption,
     cycleRuntimeOption: options.cycleRuntimeOption,
     reportOverlayContentBounds: options.reportOverlayContentBounds,
+    reportHoveredSubtitleToken: options.reportHoveredSubtitleToken,
     getAnilistStatus: options.getAnilistStatus,
     clearAnilistToken: options.clearAnilistToken,
     openAnilistSetup: options.openAnilistSetup,
@@ -353,6 +356,17 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.on(IPC_CHANNELS.command.reportOverlayContentBounds, (_event: unknown, payload: unknown) => {
     deps.reportOverlayContentBounds(payload);
+  });
+
+  ipc.on('subtitle-token-hover:set', (_event: unknown, tokenIndex: unknown) => {
+    if (tokenIndex === null) {
+      deps.reportHoveredSubtitleToken(null);
+      return;
+    }
+    if (!Number.isInteger(tokenIndex) || (tokenIndex as number) < 0) {
+      return;
+    }
+    deps.reportHoveredSubtitleToken(tokenIndex as number);
   });
 
   ipc.handle(IPC_CHANNELS.request.getAnilistStatus, () => {

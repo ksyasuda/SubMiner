@@ -8,6 +8,7 @@ export function createMouseHandlers(
     applyYPercent: (yPercent: number) => void;
     getCurrentYPercent: () => number;
     persistSubtitlePositionPatch: (patch: { yPercent: number }) => void;
+    reportHoveredTokenIndex: (tokenIndex: number | null) => void;
   },
 ) {
   const wordSegmenter =
@@ -191,6 +192,57 @@ export function createMouseHandlers(
     });
   }
 
+  function setupInvisibleTokenHoverReporter(): void {
+    if (!ctx.platform.isInvisibleLayer) return;
+
+    let pendingNullHoverTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearPendingNullHoverTimer = (): void => {
+      if (pendingNullHoverTimer !== null) {
+        clearTimeout(pendingNullHoverTimer);
+        pendingNullHoverTimer = null;
+      }
+    };
+
+    const reportHoveredToken = (tokenIndex: number | null): void => {
+      if (ctx.state.lastHoveredTokenIndex === tokenIndex) return;
+      ctx.state.lastHoveredTokenIndex = tokenIndex;
+      options.reportHoveredTokenIndex(tokenIndex);
+    };
+
+    const queueNullHoveredToken = (): void => {
+      if (pendingNullHoverTimer !== null) return;
+      pendingNullHoverTimer = setTimeout(() => {
+        pendingNullHoverTimer = null;
+        reportHoveredToken(null);
+      }, 120);
+    };
+
+    ctx.dom.subtitleRoot.addEventListener('mousemove', (event: MouseEvent) => {
+      if (!(event.target instanceof Element)) {
+        queueNullHoveredToken();
+        return;
+      }
+      const target = event.target.closest<HTMLElement>('.word[data-token-index]');
+      if (!target || !ctx.dom.subtitleRoot.contains(target)) {
+        queueNullHoveredToken();
+        return;
+      }
+      const rawTokenIndex = target.dataset.tokenIndex;
+      const tokenIndex = rawTokenIndex ? Number.parseInt(rawTokenIndex, 10) : Number.NaN;
+      if (!Number.isInteger(tokenIndex) || tokenIndex < 0) {
+        queueNullHoveredToken();
+        return;
+      }
+      clearPendingNullHoverTimer();
+      reportHoveredToken(tokenIndex);
+    });
+
+    ctx.dom.subtitleRoot.addEventListener('mouseleave', () => {
+      clearPendingNullHoverTimer();
+      reportHoveredToken(null);
+    });
+  }
+
   function setupResizeHandler(): void {
     window.addEventListener('resize', () => {
       if (ctx.platform.isInvisibleLayer) {
@@ -268,6 +320,7 @@ export function createMouseHandlers(
     handleMouseLeave,
     setupDragging,
     setupInvisibleHoverSelection,
+    setupInvisibleTokenHoverReporter,
     setupResizeHandler,
     setupSelectionObserver,
     setupYomitanObserver,

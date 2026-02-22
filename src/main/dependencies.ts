@@ -81,6 +81,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   setRuntimeOption: IpcDepsRuntimeOptions['setRuntimeOption'];
   cycleRuntimeOption: IpcDepsRuntimeOptions['cycleRuntimeOption'];
   reportOverlayContentBounds: IpcDepsRuntimeOptions['reportOverlayContentBounds'];
+  reportHoveredSubtitleToken: IpcDepsRuntimeOptions['reportHoveredSubtitleToken'];
   getAnilistStatus: IpcDepsRuntimeOptions['getAnilistStatus'];
   clearAnilistToken: IpcDepsRuntimeOptions['clearAnilistToken'];
   openAnilistSetup: IpcDepsRuntimeOptions['openAnilistSetup'];
@@ -219,6 +220,7 @@ export function createMainIpcRuntimeServiceDeps(
     setRuntimeOption: params.setRuntimeOption,
     cycleRuntimeOption: params.cycleRuntimeOption,
     reportOverlayContentBounds: params.reportOverlayContentBounds,
+    reportHoveredSubtitleToken: params.reportHoveredSubtitleToken,
     getAnilistStatus: params.getAnilistStatus,
     clearAnilistToken: params.clearAnilistToken,
     openAnilistSetup: params.openAnilistSetup,

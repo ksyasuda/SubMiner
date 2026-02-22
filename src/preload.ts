@@ -257,6 +257,9 @@ const electronAPI: ElectronAPI = {
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => {
     ipcRenderer.send(IPC_CHANNELS.command.reportOverlayContentBounds, measurement);
   },
+  reportHoveredSubtitleToken: (tokenIndex: number | null) => {
+    ipcRenderer.send('subtitle-token-hover:set', tokenIndex);
+  },
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => {
     ipcRenderer.on(
       IPC_CHANNELS.event.configHotReload,

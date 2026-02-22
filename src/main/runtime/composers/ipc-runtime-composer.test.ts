@@ -56,6 +56,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
         getAnkiConnectStatus: () => false,
         getRuntimeOptions: () => [],
         reportOverlayContentBounds: () => {},
+        reportHoveredSubtitleToken: () => {},
         getAnilistStatus: () => ({}) as never,
         clearAnilistToken: () => {},
         openAnilistSetup: () => {},
