@@ -4,6 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { DatabaseSync as NodeDatabaseSync } from 'node:sqlite';
+import { toMonthKey } from './immersion-tracker/maintenance';
+import { enqueueWrite } from './immersion-tracker/queue';
+import {
+  deriveCanonicalTitle,
+  normalizeText,
+  resolveBoundedInt,
+} from './immersion-tracker/reducer';
+import type { QueuedWrite } from './immersion-tracker/types';
 
 type ImmersionTrackerService = import('./immersion-tracker-service').ImmersionTrackerService;
 type ImmersionTrackerServiceCtor =
@@ -39,6 +47,41 @@ function cleanupDbPath(dbPath: string): void {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
+
+test('seam: resolveBoundedInt keeps fallback for invalid values', () => {
+  assert.equal(resolveBoundedInt(undefined, 25, 1, 100), 25);
+  assert.equal(resolveBoundedInt(0, 25, 1, 100), 25);
+  assert.equal(resolveBoundedInt(101, 25, 1, 100), 25);
+  assert.equal(resolveBoundedInt(44.8, 25, 1, 100), 44);
+});
+
+test('seam: reducer title normalization covers local and remote paths', () => {
+  assert.equal(normalizeText('  hello\n  world  '), 'hello world');
+  assert.equal(deriveCanonicalTitle('/tmp/Episode 01.mkv'), 'Episode 01');
+  assert.equal(
+    deriveCanonicalTitle('https://cdn.example.com/show/%E7%AC%AC1%E8%A9%B1.mp4'),
+    '\u7b2c1\u8a71',
+  );
+});
+
+test('seam: enqueueWrite drops oldest entries once capacity is exceeded', () => {
+  const queue: QueuedWrite[] = [
+    { kind: 'event', sessionId: 1, eventType: 1, sampleMs: 1000 },
+    { kind: 'event', sessionId: 1, eventType: 2, sampleMs: 1001 },
+  ];
+  const incoming: QueuedWrite = { kind: 'event', sessionId: 1, eventType: 3, sampleMs: 1002 };
+
+  const result = enqueueWrite(queue, incoming, 2);
+  assert.equal(result.dropped, 1);
+  assert.equal(queue.length, 2);
+  assert.equal(queue[0]!.eventType, 2);
+  assert.equal(queue[1]!.eventType, 3);
+});
+
+test('seam: toMonthKey uses UTC calendar month', () => {
+  assert.equal(toMonthKey(Date.UTC(2026, 0, 31, 23, 59, 59, 999)), 202601);
+  assert.equal(toMonthKey(Date.UTC(2026, 1, 1, 0, 0, 0, 0)), 202602);
+});
 
 testIfSqlite('startSession generates UUID-like session identifiers', async () => {
   const dbPath = makeDbPath();

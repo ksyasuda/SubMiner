@@ -370,6 +370,88 @@ test('reloadConfigStrict rejects invalid json and preserves previous config', ()
   assert.equal(service.getConfig().logging.level, 'error');
 });
 
+test('prefers config.jsonc over config.json when both exist', () => {
+  const dir = makeTempDir();
+  const jsonPath = path.join(dir, 'config.json');
+  const jsoncPath = path.join(dir, 'config.jsonc');
+  fs.writeFileSync(jsonPath, JSON.stringify({ logging: { level: 'error' } }, null, 2));
+  fs.writeFileSync(
+    jsoncPath,
+    `{
+      "logging": {
+        "level": "warn"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  assert.equal(service.getConfig().logging.level, 'warn');
+  assert.equal(service.getConfigPath(), jsoncPath);
+});
+
+test('reloadConfigStrict parse failure does not mutate raw config or warnings', () => {
+  const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
+  fs.writeFileSync(
+    configPath,
+    `{
+      "logging": {
+        "level": "warn"
+      },
+      "websocket": {
+        "port": "bad"
+      }
+    }`,
+  );
+
+  const service = new ConfigService(dir);
+  const beforePath = service.getConfigPath();
+  const beforeConfig = service.getConfig();
+  const beforeRaw = service.getRawConfig();
+  const beforeWarnings = service.getWarnings();
+
+  fs.writeFileSync(configPath, '{"logging":');
+
+  const result = service.reloadConfigStrict();
+  assert.equal(result.ok, false);
+  assert.equal(service.getConfigPath(), beforePath);
+  assert.deepEqual(service.getConfig(), beforeConfig);
+  assert.deepEqual(service.getRawConfig(), beforeRaw);
+  assert.deepEqual(service.getWarnings(), beforeWarnings);
+});
+
+test('warning emission order is deterministic across reloads', () => {
+  const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
+  fs.writeFileSync(
+    configPath,
+    `{
+      "unknownFeature": true,
+      "websocket": {
+        "enabled": "sometimes",
+        "port": -1
+      },
+      "logging": {
+        "level": "trace"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const firstWarnings = service.getWarnings();
+
+  service.reloadConfig();
+  const secondWarnings = service.getWarnings();
+
+  assert.deepEqual(secondWarnings, firstWarnings);
+  assert.deepEqual(
+    firstWarnings.map((warning) => warning.path),
+    ['unknownFeature', 'websocket.enabled', 'websocket.port', 'logging.level'],
+  );
+});
+
 test('accepts valid logging.level', () => {
   const dir = makeTempDir();
   fs.writeFileSync(

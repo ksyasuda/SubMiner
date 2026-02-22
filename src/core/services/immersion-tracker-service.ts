@@ -4,163 +4,71 @@ import { spawn } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import * as fs from 'node:fs';
 import { createLogger } from '../../logger';
+import { pruneRetention, runRollupMaintenance } from './immersion-tracker/maintenance';
+import {
+  getDailyRollups,
+  getMonthlyRollups,
+  getQueryHints,
+  getSessionSummaries,
+  getSessionTimeline,
+} from './immersion-tracker/query';
+import {
+  buildVideoKey,
+  calculateTextMetrics,
+  createInitialSessionState,
+  deriveCanonicalTitle,
+  emptyMetadata,
+  hashToCode,
+  isRemoteSource,
+  normalizeMediaPath,
+  normalizeText,
+  parseFps,
+  resolveBoundedInt,
+  sanitizePayload,
+  secToMs,
+  toNullableInt,
+} from './immersion-tracker/reducer';
+import { enqueueWrite } from './immersion-tracker/queue';
+import {
+  DEFAULT_BATCH_SIZE,
+  DEFAULT_DAILY_ROLLUP_RETENTION_MS,
+  DEFAULT_EVENTS_RETENTION_MS,
+  DEFAULT_FLUSH_INTERVAL_MS,
+  DEFAULT_MAINTENANCE_INTERVAL_MS,
+  DEFAULT_MAX_PAYLOAD_BYTES,
+  DEFAULT_MONTHLY_ROLLUP_RETENTION_MS,
+  DEFAULT_QUEUE_CAP,
+  DEFAULT_TELEMETRY_RETENTION_MS,
+  DEFAULT_VACUUM_INTERVAL_MS,
+  EVENT_CARD_MINED,
+  EVENT_LOOKUP,
+  EVENT_MEDIA_BUFFER,
+  EVENT_PAUSE_END,
+  EVENT_PAUSE_START,
+  EVENT_SEEK_BACKWARD,
+  EVENT_SEEK_FORWARD,
+  EVENT_SUBTITLE_LINE,
+  SCHEMA_VERSION,
+  SESSION_STATUS_ACTIVE,
+  SESSION_STATUS_ENDED,
+  SOURCE_TYPE_LOCAL,
+  SOURCE_TYPE_REMOTE,
+  type ImmersionSessionRollupRow,
+  type ImmersionTrackerOptions,
+  type QueuedWrite,
+  type SessionState,
+  type SessionSummaryQueryRow,
+  type SessionTimelineRow,
+  type VideoMetadata,
+} from './immersion-tracker/types';
 
-const SCHEMA_VERSION = 1;
-const DEFAULT_QUEUE_CAP = 1_000;
-const DEFAULT_BATCH_SIZE = 25;
-const DEFAULT_FLUSH_INTERVAL_MS = 500;
-const DEFAULT_MAINTENANCE_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_EVENTS_RETENTION_MS = ONE_WEEK_MS;
-const DEFAULT_VACUUM_INTERVAL_MS = ONE_WEEK_MS;
-const DEFAULT_TELEMETRY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-const DEFAULT_DAILY_ROLLUP_RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
-const DEFAULT_MONTHLY_ROLLUP_RETENTION_MS = 5 * 365 * 24 * 60 * 60 * 1000;
-const DEFAULT_MAX_PAYLOAD_BYTES = 256;
-
-const SOURCE_TYPE_LOCAL = 1;
-const SOURCE_TYPE_REMOTE = 2;
-
-const SESSION_STATUS_ACTIVE = 1;
-const SESSION_STATUS_ENDED = 2;
-
-const EVENT_SUBTITLE_LINE = 1;
-const EVENT_MEDIA_BUFFER = 2;
-const EVENT_LOOKUP = 3;
-const EVENT_CARD_MINED = 4;
-const EVENT_SEEK_FORWARD = 5;
-const EVENT_SEEK_BACKWARD = 6;
-const EVENT_PAUSE_START = 7;
-const EVENT_PAUSE_END = 8;
-
-export interface ImmersionTrackerOptions {
-  dbPath: string;
-  policy?: ImmersionTrackerPolicy;
-}
-
-export interface ImmersionTrackerPolicy {
-  queueCap?: number;
-  batchSize?: number;
-  flushIntervalMs?: number;
-  maintenanceIntervalMs?: number;
-  payloadCapBytes?: number;
-  retention?: {
-    eventsDays?: number;
-    telemetryDays?: number;
-    dailyRollupsDays?: number;
-    monthlyRollupsDays?: number;
-    vacuumIntervalDays?: number;
-  };
-}
-
-interface TelemetryAccumulator {
-  totalWatchedMs: number;
-  activeWatchedMs: number;
-  linesSeen: number;
-  wordsSeen: number;
-  tokensSeen: number;
-  cardsMined: number;
-  lookupCount: number;
-  lookupHits: number;
-  pauseCount: number;
-  pauseMs: number;
-  seekForwardCount: number;
-  seekBackwardCount: number;
-  mediaBufferEvents: number;
-}
-
-interface SessionState extends TelemetryAccumulator {
-  sessionId: number;
-  videoId: number;
-  startedAtMs: number;
-  currentLineIndex: number;
-  lastWallClockMs: number;
-  lastMediaMs: number | null;
-  lastPauseStartMs: number | null;
-  isPaused: boolean;
-  pendingTelemetry: boolean;
-}
-
-interface QueuedWrite {
-  kind: 'telemetry' | 'event';
-  sessionId: number;
-  sampleMs?: number;
-  totalWatchedMs?: number;
-  activeWatchedMs?: number;
-  linesSeen?: number;
-  wordsSeen?: number;
-  tokensSeen?: number;
-  cardsMined?: number;
-  lookupCount?: number;
-  lookupHits?: number;
-  pauseCount?: number;
-  pauseMs?: number;
-  seekForwardCount?: number;
-  seekBackwardCount?: number;
-  mediaBufferEvents?: number;
-  eventType?: number;
-  lineIndex?: number | null;
-  segmentStartMs?: number | null;
-  segmentEndMs?: number | null;
-  wordsDelta?: number;
-  cardsDelta?: number;
-  payloadJson?: string | null;
-}
-
-interface VideoMetadata {
-  sourceType: number;
-  canonicalTitle: string;
-  durationMs: number;
-  fileSizeBytes: number | null;
-  codecId: number | null;
-  containerId: number | null;
-  widthPx: number | null;
-  heightPx: number | null;
-  fpsX100: number | null;
-  bitrateKbps: number | null;
-  audioCodecId: number | null;
-  hashSha256: string | null;
-  screenshotPath: string | null;
-  metadataJson: string | null;
-}
-
-export interface SessionSummaryQueryRow {
-  videoId: number | null;
-  startedAtMs: number;
-  endedAtMs: number | null;
-  totalWatchedMs: number;
-  activeWatchedMs: number;
-  linesSeen: number;
-  wordsSeen: number;
-  tokensSeen: number;
-  cardsMined: number;
-  lookupCount: number;
-  lookupHits: number;
-}
-
-export interface SessionTimelineRow {
-  sampleMs: number;
-  totalWatchedMs: number;
-  activeWatchedMs: number;
-  linesSeen: number;
-  wordsSeen: number;
-  tokensSeen: number;
-  cardsMined: number;
-}
-
-export interface ImmersionSessionRollupRow {
-  rollupDayOrMonth: number;
-  videoId: number | null;
-  totalSessions: number;
-  totalActiveMin: number;
-  totalLinesSeen: number;
-  totalWordsSeen: number;
-  totalTokensSeen: number;
-  totalCards: number;
-  cardsPerHour: number | null;
-  wordsPerMin: number | null;
-  lookupHitRate: number | null;
-}
+export type {
+  ImmersionSessionRollupRow,
+  ImmersionTrackerOptions,
+  ImmersionTrackerPolicy,
+  SessionSummaryQueryRow,
+  SessionTimelineRow,
+} from './immersion-tracker/types';
 
 export class ImmersionTrackerService {
   private readonly logger = createLogger('main:immersion-tracker');
@@ -200,21 +108,21 @@ export class ImmersionTrackerService {
     }
 
     const policy = options.policy ?? {};
-    this.queueCap = this.resolveBoundedInt(policy.queueCap, DEFAULT_QUEUE_CAP, 100, 100_000);
-    this.batchSize = this.resolveBoundedInt(policy.batchSize, DEFAULT_BATCH_SIZE, 1, 10_000);
-    this.flushIntervalMs = this.resolveBoundedInt(
+    this.queueCap = resolveBoundedInt(policy.queueCap, DEFAULT_QUEUE_CAP, 100, 100_000);
+    this.batchSize = resolveBoundedInt(policy.batchSize, DEFAULT_BATCH_SIZE, 1, 10_000);
+    this.flushIntervalMs = resolveBoundedInt(
       policy.flushIntervalMs,
       DEFAULT_FLUSH_INTERVAL_MS,
       50,
       60_000,
     );
-    this.maintenanceIntervalMs = this.resolveBoundedInt(
+    this.maintenanceIntervalMs = resolveBoundedInt(
       policy.maintenanceIntervalMs,
       DEFAULT_MAINTENANCE_INTERVAL_MS,
       60_000,
       7 * 24 * 60 * 60 * 1000,
     );
-    this.maxPayloadBytes = this.resolveBoundedInt(
+    this.maxPayloadBytes = resolveBoundedInt(
       policy.payloadCapBytes,
       DEFAULT_MAX_PAYLOAD_BYTES,
       64,
@@ -223,35 +131,35 @@ export class ImmersionTrackerService {
 
     const retention = policy.retention ?? {};
     this.eventsRetentionMs =
-      this.resolveBoundedInt(
+      resolveBoundedInt(
         retention.eventsDays,
         Math.floor(DEFAULT_EVENTS_RETENTION_MS / 86_400_000),
         1,
         3650,
       ) * 86_400_000;
     this.telemetryRetentionMs =
-      this.resolveBoundedInt(
+      resolveBoundedInt(
         retention.telemetryDays,
         Math.floor(DEFAULT_TELEMETRY_RETENTION_MS / 86_400_000),
         1,
         3650,
       ) * 86_400_000;
     this.dailyRollupRetentionMs =
-      this.resolveBoundedInt(
+      resolveBoundedInt(
         retention.dailyRollupsDays,
         Math.floor(DEFAULT_DAILY_ROLLUP_RETENTION_MS / 86_400_000),
         1,
         36500,
       ) * 86_400_000;
     this.monthlyRollupRetentionMs =
-      this.resolveBoundedInt(
+      resolveBoundedInt(
         retention.monthlyRollupsDays,
         Math.floor(DEFAULT_MONTHLY_ROLLUP_RETENTION_MS / 86_400_000),
         1,
         36500,
       ) * 86_400_000;
     this.vacuumIntervalMs =
-      this.resolveBoundedInt(
+      resolveBoundedInt(
         retention.vacuumIntervalDays,
         Math.floor(DEFAULT_VACUUM_INTERVAL_MS / 86_400_000),
         1,
@@ -300,104 +208,31 @@ export class ImmersionTrackerService {
   }
 
   async getSessionSummaries(limit = 50): Promise<SessionSummaryQueryRow[]> {
-    const prepared = this.db.prepare(`
-      SELECT
-        s.video_id AS videoId,
-        s.started_at_ms AS startedAtMs,
-        s.ended_at_ms AS endedAtMs,
-        COALESCE(SUM(t.total_watched_ms), 0) AS totalWatchedMs,
-        COALESCE(SUM(t.active_watched_ms), 0) AS activeWatchedMs,
-        COALESCE(SUM(t.lines_seen), 0) AS linesSeen,
-        COALESCE(SUM(t.words_seen), 0) AS wordsSeen,
-        COALESCE(SUM(t.tokens_seen), 0) AS tokensSeen,
-        COALESCE(SUM(t.cards_mined), 0) AS cardsMined,
-        COALESCE(SUM(t.lookup_count), 0) AS lookupCount,
-        COALESCE(SUM(t.lookup_hits), 0) AS lookupHits
-      FROM imm_sessions s
-      LEFT JOIN imm_session_telemetry t ON t.session_id = s.session_id
-      GROUP BY s.session_id
-      ORDER BY s.started_at_ms DESC
-      LIMIT ?
-    `);
-    return prepared.all(limit) as unknown as SessionSummaryQueryRow[];
+    return getSessionSummaries(this.db, limit);
   }
 
   async getSessionTimeline(sessionId: number, limit = 200): Promise<SessionTimelineRow[]> {
-    const prepared = this.db.prepare(`
-      SELECT
-        sample_ms AS sampleMs,
-        total_watched_ms AS totalWatchedMs,
-        active_watched_ms AS activeWatchedMs,
-        lines_seen AS linesSeen,
-        words_seen AS wordsSeen,
-        tokens_seen AS tokensSeen,
-        cards_mined AS cardsMined
-      FROM imm_session_telemetry
-      WHERE session_id = ?
-      ORDER BY sample_ms DESC
-      LIMIT ?
-    `);
-    return prepared.all(sessionId, limit) as unknown as SessionTimelineRow[];
+    return getSessionTimeline(this.db, sessionId, limit);
   }
 
   async getQueryHints(): Promise<{
     totalSessions: number;
     activeSessions: number;
   }> {
-    const sessions = this.db.prepare('SELECT COUNT(*) AS total FROM imm_sessions');
-    const active = this.db.prepare(
-      'SELECT COUNT(*) AS total FROM imm_sessions WHERE ended_at_ms IS NULL',
-    );
-    const totalSessions = Number(sessions.get()?.total ?? 0);
-    const activeSessions = Number(active.get()?.total ?? 0);
-    return { totalSessions, activeSessions };
+    return getQueryHints(this.db);
   }
 
   async getDailyRollups(limit = 60): Promise<ImmersionSessionRollupRow[]> {
-    const prepared = this.db.prepare(`
-      SELECT
-        rollup_day AS rollupDayOrMonth,
-        video_id AS videoId,
-        total_sessions AS totalSessions,
-        total_active_min AS totalActiveMin,
-        total_lines_seen AS totalLinesSeen,
-        total_words_seen AS totalWordsSeen,
-        total_tokens_seen AS totalTokensSeen,
-        total_cards AS totalCards,
-        cards_per_hour AS cardsPerHour,
-        words_per_min AS wordsPerMin,
-        lookup_hit_rate AS lookupHitRate
-      FROM imm_daily_rollups
-      ORDER BY rollup_day DESC, video_id DESC
-      LIMIT ?
-    `);
-    return prepared.all(limit) as unknown as ImmersionSessionRollupRow[];
+    return getDailyRollups(this.db, limit);
   }
 
   async getMonthlyRollups(limit = 24): Promise<ImmersionSessionRollupRow[]> {
-    const prepared = this.db.prepare(`
-      SELECT
-        rollup_month AS rollupDayOrMonth,
-        video_id AS videoId,
-        total_sessions AS totalSessions,
-        total_active_min AS totalActiveMin,
-        total_lines_seen AS totalLinesSeen,
-        total_words_seen AS totalWordsSeen,
-        total_tokens_seen AS totalTokensSeen,
-        total_cards AS totalCards,
-        0 AS cardsPerHour,
-        0 AS wordsPerMin,
-        0 AS lookupHitRate
-      FROM imm_monthly_rollups
-      ORDER BY rollup_month DESC, video_id DESC
-      LIMIT ?
-    `);
-    return prepared.all(limit) as unknown as ImmersionSessionRollupRow[];
+    return getMonthlyRollups(this.db, limit);
   }
 
   handleMediaChange(mediaPath: string | null, mediaTitle: string | null): void {
-    const normalizedPath = this.normalizeMediaPath(mediaPath);
-    const normalizedTitle = this.normalizeText(mediaTitle);
+    const normalizedPath = normalizeMediaPath(mediaPath);
+    const normalizedTitle = normalizeText(mediaTitle);
     this.logger.info(
       `handleMediaChange called with path=${normalizedPath || '<empty>'} title=${normalizedTitle || '<empty>'}`,
     );
@@ -419,9 +254,9 @@ export class ImmersionTrackerService {
       return;
     }
 
-    const sourceType = this.isRemoteSource(normalizedPath) ? SOURCE_TYPE_REMOTE : SOURCE_TYPE_LOCAL;
-    const videoKey = this.buildVideoKey(normalizedPath, sourceType);
-    const canonicalTitle = normalizedTitle || this.deriveCanonicalTitle(normalizedPath);
+    const sourceType = isRemoteSource(normalizedPath) ? SOURCE_TYPE_REMOTE : SOURCE_TYPE_LOCAL;
+    const videoKey = buildVideoKey(normalizedPath, sourceType);
+    const canonicalTitle = normalizedTitle || deriveCanonicalTitle(normalizedPath);
     const sourcePath = sourceType === SOURCE_TYPE_LOCAL ? normalizedPath : null;
     const sourceUrl = sourceType === SOURCE_TYPE_REMOTE ? normalizedPath : null;
 
@@ -444,7 +279,7 @@ export class ImmersionTrackerService {
 
   handleMediaTitleUpdate(mediaTitle: string | null): void {
     if (!this.sessionState) return;
-    const normalizedTitle = this.normalizeText(mediaTitle);
+    const normalizedTitle = normalizeText(mediaTitle);
     if (!normalizedTitle) return;
     this.currentVideoKey = normalizedTitle;
     this.updateVideoTitleForActiveSession(normalizedTitle);
@@ -452,10 +287,10 @@ export class ImmersionTrackerService {
 
   recordSubtitleLine(text: string, startSec: number, endSec: number): void {
     if (!this.sessionState || !text.trim()) return;
-    const cleaned = this.normalizeText(text);
+    const cleaned = normalizeText(text);
     if (!cleaned) return;
 
-    const metrics = this.calculateTextMetrics(cleaned);
+    const metrics = calculateTextMetrics(cleaned);
     this.sessionState.currentLineIndex += 1;
     this.sessionState.linesSeen += 1;
     this.sessionState.wordsSeen += metrics.words;
@@ -467,16 +302,19 @@ export class ImmersionTrackerService {
       sessionId: this.sessionState.sessionId,
       sampleMs: Date.now(),
       lineIndex: this.sessionState.currentLineIndex,
-      segmentStartMs: this.secToMs(startSec),
-      segmentEndMs: this.secToMs(endSec),
+      segmentStartMs: secToMs(startSec),
+      segmentEndMs: secToMs(endSec),
       wordsDelta: metrics.words,
       cardsDelta: 0,
       eventType: EVENT_SUBTITLE_LINE,
-      payloadJson: this.sanitizePayload({
-        event: 'subtitle-line',
-        text: cleaned,
-        words: metrics.words,
-      }),
+      payloadJson: sanitizePayload(
+        {
+          event: 'subtitle-line',
+          text: cleaned,
+          words: metrics.words,
+        },
+        this.maxPayloadBytes,
+      ),
     });
   }
 
@@ -515,10 +353,13 @@ export class ImmersionTrackerService {
             cardsDelta: 0,
             segmentStartMs: this.sessionState.lastMediaMs,
             segmentEndMs: mediaMs,
-            payloadJson: this.sanitizePayload({
-              fromMs: this.sessionState.lastMediaMs,
-              toMs: mediaMs,
-            }),
+            payloadJson: sanitizePayload(
+              {
+                fromMs: this.sessionState.lastMediaMs,
+                toMs: mediaMs,
+              },
+              this.maxPayloadBytes,
+            ),
           });
         } else if (mediaDeltaMs < 0) {
           this.sessionState.seekBackwardCount += 1;
@@ -532,10 +373,13 @@ export class ImmersionTrackerService {
             cardsDelta: 0,
             segmentStartMs: this.sessionState.lastMediaMs,
             segmentEndMs: mediaMs,
-            payloadJson: this.sanitizePayload({
-              fromMs: this.sessionState.lastMediaMs,
-              toMs: mediaMs,
-            }),
+            payloadJson: sanitizePayload(
+              {
+                fromMs: this.sessionState.lastMediaMs,
+                toMs: mediaMs,
+              },
+              this.maxPayloadBytes,
+            ),
           });
         }
       }
@@ -562,7 +406,7 @@ export class ImmersionTrackerService {
         eventType: EVENT_PAUSE_START,
         cardsDelta: 0,
         wordsDelta: 0,
-        payloadJson: this.sanitizePayload({ paused: true }),
+        payloadJson: sanitizePayload({ paused: true }, this.maxPayloadBytes),
       });
     } else {
       if (this.sessionState.lastPauseStartMs) {
@@ -577,7 +421,7 @@ export class ImmersionTrackerService {
         eventType: EVENT_PAUSE_END,
         cardsDelta: 0,
         wordsDelta: 0,
-        payloadJson: this.sanitizePayload({ paused: false }),
+        payloadJson: sanitizePayload({ paused: false }, this.maxPayloadBytes),
       });
     }
 
@@ -598,9 +442,12 @@ export class ImmersionTrackerService {
       eventType: EVENT_LOOKUP,
       cardsDelta: 0,
       wordsDelta: 0,
-      payloadJson: this.sanitizePayload({
-        hit,
-      }),
+      payloadJson: sanitizePayload(
+        {
+          hit,
+        },
+        this.maxPayloadBytes,
+      ),
     });
   }
 
@@ -615,7 +462,7 @@ export class ImmersionTrackerService {
       eventType: EVENT_CARD_MINED,
       wordsDelta: 0,
       cardsDelta: count,
-      payloadJson: this.sanitizePayload({ cardsMined: count }),
+      payloadJson: sanitizePayload({ cardsMined: count }, this.maxPayloadBytes),
     });
   }
 
@@ -630,21 +477,22 @@ export class ImmersionTrackerService {
       eventType: EVENT_MEDIA_BUFFER,
       cardsDelta: 0,
       wordsDelta: 0,
-      payloadJson: this.sanitizePayload({
-        buffer: true,
-      }),
+      payloadJson: sanitizePayload(
+        {
+          buffer: true,
+        },
+        this.maxPayloadBytes,
+      ),
     });
   }
 
   private recordWrite(write: QueuedWrite): void {
     if (this.isDestroyed) return;
-    if (this.queue.length >= this.queueCap) {
-      const overflow = this.queue.length - this.queueCap + 1;
-      this.queue.splice(0, overflow);
-      this.droppedWriteCount += overflow;
-      this.logger.warn(`Immersion tracker queue overflow; dropped ${overflow} oldest writes`);
+    const { dropped } = enqueueWrite(this.queue, write, this.queueCap);
+    if (dropped > 0) {
+      this.droppedWriteCount += dropped;
+      this.logger.warn(`Immersion tracker queue overflow; dropped ${dropped} oldest writes`);
     }
-    this.queue.push(write);
     this.lastQueueWriteAtMs = Date.now();
     if (write.kind === 'event' || this.queue.length >= this.batchSize) {
       this.scheduleFlush(0);
@@ -909,18 +757,6 @@ export class ImmersionTrackerService {
     `);
   }
 
-  private resolveBoundedInt(
-    value: number | undefined,
-    fallback: number,
-    min: number,
-    max: number,
-  ): number {
-    if (!Number.isFinite(value)) return fallback;
-    const candidate = Math.floor(value as number);
-    if (candidate < min || candidate > max) return fallback;
-    return candidate;
-  }
-
   private scheduleMaintenance(): void {
     this.maintenanceTimer = setInterval(() => {
       this.runMaintenance();
@@ -934,21 +770,13 @@ export class ImmersionTrackerService {
       this.flushTelemetry(true);
       this.flushNow();
       const nowMs = Date.now();
-      const eventCutoff = nowMs - this.eventsRetentionMs;
-      const telemetryCutoff = nowMs - this.telemetryRetentionMs;
-      const dailyCutoff = nowMs - this.dailyRollupRetentionMs;
-      const monthlyCutoff = nowMs - this.monthlyRollupRetentionMs;
-      const dayCutoff = Math.floor(dailyCutoff / 86_400_000);
-      const monthCutoff = this.toMonthKey(monthlyCutoff);
-
-      this.db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(eventCutoff);
-      this.db.prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`).run(telemetryCutoff);
-      this.db.prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`).run(dayCutoff);
-      this.db.prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`).run(monthCutoff);
-      this.db
-        .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
-        .run(telemetryCutoff);
-      this.runRollupMaintenance();
+      pruneRetention(this.db, nowMs, {
+        eventsRetentionMs: this.eventsRetentionMs,
+        telemetryRetentionMs: this.telemetryRetentionMs,
+        dailyRollupRetentionMs: this.dailyRollupRetentionMs,
+        monthlyRollupRetentionMs: this.monthlyRollupRetentionMs,
+      });
+      runRollupMaintenance(this.db);
 
       if (nowMs - this.lastVacuumMs >= this.vacuumIntervalMs && !this.writeLock.locked) {
         this.db.exec('VACUUM');
@@ -964,96 +792,14 @@ export class ImmersionTrackerService {
   }
 
   private runRollupMaintenance(): void {
-    this.db.exec(`
-      INSERT OR REPLACE INTO imm_daily_rollups (
-        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
-        total_words_seen, total_tokens_seen, total_cards, cards_per_hour,
-        words_per_min, lookup_hit_rate
-      )
-      SELECT
-        CAST(s.started_at_ms / 86400000 AS INTEGER) AS rollup_day,
-        s.video_id AS video_id,
-        COUNT(DISTINCT s.session_id) AS total_sessions,
-        COALESCE(SUM(t.active_watched_ms), 0) / 60000.0 AS total_active_min,
-        COALESCE(SUM(t.lines_seen), 0) AS total_lines_seen,
-        COALESCE(SUM(t.words_seen), 0) AS total_words_seen,
-        COALESCE(SUM(t.tokens_seen), 0) AS total_tokens_seen,
-        COALESCE(SUM(t.cards_mined), 0) AS total_cards,
-        CASE
-          WHEN COALESCE(SUM(t.active_watched_ms), 0) > 0
-            THEN (COALESCE(SUM(t.cards_mined), 0) * 60.0) / (COALESCE(SUM(t.active_watched_ms), 0) / 60000.0)
-          ELSE NULL
-        END AS cards_per_hour,
-        CASE
-          WHEN COALESCE(SUM(t.active_watched_ms), 0) > 0
-            THEN COALESCE(SUM(t.words_seen), 0) / (COALESCE(SUM(t.active_watched_ms), 0) / 60000.0)
-          ELSE NULL
-        END AS words_per_min,
-        CASE
-          WHEN COALESCE(SUM(t.lookup_count), 0) > 0
-            THEN CAST(COALESCE(SUM(t.lookup_hits), 0) AS REAL) / CAST(SUM(t.lookup_count) AS REAL)
-          ELSE NULL
-        END AS lookup_hit_rate
-      FROM imm_sessions s
-      JOIN imm_session_telemetry t
-        ON t.session_id = s.session_id
-      GROUP BY rollup_day, s.video_id
-    `);
-
-    this.db.exec(`
-      INSERT OR REPLACE INTO imm_monthly_rollups (
-        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
-        total_words_seen, total_tokens_seen, total_cards
-      )
-      SELECT
-        CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch') AS INTEGER) AS rollup_month,
-        s.video_id AS video_id,
-        COUNT(DISTINCT s.session_id) AS total_sessions,
-        COALESCE(SUM(t.active_watched_ms), 0) / 60000.0 AS total_active_min,
-        COALESCE(SUM(t.lines_seen), 0) AS total_lines_seen,
-        COALESCE(SUM(t.words_seen), 0) AS total_words_seen,
-        COALESCE(SUM(t.tokens_seen), 0) AS total_tokens_seen,
-        COALESCE(SUM(t.cards_mined), 0) AS total_cards
-      FROM imm_sessions s
-      JOIN imm_session_telemetry t
-        ON t.session_id = s.session_id
-      GROUP BY rollup_month, s.video_id
-    `);
-  }
-
-  private toMonthKey(timestampMs: number): number {
-    const monthDate = new Date(timestampMs);
-    return monthDate.getUTCFullYear() * 100 + monthDate.getUTCMonth() + 1;
+    runRollupMaintenance(this.db);
   }
 
   private startSession(videoId: number, startedAtMs?: number): void {
     const nowMs = startedAtMs ?? Date.now();
     const result = this.startSessionStatement(videoId, nowMs);
     const sessionId = Number(result.lastInsertRowid);
-    this.sessionState = {
-      sessionId,
-      videoId,
-      startedAtMs: nowMs,
-      currentLineIndex: 0,
-      totalWatchedMs: 0,
-      activeWatchedMs: 0,
-      linesSeen: 0,
-      wordsSeen: 0,
-      tokensSeen: 0,
-      cardsMined: 0,
-      lookupCount: 0,
-      lookupHits: 0,
-      pauseCount: 0,
-      pauseMs: 0,
-      seekForwardCount: 0,
-      seekBackwardCount: 0,
-      mediaBufferEvents: 0,
-      lastWallClockMs: 0,
-      lastMediaMs: null,
-      lastPauseStartMs: null,
-      isPaused: false,
-      pendingTelemetry: true,
-    };
+    this.sessionState = createInitialSessionState(sessionId, videoId, nowMs);
     this.recordWrite({
       kind: 'telemetry',
       sessionId,
@@ -1232,7 +978,7 @@ export class ImmersionTrackerService {
     const stat = await fs.promises.stat(mediaPath);
     return {
       sourceType: SOURCE_TYPE_LOCAL,
-      canonicalTitle: this.deriveCanonicalTitle(mediaPath),
+      canonicalTitle: deriveCanonicalTitle(mediaPath),
       durationMs: info.durationMs || 0,
       fileSizeBytes: Number.isFinite(stat.size) ? stat.size : null,
       codecId: info.codecId ?? null,
@@ -1289,10 +1035,10 @@ export class ImmersionTrackerService {
       child.stderr.on('data', (chunk) => {
         errorOutput += chunk.toString('utf-8');
       });
-      child.on('error', () => resolve(this.emptyMetadata()));
+      child.on('error', () => resolve(emptyMetadata()));
       child.on('close', () => {
         if (errorOutput && output.length === 0) {
-          resolve(this.emptyMetadata());
+          resolve(emptyMetadata());
           return;
         }
 
@@ -1323,14 +1069,14 @@ export class ImmersionTrackerService {
 
           for (const stream of parsed.streams ?? []) {
             if (stream.codec_type === 'video') {
-              widthPx = this.toNullableInt(stream.width);
-              heightPx = this.toNullableInt(stream.height);
-              fpsX100 = this.parseFps(stream.avg_frame_rate);
-              codecId = this.hashToCode(stream.codec_tag_string);
+              widthPx = toNullableInt(stream.width);
+              heightPx = toNullableInt(stream.height);
+              fpsX100 = parseFps(stream.avg_frame_rate);
+              codecId = hashToCode(stream.codec_tag_string);
               containerId = 0;
             }
             if (stream.codec_type === 'audio') {
-              audioCodecId = this.hashToCode(stream.codec_tag_string);
+              audioCodecId = hashToCode(stream.codec_tag_string);
               if (audioCodecId && audioCodecId > 0) {
                 break;
               }
@@ -1348,117 +1094,10 @@ export class ImmersionTrackerService {
             audioCodecId,
           });
         } catch {
-          resolve(this.emptyMetadata());
+          resolve(emptyMetadata());
         }
       });
     });
-  }
-
-  private emptyMetadata(): {
-    durationMs: number | null;
-    codecId: number | null;
-    containerId: number | null;
-    widthPx: number | null;
-    heightPx: number | null;
-    fpsX100: number | null;
-    bitrateKbps: number | null;
-    audioCodecId: number | null;
-  } {
-    return {
-      durationMs: null,
-      codecId: null,
-      containerId: null,
-      widthPx: null,
-      heightPx: null,
-      fpsX100: null,
-      bitrateKbps: null,
-      audioCodecId: null,
-    };
-  }
-
-  private parseFps(value?: string): number | null {
-    if (!value || typeof value !== 'string') return null;
-    const [num, den] = value.split('/');
-    const n = Number(num);
-    const d = Number(den);
-    if (!Number.isFinite(n) || !Number.isFinite(d) || d === 0) return null;
-    const fps = n / d;
-    return Number.isFinite(fps) ? Math.round(fps * 100) : null;
-  }
-
-  private hashToCode(input?: string): number | null {
-    if (!input) return null;
-    let hash = 0;
-    for (let i = 0; i < input.length; i += 1) {
-      hash = (hash * 31 + input.charCodeAt(i)) & 0x7fffffff;
-    }
-    return hash || null;
-  }
-
-  private sanitizePayload(payload: Record<string, unknown>): string {
-    const json = JSON.stringify(payload);
-    return json.length <= this.maxPayloadBytes ? json : JSON.stringify({ truncated: true });
-  }
-
-  private calculateTextMetrics(value: string): {
-    words: number;
-    tokens: number;
-  } {
-    const words = value.split(/\s+/).filter(Boolean).length;
-    const cjkCount = value.match(/[\u3040-\u30ff\u4e00-\u9fff]/g)?.length ?? 0;
-    const tokens = Math.max(words, cjkCount);
-    return { words, tokens };
-  }
-
-  private secToMs(seconds: number): number {
-    const coerced = Number(seconds);
-    if (!Number.isFinite(coerced)) return 0;
-    return Math.round(coerced * 1000);
-  }
-
-  private normalizeMediaPath(mediaPath: string | null): string {
-    if (!mediaPath || !mediaPath.trim()) return '';
-    return mediaPath.trim();
-  }
-
-  private normalizeText(value: string | null | undefined): string {
-    if (!value) return '';
-    return value.trim().replace(/\s+/g, ' ');
-  }
-
-  private buildVideoKey(mediaPath: string, sourceType: number): string {
-    if (sourceType === SOURCE_TYPE_REMOTE) {
-      return `remote:${mediaPath}`;
-    }
-    return `local:${mediaPath}`;
-  }
-
-  private isRemoteSource(mediaPath: string): boolean {
-    return /^[a-z][a-z0-9+.-]*:\/\//i.test(mediaPath);
-  }
-
-  private deriveCanonicalTitle(mediaPath: string): string {
-    if (this.isRemoteSource(mediaPath)) {
-      try {
-        const parsed = new URL(mediaPath);
-        const parts = parsed.pathname.split('/').filter(Boolean);
-        if (parts.length > 0) {
-          const leaf = decodeURIComponent(parts[parts.length - 1]!);
-          return this.normalizeText(leaf.replace(/\.[^/.]+$/, ''));
-        }
-        return this.normalizeText(parsed.hostname) || 'unknown';
-      } catch {
-        return this.normalizeText(mediaPath);
-      }
-    }
-
-    const filename = path.basename(mediaPath);
-    return this.normalizeText(filename.replace(/\.[^/.]+$/, ''));
-  }
-
-  private toNullableInt(value: number | null | undefined): number | null {
-    if (value === null || value === undefined || !Number.isFinite(value)) return null;
-    return value;
   }
 
   private updateVideoTitleForActiveSession(canonicalTitle: string): void {
