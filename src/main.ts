@@ -2233,7 +2233,12 @@ const {
       },
       isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
       ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded().then(() => {}),
-      shouldAutoConnectJellyfinRemote: () => getResolvedConfig().jellyfin.remoteControlAutoConnect,
+      shouldAutoConnectJellyfinRemote: () => {
+        const jellyfin = getResolvedConfig().jellyfin;
+        return (
+          jellyfin.enabled && jellyfin.remoteControlEnabled && jellyfin.remoteControlAutoConnect
+        );
+      },
       startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
     },
   },

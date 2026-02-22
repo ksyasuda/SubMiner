@@ -7,6 +7,7 @@ import {
 
 function createConfig(overrides?: Partial<Record<string, unknown>>) {
   return {
+    enabled: true,
     remoteControlEnabled: true,
     remoteControlAutoConnect: true,
     serverUrl: 'http://localhost',
@@ -20,6 +21,34 @@ function createConfig(overrides?: Partial<Record<string, unknown>>) {
     ...(overrides || {}),
   } as never;
 }
+
+test('start handler no-ops when jellyfin integration is disabled', async () => {
+  let created = false;
+  const startRemote = createStartJellyfinRemoteSessionHandler({
+    getJellyfinConfig: () => createConfig({ enabled: false }),
+    getCurrentSession: () => null,
+    setCurrentSession: () => {},
+    createRemoteSessionService: () => {
+      created = true;
+      return {
+        start: () => {},
+        stop: () => {},
+        advertiseNow: async () => true,
+      };
+    },
+    defaultDeviceId: 'default-device',
+    defaultClientName: 'SubMiner',
+    defaultClientVersion: '1.0',
+    handlePlay: async () => {},
+    handlePlaystate: async () => {},
+    handleGeneralCommand: async () => {},
+    logInfo: () => {},
+    logWarn: () => {},
+  });
+
+  await startRemote();
+  assert.equal(created, false);
+});
 
 test('start handler no-ops when remote control is disabled', async () => {
   let created = false;
@@ -50,8 +79,11 @@ test('start handler no-ops when remote control is disabled', async () => {
 });
 
 test('start handler creates, starts, and stores session', async () => {
-  let storedSession: { start: () => void; stop: () => void; advertiseNow: () => Promise<boolean> } | null =
-    null;
+  let storedSession: {
+    start: () => void;
+    stop: () => void;
+    advertiseNow: () => Promise<boolean>;
+  } | null = null;
   let started = false;
   const infos: string[] = [];
   const startRemote = createStartJellyfinRemoteSessionHandler({

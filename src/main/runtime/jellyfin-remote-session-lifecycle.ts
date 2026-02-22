@@ -1,4 +1,5 @@
 type JellyfinRemoteConfig = {
+  enabled: boolean;
   remoteControlEnabled: boolean;
   remoteControlAutoConnect: boolean;
   serverUrl: string;
@@ -54,6 +55,7 @@ export function createStartJellyfinRemoteSessionHandler(deps: {
 }) {
   return async (): Promise<void> => {
     const jellyfinConfig = deps.getJellyfinConfig();
+    if (jellyfinConfig.enabled === false) return;
     if (jellyfinConfig.remoteControlEnabled === false) return;
     if (jellyfinConfig.remoteControlAutoConnect === false) return;
     if (!jellyfinConfig.serverUrl || !jellyfinConfig.accessToken || !jellyfinConfig.userId) return;
@@ -87,7 +89,9 @@ export function createStartJellyfinRemoteSessionHandler(deps: {
             if (registered) {
               deps.logInfo('Jellyfin cast target is visible to server sessions.');
             } else {
-              deps.logWarn('Jellyfin remote connected but device not visible in server sessions yet.');
+              deps.logWarn(
+                'Jellyfin remote connected but device not visible in server sessions yet.',
+              );
             }
           });
         }

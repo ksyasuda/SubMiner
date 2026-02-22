@@ -493,26 +493,26 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 }
 ```
 
-| Option                     | Values          | Description                                                                             |
-| -------------------------- | --------------- | --------------------------------------------------------------------------------------- |
-| `enabled`                  | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`)                         |
-| `serverUrl`                | string (URL)    | Jellyfin server base URL                                                                |
-| `username`                 | string          | Default username used by `--jellyfin-login`                                             |
-| `accessToken`              | string          | Optional explicit Jellyfin access token override; leave empty to use stored local token |
-| `userId`                   | string          | Jellyfin user id bound to token/session                                                 |
-| `deviceId`                 | string          | Client device id sent in auth headers (default: `subminer`)                             |
-| `clientName`               | string          | Client name sent in auth headers (default: `SubMiner`)                                  |
-| `clientVersion`            | string          | Client version sent in auth headers (default: `0.1.0`)                                  |
-| `defaultLibraryId`         | string          | Default library id for `--jellyfin-items` when CLI value is omitted                     |
-| `remoteControlEnabled`     | `true`, `false` | Enable Jellyfin cast/remote-control session support                                     |
-| `remoteControlAutoConnect` | `true`, `false` | Auto-connect Jellyfin remote session on app startup                                     |
-| `autoAnnounce`             | `true`, `false` | Auto-run cast-target visibility announce check on connect (default: `false`)            |
-| `remoteControlDeviceName`  | string          | Device name shown in Jellyfin cast/device lists                                         |
-| `pullPictures`             | `true`, `false` | Enable poster/icon fetching for launcher Jellyfin pickers                               |
-| `iconCacheDir`             | string          | Cache directory for launcher-fetched Jellyfin poster icons                              |
-| `directPlayPreferred`      | `true`, `false` | Prefer direct stream URLs before transcoding                                            |
-| `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                           |
-| `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                              |
+| Option                     | Values          | Description                                                                                                  |
+| -------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
+| `enabled`                  | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`)                                              |
+| `serverUrl`                | string (URL)    | Jellyfin server base URL                                                                                     |
+| `username`                 | string          | Default username used by `--jellyfin-login`                                                                  |
+| `accessToken`              | string          | Optional explicit Jellyfin access token override; leave empty to use stored local token                      |
+| `userId`                   | string          | Jellyfin user id bound to token/session                                                                      |
+| `deviceId`                 | string          | Client device id sent in auth headers (default: `subminer`)                                                  |
+| `clientName`               | string          | Client name sent in auth headers (default: `SubMiner`)                                                       |
+| `clientVersion`            | string          | Client version sent in auth headers (default: `0.1.0`)                                                       |
+| `defaultLibraryId`         | string          | Default library id for `--jellyfin-items` when CLI value is omitted                                          |
+| `remoteControlEnabled`     | `true`, `false` | Enable Jellyfin cast/remote-control session support                                                          |
+| `remoteControlAutoConnect` | `true`, `false` | Auto-connect Jellyfin remote session on app startup (requires `jellyfin.enabled` and `remoteControlEnabled`) |
+| `autoAnnounce`             | `true`, `false` | Auto-run cast-target visibility announce check on connect (default: `false`)                                 |
+| `remoteControlDeviceName`  | string          | Device name shown in Jellyfin cast/device lists                                                              |
+| `pullPictures`             | `true`, `false` | Enable poster/icon fetching for launcher Jellyfin pickers                                                    |
+| `iconCacheDir`             | string          | Cache directory for launcher-fetched Jellyfin poster icons                                                   |
+| `directPlayPreferred`      | `true`, `false` | Prefer direct stream URLs before transcoding                                                                 |
+| `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                                                |
+| `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                                                   |
 
 When `jellyfin.accessToken` is empty, SubMiner uses the locally stored encrypted token saved from Jellyfin login/setup.
 
@@ -533,6 +533,8 @@ Launcher subcommand equivalents:
 - `subminer jellyfin -l --server ... --username ... --password ...` logs in.
 - `subminer jellyfin -p` opens play picker.
 - `subminer jellyfin -d` starts cast discovery mode.
+
+Jellyfin remote auto-connect runs only when all three are `true`: `jellyfin.enabled`, `jellyfin.remoteControlEnabled`, and `jellyfin.remoteControlAutoConnect`.
 
 ### Keybindings
 
@@ -678,6 +680,8 @@ See `config.example.jsonc` for detailed configuration options.
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 
 Set any shortcut to `null` to disable it.
+
+Feature-dependent shortcuts/keybindings only run when their related integration is enabled. For example, Anki/Kiku shortcuts require `ankiConnect.enabled` (and Kiku-specific behavior where applicable), and Jellyfin remote startup behavior requires Jellyfin to be enabled.
 
 ### Subtitle Position
 

@@ -5,6 +5,14 @@ import {
   createStartBackgroundWarmupsHandler,
 } from './startup-warmups';
 
+function shouldAutoConnectJellyfinRemote(config: {
+  enabled: boolean;
+  remoteControlEnabled: boolean;
+  remoteControlAutoConnect: boolean;
+}): boolean {
+  return config.enabled && config.remoteControlEnabled && config.remoteControlAutoConnect;
+}
+
 test('launchBackgroundWarmupTask logs completion timing', async () => {
   const debugLogs: string[] = [];
   const launchTask = createLaunchBackgroundWarmupTaskHandler({
@@ -41,7 +49,7 @@ test('startBackgroundWarmups no-ops when already started', () => {
   assert.equal(launches, 0);
 });
 
-test('startBackgroundWarmups schedules base warmups and optional jellyfin warmup', () => {
+test('startBackgroundWarmups does not schedule jellyfin warmup when jellyfin.enabled is false', () => {
   const labels: string[] = [];
   let started = false;
   const startWarmups = createStartBackgroundWarmupsHandler({
@@ -56,7 +64,41 @@ test('startBackgroundWarmups schedules base warmups and optional jellyfin warmup
     createMecabTokenizerAndCheck: async () => {},
     ensureYomitanExtensionLoaded: async () => {},
     prewarmSubtitleDictionaries: async () => {},
-    shouldAutoConnectJellyfinRemote: () => true,
+    shouldAutoConnectJellyfinRemote: () =>
+      shouldAutoConnectJellyfinRemote({
+        enabled: false,
+        remoteControlEnabled: true,
+        remoteControlAutoConnect: true,
+      }),
+    startJellyfinRemoteSession: async () => {},
+  });
+
+  startWarmups();
+  assert.equal(started, true);
+  assert.deepEqual(labels, ['mecab', 'yomitan-extension', 'subtitle-dictionaries']);
+});
+
+test('startBackgroundWarmups schedules jellyfin warmup when all jellyfin flags are enabled', () => {
+  const labels: string[] = [];
+  let started = false;
+  const startWarmups = createStartBackgroundWarmupsHandler({
+    getStarted: () => started,
+    setStarted: (value) => {
+      started = value;
+    },
+    isTexthookerOnlyMode: () => false,
+    launchTask: (label) => {
+      labels.push(label);
+    },
+    createMecabTokenizerAndCheck: async () => {},
+    ensureYomitanExtensionLoaded: async () => {},
+    prewarmSubtitleDictionaries: async () => {},
+    shouldAutoConnectJellyfinRemote: () =>
+      shouldAutoConnectJellyfinRemote({
+        enabled: true,
+        remoteControlEnabled: true,
+        remoteControlAutoConnect: true,
+      }),
     startJellyfinRemoteSession: async () => {},
   });
 
