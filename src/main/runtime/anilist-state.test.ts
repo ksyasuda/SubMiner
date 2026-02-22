@@ -34,8 +34,6 @@ function createRuntime() {
       pending: 7,
       ready: 8,
       deadLetter: 9,
-      lastAttemptAt: 3000,
-      lastError: 'boom' as string | null,
     }),
     clearStoredToken: () => {
       clearedStoredToken = true;
@@ -71,7 +69,7 @@ test('setClientSecretState merges partial updates', () => {
   });
 });
 
-test('refresh/get queue snapshot uses update queue snapshot', () => {
+test('queue refresh preserves metadata while syncing counts', () => {
   const harness = createRuntime();
   const snapshot = harness.runtime.getQueueStatusSnapshot();
 
@@ -79,14 +77,15 @@ test('refresh/get queue snapshot uses update queue snapshot', () => {
     pending: 7,
     ready: 8,
     deadLetter: 9,
-    lastAttemptAt: 3000,
-    lastError: 'boom',
+    lastAttemptAt: 2000,
+    lastError: 'none',
   });
   assert.deepEqual(harness.getQueueState(), snapshot);
 });
 
 test('clearTokenState resets token state and clears caches', () => {
   const harness = createRuntime();
+  const queueBeforeClear = { ...harness.getQueueState() };
   harness.runtime.clearTokenState();
 
   assert.equal(harness.getClearedStoredToken(), true);
@@ -98,4 +97,5 @@ test('clearTokenState resets token state and clears caches', () => {
     resolvedAt: null,
     errorAt: null,
   });
+  assert.deepEqual(harness.getQueueState(), queueBeforeClear);
 });

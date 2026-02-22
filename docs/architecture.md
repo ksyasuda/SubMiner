@@ -178,6 +178,16 @@ Composer modules share contract conventions via `src/main/runtime/composers/cont
 
 This keeps side effects explicit and makes behavior easy to unit-test with fakes.
 
+### Runtime State Ownership (Migrated Domains)
+
+For domains migrated to reducer-style transitions (for example AniList token/queue/media-guess runtime state), follow these rules:
+
+- Composition/runtime modules own mutable state cells and expose narrow `get*`/`set*` accessors.
+- Domain handlers do not mutate foreign state directly; they call explicit transition helpers that encode invariants.
+- Transition helpers may sync derived counters/snapshots, but must preserve non-owned metadata unless the transition explicitly owns that metadata.
+- Reducer boundary: when a domain has transition helpers in `src/main/state.ts`, new callsites should route updates through those helpers instead of ad-hoc object mutation in `main.ts` or composers.
+- Tests for migrated domains should assert both the intended field changes and non-targeted field invariants.
+
 ## Program Lifecycle
 
 - **Startup:** `startup.ts` parses CLI args and detects the compositor backend. If `--generate-config` is passed, it writes the template and exits. Otherwise `app-lifecycle.ts` acquires the single-instance lock and registers Electron lifecycle hooks.

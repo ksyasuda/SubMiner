@@ -12,13 +12,14 @@ import type {
 import type { CliArgs } from '../cli/args';
 import type { SubtitleTimingTracker } from '../subtitle-timing-tracker';
 import type { AnkiIntegration } from '../anki-integration';
-import type { ImmersionTrackerService } from '../core/services';
-import type { MpvIpcClient } from '../core/services';
-import type { JellyfinRemoteSessionService } from '../core/services';
-import { DEFAULT_MPV_SUBTITLE_RENDER_METRICS } from '../core/services';
+import type { ImmersionTrackerService } from '../core/services/immersion-tracker-service';
+import type { MpvIpcClient } from '../core/services/mpv';
+import type { JellyfinRemoteSessionService } from '../core/services/jellyfin-remote';
+import { DEFAULT_MPV_SUBTITLE_RENDER_METRICS } from '../core/services/mpv-render-metrics';
 import type { RuntimeOptionsManager } from '../runtime-options';
 import type { MecabTokenizer } from '../mecab-tokenizer';
 import type { BaseWindowTracker } from '../window-trackers';
+import type { AnilistMediaGuess } from '../core/services/anilist/anilist-updater';
 
 export interface AnilistSecretResolutionState {
   status: 'not_checked' | 'resolved' | 'error';
@@ -34,6 +35,108 @@ export interface AnilistRetryQueueState {
   deadLetter: number;
   lastAttemptAt: number | null;
   lastError: string | null;
+}
+
+export interface AnilistMediaGuessRuntimeState {
+  mediaKey: string | null;
+  mediaDurationSec: number | null;
+  mediaGuess: AnilistMediaGuess | null;
+  mediaGuessPromise: Promise<AnilistMediaGuess | null> | null;
+  lastDurationProbeAtMs: number;
+}
+
+export interface AnilistUpdateInFlightState {
+  inFlight: boolean;
+}
+
+export function createInitialAnilistSecretResolutionState(): AnilistSecretResolutionState {
+  return {
+    status: 'not_checked',
+    source: 'none',
+    message: null,
+    resolvedAt: null,
+    errorAt: null,
+  };
+}
+
+export function createInitialAnilistRetryQueueState(): AnilistRetryQueueState {
+  return {
+    pending: 0,
+    ready: 0,
+    deadLetter: 0,
+    lastAttemptAt: null,
+    lastError: null,
+  };
+}
+
+export function createInitialAnilistMediaGuessRuntimeState(): AnilistMediaGuessRuntimeState {
+  return {
+    mediaKey: null,
+    mediaDurationSec: null,
+    mediaGuess: null,
+    mediaGuessPromise: null,
+    lastDurationProbeAtMs: 0,
+  };
+}
+
+export function createInitialAnilistUpdateInFlightState(): AnilistUpdateInFlightState {
+  return {
+    inFlight: false,
+  };
+}
+
+export function transitionAnilistClientSecretState(
+  _current: AnilistSecretResolutionState,
+  next: AnilistSecretResolutionState,
+): AnilistSecretResolutionState {
+  return next;
+}
+
+export function transitionAnilistRetryQueueState(
+  _current: AnilistRetryQueueState,
+  next: AnilistRetryQueueState,
+): AnilistRetryQueueState {
+  return next;
+}
+
+export function transitionAnilistRetryQueueLastAttemptAt(
+  current: AnilistRetryQueueState,
+  lastAttemptAt: number | null,
+): AnilistRetryQueueState {
+  return {
+    ...current,
+    lastAttemptAt,
+  };
+}
+
+export function transitionAnilistRetryQueueLastError(
+  current: AnilistRetryQueueState,
+  lastError: string | null,
+): AnilistRetryQueueState {
+  return {
+    ...current,
+    lastError,
+  };
+}
+
+export function transitionAnilistMediaGuessRuntimeState(
+  current: AnilistMediaGuessRuntimeState,
+  partial: Partial<AnilistMediaGuessRuntimeState>,
+): AnilistMediaGuessRuntimeState {
+  return {
+    ...current,
+    ...partial,
+  };
+}
+
+export function transitionAnilistUpdateInFlightState(
+  current: AnilistUpdateInFlightState,
+  inFlight: boolean,
+): AnilistUpdateInFlightState {
+  return {
+    ...current,
+    inFlight,
+  };
 }
 
 export interface AppState {
@@ -123,13 +226,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     currentMediaPath: null,
     currentMediaTitle: null,
     pendingSubtitlePosition: null,
-    anilistClientSecretState: {
-      status: 'not_checked',
-      source: 'none',
-      message: null,
-      resolvedAt: null,
-      errorAt: null,
-    },
+    anilistClientSecretState: createInitialAnilistSecretResolutionState(),
     mecabTokenizer: null,
     keybindings: [],
     subtitleTimingTracker: null,
@@ -159,13 +256,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     jlptLevelLookup: () => null,
     frequencyRankLookup: () => null,
     anilistSetupPageOpened: false,
-    anilistRetryQueueState: {
-      pending: 0,
-      ready: 0,
-      deadLetter: 0,
-      lastAttemptAt: null,
-      lastError: null,
-    },
+    anilistRetryQueueState: createInitialAnilistRetryQueueState(),
   };
 }
 

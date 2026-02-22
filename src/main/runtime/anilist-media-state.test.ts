@@ -53,6 +53,40 @@ test('reset anilist media tracking clears duration/guess/probe state', () => {
   assert.equal(lastDurationProbeAtMs, 0);
 });
 
+test('reset anilist media tracking is idempotent', () => {
+  const state = {
+    mediaKey: 'old' as string | null,
+    mediaDurationSec: 123 as number | null,
+    mediaGuess: { title: 'guess' } as { title: string } | null,
+    mediaGuessPromise: Promise.resolve(null) as Promise<unknown> | null,
+    lastDurationProbeAtMs: 999,
+  };
+
+  const reset = createResetAnilistMediaTrackingHandler({
+    setMediaKey: (value) => {
+      state.mediaKey = value;
+    },
+    setMediaDurationSec: (value) => {
+      state.mediaDurationSec = value;
+    },
+    setMediaGuess: (value) => {
+      state.mediaGuess = value as { title: string } | null;
+    },
+    setMediaGuessPromise: (value) => {
+      state.mediaGuessPromise = value;
+    },
+    setLastDurationProbeAtMs: (value) => {
+      state.lastDurationProbeAtMs = value;
+    },
+  });
+
+  reset('/new/media');
+  const afterFirstReset = { ...state };
+  reset('/new/media');
+
+  assert.deepEqual(state, afterFirstReset);
+});
+
 test('get/set anilist media guess runtime state round-trips fields', () => {
   let state = {
     mediaKey: null as string | null,
@@ -106,19 +140,27 @@ test('get/set anilist media guess runtime state round-trips fields', () => {
 });
 
 test('reset anilist media guess state clears guess and in-flight promise', () => {
-  let mediaGuess: { title: string } | null = { title: 'guess' };
-  let mediaGuessPromise: Promise<unknown> | null = Promise.resolve(null);
+  const state = {
+    mediaKey: '/tmp/video.mkv' as string | null,
+    mediaDurationSec: 240 as number | null,
+    mediaGuess: { title: 'guess' } as { title: string } | null,
+    mediaGuessPromise: Promise.resolve(null) as Promise<unknown> | null,
+    lastDurationProbeAtMs: 321,
+  };
 
   const resetGuessState = createResetAnilistMediaGuessStateHandler({
     setMediaGuess: (value) => {
-      mediaGuess = value as { title: string } | null;
+      state.mediaGuess = value as { title: string } | null;
     },
     setMediaGuessPromise: (value) => {
-      mediaGuessPromise = value;
+      state.mediaGuessPromise = value;
     },
   });
 
   resetGuessState();
-  assert.equal(mediaGuess, null);
-  assert.equal(mediaGuessPromise, null);
+  assert.equal(state.mediaGuess, null);
+  assert.equal(state.mediaGuessPromise, null);
+  assert.equal(state.mediaKey, '/tmp/video.mkv');
+  assert.equal(state.mediaDurationSec, 240);
+  assert.equal(state.lastDurationProbeAtMs, 321);
 });

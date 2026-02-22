@@ -392,7 +392,6 @@ import {
 } from './core/services';
 import {
   guessAnilistMediaInfo,
-  type AnilistMediaGuess,
   updateAnilistPostWatchProgress,
 } from './core/services/anilist/anilist-updater';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
@@ -417,7 +416,21 @@ import {
 } from './main/frequency-dictionary-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
-import { type AppState, type StartupState, applyStartupState, createAppState } from './main/state';
+import {
+  type AnilistMediaGuessRuntimeState,
+  type AppState,
+  type StartupState,
+  applyStartupState,
+  createAppState,
+  createInitialAnilistMediaGuessRuntimeState,
+  createInitialAnilistUpdateInFlightState,
+  transitionAnilistClientSecretState,
+  transitionAnilistMediaGuessRuntimeState,
+  transitionAnilistRetryQueueLastAttemptAt,
+  transitionAnilistRetryQueueLastError,
+  transitionAnilistRetryQueueState,
+  transitionAnilistUpdateInFlightState,
+} from './main/state';
 import {
   isAllowedAnilistExternalUrl,
   isAllowedAnilistSetupNavigationUrl,
@@ -464,12 +477,9 @@ const JELLYFIN_TOKEN_STORE_FILE = 'jellyfin-token-store.json';
 const ANILIST_RETRY_QUEUE_FILE = 'anilist-retry-queue.json';
 const TRAY_TOOLTIP = 'SubMiner';
 
-let anilistCurrentMediaKey: string | null = null;
-let anilistCurrentMediaDurationSec: number | null = null;
-let anilistCurrentMediaGuess: AnilistMediaGuess | null = null;
-let anilistCurrentMediaGuessPromise: Promise<AnilistMediaGuess | null> | null = null;
-let anilistLastDurationProbeAtMs = 0;
-let anilistUpdateInFlight = false;
+let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
+  createInitialAnilistMediaGuessRuntimeState();
+let anilistUpdateInFlightState = createInitialAnilistUpdateInFlightState();
 const anilistAttemptedUpdateKeys = new Set<string>();
 let anilistCachedAccessToken: string | null = null;
 let jellyfinPlayQuitOnDisconnectArmed = false;
@@ -644,11 +654,17 @@ const buildImmersionMediaRuntimeMainDepsHandler = createBuildImmersionMediaRunti
 const buildAnilistStateRuntimeMainDepsHandler = createBuildAnilistStateRuntimeMainDepsHandler({
   getClientSecretState: () => appState.anilistClientSecretState,
   setClientSecretState: (next) => {
-    appState.anilistClientSecretState = next;
+    appState.anilistClientSecretState = transitionAnilistClientSecretState(
+      appState.anilistClientSecretState,
+      next,
+    );
   },
   getRetryQueueState: () => appState.anilistRetryQueueState,
   setRetryQueueState: (next) => {
-    appState.anilistRetryQueueState = next;
+    appState.anilistRetryQueueState = transitionAnilistRetryQueueState(
+      appState.anilistRetryQueueState,
+      next,
+    );
   },
   getUpdateQueueSnapshot: () => anilistUpdateQueue.getSnapshot(),
   clearStoredToken: () => anilistTokenStore.clearToken(),
@@ -1563,51 +1579,87 @@ const {
   },
   resetMediaTrackingMainDeps: {
     setMediaKey: (value) => {
-      anilistCurrentMediaKey = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { mediaKey: value },
+      );
     },
     setMediaDurationSec: (value) => {
-      anilistCurrentMediaDurationSec = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { mediaDurationSec: value },
+      );
     },
     setMediaGuess: (value) => {
-      anilistCurrentMediaGuess = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { mediaGuess: value },
+      );
     },
     setMediaGuessPromise: (value) => {
-      anilistCurrentMediaGuessPromise = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { mediaGuessPromise: value },
+      );
     },
     setLastDurationProbeAtMs: (value) => {
-      anilistLastDurationProbeAtMs = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { lastDurationProbeAtMs: value },
+      );
     },
   },
   getMediaGuessRuntimeStateMainDeps: {
-    getMediaKey: () => anilistCurrentMediaKey,
-    getMediaDurationSec: () => anilistCurrentMediaDurationSec,
-    getMediaGuess: () => anilistCurrentMediaGuess,
-    getMediaGuessPromise: () => anilistCurrentMediaGuessPromise,
-    getLastDurationProbeAtMs: () => anilistLastDurationProbeAtMs,
+    getMediaKey: () => anilistMediaGuessRuntimeState.mediaKey,
+    getMediaDurationSec: () => anilistMediaGuessRuntimeState.mediaDurationSec,
+    getMediaGuess: () => anilistMediaGuessRuntimeState.mediaGuess,
+    getMediaGuessPromise: () => anilistMediaGuessRuntimeState.mediaGuessPromise,
+    getLastDurationProbeAtMs: () => anilistMediaGuessRuntimeState.lastDurationProbeAtMs,
   },
   setMediaGuessRuntimeStateMainDeps: {
     setMediaKey: (value) => {
-      anilistCurrentMediaKey = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { mediaKey: value },
+      );
     },
     setMediaDurationSec: (value) => {
-      anilistCurrentMediaDurationSec = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { mediaDurationSec: value },
+      );
     },
     setMediaGuess: (value) => {
-      anilistCurrentMediaGuess = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { mediaGuess: value },
+      );
     },
     setMediaGuessPromise: (value) => {
-      anilistCurrentMediaGuessPromise = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { mediaGuessPromise: value },
+      );
     },
     setLastDurationProbeAtMs: (value) => {
-      anilistLastDurationProbeAtMs = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { lastDurationProbeAtMs: value },
+      );
     },
   },
   resetMediaGuessStateMainDeps: {
     setMediaGuess: (value) => {
-      anilistCurrentMediaGuess = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { mediaGuess: value },
+      );
     },
     setMediaGuessPromise: (value) => {
-      anilistCurrentMediaGuessPromise = value;
+      anilistMediaGuessRuntimeState = transitionAnilistMediaGuessRuntimeState(
+        anilistMediaGuessRuntimeState,
+        { mediaGuessPromise: value },
+      );
     },
   },
   maybeProbeDurationMainDeps: {
@@ -1635,10 +1687,16 @@ const {
     nextReady: () => anilistUpdateQueue.nextReady(),
     refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
     setLastAttemptAt: (value) => {
-      appState.anilistRetryQueueState.lastAttemptAt = value;
+      appState.anilistRetryQueueState = transitionAnilistRetryQueueLastAttemptAt(
+        appState.anilistRetryQueueState,
+        value,
+      );
     },
     setLastError: (value) => {
-      appState.anilistRetryQueueState.lastError = value;
+      appState.anilistRetryQueueState = transitionAnilistRetryQueueLastError(
+        appState.anilistRetryQueueState,
+        value,
+      );
     },
     refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
     updateAnilistPostWatchProgress: (accessToken, title, episode) =>
@@ -1656,15 +1714,18 @@ const {
     now: () => Date.now(),
   },
   maybeRunPostWatchUpdateMainDeps: {
-    getInFlight: () => anilistUpdateInFlight,
+    getInFlight: () => anilistUpdateInFlightState.inFlight,
     setInFlight: (value) => {
-      anilistUpdateInFlight = value;
+      anilistUpdateInFlightState = transitionAnilistUpdateInFlightState(
+        anilistUpdateInFlightState,
+        value,
+      );
     },
     getResolvedConfig: () => getResolvedConfig(),
     isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
     getCurrentMediaKey: () => getCurrentAnilistMediaKey(),
     hasMpvClient: () => Boolean(appState.mpvClient),
-    getTrackedMediaKey: () => anilistCurrentMediaKey,
+    getTrackedMediaKey: () => anilistMediaGuessRuntimeState.mediaKey,
     resetTrackedMedia: (mediaKey) => {
       resetAnilistMediaTracking(mediaKey);
     },
