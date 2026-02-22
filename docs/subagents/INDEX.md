@@ -71,3 +71,5 @@ Read first. Keep concise.
 | `codex-jellyfin-ts-fix-20260222T071530Z-5e50` | `codex-jellyfin-ts-fix` | `Fix Jellyfin token/session type drift causing TS compile failures in config+main.` | `done` | `docs/subagents/agents/codex-jellyfin-ts-fix-20260222T071530Z-5e50.md` | `2026-02-22T07:23:47Z` |
 | `codex-overlay-toggle-regression-20260222T073450Z-q7m4` | `codex-overlay-toggle-regression` | `Fix post-rebase overlay toggle regression causing transparent non-interactable windows and broken keybinds (TASK-107).` | `testing` | `docs/subagents/agents/codex-overlay-toggle-regression-20260222T073450Z-q7m4.md` | `2026-02-22T07:45:58Z` |
 | `codex-docs-review-20260222T094009Z-g8p2` | `codex-docs-review` | `Review README/docs for drift vs current code/scripts; patch stale or missing documentation.` | `done` | `docs/subagents/agents/codex-docs-review-20260222T094009Z-g8p2.md` | `2026-02-22T09:43:52Z` |
+
+| `codex-gh-fix-ci-20260222T191948Z-b7n4` | `codex-gh-fix-ci` | `Triage failing GitHub Actions checks on active PR; summarize root cause; propose fix plan before edits` | `handoff` | `docs/subagents/agents/codex-gh-fix-ci-20260222T191948Z-b7n4.md` | `2026-02-22T19:24:12Z` |

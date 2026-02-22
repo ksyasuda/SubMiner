@@ -9,7 +9,7 @@ if [[ ! -f "$REPO_ROOT/launcher/main.ts" ]]; then
 	exit 1
 fi
 
-if ! rg -n --fixed-strings -- "--outfile=\"\$(LAUNCHER_OUT)\"" "$REPO_ROOT/Makefile" >/dev/null; then
+if ! grep -Fn -- "--outfile=\"\$(LAUNCHER_OUT)\"" "$REPO_ROOT/Makefile" >/dev/null; then
 	echo "[FAIL] Makefile build-launcher target is not writing to dist/launcher/subminer"
 	exit 1
 fi
