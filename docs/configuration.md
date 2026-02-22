@@ -1,6 +1,6 @@
 # Configuration
 
-Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` when `XDG_CONFIG_HOME` is unset). For backward compatibility, SubMiner also reads existing configs from lowercase `subminer` directories.
+Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` when `XDG_CONFIG_HOME` is unset).
 
 ## Quick Start
 
@@ -41,7 +41,9 @@ SubMiner.AppImage --generate-config --backup-overwrite
 - `bun run generate:config-example` regenerates both repository `config.example.jsonc` and docs-served `/config.example.jsonc` from the same centralized defaults.
 - `make generate-config` builds and runs the same default-config generator via local Electron.
 
-Invalid config values are handled with warn-and-fallback behavior: SubMiner logs the bad key/value and continues with the default for that option.
+Malformed config syntax (invalid JSON/JSONC) is startup-blocking: SubMiner shows a clear parse error with the config path and asks you to fix the file and restart.
+
+For valid JSON/JSONC with invalid option values, SubMiner uses warn-and-fallback behavior: it logs the bad key/value and continues with the default for that option.
 
 ### Hot-Reload Behavior
 
@@ -424,10 +426,10 @@ AniList integration is opt-in and disabled by default. Enable it to allow SubMin
 }
 ```
 
-| Option        | Values          | Description                                                                         |
-| ------------- | --------------- | ----------------------------------------------------------------------------------- |
-| `enabled`     | `true`, `false` | Enable AniList post-watch progress updates (default: `false`)                       |
-| `accessToken` | string          | Optional explicit AniList access token override (default: empty string)             |
+| Option        | Values          | Description                                                             |
+| ------------- | --------------- | ----------------------------------------------------------------------- |
+| `enabled`     | `true`, `false` | Enable AniList post-watch progress updates (default: `false`)           |
+| `accessToken` | string          | Optional explicit AniList access token override (default: empty string) |
 
 When `enabled` is `true` and `accessToken` is empty, SubMiner opens an AniList setup helper window. Keep `enabled` as `false` to disable all AniList setup/update behavior.
 
@@ -477,6 +479,8 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
     "enabled": true,
     "serverUrl": "http://127.0.0.1:8096",
     "username": "",
+    "accessToken": "",
+    "userId": "",
     "remoteControlEnabled": true,
     "remoteControlAutoConnect": true,
     "autoAnnounce": false,
@@ -489,29 +493,28 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 }
 ```
 
-| Option                     | Values          | Description                                                                  |
-| -------------------------- | --------------- | ---------------------------------------------------------------------------- |
-| `enabled`                  | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`)              |
-| `serverUrl`                | string (URL)    | Jellyfin server base URL                                                     |
-| `username`                 | string          | Default username used by `--jellyfin-login`                                  |
-| `deviceId`                 | string          | Client device id sent in auth headers (default: `subminer`)                  |
-| `clientName`               | string          | Client name sent in auth headers (default: `SubMiner`)                       |
-| `clientVersion`            | string          | Client version sent in auth headers (default: `0.1.0`)                       |
-| `defaultLibraryId`         | string          | Default library id for `--jellyfin-items` when CLI value is omitted          |
-| `remoteControlEnabled`     | `true`, `false` | Enable Jellyfin cast/remote-control session support                          |
-| `remoteControlAutoConnect` | `true`, `false` | Auto-connect Jellyfin remote session on app startup                          |
-| `autoAnnounce`             | `true`, `false` | Auto-run cast-target visibility announce check on connect (default: `false`) |
-| `remoteControlDeviceName`  | string          | Device name shown in Jellyfin cast/device lists                              |
-| `pullPictures`             | `true`, `false` | Enable poster/icon fetching for launcher Jellyfin pickers                    |
-| `iconCacheDir`             | string          | Cache directory for launcher-fetched Jellyfin poster icons                   |
-| `directPlayPreferred`      | `true`, `false` | Prefer direct stream URLs before transcoding                                 |
-| `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                |
-| `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                   |
+| Option                     | Values          | Description                                                                             |
+| -------------------------- | --------------- | --------------------------------------------------------------------------------------- |
+| `enabled`                  | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`)                         |
+| `serverUrl`                | string (URL)    | Jellyfin server base URL                                                                |
+| `username`                 | string          | Default username used by `--jellyfin-login`                                             |
+| `accessToken`              | string          | Optional explicit Jellyfin access token override; leave empty to use stored local token |
+| `userId`                   | string          | Jellyfin user id bound to token/session                                                 |
+| `deviceId`                 | string          | Client device id sent in auth headers (default: `subminer`)                             |
+| `clientName`               | string          | Client name sent in auth headers (default: `SubMiner`)                                  |
+| `clientVersion`            | string          | Client version sent in auth headers (default: `0.1.0`)                                  |
+| `defaultLibraryId`         | string          | Default library id for `--jellyfin-items` when CLI value is omitted                     |
+| `remoteControlEnabled`     | `true`, `false` | Enable Jellyfin cast/remote-control session support                                     |
+| `remoteControlAutoConnect` | `true`, `false` | Auto-connect Jellyfin remote session on app startup                                     |
+| `autoAnnounce`             | `true`, `false` | Auto-run cast-target visibility announce check on connect (default: `false`)            |
+| `remoteControlDeviceName`  | string          | Device name shown in Jellyfin cast/device lists                                         |
+| `pullPictures`             | `true`, `false` | Enable poster/icon fetching for launcher Jellyfin pickers                               |
+| `iconCacheDir`             | string          | Cache directory for launcher-fetched Jellyfin poster icons                              |
+| `directPlayPreferred`      | `true`, `false` | Prefer direct stream URLs before transcoding                                            |
+| `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                           |
+| `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                              |
 
-Jellyfin auth resolution order:
-
-1. `SUBMINER_JELLYFIN_ACCESS_TOKEN` (and optional `SUBMINER_JELLYFIN_USER_ID`) environment overrides.
-2. Locally stored encrypted Jellyfin session payload saved by login/setup (`accessToken` + `userId`).
+When `jellyfin.accessToken` is empty, SubMiner uses the locally stored encrypted token saved from Jellyfin login/setup.
 
 Jellyfin direct app CLI commands (`SubMiner.AppImage ...`):
 
@@ -725,7 +728,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                      |
 | `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                       |
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                            |
-| `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout. |
+| `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.  |
 | `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                          |
 | `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use the built-in bundled dictionary search paths. |
 | `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                             |

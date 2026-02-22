@@ -2,7 +2,7 @@
 
 - alias: `codex-docs-unpushed-review`
 - mission: `Review unpushed commits for docs drift; patch docs to reflect current code/state`
-- status: `in_progress`
+- status: `done`
 - started_utc: `2026-02-21T21:37:07Z`
 - heartbeat_minutes: `5`
 
@@ -30,3 +30,7 @@
 ## Log
 
 - `2026-02-21T21:37:07Z` start; loaded subagent index/collaboration/backlog state; collecting unpushed commit/doc impact matrix.
+- `2026-02-21T21:39:15Z` docs drift patched:
+  - removed stale lowercase-config fallback claim from `docs/configuration.md`
+  - added `bun run test:launcher` to `docs/development.md` Testing section
+- `2026-02-21T21:39:15Z` no further user-facing doc drift found for current unpushed commit set; ready for handoff.

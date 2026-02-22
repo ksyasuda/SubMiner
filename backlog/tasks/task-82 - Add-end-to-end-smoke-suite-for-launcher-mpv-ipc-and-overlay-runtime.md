@@ -1,10 +1,11 @@
 ---
 id: TASK-82
 title: Add end-to-end smoke suite for launcher mpv ipc and overlay runtime
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - codex-task82-smoke-20260222T002523Z-3j7u
 created_date: '2026-02-18 11:43'
-updated_date: '2026-02-18 11:43'
+updated_date: '2026-02-22 00:27'
 labels:
   - testing
   - e2e
@@ -52,9 +53,51 @@ Current coverage is strong at unit/service level but thin on end-to-end behavior
 - [ ] #4 Smoke suite documented in development/release docs
 <!-- AC:END -->
 
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Plan-of-record (2026-02-22, codex-task82-smoke-20260222T002523Z-3j7u)
+
+Goal
+- Add deterministic e2e smoke coverage for launcher -> mpv IPC socket -> app overlay start/stop runtime wiring.
+- Run suite in CI + release quality gates with actionable failure artifacts.
+- Document command, coverage, and release-checklist linkage.
+
+Execution slices (parallel where safe)
+1) Launcher smoke harness (core implementation)
+   - Create launcher/smoke.e2e.test.ts with fake mpv + fake app fixtures in temp dir.
+   - Validate startup path, socket readiness, app --start args/env, and post-run --stop behavior.
+   - Emit actionable artifact logs under .tmp/launcher-smoke/<run-id>.
+
+2) Script + workflow wiring (can run in parallel after command exists)
+   - package.json: add test:launcher:smoke:src and include in launcher lane.
+   - .github/workflows/ci.yml: run launcher smoke suite and upload smoke artifacts on failure.
+   - .github/workflows/release.yml: mirror quality-gate step and failure artifact upload.
+
+3) Docs wiring (parallel with workflows)
+   - docs/development.md: command usage + what it validates + artifact path.
+   - docs/installation.md: release/checklist reference to launcher smoke gate.
+
+4) Validation + closure
+   - Run focused lane: bun run test:launcher:smoke:src and bun run test:launcher.
+   - Run integration lane: bun run test:fast.
+   - Run dist confidence lane: bun run build && bun run test:smoke:dist (or record unrelated blockers).
+   - Update TASK-82 AC/DoD checks with exact evidence and final summary.
+
+Scope guardrails
+- No commit/push in this run.
+- Keep smoke suite dependency-free (local fakes only).
+- If new required scope appears, pause and request user scope decision before expanding AC.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-02-22: Started execution with opencode-task82-smoke-20260222T002150Z-p5bp via writing-plans -> executing-plans workflow.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 Smoke suite passes on baseline branch
 - [ ] #2 Release checklist references smoke suite
 <!-- DOD:END -->
-
