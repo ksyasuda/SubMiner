@@ -1145,7 +1145,8 @@ function getResolvedConfig() {
 const buildGetResolvedJellyfinConfigMainDepsHandler =
   createBuildGetResolvedJellyfinConfigMainDepsHandler({
     getResolvedConfig: () => getResolvedConfig(),
-    loadStoredToken: () => jellyfinTokenStore.loadToken(),
+    loadStoredSession: () => jellyfinTokenStore.loadSession(),
+    getEnv: (name) => process.env[name],
   });
 const getResolvedJellyfinConfigMainDeps = buildGetResolvedJellyfinConfigMainDepsHandler();
 const getResolvedJellyfinConfigHandler = createGetResolvedJellyfinConfigHandler(
@@ -1295,8 +1296,8 @@ const buildHandleJellyfinAuthCommandsMainDepsHandler =
     },
     authenticateWithPassword: (serverUrl, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(serverUrl, username, password, clientInfo),
-    saveStoredToken: (token) => jellyfinTokenStore.saveToken(token),
-    clearStoredToken: () => jellyfinTokenStore.clearToken(),
+    saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
+    clearStoredSession: () => jellyfinTokenStore.clearSession(),
     logInfo: (message) => logger.info(message),
   });
 const handleJellyfinAuthCommandsMainDeps = buildHandleJellyfinAuthCommandsMainDepsHandler();
@@ -1536,15 +1537,13 @@ const buildOpenJellyfinSetupWindowMainDepsHandler =
     authenticateWithPassword: (server, username, password, clientInfo) =>
       authenticateWithPasswordRuntime(server, username, password, clientInfo),
     getJellyfinClientInfo: () => getJellyfinClientInfo(),
-    saveStoredToken: (token) => jellyfinTokenStore.saveToken(token),
+    saveStoredSession: (session) => jellyfinTokenStore.saveSession(session),
     patchJellyfinConfig: (session) => {
       configService.patchRawConfig({
         jellyfin: {
           enabled: true,
           serverUrl: session.serverUrl,
           username: session.username,
-          accessToken: '',
-          userId: session.userId,
         },
       });
     },

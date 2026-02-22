@@ -498,8 +498,6 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `enabled`                  | `true`, `false` | Enable Jellyfin integration and CLI commands (default: `false`)                                              |
 | `serverUrl`                | string (URL)    | Jellyfin server base URL                                                                                     |
 | `username`                 | string          | Default username used by `--jellyfin-login`                                                                  |
-| `accessToken`              | string          | Optional explicit Jellyfin access token override; leave empty to use stored local token                      |
-| `userId`                   | string          | Jellyfin user id bound to token/session                                                                      |
 | `deviceId`                 | string          | Client device id sent in auth headers (default: `subminer`)                                                  |
 | `clientName`               | string          | Client name sent in auth headers (default: `SubMiner`)                                                       |
 | `clientVersion`            | string          | Client version sent in auth headers (default: `0.1.0`)                                                       |
@@ -514,7 +512,8 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `directPlayContainers`     | string[]        | Container allowlist for direct play decisions                                                                |
 | `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                                                   |
 
-When `jellyfin.accessToken` is empty, SubMiner uses the locally stored encrypted token saved from Jellyfin login/setup.
+Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup.
+Optional environment overrides: `SUBMINER_JELLYFIN_ACCESS_TOKEN`, `SUBMINER_JELLYFIN_USER_ID`.
 
 Jellyfin direct app CLI commands (`SubMiner.AppImage ...`):
 

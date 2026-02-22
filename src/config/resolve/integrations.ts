@@ -41,8 +41,6 @@ export function applyIntegrationConfig(context: ResolveContext): void {
     const stringKeys = [
       'serverUrl',
       'username',
-      'accessToken',
-      'userId',
       'deviceId',
       'clientName',
       'clientVersion',

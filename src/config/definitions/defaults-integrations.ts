@@ -85,8 +85,6 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     enabled: false,
     serverUrl: '',
     username: '',
-    accessToken: '',
-    userId: '',
     deviceId: 'subminer',
     clientName: 'SubMiner',
     clientVersion: '0.1.0',
