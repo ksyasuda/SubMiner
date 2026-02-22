@@ -38,6 +38,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Maintainability guardrails (fail-fast)
+        run: |
+          bun run check:file-budgets:strict
+          bun run check:main-fanin:strict
+          bun run check:runtime-cycles:strict
+
       - name: Build (TypeScript check)
         # Keep explicit typecheck for fast fail before full build/bundle.
         run: bun run tsc --noEmit

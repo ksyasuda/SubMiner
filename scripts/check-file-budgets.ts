@@ -7,19 +7,44 @@ type FileBudgetResult = {
   lines: number;
 };
 
+type HotspotBudget = {
+  file: string;
+  baseline: number;
+  limit: number;
+};
+
+type HotspotStatus = HotspotBudget & {
+  lines: number;
+  delta: number;
+  overLimit: boolean;
+};
+
 const DEFAULT_LINE_LIMIT = 500;
 const TARGET_DIRS = ['src', 'launcher'];
 const TARGET_EXTENSIONS = new Set(['.ts']);
 const IGNORE_NAMES = new Set(['.DS_Store']);
+const HOTSPOT_BUDGETS: readonly HotspotBudget[] = [
+  { file: 'src/main.ts', baseline: 2978, limit: 3150 },
+  { file: 'src/config/service.ts', baseline: 116, limit: 140 },
+  { file: 'src/core/services/tokenizer.ts', baseline: 232, limit: 260 },
+  { file: 'launcher/main.ts', baseline: 101, limit: 130 },
+  { file: 'src/config/resolve.ts', baseline: 33, limit: 55 },
+  { file: 'src/main/runtime/composers/contracts.ts', baseline: 13, limit: 30 },
+];
 
-function parseArgs(argv: string[]): { strict: boolean; limit: number } {
+function parseArgs(argv: string[]): { strict: boolean; limit: number; enforceGlobal: boolean } {
   let strict = false;
   let limit = DEFAULT_LINE_LIMIT;
+  let enforceGlobal = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--strict') {
       strict = true;
+      continue;
+    }
+    if (arg === '--enforce-global') {
+      enforceGlobal = true;
       continue;
     }
     if (arg === '--limit') {
@@ -34,7 +59,7 @@ function parseArgs(argv: string[]): { strict: boolean; limit: number } {
     }
   }
 
-  return { strict, limit };
+  return { strict, limit, enforceGlobal };
 }
 
 function resolveFilesWithRipgrep(): string[] {
@@ -71,28 +96,77 @@ function collectOverBudgetFiles(files: string[], limit: number): FileBudgetResul
   return results.sort((a, b) => b.lines - a.lines || a.file.localeCompare(b.file));
 }
 
-function printReport(overBudget: FileBudgetResult[], limit: number, strict: boolean): void {
+function collectHotspotStatuses(hotspots: readonly HotspotBudget[]): HotspotStatus[] {
+  return hotspots.map((hotspot) => {
+    const content = fs.readFileSync(hotspot.file, 'utf8');
+    const lines = countLines(content);
+    return {
+      ...hotspot,
+      lines,
+      delta: lines - hotspot.baseline,
+      overLimit: lines > hotspot.limit,
+    };
+  });
+}
+
+function printGlobalReport(
+  overBudget: FileBudgetResult[],
+  limit: number,
+  strict: boolean,
+  enforceGlobal: boolean,
+): void {
   const mode = strict ? 'strict' : 'warning';
   if (overBudget.length === 0) {
     console.log(`[OK] file budget check (${mode}) — no files over ${limit} LOC`);
     return;
   }
 
-  const heading = strict ? '[FAIL]' : '[WARN]';
-  console.log(`${heading} file budget check (${mode}) — ${overBudget.length} files over ${limit} LOC`);
+  const heading = strict && enforceGlobal ? '[FAIL]' : '[WARN]';
+  console.log(
+    `${heading} file budget check (${mode}) — ${overBudget.length} files over ${limit} LOC`,
+  );
   for (const item of overBudget) {
     console.log(`  - ${item.file}: ${item.lines} LOC`);
   }
   console.log('  Hint: split by runtime/domain boundaries; keep composition roots thin.');
 }
 
+function printHotspotReport(hotspots: readonly HotspotStatus[], strict: boolean): void {
+  const mode = strict ? 'strict' : 'warning';
+  const overLimit = hotspots.filter((hotspot) => hotspot.overLimit);
+
+  if (overLimit.length === 0) {
+    console.log(`[OK] hotspot budget check (${mode}) — no hotspots over limit`);
+  } else {
+    const heading = strict ? '[FAIL]' : '[WARN]';
+    console.log(
+      `${heading} hotspot budget check (${mode}) — ${overLimit.length} hotspots over limit`,
+    );
+  }
+
+  for (const hotspot of hotspots) {
+    const status = hotspot.overLimit ? 'OVER' : 'OK';
+    const delta = hotspot.delta >= 0 ? `+${hotspot.delta}` : `${hotspot.delta}`;
+    console.log(
+      `  - [${status}] ${hotspot.file}: baseline=${hotspot.baseline}, limit=${hotspot.limit}, current=${hotspot.lines}, delta=${delta}`,
+    );
+  }
+}
+
 function main(): void {
-  const { strict, limit } = parseArgs(process.argv.slice(2));
+  const { strict, limit, enforceGlobal } = parseArgs(process.argv.slice(2));
   const files = resolveFilesWithRipgrep();
   const overBudget = collectOverBudgetFiles(files, limit);
-  printReport(overBudget, limit, strict);
+  const hotspotStatuses = collectHotspotStatuses(HOTSPOT_BUDGETS);
 
-  if (strict && overBudget.length > 0) {
+  printGlobalReport(overBudget, limit, strict, enforceGlobal);
+  printHotspotReport(hotspotStatuses, strict);
+
+  const overGlobalLimit = overBudget.length > 0;
+  const hotspotOverLimit = hotspotStatuses.some((hotspot) => hotspot.overLimit);
+  const strictFailure = hotspotOverLimit || (strict && enforceGlobal && overGlobalLimit);
+
+  if (strict && strictFailure) {
     process.exitCode = 1;
   }
 }
