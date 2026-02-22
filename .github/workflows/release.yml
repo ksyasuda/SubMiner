@@ -206,7 +206,7 @@ jobs:
         run: make build-launcher
 
       - name: Verify Bun subminer wrapper
-        run: ./subminer --help >/dev/null
+        run: dist/launcher/subminer --help >/dev/null
 
       - name: Package optional assets bundle
         run: |
