@@ -4,13 +4,14 @@ title: Consolidate launcher mpv socket readiness primitives
 status: Done
 assignee: []
 created_date: '2026-02-18 11:35'
-updated_date: '2026-02-21 20:19'
+updated_date: '2026-02-22 07:49'
 labels:
   - launcher
   - mpv
   - refactor
 dependencies: []
 priority: medium
+ordinal: 85000
 ---
 
 ## Description

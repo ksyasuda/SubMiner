@@ -4,7 +4,7 @@ title: Synchronize TASK-85 closure tracking and child-task status
 status: Done
 assignee: []
 created_date: '2026-02-20 12:06'
-updated_date: '2026-02-21 07:11'
+updated_date: '2026-02-22 07:49'
 labels:
   - process
   - refactor
@@ -12,6 +12,7 @@ labels:
 dependencies:
   - TASK-85
 priority: high
+ordinal: 89000
 ---
 
 ## Description

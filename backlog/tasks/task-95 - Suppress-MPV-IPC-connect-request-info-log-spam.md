@@ -4,7 +4,7 @@ title: Suppress MPV IPC connect-request info log spam
 status: Done
 assignee: []
 created_date: '2026-02-21 04:38'
-updated_date: '2026-02-21 04:40'
+updated_date: '2026-02-22 07:49'
 labels:
   - logging
   - mpv
@@ -12,6 +12,7 @@ labels:
   - quality
 dependencies: []
 priority: high
+ordinal: 91000
 ---
 
 ## Description

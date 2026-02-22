@@ -4,7 +4,7 @@ title: Run post-refactor dead code prune and cleanup
 status: Done
 assignee: []
 created_date: '2026-02-21 07:15'
-updated_date: '2026-02-22 04:01'
+updated_date: '2026-02-22 07:49'
 labels:
   - cleanup
   - maintainability
@@ -13,6 +13,7 @@ dependencies:
   - TASK-96
   - TASK-97
 priority: medium
+ordinal: 70000
 ---
 
 ## Description

@@ -4,13 +4,14 @@ title: Make startup config loading strict with clear user-facing errors
 status: Done
 assignee: []
 created_date: '2026-02-18 11:35'
-updated_date: '2026-02-21 23:26'
+updated_date: '2026-02-22 07:49'
 labels:
   - config
   - ux
   - reliability
 dependencies: []
 priority: medium
+ordinal: 82000
 ---
 
 ## Description

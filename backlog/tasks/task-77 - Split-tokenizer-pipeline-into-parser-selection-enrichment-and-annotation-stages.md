@@ -7,13 +7,14 @@ status: Done
 assignee:
   - '@opencode'
 created_date: '2026-02-18 11:43'
-updated_date: '2026-02-21 23:47'
+updated_date: '2026-02-22 07:49'
 labels:
   - tokenizer
   - subtitles
   - refactor
 dependencies: []
 priority: high
+ordinal: 80000
 ---
 
 ## Description

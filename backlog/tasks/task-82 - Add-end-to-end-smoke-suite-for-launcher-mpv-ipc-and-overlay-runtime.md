@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex-task82-smoke-20260222T002523Z-3j7u
 created_date: '2026-02-18 11:43'
-updated_date: '2026-02-22 00:55'
+updated_date: '2026-02-22 07:49'
 labels:
   - testing
   - e2e
@@ -14,6 +14,7 @@ labels:
 dependencies:
   - TASK-74
 priority: high
+ordinal: 76000
 ---
 
 ## Description

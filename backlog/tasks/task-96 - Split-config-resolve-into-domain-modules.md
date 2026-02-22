@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex-task96-config-resolve'
 created_date: '2026-02-21 07:15'
-updated_date: '2026-02-21 20:10'
+updated_date: '2026-02-22 07:49'
 labels:
   - architecture
   - refactor
@@ -13,6 +13,7 @@ labels:
 dependencies:
   - TASK-85
 priority: high
+ordinal: 86000
 ---
 
 ## Description

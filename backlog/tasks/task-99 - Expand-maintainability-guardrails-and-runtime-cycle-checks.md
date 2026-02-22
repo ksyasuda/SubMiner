@@ -4,7 +4,7 @@ title: Expand maintainability guardrails and runtime cycle checks
 status: Done
 assignee: []
 created_date: '2026-02-21 07:15'
-updated_date: '2026-02-22 03:02'
+updated_date: '2026-02-22 07:49'
 labels:
   - quality
   - architecture
@@ -13,6 +13,7 @@ dependencies:
   - TASK-96
   - TASK-97
 priority: medium
+ordinal: 71000
 ---
 
 ## Description

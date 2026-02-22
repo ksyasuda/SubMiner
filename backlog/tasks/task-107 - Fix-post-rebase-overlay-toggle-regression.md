@@ -1,17 +1,18 @@
 ---
 id: TASK-107
 title: Fix post-rebase overlay toggle regression
-status: In Progress
+status: Done
 assignee:
   - codex
 created_date: '2026-02-21 23:34'
-updated_date: '2026-02-21 23:45'
+updated_date: '2026-02-22 07:49'
 labels:
   - bug
   - overlay
   - regression
 dependencies: []
 priority: high
+ordinal: 98000
 ---
 
 ## Description
@@ -37,18 +38,11 @@ Need root-cause fix so both overlay modes render and interactive/keybind behavio
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Toggling visible overlay shows subtitle content again.
-- [ ] #2 Toggling invisible overlay restores interactive subtitle behavior.
-- [ ] #3 Overlay keybinds work after overlay toggle in both modes.
-- [ ] #4 Added regression coverage for broken toggle path.
+- [x] #1 Toggling visible overlay shows subtitle content again.
+- [x] #2 Toggling invisible overlay restores interactive subtitle behavior.
+- [x] #3 Overlay keybinds work after overlay toggle in both modes.
+- [x] #4 Added regression coverage for broken toggle path.
 <!-- AC:END -->
-
-## Definition of Done
-<!-- DOD:BEGIN -->
-- [ ] #1 Focused overlay/runtime tests pass.
-- [ ] #2 No new type/build regressions introduced by fix.
-- [ ] #3 Task notes include root cause and validation commands.
-<!-- DOD:END -->
 
 ## Implementation Notes
 
@@ -60,3 +54,10 @@ Need root-cause fix so both overlay modes render and interactive/keybind behavio
 - Added regression test `src/core/services/overlay-window-config.test.ts` to guard sandbox setting.
 - Validation: `bun test src/core/services/overlay-window-config.test.ts src/renderer/error-recovery.test.ts`; `bun run build`.
 <!-- SECTION:NOTES:END -->
+
+## Definition of Done
+<!-- DOD:BEGIN -->
+- [x] #1 Focused overlay/runtime tests pass.
+- [x] #2 No new type/build regressions introduced by fix.
+- [x] #3 Task notes include root cause and validation commands.
+<!-- DOD:END -->

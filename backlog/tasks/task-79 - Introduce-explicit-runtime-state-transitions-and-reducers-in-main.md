@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@sudacode'
 created_date: '2026-02-18 11:43'
-updated_date: '2026-02-22 00:10'
+updated_date: '2026-02-22 07:49'
 labels:
   - main-process
   - state-management
@@ -13,6 +13,7 @@ labels:
 dependencies:
   - TASK-71
 priority: medium
+ordinal: 77000
 ---
 
 ## Description

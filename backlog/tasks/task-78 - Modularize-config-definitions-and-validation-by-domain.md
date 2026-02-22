@@ -4,7 +4,7 @@ title: Modularize config definitions and validation by domain
 status: Done
 assignee: []
 created_date: '2026-02-18 11:43'
-updated_date: '2026-02-22 00:06'
+updated_date: '2026-02-22 07:49'
 labels:
   - config
   - refactor
@@ -13,6 +13,7 @@ dependencies:
   - TASK-69
   - TASK-72
 priority: high
+ordinal: 78000
 ---
 
 ## Description

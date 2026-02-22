@@ -4,7 +4,7 @@ title: Decompose anki-integration orchestrator into workflow services
 status: Done
 assignee: []
 created_date: '2026-02-18 11:43'
-updated_date: '2026-02-21 21:16'
+updated_date: '2026-02-22 07:49'
 labels:
   - anki
   - refactor
@@ -12,6 +12,7 @@ labels:
 dependencies:
   - TASK-57
 priority: high
+ordinal: 83000
 ---
 
 ## Description

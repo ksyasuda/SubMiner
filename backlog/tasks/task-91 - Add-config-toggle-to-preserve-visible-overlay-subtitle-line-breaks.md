@@ -4,10 +4,11 @@ title: Add config toggle to preserve visible overlay subtitle line breaks
 status: Done
 assignee: []
 created_date: '2026-02-20 06:35'
-updated_date: '2026-02-20 11:10'
+updated_date: '2026-02-22 07:49'
 labels: []
 dependencies: []
 priority: medium
+ordinal: 93000
 ---
 
 ## Description

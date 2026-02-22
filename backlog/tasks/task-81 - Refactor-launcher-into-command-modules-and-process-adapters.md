@@ -5,7 +5,7 @@ status: Done
 assignee:
   - opencode-task81-launcher-modules
 created_date: '2026-02-18 11:43'
-updated_date: '2026-02-22 01:09'
+updated_date: '2026-02-22 07:49'
 labels:
   - launcher
   - cli
@@ -15,6 +15,7 @@ dependencies:
   - TASK-73
   - TASK-74
 priority: medium
+ordinal: 74000
 ---
 
 ## Description

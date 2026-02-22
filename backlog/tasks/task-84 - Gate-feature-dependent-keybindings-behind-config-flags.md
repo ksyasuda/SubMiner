@@ -5,10 +5,11 @@ status: Done
 assignee:
   - opencode-task84-keybindings-gating
 created_date: '2026-02-19 08:41'
-updated_date: '2026-02-22 01:35'
+updated_date: '2026-02-22 07:49'
 labels: []
 dependencies: []
 priority: medium
+ordinal: 73000
 ---
 
 ## Description

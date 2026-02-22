@@ -4,10 +4,11 @@ title: Update default subtitle background RGBA
 status: Done
 assignee: []
 created_date: '2026-02-20 05:43'
-updated_date: '2026-02-20 05:44'
+updated_date: '2026-02-22 07:49'
 labels: []
 dependencies: []
 priority: low
+ordinal: 95000
 ---
 
 ## Description

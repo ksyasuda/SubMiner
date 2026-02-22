@@ -5,13 +5,14 @@ status: Done
 assignee:
   - opencode-task80-ipc-contract
 created_date: '2026-02-18 11:43'
-updated_date: '2026-02-22 00:56'
+updated_date: '2026-02-22 07:49'
 labels:
   - ipc
   - type-safety
   - reliability
 dependencies: []
 priority: medium
+ordinal: 75000
 ---
 
 ## Description

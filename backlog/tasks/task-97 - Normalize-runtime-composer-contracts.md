@@ -5,7 +5,7 @@ status: Done
 assignee:
   - opencode
 created_date: '2026-02-21 07:15'
-updated_date: '2026-02-21 10:07'
+updated_date: '2026-02-22 07:49'
 labels:
   - architecture
   - type-safety
@@ -14,6 +14,7 @@ dependencies:
   - TASK-94
   - TASK-71
 priority: high
+ordinal: 87000
 ---
 
 ## Description

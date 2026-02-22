@@ -4,13 +4,14 @@ title: Move mpv OSD log writes to buffered async path
 status: Done
 assignee: []
 created_date: '2026-02-18 11:35'
-updated_date: '2026-02-21 23:48'
+updated_date: '2026-02-22 07:49'
 labels:
   - logging
   - performance
   - main-process
 dependencies: []
 priority: low
+ordinal: 79000
 ---
 
 ## Description

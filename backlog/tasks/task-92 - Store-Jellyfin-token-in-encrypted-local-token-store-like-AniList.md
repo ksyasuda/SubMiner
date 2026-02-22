@@ -4,10 +4,11 @@ title: Store Jellyfin token in encrypted local token store like AniList
 status: Done
 assignee: []
 created_date: '2026-02-20 02:22'
-updated_date: '2026-02-20 02:22'
+updated_date: '2026-02-22 07:49'
 labels: []
 dependencies: []
 priority: medium
+ordinal: 96000
 ---
 
 ## Description

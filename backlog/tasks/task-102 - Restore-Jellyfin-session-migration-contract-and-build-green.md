@@ -1,10 +1,10 @@
 ---
 id: TASK-102
 title: Restore Jellyfin session migration contract and build green
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-22 07:12'
-updated_date: '2026-02-22 07:12'
+updated_date: '2026-02-22 07:51'
 labels:
   - bug
   - jellyfin
@@ -12,6 +12,7 @@ labels:
 dependencies:
   - TASK-93
 priority: high
+ordinal: 99000
 ---
 
 ## Description

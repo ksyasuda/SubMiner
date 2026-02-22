@@ -4,7 +4,7 @@ title: Reduce main.ts to thin composition root
 status: Done
 assignee: []
 created_date: '2026-02-20 12:06'
-updated_date: '2026-02-21 04:12'
+updated_date: '2026-02-22 07:49'
 labels:
   - architecture
   - refactor
@@ -13,6 +13,7 @@ dependencies:
   - TASK-71
   - TASK-85
 priority: high
+ordinal: 92000
 ---
 
 ## Description
