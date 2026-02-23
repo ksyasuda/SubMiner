@@ -48,7 +48,7 @@ test('prefers scanning parser when scanning candidate has more than one token', 
   assert.equal(tokens?.map((token) => token.surface).join(','), '小園,に');
 });
 
-test('prefers mecab candidate when scanning candidate is single token and mecab has better split', () => {
+test('keeps scanning parser candidate when scanning candidate is single token', () => {
   const parseResults = [
     makeParseItem('scanning-parser', [
       [{ text: '俺は公園にいきたい', reading: 'おれはこうえんにいきたい' }],
@@ -63,17 +63,17 @@ test('prefers mecab candidate when scanning candidate is single token and mecab 
   ];
 
   const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
-  assert.equal(tokens?.map((token) => token.surface).join(','), '俺,は,公園,に,いきたい');
+  assert.equal(tokens?.map((token) => token.surface).join(','), '俺は公園にいきたい');
 });
 
 test('tie-break prefers fewer suspicious kana fragments', () => {
   const parseResults = [
-    makeParseItem('mecab-fragmented', [
+    makeParseItem('scanning-parser', [
       [{ text: '俺', reading: 'おれ', headword: '俺' }],
       [{ text: 'にい', reading: '', headword: '兄' }],
       [{ text: 'きたい', reading: '', headword: '期待' }],
     ]),
-    makeParseItem('mecab', [
+    makeParseItem('scanning-parser', [
       [{ text: '俺', reading: 'おれ', headword: '俺' }],
       [{ text: 'に', reading: 'に', headword: 'に' }],
       [{ text: '行きたい', reading: 'いきたい', headword: '行きたい' }],
@@ -82,4 +82,17 @@ test('tie-break prefers fewer suspicious kana fragments', () => {
 
   const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
   assert.equal(tokens?.map((token) => token.surface).join(','), '俺,に,行きたい');
+});
+
+test('returns null when only mecab-source candidates are present', () => {
+  const parseResults = [
+    makeParseItem('mecab', [
+      [{ text: '俺', reading: 'おれ', headword: '俺' }],
+      [{ text: 'は', reading: 'は', headword: 'は' }],
+      [{ text: '公園', reading: 'こうえん', headword: '公園' }],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.equal(tokens, null);
 });

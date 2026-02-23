@@ -103,7 +103,7 @@ If you installed from the AppImage and see this error, the package may be incomp
 
 **"MeCab not found on system"**
 
-This is informational, not an error. SubMiner uses Yomitan's internal parser as the primary tokenizer and falls back to MeCab when needed. If MeCab is not installed, Yomitan handles all tokenization.
+This is informational, not an error. SubMiner tokenization is driven by Yomitan's internal parser. MeCab availability checks may still run for auxiliary token metadata, but MeCab is not used as a tokenization fallback path.
 
 To install MeCab:
 
@@ -113,10 +113,10 @@ To install MeCab:
 
 **Words are not segmented correctly**
 
-Japanese word boundaries depend on the tokenizer. If segmentation seems wrong:
+Japanese word boundaries depend on Yomitan parser output. If segmentation seems wrong:
 
-- Install MeCab for improved accuracy as a fallback.
-- Note that CJK characters without spaces are segmented using `Intl.Segmenter` or character-level fallback, which is not always perfect.
+- Verify Yomitan dictionaries are installed and active.
+- Note that CJK characters without spaces are segmented using parser heuristics, which is not always perfect.
 
 ## Media Generation
 

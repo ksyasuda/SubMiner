@@ -209,7 +209,7 @@ These keybindings only work when the overlay window has focus. See [Configuratio
 
 1. MPV runs with an IPC socket at `/tmp/subminer-socket`
 2. The overlay connects and subscribes to subtitle changes
-3. Subtitles are tokenized with Yomitan's internal parser, with MeCab fallback when needed
+3. Subtitles are tokenized with Yomitan's internal parser
 4. Words are displayed as clickable spans
 5. Clicking a word triggers Yomitan popup for dictionary lookup
 6. Texthooker server runs at `http://127.0.0.1:5174` for external tools

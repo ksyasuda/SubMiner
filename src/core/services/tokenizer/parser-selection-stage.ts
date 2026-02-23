@@ -199,14 +199,9 @@ export function selectBestYomitanParseCandidate(
   const scanningCandidates = candidates.filter(
     (candidate) => candidate.source === 'scanning-parser',
   );
-  const mecabCandidates = candidates.filter((candidate) => candidate.source === 'mecab');
-
-  const getBestByTokenCount = (items: YomitanParseCandidate[]): YomitanParseCandidate | null =>
-    items.length === 0
-      ? null
-      : items.reduce((best, current) =>
-          current.tokens.length > best.tokens.length ? current : best,
-        );
+  if (scanningCandidates.length === 0) {
+    return null;
+  }
 
   const getCandidateScore = (candidate: YomitanParseCandidate): number => {
     const readableTokenCount = candidate.tokens.filter(
@@ -242,22 +237,10 @@ export function selectBestYomitanParseCandidate(
     });
   };
 
-  if (scanningCandidates.length > 0) {
-    const bestScanning = getBestByTokenCount(scanningCandidates);
-    if (bestScanning && bestScanning.tokens.length > 1) {
-      return bestScanning.tokens;
-    }
-
-    const bestMecab = chooseBestCandidate(mecabCandidates);
-    if (bestMecab && bestMecab.tokens.length > (bestScanning?.tokens.length ?? 0)) {
-      return bestMecab.tokens;
-    }
-
-    return bestScanning ? bestScanning.tokens : null;
-  }
-
-  const multiTokenCandidates = candidates.filter((candidate) => candidate.tokens.length > 1);
-  const pool = multiTokenCandidates.length > 0 ? multiTokenCandidates : candidates;
+  const multiTokenCandidates = scanningCandidates.filter(
+    (candidate) => candidate.tokens.length > 1,
+  );
+  const pool = multiTokenCandidates.length > 0 ? multiTokenCandidates : scanningCandidates;
   const bestCandidate = chooseBestCandidate(pool);
   return bestCandidate ? bestCandidate.tokens : null;
 }

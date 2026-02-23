@@ -216,17 +216,5 @@ export async function tokenizeSubtitle(
     };
   }
 
-  try {
-    const mecabTokens = await deps.tokenizeWithMecab(tokenizeText);
-    if (mecabTokens && mecabTokens.length > 0) {
-      return {
-        text: displayText,
-        tokens: applyAnnotationStage(mecabTokens, deps),
-      };
-    }
-  } catch (err) {
-    logger.error('Tokenization error:', (err as Error).message);
-  }
-
   return { text: displayText, tokens: null };
 }
