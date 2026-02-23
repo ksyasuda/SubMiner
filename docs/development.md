@@ -83,25 +83,6 @@ bun run test:core:dist        # optional full dist core suite
 bun run test:subtitle:dist    # optional smoke lane for subtitle dist regressions
 ```
 
-## Maintainability Guardrails
-
-Run guardrails locally before opening a PR:
-
-```bash
-bun run check:main-fanin:strict
-bun run check:runtime-cycles:strict
-```
-
-Expected success output includes:
-
-- `[OK] main runtime fan-in (strict) — ...`
-- `[OK] runtime cycle check (strict) - ... no cycles detected`
-
-Troubleshooting guardrail failures:
-
-- Main fan-in failure: move runtime imports behind `src/main/runtime/domains/*` or composer barrels.
-- Runtime cycle failure: break bidirectional imports by extracting shared helpers into leaf modules.
-
 ## Config Generation
 
 ```bash
