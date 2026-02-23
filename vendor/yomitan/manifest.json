@@ -1,0 +1,120 @@
+{
+    "manifest_version": 3,
+    "name": "Yomitan Popup Dictionary",
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxclvOy2sunfRa2UeSV/L9xyuMR9V65z85mbKCy0XvSLUkTBXM8BnvnrDu1DHhLjpidA3cBtetVt7rzwsJSA6/CzlMmtG6L6//3MOAH5Mhng8tXXWXbuNuJobLv/7MORPqoqYKZuoL1bnUvjdrf4Pb3BBDZtHN8LcDz13gOO4dnEFQbSE4F5RQ4mIQAGMkmbmlJkwFk5I022XyX+cWm/+9VvwPuEDA1Qf7X1G+4use3hGYWVPcRb6xTp7swXsO/fP7auE51gYQD0Ht36wr32UR6lfRmsahbHOX4RLe36S8B4ee74kk5C8iCsZf2fidWmevzLk7kK0GW15pv3dpGFpPQIDAQAB",
+    "version": "26.1.19.0",
+    "description": "Popup dictionary for language learning",
+    "author": {
+        "email": "themoeway@googlegroups.com"
+    },
+    "icons": {
+        "16": "images/icon16.png",
+        "19": "images/icon19.png",
+        "32": "images/icon32.png",
+        "38": "images/icon38.png",
+        "48": "images/icon48.png",
+        "64": "images/icon64.png",
+        "128": "images/icon128.png"
+    },
+    "action": {
+        "default_icon": {
+            "16": "images/icon16.png",
+            "19": "images/icon19.png",
+            "32": "images/icon32.png",
+            "38": "images/icon38.png",
+            "48": "images/icon48.png",
+            "64": "images/icon64.png",
+            "128": "images/icon128.png"
+        },
+        "default_title": "Yomitan",
+        "default_popup": "action-popup.html"
+    },
+    "background": {
+        "service_worker": "sw.js",
+        "type": "module"
+    },
+    "omnibox": {
+        "keyword": "yomi"
+    },
+    "content_scripts": [
+        {
+            "run_at": "document_idle",
+            "matches": [
+                "http://*/*",
+                "https://*/*",
+                "file://*/*"
+            ],
+            "match_about_blank": true,
+            "all_frames": true,
+            "js": [
+                "js/app/content-script-wrapper.js"
+            ]
+        }
+    ],
+    "minimum_chrome_version": "102.0.0.0",
+    "options_ui": {
+        "page": "settings.html",
+        "open_in_tab": true
+    },
+    "sandbox": {
+        "pages": [
+            "template-renderer.html"
+        ]
+    },
+    "permissions": [
+        "storage",
+        "clipboardWrite",
+        "unlimitedStorage",
+        "declarativeNetRequest",
+        "scripting",
+        "offscreen",
+        "contextMenus"
+    ],
+    "optional_permissions": [
+        "clipboardRead",
+        "nativeMessaging"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "commands": {
+        "toggleTextScanning": {
+            "suggested_key": {
+                "default": "Alt+Delete"
+            },
+            "description": "Toggle text scanning on/off"
+        },
+        "openInfoPage": {
+            "description": "Open the info page"
+        },
+        "openSettingsPage": {
+            "description": "Open the settings page"
+        },
+        "openSearchPage": {
+            "suggested_key": {
+                "default": "Alt+Insert"
+            },
+            "description": "Open the search page"
+        },
+        "openPopupWindow": {
+            "description": "Open the popup window"
+        }
+    },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "popup.html",
+                "template-renderer.html",
+                "js/*",
+                "lib/resvg.wasm"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
+        }
+    ],
+    "content_security_policy": {
+        "extension_pages": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src blob: 'self'; style-src 'self' 'unsafe-inline'; media-src *; connect-src *",
+        "sandbox": "sandbox allow-scripts; default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'unsafe-inline'"
+    }
+}
