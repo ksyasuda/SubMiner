@@ -101,16 +101,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   },
   discordPresence: {
     enabled: false,
-    clientId: '',
-    detailsTemplate: 'Mining Japanese',
-    stateTemplate: 'Idle',
-    largeImageKey: 'subminer-logo',
-    largeImageText: 'SubMiner',
-    smallImageKey: 'study',
-    smallImageText: 'Sentence Mining',
-    buttonLabel: '',
-    buttonUrl: '',
-    updateIntervalMs: 15_000,
+    updateIntervalMs: 3_000,
     debounceMs: 750,
   },
   youtubeSubgen: {

@@ -542,46 +542,34 @@ Discord Rich Presence is optional and disabled by default. When enabled, SubMine
 {
   "discordPresence": {
     "enabled": true,
-    "clientId": "123456789012345678",
-    "detailsTemplate": "Watching {title}",
-    "stateTemplate": "{status}",
-    "largeImageKey": "subminer-logo",
-    "largeImageText": "SubMiner",
-    "smallImageKey": "study",
-    "smallImageText": "Sentence Mining",
-    "buttonLabel": "GitHub",
-    "buttonUrl": "https://github.com/sudacode/SubMiner",
-    "updateIntervalMs": 15000,
+    "updateIntervalMs": 3000,
     "debounceMs": 750
   }
 }
 ```
 
-| Option             | Values          | Description                                                                        |
-| ------------------ | --------------- | ---------------------------------------------------------------------------------- |
-| `enabled`          | `true`, `false` | Enable Discord Rich Presence updates (default: `false`)                            |
-| `clientId`         | string          | Discord application client ID                                                      |
-| `detailsTemplate`  | string          | Card details line template. Supports `{title}`, `{file}`, `{subtitle}`, `{status}` |
-| `stateTemplate`    | string          | Card state line template. Supports `{title}`, `{file}`, `{subtitle}`, `{status}`   |
-| `largeImageKey`    | string          | Large image asset key uploaded to your Discord app                                 |
-| `largeImageText`   | string          | Hover text for large image                                                         |
-| `smallImageKey`    | string          | Small image asset key uploaded to your Discord app                                 |
-| `smallImageText`   | string          | Hover text for small image                                                         |
-| `buttonLabel`      | string          | Optional button label (requires valid `buttonUrl`)                                 |
-| `buttonUrl`        | string (URL)    | Optional button URL shown on the activity card                                     |
-| `updateIntervalMs` | number          | Minimum interval between activity updates in milliseconds                          |
-| `debounceMs`       | number          | Debounce window for bursty playback events in milliseconds                         |
+| Option             | Values          | Description                                                |
+| ------------------ | --------------- | ---------------------------------------------------------- |
+| `enabled`          | `true`, `false` | Enable Discord Rich Presence updates (default: `false`)    |
+| `updateIntervalMs` | number          | Minimum interval between activity updates in milliseconds  |
+| `debounceMs`       | number          | Debounce window for bursty playback events in milliseconds |
 
 Setup steps:
 
-1. Create a Discord application at <https://discord.com/developers/applications>.
-2. Open **Rich Presence > Art Assets** and upload image assets referenced by `largeImageKey` / `smallImageKey`.
-3. Copy the application ID into `discordPresence.clientId`.
-4. Set `discordPresence.enabled` to `true` and restart SubMiner.
+1. Set `discordPresence.enabled` to `true`.
+2. Restart SubMiner.
+
+SubMiner uses a fixed official activity card style for all users:
+
+- Details: current media title while playing (fallback: `Mining and crafting (Anki cards)` when idle/disconnected)
+- State: `Playing mm:ss / mm:ss` or `Paused mm:ss / mm:ss` (fallback: `Idle`)
+- Large image key/text: `subminer-logo` / `SubMiner`
+- Small image key/text: `study` / `Sentence Mining`
+- No activity button by default
 
 Troubleshooting:
 
-- If the card does not appear, verify Discord desktop app is running and `clientId` is correct.
+- If the card does not appear, verify Discord desktop app is running.
 - If images do not render, confirm asset keys exactly match uploaded Discord asset names.
 - If Discord is closed/not installed/disconnects, SubMiner continues running and quietly skips presence updates.
 

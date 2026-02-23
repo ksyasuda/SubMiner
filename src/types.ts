@@ -360,15 +360,6 @@ export interface JellyfinConfig {
 
 export interface DiscordPresenceConfig {
   enabled?: boolean;
-  clientId?: string;
-  detailsTemplate?: string;
-  stateTemplate?: string;
-  largeImageKey?: string;
-  largeImageText?: string;
-  smallImageKey?: string;
-  smallImageText?: string;
-  buttonLabel?: string;
-  buttonUrl?: string;
   updateIntervalMs?: number;
   debounceMs?: number;
 }
@@ -546,15 +537,6 @@ export interface ResolvedConfig {
   };
   discordPresence: {
     enabled: boolean;
-    clientId: string;
-    detailsTemplate: string;
-    stateTemplate: string;
-    largeImageKey: string;
-    largeImageText: string;
-    smallImageKey: string;
-    smallImageText: string;
-    buttonLabel: string;
-    buttonUrl: string;
     updateIntervalMs: number;
     debounceMs: number;
   };

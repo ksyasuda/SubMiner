@@ -4,6 +4,8 @@ export interface DiscordPresenceSnapshot {
   mediaTitle: string | null;
   mediaPath: string | null;
   subtitleText: string;
+  currentTimeSec?: number | null;
+  mediaDurationSec?: number | null;
   paused: boolean | null;
   connected: boolean;
   sessionStartedAtMs: number;
@@ -31,6 +33,16 @@ type DiscordClient = {
 
 type TimeoutLike = ReturnType<typeof setTimeout>;
 
+const DISCORD_PRESENCE_STYLE = {
+  fallbackDetails: 'Mining and crafting (Anki cards)',
+  largeImageKey: 'subminer-logo',
+  largeImageText: 'SubMiner',
+  smallImageKey: 'study',
+  smallImageText: 'Sentence Mining',
+  buttonLabel: '',
+  buttonUrl: '',
+} as const;
+
 function trimField(value: string, maxLength = 128): string {
   if (value.length <= maxLength) return value;
   return `${value.slice(0, Math.max(0, maxLength - 1))}…`;
@@ -48,37 +60,39 @@ function basename(filePath: string | null): string {
   return parts[parts.length - 1] ?? '';
 }
 
-function interpolate(template: string, values: Record<string, string>): string {
-  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, key: string) => values[key] ?? '');
-}
-
 function buildStatus(snapshot: DiscordPresenceSnapshot): string {
   if (!snapshot.connected || !snapshot.mediaPath) return 'Idle';
   if (snapshot.paused) return 'Paused';
-  return 'Watching';
+  return 'Playing';
+}
+
+function formatClock(totalSeconds: number | null | undefined): string {
+  if (!Number.isFinite(totalSeconds) || (totalSeconds ?? -1) < 0) return '--:--';
+  const rounded = Math.floor(totalSeconds as number);
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const seconds = rounded % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 export function buildDiscordPresenceActivity(
-  config: DiscordPresenceConfig,
+  _config: DiscordPresenceConfig,
   snapshot: DiscordPresenceSnapshot,
 ): DiscordActivityPayload {
   const status = buildStatus(snapshot);
   const title = sanitizeText(snapshot.mediaTitle, basename(snapshot.mediaPath) || 'Unknown media');
-  const subtitle = sanitizeText(snapshot.subtitleText, '');
-  const file = sanitizeText(basename(snapshot.mediaPath), '');
-  const values = {
-    title,
-    file,
-    subtitle,
-    status,
-  };
-
-  const details = trimField(
-    interpolate(config.detailsTemplate, values).trim() || `Watching ${title}`,
-  );
-  const state = trimField(
-    interpolate(config.stateTemplate, values).trim() || `${status} with SubMiner`,
-  );
+  const details =
+    snapshot.connected && snapshot.mediaPath
+      ? trimField(title)
+      : DISCORD_PRESENCE_STYLE.fallbackDetails;
+  const timeline = `${formatClock(snapshot.currentTimeSec)} / ${formatClock(snapshot.mediaDurationSec)}`;
+  const state =
+    snapshot.connected && snapshot.mediaPath
+      ? trimField(`${status} ${timeline}`)
+      : trimField(status);
 
   const activity: DiscordActivityPayload = {
     details,
@@ -86,21 +100,27 @@ export function buildDiscordPresenceActivity(
     startTimestamp: Math.floor(snapshot.sessionStartedAtMs / 1000),
   };
 
-  if (config.largeImageKey.trim().length > 0) {
-    activity.largeImageKey = config.largeImageKey.trim();
+  if (DISCORD_PRESENCE_STYLE.largeImageKey.trim().length > 0) {
+    activity.largeImageKey = DISCORD_PRESENCE_STYLE.largeImageKey.trim();
   }
-  if (config.largeImageText.trim().length > 0) {
-    activity.largeImageText = trimField(config.largeImageText.trim());
+  if (DISCORD_PRESENCE_STYLE.largeImageText.trim().length > 0) {
+    activity.largeImageText = trimField(DISCORD_PRESENCE_STYLE.largeImageText.trim());
   }
-  if (config.smallImageKey.trim().length > 0) {
-    activity.smallImageKey = config.smallImageKey.trim();
+  if (DISCORD_PRESENCE_STYLE.smallImageKey.trim().length > 0) {
+    activity.smallImageKey = DISCORD_PRESENCE_STYLE.smallImageKey.trim();
   }
-  if (config.smallImageText.trim().length > 0) {
-    activity.smallImageText = trimField(config.smallImageText.trim());
+  if (DISCORD_PRESENCE_STYLE.smallImageText.trim().length > 0) {
+    activity.smallImageText = trimField(DISCORD_PRESENCE_STYLE.smallImageText.trim());
   }
-  if (config.buttonLabel.trim().length > 0 && /^https?:\/\//.test(config.buttonUrl.trim())) {
+  if (
+    DISCORD_PRESENCE_STYLE.buttonLabel.trim().length > 0 &&
+    /^https?:\/\//.test(DISCORD_PRESENCE_STYLE.buttonUrl.trim())
+  ) {
     activity.buttons = [
-      { label: trimField(config.buttonLabel.trim(), 32), url: config.buttonUrl.trim() },
+      {
+        label: trimField(DISCORD_PRESENCE_STYLE.buttonLabel.trim(), 32),
+        url: DISCORD_PRESENCE_STYLE.buttonUrl.trim(),
+      },
     ];
   }
 
@@ -109,7 +129,7 @@ export function buildDiscordPresenceActivity(
 
 export function createDiscordPresenceService(deps: {
   config: DiscordPresenceConfig;
-  createClient: (clientId: string) => DiscordClient;
+  createClient: () => DiscordClient;
   now?: () => number;
   setTimeoutFn?: (callback: () => void, delayMs: number) => TimeoutLike;
   clearTimeoutFn?: (timer: TimeoutLike) => void;
@@ -166,13 +186,8 @@ export function createDiscordPresenceService(deps: {
   return {
     async start(): Promise<void> {
       if (!deps.config.enabled) return;
-      const clientId = deps.config.clientId.trim();
-      if (!clientId) {
-        logDebug('[discord-presence] enabled but clientId missing; skipping start');
-        return;
-      }
       try {
-        client = deps.createClient(clientId);
+        client = deps.createClient();
         await client.login();
       } catch (error) {
         client = null;

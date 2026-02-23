@@ -24,7 +24,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.jellyfin.autoAnnounce, false);
   assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
   assert.equal(config.discordPresence.enabled, false);
-  assert.equal(config.discordPresence.updateIntervalMs, 15_000);
+  assert.equal(config.discordPresence.updateIntervalMs, 3_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
   assert.equal(config.subtitleStyle.hoverTokenColor, '#c6a0f6');
@@ -248,9 +248,6 @@ test('parses discordPresence fields and warns for invalid types', () => {
     `{
       "discordPresence": {
         "enabled": true,
-        "clientId": "123456789012345678",
-        "detailsTemplate": "Watching {title}",
-        "stateTemplate": "{status}",
         "updateIntervalMs": 3000,
         "debounceMs": 250
       }
@@ -261,7 +258,6 @@ test('parses discordPresence fields and warns for invalid types', () => {
   const service = new ConfigService(dir);
   const config = service.getConfig();
   assert.equal(config.discordPresence.enabled, true);
-  assert.equal(config.discordPresence.clientId, '123456789012345678');
   assert.equal(config.discordPresence.updateIntervalMs, 3000);
   assert.equal(config.discordPresence.debounceMs, 250);
 

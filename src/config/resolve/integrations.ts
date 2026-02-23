@@ -101,31 +101,6 @@ export function applyIntegrationConfig(context: ResolveContext): void {
       );
     }
 
-    const stringKeys = [
-      'clientId',
-      'detailsTemplate',
-      'stateTemplate',
-      'largeImageKey',
-      'largeImageText',
-      'smallImageKey',
-      'smallImageText',
-      'buttonLabel',
-      'buttonUrl',
-    ] as const;
-    for (const key of stringKeys) {
-      const value = asString(src.discordPresence[key]);
-      if (value !== undefined) {
-        resolved.discordPresence[key] = value;
-      } else if (src.discordPresence[key] !== undefined) {
-        warn(
-          `discordPresence.${key}`,
-          src.discordPresence[key],
-          resolved.discordPresence[key],
-          'Expected string.',
-        );
-      }
-    }
-
     const updateIntervalMs = asNumber(src.discordPresence.updateIntervalMs);
     if (updateIntervalMs !== undefined) {
       resolved.discordPresence.updateIntervalMs = Math.max(1_000, Math.floor(updateIntervalMs));

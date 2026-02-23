@@ -10,15 +10,6 @@ import {
 
 const baseConfig = {
   enabled: true,
-  clientId: '1234',
-  detailsTemplate: 'Watching {title}',
-  stateTemplate: '{status}',
-  largeImageKey: 'subminer-logo',
-  largeImageText: 'SubMiner',
-  smallImageKey: 'study',
-  smallImageText: 'Sentence Mining',
-  buttonLabel: 'GitHub',
-  buttonUrl: 'https://github.com/sudacode/SubMiner',
   updateIntervalMs: 10_000,
   debounceMs: 200,
 } as const;
@@ -27,6 +18,8 @@ const baseSnapshot: DiscordPresenceSnapshot = {
   mediaTitle: 'Sousou no Frieren E01',
   mediaPath: '/media/Frieren/E01.mkv',
   subtitleText: '旅立ち',
+  currentTimeSec: 95,
+  mediaDurationSec: 1450,
   paused: false,
   connected: true,
   sessionStartedAtMs: 1_700_000_000_000,
@@ -34,11 +27,11 @@ const baseSnapshot: DiscordPresenceSnapshot = {
 
 test('buildDiscordPresenceActivity maps polished payload fields', () => {
   const payload = buildDiscordPresenceActivity(baseConfig, baseSnapshot);
-  assert.equal(payload.details, 'Watching Sousou no Frieren E01');
-  assert.equal(payload.state, 'Watching');
+  assert.equal(payload.details, 'Sousou no Frieren E01');
+  assert.equal(payload.state, 'Playing 01:35 / 24:10');
   assert.equal(payload.largeImageKey, 'subminer-logo');
   assert.equal(payload.smallImageKey, 'study');
-  assert.equal(payload.buttons?.[0]?.label, 'GitHub');
+  assert.equal(payload.buttons, undefined);
   assert.equal(payload.startTimestamp, 1_700_000_000);
 });
 
@@ -49,9 +42,10 @@ test('buildDiscordPresenceActivity falls back to idle when disconnected', () => 
     mediaPath: null,
   });
   assert.equal(payload.state, 'Idle');
+  assert.equal(payload.details, 'Mining and crafting (Anki cards)');
 });
 
-test('service deduplicates identical activity updates and throttles interval', async () => {
+test('service deduplicates identical updates and sends changed timeline', async () => {
   const sent: DiscordActivityPayload[] = [];
   const timers = new Map<number, () => void>();
   let timerId = 0;
@@ -90,11 +84,11 @@ test('service deduplicates identical activity updates and throttles interval', a
   assert.equal(sent.length, 1);
 
   nowMs += 10_001;
-  service.publish({ ...baseSnapshot, paused: true });
+  service.publish({ ...baseSnapshot, paused: true, currentTimeSec: 100 });
   timers.get(3)?.();
   await Promise.resolve();
   assert.equal(sent.length, 2);
-  assert.equal(sent[1]?.state, 'Paused');
+  assert.equal(sent[1]?.state, 'Paused 01:40 / 24:10');
 });
 
 test('service handles login failure and stop without throwing', async () => {

@@ -128,7 +128,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: 'Discord Rich Presence',
     description: [
       'Optional Discord Rich Presence activity card updates for current playback/study session.',
-      'Requires a Discord application client ID and uploaded asset keys.',
+      'Uses official SubMiner Discord app assets for polished card visuals.',
     ],
     key: 'discordPresence',
   },

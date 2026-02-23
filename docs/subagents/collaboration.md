@@ -143,3 +143,8 @@ Shared notes. Append-only.
 - [2026-02-22T22:10:10Z] [codex-kiku-modal-overlay-20260222T220502Z-r4m1|codex-kiku-modal-overlay] overlap note: touching `src/core/services/field-grouping-overlay.ts` + tests to fix Kiku modal auto-shown visible overlay restore when modal closes.
 - [2026-02-22T22:07:38Z] [codex-kiku-modal-overlay-20260222T220502Z-r4m1|codex-kiku-modal-overlay] completed fix: synchronized visible-overlay state when Kiku request opens via external sender; added regression test for hidden->open->resolve->hidden visibility restoration; focused field-grouping/overlay tests passing.
 - [2026-02-22T22:11:52Z] [opencode-task103-jellyfin-main-composer-20260222T221152Z-n3p7|opencode-task103-jellyfin-main-composer] overlap note: implementing user-requested TASK-103 extraction in `src/main.ts`, `src/main/runtime/composers/jellyfin-*.ts`, composer tests, and `docs/architecture.md`; coordinating with active `codex-task103-...` session to avoid clobber.
+
+## 2026-02-23
+
+- [2026-02-23T01:10:27Z] [opencode-task109-discord-presence-20260223T011027Z-j9r4|opencode-task109-discord-presence] starting TASK-109 closure pass via Backlog MCP + writing-plans/executing-plans; scope validate existing Discord config/runtime/docs changes, close remaining DoD evidence, and finalize task status if gates pass.
+- [2026-02-23T01:15:39Z] [opencode-task109-discord-presence-20260223T011027Z-j9r4|opencode-task109-discord-presence] user feedback from real Discord session: status resumed to Playing with noticeable delay; tuned default `discordPresence.updateIntervalMs` from 15000 to 3000 in defaults/docs/examples and updated focused config expectations; reran focused config + discord presence tests green.
