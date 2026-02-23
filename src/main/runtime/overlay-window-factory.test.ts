@@ -4,6 +4,7 @@ import {
   createCreateInvisibleWindowHandler,
   createCreateMainWindowHandler,
   createCreateOverlayWindowHandler,
+  createCreateSecondaryWindowHandler,
 } from './overlay-window-factory';
 
 test('create overlay window handler forwards options and kind', () => {
@@ -63,4 +64,19 @@ test('create invisible window handler stores invisible window', () => {
 
   assert.equal(createInvisibleWindow(), invisibleWindow);
   assert.deepEqual(calls, ['create:invisible', 'set:invisible']);
+});
+
+test('create secondary window handler stores secondary window', () => {
+  const calls: string[] = [];
+  const secondaryWindow = { id: 'secondary' };
+  const createSecondaryWindow = createCreateSecondaryWindowHandler({
+    createOverlayWindow: (kind) => {
+      calls.push(`create:${kind}`);
+      return secondaryWindow;
+    },
+    setSecondaryWindow: (window) => calls.push(`set:${(window as { id: string }).id}`),
+  });
+
+  assert.equal(createSecondaryWindow(), secondaryWindow);
+  assert.deepEqual(calls, ['create:secondary', 'set:secondary']);
 });

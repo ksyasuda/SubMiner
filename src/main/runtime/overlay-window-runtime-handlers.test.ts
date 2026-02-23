@@ -5,6 +5,7 @@ import { createOverlayWindowRuntimeHandlers } from './overlay-window-runtime-han
 test('overlay window runtime handlers compose create/main/invisible handlers', () => {
   let mainWindow: { kind: string } | null = null;
   let invisibleWindow: { kind: string } | null = null;
+  let secondaryWindow: { kind: string } | null = null;
   let debugEnabled = false;
   const calls: string[] = [];
 
@@ -28,16 +29,23 @@ test('overlay window runtime handlers compose create/main/invisible handlers', (
     setInvisibleWindow: (window) => {
       invisibleWindow = window;
     },
+    setSecondaryWindow: (window) => {
+      secondaryWindow = window;
+    },
   });
 
   assert.deepEqual(runtime.createOverlayWindow('visible'), { kind: 'visible' });
   assert.deepEqual(runtime.createOverlayWindow('invisible'), { kind: 'invisible' });
+  assert.deepEqual(runtime.createOverlayWindow('secondary'), { kind: 'secondary' });
 
   assert.deepEqual(runtime.createMainWindow(), { kind: 'visible' });
   assert.deepEqual(mainWindow, { kind: 'visible' });
 
   assert.deepEqual(runtime.createInvisibleWindow(), { kind: 'invisible' });
   assert.deepEqual(invisibleWindow, { kind: 'invisible' });
+
+  assert.deepEqual(runtime.createSecondaryWindow(), { kind: 'secondary' });
+  assert.deepEqual(secondaryWindow, { kind: 'secondary' });
 
   assert.equal(debugEnabled, false);
   assert.deepEqual(calls, []);

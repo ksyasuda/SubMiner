@@ -4,6 +4,7 @@ import {
   createBuildCreateInvisibleWindowMainDepsHandler,
   createBuildCreateMainWindowMainDepsHandler,
   createBuildCreateOverlayWindowMainDepsHandler,
+  createBuildCreateSecondaryWindowMainDepsHandler,
 } from './overlay-window-factory-main-deps';
 
 test('overlay window factory main deps builders return mapped handlers', () => {
@@ -39,5 +40,12 @@ test('overlay window factory main deps builders return mapped handlers', () => {
   const invisibleDeps = buildInvisibleDeps();
   invisibleDeps.setInvisibleWindow(null);
 
-  assert.deepEqual(calls, ['set-main', 'set-invisible']);
+  const buildSecondaryDeps = createBuildCreateSecondaryWindowMainDepsHandler({
+    createOverlayWindow: () => ({ id: 'secondary' }),
+    setSecondaryWindow: () => calls.push('set-secondary'),
+  });
+  const secondaryDeps = buildSecondaryDeps();
+  secondaryDeps.setSecondaryWindow(null);
+
+  assert.deepEqual(calls, ['set-main', 'set-invisible', 'set-secondary']);
 });

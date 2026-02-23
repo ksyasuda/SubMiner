@@ -3,6 +3,10 @@ import type { RendererContext } from './context';
 
 const MEASUREMENT_DEBOUNCE_MS = 80;
 
+function isMeasurableOverlayLayer(layer: string): layer is 'visible' | 'invisible' {
+  return layer === 'visible' || layer === 'invisible';
+}
+
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -78,6 +82,10 @@ export function createOverlayContentMeasurementReporter(ctx: RendererContext) {
   let debounceTimer: number | null = null;
 
   function emitNow(): void {
+    if (!isMeasurableOverlayLayer(ctx.platform.overlayLayer)) {
+      return;
+    }
+
     const measurement: OverlayContentMeasurement = {
       layer: ctx.platform.overlayLayer,
       measuredAtMs: Date.now(),

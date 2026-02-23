@@ -728,7 +728,7 @@ export interface SubtitleHoverTokenPayload {
 }
 
 export interface ElectronAPI {
-  getOverlayLayer: () => 'visible' | 'invisible' | null;
+  getOverlayLayer: () => 'visible' | 'invisible' | 'secondary' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
   onVisibility: (callback: (visible: boolean) => void) => void;
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;

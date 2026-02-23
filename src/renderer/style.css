@@ -533,6 +533,40 @@ body.layer-invisible.invisible-position-edit #subtitleRoot .c {
   pointer-events: auto;
 }
 
+body.layer-visible #secondarySubContainer,
+body.layer-invisible #secondarySubContainer {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+body.layer-secondary #subtitleContainer,
+body.layer-secondary .modal,
+body.layer-secondary .overlay-error-toast {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+body.layer-secondary #overlay {
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
+body.layer-secondary #secondarySubContainer {
+  position: absolute;
+  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  transform: none;
+  max-width: 100%;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 #secondarySubRoot {
   text-align: center;
   font-size: 24px;
@@ -546,6 +580,10 @@ body.layer-invisible.invisible-position-edit #subtitleRoot .c {
     0 0 16px rgba(0, 0, 0, 0.55);
   user-select: text;
   cursor: text;
+}
+
+body.layer-secondary #secondarySubRoot {
+  max-width: 100%;
 }
 
 #secondarySubRoot:empty {
@@ -589,6 +627,11 @@ body.settings-modal-open #secondarySubContainer {
 
 #secondarySubContainer.secondary-sub-hover:hover {
   opacity: 1;
+}
+
+body.layer-secondary #secondarySubContainer.secondary-sub-hover {
+  padding: 8px 12px;
+  align-items: center;
 }
 
 iframe[id^='yomitan-popup'] {

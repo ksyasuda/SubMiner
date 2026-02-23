@@ -27,6 +27,7 @@ import {
   nativeImage,
   Tray,
   dialog,
+  screen,
 } from 'electron';
 
 protocol.registerSchemesAsPrivileged([
@@ -329,6 +330,7 @@ import {
   triggerFieldGrouping as triggerFieldGroupingCore,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
+import { splitOverlayGeometryForSecondaryBar } from './core/services/overlay-window-geometry';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
   guessAnilistMediaInfo,
@@ -814,6 +816,7 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
     },
     setSecondarySubMode: (mode) => {
       appState.secondarySubMode = mode;
+      syncSecondaryOverlayWindowVisibility();
     },
     broadcastToOverlayWindows: (channel, payload) => {
       broadcastToOverlayWindows(channel, payload);
@@ -1848,6 +1851,7 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
     },
     setSecondarySubMode: (mode: SecondarySubMode) => {
       appState.secondarySubMode = mode;
+      syncSecondaryOverlayWindowVisibility();
     },
     defaultSecondarySubMode: 'hover',
     defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
@@ -2167,10 +2171,57 @@ function updateMpvSubtitleRenderMetrics(patch: Partial<MpvSubtitleRenderMetrics>
   updateMpvSubtitleRenderMetricsHandler(patch);
 }
 
+let lastOverlayWindowGeometry: WindowGeometry | null = null;
+
+function getOverlayGeometryFallback(): WindowGeometry {
+  const cursorPoint = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursorPoint);
+  const bounds = display.workArea;
+  return {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+  };
+}
+
+function getCurrentOverlayGeometry(): WindowGeometry {
+  if (lastOverlayWindowGeometry) return lastOverlayWindowGeometry;
+  const trackerGeometry = appState.windowTracker?.getGeometry();
+  if (trackerGeometry) return trackerGeometry;
+  return getOverlayGeometryFallback();
+}
+
+function syncSecondaryOverlayWindowVisibility(): void {
+  const secondaryWindow = overlayManager.getSecondaryWindow();
+  if (!secondaryWindow || secondaryWindow.isDestroyed()) return;
+
+  if (appState.secondarySubMode === 'hidden') {
+    secondaryWindow.setIgnoreMouseEvents(true, { forward: true });
+    secondaryWindow.hide();
+    return;
+  }
+
+  secondaryWindow.setIgnoreMouseEvents(false);
+  ensureOverlayWindowLevel(secondaryWindow);
+  if (typeof secondaryWindow.showInactive === 'function') {
+    secondaryWindow.showInactive();
+  } else {
+    secondaryWindow.show();
+  }
+}
+
+function applyOverlayRegions(layer: 'visible' | 'invisible', geometry: WindowGeometry): void {
+  lastOverlayWindowGeometry = geometry;
+  const regions = splitOverlayGeometryForSecondaryBar(geometry);
+  overlayManager.setOverlayWindowBounds(layer, regions.primary);
+  overlayManager.setSecondaryWindowBounds(regions.secondary);
+  syncSecondaryOverlayWindowVisibility();
+}
+
 const buildUpdateVisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
-    setOverlayWindowBounds: (layer, geometry) =>
-      overlayManager.setOverlayWindowBounds(layer, geometry),
+    setOverlayWindowBounds: (layer, geometry) => applyOverlayRegions(layer, geometry),
   });
 const updateVisibleOverlayBoundsMainDeps = buildUpdateVisibleOverlayBoundsMainDepsHandler();
 const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
@@ -2179,8 +2230,7 @@ const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
 
 const buildUpdateInvisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateInvisibleOverlayBoundsMainDepsHandler({
-    setOverlayWindowBounds: (layer, geometry) =>
-      overlayManager.setOverlayWindowBounds(layer, geometry),
+    setOverlayWindowBounds: (layer, geometry) => applyOverlayRegions(layer, geometry),
   });
 const updateInvisibleOverlayBoundsMainDeps = buildUpdateInvisibleOverlayBoundsMainDepsHandler();
 const updateInvisibleOverlayBounds = createUpdateInvisibleOverlayBoundsHandler(
@@ -2226,12 +2276,24 @@ async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
   return yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
 }
 
-function createOverlayWindow(kind: 'visible' | 'invisible'): BrowserWindow {
+function createOverlayWindow(kind: 'visible' | 'invisible' | 'secondary'): BrowserWindow {
   return createOverlayWindowHandler(kind);
 }
 
+function createSecondaryWindow(): BrowserWindow {
+  const existingWindow = overlayManager.getSecondaryWindow();
+  if (existingWindow && !existingWindow.isDestroyed()) {
+    return existingWindow;
+  }
+  const window = createSecondaryWindowHandler();
+  applyOverlayRegions('visible', getCurrentOverlayGeometry());
+  return window;
+}
+
 function createMainWindow(): BrowserWindow {
-  return createMainWindowHandler();
+  const window = createMainWindowHandler();
+  createSecondaryWindow();
+  return window;
 }
 function createInvisibleWindow(): BrowserWindow {
   return createInvisibleWindowHandler();
@@ -2339,6 +2401,7 @@ const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
     getSecondarySubMode: () => appState.secondarySubMode,
     setSecondarySubMode: (mode: SecondarySubMode) => {
       appState.secondarySubMode = mode;
+      syncSecondaryOverlayWindowVisibility();
     },
     getLastSecondarySubToggleAtMs: () => appState.lastSecondarySubToggleAtMs,
     setLastSecondarySubToggleAtMs: (timestampMs: number) => {
@@ -2678,6 +2741,7 @@ const {
   createOverlayWindow: createOverlayWindowHandler,
   createMainWindow: createMainWindowHandler,
   createInvisibleWindow: createInvisibleWindowHandler,
+  createSecondaryWindow: createSecondaryWindowHandler,
 } = createOverlayWindowRuntimeHandlers<BrowserWindow>({
   createOverlayWindowDeps: {
     createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
@@ -2689,19 +2753,24 @@ const {
     isOverlayVisible: (windowKind) =>
       windowKind === 'visible'
         ? overlayManager.getVisibleOverlayVisible()
-        : overlayManager.getInvisibleOverlayVisible(),
+        : windowKind === 'invisible'
+          ? overlayManager.getInvisibleOverlayVisible()
+          : false,
     tryHandleOverlayShortcutLocalFallback: (input) =>
       overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
     onWindowClosed: (windowKind) => {
       if (windowKind === 'visible') {
         overlayManager.setMainWindow(null);
-      } else {
+      } else if (windowKind === 'invisible') {
         overlayManager.setInvisibleWindow(null);
+      } else {
+        overlayManager.setSecondaryWindow(null);
       }
     },
   },
   setMainWindow: (window) => overlayManager.setMainWindow(window),
   setInvisibleWindow: (window) => overlayManager.setInvisibleWindow(window),
+  setSecondaryWindow: (window) => overlayManager.setSecondaryWindow(window),
 });
 const {
   resolveTrayIconPath: resolveTrayIconPathHandler,

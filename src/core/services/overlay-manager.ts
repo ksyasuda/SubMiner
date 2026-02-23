@@ -9,8 +9,11 @@ export interface OverlayManager {
   setMainWindow: (window: BrowserWindow | null) => void;
   getInvisibleWindow: () => BrowserWindow | null;
   setInvisibleWindow: (window: BrowserWindow | null) => void;
+  getSecondaryWindow: () => BrowserWindow | null;
+  setSecondaryWindow: (window: BrowserWindow | null) => void;
   getOverlayWindow: (layer: OverlayLayer) => BrowserWindow | null;
   setOverlayWindowBounds: (layer: OverlayLayer, geometry: WindowGeometry) => void;
+  setSecondaryWindowBounds: (geometry: WindowGeometry) => void;
   getVisibleOverlayVisible: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
   getInvisibleOverlayVisible: () => boolean;
@@ -22,6 +25,7 @@ export interface OverlayManager {
 export function createOverlayManager(): OverlayManager {
   let mainWindow: BrowserWindow | null = null;
   let invisibleWindow: BrowserWindow | null = null;
+  let secondaryWindow: BrowserWindow | null = null;
   let visibleOverlayVisible = false;
   let invisibleOverlayVisible = false;
 
@@ -34,9 +38,16 @@ export function createOverlayManager(): OverlayManager {
     setInvisibleWindow: (window) => {
       invisibleWindow = window;
     },
+    getSecondaryWindow: () => secondaryWindow,
+    setSecondaryWindow: (window) => {
+      secondaryWindow = window;
+    },
     getOverlayWindow: (layer) => (layer === 'visible' ? mainWindow : invisibleWindow),
     setOverlayWindowBounds: (layer, geometry) => {
       updateOverlayWindowBounds(geometry, layer === 'visible' ? mainWindow : invisibleWindow);
+    },
+    setSecondaryWindowBounds: (geometry) => {
+      updateOverlayWindowBounds(geometry, secondaryWindow);
     },
     getVisibleOverlayVisible: () => visibleOverlayVisible,
     setVisibleOverlayVisible: (visible) => {
@@ -54,6 +65,9 @@ export function createOverlayManager(): OverlayManager {
       if (invisibleWindow && !invisibleWindow.isDestroyed()) {
         windows.push(invisibleWindow);
       }
+      if (secondaryWindow && !secondaryWindow.isDestroyed()) {
+        windows.push(secondaryWindow);
+      }
       return windows;
     },
     broadcastToOverlayWindows: (channel, ...args) => {
@@ -63,6 +77,9 @@ export function createOverlayManager(): OverlayManager {
       }
       if (invisibleWindow && !invisibleWindow.isDestroyed()) {
         windows.push(invisibleWindow);
+      }
+      if (secondaryWindow && !secondaryWindow.isDestroyed()) {
+        windows.push(secondaryWindow);
       }
       for (const window of windows) {
         window.webContents.send(channel, ...args);

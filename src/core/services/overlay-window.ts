@@ -5,7 +5,7 @@ import { createLogger } from '../../logger';
 
 const logger = createLogger('main:overlay-window');
 
-export type OverlayWindowKind = 'visible' | 'invisible';
+export type OverlayWindowKind = 'visible' | 'invisible' | 'secondary';
 
 export function updateOverlayWindowBounds(
   geometry: WindowGeometry,
@@ -87,7 +87,7 @@ export function createOverlayWindow(
 
   window
     .loadFile(htmlPath, {
-      query: { layer: kind === 'visible' ? 'visible' : 'invisible' },
+      query: { layer: kind },
     })
     .catch((err) => {
       logger.error('Failed to load HTML file:', err);

@@ -155,3 +155,38 @@ test('resolvePlatformInfo prefers query layer over preload layer', () => {
     });
   }
 });
+
+test('resolvePlatformInfo supports secondary layer and disables mouse-ignore toggles', () => {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousNavigator = (globalThis as { navigator?: unknown }).navigator;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getOverlayLayer: () => 'secondary',
+      },
+      location: { search: '' },
+    },
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      platform: 'MacIntel',
+      userAgent: 'Mozilla/5.0 (Macintosh)',
+    },
+  });
+
+  try {
+    const info = resolvePlatformInfo();
+    assert.equal(info.overlayLayer, 'secondary');
+    assert.equal(info.isSecondaryLayer, true);
+    assert.equal(info.shouldToggleMouseIgnore, false);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: previousNavigator,
+    });
+  }
+});

@@ -55,7 +55,9 @@ import { IPC_CHANNELS } from './shared/ipc/contracts';
 const overlayLayerArg = process.argv.find((arg) => arg.startsWith('--overlay-layer='));
 const overlayLayerFromArg = overlayLayerArg?.slice('--overlay-layer='.length);
 const overlayLayer =
-  overlayLayerFromArg === 'visible' || overlayLayerFromArg === 'invisible'
+  overlayLayerFromArg === 'visible' ||
+  overlayLayerFromArg === 'invisible' ||
+  overlayLayerFromArg === 'secondary'
     ? overlayLayerFromArg
     : null;
 
