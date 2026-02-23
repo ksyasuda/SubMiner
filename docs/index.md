@@ -67,6 +67,10 @@ features:
     details: Stream subtitles in real time to browser tools via local WebSocket and keep your stack integrated.
 ---
 
+<script setup>
+const demoAssetVersion = '20260223-2';
+</script>
+
 <div class="landing-shell">
   <section class="workflow-section">
     <h2>How it fits together</h2>
@@ -102,11 +106,11 @@ features:
   <section class="demo-section">
     <h2>See it in action</h2>
     <p>Subtitles, lookup flow, and card enrichment from a real playback session.</p>
-    <video controls playsinline preload="metadata" poster="/assets/demo-poster.jpg">
-      <source :src="'/assets/minecard.webm'" type="video/webm" />
-      <source :src="'/assets/minecard.mp4'" type="video/mp4" />
-      <a :href="'/assets/minecard.webm'" target="_blank" rel="noreferrer">
-        <img :src="'/assets/minecard.gif'" alt="SubMiner demo GIF fallback" style="width: 100%; height: auto;" />
+    <video controls playsinline preload="metadata" :poster="`/assets/minecard-poster.jpg?v=${demoAssetVersion}`">
+      <source :src="`/assets/minecard.webm?v=${demoAssetVersion}`" type="video/webm" />
+      <source :src="`/assets/minecard.mp4?v=${demoAssetVersion}`" type="video/mp4" />
+      <a :href="`/assets/minecard.webm?v=${demoAssetVersion}`" target="_blank" rel="noreferrer">
+        <img :src="`/assets/minecard.gif?v=${demoAssetVersion}`" alt="SubMiner demo GIF fallback" style="width: 100%; height: auto;" />
       </a>
     </video>
   </section>
