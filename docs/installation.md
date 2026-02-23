@@ -6,6 +6,7 @@
 
 | Dependency           | Required   | Notes                                                    |
 | -------------------- | ---------- | -------------------------------------------------------- |
+| Bun                  | Yes        | Required for `subminer` wrapper and source workflows     |
 | mpv                  | Yes        | Must support IPC sockets (`--input-ipc-server`)          |
 | ffmpeg               | For media  | Audio extraction and screenshot generation               |
 | MeCab + mecab-ipadic | No         | Optional fallback tokenizer for Japanese                 |
@@ -24,16 +25,15 @@
 
 ### Optional Tools
 
-| Tool              | Purpose                                    |
-| ----------------- | ------------------------------------------ |
-| fzf               | Terminal-based video picker (default)      |
-| rofi              | GUI-based video picker                     |
-| chafa             | Thumbnail previews in fzf                  |
-| ffmpegthumbnailer | Generate video thumbnails for picker       |
+| Tool              | Purpose                                                       |
+| ----------------- | ------------------------------------------------------------- |
+| fzf               | Terminal-based video picker (default)                         |
+| rofi              | GUI-based video picker                                        |
+| chafa             | Thumbnail previews in fzf                                     |
+| ffmpegthumbnailer | Generate video thumbnails for picker                          |
 | guessit           | Better AniSkip title/season/episode parsing for file playback |
-| alass             | Subtitle sync engine (preferred)           |
-| ffsubsync         | Subtitle sync engine (fallback)            |
-| Bun               | Required for the `subminer` wrapper script |
+| alass             | Subtitle sync engine (preferred)                              |
+| ffsubsync         | Subtitle sync engine (fallback)                               |
 
 ## Linux
 
@@ -88,7 +88,7 @@ brew install mpv mecab mecab-ipadic
 git clone https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
 bun install
-cd vendor/texthooker-ui && pnpm install --frozen-lockfile && pnpm run build && cd ../..
+cd vendor/texthooker-ui && bun install --frozen-lockfile && bun run build && cd ../..
 bun run build:mac
 ```
 

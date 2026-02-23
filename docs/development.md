@@ -2,7 +2,6 @@
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) (LTS)
 - [Bun](https://bun.sh)
 
 ## Setup
@@ -150,22 +149,22 @@ Run `make help` for a full list of targets. Key ones:
 
 ## Environment Variables
 
-| Variable                           | Description                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------- |
-| `SUBMINER_APPIMAGE_PATH`           | Override SubMiner app binary path for launcher playback commands                |
-| `SUBMINER_BINARY_PATH`             | Alias for `SUBMINER_APPIMAGE_PATH`                                              |
-| `SUBMINER_ROFI_THEME`              | Override rofi theme path for launcher picker                                    |
+| Variable                           | Description                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| `SUBMINER_APPIMAGE_PATH`           | Override SubMiner app binary path for launcher playback commands               |
+| `SUBMINER_BINARY_PATH`             | Alias for `SUBMINER_APPIMAGE_PATH`                                             |
+| `SUBMINER_ROFI_THEME`              | Override rofi theme path for launcher picker                                   |
 | `SUBMINER_LOG_LEVEL`               | Override app logger level (`debug`, `info`, `warn`, `error`)                   |
-| `SUBMINER_MPV_LOG`                 | Override mpv/app shared log file path                                           |
-| `SUBMINER_YT_SUBGEN_MODE`          | Override `youtubeSubgen.mode` for launcher                                      |
-| `SUBMINER_WHISPER_BIN`             | Override `youtubeSubgen.whisperBin` for launcher                                |
-| `SUBMINER_WHISPER_MODEL`           | Override `youtubeSubgen.whisperModel` for launcher                              |
-| `SUBMINER_YT_SUBGEN_OUT_DIR`       | Override generated subtitle output directory                                     |
-| `SUBMINER_YT_SUBGEN_AUDIO_FORMAT`  | Override extraction format used for whisper fallback                            |
-| `SUBMINER_YT_SUBGEN_KEEP_TEMP`     | Set to `1` to keep temporary subtitle-generation workspace                      |
-| `SUBMINER_JIMAKU_API_KEY`          | Override Jimaku API key for launcher subtitle downloads                         |
-| `SUBMINER_JIMAKU_API_KEY_COMMAND`  | Command used to resolve Jimaku API key at runtime                               |
-| `SUBMINER_JIMAKU_API_BASE_URL`     | Override Jimaku API base URL                                                    |
-| `SUBMINER_JELLYFIN_ACCESS_TOKEN`   | Override Jellyfin access token (used before stored encrypted session fallback)  |
-| `SUBMINER_JELLYFIN_USER_ID`        | Optional Jellyfin user ID override                                              |
+| `SUBMINER_MPV_LOG`                 | Override mpv/app shared log file path                                          |
+| `SUBMINER_YT_SUBGEN_MODE`          | Override `youtubeSubgen.mode` for launcher                                     |
+| `SUBMINER_WHISPER_BIN`             | Override `youtubeSubgen.whisperBin` for launcher                               |
+| `SUBMINER_WHISPER_MODEL`           | Override `youtubeSubgen.whisperModel` for launcher                             |
+| `SUBMINER_YT_SUBGEN_OUT_DIR`       | Override generated subtitle output directory                                   |
+| `SUBMINER_YT_SUBGEN_AUDIO_FORMAT`  | Override extraction format used for whisper fallback                           |
+| `SUBMINER_YT_SUBGEN_KEEP_TEMP`     | Set to `1` to keep temporary subtitle-generation workspace                     |
+| `SUBMINER_JIMAKU_API_KEY`          | Override Jimaku API key for launcher subtitle downloads                        |
+| `SUBMINER_JIMAKU_API_KEY_COMMAND`  | Command used to resolve Jimaku API key at runtime                              |
+| `SUBMINER_JIMAKU_API_BASE_URL`     | Override Jimaku API base URL                                                   |
+| `SUBMINER_JELLYFIN_ACCESS_TOKEN`   | Override Jellyfin access token (used before stored encrypted session fallback) |
+| `SUBMINER_JELLYFIN_USER_ID`        | Optional Jellyfin user ID override                                             |
 | `SUBMINER_SKIP_MACOS_HELPER_BUILD` | Set to `1` to skip building the macOS helper binary during `bun run build`     |

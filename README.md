@@ -74,13 +74,14 @@ subminer video.mkv
 
 ## Requirements
 
-| Required                                   | Optional                     |
-| ------------------------------------------ | ---------------------------- |
-| `mpv` with IPC socket                      | `yt-dlp`                     |
+| Required                                   | Optional                                           |
+| ------------------------------------------ | -------------------------------------------------- |
+| `bun`                                      |                                                    |
+| `mpv` with IPC socket                      | `yt-dlp`                                           |
 | `ffmpeg`                                   | `guessit` (better AniSkip title/episode detection) |
-| `mecab` + `mecab-ipadic`                   | `fzf` / `rofi`               |
-| Linux: `hyprctl` or `xdotool` + `xwininfo` | `chafa`, `ffmpegthumbnailer` |
-| macOS: Accessibility permission            |                              |
+| `mecab` + `mecab-ipadic`                   | `fzf` / `rofi`                                     |
+| Linux: `hyprctl` or `xdotool` + `xwininfo` | `chafa`, `ffmpegthumbnailer`                       |
+| macOS: Accessibility permission            |                                                    |
 
 ## Documentation
 

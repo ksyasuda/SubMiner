@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { safeStorage } from 'electron';
+import * as electron from 'electron';
 
 interface PersistedTokenPayload {
   encryptedToken?: string;
@@ -12,6 +12,12 @@ export interface AnilistTokenStore {
   loadToken: () => string | null;
   saveToken: (token: string) => void;
   clearToken: () => void;
+}
+
+export interface SafeStorageLike {
+  isEncryptionAvailable: () => boolean;
+  encryptString: (value: string) => Buffer;
+  decryptString: (value: Buffer) => string;
 }
 
 function ensureDirectory(filePath: string): void {
@@ -33,6 +39,7 @@ export function createAnilistTokenStore(
     warn: (message: string, details?: unknown) => void;
     error: (message: string, details?: unknown) => void;
   },
+  storage: SafeStorageLike = electron.safeStorage,
 ): AnilistTokenStore {
   return {
     loadToken(): string | null {
@@ -44,11 +51,11 @@ export function createAnilistTokenStore(
         const parsed = JSON.parse(raw) as PersistedTokenPayload;
         if (typeof parsed.encryptedToken === 'string' && parsed.encryptedToken.length > 0) {
           const encrypted = Buffer.from(parsed.encryptedToken, 'base64');
-          if (!safeStorage.isEncryptionAvailable()) {
+          if (!storage.isEncryptionAvailable()) {
             logger.warn('AniList token encryption is not available on this system.');
             return null;
           }
-          const decrypted = safeStorage.decryptString(encrypted).trim();
+          const decrypted = storage.decryptString(encrypted).trim();
           return decrypted.length > 0 ? decrypted : null;
         }
         if (typeof parsed.plaintextToken === 'string' && parsed.plaintextToken.trim().length > 0) {
@@ -70,7 +77,7 @@ export function createAnilistTokenStore(
         return;
       }
       try {
-        if (!safeStorage.isEncryptionAvailable()) {
+        if (!storage.isEncryptionAvailable()) {
           logger.warn('AniList token encryption unavailable; storing token in plaintext fallback.');
           writePayload(filePath, {
             plaintextToken: trimmed,
@@ -78,7 +85,7 @@ export function createAnilistTokenStore(
           });
           return;
         }
-        const encrypted = safeStorage.encryptString(trimmed);
+        const encrypted = storage.encryptString(trimmed);
         writePayload(filePath, {
           encryptedToken: encrypted.toString('base64'),
           updatedAt: Date.now(),

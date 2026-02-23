@@ -62,7 +62,7 @@ function createSmokeCase(name: string): SmokeCase {
 
   writeExecutable(
     fakeMpvPath,
-    `#!/usr/bin/env node
+    `#!/usr/bin/env bun
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
@@ -101,7 +101,7 @@ process.on('SIGTERM', closeAndExit);
 
   writeExecutable(
     fakeAppPath,
-    `#!/usr/bin/env node
+    `#!/usr/bin/env bun
 const fs = require('node:fs');
 
 const logPath = ${JSON.stringify(fakeAppLogPath)};
