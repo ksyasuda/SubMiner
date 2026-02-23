@@ -2926,11 +2926,30 @@ function handleMineSentenceDigit(count: number): void {
   handleMineSentenceDigitHandler(count);
 }
 
+function ensureOverlayWindowsReadyForVisibilityActions(): void {
+  if (!appState.overlayRuntimeInitialized) {
+    initializeOverlayRuntime();
+    return;
+  }
+
+  const mainWindow = overlayManager.getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createMainWindow();
+  }
+
+  const invisibleWindow = overlayManager.getInvisibleWindow();
+  if (!invisibleWindow || invisibleWindow.isDestroyed()) {
+    createInvisibleWindow();
+  }
+}
+
 function setVisibleOverlayVisible(visible: boolean): void {
+  ensureOverlayWindowsReadyForVisibilityActions();
   setVisibleOverlayVisibleHandler(visible);
 }
 
 function setInvisibleOverlayVisible(visible: boolean): void {
+  ensureOverlayWindowsReadyForVisibilityActions();
   setInvisibleOverlayVisibleHandler(visible);
   if (visible) {
     subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
@@ -2938,9 +2957,11 @@ function setInvisibleOverlayVisible(visible: boolean): void {
 }
 
 function toggleVisibleOverlay(): void {
+  ensureOverlayWindowsReadyForVisibilityActions();
   toggleVisibleOverlayHandler();
 }
 function toggleInvisibleOverlay(): void {
+  ensureOverlayWindowsReadyForVisibilityActions();
   toggleInvisibleOverlayHandler();
 }
 function setOverlayVisible(visible: boolean): void {

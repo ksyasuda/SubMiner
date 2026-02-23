@@ -1595,10 +1595,7 @@ local function start_overlay_from_script_message(...)
 end
 
 local function stop_overlay()
-	if not is_subminer_app_running() then
-		return
-	end
-	if not state.binary_available then
+	if not ensure_binary_available() then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
 		return
@@ -1626,10 +1623,7 @@ local function stop_overlay()
 end
 
 local function toggle_overlay()
-	if not is_subminer_app_running() then
-		return
-	end
-	if not state.binary_available then
+	if not ensure_binary_available() then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
 		return
@@ -1653,10 +1647,7 @@ local function toggle_overlay()
 end
 
 local function toggle_invisible_overlay()
-	if not is_subminer_app_running() then
-		return
-	end
-	if not state.binary_available then
+	if not ensure_binary_available() then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
 		return
@@ -1684,10 +1675,7 @@ local function toggle_invisible_overlay()
 end
 
 local function show_invisible_overlay()
-	if not is_subminer_app_running() then
-		return
-	end
-	if not state.binary_available then
+	if not ensure_binary_available() then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
 		return
@@ -1715,10 +1703,7 @@ local function show_invisible_overlay()
 end
 
 local function hide_invisible_overlay()
-	if not is_subminer_app_running() then
-		return
-	end
-	if not state.binary_available then
+	if not ensure_binary_available() then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
 		return
@@ -1811,10 +1796,7 @@ local function show_menu()
 end
 
 restart_overlay = function()
-	if not is_subminer_app_running() then
-		return
-	end
-	if not state.binary_available then
+	if not ensure_binary_available() then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
 		return

@@ -128,7 +128,7 @@ src/renderer/
 The main process has three layers: `main.ts` delegates to composition modules that wire together domain services. Three overlay windows (visible, invisible, secondary) run in separate Electron renderer processes, connected through `preload.ts`. External runtimes (launcher CLI and mpv plugin) operate independently and communicate via IPC socket or CLI passthrough.
 
 ```mermaid
-flowchart TD
+flowchart LR
   classDef entry fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:2px,font-weight:bold
   classDef comp fill:#b7bdf8,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef svc fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
@@ -137,94 +137,70 @@ flowchart TD
   classDef ext fill:#a6da95,stroke:#494d64,color:#24273a,stroke-width:1.5px
   classDef extrt fill:#eed49f,stroke:#494d64,color:#24273a,stroke-width:1.5px
 
-  Main["main.ts — composition root"]:::entry
-
-  subgraph Comp["Composition — src/main/"]
-    direction TB
-    Startup["Startup & Lifecycle<br/>startup · app-lifecycle · startup-lifecycle · state"]:::comp
-    Wiring["Runtime Wiring<br/>ipc-runtime · cli-runtime · overlay-runtime · subsync-runtime"]:::comp
-    Composers["Composers<br/>mpv-runtime · anilist-tracking · jellyfin-runtime"]:::comp
-  end
-
-  subgraph Svc["Services — src/core/services/"]
-    direction TB
-    subgraph SvcRow1[" "]
-      direction LR
-      Mpv["MPV Stack<br/>transport · protocol<br/>properties · render-metrics"]:::svc
-      Overlay["Overlay Manager<br/>window · geometry<br/>visibility · bridge"]:::svc
-    end
-    subgraph SvcRow2[" "]
-      direction LR
-      Mining["Mining & Subtitles<br/>mining · field-grouping<br/>subtitle-ws · tokenizer"]:::svc
-      Integrations["Integrations<br/>jimaku · subsync · texthooker<br/>yomitan · discord-presence"]:::svc
-    end
-    subgraph SvcRow3[" "]
-      direction LR
-      Tracking["Tracking<br/>anilist · jellyfin-remote<br/>immersion-tracker"]:::svc
-      Config["Config & Runtime<br/>config-hot-reload<br/>runtime-options"]:::svc
-    end
-  end
-
-  Bridge(["preload.ts — Electron IPC bridge"]):::bridge
-
-  subgraph Rend["Renderer — src/renderer/"]
-    direction TB
-    subgraph Windows["Three overlay windows"]
-      direction LR
-      Visible["Visible<br/>interactive Yomitan lookups"]:::rend
-      Invisible["Invisible<br/>mpv-matched positioning"]:::rend
-      Secondary["Secondary<br/>secondary subtitle bar"]:::rend
-    end
-    UI["subtitle-render · positioning · handlers · modals"]:::rend
+  subgraph ExtRt["External Runtimes"]
+    Launcher["launcher/<br/>CLI dispatch"]:::extrt
+    Plugin["subminer.lua<br/>mpv plugin"]:::extrt
   end
 
   subgraph Ext["External Systems"]
-    direction LR
     mpvExt["mpv player"]:::ext
     AnkiExt["AnkiConnect"]:::ext
     JimakuExt["Jimaku API"]:::ext
-    TrackerExt["Window Tracker<br/>Hyprland · Sway · X11 · macOS"]:::ext
+    TrackerExt["Window Tracker<br/>Hyprland · Sway<br/>X11 · macOS"]:::ext
     AnilistExt["AniList API"]:::ext
     JellyfinExt["Jellyfin"]:::ext
     DiscordExt["Discord RPC"]:::ext
   end
 
-  subgraph ExtRt["External Runtimes"]
-    direction LR
-    Launcher["launcher/<br/>CLI command dispatch"]:::extrt
-    Plugin["subminer.lua<br/>mpv plugin"]:::extrt
+  Main["main.ts<br/>composition root"]:::entry
+
+  subgraph Comp["Composition — src/main/"]
+    Startup["Startup & Lifecycle<br/>startup · app-lifecycle<br/>startup-lifecycle · state"]:::comp
+    Wiring["Runtime Wiring<br/>ipc-runtime · cli-runtime<br/>overlay-runtime"]:::comp
+    Composers["Composers<br/>mpv · anilist<br/>jellyfin"]:::comp
   end
 
-  Main -->|"delegates"| Comp
-  Startup -->|"initializes"| Svc
-  Wiring -->|"dispatches to"| Svc
-  Composers -->|"wires"| Svc
+  subgraph Svc["Services — src/core/services/"]
+    Mpv["MPV Stack<br/>transport · protocol<br/>properties · metrics"]:::svc
+    Overlay["Overlay Manager<br/>window · geometry<br/>visibility · bridge"]:::svc
+    Mining["Mining & Subtitles<br/>mining · field-grouping<br/>subtitle-ws · tokenizer"]:::svc
+    Integrations["Integrations<br/>jimaku · subsync<br/>texthooker · yomitan"]:::svc
+    Tracking["Tracking<br/>anilist · jellyfin<br/>immersion · discord"]:::svc
+    Config["Config & Runtime<br/>hot-reload<br/>runtime-options"]:::svc
+  end
 
-  Overlay <-->Bridge
-  Mining <--> Bridge
-  Bridge <--> Visible
-  Bridge <--> Invisible
-  Bridge <--> Secondary
-  Windows --> UI
+  Bridge(["preload.ts<br/>Electron IPC"]):::bridge
 
-  Mpv <-->|"JSON IPC socket"| mpvExt
-  Mining -->|"HTTP"| AnkiExt
-  Integrations -->|"HTTP"| JimakuExt
-  Overlay -->|"platform API"| TrackerExt
-  Tracking -->|"HTTP"| AnilistExt
-  Tracking -->|"HTTP"| JellyfinExt
-  Integrations -->|"RPC"| DiscordExt
+  subgraph Rend["Renderer — src/renderer/"]
+    Visible["Visible window<br/>Yomitan lookups"]:::rend
+    Invisible["Invisible window<br/>mpv positioning"]:::rend
+    Secondary["Secondary window<br/>subtitle bar"]:::rend
+    UI["subtitle-render<br/>positioning<br/>handlers · modals"]:::rend
+  end
 
-  Launcher -->|"CLI passthrough"| Main
-  Plugin -->|"IPC socket"| mpvExt
+  Launcher -->|"CLI"| Main
+  Plugin -->|"IPC"| mpvExt
+
+  Main --> Comp
+  Comp --> Svc
+
+  mpvExt <-->|"JSON socket"| Mpv
+  AnkiExt <-->|"HTTP"| Mining
+  JimakuExt <-->|"HTTP"| Integrations
+  TrackerExt <-->|"platform"| Overlay
+  AnilistExt <-->|"HTTP"| Tracking
+  JellyfinExt <-->|"HTTP"| Tracking
+  DiscordExt <-->|"RPC"| Integrations
+
+  Overlay & Mining --> Bridge
+  Bridge --> Visible
+  Bridge --> Invisible
+  Bridge --> Secondary
+  Visible & Invisible & Secondary --> UI
 
   style Comp fill:#363a4f,stroke:#494d64,color:#cad3f5
   style Svc fill:#363a4f,stroke:#494d64,color:#cad3f5
-  style SvcRow1 fill:transparent,stroke:none
-  style SvcRow2 fill:transparent,stroke:none
-  style SvcRow3 fill:transparent,stroke:none
   style Rend fill:#363a4f,stroke:#494d64,color:#cad3f5
-  style Windows fill:#1e2030,stroke:#494d64,color:#cad3f5
   style Ext fill:#363a4f,stroke:#494d64,color:#cad3f5
   style ExtRt fill:#363a4f,stroke:#494d64,color:#cad3f5
 ```
