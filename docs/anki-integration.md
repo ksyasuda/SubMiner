@@ -22,28 +22,6 @@ SubMiner polls AnkiConnect at a regular interval (default: 3 seconds, configurab
 
 Polling uses the query `"deck:<your-deck>" added:1` to find recently added cards. If no deck is configured, it searches all decks.
 
-## Ownership Boundaries (TASK-76)
-
-After workflow-service decomposition, ownership is split as follows:
-
-1. **`src/anki-integration.ts` (facade/orchestrator)**
-   - Owns dependency wiring, config normalization, shared helpers, and runtime lifecycle (`start`, `stop`, runtime patching).
-   - Routes public entry points to collaborators/workflows and keeps cross-cutting state (polling/update flags, notifications, callbacks, known-word cache).
-
-2. **`src/anki-integration/note-update-workflow.ts`**
-   - Owns the "new card was detected" update path.
-   - Loads note data, applies sentence/audio/image/misc updates, and triggers duplicate handling via auto/manual field-grouping handlers when enabled.
-
-3. **`src/anki-integration/field-grouping-workflow.ts`**
-   - Owns duplicate merge execution for auto and manual grouping.
-   - Resolves manual choice callback, computes merged field payloads, updates kept note, optionally deletes duplicate note, and emits grouping notifications.
-
-4. **Existing collaborators**
-   - `card-creation`: manual clipboard-driven updates, sentence-card creation, and card-type/tag update operations.
-   - `field-grouping` service: user-triggered grouping for the last added card and merge preview assembly.
-   - `known-word-cache`: known-word lifecycle/refresh/persistence used by N+1 highlighting.
-   - `polling`: periodic AnkiConnect polling, new-note detection, tracked-note state, and connection backoff.
-
 ## Field Mapping
 
 SubMiner maps its data to your Anki note fields. Configure these under `ankiConnect.fields`:

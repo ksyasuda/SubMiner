@@ -5,7 +5,7 @@ status: Done
 assignee:
   - opencode-task105-unsafe-casts
 created_date: '2026-02-22 07:13'
-updated_date: '2026-02-22 21:56'
+updated_date: '2026-02-23 02:06'
 labels:
   - refactor
   - type-safety
@@ -14,6 +14,7 @@ dependencies:
   - TASK-97
   - TASK-80
 priority: medium
+ordinal: 102000
 ---
 
 ## Description

@@ -80,7 +80,7 @@ bun run build                 # compile dist artifacts
 bun run test:smoke:dist       # explicit smoke scope for compiled runtime
 bun run test:config:dist      # optional full dist config suite
 bun run test:core:dist        # optional full dist core suite
-bun run test:subtitle:dist    # subtitle dist lane (currently placeholder)
+bun run test:subtitle:dist    # optional smoke lane for subtitle dist regressions
 ```
 
 ## Maintainability Guardrails

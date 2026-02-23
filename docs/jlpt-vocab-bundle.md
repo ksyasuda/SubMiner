@@ -40,22 +40,6 @@ For reproducible updates:
 This repository currently ships the folder path in `electron-builder` `extraResources` as:
 `vendor/yomitan-jlpt-vocab -> yomitan-jlpt-vocab`.
 
-## Deterministic fallback behavior on malformed inputs
+## Fallback Behavior
 
-`createJlptVocabularyLookupService()` follows these rules:
-
-- If a bank file is missing, parsing fails, or the JSON shape is unsupported, that file is skipped and processing continues.
-- If entries do not expose expected frequency metadata, they are skipped.
-- If no usable bank entries are found, SubMiner initializes a no-op JLPT lookup (`null` for every token).
-- In all fallback cases, subtitle rendering remains unchanged (no underlines are added).
-
-## Bundle size and startup cost
-
-Lookup work is currently a synchronous file read + parse at enable-time and then O(1) in-memory `Map` lookups during subtitle updates.
-
-Practical guidance:
-
-- Keep the JLPT bundle inside `vendor/yomitan-jlpt-vocab` to avoid network lookups.
-- Measure bundle size with:
-  - `du -sh vendor/yomitan-jlpt-vocab`
-- If the JLPT source is updated, re-run `bun run build:appimage` / packaging and confirm startup logs do not report missing banks.
+If bank files are missing, malformed, or lack expected metadata, SubMiner skips them gracefully. When no usable entries are found, JLPT underlining is silently disabled and subtitle rendering remains unchanged.

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-02-22 07:13'
-updated_date: '2026-02-22 19:56'
+updated_date: '2026-02-23 02:06'
 labels:
   - refactor
   - launcher
@@ -14,6 +14,7 @@ dependencies:
   - TASK-81
   - TASK-102
 priority: medium
+ordinal: 103000
 ---
 
 ## Description

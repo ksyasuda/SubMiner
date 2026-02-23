@@ -96,10 +96,3 @@ Use `subminer <subcommand> -h` for command-specific help.
 - `--background` mode defaults to `warn` unless `--log-level` is explicitly set
 - `--dev` / `--debug` control app behavior, not logging verbosity — use `--log-level` for that
 
-## Testing
-
-Run launcher regression tests (config discovery + command branching):
-
-```bash
-bun run test:launcher
-```

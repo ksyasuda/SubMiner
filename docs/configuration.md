@@ -38,8 +38,6 @@ SubMiner.AppImage --generate-config --backup-overwrite
 - JSONC config supports comments and trailing commas.
 - If the target file exists, SubMiner prompts to create a timestamped backup and overwrite.
 - In non-interactive shells, use `--backup-overwrite` to explicitly back up and overwrite.
-- `bun run generate:config-example` regenerates both repository `config.example.jsonc` and docs-served `/config.example.jsonc` from the same centralized defaults.
-- `make generate-config` builds and runs the same default-config generator via local Electron.
 
 Malformed config syntax (invalid JSON/JSONC) is startup-blocking: SubMiner shows a clear parse error with the config path and asks you to fix the file and restart.
 
@@ -462,14 +460,6 @@ AniList CLI commands:
 - `--anilist-setup`: open AniList setup/auth flow helper window.
 - `--anilist-retry-queue`: process one ready retry queue item immediately.
 
-AniList IPC channels:
-
-- `anilist:get-status`: return token status + retry queue state snapshot.
-- `anilist:clear-token`: clear stored AniList token and reset token status state.
-- `anilist:open-setup`: open AniList setup/auth flow helper window.
-- `anilist:get-queue-status`: return retry queue state snapshot.
-- `anilist:retry-now`: process one ready retry queue item immediately.
-
 ### Jellyfin
 
 Jellyfin integration is optional and disabled by default. When enabled, SubMiner can authenticate, list libraries/items, and resolve direct/transcoded playback URLs for mpv launch.
@@ -512,25 +502,16 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                                                   |
 
 Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup.
-Optional environment overrides: `SUBMINER_JELLYFIN_ACCESS_TOKEN`, `SUBMINER_JELLYFIN_USER_ID`.
 
-Jellyfin direct app CLI commands (`SubMiner.AppImage ...`):
-
-- `--jellyfin`: open the in-app Jellyfin setup window (server/user/password form).
-- `--jellyfin-login` with `--jellyfin-server`, `--jellyfin-username`, `--jellyfin-password`: authenticate and store token/session data.
-- `--jellyfin-logout`: clear stored Jellyfin token/session data.
-- `--jellyfin-libraries`: list available Jellyfin libraries.
-- `--jellyfin-items`: list playable items (`--jellyfin-library-id`, optional `--jellyfin-search`, `--jellyfin-limit`).
-- `--jellyfin-play`: resolve playback URL and launch (`--jellyfin-item-id`, optional audio/subtitle stream index overrides; requires connected mpv IPC).
-- `--jellyfin-remote-announce`: force capability announce + visibility check in Jellyfin sessions (debug helper).
-- `--jellyfin-server`: optional server URL override for Jellyfin commands.
-
-Launcher subcommand equivalents:
+Launcher subcommands:
 
 - `subminer jellyfin` (or `subminer jf`) opens setup.
 - `subminer jellyfin -l --server ... --username ... --password ...` logs in.
+- `subminer jellyfin --logout` clears stored credentials.
 - `subminer jellyfin -p` opens play picker.
 - `subminer jellyfin -d` starts cast discovery mode.
+
+See [Jellyfin Integration](/jellyfin-integration) for the full setup and cast-to-device guide.
 
 Jellyfin remote auto-connect runs only when all three are `true`: `jellyfin.enabled`, `jellyfin.remoteControlEnabled`, and `jellyfin.remoteControlAutoConnect`.
 

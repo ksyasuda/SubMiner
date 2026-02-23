@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex-task103-jellyfin-main-composer-20260222T220441Z-m8p1
 created_date: '2026-02-22 07:13'
-updated_date: '2026-02-22 22:48'
+updated_date: '2026-02-23 02:06'
 labels:
   - refactor
   - maintainability
@@ -15,6 +15,7 @@ dependencies:
   - TASK-94
   - TASK-97
 priority: medium
+ordinal: 100000
 ---
 
 ## Description

@@ -41,6 +41,7 @@
 - `2026-02-23T02:24:10Z` implementation: added `secondary` overlay window kind/wiring, overlay-manager secondary window ownership, and geometry split helper (`top 20%` secondary + `bottom 80%` primary).
 - `2026-02-23T02:27:40Z` renderer updates: added `secondary` layer detection, disabled measurement reports for secondary layer, and CSS layer split (secondary hidden in primary layers; subtitle/modals hidden in secondary layer).
 - `2026-02-23T02:29:51Z` validation: `bun run tsc --noEmit`; `bun test src/main/runtime/overlay-window-factory.test.ts src/main/runtime/overlay-window-factory-main-deps.test.ts src/main/runtime/overlay-window-runtime-handlers.test.ts src/renderer/error-recovery.test.ts src/core/services/overlay-window.test.ts`; `bun run build`; `node --test dist/core/services/overlay-manager.test.js`.
+- `2026-02-23T02:44:37Z` backlog sync: updated `TASK-110` with final summary + commit reference (`b8f7d5e`).
 
 ## Files Touched
 

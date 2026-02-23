@@ -5,7 +5,7 @@ status: Done
 assignee:
   - opencode-task106-immersion-modules
 created_date: '2026-02-22 07:14'
-updated_date: '2026-02-22 21:58'
+updated_date: '2026-02-23 02:06'
 labels:
   - refactor
   - maintainability
@@ -13,6 +13,7 @@ labels:
 dependencies:
   - TASK-95
 priority: medium
+ordinal: 101000
 ---
 
 ## Description

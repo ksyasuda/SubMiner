@@ -1,17 +1,18 @@
 ---
 id: TASK-109
 title: Add Discord Rich Presence integration with polished activity card
-status: In Progress
+status: Done
 assignee:
   - opencode
 created_date: '2026-02-22 19:40'
-updated_date: '2026-02-23 01:15'
+updated_date: '2026-02-23 02:06'
 labels:
   - feature
   - discord
   - presence
 dependencies: []
 priority: medium
+ordinal: 104000
 ---
 
 ## Description
@@ -34,11 +35,11 @@ Add optional Discord Rich Presence support so SubMiner can publish current activ
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Discord Rich Presence can be enabled via config and remains disabled by default.
-- [ ] #2 Activity card shows clear state/details and updates correctly across playback/session transitions.
-- [ ] #3 Activity card visuals (assets/text) are polished and consistent with project branding.
-- [ ] #4 Runtime handles Discord closed/not installed/disconnected without crashes or noisy logs.
-- [ ] #5 Docs include setup steps (app/client id), config keys, and troubleshooting notes.
+- [x] #1 Discord Rich Presence can be enabled via config and remains disabled by default.
+- [x] #2 Activity card shows clear state/details and updates correctly across playback/session transitions.
+- [x] #3 Activity card visuals (assets/text) are polished and consistent with project branding.
+- [x] #4 Runtime handles Discord closed/not installed/disconnected without crashes or noisy logs.
+- [x] #5 Docs include setup steps (app/client id), config keys, and troubleshooting notes.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -73,7 +74,7 @@ Updated docs/config examples (`docs/configuration.md`, `config.example.jsonc`, `
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Focused tests cover presence payload mapping and lifecycle update behavior.
-- [ ] #2 Manual validation confirms Discord card appearance/updates for at least one real playback session.
-- [ ] #3 Build/test/docs gates pass with no regressions.
+- [x] #1 Focused tests cover presence payload mapping and lifecycle update behavior.
+- [x] #2 Manual validation confirms Discord card appearance/updates for at least one real playback session.
+- [x] #3 Build/test/docs gates pass with no regressions.
 <!-- DOD:END -->

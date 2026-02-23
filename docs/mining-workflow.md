@@ -24,13 +24,13 @@ SubMiner now prioritizes subtitle responsiveness over heavy initialization:
 
 This keeps early playback snappy and avoids mpv-side sluggishness while startup work completes.
 
-## The Two Overlay Layers
+## The Three Overlay Planes
 
-SubMiner uses two overlay layers, each serving a different purpose.
+SubMiner uses three overlay planes, each serving a different purpose.
 
 ### Visible Overlay
 
-The visible overlay renders subtitles as tokenized, clickable word spans. Each word is a separate element with reading and headword data attached. This layer is styled independently from mpv subtitles and supports:
+The visible overlay renders subtitles as tokenized, clickable word spans. Each word is a separate element with reading and headword data attached. This plane is styled independently from mpv subtitles and supports:
 
 - Word-level click targets for Yomitan lookup
 - Right-click to pause/resume
@@ -40,15 +40,29 @@ The visible overlay renders subtitles as tokenized, clickable word spans. Each w
 
 Toggle with `Alt+Shift+O` (global) or `y-t` (mpv plugin).
 
+### Secondary Subtitle Plane
+
+The secondary plane is a compact top-strip layer for translation and context visibility while keeping primary reading flow below. It mirrors your configured secondary subtitle preference and can be independently shown or hidden.
+
+It is controlled by `secondarySub` configuration and shares lifecycle with the overlay stack.
+
 ### Invisible Overlay
 
-The invisible overlay is a transparent layer that aligns precisely with mpv's own subtitle rendering. It reproduces the subtitle text at the exact position and size mpv uses, so you can click directly on the subtitles you see in the video.
+The invisible overlay is a transparent layer aligned with mpv's own subtitle rendering. It uses mpv's subtitle metrics (font size, margins, position, scaling) to map click targets accurately.
 
-This layer uses mpv's subtitle render metrics (font size, margins, position, scaling) and converts them from mpv's scaled-pixel system (reference height 720) to actual screen pixels.
+This layer still supports:
 
-Toggle with `Alt+Shift+I` (global) or `y-i` (mpv plugin).
+- Word-level click-through lookups over the text region
+- Optional manual position fine-tuning in pixel mode
+- Independent toggle behavior with global shortcuts
 
-**Position edit mode**: Press `Ctrl/Cmd+Shift+P` to enter edit mode, then use arrow keys (or `hjkl`) to nudge the position. `Shift` moves 4 px at a time. Press `Enter` or `Ctrl+S` to save, `Esc` to cancel.
+Position edit mode is available via `Ctrl/Cmd+Shift+P`, then arrow keys / `hjkl` to nudge position; `Shift` moves faster. Save with `Enter` or `Ctrl+S`, cancel with `Esc`.
+
+Toggle controls:
+
+- `Alt+Shift+O` / `y-t`: visible overlay
+- `Alt+Shift+I` / `y-i`: invisible overlay
+- Secondary plane visibility is controlled via `secondarySub` config and matching global shortcuts.
 
 ## Looking Up Words
 

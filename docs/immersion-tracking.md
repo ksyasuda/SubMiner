@@ -36,13 +36,6 @@ Primary index coverage:
 - event timeline/type reads: `idx_events_session_ts`, `idx_events_type_ts`
 - rollup reads: `idx_rollups_day_video`, `idx_rollups_month_video`
 
-Ownership boundaries:
-
-- `src/core/services/immersion-tracker-service.ts`: orchestration facade (queueing, flush cadence, runtime event/session coordination).
-- `src/core/services/immersion-tracker/storage.ts`: schema bootstrap, prepared statement construction, and DB record writes/updates.
-- `src/core/services/immersion-tracker/session.ts`: session row lifecycle transitions (start/finalize).
-- `src/core/services/immersion-tracker/metadata.ts`: local media metadata probing (`ffprobe`, sha256, parsed metadata shaping).
-
 ## Retention and Maintenance Defaults
 
 - Raw events: `7d`
@@ -155,7 +148,3 @@ ORDER BY rollup_month DESC, video_id DESC
 LIMIT ?;
 ```
 
-## Extension Points
-
-- Adapter boundary for non-SQLite backends is tracked in `TASK-32`.
-- Keep analytics/query callers bound to tracker service methods (not raw table assumptions) so persistence adapters can swap in later.
