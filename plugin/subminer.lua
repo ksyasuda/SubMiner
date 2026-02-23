@@ -28,6 +28,84 @@ local function is_linux()
 	return not is_windows() and not is_macos()
 end
 
+local function is_subminer_process_running()
+	local command = is_windows() and { "tasklist", "/FO", "CSV", "/NH" } or { "ps", "-A", "-o", "args=" }
+	local result = mp.command_native({
+		name = "subprocess",
+		args = command,
+		playback_only = false,
+		capture_stdout = true,
+		capture_stderr = false,
+	})
+	if not result or type(result.stdout) ~= "string" or result.status ~= 0 then
+		return false
+	end
+
+	local process_list = result.stdout:lower()
+	for line in process_list:gmatch("[^\\n]+") do
+		if is_windows() then
+			local image = line:match('^"([^"]+)","')
+			if not image then
+				image = line:match("^\"([^\"]+)\"")
+			end
+			if not image then
+				goto continue
+			end
+			if image == "subminer" or image == "subminer.exe" or image == "subminer.appimage" or image == "subminer.app" then
+				return true
+			end
+			if image:find("subminer", 1, true) and not image:find(".lua", 1, true) then
+				return true
+			end
+		else
+			local argv0 = line:match('^"([^"]+)"') or line:match("^%s*([^%s]+)")
+			if not argv0 then
+				goto continue
+			end
+			if argv0:find("subminer.lua", 1, true) or argv0:find("subminer.conf", 1, true) then
+				goto continue
+			end
+			local exe = argv0:match("([^/\\]+)$") or argv0
+			if exe == "SubMiner" or exe == "SubMiner.AppImage" or exe == "SubMiner.exe" or exe == "subminer" or exe == "subminer.appimage" or exe == "subminer.exe" then
+				return true
+			end
+			if exe:find("subminer", 1, true) and exe:find("%.lua", 1, true) == nil and exe:find("%.app", 1, true) == nil then
+				return true
+			end
+		end
+
+		::continue::
+	end
+	return false
+end
+
+local function is_subminer_app_running()
+	if is_subminer_process_running() then
+		return true
+	end
+	return false
+end
+
+local function is_subminer_ipc_ready()
+	if not is_subminer_process_running() then
+		return false, "SubMiner process not running"
+	end
+
+	if is_windows() then
+		return true, nil
+	end
+
+	if opts.socket_path ~= default_socket_path() then
+		return false, "SubMiner socket path mismatch"
+	end
+
+	if not file_exists(default_socket_path()) then
+		return false, "SubMiner IPC socket missing at /tmp/subminer-socket"
+	end
+
+	return true, nil
+end
+
 local function normalize_binary_path_candidate(candidate)
 	if type(candidate) ~= "string" then
 		return nil
@@ -601,6 +679,11 @@ local function apply_aniskip_payload(mal_id, title, episode, payload)
 end
 
 local function fetch_aniskip_for_current_media()
+	if not is_subminer_app_running() then
+		subminer_log("debug", "lifecycle", "Skipping aniskip lookup: SubMiner app not running")
+		return
+	end
+
 	clear_aniskip_state()
 	if not opts.aniskip_enabled then
 		return
@@ -1442,6 +1525,13 @@ local function ensure_texthooker_running(callback)
 end
 
 local function start_overlay(overrides)
+	local socket_ready, reason = is_subminer_ipc_ready()
+	if not socket_ready then
+		subminer_log("warn", "process", "Refusing to start overlay: " .. tostring(reason))
+		show_osd("SubMiner IPC not set up. Launch mpv with --input-ipc-server=/tmp/subminer-socket")
+		return
+	end
+
 	if not ensure_binary_available() then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
@@ -1504,6 +1594,9 @@ local function start_overlay_from_script_message(...)
 end
 
 local function stop_overlay()
+	if not is_subminer_app_running() then
+		return
+	end
 	if not state.binary_available then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
@@ -1532,6 +1625,9 @@ local function stop_overlay()
 end
 
 local function toggle_overlay()
+	if not is_subminer_app_running() then
+		return
+	end
 	if not state.binary_available then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
@@ -1556,6 +1652,9 @@ local function toggle_overlay()
 end
 
 local function toggle_invisible_overlay()
+	if not is_subminer_app_running() then
+		return
+	end
 	if not state.binary_available then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
@@ -1584,6 +1683,9 @@ local function toggle_invisible_overlay()
 end
 
 local function show_invisible_overlay()
+	if not is_subminer_app_running() then
+		return
+	end
 	if not state.binary_available then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
@@ -1612,6 +1714,9 @@ local function show_invisible_overlay()
 end
 
 local function hide_invisible_overlay()
+	if not is_subminer_app_running() then
+		return
+	end
 	if not state.binary_available then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
@@ -1705,6 +1810,9 @@ local function show_menu()
 end
 
 restart_overlay = function()
+	if not is_subminer_app_running() then
+		return
+	end
 	if not state.binary_available then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")
@@ -1765,6 +1873,12 @@ check_status = function()
 end
 
 local function on_file_loaded()
+	if not is_subminer_app_running() then
+		clear_aniskip_state()
+		subminer_log("debug", "lifecycle", "Skipping file load hooks: SubMiner app not running")
+		return true
+	end
+
 	clear_aniskip_state()
 	fetch_aniskip_for_current_media()
 	state.binary_path = find_binary()
