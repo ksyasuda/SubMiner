@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Electron build output
+out/
+dist/
+release/
+
+# Launcher build artifact (produced by make build-launcher)
+subminer
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+**/CLAUDE.md
+environment.toml
+**/CLAUDE.md
+.env
+.vscode/*
+
+# VitePress
+.vitepress/cache/
+.vitepress/dist/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+tests/*
+.worktrees/
+.codex/*
+.agents/*
