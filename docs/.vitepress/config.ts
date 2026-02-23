@@ -87,6 +87,7 @@ export default {
         items: [
           { text: 'Building & Testing', link: '/development' },
           { text: 'Architecture', link: '/architecture' },
+          { text: 'IPC + Runtime Contracts', link: '/ipc-contracts' },
         ],
       },
     ],

@@ -25,6 +25,7 @@ make docs-preview # Preview built site at http://localhost:4173
 - [Anki Integration](/anki-integration) — AnkiConnect setup, field mapping, media generation, field grouping
 - [Jellyfin Integration](/jellyfin-integration) — Optional Jellyfin auth, cast discovery, remote control, and playback launch
 - [Immersion Tracking](/immersion-tracking) — SQLite schema, retention/rollup policies, query templates, and extension points
+- [Performance & Tuning](/troubleshooting#performance-and-resource-impact) — Resource usage and practical low-impact profile
 - [JLPT Vocabulary](/jlpt-vocab-bundle) — Bundled term-meta bank for JLPT level underlining and frequency highlighting
 - [MPV Plugin](/mpv-plugin) — Chord keybindings, subminer.conf options, script messages
 - [Troubleshooting](/troubleshooting) — Common issues and solutions by category
@@ -33,3 +34,4 @@ make docs-preview # Preview built site at http://localhost:4173
 
 - [Building & Testing](/development) — Build commands, test suites, contributor notes, environment variables
 - [Architecture](/architecture) — Service-oriented design, composition model, renderer module layout
+- [IPC + Runtime Contracts](/ipc-contracts) — Main/renderer IPC contracts and contributor onboarding

@@ -43,12 +43,13 @@ Download the latest AppImage from [GitHub Releases](https://github.com/ksyasuda/
 
 ```bash
 # Download and install AppImage
-wget https://github.com/ksyasuda/SubMiner/releases/download/v0.1.0/SubMiner-0.1.0.AppImage -O ~/.local/bin/SubMiner.AppImage
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner.AppImage -O ~/.local/bin/SubMiner.AppImage
 chmod +x ~/.local/bin/SubMiner.AppImage
 
 # Download subminer wrapper script
-wget https://github.com/ksyasuda/SubMiner/releases/download/v0.1.0/subminer -O ~/.local/bin/subminer
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer
 chmod +x ~/.local/bin/subminer
+
 ```
 
 The `subminer` wrapper uses a Bun shebang (`#!/usr/bin/env bun`), so [Bun](https://bun.sh) must be installed and available on `PATH`.
@@ -135,22 +136,7 @@ Ensure `mecab` is available on your PATH when launching SubMiner.
 binary_path=/Applications/SubMiner.app/Contents/MacOS/subminer
 ```
 
-## Windows
-
-Windows support is available through the mpv plugin. Set the binary and socket path in `subminer.conf`:
-
-```ini
-binary_path=C:\\Program Files\\subminer\\subminer.exe
-socket_path=\\\\.\\pipe\\subminer-socket
-```
-
-Launch mpv with:
-
-```bash
-mpv --input-ipc-server=\\\\.\\pipe\\subminer-socket video.mkv
-```
-
-## MPV Plugin (Optional)
+## MPV Plugin (Recommended)
 
 The Lua plugin provides in-player keybindings to control the overlay from mpv. It communicates with SubMiner by invoking the binary with CLI flags.
 
@@ -160,7 +146,7 @@ mpv must be launched with `--input-ipc-server=/tmp/subminer-socket` for SubMiner
 
 ```bash
 # Option 1: install from release assets bundle
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets-0.1.0.tar.gz -O /tmp/subminer-assets.tar.gz
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.config/SubMiner
 cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
@@ -171,7 +157,7 @@ cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 # make install-plugin
 ```
 
-## Rofi Theme (Optional)
+## Rofi Theme (Linux Only)
 
 SubMiner ships a default rofi theme at `assets/themes/subminer.rasi`.
 

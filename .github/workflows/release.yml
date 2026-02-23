@@ -98,6 +98,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build unversioned AppImage
+        run: |
+          shopt -s nullglob
+          appimages=(release/SubMiner-*.AppImage)
+          if [ "${#appimages[@]}" -eq 0 ]; then
+            echo "No versioned AppImage found to create unversioned artifact."
+            ls -la release
+            exit 1
+          fi
+          cp "${appimages[0]}" release/SubMiner.AppImage
+
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
@@ -213,8 +224,7 @@ jobs:
 
       - name: Package optional assets bundle
         run: |
-          VERSION="${GITHUB_REF#refs/tags/}"
-          tar -czf "release/subminer-assets-${VERSION}.tar.gz" \
+          tar -czf "release/subminer-assets.tar.gz" \
             config.example.jsonc \
             plugin/subminer.lua \
             plugin/subminer.conf \
@@ -264,8 +274,8 @@ jobs:
 
             ### AppImage (Recommended)
             1. Download the AppImage below
-            2. Make it executable: `chmod +x SubMiner-*.AppImage`
-            3. Run: `./SubMiner-*.AppImage`
+            2. Make it executable: `chmod +x SubMiner.AppImage`
+            3. Run: `./SubMiner.AppImage`
 
             ### macOS
             1. Download `subminer-*.dmg`
@@ -276,7 +286,7 @@ jobs:
             See the [README](https://github.com/${{ github.repository }}#installation) for manual installation instructions.
 
             ### Optional Assets (config example + mpv plugin + rofi theme)
-            1. Download `subminer-assets-*.tar.gz`
+            1. Download `subminer-assets.tar.gz`
             2. Extract and copy `config.example.jsonc` to `~/.config/SubMiner/config.jsonc`
             3. Copy `plugin/subminer.lua` to `~/.config/mpv/scripts/`
             4. Copy `plugin/subminer.conf` to `~/.config/mpv/script-opts/`

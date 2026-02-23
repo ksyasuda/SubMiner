@@ -27,9 +27,11 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 - **Hover to look up** — Yomitan dictionary popups directly on subtitles
 - **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and translation
 - **N+1 highlighting** — Marks known words from your Anki deck so unknown ones jump out
-- **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync, all in-player
+- **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
 - **Immersion tracking** — SQLite-powered stats on your watch time and mining activity
-- **Texthooker page built in** — WebSocket streaming to external tools, no extra setup
+- **Custom texthooker page** — Built-in custom texthooker page and websocket, no extra setup
+- **Jellyfin integration** — Remote playback setup, cast device mode, and direct playback launch
+- **AniList progress** — Track episode completion and push watching progress automatically
 
 ## Quick start
 
@@ -38,10 +40,11 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 **Linux (AppImage):**
 
 ```bash
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner-0.1.0.AppImage -O ~/.local/bin/SubMiner.AppImage
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner.AppImage -O ~/.local/bin/SubMiner.AppImage
 chmod +x ~/.local/bin/SubMiner.AppImage
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer
 chmod +x ~/.local/bin/subminer
+
 ```
 
 > [!NOTE]
@@ -52,12 +55,13 @@ chmod +x ~/.local/bin/subminer
 ### 2. Install the mpv plugin and configuration file
 
 ```bash
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets-0.1.0.tar.gz -O /tmp/subminer-assets.tar.gz
+wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
 cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 mkdir -p ~/.config/SubMiner && cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
 ```
+
 
 ### 3. Set up Yomitan Dictionaries
 
@@ -69,7 +73,7 @@ subminer app --start --yomitan
 
 ```bash
 subminer app --start --background
-subminer video.mkv
+subminer video.mkv # toggle invisible overlay with y-i and visible overlay with y-t
 ```
 
 ## Requirements
@@ -89,7 +93,7 @@ For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.m
 
 ## Acknowledgments
 
-Built on the shoulders of [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script), and [autosubsync-mpv](https://github.com/joaquintorres/autosubsync-mpv). Subtitles powered by [Jimaku.cc](https://jimaku.cc). Dictionary lookups via [Yomitan](https://github.com/yomidevs/yomitan).
+Built on the shoulders of [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner), [texthooker-ui](https://github.com/Renji-XD/texthooker-ui), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script), and [autosubsync-mpv](https://github.com/joaquintorres/autosubsync-mpv). Subtitles powered by [Jimaku.cc](https://jimaku.cc). Dictionary lookups via [Yomitan](https://github.com/yomidevs/yomitan).
 
 ## License
 

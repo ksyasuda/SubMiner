@@ -1,3 +1,7 @@
+---
+outline: [2, 3]
+---
+
 # Configuration
 
 Settings are stored in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc` when `XDG_CONFIG_HOME` is unset).

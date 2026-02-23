@@ -21,6 +21,81 @@ SubMiner retries the connection automatically with increasing delays (200 ms, 50
 - Use `--dev`/`--debug` only to force app/dev mode (for example to get dev behavior from the overlay/app); they do not change log verbosity.
 - You can combine both, for example `SubMiner.AppImage --start --dev --log-level debug`, when you need maximum diagnostics.
 
+## Performance and Resource Impact
+
+### At a glance
+
+- Baseline: `SubMiner --start` is usually lightweight for normal playback.
+- Common spikes come from:
+  - first subtitle parse/tokenization bursts
+  - media generation (`ffmpeg` audio/image and AVIF paths)
+  - media sync and subtitle tooling (`alass`, `ffsubsync`, `whisper` fallback path)
+  - `ankiConnect` enrichment and frequent polling
+
+### If playback feels sluggish
+
+1. Reduce overlay workload:
+
+- set secondary subtitles hidden:
+  - `secondarySub.defaultMode: "hidden"`
+- disable optional enrichment:
+  - `subtitleStyle.enableJlpt: false`
+  - `subtitleStyle.frequencyDictionary.enabled: false`
+
+2. Reduce rendering pressure:
+
+- lower `subtitleStyle.fontSize`
+- keep overlay complexity minimal during heavy CPU periods
+
+3. Reduce media overhead:
+
+- keep `ankiConnect.media.imageType` set to `static` (avoid animated AVIF unless needed)
+- lower `ankiConnect.media.imageQuality`
+- reduce `ankiConnect.media.maxMediaDuration`
+
+4. Lower integration cost:
+
+- disable AI translation when not needed (`ankiConnect.ai.enabled: false`)
+- if needed, run immersion telemetry with lower duration expectations (`immersionTracking.enabled: false` for constrained sessions)
+- prefer YouTube `--mode automatic` over `preprocess` on low-resource systems
+
+### Practical low-impact profile
+
+```json
+{
+  "subtitleStyle": {
+    "fontSize": 30,
+    "enableJlpt": false,
+    "frequencyDictionary": {
+      "enabled": false
+    }
+  },
+  "secondarySub": {
+    "defaultMode": "hidden"
+  },
+  "ankiConnect": {
+    "media": {
+      "imageType": "static",
+      "imageQuality": 80,
+      "maxMediaDuration": 12
+    },
+    "ai": {
+      "enabled": false
+    }
+  },
+  "immersionTracking": {
+    "enabled": false
+  }
+}
+```
+
+### If usage is still high
+
+- Confirm only one SubMiner instance is running.
+- Check whether bottlenecks are `ffmpeg`, `yt-dlp`, or sync tooling in system monitor.
+- Use `info` logs by default; keep `debug` for targeted diagnosis.
+- Reproduce once with `SubMiner.AppImage --start --log-level debug` and open DevTools (`y` then `d`) if freezes recur.
+
 **"Failed to parse MPV message"**
 
 Logged when a malformed JSON line arrives from the mpv socket. Usually harmless — SubMiner skips the bad line and continues. If it happens constantly, check that nothing else is writing to the same socket path.

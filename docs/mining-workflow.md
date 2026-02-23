@@ -15,7 +15,7 @@ Watch video → See subtitle → Click word → Yomitan lookup → Add to Anki
 
 ## Subtitle Delivery Path (Startup + Runtime)
 
-SubMiner now prioritizes subtitle responsiveness over heavy initialization:
+SubMiner prioritizes subtitle responsiveness over heavy initialization:
 
 1. The first subtitle render is **plain text first** (no tokenization wait).
 2. Tokenized enrichment (word spans, known-word flags, JLPT/frequency metadata) is applied right after parsing completes.

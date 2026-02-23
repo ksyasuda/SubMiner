@@ -310,14 +310,18 @@ flowchart LR
 
   Warmups["Background<br/>warmups"]:::phase
 
-  Warmups --> W1["MeCab"]:::warmup
-  Warmups --> W2["Yomitan"]:::warmup
-  Warmups --> W3["JLPT + freq<br/>dictionaries"]:::warmup
-  Warmups --> W4["Jellyfin"]:::warmup
-  Warmups --> W5["Discord"]:::warmup
-  Warmups --> W6["AniList"]:::warmup
+  subgraph WarmupGroup[" "]
+    direction TB
+    W1["MeCab"]:::warmup
+    W2["Yomitan"]:::warmup
+    W3["JLPT + freq<br/>dictionaries"]:::warmup
+    W4["Jellyfin"]:::warmup
+    W5["Discord"]:::warmup
+    W6["AniList"]:::warmup
+    W1 ~~~ W2 ~~~ W3 ~~~ W4 ~~~ W5 ~~~ W6
+  end
 
-  W1 & W2 & W3 & W4 & W5 & W6 --> Loop
+  Warmups --> WarmupGroup
 
   subgraph Loop["Runtime — event-driven"]
     direction TB
@@ -328,6 +332,10 @@ flowchart LR
     Route --> Process["SubtitlePipeline<br/>normalize → tokenize → merge"]:::runtime
     Process --> Broadcast["Update AppState<br/>broadcast to windows"]:::runtime
   end
+
+  WarmupGroup --> Loop
+
+  style WarmupGroup fill:transparent,stroke:none
 
   Loop -->|"quit signal"| Quit["will-quit"]:::shutdown
 
@@ -354,6 +362,7 @@ flowchart LR
 
 - Add behavior to an existing service in `src/core/services/*` or create a focused runtime module under `src/main/runtime/*`; avoid ad-hoc logic in `main.ts`.
 - Add new cross-process channels in `src/shared/ipc/contracts.ts` first, validate payloads in `src/shared/ipc/validators.ts`, then wire handlers in IPC runtime modules.
+- See also the contributor IPC onboarding page: [IPC + Runtime Contracts](/ipc-contracts).
 - If change spans startup/overlay/mpv/integration wiring, prefer composing through `src/main/runtime/domains/*` + `src/main/runtime/composers/*` rather than direct wiring in `main.ts`.
 - Keep service APIs explicit and narrowly scoped, and preserve existing CLI flag / IPC channel behavior unless the change is intentionally breaking.
 - Add or update focused tests (including malformed-payload IPC tests) when runtime boundaries or contracts change.
