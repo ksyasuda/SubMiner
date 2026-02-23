@@ -125,65 +125,108 @@ src/renderer/
 
 ## Flow Diagram
 
-The main process has three layers: `main.ts` delegates to composition modules that wire together domain services. The renderer runs in a separate Electron process, connected through `preload.ts`.
+The main process has three layers: `main.ts` delegates to composition modules that wire together domain services. Three overlay windows (visible, invisible, secondary) run in separate Electron renderer processes, connected through `preload.ts`. External runtimes (launcher CLI and mpv plugin) operate independently and communicate via IPC socket or CLI passthrough.
 
 ```mermaid
 flowchart TD
-  classDef entry fill:#c6a0f6,stroke:#363a4f,color:#24273a,stroke-width:2px
-  classDef comp fill:#b7bdf8,stroke:#363a4f,color:#24273a,stroke-width:1.5px
-  classDef svc fill:#8aadf4,stroke:#363a4f,color:#24273a,stroke-width:1.5px
-  classDef bridge fill:#f5a97f,stroke:#363a4f,color:#24273a,stroke-width:1.5px
-  classDef rend fill:#8bd5ca,stroke:#363a4f,color:#24273a,stroke-width:1.5px
-  classDef ext fill:#a6da95,stroke:#363a4f,color:#24273a,stroke-width:1.5px
+  classDef entry fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:2px,font-weight:bold
+  classDef comp fill:#b7bdf8,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef svc fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef bridge fill:#f5a97f,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef rend fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef ext fill:#a6da95,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef extrt fill:#eed49f,stroke:#494d64,color:#24273a,stroke-width:1.5px
 
-  Main["main.ts"]:::entry
+  Main["main.ts — composition root"]:::entry
 
   subgraph Comp["Composition — src/main/"]
-    Startup["Startup & Lifecycle<br/>startup · app-lifecycle<br/>startup-lifecycle · state"]:::comp
-    Wiring["Runtime Wiring<br/>ipc-runtime · cli-runtime<br/>overlay-runtime · subsync-runtime"]:::comp
+    direction TB
+    Startup["Startup & Lifecycle<br/>startup · app-lifecycle · startup-lifecycle · state"]:::comp
+    Wiring["Runtime Wiring<br/>ipc-runtime · cli-runtime · overlay-runtime · subsync-runtime"]:::comp
+    Composers["Composers<br/>mpv-runtime · anilist-tracking · jellyfin-runtime"]:::comp
   end
 
   subgraph Svc["Services — src/core/services/"]
-    direction LR
-    Mpv["MPV Stack<br/>transport · protocol<br/>state · properties"]:::svc
-    Overlay["Overlay<br/>manager · window<br/>visibility · bridge"]:::svc
-    Mining["Mining & Subtitles<br/>mining · field-grouping<br/>subtitle-ws · tokenizer"]:::svc
-    Integrations["Integrations<br/>jimaku · subsync<br/>texthooker · yomitan"]:::svc
+    direction TB
+    subgraph SvcRow1[" "]
+      direction LR
+      Mpv["MPV Stack<br/>transport · protocol<br/>properties · render-metrics"]:::svc
+      Overlay["Overlay Manager<br/>window · geometry<br/>visibility · bridge"]:::svc
+    end
+    subgraph SvcRow2[" "]
+      direction LR
+      Mining["Mining & Subtitles<br/>mining · field-grouping<br/>subtitle-ws · tokenizer"]:::svc
+      Integrations["Integrations<br/>jimaku · subsync · texthooker<br/>yomitan · discord-presence"]:::svc
+    end
+    subgraph SvcRow3[" "]
+      direction LR
+      Tracking["Tracking<br/>anilist · jellyfin-remote<br/>immersion-tracker"]:::svc
+      Config["Config & Runtime<br/>config-hot-reload<br/>runtime-options"]:::svc
+    end
   end
 
-  Bridge(["preload.ts — Electron IPC"]):::bridge
+  Bridge(["preload.ts — Electron IPC bridge"]):::bridge
 
   subgraph Rend["Renderer — src/renderer/"]
-    Orchestration["renderer.ts<br/>orchestration · IPC wiring"]:::rend
-    UI["subtitle-render · positioning<br/>handlers · modals"]:::rend
+    direction TB
+    subgraph Windows["Three overlay windows"]
+      direction LR
+      Visible["Visible<br/>interactive Yomitan lookups"]:::rend
+      Invisible["Invisible<br/>mpv-matched positioning"]:::rend
+      Secondary["Secondary<br/>secondary subtitle bar"]:::rend
+    end
+    UI["subtitle-render · positioning · handlers · modals"]:::rend
   end
 
   subgraph Ext["External Systems"]
     direction LR
-    mpv["mpv"]:::ext
-    Anki["AnkiConnect"]:::ext
-    Jimaku["Jimaku API"]:::ext
-    Tracker["Window Tracker"]:::ext
+    mpvExt["mpv player"]:::ext
+    AnkiExt["AnkiConnect"]:::ext
+    JimakuExt["Jimaku API"]:::ext
+    TrackerExt["Window Tracker<br/>Hyprland · Sway · X11 · macOS"]:::ext
+    AnilistExt["AniList API"]:::ext
+    JellyfinExt["Jellyfin"]:::ext
+    DiscordExt["Discord RPC"]:::ext
   end
 
-  Main -->|delegates| Comp
-  Startup -->|initializes| Svc
-  Wiring -->|dispatches to| Svc
+  subgraph ExtRt["External Runtimes"]
+    direction LR
+    Launcher["launcher/<br/>CLI command dispatch"]:::extrt
+    Plugin["subminer.lua<br/>mpv plugin"]:::extrt
+  end
 
-  Overlay <--> Bridge
+  Main -->|"delegates"| Comp
+  Startup -->|"initializes"| Svc
+  Wiring -->|"dispatches to"| Svc
+  Composers -->|"wires"| Svc
+
+  Overlay <-->Bridge
   Mining <--> Bridge
-  Bridge <--> Orchestration
-  Orchestration --> UI
+  Bridge <--> Visible
+  Bridge <--> Invisible
+  Bridge <--> Secondary
+  Windows --> UI
 
-  Mpv <-->|JSON socket| mpv
-  Mining -->|HTTP| Anki
-  Integrations -->|HTTP| Jimaku
-  Overlay --> Tracker
+  Mpv <-->|"JSON IPC socket"| mpvExt
+  Mining -->|"HTTP"| AnkiExt
+  Integrations -->|"HTTP"| JimakuExt
+  Overlay -->|"platform API"| TrackerExt
+  Tracking -->|"HTTP"| AnilistExt
+  Tracking -->|"HTTP"| JellyfinExt
+  Integrations -->|"RPC"| DiscordExt
+
+  Launcher -->|"CLI passthrough"| Main
+  Plugin -->|"IPC socket"| mpvExt
 
   style Comp fill:#363a4f,stroke:#494d64,color:#cad3f5
   style Svc fill:#363a4f,stroke:#494d64,color:#cad3f5
+  style SvcRow1 fill:transparent,stroke:none
+  style SvcRow2 fill:transparent,stroke:none
+  style SvcRow3 fill:transparent,stroke:none
   style Rend fill:#363a4f,stroke:#494d64,color:#cad3f5
+  style Windows fill:#1e2030,stroke:#494d64,color:#cad3f5
   style Ext fill:#363a4f,stroke:#494d64,color:#cad3f5
+  style ExtRt fill:#363a4f,stroke:#494d64,color:#cad3f5
 ```
 
 ## Composition Pattern
@@ -242,52 +285,81 @@ For domains migrated to reducer-style transitions (for example AniList token/que
 
 ## Program Lifecycle
 
-- **Startup:** `startup.ts` parses CLI args and detects the compositor backend. If `--generate-config` is passed, it writes the template and exits. Otherwise `app-lifecycle.ts` acquires the single-instance lock and registers Electron lifecycle hooks.
-- **Initialization:** Once `app.whenReady()` fires, `composeAppReadyRuntime()` runs the critical path first (strict config reload, runtime options + keybindings, mpv client creation, overlay/IPC setup). Non-critical warmups are launched asynchronously (`mecab`, `yomitan-extension`, dictionary prewarm, optional Jellyfin remote session).
-- **Runtime:** Event-driven. mpv events, IPC messages, CLI commands, overlay shortcuts, hot-reload notifications, and integration callbacks route through runtime handlers/composers, update `AppState`, and broadcast to overlay windows.
-- **Overlay window model:** runtime manages three overlay windows: `visible`, `invisible`, and `secondary`. `splitOverlayGeometryForSecondaryBar()` reserves the top 20% for the secondary subtitle bar and routes the remaining area to the active primary overlay layer.
-- **Shutdown:** `onWillQuitCleanup` tears down tray + watchers + integrations, stops subtitle/texthooker servers, flushes buffered MPV OSD log writes, closes token/session windows, and stops Jellyfin/Discord runtime services.
+- **Module-level init:** Before `app.ready`, the composition root registers protocols, sets platform flags, constructs all services, and wires dependency injection. `runAndApplyStartupState()` parses CLI args and detects the compositor backend.
+- **Startup:** If `--generate-config` is passed, it writes the template and exits. Otherwise `app-lifecycle.ts` acquires the single-instance lock and registers Electron lifecycle hooks.
+- **Critical-path init:** Once `app.whenReady()` fires, `composeAppReadyRuntime()` runs strict config reload, resolves keybindings, creates the `MpvIpcClient` (which immediately connects and subscribes to 26 properties), and initializes the `RuntimeOptionsManager`, `SubtitleTimingTracker`, and `ImmersionTrackerService`.
+- **Overlay runtime:** `initializeOverlayRuntime()` creates three overlay windows — **visible** (interactive Yomitan lookups), **invisible** (mpv-matched subtitle positioning), and **secondary** (secondary subtitle bar, top 20% via `splitOverlayGeometryForSecondaryBar`) — then registers global shortcuts and sets initial bounds from the window tracker.
+- **Background warmups:** Non-critical services are launched asynchronously: MeCab tokenizer check, Yomitan extension load, JLPT + frequency dictionary prewarm, optional Jellyfin remote session, Discord presence service, and AniList token refresh.
+- **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, overlay shortcuts, and hot-reload notifications route through runtime handlers/composers. Subtitle text flows through `SubtitlePipeline` (normalize → tokenize → merge), and results broadcast to all overlay windows.
+- **Shutdown:** `onWillQuitCleanup` destroys tray + config watcher, unregisters shortcuts, stops WebSocket + texthooker servers, closes the mpv socket + flushes OSD log, stops the window tracker, closes the Yomitan parser window, flushes the immersion tracker (SQLite), stops Jellyfin/Discord services, and cleans Anki/AniList state.
 
 ```mermaid
-flowchart TD
-  classDef start fill:#c6a0f6,stroke:#363a4f,color:#24273a,stroke-width:2px
-  classDef phase fill:#b7bdf8,stroke:#363a4f,color:#24273a,stroke-width:1.5px
-  classDef decision fill:#f5a97f,stroke:#363a4f,color:#24273a,stroke-width:1.5px
-  classDef init fill:#8aadf4,stroke:#363a4f,color:#24273a,stroke-width:1.5px
-  classDef runtime fill:#8bd5ca,stroke:#363a4f,color:#24273a,stroke-width:1.5px
-  classDef shutdown fill:#ed8796,stroke:#363a4f,color:#24273a,stroke-width:1.5px
+flowchart LR
+  classDef start fill:#c6a0f6,stroke:#494d64,color:#24273a,stroke-width:2px,font-weight:bold
+  classDef phase fill:#b7bdf8,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef decision fill:#f5a97f,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef init fill:#8aadf4,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef runtime fill:#8bd5ca,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef shutdown fill:#ed8796,stroke:#494d64,color:#24273a,stroke-width:1.5px
+  classDef warmup fill:#eed49f,stroke:#494d64,color:#24273a,stroke-width:1.5px
 
-  CLI["CLI args & environment"]:::start
-  CLI --> Parse["startup.ts<br/>Parse argv · detect backend · resolve config"]:::phase
-  Parse --> GenCheck{"--generate-config?"}:::decision
-  GenCheck -->|yes| GenExit["Write config template & exit"]:::phase
-  GenCheck -->|no| Lifecycle["app-lifecycle.ts<br/>Acquire single-instance lock<br/>Register Electron lifecycle hooks"]:::phase
-  Lifecycle -->|"app.whenReady()"| Ready["startup-lifecycle.ts"]:::phase
+  CLI["CLI args &<br/>environment"]:::start
+  CLI --> Proto["Module-level init<br/>register protocols<br/>construct services<br/>wire deps"]:::phase
+  Proto --> Parse["startup.ts<br/>parse argv<br/>detect backend"]:::phase
+  Parse --> GenCheck{"--generate<br/>-config?"}:::decision
+  GenCheck -->|"yes"| GenExit["Write template<br/>& exit"]:::phase
+  GenCheck -->|"no"| Lock["app-lifecycle.ts<br/>single-instance lock<br/>lifecycle hooks"]:::phase
 
-  Ready --> Init
-  subgraph Init["Initialization"]
-    direction LR
-    Config["Load config<br/>resolve keybindings"]:::init
-    Runtime["Create mpv client<br/>init runtime options"]:::init
-    Platform["Start window tracker<br/>WebSocket policy"]:::init
-  end
+  Lock -->|"app.whenReady()"| Ready["composeAppReady<br/>Runtime()"]:::phase
 
-  Init --> Create["Create overlay window<br/>Establish IPC bridge"]:::phase
-  Create --> Warm["Background warmups<br/>MeCab · Yomitan · dictionaries · Jellyfin"]:::phase
+  Ready --> Config["Config reload<br/>keybindings<br/>log level"]:::init
+  Ready --> MpvInit["MpvIpcClient<br/>connect socket<br/>subscribe 26 props"]:::init
+  Ready --> Platform["RuntimeOptions<br/>timing tracker<br/>immersion tracker"]:::init
 
-  Warm --> Loop
+  Config --> OverlayInit
+  MpvInit --> OverlayInit
+  Platform --> OverlayInit
+
+  OverlayInit["initializeOverlay<br/>Runtime()"]:::phase
+
+  OverlayInit --> VisWin["Visible window<br/>Yomitan lookups"]:::init
+  OverlayInit --> InvWin["Invisible window<br/>mpv positioning"]:::init
+  OverlayInit --> SecWin["Secondary window<br/>subtitle bar"]:::init
+  OverlayInit --> Shortcuts["Register global<br/>shortcuts"]:::init
+
+  VisWin --> Warmups
+  InvWin --> Warmups
+  SecWin --> Warmups
+  Shortcuts --> Warmups
+
+  Warmups["Background<br/>warmups"]:::phase
+
+  Warmups --> W1["MeCab"]:::warmup
+  Warmups --> W2["Yomitan"]:::warmup
+  Warmups --> W3["JLPT + freq<br/>dictionaries"]:::warmup
+  Warmups --> W4["Jellyfin"]:::warmup
+  Warmups --> W5["Discord"]:::warmup
+  Warmups --> W6["AniList"]:::warmup
+
+  W1 & W2 & W3 & W4 & W5 & W6 --> Loop
+
   subgraph Loop["Runtime — event-driven"]
-    direction LR
-    Events["mpv · IPC · CLI<br/>shortcut events"]:::runtime
-    Dispatch["Route to service<br/>via composition layer"]:::runtime
-    State["Update state<br/>broadcast to renderer"]:::runtime
-    Events --> Dispatch --> State
+    direction TB
+    MpvEvt["mpv events: subtitle · timing · metrics"]:::runtime
+    IpcEvt["IPC: renderer requests · CLI commands"]:::runtime
+    ExtEvt["Shortcuts · config hot-reload"]:::runtime
+    MpvEvt & IpcEvt & ExtEvt --> Route["Route via composers"]:::runtime
+    Route --> Process["SubtitlePipeline<br/>normalize → tokenize → merge"]:::runtime
+    Process --> Broadcast["Update AppState<br/>broadcast to windows"]:::runtime
   end
 
-  Loop -->|"app close"| Quit["Electron will-quit"]:::shutdown
-  Quit --> Teardown["Close mpv socket · unregister shortcuts<br/>Stop WebSocket & texthooker<br/>Destroy tracker · clean Anki state"]:::shutdown
+  Loop -->|"quit signal"| Quit["will-quit"]:::shutdown
 
-  style Init fill:#363a4f,stroke:#494d64,color:#cad3f5
+  Quit --> T1["Tray · config watcher<br/>global shortcuts"]:::shutdown
+  Quit --> T2["WebSocket · texthooker<br/>mpv socket · OSD log"]:::shutdown
+  Quit --> T3["Window tracker<br/>Yomitan parser"]:::shutdown
+  Quit --> T4["Immersion tracker<br/>Jellyfin · Discord<br/>Anki · AniList"]:::shutdown
+
   style Loop fill:#363a4f,stroke:#494d64,color:#cad3f5
 ```
 

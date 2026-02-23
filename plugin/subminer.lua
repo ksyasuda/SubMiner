@@ -1526,7 +1526,8 @@ end
 
 local function start_overlay(overrides)
 	local socket_ready, reason = is_subminer_ipc_ready()
-	if not socket_ready then
+	local process_not_running = reason == "SubMiner process not running"
+	if not socket_ready and not process_not_running then
 		subminer_log("warn", "process", "Refusing to start overlay: " .. tostring(reason))
 		show_osd("SubMiner IPC not set up. Launch mpv with --input-ipc-server=/tmp/subminer-socket")
 		return
