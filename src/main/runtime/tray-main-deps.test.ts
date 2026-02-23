@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  createBuildResolveTrayIconPathMainDepsHandler,
+  createBuildTrayMenuTemplateMainDepsHandler,
+} from './tray-main-deps';
+
+test('tray main deps builders return mapped handlers', () => {
+  const calls: string[] = [];
+  const resolveDeps = createBuildResolveTrayIconPathMainDepsHandler({
+    resolveTrayIconPathRuntime: () => '/tmp/icon.png',
+    platform: 'darwin',
+    resourcesPath: '/resources',
+    appPath: '/app',
+    dirname: '/dir',
+    joinPath: (...parts) => parts.join('/'),
+    fileExists: () => true,
+  })();
+
+  assert.equal(resolveDeps.platform, 'darwin');
+  assert.equal(resolveDeps.joinPath('a', 'b'), 'a/b');
+
+  const menuDeps = createBuildTrayMenuTemplateMainDepsHandler({
+    buildTrayMenuTemplateRuntime: () => [{ label: 'tray' }] as never,
+    initializeOverlayRuntime: () => calls.push('init'),
+    isOverlayRuntimeInitialized: () => false,
+    setVisibleOverlayVisible: (visible) => calls.push(`visible:${visible}`),
+    openYomitanSettings: () => calls.push('yomitan'),
+    openRuntimeOptionsPalette: () => calls.push('runtime-options'),
+    openJellyfinSetupWindow: () => calls.push('jellyfin'),
+    openAnilistSetupWindow: () => calls.push('anilist'),
+    quitApp: () => calls.push('quit'),
+  })();
+
+  const template = menuDeps.buildTrayMenuTemplateRuntime({
+    openOverlay: () => calls.push('open-overlay'),
+    openYomitanSettings: () => calls.push('open-yomitan'),
+    openRuntimeOptions: () => calls.push('open-runtime-options'),
+    openJellyfinSetup: () => calls.push('open-jellyfin'),
+    openAnilistSetup: () => calls.push('open-anilist'),
+    quitApp: () => calls.push('quit-app'),
+  });
+
+  assert.deepEqual(template, [{ label: 'tray' }]);
+});

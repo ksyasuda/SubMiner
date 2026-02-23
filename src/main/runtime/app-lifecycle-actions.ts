@@ -1,0 +1,68 @@
+export function createOnWillQuitCleanupHandler(deps: {
+  destroyTray: () => void;
+  stopConfigHotReload: () => void;
+  restorePreviousSecondarySubVisibility: () => void;
+  unregisterAllGlobalShortcuts: () => void;
+  stopSubtitleWebsocket: () => void;
+  stopTexthookerService: () => void;
+  destroyYomitanParserWindow: () => void;
+  clearYomitanParserState: () => void;
+  stopWindowTracker: () => void;
+  flushMpvLog: () => void;
+  destroyMpvSocket: () => void;
+  clearReconnectTimer: () => void;
+  destroySubtitleTimingTracker: () => void;
+  destroyImmersionTracker: () => void;
+  destroyAnkiIntegration: () => void;
+  destroyAnilistSetupWindow: () => void;
+  clearAnilistSetupWindow: () => void;
+  destroyJellyfinSetupWindow: () => void;
+  clearJellyfinSetupWindow: () => void;
+  stopJellyfinRemoteSession: () => void;
+  stopDiscordPresenceService: () => void;
+}) {
+  return (): void => {
+    deps.destroyTray();
+    deps.stopConfigHotReload();
+    deps.restorePreviousSecondarySubVisibility();
+    deps.unregisterAllGlobalShortcuts();
+    deps.stopSubtitleWebsocket();
+    deps.stopTexthookerService();
+    deps.destroyYomitanParserWindow();
+    deps.clearYomitanParserState();
+    deps.stopWindowTracker();
+    deps.flushMpvLog();
+    deps.destroyMpvSocket();
+    deps.clearReconnectTimer();
+    deps.destroySubtitleTimingTracker();
+    deps.destroyImmersionTracker();
+    deps.destroyAnkiIntegration();
+    deps.destroyAnilistSetupWindow();
+    deps.clearAnilistSetupWindow();
+    deps.destroyJellyfinSetupWindow();
+    deps.clearJellyfinSetupWindow();
+    deps.stopJellyfinRemoteSession();
+    deps.stopDiscordPresenceService();
+  };
+}
+
+export function createShouldRestoreWindowsOnActivateHandler(deps: {
+  isOverlayRuntimeInitialized: () => boolean;
+  getAllWindowCount: () => number;
+}) {
+  return (): boolean => deps.isOverlayRuntimeInitialized() && deps.getAllWindowCount() === 0;
+}
+
+export function createRestoreWindowsOnActivateHandler(deps: {
+  createMainWindow: () => void;
+  createInvisibleWindow: () => void;
+  updateVisibleOverlayVisibility: () => void;
+  updateInvisibleOverlayVisibility: () => void;
+}) {
+  return (): void => {
+    deps.createMainWindow();
+    deps.createInvisibleWindow();
+    deps.updateVisibleOverlayVisibility();
+    deps.updateInvisibleOverlayVisibility();
+  };
+}

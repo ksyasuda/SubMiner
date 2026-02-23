@@ -1,0 +1,113 @@
+import { ResolvedConfig } from '../../types';
+
+export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
+  ResolvedConfig,
+  'ankiConnect' | 'jimaku' | 'anilist' | 'jellyfin' | 'discordPresence' | 'youtubeSubgen'
+> = {
+  ankiConnect: {
+    enabled: false,
+    url: 'http://127.0.0.1:8765',
+    pollingRate: 3000,
+    tags: ['SubMiner'],
+    fields: {
+      audio: 'ExpressionAudio',
+      image: 'Picture',
+      sentence: 'Sentence',
+      miscInfo: 'MiscInfo',
+      translation: 'SelectionText',
+    },
+    ai: {
+      enabled: false,
+      alwaysUseAiTranslation: false,
+      apiKey: '',
+      model: 'openai/gpt-4o-mini',
+      baseUrl: 'https://openrouter.ai/api',
+      targetLanguage: 'English',
+      systemPrompt:
+        'You are a translation engine. Return only the translated text with no explanations.',
+    },
+    media: {
+      generateAudio: true,
+      generateImage: true,
+      imageType: 'static',
+      imageFormat: 'jpg',
+      imageQuality: 92,
+      imageMaxWidth: undefined,
+      imageMaxHeight: undefined,
+      animatedFps: 10,
+      animatedMaxWidth: 640,
+      animatedMaxHeight: undefined,
+      animatedCrf: 35,
+      audioPadding: 0.5,
+      fallbackDuration: 3.0,
+      maxMediaDuration: 30,
+    },
+    behavior: {
+      overwriteAudio: true,
+      overwriteImage: true,
+      mediaInsertMode: 'append',
+      highlightWord: true,
+      notificationType: 'osd',
+      autoUpdateNewCards: true,
+    },
+    nPlusOne: {
+      highlightEnabled: false,
+      refreshMinutes: 1440,
+      matchMode: 'headword',
+      decks: [],
+      minSentenceWords: 3,
+      nPlusOne: '#c6a0f6',
+      knownWord: '#a6da95',
+    },
+    metadata: {
+      pattern: '[SubMiner] %f (%t)',
+    },
+    isLapis: {
+      enabled: false,
+      sentenceCardModel: 'Japanese sentences',
+    },
+    isKiku: {
+      enabled: false,
+      fieldGrouping: 'disabled',
+      deleteDuplicateInAuto: true,
+    },
+  },
+  jimaku: {
+    apiBaseUrl: 'https://jimaku.cc',
+    languagePreference: 'ja',
+    maxEntryResults: 10,
+  },
+  anilist: {
+    enabled: false,
+    accessToken: '',
+  },
+  jellyfin: {
+    enabled: false,
+    serverUrl: '',
+    username: '',
+    deviceId: 'subminer',
+    clientName: 'SubMiner',
+    clientVersion: '0.1.0',
+    defaultLibraryId: '',
+    remoteControlEnabled: true,
+    remoteControlAutoConnect: true,
+    autoAnnounce: false,
+    remoteControlDeviceName: 'SubMiner',
+    pullPictures: false,
+    iconCacheDir: '/tmp/subminer-jellyfin-icons',
+    directPlayPreferred: true,
+    directPlayContainers: ['mkv', 'mp4', 'webm', 'mov', 'flac', 'mp3', 'aac'],
+    transcodeVideoCodec: 'h264',
+  },
+  discordPresence: {
+    enabled: false,
+    updateIntervalMs: 3_000,
+    debounceMs: 750,
+  },
+  youtubeSubgen: {
+    mode: 'automatic',
+    whisperBin: '',
+    whisperModel: '',
+    primarySubLanguages: ['ja', 'jpn'],
+  },
+};

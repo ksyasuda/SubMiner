@@ -1,0 +1,38 @@
+import type { AppReadyRuntimeDepsFactoryInput } from '../app-lifecycle';
+
+export function createBuildAppReadyRuntimeMainDepsHandler(
+  deps: AppReadyRuntimeDepsFactoryInput,
+) {
+  return (): AppReadyRuntimeDepsFactoryInput => ({
+    loadSubtitlePosition: deps.loadSubtitlePosition,
+    resolveKeybindings: deps.resolveKeybindings,
+    createMpvClient: deps.createMpvClient,
+    reloadConfig: deps.reloadConfig,
+    getResolvedConfig: deps.getResolvedConfig,
+    getConfigWarnings: deps.getConfigWarnings,
+    logConfigWarning: deps.logConfigWarning,
+    initRuntimeOptionsManager: deps.initRuntimeOptionsManager,
+    setSecondarySubMode: deps.setSecondarySubMode,
+    defaultSecondarySubMode: deps.defaultSecondarySubMode,
+    defaultWebsocketPort: deps.defaultWebsocketPort,
+    hasMpvWebsocketPlugin: deps.hasMpvWebsocketPlugin,
+    startSubtitleWebsocket: deps.startSubtitleWebsocket,
+    log: deps.log,
+    setLogLevel: deps.setLogLevel,
+    createMecabTokenizerAndCheck: deps.createMecabTokenizerAndCheck,
+    createSubtitleTimingTracker: deps.createSubtitleTimingTracker,
+    createImmersionTracker: deps.createImmersionTracker,
+    startJellyfinRemoteSession: deps.startJellyfinRemoteSession,
+    loadYomitanExtension: deps.loadYomitanExtension,
+    prewarmSubtitleDictionaries: deps.prewarmSubtitleDictionaries,
+    startBackgroundWarmups: deps.startBackgroundWarmups,
+    texthookerOnlyMode: deps.texthookerOnlyMode,
+    shouldAutoInitializeOverlayRuntimeFromConfig:
+      deps.shouldAutoInitializeOverlayRuntimeFromConfig,
+    initializeOverlayRuntime: deps.initializeOverlayRuntime,
+    handleInitialArgs: deps.handleInitialArgs,
+    onCriticalConfigErrors: deps.onCriticalConfigErrors,
+    logDebug: deps.logDebug,
+    now: deps.now,
+  });
+}

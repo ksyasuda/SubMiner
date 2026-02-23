@@ -1,0 +1,103 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  createBuildDestroyTrayMainDepsHandler,
+  createBuildEnsureTrayMainDepsHandler,
+  createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler,
+  createBuildOpenYomitanSettingsMainDepsHandler,
+} from './app-runtime-main-deps';
+
+test('ensure tray main deps trigger overlay bootstrap on tray click when runtime not initialized', () => {
+  const calls: string[] = [];
+  const deps = createBuildEnsureTrayMainDepsHandler({
+    getTray: () => null,
+    setTray: () => calls.push('set-tray'),
+    buildTrayMenu: () => ({}),
+    resolveTrayIconPath: () => null,
+    createImageFromPath: () => ({}),
+    createEmptyImage: () => ({}),
+    createTray: () => ({}),
+    trayTooltip: 'SubMiner',
+    platform: 'darwin',
+    logWarn: (message) => calls.push(`warn:${message}`),
+    initializeOverlayRuntime: () => calls.push('init-overlay'),
+    isOverlayRuntimeInitialized: () => false,
+    setVisibleOverlayVisible: (visible) => calls.push(`set-visible:${visible}`),
+  })();
+
+  deps.ensureOverlayVisibleFromTrayClick();
+  assert.deepEqual(calls, ['init-overlay', 'set-visible:true']);
+});
+
+test('destroy tray main deps map passthrough getters/setters', () => {
+  let tray: unknown = { id: 'tray' };
+  const deps = createBuildDestroyTrayMainDepsHandler({
+    getTray: () => tray,
+    setTray: (next) => {
+      tray = next;
+    },
+  })();
+
+  assert.deepEqual(deps.getTray(), { id: 'tray' });
+  deps.setTray(null);
+  assert.equal(tray, null);
+});
+
+test('initialize overlay runtime main deps map build options and callbacks', () => {
+  const calls: string[] = [];
+  const options = { id: 'opts' };
+  const deps = createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler({
+    isOverlayRuntimeInitialized: () => false,
+    initializeOverlayRuntimeCore: (value) => {
+      calls.push(`core:${JSON.stringify(value)}`);
+      return { invisibleOverlayVisible: true };
+    },
+    buildOptions: () => options,
+    setInvisibleOverlayVisible: (visible) => calls.push(`set-invisible:${visible}`),
+    setOverlayRuntimeInitialized: (initialized) => calls.push(`set-initialized:${initialized}`),
+    startBackgroundWarmups: () => calls.push('warmups'),
+  })();
+
+  assert.equal(deps.isOverlayRuntimeInitialized(), false);
+  assert.equal(deps.buildOptions(), options);
+  assert.deepEqual(deps.initializeOverlayRuntimeCore(options), { invisibleOverlayVisible: true });
+  deps.setInvisibleOverlayVisible(true);
+  deps.setOverlayRuntimeInitialized(true);
+  deps.startBackgroundWarmups();
+  assert.deepEqual(calls, [
+    'core:{"id":"opts"}',
+    'set-invisible:true',
+    'set-initialized:true',
+    'warmups',
+  ]);
+});
+
+test('open yomitan settings main deps map async open callbacks', async () => {
+  const calls: string[] = [];
+  let currentWindow: unknown = null;
+  const extension = { id: 'ext' };
+  const deps = createBuildOpenYomitanSettingsMainDepsHandler({
+    ensureYomitanExtensionLoaded: async () => extension,
+    openYomitanSettingsWindow: ({ yomitanExt }) => calls.push(`open:${(yomitanExt as { id: string }).id}`),
+    getExistingWindow: () => currentWindow,
+    setWindow: (window) => {
+      currentWindow = window;
+      calls.push('set-window');
+    },
+    logWarn: (message) => calls.push(`warn:${message}`),
+    logError: (message) => calls.push(`error:${message}`),
+  })();
+
+  assert.equal(await deps.ensureYomitanExtensionLoaded(), extension);
+  assert.equal(deps.getExistingWindow(), null);
+  deps.setWindow({ id: 'win' });
+  deps.openYomitanSettingsWindow({
+    yomitanExt: extension,
+    getExistingWindow: () => deps.getExistingWindow(),
+    setWindow: (window) => deps.setWindow(window),
+  });
+  deps.logWarn('warn');
+  deps.logError('error', new Error('boom'));
+  assert.deepEqual(calls, ['set-window', 'open:ext', 'warn:warn', 'error:error']);
+  assert.deepEqual(currentWindow, { id: 'win' });
+});

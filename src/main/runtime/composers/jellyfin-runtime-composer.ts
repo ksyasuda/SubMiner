@@ -1,0 +1,290 @@
+import {
+  buildJellyfinSetupFormHtml,
+  createEnsureMpvConnectedForJellyfinPlaybackHandler,
+  createBuildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler,
+  createBuildGetJellyfinClientInfoMainDepsHandler,
+  createBuildGetResolvedJellyfinConfigMainDepsHandler,
+  createBuildHandleJellyfinAuthCommandsMainDepsHandler,
+  createBuildHandleJellyfinListCommandsMainDepsHandler,
+  createBuildHandleJellyfinPlayCommandMainDepsHandler,
+  createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler,
+  createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler,
+  createBuildOpenJellyfinSetupWindowMainDepsHandler,
+  createBuildPlayJellyfinItemInMpvMainDepsHandler,
+  createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler,
+  createBuildRunJellyfinCommandMainDepsHandler,
+  createBuildStartJellyfinRemoteSessionMainDepsHandler,
+  createBuildStopJellyfinRemoteSessionMainDepsHandler,
+  createBuildWaitForMpvConnectedMainDepsHandler,
+  createGetJellyfinClientInfoHandler,
+  createGetResolvedJellyfinConfigHandler,
+  createHandleJellyfinAuthCommands,
+  createHandleJellyfinListCommands,
+  createHandleJellyfinPlayCommand,
+  createHandleJellyfinRemoteAnnounceCommand,
+  createLaunchMpvIdleForJellyfinPlaybackHandler,
+  createOpenJellyfinSetupWindowHandler,
+  createPlayJellyfinItemInMpvHandler,
+  createPreloadJellyfinExternalSubtitlesHandler,
+  createRunJellyfinCommandHandler,
+  createStartJellyfinRemoteSessionHandler,
+  createStopJellyfinRemoteSessionHandler,
+  createWaitForMpvConnectedHandler,
+  createMaybeFocusExistingJellyfinSetupWindowHandler,
+  parseJellyfinSetupSubmissionUrl,
+} from '../domains/jellyfin';
+import {
+  composeJellyfinRemoteHandlers,
+  type JellyfinRemoteComposerOptions,
+} from './jellyfin-remote-composer';
+import type { ComposerInputs, ComposerOutputs } from './contracts';
+
+type EnsureMpvConnectedMainDeps = Parameters<
+  typeof createBuildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler
+>[0];
+type PlayJellyfinItemMainDeps = Parameters<
+  typeof createBuildPlayJellyfinItemInMpvMainDepsHandler
+>[0];
+type HandlePlayCommandMainDeps = Parameters<
+  typeof createBuildHandleJellyfinPlayCommandMainDepsHandler
+>[0];
+type HandleRemoteAnnounceMainDeps = Parameters<
+  typeof createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler
+>[0];
+type StartRemoteSessionMainDeps = Parameters<
+  typeof createBuildStartJellyfinRemoteSessionMainDepsHandler
+>[0];
+type RunJellyfinCommandMainDeps = Parameters<
+  typeof createBuildRunJellyfinCommandMainDepsHandler
+>[0];
+type OpenJellyfinSetupWindowMainDeps = Parameters<
+  typeof createBuildOpenJellyfinSetupWindowMainDepsHandler
+>[0];
+
+export type JellyfinRuntimeComposerOptions = ComposerInputs<{
+  getResolvedJellyfinConfigMainDeps: Parameters<
+    typeof createBuildGetResolvedJellyfinConfigMainDepsHandler
+  >[0];
+  getJellyfinClientInfoMainDeps: Parameters<
+    typeof createBuildGetJellyfinClientInfoMainDepsHandler
+  >[0];
+  waitForMpvConnectedMainDeps: Parameters<typeof createBuildWaitForMpvConnectedMainDepsHandler>[0];
+  launchMpvIdleForJellyfinPlaybackMainDeps: Parameters<
+    typeof createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler
+  >[0];
+  ensureMpvConnectedForJellyfinPlaybackMainDeps: Omit<
+    EnsureMpvConnectedMainDeps,
+    'waitForMpvConnected' | 'launchMpvIdleForJellyfinPlayback'
+  >;
+  preloadJellyfinExternalSubtitlesMainDeps: Parameters<
+    typeof createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler
+  >[0];
+  playJellyfinItemInMpvMainDeps: Omit<
+    PlayJellyfinItemMainDeps,
+    'ensureMpvConnectedForPlayback' | 'preloadExternalSubtitles'
+  >;
+  remoteComposerOptions: Omit<
+    JellyfinRemoteComposerOptions,
+    'getClientInfo' | 'getJellyfinConfig' | 'playJellyfinItem'
+  >;
+  handleJellyfinAuthCommandsMainDeps: Parameters<
+    typeof createBuildHandleJellyfinAuthCommandsMainDepsHandler
+  >[0];
+  handleJellyfinListCommandsMainDeps: Parameters<
+    typeof createBuildHandleJellyfinListCommandsMainDepsHandler
+  >[0];
+  handleJellyfinPlayCommandMainDeps: Omit<HandlePlayCommandMainDeps, 'playJellyfinItemInMpv'>;
+  handleJellyfinRemoteAnnounceCommandMainDeps: Omit<
+    HandleRemoteAnnounceMainDeps,
+    'startJellyfinRemoteSession'
+  >;
+  startJellyfinRemoteSessionMainDeps: Omit<
+    StartRemoteSessionMainDeps,
+    'getJellyfinConfig' | 'handlePlay' | 'handlePlaystate' | 'handleGeneralCommand'
+  >;
+  stopJellyfinRemoteSessionMainDeps: Parameters<
+    typeof createBuildStopJellyfinRemoteSessionMainDepsHandler
+  >[0];
+  runJellyfinCommandMainDeps: Omit<
+    RunJellyfinCommandMainDeps,
+    | 'getJellyfinConfig'
+    | 'getJellyfinClientInfo'
+    | 'handleAuthCommands'
+    | 'handleRemoteAnnounceCommand'
+    | 'handleListCommands'
+    | 'handlePlayCommand'
+  >;
+  maybeFocusExistingJellyfinSetupWindowMainDeps: Parameters<
+    typeof createMaybeFocusExistingJellyfinSetupWindowHandler
+  >[0];
+  openJellyfinSetupWindowMainDeps: Omit<
+    OpenJellyfinSetupWindowMainDeps,
+    'maybeFocusExistingSetupWindow' | 'getResolvedJellyfinConfig' | 'getJellyfinClientInfo'
+  >;
+}>;
+
+export type JellyfinRuntimeComposerResult = ComposerOutputs<{
+  getResolvedJellyfinConfig: ReturnType<typeof createGetResolvedJellyfinConfigHandler>;
+  getJellyfinClientInfo: ReturnType<typeof createGetJellyfinClientInfoHandler>;
+  reportJellyfinRemoteProgress: ReturnType<
+    typeof composeJellyfinRemoteHandlers
+  >['reportJellyfinRemoteProgress'];
+  reportJellyfinRemoteStopped: ReturnType<
+    typeof composeJellyfinRemoteHandlers
+  >['reportJellyfinRemoteStopped'];
+  handleJellyfinRemotePlay: ReturnType<
+    typeof composeJellyfinRemoteHandlers
+  >['handleJellyfinRemotePlay'];
+  handleJellyfinRemotePlaystate: ReturnType<
+    typeof composeJellyfinRemoteHandlers
+  >['handleJellyfinRemotePlaystate'];
+  handleJellyfinRemoteGeneralCommand: ReturnType<
+    typeof composeJellyfinRemoteHandlers
+  >['handleJellyfinRemoteGeneralCommand'];
+  playJellyfinItemInMpv: ReturnType<typeof createPlayJellyfinItemInMpvHandler>;
+  startJellyfinRemoteSession: ReturnType<typeof createStartJellyfinRemoteSessionHandler>;
+  stopJellyfinRemoteSession: ReturnType<typeof createStopJellyfinRemoteSessionHandler>;
+  runJellyfinCommand: ReturnType<typeof createRunJellyfinCommandHandler>;
+  openJellyfinSetupWindow: ReturnType<typeof createOpenJellyfinSetupWindowHandler>;
+}>;
+
+export function composeJellyfinRuntimeHandlers(
+  options: JellyfinRuntimeComposerOptions,
+): JellyfinRuntimeComposerResult {
+  const getResolvedJellyfinConfig = createGetResolvedJellyfinConfigHandler(
+    createBuildGetResolvedJellyfinConfigMainDepsHandler(
+      options.getResolvedJellyfinConfigMainDeps,
+    )(),
+  );
+  const getJellyfinClientInfo = createGetJellyfinClientInfoHandler(
+    createBuildGetJellyfinClientInfoMainDepsHandler(options.getJellyfinClientInfoMainDeps)(),
+  );
+
+  const waitForMpvConnected = createWaitForMpvConnectedHandler(
+    createBuildWaitForMpvConnectedMainDepsHandler(options.waitForMpvConnectedMainDeps)(),
+  );
+  const launchMpvIdleForJellyfinPlayback = createLaunchMpvIdleForJellyfinPlaybackHandler(
+    createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler(
+      options.launchMpvIdleForJellyfinPlaybackMainDeps,
+    )(),
+  );
+  const ensureMpvConnectedForJellyfinPlayback = createEnsureMpvConnectedForJellyfinPlaybackHandler(
+    createBuildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler({
+      ...options.ensureMpvConnectedForJellyfinPlaybackMainDeps,
+      waitForMpvConnected: (timeoutMs) => waitForMpvConnected(timeoutMs),
+      launchMpvIdleForJellyfinPlayback: () => launchMpvIdleForJellyfinPlayback(),
+    })(),
+  );
+
+  const preloadJellyfinExternalSubtitles = createPreloadJellyfinExternalSubtitlesHandler(
+    createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler(
+      options.preloadJellyfinExternalSubtitlesMainDeps,
+    )(),
+  );
+  const playJellyfinItemInMpv = createPlayJellyfinItemInMpvHandler(
+    createBuildPlayJellyfinItemInMpvMainDepsHandler({
+      ...options.playJellyfinItemInMpvMainDeps,
+      ensureMpvConnectedForPlayback: () => ensureMpvConnectedForJellyfinPlayback(),
+      preloadExternalSubtitles: (params) => {
+        void preloadJellyfinExternalSubtitles(params);
+      },
+    })(),
+  );
+
+  const {
+    reportJellyfinRemoteProgress,
+    reportJellyfinRemoteStopped,
+    handleJellyfinRemotePlay,
+    handleJellyfinRemotePlaystate,
+    handleJellyfinRemoteGeneralCommand,
+  } = composeJellyfinRemoteHandlers({
+    ...options.remoteComposerOptions,
+    getClientInfo: () => getJellyfinClientInfo(),
+    getJellyfinConfig: () => getResolvedJellyfinConfig(),
+    playJellyfinItem: (params) =>
+      playJellyfinItemInMpv(params as Parameters<typeof playJellyfinItemInMpv>[0]),
+  });
+
+  const handleJellyfinAuthCommands = createHandleJellyfinAuthCommands(
+    createBuildHandleJellyfinAuthCommandsMainDepsHandler(
+      options.handleJellyfinAuthCommandsMainDeps,
+    )(),
+  );
+  const handleJellyfinListCommands = createHandleJellyfinListCommands(
+    createBuildHandleJellyfinListCommandsMainDepsHandler(
+      options.handleJellyfinListCommandsMainDeps,
+    )(),
+  );
+  const handleJellyfinPlayCommand = createHandleJellyfinPlayCommand(
+    createBuildHandleJellyfinPlayCommandMainDepsHandler({
+      ...options.handleJellyfinPlayCommandMainDeps,
+      playJellyfinItemInMpv: (params) =>
+        playJellyfinItemInMpv(params as Parameters<typeof playJellyfinItemInMpv>[0]),
+    })(),
+  );
+
+  let startJellyfinRemoteSession!: ReturnType<typeof createStartJellyfinRemoteSessionHandler>;
+  const handleJellyfinRemoteAnnounceCommand = createHandleJellyfinRemoteAnnounceCommand(
+    createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler({
+      ...options.handleJellyfinRemoteAnnounceCommandMainDeps,
+      startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
+    })(),
+  );
+
+  startJellyfinRemoteSession = createStartJellyfinRemoteSessionHandler(
+    createBuildStartJellyfinRemoteSessionMainDepsHandler({
+      ...options.startJellyfinRemoteSessionMainDeps,
+      getJellyfinConfig: () => getResolvedJellyfinConfig(),
+      handlePlay: (payload) => handleJellyfinRemotePlay(payload),
+      handlePlaystate: (payload) => handleJellyfinRemotePlaystate(payload),
+      handleGeneralCommand: (payload) => handleJellyfinRemoteGeneralCommand(payload),
+    })(),
+  );
+
+  const stopJellyfinRemoteSession = createStopJellyfinRemoteSessionHandler(
+    createBuildStopJellyfinRemoteSessionMainDepsHandler(
+      options.stopJellyfinRemoteSessionMainDeps,
+    )(),
+  );
+
+  const runJellyfinCommand = createRunJellyfinCommandHandler(
+    createBuildRunJellyfinCommandMainDepsHandler({
+      ...options.runJellyfinCommandMainDeps,
+      getJellyfinConfig: () => getResolvedJellyfinConfig(),
+      getJellyfinClientInfo: (jellyfinConfig) => getJellyfinClientInfo(jellyfinConfig),
+      handleAuthCommands: (params) => handleJellyfinAuthCommands(params),
+      handleRemoteAnnounceCommand: (args) => handleJellyfinRemoteAnnounceCommand(args),
+      handleListCommands: (params) => handleJellyfinListCommands(params),
+      handlePlayCommand: (params) => handleJellyfinPlayCommand(params),
+    })(),
+  );
+
+  const maybeFocusExistingJellyfinSetupWindow = createMaybeFocusExistingJellyfinSetupWindowHandler(
+    options.maybeFocusExistingJellyfinSetupWindowMainDeps,
+  );
+  const openJellyfinSetupWindow = createOpenJellyfinSetupWindowHandler(
+    createBuildOpenJellyfinSetupWindowMainDepsHandler({
+      ...options.openJellyfinSetupWindowMainDeps,
+      maybeFocusExistingSetupWindow: maybeFocusExistingJellyfinSetupWindow,
+      getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
+      getJellyfinClientInfo: () => getJellyfinClientInfo(),
+    })(),
+  );
+
+  return {
+    getResolvedJellyfinConfig,
+    getJellyfinClientInfo,
+    reportJellyfinRemoteProgress,
+    reportJellyfinRemoteStopped,
+    handleJellyfinRemotePlay,
+    handleJellyfinRemotePlaystate,
+    handleJellyfinRemoteGeneralCommand,
+    playJellyfinItemInMpv,
+    startJellyfinRemoteSession,
+    stopJellyfinRemoteSession,
+    runJellyfinCommand,
+    openJellyfinSetupWindow,
+  };
+}
+
+export { buildJellyfinSetupFormHtml, parseJellyfinSetupSubmissionUrl };

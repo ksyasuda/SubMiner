@@ -1,0 +1,220 @@
+<!--
+	  SubMiner - All-in-one sentence mining overlay
+  Copyright (C) 2024 sudacode
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' 'unsafe-inline' chrome-extension:; script-src 'self' 'unsafe-inline' chrome-extension:; style-src 'self' 'unsafe-inline' chrome-extension:; worker-src 'self' blob:;"
+    />
+    <title>SubMiner</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- Programmatic focus fallback target for Electron/window focus management. -->
+    <div id="overlay" tabindex="-1">
+      <div
+        id="overlayErrorToast"
+        class="overlay-error-toast hidden"
+        role="status"
+        aria-live="polite"
+      ></div>
+      <div id="secondarySubContainer" class="secondary-sub-hidden">
+        <div id="secondarySubRoot"></div>
+      </div>
+      <div id="subtitleContainer">
+        <div id="subtitleRoot"></div>
+      </div>
+      <div id="jimakuModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div class="modal-title">Jimaku Subtitles</div>
+            <button id="jimakuClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div class="jimaku-form">
+              <label class="jimaku-field">
+                <span>Title</span>
+                <input id="jimakuTitle" type="text" placeholder="Anime title" />
+              </label>
+              <label class="jimaku-field">
+                <span>Season</span>
+                <input id="jimakuSeason" type="number" min="1" placeholder="1" />
+              </label>
+              <label class="jimaku-field">
+                <span>Episode</span>
+                <input id="jimakuEpisode" type="number" min="1" placeholder="1" />
+              </label>
+              <button id="jimakuSearch" class="jimaku-button" type="button">Search</button>
+            </div>
+            <div id="jimakuStatus" class="jimaku-status"></div>
+            <div id="jimakuEntriesSection" class="jimaku-section hidden">
+              <div class="jimaku-section-title">Entries</div>
+              <ul id="jimakuEntries" class="jimaku-list"></ul>
+            </div>
+            <div id="jimakuFilesSection" class="jimaku-section hidden">
+              <div class="jimaku-section-title">Files</div>
+              <ul id="jimakuFiles" class="jimaku-list"></ul>
+              <button id="jimakuBroaden" class="jimaku-link hidden" type="button">
+                Broaden search (all files)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="kikuFieldGroupingModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div class="modal-title">Duplicate Card Detected</div>
+          </div>
+          <div class="modal-body">
+            <div id="kikuSelectionStep">
+              <div class="kiku-info-text">
+                A card with the same expression already exists. Select which card to keep. The other
+                card's content will be merged using Kiku field grouping. You can choose whether to
+                delete the duplicate.
+              </div>
+              <div class="kiku-cards-container">
+                <div id="kikuCard1" class="kiku-card active" tabindex="0">
+                  <div class="kiku-card-label">1 &mdash; Original Card</div>
+                  <div class="kiku-card-expression" id="kikuCard1Expression"></div>
+                  <div class="kiku-card-sentence" id="kikuCard1Sentence"></div>
+                  <div class="kiku-card-meta" id="kikuCard1Meta"></div>
+                </div>
+                <div id="kikuCard2" class="kiku-card" tabindex="0">
+                  <div class="kiku-card-label">2 &mdash; New Card</div>
+                  <div class="kiku-card-expression" id="kikuCard2Expression"></div>
+                  <div class="kiku-card-sentence" id="kikuCard2Sentence"></div>
+                  <div class="kiku-card-meta" id="kikuCard2Meta"></div>
+                </div>
+              </div>
+              <div class="kiku-footer">
+                <label class="kiku-delete-toggle">
+                  <input id="kikuDeleteDuplicate" type="checkbox" checked />
+                  Delete duplicate card after merge
+                </label>
+                <button id="kikuConfirmButton" class="kiku-confirm-button" type="button">
+                  Continue
+                </button>
+                <button id="kikuCancelButton" class="kiku-cancel-button" type="button">
+                  Cancel
+                </button>
+              </div>
+            </div>
+
+            <div id="kikuPreviewStep" class="hidden">
+              <div class="kiku-preview-header">
+                <div class="kiku-preview-title">Final Merge Preview</div>
+                <div class="kiku-preview-toggle">
+                  <button id="kikuPreviewCompact" type="button">Compact</button>
+                  <button id="kikuPreviewFull" type="button">Full</button>
+                </div>
+              </div>
+              <div id="kikuPreviewError" class="kiku-preview-error hidden"></div>
+              <pre id="kikuPreviewJson" class="kiku-preview-json"></pre>
+              <div class="kiku-footer">
+                <button id="kikuBackButton" class="kiku-cancel-button" type="button">Back</button>
+                <button id="kikuFinalConfirmButton" class="kiku-confirm-button" type="button">
+                  Confirm Merge
+                </button>
+                <button id="kikuFinalCancelButton" class="kiku-cancel-button" type="button">
+                  Cancel
+                </button>
+              </div>
+            </div>
+
+            <div id="kikuHint" class="kiku-hint">
+              Press 1 or 2 to select &middot; Enter to confirm &middot; Esc to cancel
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="runtimeOptionsModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content runtime-modal-content">
+          <div class="modal-header">
+            <div class="modal-title">Runtime Options</div>
+            <button id="runtimeOptionsClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div id="runtimeOptionsHint" class="runtime-options-hint">
+              Arrow keys: select/change · Enter or double-click: apply · Esc: close
+            </div>
+            <ul id="runtimeOptionsList" class="runtime-options-list"></ul>
+            <div id="runtimeOptionsStatus" class="runtime-options-status"></div>
+          </div>
+        </div>
+      </div>
+      <div id="subsyncModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content subsync-modal-content">
+          <div class="modal-header">
+            <div class="modal-title">Auto Subtitle Sync</div>
+            <button id="subsyncClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div class="subsync-form">
+              <div class="subsync-field">
+                <span>Engine</span>
+                <label class="subsync-radio">
+                  <input id="subsyncEngineAlass" type="radio" name="subsyncEngine" checked />
+                  alass
+                </label>
+                <label class="subsync-radio">
+                  <input id="subsyncEngineFfsubsync" type="radio" name="subsyncEngine" />
+                  ffsubsync
+                </label>
+              </div>
+              <label id="subsyncSourceLabel" class="subsync-field">
+                <span>Source Subtitle (for alass)</span>
+                <select id="subsyncSourceSelect"></select>
+              </label>
+            </div>
+            <div id="subsyncStatus" class="runtime-options-status"></div>
+            <div class="subsync-footer">
+              <button id="subsyncRun" class="kiku-confirm-button" type="button">Run Sync</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="sessionHelpModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content session-help-content">
+          <div class="modal-header">
+            <div class="modal-title">Session Help</div>
+            <button id="sessionHelpClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div id="sessionHelpShortcut" class="session-help-shortcut"></div>
+            <div id="sessionHelpWarning" class="session-help-warning"></div>
+            <div id="sessionHelpStatus" class="session-help-status"></div>
+            <input
+              id="sessionHelpFilter"
+              class="session-help-filter"
+              type="text"
+              placeholder="Type / to search shortcuts"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <div id="sessionHelpContent" class="session-help-content-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="renderer.js"></script>
+  </body>
+</html>

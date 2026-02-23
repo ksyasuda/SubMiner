@@ -1,0 +1,59 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  CONFIG_OPTION_REGISTRY,
+  CONFIG_TEMPLATE_SECTIONS,
+  DEFAULT_CONFIG,
+  RUNTIME_OPTION_REGISTRY,
+} from '../definitions';
+import { buildCoreConfigOptionRegistry } from './options-core';
+import { buildImmersionConfigOptionRegistry } from './options-immersion';
+import { buildIntegrationConfigOptionRegistry } from './options-integrations';
+import { buildSubtitleConfigOptionRegistry } from './options-subtitle';
+
+test('config option registry includes critical paths and has unique entries', () => {
+  const paths = CONFIG_OPTION_REGISTRY.map((entry) => entry.path);
+
+  for (const requiredPath of [
+    'logging.level',
+    'subtitleStyle.enableJlpt',
+    'ankiConnect.enabled',
+    'immersionTracking.enabled',
+  ]) {
+    assert.ok(paths.includes(requiredPath), `missing config path: ${requiredPath}`);
+  }
+
+  assert.equal(new Set(paths).size, paths.length);
+});
+
+test('config template sections include expected domains and unique keys', () => {
+  const keys = CONFIG_TEMPLATE_SECTIONS.map((section) => section.key);
+  const requiredKeys: (typeof keys)[number][] = [
+    'websocket',
+    'subtitleStyle',
+    'ankiConnect',
+    'immersionTracking',
+  ];
+
+  for (const requiredKey of requiredKeys) {
+    assert.ok(keys.includes(requiredKey), `missing template section key: ${requiredKey}`);
+  }
+
+  assert.equal(new Set(keys).size, keys.length);
+});
+
+test('domain registry builders each contribute entries to composed registry', () => {
+  const domainEntries = [
+    buildCoreConfigOptionRegistry(DEFAULT_CONFIG),
+    buildSubtitleConfigOptionRegistry(DEFAULT_CONFIG),
+    buildIntegrationConfigOptionRegistry(DEFAULT_CONFIG, RUNTIME_OPTION_REGISTRY),
+    buildImmersionConfigOptionRegistry(DEFAULT_CONFIG),
+  ];
+  const composedPaths = new Set(CONFIG_OPTION_REGISTRY.map((entry) => entry.path));
+
+  for (const entries of domainEntries) {
+    assert.ok(entries.length > 0);
+    assert.ok(entries.some((entry) => composedPaths.has(entry.path)));
+  }
+});

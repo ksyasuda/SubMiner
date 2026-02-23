@@ -1,0 +1,38 @@
+export function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function asNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+export function asString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+export function asBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+const hexColorPattern = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+export function asColor(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  return hexColorPattern.test(text) ? text : undefined;
+}
+
+export function asFrequencyBandedColors(
+  value: unknown,
+): [string, string, string, string, string] | undefined {
+  if (!Array.isArray(value) || value.length !== 5) {
+    return undefined;
+  }
+
+  const colors = value.map((item) => asColor(item));
+  if (colors.some((color) => color === undefined)) {
+    return undefined;
+  }
+
+  return colors as [string, string, string, string, string];
+}
