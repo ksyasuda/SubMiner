@@ -30,10 +30,18 @@ function createStorage(encryptionAvailable: boolean): SafeStorageLike {
   };
 }
 
+function createPassthroughStorage(): SafeStorageLike {
+  return {
+    isEncryptionAvailable: () => true,
+    encryptString: (value: string) => Buffer.from(value, 'utf-8'),
+    decryptString: (value: Buffer) => value.toString('utf-8'),
+  };
+}
+
 test('anilist token store saves and loads encrypted token', () => {
   const filePath = createTempTokenFile();
   const store = createAnilistTokenStore(filePath, createLogger(), createStorage(true));
-  store.saveToken('  demo-token  ');
+  assert.equal(store.saveToken('  demo-token  '), true);
 
   const payload = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as {
     encryptedToken?: string;
@@ -44,16 +52,13 @@ test('anilist token store saves and loads encrypted token', () => {
   assert.equal(store.loadToken(), 'demo-token');
 });
 
-test('anilist token store falls back to plaintext when encryption unavailable', () => {
+test('anilist token store refuses to persist token when encryption unavailable', () => {
   const filePath = createTempTokenFile();
   const store = createAnilistTokenStore(filePath, createLogger(), createStorage(false));
-  store.saveToken('plain-token');
+  assert.equal(store.saveToken('plain-token'), false);
 
-  const payload = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as {
-    plaintextToken?: string;
-  };
-  assert.equal(payload.plaintextToken, 'plain-token');
-  assert.equal(store.loadToken(), 'plain-token');
+  assert.equal(fs.existsSync(filePath), false);
+  assert.equal(store.loadToken(), null);
 });
 
 test('anilist token store migrates legacy plaintext to encrypted', () => {
@@ -73,6 +78,13 @@ test('anilist token store migrates legacy plaintext to encrypted', () => {
   };
   assert.equal(typeof payload.encryptedToken, 'string');
   assert.equal(payload.plaintextToken, undefined);
+});
+
+test('anilist token store refuses passthrough safeStorage implementation', () => {
+  const filePath = createTempTokenFile();
+  const store = createAnilistTokenStore(filePath, createLogger(), createPassthroughStorage());
+  assert.equal(store.saveToken('demo-token'), false);
+  assert.equal(store.loadToken(), null);
 });
 
 test('anilist token store clears persisted token file', () => {

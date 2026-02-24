@@ -30,6 +30,41 @@ import {
   screen,
 } from 'electron';
 
+function getPasswordStoreArg(argv: string[]): string | null {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (!arg?.startsWith('--password-store')) {
+      continue;
+    }
+
+    if (arg === '--password-store') {
+      const value = argv[i + 1];
+      if (value && !value.startsWith('--')) {
+        return value;
+      }
+      return null;
+    }
+
+    const [prefix, value] = arg.split('=', 2);
+    if (prefix === '--password-store' && value && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+function normalizePasswordStoreArg(value: string): string {
+  const normalized = value.trim();
+  if (normalized.toLowerCase() === 'gnome') {
+    return 'gnome-libsecret';
+  }
+  return normalized;
+}
+
+function getDefaultPasswordStore(): string {
+  return 'gnome-libsecret';
+}
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'chrome-extension',
@@ -400,6 +435,9 @@ import { resolveConfigDir } from './config/path-resolution';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
+  const passwordStore = normalizePasswordStoreArg(getPasswordStoreArg(process.argv) ?? getDefaultPasswordStore());
+  app.commandLine.appendSwitch('password-store', passwordStore);
+  console.debug(`[main] Applied --password-store ${passwordStore}`);
 }
 
 app.setName('SubMiner');
@@ -447,6 +485,7 @@ let jellyfinRemoteLastProgressAtMs = 0;
 let jellyfinMpvAutoLaunchInFlight: Promise<boolean> | null = null;
 let backgroundWarmupsStarted = false;
 let yomitanLoadInFlight: Promise<Extension | null> | null = null;
+let notifyAnilistTokenStoreWarning: (message: string) => void = () => {};
 
 const buildApplyJellyfinMpvDefaultsMainDepsHandler =
   createBuildApplyJellyfinMpvDefaultsMainDepsHandler({
@@ -496,6 +535,7 @@ const anilistTokenStore = createAnilistTokenStore(
     info: (message: string) => console.info(message),
     warn: (message: string, details?: unknown) => console.warn(message, details),
     error: (message: string, details?: unknown) => console.error(message, details),
+    warnUser: (message: string) => notifyAnilistTokenStoreWarning(message),
   },
 );
 const jellyfinTokenStore = createJellyfinTokenStore(
@@ -518,6 +558,16 @@ const isDev = process.argv.includes('--dev') || process.argv.includes('--debug')
 const texthookerService = new Texthooker();
 const subtitleWsService = new SubtitleWebSocket();
 const logger = createLogger('main');
+notifyAnilistTokenStoreWarning = (message: string) => {
+  logger.warn(`[AniList] ${message}`);
+  try {
+    showDesktopNotification('SubMiner AniList', {
+      body: message,
+    });
+  } catch {
+    // Notification may fail if desktop notifications are unavailable early in startup.
+  }
+};
 const appLogger = {
   logInfo: (message: string) => {
     logger.info(message);

@@ -450,6 +450,8 @@ Setup flow details:
 2. Leave `anilist.accessToken` empty and restart SubMiner (or run `--anilist-setup`) to trigger setup.
 3. Approve access in AniList.
 4. Callback flow returns to SubMiner via `subminer://anilist-setup?...`, and SubMiner stores the token automatically.
+   - Encryption backend: Linux defaults to `gnome-libsecret`.
+     Override with `--password-store=<backend>` (for example `--password-store=basic_text`).
 
 Token + detection notes:
 

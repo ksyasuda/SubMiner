@@ -94,6 +94,8 @@ SubMiner.AppImage --help                  # Show all options
 - `--background` defaults to quieter logging (`warn`) unless `--log-level` is set.
 - `--background` launched from a terminal detaches and returns the prompt; stop it with tray Quit or `SubMiner.AppImage --stop`.
 - Linux desktop launcher starts SubMiner with `--background` by default (via electron-builder `linux.executableArgs`).
+- On Linux, the app now defaults `safeStorage` to `gnome-libsecret` for encrypted token persistence.
+  Override with e.g. `--password-store=basic_text`.
 - Use both when needed, for example `SubMiner.AppImage --start --dev --log-level debug`.
 
 ### Launcher Subcommands
