@@ -37,6 +37,8 @@ export default {
   ],
   appearance: 'dark',
   cleanUrls: true,
+  metaChunk: true,
+  sitemap: { hostname: 'https://docs.subminer.moe' },
   lastUpdated: true,
   srcExclude: ['subagents/**'],
   markdown: {
@@ -94,6 +96,18 @@ export default {
     search: {
       provider: 'local',
     },
+    footer: {
+      message: 'Released under the GPL-3.0 License.',
+      copyright: 'Copyright © 2026-present sudacode',
+    },
+    editLink: {
+      pattern: 'https://github.com/ksyasuda/SubMiner/edit/main/docs/:path',
+      text: 'Edit this page on GitHub',
+    },
+    outline: { level: [2, 3], label: 'On this page' },
+    externalLinkIcon: true,
+    docFooter: { prev: 'Previous', next: 'Next' },
+    returnToTopLabel: 'Back to top',
     socialLinks: [{ icon: 'github', link: 'https://github.com/ksyasuda/SubMiner' }],
   },
 };
