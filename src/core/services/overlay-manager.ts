@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 import { RuntimeOptionState, WindowGeometry } from '../../types';
 import { updateOverlayWindowBounds } from './overlay-window';
 
@@ -11,9 +11,12 @@ export interface OverlayManager {
   setInvisibleWindow: (window: BrowserWindow | null) => void;
   getSecondaryWindow: () => BrowserWindow | null;
   setSecondaryWindow: (window: BrowserWindow | null) => void;
+  getModalWindow: () => BrowserWindow | null;
+  setModalWindow: (window: BrowserWindow | null) => void;
   getOverlayWindow: (layer: OverlayLayer) => BrowserWindow | null;
   setOverlayWindowBounds: (layer: OverlayLayer, geometry: WindowGeometry) => void;
   setSecondaryWindowBounds: (geometry: WindowGeometry) => void;
+  setModalWindowBounds: (geometry: WindowGeometry) => void;
   getVisibleOverlayVisible: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
   getInvisibleOverlayVisible: () => boolean;
@@ -26,6 +29,7 @@ export function createOverlayManager(): OverlayManager {
   let mainWindow: BrowserWindow | null = null;
   let invisibleWindow: BrowserWindow | null = null;
   let secondaryWindow: BrowserWindow | null = null;
+  let modalWindow: BrowserWindow | null = null;
   let visibleOverlayVisible = false;
   let invisibleOverlayVisible = false;
 
@@ -42,12 +46,19 @@ export function createOverlayManager(): OverlayManager {
     setSecondaryWindow: (window) => {
       secondaryWindow = window;
     },
+    getModalWindow: () => modalWindow,
+    setModalWindow: (window) => {
+      modalWindow = window;
+    },
     getOverlayWindow: (layer) => (layer === 'visible' ? mainWindow : invisibleWindow),
     setOverlayWindowBounds: (layer, geometry) => {
       updateOverlayWindowBounds(geometry, layer === 'visible' ? mainWindow : invisibleWindow);
     },
     setSecondaryWindowBounds: (geometry) => {
       updateOverlayWindowBounds(geometry, secondaryWindow);
+    },
+    setModalWindowBounds: (geometry) => {
+      updateOverlayWindowBounds(geometry, modalWindow);
     },
     getVisibleOverlayVisible: () => visibleOverlayVisible,
     setVisibleOverlayVisible: (visible) => {

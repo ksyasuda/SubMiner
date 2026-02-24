@@ -567,6 +567,26 @@ process.on('SIGTERM', () => {
 });
 
 const overlayManager = createOverlayManager();
+let overlayModalInputExclusive = false;
+let syncOverlayShortcutsForModal: (isActive: boolean) => void = () => {};
+
+const handleModalInputStateChange = (isActive: boolean): void => {
+  if (overlayModalInputExclusive === isActive) return;
+  overlayModalInputExclusive = isActive;
+  if (isActive) {
+    const modalWindow = overlayManager.getModalWindow();
+    if (modalWindow && !modalWindow.isDestroyed()) {
+      modalWindow.setIgnoreMouseEvents(false);
+      modalWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+      modalWindow.focus();
+      if (!modalWindow.webContents.isFocused()) {
+        modalWindow.webContents.focus();
+      }
+    }
+  }
+  syncOverlayShortcutsForModal(isActive);
+};
+
 const buildOverlayContentMeasurementStoreMainDepsHandler =
   createBuildOverlayContentMeasurementStoreMainDepsHandler({
     now: () => Date.now(),
@@ -575,6 +595,10 @@ const buildOverlayContentMeasurementStoreMainDepsHandler =
 const buildOverlayModalRuntimeMainDepsHandler = createBuildOverlayModalRuntimeMainDepsHandler({
   getMainWindow: () => overlayManager.getMainWindow(),
   getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
+  getModalWindow: () => overlayManager.getModalWindow(),
+  createModalWindow: () => createModalWindow(),
+  getModalGeometry: () => getCurrentOverlayGeometry(),
+  setModalWindowBounds: (geometry) => overlayManager.setModalWindowBounds(geometry),
 });
 const overlayContentMeasurementStoreMainDeps = buildOverlayContentMeasurementStoreMainDepsHandler();
 const overlayContentMeasurementStore = createOverlayContentMeasurementStore(
@@ -582,6 +606,9 @@ const overlayContentMeasurementStore = createOverlayContentMeasurementStore(
 );
 const overlayModalRuntime = createOverlayModalRuntimeService(
   buildOverlayModalRuntimeMainDepsHandler(),
+  {
+    onModalStateChange: (isActive: boolean) => handleModalInputStateChange(isActive),
+  },
 );
 const appState = createAppState({
   mpvSocketPath: getDefaultSocketPath(),
@@ -789,6 +816,13 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
     },
   })(),
 );
+syncOverlayShortcutsForModal = (isActive: boolean): void => {
+  if (isActive) {
+    overlayShortcutsRuntime.unregisterOverlayShortcuts();
+  } else {
+    overlayShortcutsRuntime.syncOverlayShortcuts();
+  }
+};
 
 const buildConfigHotReloadMessageMainDepsHandler = createBuildConfigHotReloadMessageMainDepsHandler(
   {
@@ -2216,6 +2250,7 @@ function applyOverlayRegions(layer: 'visible' | 'invisible', geometry: WindowGeo
   const regions = splitOverlayGeometryForSecondaryBar(geometry);
   overlayManager.setOverlayWindowBounds(layer, regions.primary);
   overlayManager.setSecondaryWindowBounds(regions.secondary);
+  overlayManager.setModalWindowBounds(geometry);
   syncSecondaryOverlayWindowVisibility();
 }
 
@@ -2276,8 +2311,18 @@ async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
   return yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
 }
 
-function createOverlayWindow(kind: 'visible' | 'invisible' | 'secondary'): BrowserWindow {
+function createOverlayWindow(kind: 'visible' | 'invisible' | 'secondary' | 'modal'): BrowserWindow {
   return createOverlayWindowHandler(kind);
+}
+
+function createModalWindow(): BrowserWindow {
+  const existingWindow = overlayManager.getModalWindow();
+  if (existingWindow && !existingWindow.isDestroyed()) {
+    return existingWindow;
+  }
+  const window = createModalWindowHandler();
+  overlayManager.setModalWindowBounds(getCurrentOverlayGeometry());
+  return window;
 }
 
 function createSecondaryWindow(): BrowserWindow {
@@ -2742,6 +2787,7 @@ const {
   createMainWindow: createMainWindowHandler,
   createInvisibleWindow: createInvisibleWindowHandler,
   createSecondaryWindow: createSecondaryWindowHandler,
+  createModalWindow: createModalWindowHandler,
 } = createOverlayWindowRuntimeHandlers<BrowserWindow>({
   createOverlayWindowDeps: {
     createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
@@ -2763,14 +2809,17 @@ const {
         overlayManager.setMainWindow(null);
       } else if (windowKind === 'invisible') {
         overlayManager.setInvisibleWindow(null);
-      } else {
+      } else if (windowKind === 'secondary') {
         overlayManager.setSecondaryWindow(null);
+      } else {
+        overlayManager.setModalWindow(null);
       }
     },
   },
   setMainWindow: (window) => overlayManager.setMainWindow(window),
   setInvisibleWindow: (window) => overlayManager.setInvisibleWindow(window),
   setSecondaryWindow: (window) => overlayManager.setSecondaryWindow(window),
+  setModalWindow: (window) => overlayManager.setModalWindow(window),
 });
 const {
   resolveTrayIconPath: resolveTrayIconPathHandler,

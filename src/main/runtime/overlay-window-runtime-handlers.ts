@@ -1,12 +1,14 @@
 import {
   createCreateInvisibleWindowHandler,
   createCreateMainWindowHandler,
+  createCreateModalWindowHandler,
   createCreateOverlayWindowHandler,
   createCreateSecondaryWindowHandler,
 } from './overlay-window-factory';
 import {
   createBuildCreateInvisibleWindowMainDepsHandler,
   createBuildCreateMainWindowMainDepsHandler,
+  createBuildCreateModalWindowMainDepsHandler,
   createBuildCreateOverlayWindowMainDepsHandler,
   createBuildCreateSecondaryWindowMainDepsHandler,
 } from './overlay-window-factory-main-deps';
@@ -20,6 +22,7 @@ export function createOverlayWindowRuntimeHandlers<TWindow>(deps: {
   setMainWindow: (window: TWindow | null) => void;
   setInvisibleWindow: (window: TWindow | null) => void;
   setSecondaryWindow: (window: TWindow | null) => void;
+  setModalWindow: (window: TWindow | null) => void;
 }) {
   const createOverlayWindow = createCreateOverlayWindowHandler<TWindow>(
     createBuildCreateOverlayWindowMainDepsHandler<TWindow>(deps.createOverlayWindowDeps)(),
@@ -42,11 +45,18 @@ export function createOverlayWindowRuntimeHandlers<TWindow>(deps: {
       setSecondaryWindow: (window) => deps.setSecondaryWindow(window),
     })(),
   );
+  const createModalWindow = createCreateModalWindowHandler<TWindow>(
+    createBuildCreateModalWindowMainDepsHandler<TWindow>({
+      createOverlayWindow: (kind) => createOverlayWindow(kind),
+      setModalWindow: (window) => deps.setModalWindow(window),
+    })(),
+  );
 
   return {
     createOverlayWindow,
     createMainWindow,
     createInvisibleWindow,
     createSecondaryWindow,
+    createModalWindow,
   };
 }

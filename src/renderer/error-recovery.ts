@@ -17,7 +17,7 @@ export type RendererRecoverySnapshot = {
   isOverlayInteractive: boolean;
   isOverSubtitle: boolean;
   invisiblePositionEditMode: boolean;
-  overlayLayer: 'visible' | 'invisible' | 'secondary';
+  overlayLayer: 'visible' | 'invisible' | 'secondary' | 'modal';
 };
 
 type NormalizedRendererError = {

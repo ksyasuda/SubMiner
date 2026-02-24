@@ -1,11 +1,16 @@
 import type { BrowserWindow } from 'electron';
+import type { WindowGeometry } from '../types';
 
-type OverlayHostedModal = 'runtime-options' | 'subsync' | 'jimaku';
+type OverlayHostedModal = 'runtime-options' | 'subsync' | 'jimaku' | 'kiku';
 type OverlayHostLayer = 'visible' | 'invisible';
 
 export interface OverlayWindowResolver {
   getMainWindow: () => BrowserWindow | null;
   getInvisibleWindow: () => BrowserWindow | null;
+  getModalWindow: () => BrowserWindow | null;
+  createModalWindow: () => BrowserWindow | null;
+  getModalGeometry: () => WindowGeometry;
+  setModalWindowBounds: (geometry: WindowGeometry) => void;
 }
 
 export interface OverlayModalRuntime {
@@ -19,9 +24,34 @@ export interface OverlayModalRuntime {
   getRestoreVisibleOverlayOnModalClose: () => Set<OverlayHostedModal>;
 }
 
-export function createOverlayModalRuntimeService(deps: OverlayWindowResolver): OverlayModalRuntime {
+export interface OverlayModalRuntimeOptions {
+  onModalStateChange?: (isActive: boolean) => void;
+}
+
+export function createOverlayModalRuntimeService(
+  deps: OverlayWindowResolver,
+  options: OverlayModalRuntimeOptions = {},
+): OverlayModalRuntime {
   const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
-  const overlayModalAutoShownLayer = new Map<OverlayHostedModal, OverlayHostLayer>();
+  let modalActive = false;
+
+  const notifyModalStateChange = (nextState: boolean): void => {
+    if (modalActive === nextState) return;
+    modalActive = nextState;
+    options.onModalStateChange?.(nextState);
+  };
+
+  const resolveModalWindow = (): BrowserWindow | null => {
+    const existingWindow = deps.getModalWindow();
+    if (existingWindow && !existingWindow.isDestroyed()) {
+      return existingWindow;
+    }
+    const createdWindow = deps.createModalWindow();
+    if (!createdWindow || createdWindow.isDestroyed()) {
+      return null;
+    }
+    return createdWindow;
+  };
 
   const getTargetOverlayWindow = (): {
     window: BrowserWindow;
@@ -41,6 +71,15 @@ export function createOverlayModalRuntimeService(deps: OverlayWindowResolver): O
     return null;
   };
 
+  const showModalWindow = (window: BrowserWindow): void => {
+    window.show();
+    window.setIgnoreMouseEvents(false);
+    window.focus();
+    if (!window.webContents.isFocused()) {
+      window.webContents.focus();
+    }
+  };
+
   const showOverlayWindowForModal = (window: BrowserWindow, layer: OverlayHostLayer): void => {
     if (layer === 'invisible' && typeof window.showInactive === 'function') {
       window.showInactive();
@@ -57,39 +96,66 @@ export function createOverlayModalRuntimeService(deps: OverlayWindowResolver): O
     payload?: unknown,
     runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
   ): boolean => {
+    const restoreOnModalClose = runtimeOptions?.restoreOnModalClose;
+
+    const sendNow = (window: BrowserWindow): void => {
+      if (payload === undefined) {
+        window.webContents.send(channel);
+      } else {
+        window.webContents.send(channel, payload);
+      }
+    };
+
+    if (restoreOnModalClose) {
+      const modalWindow = resolveModalWindow();
+      if (!modalWindow) return false;
+
+      deps.setModalWindowBounds(deps.getModalGeometry());
+      const wasVisible = modalWindow.isVisible();
+      const wasModalActive = restoreVisibleOverlayOnModalClose.size > 0;
+      restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
+      if (!wasModalActive) {
+        notifyModalStateChange(true);
+      }
+
+      if (!wasVisible) {
+        showModalWindow(modalWindow);
+      } else if (!modalWindow.isFocused()) {
+        showModalWindow(modalWindow);
+      }
+
+      if (modalWindow.webContents.isLoading()) {
+        modalWindow.webContents.once('did-finish-load', () => {
+          if (modalWindow && !modalWindow.isDestroyed() && !modalWindow.webContents.isLoading()) {
+            sendNow(modalWindow);
+          }
+        });
+        return true;
+      }
+
+      sendNow(modalWindow);
+      return true;
+    }
+
     const target = getTargetOverlayWindow();
     if (!target) return false;
 
     const { window: targetWindow, layer } = target;
     const wasVisible = targetWindow.isVisible();
-    const restoreOnModalClose = runtimeOptions?.restoreOnModalClose;
-
-    const sendNow = (): void => {
-      if (payload === undefined) {
-        targetWindow.webContents.send(channel);
-      } else {
-        targetWindow.webContents.send(channel, payload);
-      }
-    };
-
     if (!wasVisible) {
       showOverlayWindowForModal(targetWindow, layer);
-    }
-    if (!wasVisible && restoreOnModalClose) {
-      restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
-      overlayModalAutoShownLayer.set(restoreOnModalClose, layer);
     }
 
     if (targetWindow.webContents.isLoading()) {
       targetWindow.webContents.once('did-finish-load', () => {
         if (targetWindow && !targetWindow.isDestroyed() && !targetWindow.webContents.isLoading()) {
-          sendNow();
+          sendNow(targetWindow);
         }
       });
       return true;
     }
 
-    sendNow();
+    sendNow(targetWindow);
     return true;
   };
 
@@ -102,24 +168,13 @@ export function createOverlayModalRuntimeService(deps: OverlayWindowResolver): O
   const handleOverlayModalClosed = (modal: OverlayHostedModal): void => {
     if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
     restoreVisibleOverlayOnModalClose.delete(modal);
-    const layer = overlayModalAutoShownLayer.get(modal);
-    overlayModalAutoShownLayer.delete(modal);
-    if (!layer) return;
-    const shouldKeepLayerVisible = [...restoreVisibleOverlayOnModalClose].some(
-      (pendingModal) => overlayModalAutoShownLayer.get(pendingModal) === layer,
-    );
-    if (shouldKeepLayerVisible) return;
-
-    if (layer === 'visible') {
-      const mainWindow = deps.getMainWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.hide();
-      }
-      return;
+    const modalWindow = deps.getModalWindow();
+    if (!modalWindow || modalWindow.isDestroyed()) return;
+    if (restoreVisibleOverlayOnModalClose.size === 0) {
+      notifyModalStateChange(false);
     }
-    const invisibleWindow = deps.getInvisibleWindow();
-    if (invisibleWindow && !invisibleWindow.isDestroyed()) {
-      invisibleWindow.hide();
+    if (restoreVisibleOverlayOnModalClose.size === 0) {
+      modalWindow.hide();
     }
   };
 

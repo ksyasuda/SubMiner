@@ -110,6 +110,7 @@ export function createKikuModal(
 
     setKikuPreviewError(null);
     ctx.dom.kikuPreviewJson.textContent = '';
+    window.electronAPI.notifyOverlayModalClosed('kiku');
 
     ctx.state.kikuPendingChoice = null;
     ctx.state.kikuPreviewCompactData = null;

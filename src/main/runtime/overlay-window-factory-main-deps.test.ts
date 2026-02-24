@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   createBuildCreateInvisibleWindowMainDepsHandler,
   createBuildCreateMainWindowMainDepsHandler,
+  createBuildCreateModalWindowMainDepsHandler,
   createBuildCreateOverlayWindowMainDepsHandler,
   createBuildCreateSecondaryWindowMainDepsHandler,
 } from './overlay-window-factory-main-deps';
@@ -47,5 +48,12 @@ test('overlay window factory main deps builders return mapped handlers', () => {
   const secondaryDeps = buildSecondaryDeps();
   secondaryDeps.setSecondaryWindow(null);
 
-  assert.deepEqual(calls, ['set-main', 'set-invisible', 'set-secondary']);
+  const buildModalDeps = createBuildCreateModalWindowMainDepsHandler({
+    createOverlayWindow: () => ({ id: 'modal' }),
+    setModalWindow: () => calls.push('set-modal'),
+  });
+  const modalDeps = buildModalDeps();
+  modalDeps.setModalWindow(null);
+
+  assert.deepEqual(calls, ['set-main', 'set-invisible', 'set-secondary', 'set-modal']);
 });

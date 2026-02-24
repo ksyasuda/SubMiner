@@ -57,7 +57,8 @@ const overlayLayerFromArg = overlayLayerArg?.slice('--overlay-layer='.length);
 const overlayLayer =
   overlayLayerFromArg === 'visible' ||
   overlayLayerFromArg === 'invisible' ||
-  overlayLayerFromArg === 'secondary'
+  overlayLayerFromArg === 'secondary' ||
+  overlayLayerFromArg === 'modal'
     ? overlayLayerFromArg
     : null;
 
@@ -253,7 +254,7 @@ const electronAPI: ElectronAPI = {
   },
   appendClipboardVideoToQueue: (): Promise<ClipboardAppendResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.appendClipboardVideoToQueue),
-  notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku') => {
+  notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => {
     ipcRenderer.send(IPC_CHANNELS.command.overlayModalClosed, modal);
   },
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => {

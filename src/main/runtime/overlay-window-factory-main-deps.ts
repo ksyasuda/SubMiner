@@ -1,15 +1,15 @@
 export function createBuildCreateOverlayWindowMainDepsHandler<TWindow>(deps: {
   createOverlayWindowCore: (
-    kind: 'visible' | 'invisible' | 'secondary',
+    kind: 'visible' | 'invisible' | 'secondary' | 'modal',
     options: {
       isDev: boolean;
       overlayDebugVisualizationEnabled: boolean;
       ensureOverlayWindowLevel: (window: TWindow) => void;
       onRuntimeOptionsChanged: () => void;
       setOverlayDebugVisualizationEnabled: (enabled: boolean) => void;
-      isOverlayVisible: (windowKind: 'visible' | 'invisible' | 'secondary') => boolean;
+      isOverlayVisible: (windowKind: 'visible' | 'invisible' | 'secondary' | 'modal') => boolean;
       tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
-      onWindowClosed: (windowKind: 'visible' | 'invisible' | 'secondary') => void;
+      onWindowClosed: (windowKind: 'visible' | 'invisible' | 'secondary' | 'modal') => void;
     },
   ) => TWindow;
   isDev: boolean;
@@ -17,9 +17,9 @@ export function createBuildCreateOverlayWindowMainDepsHandler<TWindow>(deps: {
   ensureOverlayWindowLevel: (window: TWindow) => void;
   onRuntimeOptionsChanged: () => void;
   setOverlayDebugVisualizationEnabled: (enabled: boolean) => void;
-  isOverlayVisible: (windowKind: 'visible' | 'invisible' | 'secondary') => boolean;
+  isOverlayVisible: (windowKind: 'visible' | 'invisible' | 'secondary' | 'modal') => boolean;
   tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
-  onWindowClosed: (windowKind: 'visible' | 'invisible' | 'secondary') => void;
+  onWindowClosed: (windowKind: 'visible' | 'invisible' | 'secondary' | 'modal') => void;
 }) {
   return () => ({
     createOverlayWindowCore: deps.createOverlayWindowCore,
@@ -35,7 +35,7 @@ export function createBuildCreateOverlayWindowMainDepsHandler<TWindow>(deps: {
 }
 
 export function createBuildCreateMainWindowMainDepsHandler<TWindow>(deps: {
-  createOverlayWindow: (kind: 'visible' | 'invisible' | 'secondary') => TWindow;
+  createOverlayWindow: (kind: 'visible' | 'invisible' | 'secondary' | 'modal') => TWindow;
   setMainWindow: (window: TWindow | null) => void;
 }) {
   return () => ({
@@ -45,7 +45,7 @@ export function createBuildCreateMainWindowMainDepsHandler<TWindow>(deps: {
 }
 
 export function createBuildCreateInvisibleWindowMainDepsHandler<TWindow>(deps: {
-  createOverlayWindow: (kind: 'visible' | 'invisible' | 'secondary') => TWindow;
+  createOverlayWindow: (kind: 'visible' | 'invisible' | 'secondary' | 'modal') => TWindow;
   setInvisibleWindow: (window: TWindow | null) => void;
 }) {
   return () => ({
@@ -55,11 +55,21 @@ export function createBuildCreateInvisibleWindowMainDepsHandler<TWindow>(deps: {
 }
 
 export function createBuildCreateSecondaryWindowMainDepsHandler<TWindow>(deps: {
-  createOverlayWindow: (kind: 'visible' | 'invisible' | 'secondary') => TWindow;
+  createOverlayWindow: (kind: 'visible' | 'invisible' | 'secondary' | 'modal') => TWindow;
   setSecondaryWindow: (window: TWindow | null) => void;
 }) {
   return () => ({
     createOverlayWindow: deps.createOverlayWindow,
     setSecondaryWindow: deps.setSecondaryWindow,
+  });
+}
+
+export function createBuildCreateModalWindowMainDepsHandler<TWindow>(deps: {
+  createOverlayWindow: (kind: 'visible' | 'invisible' | 'secondary' | 'modal') => TWindow;
+  setModalWindow: (window: TWindow | null) => void;
+}) {
+  return () => ({
+    createOverlayWindow: deps.createOverlayWindow,
+    setModalWindow: deps.setModalWindow,
   });
 }

@@ -1,6 +1,6 @@
 import type { OverlayContentMeasurement, RuntimeOptionId, RuntimeOptionValue } from '../../types';
 
-export const OVERLAY_HOSTED_MODALS = ['runtime-options', 'subsync', 'jimaku'] as const;
+export const OVERLAY_HOSTED_MODALS = ['runtime-options', 'subsync', 'jimaku', 'kiku'] as const;
 export type OverlayHostedModal = (typeof OVERLAY_HOSTED_MODALS)[number];
 
 export const IPC_CHANNELS = {

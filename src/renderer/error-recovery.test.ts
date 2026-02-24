@@ -190,3 +190,38 @@ test('resolvePlatformInfo supports secondary layer and disables mouse-ignore tog
     });
   }
 });
+
+test('resolvePlatformInfo supports modal layer and disables mouse-ignore toggles', () => {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousNavigator = (globalThis as { navigator?: unknown }).navigator;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      electronAPI: {
+        getOverlayLayer: () => 'modal',
+      },
+      location: { search: '' },
+    },
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      platform: 'MacIntel',
+      userAgent: 'Mozilla/5.0 (Macintosh)',
+    },
+  });
+
+  try {
+    const info = resolvePlatformInfo();
+    assert.equal(info.overlayLayer, 'modal');
+    assert.equal(info.isModalLayer, true);
+    assert.equal(info.shouldToggleMouseIgnore, false);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: previousNavigator,
+    });
+  }
+});

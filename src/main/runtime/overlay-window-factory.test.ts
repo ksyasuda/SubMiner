@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createCreateInvisibleWindowHandler,
   createCreateMainWindowHandler,
+  createCreateModalWindowHandler,
   createCreateOverlayWindowHandler,
   createCreateSecondaryWindowHandler,
 } from './overlay-window-factory';
@@ -79,4 +80,19 @@ test('create secondary window handler stores secondary window', () => {
 
   assert.equal(createSecondaryWindow(), secondaryWindow);
   assert.deepEqual(calls, ['create:secondary', 'set:secondary']);
+});
+
+test('create modal window handler stores modal window', () => {
+  const calls: string[] = [];
+  const modalWindow = { id: 'modal' };
+  const createModalWindow = createCreateModalWindowHandler({
+    createOverlayWindow: (kind) => {
+      calls.push(`create:${kind}`);
+      return modalWindow;
+    },
+    setModalWindow: (window) => calls.push(`set:${(window as { id: string }).id}`),
+  });
+
+  assert.equal(createModalWindow(), modalWindow);
+  assert.deepEqual(calls, ['create:modal', 'set:modal']);
 });

@@ -5,7 +5,7 @@ import { createLogger } from '../../logger';
 
 const logger = createLogger('main:overlay-window');
 
-export type OverlayWindowKind = 'visible' | 'invisible' | 'secondary';
+export type OverlayWindowKind = 'visible' | 'invisible' | 'secondary' | 'modal';
 
 export function updateOverlayWindowBounds(
   geometry: WindowGeometry,
@@ -71,6 +71,7 @@ export function createOverlayWindow(
     resizable: false,
     hasShadow: false,
     focusable: true,
+    acceptFirstMouse: true,
     webPreferences: {
       preload: path.join(__dirname, '..', '..', 'preload.js'),
       contextIsolation: true,
@@ -115,6 +116,7 @@ export function createOverlayWindow(
   }
 
   window.webContents.on('before-input-event', (event, input) => {
+    if (kind === 'modal') return;
     if (!options.isOverlayVisible(kind)) return;
     if (!options.tryHandleOverlayShortcutLocalFallback(input)) return;
     event.preventDefault();

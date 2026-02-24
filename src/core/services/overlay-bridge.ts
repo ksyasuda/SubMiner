@@ -63,6 +63,8 @@ export function createFieldGroupingCallbackRuntime<T extends string>(options: {
     getResolver: options.getResolver,
     setResolver: options.setResolver,
     sendRequestToVisibleOverlay: (data) =>
-      options.sendToVisibleOverlay('kiku:field-grouping-request', data),
+      options.sendToVisibleOverlay('kiku:field-grouping-request', data, {
+        restoreOnModalClose: 'kiku' as T,
+      }),
   });
 }

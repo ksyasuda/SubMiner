@@ -233,5 +233,6 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
 
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'not-a-modal');
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'subsync');
-  assert.deepEqual(modals, ['subsync']);
+  handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'kiku');
+  assert.deepEqual(modals, ['subsync', 'kiku']);
 });

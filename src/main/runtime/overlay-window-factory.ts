@@ -1,4 +1,4 @@
-type OverlayWindowKind = 'visible' | 'invisible' | 'secondary';
+type OverlayWindowKind = 'visible' | 'invisible' | 'secondary' | 'modal';
 
 export function createCreateOverlayWindowHandler<TWindow>(deps: {
   createOverlayWindowCore: (
@@ -66,6 +66,17 @@ export function createCreateSecondaryWindowHandler<TWindow>(deps: {
   return (): TWindow => {
     const window = deps.createOverlayWindow('secondary');
     deps.setSecondaryWindow(window);
+    return window;
+  };
+}
+
+export function createCreateModalWindowHandler<TWindow>(deps: {
+  createOverlayWindow: (kind: OverlayWindowKind) => TWindow;
+  setModalWindow: (window: TWindow | null) => void;
+}) {
+  return (): TWindow => {
+    const window = deps.createOverlayWindow('modal');
+    deps.setModalWindow(window);
     return window;
   };
 }

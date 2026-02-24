@@ -728,7 +728,7 @@ export interface SubtitleHoverTokenPayload {
 }
 
 export interface ElectronAPI {
-  getOverlayLayer: () => 'visible' | 'invisible' | 'secondary' | null;
+  getOverlayLayer: () => 'visible' | 'invisible' | 'secondary' | 'modal' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
   onVisibility: (callback: (visible: boolean) => void) => void;
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;
@@ -780,7 +780,7 @@ export interface ElectronAPI {
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
   appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
-  notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku') => void;
+  notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
   reportHoveredSubtitleToken: (tokenIndex: number | null) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;

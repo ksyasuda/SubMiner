@@ -567,6 +567,16 @@ body.layer-secondary #secondarySubContainer {
   justify-content: center;
 }
 
+body.layer-modal #subtitleContainer,
+body.layer-modal #secondarySubContainer {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+body.layer-modal #overlay {
+  justify-content: center;
+}
+
 #secondarySubRoot {
   text-align: center;
   font-size: 24px;
