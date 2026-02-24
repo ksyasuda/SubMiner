@@ -508,6 +508,7 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                                                   |
 
 Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup.
+- On Linux, token storage defaults to `gnome-libsecret` for `safeStorage`. Override with `--password-store=<backend>` on launcher/app invocations when needed.
 
 Launcher subcommands:
 
@@ -516,6 +517,7 @@ Launcher subcommands:
 - `subminer jellyfin --logout` clears stored credentials.
 - `subminer jellyfin -p` opens play picker.
 - `subminer jellyfin -d` starts cast discovery mode.
+- These launcher commands also accept `--password-store=<backend>` to override the launcher-app forwarded Electron switch.
 
 See [Jellyfin Integration](/jellyfin-integration) for the full setup and cast-to-device guide.
 

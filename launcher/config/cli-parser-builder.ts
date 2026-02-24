@@ -10,6 +10,7 @@ export interface JellyfinInvocation {
   server?: string;
   username?: string;
   password?: string;
+  passwordStore?: string;
   logLevel?: string;
 }
 
@@ -168,6 +169,7 @@ export function parseCliPrograms(
     .option('-s, --server <url>', 'Jellyfin server URL')
     .option('-u, --username <name>', 'Jellyfin username')
     .option('-w, --password <pass>', 'Jellyfin password')
+    .option('--password-store <backend>', 'Pass through Electron safeStorage backend')
     .option('--log-level <level>', 'Log level')
     .action((action: string | undefined, options: Record<string, unknown>) => {
       jellyfinInvocation = {
@@ -180,6 +182,7 @@ export function parseCliPrograms(
         server: typeof options.server === 'string' ? options.server : undefined,
         username: typeof options.username === 'string' ? options.username : undefined,
         password: typeof options.password === 'string' ? options.password : undefined,
+        passwordStore: typeof options.passwordStore === 'string' ? options.passwordStore : undefined,
         logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
       };
     });

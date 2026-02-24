@@ -207,3 +207,33 @@ test('jellyfin login routes credentials to app command', () => {
     );
   });
 });
+
+test('jellyfin setup forwards password-store to app command', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const capturePath = path.join(root, 'captured-args.txt');
+    fs.writeFileSync(
+      appPath,
+      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+    );
+    fs.chmodSync(appPath, 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_CAPTURE: capturePath,
+    };
+    const result = runLauncher(
+      ['jf', 'setup', '--password-store', 'gnome-libsecret'],
+      env,
+    );
+
+    assert.equal(result.status, 0);
+    assert.equal(
+      fs.readFileSync(capturePath, 'utf8'),
+      '--jellyfin\n--password-store\ngnome-libsecret\n',
+    );
+  });
+});

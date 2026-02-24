@@ -12,6 +12,7 @@ SubMiner includes an optional Jellyfin CLI integration for:
 
 - Jellyfin server URL and user credentials
 - For `--jellyfin-play`: connected mpv IPC socket (`--start` or existing mpv plugin workflow)
+- On Linux, token encryption defaults to `gnome-libsecret`; pass `--password-store=<backend>` to override.
 
 ## Setup
 
@@ -150,6 +151,7 @@ User-visible errors are shown through CLI logs and mpv OSD for:
 ## Security Notes and Limitations
 
 - Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted token storage after login/setup.
+- Launcher wrappers support `--password-store=<backend>` and forward it through to the app process.
 - Optional environment overrides are supported: `SUBMINER_JELLYFIN_ACCESS_TOKEN` and `SUBMINER_JELLYFIN_USER_ID`.
 - Treat both token storage and config files as secrets and avoid committing them.
 - Password is used only for login and is not stored.

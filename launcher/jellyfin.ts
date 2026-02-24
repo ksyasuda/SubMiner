@@ -395,5 +395,6 @@ export async function runJellyfinPlayMenu(
   }
   const forwarded = ['--start', '--jellyfin-play', '--jellyfin-item-id', itemId];
   if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
+  if (args.passwordStore) forwarded.push('--password-store', args.passwordStore);
   runAppCommandWithInheritLogged(appPath, forwarded, args.logLevel, 'jellyfin-play');
 }

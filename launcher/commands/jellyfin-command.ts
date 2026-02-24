@@ -10,9 +10,16 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
     return false;
   }
 
+  const appendPasswordStore = (forwarded: string[]): void => {
+    if (args.passwordStore) {
+      forwarded.push('--password-store', args.passwordStore);
+    }
+  };
+
   if (args.jellyfin) {
     const forwarded = ['--jellyfin'];
     if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
+    appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
   }
 
@@ -35,12 +42,14 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
       password,
     ];
     if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
+    appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
   }
 
   if (args.jellyfinLogout) {
     const forwarded = ['--jellyfin-logout'];
     if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
+    appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
   }
 
@@ -58,6 +67,7 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
   if (args.jellyfinDiscovery) {
     const forwarded = ['--start'];
     if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
+    appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);
   }
 

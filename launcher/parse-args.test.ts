@@ -30,6 +30,17 @@ test('parseArgs maps jellyfin play action and log-level override', () => {
   assert.equal(parsed.logLevel, 'debug');
 });
 
+test('parseArgs forwards jellyfin password-store option', () => {
+  const parsed = parseArgs(
+    ['jf', 'setup', '--password-store', 'gnome-libsecret'],
+    'subminer',
+    {},
+  );
+
+  assert.equal(parsed.jellyfin, true);
+  assert.equal(parsed.passwordStore, 'gnome-libsecret');
+});
+
 test('parseArgs maps config show action', () => {
   const parsed = parseArgs(['config', 'show'], 'subminer', {});
 

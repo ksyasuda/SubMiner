@@ -79,6 +79,7 @@ export interface Args {
   texthookerOnly: boolean;
   useRofi: boolean;
   logLevel: LogLevel;
+  passwordStore: string;
   target: string;
   targetKind: '' | 'file' | 'url';
   jimakuApiKey: string;

@@ -134,6 +134,7 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     texthookerOnly: false,
     useRofi: false,
     logLevel: 'info',
+    passwordStore: '',
     target: '',
     targetKind: '',
   };
@@ -161,6 +162,7 @@ export function applyRootOptionsToArgs(
   if (typeof options.profile === 'string') parsed.profile = options.profile;
   if (options.start === true) parsed.startOverlay = true;
   if (typeof options.logLevel === 'string') parsed.logLevel = parseLogLevel(options.logLevel);
+  if (typeof options.passwordStore === 'string') parsed.passwordStore = options.passwordStore;
   if (options.rofi === true) parsed.useRofi = true;
   if (options.startOverlay === true) parsed.autoStartOverlay = true;
   if (options.texthooker === false) parsed.useTexthooker = false;
@@ -174,6 +176,9 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
   if (invocations.jellyfinInvocation) {
     if (invocations.jellyfinInvocation.logLevel) {
       parsed.logLevel = parseLogLevel(invocations.jellyfinInvocation.logLevel);
+    }
+    if (typeof invocations.jellyfinInvocation.passwordStore === 'string') {
+      parsed.passwordStore = invocations.jellyfinInvocation.passwordStore;
     }
     const action = (invocations.jellyfinInvocation.action || '').toLowerCase();
     if (action && !['setup', 'discovery', 'play', 'login', 'logout'].includes(action)) {
