@@ -46,12 +46,17 @@ local function is_subminer_process_running()
 		if is_windows() then
 			local image = line:match('^"([^"]+)","')
 			if not image then
-				image = line:match("^\"([^\"]+)\"")
+				image = line:match('^"([^"]+)"')
 			end
 			if not image then
 				goto continue
 			end
-			if image == "subminer" or image == "subminer.exe" or image == "subminer.appimage" or image == "subminer.app" then
+			if
+				image == "subminer"
+				or image == "subminer.exe"
+				or image == "subminer.appimage"
+				or image == "subminer.app"
+			then
 				return true
 			end
 			if image:find("subminer", 1, true) and not image:find(".lua", 1, true) then
@@ -66,10 +71,21 @@ local function is_subminer_process_running()
 				goto continue
 			end
 			local exe = argv0:match("([^/\\]+)$") or argv0
-			if exe == "SubMiner" or exe == "SubMiner.AppImage" or exe == "SubMiner.exe" or exe == "subminer" or exe == "subminer.appimage" or exe == "subminer.exe" then
+			if
+				exe == "SubMiner"
+				or exe == "SubMiner.AppImage"
+				or exe == "SubMiner.exe"
+				or exe == "subminer"
+				or exe == "subminer.appimage"
+				or exe == "subminer.exe"
+			then
 				return true
 			end
-			if exe:find("subminer", 1, true) and exe:find("%.lua", 1, true) == nil and exe:find("%.app", 1, true) == nil then
+			if
+				exe:find("subminer", 1, true)
+				and exe:find("%.lua", 1, true) == nil
+				and exe:find("%.app", 1, true) == nil
+			then
 				return true
 			end
 		end
@@ -84,26 +100,6 @@ local function is_subminer_app_running()
 		return true
 	end
 	return false
-end
-
-local function is_subminer_ipc_ready()
-	if not is_subminer_process_running() then
-		return false, "SubMiner process not running"
-	end
-
-	if is_windows() then
-		return true, nil
-	end
-
-	if opts.socket_path ~= default_socket_path() then
-		return false, "SubMiner socket path mismatch"
-	end
-
-	if not file_exists(default_socket_path()) then
-		return false, "SubMiner IPC socket missing at /tmp/subminer-socket"
-	end
-
-	return true, nil
 end
 
 local function normalize_binary_path_candidate(candidate)
@@ -797,11 +793,7 @@ local function fix_ass_color(input, fallback)
 end
 
 local function escape_ass_text(text)
-	return (text or "")
-		:gsub("\\", "\\\\")
-		:gsub("{", "\\{")
-		:gsub("}", "\\}")
-		:gsub("\n", "\\N")
+	return (text or ""):gsub("\\", "\\\\"):gsub("{", "\\{"):gsub("}", "\\}"):gsub("\n", "\\N")
 end
 
 local function resolve_osd_dimensions()
@@ -1234,7 +1226,9 @@ end
 
 local function file_exists(path)
 	local info = utils.file_info(path)
-	if not info then return false end
+	if not info then
+		return false
+	end
 	if info.is_dir ~= nil then
 		return not info.is_dir
 	end
@@ -1415,7 +1409,13 @@ local function parse_start_script_message_overrides(...)
 				local normalized_key = key:lower()
 				if normalized_key == "backend" then
 					local backend = value:lower()
-					if backend == "auto" or backend == "hyprland" or backend == "sway" or backend == "x11" or backend == "macos" then
+					if
+						backend == "auto"
+						or backend == "hyprland"
+						or backend == "sway"
+						or backend == "x11"
+						or backend == "macos"
+					then
 						overrides.backend = backend
 					end
 				elseif normalized_key == "socket" or normalized_key == "socket_path" then
@@ -1525,14 +1525,6 @@ local function ensure_texthooker_running(callback)
 end
 
 local function start_overlay(overrides)
-	local socket_ready, reason = is_subminer_ipc_ready()
-	local process_not_running = reason == "SubMiner process not running"
-	if not socket_ready and not process_not_running then
-		subminer_log("warn", "process", "Refusing to start overlay: " .. tostring(reason))
-		show_osd("SubMiner IPC not set up. Launch mpv with --input-ipc-server=/tmp/subminer-socket")
-		return
-	end
-
 	if not ensure_binary_available() then
 		subminer_log("error", "binary", "SubMiner binary not found")
 		show_osd("Error: binary not found")

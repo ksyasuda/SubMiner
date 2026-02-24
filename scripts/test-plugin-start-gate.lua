@@ -3,6 +3,7 @@ local function run_plugin_scenario(config)
 
 	local recorded = {
 		async_calls = {},
+		sync_calls = {},
 		script_messages = {},
 		osd = {},
 		logs = {},
@@ -35,6 +36,7 @@ local function run_plugin_scenario(config)
 		end
 
 		function mp.command_native(command)
+			recorded.sync_calls[#recorded.sync_calls + 1] = command
 			local args = command.args or {}
 			if args[1] == "ps" then
 				return {
@@ -92,6 +94,9 @@ local function run_plugin_scenario(config)
 	function options.read_options(target, _name)
 		if config.socket_path then
 			target.socket_path = config.socket_path
+		end
+		if config.binary_path then
+			target.binary_path = config.binary_path
 		end
 	end
 
@@ -168,8 +173,18 @@ local function find_start_call(async_calls)
 		local args = call.args or {}
 		for i = 1, #args do
 			if args[i] == "--start" then
-				return true
+				return call
 			end
+		end
+	end
+	return nil
+end
+
+local function has_sync_command(sync_calls, executable)
+	for _, call in ipairs(sync_calls) do
+		local args = call.args or {}
+		if args[1] == executable then
+			return true
 		end
 	end
 	return false
@@ -180,6 +195,7 @@ local binary_path = "/tmp/subminer-binary"
 do
 	local recorded, err = run_plugin_scenario({
 		process_list = "",
+		binary_path = binary_path,
 		files = {
 			[binary_path] = true,
 		},
@@ -187,7 +203,11 @@ do
 	assert_true(recorded ~= nil, "plugin failed to load for cold-start scenario: " .. tostring(err))
 	assert_true(recorded.script_messages["subminer-start"] ~= nil, "subminer-start script message not registered")
 	recorded.script_messages["subminer-start"]("texthooker=no")
-	assert_true(find_start_call(recorded.async_calls), "expected cold-start to invoke --start command when process is absent")
+	assert_true(find_start_call(recorded.async_calls) ~= nil, "expected cold-start to invoke --start command when process is absent")
+	assert_true(
+		not has_sync_command(recorded.sync_calls, "ps"),
+		"expected cold-start start command to avoid synchronous process list scan"
+	)
 end
 
 print("plugin start gate regression tests: OK")
