@@ -1,10 +1,7 @@
 import type { MpvSubtitleRenderMetrics } from '../../types';
 import type { RendererContext } from '../context';
 
-const INVISIBLE_MACOS_VERTICAL_NUDGE_PX = 5;
-const INVISIBLE_MACOS_LINE_HEIGHT_SINGLE = '0.92';
-const INVISIBLE_MACOS_LINE_HEIGHT_MULTI = '1.2';
-const INVISIBLE_MACOS_LINE_HEIGHT_MULTI_DENSE = '1.3';
+let fontMetricsCanvas: HTMLCanvasElement | null = null;
 
 export function applyContainerBaseLayout(
   ctx: RendererContext,
@@ -53,14 +50,17 @@ export function applyVerticalPosition(
     topInset: number;
     bottomInset: number;
     marginY: number;
-    effectiveFontSize: number;
     borderPx: number;
     shadowPx: number;
+    measuredDescentPx: number | null;
     vAlign: 0 | 1 | 2;
   },
 ): void {
-  const usableHeight = Math.max(1, params.renderAreaHeight - params.topInset - params.bottomInset);
-  const baselineCompensationPx = Math.max(0, (params.borderPx + params.shadowPx) * 5);
+  const baselineCompensationPx = resolveBaselineCompensationPx(
+    params.measuredDescentPx,
+    params.borderPx,
+    params.shadowPx,
+  );
 
   if (params.vAlign === 2) {
     ctx.dom.subtitleContainer.style.top = `${Math.max(
@@ -78,12 +78,25 @@ export function applyVerticalPosition(
     return;
   }
 
-  const anchorY =
-    params.topInset + (usableHeight * params.metrics.subPos) / 100 - params.marginY + baselineCompensationPx;
-  const bottomPx = Math.max(0, params.renderAreaHeight - anchorY);
+  const subPosMargin = ((100 - params.metrics.subPos) / 100) * params.renderAreaHeight;
+  const effectiveMargin = Math.max(params.marginY, subPosMargin);
+  const bottomPx = Math.max(0, params.bottomInset + effectiveMargin + baselineCompensationPx);
 
   ctx.dom.subtitleContainer.style.top = '';
   ctx.dom.subtitleContainer.style.bottom = `${bottomPx}px`;
+}
+
+export function resolveBaselineCompensationPx(
+  measuredDescentPx: number | null,
+  borderPx: number,
+  shadowPx: number,
+): number {
+  const outlineCompensationPx = Math.max(0, borderPx * 2 + shadowPx);
+  if (typeof measuredDescentPx === 'number' && Number.isFinite(measuredDescentPx) && measuredDescentPx > 0) {
+    return Math.max(0, measuredDescentPx + outlineCompensationPx);
+  }
+
+  return Math.max(0, (borderPx + shadowPx) * 5);
 }
 
 function resolveFontFamily(rawFont: string): string {
@@ -99,59 +112,40 @@ function resolveFontFamily(rawFont: string): string {
     : `"${rawFont}", sans-serif`;
 }
 
-function resolveLineHeight(lineCount: number, isMacOSPlatform: boolean): string {
-  if (!isMacOSPlatform) return 'normal';
-  if (lineCount >= 3) return INVISIBLE_MACOS_LINE_HEIGHT_MULTI_DENSE;
-  if (lineCount >= 2) return INVISIBLE_MACOS_LINE_HEIGHT_MULTI;
-  return INVISIBLE_MACOS_LINE_HEIGHT_SINGLE;
-}
-
 function resolveLetterSpacing(
   spacing: number,
   pxPerScaledPixel: number,
-  isMacOSPlatform: boolean,
 ): string {
   if (Math.abs(spacing) > 0.0001) {
-    return `${spacing * pxPerScaledPixel * (isMacOSPlatform ? 0.7 : 1)}px`;
+    return `${spacing * pxPerScaledPixel}px`;
   }
 
-  return isMacOSPlatform ? '-0.02em' : '0px';
+  return '0px';
 }
 
-function applyComputedLineHeightCompensation(
-  ctx: RendererContext,
-  effectiveFontSize: number,
-): void {
-  const computedLineHeight = parseFloat(getComputedStyle(ctx.dom.subtitleRoot).lineHeight);
-  if (!Number.isFinite(computedLineHeight) || computedLineHeight <= effectiveFontSize) {
-    return;
-  }
-
-  const halfLeading = (computedLineHeight - effectiveFontSize) / 2;
-  if (halfLeading <= 0.5) return;
-
-  const currentBottom = parseFloat(ctx.dom.subtitleContainer.style.bottom);
-  if (Number.isFinite(currentBottom)) {
-    ctx.dom.subtitleContainer.style.bottom = `${Math.max(0, currentBottom - halfLeading)}px`;
-  }
-
-  const currentTop = parseFloat(ctx.dom.subtitleContainer.style.top);
-  if (Number.isFinite(currentTop)) {
-    ctx.dom.subtitleContainer.style.top = `${Math.max(0, currentTop - halfLeading)}px`;
-  }
+function resolveInvisibleLineHeight(isMacOSPlatform: boolean): string {
+  return isMacOSPlatform ? '0.96' : '1';
 }
 
-function applyMacOSAdjustments(ctx: RendererContext): void {
-  const isMacOSPlatform = ctx.platform.isMacOSPlatform;
-  if (!isMacOSPlatform) return;
+function measureFontDescentPx(ctx: RendererContext): number | null {
+  if (typeof document === 'undefined') return null;
+  const computedStyle = getComputedStyle(ctx.dom.subtitleRoot);
+  const font = computedStyle.font?.trim();
+  if (!font) return null;
 
-  const currentBottom = parseFloat(ctx.dom.subtitleContainer.style.bottom);
-  if (!Number.isFinite(currentBottom)) return;
+  if (!fontMetricsCanvas) {
+    fontMetricsCanvas = document.createElement('canvas');
+  }
 
-  ctx.dom.subtitleContainer.style.bottom = `${Math.max(
-    0,
-    currentBottom + INVISIBLE_MACOS_VERTICAL_NUDGE_PX,
-  )}px`;
+  const context = fontMetricsCanvas.getContext('2d');
+  if (!context) return null;
+
+  context.font = font;
+  const metrics = context.measureText('Hg漢あ');
+  if (!Number.isFinite(metrics.actualBoundingBoxDescent) || metrics.actualBoundingBoxDescent <= 0) {
+    return null;
+  }
+  return metrics.actualBoundingBoxDescent;
 }
 
 export function applyTypography(
@@ -162,18 +156,17 @@ export function applyTypography(
     effectiveFontSize: number;
   },
 ): void {
-  const lineCount = Math.max(1, ctx.state.currentInvisibleSubtitleLineCount);
   const isMacOSPlatform = ctx.platform.isMacOSPlatform;
 
   ctx.dom.subtitleRoot.style.setProperty(
     'line-height',
-    resolveLineHeight(lineCount, isMacOSPlatform),
-    isMacOSPlatform ? 'important' : '',
+    resolveInvisibleLineHeight(isMacOSPlatform),
+    'important',
   );
   ctx.dom.subtitleRoot.style.fontFamily = resolveFontFamily(params.metrics.subFont);
   ctx.dom.subtitleRoot.style.setProperty(
     'letter-spacing',
-    resolveLetterSpacing(params.metrics.subSpacing, params.pxPerScaledPixel, isMacOSPlatform),
+    resolveLetterSpacing(params.metrics.subSpacing, params.pxPerScaledPixel),
     isMacOSPlatform ? 'important' : '',
   );
   ctx.dom.subtitleRoot.style.fontKerning = isMacOSPlatform ? 'auto' : 'none';
@@ -181,7 +174,5 @@ export function applyTypography(
   ctx.dom.subtitleRoot.style.fontStyle = params.metrics.subItalic ? 'italic' : 'normal';
   ctx.dom.subtitleRoot.style.transform = '';
   ctx.dom.subtitleRoot.style.transformOrigin = '';
-
-  applyComputedLineHeightCompensation(ctx, params.effectiveFontSize);
-  applyMacOSAdjustments(ctx);
+  ctx.state.invisibleMeasuredDescentPx = measureFontDescentPx(ctx);
 }
