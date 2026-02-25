@@ -4,7 +4,6 @@ APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
 LAUNCHER_OUT := dist/launcher/$(APP_NAME)
 THEME_FILE := subminer.rasi
-PLUGIN_LUA := plugin/subminer.lua
 PLUGIN_CONF := plugin/subminer.conf
 
 # Default install prefix for the wrapper script.
@@ -218,10 +217,11 @@ install-macos: build-launcher
 install-plugin:
 	@printf '%s\n' "[INFO] Installing mpv plugin artifacts"
 	@install -d "$(MPV_SCRIPTS_DIR)"
+	@install -d "$(MPV_SCRIPTS_DIR)/subminer"
 	@install -d "$(MPV_SCRIPT_OPTS_DIR)"
-	@install -m 0644 "./$(PLUGIN_LUA)" "$(MPV_SCRIPTS_DIR)/subminer.lua"
+	@cp -R ./plugin/subminer/. "$(MPV_SCRIPTS_DIR)/subminer/"
 	@install -m 0644 "./$(PLUGIN_CONF)" "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
-	@printf '%s\n' "Installed to:" "  $(MPV_SCRIPTS_DIR)/subminer.lua" "  $(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
+	@printf '%s\n' "Installed to:" "  $(MPV_SCRIPTS_DIR)/subminer/main.lua" "  $(MPV_SCRIPTS_DIR)/subminer/" "  $(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
 
 # Uninstall behavior kept unchanged by default.
 uninstall: uninstall-linux

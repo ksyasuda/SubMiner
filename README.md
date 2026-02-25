@@ -57,7 +57,8 @@ chmod +x ~/.local/bin/subminer
 ```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
-cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
+mkdir -p ~/.config/mpv/scripts/subminer
+cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
 cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 mkdir -p ~/.config/SubMiner && cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
 ```

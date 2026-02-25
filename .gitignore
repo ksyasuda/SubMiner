@@ -8,6 +8,8 @@ release/
 
 # Launcher build artifact (produced by make build-launcher)
 subminer
+!plugin/subminer/
+!plugin/subminer/*.lua
 
 # Logs
 *.log

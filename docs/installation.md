@@ -150,7 +150,8 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-asse
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.config/SubMiner
 cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
-cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
+mkdir -p ~/.config/mpv/scripts/subminer
+cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
 cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 
 # Option 2: from source checkout

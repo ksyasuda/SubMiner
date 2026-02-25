@@ -1,6 +1,6 @@
 # MPV Plugin
 
-The SubMiner mpv plugin (`subminer.lua`) provides in-player keybindings to control the overlay without leaving mpv. It communicates with SubMiner by invoking the AppImage (or binary) with CLI flags.
+The SubMiner mpv plugin (`subminer/main.lua`) provides in-player keybindings to control the overlay without leaving mpv. It communicates with SubMiner by invoking the AppImage (or binary) with CLI flags.
 
 ## Installation
 
@@ -10,7 +10,8 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-asse
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.config/SubMiner
 cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
-cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
+mkdir -p ~/.config/mpv/scripts/subminer
+cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
 cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 
 # Or from source checkout: make install-plugin

@@ -80,8 +80,19 @@ local function run_plugin_scenario(config)
 		end
 		function mp.commandv(...) end
 		function mp.set_property_native(...) end
+		function mp.set_property(...) end
+		function mp.set_osd_ass(...) end
+		function mp.get_property_number(_name, default)
+			return default
+		end
+		function mp.get_property_bool(_name, default)
+			return default
+		end
 		function mp.get_script_name()
 			return "subminer"
+		end
+		function mp.get_script_directory()
+			return "plugin/subminer"
 		end
 
 		return mp
@@ -122,6 +133,30 @@ local function run_plugin_scenario(config)
 	package.loaded["mp.msg"] = nil
 	package.loaded["mp.options"] = nil
 	package.loaded["mp.utils"] = nil
+	for key, _ in pairs(package.loaded) do
+		if key:match("^subminer") then
+			package.loaded[key] = nil
+		end
+	end
+	local plugin_modules = {
+		"init",
+		"bootstrap",
+		"options",
+		"state",
+		"log",
+		"binary",
+		"environment",
+		"process",
+		"aniskip",
+		"aniskip_match",
+		"hover",
+		"ui",
+		"messages",
+		"lifecycle",
+	}
+	for _, module_name in ipairs(plugin_modules) do
+		package.loaded[module_name] = nil
+	end
 
 	package.preload["mp"] = function()
 		return mp
@@ -154,7 +189,7 @@ local function run_plugin_scenario(config)
 		return utils
 	end
 
-	local ok, err = pcall(dofile, "plugin/subminer.lua")
+	local ok, err = pcall(dofile, "plugin/subminer/main.lua")
 	if not ok then
 		return nil, err, recorded
 	end
@@ -180,6 +215,18 @@ local function find_start_call(async_calls)
 	return nil
 end
 
+local function has_command_flag(calls, flag)
+	for _, call in ipairs(calls) do
+		local args = call.args or {}
+		for i = 1, #args do
+			if args[i] == flag then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 local function has_sync_command(sync_calls, executable)
 	for _, call in ipairs(sync_calls) do
 		local args = call.args or {}
@@ -202,8 +249,11 @@ do
 	})
 	assert_true(recorded ~= nil, "plugin failed to load for cold-start scenario: " .. tostring(err))
 	assert_true(recorded.script_messages["subminer-start"] ~= nil, "subminer-start script message not registered")
+	assert_true(recorded.script_messages["subminer-stop"] ~= nil, "subminer-stop script message not registered")
 	recorded.script_messages["subminer-start"]("texthooker=no")
 	assert_true(find_start_call(recorded.async_calls) ~= nil, "expected cold-start to invoke --start command when process is absent")
+	recorded.script_messages["subminer-stop"]()
+	assert_true(has_command_flag(recorded.sync_calls, "--stop"), "expected stop message to invoke --stop command")
 	assert_true(
 		not has_sync_command(recorded.sync_calls, "ps"),
 		"expected cold-start start command to avoid synchronous process list scan"
