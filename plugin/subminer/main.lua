@@ -6,4 +6,4 @@ if not package.path:find(module_patterns, 1, true) then
 	package.path = module_patterns .. package.path
 end
 
-require("init").init()
+require("bootstrap").init()
