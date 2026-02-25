@@ -39,6 +39,21 @@ export function calculateOsdScale(
       ? ratios.reduce((sum, value) => sum + value, 0) / ratios.length
       : devicePixelRatio;
 
+  const candidates = [1, devicePixelRatio].filter((candidate, index, list) => {
+    if (!Number.isFinite(candidate) || candidate <= 0) return false;
+    return list.indexOf(candidate) === index;
+  });
+
+  const snappedScale = candidates.reduce((best, candidate) => {
+    const bestDistance = Math.abs(avgRatio - best);
+    const candidateDistance = Math.abs(avgRatio - candidate);
+    return candidateDistance < bestDistance ? candidate : best;
+  }, candidates[0] ?? 1);
+
+  if (Math.abs(avgRatio - snappedScale) <= 0.35) {
+    return snappedScale;
+  }
+
   return avgRatio > 1.25 ? avgRatio : 1;
 }
 
@@ -67,7 +82,7 @@ export function applyPlatformFontCompensation(
   fontSizePx: number,
   isMacOSPlatform: boolean,
 ): number {
-  return isMacOSPlatform ? fontSizePx * 0.87 : fontSizePx;
+  return isMacOSPlatform ? fontSizePx * 0.82 : fontSizePx;
 }
 
 function calculateGeometry(
@@ -82,11 +97,11 @@ function calculateGeometry(
   const videoTopInset = dims ? dims.mt / osdToCssScale : 0;
   const videoBottomInset = dims ? dims.mb / osdToCssScale : 0;
 
-  const anchorToVideoArea = !metrics.subUseMargins;
-  const leftInset = anchorToVideoArea ? videoLeftInset : 0;
-  const rightInset = anchorToVideoArea ? videoRightInset : 0;
-  const topInset = anchorToVideoArea ? videoTopInset : 0;
-  const bottomInset = anchorToVideoArea ? videoBottomInset : 0;
+  // Keep layout anchored to the same drawable video region represented by osd-dimensions.
+  const leftInset = videoLeftInset;
+  const rightInset = videoRightInset;
+  const topInset = videoTopInset;
+  const bottomInset = videoBottomInset;
   const horizontalAvailable = Math.max(0, renderAreaWidth - leftInset - rightInset);
 
   return {
@@ -112,7 +127,9 @@ export function calculateSubtitleMetrics(
     window.devicePixelRatio || 1,
   );
   const geometry = calculateGeometry(metrics, osdToCssScale);
-  const videoHeight = geometry.renderAreaHeight - geometry.topInset - geometry.bottomInset;
+  const rawVideoTopInset = metrics.osdDimensions ? metrics.osdDimensions.mt / osdToCssScale : 0;
+  const rawVideoBottomInset = metrics.osdDimensions ? metrics.osdDimensions.mb / osdToCssScale : 0;
+  const videoHeight = geometry.renderAreaHeight - rawVideoTopInset - rawVideoBottomInset;
   const scaleRefHeight = metrics.subScaleByWindow ? geometry.renderAreaHeight : videoHeight;
   const pxPerScaledPixel = Math.max(0.1, scaleRefHeight / 720);
   const computedFontSize =

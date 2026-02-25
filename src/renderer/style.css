@@ -483,7 +483,7 @@ body.layer-invisible.debug-invisible-visualization #subtitleRoot .word,
 body.layer-invisible.debug-invisible-visualization #subtitleRoot .c {
   color: #ed8796 !important;
   -webkit-text-fill-color: #ed8796 !important;
-  -webkit-text-stroke: calc(var(--sub-border-size, 2px) * 2) rgba(0, 0, 0, 0.85) !important;
+  -webkit-text-stroke: var(--sub-border-size, 2px) rgba(0, 0, 0, 0.85) !important;
   paint-order: stroke fill !important;
   text-shadow: none !important;
 }
@@ -516,7 +516,7 @@ body.layer-invisible.invisible-position-edit #subtitleRoot .word,
 body.layer-invisible.invisible-position-edit #subtitleRoot .c {
   color: #ed8796 !important;
   -webkit-text-fill-color: #ed8796 !important;
-  -webkit-text-stroke: calc(var(--sub-border-size, 2px) * 2) rgba(0, 0, 0, 0.85) !important;
+  -webkit-text-stroke: var(--sub-border-size, 2px) rgba(0, 0, 0, 0.85) !important;
   paint-order: stroke fill !important;
   text-shadow: none !important;
 }

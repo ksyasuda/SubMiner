@@ -249,6 +249,12 @@ async function init(): Promise<void> {
         lastSubtitlePreview = truncateForErrorLog(data.text);
       }
       subtitleRenderer.renderSubtitle(data);
+      if (ctx.platform.isInvisibleLayer && ctx.state.mpvSubtitleRenderMetrics) {
+        positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(
+          ctx.state.mpvSubtitleRenderMetrics,
+          'subtitle',
+        );
+      }
       measurementReporter.schedule();
     });
   });

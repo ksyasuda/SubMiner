@@ -100,6 +100,70 @@ export function createMouseHandlers(
     return null;
   }
 
+  function getTextOffsetWithinSubtitleRoot(targetNode: Text, targetOffset: number): number | null {
+    const clampedTargetOffset = Math.max(0, Math.min(targetOffset, targetNode.data.length));
+    const walker = document.createTreeWalker(ctx.dom.subtitleRoot, NodeFilter.SHOW_ALL);
+    let totalOffset = 0;
+
+    let node: Node | null = walker.currentNode;
+    while (node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textNode = node as Text;
+        if (textNode === targetNode) {
+          return totalOffset + clampedTargetOffset;
+        }
+        totalOffset += textNode.data.length;
+      } else if (
+        node.nodeType === Node.ELEMENT_NODE &&
+        (node as Element).tagName.toUpperCase() === 'BR'
+      ) {
+        totalOffset += 1;
+      }
+      node = walker.nextNode();
+    }
+
+    return null;
+  }
+
+  function resolveHoveredInvisibleTokenIndex(event: MouseEvent): number | null {
+    if (!(event.target instanceof Node)) {
+      return null;
+    }
+    if (!ctx.dom.subtitleRoot.contains(event.target)) {
+      return null;
+    }
+    if (ctx.state.invisibleTokenHoverRanges.length === 0) {
+      return null;
+    }
+
+    const caretRange = getCaretTextPointRange(event.clientX, event.clientY);
+    if (!caretRange) {
+      return null;
+    }
+    if (caretRange.startContainer.nodeType !== Node.TEXT_NODE) {
+      return null;
+    }
+    if (!ctx.dom.subtitleRoot.contains(caretRange.startContainer)) {
+      return null;
+    }
+
+    const textOffset = getTextOffsetWithinSubtitleRoot(
+      caretRange.startContainer as Text,
+      caretRange.startOffset,
+    );
+    if (textOffset === null) {
+      return null;
+    }
+
+    for (const range of ctx.state.invisibleTokenHoverRanges) {
+      if (textOffset >= range.start && textOffset < range.end) {
+        return range.tokenIndex;
+      }
+    }
+
+    return null;
+  }
+
   function getWordBoundsAtOffset(
     text: string,
     offset: number,
@@ -218,18 +282,8 @@ export function createMouseHandlers(
     };
 
     ctx.dom.subtitleRoot.addEventListener('mousemove', (event: MouseEvent) => {
-      if (!(event.target instanceof Element)) {
-        queueNullHoveredToken();
-        return;
-      }
-      const target = event.target.closest<HTMLElement>('.word[data-token-index]');
-      if (!target || !ctx.dom.subtitleRoot.contains(target)) {
-        queueNullHoveredToken();
-        return;
-      }
-      const rawTokenIndex = target.dataset.tokenIndex;
-      const tokenIndex = rawTokenIndex ? Number.parseInt(rawTokenIndex, 10) : Number.NaN;
-      if (!Number.isInteger(tokenIndex) || tokenIndex < 0) {
+      const tokenIndex = resolveHoveredInvisibleTokenIndex(event);
+      if (tokenIndex === null) {
         queueNullHoveredToken();
         return;
       }

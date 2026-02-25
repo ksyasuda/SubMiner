@@ -60,6 +60,15 @@ bun run dev    # builds + launches with --start --dev
 electron . --start --dev --log-level debug   # equivalent Electron launch with verbose logging
 electron . --background                       # tray/background mode, minimal default logging
 make dev-start                                # build + launch via Makefile
+make dev-watch                                # watch TS + renderer and launch Electron (faster edit loop)
+make dev-watch-macos                          # same as dev-watch, forcing --backend macos
+```
+
+For mpv-plugin-driven testing without exporting `SUBMINER_BINARY_PATH` each run, set a one-time
+dev binary path in `~/.config/mpv/script-opts/subminer.conf`:
+
+```ini
+binary_path=/absolute/path/to/SubMiner/scripts/subminer-dev.sh
 ```
 
 ## Testing

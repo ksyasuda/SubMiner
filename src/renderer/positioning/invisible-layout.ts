@@ -47,22 +47,22 @@ export function createMpvSubtitleLayoutController(
       hAlign: alignment.hAlign,
     });
 
+    applyTypography(ctx, {
+      metrics,
+      pxPerScaledPixel: geometry.pxPerScaledPixel,
+      effectiveFontSize: geometry.effectiveFontSize,
+    });
+
     applyVerticalPosition(ctx, {
       metrics,
       renderAreaHeight: geometry.renderAreaHeight,
       topInset: geometry.topInset,
       bottomInset: geometry.bottomInset,
       marginY: geometry.marginY,
-      effectiveFontSize: geometry.effectiveFontSize,
       borderPx: effectiveBorderSize,
       shadowPx: effectiveShadowOffset,
+      measuredDescentPx: ctx.state.invisibleMeasuredDescentPx,
       vAlign: alignment.vAlign,
-    });
-
-    applyTypography(ctx, {
-      metrics,
-      pxPerScaledPixel: geometry.pxPerScaledPixel,
-      effectiveFontSize: geometry.effectiveFontSize,
     });
 
     ctx.state.invisibleLayoutBaseLeftPx = parseFloat(ctx.dom.subtitleContainer.style.left) || 0;

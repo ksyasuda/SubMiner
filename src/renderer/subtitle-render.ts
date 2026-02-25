@@ -9,6 +9,19 @@ type FrequencyRenderSettings = {
   bandedColors: [string, string, string, string, string];
 };
 
+export type InvisibleTokenHoverRange = {
+  start: number;
+  end: number;
+  tokenIndex: number;
+};
+
+export function shouldRenderTokenizedSubtitle(
+  isInvisibleLayer: boolean,
+  tokenCount: number,
+): boolean {
+  return !isInvisibleLayer && tokenCount > 0;
+}
+
 function isWhitespaceOnly(value: string): boolean {
   return value.trim().length === 0;
 }
@@ -218,6 +231,40 @@ export function alignTokensToSourceText(
   return segments;
 }
 
+export function buildInvisibleTokenHoverRanges(
+  tokens: MergedToken[],
+  sourceText: string,
+): InvisibleTokenHoverRange[] {
+  if (tokens.length === 0 || sourceText.length === 0) {
+    return [];
+  }
+
+  const segments = alignTokensToSourceText(tokens, sourceText);
+  const ranges: InvisibleTokenHoverRange[] = [];
+  let cursor = 0;
+
+  for (const segment of segments) {
+    if (segment.kind === 'text') {
+      cursor += segment.text.length;
+      continue;
+    }
+
+    const tokenLength = segment.token.surface.length;
+    if (tokenLength <= 0) {
+      continue;
+    }
+
+    ranges.push({
+      start: cursor,
+      end: cursor + tokenLength,
+      tokenIndex: segment.tokenIndex,
+    });
+    cursor += tokenLength;
+  }
+
+  return ranges;
+}
+
 export function computeWordClass(
   token: MergedToken,
   frequencySettings?: Partial<FrequencyRenderSettings>,
@@ -312,27 +359,21 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     if (!text) return;
 
     if (ctx.platform.isInvisibleLayer) {
+      // Keep natural kerning/shaping in invisible layer to match mpv glyph placement.
       const normalizedInvisible = normalizeSubtitle(text, false);
       ctx.state.currentInvisibleSubtitleLineCount = Math.max(
         1,
         normalizedInvisible.split('\n').length,
       );
-      if (tokens && tokens.length > 0) {
-        renderWithTokens(
-          ctx.dom.subtitleRoot,
-          tokens,
-          getFrequencyRenderSettings(),
-          text,
-          true,
-        );
-      } else {
-        renderPlainTextPreserveLineBreaks(ctx.dom.subtitleRoot, normalizedInvisible);
-      }
+      ctx.state.invisibleTokenHoverSourceText = normalizedInvisible;
+      ctx.state.invisibleTokenHoverRanges =
+        tokens && tokens.length > 0 ? buildInvisibleTokenHoverRanges(tokens, normalizedInvisible) : [];
+      renderPlainTextPreserveLineBreaks(ctx.dom.subtitleRoot, normalizedInvisible);
       return;
     }
 
     const normalized = normalizeSubtitle(text, true, !ctx.state.preserveSubtitleLineBreaks);
-    if (tokens && tokens.length > 0) {
+    if (shouldRenderTokenizedSubtitle(ctx.platform.isInvisibleLayer, tokens?.length ?? 0) && tokens) {
       renderWithTokens(
         ctx.dom.subtitleRoot,
         tokens,

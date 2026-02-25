@@ -72,6 +72,13 @@ export type RendererState = {
   lastHoverSelectionKey: string;
   lastHoverSelectionNode: Text | null;
   lastHoveredTokenIndex: number | null;
+  invisibleTokenHoverSourceText: string;
+  invisibleTokenHoverRanges: Array<{
+    start: number;
+    end: number;
+    tokenIndex: number;
+  }>;
+  invisibleMeasuredDescentPx: number | null;
 
   knownWordColor: string;
   nPlusOneColor: string;
@@ -150,6 +157,9 @@ export function createRendererState(): RendererState {
     lastHoverSelectionKey: '',
     lastHoverSelectionNode: null,
     lastHoveredTokenIndex: null,
+    invisibleTokenHoverSourceText: '',
+    invisibleTokenHoverRanges: [],
+    invisibleMeasuredDescentPx: null,
 
     knownWordColor: '#a6da95',
     nPlusOneColor: '#c6a0f6',

@@ -5,7 +5,13 @@ import path from 'node:path';
 
 import type { MergedToken } from '../types';
 import { PartOfSpeech } from '../types.js';
-import { alignTokensToSourceText, computeWordClass, normalizeSubtitle } from './subtitle-render.js';
+import {
+  alignTokensToSourceText,
+  buildInvisibleTokenHoverRanges,
+  computeWordClass,
+  normalizeSubtitle,
+  shouldRenderTokenizedSubtitle,
+} from './subtitle-render.js';
 
 function createToken(overrides: Partial<MergedToken>): MergedToken {
   return {
@@ -248,11 +254,43 @@ test('alignTokensToSourceText avoids duplicate tail when later token surface doe
   );
 });
 
+test('buildInvisibleTokenHoverRanges tracks token offsets across text separators', () => {
+  const tokens = [
+    createToken({ surface: 'キリキリと' }),
+    createToken({ surface: 'かかってこい' }),
+  ];
+
+  const ranges = buildInvisibleTokenHoverRanges(tokens, 'キリキリと\nかかってこい');
+  assert.deepEqual(ranges, [
+    { start: 0, end: 5, tokenIndex: 0 },
+    { start: 6, end: 12, tokenIndex: 1 },
+  ]);
+});
+
+test('buildInvisibleTokenHoverRanges ignores unmatched token surfaces', () => {
+  const tokens = [
+    createToken({ surface: '君たちが潰した拠点に' }),
+    createToken({ surface: '教団の主力は1人もいない' }),
+  ];
+
+  const ranges = buildInvisibleTokenHoverRanges(tokens, '君たちが潰した拠点に\n教団の主力は１人もいない');
+  assert.deepEqual(ranges, [{ start: 0, end: 10, tokenIndex: 0 }]);
+});
+
 test('normalizeSubtitle collapses explicit line breaks when collapseLineBreaks is enabled', () => {
   assert.equal(
     normalizeSubtitle('常人が使えば\\Nその圧倒的な力に\\n体が耐えきれず死に至るが…', true, true),
     '常人が使えば その圧倒的な力に 体が耐えきれず死に至るが…',
   );
+});
+
+test('shouldRenderTokenizedSubtitle disables token rendering on invisible layer', () => {
+  assert.equal(shouldRenderTokenizedSubtitle(true, 5), false);
+});
+
+test('shouldRenderTokenizedSubtitle enables token rendering on visible layer when tokens exist', () => {
+  assert.equal(shouldRenderTokenizedSubtitle(false, 5), true);
+  assert.equal(shouldRenderTokenizedSubtitle(false, 0), false);
 });
 
 test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
