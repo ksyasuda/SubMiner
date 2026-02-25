@@ -5,6 +5,7 @@ local function run_plugin_scenario(config)
 		async_calls = {},
 		sync_calls = {},
 		script_messages = {},
+		events = {},
 		osd = {},
 		logs = {},
 	}
@@ -69,7 +70,12 @@ local function run_plugin_scenario(config)
 		end
 
 		function mp.add_key_binding(_keys, _name, _fn) end
-		function mp.register_event(_name, _fn) end
+		function mp.register_event(name, fn)
+			if not recorded.events[name] then
+				recorded.events[name] = {}
+			end
+			recorded.events[name][#recorded.events[name] + 1] = fn
+		end
 		function mp.add_hook(_name, _prio, _fn) end
 		function mp.observe_property(_name, _kind, _fn) end
 		function mp.osd_message(message, _duration)
@@ -193,6 +199,11 @@ local function run_plugin_scenario(config)
 	if not ok then
 		return nil, err, recorded
 	end
+	if config.trigger_file_loaded and recorded.events["file-loaded"] then
+		for _, callback in ipairs(recorded.events["file-loaded"]) do
+			callback()
+		end
+	end
 	return recorded, nil, recorded
 end
 
@@ -237,6 +248,88 @@ local function has_sync_command(sync_calls, executable)
 	return false
 end
 
+local function make_hover_context(config)
+	local state = require("state").new()
+	local captured = {
+		osd_ass = nil,
+	}
+	local mp = {}
+
+	function mp.get_property(name)
+		if name == "sub-text/ass" then
+			return config.ass_text or ""
+		end
+		if name == "sub-text-ass" then
+			return ""
+		end
+		if name == "sub-color" then
+			return config.sub_color
+		end
+		if name == "sub-font" then
+			return "sans-serif"
+		end
+		if name == "sub-visibility" or name == "secondary-sub-visibility" then
+			return "yes"
+		end
+		return ""
+	end
+
+	function mp.get_property_number(_name, default)
+		return default
+	end
+
+	function mp.get_property_bool(_name, default)
+		return default
+	end
+
+	function mp.get_property_native(name)
+		if name == "osd-dimensions" then
+			return { w = 1280, h = 720, ml = 0, mr = 0, mt = 0, mb = 0 }
+		end
+		return nil
+	end
+
+	function mp.set_property(_name, _value) end
+
+	function mp.set_osd_ass(_w, _h, text)
+		captured.osd_ass = text
+	end
+
+	function mp.get_time()
+		return 0
+	end
+
+	function mp.add_timeout(_seconds, callback)
+		if callback then
+			callback()
+		end
+		return {
+			kill = function() end,
+		}
+	end
+
+	return {
+		ctx = {
+			mp = mp,
+			msg = { warn = function(_) end },
+			utils = {
+				parse_json = function(_)
+					return {
+						revision = 1,
+						hoveredTokenIndex = 0,
+						subtitle = "hello world",
+						tokens = {
+							{ index = 0, text = "hello", startPos = 0, endPos = 5 },
+						},
+					}, nil
+				end,
+			},
+			state = state,
+		},
+		captured = captured,
+	}
+end
+
 local binary_path = "/tmp/subminer-binary"
 
 do
@@ -257,6 +350,38 @@ do
 	assert_true(
 		not has_sync_command(recorded.sync_calls, "ps"),
 		"expected cold-start start command to avoid synchronous process list scan"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "python\nSubMiner\n",
+		filename_no_ext = "Some Show - S01E01",
+		trigger_file_loaded = true,
+		binary_path = binary_path,
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for process split scenario: " .. tostring(err))
+	assert_true(has_sync_command(recorded.sync_calls, "ps"), "expected file-loaded hook to read process list")
+	assert_true(
+		has_sync_command(recorded.sync_calls, "curl"),
+		"expected file-loaded hook to run AniSkip lookup when SubMiner process is present in ps output"
+	)
+end
+
+do
+	local hover_context = make_hover_context({
+		ass_text = "hello world",
+		sub_color = "112233",
+	})
+	local hover = require("hover").create(hover_context.ctx)
+	hover.handle_hover_message("{}")
+	assert_true(type(hover_context.captured.osd_ass) == "string", "expected hover overlay render to write ASS output")
+	assert_true(
+		hover_context.captured.osd_ass:find("\\1c&HF6A0C6&", 1, true) ~= nil,
+		"expected hover render to keep accent hover color when sub-color is configured"
 	)
 end
 

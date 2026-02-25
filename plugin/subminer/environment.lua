@@ -43,7 +43,7 @@ function M.create(ctx)
 		end
 
 		local process_list = result.stdout:lower()
-		for line in process_list:gmatch("[^\\n]+") do
+		for line in process_list:gmatch("[^\n]+") do
 			if is_windows() then
 				local image = line:match('^"([^"]+)","')
 				if not image then

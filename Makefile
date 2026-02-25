@@ -1,4 +1,4 @@
-.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
+.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos uninstall-plugin print-dirs pretty ensure-bun generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
@@ -66,6 +66,7 @@ help:
 		"  deps             Install JS dependencies (root + texthooker-ui)" \
 		"  uninstall-linux  Remove Linux install artifacts" \
 		"  uninstall-macos  Remove macOS install artifacts" \
+		"  uninstall-plugin Remove mpv Lua plugin and plugin config" \
 		"  print-dirs       Show resolved install locations" \
 		"" \
 		"Variables:" \
@@ -223,15 +224,19 @@ install-plugin:
 	@install -m 0644 "./$(PLUGIN_CONF)" "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
 	@printf '%s\n' "Installed to:" "  $(MPV_SCRIPTS_DIR)/subminer/main.lua" "  $(MPV_SCRIPTS_DIR)/subminer/" "  $(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
 
-# Uninstall behavior kept unchanged by default.
 uninstall: uninstall-linux
 
-uninstall-linux:
+uninstall-plugin:
+	@rm -rf "$(MPV_SCRIPTS_DIR)/subminer"
+	@rm -f "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
+	@printf '%s\n' "Removed:" "  $(MPV_SCRIPTS_DIR)/subminer/" "  $(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
+
+uninstall-linux: uninstall-plugin
 	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
 	@rm -f "$(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
 	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(BINDIR)/SubMiner.AppImage" "  $(LINUX_DATA_DIR)/themes/$(THEME_FILE)"
 
-uninstall-macos:
+uninstall-macos: uninstall-plugin
 	@rm -f "$(BINDIR)/subminer"
 	@rm -f "$(MACOS_DATA_DIR)/themes/$(THEME_FILE)"
 	@rm -rf "$(MACOS_APP_DEST)"

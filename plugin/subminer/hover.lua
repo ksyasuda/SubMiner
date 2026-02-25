@@ -91,7 +91,7 @@ function M.create(ctx)
 			border = sub_border_size * window_scale,
 			shadow = sub_shadow_offset * window_scale,
 			base_color = fix_ass_color(mp.get_property("sub-color"), DEFAULT_HOVER_BASE_COLOR),
-			hover_color = fix_ass_color(mp.get_property("sub-color"), DEFAULT_HOVER_COLOR),
+			hover_color = fix_ass_color(DEFAULT_HOVER_COLOR, DEFAULT_HOVER_COLOR),
 		}
 	end
 
