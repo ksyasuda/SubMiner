@@ -76,7 +76,9 @@ export function createMpvSubtitleLayoutController(
     options.applyInvisibleSubtitleOffsetPosition();
     options.updateInvisiblePositionEditHud();
 
-    console.log('[invisible-overlay] Applied mpv subtitle render metrics from', source);
+    if (source !== 'subtitle-change') {
+      console.log('[invisible-overlay] Applied mpv subtitle render metrics from', source);
+    }
   }
 
   return {

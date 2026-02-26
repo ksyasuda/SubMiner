@@ -163,7 +163,7 @@ test('applyTypography applies full mpv letter spacing scale on macOS', () => {
   assert.equal(ctx.dom.subtitleRoot.style.getPropertyValue('letter-spacing'), '3px');
 });
 
-test('applyTypography uses tighter macOS line-height for invisible multiline alignment', () => {
+test('applyTypography uses macOS multiline-tuned line-height for invisible overlay', () => {
   const ctx = createContext({
     isMacOSPlatform: true,
     lineCount: 3,
@@ -178,7 +178,7 @@ test('applyTypography uses tighter macOS line-height for invisible multiline ali
     });
   });
 
-  assert.equal(ctx.dom.subtitleRoot.style.getPropertyValue('line-height'), '0.96');
+  assert.equal(ctx.dom.subtitleRoot.style.getPropertyValue('line-height'), '1.62');
 });
 
 test('applyVerticalPosition uses subtitle position margin and baseline compensation', () => {

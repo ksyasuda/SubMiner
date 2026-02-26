@@ -240,6 +240,9 @@ function runGuardedAsync(action: string, fn: () => Promise<void> | void): void {
 
 async function init(): Promise<void> {
   document.body.classList.add(`layer-${ctx.platform.overlayLayer}`);
+  if (ctx.platform.isMacOSPlatform) {
+    document.body.classList.add('platform-macos');
+  }
 
   window.electronAPI.onSubtitle((data: SubtitleData) => {
     runGuarded('subtitle:update', () => {
@@ -252,7 +255,7 @@ async function init(): Promise<void> {
       if (ctx.platform.isInvisibleLayer && ctx.state.mpvSubtitleRenderMetrics) {
         positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(
           ctx.state.mpvSubtitleRenderMetrics,
-          'subtitle',
+          'subtitle-change',
         );
       }
       measurementReporter.schedule();

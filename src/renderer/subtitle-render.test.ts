@@ -12,6 +12,7 @@ import {
   normalizeSubtitle,
   shouldRenderTokenizedSubtitle,
 } from './subtitle-render.js';
+import { resolveInvisibleLineHeight } from './positioning/invisible-layout-helpers.js';
 
 function createToken(overrides: Partial<MergedToken>): MergedToken {
   return {
@@ -328,4 +329,32 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     );
     assert.match(block, /color:\s*var\(/);
   }
+
+  const invisibleBlock = extractClassBlock(
+    cssText,
+    'body.layer-invisible #subtitleRoot',
+  );
+  assert.match(
+    invisibleBlock,
+    /line-height:\s*var\(--invisible-sub-line-height,\s*normal\)\s*!important;/,
+  );
+
+  const visibleMacBlock = extractClassBlock(
+    cssText,
+    'body.platform-macos.layer-visible #subtitleRoot',
+  );
+  assert.match(visibleMacBlock, /--visible-sub-line-height:\s*1\.64;/);
+  assert.match(visibleMacBlock, /--visible-sub-line-gap:\s*0\.54em;/);
+});
+
+test('invisible overlay uses looser line height on macOS for multi-line subtitles', () => {
+  assert.equal(resolveInvisibleLineHeight(1, true), '1.08');
+  assert.equal(resolveInvisibleLineHeight(2, true), '1.5');
+  assert.equal(resolveInvisibleLineHeight(3, true), '1.62');
+});
+
+test('invisible overlay keeps default line height on non-macOS platforms', () => {
+  assert.equal(resolveInvisibleLineHeight(1, false), 'normal');
+  assert.equal(resolveInvisibleLineHeight(2, false), 'normal');
+  assert.equal(resolveInvisibleLineHeight(4, false), 'normal');
 });

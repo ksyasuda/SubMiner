@@ -279,7 +279,7 @@ body {
 #subtitleRoot {
   text-align: center;
   font-size: 35px;
-  line-height: 1.5;
+  line-height: var(--visible-sub-line-height, 1.32);
   color: #cad3f5;
   --subtitle-known-word-color: #a6da95;
   --subtitle-n-plus-one-color: #c6a0f6;
@@ -426,7 +426,12 @@ body.settings-modal-open #subtitleContainer {
 #subtitleRoot br {
   display: block;
   content: '';
-  margin-bottom: 0.3em;
+  margin-bottom: var(--visible-sub-line-gap, 0.08em);
+}
+
+body.platform-macos.layer-visible #subtitleRoot {
+  --visible-sub-line-height: 1.64;
+  --visible-sub-line-gap: 0.54em;
 }
 
 #subtitleRoot.has-selection .word:hover,
@@ -452,7 +457,7 @@ body.layer-invisible #subtitleRoot .c {
   -webkit-text-fill-color: transparent !important;
   background: transparent !important;
   caret-color: transparent !important;
-  line-height: normal !important;
+  line-height: var(--invisible-sub-line-height, normal) !important;
   font-kerning: auto;
   letter-spacing: normal;
   font-variant-ligatures: normal;

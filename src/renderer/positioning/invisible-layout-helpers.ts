@@ -1,6 +1,11 @@
 import type { MpvSubtitleRenderMetrics } from '../../types';
 import type { RendererContext } from '../context';
 
+const INVISIBLE_MACOS_VERTICAL_NUDGE_PX = 5;
+const INVISIBLE_MACOS_LINE_HEIGHT_SINGLE = '1.08';
+const INVISIBLE_MACOS_LINE_HEIGHT_MULTI = '1.35';
+const INVISIBLE_MACOS_LINE_HEIGHT_MULTI_DENSE = '1.48';
+
 let fontMetricsCanvas: HTMLCanvasElement | null = null;
 
 export function applyContainerBaseLayout(
@@ -112,6 +117,13 @@ function resolveFontFamily(rawFont: string): string {
     : `"${rawFont}", sans-serif`;
 }
 
+export function resolveInvisibleLineHeight(lineCount: number, isMacOSPlatform: boolean): string {
+  if (!isMacOSPlatform) return 'normal';
+  if (lineCount >= 3) return INVISIBLE_MACOS_LINE_HEIGHT_MULTI_DENSE;
+  if (lineCount >= 2) return INVISIBLE_MACOS_LINE_HEIGHT_MULTI;
+  return INVISIBLE_MACOS_LINE_HEIGHT_SINGLE;
+}
+
 function resolveLetterSpacing(
   spacing: number,
   pxPerScaledPixel: number,
@@ -121,10 +133,6 @@ function resolveLetterSpacing(
   }
 
   return '0px';
-}
-
-function resolveInvisibleLineHeight(isMacOSPlatform: boolean): string {
-  return isMacOSPlatform ? '0.96' : '1';
 }
 
 function measureFontDescentPx(ctx: RendererContext): number | null {
@@ -148,6 +156,42 @@ function measureFontDescentPx(ctx: RendererContext): number | null {
   return metrics.actualBoundingBoxDescent;
 }
 
+function applyComputedLineHeightCompensation(
+  ctx: RendererContext,
+  effectiveFontSize: number,
+): void {
+  const computedLineHeight = parseFloat(getComputedStyle(ctx.dom.subtitleRoot).lineHeight);
+  if (!Number.isFinite(computedLineHeight) || computedLineHeight <= effectiveFontSize) {
+    return;
+  }
+
+  const halfLeading = (computedLineHeight - effectiveFontSize) / 2;
+  if (halfLeading <= 0.5) return;
+
+  const currentBottom = parseFloat(ctx.dom.subtitleContainer.style.bottom);
+  if (Number.isFinite(currentBottom)) {
+    ctx.dom.subtitleContainer.style.bottom = `${Math.max(0, currentBottom - halfLeading)}px`;
+  }
+
+  const currentTop = parseFloat(ctx.dom.subtitleContainer.style.top);
+  if (Number.isFinite(currentTop)) {
+    ctx.dom.subtitleContainer.style.top = `${Math.max(0, currentTop - halfLeading)}px`;
+  }
+}
+
+function applyMacOSAdjustments(ctx: RendererContext): void {
+  const isMacOSPlatform = ctx.platform.isMacOSPlatform;
+  if (!isMacOSPlatform) return;
+
+  const currentBottom = parseFloat(ctx.dom.subtitleContainer.style.bottom);
+  if (!Number.isFinite(currentBottom)) return;
+
+  ctx.dom.subtitleContainer.style.bottom = `${Math.max(
+    0,
+    currentBottom + INVISIBLE_MACOS_VERTICAL_NUDGE_PX,
+  )}px`;
+}
+
 export function applyTypography(
   ctx: RendererContext,
   params: {
@@ -157,11 +201,14 @@ export function applyTypography(
   },
 ): void {
   const isMacOSPlatform = ctx.platform.isMacOSPlatform;
+  const lineCount = Math.max(1, ctx.state.currentInvisibleSubtitleLineCount);
+  const invisibleLineHeight = resolveInvisibleLineHeight(lineCount, isMacOSPlatform);
 
+  ctx.dom.subtitleRoot.style.setProperty('--invisible-sub-line-height', invisibleLineHeight);
   ctx.dom.subtitleRoot.style.setProperty(
     'line-height',
-    resolveInvisibleLineHeight(isMacOSPlatform),
-    'important',
+    invisibleLineHeight,
+    isMacOSPlatform ? 'important' : '',
   );
   ctx.dom.subtitleRoot.style.fontFamily = resolveFontFamily(params.metrics.subFont);
   ctx.dom.subtitleRoot.style.setProperty(
@@ -175,4 +222,7 @@ export function applyTypography(
   ctx.dom.subtitleRoot.style.transform = '';
   ctx.dom.subtitleRoot.style.transformOrigin = '';
   ctx.state.invisibleMeasuredDescentPx = measureFontDescentPx(ctx);
+
+  applyComputedLineHeightCompensation(ctx, params.effectiveFontSize);
+  applyMacOSAdjustments(ctx);
 }
