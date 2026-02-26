@@ -2,11 +2,9 @@ import type { BrowserWindow } from 'electron';
 import type { WindowGeometry } from '../types';
 
 type OverlayHostedModal = 'runtime-options' | 'subsync' | 'jimaku' | 'kiku';
-type OverlayHostLayer = 'visible' | 'invisible';
 
 export interface OverlayWindowResolver {
   getMainWindow: () => BrowserWindow | null;
-  getInvisibleWindow: () => BrowserWindow | null;
   getModalWindow: () => BrowserWindow | null;
   createModalWindow: () => BrowserWindow | null;
   getModalGeometry: () => WindowGeometry;
@@ -21,6 +19,7 @@ export interface OverlayModalRuntime {
   ) => boolean;
   openRuntimeOptionsPalette: () => void;
   handleOverlayModalClosed: (modal: OverlayHostedModal) => void;
+  notifyOverlayModalOpened: (modal: OverlayHostedModal) => void;
   getRestoreVisibleOverlayOnModalClose: () => Set<OverlayHostedModal>;
 }
 
@@ -34,6 +33,8 @@ export function createOverlayModalRuntimeService(
 ): OverlayModalRuntime {
   const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
   let modalActive = false;
+  let pendingModalWindowReveal: BrowserWindow | null = null;
+  let pendingModalWindowRevealTimeout: ReturnType<typeof setTimeout> | null = null;
 
   const notifyModalStateChange = (nextState: boolean): void => {
     if (modalActive === nextState) return;
@@ -53,42 +54,95 @@ export function createOverlayModalRuntimeService(
     return createdWindow;
   };
 
-  const getTargetOverlayWindow = (): {
-    window: BrowserWindow;
-    layer: OverlayHostLayer;
-  } | null => {
+  const getTargetOverlayWindow = (): BrowserWindow | null => {
     const visibleMainWindow = deps.getMainWindow();
-    const invisibleWindow = deps.getInvisibleWindow();
 
     if (visibleMainWindow && !visibleMainWindow.isDestroyed()) {
-      return { window: visibleMainWindow, layer: 'visible' };
+      return visibleMainWindow;
     }
-
-    if (invisibleWindow && !invisibleWindow.isDestroyed()) {
-      return { window: invisibleWindow, layer: 'invisible' };
-    }
-
     return null;
   };
 
-  const showModalWindow = (window: BrowserWindow): void => {
+  const isWindowReadyForIpc = (window: BrowserWindow): boolean => {
+    if (window.webContents.isLoading()) {
+      return false;
+    }
+
+    const getURL = window.webContents.getURL;
+    if (typeof getURL !== 'function') {
+      return true;
+    }
+
+    const currentURL = getURL.call(window.webContents);
+    return currentURL !== '' && currentURL !== 'about:blank';
+  };
+
+  const sendOrQueueForWindow = (
+    window: BrowserWindow,
+    sendNow: (window: BrowserWindow) => void,
+  ): void => {
+    if (isWindowReadyForIpc(window)) {
+      sendNow(window);
+      return;
+    }
+
+    window.webContents.once('did-finish-load', () => {
+      if (!window.isDestroyed() && !window.webContents.isLoading()) {
+        sendNow(window);
+      }
+    });
+  };
+
+  const showModalWindow = (
+    window: BrowserWindow,
+    options: {
+      passThroughMouseEvents: boolean;
+    } = { passThroughMouseEvents: false },
+  ): void => {
     window.show();
-    window.setIgnoreMouseEvents(false);
+    if (options.passThroughMouseEvents) {
+      window.setIgnoreMouseEvents(true, { forward: true });
+    } else {
+      window.setIgnoreMouseEvents(false);
+    }
     window.focus();
     if (!window.webContents.isFocused()) {
       window.webContents.focus();
     }
   };
 
-  const showOverlayWindowForModal = (window: BrowserWindow, layer: OverlayHostLayer): void => {
-    if (layer === 'invisible' && typeof window.showInactive === 'function') {
-      window.showInactive();
-    } else {
-      window.show();
-    }
+  const showOverlayWindowForModal = (window: BrowserWindow): void => {
+    window.show();
     if (!window.isFocused()) {
       window.focus();
     }
+  };
+
+  const clearPendingModalWindowReveal = (): void => {
+    if (pendingModalWindowRevealTimeout === null) {
+      pendingModalWindowReveal = null;
+      return;
+    }
+
+    clearTimeout(pendingModalWindowRevealTimeout);
+    pendingModalWindowRevealTimeout = null;
+    pendingModalWindowReveal = null;
+  };
+
+  const scheduleModalWindowReveal = (window: BrowserWindow): void => {
+    pendingModalWindowReveal = window;
+    if (pendingModalWindowRevealTimeout !== null) {
+      return;
+    }
+
+    pendingModalWindowRevealTimeout = setTimeout(() => {
+      const targetWindow = pendingModalWindowReveal;
+      clearPendingModalWindowReveal();
+      if (!targetWindow || targetWindow.isDestroyed() || targetWindow.isVisible()) {
+        return;
+      }
+      showModalWindow(targetWindow, { passThroughMouseEvents: true });
+    }, 250);
   };
 
   const sendToActiveOverlayWindow = (
@@ -119,43 +173,24 @@ export function createOverlayModalRuntimeService(
       }
 
       if (!wasVisible) {
-        showModalWindow(modalWindow);
+        scheduleModalWindowReveal(modalWindow);
       } else if (!modalWindow.isFocused()) {
         showModalWindow(modalWindow);
       }
 
-      if (modalWindow.webContents.isLoading()) {
-        modalWindow.webContents.once('did-finish-load', () => {
-          if (modalWindow && !modalWindow.isDestroyed() && !modalWindow.webContents.isLoading()) {
-            sendNow(modalWindow);
-          }
-        });
-        return true;
-      }
-
-      sendNow(modalWindow);
+      sendOrQueueForWindow(modalWindow, sendNow);
       return true;
     }
 
     const target = getTargetOverlayWindow();
     if (!target) return false;
 
-    const { window: targetWindow, layer } = target;
-    const wasVisible = targetWindow.isVisible();
+    const wasVisible = target.isVisible();
     if (!wasVisible) {
-      showOverlayWindowForModal(targetWindow, layer);
+      showOverlayWindowForModal(target);
     }
 
-    if (targetWindow.webContents.isLoading()) {
-      targetWindow.webContents.once('did-finish-load', () => {
-        if (targetWindow && !targetWindow.isDestroyed() && !targetWindow.webContents.isLoading()) {
-          sendNow(targetWindow);
-        }
-      });
-      return true;
-    }
-
-    sendNow(targetWindow);
+    sendOrQueueForWindow(target, sendNow);
     return true;
   };
 
@@ -171,6 +206,7 @@ export function createOverlayModalRuntimeService(
     const modalWindow = deps.getModalWindow();
     if (!modalWindow || modalWindow.isDestroyed()) return;
     if (restoreVisibleOverlayOnModalClose.size === 0) {
+      clearPendingModalWindowReveal();
       notifyModalStateChange(false);
     }
     if (restoreVisibleOverlayOnModalClose.size === 0) {
@@ -178,10 +214,33 @@ export function createOverlayModalRuntimeService(
     }
   };
 
+  const notifyOverlayModalOpened = (modal: OverlayHostedModal): void => {
+    if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
+    const targetWindow = deps.getModalWindow();
+    clearPendingModalWindowReveal();
+    if (!targetWindow || targetWindow.isDestroyed()) {
+      return;
+    }
+
+    if (targetWindow.isVisible()) {
+      targetWindow.setIgnoreMouseEvents(false);
+      if (!targetWindow.isFocused()) {
+        targetWindow.focus();
+      }
+      if (!targetWindow.webContents.isFocused()) {
+        targetWindow.webContents.focus();
+      }
+      return;
+    }
+
+    showModalWindow(targetWindow);
+  };
+
   return {
     sendToActiveOverlayWindow,
     openRuntimeOptionsPalette,
     handleOverlayModalClosed,
+    notifyOverlayModalOpened,
     getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
   };
 }
