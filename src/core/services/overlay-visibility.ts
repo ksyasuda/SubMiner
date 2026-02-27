@@ -15,7 +15,7 @@ export function updateVisibleOverlayVisibility(args: {
   syncOverlayShortcuts: () => void;
   isMacOSPlatform?: boolean;
   showOverlayLoadingOsd?: (message: string) => void;
-  resolveFallbackBounds: () => WindowGeometry;
+  resolveFallbackBounds?: () => WindowGeometry;
 }): void {
   if (!args.mainWindow || args.mainWindow.isDestroyed()) {
     return;
@@ -78,7 +78,9 @@ export function updateVisibleOverlayVisibility(args: {
     return;
   }
 
-  const fallbackBounds = args.resolveFallbackBounds();
+  const fallbackBounds = args.resolveFallbackBounds?.();
+  if (!fallbackBounds) return;
+
   args.updateVisibleOverlayBounds(fallbackBounds);
   args.syncPrimaryOverlayWindowLayer('visible');
   args.mainWindow.setIgnoreMouseEvents(false);

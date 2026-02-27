@@ -50,7 +50,7 @@ function createMockWindow(): MockWindow & {
     url: 'file:///overlay/index.html?layer=modal',
     loadCallbacks: [],
   };
-  return {
+  const window = {
     ...state,
     isDestroyed: () => state.destroyed,
     isVisible: () => state.visible,
@@ -92,6 +92,29 @@ function createMockWindow(): MockWindow & {
       },
     },
   };
+
+  Object.defineProperty(window, 'loading', {
+    get: () => state.loading,
+    set: (value: boolean) => {
+      state.loading = value;
+    },
+  });
+
+  Object.defineProperty(window, 'url', {
+    get: () => state.url,
+    set: (value: string) => {
+      state.url = value;
+    },
+  });
+
+  Object.defineProperty(window, 'ignoreMouseEvents', {
+    get: () => state.ignoreMouseEvents,
+    set: (value: boolean) => {
+      state.ignoreMouseEvents = value;
+    },
+  });
+
+  return window;
 }
 
 test('sendToActiveOverlayWindow targets modal window with full geometry and tracks close restore', () => {

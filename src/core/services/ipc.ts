@@ -212,10 +212,6 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     deps.toggleDevTools();
   });
 
-  ipc.handle(IPC_CHANNELS.request.getOverlayVisibility, () => {
-    return deps.getVisibleOverlayVisibility();
-  });
-
   ipc.on(IPC_CHANNELS.command.toggleOverlay, () => {
     deps.toggleVisibleOverlay();
   });

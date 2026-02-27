@@ -36,7 +36,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     broadcastSecondarySubtitle: (text) => calls.push(`broadcast-secondary:${text}`),
 
     updateCurrentMediaPath: (path) => calls.push(`media-path:${path}`),
-    restoreMpvSubVisibilityForInvisibleOverlay: () => calls.push('restore-mpv-sub'),
+    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
     getCurrentAnilistMediaKey: () => 'media-key',
     resetAnilistMediaTracking: (key) => calls.push(`reset-media:${String(key)}`),
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),

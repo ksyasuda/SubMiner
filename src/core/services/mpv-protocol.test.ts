@@ -131,23 +131,7 @@ test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay sup
   );
 
   assert.deepEqual(state.commands.pop(), {
-    command: ['set_property', 'sub-visibility', 'no'],
-  });
-});
-
-test('dispatchMpvProtocolMessage enforces secondary sub-visibility hidden when overlay suppression is enabled', async () => {
-  const { deps, state } = createDeps({
-    shouldBindVisibleOverlayToMpvSubVisibility: () => true,
-    isVisibleOverlayVisible: () => true,
-  });
-
-  await dispatchMpvProtocolMessage(
-    { event: 'property-change', name: 'secondary-sub-visibility', data: 'yes' },
-    deps,
-  );
-
-  assert.deepEqual(state.commands.pop(), {
-    command: ['set_property', 'secondary-sub-visibility', 'no'],
+    command: ['set_property', 'sub-visibility', false],
   });
 });
 

@@ -75,7 +75,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
       onSubtitleChange: () => {},
       refreshDiscordPresence: () => {},
       updateCurrentMediaPath: () => {},
-      restoreMpvSubVisibilityForInvisibleOverlay: () => {},
+      restoreMpvSubVisibility: () => {},
       getCurrentAnilistMediaKey: () => null,
       resetAnilistMediaTracking: () => {},
       maybeProbeAnilistDuration: () => {},

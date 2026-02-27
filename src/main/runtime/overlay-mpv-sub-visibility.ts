@@ -3,10 +3,6 @@ type MpvVisibilityClient = {
   requestProperty: (name: string) => Promise<unknown>;
 };
 
-type RestoreOptions = {
-  respectVisibleOverlayBinding?: boolean;
-};
-
 function parseSubVisibility(value: unknown): boolean {
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase();
@@ -33,12 +29,9 @@ export function createEnsureOverlayMpvSubtitlesHiddenHandler(deps: {
   getMpvClient: () => MpvVisibilityClient | null;
   getSavedSubVisibility: () => boolean | null;
   setSavedSubVisibility: (visible: boolean | null) => void;
-  getSavedSecondarySubVisibility: () => boolean | null;
-  setSavedSecondarySubVisibility: (visible: boolean | null) => void;
   getRevision: () => number;
   setRevision: (revision: number) => void;
   setMpvSubVisibility: (visible: boolean) => void;
-  setMpvSecondarySubVisibility: (visible: boolean) => void;
   logWarn: (message: string, error: unknown) => void;
 }) {
   return async (): Promise<void> => {
@@ -50,9 +43,17 @@ export function createEnsureOverlayMpvSubtitlesHiddenHandler(deps: {
       return;
     }
 
-    if (deps.getSavedSubVisibility() === null) {
+    const shouldCaptureSavedVisibility = deps.getSavedSubVisibility() === null;
+    const savedVisibilityPromise = shouldCaptureSavedVisibility
+      ? mpvClient.requestProperty('sub-visibility')
+      : null;
+
+    // Hide immediately on overlay toggle; capture/restore logic is handled separately.
+    deps.setMpvSubVisibility(false);
+
+    if (shouldCaptureSavedVisibility && savedVisibilityPromise) {
       try {
-        const currentSubVisibility = await mpvClient.requestProperty('sub-visibility');
+        const currentSubVisibility = await savedVisibilityPromise;
         if (revision !== deps.getRevision()) {
           return;
         }
@@ -68,64 +69,28 @@ export function createEnsureOverlayMpvSubtitlesHiddenHandler(deps: {
         deps.setSavedSubVisibility(true);
       }
     }
-
-    if (deps.getSavedSecondarySubVisibility() === null) {
-      try {
-        const currentSecondarySubVisibility = await mpvClient.requestProperty('secondary-sub-visibility');
-        if (revision !== deps.getRevision()) {
-          return;
-        }
-        deps.setSavedSecondarySubVisibility(parseSubVisibility(currentSecondarySubVisibility));
-      } catch (error) {
-        if (revision !== deps.getRevision()) {
-          return;
-        }
-        deps.logWarn(
-          '[overlay] Failed to capture secondary mpv sub-visibility; falling back to visible restore',
-          error,
-        );
-        deps.setSavedSecondarySubVisibility(true);
-      }
-    }
-
-    if (revision !== deps.getRevision()) {
-      return;
-    }
-
-    deps.setMpvSubVisibility(false);
-    deps.setMpvSecondarySubVisibility(false);
   };
 }
 
 export function createRestoreOverlayMpvSubtitlesHandler(deps: {
   getSavedSubVisibility: () => boolean | null;
   setSavedSubVisibility: (visible: boolean | null) => void;
-  getSavedSecondarySubVisibility: () => boolean | null;
-  setSavedSecondarySubVisibility: (visible: boolean | null) => void;
   getRevision: () => number;
   setRevision: (revision: number) => void;
   isMpvConnected: () => boolean;
   shouldKeepSuppressedFromVisibleOverlayBinding: () => boolean;
   setMpvSubVisibility: (visible: boolean) => void;
-  setMpvSecondarySubVisibility: (visible: boolean) => void;
 }) {
-  return (options?: RestoreOptions): void => {
+  return (): void => {
     deps.setRevision(deps.getRevision() + 1);
 
     const savedVisibility = deps.getSavedSubVisibility();
-    const respectVisibleOverlayBinding = options?.respectVisibleOverlayBinding ?? true;
-    if (
-      respectVisibleOverlayBinding &&
-      deps.shouldKeepSuppressedFromVisibleOverlayBinding()
-    ) {
+    if (deps.shouldKeepSuppressedFromVisibleOverlayBinding()) {
       deps.setMpvSubVisibility(false);
-      deps.setMpvSecondarySubVisibility(false);
       return;
     }
 
-    const hasSecondarySavedVisibility = deps.getSavedSecondarySubVisibility() !== null;
-
-    if (savedVisibility === null && !hasSecondarySavedVisibility) {
+    if (savedVisibility === null) {
       return;
     }
 
@@ -136,12 +101,7 @@ export function createRestoreOverlayMpvSubtitlesHandler(deps: {
     if (savedVisibility !== null) {
       deps.setMpvSubVisibility(savedVisibility);
     }
-    const savedSecondaryVisibility = deps.getSavedSecondarySubVisibility();
-    if (savedSecondaryVisibility !== null) {
-      deps.setMpvSecondarySubVisibility(savedSecondaryVisibility);
-    }
 
     deps.setSavedSubVisibility(null);
-    deps.setSavedSecondarySubVisibility(null);
   };
 }

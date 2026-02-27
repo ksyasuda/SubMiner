@@ -9,7 +9,7 @@ type FrequencyRenderSettings = {
   bandedColors: [string, string, string, string, string];
 };
 
-export type InvisibleTokenHoverRange = {
+export type SubtitleTokenHoverRange = {
   start: number;
   end: number;
   tokenIndex: number;
@@ -37,6 +37,8 @@ export function normalizeSubtitle(text: string, trim = true, collapseLineBreaks 
 }
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+const SAFE_CSS_COLOR_PATTERN =
+  /^(?:#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|(?:rgba?|hsla?)\([^)]*\)|var\([^)]*\)|[a-zA-Z]+)$/;
 
 function sanitizeHexColor(value: unknown, fallback: string): string {
   return typeof value === 'string' && HEX_COLOR_PATTERN.test(value.trim())
@@ -58,7 +60,9 @@ function sanitizeSubtitleHoverTokenBackgroundColor(value: unknown): string {
     return 'rgba(54, 58, 79, 0.84)';
   }
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : 'rgba(54, 58, 79, 0.84)';
+  return trimmed.length > 0 && SAFE_CSS_COLOR_PATTERN.test(trimmed)
+    ? trimmed
+    : 'rgba(54, 58, 79, 0.84)';
 }
 
 const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
@@ -293,16 +297,16 @@ export function alignTokensToSourceText(
   return segments;
 }
 
-export function buildInvisibleTokenHoverRanges(
+export function buildSubtitleTokenHoverRanges(
   tokens: MergedToken[],
   sourceText: string,
-): InvisibleTokenHoverRange[] {
+): SubtitleTokenHoverRange[] {
   if (tokens.length === 0 || sourceText.length === 0) {
     return [];
   }
 
   const segments = alignTokensToSourceText(tokens, sourceText);
-  const ranges: InvisibleTokenHoverRange[] = [];
+  const ranges: SubtitleTokenHoverRange[] = [];
   let cursor = 0;
 
   for (const segment of segments) {

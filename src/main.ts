@@ -354,7 +354,6 @@ import {
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   sendMpvCommandRuntime,
-  setMpvSecondarySubVisibilityRuntime,
   setMpvSubVisibilityRuntime,
   setOverlayDebugVisualizationEnabledRuntime,
   syncOverlayWindowLayer,
@@ -731,19 +730,12 @@ const ensureOverlayMpvSubtitlesHidden = createEnsureOverlayMpvSubtitlesHiddenHan
   setSavedSubVisibility: (visible) => {
     appState.overlaySavedMpvSubVisibility = visible;
   },
-  getSavedSecondarySubVisibility: () => appState.overlaySavedSecondaryMpvSubVisibility,
-  setSavedSecondarySubVisibility: (visible) => {
-    appState.overlaySavedSecondaryMpvSubVisibility = visible;
-  },
   getRevision: () => appState.overlayMpvSubVisibilityRevision,
   setRevision: (revision) => {
     appState.overlayMpvSubVisibilityRevision = revision;
   },
   setMpvSubVisibility: (visible) => {
     setMpvSubVisibilityRuntime(appState.mpvClient, visible);
-  },
-  setMpvSecondarySubVisibility: (visible) => {
-    setMpvSecondarySubVisibilityRuntime(appState.mpvClient, visible);
   },
   logWarn: (message, error) => {
     logger.warn(message, error);
@@ -754,10 +746,6 @@ const restoreOverlayMpvSubtitles = createRestoreOverlayMpvSubtitlesHandler({
   setSavedSubVisibility: (visible) => {
     appState.overlaySavedMpvSubVisibility = visible;
   },
-  getSavedSecondarySubVisibility: () => appState.overlaySavedSecondaryMpvSubVisibility,
-  setSavedSecondarySubVisibility: (visible) => {
-    appState.overlaySavedSecondaryMpvSubVisibility = visible;
-  },
   getRevision: () => appState.overlayMpvSubVisibilityRevision,
   setRevision: (revision) => {
     appState.overlayMpvSubVisibilityRevision = revision;
@@ -767,16 +755,12 @@ const restoreOverlayMpvSubtitles = createRestoreOverlayMpvSubtitlesHandler({
   setMpvSubVisibility: (visible) => {
     setMpvSubVisibilityRuntime(appState.mpvClient, visible);
   },
-  setMpvSecondarySubVisibility: (visible) => {
-    setMpvSecondarySubVisibilityRuntime(appState.mpvClient, visible);
-  },
 });
 
 function shouldSuppressMpvSubtitlesForOverlay(): boolean {
   return (
-    appState.secondarySubMode === 'visible' ||
-    (overlayManager.getVisibleOverlayVisible() &&
-      configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility())
+    overlayManager.getVisibleOverlayVisible() &&
+    configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility()
   );
 }
 
@@ -1884,8 +1868,8 @@ const {
     destroyTray: () => destroyTray(),
     stopConfigHotReload: () => configHotReloadRuntime.stop(),
     restorePreviousSecondarySubVisibility: () => restorePreviousSecondarySubVisibility(),
-    restoreMpvSubVisibilityForInvisibleOverlay: () => {
-      restoreOverlayMpvSubtitles({ respectVisibleOverlayBinding: false });
+    restoreMpvSubVisibility: () => {
+      restoreOverlayMpvSubtitles();
     },
     unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
     stopSubtitleWebsocket: () => subtitleWsService.stop(),
@@ -2181,8 +2165,8 @@ const {
     updateCurrentMediaPath: (path) => {
       mediaRuntime.updateCurrentMediaPath(path);
     },
-    restoreMpvSubVisibilityForInvisibleOverlay: () => {
-      restoreOverlayMpvSubtitles({ respectVisibleOverlayBinding: false });
+    restoreMpvSubVisibility: () => {
+      restoreOverlayMpvSubtitles();
     },
     getCurrentAnilistMediaKey: () => getCurrentAnilistMediaKey(),
     resetAnilistMediaTracking: (mediaKey) => {
@@ -2529,7 +2513,6 @@ const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
 
 function setSecondarySubMode(mode: SecondarySubMode): void {
   appState.secondarySubMode = mode;
-  syncOverlayMpvSubtitleSuppression();
 }
 
 function handleCycleSecondarySubMode(): void {

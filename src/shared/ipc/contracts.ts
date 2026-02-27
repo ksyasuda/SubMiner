@@ -22,7 +22,6 @@ export const IPC_CHANNELS = {
     overlayModalOpened: 'overlay:modal-opened',
   },
   request: {
-    getOverlayVisibility: 'get-overlay-visibility',
     getVisibleOverlayVisibility: 'get-visible-overlay-visibility',
     getCurrentSubtitle: 'get-current-subtitle',
     getCurrentSubtitleRaw: 'get-current-subtitle-raw',

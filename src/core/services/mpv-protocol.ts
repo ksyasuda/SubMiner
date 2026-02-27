@@ -223,15 +223,7 @@ export async function dispatchMpvProtocolMessage(
         deps.isVisibleOverlayVisible() &&
         asBoolean(msg.data, false)
       ) {
-        deps.sendCommand({ command: ['set_property', 'sub-visibility', 'no'] });
-      }
-    } else if (msg.name === 'secondary-sub-visibility') {
-      if (
-        deps.shouldBindVisibleOverlayToMpvSubVisibility?.() &&
-        deps.isVisibleOverlayVisible() &&
-        asBoolean(msg.data, false)
-      ) {
-        deps.sendCommand({ command: ['set_property', 'secondary-sub-visibility', 'no'] });
+        deps.sendCommand({ command: ['set_property', 'sub-visibility', false] });
       }
     } else if (msg.name === 'sub-use-margins') {
       deps.emitSubtitleMetricsChange({

@@ -7,7 +7,7 @@ import type { MergedToken } from '../types';
 import { PartOfSpeech } from '../types.js';
 import {
   alignTokensToSourceText,
-  buildInvisibleTokenHoverRanges,
+  buildSubtitleTokenHoverRanges,
   computeWordClass,
   normalizeSubtitle,
   sanitizeSubtitleHoverTokenColor,
@@ -266,26 +266,26 @@ test('alignTokensToSourceText avoids duplicate tail when later token surface doe
   );
 });
 
-test('buildInvisibleTokenHoverRanges tracks token offsets across text separators', () => {
+test('buildSubtitleTokenHoverRanges tracks token offsets across text separators', () => {
   const tokens = [
     createToken({ surface: 'キリキリと' }),
     createToken({ surface: 'かかってこい' }),
   ];
 
-  const ranges = buildInvisibleTokenHoverRanges(tokens, 'キリキリと\nかかってこい');
+  const ranges = buildSubtitleTokenHoverRanges(tokens, 'キリキリと\nかかってこい');
   assert.deepEqual(ranges, [
     { start: 0, end: 5, tokenIndex: 0 },
     { start: 6, end: 12, tokenIndex: 1 },
   ]);
 });
 
-test('buildInvisibleTokenHoverRanges ignores unmatched token surfaces', () => {
+test('buildSubtitleTokenHoverRanges ignores unmatched token surfaces', () => {
   const tokens = [
     createToken({ surface: '君たちが潰した拠点に' }),
     createToken({ surface: '教団の主力は1人もいない' }),
   ];
 
-  const ranges = buildInvisibleTokenHoverRanges(tokens, '君たちが潰した拠点に\n教団の主力は１人もいない');
+  const ranges = buildSubtitleTokenHoverRanges(tokens, '君たちが潰した拠点に\n教団の主力は１人もいない');
   assert.deepEqual(ranges, [{ start: 0, end: 10, tokenIndex: 0 }]);
 });
 

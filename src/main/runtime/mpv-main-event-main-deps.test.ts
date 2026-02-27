@@ -41,7 +41,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
       calls.push(`broadcast:${channel}:${String(payload)}`),
     onSubtitleChange: (text) => calls.push(`subtitle-change:${text}`),
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
-    restoreMpvSubVisibilityForInvisibleOverlay: () => calls.push('restore-mpv-sub'),
+    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
     getCurrentAnilistMediaKey: () => 'media-key',
     resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${mediaKey}`),
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
@@ -75,7 +75,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.broadcastSubtitleAss('ass');
   deps.broadcastSecondarySubtitle('sec');
   deps.updateCurrentMediaPath('/tmp/video');
-  deps.restoreMpvSubVisibilityForInvisibleOverlay();
+  deps.restoreMpvSubVisibility();
   assert.equal(deps.getCurrentAnilistMediaKey(), 'media-key');
   deps.resetAnilistMediaTracking('media-key');
   deps.maybeProbeAnilistDuration('media-key');

@@ -172,7 +172,6 @@ export interface AppState {
   lastSecondarySubToggleAtMs: number;
   previousSecondarySubVisibility: boolean | null;
   overlaySavedMpvSubVisibility: boolean | null;
-  overlaySavedSecondaryMpvSubVisibility: boolean | null;
   overlayMpvSubVisibilityRevision: number;
   mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics;
   shortcutsRegistered: boolean;
@@ -247,7 +246,6 @@ export function createAppState(values: AppStateInitialValues): AppState {
     lastSecondarySubToggleAtMs: 0,
     previousSecondarySubVisibility: null,
     overlaySavedMpvSubVisibility: null,
-    overlaySavedSecondaryMpvSubVisibility: null,
     overlayMpvSubVisibilityRevision: 0,
     mpvSubtitleRenderMetrics: {
       ...DEFAULT_MPV_SUBTITLE_RENDER_METRICS,

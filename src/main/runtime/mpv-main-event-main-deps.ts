@@ -27,7 +27,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
   onSubtitleChange: (text: string) => void;
   updateCurrentMediaPath: (path: string) => void;
-  restoreMpvSubVisibilityForInvisibleOverlay: () => void;
+  restoreMpvSubVisibility: () => void;
   getCurrentAnilistMediaKey: () => string | null;
   resetAnilistMediaTracking: (mediaKey: string | null) => void;
   maybeProbeAnilistDuration: (mediaKey: string) => void;
@@ -71,8 +71,8 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     broadcastSecondarySubtitle: (text: string) =>
       deps.broadcastToOverlayWindows('secondary-subtitle:set', text),
     updateCurrentMediaPath: (path: string) => deps.updateCurrentMediaPath(path),
-    restoreMpvSubVisibilityForInvisibleOverlay: () =>
-      deps.restoreMpvSubVisibilityForInvisibleOverlay(),
+    restoreMpvSubVisibility: () =>
+      deps.restoreMpvSubVisibility(),
     getCurrentAnilistMediaKey: () => deps.getCurrentAnilistMediaKey(),
     resetAnilistMediaTracking: (mediaKey: string | null) =>
       deps.resetAnilistMediaTracking(mediaKey),

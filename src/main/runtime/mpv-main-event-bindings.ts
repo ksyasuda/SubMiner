@@ -43,7 +43,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   broadcastSecondarySubtitle: (text: string) => void;
 
   updateCurrentMediaPath: (path: string) => void;
-  restoreMpvSubVisibilityForInvisibleOverlay: () => void;
+  restoreMpvSubVisibility: () => void;
   getCurrentAnilistMediaKey: () => string | null;
   resetAnilistMediaTracking: (mediaKey: string | null) => void;
   maybeProbeAnilistDuration: (mediaKey: string) => void;
@@ -97,8 +97,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
     const handleMpvMediaPathChange = createHandleMpvMediaPathChangeHandler({
       updateCurrentMediaPath: (path) => deps.updateCurrentMediaPath(path),
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
-      restoreMpvSubVisibilityForInvisibleOverlay: () =>
-        deps.restoreMpvSubVisibilityForInvisibleOverlay(),
+      restoreMpvSubVisibility: () =>
+        deps.restoreMpvSubVisibility(),
       getCurrentAnilistMediaKey: () => deps.getCurrentAnilistMediaKey(),
       resetAnilistMediaTracking: (mediaKey) => deps.resetAnilistMediaTracking(mediaKey),
       maybeProbeAnilistDuration: (mediaKey) => deps.maybeProbeAnilistDuration(mediaKey),

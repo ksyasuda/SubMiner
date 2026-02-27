@@ -16,7 +16,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       destroyTray: () => {},
       stopConfigHotReload: () => {},
       restorePreviousSecondarySubVisibility: () => {},
-      restoreMpvSubVisibilityForInvisibleOverlay: () => {},
+      restoreMpvSubVisibility: () => {},
       unregisterAllGlobalShortcuts: () => {},
       stopSubtitleWebsocket: () => {},
       stopTexthookerService: () => {},

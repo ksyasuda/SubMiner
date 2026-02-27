@@ -1,6 +1,8 @@
 import type { BrowserWindow } from 'electron';
 import type { WindowGeometry } from '../types';
 
+const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
+
 type OverlayHostedModal = 'runtime-options' | 'subsync' | 'jimaku' | 'kiku';
 
 export interface OverlayWindowResolver {
@@ -67,14 +69,7 @@ export function createOverlayModalRuntimeService(
     if (window.webContents.isLoading()) {
       return false;
     }
-
-    const getURL = window.webContents.getURL;
-    if (typeof getURL !== 'function') {
-      return true;
-    }
-
-    const currentURL = getURL.call(window.webContents);
-    return currentURL !== '' && currentURL !== 'about:blank';
+    return window.webContents.getURL() !== '' && window.webContents.getURL() !== 'about:blank';
   };
 
   const sendOrQueueForWindow = (
@@ -142,7 +137,7 @@ export function createOverlayModalRuntimeService(
         return;
       }
       showModalWindow(targetWindow, { passThroughMouseEvents: true });
-    }, 250);
+    }, MODAL_REVEAL_FALLBACK_DELAY_MS);
   };
 
   const sendToActiveOverlayWindow = (
@@ -208,8 +203,6 @@ export function createOverlayModalRuntimeService(
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
       notifyModalStateChange(false);
-    }
-    if (restoreVisibleOverlayOnModalClose.size === 0) {
       modalWindow.hide();
     }
   };

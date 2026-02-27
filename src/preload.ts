@@ -154,7 +154,7 @@ const electronAPI: ElectronAPI = {
   },
 
   getOverlayVisibility: (): Promise<boolean> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.getOverlayVisibility),
+    ipcRenderer.invoke(IPC_CHANNELS.request.getVisibleOverlayVisibility),
   getCurrentSubtitle: (): Promise<SubtitleData> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getCurrentSubtitle),
   getCurrentSubtitleRaw: (): Promise<string> =>

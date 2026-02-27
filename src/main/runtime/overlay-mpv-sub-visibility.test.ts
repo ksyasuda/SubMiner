@@ -8,14 +8,12 @@ import {
 
 type VisibilityState = {
   savedSubVisibility: boolean | null;
-  savedSecondarySubVisibility: boolean | null;
   revision: number;
 };
 
 test('ensure overlay mpv subtitle suppression captures previous visibility then hides subtitles', async () => {
   const state: VisibilityState = {
     savedSubVisibility: null,
-    savedSecondarySubVisibility: null,
     revision: 0,
   };
   const calls: boolean[] = [];
@@ -29,18 +27,11 @@ test('ensure overlay mpv subtitle suppression captures previous visibility then 
     setSavedSubVisibility: (visible) => {
       state.savedSubVisibility = visible;
     },
-    getSavedSecondarySubVisibility: () => state.savedSecondarySubVisibility,
-    setSavedSecondarySubVisibility: (visible) => {
-      state.savedSecondarySubVisibility = visible;
-    },
     getRevision: () => state.revision,
     setRevision: (revision) => {
       state.revision = revision;
     },
     setMpvSubVisibility: (visible) => {
-      calls.push(visible);
-    },
-    setMpvSecondarySubVisibility: (visible) => {
       calls.push(visible);
     },
     logWarn: () => {},
@@ -49,15 +40,13 @@ test('ensure overlay mpv subtitle suppression captures previous visibility then 
   await ensureHidden();
 
   assert.equal(state.savedSubVisibility, false);
-  assert.equal(state.savedSecondarySubVisibility, false);
   assert.equal(state.revision, 1);
-  assert.deepEqual(calls, [false, false]);
+  assert.deepEqual(calls, [false]);
 });
 
 test('restore overlay mpv subtitle suppression restores saved visibility', () => {
   const state: VisibilityState = {
     savedSubVisibility: false,
-    savedSecondarySubVisibility: true,
     revision: 4,
   };
   const calls: boolean[] = [];
@@ -66,10 +55,6 @@ test('restore overlay mpv subtitle suppression restores saved visibility', () =>
     getSavedSubVisibility: () => state.savedSubVisibility,
     setSavedSubVisibility: (visible) => {
       state.savedSubVisibility = visible;
-    },
-    getSavedSecondarySubVisibility: () => state.savedSecondarySubVisibility,
-    setSavedSecondarySubVisibility: (visible) => {
-      state.savedSecondarySubVisibility = visible;
     },
     getRevision: () => state.revision,
     setRevision: (revision) => {
@@ -80,23 +65,18 @@ test('restore overlay mpv subtitle suppression restores saved visibility', () =>
     setMpvSubVisibility: (visible) => {
       calls.push(visible);
     },
-    setMpvSecondarySubVisibility: (visible) => {
-      calls.push(visible);
-    },
   });
 
   restore();
 
   assert.equal(state.savedSubVisibility, null);
-  assert.equal(state.savedSecondarySubVisibility, null);
   assert.equal(state.revision, 5);
-  assert.deepEqual(calls, [false, true]);
+  assert.deepEqual(calls, [false]);
 });
 
 test('restore keeps mpv subtitles hidden when visible-overlay binding still requires suppression', () => {
   const state: VisibilityState = {
     savedSubVisibility: true,
-    savedSecondarySubVisibility: true,
     revision: 9,
   };
   const calls: boolean[] = [];
@@ -105,10 +85,6 @@ test('restore keeps mpv subtitles hidden when visible-overlay binding still requ
     getSavedSubVisibility: () => state.savedSubVisibility,
     setSavedSubVisibility: (visible) => {
       state.savedSubVisibility = visible;
-    },
-    getSavedSecondarySubVisibility: () => state.savedSecondarySubVisibility,
-    setSavedSecondarySubVisibility: (visible) => {
-      state.savedSecondarySubVisibility = visible;
     },
     getRevision: () => state.revision,
     setRevision: (revision) => {
@@ -119,23 +95,18 @@ test('restore keeps mpv subtitles hidden when visible-overlay binding still requ
     setMpvSubVisibility: (visible) => {
       calls.push(visible);
     },
-    setMpvSecondarySubVisibility: (visible) => {
-      calls.push(visible);
-    },
   });
 
   restore();
 
   assert.equal(state.savedSubVisibility, true);
-  assert.equal(state.savedSecondarySubVisibility, true);
   assert.equal(state.revision, 10);
-  assert.deepEqual(calls, [false, false]);
+  assert.deepEqual(calls, [false]);
 });
 
 test('restore defers mpv subtitle restore while mpv is disconnected', () => {
   const state: VisibilityState = {
     savedSubVisibility: true,
-    savedSecondarySubVisibility: false,
     revision: 2,
   };
   const calls: boolean[] = [];
@@ -145,10 +116,6 @@ test('restore defers mpv subtitle restore while mpv is disconnected', () => {
     setSavedSubVisibility: (visible) => {
       state.savedSubVisibility = visible;
     },
-    getSavedSecondarySubVisibility: () => state.savedSecondarySubVisibility,
-    setSavedSecondarySubVisibility: (visible) => {
-      state.savedSecondarySubVisibility = visible;
-    },
     getRevision: () => state.revision,
     setRevision: (revision) => {
       state.revision = revision;
@@ -156,9 +123,6 @@ test('restore defers mpv subtitle restore while mpv is disconnected', () => {
     isMpvConnected: () => false,
     shouldKeepSuppressedFromVisibleOverlayBinding: () => false,
     setMpvSubVisibility: (visible) => {
-      calls.push(visible);
-    },
-    setMpvSecondarySubVisibility: (visible) => {
       calls.push(visible);
     },
   });

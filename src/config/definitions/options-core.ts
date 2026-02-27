@@ -43,7 +43,7 @@ export function buildCoreConfigOptionRegistry(
       kind: 'boolean',
       defaultValue: defaultConfig.bind_visible_overlay_to_mpv_sub_visibility,
       description:
-        'Link visible overlay toggles to MPV subtitle visibility (primary and secondary).',
+        'Link visible overlay toggles to MPV primary subtitle visibility.',
     },
   ];
 }

@@ -2,7 +2,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   destroyTray: () => void;
   stopConfigHotReload: () => void;
   restorePreviousSecondarySubVisibility: () => void;
-  restoreMpvSubVisibilityForInvisibleOverlay: () => void;
+  restoreMpvSubVisibility: () => void;
   unregisterAllGlobalShortcuts: () => void;
   stopSubtitleWebsocket: () => void;
   stopTexthookerService: () => void;
@@ -26,7 +26,7 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.destroyTray();
     deps.stopConfigHotReload();
     deps.restorePreviousSecondarySubVisibility();
-    deps.restoreMpvSubVisibilityForInvisibleOverlay();
+    deps.restoreMpvSubVisibility();
     deps.unregisterAllGlobalShortcuts();
     deps.stopSubtitleWebsocket();
     deps.stopTexthookerService();
