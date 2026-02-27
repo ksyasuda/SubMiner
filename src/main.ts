@@ -758,7 +758,10 @@ const restoreOverlayMpvSubtitles = createRestoreOverlayMpvSubtitlesHandler({
 });
 
 function shouldSuppressMpvSubtitlesForOverlay(): boolean {
-  return overlayManager.getVisibleOverlayVisible();
+  return (
+    overlayManager.getVisibleOverlayVisible() &&
+    configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility()
+  );
 }
 
 function syncOverlayMpvSubtitleSuppression(): void {

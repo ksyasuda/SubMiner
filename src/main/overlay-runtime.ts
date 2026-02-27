@@ -232,15 +232,13 @@ export function createOverlayModalRuntimeService(
   const handleOverlayModalClosed = (modal: OverlayHostedModal): void => {
     if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
     restoreVisibleOverlayOnModalClose.delete(modal);
+    const modalWindow = deps.getModalWindow();
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
       notifyModalStateChange(false);
-    }
-
-    const modalWindow = deps.getModalWindow();
-    if (!modalWindow || modalWindow.isDestroyed()) return;
-    if (restoreVisibleOverlayOnModalClose.size === 0) {
-      modalWindow.hide();
+      if (modalWindow && !modalWindow.isDestroyed()) {
+        modalWindow.hide();
+      }
     }
   };
 

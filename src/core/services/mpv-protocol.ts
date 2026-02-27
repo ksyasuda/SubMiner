@@ -220,7 +220,8 @@ export async function dispatchMpvProtocolMessage(
     } else if (msg.name === 'sub-visibility') {
       if (
         deps.isVisibleOverlayVisible() &&
-        asBoolean(msg.data, false)
+        asBoolean(msg.data, false) &&
+        (deps.shouldBindVisibleOverlayToMpvSubVisibility?.() ?? true)
       ) {
         deps.sendCommand({ command: ['set_property', 'sub-visibility', 'no'] });
       }

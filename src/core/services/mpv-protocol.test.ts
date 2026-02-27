@@ -135,6 +135,20 @@ test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay sup
   });
 });
 
+test('dispatchMpvProtocolMessage skips sub-visibility suppression when overlay binding is disabled', async () => {
+  const { deps, state } = createDeps({
+    shouldBindVisibleOverlayToMpvSubVisibility: () => false,
+    isVisibleOverlayVisible: () => true,
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'sub-visibility', data: 'yes' },
+    deps,
+  );
+
+  assert.equal(state.commands.length, 0);
+});
+
 test('dispatchMpvProtocolMessage sets secondary subtitle track based on track list response', async () => {
   const { deps, state } = createDeps();
 
