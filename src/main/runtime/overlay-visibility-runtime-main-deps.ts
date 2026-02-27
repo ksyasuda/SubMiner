@@ -7,18 +7,19 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
 ) {
   return (): OverlayVisibilityRuntimeDeps => ({
     getMainWindow: () => deps.getMainWindow(),
-    getInvisibleWindow: () => deps.getInvisibleWindow(),
     getVisibleOverlayVisible: () => deps.getVisibleOverlayVisible(),
-    getInvisibleOverlayVisible: () => deps.getInvisibleOverlayVisible(),
     getWindowTracker: () => deps.getWindowTracker(),
     getTrackerNotReadyWarningShown: () => deps.getTrackerNotReadyWarningShown(),
     setTrackerNotReadyWarningShown: (shown: boolean) => deps.setTrackerNotReadyWarningShown(shown),
     updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
       deps.updateVisibleOverlayBounds(geometry),
-    updateInvisibleOverlayBounds: (geometry: WindowGeometry) =>
-      deps.updateInvisibleOverlayBounds(geometry),
     ensureOverlayWindowLevel: (window: BrowserWindow) => deps.ensureOverlayWindowLevel(window),
+    syncPrimaryOverlayWindowLayer: (layer: 'visible') =>
+      deps.syncPrimaryOverlayWindowLayer(layer),
     enforceOverlayLayerOrder: () => deps.enforceOverlayLayerOrder(),
     syncOverlayShortcuts: () => deps.syncOverlayShortcuts(),
+    isMacOSPlatform: () => deps.isMacOSPlatform(),
+    showOverlayLoadingOsd: (message: string) => deps.showOverlayLoadingOsd(message),
+    resolveFallbackBounds: () => deps.resolveFallbackBounds(),
   });
 }

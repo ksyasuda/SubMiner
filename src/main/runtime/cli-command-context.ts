@@ -20,9 +20,7 @@ export type CliCommandContextFactoryDeps = {
   isOverlayInitialized: () => boolean;
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
-  toggleInvisibleOverlay: () => void;
   setVisibleOverlay: (visible: boolean) => void;
-  setInvisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;
   mineSentenceCard: () => Promise<void>;
@@ -72,9 +70,7 @@ export function createCliCommandContext(
     isOverlayInitialized: deps.isOverlayInitialized,
     initializeOverlay: deps.initializeOverlay,
     toggleVisibleOverlay: deps.toggleVisibleOverlay,
-    toggleInvisibleOverlay: deps.toggleInvisibleOverlay,
     setVisibleOverlay: deps.setVisibleOverlay,
-    setInvisibleOverlay: deps.setInvisibleOverlay,
     copyCurrentSubtitle: deps.copyCurrentSubtitle,
     startPendingMultiCopy: deps.startPendingMultiCopy,
     mineSentenceCard: deps.mineSentenceCard,

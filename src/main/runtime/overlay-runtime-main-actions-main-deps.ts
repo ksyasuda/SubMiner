@@ -65,18 +65,14 @@ export function createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler(
       currentEnabled,
       nextEnabled,
       setCurrentEnabled,
-      broadcastToOverlayWindows,
     ) =>
       deps.setOverlayDebugVisualizationEnabledRuntime(
         currentEnabled,
         nextEnabled,
         setCurrentEnabled,
-        broadcastToOverlayWindows,
       ),
     getCurrentEnabled: () => deps.getCurrentEnabled(),
     setCurrentEnabled: (enabled: boolean) => deps.setCurrentEnabled(enabled),
-    broadcastToOverlayWindows: (channel: string, ...args: unknown[]) =>
-      deps.broadcastToOverlayWindows(channel, ...args),
   });
 }
 

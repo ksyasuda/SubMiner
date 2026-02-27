@@ -181,9 +181,6 @@ All keybindings use a `y` chord prefix — press `y`, then the second key:
 | `y-s` | Start overlay                         |
 | `y-S` | Stop overlay                          |
 | `y-t` | Toggle visible overlay                |
-| `y-i` | Toggle invisible overlay              |
-| `y-I` | Show invisible overlay                |
-| `y-u` | Hide invisible overlay                |
 | `y-o` | Open Yomitan settings                 |
 | `y-r` | Restart overlay                       |
 | `y-c` | Check overlay status                  |

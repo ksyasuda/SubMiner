@@ -24,9 +24,7 @@ export function createBuildFieldGroupingOverlayMainDepsHandler<TModal extends st
   return (): BuiltFieldGroupingOverlayMainDeps<TModal> => ({
     getMainWindow: () => deps.getMainWindow(),
     getVisibleOverlayVisible: () => deps.getVisibleOverlayVisible(),
-    getInvisibleOverlayVisible: () => deps.getInvisibleOverlayVisible(),
     setVisibleOverlayVisible: (visible: boolean) => deps.setVisibleOverlayVisible(visible),
-    setInvisibleOverlayVisible: (visible: boolean) => deps.setInvisibleOverlayVisible(visible),
     getResolver: () => deps.getResolver(),
     setResolver: (resolver) => deps.setResolver(resolver),
     getRestoreVisibleOverlayOnModalClose: () => deps.getRestoreVisibleOverlayOnModalClose(),

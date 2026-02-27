@@ -96,7 +96,6 @@ const OVERLAY_SHORTCUTS: Array<{
   { key: 'openRuntimeOptions', label: 'Open runtime options' },
   { key: 'openJimaku', label: 'Open jimaku' },
   { key: 'toggleVisibleOverlayGlobal', label: 'Show/hide visible overlay' },
-  { key: 'toggleInvisibleOverlayGlobal', label: 'Show/hide invisible overlay' },
 ];
 
 function buildOverlayShortcutSections(shortcuts: RuntimeShortcutConfig): SessionHelpSection[] {

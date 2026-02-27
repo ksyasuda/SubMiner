@@ -11,6 +11,7 @@ test('mpv connection handler reports stop and quits when disconnect guard passes
   const handler = createHandleMpvConnectionChangeHandler({
     reportJellyfinRemoteStopped: () => calls.push('report-stop'),
     refreshDiscordPresence: () => calls.push('presence-refresh'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
     hasInitialJellyfinPlayArg: () => true,
     isOverlayRuntimeInitialized: () => false,
     isQuitOnDisconnectArmed: () => true,
@@ -24,6 +25,27 @@ test('mpv connection handler reports stop and quits when disconnect guard passes
 
   handler({ connected: false });
   assert.deepEqual(calls, ['presence-refresh', 'report-stop', 'schedule', 'quit']);
+});
+
+test('mpv connection handler syncs overlay subtitle suppression on connect', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvConnectionChangeHandler({
+    reportJellyfinRemoteStopped: () => calls.push('report-stop'),
+    refreshDiscordPresence: () => calls.push('presence-refresh'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
+    hasInitialJellyfinPlayArg: () => true,
+    isOverlayRuntimeInitialized: () => false,
+    isQuitOnDisconnectArmed: () => true,
+    scheduleQuitCheck: () => {
+      calls.push('schedule');
+    },
+    isMpvConnected: () => false,
+    quitApp: () => calls.push('quit'),
+  });
+
+  handler({ connected: true });
+
+  assert.deepEqual(calls, ['presence-refresh', 'sync-overlay-mpv-sub']);
 });
 
 test('mpv subtitle timing handler ignores blank subtitle lines', () => {

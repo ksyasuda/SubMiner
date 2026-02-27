@@ -17,9 +17,7 @@ export interface CliCommandRuntimeServiceContext {
   isOverlayInitialized: () => boolean;
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
-  toggleInvisibleOverlay: () => void;
   setVisibleOverlay: (visible: boolean) => void;
-  setInvisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;
   mineSentenceCard: () => Promise<void>;
@@ -74,9 +72,7 @@ function createCliCommandDepsFromContext(
       isInitialized: context.isOverlayInitialized,
       initialize: context.initializeOverlay,
       toggleVisible: context.toggleVisibleOverlay,
-      toggleInvisible: context.toggleInvisibleOverlay,
       setVisible: context.setVisibleOverlay,
-      setInvisible: context.setInvisibleOverlay,
     },
     mining: {
       copyCurrentSubtitle: context.copyCurrentSubtitle,

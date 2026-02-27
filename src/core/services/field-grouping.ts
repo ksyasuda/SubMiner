@@ -2,9 +2,7 @@ import { KikuFieldGroupingChoice, KikuFieldGroupingRequestData } from '../../typ
 
 export function createFieldGroupingCallback(options: {
   getVisibleOverlayVisible: () => boolean;
-  getInvisibleOverlayVisible: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
-  setInvisibleOverlayVisible: (visible: boolean) => void;
   getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
   setResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
   sendRequestToVisibleOverlay: (data: KikuFieldGroupingRequestData) => boolean;
@@ -22,7 +20,6 @@ export function createFieldGroupingCallback(options: {
       }
 
       const previousVisibleOverlay = options.getVisibleOverlayVisible();
-      const previousInvisibleOverlay = options.getInvisibleOverlayVisible();
       let settled = false;
 
       const finish = (choice: KikuFieldGroupingChoice): void => {
@@ -35,9 +32,6 @@ export function createFieldGroupingCallback(options: {
 
         if (!previousVisibleOverlay && options.getVisibleOverlayVisible()) {
           options.setVisibleOverlayVisible(false);
-        }
-        if (options.getInvisibleOverlayVisible() !== previousInvisibleOverlay) {
-          options.setInvisibleOverlayVisible(previousInvisibleOverlay);
         }
       };
 

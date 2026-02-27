@@ -19,7 +19,6 @@ export function createBuildOverlayModalRuntimeMainDepsHandler(
 ) {
   return (): OverlayWindowResolver => ({
     getMainWindow: () => deps.getMainWindow(),
-    getInvisibleWindow: () => deps.getInvisibleWindow(),
     getModalWindow: () => deps.getModalWindow(),
     createModalWindow: () => deps.createModalWindow(),
     getModalGeometry: () => deps.getModalGeometry(),

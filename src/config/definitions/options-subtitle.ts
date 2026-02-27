@@ -28,6 +28,12 @@ export function buildSubtitleConfigOptionRegistry(
       description: 'Hex color used for hovered subtitle token highlight in mpv.',
     },
     {
+      path: 'subtitleStyle.hoverTokenBackgroundColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.hoverTokenBackgroundColor,
+      description: 'CSS color used for hovered subtitle token background highlight in mpv.',
+    },
+    {
       path: 'subtitleStyle.frequencyDictionary.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleStyle.frequencyDictionary.enabled,

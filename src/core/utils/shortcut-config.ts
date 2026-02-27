@@ -2,7 +2,6 @@ import { Config } from '../../types';
 
 export interface ConfiguredShortcuts {
   toggleVisibleOverlayGlobal: string | null | undefined;
-  toggleInvisibleOverlayGlobal: string | null | undefined;
   copySubtitle: string | null | undefined;
   copySubtitleMultiple: string | null | undefined;
   updateLastCardFromClipboard: string | null | undefined;
@@ -32,10 +31,6 @@ export function resolveConfiguredShortcuts(
     toggleVisibleOverlayGlobal: normalizeShortcut(
       config.shortcuts?.toggleVisibleOverlayGlobal ??
         defaultConfig.shortcuts?.toggleVisibleOverlayGlobal,
-    ),
-    toggleInvisibleOverlayGlobal: normalizeShortcut(
-      config.shortcuts?.toggleInvisibleOverlayGlobal ??
-        defaultConfig.shortcuts?.toggleInvisibleOverlayGlobal,
     ),
     copySubtitle: normalizeShortcut(
       config.shortcuts?.copySubtitle ?? defaultConfig.shortcuts?.copySubtitle,

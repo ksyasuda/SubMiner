@@ -14,7 +14,6 @@ test('composeShortcutRuntimes returns callable shortcut runtime handlers', () =>
         getConfiguredShortcuts: () => ({}) as never,
         registerGlobalShortcutsCore: () => {},
         toggleVisibleOverlay: () => {},
-        toggleInvisibleOverlay: () => {},
         openYomitanSettings: () => {},
         isDev: false,
         getMainWindow: () => null,

@@ -19,11 +19,9 @@ test('createFieldGroupingOverlayRuntime sends overlay messages and sets restore 
       },
     }),
     getVisibleOverlayVisible: () => visible,
-    getInvisibleOverlayVisible: () => false,
     setVisibleOverlayVisible: (next) => {
       visible = next;
     },
-    setInvisibleOverlayVisible: () => {},
     getResolver: () => null,
     setResolver: () => {},
     getRestoreVisibleOverlayOnModalClose: () => restore,
@@ -44,9 +42,7 @@ test('createFieldGroupingOverlayRuntime callback cancels when send fails', async
   const runtime = createFieldGroupingOverlayRuntime<'runtime-options' | 'subsync'>({
     getMainWindow: () => null,
     getVisibleOverlayVisible: () => false,
-    getInvisibleOverlayVisible: () => false,
     setVisibleOverlayVisible: () => {},
-    setInvisibleOverlayVisible: () => {},
     getResolver: () => resolver,
     setResolver: (next: ((choice: KikuFieldGroupingChoice) => void) | null) => {
       resolver = next;
@@ -87,12 +83,10 @@ test('createFieldGroupingOverlayRuntime callback restores hidden visible overlay
   const runtime = createFieldGroupingOverlayRuntime<'runtime-options' | 'subsync'>({
     getMainWindow: () => null,
     getVisibleOverlayVisible: () => visible,
-    getInvisibleOverlayVisible: () => false,
     setVisibleOverlayVisible: (nextVisible) => {
       visible = nextVisible;
       visibilityTransitions.push(nextVisible);
     },
-    setInvisibleOverlayVisible: () => {},
     getResolver: () => resolver as ((choice: KikuFieldGroupingChoice) => void) | null,
     setResolver: (nextResolver: ((choice: KikuFieldGroupingChoice) => void) | null) => {
       resolver = nextResolver;

@@ -19,12 +19,10 @@ test('overlay content measurement store main deps builder maps callbacks', () =>
 
 test('overlay modal runtime main deps builder maps window resolvers', () => {
   const mainWindow = { id: 'main' };
-  const invisibleWindow = { id: 'invisible' };
   const modalWindow = { id: 'modal' };
   const calls: string[] = [];
   const deps = createBuildOverlayModalRuntimeMainDepsHandler({
     getMainWindow: () => mainWindow as never,
-    getInvisibleWindow: () => invisibleWindow as never,
     getModalWindow: () => modalWindow as never,
     createModalWindow: () => modalWindow as never,
     getModalGeometry: () => ({ x: 1, y: 2, width: 3, height: 4 }),
@@ -33,7 +31,6 @@ test('overlay modal runtime main deps builder maps window resolvers', () => {
   })();
 
   assert.equal(deps.getMainWindow(), mainWindow);
-  assert.equal(deps.getInvisibleWindow(), invisibleWindow);
   assert.equal(deps.getModalWindow(), modalWindow);
   assert.equal(deps.createModalWindow(), modalWindow);
   assert.deepEqual(deps.getModalGeometry(), { x: 1, y: 2, width: 3, height: 4 });

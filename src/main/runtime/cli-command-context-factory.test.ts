@@ -20,9 +20,7 @@ test('cli command context factory composes main deps and context handlers', () =
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     initializeOverlayRuntime: () => calls.push('init-overlay'),
     toggleVisibleOverlay: () => calls.push('toggle-visible'),
-    toggleInvisibleOverlay: () => calls.push('toggle-invisible'),
     setVisibleOverlayVisible: (visible) => calls.push(`set-visible:${visible}`),
-    setInvisibleOverlayVisible: (visible) => calls.push(`set-invisible:${visible}`),
     copyCurrentSubtitle: () => calls.push('copy-sub'),
     startPendingMultiCopy: (timeoutMs) => calls.push(`multi:${timeoutMs}`),
     mineSentenceCard: async () => {},
@@ -73,16 +71,8 @@ test('cli command context factory composes main deps and context handlers', () =
   context.setSocketPath('/tmp/new.sock');
   context.showOsd('hello');
   context.setVisibleOverlay(true);
-  context.setInvisibleOverlay(false);
   context.toggleVisibleOverlay();
-  context.toggleInvisibleOverlay();
 
   assert.equal(appState.mpvSocketPath, '/tmp/new.sock');
-  assert.deepEqual(calls, [
-    'osd:hello',
-    'set-visible:true',
-    'set-invisible:false',
-    'toggle-visible',
-    'toggle-invisible',
-  ]);
+  assert.deepEqual(calls, ['osd:hello', 'set-visible:true', 'toggle-visible']);
 });

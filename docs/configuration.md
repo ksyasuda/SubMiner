@@ -74,7 +74,7 @@ The configuration file includes several main sections:
 - [**Auto-Start Overlay**](#auto-start-overlay) - Automatically show overlay on MPV connection
 - [**Visible Overlay Subtitle Binding**](#visible-overlay-subtitle-binding) - Link visible overlay toggles to MPV subtitle visibility
 - [**Auto Subtitle Sync**](#auto-subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
-- [**Invisible Overlay**](#invisible-overlay) - Startup visibility behavior for the invisible mining layer
+- [**Subtitle Position Edit**](#subtitle-position-edit) - Fine-tune subtitle alignment in overlay
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
 - [**AniList**](#anilist) - Optional post-watch progress updates
 - [**Jellyfin**](#jellyfin) - Optional Jellyfin auth, library listing, and playback launch
@@ -338,7 +338,7 @@ Control whether the overlay automatically becomes visible when it connects to mp
 | -------------------- | --------------- | ------------------------------------------------------ |
 | `auto_start_overlay` | `true`, `false` | Auto-show overlay on mpv connection (default: `false`) |
 
-The mpv plugin controls startup per layer via `auto_start_visible_overlay` and `auto_start_invisible_overlay` in `subminer.conf` (`platform-default` for invisible means hidden on Linux, visible on macOS/Windows).
+The mpv plugin controls startup overlay visibility via `auto_start_visible_overlay` in `subminer.conf`.
 
 ### Visible Overlay Subtitle Binding
 
@@ -379,20 +379,12 @@ Sync the active subtitle track using `alass` (preferred) or `ffsubsync`:
 Default trigger is `Ctrl+Alt+S` via `shortcuts.triggerSubsync`.
 Customize it there, or set it to `null` to disable.
 
-### Invisible Overlay
+### Subtitle Position Edit
 
-SubMiner includes a second subtitle mining layer that can be visually invisible while still interactive for Yomitan lookups.
-
-- `invisibleOverlay.startupVisibility` values:
-
-1. `"platform-default"`: hidden on Wayland, visible on Windows/macOS/other sessions.
-2. `"visible"`: always shown on startup.
-3. `"hidden"`: always hidden on startup.
-
-Invisible subtitle positioning can be adjusted directly in the invisible layer:
+Subtitle positioning can be adjusted directly in the overlay:
 
 - `Ctrl/Cmd+Shift+P` toggles position edit mode.
-- Use arrow keys to move the invisible subtitle text.
+- Use arrow keys to move subtitle text.
 - Press `Enter` or `Ctrl/Cmd+S` to save, or `Esc` to cancel.
 - This edit-mode shortcut is fixed (not currently configurable in `shortcuts`/`keybindings`).
 
@@ -670,7 +662,6 @@ See `config.example.jsonc` for detailed configuration options.
 {
   "shortcuts": {
     "toggleVisibleOverlayGlobal": "Alt+Shift+O",
-    "toggleInvisibleOverlayGlobal": "Alt+Shift+I",
     "copySubtitle": "CommandOrControl+C",
     "copySubtitleMultiple": "CommandOrControl+Shift+C",
     "updateLastCardFromClipboard": "CommandOrControl+V",
@@ -689,7 +680,6 @@ See `config.example.jsonc` for detailed configuration options.
 | Option                         | Values           | Description                                                                                                                                   |
 | ------------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `toggleVisibleOverlayGlobal`   | string \| `null` | Global accelerator for toggling visible subtitle overlay (default: `"Alt+Shift+O"`)                                                           |
-| `toggleInvisibleOverlayGlobal` | string \| `null` | Global accelerator for toggling invisible interactive overlay (default: `"Alt+Shift+I"`)                                                      |
 | `copySubtitle`                 | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                                                                    |
 | `copySubtitleMultiple`         | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                                                                       |
 | `updateLastCardFromClipboard`  | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                                                                |

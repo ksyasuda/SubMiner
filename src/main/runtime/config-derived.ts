@@ -1,7 +1,6 @@
 import type { RuntimeOptionsManager } from '../../runtime-options';
 import type { JimakuApiResponse, JimakuLanguagePreference, ResolvedConfig } from '../../types';
 import {
-  getInitialInvisibleOverlayVisibility as getInitialInvisibleOverlayVisibilityCore,
   getJimakuLanguagePreference as getJimakuLanguagePreferenceCore,
   getJimakuMaxEntryResults as getJimakuMaxEntryResultsCore,
   isAutoUpdateEnabledRuntime as isAutoUpdateEnabledRuntimeCore,
@@ -14,14 +13,12 @@ import {
 export type ConfigDerivedRuntimeDeps = {
   getResolvedConfig: () => ResolvedConfig;
   getRuntimeOptionsManager: () => RuntimeOptionsManager | null;
-  platform: NodeJS.Platform;
   defaultJimakuLanguagePreference: JimakuLanguagePreference;
   defaultJimakuMaxEntryResults: number;
   defaultJimakuApiBaseUrl: string;
 };
 
 export function createConfigDerivedRuntime(deps: ConfigDerivedRuntimeDeps): {
-  getInitialInvisibleOverlayVisibility: () => boolean;
   shouldAutoInitializeOverlayRuntimeFromConfig: () => boolean;
   shouldBindVisibleOverlayToMpvSubVisibility: () => boolean;
   isAutoUpdateEnabledRuntime: () => boolean;
@@ -34,8 +31,6 @@ export function createConfigDerivedRuntime(deps: ConfigDerivedRuntimeDeps): {
   ) => Promise<JimakuApiResponse<T>>;
 } {
   return {
-    getInitialInvisibleOverlayVisibility: () =>
-      getInitialInvisibleOverlayVisibilityCore(deps.getResolvedConfig(), deps.platform),
     shouldAutoInitializeOverlayRuntimeFromConfig: () =>
       shouldAutoInitializeOverlayRuntimeFromConfigCore(deps.getResolvedConfig()),
     shouldBindVisibleOverlayToMpvSubVisibility: () =>

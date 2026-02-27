@@ -18,6 +18,7 @@ type MpvEventClient = {
 export function createHandleMpvConnectionChangeHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
   refreshDiscordPresence: () => void;
+  syncOverlayMpvSubtitleSuppression: () => void;
   hasInitialJellyfinPlayArg: () => boolean;
   isOverlayRuntimeInitialized: () => boolean;
   isQuitOnDisconnectArmed: () => boolean;
@@ -27,7 +28,10 @@ export function createHandleMpvConnectionChangeHandler(deps: {
 }) {
   return ({ connected }: { connected: boolean }): void => {
     deps.refreshDiscordPresence();
-    if (connected) return;
+    if (connected) {
+      deps.syncOverlayMpvSubtitleSuppression();
+      return;
+    }
     deps.reportJellyfinRemoteStopped();
     if (!deps.hasInitialJellyfinPlayArg()) return;
     if (deps.isOverlayRuntimeInitialized()) return;

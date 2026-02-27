@@ -9,7 +9,6 @@ These work system-wide regardless of which window has focus.
 | Shortcut      | Action                   | Configurable                             |
 | ------------- | ------------------------ | ---------------------------------------- |
 | `Alt+Shift+O` | Toggle visible overlay   | `shortcuts.toggleVisibleOverlayGlobal`   |
-| `Alt+Shift+I` | Toggle invisible overlay | `shortcuts.toggleInvisibleOverlayGlobal` |
 | `Alt+Shift+Y` | Open Yomitan settings    | Fixed (not configurable)                 |
 
 ::: tip
@@ -64,9 +63,9 @@ These keybindings can be overridden or disabled via the `keybindings` config arr
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`         |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`     |
 
-## Invisible Subtitle Position Edit Mode
+## Subtitle Position Edit Mode
 
-Enter edit mode to fine-tune invisible overlay alignment with mpv's native subtitles.
+Enter edit mode to fine-tune subtitle alignment.
 
 | Shortcut              | Action                           |
 | --------------------- | -------------------------------- |
@@ -86,9 +85,6 @@ When the mpv plugin is installed, all commands use a `y` chord prefix — press 
 | `y-s` | Start overlay                           |
 | `y-S` | Stop overlay                            |
 | `y-t` | Toggle visible overlay                  |
-| `y-i` | Toggle invisible overlay                |
-| `y-I` | Show invisible overlay                  |
-| `y-u` | Hide invisible overlay                  |
 | `y-o` | Open Yomitan settings                   |
 | `y-r` | Restart overlay                         |
 | `y-c` | Check overlay status                    |
@@ -112,7 +108,6 @@ All `shortcuts.*` keys accept [Electron accelerator strings](https://www.electro
     "mineSentence": "CommandOrControl+S",
     "copySubtitle": "CommandOrControl+C",
     "toggleVisibleOverlayGlobal": "Alt+Shift+O",
-    "toggleInvisibleOverlayGlobal": "Alt+Shift+I",
     "openJimaku": null, // disabled
   },
 }

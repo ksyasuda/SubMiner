@@ -19,9 +19,6 @@ interface RuntimeAutoUpdateOptionManagerLike {
 export interface RuntimeConfigLike {
   auto_start_overlay?: boolean;
   bind_visible_overlay_to_mpv_sub_visibility: boolean;
-  invisibleOverlay: {
-    startupVisibility: 'visible' | 'hidden' | 'platform-default';
-  };
   ankiConnect?: {
     behavior?: {
       autoUpdateNewCards?: boolean;
@@ -155,21 +152,8 @@ function getStartupCriticalConfigErrors(config: AppReadyConfigLike): string[] {
   return errors;
 }
 
-export function getInitialInvisibleOverlayVisibility(
-  config: RuntimeConfigLike,
-  platform: NodeJS.Platform,
-): boolean {
-  const visibility = config.invisibleOverlay.startupVisibility;
-  if (visibility === 'visible') return true;
-  if (visibility === 'hidden') return false;
-  if (platform === 'linux') return false;
-  return true;
-}
-
 export function shouldAutoInitializeOverlayRuntimeFromConfig(config: RuntimeConfigLike): boolean {
-  if (config.auto_start_overlay === true) return true;
-  if (config.invisibleOverlay.startupVisibility === 'visible') return true;
-  return false;
+  return config.auto_start_overlay === true;
 }
 
 export function shouldBindVisibleOverlayToMpvSubVisibility(config: RuntimeConfigLike): boolean {

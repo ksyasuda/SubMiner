@@ -41,15 +41,6 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'shortcuts',
   },
   {
-    title: 'Invisible Overlay',
-    description: ['Startup behavior for the invisible interactive subtitle mining layer.'],
-    notes: [
-      'Invisible subtitle position edit mode: Ctrl/Cmd+Shift+P to toggle, arrow keys to move, Enter or Ctrl/Cmd+S to save, Esc to cancel.',
-      'This edit-mode shortcut is fixed and is not currently configurable.',
-    ],
-    key: 'invisibleOverlay',
-  },
-  {
     title: 'Keybindings (MPV Commands)',
     description: [
       'Extra keybindings that are merged with built-in defaults.',

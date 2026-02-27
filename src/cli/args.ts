@@ -4,14 +4,11 @@ export interface CliArgs {
   stop: boolean;
   toggle: boolean;
   toggleVisibleOverlay: boolean;
-  toggleInvisibleOverlay: boolean;
   settings: boolean;
   show: boolean;
   hide: boolean;
   showVisibleOverlay: boolean;
   hideVisibleOverlay: boolean;
-  showInvisibleOverlay: boolean;
-  hideInvisibleOverlay: boolean;
   copySubtitle: boolean;
   copySubtitleMultiple: boolean;
   mineSentence: boolean;
@@ -67,14 +64,11 @@ export function parseArgs(argv: string[]): CliArgs {
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
-    toggleInvisibleOverlay: false,
     settings: false,
     show: false,
     hide: false,
     showVisibleOverlay: false,
     hideVisibleOverlay: false,
-    showInvisibleOverlay: false,
-    hideInvisibleOverlay: false,
     copySubtitle: false,
     copySubtitleMultiple: false,
     mineSentence: false,
@@ -122,14 +116,11 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--stop') args.stop = true;
     else if (arg === '--toggle') args.toggle = true;
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
-    else if (arg === '--toggle-invisible-overlay') args.toggleInvisibleOverlay = true;
     else if (arg === '--settings' || arg === '--yomitan') args.settings = true;
     else if (arg === '--show') args.show = true;
     else if (arg === '--hide') args.hide = true;
     else if (arg === '--show-visible-overlay') args.showVisibleOverlay = true;
     else if (arg === '--hide-visible-overlay') args.hideVisibleOverlay = true;
-    else if (arg === '--show-invisible-overlay') args.showInvisibleOverlay = true;
-    else if (arg === '--hide-invisible-overlay') args.hideInvisibleOverlay = true;
     else if (arg === '--copy-subtitle') args.copySubtitle = true;
     else if (arg === '--copy-subtitle-multiple') args.copySubtitleMultiple = true;
     else if (arg === '--mine-sentence') args.mineSentence = true;
@@ -263,14 +254,11 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.stop ||
     args.toggle ||
     args.toggleVisibleOverlay ||
-    args.toggleInvisibleOverlay ||
     args.settings ||
     args.show ||
     args.hide ||
     args.showVisibleOverlay ||
     args.hideVisibleOverlay ||
-    args.showInvisibleOverlay ||
-    args.hideInvisibleOverlay ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
     args.mineSentence ||
@@ -307,7 +295,6 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.start ||
     args.toggle ||
     args.toggleVisibleOverlay ||
-    args.toggleInvisibleOverlay ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
     args.mineSentence ||
@@ -331,13 +318,10 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
   return (
     args.toggle ||
     args.toggleVisibleOverlay ||
-    args.toggleInvisibleOverlay ||
     args.show ||
     args.hide ||
     args.showVisibleOverlay ||
     args.hideVisibleOverlay ||
-    args.showInvisibleOverlay ||
-    args.hideInvisibleOverlay ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
     args.mineSentence ||

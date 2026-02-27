@@ -9,16 +9,11 @@ import type { BaseWindowTracker } from '../../window-trackers';
 
 type OverlayRuntimeOptions = {
   backendOverride: string | null;
-  getInitialInvisibleOverlayVisibility: () => boolean;
   createMainWindow: () => void;
-  createInvisibleWindow: () => void;
   registerGlobalShortcuts: () => void;
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
-  updateInvisibleOverlayBounds: (geometry: WindowGeometry) => void;
   isVisibleOverlayVisible: () => boolean;
-  isInvisibleOverlayVisible: () => boolean;
   updateVisibleOverlayVisibility: () => void;
-  updateInvisibleOverlayVisibility: () => void;
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
@@ -39,16 +34,11 @@ type OverlayRuntimeOptions = {
 
 export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
   getBackendOverride: () => string | null;
-  getInitialInvisibleOverlayVisibility: () => boolean;
   createMainWindow: () => void;
-  createInvisibleWindow: () => void;
   registerGlobalShortcuts: () => void;
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
-  updateInvisibleOverlayBounds: (geometry: WindowGeometry) => void;
   isVisibleOverlayVisible: () => boolean;
-  isInvisibleOverlayVisible: () => boolean;
   updateVisibleOverlayVisibility: () => void;
-  updateInvisibleOverlayVisibility: () => void;
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
@@ -68,16 +58,11 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
 }) {
   return (): OverlayRuntimeOptions => ({
     backendOverride: deps.getBackendOverride(),
-    getInitialInvisibleOverlayVisibility: deps.getInitialInvisibleOverlayVisibility,
     createMainWindow: deps.createMainWindow,
-    createInvisibleWindow: deps.createInvisibleWindow,
     registerGlobalShortcuts: deps.registerGlobalShortcuts,
     updateVisibleOverlayBounds: deps.updateVisibleOverlayBounds,
-    updateInvisibleOverlayBounds: deps.updateInvisibleOverlayBounds,
     isVisibleOverlayVisible: deps.isVisibleOverlayVisible,
-    isInvisibleOverlayVisible: deps.isInvisibleOverlayVisible,
     updateVisibleOverlayVisibility: deps.updateVisibleOverlayVisibility,
-    updateInvisibleOverlayVisibility: deps.updateInvisibleOverlayVisibility,
     getOverlayWindows: deps.getOverlayWindows,
     syncOverlayShortcuts: deps.syncOverlayShortcuts,
     setWindowTracker: deps.setWindowTracker,

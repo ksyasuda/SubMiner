@@ -10,7 +10,6 @@ import type { ConfiguredShortcuts } from '../../core/utils/shortcut-config';
 function createShortcuts(): ConfiguredShortcuts {
   return {
     toggleVisibleOverlayGlobal: 'CommandOrControl+Shift+O',
-    toggleInvisibleOverlayGlobal: 'CommandOrControl+Shift+I',
     copySubtitle: 's',
     copySubtitleMultiple: 'CommandOrControl+s',
     updateLastCardFromClipboard: 'c',
@@ -58,18 +57,16 @@ test('register global shortcuts handler passes through callbacks and shortcuts',
       assert.equal(options.isDev, true);
       assert.equal(options.getMainWindow(), mainWindow);
       options.onToggleVisibleOverlay();
-      options.onToggleInvisibleOverlay();
       options.onOpenYomitanSettings();
     },
     onToggleVisibleOverlay: () => calls.push('toggle-visible'),
-    onToggleInvisibleOverlay: () => calls.push('toggle-invisible'),
     onOpenYomitanSettings: () => calls.push('open-yomitan'),
     isDev: true,
     getMainWindow: () => mainWindow,
   });
 
   registerGlobalShortcuts();
-  assert.deepEqual(calls, ['register', 'toggle-visible', 'toggle-invisible', 'open-yomitan']);
+  assert.deepEqual(calls, ['register', 'toggle-visible', 'open-yomitan']);
 });
 
 test('refresh global and overlay shortcuts unregisters then re-registers', () => {

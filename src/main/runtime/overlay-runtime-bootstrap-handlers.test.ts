@@ -15,7 +15,6 @@ test('overlay runtime bootstrap handlers compose options builder and bootstrap h
     ankiIntegration: null as unknown,
   };
   let initialized = false;
-  let invisibleOverlayVisible = false;
   let warmupsStarted = 0;
 
   const { initializeOverlayRuntime } = createOverlayRuntimeBootstrapHandlers({
@@ -23,21 +22,16 @@ test('overlay runtime bootstrap handlers compose options builder and bootstrap h
       appState,
       overlayManager: {
         getVisibleOverlayVisible: () => true,
-        getInvisibleOverlayVisible: () => false,
       },
       overlayVisibilityRuntime: {
         updateVisibleOverlayVisibility: () => {},
-        updateInvisibleOverlayVisibility: () => {},
       },
       overlayShortcutsRuntime: {
         syncOverlayShortcuts: () => {},
       },
-      getInitialInvisibleOverlayVisibility: () => false,
       createMainWindow: () => {},
-      createInvisibleWindow: () => {},
       registerGlobalShortcuts: () => {},
       updateVisibleOverlayBounds: () => {},
-      updateInvisibleOverlayBounds: () => {},
       getOverlayWindows: () => [],
       getResolvedConfig: () => ({}),
       showDesktopNotification: () => {},
@@ -52,10 +46,7 @@ test('overlay runtime bootstrap handlers compose options builder and bootstrap h
     },
     initializeOverlayRuntimeBootstrapDeps: {
       isOverlayRuntimeInitialized: () => initialized,
-      initializeOverlayRuntimeCore: () => ({ invisibleOverlayVisible: true }),
-      setInvisibleOverlayVisible: (visible) => {
-        invisibleOverlayVisible = visible;
-      },
+      initializeOverlayRuntimeCore: () => {},
       setOverlayRuntimeInitialized: (next) => {
         initialized = next;
       },
@@ -68,7 +59,6 @@ test('overlay runtime bootstrap handlers compose options builder and bootstrap h
   initializeOverlayRuntime();
   initializeOverlayRuntime();
 
-  assert.equal(invisibleOverlayVisible, true);
   assert.equal(initialized, true);
   assert.equal(warmupsStarted, 1);
 });

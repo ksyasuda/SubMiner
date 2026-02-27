@@ -12,7 +12,6 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'subsync'
   | 'auto_start_overlay'
   | 'bind_visible_overlay_to_mpv_sub_visibility'
-  | 'invisibleOverlay'
 > = {
   subtitlePosition: { yPercent: 10 },
   keybindings: [],
@@ -28,7 +27,6 @@ export const CORE_DEFAULT_CONFIG: Pick<
   },
   shortcuts: {
     toggleVisibleOverlayGlobal: 'Alt+Shift+O',
-    toggleInvisibleOverlayGlobal: 'Alt+Shift+I',
     copySubtitle: 'CommandOrControl+C',
     copySubtitleMultiple: 'CommandOrControl+Shift+C',
     updateLastCardFromClipboard: 'CommandOrControl+V',
@@ -55,7 +53,4 @@ export const CORE_DEFAULT_CONFIG: Pick<
   },
   auto_start_overlay: false,
   bind_visible_overlay_to_mpv_sub_visibility: true,
-  invisibleOverlay: {
-    startupVisibility: 'platform-default',
-  },
 };

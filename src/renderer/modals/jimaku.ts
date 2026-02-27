@@ -251,7 +251,6 @@ export function createJimakuModal(
   }
 
   function openJimakuModal(): void {
-    if (ctx.platform.isInvisibleLayer) return;
     if (ctx.state.jimakuModalOpen) return;
 
     ctx.state.jimakuModalOpen = true;

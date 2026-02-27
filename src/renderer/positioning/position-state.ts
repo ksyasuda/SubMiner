@@ -23,25 +23,12 @@ function getPersistedYPercent(ctx: RendererContext, position: SubtitlePosition |
   return position.yPercent;
 }
 
-function getPersistedOffset(
-  position: SubtitlePosition | null,
-  key: 'invisibleOffsetXPx' | 'invisibleOffsetYPx',
-): number {
-  if (position && typeof position[key] === 'number' && Number.isFinite(position[key])) {
-    return position[key];
-  }
-
-  return 0;
-}
-
 function updatePersistedSubtitlePosition(
   ctx: RendererContext,
   position: SubtitlePosition | null,
 ): void {
   ctx.state.persistedSubtitlePosition = {
     yPercent: getPersistedYPercent(ctx, position),
-    invisibleOffsetXPx: getPersistedOffset(position, 'invisibleOffsetXPx'),
-    invisibleOffsetYPx: getPersistedOffset(position, 'invisibleOffsetYPx'),
   };
 }
 
@@ -54,14 +41,6 @@ function getNextPersistedPosition(
       typeof patch.yPercent === 'number' && Number.isFinite(patch.yPercent)
         ? patch.yPercent
         : ctx.state.persistedSubtitlePosition.yPercent,
-    invisibleOffsetXPx:
-      typeof patch.invisibleOffsetXPx === 'number' && Number.isFinite(patch.invisibleOffsetXPx)
-        ? patch.invisibleOffsetXPx
-        : (ctx.state.persistedSubtitlePosition.invisibleOffsetXPx ?? 0),
-    invisibleOffsetYPx:
-      typeof patch.invisibleOffsetYPx === 'number' && Number.isFinite(patch.invisibleOffsetYPx)
-        ? patch.invisibleOffsetYPx
-        : (ctx.state.persistedSubtitlePosition.invisibleOffsetYPx ?? 0),
   };
 }
 

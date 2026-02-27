@@ -33,9 +33,6 @@ All keybindings use a `y` chord prefix — press `y`, then the second key:
 | `y-s` | Start overlay            |
 | `y-S` | Stop overlay             |
 | `y-t` | Toggle visible overlay   |
-| `y-i` | Toggle invisible overlay |
-| `y-I` | Show invisible overlay   |
-| `y-u` | Hide invisible overlay   |
 | `y-o` | Open settings window     |
 | `y-r` | Restart overlay          |
 | `y-c` | Check status             |
@@ -50,10 +47,9 @@ SubMiner:
 1. Start overlay
 2. Stop overlay
 3. Toggle overlay
-4. Toggle invisible overlay
-5. Open options
-6. Restart overlay
-7. Check status
+4. Open options
+5. Restart overlay
+6. Check status
 ```
 
 Select an item by pressing its number.
@@ -83,10 +79,6 @@ auto_start=no
 
 # Show the visible overlay on auto-start.
 auto_start_visible_overlay=no
-
-# Invisible overlay startup: platform-default, visible, hidden.
-# platform-default = hidden on Linux, visible on macOS/Windows.
-auto_start_invisible_overlay=platform-default
 
 # Show OSD messages for overlay status changes.
 osd_messages=yes
@@ -129,7 +121,6 @@ aniskip_button_duration=3
 | `backend`                      | `auto`                 | `auto`, `hyprland`, `sway`, `x11`, `macos` | Window manager backend           |
 | `auto_start`                   | `no`                   | `yes` / `no`                               | Auto-start overlay on file load  |
 | `auto_start_visible_overlay`   | `no`                   | `yes` / `no`                               | Show visible layer on auto-start |
-| `auto_start_invisible_overlay` | `platform-default`     | `platform-default`, `visible`, `hidden`    | Invisible layer on auto-start    |
 | `osd_messages`                 | `yes`                  | `yes` / `no`                               | Show OSD status messages         |
 | `log_level`                    | `info`                 | `debug`, `info`, `warn`, `error`           | Log verbosity                    |
 | `aniskip_enabled`              | `yes`                  | `yes` / `no`                               | Enable AniSkip intro detection   |
@@ -182,9 +173,6 @@ The plugin can be controlled from other mpv scripts or the mpv command line usin
 script-message subminer-start
 script-message subminer-stop
 script-message subminer-toggle
-script-message subminer-toggle-invisible
-script-message subminer-show-invisible
-script-message subminer-hide-invisible
 script-message subminer-menu
 script-message subminer-options
 script-message subminer-restart

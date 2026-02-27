@@ -104,22 +104,21 @@ test('set overlay debug visualization enabled delegates with current state and b
   const calls: string[] = [];
   let current = false;
   const setEnabled = createSetOverlayDebugVisualizationEnabledHandler({
-    setOverlayDebugVisualizationEnabledRuntime: (curr, next, setCurrent, broadcast) => {
+    setOverlayDebugVisualizationEnabledRuntime: (curr, next, setCurrent) => {
       calls.push(`runtime:${curr}->${next}`);
       setCurrent(next);
-      broadcast('overlay-debug:set', next);
+      // no renderer-level side effects for this legacy debug path.
     },
     getCurrentEnabled: () => current,
     setCurrentEnabled: (enabled) => {
       current = enabled;
       calls.push(`set:${enabled}`);
     },
-    broadcastToOverlayWindows: (channel, value) => calls.push(`emit:${channel}:${value}`),
   });
 
   setEnabled(true);
   assert.equal(current, true);
-  assert.deepEqual(calls, ['runtime:false->true', 'set:true', 'emit:overlay-debug:set:true']);
+  assert.deepEqual(calls, ['runtime:false->true', 'set:true']);
 });
 
 test('open runtime options palette handler delegates to runtime', () => {

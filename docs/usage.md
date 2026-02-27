@@ -5,7 +5,7 @@ There are two ways to use SubMiner — the `subminer` wrapper script or the mpv 
 | Approach            | Best For                                                                                                                                                                                                       |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, and manages app commands. Overlay start is explicit (`--start`, `-S`, or `y-s`).                                           |
-| **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control visible and invisible overlay layers. Requires `--input-ipc-server=/tmp/subminer-socket`. |
+| **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control overlay visibility. Requires `--input-ipc-server=/tmp/subminer-socket`. |
 
 You can use both together—install the plugin for on-demand control, but use `subminer` when you want the streamlined workflow.
 
@@ -68,11 +68,8 @@ SubMiner.AppImage --start --texthooker   # Start overlay with texthooker
 SubMiner.AppImage --texthooker           # Launch texthooker only (no overlay window)
 SubMiner.AppImage --stop                  # Stop overlay
 SubMiner.AppImage --start --toggle        # Start MPV IPC + toggle visibility
-SubMiner.AppImage --start --toggle-invisible-overlay  # Start MPV IPC + toggle invisible layer
 SubMiner.AppImage --show-visible-overlay              # Force show visible overlay
 SubMiner.AppImage --hide-visible-overlay              # Force hide visible overlay
-SubMiner.AppImage --show-invisible-overlay            # Force show invisible overlay
-SubMiner.AppImage --hide-invisible-overlay            # Force hide invisible overlay
 SubMiner.AppImage --start --dev                         # Enable app/dev mode only
 SubMiner.AppImage --start --debug                       # Alias for --dev
 SubMiner.AppImage --start --log-level debug             # Force verbose logging without app/dev mode
@@ -173,7 +170,6 @@ Notes:
 | Keybind       | Action                   |
 | ------------- | ------------------------ |
 | `Alt+Shift+O` | Toggle visible overlay   |
-| `Alt+Shift+I` | Toggle invisible overlay |
 | `Alt+Shift+Y` | Open Yomitan settings    |
 
 `Alt+Shift+Y` is a fixed global shortcut; it is not part of `shortcuts` config.
@@ -195,10 +191,10 @@ Notes:
 | `Ctrl+W`             | Quit mpv                                           |
 | `Right-click`        | Toggle MPV pause (outside subtitle area)           |
 | `Right-click + drag` | Move subtitle position (on subtitle)               |
-| `Ctrl/Cmd+Shift+P`   | Toggle invisible subtitle position edit mode       |
-| `Arrow keys`         | Move invisible subtitles while edit mode is active |
-| `Enter` / `Ctrl+S`   | Save invisible subtitle position in edit mode      |
-| `Esc`                | Cancel invisible subtitle position edit mode       |
+| `Ctrl/Cmd+Shift+P`   | Toggle subtitle position edit mode                 |
+| `Arrow keys`         | Move subtitles while edit mode is active           |
+| `Enter` / `Ctrl+S`   | Save subtitle position in edit mode                |
+| `Esc`                | Cancel subtitle position edit mode                 |
 | `Ctrl/Cmd+A`         | Append clipboard video path to MPV playlist        |
 
 These keybindings only work when the overlay window has focus. See [Configuration](/configuration) for customization.

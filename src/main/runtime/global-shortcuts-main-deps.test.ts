@@ -28,7 +28,6 @@ test('register global shortcuts main deps map callbacks and flags', () => {
     getConfiguredShortcuts: () => ({ copySubtitle: 's' } as never),
     registerGlobalShortcutsCore: () => calls.push('register'),
     toggleVisibleOverlay: () => calls.push('toggle-visible'),
-    toggleInvisibleOverlay: () => calls.push('toggle-invisible'),
     openYomitanSettings: () => calls.push('open-yomitan'),
     isDev: true,
     getMainWindow: () => mainWindow as never,
@@ -38,17 +37,15 @@ test('register global shortcuts main deps map callbacks and flags', () => {
   deps.registerGlobalShortcutsCore({
     shortcuts: deps.getConfiguredShortcuts(),
     onToggleVisibleOverlay: () => undefined,
-    onToggleInvisibleOverlay: () => undefined,
     onOpenYomitanSettings: () => undefined,
     isDev: deps.isDev,
     getMainWindow: deps.getMainWindow,
   });
   deps.onToggleVisibleOverlay();
-  deps.onToggleInvisibleOverlay();
   deps.onOpenYomitanSettings();
   assert.equal(deps.isDev, true);
   assert.deepEqual(deps.getMainWindow(), mainWindow);
-  assert.deepEqual(calls, ['register', 'toggle-visible', 'toggle-invisible', 'open-yomitan']);
+  assert.deepEqual(calls, ['register', 'toggle-visible', 'open-yomitan']);
 });
 
 test('refresh global shortcuts main deps map passthrough handlers', () => {

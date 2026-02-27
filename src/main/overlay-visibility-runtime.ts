@@ -2,50 +2,31 @@ import type { BrowserWindow } from 'electron';
 
 import type { BaseWindowTracker } from '../window-trackers';
 import type { WindowGeometry } from '../types';
-import {
-  syncInvisibleOverlayMousePassthrough,
-  updateInvisibleOverlayVisibility,
-  updateVisibleOverlayVisibility,
-} from '../core/services';
+import { updateVisibleOverlayVisibility } from '../core/services';
 
 export interface OverlayVisibilityRuntimeDeps {
   getMainWindow: () => BrowserWindow | null;
-  getInvisibleWindow: () => BrowserWindow | null;
   getVisibleOverlayVisible: () => boolean;
-  getInvisibleOverlayVisible: () => boolean;
   getWindowTracker: () => BaseWindowTracker | null;
   getTrackerNotReadyWarningShown: () => boolean;
   setTrackerNotReadyWarningShown: (shown: boolean) => void;
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
-  updateInvisibleOverlayBounds: (geometry: WindowGeometry) => void;
   ensureOverlayWindowLevel: (window: BrowserWindow) => void;
+  syncPrimaryOverlayWindowLayer: (layer: 'visible') => void;
   enforceOverlayLayerOrder: () => void;
   syncOverlayShortcuts: () => void;
+  isMacOSPlatform: () => boolean;
+  showOverlayLoadingOsd: (message: string) => void;
+  resolveFallbackBounds: () => WindowGeometry;
 }
 
 export interface OverlayVisibilityRuntimeService {
   updateVisibleOverlayVisibility: () => void;
-  updateInvisibleOverlayVisibility: () => void;
-  syncInvisibleOverlayMousePassthrough: () => void;
 }
 
 export function createOverlayVisibilityRuntimeService(
   deps: OverlayVisibilityRuntimeDeps,
 ): OverlayVisibilityRuntimeService {
-  const hasInvisibleWindow = (): boolean => {
-    const invisibleWindow = deps.getInvisibleWindow();
-    return Boolean(invisibleWindow && !invisibleWindow.isDestroyed());
-  };
-
-  const setIgnoreMouseEvents = (
-    ignore: boolean,
-    options?: Parameters<BrowserWindow['setIgnoreMouseEvents']>[1],
-  ): void => {
-    const invisibleWindow = deps.getInvisibleWindow();
-    if (!invisibleWindow || invisibleWindow.isDestroyed()) return;
-    invisibleWindow.setIgnoreMouseEvents(ignore, options);
-  };
-
   return {
     updateVisibleOverlayVisibility(): void {
       updateVisibleOverlayVisibility({
@@ -59,31 +40,13 @@ export function createOverlayVisibilityRuntimeService(
         updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
           deps.updateVisibleOverlayBounds(geometry),
         ensureOverlayWindowLevel: (window: BrowserWindow) => deps.ensureOverlayWindowLevel(window),
+        syncPrimaryOverlayWindowLayer: (layer: 'visible') =>
+          deps.syncPrimaryOverlayWindowLayer(layer),
         enforceOverlayLayerOrder: () => deps.enforceOverlayLayerOrder(),
         syncOverlayShortcuts: () => deps.syncOverlayShortcuts(),
-      });
-    },
-
-    updateInvisibleOverlayVisibility(): void {
-      updateInvisibleOverlayVisibility({
-        invisibleWindow: deps.getInvisibleWindow(),
-        visibleOverlayVisible: deps.getVisibleOverlayVisible(),
-        invisibleOverlayVisible: deps.getInvisibleOverlayVisible(),
-        windowTracker: deps.getWindowTracker(),
-        updateInvisibleOverlayBounds: (geometry: WindowGeometry) =>
-          deps.updateInvisibleOverlayBounds(geometry),
-        ensureOverlayWindowLevel: (window: BrowserWindow) => deps.ensureOverlayWindowLevel(window),
-        enforceOverlayLayerOrder: () => deps.enforceOverlayLayerOrder(),
-        syncOverlayShortcuts: () => deps.syncOverlayShortcuts(),
-      });
-    },
-
-    syncInvisibleOverlayMousePassthrough(): void {
-      syncInvisibleOverlayMousePassthrough({
-        hasInvisibleWindow,
-        setIgnoreMouseEvents,
-        visibleOverlayVisible: deps.getVisibleOverlayVisible(),
-        invisibleOverlayVisible: deps.getInvisibleOverlayVisible(),
+        isMacOSPlatform: deps.isMacOSPlatform(),
+        showOverlayLoadingOsd: (message: string) => deps.showOverlayLoadingOsd(message),
+        resolveFallbackBounds: () => deps.resolveFallbackBounds(),
       });
     },
   };

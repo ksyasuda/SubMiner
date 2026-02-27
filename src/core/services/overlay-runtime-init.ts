@@ -10,16 +10,11 @@ import {
 
 export function initializeOverlayRuntime(options: {
   backendOverride: string | null;
-  getInitialInvisibleOverlayVisibility: () => boolean;
   createMainWindow: () => void;
-  createInvisibleWindow: () => void;
   registerGlobalShortcuts: () => void;
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
-  updateInvisibleOverlayBounds: (geometry: WindowGeometry) => void;
   isVisibleOverlayVisible: () => boolean;
-  isInvisibleOverlayVisible: () => boolean;
   updateVisibleOverlayVisibility: () => void;
-  updateInvisibleOverlayVisibility: () => void;
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
@@ -38,12 +33,8 @@ export function initializeOverlayRuntime(options: {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
-}): {
-  invisibleOverlayVisible: boolean;
-} {
+}): void {
   options.createMainWindow();
-  options.createInvisibleWindow();
-  const invisibleOverlayVisible = options.getInitialInvisibleOverlayVisibility();
   options.registerGlobalShortcuts();
 
   const windowTracker = createWindowTracker(options.backendOverride, options.getMpvSocketPath());
@@ -51,16 +42,11 @@ export function initializeOverlayRuntime(options: {
   if (windowTracker) {
     windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
       options.updateVisibleOverlayBounds(geometry);
-      options.updateInvisibleOverlayBounds(geometry);
     };
     windowTracker.onWindowFound = (geometry: WindowGeometry) => {
       options.updateVisibleOverlayBounds(geometry);
-      options.updateInvisibleOverlayBounds(geometry);
       if (options.isVisibleOverlayVisible()) {
         options.updateVisibleOverlayVisibility();
-      }
-      if (options.isInvisibleOverlayVisible()) {
-        options.updateInvisibleOverlayVisibility();
       }
     };
     windowTracker.onWindowLost = () => {
@@ -101,7 +87,4 @@ export function initializeOverlayRuntime(options: {
   }
 
   options.updateVisibleOverlayVisibility();
-  options.updateInvisibleOverlayVisibility();
-
-  return { invisibleOverlayVisible };
 }

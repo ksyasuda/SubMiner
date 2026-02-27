@@ -15,9 +15,7 @@ test('field grouping overlay main deps builder maps window visibility and resolv
       },
     }),
     getVisibleOverlayVisible: () => true,
-    getInvisibleOverlayVisible: () => false,
     setVisibleOverlayVisible: (visible) => calls.push(`visible:${visible}`),
-    setInvisibleOverlayVisible: (visible) => calls.push(`invisible:${visible}`),
     getResolver: () => resolver,
     setResolver: (nextResolver) => {
       calls.push(`set-resolver:${nextResolver ? 'set' : 'null'}`);
@@ -31,17 +29,10 @@ test('field grouping overlay main deps builder maps window visibility and resolv
 
   assert.equal(deps.getMainWindow()?.isDestroyed(), false);
   assert.equal(deps.getVisibleOverlayVisible(), true);
-  assert.equal(deps.getInvisibleOverlayVisible(), false);
   assert.equal(deps.getResolver(), resolver);
   assert.equal(deps.getRestoreVisibleOverlayOnModalClose(), modalSet);
   deps.setVisibleOverlayVisible(true);
-  deps.setInvisibleOverlayVisible(false);
   deps.setResolver(null);
   assert.equal(deps.sendToVisibleOverlay('kiku:open', 1), true);
-  assert.deepEqual(calls, [
-    'visible:true',
-    'invisible:false',
-    'set-resolver:null',
-    'send:kiku:open:1',
-  ]);
+  assert.deepEqual(calls, ['visible:true', 'set-resolver:null', 'send:kiku:open:1']);
 });

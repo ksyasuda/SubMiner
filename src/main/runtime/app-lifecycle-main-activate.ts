@@ -10,14 +10,12 @@ export function createBuildShouldRestoreWindowsOnActivateMainDepsHandler(deps: {
 
 export function createBuildRestoreWindowsOnActivateMainDepsHandler(deps: {
   createMainWindow: () => void;
-  createInvisibleWindow: () => void;
   updateVisibleOverlayVisibility: () => void;
-  updateInvisibleOverlayVisibility: () => void;
+  syncOverlayMpvSubtitleSuppression: () => void;
 }) {
   return () => ({
     createMainWindow: () => deps.createMainWindow(),
-    createInvisibleWindow: () => deps.createInvisibleWindow(),
     updateVisibleOverlayVisibility: () => deps.updateVisibleOverlayVisibility(),
-    updateInvisibleOverlayVisibility: () => deps.updateInvisibleOverlayVisibility(),
+    syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
   });
 }

@@ -162,8 +162,6 @@ export function createRuntimeOptionsModal(
   }
 
   async function openRuntimeOptionsModal(): Promise<void> {
-    if (ctx.platform.isInvisibleLayer) return;
-
     const optionsList = await window.electronAPI.getRuntimeOptions();
     updateRuntimeOptions(optionsList);
 

@@ -28,7 +28,7 @@ test('sanitizeOverlayContentMeasurement accepts valid payload with null rect', (
 test('sanitizeOverlayContentMeasurement rejects invalid ranges', () => {
   const measurement = sanitizeOverlayContentMeasurement(
     {
-      layer: 'invisible',
+      layer: 'visible',
       measuredAtMs: 100,
       viewport: { width: 0, height: 1080 },
       contentRect: { x: 0, y: 0, width: 100, height: 20 },
@@ -39,7 +39,7 @@ test('sanitizeOverlayContentMeasurement rejects invalid ranges', () => {
   assert.equal(measurement, null);
 });
 
-test('overlay measurement store keeps latest payload per layer', () => {
+test('overlay measurement store keeps latest payload for visible layer', () => {
   const store = createOverlayContentMeasurementStore({
     now: () => 1000,
     warn: () => {
@@ -53,17 +53,9 @@ test('overlay measurement store keeps latest payload per layer', () => {
     viewport: { width: 1280, height: 720 },
     contentRect: { x: 50, y: 60, width: 400, height: 80 },
   });
-  const invisible = store.report({
-    layer: 'invisible',
-    measuredAtMs: 910,
-    viewport: { width: 1280, height: 720 },
-    contentRect: { x: 20, y: 30, width: 300, height: 40 },
-  });
 
   assert.equal(visible?.layer, 'visible');
-  assert.equal(invisible?.layer, 'invisible');
   assert.equal(store.getLatestByLayer('visible')?.contentRect?.width, 400);
-  assert.equal(store.getLatestByLayer('invisible')?.contentRect?.height, 40);
 });
 
 test('overlay measurement store rate-limits invalid payload warnings', () => {

@@ -73,7 +73,7 @@ subminer app --start --yomitan
 
 ```bash
 subminer app --start --background
-subminer video.mkv # toggle invisible overlay with y-i and visible overlay with y-t
+subminer video.mkv # y-t toggles overlay visibility
 ```
 
 ## Requirements

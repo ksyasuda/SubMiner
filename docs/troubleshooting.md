@@ -153,7 +153,7 @@ SubMiner positions the overlay by tracking the mpv window. If tracking fails:
 - Sway: Ensure `swaymsg` is available.
 - X11: Ensure `xdotool` and `xwininfo` are installed.
 
-If the overlay position is slightly off, use invisible subtitle position edit mode (`Ctrl/Cmd+Shift+P`) to fine-tune the offset with arrow keys, then save with `Enter` or `Ctrl+S`.
+If the overlay position is slightly off, use subtitle position edit mode (`Ctrl/Cmd+Shift+P`) to fine-tune the offset with arrow keys, then save with `Enter` or `Ctrl+S`.
 
 ## Yomitan
 
@@ -217,10 +217,10 @@ Media generation has a 30-second timeout (60 seconds for animated AVIF). If your
 
 **"Failed to register global shortcut"**
 
-Global shortcuts (`Alt+Shift+O`, `Alt+Shift+I`, `Alt+Shift+Y`) may conflict with other applications or desktop environment keybindings.
+Global shortcuts (`Alt+Shift+O`, `Alt+Shift+Y`) may conflict with other applications or desktop environment keybindings.
 
 - Check your DE/WM keybinding settings for conflicts.
-- Change the shortcuts in your config under `shortcuts.toggleVisibleOverlayGlobal`, `shortcuts.toggleInvisibleOverlayGlobal`.
+- Change the shortcut in your config under `shortcuts.toggleVisibleOverlayGlobal`.
 - On Wayland, global shortcut registration has limitations depending on the compositor.
 
 **Overlay keybindings not working**
@@ -273,5 +273,5 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 ### macOS
 
 - **Accessibility permission**: Required for window tracking. Grant it in System Settings > Privacy & Security > Accessibility.
-- **Font rendering**: macOS uses a 0.87x font compensation factor for subtitle alignment between mpv and the overlay. If text alignment looks off, adjust the invisible subtitle offset.
+- **Font rendering**: macOS uses a 0.87x font compensation factor for subtitle alignment between mpv and the overlay. If text alignment looks off, adjust subtitle offset in position edit mode.
 - **Gatekeeper**: If macOS blocks SubMiner, right-click the app and select "Open" to bypass the warning, or remove the quarantine attribute: `xattr -d com.apple.quarantine /path/to/SubMiner.app`

@@ -27,7 +27,8 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
-  assert.equal(config.subtitleStyle.hoverTokenColor, '#c6a0f6');
+  assert.equal(config.subtitleStyle.hoverTokenColor, '#f4dbd6');
+  assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, '#363a4fd6');
   assert.equal(config.immersionTracking.enabled, true);
   assert.equal(config.immersionTracking.dbPath, '');
   assert.equal(config.immersionTracking.batchSize, 25);
@@ -133,6 +134,44 @@ test('parses subtitleStyle.hoverTokenColor and warns on invalid values', () => {
     invalidService
       .getWarnings()
       .some((warning) => warning.path === 'subtitleStyle.hoverTokenColor'),
+  );
+});
+
+test('parses subtitleStyle.hoverTokenBackgroundColor and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "hoverTokenBackgroundColor": "#363a4fd6"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.hoverTokenBackgroundColor, '#363a4fd6');
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "hoverTokenBackgroundColor": true
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.hoverTokenBackgroundColor,
+    DEFAULT_CONFIG.subtitleStyle.hoverTokenBackgroundColor,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.hoverTokenBackgroundColor'),
   );
 });
 
@@ -597,18 +636,14 @@ test('warns and ignores unknown top-level config keys', () => {
   assert.ok(warnings.some((warning) => warning.path === 'unknownFeatureFlag'));
 });
 
-test('parses invisible overlay config and new global shortcuts', () => {
+test('parses global shortcuts and startup visibility flags', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "shortcuts": {
         "toggleVisibleOverlayGlobal": "Alt+Shift+U",
-        "toggleInvisibleOverlayGlobal": "Alt+Shift+I",
         "openJimaku": "Ctrl+Alt+J"
-      },
-      "invisibleOverlay": {
-        "startupVisibility": "hidden"
       },
       "bind_visible_overlay_to_mpv_sub_visibility": false,
       "youtubeSubgen": {
@@ -621,9 +656,7 @@ test('parses invisible overlay config and new global shortcuts', () => {
   const service = new ConfigService(dir);
   const config = service.getConfig();
   assert.equal(config.shortcuts.toggleVisibleOverlayGlobal, 'Alt+Shift+U');
-  assert.equal(config.shortcuts.toggleInvisibleOverlayGlobal, 'Alt+Shift+I');
   assert.equal(config.shortcuts.openJimaku, 'Ctrl+Alt+J');
-  assert.equal(config.invisibleOverlay.startupVisibility, 'hidden');
   assert.equal(config.bind_visible_overlay_to_mpv_sub_visibility, false);
   assert.deepEqual(config.youtubeSubgen.primarySubLanguages, ['ja', 'jpn', 'jp']);
 });

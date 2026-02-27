@@ -100,6 +100,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     const fallbackSubtitleStyleEnableJlpt = resolved.subtitleStyle.enableJlpt;
     const fallbackSubtitleStylePreserveLineBreaks = resolved.subtitleStyle.preserveLineBreaks;
     const fallbackSubtitleStyleHoverTokenColor = resolved.subtitleStyle.hoverTokenColor;
+    const fallbackSubtitleStyleHoverTokenBackgroundColor =
+      resolved.subtitleStyle.hoverTokenBackgroundColor;
     resolved.subtitleStyle = {
       ...resolved.subtitleStyle,
       ...(src.subtitleStyle as ResolvedConfig['subtitleStyle']),
@@ -151,6 +153,24 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         (src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor,
         resolved.subtitleStyle.hoverTokenColor,
         'Expected hex color.',
+      );
+    }
+
+    const hoverTokenBackgroundColor = asString(
+      (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor,
+    );
+    if (hoverTokenBackgroundColor !== undefined) {
+      resolved.subtitleStyle.hoverTokenBackgroundColor = hoverTokenBackgroundColor;
+    } else if (
+      (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor !==
+      undefined
+    ) {
+      resolved.subtitleStyle.hoverTokenBackgroundColor = fallbackSubtitleStyleHoverTokenBackgroundColor;
+      warn(
+        'subtitleStyle.hoverTokenBackgroundColor',
+        (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor,
+        resolved.subtitleStyle.hoverTokenBackgroundColor,
+        'Expected string.',
       );
     }
 

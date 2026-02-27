@@ -26,27 +26,32 @@ export function sendToVisibleOverlayRuntime<T extends string>(options: {
       options.mainWindow!.webContents.send(options.channel, options.payload);
     }
   };
-  if (options.mainWindow.webContents.isLoading()) {
+
+  const getURL = options.mainWindow.webContents.getURL;
+  const currentURL =
+    typeof getURL === 'function' ? getURL.call(options.mainWindow.webContents) : 'ready';
+  const isReady =
+    !options.mainWindow.webContents.isLoading() &&
+    currentURL !== '' &&
+    currentURL !== 'about:blank';
+
+  if (!isReady) {
     options.mainWindow.webContents.once('did-finish-load', () => {
-      if (
-        options.mainWindow &&
-        !options.mainWindow.isDestroyed() &&
-        !options.mainWindow.webContents.isLoading()
-      ) {
+      if (!options.mainWindow || options.mainWindow.isDestroyed()) return;
+      if (!options.mainWindow.webContents.isLoading()) {
         sendNow();
       }
     });
     return true;
   }
+
   sendNow();
   return true;
 }
 
 export function createFieldGroupingCallbackRuntime<T extends string>(options: {
   getVisibleOverlayVisible: () => boolean;
-  getInvisibleOverlayVisible: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
-  setInvisibleOverlayVisible: (visible: boolean) => void;
   getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
   setResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
   sendToVisibleOverlay: (
@@ -57,9 +62,7 @@ export function createFieldGroupingCallbackRuntime<T extends string>(options: {
 }): (data: KikuFieldGroupingRequestData) => Promise<KikuFieldGroupingChoice> {
   return createFieldGroupingCallback({
     getVisibleOverlayVisible: options.getVisibleOverlayVisible,
-    getInvisibleOverlayVisible: options.getInvisibleOverlayVisible,
     setVisibleOverlayVisible: options.setVisibleOverlayVisible,
-    setInvisibleOverlayVisible: options.setInvisibleOverlayVisible,
     getResolver: options.getResolver,
     setResolver: options.setResolver,
     sendRequestToVisibleOverlay: (data) =>

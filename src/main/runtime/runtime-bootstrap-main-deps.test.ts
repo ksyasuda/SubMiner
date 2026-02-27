@@ -64,7 +64,6 @@ test('config derived runtime main deps builder maps callbacks', () => {
   const deps = createBuildConfigDerivedRuntimeMainDepsHandler({
     getResolvedConfig: () => ({ jimaku: {} } as never),
     getRuntimeOptionsManager: () => null,
-    platform: 'darwin',
     defaultJimakuLanguagePreference: 'ja',
     defaultJimakuMaxEntryResults: 20,
     defaultJimakuApiBaseUrl: 'https://api.example.com',
@@ -72,7 +71,6 @@ test('config derived runtime main deps builder maps callbacks', () => {
 
   assert.deepEqual(deps.getResolvedConfig(), { jimaku: {} });
   assert.equal(deps.getRuntimeOptionsManager(), null);
-  assert.equal(deps.platform, 'darwin');
   assert.equal(deps.defaultJimakuLanguagePreference, 'ja');
   assert.equal(deps.defaultJimakuMaxEntryResults, 20);
   assert.equal(deps.defaultJimakuApiBaseUrl, 'https://api.example.com');

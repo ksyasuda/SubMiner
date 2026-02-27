@@ -66,7 +66,6 @@ export function createKikuModal(
     original: KikuDuplicateCardInfo;
     duplicate: KikuDuplicateCardInfo;
   }): void {
-    if (ctx.platform.isInvisibleLayer) return;
     if (ctx.state.kikuModalOpen) return;
 
     ctx.state.kikuModalOpen = true;

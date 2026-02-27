@@ -3,7 +3,6 @@ import type {
   JimakuFileEntry,
   KikuDuplicateCardInfo,
   KikuFieldGroupingChoice,
-  MpvSubtitleRenderMetrics,
   RuntimeOptionId,
   RuntimeOptionState,
   RuntimeOptionValue,
@@ -56,29 +55,6 @@ export type RendererState = {
 
   sessionHelpModalOpen: boolean;
   sessionHelpSelectedIndex: number;
-
-  mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics | null;
-  invisiblePositionEditMode: boolean;
-  invisiblePositionEditStartX: number;
-  invisiblePositionEditStartY: number;
-  invisibleSubtitleOffsetXPx: number;
-  invisibleSubtitleOffsetYPx: number;
-  invisibleLayoutBaseLeftPx: number;
-  invisibleLayoutBaseBottomPx: number | null;
-  invisibleLayoutBaseTopPx: number | null;
-  invisiblePositionEditHud: HTMLDivElement | null;
-  currentInvisibleSubtitleLineCount: number;
-
-  lastHoverSelectionKey: string;
-  lastHoverSelectionNode: Text | null;
-  lastHoveredTokenIndex: number | null;
-  invisibleTokenHoverSourceText: string;
-  invisibleTokenHoverRanges: Array<{
-    start: number;
-    end: number;
-    tokenIndex: number;
-  }>;
-  invisibleMeasuredDescentPx: number | null;
 
   knownWordColor: string;
   nPlusOneColor: string;
@@ -141,25 +117,6 @@ export function createRendererState(): RendererState {
 
     sessionHelpModalOpen: false,
     sessionHelpSelectedIndex: 0,
-
-    mpvSubtitleRenderMetrics: null,
-    invisiblePositionEditMode: false,
-    invisiblePositionEditStartX: 0,
-    invisiblePositionEditStartY: 0,
-    invisibleSubtitleOffsetXPx: 0,
-    invisibleSubtitleOffsetYPx: 0,
-    invisibleLayoutBaseLeftPx: 0,
-    invisibleLayoutBaseBottomPx: null,
-    invisibleLayoutBaseTopPx: null,
-    invisiblePositionEditHud: null,
-    currentInvisibleSubtitleLineCount: 1,
-
-    lastHoverSelectionKey: '',
-    lastHoverSelectionNode: null,
-    lastHoveredTokenIndex: null,
-    invisibleTokenHoverSourceText: '',
-    invisibleTokenHoverRanges: [],
-    invisibleMeasuredDescentPx: null,
 
     knownWordColor: '#a6da95',
     nPlusOneColor: '#c6a0f6',

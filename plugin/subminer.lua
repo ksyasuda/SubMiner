@@ -24,10 +24,6 @@ local function default_socket_path()
 	return "/tmp/subminer-socket"
 end
 
-local function is_linux()
-	return not is_windows() and not is_macos()
-end
-
 local function is_subminer_process_running()
 	local command = is_windows() and { "tasklist", "/FO", "CSV", "/NH" } or { "ps", "-A", "-o", "args=" }
 	local result = mp.command_native({
@@ -140,7 +136,6 @@ local opts = {
 	auto_start = true,
 	auto_start_overlay = false, -- legacy alias, maps to auto_start_visible_overlay
 	auto_start_visible_overlay = false,
-	auto_start_invisible_overlay = "platform-default", -- platform-default | visible | hidden
 	osd_messages = true,
 	log_level = "info",
 	aniskip_enabled = true,
@@ -163,7 +158,6 @@ local state = {
 	binary_available = false,
 	binary_path = nil,
 	detected_backend = nil,
-	invisible_overlay_visible = false,
 	hover_highlight = {
 		revision = -1,
 		payload = nil,
@@ -796,6 +790,15 @@ local function fix_ass_color(input, fallback)
 	return b .. g .. r
 end
 
+local function sanitize_hover_ass_color(input, fallback_rgb)
+	local fallback = fix_ass_color(fallback_rgb or DEFAULT_HOVER_COLOR, DEFAULT_HOVER_COLOR)
+	local converted = fix_ass_color(input, fallback)
+	if converted == "000000" then
+		return fallback
+	end
+	return converted
+end
+
 local function escape_ass_text(text)
 	return (text or "")
 		:gsub("\\", "\\\\")
@@ -858,7 +861,7 @@ local function resolve_metrics()
 		border = sub_border_size * window_scale,
 		shadow = sub_shadow_offset * window_scale,
 		base_color = fix_ass_color(mp.get_property("sub-color"), DEFAULT_HOVER_BASE_COLOR),
-		hover_color = fix_ass_color(mp.get_property("sub-color"), DEFAULT_HOVER_COLOR),
+		hover_color = sanitize_hover_ass_color(nil, DEFAULT_HOVER_COLOR),
 	}
 end
 
@@ -1068,7 +1071,7 @@ local function build_hover_subtitle_content(payload)
 	end
 
 	local metrics = resolve_metrics()
-	local hover_color = fix_ass_color(payload.colors and payload.colors.hover or nil, metrics.hover_color)
+	local hover_color = sanitize_hover_ass_color(payload.colors and payload.colors.hover or nil, DEFAULT_HOVER_COLOR)
 	local base_color = fix_ass_color(payload.colors and payload.colors.base or nil, metrics.base_color)
 	return inject_hover_color_to_ass(source_ass, plain_map, hover_start, hover_end, hover_color, base_color)
 end
@@ -1443,39 +1446,13 @@ local function resolve_visible_overlay_startup()
 	return visible
 end
 
-local function resolve_invisible_overlay_startup()
-	local raw = opts.auto_start_invisible_overlay
-	if type(raw) == "boolean" then
-		return raw
-	end
-
-	local mode = type(raw) == "string" and raw:lower() or "platform-default"
-	if mode == "visible" or mode == "show" or mode == "yes" or mode == "true" or mode == "on" then
-		return true
-	end
-	if mode == "hidden" or mode == "hide" or mode == "no" or mode == "false" or mode == "off" then
-		return false
-	end
-
-	-- platform-default
-	return not is_linux()
-end
-
 local function apply_startup_overlay_preferences()
 	local should_show_visible = resolve_visible_overlay_startup()
-	local should_show_invisible = resolve_invisible_overlay_startup()
 
 	local visible_action = should_show_visible and "show-visible-overlay" or "hide-visible-overlay"
 	if not run_control_command(visible_action) then
 		subminer_log("warn", "process", "Failed to apply visible startup action: " .. visible_action)
 	end
-
-	local invisible_action = should_show_invisible and "show-invisible-overlay" or "hide-invisible-overlay"
-	if not run_control_command(invisible_action) then
-		subminer_log("warn", "process", "Failed to apply invisible startup action: " .. invisible_action)
-	end
-
-	state.invisible_overlay_visible = should_show_invisible
 end
 
 local function build_texthooker_args()
@@ -1646,90 +1623,6 @@ local function toggle_overlay()
 	end
 end
 
-local function toggle_invisible_overlay()
-	if not ensure_binary_available() then
-		subminer_log("error", "binary", "SubMiner binary not found")
-		show_osd("Error: binary not found")
-		return
-	end
-
-	local args = build_command_args("toggle-invisible-overlay")
-	subminer_log("info", "process", "Toggling invisible overlay: " .. table.concat(args, " "))
-
-	local result = mp.command_native({
-		name = "subprocess",
-		args = args,
-		playback_only = false,
-		capture_stdout = true,
-		capture_stderr = true,
-	})
-
-	if result and result.status ~= 0 then
-		subminer_log("warn", "process", "Invisible toggle command failed")
-		show_osd("Invisible toggle failed")
-		return
-	end
-
-	state.invisible_overlay_visible = not state.invisible_overlay_visible
-	show_osd("Invisible overlay: " .. (state.invisible_overlay_visible and "visible" or "hidden"))
-end
-
-local function show_invisible_overlay()
-	if not ensure_binary_available() then
-		subminer_log("error", "binary", "SubMiner binary not found")
-		show_osd("Error: binary not found")
-		return
-	end
-
-	local args = build_command_args("show-invisible-overlay")
-	subminer_log("info", "process", "Showing invisible overlay: " .. table.concat(args, " "))
-
-	local result = mp.command_native({
-		name = "subprocess",
-		args = args,
-		playback_only = false,
-		capture_stdout = true,
-		capture_stderr = true,
-	})
-
-	if result and result.status ~= 0 then
-		subminer_log("warn", "process", "Show invisible command failed")
-		show_osd("Show invisible failed")
-		return
-	end
-
-	state.invisible_overlay_visible = true
-	show_osd("Invisible overlay: visible")
-end
-
-local function hide_invisible_overlay()
-	if not ensure_binary_available() then
-		subminer_log("error", "binary", "SubMiner binary not found")
-		show_osd("Error: binary not found")
-		return
-	end
-
-	local args = build_command_args("hide-invisible-overlay")
-	subminer_log("info", "process", "Hiding invisible overlay: " .. table.concat(args, " "))
-
-	local result = mp.command_native({
-		name = "subprocess",
-		args = args,
-		playback_only = false,
-		capture_stdout = true,
-		capture_stderr = true,
-	})
-
-	if result and result.status ~= 0 then
-		subminer_log("warn", "process", "Hide invisible command failed")
-		show_osd("Hide invisible failed")
-		return
-	end
-
-	state.invisible_overlay_visible = false
-	show_osd("Invisible overlay: hidden")
-end
-
 local function open_options()
 	if not state.binary_available then
 		subminer_log("error", "binary", "SubMiner binary not found")
@@ -1768,7 +1661,6 @@ local function show_menu()
 		"Start overlay",
 		"Stop overlay",
 		"Toggle overlay",
-		"Toggle invisible overlay",
 		"Open options",
 		"Restart overlay",
 		"Check status",
@@ -1778,7 +1670,6 @@ local function show_menu()
 		start_overlay,
 		stop_overlay,
 		toggle_overlay,
-		toggle_invisible_overlay,
 		open_options,
 		restart_overlay,
 		check_status,
@@ -1895,9 +1786,6 @@ local function register_keybindings()
 	mp.add_key_binding("y-s", "subminer-start", start_overlay)
 	mp.add_key_binding("y-S", "subminer-stop", stop_overlay)
 	mp.add_key_binding("y-t", "subminer-toggle", toggle_overlay)
-	mp.add_key_binding("y-i", "subminer-toggle-invisible", toggle_invisible_overlay)
-	mp.add_key_binding("y-I", "subminer-show-invisible", show_invisible_overlay)
-	mp.add_key_binding("y-u", "subminer-hide-invisible", hide_invisible_overlay)
 	mp.add_key_binding("y-y", "subminer-menu", show_menu)
 	mp.add_key_binding("y-o", "subminer-options", open_options)
 	mp.add_key_binding("y-r", "subminer-restart", restart_overlay)
@@ -1914,9 +1802,6 @@ local function register_script_messages()
 	mp.register_script_message("subminer-start", start_overlay_from_script_message)
 	mp.register_script_message("subminer-stop", stop_overlay)
 	mp.register_script_message("subminer-toggle", toggle_overlay)
-	mp.register_script_message("subminer-toggle-invisible", toggle_invisible_overlay)
-	mp.register_script_message("subminer-show-invisible", show_invisible_overlay)
-	mp.register_script_message("subminer-hide-invisible", hide_invisible_overlay)
 	mp.register_script_message("subminer-menu", show_menu)
 	mp.register_script_message("subminer-options", open_options)
 	mp.register_script_message("subminer-restart", restart_overlay)

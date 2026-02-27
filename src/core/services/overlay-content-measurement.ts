@@ -28,7 +28,7 @@ export function sanitizeOverlayContentMeasurement(
     } | null;
   };
 
-  if (candidate.layer !== 'visible' && candidate.layer !== 'invisible') {
+  if (candidate.layer !== 'visible') {
     return null;
   }
 
@@ -112,7 +112,6 @@ export function createOverlayContentMeasurementStore(options?: {
   const warn = options?.warn ?? ((message: string) => logger.warn(message));
   const latestByLayer: OverlayMeasurementStore = {
     visible: null,
-    invisible: null,
   };
 
   let droppedInvalid = 0;

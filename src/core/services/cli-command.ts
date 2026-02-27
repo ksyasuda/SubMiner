@@ -16,10 +16,8 @@ export interface CliCommandServiceDeps {
   isOverlayRuntimeInitialized: () => boolean;
   initializeOverlayRuntime: () => void;
   toggleVisibleOverlay: () => void;
-  toggleInvisibleOverlay: () => void;
   openYomitanSettingsDelayed: (delayMs: number) => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
-  setInvisibleOverlayVisible: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;
   mineSentenceCard: () => Promise<void>;
@@ -93,9 +91,7 @@ interface OverlayCliRuntime {
   isInitialized: () => boolean;
   initialize: () => void;
   toggleVisible: () => void;
-  toggleInvisible: () => void;
   setVisible: (visible: boolean) => void;
-  setInvisible: (visible: boolean) => void;
 }
 
 interface MiningCliRuntime {
@@ -180,14 +176,12 @@ export function createCliCommandDepsRuntime(
     isOverlayRuntimeInitialized: options.overlay.isInitialized,
     initializeOverlayRuntime: options.overlay.initialize,
     toggleVisibleOverlay: options.overlay.toggleVisible,
-    toggleInvisibleOverlay: options.overlay.toggleInvisible,
     openYomitanSettingsDelayed: (delayMs) => {
       options.schedule(() => {
         options.ui.openYomitanSettings();
       }, delayMs);
     },
     setVisibleOverlayVisible: options.overlay.setVisible,
-    setInvisibleOverlayVisible: options.overlay.setInvisible,
     copyCurrentSubtitle: options.mining.copyCurrentSubtitle,
     startPendingMultiCopy: options.mining.startPendingMultiCopy,
     mineSentenceCard: options.mining.mineSentenceCard,
@@ -242,14 +236,11 @@ export function handleCliCommand(
     args.stop ||
     args.toggle ||
     args.toggleVisibleOverlay ||
-    args.toggleInvisibleOverlay ||
     args.settings ||
     args.show ||
     args.hide ||
     args.showVisibleOverlay ||
     args.hideVisibleOverlay ||
-    args.showInvisibleOverlay ||
-    args.hideInvisibleOverlay ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
     args.mineSentence ||
@@ -286,10 +277,7 @@ export function handleCliCommand(
   }
 
   const shouldStart =
-    args.start ||
-    args.toggle ||
-    args.toggleVisibleOverlay ||
-    args.toggleInvisibleOverlay;
+    args.start || args.toggle || args.toggleVisibleOverlay;
   const needsOverlayRuntime = commandNeedsOverlayRuntime(args);
   const shouldInitializeOverlayRuntime = needsOverlayRuntime || args.start;
 
@@ -325,18 +313,12 @@ export function handleCliCommand(
 
   if (args.toggle || args.toggleVisibleOverlay) {
     deps.toggleVisibleOverlay();
-  } else if (args.toggleInvisibleOverlay) {
-    deps.toggleInvisibleOverlay();
   } else if (args.settings) {
     deps.openYomitanSettingsDelayed(1000);
   } else if (args.show || args.showVisibleOverlay) {
     deps.setVisibleOverlayVisible(true);
   } else if (args.hide || args.hideVisibleOverlay) {
     deps.setVisibleOverlayVisible(false);
-  } else if (args.showInvisibleOverlay) {
-    deps.setInvisibleOverlayVisible(true);
-  } else if (args.hideInvisibleOverlay) {
-    deps.setInvisibleOverlayVisible(false);
   } else if (args.copySubtitle) {
     deps.copyCurrentSubtitle();
   } else if (args.copySubtitleMultiple) {

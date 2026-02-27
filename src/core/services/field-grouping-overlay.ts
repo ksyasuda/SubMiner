@@ -11,9 +11,7 @@ interface WindowLike {
 export interface FieldGroupingOverlayRuntimeOptions<T extends string> {
   getMainWindow: () => WindowLike | null;
   getVisibleOverlayVisible: () => boolean;
-  getInvisibleOverlayVisible: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
-  setInvisibleOverlayVisible: (visible: boolean) => void;
   getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
   setResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
   getRestoreVisibleOverlayOnModalClose: () => Set<T>;
@@ -65,9 +63,7 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
   ) => Promise<KikuFieldGroupingChoice>) => {
     return createFieldGroupingCallbackRuntime({
       getVisibleOverlayVisible: options.getVisibleOverlayVisible,
-      getInvisibleOverlayVisible: options.getInvisibleOverlayVisible,
       setVisibleOverlayVisible: options.setVisibleOverlayVisible,
-      setInvisibleOverlayVisible: options.setInvisibleOverlayVisible,
       getResolver: options.getResolver,
       setResolver: options.setResolver,
       sendToVisibleOverlay,

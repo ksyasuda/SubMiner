@@ -19,14 +19,12 @@ test('restore windows on activate deps builder maps all restoration callbacks', 
   const calls: string[] = [];
   const deps = createBuildRestoreWindowsOnActivateMainDepsHandler({
     createMainWindow: () => calls.push('main'),
-    createInvisibleWindow: () => calls.push('invisible'),
     updateVisibleOverlayVisibility: () => calls.push('visible'),
-    updateInvisibleOverlayVisibility: () => calls.push('invisible-visible'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('mpv-sync'),
   })();
 
   deps.createMainWindow();
-  deps.createInvisibleWindow();
   deps.updateVisibleOverlayVisibility();
-  deps.updateInvisibleOverlayVisibility();
-  assert.deepEqual(calls, ['main', 'invisible', 'visible', 'invisible-visible']);
+  deps.syncOverlayMpvSubtitleSuppression();
+  assert.deepEqual(calls, ['main', 'visible', 'mpv-sync']);
 });

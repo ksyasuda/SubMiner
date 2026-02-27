@@ -45,8 +45,6 @@ export function createSubsyncModal(
   }
 
   function openSubsyncModal(payload: SubsyncManualPayload): void {
-    if (ctx.platform.isInvisibleLayer) return;
-
     ctx.state.subsyncSubmitting = false;
     ctx.dom.subsyncRunButton.disabled = false;
     ctx.state.subsyncSourceTracks = payload.sourceTracks;
