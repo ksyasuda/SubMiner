@@ -25,6 +25,7 @@ function parseSubVisibility(value: unknown): boolean {
   return true;
 }
 
+
 export function createEnsureOverlayMpvSubtitlesHiddenHandler(deps: {
   getMpvClient: () => MpvVisibilityClient | null;
   getSavedSubVisibility: () => boolean | null;

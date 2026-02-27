@@ -131,7 +131,7 @@ test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay sup
   );
 
   assert.deepEqual(state.commands.pop(), {
-    command: ['set_property', 'sub-visibility', false],
+    command: ['set_property', 'sub-visibility', 'no'],
   });
 });
 

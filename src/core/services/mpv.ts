@@ -473,8 +473,13 @@ export class MpvIpcClient implements MpvClient {
   }
 
   setSubVisibility(visible: boolean): void {
+    const value = visible ? 'yes' : 'no';
     this.send({
-      command: ['set_property', 'sub-visibility', visible],
+      command: ['set_property', 'sub-visibility', value],
+    });
+    // Compatibility write for mpv command aliases across setups.
+    this.send({
+      command: ['set', 'sub-visibility', value],
     });
   }
 
