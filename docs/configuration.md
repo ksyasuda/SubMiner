@@ -724,15 +724,23 @@ See `config.example.jsonc` for detailed configuration options.
 ```json
 {
   "subtitleStyle": {
-    "fontFamily": "Noto Sans CJK JP Regular, Noto Sans CJK JP, Arial Unicode MS, Arial, sans-serif",
+    "fontFamily": "M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP",
     "fontSize": 35,
     "fontColor": "#cad3f5",
-    "fontWeight": "normal",
+    "fontWeight": "600",
+    "lineHeight": 1.35,
+    "letterSpacing": "-0.01em",
+    "wordSpacing": 0,
+    "fontKerning": "normal",
+    "textRendering": "geometricPrecision",
+    "textShadow": "0 3px 10px rgba(0,0,0,0.69)",
     "fontStyle": "normal",
     "backgroundColor": "rgb(30, 32, 48, 0.88)",
+    "backdropFilter": "blur(6px)",
     "secondary": {
+      "fontFamily": "Manrope, Inter",
       "fontSize": 24,
-      "fontColor": "#ffffff",
+      "fontColor": "#cad3f5",
       "backgroundColor": "transparent"
     }
   }
@@ -741,10 +749,10 @@ See `config.example.jsonc` for detailed configuration options.
 
 | Option                             | Values      | Description                                                                                                         |
 | ---------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------- |
-| `fontFamily`                       | string      | CSS font-family value (default: `"Noto Sans CJK JP Regular, ..."`)                                                  |
+| `fontFamily`                       | string      | CSS font-family value (default: `"M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP"`)                         |
 | `fontSize`                         | number (px) | Font size in pixels (default: `35`)                                                                                 |
 | `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                          |
-| `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"normal"`)                                           |
+| `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"600"`)                                              |
 | `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                      |
 | `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                       |
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                            |
@@ -772,7 +780,7 @@ Lookup behavior:
 
 In `single` mode all highlights use `singleColor`; in `banded` mode tokens map to five ascending color bands from most common to least common inside the topX window.
 
-Secondary subtitle defaults: `fontSize: 24`, `fontColor: "#ffffff"`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
+Secondary subtitle defaults: `fontFamily: "Manrope, Inter"`, `fontSize: 24`, `fontColor: "#cad3f5"`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
 
 **See `config.example.jsonc`** for the complete list of subtitle style configuration options.
 

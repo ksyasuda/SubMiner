@@ -134,7 +134,6 @@ local opts = {
 	texthooker_port = 5174,
 	backend = "auto",
 	auto_start = true,
-	auto_start_overlay = false, -- legacy alias, maps to auto_start_visible_overlay
 	auto_start_visible_overlay = false,
 	osd_messages = true,
 	log_level = "info",
@@ -1438,12 +1437,7 @@ local function parse_start_script_message_overrides(...)
 end
 
 local function resolve_visible_overlay_startup()
-	local visible = coerce_bool(opts.auto_start_visible_overlay, false)
-	-- Backward compatibility for old config key.
-	if coerce_bool(opts.auto_start_overlay, false) then
-		visible = true
-	end
-	return visible
+	return coerce_bool(opts.auto_start_visible_overlay, false)
 end
 
 local function apply_startup_overlay_preferences()

@@ -28,7 +28,21 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
   assert.equal(config.subtitleStyle.hoverTokenColor, '#f4dbd6');
-  assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, '#363a4fd6');
+  assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, 'rgba(54, 58, 79, 0.84)');
+  assert.equal(
+    config.subtitleStyle.fontFamily,
+    'M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP',
+  );
+  assert.equal(config.subtitleStyle.fontWeight, '600');
+  assert.equal(config.subtitleStyle.lineHeight, 1.35);
+  assert.equal(config.subtitleStyle.letterSpacing, '-0.01em');
+  assert.equal(config.subtitleStyle.wordSpacing, 0);
+  assert.equal(config.subtitleStyle.fontKerning, 'normal');
+  assert.equal(config.subtitleStyle.textRendering, 'geometricPrecision');
+  assert.equal(config.subtitleStyle.textShadow, '0 3px 10px rgba(0,0,0,0.69)');
+  assert.equal(config.subtitleStyle.backdropFilter, 'blur(6px)');
+  assert.equal(config.subtitleStyle.secondary.fontFamily, 'Manrope, Inter');
+  assert.equal(config.subtitleStyle.secondary.fontColor, '#cad3f5');
   assert.equal(config.immersionTracking.enabled, true);
   assert.equal(config.immersionTracking.dbPath, '');
   assert.equal(config.immersionTracking.batchSize, 25);

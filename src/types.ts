@@ -274,8 +274,15 @@ export interface SubtitleStyleConfig {
   fontFamily?: string;
   fontSize?: number;
   fontColor?: string;
-  fontWeight?: string;
+  fontWeight?: string | number;
   fontStyle?: string;
+  lineHeight?: string | number;
+  letterSpacing?: string;
+  wordSpacing?: string | number;
+  fontKerning?: string;
+  textRendering?: string;
+  textShadow?: string;
+  backdropFilter?: string;
   backgroundColor?: string;
   nPlusOneColor?: string;
   knownWordColor?: string;
@@ -298,8 +305,15 @@ export interface SubtitleStyleConfig {
     fontFamily?: string;
     fontSize?: number;
     fontColor?: string;
-    fontWeight?: string;
+    fontWeight?: string | number;
     fontStyle?: string;
+    lineHeight?: string | number;
+    letterSpacing?: string;
+    wordSpacing?: string | number;
+    fontKerning?: string;
+    textRendering?: string;
+    textShadow?: string;
+    backdropFilter?: string;
     backgroundColor?: string;
   };
 }

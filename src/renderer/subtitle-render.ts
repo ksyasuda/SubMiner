@@ -509,7 +509,7 @@ function renderSubtitle(data: SubtitleData | string): void {
     if (style.fontColor) {
       ctx.dom.subtitleRoot.style.color = style.fontColor;
     }
-    if (style.fontWeight) ctx.dom.subtitleRoot.style.fontWeight = style.fontWeight;
+    if (style.fontWeight) ctx.dom.subtitleRoot.style.fontWeight = String(style.fontWeight);
     if (style.fontStyle) ctx.dom.subtitleRoot.style.fontStyle = style.fontStyle;
     const knownWordColor = style.knownWordColor ?? ctx.state.knownWordColor ?? '#a6da95';
     const nPlusOneColor = style.nPlusOneColor ?? ctx.state.nPlusOneColor ?? '#c6a0f6';
@@ -639,7 +639,7 @@ function renderSubtitle(data: SubtitleData | string): void {
       ctx.dom.secondarySubRoot.style.color = secondaryStyle.fontColor;
     }
     if (secondaryStyle.fontWeight) {
-      ctx.dom.secondarySubRoot.style.fontWeight = secondaryStyle.fontWeight;
+      ctx.dom.secondarySubRoot.style.fontWeight = String(secondaryStyle.fontWeight);
     }
     if (secondaryStyle.fontStyle) {
       ctx.dom.secondarySubRoot.style.fontStyle = secondaryStyle.fontStyle;

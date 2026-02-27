@@ -17,7 +17,7 @@
   // Control whether visible overlay toggles also toggle MPV subtitle visibility.
   // When enabled, visible overlay hides MPV subtitles; when disabled, MPV subtitles are left unchanged.
   // ==========================================
-  "bind_visible_overlay_to_mpv_sub_visibility": true, // Link visible overlay toggles to MPV subtitle visibility (primary and secondary). Values: true | false
+  "bind_visible_overlay_to_mpv_sub_visibility": true, // Link visible overlay toggles to MPV primary subtitle visibility. Values: true | false
 
   // ==========================================
   // Texthooker Server
@@ -112,17 +112,23 @@
   // Hot-reload: subtitle style changes apply live without restarting SubMiner.
   // ==========================================
   "subtitleStyle": {
-    // Additional CSS declarations are also allowed and applied directly to subtitle roots/containers (for example: lineHeight, textShadow, -webkit-text-stroke, backdropFilter).
     "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
-    "hoverTokenColor": "#f4dbd6", // Hex color used for hovered subtitle token highlight in the overlay.
-    "hoverTokenBackgroundColor": "#363a4fd6", // CSS color used for hovered subtitle token background highlight in the overlay.
-    "fontFamily": "M PLUS 1, Noto Sans CJK JP Regular, Noto Sans CJK JP, Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic, Arial Unicode MS, Arial, sans-serif", // Font family setting.
+    "hoverTokenColor": "#f4dbd6", // Hex color used for hovered subtitle token highlight in mpv.
+    "hoverTokenBackgroundColor": "rgba(54, 58, 79, 0.84)", // CSS color used for hovered subtitle token background highlight in mpv.
+    "fontFamily": "M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.
     "fontSize": 35, // Font size setting.
     "fontColor": "#cad3f5", // Font color setting.
-    "fontWeight": "normal", // Font weight setting.
+    "fontWeight": "600", // Font weight setting.
+    "lineHeight": 1.35, // Line height setting.
+    "letterSpacing": "-0.01em", // Letter spacing setting.
+    "wordSpacing": 0, // Word spacing setting.
+    "fontKerning": "normal", // Font kerning setting.
+    "textRendering": "geometricPrecision", // Text rendering setting.
+    "textShadow": "0 3px 10px rgba(0,0,0,0.69)", // Text shadow setting.
     "fontStyle": "normal", // Font style setting.
     "backgroundColor": "rgb(30, 32, 48, 0.88)", // Background color setting.
+    "backdropFilter": "blur(6px)", // Backdrop filter setting.
     "nPlusOneColor": "#c6a0f6", // N plus one color setting.
     "knownWordColor": "#a6da95", // Known word color setting.
     "jlptColors": {
@@ -147,12 +153,19 @@
       ] // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
     }, // Frequency dictionary setting.
     "secondary": {
+      "fontFamily": "Manrope, Inter", // Font family setting.
       "fontSize": 24, // Font size setting.
-      "fontColor": "#ffffff", // Font color setting.
+      "fontColor": "#cad3f5", // Font color setting.
+      "lineHeight": 1.35, // Line height setting.
+      "letterSpacing": "-0.01em", // Letter spacing setting.
+      "wordSpacing": 0, // Word spacing setting.
+      "fontKerning": "normal", // Font kerning setting.
+      "textRendering": "geometricPrecision", // Text rendering setting.
+      "textShadow": "0 3px 10px rgba(0,0,0,0.69)", // Text shadow setting.
       "backgroundColor": "transparent", // Background color setting.
+      "backdropFilter": "blur(6px)", // Backdrop filter setting.
       "fontWeight": "normal", // Font weight setting.
-      "fontStyle": "normal", // Font style setting.
-      "fontFamily": "M PLUS 1, Noto Sans CJK JP Regular, Noto Sans CJK JP, Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic, Arial Unicode MS, Arial, sans-serif" // Font family setting.
+      "fontStyle": "normal" // Font style setting.
     } // Secondary setting.
   }, // Primary and secondary subtitle styling.
 
