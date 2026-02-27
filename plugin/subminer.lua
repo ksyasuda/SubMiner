@@ -178,6 +178,10 @@ local state = {
 	},
 }
 
+local STARTUP_OVERLAY_ACTION_DELAY_SECONDS = 0.6
+local STARTUP_OVERLAY_ACTION_RETRY_DELAY_SECONDS = 0.4
+local STARTUP_OVERLAY_ACTION_MAX_ATTEMPTS = 8
+
 local HOVER_MESSAGE_NAME = "subminer-hover-token"
 local HOVER_MESSAGE_NAME_LEGACY = "yomipv-hover-token"
 local DEFAULT_HOVER_BASE_COLOR = "FFFFFF"
@@ -1444,8 +1448,40 @@ local function apply_startup_overlay_preferences()
 	local should_show_visible = resolve_visible_overlay_startup()
 
 	local visible_action = should_show_visible and "show-visible-overlay" or "hide-visible-overlay"
-	if not run_control_command(visible_action) then
-		subminer_log("warn", "process", "Failed to apply visible startup action: " .. visible_action)
+	local function try_apply(attempt)
+		if run_control_command(visible_action) then
+			subminer_log(
+				"debug",
+				"process",
+				"Applied visible startup action: " .. visible_action .. " (attempt " .. tostring(attempt) .. ")"
+			)
+			return
+		end
+
+		if attempt >= STARTUP_OVERLAY_ACTION_MAX_ATTEMPTS then
+			subminer_log("warn", "process", "Failed to apply visible startup action: " .. visible_action)
+			return
+		end
+
+		mp.add_timeout(STARTUP_OVERLAY_ACTION_RETRY_DELAY_SECONDS, function()
+			try_apply(attempt + 1)
+		end)
+	end
+
+	try_apply(1)
+end
+
+local function refresh_subminer_runtime_state()
+	state.binary_path = find_binary()
+	if state.binary_path then
+		state.binary_available = true
+		subminer_log("debug", "lifecycle", "SubMiner binary ready: " .. state.binary_path)
+	else
+		state.binary_available = false
+		subminer_log("warn", "binary", "SubMiner binary not found - overlay features disabled")
+		if opts.binary_path ~= "" then
+			subminer_log("warn", "binary", "Configured path '" .. opts.binary_path .. "' does not exist")
+		end
 	end
 end
 
@@ -1548,7 +1584,7 @@ local function start_overlay(overrides)
 		end)
 
 		-- Apply explicit startup visibility for each overlay layer.
-		mp.add_timeout(0.6, function()
+		mp.add_timeout(STARTUP_OVERLAY_ACTION_DELAY_SECONDS, function()
 			apply_startup_overlay_preferences()
 		end)
 	end
@@ -1741,28 +1777,16 @@ check_status = function()
 end
 
 local function on_file_loaded()
-	if not is_subminer_app_running() then
-		clear_aniskip_state()
-		subminer_log("debug", "lifecycle", "Skipping file load hooks: SubMiner app not running")
-		return true
-	end
-
 	clear_aniskip_state()
 	fetch_aniskip_for_current_media()
-	state.binary_path = find_binary()
-	if state.binary_path then
-		state.binary_available = true
-		subminer_log("info", "lifecycle", "SubMiner ready (binary: " .. state.binary_path .. ")")
-		local should_auto_start = coerce_bool(opts.auto_start, false)
-		if should_auto_start then
-			start_overlay()
-		end
-	else
-		state.binary_available = false
-		subminer_log("warn", "binary", "SubMiner binary not found - overlay features disabled")
-		if opts.binary_path ~= "" then
-			subminer_log("warn", "binary", "Configured path '" .. opts.binary_path .. "' does not exist")
-		end
+	refresh_subminer_runtime_state()
+	if not state.binary_available then
+		return
+	end
+
+	local should_auto_start = coerce_bool(opts.auto_start, false)
+	if should_auto_start then
+		start_overlay()
 	end
 end
 
