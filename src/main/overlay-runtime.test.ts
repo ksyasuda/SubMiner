@@ -75,7 +75,7 @@ function createMockWindow(): MockWindow & {
     webContents: {
       isLoading: () => state.loading,
       getURL: () => state.url,
-      send: (channel, payload) => {
+      send: (channel: string, payload?: unknown) => {
         if (payload === undefined) {
           state.sent.push([channel]);
           return;
@@ -84,7 +84,7 @@ function createMockWindow(): MockWindow & {
       },
       focused: false,
       isFocused: () => state.webContentsFocused,
-      once: (_event, cb) => {
+      once: (_event: 'did-finish-load', cb: () => void) => {
         state.loadCallbacks.push(cb);
       },
       focus: () => {
