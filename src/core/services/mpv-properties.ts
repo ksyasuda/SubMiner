@@ -60,6 +60,8 @@ const MPV_SUBTITLE_PROPERTY_OBSERVATIONS: string[] = [
   'sub-use-margins',
   'pause',
   'media-title',
+  'secondary-sub-visibility',
+  'sub-visibility',
 ];
 
 const MPV_INITIAL_PROPERTY_REQUESTS: Array<MpvProtocolCommand> = [

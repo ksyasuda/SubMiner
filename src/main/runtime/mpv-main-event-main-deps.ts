@@ -21,11 +21,13 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   scheduleQuitCheck: (callback: () => void) => void;
   quitApp: () => void;
   reportJellyfinRemoteStopped: () => void;
+  syncOverlayMpvSubtitleSuppression: () => void;
   maybeRunAnilistPostWatchUpdate: () => Promise<void>;
   logSubtitleTimingError: (message: string, error: unknown) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
   onSubtitleChange: (text: string) => void;
   updateCurrentMediaPath: (path: string) => void;
+  restoreMpvSubVisibilityForInvisibleOverlay: () => void;
   getCurrentAnilistMediaKey: () => string | null;
   resetAnilistMediaTracking: (mediaKey: string | null) => void;
   maybeProbeAnilistDuration: (mediaKey: string) => void;
@@ -39,6 +41,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
 }) {
   return () => ({
     reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
+    syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
     hasInitialJellyfinPlayArg: () => Boolean(deps.appState.initialArgs?.jellyfinPlay),
     isOverlayRuntimeInitialized: () => deps.appState.overlayRuntimeInitialized,
     isQuitOnDisconnectArmed: () => deps.getQuitOnDisconnectArmed(),
@@ -68,6 +71,8 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     broadcastSecondarySubtitle: (text: string) =>
       deps.broadcastToOverlayWindows('secondary-subtitle:set', text),
     updateCurrentMediaPath: (path: string) => deps.updateCurrentMediaPath(path),
+    restoreMpvSubVisibilityForInvisibleOverlay: () =>
+      deps.restoreMpvSubVisibilityForInvisibleOverlay(),
     getCurrentAnilistMediaKey: () => deps.getCurrentAnilistMediaKey(),
     resetAnilistMediaTracking: (mediaKey: string | null) =>
       deps.resetAnilistMediaTracking(mediaKey),

@@ -306,6 +306,32 @@ test('MpvIpcClient reconnect replays property subscriptions and initial state re
   assert.equal(hasPathRequest, true);
 });
 
+test('MpvIpcClient connect does not force primary subtitle visibility from binding path', () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient(
+    '/tmp/mpv.sock',
+    makeDeps({
+      shouldBindVisibleOverlayToMpvSubVisibility: () => true,
+      isVisibleOverlayVisible: () => true,
+    }),
+  );
+  (client as any).send = (command: unknown) => {
+    commands.push(command);
+    return true;
+  };
+
+  const callbacks = (client as any).transport.callbacks;
+  callbacks.onConnect();
+
+  const hasPrimaryVisibilityMutation = commands.some(
+    (command) =>
+      Array.isArray((command as { command: unknown[] }).command) &&
+      (command as { command: unknown[] }).command[0] === 'set_property' &&
+      (command as { command: unknown[] }).command[1] === 'sub-visibility',
+  );
+  assert.equal(hasPrimaryVisibilityMutation, false);
+});
+
 test('MpvIpcClient captures and disables secondary subtitle visibility on request', async () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());

@@ -48,6 +48,7 @@ export interface MpvProtocolHandleMessageDeps {
   };
   getSubtitleMetrics: () => MpvSubtitleRenderMetrics;
   isVisibleOverlayVisible: () => boolean;
+  shouldBindVisibleOverlayToMpvSubVisibility?: () => boolean;
   emitSubtitleChange: (payload: { text: string; isOverlayVisible: boolean }) => void;
   emitSubtitleAssChange: (payload: { text: string }) => void;
   emitSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
@@ -216,6 +217,22 @@ export async function dispatchMpvProtocolMessage(
       deps.emitSubtitleMetricsChange({
         subScaleByWindow: asBoolean(msg.data, deps.getSubtitleMetrics().subScaleByWindow),
       });
+    } else if (msg.name === 'sub-visibility') {
+      if (
+        deps.shouldBindVisibleOverlayToMpvSubVisibility?.() &&
+        deps.isVisibleOverlayVisible() &&
+        asBoolean(msg.data, false)
+      ) {
+        deps.sendCommand({ command: ['set_property', 'sub-visibility', 'no'] });
+      }
+    } else if (msg.name === 'secondary-sub-visibility') {
+      if (
+        deps.shouldBindVisibleOverlayToMpvSubVisibility?.() &&
+        deps.isVisibleOverlayVisible() &&
+        asBoolean(msg.data, false)
+      ) {
+        deps.sendCommand({ command: ['set_property', 'secondary-sub-visibility', 'no'] });
+      }
     } else if (msg.name === 'sub-use-margins') {
       deps.emitSubtitleMetricsChange({
         subUseMargins: asBoolean(msg.data, deps.getSubtitleMetrics().subUseMargins),

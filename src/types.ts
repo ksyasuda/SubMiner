@@ -71,8 +71,6 @@ export interface WindowGeometry {
 
 export interface SubtitlePosition {
   yPercent: number;
-  invisibleOffsetXPx?: number;
-  invisibleOffsetYPx?: number;
 }
 
 export interface SubtitleStyle {
@@ -272,6 +270,7 @@ export interface SubtitleStyleConfig {
   enableJlpt?: boolean;
   preserveLineBreaks?: boolean;
   hoverTokenColor?: string;
+  hoverTokenBackgroundColor?: string;
   fontFamily?: string;
   fontSize?: number;
   fontColor?: string;
@@ -309,7 +308,6 @@ export type FrequencyDictionaryMode = 'single' | 'banded';
 
 export interface ShortcutsConfig {
   toggleVisibleOverlayGlobal?: string | null;
-  toggleInvisibleOverlayGlobal?: string | null;
   copySubtitle?: string | null;
   copySubtitleMultiple?: string | null;
   updateLastCardFromClipboard?: string | null;
@@ -364,10 +362,6 @@ export interface DiscordPresenceConfig {
   debounceMs?: number;
 }
 
-export interface InvisibleOverlayConfig {
-  startupVisibility?: 'platform-default' | 'visible' | 'hidden';
-}
-
 export type YoutubeSubgenMode = 'automatic' | 'preprocess' | 'off';
 
 export interface YoutubeSubgenConfig {
@@ -410,7 +404,6 @@ export interface Config {
   anilist?: AnilistConfig;
   jellyfin?: JellyfinConfig;
   discordPresence?: DiscordPresenceConfig;
-  invisibleOverlay?: InvisibleOverlayConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
   logging?: {
@@ -540,7 +533,6 @@ export interface ResolvedConfig {
     updateIntervalMs: number;
     debounceMs: number;
   };
-  invisibleOverlay: Required<InvisibleOverlayConfig>;
   youtubeSubgen: YoutubeSubgenConfig & {
     mode: YoutubeSubgenMode;
     whisperBin: string;
@@ -630,7 +622,7 @@ export interface MpvSubtitleRenderMetrics {
   } | null;
 }
 
-export type OverlayLayer = 'visible' | 'invisible';
+export type OverlayLayer = 'visible';
 
 export interface OverlayContentRect {
   x: number;
@@ -728,7 +720,7 @@ export interface SubtitleHoverTokenPayload {
 }
 
 export interface ElectronAPI {
-  getOverlayLayer: () => 'visible' | 'invisible' | 'secondary' | 'modal' | null;
+  getOverlayLayer: () => 'visible' | 'modal' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
   onVisibility: (callback: (visible: boolean) => void) => void;
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;
@@ -736,10 +728,7 @@ export interface ElectronAPI {
   getCurrentSubtitle: () => Promise<SubtitleData>;
   getCurrentSubtitleRaw: () => Promise<string>;
   getCurrentSubtitleAss: () => Promise<string>;
-  getMpvSubtitleRenderMetrics: () => Promise<MpvSubtitleRenderMetrics>;
-  onMpvSubtitleRenderMetrics: (callback: (metrics: MpvSubtitleRenderMetrics) => void) => void;
   onSubtitleAss: (callback: (assText: string) => void) => void;
-  onOverlayDebugVisualization: (callback: (enabled: boolean) => void) => void;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   openYomitanSettings: () => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
@@ -781,8 +770,8 @@ export interface ElectronAPI {
   onOpenJimaku: (callback: () => void) => void;
   appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
   notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => void;
+  notifyOverlayModalOpened: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
-  reportHoveredSubtitleToken: (tokenIndex: number | null) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;
 }
 

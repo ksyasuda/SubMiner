@@ -16,6 +16,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       destroyTray: () => {},
       stopConfigHotReload: () => {},
       restorePreviousSecondarySubVisibility: () => {},
+      restoreMpvSubVisibilityForInvisibleOverlay: () => {},
       unregisterAllGlobalShortcuts: () => {},
       stopSubtitleWebsocket: () => {},
       stopTexthookerService: () => {},
@@ -43,9 +44,8 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
     },
     restoreWindowsOnActivateMainDeps: {
       createMainWindow: () => {},
-      createInvisibleWindow: () => {},
       updateVisibleOverlayVisibility: () => {},
-      updateInvisibleOverlayVisibility: () => {},
+      syncOverlayMpvSubtitleSuppression: () => {},
     },
   });
 

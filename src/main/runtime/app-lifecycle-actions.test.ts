@@ -12,6 +12,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     destroyTray: () => calls.push('destroy-tray'),
     stopConfigHotReload: () => calls.push('stop-config'),
     restorePreviousSecondarySubVisibility: () => calls.push('restore-sub'),
+    restoreMpvSubVisibilityForInvisibleOverlay: () => calls.push('restore-mpv-sub'),
     unregisterAllGlobalShortcuts: () => calls.push('unregister-shortcuts'),
     stopSubtitleWebsocket: () => calls.push('stop-ws'),
     stopTexthookerService: () => calls.push('stop-texthooker'),
@@ -33,7 +34,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   });
 
   cleanup();
-  assert.equal(calls.length, 21);
+  assert.equal(calls.length, 22);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
   assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
@@ -58,11 +59,10 @@ test('restore windows on activate recreates windows then syncs visibility', () =
   const calls: string[] = [];
   const restore = createRestoreWindowsOnActivateHandler({
     createMainWindow: () => calls.push('main'),
-    createInvisibleWindow: () => calls.push('invisible'),
     updateVisibleOverlayVisibility: () => calls.push('visible-sync'),
-    updateInvisibleOverlayVisibility: () => calls.push('invisible-sync'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('mpv-sync'),
   });
 
   restore();
-  assert.deepEqual(calls, ['main', 'invisible', 'visible-sync', 'invisible-sync']);
+  assert.deepEqual(calls, ['main', 'visible-sync', 'mpv-sync']);
 });

@@ -38,8 +38,8 @@ features:
   - icon:
       src: /assets/dual-layer.svg
       alt: Dual layer icon
-    title: Three-Plane Overlay Stack
-    details: Secondary context plane + visible interactive layer + invisible interaction plane, each with independent behavior and startup state.
+    title: Unified Overlay Stack
+    details: Primary interactive subtitle layer with a built-in secondary context bar, all in one overlay window.
   - icon:
       src: /assets/highlight.svg
       alt: Highlight icon

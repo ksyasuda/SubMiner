@@ -2,6 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createRendererRecoveryController } from './error-recovery.js';
+import {
+  YOMITAN_POPUP_IFRAME_SELECTOR,
+  hasYomitanPopupIframe,
+  isYomitanPopupIframe,
+} from './yomitan-popup.js';
 import { resolvePlatformInfo } from './utils/platform.js';
 
 test('handleError logs context and recovers overlay state', () => {
@@ -26,7 +31,6 @@ test('handleError logs context and recovers overlay state', () => {
       secondarySubtitlePreview: 'secondary',
       isOverlayInteractive: true,
       isOverSubtitle: true,
-      invisiblePositionEditMode: false,
       overlayLayer: 'visible',
     }),
     logError: (payload) => {
@@ -72,8 +76,7 @@ test('handleError normalizes non-Error values', () => {
       secondarySubtitlePreview: '',
       isOverlayInteractive: false,
       isOverSubtitle: false,
-      invisiblePositionEditMode: false,
-      overlayLayer: 'invisible',
+      overlayLayer: 'visible',
     }),
     logError: (payload) => {
       payloads.push(payload);
@@ -107,7 +110,6 @@ test('nested recovery errors are ignored while current recovery is active', () =
       secondarySubtitlePreview: '',
       isOverlayInteractive: true,
       isOverSubtitle: false,
-      invisiblePositionEditMode: true,
       overlayLayer: 'visible',
     }),
     logError: (payload) => {
@@ -130,7 +132,7 @@ test('resolvePlatformInfo prefers query layer over preload layer', () => {
     configurable: true,
     value: {
       electronAPI: {
-        getOverlayLayer: () => 'invisible',
+        getOverlayLayer: () => 'modal',
       },
       location: { search: '?layer=visible' },
     },
@@ -146,7 +148,6 @@ test('resolvePlatformInfo prefers query layer over preload layer', () => {
   try {
     const info = resolvePlatformInfo();
     assert.equal(info.overlayLayer, 'visible');
-    assert.equal(info.isInvisibleLayer, false);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'navigator', {
@@ -156,7 +157,7 @@ test('resolvePlatformInfo prefers query layer over preload layer', () => {
   }
 });
 
-test('resolvePlatformInfo supports secondary layer and disables mouse-ignore toggles', () => {
+test('resolvePlatformInfo ignores legacy secondary layer and falls back to visible', () => {
   const previousWindow = (globalThis as { window?: unknown }).window;
   const previousNavigator = (globalThis as { navigator?: unknown }).navigator;
 
@@ -179,9 +180,8 @@ test('resolvePlatformInfo supports secondary layer and disables mouse-ignore tog
 
   try {
     const info = resolvePlatformInfo();
-    assert.equal(info.overlayLayer, 'secondary');
-    assert.equal(info.isSecondaryLayer, true);
-    assert.equal(info.shouldToggleMouseIgnore, false);
+    assert.equal(info.overlayLayer, 'visible');
+    assert.equal(info.shouldToggleMouseIgnore, true);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'navigator', {
@@ -224,4 +224,60 @@ test('resolvePlatformInfo supports modal layer and disables mouse-ignore toggles
       value: previousNavigator,
     });
   }
+});
+
+test('isYomitanPopupIframe matches modern popup class and legacy id prefix', () => {
+  const createElement = (options: {
+    tagName: string;
+    id?: string;
+    classNames?: string[];
+  }): Element =>
+    ({
+      tagName: options.tagName,
+      id: options.id ?? '',
+      classList: {
+        contains: (className: string) => (options.classNames ?? []).includes(className),
+      },
+    }) as unknown as Element;
+
+  assert.equal(
+    isYomitanPopupIframe(
+      createElement({
+        tagName: 'IFRAME',
+        classNames: ['yomitan-popup'],
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    isYomitanPopupIframe(
+      createElement({
+        tagName: 'IFRAME',
+        id: 'yomitan-popup-123',
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    isYomitanPopupIframe(
+      createElement({
+        tagName: 'IFRAME',
+        id: 'something-else',
+      }),
+    ),
+    false,
+  );
+});
+
+test('hasYomitanPopupIframe queries for modern + legacy selector', () => {
+  let selector = '';
+  const root = {
+    querySelector: (value: string) => {
+      selector = value;
+      return {};
+    },
+  } as unknown as ParentNode;
+
+  assert.equal(hasYomitanPopupIframe(root), true);
+  assert.equal(selector, YOMITAN_POPUP_IFRAME_SELECTOR);
 });

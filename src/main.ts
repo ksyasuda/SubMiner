@@ -218,7 +218,6 @@ import {
   createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler,
   createBuildEnforceOverlayLayerOrderMainDepsHandler,
   createBuildEnsureOverlayWindowLevelMainDepsHandler,
-  createBuildUpdateInvisibleOverlayBoundsMainDepsHandler,
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
   createOverlayWindowRuntimeHandlers,
   createOverlayRuntimeBootstrapHandlers,
@@ -234,7 +233,6 @@ import {
   createSetOverlayDebugVisualizationEnabledHandler,
   createEnforceOverlayLayerOrderHandler,
   createEnsureOverlayWindowLevelHandler,
-  createUpdateInvisibleOverlayBoundsHandler,
   createUpdateVisibleOverlayBoundsHandler,
   createLoadSubtitlePositionHandler,
   createSaveSubtitlePositionHandler,
@@ -356,16 +354,16 @@ import {
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   sendMpvCommandRuntime,
-  setInvisibleOverlayVisible as setInvisibleOverlayVisibleCore,
+  setMpvSecondarySubVisibilityRuntime,
   setMpvSubVisibilityRuntime,
   setOverlayDebugVisualizationEnabledRuntime,
+  syncOverlayWindowLayer,
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
   showMpvOsdRuntime,
   tokenizeSubtitle as tokenizeSubtitleCore,
   triggerFieldGrouping as triggerFieldGroupingCore,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
-import { splitOverlayGeometryForSecondaryBar } from './core/services/overlay-window-geometry';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
   guessAnilistMediaInfo,
@@ -376,7 +374,10 @@ import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
 import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
 import { createMainRuntimeRegistry } from './main/runtime/registry';
-import { createApplyHoveredTokenOverlayHandler } from './main/runtime/mpv-hover-highlight';
+import {
+  createEnsureOverlayMpvSubtitlesHiddenHandler,
+  createRestoreOverlayMpvSubtitlesHandler,
+} from './main/runtime/overlay-mpv-sub-visibility';
 import {
   composeAnilistSetupHandlers,
   composeAnilistTrackingHandlers,
@@ -644,7 +645,6 @@ const buildOverlayContentMeasurementStoreMainDepsHandler =
   });
 const buildOverlayModalRuntimeMainDepsHandler = createBuildOverlayModalRuntimeMainDepsHandler({
   getMainWindow: () => overlayManager.getMainWindow(),
-  getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
   getModalWindow: () => overlayManager.getModalWindow(),
   createModalWindow: () => createModalWindow(),
   getModalGeometry: () => getCurrentOverlayGeometry(),
@@ -725,13 +725,70 @@ async function initializeDiscordPresenceService(): Promise<void> {
   await appState.discordPresenceService.start();
   publishDiscordPresence();
 }
-const applyHoveredTokenOverlay = createApplyHoveredTokenOverlayHandler({
+const ensureOverlayMpvSubtitlesHidden = createEnsureOverlayMpvSubtitlesHiddenHandler({
   getMpvClient: () => appState.mpvClient,
-  getCurrentSubtitleData: () => appState.currentSubtitleData,
-  getHoveredTokenIndex: () => appState.hoveredSubtitleTokenIndex,
-  getHoveredSubtitleRevision: () => appState.hoveredSubtitleRevision,
-  getHoverTokenColor: () => getResolvedConfig().subtitleStyle.hoverTokenColor ?? null,
+  getSavedSubVisibility: () => appState.overlaySavedMpvSubVisibility,
+  setSavedSubVisibility: (visible) => {
+    appState.overlaySavedMpvSubVisibility = visible;
+  },
+  getSavedSecondarySubVisibility: () => appState.overlaySavedSecondaryMpvSubVisibility,
+  setSavedSecondarySubVisibility: (visible) => {
+    appState.overlaySavedSecondaryMpvSubVisibility = visible;
+  },
+  getRevision: () => appState.overlayMpvSubVisibilityRevision,
+  setRevision: (revision) => {
+    appState.overlayMpvSubVisibilityRevision = revision;
+  },
+  setMpvSubVisibility: (visible) => {
+    setMpvSubVisibilityRuntime(appState.mpvClient, visible);
+  },
+  setMpvSecondarySubVisibility: (visible) => {
+    setMpvSecondarySubVisibilityRuntime(appState.mpvClient, visible);
+  },
+  logWarn: (message, error) => {
+    logger.warn(message, error);
+  },
 });
+const restoreOverlayMpvSubtitles = createRestoreOverlayMpvSubtitlesHandler({
+  getSavedSubVisibility: () => appState.overlaySavedMpvSubVisibility,
+  setSavedSubVisibility: (visible) => {
+    appState.overlaySavedMpvSubVisibility = visible;
+  },
+  getSavedSecondarySubVisibility: () => appState.overlaySavedSecondaryMpvSubVisibility,
+  setSavedSecondarySubVisibility: (visible) => {
+    appState.overlaySavedSecondaryMpvSubVisibility = visible;
+  },
+  getRevision: () => appState.overlayMpvSubVisibilityRevision,
+  setRevision: (revision) => {
+    appState.overlayMpvSubVisibilityRevision = revision;
+  },
+  isMpvConnected: () => Boolean(appState.mpvClient?.connected),
+  shouldKeepSuppressedFromVisibleOverlayBinding: () => shouldSuppressMpvSubtitlesForOverlay(),
+  setMpvSubVisibility: (visible) => {
+    setMpvSubVisibilityRuntime(appState.mpvClient, visible);
+  },
+  setMpvSecondarySubVisibility: (visible) => {
+    setMpvSecondarySubVisibilityRuntime(appState.mpvClient, visible);
+  },
+});
+
+function shouldSuppressMpvSubtitlesForOverlay(): boolean {
+  return (
+    appState.secondarySubMode === 'visible' ||
+    (overlayManager.getVisibleOverlayVisible() &&
+      configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility())
+  );
+}
+
+function syncOverlayMpvSubtitleSuppression(): void {
+  if (shouldSuppressMpvSubtitlesForOverlay()) {
+    void ensureOverlayMpvSubtitlesHidden();
+    return;
+  }
+
+  restoreOverlayMpvSubtitles();
+}
+
 const buildImmersionMediaRuntimeMainDepsHandler = createBuildImmersionMediaRuntimeMainDepsHandler({
   getResolvedConfig: () => getResolvedConfig(),
   defaultImmersionDbPath: DEFAULT_IMMERSION_DB_PATH,
@@ -766,7 +823,6 @@ const buildAnilistStateRuntimeMainDepsHandler = createBuildAnilistStateRuntimeMa
 const buildConfigDerivedRuntimeMainDepsHandler = createBuildConfigDerivedRuntimeMainDepsHandler({
   getResolvedConfig: () => getResolvedConfig(),
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-  platform: process.platform,
   defaultJimakuLanguagePreference: DEFAULT_CONFIG.jimaku.languagePreference,
   defaultJimakuMaxEntryResults: DEFAULT_CONFIG.jimaku.maxEntryResults,
   defaultJimakuApiBaseUrl: DEFAULT_CONFIG.jimaku.apiBaseUrl,
@@ -801,15 +857,7 @@ const buildSubtitleProcessingControllerMainDepsHandler =
       return await tokenizeSubtitle(text);
     },
     emitSubtitle: (payload) => {
-      const previousSubtitleText = appState.currentSubtitleData?.text ?? null;
-      const nextSubtitleText = payload?.text ?? null;
-      const subtitleChanged = previousSubtitleText !== nextSubtitleText;
       appState.currentSubtitleData = payload;
-      if (subtitleChanged) {
-        appState.hoveredSubtitleTokenIndex = null;
-        appState.hoveredSubtitleRevision += 1;
-        applyHoveredTokenOverlay();
-      }
       broadcastToOverlayWindows('subtitle:set', payload);
       subtitleWsService.broadcast(payload, {
         enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
@@ -850,7 +898,7 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
     copySubtitle: () => {
       copyCurrentSubtitle();
     },
-    toggleSecondarySubMode: () => cycleSecondarySubMode(),
+    toggleSecondarySubMode: () => handleCycleSecondarySubMode(),
     updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
     triggerFieldGrouping: () => triggerFieldGrouping(),
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
@@ -899,8 +947,7 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
       refreshGlobalAndOverlayShortcuts();
     },
     setSecondarySubMode: (mode) => {
-      appState.secondarySubMode = mode;
-      syncSecondaryOverlayWindowVisibility();
+      setSecondarySubMode(mode);
     },
     broadcastToOverlayWindows: (channel, payload) => {
       broadcastToOverlayWindows(channel, payload);
@@ -1023,9 +1070,7 @@ const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHos
   createBuildFieldGroupingOverlayMainDepsHandler<OverlayHostedModal>({
     getMainWindow: () => overlayManager.getMainWindow(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
     setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    setInvisibleOverlayVisible: (visible) => setInvisibleOverlayVisible(visible),
     getResolver: () => getFieldGroupingResolver(),
     setResolver: (resolver) => setFieldGroupingResolver(resolver),
     getRestoreVisibleOverlayOnModalClose: () =>
@@ -1067,25 +1112,39 @@ const mediaRuntime = createMediaRuntimeService(
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   createBuildOverlayVisibilityRuntimeMainDepsHandler({
     getMainWindow: () => overlayManager.getMainWindow(),
-    getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
     getWindowTracker: () => appState.windowTracker,
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown: boolean) => {
       appState.trackerNotReadyWarningShown = shown;
     },
     updateVisibleOverlayBounds: (geometry: WindowGeometry) => updateVisibleOverlayBounds(geometry),
-    updateInvisibleOverlayBounds: (geometry: WindowGeometry) =>
-      updateInvisibleOverlayBounds(geometry),
     ensureOverlayWindowLevel: (window) => {
       ensureOverlayWindowLevel(window);
+    },
+    syncPrimaryOverlayWindowLayer: (layer) => {
+      syncPrimaryOverlayWindowLayer(layer);
     },
     enforceOverlayLayerOrder: () => {
       enforceOverlayLayerOrder();
     },
     syncOverlayShortcuts: () => {
       overlayShortcutsRuntime.syncOverlayShortcuts();
+    },
+    isMacOSPlatform: () => process.platform === 'darwin',
+    showOverlayLoadingOsd: (message: string) => {
+      showMpvOsd(message);
+    },
+    resolveFallbackBounds: () => {
+      const cursorPoint = screen.getCursorScreenPoint();
+      const display = screen.getDisplayNearestPoint(cursorPoint);
+      const fallbackBounds = display.workArea;
+      return {
+        x: fallbackBounds.x,
+        y: fallbackBounds.y,
+        width: fallbackBounds.width,
+        height: fallbackBounds.height,
+      };
     },
   })(),
 );
@@ -1165,7 +1224,6 @@ const buildSetOverlayDebugVisualizationEnabledMainDepsHandler =
     setCurrentEnabled: (next) => {
       appState.overlayDebugVisualizationEnabled = next;
     },
-    broadcastToOverlayWindows: (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
   });
 const setOverlayDebugVisualizationEnabledMainDeps =
   buildSetOverlayDebugVisualizationEnabledMainDepsHandler();
@@ -1826,6 +1884,9 @@ const {
     destroyTray: () => destroyTray(),
     stopConfigHotReload: () => configHotReloadRuntime.stop(),
     restorePreviousSecondarySubVisibility: () => restorePreviousSecondarySubVisibility(),
+    restoreMpvSubVisibilityForInvisibleOverlay: () => {
+      restoreOverlayMpvSubtitles({ respectVisibleOverlayBinding: false });
+    },
     unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
     stopSubtitleWebsocket: () => subtitleWsService.stop(),
     stopTexthookerService: () => texthookerService.stop(),
@@ -1870,14 +1931,11 @@ const {
     createMainWindow: () => {
       createMainWindow();
     },
-    createInvisibleWindow: () => {
-      createInvisibleWindow();
-    },
     updateVisibleOverlayVisibility: () => {
       overlayVisibilityRuntime.updateVisibleOverlayVisibility();
     },
-    updateInvisibleOverlayVisibility: () => {
-      overlayVisibilityRuntime.updateInvisibleOverlayVisibility();
+    syncOverlayMpvSubtitleSuppression: () => {
+      syncOverlayMpvSubtitleSuppression();
     },
   },
 });
@@ -1934,8 +1992,7 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
       );
     },
     setSecondarySubMode: (mode: SecondarySubMode) => {
-      appState.secondarySubMode = mode;
-      syncSecondaryOverlayWindowVisibility();
+      setSecondarySubMode(mode);
     },
     defaultSecondarySubMode: 'hover',
     defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
@@ -2124,6 +2181,9 @@ const {
     updateCurrentMediaPath: (path) => {
       mediaRuntime.updateCurrentMediaPath(path);
     },
+    restoreMpvSubVisibilityForInvisibleOverlay: () => {
+      restoreOverlayMpvSubtitles({ respectVisibleOverlayBinding: false });
+    },
     getCurrentAnilistMediaKey: () => getCurrentAnilistMediaKey(),
     resetAnilistMediaTracking: (mediaKey) => {
       resetAnilistMediaTracking(mediaKey);
@@ -2149,6 +2209,9 @@ const {
     updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
     },
+    syncOverlayMpvSubtitleSuppression: () => {
+      syncOverlayMpvSubtitleSuppression();
+    },
   },
   mpvClientRuntimeServiceFactoryMainDeps: {
     createClient: MpvIpcClient,
@@ -2170,8 +2233,8 @@ const {
       appState.mpvSubtitleRenderMetrics = metrics;
     },
     applyPatch: (current, patch) => applyMpvSubtitleRenderMetricsPatch(current, patch),
-    broadcastMetrics: (metrics) => {
-      broadcastToOverlayWindows('mpv-subtitle-render-metrics:set', metrics);
+    broadcastMetrics: () => {
+      // no renderer consumer for subtitle render metrics updates at present
     },
   },
   tokenizer: {
@@ -2276,50 +2339,19 @@ function getCurrentOverlayGeometry(): WindowGeometry {
   return getOverlayGeometryFallback();
 }
 
-function syncSecondaryOverlayWindowVisibility(): void {
-  const secondaryWindow = overlayManager.getSecondaryWindow();
-  if (!secondaryWindow || secondaryWindow.isDestroyed()) return;
-
-  if (appState.secondarySubMode === 'hidden') {
-    secondaryWindow.setIgnoreMouseEvents(true, { forward: true });
-    secondaryWindow.hide();
-    return;
-  }
-
-  secondaryWindow.setIgnoreMouseEvents(false);
-  ensureOverlayWindowLevel(secondaryWindow);
-  if (typeof secondaryWindow.showInactive === 'function') {
-    secondaryWindow.showInactive();
-  } else {
-    secondaryWindow.show();
-  }
-}
-
-function applyOverlayRegions(layer: 'visible' | 'invisible', geometry: WindowGeometry): void {
+function applyOverlayRegions(geometry: WindowGeometry): void {
   lastOverlayWindowGeometry = geometry;
-  const regions = splitOverlayGeometryForSecondaryBar(geometry);
-  overlayManager.setOverlayWindowBounds(layer, regions.primary);
-  overlayManager.setSecondaryWindowBounds(regions.secondary);
+  overlayManager.setOverlayWindowBounds(geometry);
   overlayManager.setModalWindowBounds(geometry);
-  syncSecondaryOverlayWindowVisibility();
 }
 
 const buildUpdateVisibleOverlayBoundsMainDepsHandler =
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
-    setOverlayWindowBounds: (layer, geometry) => applyOverlayRegions(layer, geometry),
+    setOverlayWindowBounds: (geometry) => applyOverlayRegions(geometry),
   });
 const updateVisibleOverlayBoundsMainDeps = buildUpdateVisibleOverlayBoundsMainDepsHandler();
 const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
   updateVisibleOverlayBoundsMainDeps,
-);
-
-const buildUpdateInvisibleOverlayBoundsMainDepsHandler =
-  createBuildUpdateInvisibleOverlayBoundsMainDepsHandler({
-    setOverlayWindowBounds: (layer, geometry) => applyOverlayRegions(layer, geometry),
-  });
-const updateInvisibleOverlayBoundsMainDeps = buildUpdateInvisibleOverlayBoundsMainDepsHandler();
-const updateInvisibleOverlayBounds = createUpdateInvisibleOverlayBoundsHandler(
-  updateInvisibleOverlayBoundsMainDeps,
 );
 
 const buildEnsureOverlayWindowLevelMainDepsHandler =
@@ -2331,21 +2363,23 @@ const ensureOverlayWindowLevel = createEnsureOverlayWindowLevelHandler(
   ensureOverlayWindowLevelMainDeps,
 );
 
+function syncPrimaryOverlayWindowLayer(layer: 'visible'): void {
+  const mainWindow = overlayManager.getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  syncOverlayWindowLayer(mainWindow, layer);
+}
+
 const buildEnforceOverlayLayerOrderMainDepsHandler =
   createBuildEnforceOverlayLayerOrderMainDepsHandler({
     enforceOverlayLayerOrderCore: (params) =>
       enforceOverlayLayerOrderCore({
         visibleOverlayVisible: params.visibleOverlayVisible,
-        invisibleOverlayVisible: params.invisibleOverlayVisible,
         mainWindow: params.mainWindow as BrowserWindow | null,
-        invisibleWindow: params.invisibleWindow as BrowserWindow | null,
         ensureOverlayWindowLevel: (window) =>
           params.ensureOverlayWindowLevel(window as BrowserWindow),
       }),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
     getMainWindow: () => overlayManager.getMainWindow(),
-    getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
     ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window as BrowserWindow),
   });
 const enforceOverlayLayerOrderMainDeps = buildEnforceOverlayLayerOrderMainDepsHandler();
@@ -2361,7 +2395,7 @@ async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
   return yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
 }
 
-function createOverlayWindow(kind: 'visible' | 'invisible' | 'secondary' | 'modal'): BrowserWindow {
+function createOverlayWindow(kind: 'visible' | 'modal'): BrowserWindow {
   return createOverlayWindowHandler(kind);
 }
 
@@ -2375,25 +2409,9 @@ function createModalWindow(): BrowserWindow {
   return window;
 }
 
-function createSecondaryWindow(): BrowserWindow {
-  const existingWindow = overlayManager.getSecondaryWindow();
-  if (existingWindow && !existingWindow.isDestroyed()) {
-    return existingWindow;
-  }
-  const window = createSecondaryWindowHandler();
-  applyOverlayRegions('visible', getCurrentOverlayGeometry());
-  return window;
-}
-
 function createMainWindow(): BrowserWindow {
-  const window = createMainWindowHandler();
-  createSecondaryWindow();
-  return window;
+  return createMainWindowHandler();
 }
-function createInvisibleWindow(): BrowserWindow {
-  return createInvisibleWindowHandler();
-}
-
 function resolveTrayIconPath(): string | null {
   return resolveTrayIconPathHandler();
 }
@@ -2412,6 +2430,7 @@ function destroyTray(): void {
 
 function initializeOverlayRuntime(): void {
   initializeOverlayRuntimeHandler();
+  syncOverlayMpvSubtitleSuppression();
 }
 
 function openYomitanSettings(): void {
@@ -2441,7 +2460,6 @@ const {
       getConfiguredShortcuts: () => getConfiguredShortcutsHandler(),
       registerGlobalShortcutsCore,
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
-      toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
       openYomitanSettings: () => openYomitanSettings(),
       isDev,
       getMainWindow: () => overlayManager.getMainWindow(),
@@ -2495,8 +2513,7 @@ const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
   cycleSecondarySubModeMainDeps: {
     getSecondarySubMode: () => appState.secondarySubMode,
     setSecondarySubMode: (mode: SecondarySubMode) => {
-      appState.secondarySubMode = mode;
-      syncSecondaryOverlayWindowVisibility();
+      setSecondarySubMode(mode);
     },
     getLastSecondarySubToggleAtMs: () => appState.lastSecondarySubToggleAtMs,
     setLastSecondarySubToggleAtMs: (timestampMs: number) => {
@@ -2509,6 +2526,15 @@ const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
   },
   cycleSecondarySubMode: (deps) => cycleSecondarySubModeCore(deps),
 });
+
+function setSecondarySubMode(mode: SecondarySubMode): void {
+  appState.secondarySubMode = mode;
+  syncOverlayMpvSubtitleSuppression();
+}
+
+function handleCycleSecondarySubMode(): void {
+  cycleSecondarySubMode();
+}
 
 async function triggerSubsyncFromConfig(): Promise<void> {
   await subsyncRuntime.triggerFromConfig();
@@ -2613,9 +2639,7 @@ const handleMineSentenceDigitHandler = createHandleMineSentenceDigitHandler(
 );
 const {
   setVisibleOverlayVisible: setVisibleOverlayVisibleHandler,
-  setInvisibleOverlayVisible: setInvisibleOverlayVisibleHandler,
   toggleVisibleOverlay: toggleVisibleOverlayHandler,
-  toggleInvisibleOverlay: toggleInvisibleOverlayHandler,
   setOverlayVisible: setOverlayVisibleHandler,
   toggleOverlay: toggleOverlayHandler,
 } = createOverlayVisibilityRuntime({
@@ -2625,29 +2649,8 @@ const {
       overlayManager.setVisibleOverlayVisible(nextVisible);
     },
     updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
-    updateInvisibleOverlayVisibility: () =>
-      overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
-    syncInvisibleOverlayMousePassthrough: () =>
-      overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
-    shouldBindVisibleOverlayToMpvSubVisibility: () =>
-      configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
-    isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
-    setMpvSubVisibility: (mpvSubVisible) => {
-      setMpvSubVisibilityRuntime(appState.mpvClient, mpvSubVisible);
-    },
-  },
-  setInvisibleOverlayVisibleDeps: {
-    setInvisibleOverlayVisibleCore,
-    setInvisibleOverlayVisibleState: (nextVisible) => {
-      overlayManager.setInvisibleOverlayVisible(nextVisible);
-    },
-    updateInvisibleOverlayVisibility: () =>
-      overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
-    syncInvisibleOverlayMousePassthrough: () =>
-      overlayVisibilityRuntime.syncInvisibleOverlayMousePassthrough(),
   },
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
 });
 
 const buildHandleOverlayModalClosedMainDepsHandler =
@@ -2707,10 +2710,8 @@ const {
       showMpvOsd: (text: string) => showMpvOsd(text),
     },
     mainDeps: {
-      getInvisibleWindow: () => overlayManager.getInvisibleWindow(),
       getMainWindow: () => overlayManager.getMainWindow(),
       getVisibleOverlayVisibility: () => overlayManager.getVisibleOverlayVisible(),
-      getInvisibleOverlayVisibility: () => overlayManager.getInvisibleOverlayVisible(),
       focusMainWindow: () => {
         const mainWindow = overlayManager.getMainWindow();
         if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -2721,13 +2722,15 @@ const {
       onOverlayModalClosed: (modal) => {
         handleOverlayModalClosed(modal);
       },
+      onOverlayModalOpened: (modal) => {
+        overlayModalRuntime.notifyOverlayModalOpened(modal);
+      },
       openYomitanSettings: () => openYomitanSettings(),
       quitApp: () => app.quit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
       tokenizeCurrentSubtitle: () => tokenizeSubtitle(appState.currentSubText),
       getCurrentSubtitleRaw: () => appState.currentSubText,
       getCurrentSubtitleAss: () => appState.currentSubAssText,
-      getMpvSubtitleRenderMetrics: () => appState.mpvSubtitleRenderMetrics,
       getSubtitlePosition: () => loadSubtitlePosition(),
       getSubtitleStyle: () => {
         const resolvedConfig = getResolvedConfig();
@@ -2743,9 +2746,6 @@ const {
       getRuntimeOptions: () => getRuntimeOptionsState(),
       reportOverlayContentBounds: (payload: unknown) => {
         overlayContentMeasurementStore.report(payload);
-      },
-      reportHoveredSubtitleToken: (tokenIndex: number | null) => {
-        reportHoveredSubtitleToken(tokenIndex);
       },
       getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
       clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
@@ -2800,9 +2800,7 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   showMpvOsd: (text: string) => showMpvOsd(text),
   initializeOverlayRuntime: () => initializeOverlayRuntime(),
   toggleVisibleOverlay: () => toggleVisibleOverlay(),
-  toggleInvisibleOverlay: () => toggleInvisibleOverlay(),
   setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
-  setInvisibleOverlayVisible: (visible: boolean) => setInvisibleOverlayVisible(visible),
   copyCurrentSubtitle: () => copyCurrentSubtitle(),
   startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
   mineSentenceCard: () => mineSentenceCard(),
@@ -2821,7 +2819,7 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
   runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
   openYomitanSettings: () => openYomitanSettings(),
-  cycleSecondarySubMode: () => cycleSecondarySubMode(),
+  cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
   openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
   printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
   stopApp: () => app.quit(),
@@ -2835,40 +2833,29 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
 const {
   createOverlayWindow: createOverlayWindowHandler,
   createMainWindow: createMainWindowHandler,
-  createInvisibleWindow: createInvisibleWindowHandler,
-  createSecondaryWindow: createSecondaryWindowHandler,
   createModalWindow: createModalWindowHandler,
 } = createOverlayWindowRuntimeHandlers<BrowserWindow>({
   createOverlayWindowDeps: {
     createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
     isDev,
-    getOverlayDebugVisualizationEnabled: () => appState.overlayDebugVisualizationEnabled,
     ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
     onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
     setOverlayDebugVisualizationEnabled: (enabled) => setOverlayDebugVisualizationEnabled(enabled),
     isOverlayVisible: (windowKind) =>
       windowKind === 'visible'
         ? overlayManager.getVisibleOverlayVisible()
-        : windowKind === 'invisible'
-          ? overlayManager.getInvisibleOverlayVisible()
-          : false,
+        : false,
     tryHandleOverlayShortcutLocalFallback: (input) =>
       overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
     onWindowClosed: (windowKind) => {
       if (windowKind === 'visible') {
         overlayManager.setMainWindow(null);
-      } else if (windowKind === 'invisible') {
-        overlayManager.setInvisibleWindow(null);
-      } else if (windowKind === 'secondary') {
-        overlayManager.setSecondaryWindow(null);
       } else {
         overlayManager.setModalWindow(null);
       }
     },
   },
   setMainWindow: (window) => overlayManager.setMainWindow(window),
-  setInvisibleWindow: (window) => overlayManager.setInvisibleWindow(window),
-  setSecondaryWindow: (window) => overlayManager.setSecondaryWindow(window),
   setModalWindow: (window) => overlayManager.setModalWindow(window),
 });
 const {
@@ -2948,24 +2935,17 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       appState,
       overlayManager: {
         getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-        getInvisibleOverlayVisible: () => overlayManager.getInvisibleOverlayVisible(),
       },
       overlayVisibilityRuntime: {
         updateVisibleOverlayVisibility: () =>
           overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
-        updateInvisibleOverlayVisibility: () =>
-          overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
       },
       overlayShortcutsRuntime: {
         syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
       },
-      getInitialInvisibleOverlayVisibility: () =>
-        configDerivedRuntime.getInitialInvisibleOverlayVisibility(),
       createMainWindow: () => createMainWindow(),
-      createInvisibleWindow: () => createInvisibleWindow(),
       registerGlobalShortcuts: () => registerGlobalShortcuts(),
-      updateVisibleOverlayBounds: (geometry) => updateVisibleOverlayBounds(geometry),
-      updateInvisibleOverlayBounds: (geometry) => updateInvisibleOverlayBounds(geometry),
+      updateVisibleOverlayBounds: (geometry: WindowGeometry) => updateVisibleOverlayBounds(geometry),
       getOverlayWindows: () => getOverlayWindows(),
       getResolvedConfig: () => getResolvedConfig(),
       showDesktopNotification,
@@ -2975,9 +2955,6 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
     initializeOverlayRuntimeBootstrapDeps: {
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
       initializeOverlayRuntimeCore,
-      setInvisibleOverlayVisible: (visible) => {
-        overlayManager.setInvisibleOverlayVisible(visible);
-      },
       setOverlayRuntimeInitialized: (initialized) => {
         appState.overlayRuntimeInitialized = initialized;
       },
@@ -3035,39 +3012,26 @@ function ensureOverlayWindowsReadyForVisibilityActions(): void {
   if (!mainWindow || mainWindow.isDestroyed()) {
     createMainWindow();
   }
-
-  const invisibleWindow = overlayManager.getInvisibleWindow();
-  if (!invisibleWindow || invisibleWindow.isDestroyed()) {
-    createInvisibleWindow();
-  }
 }
 
 function setVisibleOverlayVisible(visible: boolean): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   setVisibleOverlayVisibleHandler(visible);
-}
-
-function setInvisibleOverlayVisible(visible: boolean): void {
-  ensureOverlayWindowsReadyForVisibilityActions();
-  setInvisibleOverlayVisibleHandler(visible);
-  if (visible) {
-    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-  }
+  syncOverlayMpvSubtitleSuppression();
 }
 
 function toggleVisibleOverlay(): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   toggleVisibleOverlayHandler();
-}
-function toggleInvisibleOverlay(): void {
-  ensureOverlayWindowsReadyForVisibilityActions();
-  toggleInvisibleOverlayHandler();
+  syncOverlayMpvSubtitleSuppression();
 }
 function setOverlayVisible(visible: boolean): void {
   setOverlayVisibleHandler(visible);
+  syncOverlayMpvSubtitleSuppression();
 }
 function toggleOverlay(): void {
   toggleOverlayHandler();
+  syncOverlayMpvSubtitleSuppression();
 }
 function handleOverlayModalClosed(modal: OverlayHostedModal): void {
   handleOverlayModalClosedHandler(modal);
@@ -3075,11 +3039,6 @@ function handleOverlayModalClosed(modal: OverlayHostedModal): void {
 
 function handleMpvCommandFromIpc(command: (string | number)[]): void {
   handleMpvCommandFromIpcHandler(command);
-}
-
-function reportHoveredSubtitleToken(tokenIndex: number | null): void {
-  appState.hoveredSubtitleTokenIndex = tokenIndex;
-  applyHoveredTokenOverlay();
 }
 
 async function runSubsyncManualFromIpc(request: SubsyncManualRunRequest): Promise<SubsyncResult> {

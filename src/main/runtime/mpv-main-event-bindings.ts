@@ -19,6 +19,7 @@ type MpvEventClient = Parameters<ReturnType<typeof createBindMpvClientEventHandl
 
 export function createBindMpvMainEventHandlersHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
+  syncOverlayMpvSubtitleSuppression: () => void;
   hasInitialJellyfinPlayArg: () => boolean;
   isOverlayRuntimeInitialized: () => boolean;
   isQuitOnDisconnectArmed: () => boolean;
@@ -42,6 +43,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   broadcastSecondarySubtitle: (text: string) => void;
 
   updateCurrentMediaPath: (path: string) => void;
+  restoreMpvSubVisibilityForInvisibleOverlay: () => void;
   getCurrentAnilistMediaKey: () => string | null;
   resetAnilistMediaTracking: (mediaKey: string | null) => void;
   maybeProbeAnilistDuration: (mediaKey: string) => void;
@@ -63,6 +65,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
     const handleMpvConnectionChange = createHandleMpvConnectionChangeHandler({
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
+      syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
       hasInitialJellyfinPlayArg: () => deps.hasInitialJellyfinPlayArg(),
       isOverlayRuntimeInitialized: () => deps.isOverlayRuntimeInitialized(),
       isQuitOnDisconnectArmed: () => deps.isQuitOnDisconnectArmed(),
@@ -94,6 +97,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
     const handleMpvMediaPathChange = createHandleMpvMediaPathChangeHandler({
       updateCurrentMediaPath: (path) => deps.updateCurrentMediaPath(path),
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
+      restoreMpvSubVisibilityForInvisibleOverlay: () =>
+        deps.restoreMpvSubVisibilityForInvisibleOverlay(),
       getCurrentAnilistMediaKey: () => deps.getCurrentAnilistMediaKey(),
       resetAnilistMediaTracking: (mediaKey) => deps.resetAnilistMediaTracking(mediaKey),
       maybeProbeAnilistDuration: (mediaKey) => deps.maybeProbeAnilistDuration(mediaKey),

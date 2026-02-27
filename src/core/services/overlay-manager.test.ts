@@ -9,11 +9,8 @@ import {
 test('overlay manager initializes with empty windows and hidden overlays', () => {
   const manager = createOverlayManager();
   assert.equal(manager.getMainWindow(), null);
-  assert.equal(manager.getInvisibleWindow(), null);
-  assert.equal(manager.getSecondaryWindow(), null);
   assert.equal(manager.getModalWindow(), null);
   assert.equal(manager.getVisibleOverlayVisible(), false);
-  assert.equal(manager.getInvisibleOverlayVisible(), false);
   assert.deepEqual(manager.getOverlayWindows(), []);
 });
 
@@ -22,28 +19,17 @@ test('overlay manager stores window references and returns stable window order',
   const visibleWindow = {
     isDestroyed: () => false,
   } as unknown as Electron.BrowserWindow;
-  const invisibleWindow = {
-    isDestroyed: () => false,
-  } as unknown as Electron.BrowserWindow;
-  const secondaryWindow = {
-    isDestroyed: () => false,
-  } as unknown as Electron.BrowserWindow;
   const modalWindow = {
     isDestroyed: () => false,
   } as unknown as Electron.BrowserWindow;
 
   manager.setMainWindow(visibleWindow);
-  manager.setInvisibleWindow(invisibleWindow);
-  manager.setSecondaryWindow(secondaryWindow);
   manager.setModalWindow(modalWindow);
 
   assert.equal(manager.getMainWindow(), visibleWindow);
-  assert.equal(manager.getInvisibleWindow(), invisibleWindow);
-  assert.equal(manager.getSecondaryWindow(), secondaryWindow);
   assert.equal(manager.getModalWindow(), modalWindow);
-  assert.equal(manager.getOverlayWindow('visible'), visibleWindow);
-  assert.equal(manager.getOverlayWindow('invisible'), invisibleWindow);
-  assert.deepEqual(manager.getOverlayWindows(), [visibleWindow, invisibleWindow, secondaryWindow]);
+  assert.equal(manager.getOverlayWindow(), visibleWindow);
+  assert.deepEqual(manager.getOverlayWindows(), [visibleWindow]);
 });
 
 test('overlay manager excludes destroyed windows', () => {
@@ -51,26 +37,18 @@ test('overlay manager excludes destroyed windows', () => {
   manager.setMainWindow({
     isDestroyed: () => true,
   } as unknown as Electron.BrowserWindow);
-  manager.setInvisibleWindow({
-    isDestroyed: () => false,
-  } as unknown as Electron.BrowserWindow);
-  manager.setSecondaryWindow({
-    isDestroyed: () => true,
-  } as unknown as Electron.BrowserWindow);
   manager.setModalWindow({
     isDestroyed: () => false,
   } as unknown as Electron.BrowserWindow);
 
-  assert.equal(manager.getOverlayWindows().length, 1);
+  assert.equal(manager.getOverlayWindows().length, 0);
 });
 
 test('overlay manager stores visibility state', () => {
   const manager = createOverlayManager();
 
   manager.setVisibleOverlayVisible(true);
-  manager.setInvisibleOverlayVisible(true);
   assert.equal(manager.getVisibleOverlayVisible(), true);
-  assert.equal(manager.getInvisibleOverlayVisible(), true);
 });
 
 test('overlay manager broadcasts to non-destroyed windows', () => {
@@ -84,56 +62,23 @@ test('overlay manager broadcasts to non-destroyed windows', () => {
       },
     },
   } as unknown as Electron.BrowserWindow;
-  const deadWindow = {
-    isDestroyed: () => true,
-    webContents: {
-      send: (..._args: unknown[]) => {},
-    },
-  } as unknown as Electron.BrowserWindow;
-  const secondaryWindow = {
-    isDestroyed: () => false,
-    webContents: {
-      send: (...args: unknown[]) => {
-        calls.push(args);
-      },
-    },
-  } as unknown as Electron.BrowserWindow;
-
   manager.setMainWindow(aliveWindow);
-  manager.setInvisibleWindow(deadWindow);
-  manager.setSecondaryWindow(secondaryWindow);
   manager.setModalWindow({
     isDestroyed: () => false,
     webContents: { send: () => {} },
   } as unknown as Electron.BrowserWindow);
   manager.broadcastToOverlayWindows('x', 1, 'a');
 
-  assert.deepEqual(calls, [
-    ['x', 1, 'a'],
-    ['x', 1, 'a'],
-  ]);
+  assert.deepEqual(calls, [['x', 1, 'a']]);
 });
 
-test('overlay manager applies bounds by layer', () => {
+test('overlay manager applies bounds for main and modal windows', () => {
   const manager = createOverlayManager();
   const visibleCalls: Electron.Rectangle[] = [];
-  const invisibleCalls: Electron.Rectangle[] = [];
   const visibleWindow = {
     isDestroyed: () => false,
     setBounds: (bounds: Electron.Rectangle) => {
       visibleCalls.push(bounds);
-    },
-  } as unknown as Electron.BrowserWindow;
-  const invisibleWindow = {
-    isDestroyed: () => false,
-    setBounds: (bounds: Electron.Rectangle) => {
-      invisibleCalls.push(bounds);
-    },
-  } as unknown as Electron.BrowserWindow;
-  const secondaryWindow = {
-    isDestroyed: () => false,
-    setBounds: (bounds: Electron.Rectangle) => {
-      invisibleCalls.push(bounds);
     },
   } as unknown as Electron.BrowserWindow;
   const modalCalls: Electron.Rectangle[] = [];
@@ -144,27 +89,13 @@ test('overlay manager applies bounds by layer', () => {
     },
   } as unknown as Electron.BrowserWindow;
   manager.setMainWindow(visibleWindow);
-  manager.setInvisibleWindow(invisibleWindow);
-  manager.setSecondaryWindow(secondaryWindow);
   manager.setModalWindow(modalWindow);
 
-  manager.setOverlayWindowBounds('visible', {
+  manager.setOverlayWindowBounds({
     x: 10,
     y: 20,
     width: 30,
     height: 40,
-  });
-  manager.setOverlayWindowBounds('invisible', {
-    x: 1,
-    y: 2,
-    width: 3,
-    height: 4,
-  });
-  manager.setSecondaryWindowBounds({
-    x: 8,
-    y: 9,
-    width: 10,
-    height: 11,
   });
   manager.setModalWindowBounds({
     x: 80,
@@ -174,14 +105,10 @@ test('overlay manager applies bounds by layer', () => {
   });
 
   assert.deepEqual(visibleCalls, [{ x: 10, y: 20, width: 30, height: 40 }]);
-  assert.deepEqual(invisibleCalls, [
-    { x: 1, y: 2, width: 3, height: 4 },
-    { x: 8, y: 9, width: 10, height: 11 },
-  ]);
   assert.deepEqual(modalCalls, [{ x: 80, y: 90, width: 100, height: 110 }]);
 });
 
-test('runtime-option and debug broadcasts use expected channels', () => {
+test('runtime-option broadcast still uses expected channel', () => {
   const broadcasts: unknown[][] = [];
   broadcastRuntimeOptionsChangedRuntime(
     () => [],
@@ -196,14 +123,8 @@ test('runtime-option and debug broadcasts use expected channels', () => {
     (enabled) => {
       state = enabled;
     },
-    (channel, ...args) => {
-      broadcasts.push([channel, ...args]);
-    },
   );
   assert.equal(changed, true);
   assert.equal(state, true);
-  assert.deepEqual(broadcasts, [
-    ['runtime-options:changed', []],
-    ['overlay-debug-visualization:set', true],
-  ]);
+  assert.deepEqual(broadcasts, [['runtime-options:changed', []]]);
 });

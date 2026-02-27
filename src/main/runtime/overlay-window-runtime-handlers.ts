@@ -1,16 +1,12 @@
 import {
-  createCreateInvisibleWindowHandler,
   createCreateMainWindowHandler,
   createCreateModalWindowHandler,
   createCreateOverlayWindowHandler,
-  createCreateSecondaryWindowHandler,
 } from './overlay-window-factory';
 import {
-  createBuildCreateInvisibleWindowMainDepsHandler,
   createBuildCreateMainWindowMainDepsHandler,
   createBuildCreateModalWindowMainDepsHandler,
   createBuildCreateOverlayWindowMainDepsHandler,
-  createBuildCreateSecondaryWindowMainDepsHandler,
 } from './overlay-window-factory-main-deps';
 
 type CreateOverlayWindowMainDeps<TWindow> = Parameters<
@@ -20,8 +16,6 @@ type CreateOverlayWindowMainDeps<TWindow> = Parameters<
 export function createOverlayWindowRuntimeHandlers<TWindow>(deps: {
   createOverlayWindowDeps: CreateOverlayWindowMainDeps<TWindow>;
   setMainWindow: (window: TWindow | null) => void;
-  setInvisibleWindow: (window: TWindow | null) => void;
-  setSecondaryWindow: (window: TWindow | null) => void;
   setModalWindow: (window: TWindow | null) => void;
 }) {
   const createOverlayWindow = createCreateOverlayWindowHandler<TWindow>(
@@ -31,18 +25,6 @@ export function createOverlayWindowRuntimeHandlers<TWindow>(deps: {
     createBuildCreateMainWindowMainDepsHandler<TWindow>({
       createOverlayWindow: (kind) => createOverlayWindow(kind),
       setMainWindow: (window) => deps.setMainWindow(window),
-    })(),
-  );
-  const createInvisibleWindow = createCreateInvisibleWindowHandler<TWindow>(
-    createBuildCreateInvisibleWindowMainDepsHandler<TWindow>({
-      createOverlayWindow: (kind) => createOverlayWindow(kind),
-      setInvisibleWindow: (window) => deps.setInvisibleWindow(window),
-    })(),
-  );
-  const createSecondaryWindow = createCreateSecondaryWindowHandler<TWindow>(
-    createBuildCreateSecondaryWindowMainDepsHandler<TWindow>({
-      createOverlayWindow: (kind) => createOverlayWindow(kind),
-      setSecondaryWindow: (window) => deps.setSecondaryWindow(window),
     })(),
   );
   const createModalWindow = createCreateModalWindowHandler<TWindow>(
@@ -55,8 +37,6 @@ export function createOverlayWindowRuntimeHandlers<TWindow>(deps: {
   return {
     createOverlayWindow,
     createMainWindow,
-    createInvisibleWindow,
-    createSecondaryWindow,
     createModalWindow,
   };
 }

@@ -8,6 +8,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
 
   const bind = createBindMpvMainEventHandlersHandler({
     reportJellyfinRemoteStopped: () => calls.push('remote-stopped'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
     hasInitialJellyfinPlayArg: () => false,
     isOverlayRuntimeInitialized: () => false,
     isQuitOnDisconnectArmed: () => false,
@@ -35,6 +36,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     broadcastSecondarySubtitle: (text) => calls.push(`broadcast-secondary:${text}`),
 
     updateCurrentMediaPath: (path) => calls.push(`media-path:${path}`),
+    restoreMpvSubVisibilityForInvisibleOverlay: () => calls.push('restore-mpv-sub'),
     getCurrentAnilistMediaKey: () => 'media-key',
     resetAnilistMediaTracking: (key) => calls.push(`reset-media:${String(key)}`),
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
@@ -62,6 +64,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   });
 
   handlers.get('subtitle-change')?.({ text: 'line' });
+  handlers.get('media-path-change')?.({ path: '' });
   handlers.get('media-title-change')?.({ title: 'Episode 1' });
   handlers.get('time-pos-change')?.({ time: 2.5 });
   handlers.get('pause-change')?.({ paused: true });
@@ -70,6 +73,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.ok(calls.includes('broadcast-sub:line'));
   assert.ok(calls.includes('subtitle-change:line'));
   assert.ok(calls.includes('media-title:Episode 1'));
+  assert.ok(calls.includes('restore-mpv-sub'));
   assert.ok(calls.includes('reset-guess-state'));
   assert.ok(calls.includes('notify-title:Episode 1'));
   assert.ok(calls.includes('progress:normal'));

@@ -23,7 +23,6 @@ export {
 export { createAppLifecycleDepsRuntime, startAppLifecycle } from './app-lifecycle';
 export { cycleSecondarySubMode } from './subtitle-position';
 export {
-  getInitialInvisibleOverlayVisibility,
   isAutoUpdateEnabledRuntime,
   shouldAutoInitializeOverlayRuntimeFromConfig,
   shouldBindVisibleOverlayToMpvSubVisibility,
@@ -59,14 +58,12 @@ export {
   createOverlayWindow,
   enforceOverlayLayerOrder,
   ensureOverlayWindowLevel,
+  syncOverlayWindowLayer,
   updateOverlayWindowBounds,
 } from './overlay-window';
 export { initializeOverlayRuntime } from './overlay-runtime-init';
 export {
-  setInvisibleOverlayVisible,
   setVisibleOverlayVisible,
-  syncInvisibleOverlayMousePassthrough,
-  updateInvisibleOverlayVisibility,
   updateVisibleOverlayVisibility,
 } from './overlay-visibility';
 export {
@@ -76,6 +73,7 @@ export {
   replayCurrentSubtitleRuntime,
   resolveCurrentAudioStreamIndex,
   sendMpvCommandRuntime,
+  setMpvSecondarySubVisibilityRuntime,
   setMpvSubVisibilityRuntime,
   showMpvOsdRuntime,
 } from './mpv';

@@ -13,11 +13,11 @@
   "auto_start_overlay": false, // When overlay connects to mpv, automatically show overlay and hide mpv subtitles. Values: true | false
 
   // ==========================================
-  // Visible Overlay Subtitle Binding
-  // Control whether visible overlay toggles also toggle MPV subtitle visibility.
-  // When enabled, visible overlay hides MPV subtitles; when disabled, MPV subtitles are left unchanged.
+  // Visible Overlay Subtitle Binding (Legacy)
+  // Backward-compatible key. Runtime ignores this value.
+  // MPV subtitles are automatically hidden whenever any overlay subtitle mode is visible.
   // ==========================================
-  "bind_visible_overlay_to_mpv_sub_visibility": true, // Link visible overlay toggles to MPV subtitle visibility (primary and secondary). Values: true | false
+  "bind_visible_overlay_to_mpv_sub_visibility": true, // Legacy compatibility key (runtime no-op). Values: true | false
 
   // ==========================================
   // Texthooker Server
@@ -53,7 +53,6 @@
   // ==========================================
   "shortcuts": {
     "toggleVisibleOverlayGlobal": "Alt+Shift+O", // Toggle visible overlay global setting.
-    "toggleInvisibleOverlayGlobal": "Alt+Shift+I", // Toggle invisible overlay global setting.
     "copySubtitle": "CommandOrControl+C", // Copy subtitle setting.
     "copySubtitleMultiple": "CommandOrControl+Shift+C", // Copy subtitle multiple setting.
     "updateLastCardFromClipboard": "CommandOrControl+V", // Update last card from clipboard setting.
@@ -67,16 +66,6 @@
     "openRuntimeOptions": "CommandOrControl+Shift+O", // Open runtime options setting.
     "openJimaku": "Ctrl+Shift+J" // Open jimaku setting.
   }, // Overlay keyboard shortcuts. Set a shortcut to null to disable.
-
-  // ==========================================
-  // Invisible Overlay
-  // Startup behavior for the invisible interactive subtitle mining layer.
-  // Invisible subtitle position edit mode: Ctrl/Cmd+Shift+P to toggle, arrow keys to move, Enter or Ctrl/Cmd+S to save, Esc to cancel.
-  // This edit-mode shortcut is fixed and is not currently configurable.
-  // ==========================================
-  "invisibleOverlay": {
-    "startupVisibility": "platform-default" // Startup visibility setting.
-  }, // Startup behavior for the invisible interactive subtitle mining layer.
 
   // ==========================================
   // Keybindings (MPV Commands)
@@ -123,9 +112,11 @@
   // Hot-reload: subtitle style changes apply live without restarting SubMiner.
   // ==========================================
   "subtitleStyle": {
+    // Additional CSS declarations are also allowed and applied directly to subtitle roots/containers (for example: lineHeight, textShadow, -webkit-text-stroke, backdropFilter).
     "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
-    "hoverTokenColor": "#c6a0f6", // Hex color used for hovered subtitle token highlight in mpv.
+    "hoverTokenColor": "#f4dbd6", // Hex color used for hovered subtitle token highlight in the overlay.
+    "hoverTokenBackgroundColor": "#363a4fd6", // CSS color used for hovered subtitle token background highlight in the overlay.
     "fontFamily": "M PLUS 1, Noto Sans CJK JP Regular, Noto Sans CJK JP, Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic, Arial Unicode MS, Arial, sans-serif", // Font family setting.
     "fontSize": 35, // Font size setting.
     "fontColor": "#cad3f5", // Font color setting.

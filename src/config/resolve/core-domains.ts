@@ -77,7 +77,6 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
   if (isObject(src.shortcuts)) {
     const shortcutKeys = [
       'toggleVisibleOverlayGlobal',
-      'toggleInvisibleOverlayGlobal',
       'copySubtitle',
       'copySubtitleMultiple',
       'updateLastCardFromClipboard',
@@ -109,24 +108,6 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
         src.shortcuts.multiCopyTimeoutMs,
         resolved.shortcuts.multiCopyTimeoutMs,
         'Expected positive number.',
-      );
-    }
-  }
-
-  if (isObject(src.invisibleOverlay)) {
-    const startupVisibility = src.invisibleOverlay.startupVisibility;
-    if (
-      startupVisibility === 'platform-default' ||
-      startupVisibility === 'visible' ||
-      startupVisibility === 'hidden'
-    ) {
-      resolved.invisibleOverlay.startupVisibility = startupVisibility;
-    } else if (startupVisibility !== undefined) {
-      warn(
-        'invisibleOverlay.startupVisibility',
-        startupVisibility,
-        resolved.invisibleOverlay.startupVisibility,
-        'Expected platform-default, visible, or hidden.',
       );
     }
   }

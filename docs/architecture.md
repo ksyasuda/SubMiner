@@ -78,7 +78,7 @@ src/
 
 ### Service Layer (`src/core/services/`)
 
-- **Overlay/window runtime:** `overlay-manager.ts`, `overlay-window.ts`, `overlay-window-geometry.ts`, `overlay-visibility.ts`, `overlay-bridge.ts`, `overlay-runtime-init.ts`, `overlay-content-measurement.ts`, `overlay-drop.ts`
+- **Overlay/window runtime:** `overlay-manager.ts`, `overlay-window.ts`, `overlay-visibility.ts`, `overlay-bridge.ts`, `overlay-runtime-init.ts`, `overlay-content-measurement.ts`, `overlay-drop.ts`
 - **Shortcuts/input:** `shortcut.ts`, `overlay-shortcut.ts`, `overlay-shortcut-handler.ts`, `shortcut-fallback.ts`, `numeric-shortcut.ts`
 - **MPV runtime:** `mpv.ts`, `mpv-transport.ts`, `mpv-protocol.ts`, `mpv-properties.ts`, `mpv-render-metrics.ts`
 - **Mining + Anki/Jimaku runtime:** `mining.ts`, `field-grouping.ts`, `field-grouping-overlay.ts`, `anki-jimaku.ts`, `anki-jimaku-ipc.ts`
@@ -102,7 +102,6 @@ src/renderer/
   positioning.ts           # Facade export for positioning controller
   positioning/
     controller.ts          # Position controller orchestration
-    invisible-layout*.ts   # Invisible layer layout computations
     position-state.ts      # Position state helpers
   handlers/
     keyboard.ts            # Keybindings, chord handling, modal key routing
@@ -125,7 +124,7 @@ src/renderer/
 
 ## Flow Diagram
 
-The main process has three layers: `main.ts` delegates to composition modules that wire together domain services. Three overlay windows (visible, invisible, secondary) run in separate Electron renderer processes, connected through `preload.ts`. External runtimes (launcher CLI and mpv plugin) operate independently and communicate via IPC socket or CLI passthrough.
+The main process orchestrates a single primary overlay window plus modal surfaces: `main.ts` delegates to composition modules that wire together domain services. Subtitle layers (primary + secondary bar) are rendered in the same overlay renderer process, connected through `preload.ts`. External runtimes (launcher CLI and mpv plugin) operate independently and communicate via IPC socket or CLI passthrough.
 
 ```mermaid
 flowchart LR
@@ -162,7 +161,7 @@ flowchart LR
 
   subgraph Svc["Services — src/core/services/"]
     Mpv["MPV Stack<br/>transport · protocol<br/>properties · metrics"]:::svc
-    Overlay["Overlay Manager<br/>window · geometry<br/>visibility · bridge"]:::svc
+    Overlay["Overlay Manager<br/>window · visibility · bridge"]:::svc
     Mining["Mining & Subtitles<br/>mining · field-grouping<br/>subtitle-ws · tokenizer"]:::svc
     Integrations["Integrations<br/>jimaku · subsync<br/>texthooker · yomitan"]:::svc
     Tracking["Tracking<br/>anilist · jellyfin<br/>immersion · discord"]:::svc
@@ -172,9 +171,7 @@ flowchart LR
   Bridge(["preload.ts<br/>Electron IPC"]):::bridge
 
   subgraph Rend["Renderer — src/renderer/"]
-    Visible["Visible window<br/>Yomitan lookups"]:::rend
-    Invisible["Invisible window<br/>mpv positioning"]:::rend
-    Secondary["Secondary window<br/>subtitle bar"]:::rend
+    Overlay["Main overlay window<br/>primary + secondary subtitles"]:::rend
     UI["subtitle-render<br/>positioning<br/>handlers · modals"]:::rend
   end
 
@@ -193,10 +190,8 @@ flowchart LR
   DiscordExt <-->|"RPC"| Integrations
 
   Overlay & Mining --> Bridge
-  Bridge --> Visible
-  Bridge --> Invisible
-  Bridge --> Secondary
-  Visible & Invisible & Secondary --> UI
+  Bridge --> Overlay
+  Overlay --> UI
 
   style Comp fill:#363a4f,stroke:#494d64,color:#cad3f5
   style Svc fill:#363a4f,stroke:#494d64,color:#cad3f5
@@ -264,9 +259,9 @@ For domains migrated to reducer-style transitions (for example AniList token/que
 - **Module-level init:** Before `app.ready`, the composition root registers protocols, sets platform flags, constructs all services, and wires dependency injection. `runAndApplyStartupState()` parses CLI args and detects the compositor backend.
 - **Startup:** If `--generate-config` is passed, it writes the template and exits. Otherwise `app-lifecycle.ts` acquires the single-instance lock and registers Electron lifecycle hooks.
 - **Critical-path init:** Once `app.whenReady()` fires, `composeAppReadyRuntime()` runs strict config reload, resolves keybindings, creates the `MpvIpcClient` (which immediately connects and subscribes to 26 properties), and initializes the `RuntimeOptionsManager`, `SubtitleTimingTracker`, and `ImmersionTrackerService`.
-- **Overlay runtime:** `initializeOverlayRuntime()` creates three overlay windows — **visible** (interactive Yomitan lookups), **invisible** (mpv-matched subtitle positioning), and **secondary** (secondary subtitle bar, top 20% via `splitOverlayGeometryForSecondaryBar`) — then registers global shortcuts and sets initial bounds from the window tracker.
+- **Overlay runtime:** `initializeOverlayRuntime()` creates the primary overlay window (interactive Yomitan lookups and subtitle rendering) and registers global shortcuts and bounds tracking via the active window tracker.
 - **Background warmups:** Non-critical services are launched asynchronously: MeCab tokenizer check, Yomitan extension load, JLPT + frequency dictionary prewarm, optional Jellyfin remote session, Discord presence service, and AniList token refresh.
-- **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, overlay shortcuts, and hot-reload notifications route through runtime handlers/composers. Subtitle text flows through `SubtitlePipeline` (normalize → tokenize → merge), and results broadcast to all overlay windows.
+- **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, overlay shortcuts, and hot-reload notifications route through runtime handlers/composers. Subtitle text flows through `SubtitlePipeline` (normalize → tokenize → merge), and results are sent to the main overlay renderer and modal surfaces.
 - **Shutdown:** `onWillQuitCleanup` destroys tray + config watcher, unregisters shortcuts, stops WebSocket + texthooker servers, closes the mpv socket + flushes OSD log, stops the window tracker, closes the Yomitan parser window, flushes the immersion tracker (SQLite), stops Jellyfin/Discord services, and cleans Anki/AniList state.
 
 ```mermaid
@@ -298,14 +293,10 @@ flowchart LR
 
   OverlayInit["initializeOverlay<br/>Runtime()"]:::phase
 
-  OverlayInit --> VisWin["Visible window<br/>Yomitan lookups"]:::init
-  OverlayInit --> InvWin["Invisible window<br/>mpv positioning"]:::init
-  OverlayInit --> SecWin["Secondary window<br/>subtitle bar"]:::init
+  OverlayInit --> MainWin["Main overlay window<br/>primary + secondary subtitles"]:::init
   OverlayInit --> Shortcuts["Register global<br/>shortcuts"]:::init
 
-  VisWin --> Warmups
-  InvWin --> Warmups
-  SecWin --> Warmups
+  MainWin --> Warmups
   Shortcuts --> Warmups
 
   Warmups["Background<br/>warmups"]:::phase
@@ -330,7 +321,7 @@ flowchart LR
     ExtEvt["Shortcuts · config hot-reload"]:::runtime
     MpvEvt & IpcEvt & ExtEvt --> Route["Route via composers"]:::runtime
     Route --> Process["SubtitlePipeline<br/>normalize → tokenize → merge"]:::runtime
-    Process --> Broadcast["Update AppState<br/>broadcast to windows"]:::runtime
+    Process --> Broadcast["Update AppState<br/>broadcast to renderer + modals"]:::runtime
   end
 
   WarmupGroup --> Loop

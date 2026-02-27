@@ -119,6 +119,38 @@ test('dispatchMpvProtocolMessage emits subtitle text on property change', async 
   assert.deepEqual(state.events, [{ text: '字幕', isOverlayVisible: false }]);
 });
 
+test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay suppression is enabled', async () => {
+  const { deps, state } = createDeps({
+    shouldBindVisibleOverlayToMpvSubVisibility: () => true,
+    isVisibleOverlayVisible: () => true,
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'sub-visibility', data: 'yes' },
+    deps,
+  );
+
+  assert.deepEqual(state.commands.pop(), {
+    command: ['set_property', 'sub-visibility', 'no'],
+  });
+});
+
+test('dispatchMpvProtocolMessage enforces secondary sub-visibility hidden when overlay suppression is enabled', async () => {
+  const { deps, state } = createDeps({
+    shouldBindVisibleOverlayToMpvSubVisibility: () => true,
+    isVisibleOverlayVisible: () => true,
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sub-visibility', data: 'yes' },
+    deps,
+  );
+
+  assert.deepEqual(state.commands.pop(), {
+    command: ['set_property', 'secondary-sub-visibility', 'no'],
+  });
+});
+
 test('dispatchMpvProtocolMessage sets secondary subtitle track based on track list response', async () => {
   const { deps, state } = createDeps();
 

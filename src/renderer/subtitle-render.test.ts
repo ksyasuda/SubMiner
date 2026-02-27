@@ -10,9 +10,9 @@ import {
   buildInvisibleTokenHoverRanges,
   computeWordClass,
   normalizeSubtitle,
+  sanitizeSubtitleHoverTokenColor,
   shouldRenderTokenizedSubtitle,
 } from './subtitle-render.js';
-import { resolveInvisibleLineHeight } from './positioning/invisible-layout-helpers.js';
 
 function createToken(overrides: Partial<MergedToken>): MergedToken {
   return {
@@ -210,6 +210,17 @@ test('computeWordClass skips frequency class when rank is out of topX', () => {
   assert.equal(actual, 'word');
 });
 
+test('sanitizeSubtitleHoverTokenColor falls back for pure black values', () => {
+  assert.equal(sanitizeSubtitleHoverTokenColor('#000000'), '#f4dbd6');
+  assert.equal(sanitizeSubtitleHoverTokenColor('000000'), '#f4dbd6');
+  assert.equal(sanitizeSubtitleHoverTokenColor('#0000'), '#f4dbd6');
+});
+
+test('sanitizeSubtitleHoverTokenColor keeps non-black color values', () => {
+  assert.equal(sanitizeSubtitleHoverTokenColor('#ff00ff'), '#ff00ff');
+  assert.equal(sanitizeSubtitleHoverTokenColor(undefined), '#f4dbd6');
+});
+
 test('alignTokensToSourceText preserves newline separators between adjacent token surfaces', () => {
   const tokens = [
     createToken({ surface: 'キリキリと', reading: 'きりきりと', headword: 'キリキリと' }),
@@ -285,20 +296,16 @@ test('normalizeSubtitle collapses explicit line breaks when collapseLineBreaks i
   );
 });
 
-test('shouldRenderTokenizedSubtitle disables token rendering on invisible layer', () => {
-  assert.equal(shouldRenderTokenizedSubtitle(true, 5), false);
-});
-
-test('shouldRenderTokenizedSubtitle enables token rendering on visible layer when tokens exist', () => {
-  assert.equal(shouldRenderTokenizedSubtitle(false, 5), true);
-  assert.equal(shouldRenderTokenizedSubtitle(false, 0), false);
+test('shouldRenderTokenizedSubtitle enables token rendering when tokens exist', () => {
+  assert.equal(shouldRenderTokenizedSubtitle(5), true);
+  assert.equal(shouldRenderTokenizedSubtitle(0), false);
 });
 
 test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   const distCssPath = path.join(process.cwd(), 'dist', 'renderer', 'style.css');
   const srcCssPath = path.join(process.cwd(), 'src', 'renderer', 'style.css');
 
-  const cssPath = fs.existsSync(distCssPath) ? distCssPath : srcCssPath;
+  const cssPath = fs.existsSync(srcCssPath) ? srcCssPath : distCssPath;
   if (!fs.existsSync(cssPath)) {
     assert.fail(
       'JLPT CSS file missing. Run `bun run build` first, or ensure src/renderer/style.css exists.',
@@ -330,31 +337,86 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     assert.match(block, /color:\s*var\(/);
   }
 
-  const invisibleBlock = extractClassBlock(
-    cssText,
-    'body.layer-invisible #subtitleRoot',
-  );
-  assert.match(
-    invisibleBlock,
-    /line-height:\s*var\(--invisible-sub-line-height,\s*normal\)\s*!important;/,
-  );
-
   const visibleMacBlock = extractClassBlock(
     cssText,
     'body.platform-macos.layer-visible #subtitleRoot',
   );
   assert.match(visibleMacBlock, /--visible-sub-line-height:\s*1\.64;/);
   assert.match(visibleMacBlock, /--visible-sub-line-gap:\s*0\.54em;/);
-});
 
-test('invisible overlay uses looser line height on macOS for multi-line subtitles', () => {
-  assert.equal(resolveInvisibleLineHeight(1, true), '1.08');
-  assert.equal(resolveInvisibleLineHeight(2, true), '1.5');
-  assert.equal(resolveInvisibleLineHeight(3, true), '1.62');
-});
+  const subtitleRootBlock = extractClassBlock(cssText, '#subtitleRoot');
+  assert.match(
+    subtitleRootBlock,
+    /--subtitle-hover-token-color:\s*#f4dbd6;/,
+  );
+  assert.match(
+    subtitleRootBlock,
+    /--subtitle-hover-token-background-color:\s*rgba\(54,\s*58,\s*79,\s*0\.84\);/,
+  );
+  assert.match(subtitleRootBlock, /-webkit-text-fill-color:\s*currentColor;/);
 
-test('invisible overlay keeps default line height on non-macOS platforms', () => {
-  assert.equal(resolveInvisibleLineHeight(1, false), 'normal');
-  assert.equal(resolveInvisibleLineHeight(2, false), 'normal');
-  assert.equal(resolveInvisibleLineHeight(4, false), 'normal');
+  const charBlock = extractClassBlock(cssText, '#subtitleRoot .c');
+  assert.match(charBlock, /-webkit-text-fill-color:\s*currentColor\s*!important;/);
+
+  const wordBlock = extractClassBlock(cssText, '#subtitleRoot .word');
+  assert.match(wordBlock, /-webkit-text-fill-color:\s*currentColor\s*!important;/);
+
+  assert.match(
+    cssText,
+    /#subtitleRoot \.word:not\(\.word-known\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\s*\.word-frequency-band-1\s*\):not\(\.word-frequency-band-2\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\s*\.word-frequency-band-5\s*\):hover\s*\{[\s\S]*?background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+
+  const coloredWordHoverBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known:hover');
+  assert.match(
+    coloredWordHoverBlock,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
+  );
+  assert.match(coloredWordHoverBlock, /border-radius:\s*3px;/);
+  assert.match(coloredWordHoverBlock, /font-weight:\s*800;/);
+  assert.doesNotMatch(coloredWordHoverBlock, /color:\s*var\(--subtitle-hover-token-color/);
+  assert.doesNotMatch(coloredWordHoverBlock, /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color/);
+
+  const coloredWordSelectionBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known::selection');
+  assert.match(
+    coloredWordSelectionBlock,
+    /color:\s*var\(--subtitle-known-word-color,\s*#a6da95\)\s*!important;/,
+  );
+  assert.match(
+    coloredWordSelectionBlock,
+    /-webkit-text-fill-color:\s*var\(--subtitle-known-word-color,\s*#a6da95\)\s*!important;/,
+  );
+
+  const coloredCharHoverBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known .c:hover');
+  assert.match(coloredCharHoverBlock, /background:\s*transparent;/);
+  assert.match(coloredCharHoverBlock, /color:\s*inherit\s*!important;/);
+
+  const selectionBlock = extractClassBlock(cssText, '#subtitleRoot::selection');
+  assert.match(
+    selectionBlock,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
+  );
+  assert.match(selectionBlock, /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/);
+  assert.match(
+    selectionBlock,
+    /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+
+  const descendantSelectionBlock = extractClassBlock(cssText, '#subtitleRoot *::selection');
+  assert.match(
+    descendantSelectionBlock,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\)\s*!important;/,
+  );
+  assert.match(
+    descendantSelectionBlock,
+    /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+  assert.match(
+    descendantSelectionBlock,
+    /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+
+  assert.doesNotMatch(
+    cssText,
+    /body\.layer-visible\s+#secondarySubContainer\s*\{[^}]*display:\s*none/i,
+  );
 });
