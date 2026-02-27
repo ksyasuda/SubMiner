@@ -41,5 +41,5 @@ test('overlay runtime bootstrap runs core init and applies post-init state', () 
 
   initialize();
   assert.equal(initialized, true);
-  assert.deepEqual(calls, ['options', 'core', 'initialized:yes', 'warmups']);
+  assert.deepEqual(calls, ['options', 'initialized:yes', 'core', 'warmups']);
 });

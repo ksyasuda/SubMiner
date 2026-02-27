@@ -41,8 +41,14 @@ export function createInitializeOverlayRuntimeHandler(deps: {
 }) {
   return (): void => {
     if (deps.isOverlayRuntimeInitialized()) return;
-    deps.initializeOverlayRuntimeCore(deps.buildOptions());
+    const options = deps.buildOptions();
     deps.setOverlayRuntimeInitialized(true);
+    try {
+      deps.initializeOverlayRuntimeCore(options);
+    } catch (error) {
+      deps.setOverlayRuntimeInitialized(false);
+      throw error;
+    }
     deps.startBackgroundWarmups();
   };
 }

@@ -117,7 +117,7 @@ export function createOverlayWindow(
 
   window.webContents.on('before-input-event', (event, input) => {
     if (kind === 'modal') return;
-    if (!options.isOverlayVisible(kind)) return;
+    if (!window.isVisible()) return;
     if (!options.tryHandleOverlayShortcutLocalFallback(input)) return;
     event.preventDefault();
   });

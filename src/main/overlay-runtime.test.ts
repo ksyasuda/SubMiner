@@ -225,6 +225,27 @@ test('handleOverlayModalClosed hides modal window only after all pending modals 
   assert.equal(window.getHideCount(), 1);
 });
 
+test('sendToActiveOverlayWindow prefers visible main overlay window for modal open', () => {
+  const mainWindow = createMockWindow();
+  mainWindow.visible = true;
+  const runtime = createOverlayModalRuntimeService({
+    getMainWindow: () => mainWindow as never,
+    getModalWindow: () => null,
+    createModalWindow: () => {
+      throw new Error('modal window should not be created when main overlay is visible');
+    },
+    getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+    setModalWindowBounds: () => {},
+  });
+
+  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+    restoreOnModalClose: 'runtime-options',
+  });
+
+  assert.equal(sent, true);
+  assert.deepEqual(mainWindow.sent, [['runtime-options:open']]);
+});
+
 test('modal runtime notifies callers when modal input state becomes active/inactive', () => {
   const window = createMockWindow();
   const state: boolean[] = [];
@@ -249,12 +270,40 @@ test('modal runtime notifies callers when modal input state becomes active/inact
   runtime.sendToActiveOverlayWindow('subsync:open-manual', { sourceTracks: [] }, {
     restoreOnModalClose: 'subsync',
   });
+  assert.deepEqual(state, []);
+  runtime.notifyOverlayModalOpened('runtime-options');
   assert.deepEqual(state, [true]);
 
   runtime.handleOverlayModalClosed('runtime-options');
   assert.deepEqual(state, [true]);
 
   runtime.handleOverlayModalClosed('subsync');
+  assert.deepEqual(state, [true, false]);
+});
+
+test('handleOverlayModalClosed resets modal state even when modal window does not exist', () => {
+  const state: boolean[] = [];
+  const runtime = createOverlayModalRuntimeService(
+    {
+      getMainWindow: () => null,
+      getModalWindow: () => null,
+      createModalWindow: () => null,
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {},
+    },
+    {
+      onModalStateChange: (active: boolean): void => {
+        state.push(active);
+      },
+    },
+  );
+
+  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+    restoreOnModalClose: 'runtime-options',
+  });
+  runtime.notifyOverlayModalOpened('runtime-options');
+  runtime.handleOverlayModalClosed('runtime-options');
+
   assert.deepEqual(state, [true, false]);
 });
 
