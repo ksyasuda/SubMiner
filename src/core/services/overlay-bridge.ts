@@ -27,9 +27,7 @@ export function sendToVisibleOverlayRuntime<T extends string>(options: {
     }
   };
 
-  const getURL = options.mainWindow.webContents.getURL;
-  const currentURL =
-    typeof getURL === 'function' ? getURL.call(options.mainWindow.webContents) : 'ready';
+  const currentURL = options.mainWindow.webContents.getURL();
   const isReady =
     !options.mainWindow.webContents.isLoading() &&
     currentURL !== '' &&

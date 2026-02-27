@@ -111,7 +111,7 @@ function applyInlineStyleDeclarations(
     }
 
     const cssValue = String(value);
-    if (key.startsWith('-') || key.includes('-')) {
+    if (key.includes('-')) {
       target.style.setProperty(key, cssValue);
       if (key === '--webkit-text-stroke') {
         target.style.setProperty('-webkit-text-stroke', cssValue);

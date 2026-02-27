@@ -65,12 +65,13 @@ export function createOverlayModalRuntimeService(
     return null;
   };
 
-  const isWindowReadyForIpc = (window: BrowserWindow): boolean => {
-    if (window.webContents.isLoading()) {
-      return false;
-    }
-    return window.webContents.getURL() !== '' && window.webContents.getURL() !== 'about:blank';
-  };
+const isWindowReadyForIpc = (window: BrowserWindow): boolean => {
+  if (window.webContents.isLoading()) {
+    return false;
+  }
+  const currentURL = window.webContents.getURL();
+  return currentURL !== '' && currentURL !== 'about:blank';
+};
 
   const sendOrQueueForWindow = (
     window: BrowserWindow,

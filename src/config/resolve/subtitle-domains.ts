@@ -170,7 +170,7 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         'subtitleStyle.hoverTokenBackgroundColor',
         (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor,
         resolved.subtitleStyle.hoverTokenBackgroundColor,
-        'Expected string.',
+        'Expected a CSS color value (hex, rgba/hsl/hsla, named color, or var()).',
       );
     }
 
