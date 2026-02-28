@@ -2322,6 +2322,11 @@ const {
       ensureJlptDictionaryLookup: () => jlptDictionaryRuntime.ensureJlptDictionaryLookup(),
       ensureFrequencyDictionaryLookup: () =>
         frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup(),
+      showMpvOsd: (message: string) => showMpvOsd(message),
+      shouldShowOsdNotification: () => {
+        const type = getResolvedConfig().ankiConnect.behavior.notificationType;
+        return type === 'osd' || type === 'both';
+      },
     },
   },
   warmups: {
@@ -2366,6 +2371,7 @@ const {
         );
       },
       startJellyfinRemoteSession: () => startJellyfinRemoteSession(),
+      logDebug: (message) => logger.debug(message),
     },
   },
 });

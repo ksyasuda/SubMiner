@@ -87,6 +87,7 @@ export type MpvRuntimeComposerResult<
   tokenizeSubtitle: (text: string) => Promise<TTokenizedSubtitle>;
   createMecabTokenizerAndCheck: () => Promise<void>;
   prewarmSubtitleDictionaries: () => Promise<void>;
+  startTokenizationWarmups: () => Promise<void>;
   launchBackgroundWarmupTask: ReturnType<typeof createLaunchBackgroundWarmupTaskFromStartup>;
   startBackgroundWarmups: ReturnType<typeof createStartBackgroundWarmupsFromStartup>;
 }>;
@@ -132,12 +133,23 @@ export function composeMpvRuntimeHandlers<
   const prewarmSubtitleDictionaries = createPrewarmSubtitleDictionariesMainHandler(
     options.tokenizer.prewarmSubtitleDictionariesMainDeps,
   );
-  const tokenizeSubtitle = async (text: string): Promise<TTokenizedSubtitle> => {
-    await options.warmups.startBackgroundWarmupsMainDeps.ensureYomitanExtensionLoaded();
-    if (!options.tokenizer.createMecabTokenizerAndCheckMainDeps.getMecabTokenizer()) {
-      await createMecabTokenizerAndCheck().catch(() => {});
+  let tokenizationWarmupInFlight: Promise<void> | null = null;
+  const startTokenizationWarmups = (): Promise<void> => {
+    if (!tokenizationWarmupInFlight) {
+      tokenizationWarmupInFlight = (async () => {
+        await options.warmups.startBackgroundWarmupsMainDeps.ensureYomitanExtensionLoaded();
+        if (!options.tokenizer.createMecabTokenizerAndCheckMainDeps.getMecabTokenizer()) {
+          await createMecabTokenizerAndCheck().catch(() => {});
+        }
+    await prewarmSubtitleDictionaries({ showLoadingOsd: true });
+      })().finally(() => {
+        tokenizationWarmupInFlight = null;
+      });
     }
-    await prewarmSubtitleDictionaries();
+    return tokenizationWarmupInFlight;
+  };
+  const tokenizeSubtitle = async (text: string): Promise<TTokenizedSubtitle> => {
+    await startTokenizationWarmups();
     return options.tokenizer.tokenizeSubtitle(
       text,
       options.tokenizer.createTokenizerRuntimeDeps(buildTokenizerDepsHandler()),
@@ -165,6 +177,7 @@ export function composeMpvRuntimeHandlers<
     tokenizeSubtitle,
     createMecabTokenizerAndCheck: () => createMecabTokenizerAndCheck(),
     prewarmSubtitleDictionaries: () => prewarmSubtitleDictionaries(),
+    startTokenizationWarmups,
     launchBackgroundWarmupTask: (label, task) => launchBackgroundWarmupTask(label, task),
     startBackgroundWarmups: () => startBackgroundWarmups(),
   };
