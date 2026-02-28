@@ -2,8 +2,6 @@ local M = {}
 
 local OVERLAY_START_RETRY_DELAY_SECONDS = 0.2
 local OVERLAY_START_MAX_ATTEMPTS = 6
-local STARTUP_OVERLAY_ACTION_RETRY_DELAY_SECONDS = 0.2
-local STARTUP_OVERLAY_ACTION_MAX_ATTEMPTS = 6
 
 function M.create(ctx)
 	local mp = ctx.mp
@@ -15,6 +13,14 @@ function M.create(ctx)
 	local subminer_log = ctx.log.subminer_log
 	local show_osd = ctx.log.show_osd
 	local normalize_log_level = ctx.log.normalize_log_level
+
+	local function resolve_visible_overlay_startup()
+		local raw_visible_overlay = opts.auto_start_visible_overlay
+		if raw_visible_overlay == nil then
+			raw_visible_overlay = opts["auto-start-visible-overlay"]
+		end
+		return options_helper.coerce_bool(raw_visible_overlay, false)
+	end
 
 	local function resolve_backend(override_backend)
 		local selected = override_backend
@@ -48,6 +54,13 @@ function M.create(ctx)
 			local socket_path = overrides.socket_path or opts.socket_path
 			table.insert(args, "--socket")
 			table.insert(args, socket_path)
+
+			local should_show_visible = resolve_visible_overlay_startup()
+			if should_show_visible then
+				table.insert(args, "--show-visible-overlay")
+			else
+				table.insert(args, "--hide-visible-overlay")
+			end
 		end
 
 		return args
@@ -97,43 +110,6 @@ function M.create(ctx)
 			end
 		end
 		return overrides
-	end
-
-	local function resolve_visible_overlay_startup()
-		local raw_visible_overlay = opts.auto_start_visible_overlay
-		if raw_visible_overlay == nil then
-			raw_visible_overlay = opts["auto-start-visible-overlay"]
-		end
-		return options_helper.coerce_bool(raw_visible_overlay, false)
-	end
-
-	local function apply_startup_overlay_preferences()
-		local should_show_visible = resolve_visible_overlay_startup()
-		local visible_action = should_show_visible and "show-visible-overlay" or "hide-visible-overlay"
-
-		local function try_apply(attempt)
-			run_control_command_async(visible_action, nil, function(ok)
-				if ok then
-					subminer_log(
-						"debug",
-						"process",
-						"Applied visible startup action: " .. visible_action .. " (attempt " .. tostring(attempt) .. ")"
-					)
-					return
-				end
-
-				if attempt >= STARTUP_OVERLAY_ACTION_MAX_ATTEMPTS then
-					subminer_log("warn", "process", "Failed to apply visible startup action: " .. visible_action)
-					return
-				end
-
-				mp.add_timeout(STARTUP_OVERLAY_ACTION_RETRY_DELAY_SECONDS, function()
-					try_apply(attempt + 1)
-				end)
-			end)
-		end
-
-		try_apply(1)
 	end
 
 	local function build_texthooker_args()
@@ -240,7 +216,6 @@ function M.create(ctx)
 					return
 				end
 
-				apply_startup_overlay_preferences()
 			end)
 		end
 
@@ -376,7 +351,6 @@ function M.create(ctx)
 		build_command_args = build_command_args,
 		run_control_command_async = run_control_command_async,
 		parse_start_script_message_overrides = parse_start_script_message_overrides,
-		apply_startup_overlay_preferences = apply_startup_overlay_preferences,
 		ensure_texthooker_running = ensure_texthooker_running,
 		start_overlay = start_overlay,
 		start_overlay_from_script_message = start_overlay_from_script_message,

@@ -239,6 +239,16 @@ local function find_start_call(async_calls)
 	return nil
 end
 
+local function call_has_arg(call, target)
+	local args = (call and call.args) or {}
+	for _, value in ipairs(args) do
+		if value == target then
+			return true
+		end
+	end
+	return false
+end
+
 local function has_sync_command(sync_calls, executable)
 	for _, call in ipairs(sync_calls) do
 		local args = call.args or {}
@@ -350,6 +360,60 @@ do
 	assert_true(
 		has_async_curl_for(recorded.async_calls, "myanimelist.net/search/prefix.json"),
 		"AniSkip refresh should perform MAL lookup even when app is not running"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+		},
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for visible auto-start scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(start_call ~= nil, "auto-start should issue --start command")
+	assert_true(
+		call_has_arg(start_call, "--show-visible-overlay"),
+		"auto-start with visible overlay enabled should pass --show-visible-overlay"
+	)
+	assert_true(
+		not call_has_arg(start_call, "--hide-visible-overlay"),
+		"auto-start with visible overlay enabled should not pass --hide-visible-overlay"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "no",
+		},
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for hidden auto-start scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(start_call ~= nil, "auto-start should issue --start command")
+	assert_true(
+		call_has_arg(start_call, "--hide-visible-overlay"),
+		"auto-start with visible overlay disabled should pass --hide-visible-overlay"
+	)
+	assert_true(
+		not call_has_arg(start_call, "--show-visible-overlay"),
+		"auto-start with visible overlay disabled should not pass --show-visible-overlay"
 	)
 end
 
