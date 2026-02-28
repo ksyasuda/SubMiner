@@ -5,6 +5,7 @@ import { createOverlayVisibilityRuntime } from './overlay-visibility-runtime';
 test('overlay visibility runtime wires set/toggle handlers through composed deps', () => {
   let visible = false;
   let setVisibleCoreCalls = 0;
+  let warmupStarts = 0;
 
   const runtime = createOverlayVisibilityRuntime({
     setVisibleOverlayVisibleDeps: {
@@ -17,6 +18,9 @@ test('overlay visibility runtime wires set/toggle handlers through composed deps
         visible = nextVisible;
       },
       updateVisibleOverlayVisibility: () => {},
+      onVisibleOverlayEnabled: () => {
+        warmupStarts += 1;
+      },
     },
     getVisibleOverlayVisible: () => visible,
   });
@@ -34,4 +38,5 @@ test('overlay visibility runtime wires set/toggle handlers through composed deps
   assert.equal(visible, false);
 
   assert.equal(setVisibleCoreCalls, 4);
+  assert.equal(warmupStarts, 2);
 });

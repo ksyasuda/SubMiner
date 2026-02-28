@@ -7,11 +7,15 @@ import {
 
 test('overlay visibility action main deps builders map callbacks', () => {
   const calls: string[] = [];
+  let warmupStarts = 0;
 
   const setVisible = createBuildSetVisibleOverlayVisibleMainDepsHandler({
     setVisibleOverlayVisibleCore: () => calls.push('visible-core'),
     setVisibleOverlayVisibleState: (visible) => calls.push(`visible-state:${visible}`),
     updateVisibleOverlayVisibility: () => calls.push('update-visible'),
+    onVisibleOverlayEnabled: () => {
+      warmupStarts += 1;
+    },
   })();
   setVisible.setVisibleOverlayVisibleCore({
     visible: true,
@@ -20,6 +24,7 @@ test('overlay visibility action main deps builders map callbacks', () => {
   });
   setVisible.setVisibleOverlayVisibleState(true);
   setVisible.updateVisibleOverlayVisibility();
+  setVisible.onVisibleOverlayEnabled?.();
 
   const toggleVisible = createBuildToggleVisibleOverlayMainDepsHandler({
     getVisibleOverlayVisible: () => false,
@@ -34,4 +39,5 @@ test('overlay visibility action main deps builders map callbacks', () => {
     'update-visible',
     'toggle-visible:true',
   ]);
+  assert.equal(warmupStarts, 1);
 });

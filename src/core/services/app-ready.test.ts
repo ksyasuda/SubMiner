@@ -131,10 +131,28 @@ test('runAppReadyRuntime does not await background warmups', async () => {
   });
 
   await runAppReadyRuntime(deps);
-  assert.deepEqual(calls.slice(0, 2), ['handleInitialArgs', 'startBackgroundWarmups']);
+  assert.ok(calls.includes('startBackgroundWarmups'));
+  assert.ok(calls.includes('handleInitialArgs'));
+  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('handleInitialArgs'));
   assert.equal(calls.includes('warmupDone'), false);
   assert.ok(releaseWarmup);
   releaseWarmup();
+});
+
+test('runAppReadyRuntime starts background warmups before core runtime services', async () => {
+  const calls: string[] = [];
+  const { deps } = makeDeps({
+    startBackgroundWarmups: () => {
+      calls.push('startBackgroundWarmups');
+    },
+    loadSubtitlePosition: () => calls.push('loadSubtitlePosition'),
+    createMpvClient: () => calls.push('createMpvClient'),
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('loadSubtitlePosition'));
+  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('createMpvClient'));
 });
 
 test('runAppReadyRuntime exits before service init when critical anki mappings are invalid', async () => {

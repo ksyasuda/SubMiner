@@ -15,9 +15,12 @@ references:
   - src/main/runtime/startup-warmups.ts
   - src/main/runtime/startup-warmups-main-deps.ts
   - src/main/runtime/composers/mpv-runtime-composer.ts
+  - src/core/services/startup.ts
   - src/main.ts
   - src/config/config.test.ts
   - src/main/runtime/startup-warmups.test.ts
+  - src/main/runtime/startup-warmups-main-deps.test.ts
+  - src/core/services/app-ready.test.ts
 priority: medium
 ---
 
@@ -48,4 +51,18 @@ Validation:
 - `bun run test:config:src`
 - `bun run test:core:src`
 - `tsc --noEmit`
+
+Follow-up updates:
+- Startup now triggers warmups earlier in app-ready flow (right after config validation/log-level setup) instead of waiting for initial args/overlay actions. Goal: tokenization warmup is already done or mostly done by first visible-subs toggle.
+- Tokenization warmup scheduling consolidated as `subtitle-tokenization` stage; when enabled by toggles, it runs Yomitan extension first, then MeCab/dictionary warmups.
+- Added per-stage debug logs for warmup progress and skip reasons:
+  - `stage start/ready: yomitan-extension`
+  - `stage start/ready: mecab`
+  - `stage start/ready: subtitle-dictionaries`
+  - `stage start/ready: jellyfin-remote-session`
+  - `stage skipped: jellyfin-remote-session (disabled|auto-connect off)`
+- Added regression tests for stage-level logging and earlier startup ordering:
+  - `src/main/runtime/startup-warmups.test.ts`
+  - `src/main/runtime/startup-warmups-main-deps.test.ts`
+  - `src/core/services/app-ready.test.ts`
 <!-- SECTION:FINAL_SUMMARY:END -->

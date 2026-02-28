@@ -83,7 +83,7 @@ test('startBackgroundWarmups respects per-integration warmup toggles', () => {
 
   startWarmups();
   assert.equal(started, true);
-  assert.deepEqual(labels, ['yomitan-extension']);
+  assert.deepEqual(labels, ['subtitle-tokenization']);
 });
 
 test('startBackgroundWarmups schedules jellyfin warmup when all jellyfin flags are enabled', () => {
@@ -116,12 +116,7 @@ test('startBackgroundWarmups schedules jellyfin warmup when all jellyfin flags a
 
   startWarmups();
   assert.equal(started, true);
-  assert.deepEqual(labels, [
-    'mecab',
-    'yomitan-extension',
-    'subtitle-dictionaries',
-    'jellyfin-remote-session',
-  ]);
+  assert.deepEqual(labels, ['subtitle-tokenization', 'jellyfin-remote-session']);
 });
 
 test('startBackgroundWarmups skips jellyfin warmup when warmup is deferred', () => {
@@ -154,5 +149,48 @@ test('startBackgroundWarmups skips jellyfin warmup when warmup is deferred', () 
 
   startWarmups();
   assert.equal(started, true);
-  assert.deepEqual(labels, ['yomitan-extension']);
+  assert.deepEqual(labels, ['subtitle-tokenization']);
+});
+
+test('startBackgroundWarmups logs per-stage progress for enabled tokenization warmups', async () => {
+  const debugLogs: string[] = [];
+  const labels: string[] = [];
+  let started = false;
+  const startWarmups = createStartBackgroundWarmupsHandler({
+    getStarted: () => started,
+    setStarted: (value) => {
+      started = value;
+    },
+    isTexthookerOnlyMode: () => false,
+    launchTask: (label, task) => {
+      labels.push(label);
+      void task();
+    },
+    createMecabTokenizerAndCheck: async () => {},
+    ensureYomitanExtensionLoaded: async () => {},
+    prewarmSubtitleDictionaries: async () => {},
+    shouldWarmupMecab: () => true,
+    shouldWarmupYomitanExtension: () => true,
+    shouldWarmupSubtitleDictionaries: () => true,
+    shouldWarmupJellyfinRemoteSession: () => true,
+    shouldAutoConnectJellyfinRemote: () => true,
+    startJellyfinRemoteSession: async () => {},
+    logDebug: (message) => {
+      debugLogs.push(message);
+    },
+  });
+
+  startWarmups();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.deepEqual(labels, ['subtitle-tokenization', 'jellyfin-remote-session']);
+  assert.ok(debugLogs.includes('[startup-warmup] stage start: yomitan-extension'));
+  assert.ok(debugLogs.includes('[startup-warmup] stage ready: yomitan-extension'));
+  assert.ok(debugLogs.includes('[startup-warmup] stage start: mecab'));
+  assert.ok(debugLogs.includes('[startup-warmup] stage ready: mecab'));
+  assert.ok(debugLogs.includes('[startup-warmup] stage start: subtitle-dictionaries'));
+  assert.ok(debugLogs.includes('[startup-warmup] stage ready: subtitle-dictionaries'));
+  assert.ok(debugLogs.includes('[startup-warmup] stage start: jellyfin-remote-session'));
+  assert.ok(debugLogs.includes('[startup-warmup] stage ready: jellyfin-remote-session'));
 });

@@ -13,6 +13,7 @@ export function createBuildSetVisibleOverlayVisibleMainDepsHandler(
     setVisibleOverlayVisibleCore: (options) => deps.setVisibleOverlayVisibleCore(options),
     setVisibleOverlayVisibleState: (visible: boolean) => deps.setVisibleOverlayVisibleState(visible),
     updateVisibleOverlayVisibility: () => deps.updateVisibleOverlayVisibility(),
+    onVisibleOverlayEnabled: deps.onVisibleOverlayEnabled,
   });
 }
 

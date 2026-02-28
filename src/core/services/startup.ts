@@ -184,6 +184,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   for (const warning of deps.getConfigWarnings()) {
     deps.logConfigWarning(warning);
   }
+  deps.startBackgroundWarmups();
 
   deps.loadSubtitlePosition();
   deps.resolveKeybindings();
@@ -217,6 +218,5 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   }
 
   deps.handleInitialArgs();
-  deps.startBackgroundWarmups();
   deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
 }

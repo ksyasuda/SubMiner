@@ -202,6 +202,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
   assert.equal(typeof composed.tokenizeSubtitle, 'function');
   assert.equal(typeof composed.createMecabTokenizerAndCheck, 'function');
   assert.equal(typeof composed.prewarmSubtitleDictionaries, 'function');
+  assert.equal(typeof composed.startTokenizationWarmups, 'function');
   assert.equal(typeof composed.launchBackgroundWarmupTask, 'function');
   assert.equal(typeof composed.startBackgroundWarmups, 'function');
 
@@ -209,6 +210,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
   assert.equal(client.connected, true);
 
   composed.updateMpvSubtitleRenderMetrics({ subPos: 90 });
+  await composed.startTokenizationWarmups();
   const tokenized = await composed.tokenizeSubtitle('subtitle text');
   await composed.createMecabTokenizerAndCheck();
   await composed.prewarmSubtitleDictionaries();

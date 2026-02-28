@@ -7,6 +7,7 @@ import {
 
 test('set visible overlay handler forwards dependencies to core', () => {
   const calls: string[] = [];
+  let warmupStarts = 0;
   const setVisible = createSetVisibleOverlayVisibleHandler({
     setVisibleOverlayVisibleCore: (options) => {
       calls.push(`core:${options.visible}`);
@@ -15,6 +16,9 @@ test('set visible overlay handler forwards dependencies to core', () => {
     },
     setVisibleOverlayVisibleState: (visible) => calls.push(`state:${visible}`),
     updateVisibleOverlayVisibility: () => calls.push('update-visible'),
+    onVisibleOverlayEnabled: () => {
+      warmupStarts += 1;
+    },
   });
 
   setVisible(true);
@@ -23,6 +27,10 @@ test('set visible overlay handler forwards dependencies to core', () => {
     'state:true',
     'update-visible',
   ]);
+  assert.equal(warmupStarts, 1);
+
+  setVisible(false);
+  assert.equal(warmupStarts, 1);
 });
 
 test('toggle visible overlay flips current visible state', () => {

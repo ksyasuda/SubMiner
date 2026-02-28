@@ -6,8 +6,12 @@ export function createSetVisibleOverlayVisibleHandler(deps: {
   }) => void;
   setVisibleOverlayVisibleState: (visible: boolean) => void;
   updateVisibleOverlayVisibility: () => void;
+  onVisibleOverlayEnabled?: () => void;
 }) {
   return (visible: boolean): void => {
+    if (visible) {
+      deps.onVisibleOverlayEnabled?.();
+    }
     deps.setVisibleOverlayVisibleCore({
       visible,
       setVisibleOverlayVisibleState: deps.setVisibleOverlayVisibleState,

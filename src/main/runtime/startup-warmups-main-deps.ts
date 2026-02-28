@@ -31,5 +31,6 @@ export function createBuildStartBackgroundWarmupsMainDepsHandler(deps: StartBack
     shouldWarmupJellyfinRemoteSession: () => deps.shouldWarmupJellyfinRemoteSession(),
     shouldAutoConnectJellyfinRemote: () => deps.shouldAutoConnectJellyfinRemote(),
     startJellyfinRemoteSession: () => deps.startJellyfinRemoteSession(),
+    logDebug: deps.logDebug,
   });
 }

@@ -42,6 +42,7 @@ test('startup warmups main deps builders map callbacks', async () => {
     startJellyfinRemoteSession: async () => {
       calls.push('jellyfin');
     },
+    logDebug: (message) => calls.push(`start-debug:${message}`),
   })();
   assert.equal(start.getStarted(), false);
   start.setStarted(true);
@@ -58,6 +59,7 @@ test('startup warmups main deps builders map callbacks', async () => {
   assert.equal(start.shouldWarmupJellyfinRemoteSession(), true);
   assert.equal(start.shouldAutoConnectJellyfinRemote(), true);
   await start.startJellyfinRemoteSession();
+  start.logDebug?.('z');
 
   assert.deepEqual(calls, [
     'debug:x',
@@ -69,5 +71,6 @@ test('startup warmups main deps builders map callbacks', async () => {
     'yomitan',
     'dict',
     'jellyfin',
+    'start-debug:z',
   ]);
 });
