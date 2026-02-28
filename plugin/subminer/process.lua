@@ -22,6 +22,26 @@ function M.create(ctx)
 		return options_helper.coerce_bool(raw_visible_overlay, false)
 	end
 
+	local function normalize_socket_path(path)
+		if type(path) ~= "string" then
+			return nil
+		end
+		local trimmed = path:match("^%s*(.-)%s*$")
+		if trimmed == "" then
+			return nil
+		end
+		return trimmed
+	end
+
+	local function has_matching_mpv_ipc_socket(target_socket_path)
+		local expected_socket = normalize_socket_path(target_socket_path or opts.socket_path)
+		local active_socket = normalize_socket_path(mp.get_property("input-ipc-server"))
+		if expected_socket == nil or active_socket == nil then
+			return false
+		end
+		return expected_socket == active_socket
+	end
+
 	local function resolve_backend(override_backend)
 		local selected = override_backend
 		if selected == nil or selected == "" then
@@ -56,6 +76,9 @@ function M.create(ctx)
 			table.insert(args, socket_path)
 
 			local should_show_visible = resolve_visible_overlay_startup()
+			if should_show_visible and overrides.auto_start_trigger == true then
+				should_show_visible = has_matching_mpv_ipc_socket(socket_path)
+			end
 			if should_show_visible then
 				table.insert(args, "--show-visible-overlay")
 			else
@@ -349,6 +372,7 @@ function M.create(ctx)
 
 	return {
 		build_command_args = build_command_args,
+		has_matching_mpv_ipc_socket = has_matching_mpv_ipc_socket,
 		run_control_command_async = run_control_command_async,
 		parse_start_script_message_overrides = parse_start_script_message_overrides,
 		ensure_texthooker_running = ensure_texthooker_running,

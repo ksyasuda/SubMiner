@@ -77,9 +77,11 @@ texthooker_port=5174
 backend=auto
 
 # Start the overlay automatically when a file is loaded.
+# Runs only when mpv input-ipc-server matches socket_path.
 auto_start=no
 
 # Show the visible overlay on auto-start.
+# Runs only when mpv input-ipc-server matches socket_path.
 auto_start_visible_overlay=no
 
 # Show OSD messages for overlay status changes.
@@ -121,8 +123,8 @@ aniskip_button_duration=3
 | `texthooker_enabled`           | `yes`                  | `yes` / `no`                               | Enable texthooker server         |
 | `texthooker_port`              | `5174`                 | 1–65535                                    | Texthooker server port           |
 | `backend`                      | `auto`                 | `auto`, `hyprland`, `sway`, `x11`, `macos` | Window manager backend           |
-| `auto_start`                   | `no`                   | `yes` / `no`                               | Auto-start overlay on file load  |
-| `auto_start_visible_overlay`   | `no`                   | `yes` / `no`                               | Show visible layer on auto-start |
+| `auto_start`                   | `no`                   | `yes` / `no`                               | Auto-start overlay on file load when mpv socket matches `socket_path` |
+| `auto_start_visible_overlay`   | `no`                   | `yes` / `no`                               | Show visible layer on auto-start when mpv socket matches `socket_path` |
 | `osd_messages`                 | `yes`                  | `yes` / `no`                               | Show OSD status messages         |
 | `log_level`                    | `info`                 | `debug`, `info`, `warn`, `error`           | Log verbosity                    |
 | `aniskip_enabled`              | `yes`                  | `yes` / `no`                               | Enable AniSkip intro detection   |

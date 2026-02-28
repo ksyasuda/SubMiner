@@ -34,7 +34,20 @@ function M.create(ctx)
 
 		local should_auto_start = resolve_auto_start_enabled()
 		if should_auto_start then
-			process.start_overlay()
+			if not process.has_matching_mpv_ipc_socket(opts.socket_path) then
+				subminer_log(
+					"info",
+					"lifecycle",
+					"Skipping auto-start: input-ipc-server does not match configured socket_path"
+				)
+				schedule_aniskip_fetch("file-loaded", 0)
+				return
+			end
+
+			process.start_overlay({
+				auto_start_trigger = true,
+				socket_path = opts.socket_path,
+			})
 			-- Give the overlay process a moment to initialize before querying AniSkip.
 			schedule_aniskip_fetch("overlay-start", 0.8)
 			return

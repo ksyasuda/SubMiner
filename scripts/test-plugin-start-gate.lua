@@ -17,6 +17,9 @@ local function run_plugin_scenario(config)
 			if name == "platform" then
 				return config.platform or "linux"
 			end
+			if name == "input-ipc-server" then
+				return config.input_ipc_server or ""
+			end
 			if name == "filename/no-ext" then
 				return config.filename_no_ext or ""
 			end
@@ -370,7 +373,9 @@ do
 			binary_path = binary_path,
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
+			socket_path = "/tmp/subminer-socket",
 		},
+		input_ipc_server = "/tmp/subminer-socket",
 		media_title = "Random Movie",
 		files = {
 			[binary_path] = true,
@@ -397,7 +402,9 @@ do
 			binary_path = binary_path,
 			auto_start = "yes",
 			auto_start_visible_overlay = "no",
+			socket_path = "/tmp/subminer-socket",
 		},
+		input_ipc_server = "/tmp/subminer-socket",
 		media_title = "Random Movie",
 		files = {
 			[binary_path] = true,
@@ -414,6 +421,30 @@ do
 	assert_true(
 		not call_has_arg(start_call, "--show-visible-overlay"),
 		"auto-start with visible overlay disabled should not pass --show-visible-overlay"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/other.sock",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for mismatched socket auto-start scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(
+		start_call == nil,
+		"auto-start should be skipped when mpv input-ipc-server does not match configured socket_path"
 	)
 end
 
