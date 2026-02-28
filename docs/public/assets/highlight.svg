@@ -1,13 +1,39 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
   <defs>
-    <linearGradient id="hl" x1="20" y1="14" x2="38" y2="34" gradientUnits="userSpaceOnUse">
+    <linearGradient id="hl-freq" x1="0" y1="0" x2="14" y2="8" gradientUnits="userSpaceOnUse">
       <stop stop-color="#fbbf24"/>
       <stop offset="1" stop-color="#f59e0b"/>
     </linearGradient>
+    <linearGradient id="hl-n1" x1="0" y1="0" x2="10" y2="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="hl-jlpt" x1="0" y1="0" x2="12" y2="8" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
   </defs>
-  <rect x="2" y="17" width="10" height="14" rx="3" fill="#fbbf24" opacity="0.3"/>
-  <rect x="14" y="17" width="7" height="14" rx="3" fill="#fbbf24" opacity="0.3"/>
-  <rect x="23" y="13" width="13" height="22" rx="3.5" fill="url(#hl)"/>
-  <rect x="38" y="17" width="8" height="14" rx="3" fill="#fbbf24" opacity="0.3"/>
-  <path d="M28.2 4l1 2.4 2.4 1-2.4 1-1 2.4-1-2.4-2.4-1 2.4-1z" fill="#fbbf24" opacity="0.7"/>
+  <!-- Viewport / video frame background -->
+  <rect x="1" y="5" width="46" height="38" rx="4" fill="#1e293b" opacity="0.55"/>
+  <rect x="1" y="5" width="46" height="38" rx="4" stroke="#334155" stroke-width="0.8" fill="none" opacity="0.5"/>
+  <!-- Subtitle line 1 — tokens with frequency highlight -->
+  <rect x="6" y="18" width="9" height="5" rx="1.5" fill="#cbd5e1" opacity="0.2"/>
+  <!-- Frequency-highlighted token -->
+  <rect x="17" y="17" width="14" height="7" rx="2" fill="url(#hl-freq)" opacity="0.2"/>
+  <rect x="17.5" y="17.5" width="13" height="6" rx="1.8" fill="url(#hl-freq)"/>
+  <rect x="20" y="19.5" width="8" height="2" rx="1" fill="white" opacity="0.85"/>
+  <rect x="33" y="18" width="8" height="5" rx="1.5" fill="#cbd5e1" opacity="0.2"/>
+  <!-- Subtitle line 2 — tokens with N+1 dot and JLPT badge -->
+  <rect x="8" y="28" width="8" height="5" rx="1.5" fill="#cbd5e1" opacity="0.2"/>
+  <!-- N+1 targeted token with dot -->
+  <rect x="18" y="28" width="10" height="5" rx="1.5" fill="#60a5fa" opacity="0.15"/>
+  <rect x="18.5" y="28.5" width="9" height="4" rx="1.2" fill="#cbd5e1" opacity="0.3"/>
+  <circle cx="16.5" cy="30.5" r="2.2" fill="url(#hl-n1)"/>
+  <text x="16.5" y="31.9" text-anchor="middle" font-size="2.6" font-weight="800" fill="white" font-family="sans-serif">+1</text>
+  <!-- JLPT badge token -->
+  <rect x="30" y="28" width="7" height="5" rx="1.5" fill="#cbd5e1" opacity="0.3"/>
+  <rect x="37.5" y="27" width="9" height="7" rx="2" fill="url(#hl-jlpt)"/>
+  <text x="42" y="31.8" text-anchor="middle" font-size="3.5" font-weight="700" fill="white" font-family="sans-serif">N2</text>
+  <!-- Subtle sparkle -->
+  <path d="M43 10l0.7 1.6 1.6 0.7-1.6 0.7L43 14.6l-0.7-1.6-1.6-0.7 1.6-0.7z" fill="#fbbf24" opacity="0.5"/>
 </svg>

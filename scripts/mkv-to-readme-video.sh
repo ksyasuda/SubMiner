@@ -12,12 +12,13 @@ Description:
   - <name>.mp4  (H.264 + AAC, prefers NVIDIA GPU if available)
   - <name>.webm (AV1/VP9 + Opus, prefers NVIDIA GPU if available)
   - <name>.gif  (palette-optimised, 15 fps)
+  - <name>-poster.jpg (single frame for video poster fallback)
 
 Options:
   -f, --force  Overwrite existing output files
 
 Encoding profile:
-  - Crop: 1920x1080 at x=760 y=180
+  - Crop: 1920x1080 at x=760 y=200
   - MP4:  H.264 + AAC
   - WebM: AV1/VP9 + Opus at 30 fps
 USAGE
@@ -28,11 +29,11 @@ input=""
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		-h|--help)
+		-h | --help)
 			usage
 			exit 0
 			;;
-		-f|--force)
+		-f | --force)
 			force=1
 			;;
 		-*)
@@ -74,6 +75,7 @@ base="${filename%.*}"
 mp4_out="$dir/$base.mp4"
 webm_out="$dir/$base.webm"
 gif_out="$dir/$base.gif"
+poster_out="$dir/$base-poster.jpg"
 
 overwrite_flag="-n"
 if [[ "$force" -eq 1 ]]; then
@@ -81,7 +83,7 @@ if [[ "$force" -eq 1 ]]; then
 fi
 
 if [[ "$force" -eq 0 ]]; then
-	for output in "$mp4_out" "$webm_out" "$gif_out"; do
+	for output in "$mp4_out" "$webm_out" "$gif_out" "$poster_out"; do
 		if [[ -e "$output" ]]; then
 			echo "Error: output exists: $output (use --force to overwrite)" >&2
 			exit 1
@@ -94,7 +96,7 @@ has_encoder() {
 	ffmpeg -hide_banner -encoders 2> /dev/null | grep -qE "[[:space:]]${encoder}[[:space:]]"
 }
 
-crop_vf="crop=1920:1080:760:180"
+crop_vf="crop=1920:1080:760:205"
 webm_vf="${crop_vf},fps=30"
 gif_vf="${crop_vf},fps=15,scale=960:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3"
 
@@ -162,7 +164,15 @@ ffmpeg "$overwrite_flag" -i "$input" \
 	-vf "$gif_vf" \
 	"$gif_out"
 
+echo "Generating poster: $poster_out"
+ffmpeg "$overwrite_flag" -ss 00:00:05 -i "$input" \
+	-vf "$crop_vf" \
+	-vframes 1 \
+	-q:v 2 \
+	"$poster_out"
+
 echo "Done."
 echo "MP4:  $mp4_out"
 echo "WebM: $webm_out"
 echo "GIF:  $gif_out"
+echo "Poster: $poster_out"
