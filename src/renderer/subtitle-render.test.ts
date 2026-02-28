@@ -9,6 +9,8 @@ import {
   alignTokensToSourceText,
   buildSubtitleTokenHoverRanges,
   computeWordClass,
+  getFrequencyRankLabelForToken,
+  getJlptLevelLabelForToken,
   normalizeSubtitle,
   sanitizeSubtitleHoverTokenColor,
   shouldRenderTokenizedSubtitle,
@@ -210,6 +212,37 @@ test('computeWordClass skips frequency class when rank is out of topX', () => {
   assert.equal(actual, 'word');
 });
 
+test('getFrequencyRankLabelForToken returns rank only for frequency-colored tokens', () => {
+  const settings = {
+    enabled: true,
+    topX: 100,
+    mode: 'single' as const,
+    singleColor: '#000000',
+    bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as [
+      string,
+      string,
+      string,
+      string,
+      string,
+    ],
+  };
+  const frequencyToken = createToken({ surface: '頻度', frequencyRank: 20 });
+  const knownToken = createToken({ surface: '既知', isKnown: true, frequencyRank: 20 });
+  const outOfRangeToken = createToken({ surface: '圏外', frequencyRank: 1000 });
+
+  assert.equal(getFrequencyRankLabelForToken(frequencyToken, settings), '20');
+  assert.equal(getFrequencyRankLabelForToken(knownToken, settings), null);
+  assert.equal(getFrequencyRankLabelForToken(outOfRangeToken, settings), null);
+});
+
+test('getJlptLevelLabelForToken returns level when token has jlpt metadata', () => {
+  const jlptToken = createToken({ surface: '語彙', jlptLevel: 'N2' });
+  const noJlptToken = createToken({ surface: '語彙' });
+
+  assert.equal(getJlptLevelLabelForToken(jlptToken), 'N2');
+  assert.equal(getJlptLevelLabelForToken(noJlptToken), null);
+});
+
 test('sanitizeSubtitleHoverTokenColor falls back for pure black values', () => {
   assert.equal(sanitizeSubtitleHoverTokenColor('#000000'), '#f4dbd6');
   assert.equal(sanitizeSubtitleHoverTokenColor('000000'), '#f4dbd6');
@@ -360,6 +393,29 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
 
   const wordBlock = extractClassBlock(cssText, '#subtitleRoot .word');
   assert.match(wordBlock, /-webkit-text-fill-color:\s*currentColor\s*!important;/);
+
+  const frequencyTooltipBaseBlock = extractClassBlock(cssText, '#subtitleRoot .word[data-frequency-rank]::before');
+  assert.match(frequencyTooltipBaseBlock, /content:\s*attr\(data-frequency-rank\);/);
+  assert.match(frequencyTooltipBaseBlock, /opacity:\s*0;/);
+  assert.match(frequencyTooltipBaseBlock, /pointer-events:\s*none;/);
+
+  const frequencyTooltipHoverBlock = extractClassBlock(
+    cssText,
+    '#subtitleRoot .word[data-frequency-rank]:hover::before',
+  );
+  assert.match(frequencyTooltipHoverBlock, /opacity:\s*1;/);
+
+  const jlptTooltipBaseBlock = extractClassBlock(cssText, '#subtitleRoot .word[data-jlpt-level]::after');
+  assert.match(jlptTooltipBaseBlock, /content:\s*attr\(data-jlpt-level\);/);
+  assert.match(jlptTooltipBaseBlock, /bottom:\s*-\s*0\.42em;/);
+  assert.match(jlptTooltipBaseBlock, /opacity:\s*0;/);
+  assert.match(jlptTooltipBaseBlock, /pointer-events:\s*none;/);
+
+  const jlptTooltipHoverBlock = extractClassBlock(
+    cssText,
+    '#subtitleRoot .word[data-jlpt-level]:hover::after',
+  );
+  assert.match(jlptTooltipHoverBlock, /opacity:\s*1;/);
 
   assert.match(
     cssText,

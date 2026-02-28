@@ -173,6 +173,47 @@ function getFrequencyDictionaryClass(
   return 'word-frequency-single';
 }
 
+function getNormalizedFrequencyRank(token: MergedToken): number | null {
+  if (typeof token.frequencyRank !== 'number' || !Number.isFinite(token.frequencyRank)) {
+    return null;
+  }
+  return Math.max(1, Math.floor(token.frequencyRank));
+}
+
+export function getFrequencyRankLabelForToken(
+  token: MergedToken,
+  frequencySettings?: Partial<FrequencyRenderSettings>,
+): string | null {
+  if (token.isKnown || token.isNPlusOneTarget) {
+    return null;
+  }
+
+  const resolvedFrequencySettings = {
+    ...DEFAULT_FREQUENCY_RENDER_SETTINGS,
+    ...frequencySettings,
+    bandedColors: sanitizeFrequencyBandedColors(
+      frequencySettings?.bandedColors,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.bandedColors,
+    ),
+    topX: sanitizeFrequencyTopX(frequencySettings?.topX, DEFAULT_FREQUENCY_RENDER_SETTINGS.topX),
+    singleColor: sanitizeHexColor(
+      frequencySettings?.singleColor,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.singleColor,
+    ),
+  };
+
+  if (!getFrequencyDictionaryClass(token, resolvedFrequencySettings)) {
+    return null;
+  }
+
+  const rank = getNormalizedFrequencyRank(token);
+  return rank === null ? null : String(rank);
+}
+
+export function getJlptLevelLabelForToken(token: MergedToken): string | null {
+  return token.jlptLevel ?? null;
+}
+
 function renderWithTokens(
   root: HTMLElement,
   tokens: MergedToken[],
@@ -216,6 +257,14 @@ function renderWithTokens(
       span.dataset.tokenIndex = String(segment.tokenIndex);
       if (token.reading) span.dataset.reading = token.reading;
       if (token.headword) span.dataset.headword = token.headword;
+      const frequencyRankLabel = getFrequencyRankLabelForToken(token, resolvedFrequencyRenderSettings);
+      if (frequencyRankLabel) {
+        span.dataset.frequencyRank = frequencyRankLabel;
+      }
+      const jlptLevelLabel = getJlptLevelLabelForToken(token);
+      if (jlptLevelLabel) {
+        span.dataset.jlptLevel = jlptLevelLabel;
+      }
       fragment.appendChild(span);
     }
 
@@ -244,6 +293,14 @@ function renderWithTokens(
     span.dataset.tokenIndex = String(index);
     if (token.reading) span.dataset.reading = token.reading;
     if (token.headword) span.dataset.headword = token.headword;
+    const frequencyRankLabel = getFrequencyRankLabelForToken(token, resolvedFrequencyRenderSettings);
+    if (frequencyRankLabel) {
+      span.dataset.frequencyRank = frequencyRankLabel;
+    }
+    const jlptLevelLabel = getJlptLevelLabelForToken(token);
+    if (jlptLevelLabel) {
+      span.dataset.jlptLevel = jlptLevelLabel;
+    }
     fragment.appendChild(span);
   }
 
