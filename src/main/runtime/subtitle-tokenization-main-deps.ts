@@ -32,6 +32,11 @@ export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
       return hit;
     },
     getKnownWordMatchMode: () => deps.getKnownWordMatchMode(),
+    ...(deps.getNPlusOneEnabled
+      ? {
+          getNPlusOneEnabled: () => deps.getNPlusOneEnabled!(),
+        }
+      : {}),
     getMinSentenceWordsForNPlusOne: () => deps.getMinSentenceWordsForNPlusOne(),
     getJlptLevel: (text: string) => deps.getJlptLevel(text),
     getJlptEnabled: () => deps.getJlptEnabled(),

@@ -41,7 +41,13 @@ test('initializeOverlayRuntime skips Anki integration when ankiConnect.enabled i
       setIntegrationCalls += 1;
     },
     showDesktopNotification: () => {},
-    createFieldGroupingCallback: () => async () => 'auto',
+    createFieldGroupingCallback: () =>
+      async () => ({
+        keepNoteId: 1,
+        deleteNoteId: 2,
+        deleteDuplicate: false,
+        cancelled: false,
+      }),
     getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
   });
 
@@ -90,7 +96,13 @@ test('initializeOverlayRuntime starts Anki integration when ankiConnect.enabled 
       setIntegrationCalls += 1;
     },
     showDesktopNotification: () => {},
-    createFieldGroupingCallback: () => async () => 'manual',
+    createFieldGroupingCallback: () =>
+      async () => ({
+        keepNoteId: 3,
+        deleteNoteId: 4,
+        deleteDuplicate: false,
+        cancelled: false,
+      }),
     getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
   });
 

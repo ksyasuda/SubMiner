@@ -22,7 +22,7 @@ make docs-preview # Preview built site at http://localhost:4173
 
 - [Configuration](/configuration) — Full config file reference and option details
 - [Keyboard Shortcuts](/shortcuts) — All global, overlay, mining, and plugin chord shortcuts in one place
-- [Anki Integration](/anki-integration) — AnkiConnect setup, field mapping, media generation, field grouping
+- [Anki Integration](/anki-integration) — AnkiConnect setup, proxy/polling transport, field mapping, media generation, field grouping
 - [Jellyfin Integration](/jellyfin-integration) — Optional Jellyfin auth, cast discovery, remote control, and playback launch
 - [Immersion Tracking](/immersion-tracking) — SQLite schema, retention/rollup policies, query templates, and extension points
 - [Performance & Tuning](/troubleshooting#performance-and-resource-impact) — Resource usage and practical low-impact profile

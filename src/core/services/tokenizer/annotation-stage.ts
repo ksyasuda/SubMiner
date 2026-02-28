@@ -31,6 +31,7 @@ export interface AnnotationStageDeps {
 }
 
 export interface AnnotationStageOptions {
+  nPlusOneEnabled?: boolean;
   jlptEnabled?: boolean;
   frequencyEnabled?: boolean;
   minSentenceWordsForNPlusOne?: number;
@@ -340,11 +341,14 @@ export function annotateTokens(
   deps: AnnotationStageDeps,
   options: AnnotationStageOptions = {},
 ): MergedToken[] {
-  const knownMarkedTokens = applyKnownWordMarking(
-    tokens,
-    deps.isKnownWord,
-    deps.knownWordMatchMode,
-  );
+  const nPlusOneEnabled = options.nPlusOneEnabled !== false;
+  const knownMarkedTokens = nPlusOneEnabled
+    ? applyKnownWordMarking(tokens, deps.isKnownWord, deps.knownWordMatchMode)
+    : tokens.map((token) => ({
+        ...token,
+        isKnown: false,
+        isNPlusOneTarget: false,
+      }));
 
   const frequencyEnabled = options.frequencyEnabled !== false;
   const frequencyMarkedTokens =
@@ -362,6 +366,14 @@ export function annotateTokens(
         ...token,
         jlptLevel: undefined,
       }));
+
+  if (!nPlusOneEnabled) {
+    return jlptMarkedTokens.map((token) => ({
+      ...token,
+      isKnown: false,
+      isNPlusOneTarget: false,
+    }));
+  }
 
   const minSentenceWordsForNPlusOne = options.minSentenceWordsForNPlusOne;
   const sanitizedMinSentenceWordsForNPlusOne =

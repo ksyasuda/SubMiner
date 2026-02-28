@@ -10,9 +10,14 @@ SubMiner uses the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-
 
 AnkiConnect listens on `http://127.0.0.1:8765` by default. If you changed the port in AnkiConnect's settings, update `ankiConnect.url` in your SubMiner config.
 
-## How Polling Works
+## Auto-Enrichment Transport
 
-SubMiner polls AnkiConnect at a regular interval (default: 3 seconds, configurable via `ankiConnect.pollingRate`) to detect new cards. When it finds a card that was added since the last poll:
+SubMiner supports two auto-enrichment transport modes:
+
+1. `polling` (default): polls AnkiConnect at `ankiConnect.pollingRate` (default: 3s).
+2. `proxy` (optional): runs a local AnkiConnect-compatible proxy and enriches cards immediately after successful `addNote` / `addNotes` responses.
+
+In both modes, the enrichment workflow is the same:
 
 1. Checks if a duplicate expression already exists (for field grouping).
 2. Updates the sentence field with the current subtitle.
@@ -20,7 +25,32 @@ SubMiner polls AnkiConnect at a regular interval (default: 3 seconds, configurab
 4. Fills the translation field from the secondary subtitle or AI.
 5. Writes metadata to the miscInfo field.
 
-Polling uses the query `"deck:<your-deck>" added:1` to find recently added cards. If no deck is configured, it searches all decks.
+Polling mode uses the query `"deck:<your-deck>" added:1` to find recently added cards. If no deck is configured, it searches all decks.
+
+### Proxy Mode Setup (Yomitan / Texthooker)
+
+```jsonc
+"ankiConnect": {
+  "url": "http://127.0.0.1:8765", // real AnkiConnect
+  "proxy": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8766,
+    "upstreamUrl": "http://127.0.0.1:8765"
+  }
+}
+```
+
+Then point Yomitan/clients to `http://127.0.0.1:8766` instead of `8765`.
+
+When SubMiner loads the bundled Yomitan extension, it also attempts to update the **default Yomitan profile** (`profiles[0].options.anki.server`) to the active SubMiner endpoint:
+
+- proxy URL when `ankiConnect.proxy.enabled` is `true`
+- direct `ankiConnect.url` when proxy mode is disabled
+
+To avoid clobbering custom setups, this auto-update only changes the default profile when its current server is blank or the stock Yomitan default (`http://127.0.0.1:8765`).
+
+For browser-based Yomitan or other external clients (for example texthooker in a normal browser profile), set their Anki server to the same proxy URL separately.
 
 ## Field Mapping
 
@@ -214,6 +244,12 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
     "enabled": true,
     "url": "http://127.0.0.1:8765",
     "pollingRate": 3000,
+    "proxy": {
+      "enabled": false,
+      "host": "127.0.0.1",
+      "port": 8766,
+      "upstreamUrl": "http://127.0.0.1:8765"
+    },
     "fields": {
       "audio": "ExpressionAudio",
       "image": "Picture",

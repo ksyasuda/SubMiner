@@ -1696,3 +1696,169 @@ test('createTokenizerDepsRuntime checks MeCab availability before first tokenize
   assert.equal(first?.[0]?.surface, '仮面');
   assert.equal(second?.[0]?.surface, '仮面');
 });
+
+test('tokenizeSubtitle uses async MeCab enrichment override when provided', async () => {
+  const result = await tokenizeSubtitle(
+    '猫',
+    makeDepsFromYomitanTokens([{ surface: '猫', reading: 'ねこ', headword: '猫' }], {
+      tokenizeWithMecab: async () => [
+        {
+          headword: '猫',
+          surface: '猫',
+          reading: 'ネコ',
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      enrichTokensWithMecab: async (tokens) =>
+        tokens.map((token) => ({
+          ...token,
+          pos1: 'override-pos',
+        })),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.pos1, 'override-pos');
+});
+
+test('createTokenizerDepsRuntime exposes async MeCab enrichment helper', async () => {
+  const deps = createTokenizerDepsRuntime({
+    getYomitanExt: () => null,
+    getYomitanParserWindow: () => null,
+    setYomitanParserWindow: () => {},
+    getYomitanParserReadyPromise: () => null,
+    setYomitanParserReadyPromise: () => {},
+    getYomitanParserInitPromise: () => null,
+    setYomitanParserInitPromise: () => {},
+    isKnownWord: () => false,
+    getKnownWordMatchMode: () => 'headword',
+    getJlptLevel: () => null,
+    getMecabTokenizer: () => null,
+  });
+
+  const enriched = await deps.enrichTokensWithMecab?.(
+    [
+      {
+        headword: 'は',
+        surface: 'は',
+        reading: 'は',
+        startPos: 0,
+        endPos: 1,
+        partOfSpeech: PartOfSpeech.other,
+        isMerged: true,
+        isKnown: false,
+        isNPlusOneTarget: false,
+      },
+    ],
+    [
+      {
+        headword: 'は',
+        surface: 'は',
+        reading: 'ハ',
+        startPos: 0,
+        endPos: 1,
+        partOfSpeech: PartOfSpeech.particle,
+        pos1: '助詞',
+        isMerged: false,
+        isKnown: false,
+        isNPlusOneTarget: false,
+      },
+    ],
+  );
+
+  assert.equal(enriched?.[0]?.pos1, '助詞');
+});
+
+test('tokenizeSubtitle skips all enrichment stages when disabled', async () => {
+  let knownCalls = 0;
+  let mecabCalls = 0;
+  let jlptCalls = 0;
+  let frequencyCalls = 0;
+
+  const result = await tokenizeSubtitle(
+    '猫',
+    makeDepsFromYomitanTokens([{ surface: '猫', reading: 'ねこ', headword: '猫' }], {
+      isKnownWord: () => {
+        knownCalls += 1;
+        return true;
+      },
+      getNPlusOneEnabled: () => false,
+      getJlptEnabled: () => false,
+      getFrequencyDictionaryEnabled: () => false,
+      getJlptLevel: () => {
+        jlptCalls += 1;
+        return 'N5';
+      },
+      getFrequencyRank: () => {
+        frequencyCalls += 1;
+        return 10;
+      },
+      tokenizeWithMecab: async () => {
+        mecabCalls += 1;
+        return null;
+      },
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.isKnown, false);
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
+  assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+  assert.equal(knownCalls, 0);
+  assert.equal(mecabCalls, 0);
+  assert.equal(jlptCalls, 0);
+  assert.equal(frequencyCalls, 0);
+});
+
+test('tokenizeSubtitle keeps frequency enrichment while n+1 is disabled', async () => {
+  let knownCalls = 0;
+  let mecabCalls = 0;
+  let frequencyCalls = 0;
+
+  const result = await tokenizeSubtitle(
+    '猫',
+    makeDepsFromYomitanTokens([{ surface: '猫', reading: 'ねこ', headword: '猫' }], {
+      isKnownWord: () => {
+        knownCalls += 1;
+        return true;
+      },
+      getNPlusOneEnabled: () => false,
+      getJlptEnabled: () => false,
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: () => {
+        frequencyCalls += 1;
+        return 7;
+      },
+      tokenizeWithMecab: async () => {
+        mecabCalls += 1;
+        return [
+          {
+            headword: '猫',
+            surface: '猫',
+            reading: 'ネコ',
+            startPos: 0,
+            endPos: 1,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ];
+      },
+    }),
+  );
+
+  assert.equal(result.tokens?.[0]?.frequencyRank, 7);
+  assert.equal(result.tokens?.[0]?.isKnown, false);
+  assert.equal(knownCalls, 0);
+  assert.equal(mecabCalls, 1);
+  assert.equal(frequencyCalls, 1);
+});

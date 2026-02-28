@@ -47,6 +47,8 @@ Malformed config syntax (invalid JSON/JSONC) is startup-blocking: SubMiner shows
 
 For valid JSON/JSONC with invalid option values, SubMiner uses warn-and-fallback behavior: it logs the bad key/value and continues with the default for that option.
 
+On macOS, these validation warnings also open a native dialog with full details (desktop notification banners can truncate long messages).
+
 ### Hot-Reload Behavior
 
 SubMiner watches the active config file (`config.jsonc` or `config.json`) while running and applies supported updates automatically.
@@ -87,6 +89,7 @@ The configuration file includes several main sections:
 - [**Subtitle Style**](#subtitle-style) - Appearance customization
 - [**Texthooker**](#texthooker) - Control browser opening behavior
 - [**WebSocket Server**](#websocket-server) - Built-in subtitle broadcasting server
+- [**Startup Warmups**](#startup-warmups) - Control what preloads on startup vs first-use defer
 - [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite
 - [**YouTube Subtitle Generation**](#youtube-subtitle-generation) - Launcher defaults for yt-dlp + local whisper fallback
 
@@ -825,6 +828,32 @@ See `config.example.jsonc` for detailed configuration options.
 | --------- | ------------------------- | -------------------------------------------------------- |
 | `enabled` | `true`, `false`, `"auto"` | `"auto"` (default) disables if mpv_websocket is detected |
 | `port`    | number                    | WebSocket server port (default: 6677)                    |
+
+### Startup Warmups
+
+Control which startup warmups run in the background versus deferring to first real usage:
+
+```json
+{
+  "startupWarmups": {
+    "lowPowerMode": false,
+    "mecab": true,
+    "yomitanExtension": true,
+    "subtitleDictionaries": true,
+    "jellyfinRemoteSession": true
+  }
+}
+```
+
+| Option                   | Values          | Description                                                                                      |
+| ------------------------ | --------------- | ------------------------------------------------------------------------------------------------ |
+| `lowPowerMode`           | `true`, `false` | Defer all warmups except Yomitan extension                                                       |
+| `mecab`                  | `true`, `false` | Warm up MeCab tokenizer at startup                                                               |
+| `yomitanExtension`       | `true`, `false` | Warm up Yomitan extension at startup                                                             |
+| `subtitleDictionaries`   | `true`, `false` | Warm up JLPT + frequency dictionaries at startup                                                 |
+| `jellyfinRemoteSession`  | `true`, `false` | Warm up Jellyfin remote session at startup (still requires Jellyfin remote auto-connect settings) |
+
+Defaults warm everything (`true` for all toggles, `lowPowerMode: false`). Setting a warmup toggle to `false` defers that work until first usage.
 
 ### Immersion Tracking
 

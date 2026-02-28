@@ -20,7 +20,7 @@ SubMiner prioritizes subtitle responsiveness over heavy initialization:
 1. The first subtitle render is **plain text first** (no tokenization wait).
 2. Tokenized enrichment (word spans, known-word flags, JLPT/frequency metadata) is applied right after parsing completes.
 3. Under rapid subtitle churn, SubMiner uses a **latest-only tokenization queue** so stale lines are dropped instead of building lag.
-4. MeCab, Yomitan extension load, and dictionary prewarm run as background warmups after overlay initialization.
+4. MeCab, Yomitan extension load, and dictionary prewarm run as background warmups after overlay initialization (configurable via `startupWarmups`, including low-power mode).
 
 This keeps early playback snappy and avoids mpv-side sluggishness while startup work completes.
 
@@ -72,11 +72,13 @@ There are three ways to create cards, depending on your workflow.
 
 ### 1. Auto-Update from Yomitan
 
-This is the most common flow. Yomitan creates a card in Anki, and SubMiner detects it via polling and enriches it automatically.
+This is the most common flow. Yomitan creates a card in Anki, and SubMiner enriches it automatically.
 
 1. Click a word → Yomitan popup appears.
 2. Click the Anki icon in Yomitan to add the word.
-3. SubMiner detects the new card (polls AnkiConnect every 3 seconds by default).
+3. SubMiner receives or detects the new card:
+   - **Proxy mode** (`ankiConnect.proxy.enabled: true`): immediate enrich after successful `addNote` / `addNotes`.
+   - **Polling mode** (default): detects via AnkiConnect polling (`ankiConnect.pollingRate`, default 3 seconds).
 4. SubMiner updates the card with:
    - **Sentence**: The current subtitle line.
    - **Audio**: Extracted from the video using the subtitle's start/end timing (plus configurable padding).
@@ -95,7 +97,7 @@ If you prefer a hands-on approach (animecards-style), you can copy the current s
    - For multiple lines: press `Ctrl/Cmd+Shift+C`, then a digit `1`–`9` to select how many recent subtitle lines to combine. The combined text is copied to the clipboard.
 3. Press `Ctrl/Cmd+V` to update the last-added card with the clipboard contents plus audio, image, and translation — the same fields auto-update would fill.
 
-This is useful when auto-update polling is disabled or when you want explicit control over which subtitle line gets attached to the card.
+This is useful when auto-update is disabled or when you want explicit control over which subtitle line gets attached to the card.
 
 | Shortcut                    | Action                                    | Config key                            |
 | --------------------------- | ----------------------------------------- | ------------------------------------- |

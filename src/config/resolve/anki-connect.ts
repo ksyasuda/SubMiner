@@ -12,6 +12,7 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
   const fields = isObject(ac.fields) ? (ac.fields as Record<string, unknown>) : {};
   const media = isObject(ac.media) ? (ac.media as Record<string, unknown>) : {};
   const metadata = isObject(ac.metadata) ? (ac.metadata as Record<string, unknown>) : {};
+  const proxy = isObject(ac.proxy) ? (ac.proxy as Record<string, unknown>) : {};
   const aiSource = isObject(ac.ai) ? ac.ai : isObject(ac.openRouter) ? ac.openRouter : {};
   const legacyKeys = new Set([
     'audioField',
@@ -85,6 +86,9 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
         ? (ac.behavior as (typeof context.resolved)['ankiConnect']['behavior'])
         : {}),
     },
+    proxy: {
+      ...context.resolved.ankiConnect.proxy,
+    },
     metadata: {
       ...context.resolved.ankiConnect.metadata,
       ...(isObject(ac.metadata)
@@ -149,6 +153,68 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       'ankiConnect.isLapis',
       ac.isLapis,
       context.resolved.ankiConnect.isLapis,
+      'Expected object.',
+    );
+  }
+
+  if (isObject(ac.proxy)) {
+    const proxyEnabled = asBoolean(proxy.enabled);
+    if (proxyEnabled !== undefined) {
+      context.resolved.ankiConnect.proxy.enabled = proxyEnabled;
+    } else if (proxy.enabled !== undefined) {
+      context.warn(
+        'ankiConnect.proxy.enabled',
+        proxy.enabled,
+        context.resolved.ankiConnect.proxy.enabled,
+        'Expected boolean.',
+      );
+    }
+
+    const proxyHost = asString(proxy.host);
+    if (proxyHost !== undefined && proxyHost.trim().length > 0) {
+      context.resolved.ankiConnect.proxy.host = proxyHost.trim();
+    } else if (proxy.host !== undefined) {
+      context.warn(
+        'ankiConnect.proxy.host',
+        proxy.host,
+        context.resolved.ankiConnect.proxy.host,
+        'Expected non-empty string.',
+      );
+    }
+
+    const proxyUpstreamUrl = asString(proxy.upstreamUrl);
+    if (proxyUpstreamUrl !== undefined && proxyUpstreamUrl.trim().length > 0) {
+      context.resolved.ankiConnect.proxy.upstreamUrl = proxyUpstreamUrl.trim();
+    } else if (proxy.upstreamUrl !== undefined) {
+      context.warn(
+        'ankiConnect.proxy.upstreamUrl',
+        proxy.upstreamUrl,
+        context.resolved.ankiConnect.proxy.upstreamUrl,
+        'Expected non-empty string.',
+      );
+    }
+
+    const proxyPort = asNumber(proxy.port);
+    if (
+      proxyPort !== undefined &&
+      Number.isInteger(proxyPort) &&
+      proxyPort >= 1 &&
+      proxyPort <= 65535
+    ) {
+      context.resolved.ankiConnect.proxy.port = proxyPort;
+    } else if (proxy.port !== undefined) {
+      context.warn(
+        'ankiConnect.proxy.port',
+        proxy.port,
+        context.resolved.ankiConnect.proxy.port,
+        'Expected integer between 1 and 65535.',
+      );
+    }
+  } else if (ac.proxy !== undefined) {
+    context.warn(
+      'ankiConnect.proxy',
+      ac.proxy,
+      context.resolved.ankiConnect.proxy,
       'Expected object.',
     );
   }

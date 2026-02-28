@@ -13,13 +13,6 @@
   "auto_start_overlay": false, // When overlay connects to mpv, automatically show overlay and hide mpv subtitles. Values: true | false
 
   // ==========================================
-  // Visible Overlay Subtitle Binding
-  // Control whether visible overlay toggles also toggle MPV subtitle visibility.
-  // When enabled, visible overlay hides MPV subtitles; when disabled, MPV subtitles are left unchanged.
-  // ==========================================
-  "bind_visible_overlay_to_mpv_sub_visibility": true, // Link visible overlay toggles to MPV primary subtitle visibility. Values: true | false
-
-  // ==========================================
   // Texthooker Server
   // Control whether browser opens automatically for texthooker.
   // ==========================================
@@ -179,6 +172,12 @@
     "enabled": false, // Enable AnkiConnect integration. Values: true | false
     "url": "http://127.0.0.1:8765", // Url setting.
     "pollingRate": 3000, // Polling interval in milliseconds.
+    "proxy": {
+      "enabled": false, // Enable local AnkiConnect-compatible proxy for push-based auto-enrichment. Values: true | false
+      "host": "127.0.0.1", // Bind host for local AnkiConnect proxy.
+      "port": 8766, // Bind port for local AnkiConnect proxy.
+      "upstreamUrl": "http://127.0.0.1:8765" // Upstream AnkiConnect URL proxied by local AnkiConnect proxy.
+    }, // Proxy setting.
     "tags": [
       "SubMiner"
     ], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.

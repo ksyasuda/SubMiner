@@ -2,6 +2,7 @@ import type { BrowserWindow, Extension } from 'electron';
 
 interface LoggerLike {
   error: (message: string, ...args: unknown[]) => void;
+  info?: (message: string, ...args: unknown[]) => void;
 }
 
 interface YomitanParserRuntimeDeps {
@@ -150,5 +151,92 @@ export async function requestYomitanParseResults(
   } catch (err) {
     logger.error('Yomitan parser request failed:', (err as Error).message);
     return null;
+  }
+}
+
+export async function syncYomitanDefaultAnkiServer(
+  serverUrl: string,
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<boolean> {
+  const normalizedTargetServer = serverUrl.trim();
+  if (!normalizedTargetServer) {
+    return false;
+  }
+
+  const isReady = await ensureYomitanParserWindow(deps, logger);
+  const parserWindow = deps.getYomitanParserWindow();
+  if (!isReady || !parserWindow || parserWindow.isDestroyed()) {
+    return false;
+  }
+
+  const script = `
+    (async () => {
+      const invoke = (action, params) =>
+        new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ action, params }, (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!response || typeof response !== "object") {
+              reject(new Error("Invalid response from Yomitan backend"));
+              return;
+            }
+            if (response.error) {
+              reject(new Error(response.error.message || "Yomitan backend error"));
+              return;
+            }
+            resolve(response.result);
+          });
+        });
+
+      const targetServer = ${JSON.stringify(normalizedTargetServer)};
+      const optionsFull = await invoke("optionsGetFull", undefined);
+      const profiles = Array.isArray(optionsFull.profiles) ? optionsFull.profiles : [];
+      if (profiles.length === 0) {
+        return { updated: false, reason: "no-profiles" };
+      }
+
+      const defaultProfile = profiles[0];
+      if (!defaultProfile || typeof defaultProfile !== "object") {
+        return { updated: false, reason: "invalid-default-profile" };
+      }
+
+      defaultProfile.options = defaultProfile.options && typeof defaultProfile.options === "object"
+        ? defaultProfile.options
+        : {};
+      defaultProfile.options.anki = defaultProfile.options.anki && typeof defaultProfile.options.anki === "object"
+        ? defaultProfile.options.anki
+        : {};
+
+      const currentServerRaw = defaultProfile.options.anki.server;
+      const currentServer = typeof currentServerRaw === "string" ? currentServerRaw.trim() : "";
+      const canReplaceDefault =
+        currentServer.length === 0 || currentServer === "http://127.0.0.1:8765";
+      if (!canReplaceDefault || currentServer === targetServer) {
+        return { updated: false, reason: "no-change", currentServer, targetServer };
+      }
+
+      defaultProfile.options.anki.server = targetServer;
+      await invoke("setAllSettings", { value: optionsFull, source: "subminer" });
+      return { updated: true, currentServer, targetServer };
+    })();
+  `;
+
+  try {
+    const result = await parserWindow.webContents.executeJavaScript(script, true);
+    const updated =
+      typeof result === 'object' &&
+      result !== null &&
+      (result as { updated?: unknown }).updated === true;
+    if (updated) {
+      logger.info?.(`Updated Yomitan default profile Anki server to ${normalizedTargetServer}`);
+      return true;
+    }
+    return false;
+  } catch (err) {
+    logger.error('Failed to sync Yomitan default profile Anki server:', (err as Error).message);
+    return false;
   }
 }

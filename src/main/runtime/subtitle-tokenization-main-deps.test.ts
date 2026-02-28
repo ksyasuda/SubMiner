@@ -19,6 +19,7 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
     isKnownWord: (text) => text === 'known',
     recordLookup: (hit) => calls.push(`lookup:${hit}`),
     getKnownWordMatchMode: () => 'surface',
+    getNPlusOneEnabled: () => true,
     getMinSentenceWordsForNPlusOne: () => 3,
     getJlptLevel: () => 'N2',
     getJlptEnabled: () => true,
@@ -33,6 +34,7 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
   deps.setYomitanParserWindow(null);
   deps.setYomitanParserReadyPromise(null);
   deps.setYomitanParserInitPromise(null);
+  assert.equal(deps.getNPlusOneEnabled?.(), true);
   assert.equal(deps.getMinSentenceWordsForNPlusOne?.(), 3);
   assert.deepEqual(calls, ['lookup:true', 'lookup:false', 'set-window', 'set-ready', 'set-init']);
 });

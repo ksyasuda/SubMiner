@@ -30,7 +30,7 @@ SubMiner retries the connection automatically with increasing delays (200 ms, 50
   - first subtitle parse/tokenization bursts
   - media generation (`ffmpeg` audio/image and AVIF paths)
   - media sync and subtitle tooling (`alass`, `ffsubsync`, `whisper` fallback path)
-  - `ankiConnect` enrichment and frequent polling
+  - `ankiConnect` enrichment (plus polling overhead when proxy mode is disabled)
 
 ### If playback feels sluggish
 
@@ -104,11 +104,17 @@ Logged when a malformed JSON line arrives from the mpv socket. Usually harmless 
 
 **"AnkiConnect: unable to connect"**
 
-SubMiner polls AnkiConnect at `http://127.0.0.1:8765` (configurable via `ankiConnect.url`). This error means Anki is not running or the AnkiConnect add-on is not installed.
+SubMiner connects to the active Anki endpoint:
+
+- `ankiConnect.url` (direct mode, default `http://127.0.0.1:8765`)
+- `http://<ankiConnect.proxy.host>:<ankiConnect.proxy.port>` (proxy mode)
+
+This error means the active endpoint is unavailable, or (in proxy mode) the proxy cannot reach `ankiConnect.proxy.upstreamUrl`.
 
 - Install the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on in Anki.
 - Make sure Anki is running before you start mining.
-- If you changed the AnkiConnect port, update `ankiConnect.url` in your config.
+- If you changed the AnkiConnect port, update `ankiConnect.url` (or `ankiConnect.proxy.upstreamUrl` if using proxy mode).
+- If using external Yomitan/browser clients, confirm they point to your SubMiner proxy URL.
 
 SubMiner retries with exponential backoff (up to 5 s) and suppresses repeated error logs after 5 consecutive failures. When Anki comes back, you will see "AnkiConnect connection restored".
 
@@ -122,7 +128,7 @@ See [Anki Integration](/anki-integration) for the full field mapping reference.
 
 Shown when SubMiner tries to update a card that no longer exists, or when AnkiConnect rejects the update. Common causes:
 
-- The card was deleted in Anki between polling and update.
+- The card was deleted in Anki between creation and enrichment update.
 - The note type changed and a mapped field no longer exists.
 
 ## Overlay
