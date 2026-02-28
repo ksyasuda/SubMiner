@@ -69,7 +69,6 @@ export class FieldGroupingWorkflow {
       await this.performMerge(
         originalNoteId,
         newNoteId,
-        newNoteInfo,
         this.getExpression(newNoteInfo),
         sentenceCardConfig.kikuDeleteDuplicateInAuto,
       );
@@ -112,12 +111,10 @@ export class FieldGroupingWorkflow {
 
       const keepNoteId = choice.keepNoteId;
       const deleteNoteId = choice.deleteNoteId;
-      const deleteNoteInfo = deleteNoteId === newNoteId ? newNoteInfo : originalNoteInfo;
 
       await this.performMerge(
         keepNoteId,
         deleteNoteId,
-        deleteNoteInfo,
         expression,
         choice.deleteDuplicate,
       );
@@ -132,18 +129,22 @@ export class FieldGroupingWorkflow {
   private async performMerge(
     keepNoteId: number,
     deleteNoteId: number,
-    deleteNoteInfo: FieldGroupingWorkflowNoteInfo,
     expression: string,
     deleteDuplicate = true,
   ): Promise<void> {
-    const keepNotesInfoResult = await this.deps.client.notesInfo([keepNoteId]);
-    const keepNotesInfo = keepNotesInfoResult as FieldGroupingWorkflowNoteInfo[];
-    if (!keepNotesInfo || keepNotesInfo.length === 0) {
+    const notesInfoResult = await this.deps.client.notesInfo([keepNoteId, deleteNoteId]);
+    const notesInfo = notesInfoResult as FieldGroupingWorkflowNoteInfo[];
+    const keepNoteInfo = notesInfo.find((note) => note.noteId === keepNoteId);
+    const deleteNoteInfo = notesInfo.find((note) => note.noteId === deleteNoteId);
+    if (!keepNoteInfo) {
       this.deps.logInfo('Keep note not found:', keepNoteId);
       return;
     }
+    if (!deleteNoteInfo) {
+      this.deps.logInfo('Delete note not found:', deleteNoteId);
+      return;
+    }
 
-    const keepNoteInfo = keepNotesInfo[0]!;
     const mergedFields = await this.deps.computeFieldGroupingMergedFields(
       keepNoteId,
       deleteNoteId,

@@ -267,7 +267,7 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
 
 **Disabled** (`"disabled"`): No duplicate detection. Each card is independent.
 
-**Auto** (`"auto"`): When a duplicate expression is found, SubMiner merges the new card into the existing one automatically. Both sentences, audio clips, and images are preserved. If `deleteDuplicateInAuto` is true, the new card is deleted after merging.
+**Auto** (`"auto"`): When a duplicate expression is found, SubMiner merges the new card into the existing one automatically. Both sentences, audio clips, and images are preserved, and exact duplicate values are collapsed to one entry. If `deleteDuplicateInAuto` is true, the new card is deleted after merging.
 
 **Manual** (`"manual"`): A modal appears in the overlay showing both cards. You choose which card to keep, preview the merge result, then confirm. The modal has a 90-second timeout, after which it cancels automatically.
 
@@ -275,9 +275,9 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
 
 | Field    | Merge behavior                                                 |
 | -------- | -------------------------------------------------------------- |
-| Sentence | Both sentences preserved, labeled `[Original]` / `[Duplicate]` |
-| Audio    | Both `[sound:...]` entries kept                                |
-| Image    | Both images kept                                               |
+| Sentence | Both sentences preserved (exact duplicate text is deduplicated) |
+| Audio    | Both `[sound:...]` entries kept (exact duplicates deduplicated) |
+| Image    | Both images kept (exact duplicates deduplicated)                |
 
 ### Keyboard Shortcuts in the Modal
 

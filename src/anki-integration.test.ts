@@ -284,3 +284,35 @@ test('FieldGroupingMergeCollaborator uses generated media fallback when source l
 
   assert.equal(merged.SentenceAudio, '<span data-group-id="22">[sound:generated.mp3]</span>');
 });
+
+test('FieldGroupingMergeCollaborator deduplicates identical sentence, audio, and image values when merging into a new duplicate card', async () => {
+  const collaborator = createFieldGroupingMergeCollaborator();
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    202,
+    101,
+    {
+      noteId: 202,
+      fields: {
+        Sentence: { value: 'same sentence' },
+        SentenceAudio: { value: '[sound:same.mp3]' },
+        Picture: { value: '<img src="same.png">' },
+        ExpressionAudio: { value: '[sound:same.mp3]' },
+      },
+    },
+    {
+      noteId: 101,
+      fields: {
+        Sentence: { value: 'same sentence' },
+        SentenceAudio: { value: '[sound:same.mp3]' },
+        Picture: { value: '<img src="same.png">' },
+      },
+    },
+    false,
+  );
+
+  assert.equal(merged.Sentence, '<span data-group-id="202">same sentence</span>');
+  assert.equal(merged.SentenceAudio, '<span data-group-id="202">[sound:same.mp3]</span>');
+  assert.equal(merged.Picture, '<img data-group-id="202" src="same.png">');
+  assert.equal(merged.ExpressionAudio, merged.SentenceAudio);
+});

@@ -302,7 +302,7 @@ export class FieldGroupingMergeCollaborator {
     const unique: { groupId: number; content: string }[] = [];
     const seen = new Set<string>();
     for (const entry of entries) {
-      const key = `${entry.groupId}::${entry.content}`;
+      const key = entry.content;
       if (seen.has(key)) continue;
       seen.add(key);
       unique.push(entry);
@@ -361,6 +361,10 @@ export class FieldGroupingMergeCollaborator {
     return ungrouped;
   }
 
+  private getPictureDedupKey(tag: string): string {
+    return tag.replace(/\sdata-group-id="[^"]*"/gi, '').trim();
+  }
+
   private getStrictSpanGroupingFields(): Set<string> {
     const strictFields = new Set(this.strictGroupingFieldDefaults);
     const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
@@ -394,11 +398,12 @@ export class FieldGroupingMergeCollaborator {
         const mergedTags = keepEntries.map((entry) =>
           this.ensureImageGroupId(entry.tag, entry.groupId),
         );
-        const seen = new Set(mergedTags);
+        const seen = new Set(mergedTags.map((tag) => this.getPictureDedupKey(tag)));
         for (const entry of sourceEntries) {
           const normalized = this.ensureImageGroupId(entry.tag, entry.groupId);
-          if (seen.has(normalized)) continue;
-          seen.add(normalized);
+          const dedupKey = this.getPictureDedupKey(normalized);
+          if (seen.has(dedupKey)) continue;
+          seen.add(dedupKey);
           mergedTags.push(normalized);
         }
         return mergedTags.join('');
@@ -415,9 +420,9 @@ export class FieldGroupingMergeCollaborator {
           .join('');
       }
       const merged = [...keepEntries];
-      const seen = new Set(keepEntries.map((entry) => `${entry.groupId}::${entry.content}`));
+      const seen = new Set(keepEntries.map((entry) => entry.content));
       for (const entry of sourceEntries) {
-        const key = `${entry.groupId}::${entry.content}`;
+        const key = entry.content;
         if (seen.has(key)) continue;
         seen.add(key);
         merged.push(entry);

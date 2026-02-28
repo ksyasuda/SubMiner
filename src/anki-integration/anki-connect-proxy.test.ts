@@ -230,6 +230,41 @@ test('proxy ignores addNote when upstream response reports error', async () => {
   assert.deepEqual(processed, []);
 });
 
+test('proxy does not fallback-enqueue latest note for multi requests without add actions', async () => {
+  const processed: number[] = [];
+  const findNotesQueries: string[] = [];
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async (noteId) => {
+      processed.push(noteId);
+    },
+    getDeck: () => 'Mining',
+    findNotes: async (query) => {
+      findNotesQueries.push(query);
+      return [999];
+    },
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+    logError: () => undefined,
+  });
+
+  (proxy as unknown as {
+    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+  }).maybeEnqueueFromRequest(
+    {
+      action: 'multi',
+      params: {
+        actions: [{ action: 'version' }, { action: 'deckNames' }],
+      },
+    },
+    Buffer.from(JSON.stringify({ result: [6, ['Default']], error: null }), 'utf8'),
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.deepEqual(findNotesQueries, []);
+  assert.deepEqual(processed, []);
+});
+
 test('proxy detects self-referential loop configuration', () => {
   const proxy = new AnkiConnectProxyServer({
     shouldAutoUpdateNewCards: () => true,

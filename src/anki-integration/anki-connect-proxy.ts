@@ -179,6 +179,7 @@ export class AnkiConnectProxyServer {
     if (action !== 'addNote' && action !== 'addNotes' && action !== 'multi') {
       return;
     }
+    const shouldFallbackToLatestAdded = this.requestIncludesAddAction(action, requestJson);
 
     const parsedResponse = this.tryParseJsonValue(responseBody);
     if (parsedResponse === null || parsedResponse === undefined) {
@@ -194,12 +195,34 @@ export class AnkiConnectProxyServer {
       action === 'multi'
         ? this.collectMultiResultIds(requestJson, responseResult)
         : this.collectNoteIdsForAction(action, responseResult);
-    if (noteIds.length === 0) {
+    if (noteIds.length === 0 && shouldFallbackToLatestAdded) {
       void this.enqueueMostRecentAddedNote();
       return;
     }
 
     this.enqueueNotes(noteIds);
+  }
+
+  private requestIncludesAddAction(action: string, requestJson: Record<string, unknown>): boolean {
+    if (action === 'addNote' || action === 'addNotes') {
+      return true;
+    }
+    if (action !== 'multi') {
+      return false;
+    }
+    const params =
+      requestJson.params && typeof requestJson.params === 'object'
+        ? (requestJson.params as Record<string, unknown>)
+        : null;
+    const actions = Array.isArray(params?.actions) ? params.actions : [];
+    if (actions.length === 0) {
+      return false;
+    }
+    return actions.some((entry) => {
+      if (!entry || typeof entry !== 'object') return false;
+      const actionName = (entry as Record<string, unknown>).action;
+      return actionName === 'addNote' || actionName === 'addNotes';
+    });
   }
 
   private async enqueueMostRecentAddedNote(): Promise<void> {
