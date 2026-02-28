@@ -27,6 +27,7 @@ Scope: Current unmerged working-tree changes implement an optional local AnkiCon
 
 Delivered behavior:
 - Added proxy server that forwards AnkiConnect requests and enqueues addNote/addNotes note IDs for post-create enrichment, with de-duplication and loop-configuration protection.
+- Added follow-up response-shape compatibility handling so proxy enqueue works for both envelope (`{result,error}`) and bare JSON payloads, including `multi` variants.
 - Added config schema/defaults/resolution for ankiConnect.proxy (enabled, host, port, upstreamUrl) with validation warnings and fallback behavior.
 - Runtime now supports transport switching (polling vs proxy) and restarts transport when runtime config patches change transport keys.
 - Added Yomitan default-profile server sync helper to keep bundled parser profile aligned with configured Anki endpoint.

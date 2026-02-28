@@ -14,7 +14,7 @@ AnkiConnect listens on `http://127.0.0.1:8765` by default. If you changed the po
 
 SubMiner supports two auto-enrichment transport modes:
 
-1. `proxy` (default): runs a local AnkiConnect-compatible proxy and enriches cards immediately after successful `addNote` / `addNotes` responses.
+1. `proxy` (default): runs a local AnkiConnect-compatible proxy and enriches cards immediately after successful `addNote` / `addNotes` / `multi` responses.
 2. `polling`: polls AnkiConnect at `ankiConnect.pollingRate` (default: 3s).
 
 In both modes, the enrichment workflow is the same:
@@ -69,6 +69,39 @@ In Yomitan, go to Settings → Profile and:
 4. Save and make that profile active when using SubMiner.
 
 This is only for non-bundled, external/browser Yomitan or other clients. The bundled profile auto-update logic only targets `profiles[0]` when it is blank or still default.
+
+### Proxy Troubleshooting (quick checks)
+
+If auto-enrichment appears to do nothing:
+
+1. Confirm proxy listener is running while SubMiner is active:
+
+```bash
+ss -ltnp | rg 8766
+```
+
+2. Confirm requests can pass through the proxy:
+
+```bash
+curl -sS http://127.0.0.1:8766 \
+  -H 'content-type: application/json' \
+  -d '{"action":"version","version":2}'
+```
+
+3. Check both log sinks:
+
+- Launcher/mpv-integrated log: `~/.cache/SubMiner/mp.log`
+- App runtime log: `~/.config/SubMiner/logs/SubMiner-YYYY-MM-DD.log`
+
+4. Ensure config JSONC is valid and logging shape is correct:
+
+```jsonc
+"logging": {
+  "level": "debug"
+}
+```
+
+`"logging": "debug"` is invalid for current schema and can break reload/start behavior.
 
 ## Field Mapping
 

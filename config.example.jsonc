@@ -37,7 +37,7 @@
   // ==========================================
   "logging": {
     "level": "info" // Minimum log level for runtime logging. Values: debug | info | warn | error
-  }, // Controls logging verbosity.
+  }, // Controls logging verbosity. Keep this as an object; do not replace with a bare string.
 
   // ==========================================
   // Keyboard Shortcuts

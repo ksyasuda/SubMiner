@@ -243,6 +243,9 @@ export class AnkiIntegration {
     return new AnkiConnectProxyServer({
       shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId: number) => this.processNewCard(noteId),
+      getDeck: () => this.config.deck,
+      findNotes: async (query, options) =>
+        (await this.client.findNotes(query, options)) as number[],
       logInfo: (message, ...args) => log.info(message, ...args),
       logWarn: (message, ...args) => log.warn(message, ...args),
       logError: (message, ...args) => log.error(message, ...args),

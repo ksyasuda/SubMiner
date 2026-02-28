@@ -15,6 +15,13 @@ interface AnkiConnectEnvelope {
 export interface AnkiConnectProxyServerDeps {
   shouldAutoUpdateNewCards: () => boolean;
   processNewCard: (noteId: number) => Promise<void>;
+  getDeck?: () => string | undefined;
+  findNotes?: (
+    query: string,
+    options?: {
+      maxRetries?: number;
+    },
+  ) => Promise<number[]>;
   logInfo: (message: string, ...args: unknown[]) => void;
   logWarn: (message: string, ...args: unknown[]) => void;
   logError: (message: string, ...args: unknown[]) => void;
@@ -169,24 +176,116 @@ export class AnkiConnectProxyServer {
 
     const action =
       typeof requestJson.action === 'string' ? requestJson.action : String(requestJson.action ?? '');
-    if (action !== 'addNote' && action !== 'addNotes') {
+    if (action !== 'addNote' && action !== 'addNotes' && action !== 'multi') {
       return;
     }
 
-    const responseJson = this.tryParseJson(responseBody) as AnkiConnectEnvelope | null;
-    if (!responseJson || responseJson.error !== null) {
+    const parsedResponse = this.tryParseJsonValue(responseBody);
+    if (parsedResponse === null || parsedResponse === undefined) {
+      return;
+    }
+
+    const responseResult = this.extractSuccessfulResult(parsedResponse);
+    if (responseResult === null) {
       return;
     }
 
     const noteIds =
-      action === 'addNote'
-        ? this.collectSingleResultId(responseJson.result)
-        : this.collectBatchResultIds(responseJson.result);
+      action === 'multi'
+        ? this.collectMultiResultIds(requestJson, responseResult)
+        : this.collectNoteIdsForAction(action, responseResult);
     if (noteIds.length === 0) {
+      void this.enqueueMostRecentAddedNote();
       return;
     }
 
     this.enqueueNotes(noteIds);
+  }
+
+  private async enqueueMostRecentAddedNote(): Promise<void> {
+    const findNotes = this.deps.findNotes;
+    if (!findNotes) {
+      return;
+    }
+
+    try {
+      const deck = this.deps.getDeck ? this.deps.getDeck() : undefined;
+      const query = deck ? `"deck:${deck}" added:1` : 'added:1';
+      const noteIds = await findNotes(query, { maxRetries: 0 });
+      if (!noteIds || noteIds.length === 0) {
+        return;
+      }
+      const latestNoteId = Math.max(...noteIds);
+      this.deps.logInfo(
+        `[anki-proxy] Falling back to latest added note ${latestNoteId} (response did not include note IDs)`,
+      );
+      this.enqueueNotes([latestNoteId]);
+    } catch (error) {
+      this.deps.logWarn(
+        '[anki-proxy] Failed latest-note fallback lookup:',
+        (error as Error).message,
+      );
+    }
+  }
+
+  private collectNoteIdsForAction(action: string, result: unknown): number[] {
+    if (action === 'addNote') {
+      return this.collectSingleResultId(result);
+    }
+    if (action === 'addNotes') {
+      return this.collectBatchResultIds(result);
+    }
+    return [];
+  }
+
+  private collectMultiResultIds(requestJson: Record<string, unknown>, result: unknown): number[] {
+    if (!Array.isArray(result)) {
+      return [];
+    }
+    const params =
+      requestJson.params && typeof requestJson.params === 'object'
+        ? (requestJson.params as Record<string, unknown>)
+        : null;
+    const actions = Array.isArray(params?.actions) ? params.actions : [];
+    if (actions.length === 0) {
+      return [];
+    }
+
+    const noteIds: number[] = [];
+    const count = Math.min(actions.length, result.length);
+    for (let index = 0; index < count; index += 1) {
+      const actionEntry = actions[index];
+      if (!actionEntry || typeof actionEntry !== 'object') {
+        continue;
+      }
+      const actionName =
+        typeof (actionEntry as Record<string, unknown>).action === 'string'
+          ? ((actionEntry as Record<string, unknown>).action as string)
+          : '';
+      const actionResult = this.extractMultiActionResult(result[index]);
+      if (actionResult === null) {
+        continue;
+      }
+      noteIds.push(...this.collectNoteIdsForAction(actionName, actionResult));
+    }
+    return noteIds;
+  }
+
+  private extractMultiActionResult(value: unknown): unknown | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return value;
+    }
+
+    const envelope = value as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(envelope, 'result')) {
+      return value;
+    }
+
+    if (envelope.error !== null && envelope.error !== undefined) {
+      return null;
+    }
+
+    return envelope.result;
   }
 
   private collectSingleResultId(value: unknown): number[] {
@@ -282,6 +381,32 @@ export class AnkiConnectProxyServer {
     } catch {
       return null;
     }
+  }
+
+  private tryParseJsonValue(rawBody: Buffer): unknown {
+    if (rawBody.length === 0) {
+      return null;
+    }
+    try {
+      return JSON.parse(rawBody.toString('utf8'));
+    } catch {
+      return null;
+    }
+  }
+
+  private extractSuccessfulResult(value: unknown): unknown | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return value;
+    }
+
+    const envelope = value as Partial<AnkiConnectEnvelope>;
+    if (!Object.prototype.hasOwnProperty.call(envelope, 'result')) {
+      return value;
+    }
+    if (envelope.error !== null && envelope.error !== undefined) {
+      return null;
+    }
+    return envelope.result;
   }
 
   private setCorsHeaders(res: ServerResponse<IncomingMessage>): void {

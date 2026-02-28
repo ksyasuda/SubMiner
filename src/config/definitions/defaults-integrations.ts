@@ -9,7 +9,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     url: 'http://127.0.0.1:8765',
     pollingRate: 3000,
     proxy: {
-      enabled: false,
+      enabled: true,
       host: '127.0.0.1',
       port: 8766,
       upstreamUrl: 'http://127.0.0.1:8765',

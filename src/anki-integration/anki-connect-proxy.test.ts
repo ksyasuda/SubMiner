@@ -38,6 +38,26 @@ test('proxy enqueues addNote result for enrichment', async () => {
   assert.deepEqual(processed, [42]);
 });
 
+test('proxy enqueues addNote bare numeric response for enrichment', async () => {
+  const processed: number[] = [];
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async (noteId) => {
+      processed.push(noteId);
+    },
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+    logError: () => undefined,
+  });
+
+  (proxy as unknown as {
+    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+  }).maybeEnqueueFromRequest({ action: 'addNote' }, Buffer.from('42', 'utf8'));
+
+  await waitForCondition(() => processed.length === 1);
+  assert.deepEqual(processed, [42]);
+});
+
 test('proxy de-duplicates addNotes IDs within the same response', async () => {
   const processed: number[] = [];
   const proxy = new AnkiConnectProxyServer({
@@ -60,6 +80,108 @@ test('proxy de-duplicates addNotes IDs within the same response', async () => {
 
   await waitForCondition(() => processed.length === 2);
   assert.deepEqual(processed, [101, 102]);
+});
+
+test('proxy enqueues note IDs from multi action addNote/addNotes results', async () => {
+  const processed: number[] = [];
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async (noteId) => {
+      processed.push(noteId);
+    },
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+    logError: () => undefined,
+  });
+
+  (proxy as unknown as {
+    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+  }).maybeEnqueueFromRequest(
+    {
+      action: 'multi',
+      params: {
+        actions: [
+          { action: 'version' },
+          { action: 'addNote' },
+          { action: 'addNotes' },
+        ],
+      },
+    },
+    Buffer.from(JSON.stringify({ result: [6, 777, [888, 777, null]], error: null }), 'utf8'),
+  );
+
+  await waitForCondition(() => processed.length === 2);
+  assert.deepEqual(processed, [777, 888]);
+});
+
+test('proxy enqueues note IDs from bare multi action results', async () => {
+  const processed: number[] = [];
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async (noteId) => {
+      processed.push(noteId);
+    },
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+    logError: () => undefined,
+  });
+
+  (proxy as unknown as {
+    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+  }).maybeEnqueueFromRequest(
+    {
+      action: 'multi',
+      params: {
+        actions: [{ action: 'version' }, { action: 'addNote' }, { action: 'addNotes' }],
+      },
+    },
+    Buffer.from(JSON.stringify([6, 777, [888, null]]), 'utf8'),
+  );
+
+  await waitForCondition(() => processed.length === 2);
+  assert.deepEqual(processed, [777, 888]);
+});
+
+test('proxy enqueues note IDs from multi action envelope results', async () => {
+  const processed: number[] = [];
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async (noteId) => {
+      processed.push(noteId);
+    },
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+    logError: () => undefined,
+  });
+
+  (proxy as unknown as {
+    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+  }).maybeEnqueueFromRequest(
+    {
+      action: 'multi',
+      params: {
+        actions: [
+          { action: 'version' },
+          { action: 'addNote' },
+          { action: 'addNotes' },
+        ],
+      },
+    },
+    Buffer.from(
+      JSON.stringify({
+        result: [
+          { result: 6, error: null },
+          { result: 777, error: null },
+          { result: [888, 777, null], error: null },
+        ],
+        error: null,
+      }),
+      'utf8',
+    ),
+  );
+
+  await waitForCondition(() => processed.length === 2);
+  assert.deepEqual(processed, [777, 888]);
 });
 
 test('proxy skips auto-enrichment when auto-update is disabled', async () => {
