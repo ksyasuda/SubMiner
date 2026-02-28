@@ -18,10 +18,21 @@ function M.create(ctx)
 		end)
 	end
 
+	local function resolve_auto_start_enabled()
+		local raw_auto_start = opts.auto_start
+		if raw_auto_start == nil then
+			raw_auto_start = opts.auto_start_overlay
+		end
+		if raw_auto_start == nil then
+			raw_auto_start = opts["auto-start"]
+		end
+		return options_helper.coerce_bool(raw_auto_start, false)
+	end
+
 	local function on_file_loaded()
 		aniskip.clear_aniskip_state()
 
-		local should_auto_start = options_helper.coerce_bool(opts.auto_start, false)
+		local should_auto_start = resolve_auto_start_enabled()
 		if should_auto_start then
 			process.start_overlay()
 			-- Give the overlay process a moment to initialize before querying AniSkip.

@@ -100,7 +100,11 @@ function M.create(ctx)
 	end
 
 	local function resolve_visible_overlay_startup()
-		return options_helper.coerce_bool(opts.auto_start_visible_overlay, false)
+		local raw_visible_overlay = opts.auto_start_visible_overlay
+		if raw_visible_overlay == nil then
+			raw_visible_overlay = opts["auto-start-visible-overlay"]
+		end
+		return options_helper.coerce_bool(raw_visible_overlay, false)
 	end
 
 	local function apply_startup_overlay_preferences()
