@@ -365,6 +365,8 @@ import {
   triggerFieldGrouping as triggerFieldGroupingCore,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
+import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
+import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
   guessAnilistMediaInfo,
@@ -437,7 +439,9 @@ import { resolveConfigDir } from './config/path-resolution';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
-  const passwordStore = normalizePasswordStoreArg(getPasswordStoreArg(process.argv) ?? getDefaultPasswordStore());
+  const passwordStore = normalizePasswordStoreArg(
+    getPasswordStoreArg(process.argv) ?? getDefaultPasswordStore(),
+  );
   app.commandLine.appendSwitch('password-store', passwordStore);
   console.debug(`[main] Applied --password-store ${passwordStore}`);
 }
@@ -683,8 +687,13 @@ function refreshDiscordPresenceMediaDuration(): void {
 }
 
 function publishDiscordPresence(): void {
+  const discordPresenceService = appState.discordPresenceService;
+  if (!discordPresenceService || getResolvedConfig().discordPresence.enabled !== true) {
+    return;
+  }
+
   refreshDiscordPresenceMediaDuration();
-  appState.discordPresenceService?.publish({
+  discordPresenceService.publish({
     mediaTitle: appState.currentMediaTitle,
     mediaPath: appState.currentMediaPath,
     subtitleText: appState.currentSubText,
@@ -718,6 +727,11 @@ function createDiscordRpcClient() {
 }
 
 async function initializeDiscordPresenceService(): Promise<void> {
+  if (getResolvedConfig().discordPresence.enabled !== true) {
+    appState.discordPresenceService = null;
+    return;
+  }
+
   appState.discordPresenceService = createDiscordPresenceService({
     config: getResolvedConfig().discordPresence,
     createClient: () => createDiscordRpcClient(),
@@ -1802,6 +1816,15 @@ const {
   },
 });
 
+function refreshAnilistClientSecretStateIfEnabled(options?: {
+  force?: boolean;
+}): Promise<string | null> {
+  if (!isAnilistTrackingEnabled(getResolvedConfig())) {
+    return Promise.resolve(null);
+  }
+  return refreshAnilistClientSecretState(options);
+}
+
 const rememberAnilistAttemptedUpdate = (key: string): void => {
   rememberAnilistAttemptedUpdateKey(
     anilistAttemptedUpdateKeys,
@@ -1930,6 +1953,35 @@ const {
 });
 registerProtocolUrlHandlersHandler();
 
+const immersionTrackerStartupMainDeps: Parameters<
+  typeof createBuildImmersionTrackerStartupMainDepsHandler
+>[0] = {
+  getResolvedConfig: () => getResolvedConfig(),
+  getConfiguredDbPath: () => immersionMediaRuntime.getConfiguredDbPath(),
+  createTrackerService: (params) => new ImmersionTrackerService(params),
+  setTracker: (tracker) => {
+    appState.immersionTracker = tracker as ImmersionTrackerService | null;
+  },
+  getMpvClient: () => appState.mpvClient,
+  seedTrackerFromCurrentMedia: () => {
+    void immersionMediaRuntime.seedFromCurrentMedia();
+  },
+  logInfo: (message) => logger.info(message),
+  logDebug: (message) => logger.debug(message),
+  logWarn: (message, details) => logger.warn(message, details),
+};
+const createImmersionTrackerStartup = createImmersionTrackerStartupHandler(
+  createBuildImmersionTrackerStartupMainDepsHandler(immersionTrackerStartupMainDeps)(),
+);
+let hasAttemptedImmersionTrackerStartup = false;
+const ensureImmersionTrackerStarted = (): void => {
+  if (hasAttemptedImmersionTrackerStartup || appState.immersionTracker) {
+    return;
+  }
+  hasAttemptedImmersionTrackerStartup = true;
+  createImmersionTrackerStartup();
+};
+
 const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppReadyRuntime({
   reloadConfigMainDeps: {
     reloadConfigStrict: () => configService.reloadConfigStrict(),
@@ -1937,7 +1989,7 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
     logWarning: (message) => appLogger.logWarning(message),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     startConfigHotReload: () => configHotReloadRuntime.start(),
-    refreshAnilistClientSecretState: (options) => refreshAnilistClientSecretState(options),
+    refreshAnilistClientSecretState: (options) => refreshAnilistClientSecretStateIfEnabled(options),
     failHandlers: {
       logError: (details) => logger.error(details),
       showErrorBox: (title, details) => dialog.showErrorBox(title, details),
@@ -2016,26 +2068,15 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
         : configDerivedRuntime.shouldAutoInitializeOverlayRuntimeFromConfig(),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     handleInitialArgs: () => handleInitialArgs(),
+    createImmersionTracker: () => {
+      ensureImmersionTrackerStarted();
+    },
     logDebug: (message: string) => {
       logger.debug(message);
     },
     now: () => Date.now(),
   },
-  immersionTrackerStartupMainDeps: {
-    getResolvedConfig: () => getResolvedConfig(),
-    getConfiguredDbPath: () => immersionMediaRuntime.getConfiguredDbPath(),
-    createTrackerService: (params) => new ImmersionTrackerService(params),
-    setTracker: (tracker) => {
-      appState.immersionTracker = tracker as ImmersionTrackerService | null;
-    },
-    getMpvClient: () => appState.mpvClient,
-    seedTrackerFromCurrentMedia: () => {
-      void immersionMediaRuntime.seedFromCurrentMedia();
-    },
-    logInfo: (message) => logger.info(message),
-    logDebug: (message) => logger.debug(message),
-    logWarn: (message, details) => logger.warn(message, details),
-  },
+  immersionTrackerStartupMainDeps,
 });
 
 const { appLifecycleRuntimeRunner, runAndApplyStartupState } =
@@ -2099,8 +2140,10 @@ const { appLifecycleRuntimeRunner, runAndApplyStartupState } =
   });
 
 runAndApplyStartupState();
-void refreshAnilistClientSecretState({ force: true });
-anilistStateRuntime.refreshRetryQueueState();
+if (isAnilistTrackingEnabled(getResolvedConfig())) {
+  void refreshAnilistClientSecretStateIfEnabled({ force: true });
+  anilistStateRuntime.refreshRetryQueueState();
+}
 void initializeDiscordPresenceService();
 
 const handleCliCommand = createCliCommandRuntimeHandler({
@@ -2167,7 +2210,13 @@ const {
     refreshDiscordPresence: () => {
       publishDiscordPresence();
     },
+    ensureImmersionTrackerInitialized: () => {
+      ensureImmersionTrackerStarted();
+    },
     updateCurrentMediaPath: (path) => {
+      if (path) {
+        ensureImmersionTrackerStarted();
+      }
       mediaRuntime.updateCurrentMediaPath(path);
     },
     restoreMpvSubVisibility: () => {
@@ -2241,6 +2290,7 @@ const {
       },
       isKnownWord: (text) => Boolean(appState.ankiIntegration?.isKnownWord(text)),
       recordLookup: (hit) => {
+        ensureImmersionTrackerStarted();
         appState.immersionTracker?.recordLookup(hit);
       },
       getKnownWordMatchMode: () =>
@@ -2662,6 +2712,7 @@ const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDeps
   showMpvOsd: (text) => showMpvOsd(text),
   mineSentenceCardCore,
   recordCardsMined: (count) => {
+    ensureImmersionTrackerStarted();
     appState.immersionTracker?.recordCardsMined(count);
   },
 });
@@ -2697,6 +2748,7 @@ const buildHandleMineSentenceDigitMainDepsHandler =
       logger.error(message, err);
     },
     onCardsMined: (cards) => {
+      ensureImmersionTrackerStarted();
       appState.immersionTracker?.recordCardsMined(cards);
     },
     handleMineSentenceDigitCore,
@@ -2910,9 +2962,7 @@ const {
     onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
     setOverlayDebugVisualizationEnabled: (enabled) => setOverlayDebugVisualizationEnabled(enabled),
     isOverlayVisible: (windowKind) =>
-      windowKind === 'visible'
-        ? overlayManager.getVisibleOverlayVisible()
-        : false,
+      windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
     tryHandleOverlayShortcutLocalFallback: (input) =>
       overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
     onWindowClosed: (windowKind) => {
@@ -3013,7 +3063,8 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       },
       createMainWindow: () => createMainWindow(),
       registerGlobalShortcuts: () => registerGlobalShortcuts(),
-      updateVisibleOverlayBounds: (geometry: WindowGeometry) => updateVisibleOverlayBounds(geometry),
+      updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
+        updateVisibleOverlayBounds(geometry),
       getOverlayWindows: () => getOverlayWindows(),
       getResolvedConfig: () => getResolvedConfig(),
       showDesktopNotification,

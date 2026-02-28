@@ -38,6 +38,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
   refreshDiscordPresence: () => void;
+  ensureImmersionTrackerInitialized: () => void;
 }) {
   return () => ({
     reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
@@ -48,8 +49,10 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     scheduleQuitCheck: (callback: () => void) => deps.scheduleQuitCheck(callback),
     isMpvConnected: () => Boolean(deps.appState.mpvClient?.connected),
     quitApp: () => deps.quitApp(),
-    recordImmersionSubtitleLine: (text: string, start: number, end: number) =>
-      deps.appState.immersionTracker?.recordSubtitleLine?.(text, start, end),
+    recordImmersionSubtitleLine: (text: string, start: number, end: number) => {
+      deps.ensureImmersionTrackerInitialized();
+      deps.appState.immersionTracker?.recordSubtitleLine?.(text, start, end);
+    },
     hasSubtitleTimingTracker: () => Boolean(deps.appState.subtitleTimingTracker),
     recordSubtitleTiming: (text: string, start: number, end: number) =>
       deps.appState.subtitleTimingTracker?.recordSubtitle?.(text, start, end),
@@ -71,8 +74,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     broadcastSecondarySubtitle: (text: string) =>
       deps.broadcastToOverlayWindows('secondary-subtitle:set', text),
     updateCurrentMediaPath: (path: string) => deps.updateCurrentMediaPath(path),
-    restoreMpvSubVisibility: () =>
-      deps.restoreMpvSubVisibility(),
+    restoreMpvSubVisibility: () => deps.restoreMpvSubVisibility(),
     getCurrentAnilistMediaKey: () => deps.getCurrentAnilistMediaKey(),
     resetAnilistMediaTracking: (mediaKey: string | null) =>
       deps.resetAnilistMediaTracking(mediaKey),
@@ -81,14 +83,19 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     syncImmersionMediaState: () => deps.syncImmersionMediaState(),
     updateCurrentMediaTitle: (title: string) => deps.updateCurrentMediaTitle(title),
     resetAnilistMediaGuessState: () => deps.resetAnilistMediaGuessState(),
-    notifyImmersionTitleUpdate: (title: string) =>
-      deps.appState.immersionTracker?.handleMediaTitleUpdate?.(title),
-    recordPlaybackPosition: (time: number) =>
-      deps.appState.immersionTracker?.recordPlaybackPosition?.(time),
+    notifyImmersionTitleUpdate: (title: string) => {
+      deps.ensureImmersionTrackerInitialized();
+      deps.appState.immersionTracker?.handleMediaTitleUpdate?.(title);
+    },
+    recordPlaybackPosition: (time: number) => {
+      deps.ensureImmersionTrackerInitialized();
+      deps.appState.immersionTracker?.recordPlaybackPosition?.(time);
+    },
     reportJellyfinRemoteProgress: (forceImmediate: boolean) =>
       deps.reportJellyfinRemoteProgress(forceImmediate),
     recordPauseState: (paused: boolean) => {
       deps.appState.playbackPaused = paused;
+      deps.ensureImmersionTrackerInitialized();
       deps.appState.immersionTracker?.recordPauseState?.(paused);
     },
     updateSubtitleRenderMetrics: (patch: Record<string, unknown>) =>

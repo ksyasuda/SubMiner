@@ -58,9 +58,12 @@ test('runAppReadyRuntime starts websocket in auto mode when plugin missing', asy
   await runAppReadyRuntime(deps);
   assert.ok(calls.includes('startSubtitleWebsocket:9001'));
   assert.ok(calls.includes('initializeOverlayRuntime'));
-  assert.ok(calls.includes('createImmersionTracker'));
   assert.ok(calls.includes('startBackgroundWarmups'));
-  assert.ok(calls.includes('log:Runtime ready: invoking createImmersionTracker.'));
+  assert.ok(
+    calls.includes(
+      'log:Runtime ready: immersion tracker startup deferred until first media activity.',
+    ),
+  );
 });
 
 test('runAppReadyRuntime skips Jellyfin remote startup when dependency is not wired', async () => {
@@ -86,23 +89,7 @@ test('runAppReadyRuntime logs when createImmersionTracker dependency is missing'
     createImmersionTracker: undefined,
   });
   await runAppReadyRuntime(deps);
-  assert.ok(calls.includes('log:Runtime ready: createImmersionTracker dependency is missing.'));
-});
-
-test('runAppReadyRuntime logs and continues when createImmersionTracker throws', async () => {
-  const { deps, calls } = makeDeps({
-    createImmersionTracker: () => {
-      calls.push('createImmersionTracker');
-      throw new Error('immersion init failed');
-    },
-  });
-  await runAppReadyRuntime(deps);
-  assert.ok(calls.includes('createImmersionTracker'));
-  assert.ok(
-    calls.includes('log:Runtime ready: createImmersionTracker failed: immersion init failed'),
-  );
-  assert.ok(calls.includes('initializeOverlayRuntime'));
-  assert.ok(calls.includes('handleInitialArgs'));
+  assert.ok(calls.includes('log:Runtime ready: immersion tracker dependency is missing.'));
 });
 
 test('runAppReadyRuntime logs defer message when overlay not auto-started', async () => {

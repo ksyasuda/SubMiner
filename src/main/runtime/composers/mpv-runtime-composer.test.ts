@@ -75,6 +75,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
       broadcastToOverlayWindows: () => {},
       onSubtitleChange: () => {},
       refreshDiscordPresence: () => {},
+      ensureImmersionTrackerInitialized: () => {},
       updateCurrentMediaPath: () => {},
       restoreMpvSubVisibility: () => {},
       getCurrentAnilistMediaKey: () => null,

@@ -40,6 +40,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     broadcastToOverlayWindows: (channel, payload) =>
       calls.push(`broadcast:${channel}:${String(payload)}`),
     onSubtitleChange: (text) => calls.push(`subtitle-change:${text}`),
+    ensureImmersionTrackerInitialized: () => calls.push('ensure-immersion'),
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
     restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
     getCurrentAnilistMediaKey: () => 'media-key',
@@ -97,6 +98,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('remote-stopped'));
   assert.ok(calls.includes('sync-overlay-mpv-sub'));
   assert.ok(calls.includes('anilist-post-watch'));
+  assert.ok(calls.includes('ensure-immersion'));
   assert.ok(calls.includes('sync-immersion'));
   assert.ok(calls.includes('metrics'));
   assert.ok(calls.includes('presence-refresh'));

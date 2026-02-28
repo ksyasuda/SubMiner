@@ -203,14 +203,9 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
 
   deps.createSubtitleTimingTracker();
   if (deps.createImmersionTracker) {
-    deps.log('Runtime ready: invoking createImmersionTracker.');
-    try {
-      deps.createImmersionTracker();
-    } catch (error) {
-      deps.log(`Runtime ready: createImmersionTracker failed: ${(error as Error).message}`);
-    }
+    deps.log('Runtime ready: immersion tracker startup deferred until first media activity.');
   } else {
-    deps.log('Runtime ready: createImmersionTracker dependency is missing.');
+    deps.log('Runtime ready: immersion tracker dependency is missing.');
   }
 
   if (deps.texthookerOnlyMode) {
