@@ -28,6 +28,8 @@ export const state = {
 };
 
 const DETACHED_IDLE_MPV_PID_FILE = path.join(os.tmpdir(), 'subminer-idle-mpv.pid');
+const OVERLAY_START_SOCKET_READY_TIMEOUT_MS = 900;
+const OVERLAY_START_COMMAND_SETTLE_TIMEOUT_MS = 700;
 
 function readTrackedDetachedMpvPid(): number | null {
   try {
@@ -498,7 +500,47 @@ export function startMpv(
   state.mpvProc = spawn('mpv', mpvArgs, { stdio: 'inherit' });
 }
 
-export function startOverlay(appPath: string, args: Args, socketPath: string): Promise<void> {
+async function waitForOverlayStartCommandSettled(
+  proc: ReturnType<typeof spawn>,
+  logLevel: LogLevel,
+  timeoutMs: number,
+): Promise<void> {
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      proc.off('exit', onExit);
+      proc.off('error', onError);
+      resolve();
+    };
+
+    const onExit = (code: number | null) => {
+      if (typeof code === 'number' && code !== 0) {
+        log('warn', logLevel, `Overlay start command exited with status ${code}`);
+      }
+      finish();
+    };
+
+    const onError = (error: Error) => {
+      log('warn', logLevel, `Overlay start command failed: ${error.message}`);
+      finish();
+    };
+
+    proc.once('exit', onExit);
+    proc.once('error', onError);
+    timer = setTimeout(finish, timeoutMs);
+
+    if (proc.exitCode !== null && proc.exitCode !== undefined) {
+      onExit(proc.exitCode);
+    }
+  });
+}
+
+export async function startOverlay(appPath: string, args: Args, socketPath: string): Promise<void> {
   const backend = detectBackend(args.backend);
   log('info', args.logLevel, `Starting SubMiner overlay (backend: ${backend})...`);
 
@@ -512,9 +554,22 @@ export function startOverlay(appPath: string, args: Args, socketPath: string): P
   });
   state.overlayManagedByLauncher = true;
 
-  return new Promise((resolve) => {
-    setTimeout(resolve, 2000);
-  });
+  const [socketReady] = await Promise.all([
+    waitForUnixSocketReady(socketPath, OVERLAY_START_SOCKET_READY_TIMEOUT_MS),
+    waitForOverlayStartCommandSettled(
+      state.overlayProc,
+      args.logLevel,
+      OVERLAY_START_COMMAND_SETTLE_TIMEOUT_MS,
+    ),
+  ]);
+
+  if (!socketReady) {
+    log(
+      'debug',
+      args.logLevel,
+      'Overlay start continuing before mpv socket readiness was confirmed',
+    );
+  }
 }
 
 export function launchTexthookerOnly(appPath: string, args: Args): never {
