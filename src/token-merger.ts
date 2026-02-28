@@ -247,7 +247,10 @@ export function isNPlusOneCandidateToken(token: MergedToken): boolean {
   if (token.isKnown) {
     return false;
   }
+  return isNPlusOneWordCountToken(token);
+}
 
+function isNPlusOneWordCountToken(token: MergedToken): boolean {
   if (token.partOfSpeech === PartOfSpeech.particle) {
     return false;
   }
@@ -308,7 +311,7 @@ export function markNPlusOneTargets(tokens: MergedToken[], minSentenceWords = 3)
     for (let i = start; i < endExclusive; i++) {
       const token = markedTokens[i];
       if (!token) continue;
-      if (!isSentenceBoundaryToken(token) && token.surface.trim().length > 0) {
+      if (isNPlusOneWordCountToken(token)) {
         sentenceWordCount += 1;
       }
 
