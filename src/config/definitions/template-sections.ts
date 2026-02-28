@@ -9,14 +9,6 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'auto_start_overlay',
   },
   {
-    title: 'Visible Overlay Subtitle Binding',
-    description: [
-      'Control whether visible overlay toggles also toggle MPV subtitle visibility.',
-      'When enabled, visible overlay hides MPV subtitles; when disabled, MPV subtitles are left unchanged.',
-    ],
-    key: 'bind_visible_overlay_to_mpv_sub_visibility',
-  },
-  {
     title: 'Texthooker Server',
     description: ['Control whether browser opens automatically for texthooker.'],
     key: 'texthooker',

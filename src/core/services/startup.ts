@@ -18,7 +18,6 @@ interface RuntimeAutoUpdateOptionManagerLike {
 
 export interface RuntimeConfigLike {
   auto_start_overlay?: boolean;
-  bind_visible_overlay_to_mpv_sub_visibility: boolean;
   ankiConnect?: {
     behavior?: {
       autoUpdateNewCards?: boolean;
@@ -154,10 +153,6 @@ function getStartupCriticalConfigErrors(config: AppReadyConfigLike): string[] {
 
 export function shouldAutoInitializeOverlayRuntimeFromConfig(config: RuntimeConfigLike): boolean {
   return config.auto_start_overlay === true;
-}
-
-export function shouldBindVisibleOverlayToMpvSubVisibility(config: RuntimeConfigLike): boolean {
-  return config.bind_visible_overlay_to_mpv_sub_visibility;
 }
 
 export function isAutoUpdateEnabledRuntime(

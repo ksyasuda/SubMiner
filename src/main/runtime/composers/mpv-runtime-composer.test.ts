@@ -92,7 +92,6 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
       getResolvedConfig: () => ({ auto_start_overlay: false }),
       isAutoStartOverlayEnabled: () => true,
       setOverlayVisible: () => {},
-      shouldBindVisibleOverlayToMpvSubVisibility: () => true,
       isVisibleOverlayVisible: () => false,
       getReconnectTimer: () => null,
       setReconnectTimer: () => {},

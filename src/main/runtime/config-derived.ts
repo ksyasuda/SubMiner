@@ -7,7 +7,6 @@ import {
   jimakuFetchJson as jimakuFetchJsonCore,
   resolveJimakuApiKey as resolveJimakuApiKeyCore,
   shouldAutoInitializeOverlayRuntimeFromConfig as shouldAutoInitializeOverlayRuntimeFromConfigCore,
-  shouldBindVisibleOverlayToMpvSubVisibility as shouldBindVisibleOverlayToMpvSubVisibilityCore,
 } from '../../core/services';
 
 export type ConfigDerivedRuntimeDeps = {
@@ -20,7 +19,6 @@ export type ConfigDerivedRuntimeDeps = {
 
 export function createConfigDerivedRuntime(deps: ConfigDerivedRuntimeDeps): {
   shouldAutoInitializeOverlayRuntimeFromConfig: () => boolean;
-  shouldBindVisibleOverlayToMpvSubVisibility: () => boolean;
   isAutoUpdateEnabledRuntime: () => boolean;
   getJimakuLanguagePreference: () => JimakuLanguagePreference;
   getJimakuMaxEntryResults: () => number;
@@ -33,8 +31,6 @@ export function createConfigDerivedRuntime(deps: ConfigDerivedRuntimeDeps): {
   return {
     shouldAutoInitializeOverlayRuntimeFromConfig: () =>
       shouldAutoInitializeOverlayRuntimeFromConfigCore(deps.getResolvedConfig()),
-    shouldBindVisibleOverlayToMpvSubVisibility: () =>
-      shouldBindVisibleOverlayToMpvSubVisibilityCore(deps.getResolvedConfig()),
     isAutoUpdateEnabledRuntime: () =>
       isAutoUpdateEnabledRuntimeCore(deps.getResolvedConfig(), deps.getRuntimeOptionsManager()),
     getJimakuLanguagePreference: () =>

@@ -13,7 +13,6 @@ function makeDeps(overrides: Partial<MpvIpcClientProtocolDeps> = {}): MpvIpcClie
     getResolvedConfig: () => ({}) as any,
     autoStartOverlay: false,
     setOverlayVisible: () => {},
-    shouldBindVisibleOverlayToMpvSubVisibility: () => false,
     isVisibleOverlayVisible: () => false,
     getReconnectTimer: () => null,
     setReconnectTimer: () => {},
@@ -311,7 +310,6 @@ test('MpvIpcClient connect does not force primary subtitle visibility from bindi
   const client = new MpvIpcClient(
     '/tmp/mpv.sock',
     makeDeps({
-      shouldBindVisibleOverlayToMpvSubVisibility: () => true,
       isVisibleOverlayVisible: () => true,
     }),
   );
@@ -330,6 +328,29 @@ test('MpvIpcClient connect does not force primary subtitle visibility from bindi
       (command as { command: unknown[] }).command[1] === 'sub-visibility',
   );
   assert.equal(hasPrimaryVisibilityMutation, false);
+});
+
+test('MpvIpcClient setSubVisibility writes compatibility commands for visibility toggle', () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  (client as any).send = (payload: unknown) => {
+    commands.push(payload);
+    return true;
+  };
+
+  client.setSubVisibility(false);
+
+  assert.deepEqual(commands, [
+    {
+      command: ['set_property', 'sub-visibility', false],
+    },
+    {
+      command: ['set_property', 'sub-visibility', 'no'],
+    },
+    {
+      command: ['set', 'sub-visibility', 'no'],
+    },
+  ]);
 });
 
 test('MpvIpcClient captures and disables secondary subtitle visibility on request', async () => {

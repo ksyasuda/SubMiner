@@ -106,6 +106,7 @@ import type { CliArgs, CliCommandSource } from './cli/args';
 import { printHelp } from './cli/help';
 import {
   buildConfigParseErrorDetails,
+  buildConfigWarningDialogDetails,
   buildConfigWarningNotificationBody,
   failStartupFromConfig,
 } from './main/config-validation';
@@ -353,6 +354,7 @@ import {
   resolveJellyfinPlaybackPlanRuntime,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
+  syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
   sendMpvCommandRuntime,
   setMpvSubVisibilityRuntime,
   setOverlayDebugVisualizationEnabledRuntime,
@@ -758,10 +760,7 @@ const restoreOverlayMpvSubtitles = createRestoreOverlayMpvSubtitlesHandler({
 });
 
 function shouldSuppressMpvSubtitlesForOverlay(): boolean {
-  return (
-    overlayManager.getVisibleOverlayVisible() &&
-    configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility()
-  );
+  return overlayManager.getVisibleOverlayVisible();
 }
 
 function syncOverlayMpvSubtitleSuppression(): void {
@@ -961,6 +960,12 @@ const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRun
       showDesktopNotification('SubMiner', {
         body: buildConfigWarningNotificationBody(configPath, warnings),
       });
+      if (process.platform === 'darwin') {
+        dialog.showErrorBox(
+          'SubMiner config validation warning',
+          buildConfigWarningDialogDetails(configPath, warnings),
+        );
+      }
     },
   },
 );
@@ -1931,6 +1936,10 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
     logInfo: (message) => appLogger.logInfo(message),
     logWarning: (message) => appLogger.logWarning(message),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+    showConfigWarningsDialog:
+      process.platform === 'darwin'
+        ? (title, details) => dialog.showErrorBox(title, details)
+        : undefined,
     startConfigHotReload: () => configHotReloadRuntime.start(),
     refreshAnilistClientSecretState: (options) => refreshAnilistClientSecretState(options),
     failHandlers: {
@@ -2203,8 +2212,6 @@ const {
     getResolvedConfig: () => getResolvedConfig(),
     isAutoStartOverlayEnabled: () => appState.autoStartOverlay,
     setOverlayVisible: (visible: boolean) => setOverlayVisible(visible),
-    shouldBindVisibleOverlayToMpvSubVisibility: () =>
-      configDerivedRuntime.shouldBindVisibleOverlayToMpvSubVisibility(),
     isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getReconnectTimer: () => appState.reconnectTimer,
     setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => {
@@ -2372,11 +2379,70 @@ const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler(
 );
 
 async function loadYomitanExtension(): Promise<Extension | null> {
-  return yomitanExtensionRuntime.loadYomitanExtension();
+  const extension = await yomitanExtensionRuntime.loadYomitanExtension();
+  if (extension) {
+    await syncYomitanDefaultProfileAnkiServer();
+  }
+  return extension;
 }
 
 async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
-  return yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
+  const extension = await yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
+  if (extension) {
+    await syncYomitanDefaultProfileAnkiServer();
+  }
+  return extension;
+}
+
+let lastSyncedYomitanAnkiServer: string | null = null;
+
+function getPreferredYomitanAnkiServerUrl(): string {
+  const config = getResolvedConfig().ankiConnect;
+  if (config.proxy?.enabled) {
+    const host = config.proxy.host || '127.0.0.1';
+    const port = config.proxy.port || 8766;
+    return `http://${host}:${port}`;
+  }
+  return config.url;
+}
+
+async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
+  const targetUrl = getPreferredYomitanAnkiServerUrl().trim();
+  if (!targetUrl || targetUrl === lastSyncedYomitanAnkiServer) {
+    return;
+  }
+
+  const updated = await syncYomitanDefaultAnkiServerCore(
+    targetUrl,
+    {
+      getYomitanExt: () => appState.yomitanExt,
+      getYomitanParserWindow: () => appState.yomitanParserWindow,
+      setYomitanParserWindow: (window) => {
+        appState.yomitanParserWindow = window;
+      },
+      getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
+      setYomitanParserReadyPromise: (promise) => {
+        appState.yomitanParserReadyPromise = promise;
+      },
+      getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
+      setYomitanParserInitPromise: (promise) => {
+        appState.yomitanParserInitPromise = promise;
+      },
+    },
+    {
+      error: (message, ...args) => {
+        logger.error(message, ...args);
+      },
+      info: (message, ...args) => {
+        logger.info(message, ...args);
+      },
+    },
+  );
+
+  if (updated) {
+    logger.info(`Yomitan default profile Anki server set to ${targetUrl}`);
+  }
+  lastSyncedYomitanAnkiServer = targetUrl;
 }
 
 function createOverlayWindow(kind: 'visible' | 'modal'): BrowserWindow {
@@ -2999,20 +3065,32 @@ function ensureOverlayWindowsReadyForVisibilityActions(): void {
 
 function setVisibleOverlayVisible(visible: boolean): void {
   ensureOverlayWindowsReadyForVisibilityActions();
+  if (visible) {
+    void ensureOverlayMpvSubtitlesHidden();
+  }
   setVisibleOverlayVisibleHandler(visible);
   syncOverlayMpvSubtitleSuppression();
 }
 
 function toggleVisibleOverlay(): void {
   ensureOverlayWindowsReadyForVisibilityActions();
+  if (!overlayManager.getVisibleOverlayVisible()) {
+    void ensureOverlayMpvSubtitlesHidden();
+  }
   toggleVisibleOverlayHandler();
   syncOverlayMpvSubtitleSuppression();
 }
 function setOverlayVisible(visible: boolean): void {
+  if (visible) {
+    void ensureOverlayMpvSubtitlesHidden();
+  }
   setOverlayVisibleHandler(visible);
   syncOverlayMpvSubtitleSuppression();
 }
 function toggleOverlay(): void {
+  if (!overlayManager.getVisibleOverlayVisible()) {
+    void ensureOverlayMpvSubtitlesHidden();
+  }
   toggleOverlayHandler();
   syncOverlayMpvSubtitleSuppression();
 }

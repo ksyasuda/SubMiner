@@ -11,7 +11,6 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'secondarySub'
   | 'subsync'
   | 'auto_start_overlay'
-  | 'bind_visible_overlay_to_mpv_sub_visibility'
 > = {
   subtitlePosition: { yPercent: 10 },
   keybindings: [],
@@ -52,5 +51,4 @@ export const CORE_DEFAULT_CONFIG: Pick<
     ffmpeg_path: '',
   },
   auto_start_overlay: false,
-  bind_visible_overlay_to_mpv_sub_visibility: true,
 };

@@ -650,7 +650,7 @@ test('warns and ignores unknown top-level config keys', () => {
   assert.ok(warnings.some((warning) => warning.path === 'unknownFeatureFlag'));
 });
 
-test('parses global shortcuts and startup visibility flags', () => {
+test('parses global shortcuts and startup settings', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
@@ -659,7 +659,6 @@ test('parses global shortcuts and startup visibility flags', () => {
         "toggleVisibleOverlayGlobal": "Alt+Shift+U",
         "openJimaku": "Ctrl+Alt+J"
       },
-      "bind_visible_overlay_to_mpv_sub_visibility": false,
       "youtubeSubgen": {
         "primarySubLanguages": ["ja", "jpn", "jp"]
       }
@@ -671,7 +670,6 @@ test('parses global shortcuts and startup visibility flags', () => {
   const config = service.getConfig();
   assert.equal(config.shortcuts.toggleVisibleOverlayGlobal, 'Alt+Shift+U');
   assert.equal(config.shortcuts.openJimaku, 'Ctrl+Alt+J');
-  assert.equal(config.bind_visible_overlay_to_mpv_sub_visibility, false);
   assert.deepEqual(config.youtubeSubgen.primarySubLanguages, ['ja', 'jpn', 'jp']);
 });
 

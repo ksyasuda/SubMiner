@@ -100,6 +100,12 @@ Enable automatic Anki card creation and updates with media generation:
     "enabled": true,
     "url": "http://127.0.0.1:8765",
     "pollingRate": 3000,
+    "proxy": {
+      "enabled": false,
+      "host": "127.0.0.1",
+      "port": 8766,
+      "upstreamUrl": "http://127.0.0.1:8765"
+    },
     "tags": ["SubMiner"],
     "deck": "Learning::Japanese",
     "fields": {
@@ -163,7 +169,11 @@ This example is intentionally compact. The option table below documents availabl
 | --------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `enabled`                               | `true`, `false`                         | Enable AnkiConnect integration (default: `false`)                                                                                             |
 | `url`                                   | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                        |
-| `pollingRate`                           | number (ms)                             | How often to check for new cards (default: `3000`)                                                                                            |
+| `pollingRate`                           | number (ms)                             | How often to check for new cards in polling mode (default: `3000`; ignored for direct proxy `addNote`/`addNotes` updates)                    |
+| `proxy.enabled`                         | `true`, `false`                         | Enable local AnkiConnect-compatible proxy for push-based auto-enrichment (default: `false`)                                                  |
+| `proxy.host`                            | string                                  | Bind host for local AnkiConnect proxy (default: `127.0.0.1`)                                                                                  |
+| `proxy.port`                            | number                                  | Bind port for local AnkiConnect proxy (default: `8766`)                                                                                       |
+| `proxy.upstreamUrl`                     | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                           |
 | `tags`                                  | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                 |
 | `deck`                                  | string                                  | Anki deck to monitor for new cards                                                                                                            |
 | `ankiConnect.nPlusOne.decks`            | array of strings                        | Decks used for N+1 known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                            |
@@ -339,20 +349,6 @@ Control whether the overlay automatically becomes visible when it connects to mp
 | `auto_start_overlay` | `true`, `false` | Auto-show overlay on mpv connection (default: `false`) |
 
 The mpv plugin controls startup overlay visibility via `auto_start_visible_overlay` in `subminer.conf`.
-
-### Visible Overlay Subtitle Binding
-
-Control whether toggling the visible overlay also toggles MPV subtitle visibility:
-
-```json
-{
-  "bind_visible_overlay_to_mpv_sub_visibility": true
-}
-```
-
-| Option                                       | Values          | Description                                                                                                                                                                              |
-| -------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bind_visible_overlay_to_mpv_sub_visibility` | `true`, `false` | When `true` (default), visible overlay hides MPV primary/secondary subtitles and restores them when hidden. When `false`, visible overlay toggles do not change MPV subtitle visibility. |
 
 ### Auto Subtitle Sync
 

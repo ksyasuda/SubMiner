@@ -23,7 +23,6 @@ test('mpv runtime service factory constructs client, binds handlers, and connect
       getResolvedConfig: () => ({}),
       autoStartOverlay: true,
       setOverlayVisible: () => {},
-      shouldBindVisibleOverlayToMpvSubVisibility: () => false,
       isVisibleOverlayVisible: () => false,
       getReconnectTimer: () => null,
       setReconnectTimer: () => {},

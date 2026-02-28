@@ -192,6 +192,12 @@ export interface AnkiConnectConfig {
   enabled?: boolean;
   url?: string;
   pollingRate?: number;
+  proxy?: {
+    enabled?: boolean;
+    host?: string;
+    port?: number;
+    upstreamUrl?: string;
+  };
   tags?: string[];
   fields?: {
     audio?: string;
@@ -413,7 +419,6 @@ export interface Config {
   subsync?: SubsyncConfig;
   subtitleStyle?: SubtitleStyleConfig;
   auto_start_overlay?: boolean;
-  bind_visible_overlay_to_mpv_sub_visibility?: boolean;
   jimaku?: JimakuConfig;
   anilist?: AnilistConfig;
   jellyfin?: JellyfinConfig;
@@ -436,6 +441,12 @@ export interface ResolvedConfig {
     enabled: boolean;
     url: string;
     pollingRate: number;
+    proxy: {
+      enabled: boolean;
+      host: string;
+      port: number;
+      upstreamUrl: string;
+    };
     tags: string[];
     fields: {
       audio: string;
@@ -514,7 +525,6 @@ export interface ResolvedConfig {
     };
   };
   auto_start_overlay: boolean;
-  bind_visible_overlay_to_mpv_sub_visibility: boolean;
   jimaku: JimakuConfig & {
     apiBaseUrl: string;
     languagePreference: JimakuLanguagePreference;

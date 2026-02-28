@@ -38,12 +38,5 @@ export function buildCoreConfigOptionRegistry(
       defaultValue: defaultConfig.shortcuts.multiCopyTimeoutMs,
       description: 'Timeout for multi-copy/mine modes.',
     },
-    {
-      path: 'bind_visible_overlay_to_mpv_sub_visibility',
-      kind: 'boolean',
-      defaultValue: defaultConfig.bind_visible_overlay_to_mpv_sub_visibility,
-      description:
-        'Link visible overlay toggles to MPV primary subtitle visibility.',
-    },
   ];
 }

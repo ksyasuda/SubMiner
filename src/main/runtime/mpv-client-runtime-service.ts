@@ -4,7 +4,6 @@ export type MpvClientRuntimeServiceOptions = {
   getResolvedConfig: () => Config;
   autoStartOverlay: boolean;
   setOverlayVisible: (visible: boolean) => void;
-  shouldBindVisibleOverlayToMpvSubVisibility: () => boolean;
   isVisibleOverlayVisible: () => boolean;
   getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;

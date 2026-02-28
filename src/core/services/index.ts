@@ -25,10 +25,10 @@ export { cycleSecondarySubMode } from './subtitle-position';
 export {
   isAutoUpdateEnabledRuntime,
   shouldAutoInitializeOverlayRuntimeFromConfig,
-  shouldBindVisibleOverlayToMpvSubVisibility,
 } from './startup';
 export { openYomitanSettingsWindow } from './yomitan-settings';
 export { createTokenizerDepsRuntime, tokenizeSubtitle } from './tokenizer';
+export { syncYomitanDefaultAnkiServer } from './tokenizer/yomitan-parser-runtime';
 export { createSubtitleProcessingController } from './subtitle-processing-controller';
 export { createFrequencyDictionaryLookup } from './frequency-dictionary';
 export { createJlptVocabularyLookup } from './jlpt-vocab';

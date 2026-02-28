@@ -99,7 +99,6 @@ export interface MpvIpcClientProtocolDeps {
   getResolvedConfig: () => Config;
   autoStartOverlay: boolean;
   setOverlayVisible: (visible: boolean) => void;
-  shouldBindVisibleOverlayToMpvSubVisibility: () => boolean;
   isVisibleOverlayVisible: () => boolean;
   getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
@@ -297,8 +296,6 @@ export class MpvIpcClient implements MpvClient {
       getResolvedConfig: () => this.deps.getResolvedConfig(),
       getSubtitleMetrics: () => this.mpvSubtitleRenderMetrics,
       isVisibleOverlayVisible: () => this.deps.isVisibleOverlayVisible(),
-      shouldBindVisibleOverlayToMpvSubVisibility: () =>
-        this.deps.shouldBindVisibleOverlayToMpvSubVisibility(),
       emitSubtitleChange: (payload) => {
         this.emit('subtitle-change', payload);
       },
@@ -474,6 +471,9 @@ export class MpvIpcClient implements MpvClient {
 
   setSubVisibility(visible: boolean): void {
     const value = visible ? 'yes' : 'no';
+    this.send({
+      command: ['set_property', 'sub-visibility', visible],
+    });
     this.send({
       command: ['set_property', 'sub-visibility', value],
     });
