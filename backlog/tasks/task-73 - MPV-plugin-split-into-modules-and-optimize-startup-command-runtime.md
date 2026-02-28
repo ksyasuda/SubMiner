@@ -10,6 +10,8 @@ references:
   - plugin/subminer/main.lua
   - plugin/subminer/bootstrap.lua
   - plugin/subminer/process.lua
+  - plugin/subminer/aniskip.lua
+  - plugin/subminer/environment.lua
   - plugin/subminer/lifecycle.lua
   - plugin/subminer/messages.lua
   - plugin/subminer/ui.lua
@@ -40,6 +42,8 @@ Scope: Replace monolithic `plugin/subminer.lua` with modular plugin runtime; opt
 Delivered behavior:
 - Full plugin cutover to `plugin/subminer/main.lua` + module directory (no runtime compatibility shim with old monolith file).
 - Process/control command path moved toward async subprocess usage for non-start actions (`stop`, `toggle`, `settings`, restart stop leg), reducing synchronous blocking in mpv script runtime.
+- AniSkip path guarded: lookup runs only in SubMiner context (launcher metadata, explicit script-message refresh, or detected running app), instead of every opened file.
+- AniSkip lookup pipeline moved to async subprocess calls (no sync `ps`/`curl` on `file-loaded`) with deferred fetch after auto-start and session-level MAL/title/payload caching.
 - Startup/runtime loading updated with lazy module initialization via bootstrap proxies.
 - Plugin install flow updated to copy `plugin/subminer/` directory and remove legacy `~/.config/mpv/scripts/subminer.lua` file.
 - Added plugin gate script wiring to package scripts (`test:plugin:src`) and launcher test flow.
@@ -48,25 +52,24 @@ Delivered behavior:
 
 Risk/impact context:
 - mpv plugin loading path changed from single-file to module directory; packaging/install paths must stay consistent with release assets.
-- Async control path changes reduce blocking but can surface timing differences; regression checks added for cold start and launcher smoke behavior.
+- Async control/AniSkip path changes reduce blocking but can surface timing differences; regression checks added for cold start, file-load gating, and explicit refresh behavior.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Startup fixed-sleep removal delivered in launcher + plugin start paths:
-- `launcher/mpv.ts:startOverlay` no longer blocks on hard `2000ms`; now uses bounded readiness/event checks:
-  - bounded wait for mpv IPC socket readiness
-  - bounded wait for spawned overlay command settle (`exit`/`error`)
-- `plugin/subminer/process.lua` removed fixed `0.35s` texthooker delay and fixed `0.6s` startup visibility delay.
-- Overlay start now uses short bounded retries on non-ready start failures, then applies startup overlay visibility once start succeeds.
+AniSkip gate/async update delivered in plugin runtime:
+- `plugin/subminer/lifecycle.lua`: deferred AniSkip fetch and overlay-start trigger.
+- `plugin/subminer/aniskip.lua`: async lookup pipeline + context guard + session caches.
+- `plugin/subminer/environment.lua`: async app-running detection with short cache.
+- `plugin/subminer/messages.lua`: explicit script-message trigger wiring.
 
-Regression coverage added:
-- `launcher/mpv.test.ts` adds guard that `startOverlay` resolves quickly when readiness arrives.
-- `scripts/test-plugin-process-start-retries.lua` asserts retry behavior and guards against reintroducing fixed `0.35/0.6` timers.
+Regression coverage updated:
+- `scripts/test-plugin-start-gate.lua` now verifies:
+  - no sync `ps`/`curl` on non-context file load
+  - no AniSkip network lookup on non-context file load
+  - script-message refresh forces async AniSkip lookup
 
 Validation run:
-- `bun test launcher/mpv.test.ts` pass.
-- `lua scripts/test-plugin-process-start-retries.lua` pass.
-- Existing broader plugin gate suite still has unrelated failure in current tree (`scripts/test-plugin-start-gate.lua` AniSkip async curl assertion).
+- `bun run test:plugin:src` pass.
 <!-- SECTION:FINAL_SUMMARY:END -->

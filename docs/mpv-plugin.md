@@ -1,6 +1,6 @@
 # MPV Plugin
 
-The SubMiner mpv plugin (`subminer.lua`) provides in-player keybindings to control the overlay without leaving mpv. It communicates with SubMiner by invoking the AppImage (or binary) with CLI flags.
+The SubMiner mpv plugin (`subminer/main.lua`) provides in-player keybindings to control the overlay without leaving mpv. It communicates with SubMiner by invoking the AppImage (or binary) with CLI flags.
 
 ## Installation
 
@@ -10,7 +10,9 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-asse
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.config/SubMiner
 cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
-cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
+mkdir -p ~/.config/mpv/scripts/subminer
+mkdir -p ~/.config/mpv/script-opts
+cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
 cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 
 # Or from source checkout: make install-plugin
@@ -192,7 +194,12 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 
 ## AniSkip Intro Skip
 
-- On file load, plugin resolves title + episode, resolves MAL id, then calls AniSkip API.
+- AniSkip lookups are gated. The plugin only runs lookup when:
+  - SubMiner launcher metadata is present, or
+  - SubMiner app process is already running, or
+  - You explicitly call `script-message subminer-aniskip-refresh`.
+- Lookups are asynchronous (no blocking `ps`/`curl` on `file-loaded`).
+- MAL/title resolution is cached for the current mpv session.
 - When launched via `subminer`, launcher runs `guessit` first (file targets) and passes title/season/episode to the plugin; fallback is filename-derived title.
 - Install `guessit` for best detection quality (`python3 -m pip install --user guessit`).
 - If OP interval exists, plugin adds `AniSkip Intro Start` and `AniSkip Intro End` chapters.
@@ -201,7 +208,7 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 
 ## Lifecycle
 
-- **File loaded**: If `auto_start=yes`, the plugin starts the overlay and applies visibility preferences after a short delay.
+- **File loaded**: If `auto_start=yes`, the plugin starts the overlay, then defers AniSkip lookup until after startup delay.
 - **MPV shutdown**: The plugin sends a stop command to gracefully shut down both the overlay and the texthooker server.
 - **Texthooker**: Starts as a separate subprocess before the overlay to ensure the app lock is acquired first.
 
