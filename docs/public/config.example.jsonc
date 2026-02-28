@@ -173,7 +173,7 @@
     "url": "http://127.0.0.1:8765", // Url setting.
     "pollingRate": 3000, // Polling interval in milliseconds.
     "proxy": {
-      "enabled": false, // Enable local AnkiConnect-compatible proxy for push-based auto-enrichment. Values: true | false
+      "enabled": true, // Enable local AnkiConnect-compatible proxy for push-based auto-enrichment. Values: true | false
       "host": "127.0.0.1", // Bind host for local AnkiConnect proxy.
       "port": 8766, // Bind port for local AnkiConnect proxy.
       "upstreamUrl": "http://127.0.0.1:8765" // Upstream AnkiConnect URL proxied by local AnkiConnect proxy.

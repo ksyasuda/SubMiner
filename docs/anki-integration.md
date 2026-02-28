@@ -14,8 +14,8 @@ AnkiConnect listens on `http://127.0.0.1:8765` by default. If you changed the po
 
 SubMiner supports two auto-enrichment transport modes:
 
-1. `polling` (default): polls AnkiConnect at `ankiConnect.pollingRate` (default: 3s).
-2. `proxy` (optional): runs a local AnkiConnect-compatible proxy and enriches cards immediately after successful `addNote` / `addNotes` responses.
+1. `proxy` (default): runs a local AnkiConnect-compatible proxy and enriches cards immediately after successful `addNote` / `addNotes` responses.
+2. `polling`: polls AnkiConnect at `ankiConnect.pollingRate` (default: 3s).
 
 In both modes, the enrichment workflow is the same:
 
@@ -50,7 +50,25 @@ When SubMiner loads the bundled Yomitan extension, it also attempts to update th
 
 To avoid clobbering custom setups, this auto-update only changes the default profile when its current server is blank or the stock Yomitan default (`http://127.0.0.1:8765`).
 
-For browser-based Yomitan or other external clients (for example texthooker in a normal browser profile), set their Anki server to the same proxy URL separately.
+For browser-based Yomitan or other external clients (for example Texthooker in a normal browser profile), set their Anki server to the same proxy URL separately: `http://127.0.0.1:8766` (or your configured `proxy.host` + `proxy.port`).
+
+### Browser/Yomitan external setup (separate profile)
+
+If you want SubMiner to use proxy mode without touching your main/default Yomitan profile, create or select a separate Yomitan profile just for SubMiner and set its Anki server to the proxy URL.
+
+That profile isolation gives you both benefits:
+
+- SubMiner can auto-enrich immediately via proxy.
+- Your default Yomitan profile keeps its existing Anki server setting.
+
+In Yomitan, go to Settings → Profile and:
+
+1. Create a profile for SubMiner (or choose one dedicated profile).
+2. Open Anki settings for that profile.
+3. Set server to `http://127.0.0.1:8766` (or your configured proxy URL).
+4. Save and make that profile active when using SubMiner.
+
+This is only for non-bundled, external/browser Yomitan or other clients. The bundled profile auto-update logic only targets `profiles[0]` when it is blank or still default.
 
 ## Field Mapping
 
