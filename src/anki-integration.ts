@@ -41,6 +41,7 @@ import {
 } from './anki-integration/ui-feedback';
 import { KnownWordCacheManager } from './anki-integration/known-word-cache';
 import { PollingRunner } from './anki-integration/polling';
+import type { AnkiConnectProxyServer } from './anki-integration/anki-connect-proxy';
 import { findDuplicateNote as findDuplicateNoteForAnkiIntegration } from './anki-integration/duplicate';
 import { CardCreationService } from './anki-integration/card-creation';
 import { FieldGroupingService } from './anki-integration/field-grouping';
@@ -63,6 +64,8 @@ export class AnkiIntegration {
   private timingTracker: SubtitleTimingTracker;
   private config: AnkiConnectConfig;
   private pollingRunner!: PollingRunner;
+  private proxyServer: AnkiConnectProxyServer | null = null;
+  private started = false;
   private previousNoteIds = new Set<number>();
   private mpvClient: MpvClient;
   private osdCallback: ((text: string) => void) | null = null;
@@ -131,12 +134,45 @@ export class AnkiIntegration {
   }
 
   private normalizeConfig(config: AnkiConnectConfig): AnkiConnectConfig {
+    const resolvedUrl =
+      typeof config.url === 'string' && config.url.trim().length > 0
+        ? config.url.trim()
+        : DEFAULT_ANKI_CONNECT_CONFIG.url;
+    const proxySource =
+      config.proxy && typeof config.proxy === 'object'
+        ? (config.proxy as NonNullable<AnkiConnectConfig['proxy']>)
+        : {};
+    const normalizedProxyPort =
+      typeof proxySource.port === 'number' &&
+      Number.isInteger(proxySource.port) &&
+      proxySource.port >= 1 &&
+      proxySource.port <= 65535
+        ? proxySource.port
+        : DEFAULT_ANKI_CONNECT_CONFIG.proxy?.port;
+    const normalizedProxyHost =
+      typeof proxySource.host === 'string' && proxySource.host.trim().length > 0
+        ? proxySource.host.trim()
+        : DEFAULT_ANKI_CONNECT_CONFIG.proxy?.host;
+    const normalizedProxyUpstreamUrl =
+      typeof proxySource.upstreamUrl === 'string' && proxySource.upstreamUrl.trim().length > 0
+        ? proxySource.upstreamUrl.trim()
+        : resolvedUrl;
+
     return {
       ...DEFAULT_ANKI_CONNECT_CONFIG,
       ...config,
+      url: resolvedUrl,
       fields: {
         ...DEFAULT_ANKI_CONNECT_CONFIG.fields,
         ...(config.fields ?? {}),
+      },
+      proxy: {
+        ...DEFAULT_ANKI_CONNECT_CONFIG.proxy,
+        ...(config.proxy ?? {}),
+        enabled: proxySource.enabled === true,
+        host: normalizedProxyHost,
+        port: normalizedProxyPort,
+        upstreamUrl: normalizedProxyUpstreamUrl,
       },
       ai: {
         ...DEFAULT_ANKI_CONNECT_CONFIG.ai,
@@ -200,6 +236,24 @@ export class AnkiIntegration {
       logInfo: (...args) => log.info(args[0] as string, ...args.slice(1)),
       logWarn: (...args) => log.warn(args[0] as string, ...args.slice(1)),
     });
+  }
+
+  private createProxyServer(): AnkiConnectProxyServer {
+    const { AnkiConnectProxyServer } = require('./anki-integration/anki-connect-proxy') as typeof import('./anki-integration/anki-connect-proxy');
+    return new AnkiConnectProxyServer({
+      shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
+      processNewCard: (noteId: number) => this.processNewCard(noteId),
+      logInfo: (message, ...args) => log.info(message, ...args),
+      logWarn: (message, ...args) => log.warn(message, ...args),
+      logError: (message, ...args) => log.error(message, ...args),
+    });
+  }
+
+  private getOrCreateProxyServer(): AnkiConnectProxyServer {
+    if (!this.proxyServer) {
+      this.proxyServer = this.createProxyServer();
+    }
+    return this.proxyServer;
   }
 
   private createCardCreationService(): CardCreationService {
@@ -499,19 +553,63 @@ export class AnkiIntegration {
     };
   }
 
-  start(): void {
-    if (this.pollingRunner.isRunning) {
-      this.stop();
+  private isProxyTransportEnabled(config: AnkiConnectConfig = this.config): boolean {
+    return config.proxy?.enabled === true;
+  }
+
+  private getTransportConfigKey(config: AnkiConnectConfig = this.config): string {
+    if (this.isProxyTransportEnabled(config)) {
+      return [
+        'proxy',
+        config.proxy?.host ?? '',
+        String(config.proxy?.port ?? ''),
+        config.proxy?.upstreamUrl ?? '',
+      ].join(':');
+    }
+    return ['polling', String(config.pollingRate ?? DEFAULT_ANKI_CONNECT_CONFIG.pollingRate)].join(
+      ':',
+    );
+  }
+
+  private startTransport(): void {
+    if (this.isProxyTransportEnabled()) {
+      const proxyHost = this.config.proxy?.host ?? '127.0.0.1';
+      const proxyPort = this.config.proxy?.port ?? 8766;
+      const upstreamUrl = this.config.proxy?.upstreamUrl ?? this.config.url ?? '';
+      this.getOrCreateProxyServer().start({
+        host: proxyHost,
+        port: proxyPort,
+        upstreamUrl,
+      });
+      log.info(
+        `Starting AnkiConnect integration with local proxy: http://${proxyHost}:${proxyPort} -> ${upstreamUrl}`,
+      );
+      return;
     }
 
     log.info('Starting AnkiConnect integration with polling rate:', this.config.pollingRate);
-    this.startKnownWordCacheLifecycle();
     this.pollingRunner.start();
   }
 
-  stop(): void {
+  private stopTransport(): void {
     this.pollingRunner.stop();
+    this.proxyServer?.stop();
+  }
+
+  start(): void {
+    if (this.started) {
+      this.stop();
+    }
+
+    this.startKnownWordCacheLifecycle();
+    this.startTransport();
+    this.started = true;
+  }
+
+  stop(): void {
+    this.stopTransport();
     this.stopKnownWordCacheLifecycle();
+    this.started = false;
     log.info('Stopped AnkiConnect integration');
   }
 
@@ -1062,8 +1160,9 @@ export class AnkiIntegration {
 
   applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>): void {
     const wasEnabled = this.config.nPlusOne?.highlightEnabled === true;
-    const previousPollingRate = this.config.pollingRate;
-    this.config = {
+    const previousTransportKey = this.getTransportConfigKey(this.config);
+
+    const mergedConfig: AnkiConnectConfig = {
       ...this.config,
       ...patch,
       nPlusOne:
@@ -1083,6 +1182,8 @@ export class AnkiIntegration {
         patch.behavior !== undefined
           ? { ...this.config.behavior, ...patch.behavior }
           : this.config.behavior,
+      proxy:
+        patch.proxy !== undefined ? { ...this.config.proxy, ...patch.proxy } : this.config.proxy,
       metadata:
         patch.metadata !== undefined
           ? { ...this.config.metadata, ...patch.metadata }
@@ -1096,6 +1197,7 @@ export class AnkiIntegration {
           ? { ...this.config.isKiku, ...patch.isKiku }
           : this.config.isKiku,
     };
+    this.config = this.normalizeConfig(mergedConfig);
 
     if (wasEnabled && this.config.nPlusOne?.highlightEnabled === false) {
       this.stopKnownWordCacheLifecycle();
@@ -1104,12 +1206,10 @@ export class AnkiIntegration {
       this.startKnownWordCacheLifecycle();
     }
 
-    if (
-      patch.pollingRate !== undefined &&
-      previousPollingRate !== this.config.pollingRate &&
-      this.pollingRunner.isRunning
-    ) {
-      this.pollingRunner.start();
+    const nextTransportKey = this.getTransportConfigKey(this.config);
+    if (this.started && previousTransportKey !== nextTransportKey) {
+      this.stopTransport();
+      this.startTransport();
     }
   }
 

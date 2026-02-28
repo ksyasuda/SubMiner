@@ -209,6 +209,24 @@ test('AnkiIntegration.refreshKnownWordCache deduplicates concurrent refreshes', 
   }
 });
 
+test('AnkiIntegration does not allocate proxy server when proxy transport is disabled', () => {
+  const integration = new AnkiIntegration(
+    {
+      enabled: true,
+      proxy: {
+        enabled: false,
+      },
+    } as never,
+    {} as never,
+    {} as never,
+  );
+
+  const privateState = integration as unknown as {
+    proxyServer: unknown | null;
+  };
+  assert.equal(privateState.proxyServer, null);
+});
+
 test('FieldGroupingMergeCollaborator synchronizes ExpressionAudio from merged SentenceAudio', async () => {
   const collaborator = createFieldGroupingMergeCollaborator();
 
