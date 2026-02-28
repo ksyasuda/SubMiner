@@ -65,6 +65,20 @@ export function createOverlayModalRuntimeService(
     return null;
   };
 
+  const getActiveOverlayWindowForModalInput = (): BrowserWindow | null => {
+    const modalWindow = deps.getModalWindow();
+    if (modalWindow && !modalWindow.isDestroyed()) {
+      return modalWindow;
+    }
+
+    const visibleMainWindow = deps.getMainWindow();
+    if (visibleMainWindow && !visibleMainWindow.isDestroyed()) {
+      return visibleMainWindow;
+    }
+
+    return null;
+  };
+
   const isWindowReadyForIpc = (window: BrowserWindow): boolean => {
     if (window.webContents.isLoading()) {
       return false;
@@ -245,7 +259,7 @@ export function createOverlayModalRuntimeService(
   const notifyOverlayModalOpened = (modal: OverlayHostedModal): void => {
     if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
     notifyModalStateChange(true);
-    const targetWindow = deps.getModalWindow();
+    const targetWindow = getActiveOverlayWindowForModalInput();
     clearPendingModalWindowReveal();
     if (!targetWindow || targetWindow.isDestroyed()) {
       return;

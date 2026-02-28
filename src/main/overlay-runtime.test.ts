@@ -281,6 +281,41 @@ test('modal runtime notifies callers when modal input state becomes active/inact
   assert.deepEqual(state, [true, false]);
 });
 
+test('notifyOverlayModalOpened enables input on visible main overlay window when no modal window exists', () => {
+  const mainWindow = createMockWindow();
+  mainWindow.visible = true;
+  mainWindow.ignoreMouseEvents = true;
+  const state: boolean[] = [];
+
+  const runtime = createOverlayModalRuntimeService(
+    {
+      getMainWindow: () => mainWindow as never,
+      getModalWindow: () => null,
+      createModalWindow: () => {
+        throw new Error('modal window should not be created when main overlay is visible');
+      },
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {},
+    },
+    {
+      onModalStateChange: (active: boolean): void => {
+        state.push(active);
+      },
+    },
+  );
+
+  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+    restoreOnModalClose: 'runtime-options',
+  });
+  runtime.notifyOverlayModalOpened('runtime-options');
+
+  assert.equal(sent, true);
+  assert.equal(state, [true]);
+  assert.equal(mainWindow.ignoreMouseEvents, false);
+  assert.equal(mainWindow.isFocused(), true);
+  assert.equal(mainWindow.webContentsFocused, true);
+});
+
 test('handleOverlayModalClosed resets modal state even when modal window does not exist', () => {
   const state: boolean[] = [];
   const runtime = createOverlayModalRuntimeService(
