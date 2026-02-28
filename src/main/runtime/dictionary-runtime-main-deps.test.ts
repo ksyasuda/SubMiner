@@ -53,9 +53,9 @@ test('frequency dictionary roots main handler returns expected root list', () =>
     joinPath: (...parts) => parts.join('/'),
   })();
 
-  assert.equal(roots.length, 15);
-  assert.equal(roots[0], '/repo/dist/main/../../vendor/jiten_freq_global');
-  assert.equal(roots[14], '/repo');
+  assert.equal(roots.length, 11);
+  assert.equal(roots[0], '/repo/dist/main/../../vendor/frequency-dictionary');
+  assert.equal(roots[10], '/repo');
 });
 
 test('frequency dictionary runtime main deps builder maps search paths/source and log prefix', () => {

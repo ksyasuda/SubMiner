@@ -10,7 +10,10 @@ import {
   JlptLevel,
 } from '../../types';
 import { selectYomitanParseTokens } from './tokenizer/parser-selection-stage';
-import { requestYomitanParseResults } from './tokenizer/yomitan-parser-runtime';
+import {
+  requestYomitanParseResults,
+  requestYomitanTermFrequencies,
+} from './tokenizer/yomitan-parser-runtime';
 
 const logger = createLogger('main:tokenizer');
 
@@ -214,6 +217,64 @@ function logSelectedYomitanGroups(text: string, tokens: MergedToken[]): void {
   });
 }
 
+function normalizePositiveFrequencyRank(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return Math.max(1, Math.floor(value));
+}
+
+function resolveFrequencyLookupText(token: MergedToken): string {
+  if (token.headword && token.headword.length > 0) {
+    return token.headword;
+  }
+  if (token.reading && token.reading.length > 0) {
+    return token.reading;
+  }
+  return token.surface;
+}
+
+function applyYomitanFrequencyRanks(
+  tokens: MergedToken[],
+  frequencies: ReadonlyArray<{ term: string; frequency: number }>,
+): MergedToken[] {
+  if (tokens.length === 0 || frequencies.length === 0) {
+    return tokens;
+  }
+
+  const rankByTerm = new Map<string, number>();
+  for (const frequency of frequencies) {
+    const normalizedTerm = frequency.term.trim();
+    const rank = normalizePositiveFrequencyRank(frequency.frequency);
+    if (!normalizedTerm || rank === null) {
+      continue;
+    }
+    const current = rankByTerm.get(normalizedTerm);
+    if (current === undefined || rank < current) {
+      rankByTerm.set(normalizedTerm, rank);
+    }
+  }
+
+  if (rankByTerm.size === 0) {
+    return tokens;
+  }
+
+  return tokens.map((token) => {
+    const lookupText = resolveFrequencyLookupText(token).trim();
+    if (!lookupText) {
+      return token;
+    }
+    const rank = rankByTerm.get(lookupText);
+    if (rank === undefined) {
+      return token;
+    }
+    return {
+      ...token,
+      frequencyRank: rank,
+    };
+  });
+}
+
 function getAnnotationOptions(deps: TokenizerServiceDeps): TokenizerAnnotationOptions {
   return {
     nPlusOneEnabled: deps.getNPlusOneEnabled?.() !== false,
@@ -246,14 +307,24 @@ async function parseWithYomitanInternalParser(
     logSelectedYomitanGroups(text, selectedTokens);
   }
 
+  let tokensWithFrequency = selectedTokens;
+  if (options.frequencyEnabled) {
+    const termReadingList = selectedTokens.map((token) => ({
+      term: resolveFrequencyLookupText(token),
+      reading: token.reading && token.reading.trim().length > 0 ? token.reading.trim() : null,
+    }));
+    const yomitanFrequencies = await requestYomitanTermFrequencies(termReadingList, deps, logger);
+    tokensWithFrequency = applyYomitanFrequencyRanks(selectedTokens, yomitanFrequencies);
+  }
+
   if (!needsMecabPosEnrichment(options)) {
-    return selectedTokens;
+    return tokensWithFrequency;
   }
 
   try {
     const mecabTokens = await deps.tokenizeWithMecab(text);
     const enrichTokensWithMecab = deps.enrichTokensWithMecab ?? enrichTokensWithMecabAsync;
-    return await enrichTokensWithMecab(selectedTokens, mecabTokens);
+    return await enrichTokensWithMecab(tokensWithFrequency, mecabTokens);
   } catch (err) {
     const error = err as Error;
     logger.warn(
@@ -262,7 +333,7 @@ async function parseWithYomitanInternalParser(
       `tokenCount=${selectedTokens.length}`,
       `textLength=${text.length}`,
     );
-    return selectedTokens;
+    return tokensWithFrequency;
   }
 }
 

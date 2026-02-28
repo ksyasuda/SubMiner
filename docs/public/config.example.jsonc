@@ -133,7 +133,7 @@
     }, // Jlpt colors setting.
     "frequencyDictionary": {
       "enabled": false, // Enable frequency-dictionary-based highlighting based on token rank. Values: true | false
-      "sourcePath": "", // Optional absolute path to a frequency dictionary directory. If empty, built-in discovery search paths are used.
+      "sourcePath": "", // Optional absolute path to a frequency dictionary directory. If empty, SubMiner searches installed/default frequency-dictionary locations.
       "topX": 1000, // Only color tokens with frequency rank <= topX (default: 1000).
       "mode": "single", // single: use one color for all matching tokens. banded: use color ramp by frequency band. Values: single | banded
       "singleColor": "#f5a97f", // Color used when frequencyDictionary.mode is `single`.

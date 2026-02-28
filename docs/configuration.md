@@ -757,7 +757,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                            |
 | `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.  |
 | `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                          |
-| `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use the built-in bundled dictionary search paths. |
+| `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths. |
 | `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                             |
 | `frequencyDictionary.mode`         | string      | `"single"` or `"banded"` (`"single"` by default)                                                                    |
 | `frequencyDictionary.singleColor`  | string      | Color used for all highlighted tokens in single mode                                                                |
@@ -774,7 +774,7 @@ Frequency dictionary highlighting uses the same dictionary file format as JLPT b
 Lookup behavior:
 
 - Set `frequencyDictionary.sourcePath` to a directory containing `term_meta_bank_*.json` for a fully custom source.
-- If `sourcePath` is missing or empty, SubMiner uses bundled defaults from `vendor/jiten_freq_global` (packaged under `<resources>/jiten_freq_global` in distribution builds).
+- If `sourcePath` is missing or empty, SubMiner searches default install/runtime locations for `frequency-dictionary` directories (for example app resources, user data paths, and current working directory).
 - In both cases, only terms with a valid `frequencyRank` are used; everything else falls back to no highlighting.
 
 In `single` mode all highlights use `singleColor`; in `banded` mode tokens map to five ascending color bands from most common to least common inside the topX window.

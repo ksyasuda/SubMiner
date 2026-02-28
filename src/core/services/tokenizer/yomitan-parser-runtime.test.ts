@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { syncYomitanDefaultAnkiServer } from './yomitan-parser-runtime';
+import {
+  requestYomitanTermFrequencies,
+  syncYomitanDefaultAnkiServer,
+} from './yomitan-parser-runtime';
 
 function createDeps(executeJavaScript: (script: string) => Promise<unknown>) {
   const parserWindow = {
@@ -80,4 +83,36 @@ test('syncYomitanDefaultAnkiServer no-ops for empty target url', async () => {
 
   assert.equal(updated, false);
   assert.equal(executeCount, 0);
+});
+
+test('requestYomitanTermFrequencies returns normalized frequency entries', async () => {
+  let scriptValue = '';
+  const deps = createDeps(async (script) => {
+    scriptValue = script;
+    return [
+      {
+        term: '猫',
+        reading: 'ねこ',
+        dictionary: 'freq-dict',
+        frequency: 77,
+        displayValue: '77',
+        displayValueParsed: true,
+      },
+      {
+        term: 'invalid',
+        dictionary: 'freq-dict',
+        frequency: 0,
+      },
+    ];
+  });
+
+  const result = await requestYomitanTermFrequencies([{ term: '猫', reading: 'ねこ' }], deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0]?.term, '猫');
+  assert.equal(result[0]?.frequency, 77);
+  assert.match(scriptValue, /getTermFrequencies/);
+  assert.match(scriptValue, /optionsGetFull/);
 });

@@ -95,6 +95,27 @@ test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 ex
   assert.deepEqual(lookupCalls, ['猫']);
 });
 
+test('annotateTokens preserves existing frequency rank when lookup is unavailable', () => {
+  const tokens = [makeToken({ surface: '猫', headword: '猫', frequencyRank: 42 })];
+
+  const result = annotateTokens(tokens, makeDeps({ getFrequencyRank: undefined }));
+
+  assert.equal(result[0]?.frequencyRank, 42);
+});
+
+test('annotateTokens prefers existing frequency rank over fallback lookup', () => {
+  const tokens = [makeToken({ surface: '猫', headword: '猫', frequencyRank: 42 })];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      getFrequencyRank: () => 9,
+    }),
+  );
+
+  assert.equal(result[0]?.frequencyRank, 42);
+});
+
 test('annotateTokens handles JLPT disabled and eligibility exclusion paths', () => {
   let disabledLookupCalls = 0;
   const disabledResult = annotateTokens(
@@ -156,4 +177,39 @@ test('annotateTokens N+1 handoff marks expected target when threshold is satisfi
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[1]?.isNPlusOneTarget, true);
   assert.equal(result[2]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens N+1 minimum sentence words counts only eligible word tokens', () => {
+  const tokens = [
+    makeToken({ surface: '猫', headword: '猫', startPos: 0, endPos: 1 }),
+    makeToken({
+      surface: 'が',
+      headword: 'が',
+      partOfSpeech: PartOfSpeech.particle,
+      pos1: '助詞',
+      startPos: 1,
+      endPos: 2,
+    }),
+    makeToken({
+      surface: 'です',
+      headword: 'です',
+      partOfSpeech: PartOfSpeech.bound_auxiliary,
+      pos1: '助動詞',
+      startPos: 2,
+      endPos: 4,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'が' || text === 'です',
+    }),
+    { minSentenceWordsForNPlusOne: 3 },
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[1]?.isKnown, true);
+  assert.equal(result[2]?.isKnown, true);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
 });

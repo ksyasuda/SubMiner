@@ -7,7 +7,7 @@ titleTemplate: Immersion Mining Workflow for MPV
 hero:
   name: SubMiner
   text: Immersion Mining for MPV
-  tagline: Watch media, mine vocabulary, and build cards without leaving the scene.
+  tagline: Watch media, mine vocabulary, and craft anki cards without leaving the scene.
   image:
     src: /assets/SubMiner.png
     alt: SubMiner logo
@@ -36,15 +36,10 @@ features:
     title: Anki Card Enrichment
     details: Auto-fills card fields with subtitle sentence, clipping, image, and translation so you can focus on learning.
   - icon:
-      src: /assets/dual-layer.svg
-      alt: Dual layer icon
-    title: Unified Overlay Stack
-    details: Primary interactive subtitle layer with a built-in secondary context bar, all in one overlay window.
-  - icon:
       src: /assets/highlight.svg
       alt: Highlight icon
-    title: N+1 Highlighting
-    details: Surfaces known words from your deck so unknown targets stand out during immersion sessions.
+    title: Reading Annotations
+    details: Combines N+1 targeting, Jiten frequency highlighting, and JLPT tagging so useful cues stay visible while you read.
   - icon:
       src: /assets/tokenization.svg
       alt: Tokenization icon
@@ -55,16 +50,6 @@ features:
       alt: Subtitle download icon
     title: Subtitle Download & Sync
     details: Pull and synchronize subtitles with Jimaku plus alass/ffsubsync in one cohesive workflow.
-  - icon:
-      src: /assets/keyboard.svg
-      alt: Keyboard icon
-    title: Keyboard-Driven
-    details: Run lookups, mining actions, clipping, and workflow toggles with one configurable shortcut surface.
-  - icon:
-      src: /assets/texthooker.svg
-      alt: Texthooker icon
-    title: Texthooker & WebSocket
-    details: Stream subtitles in real time to browser tools via local WebSocket and keep your stack integrated.
 ---
 
 <script setup>

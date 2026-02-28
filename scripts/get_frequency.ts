@@ -33,7 +33,7 @@ interface CliOptions {
 function parseCliArgs(argv: string[]): CliOptions {
   const args = [...argv];
   let inputParts: string[] = [];
-  let dictionaryPath = path.join(process.cwd(), 'vendor', 'jiten_freq_global');
+  let dictionaryPath = path.join(process.cwd(), 'vendor', 'frequency-dictionary');
   let emitPretty = false;
   let emitDiagnostics = false;
   let mecabCommand: string | undefined;
@@ -394,7 +394,7 @@ function printUsage(): void {
   --color-band-5 <#hex>  Frequency band-5 color.
   --color-known <#hex>    Known-word color (default: #a6da95).
   --color-n-plus-one <#hex> N+1 target color (default: #c6a0f6).
-  --dictionary <path>    Frequency dictionary root path (default: ./vendor/jiten_freq_global)
+  --dictionary <path>    Frequency dictionary root path (default: ./vendor/frequency-dictionary)
   --mecab-command <path>  Optional MeCab binary path (default: mecab)
   --mecab-dictionary <path> Optional MeCab dictionary directory (default: system default)
   -h, --help            Show usage.

@@ -141,6 +141,11 @@ function applyFrequencyMarking(
       return { ...token, frequencyRank: undefined };
     }
 
+    if (typeof token.frequencyRank === 'number' && Number.isFinite(token.frequencyRank)) {
+      const rank = Math.max(1, Math.floor(token.frequencyRank));
+      return { ...token, frequencyRank: rank };
+    }
+
     const lookupTexts = getFrequencyLookupTextCandidates(token);
     if (lookupTexts.length === 0) {
       return { ...token, frequencyRank: undefined };
@@ -354,6 +359,14 @@ export function annotateTokens(
   const frequencyMarkedTokens =
     frequencyEnabled && deps.getFrequencyRank
       ? applyFrequencyMarking(knownMarkedTokens, deps.getFrequencyRank)
+      : frequencyEnabled
+        ? knownMarkedTokens.map((token) => ({
+            ...token,
+            frequencyRank:
+              typeof token.frequencyRank === 'number' && Number.isFinite(token.frequencyRank)
+                ? Math.max(1, Math.floor(token.frequencyRank))
+                : undefined,
+          }))
       : knownMarkedTokens.map((token) => ({
           ...token,
           frequencyRank: undefined,

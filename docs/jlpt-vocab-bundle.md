@@ -26,7 +26,7 @@ The expected files are:
 
 Each bank maps terms to frequency metadata; only entries with a `frequency.displayValue` are considered for JLPT tagging.
 
-SubMiner also reuses the same `term_meta_bank_*.json` format for frequency-based subtitle highlighting. The default frequency source is now bundled as `vendor/jiten_freq_global`, so users can enable `subtitleStyle.frequencyDictionary` without extra setup.
+SubMiner also reuses the same `term_meta_bank_*.json` format for frequency-based subtitle highlighting, using installed/default `frequency-dictionary` locations or an explicit `subtitleStyle.frequencyDictionary.sourcePath`.
 
 ## Source and update process
 

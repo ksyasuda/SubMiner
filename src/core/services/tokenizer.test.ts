@@ -169,6 +169,55 @@ test('tokenizeSubtitle applies frequency dictionary ranks', async () => {
   assert.equal(result.tokens?.[1]?.frequencyRank, 1200);
 });
 
+test('tokenizeSubtitle loads frequency ranks from Yomitan installed dictionaries', async () => {
+  const result = await tokenizeSubtitle(
+    '猫',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '猫',
+                    reading: 'ねこ',
+                    dictionary: 'freq-dict',
+                    frequency: 77,
+                    displayValue: '77',
+                    displayValueParsed: true,
+                  },
+                ];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '猫',
+                        reading: 'ねこ',
+                        headwords: [[{ term: '猫' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 77);
+});
+
 test('tokenizeSubtitle uses only selected Yomitan headword for frequency lookup', async () => {
   const result = await tokenizeSubtitle(
     '猫です',

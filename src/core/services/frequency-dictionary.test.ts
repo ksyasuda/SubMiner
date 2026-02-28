@@ -79,3 +79,30 @@ test('createFrequencyDictionaryLookup aggregates duplicate-term logs into a sing
     false,
   );
 });
+
+test('createFrequencyDictionaryLookup prefers frequency.value over displayValue', async () => {
+  const logs: string[] = [];
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-frequency-dict-'));
+  const bankPath = path.join(tempDir, 'term_meta_bank_1.json');
+  fs.writeFileSync(
+    bankPath,
+    JSON.stringify([
+      ['猫', 1, { frequency: { value: 1234, displayValue: 1200 } }],
+      ['犬', 2, { frequency: { displayValue: 88 } }],
+    ]),
+  );
+
+  const lookup = await createFrequencyDictionaryLookup({
+    searchPaths: [tempDir],
+    log: (message) => {
+      logs.push(message);
+    },
+  });
+
+  assert.equal(lookup('猫'), 1234);
+  assert.equal(lookup('犬'), 88);
+  assert.equal(
+    logs.some((entry) => entry.includes('Frequency dictionary loaded from')),
+    true,
+  );
+});

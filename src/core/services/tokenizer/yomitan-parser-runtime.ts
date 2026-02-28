@@ -15,6 +15,89 @@ interface YomitanParserRuntimeDeps {
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
 }
 
+export interface YomitanTermFrequency {
+  term: string;
+  reading: string | null;
+  dictionary: string;
+  frequency: number;
+  displayValue: string | null;
+  displayValueParsed: boolean;
+}
+
+export interface YomitanTermReadingPair {
+  term: string;
+  reading: string | null;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object');
+}
+
+function asPositiveInteger(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return Math.max(1, Math.floor(value));
+}
+
+function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const term = typeof value.term === 'string' ? value.term.trim() : '';
+  const dictionary = typeof value.dictionary === 'string' ? value.dictionary.trim() : '';
+  const frequency = asPositiveInteger(value.frequency);
+  if (!term || !dictionary || frequency === null) {
+    return null;
+  }
+
+  const reading =
+    value.reading === null
+      ? null
+      : typeof value.reading === 'string'
+        ? value.reading
+        : null;
+  const displayValue =
+    value.displayValue === null
+      ? null
+      : typeof value.displayValue === 'string'
+        ? value.displayValue
+        : null;
+  const displayValueParsed = value.displayValueParsed === true;
+
+  return {
+    term,
+    reading,
+    dictionary,
+    frequency,
+    displayValue,
+    displayValueParsed,
+  };
+}
+
+function normalizeTermReadingList(termReadingList: YomitanTermReadingPair[]): YomitanTermReadingPair[] {
+  const normalized: YomitanTermReadingPair[] = [];
+  const seen = new Set<string>();
+
+  for (const pair of termReadingList) {
+    const term = typeof pair.term === 'string' ? pair.term.trim() : '';
+    if (!term) {
+      continue;
+    }
+    const reading =
+      typeof pair.reading === 'string' && pair.reading.trim().length > 0 ? pair.reading.trim() : null;
+    const key = `${term}\u0000${reading ?? ''}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    normalized.push({ term, reading });
+  }
+
+  return normalized;
+}
+
 async function ensureYomitanParserWindow(
   deps: YomitanParserRuntimeDeps,
   logger: LoggerLike,
@@ -151,6 +234,79 @@ export async function requestYomitanParseResults(
   } catch (err) {
     logger.error('Yomitan parser request failed:', (err as Error).message);
     return null;
+  }
+}
+
+export async function requestYomitanTermFrequencies(
+  termReadingList: YomitanTermReadingPair[],
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<YomitanTermFrequency[]> {
+  const normalizedTermReadingList = normalizeTermReadingList(termReadingList);
+  const yomitanExt = deps.getYomitanExt();
+  if (normalizedTermReadingList.length === 0 || !yomitanExt) {
+    return [];
+  }
+
+  const isReady = await ensureYomitanParserWindow(deps, logger);
+  const parserWindow = deps.getYomitanParserWindow();
+  if (!isReady || !parserWindow || parserWindow.isDestroyed()) {
+    return [];
+  }
+
+  const script = `
+    (async () => {
+      const invoke = (action, params) =>
+        new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ action, params }, (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!response || typeof response !== "object") {
+              reject(new Error("Invalid response from Yomitan backend"));
+              return;
+            }
+            if (response.error) {
+              reject(new Error(response.error.message || "Yomitan backend error"));
+              return;
+            }
+            resolve(response.result);
+          });
+        });
+
+      const optionsFull = await invoke("optionsGetFull", undefined);
+      const profileIndex = optionsFull.profileCurrent;
+      const dictionariesRaw = optionsFull.profiles?.[profileIndex]?.options?.dictionaries ?? [];
+      const dictionaries = Array.isArray(dictionariesRaw)
+        ? dictionariesRaw
+            .filter((entry) => entry && typeof entry === "object" && entry.enabled === true && typeof entry.name === "string")
+            .map((entry) => entry.name)
+        : [];
+
+      if (dictionaries.length === 0) {
+        return [];
+      }
+
+      return await invoke("getTermFrequencies", {
+        termReadingList: ${JSON.stringify(normalizedTermReadingList)},
+        dictionaries
+      });
+    })();
+  `;
+
+  try {
+    const rawResult = await parserWindow.webContents.executeJavaScript(script, true);
+    if (!Array.isArray(rawResult)) {
+      return [];
+    }
+
+    return rawResult
+      .map((entry) => toYomitanTermFrequency(entry))
+      .filter((entry): entry is YomitanTermFrequency => entry !== null);
+  } catch (err) {
+    logger.error('Yomitan term frequency request failed:', (err as Error).message);
+    return [];
   }
 }
 

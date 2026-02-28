@@ -18,23 +18,34 @@ function normalizeFrequencyTerm(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function extractFrequencyDisplayValue(meta: unknown): number | null {
-  if (!meta || typeof meta !== 'object') return null;
-  const frequency = (meta as { frequency?: unknown }).frequency;
-  if (!frequency || typeof frequency !== 'object') return null;
-  const displayValue = (frequency as { displayValue?: unknown }).displayValue;
-  if (typeof displayValue === 'number') {
-    if (!Number.isFinite(displayValue) || displayValue <= 0) return null;
-    return Math.floor(displayValue);
+function parsePositiveFrequencyNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return Math.floor(value);
   }
-  if (typeof displayValue === 'string') {
-    const normalized = displayValue.trim().replace(/,/g, '');
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(/,/g, '');
     const parsed = Number.parseInt(normalized, 10);
     if (!Number.isFinite(parsed) || parsed <= 0) return null;
     return parsed;
   }
 
   return null;
+}
+
+function extractFrequencyDisplayValue(meta: unknown): number | null {
+  if (!meta || typeof meta !== 'object') return null;
+  const frequency = (meta as { frequency?: unknown }).frequency;
+  if (!frequency || typeof frequency !== 'object') return null;
+  const rawValue = (frequency as { value?: unknown }).value;
+  const parsedValue = parsePositiveFrequencyNumber(rawValue);
+  if (parsedValue !== null) {
+    return parsedValue;
+  }
+
+  const displayValue = (frequency as { displayValue?: unknown }).displayValue;
+  return parsePositiveFrequencyNumber(displayValue);
 }
 
 function asFrequencyDictionaryEntry(entry: unknown): FrequencyDictionaryEntry | null {
