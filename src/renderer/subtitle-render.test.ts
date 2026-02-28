@@ -353,7 +353,7 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     assert.match(block, /text-decoration-line:\s*underline;/);
     assert.match(block, /text-decoration-thickness:\s*2px;/);
     assert.match(block, /text-underline-offset:\s*4px;/);
-    assert.match(block, /color:\s*inherit;/);
+    assert.doesNotMatch(block, /(?:^|\n)\s*color\s*:/m);
   }
 
   for (let band = 1; band <= 5; band += 1) {
@@ -445,6 +445,15 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   const coloredCharHoverBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known .c:hover');
   assert.match(coloredCharHoverBlock, /background:\s*transparent;/);
   assert.match(coloredCharHoverBlock, /color:\s*inherit\s*!important;/);
+
+  assert.match(
+    cssText,
+    /\.word:is\(\.word-jlpt-n1,\s*\.word-jlpt-n2,\s*\.word-jlpt-n3,\s*\.word-jlpt-n4,\s*\.word-jlpt-n5\):not\(\s*\.word-known\s*\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\.word-frequency-band-1\):not\(\s*\.word-frequency-band-2\s*\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\.word-frequency-band-5\):hover\s*\{[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+  assert.match(
+    cssText,
+    /\.word:is\(\.word-jlpt-n1,\s*\.word-jlpt-n2,\s*\.word-jlpt-n3,\s*\.word-jlpt-n4,\s*\.word-jlpt-n5\):not\(\s*\.word-known\s*\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\.word-frequency-band-1\):not\(\s*\.word-frequency-band-2\s*\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\.word-frequency-band-5\)::selection[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
 
   const selectionBlock = extractClassBlock(cssText, '#subtitleRoot::selection');
   assert.match(

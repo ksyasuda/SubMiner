@@ -249,36 +249,22 @@ function M.create(ctx)
 			raw_close_idx = #raw_ass + 1
 		end
 
-		local open_tag = string.format("{\\1c&H%s&}", hover_color)
-		local close_tag = string.format("{\\1c&H%s&}", base_color)
-		local changes = {
-			{ idx = raw_open_idx, tag = open_tag },
-			{ idx = raw_close_idx, tag = close_tag },
-		}
-		table.sort(changes, function(a, b)
-			return a.idx < b.idx
+		local before = raw_ass:sub(1, raw_open_idx - 1)
+		local hovered = raw_ass:sub(raw_open_idx, raw_close_idx - 1)
+		local after = raw_ass:sub(raw_close_idx)
+		local hover_suffix = string.format("\\1c&H%s&", hover_color)
+
+		-- Keep hover foreground stable even when inline ASS override tags (\1c/\c/\r) appear inside token.
+		hovered = hovered:gsub("{([^}]*)}", function(inner)
+			if inner:find("\\1c&H", 1, true) or inner:find("\\c&H", 1, true) or inner:find("\\r", 1, true) then
+				return "{" .. inner .. hover_suffix .. "}"
+			end
+			return "{" .. inner .. "}"
 		end)
 
-		local output = {}
-		local cursor = 1
-		for _, change in ipairs(changes) do
-			if change.idx > #raw_ass + 1 then
-				change.idx = #raw_ass + 1
-			end
-			if change.idx < 1 then
-				change.idx = 1
-			end
-			if change.idx > cursor then
-				output[#output + 1] = raw_ass:sub(cursor, change.idx - 1)
-			end
-			output[#output + 1] = change.tag
-			cursor = change.idx
-		end
-		if cursor <= #raw_ass then
-			output[#output + 1] = raw_ass:sub(cursor)
-		end
-
-		return table.concat(output)
+		local open_tag = string.format("{\\1c&H%s&}", hover_color)
+		local close_tag = string.format("{\\1c&H%s&}", base_color)
+		return before .. open_tag .. hovered .. close_tag .. after
 	end
 
 	local function build_hover_subtitle_content(payload)

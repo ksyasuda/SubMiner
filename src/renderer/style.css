@@ -406,7 +406,6 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-jlpt-n1 {
-  color: inherit;
   text-decoration-line: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
@@ -419,7 +418,6 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-jlpt-n2 {
-  color: inherit;
   text-decoration-line: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
@@ -432,7 +430,6 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-jlpt-n3 {
-  color: inherit;
   text-decoration-line: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
@@ -445,7 +442,6 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-jlpt-n4 {
-  color: inherit;
   text-decoration-line: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
@@ -458,7 +454,6 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-jlpt-n5 {
-  color: inherit;
   text-decoration-line: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
@@ -540,6 +535,16 @@ body.settings-modal-open #subtitleContainer {
   -webkit-text-fill-color: currentColor !important;
 }
 
+#subtitleRoot
+  .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(
+    .word-known
+  ):not(.word-n-plus-one):not(.word-frequency-single):not(.word-frequency-band-1):not(
+    .word-frequency-band-2
+  ):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5):hover {
+  color: var(--subtitle-hover-token-color, #f4dbd6) !important;
+  -webkit-text-fill-color: var(--subtitle-hover-token-color, #f4dbd6) !important;
+}
+
 #subtitleRoot::selection,
 #subtitleRoot .word::selection,
 #subtitleRoot .c::selection {
@@ -600,6 +605,23 @@ body.settings-modal-open #subtitleContainer {
 #subtitleRoot .word.word-frequency-band-5 .c::selection {
   color: var(--subtitle-frequency-band-5-color, #8aadf4) !important;
   -webkit-text-fill-color: var(--subtitle-frequency-band-5-color, #8aadf4) !important;
+}
+
+#subtitleRoot
+  .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(
+    .word-known
+  ):not(.word-n-plus-one):not(.word-frequency-single):not(.word-frequency-band-1):not(
+    .word-frequency-band-2
+  ):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)::selection,
+#subtitleRoot
+  .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(
+    .word-known
+  ):not(.word-n-plus-one):not(.word-frequency-single):not(.word-frequency-band-1):not(
+    .word-frequency-band-2
+  ):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)
+  .c::selection {
+  color: var(--subtitle-hover-token-color, #f4dbd6) !important;
+  -webkit-text-fill-color: var(--subtitle-hover-token-color, #f4dbd6) !important;
 }
 
 #subtitleRoot br {
