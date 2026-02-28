@@ -2510,8 +2510,8 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
 
   if (updated) {
     logger.info(`Yomitan default profile Anki server set to ${targetUrl}`);
+    lastSyncedYomitanAnkiServer = targetUrl;
   }
-  lastSyncedYomitanAnkiServer = targetUrl;
 }
 
 function createOverlayWindow(kind: 'visible' | 'modal'): BrowserWindow {

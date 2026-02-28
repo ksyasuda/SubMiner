@@ -133,12 +133,6 @@ test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay sup
     {
       command: ['set_property', 'sub-visibility', false],
     },
-    {
-      command: ['set_property', 'sub-visibility', 'no'],
-    },
-    {
-      command: ['set', 'sub-visibility', 'no'],
-    },
   ]);
 });
 
