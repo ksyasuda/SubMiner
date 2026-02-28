@@ -26,6 +26,7 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 
 - **Hover to look up** — Yomitan dictionary popups directly on subtitles
 - **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and translation
+- **Instant auto-enrichment** — Optional local AnkiConnect proxy enriches new Yomitan cards immediately
 - **N+1 highlighting** — Marks known words from your Anki deck so unknown ones jump out
 - **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
 - **Immersion tracking** — SQLite-powered stats on your watch time and mining activity
@@ -57,7 +58,9 @@ chmod +x ~/.local/bin/subminer
 ```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
-cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
+mkdir -p ~/.config/mpv/scripts/subminer
+mkdir -p ~/.config/mpv/script-opts
+cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
 cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 mkdir -p ~/.config/SubMiner && cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
 ```

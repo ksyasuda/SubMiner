@@ -194,15 +194,26 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
   }
 
   await new Promise<void>((resolve) => {
-    if (!state.mpvProc) {
+    const mpvProc = state.mpvProc;
+    if (!mpvProc) {
       stopOverlay(args);
       resolve();
       return;
     }
-    state.mpvProc.on('exit', (code) => {
+
+    const finalize = (code: number | null | undefined) => {
       stopOverlay(args);
       processAdapter.setExitCode(code ?? 0);
       resolve();
+    };
+
+    if (mpvProc.exitCode !== null && mpvProc.exitCode !== undefined) {
+      finalize(mpvProc.exitCode);
+      return;
+    }
+
+    mpvProc.once('exit', (code) => {
+      finalize(code);
     });
   });
 }

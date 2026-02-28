@@ -4,7 +4,7 @@ SubMiner is split into three cooperating runtimes:
 
 - Electron desktop app (`src/`) for overlay/UI/runtime orchestration.
 - Launcher CLI (`launcher/`) for mpv/app command workflows.
-- mpv Lua plugin (`plugin/subminer.lua`) for player-side controls and IPC handoff.
+- mpv Lua plugin (`plugin/subminer/main.lua` + module files) for player-side controls and IPC handoff.
 
 Within the desktop app, `src/main.ts` is a composition root that wires small runtime/domain modules plus core services.
 
@@ -26,7 +26,7 @@ launcher/                 # Standalone CLI launcher wrapper and mpv helpers
   config/                 # Launcher config parsers + CLI parser builder
   main.ts                 # Launcher entrypoint and command dispatch
 plugin/
-  subminer.lua            # mpv plugin (auto-start, IPC, AniSkip + hover controls)
+  subminer/               # mpv plugin modules + main entrypoint
 src/
   main-entry.ts           # Background-mode bootstrap wrapper before loading main.js
   main.ts                  # Entry point — delegates to runtime composers/domain modules
@@ -120,7 +120,7 @@ src/renderer/
 ### Launcher + Plugin Runtimes
 
 - `launcher/main.ts` dispatches commands through `launcher/commands/*` and shared config readers in `launcher/config/*`. It handles mpv startup, app passthrough, Jellyfin helper commands, and playback handoff.
-- `plugin/subminer.lua` runs inside mpv and handles IPC startup checks, overlay toggles, hover-token messages, and AniSkip intro-skip UX.
+- `plugin/subminer/main.lua` runs inside mpv and loads module files for overlay toggles, hover-token messages, and AniSkip intro-skip UX.
 
 ## Flow Diagram
 
@@ -138,7 +138,7 @@ flowchart LR
 
   subgraph ExtRt["External Runtimes"]
     Launcher["launcher/<br/>CLI dispatch"]:::extrt
-    Plugin["subminer.lua<br/>mpv plugin"]:::extrt
+    Plugin["subminer/main.lua<br/>mpv plugin"]:::extrt
   end
 
   subgraph Ext["External Systems"]
@@ -260,7 +260,7 @@ For domains migrated to reducer-style transitions (for example AniList token/que
 - **Startup:** If `--generate-config` is passed, it writes the template and exits. Otherwise `app-lifecycle.ts` acquires the single-instance lock and registers Electron lifecycle hooks.
 - **Critical-path init:** Once `app.whenReady()` fires, `composeAppReadyRuntime()` runs strict config reload, resolves keybindings, creates the `MpvIpcClient` (which immediately connects and subscribes to 26 properties), and initializes the `RuntimeOptionsManager`, `SubtitleTimingTracker`, and `ImmersionTrackerService`.
 - **Overlay runtime:** `initializeOverlayRuntime()` creates the primary overlay window (interactive Yomitan lookups and subtitle rendering) and registers global shortcuts and bounds tracking via the active window tracker.
-- **Background warmups:** Non-critical services are launched asynchronously: MeCab tokenizer check, Yomitan extension load, JLPT + frequency dictionary prewarm, optional Jellyfin remote session, Discord presence service, and AniList token refresh.
+- **Background warmups:** Non-critical services are launched asynchronously: MeCab tokenizer check, Yomitan extension load, JLPT + frequency dictionary prewarm, optional Jellyfin remote session, Discord presence service, and AniList token refresh. Warmup coverage is configurable through `startupWarmups` (including low-power mode that defers all but Yomitan).
 - **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, overlay shortcuts, and hot-reload notifications route through runtime handlers/composers. Subtitle text flows through `SubtitlePipeline` (normalize → tokenize → merge), and results are sent to the main overlay renderer and modal surfaces.
 - **Shutdown:** `onWillQuitCleanup` destroys tray + config watcher, unregisters shortcuts, stops WebSocket + texthooker servers, closes the mpv socket + flushes OSD log, stops the window tracker, closes the Yomitan parser window, flushes the immersion tracker (SQLite), stops Jellyfin/Discord services, and cleans Anki/AniList state.
 
