@@ -27,6 +27,7 @@ const {
   shortcuts,
   secondarySub,
   subsync,
+  startupWarmups,
   auto_start_overlay,
 } = CORE_DEFAULT_CONFIG;
 const { ankiConnect, jimaku, anilist, jellyfin, discordPresence, youtubeSubgen } =
@@ -44,6 +45,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   shortcuts,
   secondarySub,
   subsync,
+  startupWarmups,
   subtitleStyle,
   auto_start_overlay,
   jimaku,

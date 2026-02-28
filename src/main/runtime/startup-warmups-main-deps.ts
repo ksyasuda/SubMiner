@@ -25,6 +25,10 @@ export function createBuildStartBackgroundWarmupsMainDepsHandler(deps: StartBack
     createMecabTokenizerAndCheck: () => deps.createMecabTokenizerAndCheck(),
     ensureYomitanExtensionLoaded: () => deps.ensureYomitanExtensionLoaded(),
     prewarmSubtitleDictionaries: () => deps.prewarmSubtitleDictionaries(),
+    shouldWarmupMecab: () => deps.shouldWarmupMecab(),
+    shouldWarmupYomitanExtension: () => deps.shouldWarmupYomitanExtension(),
+    shouldWarmupSubtitleDictionaries: () => deps.shouldWarmupSubtitleDictionaries(),
+    shouldWarmupJellyfinRemoteSession: () => deps.shouldWarmupJellyfinRemoteSession(),
     shouldAutoConnectJellyfinRemote: () => deps.shouldAutoConnectJellyfinRemote(),
     startJellyfinRemoteSession: () => deps.startJellyfinRemoteSession(),
   });

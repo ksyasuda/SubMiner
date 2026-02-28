@@ -23,6 +23,11 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, false);
   assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
+  assert.equal(config.startupWarmups.lowPowerMode, false);
+  assert.equal(config.startupWarmups.mecab, true);
+  assert.equal(config.startupWarmups.yomitanExtension, true);
+  assert.equal(config.startupWarmups.subtitleDictionaries, true);
+  assert.equal(config.startupWarmups.jellyfinRemoteSession, true);
   assert.equal(config.discordPresence.enabled, false);
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
@@ -292,6 +297,72 @@ test('parses jellyfin.enabled and remoteControlEnabled disabled combinations', (
       ),
     false,
   );
+});
+
+test('parses startup warmup toggles and low-power mode', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "startupWarmups": {
+        "lowPowerMode": true,
+        "mecab": false,
+        "yomitanExtension": true,
+        "subtitleDictionaries": false,
+        "jellyfinRemoteSession": false
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  assert.equal(config.startupWarmups.lowPowerMode, true);
+  assert.equal(config.startupWarmups.mecab, false);
+  assert.equal(config.startupWarmups.yomitanExtension, true);
+  assert.equal(config.startupWarmups.subtitleDictionaries, false);
+  assert.equal(config.startupWarmups.jellyfinRemoteSession, false);
+});
+
+test('invalid startup warmup values warn and keep defaults', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "startupWarmups": {
+        "lowPowerMode": "yes",
+        "mecab": 1,
+        "yomitanExtension": null,
+        "subtitleDictionaries": "no",
+        "jellyfinRemoteSession": []
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.startupWarmups.lowPowerMode, DEFAULT_CONFIG.startupWarmups.lowPowerMode);
+  assert.equal(config.startupWarmups.mecab, DEFAULT_CONFIG.startupWarmups.mecab);
+  assert.equal(
+    config.startupWarmups.yomitanExtension,
+    DEFAULT_CONFIG.startupWarmups.yomitanExtension,
+  );
+  assert.equal(
+    config.startupWarmups.subtitleDictionaries,
+    DEFAULT_CONFIG.startupWarmups.subtitleDictionaries,
+  );
+  assert.equal(
+    config.startupWarmups.jellyfinRemoteSession,
+    DEFAULT_CONFIG.startupWarmups.jellyfinRemoteSession,
+  );
+  assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.lowPowerMode'));
+  assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.mecab'));
+  assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.yomitanExtension'));
+  assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.subtitleDictionaries'));
+  assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.jellyfinRemoteSession'));
 });
 
 test('parses discordPresence fields and warns for invalid types', () => {
@@ -1135,6 +1206,7 @@ test('template generator includes known keys', () => {
   assert.match(output, /"logging":/);
   assert.match(output, /"websocket":/);
   assert.match(output, /"discordPresence":/);
+  assert.match(output, /"startupWarmups":/);
   assert.match(output, /"youtubeSubgen":/);
   assert.match(output, /"preserveLineBreaks": false/);
   assert.match(output, /"nPlusOne"\s*:\s*\{/);

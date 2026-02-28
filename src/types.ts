@@ -99,6 +99,14 @@ export interface SubsyncConfig {
   ffmpeg_path?: string;
 }
 
+export interface StartupWarmupsConfig {
+  lowPowerMode?: boolean;
+  mecab?: boolean;
+  yomitanExtension?: boolean;
+  subtitleDictionaries?: boolean;
+  jellyfinRemoteSession?: boolean;
+}
+
 export interface WebSocketConfig {
   enabled?: boolean | 'auto';
   port?: number;
@@ -417,6 +425,7 @@ export interface Config {
   shortcuts?: ShortcutsConfig;
   secondarySub?: SecondarySubConfig;
   subsync?: SubsyncConfig;
+  startupWarmups?: StartupWarmupsConfig;
   subtitleStyle?: SubtitleStyleConfig;
   auto_start_overlay?: boolean;
   jimaku?: JimakuConfig;
@@ -513,6 +522,13 @@ export interface ResolvedConfig {
   shortcuts: Required<ShortcutsConfig>;
   secondarySub: Required<SecondarySubConfig>;
   subsync: Required<SubsyncConfig>;
+  startupWarmups: {
+    lowPowerMode: boolean;
+    mecab: boolean;
+    yomitanExtension: boolean;
+    subtitleDictionaries: boolean;
+    jellyfinRemoteSession: boolean;
+  };
   subtitleStyle: Required<Omit<SubtitleStyleConfig, 'secondary' | 'frequencyDictionary'>> & {
     secondary: Required<NonNullable<SubtitleStyleConfig['secondary']>>;
     frequencyDictionary: {

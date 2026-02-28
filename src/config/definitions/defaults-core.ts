@@ -10,6 +10,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'shortcuts'
   | 'secondarySub'
   | 'subsync'
+  | 'startupWarmups'
   | 'auto_start_overlay'
 > = {
   subtitlePosition: { yPercent: 10 },
@@ -49,6 +50,13 @@ export const CORE_DEFAULT_CONFIG: Pick<
     alass_path: '',
     ffsubsync_path: '',
     ffmpeg_path: '',
+  },
+  startupWarmups: {
+    lowPowerMode: false,
+    mecab: true,
+    yomitanExtension: true,
+    subtitleDictionaries: true,
+    jellyfinRemoteSession: true,
   },
   auto_start_overlay: false,
 };

@@ -74,6 +74,30 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
     );
   }
 
+  if (isObject(src.startupWarmups)) {
+    const startupWarmupBooleanKeys = [
+      'lowPowerMode',
+      'mecab',
+      'yomitanExtension',
+      'subtitleDictionaries',
+      'jellyfinRemoteSession',
+    ] as const;
+
+    for (const key of startupWarmupBooleanKeys) {
+      const value = asBoolean(src.startupWarmups[key]);
+      if (value !== undefined) {
+        resolved.startupWarmups[key] = value as (typeof resolved.startupWarmups)[typeof key];
+      } else if (src.startupWarmups[key] !== undefined) {
+        warn(
+          `startupWarmups.${key}`,
+          src.startupWarmups[key],
+          resolved.startupWarmups[key],
+          'Expected boolean.',
+        );
+      }
+    }
+  }
+
   if (isObject(src.shortcuts)) {
     const shortcutKeys = [
       'toggleVisibleOverlayGlobal',

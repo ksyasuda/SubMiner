@@ -24,6 +24,10 @@ export function createStartBackgroundWarmupsHandler(deps: {
   createMecabTokenizerAndCheck: () => Promise<void>;
   ensureYomitanExtensionLoaded: () => Promise<void>;
   prewarmSubtitleDictionaries: () => Promise<void>;
+  shouldWarmupMecab: () => boolean;
+  shouldWarmupYomitanExtension: () => boolean;
+  shouldWarmupSubtitleDictionaries: () => boolean;
+  shouldWarmupJellyfinRemoteSession: () => boolean;
   shouldAutoConnectJellyfinRemote: () => boolean;
   startJellyfinRemoteSession: () => Promise<void>;
 }) {
@@ -32,16 +36,22 @@ export function createStartBackgroundWarmupsHandler(deps: {
     if (deps.isTexthookerOnlyMode()) return;
 
     deps.setStarted(true);
-    deps.launchTask('mecab', async () => {
-      await deps.createMecabTokenizerAndCheck();
-    });
-    deps.launchTask('yomitan-extension', async () => {
-      await deps.ensureYomitanExtensionLoaded();
-    });
-    deps.launchTask('subtitle-dictionaries', async () => {
-      await deps.prewarmSubtitleDictionaries();
-    });
-    if (deps.shouldAutoConnectJellyfinRemote()) {
+    if (deps.shouldWarmupMecab()) {
+      deps.launchTask('mecab', async () => {
+        await deps.createMecabTokenizerAndCheck();
+      });
+    }
+    if (deps.shouldWarmupYomitanExtension()) {
+      deps.launchTask('yomitan-extension', async () => {
+        await deps.ensureYomitanExtensionLoaded();
+      });
+    }
+    if (deps.shouldWarmupSubtitleDictionaries()) {
+      deps.launchTask('subtitle-dictionaries', async () => {
+        await deps.prewarmSubtitleDictionaries();
+      });
+    }
+    if (deps.shouldWarmupJellyfinRemoteSession() && deps.shouldAutoConnectJellyfinRemote()) {
       deps.launchTask('jellyfin-remote-session', async () => {
         await deps.startJellyfinRemoteSession();
       });

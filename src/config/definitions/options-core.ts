@@ -33,6 +33,36 @@ export function buildCoreConfigOptionRegistry(
       description: 'Subsync default mode.',
     },
     {
+      path: 'startupWarmups.lowPowerMode',
+      kind: 'boolean',
+      defaultValue: defaultConfig.startupWarmups.lowPowerMode,
+      description: 'Defer startup warmups except Yomitan extension.',
+    },
+    {
+      path: 'startupWarmups.mecab',
+      kind: 'boolean',
+      defaultValue: defaultConfig.startupWarmups.mecab,
+      description: 'Warm up MeCab tokenizer at startup.',
+    },
+    {
+      path: 'startupWarmups.yomitanExtension',
+      kind: 'boolean',
+      defaultValue: defaultConfig.startupWarmups.yomitanExtension,
+      description: 'Warm up Yomitan extension at startup.',
+    },
+    {
+      path: 'startupWarmups.subtitleDictionaries',
+      kind: 'boolean',
+      defaultValue: defaultConfig.startupWarmups.subtitleDictionaries,
+      description: 'Warm up subtitle dictionaries at startup.',
+    },
+    {
+      path: 'startupWarmups.jellyfinRemoteSession',
+      kind: 'boolean',
+      defaultValue: defaultConfig.startupWarmups.jellyfinRemoteSession,
+      description: 'Warm up Jellyfin remote session at startup.',
+    },
+    {
       path: 'shortcuts.multiCopyTimeoutMs',
       kind: 'number',
       defaultValue: defaultConfig.shortcuts.multiCopyTimeoutMs,

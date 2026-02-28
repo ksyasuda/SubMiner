@@ -34,6 +34,10 @@ test('startup warmups main deps builders map callbacks', async () => {
     prewarmSubtitleDictionaries: async () => {
       calls.push('dict');
     },
+    shouldWarmupMecab: () => false,
+    shouldWarmupYomitanExtension: () => true,
+    shouldWarmupSubtitleDictionaries: () => false,
+    shouldWarmupJellyfinRemoteSession: () => true,
     shouldAutoConnectJellyfinRemote: () => true,
     startJellyfinRemoteSession: async () => {
       calls.push('jellyfin');
@@ -48,6 +52,10 @@ test('startup warmups main deps builders map callbacks', async () => {
   await start.createMecabTokenizerAndCheck();
   await start.ensureYomitanExtensionLoaded();
   await start.prewarmSubtitleDictionaries();
+  assert.equal(start.shouldWarmupMecab(), false);
+  assert.equal(start.shouldWarmupYomitanExtension(), true);
+  assert.equal(start.shouldWarmupSubtitleDictionaries(), false);
+  assert.equal(start.shouldWarmupJellyfinRemoteSession(), true);
   assert.equal(start.shouldAutoConnectJellyfinRemote(), true);
   await start.startJellyfinRemoteSession();
 

@@ -133,6 +133,10 @@ export function composeMpvRuntimeHandlers<
     options.tokenizer.prewarmSubtitleDictionariesMainDeps,
   );
   const tokenizeSubtitle = async (text: string): Promise<TTokenizedSubtitle> => {
+    await options.warmups.startBackgroundWarmupsMainDeps.ensureYomitanExtensionLoaded();
+    if (!options.tokenizer.createMecabTokenizerAndCheckMainDeps.getMecabTokenizer()) {
+      await createMecabTokenizerAndCheck().catch(() => {});
+    }
     await prewarmSubtitleDictionaries();
     return options.tokenizer.tokenizeSubtitle(
       text,

@@ -26,6 +26,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
   const calls: string[] = [];
   let started = false;
   let metrics = BASE_METRICS;
+  let mecabTokenizer: { id: string } | null = null;
 
   class FakeMpvClient {
     connected = false;
@@ -140,9 +141,15 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
         return { text };
       },
       createMecabTokenizerAndCheckMainDeps: {
-        getMecabTokenizer: () => ({ id: 'mecab' }),
-        setMecabTokenizer: () => {},
-        createMecabTokenizer: () => ({ id: 'mecab' }),
+        getMecabTokenizer: () => mecabTokenizer,
+        setMecabTokenizer: (next) => {
+          mecabTokenizer = next as { id: string };
+          calls.push('set-mecab');
+        },
+        createMecabTokenizer: () => {
+          calls.push('create-mecab');
+          return { id: 'mecab' };
+        },
         checkAvailability: async () => {
           calls.push('check-mecab');
         },
@@ -176,6 +183,10 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
         ensureYomitanExtensionLoaded: async () => {
           calls.push('warmup-yomitan');
         },
+        shouldWarmupMecab: () => true,
+        shouldWarmupYomitanExtension: () => true,
+        shouldWarmupSubtitleDictionaries: () => true,
+        shouldWarmupJellyfinRemoteSession: () => true,
         shouldAutoConnectJellyfinRemote: () => false,
         startJellyfinRemoteSession: async () => {
           calls.push('warmup-jellyfin');
@@ -212,9 +223,12 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
   assert.ok(calls.includes('broadcast-metrics'));
   assert.ok(calls.includes('create-tokenizer-runtime-deps'));
   assert.ok(calls.includes('tokenize:subtitle text'));
+  assert.ok(calls.includes('create-mecab'));
+  assert.ok(calls.includes('set-mecab'));
   assert.ok(calls.includes('check-mecab'));
   assert.ok(calls.includes('prewarm-jlpt'));
   assert.ok(calls.includes('prewarm-frequency'));
   assert.ok(calls.includes('set-started:true'));
   assert.ok(calls.includes('warmup-yomitan'));
+  assert.ok(calls.indexOf('create-mecab') < calls.indexOf('set-started:true'));
 });

@@ -17,6 +17,7 @@ test('config option registry includes critical paths and has unique entries', ()
 
   for (const requiredPath of [
     'logging.level',
+    'startupWarmups.lowPowerMode',
     'subtitleStyle.enableJlpt',
     'ankiConnect.enabled',
     'immersionTracking.enabled',
@@ -31,6 +32,7 @@ test('config template sections include expected domains and unique keys', () => 
   const keys = CONFIG_TEMPLATE_SECTIONS.map((section) => section.key);
   const requiredKeys: (typeof keys)[number][] = [
     'websocket',
+    'startupWarmups',
     'subtitleStyle',
     'ankiConnect',
     'immersionTracking',

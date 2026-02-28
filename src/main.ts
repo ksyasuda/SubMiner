@@ -1936,10 +1936,6 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
     logInfo: (message) => appLogger.logInfo(message),
     logWarning: (message) => appLogger.logWarning(message),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
-    showConfigWarningsDialog:
-      process.platform === 'darwin'
-        ? (title, details) => dialog.showErrorBox(title, details)
-        : undefined,
     startConfigHotReload: () => configHotReloadRuntime.start(),
     refreshAnilistClientSecretState: (options) => refreshAnilistClientSecretState(options),
     failHandlers: {
@@ -2250,6 +2246,7 @@ const {
       getKnownWordMatchMode: () =>
         appState.ankiIntegration?.getKnownWordMatchMode() ??
         getResolvedConfig().ankiConnect.nPlusOne.matchMode,
+      getNPlusOneEnabled: () => getResolvedConfig().ankiConnect.nPlusOne.highlightEnabled,
       getMinSentenceWordsForNPlusOne: () =>
         getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,
       getJlptLevel: (text) => appState.jlptLevelLookup(text),
@@ -2290,6 +2287,28 @@ const {
       },
       isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
       ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded().then(() => {}),
+      shouldWarmupMecab: () => {
+        const startupWarmups = getResolvedConfig().startupWarmups;
+        if (startupWarmups.lowPowerMode) {
+          return false;
+        }
+        return startupWarmups.mecab;
+      },
+      shouldWarmupYomitanExtension: () => getResolvedConfig().startupWarmups.yomitanExtension,
+      shouldWarmupSubtitleDictionaries: () => {
+        const startupWarmups = getResolvedConfig().startupWarmups;
+        if (startupWarmups.lowPowerMode) {
+          return false;
+        }
+        return startupWarmups.subtitleDictionaries;
+      },
+      shouldWarmupJellyfinRemoteSession: () => {
+        const startupWarmups = getResolvedConfig().startupWarmups;
+        if (startupWarmups.lowPowerMode) {
+          return false;
+        }
+        return startupWarmups.jellyfinRemoteSession;
+      },
       shouldAutoConnectJellyfinRemote: () => {
         const jellyfin = getResolvedConfig().jellyfin;
         return (
