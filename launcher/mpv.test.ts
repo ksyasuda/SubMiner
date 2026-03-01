@@ -5,7 +5,7 @@ import path from 'node:path';
 import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
-import { startOverlay, state, waitForUnixSocketReady } from './mpv';
+import { runAppCommandCaptureOutput, startOverlay, state, waitForUnixSocketReady } from './mpv';
 import * as mpvModule from './mpv';
 
 function createTempSocketPath(): { dir: string; socketPath: string } {
@@ -17,6 +17,18 @@ function createTempSocketPath(): { dir: string; socketPath: string } {
 
 test('mpv module exposes only canonical socket readiness helper', () => {
   assert.equal('waitForSocket' in mpvModule, false);
+});
+
+test('runAppCommandCaptureOutput captures status and stdio', () => {
+  const result = runAppCommandCaptureOutput(process.execPath, [
+    '-e',
+    'process.stdout.write("stdout-line"); process.stderr.write("stderr-line");',
+  ]);
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, 'stdout-line');
+  assert.equal(result.stderr, 'stderr-line');
+  assert.equal(result.error, undefined);
 });
 
 test('waitForUnixSocketReady returns false when socket never appears', async () => {
