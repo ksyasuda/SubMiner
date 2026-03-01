@@ -47,15 +47,16 @@ export function createStartBackgroundWarmupsHandler(deps: {
       warmupMecab || warmupYomitanExtension || warmupSubtitleDictionaries;
     if (shouldWarmupTokenization) {
       deps.launchTask('subtitle-tokenization', async () => {
-        if (warmupYomitanExtension) {
-          deps.logDebug?.('[startup-warmup] stage start: yomitan-extension');
-          await deps.ensureYomitanExtensionLoaded();
-          deps.logDebug?.('[startup-warmup] stage ready: yomitan-extension');
-        } else {
-          deps.logDebug?.('[startup-warmup] stage skipped: yomitan-extension');
-        }
-
         await Promise.all([
+          warmupYomitanExtension
+            ? (async () => {
+                deps.logDebug?.('[startup-warmup] stage start: yomitan-extension');
+                await deps.ensureYomitanExtensionLoaded();
+                deps.logDebug?.('[startup-warmup] stage ready: yomitan-extension');
+              })()
+            : Promise.resolve().then(() => {
+                deps.logDebug?.('[startup-warmup] stage skipped: yomitan-extension');
+              }),
           warmupMecab
             ? (async () => {
                 deps.logDebug?.('[startup-warmup] stage start: mecab');

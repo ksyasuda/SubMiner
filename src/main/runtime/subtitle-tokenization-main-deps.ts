@@ -113,7 +113,7 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
   };
 
   const endLoadingOsd = (): void => {
-    if (!showMpvOsd || !shouldShowOsdNotification()) {
+    if (!showMpvOsd) {
       return;
     }
 

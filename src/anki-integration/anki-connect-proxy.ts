@@ -233,7 +233,8 @@ export class AnkiConnectProxyServer {
 
     try {
       const deck = this.deps.getDeck ? this.deps.getDeck() : undefined;
-      const query = deck ? `"deck:${deck}" added:1` : 'added:1';
+      const escapedDeck = deck ? deck.replace(/"/g, '\\"') : undefined;
+      const query = escapedDeck ? `"deck:${escapedDeck}" added:1` : 'added:1';
       const noteIds = await findNotes(query, { maxRetries: 0 });
       if (!noteIds || noteIds.length === 0) {
         return;

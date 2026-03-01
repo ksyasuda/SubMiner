@@ -265,6 +265,36 @@ test('proxy does not fallback-enqueue latest note for multi requests without add
   assert.deepEqual(processed, []);
 });
 
+test('proxy fallback-enqueues latest note for addNote responses without note IDs and escapes deck quotes', async () => {
+  const processed: number[] = [];
+  const findNotesQueries: string[] = [];
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async (noteId) => {
+      processed.push(noteId);
+    },
+    getDeck: () => 'My "Japanese" Deck',
+    findNotes: async (query) => {
+      findNotesQueries.push(query);
+      return [500, 501];
+    },
+    logInfo: () => undefined,
+    logWarn: () => undefined,
+    logError: () => undefined,
+  });
+
+  (proxy as unknown as {
+    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+  }).maybeEnqueueFromRequest(
+    { action: 'addNote' },
+    Buffer.from(JSON.stringify({ result: 0, error: null }), 'utf8'),
+  );
+
+  await waitForCondition(() => processed.length === 1);
+  assert.deepEqual(findNotesQueries, ['"deck:My \\"Japanese\\" Deck" added:1']);
+  assert.deepEqual(processed, [501]);
+});
+
 test('proxy detects self-referential loop configuration', () => {
   const proxy = new AnkiConnectProxyServer({
     shouldAutoUpdateNewCards: () => true,

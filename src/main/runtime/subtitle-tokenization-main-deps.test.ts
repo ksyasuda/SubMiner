@@ -180,3 +180,29 @@ test('dictionary prewarm does not show OSD when notifications are disabled', asy
 
   assert.deepEqual(osdMessages, []);
 });
+
+test('dictionary prewarm clears loading OSD timer even if notifications are disabled before completion', async () => {
+  const clearedTimers: unknown[] = [];
+  const jlptDeferred = createDeferred();
+  const freqDeferred = createDeferred();
+  let shouldShowNotification = true;
+
+  const prewarm = createPrewarmSubtitleDictionariesMainHandler({
+    ensureJlptDictionaryLookup: async () => jlptDeferred.promise,
+    ensureFrequencyDictionaryLookup: async () => freqDeferred.promise,
+    shouldShowOsdNotification: () => shouldShowNotification,
+    showMpvOsd: () => undefined,
+    setInterval: () => 'loading-timer',
+    clearInterval: (timer) => {
+      clearedTimers.push(timer);
+    },
+  });
+
+  const prewarmPromise = prewarm({ showLoadingOsd: true });
+  shouldShowNotification = false;
+  jlptDeferred.resolve();
+  freqDeferred.resolve();
+  await prewarmPromise;
+
+  assert.deepEqual(clearedTimers, ['loading-timer']);
+});

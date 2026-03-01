@@ -13,6 +13,17 @@ function shouldAutoConnectJellyfinRemote(config: {
   return config.enabled && config.remoteControlEnabled && config.remoteControlAutoConnect;
 }
 
+function createDeferred(): {
+  promise: Promise<void>;
+  resolve: () => void;
+} {
+  let resolve!: () => void;
+  const promise = new Promise<void>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 test('launchBackgroundWarmupTask logs completion timing', async () => {
   const debugLogs: string[] = [];
   const launchTask = createLaunchBackgroundWarmupTaskHandler({
@@ -193,4 +204,61 @@ test('startBackgroundWarmups logs per-stage progress for enabled tokenization wa
   assert.ok(debugLogs.includes('[startup-warmup] stage ready: subtitle-dictionaries'));
   assert.ok(debugLogs.includes('[startup-warmup] stage start: jellyfin-remote-session'));
   assert.ok(debugLogs.includes('[startup-warmup] stage ready: jellyfin-remote-session'));
+});
+
+test('startBackgroundWarmups starts mecab and dictionary warmups without waiting for yomitan warmup', async () => {
+  const startedStages: string[] = [];
+  let started = false;
+  let subtitleTokenizationTask: Promise<void> | null = null;
+  const yomitanDeferred = createDeferred();
+  const mecabDeferred = createDeferred();
+  const subtitleDictionariesDeferred = createDeferred();
+
+  const startWarmups = createStartBackgroundWarmupsHandler({
+    getStarted: () => started,
+    setStarted: (value) => {
+      started = value;
+    },
+    isTexthookerOnlyMode: () => false,
+    launchTask: (label, task) => {
+      if (label === 'subtitle-tokenization') {
+        subtitleTokenizationTask = task();
+      }
+    },
+    createMecabTokenizerAndCheck: async () => {
+      startedStages.push('mecab');
+      await mecabDeferred.promise;
+    },
+    ensureYomitanExtensionLoaded: async () => {
+      startedStages.push('yomitan-extension');
+      await yomitanDeferred.promise;
+    },
+    prewarmSubtitleDictionaries: async () => {
+      startedStages.push('subtitle-dictionaries');
+      await subtitleDictionariesDeferred.promise;
+    },
+    shouldWarmupMecab: () => true,
+    shouldWarmupYomitanExtension: () => true,
+    shouldWarmupSubtitleDictionaries: () => true,
+    shouldWarmupJellyfinRemoteSession: () => false,
+    shouldAutoConnectJellyfinRemote: () => false,
+    startJellyfinRemoteSession: async () => {},
+  });
+
+  startWarmups();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.ok(subtitleTokenizationTask);
+  assert.equal(startedStages.includes('yomitan-extension'), true);
+  assert.equal(startedStages.includes('mecab'), true);
+  assert.equal(startedStages.includes('subtitle-dictionaries'), true);
+
+  yomitanDeferred.resolve();
+  mecabDeferred.resolve();
+  subtitleDictionariesDeferred.resolve();
+  if (!subtitleTokenizationTask) {
+    throw new Error('Expected subtitle tokenization warmup task');
+  }
+  await subtitleTokenizationTask;
 });

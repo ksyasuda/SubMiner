@@ -81,6 +81,7 @@ function isExcludedByTagSet(
   if (parts.length === 0) {
     return false;
   }
+  // Composite tags like "助詞|名詞" stay eligible unless every component is excluded.
   return parts.every((part) => exclusions.has(part));
 }
 
