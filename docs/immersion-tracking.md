@@ -10,7 +10,7 @@ SubMiner stores immersion analytics in local SQLite (`immersion.sqlite`) by defa
 - Flush policy defaults to `25` writes or `500ms` max delay.
 - SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=2500`.
 
-## Schema (v1)
+## Schema (v2)
 
 Schema versioning table:
 
@@ -18,15 +18,15 @@ Schema versioning table:
 
 Core entities:
 
-- `imm_videos`: video key/title/source metadata + optional media metadata fields
-- `imm_sessions`: session UUID, video reference, timing/status fields
-- `imm_session_telemetry`: high-frequency session aggregates over time
-- `imm_session_events`: event stream with compact numeric event types
+- `imm_videos`: video key/title/source metadata + optional media metadata fields, `CREATED_DATE`/`LAST_UPDATE_DATE`
+- `imm_sessions`: session UUID, video reference, timing/status fields, `CREATED_DATE`/`LAST_UPDATE_DATE`
+- `imm_session_telemetry`: high-frequency session aggregates over time, `CREATED_DATE`/`LAST_UPDATE_DATE`
+- `imm_session_events`: event stream with compact numeric event types, `CREATED_DATE`/`LAST_UPDATE_DATE`
 
 Rollups:
 
-- `imm_daily_rollups`
-- `imm_monthly_rollups`
+- `imm_daily_rollups`: includes `CREATED_DATE`/`LAST_UPDATE_DATE`
+- `imm_monthly_rollups`: includes `CREATED_DATE`/`LAST_UPDATE_DATE`
 
 Primary index coverage:
 

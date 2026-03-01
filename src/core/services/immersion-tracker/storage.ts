@@ -7,6 +7,25 @@ export interface TrackerPreparedStatements {
   eventInsertStmt: ReturnType<DatabaseSync['prepare']>;
 }
 
+function hasColumn(db: DatabaseSync, tableName: string, columnName: string): boolean {
+  return db
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all()
+    .some((row) => (row as { name: string }).name === columnName);
+}
+
+function addColumnIfMissing(db: DatabaseSync, tableName: string, columnName: string): void {
+  if (!hasColumn(db, tableName, columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} INTEGER`);
+  }
+}
+
+function dropColumnIfExists(db: DatabaseSync, tableName: string, columnName: string): void {
+  if (hasColumn(db, tableName, columnName)) {
+    db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${columnName}`);
+  }
+}
+
 export function applyPragmas(db: DatabaseSync): void {
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA synchronous = NORMAL');
@@ -44,7 +63,8 @@ export function ensureSchema(db: DatabaseSync): void {
       bitrate_kbps INTEGER, audio_codec_id INTEGER,
       hash_sha256 TEXT, screenshot_path TEXT,
       metadata_json TEXT,
-      created_at_ms INTEGER NOT NULL, updated_at_ms INTEGER NOT NULL
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER
     );
   `);
   db.exec(`
@@ -56,7 +76,8 @@ export function ensureSchema(db: DatabaseSync): void {
       status INTEGER NOT NULL,
       locale_id INTEGER, target_lang_id INTEGER,
       difficulty_tier INTEGER, subtitle_mode INTEGER,
-      created_at_ms INTEGER NOT NULL, updated_at_ms INTEGER NOT NULL,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER,
       FOREIGN KEY(video_id) REFERENCES imm_videos(video_id)
     );
   `);
@@ -78,6 +99,8 @@ export function ensureSchema(db: DatabaseSync): void {
       seek_forward_count INTEGER NOT NULL DEFAULT 0,
       seek_backward_count INTEGER NOT NULL DEFAULT 0,
       media_buffer_events INTEGER NOT NULL DEFAULT 0,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER,
       FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE
     );
   `);
@@ -93,6 +116,8 @@ export function ensureSchema(db: DatabaseSync): void {
       words_delta INTEGER NOT NULL DEFAULT 0,
       cards_delta INTEGER NOT NULL DEFAULT 0,
       payload_json TEXT,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER,
       FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE
     );
   `);
@@ -109,6 +134,8 @@ export function ensureSchema(db: DatabaseSync): void {
       cards_per_hour REAL,
       words_per_min REAL,
       lookup_hit_rate REAL,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER,
       PRIMARY KEY (rollup_day, video_id)
     );
   `);
@@ -122,6 +149,8 @@ export function ensureSchema(db: DatabaseSync): void {
       total_words_seen INTEGER NOT NULL DEFAULT 0,
       total_tokens_seen INTEGER NOT NULL DEFAULT 0,
       total_cards INTEGER NOT NULL DEFAULT 0,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER,
       PRIMARY KEY (rollup_month, video_id)
     );
   `);
@@ -155,6 +184,78 @@ export function ensureSchema(db: DatabaseSync): void {
     ON imm_monthly_rollups(rollup_month, video_id)
   `);
 
+  if (currentVersion?.schema_version === 1) {
+    addColumnIfMissing(db, 'imm_videos', 'CREATED_DATE');
+    addColumnIfMissing(db, 'imm_videos', 'LAST_UPDATE_DATE');
+    addColumnIfMissing(db, 'imm_sessions', 'CREATED_DATE');
+    addColumnIfMissing(db, 'imm_sessions', 'LAST_UPDATE_DATE');
+    addColumnIfMissing(db, 'imm_session_telemetry', 'CREATED_DATE');
+    addColumnIfMissing(db, 'imm_session_telemetry', 'LAST_UPDATE_DATE');
+    addColumnIfMissing(db, 'imm_session_events', 'CREATED_DATE');
+    addColumnIfMissing(db, 'imm_session_events', 'LAST_UPDATE_DATE');
+    addColumnIfMissing(db, 'imm_daily_rollups', 'CREATED_DATE');
+    addColumnIfMissing(db, 'imm_daily_rollups', 'LAST_UPDATE_DATE');
+    addColumnIfMissing(db, 'imm_monthly_rollups', 'CREATED_DATE');
+    addColumnIfMissing(db, 'imm_monthly_rollups', 'LAST_UPDATE_DATE');
+
+    const nowMs = Date.now();
+    db.prepare(
+      `
+        UPDATE imm_videos
+        SET
+          CREATED_DATE = COALESCE(CREATED_DATE, created_at_ms),
+          LAST_UPDATE_DATE = COALESCE(LAST_UPDATE_DATE, created_at_ms)
+      `,
+    ).run();
+    db.prepare(
+      `
+        UPDATE imm_sessions
+        SET
+          CREATED_DATE = COALESCE(CREATED_DATE, started_at_ms),
+          LAST_UPDATE_DATE = COALESCE(LAST_UPDATE_DATE, created_at_ms)
+      `,
+    ).run();
+    db.prepare(
+      `
+        UPDATE imm_session_telemetry
+        SET
+          CREATED_DATE = COALESCE(CREATED_DATE, sample_ms),
+          LAST_UPDATE_DATE = COALESCE(LAST_UPDATE_DATE, sample_ms)
+      `,
+    ).run();
+    db.prepare(
+      `
+        UPDATE imm_session_events
+        SET
+          CREATED_DATE = COALESCE(CREATED_DATE, ts_ms),
+          LAST_UPDATE_DATE = COALESCE(LAST_UPDATE_DATE, ts_ms)
+      `,
+    ).run();
+    db.prepare(
+      `
+        UPDATE imm_daily_rollups
+        SET
+          CREATED_DATE = COALESCE(CREATED_DATE, ?),
+          LAST_UPDATE_DATE = COALESCE(LAST_UPDATE_DATE, ?)
+      `,
+    ).run(nowMs, nowMs);
+    db.prepare(
+      `
+        UPDATE imm_monthly_rollups
+        SET
+          CREATED_DATE = COALESCE(CREATED_DATE, ?),
+          LAST_UPDATE_DATE = COALESCE(LAST_UPDATE_DATE, ?)
+      `,
+    ).run(nowMs, nowMs);
+  }
+
+  if (currentVersion?.schema_version === 1 || currentVersion?.schema_version === 2) {
+    dropColumnIfExists(db, 'imm_videos', 'created_at_ms');
+    dropColumnIfExists(db, 'imm_videos', 'updated_at_ms');
+    dropColumnIfExists(db, 'imm_sessions', 'created_at_ms');
+    dropColumnIfExists(db, 'imm_sessions', 'updated_at_ms');
+  }
+
   db.exec(`
     INSERT INTO imm_schema_version(schema_version, applied_at_ms)
     VALUES (${SCHEMA_VERSION}, ${Date.now()})
@@ -169,17 +270,17 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
         session_id, sample_ms, total_watched_ms, active_watched_ms,
         lines_seen, words_seen, tokens_seen, cards_mined, lookup_count,
         lookup_hits, pause_count, pause_ms, seek_forward_count,
-        seek_backward_count, media_buffer_events
+        seek_backward_count, media_buffer_events, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `),
     eventInsertStmt: db.prepare(`
       INSERT INTO imm_session_events (
         session_id, ts_ms, event_type, line_index, segment_start_ms, segment_end_ms,
-        words_delta, cards_delta, payload_json
+        words_delta, cards_delta, payload_json, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `),
   };
@@ -203,6 +304,8 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
       write.seekForwardCount!,
       write.seekBackwardCount!,
       write.mediaBufferEvents!,
+      Date.now(),
+      Date.now(),
     );
     return;
   }
@@ -217,6 +320,8 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
     write.wordsDelta ?? 0,
     write.cardsDelta ?? 0,
     write.payloadJson ?? null,
+    Date.now(),
+    Date.now(),
   );
 }
 
@@ -235,8 +340,18 @@ export function getOrCreateVideoRecord(
     .get(videoKey) as { video_id: number } | null;
   if (existing?.video_id) {
     db.prepare(
-      'UPDATE imm_videos SET canonical_title = ?, updated_at_ms = ? WHERE video_id = ?',
-    ).run(details.canonicalTitle || 'unknown', Date.now(), existing.video_id);
+      `
+        UPDATE imm_videos
+        SET
+          canonical_title = ?,
+          LAST_UPDATE_DATE = ?
+        WHERE video_id = ?
+      `,
+    ).run(
+      details.canonicalTitle || 'unknown',
+      Date.now(),
+      existing.video_id,
+    );
     return existing.video_id;
   }
 
@@ -246,7 +361,7 @@ export function getOrCreateVideoRecord(
       video_key, canonical_title, source_type, source_path, source_url,
       duration_ms, file_size_bytes, codec_id, container_id, width_px, height_px,
       fps_x100, bitrate_kbps, audio_codec_id, hash_sha256, screenshot_path,
-      metadata_json, created_at_ms, updated_at_ms
+      metadata_json, CREATED_DATE, LAST_UPDATE_DATE
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const result = insert.run(
@@ -294,7 +409,7 @@ export function updateVideoMetadataRecord(
         hash_sha256 = ?,
         screenshot_path = ?,
         metadata_json = ?,
-        updated_at_ms = ?
+        LAST_UPDATE_DATE = ?
       WHERE video_id = ?
     `,
   ).run(
@@ -320,9 +435,13 @@ export function updateVideoTitleRecord(
   videoId: number,
   canonicalTitle: string,
 ): void {
-  db.prepare('UPDATE imm_videos SET canonical_title = ?, updated_at_ms = ? WHERE video_id = ?').run(
-    canonicalTitle,
-    Date.now(),
-    videoId,
-  );
+  db.prepare(
+    `
+      UPDATE imm_videos
+      SET
+        canonical_title = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE video_id = ?
+    `,
+  ).run(canonicalTitle, Date.now(), videoId);
 }

@@ -32,11 +32,13 @@ export function pruneRetention(
 }
 
 export function runRollupMaintenance(db: DatabaseSync): void {
+  const rollupNowMs = Date.now();
+
   db.exec(`
-    INSERT OR REPLACE INTO imm_daily_rollups (
+    INSERT INTO imm_daily_rollups (
       rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
       total_words_seen, total_tokens_seen, total_cards, cards_per_hour,
-      words_per_min, lookup_hit_rate
+      words_per_min, lookup_hit_rate, CREATED_DATE, LAST_UPDATE_DATE
     )
     SELECT
       CAST(s.started_at_ms / 86400000 AS INTEGER) AS rollup_day,
@@ -61,17 +63,31 @@ export function runRollupMaintenance(db: DatabaseSync): void {
         WHEN COALESCE(SUM(t.lookup_count), 0) > 0
           THEN CAST(COALESCE(SUM(t.lookup_hits), 0) AS REAL) / CAST(SUM(t.lookup_count) AS REAL)
         ELSE NULL
-      END AS lookup_hit_rate
+      END AS lookup_hit_rate,
+      ${rollupNowMs} AS CREATED_DATE,
+      ${rollupNowMs} AS LAST_UPDATE_DATE
     FROM imm_sessions s
     JOIN imm_session_telemetry t
       ON t.session_id = s.session_id
     GROUP BY rollup_day, s.video_id
+    ON CONFLICT (rollup_day, video_id) DO UPDATE SET
+      total_sessions = excluded.total_sessions,
+      total_active_min = excluded.total_active_min,
+      total_lines_seen = excluded.total_lines_seen,
+      total_words_seen = excluded.total_words_seen,
+      total_tokens_seen = excluded.total_tokens_seen,
+      total_cards = excluded.total_cards,
+      cards_per_hour = excluded.cards_per_hour,
+      words_per_min = excluded.words_per_min,
+      lookup_hit_rate = excluded.lookup_hit_rate,
+      CREATED_DATE = COALESCE(imm_daily_rollups.CREATED_DATE, excluded.CREATED_DATE),
+      LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
   `);
 
   db.exec(`
-    INSERT OR REPLACE INTO imm_monthly_rollups (
+    INSERT INTO imm_monthly_rollups (
       rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
-      total_words_seen, total_tokens_seen, total_cards
+      total_words_seen, total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
     )
     SELECT
       CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch') AS INTEGER) AS rollup_month,
@@ -81,10 +97,21 @@ export function runRollupMaintenance(db: DatabaseSync): void {
       COALESCE(SUM(t.lines_seen), 0) AS total_lines_seen,
       COALESCE(SUM(t.words_seen), 0) AS total_words_seen,
       COALESCE(SUM(t.tokens_seen), 0) AS total_tokens_seen,
-      COALESCE(SUM(t.cards_mined), 0) AS total_cards
+      COALESCE(SUM(t.cards_mined), 0) AS total_cards,
+      ${rollupNowMs} AS CREATED_DATE,
+      ${rollupNowMs} AS LAST_UPDATE_DATE
     FROM imm_sessions s
     JOIN imm_session_telemetry t
       ON t.session_id = s.session_id
     GROUP BY rollup_month, s.video_id
+    ON CONFLICT (rollup_month, video_id) DO UPDATE SET
+      total_sessions = excluded.total_sessions,
+      total_active_min = excluded.total_active_min,
+      total_lines_seen = excluded.total_lines_seen,
+      total_words_seen = excluded.total_words_seen,
+      total_tokens_seen = excluded.total_tokens_seen,
+      total_cards = excluded.total_cards,
+      CREATED_DATE = COALESCE(imm_monthly_rollups.CREATED_DATE, excluded.CREATED_DATE),
+      LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
   `);
 }
