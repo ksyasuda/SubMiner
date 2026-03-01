@@ -55,6 +55,19 @@ function makeDepsFromYomitanTokens(
   });
 }
 
+function createDeferred<T>() {
+  let resolve: ((value: T) => void) | null = null;
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return {
+    promise,
+    resolve: (value: T) => {
+      resolve?.(value);
+    },
+  };
+}
+
 test('tokenizeSubtitle assigns JLPT level to parsed Yomitan tokens', async () => {
   const result = await tokenizeSubtitle(
     '猫です',
@@ -215,6 +228,72 @@ test('tokenizeSubtitle loads frequency ranks from Yomitan installed dictionaries
   );
 
   assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 77);
+});
+
+test('tokenizeSubtitle starts Yomitan frequency lookup and MeCab enrichment in parallel', async () => {
+  const frequencyDeferred = createDeferred<unknown[]>();
+  const mecabDeferred = createDeferred<null>();
+  let frequencyRequested = false;
+  let mecabRequested = false;
+
+  const pendingResult = tokenizeSubtitle(
+    '猫',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                frequencyRequested = true;
+                return await frequencyDeferred.promise;
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '猫',
+                        reading: 'ねこ',
+                        headwords: [[{ term: '猫' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+      tokenizeWithMecab: async () => {
+        mecabRequested = true;
+        return await mecabDeferred.promise;
+      },
+    }),
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(frequencyRequested, true);
+  assert.equal(mecabRequested, true);
+
+  frequencyDeferred.resolve([
+    {
+      term: '猫',
+      reading: 'ねこ',
+      dictionary: 'freq-dict',
+      frequency: 77,
+      displayValue: '77',
+      displayValueParsed: true,
+    },
+  ]);
+  mecabDeferred.resolve(null);
+
+  const result = await pendingResult;
   assert.equal(result.tokens?.[0]?.frequencyRank, 77);
 });
 

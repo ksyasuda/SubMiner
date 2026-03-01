@@ -129,3 +129,98 @@ test('requestYomitanTermFrequencies returns normalized frequency entries', async
   assert.match(scriptValue, /getTermFrequencies/);
   assert.match(scriptValue, /optionsGetFull/);
 });
+
+test('requestYomitanTermFrequencies caches profile metadata between calls', async () => {
+  const scripts: string[] = [];
+  const deps = createDeps(async (script) => {
+    scripts.push(script);
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [{ name: 'freq-dict', enabled: true, id: 0 }],
+            },
+          },
+        ],
+      };
+    }
+
+    if (script.includes('"term":"犬"')) {
+      return [
+        {
+          term: '犬',
+          reading: 'いぬ',
+          dictionary: 'freq-dict',
+          frequency: 12,
+          displayValue: '12',
+          displayValueParsed: true,
+        },
+      ];
+    }
+
+    return [
+      {
+        term: '猫',
+        reading: 'ねこ',
+        dictionary: 'freq-dict',
+        frequency: 77,
+        displayValue: '77',
+        displayValueParsed: true,
+      },
+    ];
+  });
+
+  await requestYomitanTermFrequencies([{ term: '猫', reading: 'ねこ' }], deps, {
+    error: () => undefined,
+  });
+  await requestYomitanTermFrequencies([{ term: '犬', reading: 'いぬ' }], deps, {
+    error: () => undefined,
+  });
+
+  const optionsCalls = scripts.filter((script) => script.includes('optionsGetFull')).length;
+  assert.equal(optionsCalls, 1);
+});
+
+test('requestYomitanTermFrequencies caches repeated term+reading lookups', async () => {
+  const scripts: string[] = [];
+  const deps = createDeps(async (script) => {
+    scripts.push(script);
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [{ name: 'freq-dict', enabled: true, id: 0 }],
+            },
+          },
+        ],
+      };
+    }
+
+    return [
+      {
+        term: '猫',
+        reading: 'ねこ',
+        dictionary: 'freq-dict',
+        frequency: 77,
+        displayValue: '77',
+        displayValueParsed: true,
+      },
+    ];
+  });
+
+  await requestYomitanTermFrequencies([{ term: '猫', reading: 'ねこ' }], deps, {
+    error: () => undefined,
+  });
+  await requestYomitanTermFrequencies([{ term: '猫', reading: 'ねこ' }], deps, {
+    error: () => undefined,
+  });
+
+  const frequencyCalls = scripts.filter((script) => script.includes('getTermFrequencies')).length;
+  assert.equal(frequencyCalls, 1);
+});

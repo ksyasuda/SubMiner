@@ -433,33 +433,41 @@ async function parseWithYomitanInternalParser(
     logSelectedYomitanGroups(text, selectedTokens);
   }
 
-  let yomitanRankByTerm = new Map<string, number>();
-  if (options.frequencyEnabled) {
-    const frequencyMatchMode = options.frequencyMatchMode;
-    const termReadingList = buildYomitanFrequencyTermReadingList(
-      selectedTokens,
-      frequencyMatchMode,
-    );
-    const yomitanFrequencies = await requestYomitanTermFrequencies(termReadingList, deps, logger);
-    yomitanRankByTerm = buildYomitanFrequencyRankMap(yomitanFrequencies);
-  }
+  const frequencyRankPromise: Promise<Map<string, number>> = options.frequencyEnabled
+    ? (async () => {
+        const frequencyMatchMode = options.frequencyMatchMode;
+        const termReadingList = buildYomitanFrequencyTermReadingList(
+          selectedTokens,
+          frequencyMatchMode,
+        );
+        const yomitanFrequencies = await requestYomitanTermFrequencies(termReadingList, deps, logger);
+        return buildYomitanFrequencyRankMap(yomitanFrequencies);
+      })()
+    : Promise.resolve(new Map<string, number>());
 
-  let enrichedTokens = selectedTokens;
-  if (needsMecabPosEnrichment(options)) {
-    try {
-      const mecabTokens = await deps.tokenizeWithMecab(text);
-      const enrichTokensWithMecab = deps.enrichTokensWithMecab ?? enrichTokensWithMecabAsync;
-      enrichedTokens = await enrichTokensWithMecab(enrichedTokens, mecabTokens);
-    } catch (err) {
-      const error = err as Error;
-      logger.warn(
-        'Failed to enrich Yomitan tokens with MeCab POS:',
-        error.message,
-        `tokenCount=${selectedTokens.length}`,
-        `textLength=${text.length}`,
-      );
-    }
-  }
+  const mecabEnrichmentPromise: Promise<MergedToken[]> = needsMecabPosEnrichment(options)
+    ? (async () => {
+        try {
+          const mecabTokens = await deps.tokenizeWithMecab(text);
+          const enrichTokensWithMecab = deps.enrichTokensWithMecab ?? enrichTokensWithMecabAsync;
+          return await enrichTokensWithMecab(selectedTokens, mecabTokens);
+        } catch (err) {
+          const error = err as Error;
+          logger.warn(
+            'Failed to enrich Yomitan tokens with MeCab POS:',
+            error.message,
+            `tokenCount=${selectedTokens.length}`,
+            `textLength=${text.length}`,
+          );
+          return selectedTokens;
+        }
+      })()
+    : Promise.resolve(selectedTokens);
+
+  const [yomitanRankByTerm, enrichedTokens] = await Promise.all([
+    frequencyRankPromise,
+    mecabEnrichmentPromise,
+  ]);
 
   if (options.frequencyEnabled) {
     return applyFrequencyRanks(
