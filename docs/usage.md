@@ -55,7 +55,8 @@ subminer jellyfin                 # Open Jellyfin setup window (subcommand form)
 subminer jellyfin -l --server http://127.0.0.1:8096 --username me --password 'secret'
 subminer jellyfin --logout        # Clear stored Jellyfin token/session data
 subminer jellyfin -p              # Interactive Jellyfin library/item picker + playback
-subminer jellyfin -d              # Jellyfin cast-discovery mode (foreground app)
+subminer jellyfin -d              # Jellyfin cast-discovery mode (background tray app)
+subminer app --stop               # Stop background app (including Jellyfin cast broadcast)
 subminer doctor                   # Dependency + config + socket diagnostics
 subminer config path              # Print active config path
 subminer config show              # Print active config contents
