@@ -95,7 +95,7 @@ const demoAssetVersion = '20260223-2';
       <source :src="`/assets/minecard.webm?v=${demoAssetVersion}`" type="video/webm" />
       <source :src="`/assets/minecard.mp4?v=${demoAssetVersion}`" type="video/mp4" />
       <a :href="`/assets/minecard.webm?v=${demoAssetVersion}`" target="_blank" rel="noreferrer">
-        <img :src="`/assets/minecard.gif?v=${demoAssetVersion}`" alt="SubMiner demo GIF fallback" style="width: 100%; height: auto;" />
+        <img :src="`/assets/minecard.webp?v=${demoAssetVersion}`" alt="SubMiner demo Animated fallback" style="width: 100%; height: auto;" />
       </a>
     </video>
   </section>

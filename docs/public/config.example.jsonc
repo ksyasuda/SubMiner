@@ -141,7 +141,7 @@
       "bandedColors": ["#ed8796", "#f5a97f", "#f9e2af", "#a6e3a1", "#8aadf4"], // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
     }, // Frequency dictionary setting.
     "secondary": {
-      "fontFamily": "Manrope, Inter", // Font family setting.
+      "fontFamily": "Inter, Noto Sans, Helvetica Neue, sans-serif", // Font family setting.
       "fontSize": 24, // Font size setting.
       "fontColor": "#cad3f5", // Font color setting.
       "lineHeight": 1.35, // Line height setting.

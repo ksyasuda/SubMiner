@@ -19,6 +19,6 @@ test('docs demo media uses shared cache-busting asset version token', () => {
     '<a :href="`/assets/minecard.webm?v=${demoAssetVersion}`" target="_blank" rel="noreferrer">',
   );
   expect(docsIndexContents).toContain(
-    '<img :src="`/assets/minecard.gif?v=${demoAssetVersion}`" alt="SubMiner demo GIF fallback" style="width: 100%; height: auto;" />',
+    '<img :src="`/assets/minecard.webp?v=${demoAssetVersion}`" alt="SubMiner demo Animated fallback" style="width: 100%; height: auto;" />',
   );
 });
