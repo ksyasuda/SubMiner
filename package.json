@@ -12,6 +12,7 @@
     "build": "tsc && bun run build:renderer && cp src/renderer/index.html src/renderer/style.css dist/renderer/ && cp -r src/renderer/fonts dist/renderer/ && bash scripts/build-macos-helper.sh",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js --sourcemap",
     "docs:dev": "VITE_EXTRA_EXTENSIONS=jsonc vitepress dev docs --host 0.0.0.0 --port 5173 --strictPort",
+    "docs:watch": "bunx concurrently -n docs,backlog \"bun run docs:dev\" \"backlog browser\"",
     "docs:build": "VITE_EXTRA_EXTENSIONS=jsonc vitepress build docs",
     "docs:preview": "VITE_EXTRA_EXTENSIONS=jsonc vitepress preview docs --host 0.0.0.0 --port 4173 --strictPort",
     "format": "prettier --write .",

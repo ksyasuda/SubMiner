@@ -1,4 +1,4 @@
-.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop
+.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config docs-dev docs docs-preview docs-watch dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
@@ -57,6 +57,7 @@ help:
 		"  dev-toggle       Toggle overlay in a running local Electron app" \
 		"  dev-stop         Stop a running local Electron app" \
 		"  docs-dev         Run VitePress docs dev server" \
+		"  docs-watch  Run VitePress docs dev + Backlog browser together" \
 		"  docs            Build VitePress static docs" \
 		"  docs-preview     Preview built VitePress docs" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
@@ -159,6 +160,9 @@ generate-example-config: ensure-bun
 
 docs-dev: ensure-bun
 	@bun run docs:dev
+
+docs-watch: ensure-bun
+	@bun run docs:watch
 
 docs: ensure-bun
 	@bun run docs:build
