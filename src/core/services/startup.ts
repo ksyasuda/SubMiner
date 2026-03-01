@@ -121,6 +121,7 @@ export interface AppReadyRuntimeDeps {
   logDebug?: (message: string) => void;
   onCriticalConfigErrors?: (errors: string[]) => void;
   now?: () => number;
+  shouldSkipHeavyStartup?: () => boolean;
 }
 
 const REQUIRED_ANKI_FIELD_MAPPING_KEYS = [
@@ -168,6 +169,13 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   const now = deps.now ?? (() => Date.now());
   const startupStartedAtMs = now();
   deps.logDebug?.('App-ready critical path started.');
+
+  if (deps.shouldSkipHeavyStartup?.()) {
+    await deps.loadYomitanExtension();
+    deps.handleInitialArgs();
+    deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
+    return;
+  }
 
   deps.reloadConfig();
   const config = deps.getResolvedConfig();

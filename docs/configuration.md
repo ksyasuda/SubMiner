@@ -97,6 +97,7 @@ The configuration file includes several main sections:
 **Anki Integration**
 
 - [**AnkiConnect**](#ankiconnect) - Automatic Anki card creation with media
+- [**Kiku/Lapis Integration**](#kiku-lapis-integration) - Sentence cards and duplicate handling for Kiku/Lapis note types
 - [**N+1 Word Highlighting**](#n1-word-highlighting) - Known-word cache and single-target highlighting
 - [**Field Grouping Modes**](#field-grouping-modes) - Kiku/Lapis duplicate card merging
 
@@ -662,13 +663,28 @@ This example is intentionally compact. The option table below documents availabl
 | `isLapis`                               | object                                  | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel }`. Sentence/audio field names are fixed to `Sentence` and `SentenceAudio`.  |
 | `isKiku`                                | object                                  | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)     |
 
-**Kiku / Lapis Note Type Support:**
+### Kiku/Lapis Integration
 
-SubMiner supports the [Lapis](https://github.com/donkuri/lapis) and [Kiku](https://kiku.youyoumu.my.id/) note types. Both `isLapis.enabled` and `isKiku.enabled` can be true; Kiku takes precedence for grouping behavior, while sentence-card model/field settings come from `isLapis`.
+SubMiner is intentionally built for [Kiku](https://kiku.youyoumu.my.id/) and [Lapis](https://github.com/donkuri/lapis) workflows, with note-type-specific behavior built into Anki settings.
 
-When enabled, sentence cards automatically set `IsSentenceCard` to `"x"` and populate the `Expression` field. Audio cards set `IsAudioCard` to `"x"`.
+```jsonc
+"ankiConnect": {
+  "isLapis": {
+    "enabled": true,
+    "sentenceCardModel": "Japanese sentences"
+  },
+  "isKiku": {
+    "enabled": true,
+    "fieldGrouping": "manual",
+    "deleteDuplicateInAuto": true
+  }
+}
+```
 
-Kiku extends Lapis with **field grouping** — when a duplicate card is detected (same Word/Expression), SubMiner merges the two cards' content into one using Kiku's `data-group-id` HTML structure, organizing each mining instance into separate pages within the note.
+- Enable `isLapis` to mine dedicated sentence cards. SubMiner sets `IsSentenceCard` to `"x"` and fills the sentence fields for the configured model.
+- Enable `isKiku` to turn on duplicate merge behavior for mined Word/Expression hits.
+- When both are enabled, Kiku behavior is applied for grouping while sentence-card model settings are still read from `isLapis`.
+- `isKiku.fieldGrouping` supports `disabled`, `auto`, and `manual` merge modes; see [Field Grouping Modes](#field-grouping-modes).
 
 ### N+1 Word Highlighting
 

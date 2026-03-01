@@ -66,6 +66,55 @@ test('runAppReadyRuntime starts websocket in auto mode when plugin missing', asy
   );
 });
 
+test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns true', async () => {
+  const { deps, calls } = makeDeps({
+    shouldSkipHeavyStartup: () => true,
+    reloadConfig: () => calls.push('reloadConfig'),
+    getResolvedConfig: () => {
+      calls.push('getResolvedConfig');
+      return {
+        websocket: { enabled: 'auto' },
+        secondarySub: {},
+      };
+    },
+    getConfigWarnings: () => {
+      calls.push('getConfigWarnings');
+      return [];
+    },
+    setLogLevel: (level, source) => calls.push(`setLogLevel:${level}:${source}`),
+    initRuntimeOptionsManager: () => calls.push('initRuntimeOptionsManager'),
+    startBackgroundWarmups: () => calls.push('startBackgroundWarmups'),
+    loadSubtitlePosition: () => calls.push('loadSubtitlePosition'),
+    resolveKeybindings: () => calls.push('resolveKeybindings'),
+    createMpvClient: () => calls.push('createMpvClient'),
+    logConfigWarning: () => calls.push('logConfigWarning'),
+    startJellyfinRemoteSession: async () => {
+      calls.push('startJellyfinRemoteSession');
+    },
+    createImmersionTracker: () => calls.push('createImmersionTracker'),
+    handleInitialArgs: () => calls.push('handleInitialArgs'),
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assert.equal(calls.includes('reloadConfig'), false);
+  assert.equal(calls.includes('getResolvedConfig'), false);
+  assert.equal(calls.includes('getConfigWarnings'), false);
+  assert.equal(calls.includes('setLogLevel:warn:config'), false);
+  assert.equal(calls.includes('startBackgroundWarmups'), false);
+  assert.equal(calls.includes('loadSubtitlePosition'), false);
+  assert.equal(calls.includes('resolveKeybindings'), false);
+  assert.equal(calls.includes('createMpvClient'), false);
+  assert.equal(calls.includes('initRuntimeOptionsManager'), false);
+  assert.equal(calls.includes('createImmersionTracker'), false);
+  assert.equal(calls.includes('startJellyfinRemoteSession'), false);
+  assert.equal(calls.includes('logConfigWarning'), false);
+  assert.equal(calls.includes('handleInitialArgs'), true);
+  assert.equal(calls.includes('loadYomitanExtension'), true);
+  assert.equal(calls[0], 'loadYomitanExtension');
+  assert.equal(calls[calls.length - 1], 'handleInitialArgs');
+});
+
 test('runAppReadyRuntime skips Jellyfin remote startup when dependency is not wired', async () => {
   const { deps, calls } = makeDeps({
     startJellyfinRemoteSession: undefined,

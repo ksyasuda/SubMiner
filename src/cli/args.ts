@@ -295,6 +295,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.start ||
     args.toggle ||
     args.toggleVisibleOverlay ||
+    args.settings ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
     args.mineSentence ||
@@ -312,6 +313,50 @@ export function shouldStartApp(args: CliArgs): boolean {
     return true;
   }
   return false;
+}
+
+export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
+  return (
+    args.settings &&
+    !args.background &&
+    !args.start &&
+    !args.stop &&
+    !args.toggle &&
+    !args.toggleVisibleOverlay &&
+    !args.show &&
+    !args.hide &&
+    !args.showVisibleOverlay &&
+    !args.hideVisibleOverlay &&
+    !args.copySubtitle &&
+    !args.copySubtitleMultiple &&
+    !args.mineSentence &&
+    !args.mineSentenceMultiple &&
+    !args.updateLastCardFromClipboard &&
+    !args.refreshKnownWords &&
+    !args.toggleSecondarySub &&
+    !args.triggerFieldGrouping &&
+    !args.triggerSubsync &&
+    !args.markAudioCard &&
+    !args.openRuntimeOptions &&
+    !args.anilistStatus &&
+    !args.anilistLogout &&
+    !args.anilistSetup &&
+    !args.anilistRetryQueue &&
+    !args.jellyfin &&
+    !args.jellyfinLogin &&
+    !args.jellyfinLogout &&
+    !args.jellyfinLibraries &&
+    !args.jellyfinItems &&
+    !args.jellyfinSubtitles &&
+    !args.jellyfinPlay &&
+    !args.jellyfinRemoteAnnounce &&
+    !args.texthooker &&
+    !args.help &&
+    !args.autoStartOverlay &&
+    !args.generateConfig &&
+    !args.backupOverwrite &&
+    !args.debug
+  );
 }
 
 export function commandNeedsOverlayRuntime(args: CliArgs): boolean {

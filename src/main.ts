@@ -101,7 +101,12 @@ import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
 import { createLogger, setLogLevel, type LogLevelSource } from './logger';
-import { commandNeedsOverlayRuntime, parseArgs, shouldStartApp } from './cli/args';
+import {
+  commandNeedsOverlayRuntime,
+  parseArgs,
+  shouldRunSettingsOnlyStartup,
+  shouldStartApp,
+} from './cli/args';
 import type { CliArgs, CliCommandSource } from './cli/args';
 import { printHelp } from './cli/help';
 import {
@@ -2163,6 +2168,8 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
         : configDerivedRuntime.shouldAutoInitializeOverlayRuntimeFromConfig(),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     handleInitialArgs: () => handleInitialArgs(),
+    shouldSkipHeavyStartup: () =>
+      Boolean(appState.initialArgs && shouldRunSettingsOnlyStartup(appState.initialArgs)),
     createImmersionTracker: () => {
       ensureImmersionTrackerStarted();
     },

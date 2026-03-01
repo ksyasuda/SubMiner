@@ -14,7 +14,7 @@
 
 <div align="center">
 
-[![SubMiner demo (GIF preview)](./assets/minecard.gif)](./assets/minecard.mp4)
+[![SubMiner demo (Animated preview)](./assets/minecard.webp)](./assets/minecard.mp4)
 
 </div>
 
@@ -69,7 +69,7 @@ mkdir -p ~/.config/SubMiner && cp /tmp/config.example.jsonc ~/.config/SubMiner/c
 ### 3. Set up Yomitan Dictionaries
 
 ```bash
-subminer app --start --yomitan
+subminer app --yomitan
 ```
 
 ### 4. Mine

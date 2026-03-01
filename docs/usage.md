@@ -1,11 +1,15 @@
 # Usage
 
+> [!IMPORTANT]
+> SubMiner requires the bundled Yomitan instance to have at least one dictionary imported for lookups to work.
+> See [Yomitan setup](#yomitan-setup) for details.
+
 There are two ways to use SubMiner — the `subminer` wrapper script or the mpv plugin:
 
-| Approach            | Best For                                                                                                                                                                                     |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Approach            | Best For                                                                                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, and manages app commands. With default plugin settings, overlay auto-starts visible and playback resumes after annotation readiness. |
-| **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control overlay visibility. Requires `--input-ipc-server=/tmp/subminer-socket`. |
+| **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control overlay visibility. Requires `--input-ipc-server=/tmp/subminer-socket`.                             |
 
 You can use both together—install the plugin for on-demand control, but use `subminer` when you want the streamlined workflow.
 
@@ -146,6 +150,14 @@ secondary-sub-visibility=no
 ```
 
 `secondary-slang` is not an mpv option; use `slang` with `sid=auto` / `secondary-sid=auto` instead.
+
+### Yomitan setup
+
+SubMiner includes a bundled Yomitan extension for overlay word lookup. This bundled extension is separate from any Yomitan browser extension you may have installed.
+
+For SubMiner overlay lookups to work, open Yomitan settings (`subminer app --settings` or `SubMiner.AppImage --settings`) and import at least one dictionary in the bundled Yomitan instance.
+
+If you also use Yomitan in a browser, configure that browser profile separately; it does not inherit dictionaries or settings from the bundled instance.
 
 ### YouTube Playback
 

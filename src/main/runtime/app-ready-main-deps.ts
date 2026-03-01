@@ -31,5 +31,6 @@ export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeD
     onCriticalConfigErrors: deps.onCriticalConfigErrors,
     logDebug: deps.logDebug,
     now: deps.now,
+    shouldSkipHeavyStartup: deps.shouldSkipHeavyStartup,
   });
 }
