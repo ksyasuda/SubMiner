@@ -334,6 +334,30 @@ export interface SubtitleStyleConfig {
   };
 }
 
+export interface TokenPos1ExclusionConfig {
+  defaults?: string[];
+  add?: string[];
+  remove?: string[];
+}
+
+export interface ResolvedTokenPos1ExclusionConfig {
+  defaults: string[];
+  add: string[];
+  remove: string[];
+}
+
+export interface TokenPos2ExclusionConfig {
+  defaults?: string[];
+  add?: string[];
+  remove?: string[];
+}
+
+export interface ResolvedTokenPos2ExclusionConfig {
+  defaults: string[];
+  add: string[];
+  remove: string[];
+}
+
 export type FrequencyDictionaryMode = 'single' | 'banded';
 
 export interface ShortcutsConfig {

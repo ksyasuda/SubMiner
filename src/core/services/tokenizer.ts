@@ -10,6 +10,14 @@ import {
   FrequencyDictionaryLookup,
   JlptLevel,
 } from '../../types';
+import {
+  DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG,
+  resolveAnnotationPos1ExclusionSet,
+} from '../../token-pos1-exclusions';
+import {
+  DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
+  resolveAnnotationPos2ExclusionSet,
+} from '../../token-pos2-exclusions';
 import { selectYomitanParseTokens } from './tokenizer/parser-selection-stage';
 import {
   requestYomitanParseResults,
@@ -78,6 +86,8 @@ interface TokenizerAnnotationOptions {
   frequencyEnabled: boolean;
   frequencyMatchMode: FrequencyDictionaryMatchMode;
   minSentenceWordsForNPlusOne: number | undefined;
+  pos1Exclusions: ReadonlySet<string>;
+  pos2Exclusions: ReadonlySet<string>;
 }
 
 let parserEnrichmentWorkerRuntimeModulePromise:
@@ -87,6 +97,12 @@ let annotationStageModulePromise: Promise<typeof import('./tokenizer/annotation-
 let parserEnrichmentFallbackModulePromise:
   | Promise<typeof import('./tokenizer/parser-enrichment-stage')>
   | null = null;
+const DEFAULT_ANNOTATION_POS1_EXCLUSIONS = resolveAnnotationPos1ExclusionSet(
+  DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG,
+);
+const DEFAULT_ANNOTATION_POS2_EXCLUSIONS = resolveAnnotationPos2ExclusionSet(
+  DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
+);
 
 function getKnownWordLookup(deps: TokenizerServiceDeps, options: TokenizerAnnotationOptions): (text: string) => boolean {
   if (!options.nPlusOneEnabled) {
@@ -96,7 +112,7 @@ function getKnownWordLookup(deps: TokenizerServiceDeps, options: TokenizerAnnota
 }
 
 function needsMecabPosEnrichment(options: TokenizerAnnotationOptions): boolean {
-  return options.jlptEnabled || options.frequencyEnabled;
+  return options.nPlusOneEnabled || options.jlptEnabled || options.frequencyEnabled;
 }
 
 function hasAnyAnnotationEnabled(options: TokenizerAnnotationOptions): boolean {
@@ -389,6 +405,8 @@ function getAnnotationOptions(deps: TokenizerServiceDeps): TokenizerAnnotationOp
     frequencyEnabled: deps.getFrequencyDictionaryEnabled?.() !== false,
     frequencyMatchMode: deps.getFrequencyDictionaryMatchMode?.() ?? 'headword',
     minSentenceWordsForNPlusOne: deps.getMinSentenceWordsForNPlusOne?.(),
+    pos1Exclusions: DEFAULT_ANNOTATION_POS1_EXCLUSIONS,
+    pos2Exclusions: DEFAULT_ANNOTATION_POS2_EXCLUSIONS,
   };
 }
 

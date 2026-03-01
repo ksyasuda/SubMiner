@@ -205,3 +205,171 @@ test('annotateTokens N+1 minimum sentence words counts only eligible word tokens
   assert.equal(result[2]?.isKnown, true);
   assert.equal(result[0]?.isNPlusOneTarget, false);
 });
+
+test('annotateTokens applies configured pos1 exclusions to both frequency and N+1', () => {
+  const tokens = [
+    makeToken({
+      surface: '猫',
+      headword: '猫',
+      pos1: '名詞',
+      frequencyRank: 21,
+      startPos: 0,
+      endPos: 1,
+    }),
+    makeToken({
+      surface: '走る',
+      headword: '走る',
+      pos1: '動詞',
+      partOfSpeech: PartOfSpeech.verb,
+      startPos: 1,
+      endPos: 3,
+      frequencyRank: 22,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '走る',
+    }),
+    {
+      minSentenceWordsForNPlusOne: 1,
+      pos1Exclusions: new Set(['名詞']),
+    },
+  );
+
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[1]?.frequencyRank, 22);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[1]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens allows previously default-excluded pos1 when removed from effective set', () => {
+  const tokens = [
+    makeToken({
+      surface: 'は',
+      headword: 'は',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '助詞',
+      startPos: 0,
+      endPos: 1,
+      frequencyRank: 8,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+    pos1Exclusions: new Set(),
+  });
+
+  assert.equal(result[0]?.frequencyRank, 8);
+  assert.equal(result[0]?.isNPlusOneTarget, true);
+});
+
+test('annotateTokens excludes default non-independent pos2 from frequency and N+1', () => {
+  const tokens = [
+    makeToken({
+      surface: 'になれば',
+      headword: 'なる',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞',
+      pos2: '非自立',
+      startPos: 0,
+      endPos: 4,
+      frequencyRank: 7,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens excludes likely kana SFX tokens from frequency when POS tags are missing', () => {
+  const tokens = [
+    makeToken({
+      surface: 'ぐわっ',
+      reading: 'ぐわっ',
+      headword: 'ぐわっ',
+      pos1: '',
+      pos2: '',
+      frequencyRank: 12,
+      startPos: 0,
+      endPos: 3,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, undefined);
+});
+
+test('annotateTokens allows previously default-excluded pos2 when removed from effective set', () => {
+  const tokens = [
+    makeToken({
+      surface: 'になれば',
+      headword: 'なる',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞',
+      pos2: '非自立',
+      startPos: 0,
+      endPos: 4,
+      frequencyRank: 9,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+    pos2Exclusions: new Set(),
+  });
+
+  assert.equal(result[0]?.frequencyRank, 9);
+  assert.equal(result[0]?.isNPlusOneTarget, true);
+});
+
+test('annotateTokens keeps composite tokens when any component pos tag is content-bearing', () => {
+  const tokens = [
+    makeToken({
+      surface: 'になれば',
+      headword: 'なる',
+      pos1: '助詞|動詞',
+      pos2: '格助詞|自立|接続助詞',
+      startPos: 0,
+      endPos: 4,
+      frequencyRank: 5,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, 5);
+  assert.equal(result[0]?.isNPlusOneTarget, true);
+});
+
+test('annotateTokens excludes composite tokens when all component pos tags are excluded', () => {
+  const tokens = [
+    makeToken({
+      surface: 'けど',
+      headword: 'けど',
+      pos1: '助詞|助詞',
+      pos2: '接続助詞|終助詞',
+      startPos: 0,
+      endPos: 2,
+      frequencyRank: 6,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+});

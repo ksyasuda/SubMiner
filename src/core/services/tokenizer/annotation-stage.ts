@@ -1,5 +1,13 @@
 import { markNPlusOneTargets } from '../../../token-merger';
 import {
+  DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG,
+  resolveAnnotationPos1ExclusionSet,
+} from '../../../token-pos1-exclusions';
+import {
+  DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
+  resolveAnnotationPos2ExclusionSet,
+} from '../../../token-pos2-exclusions';
+import {
   JlptLevel,
   MergedToken,
   NPlusOneMatchMode,
@@ -28,6 +36,8 @@ export interface AnnotationStageOptions {
   jlptEnabled?: boolean;
   frequencyEnabled?: boolean;
   minSentenceWordsForNPlusOne?: number;
+  pos1Exclusions?: ReadonlySet<string>;
+  pos2Exclusions?: ReadonlySet<string>;
 }
 
 function resolveKnownWordText(
@@ -53,22 +63,85 @@ function applyKnownWordMarking(
   });
 }
 
-function isFrequencyExcludedByPos(token: MergedToken): boolean {
-  if (
-    token.partOfSpeech === PartOfSpeech.particle ||
-    token.partOfSpeech === PartOfSpeech.bound_auxiliary
-  ) {
+function normalizePos1Tag(pos1: string | undefined): string {
+  return typeof pos1 === 'string' ? pos1.trim() : '';
+}
+
+function isExcludedByTagSet(
+  normalizedTag: string,
+  exclusions: ReadonlySet<string>,
+): boolean {
+  if (!normalizedTag) {
+    return false;
+  }
+  const parts = normalizedTag
+    .split('|')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (parts.length === 0) {
+    return false;
+  }
+  return parts.every((part) => exclusions.has(part));
+}
+
+function resolvePos1Exclusions(options: AnnotationStageOptions): ReadonlySet<string> {
+  if (options.pos1Exclusions) {
+    return options.pos1Exclusions;
+  }
+
+  return resolveAnnotationPos1ExclusionSet(DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG);
+}
+
+function resolvePos2Exclusions(options: AnnotationStageOptions): ReadonlySet<string> {
+  if (options.pos2Exclusions) {
+    return options.pos2Exclusions;
+  }
+
+  return resolveAnnotationPos2ExclusionSet(DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG);
+}
+
+function normalizePos2Tag(pos2: string | undefined): string {
+  return typeof pos2 === 'string' ? pos2.trim() : '';
+}
+
+function isFrequencyExcludedByPos(
+  token: MergedToken,
+  pos1Exclusions: ReadonlySet<string>,
+  pos2Exclusions: ReadonlySet<string>,
+): boolean {
+  const normalizedPos1 = normalizePos1Tag(token.pos1);
+  const hasPos1 = normalizedPos1.length > 0;
+  if (isExcludedByTagSet(normalizedPos1, pos1Exclusions)) {
     return true;
   }
 
-  return token.pos1 === '助詞' || token.pos1 === '助動詞';
+  const normalizedPos2 = normalizePos2Tag(token.pos2);
+  const hasPos2 = normalizedPos2.length > 0;
+  if (isExcludedByTagSet(normalizedPos2, pos2Exclusions)) {
+    return true;
+  }
+
+  if (hasPos1 || hasPos2) {
+    return false;
+  }
+
+  if (isLikelyFrequencyNoiseToken(token)) {
+    return true;
+  }
+
+  return (
+    token.partOfSpeech === PartOfSpeech.particle ||
+    token.partOfSpeech === PartOfSpeech.bound_auxiliary
+  );
 }
 
 function applyFrequencyMarking(
   tokens: MergedToken[],
+  pos1Exclusions: ReadonlySet<string>,
+  pos2Exclusions: ReadonlySet<string>,
 ): MergedToken[] {
   return tokens.map((token) => {
-    if (isFrequencyExcludedByPos(token)) {
+    if (isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions)) {
       return { ...token, frequencyRank: undefined };
     }
 
@@ -203,6 +276,101 @@ function isRepeatedKanaSfx(text: string): boolean {
   return topCount >= Math.ceil(chars.length / 2);
 }
 
+function isTrailingSmallTsuKanaSfx(text: string): boolean {
+  const normalized = normalizeJlptTextForExclusion(text);
+  if (!normalized) {
+    return false;
+  }
+
+  const chars = [...normalized];
+  if (chars.length < 2 || chars.length > 4) {
+    return false;
+  }
+
+  if (!chars.every(isKanaChar)) {
+    return false;
+  }
+
+  return chars[chars.length - 1] === 'っ';
+}
+
+function isReduplicatedKanaSfx(text: string): boolean {
+  const normalized = normalizeJlptTextForExclusion(text);
+  if (!normalized) {
+    return false;
+  }
+
+  const chars = [...normalized];
+  if (chars.length < 4 || chars.length % 2 !== 0) {
+    return false;
+  }
+
+  if (!chars.every(isKanaChar)) {
+    return false;
+  }
+
+  const half = chars.length / 2;
+  return chars.slice(0, half).join('') === chars.slice(half).join('');
+}
+
+function hasAdjacentKanaRepeat(text: string): boolean {
+  const normalized = normalizeJlptTextForExclusion(text);
+  if (!normalized) {
+    return false;
+  }
+
+  const chars = [...normalized];
+  if (!chars.every(isKanaChar)) {
+    return false;
+  }
+
+  for (let i = 1; i < chars.length; i += 1) {
+    if (chars[i] === chars[i - 1]) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isLikelyFrequencyNoiseToken(token: MergedToken): boolean {
+  const candidates = [token.headword, token.surface].filter(
+    (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
+  );
+
+  for (const candidate of candidates) {
+    const trimmedCandidate = candidate.trim();
+    if (!trimmedCandidate) {
+      continue;
+    }
+
+    const normalizedCandidate = normalizeJlptTextForExclusion(trimmedCandidate);
+    if (!normalizedCandidate) {
+      continue;
+    }
+
+    if (
+      shouldIgnoreJlptByTerm(trimmedCandidate) ||
+      shouldIgnoreJlptByTerm(normalizedCandidate)
+    ) {
+      return true;
+    }
+
+    if (
+      hasAdjacentKanaRepeat(trimmedCandidate) ||
+      hasAdjacentKanaRepeat(normalizedCandidate) ||
+      isReduplicatedKanaSfx(trimmedCandidate) ||
+      isReduplicatedKanaSfx(normalizedCandidate) ||
+      isTrailingSmallTsuKanaSfx(trimmedCandidate) ||
+      isTrailingSmallTsuKanaSfx(normalizedCandidate)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function isJlptEligibleToken(token: MergedToken): boolean {
   if (token.pos1 && shouldIgnoreJlptForMecabPos1(token.pos1)) {
     return false;
@@ -261,6 +429,8 @@ export function annotateTokens(
   deps: AnnotationStageDeps,
   options: AnnotationStageOptions = {},
 ): MergedToken[] {
+  const pos1Exclusions = resolvePos1Exclusions(options);
+  const pos2Exclusions = resolvePos2Exclusions(options);
   const nPlusOneEnabled = options.nPlusOneEnabled !== false;
   const knownMarkedTokens = nPlusOneEnabled
     ? applyKnownWordMarking(tokens, deps.isKnownWord, deps.knownWordMatchMode)
@@ -273,7 +443,7 @@ export function annotateTokens(
   const frequencyEnabled = options.frequencyEnabled !== false;
   const frequencyMarkedTokens =
     frequencyEnabled
-      ? applyFrequencyMarking(knownMarkedTokens)
+      ? applyFrequencyMarking(knownMarkedTokens, pos1Exclusions, pos2Exclusions)
       : knownMarkedTokens.map((token) => ({
           ...token,
           frequencyRank: undefined,
@@ -303,5 +473,10 @@ export function annotateTokens(
       ? minSentenceWordsForNPlusOne
       : 3;
 
-  return markNPlusOneTargets(jlptMarkedTokens, sanitizedMinSentenceWordsForNPlusOne);
+  return markNPlusOneTargets(
+    jlptMarkedTokens,
+    sanitizedMinSentenceWordsForNPlusOne,
+    pos1Exclusions,
+    pos2Exclusions,
+  );
 }

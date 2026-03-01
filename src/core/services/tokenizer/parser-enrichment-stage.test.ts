@@ -22,12 +22,13 @@ function makeToken(overrides: Partial<MergedToken>): MergedToken {
 test('enrichTokensWithMecabPos1 picks pos1 by best overlap when no surface match exists', () => {
   const tokens = [makeToken({ surface: 'grouped', startPos: 2, endPos: 7 })];
   const mecabTokens = [
-    makeToken({ surface: 'left', startPos: 0, endPos: 4, pos1: 'A' }),
-    makeToken({ surface: 'right', startPos: 2, endPos: 6, pos1: 'B' }),
+    makeToken({ surface: 'left', startPos: 0, endPos: 4, pos1: 'A', pos2: 'L2' }),
+    makeToken({ surface: 'right', startPos: 2, endPos: 6, pos1: 'B', pos2: '非自立' }),
   ];
 
   const enriched = enrichTokensWithMecabPos1(tokens, mecabTokens);
-  assert.equal(enriched[0]?.pos1, 'B');
+  assert.equal(enriched[0]?.pos1, 'A|B');
+  assert.equal(enriched[0]?.pos2, 'L2|非自立');
 });
 
 test('enrichTokensWithMecabPos1 fills missing pos1 using surface-sequence fallback', () => {

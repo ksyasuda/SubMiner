@@ -2038,3 +2038,125 @@ test('tokenizeSubtitle keeps frequency enrichment while n+1 is disabled', async 
   assert.equal(mecabCalls, 1);
   assert.equal(frequencyCalls, 1);
 });
+
+
+test('tokenizeSubtitle excludes default non-independent pos2 from N+1 and frequency annotations', async () => {
+  const result = await tokenizeSubtitle(
+    'になれば',
+    makeDepsFromYomitanTokens([{ surface: 'になれば', reading: 'になれば', headword: 'なる' }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === 'なる' ? 11 : null),
+      tokenizeWithMecab: async () => [
+        {
+          headword: 'なる',
+          surface: 'になれば',
+          reading: 'ニナレバ',
+          startPos: 0,
+          endPos: 4,
+          partOfSpeech: PartOfSpeech.verb,
+          pos1: '動詞',
+          pos2: '非自立',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      getMinSentenceWordsForNPlusOne: () => 1,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
+});
+
+test('tokenizeSubtitle keeps merged token when overlap contains at least one content pos1 tag', async () => {
+  const result = await tokenizeSubtitle(
+    'になれば',
+    makeDepsFromYomitanTokens([{ surface: 'になれば', reading: 'になれば', headword: 'なる' }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === 'なる' ? 13 : null),
+      tokenizeWithMecab: async () => [
+        {
+          headword: 'に',
+          surface: 'に',
+          reading: 'ニ',
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          pos2: '格助詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'なる',
+          surface: 'なれ',
+          reading: 'ナレ',
+          startPos: 1,
+          endPos: 3,
+          partOfSpeech: PartOfSpeech.verb,
+          pos1: '動詞',
+          pos2: '自立',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'ば',
+          surface: 'ば',
+          reading: 'バ',
+          startPos: 3,
+          endPos: 4,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          pos2: '接続助詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      getMinSentenceWordsForNPlusOne: () => 1,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.pos1, '助詞|動詞');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 13);
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, true);
+});
+
+test('tokenizeSubtitle excludes default non-independent pos2 from N+1 when JLPT/frequency are disabled', async () => {
+  let mecabCalls = 0;
+  const result = await tokenizeSubtitle(
+    'になれば',
+    makeDepsFromYomitanTokens([{ surface: 'になれば', reading: 'になれば', headword: 'なる' }], {
+      getJlptEnabled: () => false,
+      getFrequencyDictionaryEnabled: () => false,
+      getMinSentenceWordsForNPlusOne: () => 1,
+      tokenizeWithMecab: async () => {
+        mecabCalls += 1;
+        return [
+          {
+            headword: 'なる',
+            surface: 'になれば',
+            reading: 'ニナレバ',
+            startPos: 0,
+            endPos: 4,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞',
+            pos2: '非自立',
+            isMerged: true,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ];
+      },
+    }),
+  );
+
+  assert.equal(mecabCalls, 1);
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
+});
