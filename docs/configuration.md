@@ -172,11 +172,11 @@ This example is intentionally compact. The option table below documents availabl
 | --------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `enabled`                               | `true`, `false`                         | Enable AnkiConnect integration (default: `false`)                                                                                             |
 | `url`                                   | string (URL)                            | AnkiConnect API URL (default: `http://127.0.0.1:8765`)                                                                                        |
-| `pollingRate`                           | number (ms)                             | How often to check for new cards in polling mode (default: `3000`; ignored for direct proxy `addNote`/`addNotes` updates)                    |
-| `proxy.enabled`                         | `true`, `false`                         | Enable local AnkiConnect-compatible proxy for push-based auto-enrichment (default: `true`)                                                  |
+| `pollingRate`                           | number (ms)                             | How often to check for new cards in polling mode (default: `3000`; ignored for direct proxy `addNote`/`addNotes` updates)                     |
+| `proxy.enabled`                         | `true`, `false`                         | Enable local AnkiConnect-compatible proxy for push-based auto-enrichment (default: `true`)                                                    |
 | `proxy.host`                            | string                                  | Bind host for local AnkiConnect proxy (default: `127.0.0.1`)                                                                                  |
 | `proxy.port`                            | number                                  | Bind port for local AnkiConnect proxy (default: `8766`)                                                                                       |
-| `proxy.upstreamUrl`                     | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                           |
+| `proxy.upstreamUrl`                     | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                            |
 | `tags`                                  | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                 |
 | `deck`                                  | string                                  | Anki deck to monitor for new cards                                                                                                            |
 | `ankiConnect.nPlusOne.decks`            | array of strings                        | Decks used for N+1 known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                            |
@@ -499,6 +499,7 @@ Jellyfin integration is optional and disabled by default. When enabled, SubMiner
 | `transcodeVideoCodec`      | string          | Preferred transcode video codec fallback (default: `h264`)                                                   |
 
 Jellyfin auth session (`accessToken` + `userId`) is stored in local encrypted storage after login/setup.
+
 - On Linux, token storage defaults to `gnome-libsecret` for `safeStorage`. Override with `--password-store=<backend>` on launcher/app invocations when needed.
 
 Launcher subcommands:
@@ -561,21 +562,21 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 
 **Default keybindings:**
 
-| Key               | Command                    | Description                           |
-| ----------------- | -------------------------- | ------------------------------------- |
-| `Space`           | `["cycle", "pause"]`       | Toggle pause                          |
-| `KeyJ`            | `["cycle", "sid"]`         | Cycle primary subtitle track          |
-| `Shift+KeyJ`      | `["cycle", "secondary-sid"]`   | Cycle secondary subtitle track      |
-| `ArrowRight`      | `["seek", 5]`              | Seek forward 5 seconds                |
-| `ArrowLeft`       | `["seek", -5]`             | Seek backward 5 seconds               |
-| `ArrowUp`         | `["seek", 60]`             | Seek forward 60 seconds               |
-| `ArrowDown`       | `["seek", -60]`            | Seek backward 60 seconds              |
-| `Shift+KeyH`      | `["sub-seek", -1]`         | Jump to previous subtitle             |
-| `Shift+KeyL`      | `["sub-seek", 1]`          | Jump to next subtitle                 |
-| `Ctrl+Shift+KeyH` | `["__replay-subtitle"]`    | Replay current subtitle, pause at end |
-| `Ctrl+Shift+KeyL` | `["__play-next-subtitle"]` | Play next subtitle, pause at end      |
-| `KeyQ`            | `["quit"]`                 | Quit mpv                              |
-| `Ctrl+KeyW`       | `["quit"]`                 | Quit mpv                              |
+| Key               | Command                      | Description                           |
+| ----------------- | ---------------------------- | ------------------------------------- |
+| `Space`           | `["cycle", "pause"]`         | Toggle pause                          |
+| `KeyJ`            | `["cycle", "sid"]`           | Cycle primary subtitle track          |
+| `Shift+KeyJ`      | `["cycle", "secondary-sid"]` | Cycle secondary subtitle track        |
+| `ArrowRight`      | `["seek", 5]`                | Seek forward 5 seconds                |
+| `ArrowLeft`       | `["seek", -5]`               | Seek backward 5 seconds               |
+| `ArrowUp`         | `["seek", 60]`               | Seek forward 60 seconds               |
+| `ArrowDown`       | `["seek", -60]`              | Seek backward 60 seconds              |
+| `Shift+KeyH`      | `["sub-seek", -1]`           | Jump to previous subtitle             |
+| `Shift+KeyL`      | `["sub-seek", 1]`            | Jump to next subtitle                 |
+| `Ctrl+Shift+KeyH` | `["__replay-subtitle"]`      | Replay current subtitle, pause at end |
+| `Ctrl+Shift+KeyL` | `["__play-next-subtitle"]`   | Play next subtitle, pause at end      |
+| `KeyQ`            | `["quit"]`                   | Quit mpv                              |
+| `Ctrl+KeyW`       | `["quit"]`                   | Quit mpv                              |
 
 **Custom keybindings example:**
 
@@ -614,7 +615,13 @@ Use the runtime options palette to toggle settings live while SubMiner is runnin
 Current runtime options:
 
 - `ankiConnect.behavior.autoUpdateNewCards` (`On` / `Off`)
+- `ankiConnect.nPlusOne.highlightEnabled` (`On` / `Off`)
+- `subtitleStyle.enableJlpt` (`On` / `Off`)
+- `subtitleStyle.frequencyDictionary.enabled` (`On` / `Off`)
+- `ankiConnect.nPlusOne.matchMode` (`headword` / `surface`)
 - `ankiConnect.isKiku.fieldGrouping` (`auto` / `manual` / `disabled`)
+
+Annotation toggles (`nPlusOne`, `enableJlpt`, `frequencyDictionary.enabled`) only apply to new subtitle lines after the toggle. The currently displayed line is not re-tokenized in place.
 
 Default shortcut: `Ctrl+Shift+O`
 
@@ -680,21 +687,21 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                         | Values           | Description                                                                                                                                   |
-| ------------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `toggleVisibleOverlayGlobal`   | string \| `null` | Global accelerator for toggling visible subtitle overlay (default: `"Alt+Shift+O"`)                                                           |
-| `copySubtitle`                 | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                                                                    |
-| `copySubtitleMultiple`         | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                                                                       |
-| `updateLastCardFromClipboard`  | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                                                                |
-| `triggerFieldGrouping`         | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when `behavior.autoUpdateNewCards` is `false`) |
-| `triggerSubsync`               | string \| `null` | Accelerator for running Subsync (default: `"Ctrl+Alt+S"`)                                                                                     |
-| `mineSentence`                 | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`)                                                |
-| `mineSentenceMultiple`         | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)                                                         |
-| `multiCopyTimeoutMs`           | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                                                               |
-| `toggleSecondarySub`           | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                                       |
-| `markAudioCard`                | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                       |
-| `openRuntimeOptions`           | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                           |
-| `openJimaku`                   | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                     |
+| Option                        | Values           | Description                                                                                                                                   |
+| ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toggleVisibleOverlayGlobal`  | string \| `null` | Global accelerator for toggling visible subtitle overlay (default: `"Alt+Shift+O"`)                                                           |
+| `copySubtitle`                | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                                                                    |
+| `copySubtitleMultiple`        | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                                                                       |
+| `updateLastCardFromClipboard` | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                                                                |
+| `triggerFieldGrouping`        | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when `behavior.autoUpdateNewCards` is `false`) |
+| `triggerSubsync`              | string \| `null` | Accelerator for running Subsync (default: `"Ctrl+Alt+S"`)                                                                                     |
+| `mineSentence`                | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`)                                                |
+| `mineSentenceMultiple`        | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)                                                         |
+| `multiCopyTimeoutMs`          | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                                                               |
+| `toggleSecondarySub`          | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                                       |
+| `markAudioCard`               | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                       |
+| `openRuntimeOptions`          | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                           |
+| `openJimaku`                  | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                     |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 
@@ -750,27 +757,27 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                             | Values      | Description                                                                                                         |
-| ---------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------- |
-| `fontFamily`                       | string      | CSS font-family value (default: `"M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP"`)                         |
-| `fontSize`                         | number (px) | Font size in pixels (default: `35`)                                                                                 |
-| `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                          |
-| `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"600"`)                                              |
-| `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                      |
-| `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                       |
-| `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                            |
-| `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.  |
-| `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                          |
+| Option                             | Values      | Description                                                                                                                |
+| ---------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `fontFamily`                       | string      | CSS font-family value (default: `"M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP"`)                                 |
+| `fontSize`                         | number (px) | Font size in pixels (default: `35`)                                                                                        |
+| `fontColor`                        | string      | Any CSS color value (default: `"#cad3f5"`)                                                                                 |
+| `fontWeight`                       | string      | CSS font-weight, e.g. `"bold"`, `"normal"`, `"600"` (default: `"600"`)                                                     |
+| `fontStyle`                        | string      | `"normal"` or `"italic"` (default: `"normal"`)                                                                             |
+| `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                              |
+| `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                                   |
+| `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.         |
+| `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                                 |
 | `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths. |
-| `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                             |
-| `frequencyDictionary.mode`         | string      | `"single"` or `"banded"` (`"single"` by default)                                                                    |
-| `frequencyDictionary.matchMode`    | string      | `"headword"` or `"surface"` (`"headword"` by default)                                                               |
-| `frequencyDictionary.singleColor`  | string      | Color used for all highlighted tokens in single mode                                                                |
-| `frequencyDictionary.bandedColors` | string[]    | Array of five hex colors used for ranked bands in banded mode                                                       |
-| `nPlusOneColor`                    | string      | Existing n+1 highlight color (default: `#c6a0f6`)                                                                   |
-| `knownWordColor`                   | string      | Existing known-word highlight color (default: `#a6da95`)                                                            |
-| `jlptColors`                       | object      | JLPT level underline colors object (`N1`..`N5`)                                                                     |
-| `secondary`                        | object      | Override any of the above for secondary subtitles (optional)                                                        |
+| `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                                    |
+| `frequencyDictionary.mode`         | string      | `"single"` or `"banded"` (`"single"` by default)                                                                           |
+| `frequencyDictionary.matchMode`    | string      | `"headword"` or `"surface"` (`"headword"` by default)                                                                      |
+| `frequencyDictionary.singleColor`  | string      | Color used for all highlighted tokens in single mode                                                                       |
+| `frequencyDictionary.bandedColors` | string[]    | Array of five hex colors used for ranked bands in banded mode                                                              |
+| `nPlusOneColor`                    | string      | Existing n+1 highlight color (default: `#c6a0f6`)                                                                          |
+| `knownWordColor`                   | string      | Existing known-word highlight color (default: `#a6da95`)                                                                   |
+| `jlptColors`                       | object      | JLPT level underline colors object (`N1`..`N5`)                                                                            |
+| `secondary`                        | object      | Override any of the above for secondary subtitles (optional)                                                               |
 
 JLPT underlining is powered by offline term-meta bank files at runtime. See [`docs/jlpt-vocab-bundle.md`](jlpt-vocab-bundle.md) for required files, source/version refresh steps, and deterministic fallback behavior.
 
@@ -852,13 +859,13 @@ Control which startup warmups run in the background versus deferring to first re
 }
 ```
 
-| Option                   | Values          | Description                                                                                      |
-| ------------------------ | --------------- | ------------------------------------------------------------------------------------------------ |
-| `lowPowerMode`           | `true`, `false` | Defer all warmups except Yomitan extension                                                       |
-| `mecab`                  | `true`, `false` | Warm up MeCab tokenizer at startup                                                               |
-| `yomitanExtension`       | `true`, `false` | Warm up Yomitan extension at startup                                                             |
-| `subtitleDictionaries`   | `true`, `false` | Warm up JLPT + frequency dictionaries at startup                                                 |
-| `jellyfinRemoteSession`  | `true`, `false` | Warm up Jellyfin remote session at startup (still requires Jellyfin remote auto-connect settings) |
+| Option                  | Values          | Description                                                                                       |
+| ----------------------- | --------------- | ------------------------------------------------------------------------------------------------- |
+| `lowPowerMode`          | `true`, `false` | Defer all warmups except Yomitan extension                                                        |
+| `mecab`                 | `true`, `false` | Warm up MeCab tokenizer at startup                                                                |
+| `yomitanExtension`      | `true`, `false` | Warm up Yomitan extension at startup                                                              |
+| `subtitleDictionaries`  | `true`, `false` | Warm up JLPT + frequency dictionaries at startup                                                  |
+| `jellyfinRemoteSession` | `true`, `false` | Warm up Jellyfin remote session at startup (still requires Jellyfin remote auto-connect settings) |
 
 Defaults warm everything (`true` for all toggles, `lowPowerMode: false`). Setting a warmup toggle to `false` defers that work until first usage.
 

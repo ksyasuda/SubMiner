@@ -6,10 +6,10 @@ All shortcuts are configurable in `config.jsonc` under `shortcuts` and `keybindi
 
 These work system-wide regardless of which window has focus.
 
-| Shortcut      | Action                   | Configurable                             |
-| ------------- | ------------------------ | ---------------------------------------- |
-| `Alt+Shift+O` | Toggle visible overlay   | `shortcuts.toggleVisibleOverlayGlobal`   |
-| `Alt+Shift+Y` | Open Yomitan settings    | Fixed (not configurable)                 |
+| Shortcut      | Action                 | Configurable                           |
+| ------------- | ---------------------- | -------------------------------------- |
+| `Alt+Shift+O` | Toggle visible overlay | `shortcuts.toggleVisibleOverlayGlobal` |
+| `Alt+Shift+Y` | Open Yomitan settings  | Fixed (not configurable)               |
 
 ::: tip
 Global shortcuts are registered with the OS. If they conflict with another application, update them in `shortcuts` config and restart SubMiner.
@@ -81,15 +81,15 @@ Enter edit mode to fine-tune subtitle alignment.
 
 When the mpv plugin is installed, all commands use a `y` chord prefix — press `y`, then the second key within 1 second.
 
-| Chord | Action                                  |
-| ----- | --------------------------------------- |
-| `y-y` | Open SubMiner menu (OSD)                |
-| `y-s` | Start overlay                           |
-| `y-S` | Stop overlay                            |
-| `y-t` | Toggle visible overlay                  |
-| `y-o` | Open Yomitan settings                   |
-| `y-r` | Restart overlay                         |
-| `y-c` | Check overlay status                    |
+| Chord | Action                   |
+| ----- | ------------------------ |
+| `y-y` | Open SubMiner menu (OSD) |
+| `y-s` | Start overlay            |
+| `y-S` | Stop overlay             |
+| `y-t` | Toggle visible overlay   |
+| `y-o` | Open Yomitan settings    |
+| `y-r` | Restart overlay          |
+| `y-c` | Check overlay status     |
 
 When the overlay has focus, press `y` then `d` to toggle DevTools (debugging helper).
 

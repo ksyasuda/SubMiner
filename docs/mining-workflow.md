@@ -99,11 +99,11 @@ If you prefer a hands-on approach (animecards-style), you can copy the current s
 
 This is useful when auto-update is disabled or when you want explicit control over which subtitle line gets attached to the card.
 
-| Shortcut                    | Action                                    | Config key                            |
-| --------------------------- | ----------------------------------------- | ------------------------------------- |
-| `Ctrl/Cmd+C`               | Copy current subtitle                     | `shortcuts.copySubtitle`              |
-| `Ctrl/Cmd+Shift+C` + digit | Copy multiple recent lines                | `shortcuts.copySubtitleMultiple`      |
-| `Ctrl/Cmd+V`               | Update last card from clipboard           | `shortcuts.updateLastCardFromClipboard` |
+| Shortcut                   | Action                          | Config key                              |
+| -------------------------- | ------------------------------- | --------------------------------------- |
+| `Ctrl/Cmd+C`               | Copy current subtitle           | `shortcuts.copySubtitle`                |
+| `Ctrl/Cmd+Shift+C` + digit | Copy multiple recent lines      | `shortcuts.copySubtitleMultiple`        |
+| `Ctrl/Cmd+V`               | Update last card from clipboard | `shortcuts.updateLastCardFromClipboard` |
 
 ### 3. Mine Sentence (Hotkey)
 

@@ -147,4 +147,3 @@ FROM imm_monthly_rollups
 ORDER BY rollup_month DESC, video_id DESC
 LIMIT ?;
 ```
-

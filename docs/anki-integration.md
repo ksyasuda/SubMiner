@@ -273,8 +273,8 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
 
 ### What Gets Merged
 
-| Field    | Merge behavior                                                 |
-| -------- | -------------------------------------------------------------- |
+| Field    | Merge behavior                                                  |
+| -------- | --------------------------------------------------------------- |
 | Sentence | Both sentences preserved (exact duplicate text is deduplicated) |
 | Audio    | Both `[sound:...]` entries kept (exact duplicates deduplicated) |
 | Image    | Both images kept (exact duplicates deduplicated)                |
@@ -299,7 +299,7 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
       "enabled": false,
       "host": "127.0.0.1",
       "port": 8766,
-      "upstreamUrl": "http://127.0.0.1:8765"
+      "upstreamUrl": "http://127.0.0.1:8765",
     },
     "fields": {
       "audio": "ExpressionAudio",

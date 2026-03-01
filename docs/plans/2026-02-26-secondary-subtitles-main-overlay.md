@@ -13,10 +13,12 @@
 ### Task 1: Add Regression Tests For Main Overlay Secondary Rendering
 
 **Files:**
+
 - Modify: `src/renderer/subtitle-render.test.ts`
 - Modify: `src/renderer/error-recovery.test.ts`
 
 **Step 1: Write failing tests**
+
 - Assert stylesheet no longer hides secondary subtitles in `layer-visible`.
 - Assert renderer platform resolution ignores legacy `secondary` overlay layer.
 
@@ -28,12 +30,14 @@ Expected: FAIL on secondary subtitle hide rule + legacy secondary layer handling
 ### Task 2: Remove Secondary-Window CSS/Routing Assumptions
 
 **Files:**
+
 - Modify: `src/renderer/style.css`
 - Modify: `src/renderer/utils/platform.ts`
 - Modify: `src/renderer/error-recovery.ts`
 - Modify: `src/types.ts`
 
 **Step 1: Implement minimal changes**
+
 - Remove legacy forced hide on `#secondarySubContainer`.
 - Remove obsolete layer-specific secondary-subtitle CSS blocks.
 - Drop legacy `secondary` overlay-layer parsing path from renderer platform resolver.
@@ -47,6 +51,7 @@ Expected: PASS.
 ### Task 3: Validate Wider Related Surface
 
 **Files:**
+
 - No additional code changes required.
 
 **Step 1: Run broader related tests**

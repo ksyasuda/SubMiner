@@ -2,9 +2,9 @@
 
 There are two ways to use SubMiner — the `subminer` wrapper script or the mpv plugin:
 
-| Approach            | Best For                                                                                                                                                                                                       |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, and manages app commands. Overlay start is explicit (`--start`, `-S`, or `y-s`).                                           |
+| Approach            | Best For                                                                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, and manages app commands. Overlay start is explicit (`--start`, `-S`, or `y-s`).                         |
 | **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control overlay visibility. Requires `--input-ipc-server=/tmp/subminer-socket`. |
 
 You can use both together—install the plugin for on-demand control, but use `subminer` when you want the streamlined workflow.
@@ -167,10 +167,10 @@ Notes:
 
 ### Global Shortcuts
 
-| Keybind       | Action                   |
-| ------------- | ------------------------ |
-| `Alt+Shift+O` | Toggle visible overlay   |
-| `Alt+Shift+Y` | Open Yomitan settings    |
+| Keybind       | Action                 |
+| ------------- | ---------------------- |
+| `Alt+Shift+O` | Toggle visible overlay |
+| `Alt+Shift+Y` | Open Yomitan settings  |
 
 `Alt+Shift+Y` is a fixed global shortcut; it is not part of `shortcuts` config.
 
