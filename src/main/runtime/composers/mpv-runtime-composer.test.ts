@@ -128,6 +128,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
         getJlptLevel: () => null,
         getJlptEnabled: () => true,
         getFrequencyDictionaryEnabled: () => true,
+        getFrequencyDictionaryMatchMode: () => 'headword',
         getFrequencyRank: () => null,
         getYomitanGroupDebugEnabled: () => false,
         getMecabTokenizer: () => null,

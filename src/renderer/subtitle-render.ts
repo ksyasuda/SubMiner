@@ -184,7 +184,7 @@ export function getFrequencyRankLabelForToken(
   token: MergedToken,
   frequencySettings?: Partial<FrequencyRenderSettings>,
 ): string | null {
-  if (token.isKnown || token.isNPlusOneTarget) {
+  if (token.isNPlusOneTarget) {
     return null;
   }
 

@@ -62,6 +62,14 @@ export function buildSubtitleConfigOptionRegistry(
         'single: use one color for all matching tokens. banded: use color ramp by frequency band.',
     },
     {
+      path: 'subtitleStyle.frequencyDictionary.matchMode',
+      kind: 'enum',
+      enumValues: ['headword', 'surface'],
+      defaultValue: defaultConfig.subtitleStyle.frequencyDictionary.matchMode,
+      description:
+        'headword: frequency lookup uses dictionary form. surface: lookup uses subtitle-visible token text.',
+    },
+    {
       path: 'subtitleStyle.frequencyDictionary.singleColor',
       kind: 'string',
       defaultValue: defaultConfig.subtitleStyle.frequencyDictionary.singleColor,

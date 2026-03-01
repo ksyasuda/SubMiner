@@ -94,8 +94,18 @@ test('requestYomitanTermFrequencies returns normalized frequency entries', async
         term: '猫',
         reading: 'ねこ',
         dictionary: 'freq-dict',
+        dictionaryPriority: 0,
         frequency: 77,
         displayValue: '77',
+        displayValueParsed: true,
+      },
+      {
+        term: '鍛える',
+        reading: 'きたえる',
+        dictionary: 'freq-dict',
+        dictionaryPriority: 1,
+        frequency: 46961,
+        displayValue: '2847,46961',
         displayValueParsed: true,
       },
       {
@@ -110,9 +120,12 @@ test('requestYomitanTermFrequencies returns normalized frequency entries', async
     error: () => undefined,
   });
 
-  assert.equal(result.length, 1);
+  assert.equal(result.length, 2);
   assert.equal(result[0]?.term, '猫');
   assert.equal(result[0]?.frequency, 77);
+  assert.equal(result[0]?.dictionaryPriority, 0);
+  assert.equal(result[1]?.term, '鍛える');
+  assert.equal(result[1]?.frequency, 2847);
   assert.match(scriptValue, /getTermFrequencies/);
   assert.match(scriptValue, /optionsGetFull/);
 });

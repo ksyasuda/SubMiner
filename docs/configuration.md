@@ -601,6 +601,8 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 
 **Supported commands:** Any valid mpv JSON IPC command array (`["cycle", "pause"]`, `["seek", 5]`, `["script-binding", "..."]`, etc.)
 
+For subtitle-position and subtitle-track proxy commands (`sub-pos`, `sid`, `secondary-sid`), SubMiner also shows an mpv OSD notification after the command runs.
+
 **See `config.example.jsonc`** for more keybinding examples and configuration options.
 
 ### Runtime Option Palette
@@ -760,6 +762,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths. |
 | `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                             |
 | `frequencyDictionary.mode`         | string      | `"single"` or `"banded"` (`"single"` by default)                                                                    |
+| `frequencyDictionary.matchMode`    | string      | `"headword"` or `"surface"` (`"headword"` by default)                                                               |
 | `frequencyDictionary.singleColor`  | string      | Color used for all highlighted tokens in single mode                                                                |
 | `frequencyDictionary.bandedColors` | string[]    | Array of five hex colors used for ranked bands in banded mode                                                       |
 | `nPlusOneColor`                    | string      | Existing n+1 highlight color (default: `#c6a0f6`)                                                                   |
@@ -776,6 +779,7 @@ Lookup behavior:
 - Set `frequencyDictionary.sourcePath` to a directory containing `term_meta_bank_*.json` for a fully custom source.
 - If `sourcePath` is missing or empty, SubMiner searches default install/runtime locations for `frequency-dictionary` directories (for example app resources, user data paths, and current working directory).
 - In both cases, only terms with a valid `frequencyRank` are used; everything else falls back to no highlighting.
+- `frequencyDictionary.matchMode` controls which token text is used for frequency lookups: `headword` (dictionary form) or `surface` (visible subtitle text).
 
 In `single` mode all highlights use `singleColor`; in `banded` mode tokens map to five ascending color bands from most common to least common inside the topX window.
 

@@ -19,6 +19,7 @@ export interface YomitanTermFrequency {
   term: string;
   reading: string | null;
   dictionary: string;
+  dictionaryPriority: number;
   frequency: number;
   displayValue: string | null;
   displayValueParsed: boolean;
@@ -40,6 +41,32 @@ function asPositiveInteger(value: unknown): number | null {
   return Math.max(1, Math.floor(value));
 }
 
+function parsePositiveFrequencyString(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const numericPrefix = trimmed.match(/^\d[\d,]*/)?.[0];
+  if (!numericPrefix) {
+    return null;
+  }
+
+  const chunks = numericPrefix.split(',');
+  const normalizedNumber =
+    chunks.length <= 1
+      ? chunks[0] ?? ''
+      : chunks.slice(1).every((chunk) => /^\d{3}$/.test(chunk))
+        ? chunks.join('')
+        : (chunks[0] ?? '');
+  const parsed = Number.parseInt(normalizedNumber, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
   if (!isObject(value)) {
     return null;
@@ -47,10 +74,24 @@ function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
 
   const term = typeof value.term === 'string' ? value.term.trim() : '';
   const dictionary = typeof value.dictionary === 'string' ? value.dictionary.trim() : '';
-  const frequency = asPositiveInteger(value.frequency);
+  const rawFrequency = asPositiveInteger(value.frequency);
+  const displayValueRaw =
+    value.displayValue === null
+      ? null
+      : typeof value.displayValue === 'string'
+        ? value.displayValue
+        : null;
+  const parsedDisplayFrequency =
+    displayValueRaw !== null ? parsePositiveFrequencyString(displayValueRaw) : null;
+  const frequency = parsedDisplayFrequency ?? rawFrequency;
   if (!term || !dictionary || frequency === null) {
     return null;
   }
+  const dictionaryPriorityRaw = (value as { dictionaryPriority?: unknown }).dictionaryPriority;
+  const dictionaryPriority =
+    typeof dictionaryPriorityRaw === 'number' && Number.isFinite(dictionaryPriorityRaw)
+      ? Math.max(0, Math.floor(dictionaryPriorityRaw))
+      : Number.MAX_SAFE_INTEGER;
 
   const reading =
     value.reading === null
@@ -58,18 +99,14 @@ function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
       : typeof value.reading === 'string'
         ? value.reading
         : null;
-  const displayValue =
-    value.displayValue === null
-      ? null
-      : typeof value.displayValue === 'string'
-        ? value.displayValue
-        : null;
+  const displayValue = displayValueRaw;
   const displayValueParsed = value.displayValueParsed === true;
 
   return {
     term,
     reading,
     dictionary,
+    dictionaryPriority,
     frequency,
     displayValue,
     displayValueParsed,
@@ -278,20 +315,43 @@ export async function requestYomitanTermFrequencies(
       const optionsFull = await invoke("optionsGetFull", undefined);
       const profileIndex = optionsFull.profileCurrent;
       const dictionariesRaw = optionsFull.profiles?.[profileIndex]?.options?.dictionaries ?? [];
-      const dictionaries = Array.isArray(dictionariesRaw)
+      const dictionaryEntries = Array.isArray(dictionariesRaw)
         ? dictionariesRaw
             .filter((entry) => entry && typeof entry === "object" && entry.enabled === true && typeof entry.name === "string")
-            .map((entry) => entry.name)
+            .map((entry, index) => ({
+              name: entry.name,
+              id: typeof entry.id === "number" && Number.isFinite(entry.id) ? Math.floor(entry.id) : index
+            }))
+            .sort((a, b) => a.id - b.id)
         : [];
+      const dictionaries = dictionaryEntries.map((entry) => entry.name);
+      const dictionaryPriorityByName = dictionaryEntries.reduce((acc, entry, index) => {
+        acc[entry.name] = index;
+        return acc;
+      }, {});
 
       if (dictionaries.length === 0) {
         return [];
       }
 
-      return await invoke("getTermFrequencies", {
+      const rawFrequencies = await invoke("getTermFrequencies", {
         termReadingList: ${JSON.stringify(normalizedTermReadingList)},
         dictionaries
       });
+
+      if (!Array.isArray(rawFrequencies)) {
+        return [];
+      }
+
+      return rawFrequencies
+        .filter((entry) => entry && typeof entry === "object")
+        .map((entry) => ({
+          ...entry,
+          dictionaryPriority:
+            typeof entry.dictionary === "string" && dictionaryPriorityByName[entry.dictionary] !== undefined
+              ? dictionaryPriorityByName[entry.dictionary]
+              : Number.MAX_SAFE_INTEGER
+        }));
     })();
   `;
 

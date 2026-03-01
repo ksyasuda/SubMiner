@@ -177,6 +177,7 @@ export type RuntimeOptionValueType = 'boolean' | 'enum';
 export type RuntimeOptionValue = boolean | string;
 
 export type NPlusOneMatchMode = 'headword' | 'surface';
+export type FrequencyDictionaryMatchMode = 'headword' | 'surface';
 
 export interface RuntimeOptionState {
   id: RuntimeOptionId;
@@ -312,6 +313,7 @@ export interface SubtitleStyleConfig {
     sourcePath?: string;
     topX?: number;
     mode?: FrequencyDictionaryMode;
+    matchMode?: FrequencyDictionaryMatchMode;
     singleColor?: string;
     bandedColors?: [string, string, string, string, string];
   };
@@ -536,6 +538,7 @@ export interface ResolvedConfig {
       sourcePath: string;
       topX: number;
       mode: FrequencyDictionaryMode;
+      matchMode: FrequencyDictionaryMatchMode;
       singleColor: string;
       bandedColors: [string, string, string, string, string];
     };

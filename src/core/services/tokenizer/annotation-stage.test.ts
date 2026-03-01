@@ -51,15 +51,15 @@ test('annotateTokens known-word match mode uses headword vs surface', () => {
 });
 
 test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 exclusions', () => {
-  const lookupCalls: string[] = [];
   const tokens = [
-    makeToken({ surface: 'は', headword: 'は', partOfSpeech: PartOfSpeech.particle }),
+    makeToken({ surface: 'は', headword: 'は', partOfSpeech: PartOfSpeech.particle, frequencyRank: 3 }),
     makeToken({
       surface: 'です',
       headword: 'です',
       partOfSpeech: PartOfSpeech.bound_auxiliary,
       startPos: 1,
       endPos: 3,
+      frequencyRank: 4,
     }),
     makeToken({
       surface: 'の',
@@ -68,6 +68,7 @@ test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 ex
       pos1: '助詞',
       startPos: 3,
       endPos: 4,
+      frequencyRank: 5,
     }),
     makeToken({
       surface: '猫',
@@ -75,45 +76,36 @@ test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 ex
       partOfSpeech: PartOfSpeech.noun,
       startPos: 4,
       endPos: 5,
+      frequencyRank: 11,
     }),
   ];
 
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      getFrequencyRank: (text) => {
-        lookupCalls.push(text);
-        return text === '猫' ? 11 : 999;
-      },
-    }),
-  );
+  const result = annotateTokens(tokens, makeDeps());
 
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[1]?.frequencyRank, undefined);
   assert.equal(result[2]?.frequencyRank, undefined);
   assert.equal(result[3]?.frequencyRank, 11);
-  assert.deepEqual(lookupCalls, ['猫']);
 });
 
-test('annotateTokens preserves existing frequency rank when lookup is unavailable', () => {
+test('annotateTokens preserves existing frequency rank when frequency is enabled', () => {
   const tokens = [makeToken({ surface: '猫', headword: '猫', frequencyRank: 42 })];
 
-  const result = annotateTokens(tokens, makeDeps({ getFrequencyRank: undefined }));
+  const result = annotateTokens(tokens, makeDeps());
 
   assert.equal(result[0]?.frequencyRank, 42);
 });
 
-test('annotateTokens prefers existing frequency rank over fallback lookup', () => {
+test('annotateTokens drops invalid frequency rank values', () => {
+  const tokens = [makeToken({ surface: '猫', headword: '猫', frequencyRank: Number.NaN })];
+  const result = annotateTokens(tokens, makeDeps());
+  assert.equal(result[0]?.frequencyRank, undefined);
+});
+
+test('annotateTokens clears frequency rank when frequency is disabled', () => {
   const tokens = [makeToken({ surface: '猫', headword: '猫', frequencyRank: 42 })];
-
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      getFrequencyRank: () => 9,
-    }),
-  );
-
-  assert.equal(result[0]?.frequencyRank, 42);
+  const result = annotateTokens(tokens, makeDeps(), { frequencyEnabled: false });
+  assert.equal(result[0]?.frequencyRank, undefined);
 });
 
 test('annotateTokens handles JLPT disabled and eligibility exclusion paths', () => {

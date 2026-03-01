@@ -35,6 +35,7 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
     getJlptLevel: () => 'N2',
     getJlptEnabled: () => true,
     getFrequencyDictionaryEnabled: () => true,
+    getFrequencyDictionaryMatchMode: () => 'surface',
     getFrequencyRank: () => 5,
     getYomitanGroupDebugEnabled: () => false,
     getMecabTokenizer: () => null,
@@ -47,6 +48,7 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
   deps.setYomitanParserInitPromise(null);
   assert.equal(deps.getNPlusOneEnabled?.(), true);
   assert.equal(deps.getMinSentenceWordsForNPlusOne?.(), 3);
+  assert.equal(deps.getFrequencyDictionaryMatchMode?.(), 'surface');
   assert.deepEqual(calls, ['lookup:true', 'lookup:false', 'set-window', 'set-ready', 'set-init']);
 });
 

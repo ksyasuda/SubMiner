@@ -2303,6 +2303,8 @@ const {
       getJlptEnabled: () => getResolvedConfig().subtitleStyle.enableJlpt,
       getFrequencyDictionaryEnabled: () =>
         getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+      getFrequencyDictionaryMatchMode: () =>
+        getResolvedConfig().subtitleStyle.frequencyDictionary.matchMode,
       getFrequencyRank: (text) => appState.frequencyRankLookup(text),
       getYomitanGroupDebugEnabled: () => appState.overlayDebugVisualizationEnabled,
       getMecabTokenizer: () => appState.mecabTokenizer,

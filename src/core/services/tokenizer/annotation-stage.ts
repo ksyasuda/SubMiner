@@ -1,6 +1,5 @@
 import { markNPlusOneTargets } from '../../../token-merger';
 import {
-  FrequencyDictionaryLookup,
   JlptLevel,
   MergedToken,
   NPlusOneMatchMode,
@@ -12,22 +11,16 @@ const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 const JLPT_LEVEL_LOOKUP_CACHE_LIMIT = 2048;
-const FREQUENCY_RANK_LOOKUP_CACHE_LIMIT = 2048;
 
 const jlptLevelLookupCaches = new WeakMap<
   (text: string) => JlptLevel | null,
   Map<string, JlptLevel | null>
->();
-const frequencyRankLookupCaches = new WeakMap<
-  FrequencyDictionaryLookup,
-  Map<string, number | null>
 >();
 
 export interface AnnotationStageDeps {
   isKnownWord: (text: string) => boolean;
   knownWordMatchMode: NPlusOneMatchMode;
   getJlptLevel: (text: string) => JlptLevel | null;
-  getFrequencyRank?: FrequencyDictionaryLookup;
 }
 
 export interface AnnotationStageOptions {
@@ -60,67 +53,6 @@ function applyKnownWordMarking(
   });
 }
 
-function normalizeFrequencyLookupText(rawText: string): string {
-  return rawText.trim().toLowerCase();
-}
-
-function getCachedFrequencyRank(
-  lookupText: string,
-  getFrequencyRank: FrequencyDictionaryLookup,
-): number | null {
-  const normalizedText = normalizeFrequencyLookupText(lookupText);
-  if (!normalizedText) {
-    return null;
-  }
-
-  let cache = frequencyRankLookupCaches.get(getFrequencyRank);
-  if (!cache) {
-    cache = new Map<string, number | null>();
-    frequencyRankLookupCaches.set(getFrequencyRank, cache);
-  }
-
-  if (cache.has(normalizedText)) {
-    return cache.get(normalizedText) ?? null;
-  }
-
-  let rank: number | null;
-  try {
-    rank = getFrequencyRank(normalizedText);
-  } catch {
-    rank = null;
-  }
-  if (rank !== null) {
-    if (!Number.isFinite(rank) || rank <= 0) {
-      rank = null;
-    }
-  }
-
-  cache.set(normalizedText, rank);
-  while (cache.size > FREQUENCY_RANK_LOOKUP_CACHE_LIMIT) {
-    const firstKey = cache.keys().next().value;
-    if (firstKey !== undefined) {
-      cache.delete(firstKey);
-    }
-  }
-
-  return rank;
-}
-
-function resolveFrequencyLookupText(token: MergedToken): string {
-  if (token.headword && token.headword.length > 0) {
-    return token.headword;
-  }
-  if (token.reading && token.reading.length > 0) {
-    return token.reading;
-  }
-  return token.surface;
-}
-
-function getFrequencyLookupTextCandidates(token: MergedToken): string[] {
-  const lookupText = resolveFrequencyLookupText(token).trim();
-  return lookupText ? [lookupText] : [];
-}
-
 function isFrequencyExcludedByPos(token: MergedToken): boolean {
   if (
     token.partOfSpeech === PartOfSpeech.particle ||
@@ -134,7 +66,6 @@ function isFrequencyExcludedByPos(token: MergedToken): boolean {
 
 function applyFrequencyMarking(
   tokens: MergedToken[],
-  getFrequencyRank: FrequencyDictionaryLookup,
 ): MergedToken[] {
   return tokens.map((token) => {
     if (isFrequencyExcludedByPos(token)) {
@@ -146,25 +77,9 @@ function applyFrequencyMarking(
       return { ...token, frequencyRank: rank };
     }
 
-    const lookupTexts = getFrequencyLookupTextCandidates(token);
-    if (lookupTexts.length === 0) {
-      return { ...token, frequencyRank: undefined };
-    }
-
-    let bestRank: number | null = null;
-    for (const lookupText of lookupTexts) {
-      const rank = getCachedFrequencyRank(lookupText, getFrequencyRank);
-      if (rank === null) {
-        continue;
-      }
-      if (bestRank === null || rank < bestRank) {
-        bestRank = rank;
-      }
-    }
-
     return {
       ...token,
-      frequencyRank: bestRank ?? undefined,
+      frequencyRank: undefined,
     };
   });
 }
@@ -357,16 +272,8 @@ export function annotateTokens(
 
   const frequencyEnabled = options.frequencyEnabled !== false;
   const frequencyMarkedTokens =
-    frequencyEnabled && deps.getFrequencyRank
-      ? applyFrequencyMarking(knownMarkedTokens, deps.getFrequencyRank)
-      : frequencyEnabled
-        ? knownMarkedTokens.map((token) => ({
-            ...token,
-            frequencyRank:
-              typeof token.frequencyRank === 'number' && Number.isFinite(token.frequencyRank)
-                ? Math.max(1, Math.floor(token.frequencyRank))
-                : undefined,
-          }))
+    frequencyEnabled
+      ? applyFrequencyMarking(knownMarkedTokens)
       : knownMarkedTokens.map((token) => ({
           ...token,
           frequencyRank: undefined,

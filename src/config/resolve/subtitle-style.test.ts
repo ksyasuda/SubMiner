@@ -27,3 +27,32 @@ test('subtitleStyle preserveLineBreaks falls back while merge is preserved', () 
     ),
   );
 });
+
+test('subtitleStyle frequencyDictionary.matchMode accepts valid values and warns on invalid', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      frequencyDictionary: {
+        matchMode: 'surface',
+      },
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.equal(valid.context.resolved.subtitleStyle.frequencyDictionary.matchMode, 'surface');
+
+  const invalid = createResolveContext({
+    subtitleStyle: {
+      frequencyDictionary: {
+        matchMode: 'reading' as unknown as 'headword' | 'surface',
+      },
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.equal(invalid.context.resolved.subtitleStyle.frequencyDictionary.matchMode, 'headword');
+  assert.ok(
+    invalid.warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.frequencyDictionary.matchMode' &&
+        warning.message === "Expected 'headword' or 'surface'.",
+    ),
+  );
+});

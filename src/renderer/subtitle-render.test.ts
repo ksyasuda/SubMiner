@@ -79,7 +79,7 @@ test('computeWordClass preserves known and n+1 classes while adding JLPT classes
   assert.equal(computeWordClass(nPlusOneJlpt), 'word word-n-plus-one word-jlpt-n2');
 });
 
-test('computeWordClass does not add frequency class to known or N+1 terms', () => {
+test('computeWordClass keeps known/N+1 color classes exclusive over frequency classes', () => {
   const known = createToken({
     isKnown: true,
     frequencyRank: 10,
@@ -231,7 +231,7 @@ test('getFrequencyRankLabelForToken returns rank only for frequency-colored toke
   const outOfRangeToken = createToken({ surface: '圏外', frequencyRank: 1000 });
 
   assert.equal(getFrequencyRankLabelForToken(frequencyToken, settings), '20');
-  assert.equal(getFrequencyRankLabelForToken(knownToken, settings), null);
+  assert.equal(getFrequencyRankLabelForToken(knownToken, settings), '20');
   assert.equal(getFrequencyRankLabelForToken(outOfRangeToken, settings), null);
 });
 
