@@ -782,6 +782,7 @@ Lookup behavior:
 - `frequencyDictionary.matchMode` controls which token text is used for frequency lookups: `headword` (dictionary form) or `surface` (visible subtitle text).
 
 In `single` mode all highlights use `singleColor`; in `banded` mode tokens map to five ascending color bands from most common to least common inside the topX window.
+- Frequency highlighting skips tokens that look like non-lexical SFX/interjection noise (for example kana reduplication or short kana endings like `っ`), even when dictionary ranks exist.
 
 Secondary subtitle defaults: `fontFamily: "Manrope, Inter"`, `fontSize: 24`, `fontColor: "#cad3f5"`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
 
