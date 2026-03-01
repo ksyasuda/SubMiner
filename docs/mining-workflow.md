@@ -33,6 +33,7 @@ SubMiner uses one overlay window with modal surfaces.
 The visible overlay renders subtitles as tokenized, clickable word spans. Each word is a separate element with reading and headword data attached. This plane is styled independently from mpv subtitles and supports:
 
 - Word-level click targets for Yomitan lookup
+- Auto pause/resume on subtitle hover (enabled by default via `subtitleStyle.autoPauseVideoOnHover`)
 - Right-click to pause/resume
 - Right-click + drag to reposition subtitles
 - Modal dialogs for Jimaku search, field grouping, subsync, and runtime options

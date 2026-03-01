@@ -53,8 +53,9 @@ SUBMINER_ROFI_THEME=/path/to/custom-theme.rasi subminer -R
 ## Common Commands
 
 ```bash
-subminer video.mkv              # play a specific file
-subminer --start video.mkv      # play + explicitly start overlay
+subminer video.mkv              # play a specific file (default plugin config auto-starts visible overlay)
+subminer --start video.mkv      # optional explicit overlay start when plugin auto_start=no
+subminer -S video.mkv           # same as above via --start-overlay
 subminer https://youtu.be/...   # YouTube playback (requires yt-dlp)
 subminer ytsearch:"jp news"     # YouTube search
 ```
@@ -78,17 +79,20 @@ Use `subminer <subcommand> -h` for command-specific help.
 
 ## Options
 
-| Flag                  | Description                                         |
-| --------------------- | --------------------------------------------------- |
-| `-d, --directory`     | Video search directory (default: cwd)               |
-| `-r, --recursive`     | Search directories recursively                      |
-| `-R, --rofi`          | Use rofi instead of fzf                             |
-| `-S, --start`         | Start overlay after mpv launches                    |
-| `-T, --no-texthooker` | Disable texthooker server                           |
-| `-p, --profile`       | mpv profile name (default: `subminer`)              |
-| `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`)    |
-| `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`) |
-| `--dev`, `--debug`    | Enable app dev-mode (not tied to log level)         |
+| Flag                    | Description                                         |
+| ----------------------- | --------------------------------------------------- |
+| `-d, --directory`       | Video search directory (default: cwd)               |
+| `-r, --recursive`       | Search directories recursively                      |
+| `-R, --rofi`            | Use rofi instead of fzf                             |
+| `--start`               | Explicitly start overlay after mpv launches         |
+| `-S, --start-overlay`   | Explicitly start overlay after mpv launches         |
+| `-T, --no-texthooker`   | Disable texthooker server                           |
+| `-p, --profile`         | mpv profile name (default: `subminer`)              |
+| `-b, --backend`         | Force window backend (`hyprland`, `sway`, `x11`)    |
+| `--log-level`           | Logger verbosity (`debug`, `info`, `warn`, `error`) |
+| `--dev`, `--debug`      | Enable app dev-mode (not tied to log level)         |
+
+With default plugin settings (`auto_start=yes`, `auto_start_visible_overlay=yes`, `auto_start_pause_until_ready=yes`), explicit start flags are usually unnecessary.
 
 ## Logging
 

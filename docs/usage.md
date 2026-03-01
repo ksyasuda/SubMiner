@@ -4,12 +4,12 @@ There are two ways to use SubMiner — the `subminer` wrapper script or the mpv 
 
 | Approach            | Best For                                                                                                                                                                                     |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, and manages app commands. Overlay start is explicit (`--start`, `-S`, or `y-s`).                         |
+| **subminer script** | All-in-one solution. Handles video selection, launches MPV with the correct socket, and manages app commands. With default plugin settings, overlay auto-starts visible and playback resumes after annotation readiness. |
 | **MPV plugin**      | When you launch MPV yourself or from other tools. Provides in-MPV chord keybindings (e.g. `y-y` for menu) to control overlay visibility. Requires `--input-ipc-server=/tmp/subminer-socket`. |
 
 You can use both together—install the plugin for on-demand control, but use `subminer` when you want the streamlined workflow.
 
-`subminer` is implemented as a Bun script and runs directly via shebang (no `bun run` needed), for example: `subminer --start video.mkv`.
+`subminer` is implemented as a Bun script and runs directly via shebang (no `bun run` needed), for example: `subminer video.mkv`.
 
 ## Live Config Reload
 
@@ -34,8 +34,9 @@ subminer                          # Current directory (uses fzf)
 subminer -R                       # Use rofi instead of fzf
 subminer -d ~/Videos              # Specific directory
 subminer -r -d ~/Anime            # Recursive search
-subminer video.mkv                # Play specific file
-subminer --start video.mkv        # Play + explicitly start overlay
+subminer video.mkv                # Play specific file (default plugin config auto-starts visible overlay)
+subminer --start video.mkv        # Optional explicit overlay start (use when plugin auto_start=no)
+subminer -S video.mkv             # Same as above via --start-overlay
 subminer https://youtu.be/...     # Play a YouTube URL
 subminer ytsearch:"jp news"       # Play first YouTube search result
 subminer --log-level debug video.mkv # Enable verbose logs for launch/debugging
@@ -198,6 +199,8 @@ Notes:
 | `Ctrl/Cmd+A`         | Append clipboard video path to MPV playlist        |
 
 These keybindings only work when the overlay window has focus. See [Configuration](/configuration) for customization.
+
+By default, hovering over subtitle text pauses mpv playback and leaving the subtitle area resumes playback. Set `subtitleStyle.autoPauseVideoOnHover` to `false` to disable this behavior.
 
 ### Drag-and-drop Queueing
 

@@ -186,6 +186,7 @@ script-message subminer-menu
 script-message subminer-options
 script-message subminer-restart
 script-message subminer-status
+script-message subminer-autoplay-ready
 script-message subminer-aniskip-refresh
 script-message subminer-skip-intro
 ```
@@ -217,6 +218,7 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 
 - **File loaded**: If `auto_start=yes`, the plugin starts the overlay, then defers AniSkip lookup until after startup delay.
 - **Auto-start pause gate**: If `auto_start_visible_overlay=yes` and `auto_start_pause_until_ready=yes`, launcher starts mpv paused and the plugin resumes playback after SubMiner reports tokenization-ready (with timeout fallback).
+- **Duplicate auto-start events**: Repeated `file-loaded` hooks while overlay is already running are ignored for auto-start triggers (prevents duplicate start attempts).
 - **MPV shutdown**: The plugin sends a stop command to gracefully shut down both the overlay and the texthooker server.
 - **Texthooker**: Starts as a separate subprocess before the overlay to ensure the app lock is acquired first.
 

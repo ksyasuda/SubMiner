@@ -56,6 +56,8 @@ These control playback and subtitle display. They require overlay window focus.
 
 These keybindings can be overridden or disabled via the `keybindings` config array.
 
+Mouse-hover playback behavior is configured separately from shortcuts: `subtitleStyle.autoPauseVideoOnHover` defaults to `true` (pause on subtitle hover, resume on leave).
+
 ## Subtitle & Feature Shortcuts
 
 | Shortcut           | Action                                                   | Config key                     |

@@ -354,6 +354,11 @@ Control whether the overlay automatically becomes visible when it connects to mp
 The mpv plugin controls startup overlay visibility via `auto_start_visible_overlay` in `subminer.conf`.
 For wrapper-driven playback, `subminer.conf` can also enable startup pause gating with
 `auto_start_pause_until_ready` (requires `auto_start=yes` + `auto_start_visible_overlay=yes`).
+Current plugin defaults in `subminer.conf` are:
+
+- `auto_start=yes`
+- `auto_start_visible_overlay=yes`
+- `auto_start_pause_until_ready=yes`
 
 ### Auto Subtitle Sync
 

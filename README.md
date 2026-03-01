@@ -28,6 +28,7 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 - **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and translation
 - **Instant auto-enrichment** — Optional local AnkiConnect proxy enriches new Yomitan cards immediately
 - **Reading annotations** — Combines N+1 targeting, frequency-dictionary highlighting, and JLPT underlining while you read
+- **Hover-aware playback** — By default, hovering subtitle text pauses mpv and resumes on mouse leave (`subtitleStyle.autoPauseVideoOnHover`)
 - **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
 - **Immersion tracking** — SQLite-powered stats on your watch time and mining activity
 - **Custom texthooker page** — Built-in custom texthooker page and websocket, no extra setup
@@ -75,7 +76,8 @@ subminer app --start --yomitan
 
 ```bash
 subminer app --start --background
-subminer video.mkv # y-t toggles overlay visibility
+subminer video.mkv # default plugin config auto-starts visible overlay + resumes playback when ready
+subminer --start video.mkv # optional explicit overlay start when plugin auto_start=no
 ```
 
 ## Requirements
