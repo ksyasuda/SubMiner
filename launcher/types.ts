@@ -129,6 +129,9 @@ export interface LauncherJellyfinConfig {
 
 export interface PluginRuntimeConfig {
   socketPath: string;
+  autoStart: boolean;
+  autoStartVisibleOverlay: boolean;
+  autoStartPauseUntilReady: boolean;
 }
 
 export interface CommandExecOptions {

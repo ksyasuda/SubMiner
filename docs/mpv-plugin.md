@@ -78,11 +78,15 @@ backend=auto
 
 # Start the overlay automatically when a file is loaded.
 # Runs only when mpv input-ipc-server matches socket_path.
-auto_start=no
+auto_start=yes
 
 # Show the visible overlay on auto-start.
 # Runs only when mpv input-ipc-server matches socket_path.
-auto_start_visible_overlay=no
+auto_start_visible_overlay=yes
+
+# Pause mpv on visible auto-start until SubMiner signals overlay/tokenization readiness.
+# Requires auto_start=yes and auto_start_visible_overlay=yes.
+auto_start_pause_until_ready=yes
 
 # Show OSD messages for overlay status changes.
 osd_messages=yes
@@ -123,8 +127,9 @@ aniskip_button_duration=3
 | `texthooker_enabled`         | `yes`                         | `yes` / `no`                               | Enable texthooker server                                               |
 | `texthooker_port`            | `5174`                        | 1–65535                                    | Texthooker server port                                                 |
 | `backend`                    | `auto`                        | `auto`, `hyprland`, `sway`, `x11`, `macos` | Window manager backend                                                 |
-| `auto_start`                 | `no`                          | `yes` / `no`                               | Auto-start overlay on file load when mpv socket matches `socket_path`  |
-| `auto_start_visible_overlay` | `no`                          | `yes` / `no`                               | Show visible layer on auto-start when mpv socket matches `socket_path` |
+| `auto_start`                 | `yes`                         | `yes` / `no`                               | Auto-start overlay on file load when mpv socket matches `socket_path`  |
+| `auto_start_visible_overlay` | `yes`                         | `yes` / `no`                               | Show visible layer on auto-start when mpv socket matches `socket_path` |
+| `auto_start_pause_until_ready` | `yes`                       | `yes` / `no`                               | Pause mpv on visible auto-start; resume when SubMiner signals tokenization-ready |
 | `osd_messages`               | `yes`                         | `yes` / `no`                               | Show OSD status messages                                               |
 | `log_level`                  | `info`                        | `debug`, `info`, `warn`, `error`           | Log verbosity                                                          |
 | `aniskip_enabled`            | `yes`                         | `yes` / `no`                               | Enable AniSkip intro detection                                         |
@@ -211,6 +216,7 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 ## Lifecycle
 
 - **File loaded**: If `auto_start=yes`, the plugin starts the overlay, then defers AniSkip lookup until after startup delay.
+- **Auto-start pause gate**: If `auto_start_visible_overlay=yes` and `auto_start_pause_until_ready=yes`, launcher starts mpv paused and the plugin resumes playback after SubMiner reports tokenization-ready (with timeout fallback).
 - **MPV shutdown**: The plugin sends a stop command to gracefully shut down both the overlay and the texthooker server.
 - **Texthooker**: Starts as a separate subprocess before the overlay to ensure the app lock is acquired first.
 

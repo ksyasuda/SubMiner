@@ -352,6 +352,8 @@ Control whether the overlay automatically becomes visible when it connects to mp
 | `auto_start_overlay` | `true`, `false` | Auto-show overlay on mpv connection (default: `false`) |
 
 The mpv plugin controls startup overlay visibility via `auto_start_visible_overlay` in `subminer.conf`.
+For wrapper-driven playback, `subminer.conf` can also enable startup pause gating with
+`auto_start_pause_until_ready` (requires `auto_start=yes` + `auto_start_visible_overlay=yes`).
 
 ### Auto Subtitle Sync
 
@@ -767,6 +769,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                              |
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                                   |
 | `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.         |
+| `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                  |
 | `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                                 |
 | `frequencyDictionary.sourcePath`   | string      | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths. |
 | `frequencyDictionary.topX`         | number      | Only color tokens whose frequency rank is `<= topX` (`1000` by default)                                                    |

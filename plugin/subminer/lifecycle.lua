@@ -31,6 +31,7 @@ function M.create(ctx)
 
 	local function on_file_loaded()
 		aniskip.clear_aniskip_state()
+		process.disarm_auto_play_ready_gate()
 
 		local should_auto_start = resolve_auto_start_enabled()
 		if should_auto_start then
@@ -59,6 +60,7 @@ function M.create(ctx)
 	local function on_shutdown()
 		aniskip.clear_aniskip_state()
 		hover.clear_hover_overlay()
+		process.disarm_auto_play_ready_gate()
 		if state.overlay_running or state.texthooker_running then
 			subminer_log("info", "lifecycle", "mpv shutting down, stopping SubMiner process")
 			show_osd("Shutting down...")
@@ -73,6 +75,7 @@ function M.create(ctx)
 			hover.clear_hover_overlay()
 		end)
 		mp.register_event("end-file", function()
+			process.disarm_auto_play_ready_gate()
 			hover.clear_hover_overlay()
 		end)
 		mp.register_event("shutdown", function()

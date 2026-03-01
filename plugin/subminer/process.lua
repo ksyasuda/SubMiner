@@ -2,6 +2,7 @@ local M = {}
 
 local OVERLAY_START_RETRY_DELAY_SECONDS = 0.2
 local OVERLAY_START_MAX_ATTEMPTS = 6
+local AUTO_PLAY_READY_TIMEOUT_SECONDS = 15
 
 function M.create(ctx)
 	local mp = ctx.mp
@@ -20,6 +21,14 @@ function M.create(ctx)
 			raw_visible_overlay = opts["auto-start-visible-overlay"]
 		end
 		return options_helper.coerce_bool(raw_visible_overlay, false)
+	end
+
+	local function resolve_pause_until_ready()
+		local raw_pause_until_ready = opts.auto_start_pause_until_ready
+		if raw_pause_until_ready == nil then
+			raw_pause_until_ready = opts["auto-start-pause-until-ready"]
+		end
+		return options_helper.coerce_bool(raw_pause_until_ready, false)
 	end
 
 	local function normalize_socket_path(path)
@@ -53,6 +62,54 @@ function M.create(ctx)
 		return selected
 	end
 
+	local function clear_auto_play_ready_timeout()
+		local timeout = state.auto_play_ready_timeout
+		if timeout and timeout.kill then
+			timeout:kill()
+		end
+		state.auto_play_ready_timeout = nil
+	end
+
+	local function disarm_auto_play_ready_gate()
+		clear_auto_play_ready_timeout()
+		state.auto_play_ready_gate_armed = false
+	end
+
+	local function release_auto_play_ready_gate(reason)
+		if not state.auto_play_ready_gate_armed then
+			return
+		end
+		disarm_auto_play_ready_gate()
+		mp.set_property_native("pause", false)
+		show_osd("Subtitle annotations loaded")
+		subminer_log("info", "process", "Resuming playback after startup gate: " .. tostring(reason or "ready"))
+	end
+
+	local function arm_auto_play_ready_gate()
+		if state.auto_play_ready_gate_armed then
+			clear_auto_play_ready_timeout()
+		end
+		state.auto_play_ready_gate_armed = true
+		mp.set_property_native("pause", true)
+		show_osd("Loading subtitle annotations...")
+		subminer_log("info", "process", "Pausing playback until SubMiner overlay/tokenization readiness signal")
+		state.auto_play_ready_timeout = mp.add_timeout(AUTO_PLAY_READY_TIMEOUT_SECONDS, function()
+			if not state.auto_play_ready_gate_armed then
+				return
+			end
+			subminer_log(
+				"warn",
+				"process",
+				"Startup readiness signal timed out; resuming playback to avoid stalled pause"
+			)
+			release_auto_play_ready_gate("timeout")
+		end)
+	end
+
+	local function notify_auto_play_ready()
+		release_auto_play_ready_gate("tokenization-ready")
+	end
+
 	local function build_command_args(action, overrides)
 		overrides = overrides or {}
 		local args = { state.binary_path }
@@ -75,14 +132,15 @@ function M.create(ctx)
 			table.insert(args, "--socket")
 			table.insert(args, socket_path)
 
-			local should_show_visible = resolve_visible_overlay_startup()
-			if should_show_visible and overrides.auto_start_trigger == true then
-				should_show_visible = has_matching_mpv_ipc_socket(socket_path)
-			end
-			if should_show_visible then
-				table.insert(args, "--show-visible-overlay")
-			else
-				table.insert(args, "--hide-visible-overlay")
+			-- Keep auto-start --start requests idempotent for second-instance handling.
+			-- Visibility is applied as a separate control command after startup.
+			if overrides.auto_start_trigger ~= true then
+				local should_show_visible = resolve_visible_overlay_startup()
+				if should_show_visible then
+					table.insert(args, "--show-visible-overlay")
+				else
+					table.insert(args, "--hide-visible-overlay")
+				end
 			end
 		end
 
@@ -182,6 +240,8 @@ function M.create(ctx)
 	end
 
 	local function start_overlay(overrides)
+		overrides = overrides or {}
+
 		if not binary.ensure_binary_available() then
 			subminer_log("error", "binary", "SubMiner binary not found")
 			show_osd("Error: binary not found")
@@ -189,15 +249,30 @@ function M.create(ctx)
 		end
 
 		if state.overlay_running then
+			if overrides.auto_start_trigger == true then
+				subminer_log("debug", "process", "Auto-start ignored because overlay is already running")
+				return
+			end
 			subminer_log("info", "process", "Overlay already running")
 			show_osd("Already running")
 			return
 		end
 
-		overrides = overrides or {}
 		local texthooker_enabled = overrides.texthooker_enabled
 		if texthooker_enabled == nil then
 			texthooker_enabled = opts.texthooker_enabled
+		end
+		local socket_path = overrides.socket_path or opts.socket_path
+		local should_pause_until_ready = (
+			overrides.auto_start_trigger == true
+			and resolve_visible_overlay_startup()
+			and resolve_pause_until_ready()
+			and has_matching_mpv_ipc_socket(socket_path)
+		)
+		if should_pause_until_ready then
+			arm_auto_play_ready_gate()
+		else
+			disarm_auto_play_ready_gate()
 		end
 
 		local function launch_overlay_with_retry(attempt)
@@ -236,7 +311,17 @@ function M.create(ctx)
 					state.overlay_running = false
 					subminer_log("error", "process", "Overlay start failed after retries: " .. reason)
 					show_osd("Overlay start failed")
+					release_auto_play_ready_gate("overlay-start-failed")
 					return
+				end
+
+				if overrides.auto_start_trigger == true then
+					local visibility_action = resolve_visible_overlay_startup()
+							and "show-visible-overlay"
+						or "hide-visible-overlay"
+					run_control_command_async(visibility_action, {
+						log_level = overrides.log_level,
+					})
 				end
 
 			end)
@@ -277,6 +362,7 @@ function M.create(ctx)
 
 		state.overlay_running = false
 		state.texthooker_running = false
+		disarm_auto_play_ready_gate()
 		show_osd("Stopped")
 	end
 
@@ -326,6 +412,7 @@ function M.create(ctx)
 		run_control_command_async("stop", nil, function()
 			state.overlay_running = false
 			state.texthooker_running = false
+			disarm_auto_play_ready_gate()
 
 			ensure_texthooker_running(function()
 				local start_args = build_command_args("start")
@@ -384,6 +471,8 @@ function M.create(ctx)
 		restart_overlay = restart_overlay,
 		check_status = check_status,
 		check_binary_available = check_binary_available,
+		notify_auto_play_ready = notify_auto_play_ready,
+		disarm_auto_play_ready_gate = disarm_auto_play_ready_gate,
 	}
 end
 

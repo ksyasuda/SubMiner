@@ -27,6 +27,8 @@ function M.new()
 			found = false,
 			prompt_shown = false,
 		},
+		auto_play_ready_gate_armed = false,
+		auto_play_ready_timeout = nil,
 	}
 end
 

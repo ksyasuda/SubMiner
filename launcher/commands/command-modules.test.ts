@@ -33,6 +33,12 @@ function createContext(overrides: Partial<LauncherCommandContext> = {}): Launche
     scriptPath: '/tmp/subminer',
     scriptName: 'subminer',
     mpvSocketPath: '/tmp/subminer.sock',
+    pluginRuntimeConfig: {
+      socketPath: '/tmp/subminer.sock',
+      autoStart: true,
+      autoStartVisibleOverlay: true,
+      autoStartPauseUntilReady: true,
+    },
     appPath: '/tmp/subminer.app',
     launcherJellyfinConfig: {},
     processAdapter: adapter,

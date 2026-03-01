@@ -319,3 +319,43 @@ test(
     });
   },
 );
+
+test(
+  'launcher starts mpv paused when plugin auto-start visible overlay gate is enabled',
+  { timeout: 20000 },
+  async () => {
+    await withSmokeCase('autoplay-ready-gate', async (smokeCase) => {
+      fs.writeFileSync(
+        path.join(smokeCase.xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+        [
+          `socket_path=${smokeCase.socketPath}`,
+          'auto_start=yes',
+          'auto_start_visible_overlay=yes',
+          'auto_start_pause_until_ready=yes',
+          '',
+        ].join('\n'),
+      );
+
+      const env = makeTestEnv(smokeCase);
+      const result = runLauncher(
+        smokeCase,
+        [smokeCase.videoPath, '--log-level', 'debug'],
+        env,
+        'autoplay-ready-gate',
+      );
+
+      const mpvEntries = readJsonLines(path.join(smokeCase.artifactsDir, 'fake-mpv.log'));
+      const mpvError = mpvEntries.find(
+        (entry): entry is { error: string } => typeof entry.error === 'string',
+      )?.error;
+      const unixSocketDenied =
+        typeof mpvError === 'string' && /eperm|operation not permitted/i.test(mpvError);
+      const mpvFirstArgs = mpvEntries[0]?.argv;
+
+      assert.equal(result.status, unixSocketDenied ? 3 : 0);
+      assert.equal(Array.isArray(mpvFirstArgs), true);
+      assert.equal((mpvFirstArgs as string[]).includes('--pause=yes'), true);
+      assert.match(result.stdout, /pause mpv until overlay and tokenization are ready/i);
+    });
+  },
+);

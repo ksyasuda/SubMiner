@@ -19,14 +19,15 @@ import { runPlaybackCommand } from './commands/playback-command.js';
 function createCommandContext(
   args: ReturnType<typeof parseArgs>,
   scriptPath: string,
-  mpvSocketPath: string,
+  pluginRuntimeConfig: ReturnType<typeof readPluginRuntimeConfig>,
   appPath: string | null,
 ): LauncherCommandContext {
   return {
     args,
     scriptPath,
     scriptName: path.basename(scriptPath),
-    mpvSocketPath,
+    mpvSocketPath: pluginRuntimeConfig.socketPath,
+    pluginRuntimeConfig,
     appPath,
     launcherJellyfinConfig: loadLauncherJellyfinConfig(),
     processAdapter: nodeProcessAdapter,
@@ -55,7 +56,7 @@ async function main(): Promise<void> {
 
   log('debug', args.logLevel, `Wrapper log level set to: ${args.logLevel}`);
 
-  const context = createCommandContext(args, scriptPath, pluginRuntimeConfig.socketPath, appPath);
+  const context = createCommandContext(args, scriptPath, pluginRuntimeConfig, appPath);
 
   if (runDoctorCommand(context)) {
     return;
@@ -71,6 +72,7 @@ async function main(): Promise<void> {
 
   const resolvedAppPath = ensureAppPath(context);
   state.appPath = resolvedAppPath;
+  log('debug', args.logLevel, `Using SubMiner app binary: ${resolvedAppPath}`);
   const appContext: LauncherCommandContext = {
     ...context,
     appPath: resolvedAppPath,

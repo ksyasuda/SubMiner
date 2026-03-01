@@ -16,21 +16,62 @@ export function getPluginConfigCandidates(): string[] {
 }
 
 export function parsePluginRuntimeConfigContent(content: string): PluginRuntimeConfig {
-  const runtimeConfig: PluginRuntimeConfig = { socketPath: DEFAULT_SOCKET_PATH };
+  const runtimeConfig: PluginRuntimeConfig = {
+    socketPath: DEFAULT_SOCKET_PATH,
+    autoStart: true,
+    autoStartVisibleOverlay: true,
+    autoStartPauseUntilReady: true,
+  };
+
+  const parseBooleanValue = (value: string, fallback: boolean): boolean => {
+    const normalized = value.trim().toLowerCase();
+    if (['yes', 'true', '1', 'on'].includes(normalized)) return true;
+    if (['no', 'false', '0', 'off'].includes(normalized)) return false;
+    return fallback;
+  };
+
   for (const line of content.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (trimmed.length === 0 || trimmed.startsWith('#')) continue;
-    const socketMatch = trimmed.match(/^socket_path\s*=\s*(.+)$/i);
-    if (!socketMatch) continue;
-    const value = (socketMatch[1] || '').split('#', 1)[0]?.trim() || '';
-    if (value) runtimeConfig.socketPath = value;
+    const keyValueMatch = trimmed.match(/^([a-z0-9_-]+)\s*=\s*(.+)$/i);
+    if (!keyValueMatch) continue;
+    const key = (keyValueMatch[1] || '').toLowerCase();
+    const value = (keyValueMatch[2] || '').split('#', 1)[0]?.trim() || '';
+    if (!value) continue;
+
+    if (key === 'socket_path') {
+      runtimeConfig.socketPath = value;
+      continue;
+    }
+    if (key === 'auto_start') {
+      runtimeConfig.autoStart = parseBooleanValue(value, runtimeConfig.autoStart);
+      continue;
+    }
+    if (key === 'auto_start_visible_overlay') {
+      runtimeConfig.autoStartVisibleOverlay = parseBooleanValue(
+        value,
+        runtimeConfig.autoStartVisibleOverlay,
+      );
+      continue;
+    }
+    if (key === 'auto_start_pause_until_ready') {
+      runtimeConfig.autoStartPauseUntilReady = parseBooleanValue(
+        value,
+        runtimeConfig.autoStartPauseUntilReady,
+      );
+    }
   }
   return runtimeConfig;
 }
 
 export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig {
   const candidates = getPluginConfigCandidates();
-  const defaults: PluginRuntimeConfig = { socketPath: DEFAULT_SOCKET_PATH };
+  const defaults: PluginRuntimeConfig = {
+    socketPath: DEFAULT_SOCKET_PATH,
+    autoStart: true,
+    autoStartVisibleOverlay: true,
+    autoStartPauseUntilReady: true,
+  };
 
   for (const configPath of candidates) {
     if (!fs.existsSync(configPath)) continue;
@@ -39,7 +80,7 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
       log(
         'debug',
         logLevel,
-        `Using mpv plugin settings from ${configPath}: socket_path=${parsed.socketPath}`,
+        `Using mpv plugin settings from ${configPath}: socket_path=${parsed.socketPath}, auto_start=${parsed.autoStart}, auto_start_visible_overlay=${parsed.autoStartVisibleOverlay}, auto_start_pause_until_ready=${parsed.autoStartPauseUntilReady}`,
       );
       return parsed;
     } catch {
@@ -51,7 +92,7 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
   log(
     'debug',
     logLevel,
-    `No mpv subminer.conf found; using launcher defaults (socket_path=${defaults.socketPath})`,
+    `No mpv subminer.conf found; using launcher defaults (socket_path=${defaults.socketPath}, auto_start=${defaults.autoStart}, auto_start_visible_overlay=${defaults.autoStartVisibleOverlay}, auto_start_pause_until_ready=${defaults.autoStartPauseUntilReady})`,
   );
   return defaults;
 }

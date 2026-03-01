@@ -844,6 +844,61 @@ const immersionMediaRuntime = createImmersionMediaRuntime(
 const anilistStateRuntime = createAnilistStateRuntime(buildAnilistStateRuntimeMainDepsHandler());
 const configDerivedRuntime = createConfigDerivedRuntime(buildConfigDerivedRuntimeMainDepsHandler());
 const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsHandler());
+let autoPlayReadySignalMediaPath: string | null = null;
+
+function maybeSignalPluginAutoplayReady(payload: SubtitleData): void {
+  if (!payload.text.trim()) {
+    return;
+  }
+  const mediaPath = appState.currentMediaPath;
+  if (!mediaPath) {
+    return;
+  }
+  if (autoPlayReadySignalMediaPath === mediaPath) {
+    return;
+  }
+  autoPlayReadySignalMediaPath = mediaPath;
+  logger.debug(`[autoplay-ready] signaling mpv for media: ${mediaPath}`);
+  sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
+  // Fallback: unpause directly in case plugin readiness handler is unavailable/outdated.
+  void (async () => {
+    const mpvClient = appState.mpvClient;
+    if (!mpvClient?.connected) {
+      logger.debug('[autoplay-ready] skipped unpause fallback; mpv not connected');
+      return;
+    }
+
+    let shouldUnpause = appState.playbackPaused !== false;
+    try {
+      const pauseProperty = await mpvClient.requestProperty('pause');
+      if (typeof pauseProperty === 'boolean') {
+        shouldUnpause = pauseProperty;
+      } else if (typeof pauseProperty === 'string') {
+        shouldUnpause = pauseProperty.toLowerCase() !== 'no' && pauseProperty !== '0';
+      }
+      logger.debug(`[autoplay-ready] mpv pause property before fallback: ${String(pauseProperty)}`);
+    } catch (error) {
+      logger.debug(
+        `[autoplay-ready] failed to read pause property before fallback: ${(error as Error).message}`,
+      );
+    }
+
+    if (!shouldUnpause) {
+      logger.debug('[autoplay-ready] mpv already playing; no fallback unpause needed');
+      return;
+    }
+
+    mpvClient.send({ command: ['set_property', 'pause', false] });
+    setTimeout(() => {
+      const followupClient = appState.mpvClient;
+      if (followupClient?.connected) {
+        followupClient.send({ command: ['set_property', 'pause', false] });
+      }
+    }, 500);
+    logger.debug('[autoplay-ready] issued direct mpv unpause fallback');
+  })();
+}
+
 let appTray: Tray | null = null;
 const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({
@@ -861,6 +916,7 @@ const buildSubtitleProcessingControllerMainDepsHandler =
         topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
         mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
       });
+      maybeSignalPluginAutoplayReady(payload);
     },
     logDebug: (message) => {
       logger.debug(`[subtitle-processing] ${message}`);
@@ -2224,6 +2280,9 @@ const {
       ensureImmersionTrackerStarted();
     },
     updateCurrentMediaPath: (path) => {
+      if (appState.currentMediaPath !== path) {
+        autoPlayReadySignalMediaPath = null;
+      }
       if (path) {
         ensureImmersionTrackerStarted();
       }

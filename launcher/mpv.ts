@@ -426,6 +426,7 @@ export function startMpv(
   socketPath: string,
   appPath: string,
   preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
+  options?: { startPaused?: boolean },
 ): void {
   if (targetKind === 'file' && (!fs.existsSync(target) || !fs.statSync(target).isFile())) {
     fail(`Video file not found: ${target}`);
@@ -474,6 +475,9 @@ export function startMpv(
   }
   if (preloadedSubtitles?.secondaryPath) {
     mpvArgs.push(`--sub-file=${preloadedSubtitles.secondaryPath}`);
+  }
+  if (options?.startPaused) {
+    mpvArgs.push('--pause=yes');
   }
   const aniSkipMetadata = targetKind === 'file' ? inferAniSkipMetadataForFile(target) : null;
   const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata);

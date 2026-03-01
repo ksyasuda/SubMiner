@@ -8,6 +8,7 @@ local function run_plugin_scenario(config)
 		events = {},
 		osd = {},
 		logs = {},
+		property_sets = {},
 	}
 
 	local function make_mp_stub()
@@ -116,7 +117,12 @@ local function run_plugin_scenario(config)
 			return 0
 		end
 		function mp.commandv(...) end
-		function mp.set_property_native(...) end
+		function mp.set_property_native(name, value)
+			recorded.property_sets[#recorded.property_sets + 1] = {
+				name = name,
+				value = value,
+			}
+		end
 		function mp.get_script_name()
 			return "subminer"
 		end
@@ -242,6 +248,39 @@ local function find_start_call(async_calls)
 	return nil
 end
 
+local function count_start_calls(async_calls)
+	local count = 0
+	for _, call in ipairs(async_calls) do
+		local args = call.args or {}
+		for _, value in ipairs(args) do
+			if value == "--start" then
+				count = count + 1
+				break
+			end
+		end
+	end
+	return count
+end
+
+local function find_control_call(async_calls, flag)
+	for _, call in ipairs(async_calls) do
+		local args = call.args or {}
+		local has_flag = false
+		local has_start = false
+		for _, value in ipairs(args) do
+			if value == flag then
+				has_flag = true
+			elseif value == "--start" then
+				has_start = true
+			end
+		end
+		if has_flag and not has_start then
+			return call
+		end
+	end
+	return nil
+end
+
 local function call_has_arg(call, target)
 	local args = (call and call.args) or {}
 	for _, value in ipairs(args) do
@@ -283,6 +322,34 @@ local function has_async_curl_for(async_calls, needle)
 		end
 	end
 	return false
+end
+
+local function has_property_set(property_sets, name, value)
+	for _, call in ipairs(property_sets) do
+		if call.name == name and call.value == value then
+			return true
+		end
+	end
+	return false
+end
+
+local function has_osd_message(messages, target)
+	for _, message in ipairs(messages) do
+		if message == target then
+			return true
+		end
+	end
+	return false
+end
+
+local function count_osd_message(messages, target)
+	local count = 0
+	for _, message in ipairs(messages) do
+		if message == target then
+			count = count + 1
+		end
+	end
+	return count
 end
 
 local function fire_event(recorded, name)
@@ -373,6 +440,7 @@ do
 			binary_path = binary_path,
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "no",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -386,12 +454,86 @@ do
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
 	assert_true(
-		call_has_arg(start_call, "--show-visible-overlay"),
-		"auto-start with visible overlay enabled should pass --show-visible-overlay"
+		not call_has_arg(start_call, "--show-visible-overlay"),
+		"auto-start should keep --start command free of --show-visible-overlay"
 	)
 	assert_true(
 		not call_has_arg(start_call, "--hide-visible-overlay"),
-		"auto-start with visible overlay enabled should not pass --hide-visible-overlay"
+		"auto-start should keep --start command free of --hide-visible-overlay"
+	)
+	assert_true(
+		find_control_call(recorded.async_calls, "--show-visible-overlay") ~= nil,
+		"auto-start with visible overlay enabled should issue a separate --show-visible-overlay command"
+	)
+	assert_true(
+		not has_property_set(recorded.property_sets, "pause", true),
+		"auto-start visible overlay should not force pause without explicit pause-until-ready option"
+	)
+	end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for duplicate auto-start scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"duplicate file-loaded events should not issue duplicate --start commands while overlay is already running"
+	)
+	assert_true(
+		count_osd_message(recorded.osd, "SubMiner: Already running") == 0,
+		"duplicate auto-start events should not show Already running OSD"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for pause-until-ready scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		has_property_set(recorded.property_sets, "pause", true),
+		"pause-until-ready auto-start should pause mpv before overlay ready"
+	)
+	assert_true(recorded.script_messages["subminer-autoplay-ready"] ~= nil, "subminer-autoplay-ready script message not registered")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		has_property_set(recorded.property_sets, "pause", false),
+		"autoplay-ready script message should resume mpv playback"
+	)
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Loading subtitle annotations..."),
+		"pause-until-ready auto-start should show loading OSD message"
+	)
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Subtitle annotations loaded"),
+		"autoplay-ready should show loaded OSD message"
 	)
 end
 
@@ -415,12 +557,16 @@ do
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
 	assert_true(
-		call_has_arg(start_call, "--hide-visible-overlay"),
-		"auto-start with visible overlay disabled should pass --hide-visible-overlay"
+		not call_has_arg(start_call, "--hide-visible-overlay"),
+		"auto-start should keep --start command free of --hide-visible-overlay"
 	)
 	assert_true(
 		not call_has_arg(start_call, "--show-visible-overlay"),
-		"auto-start with visible overlay disabled should not pass --show-visible-overlay"
+		"auto-start should keep --start command free of --show-visible-overlay"
+	)
+	assert_true(
+		find_control_call(recorded.async_calls, "--hide-visible-overlay") ~= nil,
+		"auto-start with visible overlay disabled should issue a separate --hide-visible-overlay command"
 	)
 end
 
@@ -445,6 +591,10 @@ do
 	assert_true(
 		start_call == nil,
 		"auto-start should be skipped when mpv input-ipc-server does not match configured socket_path"
+	)
+	assert_true(
+		not has_property_set(recorded.property_sets, "pause", true),
+		"pause-until-ready gate should not arm when socket_path does not match"
 	)
 end
 
