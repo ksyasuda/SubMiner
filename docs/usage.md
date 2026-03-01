@@ -192,10 +192,6 @@ Notes:
 | `Ctrl+W`             | Quit mpv                                           |
 | `Right-click`        | Toggle MPV pause (outside subtitle area)           |
 | `Right-click + drag` | Move subtitle position (on subtitle)               |
-| `Ctrl/Cmd+Shift+P`   | Toggle subtitle position edit mode                 |
-| `Arrow keys`         | Move subtitles while edit mode is active           |
-| `Enter` / `Ctrl+S`   | Save subtitle position in edit mode                |
-| `Esc`                | Cancel subtitle position edit mode                 |
 | `Ctrl/Cmd+A`         | Append clipboard video path to MPV playlist        |
 
 These keybindings only work when the overlay window has focus. See [Configuration](/configuration) for customization.

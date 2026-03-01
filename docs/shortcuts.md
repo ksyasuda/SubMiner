@@ -67,18 +67,6 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`         |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`     |
 
-## Subtitle Position Edit Mode
-
-Enter edit mode to fine-tune subtitle alignment.
-
-| Shortcut              | Action                           |
-| --------------------- | -------------------------------- |
-| `Ctrl/Cmd+Shift+P`    | Toggle position edit mode        |
-| `ArrowKeys` or `hjkl` | Nudge position by 1 px           |
-| `Shift+Arrow`         | Nudge position by 4 px           |
-| `Enter` or `Ctrl+S`   | Save position and exit edit mode |
-| `Esc`                 | Cancel and discard changes       |
-
 ## MPV Plugin Chords
 
 When the mpv plugin is installed, all commands use a `y` chord prefix — press `y`, then the second key within 1 second.

@@ -159,7 +159,7 @@ SubMiner positions the overlay by tracking the mpv window. If tracking fails:
 - Sway: Ensure `swaymsg` is available.
 - X11: Ensure `xdotool` and `xwininfo` are installed.
 
-If the overlay position is slightly off, use subtitle position edit mode (`Ctrl/Cmd+Shift+P`) to fine-tune the offset with arrow keys, then save with `Enter` or `Ctrl+S`.
+If the overlay position is slightly off, right-click and drag on subtitle text to fine-tune the overlay subtitle offset.
 
 ## Yomitan
 
@@ -279,5 +279,5 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 ### macOS
 
 - **Accessibility permission**: Required for window tracking. Grant it in System Settings > Privacy & Security > Accessibility.
-- **Font rendering**: macOS uses a 0.87x font compensation factor for subtitle alignment between mpv and the overlay. If text alignment looks off, adjust subtitle offset in position edit mode.
+- **Font rendering**: macOS uses a 0.87x font compensation factor for subtitle alignment between mpv and the overlay. If text alignment looks off, adjust subtitle offset by right-click dragging subtitle text.
 - **Gatekeeper**: If macOS blocks SubMiner, right-click the app and select "Open" to bypass the warning, or remove the quarantine attribute: `xattr -d com.apple.quarantine /path/to/SubMiner.app`
