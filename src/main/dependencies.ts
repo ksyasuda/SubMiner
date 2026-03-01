@@ -112,6 +112,7 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
 }
 
 export interface CliCommandRuntimeServiceDepsParams {
+  setLogLevel?: CliCommandDepsRuntimeOptions['setLogLevel'];
   mpv: {
     getSocketPath: CliCommandDepsRuntimeOptions['mpv']['getSocketPath'];
     setSocketPath: CliCommandDepsRuntimeOptions['mpv']['setSocketPath'];
@@ -254,6 +255,7 @@ export function createCliCommandRuntimeServiceDeps(
   params: CliCommandRuntimeServiceDepsParams,
 ): CliCommandDepsRuntimeOptions {
   return {
+    setLogLevel: params.setLogLevel,
     mpv: {
       getSocketPath: params.mpv.getSocketPath,
       setSocketPath: params.mpv.setSocketPath,

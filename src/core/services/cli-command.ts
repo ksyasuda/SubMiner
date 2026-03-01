@@ -1,6 +1,7 @@
 import { CliArgs, CliCommandSource, commandNeedsOverlayRuntime } from '../../cli/args';
 
 export interface CliCommandServiceDeps {
+  setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
   getMpvSocketPath: () => string;
   setMpvSocketPath: (socketPath: string) => void;
   setMpvClientSocketPath: (socketPath: string) => void;
@@ -127,6 +128,7 @@ interface AppCliRuntime {
 }
 
 export interface CliCommandDepsRuntimeOptions {
+  setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
   mpv: MpvCliRuntime;
   texthooker: TexthookerCliRuntime;
   overlay: OverlayCliRuntime;
@@ -149,6 +151,7 @@ export function createCliCommandDepsRuntime(
   options: CliCommandDepsRuntimeOptions,
 ): CliCommandServiceDeps {
   return {
+    setLogLevel: options.setLogLevel,
     getMpvSocketPath: options.mpv.getSocketPath,
     setMpvSocketPath: options.mpv.setSocketPath,
     setMpvClientSocketPath: (socketPath) => {
@@ -232,6 +235,10 @@ export function handleCliCommand(
   source: CliCommandSource = 'initial',
   deps: CliCommandServiceDeps,
 ): void {
+  if (args.logLevel) {
+    deps.setLogLevel?.(args.logLevel);
+  }
+
   const hasNonStartAction =
     args.stop ||
     args.toggle ||

@@ -2,6 +2,7 @@ import type { CliArgs } from '../../cli/args';
 import type { CliCommandContextFactoryDeps } from './cli-command-context';
 
 export function createBuildCliCommandContextDepsHandler(deps: {
+  setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
   getSocketPath: () => string;
   setSocketPath: (socketPath: string) => void;
   getMpvClient: CliCommandContextFactoryDeps['getMpvClient'];
@@ -45,6 +46,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   logError: (message: string, err: unknown) => void;
 }) {
   return (): CliCommandContextFactoryDeps => ({
+    setLogLevel: deps.setLogLevel,
     getSocketPath: deps.getSocketPath,
     setSocketPath: deps.setSocketPath,
     getMpvClient: deps.getMpvClient,

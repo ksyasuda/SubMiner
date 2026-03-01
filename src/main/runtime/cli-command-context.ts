@@ -7,6 +7,7 @@ import type {
 type MpvClientLike = CliCommandRuntimeServiceContext['getClient'] extends () => infer T ? T : never;
 
 export type CliCommandContextFactoryDeps = {
+  setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
   getSocketPath: () => string;
   setSocketPath: (socketPath: string) => void;
   getMpvClient: () => MpvClientLike;
@@ -54,6 +55,7 @@ export function createCliCommandContext(
   deps: CliCommandContextFactoryDeps,
 ): CliCommandRuntimeServiceContext & CliCommandRuntimeServiceContextHandlers {
   return {
+    setLogLevel: deps.setLogLevel,
     getSocketPath: deps.getSocketPath,
     setSocketPath: deps.setSocketPath,
     getClient: deps.getMpvClient,

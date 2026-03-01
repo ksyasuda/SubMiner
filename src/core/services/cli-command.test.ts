@@ -220,6 +220,18 @@ test('handleCliCommand processes --start for second-instance when overlay runtim
   );
 });
 
+test('handleCliCommand applies cli log level for second-instance commands', () => {
+  const { deps, calls } = createDeps({
+    setLogLevel: (level) => {
+      calls.push(`setLogLevel:${level}`);
+    },
+  });
+
+  handleCliCommand(makeArgs({ start: true, logLevel: 'debug' }), 'second-instance', deps);
+
+  assert.ok(calls.includes('setLogLevel:debug'));
+});
+
 test('handleCliCommand runs texthooker flow with browser open', () => {
   const { deps, calls } = createDeps();
   const args = makeArgs({ texthooker: true });

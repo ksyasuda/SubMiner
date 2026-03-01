@@ -1255,6 +1255,17 @@ function getResolvedConfig() {
   return configService.getConfig();
 }
 
+function getRuntimeBooleanOption(
+  id:
+    | 'subtitle.annotation.nPlusOne'
+    | 'subtitle.annotation.jlpt'
+    | 'subtitle.annotation.frequency',
+  fallback: boolean,
+): boolean {
+  const value = appState.runtimeOptionsManager?.getOptionValue(id);
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 const {
   getResolvedJellyfinConfig,
   getJellyfinClientInfo,
@@ -2025,7 +2036,9 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
               appState.ankiIntegration.applyRuntimeConfigPatch(patch);
             }
           },
+          getSubtitleStyleConfig: () => configService.getConfig().subtitleStyle,
           onOptionsChanged: () => {
+            subtitleProcessingController.invalidateTokenizationCache();
             broadcastRuntimeOptionsChanged();
             refreshOverlayShortcuts();
           },
@@ -2296,13 +2309,21 @@ const {
       getKnownWordMatchMode: () =>
         appState.ankiIntegration?.getKnownWordMatchMode() ??
         getResolvedConfig().ankiConnect.nPlusOne.matchMode,
-      getNPlusOneEnabled: () => getResolvedConfig().ankiConnect.nPlusOne.highlightEnabled,
+      getNPlusOneEnabled: () =>
+        getRuntimeBooleanOption(
+          'subtitle.annotation.nPlusOne',
+          getResolvedConfig().ankiConnect.nPlusOne.highlightEnabled,
+        ),
       getMinSentenceWordsForNPlusOne: () =>
         getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,
       getJlptLevel: (text) => appState.jlptLevelLookup(text),
-      getJlptEnabled: () => getResolvedConfig().subtitleStyle.enableJlpt,
+      getJlptEnabled: () =>
+        getRuntimeBooleanOption('subtitle.annotation.jlpt', getResolvedConfig().subtitleStyle.enableJlpt),
       getFrequencyDictionaryEnabled: () =>
-        getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+        getRuntimeBooleanOption(
+          'subtitle.annotation.frequency',
+          getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+        ),
       getFrequencyDictionaryMatchMode: () =>
         getResolvedConfig().subtitleStyle.frequencyDictionary.matchMode,
       getFrequencyRank: (text) => appState.frequencyRankLookup(text),
@@ -2920,6 +2941,7 @@ const {
 });
 const createCliCommandContextHandler = createCliCommandContextFactory({
   appState,
+  setLogLevel: (level) => setLogLevel(level, 'cli'),
   texthookerService,
   getResolvedConfig: () => getResolvedConfig(),
   openExternal: (url: string) => shell.openExternal(url),

@@ -6,6 +6,7 @@ import {
 } from './dependencies';
 
 export interface CliCommandRuntimeServiceContext {
+  setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
   getSocketPath: () => string;
   setSocketPath: (socketPath: string) => void;
   getClient: CliCommandRuntimeServiceDepsParams['mpv']['getClient'];
@@ -55,6 +56,7 @@ function createCliCommandDepsFromContext(
   context: CliCommandRuntimeServiceContext & CliCommandRuntimeServiceContextHandlers,
 ): CliCommandRuntimeServiceDepsParams {
   return {
+    setLogLevel: context.setLogLevel,
     mpv: {
       getSocketPath: context.getSocketPath,
       setSocketPath: context.setSocketPath,
