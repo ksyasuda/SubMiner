@@ -425,7 +425,7 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
 
   assert.match(
     cssText,
-    /#subtitleRoot \.word:not\(\.word-known\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\s*\.word-frequency-band-1\s*\):not\(\.word-frequency-band-2\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\s*\.word-frequency-band-5\s*\):hover\s*\{[\s\S]*?background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+    /#subtitleRoot\s+\.word:not\(\.word-known\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\s*\.word-frequency-band-1\s*\):not\(\.word-frequency-band-2\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\s*\.word-frequency-band-5\s*\):hover\s*\{[\s\S]*?background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
 
   const coloredWordHoverBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known:hover');
