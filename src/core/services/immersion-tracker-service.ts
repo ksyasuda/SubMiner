@@ -25,6 +25,7 @@ import {
 import {
   buildVideoKey,
   calculateTextMetrics,
+  extractLineVocabulary,
   deriveCanonicalTitle,
   isRemoteSource,
   normalizeMediaPath,
@@ -268,18 +269,41 @@ export class ImmersionTrackerService {
     if (!this.sessionState || !text.trim()) return;
     const cleaned = normalizeText(text);
     if (!cleaned) return;
+    const nowMs = Date.now();
+    const nowSec = nowMs / 1000;
 
     const metrics = calculateTextMetrics(cleaned);
+    const extractedVocabulary = extractLineVocabulary(cleaned);
     this.sessionState.currentLineIndex += 1;
     this.sessionState.linesSeen += 1;
     this.sessionState.wordsSeen += metrics.words;
     this.sessionState.tokensSeen += metrics.tokens;
     this.sessionState.pendingTelemetry = true;
 
+    for (const { headword, word, reading } of extractedVocabulary.words) {
+      this.recordWrite({
+        kind: 'word',
+        headword,
+        word,
+        reading,
+        firstSeen: nowSec,
+        lastSeen: nowSec,
+      });
+    }
+
+    for (const kanji of extractedVocabulary.kanji) {
+      this.recordWrite({
+        kind: 'kanji',
+        kanji,
+        firstSeen: nowSec,
+        lastSeen: nowSec,
+      });
+    }
+
     this.recordWrite({
       kind: 'event',
       sessionId: this.sessionState.sessionId,
-      sampleMs: Date.now(),
+      sampleMs: nowMs,
       lineIndex: this.sessionState.currentLineIndex,
       segmentStartMs: secToMs(startSec),
       segmentEndMs: secToMs(endSec),

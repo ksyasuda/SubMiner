@@ -6,11 +6,12 @@ SubMiner stores immersion analytics in local SQLite (`immersion.sqlite`) by defa
 
 - Write path is asynchronous and queue-backed.
 - Hot paths (subtitle parsing/render/token flows) enqueue telemetry/events and never await SQLite writes.
+- Background line processing also upserts to `imm_words` and `imm_kanji`.
 - Queue overflow policy is deterministic: drop oldest queued writes, keep newest.
 - Flush policy defaults to `25` writes or `500ms` max delay.
 - SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=2500`.
 
-## Schema (v2)
+## Schema (v3)
 
 Schema versioning table:
 
@@ -27,6 +28,12 @@ Rollups:
 
 - `imm_daily_rollups`: includes `CREATED_DATE`/`LAST_UPDATE_DATE`
 - `imm_monthly_rollups`: includes `CREATED_DATE`/`LAST_UPDATE_DATE`
+
+Vocabulary:
+
+- `imm_words(id, headword, word, reading, first_seen, last_seen, frequency)`
+- `imm_kanji(id, kanji, first_seen, last_seen, frequency)`
+- `first_seen`/`last_seen` store Unix timestamps and are upserted with line ingestion
 
 Primary index coverage:
 

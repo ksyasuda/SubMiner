@@ -54,6 +54,8 @@ testIfSqlite('ensureSchema creates immersion core tables', () => {
     assert.ok(tableNames.has('imm_session_events'));
     assert.ok(tableNames.has('imm_daily_rollups'));
     assert.ok(tableNames.has('imm_monthly_rollups'));
+    assert.ok(tableNames.has('imm_words'));
+    assert.ok(tableNames.has('imm_kanji'));
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -155,6 +157,50 @@ testIfSqlite('executeQueuedWrite inserts event and telemetry rows', () => {
 
     assert.equal(telemetryCount.total, 1);
     assert.equal(eventCount.total, 1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+testIfSqlite('executeQueuedWrite inserts and upserts word and kanji rows', () => {
+  const dbPath = makeDbPath();
+  const db = new DatabaseSync!(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    stmts.wordUpsertStmt.run('猫', '猫', '', 10.0, 10.0);
+    stmts.wordUpsertStmt.run('猫', '猫', '', 5.0, 15.0);
+    stmts.kanjiUpsertStmt.run('日', 9.0, 9.0);
+    stmts.kanjiUpsertStmt.run('日', 8.0, 11.0);
+
+    const wordRow = db
+      .prepare('SELECT headword, frequency, first_seen, last_seen FROM imm_words WHERE headword = ?')
+      .get('猫') as {
+      headword: string;
+      frequency: number;
+      first_seen: number;
+      last_seen: number;
+    } | null;
+    const kanjiRow = db
+      .prepare('SELECT kanji, frequency, first_seen, last_seen FROM imm_kanji WHERE kanji = ?')
+      .get('日') as {
+      kanji: string;
+      frequency: number;
+      first_seen: number;
+      last_seen: number;
+    } | null;
+
+    assert.ok(wordRow);
+    assert.ok(kanjiRow);
+    assert.equal(wordRow?.frequency, 2);
+    assert.equal(kanjiRow?.frequency, 2);
+    assert.equal(wordRow?.first_seen, 5);
+    assert.equal(wordRow?.last_seen, 15);
+    assert.equal(kanjiRow?.first_seen, 8);
+    assert.equal(kanjiRow?.last_seen, 11);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

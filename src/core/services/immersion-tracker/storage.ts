@@ -5,6 +5,8 @@ import type { QueuedWrite, VideoMetadata } from './types';
 export interface TrackerPreparedStatements {
   telemetryInsertStmt: ReturnType<DatabaseSync['prepare']>;
   eventInsertStmt: ReturnType<DatabaseSync['prepare']>;
+  wordUpsertStmt: ReturnType<DatabaseSync['prepare']>;
+  kanjiUpsertStmt: ReturnType<DatabaseSync['prepare']>;
 }
 
 function hasColumn(db: DatabaseSync, tableName: string, columnName: string): boolean {
@@ -154,6 +156,28 @@ export function ensureSchema(db: DatabaseSync): void {
       PRIMARY KEY (rollup_month, video_id)
     );
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_words(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      headword TEXT,
+      word TEXT,
+      reading TEXT,
+      first_seen REAL,
+      last_seen REAL,
+      frequency INTEGER,
+      UNIQUE(headword, word, reading)
+    );
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_kanji(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kanji TEXT,
+      first_seen REAL,
+      last_seen REAL,
+      frequency INTEGER,
+      UNIQUE(kanji)
+    );
+  `);
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_sessions_video_started
@@ -182,6 +206,14 @@ export function ensureSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_rollups_month_video
     ON imm_monthly_rollups(rollup_month, video_id)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_words_headword_word_reading
+    ON imm_words(headword, word, reading)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_kanji_kanji
+    ON imm_kanji(kanji)
   `);
 
   if (currentVersion?.schema_version === 1) {
@@ -283,6 +315,28 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `),
+    wordUpsertStmt: db.prepare(`
+      INSERT INTO imm_words (
+        headword, word, reading, first_seen, last_seen, frequency
+      ) VALUES (
+        ?, ?, ?, ?, ?, 1
+      )
+      ON CONFLICT(headword, word, reading) DO UPDATE SET
+        frequency = COALESCE(frequency, 0) + 1,
+        first_seen = MIN(COALESCE(first_seen, excluded.first_seen), excluded.first_seen),
+        last_seen = MAX(COALESCE(last_seen, excluded.last_seen), excluded.last_seen)
+    `),
+    kanjiUpsertStmt: db.prepare(`
+      INSERT INTO imm_kanji (
+        kanji, first_seen, last_seen, frequency
+      ) VALUES (
+        ?, ?, ?, 1
+      )
+      ON CONFLICT(kanji) DO UPDATE SET
+        frequency = COALESCE(frequency, 0) + 1,
+        first_seen = MIN(COALESCE(first_seen, excluded.first_seen), excluded.first_seen),
+        last_seen = MAX(COALESCE(last_seen, excluded.last_seen), excluded.last_seen)
+    `),
   };
 }
 
@@ -307,6 +361,20 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
       Date.now(),
       Date.now(),
     );
+    return;
+  }
+  if (write.kind === 'word') {
+    stmts.wordUpsertStmt.run(
+      write.headword,
+      write.word,
+      write.reading,
+      write.firstSeen,
+      write.lastSeen,
+    );
+    return;
+  }
+  if (write.kind === 'kanji') {
+    stmts.kanjiUpsertStmt.run(write.kanji, write.firstSeen, write.lastSeen);
     return;
   }
 

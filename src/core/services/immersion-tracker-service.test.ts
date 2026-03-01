@@ -74,8 +74,8 @@ test('seam: enqueueWrite drops oldest entries once capacity is exceeded', () => 
   const result = enqueueWrite(queue, incoming, 2);
   assert.equal(result.dropped, 1);
   assert.equal(queue.length, 2);
-  assert.equal(queue[0]!.eventType, 2);
-  assert.equal(queue[1]!.eventType, 3);
+  assert.equal((queue[0] as Extract<QueuedWrite, { kind: 'event' }>).eventType, 2);
+  assert.equal((queue[1] as Extract<QueuedWrite, { kind: 'event' }>).eventType, 3);
 });
 
 test('seam: toMonthKey uses UTC calendar month', () => {

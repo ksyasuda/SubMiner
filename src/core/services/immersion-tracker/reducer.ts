@@ -76,6 +76,53 @@ export function normalizeText(value: string | null | undefined): string {
   return value.trim().replace(/\s+/g, ' ');
 }
 
+export interface ExtractedLineVocabulary {
+  words: Array<{ headword: string; word: string; reading: string }>;
+  kanji: string[];
+}
+
+export function isKanji(char: string): boolean {
+  if (!char) return false;
+  const code = char.codePointAt(0);
+  if (code === undefined) return false;
+  return (
+    (code >= 0x4e00 && code <= 0x9fff) ||
+    (code >= 0x3400 && code <= 0x4dbf) ||
+    (code >= 0x20000 && code <= 0x2a6df)
+  );
+}
+
+export function extractLineVocabulary(value: string): ExtractedLineVocabulary {
+  const cleaned = normalizeText(value);
+  if (!cleaned) return { words: [], kanji: [] };
+
+  const wordSet = new Set<string>();
+  const tokenPattern = /[A-Za-z0-9']+|[\u3040-\u30ff]+|[\u3400-\u4dbf\u4e00-\u9fff\u20000-\u2a6df]+/g;
+  const rawWords = cleaned.match(tokenPattern) ?? [];
+  for (const rawWord of rawWords) {
+    const normalizedWord = normalizeText(rawWord.toLowerCase());
+    if (!normalizedWord) continue;
+    wordSet.add(normalizedWord);
+  }
+
+  const kanji = new Set<string>();
+  for (const char of cleaned) {
+    if (isKanji(char)) {
+      kanji.add(char);
+    }
+  }
+
+  const words = Array.from(wordSet).map((word) => ({
+    headword: word,
+    word,
+    reading: '',
+  }));
+  return {
+    words,
+    kanji: Array.from(kanji),
+  };
+}
+
 export function buildVideoKey(mediaPath: string, sourceType: number): string {
   if (sourceType === SOURCE_TYPE_REMOTE) {
     return `remote:${mediaPath}`;
