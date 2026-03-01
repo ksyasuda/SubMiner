@@ -23,6 +23,7 @@ import {
   parseKikuFieldGroupingChoice,
   parseKikuMergePreviewRequest,
 } from '../../shared/ipc/validators';
+import { buildJimakuSubtitleFilenameFromMediaPath } from './jimaku-download-path';
 
 const logger = createLogger('main:anki-jimaku-ipc');
 
@@ -148,10 +149,11 @@ export function registerAnkiJimakuIpcHandlers(
       if (!safeName) {
         return { ok: false, error: { error: 'Invalid subtitle filename.' } };
       }
+      const subtitleFilename = buildJimakuSubtitleFilenameFromMediaPath(currentMediaPath, safeName);
 
-      const ext = path.extname(safeName);
-      const baseName = ext ? safeName.slice(0, -ext.length) : safeName;
-      let targetPath = path.join(mediaDir, safeName);
+      const ext = path.extname(subtitleFilename);
+      const baseName = ext ? subtitleFilename.slice(0, -ext.length) : subtitleFilename;
+      let targetPath = path.join(mediaDir, subtitleFilename);
       if (fs.existsSync(targetPath)) {
         targetPath = path.join(mediaDir, `${baseName} (jimaku-${parsedQuery.entryId})${ext}`);
         let counter = 2;

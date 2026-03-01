@@ -234,6 +234,7 @@ export function createJimakuModal(
 
     if (result.ok) {
       setJimakuStatus(`Downloaded and loaded: ${result.path}`);
+      closeJimakuModal();
       return;
     }
 
