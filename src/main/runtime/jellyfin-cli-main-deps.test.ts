@@ -31,6 +31,10 @@ test('jellyfin auth commands main deps builder maps callbacks', async () => {
 
 test('jellyfin list commands main deps builder maps callbacks', async () => {
   const calls: string[] = [];
+  const writes: Array<{
+    responsePath: string;
+    payload: { serverUrl: string; accessToken: string; userId: string };
+  }> = [];
   const deps = createBuildHandleJellyfinListCommandsMainDepsHandler({
     listJellyfinLibraries: async () => {
       calls.push('libraries');
@@ -44,14 +48,32 @@ test('jellyfin list commands main deps builder maps callbacks', async () => {
       calls.push('subtitles');
       return [];
     },
+    writeJellyfinPreviewAuth: (responsePath, payload) => {
+      writes.push({ responsePath, payload });
+    },
     logInfo: (message) => calls.push(`info:${message}`),
   })();
 
   await deps.listJellyfinLibraries({} as never, {} as never);
   await deps.listJellyfinItems({} as never, {} as never, { libraryId: '', limit: 1 });
   await deps.listJellyfinSubtitleTracks({} as never, {} as never, 'id');
+  deps.writeJellyfinPreviewAuth('/tmp/jellyfin-preview.json', {
+    serverUrl: 'https://example.test',
+    accessToken: 'token',
+    userId: 'user-id',
+  });
   deps.logInfo('done');
   assert.deepEqual(calls, ['libraries', 'items', 'subtitles', 'info:done']);
+  assert.deepEqual(writes, [
+    {
+      responsePath: '/tmp/jellyfin-preview.json',
+      payload: {
+        serverUrl: 'https://example.test',
+        accessToken: 'token',
+        userId: 'user-id',
+      },
+    },
+  ]);
 });
 
 test('jellyfin play command main deps builder maps callbacks', async () => {

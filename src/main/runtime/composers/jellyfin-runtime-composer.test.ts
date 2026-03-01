@@ -111,6 +111,7 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
       listJellyfinLibraries: async () => [],
       listJellyfinItems: async () => [],
       listJellyfinSubtitleTracks: async () => [],
+      writeJellyfinPreviewAuth: () => {},
       logInfo: () => {},
     },
     handleJellyfinPlayCommandMainDeps: {
