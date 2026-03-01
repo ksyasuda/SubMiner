@@ -117,13 +117,7 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
         seenUrls.add(track.deliveryUrl);
         const labelBase = (track.title || track.language || '').trim();
         const label = labelBase || `Jellyfin Subtitle ${track.index}`;
-        deps.sendMpvCommand([
-          'sub-add',
-          track.deliveryUrl,
-          'cached',
-          label,
-          track.language || '',
-        ]);
+        deps.sendMpvCommand(['sub-add', track.deliveryUrl, 'cached', label, track.language || '']);
       }
 
       await deps.wait(250);

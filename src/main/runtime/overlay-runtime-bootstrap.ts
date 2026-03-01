@@ -9,16 +9,11 @@ import type {
 
 type InitializeOverlayRuntimeCore = (options: {
   backendOverride: string | null;
-  getInitialInvisibleOverlayVisibility: () => boolean;
   createMainWindow: () => void;
-  createInvisibleWindow: () => void;
   registerGlobalShortcuts: () => void;
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
-  updateInvisibleOverlayBounds: (geometry: WindowGeometry) => void;
   isVisibleOverlayVisible: () => boolean;
-  isInvisibleOverlayVisible: () => boolean;
   updateVisibleOverlayVisibility: () => void;
-  updateInvisibleOverlayVisibility: () => void;
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
@@ -35,21 +30,25 @@ type InitializeOverlayRuntimeCore = (options: {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
-}) => { invisibleOverlayVisible: boolean };
+}) => void;
 
 export function createInitializeOverlayRuntimeHandler(deps: {
   isOverlayRuntimeInitialized: () => boolean;
   initializeOverlayRuntimeCore: InitializeOverlayRuntimeCore;
   buildOptions: () => Parameters<InitializeOverlayRuntimeCore>[0];
-  setInvisibleOverlayVisible: (visible: boolean) => void;
   setOverlayRuntimeInitialized: (initialized: boolean) => void;
   startBackgroundWarmups: () => void;
 }) {
   return (): void => {
     if (deps.isOverlayRuntimeInitialized()) return;
-    const result = deps.initializeOverlayRuntimeCore(deps.buildOptions());
-    deps.setInvisibleOverlayVisible(result.invisibleOverlayVisible);
+    const options = deps.buildOptions();
     deps.setOverlayRuntimeInitialized(true);
+    try {
+      deps.initializeOverlayRuntimeCore(options);
+    } catch (error) {
+      deps.setOverlayRuntimeInitialized(false);
+      throw error;
+    }
     deps.startBackgroundWarmups();
   };
 }

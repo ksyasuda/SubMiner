@@ -13,6 +13,9 @@ import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
 
 const RUNTIME_OPTION_IDS: RuntimeOptionId[] = [
   'anki.autoUpdateNewCards',
+  'subtitle.annotation.nPlusOne',
+  'subtitle.annotation.jlpt',
+  'subtitle.annotation.frequency',
   'anki.kikuFieldGrouping',
   'anki.nPlusOneMatchMode',
 ];
@@ -40,18 +43,8 @@ export function parseSubtitlePosition(value: unknown): SubtitlePosition | null {
   if (!isObject(value) || !isFiniteNumber(value.yPercent)) {
     return null;
   }
-  const hasX = value.invisibleOffsetXPx !== undefined;
-  if (hasX && !isFiniteNumber(value.invisibleOffsetXPx)) {
-    return null;
-  }
-  const hasY = value.invisibleOffsetYPx !== undefined;
-  if (hasY && !isFiniteNumber(value.invisibleOffsetYPx)) {
-    return null;
-  }
   return {
     yPercent: value.yPercent,
-    invisibleOffsetXPx: hasX ? (value.invisibleOffsetXPx as number) : undefined,
-    invisibleOffsetYPx: hasY ? (value.invisibleOffsetYPx as number) : undefined,
   };
 }
 

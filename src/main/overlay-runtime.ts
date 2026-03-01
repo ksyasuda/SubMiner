@@ -1,12 +1,12 @@
 import type { BrowserWindow } from 'electron';
 import type { WindowGeometry } from '../types';
 
+const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
+
 type OverlayHostedModal = 'runtime-options' | 'subsync' | 'jimaku' | 'kiku';
-type OverlayHostLayer = 'visible' | 'invisible';
 
 export interface OverlayWindowResolver {
   getMainWindow: () => BrowserWindow | null;
-  getInvisibleWindow: () => BrowserWindow | null;
   getModalWindow: () => BrowserWindow | null;
   createModalWindow: () => BrowserWindow | null;
   getModalGeometry: () => WindowGeometry;
@@ -21,6 +21,7 @@ export interface OverlayModalRuntime {
   ) => boolean;
   openRuntimeOptionsPalette: () => void;
   handleOverlayModalClosed: (modal: OverlayHostedModal) => void;
+  notifyOverlayModalOpened: (modal: OverlayHostedModal) => void;
   getRestoreVisibleOverlayOnModalClose: () => Set<OverlayHostedModal>;
 }
 
@@ -34,6 +35,8 @@ export function createOverlayModalRuntimeService(
 ): OverlayModalRuntime {
   const restoreVisibleOverlayOnModalClose = new Set<OverlayHostedModal>();
   let modalActive = false;
+  let pendingModalWindowReveal: BrowserWindow | null = null;
+  let pendingModalWindowRevealTimeout: ReturnType<typeof setTimeout> | null = null;
 
   const notifyModalStateChange = (nextState: boolean): void => {
     if (modalActive === nextState) return;
@@ -53,42 +56,128 @@ export function createOverlayModalRuntimeService(
     return createdWindow;
   };
 
-  const getTargetOverlayWindow = (): {
-    window: BrowserWindow;
-    layer: OverlayHostLayer;
-  } | null => {
+  const getTargetOverlayWindow = (): BrowserWindow | null => {
     const visibleMainWindow = deps.getMainWindow();
-    const invisibleWindow = deps.getInvisibleWindow();
 
     if (visibleMainWindow && !visibleMainWindow.isDestroyed()) {
-      return { window: visibleMainWindow, layer: 'visible' };
+      return visibleMainWindow;
+    }
+    return null;
+  };
+
+  const getActiveOverlayWindowForModalInput = (): BrowserWindow | null => {
+    const modalWindow = deps.getModalWindow();
+    if (modalWindow && !modalWindow.isDestroyed()) {
+      return modalWindow;
     }
 
-    if (invisibleWindow && !invisibleWindow.isDestroyed()) {
-      return { window: invisibleWindow, layer: 'invisible' };
+    const visibleMainWindow = deps.getMainWindow();
+    if (visibleMainWindow && !visibleMainWindow.isDestroyed()) {
+      return visibleMainWindow;
     }
 
     return null;
   };
 
-  const showModalWindow = (window: BrowserWindow): void => {
-    window.show();
-    window.setIgnoreMouseEvents(false);
+  const isWindowReadyForIpc = (window: BrowserWindow): boolean => {
+    if (window.webContents.isLoading()) {
+      return false;
+    }
+    const currentURL = window.webContents.getURL();
+    return currentURL !== '' && currentURL !== 'about:blank';
+  };
+
+  const elevateModalWindow = (window: BrowserWindow): void => {
+    if (window.isDestroyed()) return;
+    window.setAlwaysOnTop(true, 'screen-saver', 1);
+    window.moveTop();
+  };
+
+  const sendOrQueueForWindow = (
+    window: BrowserWindow,
+    sendNow: (window: BrowserWindow) => void,
+  ): void => {
+    if (isWindowReadyForIpc(window)) {
+      sendNow(window);
+      return;
+    }
+
+    window.webContents.once('did-finish-load', () => {
+      if (!window.isDestroyed() && !window.webContents.isLoading()) {
+        sendNow(window);
+      }
+    });
+  };
+
+  const showModalWindow = (
+    window: BrowserWindow,
+    options: {
+      passThroughMouseEvents: boolean;
+    } = { passThroughMouseEvents: false },
+  ): void => {
+    if (!window.isVisible()) {
+      window.show();
+    }
+    elevateModalWindow(window);
+    if (options.passThroughMouseEvents) {
+      window.setIgnoreMouseEvents(true, { forward: true });
+    } else {
+      window.setIgnoreMouseEvents(false);
+    }
     window.focus();
     if (!window.webContents.isFocused()) {
       window.webContents.focus();
     }
   };
 
-  const showOverlayWindowForModal = (window: BrowserWindow, layer: OverlayHostLayer): void => {
-    if (layer === 'invisible' && typeof window.showInactive === 'function') {
-      window.showInactive();
-    } else {
-      window.show();
+  const ensureModalWindowInteractive = (window: BrowserWindow): void => {
+    if (window.isVisible()) {
+      window.setIgnoreMouseEvents(false);
+      if (!window.isFocused()) {
+        window.focus();
+      }
+      if (!window.webContents.isFocused()) {
+        window.webContents.focus();
+      }
+      elevateModalWindow(window);
+      return;
     }
+
+    showModalWindow(window);
+  };
+
+  const showOverlayWindowForModal = (window: BrowserWindow): void => {
+    window.show();
     if (!window.isFocused()) {
       window.focus();
     }
+  };
+
+  const clearPendingModalWindowReveal = (): void => {
+    if (pendingModalWindowRevealTimeout === null) {
+      pendingModalWindowReveal = null;
+      return;
+    }
+
+    clearTimeout(pendingModalWindowRevealTimeout);
+    pendingModalWindowRevealTimeout = null;
+    pendingModalWindowReveal = null;
+  };
+
+  const scheduleModalWindowReveal = (window: BrowserWindow): void => {
+    pendingModalWindowReveal = window;
+    if (pendingModalWindowRevealTimeout !== null) {
+      return;
+    }
+
+    pendingModalWindowRevealTimeout = setTimeout(() => {
+      const targetWindow = pendingModalWindowReveal;
+      clearPendingModalWindowReveal();
+      if (!targetWindow || targetWindow.isDestroyed() || targetWindow.isVisible()) {
+        return;
+      }
+      showModalWindow(targetWindow, { passThroughMouseEvents: false });
+    }, MODAL_REVEAL_FALLBACK_DELAY_MS);
   };
 
   const sendToActiveOverlayWindow = (
@@ -99,6 +188,7 @@ export function createOverlayModalRuntimeService(
     const restoreOnModalClose = runtimeOptions?.restoreOnModalClose;
 
     const sendNow = (window: BrowserWindow): void => {
+      ensureModalWindowInteractive(window);
       if (payload === undefined) {
         window.webContents.send(channel);
       } else {
@@ -107,55 +197,43 @@ export function createOverlayModalRuntimeService(
     };
 
     if (restoreOnModalClose) {
-      const modalWindow = resolveModalWindow();
-      if (!modalWindow) return false;
-
-      deps.setModalWindowBounds(deps.getModalGeometry());
-      const wasVisible = modalWindow.isVisible();
-      const wasModalActive = restoreVisibleOverlayOnModalClose.size > 0;
       restoreVisibleOverlayOnModalClose.add(restoreOnModalClose);
-      if (!wasModalActive) {
-        notifyModalStateChange(true);
-      }
-
-      if (!wasVisible) {
-        showModalWindow(modalWindow);
-      } else if (!modalWindow.isFocused()) {
-        showModalWindow(modalWindow);
-      }
-
-      if (modalWindow.webContents.isLoading()) {
-        modalWindow.webContents.once('did-finish-load', () => {
-          if (modalWindow && !modalWindow.isDestroyed() && !modalWindow.webContents.isLoading()) {
-            sendNow(modalWindow);
+      const mainWindow = getTargetOverlayWindow();
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+        sendOrQueueForWindow(mainWindow, (window) => {
+          if (payload === undefined) {
+            window.webContents.send(channel);
+          } else {
+            window.webContents.send(channel, payload);
           }
         });
         return true;
       }
 
-      sendNow(modalWindow);
+      const modalWindow = resolveModalWindow();
+      if (!modalWindow) return false;
+
+      deps.setModalWindowBounds(deps.getModalGeometry());
+      const wasVisible = modalWindow.isVisible();
+      if (!wasVisible) {
+        scheduleModalWindowReveal(modalWindow);
+      } else if (!modalWindow.isFocused()) {
+        showModalWindow(modalWindow);
+      }
+
+      sendOrQueueForWindow(modalWindow, sendNow);
       return true;
     }
 
     const target = getTargetOverlayWindow();
     if (!target) return false;
 
-    const { window: targetWindow, layer } = target;
-    const wasVisible = targetWindow.isVisible();
+    const wasVisible = target.isVisible();
     if (!wasVisible) {
-      showOverlayWindowForModal(targetWindow, layer);
+      showOverlayWindowForModal(target);
     }
 
-    if (targetWindow.webContents.isLoading()) {
-      targetWindow.webContents.once('did-finish-load', () => {
-        if (targetWindow && !targetWindow.isDestroyed() && !targetWindow.webContents.isLoading()) {
-          sendNow(targetWindow);
-        }
-      });
-      return true;
-    }
-
-    sendNow(targetWindow);
+    sendOrQueueForWindow(target, sendNow);
     return true;
   };
 
@@ -169,19 +247,44 @@ export function createOverlayModalRuntimeService(
     if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
     restoreVisibleOverlayOnModalClose.delete(modal);
     const modalWindow = deps.getModalWindow();
-    if (!modalWindow || modalWindow.isDestroyed()) return;
     if (restoreVisibleOverlayOnModalClose.size === 0) {
+      clearPendingModalWindowReveal();
       notifyModalStateChange(false);
+      if (modalWindow && !modalWindow.isDestroyed()) {
+        modalWindow.hide();
+      }
     }
-    if (restoreVisibleOverlayOnModalClose.size === 0) {
-      modalWindow.hide();
+  };
+
+  const notifyOverlayModalOpened = (modal: OverlayHostedModal): void => {
+    if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
+    notifyModalStateChange(true);
+    const targetWindow = getActiveOverlayWindowForModalInput();
+    clearPendingModalWindowReveal();
+    if (!targetWindow || targetWindow.isDestroyed()) {
+      return;
     }
+
+    if (targetWindow.isVisible()) {
+      targetWindow.setIgnoreMouseEvents(false);
+      elevateModalWindow(targetWindow);
+      if (!targetWindow.isFocused()) {
+        targetWindow.focus();
+      }
+      if (!targetWindow.webContents.isFocused()) {
+        targetWindow.webContents.focus();
+      }
+      return;
+    }
+
+    showModalWindow(targetWindow);
   };
 
   return {
     sendToActiveOverlayWindow,
     openRuntimeOptionsPalette,
     handleOverlayModalClosed,
+    notifyOverlayModalOpened,
     getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
   };
 }

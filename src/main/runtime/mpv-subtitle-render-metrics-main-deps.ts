@@ -1,6 +1,8 @@
 import type { createUpdateMpvSubtitleRenderMetricsHandler } from './mpv-subtitle-render-metrics';
 
-type UpdateMpvSubtitleRenderMetricsMainDeps = Parameters<typeof createUpdateMpvSubtitleRenderMetricsHandler>[0];
+type UpdateMpvSubtitleRenderMetricsMainDeps = Parameters<
+  typeof createUpdateMpvSubtitleRenderMetricsHandler
+>[0];
 
 export function createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler(
   deps: UpdateMpvSubtitleRenderMetricsMainDeps,

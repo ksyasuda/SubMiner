@@ -33,6 +33,7 @@ export function createHandleMpvSecondarySubtitleChangeHandler(deps: {
 export function createHandleMpvMediaPathChangeHandler(deps: {
   updateCurrentMediaPath: (path: string) => void;
   reportJellyfinRemoteStopped: () => void;
+  restoreMpvSubVisibility: () => void;
   getCurrentAnilistMediaKey: () => string | null;
   resetAnilistMediaTracking: (mediaKey: string | null) => void;
   maybeProbeAnilistDuration: (mediaKey: string) => void;
@@ -44,6 +45,7 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
     deps.updateCurrentMediaPath(path);
     if (!path) {
       deps.reportJellyfinRemoteStopped();
+      deps.restoreMpvSubVisibility();
     }
     const mediaKey = deps.getCurrentAnilistMediaKey();
     deps.resetAnilistMediaTracking(mediaKey);

@@ -30,7 +30,7 @@ SubMiner retries the connection automatically with increasing delays (200 ms, 50
   - first subtitle parse/tokenization bursts
   - media generation (`ffmpeg` audio/image and AVIF paths)
   - media sync and subtitle tooling (`alass`, `ffsubsync`, `whisper` fallback path)
-  - `ankiConnect` enrichment and frequent polling
+  - `ankiConnect` enrichment (plus polling overhead when proxy mode is disabled)
 
 ### If playback feels sluggish
 
@@ -104,11 +104,17 @@ Logged when a malformed JSON line arrives from the mpv socket. Usually harmless 
 
 **"AnkiConnect: unable to connect"**
 
-SubMiner polls AnkiConnect at `http://127.0.0.1:8765` (configurable via `ankiConnect.url`). This error means Anki is not running or the AnkiConnect add-on is not installed.
+SubMiner connects to the active Anki endpoint:
+
+- `ankiConnect.url` (direct mode, default `http://127.0.0.1:8765`)
+- `http://<ankiConnect.proxy.host>:<ankiConnect.proxy.port>` (proxy mode)
+
+This error means the active endpoint is unavailable, or (in proxy mode) the proxy cannot reach `ankiConnect.proxy.upstreamUrl`.
 
 - Install the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on in Anki.
 - Make sure Anki is running before you start mining.
-- If you changed the AnkiConnect port, update `ankiConnect.url` in your config.
+- If you changed the AnkiConnect port, update `ankiConnect.url` (or `ankiConnect.proxy.upstreamUrl` if using proxy mode).
+- If using external Yomitan/browser clients, confirm they point to your SubMiner proxy URL.
 
 SubMiner retries with exponential backoff (up to 5 s) and suppresses repeated error logs after 5 consecutive failures. When Anki comes back, you will see "AnkiConnect connection restored".
 
@@ -122,7 +128,7 @@ See [Anki Integration](/anki-integration) for the full field mapping reference.
 
 Shown when SubMiner tries to update a card that no longer exists, or when AnkiConnect rejects the update. Common causes:
 
-- The card was deleted in Anki between polling and update.
+- The card was deleted in Anki between creation and enrichment update.
 - The note type changed and a mapped field no longer exists.
 
 ## Overlay
@@ -153,7 +159,7 @@ SubMiner positions the overlay by tracking the mpv window. If tracking fails:
 - Sway: Ensure `swaymsg` is available.
 - X11: Ensure `xdotool` and `xwininfo` are installed.
 
-If the overlay position is slightly off, use invisible subtitle position edit mode (`Ctrl/Cmd+Shift+P`) to fine-tune the offset with arrow keys, then save with `Enter` or `Ctrl+S`.
+If the overlay position is slightly off, right-click and drag on subtitle text to fine-tune the overlay subtitle offset.
 
 ## Yomitan
 
@@ -217,10 +223,10 @@ Media generation has a 30-second timeout (60 seconds for animated AVIF). If your
 
 **"Failed to register global shortcut"**
 
-Global shortcuts (`Alt+Shift+O`, `Alt+Shift+I`, `Alt+Shift+Y`) may conflict with other applications or desktop environment keybindings.
+Global shortcuts (`Alt+Shift+O`, `Alt+Shift+Y`) may conflict with other applications or desktop environment keybindings.
 
 - Check your DE/WM keybinding settings for conflicts.
-- Change the shortcuts in your config under `shortcuts.toggleVisibleOverlayGlobal`, `shortcuts.toggleInvisibleOverlayGlobal`.
+- Change the shortcut in your config under `shortcuts.toggleVisibleOverlayGlobal`.
 - On Wayland, global shortcut registration has limitations depending on the compositor.
 
 **Overlay keybindings not working**
@@ -273,5 +279,5 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 ### macOS
 
 - **Accessibility permission**: Required for window tracking. Grant it in System Settings > Privacy & Security > Accessibility.
-- **Font rendering**: macOS uses a 0.87x font compensation factor for subtitle alignment between mpv and the overlay. If text alignment looks off, adjust the invisible subtitle offset.
+- **Font rendering**: macOS uses a 0.87x font compensation factor for subtitle alignment between mpv and the overlay. If text alignment looks off, adjust subtitle offset by right-click dragging subtitle text.
 - **Gatekeeper**: If macOS blocks SubMiner, right-click the app and select "Open" to bypass the warning, or remove the quarantine attribute: `xattr -d com.apple.quarantine /path/to/SubMiner.app`

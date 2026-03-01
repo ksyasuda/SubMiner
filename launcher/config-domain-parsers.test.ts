@@ -51,10 +51,27 @@ test('parseLauncherJellyfinConfig omits legacy token and user id fields', () => 
   assert.equal('userId' in parsed, false);
 });
 
-test('parsePluginRuntimeConfigContent reads socket_path and ignores inline comments', () => {
+test('parsePluginRuntimeConfigContent reads socket path and startup gate options', () => {
   const parsed = parsePluginRuntimeConfigContent(`
 # comment
 socket_path = /tmp/custom.sock # trailing comment
+auto_start = yes
+auto_start_visible_overlay = true
+auto_start_pause_until_ready = 1
 `);
   assert.equal(parsed.socketPath, '/tmp/custom.sock');
+  assert.equal(parsed.autoStart, true);
+  assert.equal(parsed.autoStartVisibleOverlay, true);
+  assert.equal(parsed.autoStartPauseUntilReady, true);
+});
+
+test('parsePluginRuntimeConfigContent falls back to disabled startup gate options', () => {
+  const parsed = parsePluginRuntimeConfigContent(`
+auto_start = maybe
+auto_start_visible_overlay = no
+auto_start_pause_until_ready = off
+`);
+  assert.equal(parsed.autoStart, false);
+  assert.equal(parsed.autoStartVisibleOverlay, false);
+  assert.equal(parsed.autoStartPauseUntilReady, false);
 });

@@ -23,11 +23,32 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, false);
   assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
+  assert.equal(config.startupWarmups.lowPowerMode, false);
+  assert.equal(config.startupWarmups.mecab, true);
+  assert.equal(config.startupWarmups.yomitanExtension, true);
+  assert.equal(config.startupWarmups.subtitleDictionaries, true);
+  assert.equal(config.startupWarmups.jellyfinRemoteSession, true);
   assert.equal(config.discordPresence.enabled, false);
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
-  assert.equal(config.subtitleStyle.hoverTokenColor, '#c6a0f6');
+  assert.equal(config.subtitleStyle.autoPauseVideoOnHover, true);
+  assert.equal(config.subtitleStyle.hoverTokenColor, '#f4dbd6');
+  assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, 'rgba(54, 58, 79, 0.84)');
+  assert.equal(
+    config.subtitleStyle.fontFamily,
+    'M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP',
+  );
+  assert.equal(config.subtitleStyle.fontWeight, '600');
+  assert.equal(config.subtitleStyle.lineHeight, 1.35);
+  assert.equal(config.subtitleStyle.letterSpacing, '-0.01em');
+  assert.equal(config.subtitleStyle.wordSpacing, 0);
+  assert.equal(config.subtitleStyle.fontKerning, 'normal');
+  assert.equal(config.subtitleStyle.textRendering, 'geometricPrecision');
+  assert.equal(config.subtitleStyle.textShadow, '0 3px 10px rgba(0,0,0,0.69)');
+  assert.equal(config.subtitleStyle.backdropFilter, 'blur(6px)');
+  assert.equal(config.subtitleStyle.secondary.fontFamily, 'Inter, Noto Sans, Helvetica Neue, sans-serif');
+  assert.equal(config.subtitleStyle.secondary.fontColor, '#cad3f5');
   assert.equal(config.immersionTracking.enabled, true);
   assert.equal(config.immersionTracking.dbPath, '');
   assert.equal(config.immersionTracking.batchSize, 25);
@@ -98,6 +119,44 @@ test('parses subtitleStyle.preserveLineBreaks and warns on invalid values', () =
   );
 });
 
+test('parses subtitleStyle.autoPauseVideoOnHover and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "autoPauseVideoOnHover": true
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.autoPauseVideoOnHover, true);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "autoPauseVideoOnHover": "yes"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.autoPauseVideoOnHover,
+    DEFAULT_CONFIG.subtitleStyle.autoPauseVideoOnHover,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.autoPauseVideoOnHover'),
+  );
+});
+
 test('parses subtitleStyle.hoverTokenColor and warns on invalid values', () => {
   const validDir = makeTempDir();
   fs.writeFileSync(
@@ -133,6 +192,44 @@ test('parses subtitleStyle.hoverTokenColor and warns on invalid values', () => {
     invalidService
       .getWarnings()
       .some((warning) => warning.path === 'subtitleStyle.hoverTokenColor'),
+  );
+});
+
+test('parses subtitleStyle.hoverTokenBackgroundColor and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "hoverTokenBackgroundColor": "#363a4fd6"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.hoverTokenBackgroundColor, '#363a4fd6');
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "hoverTokenBackgroundColor": true
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.hoverTokenBackgroundColor,
+    DEFAULT_CONFIG.subtitleStyle.hoverTokenBackgroundColor,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.hoverTokenBackgroundColor'),
   );
 });
 
@@ -239,6 +336,72 @@ test('parses jellyfin.enabled and remoteControlEnabled disabled combinations', (
       ),
     false,
   );
+});
+
+test('parses startup warmup toggles and low-power mode', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "startupWarmups": {
+        "lowPowerMode": true,
+        "mecab": false,
+        "yomitanExtension": true,
+        "subtitleDictionaries": false,
+        "jellyfinRemoteSession": false
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  assert.equal(config.startupWarmups.lowPowerMode, true);
+  assert.equal(config.startupWarmups.mecab, false);
+  assert.equal(config.startupWarmups.yomitanExtension, true);
+  assert.equal(config.startupWarmups.subtitleDictionaries, false);
+  assert.equal(config.startupWarmups.jellyfinRemoteSession, false);
+});
+
+test('invalid startup warmup values warn and keep defaults', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "startupWarmups": {
+        "lowPowerMode": "yes",
+        "mecab": 1,
+        "yomitanExtension": null,
+        "subtitleDictionaries": "no",
+        "jellyfinRemoteSession": []
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.startupWarmups.lowPowerMode, DEFAULT_CONFIG.startupWarmups.lowPowerMode);
+  assert.equal(config.startupWarmups.mecab, DEFAULT_CONFIG.startupWarmups.mecab);
+  assert.equal(
+    config.startupWarmups.yomitanExtension,
+    DEFAULT_CONFIG.startupWarmups.yomitanExtension,
+  );
+  assert.equal(
+    config.startupWarmups.subtitleDictionaries,
+    DEFAULT_CONFIG.startupWarmups.subtitleDictionaries,
+  );
+  assert.equal(
+    config.startupWarmups.jellyfinRemoteSession,
+    DEFAULT_CONFIG.startupWarmups.jellyfinRemoteSession,
+  );
+  assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.lowPowerMode'));
+  assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.mecab'));
+  assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.yomitanExtension'));
+  assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.subtitleDictionaries'));
+  assert.ok(warnings.some((warning) => warning.path === 'startupWarmups.jellyfinRemoteSession'));
 });
 
 test('parses discordPresence fields and warns for invalid types', () => {
@@ -597,20 +760,15 @@ test('warns and ignores unknown top-level config keys', () => {
   assert.ok(warnings.some((warning) => warning.path === 'unknownFeatureFlag'));
 });
 
-test('parses invisible overlay config and new global shortcuts', () => {
+test('parses global shortcuts and startup settings', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "shortcuts": {
         "toggleVisibleOverlayGlobal": "Alt+Shift+U",
-        "toggleInvisibleOverlayGlobal": "Alt+Shift+I",
         "openJimaku": "Ctrl+Alt+J"
       },
-      "invisibleOverlay": {
-        "startupVisibility": "hidden"
-      },
-      "bind_visible_overlay_to_mpv_sub_visibility": false,
       "youtubeSubgen": {
         "primarySubLanguages": ["ja", "jpn", "jp"]
       }
@@ -621,10 +779,7 @@ test('parses invisible overlay config and new global shortcuts', () => {
   const service = new ConfigService(dir);
   const config = service.getConfig();
   assert.equal(config.shortcuts.toggleVisibleOverlayGlobal, 'Alt+Shift+U');
-  assert.equal(config.shortcuts.toggleInvisibleOverlayGlobal, 'Alt+Shift+I');
   assert.equal(config.shortcuts.openJimaku, 'Ctrl+Alt+J');
-  assert.equal(config.invisibleOverlay.startupVisibility, 'hidden');
-  assert.equal(config.bind_visible_overlay_to_mpv_sub_visibility, false);
   assert.deepEqual(config.youtubeSubgen.primarySubLanguages, ['ja', 'jpn', 'jp']);
 });
 
@@ -632,6 +787,9 @@ test('runtime options registry is centralized', () => {
   const ids = RUNTIME_OPTION_REGISTRY.map((entry) => entry.id);
   assert.deepEqual(ids, [
     'anki.autoUpdateNewCards',
+    'subtitle.annotation.nPlusOne',
+    'subtitle.annotation.jlpt',
+    'subtitle.annotation.frequency',
     'anki.nPlusOneMatchMode',
     'anki.kikuFieldGrouping',
   ]);
@@ -1090,6 +1248,7 @@ test('template generator includes known keys', () => {
   assert.match(output, /"logging":/);
   assert.match(output, /"websocket":/);
   assert.match(output, /"discordPresence":/);
+  assert.match(output, /"startupWarmups":/);
   assert.match(output, /"youtubeSubgen":/);
   assert.match(output, /"preserveLineBreaks": false/);
   assert.match(output, /"nPlusOne"\s*:\s*\{/);

@@ -21,9 +21,5 @@ test('secondary sub mode runtime handler composes deps for runtime call', () => 
   });
 
   handleCycleSecondarySubMode();
-  assert.deepEqual(calls, [
-    'set-mode',
-    'broadcast:secondary-subtitle:mode:romaji',
-    'osd:romaji',
-  ]);
+  assert.deepEqual(calls, ['set-mode', 'broadcast:secondary-subtitle:mode:romaji', 'osd:romaji']);
 });

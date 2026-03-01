@@ -47,7 +47,8 @@ export function createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler(
     hasAttemptedUpdateKey: (key: string) => deps.hasAttemptedUpdateKey(key),
     processNextAnilistRetryUpdate: () => deps.processNextAnilistRetryUpdate(),
     refreshAnilistClientSecretState: () => deps.refreshAnilistClientSecretState(),
-    enqueueRetry: (key: string, title: string, episode: number) => deps.enqueueRetry(key, title, episode),
+    enqueueRetry: (key: string, title: string, episode: number) =>
+      deps.enqueueRetry(key, title, episode),
     markRetryFailure: (key: string, message: string) => deps.markRetryFailure(key, message),
     markRetrySuccess: (key: string) => deps.markRetrySuccess(key),
     refreshRetryQueueState: () => deps.refreshRetryQueueState(),

@@ -7,7 +7,7 @@ dist/
 release/
 
 # Launcher build artifact (produced by make build-launcher)
-subminer
+/subminer
 
 # Logs
 *.log

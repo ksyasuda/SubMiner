@@ -1,5 +1,4 @@
 import { BrowserWindow } from 'electron';
-import { AnkiIntegration } from '../../anki-integration';
 import { BaseWindowTracker, createWindowTracker } from '../../window-trackers';
 import {
   AnkiConnectConfig,
@@ -8,21 +7,55 @@ import {
   WindowGeometry,
 } from '../../types';
 
+type AnkiIntegrationLike = {
+  start: () => void;
+};
+
+type CreateAnkiIntegrationArgs = {
+  config: AnkiConnectConfig;
+  subtitleTimingTracker: unknown;
+  mpvClient: { send?: (payload: { command: string[] }) => void };
+  showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  createFieldGroupingCallback: () => (
+    data: KikuFieldGroupingRequestData,
+  ) => Promise<KikuFieldGroupingChoice>;
+  knownWordCacheStatePath: string;
+};
+
+function createDefaultAnkiIntegration(args: CreateAnkiIntegrationArgs): AnkiIntegrationLike {
+  const { AnkiIntegration } =
+    require('../../anki-integration') as typeof import('../../anki-integration');
+  return new AnkiIntegration(
+    args.config,
+    args.subtitleTimingTracker as never,
+    args.mpvClient as never,
+    (text: string) => {
+      if (args.mpvClient && typeof args.mpvClient.send === 'function') {
+        args.mpvClient.send({
+          command: ['show-text', text, '3000'],
+        });
+      }
+    },
+    args.showDesktopNotification,
+    args.createFieldGroupingCallback(),
+    args.knownWordCacheStatePath,
+  );
+}
+
 export function initializeOverlayRuntime(options: {
   backendOverride: string | null;
-  getInitialInvisibleOverlayVisibility: () => boolean;
   createMainWindow: () => void;
-  createInvisibleWindow: () => void;
   registerGlobalShortcuts: () => void;
   updateVisibleOverlayBounds: (geometry: WindowGeometry) => void;
-  updateInvisibleOverlayBounds: (geometry: WindowGeometry) => void;
   isVisibleOverlayVisible: () => boolean;
-  isInvisibleOverlayVisible: () => boolean;
   updateVisibleOverlayVisibility: () => void;
-  updateInvisibleOverlayVisibility: () => void;
   getOverlayWindows: () => BrowserWindow[];
   syncOverlayShortcuts: () => void;
   setWindowTracker: (tracker: BaseWindowTracker | null) => void;
+  createWindowTracker?: (
+    override?: string | null,
+    targetMpvSocketPath?: string | null,
+  ) => BaseWindowTracker | null;
   getMpvSocketPath: () => string;
   getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
   getSubtitleTimingTracker: () => unknown | null;
@@ -38,29 +71,25 @@ export function initializeOverlayRuntime(options: {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
-}): {
-  invisibleOverlayVisible: boolean;
-} {
+  createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
+}): void {
   options.createMainWindow();
-  options.createInvisibleWindow();
-  const invisibleOverlayVisible = options.getInitialInvisibleOverlayVisibility();
   options.registerGlobalShortcuts();
 
-  const windowTracker = createWindowTracker(options.backendOverride, options.getMpvSocketPath());
+  const createWindowTrackerHandler = options.createWindowTracker ?? createWindowTracker;
+  const windowTracker = createWindowTrackerHandler(
+    options.backendOverride,
+    options.getMpvSocketPath(),
+  );
   options.setWindowTracker(windowTracker);
   if (windowTracker) {
     windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
       options.updateVisibleOverlayBounds(geometry);
-      options.updateInvisibleOverlayBounds(geometry);
     };
     windowTracker.onWindowFound = (geometry: WindowGeometry) => {
       options.updateVisibleOverlayBounds(geometry);
-      options.updateInvisibleOverlayBounds(geometry);
       if (options.isVisibleOverlayVisible()) {
         options.updateVisibleOverlayVisibility();
-      }
-      if (options.isInvisibleOverlayVisible()) {
-        options.updateInvisibleOverlayVisibility();
       }
     };
     windowTracker.onWindowLost = () => {
@@ -77,31 +106,27 @@ export function initializeOverlayRuntime(options: {
   const mpvClient = options.getMpvClient();
   const runtimeOptionsManager = options.getRuntimeOptionsManager();
 
-  if (config.ankiConnect && subtitleTimingTracker && mpvClient && runtimeOptionsManager) {
+  if (
+    config.ankiConnect?.enabled === true &&
+    subtitleTimingTracker &&
+    mpvClient &&
+    runtimeOptionsManager
+  ) {
     const effectiveAnkiConfig = runtimeOptionsManager.getEffectiveAnkiConnectConfig(
       config.ankiConnect,
     );
-    const integration = new AnkiIntegration(
-      effectiveAnkiConfig,
-      subtitleTimingTracker as never,
-      mpvClient as never,
-      (text: string) => {
-        if (mpvClient && typeof mpvClient.send === 'function') {
-          mpvClient.send({
-            command: ['show-text', text, '3000'],
-          });
-        }
-      },
-      options.showDesktopNotification,
-      options.createFieldGroupingCallback(),
-      options.getKnownWordCacheStatePath(),
-    );
+    const createAnkiIntegration = options.createAnkiIntegration ?? createDefaultAnkiIntegration;
+    const integration = createAnkiIntegration({
+      config: effectiveAnkiConfig,
+      subtitleTimingTracker,
+      mpvClient,
+      showDesktopNotification: options.showDesktopNotification,
+      createFieldGroupingCallback: options.createFieldGroupingCallback,
+      knownWordCacheStatePath: options.getKnownWordCacheStatePath(),
+    });
     integration.start();
     options.setAnkiIntegration(integration);
   }
 
   options.updateVisibleOverlayVisibility();
-  options.updateInvisibleOverlayVisibility();
-
-  return { invisibleOverlayVisible };
 }

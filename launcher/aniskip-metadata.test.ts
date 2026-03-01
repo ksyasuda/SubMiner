@@ -62,7 +62,7 @@ test('inferAniSkipMetadataForFile falls back to anime directory title when filen
 
 test('buildSubminerScriptOpts includes aniskip metadata fields', () => {
   const opts = buildSubminerScriptOpts('/tmp/SubMiner.AppImage', '/tmp/subminer.sock', {
-    title: 'Frieren: Beyond Journey\'s End',
+    title: "Frieren: Beyond Journey's End",
     season: 1,
     episode: 5,
     source: 'guessit',

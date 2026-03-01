@@ -62,7 +62,7 @@ function createSmokeCase(name: string): SmokeCase {
 
   writeExecutable(
     fakeMpvPath,
-    `#!/usr/bin/env bun
+    `#!/usr/bin/env node
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
@@ -101,7 +101,7 @@ process.on('SIGTERM', closeAndExit);
 
   writeExecutable(
     fakeAppPath,
-    `#!/usr/bin/env bun
+    `#!/usr/bin/env node
 const fs = require('node:fs');
 
 const logPath = ${JSON.stringify(fakeAppLogPath)};
@@ -237,8 +237,20 @@ test('launcher mpv status returns ready when socket is connectable', async () =>
         env,
         'mpv-status',
       );
-      assert.equal(result.status, 0);
-      assert.match(result.stdout, /socket ready/i);
+      const fakeMpvEntries = readJsonLines(path.join(smokeCase.artifactsDir, 'fake-mpv.log'));
+      const fakeMpvError = fakeMpvEntries.find(
+        (entry): entry is { error: string } => typeof entry.error === 'string',
+      )?.error;
+      const unixSocketDenied =
+        typeof fakeMpvError === 'string' && /eperm|operation not permitted/i.test(fakeMpvError);
+
+      if (unixSocketDenied) {
+        assert.equal(result.status, 1);
+        assert.match(result.stdout, /socket not ready/i);
+      } else {
+        assert.equal(result.status, 0);
+        assert.match(result.stdout, /socket ready/i);
+      }
     } finally {
       if (fakeMpv.exitCode === null) {
         await new Promise<void>((resolve) => {
@@ -262,9 +274,6 @@ test(
         'overlay-start-stop',
       );
 
-      assert.equal(result.status, 0);
-      assert.match(result.stdout, /Starting SubMiner overlay/i);
-
       const appStartPath = path.join(smokeCase.artifactsDir, 'fake-app-start.log');
       const appStopPath = path.join(smokeCase.artifactsDir, 'fake-app-stop.log');
       await waitForJsonLines(appStartPath, 1);
@@ -273,6 +282,14 @@ test(
       const appStartEntries = readJsonLines(appStartPath);
       const appStopEntries = readJsonLines(appStopPath);
       const mpvEntries = readJsonLines(path.join(smokeCase.artifactsDir, 'fake-mpv.log'));
+      const mpvError = mpvEntries.find(
+        (entry): entry is { error: string } => typeof entry.error === 'string',
+      )?.error;
+      const unixSocketDenied =
+        typeof mpvError === 'string' && /eperm|operation not permitted/i.test(mpvError);
+
+      assert.equal(result.status, unixSocketDenied ? 3 : 0);
+      assert.match(result.stdout, /Starting SubMiner overlay/i);
 
       assert.equal(appStartEntries.length, 1);
       assert.equal(appStopEntries.length, 1);
@@ -299,6 +316,46 @@ test(
         true,
       );
       assert.equal((mpvFirstArgs as string[]).includes(smokeCase.videoPath), true);
+    });
+  },
+);
+
+test(
+  'launcher starts mpv paused when plugin auto-start visible overlay gate is enabled',
+  { timeout: 20000 },
+  async () => {
+    await withSmokeCase('autoplay-ready-gate', async (smokeCase) => {
+      fs.writeFileSync(
+        path.join(smokeCase.xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+        [
+          `socket_path=${smokeCase.socketPath}`,
+          'auto_start=yes',
+          'auto_start_visible_overlay=yes',
+          'auto_start_pause_until_ready=yes',
+          '',
+        ].join('\n'),
+      );
+
+      const env = makeTestEnv(smokeCase);
+      const result = runLauncher(
+        smokeCase,
+        [smokeCase.videoPath, '--log-level', 'debug'],
+        env,
+        'autoplay-ready-gate',
+      );
+
+      const mpvEntries = readJsonLines(path.join(smokeCase.artifactsDir, 'fake-mpv.log'));
+      const mpvError = mpvEntries.find(
+        (entry): entry is { error: string } => typeof entry.error === 'string',
+      )?.error;
+      const unixSocketDenied =
+        typeof mpvError === 'string' && /eperm|operation not permitted/i.test(mpvError);
+      const mpvFirstArgs = mpvEntries[0]?.argv;
+
+      assert.equal(result.status, unixSocketDenied ? 3 : 0);
+      assert.equal(Array.isArray(mpvFirstArgs), true);
+      assert.equal((mpvFirstArgs as string[]).includes('--pause=yes'), true);
+      assert.match(result.stdout, /pause mpv until overlay and tokenization are ready/i);
     });
   },
 );

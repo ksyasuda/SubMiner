@@ -8,7 +8,6 @@ export function createBuildMpvClientRuntimeServiceFactoryDepsHandler<
   getResolvedConfig: () => TResolvedConfig;
   isAutoStartOverlayEnabled: () => boolean;
   setOverlayVisible: (visible: boolean) => void;
-  shouldBindVisibleOverlayToMpvSubVisibility: () => boolean;
   isVisibleOverlayVisible: () => boolean;
   getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
@@ -21,11 +20,10 @@ export function createBuildMpvClientRuntimeServiceFactoryDepsHandler<
       getResolvedConfig: () => deps.getResolvedConfig(),
       autoStartOverlay: deps.isAutoStartOverlayEnabled(),
       setOverlayVisible: (visible: boolean) => deps.setOverlayVisible(visible),
-      shouldBindVisibleOverlayToMpvSubVisibility: () =>
-        deps.shouldBindVisibleOverlayToMpvSubVisibility(),
       isVisibleOverlayVisible: () => deps.isVisibleOverlayVisible(),
       getReconnectTimer: () => deps.getReconnectTimer(),
-      setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => deps.setReconnectTimer(timer),
+      setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) =>
+        deps.setReconnectTimer(timer),
     },
     bindEventHandlers: (client: TClient) => deps.bindEventHandlers(client),
   });

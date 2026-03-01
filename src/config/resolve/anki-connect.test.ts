@@ -66,3 +66,44 @@ test('warns and falls back for invalid nPlusOne.decks entries', () => {
   );
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.decks'));
 });
+
+test('accepts valid proxy settings', () => {
+  const { context, warnings } = makeContext({
+    proxy: {
+      enabled: true,
+      host: '127.0.0.1',
+      port: 9999,
+      upstreamUrl: 'http://127.0.0.1:8765',
+    },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.proxy.enabled, true);
+  assert.equal(context.resolved.ankiConnect.proxy.host, '127.0.0.1');
+  assert.equal(context.resolved.ankiConnect.proxy.port, 9999);
+  assert.equal(context.resolved.ankiConnect.proxy.upstreamUrl, 'http://127.0.0.1:8765');
+  assert.equal(
+    warnings.some((warning) => warning.path.startsWith('ankiConnect.proxy')),
+    false,
+  );
+});
+
+test('warns and falls back for invalid proxy settings', () => {
+  const { context, warnings } = makeContext({
+    proxy: {
+      enabled: 'yes',
+      host: '',
+      port: -1,
+      upstreamUrl: '',
+    },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.deepEqual(context.resolved.ankiConnect.proxy, DEFAULT_CONFIG.ankiConnect.proxy);
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.proxy.enabled'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.proxy.host'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.proxy.port'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.proxy.upstreamUrl'));
+});

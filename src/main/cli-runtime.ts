@@ -6,6 +6,7 @@ import {
 } from './dependencies';
 
 export interface CliCommandRuntimeServiceContext {
+  setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
   getSocketPath: () => string;
   setSocketPath: (socketPath: string) => void;
   getClient: CliCommandRuntimeServiceDepsParams['mpv']['getClient'];
@@ -17,9 +18,7 @@ export interface CliCommandRuntimeServiceContext {
   isOverlayInitialized: () => boolean;
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
-  toggleInvisibleOverlay: () => void;
   setVisibleOverlay: (visible: boolean) => void;
-  setInvisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;
   mineSentenceCard: () => Promise<void>;
@@ -57,6 +56,7 @@ function createCliCommandDepsFromContext(
   context: CliCommandRuntimeServiceContext & CliCommandRuntimeServiceContextHandlers,
 ): CliCommandRuntimeServiceDepsParams {
   return {
+    setLogLevel: context.setLogLevel,
     mpv: {
       getSocketPath: context.getSocketPath,
       setSocketPath: context.setSocketPath,
@@ -74,9 +74,7 @@ function createCliCommandDepsFromContext(
       isInitialized: context.isOverlayInitialized,
       initialize: context.initializeOverlay,
       toggleVisible: context.toggleVisibleOverlay,
-      toggleInvisible: context.toggleInvisibleOverlay,
       setVisible: context.setVisibleOverlay,
-      setInvisible: context.setInvisibleOverlay,
     },
     mining: {
       copyCurrentSubtitle: context.copyCurrentSubtitle,

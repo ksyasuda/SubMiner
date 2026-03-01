@@ -55,6 +55,19 @@ function makeDepsFromYomitanTokens(
   });
 }
 
+function createDeferred<T>() {
+  let resolve: ((value: T) => void) | null = null;
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return {
+    promise,
+    resolve: (value: T) => {
+      resolve?.(value);
+    },
+  };
+}
+
 test('tokenizeSubtitle assigns JLPT level to parsed Yomitan tokens', async () => {
   const result = await tokenizeSubtitle(
     '猫です',
@@ -167,6 +180,296 @@ test('tokenizeSubtitle applies frequency dictionary ranks', async () => {
   assert.equal(result.tokens?.length, 2);
   assert.equal(result.tokens?.[0]?.frequencyRank, 23);
   assert.equal(result.tokens?.[1]?.frequencyRank, 1200);
+});
+
+test('tokenizeSubtitle loads frequency ranks from Yomitan installed dictionaries', async () => {
+  const result = await tokenizeSubtitle(
+    '猫',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '猫',
+                    reading: 'ねこ',
+                    dictionary: 'freq-dict',
+                    frequency: 77,
+                    displayValue: '77',
+                    displayValueParsed: true,
+                  },
+                ];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '猫',
+                        reading: 'ねこ',
+                        headwords: [[{ term: '猫' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 77);
+});
+
+test('tokenizeSubtitle starts Yomitan frequency lookup and MeCab enrichment in parallel', async () => {
+  const frequencyDeferred = createDeferred<unknown[]>();
+  const mecabDeferred = createDeferred<null>();
+  let frequencyRequested = false;
+  let mecabRequested = false;
+
+  const pendingResult = tokenizeSubtitle(
+    '猫',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                frequencyRequested = true;
+                return await frequencyDeferred.promise;
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '猫',
+                        reading: 'ねこ',
+                        headwords: [[{ term: '猫' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+      tokenizeWithMecab: async () => {
+        mecabRequested = true;
+        return await mecabDeferred.promise;
+      },
+    }),
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(frequencyRequested, true);
+  assert.equal(mecabRequested, true);
+
+  frequencyDeferred.resolve([
+    {
+      term: '猫',
+      reading: 'ねこ',
+      dictionary: 'freq-dict',
+      frequency: 77,
+      displayValue: '77',
+      displayValueParsed: true,
+    },
+  ]);
+  mecabDeferred.resolve(null);
+
+  const result = await pendingResult;
+  assert.equal(result.tokens?.[0]?.frequencyRank, 77);
+});
+
+test('tokenizeSubtitle queries headword frequencies with token reading for disambiguation', async () => {
+  const result = await tokenizeSubtitle(
+    '鍛えた',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                if (!script.includes('"term":"鍛える","reading":"きた"')) {
+                  return [];
+                }
+                return [
+                  {
+                    term: '鍛える',
+                    reading: 'きたえる',
+                    dictionary: 'freq-dict',
+                    frequency: 46961,
+                    displayValue: '2847,46961',
+                    displayValueParsed: true,
+                  },
+                ];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '鍛えた',
+                        reading: 'きた',
+                        headwords: [[{ term: '鍛える' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.headword, '鍛える');
+  assert.equal(result.tokens?.[0]?.reading, 'きた');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 2847);
+});
+
+test('tokenizeSubtitle avoids headword term-only fallback rank when reading-specific frequency exists', async () => {
+  const result = await tokenizeSubtitle(
+    '無人',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                if (!script.includes('"term":"無人","reading":"むじん"')) {
+                  return [];
+                }
+                return [
+                  {
+                    term: '無人',
+                    reading: null,
+                    dictionary: 'CC100',
+                    dictionaryPriority: 0,
+                    frequency: 157632,
+                    displayValue: null,
+                    displayValueParsed: false,
+                  },
+                  {
+                    term: '無人',
+                    reading: 'むじん',
+                    dictionary: 'CC100',
+                    dictionaryPriority: 0,
+                    frequency: 7141,
+                    displayValue: null,
+                    displayValueParsed: false,
+                  },
+                ];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '無人',
+                        reading: 'むじん',
+                        headwords: [[{ term: '無人' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 7141);
+});
+
+test('tokenizeSubtitle prefers Yomitan frequency from highest-priority dictionary', async () => {
+  const result = await tokenizeSubtitle(
+    '猫',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '猫',
+                    reading: 'ねこ',
+                    dictionary: 'low-priority',
+                    dictionaryPriority: 2,
+                    frequency: 5,
+                    displayValue: '5',
+                    displayValueParsed: true,
+                  },
+                  {
+                    term: '猫',
+                    reading: 'ねこ',
+                    dictionary: 'high-priority',
+                    dictionaryPriority: 0,
+                    frequency: 100,
+                    displayValue: '100',
+                    displayValueParsed: true,
+                  },
+                ];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '猫',
+                        reading: 'ねこ',
+                        headwords: [[{ term: '猫' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 100);
 });
 
 test('tokenizeSubtitle uses only selected Yomitan headword for frequency lookup', async () => {
@@ -1644,6 +1947,20 @@ test('tokenizeSubtitle checks known words by surface when configured', async () 
   assert.equal(result.tokens?.[0]?.isKnown, true);
 });
 
+test('tokenizeSubtitle uses frequency surface match mode when configured', async () => {
+  const result = await tokenizeSubtitle(
+    '鍛えた',
+    makeDepsFromYomitanTokens([{ surface: '鍛えた', reading: 'きたえた', headword: '鍛える' }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyDictionaryMatchMode: () => 'surface',
+      getFrequencyRank: (text) => (text === '鍛えた' ? 2847 : null),
+    }),
+  );
+
+  assert.equal(result.text, '鍛えた');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 2847);
+});
+
 test('createTokenizerDepsRuntime checks MeCab availability before first tokenizeWithMecab call', async () => {
   let available = false;
   let checkCalls = 0;
@@ -1695,4 +2012,292 @@ test('createTokenizerDepsRuntime checks MeCab availability before first tokenize
   assert.equal(checkCalls, 1);
   assert.equal(first?.[0]?.surface, '仮面');
   assert.equal(second?.[0]?.surface, '仮面');
+});
+
+test('tokenizeSubtitle uses async MeCab enrichment override when provided', async () => {
+  const result = await tokenizeSubtitle(
+    '猫',
+    makeDepsFromYomitanTokens([{ surface: '猫', reading: 'ねこ', headword: '猫' }], {
+      tokenizeWithMecab: async () => [
+        {
+          headword: '猫',
+          surface: '猫',
+          reading: 'ネコ',
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      enrichTokensWithMecab: async (tokens) =>
+        tokens.map((token) => ({
+          ...token,
+          pos1: 'override-pos',
+        })),
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.pos1, 'override-pos');
+});
+
+test('createTokenizerDepsRuntime exposes async MeCab enrichment helper', async () => {
+  const deps = createTokenizerDepsRuntime({
+    getYomitanExt: () => null,
+    getYomitanParserWindow: () => null,
+    setYomitanParserWindow: () => {},
+    getYomitanParserReadyPromise: () => null,
+    setYomitanParserReadyPromise: () => {},
+    getYomitanParserInitPromise: () => null,
+    setYomitanParserInitPromise: () => {},
+    isKnownWord: () => false,
+    getKnownWordMatchMode: () => 'headword',
+    getJlptLevel: () => null,
+    getMecabTokenizer: () => null,
+  });
+
+  const enriched = await deps.enrichTokensWithMecab?.(
+    [
+      {
+        headword: 'は',
+        surface: 'は',
+        reading: 'は',
+        startPos: 0,
+        endPos: 1,
+        partOfSpeech: PartOfSpeech.other,
+        isMerged: true,
+        isKnown: false,
+        isNPlusOneTarget: false,
+      },
+    ],
+    [
+      {
+        headword: 'は',
+        surface: 'は',
+        reading: 'ハ',
+        startPos: 0,
+        endPos: 1,
+        partOfSpeech: PartOfSpeech.particle,
+        pos1: '助詞',
+        isMerged: false,
+        isKnown: false,
+        isNPlusOneTarget: false,
+      },
+    ],
+  );
+
+  assert.equal(enriched?.[0]?.pos1, '助詞');
+});
+
+test('tokenizeSubtitle skips all enrichment stages when disabled', async () => {
+  let knownCalls = 0;
+  let mecabCalls = 0;
+  let jlptCalls = 0;
+  let frequencyCalls = 0;
+
+  const result = await tokenizeSubtitle(
+    '猫',
+    makeDepsFromYomitanTokens([{ surface: '猫', reading: 'ねこ', headword: '猫' }], {
+      isKnownWord: () => {
+        knownCalls += 1;
+        return true;
+      },
+      getNPlusOneEnabled: () => false,
+      getJlptEnabled: () => false,
+      getFrequencyDictionaryEnabled: () => false,
+      getJlptLevel: () => {
+        jlptCalls += 1;
+        return 'N5';
+      },
+      getFrequencyRank: () => {
+        frequencyCalls += 1;
+        return 10;
+      },
+      tokenizeWithMecab: async () => {
+        mecabCalls += 1;
+        return null;
+      },
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.isKnown, false);
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
+  assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+  assert.equal(knownCalls, 0);
+  assert.equal(mecabCalls, 0);
+  assert.equal(jlptCalls, 0);
+  assert.equal(frequencyCalls, 0);
+});
+
+test('tokenizeSubtitle keeps frequency enrichment while n+1 is disabled', async () => {
+  let knownCalls = 0;
+  let mecabCalls = 0;
+  let frequencyCalls = 0;
+
+  const result = await tokenizeSubtitle(
+    '猫',
+    makeDepsFromYomitanTokens([{ surface: '猫', reading: 'ねこ', headword: '猫' }], {
+      isKnownWord: () => {
+        knownCalls += 1;
+        return true;
+      },
+      getNPlusOneEnabled: () => false,
+      getJlptEnabled: () => false,
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: () => {
+        frequencyCalls += 1;
+        return 7;
+      },
+      tokenizeWithMecab: async () => {
+        mecabCalls += 1;
+        return [
+          {
+            headword: '猫',
+            surface: '猫',
+            reading: 'ネコ',
+            startPos: 0,
+            endPos: 1,
+            partOfSpeech: PartOfSpeech.noun,
+            pos1: '名詞',
+            isMerged: false,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ];
+      },
+    }),
+  );
+
+  assert.equal(result.tokens?.[0]?.frequencyRank, 7);
+  assert.equal(result.tokens?.[0]?.isKnown, false);
+  assert.equal(knownCalls, 0);
+  assert.equal(mecabCalls, 1);
+  assert.equal(frequencyCalls, 1);
+});
+
+
+test('tokenizeSubtitle excludes default non-independent pos2 from N+1 and frequency annotations', async () => {
+  const result = await tokenizeSubtitle(
+    'になれば',
+    makeDepsFromYomitanTokens([{ surface: 'になれば', reading: 'になれば', headword: 'なる' }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === 'なる' ? 11 : null),
+      tokenizeWithMecab: async () => [
+        {
+          headword: 'なる',
+          surface: 'になれば',
+          reading: 'ニナレバ',
+          startPos: 0,
+          endPos: 4,
+          partOfSpeech: PartOfSpeech.verb,
+          pos1: '動詞',
+          pos2: '非自立',
+          isMerged: true,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      getMinSentenceWordsForNPlusOne: () => 1,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
+});
+
+test('tokenizeSubtitle keeps merged token when overlap contains at least one content pos1 tag', async () => {
+  const result = await tokenizeSubtitle(
+    'になれば',
+    makeDepsFromYomitanTokens([{ surface: 'になれば', reading: 'になれば', headword: 'なる' }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === 'なる' ? 13 : null),
+      tokenizeWithMecab: async () => [
+        {
+          headword: 'に',
+          surface: 'に',
+          reading: 'ニ',
+          startPos: 0,
+          endPos: 1,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          pos2: '格助詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'なる',
+          surface: 'なれ',
+          reading: 'ナレ',
+          startPos: 1,
+          endPos: 3,
+          partOfSpeech: PartOfSpeech.verb,
+          pos1: '動詞',
+          pos2: '自立',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+        {
+          headword: 'ば',
+          surface: 'ば',
+          reading: 'バ',
+          startPos: 3,
+          endPos: 4,
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          pos2: '接続助詞',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+      getMinSentenceWordsForNPlusOne: () => 1,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.pos1, '助詞|動詞');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 13);
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, true);
+});
+
+test('tokenizeSubtitle excludes default non-independent pos2 from N+1 when JLPT/frequency are disabled', async () => {
+  let mecabCalls = 0;
+  const result = await tokenizeSubtitle(
+    'になれば',
+    makeDepsFromYomitanTokens([{ surface: 'になれば', reading: 'になれば', headword: 'なる' }], {
+      getJlptEnabled: () => false,
+      getFrequencyDictionaryEnabled: () => false,
+      getMinSentenceWordsForNPlusOne: () => 1,
+      tokenizeWithMecab: async () => {
+        mecabCalls += 1;
+        return [
+          {
+            headword: 'なる',
+            surface: 'になれば',
+            reading: 'ニナレバ',
+            startPos: 0,
+            endPos: 4,
+            partOfSpeech: PartOfSpeech.verb,
+            pos1: '動詞',
+            pos2: '非自立',
+            isMerged: true,
+            isKnown: false,
+            isNPlusOneTarget: false,
+          },
+        ];
+      },
+    }),
+  );
+
+  assert.equal(mecabCalls, 1);
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
 });

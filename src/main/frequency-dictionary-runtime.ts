@@ -28,7 +28,7 @@ export function getFrequencyDictionarySearchPaths(
 
   const rawSearchPaths: string[] = [];
   // User-provided path takes precedence over bundled/default roots.
-  // Root list should include `vendor/jiten_freq_global` in callers.
+  // Root list should include default installed frequency-dictionary locations in callers.
   if (sourcePath && sourcePath.trim()) {
     rawSearchPaths.push(sourcePath.trim());
     rawSearchPaths.push(path.join(sourcePath.trim(), 'frequency-dictionary'));

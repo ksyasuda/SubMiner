@@ -74,8 +74,8 @@ test('seam: enqueueWrite drops oldest entries once capacity is exceeded', () => 
   const result = enqueueWrite(queue, incoming, 2);
   assert.equal(result.dropped, 1);
   assert.equal(queue.length, 2);
-  assert.equal(queue[0]!.eventType, 2);
-  assert.equal(queue[1]!.eventType, 3);
+  assert.equal((queue[0] as Extract<QueuedWrite, { kind: 'event' }>).eventType, 2);
+  assert.equal((queue[1] as Extract<QueuedWrite, { kind: 'event' }>).eventType, 3);
 });
 
 test('seam: toMonthKey uses UTC calendar month', () => {
@@ -286,8 +286,8 @@ testIfSqlite('monthly rollups are grouped by calendar month', async () => {
         canonical_title,
         source_type,
         duration_ms,
-        created_at_ms,
-        updated_at_ms
+        CREATED_DATE,
+        LAST_UPDATE_DATE
       ) VALUES (
         1,
         'local:/tmp/video.mkv',
@@ -306,8 +306,8 @@ testIfSqlite('monthly rollups are grouped by calendar month', async () => {
         video_id,
         started_at_ms,
         status,
-        created_at_ms,
-        updated_at_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE,
         ended_at_ms
       ) VALUES (
         1,
@@ -363,8 +363,8 @@ testIfSqlite('monthly rollups are grouped by calendar month', async () => {
         video_id,
         started_at_ms,
         status,
-        created_at_ms,
-        updated_at_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE,
         ended_at_ms
       ) VALUES (
         2,
@@ -479,8 +479,8 @@ testIfSqlite('flushSingle reuses cached prepared statements', async () => {
         canonical_title,
         source_type,
         duration_ms,
-        created_at_ms,
-        updated_at_ms
+        CREATED_DATE,
+        LAST_UPDATE_DATE
       ) VALUES (
         1,
         'local:/tmp/prepared.mkv',
@@ -499,8 +499,8 @@ testIfSqlite('flushSingle reuses cached prepared statements', async () => {
         video_id,
         started_at_ms,
         status,
-        created_at_ms,
-        updated_at_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE,
         ended_at_ms
       ) VALUES (
         1,

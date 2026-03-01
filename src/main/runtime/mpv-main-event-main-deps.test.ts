@@ -32,6 +32,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     },
     quitApp: () => calls.push('quit'),
     reportJellyfinRemoteStopped: () => calls.push('remote-stopped'),
+    syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
     maybeRunAnilistPostWatchUpdate: async () => {
       calls.push('anilist-post-watch');
     },
@@ -39,7 +40,9 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     broadcastToOverlayWindows: (channel, payload) =>
       calls.push(`broadcast:${channel}:${String(payload)}`),
     onSubtitleChange: (text) => calls.push(`subtitle-change:${text}`),
+    ensureImmersionTrackerInitialized: () => calls.push('ensure-immersion'),
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
+    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
     getCurrentAnilistMediaKey: () => 'media-key',
     resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${mediaKey}`),
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
@@ -59,6 +62,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.scheduleQuitCheck(() => calls.push('scheduled-callback'));
   deps.quitApp();
   deps.reportJellyfinRemoteStopped();
+  deps.syncOverlayMpvSubtitleSuppression();
   deps.recordImmersionSubtitleLine('x', 0, 1);
   assert.equal(deps.hasSubtitleTimingTracker(), true);
   deps.recordSubtitleTiming('y', 0, 1);
@@ -72,6 +76,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.broadcastSubtitleAss('ass');
   deps.broadcastSecondarySubtitle('sec');
   deps.updateCurrentMediaPath('/tmp/video');
+  deps.restoreMpvSubVisibility();
   assert.equal(deps.getCurrentAnilistMediaKey(), 'media-key');
   deps.resetAnilistMediaTracking('media-key');
   deps.maybeProbeAnilistDuration('media-key');
@@ -91,8 +96,11 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.equal(appState.playbackPaused, true);
   assert.equal(appState.previousSecondarySubVisibility, true);
   assert.ok(calls.includes('remote-stopped'));
+  assert.ok(calls.includes('sync-overlay-mpv-sub'));
   assert.ok(calls.includes('anilist-post-watch'));
+  assert.ok(calls.includes('ensure-immersion'));
   assert.ok(calls.includes('sync-immersion'));
   assert.ok(calls.includes('metrics'));
   assert.ok(calls.includes('presence-refresh'));
+  assert.ok(calls.includes('restore-mpv-sub'));
 });

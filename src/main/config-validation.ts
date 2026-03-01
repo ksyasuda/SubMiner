@@ -61,6 +61,25 @@ export function buildConfigWarningNotificationBody(
   ].join('\n');
 }
 
+export function buildConfigWarningDialogDetails(
+  configPath: string,
+  warnings: ConfigValidationWarning[],
+): string {
+  const lines = warnings.map(
+    (warning, index) =>
+      `${index + 1}. ${warning.path}: ${warning.message} actual=${formatConfigValue(warning.value)} fallback=${formatConfigValue(warning.fallback)}`,
+  );
+
+  return [
+    'SubMiner detected config validation issues.',
+    `File: ${configPath}`,
+    '',
+    ...lines,
+    '',
+    'Defaults were applied where possible.',
+  ].join('\n');
+}
+
 export function buildConfigParseErrorDetails(configPath: string, parseError: string): string {
   return [
     'Failed to parse config file at:',

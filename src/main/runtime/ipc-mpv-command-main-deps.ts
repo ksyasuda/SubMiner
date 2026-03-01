@@ -1,6 +1,8 @@
 import type { MpvCommandFromIpcRuntimeDeps } from '../ipc-mpv-command';
 
-export function createBuildMpvCommandFromIpcRuntimeMainDepsHandler(deps: MpvCommandFromIpcRuntimeDeps) {
+export function createBuildMpvCommandFromIpcRuntimeMainDepsHandler(
+  deps: MpvCommandFromIpcRuntimeDeps,
+) {
   return (): MpvCommandFromIpcRuntimeDeps => ({
     triggerSubsyncFromConfig: () => deps.triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => deps.openRuntimeOptionsPalette(),

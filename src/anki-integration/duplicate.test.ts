@@ -89,7 +89,11 @@ test('findDuplicateNote checks both source expression/word values when both fiel
       if (query.includes('昨日は雨だった。')) {
         return [];
       }
-      if (query.includes('"Word:雨"') || query.includes('"word:雨"') || query.includes('"Expression:雨"')) {
+      if (
+        query.includes('"Word:雨"') ||
+        query.includes('"word:雨"') ||
+        query.includes('"Expression:雨"')
+      ) {
         return [200];
       }
       return [];

@@ -4,7 +4,7 @@ SubMiner is split into three cooperating runtimes:
 
 - Electron desktop app (`src/`) for overlay/UI/runtime orchestration.
 - Launcher CLI (`launcher/`) for mpv/app command workflows.
-- mpv Lua plugin (`plugin/subminer.lua`) for player-side controls and IPC handoff.
+- mpv Lua plugin (`plugin/subminer/init.lua` + module files) for player-side controls and IPC handoff.
 
 Within the desktop app, `src/main.ts` is a composition root that wires small runtime/domain modules plus core services.
 
@@ -26,7 +26,9 @@ launcher/                 # Standalone CLI launcher wrapper and mpv helpers
   config/                 # Launcher config parsers + CLI parser builder
   main.ts                 # Launcher entrypoint and command dispatch
 plugin/
-  subminer.lua            # mpv plugin (auto-start, IPC, AniSkip + hover controls)
+  subminer/               # Modular mpv plugin (init · main · bootstrap · lifecycle · process
+                          #   state · messages · hover · ui · options · environment · log
+                          #   binary · aniskip · aniskip_match)
 src/
   main-entry.ts           # Background-mode bootstrap wrapper before loading main.js
   main.ts                  # Entry point — delegates to runtime composers/domain modules
@@ -66,24 +68,26 @@ src/
   renderer/                # Overlay renderer (modularized UI/runtime)
     handlers/              # Keyboard/mouse interaction modules
     modals/                # Jimaku/Kiku/subsync/runtime-options/session-help modals
-    positioning/           # Invisible-layer layout + offset controllers
+    positioning/           # Subtitle position controller (drag-to-reposition)
   window-trackers/         # Backend-specific tracker implementations (Hyprland, Sway, X11, macOS)
   jimaku/                  # Jimaku API integration helpers
   subsync/                 # Subtitle sync (alass/ffsubsync) helpers
   subtitle/                # Subtitle processing utilities
   tokenizers/              # Tokenizer implementations
+  anki-integration/        # AnkiConnect proxy server + note-update enrichment workflow
   token-mergers/           # Token merge strategies
   translators/             # AI translation providers
 ```
 
 ### Service Layer (`src/core/services/`)
 
-- **Overlay/window runtime:** `overlay-manager.ts`, `overlay-window.ts`, `overlay-window-geometry.ts`, `overlay-visibility.ts`, `overlay-bridge.ts`, `overlay-runtime-init.ts`, `overlay-content-measurement.ts`, `overlay-drop.ts`
+- **Overlay/window runtime:** `overlay-manager.ts`, `overlay-window.ts`, `overlay-visibility.ts`, `overlay-bridge.ts`, `overlay-runtime-init.ts`, `overlay-content-measurement.ts`
 - **Shortcuts/input:** `shortcut.ts`, `overlay-shortcut.ts`, `overlay-shortcut-handler.ts`, `shortcut-fallback.ts`, `numeric-shortcut.ts`
 - **MPV runtime:** `mpv.ts`, `mpv-transport.ts`, `mpv-protocol.ts`, `mpv-properties.ts`, `mpv-render-metrics.ts`
 - **Mining + Anki/Jimaku runtime:** `mining.ts`, `field-grouping.ts`, `field-grouping-overlay.ts`, `anki-jimaku.ts`, `anki-jimaku-ipc.ts`
-- **Subtitle/token pipeline:** `subtitle-processing-controller.ts`, `subtitle-position.ts`, `subtitle-ws.ts`, `tokenizer.ts` + `tokenizer/*` stage modules
+- **Subtitle/token pipeline:** `subtitle-processing-controller.ts`, `subtitle-position.ts`, `subtitle-ws.ts`, `tokenizer.ts` + `tokenizer/*` stage modules (including `parser-enrichment-worker-runtime.ts` for async MeCab enrichment and `yomitan-parser-runtime.ts`)
 - **Integrations:** `jimaku.ts`, `subsync.ts`, `subsync-runner.ts`, `texthooker.ts`, `jellyfin.ts`, `jellyfin-remote.ts`, `discord-presence.ts`, `yomitan-extension-loader.ts`, `yomitan-settings.ts`
+- **Anki integration:** `anki-integration.ts`, `anki-integration/anki-connect-proxy.ts` (local proxy for push-based auto-enrichment), `anki-integration/note-update-workflow.ts`
 - **Config/runtime controls:** `config-hot-reload.ts`, `runtime-options-ipc.ts`, `cli-command.ts`, `startup.ts`
 - **Domain submodules:** `anilist/*` (token/update queue/updater), `immersion-tracker/*` (storage/session/metadata/query/reducer)
 
@@ -95,15 +99,15 @@ The renderer keeps `renderer.ts` focused on orchestration. UI behavior is delega
 src/renderer/
   renderer.ts              # Entrypoint/orchestration only
   context.ts               # Shared runtime context contract
-  state.ts                 # Centralized renderer mutable state
+  state.ts                 # Centralized renderer mutable state (visible overlay only)
   error-recovery.ts        # Global renderer error boundary + recovery actions
   overlay-content-measurement.ts # Reports rendered bounds to main process
   subtitle-render.ts       # Primary/secondary subtitle rendering + style application
   positioning.ts           # Facade export for positioning controller
+  yomitan-popup.ts         # Yomitan popup iframe detection utilities
   positioning/
-    controller.ts          # Position controller orchestration
-    invisible-layout*.ts   # Invisible layer layout computations
-    position-state.ts      # Position state helpers
+    controller.ts          # Subtitle drag-position controller
+    position-state.ts      # Position state helpers (yPercent)
   handlers/
     keyboard.ts            # Keybindings, chord handling, modal key routing
     mouse.ts               # Hover/drag behavior, selection + observer wiring
@@ -121,11 +125,11 @@ src/renderer/
 ### Launcher + Plugin Runtimes
 
 - `launcher/main.ts` dispatches commands through `launcher/commands/*` and shared config readers in `launcher/config/*`. It handles mpv startup, app passthrough, Jellyfin helper commands, and playback handoff.
-- `plugin/subminer.lua` runs inside mpv and handles IPC startup checks, overlay toggles, hover-token messages, and AniSkip intro-skip UX.
+- `plugin/subminer/init.lua` runs inside mpv and loads modular Lua files: `main.lua` (orchestration), `bootstrap.lua` (startup), `lifecycle.lua` (connect/disconnect), `process.lua` (process management), `state.lua` (shared state), `messages.lua` (IPC), `hover.lua` (hover-token highlight rendering), `ui.lua` (OSD rendering), `options.lua` (config), `environment.lua` (detection), `log.lua` (logging), `binary.lua` (path resolution), `aniskip.lua` + `aniskip_match.lua` (intro-skip UX).
 
 ## Flow Diagram
 
-The main process has three layers: `main.ts` delegates to composition modules that wire together domain services. Three overlay windows (visible, invisible, secondary) run in separate Electron renderer processes, connected through `preload.ts`. External runtimes (launcher CLI and mpv plugin) operate independently and communicate via IPC socket or CLI passthrough.
+The main process orchestrates a single primary overlay window plus modal surfaces: `main.ts` delegates to composition modules that wire together domain services. Subtitle layers (primary + secondary bar) are rendered in the same overlay renderer process, connected through `preload.ts`. External runtimes (launcher CLI and mpv plugin) operate independently and communicate via IPC socket or CLI passthrough.
 
 ```mermaid
 flowchart LR
@@ -139,7 +143,7 @@ flowchart LR
 
   subgraph ExtRt["External Runtimes"]
     Launcher["launcher/<br/>CLI dispatch"]:::extrt
-    Plugin["subminer.lua<br/>mpv plugin"]:::extrt
+    Plugin["subminer/init.lua<br/>mpv plugin"]:::extrt
   end
 
   subgraph Ext["External Systems"]
@@ -162,8 +166,9 @@ flowchart LR
 
   subgraph Svc["Services — src/core/services/"]
     Mpv["MPV Stack<br/>transport · protocol<br/>properties · metrics"]:::svc
-    Overlay["Overlay Manager<br/>window · geometry<br/>visibility · bridge"]:::svc
+    OverlaySvc["Overlay Manager<br/>window · visibility · bridge<br/>mpv-sub-visibility"]:::svc
     Mining["Mining & Subtitles<br/>mining · field-grouping<br/>subtitle-ws · tokenizer"]:::svc
+    AnkiProxy["Anki Integration<br/>anki-connect-proxy<br/>note-update-workflow"]:::svc
     Integrations["Integrations<br/>jimaku · subsync<br/>texthooker · yomitan"]:::svc
     Tracking["Tracking<br/>anilist · jellyfin<br/>immersion · discord"]:::svc
     Config["Config & Runtime<br/>hot-reload<br/>runtime-options"]:::svc
@@ -172,9 +177,7 @@ flowchart LR
   Bridge(["preload.ts<br/>Electron IPC"]):::bridge
 
   subgraph Rend["Renderer — src/renderer/"]
-    Visible["Visible window<br/>Yomitan lookups"]:::rend
-    Invisible["Invisible window<br/>mpv positioning"]:::rend
-    Secondary["Secondary window<br/>subtitle bar"]:::rend
+    OverlayWin["Main overlay window<br/>primary + secondary subtitles"]:::rend
     UI["subtitle-render<br/>positioning<br/>handlers · modals"]:::rend
   end
 
@@ -185,18 +188,16 @@ flowchart LR
   Comp --> Svc
 
   mpvExt <-->|"JSON socket"| Mpv
-  AnkiExt <-->|"HTTP"| Mining
+  AnkiExt <-->|"HTTP"| AnkiProxy
   JimakuExt <-->|"HTTP"| Integrations
-  TrackerExt <-->|"platform"| Overlay
+  TrackerExt <-->|"platform"| OverlaySvc
   AnilistExt <-->|"HTTP"| Tracking
   JellyfinExt <-->|"HTTP"| Tracking
   DiscordExt <-->|"RPC"| Integrations
 
-  Overlay & Mining --> Bridge
-  Bridge --> Visible
-  Bridge --> Invisible
-  Bridge --> Secondary
-  Visible & Invisible & Secondary --> UI
+  OverlaySvc & Mining --> Bridge
+  Bridge --> OverlayWin
+  OverlayWin --> UI
 
   style Comp fill:#363a4f,stroke:#494d64,color:#cad3f5
   style Svc fill:#363a4f,stroke:#494d64,color:#cad3f5
@@ -264,10 +265,10 @@ For domains migrated to reducer-style transitions (for example AniList token/que
 - **Module-level init:** Before `app.ready`, the composition root registers protocols, sets platform flags, constructs all services, and wires dependency injection. `runAndApplyStartupState()` parses CLI args and detects the compositor backend.
 - **Startup:** If `--generate-config` is passed, it writes the template and exits. Otherwise `app-lifecycle.ts` acquires the single-instance lock and registers Electron lifecycle hooks.
 - **Critical-path init:** Once `app.whenReady()` fires, `composeAppReadyRuntime()` runs strict config reload, resolves keybindings, creates the `MpvIpcClient` (which immediately connects and subscribes to 26 properties), and initializes the `RuntimeOptionsManager`, `SubtitleTimingTracker`, and `ImmersionTrackerService`.
-- **Overlay runtime:** `initializeOverlayRuntime()` creates three overlay windows — **visible** (interactive Yomitan lookups), **invisible** (mpv-matched subtitle positioning), and **secondary** (secondary subtitle bar, top 20% via `splitOverlayGeometryForSecondaryBar`) — then registers global shortcuts and sets initial bounds from the window tracker.
-- **Background warmups:** Non-critical services are launched asynchronously: MeCab tokenizer check, Yomitan extension load, JLPT + frequency dictionary prewarm, optional Jellyfin remote session, Discord presence service, and AniList token refresh.
-- **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, overlay shortcuts, and hot-reload notifications route through runtime handlers/composers. Subtitle text flows through `SubtitlePipeline` (normalize → tokenize → merge), and results broadcast to all overlay windows.
-- **Shutdown:** `onWillQuitCleanup` destroys tray + config watcher, unregisters shortcuts, stops WebSocket + texthooker servers, closes the mpv socket + flushes OSD log, stops the window tracker, closes the Yomitan parser window, flushes the immersion tracker (SQLite), stops Jellyfin/Discord services, and cleans Anki/AniList state.
+- **Overlay runtime:** `initializeOverlayRuntime()` creates the primary overlay window (interactive Yomitan lookups and subtitle rendering), registers global shortcuts, and sets up bounds tracking via the active window tracker. mpv subtitle suppression is handled by a dedicated `overlay-mpv-sub-visibility` service.
+- **Background warmups:** Non-critical services are launched asynchronously: MeCab tokenizer check (with async worker thread), Yomitan extension load, JLPT + frequency dictionary prewarm, optional Jellyfin remote session, Discord presence service, AniList token refresh, and optional AnkiConnect proxy server. Warmup coverage is configurable through `startupWarmups` (including low-power mode that defers all but Yomitan).
+- **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, overlay shortcuts, and hot-reload notifications route through runtime handlers/composers. Subtitle text flows through `SubtitlePipeline` (normalize → tokenize → merge), and results are sent to the main overlay renderer and modal surfaces.
+- **Shutdown:** `onWillQuitCleanup` destroys tray + config watcher, unregisters shortcuts, stops WebSocket + texthooker servers, closes the mpv socket + flushes OSD log, stops the window tracker, closes the Yomitan parser window, flushes the immersion tracker (SQLite), stops Jellyfin/Discord services, stops the AnkiConnect proxy server, and cleans Anki/AniList state.
 
 ```mermaid
 flowchart LR
@@ -298,27 +299,24 @@ flowchart LR
 
   OverlayInit["initializeOverlay<br/>Runtime()"]:::phase
 
-  OverlayInit --> VisWin["Visible window<br/>Yomitan lookups"]:::init
-  OverlayInit --> InvWin["Invisible window<br/>mpv positioning"]:::init
-  OverlayInit --> SecWin["Secondary window<br/>subtitle bar"]:::init
+  OverlayInit --> MainWin["Main overlay window<br/>primary + secondary subtitles"]:::init
   OverlayInit --> Shortcuts["Register global<br/>shortcuts"]:::init
 
-  VisWin --> Warmups
-  InvWin --> Warmups
-  SecWin --> Warmups
+  MainWin --> Warmups
   Shortcuts --> Warmups
 
   Warmups["Background<br/>warmups"]:::phase
 
   subgraph WarmupGroup[" "]
     direction TB
-    W1["MeCab"]:::warmup
+    W1["MeCab<br/>+ worker thread"]:::warmup
     W2["Yomitan"]:::warmup
     W3["JLPT + freq<br/>dictionaries"]:::warmup
     W4["Jellyfin"]:::warmup
     W5["Discord"]:::warmup
     W6["AniList"]:::warmup
-    W1 ~~~ W2 ~~~ W3 ~~~ W4 ~~~ W5 ~~~ W6
+    W7["AnkiConnect<br/>proxy"]:::warmup
+    W1 ~~~ W2 ~~~ W3 ~~~ W4 ~~~ W5 ~~~ W6 ~~~ W7
   end
 
   Warmups --> WarmupGroup
@@ -330,7 +328,7 @@ flowchart LR
     ExtEvt["Shortcuts · config hot-reload"]:::runtime
     MpvEvt & IpcEvt & ExtEvt --> Route["Route via composers"]:::runtime
     Route --> Process["SubtitlePipeline<br/>normalize → tokenize → merge"]:::runtime
-    Process --> Broadcast["Update AppState<br/>broadcast to windows"]:::runtime
+    Process --> Broadcast["Update AppState<br/>broadcast to renderer + modals"]:::runtime
   end
 
   WarmupGroup --> Loop
@@ -342,7 +340,7 @@ flowchart LR
   Quit --> T1["Tray · config watcher<br/>global shortcuts"]:::shutdown
   Quit --> T2["WebSocket · texthooker<br/>mpv socket · OSD log"]:::shutdown
   Quit --> T3["Window tracker<br/>Yomitan parser"]:::shutdown
-  Quit --> T4["Immersion tracker<br/>Jellyfin · Discord<br/>Anki · AniList"]:::shutdown
+  Quit --> T4["Immersion tracker<br/>Jellyfin · Discord<br/>Anki proxy · AniList"]:::shutdown
 
   style Loop fill:#363a4f,stroke:#494d64,color:#cad3f5
 ```

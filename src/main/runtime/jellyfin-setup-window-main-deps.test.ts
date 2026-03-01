@@ -16,7 +16,11 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
       accessToken: 'token',
       userId: 'uid',
     }),
-    getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'dev' }),
+    getJellyfinClientInfo: () => ({
+      clientName: 'SubMiner',
+      clientVersion: '1.0',
+      deviceId: 'dev',
+    }),
     saveStoredSession: () => calls.push('save'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: (message) => calls.push(`info:${message}`),
@@ -38,12 +42,15 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     username: 'u',
     password: 'p',
   });
-  assert.deepEqual(await deps.authenticateWithPassword('s', 'u', 'p', deps.getJellyfinClientInfo()), {
-    serverUrl: 'http://127.0.0.1:8096',
-    username: 'alice',
-    accessToken: 'token',
-    userId: 'uid',
-  });
+  assert.deepEqual(
+    await deps.authenticateWithPassword('s', 'u', 'p', deps.getJellyfinClientInfo()),
+    {
+      serverUrl: 'http://127.0.0.1:8096',
+      username: 'alice',
+      accessToken: 'token',
+      userId: 'uid',
+    },
+  );
   deps.saveStoredSession({ accessToken: 'token', userId: 'uid' });
   deps.patchJellyfinConfig({
     serverUrl: 'http://127.0.0.1:8096',
@@ -57,5 +64,13 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
   deps.clearSetupWindow();
   deps.setSetupWindow({} as never);
   assert.equal(deps.encodeURIComponent('a b'), 'a%20b');
-  assert.deepEqual(calls, ['save', 'patch', 'info:ok', 'error:bad', 'osd:toast', 'clear', 'set-window']);
+  assert.deepEqual(calls, [
+    'save',
+    'patch',
+    'info:ok',
+    'error:bad',
+    'osd:toast',
+    'clear',
+    'set-window',
+  ]);
 });

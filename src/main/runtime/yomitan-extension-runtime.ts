@@ -1,4 +1,7 @@
-import { createEnsureYomitanExtensionLoadedHandler, createLoadYomitanExtensionHandler } from './yomitan-extension-loader';
+import {
+  createEnsureYomitanExtensionLoadedHandler,
+  createLoadYomitanExtensionHandler,
+} from './yomitan-extension-loader';
 import {
   createBuildEnsureYomitanExtensionLoadedMainDepsHandler,
   createBuildLoadYomitanExtensionMainDepsHandler,

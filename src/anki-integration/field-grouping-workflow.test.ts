@@ -1,16 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FieldGroupingWorkflow } from './field-grouping-workflow';
+import type { KikuDuplicateCardInfo, KikuFieldGroupingChoice } from '../types';
 
 type NoteInfo = {
   noteId: number;
   fields: Record<string, { value: string }>;
 };
 
+type ManualChoice = {
+  keepNoteId: number;
+  deleteNoteId: number;
+  deleteDuplicate: boolean;
+  cancelled: boolean;
+};
+
+type FieldGroupingCallback = (data: {
+  original: KikuDuplicateCardInfo;
+  duplicate: KikuDuplicateCardInfo;
+}) => Promise<KikuFieldGroupingChoice>;
+
 function createWorkflowHarness() {
   const updates: Array<{ noteId: number; fields: Record<string, string> }> = [];
   const deleted: number[][] = [];
   const statuses: string[] = [];
+  const mergeCalls: Array<{
+    keepNoteId: number;
+    deleteNoteId: number;
+    keepNoteInfoNoteId: number;
+    deleteNoteInfoNoteId: number;
+  }> = [];
+  let manualChoice: ManualChoice | null = null;
 
   const deps = {
     client: {
@@ -47,11 +67,28 @@ function createWorkflowHarness() {
       kikuDeleteDuplicateInAuto: true,
     }),
     getCurrentSubtitleText: () => 'subtitle-text',
-    getFieldGroupingCallback: () => null,
+    getFieldGroupingCallback: (): FieldGroupingCallback | null => {
+      const choice = manualChoice;
+      if (choice === null) return null;
+      return async () => choice;
+    },
     setFieldGroupingCallback: () => undefined,
-    computeFieldGroupingMergedFields: async () => ({
-      Sentence: 'merged sentence',
-    }),
+    computeFieldGroupingMergedFields: async (
+      keepNoteId: number,
+      deleteNoteId: number,
+      keepNoteInfo: NoteInfo,
+      deleteNoteInfo: NoteInfo,
+    ) => {
+      mergeCalls.push({
+        keepNoteId,
+        deleteNoteId,
+        keepNoteInfoNoteId: keepNoteInfo.noteId,
+        deleteNoteInfoNoteId: deleteNoteInfo.noteId,
+      });
+      return {
+        Sentence: 'merged sentence',
+      };
+    },
     extractFields: (fields: Record<string, { value: string }>) => {
       const out: Record<string, string> = {};
       for (const [key, value] of Object.entries(fields)) {
@@ -77,6 +114,10 @@ function createWorkflowHarness() {
     updates,
     deleted,
     statuses,
+    mergeCalls,
+    setManualChoice: (choice: typeof manualChoice) => {
+      manualChoice = choice;
+    },
     deps,
   };
 }
@@ -111,4 +152,32 @@ test('FieldGroupingWorkflow manual mode returns false when callback unavailable'
 
   assert.equal(handled, false);
   assert.equal(harness.updates.length, 0);
+});
+
+test('FieldGroupingWorkflow manual keep-new uses new note as merge target and old note as source', async () => {
+  const harness = createWorkflowHarness();
+  harness.setManualChoice({
+    keepNoteId: 2,
+    deleteNoteId: 1,
+    deleteDuplicate: false,
+    cancelled: false,
+  });
+
+  const handled = await harness.workflow.handleManual(1, 2, {
+    noteId: 2,
+    fields: {
+      Expression: { value: 'word-2' },
+      Sentence: { value: 'line-2' },
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(harness.mergeCalls, [
+    {
+      keepNoteId: 2,
+      deleteNoteId: 1,
+      keepNoteInfoNoteId: 2,
+      deleteNoteInfoNoteId: 1,
+    },
+  ]);
 });

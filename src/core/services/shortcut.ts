@@ -5,14 +5,12 @@ const logger = createLogger('main:shortcut');
 
 export interface GlobalShortcutConfig {
   toggleVisibleOverlayGlobal: string | null | undefined;
-  toggleInvisibleOverlayGlobal: string | null | undefined;
   openJimaku?: string | null | undefined;
 }
 
 export interface RegisterGlobalShortcutsServiceOptions {
   shortcuts: GlobalShortcutConfig;
   onToggleVisibleOverlay: () => void;
-  onToggleInvisibleOverlay: () => void;
   onOpenYomitanSettings: () => void;
   onOpenJimaku?: () => void;
   isDev: boolean;
@@ -21,9 +19,7 @@ export interface RegisterGlobalShortcutsServiceOptions {
 
 export function registerGlobalShortcuts(options: RegisterGlobalShortcutsServiceOptions): void {
   const visibleShortcut = options.shortcuts.toggleVisibleOverlayGlobal;
-  const invisibleShortcut = options.shortcuts.toggleInvisibleOverlayGlobal;
   const normalizedVisible = visibleShortcut?.replace(/\s+/g, '').toLowerCase();
-  const normalizedInvisible = invisibleShortcut?.replace(/\s+/g, '').toLowerCase();
   const normalizedJimaku = options.shortcuts.openJimaku?.replace(/\s+/g, '').toLowerCase();
   const normalizedSettings = 'alt+shift+y';
 
@@ -38,31 +34,10 @@ export function registerGlobalShortcuts(options: RegisterGlobalShortcutsServiceO
     }
   }
 
-  if (invisibleShortcut && normalizedInvisible && normalizedInvisible !== normalizedVisible) {
-    const toggleInvisibleRegistered = globalShortcut.register(invisibleShortcut, () => {
-      options.onToggleInvisibleOverlay();
-    });
-    if (!toggleInvisibleRegistered) {
-      logger.warn(
-        `Failed to register global shortcut toggleInvisibleOverlayGlobal: ${invisibleShortcut}`,
-      );
-    }
-  } else if (
-    invisibleShortcut &&
-    normalizedInvisible &&
-    normalizedInvisible === normalizedVisible
-  ) {
-    logger.warn(
-      'Skipped registering toggleInvisibleOverlayGlobal because it collides with toggleVisibleOverlayGlobal',
-    );
-  }
-
   if (options.shortcuts.openJimaku && options.onOpenJimaku) {
     if (
       normalizedJimaku &&
-      (normalizedJimaku === normalizedVisible ||
-        normalizedJimaku === normalizedInvisible ||
-        normalizedJimaku === normalizedSettings)
+      (normalizedJimaku === normalizedVisible || normalizedJimaku === normalizedSettings)
     ) {
       logger.warn(
         'Skipped registering openJimaku because it collides with another global shortcut',

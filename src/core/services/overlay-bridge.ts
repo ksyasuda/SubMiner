@@ -13,6 +13,11 @@ export function sendToVisibleOverlayRuntime<T extends string>(options: {
 }): boolean {
   if (!options.mainWindow || options.mainWindow.isDestroyed()) return false;
   const wasVisible = options.visibleOverlayVisible;
+  const webContents = options.mainWindow.webContents as Electron.WebContents & {
+    isLoading?: () => boolean;
+    getURL?: () => string;
+    once?: (event: 'did-finish-load', listener: () => void) => void;
+  };
   if (!options.visibleOverlayVisible) {
     options.setVisibleOverlayVisible(true);
   }
@@ -21,32 +26,37 @@ export function sendToVisibleOverlayRuntime<T extends string>(options: {
   }
   const sendNow = (): void => {
     if (options.payload === undefined) {
-      options.mainWindow!.webContents.send(options.channel);
+      webContents.send(options.channel);
     } else {
-      options.mainWindow!.webContents.send(options.channel, options.payload);
+      webContents.send(options.channel, options.payload);
     }
   };
-  if (options.mainWindow.webContents.isLoading()) {
-    options.mainWindow.webContents.once('did-finish-load', () => {
-      if (
-        options.mainWindow &&
-        !options.mainWindow.isDestroyed() &&
-        !options.mainWindow.webContents.isLoading()
-      ) {
+
+  const isLoading = typeof webContents.isLoading === 'function' ? webContents.isLoading() : false;
+  const currentURL = typeof webContents.getURL === 'function' ? webContents.getURL() : '';
+  const isReady = !isLoading && currentURL !== '' && currentURL !== 'about:blank';
+
+  if (!isReady) {
+    if (typeof webContents.once !== 'function') {
+      sendNow();
+      return true;
+    }
+    webContents.once('did-finish-load', () => {
+      if (!options.mainWindow || options.mainWindow.isDestroyed()) return;
+      if (typeof webContents.isLoading !== 'function' || !webContents.isLoading()) {
         sendNow();
       }
     });
     return true;
   }
+
   sendNow();
   return true;
 }
 
 export function createFieldGroupingCallbackRuntime<T extends string>(options: {
   getVisibleOverlayVisible: () => boolean;
-  getInvisibleOverlayVisible: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
-  setInvisibleOverlayVisible: (visible: boolean) => void;
   getResolver: () => ((choice: KikuFieldGroupingChoice) => void) | null;
   setResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) => void;
   sendToVisibleOverlay: (
@@ -57,9 +67,7 @@ export function createFieldGroupingCallbackRuntime<T extends string>(options: {
 }): (data: KikuFieldGroupingRequestData) => Promise<KikuFieldGroupingChoice> {
   return createFieldGroupingCallback({
     getVisibleOverlayVisible: options.getVisibleOverlayVisible,
-    getInvisibleOverlayVisible: options.getInvisibleOverlayVisible,
     setVisibleOverlayVisible: options.setVisibleOverlayVisible,
-    setInvisibleOverlayVisible: options.setInvisibleOverlayVisible,
     getResolver: options.getResolver,
     setResolver: options.setResolver,
     sendRequestToVisibleOverlay: (data) =>

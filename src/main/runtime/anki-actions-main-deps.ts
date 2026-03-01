@@ -24,7 +24,9 @@ export function createBuildUpdateLastCardFromClipboardMainDepsHandler<TAnki>(dep
   });
 }
 
-export function createBuildRefreshKnownWordCacheMainDepsHandler(deps: RefreshKnownWordCacheMainDeps) {
+export function createBuildRefreshKnownWordCacheMainDepsHandler(
+  deps: RefreshKnownWordCacheMainDeps,
+) {
   return (): RefreshKnownWordCacheMainDeps => ({
     getAnkiIntegration: () => deps.getAnkiIntegration(),
     missingIntegrationMessage: deps.missingIntegrationMessage,
@@ -42,8 +44,10 @@ export function createBuildTriggerFieldGroupingMainDepsHandler<TAnki>(deps: {
   return () => ({
     getAnkiIntegration: () => deps.getAnkiIntegration(),
     showMpvOsd: (text: string) => deps.showMpvOsd(text),
-    triggerFieldGroupingCore: (options: { ankiIntegration: TAnki; showMpvOsd: (text: string) => void }) =>
-      deps.triggerFieldGroupingCore(options),
+    triggerFieldGroupingCore: (options: {
+      ankiIntegration: TAnki;
+      showMpvOsd: (text: string) => void;
+    }) => deps.triggerFieldGroupingCore(options),
   });
 }
 
@@ -58,8 +62,10 @@ export function createBuildMarkLastCardAsAudioCardMainDepsHandler<TAnki>(deps: {
   return () => ({
     getAnkiIntegration: () => deps.getAnkiIntegration(),
     showMpvOsd: (text: string) => deps.showMpvOsd(text),
-    markLastCardAsAudioCardCore: (options: { ankiIntegration: TAnki; showMpvOsd: (text: string) => void }) =>
-      deps.markLastCardAsAudioCardCore(options),
+    markLastCardAsAudioCardCore: (options: {
+      ankiIntegration: TAnki;
+      showMpvOsd: (text: string) => void;
+    }) => deps.markLastCardAsAudioCardCore(options),
   });
 }
 

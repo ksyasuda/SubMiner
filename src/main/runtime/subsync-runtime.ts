@@ -1,6 +1,14 @@
 import type { MpvIpcClient } from '../../core/services';
-import { runSubsyncManualFromIpcRuntime, triggerSubsyncFromConfigRuntime } from '../../core/services';
-import type { SubsyncResult, SubsyncManualPayload, SubsyncManualRunRequest, ResolvedConfig } from '../../types';
+import {
+  runSubsyncManualFromIpcRuntime,
+  triggerSubsyncFromConfigRuntime,
+} from '../../core/services';
+import type {
+  SubsyncResult,
+  SubsyncManualPayload,
+  SubsyncManualRunRequest,
+  ResolvedConfig,
+} from '../../types';
 import { getSubsyncConfig } from '../../subsync/utils';
 import { createSubsyncRuntimeServiceInputFromState } from '../subsync-runtime';
 

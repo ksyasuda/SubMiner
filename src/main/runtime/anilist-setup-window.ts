@@ -126,7 +126,11 @@ export function createAnilistSetupDidNavigateHandler(deps: {
 }
 
 export function createAnilistSetupDidFailLoadHandler(deps: {
-  onLoadFailure: (details: { errorCode: number; errorDescription: string; validatedURL: string }) => void;
+  onLoadFailure: (details: {
+    errorCode: number;
+    errorDescription: string;
+    validatedURL: string;
+  }) => void;
 }) {
   return (details: { errorCode: number; errorDescription: string; validatedURL: string }): void => {
     deps.onLoadFailure(details);
@@ -175,7 +179,11 @@ export function createAnilistSetupFallbackHandler(deps: {
   logWarn: (message: string) => void;
 }) {
   return {
-    onLoadFailure: (details: { errorCode: number; errorDescription: string; validatedURL: string }) => {
+    onLoadFailure: (details: {
+      errorCode: number;
+      errorDescription: string;
+      validatedURL: string;
+    }) => {
       deps.logError('AniList setup window failed to load', details);
       deps.openSetupInBrowser();
       if (!deps.setupWindow.isDestroyed()) {
@@ -298,12 +306,7 @@ export function createOpenAnilistSetupWindowHandler<TWindow extends AnilistSetup
     });
     setupWindow.webContents.on(
       'did-fail-load',
-      (
-        _event: unknown,
-        errorCode: number,
-        errorDescription: string,
-        validatedURL: string,
-      ) => {
+      (_event: unknown, errorCode: number, errorDescription: string, validatedURL: string) => {
         handleDidFailLoad({
           errorCode,
           errorDescription,

@@ -69,6 +69,7 @@ export default {
           { text: 'Launcher Script', link: '/launcher-script' },
           { text: 'Usage', link: '/usage' },
           { text: 'Mining Workflow', link: '/mining-workflow' },
+          // { text: 'Feature Demos', link: '/demos' },
         ],
       },
       {

@@ -21,6 +21,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   destroyTray: () => void;
   stopConfigHotReload: () => void;
   restorePreviousSecondarySubVisibility: () => void;
+  restoreMpvSubVisibility: () => void;
   unregisterAllGlobalShortcuts: () => void;
   stopSubtitleWebsocket: () => void;
   stopTexthookerService: () => void;
@@ -51,6 +52,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     destroyTray: () => deps.destroyTray(),
     stopConfigHotReload: () => deps.stopConfigHotReload(),
     restorePreviousSecondarySubVisibility: () => deps.restorePreviousSecondarySubVisibility(),
+    restoreMpvSubVisibility: () => deps.restoreMpvSubVisibility(),
     unregisterAllGlobalShortcuts: () => deps.unregisterAllGlobalShortcuts(),
     stopSubtitleWebsocket: () => deps.stopSubtitleWebsocket(),
     stopTexthookerService: () => deps.stopTexthookerService(),

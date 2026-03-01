@@ -20,49 +20,36 @@ SubMiner prioritizes subtitle responsiveness over heavy initialization:
 1. The first subtitle render is **plain text first** (no tokenization wait).
 2. Tokenized enrichment (word spans, known-word flags, JLPT/frequency metadata) is applied right after parsing completes.
 3. Under rapid subtitle churn, SubMiner uses a **latest-only tokenization queue** so stale lines are dropped instead of building lag.
-4. MeCab, Yomitan extension load, and dictionary prewarm run as background warmups after overlay initialization.
+4. MeCab, Yomitan extension load, and dictionary prewarm run as background warmups after overlay initialization (configurable via `startupWarmups`, including low-power mode).
 
 This keeps early playback snappy and avoids mpv-side sluggishness while startup work completes.
 
-## The Three Overlay Planes
+## Overlay Model
 
-SubMiner uses three overlay planes, each serving a different purpose.
+SubMiner uses one overlay window with modal surfaces.
 
-### Visible Overlay
+### Primary Subtitle Layer
 
 The visible overlay renders subtitles as tokenized, clickable word spans. Each word is a separate element with reading and headword data attached. This plane is styled independently from mpv subtitles and supports:
 
 - Word-level click targets for Yomitan lookup
+- Auto pause/resume on subtitle hover (enabled by default via `subtitleStyle.autoPauseVideoOnHover`)
 - Right-click to pause/resume
 - Right-click + drag to reposition subtitles
 - Modal dialogs for Jimaku search, field grouping, subsync, and runtime options
 - **N+1 highlighting** — known words from your Anki deck are visually highlighted
 
-Toggle with `Alt+Shift+O` (global) or `y-t` (mpv plugin).
+Toggle visibility with `Alt+Shift+O` (global) or `y-t` (mpv plugin).
 
-### Secondary Subtitle Plane
+### Secondary Subtitle Bar
 
-The secondary plane is a compact top-strip layer for translation and context visibility while keeping primary reading flow below. It mirrors your configured secondary subtitle preference and can be independently shown or hidden.
+The secondary subtitle bar is a compact top-strip region in the same overlay window for translation/context visibility while keeping primary reading flow below. It mirrors your configured secondary subtitle preference and can be independently shown or hidden.
 
-It is controlled by `secondarySub` configuration and shares lifecycle with the overlay stack.
+It is controlled by `secondarySub` configuration and shares lifecycle with the main overlay window.
 
-### Invisible Overlay
+### Modal Surfaces
 
-The invisible overlay is a transparent layer aligned with mpv's own subtitle rendering. It uses mpv's subtitle metrics (font size, margins, position, scaling) to map click targets accurately.
-
-This layer still supports:
-
-- Word-level click-through lookups over the text region
-- Optional manual position fine-tuning in pixel mode
-- Independent toggle behavior with global shortcuts
-
-Position edit mode is available via `Ctrl/Cmd+Shift+P`, then arrow keys / `hjkl` to nudge position; `Shift` moves faster. Save with `Enter` or `Ctrl+S`, cancel with `Esc`.
-
-Toggle controls:
-
-- `Alt+Shift+O` / `y-t`: visible overlay
-- `Alt+Shift+I` / `y-i`: invisible overlay
-- Secondary plane visibility is controlled via `secondarySub` config and matching global shortcuts.
+Jimaku search, field-grouping, runtime options, and manual subsync open as modal surfaces on top of the same overlay window.
 
 ## Looking Up Words
 
@@ -73,10 +60,10 @@ Toggle controls:
 3. Yomitan detects the text selection and opens its popup with dictionary results.
 4. From the Yomitan popup, you can add the word directly to Anki.
 
-### On the Invisible Overlay
+### On Overlay Subtitles
 
-1. The invisible layer sits over mpv's own subtitle text.
-2. Click on any word in the subtitle — SubMiner maps your click position to the underlying text.
+1. Subtitles are rendered directly in the overlay.
+2. Click on any word in the subtitle.
 3. On macOS, word selection happens automatically on hover.
 4. Yomitan popup appears for lookup and card creation.
 
@@ -86,11 +73,13 @@ There are three ways to create cards, depending on your workflow.
 
 ### 1. Auto-Update from Yomitan
 
-This is the most common flow. Yomitan creates a card in Anki, and SubMiner detects it via polling and enriches it automatically.
+This is the most common flow. Yomitan creates a card in Anki, and SubMiner enriches it automatically.
 
 1. Click a word → Yomitan popup appears.
 2. Click the Anki icon in Yomitan to add the word.
-3. SubMiner detects the new card (polls AnkiConnect every 3 seconds by default).
+3. SubMiner receives or detects the new card:
+   - **Proxy mode** (`ankiConnect.proxy.enabled: true`): immediate enrich after successful `addNote` / `addNotes`.
+   - **Polling mode** (default): detects via AnkiConnect polling (`ankiConnect.pollingRate`, default 3 seconds).
 4. SubMiner updates the card with:
    - **Sentence**: The current subtitle line.
    - **Audio**: Extracted from the video using the subtitle's start/end timing (plus configurable padding).
@@ -109,13 +98,13 @@ If you prefer a hands-on approach (animecards-style), you can copy the current s
    - For multiple lines: press `Ctrl/Cmd+Shift+C`, then a digit `1`–`9` to select how many recent subtitle lines to combine. The combined text is copied to the clipboard.
 3. Press `Ctrl/Cmd+V` to update the last-added card with the clipboard contents plus audio, image, and translation — the same fields auto-update would fill.
 
-This is useful when auto-update polling is disabled or when you want explicit control over which subtitle line gets attached to the card.
+This is useful when auto-update is disabled or when you want explicit control over which subtitle line gets attached to the card.
 
-| Shortcut                    | Action                                    | Config key                            |
-| --------------------------- | ----------------------------------------- | ------------------------------------- |
-| `Ctrl/Cmd+C`               | Copy current subtitle                     | `shortcuts.copySubtitle`              |
-| `Ctrl/Cmd+Shift+C` + digit | Copy multiple recent lines                | `shortcuts.copySubtitleMultiple`      |
-| `Ctrl/Cmd+V`               | Update last card from clipboard           | `shortcuts.updateLastCardFromClipboard` |
+| Shortcut                   | Action                          | Config key                              |
+| -------------------------- | ------------------------------- | --------------------------------------- |
+| `Ctrl/Cmd+C`               | Copy current subtitle           | `shortcuts.copySubtitle`                |
+| `Ctrl/Cmd+Shift+C` + digit | Copy multiple recent lines      | `shortcuts.copySubtitleMultiple`        |
+| `Ctrl/Cmd+V`               | Update last card from clipboard | `shortcuts.updateLastCardFromClipboard` |
 
 ### 3. Mine Sentence (Hotkey)
 

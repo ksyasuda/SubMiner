@@ -1,42 +1,90 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import {
+  YOMITAN_POPUP_HIDDEN_EVENT,
+  YOMITAN_POPUP_SHOWN_EVENT,
+  hasYomitanPopupIframe,
+  isYomitanPopupIframe,
+} from '../yomitan-popup.js';
 
 export function createMouseHandlers(
   ctx: RendererContext,
   options: {
     modalStateReader: ModalStateReader;
-    applyInvisibleSubtitleLayoutFromMpvMetrics: (metrics: any, source: string) => void;
     applyYPercent: (yPercent: number) => void;
     getCurrentYPercent: () => number;
     persistSubtitlePositionPatch: (patch: { yPercent: number }) => void;
-    reportHoveredTokenIndex: (tokenIndex: number | null) => void;
+    getSubtitleHoverAutoPauseEnabled: () => boolean;
+    getPlaybackPaused: () => Promise<boolean | null>;
+    sendMpvCommand: (command: (string | number)[]) => void;
   },
 ) {
-  const wordSegmenter =
-    typeof Intl !== 'undefined' && 'Segmenter' in Intl
-      ? new Intl.Segmenter(undefined, { granularity: 'word' })
-      : null;
+  let yomitanPopupVisible = false;
+  let hoverPauseRequestId = 0;
+  let pausedBySubtitleHover = false;
 
-  function handleMouseEnter(): void {
-    ctx.state.isOverSubtitle = true;
+  function enablePopupInteraction(): void {
+    yomitanPopupVisible = true;
     ctx.dom.overlay.classList.add('interactive');
     if (ctx.platform.shouldToggleMouseIgnore) {
       window.electronAPI.setIgnoreMouseEvents(false);
     }
+    if (ctx.platform.isMacOSPlatform) {
+      window.focus();
+    }
   }
 
-  function handleMouseLeave(): void {
-    ctx.state.isOverSubtitle = false;
-    const yomitanPopup = document.querySelector('iframe[id^="yomitan-popup"]');
-    if (
-      !yomitanPopup &&
-      !options.modalStateReader.isAnyModalOpen() &&
-      !ctx.state.invisiblePositionEditMode
-    ) {
+  function disablePopupInteractionIfIdle(): void {
+    if (typeof document !== 'undefined' && hasYomitanPopupIframe(document)) {
+      yomitanPopupVisible = true;
+      return;
+    }
+
+    yomitanPopupVisible = false;
+    if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
       ctx.dom.overlay.classList.remove('interactive');
       if (ctx.platform.shouldToggleMouseIgnore) {
         window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
       }
     }
+  }
+
+  async function handleMouseEnter(): Promise<void> {
+    ctx.state.isOverSubtitle = true;
+    ctx.dom.overlay.classList.add('interactive');
+    if (ctx.platform.shouldToggleMouseIgnore) {
+      window.electronAPI.setIgnoreMouseEvents(false);
+    }
+
+    if (!options.getSubtitleHoverAutoPauseEnabled()) {
+      return;
+    }
+
+    const requestId = ++hoverPauseRequestId;
+    let paused: boolean | null = null;
+    try {
+      paused = await options.getPlaybackPaused();
+    } catch {
+      return;
+    }
+    if (requestId !== hoverPauseRequestId || !ctx.state.isOverSubtitle) {
+      return;
+    }
+    if (paused !== false) {
+      return;
+    }
+    options.sendMpvCommand(['set_property', 'pause', 'yes']);
+    pausedBySubtitleHover = true;
+  }
+
+  async function handleMouseLeave(): Promise<void> {
+    ctx.state.isOverSubtitle = false;
+    hoverPauseRequestId += 1;
+    if (pausedBySubtitleHover) {
+      pausedBySubtitleHover = false;
+      options.sendMpvCommand(['set_property', 'pause', 'no']);
+    }
+    if (yomitanPopupVisible) return;
+    disablePopupInteractionIfIdle();
   }
 
   function setupDragging(): void {
@@ -75,184 +123,8 @@ export function createMouseHandlers(
     });
   }
 
-  function getCaretTextPointRange(clientX: number, clientY: number): Range | null {
-    const documentWithCaretApi = document as Document & {
-      caretRangeFromPoint?: (x: number, y: number) => Range | null;
-      caretPositionFromPoint?: (
-        x: number,
-        y: number,
-      ) => { offsetNode: Node; offset: number } | null;
-    };
-
-    if (typeof documentWithCaretApi.caretRangeFromPoint === 'function') {
-      return documentWithCaretApi.caretRangeFromPoint(clientX, clientY);
-    }
-
-    if (typeof documentWithCaretApi.caretPositionFromPoint === 'function') {
-      const caretPosition = documentWithCaretApi.caretPositionFromPoint(clientX, clientY);
-      if (!caretPosition) return null;
-      const range = document.createRange();
-      range.setStart(caretPosition.offsetNode, caretPosition.offset);
-      range.collapse(true);
-      return range;
-    }
-
-    return null;
-  }
-
-  function getWordBoundsAtOffset(
-    text: string,
-    offset: number,
-  ): { start: number; end: number } | null {
-    if (!text || text.length === 0) return null;
-
-    const clampedOffset = Math.max(0, Math.min(offset, text.length));
-    const probeIndex = clampedOffset >= text.length ? Math.max(0, text.length - 1) : clampedOffset;
-
-    if (wordSegmenter) {
-      for (const part of wordSegmenter.segment(text)) {
-        const start = part.index;
-        const end = start + part.segment.length;
-        if (probeIndex >= start && probeIndex < end) {
-          if (part.isWordLike === false) return null;
-          return { start, end };
-        }
-      }
-    }
-
-    const isBoundary = (char: string): boolean =>
-      /[\s\u3000.,!?;:()[\]{}"'`~<>/\\|@#$%^&*+=\-、。・「」『』【】〈〉《》]/.test(char);
-
-    const probeChar = text[probeIndex];
-    if (!probeChar || isBoundary(probeChar)) return null;
-
-    let start = probeIndex;
-    while (start > 0 && !isBoundary(text[start - 1] ?? '')) {
-      start -= 1;
-    }
-
-    let end = probeIndex + 1;
-    while (end < text.length && !isBoundary(text[end] ?? '')) {
-      end += 1;
-    }
-
-    if (end <= start) return null;
-    return { start, end };
-  }
-
-  function updateHoverWordSelection(event: MouseEvent): void {
-    if (!ctx.platform.isInvisibleLayer || !ctx.platform.isMacOSPlatform) return;
-    if (event.buttons !== 0) return;
-    if (!(event.target instanceof Node)) return;
-    if (!ctx.dom.subtitleRoot.contains(event.target)) return;
-
-    const caretRange = getCaretTextPointRange(event.clientX, event.clientY);
-    if (!caretRange) return;
-    if (caretRange.startContainer.nodeType !== Node.TEXT_NODE) return;
-    if (!ctx.dom.subtitleRoot.contains(caretRange.startContainer)) return;
-
-    const textNode = caretRange.startContainer as Text;
-    const wordBounds = getWordBoundsAtOffset(textNode.data, caretRange.startOffset);
-    if (!wordBounds) return;
-
-    const selectionKey = `${wordBounds.start}:${wordBounds.end}:${textNode.data.slice(
-      wordBounds.start,
-      wordBounds.end,
-    )}`;
-    if (
-      selectionKey === ctx.state.lastHoverSelectionKey &&
-      textNode === ctx.state.lastHoverSelectionNode
-    ) {
-      return;
-    }
-
-    const selection = window.getSelection();
-    if (!selection) return;
-
-    const range = document.createRange();
-    range.setStart(textNode, wordBounds.start);
-    range.setEnd(textNode, wordBounds.end);
-
-    selection.removeAllRanges();
-    selection.addRange(range);
-    ctx.state.lastHoverSelectionKey = selectionKey;
-    ctx.state.lastHoverSelectionNode = textNode;
-  }
-
-  function setupInvisibleHoverSelection(): void {
-    if (!ctx.platform.isInvisibleLayer || !ctx.platform.isMacOSPlatform) return;
-
-    ctx.dom.subtitleRoot.addEventListener('mousemove', (event: MouseEvent) => {
-      updateHoverWordSelection(event);
-    });
-
-    ctx.dom.subtitleRoot.addEventListener('mouseleave', () => {
-      ctx.state.lastHoverSelectionKey = '';
-      ctx.state.lastHoverSelectionNode = null;
-    });
-  }
-
-  function setupInvisibleTokenHoverReporter(): void {
-    if (!ctx.platform.isInvisibleLayer) return;
-
-    let pendingNullHoverTimer: ReturnType<typeof setTimeout> | null = null;
-    const clearPendingNullHoverTimer = (): void => {
-      if (pendingNullHoverTimer !== null) {
-        clearTimeout(pendingNullHoverTimer);
-        pendingNullHoverTimer = null;
-      }
-    };
-
-    const reportHoveredToken = (tokenIndex: number | null): void => {
-      if (ctx.state.lastHoveredTokenIndex === tokenIndex) return;
-      ctx.state.lastHoveredTokenIndex = tokenIndex;
-      options.reportHoveredTokenIndex(tokenIndex);
-    };
-
-    const queueNullHoveredToken = (): void => {
-      if (pendingNullHoverTimer !== null) return;
-      pendingNullHoverTimer = setTimeout(() => {
-        pendingNullHoverTimer = null;
-        reportHoveredToken(null);
-      }, 120);
-    };
-
-    ctx.dom.subtitleRoot.addEventListener('mousemove', (event: MouseEvent) => {
-      if (!(event.target instanceof Element)) {
-        queueNullHoveredToken();
-        return;
-      }
-      const target = event.target.closest<HTMLElement>('.word[data-token-index]');
-      if (!target || !ctx.dom.subtitleRoot.contains(target)) {
-        queueNullHoveredToken();
-        return;
-      }
-      const rawTokenIndex = target.dataset.tokenIndex;
-      const tokenIndex = rawTokenIndex ? Number.parseInt(rawTokenIndex, 10) : Number.NaN;
-      if (!Number.isInteger(tokenIndex) || tokenIndex < 0) {
-        queueNullHoveredToken();
-        return;
-      }
-      clearPendingNullHoverTimer();
-      reportHoveredToken(tokenIndex);
-    });
-
-    ctx.dom.subtitleRoot.addEventListener('mouseleave', () => {
-      clearPendingNullHoverTimer();
-      reportHoveredToken(null);
-    });
-  }
-
   function setupResizeHandler(): void {
     window.addEventListener('resize', () => {
-      if (ctx.platform.isInvisibleLayer) {
-        if (!ctx.state.mpvSubtitleRenderMetrics) return;
-        options.applyInvisibleSubtitleLayoutFromMpvMetrics(
-          ctx.state.mpvSubtitleRenderMetrics,
-          'resize',
-        );
-        return;
-      }
       options.applyYPercent(options.getCurrentYPercent());
     });
   }
@@ -271,39 +143,31 @@ export function createMouseHandlers(
   }
 
   function setupYomitanObserver(): void {
+    yomitanPopupVisible = hasYomitanPopupIframe(document);
+
+    window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
+      enablePopupInteraction();
+    });
+
+    window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, () => {
+      disablePopupInteractionIfIdle();
+    });
+
     const observer = new MutationObserver((mutations: MutationRecord[]) => {
       for (const mutation of mutations) {
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType !== Node.ELEMENT_NODE) return;
           const element = node as Element;
-          if (
-            element.tagName === 'IFRAME' &&
-            element.id &&
-            element.id.startsWith('yomitan-popup')
-          ) {
-            ctx.dom.overlay.classList.add('interactive');
-            if (ctx.platform.shouldToggleMouseIgnore) {
-              window.electronAPI.setIgnoreMouseEvents(false);
-            }
+          if (isYomitanPopupIframe(element)) {
+            enablePopupInteraction();
           }
         });
 
         mutation.removedNodes.forEach((node) => {
           if (node.nodeType !== Node.ELEMENT_NODE) return;
           const element = node as Element;
-          if (
-            element.tagName === 'IFRAME' &&
-            element.id &&
-            element.id.startsWith('yomitan-popup')
-          ) {
-            if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
-              ctx.dom.overlay.classList.remove('interactive');
-              if (ctx.platform.shouldToggleMouseIgnore) {
-                window.electronAPI.setIgnoreMouseEvents(true, {
-                  forward: true,
-                });
-              }
-            }
+          if (isYomitanPopupIframe(element)) {
+            disablePopupInteractionIfIdle();
           }
         });
       }
@@ -319,8 +183,6 @@ export function createMouseHandlers(
     handleMouseEnter,
     handleMouseLeave,
     setupDragging,
-    setupInvisibleHoverSelection,
-    setupInvisibleTokenHoverReporter,
     setupResizeHandler,
     setupSelectionObserver,
     setupYomitanObserver,

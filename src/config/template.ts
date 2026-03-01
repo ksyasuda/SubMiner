@@ -25,7 +25,8 @@ function humanizeKey(key: string): string {
 
 function buildInlineOptionComment(path: string, value: unknown): string {
   const registryEntry = OPTION_REGISTRY_BY_PATH.get(path);
-  const baseDescription = registryEntry?.description ?? TOP_LEVEL_SECTION_DESCRIPTION_BY_KEY.get(path);
+  const baseDescription =
+    registryEntry?.description ?? TOP_LEVEL_SECTION_DESCRIPTION_BY_KEY.get(path);
   const description =
     baseDescription && baseDescription.trim().length > 0
       ? normalizeCommentText(baseDescription)

@@ -10,6 +10,7 @@ type CliCommandContextMainState = {
 
 export function createBuildCliCommandContextMainDepsHandler(deps: {
   appState: CliCommandContextMainState;
+  setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
   texthookerService: CliCommandContextFactoryDeps['texthookerService'];
   getResolvedConfig: () => { texthooker?: { openBrowser?: boolean } };
   openExternal: (url: string) => Promise<unknown>;
@@ -18,9 +19,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
 
   initializeOverlayRuntime: () => void;
   toggleVisibleOverlay: () => void;
-  toggleInvisibleOverlay: () => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
-  setInvisibleOverlayVisible: (visible: boolean) => void;
 
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;
@@ -53,6 +52,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   logError: (message: string, err: unknown) => void;
 }) {
   return (): CliCommandContextFactoryDeps => ({
+    setLogLevel: deps.setLogLevel,
     getSocketPath: () => deps.appState.mpvSocketPath,
     setSocketPath: (socketPath: string) => {
       deps.appState.mpvSocketPath = socketPath;
@@ -70,9 +70,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     isOverlayInitialized: () => deps.appState.overlayRuntimeInitialized,
     initializeOverlay: () => deps.initializeOverlayRuntime(),
     toggleVisibleOverlay: () => deps.toggleVisibleOverlay(),
-    toggleInvisibleOverlay: () => deps.toggleInvisibleOverlay(),
     setVisibleOverlay: (visible: boolean) => deps.setVisibleOverlayVisible(visible),
-    setInvisibleOverlay: (visible: boolean) => deps.setInvisibleOverlayVisible(visible),
     copyCurrentSubtitle: () => deps.copyCurrentSubtitle(),
     startPendingMultiCopy: (timeoutMs: number) => deps.startPendingMultiCopy(timeoutMs),
     mineSentenceCard: () => deps.mineSentenceCard(),

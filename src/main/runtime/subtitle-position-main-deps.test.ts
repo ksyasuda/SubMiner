@@ -8,7 +8,7 @@ import {
 test('load subtitle position main deps builder maps callbacks', () => {
   const calls: string[] = [];
   const deps = createBuildLoadSubtitlePositionMainDepsHandler({
-    loadSubtitlePositionCore: () => ({ x: 1, y: 2 } as never),
+    loadSubtitlePositionCore: () => ({ x: 1, y: 2 }) as never,
     setSubtitlePosition: () => calls.push('set'),
   })();
 

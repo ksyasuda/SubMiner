@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hasExplicitCommand, parseArgs, shouldStartApp } from './args';
+import { hasExplicitCommand, parseArgs, shouldRunSettingsOnlyStartup, shouldStartApp } from './args';
 
 test('parseArgs parses booleans and value flags', () => {
   const args = parseArgs([
@@ -59,6 +59,28 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(refreshKnownWords.help, false);
   assert.equal(hasExplicitCommand(refreshKnownWords), true);
   assert.equal(shouldStartApp(refreshKnownWords), false);
+
+  const settings = parseArgs(['--settings']);
+  assert.equal(settings.settings, true);
+  assert.equal(hasExplicitCommand(settings), true);
+  assert.equal(shouldStartApp(settings), true);
+  assert.equal(shouldRunSettingsOnlyStartup(settings), true);
+
+  const settingsWithOverlay = parseArgs(['--settings', '--toggle-visible-overlay']);
+  assert.equal(settingsWithOverlay.settings, true);
+  assert.equal(settingsWithOverlay.toggleVisibleOverlay, true);
+  assert.equal(shouldRunSettingsOnlyStartup(settingsWithOverlay), false);
+
+  const yomitanAlias = parseArgs(['--yomitan']);
+  assert.equal(yomitanAlias.settings, true);
+  assert.equal(hasExplicitCommand(yomitanAlias), true);
+  assert.equal(shouldStartApp(yomitanAlias), true);
+
+  const help = parseArgs(['--help']);
+  assert.equal(help.help, true);
+  assert.equal(hasExplicitCommand(help), true);
+  assert.equal(shouldStartApp(help), false);
+  assert.equal(shouldRunSettingsOnlyStartup(help), false);
 
   const anilistStatus = parseArgs(['--anilist-status']);
   assert.equal(anilistStatus.anilistStatus, true);

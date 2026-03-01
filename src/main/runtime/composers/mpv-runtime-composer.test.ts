@@ -26,6 +26,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
   const calls: string[] = [];
   let started = false;
   let metrics = BASE_METRICS;
+  let mecabTokenizer: { id: string } | null = null;
 
   class FakeMpvClient {
     connected = false;
@@ -68,12 +69,15 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
       scheduleQuitCheck: () => {},
       quitApp: () => {},
       reportJellyfinRemoteStopped: () => {},
+      syncOverlayMpvSubtitleSuppression: () => {},
       maybeRunAnilistPostWatchUpdate: async () => {},
       logSubtitleTimingError: () => {},
       broadcastToOverlayWindows: () => {},
       onSubtitleChange: () => {},
       refreshDiscordPresence: () => {},
+      ensureImmersionTrackerInitialized: () => {},
       updateCurrentMediaPath: () => {},
+      restoreMpvSubVisibility: () => {},
       getCurrentAnilistMediaKey: () => null,
       resetAnilistMediaTracking: () => {},
       maybeProbeAnilistDuration: () => {},
@@ -90,7 +94,6 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
       getResolvedConfig: () => ({ auto_start_overlay: false }),
       isAutoStartOverlayEnabled: () => true,
       setOverlayVisible: () => {},
-      shouldBindVisibleOverlayToMpvSubVisibility: () => true,
       isVisibleOverlayVisible: () => false,
       getReconnectTimer: () => null,
       setReconnectTimer: () => {},
@@ -125,6 +128,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
         getJlptLevel: () => null,
         getJlptEnabled: () => true,
         getFrequencyDictionaryEnabled: () => true,
+        getFrequencyDictionaryMatchMode: () => 'headword',
         getFrequencyRank: () => null,
         getYomitanGroupDebugEnabled: () => false,
         getMecabTokenizer: () => null,
@@ -139,9 +143,15 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
         return { text };
       },
       createMecabTokenizerAndCheckMainDeps: {
-        getMecabTokenizer: () => ({ id: 'mecab' }),
-        setMecabTokenizer: () => {},
-        createMecabTokenizer: () => ({ id: 'mecab' }),
+        getMecabTokenizer: () => mecabTokenizer,
+        setMecabTokenizer: (next) => {
+          mecabTokenizer = next as { id: string };
+          calls.push('set-mecab');
+        },
+        createMecabTokenizer: () => {
+          calls.push('create-mecab');
+          return { id: 'mecab' };
+        },
         checkAvailability: async () => {
           calls.push('check-mecab');
         },
@@ -175,6 +185,10 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
         ensureYomitanExtensionLoaded: async () => {
           calls.push('warmup-yomitan');
         },
+        shouldWarmupMecab: () => true,
+        shouldWarmupYomitanExtension: () => true,
+        shouldWarmupSubtitleDictionaries: () => true,
+        shouldWarmupJellyfinRemoteSession: () => true,
         shouldAutoConnectJellyfinRemote: () => false,
         startJellyfinRemoteSession: async () => {
           calls.push('warmup-jellyfin');
@@ -189,6 +203,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
   assert.equal(typeof composed.tokenizeSubtitle, 'function');
   assert.equal(typeof composed.createMecabTokenizerAndCheck, 'function');
   assert.equal(typeof composed.prewarmSubtitleDictionaries, 'function');
+  assert.equal(typeof composed.startTokenizationWarmups, 'function');
   assert.equal(typeof composed.launchBackgroundWarmupTask, 'function');
   assert.equal(typeof composed.startBackgroundWarmups, 'function');
 
@@ -196,6 +211,7 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
   assert.equal(client.connected, true);
 
   composed.updateMpvSubtitleRenderMetrics({ subPos: 90 });
+  await composed.startTokenizationWarmups();
   const tokenized = await composed.tokenizeSubtitle('subtitle text');
   await composed.createMecabTokenizerAndCheck();
   await composed.prewarmSubtitleDictionaries();
@@ -211,9 +227,12 @@ test('composeMpvRuntimeHandlers returns callable handlers and forwards to inject
   assert.ok(calls.includes('broadcast-metrics'));
   assert.ok(calls.includes('create-tokenizer-runtime-deps'));
   assert.ok(calls.includes('tokenize:subtitle text'));
+  assert.ok(calls.includes('create-mecab'));
+  assert.ok(calls.includes('set-mecab'));
   assert.ok(calls.includes('check-mecab'));
   assert.ok(calls.includes('prewarm-jlpt'));
   assert.ok(calls.includes('prewarm-frequency'));
   assert.ok(calls.includes('set-started:true'));
   assert.ok(calls.includes('warmup-yomitan'));
+  assert.ok(calls.indexOf('create-mecab') < calls.indexOf('set-started:true'));
 });

@@ -64,7 +64,11 @@ export function createProcessNextAnilistRetryUpdateHandler(deps: {
       return { ok: false, message: 'AniList token unavailable for queued retry.' };
     }
 
-    const result = await deps.updateAnilistPostWatchProgress(accessToken, queued.title, queued.episode);
+    const result = await deps.updateAnilistPostWatchProgress(
+      accessToken,
+      queued.title,
+      queued.episode,
+    );
     if (result.status === 'updated' || result.status === 'skipped') {
       deps.markSuccess(queued.key);
       deps.rememberAttemptedUpdateKey(queued.key);
@@ -166,7 +170,11 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
         return;
       }
 
-      const result = await deps.updateAnilistPostWatchProgress(accessToken, guess.title, guess.episode);
+      const result = await deps.updateAnilistPostWatchProgress(
+        accessToken,
+        guess.title,
+        guess.episode,
+      );
       if (result.status === 'updated') {
         deps.rememberAttemptedUpdateKey(attemptKey);
         deps.markRetrySuccess(attemptKey);

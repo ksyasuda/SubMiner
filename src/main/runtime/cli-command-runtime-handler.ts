@@ -15,12 +15,11 @@ export function createCliCommandRuntimeHandler<TCliContext>(deps: {
     cliContext: TCliContext,
   ) => void;
 }) {
-  const handleTexthookerOnlyModeTransitionHandler =
-    createHandleTexthookerOnlyModeTransitionHandler(
-      createBuildHandleTexthookerOnlyModeTransitionMainDepsHandler(
-        deps.handleTexthookerOnlyModeTransitionMainDeps,
-      )(),
-    );
+  const handleTexthookerOnlyModeTransitionHandler = createHandleTexthookerOnlyModeTransitionHandler(
+    createBuildHandleTexthookerOnlyModeTransitionMainDepsHandler(
+      deps.handleTexthookerOnlyModeTransitionMainDeps,
+    )(),
+  );
 
   return (args: CliArgs, source: CliCommandSource = 'initial'): void => {
     handleTexthookerOnlyModeTransitionHandler(args);

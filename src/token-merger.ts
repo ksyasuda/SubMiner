@@ -17,6 +17,8 @@
  */
 
 import { PartOfSpeech, Token, MergedToken } from './types';
+import { DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG } from './token-pos1-exclusions';
+import { DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG } from './token-pos2-exclusions';
 
 export function isNoun(tok: Token): boolean {
   return tok.partOfSpeech === PartOfSpeech.noun;
@@ -241,22 +243,66 @@ export function mergeTokens(
 }
 
 const SENTENCE_BOUNDARY_SURFACES = new Set(['。', '？', '！', '?', '!', '…', '\u2026']);
-const N_PLUS_ONE_IGNORED_POS1 = new Set(['助詞', '助動詞', '記号', '補助記号']);
+const N_PLUS_ONE_IGNORED_POS1 = new Set(DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG.defaults);
+const N_PLUS_ONE_IGNORED_POS2 = new Set(DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG.defaults);
 
-export function isNPlusOneCandidateToken(token: MergedToken): boolean {
+function normalizePos1Tag(pos1: string | undefined): string {
+  return typeof pos1 === 'string' ? pos1.trim() : '';
+}
+
+function normalizePos2Tag(pos2: string | undefined): string {
+  return typeof pos2 === 'string' ? pos2.trim() : '';
+}
+
+function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<string>): boolean {
+  if (!normalizedTag) {
+    return false;
+  }
+  const parts = normalizedTag
+    .split('|')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (parts.length === 0) {
+    return false;
+  }
+  return parts.every((part) => exclusions.has(part));
+}
+
+export function isNPlusOneCandidateToken(
+  token: MergedToken,
+  pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
+  pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
+): boolean {
   if (token.isKnown) {
     return false;
   }
+  return isNPlusOneWordCountToken(token, pos1Exclusions, pos2Exclusions);
+}
 
-  if (token.partOfSpeech === PartOfSpeech.particle) {
+function isNPlusOneWordCountToken(
+  token: MergedToken,
+  pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
+  pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
+): boolean {
+  const normalizedPos1 = normalizePos1Tag(token.pos1);
+  const hasPos1 = normalizedPos1.length > 0;
+  if (isExcludedByTagSet(normalizedPos1, pos1Exclusions)) {
     return false;
   }
 
-  if (token.partOfSpeech === PartOfSpeech.bound_auxiliary) {
+  const normalizedPos2 = normalizePos2Tag(token.pos2);
+  const hasPos2 = normalizedPos2.length > 0;
+  if (isExcludedByTagSet(normalizedPos2, pos2Exclusions)) {
     return false;
   }
 
-  if (token.partOfSpeech === PartOfSpeech.symbol) {
+  if (
+    !hasPos1 &&
+    !hasPos2 &&
+    (token.partOfSpeech === PartOfSpeech.particle ||
+      token.partOfSpeech === PartOfSpeech.bound_auxiliary ||
+      token.partOfSpeech === PartOfSpeech.symbol)
+  ) {
     return false;
   }
 
@@ -265,10 +311,6 @@ export function isNPlusOneCandidateToken(token: MergedToken): boolean {
   }
 
   if (token.pos3 && token.pos3.startsWith('助数詞')) {
-    return false;
-  }
-
-  if (token.pos1 && N_PLUS_ONE_IGNORED_POS1.has(token.pos1)) {
     return false;
   }
 
@@ -287,7 +329,12 @@ function isSentenceBoundaryToken(token: MergedToken): boolean {
   return SENTENCE_BOUNDARY_SURFACES.has(token.surface);
 }
 
-export function markNPlusOneTargets(tokens: MergedToken[], minSentenceWords = 3): MergedToken[] {
+export function markNPlusOneTargets(
+  tokens: MergedToken[],
+  minSentenceWords = 3,
+  pos1Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS1,
+  pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
+): MergedToken[] {
   if (tokens.length === 0) {
     return [];
   }
@@ -308,11 +355,11 @@ export function markNPlusOneTargets(tokens: MergedToken[], minSentenceWords = 3)
     for (let i = start; i < endExclusive; i++) {
       const token = markedTokens[i];
       if (!token) continue;
-      if (!isSentenceBoundaryToken(token) && token.surface.trim().length > 0) {
+      if (isNPlusOneWordCountToken(token, pos1Exclusions, pos2Exclusions)) {
         sentenceWordCount += 1;
       }
 
-      if (isNPlusOneCandidateToken(token)) {
+      if (isNPlusOneCandidateToken(token, pos1Exclusions, pos2Exclusions)) {
         sentenceCandidates.push(i);
       }
     }

@@ -49,7 +49,10 @@ test('runtime options state handler returns list from manager', () => {
 test('restore previous secondary subtitle visibility no-ops without connected mpv client', () => {
   let restored = false;
   const restore = createRestorePreviousSecondarySubVisibilityHandler({
-    getMpvClient: () => ({ connected: false, restorePreviousSecondarySubVisibility: () => (restored = true) }),
+    getMpvClient: () => ({
+      connected: false,
+      restorePreviousSecondarySubVisibility: () => (restored = true),
+    }),
   });
   restore();
   assert.equal(restored, false);
@@ -58,7 +61,10 @@ test('restore previous secondary subtitle visibility no-ops without connected mp
 test('restore previous secondary subtitle visibility calls runtime when connected', () => {
   let restored = false;
   const restore = createRestorePreviousSecondarySubVisibilityHandler({
-    getMpvClient: () => ({ connected: true, restorePreviousSecondarySubVisibility: () => (restored = true) }),
+    getMpvClient: () => ({
+      connected: true,
+      restorePreviousSecondarySubVisibility: () => (restored = true),
+    }),
   });
   restore();
   assert.equal(restored, true);
@@ -82,7 +88,8 @@ test('broadcast runtime options changed passes through state getter and broadcas
         requiresRestart: false,
       },
     ],
-    broadcastToOverlayWindows: (channel, payload) => calls.push(`emit:${channel}:${JSON.stringify(payload)}`),
+    broadcastToOverlayWindows: (channel, payload) =>
+      calls.push(`emit:${channel}:${JSON.stringify(payload)}`),
   });
 
   broadcast();
@@ -104,22 +111,21 @@ test('set overlay debug visualization enabled delegates with current state and b
   const calls: string[] = [];
   let current = false;
   const setEnabled = createSetOverlayDebugVisualizationEnabledHandler({
-    setOverlayDebugVisualizationEnabledRuntime: (curr, next, setCurrent, broadcast) => {
+    setOverlayDebugVisualizationEnabledRuntime: (curr, next, setCurrent) => {
       calls.push(`runtime:${curr}->${next}`);
       setCurrent(next);
-      broadcast('overlay-debug:set', next);
+      // no renderer-level side effects for this legacy debug path.
     },
     getCurrentEnabled: () => current,
     setCurrentEnabled: (enabled) => {
       current = enabled;
       calls.push(`set:${enabled}`);
     },
-    broadcastToOverlayWindows: (channel, value) => calls.push(`emit:${channel}:${value}`),
   });
 
   setEnabled(true);
   assert.equal(current, true);
-  assert.deepEqual(calls, ['runtime:false->true', 'set:true', 'emit:overlay-debug:set:true']);
+  assert.deepEqual(calls, ['runtime:false->true', 'set:true']);
 });
 
 test('open runtime options palette handler delegates to runtime', () => {

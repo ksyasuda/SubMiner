@@ -8,10 +8,8 @@ test('overlay runtime bootstrap no-ops when already initialized', () => {
     isOverlayRuntimeInitialized: () => true,
     initializeOverlayRuntimeCore: () => {
       coreCalls += 1;
-      return { invisibleOverlayVisible: false };
     },
-    buildOptions: () => ({} as never),
-    setInvisibleOverlayVisible: () => {},
+    buildOptions: () => ({}) as never,
     setOverlayRuntimeInitialized: () => {},
     startBackgroundWarmups: () => {},
   });
@@ -27,14 +25,10 @@ test('overlay runtime bootstrap runs core init and applies post-init state', () 
     isOverlayRuntimeInitialized: () => initialized,
     initializeOverlayRuntimeCore: () => {
       calls.push('core');
-      return { invisibleOverlayVisible: true };
     },
     buildOptions: () => {
       calls.push('options');
       return {} as never;
-    },
-    setInvisibleOverlayVisible: (visible) => {
-      calls.push(`invisible:${visible ? 'yes' : 'no'}`);
     },
     setOverlayRuntimeInitialized: (value) => {
       initialized = value;
@@ -47,5 +41,5 @@ test('overlay runtime bootstrap runs core init and applies post-init state', () 
 
   initialize();
   assert.equal(initialized, true);
-  assert.deepEqual(calls, ['options', 'core', 'invisible:yes', 'initialized:yes', 'warmups']);
+  assert.deepEqual(calls, ['options', 'initialized:yes', 'core', 'warmups']);
 });

@@ -216,6 +216,10 @@ export async function dispatchMpvProtocolMessage(
       deps.emitSubtitleMetricsChange({
         subScaleByWindow: asBoolean(msg.data, deps.getSubtitleMetrics().subScaleByWindow),
       });
+    } else if (msg.name === 'sub-visibility') {
+      if (deps.isVisibleOverlayVisible() && asBoolean(msg.data, false)) {
+        deps.sendCommand({ command: ['set_property', 'sub-visibility', false] });
+      }
     } else if (msg.name === 'sub-use-margins') {
       deps.emitSubtitleMetricsChange({
         subUseMargins: asBoolean(msg.data, deps.getSubtitleMetrics().subUseMargins),

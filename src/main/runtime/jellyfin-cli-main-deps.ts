@@ -1,15 +1,7 @@
-import type {
-  createHandleJellyfinAuthCommands,
-} from './jellyfin-cli-auth';
-import type {
-  createHandleJellyfinListCommands,
-} from './jellyfin-cli-list';
-import type {
-  createHandleJellyfinPlayCommand,
-} from './jellyfin-cli-play';
-import type {
-  createHandleJellyfinRemoteAnnounceCommand,
-} from './jellyfin-cli-remote-announce';
+import type { createHandleJellyfinAuthCommands } from './jellyfin-cli-auth';
+import type { createHandleJellyfinListCommands } from './jellyfin-cli-list';
+import type { createHandleJellyfinPlayCommand } from './jellyfin-cli-play';
+import type { createHandleJellyfinRemoteAnnounceCommand } from './jellyfin-cli-remote-announce';
 
 type HandleJellyfinAuthCommandsMainDeps = Parameters<typeof createHandleJellyfinAuthCommands>[0];
 type HandleJellyfinListCommandsMainDeps = Parameters<typeof createHandleJellyfinListCommands>[0];

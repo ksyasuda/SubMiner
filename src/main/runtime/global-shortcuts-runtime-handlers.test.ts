@@ -6,7 +6,6 @@ import { createGlobalShortcutsRuntimeHandlers } from './global-shortcuts-runtime
 function createShortcuts(): ConfiguredShortcuts {
   return {
     toggleVisibleOverlayGlobal: 'CommandOrControl+Shift+O',
-    toggleInvisibleOverlayGlobal: 'CommandOrControl+Shift+I',
     copySubtitle: 's',
     copySubtitleMultiple: 'CommandOrControl+s',
     updateLastCardFromClipboard: 'c',
@@ -38,7 +37,6 @@ test('global shortcuts runtime handlers compose get/register/refresh flow', () =
         assert.equal(options.shortcuts, shortcuts);
       },
       toggleVisibleOverlay: () => calls.push('toggle-visible'),
-      toggleInvisibleOverlay: () => calls.push('toggle-invisible'),
       openYomitanSettings: () => calls.push('open-yomitan'),
       isDev: false,
       getMainWindow: () => null,

@@ -3,8 +3,8 @@ import type { RendererContext } from './context';
 
 const MEASUREMENT_DEBOUNCE_MS = 80;
 
-function isMeasurableOverlayLayer(layer: string): layer is 'visible' | 'invisible' {
-  return layer === 'visible' || layer === 'invisible';
+function isMeasurableOverlayLayer(layer: string): layer is 'visible' {
+  return layer === 'visible';
 }
 
 function round2(value: number): number {

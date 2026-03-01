@@ -1,6 +1,10 @@
 type TrayIconLike = {
   isEmpty: () => boolean;
-  resize: (options: { width: number; height: number; quality?: 'best' | 'better' | 'good' }) => TrayIconLike;
+  resize: (options: {
+    width: number;
+    height: number;
+    quality?: 'best' | 'better' | 'good';
+  }) => TrayIconLike;
   setTemplateImage: (enabled: boolean) => void;
 };
 

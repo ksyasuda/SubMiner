@@ -19,7 +19,6 @@ export function createBuildRegisterGlobalShortcutsMainDepsHandler(deps: {
   getConfiguredShortcuts: () => RegisterGlobalShortcutsServiceOptions['shortcuts'];
   registerGlobalShortcutsCore: (options: RegisterGlobalShortcutsServiceOptions) => void;
   toggleVisibleOverlay: () => void;
-  toggleInvisibleOverlay: () => void;
   openYomitanSettings: () => void;
   isDev: boolean;
   getMainWindow: RegisterGlobalShortcutsServiceOptions['getMainWindow'];
@@ -29,7 +28,6 @@ export function createBuildRegisterGlobalShortcutsMainDepsHandler(deps: {
     registerGlobalShortcutsCore: (options: RegisterGlobalShortcutsServiceOptions) =>
       deps.registerGlobalShortcutsCore(options),
     onToggleVisibleOverlay: () => deps.toggleVisibleOverlay(),
-    onToggleInvisibleOverlay: () => deps.toggleInvisibleOverlay(),
     onOpenYomitanSettings: () => deps.openYomitanSettings(),
     isDev: deps.isDev,
     getMainWindow: deps.getMainWindow,

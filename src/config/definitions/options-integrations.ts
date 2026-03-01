@@ -5,6 +5,8 @@ export function buildIntegrationConfigOptionRegistry(
   defaultConfig: ResolvedConfig,
   runtimeOptionRegistry: RuntimeOptionRegistryEntry[],
 ): ConfigOptionRegistryEntry[] {
+  const runtimeOptionById = new Map(runtimeOptionRegistry.map((entry) => [entry.id, entry]));
+
   return [
     {
       path: 'ankiConnect.enabled',
@@ -19,6 +21,30 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Polling interval in milliseconds.',
     },
     {
+      path: 'ankiConnect.proxy.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.proxy.enabled,
+      description: 'Enable local AnkiConnect-compatible proxy for push-based auto-enrichment.',
+    },
+    {
+      path: 'ankiConnect.proxy.host',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.proxy.host,
+      description: 'Bind host for local AnkiConnect proxy.',
+    },
+    {
+      path: 'ankiConnect.proxy.port',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.proxy.port,
+      description: 'Bind port for local AnkiConnect proxy.',
+    },
+    {
+      path: 'ankiConnect.proxy.upstreamUrl',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.proxy.upstreamUrl,
+      description: 'Upstream AnkiConnect URL proxied by local AnkiConnect proxy.',
+    },
+    {
       path: 'ankiConnect.tags',
       kind: 'array',
       defaultValue: defaultConfig.ankiConnect.tags,
@@ -30,7 +56,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.behavior.autoUpdateNewCards,
       description: 'Automatically update newly added cards.',
-      runtime: runtimeOptionRegistry[0],
+      runtime: runtimeOptionById.get('anki.autoUpdateNewCards'),
     },
     {
       path: 'ankiConnect.nPlusOne.matchMode',
@@ -81,7 +107,7 @@ export function buildIntegrationConfigOptionRegistry(
       enumValues: ['auto', 'manual', 'disabled'],
       defaultValue: defaultConfig.ankiConnect.isKiku.fieldGrouping,
       description: 'Kiku duplicate-card field grouping mode.',
-      runtime: runtimeOptionRegistry[1],
+      runtime: runtimeOptionById.get('anki.kikuFieldGrouping'),
     },
     {
       path: 'jimaku.languagePreference',

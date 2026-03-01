@@ -182,7 +182,8 @@ export function parseCliPrograms(
         server: typeof options.server === 'string' ? options.server : undefined,
         username: typeof options.username === 'string' ? options.username : undefined,
         password: typeof options.password === 'string' ? options.password : undefined,
-        passwordStore: typeof options.passwordStore === 'string' ? options.passwordStore : undefined,
+        passwordStore:
+          typeof options.passwordStore === 'string' ? options.passwordStore : undefined,
         logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
       };
     });

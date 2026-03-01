@@ -42,14 +42,14 @@ test('tray runtime handlers compose resolve/menu/ensure/destroy handlers', () =>
         isEmpty: () => false,
         resize: () => ({
           isEmpty: () => false,
-          resize: () => ({} as never),
+          resize: () => ({}) as never,
           setTemplateImage: () => {},
         }),
         setTemplateImage: () => {},
       }),
       createEmptyImage: () => ({
         isEmpty: () => true,
-        resize: () => ({} as never),
+        resize: () => ({}) as never,
         setTemplateImage: () => {},
       }),
       createTray: () => ({

@@ -5,6 +5,9 @@ type TokenizerMainDeps = TokenizerDepsRuntimeOptions & {
   getFrequencyDictionaryEnabled: NonNullable<
     TokenizerDepsRuntimeOptions['getFrequencyDictionaryEnabled']
   >;
+  getFrequencyDictionaryMatchMode: NonNullable<
+    TokenizerDepsRuntimeOptions['getFrequencyDictionaryMatchMode']
+  >;
   getFrequencyRank: NonNullable<TokenizerDepsRuntimeOptions['getFrequencyRank']>;
   getMinSentenceWordsForNPlusOne: NonNullable<
     TokenizerDepsRuntimeOptions['getMinSentenceWordsForNPlusOne']
@@ -32,10 +35,16 @@ export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
       return hit;
     },
     getKnownWordMatchMode: () => deps.getKnownWordMatchMode(),
+    ...(deps.getNPlusOneEnabled
+      ? {
+          getNPlusOneEnabled: () => deps.getNPlusOneEnabled!(),
+        }
+      : {}),
     getMinSentenceWordsForNPlusOne: () => deps.getMinSentenceWordsForNPlusOne(),
     getJlptLevel: (text: string) => deps.getJlptLevel(text),
     getJlptEnabled: () => deps.getJlptEnabled(),
     getFrequencyDictionaryEnabled: () => deps.getFrequencyDictionaryEnabled(),
+    getFrequencyDictionaryMatchMode: () => deps.getFrequencyDictionaryMatchMode(),
     getFrequencyRank: (text: string) => deps.getFrequencyRank(text),
     getYomitanGroupDebugEnabled: () => deps.getYomitanGroupDebugEnabled(),
     getMecabTokenizer: () => deps.getMecabTokenizer(),
@@ -61,8 +70,93 @@ export function createCreateMecabTokenizerAndCheckMainHandler<TMecab>(deps: {
 export function createPrewarmSubtitleDictionariesMainHandler(deps: {
   ensureJlptDictionaryLookup: () => Promise<void>;
   ensureFrequencyDictionaryLookup: () => Promise<void>;
+  showMpvOsd?: (message: string) => void;
+  shouldShowOsdNotification?: () => boolean;
+  setInterval?: (callback: () => void, delayMs: number) => unknown;
+  clearInterval?: (timer: unknown) => void;
 }) {
-  return async (): Promise<void> => {
-    await Promise.all([deps.ensureJlptDictionaryLookup(), deps.ensureFrequencyDictionaryLookup()]);
+  let prewarmed = false;
+  let prewarmPromise: Promise<void> | null = null;
+  let loadingOsdDepth = 0;
+  let loadingOsdFrame = 0;
+  let loadingOsdTimer: unknown = null;
+  const showMpvOsd = deps.showMpvOsd;
+  const shouldShowOsdNotification = deps.shouldShowOsdNotification ?? (() => false);
+  const setIntervalHandler =
+    deps.setInterval ??
+    ((callback: () => void, delayMs: number): unknown => setInterval(callback, delayMs));
+  const clearIntervalHandler =
+    deps.clearInterval ??
+    ((timer: unknown): void => clearInterval(timer as ReturnType<typeof setInterval>));
+  const spinnerFrames = ['|', '/', '-', '\\'];
+
+  const beginLoadingOsd = (): boolean => {
+    if (!showMpvOsd || !shouldShowOsdNotification()) {
+      return false;
+    }
+    loadingOsdDepth += 1;
+    if (loadingOsdDepth > 1) {
+      return true;
+    }
+
+    loadingOsdFrame = 0;
+    showMpvOsd(`Loading subtitle annotations ${spinnerFrames[loadingOsdFrame]}`);
+    loadingOsdFrame += 1;
+    loadingOsdTimer = setIntervalHandler(() => {
+      if (!showMpvOsd) {
+        return;
+      }
+      showMpvOsd(
+        `Loading subtitle annotations ${spinnerFrames[loadingOsdFrame % spinnerFrames.length]}`,
+      );
+      loadingOsdFrame += 1;
+    }, 180);
+    return true;
+  };
+
+  const endLoadingOsd = (): void => {
+    if (!showMpvOsd) {
+      return;
+    }
+
+    loadingOsdDepth = Math.max(0, loadingOsdDepth - 1);
+    if (loadingOsdDepth > 0) {
+      return;
+    }
+
+    if (loadingOsdTimer) {
+      clearIntervalHandler(loadingOsdTimer);
+      loadingOsdTimer = null;
+    }
+    showMpvOsd('Subtitle annotations loaded');
+  };
+
+  return async (options?: { showLoadingOsd?: boolean }): Promise<void> => {
+    if (prewarmed) {
+      return;
+    }
+    const shouldTrackLoadingOsd = options?.showLoadingOsd === true;
+    const loadingOsdStarted = shouldTrackLoadingOsd ? beginLoadingOsd() : false;
+
+    if (!prewarmPromise) {
+      prewarmPromise = (async () => {
+        try {
+          await Promise.all([
+            deps.ensureJlptDictionaryLookup(),
+            deps.ensureFrequencyDictionaryLookup(),
+          ]);
+          prewarmed = true;
+        } finally {
+          prewarmPromise = null;
+        }
+      })();
+    }
+    try {
+      await prewarmPromise;
+    } finally {
+      if (loadingOsdStarted) {
+        endLoadingOsd();
+      }
+    }
   };
 }

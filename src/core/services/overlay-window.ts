@@ -4,8 +4,25 @@ import { WindowGeometry } from '../../types';
 import { createLogger } from '../../logger';
 
 const logger = createLogger('main:overlay-window');
+const overlayWindowLayerByInstance = new WeakMap<BrowserWindow, OverlayWindowKind>();
 
-export type OverlayWindowKind = 'visible' | 'invisible' | 'secondary' | 'modal';
+function getOverlayWindowHtmlPath(): string {
+  return path.join(__dirname, '..', '..', 'renderer', 'index.html');
+}
+
+function loadOverlayWindowLayer(window: BrowserWindow, layer: OverlayWindowKind): void {
+  overlayWindowLayerByInstance.set(window, layer);
+  const htmlPath = getOverlayWindowHtmlPath();
+  window
+    .loadFile(htmlPath, {
+      query: { layer },
+    })
+    .catch((err) => {
+      logger.error('Failed to load HTML file:', err);
+    });
+}
+
+export type OverlayWindowKind = 'visible' | 'modal';
 
 export function updateOverlayWindowBounds(
   geometry: WindowGeometry,
@@ -32,14 +49,11 @@ export function ensureOverlayWindowLevel(window: BrowserWindow): void {
 
 export function enforceOverlayLayerOrder(options: {
   visibleOverlayVisible: boolean;
-  invisibleOverlayVisible: boolean;
   mainWindow: BrowserWindow | null;
-  invisibleWindow: BrowserWindow | null;
   ensureOverlayWindowLevel: (window: BrowserWindow) => void;
 }): void {
-  if (!options.visibleOverlayVisible || !options.invisibleOverlayVisible) return;
+  if (!options.visibleOverlayVisible) return;
   if (!options.mainWindow || options.mainWindow.isDestroyed()) return;
-  if (!options.invisibleWindow || options.invisibleWindow.isDestroyed()) return;
 
   options.ensureOverlayWindowLevel(options.mainWindow);
   options.mainWindow.moveTop();
@@ -49,7 +63,6 @@ export function createOverlayWindow(
   kind: OverlayWindowKind,
   options: {
     isDev: boolean;
-    overlayDebugVisualizationEnabled: boolean;
     ensureOverlayWindowLevel: (window: BrowserWindow) => void;
     onRuntimeOptionsChanged: () => void;
     setOverlayDebugVisualizationEnabled: (enabled: boolean) => void;
@@ -83,16 +96,7 @@ export function createOverlayWindow(
   });
 
   options.ensureOverlayWindowLevel(window);
-
-  const htmlPath = path.join(__dirname, '..', '..', 'renderer', 'index.html');
-
-  window
-    .loadFile(htmlPath, {
-      query: { layer: kind },
-    })
-    .catch((err) => {
-      logger.error('Failed to load HTML file:', err);
-    });
+  loadOverlayWindowLayer(window, kind);
 
   window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     logger.error('Page failed to load:', errorCode, errorDescription, validatedURL);
@@ -100,10 +104,6 @@ export function createOverlayWindow(
 
   window.webContents.on('did-finish-load', () => {
     options.onRuntimeOptionsChanged();
-    window.webContents.send(
-      'overlay-debug-visualization:set',
-      options.overlayDebugVisualizationEnabled,
-    );
   });
 
   if (kind === 'visible') {
@@ -117,7 +117,7 @@ export function createOverlayWindow(
 
   window.webContents.on('before-input-event', (event, input) => {
     if (kind === 'modal') return;
-    if (!options.isOverlayVisible(kind)) return;
+    if (!window.isVisible()) return;
     if (!options.tryHandleOverlayShortcutLocalFallback(input)) return;
     event.preventDefault();
   });
@@ -139,4 +139,10 @@ export function createOverlayWindow(
   }
 
   return window;
+}
+
+export function syncOverlayWindowLayer(window: BrowserWindow, layer: 'visible'): void {
+  if (window.isDestroyed()) return;
+  if (overlayWindowLayerByInstance.get(window) === layer) return;
+  loadOverlayWindowLayer(window, layer);
 }

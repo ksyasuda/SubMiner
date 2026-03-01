@@ -38,13 +38,9 @@ export function createBuildFrequencyDictionaryRootsMainHandler(deps: {
   joinPath: (...parts: string[]) => string;
 }) {
   return () => [
-    deps.joinPath(deps.dirname, '..', '..', 'vendor', 'jiten_freq_global'),
     deps.joinPath(deps.dirname, '..', '..', 'vendor', 'frequency-dictionary'),
-    deps.joinPath(deps.appPath, 'vendor', 'jiten_freq_global'),
     deps.joinPath(deps.appPath, 'vendor', 'frequency-dictionary'),
-    deps.joinPath(deps.resourcesPath, 'jiten_freq_global'),
     deps.joinPath(deps.resourcesPath, 'frequency-dictionary'),
-    deps.joinPath(deps.resourcesPath, 'app.asar', 'vendor', 'jiten_freq_global'),
     deps.joinPath(deps.resourcesPath, 'app.asar', 'vendor', 'frequency-dictionary'),
     deps.userDataPath,
     deps.appUserDataPath,

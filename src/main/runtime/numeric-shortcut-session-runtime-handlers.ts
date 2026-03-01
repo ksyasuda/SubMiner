@@ -20,8 +20,9 @@ export function createNumericShortcutSessionRuntimeHandlers(deps: {
   const cancelPendingMultiCopyMainDeps = createBuildCancelNumericShortcutSessionMainDepsHandler({
     session: deps.multiCopySession,
   })();
-  const cancelPendingMultiCopyHandler =
-    createCancelNumericShortcutSessionHandler(cancelPendingMultiCopyMainDeps);
+  const cancelPendingMultiCopyHandler = createCancelNumericShortcutSessionHandler(
+    cancelPendingMultiCopyMainDeps,
+  );
 
   const startPendingMultiCopyMainDeps = createBuildStartNumericShortcutSessionMainDepsHandler({
     session: deps.multiCopySession,
@@ -32,8 +33,9 @@ export function createNumericShortcutSessionRuntimeHandlers(deps: {
       cancelled: 'Cancelled',
     },
   })();
-  const startPendingMultiCopyHandler =
-    createStartNumericShortcutSessionHandler(startPendingMultiCopyMainDeps);
+  const startPendingMultiCopyHandler = createStartNumericShortcutSessionHandler(
+    startPendingMultiCopyMainDeps,
+  );
 
   const cancelPendingMineSentenceMultipleMainDeps =
     createBuildCancelNumericShortcutSessionMainDepsHandler({

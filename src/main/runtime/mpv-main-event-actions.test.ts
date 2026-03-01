@@ -51,6 +51,7 @@ test('media path change handler reports stop for empty path and probes media key
   const handler = createHandleMpvMediaPathChangeHandler({
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
     reportJellyfinRemoteStopped: () => calls.push('stopped'),
+    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
     getCurrentAnilistMediaKey: () => 'show:1',
     resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
@@ -63,6 +64,7 @@ test('media path change handler reports stop for empty path and probes media key
   assert.deepEqual(calls, [
     'path:',
     'stopped',
+    'restore-mpv-sub',
     'reset:show:1',
     'probe:show:1',
     'guess:show:1',

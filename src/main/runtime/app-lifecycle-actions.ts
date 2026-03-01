@@ -2,6 +2,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   destroyTray: () => void;
   stopConfigHotReload: () => void;
   restorePreviousSecondarySubVisibility: () => void;
+  restoreMpvSubVisibility: () => void;
   unregisterAllGlobalShortcuts: () => void;
   stopSubtitleWebsocket: () => void;
   stopTexthookerService: () => void;
@@ -25,6 +26,7 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.destroyTray();
     deps.stopConfigHotReload();
     deps.restorePreviousSecondarySubVisibility();
+    deps.restoreMpvSubVisibility();
     deps.unregisterAllGlobalShortcuts();
     deps.stopSubtitleWebsocket();
     deps.stopTexthookerService();
@@ -55,14 +57,12 @@ export function createShouldRestoreWindowsOnActivateHandler(deps: {
 
 export function createRestoreWindowsOnActivateHandler(deps: {
   createMainWindow: () => void;
-  createInvisibleWindow: () => void;
   updateVisibleOverlayVisibility: () => void;
-  updateInvisibleOverlayVisibility: () => void;
+  syncOverlayMpvSubtitleSuppression: () => void;
 }) {
   return (): void => {
     deps.createMainWindow();
-    deps.createInvisibleWindow();
     deps.updateVisibleOverlayVisibility();
-    deps.updateInvisibleOverlayVisibility();
+    deps.syncOverlayMpvSubtitleSuppression();
   };
 }

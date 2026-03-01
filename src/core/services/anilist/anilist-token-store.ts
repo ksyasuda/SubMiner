@@ -132,16 +132,15 @@ export function createAnilistTokenStore(
           }
           return decrypted;
         }
-        if (
-          typeof parsed.plaintextToken === 'string' &&
-          parsed.plaintextToken.trim().length > 0
-        ) {
+        if (typeof parsed.plaintextToken === 'string' && parsed.plaintextToken.trim().length > 0) {
           if (storage.isEncryptionAvailable()) {
             if (!isSafeStorageUsable()) {
               return null;
             }
             const plaintext = parsed.plaintextToken.trim();
-            notifyUser('AniList token plaintext fallback payload found. Migrating to encrypted storage.');
+            notifyUser(
+              'AniList token plaintext fallback payload found. Migrating to encrypted storage.',
+            );
             this.saveToken(plaintext);
             return plaintext;
           }

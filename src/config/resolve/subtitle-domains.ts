@@ -99,10 +99,24 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
   if (isObject(src.subtitleStyle)) {
     const fallbackSubtitleStyleEnableJlpt = resolved.subtitleStyle.enableJlpt;
     const fallbackSubtitleStylePreserveLineBreaks = resolved.subtitleStyle.preserveLineBreaks;
+    const fallbackSubtitleStyleAutoPauseVideoOnHover =
+      resolved.subtitleStyle.autoPauseVideoOnHover;
     const fallbackSubtitleStyleHoverTokenColor = resolved.subtitleStyle.hoverTokenColor;
+    const fallbackSubtitleStyleHoverTokenBackgroundColor =
+      resolved.subtitleStyle.hoverTokenBackgroundColor;
+    const fallbackFrequencyDictionary = {
+      ...resolved.subtitleStyle.frequencyDictionary,
+    };
     resolved.subtitleStyle = {
       ...resolved.subtitleStyle,
       ...(src.subtitleStyle as ResolvedConfig['subtitleStyle']),
+      frequencyDictionary: {
+        ...resolved.subtitleStyle.frequencyDictionary,
+        ...(isObject((src.subtitleStyle as { frequencyDictionary?: unknown }).frequencyDictionary)
+          ? ((src.subtitleStyle as { frequencyDictionary?: unknown })
+              .frequencyDictionary as ResolvedConfig['subtitleStyle']['frequencyDictionary'])
+          : {}),
+      },
       secondary: {
         ...resolved.subtitleStyle.secondary,
         ...(isObject(src.subtitleStyle.secondary)
@@ -141,7 +155,27 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       );
     }
 
-    const hoverTokenColor = asColor((src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor);
+    const autoPauseVideoOnHover = asBoolean(
+      (src.subtitleStyle as { autoPauseVideoOnHover?: unknown }).autoPauseVideoOnHover,
+    );
+    if (autoPauseVideoOnHover !== undefined) {
+      resolved.subtitleStyle.autoPauseVideoOnHover = autoPauseVideoOnHover;
+    } else if (
+      (src.subtitleStyle as { autoPauseVideoOnHover?: unknown }).autoPauseVideoOnHover !==
+      undefined
+    ) {
+      resolved.subtitleStyle.autoPauseVideoOnHover = fallbackSubtitleStyleAutoPauseVideoOnHover;
+      warn(
+        'subtitleStyle.autoPauseVideoOnHover',
+        (src.subtitleStyle as { autoPauseVideoOnHover?: unknown }).autoPauseVideoOnHover,
+        resolved.subtitleStyle.autoPauseVideoOnHover,
+        'Expected boolean.',
+      );
+    }
+
+    const hoverTokenColor = asColor(
+      (src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor,
+    );
     if (hoverTokenColor !== undefined) {
       resolved.subtitleStyle.hoverTokenColor = hoverTokenColor;
     } else if ((src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor !== undefined) {
@@ -151,6 +185,25 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         (src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor,
         resolved.subtitleStyle.hoverTokenColor,
         'Expected hex color.',
+      );
+    }
+
+    const hoverTokenBackgroundColor = asString(
+      (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor,
+    );
+    if (hoverTokenBackgroundColor !== undefined) {
+      resolved.subtitleStyle.hoverTokenBackgroundColor = hoverTokenBackgroundColor;
+    } else if (
+      (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor !==
+      undefined
+    ) {
+      resolved.subtitleStyle.hoverTokenBackgroundColor =
+        fallbackSubtitleStyleHoverTokenBackgroundColor;
+      warn(
+        'subtitleStyle.hoverTokenBackgroundColor',
+        (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor,
+        resolved.subtitleStyle.hoverTokenBackgroundColor,
+        'Expected a CSS color value (hex, rgba/hsl/hsla, named color, or var()).',
       );
     }
 
@@ -166,6 +219,7 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     if (frequencyEnabled !== undefined) {
       resolved.subtitleStyle.frequencyDictionary.enabled = frequencyEnabled;
     } else if ((frequencyDictionary as { enabled?: unknown }).enabled !== undefined) {
+      resolved.subtitleStyle.frequencyDictionary.enabled = fallbackFrequencyDictionary.enabled;
       warn(
         'subtitleStyle.frequencyDictionary.enabled',
         (frequencyDictionary as { enabled?: unknown }).enabled,
@@ -178,6 +232,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     if (sourcePath !== undefined) {
       resolved.subtitleStyle.frequencyDictionary.sourcePath = sourcePath;
     } else if ((frequencyDictionary as { sourcePath?: unknown }).sourcePath !== undefined) {
+      resolved.subtitleStyle.frequencyDictionary.sourcePath =
+        fallbackFrequencyDictionary.sourcePath;
       warn(
         'subtitleStyle.frequencyDictionary.sourcePath',
         (frequencyDictionary as { sourcePath?: unknown }).sourcePath,
@@ -190,6 +246,7 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     if (topX !== undefined && Number.isInteger(topX) && topX > 0) {
       resolved.subtitleStyle.frequencyDictionary.topX = Math.floor(topX);
     } else if ((frequencyDictionary as { topX?: unknown }).topX !== undefined) {
+      resolved.subtitleStyle.frequencyDictionary.topX = fallbackFrequencyDictionary.topX;
       warn(
         'subtitleStyle.frequencyDictionary.topX',
         (frequencyDictionary as { topX?: unknown }).topX,
@@ -202,6 +259,7 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     if (frequencyMode === 'single' || frequencyMode === 'banded') {
       resolved.subtitleStyle.frequencyDictionary.mode = frequencyMode;
     } else if (frequencyMode !== undefined) {
+      resolved.subtitleStyle.frequencyDictionary.mode = fallbackFrequencyDictionary.mode;
       warn(
         'subtitleStyle.frequencyDictionary.mode',
         frequencyDictionary.mode,
@@ -210,10 +268,25 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       );
     }
 
+    const frequencyMatchMode = (frequencyDictionary as { matchMode?: unknown }).matchMode;
+    if (frequencyMatchMode === 'headword' || frequencyMatchMode === 'surface') {
+      resolved.subtitleStyle.frequencyDictionary.matchMode = frequencyMatchMode;
+    } else if (frequencyMatchMode !== undefined) {
+      resolved.subtitleStyle.frequencyDictionary.matchMode = fallbackFrequencyDictionary.matchMode;
+      warn(
+        'subtitleStyle.frequencyDictionary.matchMode',
+        frequencyMatchMode,
+        resolved.subtitleStyle.frequencyDictionary.matchMode,
+        "Expected 'headword' or 'surface'.",
+      );
+    }
+
     const singleColor = asColor((frequencyDictionary as { singleColor?: unknown }).singleColor);
     if (singleColor !== undefined) {
       resolved.subtitleStyle.frequencyDictionary.singleColor = singleColor;
     } else if ((frequencyDictionary as { singleColor?: unknown }).singleColor !== undefined) {
+      resolved.subtitleStyle.frequencyDictionary.singleColor =
+        fallbackFrequencyDictionary.singleColor;
       warn(
         'subtitleStyle.frequencyDictionary.singleColor',
         (frequencyDictionary as { singleColor?: unknown }).singleColor,
@@ -228,6 +301,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     if (bandedColors !== undefined) {
       resolved.subtitleStyle.frequencyDictionary.bandedColors = bandedColors;
     } else if ((frequencyDictionary as { bandedColors?: unknown }).bandedColors !== undefined) {
+      resolved.subtitleStyle.frequencyDictionary.bandedColors =
+        fallbackFrequencyDictionary.bandedColors;
       warn(
         'subtitleStyle.frequencyDictionary.bandedColors',
         (frequencyDictionary as { bandedColors?: unknown }).bandedColors,

@@ -94,7 +94,11 @@ export function createHandleJellyfinListCommands(deps: {
       if (!args.jellyfinItemId) {
         throw new Error('Missing --jellyfin-item-id for --jellyfin-subtitles.');
       }
-      const tracks = await deps.listJellyfinSubtitleTracks(session, clientInfo, args.jellyfinItemId);
+      const tracks = await deps.listJellyfinSubtitleTracks(
+        session,
+        clientInfo,
+        args.jellyfinItemId,
+      );
       if (tracks.length === 0) {
         deps.logInfo('No Jellyfin subtitle tracks found for item.');
         return true;

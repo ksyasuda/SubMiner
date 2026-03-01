@@ -150,7 +150,9 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-asse
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.config/SubMiner
 cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
-cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
+mkdir -p ~/.config/mpv/scripts/subminer
+mkdir -p ~/.config/mpv/script-opts
+cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
 cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 
 # Option 2: from source checkout
@@ -181,9 +183,6 @@ All keybindings use a `y` chord prefix — press `y`, then the second key:
 | `y-s` | Start overlay                         |
 | `y-S` | Stop overlay                          |
 | `y-t` | Toggle visible overlay                |
-| `y-i` | Toggle invisible overlay              |
-| `y-I` | Show invisible overlay                |
-| `y-u` | Hide invisible overlay                |
 | `y-o` | Open Yomitan settings                 |
 | `y-r` | Restart overlay                       |
 | `y-c` | Check overlay status                  |
@@ -195,7 +194,10 @@ See [MPV Plugin](/mpv-plugin) for the full configuration reference, script messa
 After installing, confirm SubMiner is working:
 
 ```bash
-# Start the overlay (connects to mpv IPC)
+# Play a file (default plugin config auto-starts visible overlay and waits for annotation readiness)
+subminer video.mkv
+
+# Optional explicit overlay start for setups with plugin auto_start=no
 subminer --start video.mkv
 
 # Useful launch modes for troubleshooting

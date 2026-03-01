@@ -65,9 +65,7 @@ export function findAnilistSetupDeepLinkArgvUrl(argv: readonly string[]): string
   return null;
 }
 
-export function consumeAnilistSetupCallbackUrl(
-  deps: ConsumeAnilistSetupCallbackUrlDeps,
-): boolean {
+export function consumeAnilistSetupCallbackUrl(deps: ConsumeAnilistSetupCallbackUrlDeps): boolean {
   const token = extractAnilistAccessTokenFromUrl(deps.rawUrl);
   if (!token) {
     return false;

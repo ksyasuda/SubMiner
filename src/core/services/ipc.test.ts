@@ -36,10 +36,8 @@ function createFakeIpcRegistrar(): {
 test('createIpcDepsRuntime wires AniList handlers', async () => {
   const calls: string[] = [];
   const deps = createIpcDepsRuntime({
-    getInvisibleWindow: () => null,
     getMainWindow: () => null,
     getVisibleOverlayVisibility: () => false,
-    getInvisibleOverlayVisibility: () => false,
     onOverlayModalClosed: () => {},
     openYomitanSettings: () => {},
     quitApp: () => {},
@@ -47,7 +45,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     tokenizeCurrentSubtitle: async () => null,
     getCurrentSubtitleRaw: () => '',
     getCurrentSubtitleAss: () => '',
-    getMpvSubtitleRenderMetrics: () => null,
+    getPlaybackPaused: () => true,
     getSubtitlePosition: () => null,
     getSubtitleStyle: () => null,
     saveSubtitlePosition: () => {},
@@ -64,7 +62,6 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     setRuntimeOption: () => ({ ok: true }),
     cycleRuntimeOption: () => ({ ok: true }),
     reportOverlayContentBounds: () => {},
-    reportHoveredSubtitleToken: () => {},
     getAnilistStatus: () => ({ tokenStatus: 'resolved' }),
     clearAnilistToken: () => {
       calls.push('clearAnilistToken');
@@ -93,6 +90,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     message: 'done',
   });
   assert.deepEqual(calls, ['clearAnilistToken', 'openAnilistSetup', 'retryAnilistQueueNow']);
+  assert.equal(deps.getPlaybackPaused(), true);
 });
 
 test('registerIpcHandlers rejects malformed runtime-option payloads', async () => {
@@ -101,20 +99,16 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
   const cycles: Array<{ id: string; direction: 1 | -1 }> = [];
   registerIpcHandlers(
     {
-      getInvisibleWindow: () => null,
-      isVisibleOverlayVisible: () => false,
-      setInvisibleIgnoreMouseEvents: () => {},
       onOverlayModalClosed: () => {},
       openYomitanSettings: () => {},
       quitApp: () => {},
       toggleDevTools: () => {},
       getVisibleOverlayVisibility: () => false,
       toggleVisibleOverlay: () => {},
-      getInvisibleOverlayVisibility: () => false,
       tokenizeCurrentSubtitle: async () => null,
       getCurrentSubtitleRaw: () => '',
       getCurrentSubtitleAss: () => '',
-      getMpvSubtitleRenderMetrics: () => null,
+      getPlaybackPaused: () => null,
       getSubtitlePosition: () => null,
       getSubtitleStyle: () => null,
       saveSubtitlePosition: () => {},
@@ -138,7 +132,6 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
         return { ok: true };
       },
       reportOverlayContentBounds: () => {},
-      reportHoveredSubtitleToken: () => {},
       getAnilistStatus: () => ({}),
       clearAnilistToken: () => {},
       openAnilistSetup: () => {},
@@ -160,7 +153,12 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
   });
   const validResult = await setHandler!({}, 'anki.autoUpdateNewCards', true);
   assert.deepEqual(validResult, { ok: true });
-  assert.deepEqual(calls, [{ id: 'anki.autoUpdateNewCards', value: true }]);
+  const validSubtitleAnnotationResult = await setHandler!({}, 'subtitle.annotation.jlpt', false);
+  assert.deepEqual(validSubtitleAnnotationResult, { ok: true });
+  assert.deepEqual(calls, [
+    { id: 'anki.autoUpdateNewCards', value: true },
+    { id: 'subtitle.annotation.jlpt', value: false },
+  ]);
 
   const cycleHandler = handlers.handle.get(IPC_CHANNELS.request.cycleRuntimeOption);
   assert.ok(cycleHandler);
@@ -171,30 +169,34 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
   });
   await cycleHandler!({}, 'anki.kikuFieldGrouping', -1);
   assert.deepEqual(cycles, [{ id: 'anki.kikuFieldGrouping', direction: -1 }]);
+
+  const getPlaybackPausedHandler = handlers.handle.get(IPC_CHANNELS.request.getPlaybackPaused);
+  assert.ok(getPlaybackPausedHandler);
+  assert.equal(getPlaybackPausedHandler!({}), null);
 });
 
 test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const saves: unknown[] = [];
-  const modals: unknown[] = [];
+  const closedModals: unknown[] = [];
+  const openedModals: unknown[] = [];
   registerIpcHandlers(
     {
-      getInvisibleWindow: () => null,
-      isVisibleOverlayVisible: () => false,
-      setInvisibleIgnoreMouseEvents: () => {},
       onOverlayModalClosed: (modal) => {
-        modals.push(modal);
+        closedModals.push(modal);
+      },
+      onOverlayModalOpened: (modal) => {
+        openedModals.push(modal);
       },
       openYomitanSettings: () => {},
       quitApp: () => {},
       toggleDevTools: () => {},
       getVisibleOverlayVisibility: () => false,
       toggleVisibleOverlay: () => {},
-      getInvisibleOverlayVisibility: () => false,
       tokenizeCurrentSubtitle: async () => null,
       getCurrentSubtitleRaw: () => '',
       getCurrentSubtitleAss: () => '',
-      getMpvSubtitleRenderMetrics: () => null,
+      getPlaybackPaused: () => false,
       getSubtitlePosition: () => null,
       getSubtitleStyle: () => null,
       saveSubtitlePosition: (position) => {
@@ -214,7 +216,6 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       setRuntimeOption: () => ({ ok: true }),
       cycleRuntimeOption: () => ({ ok: true }),
       reportOverlayContentBounds: () => {},
-      reportHoveredSubtitleToken: () => {},
       getAnilistStatus: () => ({}),
       clearAnilistToken: () => {},
       openAnilistSetup: () => {},
@@ -227,12 +228,15 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
 
   handlers.on.get(IPC_CHANNELS.command.saveSubtitlePosition)!({}, { yPercent: 'bad' });
   handlers.on.get(IPC_CHANNELS.command.saveSubtitlePosition)!({}, { yPercent: 42 });
-  assert.deepEqual(saves, [
-    { yPercent: 42, invisibleOffsetXPx: undefined, invisibleOffsetYPx: undefined },
-  ]);
+  assert.deepEqual(saves, [{ yPercent: 42 }]);
 
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'not-a-modal');
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'subsync');
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'kiku');
-  assert.deepEqual(modals, ['subsync', 'kiku']);
+  assert.deepEqual(closedModals, ['subsync', 'kiku']);
+
+  handlers.on.get(IPC_CHANNELS.command.overlayModalOpened)!({}, 'bad');
+  handlers.on.get(IPC_CHANNELS.command.overlayModalOpened)!({}, 'subsync');
+  handlers.on.get(IPC_CHANNELS.command.overlayModalOpened)!({}, 'runtime-options');
+  assert.deepEqual(openedModals, ['subsync', 'runtime-options']);
 });

@@ -32,15 +32,17 @@ export function createGlobalShortcutsRuntimeHandlers(deps: {
   const getConfiguredShortcutsMainDeps = createBuildGetConfiguredShortcutsMainDepsHandler(
     deps.getConfiguredShortcutsMainDeps,
   )();
-  const getConfiguredShortcutsHandler =
-    createGetConfiguredShortcutsHandler(getConfiguredShortcutsMainDeps);
+  const getConfiguredShortcutsHandler = createGetConfiguredShortcutsHandler(
+    getConfiguredShortcutsMainDeps,
+  );
   const getConfiguredShortcuts = () => getConfiguredShortcutsHandler();
 
   const registerGlobalShortcutsMainDeps = createBuildRegisterGlobalShortcutsMainDepsHandler(
     deps.buildRegisterGlobalShortcutsMainDeps(getConfiguredShortcuts),
   )();
-  const registerGlobalShortcutsHandler =
-    createRegisterGlobalShortcutsHandler(registerGlobalShortcutsMainDeps);
+  const registerGlobalShortcutsHandler = createRegisterGlobalShortcutsHandler(
+    registerGlobalShortcutsMainDeps,
+  );
   const registerGlobalShortcuts = () => registerGlobalShortcutsHandler();
 
   const refreshGlobalAndOverlayShortcutsMainDeps =

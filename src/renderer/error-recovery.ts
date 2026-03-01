@@ -16,8 +16,7 @@ export type RendererRecoverySnapshot = {
   secondarySubtitlePreview: string;
   isOverlayInteractive: boolean;
   isOverSubtitle: boolean;
-  invisiblePositionEditMode: boolean;
-  overlayLayer: 'visible' | 'invisible' | 'secondary' | 'modal';
+  overlayLayer: 'visible' | 'modal';
 };
 
 type NormalizedRendererError = {

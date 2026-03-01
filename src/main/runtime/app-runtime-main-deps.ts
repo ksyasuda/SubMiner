@@ -45,9 +45,8 @@ export function createBuildDestroyTrayMainDepsHandler<TTray>(deps: {
 
 export function createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler<TOptions>(deps: {
   isOverlayRuntimeInitialized: () => boolean;
-  initializeOverlayRuntimeCore: (options: TOptions) => { invisibleOverlayVisible: boolean };
+  initializeOverlayRuntimeCore: (options: TOptions) => void;
   buildOptions: () => TOptions;
-  setInvisibleOverlayVisible: (visible: boolean) => void;
   setOverlayRuntimeInitialized: (initialized: boolean) => void;
   startBackgroundWarmups: () => void;
 }) {
@@ -55,7 +54,6 @@ export function createBuildInitializeOverlayRuntimeBootstrapMainDepsHandler<TOpt
     isOverlayRuntimeInitialized: () => deps.isOverlayRuntimeInitialized(),
     initializeOverlayRuntimeCore: (options: TOptions) => deps.initializeOverlayRuntimeCore(options),
     buildOptions: () => deps.buildOptions(),
-    setInvisibleOverlayVisible: (visible: boolean) => deps.setInvisibleOverlayVisible(visible),
     setOverlayRuntimeInitialized: (initialized: boolean) =>
       deps.setOverlayRuntimeInitialized(initialized),
     startBackgroundWarmups: () => deps.startBackgroundWarmups(),
@@ -68,6 +66,7 @@ export function createBuildOpenYomitanSettingsMainDepsHandler<TYomitanExt, TWind
     yomitanExt: TYomitanExt;
     getExistingWindow: () => TWindow | null;
     setWindow: (window: TWindow | null) => void;
+    onWindowClosed?: () => void;
   }) => void;
   getExistingWindow: () => TWindow | null;
   setWindow: (window: TWindow | null) => void;
@@ -80,6 +79,7 @@ export function createBuildOpenYomitanSettingsMainDepsHandler<TYomitanExt, TWind
       yomitanExt: TYomitanExt;
       getExistingWindow: () => TWindow | null;
       setWindow: (window: TWindow | null) => void;
+      onWindowClosed?: () => void;
     }) => deps.openYomitanSettingsWindow(params),
     getExistingWindow: () => deps.getExistingWindow(),
     setWindow: (window: TWindow | null) => deps.setWindow(window),

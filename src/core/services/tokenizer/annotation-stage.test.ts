@@ -51,15 +51,20 @@ test('annotateTokens known-word match mode uses headword vs surface', () => {
 });
 
 test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 exclusions', () => {
-  const lookupCalls: string[] = [];
   const tokens = [
-    makeToken({ surface: 'は', headword: 'は', partOfSpeech: PartOfSpeech.particle }),
+    makeToken({
+      surface: 'は',
+      headword: 'は',
+      partOfSpeech: PartOfSpeech.particle,
+      frequencyRank: 3,
+    }),
     makeToken({
       surface: 'です',
       headword: 'です',
       partOfSpeech: PartOfSpeech.bound_auxiliary,
       startPos: 1,
       endPos: 3,
+      frequencyRank: 4,
     }),
     makeToken({
       surface: 'の',
@@ -68,6 +73,7 @@ test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 ex
       pos1: '助詞',
       startPos: 3,
       endPos: 4,
+      frequencyRank: 5,
     }),
     makeToken({
       surface: '猫',
@@ -75,24 +81,36 @@ test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 ex
       partOfSpeech: PartOfSpeech.noun,
       startPos: 4,
       endPos: 5,
+      frequencyRank: 11,
     }),
   ];
 
-  const result = annotateTokens(
-    tokens,
-    makeDeps({
-      getFrequencyRank: (text) => {
-        lookupCalls.push(text);
-        return text === '猫' ? 11 : 999;
-      },
-    }),
-  );
+  const result = annotateTokens(tokens, makeDeps());
 
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[1]?.frequencyRank, undefined);
   assert.equal(result[2]?.frequencyRank, undefined);
   assert.equal(result[3]?.frequencyRank, 11);
-  assert.deepEqual(lookupCalls, ['猫']);
+});
+
+test('annotateTokens preserves existing frequency rank when frequency is enabled', () => {
+  const tokens = [makeToken({ surface: '猫', headword: '猫', frequencyRank: 42 })];
+
+  const result = annotateTokens(tokens, makeDeps());
+
+  assert.equal(result[0]?.frequencyRank, 42);
+});
+
+test('annotateTokens drops invalid frequency rank values', () => {
+  const tokens = [makeToken({ surface: '猫', headword: '猫', frequencyRank: Number.NaN })];
+  const result = annotateTokens(tokens, makeDeps());
+  assert.equal(result[0]?.frequencyRank, undefined);
+});
+
+test('annotateTokens clears frequency rank when frequency is disabled', () => {
+  const tokens = [makeToken({ surface: '猫', headword: '猫', frequencyRank: 42 })];
+  const result = annotateTokens(tokens, makeDeps(), { frequencyEnabled: false });
+  assert.equal(result[0]?.frequencyRank, undefined);
 });
 
 test('annotateTokens handles JLPT disabled and eligibility exclusion paths', () => {
@@ -156,4 +174,207 @@ test('annotateTokens N+1 handoff marks expected target when threshold is satisfi
   assert.equal(result[0]?.isNPlusOneTarget, false);
   assert.equal(result[1]?.isNPlusOneTarget, true);
   assert.equal(result[2]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens N+1 minimum sentence words counts only eligible word tokens', () => {
+  const tokens = [
+    makeToken({ surface: '猫', headword: '猫', startPos: 0, endPos: 1 }),
+    makeToken({
+      surface: 'が',
+      headword: 'が',
+      partOfSpeech: PartOfSpeech.particle,
+      pos1: '助詞',
+      startPos: 1,
+      endPos: 2,
+    }),
+    makeToken({
+      surface: 'です',
+      headword: 'です',
+      partOfSpeech: PartOfSpeech.bound_auxiliary,
+      pos1: '助動詞',
+      startPos: 2,
+      endPos: 4,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'が' || text === 'です',
+    }),
+    { minSentenceWordsForNPlusOne: 3 },
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[1]?.isKnown, true);
+  assert.equal(result[2]?.isKnown, true);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens applies configured pos1 exclusions to both frequency and N+1', () => {
+  const tokens = [
+    makeToken({
+      surface: '猫',
+      headword: '猫',
+      pos1: '名詞',
+      frequencyRank: 21,
+      startPos: 0,
+      endPos: 1,
+    }),
+    makeToken({
+      surface: '走る',
+      headword: '走る',
+      pos1: '動詞',
+      partOfSpeech: PartOfSpeech.verb,
+      startPos: 1,
+      endPos: 3,
+      frequencyRank: 22,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '走る',
+    }),
+    {
+      minSentenceWordsForNPlusOne: 1,
+      pos1Exclusions: new Set(['名詞']),
+    },
+  );
+
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[1]?.frequencyRank, 22);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[1]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens allows previously default-excluded pos1 when removed from effective set', () => {
+  const tokens = [
+    makeToken({
+      surface: 'は',
+      headword: 'は',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '助詞',
+      startPos: 0,
+      endPos: 1,
+      frequencyRank: 8,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+    pos1Exclusions: new Set(),
+  });
+
+  assert.equal(result[0]?.frequencyRank, 8);
+  assert.equal(result[0]?.isNPlusOneTarget, true);
+});
+
+test('annotateTokens excludes default non-independent pos2 from frequency and N+1', () => {
+  const tokens = [
+    makeToken({
+      surface: 'になれば',
+      headword: 'なる',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞',
+      pos2: '非自立',
+      startPos: 0,
+      endPos: 4,
+      frequencyRank: 7,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens excludes likely kana SFX tokens from frequency when POS tags are missing', () => {
+  const tokens = [
+    makeToken({
+      surface: 'ぐわっ',
+      reading: 'ぐわっ',
+      headword: 'ぐわっ',
+      pos1: '',
+      pos2: '',
+      frequencyRank: 12,
+      startPos: 0,
+      endPos: 3,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, undefined);
+});
+
+test('annotateTokens allows previously default-excluded pos2 when removed from effective set', () => {
+  const tokens = [
+    makeToken({
+      surface: 'になれば',
+      headword: 'なる',
+      partOfSpeech: PartOfSpeech.verb,
+      pos1: '動詞',
+      pos2: '非自立',
+      startPos: 0,
+      endPos: 4,
+      frequencyRank: 9,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+    pos2Exclusions: new Set(),
+  });
+
+  assert.equal(result[0]?.frequencyRank, 9);
+  assert.equal(result[0]?.isNPlusOneTarget, true);
+});
+
+test('annotateTokens keeps composite tokens when any component pos tag is content-bearing', () => {
+  const tokens = [
+    makeToken({
+      surface: 'になれば',
+      headword: 'なる',
+      pos1: '助詞|動詞',
+      pos2: '格助詞|自立|接続助詞',
+      startPos: 0,
+      endPos: 4,
+      frequencyRank: 5,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, 5);
+  assert.equal(result[0]?.isNPlusOneTarget, true);
+});
+
+test('annotateTokens excludes composite tokens when all component pos tags are excluded', () => {
+  const tokens = [
+    makeToken({
+      surface: 'けど',
+      headword: 'けど',
+      pos1: '助詞|助詞',
+      pos2: '接続助詞|終助詞',
+      startPos: 0,
+      endPos: 2,
+      frequencyRank: 6,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
 });

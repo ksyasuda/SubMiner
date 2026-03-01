@@ -3,8 +3,12 @@ import type {
   createStopJellyfinRemoteSessionHandler,
 } from './jellyfin-remote-session-lifecycle';
 
-type StartJellyfinRemoteSessionMainDeps = Parameters<typeof createStartJellyfinRemoteSessionHandler>[0];
-type StopJellyfinRemoteSessionMainDeps = Parameters<typeof createStopJellyfinRemoteSessionHandler>[0];
+type StartJellyfinRemoteSessionMainDeps = Parameters<
+  typeof createStartJellyfinRemoteSessionHandler
+>[0];
+type StopJellyfinRemoteSessionMainDeps = Parameters<
+  typeof createStopJellyfinRemoteSessionHandler
+>[0];
 
 export function createBuildStartJellyfinRemoteSessionMainDepsHandler(
   deps: StartJellyfinRemoteSessionMainDeps,

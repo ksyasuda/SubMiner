@@ -17,11 +17,8 @@ ${B}Session${R}
 
 ${B}Overlay${R}
   --toggle-visible-overlay       Toggle subtitle overlay
-  --toggle-invisible-overlay     Toggle interactive overlay ${D}(Yomitan lookup)${R}
   --show-visible-overlay         Show subtitle overlay
   --hide-visible-overlay         Hide subtitle overlay
-  --show-invisible-overlay       Show interactive overlay
-  --hide-invisible-overlay       Hide interactive overlay
   --settings                     Open Yomitan settings window
   --auto-start-overlay           Auto-hide mpv subs, show overlay on connect
 

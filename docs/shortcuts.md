@@ -6,11 +6,10 @@ All shortcuts are configurable in `config.jsonc` under `shortcuts` and `keybindi
 
 These work system-wide regardless of which window has focus.
 
-| Shortcut      | Action                   | Configurable                             |
-| ------------- | ------------------------ | ---------------------------------------- |
-| `Alt+Shift+O` | Toggle visible overlay   | `shortcuts.toggleVisibleOverlayGlobal`   |
-| `Alt+Shift+I` | Toggle invisible overlay | `shortcuts.toggleInvisibleOverlayGlobal` |
-| `Alt+Shift+Y` | Open Yomitan settings    | Fixed (not configurable)                 |
+| Shortcut      | Action                 | Configurable                           |
+| ------------- | ---------------------- | -------------------------------------- |
+| `Alt+Shift+O` | Toggle visible overlay | `shortcuts.toggleVisibleOverlayGlobal` |
+| `Alt+Shift+Y` | Open Yomitan settings  | Fixed (not configurable)               |
 
 ::: tip
 Global shortcuts are registered with the OS. If they conflict with another application, update them in `shortcuts` config and restart SubMiner.
@@ -39,6 +38,8 @@ These control playback and subtitle display. They require overlay window focus.
 | Shortcut             | Action                                             |
 | -------------------- | -------------------------------------------------- |
 | `Space`              | Toggle mpv pause                                   |
+| `J`                  | Cycle primary subtitle track                       |
+| `Shift+J`            | Cycle secondary subtitle track                     |
 | `ArrowRight`         | Seek forward 5 seconds                             |
 | `ArrowLeft`          | Seek backward 5 seconds                            |
 | `ArrowUp`            | Seek forward 60 seconds                            |
@@ -55,6 +56,8 @@ These control playback and subtitle display. They require overlay window focus.
 
 These keybindings can be overridden or disabled via the `keybindings` config array.
 
+Mouse-hover playback behavior is configured separately from shortcuts: `subtitleStyle.autoPauseVideoOnHover` defaults to `true` (pause on subtitle hover, resume on leave).
+
 ## Subtitle & Feature Shortcuts
 
 | Shortcut           | Action                                                   | Config key                     |
@@ -64,34 +67,19 @@ These keybindings can be overridden or disabled via the `keybindings` config arr
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`         |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`     |
 
-## Invisible Subtitle Position Edit Mode
-
-Enter edit mode to fine-tune invisible overlay alignment with mpv's native subtitles.
-
-| Shortcut              | Action                           |
-| --------------------- | -------------------------------- |
-| `Ctrl/Cmd+Shift+P`    | Toggle position edit mode        |
-| `ArrowKeys` or `hjkl` | Nudge position by 1 px           |
-| `Shift+Arrow`         | Nudge position by 4 px           |
-| `Enter` or `Ctrl+S`   | Save position and exit edit mode |
-| `Esc`                 | Cancel and discard changes       |
-
 ## MPV Plugin Chords
 
 When the mpv plugin is installed, all commands use a `y` chord prefix — press `y`, then the second key within 1 second.
 
-| Chord | Action                                  |
-| ----- | --------------------------------------- |
-| `y-y` | Open SubMiner menu (OSD)                |
-| `y-s` | Start overlay                           |
-| `y-S` | Stop overlay                            |
-| `y-t` | Toggle visible overlay                  |
-| `y-i` | Toggle invisible overlay                |
-| `y-I` | Show invisible overlay                  |
-| `y-u` | Hide invisible overlay                  |
-| `y-o` | Open Yomitan settings                   |
-| `y-r` | Restart overlay                         |
-| `y-c` | Check overlay status                    |
+| Chord | Action                   |
+| ----- | ------------------------ |
+| `y-y` | Open SubMiner menu (OSD) |
+| `y-s` | Start overlay            |
+| `y-S` | Stop overlay             |
+| `y-t` | Toggle visible overlay   |
+| `y-o` | Open Yomitan settings    |
+| `y-r` | Restart overlay          |
+| `y-c` | Check overlay status     |
 
 When the overlay has focus, press `y` then `d` to toggle DevTools (debugging helper).
 
@@ -112,7 +100,6 @@ All `shortcuts.*` keys accept [Electron accelerator strings](https://www.electro
     "mineSentence": "CommandOrControl+S",
     "copySubtitle": "CommandOrControl+C",
     "toggleVisibleOverlayGlobal": "Alt+Shift+O",
-    "toggleInvisibleOverlayGlobal": "Alt+Shift+I",
     "openJimaku": null, // disabled
   },
 }

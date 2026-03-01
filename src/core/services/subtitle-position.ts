@@ -101,20 +101,7 @@ export function loadSubtitlePosition(
     const data = fs.readFileSync(positionPath, 'utf-8');
     const parsed = JSON.parse(data) as Partial<SubtitlePosition>;
     if (parsed && typeof parsed.yPercent === 'number' && Number.isFinite(parsed.yPercent)) {
-      const position: SubtitlePosition = { yPercent: parsed.yPercent };
-      if (
-        typeof parsed.invisibleOffsetXPx === 'number' &&
-        Number.isFinite(parsed.invisibleOffsetXPx)
-      ) {
-        position.invisibleOffsetXPx = parsed.invisibleOffsetXPx;
-      }
-      if (
-        typeof parsed.invisibleOffsetYPx === 'number' &&
-        Number.isFinite(parsed.invisibleOffsetYPx)
-      ) {
-        position.invisibleOffsetYPx = parsed.invisibleOffsetYPx;
-      }
-      return position;
+      return { yPercent: parsed.yPercent };
     }
     return options.fallbackPosition;
   } catch (err) {

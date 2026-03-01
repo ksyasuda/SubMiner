@@ -10,7 +10,6 @@ import {
 function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): ConfiguredShortcuts {
   return {
     toggleVisibleOverlayGlobal: null,
-    toggleInvisibleOverlayGlobal: null,
     copySubtitle: null,
     copySubtitleMultiple: null,
     updateLastCardFromClipboard: null,

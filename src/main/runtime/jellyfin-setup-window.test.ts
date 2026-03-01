@@ -50,7 +50,11 @@ test('createHandleJellyfinSetupSubmissionHandler applies successful login', asyn
       accessToken: 'token',
       userId: 'uid',
     }),
-    getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
+    getJellyfinClientInfo: () => ({
+      clientName: 'SubMiner',
+      clientVersion: '1.0',
+      deviceId: 'did',
+    }),
     saveStoredSession: (session) => {
       savedSession = session;
       calls.push('save');
@@ -86,7 +90,11 @@ test('createHandleJellyfinSetupSubmissionHandler reports failure to OSD', async 
     authenticateWithPassword: async () => {
       throw new Error('bad credentials');
     },
-    getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
+    getJellyfinClientInfo: () => ({
+      clientName: 'SubMiner',
+      clientVersion: '1.0',
+      deviceId: 'did',
+    }),
     saveStoredSession: () => calls.push('save'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: () => calls.push('info'),
@@ -180,7 +188,11 @@ test('createOpenJellyfinSetupWindowHandler no-ops when existing setup window is 
     authenticateWithPassword: async () => {
       throw new Error('should not auth');
     },
-    getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
+    getJellyfinClientInfo: () => ({
+      clientName: 'SubMiner',
+      clientVersion: '1.0',
+      deviceId: 'did',
+    }),
     saveStoredSession: () => {},
     patchJellyfinConfig: () => {},
     logInfo: () => {},
@@ -196,14 +208,18 @@ test('createOpenJellyfinSetupWindowHandler no-ops when existing setup window is 
 });
 
 test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window lifecycle', async () => {
-  let willNavigateHandler: ((event: { preventDefault: () => void }, url: string) => void) | null = null;
+  let willNavigateHandler: ((event: { preventDefault: () => void }, url: string) => void) | null =
+    null;
   let closedHandler: (() => void) | null = null;
   let prevented = false;
   const calls: string[] = [];
   const fakeWindow = {
     focus: () => {},
     webContents: {
-      on: (event: 'will-navigate', handler: (event: { preventDefault: () => void }, url: string) => void) => {
+      on: (
+        event: 'will-navigate',
+        handler: (event: { preventDefault: () => void }, url: string) => void,
+      ) => {
         if (event === 'will-navigate') {
           willNavigateHandler = handler;
         }
@@ -233,7 +249,11 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
       accessToken: 'token',
       userId: 'uid',
     }),
-    getJellyfinClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'did' }),
+    getJellyfinClientInfo: () => ({
+      clientName: 'SubMiner',
+      clientVersion: '1.0',
+      deviceId: 'did',
+    }),
     saveStoredSession: () => calls.push('save'),
     patchJellyfinConfig: () => calls.push('patch'),
     logInfo: () => calls.push('info'),
@@ -249,7 +269,9 @@ test('createOpenJellyfinSetupWindowHandler wires navigation, load, and window li
   assert.ok(closedHandler);
   assert.deepEqual(calls.slice(0, 2), ['load:data-url', 'set-window']);
 
-  const navHandler = willNavigateHandler as ((event: { preventDefault: () => void }, url: string) => void) | null;
+  const navHandler = willNavigateHandler as
+    | ((event: { preventDefault: () => void }, url: string) => void)
+    | null;
   if (!navHandler) {
     throw new Error('missing will-navigate handler');
   }

@@ -1,10 +1,9 @@
-.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config docs-dev docs docs-preview dev-start dev-start-macos dev-toggle dev-stop
+.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config docs-dev docs docs-preview docs-watch dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
 LAUNCHER_OUT := dist/launcher/$(APP_NAME)
 THEME_FILE := subminer.rasi
-PLUGIN_LUA := plugin/subminer.lua
 PLUGIN_CONF := plugin/subminer.conf
 
 # Default install prefix for the wrapper script.
@@ -53,9 +52,12 @@ help:
 		"  clean            Remove build artifacts (dist/, release/, AppImage, binary)" \
 		"  dev-start        Build and launch local Electron app" \
 		"  dev-start-macos  Build and launch local Electron app with macOS tracker backend" \
+		"  dev-watch        Start fast watch loop (tsc + renderer + Electron dev app)" \
+		"  dev-watch-macos  Start watch loop with forced macOS tracker backend" \
 		"  dev-toggle       Toggle overlay in a running local Electron app" \
 		"  dev-stop         Stop a running local Electron app" \
 		"  docs-dev         Run VitePress docs dev server" \
+		"  docs-watch  Run VitePress docs dev + Backlog browser together" \
 		"  docs            Build VitePress static docs" \
 		"  docs-preview     Preview built VitePress docs" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
@@ -159,6 +161,9 @@ generate-example-config: ensure-bun
 docs-dev: ensure-bun
 	@bun run docs:dev
 
+docs-watch: ensure-bun
+	@bun run docs:watch
+
 docs: ensure-bun
 	@bun run docs:build
 
@@ -172,6 +177,12 @@ dev-start: ensure-bun
 dev-start-macos: ensure-bun
 	@bun run build
 	@bun run electron . --start --backend macos
+
+dev-watch: ensure-bun
+	@bash scripts/dev-watch.sh
+
+dev-watch-macos: ensure-bun
+	@bash scripts/dev-watch.sh --start --dev --backend macos
 
 dev-toggle: ensure-bun
 	@bun run electron . --toggle
@@ -218,10 +229,12 @@ install-macos: build-launcher
 install-plugin:
 	@printf '%s\n' "[INFO] Installing mpv plugin artifacts"
 	@install -d "$(MPV_SCRIPTS_DIR)"
+	@rm -f "$(MPV_SCRIPTS_DIR)/subminer.lua"
+	@install -d "$(MPV_SCRIPTS_DIR)/subminer"
 	@install -d "$(MPV_SCRIPT_OPTS_DIR)"
-	@install -m 0644 "./$(PLUGIN_LUA)" "$(MPV_SCRIPTS_DIR)/subminer.lua"
+	@cp -R ./plugin/subminer/. "$(MPV_SCRIPTS_DIR)/subminer/"
 	@install -m 0644 "./$(PLUGIN_CONF)" "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
-	@printf '%s\n' "Installed to:" "  $(MPV_SCRIPTS_DIR)/subminer.lua" "  $(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
+	@printf '%s\n' "Installed to:" "  $(MPV_SCRIPTS_DIR)/subminer/main.lua" "  $(MPV_SCRIPTS_DIR)/subminer/" "  $(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
 
 # Uninstall behavior kept unchanged by default.
 uninstall: uninstall-linux

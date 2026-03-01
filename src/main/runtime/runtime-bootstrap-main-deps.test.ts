@@ -41,11 +41,11 @@ test('immersion media runtime main deps builder maps callbacks', async () => {
 test('anilist state runtime main deps builder maps callbacks', () => {
   const calls: string[] = [];
   const deps = createBuildAnilistStateRuntimeMainDepsHandler({
-    getClientSecretState: () => ({ status: 'resolved' } as never),
+    getClientSecretState: () => ({ status: 'resolved' }) as never,
     setClientSecretState: () => calls.push('set-client'),
-    getRetryQueueState: () => ({ pending: 1 } as never),
+    getRetryQueueState: () => ({ pending: 1 }) as never,
     setRetryQueueState: () => calls.push('set-queue'),
-    getUpdateQueueSnapshot: () => ({ pending: 2 } as never),
+    getUpdateQueueSnapshot: () => ({ pending: 2 }) as never,
     clearStoredToken: () => calls.push('clear-stored'),
     clearCachedAccessToken: () => calls.push('clear-cached'),
   })();
@@ -62,9 +62,8 @@ test('anilist state runtime main deps builder maps callbacks', () => {
 
 test('config derived runtime main deps builder maps callbacks', () => {
   const deps = createBuildConfigDerivedRuntimeMainDepsHandler({
-    getResolvedConfig: () => ({ jimaku: {} } as never),
+    getResolvedConfig: () => ({ jimaku: {} }) as never,
     getRuntimeOptionsManager: () => null,
-    platform: 'darwin',
     defaultJimakuLanguagePreference: 'ja',
     defaultJimakuMaxEntryResults: 20,
     defaultJimakuApiBaseUrl: 'https://api.example.com',
@@ -72,7 +71,6 @@ test('config derived runtime main deps builder maps callbacks', () => {
 
   assert.deepEqual(deps.getResolvedConfig(), { jimaku: {} });
   assert.equal(deps.getRuntimeOptionsManager(), null);
-  assert.equal(deps.platform, 'darwin');
   assert.equal(deps.defaultJimakuLanguagePreference, 'ja');
   assert.equal(deps.defaultJimakuMaxEntryResults, 20);
   assert.equal(deps.defaultJimakuApiBaseUrl, 'https://api.example.com');
@@ -82,7 +80,7 @@ test('main subsync runtime main deps builder maps callbacks', () => {
   const calls: string[] = [];
   const deps = createBuildMainSubsyncRuntimeMainDepsHandler({
     getMpvClient: () => ({ connected: true }) as never,
-    getResolvedConfig: () => ({ subsync: {} } as never),
+    getResolvedConfig: () => ({ subsync: {} }) as never,
     getSubsyncInProgress: () => true,
     setSubsyncInProgress: () => calls.push('set-progress'),
     showMpvOsd: (text) => calls.push(`osd:${text}`),

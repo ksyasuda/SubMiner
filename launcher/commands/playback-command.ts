@@ -86,7 +86,7 @@ function registerCleanup(context: LauncherCommandContext): void {
 }
 
 export async function runPlaybackCommand(context: LauncherCommandContext): Promise<void> {
-  const { args, appPath, scriptPath, mpvSocketPath, processAdapter } = context;
+  const { args, appPath, scriptPath, mpvSocketPath, pluginRuntimeConfig, processAdapter } = context;
   if (!appPath) {
     fail('SubMiner AppImage not found. Install to ~/.local/bin/ or set SUBMINER_APPIMAGE_PATH.');
   }
@@ -137,6 +137,19 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     log('info', args.logLevel, 'YouTube subtitle mode: off');
   }
 
+  const shouldPauseUntilOverlayReady =
+    pluginRuntimeConfig.autoStart &&
+    pluginRuntimeConfig.autoStartVisibleOverlay &&
+    pluginRuntimeConfig.autoStartPauseUntilReady;
+
+  if (shouldPauseUntilOverlayReady) {
+    log(
+      'info',
+      args.logLevel,
+      'Configured to pause mpv until overlay and tokenization are ready',
+    );
+  }
+
   startMpv(
     selectedTarget.target,
     selectedTarget.kind,
@@ -144,6 +157,7 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     mpvSocketPath,
     appPath,
     preloadedSubtitles,
+    { startPaused: shouldPauseUntilOverlayReady },
   );
 
   if (isYoutubeUrl && args.youtubeSubgenMode === 'automatic') {
@@ -167,6 +181,7 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
   }
 
   const ready = await waitForUnixSocketReady(mpvSocketPath, 10000);
+  const pluginAutoStartEnabled = pluginRuntimeConfig.autoStart;
   const shouldStartOverlay = args.startOverlay || args.autoStartOverlay;
   if (shouldStartOverlay) {
     if (ready) {
@@ -179,6 +194,16 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
       );
     }
     await startOverlay(appPath, args, mpvSocketPath);
+  } else if (pluginAutoStartEnabled) {
+    if (ready) {
+      log('info', args.logLevel, 'MPV IPC socket ready, relying on mpv plugin auto-start');
+    } else {
+      log(
+        'info',
+        args.logLevel,
+        'MPV IPC socket not ready yet, relying on mpv plugin auto-start',
+      );
+    }
   } else if (ready) {
     log(
       'info',
@@ -194,15 +219,26 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
   }
 
   await new Promise<void>((resolve) => {
-    if (!state.mpvProc) {
+    const mpvProc = state.mpvProc;
+    if (!mpvProc) {
       stopOverlay(args);
       resolve();
       return;
     }
-    state.mpvProc.on('exit', (code) => {
+
+    const finalize = (code: number | null | undefined) => {
       stopOverlay(args);
       processAdapter.setExitCode(code ?? 0);
       resolve();
+    };
+
+    if (mpvProc.exitCode !== null && mpvProc.exitCode !== undefined) {
+      finalize(mpvProc.exitCode);
+      return;
+    }
+
+    mpvProc.once('exit', (code) => {
+      finalize(code);
     });
   });
 }

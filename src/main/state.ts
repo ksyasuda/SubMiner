@@ -156,8 +156,6 @@ export interface AppState {
   currentSubText: string;
   currentSubAssText: string;
   currentSubtitleData: SubtitleData | null;
-  hoveredSubtitleTokenIndex: number | null;
-  hoveredSubtitleRevision: number;
   windowTracker: BaseWindowTracker | null;
   subtitlePosition: SubtitlePosition | null;
   currentMediaPath: string | null;
@@ -173,6 +171,8 @@ export interface AppState {
   secondarySubMode: SecondarySubMode;
   lastSecondarySubToggleAtMs: number;
   previousSecondarySubVisibility: boolean | null;
+  overlaySavedMpvSubVisibility: boolean | null;
+  overlayMpvSubVisibilityRevision: number;
   mpvSubtitleRenderMetrics: MpvSubtitleRenderMetrics;
   shortcutsRegistered: boolean;
   overlayRuntimeInitialized: boolean;
@@ -230,8 +230,6 @@ export function createAppState(values: AppStateInitialValues): AppState {
     currentSubText: '',
     currentSubAssText: '',
     currentSubtitleData: null,
-    hoveredSubtitleTokenIndex: null,
-    hoveredSubtitleRevision: 0,
     windowTracker: null,
     subtitlePosition: null,
     currentMediaPath: null,
@@ -247,6 +245,8 @@ export function createAppState(values: AppStateInitialValues): AppState {
     secondarySubMode: 'hover',
     lastSecondarySubToggleAtMs: 0,
     previousSecondarySubVisibility: null,
+    overlaySavedMpvSubVisibility: null,
+    overlayMpvSubVisibilityRevision: 0,
     mpvSubtitleRenderMetrics: {
       ...DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
     },

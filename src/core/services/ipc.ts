@@ -19,20 +19,17 @@ import {
 } from '../../shared/ipc/validators';
 
 export interface IpcServiceDeps {
-  getInvisibleWindow: () => WindowLike | null;
-  isVisibleOverlayVisible: () => boolean;
-  setInvisibleIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   onOverlayModalClosed: (modal: OverlayHostedModal) => void;
+  onOverlayModalOpened?: (modal: OverlayHostedModal) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleDevTools: () => void;
   getVisibleOverlayVisibility: () => boolean;
   toggleVisibleOverlay: () => void;
-  getInvisibleOverlayVisibility: () => boolean;
   tokenizeCurrentSubtitle: () => Promise<unknown>;
   getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
-  getMpvSubtitleRenderMetrics: () => unknown;
+  getPlaybackPaused: () => boolean | null;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
@@ -54,7 +51,6 @@ export interface IpcServiceDeps {
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
   reportOverlayContentBounds: (payload: unknown) => void;
-  reportHoveredSubtitleToken: (tokenIndex: number | null) => void;
   getAnilistStatus: () => unknown;
   clearAnilistToken: () => void;
   openAnilistSetup: () => void;
@@ -91,18 +87,17 @@ interface IpcMainRegistrar {
 }
 
 export interface IpcDepsRuntimeOptions {
-  getInvisibleWindow: () => WindowLike | null;
   getMainWindow: () => WindowLike | null;
   getVisibleOverlayVisibility: () => boolean;
-  getInvisibleOverlayVisibility: () => boolean;
   onOverlayModalClosed: (modal: OverlayHostedModal) => void;
+  onOverlayModalOpened?: (modal: OverlayHostedModal) => void;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleVisibleOverlay: () => void;
   tokenizeCurrentSubtitle: () => Promise<unknown>;
   getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
-  getMpvSubtitleRenderMetrics: () => unknown;
+  getPlaybackPaused: () => boolean | null;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
@@ -119,7 +114,6 @@ export interface IpcDepsRuntimeOptions {
   setRuntimeOption: (id: RuntimeOptionId, value: RuntimeOptionValue) => unknown;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => unknown;
   reportOverlayContentBounds: (payload: unknown) => void;
-  reportHoveredSubtitleToken: (tokenIndex: number | null) => void;
   getAnilistStatus: () => unknown;
   clearAnilistToken: () => void;
   openAnilistSetup: () => void;
@@ -130,14 +124,8 @@ export interface IpcDepsRuntimeOptions {
 
 export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcServiceDeps {
   return {
-    getInvisibleWindow: () => options.getInvisibleWindow(),
-    isVisibleOverlayVisible: options.getVisibleOverlayVisibility,
-    setInvisibleIgnoreMouseEvents: (ignore, eventsOptions) => {
-      const invisibleWindow = options.getInvisibleWindow();
-      if (!invisibleWindow || invisibleWindow.isDestroyed()) return;
-      invisibleWindow.setIgnoreMouseEvents(ignore, eventsOptions);
-    },
     onOverlayModalClosed: options.onOverlayModalClosed,
+    onOverlayModalOpened: options.onOverlayModalOpened,
     openYomitanSettings: options.openYomitanSettings,
     quitApp: options.quitApp,
     toggleDevTools: () => {
@@ -147,11 +135,10 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     },
     getVisibleOverlayVisibility: options.getVisibleOverlayVisibility,
     toggleVisibleOverlay: options.toggleVisibleOverlay,
-    getInvisibleOverlayVisibility: options.getInvisibleOverlayVisibility,
     tokenizeCurrentSubtitle: options.tokenizeCurrentSubtitle,
     getCurrentSubtitleRaw: options.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: options.getCurrentSubtitleAss,
-    getMpvSubtitleRenderMetrics: options.getMpvSubtitleRenderMetrics,
+    getPlaybackPaused: options.getPlaybackPaused,
     getSubtitlePosition: options.getSubtitlePosition,
     getSubtitleStyle: options.getSubtitleStyle,
     saveSubtitlePosition: options.saveSubtitlePosition,
@@ -182,7 +169,6 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     setRuntimeOption: options.setRuntimeOption,
     cycleRuntimeOption: options.cycleRuntimeOption,
     reportOverlayContentBounds: options.reportOverlayContentBounds,
-    reportHoveredSubtitleToken: options.reportHoveredSubtitleToken,
     getAnilistStatus: options.getAnilistStatus,
     clearAnilistToken: options.clearAnilistToken,
     openAnilistSetup: options.openAnilistSetup,
@@ -200,17 +186,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       const parsedOptions = parseOptionalForwardingOptions(options);
       const senderWindow = BrowserWindow.fromWebContents((event as IpcMainEvent).sender);
       if (senderWindow && !senderWindow.isDestroyed()) {
-        const invisibleWindow = deps.getInvisibleWindow();
-        if (
-          senderWindow === invisibleWindow &&
-          deps.isVisibleOverlayVisible() &&
-          invisibleWindow &&
-          !invisibleWindow.isDestroyed()
-        ) {
-          deps.setInvisibleIgnoreMouseEvents(true, { forward: true });
-        } else {
-          senderWindow.setIgnoreMouseEvents(ignore, parsedOptions);
-        }
+        senderWindow.setIgnoreMouseEvents(ignore, parsedOptions);
       }
     },
   );
@@ -219,6 +195,12 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     const parsedModal = parseOverlayHostedModal(modal);
     if (!parsedModal) return;
     deps.onOverlayModalClosed(parsedModal);
+  });
+  ipc.on(IPC_CHANNELS.command.overlayModalOpened, (_event: unknown, modal: unknown) => {
+    const parsedModal = parseOverlayHostedModal(modal);
+    if (!parsedModal) return;
+    if (!deps.onOverlayModalOpened) return;
+    deps.onOverlayModalOpened(parsedModal);
   });
 
   ipc.on(IPC_CHANNELS.command.openYomitanSettings, () => {
@@ -233,20 +215,12 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     deps.toggleDevTools();
   });
 
-  ipc.handle(IPC_CHANNELS.request.getOverlayVisibility, () => {
-    return deps.getVisibleOverlayVisibility();
-  });
-
   ipc.on(IPC_CHANNELS.command.toggleOverlay, () => {
     deps.toggleVisibleOverlay();
   });
 
   ipc.handle(IPC_CHANNELS.request.getVisibleOverlayVisibility, () => {
     return deps.getVisibleOverlayVisibility();
-  });
-
-  ipc.handle(IPC_CHANNELS.request.getInvisibleOverlayVisibility, () => {
-    return deps.getInvisibleOverlayVisibility();
   });
 
   ipc.handle(IPC_CHANNELS.request.getCurrentSubtitle, async () => {
@@ -261,8 +235,8 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     return deps.getCurrentSubtitleAss();
   });
 
-  ipc.handle(IPC_CHANNELS.request.getMpvSubtitleRenderMetrics, () => {
-    return deps.getMpvSubtitleRenderMetrics();
+  ipc.handle(IPC_CHANNELS.request.getPlaybackPaused, () => {
+    return deps.getPlaybackPaused();
   });
 
   ipc.handle(IPC_CHANNELS.request.getSubtitlePosition, () => {
@@ -356,17 +330,6 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.on(IPC_CHANNELS.command.reportOverlayContentBounds, (_event: unknown, payload: unknown) => {
     deps.reportOverlayContentBounds(payload);
-  });
-
-  ipc.on('subtitle-token-hover:set', (_event: unknown, tokenIndex: unknown) => {
-    if (tokenIndex === null) {
-      deps.reportHoveredSubtitleToken(null);
-      return;
-    }
-    if (!Number.isInteger(tokenIndex) || (tokenIndex as number) < 0) {
-      return;
-    }
-    deps.reportHoveredSubtitleToken(tokenIndex as number);
   });
 
   ipc.handle(IPC_CHANNELS.request.getAnilistStatus, () => {

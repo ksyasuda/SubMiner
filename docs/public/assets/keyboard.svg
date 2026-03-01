@@ -1,21 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
   <defs>
-    <linearGradient id="kb" x1="2" y1="10" x2="46" y2="42" gradientUnits="userSpaceOnUse">
+    <linearGradient id="kb-main" x1="2" y1="10" x2="46" y2="42" gradientUnits="userSpaceOnUse">
       <stop stop-color="#c084fc"/>
       <stop offset="1" stop-color="#7c3aed"/>
     </linearGradient>
+    <filter id="kb-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2"/>
+    </filter>
   </defs>
-  <rect x="2" y="12" width="44" height="30" rx="5" fill="url(#kb)" opacity="0.12"/>
-  <rect x="2" y="12" width="44" height="30" rx="5" stroke="url(#kb)" stroke-width="1.5" fill="none"/>
-  <rect x="6" y="16" width="8" height="6" rx="2" fill="url(#kb)"/>
-  <rect x="16" y="16" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
-  <rect x="26" y="16" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
-  <rect x="36" y="16" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
-  <rect x="6" y="24" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
-  <rect x="16" y="24" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
-  <rect x="26" y="24" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
-  <rect x="36" y="24" width="8" height="6" rx="2" fill="url(#kb)"/>
-  <rect x="6" y="32" width="8" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
-  <rect x="16" y="32" width="16" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
-  <rect x="34" y="32" width="10" height="6" rx="2" fill="url(#kb)" opacity="0.35"/>
+  <!-- Keyboard body -->
+  <rect x="2" y="14" width="44" height="28" rx="4.5" fill="url(#kb-main)" opacity="0.1"/>
+  <rect x="2" y="14" width="44" height="28" rx="4.5" stroke="url(#kb-main)" stroke-width="1.4" fill="none"/>
+  <!-- Row 1 -->
+  <rect x="6" y="18" width="7" height="5.5" rx="1.8" fill="url(#kb-main)" opacity="0.3"/>
+  <rect x="15" y="18" width="7" height="5.5" rx="1.8" fill="url(#kb-main)" opacity="0.3"/>
+  <rect x="24" y="18" width="7" height="5.5" rx="1.8" fill="url(#kb-main)" opacity="0.3"/>
+  <rect x="33" y="18" width="11" height="5.5" rx="1.8" fill="url(#kb-main)" opacity="0.3"/>
+  <!-- Row 2 — active key with glow -->
+  <rect x="6" y="25.5" width="7" height="5.5" rx="1.8" fill="url(#kb-main)" opacity="0.3"/>
+  <!-- Active/pressed key glow -->
+  <rect x="15" y="25.5" width="7" height="5.5" rx="1.8" fill="#c084fc" opacity="0.25" filter="url(#kb-glow)"/>
+  <rect x="15" y="25.5" width="7" height="5.5" rx="1.8" fill="url(#kb-main)"/>
+  <text x="18.5" y="30" text-anchor="middle" font-size="3.5" font-weight="700" fill="white" font-family="sans-serif">M</text>
+  <rect x="24" y="25.5" width="7" height="5.5" rx="1.8" fill="url(#kb-main)" opacity="0.3"/>
+  <rect x="33" y="25.5" width="11" height="5.5" rx="1.8" fill="url(#kb-main)" opacity="0.3"/>
+  <!-- Row 3 — spacebar -->
+  <rect x="6" y="33" width="7" height="5.5" rx="1.8" fill="url(#kb-main)" opacity="0.3"/>
+  <rect x="15" y="33" width="16" height="5.5" rx="1.8" fill="url(#kb-main)" opacity="0.25"/>
+  <rect x="33" y="33" width="11" height="5.5" rx="1.8" fill="url(#kb-main)" opacity="0.3"/>
 </svg>

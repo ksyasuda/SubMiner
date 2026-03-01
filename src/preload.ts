@@ -45,7 +45,6 @@ import type {
   RuntimeOptionId,
   RuntimeOptionState,
   RuntimeOptionValue,
-  MpvSubtitleRenderMetrics,
   OverlayContentMeasurement,
   ShortcutsConfig,
   ConfigHotReloadPayload,
@@ -55,12 +54,79 @@ import { IPC_CHANNELS } from './shared/ipc/contracts';
 const overlayLayerArg = process.argv.find((arg) => arg.startsWith('--overlay-layer='));
 const overlayLayerFromArg = overlayLayerArg?.slice('--overlay-layer='.length);
 const overlayLayer =
-  overlayLayerFromArg === 'visible' ||
-  overlayLayerFromArg === 'invisible' ||
-  overlayLayerFromArg === 'secondary' ||
-  overlayLayerFromArg === 'modal'
-    ? overlayLayerFromArg
-    : null;
+  overlayLayerFromArg === 'visible' || overlayLayerFromArg === 'modal' ? overlayLayerFromArg : null;
+
+type EmptyListener = () => void;
+type PayloadedListener<T> = (payload: T) => void;
+
+function createQueuedIpcListener(channel: string): (listener: EmptyListener) => void {
+  let count = 0;
+  const listeners: EmptyListener[] = [];
+
+  const dispatch = (): void => {
+    if (listeners.length === 0) {
+      count += 1;
+      return;
+    }
+    for (const listener of listeners) {
+      listener();
+    }
+  };
+
+  ipcRenderer.on(channel, () => {
+    dispatch();
+  });
+
+  return (listener: EmptyListener): void => {
+    listeners.push(listener);
+    while (count > 0) {
+      count -= 1;
+      listener();
+    }
+  };
+}
+
+function createQueuedIpcListenerWithPayload<T>(
+  channel: string,
+  normalize: (payload: unknown) => T,
+): (listener: PayloadedListener<T>) => void {
+  const pending: T[] = [];
+  const listeners: PayloadedListener<T>[] = [];
+
+  const dispatch = (payload: T): void => {
+    if (listeners.length === 0) {
+      pending.push(payload);
+      return;
+    }
+    for (const listener of listeners) {
+      listener(payload);
+    }
+  };
+
+  ipcRenderer.on(channel, (_event: IpcRendererEvent, payloadArg: unknown) => {
+    dispatch(normalize(payloadArg));
+  });
+
+  return (listener: PayloadedListener<T>): void => {
+    listeners.push(listener);
+    while (pending.length > 0) {
+      const payload = pending.shift();
+      listener(payload as T);
+    }
+  };
+}
+
+const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
+const onOpenJimakuEvent = createQueuedIpcListener(IPC_CHANNELS.event.jimakuOpen);
+const onSubsyncManualOpenEvent = createQueuedIpcListenerWithPayload<SubsyncManualPayload>(
+  IPC_CHANNELS.event.subsyncOpenManual,
+  (payload) => payload as SubsyncManualPayload,
+);
+const onKikuFieldGroupingRequestEvent =
+  createQueuedIpcListenerWithPayload<KikuFieldGroupingRequestData>(
+    IPC_CHANNELS.event.kikuFieldGroupingRequest,
+    (payload) => payload as KikuFieldGroupingRequestData,
+  );
 
 const electronAPI: ElectronAPI = {
   getOverlayLayer: () => overlayLayer,
@@ -87,36 +153,20 @@ const electronAPI: ElectronAPI = {
   },
 
   getOverlayVisibility: (): Promise<boolean> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.getOverlayVisibility),
+    ipcRenderer.invoke(IPC_CHANNELS.request.getVisibleOverlayVisibility),
   getCurrentSubtitle: (): Promise<SubtitleData> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getCurrentSubtitle),
   getCurrentSubtitleRaw: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getCurrentSubtitleRaw),
   getCurrentSubtitleAss: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getCurrentSubtitleAss),
-  getMpvSubtitleRenderMetrics: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.getMpvSubtitleRenderMetrics),
-  onMpvSubtitleRenderMetrics: (callback: (metrics: MpvSubtitleRenderMetrics) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.mpvSubtitleRenderMetricsSet,
-      (_event: IpcRendererEvent, metrics: MpvSubtitleRenderMetrics) => {
-        callback(metrics);
-      },
-    );
-  },
+  getPlaybackPaused: (): Promise<boolean | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getPlaybackPaused),
   onSubtitleAss: (callback: (assText: string) => void) => {
     ipcRenderer.on(
       IPC_CHANNELS.event.subtitleAssSet,
       (_event: IpcRendererEvent, assText: string) => {
         callback(assText);
-      },
-    );
-  },
-  onOverlayDebugVisualization: (callback: (enabled: boolean) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.overlayDebugVisualizationSet,
-      (_event: IpcRendererEvent, enabled: boolean) => {
-        callback(enabled);
       },
     );
   },
@@ -201,23 +251,11 @@ const electronAPI: ElectronAPI = {
   focusMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.request.focusMainWindow) as Promise<void>,
   getSubtitleStyle: (): Promise<SubtitleStyleConfig | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleStyle),
-  onSubsyncManualOpen: (callback: (payload: SubsyncManualPayload) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.subsyncOpenManual,
-      (_event: IpcRendererEvent, payload: SubsyncManualPayload) => {
-        callback(payload);
-      },
-    );
-  },
+  onSubsyncManualOpen: onSubsyncManualOpenEvent,
   runSubsyncManual: (request: SubsyncManualRunRequest): Promise<SubsyncResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.runSubsyncManual, request),
 
-  onKikuFieldGroupingRequest: (callback: (data: KikuFieldGroupingRequestData) => void) => {
-    ipcRenderer.on(
-      IPC_CHANNELS.event.kikuFieldGroupingRequest,
-      (_event: IpcRendererEvent, data: KikuFieldGroupingRequestData) => callback(data),
-    );
-  },
+  onKikuFieldGroupingRequest: onKikuFieldGroupingRequestEvent,
   kikuBuildMergePreview: (request: KikuMergePreviewRequest): Promise<KikuMergePreviewResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.kikuBuildMergePreview, request),
 
@@ -242,26 +280,18 @@ const electronAPI: ElectronAPI = {
       },
     );
   },
-  onOpenRuntimeOptions: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.event.runtimeOptionsOpen, () => {
-      callback();
-    });
-  },
-  onOpenJimaku: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.event.jimakuOpen, () => {
-      callback();
-    });
-  },
+  onOpenRuntimeOptions: onOpenRuntimeOptionsEvent,
+  onOpenJimaku: onOpenJimakuEvent,
   appendClipboardVideoToQueue: (): Promise<ClipboardAppendResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.appendClipboardVideoToQueue),
   notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => {
     ipcRenderer.send(IPC_CHANNELS.command.overlayModalClosed, modal);
   },
+  notifyOverlayModalOpened: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => {
+    ipcRenderer.send(IPC_CHANNELS.command.overlayModalOpened, modal);
+  },
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => {
     ipcRenderer.send(IPC_CHANNELS.command.reportOverlayContentBounds, measurement);
-  },
-  reportHoveredSubtitleToken: (tokenIndex: number | null) => {
-    ipcRenderer.send('subtitle-token-hover:set', tokenIndex);
   },
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => {
     ipcRenderer.on(

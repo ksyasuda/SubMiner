@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 3;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -74,8 +74,8 @@ export interface SessionState extends TelemetryAccumulator {
   pendingTelemetry: boolean;
 }
 
-export interface QueuedWrite {
-  kind: 'telemetry' | 'event';
+interface QueuedTelemetryWrite {
+  kind: 'telemetry';
   sessionId: number;
   sampleMs?: number;
   totalWatchedMs?: number;
@@ -99,6 +99,37 @@ export interface QueuedWrite {
   cardsDelta?: number;
   payloadJson?: string | null;
 }
+
+interface QueuedEventWrite {
+  kind: 'event';
+  sessionId: number;
+  sampleMs?: number;
+  eventType?: number;
+  lineIndex?: number | null;
+  segmentStartMs?: number | null;
+  segmentEndMs?: number | null;
+  wordsDelta?: number;
+  cardsDelta?: number;
+  payloadJson?: string | null;
+}
+
+interface QueuedWordWrite {
+  kind: 'word';
+  headword: string;
+  word: string;
+  reading: string;
+  firstSeen: number;
+  lastSeen: number;
+}
+
+interface QueuedKanjiWrite {
+  kind: 'kanji';
+  kanji: string;
+  firstSeen: number;
+  lastSeen: number;
+}
+
+export type QueuedWrite = QueuedTelemetryWrite | QueuedEventWrite | QueuedWordWrite | QueuedKanjiWrite;
 
 export interface VideoMetadata {
   sourceType: number;

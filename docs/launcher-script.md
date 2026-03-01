@@ -16,10 +16,10 @@ subminer -r -d ~/Anime          # recursive search
 
 fzf shows video files in a fuzzy-searchable list. If `chafa` is installed, you get thumbnail previews in the right pane. Thumbnails are sourced from the freedesktop thumbnail cache first, then generated on the fly with `ffmpegthumbnailer` or `ffmpeg` as fallback.
 
-| Optional tool         | Purpose                          |
-| --------------------- | -------------------------------- |
-| `chafa`               | Render thumbnails in the terminal |
-| `ffmpegthumbnailer`   | Generate thumbnails on the fly   |
+| Optional tool       | Purpose                           |
+| ------------------- | --------------------------------- |
+| `chafa`             | Render thumbnails in the terminal |
+| `ffmpegthumbnailer` | Generate thumbnails on the fly    |
 
 ### rofi
 
@@ -53,46 +53,49 @@ SUBMINER_ROFI_THEME=/path/to/custom-theme.rasi subminer -R
 ## Common Commands
 
 ```bash
-subminer video.mkv              # play a specific file
-subminer --start video.mkv      # play + explicitly start overlay
+subminer video.mkv              # play a specific file (default plugin config auto-starts visible overlay)
+subminer --start video.mkv      # optional explicit overlay start when plugin auto_start=no
+subminer -S video.mkv           # same as above via --start-overlay
 subminer https://youtu.be/...   # YouTube playback (requires yt-dlp)
 subminer ytsearch:"jp news"     # YouTube search
 ```
 
 ## Subcommands
 
-| Subcommand                | Purpose                                        |
-| ------------------------- | ---------------------------------------------- |
+| Subcommand                 | Purpose                                                    |
+| -------------------------- | ---------------------------------------------------------- |
 | `subminer jellyfin` / `jf` | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login) |
-| `subminer yt` / `youtube` | YouTube shorthand (`-o`, `-m`)                  |
-| `subminer doctor`         | Dependency + config + socket diagnostics        |
-| `subminer config path`    | Print active config file path                   |
-| `subminer config show`    | Print active config contents                    |
-| `subminer mpv status`     | Check mpv socket readiness                      |
-| `subminer mpv socket`     | Print active socket path                        |
-| `subminer mpv idle`       | Launch detached idle mpv instance               |
-| `subminer texthooker`     | Launch texthooker-only mode                     |
-| `subminer app`            | Pass arguments directly to SubMiner binary      |
+| `subminer yt` / `youtube`  | YouTube shorthand (`-o`, `-m`)                             |
+| `subminer doctor`          | Dependency + config + socket diagnostics                   |
+| `subminer config path`     | Print active config file path                              |
+| `subminer config show`     | Print active config contents                               |
+| `subminer mpv status`      | Check mpv socket readiness                                 |
+| `subminer mpv socket`      | Print active socket path                                   |
+| `subminer mpv idle`        | Launch detached idle mpv instance                          |
+| `subminer texthooker`      | Launch texthooker-only mode                                |
+| `subminer app`             | Pass arguments directly to SubMiner binary                 |
 
 Use `subminer <subcommand> -h` for command-specific help.
 
 ## Options
 
-| Flag                 | Description                                  |
-| -------------------- | -------------------------------------------- |
-| `-d, --directory`    | Video search directory (default: cwd)        |
-| `-r, --recursive`    | Search directories recursively               |
-| `-R, --rofi`         | Use rofi instead of fzf                      |
-| `-S, --start`        | Start overlay after mpv launches             |
-| `-T, --no-texthooker`| Disable texthooker server                    |
-| `-p, --profile`      | mpv profile name (default: `subminer`)       |
-| `-b, --backend`      | Force window backend (`hyprland`, `sway`, `x11`) |
-| `--log-level`        | Logger verbosity (`debug`, `info`, `warn`, `error`) |
-| `--dev`, `--debug`   | Enable app dev-mode (not tied to log level)  |
+| Flag                    | Description                                         |
+| ----------------------- | --------------------------------------------------- |
+| `-d, --directory`       | Video search directory (default: cwd)               |
+| `-r, --recursive`       | Search directories recursively                      |
+| `-R, --rofi`            | Use rofi instead of fzf                             |
+| `--start`               | Explicitly start overlay after mpv launches         |
+| `-S, --start-overlay`   | Explicitly start overlay after mpv launches         |
+| `-T, --no-texthooker`   | Disable texthooker server                           |
+| `-p, --profile`         | mpv profile name (default: `subminer`)              |
+| `-b, --backend`         | Force window backend (`hyprland`, `sway`, `x11`)    |
+| `--log-level`           | Logger verbosity (`debug`, `info`, `warn`, `error`) |
+| `--dev`, `--debug`      | Enable app dev-mode (not tied to log level)         |
+
+With default plugin settings (`auto_start=yes`, `auto_start_visible_overlay=yes`, `auto_start_pause_until_ready=yes`), explicit start flags are usually unnecessary.
 
 ## Logging
 
 - Default log level is `info`
 - `--background` mode defaults to `warn` unless `--log-level` is explicitly set
 - `--dev` / `--debug` control app behavior, not logging verbosity — use `--log-level` for that
-

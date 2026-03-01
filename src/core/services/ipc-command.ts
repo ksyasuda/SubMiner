@@ -24,6 +24,31 @@ export interface HandleMpvCommandFromIpcOptions {
   hasRuntimeOptionsManager: () => boolean;
 }
 
+const MPV_PROPERTY_COMMANDS = new Set([
+  'add',
+  'set',
+  'set_property',
+  'cycle',
+  'cycle-values',
+  'multiply',
+]);
+
+function resolveProxyCommandOsd(command: (string | number)[]): string | null {
+  const operation = typeof command[0] === 'string' ? command[0] : '';
+  const property = typeof command[1] === 'string' ? command[1] : '';
+  if (!MPV_PROPERTY_COMMANDS.has(operation)) return null;
+  if (property === 'sub-pos') {
+    return 'Subtitle position: ${sub-pos}';
+  }
+  if (property === 'sid') {
+    return 'Subtitle track: ${sid}';
+  }
+  if (property === 'secondary-sid') {
+    return 'Secondary subtitle track: ${secondary-sid}';
+  }
+  return null;
+}
+
 export function handleMpvCommandFromIpc(
   command: (string | number)[],
   options: HandleMpvCommandFromIpcOptions,
@@ -58,6 +83,10 @@ export function handleMpvCommandFromIpc(
       options.mpvPlayNextSubtitle();
     } else {
       options.mpvSendCommand(command);
+      const osd = resolveProxyCommandOsd(command);
+      if (osd) {
+        options.showMpvOsd(osd);
+      }
     }
   }
 }

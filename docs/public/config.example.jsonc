@@ -5,7 +5,6 @@
  * Copy to $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) and edit as needed.
  */
 {
-
   // ==========================================
   // Overlay Auto-Start
   // When overlay connects to mpv, automatically show overlay and hide mpv subtitles.
@@ -13,18 +12,11 @@
   "auto_start_overlay": false, // When overlay connects to mpv, automatically show overlay and hide mpv subtitles. Values: true | false
 
   // ==========================================
-  // Visible Overlay Subtitle Binding
-  // Control whether visible overlay toggles also toggle MPV subtitle visibility.
-  // When enabled, visible overlay hides MPV subtitles; when disabled, MPV subtitles are left unchanged.
-  // ==========================================
-  "bind_visible_overlay_to_mpv_sub_visibility": true, // Link visible overlay toggles to MPV subtitle visibility (primary and secondary). Values: true | false
-
-  // ==========================================
   // Texthooker Server
   // Control whether browser opens automatically for texthooker.
   // ==========================================
   "texthooker": {
-    "openBrowser": true // Open browser setting. Values: true | false
+    "openBrowser": true, // Open browser setting. Values: true | false
   }, // Control whether browser opens automatically for texthooker.
 
   // ==========================================
@@ -34,7 +26,7 @@
   // ==========================================
   "websocket": {
     "enabled": "auto", // Built-in subtitle websocket server mode. Values: auto | true | false
-    "port": 6677 // Built-in subtitle websocket server port.
+    "port": 6677, // Built-in subtitle websocket server port.
   }, // Built-in WebSocket server broadcasts subtitle text to connected clients.
 
   // ==========================================
@@ -43,7 +35,7 @@
   // Set to debug for full runtime diagnostics.
   // ==========================================
   "logging": {
-    "level": "info" // Minimum log level for runtime logging. Values: debug | info | warn | error
+    "level": "info", // Minimum log level for runtime logging. Values: debug | info | warn | error
   }, // Controls logging verbosity.
 
   // ==========================================
@@ -53,7 +45,6 @@
   // ==========================================
   "shortcuts": {
     "toggleVisibleOverlayGlobal": "Alt+Shift+O", // Toggle visible overlay global setting.
-    "toggleInvisibleOverlayGlobal": "Alt+Shift+I", // Toggle invisible overlay global setting.
     "copySubtitle": "CommandOrControl+C", // Copy subtitle setting.
     "copySubtitleMultiple": "CommandOrControl+Shift+C", // Copy subtitle multiple setting.
     "updateLastCardFromClipboard": "CommandOrControl+V", // Update last card from clipboard setting.
@@ -65,18 +56,8 @@
     "toggleSecondarySub": "CommandOrControl+Shift+V", // Toggle secondary sub setting.
     "markAudioCard": "CommandOrControl+Shift+A", // Mark audio card setting.
     "openRuntimeOptions": "CommandOrControl+Shift+O", // Open runtime options setting.
-    "openJimaku": "Ctrl+Shift+J" // Open jimaku setting.
+    "openJimaku": "Ctrl+Shift+J", // Open jimaku setting.
   }, // Overlay keyboard shortcuts. Set a shortcut to null to disable.
-
-  // ==========================================
-  // Invisible Overlay
-  // Startup behavior for the invisible interactive subtitle mining layer.
-  // Invisible subtitle position edit mode: Ctrl/Cmd+Shift+P to toggle, arrow keys to move, Enter or Ctrl/Cmd+S to save, Esc to cancel.
-  // This edit-mode shortcut is fixed and is not currently configurable.
-  // ==========================================
-  "invisibleOverlay": {
-    "startupVisibility": "platform-default" // Startup visibility setting.
-  }, // Startup behavior for the invisible interactive subtitle mining layer.
 
   // ==========================================
   // Keybindings (MPV Commands)
@@ -95,7 +76,7 @@
   "secondarySub": {
     "secondarySubLanguages": [], // Secondary sub languages setting.
     "autoLoadSecondarySub": false, // Auto load secondary sub setting. Values: true | false
-    "defaultMode": "hover" // Default mode setting.
+    "defaultMode": "hover", // Default mode setting.
   }, // Dual subtitle track options.
 
   // ==========================================
@@ -106,7 +87,7 @@
     "defaultMode": "auto", // Subsync default mode. Values: auto | manual
     "alass_path": "", // Alass path setting.
     "ffsubsync_path": "", // Ffsubsync path setting.
-    "ffmpeg_path": "" // Ffmpeg path setting.
+    "ffmpeg_path": "", // Ffmpeg path setting.
   }, // Subsync engine and executable paths.
 
   // ==========================================
@@ -114,7 +95,7 @@
   // Initial vertical subtitle position from the bottom.
   // ==========================================
   "subtitlePosition": {
-    "yPercent": 10 // Y percent setting.
+    "yPercent": 10, // Y percent setting.
   }, // Initial vertical subtitle position from the bottom.
 
   // ==========================================
@@ -125,13 +106,22 @@
   "subtitleStyle": {
     "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
-    "hoverTokenColor": "#c6a0f6", // Hex color used for hovered subtitle token highlight in mpv.
-    "fontFamily": "M PLUS 1, Noto Sans CJK JP Regular, Noto Sans CJK JP, Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic, Arial Unicode MS, Arial, sans-serif", // Font family setting.
+    "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
+    "hoverTokenColor": "#f4dbd6", // Hex color used for hovered subtitle token highlight in mpv.
+    "hoverTokenBackgroundColor": "rgba(54, 58, 79, 0.84)", // CSS color used for hovered subtitle token background highlight in mpv.
+    "fontFamily": "M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.
     "fontSize": 35, // Font size setting.
     "fontColor": "#cad3f5", // Font color setting.
-    "fontWeight": "normal", // Font weight setting.
+    "fontWeight": "600", // Font weight setting.
+    "lineHeight": 1.35, // Line height setting.
+    "letterSpacing": "-0.01em", // Letter spacing setting.
+    "wordSpacing": 0, // Word spacing setting.
+    "fontKerning": "normal", // Font kerning setting.
+    "textRendering": "geometricPrecision", // Text rendering setting.
+    "textShadow": "0 3px 10px rgba(0,0,0,0.69)", // Text shadow setting.
     "fontStyle": "normal", // Font style setting.
     "backgroundColor": "rgb(30, 32, 48, 0.88)", // Background color setting.
+    "backdropFilter": "blur(6px)", // Backdrop filter setting.
     "nPlusOneColor": "#c6a0f6", // N plus one color setting.
     "knownWordColor": "#a6da95", // Known word color setting.
     "jlptColors": {
@@ -139,30 +129,32 @@
       "N2": "#f5a97f", // N2 setting.
       "N3": "#f9e2af", // N3 setting.
       "N4": "#a6e3a1", // N4 setting.
-      "N5": "#8aadf4" // N5 setting.
+      "N5": "#8aadf4", // N5 setting.
     }, // Jlpt colors setting.
     "frequencyDictionary": {
       "enabled": false, // Enable frequency-dictionary-based highlighting based on token rank. Values: true | false
-      "sourcePath": "", // Optional absolute path to a frequency dictionary directory. If empty, built-in discovery search paths are used.
+      "sourcePath": "", // Optional absolute path to a frequency dictionary directory. If empty, SubMiner searches installed/default frequency-dictionary locations.
       "topX": 1000, // Only color tokens with frequency rank <= topX (default: 1000).
       "mode": "single", // single: use one color for all matching tokens. banded: use color ramp by frequency band. Values: single | banded
+      "matchMode": "headword", // Frequency lookup text selection mode. Values: headword | surface
       "singleColor": "#f5a97f", // Color used when frequencyDictionary.mode is `single`.
-      "bandedColors": [
-        "#ed8796",
-        "#f5a97f",
-        "#f9e2af",
-        "#a6e3a1",
-        "#8aadf4"
-      ] // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
+      "bandedColors": ["#ed8796", "#f5a97f", "#f9e2af", "#a6e3a1", "#8aadf4"], // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
     }, // Frequency dictionary setting.
     "secondary": {
+      "fontFamily": "Inter, Noto Sans, Helvetica Neue, sans-serif", // Font family setting.
       "fontSize": 24, // Font size setting.
-      "fontColor": "#ffffff", // Font color setting.
+      "fontColor": "#cad3f5", // Font color setting.
+      "lineHeight": 1.35, // Line height setting.
+      "letterSpacing": "-0.01em", // Letter spacing setting.
+      "wordSpacing": 0, // Word spacing setting.
+      "fontKerning": "normal", // Font kerning setting.
+      "textRendering": "geometricPrecision", // Text rendering setting.
+      "textShadow": "0 3px 10px rgba(0,0,0,0.69)", // Text shadow setting.
       "backgroundColor": "transparent", // Background color setting.
+      "backdropFilter": "blur(6px)", // Backdrop filter setting.
       "fontWeight": "normal", // Font weight setting.
       "fontStyle": "normal", // Font style setting.
-      "fontFamily": "M PLUS 1, Noto Sans CJK JP Regular, Noto Sans CJK JP, Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic, Arial Unicode MS, Arial, sans-serif" // Font family setting.
-    } // Secondary setting.
+    }, // Secondary setting.
   }, // Primary and secondary subtitle styling.
 
   // ==========================================
@@ -175,15 +167,19 @@
     "enabled": false, // Enable AnkiConnect integration. Values: true | false
     "url": "http://127.0.0.1:8765", // Url setting.
     "pollingRate": 3000, // Polling interval in milliseconds.
-    "tags": [
-      "SubMiner"
-    ], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.
+    "proxy": {
+      "enabled": true, // Enable local AnkiConnect-compatible proxy for push-based auto-enrichment. Values: true | false
+      "host": "127.0.0.1", // Bind host for local AnkiConnect proxy.
+      "port": 8766, // Bind port for local AnkiConnect proxy.
+      "upstreamUrl": "http://127.0.0.1:8765", // Upstream AnkiConnect URL proxied by local AnkiConnect proxy.
+    }, // Proxy setting.
+    "tags": ["SubMiner"], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.
     "fields": {
       "audio": "ExpressionAudio", // Audio setting.
       "image": "Picture", // Image setting.
       "sentence": "Sentence", // Sentence setting.
       "miscInfo": "MiscInfo", // Misc info setting.
-      "translation": "SelectionText" // Translation setting.
+      "translation": "SelectionText", // Translation setting.
     }, // Fields setting.
     "ai": {
       "enabled": false, // Enabled setting. Values: true | false
@@ -192,7 +188,7 @@
       "model": "openai/gpt-4o-mini", // Model setting.
       "baseUrl": "https://openrouter.ai/api", // Base url setting.
       "targetLanguage": "English", // Target language setting.
-      "systemPrompt": "You are a translation engine. Return only the translated text with no explanations." // System prompt setting.
+      "systemPrompt": "You are a translation engine. Return only the translated text with no explanations.", // System prompt setting.
     }, // Ai setting.
     "media": {
       "generateAudio": true, // Generate audio setting. Values: true | false
@@ -205,7 +201,7 @@
       "animatedCrf": 35, // Animated crf setting.
       "audioPadding": 0.5, // Audio padding setting.
       "fallbackDuration": 3, // Fallback duration setting.
-      "maxMediaDuration": 30 // Max media duration setting.
+      "maxMediaDuration": 30, // Max media duration setting.
     }, // Media setting.
     "behavior": {
       "overwriteAudio": true, // Overwrite audio setting. Values: true | false
@@ -213,7 +209,7 @@
       "mediaInsertMode": "append", // Media insert mode setting.
       "highlightWord": true, // Highlight word setting. Values: true | false
       "notificationType": "osd", // Notification type setting.
-      "autoUpdateNewCards": true // Automatically update newly added cards. Values: true | false
+      "autoUpdateNewCards": true, // Automatically update newly added cards. Values: true | false
     }, // Behavior setting.
     "nPlusOne": {
       "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false
@@ -222,20 +218,20 @@
       "decks": [], // Decks used for N+1 known-word cache scope. Supports one or more deck names.
       "minSentenceWords": 3, // Minimum sentence word count required for N+1 targeting (default: 3).
       "nPlusOne": "#c6a0f6", // Color used for the single N+1 target token highlight.
-      "knownWord": "#a6da95" // Color used for legacy known-word highlights.
+      "knownWord": "#a6da95", // Color used for legacy known-word highlights.
     }, // N plus one setting.
     "metadata": {
-      "pattern": "[SubMiner] %f (%t)" // Pattern setting.
+      "pattern": "[SubMiner] %f (%t)", // Pattern setting.
     }, // Metadata setting.
     "isLapis": {
       "enabled": false, // Enabled setting. Values: true | false
-      "sentenceCardModel": "Japanese sentences" // Sentence card model setting.
+      "sentenceCardModel": "Japanese sentences", // Sentence card model setting.
     }, // Is lapis setting.
     "isKiku": {
       "enabled": false, // Enabled setting. Values: true | false
       "fieldGrouping": "disabled", // Kiku duplicate-card field grouping mode. Values: auto | manual | disabled
-      "deleteDuplicateInAuto": true // Delete duplicate in auto setting. Values: true | false
-    } // Is kiku setting.
+      "deleteDuplicateInAuto": true, // Delete duplicate in auto setting. Values: true | false
+    }, // Is kiku setting.
   }, // Automatic Anki updates and media generation options.
 
   // ==========================================
@@ -245,7 +241,7 @@
   "jimaku": {
     "apiBaseUrl": "https://jimaku.cc", // Api base url setting.
     "languagePreference": "ja", // Preferred language used in Jimaku search. Values: ja | en | none
-    "maxEntryResults": 10 // Maximum Jimaku search results returned.
+    "maxEntryResults": 10, // Maximum Jimaku search results returned.
   }, // Jimaku API configuration and defaults.
 
   // ==========================================
@@ -256,10 +252,7 @@
     "mode": "automatic", // YouTube subtitle generation mode for the launcher script. Values: automatic | preprocess | off
     "whisperBin": "", // Path to whisper.cpp CLI used as fallback transcription engine.
     "whisperModel": "", // Path to whisper model used for fallback transcription.
-    "primarySubLanguages": [
-      "ja",
-      "jpn"
-    ] // Comma-separated primary subtitle language priority used by the launcher.
+    "primarySubLanguages": ["ja", "jpn"], // Comma-separated primary subtitle language priority used by the launcher.
   }, // Defaults for subminer YouTube subtitle extraction/transcription mode.
 
   // ==========================================
@@ -268,7 +261,7 @@
   // ==========================================
   "anilist": {
     "enabled": false, // Enable AniList post-watch progress updates. Values: true | false
-    "accessToken": "" // Optional explicit AniList access token override; leave empty to use locally stored token from setup.
+    "accessToken": "", // Optional explicit AniList access token override; leave empty to use locally stored token from setup.
   }, // Anilist API credentials and update behavior.
 
   // ==========================================
@@ -292,16 +285,8 @@
     "pullPictures": false, // Enable Jellyfin poster/icon fetching for launcher menus. Values: true | false
     "iconCacheDir": "/tmp/subminer-jellyfin-icons", // Directory used by launcher for cached Jellyfin poster icons.
     "directPlayPreferred": true, // Try direct play before server-managed transcoding when possible. Values: true | false
-    "directPlayContainers": [
-      "mkv",
-      "mp4",
-      "webm",
-      "mov",
-      "flac",
-      "mp3",
-      "aac"
-    ], // Container allowlist for direct play decisions.
-    "transcodeVideoCodec": "h264" // Preferred transcode video codec when direct play is unavailable.
+    "directPlayContainers": ["mkv", "mp4", "webm", "mov", "flac", "mp3", "aac"], // Container allowlist for direct play decisions.
+    "transcodeVideoCodec": "h264", // Preferred transcode video codec when direct play is unavailable.
   }, // Optional Jellyfin integration for auth, browsing, and playback launch.
 
   // ==========================================
@@ -312,7 +297,7 @@
   "discordPresence": {
     "enabled": false, // Enable optional Discord Rich Presence updates. Values: true | false
     "updateIntervalMs": 3000, // Minimum interval between presence payload updates.
-    "debounceMs": 750 // Debounce delay used to collapse bursty presence updates.
+    "debounceMs": 750, // Debounce delay used to collapse bursty presence updates.
   }, // Optional Discord Rich Presence activity card updates for current playback/study session.
 
   // ==========================================
@@ -334,7 +319,7 @@
       "telemetryDays": 30, // Telemetry retention window in days.
       "dailyRollupsDays": 365, // Daily rollup retention window in days.
       "monthlyRollupsDays": 1825, // Monthly rollup retention window in days.
-      "vacuumIntervalDays": 7 // Minimum days between VACUUM runs.
-    } // Retention setting.
-  } // Enable/disable immersion tracking.
+      "vacuumIntervalDays": 7, // Minimum days between VACUUM runs.
+    }, // Retention setting.
+  }, // Enable/disable immersion tracking.
 }

@@ -25,6 +25,7 @@ import {
 import {
   buildVideoKey,
   calculateTextMetrics,
+  extractLineVocabulary,
   deriveCanonicalTitle,
   isRemoteSource,
   normalizeMediaPath,
@@ -268,18 +269,41 @@ export class ImmersionTrackerService {
     if (!this.sessionState || !text.trim()) return;
     const cleaned = normalizeText(text);
     if (!cleaned) return;
+    const nowMs = Date.now();
+    const nowSec = nowMs / 1000;
 
     const metrics = calculateTextMetrics(cleaned);
+    const extractedVocabulary = extractLineVocabulary(cleaned);
     this.sessionState.currentLineIndex += 1;
     this.sessionState.linesSeen += 1;
     this.sessionState.wordsSeen += metrics.words;
     this.sessionState.tokensSeen += metrics.tokens;
     this.sessionState.pendingTelemetry = true;
 
+    for (const { headword, word, reading } of extractedVocabulary.words) {
+      this.recordWrite({
+        kind: 'word',
+        headword,
+        word,
+        reading,
+        firstSeen: nowSec,
+        lastSeen: nowSec,
+      });
+    }
+
+    for (const kanji of extractedVocabulary.kanji) {
+      this.recordWrite({
+        kind: 'kanji',
+        kanji,
+        firstSeen: nowSec,
+        lastSeen: nowSec,
+      });
+    }
+
     this.recordWrite({
       kind: 'event',
       sessionId: this.sessionState.sessionId,
-      sampleMs: Date.now(),
+      sampleMs: nowMs,
       lineIndex: this.sessionState.currentLineIndex,
       segmentStartMs: secToMs(startSec),
       segmentEndMs: secToMs(endSec),
@@ -562,13 +586,15 @@ export class ImmersionTrackerService {
       this.flushTelemetry(true);
       this.flushNow();
       const nowMs = Date.now();
-      pruneRetention(this.db, nowMs, {
+      const retentionResult = pruneRetention(this.db, nowMs, {
         eventsRetentionMs: this.eventsRetentionMs,
         telemetryRetentionMs: this.telemetryRetentionMs,
         dailyRollupRetentionMs: this.dailyRollupRetentionMs,
         monthlyRollupRetentionMs: this.monthlyRollupRetentionMs,
       });
-      this.runRollupMaintenance();
+      const shouldRebuildRollups =
+        retentionResult.deletedTelemetryRows > 0 || retentionResult.deletedEndedSessions > 0;
+      this.runRollupMaintenance(shouldRebuildRollups);
 
       if (nowMs - this.lastVacuumMs >= this.vacuumIntervalMs && !this.writeLock.locked) {
         this.db.exec('VACUUM');
@@ -582,8 +608,8 @@ export class ImmersionTrackerService {
     }
   }
 
-  private runRollupMaintenance(): void {
-    runRollupMaintenance(this.db);
+  private runRollupMaintenance(forceRebuild = false): void {
+    runRollupMaintenance(this.db, forceRebuild);
   }
 
   private startSession(videoId: number, startedAtMs?: number): void {

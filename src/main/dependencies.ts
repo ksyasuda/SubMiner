@@ -53,19 +53,18 @@ export function createSubsyncRuntimeDeps(params: SubsyncRuntimeDepsParams): Subs
 }
 
 export interface MainIpcRuntimeServiceDepsParams {
-  getInvisibleWindow: IpcDepsRuntimeOptions['getInvisibleWindow'];
   getMainWindow: IpcDepsRuntimeOptions['getMainWindow'];
   getVisibleOverlayVisibility: IpcDepsRuntimeOptions['getVisibleOverlayVisibility'];
-  getInvisibleOverlayVisibility: IpcDepsRuntimeOptions['getInvisibleOverlayVisibility'];
   onOverlayModalClosed: IpcDepsRuntimeOptions['onOverlayModalClosed'];
+  onOverlayModalOpened?: IpcDepsRuntimeOptions['onOverlayModalOpened'];
   openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
   quitApp: IpcDepsRuntimeOptions['quitApp'];
   toggleVisibleOverlay: IpcDepsRuntimeOptions['toggleVisibleOverlay'];
   tokenizeCurrentSubtitle: IpcDepsRuntimeOptions['tokenizeCurrentSubtitle'];
   getCurrentSubtitleRaw: IpcDepsRuntimeOptions['getCurrentSubtitleRaw'];
   getCurrentSubtitleAss: IpcDepsRuntimeOptions['getCurrentSubtitleAss'];
+  getPlaybackPaused: IpcDepsRuntimeOptions['getPlaybackPaused'];
   focusMainWindow?: IpcDepsRuntimeOptions['focusMainWindow'];
-  getMpvSubtitleRenderMetrics: IpcDepsRuntimeOptions['getMpvSubtitleRenderMetrics'];
   getSubtitlePosition: IpcDepsRuntimeOptions['getSubtitlePosition'];
   getSubtitleStyle: IpcDepsRuntimeOptions['getSubtitleStyle'];
   saveSubtitlePosition: IpcDepsRuntimeOptions['saveSubtitlePosition'];
@@ -81,7 +80,6 @@ export interface MainIpcRuntimeServiceDepsParams {
   setRuntimeOption: IpcDepsRuntimeOptions['setRuntimeOption'];
   cycleRuntimeOption: IpcDepsRuntimeOptions['cycleRuntimeOption'];
   reportOverlayContentBounds: IpcDepsRuntimeOptions['reportOverlayContentBounds'];
-  reportHoveredSubtitleToken: IpcDepsRuntimeOptions['reportHoveredSubtitleToken'];
   getAnilistStatus: IpcDepsRuntimeOptions['getAnilistStatus'];
   clearAnilistToken: IpcDepsRuntimeOptions['clearAnilistToken'];
   openAnilistSetup: IpcDepsRuntimeOptions['openAnilistSetup'];
@@ -115,6 +113,7 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
 }
 
 export interface CliCommandRuntimeServiceDepsParams {
+  setLogLevel?: CliCommandDepsRuntimeOptions['setLogLevel'];
   mpv: {
     getSocketPath: CliCommandDepsRuntimeOptions['mpv']['getSocketPath'];
     setSocketPath: CliCommandDepsRuntimeOptions['mpv']['setSocketPath'];
@@ -132,9 +131,7 @@ export interface CliCommandRuntimeServiceDepsParams {
     isInitialized: CliCommandDepsRuntimeOptions['overlay']['isInitialized'];
     initialize: CliCommandDepsRuntimeOptions['overlay']['initialize'];
     toggleVisible: CliCommandDepsRuntimeOptions['overlay']['toggleVisible'];
-    toggleInvisible: CliCommandDepsRuntimeOptions['overlay']['toggleInvisible'];
     setVisible: CliCommandDepsRuntimeOptions['overlay']['setVisible'];
-    setInvisible: CliCommandDepsRuntimeOptions['overlay']['setInvisible'];
   };
   mining: {
     copyCurrentSubtitle: CliCommandDepsRuntimeOptions['mining']['copyCurrentSubtitle'];
@@ -192,18 +189,17 @@ export function createMainIpcRuntimeServiceDeps(
   params: MainIpcRuntimeServiceDepsParams,
 ): IpcDepsRuntimeOptions {
   return {
-    getInvisibleWindow: params.getInvisibleWindow,
     getMainWindow: params.getMainWindow,
     getVisibleOverlayVisibility: params.getVisibleOverlayVisibility,
-    getInvisibleOverlayVisibility: params.getInvisibleOverlayVisibility,
     onOverlayModalClosed: params.onOverlayModalClosed,
+    onOverlayModalOpened: params.onOverlayModalOpened,
     openYomitanSettings: params.openYomitanSettings,
     quitApp: params.quitApp,
     toggleVisibleOverlay: params.toggleVisibleOverlay,
     tokenizeCurrentSubtitle: params.tokenizeCurrentSubtitle,
     getCurrentSubtitleRaw: params.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: params.getCurrentSubtitleAss,
-    getMpvSubtitleRenderMetrics: params.getMpvSubtitleRenderMetrics,
+    getPlaybackPaused: params.getPlaybackPaused,
     getSubtitlePosition: params.getSubtitlePosition,
     getSubtitleStyle: params.getSubtitleStyle,
     saveSubtitlePosition: params.saveSubtitlePosition,
@@ -220,7 +216,6 @@ export function createMainIpcRuntimeServiceDeps(
     setRuntimeOption: params.setRuntimeOption,
     cycleRuntimeOption: params.cycleRuntimeOption,
     reportOverlayContentBounds: params.reportOverlayContentBounds,
-    reportHoveredSubtitleToken: params.reportHoveredSubtitleToken,
     getAnilistStatus: params.getAnilistStatus,
     clearAnilistToken: params.clearAnilistToken,
     openAnilistSetup: params.openAnilistSetup,
@@ -262,6 +257,7 @@ export function createCliCommandRuntimeServiceDeps(
   params: CliCommandRuntimeServiceDepsParams,
 ): CliCommandDepsRuntimeOptions {
   return {
+    setLogLevel: params.setLogLevel,
     mpv: {
       getSocketPath: params.mpv.getSocketPath,
       setSocketPath: params.mpv.setSocketPath,
@@ -279,9 +275,7 @@ export function createCliCommandRuntimeServiceDeps(
       isInitialized: params.overlay.isInitialized,
       initialize: params.overlay.initialize,
       toggleVisible: params.overlay.toggleVisible,
-      toggleInvisible: params.overlay.toggleInvisible,
       setVisible: params.overlay.setVisible,
-      setInvisible: params.overlay.setInvisible,
     },
     mining: {
       copyCurrentSubtitle: params.mining.copyCurrentSubtitle,

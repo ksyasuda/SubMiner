@@ -3,7 +3,12 @@ import type {
   ConfigHotReloadRuntimeDeps,
 } from '../../core/services/config-hot-reload';
 import type { ReloadConfigStrictResult } from '../../config';
-import type { ConfigHotReloadPayload, ConfigValidationWarning, ResolvedConfig, SecondarySubMode } from '../../types';
+import type {
+  ConfigHotReloadPayload,
+  ConfigValidationWarning,
+  ResolvedConfig,
+  SecondarySubMode,
+} from '../../types';
 import type { createConfigHotReloadMessageHandler } from './config-hot-reload-handlers';
 
 type ConfigWatchListener = (eventType: string, filename: string | null) => void;

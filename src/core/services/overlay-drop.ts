@@ -85,7 +85,9 @@ export function parseClipboardVideoPath(text: string): string | null {
   return isSupportedVideoPath(unquoted) ? unquoted : null;
 }
 
-export function collectDroppedVideoPaths(dataTransfer: DropDataTransferLike | null | undefined): string[] {
+export function collectDroppedVideoPaths(
+  dataTransfer: DropDataTransferLike | null | undefined,
+): string[] {
   if (!dataTransfer) return [];
 
   const out: string[] = [];

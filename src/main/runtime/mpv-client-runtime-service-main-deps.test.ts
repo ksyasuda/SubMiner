@@ -7,7 +7,10 @@ test('mpv runtime service main deps builder maps state and callbacks', () => {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   class FakeClient {
-    constructor(public socketPath: string, public options: unknown) {}
+    constructor(
+      public socketPath: string,
+      public options: unknown,
+    ) {}
   }
 
   const build = createBuildMpvClientRuntimeServiceFactoryDepsHandler({
@@ -16,7 +19,6 @@ test('mpv runtime service main deps builder maps state and callbacks', () => {
     getResolvedConfig: () => ({ mode: 'test' }),
     isAutoStartOverlayEnabled: () => true,
     setOverlayVisible: (visible) => calls.push(`overlay:${visible}`),
-    shouldBindVisibleOverlayToMpvSubVisibility: () => true,
     isVisibleOverlayVisible: () => false,
     getReconnectTimer: () => reconnectTimer,
     setReconnectTimer: (timer) => {
@@ -29,7 +31,6 @@ test('mpv runtime service main deps builder maps state and callbacks', () => {
   const deps = build();
   assert.equal(deps.socketPath, '/tmp/mpv.sock');
   assert.equal(deps.options.autoStartOverlay, true);
-  assert.equal(deps.options.shouldBindVisibleOverlayToMpvSubVisibility(), true);
   assert.equal(deps.options.isVisibleOverlayVisible(), false);
   assert.deepEqual(deps.options.getResolvedConfig(), { mode: 'test' });
 

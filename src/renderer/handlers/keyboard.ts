@@ -1,5 +1,6 @@
 import type { Keybinding } from '../../types';
 import type { RendererContext } from '../context';
+import { hasYomitanPopupIframe, isYomitanPopupIframe } from '../yomitan-popup.js';
 
 export function createKeyboardHandlers(
   ctx: RendererContext,
@@ -14,11 +15,6 @@ export function createKeyboardHandlers(
       fallbackUsed: boolean;
       fallbackUnavailable: boolean;
     }) => void;
-    saveInvisiblePositionEdit: () => void;
-    cancelInvisiblePositionEdit: () => void;
-    setInvisiblePositionEditMode: (enabled: boolean) => void;
-    applyInvisibleSubtitleOffsetPosition: () => void;
-    updateInvisiblePositionEditHud: () => void;
     appendClipboardVideoToQueue: () => void;
   },
 ) {
@@ -32,9 +28,6 @@ export function createKeyboardHandlers(
     ['KeyS', { type: 'mpv', command: ['script-message', 'subminer-start'] }],
     ['Shift+KeyS', { type: 'mpv', command: ['script-message', 'subminer-stop'] }],
     ['KeyT', { type: 'mpv', command: ['script-message', 'subminer-toggle'] }],
-    ['KeyI', { type: 'mpv', command: ['script-message', 'subminer-toggle-invisible'] }],
-    ['Shift+KeyI', { type: 'mpv', command: ['script-message', 'subminer-show-invisible'] }],
-    ['KeyU', { type: 'mpv', command: ['script-message', 'subminer-hide-invisible'] }],
     ['KeyO', { type: 'mpv', command: ['script-message', 'subminer-options'] }],
     ['KeyR', { type: 'mpv', command: ['script-message', 'subminer-restart'] }],
     ['KeyC', { type: 'mpv', command: ['script-message', 'subminer-status'] }],
@@ -46,10 +39,9 @@ export function createKeyboardHandlers(
     if (!(target instanceof Element)) return false;
     if (target.closest('.modal')) return true;
     if (ctx.dom.subtitleContainer.contains(target)) return true;
-    if (target.tagName === 'IFRAME' && target.id?.startsWith('yomitan-popup')) {
+    if (isYomitanPopupIframe(target)) return true;
+    if (target.closest && target.closest('iframe.yomitan-popup, iframe[id^="yomitan-popup"]'))
       return true;
-    }
-    if (target.closest && target.closest('iframe[id^="yomitan-popup"]')) return true;
     return false;
   }
 
@@ -61,15 +53,6 @@ export function createKeyboardHandlers(
     if (e.metaKey) parts.push('Meta');
     parts.push(e.code);
     return parts.join('+');
-  }
-
-  function isInvisiblePositionToggleShortcut(e: KeyboardEvent): boolean {
-    return (
-      e.code === ctx.platform.invisiblePositionEditToggleCode &&
-      !e.altKey &&
-      e.shiftKey &&
-      (e.ctrlKey || e.metaKey)
-    );
   }
 
   function resolveSessionHelpChordBinding(): {
@@ -113,69 +96,6 @@ export function createKeyboardHandlers(
     });
   }
 
-  function handleInvisiblePositionEditKeydown(e: KeyboardEvent): boolean {
-    if (!ctx.platform.isInvisibleLayer) return false;
-
-    if (isInvisiblePositionToggleShortcut(e)) {
-      e.preventDefault();
-      if (ctx.state.invisiblePositionEditMode) {
-        options.cancelInvisiblePositionEdit();
-      } else {
-        options.setInvisiblePositionEditMode(true);
-      }
-      return true;
-    }
-
-    if (!ctx.state.invisiblePositionEditMode) return false;
-
-    const step = e.shiftKey
-      ? ctx.platform.invisiblePositionStepFastPx
-      : ctx.platform.invisiblePositionStepPx;
-
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      options.cancelInvisiblePositionEdit();
-      return true;
-    }
-
-    if (e.key === 'Enter' || ((e.ctrlKey || e.metaKey) && e.code === 'KeyS')) {
-      e.preventDefault();
-      options.saveInvisiblePositionEdit();
-      return true;
-    }
-
-    if (
-      e.key === 'ArrowUp' ||
-      e.key === 'ArrowDown' ||
-      e.key === 'ArrowLeft' ||
-      e.key === 'ArrowRight' ||
-      e.key === 'h' ||
-      e.key === 'j' ||
-      e.key === 'k' ||
-      e.key === 'l' ||
-      e.key === 'H' ||
-      e.key === 'J' ||
-      e.key === 'K' ||
-      e.key === 'L'
-    ) {
-      e.preventDefault();
-      if (e.key === 'ArrowUp' || e.key === 'k' || e.key === 'K') {
-        ctx.state.invisibleSubtitleOffsetYPx += step;
-      } else if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 'J') {
-        ctx.state.invisibleSubtitleOffsetYPx -= step;
-      } else if (e.key === 'ArrowLeft' || e.key === 'h' || e.key === 'H') {
-        ctx.state.invisibleSubtitleOffsetXPx -= step;
-      } else if (e.key === 'ArrowRight' || e.key === 'l' || e.key === 'L') {
-        ctx.state.invisibleSubtitleOffsetXPx += step;
-      }
-      options.applyInvisibleSubtitleOffsetPosition();
-      options.updateInvisiblePositionEditHud();
-      return true;
-    }
-
-    return true;
-  }
-
   function resetChord(): void {
     ctx.state.chordPending = false;
     if (ctx.state.chordTimeout !== null) {
@@ -188,9 +108,7 @@ export function createKeyboardHandlers(
     updateKeybindings(await window.electronAPI.getKeybindings());
 
     document.addEventListener('keydown', (e: KeyboardEvent) => {
-      const yomitanPopup = document.querySelector('iframe[id^="yomitan-popup"]');
-      if (yomitanPopup) return;
-      if (handleInvisiblePositionEditKeydown(e)) return;
+      if (hasYomitanPopupIframe(document)) return;
 
       if (ctx.state.runtimeOptionsModalOpen) {
         options.handleRuntimeOptionsKeydown(e);
@@ -252,13 +170,7 @@ export function createKeyboardHandlers(
         return;
       }
 
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        !e.altKey &&
-        !e.shiftKey &&
-        e.code === 'KeyA' &&
-        !e.repeat
-      ) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyA' && !e.repeat) {
         e.preventDefault();
         options.appendClipboardVideoToQueue();
         return;

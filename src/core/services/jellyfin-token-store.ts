@@ -62,7 +62,8 @@ export function createJellyfinTokenStore(
           }
           const decrypted = safeStorage.decryptString(encrypted).trim();
           const session = JSON.parse(decrypted) as Partial<JellyfinStoredSession>;
-          const accessToken = typeof session.accessToken === 'string' ? session.accessToken.trim() : '';
+          const accessToken =
+            typeof session.accessToken === 'string' ? session.accessToken.trim() : '';
           const userId = typeof session.userId === 'string' ? session.userId.trim() : '';
           if (!accessToken || !userId) return null;
           return { accessToken, userId };
@@ -88,7 +89,9 @@ export function createJellyfinTokenStore(
           (typeof parsed.encryptedToken === 'string' && parsed.encryptedToken.length > 0) ||
           (typeof parsed.plaintextToken === 'string' && parsed.plaintextToken.trim().length > 0)
         ) {
-          logger.warn('Ignoring legacy Jellyfin token-only store payload because userId is missing.');
+          logger.warn(
+            'Ignoring legacy Jellyfin token-only store payload because userId is missing.',
+          );
         }
       } catch (error) {
         logger.error('Failed to read Jellyfin session store.', error);

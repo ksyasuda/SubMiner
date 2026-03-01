@@ -17,26 +17,16 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
   };
   overlayManager: {
     getVisibleOverlayVisible: () => boolean;
-    getInvisibleOverlayVisible: () => boolean;
   };
   overlayVisibilityRuntime: {
     updateVisibleOverlayVisibility: () => void;
-    updateInvisibleOverlayVisibility: () => void;
   };
   overlayShortcutsRuntime: {
     syncOverlayShortcuts: () => void;
   };
-  getInitialInvisibleOverlayVisibility: () => boolean;
   createMainWindow: () => void;
-  createInvisibleWindow: () => void;
   registerGlobalShortcuts: () => void;
   updateVisibleOverlayBounds: (geometry: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }) => void;
-  updateInvisibleOverlayBounds: (geometry: {
     x: number;
     y: number;
     width: number;
@@ -50,9 +40,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
 }) {
   return (): OverlayRuntimeOptionsMainDeps => ({
     getBackendOverride: () => deps.appState.backendOverride,
-    getInitialInvisibleOverlayVisibility: () => deps.getInitialInvisibleOverlayVisibility(),
     createMainWindow: () => deps.createMainWindow(),
-    createInvisibleWindow: () => deps.createInvisibleWindow(),
     registerGlobalShortcuts: () => deps.registerGlobalShortcuts(),
     updateVisibleOverlayBounds: (geometry: {
       x: number;
@@ -60,18 +48,9 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
       width: number;
       height: number;
     }) => deps.updateVisibleOverlayBounds(geometry),
-    updateInvisibleOverlayBounds: (geometry: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-    }) => deps.updateInvisibleOverlayBounds(geometry),
     isVisibleOverlayVisible: () => deps.overlayManager.getVisibleOverlayVisible(),
-    isInvisibleOverlayVisible: () => deps.overlayManager.getInvisibleOverlayVisible(),
     updateVisibleOverlayVisibility: () =>
       deps.overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
-    updateInvisibleOverlayVisibility: () =>
-      deps.overlayVisibilityRuntime.updateInvisibleOverlayVisibility(),
     getOverlayWindows: () => deps.getOverlayWindows(),
     syncOverlayShortcuts: () => deps.overlayShortcutsRuntime.syncOverlayShortcuts(),
     setWindowTracker: (tracker) => {

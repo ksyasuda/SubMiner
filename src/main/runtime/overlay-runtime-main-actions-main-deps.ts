@@ -14,11 +14,15 @@ type RestorePreviousSecondarySubVisibilityMainDeps = Parameters<
 type BroadcastRuntimeOptionsChangedMainDeps = Parameters<
   typeof createBroadcastRuntimeOptionsChangedHandler
 >[0];
-type SendToActiveOverlayWindowMainDeps = Parameters<typeof createSendToActiveOverlayWindowHandler>[0];
+type SendToActiveOverlayWindowMainDeps = Parameters<
+  typeof createSendToActiveOverlayWindowHandler
+>[0];
 type SetOverlayDebugVisualizationEnabledMainDeps = Parameters<
   typeof createSetOverlayDebugVisualizationEnabledHandler
 >[0];
-type OpenRuntimeOptionsPaletteMainDeps = Parameters<typeof createOpenRuntimeOptionsPaletteHandler>[0];
+type OpenRuntimeOptionsPaletteMainDeps = Parameters<
+  typeof createOpenRuntimeOptionsPaletteHandler
+>[0];
 
 export function createBuildGetRuntimeOptionsStateMainDepsHandler(
   deps: GetRuntimeOptionsStateMainDeps,
@@ -61,22 +65,14 @@ export function createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler(
   deps: SetOverlayDebugVisualizationEnabledMainDeps,
 ) {
   return (): SetOverlayDebugVisualizationEnabledMainDeps => ({
-    setOverlayDebugVisualizationEnabledRuntime: (
-      currentEnabled,
-      nextEnabled,
-      setCurrentEnabled,
-      broadcastToOverlayWindows,
-    ) =>
+    setOverlayDebugVisualizationEnabledRuntime: (currentEnabled, nextEnabled, setCurrentEnabled) =>
       deps.setOverlayDebugVisualizationEnabledRuntime(
         currentEnabled,
         nextEnabled,
         setCurrentEnabled,
-        broadcastToOverlayWindows,
       ),
     getCurrentEnabled: () => deps.getCurrentEnabled(),
     setCurrentEnabled: (enabled: boolean) => deps.setCurrentEnabled(enabled),
-    broadcastToOverlayWindows: (channel: string, ...args: unknown[]) =>
-      deps.broadcastToOverlayWindows(channel, ...args),
   });
 }
 

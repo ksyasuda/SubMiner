@@ -109,7 +109,9 @@ export function parseJellyfinSetupSubmissionUrl(rawUrl: string): {
 }
 
 export function createHandleJellyfinSetupSubmissionHandler(deps: {
-  parseSubmissionUrl: (rawUrl: string) => { server: string; username: string; password: string } | null;
+  parseSubmissionUrl: (
+    rawUrl: string,
+  ) => { server: string; username: string; password: string } | null;
   authenticateWithPassword: (
     server: string,
     username: string,
@@ -179,20 +181,22 @@ export function createHandleJellyfinSetupWindowClosedHandler(deps: {
   };
 }
 
-export function createHandleJellyfinSetupWindowOpenedHandler(deps: {
-  setSetupWindow: () => void;
-}) {
+export function createHandleJellyfinSetupWindowOpenedHandler(deps: { setSetupWindow: () => void }) {
   return (): void => {
     deps.setSetupWindow();
   };
 }
 
-export function createOpenJellyfinSetupWindowHandler<TWindow extends JellyfinSetupWindowLike>(deps: {
+export function createOpenJellyfinSetupWindowHandler<
+  TWindow extends JellyfinSetupWindowLike,
+>(deps: {
   maybeFocusExistingSetupWindow: () => boolean;
   createSetupWindow: () => TWindow;
   getResolvedJellyfinConfig: () => { serverUrl?: string | null; username?: string | null };
   buildSetupFormHtml: (defaultServer: string, defaultUser: string) => string;
-  parseSubmissionUrl: (rawUrl: string) => { server: string; username: string; password: string } | null;
+  parseSubmissionUrl: (
+    rawUrl: string,
+  ) => { server: string; username: string; password: string } | null;
   authenticateWithPassword: (
     server: string,
     username: string,
@@ -258,9 +262,7 @@ export function createOpenJellyfinSetupWindowHandler<TWindow extends JellyfinSet
         },
       });
     });
-    void setupWindow.loadURL(
-      `data:text/html;charset=utf-8,${deps.encodeURIComponent(formHtml)}`,
-    );
+    void setupWindow.loadURL(`data:text/html;charset=utf-8,${deps.encodeURIComponent(formHtml)}`);
     setupWindow.on('closed', () => {
       handleWindowClosed();
     });

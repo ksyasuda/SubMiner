@@ -1,5 +1,6 @@
 import type { ConfigValidationWarning } from '../../types';
 import {
+  buildConfigWarningDialogDetails,
   buildConfigParseErrorDetails,
   buildConfigWarningNotificationBody,
   buildConfigWarningSummary,
@@ -60,6 +61,12 @@ export function createReloadConfigHandler(deps: ReloadConfigRuntimeDeps): () => 
       deps.showDesktopNotification('SubMiner', {
         body: buildConfigWarningNotificationBody(result.path, result.warnings),
       });
+      if (process.platform === 'darwin') {
+        deps.failHandlers.showErrorBox(
+          'SubMiner config validation warning',
+          buildConfigWarningDialogDetails(result.path, result.warnings),
+        );
+      }
     }
 
     deps.startConfigHotReload();

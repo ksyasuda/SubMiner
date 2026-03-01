@@ -10,14 +10,11 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
-    toggleInvisibleOverlay: false,
     settings: false,
     show: false,
     hide: false,
     showVisibleOverlay: false,
     hideVisibleOverlay: false,
-    showInvisibleOverlay: false,
-    hideInvisibleOverlay: false,
     copySubtitle: false,
     copySubtitleMultiple: false,
     mineSentence: false,
@@ -94,17 +91,11 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     toggleVisibleOverlay: () => {
       calls.push('toggleVisibleOverlay');
     },
-    toggleInvisibleOverlay: () => {
-      calls.push('toggleInvisibleOverlay');
-    },
     openYomitanSettingsDelayed: (delayMs) => {
       calls.push(`openYomitanSettingsDelayed:${delayMs}`);
     },
     setVisibleOverlayVisible: (visible) => {
       calls.push(`setVisibleOverlayVisible:${visible}`);
-    },
-    setInvisibleOverlayVisible: (visible) => {
-      calls.push(`setInvisibleOverlayVisible:${visible}`);
     },
     copyCurrentSubtitle: () => {
       calls.push('copyCurrentSubtitle');
@@ -229,6 +220,18 @@ test('handleCliCommand processes --start for second-instance when overlay runtim
   );
 });
 
+test('handleCliCommand applies cli log level for second-instance commands', () => {
+  const { deps, calls } = createDeps({
+    setLogLevel: (level) => {
+      calls.push(`setLogLevel:${level}`);
+    },
+  });
+
+  handleCliCommand(makeArgs({ start: true, logLevel: 'debug' }), 'second-instance', deps);
+
+  assert.ok(calls.includes('setLogLevel:debug'));
+});
+
 test('handleCliCommand runs texthooker flow with browser open', () => {
   const { deps, calls } = createDeps();
   const args = makeArgs({ texthooker: true });
@@ -339,10 +342,6 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
     args: Partial<CliArgs>;
     expected: string;
   }> = [
-    {
-      args: { toggleInvisibleOverlay: true },
-      expected: 'toggleInvisibleOverlay',
-    },
     { args: { settings: true }, expected: 'openYomitanSettingsDelayed:1000' },
     {
       args: { showVisibleOverlay: true },
@@ -351,14 +350,6 @@ test('handleCliCommand handles visibility and utility command dispatches', () =>
     {
       args: { hideVisibleOverlay: true },
       expected: 'setVisibleOverlayVisible:false',
-    },
-    {
-      args: { showInvisibleOverlay: true },
-      expected: 'setInvisibleOverlayVisible:true',
-    },
-    {
-      args: { hideInvisibleOverlay: true },
-      expected: 'setInvisibleOverlayVisible:false',
     },
     { args: { copySubtitle: true }, expected: 'copyCurrentSubtitle' },
     {

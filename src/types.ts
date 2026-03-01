@@ -71,8 +71,6 @@ export interface WindowGeometry {
 
 export interface SubtitlePosition {
   yPercent: number;
-  invisibleOffsetXPx?: number;
-  invisibleOffsetYPx?: number;
 }
 
 export interface SubtitleStyle {
@@ -99,6 +97,14 @@ export interface SubsyncConfig {
   alass_path?: string;
   ffsubsync_path?: string;
   ffmpeg_path?: string;
+}
+
+export interface StartupWarmupsConfig {
+  lowPowerMode?: boolean;
+  mecab?: boolean;
+  yomitanExtension?: boolean;
+  subtitleDictionaries?: boolean;
+  jellyfinRemoteSession?: boolean;
 }
 
 export interface WebSocketConfig {
@@ -161,16 +167,20 @@ export interface KikuMergePreviewResponse {
 
 export type RuntimeOptionId =
   | 'anki.autoUpdateNewCards'
+  | 'subtitle.annotation.nPlusOne'
+  | 'subtitle.annotation.jlpt'
+  | 'subtitle.annotation.frequency'
   | 'anki.kikuFieldGrouping'
   | 'anki.nPlusOneMatchMode';
 
-export type RuntimeOptionScope = 'ankiConnect';
+export type RuntimeOptionScope = 'ankiConnect' | 'subtitle';
 
 export type RuntimeOptionValueType = 'boolean' | 'enum';
 
 export type RuntimeOptionValue = boolean | string;
 
 export type NPlusOneMatchMode = 'headword' | 'surface';
+export type FrequencyDictionaryMatchMode = 'headword' | 'surface';
 
 export interface RuntimeOptionState {
   id: RuntimeOptionId;
@@ -194,6 +204,12 @@ export interface AnkiConnectConfig {
   enabled?: boolean;
   url?: string;
   pollingRate?: number;
+  proxy?: {
+    enabled?: boolean;
+    host?: string;
+    port?: number;
+    upstreamUrl?: string;
+  };
   tags?: string[];
   fields?: {
     audio?: string;
@@ -271,12 +287,21 @@ export interface AnkiConnectConfig {
 export interface SubtitleStyleConfig {
   enableJlpt?: boolean;
   preserveLineBreaks?: boolean;
+  autoPauseVideoOnHover?: boolean;
   hoverTokenColor?: string;
+  hoverTokenBackgroundColor?: string;
   fontFamily?: string;
   fontSize?: number;
   fontColor?: string;
-  fontWeight?: string;
+  fontWeight?: string | number;
   fontStyle?: string;
+  lineHeight?: string | number;
+  letterSpacing?: string;
+  wordSpacing?: string | number;
+  fontKerning?: string;
+  textRendering?: string;
+  textShadow?: string;
+  backdropFilter?: string;
   backgroundColor?: string;
   nPlusOneColor?: string;
   knownWordColor?: string;
@@ -292,6 +317,7 @@ export interface SubtitleStyleConfig {
     sourcePath?: string;
     topX?: number;
     mode?: FrequencyDictionaryMode;
+    matchMode?: FrequencyDictionaryMatchMode;
     singleColor?: string;
     bandedColors?: [string, string, string, string, string];
   };
@@ -299,17 +325,47 @@ export interface SubtitleStyleConfig {
     fontFamily?: string;
     fontSize?: number;
     fontColor?: string;
-    fontWeight?: string;
+    fontWeight?: string | number;
     fontStyle?: string;
+    lineHeight?: string | number;
+    letterSpacing?: string;
+    wordSpacing?: string | number;
+    fontKerning?: string;
+    textRendering?: string;
+    textShadow?: string;
+    backdropFilter?: string;
     backgroundColor?: string;
   };
+}
+
+export interface TokenPos1ExclusionConfig {
+  defaults?: string[];
+  add?: string[];
+  remove?: string[];
+}
+
+export interface ResolvedTokenPos1ExclusionConfig {
+  defaults: string[];
+  add: string[];
+  remove: string[];
+}
+
+export interface TokenPos2ExclusionConfig {
+  defaults?: string[];
+  add?: string[];
+  remove?: string[];
+}
+
+export interface ResolvedTokenPos2ExclusionConfig {
+  defaults: string[];
+  add: string[];
+  remove: string[];
 }
 
 export type FrequencyDictionaryMode = 'single' | 'banded';
 
 export interface ShortcutsConfig {
   toggleVisibleOverlayGlobal?: string | null;
-  toggleInvisibleOverlayGlobal?: string | null;
   copySubtitle?: string | null;
   copySubtitleMultiple?: string | null;
   updateLastCardFromClipboard?: string | null;
@@ -364,10 +420,6 @@ export interface DiscordPresenceConfig {
   debounceMs?: number;
 }
 
-export interface InvisibleOverlayConfig {
-  startupVisibility?: 'platform-default' | 'visible' | 'hidden';
-}
-
 export type YoutubeSubgenMode = 'automatic' | 'preprocess' | 'off';
 
 export interface YoutubeSubgenConfig {
@@ -403,14 +455,13 @@ export interface Config {
   shortcuts?: ShortcutsConfig;
   secondarySub?: SecondarySubConfig;
   subsync?: SubsyncConfig;
+  startupWarmups?: StartupWarmupsConfig;
   subtitleStyle?: SubtitleStyleConfig;
   auto_start_overlay?: boolean;
-  bind_visible_overlay_to_mpv_sub_visibility?: boolean;
   jimaku?: JimakuConfig;
   anilist?: AnilistConfig;
   jellyfin?: JellyfinConfig;
   discordPresence?: DiscordPresenceConfig;
-  invisibleOverlay?: InvisibleOverlayConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
   logging?: {
@@ -429,6 +480,12 @@ export interface ResolvedConfig {
     enabled: boolean;
     url: string;
     pollingRate: number;
+    proxy: {
+      enabled: boolean;
+      host: string;
+      port: number;
+      upstreamUrl: string;
+    };
     tags: string[];
     fields: {
       audio: string;
@@ -495,6 +552,13 @@ export interface ResolvedConfig {
   shortcuts: Required<ShortcutsConfig>;
   secondarySub: Required<SecondarySubConfig>;
   subsync: Required<SubsyncConfig>;
+  startupWarmups: {
+    lowPowerMode: boolean;
+    mecab: boolean;
+    yomitanExtension: boolean;
+    subtitleDictionaries: boolean;
+    jellyfinRemoteSession: boolean;
+  };
   subtitleStyle: Required<Omit<SubtitleStyleConfig, 'secondary' | 'frequencyDictionary'>> & {
     secondary: Required<NonNullable<SubtitleStyleConfig['secondary']>>;
     frequencyDictionary: {
@@ -502,12 +566,12 @@ export interface ResolvedConfig {
       sourcePath: string;
       topX: number;
       mode: FrequencyDictionaryMode;
+      matchMode: FrequencyDictionaryMatchMode;
       singleColor: string;
       bandedColors: [string, string, string, string, string];
     };
   };
   auto_start_overlay: boolean;
-  bind_visible_overlay_to_mpv_sub_visibility: boolean;
   jimaku: JimakuConfig & {
     apiBaseUrl: string;
     languagePreference: JimakuLanguagePreference;
@@ -540,7 +604,6 @@ export interface ResolvedConfig {
     updateIntervalMs: number;
     debounceMs: number;
   };
-  invisibleOverlay: Required<InvisibleOverlayConfig>;
   youtubeSubgen: YoutubeSubgenConfig & {
     mode: YoutubeSubgenMode;
     whisperBin: string;
@@ -630,7 +693,7 @@ export interface MpvSubtitleRenderMetrics {
   } | null;
 }
 
-export type OverlayLayer = 'visible' | 'invisible';
+export type OverlayLayer = 'visible';
 
 export interface OverlayContentRect {
   x: number;
@@ -728,7 +791,7 @@ export interface SubtitleHoverTokenPayload {
 }
 
 export interface ElectronAPI {
-  getOverlayLayer: () => 'visible' | 'invisible' | 'secondary' | 'modal' | null;
+  getOverlayLayer: () => 'visible' | 'modal' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
   onVisibility: (callback: (visible: boolean) => void) => void;
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;
@@ -736,10 +799,8 @@ export interface ElectronAPI {
   getCurrentSubtitle: () => Promise<SubtitleData>;
   getCurrentSubtitleRaw: () => Promise<string>;
   getCurrentSubtitleAss: () => Promise<string>;
-  getMpvSubtitleRenderMetrics: () => Promise<MpvSubtitleRenderMetrics>;
-  onMpvSubtitleRenderMetrics: (callback: (metrics: MpvSubtitleRenderMetrics) => void) => void;
+  getPlaybackPaused: () => Promise<boolean | null>;
   onSubtitleAss: (callback: (assText: string) => void) => void;
-  onOverlayDebugVisualization: (callback: (enabled: boolean) => void) => void;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   openYomitanSettings: () => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
@@ -781,8 +842,8 @@ export interface ElectronAPI {
   onOpenJimaku: (callback: () => void) => void;
   appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
   notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => void;
+  notifyOverlayModalOpened: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
-  reportHoveredSubtitleToken: (tokenIndex: number | null) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;
 }
 

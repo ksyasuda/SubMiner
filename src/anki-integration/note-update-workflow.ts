@@ -91,10 +91,14 @@ export class NoteUpdateWorkflow {
       this.deps.appendKnownWordsFromNoteInfo(noteInfo);
       const fields = this.deps.extractFields(noteInfo.fields);
 
-      const expressionText = fields.expression || fields.word || '';
-      if (!expressionText) {
-        this.deps.logWarn('No expression/word field found in card:', noteId);
-        return;
+      const expressionText = (fields.expression || fields.word || '').trim();
+      const hasExpressionText = expressionText.length > 0;
+      if (!hasExpressionText) {
+        // Some note types omit Expression/Word; still run enrichment updates and skip duplicate checks.
+        this.deps.logWarn(
+          'No expression/word field found in card; skipping duplicate checks but continuing update:',
+          noteId,
+        );
       }
 
       const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
@@ -103,7 +107,7 @@ export class NoteUpdateWorkflow {
         sentenceCardConfig.kikuEnabled &&
         sentenceCardConfig.kikuFieldGrouping !== 'disabled';
       let duplicateNoteId: number | null = null;
-      if (shouldRunFieldGrouping) {
+      if (shouldRunFieldGrouping && hasExpressionText) {
         duplicateNoteId = await this.deps.findDuplicateNote(expressionText, noteId, noteInfo);
       }
 
@@ -195,11 +199,11 @@ export class NoteUpdateWorkflow {
       if (updatePerformed) {
         await this.deps.client.updateNoteFields(noteId, updatedFields);
         await this.deps.addConfiguredTagsToNote(noteId);
-        this.deps.logInfo('Updated card fields for:', expressionText);
-        await this.deps.showNotification(noteId, expressionText);
+        this.deps.logInfo('Updated card fields for:', hasExpressionText ? expressionText : noteId);
+        await this.deps.showNotification(noteId, hasExpressionText ? expressionText : noteId);
       }
 
-      if (shouldRunFieldGrouping && duplicateNoteId !== null) {
+      if (shouldRunFieldGrouping && hasExpressionText && duplicateNoteId !== null) {
         let noteInfoForGrouping = noteInfo;
         if (updatePerformed) {
           const refreshedInfoResult = await this.deps.client.notesInfo([noteId]);

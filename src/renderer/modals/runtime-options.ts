@@ -1,6 +1,20 @@
 import type { RuntimeOptionApplyResult, RuntimeOptionState, RuntimeOptionValue } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
 
+type RuntimeOptionsListLike = Pick<HTMLUListElement, 'querySelector'>;
+
+export function scrollActiveRuntimeOptionIntoView(list: RuntimeOptionsListLike): void {
+  const active = list.querySelector('.runtime-options-item.active');
+  if (!active) return;
+
+  const maybeScrollable = active as unknown as {
+    scrollIntoView?: (options?: ScrollIntoViewOptions) => void;
+  };
+  if (typeof maybeScrollable.scrollIntoView !== 'function') return;
+
+  maybeScrollable.scrollIntoView({ block: 'nearest' });
+}
+
 export function createRuntimeOptionsModal(
   ctx: RendererContext,
   options: {
@@ -82,6 +96,8 @@ export function createRuntimeOptionsModal(
 
       ctx.dom.runtimeOptionsList.appendChild(li);
     });
+
+    scrollActiveRuntimeOptionIntoView(ctx.dom.runtimeOptionsList);
   }
 
   function updateRuntimeOptions(optionsList: RuntimeOptionState[]): void {
@@ -162,8 +178,6 @@ export function createRuntimeOptionsModal(
   }
 
   async function openRuntimeOptionsModal(): Promise<void> {
-    if (ctx.platform.isInvisibleLayer) return;
-
     const optionsList = await window.electronAPI.getRuntimeOptions();
     updateRuntimeOptions(optionsList);
 

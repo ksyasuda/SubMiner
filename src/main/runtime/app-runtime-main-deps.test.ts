@@ -50,26 +50,18 @@ test('initialize overlay runtime main deps map build options and callbacks', () 
     isOverlayRuntimeInitialized: () => false,
     initializeOverlayRuntimeCore: (value) => {
       calls.push(`core:${JSON.stringify(value)}`);
-      return { invisibleOverlayVisible: true };
     },
     buildOptions: () => options,
-    setInvisibleOverlayVisible: (visible) => calls.push(`set-invisible:${visible}`),
     setOverlayRuntimeInitialized: (initialized) => calls.push(`set-initialized:${initialized}`),
     startBackgroundWarmups: () => calls.push('warmups'),
   })();
 
   assert.equal(deps.isOverlayRuntimeInitialized(), false);
   assert.equal(deps.buildOptions(), options);
-  assert.deepEqual(deps.initializeOverlayRuntimeCore(options), { invisibleOverlayVisible: true });
-  deps.setInvisibleOverlayVisible(true);
+  assert.equal(deps.initializeOverlayRuntimeCore(options), undefined);
   deps.setOverlayRuntimeInitialized(true);
   deps.startBackgroundWarmups();
-  assert.deepEqual(calls, [
-    'core:{"id":"opts"}',
-    'set-invisible:true',
-    'set-initialized:true',
-    'warmups',
-  ]);
+  assert.deepEqual(calls, ['core:{"id":"opts"}', 'set-initialized:true', 'warmups']);
 });
 
 test('open yomitan settings main deps map async open callbacks', async () => {
@@ -78,7 +70,8 @@ test('open yomitan settings main deps map async open callbacks', async () => {
   const extension = { id: 'ext' };
   const deps = createBuildOpenYomitanSettingsMainDepsHandler({
     ensureYomitanExtensionLoaded: async () => extension,
-    openYomitanSettingsWindow: ({ yomitanExt }) => calls.push(`open:${(yomitanExt as { id: string }).id}`),
+    openYomitanSettingsWindow: ({ yomitanExt }) =>
+      calls.push(`open:${(yomitanExt as { id: string }).id}`),
     getExistingWindow: () => currentWindow,
     setWindow: (window) => {
       currentWindow = window;

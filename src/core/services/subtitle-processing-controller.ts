@@ -10,17 +10,41 @@ export interface SubtitleProcessingControllerDeps {
 export interface SubtitleProcessingController {
   onSubtitleChange: (text: string) => void;
   refreshCurrentSubtitle: (textOverride?: string) => void;
+  invalidateTokenizationCache: () => void;
 }
 
 export function createSubtitleProcessingController(
   deps: SubtitleProcessingControllerDeps,
 ): SubtitleProcessingController {
+  const SUBTITLE_TOKENIZATION_CACHE_LIMIT = 256;
   let latestText = '';
   let lastEmittedText = '';
   let processing = false;
   let staleDropCount = 0;
   let refreshRequested = false;
+  const tokenizationCache = new Map<string, SubtitleData>();
   const now = deps.now ?? (() => Date.now());
+
+  const getCachedTokenization = (text: string): SubtitleData | null => {
+    const cached = tokenizationCache.get(text);
+    if (!cached) {
+      return null;
+    }
+
+    tokenizationCache.delete(text);
+    tokenizationCache.set(text, cached);
+    return cached;
+  };
+
+  const setCachedTokenization = (text: string, payload: SubtitleData): void => {
+    tokenizationCache.set(text, payload);
+    while (tokenizationCache.size > SUBTITLE_TOKENIZATION_CACHE_LIMIT) {
+      const firstKey = tokenizationCache.keys().next().value;
+      if (firstKey !== undefined) {
+        tokenizationCache.delete(firstKey);
+      }
+    }
+  };
 
   const processLatest = (): void => {
     if (processing) {
@@ -44,9 +68,15 @@ export function createSubtitleProcessingController(
 
         let output: SubtitleData = { text, tokens: null };
         try {
-          const tokenized = await deps.tokenizeSubtitle(text);
-          if (tokenized) {
-            output = tokenized;
+          const cachedTokenized = forceRefresh ? null : getCachedTokenization(text);
+          if (cachedTokenized) {
+            output = cachedTokenized;
+          } else {
+            const tokenized = await deps.tokenizeSubtitle(text);
+            if (tokenized) {
+              output = tokenized;
+            }
+            setCachedTokenization(text, output);
           }
         } catch (error) {
           deps.logDebug?.(`Subtitle tokenization failed: ${(error as Error).message}`);
@@ -96,6 +126,9 @@ export function createSubtitleProcessingController(
       }
       refreshRequested = true;
       processLatest();
+    },
+    invalidateTokenizationCache: () => {
+      tokenizationCache.clear();
     },
   };
 }

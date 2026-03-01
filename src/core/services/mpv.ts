@@ -44,6 +44,7 @@ export interface MpvRuntimeClientLike {
   replayCurrentSubtitle?: () => void;
   playNextSubtitle?: () => void;
   setSubVisibility?: (visible: boolean) => void;
+  setSecondarySubVisibility?: (visible: boolean) => void;
 }
 
 export function showMpvOsdRuntime(
@@ -84,13 +85,20 @@ export function setMpvSubVisibilityRuntime(
   mpvClient.setSubVisibility(visible);
 }
 
+export function setMpvSecondarySubVisibilityRuntime(
+  mpvClient: MpvRuntimeClientLike | null,
+  visible: boolean,
+): void {
+  if (!mpvClient?.setSecondarySubVisibility) return;
+  mpvClient.setSecondarySubVisibility(visible);
+}
+
 export { MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY } from './mpv-protocol';
 
 export interface MpvIpcClientProtocolDeps {
   getResolvedConfig: () => Config;
   autoStartOverlay: boolean;
   setOverlayVisible: (visible: boolean) => void;
-  shouldBindVisibleOverlayToMpvSubVisibility: () => boolean;
   isVisibleOverlayVisible: () => boolean;
   getReconnectTimer: () => ReturnType<typeof setTimeout> | null;
   setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => void;
@@ -181,8 +189,6 @@ export class MpvIpcClient implements MpvClient {
           setTimeout(() => {
             this.deps.setOverlayVisible(true);
           }, 100);
-        } else if (this.deps.shouldBindVisibleOverlayToMpvSubVisibility()) {
-          this.setSubVisibility(!this.deps.isVisibleOverlayVisible());
         }
 
         this.firstConnection = false;
@@ -464,8 +470,16 @@ export class MpvIpcClient implements MpvClient {
   }
 
   setSubVisibility(visible: boolean): void {
+    const value = visible ? 'yes' : 'no';
     this.send({
-      command: ['set_property', 'sub-visibility', visible ? 'yes' : 'no'],
+      command: ['set_property', 'sub-visibility', visible],
+    });
+    this.send({
+      command: ['set_property', 'sub-visibility', value],
+    });
+    // Compatibility write for mpv command aliases across setups.
+    this.send({
+      command: ['set', 'sub-visibility', value],
     });
   }
 
@@ -488,7 +502,7 @@ export class MpvIpcClient implements MpvClient {
     this.previousSecondarySubVisibility = null;
   }
 
-  private setSecondarySubVisibility(visible: boolean): void {
+  setSecondarySubVisibility(visible: boolean): void {
     this.send({
       command: ['set_property', 'secondary-sub-visibility', visible ? 'yes' : 'no'],
     });

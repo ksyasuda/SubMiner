@@ -1,13 +1,45 @@
 import { MergedToken } from '../../../types';
 
-function pickClosestMecabPos1(token: MergedToken, mecabTokens: MergedToken[]): string | undefined {
-  if (mecabTokens.length === 0) {
+type MecabPosMetadata = {
+  pos1: string;
+  pos2?: string;
+  pos3?: string;
+};
+
+function joinUniqueTags(values: Array<string | undefined>): string | undefined {
+  const unique: string[] = [];
+  for (const value of values) {
+    if (!value) {
+      continue;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      continue;
+    }
+    if (!unique.includes(trimmed)) {
+      unique.push(trimmed);
+    }
+  }
+  if (unique.length === 0) {
     return undefined;
+  }
+  if (unique.length === 1) {
+    return unique[0];
+  }
+  return unique.join('|');
+}
+
+function pickClosestMecabPosMetadata(
+  token: MergedToken,
+  mecabTokens: MergedToken[],
+): MecabPosMetadata | null {
+  if (mecabTokens.length === 0) {
+    return null;
   }
 
   const tokenStart = token.startPos ?? 0;
   const tokenEnd = token.endPos ?? tokenStart + token.surface.length;
-  let bestSurfaceMatchPos1: string | undefined;
+  let bestSurfaceMatchToken: MergedToken | null = null;
   let bestSurfaceMatchDistance = Number.MAX_SAFE_INTEGER;
   let bestSurfaceMatchEndDistance = Number.MAX_SAFE_INTEGER;
 
@@ -31,19 +63,24 @@ function pickClosestMecabPos1(token: MergedToken, mecabTokens: MergedToken[]): s
     ) {
       bestSurfaceMatchDistance = startDistance;
       bestSurfaceMatchEndDistance = endDistance;
-      bestSurfaceMatchPos1 = mecabToken.pos1;
+      bestSurfaceMatchToken = mecabToken;
     }
   }
 
-  if (bestSurfaceMatchPos1) {
-    return bestSurfaceMatchPos1;
+  if (bestSurfaceMatchToken) {
+    return {
+      pos1: bestSurfaceMatchToken.pos1 as string,
+      pos2: bestSurfaceMatchToken.pos2,
+      pos3: bestSurfaceMatchToken.pos3,
+    };
   }
 
-  let bestPos1: string | undefined;
+  let bestToken: MergedToken | null = null;
   let bestOverlap = 0;
   let bestSpan = 0;
   let bestStartDistance = Number.MAX_SAFE_INTEGER;
   let bestStart = Number.MAX_SAFE_INTEGER;
+  const overlappingTokens: MergedToken[] = [];
 
   for (const mecabToken of mecabTokens) {
     if (!mecabToken.pos1) {
@@ -58,6 +95,7 @@ function pickClosestMecabPos1(token: MergedToken, mecabTokens: MergedToken[]): s
     if (overlap === 0) {
       continue;
     }
+    overlappingTokens.push(mecabToken);
 
     const span = mecabEnd - mecabStart;
     if (
@@ -71,11 +109,23 @@ function pickClosestMecabPos1(token: MergedToken, mecabTokens: MergedToken[]): s
       bestSpan = span;
       bestStartDistance = Math.abs(mecabStart - tokenStart);
       bestStart = mecabStart;
-      bestPos1 = mecabToken.pos1;
+      bestToken = mecabToken;
     }
   }
 
-  return bestOverlap > 0 ? bestPos1 : undefined;
+  if (bestOverlap === 0 || !bestToken) {
+    return null;
+  }
+
+  const overlapPos1 = joinUniqueTags(overlappingTokens.map((token) => token.pos1));
+  const overlapPos2 = joinUniqueTags(overlappingTokens.map((token) => token.pos2));
+  const overlapPos3 = joinUniqueTags(overlappingTokens.map((token) => token.pos3));
+
+  return {
+    pos1: overlapPos1 ?? (bestToken.pos1 as string),
+    pos2: overlapPos2 ?? bestToken.pos2,
+    pos3: overlapPos3 ?? bestToken.pos3,
+  };
 }
 
 function fillMissingPos1BySurfaceSequence(
@@ -101,7 +151,7 @@ function fillMissingPos1BySurfaceSequence(
       return token;
     }
 
-    let best: { pos1: string; index: number } | null = null;
+    let best: { token: MergedToken; index: number } | null = null;
     for (const candidate of indexedMecabTokens) {
       if (candidate.token.surface !== surface) {
         continue;
@@ -109,7 +159,7 @@ function fillMissingPos1BySurfaceSequence(
       if (candidate.index < cursor) {
         continue;
       }
-      best = { pos1: candidate.token.pos1 as string, index: candidate.index };
+      best = { token: candidate.token, index: candidate.index };
       break;
     }
 
@@ -118,7 +168,7 @@ function fillMissingPos1BySurfaceSequence(
         if (candidate.token.surface !== surface) {
           continue;
         }
-        best = { pos1: candidate.token.pos1 as string, index: candidate.index };
+        best = { token: candidate.token, index: candidate.index };
         break;
       }
     }
@@ -130,7 +180,9 @@ function fillMissingPos1BySurfaceSequence(
     cursor = best.index + 1;
     return {
       ...token,
-      pos1: best.pos1,
+      pos1: best.token.pos1,
+      pos2: best.token.pos2,
+      pos3: best.token.pos3,
     };
   });
 }
@@ -152,14 +204,16 @@ export function enrichTokensWithMecabPos1(
       return token;
     }
 
-    const pos1 = pickClosestMecabPos1(token, mecabTokens);
-    if (!pos1) {
+    const metadata = pickClosestMecabPosMetadata(token, mecabTokens);
+    if (!metadata) {
       return token;
     }
 
     return {
       ...token,
-      pos1,
+      pos1: metadata.pos1,
+      pos2: metadata.pos2,
+      pos3: metadata.pos3,
     };
   });
 

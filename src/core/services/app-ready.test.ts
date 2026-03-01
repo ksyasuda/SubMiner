@@ -58,9 +58,61 @@ test('runAppReadyRuntime starts websocket in auto mode when plugin missing', asy
   await runAppReadyRuntime(deps);
   assert.ok(calls.includes('startSubtitleWebsocket:9001'));
   assert.ok(calls.includes('initializeOverlayRuntime'));
-  assert.ok(calls.includes('createImmersionTracker'));
   assert.ok(calls.includes('startBackgroundWarmups'));
-  assert.ok(calls.includes('log:Runtime ready: invoking createImmersionTracker.'));
+  assert.ok(
+    calls.includes(
+      'log:Runtime ready: immersion tracker startup deferred until first media activity.',
+    ),
+  );
+});
+
+test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns true', async () => {
+  const { deps, calls } = makeDeps({
+    shouldSkipHeavyStartup: () => true,
+    reloadConfig: () => calls.push('reloadConfig'),
+    getResolvedConfig: () => {
+      calls.push('getResolvedConfig');
+      return {
+        websocket: { enabled: 'auto' },
+        secondarySub: {},
+      };
+    },
+    getConfigWarnings: () => {
+      calls.push('getConfigWarnings');
+      return [];
+    },
+    setLogLevel: (level, source) => calls.push(`setLogLevel:${level}:${source}`),
+    initRuntimeOptionsManager: () => calls.push('initRuntimeOptionsManager'),
+    startBackgroundWarmups: () => calls.push('startBackgroundWarmups'),
+    loadSubtitlePosition: () => calls.push('loadSubtitlePosition'),
+    resolveKeybindings: () => calls.push('resolveKeybindings'),
+    createMpvClient: () => calls.push('createMpvClient'),
+    logConfigWarning: () => calls.push('logConfigWarning'),
+    startJellyfinRemoteSession: async () => {
+      calls.push('startJellyfinRemoteSession');
+    },
+    createImmersionTracker: () => calls.push('createImmersionTracker'),
+    handleInitialArgs: () => calls.push('handleInitialArgs'),
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assert.equal(calls.includes('reloadConfig'), false);
+  assert.equal(calls.includes('getResolvedConfig'), false);
+  assert.equal(calls.includes('getConfigWarnings'), false);
+  assert.equal(calls.includes('setLogLevel:warn:config'), false);
+  assert.equal(calls.includes('startBackgroundWarmups'), false);
+  assert.equal(calls.includes('loadSubtitlePosition'), false);
+  assert.equal(calls.includes('resolveKeybindings'), false);
+  assert.equal(calls.includes('createMpvClient'), false);
+  assert.equal(calls.includes('initRuntimeOptionsManager'), false);
+  assert.equal(calls.includes('createImmersionTracker'), false);
+  assert.equal(calls.includes('startJellyfinRemoteSession'), false);
+  assert.equal(calls.includes('logConfigWarning'), false);
+  assert.equal(calls.includes('handleInitialArgs'), true);
+  assert.equal(calls.includes('loadYomitanExtension'), true);
+  assert.equal(calls[0], 'loadYomitanExtension');
+  assert.equal(calls[calls.length - 1], 'handleInitialArgs');
 });
 
 test('runAppReadyRuntime skips Jellyfin remote startup when dependency is not wired', async () => {
@@ -86,23 +138,7 @@ test('runAppReadyRuntime logs when createImmersionTracker dependency is missing'
     createImmersionTracker: undefined,
   });
   await runAppReadyRuntime(deps);
-  assert.ok(calls.includes('log:Runtime ready: createImmersionTracker dependency is missing.'));
-});
-
-test('runAppReadyRuntime logs and continues when createImmersionTracker throws', async () => {
-  const { deps, calls } = makeDeps({
-    createImmersionTracker: () => {
-      calls.push('createImmersionTracker');
-      throw new Error('immersion init failed');
-    },
-  });
-  await runAppReadyRuntime(deps);
-  assert.ok(calls.includes('createImmersionTracker'));
-  assert.ok(
-    calls.includes('log:Runtime ready: createImmersionTracker failed: immersion init failed'),
-  );
-  assert.ok(calls.includes('initializeOverlayRuntime'));
-  assert.ok(calls.includes('handleInitialArgs'));
+  assert.ok(calls.includes('log:Runtime ready: immersion tracker dependency is missing.'));
 });
 
 test('runAppReadyRuntime logs defer message when overlay not auto-started', async () => {
@@ -144,10 +180,28 @@ test('runAppReadyRuntime does not await background warmups', async () => {
   });
 
   await runAppReadyRuntime(deps);
-  assert.deepEqual(calls.slice(0, 2), ['handleInitialArgs', 'startBackgroundWarmups']);
+  assert.ok(calls.includes('startBackgroundWarmups'));
+  assert.ok(calls.includes('handleInitialArgs'));
+  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('handleInitialArgs'));
   assert.equal(calls.includes('warmupDone'), false);
   assert.ok(releaseWarmup);
   releaseWarmup();
+});
+
+test('runAppReadyRuntime starts background warmups before core runtime services', async () => {
+  const calls: string[] = [];
+  const { deps } = makeDeps({
+    startBackgroundWarmups: () => {
+      calls.push('startBackgroundWarmups');
+    },
+    loadSubtitlePosition: () => calls.push('loadSubtitlePosition'),
+    createMpvClient: () => calls.push('createMpvClient'),
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('loadSubtitlePosition'));
+  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('createMpvClient'));
 });
 
 test('runAppReadyRuntime exits before service init when critical anki mappings are invalid', async () => {

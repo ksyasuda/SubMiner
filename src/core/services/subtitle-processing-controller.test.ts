@@ -64,6 +64,32 @@ test('subtitle processing skips duplicate subtitle emission', async () => {
   assert.equal(tokenizeCalls, 1);
 });
 
+test('subtitle processing reuses cached tokenization for repeated subtitle text', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('first');
+  await flushMicrotasks();
+  controller.onSubtitleChange('second');
+  await flushMicrotasks();
+  controller.onSubtitleChange('first');
+  await flushMicrotasks();
+
+  assert.equal(tokenizeCalls, 2);
+  assert.deepEqual(emitted, [
+    { text: 'first', tokens: [] },
+    { text: 'second', tokens: [] },
+    { text: 'first', tokens: [] },
+  ]);
+});
+
 test('subtitle processing falls back to plain subtitle when tokenization returns null', async () => {
   const emitted: SubtitleData[] = [];
   const controller = createSubtitleProcessingController({
@@ -111,4 +137,36 @@ test('subtitle processing refresh can use explicit text override', async () => {
   await flushMicrotasks();
 
   assert.deepEqual(emitted, [{ text: 'initial', tokens: [] }]);
+});
+
+test('subtitle processing cache invalidation only affects future subtitle events', async () => {
+  const emitted: SubtitleData[] = [];
+  const callsByText = new Map<string, number>();
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      callsByText.set(text, (callsByText.get(text) ?? 0) + 1);
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('same');
+  await flushMicrotasks();
+  controller.onSubtitleChange('other');
+  await flushMicrotasks();
+  controller.onSubtitleChange('same');
+  await flushMicrotasks();
+
+  assert.equal(callsByText.get('same'), 1);
+  assert.equal(emitted.length, 3);
+
+  controller.invalidateTokenizationCache();
+  assert.equal(emitted.length, 3);
+
+  controller.onSubtitleChange('different');
+  await flushMicrotasks();
+  controller.onSubtitleChange('same');
+  await flushMicrotasks();
+
+  assert.equal(callsByText.get('same'), 2);
 });

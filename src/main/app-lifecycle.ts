@@ -48,6 +48,7 @@ export interface AppReadyRuntimeDepsFactoryInput {
   onCriticalConfigErrors?: AppReadyRuntimeDeps['onCriticalConfigErrors'];
   logDebug?: AppReadyRuntimeDeps['logDebug'];
   now?: AppReadyRuntimeDeps['now'];
+  shouldSkipHeavyStartup?: AppReadyRuntimeDeps['shouldSkipHeavyStartup'];
 }
 
 export function createAppLifecycleRuntimeDeps(
@@ -103,6 +104,7 @@ export function createAppReadyRuntimeDeps(
     onCriticalConfigErrors: params.onCriticalConfigErrors,
     logDebug: params.logDebug,
     now: params.now,
+    shouldSkipHeavyStartup: params.shouldSkipHeavyStartup,
   };
 }
 

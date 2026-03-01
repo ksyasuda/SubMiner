@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildConfigParseErrorDetails,
+  buildConfigWarningDialogDetails,
   buildConfigWarningNotificationBody,
   buildConfigWarningSummary,
   failStartupFromConfig,
@@ -51,6 +52,22 @@ test('buildConfigWarningNotificationBody includes concise warning details', () =
     body,
     /2\. ankiConnect\.isLapis\.sentenceCardSentenceField: Deprecated key; sentence-card sentence field is fixed to Sentence\./,
   );
+});
+
+test('buildConfigWarningDialogDetails includes full warning details', () => {
+  const details = buildConfigWarningDialogDetails('/tmp/config.jsonc', [
+    {
+      path: 'ankiConnect.pollingRate',
+      message: 'must be >= 50',
+      value: 10,
+      fallback: 250,
+    },
+  ]);
+
+  assert.match(details, /SubMiner detected config validation issues\./);
+  assert.match(details, /File: \/tmp\/config\.jsonc/);
+  assert.match(details, /1\. ankiConnect\.pollingRate: must be >= 50/);
+  assert.match(details, /actual=10 fallback=250/);
 });
 
 test('buildConfigParseErrorDetails includes path error and restart guidance', () => {

@@ -136,6 +136,8 @@ test('createHandleJellyfinRemoteGeneralCommand mutates active playback indices',
   assert.equal(playback.subtitleStreamIndex, null);
   assert.ok(calls.includes('progress:true'));
   assert.ok(
-    calls.some((entry) => entry.includes('Ignoring unsupported Jellyfin GeneralCommand: UnsupportedCommand')),
+    calls.some((entry) =>
+      entry.includes('Ignoring unsupported Jellyfin GeneralCommand: UnsupportedCommand'),
+    ),
   );
 });

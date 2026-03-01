@@ -22,7 +22,10 @@ test('numeric shortcut runtime main deps builder maps callbacks', () => {
     },
   })();
 
-  assert.equal(deps.globalShortcut.register('1', () => {}), true);
+  assert.equal(
+    deps.globalShortcut.register('1', () => {}),
+    true,
+  );
   deps.globalShortcut.unregister('1');
   deps.showMpvOsd('x');
   deps.setTimer(() => calls.push('tick'), 1000);

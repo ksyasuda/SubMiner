@@ -3,7 +3,9 @@ import type {
   createStartBackgroundWarmupsHandler,
 } from './startup-warmups';
 
-type LaunchBackgroundWarmupTaskMainDeps = Parameters<typeof createLaunchBackgroundWarmupTaskHandler>[0];
+type LaunchBackgroundWarmupTaskMainDeps = Parameters<
+  typeof createLaunchBackgroundWarmupTaskHandler
+>[0];
 type StartBackgroundWarmupsMainDeps = Parameters<typeof createStartBackgroundWarmupsHandler>[0];
 
 export function createBuildLaunchBackgroundWarmupTaskMainDepsHandler(
@@ -16,7 +18,9 @@ export function createBuildLaunchBackgroundWarmupTaskMainDepsHandler(
   });
 }
 
-export function createBuildStartBackgroundWarmupsMainDepsHandler(deps: StartBackgroundWarmupsMainDeps) {
+export function createBuildStartBackgroundWarmupsMainDepsHandler(
+  deps: StartBackgroundWarmupsMainDeps,
+) {
   return (): StartBackgroundWarmupsMainDeps => ({
     getStarted: () => deps.getStarted(),
     setStarted: (started: boolean) => deps.setStarted(started),
@@ -25,7 +29,12 @@ export function createBuildStartBackgroundWarmupsMainDepsHandler(deps: StartBack
     createMecabTokenizerAndCheck: () => deps.createMecabTokenizerAndCheck(),
     ensureYomitanExtensionLoaded: () => deps.ensureYomitanExtensionLoaded(),
     prewarmSubtitleDictionaries: () => deps.prewarmSubtitleDictionaries(),
+    shouldWarmupMecab: () => deps.shouldWarmupMecab(),
+    shouldWarmupYomitanExtension: () => deps.shouldWarmupYomitanExtension(),
+    shouldWarmupSubtitleDictionaries: () => deps.shouldWarmupSubtitleDictionaries(),
+    shouldWarmupJellyfinRemoteSession: () => deps.shouldWarmupJellyfinRemoteSession(),
     shouldAutoConnectJellyfinRemote: () => deps.shouldAutoConnectJellyfinRemote(),
     startJellyfinRemoteSession: () => deps.startJellyfinRemoteSession(),
+    logDebug: deps.logDebug,
   });
 }

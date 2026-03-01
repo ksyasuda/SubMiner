@@ -9,6 +9,16 @@ type FrequencyRenderSettings = {
   bandedColors: [string, string, string, string, string];
 };
 
+export type SubtitleTokenHoverRange = {
+  start: number;
+  end: number;
+  tokenIndex: number;
+};
+
+export function shouldRenderTokenizedSubtitle(tokenCount: number): boolean {
+  return tokenCount > 0;
+}
+
 function isWhitespaceOnly(value: string): boolean {
   return value.trim().length === 0;
 }
@@ -27,11 +37,37 @@ export function normalizeSubtitle(text: string, trim = true, collapseLineBreaks 
 }
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+const SAFE_CSS_COLOR_PATTERN =
+  /^(?:#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|(?:rgba?|hsla?)\([^)]*\)|var\([^)]*\)|[a-zA-Z]+)$/;
 
 function sanitizeHexColor(value: unknown, fallback: string): string {
   return typeof value === 'string' && HEX_COLOR_PATTERN.test(value.trim())
     ? value.trim()
     : fallback;
+}
+
+export function sanitizeSubtitleHoverTokenColor(value: unknown): string {
+  const sanitized = sanitizeHexColor(value, '#f4dbd6');
+  const normalized = sanitized.replace(/^#/, '').toLowerCase();
+  if (
+    normalized === '000' ||
+    normalized === '0000' ||
+    normalized === '000000' ||
+    normalized === '00000000'
+  ) {
+    return '#f4dbd6';
+  }
+  return sanitized;
+}
+
+function sanitizeSubtitleHoverTokenBackgroundColor(value: unknown): string {
+  if (typeof value !== 'string') {
+    return 'rgba(54, 58, 79, 0.84)';
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 && SAFE_CSS_COLOR_PATTERN.test(trimmed)
+    ? trimmed
+    : 'rgba(54, 58, 79, 0.84)';
 }
 
 const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
@@ -66,6 +102,54 @@ function sanitizeFrequencyBandedColors(
   ];
 }
 
+function applyInlineStyleDeclarations(
+  target: HTMLElement,
+  declarations: Record<string, unknown>,
+  excludedKeys: ReadonlySet<string> = new Set<string>(),
+): void {
+  for (const [key, value] of Object.entries(declarations)) {
+    if (excludedKeys.has(key)) {
+      continue;
+    }
+    if (value === null || value === undefined || typeof value === 'object') {
+      continue;
+    }
+
+    const cssValue = String(value);
+    if (key.includes('-')) {
+      target.style.setProperty(key, cssValue);
+      if (key === '--webkit-text-stroke') {
+        target.style.setProperty('-webkit-text-stroke', cssValue);
+      }
+      continue;
+    }
+
+    const styleTarget = target.style as unknown as Record<string, string>;
+    styleTarget[key] = cssValue;
+  }
+}
+
+function pickInlineStyleDeclarations(
+  declarations: Record<string, unknown>,
+  includedKeys: ReadonlySet<string>,
+): Record<string, unknown> {
+  const picked: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(declarations)) {
+    if (!includedKeys.has(key)) continue;
+    picked[key] = value;
+  }
+  return picked;
+}
+
+const CONTAINER_STYLE_KEYS = new Set<string>([
+  'background',
+  'backgroundColor',
+  'backdropFilter',
+  'WebkitBackdropFilter',
+  'webkitBackdropFilter',
+  '-webkit-backdrop-filter',
+]);
+
 function getFrequencyDictionaryClass(
   token: MergedToken,
   settings: FrequencyRenderSettings,
@@ -92,6 +176,47 @@ function getFrequencyDictionaryClass(
   }
 
   return 'word-frequency-single';
+}
+
+function getNormalizedFrequencyRank(token: MergedToken): number | null {
+  if (typeof token.frequencyRank !== 'number' || !Number.isFinite(token.frequencyRank)) {
+    return null;
+  }
+  return Math.max(1, Math.floor(token.frequencyRank));
+}
+
+export function getFrequencyRankLabelForToken(
+  token: MergedToken,
+  frequencySettings?: Partial<FrequencyRenderSettings>,
+): string | null {
+  if (token.isNPlusOneTarget) {
+    return null;
+  }
+
+  const resolvedFrequencySettings = {
+    ...DEFAULT_FREQUENCY_RENDER_SETTINGS,
+    ...frequencySettings,
+    bandedColors: sanitizeFrequencyBandedColors(
+      frequencySettings?.bandedColors,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.bandedColors,
+    ),
+    topX: sanitizeFrequencyTopX(frequencySettings?.topX, DEFAULT_FREQUENCY_RENDER_SETTINGS.topX),
+    singleColor: sanitizeHexColor(
+      frequencySettings?.singleColor,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.singleColor,
+    ),
+  };
+
+  if (!getFrequencyDictionaryClass(token, resolvedFrequencySettings)) {
+    return null;
+  }
+
+  const rank = getNormalizedFrequencyRank(token);
+  return rank === null ? null : String(rank);
+}
+
+export function getJlptLevelLabelForToken(token: MergedToken): string | null {
+  return token.jlptLevel ?? null;
 }
 
 function renderWithTokens(
@@ -137,6 +262,17 @@ function renderWithTokens(
       span.dataset.tokenIndex = String(segment.tokenIndex);
       if (token.reading) span.dataset.reading = token.reading;
       if (token.headword) span.dataset.headword = token.headword;
+      const frequencyRankLabel = getFrequencyRankLabelForToken(
+        token,
+        resolvedFrequencyRenderSettings,
+      );
+      if (frequencyRankLabel) {
+        span.dataset.frequencyRank = frequencyRankLabel;
+      }
+      const jlptLevelLabel = getJlptLevelLabelForToken(token);
+      if (jlptLevelLabel) {
+        span.dataset.jlptLevel = jlptLevelLabel;
+      }
       fragment.appendChild(span);
     }
 
@@ -165,6 +301,17 @@ function renderWithTokens(
     span.dataset.tokenIndex = String(index);
     if (token.reading) span.dataset.reading = token.reading;
     if (token.headword) span.dataset.headword = token.headword;
+    const frequencyRankLabel = getFrequencyRankLabelForToken(
+      token,
+      resolvedFrequencyRenderSettings,
+    );
+    if (frequencyRankLabel) {
+      span.dataset.frequencyRank = frequencyRankLabel;
+    }
+    const jlptLevelLabel = getJlptLevelLabelForToken(token);
+    if (jlptLevelLabel) {
+      span.dataset.jlptLevel = jlptLevelLabel;
+    }
     fragment.appendChild(span);
   }
 
@@ -216,6 +363,40 @@ export function alignTokensToSourceText(
   }
 
   return segments;
+}
+
+export function buildSubtitleTokenHoverRanges(
+  tokens: MergedToken[],
+  sourceText: string,
+): SubtitleTokenHoverRange[] {
+  if (tokens.length === 0 || sourceText.length === 0) {
+    return [];
+  }
+
+  const segments = alignTokensToSourceText(tokens, sourceText);
+  const ranges: SubtitleTokenHoverRange[] = [];
+  let cursor = 0;
+
+  for (const segment of segments) {
+    if (segment.kind === 'text') {
+      cursor += segment.text.length;
+      continue;
+    }
+
+    const tokenLength = segment.token.surface.length;
+    if (tokenLength <= 0) {
+      continue;
+    }
+
+    ranges.push({
+      start: cursor,
+      end: cursor + tokenLength,
+      tokenIndex: segment.tokenIndex,
+    });
+    cursor += tokenLength;
+  }
+
+  return ranges;
 }
 
 export function computeWordClass(
@@ -292,9 +473,6 @@ function renderPlainTextPreserveLineBreaks(root: ParentNode, text: string): void
 export function createSubtitleRenderer(ctx: RendererContext) {
   function renderSubtitle(data: SubtitleData | string): void {
     ctx.dom.subtitleRoot.innerHTML = '';
-    ctx.state.lastHoverSelectionKey = '';
-    ctx.state.lastHoverSelectionNode = null;
-    ctx.state.lastHoveredTokenIndex = null;
 
     let text: string;
     let tokens: MergedToken[] | null;
@@ -311,28 +489,8 @@ export function createSubtitleRenderer(ctx: RendererContext) {
 
     if (!text) return;
 
-    if (ctx.platform.isInvisibleLayer) {
-      const normalizedInvisible = normalizeSubtitle(text, false);
-      ctx.state.currentInvisibleSubtitleLineCount = Math.max(
-        1,
-        normalizedInvisible.split('\n').length,
-      );
-      if (tokens && tokens.length > 0) {
-        renderWithTokens(
-          ctx.dom.subtitleRoot,
-          tokens,
-          getFrequencyRenderSettings(),
-          text,
-          true,
-        );
-      } else {
-        renderPlainTextPreserveLineBreaks(ctx.dom.subtitleRoot, normalizedInvisible);
-      }
-      return;
-    }
-
     const normalized = normalizeSubtitle(text, true, !ctx.state.preserveSubtitleLineBreaks);
-    if (tokens && tokens.length > 0) {
+    if (shouldRenderTokenizedSubtitle(tokens?.length ?? 0) && tokens) {
       renderWithTokens(
         ctx.dom.subtitleRoot,
         tokens,
@@ -403,17 +561,26 @@ export function createSubtitleRenderer(ctx: RendererContext) {
   function applySubtitleStyle(style: SubtitleStyleConfig | null): void {
     if (!style) return;
 
+    const styleDeclarations = style as Record<string, unknown>;
+    applyInlineStyleDeclarations(ctx.dom.subtitleRoot, styleDeclarations, CONTAINER_STYLE_KEYS);
+    applyInlineStyleDeclarations(
+      ctx.dom.subtitleContainer,
+      pickInlineStyleDeclarations(styleDeclarations, CONTAINER_STYLE_KEYS),
+    );
+
     if (style.fontFamily) ctx.dom.subtitleRoot.style.fontFamily = style.fontFamily;
     if (style.fontSize) ctx.dom.subtitleRoot.style.fontSize = `${style.fontSize}px`;
-    if (style.fontColor) ctx.dom.subtitleRoot.style.color = style.fontColor;
-    if (style.fontWeight) ctx.dom.subtitleRoot.style.fontWeight = style.fontWeight;
-    if (style.fontStyle) ctx.dom.subtitleRoot.style.fontStyle = style.fontStyle;
-    if (style.backgroundColor) {
-      ctx.dom.subtitleContainer.style.background = style.backgroundColor;
+    if (style.fontColor) {
+      ctx.dom.subtitleRoot.style.color = style.fontColor;
     }
-
+    if (style.fontWeight) ctx.dom.subtitleRoot.style.fontWeight = String(style.fontWeight);
+    if (style.fontStyle) ctx.dom.subtitleRoot.style.fontStyle = style.fontStyle;
     const knownWordColor = style.knownWordColor ?? ctx.state.knownWordColor ?? '#a6da95';
     const nPlusOneColor = style.nPlusOneColor ?? ctx.state.nPlusOneColor ?? '#c6a0f6';
+    const hoverTokenColor = sanitizeSubtitleHoverTokenColor(style.hoverTokenColor);
+    const hoverTokenBackgroundColor = sanitizeSubtitleHoverTokenBackgroundColor(
+      style.hoverTokenBackgroundColor,
+    );
     const jlptColors = {
       N1: ctx.state.jlptN1Color ?? '#ed8796',
       N2: ctx.state.jlptN2Color ?? '#f5a97f',
@@ -435,12 +602,18 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     ctx.state.nPlusOneColor = nPlusOneColor;
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-known-word-color', knownWordColor);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-n-plus-one-color', nPlusOneColor);
+    ctx.dom.subtitleRoot.style.setProperty('--subtitle-hover-token-color', hoverTokenColor);
+    ctx.dom.subtitleRoot.style.setProperty(
+      '--subtitle-hover-token-background-color',
+      hoverTokenBackgroundColor,
+    );
     ctx.state.jlptN1Color = jlptColors.N1;
     ctx.state.jlptN2Color = jlptColors.N2;
     ctx.state.jlptN3Color = jlptColors.N3;
     ctx.state.jlptN4Color = jlptColors.N4;
     ctx.state.jlptN5Color = jlptColors.N5;
     ctx.state.preserveSubtitleLineBreaks = style.preserveLineBreaks ?? false;
+    ctx.state.autoPauseVideoOnSubtitleHover = style.autoPauseVideoOnHover ?? false;
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n1-color', jlptColors.N1);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n2-color', jlptColors.N2);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n3-color', jlptColors.N3);
@@ -510,6 +683,17 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     const secondaryStyle = style.secondary;
     if (!secondaryStyle) return;
 
+    const secondaryStyleDeclarations = secondaryStyle as Record<string, unknown>;
+    applyInlineStyleDeclarations(
+      ctx.dom.secondarySubRoot,
+      secondaryStyleDeclarations,
+      CONTAINER_STYLE_KEYS,
+    );
+    applyInlineStyleDeclarations(
+      ctx.dom.secondarySubContainer,
+      pickInlineStyleDeclarations(secondaryStyleDeclarations, CONTAINER_STYLE_KEYS),
+    );
+
     if (secondaryStyle.fontFamily) {
       ctx.dom.secondarySubRoot.style.fontFamily = secondaryStyle.fontFamily;
     }
@@ -520,13 +704,10 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       ctx.dom.secondarySubRoot.style.color = secondaryStyle.fontColor;
     }
     if (secondaryStyle.fontWeight) {
-      ctx.dom.secondarySubRoot.style.fontWeight = secondaryStyle.fontWeight;
+      ctx.dom.secondarySubRoot.style.fontWeight = String(secondaryStyle.fontWeight);
     }
     if (secondaryStyle.fontStyle) {
       ctx.dom.secondarySubRoot.style.fontStyle = secondaryStyle.fontStyle;
-    }
-    if (secondaryStyle.backgroundColor) {
-      ctx.dom.secondarySubContainer.style.background = secondaryStyle.backgroundColor;
     }
   }
 

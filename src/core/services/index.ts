@@ -23,13 +23,13 @@ export {
 export { createAppLifecycleDepsRuntime, startAppLifecycle } from './app-lifecycle';
 export { cycleSecondarySubMode } from './subtitle-position';
 export {
-  getInitialInvisibleOverlayVisibility,
   isAutoUpdateEnabledRuntime,
   shouldAutoInitializeOverlayRuntimeFromConfig,
-  shouldBindVisibleOverlayToMpvSubVisibility,
 } from './startup';
 export { openYomitanSettingsWindow } from './yomitan-settings';
 export { createTokenizerDepsRuntime, tokenizeSubtitle } from './tokenizer';
+export { clearYomitanParserCachesForWindow } from './tokenizer/yomitan-parser-runtime';
+export { syncYomitanDefaultAnkiServer } from './tokenizer/yomitan-parser-runtime';
 export { createSubtitleProcessingController } from './subtitle-processing-controller';
 export { createFrequencyDictionaryLookup } from './frequency-dictionary';
 export { createJlptVocabularyLookup } from './jlpt-vocab';
@@ -59,16 +59,11 @@ export {
   createOverlayWindow,
   enforceOverlayLayerOrder,
   ensureOverlayWindowLevel,
+  syncOverlayWindowLayer,
   updateOverlayWindowBounds,
 } from './overlay-window';
 export { initializeOverlayRuntime } from './overlay-runtime-init';
-export {
-  setInvisibleOverlayVisible,
-  setVisibleOverlayVisible,
-  syncInvisibleOverlayMousePassthrough,
-  updateInvisibleOverlayVisibility,
-  updateVisibleOverlayVisibility,
-} from './overlay-visibility';
+export { setVisibleOverlayVisible, updateVisibleOverlayVisibility } from './overlay-visibility';
 export {
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
   MpvIpcClient,
@@ -76,6 +71,7 @@ export {
   replayCurrentSubtitleRuntime,
   resolveCurrentAudioStreamIndex,
   sendMpvCommandRuntime,
+  setMpvSecondarySubVisibilityRuntime,
   setMpvSubVisibilityRuntime,
   showMpvOsdRuntime,
 } from './mpv';

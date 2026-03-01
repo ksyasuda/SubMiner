@@ -14,7 +14,7 @@
 
 <div align="center">
 
-[![SubMiner demo (GIF preview)](./assets/minecard.gif)](./assets/minecard.mp4)
+[![SubMiner demo (Animated preview)](./assets/minecard.webp)](./assets/minecard.mp4)
 
 </div>
 
@@ -26,7 +26,9 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 
 - **Hover to look up** — Yomitan dictionary popups directly on subtitles
 - **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and translation
-- **N+1 highlighting** — Marks known words from your Anki deck so unknown ones jump out
+- **Instant auto-enrichment** — Optional local AnkiConnect proxy enriches new Yomitan cards immediately
+- **Reading annotations** — Combines N+1 targeting, frequency-dictionary highlighting, and JLPT underlining while you read
+- **Hover-aware playback** — By default, hovering subtitle text pauses mpv and resumes on mouse leave (`subtitleStyle.autoPauseVideoOnHover`)
 - **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
 - **Immersion tracking** — SQLite-powered stats on your watch time and mining activity
 - **Custom texthooker page** — Built-in custom texthooker page and websocket, no extra setup
@@ -57,23 +59,25 @@ chmod +x ~/.local/bin/subminer
 ```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
-cp /tmp/plugin/subminer.lua ~/.config/mpv/scripts/
+mkdir -p ~/.config/mpv/scripts/subminer
+mkdir -p ~/.config/mpv/script-opts
+cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
 cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 mkdir -p ~/.config/SubMiner && cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
 ```
 
-
 ### 3. Set up Yomitan Dictionaries
 
 ```bash
-subminer app --start --yomitan
+subminer app --yomitan
 ```
 
 ### 4. Mine
 
 ```bash
 subminer app --start --background
-subminer video.mkv # toggle invisible overlay with y-i and visible overlay with y-t
+subminer video.mkv # default plugin config auto-starts visible overlay + resumes playback when ready
+subminer --start video.mkv # optional explicit overlay start when plugin auto_start=no
 ```
 
 ## Requirements

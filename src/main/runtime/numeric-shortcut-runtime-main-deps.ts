@@ -1,6 +1,8 @@
 import type { NumericShortcutRuntimeOptions } from '../../core/services/numeric-shortcut';
 
-export function createBuildNumericShortcutRuntimeMainDepsHandler(deps: NumericShortcutRuntimeOptions) {
+export function createBuildNumericShortcutRuntimeMainDepsHandler(
+  deps: NumericShortcutRuntimeOptions,
+) {
   return (): NumericShortcutRuntimeOptions => ({
     globalShortcut: deps.globalShortcut,
     showMpvOsd: (text: string) => deps.showMpvOsd(text),

@@ -18,23 +18,57 @@ function normalizeFrequencyTerm(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function parsePositiveFrequencyString(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const numericPrefix = trimmed.match(/^\d[\d,]*/)?.[0];
+  if (!numericPrefix) {
+    return null;
+  }
+
+  const chunks = numericPrefix.split(',');
+  const normalizedNumber =
+    chunks.length <= 1
+      ? (chunks[0] ?? '')
+      : chunks.slice(1).every((chunk) => /^\d{3}$/.test(chunk))
+        ? chunks.join('')
+        : (chunks[0] ?? '');
+  const parsed = Number.parseInt(normalizedNumber, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function parsePositiveFrequencyNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return Math.floor(value);
+  }
+
+  if (typeof value === 'string') {
+    return parsePositiveFrequencyString(value);
+  }
+
+  return null;
+}
+
 function extractFrequencyDisplayValue(meta: unknown): number | null {
   if (!meta || typeof meta !== 'object') return null;
   const frequency = (meta as { frequency?: unknown }).frequency;
   if (!frequency || typeof frequency !== 'object') return null;
   const displayValue = (frequency as { displayValue?: unknown }).displayValue;
-  if (typeof displayValue === 'number') {
-    if (!Number.isFinite(displayValue) || displayValue <= 0) return null;
-    return Math.floor(displayValue);
-  }
-  if (typeof displayValue === 'string') {
-    const normalized = displayValue.trim().replace(/,/g, '');
-    const parsed = Number.parseInt(normalized, 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) return null;
-    return parsed;
+  const parsedDisplayValue = parsePositiveFrequencyNumber(displayValue);
+  if (parsedDisplayValue !== null) {
+    return parsedDisplayValue;
   }
 
-  return null;
+  const rawValue = (frequency as { value?: unknown }).value;
+  return parsePositiveFrequencyNumber(rawValue);
 }
 
 function asFrequencyDictionaryEntry(entry: unknown): FrequencyDictionaryEntry | null {

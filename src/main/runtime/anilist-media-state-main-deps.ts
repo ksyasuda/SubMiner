@@ -6,8 +6,12 @@ import type {
   createSetAnilistMediaGuessRuntimeStateHandler,
 } from './anilist-media-state';
 
-type GetCurrentAnilistMediaKeyMainDeps = Parameters<typeof createGetCurrentAnilistMediaKeyHandler>[0];
-type ResetAnilistMediaTrackingMainDeps = Parameters<typeof createResetAnilistMediaTrackingHandler>[0];
+type GetCurrentAnilistMediaKeyMainDeps = Parameters<
+  typeof createGetCurrentAnilistMediaKeyHandler
+>[0];
+type ResetAnilistMediaTrackingMainDeps = Parameters<
+  typeof createResetAnilistMediaTrackingHandler
+>[0];
 type GetAnilistMediaGuessRuntimeStateMainDeps = Parameters<
   typeof createGetAnilistMediaGuessRuntimeStateHandler
 >[0];

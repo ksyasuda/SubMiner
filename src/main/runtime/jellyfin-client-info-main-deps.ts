@@ -3,7 +3,9 @@ import type {
   createGetResolvedJellyfinConfigHandler,
 } from './jellyfin-client-info';
 
-type GetResolvedJellyfinConfigMainDeps = Parameters<typeof createGetResolvedJellyfinConfigHandler>[0];
+type GetResolvedJellyfinConfigMainDeps = Parameters<
+  typeof createGetResolvedJellyfinConfigHandler
+>[0];
 type GetJellyfinClientInfoMainDeps = Parameters<typeof createGetJellyfinClientInfoHandler>[0];
 
 export function createBuildGetResolvedJellyfinConfigMainDepsHandler(

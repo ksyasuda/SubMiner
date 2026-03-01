@@ -42,11 +42,13 @@ export function composeAppReadyRuntime(options: AppReadyComposerOptions): AppRea
     createBuildAppReadyRuntimeMainDepsHandler({
       ...options.appReadyRuntimeMainDeps,
       reloadConfig,
-      createImmersionTracker: createImmersionTrackerStartupHandler(
-        createBuildImmersionTrackerStartupMainDepsHandler(
-          options.immersionTrackerStartupMainDeps,
-        )(),
-      ),
+      createImmersionTracker:
+        options.appReadyRuntimeMainDeps.createImmersionTracker ??
+        createImmersionTrackerStartupHandler(
+          createBuildImmersionTrackerStartupMainDepsHandler(
+            options.immersionTrackerStartupMainDeps,
+          )(),
+        ),
       onCriticalConfigErrors: criticalConfigError,
     })(),
   );

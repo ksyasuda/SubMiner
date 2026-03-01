@@ -18,10 +18,6 @@ interface RuntimeAutoUpdateOptionManagerLike {
 
 export interface RuntimeConfigLike {
   auto_start_overlay?: boolean;
-  bind_visible_overlay_to_mpv_sub_visibility: boolean;
-  invisibleOverlay: {
-    startupVisibility: 'visible' | 'hidden' | 'platform-default';
-  };
   ankiConnect?: {
     behavior?: {
       autoUpdateNewCards?: boolean;
@@ -125,6 +121,7 @@ export interface AppReadyRuntimeDeps {
   logDebug?: (message: string) => void;
   onCriticalConfigErrors?: (errors: string[]) => void;
   now?: () => number;
+  shouldSkipHeavyStartup?: () => boolean;
 }
 
 const REQUIRED_ANKI_FIELD_MAPPING_KEYS = [
@@ -155,25 +152,8 @@ function getStartupCriticalConfigErrors(config: AppReadyConfigLike): string[] {
   return errors;
 }
 
-export function getInitialInvisibleOverlayVisibility(
-  config: RuntimeConfigLike,
-  platform: NodeJS.Platform,
-): boolean {
-  const visibility = config.invisibleOverlay.startupVisibility;
-  if (visibility === 'visible') return true;
-  if (visibility === 'hidden') return false;
-  if (platform === 'linux') return false;
-  return true;
-}
-
 export function shouldAutoInitializeOverlayRuntimeFromConfig(config: RuntimeConfigLike): boolean {
-  if (config.auto_start_overlay === true) return true;
-  if (config.invisibleOverlay.startupVisibility === 'visible') return true;
-  return false;
-}
-
-export function shouldBindVisibleOverlayToMpvSubVisibility(config: RuntimeConfigLike): boolean {
-  return config.bind_visible_overlay_to_mpv_sub_visibility;
+  return config.auto_start_overlay === true;
 }
 
 export function isAutoUpdateEnabledRuntime(
@@ -188,7 +168,20 @@ export function isAutoUpdateEnabledRuntime(
 export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<void> {
   const now = deps.now ?? (() => Date.now());
   const startupStartedAtMs = now();
+  if (deps.shouldSkipHeavyStartup?.()) {
+    await deps.loadYomitanExtension();
+    deps.handleInitialArgs();
+    return;
+  }
+
   deps.logDebug?.('App-ready critical path started.');
+
+  if (deps.shouldSkipHeavyStartup?.()) {
+    await deps.loadYomitanExtension();
+    deps.handleInitialArgs();
+    deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
+    return;
+  }
 
   deps.reloadConfig();
   const config = deps.getResolvedConfig();
@@ -205,6 +198,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   for (const warning of deps.getConfigWarnings()) {
     deps.logConfigWarning(warning);
   }
+  deps.startBackgroundWarmups();
 
   deps.loadSubtitlePosition();
   deps.resolveKeybindings();
@@ -224,14 +218,9 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
 
   deps.createSubtitleTimingTracker();
   if (deps.createImmersionTracker) {
-    deps.log('Runtime ready: invoking createImmersionTracker.');
-    try {
-      deps.createImmersionTracker();
-    } catch (error) {
-      deps.log(`Runtime ready: createImmersionTracker failed: ${(error as Error).message}`);
-    }
+    deps.log('Runtime ready: immersion tracker startup deferred until first media activity.');
   } else {
-    deps.log('Runtime ready: createImmersionTracker dependency is missing.');
+    deps.log('Runtime ready: immersion tracker dependency is missing.');
   }
 
   if (deps.texthookerOnlyMode) {
@@ -243,6 +232,5 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   }
 
   deps.handleInitialArgs();
-  deps.startBackgroundWarmups();
   deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
 }

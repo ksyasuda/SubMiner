@@ -35,7 +35,6 @@ export function createBuildConfigDerivedRuntimeMainDepsHandler(deps: ConfigDeriv
   return (): ConfigDerivedRuntimeDeps => ({
     getResolvedConfig: () => deps.getResolvedConfig(),
     getRuntimeOptionsManager: () => deps.getRuntimeOptionsManager(),
-    platform: deps.platform,
     defaultJimakuLanguagePreference: deps.defaultJimakuLanguagePreference,
     defaultJimakuMaxEntryResults: deps.defaultJimakuMaxEntryResults,
     defaultJimakuApiBaseUrl: deps.defaultJimakuApiBaseUrl,

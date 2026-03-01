@@ -6,7 +6,9 @@ import type {
 } from './overlay-shortcuts-lifecycle';
 
 type RegisterOverlayShortcutsMainDeps = Parameters<typeof createRegisterOverlayShortcutsHandler>[0];
-type UnregisterOverlayShortcutsMainDeps = Parameters<typeof createUnregisterOverlayShortcutsHandler>[0];
+type UnregisterOverlayShortcutsMainDeps = Parameters<
+  typeof createUnregisterOverlayShortcutsHandler
+>[0];
 type SyncOverlayShortcutsMainDeps = Parameters<typeof createSyncOverlayShortcutsHandler>[0];
 type RefreshOverlayShortcutsMainDeps = Parameters<typeof createRefreshOverlayShortcutsHandler>[0];
 

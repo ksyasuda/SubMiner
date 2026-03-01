@@ -5,7 +5,7 @@ import { createBuildImmersionTrackerStartupMainDepsHandler } from './immersion-s
 test('immersion tracker startup main deps builder maps callbacks', () => {
   const calls: string[] = [];
   const deps = createBuildImmersionTrackerStartupMainDepsHandler({
-    getResolvedConfig: () => ({ immersionTracking: { enabled: true } } as never),
+    getResolvedConfig: () => ({ immersionTracking: { enabled: true } }) as never,
     getConfiguredDbPath: () => '/tmp/immersion.db',
     createTrackerService: () => {
       calls.push('create');
@@ -21,9 +21,12 @@ test('immersion tracker startup main deps builder maps callbacks', () => {
 
   assert.deepEqual(deps.getResolvedConfig(), { immersionTracking: { enabled: true } });
   assert.equal(deps.getConfiguredDbPath(), '/tmp/immersion.db');
-  assert.deepEqual(deps.createTrackerService({ dbPath: '/tmp/immersion.db', policy: {} as never }), {
-    id: 'tracker',
-  });
+  assert.deepEqual(
+    deps.createTrackerService({ dbPath: '/tmp/immersion.db', policy: {} as never }),
+    {
+      id: 'tracker',
+    },
+  );
   deps.setTracker(null);
   assert.equal(deps.getMpvClient()?.connected, true);
   deps.seedTrackerFromCurrentMedia();

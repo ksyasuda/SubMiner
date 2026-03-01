@@ -58,7 +58,11 @@ test('ensure tray creates new tray and binds click handler', () => {
     createImageFromPath: () =>
       ({
         isEmpty: () => false,
-        resize: (options: { width: number; height: number; quality?: 'best' | 'better' | 'good' }) => {
+        resize: (options: {
+          width: number;
+          height: number;
+          quality?: 'best' | 'better' | 'good';
+        }) => {
           calls.push(`resize:${options.width}x${options.height}`);
           return {
             isEmpty: () => false,

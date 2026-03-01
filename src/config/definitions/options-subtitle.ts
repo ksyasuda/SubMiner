@@ -22,10 +22,23 @@ export function buildSubtitleConfigOptionRegistry(
         'When false, line breaks are flattened to spaces for a single-line flow.',
     },
     {
+      path: 'subtitleStyle.autoPauseVideoOnHover',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleStyle.autoPauseVideoOnHover,
+      description:
+        'Automatically pause mpv playback while hovering subtitle text, then resume on leave.',
+    },
+    {
       path: 'subtitleStyle.hoverTokenColor',
       kind: 'string',
       defaultValue: defaultConfig.subtitleStyle.hoverTokenColor,
       description: 'Hex color used for hovered subtitle token highlight in mpv.',
+    },
+    {
+      path: 'subtitleStyle.hoverTokenBackgroundColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.hoverTokenBackgroundColor,
+      description: 'CSS color used for hovered subtitle token background highlight in mpv.',
     },
     {
       path: 'subtitleStyle.frequencyDictionary.enabled',
@@ -54,6 +67,14 @@ export function buildSubtitleConfigOptionRegistry(
       defaultValue: defaultConfig.subtitleStyle.frequencyDictionary.mode,
       description:
         'single: use one color for all matching tokens. banded: use color ramp by frequency band.',
+    },
+    {
+      path: 'subtitleStyle.frequencyDictionary.matchMode',
+      kind: 'enum',
+      enumValues: ['headword', 'surface'],
+      defaultValue: defaultConfig.subtitleStyle.frequencyDictionary.matchMode,
+      description:
+        'headword: frequency lookup uses dictionary form. surface: lookup uses subtitle-visible token text.',
     },
     {
       path: 'subtitleStyle.frequencyDictionary.singleColor',

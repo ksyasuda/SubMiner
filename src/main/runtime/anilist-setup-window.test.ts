@@ -259,7 +259,8 @@ test('open anilist setup handler no-ops when existing setup window focused', () 
 
 test('open anilist setup handler wires navigation, fallback, and lifecycle', () => {
   let openHandler: ((params: { url: string }) => { action: 'deny' }) | null = null;
-  let willNavigateHandler: ((event: { preventDefault: () => void }, url: string) => void) | null = null;
+  let willNavigateHandler: ((event: { preventDefault: () => void }, url: string) => void) | null =
+    null;
   let didNavigateHandler: ((event: unknown, url: string) => void) | null = null;
   let didFinishLoadHandler: (() => void) | null = null;
   let didFailLoadHandler:
@@ -276,7 +277,12 @@ test('open anilist setup handler wires navigation, fallback, and lifecycle', () 
         openHandler = handler;
       },
       on: (
-        event: 'will-navigate' | 'will-redirect' | 'did-navigate' | 'did-fail-load' | 'did-finish-load',
+        event:
+          | 'will-navigate'
+          | 'will-redirect'
+          | 'did-navigate'
+          | 'did-fail-load'
+          | 'did-finish-load',
         handler: (...args: any[]) => void,
       ) => {
         if (event === 'will-navigate') willNavigateHandler = handler as never;

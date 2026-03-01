@@ -44,7 +44,9 @@ export type JellyfinRemoteProgressReporterDeps = {
   logDebug: (message: string, error: unknown) => void;
 };
 
-export function createReportJellyfinRemoteProgressHandler(deps: JellyfinRemoteProgressReporterDeps) {
+export function createReportJellyfinRemoteProgressHandler(
+  deps: JellyfinRemoteProgressReporterDeps,
+) {
   return async (force = false): Promise<void> => {
     const playback = deps.getActivePlayback();
     if (!playback) return;

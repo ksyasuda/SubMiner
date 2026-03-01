@@ -7,7 +7,7 @@ titleTemplate: Immersion Mining Workflow for MPV
 hero:
   name: SubMiner
   text: Immersion Mining for MPV
-  tagline: Watch media, mine vocabulary, and build cards without leaving the scene.
+  tagline: Watch media, mine vocabulary, and craft anki cards without leaving the scene.
   image:
     src: /assets/SubMiner.png
     alt: SubMiner logo
@@ -36,15 +36,10 @@ features:
     title: Anki Card Enrichment
     details: Auto-fills card fields with subtitle sentence, clipping, image, and translation so you can focus on learning.
   - icon:
-      src: /assets/dual-layer.svg
-      alt: Dual layer icon
-    title: Three-Plane Overlay Stack
-    details: Secondary context plane + visible interactive layer + invisible interaction plane, each with independent behavior and startup state.
-  - icon:
       src: /assets/highlight.svg
       alt: Highlight icon
-    title: N+1 Highlighting
-    details: Surfaces known words from your deck so unknown targets stand out during immersion sessions.
+    title: Reading Annotations
+    details: Combines N+1 targeting, Jiten frequency highlighting, and JLPT tagging so useful cues stay visible while you read.
   - icon:
       src: /assets/tokenization.svg
       alt: Tokenization icon
@@ -55,16 +50,6 @@ features:
       alt: Subtitle download icon
     title: Subtitle Download & Sync
     details: Pull and synchronize subtitles with Jimaku plus alass/ffsubsync in one cohesive workflow.
-  - icon:
-      src: /assets/keyboard.svg
-      alt: Keyboard icon
-    title: Keyboard-Driven
-    details: Run lookups, mining actions, clipping, and workflow toggles with one configurable shortcut surface.
-  - icon:
-      src: /assets/texthooker.svg
-      alt: Texthooker icon
-    title: Texthooker & WebSocket
-    details: Stream subtitles in real time to browser tools via local WebSocket and keep your stack integrated.
 ---
 
 <script setup>
@@ -110,7 +95,7 @@ const demoAssetVersion = '20260223-2';
       <source :src="`/assets/minecard.webm?v=${demoAssetVersion}`" type="video/webm" />
       <source :src="`/assets/minecard.mp4?v=${demoAssetVersion}`" type="video/mp4" />
       <a :href="`/assets/minecard.webm?v=${demoAssetVersion}`" target="_blank" rel="noreferrer">
-        <img :src="`/assets/minecard.gif?v=${demoAssetVersion}`" alt="SubMiner demo GIF fallback" style="width: 100%; height: auto;" />
+        <img :src="`/assets/minecard.webp?v=${demoAssetVersion}`" alt="SubMiner demo Animated fallback" style="width: 100%; height: auto;" />
       </a>
     </video>
   </section>

@@ -27,9 +27,8 @@ const {
   shortcuts,
   secondarySub,
   subsync,
+  startupWarmups,
   auto_start_overlay,
-  bind_visible_overlay_to_mpv_sub_visibility,
-  invisibleOverlay,
 } = CORE_DEFAULT_CONFIG;
 const { ankiConnect, jimaku, anilist, jellyfin, discordPresence, youtubeSubgen } =
   INTEGRATIONS_DEFAULT_CONFIG;
@@ -46,15 +45,14 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   shortcuts,
   secondarySub,
   subsync,
+  startupWarmups,
   subtitleStyle,
   auto_start_overlay,
-  bind_visible_overlay_to_mpv_sub_visibility,
   jimaku,
   anilist,
   jellyfin,
   discordPresence,
   youtubeSubgen,
-  invisibleOverlay,
   immersionTracking,
 };
 

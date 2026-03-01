@@ -32,7 +32,10 @@ test('broadcast runtime options changed main deps builder maps callbacks', () =>
     broadcastToOverlayWindows: (channel) => calls.push(channel),
   })();
 
-  deps.broadcastRuntimeOptionsChangedRuntime(() => [], () => {});
+  deps.broadcastRuntimeOptionsChangedRuntime(
+    () => [],
+    () => {},
+  );
   deps.broadcastToOverlayWindows('runtime-options:changed');
   assert.deepEqual(deps.getRuntimeOptionsState(), []);
   assert.deepEqual(calls, ['broadcast-runtime', 'runtime-options:changed']);
@@ -57,14 +60,12 @@ test('set overlay debug visualization main deps builder maps callbacks', () => {
     setOverlayDebugVisualizationEnabledRuntime: () => calls.push('set-runtime'),
     getCurrentEnabled: () => false,
     setCurrentEnabled: () => calls.push('set-current'),
-    broadcastToOverlayWindows: () => calls.push('broadcast'),
   })();
 
-  deps.setOverlayDebugVisualizationEnabledRuntime(false, true, () => {}, () => {});
+  deps.setOverlayDebugVisualizationEnabledRuntime(false, true, () => {});
   assert.equal(deps.getCurrentEnabled(), false);
   deps.setCurrentEnabled(true);
-  deps.broadcastToOverlayWindows('overlay:debug');
-  assert.deepEqual(calls, ['set-runtime', 'set-current', 'broadcast']);
+  assert.deepEqual(calls, ['set-runtime', 'set-current']);
 });
 
 test('open runtime options palette main deps builder maps callbacks', () => {

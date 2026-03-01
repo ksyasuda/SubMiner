@@ -19,21 +19,16 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
     appState,
     overlayManager: {
       getVisibleOverlayVisible: () => true,
-      getInvisibleOverlayVisible: () => false,
     },
     overlayVisibilityRuntime: {
       updateVisibleOverlayVisibility: () => calls.push('update-visible'),
-      updateInvisibleOverlayVisibility: () => calls.push('update-invisible'),
     },
     overlayShortcutsRuntime: {
       syncOverlayShortcuts: () => calls.push('sync-shortcuts'),
     },
-    getInitialInvisibleOverlayVisibility: () => true,
     createMainWindow: () => calls.push('create-main'),
-    createInvisibleWindow: () => calls.push('create-invisible'),
     registerGlobalShortcuts: () => calls.push('register-shortcuts'),
     updateVisibleOverlayBounds: () => calls.push('visible-bounds'),
-    updateInvisibleOverlayBounds: () => calls.push('invisible-bounds'),
     getOverlayWindows: () => [],
     getResolvedConfig: () => ({}),
     showDesktopNotification: () => calls.push('notify'),
@@ -48,19 +43,14 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
 
   const deps = build();
   assert.equal(deps.getBackendOverride(), 'x11');
-  assert.equal(deps.getInitialInvisibleOverlayVisibility(), true);
   assert.equal(deps.isVisibleOverlayVisible(), true);
-  assert.equal(deps.isInvisibleOverlayVisible(), false);
   assert.equal(deps.getMpvSocketPath(), '/tmp/mpv.sock');
   assert.equal(deps.getKnownWordCacheStatePath(), '/tmp/known-words-cache.json');
 
   deps.createMainWindow();
-  deps.createInvisibleWindow();
   deps.registerGlobalShortcuts();
   deps.updateVisibleOverlayBounds({ x: 0, y: 0, width: 10, height: 10 });
-  deps.updateInvisibleOverlayBounds({ x: 0, y: 0, width: 10, height: 10 });
   deps.updateVisibleOverlayVisibility();
-  deps.updateInvisibleOverlayVisibility();
   deps.syncOverlayShortcuts();
   deps.showDesktopNotification('title', {});
 
@@ -73,12 +63,9 @@ test('overlay runtime main deps builder maps runtime state and callbacks', () =>
 
   assert.deepEqual(calls, [
     'create-main',
-    'create-invisible',
     'register-shortcuts',
     'visible-bounds',
-    'invisible-bounds',
     'update-visible',
-    'update-invisible',
     'sync-shortcuts',
     'notify',
   ]);

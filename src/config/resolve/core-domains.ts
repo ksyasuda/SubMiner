@@ -74,10 +74,33 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
     );
   }
 
+  if (isObject(src.startupWarmups)) {
+    const startupWarmupBooleanKeys = [
+      'lowPowerMode',
+      'mecab',
+      'yomitanExtension',
+      'subtitleDictionaries',
+      'jellyfinRemoteSession',
+    ] as const;
+
+    for (const key of startupWarmupBooleanKeys) {
+      const value = asBoolean(src.startupWarmups[key]);
+      if (value !== undefined) {
+        resolved.startupWarmups[key] = value as (typeof resolved.startupWarmups)[typeof key];
+      } else if (src.startupWarmups[key] !== undefined) {
+        warn(
+          `startupWarmups.${key}`,
+          src.startupWarmups[key],
+          resolved.startupWarmups[key],
+          'Expected boolean.',
+        );
+      }
+    }
+  }
+
   if (isObject(src.shortcuts)) {
     const shortcutKeys = [
       'toggleVisibleOverlayGlobal',
-      'toggleInvisibleOverlayGlobal',
       'copySubtitle',
       'copySubtitleMultiple',
       'updateLastCardFromClipboard',
@@ -109,24 +132,6 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
         src.shortcuts.multiCopyTimeoutMs,
         resolved.shortcuts.multiCopyTimeoutMs,
         'Expected positive number.',
-      );
-    }
-  }
-
-  if (isObject(src.invisibleOverlay)) {
-    const startupVisibility = src.invisibleOverlay.startupVisibility;
-    if (
-      startupVisibility === 'platform-default' ||
-      startupVisibility === 'visible' ||
-      startupVisibility === 'hidden'
-    ) {
-      resolved.invisibleOverlay.startupVisibility = startupVisibility;
-    } else if (startupVisibility !== undefined) {
-      warn(
-        'invisibleOverlay.startupVisibility',
-        startupVisibility,
-        resolved.invisibleOverlay.startupVisibility,
-        'Expected platform-default, visible, or hidden.',
       );
     }
   }

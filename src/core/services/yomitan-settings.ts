@@ -7,6 +7,7 @@ export interface OpenYomitanSettingsWindowOptions {
   yomitanExt: Extension | null;
   getExistingWindow: () => BrowserWindow | null;
   setWindow: (window: BrowserWindow | null) => void;
+  onWindowClosed?: () => void;
 }
 
 export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOptions): void {
@@ -81,6 +82,7 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
   }, 500);
 
   settingsWindow.on('closed', () => {
+    options.onWindowClosed?.();
     options.setWindow(null);
   });
 }

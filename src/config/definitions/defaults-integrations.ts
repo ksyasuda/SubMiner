@@ -8,6 +8,12 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     enabled: false,
     url: 'http://127.0.0.1:8765',
     pollingRate: 3000,
+    proxy: {
+      enabled: true,
+      host: '127.0.0.1',
+      port: 8766,
+      upstreamUrl: 'http://127.0.0.1:8765',
+    },
     tags: ['SubMiner'],
     fields: {
       audio: 'ExpressionAudio',

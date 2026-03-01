@@ -18,7 +18,6 @@
 
 import type {
   KikuDuplicateCardInfo,
-  MpvSubtitleRenderMetrics,
   RuntimeOptionState,
   SecondarySubMode,
   SubtitleData,
@@ -84,10 +83,7 @@ function syncSettingsModalSubtitleSuppression(): void {
 
 const subtitleRenderer = createSubtitleRenderer(ctx);
 const measurementReporter = createOverlayContentMeasurementReporter(ctx);
-const positioning = createPositioningController(ctx, {
-  modalStateReader: { isAnySettingsModalOpen },
-  applySubtitleFontSize: subtitleRenderer.applySubtitleFontSize,
-});
+const positioning = createPositioningController(ctx);
 const runtimeOptionsModal = createRuntimeOptionsModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
@@ -115,24 +111,19 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
   openSessionHelpModal: sessionHelpModal.openSessionHelpModal,
-  saveInvisiblePositionEdit: positioning.saveInvisiblePositionEdit,
-  cancelInvisiblePositionEdit: positioning.cancelInvisiblePositionEdit,
-  setInvisiblePositionEditMode: positioning.setInvisiblePositionEditMode,
-  applyInvisibleSubtitleOffsetPosition: positioning.applyInvisibleSubtitleOffsetPosition,
-  updateInvisiblePositionEditHud: positioning.updateInvisiblePositionEditHud,
   appendClipboardVideoToQueue: () => {
     void window.electronAPI.appendClipboardVideoToQueue();
   },
 });
 const mouseHandlers = createMouseHandlers(ctx, {
   modalStateReader: { isAnySettingsModalOpen, isAnyModalOpen },
-  applyInvisibleSubtitleLayoutFromMpvMetrics:
-    positioning.applyInvisibleSubtitleLayoutFromMpvMetrics,
   applyYPercent: positioning.applyYPercent,
   getCurrentYPercent: positioning.getCurrentYPercent,
   persistSubtitlePositionPatch: positioning.persistSubtitlePositionPatch,
-  reportHoveredTokenIndex: (tokenIndex: number | null) => {
-    window.electronAPI.reportHoveredSubtitleToken(tokenIndex);
+  getSubtitleHoverAutoPauseEnabled: () => ctx.state.autoPauseVideoOnSubtitleHover,
+  getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
+  sendMpvCommand: (command) => {
+    window.electronAPI.sendMpvCommand(command);
   },
 });
 
@@ -179,9 +170,6 @@ function dismissActiveUiAfterError(): void {
 
 function restoreOverlayInteractionAfterError(): void {
   ctx.state.isOverSubtitle = false;
-  if (ctx.state.invisiblePositionEditMode) {
-    positioning.setInvisiblePositionEditMode(false);
-  }
   ctx.dom.overlay.classList.remove('interactive');
   if (ctx.platform.shouldToggleMouseIgnore) {
     window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
@@ -212,7 +200,6 @@ const recovery = createRendererRecoveryController({
     secondarySubtitlePreview: lastSecondarySubtitlePreview,
     isOverlayInteractive: ctx.dom.overlay.classList.contains('interactive'),
     isOverSubtitle: ctx.state.isOverSubtitle,
-    invisiblePositionEditMode: ctx.state.invisiblePositionEditMode,
     overlayLayer: ctx.platform.overlayLayer,
   }),
   logError: (payload) => {
@@ -221,6 +208,41 @@ const recovery = createRendererRecoveryController({
 });
 
 registerRendererGlobalErrorHandlers(window, recovery);
+
+function registerModalOpenHandlers(): void {
+  window.electronAPI.onOpenRuntimeOptions(() => {
+    runGuardedAsync('runtime-options:open', async () => {
+      try {
+        await runtimeOptionsModal.openRuntimeOptionsModal();
+        window.electronAPI.notifyOverlayModalOpened('runtime-options');
+      } catch {
+        runtimeOptionsModal.setRuntimeOptionsStatus('Failed to load runtime options', true);
+        window.electronAPI.notifyOverlayModalClosed('runtime-options');
+        syncSettingsModalSubtitleSuppression();
+      }
+    });
+  });
+  window.electronAPI.onOpenJimaku(() => {
+    runGuarded('jimaku:open', () => {
+      jimakuModal.openJimakuModal();
+      window.electronAPI.notifyOverlayModalOpened('jimaku');
+    });
+  });
+  window.electronAPI.onSubsyncManualOpen((payload: SubsyncManualPayload) => {
+    runGuarded('subsync:manual-open', () => {
+      subsyncModal.openSubsyncModal(payload);
+      window.electronAPI.notifyOverlayModalOpened('subsync');
+    });
+  });
+  window.electronAPI.onKikuFieldGroupingRequest(
+    (data: { original: KikuDuplicateCardInfo; duplicate: KikuDuplicateCardInfo }) => {
+      runGuarded('kiku:field-grouping-open', () => {
+        kikuModal.openKikuFieldGroupingModal(data);
+        window.electronAPI.notifyOverlayModalOpened('kiku');
+      });
+    },
+  );
+}
 
 function runGuarded(action: string, fn: () => void): void {
   try {
@@ -238,8 +260,13 @@ function runGuardedAsync(action: string, fn: () => Promise<void> | void): void {
     });
 }
 
+registerModalOpenHandlers();
+
 async function init(): Promise<void> {
   document.body.classList.add(`layer-${ctx.platform.overlayLayer}`);
+  if (ctx.platform.isMacOSPlatform) {
+    document.body.classList.add('platform-macos');
+  }
 
   window.electronAPI.onSubtitle((data: SubtitleData) => {
     runGuarded('subtitle:update', () => {
@@ -255,28 +282,10 @@ async function init(): Promise<void> {
 
   window.electronAPI.onSubtitlePosition((position: SubtitlePosition | null) => {
     runGuarded('subtitle-position:update', () => {
-      if (ctx.platform.isInvisibleLayer) {
-        positioning.applyInvisibleStoredSubtitlePosition(position, 'media-change');
-      } else {
-        positioning.applyStoredSubtitlePosition(position, 'media-change');
-      }
+      positioning.applyStoredSubtitlePosition(position, 'media-change');
       measurementReporter.schedule();
     });
   });
-
-  if (ctx.platform.isInvisibleLayer) {
-    window.electronAPI.onMpvSubtitleRenderMetrics((metrics: MpvSubtitleRenderMetrics) => {
-      runGuarded('mpv-metrics:update', () => {
-        positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(metrics, 'event');
-        measurementReporter.schedule();
-      });
-    });
-    window.electronAPI.onOverlayDebugVisualization((enabled: boolean) => {
-      runGuarded('overlay-debug-visualization:update', () => {
-        document.body.classList.toggle('debug-invisible-visualization', enabled);
-      });
-    });
-  }
 
   const initialSubtitle = await window.electronAPI.getCurrentSubtitleRaw();
   lastSubtitlePreview = truncateForErrorLog(initialSubtitle);
@@ -301,17 +310,11 @@ async function init(): Promise<void> {
   subtitleRenderer.renderSecondarySub(await window.electronAPI.getCurrentSecondarySub());
   measurementReporter.schedule();
 
-  const hoverTarget = ctx.platform.isInvisibleLayer
-    ? ctx.dom.subtitleRoot
-    : ctx.dom.subtitleContainer;
-  hoverTarget.addEventListener('mouseenter', mouseHandlers.handleMouseEnter);
-  hoverTarget.addEventListener('mouseleave', mouseHandlers.handleMouseLeave);
+  ctx.dom.subtitleContainer.addEventListener('mouseenter', mouseHandlers.handleMouseEnter);
+  ctx.dom.subtitleContainer.addEventListener('mouseleave', mouseHandlers.handleMouseLeave);
   ctx.dom.secondarySubContainer.addEventListener('mouseenter', mouseHandlers.handleMouseEnter);
   ctx.dom.secondarySubContainer.addEventListener('mouseleave', mouseHandlers.handleMouseLeave);
 
-  mouseHandlers.setupInvisibleHoverSelection();
-  mouseHandlers.setupInvisibleTokenHoverReporter();
-  positioning.setupInvisiblePositionEditHud();
   mouseHandlers.setupResizeHandler();
   mouseHandlers.setupSelectionObserver();
   mouseHandlers.setupYomitanObserver();
@@ -339,59 +342,17 @@ async function init(): Promise<void> {
       measurementReporter.schedule();
     });
   });
-  window.electronAPI.onOpenRuntimeOptions(() => {
-    runGuardedAsync('runtime-options:open', async () => {
-      try {
-        await runtimeOptionsModal.openRuntimeOptionsModal();
-      } catch {
-        runtimeOptionsModal.setRuntimeOptionsStatus('Failed to load runtime options', true);
-        window.electronAPI.notifyOverlayModalClosed('runtime-options');
-        syncSettingsModalSubtitleSuppression();
-      }
-    });
-  });
-  window.electronAPI.onOpenJimaku(() => {
-    runGuarded('jimaku:open', () => {
-      jimakuModal.openJimakuModal();
-    });
-  });
-  window.electronAPI.onSubsyncManualOpen((payload: SubsyncManualPayload) => {
-    runGuarded('subsync:manual-open', () => {
-      subsyncModal.openSubsyncModal(payload);
-    });
-  });
-  window.electronAPI.onKikuFieldGroupingRequest(
-    (data: { original: KikuDuplicateCardInfo; duplicate: KikuDuplicateCardInfo }) => {
-      runGuarded('kiku:field-grouping-open', () => {
-        kikuModal.openKikuFieldGroupingModal(data);
-      });
-    },
-  );
-
-  if (!ctx.platform.isInvisibleLayer) {
-    mouseHandlers.setupDragging();
-  }
+  mouseHandlers.setupDragging();
 
   await keyboardHandlers.setupMpvInputForwarding();
 
   subtitleRenderer.applySubtitleStyle(await window.electronAPI.getSubtitleStyle());
 
-  if (ctx.platform.isInvisibleLayer) {
-    positioning.applyInvisibleStoredSubtitlePosition(
-      await window.electronAPI.getSubtitlePosition(),
-      'startup',
-    );
-    positioning.applyInvisibleSubtitleLayoutFromMpvMetrics(
-      await window.electronAPI.getMpvSubtitleRenderMetrics(),
-      'startup',
-    );
-  } else {
-    positioning.applyStoredSubtitlePosition(
-      await window.electronAPI.getSubtitlePosition(),
-      'startup',
-    );
-    measurementReporter.schedule();
-  }
+  positioning.applyStoredSubtitlePosition(
+    await window.electronAPI.getSubtitlePosition(),
+    'startup',
+  );
+  measurementReporter.schedule();
 
   if (ctx.platform.shouldToggleMouseIgnore) {
     window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
@@ -412,7 +373,7 @@ function setupDragDropToMpvQueue(): void {
 
   const clearDropInteractive = (): void => {
     dragDepth = 0;
-    if (isAnyModalOpen() || ctx.state.isOverSubtitle || ctx.state.invisiblePositionEditMode) {
+    if (isAnyModalOpen() || ctx.state.isOverSubtitle) {
       return;
     }
     ctx.dom.overlay.classList.remove('interactive');

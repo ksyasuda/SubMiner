@@ -9,14 +9,6 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'auto_start_overlay',
   },
   {
-    title: 'Visible Overlay Subtitle Binding',
-    description: [
-      'Control whether visible overlay toggles also toggle MPV subtitle visibility.',
-      'When enabled, visible overlay hides MPV subtitles; when disabled, MPV subtitles are left unchanged.',
-    ],
-    key: 'bind_visible_overlay_to_mpv_sub_visibility',
-  },
-  {
     title: 'Texthooker Server',
     description: ['Control whether browser opens automatically for texthooker.'],
     key: 'texthooker',
@@ -35,19 +27,19 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'logging',
   },
   {
+    title: 'Startup Warmups',
+    description: [
+      'Background warmup controls for MeCab, Yomitan, dictionaries, and Jellyfin session.',
+      'Disable individual warmups to defer load until first real usage.',
+      'lowPowerMode defers all warmups except Yomitan extension.',
+    ],
+    key: 'startupWarmups',
+  },
+  {
     title: 'Keyboard Shortcuts',
     description: ['Overlay keyboard shortcuts. Set a shortcut to null to disable.'],
     notes: ['Hot-reload: shortcut changes apply live and update the session help modal on reopen.'],
     key: 'shortcuts',
-  },
-  {
-    title: 'Invisible Overlay',
-    description: ['Startup behavior for the invisible interactive subtitle mining layer.'],
-    notes: [
-      'Invisible subtitle position edit mode: Ctrl/Cmd+Shift+P to toggle, arrow keys to move, Enter or Ctrl/Cmd+S to save, Esc to cancel.',
-      'This edit-mode shortcut is fixed and is not currently configurable.',
-    ],
-    key: 'invisibleOverlay',
   },
   {
     title: 'Keybindings (MPV Commands)',

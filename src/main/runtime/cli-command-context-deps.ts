@@ -2,6 +2,7 @@ import type { CliArgs } from '../../cli/args';
 import type { CliCommandContextFactoryDeps } from './cli-command-context';
 
 export function createBuildCliCommandContextDepsHandler(deps: {
+  setLogLevel?: (level: NonNullable<CliArgs['logLevel']>) => void;
   getSocketPath: () => string;
   setSocketPath: (socketPath: string) => void;
   getMpvClient: CliCommandContextFactoryDeps['getMpvClient'];
@@ -15,9 +16,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   isOverlayInitialized: () => boolean;
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
-  toggleInvisibleOverlay: () => void;
   setVisibleOverlay: (visible: boolean) => void;
-  setInvisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;
   mineSentenceCard: () => Promise<void>;
@@ -47,6 +46,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   logError: (message: string, err: unknown) => void;
 }) {
   return (): CliCommandContextFactoryDeps => ({
+    setLogLevel: deps.setLogLevel,
     getSocketPath: deps.getSocketPath,
     setSocketPath: deps.setSocketPath,
     getMpvClient: deps.getMpvClient,
@@ -60,9 +60,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     isOverlayInitialized: deps.isOverlayInitialized,
     initializeOverlay: deps.initializeOverlay,
     toggleVisibleOverlay: deps.toggleVisibleOverlay,
-    toggleInvisibleOverlay: deps.toggleInvisibleOverlay,
     setVisibleOverlay: deps.setVisibleOverlay,
-    setInvisibleOverlay: deps.setInvisibleOverlay,
     copyCurrentSubtitle: deps.copyCurrentSubtitle,
     startPendingMultiCopy: deps.startPendingMultiCopy,
     mineSentenceCard: deps.mineSentenceCard,

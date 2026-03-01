@@ -21,26 +21,30 @@ export function createOverlayShortcutsRuntimeHandlers(deps: {
   const registerOverlayShortcutsMainDeps = createBuildRegisterOverlayShortcutsMainDepsHandler(
     deps.overlayShortcutsRuntimeMainDeps,
   )();
-  const registerOverlayShortcutsHandler =
-    createRegisterOverlayShortcutsHandler(registerOverlayShortcutsMainDeps);
+  const registerOverlayShortcutsHandler = createRegisterOverlayShortcutsHandler(
+    registerOverlayShortcutsMainDeps,
+  );
 
-  const unregisterOverlayShortcutsMainDeps =
-    createBuildUnregisterOverlayShortcutsMainDepsHandler(
-      deps.overlayShortcutsRuntimeMainDeps,
-    )();
-  const unregisterOverlayShortcutsHandler =
-    createUnregisterOverlayShortcutsHandler(unregisterOverlayShortcutsMainDeps);
+  const unregisterOverlayShortcutsMainDeps = createBuildUnregisterOverlayShortcutsMainDepsHandler(
+    deps.overlayShortcutsRuntimeMainDeps,
+  )();
+  const unregisterOverlayShortcutsHandler = createUnregisterOverlayShortcutsHandler(
+    unregisterOverlayShortcutsMainDeps,
+  );
 
   const syncOverlayShortcutsMainDeps = createBuildSyncOverlayShortcutsMainDepsHandler(
     deps.overlayShortcutsRuntimeMainDeps,
   )();
-  const syncOverlayShortcutsHandler = createSyncOverlayShortcutsHandler(syncOverlayShortcutsMainDeps);
+  const syncOverlayShortcutsHandler = createSyncOverlayShortcutsHandler(
+    syncOverlayShortcutsMainDeps,
+  );
 
   const refreshOverlayShortcutsMainDeps = createBuildRefreshOverlayShortcutsMainDepsHandler(
     deps.overlayShortcutsRuntimeMainDeps,
   )();
-  const refreshOverlayShortcutsHandler =
-    createRefreshOverlayShortcutsHandler(refreshOverlayShortcutsMainDeps);
+  const refreshOverlayShortcutsHandler = createRefreshOverlayShortcutsHandler(
+    refreshOverlayShortcutsMainDeps,
+  );
 
   return {
     registerOverlayShortcuts: () => registerOverlayShortcutsHandler(),
