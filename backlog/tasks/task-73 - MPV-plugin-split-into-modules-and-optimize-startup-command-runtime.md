@@ -1,9 +1,10 @@
 ---
 id: TASK-73
 title: 'MPV plugin: split into modules and optimize startup/command runtime'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-02-28 20:50'
+updated_date: '2026-02-28 22:36'
 labels: []
 dependencies: []
 references:
@@ -32,6 +33,7 @@ references:
   - docs/architecture.md
   - README.md
 priority: medium
+ordinal: 4000
 ---
 
 ## Description

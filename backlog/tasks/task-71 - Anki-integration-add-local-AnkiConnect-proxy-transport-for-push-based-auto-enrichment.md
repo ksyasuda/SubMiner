@@ -6,6 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-02-28 02:38'
+updated_date: '2026-02-28 22:36'
 labels: []
 dependencies: []
 references:
@@ -18,6 +19,7 @@ references:
   - docs/anki-integration.md
   - config.example.jsonc
 priority: medium
+ordinal: 2000
 ---
 
 ## Description

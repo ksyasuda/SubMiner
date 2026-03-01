@@ -4,6 +4,7 @@ title: 'macOS config validation UX: show full warning details in native dialog'
 status: Done
 assignee: []
 created_date: '2026-02-28 02:38'
+updated_date: '2026-02-28 22:36'
 labels: []
 dependencies: []
 references:
@@ -12,6 +13,7 @@ references:
   - src/main/runtime/startup-config.ts
   - docs/configuration.md
 priority: low
+ordinal: 3000
 ---
 
 ## Description

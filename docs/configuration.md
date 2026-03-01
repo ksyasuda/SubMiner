@@ -564,6 +564,8 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 | Key               | Command                    | Description                           |
 | ----------------- | -------------------------- | ------------------------------------- |
 | `Space`           | `["cycle", "pause"]`       | Toggle pause                          |
+| `KeyJ`            | `["cycle", "sid"]`         | Cycle primary subtitle track          |
+| `Shift+KeyJ`      | `["cycle", "secondary-sid"]`   | Cycle secondary subtitle track      |
 | `ArrowRight`      | `["seek", 5]`              | Seek forward 5 seconds                |
 | `ArrowLeft`       | `["seek", -5]`             | Seek backward 5 seconds               |
 | `ArrowUp`         | `["seek", 60]`             | Seek forward 60 seconds               |
@@ -780,9 +782,9 @@ Lookup behavior:
 - If `sourcePath` is missing or empty, SubMiner searches default install/runtime locations for `frequency-dictionary` directories (for example app resources, user data paths, and current working directory).
 - In both cases, only terms with a valid `frequencyRank` are used; everything else falls back to no highlighting.
 - `frequencyDictionary.matchMode` controls which token text is used for frequency lookups: `headword` (dictionary form) or `surface` (visible subtitle text).
+- Frequency highlighting skips tokens that look like non-lexical SFX/interjection noise (for example kana reduplication or short kana endings like `っ`), even when dictionary ranks exist.
 
 In `single` mode all highlights use `singleColor`; in `banded` mode tokens map to five ascending color bands from most common to least common inside the topX window.
-- Frequency highlighting skips tokens that look like non-lexical SFX/interjection noise (for example kana reduplication or short kana endings like `っ`), even when dictionary ranks exist.
 
 Secondary subtitle defaults: `fontFamily: "Manrope, Inter"`, `fontSize: 24`, `fontColor: "#cad3f5"`, `backgroundColor: "transparent"`. Any property not set in `secondary` falls back to the CSS defaults.
 

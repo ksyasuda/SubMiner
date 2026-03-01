@@ -6,6 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-02-28 02:38'
+updated_date: '2026-02-28 22:36'
 labels: []
 dependencies: []
 references:
@@ -19,6 +20,7 @@ references:
   - src/renderer/renderer.ts
   - docs/plans/2026-02-26-secondary-subtitles-main-overlay.md
 priority: medium
+ordinal: 1000
 ---
 
 ## Description
