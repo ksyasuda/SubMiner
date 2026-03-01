@@ -96,6 +96,28 @@ function parsePositiveFrequencyString(value: string): number | null {
   return parsed;
 }
 
+function parsePositiveFrequencyValue(value: unknown): number | null {
+  const numeric = asPositiveInteger(value);
+  if (numeric !== null) {
+    return numeric;
+  }
+
+  if (typeof value === 'string') {
+    return parsePositiveFrequencyString(value);
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const parsed = parsePositiveFrequencyValue(item);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
 function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
   if (!isObject(value)) {
     return null;
@@ -103,15 +125,12 @@ function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
 
   const term = typeof value.term === 'string' ? value.term.trim() : '';
   const dictionary = typeof value.dictionary === 'string' ? value.dictionary.trim() : '';
-  const rawFrequency = asPositiveInteger(value.frequency);
-  const displayValueRaw =
-    value.displayValue === null
-      ? null
-      : typeof value.displayValue === 'string'
-        ? value.displayValue
-        : null;
+  const rawFrequency = parsePositiveFrequencyValue(value.frequency);
+  const displayValueRaw = value.displayValue;
   const parsedDisplayFrequency =
-    displayValueRaw !== null ? parsePositiveFrequencyString(displayValueRaw) : null;
+    displayValueRaw !== null && displayValueRaw !== undefined
+      ? parsePositiveFrequencyValue(displayValueRaw)
+      : null;
   const frequency = parsedDisplayFrequency ?? rawFrequency;
   if (!term || !dictionary || frequency === null) {
     return null;
@@ -128,7 +147,7 @@ function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
       : typeof value.reading === 'string'
         ? value.reading
         : null;
-  const displayValue = displayValueRaw;
+  const displayValue = typeof displayValueRaw === 'string' ? displayValueRaw : null;
   const displayValueParsed = value.displayValueParsed === true;
 
   return {

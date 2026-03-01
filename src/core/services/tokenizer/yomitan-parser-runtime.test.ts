@@ -130,6 +130,28 @@ test('requestYomitanTermFrequencies returns normalized frequency entries', async
   assert.match(scriptValue, /optionsGetFull/);
 });
 
+test('requestYomitanTermFrequencies prefers primary rank from displayValue array pair', async () => {
+  const deps = createDeps(async () => [
+    {
+      term: '無人',
+      reading: 'むじん',
+      dictionary: 'freq-dict',
+      dictionaryPriority: 0,
+      frequency: 157632,
+      displayValue: [7141, 157632],
+      displayValueParsed: true,
+    },
+  ]);
+
+  const result = await requestYomitanTermFrequencies([{ term: '無人', reading: 'むじん' }], deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0]?.term, '無人');
+  assert.equal(result[0]?.frequency, 7141);
+});
+
 test('requestYomitanTermFrequencies caches profile metadata between calls', async () => {
   const scripts: string[] = [];
   const deps = createDeps(async (script) => {

@@ -284,8 +284,7 @@ function buildYomitanFrequencyTermReadingList(
       }
       const readingRaw =
         token.reading && token.reading.trim().length > 0 ? token.reading.trim() : null;
-      const reading = matchMode === 'headword' ? null : readingRaw;
-      return { term, reading };
+      return { term, reading: readingRaw };
     })
     .filter((pair): pair is { term: string; reading: string | null } => pair !== null);
 }

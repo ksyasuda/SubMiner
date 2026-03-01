@@ -297,7 +297,7 @@ test('tokenizeSubtitle starts Yomitan frequency lookup and MeCab enrichment in p
   assert.equal(result.tokens?.[0]?.frequencyRank, 77);
 });
 
-test('tokenizeSubtitle queries headword frequencies without forcing surface reading', async () => {
+test('tokenizeSubtitle queries headword frequencies with token reading for disambiguation', async () => {
   const result = await tokenizeSubtitle(
     '鍛えた',
     makeDeps({
@@ -309,7 +309,7 @@ test('tokenizeSubtitle queries headword frequencies without forcing surface read
           webContents: {
             executeJavaScript: async (script: string) => {
               if (script.includes('getTermFrequencies')) {
-                if (!script.includes('"term":"鍛える","reading":null')) {
+                if (!script.includes('"term":"鍛える","reading":"きた"')) {
                   return [];
                 }
                 return [
@@ -349,6 +349,68 @@ test('tokenizeSubtitle queries headword frequencies without forcing surface read
   assert.equal(result.tokens?.[0]?.headword, '鍛える');
   assert.equal(result.tokens?.[0]?.reading, 'きた');
   assert.equal(result.tokens?.[0]?.frequencyRank, 2847);
+});
+
+test('tokenizeSubtitle avoids headword term-only fallback rank when reading-specific frequency exists', async () => {
+  const result = await tokenizeSubtitle(
+    '無人',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                if (!script.includes('"term":"無人","reading":"むじん"')) {
+                  return [];
+                }
+                return [
+                  {
+                    term: '無人',
+                    reading: null,
+                    dictionary: 'CC100',
+                    dictionaryPriority: 0,
+                    frequency: 157632,
+                    displayValue: null,
+                    displayValueParsed: false,
+                  },
+                  {
+                    term: '無人',
+                    reading: 'むじん',
+                    dictionary: 'CC100',
+                    dictionaryPriority: 0,
+                    frequency: 7141,
+                    displayValue: null,
+                    displayValueParsed: false,
+                  },
+                ];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '無人',
+                        reading: 'むじん',
+                        headwords: [[{ term: '無人' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 7141);
 });
 
 test('tokenizeSubtitle prefers Yomitan frequency from highest-priority dictionary', async () => {
