@@ -586,13 +586,15 @@ export class ImmersionTrackerService {
       this.flushTelemetry(true);
       this.flushNow();
       const nowMs = Date.now();
-      pruneRetention(this.db, nowMs, {
+      const retentionResult = pruneRetention(this.db, nowMs, {
         eventsRetentionMs: this.eventsRetentionMs,
         telemetryRetentionMs: this.telemetryRetentionMs,
         dailyRollupRetentionMs: this.dailyRollupRetentionMs,
         monthlyRollupRetentionMs: this.monthlyRollupRetentionMs,
       });
-      this.runRollupMaintenance();
+      const shouldRebuildRollups =
+        retentionResult.deletedTelemetryRows > 0 || retentionResult.deletedEndedSessions > 0;
+      this.runRollupMaintenance(shouldRebuildRollups);
 
       if (nowMs - this.lastVacuumMs >= this.vacuumIntervalMs && !this.writeLock.locked) {
         this.db.exec('VACUUM');
@@ -606,8 +608,8 @@ export class ImmersionTrackerService {
     }
   }
 
-  private runRollupMaintenance(): void {
-    runRollupMaintenance(this.db);
+  private runRollupMaintenance(forceRebuild = false): void {
+    runRollupMaintenance(this.db, forceRebuild);
   }
 
   private startSession(videoId: number, startedAtMs?: number): void {

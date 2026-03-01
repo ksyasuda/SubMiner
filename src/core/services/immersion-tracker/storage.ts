@@ -42,6 +42,17 @@ export function ensureSchema(db: DatabaseSync): void {
       applied_at_ms INTEGER NOT NULL
     );
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_rollup_state(
+      state_key TEXT PRIMARY KEY,
+      state_value INTEGER NOT NULL
+    );
+  `);
+  db.exec(`
+    INSERT INTO imm_rollup_state(state_key, state_value)
+    VALUES ('last_rollup_sample_ms', 0)
+    ON CONFLICT(state_key) DO NOTHING
+  `);
 
   const currentVersion = db
     .prepare('SELECT schema_version FROM imm_schema_version ORDER BY schema_version DESC LIMIT 1')

@@ -10,6 +10,8 @@ SubMiner stores immersion analytics in local SQLite (`immersion.sqlite`) by defa
 - Queue overflow policy is deterministic: drop oldest queued writes, keep newest.
 - Flush policy defaults to `25` writes or `500ms` max delay.
 - SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=2500`.
+- Rollups now run incrementally from the last processed telemetry sample; startup performs a one-time bootstrap rebuild-equivalent pass.
+- If retention pruning removes telemetry/session rows, maintenance triggers a full rollup rebuild to resync historical aggregates.
 
 ## Schema (v3)
 

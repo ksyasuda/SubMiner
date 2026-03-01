@@ -56,6 +56,17 @@ testIfSqlite('ensureSchema creates immersion core tables', () => {
     assert.ok(tableNames.has('imm_monthly_rollups'));
     assert.ok(tableNames.has('imm_words'));
     assert.ok(tableNames.has('imm_kanji'));
+    assert.ok(tableNames.has('imm_rollup_state'));
+
+    const rollupStateRow = db
+      .prepare(
+        'SELECT state_value FROM imm_rollup_state WHERE state_key = ?',
+      )
+      .get('last_rollup_sample_ms') as {
+      state_value: number;
+    } | null;
+    assert.ok(rollupStateRow);
+    assert.equal(rollupStateRow?.state_value, 0);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
