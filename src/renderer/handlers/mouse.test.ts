@@ -93,10 +93,9 @@ test('auto-pause on subtitle hover pauses on enter and resumes on leave when ena
   ]);
 });
 
-test('auto-pause on subtitle hover does not unpause when playback becomes paused on leave', async () => {
+test('auto-pause on subtitle hover skips when playback is already paused', async () => {
   const ctx = createMouseTestContext();
   const mpvCommands: Array<(string | number)[]> = [];
-  const playbackPausedStates = [false, true];
 
   const handlers = createMouseHandlers(ctx as never, {
     modalStateReader: {
@@ -107,7 +106,7 @@ test('auto-pause on subtitle hover does not unpause when playback becomes paused
     getCurrentYPercent: () => 10,
     persistSubtitlePositionPatch: () => {},
     getSubtitleHoverAutoPauseEnabled: () => true,
-    getPlaybackPaused: async () => playbackPausedStates.shift() ?? true,
+    getPlaybackPaused: async () => true,
     sendMpvCommand: (command) => {
       mpvCommands.push(command);
     },
@@ -116,7 +115,7 @@ test('auto-pause on subtitle hover does not unpause when playback becomes paused
   await handlers.handleMouseEnter();
   await handlers.handleMouseLeave();
 
-  assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
+  assert.deepEqual(mpvCommands, []);
 });
 
 test('auto-pause on subtitle hover is skipped when disabled in config', async () => {

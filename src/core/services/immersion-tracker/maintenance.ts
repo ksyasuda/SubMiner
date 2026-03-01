@@ -97,7 +97,6 @@ function upsertDailyRollupsForGroups(
     return;
   }
 
-  const deleteStmt = db.prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day = ? AND video_id = ?`);
   const upsertStmt = db.prepare(`
     INSERT INTO imm_daily_rollups (
       rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
@@ -150,7 +149,6 @@ function upsertDailyRollupsForGroups(
   `);
 
   for (const { rollupDay, videoId } of groups) {
-    deleteStmt.run(rollupDay, videoId);
     upsertStmt.run(rollupNowMs, rollupNowMs, rollupDay, videoId);
   }
 }
@@ -164,9 +162,6 @@ function upsertMonthlyRollupsForGroups(
     return;
   }
 
-  const deleteStmt = db.prepare(
-    `DELETE FROM imm_monthly_rollups WHERE rollup_month = ? AND video_id = ?`,
-  );
   const upsertStmt = db.prepare(`
     INSERT INTO imm_monthly_rollups (
       rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
@@ -200,7 +195,6 @@ function upsertMonthlyRollupsForGroups(
   `);
 
   for (const { rollupMonth, videoId } of groups) {
-    deleteStmt.run(rollupMonth, videoId);
     upsertStmt.run(rollupNowMs, rollupNowMs, rollupMonth, videoId);
   }
 }
@@ -279,7 +273,14 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
     })),
   );
 
-  upsertDailyRollupsForGroups(db, dailyGroups, rollupNowMs);
-  upsertMonthlyRollupsForGroups(db, monthlyGroups, rollupNowMs);
-  setLastRollupSampleMs(db, Number(maxSampleRow.maxSampleMs));
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    upsertDailyRollupsForGroups(db, dailyGroups, rollupNowMs);
+    upsertMonthlyRollupsForGroups(db, monthlyGroups, rollupNowMs);
+    setLastRollupSampleMs(db, Number(maxSampleRow.maxSampleMs));
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }

@@ -81,14 +81,6 @@ export function createMouseHandlers(
     hoverPauseRequestId += 1;
     if (pausedBySubtitleHover) {
       pausedBySubtitleHover = false;
-      try {
-        const isPaused = await options.getPlaybackPaused();
-        if (isPaused !== false) {
-          return;
-        }
-      } catch {
-        return;
-      }
       options.sendMpvCommand(['set_property', 'pause', 'no']);
     }
     if (yomitanPopupVisible) return;
