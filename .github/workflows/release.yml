@@ -242,7 +242,7 @@ jobs:
         run: |
           tar -czf "release/subminer-assets.tar.gz" \
             config.example.jsonc \
-            plugin/subminer.lua \
+            plugin/subminer \
             plugin/subminer.conf \
             assets/themes/subminer.rasi
 
@@ -304,7 +304,7 @@ jobs:
             ### Optional Assets (config example + mpv plugin + rofi theme)
             1. Download `subminer-assets.tar.gz`
             2. Extract and copy `config.example.jsonc` to `~/.config/SubMiner/config.jsonc`
-            3. Copy `plugin/subminer.lua` to `~/.config/mpv/scripts/`
+            3. Copy `plugin/subminer/` directory contents to `~/.config/mpv/scripts/`
             4. Copy `plugin/subminer.conf` to `~/.config/mpv/script-opts/`
             5. Copy `assets/themes/subminer.rasi` to:
                - Linux: `~/.local/share/SubMiner/themes/subminer.rasi`
