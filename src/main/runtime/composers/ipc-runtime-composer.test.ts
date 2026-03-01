@@ -42,6 +42,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
         tokenizeCurrentSubtitle: async () => null,
         getCurrentSubtitleRaw: () => '',
         getCurrentSubtitleAss: () => '',
+        getPlaybackPaused: () => null,
         getSubtitlePosition: () => ({}) as never,
         getSubtitleStyle: () => ({}) as never,
         saveSubtitlePosition: () => {},

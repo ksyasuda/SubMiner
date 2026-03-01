@@ -28,6 +28,25 @@ test('subtitleStyle preserveLineBreaks falls back while merge is preserved', () 
   );
 });
 
+test('subtitleStyle autoPauseVideoOnHover falls back on invalid value', () => {
+  const { context, warnings } = createResolveContext({
+    subtitleStyle: {
+      autoPauseVideoOnHover: 'invalid' as unknown as boolean,
+    },
+  });
+
+  applySubtitleDomainConfig(context);
+
+  assert.equal(context.resolved.subtitleStyle.autoPauseVideoOnHover, true);
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.autoPauseVideoOnHover' &&
+        warning.message === 'Expected boolean.',
+    ),
+  );
+});
+
 test('subtitleStyle frequencyDictionary.matchMode accepts valid values and warns on invalid', () => {
   const valid = createResolveContext({
     subtitleStyle: {

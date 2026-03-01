@@ -22,6 +22,13 @@ export function buildSubtitleConfigOptionRegistry(
         'When false, line breaks are flattened to spaces for a single-line flow.',
     },
     {
+      path: 'subtitleStyle.autoPauseVideoOnHover',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleStyle.autoPauseVideoOnHover,
+      description:
+        'Automatically pause mpv playback while hovering subtitle text, then resume on leave.',
+    },
+    {
       path: 'subtitleStyle.hoverTokenColor',
       kind: 'string',
       defaultValue: defaultConfig.subtitleStyle.hoverTokenColor,

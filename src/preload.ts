@@ -160,6 +160,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getCurrentSubtitleRaw),
   getCurrentSubtitleAss: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getCurrentSubtitleAss),
+  getPlaybackPaused: (): Promise<boolean | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getPlaybackPaused),
   onSubtitleAss: (callback: (assText: string) => void) => {
     ipcRenderer.on(
       IPC_CHANNELS.event.subtitleAssSet,

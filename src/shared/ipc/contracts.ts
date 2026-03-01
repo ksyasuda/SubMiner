@@ -26,6 +26,7 @@ export const IPC_CHANNELS = {
     getCurrentSubtitle: 'get-current-subtitle',
     getCurrentSubtitleRaw: 'get-current-subtitle-raw',
     getCurrentSubtitleAss: 'get-current-subtitle-ass',
+    getPlaybackPaused: 'get-playback-paused',
     getSubtitlePosition: 'get-subtitle-position',
     getSubtitleStyle: 'get-subtitle-style',
     getMecabStatus: 'get-mecab-status',

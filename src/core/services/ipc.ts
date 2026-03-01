@@ -29,6 +29,7 @@ export interface IpcServiceDeps {
   tokenizeCurrentSubtitle: () => Promise<unknown>;
   getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
+  getPlaybackPaused: () => boolean | null;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
@@ -96,6 +97,7 @@ export interface IpcDepsRuntimeOptions {
   tokenizeCurrentSubtitle: () => Promise<unknown>;
   getCurrentSubtitleRaw: () => string;
   getCurrentSubtitleAss: () => string;
+  getPlaybackPaused: () => boolean | null;
   getSubtitlePosition: () => unknown;
   getSubtitleStyle: () => unknown;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
@@ -136,6 +138,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     tokenizeCurrentSubtitle: options.tokenizeCurrentSubtitle,
     getCurrentSubtitleRaw: options.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: options.getCurrentSubtitleAss,
+    getPlaybackPaused: options.getPlaybackPaused,
     getSubtitlePosition: options.getSubtitlePosition,
     getSubtitleStyle: options.getSubtitleStyle,
     saveSubtitlePosition: options.saveSubtitlePosition,
@@ -230,6 +233,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.getCurrentSubtitleAss, () => {
     return deps.getCurrentSubtitleAss();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.getPlaybackPaused, () => {
+    return deps.getPlaybackPaused();
   });
 
   ipc.handle(IPC_CHANNELS.request.getSubtitlePosition, () => {

@@ -120,6 +120,11 @@ const mouseHandlers = createMouseHandlers(ctx, {
   applyYPercent: positioning.applyYPercent,
   getCurrentYPercent: positioning.getCurrentYPercent,
   persistSubtitlePositionPatch: positioning.persistSubtitlePositionPatch,
+  getSubtitleHoverAutoPauseEnabled: () => ctx.state.autoPauseVideoOnSubtitleHover,
+  getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
+  sendMpvCommand: (command) => {
+    window.electronAPI.sendMpvCommand(command);
+  },
 });
 
 let lastSubtitlePreview = '';

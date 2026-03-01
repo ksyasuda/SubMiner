@@ -45,6 +45,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     tokenizeCurrentSubtitle: async () => null,
     getCurrentSubtitleRaw: () => '',
     getCurrentSubtitleAss: () => '',
+    getPlaybackPaused: () => true,
     getSubtitlePosition: () => null,
     getSubtitleStyle: () => null,
     saveSubtitlePosition: () => {},
@@ -89,6 +90,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     message: 'done',
   });
   assert.deepEqual(calls, ['clearAnilistToken', 'openAnilistSetup', 'retryAnilistQueueNow']);
+  assert.equal(deps.getPlaybackPaused(), true);
 });
 
 test('registerIpcHandlers rejects malformed runtime-option payloads', async () => {
@@ -106,6 +108,7 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       tokenizeCurrentSubtitle: async () => null,
       getCurrentSubtitleRaw: () => '',
       getCurrentSubtitleAss: () => '',
+      getPlaybackPaused: () => null,
       getSubtitlePosition: () => null,
       getSubtitleStyle: () => null,
       saveSubtitlePosition: () => {},
@@ -166,6 +169,10 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
   });
   await cycleHandler!({}, 'anki.kikuFieldGrouping', -1);
   assert.deepEqual(cycles, [{ id: 'anki.kikuFieldGrouping', direction: -1 }]);
+
+  const getPlaybackPausedHandler = handlers.handle.get(IPC_CHANNELS.request.getPlaybackPaused);
+  assert.ok(getPlaybackPausedHandler);
+  assert.equal(getPlaybackPausedHandler!({}), null);
 });
 
 test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
@@ -189,6 +196,7 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       tokenizeCurrentSubtitle: async () => null,
       getCurrentSubtitleRaw: () => '',
       getCurrentSubtitleAss: () => '',
+      getPlaybackPaused: () => false,
       getSubtitlePosition: () => null,
       getSubtitleStyle: () => null,
       saveSubtitlePosition: (position) => {

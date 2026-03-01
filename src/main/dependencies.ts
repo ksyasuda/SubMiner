@@ -63,6 +63,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   tokenizeCurrentSubtitle: IpcDepsRuntimeOptions['tokenizeCurrentSubtitle'];
   getCurrentSubtitleRaw: IpcDepsRuntimeOptions['getCurrentSubtitleRaw'];
   getCurrentSubtitleAss: IpcDepsRuntimeOptions['getCurrentSubtitleAss'];
+  getPlaybackPaused: IpcDepsRuntimeOptions['getPlaybackPaused'];
   focusMainWindow?: IpcDepsRuntimeOptions['focusMainWindow'];
   getSubtitlePosition: IpcDepsRuntimeOptions['getSubtitlePosition'];
   getSubtitleStyle: IpcDepsRuntimeOptions['getSubtitleStyle'];
@@ -198,6 +199,7 @@ export function createMainIpcRuntimeServiceDeps(
     tokenizeCurrentSubtitle: params.tokenizeCurrentSubtitle,
     getCurrentSubtitleRaw: params.getCurrentSubtitleRaw,
     getCurrentSubtitleAss: params.getCurrentSubtitleAss,
+    getPlaybackPaused: params.getPlaybackPaused,
     getSubtitlePosition: params.getSubtitlePosition,
     getSubtitleStyle: params.getSubtitleStyle,
     saveSubtitlePosition: params.saveSubtitlePosition,

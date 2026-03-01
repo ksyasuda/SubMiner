@@ -2880,6 +2880,7 @@ const {
       tokenizeCurrentSubtitle: () => tokenizeSubtitle(appState.currentSubText),
       getCurrentSubtitleRaw: () => appState.currentSubText,
       getCurrentSubtitleAss: () => appState.currentSubAssText,
+      getPlaybackPaused: () => appState.playbackPaused,
       getSubtitlePosition: () => loadSubtitlePosition(),
       getSubtitleStyle: () => {
         const resolvedConfig = getResolvedConfig();

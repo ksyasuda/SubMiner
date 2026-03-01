@@ -106,6 +106,7 @@
   "subtitleStyle": {
     "enableJlpt": false, // Enable JLPT vocabulary level underlines. When disabled, JLPT tagging lookup and underlines are skipped. Values: true | false
     "preserveLineBreaks": false, // Preserve line breaks in visible overlay subtitle rendering. When false, line breaks are flattened to spaces for a single-line flow. Values: true | false
+    "autoPauseVideoOnHover": true, // Automatically pause mpv playback while hovering subtitle text, then resume on leave. Values: true | false
     "hoverTokenColor": "#f4dbd6", // Hex color used for hovered subtitle token highlight in mpv.
     "hoverTokenBackgroundColor": "rgba(54, 58, 79, 0.84)", // CSS color used for hovered subtitle token background highlight in mpv.
     "fontFamily": "M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP", // Font family setting.

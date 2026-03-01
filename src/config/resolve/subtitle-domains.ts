@@ -99,6 +99,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
   if (isObject(src.subtitleStyle)) {
     const fallbackSubtitleStyleEnableJlpt = resolved.subtitleStyle.enableJlpt;
     const fallbackSubtitleStylePreserveLineBreaks = resolved.subtitleStyle.preserveLineBreaks;
+    const fallbackSubtitleStyleAutoPauseVideoOnHover =
+      resolved.subtitleStyle.autoPauseVideoOnHover;
     const fallbackSubtitleStyleHoverTokenColor = resolved.subtitleStyle.hoverTokenColor;
     const fallbackSubtitleStyleHoverTokenBackgroundColor =
       resolved.subtitleStyle.hoverTokenBackgroundColor;
@@ -149,6 +151,24 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         'subtitleStyle.preserveLineBreaks',
         (src.subtitleStyle as { preserveLineBreaks?: unknown }).preserveLineBreaks,
         resolved.subtitleStyle.preserveLineBreaks,
+        'Expected boolean.',
+      );
+    }
+
+    const autoPauseVideoOnHover = asBoolean(
+      (src.subtitleStyle as { autoPauseVideoOnHover?: unknown }).autoPauseVideoOnHover,
+    );
+    if (autoPauseVideoOnHover !== undefined) {
+      resolved.subtitleStyle.autoPauseVideoOnHover = autoPauseVideoOnHover;
+    } else if (
+      (src.subtitleStyle as { autoPauseVideoOnHover?: unknown }).autoPauseVideoOnHover !==
+      undefined
+    ) {
+      resolved.subtitleStyle.autoPauseVideoOnHover = fallbackSubtitleStyleAutoPauseVideoOnHover;
+      warn(
+        'subtitleStyle.autoPauseVideoOnHover',
+        (src.subtitleStyle as { autoPauseVideoOnHover?: unknown }).autoPauseVideoOnHover,
+        resolved.subtitleStyle.autoPauseVideoOnHover,
         'Expected boolean.',
       );
     }

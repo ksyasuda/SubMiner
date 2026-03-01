@@ -13,9 +13,14 @@ export function createMouseHandlers(
     applyYPercent: (yPercent: number) => void;
     getCurrentYPercent: () => number;
     persistSubtitlePositionPatch: (patch: { yPercent: number }) => void;
+    getSubtitleHoverAutoPauseEnabled: () => boolean;
+    getPlaybackPaused: () => Promise<boolean | null>;
+    sendMpvCommand: (command: (string | number)[]) => void;
   },
 ) {
   let yomitanPopupVisible = false;
+  let hoverPauseRequestId = 0;
+  let pausedBySubtitleHover = false;
 
   function enablePopupInteraction(): void {
     yomitanPopupVisible = true;
@@ -29,7 +34,7 @@ export function createMouseHandlers(
   }
 
   function disablePopupInteractionIfIdle(): void {
-    if (hasYomitanPopupIframe(document)) {
+    if (typeof document !== 'undefined' && hasYomitanPopupIframe(document)) {
       yomitanPopupVisible = true;
       return;
     }
@@ -43,16 +48,41 @@ export function createMouseHandlers(
     }
   }
 
-  function handleMouseEnter(): void {
+  async function handleMouseEnter(): Promise<void> {
     ctx.state.isOverSubtitle = true;
     ctx.dom.overlay.classList.add('interactive');
     if (ctx.platform.shouldToggleMouseIgnore) {
       window.electronAPI.setIgnoreMouseEvents(false);
     }
+
+    if (!options.getSubtitleHoverAutoPauseEnabled()) {
+      return;
+    }
+
+    const requestId = ++hoverPauseRequestId;
+    let paused: boolean | null = null;
+    try {
+      paused = await options.getPlaybackPaused();
+    } catch {
+      return;
+    }
+    if (requestId !== hoverPauseRequestId || !ctx.state.isOverSubtitle) {
+      return;
+    }
+    if (paused !== false) {
+      return;
+    }
+    options.sendMpvCommand(['set_property', 'pause', 'yes']);
+    pausedBySubtitleHover = true;
   }
 
   function handleMouseLeave(): void {
     ctx.state.isOverSubtitle = false;
+    hoverPauseRequestId += 1;
+    if (pausedBySubtitleHover) {
+      options.sendMpvCommand(['set_property', 'pause', 'no']);
+      pausedBySubtitleHover = false;
+    }
     if (yomitanPopupVisible) return;
     disablePopupInteractionIfIdle();
   }

@@ -32,6 +32,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'rgb(30, 32, 48, 0.88)');
   assert.equal(config.subtitleStyle.preserveLineBreaks, false);
+  assert.equal(config.subtitleStyle.autoPauseVideoOnHover, true);
   assert.equal(config.subtitleStyle.hoverTokenColor, '#f4dbd6');
   assert.equal(config.subtitleStyle.hoverTokenBackgroundColor, 'rgba(54, 58, 79, 0.84)');
   assert.equal(
@@ -115,6 +116,44 @@ test('parses subtitleStyle.preserveLineBreaks and warns on invalid values', () =
     invalidService
       .getWarnings()
       .some((warning) => warning.path === 'subtitleStyle.preserveLineBreaks'),
+  );
+});
+
+test('parses subtitleStyle.autoPauseVideoOnHover and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "autoPauseVideoOnHover": true
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.autoPauseVideoOnHover, true);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "autoPauseVideoOnHover": "yes"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.autoPauseVideoOnHover,
+    DEFAULT_CONFIG.subtitleStyle.autoPauseVideoOnHover,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.autoPauseVideoOnHover'),
   );
 });
 

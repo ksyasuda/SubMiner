@@ -287,6 +287,7 @@ export interface AnkiConnectConfig {
 export interface SubtitleStyleConfig {
   enableJlpt?: boolean;
   preserveLineBreaks?: boolean;
+  autoPauseVideoOnHover?: boolean;
   hoverTokenColor?: string;
   hoverTokenBackgroundColor?: string;
   fontFamily?: string;
@@ -798,6 +799,7 @@ export interface ElectronAPI {
   getCurrentSubtitle: () => Promise<SubtitleData>;
   getCurrentSubtitleRaw: () => Promise<string>;
   getCurrentSubtitleAss: () => Promise<string>;
+  getPlaybackPaused: () => Promise<boolean | null>;
   onSubtitleAss: (callback: (assText: string) => void) => void;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   openYomitanSettings: () => void;
