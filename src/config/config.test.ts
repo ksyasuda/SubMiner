@@ -47,7 +47,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.subtitleStyle.textRendering, 'geometricPrecision');
   assert.equal(config.subtitleStyle.textShadow, '0 3px 10px rgba(0,0,0,0.69)');
   assert.equal(config.subtitleStyle.backdropFilter, 'blur(6px)');
-  assert.equal(config.subtitleStyle.secondary.fontFamily, 'Manrope, Inter');
+  assert.equal(config.subtitleStyle.secondary.fontFamily, 'Inter, Noto Sans, Helvetica Neue, sans-serif');
   assert.equal(config.subtitleStyle.secondary.fontColor, '#cad3f5');
   assert.equal(config.immersionTracking.enabled, true);
   assert.equal(config.immersionTracking.dbPath, '');

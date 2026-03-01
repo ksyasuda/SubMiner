@@ -39,7 +39,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle'> = {
       bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#a6e3a1', '#8aadf4'],
     },
     secondary: {
-      fontFamily: 'Manrope, Inter',
+      fontFamily: 'Inter, Noto Sans, Helvetica Neue, sans-serif',
       fontSize: 24,
       fontColor: '#cad3f5',
       lineHeight: 1.35,
