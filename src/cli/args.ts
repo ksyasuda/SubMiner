@@ -33,6 +33,7 @@ export interface CliArgs {
   jellyfinSubtitleUrlsOnly: boolean;
   jellyfinPlay: boolean;
   jellyfinRemoteAnnounce: boolean;
+  jellyfinPreviewAuth: boolean;
   texthooker: boolean;
   help: boolean;
   autoStartOverlay: boolean;
@@ -49,8 +50,11 @@ export interface CliArgs {
   jellyfinItemId?: string;
   jellyfinSearch?: string;
   jellyfinLimit?: number;
+  jellyfinRecursive?: boolean;
+  jellyfinIncludeItemTypes?: string;
   jellyfinAudioStreamIndex?: number;
   jellyfinSubtitleStreamIndex?: number;
+  jellyfinResponsePath?: string;
   debug: boolean;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 }
@@ -93,6 +97,7 @@ export function parseArgs(argv: string[]): CliArgs {
     jellyfinSubtitleUrlsOnly: false,
     jellyfinPlay: false,
     jellyfinRemoteAnnounce: false,
+    jellyfinPreviewAuth: false,
     texthooker: false,
     help: false,
     autoStartOverlay: false,
@@ -147,6 +152,7 @@ export function parseArgs(argv: string[]): CliArgs {
       args.jellyfinSubtitleUrlsOnly = true;
     } else if (arg === '--jellyfin-play') args.jellyfinPlay = true;
     else if (arg === '--jellyfin-remote-announce') args.jellyfinRemoteAnnounce = true;
+    else if (arg === '--jellyfin-preview-auth') args.jellyfinPreviewAuth = true;
     else if (arg === '--texthooker') args.texthooker = true;
     else if (arg === '--auto-start-overlay') args.autoStartOverlay = true;
     else if (arg === '--generate-config') args.generateConfig = true;
@@ -229,6 +235,27 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--jellyfin-limit') {
       const value = Number(readValue(argv[i + 1]));
       if (Number.isFinite(value) && value > 0) args.jellyfinLimit = Math.floor(value);
+    } else if (arg.startsWith('--jellyfin-recursive=')) {
+      const value = arg.split('=', 2)[1]?.trim().toLowerCase();
+      if (value === 'true' || value === '1' || value === 'yes') args.jellyfinRecursive = true;
+      if (value === 'false' || value === '0' || value === 'no') args.jellyfinRecursive = false;
+    } else if (arg === '--jellyfin-recursive') {
+      const value = readValue(argv[i + 1])?.trim().toLowerCase();
+      if (value === 'false' || value === '0' || value === 'no') {
+        args.jellyfinRecursive = false;
+      } else if (value === 'true' || value === '1' || value === 'yes') {
+        args.jellyfinRecursive = true;
+      } else {
+        args.jellyfinRecursive = true;
+      }
+    } else if (arg === '--jellyfin-non-recursive') {
+      args.jellyfinRecursive = false;
+    } else if (arg.startsWith('--jellyfin-include-item-types=')) {
+      const value = arg.split('=', 2)[1];
+      if (value) args.jellyfinIncludeItemTypes = value;
+    } else if (arg === '--jellyfin-include-item-types') {
+      const value = readValue(argv[i + 1]);
+      if (value) args.jellyfinIncludeItemTypes = value;
     } else if (arg.startsWith('--jellyfin-audio-stream-index=')) {
       const value = Number(arg.split('=', 2)[1]);
       if (Number.isInteger(value) && value >= 0) args.jellyfinAudioStreamIndex = value;
@@ -241,6 +268,12 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--jellyfin-subtitle-stream-index') {
       const value = Number(readValue(argv[i + 1]));
       if (Number.isInteger(value) && value >= 0) args.jellyfinSubtitleStreamIndex = value;
+    } else if (arg.startsWith('--jellyfin-response-path=')) {
+      const value = arg.split('=', 2)[1];
+      if (value) args.jellyfinResponsePath = value;
+    } else if (arg === '--jellyfin-response-path') {
+      const value = readValue(argv[i + 1]);
+      if (value) args.jellyfinResponsePath = value;
     }
   }
 
@@ -282,6 +315,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.jellyfinSubtitles ||
     args.jellyfinPlay ||
     args.jellyfinRemoteAnnounce ||
+    args.jellyfinPreviewAuth ||
     args.texthooker ||
     args.generateConfig ||
     args.help
@@ -350,6 +384,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.jellyfinSubtitles &&
     !args.jellyfinPlay &&
     !args.jellyfinRemoteAnnounce &&
+    !args.jellyfinPreviewAuth &&
     !args.texthooker &&
     !args.help &&
     !args.autoStartOverlay &&

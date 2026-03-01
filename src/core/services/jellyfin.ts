@@ -370,21 +370,29 @@ export async function listItems(
     libraryId: string;
     searchTerm?: string;
     limit?: number;
+    recursive?: boolean;
+    includeItemTypes?: string;
   },
 ): Promise<Array<{ id: string; name: string; type: string; title: string }>> {
   if (!options.libraryId) throw new Error('Missing Jellyfin library id.');
+  const normalizedSearchTerm = options.searchTerm?.trim() || '';
+  const includeItemTypes =
+    options.includeItemTypes?.trim() ||
+    (normalizedSearchTerm
+      ? 'Movie,Episode,Audio,Series,Season,Folder,CollectionFolder'
+      : 'Movie,Episode,Audio');
 
   const query = new URLSearchParams({
     ParentId: options.libraryId,
-    Recursive: 'true',
-    IncludeItemTypes: 'Movie,Episode,Audio',
+    Recursive: options.recursive === false ? 'false' : 'true',
+    IncludeItemTypes: includeItemTypes,
     Fields: 'MediaSources,UserData',
     SortBy: 'SortName',
     SortOrder: 'Ascending',
     Limit: String(options.limit ?? 100),
   });
-  if (options.searchTerm?.trim()) {
-    query.set('SearchTerm', options.searchTerm.trim());
+  if (normalizedSearchTerm) {
+    query.set('SearchTerm', normalizedSearchTerm);
   }
 
   const payload = await jellyfinRequestJson<JellyfinItemsResponse>(

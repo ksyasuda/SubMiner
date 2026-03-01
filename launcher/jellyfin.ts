@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import type {
   Args,
@@ -8,8 +9,8 @@ import type {
   JellyfinItemEntry,
   JellyfinGroupEntry,
 } from './types.js';
-import { log, fail } from './log.js';
-import { commandExists, resolvePathMaybe } from './util.js';
+import { log, fail, getMpvLogPath } from './log.js';
+import { commandExists, resolvePathMaybe, sleep } from './util.js';
 import {
   pickLibrary,
   pickItem,
@@ -18,11 +19,16 @@ import {
   findRofiTheme,
 } from './picker.js';
 import { loadLauncherJellyfinConfig } from './config.js';
+import { resolveLauncherMainConfigPath } from './config/shared-config-reader.js';
 import {
   runAppCommandWithInheritLogged,
+  runAppCommandCaptureOutput,
+  launchAppStartDetached,
   launchMpvIdleDetached,
   waitForUnixSocketReady,
 } from './mpv.js';
+
+const ANSI_ESCAPE_PATTERN = /\u001b\[[0-9;]*m/g;
 
 export function sanitizeServerUrl(value: string): string {
   return value.trim().replace(/\/+$/, '');
@@ -112,6 +118,591 @@ export function formatJellyfinItemDisplay(item: Record<string, unknown>): string
     return `${series} S${season}E${episode} ${name}`.trim();
   }
   return `${name} (${type})`;
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(ANSI_ESCAPE_PATTERN, '');
+}
+
+function parseNamedJellyfinRecord(payload: string): {
+  name: string;
+  id: string;
+  type: string;
+} | null {
+  const typeClose = payload.lastIndexOf(')');
+  if (typeClose !== payload.length - 1) return null;
+
+  const typeOpen = payload.lastIndexOf(' (');
+  if (typeOpen <= 0 || typeOpen >= typeClose) return null;
+
+  const idClose = payload.lastIndexOf(']', typeOpen);
+  if (idClose <= 0) return null;
+
+  const idOpen = payload.lastIndexOf(' [', idClose);
+  if (idOpen <= 0 || idOpen >= idClose) return null;
+
+  const name = payload.slice(0, idOpen).trim();
+  const id = payload.slice(idOpen + 2, idClose).trim();
+  const type = payload.slice(typeOpen + 2, typeClose).trim();
+  if (!name || !id || !type) return null;
+
+  return { name, id, type };
+}
+
+export function parseJellyfinLibrariesFromAppOutput(output: string): JellyfinLibraryEntry[] {
+  const libraries: JellyfinLibraryEntry[] = [];
+  const seenIds = new Set<string>();
+
+  for (const rawLine of output.split(/\r?\n/)) {
+    const line = stripAnsi(rawLine);
+    const markerIndex = line.indexOf('Jellyfin library:');
+    if (markerIndex < 0) continue;
+    const payload = line.slice(markerIndex + 'Jellyfin library:'.length).trim();
+    const parsed = parseNamedJellyfinRecord(payload);
+    if (!parsed || seenIds.has(parsed.id)) continue;
+    seenIds.add(parsed.id);
+    libraries.push({
+      id: parsed.id,
+      name: parsed.name,
+      kind: parsed.type,
+    });
+  }
+
+  return libraries;
+}
+
+export function parseJellyfinItemsFromAppOutput(output: string): JellyfinItemEntry[] {
+  const items: JellyfinItemEntry[] = [];
+  const seenIds = new Set<string>();
+
+  for (const rawLine of output.split(/\r?\n/)) {
+    const line = stripAnsi(rawLine);
+    const markerIndex = line.indexOf('Jellyfin item:');
+    if (markerIndex < 0) continue;
+    const payload = line.slice(markerIndex + 'Jellyfin item:'.length).trim();
+    const parsed = parseNamedJellyfinRecord(payload);
+    if (!parsed || seenIds.has(parsed.id)) continue;
+    seenIds.add(parsed.id);
+    items.push({
+      id: parsed.id,
+      name: parsed.name,
+      type: parsed.type,
+      display: parsed.name,
+    });
+  }
+
+  return items;
+}
+
+export function parseJellyfinErrorFromAppOutput(output: string): string {
+  const lines = output.split(/\r?\n/).map((line) => stripAnsi(line).trim());
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i];
+    if (!line) continue;
+
+    const bracketedErrorIndex = line.indexOf('[ERROR]');
+    if (bracketedErrorIndex >= 0) {
+      const message = line.slice(bracketedErrorIndex + '[ERROR]'.length).trim();
+      if (message.length > 0) return message;
+    }
+
+    const mainErrorIndex = line.indexOf(' - ERROR - ');
+    if (mainErrorIndex >= 0) {
+      const message = line.slice(mainErrorIndex + ' - ERROR - '.length).trim();
+      if (message.length > 0) return message;
+    }
+
+    if (line.includes('Missing Jellyfin session')) {
+      return 'Missing Jellyfin session. Run `subminer jellyfin -l` to log in again.';
+    }
+  }
+  return '';
+}
+
+type JellyfinPreviewAuthResponse = {
+  serverUrl: string;
+  accessToken: string;
+  userId: string;
+};
+
+export function parseJellyfinPreviewAuthResponse(raw: string): JellyfinPreviewAuthResponse | null {
+  if (!raw || raw.trim().length === 0) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const candidate = parsed as Record<string, unknown>;
+  const serverUrl = sanitizeServerUrl(
+    typeof candidate.serverUrl === 'string' ? candidate.serverUrl : '',
+  );
+  const accessToken =
+    typeof candidate.accessToken === 'string' ? candidate.accessToken.trim() : '';
+  const userId = typeof candidate.userId === 'string' ? candidate.userId.trim() : '';
+  if (!serverUrl || !accessToken) return null;
+
+  return {
+    serverUrl,
+    accessToken,
+    userId,
+  };
+}
+
+export function shouldRetryWithStartForNoRunningInstance(errorMessage: string): boolean {
+  return errorMessage.includes('No running instance. Use --start to launch the app.');
+}
+
+export function deriveJellyfinTokenStorePath(configPath: string): string {
+  return path.join(path.dirname(configPath), 'jellyfin-token-store.json');
+}
+
+export function hasStoredJellyfinSession(
+  configPath: string,
+  exists: (candidate: string) => boolean = fs.existsSync,
+): boolean {
+  return exists(deriveJellyfinTokenStorePath(configPath));
+}
+
+export function readUtf8FileAppendedSince(logPath: string, offsetBytes: number): string {
+  try {
+    const buffer = fs.readFileSync(logPath);
+    if (buffer.length === 0) return '';
+    const normalizedOffset =
+      Number.isFinite(offsetBytes) && offsetBytes >= 0
+        ? Math.floor(offsetBytes)
+        : 0;
+    const startOffset = normalizedOffset > buffer.length ? 0 : normalizedOffset;
+    return buffer.subarray(startOffset).toString('utf8');
+  } catch {
+    return '';
+  }
+}
+
+export function parseEpisodePathFromDisplay(
+  display: string,
+): { seriesName: string; seasonNumber: number } | null {
+  const normalized = display.trim().replace(/\s+/g, ' ');
+  const match = normalized.match(/^(.*?)\s+S(\d{1,2})E\d{1,3}\b/i);
+  if (!match) return null;
+  const seriesName = match[1].trim();
+  const seasonNumber = Number.parseInt(match[2], 10);
+  if (!seriesName || !Number.isFinite(seasonNumber) || seasonNumber < 0) return null;
+  return { seriesName, seasonNumber };
+}
+
+function normalizeJellyfinType(type: string): string {
+  return type.trim().toLowerCase();
+}
+
+export function isJellyfinPlayableType(type: string): boolean {
+  const normalizedType = normalizeJellyfinType(type);
+  return (
+    normalizedType === 'movie' ||
+    normalizedType === 'episode' ||
+    normalizedType === 'audio' ||
+    normalizedType === 'video' ||
+    normalizedType === 'musicvideo'
+  );
+}
+
+export function isJellyfinContainerType(type: string): boolean {
+  const normalizedType = normalizeJellyfinType(type);
+  return (
+    normalizedType === 'series' ||
+    normalizedType === 'season' ||
+    normalizedType === 'folder' ||
+    normalizedType === 'collectionfolder'
+  );
+}
+
+function isJellyfinRootSearchType(type: string): boolean {
+  const normalizedType = normalizeJellyfinType(type);
+  return (
+    isJellyfinContainerType(normalizedType) ||
+    normalizedType === 'movie' ||
+    normalizedType === 'video' ||
+    normalizedType === 'musicvideo'
+  );
+}
+
+export function buildRootSearchGroups(items: JellyfinItemEntry[]): JellyfinGroupEntry[] {
+  const seenIds = new Set<string>();
+  const groups: JellyfinGroupEntry[] = [];
+  for (const item of items) {
+    if (!item.id || seenIds.has(item.id) || !isJellyfinRootSearchType(item.type)) continue;
+    seenIds.add(item.id);
+    groups.push({
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      display: `${item.name} (${item.type})`,
+    });
+  }
+  return groups;
+}
+
+async function runAppJellyfinListCommand(
+  appPath: string,
+  args: Args,
+  appArgs: string[],
+  label: string,
+): Promise<string> {
+  const attempt = await runAppJellyfinCommand(appPath, args, appArgs, label);
+  if (attempt.status !== 0) {
+    const message = attempt.output.trim();
+    fail(message || `${label} failed.`);
+  }
+  if (attempt.error) {
+    fail(attempt.error);
+  }
+  return attempt.output;
+}
+
+async function runAppJellyfinCommand(
+  appPath: string,
+  args: Args,
+  appArgs: string[],
+  label: string,
+): Promise<{ status: number; output: string; error: string; logOffset: number }> {
+  const forwardedBase = [...appArgs];
+  const serverOverride = sanitizeServerUrl(args.jellyfinServer || '');
+  if (serverOverride) {
+    forwardedBase.push('--jellyfin-server', serverOverride);
+  }
+  if (args.passwordStore) {
+    forwardedBase.push('--password-store', args.passwordStore);
+  }
+
+  const readLogAppendedSince = (offset: number): string => {
+    const logPath = getMpvLogPath();
+    return readUtf8FileAppendedSince(logPath, offset);
+  };
+
+  const hasCommandSignal = (output: string): boolean => {
+    if (label === 'jellyfin-libraries') {
+      return output.includes('Jellyfin library:') || output.includes('No Jellyfin libraries found.');
+    }
+    if (label === 'jellyfin-items') {
+      return (
+        output.includes('Jellyfin item:') ||
+        output.includes('No Jellyfin items found for the selected library/search.')
+      );
+    }
+    if (label === 'jellyfin-preview-auth') {
+      return output.includes('Jellyfin preview auth written.');
+    }
+    return output.trim().length > 0;
+  };
+
+  const runOnce = (): { status: number; output: string; error: string; logOffset: number } => {
+    const forwarded = [...forwardedBase];
+    const logPath = getMpvLogPath();
+    let logOffset = 0;
+    try {
+      if (fs.existsSync(logPath)) {
+        logOffset = fs.statSync(logPath).size;
+      }
+    } catch {
+      logOffset = 0;
+    }
+    log('debug', args.logLevel, `${label}: launching app with args: ${forwarded.join(' ')}`);
+    const result = runAppCommandCaptureOutput(appPath, forwarded);
+    log('debug', args.logLevel, `${label}: app command exited with status ${result.status}`);
+    let output = `${result.stdout || ''}\n${result.stderr || ''}\n${readLogAppendedSince(logOffset)}`;
+    let error = parseJellyfinErrorFromAppOutput(output);
+
+    return { status: result.status, output, error, logOffset };
+  };
+
+  let retriedAfterStart = false;
+  let attempt = runOnce();
+  if (shouldRetryWithStartForNoRunningInstance(attempt.error)) {
+    log('debug', args.logLevel, `${label}: starting app detached, then retrying command`);
+    launchAppStartDetached(appPath, args.logLevel);
+    await sleep(1000);
+    retriedAfterStart = true;
+    attempt = runOnce();
+  }
+
+  if (attempt.status === 0 && !attempt.error && !hasCommandSignal(attempt.output)) {
+    // When app is already running, command handling happens in the primary process and log
+    // lines can land slightly after the helper process exits.
+    const settleWindowMs = (() => {
+      if (label === 'jellyfin-items') {
+        return retriedAfterStart ? 45000 : 30000;
+      }
+      return retriedAfterStart ? 12000 : 4000;
+    })();
+    const settleDeadline = Date.now() + settleWindowMs;
+    const settleOffset = attempt.logOffset;
+    while (Date.now() < settleDeadline) {
+      await sleep(100);
+      const settledOutput = readLogAppendedSince(settleOffset);
+      if (!settledOutput.trim()) {
+        continue;
+      }
+      attempt.output = `${attempt.output}\n${settledOutput}`;
+      attempt.error = parseJellyfinErrorFromAppOutput(attempt.output);
+      if (attempt.error || hasCommandSignal(attempt.output)) {
+        break;
+      }
+    }
+  }
+
+  return attempt;
+}
+
+async function requestJellyfinPreviewAuthFromApp(
+  appPath: string,
+  args: Args,
+): Promise<JellyfinPreviewAuthResponse | null> {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jf-preview-auth-'));
+  const responsePath = path.join(tmpDir, 'response.json');
+  try {
+    const attempt = await runAppJellyfinCommand(
+      appPath,
+      args,
+      ['--jellyfin-preview-auth', `--jellyfin-response-path=${responsePath}`],
+      'jellyfin-preview-auth',
+    );
+    if (attempt.status !== 0 || attempt.error) {
+      return null;
+    }
+
+    const deadline = Date.now() + 4000;
+    while (Date.now() < deadline) {
+      try {
+        if (fs.existsSync(responsePath)) {
+          const raw = fs.readFileSync(responsePath, 'utf8');
+          const parsed = parseJellyfinPreviewAuthResponse(raw);
+          if (parsed) {
+            return parsed;
+          }
+        }
+      } catch {
+        // retry until timeout
+      }
+      await sleep(100);
+    }
+    return null;
+  } finally {
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      // ignore cleanup failures
+    }
+  }
+}
+
+async function resolveJellyfinSelectionViaApp(
+  appPath: string,
+  args: Args,
+  session: JellyfinSessionConfig,
+  themePath: string | null = null,
+): Promise<string> {
+  const listLibrariesOutput = await runAppJellyfinListCommand(
+    appPath,
+    args,
+    ['--jellyfin-libraries'],
+    'jellyfin-libraries',
+  );
+  const libraries = parseJellyfinLibrariesFromAppOutput(listLibrariesOutput);
+  if (libraries.length === 0) {
+    fail('No Jellyfin libraries found.');
+  }
+
+  const iconlessSession: JellyfinSessionConfig = {
+    ...session,
+    userId: session.userId || 'launcher',
+  };
+  const noIcon = (): string | null => null;
+  const hasPreviewSession = Boolean(iconlessSession.serverUrl && iconlessSession.accessToken);
+  const pickerSession: JellyfinSessionConfig = {
+    ...iconlessSession,
+    pullPictures: hasPreviewSession && iconlessSession.pullPictures === true,
+  };
+  const ensureIconForPicker = hasPreviewSession ? ensureJellyfinIcon : noIcon;
+  if (!hasPreviewSession) {
+    log(
+      'debug',
+      args.logLevel,
+      'Jellyfin picker image previews disabled (no launcher-accessible Jellyfin token).',
+    );
+  }
+
+  const configuredDefaultLibraryId = session.defaultLibraryId;
+  const hasConfiguredDefault = libraries.some((library) => library.id === configuredDefaultLibraryId);
+  let libraryId = hasConfiguredDefault ? configuredDefaultLibraryId : '';
+  if (!libraryId) {
+    libraryId = pickLibrary(
+      pickerSession,
+      libraries,
+      args.useRofi,
+      ensureIconForPicker,
+      '',
+      themePath,
+    );
+    if (!libraryId) fail('No Jellyfin library selected.');
+  }
+
+  const searchTerm = await promptOptionalJellyfinSearch(args.useRofi, themePath);
+  const normalizedSearch = searchTerm.trim();
+  const searchLimit = 400;
+  const browseLimit = 2500;
+  const rootIncludeItemTypes = 'Series,Season,Folder,CollectionFolder,Movie,Video,MusicVideo';
+  const directoryIncludeItemTypes =
+    'Series,Season,Folder,CollectionFolder,Movie,Episode,Audio,Video,MusicVideo';
+  const recursivePlayableIncludeItemTypes = 'Movie,Episode,Audio,Video,MusicVideo';
+  const listItemsViaApp = async (
+    parentId: string,
+    options: {
+      search?: string;
+      limit: number;
+      recursive?: boolean;
+      includeItemTypes?: string;
+    },
+  ): Promise<JellyfinItemEntry[]> => {
+    const itemArgs = [
+      '--jellyfin-items',
+      `--jellyfin-library-id=${parentId}`,
+      `--jellyfin-limit=${Math.max(1, options.limit)}`,
+    ];
+    const normalized = (options.search || '').trim();
+    if (normalized.length > 0) {
+      itemArgs.push(`--jellyfin-search=${normalized}`);
+    }
+    if (typeof options.recursive === 'boolean') {
+      itemArgs.push(`--jellyfin-recursive=${options.recursive ? 'true' : 'false'}`);
+    }
+    const includeItemTypes = options.includeItemTypes?.trim();
+    if (includeItemTypes) {
+      itemArgs.push(`--jellyfin-include-item-types=${includeItemTypes}`);
+    }
+    const output = await runAppJellyfinListCommand(appPath, args, itemArgs, 'jellyfin-items');
+    return parseJellyfinItemsFromAppOutput(output);
+  };
+
+  let rootItems =
+    normalizedSearch.length > 0
+      ? await listItemsViaApp(libraryId, {
+          search: normalizedSearch,
+          limit: searchLimit,
+          recursive: true,
+          includeItemTypes: rootIncludeItemTypes,
+        })
+      : await listItemsViaApp(libraryId, {
+          limit: browseLimit,
+          recursive: false,
+          includeItemTypes: rootIncludeItemTypes,
+        });
+  if (normalizedSearch.length > 0 && rootItems.length === 0) {
+    // Compatibility fallback for older app binaries that may ignore custom search include types.
+    log(
+      'debug',
+      args.logLevel,
+      `jellyfin-items: no direct search hits for "${normalizedSearch}", falling back to unfiltered library query`,
+    );
+    rootItems = await listItemsViaApp(libraryId, {
+      limit: browseLimit,
+      recursive: false,
+      includeItemTypes: rootIncludeItemTypes,
+    });
+  }
+  const rootGroups = buildRootSearchGroups(rootItems);
+  if (rootGroups.length === 0) {
+    fail('No Jellyfin shows or movies found.');
+  }
+
+  const rootById = new Map(rootGroups.map((group) => [group.id, group]));
+  const selectedRootId = pickGroup(
+    pickerSession,
+    rootGroups,
+    args.useRofi,
+    ensureIconForPicker,
+    normalizedSearch,
+    themePath,
+  );
+  if (!selectedRootId) fail('No Jellyfin show/movie selected.');
+  const selectedRoot = rootById.get(selectedRootId);
+  if (!selectedRoot) fail('Invalid Jellyfin root selection.');
+
+  if (isJellyfinPlayableType(selectedRoot.type)) {
+    return selectedRoot.id;
+  }
+
+  const pickPlayableDescendants = async (parentId: string): Promise<string> => {
+    const descendantItems = await listItemsViaApp(parentId, {
+      limit: browseLimit,
+      recursive: true,
+      includeItemTypes: recursivePlayableIncludeItemTypes,
+    });
+    const playableItems = descendantItems.filter((item) => isJellyfinPlayableType(item.type));
+    if (playableItems.length === 0) {
+      fail('No playable Jellyfin items found.');
+    }
+    const selectedItemId = pickItem(
+      pickerSession,
+      playableItems,
+      args.useRofi,
+      ensureIconForPicker,
+      '',
+      themePath,
+    );
+    if (!selectedItemId) {
+      fail('No Jellyfin item selected.');
+    }
+    return selectedItemId;
+  };
+
+  let currentContainerId = selectedRoot.id;
+  while (true) {
+    const directoryEntries = await listItemsViaApp(currentContainerId, {
+      limit: browseLimit,
+      recursive: false,
+      includeItemTypes: directoryIncludeItemTypes,
+    });
+
+    const seenIds = new Set<string>();
+    const childGroups: JellyfinGroupEntry[] = [];
+    for (const item of directoryEntries) {
+      if (!item.id || seenIds.has(item.id)) continue;
+      if (!isJellyfinContainerType(item.type) && !isJellyfinPlayableType(item.type)) continue;
+      seenIds.add(item.id);
+      childGroups.push({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        display: `${item.name} (${item.type})`,
+      });
+    }
+
+    if (childGroups.length === 0) {
+      return await pickPlayableDescendants(currentContainerId);
+    }
+
+    const childById = new Map(childGroups.map((group) => [group.id, group]));
+    const selectedChildId = pickGroup(
+      pickerSession,
+      childGroups,
+      args.useRofi,
+      ensureIconForPicker,
+      '',
+      themePath,
+    );
+    if (!selectedChildId) fail('No Jellyfin folder/file selected.');
+    const selectedChild = childById.get(selectedChildId);
+    if (!selectedChild) fail('Invalid Jellyfin item selection.');
+    if (isJellyfinPlayableType(selectedChild.type)) {
+      return selectedChild.id;
+    }
+    if (isJellyfinContainerType(selectedChild.type)) {
+      return await pickPlayableDescendants(selectedChild.id);
+    }
+    fail('Selected Jellyfin item is not playable.');
+  }
 }
 
 export async function resolveJellyfinSelection(
@@ -367,18 +958,37 @@ export async function runJellyfinPlayMenu(
     iconCacheDir: config.iconCacheDir || '',
   };
 
-  if (!session.serverUrl || !session.accessToken || !session.userId) {
-    fail(
-      'Missing Jellyfin session. Set SUBMINER_JELLYFIN_ACCESS_TOKEN and SUBMINER_JELLYFIN_USER_ID, then retry.',
-    );
-  }
-
   const rofiTheme = args.useRofi ? findRofiTheme(scriptPath) : null;
   if (args.useRofi && !rofiTheme) {
     log('warn', args.logLevel, 'Rofi theme not found for Jellyfin picker; using rofi defaults.');
   }
 
-  const itemId = await resolveJellyfinSelection(args, session, rofiTheme);
+  const hasDirectSession = Boolean(session.serverUrl && session.accessToken && session.userId);
+  let itemId = '';
+  if (hasDirectSession) {
+    itemId = await resolveJellyfinSelection(args, session, rofiTheme);
+  } else {
+    const configPath = resolveLauncherMainConfigPath();
+    if (!hasStoredJellyfinSession(configPath)) {
+      fail(
+        'Missing Jellyfin session. Run `subminer jellyfin -l --server <url> --username <user> --password <pass>` first.',
+      );
+    }
+    const previewAuth = await requestJellyfinPreviewAuthFromApp(appPath, args);
+    if (previewAuth) {
+      session.serverUrl = previewAuth.serverUrl || session.serverUrl;
+      session.accessToken = previewAuth.accessToken;
+      session.userId = previewAuth.userId || session.userId;
+      log('debug', args.logLevel, 'Jellyfin preview auth bridge ready for picker image previews.');
+    } else {
+      log(
+        'debug',
+        args.logLevel,
+        'Jellyfin preview auth bridge unavailable; picker image previews may be disabled.',
+      );
+    }
+    itemId = await resolveJellyfinSelectionViaApp(appPath, args, session, rofiTheme);
+  }
   log('debug', args.logLevel, `Jellyfin selection resolved: itemId=${itemId}`);
   log('debug', args.logLevel, `Ensuring MPV IPC socket is ready: ${mpvSocketPath}`);
   let mpvReady = false;
@@ -393,7 +1003,7 @@ export async function runJellyfinPlayMenu(
   if (!mpvReady) {
     fail(`MPV IPC socket not ready: ${mpvSocketPath}`);
   }
-  const forwarded = ['--start', '--jellyfin-play', '--jellyfin-item-id', itemId];
+  const forwarded = ['--start', '--jellyfin-play', `--jellyfin-item-id=${itemId}`];
   if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
   if (args.passwordStore) forwarded.push('--password-store', args.passwordStore);
   runAppCommandWithInheritLogged(appPath, forwarded, args.logLevel, 'jellyfin-play');

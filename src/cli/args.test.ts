@@ -42,6 +42,24 @@ test('parseArgs ignores missing value after --log-level', () => {
   assert.equal(args.start, true);
 });
 
+test('parseArgs handles jellyfin item listing controls', () => {
+  const args = parseArgs([
+    '--jellyfin-items',
+    '--jellyfin-recursive=false',
+    '--jellyfin-include-item-types',
+    'Series,Movie,Folder',
+  ]);
+
+  assert.equal(args.jellyfinItems, true);
+  assert.equal(args.jellyfinRecursive, false);
+  assert.equal(args.jellyfinIncludeItemTypes, 'Series,Movie,Folder');
+});
+
+test('parseArgs handles space-separated jellyfin recursive control', () => {
+  const args = parseArgs(['--jellyfin-items', '--jellyfin-recursive', 'false']);
+  assert.equal(args.jellyfinRecursive, false);
+});
+
 test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   const stopOnly = parseArgs(['--stop']);
   assert.equal(hasExplicitCommand(stopOnly), true);
@@ -117,6 +135,19 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(jellyfinRemoteAnnounce.jellyfinRemoteAnnounce, true);
   assert.equal(hasExplicitCommand(jellyfinRemoteAnnounce), true);
   assert.equal(shouldStartApp(jellyfinRemoteAnnounce), false);
+
+  const jellyfinPreviewAuth = parseArgs([
+    '--jellyfin-preview-auth',
+    '--jellyfin-response-path',
+    '/tmp/subminer-jf-response.json',
+  ]);
+  assert.equal(jellyfinPreviewAuth.jellyfinPreviewAuth, true);
+  assert.equal(
+    jellyfinPreviewAuth.jellyfinResponsePath,
+    '/tmp/subminer-jf-response.json',
+  );
+  assert.equal(hasExplicitCommand(jellyfinPreviewAuth), true);
+  assert.equal(shouldStartApp(jellyfinPreviewAuth), false);
 
   const background = parseArgs(['--background']);
   assert.equal(background.background, true);

@@ -60,10 +60,16 @@ Launcher wrapper equivalent for interactive playback flow:
 subminer jellyfin -p
 ```
 
-Launcher wrapper for Jellyfin cast discovery mode (foreground app process):
+Launcher wrapper for Jellyfin cast discovery mode (background app + tray):
 
 ```bash
 subminer jellyfin -d
+```
+
+Stop discovery session/app:
+
+```bash
+subminer app --stop
 ```
 
 `subminer jf ...` is an alias for `subminer jellyfin ...`.
@@ -79,6 +85,17 @@ subminer jellyfin --logout
 ```bash
 SubMiner.AppImage --jellyfin-items --jellyfin-library-id LIBRARY_ID --jellyfin-search term
 ```
+
+Optional listing controls:
+
+- `--jellyfin-recursive=true|false` (default: true)
+- `--jellyfin-include-item-types=Series,Season,Folder,CollectionFolder,Movie,...`
+
+These are used by the launcher picker flow to:
+
+- keep root search focused on shows/folders/movies (exclude episode rows)
+- browse selected anime/show directories as folder-or-file lists
+- recurse for playable files only after selecting a folder
 
 5. Start playback:
 
