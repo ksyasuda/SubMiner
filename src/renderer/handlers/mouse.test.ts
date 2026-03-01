@@ -85,7 +85,7 @@ test('auto-pause on subtitle hover pauses on enter and resumes on leave when ena
   });
 
   await handlers.handleMouseEnter();
-  handlers.handleMouseLeave();
+  await handlers.handleMouseLeave();
 
   assert.deepEqual(mpvCommands, [
     ['set_property', 'pause', 'yes'],
@@ -93,9 +93,10 @@ test('auto-pause on subtitle hover pauses on enter and resumes on leave when ena
   ]);
 });
 
-test('auto-pause on subtitle hover does not unpause when playback was already paused', async () => {
+test('auto-pause on subtitle hover does not unpause when playback becomes paused on leave', async () => {
   const ctx = createMouseTestContext();
   const mpvCommands: Array<(string | number)[]> = [];
+  const playbackPausedStates = [false, true];
 
   const handlers = createMouseHandlers(ctx as never, {
     modalStateReader: {
@@ -106,16 +107,16 @@ test('auto-pause on subtitle hover does not unpause when playback was already pa
     getCurrentYPercent: () => 10,
     persistSubtitlePositionPatch: () => {},
     getSubtitleHoverAutoPauseEnabled: () => true,
-    getPlaybackPaused: async () => true,
+    getPlaybackPaused: async () => playbackPausedStates.shift() ?? true,
     sendMpvCommand: (command) => {
       mpvCommands.push(command);
     },
   });
 
   await handlers.handleMouseEnter();
-  handlers.handleMouseLeave();
+  await handlers.handleMouseLeave();
 
-  assert.deepEqual(mpvCommands, []);
+  assert.deepEqual(mpvCommands, [['set_property', 'pause', 'yes']]);
 });
 
 test('auto-pause on subtitle hover is skipped when disabled in config', async () => {
@@ -138,7 +139,7 @@ test('auto-pause on subtitle hover is skipped when disabled in config', async ()
   });
 
   await handlers.handleMouseEnter();
-  handlers.handleMouseLeave();
+  await handlers.handleMouseLeave();
 
   assert.deepEqual(mpvCommands, []);
 });
@@ -164,7 +165,7 @@ test('pending hover pause check is ignored when mouse leaves before pause state 
   });
 
   const enterPromise = handlers.handleMouseEnter();
-  handlers.handleMouseLeave();
+  await handlers.handleMouseLeave();
   deferred.resolve(false);
   await enterPromise;
 

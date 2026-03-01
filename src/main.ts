@@ -354,6 +354,7 @@ import {
   resolveJellyfinPlaybackPlanRuntime,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
+  clearYomitanParserCachesForWindow,
   syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
   sendMpvCommandRuntime,
   setMpvSubVisibilityRuntime,
@@ -845,6 +846,7 @@ const anilistStateRuntime = createAnilistStateRuntime(buildAnilistStateRuntimeMa
 const configDerivedRuntime = createConfigDerivedRuntime(buildConfigDerivedRuntimeMainDepsHandler());
 const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsHandler());
 let autoPlayReadySignalMediaPath: string | null = null;
+let autoPlayReadySignalGeneration = 0;
 
 function maybeSignalPluginAutoplayReady(payload: SubtitleData): void {
   if (!payload.text.trim()) {
@@ -858,8 +860,32 @@ function maybeSignalPluginAutoplayReady(payload: SubtitleData): void {
     return;
   }
   autoPlayReadySignalMediaPath = mediaPath;
+  const playbackGeneration = ++autoPlayReadySignalGeneration;
   logger.debug(`[autoplay-ready] signaling mpv for media: ${mediaPath}`);
   sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
+  const isPlaybackPaused = async (client: {
+    requestProperty: (property: string) => Promise<unknown>;
+  }): Promise<boolean> => {
+    try {
+      const pauseProperty = await client.requestProperty('pause');
+      if (typeof pauseProperty === 'boolean') {
+        return pauseProperty;
+      }
+      if (typeof pauseProperty === 'string') {
+        return pauseProperty.toLowerCase() !== 'no' && pauseProperty !== '0';
+      }
+      if (typeof pauseProperty === 'number') {
+        return pauseProperty !== 0;
+      }
+      logger.debug(`[autoplay-ready] unrecognized pause property for media ${mediaPath}: ${String(pauseProperty)}`);
+    } catch (error) {
+      logger.debug(
+        `[autoplay-ready] failed to read pause property for media ${mediaPath}: ${(error as Error).message}`,
+      );
+    }
+    return true;
+  };
+
   // Fallback: unpause directly in case plugin readiness handler is unavailable/outdated.
   void (async () => {
     const mpvClient = appState.mpvClient;
@@ -868,20 +894,8 @@ function maybeSignalPluginAutoplayReady(payload: SubtitleData): void {
       return;
     }
 
-    let shouldUnpause = appState.playbackPaused !== false;
-    try {
-      const pauseProperty = await mpvClient.requestProperty('pause');
-      if (typeof pauseProperty === 'boolean') {
-        shouldUnpause = pauseProperty;
-      } else if (typeof pauseProperty === 'string') {
-        shouldUnpause = pauseProperty.toLowerCase() !== 'no' && pauseProperty !== '0';
-      }
-      logger.debug(`[autoplay-ready] mpv pause property before fallback: ${String(pauseProperty)}`);
-    } catch (error) {
-      logger.debug(
-        `[autoplay-ready] failed to read pause property before fallback: ${(error as Error).message}`,
-      );
-    }
+    const shouldUnpause = await isPlaybackPaused(mpvClient);
+    logger.debug(`[autoplay-ready] mpv paused before fallback for ${mediaPath}: ${shouldUnpause}`);
 
     if (!shouldUnpause) {
       logger.debug('[autoplay-ready] mpv already playing; no fallback unpause needed');
@@ -890,10 +904,25 @@ function maybeSignalPluginAutoplayReady(payload: SubtitleData): void {
 
     mpvClient.send({ command: ['set_property', 'pause', false] });
     setTimeout(() => {
-      const followupClient = appState.mpvClient;
-      if (followupClient?.connected) {
+      void (async () => {
+        if (
+          autoPlayReadySignalMediaPath !== mediaPath ||
+          playbackGeneration !== autoPlayReadySignalGeneration
+        ) {
+          return;
+        }
+
+        const followupClient = appState.mpvClient;
+        if (!followupClient?.connected) {
+          return;
+        }
+
+        const shouldUnpauseFollowup = await isPlaybackPaused(followupClient);
+        if (!shouldUnpauseFollowup) {
+          return;
+        }
         followupClient.send({ command: ['set_property', 'pause', false] });
-      }
+      })();
     }, 500);
     logger.debug('[autoplay-ready] issued direct mpv unpause fallback');
   })();
@@ -3177,6 +3206,11 @@ const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSetting
       yomitanExt: yomitanExt as Extension,
       getExistingWindow: () => getExistingWindow() as BrowserWindow | null,
       setWindow: (window) => setWindow(window as BrowserWindow | null),
+      onWindowClosed: () => {
+        if (appState.yomitanParserWindow) {
+          clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
+        }
+      },
     });
   },
   getExistingWindow: () => appState.yomitanSettingsWindow,

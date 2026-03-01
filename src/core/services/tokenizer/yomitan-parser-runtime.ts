@@ -62,6 +62,9 @@ function clearWindowCaches(window: BrowserWindow): void {
   yomitanProfileMetadataByWindow.delete(window);
   yomitanFrequencyCacheByWindow.delete(window);
 }
+export function clearYomitanParserCachesForWindow(window: BrowserWindow): void {
+  clearWindowCaches(window);
+}
 
 function asPositiveInteger(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {

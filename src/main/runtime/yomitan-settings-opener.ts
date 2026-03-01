@@ -7,6 +7,7 @@ export function createOpenYomitanSettingsHandler(deps: {
     yomitanExt: YomitanExtensionLike;
     getExistingWindow: () => BrowserWindowLike | null;
     setWindow: (window: BrowserWindowLike | null) => void;
+    onWindowClosed?: () => void;
   }) => void;
   getExistingWindow: () => BrowserWindowLike | null;
   setWindow: (window: BrowserWindowLike | null) => void;

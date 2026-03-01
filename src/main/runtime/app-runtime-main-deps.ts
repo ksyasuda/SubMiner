@@ -66,6 +66,7 @@ export function createBuildOpenYomitanSettingsMainDepsHandler<TYomitanExt, TWind
     yomitanExt: TYomitanExt;
     getExistingWindow: () => TWindow | null;
     setWindow: (window: TWindow | null) => void;
+    onWindowClosed?: () => void;
   }) => void;
   getExistingWindow: () => TWindow | null;
   setWindow: (window: TWindow | null) => void;
@@ -78,6 +79,7 @@ export function createBuildOpenYomitanSettingsMainDepsHandler<TYomitanExt, TWind
       yomitanExt: TYomitanExt;
       getExistingWindow: () => TWindow | null;
       setWindow: (window: TWindow | null) => void;
+      onWindowClosed?: () => void;
     }) => deps.openYomitanSettingsWindow(params),
     getExistingWindow: () => deps.getExistingWindow(),
     setWindow: (window: TWindow | null) => deps.setWindow(window),

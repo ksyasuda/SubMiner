@@ -71,7 +71,7 @@ auto_start = maybe
 auto_start_visible_overlay = no
 auto_start_pause_until_ready = off
 `);
-  assert.equal(parsed.autoStart, true);
+  assert.equal(parsed.autoStart, false);
   assert.equal(parsed.autoStartVisibleOverlay, false);
   assert.equal(parsed.autoStartPauseUntilReady, false);
 });

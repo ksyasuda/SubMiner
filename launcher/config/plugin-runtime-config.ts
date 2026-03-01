@@ -15,7 +15,10 @@ export function getPluginConfigCandidates(): string[] {
   );
 }
 
-export function parsePluginRuntimeConfigContent(content: string): PluginRuntimeConfig {
+export function parsePluginRuntimeConfigContent(
+  content: string,
+  logLevel: LogLevel = 'warn',
+): PluginRuntimeConfig {
   const runtimeConfig: PluginRuntimeConfig = {
     socketPath: DEFAULT_SOCKET_PATH,
     autoStart: true,
@@ -23,11 +26,12 @@ export function parsePluginRuntimeConfigContent(content: string): PluginRuntimeC
     autoStartPauseUntilReady: true,
   };
 
-  const parseBooleanValue = (value: string, fallback: boolean): boolean => {
+  const parseBooleanValue = (key: string, value: string): boolean => {
     const normalized = value.trim().toLowerCase();
     if (['yes', 'true', '1', 'on'].includes(normalized)) return true;
     if (['no', 'false', '0', 'off'].includes(normalized)) return false;
-    return fallback;
+    log('warn', logLevel, `Invalid boolean value for ${key}: "${value}". Using false.`);
+    return false;
   };
 
   for (const line of content.split(/\r?\n/)) {
@@ -44,20 +48,17 @@ export function parsePluginRuntimeConfigContent(content: string): PluginRuntimeC
       continue;
     }
     if (key === 'auto_start') {
-      runtimeConfig.autoStart = parseBooleanValue(value, runtimeConfig.autoStart);
+      runtimeConfig.autoStart = parseBooleanValue('auto_start', value);
       continue;
     }
     if (key === 'auto_start_visible_overlay') {
-      runtimeConfig.autoStartVisibleOverlay = parseBooleanValue(
-        value,
-        runtimeConfig.autoStartVisibleOverlay,
-      );
+      runtimeConfig.autoStartVisibleOverlay = parseBooleanValue('auto_start_visible_overlay', value);
       continue;
     }
     if (key === 'auto_start_pause_until_ready') {
       runtimeConfig.autoStartPauseUntilReady = parseBooleanValue(
+        'auto_start_pause_until_ready',
         value,
-        runtimeConfig.autoStartPauseUntilReady,
       );
     }
   }

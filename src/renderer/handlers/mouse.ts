@@ -76,12 +76,20 @@ export function createMouseHandlers(
     pausedBySubtitleHover = true;
   }
 
-  function handleMouseLeave(): void {
+  async function handleMouseLeave(): Promise<void> {
     ctx.state.isOverSubtitle = false;
     hoverPauseRequestId += 1;
     if (pausedBySubtitleHover) {
-      options.sendMpvCommand(['set_property', 'pause', 'no']);
       pausedBySubtitleHover = false;
+      try {
+        const isPaused = await options.getPlaybackPaused();
+        if (isPaused !== false) {
+          return;
+        }
+      } catch {
+        return;
+      }
+      options.sendMpvCommand(['set_property', 'pause', 'no']);
     }
     if (yomitanPopupVisible) return;
     disablePopupInteractionIfIdle();
