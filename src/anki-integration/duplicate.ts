@@ -32,9 +32,7 @@ export async function findDuplicateNote(
   );
 
   const deckValue = deps.getDeck();
-  const queryPrefixes = deckValue
-    ? [`"deck:${escapeAnkiSearchValue(deckValue)}" `, '']
-    : [''];
+  const queryPrefixes = deckValue ? [`"deck:${escapeAnkiSearchValue(deckValue)}" `, ''] : [''];
 
   try {
     const noteIds = new Set<number>();

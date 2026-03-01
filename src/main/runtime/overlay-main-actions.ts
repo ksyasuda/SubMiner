@@ -9,9 +9,7 @@ export function createSetOverlayVisibleHandler(deps: {
   };
 }
 
-export function createToggleOverlayHandler(deps: {
-  toggleVisibleOverlay: () => void;
-}) {
+export function createToggleOverlayHandler(deps: { toggleVisibleOverlay: () => void }) {
   return (): void => {
     deps.toggleVisibleOverlay();
   };
@@ -26,9 +24,10 @@ export function createHandleOverlayModalClosedHandler(deps: {
 }
 
 export function createAppendClipboardVideoToQueueHandler(deps: {
-  appendClipboardVideoToQueueRuntime: (
-    options: AppendClipboardVideoToQueueRuntimeDeps,
-  ) => { ok: boolean; message: string };
+  appendClipboardVideoToQueueRuntime: (options: AppendClipboardVideoToQueueRuntimeDeps) => {
+    ok: boolean;
+    message: string;
+  };
   getMpvClient: () => AppendClipboardVideoToQueueRuntimeDeps['getMpvClient'] extends () => infer T
     ? T
     : never;

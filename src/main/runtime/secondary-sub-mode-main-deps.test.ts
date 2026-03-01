@@ -18,7 +18,8 @@ test('cycle secondary sub mode main deps builder maps state and broadcasts with 
       lastToggleAt = timestampMs;
       calls.push(`set-ts:${timestampMs}`);
     },
-    broadcastToOverlayWindows: (channel, nextMode) => calls.push(`broadcast:${channel}:${nextMode}`),
+    broadcastToOverlayWindows: (channel, nextMode) =>
+      calls.push(`broadcast:${channel}:${nextMode}`),
     showMpvOsd: (text) => calls.push(`osd:${text}`),
   })();
 

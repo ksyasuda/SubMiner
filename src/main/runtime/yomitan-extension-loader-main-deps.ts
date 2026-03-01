@@ -8,9 +8,7 @@ type EnsureYomitanExtensionLoadedMainDeps = Parameters<
   typeof createEnsureYomitanExtensionLoadedHandler
 >[0];
 
-export function createBuildLoadYomitanExtensionMainDepsHandler(
-  deps: LoadYomitanExtensionMainDeps,
-) {
+export function createBuildLoadYomitanExtensionMainDepsHandler(deps: LoadYomitanExtensionMainDeps) {
   return (): LoadYomitanExtensionMainDeps => ({
     loadYomitanExtensionCore: (options) => deps.loadYomitanExtensionCore(options),
     userDataPath: deps.userDataPath,

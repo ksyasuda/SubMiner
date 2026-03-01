@@ -12,20 +12,24 @@ test('get configured shortcuts main deps map config resolver inputs', () => {
   const build = createBuildGetConfiguredShortcutsMainDepsHandler({
     getResolvedConfig: () => config,
     defaultConfig: defaults,
-    resolveConfiguredShortcuts: (nextConfig, nextDefaults) => ({ nextConfig, nextDefaults }) as never,
+    resolveConfiguredShortcuts: (nextConfig, nextDefaults) =>
+      ({ nextConfig, nextDefaults }) as never,
   });
 
   const deps = build();
   assert.equal(deps.getResolvedConfig(), config);
   assert.equal(deps.defaultConfig, defaults);
-  assert.deepEqual(deps.resolveConfiguredShortcuts(config, defaults), { nextConfig: config, nextDefaults: defaults });
+  assert.deepEqual(deps.resolveConfiguredShortcuts(config, defaults), {
+    nextConfig: config,
+    nextDefaults: defaults,
+  });
 });
 
 test('register global shortcuts main deps map callbacks and flags', () => {
   const calls: string[] = [];
   const mainWindow = { id: 'main' };
   const build = createBuildRegisterGlobalShortcutsMainDepsHandler({
-    getConfiguredShortcuts: () => ({ copySubtitle: 's' } as never),
+    getConfiguredShortcuts: () => ({ copySubtitle: 's' }) as never,
     registerGlobalShortcutsCore: () => calls.push('register'),
     toggleVisibleOverlay: () => calls.push('toggle-visible'),
     openYomitanSettings: () => calls.push('open-yomitan'),

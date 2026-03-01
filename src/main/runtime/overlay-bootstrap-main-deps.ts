@@ -14,9 +14,7 @@ export function createBuildOverlayContentMeasurementStoreMainDepsHandler(
   });
 }
 
-export function createBuildOverlayModalRuntimeMainDepsHandler(
-  deps: OverlayWindowResolver,
-) {
+export function createBuildOverlayModalRuntimeMainDepsHandler(deps: OverlayWindowResolver) {
   return (): OverlayWindowResolver => ({
     getMainWindow: () => deps.getMainWindow(),
     getModalWindow: () => deps.getModalWindow(),

@@ -32,7 +32,10 @@ test('broadcast runtime options changed main deps builder maps callbacks', () =>
     broadcastToOverlayWindows: (channel) => calls.push(channel),
   })();
 
-  deps.broadcastRuntimeOptionsChangedRuntime(() => [], () => {});
+  deps.broadcastRuntimeOptionsChangedRuntime(
+    () => [],
+    () => {},
+  );
   deps.broadcastToOverlayWindows('runtime-options:changed');
   assert.deepEqual(deps.getRuntimeOptionsState(), []);
   assert.deepEqual(calls, ['broadcast-runtime', 'runtime-options:changed']);

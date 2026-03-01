@@ -498,7 +498,8 @@ body.settings-modal-open #subtitleContainer {
   color: var(--subtitle-frequency-band-5-color, #8aadf4);
 }
 
-#subtitleRoot .word:not(.word-known):not(.word-n-plus-one):not(.word-frequency-single):not(
+#subtitleRoot
+  .word:not(.word-known):not(.word-n-plus-one):not(.word-frequency-single):not(
     .word-frequency-band-1
   ):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(
     .word-frequency-band-5

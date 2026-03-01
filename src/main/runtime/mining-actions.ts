@@ -39,27 +39,28 @@ export function createCopyCurrentSubtitleHandler<TSubtitleTimingTracker>(deps: {
   };
 }
 
-export function createHandleMineSentenceDigitHandler<TSubtitleTimingTracker, TAnkiIntegration>(
-  deps: {
-    getSubtitleTimingTracker: () => TSubtitleTimingTracker;
-    getAnkiIntegration: () => TAnkiIntegration;
-    getCurrentSecondarySubText: () => string | undefined;
-    showMpvOsd: (text: string) => void;
-    logError: (message: string, err: unknown) => void;
-    onCardsMined: (count: number) => void;
-    handleMineSentenceDigitCore: (
-      count: number,
-      options: {
-        subtitleTimingTracker: TSubtitleTimingTracker;
-        ankiIntegration: TAnkiIntegration;
-        getCurrentSecondarySubText: () => string | undefined;
-        showMpvOsd: (text: string) => void;
-        logError: (message: string, err: unknown) => void;
-        onCardsMined: (count: number) => void;
-      },
-    ) => void;
-  },
-) {
+export function createHandleMineSentenceDigitHandler<
+  TSubtitleTimingTracker,
+  TAnkiIntegration,
+>(deps: {
+  getSubtitleTimingTracker: () => TSubtitleTimingTracker;
+  getAnkiIntegration: () => TAnkiIntegration;
+  getCurrentSecondarySubText: () => string | undefined;
+  showMpvOsd: (text: string) => void;
+  logError: (message: string, err: unknown) => void;
+  onCardsMined: (count: number) => void;
+  handleMineSentenceDigitCore: (
+    count: number,
+    options: {
+      subtitleTimingTracker: TSubtitleTimingTracker;
+      ankiIntegration: TAnkiIntegration;
+      getCurrentSecondarySubText: () => string | undefined;
+      showMpvOsd: (text: string) => void;
+      logError: (message: string, err: unknown) => void;
+      onCardsMined: (count: number) => void;
+    },
+  ) => void;
+}) {
   return (count: number): void => {
     deps.handleMineSentenceDigitCore(count, {
       subtitleTimingTracker: deps.getSubtitleTimingTracker(),

@@ -22,11 +22,7 @@ test('set visible overlay handler forwards dependencies to core', () => {
   });
 
   setVisible(true);
-  assert.deepEqual(calls, [
-    'core:true',
-    'state:true',
-    'update-visible',
-  ]);
+  assert.deepEqual(calls, ['core:true', 'state:true', 'update-visible']);
   assert.equal(warmupStarts, 1);
 
   setVisible(false);

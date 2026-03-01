@@ -7,6 +7,7 @@ import {
   hasYomitanPopupIframe,
   isYomitanPopupIframe,
 } from './yomitan-popup.js';
+import { scrollActiveRuntimeOptionIntoView } from './modals/runtime-options.js';
 import { resolvePlatformInfo } from './utils/platform.js';
 
 test('handleError logs context and recovers overlay state', () => {
@@ -280,4 +281,33 @@ test('hasYomitanPopupIframe queries for modern + legacy selector', () => {
 
   assert.equal(hasYomitanPopupIframe(root), true);
   assert.equal(selector, YOMITAN_POPUP_IFRAME_SELECTOR);
+});
+
+test('scrollActiveRuntimeOptionIntoView scrolls active runtime option with nearest block', () => {
+  const calls: Array<{ block?: ScrollLogicalPosition }> = [];
+  const activeItem = {
+    scrollIntoView: (options?: ScrollIntoViewOptions) => {
+      calls.push({ block: options?.block });
+    },
+  };
+
+  const list = {
+    querySelector: (selector: string) => {
+      assert.equal(selector, '.runtime-options-item.active');
+      return activeItem as unknown as Element;
+    },
+  };
+
+  scrollActiveRuntimeOptionIntoView(list);
+  assert.deepEqual(calls, [{ block: 'nearest' }]);
+});
+
+test('scrollActiveRuntimeOptionIntoView no-ops without active option', () => {
+  const list = {
+    querySelector: () => null,
+  };
+
+  assert.doesNotThrow(() => {
+    scrollActiveRuntimeOptionIntoView(list);
+  });
 });

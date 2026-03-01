@@ -1,4 +1,7 @@
-import { createHandleMpvCommandFromIpcHandler, createRunSubsyncManualFromIpcHandler } from './ipc-bridge-actions';
+import {
+  createHandleMpvCommandFromIpcHandler,
+  createRunSubsyncManualFromIpcHandler,
+} from './ipc-bridge-actions';
 import {
   createBuildHandleMpvCommandFromIpcMainDepsHandler,
   createBuildRunSubsyncManualFromIpcMainDepsHandler,
@@ -22,10 +25,10 @@ export function createIpcRuntimeHandlers<TRequest, TResult>(deps: {
     handleMpvCommandFromIpcMainDeps,
   );
 
-  const runSubsyncManualFromIpcMainDeps =
-    createBuildRunSubsyncManualFromIpcMainDepsHandler<TRequest, TResult>(
-      deps.runSubsyncManualFromIpcDeps,
-    )();
+  const runSubsyncManualFromIpcMainDeps = createBuildRunSubsyncManualFromIpcMainDepsHandler<
+    TRequest,
+    TResult
+  >(deps.runSubsyncManualFromIpcDeps)();
   const runSubsyncManualFromIpc = createRunSubsyncManualFromIpcHandler<TRequest, TResult>(
     runSubsyncManualFromIpcMainDeps,
   );

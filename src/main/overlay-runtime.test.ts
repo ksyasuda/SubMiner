@@ -214,9 +214,13 @@ test('handleOverlayModalClosed hides modal window only after all pending modals 
   runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
-  runtime.sendToActiveOverlayWindow('subsync:open-manual', { sourceTracks: [] }, {
-    restoreOnModalClose: 'subsync',
-  });
+  runtime.sendToActiveOverlayWindow(
+    'subsync:open-manual',
+    { sourceTracks: [] },
+    {
+      restoreOnModalClose: 'subsync',
+    },
+  );
 
   runtime.handleOverlayModalClosed('runtime-options');
   assert.equal(window.getHideCount(), 0);
@@ -267,9 +271,13 @@ test('modal runtime notifies callers when modal input state becomes active/inact
   runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
     restoreOnModalClose: 'runtime-options',
   });
-  runtime.sendToActiveOverlayWindow('subsync:open-manual', { sourceTracks: [] }, {
-    restoreOnModalClose: 'subsync',
-  });
+  runtime.sendToActiveOverlayWindow(
+    'subsync:open-manual',
+    { sourceTracks: [] },
+    {
+      restoreOnModalClose: 'subsync',
+    },
+  );
   assert.deepEqual(state, []);
   runtime.notifyOverlayModalOpened('runtime-options');
   assert.deepEqual(state, [true]);
@@ -352,9 +360,13 @@ test('handleOverlayModalClosed hides modal window for single kiku modal', () => 
     setModalWindowBounds: () => {},
   });
 
-  runtime.sendToActiveOverlayWindow('kiku:field-grouping-open', { test: true }, {
-    restoreOnModalClose: 'kiku',
-  });
+  runtime.sendToActiveOverlayWindow(
+    'kiku:field-grouping-open',
+    { test: true },
+    {
+      restoreOnModalClose: 'kiku',
+    },
+  );
   runtime.handleOverlayModalClosed('kiku');
 
   assert.equal(window.getHideCount(), 1);

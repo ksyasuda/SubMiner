@@ -62,10 +62,7 @@ export {
   updateOverlayWindowBounds,
 } from './overlay-window';
 export { initializeOverlayRuntime } from './overlay-runtime-init';
-export {
-  setVisibleOverlayVisible,
-  updateVisibleOverlayVisibility,
-} from './overlay-visibility';
+export { setVisibleOverlayVisible, updateVisibleOverlayVisibility } from './overlay-visibility';
 export {
   MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
   MpvIpcClient,

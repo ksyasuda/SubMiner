@@ -14,11 +14,15 @@ type RestorePreviousSecondarySubVisibilityMainDeps = Parameters<
 type BroadcastRuntimeOptionsChangedMainDeps = Parameters<
   typeof createBroadcastRuntimeOptionsChangedHandler
 >[0];
-type SendToActiveOverlayWindowMainDeps = Parameters<typeof createSendToActiveOverlayWindowHandler>[0];
+type SendToActiveOverlayWindowMainDeps = Parameters<
+  typeof createSendToActiveOverlayWindowHandler
+>[0];
 type SetOverlayDebugVisualizationEnabledMainDeps = Parameters<
   typeof createSetOverlayDebugVisualizationEnabledHandler
 >[0];
-type OpenRuntimeOptionsPaletteMainDeps = Parameters<typeof createOpenRuntimeOptionsPaletteHandler>[0];
+type OpenRuntimeOptionsPaletteMainDeps = Parameters<
+  typeof createOpenRuntimeOptionsPaletteHandler
+>[0];
 
 export function createBuildGetRuntimeOptionsStateMainDepsHandler(
   deps: GetRuntimeOptionsStateMainDeps,
@@ -61,11 +65,7 @@ export function createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler(
   deps: SetOverlayDebugVisualizationEnabledMainDeps,
 ) {
   return (): SetOverlayDebugVisualizationEnabledMainDeps => ({
-    setOverlayDebugVisualizationEnabledRuntime: (
-      currentEnabled,
-      nextEnabled,
-      setCurrentEnabled,
-    ) =>
+    setOverlayDebugVisualizationEnabledRuntime: (currentEnabled, nextEnabled, setCurrentEnabled) =>
       deps.setOverlayDebugVisualizationEnabledRuntime(
         currentEnabled,
         nextEnabled,

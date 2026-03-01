@@ -112,12 +112,7 @@ export class FieldGroupingWorkflow {
       const keepNoteId = choice.keepNoteId;
       const deleteNoteId = choice.deleteNoteId;
 
-      await this.performMerge(
-        keepNoteId,
-        deleteNoteId,
-        expression,
-        choice.deleteDuplicate,
-      );
+      await this.performMerge(keepNoteId, deleteNoteId, expression, choice.deleteDuplicate);
       return true;
     } catch (error) {
       this.deps.logError('Field grouping manual merge failed:', (error as Error).message);

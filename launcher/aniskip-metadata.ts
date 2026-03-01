@@ -28,7 +28,11 @@ function toPositiveInt(value: unknown): number | null {
 }
 
 function detectEpisodeFromName(baseName: string): number | null {
-  const patterns = [/[Ss]\d+[Ee](\d{1,3})/, /(?:^|[\s._-])[Ee][Pp]?[\s._-]*(\d{1,3})(?:$|[\s._-])/, /[-\s](\d{1,3})$/];
+  const patterns = [
+    /[Ss]\d+[Ee](\d{1,3})/,
+    /(?:^|[\s._-])[Ee][Pp]?[\s._-]*(\d{1,3})(?:$|[\s._-])/,
+    /[-\s](\d{1,3})$/,
+  ];
   for (const pattern of patterns) {
     const match = baseName.match(pattern);
     if (!match || !match[1]) continue;
@@ -171,7 +175,11 @@ export function inferAniSkipMetadataForFile(
 }
 
 function sanitizeScriptOptValue(value: string): string {
-  return value.replace(/,/g, ' ').replace(/[\r\n]/g, ' ').replace(/\s+/g, ' ').trim();
+  return value
+    .replace(/,/g, ' ')
+    .replace(/[\r\n]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function buildSubminerScriptOpts(

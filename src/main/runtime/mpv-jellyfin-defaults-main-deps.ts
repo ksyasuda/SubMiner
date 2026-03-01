@@ -15,9 +15,7 @@ export function createBuildApplyJellyfinMpvDefaultsMainDepsHandler(
   });
 }
 
-export function createBuildGetDefaultSocketPathMainDepsHandler(
-  deps: GetDefaultSocketPathMainDeps,
-) {
+export function createBuildGetDefaultSocketPathMainDepsHandler(deps: GetDefaultSocketPathMainDeps) {
   return (): GetDefaultSocketPathMainDeps => ({
     platform: deps.platform,
   });

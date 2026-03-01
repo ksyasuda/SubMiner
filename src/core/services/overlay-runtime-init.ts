@@ -23,7 +23,8 @@ type CreateAnkiIntegrationArgs = {
 };
 
 function createDefaultAnkiIntegration(args: CreateAnkiIntegrationArgs): AnkiIntegrationLike {
-  const { AnkiIntegration } = require('../../anki-integration') as typeof import('../../anki-integration');
+  const { AnkiIntegration } =
+    require('../../anki-integration') as typeof import('../../anki-integration');
   return new AnkiIntegration(
     args.config,
     args.subtitleTimingTracker as never,
@@ -76,7 +77,10 @@ export function initializeOverlayRuntime(options: {
   options.registerGlobalShortcuts();
 
   const createWindowTrackerHandler = options.createWindowTracker ?? createWindowTracker;
-  const windowTracker = createWindowTrackerHandler(options.backendOverride, options.getMpvSocketPath());
+  const windowTracker = createWindowTrackerHandler(
+    options.backendOverride,
+    options.getMpvSocketPath(),
+  );
   options.setWindowTracker(windowTracker);
   if (windowTracker) {
     windowTracker.onGeometryChange = (geometry: WindowGeometry) => {

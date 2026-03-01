@@ -475,8 +475,7 @@ export function startMpv(
   if (preloadedSubtitles?.secondaryPath) {
     mpvArgs.push(`--sub-file=${preloadedSubtitles.secondaryPath}`);
   }
-  const aniSkipMetadata =
-    targetKind === 'file' ? inferAniSkipMetadataForFile(target) : null;
+  const aniSkipMetadata = targetKind === 'file' ? inferAniSkipMetadataForFile(target) : null;
   const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata);
   if (aniSkipMetadata) {
     log(

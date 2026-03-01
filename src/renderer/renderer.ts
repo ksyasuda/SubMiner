@@ -343,7 +343,10 @@ async function init(): Promise<void> {
 
   subtitleRenderer.applySubtitleStyle(await window.electronAPI.getSubtitleStyle());
 
-  positioning.applyStoredSubtitlePosition(await window.electronAPI.getSubtitlePosition(), 'startup');
+  positioning.applyStoredSubtitlePosition(
+    await window.electronAPI.getSubtitlePosition(),
+    'startup',
+  );
   measurementReporter.schedule();
 
   if (ctx.platform.shouldToggleMouseIgnore) {

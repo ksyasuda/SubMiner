@@ -1,11 +1,9 @@
 import type { RendererContext } from '../context';
 import {
   createInMemorySubtitlePositionController,
-  type SubtitlePositionController
+  type SubtitlePositionController,
 } from './position-state.js';
 
-export function createPositioningController(
-  ctx: RendererContext,
-): SubtitlePositionController {
+export function createPositioningController(ctx: RendererContext): SubtitlePositionController {
   return createInMemorySubtitlePositionController(ctx);
 }

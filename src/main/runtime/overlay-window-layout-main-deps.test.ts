@@ -34,10 +34,5 @@ test('overlay window layout main deps builders map callbacks', () => {
   assert.deepEqual(order.getMainWindow(), { kind: 'main' });
   order.ensureOverlayWindowLevel({});
 
-  assert.deepEqual(calls, [
-    'visible',
-    'ensure',
-    'order',
-    'order-level',
-  ]);
+  assert.deepEqual(calls, ['visible', 'ensure', 'order', 'order-level']);
 });

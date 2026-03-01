@@ -11,7 +11,8 @@ export function createCycleSecondarySubModeRuntimeHandler(deps: {
   cycleSecondarySubModeMainDeps: CycleSecondarySubModeMainDeps;
   cycleSecondarySubMode: (deps: CycleSecondarySubModeDeps) => void;
 }) {
-  const buildCycleSecondarySubModeMainDepsHandler =
-    createBuildCycleSecondarySubModeMainDepsHandler(deps.cycleSecondarySubModeMainDeps);
+  const buildCycleSecondarySubModeMainDepsHandler = createBuildCycleSecondarySubModeMainDepsHandler(
+    deps.cycleSecondarySubModeMainDeps,
+  );
   return () => deps.cycleSecondarySubMode(buildCycleSecondarySubModeMainDepsHandler());
 }

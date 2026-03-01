@@ -239,7 +239,8 @@ export class AnkiIntegration {
   }
 
   private createProxyServer(): AnkiConnectProxyServer {
-    const { AnkiConnectProxyServer } = require('./anki-integration/anki-connect-proxy') as typeof import('./anki-integration/anki-connect-proxy');
+    const { AnkiConnectProxyServer } =
+      require('./anki-integration/anki-connect-proxy') as typeof import('./anki-integration/anki-connect-proxy');
     return new AnkiConnectProxyServer({
       shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId: number) => this.processNewCard(noteId),

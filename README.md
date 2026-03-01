@@ -65,7 +65,6 @@ cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
 mkdir -p ~/.config/SubMiner && cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
 ```
 
-
 ### 3. Set up Yomitan Dictionaries
 
 ```bash

@@ -6,7 +6,8 @@ test('composeJellyfinRemoteHandlers returns callable jellyfin remote handlers', 
   let lastProgressAt = 0;
   const composed = composeJellyfinRemoteHandlers({
     getConfiguredSession: () => null,
-    getClientInfo: () => ({ clientName: 'SubMiner', clientVersion: 'test', deviceId: 'dev' }) as never,
+    getClientInfo: () =>
+      ({ clientName: 'SubMiner', clientVersion: 'test', deviceId: 'dev' }) as never,
     getJellyfinConfig: () => ({ enabled: false }) as never,
     playJellyfinItem: async () => {},
     logWarn: () => {},

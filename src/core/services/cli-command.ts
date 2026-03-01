@@ -283,8 +283,7 @@ export function handleCliCommand(
     return;
   }
 
-  const shouldStart =
-    args.start || args.toggle || args.toggleVisibleOverlay;
+  const shouldStart = args.start || args.toggle || args.toggleVisibleOverlay;
   const needsOverlayRuntime = commandNeedsOverlayRuntime(args);
   const shouldInitializeOverlayRuntime = needsOverlayRuntime || args.start;
 

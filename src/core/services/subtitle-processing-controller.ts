@@ -10,6 +10,7 @@ export interface SubtitleProcessingControllerDeps {
 export interface SubtitleProcessingController {
   onSubtitleChange: (text: string) => void;
   refreshCurrentSubtitle: (textOverride?: string) => void;
+  invalidateTokenizationCache: () => void;
 }
 
 export function createSubtitleProcessingController(
@@ -125,6 +126,9 @@ export function createSubtitleProcessingController(
       }
       refreshRequested = true;
       processLatest();
+    },
+    invalidateTokenizationCache: () => {
+      tokenizationCache.clear();
     },
   };
 }

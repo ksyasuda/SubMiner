@@ -13,9 +13,10 @@ export type AppendClipboardVideoToQueueRuntimeDeps = {
   sendMpvCommand: (command: (string | number)[]) => void;
 };
 
-export function appendClipboardVideoToQueueRuntime(
-  deps: AppendClipboardVideoToQueueRuntimeDeps,
-): { ok: boolean; message: string } {
+export function appendClipboardVideoToQueueRuntime(deps: AppendClipboardVideoToQueueRuntimeDeps): {
+  ok: boolean;
+  message: string;
+} {
   const mpvClient = deps.getMpvClient();
   if (!mpvClient || !mpvClient.connected) {
     return { ok: false, message: 'MPV is not connected.' };

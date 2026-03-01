@@ -39,7 +39,10 @@ export function createConfigDerivedRuntime(deps: ConfigDerivedRuntimeDeps): {
         deps.defaultJimakuLanguagePreference,
       ),
     getJimakuMaxEntryResults: () =>
-      getJimakuMaxEntryResultsCore(() => deps.getResolvedConfig(), deps.defaultJimakuMaxEntryResults),
+      getJimakuMaxEntryResultsCore(
+        () => deps.getResolvedConfig(),
+        deps.defaultJimakuMaxEntryResults,
+      ),
     resolveJimakuApiKey: () => resolveJimakuApiKeyCore(() => deps.getResolvedConfig()),
     jimakuFetchJson: <T>(
       endpoint: string,

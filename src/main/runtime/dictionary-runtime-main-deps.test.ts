@@ -29,7 +29,8 @@ test('jlpt dictionary runtime main deps builder maps search paths and log prefix
   const deps = createBuildJlptDictionaryRuntimeMainDepsHandler({
     isJlptEnabled: () => true,
     getDictionaryRoots: () => ['/root/a'],
-    getJlptDictionarySearchPaths: ({ getDictionaryRoots }) => getDictionaryRoots().map((path) => `${path}/jlpt`),
+    getJlptDictionarySearchPaths: ({ getDictionaryRoots }) =>
+      getDictionaryRoots().map((path) => `${path}/jlpt`),
     setJlptLevelLookup: () => calls.push('set-lookup'),
     logInfo: (message) => calls.push(`log:${message}`),
   })();

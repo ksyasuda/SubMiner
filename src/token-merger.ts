@@ -243,12 +243,8 @@ export function mergeTokens(
 }
 
 const SENTENCE_BOUNDARY_SURFACES = new Set(['。', '？', '！', '?', '!', '…', '\u2026']);
-const N_PLUS_ONE_IGNORED_POS1 = new Set(
-  DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG.defaults,
-);
-const N_PLUS_ONE_IGNORED_POS2 = new Set(
-  DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG.defaults,
-);
+const N_PLUS_ONE_IGNORED_POS1 = new Set(DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG.defaults);
+const N_PLUS_ONE_IGNORED_POS2 = new Set(DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG.defaults);
 
 function normalizePos1Tag(pos1: string | undefined): string {
   return typeof pos1 === 'string' ? pos1.trim() : '';
@@ -258,10 +254,7 @@ function normalizePos2Tag(pos2: string | undefined): string {
   return typeof pos2 === 'string' ? pos2.trim() : '';
 }
 
-function isExcludedByTagSet(
-  normalizedTag: string,
-  exclusions: ReadonlySet<string>,
-): boolean {
+function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<string>): boolean {
   if (!normalizedTag) {
     return false;
   }
@@ -303,11 +296,13 @@ function isNPlusOneWordCountToken(
     return false;
   }
 
-  if (!hasPos1 && !hasPos2 && (
-    token.partOfSpeech === PartOfSpeech.particle ||
-    token.partOfSpeech === PartOfSpeech.bound_auxiliary ||
-    token.partOfSpeech === PartOfSpeech.symbol
-  )) {
+  if (
+    !hasPos1 &&
+    !hasPos2 &&
+    (token.partOfSpeech === PartOfSpeech.particle ||
+      token.partOfSpeech === PartOfSpeech.bound_auxiliary ||
+      token.partOfSpeech === PartOfSpeech.symbol)
+  ) {
     return false;
   }
 

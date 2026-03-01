@@ -35,10 +35,7 @@ export function createMouseHandlers(
     }
 
     yomitanPopupVisible = false;
-    if (
-      !ctx.state.isOverSubtitle &&
-      !options.modalStateReader.isAnyModalOpen()
-    ) {
+    if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
       ctx.dom.overlay.classList.remove('interactive');
       if (ctx.platform.shouldToggleMouseIgnore) {
         window.electronAPI.setIgnoreMouseEvents(true, { forward: true });

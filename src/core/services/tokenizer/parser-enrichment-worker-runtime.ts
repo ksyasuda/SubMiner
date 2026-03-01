@@ -116,7 +116,9 @@ class ParserEnrichmentWorkerRuntime {
   }
 
   private handleWorkerFailure(error: Error): void {
-    logger.debug(`Parser enrichment worker unavailable, falling back to main thread: ${error.message}`);
+    logger.debug(
+      `Parser enrichment worker unavailable, falling back to main thread: ${error.message}`,
+    );
     for (const pending of this.pending.values()) {
       pending.reject(error);
     }

@@ -35,12 +35,15 @@ test('overlay main action main deps builders map callbacks', () => {
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     sendMpvCommand: (command) => calls.push(`cmd:${command.join(':')}`),
   })();
-  assert.deepEqual(append.appendClipboardVideoToQueueRuntime({
-    getMpvClient: () => ({ connected: true }),
-    readClipboardText: () => '/tmp/v.mkv',
-    showMpvOsd: () => {},
-    sendMpvCommand: () => {},
-  }), { ok: true, message: 'ok' });
+  assert.deepEqual(
+    append.appendClipboardVideoToQueueRuntime({
+      getMpvClient: () => ({ connected: true }),
+      readClipboardText: () => '/tmp/v.mkv',
+      showMpvOsd: () => {},
+      sendMpvCommand: () => {},
+    }),
+    { ok: true, message: 'ok' },
+  );
   assert.equal(append.readClipboardText(), '/tmp/v.mkv');
   assert.equal(typeof append.getMpvClient(), 'object');
   append.showMpvOsd('queued');

@@ -11,7 +11,8 @@ export function createBuildSetVisibleOverlayVisibleMainDepsHandler(
 ) {
   return (): SetVisibleOverlayVisibleMainDeps => ({
     setVisibleOverlayVisibleCore: (options) => deps.setVisibleOverlayVisibleCore(options),
-    setVisibleOverlayVisibleState: (visible: boolean) => deps.setVisibleOverlayVisibleState(visible),
+    setVisibleOverlayVisibleState: (visible: boolean) =>
+      deps.setVisibleOverlayVisibleState(visible),
     updateVisibleOverlayVisibility: () => deps.updateVisibleOverlayVisibility(),
     onVisibleOverlayEnabled: deps.onVisibleOverlayEnabled,
   });

@@ -70,7 +70,8 @@ test('open yomitan settings main deps map async open callbacks', async () => {
   const extension = { id: 'ext' };
   const deps = createBuildOpenYomitanSettingsMainDepsHandler({
     ensureYomitanExtensionLoaded: async () => extension,
-    openYomitanSettingsWindow: ({ yomitanExt }) => calls.push(`open:${(yomitanExt as { id: string }).id}`),
+    openYomitanSettingsWindow: ({ yomitanExt }) =>
+      calls.push(`open:${(yomitanExt as { id: string }).id}`),
     getExistingWindow: () => currentWindow,
     setWindow: (window) => {
       currentWindow = window;

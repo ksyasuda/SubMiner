@@ -22,10 +22,14 @@ function withTempDir<T>(fn: (dir: string) => T): T {
 }
 
 function runLauncher(argv: string[], env: NodeJS.ProcessEnv): RunResult {
-  const result = spawnSync(process.execPath, ['run', path.join(process.cwd(), 'launcher/main.ts'), ...argv], {
-    env,
-    encoding: 'utf8',
-  });
+  const result = spawnSync(
+    process.execPath,
+    ['run', path.join(process.cwd(), 'launcher/main.ts'), ...argv],
+    {
+      env,
+      encoding: 'utf8',
+    },
+  );
   return {
     status: result.status,
     stdout: result.stdout || '',
@@ -225,10 +229,7 @@ test('jellyfin setup forwards password-store to app command', () => {
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_CAPTURE: capturePath,
     };
-    const result = runLauncher(
-      ['jf', 'setup', '--password-store', 'gnome-libsecret'],
-      env,
-    );
+    const result = runLauncher(['jf', 'setup', '--password-store', 'gnome-libsecret'], env);
 
     assert.equal(result.status, 0);
     assert.equal(

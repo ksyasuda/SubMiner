@@ -2,7 +2,9 @@ import type { createPlayJellyfinItemInMpvHandler } from './jellyfin-playback-lau
 
 type PlayJellyfinItemInMpvMainDeps = Parameters<typeof createPlayJellyfinItemInMpvHandler>[0];
 
-export function createBuildPlayJellyfinItemInMpvMainDepsHandler(deps: PlayJellyfinItemInMpvMainDeps) {
+export function createBuildPlayJellyfinItemInMpvMainDepsHandler(
+  deps: PlayJellyfinItemInMpvMainDeps,
+) {
   return (): PlayJellyfinItemInMpvMainDeps => ({
     ensureMpvConnectedForPlayback: () => deps.ensureMpvConnectedForPlayback(),
     getMpvClient: () => deps.getMpvClient(),

@@ -27,9 +27,11 @@ test('proxy enqueues addNote result for enrichment', async () => {
     logError: () => undefined,
   });
 
-  (proxy as unknown as {
-    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
-  }).maybeEnqueueFromRequest(
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
     { action: 'addNote' },
     Buffer.from(JSON.stringify({ result: 42, error: null }), 'utf8'),
   );
@@ -50,9 +52,11 @@ test('proxy enqueues addNote bare numeric response for enrichment', async () => 
     logError: () => undefined,
   });
 
-  (proxy as unknown as {
-    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
-  }).maybeEnqueueFromRequest({ action: 'addNote' }, Buffer.from('42', 'utf8'));
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest({ action: 'addNote' }, Buffer.from('42', 'utf8'));
 
   await waitForCondition(() => processed.length === 1);
   assert.deepEqual(processed, [42]);
@@ -71,9 +75,11 @@ test('proxy de-duplicates addNotes IDs within the same response', async () => {
     logError: () => undefined,
   });
 
-  (proxy as unknown as {
-    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
-  }).maybeEnqueueFromRequest(
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
     { action: 'addNotes' },
     Buffer.from(JSON.stringify({ result: [101, 102, 101, null], error: null }), 'utf8'),
   );
@@ -94,17 +100,15 @@ test('proxy enqueues note IDs from multi action addNote/addNotes results', async
     logError: () => undefined,
   });
 
-  (proxy as unknown as {
-    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
-  }).maybeEnqueueFromRequest(
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
     {
       action: 'multi',
       params: {
-        actions: [
-          { action: 'version' },
-          { action: 'addNote' },
-          { action: 'addNotes' },
-        ],
+        actions: [{ action: 'version' }, { action: 'addNote' }, { action: 'addNotes' }],
       },
     },
     Buffer.from(JSON.stringify({ result: [6, 777, [888, 777, null]], error: null }), 'utf8'),
@@ -126,9 +130,11 @@ test('proxy enqueues note IDs from bare multi action results', async () => {
     logError: () => undefined,
   });
 
-  (proxy as unknown as {
-    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
-  }).maybeEnqueueFromRequest(
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
     {
       action: 'multi',
       params: {
@@ -154,17 +160,15 @@ test('proxy enqueues note IDs from multi action envelope results', async () => {
     logError: () => undefined,
   });
 
-  (proxy as unknown as {
-    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
-  }).maybeEnqueueFromRequest(
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
     {
       action: 'multi',
       params: {
-        actions: [
-          { action: 'version' },
-          { action: 'addNote' },
-          { action: 'addNotes' },
-        ],
+        actions: [{ action: 'version' }, { action: 'addNote' }, { action: 'addNotes' }],
       },
     },
     Buffer.from(
@@ -196,9 +200,11 @@ test('proxy skips auto-enrichment when auto-update is disabled', async () => {
     logError: () => undefined,
   });
 
-  (proxy as unknown as {
-    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
-  }).maybeEnqueueFromRequest(
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
     { action: 'addNote' },
     Buffer.from(JSON.stringify({ result: 303, error: null }), 'utf8'),
   );
@@ -219,9 +225,11 @@ test('proxy ignores addNote when upstream response reports error', async () => {
     logError: () => undefined,
   });
 
-  (proxy as unknown as {
-    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
-  }).maybeEnqueueFromRequest(
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
     { action: 'addNote' },
     Buffer.from(JSON.stringify({ result: 123, error: 'duplicate' }), 'utf8'),
   );
@@ -248,9 +256,11 @@ test('proxy does not fallback-enqueue latest note for multi requests without add
     logError: () => undefined,
   });
 
-  (proxy as unknown as {
-    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
-  }).maybeEnqueueFromRequest(
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
     {
       action: 'multi',
       params: {
@@ -283,9 +293,11 @@ test('proxy fallback-enqueues latest note for addNote responses without note IDs
     logError: () => undefined,
   });
 
-  (proxy as unknown as {
-    maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
-  }).maybeEnqueueFromRequest(
+  (
+    proxy as unknown as {
+      maybeEnqueueFromRequest: (request: Record<string, unknown>, responseBody: Buffer) => void;
+    }
+  ).maybeEnqueueFromRequest(
     { action: 'addNote' },
     Buffer.from(JSON.stringify({ result: 0, error: null }), 'utf8'),
   );
@@ -304,13 +316,15 @@ test('proxy detects self-referential loop configuration', () => {
     logError: () => undefined,
   });
 
-  const result = (proxy as unknown as {
-    isSelfReferentialProxy: (options: {
-      host: string;
-      port: number;
-      upstreamUrl: string;
-    }) => boolean;
-  }).isSelfReferentialProxy({
+  const result = (
+    proxy as unknown as {
+      isSelfReferentialProxy: (options: {
+        host: string;
+        port: number;
+        upstreamUrl: string;
+      }) => boolean;
+    }
+  ).isSelfReferentialProxy({
     host: '127.0.0.1',
     port: 8766,
     upstreamUrl: 'http://localhost:8766',

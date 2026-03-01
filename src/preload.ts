@@ -59,9 +59,7 @@ const overlayLayer =
 type EmptyListener = () => void;
 type PayloadedListener<T> = (payload: T) => void;
 
-function createQueuedIpcListener(
-  channel: string,
-): (listener: EmptyListener) => void {
+function createQueuedIpcListener(channel: string): (listener: EmptyListener) => void {
   let count = 0;
   const listeners: EmptyListener[] = [];
 
@@ -124,10 +122,11 @@ const onSubsyncManualOpenEvent = createQueuedIpcListenerWithPayload<SubsyncManua
   IPC_CHANNELS.event.subsyncOpenManual,
   (payload) => payload as SubsyncManualPayload,
 );
-const onKikuFieldGroupingRequestEvent = createQueuedIpcListenerWithPayload<KikuFieldGroupingRequestData>(
-  IPC_CHANNELS.event.kikuFieldGroupingRequest,
-  (payload) => payload as KikuFieldGroupingRequestData,
-);
+const onKikuFieldGroupingRequestEvent =
+  createQueuedIpcListenerWithPayload<KikuFieldGroupingRequestData>(
+    IPC_CHANNELS.event.kikuFieldGroupingRequest,
+    (payload) => payload as KikuFieldGroupingRequestData,
+  );
 
 const electronAPI: ElectronAPI = {
   getOverlayLayer: () => overlayLayer,

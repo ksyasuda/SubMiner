@@ -22,7 +22,8 @@ export function createBuildMpvClientRuntimeServiceFactoryDepsHandler<
       setOverlayVisible: (visible: boolean) => deps.setOverlayVisible(visible),
       isVisibleOverlayVisible: () => deps.isVisibleOverlayVisible(),
       getReconnectTimer: () => deps.getReconnectTimer(),
-      setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) => deps.setReconnectTimer(timer),
+      setReconnectTimer: (timer: ReturnType<typeof setTimeout> | null) =>
+        deps.setReconnectTimer(timer),
     },
     bindEventHandlers: (client: TClient) => deps.bindEventHandlers(client),
   });

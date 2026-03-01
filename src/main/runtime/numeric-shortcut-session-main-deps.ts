@@ -3,8 +3,12 @@ import type {
   createStartNumericShortcutSessionHandler,
 } from './numeric-shortcut-session-handlers';
 
-type CancelNumericShortcutSessionMainDeps = Parameters<typeof createCancelNumericShortcutSessionHandler>[0];
-type StartNumericShortcutSessionMainDeps = Parameters<typeof createStartNumericShortcutSessionHandler>[0];
+type CancelNumericShortcutSessionMainDeps = Parameters<
+  typeof createCancelNumericShortcutSessionHandler
+>[0];
+type StartNumericShortcutSessionMainDeps = Parameters<
+  typeof createStartNumericShortcutSessionHandler
+>[0];
 
 export function createBuildCancelNumericShortcutSessionMainDepsHandler(
   deps: CancelNumericShortcutSessionMainDeps,

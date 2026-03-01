@@ -66,11 +66,7 @@ export function createRegisterSubminerProtocolClientHandler(deps: {
   getArgv: () => string[];
   execPath: string;
   resolvePath: (value: string) => string;
-  setAsDefaultProtocolClient: (
-    scheme: string,
-    path?: string,
-    args?: string[],
-  ) => boolean;
+  setAsDefaultProtocolClient: (scheme: string, path?: string, args?: string[]) => boolean;
   logWarn: (message: string, details?: unknown) => void;
 }) {
   return (): void => {

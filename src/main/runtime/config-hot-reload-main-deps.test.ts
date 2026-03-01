@@ -111,7 +111,7 @@ test('config hot reload applied main deps builder maps callbacks', () => {
 test('config hot reload runtime main deps builder maps runtime callbacks', () => {
   const calls: string[] = [];
   const deps = createBuildConfigHotReloadRuntimeMainDepsHandler({
-    getCurrentConfig: () => ({ id: 1 } as never as ResolvedConfig),
+    getCurrentConfig: () => ({ id: 1 }) as never as ResolvedConfig,
     reloadConfigStrict: () =>
       ({
         ok: true,
@@ -144,5 +144,10 @@ test('config hot reload runtime main deps builder maps runtime callbacks', () =>
   deps.onRestartRequired([]);
   deps.onInvalidConfig('bad');
   deps.onValidationWarnings('/tmp/config.jsonc', []);
-  assert.deepEqual(calls, ['hot-reload', 'restart-required', 'invalid-config', 'validation-warnings']);
+  assert.deepEqual(calls, [
+    'hot-reload',
+    'restart-required',
+    'invalid-config',
+    'validation-warnings',
+  ]);
 });

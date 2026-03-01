@@ -122,7 +122,10 @@ test('dictionary prewarm shows OSD spinner while loading and completion when loa
   }
   const tickCallback: () => void = tick;
   tickCallback();
-  assert.deepEqual(osdMessages, ['Loading subtitle annotations |', 'Loading subtitle annotations /']);
+  assert.deepEqual(osdMessages, [
+    'Loading subtitle annotations |',
+    'Loading subtitle annotations /',
+  ]);
 
   jlptDeferred.resolve();
   freqDeferred.resolve();

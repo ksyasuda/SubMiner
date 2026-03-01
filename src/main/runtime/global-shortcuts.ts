@@ -5,10 +5,7 @@ import type { RegisterGlobalShortcutsServiceOptions } from '../../core/services/
 export function createGetConfiguredShortcutsHandler(deps: {
   getResolvedConfig: () => Config;
   defaultConfig: Config;
-  resolveConfiguredShortcuts: (
-    config: Config,
-    defaultConfig: Config,
-  ) => ConfiguredShortcuts;
+  resolveConfiguredShortcuts: (config: Config, defaultConfig: Config) => ConfiguredShortcuts;
 }) {
   return (): ConfiguredShortcuts =>
     deps.resolveConfiguredShortcuts(deps.getResolvedConfig(), deps.defaultConfig);

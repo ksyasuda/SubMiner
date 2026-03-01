@@ -1256,10 +1256,7 @@ function getResolvedConfig() {
 }
 
 function getRuntimeBooleanOption(
-  id:
-    | 'subtitle.annotation.nPlusOne'
-    | 'subtitle.annotation.jlpt'
-    | 'subtitle.annotation.frequency',
+  id: 'subtitle.annotation.nPlusOne' | 'subtitle.annotation.jlpt' | 'subtitle.annotation.frequency',
   fallback: boolean,
 ): boolean {
   const value = appState.runtimeOptionsManager?.getOptionValue(id);
@@ -2318,7 +2315,10 @@ const {
         getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,
       getJlptLevel: (text) => appState.jlptLevelLookup(text),
       getJlptEnabled: () =>
-        getRuntimeBooleanOption('subtitle.annotation.jlpt', getResolvedConfig().subtitleStyle.enableJlpt),
+        getRuntimeBooleanOption(
+          'subtitle.annotation.jlpt',
+          getResolvedConfig().subtitleStyle.enableJlpt,
+        ),
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.frequency',

@@ -7,12 +7,7 @@ import {
   DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
   resolveAnnotationPos2ExclusionSet,
 } from '../../../token-pos2-exclusions';
-import {
-  JlptLevel,
-  MergedToken,
-  NPlusOneMatchMode,
-  PartOfSpeech,
-} from '../../../types';
+import { JlptLevel, MergedToken, NPlusOneMatchMode, PartOfSpeech } from '../../../types';
 import { shouldIgnoreJlptByTerm, shouldIgnoreJlptForMecabPos1 } from '../jlpt-token-filter';
 
 const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
@@ -67,10 +62,7 @@ function normalizePos1Tag(pos1: string | undefined): string {
   return typeof pos1 === 'string' ? pos1.trim() : '';
 }
 
-function isExcludedByTagSet(
-  normalizedTag: string,
-  exclusions: ReadonlySet<string>,
-): boolean {
+function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<string>): boolean {
   if (!normalizedTag) {
     return false;
   }
@@ -350,10 +342,7 @@ function isLikelyFrequencyNoiseToken(token: MergedToken): boolean {
       continue;
     }
 
-    if (
-      shouldIgnoreJlptByTerm(trimmedCandidate) ||
-      shouldIgnoreJlptByTerm(normalizedCandidate)
-    ) {
+    if (shouldIgnoreJlptByTerm(trimmedCandidate) || shouldIgnoreJlptByTerm(normalizedCandidate)) {
       return true;
     }
 
@@ -442,13 +431,12 @@ export function annotateTokens(
       }));
 
   const frequencyEnabled = options.frequencyEnabled !== false;
-  const frequencyMarkedTokens =
-    frequencyEnabled
-      ? applyFrequencyMarking(knownMarkedTokens, pos1Exclusions, pos2Exclusions)
-      : knownMarkedTokens.map((token) => ({
-          ...token,
-          frequencyRank: undefined,
-        }));
+  const frequencyMarkedTokens = frequencyEnabled
+    ? applyFrequencyMarking(knownMarkedTokens, pos1Exclusions, pos2Exclusions)
+    : knownMarkedTokens.map((token) => ({
+        ...token,
+        frequencyRank: undefined,
+      }));
 
   const jlptEnabled = options.jlptEnabled !== false;
   const jlptMarkedTokens = jlptEnabled

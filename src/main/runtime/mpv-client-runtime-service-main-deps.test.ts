@@ -7,7 +7,10 @@ test('mpv runtime service main deps builder maps state and callbacks', () => {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   class FakeClient {
-    constructor(public socketPath: string, public options: unknown) {}
+    constructor(
+      public socketPath: string,
+      public options: unknown,
+    ) {}
   }
 
   const build = createBuildMpvClientRuntimeServiceFactoryDepsHandler({

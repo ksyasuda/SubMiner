@@ -138,3 +138,35 @@ test('subtitle processing refresh can use explicit text override', async () => {
 
   assert.deepEqual(emitted, [{ text: 'initial', tokens: [] }]);
 });
+
+test('subtitle processing cache invalidation only affects future subtitle events', async () => {
+  const emitted: SubtitleData[] = [];
+  const callsByText = new Map<string, number>();
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      callsByText.set(text, (callsByText.get(text) ?? 0) + 1);
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('same');
+  await flushMicrotasks();
+  controller.onSubtitleChange('other');
+  await flushMicrotasks();
+  controller.onSubtitleChange('same');
+  await flushMicrotasks();
+
+  assert.equal(callsByText.get('same'), 1);
+  assert.equal(emitted.length, 3);
+
+  controller.invalidateTokenizationCache();
+  assert.equal(emitted.length, 3);
+
+  controller.onSubtitleChange('different');
+  await flushMicrotasks();
+  controller.onSubtitleChange('same');
+  await flushMicrotasks();
+
+  assert.equal(callsByText.get('same'), 2);
+});

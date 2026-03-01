@@ -14,8 +14,7 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
     updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
       deps.updateVisibleOverlayBounds(geometry),
     ensureOverlayWindowLevel: (window: BrowserWindow) => deps.ensureOverlayWindowLevel(window),
-    syncPrimaryOverlayWindowLayer: (layer: 'visible') =>
-      deps.syncPrimaryOverlayWindowLayer(layer),
+    syncPrimaryOverlayWindowLayer: (layer: 'visible') => deps.syncPrimaryOverlayWindowLayer(layer),
     enforceOverlayLayerOrder: () => deps.enforceOverlayLayerOrder(),
     syncOverlayShortcuts: () => deps.syncOverlayShortcuts(),
     isMacOSPlatform: () => deps.isMacOSPlatform(),

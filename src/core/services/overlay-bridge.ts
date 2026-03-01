@@ -34,10 +34,7 @@ export function sendToVisibleOverlayRuntime<T extends string>(options: {
 
   const isLoading = typeof webContents.isLoading === 'function' ? webContents.isLoading() : false;
   const currentURL = typeof webContents.getURL === 'function' ? webContents.getURL() : '';
-  const isReady =
-    !isLoading &&
-    currentURL !== '' &&
-    currentURL !== 'about:blank';
+  const isReady = !isLoading && currentURL !== '' && currentURL !== 'about:blank';
 
   if (!isReady) {
     if (typeof webContents.once !== 'function') {

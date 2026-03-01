@@ -71,7 +71,8 @@ test('createFrequencyDictionaryLookup aggregates duplicate-term logs into a sing
 
   assert.equal(lookup('猫'), 100);
   assert.equal(
-    logs.filter((entry) => entry.includes('Frequency dictionary ignored 2 duplicate term entries')).length,
+    logs.filter((entry) => entry.includes('Frequency dictionary ignored 2 duplicate term entries'))
+      .length,
     1,
   );
   assert.equal(

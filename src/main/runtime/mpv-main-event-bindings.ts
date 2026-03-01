@@ -97,8 +97,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
     const handleMpvMediaPathChange = createHandleMpvMediaPathChangeHandler({
       updateCurrentMediaPath: (path) => deps.updateCurrentMediaPath(path),
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
-      restoreMpvSubVisibility: () =>
-        deps.restoreMpvSubVisibility(),
+      restoreMpvSubVisibility: () => deps.restoreMpvSubVisibility(),
       getCurrentAnilistMediaKey: () => deps.getCurrentAnilistMediaKey(),
       resetAnilistMediaTracking: (mediaKey) => deps.resetAnilistMediaTracking(mediaKey),
       maybeProbeAnilistDuration: (mediaKey) => deps.maybeProbeAnilistDuration(mediaKey),

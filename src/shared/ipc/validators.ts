@@ -13,6 +13,9 @@ import { OVERLAY_HOSTED_MODALS, type OverlayHostedModal } from './contracts';
 
 const RUNTIME_OPTION_IDS: RuntimeOptionId[] = [
   'anki.autoUpdateNewCards',
+  'subtitle.annotation.nPlusOne',
+  'subtitle.annotation.jlpt',
+  'subtitle.annotation.frequency',
   'anki.kikuFieldGrouping',
   'anki.nPlusOneMatchMode',
 ];

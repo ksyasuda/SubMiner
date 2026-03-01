@@ -9,7 +9,7 @@ test('overlay runtime bootstrap no-ops when already initialized', () => {
     initializeOverlayRuntimeCore: () => {
       coreCalls += 1;
     },
-    buildOptions: () => ({} as never),
+    buildOptions: () => ({}) as never,
     setOverlayRuntimeInitialized: () => {},
     startBackgroundWarmups: () => {},
   });

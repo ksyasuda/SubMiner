@@ -22,6 +22,7 @@ import {
   RuntimeOptionId,
   RuntimeOptionState,
   RuntimeOptionValue,
+  SubtitleStyleConfig,
 } from './types';
 import { RUNTIME_OPTION_REGISTRY, RuntimeOptionRegistryEntry } from './config';
 
@@ -78,6 +79,7 @@ function isAllowedValue(
 
 export class RuntimeOptionsManager {
   private readonly getAnkiConfig: () => AnkiConnectConfig;
+  private readonly getSubtitleStyleConfig?: () => SubtitleStyleConfig;
   private readonly applyAnkiPatch: (patch: Partial<AnkiConnectConfig>) => void;
   private readonly onOptionsChanged: (options: RuntimeOptionState[]) => void;
   private runtimeOverrides: RuntimeOverrides = {};
@@ -88,9 +90,11 @@ export class RuntimeOptionsManager {
     callbacks: {
       applyAnkiPatch: (patch: Partial<AnkiConnectConfig>) => void;
       onOptionsChanged: (options: RuntimeOptionState[]) => void;
+      getSubtitleStyleConfig?: () => SubtitleStyleConfig;
     },
   ) {
     this.getAnkiConfig = getAnkiConfig;
+    this.getSubtitleStyleConfig = callbacks.getSubtitleStyleConfig;
     this.applyAnkiPatch = callbacks.applyAnkiPatch;
     this.onOptionsChanged = callbacks.onOptionsChanged;
     for (const definition of RUNTIME_OPTION_REGISTRY) {
@@ -104,6 +108,7 @@ export class RuntimeOptionsManager {
 
     const source = {
       ankiConnect: this.getAnkiConfig(),
+      subtitleStyle: this.getSubtitleStyleConfig?.(),
     } as Record<string, unknown>;
 
     const raw = getPathValue(source, definition.path);
@@ -152,8 +157,10 @@ export class RuntimeOptionsManager {
     setPathValue(next, definition.path, value);
     this.runtimeOverrides = next;
 
-    const ankiPatch = definition.toAnkiPatch(value);
-    this.applyAnkiPatch(ankiPatch);
+    if (definition.scope === 'ankiConnect') {
+      const ankiPatch = definition.toAnkiPatch(value);
+      this.applyAnkiPatch(ankiPatch);
+    }
 
     const option = this.listOptions().find((item) => item.id === id);
     if (!option) {
@@ -198,6 +205,7 @@ export class RuntimeOptionsManager {
     for (const definition of RUNTIME_OPTION_REGISTRY) {
       const override = getPathValue(this.runtimeOverrides, definition.path);
       if (override === undefined) continue;
+      if (!definition.path.startsWith('ankiConnect.')) continue;
 
       const subPath = definition.path.replace(/^ankiConnect\./, '');
       setPathValue(effective as unknown as Record<string, unknown>, subPath, override);

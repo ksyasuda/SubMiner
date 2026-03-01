@@ -8,7 +8,7 @@ import {
 test('get resolved jellyfin config returns jellyfin section from resolved config', () => {
   const jellyfin = { url: 'https://jellyfin.local' } as never;
   const getConfig = createGetResolvedJellyfinConfigHandler({
-    getResolvedConfig: () => ({ jellyfin } as never),
+    getResolvedConfig: () => ({ jellyfin }) as never,
     loadStoredSession: () => null,
     getEnv: () => undefined,
   });
@@ -68,8 +68,7 @@ test('get resolved jellyfin config uses stored user id when env token set withou
         },
       }) as never,
     loadStoredSession: () => ({ accessToken: 'stored-token', userId: 'stored-user' }),
-    getEnv: (key: string) =>
-      key === 'SUBMINER_JELLYFIN_ACCESS_TOKEN' ? 'env-token' : undefined,
+    getEnv: (key: string) => (key === 'SUBMINER_JELLYFIN_ACCESS_TOKEN' ? 'env-token' : undefined),
   });
 
   assert.deepEqual(getConfig(), {
@@ -81,7 +80,7 @@ test('get resolved jellyfin config uses stored user id when env token set withou
 
 test('jellyfin client info resolves defaults when fields are missing', () => {
   const getClientInfo = createGetJellyfinClientInfoHandler({
-    getResolvedJellyfinConfig: () => ({ clientName: '', clientVersion: '', deviceId: '' } as never),
+    getResolvedJellyfinConfig: () => ({ clientName: '', clientVersion: '', deviceId: '' }) as never,
     getDefaultJellyfinConfig: () =>
       ({
         clientName: 'SubMiner',

@@ -167,10 +167,13 @@ export interface KikuMergePreviewResponse {
 
 export type RuntimeOptionId =
   | 'anki.autoUpdateNewCards'
+  | 'subtitle.annotation.nPlusOne'
+  | 'subtitle.annotation.jlpt'
+  | 'subtitle.annotation.frequency'
   | 'anki.kikuFieldGrouping'
   | 'anki.nPlusOneMatchMode';
 
-export type RuntimeOptionScope = 'ankiConnect';
+export type RuntimeOptionScope = 'ankiConnect' | 'subtitle';
 
 export type RuntimeOptionValueType = 'boolean' | 'enum';
 

@@ -1,8 +1,6 @@
 import type { AppReadyRuntimeDepsFactoryInput } from '../app-lifecycle';
 
-export function createBuildAppReadyRuntimeMainDepsHandler(
-  deps: AppReadyRuntimeDepsFactoryInput,
-) {
+export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeDepsFactoryInput) {
   return (): AppReadyRuntimeDepsFactoryInput => ({
     loadSubtitlePosition: deps.loadSubtitlePosition,
     resolveKeybindings: deps.resolveKeybindings,
@@ -27,8 +25,7 @@ export function createBuildAppReadyRuntimeMainDepsHandler(
     prewarmSubtitleDictionaries: deps.prewarmSubtitleDictionaries,
     startBackgroundWarmups: deps.startBackgroundWarmups,
     texthookerOnlyMode: deps.texthookerOnlyMode,
-    shouldAutoInitializeOverlayRuntimeFromConfig:
-      deps.shouldAutoInitializeOverlayRuntimeFromConfig,
+    shouldAutoInitializeOverlayRuntimeFromConfig: deps.shouldAutoInitializeOverlayRuntimeFromConfig,
     initializeOverlayRuntime: deps.initializeOverlayRuntime,
     handleInitialArgs: deps.handleInitialArgs,
     onCriticalConfigErrors: deps.onCriticalConfigErrors,

@@ -49,7 +49,10 @@ test('runtime options state handler returns list from manager', () => {
 test('restore previous secondary subtitle visibility no-ops without connected mpv client', () => {
   let restored = false;
   const restore = createRestorePreviousSecondarySubVisibilityHandler({
-    getMpvClient: () => ({ connected: false, restorePreviousSecondarySubVisibility: () => (restored = true) }),
+    getMpvClient: () => ({
+      connected: false,
+      restorePreviousSecondarySubVisibility: () => (restored = true),
+    }),
   });
   restore();
   assert.equal(restored, false);
@@ -58,7 +61,10 @@ test('restore previous secondary subtitle visibility no-ops without connected mp
 test('restore previous secondary subtitle visibility calls runtime when connected', () => {
   let restored = false;
   const restore = createRestorePreviousSecondarySubVisibilityHandler({
-    getMpvClient: () => ({ connected: true, restorePreviousSecondarySubVisibility: () => (restored = true) }),
+    getMpvClient: () => ({
+      connected: true,
+      restorePreviousSecondarySubVisibility: () => (restored = true),
+    }),
   });
   restore();
   assert.equal(restored, true);
@@ -82,7 +88,8 @@ test('broadcast runtime options changed passes through state getter and broadcas
         requiresRestart: false,
       },
     ],
-    broadcastToOverlayWindows: (channel, payload) => calls.push(`emit:${channel}:${JSON.stringify(payload)}`),
+    broadcastToOverlayWindows: (channel, payload) =>
+      calls.push(`emit:${channel}:${JSON.stringify(payload)}`),
   });
 
   broadcast();

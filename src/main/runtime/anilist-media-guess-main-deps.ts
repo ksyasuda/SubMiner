@@ -3,7 +3,9 @@ import type {
   createMaybeProbeAnilistDurationHandler,
 } from './anilist-media-guess';
 
-type MaybeProbeAnilistDurationMainDeps = Parameters<typeof createMaybeProbeAnilistDurationHandler>[0];
+type MaybeProbeAnilistDurationMainDeps = Parameters<
+  typeof createMaybeProbeAnilistDurationHandler
+>[0];
 type EnsureAnilistMediaGuessMainDeps = Parameters<typeof createEnsureAnilistMediaGuessHandler>[0];
 
 export function createBuildMaybeProbeAnilistDurationMainDepsHandler(
@@ -19,13 +21,17 @@ export function createBuildMaybeProbeAnilistDurationMainDepsHandler(
   });
 }
 
-export function createBuildEnsureAnilistMediaGuessMainDepsHandler(deps: EnsureAnilistMediaGuessMainDeps) {
+export function createBuildEnsureAnilistMediaGuessMainDepsHandler(
+  deps: EnsureAnilistMediaGuessMainDeps,
+) {
   return (): EnsureAnilistMediaGuessMainDeps => ({
     getState: () => deps.getState(),
     setState: (state) => deps.setState(state),
-    resolveMediaPathForJimaku: (currentMediaPath) => deps.resolveMediaPathForJimaku(currentMediaPath),
+    resolveMediaPathForJimaku: (currentMediaPath) =>
+      deps.resolveMediaPathForJimaku(currentMediaPath),
     getCurrentMediaPath: () => deps.getCurrentMediaPath(),
     getCurrentMediaTitle: () => deps.getCurrentMediaTitle(),
-    guessAnilistMediaInfo: (mediaPath, mediaTitle) => deps.guessAnilistMediaInfo(mediaPath, mediaTitle),
+    guessAnilistMediaInfo: (mediaPath, mediaTitle) =>
+      deps.guessAnilistMediaInfo(mediaPath, mediaTitle),
   });
 }

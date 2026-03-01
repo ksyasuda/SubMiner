@@ -28,8 +28,9 @@ export function createStartupRuntimeHandlers<
   runStartupBootstrapRuntime: (deps: TStartupBootstrapRuntimeDeps) => TStartupState;
   applyStartupState: (startupState: TStartupState) => void;
 }) {
-  const appLifecycleRuntimeRunnerMainDeps =
-    createBuildAppLifecycleRuntimeRunnerMainDepsHandler(deps.appLifecycleRuntimeRunnerMainDeps)();
+  const appLifecycleRuntimeRunnerMainDeps = createBuildAppLifecycleRuntimeRunnerMainDepsHandler(
+    deps.appLifecycleRuntimeRunnerMainDeps,
+  )();
   const appLifecycleRuntimeRunner = deps.createAppLifecycleRuntimeRunner(
     appLifecycleRuntimeRunnerMainDeps,
   );

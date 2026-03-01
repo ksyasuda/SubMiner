@@ -175,7 +175,9 @@ export class AnkiConnectProxyServer {
     }
 
     const action =
-      typeof requestJson.action === 'string' ? requestJson.action : String(requestJson.action ?? '');
+      typeof requestJson.action === 'string'
+        ? requestJson.action
+        : String(requestJson.action ?? '');
     if (action !== 'addNote' && action !== 'addNotes' && action !== 'multi') {
       return;
     }

@@ -4,7 +4,9 @@ import type {
   createUpdateVisibleOverlayBoundsHandler,
 } from './overlay-window-layout';
 
-type UpdateVisibleOverlayBoundsMainDeps = Parameters<typeof createUpdateVisibleOverlayBoundsHandler>[0];
+type UpdateVisibleOverlayBoundsMainDeps = Parameters<
+  typeof createUpdateVisibleOverlayBoundsHandler
+>[0];
 type EnsureOverlayWindowLevelMainDeps = Parameters<typeof createEnsureOverlayWindowLevelHandler>[0];
 type EnforceOverlayLayerOrderMainDeps = Parameters<typeof createEnforceOverlayLayerOrderHandler>[0];
 

@@ -32,7 +32,7 @@ function parsePositiveFrequencyString(value: string): number | null {
   const chunks = numericPrefix.split(',');
   const normalizedNumber =
     chunks.length <= 1
-      ? chunks[0] ?? ''
+      ? (chunks[0] ?? '')
       : chunks.slice(1).every((chunk) => /^\d{3}$/.test(chunk))
         ? chunks.join('')
         : (chunks[0] ?? '');

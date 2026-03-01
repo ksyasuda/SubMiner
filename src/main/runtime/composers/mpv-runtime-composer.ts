@@ -141,7 +141,7 @@ export function composeMpvRuntimeHandlers<
         if (!options.tokenizer.createMecabTokenizerAndCheckMainDeps.getMecabTokenizer()) {
           await createMecabTokenizerAndCheck().catch(() => {});
         }
-    await prewarmSubtitleDictionaries({ showLoadingOsd: true });
+        await prewarmSubtitleDictionaries({ showLoadingOsd: true });
       })().finally(() => {
         tokenizationWarmupInFlight = null;
       });

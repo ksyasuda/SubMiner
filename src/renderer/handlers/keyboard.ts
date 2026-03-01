@@ -170,13 +170,7 @@ export function createKeyboardHandlers(
         return;
       }
 
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        !e.altKey &&
-        !e.shiftKey &&
-        e.code === 'KeyA' &&
-        !e.repeat
-      ) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyA' && !e.repeat) {
         e.preventDefault();
         options.appendClipboardVideoToQueue();
         return;

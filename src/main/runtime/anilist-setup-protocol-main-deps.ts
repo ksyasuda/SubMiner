@@ -44,7 +44,8 @@ export function createBuildHandleAnilistSetupProtocolUrlMainDepsHandler(
   deps: HandleAnilistSetupProtocolUrlMainDeps,
 ) {
   return (): HandleAnilistSetupProtocolUrlMainDeps => ({
-    consumeAnilistSetupTokenFromUrl: (rawUrl: string) => deps.consumeAnilistSetupTokenFromUrl(rawUrl),
+    consumeAnilistSetupTokenFromUrl: (rawUrl: string) =>
+      deps.consumeAnilistSetupTokenFromUrl(rawUrl),
     logWarn: (message: string, details: unknown) => deps.logWarn(message, details),
   });
 }

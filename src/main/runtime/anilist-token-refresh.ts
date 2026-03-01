@@ -12,7 +12,9 @@ type ConfigWithAnilistToken = {
   };
 };
 
-export function createRefreshAnilistClientSecretStateHandler<TConfig extends ConfigWithAnilistToken>(deps: {
+export function createRefreshAnilistClientSecretStateHandler<
+  TConfig extends ConfigWithAnilistToken,
+>(deps: {
   getResolvedConfig: () => TConfig;
   isAnilistTrackingEnabled: (config: TConfig) => boolean;
   getCachedAccessToken: () => string | null;

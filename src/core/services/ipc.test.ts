@@ -150,7 +150,12 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
   });
   const validResult = await setHandler!({}, 'anki.autoUpdateNewCards', true);
   assert.deepEqual(validResult, { ok: true });
-  assert.deepEqual(calls, [{ id: 'anki.autoUpdateNewCards', value: true }]);
+  const validSubtitleAnnotationResult = await setHandler!({}, 'subtitle.annotation.jlpt', false);
+  assert.deepEqual(validSubtitleAnnotationResult, { ok: true });
+  assert.deepEqual(calls, [
+    { id: 'anki.autoUpdateNewCards', value: true },
+    { id: 'subtitle.annotation.jlpt', value: false },
+  ]);
 
   const cycleHandler = handlers.handle.get(IPC_CHANNELS.request.cycleRuntimeOption);
   assert.ok(cycleHandler);
@@ -215,9 +220,7 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
 
   handlers.on.get(IPC_CHANNELS.command.saveSubtitlePosition)!({}, { yPercent: 'bad' });
   handlers.on.get(IPC_CHANNELS.command.saveSubtitlePosition)!({}, { yPercent: 42 });
-  assert.deepEqual(saves, [
-    { yPercent: 42 },
-  ]);
+  assert.deepEqual(saves, [{ yPercent: 42 }]);
 
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'not-a-modal');
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'subsync');

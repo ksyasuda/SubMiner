@@ -70,10 +70,8 @@ export function createSetOverlayDebugVisualizationEnabledHandler(deps: {
   setCurrentEnabled: (enabled: boolean) => void;
 }) {
   return (enabled: boolean): void => {
-    deps.setOverlayDebugVisualizationEnabledRuntime(
-      deps.getCurrentEnabled(),
-      enabled,
-      (next) => deps.setCurrentEnabled(next),
+    deps.setOverlayDebugVisualizationEnabledRuntime(deps.getCurrentEnabled(), enabled, (next) =>
+      deps.setCurrentEnabled(next),
     );
   };
 }

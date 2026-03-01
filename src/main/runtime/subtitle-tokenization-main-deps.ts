@@ -106,7 +106,9 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
       if (!showMpvOsd) {
         return;
       }
-      showMpvOsd(`Loading subtitle annotations ${spinnerFrames[loadingOsdFrame % spinnerFrames.length]}`);
+      showMpvOsd(
+        `Loading subtitle annotations ${spinnerFrames[loadingOsdFrame % spinnerFrames.length]}`,
+      );
       loadingOsdFrame += 1;
     }, 180);
     return true;
@@ -139,7 +141,10 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
     if (!prewarmPromise) {
       prewarmPromise = (async () => {
         try {
-          await Promise.all([deps.ensureJlptDictionaryLookup(), deps.ensureFrequencyDictionaryLookup()]);
+          await Promise.all([
+            deps.ensureJlptDictionaryLookup(),
+            deps.ensureFrequencyDictionaryLookup(),
+          ]);
           prewarmed = true;
         } finally {
           prewarmPromise = null;

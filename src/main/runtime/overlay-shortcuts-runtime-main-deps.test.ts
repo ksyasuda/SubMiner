@@ -6,7 +6,7 @@ test('overlay shortcuts runtime main deps builder maps lifecycle and action call
   const calls: string[] = [];
   let shortcutsRegistered = false;
   const deps = createBuildOverlayShortcutsRuntimeMainDepsHandler({
-    getConfiguredShortcuts: () => ({ copySubtitle: 's' } as never),
+    getConfiguredShortcuts: () => ({ copySubtitle: 's' }) as never,
     getShortcutsRegistered: () => shortcutsRegistered,
     setShortcutsRegistered: (registered) => {
       shortcutsRegistered = registered;

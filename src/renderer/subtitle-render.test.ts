@@ -276,7 +276,10 @@ test('alignTokensToSourceText treats whitespace-only token surfaces as plain tex
     createToken({ surface: '体が耐えきれず死に至るが…' }),
   ];
 
-  const segments = alignTokensToSourceText(tokens, '常人が使えば その圧倒的な力に\n体が耐えきれず死に至るが…');
+  const segments = alignTokensToSourceText(
+    tokens,
+    '常人が使えば その圧倒的な力に\n体が耐えきれず死に至るが…',
+  );
   assert.deepEqual(
     segments.map((segment) => (segment.kind === 'text' ? `text:${segment.text}` : 'token')),
     ['token', 'text: ', 'token', 'text:\n', 'token'],
@@ -300,10 +303,7 @@ test('alignTokensToSourceText avoids duplicate tail when later token surface doe
 });
 
 test('buildSubtitleTokenHoverRanges tracks token offsets across text separators', () => {
-  const tokens = [
-    createToken({ surface: 'キリキリと' }),
-    createToken({ surface: 'かかってこい' }),
-  ];
+  const tokens = [createToken({ surface: 'キリキリと' }), createToken({ surface: 'かかってこい' })];
 
   const ranges = buildSubtitleTokenHoverRanges(tokens, 'キリキリと\nかかってこい');
   assert.deepEqual(ranges, [
@@ -318,7 +318,10 @@ test('buildSubtitleTokenHoverRanges ignores unmatched token surfaces', () => {
     createToken({ surface: '教団の主力は1人もいない' }),
   ];
 
-  const ranges = buildSubtitleTokenHoverRanges(tokens, '君たちが潰した拠点に\n教団の主力は１人もいない');
+  const ranges = buildSubtitleTokenHoverRanges(
+    tokens,
+    '君たちが潰した拠点に\n教団の主力は１人もいない',
+  );
   assert.deepEqual(ranges, [{ start: 0, end: 10, tokenIndex: 0 }]);
 });
 
@@ -378,10 +381,7 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   assert.match(visibleMacBlock, /--visible-sub-line-gap:\s*0\.54em;/);
 
   const subtitleRootBlock = extractClassBlock(cssText, '#subtitleRoot');
-  assert.match(
-    subtitleRootBlock,
-    /--subtitle-hover-token-color:\s*#f4dbd6;/,
-  );
+  assert.match(subtitleRootBlock, /--subtitle-hover-token-color:\s*#f4dbd6;/);
   assert.match(
     subtitleRootBlock,
     /--subtitle-hover-token-background-color:\s*rgba\(54,\s*58,\s*79,\s*0\.84\);/,
@@ -394,7 +394,10 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   const wordBlock = extractClassBlock(cssText, '#subtitleRoot .word');
   assert.match(wordBlock, /-webkit-text-fill-color:\s*currentColor\s*!important;/);
 
-  const frequencyTooltipBaseBlock = extractClassBlock(cssText, '#subtitleRoot .word[data-frequency-rank]::before');
+  const frequencyTooltipBaseBlock = extractClassBlock(
+    cssText,
+    '#subtitleRoot .word[data-frequency-rank]::before',
+  );
   assert.match(frequencyTooltipBaseBlock, /content:\s*attr\(data-frequency-rank\);/);
   assert.match(frequencyTooltipBaseBlock, /opacity:\s*0;/);
   assert.match(frequencyTooltipBaseBlock, /pointer-events:\s*none;/);
@@ -405,7 +408,10 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   );
   assert.match(frequencyTooltipHoverBlock, /opacity:\s*1;/);
 
-  const jlptTooltipBaseBlock = extractClassBlock(cssText, '#subtitleRoot .word[data-jlpt-level]::after');
+  const jlptTooltipBaseBlock = extractClassBlock(
+    cssText,
+    '#subtitleRoot .word[data-jlpt-level]::after',
+  );
   assert.match(jlptTooltipBaseBlock, /content:\s*attr\(data-jlpt-level\);/);
   assert.match(jlptTooltipBaseBlock, /bottom:\s*-\s*0\.42em;/);
   assert.match(jlptTooltipBaseBlock, /opacity:\s*0;/);
@@ -430,9 +436,15 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   assert.match(coloredWordHoverBlock, /border-radius:\s*3px;/);
   assert.match(coloredWordHoverBlock, /font-weight:\s*800;/);
   assert.doesNotMatch(coloredWordHoverBlock, /color:\s*var\(--subtitle-hover-token-color/);
-  assert.doesNotMatch(coloredWordHoverBlock, /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color/);
+  assert.doesNotMatch(
+    coloredWordHoverBlock,
+    /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color/,
+  );
 
-  const coloredWordSelectionBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known::selection');
+  const coloredWordSelectionBlock = extractClassBlock(
+    cssText,
+    '#subtitleRoot .word.word-known::selection',
+  );
   assert.match(
     coloredWordSelectionBlock,
     /color:\s*var\(--subtitle-known-word-color,\s*#a6da95\)\s*!important;/,
@@ -442,7 +454,10 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     /-webkit-text-fill-color:\s*var\(--subtitle-known-word-color,\s*#a6da95\)\s*!important;/,
   );
 
-  const coloredCharHoverBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known .c:hover');
+  const coloredCharHoverBlock = extractClassBlock(
+    cssText,
+    '#subtitleRoot .word.word-known .c:hover',
+  );
   assert.match(coloredCharHoverBlock, /background:\s*transparent;/);
   assert.match(coloredCharHoverBlock, /color:\s*inherit\s*!important;/);
 
@@ -460,7 +475,10 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     selectionBlock,
     /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
   );
-  assert.match(selectionBlock, /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/);
+  assert.match(
+    selectionBlock,
+    /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
   assert.match(
     selectionBlock,
     /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,

@@ -52,7 +52,12 @@ test('annotateTokens known-word match mode uses headword vs surface', () => {
 
 test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 exclusions', () => {
   const tokens = [
-    makeToken({ surface: 'は', headword: 'は', partOfSpeech: PartOfSpeech.particle, frequencyRank: 3 }),
+    makeToken({
+      surface: 'は',
+      headword: 'は',
+      partOfSpeech: PartOfSpeech.particle,
+      frequencyRank: 3,
+    }),
     makeToken({
       surface: 'です',
       headword: 'です',

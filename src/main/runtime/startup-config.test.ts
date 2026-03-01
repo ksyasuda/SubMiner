@@ -44,7 +44,9 @@ test('createReloadConfigHandler runs success flow with warnings', async () => {
   assert.ok(calls.some((entry) => entry.includes('1. ankiConnect.pollingRate: must be >= 50')));
   assert.ok(
     calls.some((entry) =>
-      entry.includes('dialog:SubMiner config validation warning:SubMiner detected config validation issues.'),
+      entry.includes(
+        'dialog:SubMiner config validation warning:SubMiner detected config validation issues.',
+      ),
     ),
   );
   assert.ok(calls.some((entry) => entry.includes('actual=10 fallback=250')));

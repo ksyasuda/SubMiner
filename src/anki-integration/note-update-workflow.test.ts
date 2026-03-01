@@ -51,18 +51,10 @@ function createWorkflowHarness() {
       return out;
     },
     findDuplicateNote: async (_expression, _excludeNoteId, _noteInfo) => null,
-    handleFieldGroupingAuto: async (
-      _originalNoteId,
-      _newNoteId,
-      _newNoteInfo,
-      _expression,
-    ) => undefined,
-    handleFieldGroupingManual: async (
-      _originalNoteId,
-      _newNoteId,
-      _newNoteInfo,
-      _expression,
-    ) => false,
+    handleFieldGroupingAuto: async (_originalNoteId, _newNoteId, _newNoteInfo, _expression) =>
+      undefined,
+    handleFieldGroupingManual: async (_originalNoteId, _newNoteId, _newNoteInfo, _expression) =>
+      false,
     processSentence: (text: string, _noteFields: Record<string, string>) => text,
     resolveConfiguredFieldName: (noteInfo: NoteUpdateWorkflowNoteInfo, preferred?: string) => {
       if (!preferred) return null;

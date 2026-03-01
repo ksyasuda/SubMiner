@@ -748,6 +748,9 @@ test('runtime options registry is centralized', () => {
   const ids = RUNTIME_OPTION_REGISTRY.map((entry) => entry.id);
   assert.deepEqual(ids, [
     'anki.autoUpdateNewCards',
+    'subtitle.annotation.nPlusOne',
+    'subtitle.annotation.jlpt',
+    'subtitle.annotation.frequency',
     'anki.nPlusOneMatchMode',
     'anki.kikuFieldGrouping',
   ]);

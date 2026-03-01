@@ -111,7 +111,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       frequencyDictionary: {
         ...resolved.subtitleStyle.frequencyDictionary,
         ...(isObject((src.subtitleStyle as { frequencyDictionary?: unknown }).frequencyDictionary)
-          ? ((src.subtitleStyle as { frequencyDictionary?: unknown }).frequencyDictionary as ResolvedConfig['subtitleStyle']['frequencyDictionary'])
+          ? ((src.subtitleStyle as { frequencyDictionary?: unknown })
+              .frequencyDictionary as ResolvedConfig['subtitleStyle']['frequencyDictionary'])
           : {}),
       },
       secondary: {
@@ -152,7 +153,9 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       );
     }
 
-    const hoverTokenColor = asColor((src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor);
+    const hoverTokenColor = asColor(
+      (src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor,
+    );
     if (hoverTokenColor !== undefined) {
       resolved.subtitleStyle.hoverTokenColor = hoverTokenColor;
     } else if ((src.subtitleStyle as { hoverTokenColor?: unknown }).hoverTokenColor !== undefined) {
@@ -174,7 +177,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
       (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor !==
       undefined
     ) {
-      resolved.subtitleStyle.hoverTokenBackgroundColor = fallbackSubtitleStyleHoverTokenBackgroundColor;
+      resolved.subtitleStyle.hoverTokenBackgroundColor =
+        fallbackSubtitleStyleHoverTokenBackgroundColor;
       warn(
         'subtitleStyle.hoverTokenBackgroundColor',
         (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor,
@@ -208,7 +212,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     if (sourcePath !== undefined) {
       resolved.subtitleStyle.frequencyDictionary.sourcePath = sourcePath;
     } else if ((frequencyDictionary as { sourcePath?: unknown }).sourcePath !== undefined) {
-      resolved.subtitleStyle.frequencyDictionary.sourcePath = fallbackFrequencyDictionary.sourcePath;
+      resolved.subtitleStyle.frequencyDictionary.sourcePath =
+        fallbackFrequencyDictionary.sourcePath;
       warn(
         'subtitleStyle.frequencyDictionary.sourcePath',
         (frequencyDictionary as { sourcePath?: unknown }).sourcePath,
@@ -260,7 +265,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     if (singleColor !== undefined) {
       resolved.subtitleStyle.frequencyDictionary.singleColor = singleColor;
     } else if ((frequencyDictionary as { singleColor?: unknown }).singleColor !== undefined) {
-      resolved.subtitleStyle.frequencyDictionary.singleColor = fallbackFrequencyDictionary.singleColor;
+      resolved.subtitleStyle.frequencyDictionary.singleColor =
+        fallbackFrequencyDictionary.singleColor;
       warn(
         'subtitleStyle.frequencyDictionary.singleColor',
         (frequencyDictionary as { singleColor?: unknown }).singleColor,

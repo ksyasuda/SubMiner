@@ -49,7 +49,12 @@ function sanitizeHexColor(value: unknown, fallback: string): string {
 export function sanitizeSubtitleHoverTokenColor(value: unknown): string {
   const sanitized = sanitizeHexColor(value, '#f4dbd6');
   const normalized = sanitized.replace(/^#/, '').toLowerCase();
-  if (normalized === '000' || normalized === '0000' || normalized === '000000' || normalized === '00000000') {
+  if (
+    normalized === '000' ||
+    normalized === '0000' ||
+    normalized === '000000' ||
+    normalized === '00000000'
+  ) {
     return '#f4dbd6';
   }
   return sanitized;
@@ -257,7 +262,10 @@ function renderWithTokens(
       span.dataset.tokenIndex = String(segment.tokenIndex);
       if (token.reading) span.dataset.reading = token.reading;
       if (token.headword) span.dataset.headword = token.headword;
-      const frequencyRankLabel = getFrequencyRankLabelForToken(token, resolvedFrequencyRenderSettings);
+      const frequencyRankLabel = getFrequencyRankLabelForToken(
+        token,
+        resolvedFrequencyRenderSettings,
+      );
       if (frequencyRankLabel) {
         span.dataset.frequencyRank = frequencyRankLabel;
       }
@@ -293,7 +301,10 @@ function renderWithTokens(
     span.dataset.tokenIndex = String(index);
     if (token.reading) span.dataset.reading = token.reading;
     if (token.headword) span.dataset.headword = token.headword;
-    const frequencyRankLabel = getFrequencyRankLabelForToken(token, resolvedFrequencyRenderSettings);
+    const frequencyRankLabel = getFrequencyRankLabelForToken(
+      token,
+      resolvedFrequencyRenderSettings,
+    );
     if (frequencyRankLabel) {
       span.dataset.frequencyRank = frequencyRankLabel;
     }
@@ -460,7 +471,7 @@ function renderPlainTextPreserveLineBreaks(root: ParentNode, text: string): void
 }
 
 export function createSubtitleRenderer(ctx: RendererContext) {
-function renderSubtitle(data: SubtitleData | string): void {
+  function renderSubtitle(data: SubtitleData | string): void {
     ctx.dom.subtitleRoot.innerHTML = '';
 
     let text: string;
@@ -551,11 +562,7 @@ function renderSubtitle(data: SubtitleData | string): void {
     if (!style) return;
 
     const styleDeclarations = style as Record<string, unknown>;
-    applyInlineStyleDeclarations(
-      ctx.dom.subtitleRoot,
-      styleDeclarations,
-      CONTAINER_STYLE_KEYS,
-    );
+    applyInlineStyleDeclarations(ctx.dom.subtitleRoot, styleDeclarations, CONTAINER_STYLE_KEYS);
     applyInlineStyleDeclarations(
       ctx.dom.subtitleContainer,
       pickInlineStyleDeclarations(styleDeclarations, CONTAINER_STYLE_KEYS),

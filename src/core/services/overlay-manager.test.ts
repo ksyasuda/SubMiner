@@ -117,13 +117,9 @@ test('runtime-option broadcast still uses expected channel', () => {
     },
   );
   let state = false;
-  const changed = setOverlayDebugVisualizationEnabledRuntime(
-    state,
-    true,
-    (enabled) => {
-      state = enabled;
-    },
-  );
+  const changed = setOverlayDebugVisualizationEnabledRuntime(state, true, (enabled) => {
+    state = enabled;
+  });
   assert.equal(changed, true);
   assert.equal(state, true);
   assert.deepEqual(broadcasts, [['runtime-options:changed', []]]);
