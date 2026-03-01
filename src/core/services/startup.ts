@@ -168,6 +168,13 @@ export function isAutoUpdateEnabledRuntime(
 export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<void> {
   const now = deps.now ?? (() => Date.now());
   const startupStartedAtMs = now();
+  if (deps.shouldSkipHeavyStartup?.()) {
+    await deps.loadYomitanExtension();
+    deps.handleInitialArgs();
+    deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
+    return;
+  }
+
   deps.logDebug?.('App-ready critical path started.');
 
   if (deps.shouldSkipHeavyStartup?.()) {
