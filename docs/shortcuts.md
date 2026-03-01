@@ -38,6 +38,8 @@ These control playback and subtitle display. They require overlay window focus.
 | Shortcut             | Action                                             |
 | -------------------- | -------------------------------------------------- |
 | `Space`              | Toggle mpv pause                                   |
+| `J`                  | Cycle primary subtitle track                       |
+| `Shift+J`            | Cycle secondary subtitle track                     |
 | `ArrowRight`         | Seek forward 5 seconds                             |
 | `ArrowLeft`          | Seek backward 5 seconds                            |
 | `ArrowUp`            | Seek forward 60 seconds                            |

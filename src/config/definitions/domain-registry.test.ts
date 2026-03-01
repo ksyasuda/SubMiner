@@ -5,6 +5,7 @@ import {
   CONFIG_OPTION_REGISTRY,
   CONFIG_TEMPLATE_SECTIONS,
   DEFAULT_CONFIG,
+  DEFAULT_KEYBINDINGS,
   RUNTIME_OPTION_REGISTRY,
 } from '../definitions';
 import { buildCoreConfigOptionRegistry } from './options-core';
@@ -58,4 +59,10 @@ test('domain registry builders each contribute entries to composed registry', ()
     assert.ok(entries.length > 0);
     assert.ok(entries.some((entry) => composedPaths.has(entry.path)));
   }
+});
+
+test('default keybindings include primary and secondary subtitle track cycling on J keys', () => {
+  const keybindingMap = new Map(DEFAULT_KEYBINDINGS.map((binding) => [binding.key, binding.command]));
+  assert.deepEqual(keybindingMap.get('KeyJ'), ['cycle', 'sid']);
+  assert.deepEqual(keybindingMap.get('Shift+KeyJ'), ['cycle', 'secondary-sid']);
 });
