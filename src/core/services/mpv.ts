@@ -134,6 +134,7 @@ export class MpvIpcClient implements MpvClient {
   private firstConnection = true;
   private hasConnectedOnce = false;
   public currentVideoPath = '';
+  public currentMediaTitle: string | null = null;
   public currentTimePos = 0;
   public currentSubStart = 0;
   public currentSubEnd = 0;
@@ -330,6 +331,7 @@ export class MpvIpcClient implements MpvClient {
         this.emit('media-path-change', payload);
       },
       emitMediaTitleChange: (payload) => {
+        this.currentMediaTitle = payload.title;
         this.emit('media-title-change', payload);
       },
       emitSubtitleMetricsChange: (patch) => {
@@ -364,6 +366,7 @@ export class MpvIpcClient implements MpvClient {
       },
       setCurrentVideoPath: (value: string) => {
         this.currentVideoPath = value;
+        this.currentMediaTitle = null;
       },
       emitSecondarySubtitleVisibility: (payload) => {
         this.emit('secondary-subtitle-visibility', payload);

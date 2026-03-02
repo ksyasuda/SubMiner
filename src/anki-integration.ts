@@ -58,6 +58,56 @@ interface NoteInfo {
 
 type CardKind = 'sentence' | 'audio';
 
+function trimToNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function decodeURIComponentSafe(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function extractFilenameFromMediaPath(rawPath: string): string {
+  const trimmedPath = rawPath.trim();
+  if (!trimmedPath) return '';
+
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmedPath)) {
+    try {
+      const parsed = new URL(trimmedPath);
+      return decodeURIComponentSafe(path.basename(parsed.pathname));
+    } catch {
+      // Fall through to separator-based handling below.
+    }
+  }
+
+  const separatorIndex = trimmedPath.search(/[?#]/);
+  const pathWithoutQuery =
+    separatorIndex >= 0 ? trimmedPath.slice(0, separatorIndex) : trimmedPath;
+  return decodeURIComponentSafe(path.basename(pathWithoutQuery));
+}
+
+function shouldPreferMediaTitleForMiscInfo(rawPath: string, filename: string): boolean {
+  const loweredPath = rawPath.toLowerCase();
+  const loweredFilename = filename.toLowerCase();
+  if (loweredPath.includes('api_key=')) {
+    return true;
+  }
+  if (loweredPath.startsWith('http://') || loweredPath.startsWith('https://')) {
+    return true;
+  }
+  return (
+    loweredFilename === 'stream' ||
+    loweredFilename === 'master.m3u8' ||
+    loweredFilename === 'index.m3u8' ||
+    loweredFilename === 'playlist.m3u8'
+  );
+}
+
 export class AnkiIntegration {
   private client: AnkiConnectClient;
   private mediaGenerator: MediaGenerator;
@@ -729,8 +779,12 @@ export class AnkiIntegration {
     }
 
     const currentVideoPath = this.mpvClient.currentVideoPath || '';
-    const videoFilename = currentVideoPath ? path.basename(currentVideoPath) : '';
-    const filenameWithExt = videoFilename || fallbackFilename;
+    const videoFilename = extractFilenameFromMediaPath(currentVideoPath);
+    const mediaTitle = trimToNonEmptyString(this.mpvClient.currentMediaTitle);
+    const filenameWithExt =
+      (shouldPreferMediaTitleForMiscInfo(currentVideoPath, videoFilename)
+        ? mediaTitle || videoFilename
+        : videoFilename || mediaTitle) || fallbackFilename;
     const filenameWithoutExt = filenameWithExt.replace(/\.[^.]+$/, '');
 
     const currentTimePos =

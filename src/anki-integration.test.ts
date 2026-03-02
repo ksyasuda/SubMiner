@@ -316,3 +316,33 @@ test('FieldGroupingMergeCollaborator deduplicates identical sentence, audio, and
   assert.equal(merged.Picture, '<img data-group-id="202" src="same.png">');
   assert.equal(merged.ExpressionAudio, merged.SentenceAudio);
 });
+
+test('AnkiIntegration.formatMiscInfoPattern avoids leaking Jellyfin api_key query params', () => {
+  const integration = new AnkiIntegration(
+    {
+      metadata: {
+        pattern: '[SubMiner] %f (%t)',
+      },
+    } as never,
+    {} as never,
+    {
+      currentSubText: '',
+      currentVideoPath:
+        'stream?static=true&api_key=secret-token&MediaSourceId=a762ab23d26d4347e3cacdb83aaae405&AudioStreamIndex=3',
+      currentTimePos: 426,
+      currentSubStart: 426,
+      currentSubEnd: 428,
+      currentAudioStreamIndex: 3,
+      currentMediaTitle: '[Jellyfin/direct] Bocchi the Rock! - S01E02',
+      send: () => true,
+    } as unknown as never,
+  );
+
+  const privateApi = integration as unknown as {
+    formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
+  };
+  const result = privateApi.formatMiscInfoPattern('audio_123.mp3', 426);
+
+  assert.equal(result, '[SubMiner] [Jellyfin/direct] Bocchi the Rock! - S01E02 (00:07:06)');
+  assert.equal(result.includes('api_key='), false);
+});

@@ -124,6 +124,7 @@ export interface NotificationOptions {
 export interface MpvClient {
   currentSubText: string;
   currentVideoPath: string;
+  currentMediaTitle?: string | null;
   currentTimePos: number;
   currentSubStart: number;
   currentSubEnd: number;

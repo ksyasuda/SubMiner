@@ -57,6 +57,26 @@ test('MpvIpcClient handles sub-text property change and broadcasts tokenized sub
   assert.equal(events[0]!.isOverlayVisible, false);
 });
 
+test('MpvIpcClient clears cached media title when media path changes', async () => {
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'media-title',
+    data: '[Jellyfin/direct] Episode 1',
+  });
+  assert.equal(client.currentMediaTitle, '[Jellyfin/direct] Episode 1');
+
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'path',
+    data: '/tmp/new-episode.mkv',
+  });
+
+  assert.equal(client.currentVideoPath, '/tmp/new-episode.mkv');
+  assert.equal(client.currentMediaTitle, null);
+});
+
 test('MpvIpcClient parses JSON line protocol in processBuffer', () => {
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
   const seen: Array<Record<string, unknown>> = [];
