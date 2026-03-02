@@ -2627,7 +2627,7 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
     return;
   }
 
-  const updated = await syncYomitanDefaultAnkiServerCore(
+  const synced = await syncYomitanDefaultAnkiServerCore(
     targetUrl,
     {
       getYomitanExt: () => appState.yomitanExt,
@@ -2654,8 +2654,7 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
     },
   );
 
-  if (updated) {
-    logger.info(`Yomitan default profile Anki server set to ${targetUrl}`);
+  if (synced) {
     lastSyncedYomitanAnkiServer = targetUrl;
   }
 }

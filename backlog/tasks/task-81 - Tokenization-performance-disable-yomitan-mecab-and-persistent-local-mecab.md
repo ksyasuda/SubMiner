@@ -4,7 +4,7 @@ title: 'Tokenization performance: disable Yomitan MeCab parser, gate local MeCab
 status: Done
 assignee: []
 created_date: '2026-03-02 07:44'
-updated_date: '2026-03-02 09:20'
+updated_date: '2026-03-02 20:34'
 labels: []
 dependencies: []
 priority: high
@@ -45,6 +45,8 @@ Implemented tokenizer latency optimizations:
 - added regression tests for Yomitan parse flag, MeCab warmup gating, and persistent/idle lifecycle behavior;
 - fixed tokenization warmup gate so first-use warmup completion is sticky (`tokenizationWarmupCompleted`) and sequential `tokenizeSubtitle` calls no longer re-run Yomitan/dictionary warmup path;
 - added regression coverage in `src/main/runtime/composers/mpv-runtime-composer.test.ts` for sequential tokenize calls (`warmup` side effects run once);
+- post-review critical fix: treat Yomitan default-profile Anki server sync `no-change` as successful check, so `lastSyncedYomitanAnkiServer` is cached and expensive sync checks do not repeat on every subtitle line;
+- added regression assertion in `src/core/services/tokenizer/yomitan-parser-runtime.test.ts` for `updated: false` path returning sync success;
 - validated with targeted tests and `tsc --noEmit`.
 
 <!-- SECTION:FINAL_SUMMARY:END -->

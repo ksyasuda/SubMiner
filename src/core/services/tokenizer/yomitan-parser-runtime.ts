@@ -846,7 +846,11 @@ export async function syncYomitanDefaultAnkiServer(
       logger.info?.(`Updated Yomitan default profile Anki server to ${normalizedTargetServer}`);
       return true;
     }
-    return false;
+    const checkedWithoutUpdate =
+      typeof result === 'object' &&
+      result !== null &&
+      (result as { updated?: unknown }).updated === false;
+    return checkedWithoutUpdate;
   } catch (err) {
     logger.error('Failed to sync Yomitan default profile Anki server:', (err as Error).message);
     return false;

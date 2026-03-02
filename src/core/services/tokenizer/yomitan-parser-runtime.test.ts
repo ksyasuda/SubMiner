@@ -44,15 +44,19 @@ test('syncYomitanDefaultAnkiServer updates default profile server when script re
   assert.equal(infoLogs.length, 1);
 });
 
-test('syncYomitanDefaultAnkiServer returns false when script reports no change', async () => {
+test('syncYomitanDefaultAnkiServer returns true when script reports no change', async () => {
   const deps = createDeps(async () => ({ updated: false }));
+  let infoLogCount = 0;
 
-  const updated = await syncYomitanDefaultAnkiServer('http://127.0.0.1:8766', deps, {
+  const synced = await syncYomitanDefaultAnkiServer('http://127.0.0.1:8766', deps, {
     error: () => undefined,
-    info: () => undefined,
+    info: () => {
+      infoLogCount += 1;
+    },
   });
 
-  assert.equal(updated, false);
+  assert.equal(synced, true);
+  assert.equal(infoLogCount, 0);
 });
 
 test('syncYomitanDefaultAnkiServer logs and returns false on script failure', async () => {
