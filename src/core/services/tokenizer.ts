@@ -249,6 +249,50 @@ function normalizeFrequencyLookupText(rawText: string): string {
   return rawText.trim().toLowerCase();
 }
 
+function isKanaChar(char: string): boolean {
+  const code = char.codePointAt(0);
+  if (code === undefined) {
+    return false;
+  }
+  return (
+    (code >= 0x3041 && code <= 0x3096) ||
+    (code >= 0x309b && code <= 0x309f) ||
+    (code >= 0x30a0 && code <= 0x30fa) ||
+    (code >= 0x30fd && code <= 0x30ff)
+  );
+}
+
+function getTrailingKanaSuffix(surface: string): string {
+  const chars = Array.from(surface);
+  let splitIndex = chars.length;
+  while (splitIndex > 0 && isKanaChar(chars[splitIndex - 1]!)) {
+    splitIndex -= 1;
+  }
+  if (splitIndex <= 0 || splitIndex >= chars.length) {
+    return '';
+  }
+  return chars.slice(splitIndex).join('');
+}
+
+function normalizeYomitanMergedReading(token: MergedToken): string {
+  const reading = token.reading ?? '';
+  if (!reading || token.headword !== token.surface) {
+    return reading;
+  }
+  const trailingKanaSuffix = getTrailingKanaSuffix(token.surface);
+  if (!trailingKanaSuffix || reading.endsWith(trailingKanaSuffix)) {
+    return reading;
+  }
+  return `${reading}${trailingKanaSuffix}`;
+}
+
+function normalizeSelectedYomitanTokens(tokens: MergedToken[]): MergedToken[] {
+  return tokens.map((token) => ({
+    ...token,
+    reading: normalizeYomitanMergedReading(token),
+  }));
+}
+
 function resolveFrequencyLookupText(
   token: MergedToken,
   matchMode: FrequencyDictionaryMatchMode,
@@ -276,17 +320,24 @@ function buildYomitanFrequencyTermReadingList(
   tokens: MergedToken[],
   matchMode: FrequencyDictionaryMatchMode,
 ): Array<{ term: string; reading: string | null }> {
-  return tokens
-    .map((token) => {
-      const term = resolveFrequencyLookupText(token, matchMode).trim();
-      if (!term) {
-        return null;
-      }
-      const readingRaw =
-        token.reading && token.reading.trim().length > 0 ? token.reading.trim() : null;
-      return { term, reading: readingRaw };
-    })
-    .filter((pair): pair is { term: string; reading: string | null } => pair !== null);
+  const termReadingList: Array<{ term: string; reading: string | null }> = [];
+  for (const token of tokens) {
+    const term = resolveFrequencyLookupText(token, matchMode).trim();
+    if (!term) {
+      continue;
+    }
+
+    const readingRaw =
+      token.reading && token.reading.trim().length > 0 ? token.reading.trim() : null;
+    termReadingList.push({ term, reading: readingRaw });
+
+    // Yomitan parse readings can be noisy/truncated on merged tokens; include term-only fallback.
+    if (readingRaw !== null) {
+      termReadingList.push({ term, reading: null });
+    }
+  }
+
+  return termReadingList;
 }
 
 function buildYomitanFrequencyRankMap(
@@ -427,16 +478,17 @@ async function parseWithYomitanInternalParser(
   if (!selectedTokens || selectedTokens.length === 0) {
     return null;
   }
+  const normalizedSelectedTokens = normalizeSelectedYomitanTokens(selectedTokens);
 
   if (deps.getYomitanGroupDebugEnabled?.() === true) {
-    logSelectedYomitanGroups(text, selectedTokens);
+    logSelectedYomitanGroups(text, normalizedSelectedTokens);
   }
 
   const frequencyRankPromise: Promise<Map<string, number>> = options.frequencyEnabled
     ? (async () => {
         const frequencyMatchMode = options.frequencyMatchMode;
         const termReadingList = buildYomitanFrequencyTermReadingList(
-          selectedTokens,
+          normalizedSelectedTokens,
           frequencyMatchMode,
         );
         const yomitanFrequencies = await requestYomitanTermFrequencies(termReadingList, deps, logger);
@@ -449,19 +501,19 @@ async function parseWithYomitanInternalParser(
         try {
           const mecabTokens = await deps.tokenizeWithMecab(text);
           const enrichTokensWithMecab = deps.enrichTokensWithMecab ?? enrichTokensWithMecabAsync;
-          return await enrichTokensWithMecab(selectedTokens, mecabTokens);
+          return await enrichTokensWithMecab(normalizedSelectedTokens, mecabTokens);
         } catch (err) {
           const error = err as Error;
           logger.warn(
             'Failed to enrich Yomitan tokens with MeCab POS:',
             error.message,
-            `tokenCount=${selectedTokens.length}`,
+            `tokenCount=${normalizedSelectedTokens.length}`,
             `textLength=${text.length}`,
           );
-          return selectedTokens;
+          return normalizedSelectedTokens;
         }
       })()
-    : Promise.resolve(selectedTokens);
+    : Promise.resolve(normalizedSelectedTokens);
 
   const [yomitanRankByTerm, enrichedTokens] = await Promise.all([
     frequencyRankPromise,

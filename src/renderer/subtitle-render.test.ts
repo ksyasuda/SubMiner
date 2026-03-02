@@ -79,7 +79,7 @@ test('computeWordClass preserves known and n+1 classes while adding JLPT classes
   assert.equal(computeWordClass(nPlusOneJlpt), 'word word-n-plus-one word-jlpt-n2');
 });
 
-test('computeWordClass keeps known/N+1 color classes exclusive over frequency classes', () => {
+test('computeWordClass composes known class with frequency class while keeping N+1 exclusive', () => {
   const known = createToken({
     isKnown: true,
     frequencyRank: 10,
@@ -103,7 +103,7 @@ test('computeWordClass keeps known/N+1 color classes exclusive over frequency cl
       singleColor: '#000000',
       bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
     }),
-    'word word-known',
+    'word word-known word-frequency-single',
   );
   assert.equal(
     computeWordClass(nPlusOne, {

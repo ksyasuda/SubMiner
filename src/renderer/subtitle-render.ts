@@ -429,7 +429,7 @@ export function computeWordClass(
     classes.push(`word-jlpt-${token.jlptLevel.toLowerCase()}`);
   }
 
-  if (!token.isKnown && !token.isNPlusOneTarget) {
+  if (!token.isNPlusOneTarget) {
     const frequencyClass = getFrequencyDictionaryClass(token, resolvedFrequencySettings);
     if (frequencyClass) {
       classes.push(frequencyClass);

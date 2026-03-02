@@ -297,6 +297,43 @@ test('tokenizeSubtitle starts Yomitan frequency lookup and MeCab enrichment in p
   assert.equal(result.tokens?.[0]?.frequencyRank, 77);
 });
 
+test('tokenizeSubtitle appends trailing kana to merged Yomitan readings when headword equals surface', async () => {
+  const result = await tokenizeSubtitle(
+    '断じて見ていない',
+    makeDeps({
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async () => [
+              {
+                source: 'scanning-parser',
+                index: 0,
+                content: [
+                  [
+                    { text: '断', reading: 'だん', headwords: [[{ term: '断じて' }]] },
+                    { text: 'じて', reading: '', headwords: [[{ term: 'じて' }]] },
+                  ],
+                  [
+                    { text: '見', reading: 'み', headwords: [[{ term: '見る' }]] },
+                    { text: 'ていない', reading: '', headwords: [[{ term: 'ていない' }]] },
+                  ],
+                ],
+              },
+            ],
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 2);
+  assert.equal(result.tokens?.[0]?.surface, '断じて');
+  assert.equal(result.tokens?.[0]?.reading, 'だんじて');
+  assert.equal(result.tokens?.[1]?.surface, '見ていない');
+  assert.equal(result.tokens?.[1]?.reading, 'み');
+});
+
 test('tokenizeSubtitle queries headword frequencies with token reading for disambiguation', async () => {
   const result = await tokenizeSubtitle(
     '鍛えた',
@@ -349,6 +386,58 @@ test('tokenizeSubtitle queries headword frequencies with token reading for disam
   assert.equal(result.tokens?.[0]?.headword, '鍛える');
   assert.equal(result.tokens?.[0]?.reading, 'きた');
   assert.equal(result.tokens?.[0]?.frequencyRank, 2847);
+});
+
+test('tokenizeSubtitle falls back to term-only Yomitan frequency lookup when reading is noisy', async () => {
+  const result = await tokenizeSubtitle(
+    '断じて',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                if (!script.includes('"term":"断じて","reading":null')) {
+                  return [];
+                }
+                return [
+                  {
+                    term: '断じて',
+                    reading: null,
+                    dictionary: 'freq-dict',
+                    frequency: 7082,
+                    displayValue: '7082',
+                    displayValueParsed: true,
+                  },
+                ];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '断じて',
+                        reading: 'だん',
+                        headwords: [[{ term: '断じて' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 7082);
 });
 
 test('tokenizeSubtitle avoids headword term-only fallback rank when reading-specific frequency exists', async () => {
