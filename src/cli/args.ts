@@ -245,8 +245,6 @@ export function parseArgs(argv: string[]): CliArgs {
         args.jellyfinRecursive = false;
       } else if (value === 'true' || value === '1' || value === 'yes') {
         args.jellyfinRecursive = true;
-      } else {
-        args.jellyfinRecursive = true;
       }
     } else if (arg === '--jellyfin-non-recursive') {
       args.jellyfinRecursive = false;

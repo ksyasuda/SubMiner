@@ -344,6 +344,22 @@ export function buildRootSearchGroups(items: JellyfinItemEntry[]): JellyfinGroup
   return groups;
 }
 
+export type JellyfinChildSelection =
+  | { kind: 'playable'; id: string }
+  | { kind: 'container'; id: string };
+
+export function classifyJellyfinChildSelection(
+  selectedChild: Pick<JellyfinGroupEntry, 'id' | 'type'>,
+): JellyfinChildSelection {
+  if (isJellyfinPlayableType(selectedChild.type)) {
+    return { kind: 'playable', id: selectedChild.id };
+  }
+  if (isJellyfinContainerType(selectedChild.type)) {
+    return { kind: 'container', id: selectedChild.id };
+  }
+  fail('Selected Jellyfin item is not playable.');
+}
+
 async function runAppJellyfinListCommand(
   appPath: string,
   args: Args,
@@ -695,13 +711,11 @@ async function resolveJellyfinSelectionViaApp(
     if (!selectedChildId) fail('No Jellyfin folder/file selected.');
     const selectedChild = childById.get(selectedChildId);
     if (!selectedChild) fail('Invalid Jellyfin item selection.');
-    if (isJellyfinPlayableType(selectedChild.type)) {
-      return selectedChild.id;
+    const selection = classifyJellyfinChildSelection(selectedChild);
+    if (selection.kind === 'playable') {
+      return selection.id;
     }
-    if (isJellyfinContainerType(selectedChild.type)) {
-      return await pickPlayableDescendants(selectedChild.id);
-    }
-    fail('Selected Jellyfin item is not playable.');
+    currentContainerId = selection.id;
   }
 }
 

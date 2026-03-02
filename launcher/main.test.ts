@@ -16,6 +16,7 @@ import {
   readUtf8FileAppendedSince,
   parseEpisodePathFromDisplay,
   buildRootSearchGroups,
+  classifyJellyfinChildSelection,
 } from './jellyfin.js';
 
 type RunResult = {
@@ -442,4 +443,12 @@ test('buildRootSearchGroups excludes episodes and keeps containers/movies', () =
       display: 'Spirited Away (Movie)',
     },
   ]);
+});
+
+test('classifyJellyfinChildSelection keeps container drilldown state instead of flattening', () => {
+  const next = classifyJellyfinChildSelection({ id: 'season-2', type: 'Season' });
+  assert.deepEqual(next, {
+    kind: 'container',
+    id: 'season-2',
+  });
 });

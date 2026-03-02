@@ -60,6 +60,12 @@ test('parseArgs handles space-separated jellyfin recursive control', () => {
   assert.equal(args.jellyfinRecursive, false);
 });
 
+test('parseArgs ignores unrecognized space-separated jellyfin recursive values', () => {
+  const args = parseArgs(['--jellyfin-items', '--jellyfin-recursive', '--start']);
+  assert.equal(args.jellyfinRecursive, undefined);
+  assert.equal(args.start, true);
+});
+
 test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   const stopOnly = parseArgs(['--stop']);
   assert.equal(hasExplicitCommand(stopOnly), true);
