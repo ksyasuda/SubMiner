@@ -65,7 +65,7 @@ export async function runJellyfinCommand(context: LauncherCommandContext): Promi
   }
 
   if (args.jellyfinDiscovery) {
-    const forwarded = ['--start'];
+    const forwarded = ['--background', '--jellyfin-remote-announce'];
     if (args.logLevel !== 'info') forwarded.push('--log-level', args.logLevel);
     appendPasswordStore(forwarded);
     runAppCommandWithInherit(appPath, forwarded);

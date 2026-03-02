@@ -658,6 +658,28 @@ export function runAppCommandWithInherit(appPath: string, appArgs: string[]): ne
   process.exit(result.status ?? 0);
 }
 
+export function runAppCommandCaptureOutput(
+  appPath: string,
+  appArgs: string[],
+): {
+  status: number;
+  stdout: string;
+  stderr: string;
+  error?: Error;
+} {
+  const result = spawnSync(appPath, appArgs, {
+    env: buildAppEnv(),
+    encoding: 'utf8',
+  });
+
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+    error: result.error ?? undefined,
+  };
+}
+
 export function runAppCommandWithInheritLogged(
   appPath: string,
   appArgs: string[],

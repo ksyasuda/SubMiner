@@ -1498,6 +1498,10 @@ const {
       listJellyfinItemsRuntime(session, clientInfo, params),
     listJellyfinSubtitleTracks: (session, clientInfo, itemId) =>
       listJellyfinSubtitleTracksRuntime(session, clientInfo, itemId),
+    writeJellyfinPreviewAuth: (responsePath, payload) => {
+      fs.mkdirSync(path.dirname(responsePath), { recursive: true });
+      fs.writeFileSync(responsePath, JSON.stringify(payload, null, 2), 'utf-8');
+    },
     logInfo: (message) => logger.info(message),
   },
   handleJellyfinPlayCommandMainDeps: {

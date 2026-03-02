@@ -24,6 +24,7 @@ test('list handler no-ops when no list command is set', async () => {
     listJellyfinLibraries: async () => [],
     listJellyfinItems: async () => [],
     listJellyfinSubtitleTracks: async () => [],
+    writeJellyfinPreviewAuth: () => {},
     logInfo: () => {},
   });
 
@@ -47,6 +48,7 @@ test('list handler logs libraries', async () => {
     listJellyfinLibraries: async () => [{ id: 'lib1', name: 'Anime', collectionType: 'tvshows' }],
     listJellyfinItems: async () => [],
     listJellyfinSubtitleTracks: async () => [],
+    writeJellyfinPreviewAuth: () => {},
     logInfo: (message) => logs.push(message),
   });
 
@@ -67,14 +69,19 @@ test('list handler logs libraries', async () => {
 
 test('list handler resolves items using default library id', async () => {
   let usedLibraryId = '';
+  let usedRecursive: boolean | undefined;
+  let usedIncludeItemTypes: string | undefined;
   const logs: string[] = [];
   const handler = createHandleJellyfinListCommands({
     listJellyfinLibraries: async () => [],
     listJellyfinItems: async (_session, _clientInfo, params) => {
       usedLibraryId = params.libraryId;
+      usedRecursive = params.recursive;
+      usedIncludeItemTypes = params.includeItemTypes;
       return [{ id: 'item1', title: 'Episode 1', type: 'Episode' }];
     },
     listJellyfinSubtitleTracks: async () => [],
+    writeJellyfinPreviewAuth: () => {},
     logInfo: (message) => logs.push(message),
   });
 
@@ -86,6 +93,8 @@ test('list handler resolves items using default library id', async () => {
       jellyfinLibraryId: '',
       jellyfinSearch: 'episode',
       jellyfinLimit: 10,
+      jellyfinRecursive: false,
+      jellyfinIncludeItemTypes: 'Series,Movie,Folder',
     } as never,
     session: baseSession,
     clientInfo: baseClientInfo,
@@ -96,6 +105,8 @@ test('list handler resolves items using default library id', async () => {
 
   assert.equal(handled, true);
   assert.equal(usedLibraryId, 'default-lib');
+  assert.equal(usedRecursive, false);
+  assert.equal(usedIncludeItemTypes, 'Series,Movie,Folder');
   assert.ok(logs.some((line) => line.includes('Jellyfin item: Episode 1 [item1] (Episode)')));
 });
 
@@ -104,6 +115,7 @@ test('list handler throws when items command has no library id', async () => {
     listJellyfinLibraries: async () => [],
     listJellyfinItems: async () => [],
     listJellyfinSubtitleTracks: async () => [],
+    writeJellyfinPreviewAuth: () => {},
     logInfo: () => {},
   });
 
@@ -132,6 +144,7 @@ test('list handler logs subtitle urls only when requested', async () => {
       { index: 1, deliveryUrl: 'http://localhost/sub1.srt', language: 'eng' },
       { index: 2, language: 'jpn' },
     ],
+    writeJellyfinPreviewAuth: () => {},
     logInfo: (message) => logs.push(message),
   });
 
@@ -157,6 +170,7 @@ test('list handler throws when subtitle command has no item id', async () => {
     listJellyfinLibraries: async () => [],
     listJellyfinItems: async () => [],
     listJellyfinSubtitleTracks: async () => [],
+    writeJellyfinPreviewAuth: () => {},
     logInfo: () => {},
   });
 
@@ -172,5 +186,67 @@ test('list handler throws when subtitle command has no item id', async () => {
       jellyfinConfig: baseConfig,
     }),
     /Missing --jellyfin-item-id/,
+  );
+});
+
+test('list handler writes preview auth payload to response path', async () => {
+  const writes: Array<{
+    path: string;
+    payload: { serverUrl: string; accessToken: string; userId: string };
+  }> = [];
+  const logs: string[] = [];
+  const handler = createHandleJellyfinListCommands({
+    listJellyfinLibraries: async () => [],
+    listJellyfinItems: async () => [],
+    listJellyfinSubtitleTracks: async () => [],
+    writeJellyfinPreviewAuth: (responsePath, payload) => {
+      writes.push({ path: responsePath, payload });
+    },
+    logInfo: (message) => logs.push(message),
+  });
+
+  const handled = await handler({
+    args: {
+      jellyfinPreviewAuth: true,
+      jellyfinResponsePath: '/tmp/subminer-preview-auth.json',
+    } as never,
+    session: baseSession,
+    clientInfo: baseClientInfo,
+    jellyfinConfig: baseConfig,
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(writes, [
+    {
+      path: '/tmp/subminer-preview-auth.json',
+      payload: {
+        serverUrl: baseSession.serverUrl,
+        accessToken: baseSession.accessToken,
+        userId: baseSession.userId,
+      },
+    },
+  ]);
+  assert.deepEqual(logs, ['Jellyfin preview auth written.']);
+});
+
+test('list handler throws when preview auth command has no response path', async () => {
+  const handler = createHandleJellyfinListCommands({
+    listJellyfinLibraries: async () => [],
+    listJellyfinItems: async () => [],
+    listJellyfinSubtitleTracks: async () => [],
+    writeJellyfinPreviewAuth: () => {},
+    logInfo: () => {},
+  });
+
+  await assert.rejects(
+    handler({
+      args: {
+        jellyfinPreviewAuth: true,
+      } as never,
+      session: baseSession,
+      clientInfo: baseClientInfo,
+      jellyfinConfig: baseConfig,
+    }),
+    /Missing --jellyfin-response-path/,
   );
 });

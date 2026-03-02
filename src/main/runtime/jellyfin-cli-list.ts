@@ -17,6 +17,12 @@ type JellyfinConfig = {
   defaultLibraryId: string;
 };
 
+type JellyfinPreviewAuthPayload = {
+  serverUrl: string;
+  accessToken: string;
+  userId: string;
+};
+
 export function createHandleJellyfinListCommands(deps: {
   listJellyfinLibraries: (
     session: JellyfinSession,
@@ -25,7 +31,13 @@ export function createHandleJellyfinListCommands(deps: {
   listJellyfinItems: (
     session: JellyfinSession,
     clientInfo: JellyfinClientInfo,
-    params: { libraryId: string; searchTerm?: string; limit: number },
+    params: {
+      libraryId: string;
+      searchTerm?: string;
+      limit: number;
+      recursive?: boolean;
+      includeItemTypes?: string;
+    },
   ) => Promise<Array<{ id: string; title: string; type: string }>>;
   listJellyfinSubtitleTracks: (
     session: JellyfinSession,
@@ -42,8 +54,9 @@ export function createHandleJellyfinListCommands(deps: {
       isForced?: boolean;
       isExternal?: boolean;
       deliveryUrl?: string | null;
-    }>
+      }>
   >;
+  writeJellyfinPreviewAuth: (responsePath: string, payload: JellyfinPreviewAuthPayload) => void;
   logInfo: (message: string) => void;
 }) {
   return async (params: {
@@ -53,6 +66,20 @@ export function createHandleJellyfinListCommands(deps: {
     jellyfinConfig: JellyfinConfig;
   }): Promise<boolean> => {
     const { args, session, clientInfo, jellyfinConfig } = params;
+
+    if (args.jellyfinPreviewAuth) {
+      const responsePath = args.jellyfinResponsePath?.trim();
+      if (!responsePath) {
+        throw new Error('Missing --jellyfin-response-path for --jellyfin-preview-auth.');
+      }
+      deps.writeJellyfinPreviewAuth(responsePath, {
+        serverUrl: session.serverUrl,
+        accessToken: session.accessToken,
+        userId: session.userId,
+      });
+      deps.logInfo('Jellyfin preview auth written.');
+      return true;
+    }
 
     if (args.jellyfinLibraries) {
       const libraries = await deps.listJellyfinLibraries(session, clientInfo);
@@ -79,6 +106,8 @@ export function createHandleJellyfinListCommands(deps: {
         libraryId,
         searchTerm: args.jellyfinSearch,
         limit: args.jellyfinLimit ?? 100,
+        recursive: args.jellyfinRecursive,
+        includeItemTypes: args.jellyfinIncludeItemTypes,
       });
       if (items.length === 0) {
         deps.logInfo('No Jellyfin items found for the selected library/search.');

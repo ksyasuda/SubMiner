@@ -5,6 +5,19 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveConfigFilePath } from '../src/config/path-resolution.js';
+import {
+  parseJellyfinLibrariesFromAppOutput,
+  parseJellyfinItemsFromAppOutput,
+  parseJellyfinErrorFromAppOutput,
+  parseJellyfinPreviewAuthResponse,
+  deriveJellyfinTokenStorePath,
+  hasStoredJellyfinSession,
+  shouldRetryWithStartForNoRunningInstance,
+  readUtf8FileAppendedSince,
+  parseEpisodePathFromDisplay,
+  buildRootSearchGroups,
+  classifyJellyfinChildSelection,
+} from './jellyfin.js';
 
 type RunResult = {
   status: number | null;
@@ -149,7 +162,7 @@ test('doctor reports checks and exits non-zero without hard dependencies', () =>
   });
 });
 
-test('jellyfin discovery routes to app --start with log-level forwarding', () => {
+test('jellyfin discovery routes to app --background and remote announce with log-level forwarding', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
@@ -169,7 +182,37 @@ test('jellyfin discovery routes to app --start with log-level forwarding', () =>
     const result = runLauncher(['jellyfin', 'discovery', '--log-level', 'debug'], env);
 
     assert.equal(result.status, 0);
-    assert.equal(fs.readFileSync(capturePath, 'utf8'), '--start\n--log-level\ndebug\n');
+    assert.equal(
+      fs.readFileSync(capturePath, 'utf8'),
+      '--background\n--jellyfin-remote-announce\n--log-level\ndebug\n',
+    );
+  });
+});
+
+test('jellyfin discovery via jf alias forwards remote announce for cast visibility', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const capturePath = path.join(root, 'captured-args.txt');
+    fs.writeFileSync(
+      appPath,
+      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+    );
+    fs.chmodSync(appPath, 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_CAPTURE: capturePath,
+    };
+    const result = runLauncher(['-R', 'jf', '--discovery', '--log-level', 'debug'], env);
+
+    assert.equal(result.status, 0);
+    assert.equal(
+      fs.readFileSync(capturePath, 'utf8'),
+      '--background\n--jellyfin-remote-announce\n--log-level\ndebug\n',
+    );
   });
 });
 
@@ -236,5 +279,176 @@ test('jellyfin setup forwards password-store to app command', () => {
       fs.readFileSync(capturePath, 'utf8'),
       '--jellyfin\n--password-store\ngnome-libsecret\n',
     );
+  });
+});
+
+test('parseJellyfinLibrariesFromAppOutput parses prefixed library lines', () => {
+  const parsed = parseJellyfinLibrariesFromAppOutput(`
+[subminer] - 2026-03-01 13:10:34 - INFO - [main] Jellyfin library: Anime [lib1] (tvshows)
+[subminer] - 2026-03-01 13:10:35 - INFO - [main] Jellyfin library: Movies [lib2] (movies)
+`);
+
+  assert.deepEqual(parsed, [
+    { id: 'lib1', name: 'Anime', kind: 'tvshows' },
+    { id: 'lib2', name: 'Movies', kind: 'movies' },
+  ]);
+});
+
+test('parseJellyfinItemsFromAppOutput parses item title/id/type tuples', () => {
+  const parsed = parseJellyfinItemsFromAppOutput(`
+[subminer] - 2026-03-01 13:10:34 - INFO - [main] Jellyfin item: Solo Leveling S01E10 [item-10] (Episode)
+[subminer] - 2026-03-01 13:10:35 - INFO - [main] Jellyfin item: Movie [Alt] [movie-1] (Movie)
+`);
+
+  assert.deepEqual(parsed, [
+    {
+      id: 'item-10',
+      name: 'Solo Leveling S01E10',
+      type: 'Episode',
+      display: 'Solo Leveling S01E10',
+    },
+    {
+      id: 'movie-1',
+      name: 'Movie [Alt]',
+      type: 'Movie',
+      display: 'Movie [Alt]',
+    },
+  ]);
+});
+
+test('parseJellyfinErrorFromAppOutput extracts bracketed error lines', () => {
+  const parsed = parseJellyfinErrorFromAppOutput(`
+[subminer] - 2026-03-01 13:10:34 - WARN - [main] test warning
+[2026-03-01T21:11:28.821Z] [ERROR] Missing Jellyfin session. Set SUBMINER_JELLYFIN_ACCESS_TOKEN and SUBMINER_JELLYFIN_USER_ID, then retry.
+`);
+
+  assert.equal(
+    parsed,
+    'Missing Jellyfin session. Set SUBMINER_JELLYFIN_ACCESS_TOKEN and SUBMINER_JELLYFIN_USER_ID, then retry.',
+  );
+});
+
+test('parseJellyfinErrorFromAppOutput extracts main runtime error lines', () => {
+  const parsed = parseJellyfinErrorFromAppOutput(`
+[subminer] - 2026-03-01 13:10:34 - ERROR - [main] runJellyfinCommand failed: {"message":"Missing Jellyfin password."}
+`);
+
+  assert.equal(parsed, '[main] runJellyfinCommand failed: {"message":"Missing Jellyfin password."}');
+});
+
+test('parseJellyfinPreviewAuthResponse parses valid structured response payload', () => {
+  const parsed = parseJellyfinPreviewAuthResponse(
+    JSON.stringify({
+      serverUrl: 'http://pve-main:8096/',
+      accessToken: 'token-123',
+      userId: 'user-1',
+    }),
+  );
+
+  assert.deepEqual(parsed, {
+    serverUrl: 'http://pve-main:8096',
+    accessToken: 'token-123',
+    userId: 'user-1',
+  });
+});
+
+test('parseJellyfinPreviewAuthResponse returns null for invalid payloads', () => {
+  assert.equal(parseJellyfinPreviewAuthResponse(''), null);
+  assert.equal(parseJellyfinPreviewAuthResponse('{not json}'), null);
+  assert.equal(
+    parseJellyfinPreviewAuthResponse(
+      JSON.stringify({
+        serverUrl: 'http://pve-main:8096',
+        accessToken: '',
+        userId: 'user-1',
+      }),
+    ),
+    null,
+  );
+});
+
+test('deriveJellyfinTokenStorePath resolves alongside config path', () => {
+  const tokenPath = deriveJellyfinTokenStorePath('/home/test/.config/SubMiner/config.jsonc');
+  assert.equal(tokenPath, '/home/test/.config/SubMiner/jellyfin-token-store.json');
+});
+
+test('hasStoredJellyfinSession checks token-store existence', () => {
+  const exists = (candidate: string): boolean =>
+    candidate === '/home/test/.config/SubMiner/jellyfin-token-store.json';
+  assert.equal(hasStoredJellyfinSession('/home/test/.config/SubMiner/config.jsonc', exists), true);
+  assert.equal(hasStoredJellyfinSession('/home/test/.config/Other/alt.jsonc', exists), false);
+});
+
+test('shouldRetryWithStartForNoRunningInstance matches expected app lifecycle error', () => {
+  assert.equal(
+    shouldRetryWithStartForNoRunningInstance('No running instance. Use --start to launch the app.'),
+    true,
+  );
+  assert.equal(
+    shouldRetryWithStartForNoRunningInstance('Missing Jellyfin session. Run --jellyfin-login first.'),
+    false,
+  );
+});
+
+test('readUtf8FileAppendedSince treats offset as bytes and survives multibyte logs', () => {
+  withTempDir((root) => {
+    const logPath = path.join(root, 'SubMiner.log');
+    const prefix = '[subminer] こんにちは\n';
+    const suffix = '[subminer] Jellyfin library: Movies [lib2] (movies)\n';
+    fs.writeFileSync(logPath, `${prefix}${suffix}`, 'utf8');
+
+    const byteOffset = Buffer.byteLength(prefix, 'utf8');
+    const fromByteOffset = readUtf8FileAppendedSince(logPath, byteOffset);
+    assert.match(fromByteOffset, /Jellyfin library: Movies \[lib2\] \(movies\)/);
+
+    const fromBeyondEnd = readUtf8FileAppendedSince(logPath, byteOffset + 9999);
+    assert.match(fromBeyondEnd, /Jellyfin library: Movies \[lib2\] \(movies\)/);
+  });
+});
+
+test('parseEpisodePathFromDisplay extracts series and season from episode display titles', () => {
+  assert.deepEqual(parseEpisodePathFromDisplay('KONOSUBA S01E03 A Panty Treasure in This Right Hand!'), {
+    seriesName: 'KONOSUBA',
+    seasonNumber: 1,
+  });
+  assert.deepEqual(parseEpisodePathFromDisplay('Frieren S2E10 Something'), {
+    seriesName: 'Frieren',
+    seasonNumber: 2,
+  });
+});
+
+test('parseEpisodePathFromDisplay returns null for non-episode displays', () => {
+  assert.equal(parseEpisodePathFromDisplay('Movie Title (Movie)'), null);
+  assert.equal(parseEpisodePathFromDisplay('Just A Name'), null);
+});
+
+test('buildRootSearchGroups excludes episodes and keeps containers/movies', () => {
+  const groups = buildRootSearchGroups([
+    { id: 'series-1', name: 'The Eminence in Shadow', type: 'Series', display: 'x' },
+    { id: 'movie-1', name: 'Spirited Away', type: 'Movie', display: 'x' },
+    { id: 'episode-1', name: 'The Eminence in Shadow S01E01', type: 'Episode', display: 'x' },
+  ]);
+
+  assert.deepEqual(groups, [
+    {
+      id: 'series-1',
+      name: 'The Eminence in Shadow',
+      type: 'Series',
+      display: 'The Eminence in Shadow (Series)',
+    },
+    {
+      id: 'movie-1',
+      name: 'Spirited Away',
+      type: 'Movie',
+      display: 'Spirited Away (Movie)',
+    },
+  ]);
+});
+
+test('classifyJellyfinChildSelection keeps container drilldown state instead of flattening', () => {
+  const next = classifyJellyfinChildSelection({ id: 'season-2', type: 'Season' });
+  assert.deepEqual(next, {
+    kind: 'container',
+    id: 'season-2',
   });
 });

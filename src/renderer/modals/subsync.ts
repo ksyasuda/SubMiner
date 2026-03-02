@@ -71,6 +71,30 @@ export function createSubsyncModal(
     ctx.dom.subsyncModal.setAttribute('aria-hidden', 'false');
   }
 
+  function reopenSubsyncModalWithError(
+    sourceTracks: SubsyncManualPayload['sourceTracks'],
+    engine: 'alass' | 'ffsubsync',
+    sourceTrackId: number | null,
+    message: string,
+  ): void {
+    openSubsyncModal({ sourceTracks });
+
+    if (engine === 'alass' && sourceTracks.length > 0) {
+      ctx.dom.subsyncEngineAlass.checked = true;
+      ctx.dom.subsyncEngineFfsubsync.checked = false;
+      if (Number.isFinite(sourceTrackId)) {
+        ctx.dom.subsyncSourceSelect.value = String(sourceTrackId);
+      }
+    } else {
+      ctx.dom.subsyncEngineAlass.checked = false;
+      ctx.dom.subsyncEngineFfsubsync.checked = true;
+    }
+
+    updateSubsyncSourceVisibility();
+    setSubsyncStatus(message, true);
+    window.electronAPI.notifyOverlayModalOpened('subsync');
+  }
+
   async function runSubsyncManualFromModal(): Promise<void> {
     if (ctx.state.subsyncSubmitting) return;
 
@@ -85,15 +109,25 @@ export function createSubsyncModal(
       return;
     }
 
+    const sourceTracksSnapshot = ctx.state.subsyncSourceTracks.map((track) => ({ ...track }));
     ctx.state.subsyncSubmitting = true;
     ctx.dom.subsyncRunButton.disabled = true;
-
     closeSubsyncModal();
+
     try {
-      await window.electronAPI.runSubsyncManual({
+      const result = await window.electronAPI.runSubsyncManual({
         engine,
         sourceTrackId,
       });
+      if (result.ok) return;
+      reopenSubsyncModalWithError(sourceTracksSnapshot, engine, sourceTrackId, result.message);
+    } catch (error) {
+      reopenSubsyncModalWithError(
+        sourceTracksSnapshot,
+        engine,
+        sourceTrackId,
+        `Subsync failed: ${(error as Error).message}`,
+      );
     } finally {
       ctx.state.subsyncSubmitting = false;
       ctx.dom.subsyncRunButton.disabled = false;

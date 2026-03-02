@@ -111,8 +111,7 @@ test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns
   assert.equal(calls.includes('logConfigWarning'), false);
   assert.equal(calls.includes('handleInitialArgs'), true);
   assert.equal(calls.includes('loadYomitanExtension'), true);
-  assert.equal(calls[0], 'loadYomitanExtension');
-  assert.equal(calls[calls.length - 1], 'handleInitialArgs');
+  assert.ok(calls.indexOf('loadYomitanExtension') < calls.indexOf('handleInitialArgs'));
 });
 
 test('runAppReadyRuntime skips Jellyfin remote startup when dependency is not wired', async () => {

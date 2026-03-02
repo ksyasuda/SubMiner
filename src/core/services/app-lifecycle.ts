@@ -87,6 +87,12 @@ export function createAppLifecycleDepsRuntime(
 }
 
 export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServiceDeps): void {
+  if (initialArgs.help && !deps.shouldStartApp(initialArgs)) {
+    deps.printHelp();
+    deps.quitApp();
+    return;
+  }
+
   const gotTheLock = deps.requestSingleInstanceLock();
   if (!gotTheLock) {
     deps.quitApp();
@@ -100,12 +106,6 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
       logger.error('Failed to handle second-instance CLI command:', error);
     }
   });
-
-  if (initialArgs.help && !deps.shouldStartApp(initialArgs)) {
-    deps.printHelp();
-    deps.quitApp();
-    return;
-  }
 
   if (!deps.shouldStartApp(initialArgs)) {
     if (initialArgs.stop && !initialArgs.start) {

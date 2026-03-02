@@ -884,7 +884,7 @@ Launcher subcommands:
 - `subminer jellyfin -l --server ... --username ... --password ...` logs in.
 - `subminer jellyfin --logout` clears stored credentials.
 - `subminer jellyfin -p` opens play picker.
-- `subminer jellyfin -d` starts cast discovery mode.
+- `subminer jellyfin -d` starts cast discovery mode in background/tray mode.
 - These launcher commands also accept `--password-store=<backend>` to override the launcher-app forwarded Electron switch.
 
 See [Jellyfin Integration](/jellyfin-integration) for the full setup and cast-to-device guide.

@@ -87,6 +87,10 @@ test('listItems supports search and formats title', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input) => {
     assert.match(String(input), /SearchTerm=planet/);
+    assert.match(
+      String(input),
+      /IncludeItemTypes=Movie%2CEpisode%2CAudio%2CSeries%2CSeason%2CFolder%2CCollectionFolder/,
+    );
     return new Response(
       JSON.stringify({
         Items: [
@@ -120,6 +124,64 @@ test('listItems supports search and formats title', async () => {
       },
     );
     assert.equal(items[0]!.title, 'Space Show S01E02 Pilot');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('listItems keeps playable-only include types when search is empty', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input) => {
+    assert.match(String(input), /IncludeItemTypes=Movie%2CEpisode%2CAudio/);
+    assert.doesNotMatch(String(input), /CollectionFolder|Series|Season|Folder/);
+    return new Response(JSON.stringify({ Items: [] }), { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const items = await listItems(
+      {
+        serverUrl: 'http://jellyfin.local',
+        accessToken: 'token',
+        userId: 'u1',
+        username: 'kyle',
+      },
+      clientInfo,
+      {
+        libraryId: 'lib-1',
+        limit: 25,
+      },
+    );
+    assert.deepEqual(items, []);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('listItems accepts explicit include types and recursive mode', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input) => {
+    assert.match(String(input), /Recursive=false/);
+    assert.match(String(input), /IncludeItemTypes=Series%2CMovie%2CFolder/);
+    return new Response(JSON.stringify({ Items: [] }), { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const items = await listItems(
+      {
+        serverUrl: 'http://jellyfin.local',
+        accessToken: 'token',
+        userId: 'u1',
+        username: 'kyle',
+      },
+      clientInfo,
+      {
+        libraryId: 'lib-1',
+        includeItemTypes: 'Series,Movie,Folder',
+        recursive: false,
+        limit: 25,
+      },
+    );
+    assert.deepEqual(items, []);
   } finally {
     globalThis.fetch = originalFetch;
   }
