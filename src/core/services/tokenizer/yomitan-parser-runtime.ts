@@ -578,50 +578,12 @@ export async function requestYomitanParseResults(
   }
 }
 
-export async function requestYomitanTermFrequencies(
+async function fetchYomitanTermFrequencies(
+  parserWindow: BrowserWindow,
   termReadingList: YomitanTermReadingPair[],
-  deps: YomitanParserRuntimeDeps,
+  metadata: YomitanProfileMetadata | null,
   logger: LoggerLike,
-): Promise<YomitanTermFrequency[]> {
-  const normalizedTermReadingList = normalizeTermReadingList(termReadingList);
-  const yomitanExt = deps.getYomitanExt();
-  if (normalizedTermReadingList.length === 0 || !yomitanExt) {
-    return [];
-  }
-
-  const isReady = await ensureYomitanParserWindow(deps, logger);
-  const parserWindow = deps.getYomitanParserWindow();
-  if (!isReady || !parserWindow || parserWindow.isDestroyed()) {
-    return [];
-  }
-
-  const metadata = await requestYomitanProfileMetadata(parserWindow, logger);
-  const frequencyCache = getWindowFrequencyCache(parserWindow);
-  const missingTermReadingList: YomitanTermReadingPair[] = [];
-
-  const buildCachedResult = (): YomitanTermFrequency[] => {
-    const result: YomitanTermFrequency[] = [];
-    for (const pair of normalizedTermReadingList) {
-      const key = makeTermReadingCacheKey(pair.term, pair.reading);
-      const cached = frequencyCache.get(key);
-      if (cached && cached.length > 0) {
-        result.push(...cached);
-      }
-    }
-    return result;
-  };
-
-  for (const pair of normalizedTermReadingList) {
-    const key = makeTermReadingCacheKey(pair.term, pair.reading);
-    if (!frequencyCache.has(key)) {
-      missingTermReadingList.push(pair);
-    }
-  }
-
-  if (missingTermReadingList.length === 0) {
-    return buildCachedResult();
-  }
-
+): Promise<YomitanTermFrequency[] | null> {
   if (metadata && metadata.dictionaries.length > 0) {
     const script = `
       (async () => {
@@ -645,7 +607,7 @@ export async function requestYomitanTermFrequencies(
           });
 
         return await invoke("getTermFrequencies", {
-          termReadingList: ${JSON.stringify(missingTermReadingList)},
+          termReadingList: ${JSON.stringify(termReadingList)},
           dictionaries: ${JSON.stringify(metadata.dictionaries)}
         });
       })();
@@ -653,28 +615,13 @@ export async function requestYomitanTermFrequencies(
 
     try {
       const rawResult = await parserWindow.webContents.executeJavaScript(script, true);
-      const fetchedEntries = Array.isArray(rawResult)
+      return Array.isArray(rawResult)
         ? normalizeFrequencyEntriesWithPriority(rawResult, metadata.dictionaryPriorityByName)
         : [];
-      const groupedByPair = groupFrequencyEntriesByPair(fetchedEntries);
-      const groupedByTerm = groupFrequencyEntriesByTerm(fetchedEntries);
-      const missingTerms = new Set(missingTermReadingList.map((pair) => pair.term));
-
-      for (const pair of missingTermReadingList) {
-        const key = makeTermReadingCacheKey(pair.term, pair.reading);
-        const exactEntries = groupedByPair.get(key);
-        const termEntries = groupedByTerm.get(pair.term) ?? [];
-        frequencyCache.set(key, exactEntries ?? termEntries);
-      }
-
-      const cachedResult = buildCachedResult();
-      const unmatchedEntries = fetchedEntries.filter((entry) => !missingTerms.has(entry.term.trim()));
-      return [...cachedResult, ...unmatchedEntries];
     } catch (err) {
       logger.error('Yomitan term frequency request failed:', (err as Error).message);
+      return null;
     }
-
-    return buildCachedResult();
   }
 
   const script = `
@@ -721,7 +668,7 @@ export async function requestYomitanTermFrequencies(
       }
 
       const rawFrequencies = await invoke("getTermFrequencies", {
-        termReadingList: ${JSON.stringify(missingTermReadingList)},
+        termReadingList: ${JSON.stringify(termReadingList)},
         dictionaries
       });
 
@@ -743,27 +690,147 @@ export async function requestYomitanTermFrequencies(
 
   try {
     const rawResult = await parserWindow.webContents.executeJavaScript(script, true);
-    const fetchedEntries = Array.isArray(rawResult)
+    return Array.isArray(rawResult)
       ? rawResult
           .map((entry) => toYomitanTermFrequency(entry))
           .filter((entry): entry is YomitanTermFrequency => entry !== null)
       : [];
-    const groupedByPair = groupFrequencyEntriesByPair(fetchedEntries);
-    const groupedByTerm = groupFrequencyEntriesByTerm(fetchedEntries);
-    const missingTerms = new Set(missingTermReadingList.map((pair) => pair.term));
-    for (const pair of missingTermReadingList) {
-      const key = makeTermReadingCacheKey(pair.term, pair.reading);
-      const exactEntries = groupedByPair.get(key);
-      const termEntries = groupedByTerm.get(pair.term) ?? [];
-      frequencyCache.set(key, exactEntries ?? termEntries);
-    }
-    const cachedResult = buildCachedResult();
-    const unmatchedEntries = fetchedEntries.filter((entry) => !missingTerms.has(entry.term.trim()));
-    return [...cachedResult, ...unmatchedEntries];
   } catch (err) {
     logger.error('Yomitan term frequency request failed:', (err as Error).message);
+    return null;
+  }
+}
+
+function cacheFrequencyEntriesForPairs(
+  frequencyCache: Map<string, YomitanTermFrequency[]>,
+  termReadingList: YomitanTermReadingPair[],
+  fetchedEntries: YomitanTermFrequency[],
+): void {
+  const groupedByPair = groupFrequencyEntriesByPair(fetchedEntries);
+  const groupedByTerm = groupFrequencyEntriesByTerm(fetchedEntries);
+  for (const pair of termReadingList) {
+    const key = makeTermReadingCacheKey(pair.term, pair.reading);
+    const exactEntries = groupedByPair.get(key);
+    const termEntries = groupedByTerm.get(pair.term) ?? [];
+    frequencyCache.set(key, exactEntries ?? termEntries);
+  }
+}
+
+export async function requestYomitanTermFrequencies(
+  termReadingList: YomitanTermReadingPair[],
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<YomitanTermFrequency[]> {
+  const normalizedTermReadingList = normalizeTermReadingList(termReadingList);
+  const yomitanExt = deps.getYomitanExt();
+  if (normalizedTermReadingList.length === 0 || !yomitanExt) {
+    return [];
+  }
+
+  const isReady = await ensureYomitanParserWindow(deps, logger);
+  const parserWindow = deps.getYomitanParserWindow();
+  if (!isReady || !parserWindow || parserWindow.isDestroyed()) {
+    return [];
+  }
+
+  const metadata = await requestYomitanProfileMetadata(parserWindow, logger);
+  const frequencyCache = getWindowFrequencyCache(parserWindow);
+  const missingTermReadingList: YomitanTermReadingPair[] = [];
+
+  const buildCachedResult = (): YomitanTermFrequency[] => {
+    const result: YomitanTermFrequency[] = [];
+    for (const pair of normalizedTermReadingList) {
+      const key = makeTermReadingCacheKey(pair.term, pair.reading);
+      const cached = frequencyCache.get(key);
+      if (cached && cached.length > 0) {
+        result.push(...cached);
+      }
+    }
+    return result;
+  };
+
+  for (const pair of normalizedTermReadingList) {
+    const key = makeTermReadingCacheKey(pair.term, pair.reading);
+    if (!frequencyCache.has(key)) {
+      missingTermReadingList.push(pair);
+    }
+  }
+
+  if (missingTermReadingList.length === 0) {
     return buildCachedResult();
   }
+
+  const fetchedEntries = await fetchYomitanTermFrequencies(
+    parserWindow,
+    missingTermReadingList,
+    metadata,
+    logger,
+  );
+  if (fetchedEntries === null) {
+    return buildCachedResult();
+  }
+
+  cacheFrequencyEntriesForPairs(frequencyCache, missingTermReadingList, fetchedEntries);
+
+  const fallbackTermReadingList = normalizeTermReadingList(
+    missingTermReadingList
+      .filter((pair) => pair.reading !== null)
+      .map((pair) => {
+        const key = makeTermReadingCacheKey(pair.term, pair.reading);
+        const cachedEntries = frequencyCache.get(key);
+        if (cachedEntries && cachedEntries.length > 0) {
+          return null;
+        }
+
+        const fallbackKey = makeTermReadingCacheKey(pair.term, null);
+        const cachedFallback = frequencyCache.get(fallbackKey);
+        if (cachedFallback && cachedFallback.length > 0) {
+          frequencyCache.set(key, cachedFallback);
+          return null;
+        }
+
+        return { term: pair.term, reading: null };
+      })
+      .filter((pair): pair is YomitanTermReadingPair => pair !== null),
+  ).filter((pair) => !frequencyCache.has(makeTermReadingCacheKey(pair.term, pair.reading)));
+
+  let fallbackFetchedEntries: YomitanTermFrequency[] = [];
+
+  if (fallbackTermReadingList.length > 0) {
+    const fallbackFetchResult = await fetchYomitanTermFrequencies(
+      parserWindow,
+      fallbackTermReadingList,
+      metadata,
+      logger,
+    );
+    if (fallbackFetchResult !== null) {
+      fallbackFetchedEntries = fallbackFetchResult;
+      cacheFrequencyEntriesForPairs(frequencyCache, fallbackTermReadingList, fallbackFetchedEntries);
+    }
+
+    for (const pair of missingTermReadingList) {
+      if (pair.reading === null) {
+        continue;
+      }
+      const key = makeTermReadingCacheKey(pair.term, pair.reading);
+      const cachedEntries = frequencyCache.get(key);
+      if (cachedEntries && cachedEntries.length > 0) {
+        continue;
+      }
+      const fallbackEntries = frequencyCache.get(makeTermReadingCacheKey(pair.term, null));
+      if (fallbackEntries && fallbackEntries.length > 0) {
+        frequencyCache.set(key, fallbackEntries);
+      }
+    }
+  }
+
+  const allFetchedEntries = [...fetchedEntries, ...fallbackFetchedEntries];
+  const queriedTerms = new Set(
+    [...missingTermReadingList, ...fallbackTermReadingList].map((pair) => pair.term),
+  );
+  const cachedResult = buildCachedResult();
+  const unmatchedEntries = allFetchedEntries.filter((entry) => !queriedTerms.has(entry.term.trim()));
+  return [...cachedResult, ...unmatchedEntries];
 }
 
 export async function syncYomitanDefaultAnkiServer(

@@ -329,11 +329,6 @@ function buildYomitanFrequencyTermReadingList(
     const readingRaw =
       token.reading && token.reading.trim().length > 0 ? token.reading.trim() : null;
     termReadingList.push({ term, reading: readingRaw });
-
-    // Yomitan parse readings can be noisy/truncated on merged tokens; include term-only fallback.
-    if (readingRaw !== null) {
-      termReadingList.push({ term, reading: null });
-    }
   }
 
   return termReadingList;

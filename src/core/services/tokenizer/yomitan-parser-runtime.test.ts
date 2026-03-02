@@ -157,6 +157,102 @@ test('requestYomitanTermFrequencies prefers primary rank from displayValue array
   assert.equal(result[0]?.frequency, 7141);
 });
 
+test('requestYomitanTermFrequencies requests term-only fallback only after reading miss', async () => {
+  const frequencyScripts: string[] = [];
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [{ name: 'freq-dict', enabled: true, id: 0 }],
+            },
+          },
+        ],
+      };
+    }
+
+    if (!script.includes('getTermFrequencies')) {
+      return [];
+    }
+
+    frequencyScripts.push(script);
+    if (script.includes('"term":"断じて","reading":"だん"')) {
+      return [];
+    }
+    if (script.includes('"term":"断じて","reading":null')) {
+      return [
+        {
+          term: '断じて',
+          reading: null,
+          dictionary: 'freq-dict',
+          frequency: 7082,
+          displayValue: '7082',
+          displayValueParsed: true,
+        },
+      ];
+    }
+    return [];
+  });
+
+  const result = await requestYomitanTermFrequencies([{ term: '断じて', reading: 'だん' }], deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0]?.frequency, 7082);
+  assert.equal(frequencyScripts.length, 2);
+  assert.match(frequencyScripts[0] ?? '', /"term":"断じて","reading":"だん"/);
+  assert.doesNotMatch(frequencyScripts[0] ?? '', /"term":"断じて","reading":null/);
+  assert.match(frequencyScripts[1] ?? '', /"term":"断じて","reading":null/);
+});
+
+test('requestYomitanTermFrequencies avoids term-only fallback request when reading lookup succeeds', async () => {
+  const frequencyScripts: string[] = [];
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [{ name: 'freq-dict', enabled: true, id: 0 }],
+            },
+          },
+        ],
+      };
+    }
+
+    if (!script.includes('getTermFrequencies')) {
+      return [];
+    }
+
+    frequencyScripts.push(script);
+    return [
+      {
+        term: '鍛える',
+        reading: 'きたえる',
+        dictionary: 'freq-dict',
+        frequency: 2847,
+        displayValue: '2847',
+        displayValueParsed: true,
+      },
+    ];
+  });
+
+  const result = await requestYomitanTermFrequencies([{ term: '鍛える', reading: 'きた' }], deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(frequencyScripts.length, 1);
+  assert.match(frequencyScripts[0] ?? '', /"term":"鍛える","reading":"きた"/);
+  assert.doesNotMatch(frequencyScripts[0] ?? '', /"term":"鍛える","reading":null/);
+});
+
 test('requestYomitanTermFrequencies caches profile metadata between calls', async () => {
   const scripts: string[] = [];
   const deps = createDeps(async (script) => {

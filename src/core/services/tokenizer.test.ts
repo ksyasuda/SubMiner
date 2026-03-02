@@ -346,6 +346,11 @@ test('tokenizeSubtitle queries headword frequencies with token reading for disam
           webContents: {
             executeJavaScript: async (script: string) => {
               if (script.includes('getTermFrequencies')) {
+                assert.equal(
+                  script.includes('"term":"鍛える","reading":null'),
+                  false,
+                  'should not eagerly include term-only fallback pair when reading lookup is present',
+                );
                 if (!script.includes('"term":"鍛える","reading":"きた"')) {
                   return [];
                 }
