@@ -4,7 +4,7 @@ title: 'Tokenization performance: disable Yomitan MeCab parser, gate local MeCab
 status: Done
 assignee: []
 created_date: '2026-03-02 07:44'
-updated_date: '2026-03-02 20:37'
+updated_date: '2026-03-02 20:44'
 labels: []
 dependencies: []
 priority: high
@@ -47,8 +47,10 @@ Implemented tokenizer latency optimizations:
 - added regression coverage in `src/main/runtime/composers/mpv-runtime-composer.test.ts` for sequential tokenize calls (`warmup` side effects run once);
 - post-review critical fix: treat Yomitan default-profile Anki server sync `no-change` as successful check, so `lastSyncedYomitanAnkiServer` is cached and expensive sync checks do not repeat on every subtitle line;
 - added regression assertion in `src/core/services/tokenizer/yomitan-parser-runtime.test.ts` for `updated: false` path returning sync success;
-- post-review performance fix: refactored POS enrichment to pre-index MeCab tokens by surface/start position and use sliding overlap window + binary-search cursor fallback, removing repeated full MeCab scans per token (`O(n*m)` hotspot);
-- added regression test in `src/core/services/tokenizer/parser-enrichment-stage.test.ts` that fails on repeated distant-token scan access and passes with indexed lookup;
+- post-review performance fix: refactored POS enrichment to pre-index MeCab tokens by surface plus character-position overlap index, replacing repeated active-candidate filtering/full-scan behavior with direct overlap candidate lookup per token;
+- added regression tests in `src/core/services/tokenizer/parser-enrichment-stage.test.ts` for repeated distant-token scan access and repeated active-candidate filter scans; both fail on scan-based behavior and pass with indexed lookup;
+- post-review startup fix: moved JLPT/frequency dictionary initialization from synchronous FS APIs to async `fs/promises` path inspection/read and cooperative chunked entry processing to reduce main-thread stall risk during cold start;
+- post-review first-line latency fix: decoupled tokenization warmup gating so first `tokenizeSubtitle` only waits on Yomitan extension readiness, while MeCab check + dictionary prewarm continue in parallel background warmups;
 - validated with targeted tests and `tsc --noEmit`.
 
 <!-- SECTION:FINAL_SUMMARY:END -->
