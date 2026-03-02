@@ -70,8 +70,17 @@ function M.create(ctx)
 		state.auto_play_ready_timeout = nil
 	end
 
+	local function clear_auto_play_ready_osd_timer()
+		local timer = state.auto_play_ready_osd_timer
+		if timer and timer.kill then
+			timer:kill()
+		end
+		state.auto_play_ready_osd_timer = nil
+	end
+
 	local function disarm_auto_play_ready_gate()
 		clear_auto_play_ready_timeout()
+		clear_auto_play_ready_osd_timer()
 		state.auto_play_ready_gate_armed = false
 	end
 
@@ -88,10 +97,18 @@ function M.create(ctx)
 	local function arm_auto_play_ready_gate()
 		if state.auto_play_ready_gate_armed then
 			clear_auto_play_ready_timeout()
+			clear_auto_play_ready_osd_timer()
 		end
 		state.auto_play_ready_gate_armed = true
 		mp.set_property_native("pause", true)
 		show_osd("Loading subtitle annotations...")
+		if type(mp.add_periodic_timer) == "function" then
+			state.auto_play_ready_osd_timer = mp.add_periodic_timer(2.5, function()
+				if state.auto_play_ready_gate_armed then
+					show_osd("Loading subtitle annotations...")
+				end
+			end)
+		end
 		subminer_log("info", "process", "Pausing playback until SubMiner overlay/tokenization readiness signal")
 		state.auto_play_ready_timeout = mp.add_timeout(AUTO_PLAY_READY_TIMEOUT_SECONDS, function()
 			if not state.auto_play_ready_gate_armed then
@@ -287,7 +304,7 @@ function M.create(ctx)
 				)
 			end
 
-			if attempt == 1 then
+			if attempt == 1 and not state.auto_play_ready_gate_armed then
 				show_osd("Starting...")
 			end
 			state.overlay_running = true

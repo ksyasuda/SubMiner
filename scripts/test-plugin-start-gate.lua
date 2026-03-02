@@ -9,6 +9,7 @@ local function run_plugin_scenario(config)
 		osd = {},
 		logs = {},
 		property_sets = {},
+		periodic_timers = {},
 	}
 
 	local function make_mp_stub()
@@ -90,10 +91,32 @@ local function run_plugin_scenario(config)
 			end
 		end
 
-		function mp.add_timeout(_seconds, callback)
-			if callback then
+		function mp.add_timeout(seconds, callback)
+			local timeout = {
+				killed = false,
+			}
+			function timeout:kill()
+				self.killed = true
+			end
+
+			local delay = tonumber(seconds) or 0
+			if callback and delay < 5 then
 				callback()
 			end
+			return timeout
+		end
+
+		function mp.add_periodic_timer(seconds, callback)
+			local timer = {
+				seconds = seconds,
+				killed = false,
+				callback = callback,
+			}
+			function timer:kill()
+				self.killed = true
+			end
+			recorded.periodic_timers[#recorded.periodic_timers + 1] = timer
+			return timer
 		end
 
 		function mp.register_script_message(name, fn)
@@ -532,8 +555,20 @@ do
 		"pause-until-ready auto-start should show loading OSD message"
 	)
 	assert_true(
+		not has_osd_message(recorded.osd, "SubMiner: Starting..."),
+		"pause-until-ready auto-start should avoid replacing loading OSD with generic starting OSD"
+	)
+	assert_true(
 		has_osd_message(recorded.osd, "SubMiner: Subtitle annotations loaded"),
 		"autoplay-ready should show loaded OSD message"
+	)
+	assert_true(
+		#recorded.periodic_timers == 1,
+		"pause-until-ready auto-start should create periodic loading OSD refresher"
+	)
+	assert_true(
+		recorded.periodic_timers[1].killed == true,
+		"autoplay-ready should stop periodic loading OSD refresher"
 	)
 end
 
