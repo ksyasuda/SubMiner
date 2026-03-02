@@ -80,17 +80,22 @@ function M.create(ctx)
 		state.auto_play_ready_osd_timer = nil
 	end
 
-	local function disarm_auto_play_ready_gate()
+	local function disarm_auto_play_ready_gate(options)
+		local should_resume = options == nil or options.resume_playback ~= false
+		local was_armed = state.auto_play_ready_gate_armed
 		clear_auto_play_ready_timeout()
 		clear_auto_play_ready_osd_timer()
 		state.auto_play_ready_gate_armed = false
+		if was_armed and should_resume then
+			mp.set_property_native("pause", false)
+		end
 	end
 
 	local function release_auto_play_ready_gate(reason)
 		if not state.auto_play_ready_gate_armed then
 			return
 		end
-		disarm_auto_play_ready_gate()
+		disarm_auto_play_ready_gate({ resume_playback = false })
 		mp.set_property_native("pause", false)
 		show_osd(AUTO_PLAY_READY_READY_OSD)
 		subminer_log("info", "process", "Resuming playback after startup gate: " .. tostring(reason or "ready"))
@@ -270,6 +275,23 @@ function M.create(ctx)
 		if state.overlay_running then
 			if overrides.auto_start_trigger == true then
 				subminer_log("debug", "process", "Auto-start ignored because overlay is already running")
+				local socket_path = overrides.socket_path or opts.socket_path
+				local should_pause_until_ready = (
+					resolve_visible_overlay_startup()
+					and resolve_pause_until_ready()
+					and has_matching_mpv_ipc_socket(socket_path)
+				)
+				if should_pause_until_ready then
+					arm_auto_play_ready_gate()
+				else
+					disarm_auto_play_ready_gate()
+				end
+				local visibility_action = resolve_visible_overlay_startup()
+						and "show-visible-overlay"
+					or "hide-visible-overlay"
+				run_control_command_async(visibility_action, {
+					log_level = overrides.log_level,
+				})
 				return
 			end
 			subminer_log("info", "process", "Overlay already running")

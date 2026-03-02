@@ -141,6 +141,12 @@ export function composeMpvRuntimeHandlers<
       options.tokenizer.buildTokenizerDepsMainDeps.getFrequencyDictionaryEnabled() !== false;
     return nPlusOneEnabled || jlptEnabled || frequencyEnabled;
   };
+  const shouldWarmupAnnotationDictionaries = (): boolean => {
+    const jlptEnabled = options.tokenizer.buildTokenizerDepsMainDeps.getJlptEnabled() !== false;
+    const frequencyEnabled =
+      options.tokenizer.buildTokenizerDepsMainDeps.getFrequencyDictionaryEnabled() !== false;
+    return jlptEnabled || frequencyEnabled;
+  };
   let tokenizationWarmupInFlight: Promise<void> | null = null;
   let tokenizationPrerequisiteWarmupInFlight: Promise<void> | null = null;
   let tokenizationPrerequisiteWarmupCompleted = false;
@@ -174,7 +180,9 @@ export function composeMpvRuntimeHandlers<
         ) {
           warmupTasks.push(createMecabTokenizerAndCheck().catch(() => {}));
         }
-        warmupTasks.push(prewarmSubtitleDictionaries({ showLoadingOsd: true }).catch(() => {}));
+        if (shouldWarmupAnnotationDictionaries()) {
+          warmupTasks.push(prewarmSubtitleDictionaries().catch(() => {}));
+        }
         await Promise.all(warmupTasks);
         tokenizationWarmupCompleted = true;
       })().finally(() => {
@@ -186,9 +194,19 @@ export function composeMpvRuntimeHandlers<
   const tokenizeSubtitle = async (text: string): Promise<TTokenizedSubtitle> => {
     if (!tokenizationWarmupCompleted) void startTokenizationWarmups();
     await ensureTokenizationPrerequisites();
+    const tokenizerMainDeps = buildTokenizerDepsHandler();
+    if (shouldWarmupAnnotationDictionaries()) {
+      const onTokenizationReady = tokenizerMainDeps.onTokenizationReady;
+      tokenizerMainDeps.onTokenizationReady = (tokenizedText: string): void => {
+        onTokenizationReady?.(tokenizedText);
+        if (!tokenizationWarmupCompleted) {
+          void prewarmSubtitleDictionaries({ showLoadingOsd: true }).catch(() => {});
+        }
+      };
+    }
     return options.tokenizer.tokenizeSubtitle(
       text,
-      options.tokenizer.createTokenizerRuntimeDeps(buildTokenizerDepsHandler()),
+      options.tokenizer.createTokenizerRuntimeDeps(tokenizerMainDeps),
     );
   };
 

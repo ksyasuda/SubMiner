@@ -297,6 +297,60 @@ test('tokenizeSubtitle starts Yomitan frequency lookup and MeCab enrichment in p
   assert.equal(result.tokens?.[0]?.frequencyRank, 77);
 });
 
+test('tokenizeSubtitle can signal tokenization-ready before enrichment completes', async () => {
+  const frequencyDeferred = createDeferred<unknown[]>();
+  const mecabDeferred = createDeferred<null>();
+  let tokenizationReadyText: string | null = null;
+
+  const pendingResult = tokenizeSubtitle(
+    '猫',
+    makeDeps({
+      onTokenizationReady: (text) => {
+        tokenizationReadyText = text;
+      },
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return await frequencyDeferred.promise;
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '猫',
+                        reading: 'ねこ',
+                        headwords: [[{ term: '猫' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+      tokenizeWithMecab: async () => {
+        return await mecabDeferred.promise;
+      },
+    }),
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(tokenizationReadyText, '猫');
+
+  frequencyDeferred.resolve([]);
+  mecabDeferred.resolve(null);
+  await pendingResult;
+});
+
 test('tokenizeSubtitle appends trailing kana to merged Yomitan readings when headword equals surface', async () => {
   const result = await tokenizeSubtitle(
     '断じて見ていない',

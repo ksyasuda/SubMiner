@@ -51,6 +51,7 @@ export interface TokenizerServiceDeps {
   getYomitanGroupDebugEnabled?: () => boolean;
   tokenizeWithMecab: (text: string) => Promise<MergedToken[] | null>;
   enrichTokensWithMecab?: MecabTokenEnrichmentFn;
+  onTokenizationReady?: (text: string) => void;
 }
 
 interface MecabTokenizerLike {
@@ -78,6 +79,7 @@ export interface TokenizerDepsRuntimeOptions {
   getMinSentenceWordsForNPlusOne?: () => number;
   getYomitanGroupDebugEnabled?: () => boolean;
   getMecabTokenizer: () => MecabTokenizerLike | null;
+  onTokenizationReady?: (text: string) => void;
 }
 
 interface TokenizerAnnotationOptions {
@@ -215,6 +217,7 @@ export function createTokenizerDepsRuntime(
     },
     enrichTokensWithMecab: async (tokens, mecabTokens) =>
       enrichTokensWithMecabAsync(tokens, mecabTokens),
+    onTokenizationReady: options.onTokenizationReady,
   };
 }
 
@@ -477,6 +480,7 @@ async function parseWithYomitanInternalParser(
   if (deps.getYomitanGroupDebugEnabled?.() === true) {
     logSelectedYomitanGroups(text, normalizedSelectedTokens);
   }
+  deps.onTokenizationReady?.(text);
 
   const frequencyRankPromise: Promise<Map<string, number>> = options.frequencyEnabled
     ? (async () => {

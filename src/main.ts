@@ -854,21 +854,30 @@ const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsH
 let autoPlayReadySignalMediaPath: string | null = null;
 let autoPlayReadySignalGeneration = 0;
 
-function maybeSignalPluginAutoplayReady(payload: SubtitleData): void {
+function maybeSignalPluginAutoplayReady(
+  payload: SubtitleData,
+  options?: { forceWhilePaused?: boolean },
+): void {
   if (!payload.text.trim()) {
     return;
   }
-  const mediaPath = appState.currentMediaPath;
-  if (!mediaPath) {
-    return;
-  }
-  if (autoPlayReadySignalMediaPath === mediaPath) {
+  const mediaPath =
+    appState.currentMediaPath?.trim() ||
+    appState.mpvClient?.currentVideoPath?.trim() ||
+    '__unknown__';
+  const duplicateMediaSignal = autoPlayReadySignalMediaPath === mediaPath;
+  const allowDuplicateWhilePaused =
+    options?.forceWhilePaused === true && appState.playbackPaused !== false;
+  if (duplicateMediaSignal && !allowDuplicateWhilePaused) {
     return;
   }
   autoPlayReadySignalMediaPath = mediaPath;
   const playbackGeneration = ++autoPlayReadySignalGeneration;
-  logger.debug(`[autoplay-ready] signaling mpv for media: ${mediaPath}`);
-  sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
+  const signalPluginAutoplayReady = (): void => {
+    logger.debug(`[autoplay-ready] signaling mpv for media: ${mediaPath}`);
+    sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
+  };
+  signalPluginAutoplayReady();
   const isPlaybackPaused = async (client: {
     requestProperty: (property: string) => Promise<unknown>;
   }): Promise<boolean> => {
@@ -892,55 +901,52 @@ function maybeSignalPluginAutoplayReady(payload: SubtitleData): void {
     return true;
   };
 
-  // Fallback: unpause directly in case plugin readiness handler is unavailable/outdated.
-  void (async () => {
-    const mpvClient = appState.mpvClient;
-    if (!mpvClient?.connected) {
-      logger.debug('[autoplay-ready] skipped unpause fallback; mpv not connected');
-      return;
-    }
+  // Fallback: repeatedly try to release pause for a short window in case startup
+  // gate arming and tokenization-ready signal arrive out of order.
+  const maxReleaseAttempts = options?.forceWhilePaused === true ? 14 : 3;
+  const releaseRetryDelayMs = 200;
+  const attemptRelease = (attempt: number): void => {
+    void (async () => {
+      if (
+        autoPlayReadySignalMediaPath !== mediaPath ||
+        playbackGeneration !== autoPlayReadySignalGeneration
+      ) {
+        return;
+      }
 
-    const shouldUnpause = await isPlaybackPaused(mpvClient);
-    logger.debug(`[autoplay-ready] mpv paused before fallback for ${mediaPath}: ${shouldUnpause}`);
-
-    if (!shouldUnpause) {
-      logger.debug('[autoplay-ready] mpv already playing; no fallback unpause needed');
-      return;
-    }
-
-    mpvClient.send({ command: ['set_property', 'pause', false] });
-    setTimeout(() => {
-      void (async () => {
-        if (
-          autoPlayReadySignalMediaPath !== mediaPath ||
-          playbackGeneration !== autoPlayReadySignalGeneration
-        ) {
-          return;
+      const mpvClient = appState.mpvClient;
+      if (!mpvClient?.connected) {
+        if (attempt < maxReleaseAttempts) {
+          setTimeout(() => attemptRelease(attempt + 1), releaseRetryDelayMs);
         }
+        return;
+      }
 
-        const followupClient = appState.mpvClient;
-        if (!followupClient?.connected) {
-          return;
+      const shouldUnpause = await isPlaybackPaused(mpvClient);
+      logger.debug(
+        `[autoplay-ready] mpv paused before fallback attempt ${attempt} for ${mediaPath}: ${shouldUnpause}`,
+      );
+      if (!shouldUnpause) {
+        if (attempt === 0) {
+          logger.debug('[autoplay-ready] mpv already playing; no fallback unpause needed');
         }
+        return;
+      }
 
-        const shouldUnpauseFollowup = await isPlaybackPaused(followupClient);
-        if (!shouldUnpauseFollowup) {
-          return;
-        }
-        followupClient.send({ command: ['set_property', 'pause', false] });
-      })();
-    }, 500);
-    logger.debug('[autoplay-ready] issued direct mpv unpause fallback');
-  })();
+      signalPluginAutoplayReady();
+      mpvClient.send({ command: ['set_property', 'pause', false] });
+      if (attempt < maxReleaseAttempts) {
+        setTimeout(() => attemptRelease(attempt + 1), releaseRetryDelayMs);
+      }
+    })();
+  };
+  attemptRelease(0);
 }
 
 let appTray: Tray | null = null;
 const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({
     tokenizeSubtitle: async (text: string) => {
-      if (getOverlayWindows().length === 0 && !subtitleWsService.hasClients()) {
-        return null;
-      }
       return await tokenizeSubtitle(text);
     },
     emitSubtitle: (payload) => {
@@ -951,7 +957,6 @@ const buildSubtitleProcessingControllerMainDepsHandler =
         topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
         mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
       });
-      maybeSignalPluginAutoplayReady(payload);
     },
     logDebug: (message) => {
       logger.debug(`[subtitle-processing] ${message}`);
@@ -2335,9 +2340,7 @@ const {
       ensureImmersionTrackerStarted();
     },
     updateCurrentMediaPath: (path) => {
-      if (appState.currentMediaPath !== path) {
-        autoPlayReadySignalMediaPath = null;
-      }
+      autoPlayReadySignalMediaPath = null;
       if (path) {
         ensureImmersionTrackerStarted();
       }
@@ -2443,6 +2446,9 @@ const {
       getFrequencyRank: (text) => appState.frequencyRankLookup(text),
       getYomitanGroupDebugEnabled: () => appState.overlayDebugVisualizationEnabled,
       getMecabTokenizer: () => appState.mecabTokenizer,
+      onTokenizationReady: (text) => {
+        maybeSignalPluginAutoplayReady({ text, tokens: null }, { forceWhilePaused: true });
+      },
     },
     createTokenizerRuntimeDeps: (deps) =>
       createTokenizerDepsRuntime(deps as Parameters<typeof createTokenizerDepsRuntime>[0]),

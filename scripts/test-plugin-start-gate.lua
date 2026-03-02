@@ -304,6 +304,26 @@ local function find_control_call(async_calls, flag)
 	return nil
 end
 
+local function count_control_calls(async_calls, flag)
+	local count = 0
+	for _, call in ipairs(async_calls) do
+		local args = call.args or {}
+		local has_flag = false
+		local has_start = false
+		for _, value in ipairs(args) do
+			if value == flag then
+				has_flag = true
+			elseif value == "--start" then
+				has_start = true
+			end
+		end
+		if has_flag and not has_start then
+			count = count + 1
+		end
+	end
+	return count
+end
+
 local function call_has_arg(call, target)
 	local args = (call and call.args) or {}
 	for _, value in ipairs(args) do
@@ -369,6 +389,16 @@ local function count_osd_message(messages, target)
 	local count = 0
 	for _, message in ipairs(messages) do
 		if message == target then
+			count = count + 1
+		end
+	end
+	return count
+end
+
+local function count_property_set(property_sets, name, value)
+	local count = 0
+	for _, call in ipairs(property_sets) do
+		if call.name == name and call.value == value then
 			count = count + 1
 		end
 	end
@@ -517,8 +547,60 @@ do
 		"duplicate file-loaded events should not issue duplicate --start commands while overlay is already running"
 	)
 	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		"duplicate auto-start should re-assert visible overlay state when overlay is already running"
+	)
+	assert_true(
 		count_osd_message(recorded.osd, "SubMiner: Already running") == 0,
 		"duplicate auto-start events should not show Already running OSD"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for duplicate auto-start pause-until-ready scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(recorded.script_messages["subminer-autoplay-ready"] ~= nil, "subminer-autoplay-ready script message not registered")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"duplicate pause-until-ready auto-start should not issue duplicate --start commands while overlay is already running"
+	)
+	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		"duplicate pause-until-ready auto-start should still re-assert visible overlay state"
+	)
+	assert_true(
+		count_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization...") == 2,
+		"duplicate pause-until-ready auto-start should arm tokenization loading gate for each file"
+	)
+	assert_true(
+		count_osd_message(recorded.osd, "SubMiner: Subtitle tokenization ready") == 2,
+		"duplicate pause-until-ready auto-start should release tokenization gate for each file"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 2,
+		"duplicate pause-until-ready auto-start should force pause for each file"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 2,
+		"duplicate pause-until-ready auto-start should resume playback for each file"
 	)
 end
 
@@ -569,6 +651,35 @@ do
 	assert_true(
 		recorded.periodic_timers[1].killed == true,
 		"autoplay-ready should stop periodic loading OSD refresher"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for pause cleanup scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	fire_event(recorded, "end-file")
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", true) == 1,
+		"pause cleanup scenario should force pause while waiting for tokenization"
+	)
+	assert_true(
+		count_property_set(recorded.property_sets, "pause", false) == 1,
+		"ending file while gate is armed should clear forced pause state"
 	)
 end
 

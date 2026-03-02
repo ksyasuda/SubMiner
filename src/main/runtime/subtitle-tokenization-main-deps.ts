@@ -48,6 +48,7 @@ export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
     getFrequencyRank: (text: string) => deps.getFrequencyRank(text),
     getYomitanGroupDebugEnabled: () => deps.getYomitanGroupDebugEnabled(),
     getMecabTokenizer: () => deps.getMecabTokenizer(),
+    onTokenizationReady: (text: string) => deps.onTokenizationReady?.(text),
   });
 }
 
@@ -81,7 +82,6 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
   let loadingOsdFrame = 0;
   let loadingOsdTimer: unknown = null;
   const showMpvOsd = deps.showMpvOsd;
-  const shouldShowOsdNotification = deps.shouldShowOsdNotification ?? (() => false);
   const setIntervalHandler =
     deps.setInterval ??
     ((callback: () => void, delayMs: number): unknown => setInterval(callback, delayMs));
@@ -91,7 +91,7 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
   const spinnerFrames = ['|', '/', '-', '\\'];
 
   const beginLoadingOsd = (): boolean => {
-    if (!showMpvOsd || !shouldShowOsdNotification()) {
+    if (!showMpvOsd) {
       return false;
     }
     loadingOsdDepth += 1;

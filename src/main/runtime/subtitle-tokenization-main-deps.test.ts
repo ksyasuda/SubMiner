@@ -167,22 +167,28 @@ test('dictionary prewarm can show OSD while awaiting background-started load', a
   assert.deepEqual(osdMessages, ['Loading subtitle annotations |', 'Subtitle annotations loaded']);
 });
 
-test('dictionary prewarm does not show OSD when notifications are disabled', async () => {
-  const osdMessages: string[] = [];
+test(
+  'dictionary prewarm shows OSD when loading indicator is requested even if notification predicate is disabled',
+  async () => {
+    const osdMessages: string[] = [];
 
-  const prewarm = createPrewarmSubtitleDictionariesMainHandler({
-    ensureJlptDictionaryLookup: async () => undefined,
-    ensureFrequencyDictionaryLookup: async () => undefined,
-    shouldShowOsdNotification: () => false,
-    showMpvOsd: (message) => {
-      osdMessages.push(message);
-    },
-  });
+    const prewarm = createPrewarmSubtitleDictionariesMainHandler({
+      ensureJlptDictionaryLookup: async () => undefined,
+      ensureFrequencyDictionaryLookup: async () => undefined,
+      shouldShowOsdNotification: () => false,
+      showMpvOsd: (message) => {
+        osdMessages.push(message);
+      },
+    });
 
-  await prewarm({ showLoadingOsd: true });
+    await prewarm({ showLoadingOsd: true });
 
-  assert.deepEqual(osdMessages, []);
-});
+    assert.deepEqual(osdMessages, [
+      'Loading subtitle annotations |',
+      'Subtitle annotations loaded',
+    ]);
+  },
+);
 
 test('dictionary prewarm clears loading OSD timer even if notifications are disabled before completion', async () => {
   const clearedTimers: unknown[] = [];
