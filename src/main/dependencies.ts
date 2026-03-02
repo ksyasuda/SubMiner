@@ -180,6 +180,7 @@ export interface MpvCommandRuntimeServiceDepsParams {
   showMpvOsd: HandleMpvCommandFromIpcOptions['showMpvOsd'];
   mpvReplaySubtitle: HandleMpvCommandFromIpcOptions['mpvReplaySubtitle'];
   mpvPlayNextSubtitle: HandleMpvCommandFromIpcOptions['mpvPlayNextSubtitle'];
+  shiftSubDelayToAdjacentSubtitle: HandleMpvCommandFromIpcOptions['shiftSubDelayToAdjacentSubtitle'];
   mpvSendCommand: HandleMpvCommandFromIpcOptions['mpvSendCommand'];
   isMpvConnected: HandleMpvCommandFromIpcOptions['isMpvConnected'];
   hasRuntimeOptionsManager: HandleMpvCommandFromIpcOptions['hasRuntimeOptionsManager'];
@@ -328,6 +329,7 @@ export function createMpvCommandRuntimeServiceDeps(
     showMpvOsd: params.showMpvOsd,
     mpvReplaySubtitle: params.mpvReplaySubtitle,
     mpvPlayNextSubtitle: params.mpvPlayNextSubtitle,
+    shiftSubDelayToAdjacentSubtitle: params.shiftSubDelayToAdjacentSubtitle,
     mpvSendCommand: params.mpvSendCommand,
     isMpvConnected: params.isMpvConnected,
     hasRuntimeOptionsManager: params.hasRuntimeOptionsManager,

@@ -44,6 +44,8 @@ export const SPECIAL_COMMANDS = {
   RUNTIME_OPTION_CYCLE_PREFIX: '__runtime-option-cycle:',
   REPLAY_SUBTITLE: '__replay-subtitle',
   PLAY_NEXT_SUBTITLE: '__play-next-subtitle',
+  SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START: '__sub-delay-next-line',
+  SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START: '__sub-delay-prev-line',
 } as const;
 
 export const DEFAULT_KEYBINDINGS: NonNullable<ResolvedConfig['keybindings']> = [
@@ -56,6 +58,11 @@ export const DEFAULT_KEYBINDINGS: NonNullable<ResolvedConfig['keybindings']> = [
   { key: 'ArrowDown', command: ['seek', -60] },
   { key: 'Shift+KeyH', command: ['sub-seek', -1] },
   { key: 'Shift+KeyL', command: ['sub-seek', 1] },
+  { key: 'Shift+BracketRight', command: [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START] },
+  {
+    key: 'Shift+BracketLeft',
+    command: [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START],
+  },
   { key: 'Ctrl+Shift+KeyH', command: [SPECIAL_COMMANDS.REPLAY_SUBTITLE] },
   { key: 'Ctrl+Shift+KeyL', command: [SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE] },
   { key: 'KeyQ', command: ['quit'] },

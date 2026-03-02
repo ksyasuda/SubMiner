@@ -11,6 +11,9 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     replayCurrentSubtitle: () => calls.push('replay'),
     playNextSubtitle: () => calls.push('next'),
+    shiftSubDelayToAdjacentSubtitle: async (direction) => {
+      calls.push(`shift:${direction}`);
+    },
     sendMpvCommand: (command) => calls.push(`cmd:${command.join(':')}`),
     isMpvConnected: () => true,
     hasRuntimeOptionsManager: () => false,
@@ -22,6 +25,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
   deps.showMpvOsd('hello');
   deps.replayCurrentSubtitle();
   deps.playNextSubtitle();
+  void deps.shiftSubDelayToAdjacentSubtitle('next');
   deps.sendMpvCommand(['show-text', 'ok']);
   assert.equal(deps.isMpvConnected(), true);
   assert.equal(deps.hasRuntimeOptionsManager(), false);
@@ -31,6 +35,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     'osd:hello',
     'replay',
     'next',
+    'shift:next',
     'cmd:show-text:ok',
   ]);
 });

@@ -13,6 +13,8 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
       RUNTIME_OPTION_CYCLE_PREFIX: '__runtime-option-cycle:',
       REPLAY_SUBTITLE: '__replay-subtitle',
       PLAY_NEXT_SUBTITLE: '__play-next-subtitle',
+      SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START: '__sub-delay-next-line',
+      SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START: '__sub-delay-prev-line',
     },
     triggerSubsyncFromConfig: () => {
       calls.push('subsync');
@@ -29,6 +31,9 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
     },
     mpvPlayNextSubtitle: () => {
       calls.push('next');
+    },
+    shiftSubDelayToAdjacentSubtitle: async (direction) => {
+      calls.push(`shift:${direction}`);
     },
     mpvSendCommand: (command) => {
       sentCommands.push(command);
@@ -66,6 +71,21 @@ test('handleMpvCommandFromIpc emits osd for secondary subtitle track keybinding 
   handleMpvCommandFromIpc(['set_property', 'secondary-sid', 'auto'], options);
   assert.deepEqual(sentCommands, [['set_property', 'secondary-sid', 'auto']]);
   assert.deepEqual(osd, ['Secondary subtitle track: ${secondary-sid}']);
+});
+
+test('handleMpvCommandFromIpc emits osd for subtitle delay keybinding proxies', () => {
+  const { options, sentCommands, osd } = createOptions();
+  handleMpvCommandFromIpc(['add', 'sub-delay', 0.1], options);
+  assert.deepEqual(sentCommands, [['add', 'sub-delay', 0.1]]);
+  assert.deepEqual(osd, ['Subtitle delay: ${sub-delay}']);
+});
+
+test('handleMpvCommandFromIpc dispatches special subtitle-delay shift command', () => {
+  const { options, calls, sentCommands, osd } = createOptions();
+  handleMpvCommandFromIpc(['__sub-delay-next-line'], options);
+  assert.deepEqual(calls, ['shift:next']);
+  assert.deepEqual(sentCommands, []);
+  assert.deepEqual(osd, []);
 });
 
 test('handleMpvCommandFromIpc does not forward commands while disconnected', () => {

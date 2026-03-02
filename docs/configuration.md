@@ -375,6 +375,8 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 | `ArrowDown`       | `["seek", -60]`              | Seek backward 60 seconds              |
 | `Shift+KeyH`      | `["sub-seek", -1]`           | Jump to previous subtitle             |
 | `Shift+KeyL`      | `["sub-seek", 1]`            | Jump to next subtitle                 |
+| `Shift+BracketLeft` | `["__sub-delay-prev-line"]` | Shift subtitle delay to previous cue  |
+| `Shift+BracketRight` | `["__sub-delay-next-line"]` | Shift subtitle delay to next cue      |
 | `Ctrl+Shift+KeyH` | `["__replay-subtitle"]`      | Replay current subtitle, pause at end |
 | `Ctrl+Shift+KeyL` | `["__play-next-subtitle"]`   | Play next subtitle, pause at end      |
 | `KeyQ`            | `["quit"]`                   | Quit mpv                              |
@@ -402,11 +404,11 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 { "key": "Space", "command": null }
 ```
 
-**Special commands:** Commands prefixed with `__` are handled internally by the overlay rather than sent to mpv. `__replay-subtitle` replays the current subtitle and pauses at its end. `__play-next-subtitle` seeks to the next subtitle, plays it, and pauses at its end. `__runtime-options-open` opens the runtime options palette. `__runtime-option-cycle:<id>[:next|prev]` cycles a runtime option value.
+**Special commands:** Commands prefixed with `__` are handled internally by the overlay rather than sent to mpv. `__replay-subtitle` replays the current subtitle and pauses at its end. `__play-next-subtitle` seeks to the next subtitle, plays it, and pauses at its end. `__sub-delay-next-line` shifts subtitle delay so the active line aligns to the next cue start in the active subtitle source. `__sub-delay-prev-line` shifts subtitle delay so the active line aligns to the previous cue start. `__runtime-options-open` opens the runtime options palette. `__runtime-option-cycle:<id>[:next|prev]` cycles a runtime option value.
 
 **Supported commands:** Any valid mpv JSON IPC command array (`["cycle", "pause"]`, `["seek", 5]`, `["script-binding", "..."]`, etc.)
 
-For subtitle-position and subtitle-track proxy commands (`sub-pos`, `sid`, `secondary-sid`), SubMiner also shows an mpv OSD notification after the command runs.
+For subtitle-position and subtitle-track proxy commands (`sub-pos`, `sid`, `secondary-sid`) and subtitle delay commands (`sub-delay`), SubMiner also shows an mpv OSD notification after the command runs.
 
 **See `config.example.jsonc`** for more keybinding examples and configuration options.
 

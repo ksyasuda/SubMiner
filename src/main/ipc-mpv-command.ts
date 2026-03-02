@@ -10,6 +10,7 @@ export interface MpvCommandFromIpcRuntimeDeps {
   showMpvOsd: (text: string) => void;
   replayCurrentSubtitle: () => void;
   playNextSubtitle: () => void;
+  shiftSubDelayToAdjacentSubtitle: (direction: 'next' | 'previous') => Promise<void>;
   sendMpvCommand: (command: (string | number)[]) => void;
   isMpvConnected: () => boolean;
   hasRuntimeOptionsManager: () => boolean;
@@ -29,6 +30,8 @@ export function handleMpvCommandFromIpcRuntime(
       showMpvOsd: deps.showMpvOsd,
       mpvReplaySubtitle: deps.replayCurrentSubtitle,
       mpvPlayNextSubtitle: deps.playNextSubtitle,
+      shiftSubDelayToAdjacentSubtitle: (direction) =>
+        deps.shiftSubDelayToAdjacentSubtitle(direction),
       mpvSendCommand: deps.sendMpvCommand,
       isMpvConnected: deps.isMpvConnected,
       hasRuntimeOptionsManager: deps.hasRuntimeOptionsManager,

@@ -12,6 +12,8 @@ export interface HandleMpvCommandFromIpcOptions {
     RUNTIME_OPTION_CYCLE_PREFIX: string;
     REPLAY_SUBTITLE: string;
     PLAY_NEXT_SUBTITLE: string;
+    SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START: string;
+    SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START: string;
   };
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -19,6 +21,7 @@ export interface HandleMpvCommandFromIpcOptions {
   showMpvOsd: (text: string) => void;
   mpvReplaySubtitle: () => void;
   mpvPlayNextSubtitle: () => void;
+  shiftSubDelayToAdjacentSubtitle: (direction: 'next' | 'previous') => Promise<void>;
   mpvSendCommand: (command: (string | number)[]) => void;
   isMpvConnected: () => boolean;
   hasRuntimeOptionsManager: () => boolean;
@@ -46,6 +49,9 @@ function resolveProxyCommandOsd(command: (string | number)[]): string | null {
   if (property === 'secondary-sid') {
     return 'Secondary subtitle track: ${secondary-sid}';
   }
+  if (property === 'sub-delay') {
+    return 'Subtitle delay: ${sub-delay}';
+  }
   return null;
 }
 
@@ -61,6 +67,20 @@ export function handleMpvCommandFromIpc(
 
   if (first === options.specialCommands.RUNTIME_OPTIONS_OPEN) {
     options.openRuntimeOptionsPalette();
+    return;
+  }
+
+  if (
+    first === options.specialCommands.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START ||
+    first === options.specialCommands.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START
+  ) {
+    const direction =
+      first === options.specialCommands.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START
+        ? 'next'
+        : 'previous';
+    options.shiftSubDelayToAdjacentSubtitle(direction).catch((error) => {
+      options.showMpvOsd(`Subtitle delay shift failed: ${(error as Error).message}`);
+    });
     return;
   }
 

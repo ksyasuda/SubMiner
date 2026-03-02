@@ -331,6 +331,7 @@ import {
   copyCurrentSubtitle as copyCurrentSubtitleCore,
   createConfigHotReloadRuntime,
   createDiscordPresenceService,
+  createShiftSubtitleDelayToAdjacentCueHandler,
   createFieldGroupingOverlayRuntime,
   createOverlayContentMeasurementStore,
   createOverlayManager,
@@ -1351,6 +1352,20 @@ function getRuntimeBooleanOption(
 ): boolean {
   const value = appState.runtimeOptionsManager?.getOptionValue(id);
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function shouldInitializeMecabForAnnotations(): boolean {
+  const config = getResolvedConfig();
+  const nPlusOneEnabled = getRuntimeBooleanOption(
+    'subtitle.annotation.nPlusOne',
+    config.ankiConnect.nPlusOne.highlightEnabled,
+  );
+  const jlptEnabled = getRuntimeBooleanOption('subtitle.annotation.jlpt', config.subtitleStyle.enableJlpt);
+  const frequencyEnabled = getRuntimeBooleanOption(
+    'subtitle.annotation.frequency',
+    config.subtitleStyle.frequencyDictionary.enabled,
+  );
+  return nPlusOneEnabled || jlptEnabled || frequencyEnabled;
 }
 
 const {
@@ -2469,7 +2484,10 @@ const {
         if (startupWarmups.lowPowerMode) {
           return false;
         }
-        return startupWarmups.mecab;
+        if (!startupWarmups.mecab) {
+          return false;
+        }
+        return shouldInitializeMecabForAnnotations();
       },
       shouldWarmupYomitanExtension: () => getResolvedConfig().startupWarmups.yomitanExtension,
       shouldWarmupSubtitleDictionaries: () => {
@@ -2925,6 +2943,30 @@ const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHand
   appendClipboardVideoToQueueMainDeps,
 );
 
+const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacentCueHandler({
+  getMpvClient: () => appState.mpvClient,
+  loadSubtitleSourceText: async (source) => {
+    if (/^https?:\/\//i.test(source)) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      try {
+        const response = await fetch(source, { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error(`Failed to download subtitle source (${response.status})`);
+        }
+        return await response.text();
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    const filePath = source.startsWith('file://') ? decodeURI(new URL(source).pathname) : source;
+    return fs.promises.readFile(filePath, 'utf8');
+  },
+  sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
+  showMpvOsd: (text) => showMpvOsd(text),
+});
+
 const {
   handleMpvCommandFromIpc: handleMpvCommandFromIpcHandler,
   runSubsyncManualFromIpc: runSubsyncManualFromIpcHandler,
@@ -2945,6 +2987,7 @@ const {
     showMpvOsd: (text: string) => showMpvOsd(text),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
+    shiftSubDelayToAdjacentSubtitle: (direction) => shiftSubtitleDelayToAdjacentCueHandler(direction),
     sendMpvCommand: (rawCommand: (string | number)[]) =>
       sendMpvCommandRuntime(appState.mpvClient, rawCommand),
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
