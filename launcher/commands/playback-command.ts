@@ -143,11 +143,7 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     pluginRuntimeConfig.autoStartPauseUntilReady;
 
   if (shouldPauseUntilOverlayReady) {
-    log(
-      'info',
-      args.logLevel,
-      'Configured to pause mpv until overlay and tokenization are ready',
-    );
+    log('info', args.logLevel, 'Configured to pause mpv until overlay and tokenization are ready');
   }
 
   startMpv(
@@ -198,11 +194,7 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     if (ready) {
       log('info', args.logLevel, 'MPV IPC socket ready, relying on mpv plugin auto-start');
     } else {
-      log(
-        'info',
-        args.logLevel,
-        'MPV IPC socket not ready yet, relying on mpv plugin auto-start',
-      );
+      log('info', args.logLevel, 'MPV IPC socket not ready yet, relying on mpv plugin auto-start');
     }
   } else if (ready) {
     log(

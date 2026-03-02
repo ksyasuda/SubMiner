@@ -54,7 +54,7 @@ export function createHandleJellyfinListCommands(deps: {
       isForced?: boolean;
       isExternal?: boolean;
       deliveryUrl?: string | null;
-      }>
+    }>
   >;
   writeJellyfinPreviewAuth: (responsePath: string, payload: JellyfinPreviewAuthPayload) => void;
   logInfo: (message: string) => void;

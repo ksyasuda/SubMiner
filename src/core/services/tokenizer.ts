@@ -92,13 +92,14 @@ interface TokenizerAnnotationOptions {
   pos2Exclusions: ReadonlySet<string>;
 }
 
-let parserEnrichmentWorkerRuntimeModulePromise:
-  | Promise<typeof import('./tokenizer/parser-enrichment-worker-runtime')>
-  | null = null;
-let annotationStageModulePromise: Promise<typeof import('./tokenizer/annotation-stage')> | null = null;
-let parserEnrichmentFallbackModulePromise:
-  | Promise<typeof import('./tokenizer/parser-enrichment-stage')>
-  | null = null;
+let parserEnrichmentWorkerRuntimeModulePromise: Promise<
+  typeof import('./tokenizer/parser-enrichment-worker-runtime')
+> | null = null;
+let annotationStageModulePromise: Promise<typeof import('./tokenizer/annotation-stage')> | null =
+  null;
+let parserEnrichmentFallbackModulePromise: Promise<
+  typeof import('./tokenizer/parser-enrichment-stage')
+> | null = null;
 const DEFAULT_ANNOTATION_POS1_EXCLUSIONS = resolveAnnotationPos1ExclusionSet(
   DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG,
 );
@@ -106,7 +107,10 @@ const DEFAULT_ANNOTATION_POS2_EXCLUSIONS = resolveAnnotationPos2ExclusionSet(
   DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
 );
 
-function getKnownWordLookup(deps: TokenizerServiceDeps, options: TokenizerAnnotationOptions): (text: string) => boolean {
+function getKnownWordLookup(
+  deps: TokenizerServiceDeps,
+  options: TokenizerAnnotationOptions,
+): (text: string) => boolean {
   if (!options.nPlusOneEnabled) {
     return () => false;
   }
@@ -126,7 +130,8 @@ async function enrichTokensWithMecabAsync(
   mecabTokens: MergedToken[] | null,
 ): Promise<MergedToken[]> {
   if (!parserEnrichmentWorkerRuntimeModulePromise) {
-    parserEnrichmentWorkerRuntimeModulePromise = import('./tokenizer/parser-enrichment-worker-runtime');
+    parserEnrichmentWorkerRuntimeModulePromise =
+      import('./tokenizer/parser-enrichment-worker-runtime');
   }
 
   try {
@@ -185,8 +190,7 @@ export function createTokenizerDepsRuntime(
     getNPlusOneEnabled: options.getNPlusOneEnabled,
     getJlptEnabled: options.getJlptEnabled,
     getFrequencyDictionaryEnabled: options.getFrequencyDictionaryEnabled,
-    getFrequencyDictionaryMatchMode:
-      options.getFrequencyDictionaryMatchMode ?? (() => 'headword'),
+    getFrequencyDictionaryMatchMode: options.getFrequencyDictionaryMatchMode ?? (() => 'headword'),
     getFrequencyRank: options.getFrequencyRank,
     getMinSentenceWordsForNPlusOne: options.getMinSentenceWordsForNPlusOne ?? (() => 3),
     getYomitanGroupDebugEnabled: options.getYomitanGroupDebugEnabled ?? (() => false),
@@ -348,7 +352,8 @@ function buildYomitanFrequencyRankMap(
       continue;
     }
     const dictionaryPriority =
-      typeof frequency.dictionaryPriority === 'number' && Number.isFinite(frequency.dictionaryPriority)
+      typeof frequency.dictionaryPriority === 'number' &&
+      Number.isFinite(frequency.dictionaryPriority)
         ? Math.max(0, Math.floor(frequency.dictionaryPriority))
         : Number.MAX_SAFE_INTEGER;
     const current = rankByTerm.get(normalizedTerm);
@@ -489,7 +494,11 @@ async function parseWithYomitanInternalParser(
           normalizedSelectedTokens,
           frequencyMatchMode,
         );
-        const yomitanFrequencies = await requestYomitanTermFrequencies(termReadingList, deps, logger);
+        const yomitanFrequencies = await requestYomitanTermFrequencies(
+          termReadingList,
+          deps,
+          logger,
+        );
         return buildYomitanFrequencyRankMap(yomitanFrequencies);
       })()
     : Promise.resolve(new Map<string, number>());

@@ -39,7 +39,10 @@ interface YomitanProfileMetadata {
 
 const DEFAULT_YOMITAN_SCAN_LENGTH = 40;
 const yomitanProfileMetadataByWindow = new WeakMap<BrowserWindow, YomitanProfileMetadata>();
-const yomitanFrequencyCacheByWindow = new WeakMap<BrowserWindow, Map<string, YomitanTermFrequency[]>>();
+const yomitanFrequencyCacheByWindow = new WeakMap<
+  BrowserWindow,
+  Map<string, YomitanTermFrequency[]>
+>();
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object');
@@ -87,7 +90,7 @@ function parsePositiveFrequencyString(value: string): number | null {
   const chunks = numericPrefix.split(',');
   const normalizedNumber =
     chunks.length <= 1
-      ? chunks[0] ?? ''
+      ? (chunks[0] ?? '')
       : chunks.slice(1).every((chunk) => /^\d{3}$/.test(chunk))
         ? chunks.join('')
         : (chunks[0] ?? '');
@@ -145,11 +148,7 @@ function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
       : Number.MAX_SAFE_INTEGER;
 
   const reading =
-    value.reading === null
-      ? null
-      : typeof value.reading === 'string'
-        ? value.reading
-        : null;
+    value.reading === null ? null : typeof value.reading === 'string' ? value.reading : null;
   const displayValue = typeof displayValueRaw === 'string' ? displayValueRaw : null;
   const displayValueParsed = value.displayValueParsed === true;
 
@@ -164,7 +163,9 @@ function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
   };
 }
 
-function normalizeTermReadingList(termReadingList: YomitanTermReadingPair[]): YomitanTermReadingPair[] {
+function normalizeTermReadingList(
+  termReadingList: YomitanTermReadingPair[],
+): YomitanTermReadingPair[] {
   const normalized: YomitanTermReadingPair[] = [];
   const seen = new Set<string>();
 
@@ -174,7 +175,9 @@ function normalizeTermReadingList(termReadingList: YomitanTermReadingPair[]): Yo
       continue;
     }
     const reading =
-      typeof pair.reading === 'string' && pair.reading.trim().length > 0 ? pair.reading.trim() : null;
+      typeof pair.reading === 'string' && pair.reading.trim().length > 0
+        ? pair.reading.trim()
+        : null;
     const key = `${term}\u0000${reading ?? ''}`;
     if (seen.has(key)) {
       continue;
@@ -298,7 +301,9 @@ function groupFrequencyEntriesByPair(
   const grouped = new Map<string, YomitanTermFrequency[]>();
   for (const entry of entries) {
     const reading =
-      typeof entry.reading === 'string' && entry.reading.trim().length > 0 ? entry.reading.trim() : null;
+      typeof entry.reading === 'string' && entry.reading.trim().length > 0
+        ? entry.reading.trim()
+        : null;
     const key = makeTermReadingCacheKey(entry.term.trim(), reading);
     const existing = grouped.get(key);
     if (existing) {
@@ -805,7 +810,11 @@ export async function requestYomitanTermFrequencies(
     );
     if (fallbackFetchResult !== null) {
       fallbackFetchedEntries = fallbackFetchResult;
-      cacheFrequencyEntriesForPairs(frequencyCache, fallbackTermReadingList, fallbackFetchedEntries);
+      cacheFrequencyEntriesForPairs(
+        frequencyCache,
+        fallbackTermReadingList,
+        fallbackFetchedEntries,
+      );
     }
 
     for (const pair of missingTermReadingList) {
@@ -829,7 +838,9 @@ export async function requestYomitanTermFrequencies(
     [...missingTermReadingList, ...fallbackTermReadingList].map((pair) => pair.term),
   );
   const cachedResult = buildCachedResult();
-  const unmatchedEntries = allFetchedEntries.filter((entry) => !queriedTerms.has(entry.term.trim()));
+  const unmatchedEntries = allFetchedEntries.filter(
+    (entry) => !queriedTerms.has(entry.term.trim()),
+  );
   return [...cachedResult, ...unmatchedEntries];
 }
 

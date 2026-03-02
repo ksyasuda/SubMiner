@@ -46,8 +46,8 @@ These control playback and subtitle display. They require overlay window focus.
 | `ArrowDown`          | Seek backward 60 seconds                           |
 | `Shift+H`            | Jump to previous subtitle                          |
 | `Shift+L`            | Jump to next subtitle                              |
-| `Shift+[`            | Shift subtitle delay to previous subtitle cue       |
-| `Shift+]`            | Shift subtitle delay to next subtitle cue           |
+| `Shift+[`            | Shift subtitle delay to previous subtitle cue      |
+| `Shift+]`            | Shift subtitle delay to next subtitle cue          |
 | `Ctrl+Shift+H`       | Replay current subtitle (play to end, then pause)  |
 | `Ctrl+Shift+L`       | Play next subtitle (jump, play to end, then pause) |
 | `Q`                  | Quit mpv                                           |

@@ -99,8 +99,7 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
   if (isObject(src.subtitleStyle)) {
     const fallbackSubtitleStyleEnableJlpt = resolved.subtitleStyle.enableJlpt;
     const fallbackSubtitleStylePreserveLineBreaks = resolved.subtitleStyle.preserveLineBreaks;
-    const fallbackSubtitleStyleAutoPauseVideoOnHover =
-      resolved.subtitleStyle.autoPauseVideoOnHover;
+    const fallbackSubtitleStyleAutoPauseVideoOnHover = resolved.subtitleStyle.autoPauseVideoOnHover;
     const fallbackSubtitleStyleHoverTokenColor = resolved.subtitleStyle.hoverTokenColor;
     const fallbackSubtitleStyleHoverTokenBackgroundColor =
       resolved.subtitleStyle.hoverTokenBackgroundColor;
@@ -161,8 +160,7 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     if (autoPauseVideoOnHover !== undefined) {
       resolved.subtitleStyle.autoPauseVideoOnHover = autoPauseVideoOnHover;
     } else if (
-      (src.subtitleStyle as { autoPauseVideoOnHover?: unknown }).autoPauseVideoOnHover !==
-      undefined
+      (src.subtitleStyle as { autoPauseVideoOnHover?: unknown }).autoPauseVideoOnHover !== undefined
     ) {
       resolved.subtitleStyle.autoPauseVideoOnHover = fallbackSubtitleStyleAutoPauseVideoOnHover;
       warn(

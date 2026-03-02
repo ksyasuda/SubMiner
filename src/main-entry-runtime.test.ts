@@ -33,7 +33,13 @@ test('sanitizeBackgroundEnv marks background child and keeps warning suppression
 
 test('shouldDetachBackgroundLaunch only for first background invocation', () => {
   assert.equal(shouldDetachBackgroundLaunch(['--background'], {}), true);
-  assert.equal(shouldDetachBackgroundLaunch(['--background'], { SUBMINER_BACKGROUND_CHILD: '1' }), false);
-  assert.equal(shouldDetachBackgroundLaunch(['--background'], { ELECTRON_RUN_AS_NODE: '1' }), false);
+  assert.equal(
+    shouldDetachBackgroundLaunch(['--background'], { SUBMINER_BACKGROUND_CHILD: '1' }),
+    false,
+  );
+  assert.equal(
+    shouldDetachBackgroundLaunch(['--background'], { ELECTRON_RUN_AS_NODE: '1' }),
+    false,
+  );
   assert.equal(shouldDetachBackgroundLaunch(['--start'], {}), false);
 });

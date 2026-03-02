@@ -139,7 +139,8 @@ export class MecabTokenizer {
     );
     this.spawnFn = options.spawnFn ?? childProcess.spawn;
     this.execSyncFn = options.execSyncFn ?? childProcess.execSync;
-    this.setTimeoutFn = options.setTimeoutFn ?? ((callback, delayMs) => setTimeout(callback, delayMs));
+    this.setTimeoutFn =
+      options.setTimeoutFn ?? ((callback, delayMs) => setTimeout(callback, delayMs));
     this.clearTimeoutFn = options.clearTimeoutFn ?? ((timer) => clearTimeout(timer));
   }
 
@@ -217,11 +218,7 @@ export class MecabTokenizer {
   }
 
   private retryOrResolveRequest(request: MecabQueuedRequest): void {
-    if (
-      request.retryCount < MecabTokenizer.MAX_RETRY_COUNT &&
-      this.enabled &&
-      this.available
-    ) {
+    if (request.retryCount < MecabTokenizer.MAX_RETRY_COUNT && this.enabled && this.available) {
       this.requestQueue.push({
         ...request,
         retryCount: request.retryCount + 1,
@@ -368,7 +365,9 @@ export class MecabTokenizer {
     this.requestQueue = [];
 
     if (pending.length > 0) {
-      log.warn(`MeCab parser process ended during active work (${reason}); retrying pending request(s).`);
+      log.warn(
+        `MeCab parser process ended during active work (${reason}); retrying pending request(s).`,
+      );
       for (const request of pending) {
         this.retryOrResolveRequest(request);
       }

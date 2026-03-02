@@ -17,6 +17,9 @@ test('extractLineVocabulary returns words and unique kanji', () => {
     new Set(result.words.map((entry) => `${entry.headword}/${entry.word}`)),
     new Set(['hello/hello', '你好/你好', '猫/猫']),
   );
-  assert.equal(result.words.every((entry) => entry.reading === ''), true);
+  assert.equal(
+    result.words.every((entry) => entry.reading === ''),
+    true,
+  );
   assert.deepEqual(new Set(result.kanji), new Set(['你', '好', '猫']));
 });

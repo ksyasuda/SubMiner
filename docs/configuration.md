@@ -125,8 +125,8 @@ Control the minimum log level for runtime output:
 }
 ```
 
-| Option  | Values                              | Description                                      |
-| ------- | ----------------------------------- | ------------------------------------------------ |
+| Option  | Values                                   | Description                                               |
+| ------- | ---------------------------------------- | --------------------------------------------------------- |
 | `level` | `"debug"`, `"info"`, `"warn"`, `"error"` | Minimum log level for runtime logging (default: `"info"`) |
 
 ### Auto-Start Overlay
@@ -258,7 +258,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                              |
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                                   |
 | `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.         |
-| `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                  |
+| `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                 |
 | `hoverTokenColor`                  | string      | Hex color used for hovered subtitle token highlight in mpv (default: catppuccin mauve)                                     |
 | `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight (default: semi-transparent dark)                            |
 | `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                                 |
@@ -322,6 +322,7 @@ Set the initial vertical subtitle position (measured from the bottom of the scre
 | Option     | Values           | Description                                                            |
 | ---------- | ---------------- | ---------------------------------------------------------------------- |
 | `yPercent` | number (0 - 100) | Distance from the bottom as a percent of screen height (default: `10`) |
+
 In the overlay, you can fine-tune subtitle position at runtime with `Right-click + drag` on subtitle text.
 
 ### Secondary Subtitles
@@ -364,23 +365,23 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 
 **Default keybindings:**
 
-| Key               | Command                      | Description                           |
-| ----------------- | ---------------------------- | ------------------------------------- |
-| `Space`           | `["cycle", "pause"]`         | Toggle pause                          |
-| `KeyJ`            | `["cycle", "sid"]`           | Cycle primary subtitle track          |
-| `Shift+KeyJ`      | `["cycle", "secondary-sid"]` | Cycle secondary subtitle track        |
-| `ArrowRight`      | `["seek", 5]`                | Seek forward 5 seconds                |
-| `ArrowLeft`       | `["seek", -5]`               | Seek backward 5 seconds               |
-| `ArrowUp`         | `["seek", 60]`               | Seek forward 60 seconds               |
-| `ArrowDown`       | `["seek", -60]`              | Seek backward 60 seconds              |
-| `Shift+KeyH`      | `["sub-seek", -1]`           | Jump to previous subtitle             |
-| `Shift+KeyL`      | `["sub-seek", 1]`            | Jump to next subtitle                 |
-| `Shift+BracketLeft` | `["__sub-delay-prev-line"]` | Shift subtitle delay to previous cue  |
-| `Shift+BracketRight` | `["__sub-delay-next-line"]` | Shift subtitle delay to next cue      |
-| `Ctrl+Shift+KeyH` | `["__replay-subtitle"]`      | Replay current subtitle, pause at end |
-| `Ctrl+Shift+KeyL` | `["__play-next-subtitle"]`   | Play next subtitle, pause at end      |
-| `KeyQ`            | `["quit"]`                   | Quit mpv                              |
-| `Ctrl+KeyW`       | `["quit"]`                   | Quit mpv                              |
+| Key                  | Command                      | Description                           |
+| -------------------- | ---------------------------- | ------------------------------------- |
+| `Space`              | `["cycle", "pause"]`         | Toggle pause                          |
+| `KeyJ`               | `["cycle", "sid"]`           | Cycle primary subtitle track          |
+| `Shift+KeyJ`         | `["cycle", "secondary-sid"]` | Cycle secondary subtitle track        |
+| `ArrowRight`         | `["seek", 5]`                | Seek forward 5 seconds                |
+| `ArrowLeft`          | `["seek", -5]`               | Seek backward 5 seconds               |
+| `ArrowUp`            | `["seek", 60]`               | Seek forward 60 seconds               |
+| `ArrowDown`          | `["seek", -60]`              | Seek backward 60 seconds              |
+| `Shift+KeyH`         | `["sub-seek", -1]`           | Jump to previous subtitle             |
+| `Shift+KeyL`         | `["sub-seek", 1]`            | Jump to next subtitle                 |
+| `Shift+BracketLeft`  | `["__sub-delay-prev-line"]`  | Shift subtitle delay to previous cue  |
+| `Shift+BracketRight` | `["__sub-delay-next-line"]`  | Shift subtitle delay to next cue      |
+| `Ctrl+Shift+KeyH`    | `["__replay-subtitle"]`      | Replay current subtitle, pause at end |
+| `Ctrl+Shift+KeyL`    | `["__play-next-subtitle"]`   | Play next subtitle, pause at end      |
+| `KeyQ`               | `["quit"]`                   | Quit mpv                              |
+| `Ctrl+KeyW`          | `["quit"]`                   | Quit mpv                              |
 
 **Custom keybindings example:**
 

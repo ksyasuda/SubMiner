@@ -16,10 +16,12 @@ ordinal: 9002
 <!-- SECTION:DESCRIPTION:BEGIN -->
 
 Address frequency-highlighting regressions:
+
 - tokens like `断じて` missed rank assignment when Yomitan merged-token reading was truncated/noisy;
 - known/N+1 tokens were incorrectly colored by frequency color instead of known/N+1 color.
 
 Expected behavior:
+
 - known/N+1 color always wins;
 - if token is frequent and within `topX`, frequency rank label can still appear on hover/metadata.
 
@@ -42,6 +44,7 @@ Expected behavior:
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 
 Implemented and validated:
+
 - tokenizer now normalizes selected Yomitan merged-token readings by appending missing trailing kana suffixes when safe (`headword === surface`);
 - frequency lookup now does lazy fallback: requests `{term, reading}` first, and only requests `{term, reading: null}` for misses;
 - this removes eager `(term, null)` payload inflation on medium-frequency lines and reduces extension RPC payload/load;
@@ -50,6 +53,7 @@ Implemented and validated:
 - added regression tests covering noisy-reading fallback, lazy fallback-query behavior, and renderer class/label precedence.
 
 Related commits:
+
 - `17a417e` (`fix(subtitle): improve frequency highlight reliability`)
 - `79f37f3` (`fix(subtitle): prioritize known and n+1 colors over frequency`)
 

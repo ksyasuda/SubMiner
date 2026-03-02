@@ -333,7 +333,10 @@ test('parseJellyfinErrorFromAppOutput extracts main runtime error lines', () => 
 [subminer] - 2026-03-01 13:10:34 - ERROR - [main] runJellyfinCommand failed: {"message":"Missing Jellyfin password."}
 `);
 
-  assert.equal(parsed, '[main] runJellyfinCommand failed: {"message":"Missing Jellyfin password."}');
+  assert.equal(
+    parsed,
+    '[main] runJellyfinCommand failed: {"message":"Missing Jellyfin password."}',
+  );
 });
 
 test('parseJellyfinPreviewAuthResponse parses valid structured response payload', () => {
@@ -385,7 +388,9 @@ test('shouldRetryWithStartForNoRunningInstance matches expected app lifecycle er
     true,
   );
   assert.equal(
-    shouldRetryWithStartForNoRunningInstance('Missing Jellyfin session. Run --jellyfin-login first.'),
+    shouldRetryWithStartForNoRunningInstance(
+      'Missing Jellyfin session. Run --jellyfin-login first.',
+    ),
     false,
   );
 });
@@ -407,10 +412,13 @@ test('readUtf8FileAppendedSince treats offset as bytes and survives multibyte lo
 });
 
 test('parseEpisodePathFromDisplay extracts series and season from episode display titles', () => {
-  assert.deepEqual(parseEpisodePathFromDisplay('KONOSUBA S01E03 A Panty Treasure in This Right Hand!'), {
-    seriesName: 'KONOSUBA',
-    seasonNumber: 1,
-  });
+  assert.deepEqual(
+    parseEpisodePathFromDisplay('KONOSUBA S01E03 A Panty Treasure in This Right Hand!'),
+    {
+      seriesName: 'KONOSUBA',
+      seasonNumber: 1,
+    },
+  );
   assert.deepEqual(parseEpisodePathFromDisplay('Frieren S2E10 Something'), {
     seriesName: 'Frieren',
     seasonNumber: 2,

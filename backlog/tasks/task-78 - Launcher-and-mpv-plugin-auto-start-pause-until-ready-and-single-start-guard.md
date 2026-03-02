@@ -18,6 +18,7 @@ ordinal: 9000
 Add startup gating behavior for wrapper + mpv plugin flow so playback starts paused when visible overlay auto-start is enabled, then auto-resumes only after subtitle tokenization is ready.
 
 Scope:
+
 - Plugin option `auto_start_pause_until_ready` (default `yes`).
 - Launcher reads plugin runtime config and starts mpv paused when `auto_start=yes`, `auto_start_visible_overlay=yes`, and `auto_start_pause_until_ready=yes`.
 - Main process signals readiness via mpv script message after tokenized subtitle delivery.
@@ -43,6 +44,7 @@ Scope:
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 
 Implemented startup pause gate across launcher/plugin/main runtime:
+
 - Added plugin runtime config parsing in launcher (`auto_start`, `auto_start_visible_overlay`, `auto_start_pause_until_ready`) and mpv start-paused behavior for eligible runs.
 - Added plugin auto-play gate state, timeout fallback, and readiness release via `subminer-autoplay-ready` script message.
 - Added main-process readiness signaling after tokenization delivery, including unpause fallback command path.

@@ -18,6 +18,7 @@ ordinal: 8000
 Add a user-facing subtitle config option to pause mpv playback when the cursor hovers subtitle text and resume playback when the cursor leaves.
 
 Scope:
+
 - New config key: `subtitleStyle.autoPauseVideoOnHover`.
 - Default should be enabled.
 - Hover pause/resume must not unpause if playback was already paused before hover.

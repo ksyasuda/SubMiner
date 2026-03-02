@@ -18,6 +18,7 @@ ordinal: 9003
 Add keybinding-friendly special commands that shift `sub-delay` to align current subtitle start with next/previous cue start, without `sub-seek` probing (avoid playback jump).
 
 Scope:
+
 - add special commands for next/previous line alignment;
 - compute delta from active subtitle cue timeline (external subtitle file/URL, including Jellyfin-delivered URLs);
 - apply `add sub-delay <delta>` and show OSD value;
@@ -42,6 +43,7 @@ Scope:
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 
 Implemented no-jump subtitle-delay alignment commands:
+
 - added `__sub-delay-next-line` and `__sub-delay-prev-line` special commands;
 - added `createShiftSubtitleDelayToAdjacentCueHandler` to parse cue start times from active external subtitle source and apply `add sub-delay` delta from current `sub-start`;
 - wired command handling through IPC runtime deps into main runtime;

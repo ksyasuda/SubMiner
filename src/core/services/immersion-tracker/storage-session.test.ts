@@ -59,9 +59,7 @@ testIfSqlite('ensureSchema creates immersion core tables', () => {
     assert.ok(tableNames.has('imm_rollup_state'));
 
     const rollupStateRow = db
-      .prepare(
-        'SELECT state_value FROM imm_rollup_state WHERE state_key = ?',
-      )
+      .prepare('SELECT state_value FROM imm_rollup_state WHERE state_key = ?')
       .get('last_rollup_sample_ms') as {
       state_value: number;
     } | null;
@@ -188,7 +186,9 @@ testIfSqlite('executeQueuedWrite inserts and upserts word and kanji rows', () =>
     stmts.kanjiUpsertStmt.run('日', 8.0, 11.0);
 
     const wordRow = db
-      .prepare('SELECT headword, frequency, first_seen, last_seen FROM imm_words WHERE headword = ?')
+      .prepare(
+        'SELECT headword, frequency, first_seen, last_seen FROM imm_words WHERE headword = ?',
+      )
       .get('猫') as {
       headword: string;
       frequency: number;

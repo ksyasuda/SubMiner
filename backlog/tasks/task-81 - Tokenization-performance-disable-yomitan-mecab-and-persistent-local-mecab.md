@@ -16,6 +16,7 @@ ordinal: 9001
 <!-- SECTION:DESCRIPTION:BEGIN -->
 
 Reduce subtitle annotation latency by:
+
 - disabling Yomitan-side MeCab parser requests (`useMecabParser=false`);
 - initializing local MeCab only when POS-dependent annotations are enabled (N+1 / JLPT / frequency);
 - replacing per-line local MeCab process spawning with a persistent parser process that auto-shuts down after idle time and restarts on demand.
@@ -39,6 +40,7 @@ Reduce subtitle annotation latency by:
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 
 Implemented tokenizer latency optimizations:
+
 - switched Yomitan parse requests to `useMecabParser: false`;
 - added annotation-aware MeCab initialization gating in runtime warmup flow;
 - added persistent local MeCab process (default idle shutdown: 30s) with queued requests, retry-on-process-end, idle auto-shutdown, and automatic restart on new work;

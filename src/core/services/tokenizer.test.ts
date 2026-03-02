@@ -2370,7 +2370,6 @@ test('tokenizeSubtitle keeps frequency enrichment while n+1 is disabled', async 
   assert.equal(frequencyCalls, 1);
 });
 
-
 test('tokenizeSubtitle excludes default non-independent pos2 from N+1 and frequency annotations', async () => {
   const result = await tokenizeSubtitle(
     'になれば',

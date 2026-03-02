@@ -52,7 +52,10 @@ export function parsePluginRuntimeConfigContent(
       continue;
     }
     if (key === 'auto_start_visible_overlay') {
-      runtimeConfig.autoStartVisibleOverlay = parseBooleanValue('auto_start_visible_overlay', value);
+      runtimeConfig.autoStartVisibleOverlay = parseBooleanValue(
+        'auto_start_visible_overlay',
+        value,
+      );
       continue;
     }
     if (key === 'auto_start_pause_until_ready') {

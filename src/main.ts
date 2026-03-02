@@ -892,7 +892,9 @@ function maybeSignalPluginAutoplayReady(
       if (typeof pauseProperty === 'number') {
         return pauseProperty !== 0;
       }
-      logger.debug(`[autoplay-ready] unrecognized pause property for media ${mediaPath}: ${String(pauseProperty)}`);
+      logger.debug(
+        `[autoplay-ready] unrecognized pause property for media ${mediaPath}: ${String(pauseProperty)}`,
+      );
     } catch (error) {
       logger.debug(
         `[autoplay-ready] failed to read pause property for media ${mediaPath}: ${(error as Error).message}`,
@@ -1365,7 +1367,10 @@ function shouldInitializeMecabForAnnotations(): boolean {
     'subtitle.annotation.nPlusOne',
     config.ankiConnect.nPlusOne.highlightEnabled,
   );
-  const jlptEnabled = getRuntimeBooleanOption('subtitle.annotation.jlpt', config.subtitleStyle.enableJlpt);
+  const jlptEnabled = getRuntimeBooleanOption(
+    'subtitle.annotation.jlpt',
+    config.subtitleStyle.enableJlpt,
+  );
   const frequencyEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.frequency',
     config.subtitleStyle.frequencyDictionary.enabled,
@@ -2992,7 +2997,8 @@ const {
     showMpvOsd: (text: string) => showMpvOsd(text),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
-    shiftSubDelayToAdjacentSubtitle: (direction) => shiftSubtitleDelayToAdjacentCueHandler(direction),
+    shiftSubDelayToAdjacentSubtitle: (direction) =>
+      shiftSubtitleDelayToAdjacentCueHandler(direction),
     sendMpvCommand: (rawCommand: (string | number)[]) =>
       sendMpvCommandRuntime(appState.mpvClient, rawCommand),
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),

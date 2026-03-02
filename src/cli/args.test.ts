@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hasExplicitCommand, parseArgs, shouldRunSettingsOnlyStartup, shouldStartApp } from './args';
+import {
+  hasExplicitCommand,
+  parseArgs,
+  shouldRunSettingsOnlyStartup,
+  shouldStartApp,
+} from './args';
 
 test('parseArgs parses booleans and value flags', () => {
   const args = parseArgs([
@@ -148,10 +153,7 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
     '/tmp/subminer-jf-response.json',
   ]);
   assert.equal(jellyfinPreviewAuth.jellyfinPreviewAuth, true);
-  assert.equal(
-    jellyfinPreviewAuth.jellyfinResponsePath,
-    '/tmp/subminer-jf-response.json',
-  );
+  assert.equal(jellyfinPreviewAuth.jellyfinResponsePath, '/tmp/subminer-jf-response.json');
   assert.equal(hasExplicitCommand(jellyfinPreviewAuth), true);
   assert.equal(shouldStartApp(jellyfinPreviewAuth), false);
 

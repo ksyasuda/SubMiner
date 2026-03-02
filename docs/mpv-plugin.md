@@ -120,27 +120,27 @@ aniskip_button_duration=3
 
 ### Option Reference
 
-| Option                       | Default                       | Values                                     | Description                                                            |
-| ---------------------------- | ----------------------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
-| `binary_path`                | `""` (auto-detect)            | file path                                  | Path to SubMiner binary                                                |
-| `socket_path`                | `/tmp/subminer-socket`        | file path                                  | MPV IPC socket path                                                    |
-| `texthooker_enabled`         | `yes`                         | `yes` / `no`                               | Enable texthooker server                                               |
-| `texthooker_port`            | `5174`                        | 1–65535                                    | Texthooker server port                                                 |
-| `backend`                    | `auto`                        | `auto`, `hyprland`, `sway`, `x11`, `macos` | Window manager backend                                                 |
-| `auto_start`                 | `yes`                         | `yes` / `no`                               | Auto-start overlay on file load when mpv socket matches `socket_path`  |
-| `auto_start_visible_overlay` | `yes`                         | `yes` / `no`                               | Show visible layer on auto-start when mpv socket matches `socket_path` |
-| `auto_start_pause_until_ready` | `yes`                       | `yes` / `no`                               | Pause mpv on visible auto-start; resume when SubMiner signals tokenization-ready |
-| `osd_messages`               | `yes`                         | `yes` / `no`                               | Show OSD status messages                                               |
-| `log_level`                  | `info`                        | `debug`, `info`, `warn`, `error`           | Log verbosity                                                          |
-| `aniskip_enabled`            | `yes`                         | `yes` / `no`                               | Enable AniSkip intro detection                                         |
-| `aniskip_title`              | `""`                          | string                                     | Override title used for lookup                                         |
-| `aniskip_season`             | `""`                          | numeric season                             | Optional season hint                                                   |
-| `aniskip_mal_id`             | `""`                          | numeric MAL id                             | Skip title lookup; use fixed id                                        |
-| `aniskip_episode`            | `""`                          | numeric episode                            | Skip episode parsing; use fixed                                        |
-| `aniskip_show_button`        | `yes`                         | `yes` / `no`                               | Show in-range intro skip prompt                                        |
-| `aniskip_button_text`        | `You can skip by pressing %s` | string                                     | OSD prompt format (`%s`=key)                                           |
-| `aniskip_button_key`         | `y-k`                         | mpv key chord                              | Primary key for intro skip action (`y-k` always works as fallback)     |
-| `aniskip_button_duration`    | `3`                           | float seconds                              | OSD hint duration                                                      |
+| Option                         | Default                       | Values                                     | Description                                                                      |
+| ------------------------------ | ----------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------- |
+| `binary_path`                  | `""` (auto-detect)            | file path                                  | Path to SubMiner binary                                                          |
+| `socket_path`                  | `/tmp/subminer-socket`        | file path                                  | MPV IPC socket path                                                              |
+| `texthooker_enabled`           | `yes`                         | `yes` / `no`                               | Enable texthooker server                                                         |
+| `texthooker_port`              | `5174`                        | 1–65535                                    | Texthooker server port                                                           |
+| `backend`                      | `auto`                        | `auto`, `hyprland`, `sway`, `x11`, `macos` | Window manager backend                                                           |
+| `auto_start`                   | `yes`                         | `yes` / `no`                               | Auto-start overlay on file load when mpv socket matches `socket_path`            |
+| `auto_start_visible_overlay`   | `yes`                         | `yes` / `no`                               | Show visible layer on auto-start when mpv socket matches `socket_path`           |
+| `auto_start_pause_until_ready` | `yes`                         | `yes` / `no`                               | Pause mpv on visible auto-start; resume when SubMiner signals tokenization-ready |
+| `osd_messages`                 | `yes`                         | `yes` / `no`                               | Show OSD status messages                                                         |
+| `log_level`                    | `info`                        | `debug`, `info`, `warn`, `error`           | Log verbosity                                                                    |
+| `aniskip_enabled`              | `yes`                         | `yes` / `no`                               | Enable AniSkip intro detection                                                   |
+| `aniskip_title`                | `""`                          | string                                     | Override title used for lookup                                                   |
+| `aniskip_season`               | `""`                          | numeric season                             | Optional season hint                                                             |
+| `aniskip_mal_id`               | `""`                          | numeric MAL id                             | Skip title lookup; use fixed id                                                  |
+| `aniskip_episode`              | `""`                          | numeric episode                            | Skip episode parsing; use fixed                                                  |
+| `aniskip_show_button`          | `yes`                         | `yes` / `no`                               | Show in-range intro skip prompt                                                  |
+| `aniskip_button_text`          | `You can skip by pressing %s` | string                                     | OSD prompt format (`%s`=key)                                                     |
+| `aniskip_button_key`           | `y-k`                         | mpv key chord                              | Primary key for intro skip action (`y-k` always works as fallback)               |
+| `aniskip_button_duration`      | `3`                           | float seconds                              | OSD hint duration                                                                |
 
 ## Binary Auto-Detection
 

@@ -18,11 +18,13 @@ ordinal: 11000
 When user selects a Jimaku subtitle, save subtitle with filename derived from currently playing media filename instead of Jimaku release filename.
 
 Example:
+
 - Current media: `anime.mkv`
 - Downloaded subtitle extension: `.srt`
 - Saved subtitle path: `anime.ja.srt`
 
 Scope:
+
 - Apply in Jimaku download IPC path before writing file.
 - Preserve collision-avoidance behavior (suffix with jimaku entry id/counter when target exists).
 - Keep mpv load flow unchanged except using renamed path.

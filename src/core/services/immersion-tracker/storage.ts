@@ -426,11 +426,7 @@ export function getOrCreateVideoRecord(
           LAST_UPDATE_DATE = ?
         WHERE video_id = ?
       `,
-    ).run(
-      details.canonicalTitle || 'unknown',
-      Date.now(),
-      existing.video_id,
-    );
+    ).run(details.canonicalTitle || 'unknown', Date.now(), existing.video_id);
     return existing.video_id;
   }
 

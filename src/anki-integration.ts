@@ -86,8 +86,7 @@ function extractFilenameFromMediaPath(rawPath: string): string {
   }
 
   const separatorIndex = trimmedPath.search(/[?#]/);
-  const pathWithoutQuery =
-    separatorIndex >= 0 ? trimmedPath.slice(0, separatorIndex) : trimmedPath;
+  const pathWithoutQuery = separatorIndex >= 0 ? trimmedPath.slice(0, separatorIndex) : trimmedPath;
   return decodeURIComponentSafe(path.basename(pathWithoutQuery));
 }
 

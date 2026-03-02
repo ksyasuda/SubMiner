@@ -182,7 +182,8 @@ function pickClosestMecabPosMetadataBySurface(
         startDistance < bestSurfaceMatchDistance ||
         (startDistance === bestSurfaceMatchDistance &&
           (endDistance < bestSurfaceMatchEndDistance ||
-            (endDistance === bestSurfaceMatchEndDistance && candidate.index < bestSurfaceMatchIndex)))
+            (endDistance === bestSurfaceMatchEndDistance &&
+              candidate.index < bestSurfaceMatchIndex)))
       ) {
         bestSurfaceMatchDistance = startDistance;
         bestSurfaceMatchEndDistance = endDistance;
@@ -199,7 +200,8 @@ function pickClosestMecabPosMetadataBySurface(
         startDistance < bestSurfaceMatchDistance ||
         (startDistance === bestSurfaceMatchDistance &&
           (endDistance < bestSurfaceMatchEndDistance ||
-            (endDistance === bestSurfaceMatchEndDistance && candidate.index < bestSurfaceMatchIndex)))
+            (endDistance === bestSurfaceMatchEndDistance &&
+              candidate.index < bestSurfaceMatchIndex)))
       ) {
         bestSurfaceMatchDistance = startDistance;
         bestSurfaceMatchEndDistance = endDistance;
@@ -274,9 +276,15 @@ function pickClosestMecabPosMetadataByOverlap(
   const overlappingTokensByMecabOrder = overlappingTokens
     .slice()
     .sort((left, right) => left.index - right.index);
-  const overlapPos1 = joinUniqueTags(overlappingTokensByMecabOrder.map((candidate) => candidate.pos1));
-  const overlapPos2 = joinUniqueTags(overlappingTokensByMecabOrder.map((candidate) => candidate.pos2));
-  const overlapPos3 = joinUniqueTags(overlappingTokensByMecabOrder.map((candidate) => candidate.pos3));
+  const overlapPos1 = joinUniqueTags(
+    overlappingTokensByMecabOrder.map((candidate) => candidate.pos1),
+  );
+  const overlapPos2 = joinUniqueTags(
+    overlappingTokensByMecabOrder.map((candidate) => candidate.pos2),
+  );
+  const overlapPos3 = joinUniqueTags(
+    overlappingTokensByMecabOrder.map((candidate) => candidate.pos3),
+  );
 
   return {
     pos1: overlapPos1 ?? bestToken.pos1,

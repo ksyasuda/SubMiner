@@ -79,18 +79,18 @@ Use `subminer <subcommand> -h` for command-specific help.
 
 ## Options
 
-| Flag                    | Description                                         |
-| ----------------------- | --------------------------------------------------- |
-| `-d, --directory`       | Video search directory (default: cwd)               |
-| `-r, --recursive`       | Search directories recursively                      |
-| `-R, --rofi`            | Use rofi instead of fzf                             |
-| `--start`               | Explicitly start overlay after mpv launches         |
-| `-S, --start-overlay`   | Explicitly start overlay after mpv launches         |
-| `-T, --no-texthooker`   | Disable texthooker server                           |
-| `-p, --profile`         | mpv profile name (default: `subminer`)              |
-| `-b, --backend`         | Force window backend (`hyprland`, `sway`, `x11`)    |
-| `--log-level`           | Logger verbosity (`debug`, `info`, `warn`, `error`) |
-| `--dev`, `--debug`      | Enable app dev-mode (not tied to log level)         |
+| Flag                  | Description                                         |
+| --------------------- | --------------------------------------------------- |
+| `-d, --directory`     | Video search directory (default: cwd)               |
+| `-r, --recursive`     | Search directories recursively                      |
+| `-R, --rofi`          | Use rofi instead of fzf                             |
+| `--start`             | Explicitly start overlay after mpv launches         |
+| `-S, --start-overlay` | Explicitly start overlay after mpv launches         |
+| `-T, --no-texthooker` | Disable texthooker server                           |
+| `-p, --profile`       | mpv profile name (default: `subminer`)              |
+| `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`)    |
+| `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`) |
+| `--dev`, `--debug`    | Enable app dev-mode (not tied to log level)         |
 
 With default plugin settings (`auto_start=yes`, `auto_start_visible_overlay=yes`, `auto_start_pause_until_ready=yes`), explicit start flags are usually unnecessary.
 

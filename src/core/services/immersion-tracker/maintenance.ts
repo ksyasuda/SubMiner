@@ -46,23 +46,31 @@ export function pruneRetention(
   const dayCutoff = nowMs - policy.dailyRollupRetentionMs;
   const monthCutoff = nowMs - policy.monthlyRollupRetentionMs;
 
-  const deletedSessionEvents = (db
-    .prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`)
-    .run(eventCutoff) as { changes: number }).changes;
-  const deletedTelemetryRows = (db
-    .prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`)
-    .run(telemetryCutoff) as { changes: number }).changes;
-  const deletedDailyRows = (db
-    .prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`)
-    .run(Math.floor(dayCutoff / DAILY_MS)) as { changes: number }).changes;
-  const deletedMonthlyRows = (db
-    .prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`)
-    .run(toMonthKey(monthCutoff)) as { changes: number }).changes;
-  const deletedEndedSessions = (db
-    .prepare(
-      `DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`,
-    )
-    .run(telemetryCutoff) as { changes: number }).changes;
+  const deletedSessionEvents = (
+    db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(eventCutoff) as {
+      changes: number;
+    }
+  ).changes;
+  const deletedTelemetryRows = (
+    db.prepare(`DELETE FROM imm_session_telemetry WHERE sample_ms < ?`).run(telemetryCutoff) as {
+      changes: number;
+    }
+  ).changes;
+  const deletedDailyRows = (
+    db
+      .prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`)
+      .run(Math.floor(dayCutoff / DAILY_MS)) as { changes: number }
+  ).changes;
+  const deletedMonthlyRows = (
+    db
+      .prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`)
+      .run(toMonthKey(monthCutoff)) as { changes: number }
+  ).changes;
+  const deletedEndedSessions = (
+    db
+      .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
+      .run(telemetryCutoff) as { changes: number }
+  ).changes;
 
   return {
     deletedSessionEvents,

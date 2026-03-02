@@ -240,7 +240,9 @@ export function parseArgs(argv: string[]): CliArgs {
       if (value === 'true' || value === '1' || value === 'yes') args.jellyfinRecursive = true;
       if (value === 'false' || value === '0' || value === 'no') args.jellyfinRecursive = false;
     } else if (arg === '--jellyfin-recursive') {
-      const value = readValue(argv[i + 1])?.trim().toLowerCase();
+      const value = readValue(argv[i + 1])
+        ?.trim()
+        .toLowerCase();
       if (value === 'false' || value === '0' || value === 'no') {
         args.jellyfinRecursive = false;
       } else if (value === 'true' || value === '1' || value === 'yes') {

@@ -18,10 +18,12 @@ ordinal: 10000
 Fix Jimaku modal UX so selecting a subtitle file closes the modal automatically once subtitle download+load succeeds.
 
 Current behavior:
+
 - Subtitle file downloads and loads into mpv.
 - Jimaku modal remains open until manual close.
 
 Expected behavior:
+
 - On successful `jimakuDownloadFile` result, close modal immediately.
 - Keep error behavior unchanged (stay open + show error).
 

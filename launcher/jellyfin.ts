@@ -239,8 +239,7 @@ export function parseJellyfinPreviewAuthResponse(raw: string): JellyfinPreviewAu
   const serverUrl = sanitizeServerUrl(
     typeof candidate.serverUrl === 'string' ? candidate.serverUrl : '',
   );
-  const accessToken =
-    typeof candidate.accessToken === 'string' ? candidate.accessToken.trim() : '';
+  const accessToken = typeof candidate.accessToken === 'string' ? candidate.accessToken.trim() : '';
   const userId = typeof candidate.userId === 'string' ? candidate.userId.trim() : '';
   if (!serverUrl || !accessToken) return null;
 
@@ -271,9 +270,7 @@ export function readUtf8FileAppendedSince(logPath: string, offsetBytes: number):
     const buffer = fs.readFileSync(logPath);
     if (buffer.length === 0) return '';
     const normalizedOffset =
-      Number.isFinite(offsetBytes) && offsetBytes >= 0
-        ? Math.floor(offsetBytes)
-        : 0;
+      Number.isFinite(offsetBytes) && offsetBytes >= 0 ? Math.floor(offsetBytes) : 0;
     const startOffset = normalizedOffset > buffer.length ? 0 : normalizedOffset;
     return buffer.subarray(startOffset).toString('utf8');
   } catch {
@@ -399,7 +396,9 @@ async function runAppJellyfinCommand(
 
   const hasCommandSignal = (output: string): boolean => {
     if (label === 'jellyfin-libraries') {
-      return output.includes('Jellyfin library:') || output.includes('No Jellyfin libraries found.');
+      return (
+        output.includes('Jellyfin library:') || output.includes('No Jellyfin libraries found.')
+      );
     }
     if (label === 'jellyfin-items') {
       return (
@@ -550,7 +549,9 @@ async function resolveJellyfinSelectionViaApp(
   }
 
   const configuredDefaultLibraryId = session.defaultLibraryId;
-  const hasConfiguredDefault = libraries.some((library) => library.id === configuredDefaultLibraryId);
+  const hasConfiguredDefault = libraries.some(
+    (library) => library.id === configuredDefaultLibraryId,
+  );
   let libraryId = hasConfiguredDefault ? configuredDefaultLibraryId : '';
   if (!libraryId) {
     libraryId = pickLibrary(

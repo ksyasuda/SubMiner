@@ -31,7 +31,10 @@ test('createJlptVocabularyLookup loads JLPT bank entries and resolves known leve
   assert.equal(lookup('猫'), 'N5');
   assert.equal(lookup('犬'), 'N5');
   assert.equal(lookup('鳥'), null);
-  assert.equal(logs.some((entry) => entry.includes('JLPT dictionary loaded from')), true);
+  assert.equal(
+    logs.some((entry) => entry.includes('JLPT dictionary loaded from')),
+    true,
+  );
 });
 
 test('createJlptVocabularyLookup does not require synchronous fs APIs', async () => {

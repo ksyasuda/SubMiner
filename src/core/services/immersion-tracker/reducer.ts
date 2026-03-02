@@ -97,7 +97,8 @@ export function extractLineVocabulary(value: string): ExtractedLineVocabulary {
   if (!cleaned) return { words: [], kanji: [] };
 
   const wordSet = new Set<string>();
-  const tokenPattern = /[A-Za-z0-9']+|[\u3040-\u30ff]+|[\u3400-\u4dbf\u4e00-\u9fff\u20000-\u2a6df]+/g;
+  const tokenPattern =
+    /[A-Za-z0-9']+|[\u3040-\u30ff]+|[\u3400-\u4dbf\u4e00-\u9fff\u20000-\u2a6df]+/g;
   const rawWords = cleaned.match(tokenPattern) ?? [];
   for (const rawWord of rawWords) {
     const normalizedWord = normalizeText(rawWord.toLowerCase());

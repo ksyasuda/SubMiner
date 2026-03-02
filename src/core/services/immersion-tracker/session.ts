@@ -19,15 +19,8 @@ export function startSessionRecord(
           CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (?, ?, ?, ?, ?, ?)
     `,
-  )
-    .run(
-      sessionUuid,
-      videoId,
-      startedAtMs,
-      SESSION_STATUS_ACTIVE,
-      startedAtMs,
-      nowMs,
-    );
+    )
+    .run(sessionUuid, videoId, startedAtMs, SESSION_STATUS_ACTIVE, startedAtMs, nowMs);
   const sessionId = Number(result.lastInsertRowid);
   return {
     sessionId,

@@ -53,7 +53,9 @@ function parseAssStartTimes(content: string): number[] {
   const starts: number[] = [];
   const lines = content.split(/\r?\n/);
   for (const line of lines) {
-    const match = line.match(/^Dialogue:[^,]*,(\d+:\d{2}:\d{2}\.\d{1,2}),\d+:\d{2}:\d{2}\.\d{1,2},/);
+    const match = line.match(
+      /^Dialogue:[^,]*,(\d+:\d{2}:\d{2}\.\d{1,2}),\d+:\d{2}:\d{2}\.\d{1,2},/,
+    );
     if (!match) continue;
     const [hoursRaw, minutesRaw, secondsRaw] = match[1]!.split(':');
     if (secondsRaw === undefined) continue;

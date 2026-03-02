@@ -129,7 +129,11 @@ interface QueuedKanjiWrite {
   lastSeen: number;
 }
 
-export type QueuedWrite = QueuedTelemetryWrite | QueuedEventWrite | QueuedWordWrite | QueuedKanjiWrite;
+export type QueuedWrite =
+  | QueuedTelemetryWrite
+  | QueuedEventWrite
+  | QueuedWordWrite
+  | QueuedKanjiWrite;
 
 export interface VideoMetadata {
   sourceType: number;

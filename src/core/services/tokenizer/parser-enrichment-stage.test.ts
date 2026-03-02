@@ -101,7 +101,7 @@ test('enrichTokensWithMecabPos1 avoids repeated active-candidate filter scans', 
 
   let sentinelFilterCalls = 0;
   const originalFilter = Array.prototype.filter;
-  Array.prototype.filter = (function filterWithSentinelCheck(
+  Array.prototype.filter = function filterWithSentinelCheck(
     this: unknown[],
     ...args: any[]
   ): any[] {
@@ -113,7 +113,7 @@ test('enrichTokensWithMecabPos1 avoids repeated active-candidate filter scans', 
       }
     }
     return (originalFilter as (...params: any[]) => any[]).apply(this, args);
-  }) as typeof Array.prototype.filter;
+  } as typeof Array.prototype.filter;
 
   try {
     const enriched = enrichTokensWithMecabPos1(tokens, mecabTokens);
