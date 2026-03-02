@@ -48,3 +48,78 @@ test('enrichTokensWithMecabPos1 passes through unchanged when mecab tokens are n
   const emptyResult = enrichTokensWithMecabPos1(tokens, []);
   assert.strictEqual(emptyResult, tokens);
 });
+
+test('enrichTokensWithMecabPos1 avoids repeated full scans over distant mecab surfaces', () => {
+  const tokens = Array.from({ length: 12 }, (_, index) =>
+    makeToken({ surface: `w${index}`, startPos: index, endPos: index + 1, pos1: '' }),
+  );
+  const mecabTokens = tokens.map((token) =>
+    makeToken({
+      surface: token.surface,
+      startPos: token.startPos,
+      endPos: token.endPos,
+      pos1: '名詞',
+    }),
+  );
+
+  let distantSurfaceReads = 0;
+  const distantToken = makeToken({ surface: '遠', startPos: 500, endPos: 501, pos1: '記号' });
+  Object.defineProperty(distantToken, 'surface', {
+    configurable: true,
+    get() {
+      distantSurfaceReads += 1;
+      if (distantSurfaceReads > 3) {
+        throw new Error('repeated full scan detected');
+      }
+      return '遠';
+    },
+  });
+  mecabTokens.push(distantToken);
+
+  const enriched = enrichTokensWithMecabPos1(tokens, mecabTokens);
+  assert.equal(enriched.length, tokens.length);
+  for (const token of enriched) {
+    assert.equal(token.pos1, '名詞');
+  }
+});
+
+test('enrichTokensWithMecabPos1 avoids repeated active-candidate filter scans', () => {
+  const tokens = Array.from({ length: 8 }, (_, index) =>
+    makeToken({ surface: `u${index}`, startPos: index, endPos: index + 1, pos1: '' }),
+  );
+  const mecabTokens = [
+    makeToken({ surface: 'SENTINEL', startPos: 0, endPos: 100, pos1: '記号' }),
+    ...tokens.map((token, index) =>
+      makeToken({
+        surface: `m${index}`,
+        startPos: token.startPos,
+        endPos: token.endPos,
+        pos1: '名詞',
+      }),
+    ),
+  ];
+
+  let sentinelFilterCalls = 0;
+  const originalFilter = Array.prototype.filter;
+  Array.prototype.filter = function filterWithSentinelCheck<T>(
+    this: T[],
+    predicate: (value: T, index: number, array: T[]) => unknown,
+    thisArg?: unknown,
+  ) {
+    const target = this as Array<{ surface?: string }>;
+    if (target.some((candidate) => candidate?.surface === 'SENTINEL')) {
+      sentinelFilterCalls += 1;
+      if (sentinelFilterCalls > 2) {
+        throw new Error('repeated active candidate filter scan detected');
+      }
+    }
+    return originalFilter.call(this, predicate, thisArg);
+  };
+
+  try {
+    const enriched = enrichTokensWithMecabPos1(tokens, mecabTokens);
+    assert.equal(enriched.length, tokens.length);
+  } finally {
+    Array.prototype.filter = originalFilter;
+  }
+});
