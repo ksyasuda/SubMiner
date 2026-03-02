@@ -107,3 +107,43 @@ test('playback handler drives mpv commands and playback state', async () => {
   assert.equal(reportPayloads.length, 1);
   assert.equal(reportPayloads[0]?.eventName, 'start');
 });
+
+test('playback handler applies start override to stream url for remote resume', async () => {
+  const commands: Array<Array<string | number>> = [];
+  const handler = createPlayJellyfinItemInMpvHandler({
+    ensureMpvConnectedForPlayback: async () => true,
+    getMpvClient: () => ({ connected: true, send: () => {} }),
+    resolvePlaybackPlan: async () => ({
+      url: 'https://stream.example/video.m3u8?api_key=token',
+      mode: 'transcode',
+      title: 'Episode 2',
+      startTimeTicks: 0,
+      audioStreamIndex: null,
+      subtitleStreamIndex: null,
+    }),
+    applyJellyfinMpvDefaults: () => {},
+    sendMpvCommand: (command) => commands.push(command),
+    armQuitOnDisconnect: () => {},
+    schedule: () => {},
+    convertTicksToSeconds: (ticks) => ticks / 10_000_000,
+    preloadExternalSubtitles: () => {},
+    setActivePlayback: () => {},
+    setLastProgressAtMs: () => {},
+    reportPlaying: () => {},
+    showMpvOsd: () => {},
+  });
+
+  await handler({
+    session: baseSession,
+    clientInfo: baseClientInfo,
+    jellyfinConfig: {},
+    itemId: 'item-2',
+    startTimeTicksOverride: 55_000_000,
+  });
+
+  assert.equal(commands[1]?.[0], 'loadfile');
+  const loadedUrl = String(commands[1]?.[1] ?? '');
+  const parsed = new URL(loadedUrl);
+  assert.equal(parsed.searchParams.get('StartTimeTicks'), '55000000');
+  assert.deepEqual(commands[4], ['seek', 5.5, 'absolute+exact']);
+});

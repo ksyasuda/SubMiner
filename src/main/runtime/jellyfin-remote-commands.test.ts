@@ -52,6 +52,34 @@ test('createHandleJellyfinRemotePlay forwards parsed payload to play runtime', a
   assert.deepEqual(calls, [{ itemId: 'item-1', audio: 3, subtitle: 7, start: 1000 }]);
 });
 
+test('createHandleJellyfinRemotePlay parses string StartPositionTicks', async () => {
+  const calls: Array<{ itemId: string; start?: number }> = [];
+  const handlePlay = createHandleJellyfinRemotePlay({
+    getConfiguredSession: () => ({
+      serverUrl: 'https://jellyfin.local',
+      accessToken: 'token',
+      userId: 'user',
+      username: 'name',
+    }),
+    getClientInfo: () => ({ clientName: 'SubMiner', clientVersion: '1.0', deviceId: 'abc' }),
+    getJellyfinConfig: () => ({ enabled: true }),
+    playJellyfinItem: async (params) => {
+      calls.push({
+        itemId: params.itemId,
+        start: params.startTimeTicksOverride,
+      });
+    },
+    logWarn: () => {},
+  });
+
+  await handlePlay({
+    ItemIds: ['item-2'],
+    StartPositionTicks: '12345',
+  });
+
+  assert.deepEqual(calls, [{ itemId: 'item-2', start: 12345 }]);
+});
+
 test('createHandleJellyfinRemotePlay logs and skips payload without item id', async () => {
   const warnings: string[] = [];
   const handlePlay = createHandleJellyfinRemotePlay({

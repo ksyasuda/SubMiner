@@ -27,8 +27,12 @@ type JellyfinConfigLike = {
 };
 
 function asInteger(value: unknown): number | undefined {
-  if (typeof value !== 'number' || !Number.isInteger(value)) return undefined;
-  return value;
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim());
+    if (Number.isSafeInteger(parsed)) return parsed;
+  }
+  return undefined;
 }
 
 export function getConfiguredJellyfinSession(config: JellyfinConfigLike): JellyfinSession | null {

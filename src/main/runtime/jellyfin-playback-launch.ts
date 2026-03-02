@@ -16,6 +16,21 @@ type ActivePlaybackState = {
   playMethod: 'DirectPlay' | 'Transcode';
 };
 
+function applyStartTimeTicksToPlaybackUrl(url: string, startTimeTicksOverride?: number): string {
+  if (typeof startTimeTicksOverride !== 'number') return url;
+  try {
+    const resolved = new URL(url);
+    if (startTimeTicksOverride > 0) {
+      resolved.searchParams.set('StartTimeTicks', String(Math.max(0, startTimeTicksOverride)));
+    } else {
+      resolved.searchParams.delete('StartTimeTicks');
+    }
+    return resolved.toString();
+  } catch {
+    return url;
+  }
+}
+
 export function createPlayJellyfinItemInMpvHandler(deps: {
   ensureMpvConnectedForPlayback: () => Promise<boolean>;
   getMpvClient: () => MpvRuntimeClientLike | null;
@@ -78,7 +93,8 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
 
     deps.applyJellyfinMpvDefaults(mpvClient);
     deps.sendMpvCommand(['set_property', 'sub-auto', 'no']);
-    deps.sendMpvCommand(['loadfile', plan.url, 'replace']);
+    const playbackUrl = applyStartTimeTicksToPlaybackUrl(plan.url, params.startTimeTicksOverride);
+    deps.sendMpvCommand(['loadfile', playbackUrl, 'replace']);
     if (params.setQuitOnDisconnectArm !== false) {
       deps.armQuitOnDisconnect();
     }
