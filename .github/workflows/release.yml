@@ -278,45 +278,70 @@ jobs:
           echo "$CHANGES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ steps.version.outputs.VERSION }}
-          body: |
-            ## Changes
-            ${{ steps.changelog.outputs.CHANGES }}
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
 
-            ## Installation
+          cat > release-body.md <<'EOF'
+          ## Changes
+          ${{ steps.changelog.outputs.CHANGES }}
 
-            ### AppImage (Recommended)
-            1. Download the AppImage below
-            2. Make it executable: `chmod +x SubMiner.AppImage`
-            3. Run: `./SubMiner.AppImage`
+          ## Installation
 
-            ### macOS
-            1. Download `subminer-*.dmg`
-            2. Open the DMG and drag `SubMiner.app` into `/Applications`
-            3. If needed, use the ZIP artifact as an alternative
+          ### AppImage (Recommended)
+          1. Download the AppImage below
+          2. Make it executable: `chmod +x SubMiner.AppImage`
+          3. Run: `./SubMiner.AppImage`
 
-            ### Manual Installation
-            See the [README](https://github.com/${{ github.repository }}#installation) for manual installation instructions.
+          ### macOS
+          1. Download `subminer-*.dmg`
+          2. Open the DMG and drag `SubMiner.app` into `/Applications`
+          3. If needed, use the ZIP artifact as an alternative
 
-            ### Optional Assets (config example + mpv plugin + rofi theme)
-            1. Download `subminer-assets.tar.gz`
-            2. Extract and copy `config.example.jsonc` to `~/.config/SubMiner/config.jsonc`
-            3. Copy `plugin/subminer/` directory contents to `~/.config/mpv/scripts/`
-            4. Copy `plugin/subminer.conf` to `~/.config/mpv/script-opts/`
-            5. Copy `assets/themes/subminer.rasi` to:
-               - Linux: `~/.local/share/SubMiner/themes/subminer.rasi`
-               - macOS: `~/Library/Application Support/SubMiner/themes/subminer.rasi`
+          ### Manual Installation
+          See the [README](https://github.com/${{ github.repository }}#installation) for manual installation instructions.
 
-            Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.
-          files: |
+          ### Optional Assets (config example + mpv plugin + rofi theme)
+          1. Download `subminer-assets.tar.gz`
+          2. Extract and copy `config.example.jsonc` to `~/.config/SubMiner/config.jsonc`
+          3. Copy `plugin/subminer/` directory contents to `~/.config/mpv/scripts/`
+          4. Copy `plugin/subminer.conf` to `~/.config/mpv/script-opts/`
+          5. Copy `assets/themes/subminer.rasi` to:
+             - Linux: `~/.local/share/SubMiner/themes/subminer.rasi`
+             - macOS: `~/Library/Application Support/SubMiner/themes/subminer.rasi`
+
+          Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.
+          EOF
+
+          if gh release view "${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
+            gh release edit "${{ steps.version.outputs.VERSION }}" \
+              --title "${{ steps.version.outputs.VERSION }}" \
+              --notes-file release-body.md \
+              --prerelease false
+          else
+            gh release create "${{ steps.version.outputs.VERSION }}" \
+              --title "${{ steps.version.outputs.VERSION }}" \
+              --notes-file release-body.md \
+              --prerelease false
+          fi
+
+          shopt -s nullglob
+          artifacts=(
             release/*.AppImage
             release/*.dmg
             release/*.zip
             release/*.tar.gz
             release/SHA256SUMS.txt
             dist/launcher/subminer
-          draft: false
-          prerelease: false
+          )
+
+          if [ "${#artifacts[@]}" -eq 0 ]; then
+            echo "No release artifacts found for upload."
+            exit 1
+          fi
+
+          for asset in "${artifacts[@]}"; do
+            gh release upload "${{ steps.version.outputs.VERSION }}" "$asset" --clobber
+          done
