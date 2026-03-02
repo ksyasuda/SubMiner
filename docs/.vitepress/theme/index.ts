@@ -5,7 +5,24 @@ import '@catppuccin/vitepress/theme/macchiato/mauve.css';
 import './mermaid-modal.css';
 
 let mermaidLoader: Promise<any> | null = null;
+let plausibleTrackerInitialized = false;
 const MERMAID_MODAL_ID = 'mermaid-diagram-modal';
+
+async function initPlausibleTracker() {
+  if (typeof window === 'undefined' || plausibleTrackerInitialized) {
+    return;
+  }
+
+  const { init } = await import('@plausible-analytics/tracker');
+  init({
+    domain: 'subminer.moe',
+    endpoint: 'https://worker.subminer.moe',
+    outboundLinks: true,
+    fileDownloads: true,
+    formSubmissions: true,
+  });
+  plausibleTrackerInitialized = true;
+}
 
 function closeMermaidModal() {
   if (typeof document === 'undefined') {
@@ -188,7 +205,12 @@ export default {
       });
     };
 
-    onMounted(render);
+    onMounted(() => {
+      initPlausibleTracker().catch((error) => {
+        console.error('Failed to initialize Plausible tracker:', error);
+      });
+      render();
+    });
     watch(() => route.path, render);
   },
 };
