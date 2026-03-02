@@ -529,7 +529,7 @@ export async function requestYomitanParseResults(
         optionsContext: { index: ${metadata.profileIndex} },
         scanLength: ${metadata.scanLength},
         useInternalParser: true,
-        useMecabParser: true
+        useMecabParser: false
       });
     })();
   `
@@ -564,7 +564,7 @@ export async function requestYomitanParseResults(
         optionsContext: { index: profileIndex },
         scanLength,
         useInternalParser: true,
-        useMecabParser: true
+        useMecabParser: false
       });
     })();
   `;

@@ -133,12 +133,23 @@ export function composeMpvRuntimeHandlers<
   const prewarmSubtitleDictionaries = createPrewarmSubtitleDictionariesMainHandler(
     options.tokenizer.prewarmSubtitleDictionariesMainDeps,
   );
+  const shouldInitializeMecabForAnnotations = (): boolean => {
+    const nPlusOneEnabled =
+      options.tokenizer.buildTokenizerDepsMainDeps.getNPlusOneEnabled?.() !== false;
+    const jlptEnabled = options.tokenizer.buildTokenizerDepsMainDeps.getJlptEnabled() !== false;
+    const frequencyEnabled =
+      options.tokenizer.buildTokenizerDepsMainDeps.getFrequencyDictionaryEnabled() !== false;
+    return nPlusOneEnabled || jlptEnabled || frequencyEnabled;
+  };
   let tokenizationWarmupInFlight: Promise<void> | null = null;
   const startTokenizationWarmups = (): Promise<void> => {
     if (!tokenizationWarmupInFlight) {
       tokenizationWarmupInFlight = (async () => {
         await options.warmups.startBackgroundWarmupsMainDeps.ensureYomitanExtensionLoaded();
-        if (!options.tokenizer.createMecabTokenizerAndCheckMainDeps.getMecabTokenizer()) {
+        if (
+          shouldInitializeMecabForAnnotations() &&
+          !options.tokenizer.createMecabTokenizerAndCheckMainDeps.getMecabTokenizer()
+        ) {
           await createMecabTokenizerAndCheck().catch(() => {});
         }
         await prewarmSubtitleDictionaries({ showLoadingOsd: true });

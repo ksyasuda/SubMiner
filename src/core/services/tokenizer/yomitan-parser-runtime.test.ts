@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  requestYomitanParseResults,
   requestYomitanTermFrequencies,
   syncYomitanDefaultAnkiServer,
 } from './yomitan-parser-runtime';
@@ -245,4 +246,33 @@ test('requestYomitanTermFrequencies caches repeated term+reading lookups', async
 
   const frequencyCalls = scripts.filter((script) => script.includes('getTermFrequencies')).length;
   assert.equal(frequencyCalls, 1);
+});
+
+test('requestYomitanParseResults disables Yomitan MeCab parser path', async () => {
+  const scripts: string[] = [];
+  const deps = createDeps(async (script) => {
+    scripts.push(script);
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    return [];
+  });
+
+  const result = await requestYomitanParseResults('猫です', deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(result, []);
+  const parseScript = scripts.find((script) => script.includes('parseText'));
+  assert.ok(parseScript, 'expected parseText request script');
+  assert.match(parseScript ?? '', /useMecabParser:\s*false/);
 });
