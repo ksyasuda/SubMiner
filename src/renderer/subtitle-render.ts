@@ -189,10 +189,6 @@ export function getFrequencyRankLabelForToken(
   token: MergedToken,
   frequencySettings?: Partial<FrequencyRenderSettings>,
 ): string | null {
-  if (token.isNPlusOneTarget) {
-    return null;
-  }
-
   const resolvedFrequencySettings = {
     ...DEFAULT_FREQUENCY_RENDER_SETTINGS,
     ...frequencySettings,
@@ -429,7 +425,7 @@ export function computeWordClass(
     classes.push(`word-jlpt-${token.jlptLevel.toLowerCase()}`);
   }
 
-  if (!token.isNPlusOneTarget) {
+  if (!token.isKnown && !token.isNPlusOneTarget) {
     const frequencyClass = getFrequencyDictionaryClass(token, resolvedFrequencySettings);
     if (frequencyClass) {
       classes.push(frequencyClass);
