@@ -791,7 +791,7 @@ export async function requestYomitanTermFrequencies(
 
         return { term: pair.term, reading: null };
       })
-      .filter((pair): pair is YomitanTermReadingPair => pair !== null),
+      .filter((pair): pair is { term: string; reading: null } => pair !== null),
   ).filter((pair) => !frequencyCache.has(makeTermReadingCacheKey(pair.term, pair.reading)));
 
   let fallbackFetchedEntries: YomitanTermFrequency[] = [];
