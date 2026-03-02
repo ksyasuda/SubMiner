@@ -211,8 +211,7 @@ export function createTokenizerDepsRuntime(
         return null;
       }
 
-      const isKnownWordLookup = options.getNPlusOneEnabled?.() === false ? () => false : options.isKnownWord;
-      return mergeTokens(rawTokens, isKnownWordLookup, options.getKnownWordMatchMode());
+      return mergeTokens(rawTokens, options.isKnownWord, options.getKnownWordMatchMode(), false);
     },
     enrichTokensWithMecab: async (tokens, mecabTokens) =>
       enrichTokensWithMecabAsync(tokens, mecabTokens),

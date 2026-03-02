@@ -2103,6 +2103,48 @@ test('createTokenizerDepsRuntime checks MeCab availability before first tokenize
   assert.equal(second?.[0]?.surface, '仮面');
 });
 
+test('createTokenizerDepsRuntime skips known-word lookup for MeCab POS enrichment tokens', async () => {
+  let knownWordCalls = 0;
+
+  const deps = createTokenizerDepsRuntime({
+    getYomitanExt: () => null,
+    getYomitanParserWindow: () => null,
+    setYomitanParserWindow: () => {},
+    getYomitanParserReadyPromise: () => null,
+    setYomitanParserReadyPromise: () => {},
+    getYomitanParserInitPromise: () => null,
+    setYomitanParserInitPromise: () => {},
+    isKnownWord: () => {
+      knownWordCalls += 1;
+      return true;
+    },
+    getKnownWordMatchMode: () => 'headword',
+    getJlptLevel: () => null,
+    getMecabTokenizer: () => ({
+      tokenize: async () => [
+        {
+          word: '仮面',
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          pos2: '一般',
+          pos3: '',
+          pos4: '',
+          inflectionType: '',
+          inflectionForm: '',
+          headword: '仮面',
+          katakanaReading: 'カメン',
+          pronunciation: 'カメン',
+        },
+      ],
+    }),
+  });
+
+  const tokens = await deps.tokenizeWithMecab('仮面');
+
+  assert.equal(knownWordCalls, 0);
+  assert.equal(tokens?.[0]?.isKnown, false);
+});
+
 test('tokenizeSubtitle uses async MeCab enrichment override when provided', async () => {
   const result = await tokenizeSubtitle(
     '猫',

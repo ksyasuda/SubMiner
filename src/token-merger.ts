@@ -168,6 +168,7 @@ export function mergeTokens(
   tokens: Token[],
   isKnownWord: (text: string) => boolean = () => false,
   knownWordMatchMode: 'headword' | 'surface' = 'headword',
+  shouldLookupKnownWords = true,
 ): MergedToken[] {
   if (!tokens || tokens.length === 0) {
     return [];
@@ -176,6 +177,12 @@ export function mergeTokens(
   const result: MergedToken[] = [];
   let charOffset = 0;
   let lastStandaloneToken: Token | null = null;
+  const resolveKnownMatch = (text: string | undefined): boolean => {
+    if (!shouldLookupKnownWords || !text) {
+      return false;
+    }
+    return isKnownWord(text);
+  };
 
   for (const token of tokens) {
     const start = charOffset;
@@ -189,7 +196,6 @@ export function mergeTokens(
     }
 
     const tokenReading = ignoreReading(token) ? '' : token.katakanaReading || token.word;
-
     if (shouldMergeToken && result.length > 0) {
       const prev = result.pop()!;
       const mergedHeadword = prev.headword;
@@ -210,7 +216,7 @@ export function mergeTokens(
         pos2: prev.pos2 ?? token.pos2,
         pos3: prev.pos3 ?? token.pos3,
         isMerged: true,
-        isKnown: headwordForKnownMatch ? isKnownWord(headwordForKnownMatch) : false,
+        isKnown: resolveKnownMatch(headwordForKnownMatch),
         isNPlusOneTarget: false,
       });
     } else {
@@ -231,7 +237,7 @@ export function mergeTokens(
         pos2: token.pos2,
         pos3: token.pos3,
         isMerged: false,
-        isKnown: headwordForKnownMatch ? isKnownWord(headwordForKnownMatch) : false,
+        isKnown: resolveKnownMatch(headwordForKnownMatch),
         isNPlusOneTarget: false,
       });
     }
