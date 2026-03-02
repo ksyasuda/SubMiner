@@ -1,4 +1,4 @@
-import * as fs from 'node:fs';
+import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 export interface FrequencyDictionaryLookupOptions {
@@ -13,6 +13,17 @@ interface FrequencyDictionaryEntry {
 
 const FREQUENCY_BANK_FILE_GLOB = /^term_meta_bank_.*\.json$/;
 const NOOP_LOOKUP = (): null => null;
+const ENTRY_YIELD_INTERVAL = 5000;
+
+function isErrorCode(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === 'object' && (error as { code?: unknown }).code === code);
+}
+
+async function yieldToEventLoop(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
+}
 
 function normalizeFrequencyTerm(value: string): string {
   return value.trim().toLowerCase();
@@ -93,16 +104,22 @@ function asFrequencyDictionaryEntry(entry: unknown): FrequencyDictionaryEntry | 
   };
 }
 
-function addEntriesToMap(
+async function addEntriesToMap(
   rawEntries: unknown,
   terms: Map<string, number>,
-): { duplicateCount: number } {
+): Promise<{ duplicateCount: number }> {
   if (!Array.isArray(rawEntries)) {
     return { duplicateCount: 0 };
   }
 
   let duplicateCount = 0;
+  let processedCount = 0;
   for (const rawEntry of rawEntries) {
+    processedCount += 1;
+    if (processedCount % ENTRY_YIELD_INTERVAL === 0) {
+      await yieldToEventLoop();
+    }
+
     const entry = asFrequencyDictionaryEntry(rawEntry);
     if (!entry) {
       continue;
@@ -119,15 +136,15 @@ function addEntriesToMap(
   return { duplicateCount };
 }
 
-function collectDictionaryFromPath(
+async function collectDictionaryFromPath(
   dictionaryPath: string,
   log: (message: string) => void,
-): Map<string, number> {
+): Promise<Map<string, number>> {
   const terms = new Map<string, number>();
 
   let fileNames: string[];
   try {
-    fileNames = fs.readdirSync(dictionaryPath);
+    fileNames = await fs.readdir(dictionaryPath);
   } catch (error) {
     log(`Failed to read frequency dictionary directory ${dictionaryPath}: ${String(error)}`);
     return terms;
@@ -143,7 +160,7 @@ function collectDictionaryFromPath(
     const bankPath = path.join(dictionaryPath, bankFile);
     let rawText: string;
     try {
-      rawText = fs.readFileSync(bankPath, 'utf-8');
+      rawText = await fs.readFile(bankPath, 'utf-8');
     } catch {
       log(`Failed to read frequency dictionary file ${bankPath}`);
       continue;
@@ -151,6 +168,7 @@ function collectDictionaryFromPath(
 
     let rawEntries: unknown;
     try {
+      await yieldToEventLoop();
       rawEntries = JSON.parse(rawText) as unknown;
     } catch {
       log(`Failed to parse frequency dictionary file as JSON: ${bankPath}`);
@@ -158,7 +176,7 @@ function collectDictionaryFromPath(
     }
 
     const beforeSize = terms.size;
-    const { duplicateCount } = addEntriesToMap(rawEntries, terms);
+    const { duplicateCount } = await addEntriesToMap(rawEntries, terms);
     if (duplicateCount > 0) {
       log(
         `Frequency dictionary ignored ${duplicateCount} duplicate term entr${
@@ -185,11 +203,11 @@ export async function createFrequencyDictionaryLookup(
     let isDirectory = false;
 
     try {
-      if (!fs.existsSync(dictionaryPath)) {
+      isDirectory = (await fs.stat(dictionaryPath)).isDirectory();
+    } catch (error) {
+      if (isErrorCode(error, 'ENOENT')) {
         continue;
       }
-      isDirectory = fs.statSync(dictionaryPath).isDirectory();
-    } catch (error) {
       options.log(
         `Failed to inspect frequency dictionary path ${dictionaryPath}: ${String(error)}`,
       );
@@ -201,7 +219,7 @@ export async function createFrequencyDictionaryLookup(
     }
 
     foundDictionaryPathCount += 1;
-    const terms = collectDictionaryFromPath(dictionaryPath, options.log);
+    const terms = await collectDictionaryFromPath(dictionaryPath, options.log);
     if (terms.size > 0) {
       options.log(`Frequency dictionary loaded from ${dictionaryPath} (${terms.size} entries)`);
       return (term: string): number | null => {

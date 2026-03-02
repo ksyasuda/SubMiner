@@ -1,4 +1,4 @@
-import * as fs from 'fs';
+import * as fs from 'node:fs/promises';
 import * as path from 'path';
 
 import type { JlptLevel } from '../../types';
@@ -24,6 +24,17 @@ const JLPT_LEVEL_PRECEDENCE: Record<JlptLevel, number> = {
 };
 
 const NOOP_LOOKUP = (): null => null;
+const ENTRY_YIELD_INTERVAL = 5000;
+
+function isErrorCode(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === 'object' && (error as { code?: unknown }).code === code);
+}
+
+async function yieldToEventLoop(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
+}
 
 function normalizeJlptTerm(value: string): string {
   return value.trim();
@@ -36,12 +47,12 @@ function hasFrequencyDisplayValue(meta: unknown): boolean {
   return Object.prototype.hasOwnProperty.call(frequency as Record<string, unknown>, 'displayValue');
 }
 
-function addEntriesToMap(
+async function addEntriesToMap(
   rawEntries: unknown,
   level: JlptLevel,
   terms: Map<string, JlptLevel>,
   log: (message: string) => void,
-): void {
+): Promise<void> {
   const shouldUpdateLevel = (
     existingLevel: JlptLevel | undefined,
     incomingLevel: JlptLevel,
@@ -53,7 +64,13 @@ function addEntriesToMap(
     return;
   }
 
+  let processedCount = 0;
   for (const rawEntry of rawEntries) {
+    processedCount += 1;
+    if (processedCount % ENTRY_YIELD_INTERVAL === 0) {
+      await yieldToEventLoop();
+    }
+
     if (!Array.isArray(rawEntry)) {
       continue;
     }
@@ -84,22 +101,31 @@ function addEntriesToMap(
   }
 }
 
-function collectDictionaryFromPath(
+async function collectDictionaryFromPath(
   dictionaryPath: string,
   log: (message: string) => void,
-): Map<string, JlptLevel> {
+): Promise<Map<string, JlptLevel>> {
   const terms = new Map<string, JlptLevel>();
 
   for (const bank of JLPT_BANK_FILES) {
     const bankPath = path.join(dictionaryPath, bank.filename);
-    if (!fs.existsSync(bankPath)) {
-      log(`JLPT bank file missing for ${bank.level}: ${bankPath}`);
+    try {
+      if (!(await fs.stat(bankPath)).isFile()) {
+        log(`JLPT bank file missing for ${bank.level}: ${bankPath}`);
+        continue;
+      }
+    } catch (error) {
+      if (isErrorCode(error, 'ENOENT')) {
+        log(`JLPT bank file missing for ${bank.level}: ${bankPath}`);
+        continue;
+      }
+      log(`Failed to inspect JLPT bank file ${bankPath}: ${String(error)}`);
       continue;
     }
 
     let rawText: string;
     try {
-      rawText = fs.readFileSync(bankPath, 'utf-8');
+      rawText = await fs.readFile(bankPath, 'utf-8');
     } catch {
       log(`Failed to read JLPT bank file ${bankPath}`);
       continue;
@@ -107,6 +133,7 @@ function collectDictionaryFromPath(
 
     let rawEntries: unknown;
     try {
+      await yieldToEventLoop();
       rawEntries = JSON.parse(rawText) as unknown;
     } catch {
       log(`Failed to parse JLPT bank file as JSON: ${bankPath}`);
@@ -119,7 +146,7 @@ function collectDictionaryFromPath(
     }
 
     const beforeSize = terms.size;
-    addEntriesToMap(rawEntries, bank.level, terms, log);
+    await addEntriesToMap(rawEntries, bank.level, terms, log);
     if (terms.size === beforeSize) {
       log(`JLPT bank file contained no extractable entries: ${bankPath}`);
     }
@@ -137,17 +164,21 @@ export async function createJlptVocabularyLookup(
   const resolvedBanks: string[] = [];
   for (const dictionaryPath of options.searchPaths) {
     attemptedPaths.push(dictionaryPath);
-    if (!fs.existsSync(dictionaryPath)) {
+    let isDirectory = false;
+    try {
+      isDirectory = (await fs.stat(dictionaryPath)).isDirectory();
+    } catch (error) {
+      if (isErrorCode(error, 'ENOENT')) {
+        continue;
+      }
+      options.log(`Failed to inspect JLPT dictionary path ${dictionaryPath}: ${String(error)}`);
       continue;
     }
-
-    if (!fs.statSync(dictionaryPath).isDirectory()) {
-      continue;
-    }
+    if (!isDirectory) continue;
 
     foundDictionaryPathCount += 1;
 
-    const terms = collectDictionaryFromPath(dictionaryPath, options.log);
+    const terms = await collectDictionaryFromPath(dictionaryPath, options.log);
     if (terms.size > 0) {
       resolvedBanks.push(dictionaryPath);
       foundBankCount += 1;

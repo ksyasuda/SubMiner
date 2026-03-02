@@ -129,3 +129,39 @@ test('createFrequencyDictionaryLookup parses composite displayValue by primary r
   assert.equal(lookup('鍛える'), 3272);
   assert.equal(lookup('高み'), 9933);
 });
+
+test('createFrequencyDictionaryLookup does not require synchronous fs APIs', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-frequency-dict-'));
+  const bankPath = path.join(tempDir, 'term_meta_bank_1.json');
+  fs.writeFileSync(bankPath, JSON.stringify([['猫', 1, { frequency: { displayValue: 42 } }]]));
+
+  const readFileSync = fs.readFileSync;
+  const readdirSync = fs.readdirSync;
+  const statSync = fs.statSync;
+  const existsSync = fs.existsSync;
+  (fs as unknown as Record<string, unknown>).readFileSync = () => {
+    throw new Error('sync read disabled');
+  };
+  (fs as unknown as Record<string, unknown>).readdirSync = () => {
+    throw new Error('sync readdir disabled');
+  };
+  (fs as unknown as Record<string, unknown>).statSync = () => {
+    throw new Error('sync stat disabled');
+  };
+  (fs as unknown as Record<string, unknown>).existsSync = () => {
+    throw new Error('sync exists disabled');
+  };
+
+  try {
+    const lookup = await createFrequencyDictionaryLookup({
+      searchPaths: [tempDir],
+      log: () => undefined,
+    });
+    assert.equal(lookup('猫'), 42);
+  } finally {
+    (fs as unknown as Record<string, unknown>).readFileSync = readFileSync;
+    (fs as unknown as Record<string, unknown>).readdirSync = readdirSync;
+    (fs as unknown as Record<string, unknown>).statSync = statSync;
+    (fs as unknown as Record<string, unknown>).existsSync = existsSync;
+  }
+});

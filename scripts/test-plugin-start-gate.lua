@@ -551,7 +551,7 @@ do
 		"autoplay-ready script message should resume mpv playback"
 	)
 	assert_true(
-		has_osd_message(recorded.osd, "SubMiner: Loading subtitle annotations..."),
+		has_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization..."),
 		"pause-until-ready auto-start should show loading OSD message"
 	)
 	assert_true(
@@ -559,7 +559,7 @@ do
 		"pause-until-ready auto-start should avoid replacing loading OSD with generic starting OSD"
 	)
 	assert_true(
-		has_osd_message(recorded.osd, "SubMiner: Subtitle annotations loaded"),
+		has_osd_message(recorded.osd, "SubMiner: Subtitle tokenization ready"),
 		"autoplay-ready should show loaded OSD message"
 	)
 	assert_true(

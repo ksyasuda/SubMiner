@@ -3,6 +3,8 @@ local M = {}
 local OVERLAY_START_RETRY_DELAY_SECONDS = 0.2
 local OVERLAY_START_MAX_ATTEMPTS = 6
 local AUTO_PLAY_READY_TIMEOUT_SECONDS = 15
+local AUTO_PLAY_READY_LOADING_OSD = "Loading subtitle tokenization..."
+local AUTO_PLAY_READY_READY_OSD = "Subtitle tokenization ready"
 
 function M.create(ctx)
 	local mp = ctx.mp
@@ -90,7 +92,7 @@ function M.create(ctx)
 		end
 		disarm_auto_play_ready_gate()
 		mp.set_property_native("pause", false)
-		show_osd("Subtitle annotations loaded")
+		show_osd(AUTO_PLAY_READY_READY_OSD)
 		subminer_log("info", "process", "Resuming playback after startup gate: " .. tostring(reason or "ready"))
 	end
 
@@ -101,11 +103,11 @@ function M.create(ctx)
 		end
 		state.auto_play_ready_gate_armed = true
 		mp.set_property_native("pause", true)
-		show_osd("Loading subtitle annotations...")
+		show_osd(AUTO_PLAY_READY_LOADING_OSD)
 		if type(mp.add_periodic_timer) == "function" then
 			state.auto_play_ready_osd_timer = mp.add_periodic_timer(2.5, function()
 				if state.auto_play_ready_gate_armed then
-					show_osd("Loading subtitle annotations...")
+					show_osd(AUTO_PLAY_READY_LOADING_OSD)
 				end
 			end)
 		end

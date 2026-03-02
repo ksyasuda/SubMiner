@@ -142,21 +142,40 @@ export function composeMpvRuntimeHandlers<
     return nPlusOneEnabled || jlptEnabled || frequencyEnabled;
   };
   let tokenizationWarmupInFlight: Promise<void> | null = null;
+  let tokenizationPrerequisiteWarmupInFlight: Promise<void> | null = null;
+  let tokenizationPrerequisiteWarmupCompleted = false;
   let tokenizationWarmupCompleted = false;
+  const ensureTokenizationPrerequisites = (): Promise<void> => {
+    if (tokenizationPrerequisiteWarmupCompleted) {
+      return Promise.resolve();
+    }
+    if (!tokenizationPrerequisiteWarmupInFlight) {
+      tokenizationPrerequisiteWarmupInFlight = options.warmups.startBackgroundWarmupsMainDeps
+        .ensureYomitanExtensionLoaded()
+        .then(() => {
+          tokenizationPrerequisiteWarmupCompleted = true;
+        })
+        .finally(() => {
+          tokenizationPrerequisiteWarmupInFlight = null;
+        });
+    }
+    return tokenizationPrerequisiteWarmupInFlight;
+  };
   const startTokenizationWarmups = (): Promise<void> => {
     if (tokenizationWarmupCompleted) {
       return Promise.resolve();
     }
     if (!tokenizationWarmupInFlight) {
       tokenizationWarmupInFlight = (async () => {
-        await options.warmups.startBackgroundWarmupsMainDeps.ensureYomitanExtensionLoaded();
+        const warmupTasks: Promise<unknown>[] = [ensureTokenizationPrerequisites()];
         if (
           shouldInitializeMecabForAnnotations() &&
           !options.tokenizer.createMecabTokenizerAndCheckMainDeps.getMecabTokenizer()
         ) {
-          await createMecabTokenizerAndCheck().catch(() => {});
+          warmupTasks.push(createMecabTokenizerAndCheck().catch(() => {}));
         }
-        await prewarmSubtitleDictionaries({ showLoadingOsd: true });
+        warmupTasks.push(prewarmSubtitleDictionaries({ showLoadingOsd: true }).catch(() => {}));
+        await Promise.all(warmupTasks);
         tokenizationWarmupCompleted = true;
       })().finally(() => {
         tokenizationWarmupInFlight = null;
@@ -165,9 +184,8 @@ export function composeMpvRuntimeHandlers<
     return tokenizationWarmupInFlight;
   };
   const tokenizeSubtitle = async (text: string): Promise<TTokenizedSubtitle> => {
-    if (!tokenizationWarmupCompleted) {
-      await startTokenizationWarmups();
-    }
+    if (!tokenizationWarmupCompleted) void startTokenizationWarmups();
+    await ensureTokenizationPrerequisites();
     return options.tokenizer.tokenizeSubtitle(
       text,
       options.tokenizer.createTokenizerRuntimeDeps(buildTokenizerDepsHandler()),
