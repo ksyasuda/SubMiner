@@ -377,3 +377,142 @@ test('composeMpvRuntimeHandlers skips MeCab warmup when all POS-dependent annota
 
   assert.deepEqual(calls, []);
 });
+
+test('composeMpvRuntimeHandlers runs tokenization warmup once across sequential tokenize calls', async () => {
+  let yomitanWarmupCalls = 0;
+  let prewarmJlptCalls = 0;
+  let prewarmFrequencyCalls = 0;
+  const tokenizeCalls: string[] = [];
+
+  const composed = composeMpvRuntimeHandlers<
+    { connect: () => void; on: () => void },
+    { isKnownWord: () => boolean },
+    { text: string }
+  >({
+    bindMpvMainEventHandlersMainDeps: {
+      appState: {
+        initialArgs: null,
+        overlayRuntimeInitialized: true,
+        mpvClient: null,
+        immersionTracker: null,
+        subtitleTimingTracker: null,
+        currentSubText: '',
+        currentSubAssText: '',
+        playbackPaused: null,
+        previousSecondarySubVisibility: null,
+      },
+      getQuitOnDisconnectArmed: () => false,
+      scheduleQuitCheck: () => {},
+      quitApp: () => {},
+      reportJellyfinRemoteStopped: () => {},
+      syncOverlayMpvSubtitleSuppression: () => {},
+      maybeRunAnilistPostWatchUpdate: async () => {},
+      logSubtitleTimingError: () => {},
+      broadcastToOverlayWindows: () => {},
+      onSubtitleChange: () => {},
+      refreshDiscordPresence: () => {},
+      ensureImmersionTrackerInitialized: () => {},
+      updateCurrentMediaPath: () => {},
+      restoreMpvSubVisibility: () => {},
+      getCurrentAnilistMediaKey: () => null,
+      resetAnilistMediaTracking: () => {},
+      maybeProbeAnilistDuration: () => {},
+      ensureAnilistMediaGuess: () => {},
+      syncImmersionMediaState: () => {},
+      updateCurrentMediaTitle: () => {},
+      resetAnilistMediaGuessState: () => {},
+      reportJellyfinRemoteProgress: () => {},
+      updateSubtitleRenderMetrics: () => {},
+    },
+    mpvClientRuntimeServiceFactoryMainDeps: {
+      createClient: class {
+        connect(): void {}
+        on(): void {}
+      },
+      getSocketPath: () => '/tmp/mpv.sock',
+      getResolvedConfig: () => ({ auto_start_overlay: false }),
+      isAutoStartOverlayEnabled: () => false,
+      setOverlayVisible: () => {},
+      isVisibleOverlayVisible: () => false,
+      getReconnectTimer: () => null,
+      setReconnectTimer: () => {},
+    },
+    updateMpvSubtitleRenderMetricsMainDeps: {
+      getCurrentMetrics: () => BASE_METRICS,
+      setCurrentMetrics: () => {},
+      applyPatch: (current, patch) => ({ next: { ...current, ...patch }, changed: true }),
+      broadcastMetrics: () => {},
+    },
+    tokenizer: {
+      buildTokenizerDepsMainDeps: {
+        getYomitanExt: () => null,
+        getYomitanParserWindow: () => null,
+        setYomitanParserWindow: () => {},
+        getYomitanParserReadyPromise: () => null,
+        setYomitanParserReadyPromise: () => {},
+        getYomitanParserInitPromise: () => null,
+        setYomitanParserInitPromise: () => {},
+        isKnownWord: () => false,
+        recordLookup: () => {},
+        getKnownWordMatchMode: () => 'headword',
+        getNPlusOneEnabled: () => false,
+        getMinSentenceWordsForNPlusOne: () => 3,
+        getJlptLevel: () => null,
+        getJlptEnabled: () => false,
+        getFrequencyDictionaryEnabled: () => false,
+        getFrequencyDictionaryMatchMode: () => 'headword',
+        getFrequencyRank: () => null,
+        getYomitanGroupDebugEnabled: () => false,
+        getMecabTokenizer: () => null,
+      },
+      createTokenizerRuntimeDeps: () => ({ isKnownWord: () => false }),
+      tokenizeSubtitle: async (text) => {
+        tokenizeCalls.push(text);
+        return { text };
+      },
+      createMecabTokenizerAndCheckMainDeps: {
+        getMecabTokenizer: () => null,
+        setMecabTokenizer: () => {},
+        createMecabTokenizer: () => ({ id: 'mecab' }),
+        checkAvailability: async () => {},
+      },
+      prewarmSubtitleDictionariesMainDeps: {
+        ensureJlptDictionaryLookup: async () => {
+          prewarmJlptCalls += 1;
+        },
+        ensureFrequencyDictionaryLookup: async () => {
+          prewarmFrequencyCalls += 1;
+        },
+      },
+    },
+    warmups: {
+      launchBackgroundWarmupTaskMainDeps: {
+        now: () => 0,
+        logDebug: () => {},
+        logWarn: () => {},
+      },
+      startBackgroundWarmupsMainDeps: {
+        getStarted: () => false,
+        setStarted: () => {},
+        isTexthookerOnlyMode: () => false,
+        ensureYomitanExtensionLoaded: async () => {
+          yomitanWarmupCalls += 1;
+        },
+        shouldWarmupMecab: () => false,
+        shouldWarmupYomitanExtension: () => false,
+        shouldWarmupSubtitleDictionaries: () => false,
+        shouldWarmupJellyfinRemoteSession: () => false,
+        shouldAutoConnectJellyfinRemote: () => false,
+        startJellyfinRemoteSession: async () => {},
+      },
+    },
+  });
+
+  await composed.tokenizeSubtitle('first');
+  await composed.tokenizeSubtitle('second');
+
+  assert.deepEqual(tokenizeCalls, ['first', 'second']);
+  assert.equal(yomitanWarmupCalls, 1);
+  assert.equal(prewarmJlptCalls, 1);
+  assert.equal(prewarmFrequencyCalls, 1);
+});

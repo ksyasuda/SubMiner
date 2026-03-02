@@ -4,7 +4,7 @@ title: 'Tokenization performance: disable Yomitan MeCab parser, gate local MeCab
 status: Done
 assignee: []
 created_date: '2026-03-02 07:44'
-updated_date: '2026-03-02 07:46'
+updated_date: '2026-03-02 09:20'
 labels: []
 dependencies: []
 priority: high
@@ -43,6 +43,8 @@ Implemented tokenizer latency optimizations:
 - added annotation-aware MeCab initialization gating in runtime warmup flow;
 - added persistent local MeCab process (default idle shutdown: 30s) with queued requests, retry-on-process-end, idle auto-shutdown, and automatic restart on new work;
 - added regression tests for Yomitan parse flag, MeCab warmup gating, and persistent/idle lifecycle behavior;
+- fixed tokenization warmup gate so first-use warmup completion is sticky (`tokenizationWarmupCompleted`) and sequential `tokenizeSubtitle` calls no longer re-run Yomitan/dictionary warmup path;
+- added regression coverage in `src/main/runtime/composers/mpv-runtime-composer.test.ts` for sequential tokenize calls (`warmup` side effects run once);
 - validated with targeted tests and `tsc --noEmit`.
 
 <!-- SECTION:FINAL_SUMMARY:END -->

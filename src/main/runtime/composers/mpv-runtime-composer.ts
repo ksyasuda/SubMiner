@@ -142,7 +142,11 @@ export function composeMpvRuntimeHandlers<
     return nPlusOneEnabled || jlptEnabled || frequencyEnabled;
   };
   let tokenizationWarmupInFlight: Promise<void> | null = null;
+  let tokenizationWarmupCompleted = false;
   const startTokenizationWarmups = (): Promise<void> => {
+    if (tokenizationWarmupCompleted) {
+      return Promise.resolve();
+    }
     if (!tokenizationWarmupInFlight) {
       tokenizationWarmupInFlight = (async () => {
         await options.warmups.startBackgroundWarmupsMainDeps.ensureYomitanExtensionLoaded();
@@ -153,6 +157,7 @@ export function composeMpvRuntimeHandlers<
           await createMecabTokenizerAndCheck().catch(() => {});
         }
         await prewarmSubtitleDictionaries({ showLoadingOsd: true });
+        tokenizationWarmupCompleted = true;
       })().finally(() => {
         tokenizationWarmupInFlight = null;
       });
@@ -160,7 +165,9 @@ export function composeMpvRuntimeHandlers<
     return tokenizationWarmupInFlight;
   };
   const tokenizeSubtitle = async (text: string): Promise<TTokenizedSubtitle> => {
-    await startTokenizationWarmups();
+    if (!tokenizationWarmupCompleted) {
+      await startTokenizationWarmups();
+    }
     return options.tokenizer.tokenizeSubtitle(
       text,
       options.tokenizer.createTokenizerRuntimeDeps(buildTokenizerDepsHandler()),
