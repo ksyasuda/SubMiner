@@ -16,10 +16,11 @@ async function initPlausibleTracker() {
   const { init } = await import('@plausible-analytics/tracker');
   init({
     domain: 'subminer.moe',
-    endpoint: 'https://worker.subminer.moe',
+    endpoint: 'https://worker.subminer.moe/api/event',
     outboundLinks: true,
     fileDownloads: true,
     formSubmissions: true,
+	captureOnLocalhost: false,
   });
   plausibleTrackerInitialized = true;
 }
