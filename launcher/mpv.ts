@@ -6,7 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import type { LogLevel, Backend, Args, MpvTrack } from './types.js';
 import { DEFAULT_MPV_SUBMINER_ARGS, DEFAULT_YOUTUBE_YTDL_FORMAT } from './types.js';
 import { log, fail, getMpvLogPath } from './log.js';
-import { buildSubminerScriptOpts, inferAniSkipMetadataForFile } from './aniskip-metadata.js';
+import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
 import {
   commandExists,
   isExecutable,
@@ -419,7 +419,7 @@ export async function loadSubtitleIntoMpv(
   }
 }
 
-export function startMpv(
+export async function startMpv(
   target: string,
   targetKind: 'file' | 'url',
   args: Args,
@@ -479,7 +479,8 @@ export function startMpv(
   if (options?.startPaused) {
     mpvArgs.push('--pause=yes');
   }
-  const aniSkipMetadata = targetKind === 'file' ? inferAniSkipMetadataForFile(target) : null;
+  const aniSkipMetadata =
+    targetKind === 'file' ? await resolveAniSkipMetadataForFile(target) : null;
   const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata);
   if (aniSkipMetadata) {
     log(

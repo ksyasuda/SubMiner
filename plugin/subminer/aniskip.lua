@@ -13,6 +13,12 @@ function M.create(ctx)
 	local mal_lookup_cache = {}
 	local payload_cache = {}
 	local title_context_cache = {}
+	local base64_reverse = {}
+	local base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+	for i = 1, #base64_chars do
+		base64_reverse[base64_chars:sub(i, i)] = i - 1
+	end
 
 	local function url_encode(text)
 		if type(text) ~= "string" then
@@ -23,6 +29,109 @@ function M.create(ctx)
 			return string.format("%%%02X", string.byte(char))
 		end)
 		return encoded:gsub(" ", "%%20")
+	end
+
+	local function parse_json_payload(text)
+		if type(text) ~= "string" then
+			return nil
+		end
+		local parsed, parse_error = utils.parse_json(text)
+		if type(parsed) == "table" then
+			return parsed
+		end
+		return nil, parse_error
+	end
+
+	local function decode_base64(input)
+		if type(input) ~= "string" then
+			return nil
+		end
+		local cleaned = input:gsub("%s", ""):gsub("-", "+"):gsub("_", "/")
+		cleaned = cleaned:match("^%s*(.-)%s*$") or ""
+		if cleaned == "" then
+			return nil
+		end
+		if #cleaned % 4 == 1 then
+			return nil
+		end
+		if #cleaned % 4 ~= 0 then
+			cleaned = cleaned .. string.rep("=", 4 - (#cleaned % 4))
+		end
+		if not cleaned:match("^[A-Za-z0-9+/%=]+$") then
+			return nil
+		end
+		local out = {}
+		local out_len = 0
+		for index = 1, #cleaned, 4 do
+			local c1 = cleaned:sub(index, index)
+			local c2 = cleaned:sub(index + 1, index + 1)
+			local c3 = cleaned:sub(index + 2, index + 2)
+			local c4 = cleaned:sub(index + 3, index + 3)
+			local v1 = base64_reverse[c1]
+			local v2 = base64_reverse[c2]
+			if not v1 or not v2 then
+				return nil
+			end
+			local v3 = c3 == "=" and 0 or base64_reverse[c3]
+			local v4 = c4 == "=" and 0 or base64_reverse[c4]
+			if (c3 ~= "=" and not v3) or (c4 ~= "=" and not v4) then
+				return nil
+			end
+			local n = (((v1 * 64 + v2) * 64 + v3) * 64 + v4)
+			local b1 = math.floor(n / 65536)
+			local remaining = n % 65536
+			local b2 = math.floor(remaining / 256)
+			local b3 = remaining % 256
+			out_len = out_len + 1
+			out[out_len] = string.char(b1)
+			if c3 ~= "=" then
+				out_len = out_len + 1
+				out[out_len] = string.char(b2)
+			end
+			if c4 ~= "=" then
+				out_len = out_len + 1
+				out[out_len] = string.char(b3)
+			end
+		end
+		return table.concat(out)
+	end
+
+	local function resolve_launcher_payload()
+		local raw_payload = type(opts.aniskip_payload) == "string" and opts.aniskip_payload or ""
+		local trimmed = raw_payload:match("^%s*(.-)%s*$") or ""
+		if trimmed == "" then
+			return nil
+		end
+
+		local parsed, parse_error = parse_json_payload(trimmed)
+		if type(parsed) == "table" then
+			return parsed
+		end
+
+		local url_decoded = trimmed:gsub("%%(%x%x)", function(hex)
+			local value = tonumber(hex, 16)
+			if value then
+				return string.char(value)
+			end
+			return "%"
+		end)
+		if url_decoded ~= trimmed then
+			parsed, parse_error = parse_json_payload(url_decoded)
+			if type(parsed) == "table" then
+				return parsed
+			end
+		end
+
+		local b64_decoded = decode_base64(trimmed)
+		if type(b64_decoded) == "string" and b64_decoded ~= "" then
+			parsed, parse_error = parse_json_payload(b64_decoded)
+			if type(parsed) == "table" then
+				return parsed
+			end
+		end
+
+		subminer_log("warn", "aniskip", "Invalid launcher AniSkip payload: " .. tostring(parse_error or "unparseable"))
+		return nil
 	end
 
 	local function run_json_curl_async(url, callback)
@@ -296,6 +405,8 @@ function M.create(ctx)
 		state.aniskip.episode = nil
 		state.aniskip.intro_start = nil
 		state.aniskip.intro_end = nil
+		state.aniskip.payload = nil
+		state.aniskip.payload_source = nil
 		remove_aniskip_chapters()
 	end
 
@@ -366,12 +477,26 @@ function M.create(ctx)
 					state.aniskip.intro_end = intro_end
 					state.aniskip.prompt_shown = false
 					set_intro_chapters(intro_start, intro_end)
-					subminer_log("info", "aniskip", string.format("Intro window %.3f -> %.3f (MAL %d, ep %d)", intro_start, intro_end, mal_id, episode))
+					subminer_log(
+						"info",
+						"aniskip",
+						string.format(
+							"Intro window %.3f -> %.3f (MAL %s, ep %s)",
+							intro_start,
+							intro_end,
+							tostring(mal_id or "-"),
+							tostring(episode or "-")
+						)
+					)
 					return true
 				end
 			end
 		end
 		return false
+	end
+
+	local function has_launcher_payload()
+		return type(opts.aniskip_payload) == "string" and opts.aniskip_payload:match("%S") ~= nil
 	end
 
 	local function is_launcher_context()
@@ -389,6 +514,9 @@ function M.create(ctx)
 		end
 		local forced_season = tonumber(opts.aniskip_season)
 		if forced_season and forced_season > 0 then
+			return true
+		end
+		if has_launcher_payload() then
 			return true
 		end
 		return false
@@ -500,6 +628,18 @@ function M.create(ctx)
 		end)
 	end
 
+	local function fetch_payload_from_launcher(payload, mal_id, title, episode)
+		if not payload then
+			return false
+		end
+		state.aniskip.payload = payload
+		state.aniskip.payload_source = "launcher"
+		state.aniskip.mal_id = mal_id
+		state.aniskip.title = title
+		state.aniskip.episode = episode
+		return apply_aniskip_payload(mal_id, title, episode, payload)
+	end
+
 	local function fetch_aniskip_for_current_media(trigger_source)
 		local trigger = type(trigger_source) == "string" and trigger_source or "manual"
 		if not opts.aniskip_enabled then
@@ -518,6 +658,28 @@ function M.create(ctx)
 			reset_aniskip_fields()
 			local title, episode, season = resolve_title_and_episode()
 			local lookup_titles = resolve_lookup_titles(title)
+			local launcher_payload = resolve_launcher_payload()
+			if launcher_payload then
+				local launcher_mal_id = tonumber(opts.aniskip_mal_id)
+				if not launcher_mal_id then
+					launcher_mal_id = nil
+				end
+				if fetch_payload_from_launcher(launcher_payload, launcher_mal_id, title, episode) then
+					subminer_log(
+						"info",
+						"aniskip",
+						string.format(
+							"Using launcher-provided AniSkip payload (title=%s, season=%s, episode=%s)",
+							tostring(title or ""),
+							tostring(season or "-"),
+							tostring(episode or "-")
+						)
+					)
+					return
+				end
+				subminer_log("info", "aniskip", "Launcher payload present but no OP interval was available")
+				return
+			end
 
 			subminer_log(
 				"info",
@@ -558,6 +720,8 @@ function M.create(ctx)
 						end
 						return
 					end
+					state.aniskip.payload = payload
+					state.aniskip.payload_source = "remote"
 					if not apply_aniskip_payload(mal_id, title, episode, payload) then
 						subminer_log("info", "aniskip", "AniSkip payload did not include OP interval")
 					end

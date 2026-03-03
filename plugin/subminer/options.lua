@@ -17,6 +17,7 @@ function M.load(options_lib, default_socket_path)
 		aniskip_season = "",
 		aniskip_mal_id = "",
 		aniskip_episode = "",
+		aniskip_payload = "",
 		aniskip_show_button = true,
 		aniskip_button_text = "You can skip by pressing %s",
 		aniskip_button_key = "y-k",

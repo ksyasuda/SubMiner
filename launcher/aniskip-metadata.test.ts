@@ -4,7 +4,37 @@ import {
   inferAniSkipMetadataForFile,
   buildSubminerScriptOpts,
   parseAniSkipGuessitJson,
+  resolveAniSkipMetadataForFile,
 } from './aniskip-metadata';
+
+function makeMockResponse(payload: unknown): Response {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => payload,
+  } as Response;
+}
+
+function normalizeFetchInput(input: string | URL | Request): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
+}
+
+async function withMockFetch(
+  handler: (input: string | URL | Request) => Promise<Response>,
+  fn: () => Promise<void>,
+): Promise<void> {
+  const original = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (input: string | URL | Request) => {
+    return handler(input);
+  }) as typeof fetch;
+  try {
+    await fn();
+  } finally {
+    (globalThis as { fetch: typeof fetch }).fetch = original;
+  }
+}
 
 test('parseAniSkipGuessitJson extracts title season and episode', () => {
   const parsed = parseAniSkipGuessitJson(
@@ -16,6 +46,10 @@ test('parseAniSkipGuessitJson extracts title season and episode', () => {
     season: 2,
     episode: 7,
     source: 'guessit',
+    malId: null,
+    introStart: null,
+    introEnd: null,
+    lookupStatus: 'lookup_failed',
   });
 });
 
@@ -34,6 +68,10 @@ test('parseAniSkipGuessitJson prefers series over episode title', () => {
     season: 1,
     episode: 10,
     source: 'guessit',
+    malId: null,
+    introStart: null,
+    introEnd: null,
+    lookupStatus: 'lookup_failed',
   });
 });
 
@@ -60,16 +98,78 @@ test('inferAniSkipMetadataForFile falls back to anime directory title when filen
   assert.equal(parsed.source, 'fallback');
 });
 
-test('buildSubminerScriptOpts includes aniskip metadata fields', () => {
+test('resolveAniSkipMetadataForFile resolves MAL id and intro payload', async () => {
+  await withMockFetch(
+    async (input) => {
+      const url = normalizeFetchInput(input);
+      if (url.includes('myanimelist.net/search/prefix.json')) {
+        return makeMockResponse({
+          categories: [
+            {
+              items: [
+                { id: '9876', name: 'Wrong Match' },
+                { id: '1234', name: 'My Show' },
+              ],
+            },
+          ],
+        });
+      }
+      if (url.includes('api.aniskip.com/v1/skip-times/1234/7')) {
+        return makeMockResponse({
+          found: true,
+          results: [{ skip_type: 'op', interval: { start_time: 12.5, end_time: 54.2 } }],
+        });
+      }
+      throw new Error(`unexpected url: ${url}`);
+    },
+    async () => {
+      const resolved = await resolveAniSkipMetadataForFile('/media/Anime.My.Show.S01E07.mkv');
+      assert.equal(resolved.malId, 1234);
+      assert.equal(resolved.introStart, 12.5);
+      assert.equal(resolved.introEnd, 54.2);
+      assert.equal(resolved.lookupStatus, 'ready');
+      assert.equal(resolved.title, 'Anime My Show');
+    },
+  );
+});
+
+test('resolveAniSkipMetadataForFile emits missing_mal_id when MAL search misses', async () => {
+  await withMockFetch(
+    async () => makeMockResponse({ categories: [] }),
+    async () => {
+      const resolved = await resolveAniSkipMetadataForFile('/media/NopeShow.S01E03.mkv');
+      assert.equal(resolved.malId, null);
+      assert.equal(resolved.lookupStatus, 'missing_mal_id');
+    },
+  );
+});
+
+test('buildSubminerScriptOpts includes aniskip payload fields', () => {
   const opts = buildSubminerScriptOpts('/tmp/SubMiner.AppImage', '/tmp/subminer.sock', {
     title: "Frieren: Beyond Journey's End",
     season: 1,
     episode: 5,
     source: 'guessit',
+    malId: 1234,
+    introStart: 30.5,
+    introEnd: 62,
+    lookupStatus: 'ready',
   });
+  const payloadMatch = opts.match(/subminer-aniskip_payload=([^,]+)/);
   assert.match(opts, /subminer-binary_path=\/tmp\/SubMiner\.AppImage/);
   assert.match(opts, /subminer-socket_path=\/tmp\/subminer\.sock/);
   assert.match(opts, /subminer-aniskip_title=Frieren: Beyond Journey's End/);
   assert.match(opts, /subminer-aniskip_season=1/);
   assert.match(opts, /subminer-aniskip_episode=5/);
+  assert.match(opts, /subminer-aniskip_mal_id=1234/);
+  assert.match(opts, /subminer-aniskip_intro_start=30.5/);
+  assert.match(opts, /subminer-aniskip_intro_end=62/);
+  assert.match(opts, /subminer-aniskip_lookup_status=ready/);
+  assert.ok(payloadMatch !== null);
+  const payload = JSON.parse(decodeURIComponent(payloadMatch[1]));
+  assert.equal(payload.found, true);
+  const first = payload.results?.[0];
+  assert.equal(first.skip_type, 'op');
+  assert.equal(first.interval.start_time, 30.5);
+  assert.equal(first.interval.end_time, 62);
 });

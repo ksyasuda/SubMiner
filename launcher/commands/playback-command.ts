@@ -146,7 +146,7 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     log('info', args.logLevel, 'Configured to pause mpv until overlay and tokenization are ready');
   }
 
-  startMpv(
+  await startMpv(
     selectedTarget.target,
     selectedTarget.kind,
     args,

@@ -24,6 +24,8 @@ function M.new()
 			episode = nil,
 			intro_start = nil,
 			intro_end = nil,
+			payload = nil,
+			payload_source = nil,
 			found = false,
 			prompt_shown = false,
 		},

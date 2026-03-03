@@ -137,6 +137,7 @@ aniskip_button_duration=3
 | `aniskip_season`               | `""`                          | numeric season                             | Optional season hint                                                             |
 | `aniskip_mal_id`               | `""`                          | numeric MAL id                             | Skip title lookup; use fixed id                                                  |
 | `aniskip_episode`              | `""`                          | numeric episode                            | Skip episode parsing; use fixed                                                  |
+| `aniskip_payload`              | `""`                          | JSON / base64-encoded JSON                 | Optional pre-fetched AniSkip payload for this media. When set, plugin skips network lookup |
 | `aniskip_show_button`          | `yes`                         | `yes` / `no`                               | Show in-range intro skip prompt                                                  |
 | `aniskip_button_text`          | `You can skip by pressing %s` | string                                     | OSD prompt format (`%s`=key)                                                     |
 | `aniskip_button_key`           | `y-k`                         | mpv key chord                              | Primary key for intro skip action (`y-k` always works as fallback)               |
@@ -208,7 +209,8 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
   - You explicitly call `script-message subminer-aniskip-refresh`.
 - Lookups are asynchronous (no blocking `ps`/`curl` on `file-loaded`).
 - MAL/title resolution is cached for the current mpv session.
-- When launched via `subminer`, launcher runs `guessit` first (file targets) and passes title/season/episode to the plugin; fallback is filename-derived title.
+- When launched via `subminer`, launcher can pass `aniskip_payload` (pre-fetched AniSkip `skip-times` payload) and the plugin applies it directly without making API calls.
+- If the payload is absent or invalid, lookup falls back to title/MAL-based async fetch.
 - Install `guessit` for best detection quality (`python3 -m pip install --user guessit`).
 - If OP interval exists, plugin adds `AniSkip Intro Start` and `AniSkip Intro End` chapters.
 - At intro start, plugin shows an OSD hint for the first 3 seconds (`You can skip by pressing y-k` by default).
