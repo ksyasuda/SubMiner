@@ -20,6 +20,7 @@ export interface SubsyncResolvedConfig {
   alassPath: string;
   ffsubsyncPath: string;
   ffmpegPath: string;
+  replace?: boolean;
 }
 
 const DEFAULT_SUBSYNC_EXECUTABLE_PATHS = {
@@ -55,6 +56,7 @@ export function getSubsyncConfig(config: SubsyncConfig | undefined): SubsyncReso
     alassPath: resolvePath(config?.alass_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.alass),
     ffsubsyncPath: resolvePath(config?.ffsubsync_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffsubsync),
     ffmpegPath: resolvePath(config?.ffmpeg_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffmpeg),
+    replace: config?.replace ?? DEFAULT_CONFIG.subsync.replace,
   };
 }
 

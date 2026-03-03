@@ -33,6 +33,12 @@ export function buildCoreConfigOptionRegistry(
       description: 'Subsync default mode.',
     },
     {
+      path: 'subsync.replace',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subsync.replace,
+      description: 'Replace the active subtitle file when sync completes.',
+    },
+    {
       path: 'startupWarmups.lowPowerMode',
       kind: 'boolean',
       defaultValue: defaultConfig.startupWarmups.lowPowerMode,

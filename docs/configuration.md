@@ -771,7 +771,8 @@ Sync the active subtitle track using `alass` (preferred) or `ffsubsync`:
     "defaultMode": "auto",
     "alass_path": "",
     "ffsubsync_path": "",
-    "ffmpeg_path": ""
+    "ffmpeg_path": "",
+    "replace": true
   }
 }
 ```
@@ -782,6 +783,7 @@ Sync the active subtitle track using `alass` (preferred) or `ffsubsync`:
 | `alass_path`     | string path          | Path to `alass` executable. Empty or `null` falls back to `/usr/bin/alass`.                                 |
 | `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` falls back to `/usr/bin/ffsubsync`.                         |
 | `ffmpeg_path`    | string path          | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.  |
+| `replace`        | `true`, `false`      | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
 
 Default trigger is `Ctrl+Alt+S` via `shortcuts.triggerSubsync`.
 Customize it there, or set it to `null` to disable.

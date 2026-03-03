@@ -88,6 +88,7 @@
     "alass_path": "", // Alass path setting.
     "ffsubsync_path": "", // Ffsubsync path setting.
     "ffmpeg_path": "", // Ffmpeg path setting.
+    "replace": true, // Replace active subtitle file when synchronization succeeds.
   }, // Subsync engine and executable paths.
 
   // ==========================================

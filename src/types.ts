@@ -97,6 +97,7 @@ export interface SubsyncConfig {
   alass_path?: string;
   ffsubsync_path?: string;
   ffmpeg_path?: string;
+  replace?: boolean;
 }
 
 export interface StartupWarmupsConfig {

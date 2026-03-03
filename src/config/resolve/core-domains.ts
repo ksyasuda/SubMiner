@@ -173,6 +173,12 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
     if (ffsubsync !== undefined) resolved.subsync.ffsubsync_path = ffsubsync;
     const ffmpeg = asString(src.subsync.ffmpeg_path);
     if (ffmpeg !== undefined) resolved.subsync.ffmpeg_path = ffmpeg;
+    const replace = asBoolean(src.subsync.replace);
+    if (replace !== undefined) {
+      resolved.subsync.replace = replace;
+    } else if (src.subsync.replace !== undefined) {
+      warn('subsync.replace', src.subsync.replace, resolved.subsync.replace, 'Expected boolean.');
+    }
   }
 
   if (isObject(src.subtitlePosition)) {

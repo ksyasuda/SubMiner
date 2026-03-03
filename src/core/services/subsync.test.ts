@@ -209,8 +209,71 @@ test('runSubsyncManual constructs ffsubsync command and returns success', async 
   assert.ok(ffArgs.includes(primaryPath));
   assert.ok(ffArgs.includes('--reference-stream'));
   assert.ok(ffArgs.includes('0:2'));
+  const ffOutputFlagIndex = ffArgs.indexOf('-o');
+  assert.equal(ffOutputFlagIndex >= 0, true);
+  assert.equal(ffArgs[ffOutputFlagIndex + 1], primaryPath);
   assert.equal(sentCommands[0]?.[0], 'sub_add');
   assert.deepEqual(sentCommands[1], ['set_property', 'sub-delay', 0]);
+});
+
+test('runSubsyncManual writes deterministic _retimed filename when replace is false', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-ffsubsync-no-replace-'));
+  const ffsubsyncLogPath = path.join(tmpDir, 'ffsubsync-args.log');
+  const ffsubsyncPath = path.join(tmpDir, 'ffsubsync.sh');
+  const ffmpegPath = path.join(tmpDir, 'ffmpeg.sh');
+  const alassPath = path.join(tmpDir, 'alass.sh');
+  const videoPath = path.join(tmpDir, 'video.mkv');
+  const primaryPath = path.join(tmpDir, 'episode.ja.srt');
+
+  fs.writeFileSync(videoPath, 'video');
+  fs.writeFileSync(primaryPath, 'sub');
+  writeExecutableScript(ffmpegPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(alassPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(
+    ffsubsyncPath,
+    `#!/bin/sh\n: > "${ffsubsyncLogPath}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${ffsubsyncLogPath}"; done\nout=\"\"\nprev=\"\"\nfor arg in \"$@\"; do\n  if [ \"$prev\" = \"-o\" ]; then out=\"$arg\"; fi\n  prev=\"$arg\"\ndone\nif [ -n \"$out\" ]; then : > \"$out\"; fi\nexit 0\n`,
+  );
+
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      currentAudioStreamIndex: null,
+      send: () => {},
+      requestProperty: async (name: string) => {
+        if (name === 'path') return videoPath;
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return null;
+        if (name === 'track-list') {
+          return [
+            {
+              id: 1,
+              type: 'sub',
+              selected: true,
+              external: true,
+              'external-filename': primaryPath,
+            },
+          ];
+        }
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      defaultMode: 'manual',
+      alassPath,
+      ffsubsyncPath,
+      ffmpegPath,
+      replace: false,
+    }),
+  });
+
+  const result = await runSubsyncManual({ engine: 'ffsubsync', sourceTrackId: null }, deps);
+
+  assert.equal(result.ok, true);
+  const ffArgs = fs.readFileSync(ffsubsyncLogPath, 'utf8').trim().split('\n');
+  const ffOutputFlagIndex = ffArgs.indexOf('-o');
+  assert.equal(ffOutputFlagIndex >= 0, true);
+  const outputPath = ffArgs[ffOutputFlagIndex + 1];
+  assert.equal(outputPath, path.join(tmpDir, 'episode.ja_retimed.srt'));
 });
 
 test('runSubsyncManual constructs alass command and returns failure on non-zero exit', async () => {
@@ -279,6 +342,76 @@ test('runSubsyncManual constructs alass command and returns failure on non-zero 
   const alassArgs = fs.readFileSync(alassLogPath, 'utf8').trim().split('\n');
   assert.equal(alassArgs[0], sourcePath);
   assert.equal(alassArgs[1], primaryPath);
+});
+
+test('runSubsyncManual keeps internal alass source file alive until sync finishes', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-alass-internal-source-'));
+  const alassPath = path.join(tmpDir, 'alass.sh');
+  const ffmpegPath = path.join(tmpDir, 'ffmpeg.sh');
+  const ffsubsyncPath = path.join(tmpDir, 'ffsubsync.sh');
+  const videoPath = path.join(tmpDir, 'video.mkv');
+  const primaryPath = path.join(tmpDir, 'primary.srt');
+
+  fs.writeFileSync(videoPath, 'video');
+  fs.writeFileSync(primaryPath, 'sub');
+  writeExecutableScript(ffsubsyncPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(
+    ffmpegPath,
+    '#!/bin/sh\nout=""\nfor arg in "$@"; do out="$arg"; done\nif [ -n "$out" ]; then : > "$out"; fi\nexit 0\n',
+  );
+  writeExecutableScript(
+    alassPath,
+    '#!/bin/sh\nsleep 0.2\nif [ ! -f "$1" ]; then echo "missing reference subtitle" >&2; exit 1; fi\nif [ ! -f "$2" ]; then echo "missing input subtitle" >&2; exit 1; fi\n: > "$3"\nexit 0\n',
+  );
+
+  const sentCommands: Array<Array<string | number>> = [];
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      currentAudioStreamIndex: null,
+      send: (payload) => {
+        sentCommands.push(payload.command);
+      },
+      requestProperty: async (name: string) => {
+        if (name === 'path') return videoPath;
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return null;
+        if (name === 'track-list') {
+          return [
+            {
+              id: 1,
+              type: 'sub',
+              selected: true,
+              external: true,
+              'external-filename': primaryPath,
+            },
+            {
+              id: 2,
+              type: 'sub',
+              selected: false,
+              external: false,
+              'ff-index': 2,
+              codec: 'ass',
+            },
+          ];
+        }
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      defaultMode: 'manual',
+      alassPath,
+      ffsubsyncPath,
+      ffmpegPath,
+    }),
+  });
+
+  const result = await runSubsyncManual({ engine: 'alass', sourceTrackId: 2 }, deps);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.message, 'Subtitle synchronized with alass');
+  assert.equal(sentCommands[0]?.[0], 'sub_add');
+  assert.deepEqual(sentCommands[1], ['set_property', 'sub-delay', 0]);
 });
 
 test('runSubsyncManual resolves string sid values from mpv stream properties', async () => {

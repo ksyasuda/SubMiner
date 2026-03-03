@@ -215,10 +215,10 @@ function cleanupTemporaryFile(extraction: FileExtractionResult): void {
   } catch {}
 }
 
-function buildRetimedPath(subPath: string): string {
+function buildRetimedPath(subPath: string, replace: boolean): string {
+  if (replace) return subPath;
   const parsed = path.parse(subPath);
-  const suffix = `_retimed_${Date.now()}`;
-  return path.join(parsed.dir, `${parsed.name}${suffix}${parsed.ext || '.srt'}`);
+  return path.join(parsed.dir, `${parsed.name}_retimed${parsed.ext || '.srt'}`);
 }
 
 async function runAlassSync(
@@ -265,7 +265,8 @@ async function subsyncToReference(
     context.videoPath,
     context.primaryTrack,
   );
-  const outputPath = buildRetimedPath(primaryExtraction.path);
+  const replacePrimary = resolved.replace !== false && !primaryExtraction.temporary;
+  const outputPath = buildRetimedPath(primaryExtraction.path, replacePrimary);
 
   try {
     let result: CommandResult;
@@ -389,7 +390,7 @@ export async function runSubsyncManual(
   let sourceExtraction: FileExtractionResult | null = null;
   try {
     sourceExtraction = await extractSubtitleTrackToFile(ffmpegPath, context.videoPath, sourceTrack);
-    return subsyncToReference('alass', sourceExtraction.path, context, resolved, client);
+    return await subsyncToReference('alass', sourceExtraction.path, context, resolved, client);
   } finally {
     if (sourceExtraction) {
       cleanupTemporaryFile(sourceExtraction);

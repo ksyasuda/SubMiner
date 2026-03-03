@@ -50,6 +50,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     alass_path: '',
     ffsubsync_path: '',
     ffmpeg_path: '',
+    replace: true,
   },
   startupWarmups: {
     lowPowerMode: false,
