@@ -290,6 +290,7 @@ export interface SubtitleStyleConfig {
   enableJlpt?: boolean;
   preserveLineBreaks?: boolean;
   autoPauseVideoOnHover?: boolean;
+  autoPauseVideoOnYomitanPopup?: boolean;
   hoverTokenColor?: string;
   hoverTokenBackgroundColor?: string;
   fontFamily?: string;

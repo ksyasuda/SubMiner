@@ -20,6 +20,7 @@ test('config option registry includes critical paths and has unique entries', ()
     'logging.level',
     'startupWarmups.lowPowerMode',
     'subtitleStyle.enableJlpt',
+    'subtitleStyle.autoPauseVideoOnYomitanPopup',
     'ankiConnect.enabled',
     'immersionTracking.enabled',
   ]) {

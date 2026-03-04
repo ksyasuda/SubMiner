@@ -58,7 +58,18 @@ These control playback and subtitle display. They require overlay window focus.
 
 These keybindings can be overridden or disabled via the `keybindings` config array.
 
-Mouse-hover playback behavior is configured separately from shortcuts: `subtitleStyle.autoPauseVideoOnHover` defaults to `true` (pause on subtitle hover, resume on leave).
+Mouse-hover playback behavior is configured separately from shortcuts: `subtitleStyle.autoPauseVideoOnHover` defaults to `true` (pause on subtitle hover; resume after leaving subtitle area). Optional popup behavior: set `subtitleStyle.autoPauseVideoOnYomitanPopup` to `true` to keep playback paused while Yomitan popup is open.
+
+When a Yomitan popup is open, SubMiner also provides popup control shortcuts:
+
+| Shortcut      | Action                                 |
+| ------------- | -------------------------------------- |
+| `J`           | Scroll definitions down                |
+| `K`           | Scroll definitions up                  |
+| `M`           | Mine/add selected term                 |
+| `P`           | Play selected term audio               |
+| `[`           | Play previous available audio (selected source) |
+| `]`           | Play next available audio (selected source)     |
 
 ## Subtitle & Feature Shortcuts
 

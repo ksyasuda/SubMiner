@@ -29,6 +29,13 @@ export function buildSubtitleConfigOptionRegistry(
         'Automatically pause mpv playback while hovering subtitle text, then resume on leave.',
     },
     {
+      path: 'subtitleStyle.autoPauseVideoOnYomitanPopup',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleStyle.autoPauseVideoOnYomitanPopup,
+      description:
+        'Automatically pause mpv playback while Yomitan popup is open, then resume when popup closes.',
+    },
+    {
       path: 'subtitleStyle.hoverTokenColor',
       kind: 'string',
       defaultValue: defaultConfig.subtitleStyle.hoverTokenColor,

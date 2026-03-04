@@ -100,6 +100,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     const fallbackSubtitleStyleEnableJlpt = resolved.subtitleStyle.enableJlpt;
     const fallbackSubtitleStylePreserveLineBreaks = resolved.subtitleStyle.preserveLineBreaks;
     const fallbackSubtitleStyleAutoPauseVideoOnHover = resolved.subtitleStyle.autoPauseVideoOnHover;
+    const fallbackSubtitleStyleAutoPauseVideoOnYomitanPopup =
+      resolved.subtitleStyle.autoPauseVideoOnYomitanPopup;
     const fallbackSubtitleStyleHoverTokenColor = resolved.subtitleStyle.hoverTokenColor;
     const fallbackSubtitleStyleHoverTokenBackgroundColor =
       resolved.subtitleStyle.hoverTokenBackgroundColor;
@@ -167,6 +169,26 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         'subtitleStyle.autoPauseVideoOnHover',
         (src.subtitleStyle as { autoPauseVideoOnHover?: unknown }).autoPauseVideoOnHover,
         resolved.subtitleStyle.autoPauseVideoOnHover,
+        'Expected boolean.',
+      );
+    }
+
+    const autoPauseVideoOnYomitanPopup = asBoolean(
+      (src.subtitleStyle as { autoPauseVideoOnYomitanPopup?: unknown }).autoPauseVideoOnYomitanPopup,
+    );
+    if (autoPauseVideoOnYomitanPopup !== undefined) {
+      resolved.subtitleStyle.autoPauseVideoOnYomitanPopup = autoPauseVideoOnYomitanPopup;
+    } else if (
+      (src.subtitleStyle as { autoPauseVideoOnYomitanPopup?: unknown })
+        .autoPauseVideoOnYomitanPopup !== undefined
+    ) {
+      resolved.subtitleStyle.autoPauseVideoOnYomitanPopup =
+        fallbackSubtitleStyleAutoPauseVideoOnYomitanPopup;
+      warn(
+        'subtitleStyle.autoPauseVideoOnYomitanPopup',
+        (src.subtitleStyle as { autoPauseVideoOnYomitanPopup?: unknown })
+          .autoPauseVideoOnYomitanPopup,
+        resolved.subtitleStyle.autoPauseVideoOnYomitanPopup,
         'Expected boolean.',
       );
     }

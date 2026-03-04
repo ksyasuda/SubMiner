@@ -121,6 +121,7 @@ const mouseHandlers = createMouseHandlers(ctx, {
   getCurrentYPercent: positioning.getCurrentYPercent,
   persistSubtitlePositionPatch: positioning.persistSubtitlePositionPatch,
   getSubtitleHoverAutoPauseEnabled: () => ctx.state.autoPauseVideoOnSubtitleHover,
+  getYomitanPopupAutoPauseEnabled: () => ctx.state.autoPauseVideoOnYomitanPopup,
   getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
   sendMpvCommand: (command) => {
     window.electronAPI.sendMpvCommand(command);

@@ -209,7 +209,11 @@ Notes:
 
 These keybindings only work when the overlay window has focus. See [Configuration](/configuration) for customization.
 
-By default, hovering over subtitle text pauses mpv playback and leaving the subtitle area resumes playback. Set `subtitleStyle.autoPauseVideoOnHover` to `false` to disable this behavior.
+By default, hovering over subtitle text pauses mpv playback. Playback resumes as soon as the cursor leaves subtitle text. Set `subtitleStyle.autoPauseVideoOnHover` to `false` to disable this behavior.
+
+If you want playback to stay paused while a Yomitan popup is open, set `subtitleStyle.autoPauseVideoOnYomitanPopup` to `true`. When enabled, SubMiner auto-resumes on popup close only if SubMiner paused playback for that popup.
+
+If the Yomitan popup is open, you can control it directly from the overlay: `J/K` scroll definitions, `M` mines/adds the selected term, `P` plays term audio, `[` plays the previous available audio, and `]` plays the next available audio in the selected source.
 
 ### Drag-and-drop Queueing
 

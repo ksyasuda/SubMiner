@@ -5,6 +5,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle'> = {
     enableJlpt: false,
     preserveLineBreaks: false,
     autoPauseVideoOnHover: true,
+    autoPauseVideoOnYomitanPopup: false,
     hoverTokenColor: '#f4dbd6',
     hoverTokenBackgroundColor: 'rgba(54, 58, 79, 0.84)',
     fontFamily: 'M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP',

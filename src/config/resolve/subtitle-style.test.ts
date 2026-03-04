@@ -47,6 +47,25 @@ test('subtitleStyle autoPauseVideoOnHover falls back on invalid value', () => {
   );
 });
 
+test('subtitleStyle autoPauseVideoOnYomitanPopup falls back on invalid value', () => {
+  const { context, warnings } = createResolveContext({
+    subtitleStyle: {
+      autoPauseVideoOnYomitanPopup: 'invalid' as unknown as boolean,
+    },
+  });
+
+  applySubtitleDomainConfig(context);
+
+  assert.equal(context.resolved.subtitleStyle.autoPauseVideoOnYomitanPopup, false);
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.autoPauseVideoOnYomitanPopup' &&
+        warning.message === 'Expected boolean.',
+    ),
+  );
+});
+
 test('subtitleStyle frequencyDictionary.matchMode accepts valid values and warns on invalid', () => {
   const valid = createResolveContext({
     subtitleStyle: {

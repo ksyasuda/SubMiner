@@ -258,7 +258,8 @@ See `config.example.jsonc` for detailed configuration options.
 | `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                              |
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                                   |
 | `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.         |
-| `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                 |
+| `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text; resume after leaving subtitle area (`true` by default).                    |
+| `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while Yomitan popup is open; resume when popup closes (`false` by default).                                   |
 | `hoverTokenColor`                  | string      | Hex color used for hovered subtitle token highlight in mpv (default: catppuccin mauve)                                     |
 | `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight (default: semi-transparent dark)                            |
 | `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                                 |

@@ -4,7 +4,7 @@ title: 'Subtitle hover: auto-pause playback with config toggle'
 status: Done
 assignee: []
 created_date: '2026-02-28 22:43'
-updated_date: '2026-02-28 22:43'
+updated_date: '2026-03-04 12:07'
 labels: []
 dependencies: []
 priority: medium
@@ -42,5 +42,12 @@ Scope:
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 
 Implemented `subtitleStyle.autoPauseVideoOnHover` with default `true`, wired through config defaults/resolution/types, renderer state/style, and mouse hover handlers. Added playback pause-state IPC (`getPlaybackPaused`) to avoid false resume when media was already paused. Added renderer hover behavior tests (including race/cancel case) and config/resolve tests. Updated config examples and docs (`README`, usage, shortcuts, mining workflow, configuration) to document default hover pause/resume behavior and disable path.
+
+Follow-up adjustments (2026-03-04):
+
+- Hover pause now resumes immediately when leaving subtitle text (no Yomitan-popup hover retention).
+- Added `subtitleStyle.autoPauseVideoOnYomitanPopup` (default `false`) to optionally keep playback paused while Yomitan popup is open, with auto-resume on close only when SubMiner initiated the popup pause.
+- Yomitan popup control keybinds added while popup is open: `J/K` scroll, `M` mine, `P` audio play, `[` previous audio variant, `]` next audio variant (within selected source).
+- Extension copy drift detection widened so popup runtime changes are reliably re-copied on launch (`popup.js`, `popup-main.js`, `display.js`, `display-audio.js`).
 
 <!-- SECTION:FINAL_SUMMARY:END -->

@@ -14,13 +14,68 @@ export function createMouseHandlers(
     getCurrentYPercent: () => number;
     persistSubtitlePositionPatch: (patch: { yPercent: number }) => void;
     getSubtitleHoverAutoPauseEnabled: () => boolean;
+    getYomitanPopupAutoPauseEnabled: () => boolean;
     getPlaybackPaused: () => Promise<boolean | null>;
     sendMpvCommand: (command: (string | number)[]) => void;
   },
 ) {
   let yomitanPopupVisible = false;
   let hoverPauseRequestId = 0;
+  let popupPauseRequestId = 0;
   let pausedBySubtitleHover = false;
+  let pausedByYomitanPopup = false;
+
+  function maybeResumeHoverPause(): void {
+    if (!pausedBySubtitleHover) return;
+    if (pausedByYomitanPopup) return;
+    if (ctx.state.isOverSubtitle) return;
+    pausedBySubtitleHover = false;
+    options.sendMpvCommand(['set_property', 'pause', 'no']);
+  }
+
+  function maybeResumeYomitanPopupPause(): void {
+    if (!pausedByYomitanPopup) return;
+    pausedByYomitanPopup = false;
+    if (ctx.state.isOverSubtitle && options.getSubtitleHoverAutoPauseEnabled()) {
+      pausedBySubtitleHover = true;
+      return;
+    }
+    options.sendMpvCommand(['set_property', 'pause', 'no']);
+  }
+
+  async function maybePauseForYomitanPopup(): Promise<void> {
+    if (!yomitanPopupVisible || !options.getYomitanPopupAutoPauseEnabled()) {
+      return;
+    }
+
+    const requestId = ++popupPauseRequestId;
+    if (pausedByYomitanPopup) return;
+
+    if (pausedBySubtitleHover) {
+      pausedBySubtitleHover = false;
+      pausedByYomitanPopup = true;
+      return;
+    }
+
+    let paused: boolean | null = null;
+    try {
+      paused = await options.getPlaybackPaused();
+    } catch {
+      return;
+    }
+
+    if (
+      requestId !== popupPauseRequestId ||
+      !yomitanPopupVisible ||
+      !options.getYomitanPopupAutoPauseEnabled()
+    ) {
+      return;
+    }
+    if (paused !== false) return;
+
+    options.sendMpvCommand(['set_property', 'pause', 'yes']);
+    pausedByYomitanPopup = true;
+  }
 
   function enablePopupInteraction(): void {
     yomitanPopupVisible = true;
@@ -40,6 +95,9 @@ export function createMouseHandlers(
     }
 
     yomitanPopupVisible = false;
+    popupPauseRequestId += 1;
+    maybeResumeYomitanPopupPause();
+    maybeResumeHoverPause();
     if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
       ctx.dom.overlay.classList.remove('interactive');
       if (ctx.platform.shouldToggleMouseIgnore) {
@@ -53,6 +111,10 @@ export function createMouseHandlers(
     ctx.dom.overlay.classList.add('interactive');
     if (ctx.platform.shouldToggleMouseIgnore) {
       window.electronAPI.setIgnoreMouseEvents(false);
+    }
+
+    if (yomitanPopupVisible && options.getYomitanPopupAutoPauseEnabled()) {
+      return;
     }
 
     if (!options.getSubtitleHoverAutoPauseEnabled()) {
@@ -79,10 +141,7 @@ export function createMouseHandlers(
   async function handleMouseLeave(): Promise<void> {
     ctx.state.isOverSubtitle = false;
     hoverPauseRequestId += 1;
-    if (pausedBySubtitleHover) {
-      pausedBySubtitleHover = false;
-      options.sendMpvCommand(['set_property', 'pause', 'no']);
-    }
+    maybeResumeHoverPause();
     if (yomitanPopupVisible) return;
     disablePopupInteractionIfIdle();
   }
@@ -144,9 +203,11 @@ export function createMouseHandlers(
 
   function setupYomitanObserver(): void {
     yomitanPopupVisible = hasYomitanPopupIframe(document);
+    void maybePauseForYomitanPopup();
 
     window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
       enablePopupInteraction();
+      void maybePauseForYomitanPopup();
     });
 
     window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, () => {
@@ -160,6 +221,7 @@ export function createMouseHandlers(
           const element = node as Element;
           if (isYomitanPopupIframe(element)) {
             enablePopupInteraction();
+            void maybePauseForYomitanPopup();
           }
         });
 

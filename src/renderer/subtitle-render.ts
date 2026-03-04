@@ -610,6 +610,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     ctx.state.jlptN5Color = jlptColors.N5;
     ctx.state.preserveSubtitleLineBreaks = style.preserveLineBreaks ?? false;
     ctx.state.autoPauseVideoOnSubtitleHover = style.autoPauseVideoOnHover ?? false;
+    ctx.state.autoPauseVideoOnYomitanPopup = style.autoPauseVideoOnYomitanPopup ?? false;
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n1-color', jlptColors.N1);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n2-color', jlptColors.N2);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-jlpt-n3-color', jlptColors.N3);

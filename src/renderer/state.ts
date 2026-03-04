@@ -65,6 +65,7 @@ export type RendererState = {
   jlptN5Color: string;
   preserveSubtitleLineBreaks: boolean;
   autoPauseVideoOnSubtitleHover: boolean;
+  autoPauseVideoOnYomitanPopup: boolean;
   frequencyDictionaryEnabled: boolean;
   frequencyDictionaryTopX: number;
   frequencyDictionaryMode: 'single' | 'banded';
@@ -128,6 +129,7 @@ export function createRendererState(): RendererState {
     jlptN5Color: '#8aadf4',
     preserveSubtitleLineBreaks: false,
     autoPauseVideoOnSubtitleHover: false,
+    autoPauseVideoOnYomitanPopup: false,
     frequencyDictionaryEnabled: false,
     frequencyDictionaryTopX: 1000,
     frequencyDictionaryMode: 'single',
