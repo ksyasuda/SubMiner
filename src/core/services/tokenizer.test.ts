@@ -972,6 +972,34 @@ test('tokenizeSubtitle skips frequency rank when Yomitan token is enriched as pa
   assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
 });
 
+test('tokenizeSubtitle keeps frequency rank when mecab tags classify token as content-bearing', async () => {
+  const result = await tokenizeSubtitle(
+    'ふふ',
+    makeDepsFromYomitanTokens([{ surface: 'ふふ', reading: '', headword: 'ふふ' }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === 'ふふ' ? 3014 : null),
+      tokenizeWithMecab: async () => [
+        {
+          headword: 'ふふ',
+          surface: 'ふふ',
+          reading: 'フフ',
+          startPos: 0,
+          endPos: 2,
+          partOfSpeech: PartOfSpeech.verb,
+          pos1: '動詞',
+          pos2: '自立',
+          isMerged: false,
+          isKnown: false,
+          isNPlusOneTarget: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 3014);
+});
+
 test('tokenizeSubtitle ignores invalid frequency ranks', async () => {
   const result = await tokenizeSubtitle(
     '猫',
@@ -2400,7 +2428,7 @@ test('tokenizeSubtitle excludes default non-independent pos2 from N+1 and freque
   assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
 });
 
-test('tokenizeSubtitle keeps merged token when overlap contains at least one content pos1 tag', async () => {
+test('tokenizeSubtitle excludes merged function/content token from frequency highlighting but keeps N+1', async () => {
   const result = await tokenizeSubtitle(
     'になれば',
     makeDepsFromYomitanTokens([{ surface: 'になれば', reading: 'になれば', headword: 'なる' }], {
@@ -2453,7 +2481,7 @@ test('tokenizeSubtitle keeps merged token when overlap contains at least one con
 
   assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.pos1, '助詞|動詞');
-  assert.equal(result.tokens?.[0]?.frequencyRank, 13);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
   assert.equal(result.tokens?.[0]?.isNPlusOneTarget, true);
 });
 

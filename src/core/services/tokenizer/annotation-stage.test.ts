@@ -314,6 +314,26 @@ test('annotateTokens excludes likely kana SFX tokens from frequency when POS tag
   assert.equal(result[0]?.frequencyRank, undefined);
 });
 
+test('annotateTokens keeps frequency when mecab tags classify token as content-bearing', () => {
+  const tokens = [
+    makeToken({
+      surface: 'ふふ',
+      headword: 'ふふ',
+      pos1: '動詞',
+      pos2: '自立',
+      frequencyRank: 3014,
+      startPos: 0,
+      endPos: 2,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, 3014);
+});
+
 test('annotateTokens allows previously default-excluded pos2 when removed from effective set', () => {
   const tokens = [
     makeToken({
@@ -337,7 +357,7 @@ test('annotateTokens allows previously default-excluded pos2 when removed from e
   assert.equal(result[0]?.isNPlusOneTarget, true);
 });
 
-test('annotateTokens keeps composite tokens when any component pos tag is content-bearing', () => {
+test('annotateTokens excludes composite function/content tokens from frequency but keeps N+1 eligible', () => {
   const tokens = [
     makeToken({
       surface: 'になれば',
@@ -354,7 +374,7 @@ test('annotateTokens keeps composite tokens when any component pos tag is conten
     minSentenceWordsForNPlusOne: 1,
   });
 
-  assert.equal(result[0]?.frequencyRank, 5);
+  assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.isNPlusOneTarget, true);
 });
 

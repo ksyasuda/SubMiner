@@ -73,8 +73,9 @@ function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<strin
   if (parts.length === 0) {
     return false;
   }
-  // Composite tags like "助詞|名詞" stay eligible unless every component is excluded.
-  return parts.every((part) => exclusions.has(part));
+  // Frequency highlighting should be conservative: if any merged component is excluded,
+  // skip highlighting the whole token to avoid noisy merged fragments.
+  return parts.some((part) => exclusions.has(part));
 }
 
 function resolvePos1Exclusions(options: AnnotationStageOptions): ReadonlySet<string> {
