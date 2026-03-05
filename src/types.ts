@@ -843,6 +843,8 @@ export interface ElectronAPI {
   onRuntimeOptionsChanged: (callback: (options: RuntimeOptionState[]) => void) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
+  onKeyboardModeToggleRequested: (callback: () => void) => void;
+  onLookupWindowToggleRequested: (callback: () => void) => void;
   appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
   notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => void;
   notifyOverlayModalOpened: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => void;

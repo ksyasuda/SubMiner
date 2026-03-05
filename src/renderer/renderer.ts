@@ -140,6 +140,16 @@ function truncateForErrorLog(text: string): string {
   return `${normalized.slice(0, 177)}...`;
 }
 
+function getSubtitleTextForPreview(data: SubtitleData | string): string {
+  if (typeof data === 'string') {
+    return data;
+  }
+  if (data && typeof data.text === 'string') {
+    return data.text;
+  }
+  return '';
+}
+
 function getActiveModal(): string | null {
   if (ctx.state.jimakuModalOpen) return 'jimaku';
   if (ctx.state.kikuModalOpen) return 'kiku';
@@ -245,6 +255,20 @@ function registerModalOpenHandlers(): void {
   );
 }
 
+function registerKeyboardCommandHandlers(): void {
+  window.electronAPI.onKeyboardModeToggleRequested(() => {
+    runGuarded('keyboard-mode-toggle:requested', () => {
+      keyboardHandlers.handleKeyboardModeToggleRequested();
+    });
+  });
+
+  window.electronAPI.onLookupWindowToggleRequested(() => {
+    runGuarded('lookup-window-toggle:requested', () => {
+      keyboardHandlers.handleLookupWindowToggleRequested();
+    });
+  });
+}
+
 function runGuarded(action: string, fn: () => void): void {
   try {
     fn();
@@ -262,6 +286,7 @@ function runGuardedAsync(action: string, fn: () => Promise<void> | void): void {
 }
 
 registerModalOpenHandlers();
+registerKeyboardCommandHandlers();
 
 async function init(): Promise<void> {
   document.body.classList.add(`layer-${ctx.platform.overlayLayer}`);
@@ -271,11 +296,7 @@ async function init(): Promise<void> {
 
   window.electronAPI.onSubtitle((data: SubtitleData) => {
     runGuarded('subtitle:update', () => {
-      if (typeof data === 'string') {
-        lastSubtitlePreview = truncateForErrorLog(data);
-      } else if (data && typeof data.text === 'string') {
-        lastSubtitlePreview = truncateForErrorLog(data.text);
-      }
+      lastSubtitlePreview = truncateForErrorLog(getSubtitleTextForPreview(data));
       subtitleRenderer.renderSubtitle(data);
       measurementReporter.schedule();
     });
@@ -288,8 +309,13 @@ async function init(): Promise<void> {
     });
   });
 
-  const initialSubtitle = await window.electronAPI.getCurrentSubtitleRaw();
-  lastSubtitlePreview = truncateForErrorLog(initialSubtitle);
+  let initialSubtitle: SubtitleData | string = '';
+  try {
+    initialSubtitle = await window.electronAPI.getCurrentSubtitle();
+  } catch {
+    initialSubtitle = await window.electronAPI.getCurrentSubtitleRaw();
+  }
+  lastSubtitlePreview = truncateForErrorLog(getSubtitleTextForPreview(initialSubtitle));
   subtitleRenderer.renderSubtitle(initialSubtitle);
   measurementReporter.schedule();
 

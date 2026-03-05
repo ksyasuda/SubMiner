@@ -224,6 +224,9 @@ export class Display extends EventDispatcher {
             ['displaySetContentScale',   this._onMessageSetContentScale.bind(this)],
             ['displayConfigure',         this._onMessageConfigure.bind(this)],
             ['displayVisibilityChanged', this._onMessageVisibilityChanged.bind(this)],
+            ['displaySimulateHotkey',    this._onMessageSimulateHotkey.bind(this)],
+            ['displayForwardKeyDown',    this._onMessageForwardKeyDown.bind(this)],
+            ['displayMineSelected',      this._onMessageMineSelected.bind(this)],
         ]);
         this.registerWindowMessageHandlers([
             ['displayExtensionUnloaded', this._onMessageExtensionUnloaded.bind(this)],
@@ -783,6 +786,57 @@ export class Display extends EventDispatcher {
     _onMessageVisibilityChanged({value}) {
         this._frameVisible = value;
         this.trigger('frameVisibilityChange', {value});
+    }
+
+    /**
+     * @param {{key: string, modifiers: unknown[]}} details
+     * @returns {boolean}
+     */
+    _onMessageSimulateHotkey({key, modifiers}) {
+        if (typeof key !== 'string' || !Array.isArray(modifiers)) { return false; }
+        const normalizedModifiers = modifiers.filter((modifier) => (
+            modifier === 'alt' ||
+            modifier === 'ctrl' ||
+            modifier === 'shift' ||
+            modifier === 'meta'
+        ));
+        return this._hotkeyHandler.simulate(key, normalizedModifiers);
+    }
+
+    /**
+     * @param {{key: string, code: string, modifiers: unknown[], repeat?: boolean}} details
+     * @returns {boolean}
+     */
+    _onMessageForwardKeyDown({key, code, modifiers, repeat = false}) {
+        if (typeof key !== 'string' || typeof code !== 'string' || !Array.isArray(modifiers)) { return false; }
+        const normalizedModifiers = modifiers.filter((modifier) => (
+            modifier === 'alt' ||
+            modifier === 'ctrl' ||
+            modifier === 'shift' ||
+            modifier === 'meta'
+        ));
+        const eventInit = {
+            key,
+            code,
+            repeat,
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            altKey: normalizedModifiers.includes('alt'),
+            ctrlKey: normalizedModifiers.includes('ctrl'),
+            shiftKey: normalizedModifiers.includes('shift'),
+            metaKey: normalizedModifiers.includes('meta'),
+        };
+        document.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+        return true;
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    _onMessageMineSelected() {
+        document.dispatchEvent(new CustomEvent('subminer-display-mine-selected'));
+        return true;
     }
 
     /** @type {import('display').WindowApiHandler<'displayExtensionUnloaded'>} */

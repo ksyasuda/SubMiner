@@ -6,6 +6,7 @@ import {
   YOMITAN_POPUP_IFRAME_SELECTOR,
   hasYomitanPopupIframe,
   isYomitanPopupIframe,
+  isYomitanPopupVisible,
 } from './yomitan-popup.js';
 import { scrollActiveRuntimeOptionIntoView } from './modals/runtime-options.js';
 import { resolvePlatformInfo } from './utils/platform.js';
@@ -281,6 +282,43 @@ test('hasYomitanPopupIframe queries for modern + legacy selector', () => {
 
   assert.equal(hasYomitanPopupIframe(root), true);
   assert.equal(selector, YOMITAN_POPUP_IFRAME_SELECTOR);
+});
+
+test('isYomitanPopupVisible requires visible iframe geometry', () => {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  let selector = '';
+  const visibleFrame = {
+    getBoundingClientRect: () => ({ width: 320, height: 180 }),
+  } as unknown as HTMLIFrameElement;
+  const hiddenFrame = {
+    getBoundingClientRect: () => ({ width: 320, height: 180 }),
+  } as unknown as HTMLIFrameElement;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      getComputedStyle: (element: Element) => {
+        if (element === hiddenFrame) {
+          return { visibility: 'hidden', display: 'block', opacity: '1' } as CSSStyleDeclaration;
+        }
+        return { visibility: 'visible', display: 'block', opacity: '1' } as CSSStyleDeclaration;
+      },
+    },
+  });
+
+  try {
+    const root = {
+      querySelectorAll: (value: string) => {
+        selector = value;
+        return [hiddenFrame, visibleFrame];
+      },
+    } as unknown as ParentNode;
+
+    assert.equal(isYomitanPopupVisible(root), true);
+    assert.equal(selector, YOMITAN_POPUP_IFRAME_SELECTOR);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+  }
 });
 
 test('scrollActiveRuntimeOptionIntoView scrolls active runtime option with nearest block', () => {

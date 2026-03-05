@@ -64,6 +64,8 @@ export const IPC_CHANNELS = {
     runtimeOptionsChanged: 'runtime-options:changed',
     runtimeOptionsOpen: 'runtime-options:open',
     jimakuOpen: 'jimaku:open',
+    keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
+    lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     configHotReload: 'config:hot-reload',
   },
 } as const;

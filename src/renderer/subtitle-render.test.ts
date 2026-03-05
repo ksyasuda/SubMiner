@@ -409,6 +409,11 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     '#subtitleRoot .word[data-frequency-rank]:hover::before',
   );
   assert.match(frequencyTooltipHoverBlock, /opacity:\s*1;/);
+  const frequencyTooltipKeyboardSelectedBlock = extractClassBlock(
+    cssText,
+    '#subtitleRoot .word.keyboard-selected[data-frequency-rank]::before',
+  );
+  assert.match(frequencyTooltipKeyboardSelectedBlock, /opacity:\s*1;/);
 
   const jlptTooltipBaseBlock = extractClassBlock(
     cssText,
@@ -424,6 +429,11 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     '#subtitleRoot .word[data-jlpt-level]:hover::after',
   );
   assert.match(jlptTooltipHoverBlock, /opacity:\s*1;/);
+  const jlptTooltipKeyboardSelectedBlock = extractClassBlock(
+    cssText,
+    '#subtitleRoot .word.keyboard-selected[data-jlpt-level]::after',
+  );
+  assert.match(jlptTooltipKeyboardSelectedBlock, /opacity:\s*1;/);
 
   assert.match(
     cssText,

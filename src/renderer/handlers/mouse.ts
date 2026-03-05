@@ -2,7 +2,7 @@ import type { ModalStateReader, RendererContext } from '../context';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
   YOMITAN_POPUP_SHOWN_EVENT,
-  hasYomitanPopupIframe,
+  isYomitanPopupVisible,
   isYomitanPopupIframe,
 } from '../yomitan-popup.js';
 
@@ -79,6 +79,7 @@ export function createMouseHandlers(
 
   function enablePopupInteraction(): void {
     yomitanPopupVisible = true;
+    ctx.state.yomitanPopupVisible = true;
     ctx.dom.overlay.classList.add('interactive');
     if (ctx.platform.shouldToggleMouseIgnore) {
       window.electronAPI.setIgnoreMouseEvents(false);
@@ -89,12 +90,14 @@ export function createMouseHandlers(
   }
 
   function disablePopupInteractionIfIdle(): void {
-    if (typeof document !== 'undefined' && hasYomitanPopupIframe(document)) {
+    if (typeof document !== 'undefined' && isYomitanPopupVisible(document)) {
       yomitanPopupVisible = true;
+      ctx.state.yomitanPopupVisible = true;
       return;
     }
 
     yomitanPopupVisible = false;
+    ctx.state.yomitanPopupVisible = false;
     popupPauseRequestId += 1;
     maybeResumeYomitanPopupPause();
     maybeResumeHoverPause();
@@ -202,7 +205,8 @@ export function createMouseHandlers(
   }
 
   function setupYomitanObserver(): void {
-    yomitanPopupVisible = hasYomitanPopupIframe(document);
+    yomitanPopupVisible = isYomitanPopupVisible(document);
+    ctx.state.yomitanPopupVisible = yomitanPopupVisible;
     void maybePauseForYomitanPopup();
 
     window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {

@@ -118,6 +118,12 @@ function createQueuedIpcListenerWithPayload<T>(
 
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
 const onOpenJimakuEvent = createQueuedIpcListener(IPC_CHANNELS.event.jimakuOpen);
+const onKeyboardModeToggleRequestedEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.keyboardModeToggleRequested,
+);
+const onLookupWindowToggleRequestedEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.lookupWindowToggleRequested,
+);
 const onSubsyncManualOpenEvent = createQueuedIpcListenerWithPayload<SubsyncManualPayload>(
   IPC_CHANNELS.event.subsyncOpenManual,
   (payload) => payload as SubsyncManualPayload,
@@ -282,6 +288,8 @@ const electronAPI: ElectronAPI = {
   },
   onOpenRuntimeOptions: onOpenRuntimeOptionsEvent,
   onOpenJimaku: onOpenJimakuEvent,
+  onKeyboardModeToggleRequested: onKeyboardModeToggleRequestedEvent,
+  onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,
   appendClipboardVideoToQueue: (): Promise<ClipboardAppendResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.appendClipboardVideoToQueue),
   notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => {

@@ -28,6 +28,85 @@ import {loadStyle} from '../dom/style-util.js';
 import {checkPopupPreviewURL} from '../pages/settings/popup-preview-controller.js';
 import {ThemeController} from './theme-controller.js';
 
+const SUBMINER_POPUP_COMMAND_EVENT = 'subminer-yomitan-popup-command';
+const subminerPopupInstances = new Set();
+let subminerPopupCommandBridgeRegistered = false;
+
+function getActivePopupForSubminerCommand() {
+    /** @type {?Popup} */
+    let fallback = null;
+    for (const popup of subminerPopupInstances) {
+        if (!popup.isVisibleSync()) { continue; }
+        fallback = popup;
+        if (popup.isPointerOverSelfOrChildren()) {
+            return popup;
+        }
+    }
+    return fallback;
+}
+
+function registerSubminerPopupCommandBridge() {
+    if (subminerPopupCommandBridgeRegistered) { return; }
+    subminerPopupCommandBridgeRegistered = true;
+    window.addEventListener(SUBMINER_POPUP_COMMAND_EVENT, (event) => {
+        const popup = getActivePopupForSubminerCommand();
+        if (popup === null) { return; }
+        const detail = event.detail;
+        if (typeof detail !== 'object' || detail === null) { return; }
+
+        if (detail.type === 'simulateHotkey') {
+            const key = detail.key;
+            const rawModifiers = detail.modifiers;
+            if (typeof key !== 'string' || !Array.isArray(rawModifiers)) { return; }
+            const modifiers = rawModifiers.filter((modifier) => (
+                modifier === 'alt' ||
+                modifier === 'ctrl' ||
+                modifier === 'shift' ||
+                modifier === 'meta'
+            ));
+            void popup._invokeSafe('displaySimulateHotkey', {key, modifiers});
+            return;
+        }
+
+        if (detail.type === 'forwardKeyDown') {
+            const code = detail.code;
+            const key = detail.key;
+            const rawModifiers = detail.modifiers;
+            if (typeof code !== 'string' || typeof key !== 'string' || !Array.isArray(rawModifiers)) { return; }
+            const modifiers = rawModifiers.filter((modifier) => (
+                modifier === 'alt' ||
+                modifier === 'ctrl' ||
+                modifier === 'shift' ||
+                modifier === 'meta'
+            ));
+            void popup._invokeSafe('displayForwardKeyDown', {
+                key,
+                code,
+                modifiers,
+                repeat: detail.repeat === true,
+            });
+            return;
+        }
+
+        if (detail.type === 'mineSelected') {
+            void popup._invokeSafe('displayMineSelected', void 0);
+            return;
+        }
+
+        if (detail.type === 'cycleAudioSource') {
+            const direction = detail.direction === -1 ? -1 : 1;
+            void popup._invokeSafe('displayAudioCycleSource', {direction});
+            return;
+        }
+
+        if (detail.type === 'setVisible') {
+            if (detail.visible === false) {
+                popup.hide(false);
+            }
+        }
+    });
+}
+
 /**
  * This class is the container which hosts the display of search results.
  * @augments EventDispatcher<import('popup').Events>
@@ -209,6 +288,8 @@ export class Popup extends EventDispatcher {
      * Prepares the popup for use.
      */
     prepare() {
+        registerSubminerPopupCommandBridge();
+        subminerPopupInstances.add(this);
         this._frame.addEventListener('mouseover', this._onFrameMouseOver.bind(this));
         this._frame.addEventListener('mouseout', this._onFrameMouseOut.bind(this));
         this._frame.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -471,6 +552,7 @@ export class Popup extends EventDispatcher {
      */
     _onFrameMouseOver() {
         this._isPointerOverPopup = true;
+        window.dispatchEvent(new CustomEvent('yomitan-popup-mouse-enter'));
 
         this.stopHideDelayed();
         this.trigger('mouseOver', {});
@@ -486,6 +568,7 @@ export class Popup extends EventDispatcher {
      */
     _onFrameMouseOut() {
         this._isPointerOverPopup = false;
+        window.dispatchEvent(new CustomEvent('yomitan-popup-mouse-leave'));
 
         this.trigger('mouseOut', {});
 
@@ -836,6 +919,7 @@ export class Popup extends EventDispatcher {
      * @returns {void}
      */
     _onExtensionUnloaded() {
+        subminerPopupInstances.delete(this);
         this._invokeWindow('displayExtensionUnloaded', void 0);
     }
 

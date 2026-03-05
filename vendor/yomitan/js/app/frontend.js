@@ -28,6 +28,40 @@ import {TextSourceGenerator} from '../dom/text-source-generator.js';
 import {TextSourceRange} from '../dom/text-source-range.js';
 import {TextScanner} from '../language/text-scanner.js';
 
+const SUBMINER_FRONTEND_COMMAND_EVENT = 'subminer-yomitan-popup-command';
+const subminerFrontendInstances = new Set();
+let subminerFrontendCommandBridgeRegistered = false;
+
+function getActiveFrontendForSubminerCommand() {
+    /** @type {?Frontend} */
+    let fallback = null;
+    for (const frontend of subminerFrontendInstances) {
+        if (frontend._textScanner?.isEnabled?.()) {
+            return frontend;
+        }
+        if (fallback === null) {
+            fallback = frontend;
+        }
+    }
+    return fallback;
+}
+
+function registerSubminerFrontendCommandBridge() {
+    if (subminerFrontendCommandBridgeRegistered) { return; }
+    subminerFrontendCommandBridgeRegistered = true;
+
+    window.addEventListener(SUBMINER_FRONTEND_COMMAND_EVENT, (event) => {
+        const frontend = getActiveFrontendForSubminerCommand();
+        if (frontend === null) { return; }
+        const detail = event.detail;
+        if (typeof detail !== 'object' || detail === null) { return; }
+
+        if (detail.type === 'scanSelectedText') {
+            frontend._onApiScanSelectedText();
+        }
+    });
+}
+
 /**
  * This is the main class responsible for scanning and handling webpage content.
  */
@@ -158,6 +192,9 @@ export class Frontend {
      * Prepares the instance for use.
      */
     async prepare() {
+        registerSubminerFrontendCommandBridge();
+        subminerFrontendInstances.add(this);
+
         await this.updateOptions();
         try {
             const {zoomFactor} = await this._application.api.getZoom();

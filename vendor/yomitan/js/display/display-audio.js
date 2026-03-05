@@ -69,6 +69,10 @@ export class DisplayAudio {
         ]);
         /** @type {?boolean} */
         this._enableDefaultAudioSources = null;
+        /** @type {?number} */
+        this._audioCycleSourceIndex = null;
+        /** @type {Map<number, number>} */
+        this._audioCycleAudioInfoIndexMap = new Map();
         /** @type {(event: MouseEvent) => void} */
         this._onAudioPlayButtonClickBind = this._onAudioPlayButtonClick.bind(this);
         /** @type {(event: MouseEvent) => void} */
@@ -96,6 +100,7 @@ export class DisplayAudio {
         ]);
         this._display.registerDirectMessageHandlers([
             ['displayAudioClearAutoPlayTimer', this._onMessageClearAutoPlayTimer.bind(this)],
+            ['displayAudioCycleSource', this._onMessageCycleAudioSource.bind(this)],
         ]);
         /* eslint-enable @stylistic/no-multi-spaces */
         this._display.on('optionsUpdated', this._onOptionsUpdated.bind(this));
@@ -186,6 +191,8 @@ export class DisplayAudio {
         /** @type {Map<string, import('display-audio').AudioSource[]>} */
         const nameMap = new Map();
         this._audioSources.length = 0;
+        this._audioCycleSourceIndex = null;
+        this._audioCycleAudioInfoIndexMap.clear();
         for (const {type, url, voice} of sources) {
             this._addAudioSourceInfo(type, url, voice, true, nameMap);
             requiredAudioSources.delete(type);
@@ -204,6 +211,8 @@ export class DisplayAudio {
     _onContentClear() {
         this._entriesToken = {};
         this._cache.clear();
+        this._audioCycleSourceIndex = null;
+        this._audioCycleAudioInfoIndexMap.clear();
         this.clearAutoPlayTimer();
         this._eventListeners.removeAllEventListeners();
     }
@@ -271,6 +280,73 @@ export class DisplayAudio {
     /** @type {import('display').DirectApiHandler<'displayAudioClearAutoPlayTimer'>} */
     _onMessageClearAutoPlayTimer() {
         this.clearAutoPlayTimer();
+    }
+
+    /**
+     * @param {{direction?: number}} details
+     * @returns {Promise<boolean>}
+     */
+    async _onMessageCycleAudioSource({direction}) {
+        /** @type {import('display-audio').AudioSource[]} */
+        const configuredSources = this._audioSources.filter((source) => source.isInOptions);
+        const sources = configuredSources.length > 0 ? configuredSources : this._audioSources;
+        if (sources.length === 0) { return false; }
+
+        const dictionaryEntryIndex = this._display.selectedIndex;
+        const headwordIndex = 0;
+        const headword = this._getHeadword(dictionaryEntryIndex, headwordIndex);
+        if (headword === null) { return false; }
+        const {term, reading} = headword;
+
+        const primaryCardAudio = this._getPrimaryCardAudio(term, reading);
+        let source = null;
+        if (primaryCardAudio !== null) {
+            source = sources.find((item) => item.index === primaryCardAudio.index) ?? null;
+        }
+        if (source === null) {
+            const fallbackIndex = (
+                this._audioCycleSourceIndex !== null &&
+                this._audioCycleSourceIndex >= 0 &&
+                this._audioCycleSourceIndex < sources.length
+            ) ? this._audioCycleSourceIndex : 0;
+            source = sources[fallbackIndex] ?? null;
+            this._audioCycleSourceIndex = fallbackIndex;
+        }
+        if (source === null) { return false; }
+
+        const infoList = await this._getSourceAudioInfoList(source, term, reading);
+        const infoListLength = infoList.length;
+        if (infoListLength === 0) { return false; }
+
+        const step = direction === -1 ? -1 : 1;
+        let currentSubIndex = this._audioCycleAudioInfoIndexMap.get(source.index);
+        if (
+            typeof currentSubIndex !== 'number' &&
+            primaryCardAudio !== null &&
+            primaryCardAudio.index === source.index &&
+            primaryCardAudio.subIndex !== null
+        ) {
+            currentSubIndex = primaryCardAudio.subIndex;
+        }
+        if (typeof currentSubIndex !== 'number') {
+            currentSubIndex = step > 0 ? -1 : infoListLength;
+        }
+
+        for (let i = 0; i < infoListLength; ++i) {
+            currentSubIndex = (currentSubIndex + step + infoListLength) % infoListLength;
+            const {valid} = await this._playAudio(
+                dictionaryEntryIndex,
+                headwordIndex,
+                [source],
+                currentSubIndex,
+            );
+            if (valid) {
+                this._audioCycleAudioInfoIndexMap.set(source.index, currentSubIndex);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -689,6 +765,39 @@ export class DisplayAudio {
         const languageSummary = this._display.getLanguageSummary();
         const infoList = await this._display.application.api.getTermAudioInfoList(sourceData, term, reading, languageSummary);
         return infoList.map((info) => ({info, audioPromise: null, audioResolved: false, audio: null}));
+    }
+
+    /**
+     * @param {import('display-audio').AudioSource} source
+     * @param {string} term
+     * @param {string} reading
+     * @returns {Promise<import('display-audio').AudioInfoList>}
+     */
+    async _getSourceAudioInfoList(source, term, reading) {
+        const cacheItem = this._getCacheItem(term, reading, true);
+        if (typeof cacheItem === 'undefined') { return []; }
+        const {sourceMap} = cacheItem;
+
+        let cacheUpdated = false;
+        let sourceInfo = sourceMap.get(source.index);
+        if (typeof sourceInfo === 'undefined') {
+            const infoListPromise = this._getTermAudioInfoList(source, term, reading);
+            sourceInfo = {infoListPromise, infoList: null};
+            sourceMap.set(source.index, sourceInfo);
+            cacheUpdated = true;
+        }
+
+        let {infoList} = sourceInfo;
+        if (infoList === null) {
+            infoList = await sourceInfo.infoListPromise;
+            sourceInfo.infoList = infoList;
+            cacheUpdated = true;
+        }
+
+        if (cacheUpdated) {
+            this._updateOpenMenu();
+        }
+        return infoList;
     }
 
     /**

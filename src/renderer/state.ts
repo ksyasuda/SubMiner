@@ -79,6 +79,9 @@ export type RendererState = {
   keybindingsMap: Map<string, (string | number)[]>;
   chordPending: boolean;
   chordTimeout: ReturnType<typeof setTimeout> | null;
+  keyboardDrivenModeEnabled: boolean;
+  keyboardSelectedWordIndex: number | null;
+  yomitanPopupVisible: boolean;
 };
 
 export function createRendererState(): RendererState {
@@ -143,5 +146,8 @@ export function createRendererState(): RendererState {
     keybindingsMap: new Map(),
     chordPending: false,
     chordTimeout: null,
+    keyboardDrivenModeEnabled: false,
+    keyboardSelectedWordIndex: null,
+    yomitanPopupVisible: false,
   };
 }

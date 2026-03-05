@@ -340,6 +340,15 @@ body.settings-modal-open #subtitleContainer {
   -webkit-text-fill-color: currentColor !important;
 }
 
+#subtitleRoot .word.keyboard-selected {
+  outline: 2px solid rgba(135, 201, 255, 0.92);
+  outline-offset: 2px;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 2px rgba(12, 18, 28, 0.68),
+    0 0 18px rgba(120, 188, 255, 0.45);
+}
+
 #subtitleRoot .word[data-frequency-rank]::before {
   content: attr(data-frequency-rank);
   position: absolute;
@@ -363,7 +372,8 @@ body.settings-modal-open #subtitleContainer {
   z-index: 1;
 }
 
-#subtitleRoot .word[data-frequency-rank]:hover::before {
+#subtitleRoot .word[data-frequency-rank]:hover::before,
+#subtitleRoot .word.keyboard-selected[data-frequency-rank]::before {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
@@ -390,7 +400,8 @@ body.settings-modal-open #subtitleContainer {
   z-index: 1;
 }
 
-#subtitleRoot .word[data-jlpt-level]:hover::after {
+#subtitleRoot .word[data-jlpt-level]:hover::after,
+#subtitleRoot .word.keyboard-selected[data-jlpt-level]::after {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }

@@ -47,6 +47,50 @@ await Application.main(true, async (application) => {
     const displayResizer = new DisplayResizer(display);
     displayResizer.prepare();
 
+    document.addEventListener('keydown', (event) => {
+        if (event.defaultPrevented || event.repeat) { return; }
+        if (event.ctrlKey || event.metaKey || event.altKey) { return; }
+
+        const target = /** @type {?Element} */ (event.target instanceof Element ? event.target : null);
+        if (target !== null) {
+            if (target.closest('input, textarea, select, [contenteditable="true"]')) {
+                return;
+            }
+        }
+
+        const code = event.code;
+        if (code === 'KeyJ' || code === 'KeyK') {
+            const scanningOptions = display.getOptions()?.scanning;
+            const scale = Number.isFinite(scanningOptions?.reducedMotionScrollingScale)
+                ? scanningOptions.reducedMotionScrollingScale
+                : 1;
+            display._scrollByPopupHeight(code === 'KeyJ' ? 1 : -1, scale);
+            event.preventDefault();
+            return;
+        }
+
+        if (code === 'KeyM') {
+            displayAnki._hotkeySaveAnkiNoteForSelectedEntry('0');
+            event.preventDefault();
+            return;
+        }
+
+        if (code === 'KeyP') {
+            void displayAudio.playAudio(display.selectedIndex, 0);
+            event.preventDefault();
+            return;
+        }
+
+        if (code === 'BracketLeft' || code === 'BracketRight') {
+            displayAudio._onMessageCycleAudioSource({direction: code === 'BracketLeft' ? 1 : -1});
+            event.preventDefault();
+        }
+    });
+
+    document.addEventListener('subminer-display-mine-selected', () => {
+        displayAnki._hotkeySaveAnkiNoteForSelectedEntry('0');
+    });
+
     display.initializeState();
 
     document.documentElement.dataset.loaded = 'true';
