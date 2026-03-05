@@ -4,12 +4,12 @@ import { readFileSync } from 'node:fs';
 const docsThemePath = new URL('./.vitepress/theme/index.ts', import.meta.url);
 const docsThemeContents = readFileSync(docsThemePath, 'utf8');
 
-test('docs theme configures plausible tracker for subminer.moe via worker.subminer.moe api endpoint', () => {
-  expect(docsThemeContents).toContain('@plausible-analytics/tracker');
-  expect(docsThemeContents).toContain('const { init } = await import');
-  expect(docsThemeContents).toContain("domain: 'subminer.moe'");
-  expect(docsThemeContents).toContain("endpoint: 'https://worker.subminer.moe/api/event'");
-  expect(docsThemeContents).toContain('outboundLinks: true');
-  expect(docsThemeContents).toContain('fileDownloads: true');
-  expect(docsThemeContents).toContain('formSubmissions: true');
+test('docs theme has no plausible analytics wiring', () => {
+  expect(docsThemeContents).not.toContain('@plausible-analytics/tracker');
+  expect(docsThemeContents).not.toContain('initPlausibleTracker');
+  expect(docsThemeContents).not.toContain('worker.subminer.moe');
+  expect(docsThemeContents).not.toContain('domain:');
+  expect(docsThemeContents).not.toContain('outboundLinks: true');
+  expect(docsThemeContents).not.toContain('fileDownloads: true');
+  expect(docsThemeContents).not.toContain('formSubmissions: true');
 });
