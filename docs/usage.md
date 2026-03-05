@@ -213,7 +213,9 @@ By default, hovering over subtitle text pauses mpv playback. Playback resumes as
 
 If you want playback to stay paused while a Yomitan popup is open, set `subtitleStyle.autoPauseVideoOnYomitanPopup` to `true`. When enabled, SubMiner auto-resumes on popup close only if SubMiner paused playback for that popup.
 
-If the Yomitan popup is open, you can control it directly from the overlay: `J/K` scroll definitions, `M` mines/adds the selected term, `P` plays term audio, `[` plays the previous available audio, and `]` plays the next available audio in the selected source.
+Keyboard-driven lookup mode is available with fixed shortcuts: `Ctrl/Cmd+Shift+Y` toggles token-selection mode, `ArrowLeft/Right` (or `H/L`) moves the selected token, `ArrowUp/J` opens lookup for the selected token, `ArrowDown` closes lookup, and `Ctrl/Cmd+Y` toggles lookup for that token.
+
+If the Yomitan popup is open, you can control it directly from the overlay: `J/K` scroll definitions, `M` mines/adds the selected term, `P` plays term audio, `[` plays the previous available audio, and `]` plays the next available audio in the selected source. In keyboard-driven lookup mode, `J` opens lookup, `H` moves to the previous token, `L` (or `ArrowRight`) moves to the next token, and `ArrowDown` closes lookup.
 
 ### Drag-and-drop Queueing
 

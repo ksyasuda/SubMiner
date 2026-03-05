@@ -2,6 +2,7 @@ import type { Keybinding } from '../../types';
 import type { RendererContext } from '../context';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
+  YOMITAN_POPUP_SHOWN_EVENT,
   YOMITAN_POPUP_COMMAND_EVENT,
   isYomitanPopupVisible,
   isYomitanPopupIframe,
@@ -269,6 +270,13 @@ export function createKeyboardHandlers(
     const clientY = rect.top + rect.height / 2;
 
     dispatchYomitanFrontendScanSelectedText();
+    if (ctx.state.keyboardDrivenModeEnabled) {
+      // Keep overlay as the keyboard focus owner so token navigation can continue
+      // while the popup is visible.
+      queueMicrotask(() => {
+        scheduleOverlayFocusReclaim(8);
+      });
+    }
     // Fallback only if the explicit scan path did not open popup quickly.
     setTimeout(() => {
       if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
@@ -304,18 +312,89 @@ export function createKeyboardHandlers(
     ctx.dom.overlay.focus({ preventScroll: true });
   }
 
+  function scheduleOverlayFocusReclaim(attempts: number = 0): void {
+    if (!ctx.state.keyboardDrivenModeEnabled) {
+      return;
+    }
+    restoreOverlayKeyboardFocus();
+    if (attempts <= 0) {
+      return;
+    }
+
+    let remaining = attempts;
+    const reclaim = () => {
+      if (!ctx.state.keyboardDrivenModeEnabled) {
+        return;
+      }
+      if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+        return;
+      }
+      restoreOverlayKeyboardFocus();
+      remaining -= 1;
+      if (remaining > 0) {
+        setTimeout(reclaim, 25);
+      }
+    };
+
+    setTimeout(reclaim, 25);
+  }
+
   function handleKeyboardDrivenModeNavigation(e: KeyboardEvent): boolean {
     if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
       return false;
     }
 
     const key = e.code;
-    if (key === 'ArrowLeft' || key === 'ArrowUp' || key === 'KeyH' || key === 'KeyK') {
+    if (key === 'ArrowLeft') {
       return moveKeyboardSelection(-1);
     }
-    if (key === 'ArrowRight' || key === 'ArrowDown' || key === 'KeyL' || key === 'KeyJ') {
+    if (key === 'ArrowRight' || key === 'KeyL') {
       return moveKeyboardSelection(1);
     }
+    return false;
+  }
+
+  function handleKeyboardDrivenModeLookupControls(e: KeyboardEvent): boolean {
+    if (!ctx.state.keyboardDrivenModeEnabled) {
+      return false;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
+      return false;
+    }
+
+    const key = e.code;
+    const popupVisible = ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document);
+    if (key === 'ArrowUp' || key === 'KeyJ') {
+      triggerLookupForSelectedWord();
+      return true;
+    }
+
+    if (key === 'ArrowDown') {
+      if (popupVisible) {
+        dispatchYomitanPopupVisibility(false);
+        queueMicrotask(() => {
+          restoreOverlayKeyboardFocus();
+        });
+      }
+      return true;
+    }
+
+    if (key === 'ArrowLeft' || key === 'KeyH') {
+      moveKeyboardSelection(-1);
+      if (popupVisible) {
+        triggerLookupForSelectedWord();
+      }
+      return true;
+    }
+
+    if (key === 'ArrowRight' || key === 'KeyL') {
+      moveKeyboardSelection(1);
+      if (popupVisible) {
+        triggerLookupForSelectedWord();
+      }
+      return true;
+    }
+
     return false;
   }
 
@@ -415,6 +494,35 @@ export function createKeyboardHandlers(
       }
       restoreOverlayKeyboardFocus();
     });
+    window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
+      if (!ctx.state.keyboardDrivenModeEnabled) {
+        return;
+      }
+      queueMicrotask(() => {
+        scheduleOverlayFocusReclaim(8);
+      });
+    });
+
+    document.addEventListener(
+      'focusin',
+      (e: FocusEvent) => {
+        if (!ctx.state.keyboardDrivenModeEnabled) {
+          return;
+        }
+        const target = e.target;
+        if (
+          target &&
+          typeof target === 'object' &&
+          'tagName' in target &&
+          isYomitanPopupIframe(target as Element)
+        ) {
+          queueMicrotask(() => {
+            scheduleOverlayFocusReclaim(8);
+          });
+        }
+      },
+      true,
+    );
 
     document.addEventListener('keydown', (e: KeyboardEvent) => {
       if (isKeyboardDrivenModeToggle(e)) {
@@ -426,6 +534,11 @@ export function createKeyboardHandlers(
       if (isLookupWindowToggle(e)) {
         e.preventDefault();
         handleLookupWindowToggleRequested();
+        return;
+      }
+
+      if (handleKeyboardDrivenModeLookupControls(e)) {
+        e.preventDefault();
         return;
       }
 

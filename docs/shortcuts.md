@@ -71,6 +71,20 @@ When a Yomitan popup is open, SubMiner also provides popup control shortcuts:
 | `[`           | Play previous available audio (selected source) |
 | `]`           | Play next available audio (selected source)     |
 
+## Keyboard-Driven Lookup Mode
+
+These shortcuts are fixed (not configurable) and require overlay focus.
+
+| Shortcut           | Action                                                                |
+| ------------------ | --------------------------------------------------------------------- |
+| `Ctrl/Cmd+Shift+Y` | Toggle keyboard-driven token selection mode on/off                    |
+| `Ctrl/Cmd+Y`       | Toggle lookup popup for selected token (open when closed, close when open) |
+| `ArrowLeft/Right`, `H`, or `L` | Move selected token (previous/next)                    |
+| `ArrowUp` or `J`   | Open lookup popup for selected token                                  |
+| `ArrowDown`        | Close lookup popup                                                    |
+
+Keyboard-driven mode draws a selection outline around the active token. While keyboard-driven mode is enabled, `J` opens lookup and `H` moves to the previous token. Other popup-local keys still work (`M`, `P`, `[`, `]`). Focus is forced back to the overlay after lookup open/close so token navigation can continue without clicking subtitle text again.
+
 ## Subtitle & Feature Shortcuts
 
 | Shortcut           | Action                                                   | Config key                     |

@@ -532,7 +532,9 @@ function buildLauncherAniSkipPayload(aniSkipMetadata: AniSkipMetadata): string |
       },
     ],
   };
-  return encodeURIComponent(JSON.stringify(payload));
+  // mpv --script-opts treats `%` as an escape prefix, so URL-encoding can break parsing.
+  // Base64url stays script-opts-safe and is decoded by the plugin launcher payload parser.
+  return Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64url');
 }
 
 export function buildSubminerScriptOpts(
