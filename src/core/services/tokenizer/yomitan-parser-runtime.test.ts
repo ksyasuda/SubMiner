@@ -41,6 +41,8 @@ test('syncYomitanDefaultAnkiServer updates default profile server when script re
   assert.equal(updated, true);
   assert.match(scriptValue, /optionsGetFull/);
   assert.match(scriptValue, /setAllSettings/);
+  assert.match(scriptValue, /profileCurrent/);
+  assert.match(scriptValue, /forceOverride = false/);
   assert.equal(infoLogs.length, 1);
 });
 
@@ -57,6 +59,45 @@ test('syncYomitanDefaultAnkiServer returns true when script reports no change', 
 
   assert.equal(synced, true);
   assert.equal(infoLogCount, 0);
+});
+
+test('syncYomitanDefaultAnkiServer returns false when existing non-default server blocks update', async () => {
+  const deps = createDeps(async () => ({
+    updated: false,
+    matched: false,
+    reason: 'blocked-existing-server',
+  }));
+  const infoLogs: string[] = [];
+
+  const synced = await syncYomitanDefaultAnkiServer('http://127.0.0.1:8766', deps, {
+    error: () => undefined,
+    info: (message) => infoLogs.push(message),
+  });
+
+  assert.equal(synced, false);
+  assert.equal(infoLogs.length, 1);
+  assert.match(infoLogs[0] ?? '', /blocked-existing-server/);
+});
+
+test('syncYomitanDefaultAnkiServer injects force override when enabled', async () => {
+  let scriptValue = '';
+  const deps = createDeps(async (script) => {
+    scriptValue = script;
+    return { updated: false, matched: true };
+  });
+
+  const synced = await syncYomitanDefaultAnkiServer(
+    'http://127.0.0.1:8766',
+    deps,
+    {
+      error: () => undefined,
+      info: () => undefined,
+    },
+    { forceOverride: true },
+  );
+
+  assert.equal(synced, true);
+  assert.match(scriptValue, /forceOverride = true/);
 });
 
 test('syncYomitanDefaultAnkiServer logs and returns false on script failure', async () => {

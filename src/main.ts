@@ -2663,6 +2663,9 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
         logger.info(message, ...args);
       },
     },
+    {
+      forceOverride: getResolvedConfig().ankiConnect.proxy?.enabled === true,
+    },
   );
 
   if (synced) {

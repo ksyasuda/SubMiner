@@ -848,11 +848,15 @@ export async function syncYomitanDefaultAnkiServer(
   serverUrl: string,
   deps: YomitanParserRuntimeDeps,
   logger: LoggerLike,
+  options?: {
+    forceOverride?: boolean;
+  },
 ): Promise<boolean> {
   const normalizedTargetServer = serverUrl.trim();
   if (!normalizedTargetServer) {
     return false;
   }
+  const forceOverride = options?.forceOverride === true;
 
   const isReady = await ensureYomitanParserWindow(deps, logger);
   const parserWindow = deps.getYomitanParserWindow();
@@ -882,35 +886,42 @@ export async function syncYomitanDefaultAnkiServer(
         });
 
       const targetServer = ${JSON.stringify(normalizedTargetServer)};
+      const forceOverride = ${forceOverride ? 'true' : 'false'};
       const optionsFull = await invoke("optionsGetFull", undefined);
       const profiles = Array.isArray(optionsFull.profiles) ? optionsFull.profiles : [];
       if (profiles.length === 0) {
         return { updated: false, reason: "no-profiles" };
       }
 
-      const defaultProfile = profiles[0];
-      if (!defaultProfile || typeof defaultProfile !== "object") {
+      const profileCurrent = Number.isInteger(optionsFull.profileCurrent)
+        ? optionsFull.profileCurrent
+        : 0;
+      const targetProfile = profiles[profileCurrent];
+      if (!targetProfile || typeof targetProfile !== "object") {
         return { updated: false, reason: "invalid-default-profile" };
       }
 
-      defaultProfile.options = defaultProfile.options && typeof defaultProfile.options === "object"
-        ? defaultProfile.options
+      targetProfile.options = targetProfile.options && typeof targetProfile.options === "object"
+        ? targetProfile.options
         : {};
-      defaultProfile.options.anki = defaultProfile.options.anki && typeof defaultProfile.options.anki === "object"
-        ? defaultProfile.options.anki
+      targetProfile.options.anki = targetProfile.options.anki && typeof targetProfile.options.anki === "object"
+        ? targetProfile.options.anki
         : {};
 
-      const currentServerRaw = defaultProfile.options.anki.server;
+      const currentServerRaw = targetProfile.options.anki.server;
       const currentServer = typeof currentServerRaw === "string" ? currentServerRaw.trim() : "";
-      const canReplaceDefault =
-        currentServer.length === 0 || currentServer === "http://127.0.0.1:8765";
-      if (!canReplaceDefault || currentServer === targetServer) {
-        return { updated: false, reason: "no-change", currentServer, targetServer };
+      if (currentServer === targetServer) {
+        return { updated: false, matched: true, reason: "already-target", currentServer, targetServer };
+      }
+      const canReplaceCurrent =
+        forceOverride || currentServer.length === 0 || currentServer === "http://127.0.0.1:8765";
+      if (!canReplaceCurrent) {
+        return { updated: false, matched: false, reason: "blocked-existing-server", currentServer, targetServer };
       }
 
-      defaultProfile.options.anki.server = targetServer;
+      targetProfile.options.anki.server = targetServer;
       await invoke("setAllSettings", { value: optionsFull, source: "subminer" });
-      return { updated: true, currentServer, targetServer };
+      return { updated: true, matched: true, currentServer, targetServer };
     })();
   `;
 
@@ -923,6 +934,24 @@ export async function syncYomitanDefaultAnkiServer(
     if (updated) {
       logger.info?.(`Updated Yomitan default profile Anki server to ${normalizedTargetServer}`);
       return true;
+    }
+    const matchedWithoutUpdate =
+      isObject(result) &&
+      result.updated === false &&
+      (result as { matched?: unknown }).matched === true;
+    if (matchedWithoutUpdate) {
+      return true;
+    }
+    const blockedByExistingServer =
+      isObject(result) &&
+      result.updated === false &&
+      (result as { matched?: unknown }).matched === false &&
+      typeof (result as { reason?: unknown }).reason === 'string';
+    if (blockedByExistingServer) {
+      logger.info?.(
+        `Skipped syncing Yomitan Anki server (reason=${String((result as { reason: string }).reason)})`,
+      );
+      return false;
     }
     const checkedWithoutUpdate =
       typeof result === 'object' &&
