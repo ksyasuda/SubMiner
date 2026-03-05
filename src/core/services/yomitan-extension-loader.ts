@@ -2,6 +2,7 @@ import { BrowserWindow, Extension, session } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createLogger } from '../../logger';
+import { shouldCopyYomitanExtension } from './yomitan-extension-copy';
 
 const logger = createLogger('main:yomitan-extension-loader');
 
@@ -22,27 +23,7 @@ function ensureExtensionCopy(sourceDir: string, userDataPath: string): string {
   const extensionsRoot = path.join(userDataPath, 'extensions');
   const targetDir = path.join(extensionsRoot, 'yomitan');
 
-  const sourceManifest = path.join(sourceDir, 'manifest.json');
-  const targetManifest = path.join(targetDir, 'manifest.json');
-
-  let shouldCopy = !fs.existsSync(targetDir);
-  if (!shouldCopy && fs.existsSync(sourceManifest) && fs.existsSync(targetManifest)) {
-    try {
-      const sourceVersion = (
-        JSON.parse(fs.readFileSync(sourceManifest, 'utf-8')) as {
-          version: string;
-        }
-      ).version;
-      const targetVersion = (
-        JSON.parse(fs.readFileSync(targetManifest, 'utf-8')) as {
-          version: string;
-        }
-      ).version;
-      shouldCopy = sourceVersion !== targetVersion;
-    } catch {
-      shouldCopy = true;
-    }
-  }
+  const shouldCopy = shouldCopyYomitanExtension(sourceDir, targetDir);
 
   if (shouldCopy) {
     fs.mkdirSync(extensionsRoot, { recursive: true });
