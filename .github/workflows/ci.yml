@@ -20,6 +20,11 @@ jobs:
         with:
           bun-version: 1.3.5
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
@@ -53,6 +58,9 @@ jobs:
 
       - name: Build (bundle)
         run: bun run build
+
+      - name: Immersion SQLite verification
+        run: bun run test:immersion:sqlite:dist
 
       - name: Dist smoke suite
         run: bun run test:smoke:dist

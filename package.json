@@ -38,7 +38,10 @@
     "build:appimage": "bun run build && electron-builder --linux AppImage",
     "build:mac": "bun run build && electron-builder --mac dmg zip",
     "build:mac:unsigned": "bun run build && env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u CSC_LINK -u CSC_KEY_PASSWORD CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip",
-    "build:mac:zip": "bun run build && electron-builder --mac zip"
+    "build:mac:zip": "bun run build && electron-builder --mac zip",
+    "test:immersion:sqlite:src": "bun test src/core/services/immersion-tracker-service.test.ts src/core/services/immersion-tracker/storage-session.test.ts",
+    "test:immersion:sqlite:dist": "node --experimental-sqlite --test dist/core/services/immersion-tracker-service.test.js dist/core/services/immersion-tracker/storage-session.test.js",
+    "test:immersion:sqlite": "bun run tsc && bun run test:immersion:sqlite:dist"
   },
   "keywords": [
     "anki",

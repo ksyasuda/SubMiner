@@ -27,6 +27,12 @@ const DatabaseSync: DatabaseSyncCtor | null = (() => {
 })();
 const testIfSqlite = DatabaseSync ? test : test.skip;
 
+if (!DatabaseSync) {
+  console.warn(
+    'Skipping SQLite-backed immersion tracker persistence tests in this runtime; run `bun run test:immersion:sqlite` for real DB coverage.',
+  );
+}
+
 let trackerCtor: ImmersionTrackerServiceCtor | null = null;
 
 async function loadTrackerCtor(): Promise<ImmersionTrackerServiceCtor> {

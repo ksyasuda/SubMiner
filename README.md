@@ -98,8 +98,12 @@ For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.m
 
 ## Verification
 
+- Run `bun run test` for the default Bun source suite.
+- Run `bun run test:immersion:sqlite` to compile `dist/**` and execute the SQLite-backed immersion tracker persistence tests under Node with `node:sqlite` support; on Node 22 this lane enables that with `--experimental-sqlite`.
+- If you only run the Bun source tests, the SQLite-backed immersion tracker cases may be skipped when `node:sqlite` is unavailable; those files now print an explicit warning telling you to use the dedicated SQLite lane for real DB coverage.
 - Run `bun run test:subtitle` to verify subtitle sync coverage for the maintained `alass`/`ffsubsync` test surface.
-- That lane reuses `src/core/services/subsync.test.ts` and `src/subsync/utils.test.ts`, which are also included in the broader `bun run test:core` suite.
+- The SQLite lane covers persistence/finalization behavior beyond the seam tests, including session finalization, telemetry writes, and storage-session schema/write paths.
+- The subtitle lane reuses `src/core/services/subsync.test.ts` and `src/subsync/utils.test.ts`, which are also included in the broader `bun run test:core` suite.
 
 ## Acknowledgments
 
