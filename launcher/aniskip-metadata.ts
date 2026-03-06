@@ -196,7 +196,11 @@ function seasonSignalScore(requestedSeason: number | null, candidateTitle: strin
   } as const;
 
   const aliases = romanAliases[season] ?? [];
-  return aliases.some((alias) => normalized.includes(alias)) ? 40 : hasAnySequelMarker(candidateTitle) ? -20 : 5;
+  return aliases.some((alias) => normalized.includes(alias))
+    ? 40
+    : hasAnySequelMarker(candidateTitle)
+      ? -20
+      : 5;
 }
 
 function toMalSearchItems(payload: unknown): MalSearchResult[] {
@@ -230,7 +234,11 @@ function parseAniSkipPayload(payload: unknown): { start: number; end: number } |
 
   for (const rawResult of results) {
     const result = rawResult as AniSkipSkipItemPayload;
-    if (result.skip_type !== 'op' || typeof result.interval !== 'object' || result.interval === null) {
+    if (
+      result.skip_type !== 'op' ||
+      typeof result.interval !== 'object' ||
+      result.interval === null
+    ) {
       continue;
     }
     const interval = result.interval as AniSkipIntervalPayload;
@@ -287,7 +295,9 @@ async function fetchAniSkipPayload(
   malId: number,
   episode: number,
 ): Promise<{ start: number; end: number } | null> {
-  const payload = await fetchJson<unknown>(`${ANISKIP_PAYLOAD_API}${malId}/${episode}?types=op&types=ed`);
+  const payload = await fetchJson<unknown>(
+    `${ANISKIP_PAYLOAD_API}${malId}/${episode}?types=op&types=ed`,
+  );
   const parsed = payload as AniSkipPayloadResponse;
   if (!parsed || parsed.found !== true) return null;
   return parseAniSkipPayload(parsed);
@@ -565,7 +575,9 @@ export function buildSubminerScriptOpts(
     parts.push(`subminer-aniskip_intro_end=${aniSkipMetadata.introEnd}`);
   }
   if (aniSkipMetadata?.lookupStatus) {
-    parts.push(`subminer-aniskip_lookup_status=${sanitizeScriptOptValue(aniSkipMetadata.lookupStatus)}`);
+    parts.push(
+      `subminer-aniskip_lookup_status=${sanitizeScriptOptValue(aniSkipMetadata.lookupStatus)}`,
+    );
   }
   const aniskipPayload = aniSkipMetadata ? buildLauncherAniSkipPayload(aniSkipMetadata) : null;
   if (aniskipPayload) {

@@ -328,7 +328,9 @@ test('keyboard mode: up/down/j/k do not open or close lookup when popup is close
 
     await wait(0);
 
-    const openEvents = testGlobals.commandEvents.filter((event) => event.type === 'scanSelectedText');
+    const openEvents = testGlobals.commandEvents.filter(
+      (event) => event.type === 'scanSelectedText',
+    );
     assert.equal(openEvents.length, 0);
     const closeEvents = testGlobals.commandEvents.filter(
       (event) => event.type === 'setVisible' && event.visible === false,
@@ -355,16 +357,28 @@ test('keyboard mode: up/down/j/k forward keydown to yomitan popup when open', as
     testGlobals.dispatchKeydown({ key: 'j', code: 'KeyJ' });
     testGlobals.dispatchKeydown({ key: 'k', code: 'KeyK' });
 
-    const forwarded = testGlobals.commandEvents.filter(
-      (event) => event.type === 'forwardKeyDown',
-    );
+    const forwarded = testGlobals.commandEvents.filter((event) => event.type === 'forwardKeyDown');
     assert.equal(forwarded.length, 4);
-    assert.equal(forwarded.some((event) => event.code === 'ArrowUp'), true);
-    assert.equal(forwarded.some((event) => event.code === 'ArrowDown'), true);
-    assert.equal(forwarded.some((event) => event.code === 'KeyJ'), true);
-    assert.equal(forwarded.some((event) => event.code === 'KeyK'), true);
+    assert.equal(
+      forwarded.some((event) => event.code === 'ArrowUp'),
+      true,
+    );
+    assert.equal(
+      forwarded.some((event) => event.code === 'ArrowDown'),
+      true,
+    );
+    assert.equal(
+      forwarded.some((event) => event.code === 'KeyJ'),
+      true,
+    );
+    assert.equal(
+      forwarded.some((event) => event.code === 'KeyK'),
+      true,
+    );
 
-    const openEvents = testGlobals.commandEvents.filter((event) => event.type === 'scanSelectedText');
+    const openEvents = testGlobals.commandEvents.filter(
+      (event) => event.type === 'scanSelectedText',
+    );
     assert.equal(openEvents.length, 0);
     const closeEvents = testGlobals.commandEvents.filter(
       (event) => event.type === 'setVisible' && event.visible === false,
@@ -389,9 +403,7 @@ test('keyboard mode: repeated popup navigation keys are forwarded while popup is
     testGlobals.dispatchKeydown({ key: 'j', code: 'KeyJ', repeat: true });
     testGlobals.dispatchKeydown({ key: 'ArrowDown', code: 'ArrowDown', repeat: true });
 
-    const forwarded = testGlobals.commandEvents.filter(
-      (event) => event.type === 'forwardKeyDown',
-    );
+    const forwarded = testGlobals.commandEvents.filter((event) => event.type === 'forwardKeyDown');
     assert.equal(forwarded.length, 2);
     assert.deepEqual(
       forwarded.map((event) => ({ code: event.code, repeat: event.repeat })),
@@ -445,7 +457,9 @@ test('keyboard mode: h moves left while popup is open and keeps lookup active', 
     await wait(80);
 
     assert.equal(ctx.state.keyboardSelectedWordIndex, 1);
-    const openEvents = testGlobals.commandEvents.filter((event) => event.type === 'scanSelectedText');
+    const openEvents = testGlobals.commandEvents.filter(
+      (event) => event.type === 'scanSelectedText',
+    );
     assert.equal(openEvents.length > 0, true);
     const closeEvents = testGlobals.commandEvents.filter(
       (event) => event.type === 'setVisible' && event.visible === false,
@@ -546,7 +560,9 @@ test('keyboard mode: popup-open edge jump refreshes lookup on the new subtitle s
     await wait(80);
 
     assert.equal(ctx.state.keyboardSelectedWordIndex, 0);
-    const openEvents = testGlobals.commandEvents.filter((event) => event.type === 'scanSelectedText');
+    const openEvents = testGlobals.commandEvents.filter(
+      (event) => event.type === 'scanSelectedText',
+    );
     assert.equal(openEvents.length > 0, true);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;

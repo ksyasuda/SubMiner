@@ -174,7 +174,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     }
 
     const autoPauseVideoOnYomitanPopup = asBoolean(
-      (src.subtitleStyle as { autoPauseVideoOnYomitanPopup?: unknown }).autoPauseVideoOnYomitanPopup,
+      (src.subtitleStyle as { autoPauseVideoOnYomitanPopup?: unknown })
+        .autoPauseVideoOnYomitanPopup,
     );
     if (autoPauseVideoOnYomitanPopup !== undefined) {
       resolved.subtitleStyle.autoPauseVideoOnYomitanPopup = autoPauseVideoOnYomitanPopup;

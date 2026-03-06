@@ -2,10 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createMouseHandlers } from './mouse.js';
-import {
-  YOMITAN_POPUP_HIDDEN_EVENT,
-  YOMITAN_POPUP_SHOWN_EVENT,
-} from '../yomitan-popup.js';
+import { YOMITAN_POPUP_HIDDEN_EVENT, YOMITAN_POPUP_SHOWN_EVENT } from '../yomitan-popup.js';
 
 function createClassList() {
   const classes = new Set<string>();

@@ -25,11 +25,15 @@ priority: low
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 The review found a few low-risk but recurring hygiene issues: docs:watch depends on bunx concurrently even though concurrently is not declared in package metadata, and small stale API surface remains after recent refactors, such as unused parameters in field-grouping workflow code. This task should make the developer workflow reproducible and clean up low-risk stale symbols that do not warrant a dedicated architecture task.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 The docs:watch workflow runs through declared project tooling or is rewritten to avoid undeclared dependencies.
 - [ ] #2 Small stale symbols or parameters identified during the review outside the main composition-root cleanup are removed without behavior changes.
 - [ ] #3 Any contributor-facing command changes are reflected in repository documentation.
@@ -39,6 +43,7 @@ The review found a few low-risk but recurring hygiene issues: docs:watch depends
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
+
 1. Fix the docs:watch workflow so it relies on declared project tooling or an equivalent checked-in command path.
 2. Clean up low-risk stale symbols surfaced by the review outside the main.ts architecture task, such as unused parameters left behind by refactors.
 3. Keep the task scoped: avoid pulling in main composition-root cleanup or larger Anki/runtime refactors.

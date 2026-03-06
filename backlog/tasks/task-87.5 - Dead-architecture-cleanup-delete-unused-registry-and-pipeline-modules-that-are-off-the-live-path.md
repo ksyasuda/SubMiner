@@ -31,11 +31,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 The review found several modules that appear self-contained but unused from the application’s live execution paths: src/translators/index.ts, src/subsync/engines.ts, src/subtitle/pipeline.ts, src/tokenizers/index.ts, and src/token-mergers/index.ts. At the same time, the real runtime behavior is implemented elsewhere. This task should verify those modules are truly unused, remove or consolidate them, and clean up any stale exports, docs, or tests so contributors are not misled by duplicate architecture.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Each candidate module identified in the review is either removed as dead code or justified and reconnected to a real supported execution path.
 - [ ] #2 Any stale exports, imports, or tests associated with the removed or consolidated modules are cleaned up so the codebase has a single obvious path for the affected behavior.
 - [ ] #3 The cleanup does not regress live tokenization or subtitle sync behavior and the relevant verification commands remain green.
@@ -45,6 +49,7 @@ The review found several modules that appear self-contained but unused from the 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
+
 1. Re-verify each candidate module is off the live path by tracing imports from current runtime entrypoints before deleting anything.
 2. Remove or consolidate truly dead modules and clean associated exports/imports/tests so only the supported path remains obvious.
 3. Pay special attention to subtitle sync and tokenization surfaces, since duplicate architecture exists near active code.

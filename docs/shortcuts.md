@@ -62,25 +62,25 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 
 When a Yomitan popup is open, SubMiner also provides popup control shortcuts:
 
-| Shortcut      | Action                                 |
-| ------------- | -------------------------------------- |
-| `J`           | Scroll definitions down                |
-| `K`           | Scroll definitions up                  |
-| `ArrowDown`   | Scroll definitions down                |
-| `ArrowUp`     | Scroll definitions up                  |
-| `M`           | Mine/add selected term                 |
-| `P`           | Play selected term audio               |
-| `[`           | Play previous available audio (selected source) |
-| `]`           | Play next available audio (selected source)     |
+| Shortcut    | Action                                          |
+| ----------- | ----------------------------------------------- |
+| `J`         | Scroll definitions down                         |
+| `K`         | Scroll definitions up                           |
+| `ArrowDown` | Scroll definitions down                         |
+| `ArrowUp`   | Scroll definitions up                           |
+| `M`         | Mine/add selected term                          |
+| `P`         | Play selected term audio                        |
+| `[`         | Play previous available audio (selected source) |
+| `]`         | Play next available audio (selected source)     |
 
 ## Keyboard-Driven Lookup Mode
 
 These shortcuts are fixed (not configurable) and require overlay focus.
 
-| Shortcut           | Action                                                                |
-| ------------------ | --------------------------------------------------------------------- |
-| `Ctrl/Cmd+Shift+Y` | Toggle keyboard-driven token selection mode on/off                    |
-| `Ctrl/Cmd+Y`       | Toggle lookup popup for selected token (open when closed, close when open) |
+| Shortcut                       | Action                                                                                       |
+| ------------------------------ | -------------------------------------------------------------------------------------------- |
+| `Ctrl/Cmd+Shift+Y`             | Toggle keyboard-driven token selection mode on/off                                           |
+| `Ctrl/Cmd+Y`                   | Toggle lookup popup for selected token (open when closed, close when open)                   |
 | `ArrowLeft/Right`, `H`, or `L` | Move selected token (previous/next); if lookup is open, refresh definition for the new token |
 
 Keyboard-driven mode draws a selection outline around the active token. Use `Ctrl/Cmd+Y` to open or close lookup for that token. While the popup is open, popup-local controls still work from the overlay (`J/K`, `ArrowUp/ArrowDown`, `M`, `P`, `[`, `]`) and focus is forced back to the overlay so token navigation can continue without clicking subtitle text again. Moving left/right past the start or end of the line jumps to the previous or next subtitle line and keeps playback paused if it was already paused.

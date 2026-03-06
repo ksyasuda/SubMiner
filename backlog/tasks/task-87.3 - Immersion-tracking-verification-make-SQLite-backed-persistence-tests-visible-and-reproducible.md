@@ -26,11 +26,15 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 The immersion tracker is persistence-heavy, but its SQLite-backed tests are conditionally skipped in the standard Bun run when node:sqlite support is unavailable. That creates a blind spot around session finalization, telemetry persistence, and retention behavior. This task should establish a reliable automated verification path for the database-backed cases and make the prerequisite/runtime behavior explicit to contributors and CI.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 Database-backed immersion tracking tests run in at least one documented automated command that is practical for contributors or CI to execute.
 - [ ] #2 If the current runtime cannot execute the SQLite-backed tests, the repository exposes that limitation clearly instead of silently reporting a misleading green result.
 - [ ] #3 Contributor-facing documentation explains how to run the immersion tracker verification lane and any environment prerequisites it depends on.
@@ -40,6 +44,7 @@ The immersion tracker is persistence-heavy, but its SQLite-backed tests are cond
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
+
 1. Confirm which SQLite-backed immersion tests are currently skipped and why in the standard Bun environment.
 2. Establish a reproducible command or lane for the DB-backed cases, or make the unsupported-runtime limitation explicit and actionable.
 3. Document prerequisites and expected behavior for contributors and CI.

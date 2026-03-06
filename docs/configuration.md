@@ -258,8 +258,8 @@ See `config.example.jsonc` for detailed configuration options.
 | `backgroundColor`                  | string      | Any CSS color, including `"transparent"` (default: `"rgb(30, 32, 48, 0.88)"`)                                              |
 | `enableJlpt`                       | boolean     | Enable JLPT level underline styling (`false` by default)                                                                   |
 | `preserveLineBreaks`               | boolean     | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.         |
-| `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text; resume after leaving subtitle area (`true` by default).                    |
-| `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while Yomitan popup is open; resume when popup closes (`false` by default).                                   |
+| `autoPauseVideoOnHover`            | boolean     | Pause playback while mouse hovers subtitle text; resume after leaving subtitle area (`true` by default).                   |
+| `autoPauseVideoOnYomitanPopup`     | boolean     | Pause playback while Yomitan popup is open; resume when popup closes (`false` by default).                                 |
 | `hoverTokenColor`                  | string      | Hex color used for hovered subtitle token highlight in mpv (default: catppuccin mauve)                                     |
 | `hoverTokenBackgroundColor`        | string      | CSS color used for hovered subtitle token background highlight (default: semi-transparent dark)                            |
 | `frequencyDictionary.enabled`      | boolean     | Enable frequency highlighting from dictionary lookups (`false` by default)                                                 |
@@ -778,12 +778,12 @@ Sync the active subtitle track using `alass` (preferred) or `ffsubsync`:
 }
 ```
 
-| Option           | Values               | Description                                                                                                 |
-| ---------------- | -------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `defaultMode`    | `"auto"`, `"manual"` | `auto`: try `alass` against secondary subtitle, then fallback to `ffsubsync`; `manual`: open overlay picker |
-| `alass_path`     | string path          | Path to `alass` executable. Empty or `null` falls back to `/usr/bin/alass`.                                 |
-| `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` falls back to `/usr/bin/ffsubsync`.                         |
-| `ffmpeg_path`    | string path          | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.  |
+| Option           | Values               | Description                                                                                                               |
+| ---------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `defaultMode`    | `"auto"`, `"manual"` | `auto`: try `alass` against secondary subtitle, then fallback to `ffsubsync`; `manual`: open overlay picker               |
+| `alass_path`     | string path          | Path to `alass` executable. Empty or `null` falls back to `/usr/bin/alass`.                                               |
+| `ffsubsync_path` | string path          | Path to `ffsubsync` executable. Empty or `null` falls back to `/usr/bin/ffsubsync`.                                       |
+| `ffmpeg_path`    | string path          | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |
 | `replace`        | `true`, `false`      | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
 
 Default trigger is `Ctrl+Alt+S` via `shortcuts.triggerSubsync`.

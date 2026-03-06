@@ -130,7 +130,9 @@ export function createKeyboardHandlers(
   }
 
   function getSubtitleWordNodes(): HTMLElement[] {
-    return Array.from(ctx.dom.subtitleRoot.querySelectorAll<HTMLElement>('.word[data-token-index]'));
+    return Array.from(
+      ctx.dom.subtitleRoot.querySelectorAll<HTMLElement>('.word[data-token-index]'),
+    );
   }
 
   function syncKeyboardTokenSelection(): void {
@@ -188,7 +190,9 @@ export function createKeyboardHandlers(
     setKeyboardDrivenModeEnabled(!ctx.state.keyboardDrivenModeEnabled);
   }
 
-  function moveKeyboardSelection(delta: -1 | 1): 'moved' | 'start-boundary' | 'end-boundary' | 'no-words' {
+  function moveKeyboardSelection(
+    delta: -1 | 1,
+  ): 'moved' | 'start-boundary' | 'end-boundary' | 'no-words' {
     const wordNodes = getSubtitleWordNodes();
     if (wordNodes.length === 0) {
       ctx.state.keyboardSelectedWordIndex = null;

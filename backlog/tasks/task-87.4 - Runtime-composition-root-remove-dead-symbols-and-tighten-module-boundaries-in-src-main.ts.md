@@ -27,11 +27,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 A noUnusedLocals/noUnusedParameters compile pass reports a large concentration of dead imports and dead locals in src/main.ts. The file is also far beyond the repo’s preferred size guideline, which makes the runtime composition root difficult to review and easy to break. This task should remove confirmed dead symbols, continue extracting coherent slices where that improves readability, and leave the entrypoint materially easier to understand without changing behavior.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [ ] #1 src/main.ts no longer emits dead-symbol diagnostics under a noUnusedLocals/noUnusedParameters compile pass for the areas touched by this cleanup.
 - [ ] #2 Unused imports, destructured values, and stale locals identified in the current composition root are removed or relocated without behavior changes.
 - [ ] #3 The resulting composition root has clearer ownership boundaries for at least one runtime slice that is currently buried in the monolith.
@@ -41,6 +45,7 @@ A noUnusedLocals/noUnusedParameters compile pass reports a large concentration o
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
+
 1. Re-run the noUnusedLocals/noUnusedParameters compile pass and capture the src/main.ts diagnostics cluster before editing.
 2. Remove dead imports, destructured values, and stale locals in small reviewable slices; extract a coherent helper/module only where that materially reduces coupling.
 3. Keep changes behavior-preserving and avoid mixing unrelated cleanup outside src/main.ts unless required to compile.

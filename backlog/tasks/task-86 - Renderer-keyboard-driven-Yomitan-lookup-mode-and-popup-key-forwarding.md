@@ -38,6 +38,7 @@ ordinal: 13000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add true keyboard-driven token lookup flow in overlay:
 
 - Toggle keyboard token-selection mode and navigate tokens by keyboard (`Arrow` + `HJKL`).
@@ -47,7 +48,9 @@ Add true keyboard-driven token lookup flow in overlay:
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Keyboard mode toggle exists and shows visual selection outline for active token.
 - [x] #2 Navigation works via arrows and vim keys while keyboard mode is enabled.
 - [x] #3 Lookup window toggles from selected token with `Ctrl/Cmd+Y`; close path restores overlay keyboard focus.
@@ -59,5 +62,7 @@ Add true keyboard-driven token lookup flow in overlay:
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Implemented keyboard-driven Yomitan workflow end-to-end in renderer + bundled Yomitan runtime bridge. Added overlay-level keyboard mode state, token selection sync, lookup toggle routing, popup command forwarding, and focus recovery after popup close. Follow-up fixes kept lookup open while moving between tokens, made popup-local `J/K` and `ArrowUp/ArrowDown` scroll work from overlay-owned focus with key repeat, skipped keyboard/token annotation flow for parser groups that have no dictionary-backed headword, and preserved paused playback when token navigation jumps across subtitle lines. Updated user docs/README to document the final shortcut behavior.
+
 <!-- SECTION:FINAL_SUMMARY:END -->
