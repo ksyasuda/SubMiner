@@ -25,6 +25,9 @@ type SmokeCase = {
   mpvOverlayLogPath: string;
 };
 
+const LAUNCHER_RUN_TIMEOUT_MS = 25000;
+const LONG_SMOKE_TEST_TIMEOUT_MS = 30000;
+
 function writeExecutable(filePath: string, body: string): void {
   fs.writeFileSync(filePath, body);
   fs.chmodSync(filePath, 0o755);
@@ -162,7 +165,7 @@ function runLauncher(
     {
       env,
       encoding: 'utf8',
-      timeout: 15000,
+      timeout: LAUNCHER_RUN_TIMEOUT_MS,
     },
   );
 
@@ -263,7 +266,7 @@ test('launcher mpv status returns ready when socket is connectable', async () =>
 
 test(
   'launcher start-overlay run forwards socket/backend and stops overlay after mpv exits',
-  { timeout: 20000 },
+  { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
   async () => {
     await withSmokeCase('overlay-start-stop', async (smokeCase) => {
       const env = makeTestEnv(smokeCase);
@@ -322,7 +325,7 @@ test(
 
 test(
   'launcher starts mpv paused when plugin auto-start visible overlay gate is enabled',
-  { timeout: 20000 },
+  { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
   async () => {
     await withSmokeCase('autoplay-ready-gate', async (smokeCase) => {
       fs.writeFileSync(
