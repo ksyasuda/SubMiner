@@ -15,6 +15,7 @@ test('auto sync imports merged dictionary and persists MRU state', async () => {
   const deleted: string[] = [];
   const upserts: Array<{ title: string; scope: 'all' | 'active' }> = [];
   const mergedBuilds: number[][] = [];
+  const logs: string[] = [];
 
   let importedRevision: string | null = null;
 
@@ -60,6 +61,9 @@ test('auto sync imports merged dictionary and persists MRU state', async () => {
       return true;
     },
     now: () => 1000,
+    logInfo: (message) => {
+      logs.push(message);
+    },
   });
 
   await runtime.runSyncNow();
@@ -78,6 +82,14 @@ test('auto sync imports merged dictionary and persists MRU state', async () => {
   assert.deepEqual(state.activeMediaIds, [130298]);
   assert.equal(state.mergedRevision, 'rev-1');
   assert.equal(state.mergedDictionaryTitle, 'SubMiner Character Dictionary');
+  assert.deepEqual(logs, [
+    '[dictionary:auto-sync] syncing current anime snapshot',
+    '[dictionary:auto-sync] active AniList media set: 130298',
+    '[dictionary:auto-sync] rebuilding merged dictionary for active anime set',
+    '[dictionary:auto-sync] importing merged dictionary: /tmp/subminer-character-dictionary.zip',
+    '[dictionary:auto-sync] applying Yomitan settings for SubMiner Character Dictionary',
+    '[dictionary:auto-sync] synced AniList 130298: SubMiner Character Dictionary (2544 entries)',
+  ]);
 });
 
 test('auto sync skips rebuild/import on unchanged revisit when merged dictionary is current', async () => {

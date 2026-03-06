@@ -133,12 +133,16 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       return;
     }
 
+    deps.logInfo?.('[dictionary:auto-sync] syncing current anime snapshot');
     const snapshot = await deps.getOrCreateCurrentSnapshot();
     const state = readAutoSyncState(statePath);
     const nextActiveMediaIds = [
       snapshot.mediaId,
       ...state.activeMediaIds.filter((mediaId) => mediaId !== snapshot.mediaId),
     ].slice(0, Math.max(1, Math.floor(config.maxLoaded)));
+    deps.logInfo?.(
+      `[dictionary:auto-sync] active AniList media set: ${nextActiveMediaIds.join(', ')}`,
+    );
 
     const retainedChanged = !arraysEqual(nextActiveMediaIds, state.activeMediaIds);
     let merged: MergedCharacterDictionaryBuildResult | null = null;
@@ -148,6 +152,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       !state.mergedDictionaryTitle ||
       !snapshot.fromCache
     ) {
+      deps.logInfo?.('[dictionary:auto-sync] rebuilding merged dictionary for active anime set');
       merged = await deps.buildMergedDictionary(nextActiveMediaIds);
     }
 
@@ -189,6 +194,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       }
     }
 
+    deps.logInfo?.(`[dictionary:auto-sync] applying Yomitan settings for ${dictionaryTitle}`);
     await withOperationTimeout(
       `upsertYomitanDictionarySettings(${dictionaryTitle})`,
       deps.upsertYomitanDictionarySettings(dictionaryTitle, config.profileScope),

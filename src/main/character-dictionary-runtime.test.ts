@@ -578,6 +578,132 @@ test('getOrCreateCurrentSnapshot rebuilds snapshots written with an older format
   }
 });
 
+test('generateForCurrentMedia logs progress while resolving and rebuilding snapshot data', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+  const logs: string[] = [];
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 130298,
+                    episodes: 20,
+                    title: {
+                      romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                      english: 'The Eminence in Shadow',
+                      native: '陰の実力者になりたくて！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                  english: 'The Eminence in Shadow',
+                  native: '陰の実力者になりたくて！',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 321,
+                        description: 'Alpha is the second-in-command of Shadow Garden.',
+                        image: {
+                          large: 'https://example.com/alpha.png',
+                          medium: null,
+                        },
+                        name: {
+                          full: 'Alpha',
+                          native: 'アルファ',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+    }
+
+    if (url === 'https://example.com/alpha.png') {
+      return new Response(PNG_1X1, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        episode: 5,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_100,
+      sleep: async () => undefined,
+      logInfo: (message) => {
+        logs.push(message);
+      },
+    });
+
+    await runtime.generateForCurrentMedia();
+
+    assert.deepEqual(logs, [
+      '[dictionary] resolving current anime for character dictionary generation',
+      '[dictionary] current anime guess: The Eminence in Shadow (episode 5)',
+      '[dictionary] AniList match: The Eminence in Shadow -> AniList 130298',
+      '[dictionary] snapshot miss for AniList 130298, fetching characters',
+      '[dictionary] downloaded AniList character page 1 for AniList 130298',
+      '[dictionary] downloading 1 character images for AniList 130298',
+      '[dictionary] stored snapshot for AniList 130298: 32 terms',
+      '[dictionary] building ZIP for AniList 130298',
+      '[dictionary] generated AniList 130298: 32 terms -> ' +
+        path.join(userDataPath, 'character-dictionaries', 'anilist-130298.zip'),
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('buildMergedDictionary combines stored snapshots into one stable dictionary', async () => {
   const userDataPath = makeTempDir();
   const originalFetch = globalThis.fetch;

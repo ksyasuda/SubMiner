@@ -974,6 +974,7 @@ async function resolveAniListMediaIdFromGuess(
 async function fetchCharactersForMedia(
   mediaId: number,
   beforeRequest?: () => Promise<void>,
+  onPageFetched?: (page: number) => void,
 ): Promise<{
   mediaTitle: string;
   characters: CharacterRecord[];
@@ -1020,6 +1021,7 @@ async function fetchCharactersForMedia(
       },
       beforeRequest,
     );
+    onPageFetched?.(page);
 
     const media = data.Media;
     if (!media) {
@@ -1219,6 +1221,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     targetPath?: string,
     beforeRequest?: () => Promise<void>,
   ): Promise<ResolvedAniListMedia> => {
+    deps.logInfo?.('[dictionary] resolving current anime for character dictionary generation');
     const dictionaryTarget = targetPath?.trim() || '';
     const guessInput =
       dictionaryTarget.length > 0
@@ -1233,7 +1236,14 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     if (!guessed || !guessed.title.trim()) {
       throw new Error('Unable to resolve current anime from media path/title.');
     }
-    return resolveAniListMediaIdFromGuess(guessed, beforeRequest);
+    deps.logInfo?.(
+      `[dictionary] current anime guess: ${guessed.title.trim()}${
+        typeof guessed.episode === 'number' && guessed.episode > 0 ? ` (episode ${guessed.episode})` : ''
+      }`,
+    );
+    const resolved = await resolveAniListMediaIdFromGuess(guessed, beforeRequest);
+    deps.logInfo?.(`[dictionary] AniList match: ${resolved.title} -> AniList ${resolved.id}`);
+    return resolved;
   };
 
   const getOrCreateSnapshot = async (
@@ -1254,15 +1264,26 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       };
     }
 
+    deps.logInfo?.(`[dictionary] snapshot miss for AniList ${mediaId}, fetching characters`);
+
     const { mediaTitle: fetchedMediaTitle, characters } = await fetchCharactersForMedia(
       mediaId,
       beforeRequest,
+      (page) => {
+        deps.logInfo?.(`[dictionary] downloaded AniList character page ${page} for AniList ${mediaId}`);
+      },
     );
     if (characters.length === 0) {
       throw new Error(`No characters returned for AniList media ${mediaId}.`);
     }
 
     const imagesByCharacterId = new Map<number, CharacterDictionarySnapshotImage>();
+    const charactersWithImages = characters.filter((character) => Boolean(character.imageUrl)).length;
+    if (charactersWithImages > 0) {
+      deps.logInfo?.(
+        `[dictionary] downloading ${charactersWithImages} character images for AniList ${mediaId}`,
+      );
+    }
     let hasAttemptedCharacterImageDownload = false;
     for (const character of characters) {
       if (!character.imageUrl) continue;
@@ -1369,6 +1390,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       const dictionaryTitle = buildDictionaryTitle(resolvedMedia.id);
       const description = `Character names from ${storedSnapshot.mediaTitle} [AniList media ID ${resolvedMedia.id}]`;
       const zipPath = path.join(outputDir, `anilist-${resolvedMedia.id}.zip`);
+      deps.logInfo?.(`[dictionary] building ZIP for AniList ${resolvedMedia.id}`);
       buildDictionaryZip(
         zipPath,
         dictionaryTitle,
