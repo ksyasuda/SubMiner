@@ -1,24 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import type { AnilistCharacterDictionaryProfileScope } from '../../types';
 import type {
-  AnilistCharacterDictionaryEvictionPolicy,
-  AnilistCharacterDictionaryProfileScope,
-} from '../../types';
-import type {
-  CharacterDictionaryBuildResult,
-  CharacterDictionaryGenerateOptions,
+  CharacterDictionarySnapshotResult,
+  MergedCharacterDictionaryBuildResult,
 } from '../character-dictionary-runtime';
-
-type AutoSyncStateDictionaryEntry = {
-  mediaId: number;
-  dictionaryTitle: string;
-  lastImportedRevision: string | null;
-  lastUsedAt: number;
-};
 
 type AutoSyncState = {
   activeMediaIds: number[];
-  dictionariesByMediaId: Record<string, AutoSyncStateDictionaryEntry>;
+  mergedRevision: string | null;
+  mergedDictionaryTitle: string | null;
 };
 
 type AutoSyncDictionaryInfo = {
@@ -28,29 +19,21 @@ type AutoSyncDictionaryInfo = {
 
 export interface CharacterDictionaryAutoSyncConfig {
   enabled: boolean;
-  refreshTtlHours: number;
   maxLoaded: number;
-  evictionPolicy: AnilistCharacterDictionaryEvictionPolicy;
   profileScope: AnilistCharacterDictionaryProfileScope;
 }
 
 export interface CharacterDictionaryAutoSyncRuntimeDeps {
   userDataPath: string;
   getConfig: () => CharacterDictionaryAutoSyncConfig;
-  generateCharacterDictionary: (
-    options?: CharacterDictionaryGenerateOptions,
-  ) => Promise<CharacterDictionaryBuildResult>;
+  getOrCreateCurrentSnapshot: (targetPath?: string) => Promise<CharacterDictionarySnapshotResult>;
+  buildMergedDictionary: (mediaIds: number[]) => Promise<MergedCharacterDictionaryBuildResult>;
   getYomitanDictionaryInfo: () => Promise<AutoSyncDictionaryInfo[]>;
   importYomitanDictionary: (zipPath: string) => Promise<boolean>;
   deleteYomitanDictionary: (dictionaryTitle: string) => Promise<boolean>;
   upsertYomitanDictionarySettings: (
     dictionaryTitle: string,
     profileScope: AnilistCharacterDictionaryProfileScope,
-  ) => Promise<boolean>;
-  removeYomitanDictionarySettings: (
-    dictionaryTitle: string,
-    profileScope: AnilistCharacterDictionaryProfileScope,
-    mode: 'delete' | 'disable',
   ) => Promise<boolean>;
   now: () => number;
   schedule?: (fn: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
@@ -70,56 +53,29 @@ function readAutoSyncState(statePath: string): AutoSyncState {
   try {
     const raw = fs.readFileSync(statePath, 'utf8');
     const parsed = JSON.parse(raw) as Partial<AutoSyncState>;
-    if (!parsed || typeof parsed !== 'object') {
-      return { activeMediaIds: [], dictionariesByMediaId: {} };
-    }
-    const dictionariesByMediaId = parsed.dictionariesByMediaId ?? {};
-    if (!dictionariesByMediaId || typeof dictionariesByMediaId !== 'object') {
-      return { activeMediaIds: [], dictionariesByMediaId: {} };
-    }
-
-    const normalizedEntries: Record<string, AutoSyncStateDictionaryEntry> = {};
-    for (const [key, value] of Object.entries(dictionariesByMediaId)) {
-      if (!value || typeof value !== 'object') {
-        continue;
-      }
-      const mediaId = Number.parseInt(key, 10);
-      const dictionaryTitle =
-        typeof (value as { dictionaryTitle?: unknown }).dictionaryTitle === 'string'
-          ? (value as { dictionaryTitle: string }).dictionaryTitle.trim()
-          : '';
-      if (!Number.isFinite(mediaId) || mediaId <= 0 || !dictionaryTitle) {
-        continue;
-      }
-
-      const lastImportedRevisionRaw = (value as { lastImportedRevision?: unknown })
-        .lastImportedRevision;
-      const lastUsedAtRaw = (value as { lastUsedAt?: unknown }).lastUsedAt;
-      normalizedEntries[String(mediaId)] = {
-        mediaId,
-        dictionaryTitle,
-        lastImportedRevision:
-          typeof lastImportedRevisionRaw === 'string' && lastImportedRevisionRaw.length > 0
-            ? lastImportedRevisionRaw
-            : null,
-        lastUsedAt:
-          typeof lastUsedAtRaw === 'number' && Number.isFinite(lastUsedAtRaw) ? lastUsedAtRaw : 0,
-      };
-    }
-
-    const activeMediaIdsRaw = Array.isArray(parsed.activeMediaIds) ? parsed.activeMediaIds : [];
-    const activeMediaIds = activeMediaIdsRaw
-      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
-      .map((value) => Math.max(1, Math.floor(value)))
-      .filter((value, index, all) => all.indexOf(value) === index)
-      .filter((value) => normalizedEntries[String(value)] !== undefined);
-
+    const activeMediaIds = Array.isArray(parsed.activeMediaIds)
+      ? parsed.activeMediaIds
+          .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+          .map((value) => Math.max(1, Math.floor(value)))
+          .filter((value, index, all) => all.indexOf(value) === index)
+      : [];
     return {
       activeMediaIds,
-      dictionariesByMediaId: normalizedEntries,
+      mergedRevision:
+        typeof parsed.mergedRevision === 'string' && parsed.mergedRevision.length > 0
+          ? parsed.mergedRevision
+          : null,
+      mergedDictionaryTitle:
+        typeof parsed.mergedDictionaryTitle === 'string' && parsed.mergedDictionaryTitle.length > 0
+          ? parsed.mergedDictionaryTitle
+          : null,
     };
   } catch {
-    return { activeMediaIds: [], dictionariesByMediaId: {} };
+    return {
+      activeMediaIds: [],
+      mergedRevision: null,
+      mergedDictionaryTitle: null,
+    };
   }
 }
 
@@ -128,8 +84,12 @@ function writeAutoSyncState(statePath: string, state: AutoSyncState): void {
   fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf8');
 }
 
-function buildDictionaryTitle(mediaId: number): string {
-  return `SubMiner Character Dictionary (AniList ${mediaId})`;
+function arraysEqual(left: number[], right: number[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    if (left[i] !== right[i]) return false;
+  }
+  return true;
 }
 
 export function createCharacterDictionaryAutoSyncRuntimeService(
@@ -173,15 +133,30 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       return;
     }
 
-    const refreshTtlMs = Math.max(1, Math.floor(config.refreshTtlHours)) * 60 * 60 * 1000;
-    const generation = await deps.generateCharacterDictionary({ refreshTtlMs });
-    const dictionaryTitle = generation.dictionaryTitle ?? buildDictionaryTitle(generation.mediaId);
-    const revision =
-      typeof generation.revision === 'string' && generation.revision.length > 0
-        ? generation.revision
-        : null;
-
+    const snapshot = await deps.getOrCreateCurrentSnapshot();
     const state = readAutoSyncState(statePath);
+    const nextActiveMediaIds = [
+      snapshot.mediaId,
+      ...state.activeMediaIds.filter((mediaId) => mediaId !== snapshot.mediaId),
+    ].slice(0, Math.max(1, Math.floor(config.maxLoaded)));
+
+    const retainedChanged = !arraysEqual(nextActiveMediaIds, state.activeMediaIds);
+    let merged: MergedCharacterDictionaryBuildResult | null = null;
+    if (
+      retainedChanged ||
+      !state.mergedRevision ||
+      !state.mergedDictionaryTitle ||
+      !snapshot.fromCache
+    ) {
+      merged = await deps.buildMergedDictionary(nextActiveMediaIds);
+    }
+
+    const dictionaryTitle = merged?.dictionaryTitle ?? state.mergedDictionaryTitle;
+    const revision = merged?.revision ?? state.mergedRevision;
+    if (!dictionaryTitle || !revision) {
+      throw new Error('Merged character dictionary state is incomplete.');
+    }
+
     const dictionaryInfo = await withOperationTimeout(
       'getYomitanDictionaryInfo',
       deps.getYomitanDictionaryInfo(),
@@ -192,7 +167,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
         ? String(existing.revision)
         : null;
     const shouldImport =
-      existing === null || (revision !== null && existingRevision !== revision);
+      merged !== null || existing === null || existingRevision === null || existingRevision !== revision;
 
     if (shouldImport) {
       if (existing !== null) {
@@ -201,15 +176,16 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
           deps.deleteYomitanDictionary(dictionaryTitle),
         );
       }
-      deps.logInfo?.(
-        `[dictionary:auto-sync] importing AniList ${generation.mediaId}: ${generation.zipPath}`,
-      );
+      if (merged === null) {
+        merged = await deps.buildMergedDictionary(nextActiveMediaIds);
+      }
+      deps.logInfo?.(`[dictionary:auto-sync] importing merged dictionary: ${merged.zipPath}`);
       const imported = await withOperationTimeout(
-        `importYomitanDictionary(${path.basename(generation.zipPath)})`,
-        deps.importYomitanDictionary(generation.zipPath),
+        `importYomitanDictionary(${path.basename(merged.zipPath)})`,
+        deps.importYomitanDictionary(merged.zipPath),
       );
       if (!imported) {
-        throw new Error(`Failed to import dictionary ZIP: ${generation.zipPath}`);
+        throw new Error(`Failed to import dictionary ZIP: ${merged.zipPath}`);
       }
     }
 
@@ -218,49 +194,13 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       deps.upsertYomitanDictionarySettings(dictionaryTitle, config.profileScope),
     );
 
-    const mediaIdKey = String(generation.mediaId);
-    state.dictionariesByMediaId[mediaIdKey] = {
-      mediaId: generation.mediaId,
-      dictionaryTitle,
-      lastImportedRevision: revision,
-      lastUsedAt: deps.now(),
-    };
-    state.activeMediaIds = [
-      generation.mediaId,
-      ...state.activeMediaIds.filter((value) => value !== generation.mediaId),
-    ];
-
-    const maxLoaded = Math.max(1, Math.floor(config.maxLoaded));
-    while (state.activeMediaIds.length > maxLoaded) {
-      const evictedMediaId = state.activeMediaIds.pop();
-      if (evictedMediaId === undefined) {
-        break;
-      }
-      const evicted = state.dictionariesByMediaId[String(evictedMediaId)];
-      if (!evicted) {
-        continue;
-      }
-
-      await withOperationTimeout(
-        `removeYomitanDictionarySettings(${evicted.dictionaryTitle})`,
-        deps.removeYomitanDictionarySettings(
-          evicted.dictionaryTitle,
-          config.profileScope,
-          config.evictionPolicy,
-        ),
-      );
-      if (config.evictionPolicy === 'delete') {
-        await withOperationTimeout(
-          `deleteYomitanDictionary(${evicted.dictionaryTitle})`,
-          deps.deleteYomitanDictionary(evicted.dictionaryTitle),
-        );
-        delete state.dictionariesByMediaId[String(evictedMediaId)];
-      }
-    }
-
-    writeAutoSyncState(statePath, state);
+    writeAutoSyncState(statePath, {
+      activeMediaIds: nextActiveMediaIds,
+      mergedRevision: merged?.revision ?? revision,
+      mergedDictionaryTitle: merged?.dictionaryTitle ?? dictionaryTitle,
+    });
     deps.logInfo?.(
-      `[dictionary:auto-sync] synced AniList ${generation.mediaId}: ${dictionaryTitle} (${generation.entryCount} entries)`,
+      `[dictionary:auto-sync] synced AniList ${snapshot.mediaId}: ${dictionaryTitle} (${snapshot.entryCount} entries)`,
     );
   };
 

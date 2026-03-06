@@ -178,7 +178,7 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
 
     const image = entry.content[0] as Record<string, unknown>;
     assert.equal(image.tag, 'img');
-    assert.equal(image.path, 'img/c123.png');
+    assert.equal(image.path, 'img/m130298-c123.png');
     assert.equal(image.sizeUnits, 'em');
 
     const descriptionLine = entry.content[5];
@@ -196,37 +196,10 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
   }
 });
 
-test('generateForCurrentMedia regenerates dictionary when cached format version is stale', async () => {
+test('getOrCreateCurrentSnapshot persists and reuses normalized snapshot data', async () => {
   const userDataPath = makeTempDir();
-  const dictionariesDir = path.join(userDataPath, 'character-dictionaries');
-  fs.mkdirSync(dictionariesDir, { recursive: true });
-
-  const staleZipPath = path.join(dictionariesDir, 'anilist-130298.zip');
-  fs.writeFileSync(staleZipPath, Buffer.from('not-a-real-zip'));
-  fs.writeFileSync(
-    path.join(dictionariesDir, 'cache.json'),
-    JSON.stringify(
-      {
-        anilistById: {
-          '130298': {
-            mediaId: 130298,
-            mediaTitle: 'The Eminence in Shadow',
-            entryCount: 1,
-            zipPath: staleZipPath,
-            updatedAt: 1_700_000_000_000,
-            formatVersion: 6,
-            dictionaryTitle: 'SubMiner Character Dictionary (AniList 130298)',
-            revision: 'stale-revision',
-          },
-        },
-      },
-      null,
-      2,
-    ),
-    'utf8',
-  );
-
   const originalFetch = globalThis.fetch;
+  let searchQueryCount = 0;
   let characterQueryCount = 0;
 
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -237,6 +210,7 @@ test('generateForCurrentMedia regenerates dictionary when cached format version 
       };
 
       if (body.query?.includes('Page(perPage: 10)')) {
+        searchQueryCount += 1;
         return new Response(
           JSON.stringify({
             data: {
@@ -314,7 +288,7 @@ test('generateForCurrentMedia regenerates dictionary when cached format version 
     throw new Error(`Unexpected fetch URL: ${url}`);
   }) as typeof globalThis.fetch;
 
-  try {
+    try {
     const runtime = createCharacterDictionaryRuntimeService({
       userDataPath,
       getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
@@ -328,17 +302,227 @@ test('generateForCurrentMedia regenerates dictionary when cached format version 
       now: () => 1_700_000_000_100,
     });
 
-    const result = await runtime.generateForCurrentMedia(undefined, {
-      refreshTtlMs: 60 * 60 * 1000,
-    });
-    assert.equal(result.fromCache, false);
-    assert.equal(characterQueryCount, 1);
+    const first = await runtime.getOrCreateCurrentSnapshot();
+    const second = await runtime.getOrCreateCurrentSnapshot();
 
-    const termBank = JSON.parse(readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8')) as Array<
+    assert.equal(first.fromCache, false);
+    assert.equal(second.fromCache, true);
+    assert.equal(searchQueryCount, 2);
+    assert.equal(characterQueryCount, 1);
+    assert.equal(
+      fs.existsSync(path.join(userDataPath, 'character-dictionaries', 'cache.json')),
+      false,
+    );
+
+    const snapshotPath = path.join(
+      userDataPath,
+      'character-dictionaries',
+      'snapshots',
+      'anilist-130298.json',
+    );
+    const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) as {
+      mediaId: number;
+      entryCount: number;
+      termEntries: Array<
+        [string, string, string, string, number, Array<string | Record<string, unknown>>, number, string]
+      >;
+    };
+    assert.equal(snapshot.mediaId, 130298);
+    assert.equal(snapshot.entryCount > 0, true);
+    const alpha = snapshot.termEntries.find(([term]) => term === 'アルファ');
+    assert.ok(alpha);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('buildMergedDictionary combines stored snapshots into one stable dictionary', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+  const current = { title: 'The Eminence in Shadow', episode: 5 };
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+        variables?: Record<string, unknown>;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        if (body.variables?.search === 'The Eminence in Shadow') {
+          return new Response(
+            JSON.stringify({
+              data: {
+                Page: {
+                  media: [
+                    {
+                      id: 130298,
+                      episodes: 20,
+                      title: {
+                        romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                        english: 'The Eminence in Shadow',
+                        native: '陰の実力者になりたくて！',
+                      },
+                    },
+                  ],
+                },
+              },
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            },
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 21,
+                    episodes: 28,
+                    title: {
+                      romaji: 'Sousou no Frieren',
+                      english: 'Frieren: Beyond Journey’s End',
+                      native: '葬送のフリーレン',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        const mediaId = Number(body.variables?.id);
+        if (mediaId === 130298) {
+          return new Response(
+            JSON.stringify({
+              data: {
+                Media: {
+                  title: {
+                    english: 'The Eminence in Shadow',
+                  },
+                  characters: {
+                    pageInfo: { hasNextPage: false },
+                    edges: [
+                      {
+                        role: 'MAIN',
+                        node: {
+                          id: 111,
+                          description: 'Leader of Shadow Garden.',
+                          image: {
+                            large: 'https://example.com/alpha.png',
+                            medium: null,
+                          },
+                          name: {
+                            full: 'Alpha',
+                            native: 'アルファ',
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            },
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  english: 'Frieren: Beyond Journey’s End',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 222,
+                        description: 'Elven mage.',
+                        image: {
+                          large: 'https://example.com/frieren.png',
+                          medium: null,
+                        },
+                        name: {
+                          full: 'Frieren',
+                          native: 'フリーレン',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+    }
+
+    if (url === 'https://example.com/alpha.png' || url === 'https://example.com/frieren.png') {
+      return new Response(PNG_1X1, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/current.mkv',
+      getCurrentMediaTitle: () => current.title,
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: current.title,
+        episode: current.episode,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_100,
+    });
+
+    await runtime.getOrCreateCurrentSnapshot();
+    current.title = 'Frieren: Beyond Journey’s End';
+    current.episode = 1;
+    await runtime.getOrCreateCurrentSnapshot();
+
+    const merged = await runtime.buildMergedDictionary([21, 130298]);
+    const index = JSON.parse(readStoredZipEntry(merged.zipPath, 'index.json').toString('utf8')) as {
+      title: string;
+    };
+    const termBank = JSON.parse(readStoredZipEntry(merged.zipPath, 'term_bank_1.json').toString('utf8')) as Array<
       [string, string, string, string, number, Array<string | Record<string, unknown>>, number, string]
     >;
+    const frieren = termBank.find(([term]) => term === 'フリーレン');
     const alpha = termBank.find(([term]) => term === 'アルファ');
+
+    assert.equal(index.title, 'SubMiner Character Dictionary');
+    assert.equal(merged.entryCount >= 2, true);
+    assert.ok(frieren);
     assert.ok(alpha);
+    assert.equal((frieren[5][0] as { type?: string }).type, 'structured-content');
     assert.equal((alpha[5][0] as { type?: string }).type, 'structured-content');
   } finally {
     globalThis.fetch = originalFetch;

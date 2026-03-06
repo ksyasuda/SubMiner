@@ -231,6 +231,7 @@ function isKanaChar(char: string): boolean {
   return (
     (code >= 0x3041 && code <= 0x3096) ||
     (code >= 0x309b && code <= 0x309f) ||
+    code === 0x30fc ||
     (code >= 0x30a0 && code <= 0x30fa) ||
     (code >= 0x30fd && code <= 0x30ff)
   );

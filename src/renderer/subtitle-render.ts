@@ -241,13 +241,17 @@ function renderWithTokens(
 
   const fragment = document.createDocumentFragment();
 
-  if (preserveLineBreaks && sourceText) {
-    const normalizedSource = normalizeSubtitle(sourceText, true, false);
+  if (sourceText) {
+    const normalizedSource = normalizeSubtitle(sourceText, true, !preserveLineBreaks);
     const segments = alignTokensToSourceText(tokens, normalizedSource);
 
     for (const segment of segments) {
       if (segment.kind === 'text') {
-        renderPlainTextPreserveLineBreaks(fragment, segment.text);
+        if (preserveLineBreaks) {
+          renderPlainTextPreserveLineBreaks(fragment, segment.text);
+        } else {
+          fragment.appendChild(document.createTextNode(segment.text));
+        }
         continue;
       }
 

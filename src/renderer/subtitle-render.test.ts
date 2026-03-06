@@ -9,12 +9,114 @@ import {
   alignTokensToSourceText,
   buildSubtitleTokenHoverRanges,
   computeWordClass,
+  createSubtitleRenderer,
   getFrequencyRankLabelForToken,
   getJlptLevelLabelForToken,
   normalizeSubtitle,
   sanitizeSubtitleHoverTokenColor,
   shouldRenderTokenizedSubtitle,
 } from './subtitle-render.js';
+import { createRendererState } from './state.js';
+
+class FakeTextNode {
+  constructor(public textContent: string) {}
+}
+
+class FakeDocumentFragment {
+  childNodes: Array<FakeElement | FakeTextNode> = [];
+
+  appendChild(
+    child: FakeElement | FakeTextNode | FakeDocumentFragment,
+  ): FakeElement | FakeTextNode | FakeDocumentFragment {
+    if (child instanceof FakeDocumentFragment) {
+      this.childNodes.push(...child.childNodes);
+      child.childNodes = [];
+      return child;
+    }
+
+    this.childNodes.push(child);
+    return child;
+  }
+}
+
+class FakeStyleDeclaration {
+  private values = new Map<string, string>();
+
+  setProperty(name: string, value: string) {
+    this.values.set(name, value);
+  }
+}
+
+class FakeElement {
+  childNodes: Array<FakeElement | FakeTextNode> = [];
+  dataset: Record<string, string> = {};
+  style = new FakeStyleDeclaration();
+  className = '';
+  private ownTextContent = '';
+
+  constructor(public tagName: string) {}
+
+  appendChild(
+    child: FakeElement | FakeTextNode | FakeDocumentFragment,
+  ): FakeElement | FakeTextNode | FakeDocumentFragment {
+    if (child instanceof FakeDocumentFragment) {
+      this.childNodes.push(...child.childNodes);
+      child.childNodes = [];
+      return child;
+    }
+
+    this.childNodes.push(child);
+    return child;
+  }
+
+  set textContent(value: string) {
+    this.ownTextContent = value;
+    this.childNodes = [];
+  }
+
+  get textContent(): string {
+    if (this.childNodes.length === 0) {
+      return this.ownTextContent;
+    }
+
+    return this.childNodes
+      .map((child) => (child instanceof FakeTextNode ? child.textContent : child.textContent))
+      .join('');
+  }
+
+  set innerHTML(value: string) {
+    if (value === '') {
+      this.childNodes = [];
+      this.ownTextContent = '';
+    }
+  }
+}
+
+function installFakeDocument() {
+  const previousDocument = (globalThis as { document?: unknown }).document;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createDocumentFragment: () => new FakeDocumentFragment(),
+      createElement: (tagName: string) => new FakeElement(tagName),
+      createTextNode: (text: string) => new FakeTextNode(text),
+    },
+  });
+
+  return () => {
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: previousDocument,
+    });
+  };
+}
+
+function collectWordNodes(root: FakeElement): FakeElement[] {
+  return root.childNodes.filter(
+    (child): child is FakeElement => child instanceof FakeElement && child.className.includes('word'),
+  );
+}
 
 function createToken(overrides: Partial<MergedToken>): MergedToken {
   return {
@@ -288,6 +390,16 @@ test('alignTokensToSourceText treats whitespace-only token surfaces as plain tex
   );
 });
 
+test('alignTokensToSourceText preserves unsupported punctuation between matched tokens', () => {
+  const tokens = [createToken({ surface: 'えっ' }), createToken({ surface: 'マジ' })];
+
+  const segments = alignTokensToSourceText(tokens, 'えっ！？マジ');
+  assert.deepEqual(
+    segments.map((segment) => (segment.kind === 'text' ? `text:${segment.text}` : 'token')),
+    ['token', 'text:！？', 'token'],
+  );
+});
+
 test('alignTokensToSourceText avoids duplicate tail when later token surface does not match source', () => {
   const tokens = [
     createToken({ surface: '君たちが潰した拠点に' }),
@@ -325,6 +437,55 @@ test('buildSubtitleTokenHoverRanges ignores unmatched token surfaces', () => {
     '君たちが潰した拠点に\n教団の主力は１人もいない',
   );
   assert.deepEqual(ranges, [{ start: 0, end: 10, tokenIndex: 0 }]);
+});
+
+test('buildSubtitleTokenHoverRanges skips unsupported punctuation while preserving later offsets', () => {
+  const tokens = [createToken({ surface: 'えっ' }), createToken({ surface: 'マジ' })];
+
+  const ranges = buildSubtitleTokenHoverRanges(tokens, 'えっ！？マジ');
+  assert.deepEqual(ranges, [
+    { start: 0, end: 2, tokenIndex: 0 },
+    { start: 4, end: 6, tokenIndex: 1 },
+  ]);
+});
+
+test('renderSubtitle preserves unsupported punctuation while keeping it non-interactive', () => {
+  const restoreDocument = installFakeDocument();
+
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const renderer = createSubtitleRenderer({
+      dom: {
+        subtitleRoot,
+        subtitleContainer: new FakeElement('div'),
+        secondarySubRoot: new FakeElement('div'),
+        secondarySubContainer: new FakeElement('div'),
+      },
+      platform: {
+        isMacOSPlatform: false,
+        isModalLayer: false,
+        overlayLayer: 'visible',
+        shouldToggleMouseIgnore: false,
+      },
+      state: createRendererState(),
+    } as never);
+
+    renderer.renderSubtitle({
+      text: 'えっ！？マジ',
+      tokens: [createToken({ surface: 'えっ' }), createToken({ surface: 'マジ' })],
+    });
+
+    assert.equal(subtitleRoot.textContent, 'えっ！？マジ');
+    assert.deepEqual(
+      collectWordNodes(subtitleRoot).map((node) => [node.textContent, node.dataset.tokenIndex]),
+      [
+        ['えっ', '0'],
+        ['マジ', '1'],
+      ],
+    );
+  } finally {
+    restoreDocument();
+  }
 });
 
 test('normalizeSubtitle collapses explicit line breaks when collapseLineBreaks is enabled', () => {

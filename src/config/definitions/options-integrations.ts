@@ -146,20 +146,23 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'anilist.characterDictionary.refreshTtlHours',
       kind: 'number',
       defaultValue: defaultConfig.anilist.characterDictionary.refreshTtlHours,
-      description: 'TTL in hours before refreshing the currently watched media dictionary.',
+      description:
+        'Legacy setting; merged character dictionary retention is now usage-based and this value is ignored.',
     },
     {
       path: 'anilist.characterDictionary.maxLoaded',
       kind: 'number',
       defaultValue: defaultConfig.anilist.characterDictionary.maxLoaded,
-      description: 'Maximum number of auto-synced AniList dictionaries kept loaded at once.',
+      description:
+        'Maximum number of most-recently-used anime snapshots included in the merged Yomitan character dictionary.',
     },
     {
       path: 'anilist.characterDictionary.evictionPolicy',
       kind: 'enum',
       enumValues: ['disable', 'delete'],
       defaultValue: defaultConfig.anilist.characterDictionary.evictionPolicy,
-      description: 'Eviction behavior when maxLoaded is exceeded.',
+      description:
+        'Legacy setting; merged character dictionary eviction is usage-based and this value is ignored.',
     },
     {
       path: 'anilist.characterDictionary.profileScope',

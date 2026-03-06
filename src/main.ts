@@ -361,7 +361,6 @@ import {
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
   resolveJellyfinPlaybackPlanRuntime,
-  removeYomitanDictionarySettings,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   clearYomitanParserCachesForWindow,
@@ -1236,9 +1235,16 @@ const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
 
 const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRuntimeService({
   userDataPath: USER_DATA_PATH,
-  getConfig: () => getResolvedConfig().anilist.characterDictionary,
-  generateCharacterDictionary: (options) =>
-    characterDictionaryRuntime.generateForCurrentMedia(undefined, options),
+  getConfig: () => {
+    const config = getResolvedConfig().anilist.characterDictionary;
+    return {
+      enabled: config.enabled,
+      maxLoaded: config.maxLoaded,
+      profileScope: config.profileScope,
+    };
+  },
+  getOrCreateCurrentSnapshot: () => characterDictionaryRuntime.getOrCreateCurrentSnapshot(),
+  buildMergedDictionary: (mediaIds) => characterDictionaryRuntime.buildMergedDictionary(mediaIds),
   getYomitanDictionaryInfo: async () => {
     await ensureYomitanExtensionLoaded();
     return await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
@@ -1265,19 +1271,6 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     return await upsertYomitanDictionarySettings(
       dictionaryTitle,
       profileScope,
-      getYomitanParserRuntimeDeps(),
-      {
-        error: (message, ...args) => logger.error(message, ...args),
-        info: (message, ...args) => logger.info(message, ...args),
-      },
-    );
-  },
-  removeYomitanDictionarySettings: async (dictionaryTitle, profileScope, mode) => {
-    await ensureYomitanExtensionLoaded();
-    return await removeYomitanDictionarySettings(
-      dictionaryTitle,
-      profileScope,
-      mode,
       getYomitanParserRuntimeDeps(),
       {
         error: (message, ...args) => logger.error(message, ...args),

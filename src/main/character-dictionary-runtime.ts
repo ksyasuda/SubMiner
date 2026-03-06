@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { createHash } from 'node:crypto';
 import type { AnilistMediaGuess } from '../core/services/anilist/anilist-updater';
 import { hasVideoExtension } from '../shared/video-extensions';
 
@@ -26,22 +27,35 @@ const HONORIFIC_SUFFIXES = [
 ] as const;
 type CharacterDictionaryRole = 'main' | 'primary' | 'side' | 'appears';
 
-type CharacterDictionaryCacheEntry = {
+type CharacterDictionaryGlossaryEntry = string | Record<string, unknown>;
+type CharacterDictionaryTermEntry = [
+  string,
+  string,
+  string,
+  string,
+  number,
+  CharacterDictionaryGlossaryEntry[],
+  number,
+  string,
+];
+
+type CharacterDictionarySnapshotImage = {
+  path: string;
+  dataBase64: string;
+};
+
+export type CharacterDictionarySnapshot = {
+  formatVersion: number;
   mediaId: number;
   mediaTitle: string;
   entryCount: number;
-  zipPath: string;
   updatedAt: number;
-  formatVersion?: number;
-  dictionaryTitle?: string;
-  revision?: string;
+  termEntries: CharacterDictionaryTermEntry[];
+  images: CharacterDictionarySnapshotImage[];
 };
 
-type CharacterDictionaryCacheFile = {
-  anilistById: Record<string, CharacterDictionaryCacheEntry>;
-};
-
-const CHARACTER_DICTIONARY_FORMAT_VERSION = 8;
+const CHARACTER_DICTIONARY_FORMAT_VERSION = 9;
+const CHARACTER_DICTIONARY_MERGED_TITLE = 'SubMiner Character Dictionary';
 
 type AniListSearchResponse = {
   Page?: {
@@ -115,6 +129,21 @@ export type CharacterDictionaryBuildResult = {
 
 export type CharacterDictionaryGenerateOptions = {
   refreshTtlMs?: number;
+};
+
+export type CharacterDictionarySnapshotResult = {
+  mediaId: number;
+  mediaTitle: string;
+  entryCount: number;
+  fromCache: boolean;
+  updatedAt: number;
+};
+
+export type MergedCharacterDictionaryBuildResult = {
+  zipPath: string;
+  revision: string;
+  dictionaryTitle: string;
+  entryCount: number;
 };
 
 export interface CharacterDictionaryRuntimeDeps {
@@ -383,29 +412,60 @@ function resolveDictionaryGuessInputs(targetPath: string): {
   throw new Error(`Dictionary target must be a file or directory path: ${targetPath}`);
 }
 
-function readCache(cachePath: string): CharacterDictionaryCacheFile {
+function getSnapshotsDir(outputDir: string): string {
+  return path.join(outputDir, 'snapshots');
+}
+
+function getSnapshotPath(outputDir: string, mediaId: number): string {
+  return path.join(getSnapshotsDir(outputDir), `anilist-${mediaId}.json`);
+}
+
+function getMergedZipPath(outputDir: string): string {
+  return path.join(outputDir, 'merged.zip');
+}
+
+function readSnapshot(snapshotPath: string): CharacterDictionarySnapshot | null {
   try {
-    const raw = fs.readFileSync(cachePath, 'utf8');
-    const parsed = JSON.parse(raw) as CharacterDictionaryCacheFile;
-    if (!parsed || typeof parsed !== 'object' || !parsed.anilistById) {
-      return { anilistById: {} };
+    const raw = fs.readFileSync(snapshotPath, 'utf8');
+    const parsed = JSON.parse(raw) as Partial<CharacterDictionarySnapshot>;
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
     }
-    return parsed;
+    if (
+      parsed.formatVersion !== CHARACTER_DICTIONARY_FORMAT_VERSION ||
+      typeof parsed.mediaId !== 'number' ||
+      typeof parsed.mediaTitle !== 'string' ||
+      typeof parsed.entryCount !== 'number' ||
+      typeof parsed.updatedAt !== 'number' ||
+      !Array.isArray(parsed.termEntries) ||
+      !Array.isArray(parsed.images)
+    ) {
+      return null;
+    }
+    return {
+      formatVersion: parsed.formatVersion,
+      mediaId: parsed.mediaId,
+      mediaTitle: parsed.mediaTitle,
+      entryCount: parsed.entryCount,
+      updatedAt: parsed.updatedAt,
+      termEntries: parsed.termEntries as CharacterDictionaryTermEntry[],
+      images: parsed.images as CharacterDictionarySnapshotImage[],
+    };
   } catch {
-    return { anilistById: {} };
+    return null;
   }
 }
 
-function writeCache(cachePath: string, cache: CharacterDictionaryCacheFile): void {
-  ensureDir(path.dirname(cachePath));
-  fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2), 'utf8');
+function writeSnapshot(snapshotPath: string, snapshot: CharacterDictionarySnapshot): void {
+  ensureDir(path.dirname(snapshotPath));
+  fs.writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2), 'utf8');
 }
 
 function createDefinitionGlossary(
   character: CharacterRecord,
   mediaTitle: string,
   imagePath: string | null,
-): Array<string | Record<string, unknown>> {
+): CharacterDictionaryGlossaryEntry[] {
   const displayName = character.nativeName || character.fullName || `Character ${character.id}`;
   const lines: string[] = [`${displayName} [${roleLabel(character.role)}]`, `${mediaTitle} · AniList`];
 
@@ -449,12 +509,16 @@ function createDefinitionGlossary(
   ];
 }
 
+function buildSnapshotImagePath(mediaId: number, charId: number, ext: string): string {
+  return `img/m${mediaId}-c${charId}.${ext}`;
+}
+
 function buildTermEntry(
   term: string,
   reading: string,
   role: CharacterDictionaryRole,
-  glossary: Array<string | Record<string, unknown>>,
-): Array<string | number | Array<string | Record<string, unknown>>> {
+  glossary: CharacterDictionaryGlossaryEntry[],
+): CharacterDictionaryTermEntry {
   const { tag, score } = roleInfo(role);
   return [term, reading, `name ${tag}`, '', score, glossary, 0, ''];
 }
@@ -754,6 +818,7 @@ async function fetchCharactersForMedia(
 
 async function downloadCharacterImage(imageUrl: string, charId: number): Promise<{
   filename: string;
+  ext: string;
   bytes: Buffer;
 } | null> {
   try {
@@ -764,6 +829,7 @@ async function downloadCharacterImage(imageUrl: string, charId: number): Promise
     const ext = inferImageExt(response.headers.get('content-type'));
     return {
       filename: `c${charId}.${ext}`,
+      ext,
       bytes,
     };
   } catch {
@@ -775,14 +841,17 @@ function buildDictionaryTitle(mediaId: number): string {
   return `SubMiner Character Dictionary (AniList ${mediaId})`;
 }
 
-function createIndex(mediaId: number, mediaTitle: string, revision: string): Record<string, unknown> {
-  const dictionaryTitle = buildDictionaryTitle(mediaId);
+function createIndex(
+  dictionaryTitle: string,
+  description: string,
+  revision: string,
+): Record<string, unknown> {
   return {
     title: dictionaryTitle,
     revision,
     format: 3,
     author: 'SubMiner',
-    description: `Character names from ${mediaTitle} [AniList media ID ${mediaId}]`,
+    description,
   };
 }
 
@@ -796,21 +865,195 @@ function createTagBank(): Array<[string, string, number, string, number]> {
   ];
 }
 
+function buildSnapshotFromCharacters(
+  mediaId: number,
+  mediaTitle: string,
+  characters: CharacterRecord[],
+  imagesByCharacterId: Map<number, CharacterDictionarySnapshotImage>,
+  updatedAt: number,
+): CharacterDictionarySnapshot {
+  const termEntries: CharacterDictionaryTermEntry[] = [];
+  const seen = new Set<string>();
+
+  for (const character of characters) {
+    const imagePath = imagesByCharacterId.get(character.id)?.path ?? null;
+    const glossary = createDefinitionGlossary(character, mediaTitle, imagePath);
+    const candidateTerms = buildNameTerms(character);
+    for (const term of candidateTerms) {
+      const reading = buildReading(term);
+      const dedupeKey = `${term}|${reading}|${character.role}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      termEntries.push(buildTermEntry(term, reading, character.role, glossary));
+    }
+  }
+
+  if (termEntries.length === 0) {
+    throw new Error('No dictionary entries generated from AniList character data.');
+  }
+
+  return {
+    formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
+    mediaId,
+    mediaTitle,
+    entryCount: termEntries.length,
+    updatedAt,
+    termEntries,
+    images: [...imagesByCharacterId.values()],
+  };
+}
+
+function buildDictionaryZip(
+  outputPath: string,
+  dictionaryTitle: string,
+  description: string,
+  revision: string,
+  termEntries: CharacterDictionaryTermEntry[],
+  images: CharacterDictionarySnapshotImage[],
+): { zipPath: string; entryCount: number } {
+  const zipFiles: Array<{ name: string; data: Buffer }> = [
+    {
+      name: 'index.json',
+      data: Buffer.from(JSON.stringify(createIndex(dictionaryTitle, description, revision), null, 2), 'utf8'),
+    },
+    {
+      name: 'tag_bank_1.json',
+      data: Buffer.from(JSON.stringify(createTagBank()), 'utf8'),
+    },
+  ];
+
+  for (const image of images) {
+    zipFiles.push({
+      name: image.path,
+      data: Buffer.from(image.dataBase64, 'base64'),
+    });
+  }
+
+  const entriesPerBank = 10_000;
+  for (let i = 0; i < termEntries.length; i += entriesPerBank) {
+    zipFiles.push({
+      name: `term_bank_${Math.floor(i / entriesPerBank) + 1}.json`,
+      data: Buffer.from(JSON.stringify(termEntries.slice(i, i + entriesPerBank)), 'utf8'),
+    });
+  }
+
+  ensureDir(path.dirname(outputPath));
+  fs.writeFileSync(outputPath, createStoredZip(zipFiles));
+  return { zipPath: outputPath, entryCount: termEntries.length };
+}
+
+function buildMergedRevision(mediaIds: number[], snapshots: CharacterDictionarySnapshot[]): string {
+  const hash = createHash('sha1');
+  hash.update(
+    JSON.stringify({
+      mediaIds,
+      snapshots: snapshots.map((snapshot) => ({
+        mediaId: snapshot.mediaId,
+        updatedAt: snapshot.updatedAt,
+        entryCount: snapshot.entryCount,
+      })),
+    }),
+  );
+  return hash.digest('hex').slice(0, 12);
+}
+
 export function createCharacterDictionaryRuntimeService(deps: CharacterDictionaryRuntimeDeps): {
+  getOrCreateCurrentSnapshot: (targetPath?: string) => Promise<CharacterDictionarySnapshotResult>;
+  buildMergedDictionary: (mediaIds: number[]) => Promise<MergedCharacterDictionaryBuildResult>;
   generateForCurrentMedia: (
     targetPath?: string,
     options?: CharacterDictionaryGenerateOptions,
   ) => Promise<CharacterDictionaryBuildResult>;
 } {
   const outputDir = path.join(deps.userDataPath, 'character-dictionaries');
-  const cachePath = path.join(outputDir, 'cache.json');
   const sleepMs = deps.sleep ?? sleep;
 
+  const resolveCurrentMedia = async (
+    targetPath?: string,
+    beforeRequest?: () => Promise<void>,
+  ): Promise<ResolvedAniListMedia> => {
+    const dictionaryTarget = targetPath?.trim() || '';
+    const guessInput =
+      dictionaryTarget.length > 0
+        ? resolveDictionaryGuessInputs(dictionaryTarget)
+        : {
+            mediaPath: deps.getCurrentMediaPath(),
+            mediaTitle: deps.getCurrentMediaTitle(),
+          };
+    const mediaPathForGuess = deps.resolveMediaPathForJimaku(guessInput.mediaPath);
+    const mediaTitle = guessInput.mediaTitle;
+    const guessed = await deps.guessAnilistMediaInfo(mediaPathForGuess, mediaTitle);
+    if (!guessed || !guessed.title.trim()) {
+      throw new Error('Unable to resolve current anime from media path/title.');
+    }
+    return resolveAniListMediaIdFromGuess(guessed, beforeRequest);
+  };
+
+  const getOrCreateSnapshot = async (
+    mediaId: number,
+    mediaTitleHint?: string,
+    beforeRequest?: () => Promise<void>,
+  ): Promise<CharacterDictionarySnapshotResult> => {
+    const snapshotPath = getSnapshotPath(outputDir, mediaId);
+    const cachedSnapshot = readSnapshot(snapshotPath);
+    if (cachedSnapshot) {
+      deps.logInfo?.(`[dictionary] snapshot hit for AniList ${mediaId}`);
+      return {
+        mediaId: cachedSnapshot.mediaId,
+        mediaTitle: cachedSnapshot.mediaTitle,
+        entryCount: cachedSnapshot.entryCount,
+        fromCache: true,
+        updatedAt: cachedSnapshot.updatedAt,
+      };
+    }
+
+    const { mediaTitle: fetchedMediaTitle, characters } = await fetchCharactersForMedia(
+      mediaId,
+      beforeRequest,
+    );
+    if (characters.length === 0) {
+      throw new Error(`No characters returned for AniList media ${mediaId}.`);
+    }
+
+    const imagesByCharacterId = new Map<number, CharacterDictionarySnapshotImage>();
+    let hasAttemptedCharacterImageDownload = false;
+    for (const character of characters) {
+      if (!character.imageUrl) continue;
+      if (hasAttemptedCharacterImageDownload) {
+        await sleepMs(CHARACTER_IMAGE_DOWNLOAD_DELAY_MS);
+      }
+      hasAttemptedCharacterImageDownload = true;
+      const image = await downloadCharacterImage(character.imageUrl, character.id);
+      if (!image) continue;
+      imagesByCharacterId.set(character.id, {
+        path: buildSnapshotImagePath(mediaId, character.id, image.ext),
+        dataBase64: image.bytes.toString('base64'),
+      });
+    }
+
+    const snapshot = buildSnapshotFromCharacters(
+      mediaId,
+      fetchedMediaTitle || mediaTitleHint || `AniList ${mediaId}`,
+      characters,
+      imagesByCharacterId,
+      deps.now(),
+    );
+    writeSnapshot(snapshotPath, snapshot);
+    deps.logInfo?.(
+      `[dictionary] stored snapshot for AniList ${mediaId}: ${snapshot.entryCount} terms`,
+    );
+
+    return {
+      mediaId: snapshot.mediaId,
+      mediaTitle: snapshot.mediaTitle,
+      entryCount: snapshot.entryCount,
+      fromCache: false,
+      updatedAt: snapshot.updatedAt,
+    };
+  };
+
   return {
-    generateForCurrentMedia: async (
-      targetPath?: string,
-      options?: CharacterDictionaryGenerateOptions,
-    ) => {
+    getOrCreateCurrentSnapshot: async (targetPath?: string) => {
       let hasAniListRequest = false;
       const waitForAniListRequestSlot = async (): Promise<void> => {
         if (!hasAniListRequest) {
@@ -819,149 +1062,83 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         }
         await sleepMs(ANILIST_REQUEST_DELAY_MS);
       };
-
-      const dictionaryTarget = targetPath?.trim() || '';
-      const guessInput =
-        dictionaryTarget.length > 0
-          ? resolveDictionaryGuessInputs(dictionaryTarget)
-          : {
-              mediaPath: deps.getCurrentMediaPath(),
-              mediaTitle: deps.getCurrentMediaTitle(),
-            };
-      const mediaPathForGuess = deps.resolveMediaPathForJimaku(guessInput.mediaPath);
-      const mediaTitle = guessInput.mediaTitle;
-      const guessed = await deps.guessAnilistMediaInfo(mediaPathForGuess, mediaTitle);
-      if (!guessed || !guessed.title.trim()) {
-        throw new Error('Unable to resolve current anime from media path/title.');
-      }
-
-      const resolvedMedia = await resolveAniListMediaIdFromGuess(guessed, waitForAniListRequestSlot);
-      const cache = readCache(cachePath);
-      const cached = cache.anilistById[String(resolvedMedia.id)];
-      const refreshTtlMsRaw = options?.refreshTtlMs;
-      const hasRefreshTtl =
-        typeof refreshTtlMsRaw === 'number' && Number.isFinite(refreshTtlMsRaw) && refreshTtlMsRaw > 0;
-      const now = deps.now();
-      const cacheAgeMs =
-        cached && typeof cached.updatedAt === 'number' && Number.isFinite(cached.updatedAt)
-          ? Math.max(0, now - cached.updatedAt)
-          : Number.POSITIVE_INFINITY;
-      const isCacheFresh = !hasRefreshTtl || cacheAgeMs <= refreshTtlMsRaw;
-      const isCacheFormatCurrent =
-        cached?.formatVersion === undefined
-          ? false
-          : cached.formatVersion >= CHARACTER_DICTIONARY_FORMAT_VERSION;
-      if (cached?.zipPath && fs.existsSync(cached.zipPath) && isCacheFresh && isCacheFormatCurrent) {
-        deps.logInfo?.(
-          `[dictionary] cache hit for AniList ${resolvedMedia.id}: ${path.basename(cached.zipPath)}`,
-        );
-        return {
-          zipPath: cached.zipPath,
-          fromCache: true,
-          mediaId: cached.mediaId,
-          mediaTitle: cached.mediaTitle,
-          entryCount: cached.entryCount,
-          dictionaryTitle: cached.dictionaryTitle ?? buildDictionaryTitle(cached.mediaId),
-          revision: cached.revision,
-        };
-      }
-
-      const { mediaTitle: fetchedMediaTitle, characters } = await fetchCharactersForMedia(
-        resolvedMedia.id,
-        waitForAniListRequestSlot,
-      );
-      if (characters.length === 0) {
-        throw new Error(`No characters returned for AniList media ${resolvedMedia.id}.`);
-      }
-
-      ensureDir(outputDir);
-      const zipFiles: Array<{ name: string; data: Buffer }> = [];
-      const termEntries: Array<Array<string | number | Array<string | Record<string, unknown>>>> =
-        [];
-      const seen = new Set<string>();
-
-      let hasAttemptedCharacterImageDownload = false;
-      for (const character of characters) {
-        let imagePath: string | null = null;
-        if (character.imageUrl) {
-          if (hasAttemptedCharacterImageDownload) {
-            await sleepMs(CHARACTER_IMAGE_DOWNLOAD_DELAY_MS);
-          }
-          hasAttemptedCharacterImageDownload = true;
-          const image = await downloadCharacterImage(character.imageUrl, character.id);
-          if (image) {
-            imagePath = `img/${image.filename}`;
-            zipFiles.push({
-              name: imagePath,
-              data: image.bytes,
-            });
-          }
+      const resolvedMedia = await resolveCurrentMedia(targetPath, waitForAniListRequestSlot);
+      return getOrCreateSnapshot(resolvedMedia.id, resolvedMedia.title, waitForAniListRequestSlot);
+    },
+    buildMergedDictionary: async (mediaIds: number[]) => {
+      const normalizedMediaIds = mediaIds
+        .filter((mediaId) => Number.isFinite(mediaId) && mediaId > 0)
+        .map((mediaId) => Math.floor(mediaId));
+      const snapshots = normalizedMediaIds.map((mediaId) => {
+        const snapshot = readSnapshot(getSnapshotPath(outputDir, mediaId));
+        if (!snapshot) {
+          throw new Error(`Missing character dictionary snapshot for AniList ${mediaId}.`);
         }
-        const glossary = createDefinitionGlossary(character, fetchedMediaTitle, imagePath);
-        const candidateTerms = buildNameTerms(character);
-        for (const term of candidateTerms) {
-          const reading = buildReading(term);
-          const dedupeKey = `${term}|${reading}|${character.role}`;
-          if (seen.has(dedupeKey)) continue;
-          seen.add(dedupeKey);
-          termEntries.push(buildTermEntry(term, reading, character.role, glossary));
-        }
-      }
-
-      if (termEntries.length === 0) {
-        throw new Error('No dictionary entries generated from AniList character data.');
-      }
-
-      const revision = String(now);
-      const dictionaryTitle = buildDictionaryTitle(resolvedMedia.id);
-      zipFiles.push({
-        name: 'index.json',
-        data: Buffer.from(
-          JSON.stringify(createIndex(resolvedMedia.id, fetchedMediaTitle, revision), null, 2),
-          'utf8',
-        ),
+        return snapshot;
       });
-      zipFiles.push({
-        name: 'tag_bank_1.json',
-        data: Buffer.from(JSON.stringify(createTagBank()), 'utf8'),
-      });
-
-      const entriesPerBank = 10_000;
-      for (let i = 0; i < termEntries.length; i += entriesPerBank) {
-        const chunk = termEntries.slice(i, i + entriesPerBank);
-        zipFiles.push({
-          name: `term_bank_${Math.floor(i / entriesPerBank) + 1}.json`,
-          data: Buffer.from(JSON.stringify(chunk), 'utf8'),
-        });
-      }
-
-      const zipBuffer = createStoredZip(zipFiles);
-      const zipPath = path.join(outputDir, `anilist-${resolvedMedia.id}.zip`);
-      fs.writeFileSync(zipPath, zipBuffer);
-
-      const cacheEntry: CharacterDictionaryCacheEntry = {
-        mediaId: resolvedMedia.id,
-        mediaTitle: fetchedMediaTitle,
-        entryCount: termEntries.length,
-        zipPath,
-        updatedAt: now,
-        formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
-        dictionaryTitle,
+      const revision = buildMergedRevision(normalizedMediaIds, snapshots);
+      const description =
+        snapshots.length === 1
+          ? `Character names from ${snapshots[0]!.mediaTitle}`
+          : `Character names from ${snapshots.length} recent anime`;
+      const { zipPath, entryCount } = buildDictionaryZip(
+        getMergedZipPath(outputDir),
+        CHARACTER_DICTIONARY_MERGED_TITLE,
+        description,
         revision,
-      };
-      cache.anilistById[String(resolvedMedia.id)] = cacheEntry;
-      writeCache(cachePath, cache);
-
-      deps.logInfo?.(
-        `[dictionary] generated AniList ${resolvedMedia.id}: ${termEntries.length} terms -> ${zipPath}`,
+        snapshots.flatMap((snapshot) => snapshot.termEntries),
+        snapshots.flatMap((snapshot) => snapshot.images),
       );
-
+      deps.logInfo?.(
+        `[dictionary] rebuilt merged dictionary: ${normalizedMediaIds.join(', ') || '<empty>'} -> ${zipPath}`,
+      );
       return {
         zipPath,
-        fromCache: false,
+        revision,
+        dictionaryTitle: CHARACTER_DICTIONARY_MERGED_TITLE,
+        entryCount,
+      };
+    },
+    generateForCurrentMedia: async (targetPath?: string, _options?: CharacterDictionaryGenerateOptions) => {
+      let hasAniListRequest = false;
+      const waitForAniListRequestSlot = async (): Promise<void> => {
+        if (!hasAniListRequest) {
+          hasAniListRequest = true;
+          return;
+        }
+        await sleepMs(ANILIST_REQUEST_DELAY_MS);
+      };
+      const resolvedMedia = await resolveCurrentMedia(targetPath, waitForAniListRequestSlot);
+      const snapshot = await getOrCreateSnapshot(
+        resolvedMedia.id,
+        resolvedMedia.title,
+        waitForAniListRequestSlot,
+      );
+      const storedSnapshot = readSnapshot(getSnapshotPath(outputDir, resolvedMedia.id));
+      if (!storedSnapshot) {
+        throw new Error(`Snapshot missing after generation for AniList ${resolvedMedia.id}.`);
+      }
+      const revision = String(storedSnapshot.updatedAt);
+      const dictionaryTitle = buildDictionaryTitle(resolvedMedia.id);
+      const description = `Character names from ${storedSnapshot.mediaTitle} [AniList media ID ${resolvedMedia.id}]`;
+      const zipPath = path.join(outputDir, `anilist-${resolvedMedia.id}.zip`);
+      buildDictionaryZip(
+        zipPath,
+        dictionaryTitle,
+        description,
+        revision,
+        storedSnapshot.termEntries,
+        storedSnapshot.images,
+      );
+      deps.logInfo?.(
+        `[dictionary] generated AniList ${resolvedMedia.id}: ${storedSnapshot.entryCount} terms -> ${zipPath}`,
+      );
+      return {
+        zipPath,
+        fromCache: snapshot.fromCache,
         mediaId: resolvedMedia.id,
-        mediaTitle: fetchedMediaTitle,
-        entryCount: termEntries.length,
+        mediaTitle: storedSnapshot.mediaTitle,
+        entryCount: storedSnapshot.entryCount,
         dictionaryTitle,
         revision,
       };
