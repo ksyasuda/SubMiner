@@ -473,6 +473,11 @@ test('dictionary settings helpers upsert and remove dictionary entries', async (
         options: {
           dictionaries: [
             {
+              name: 'Jitendex',
+              alias: 'Jitendex',
+              enabled: true,
+            },
+            {
               name: 'SubMiner Character Dictionary (AniList 1)',
               alias: 'SubMiner Character Dictionary (AniList 1)',
               enabled: false,
@@ -506,6 +511,18 @@ test('dictionary settings helpers upsert and remove dictionary entries', async (
   assert.equal(removed, true);
   const setCalls = scripts.filter((script) => script.includes('setAllSettings')).length;
   assert.equal(setCalls, 2);
+
+  const upsertScript = scripts.find(
+    (script) =>
+      script.includes('setAllSettings') && script.includes('"SubMiner Character Dictionary (AniList 1)"'),
+  );
+  assert.ok(upsertScript);
+  const jitendexOffset = upsertScript?.indexOf('"Jitendex"') ?? -1;
+  const subMinerOffset = upsertScript?.indexOf('"SubMiner Character Dictionary (AniList 1)"') ?? -1;
+  assert.equal(jitendexOffset >= 0, true);
+  assert.equal(subMinerOffset >= 0, true);
+  assert.equal(jitendexOffset < subMinerOffset, true);
+  assert.match(upsertScript ?? '', /"enabled":true/);
 });
 
 test('importYomitanDictionaryFromZip uses settings automation bridge instead of custom backend action', async () => {

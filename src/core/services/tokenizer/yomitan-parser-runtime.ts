@@ -1593,11 +1593,6 @@ export async function upsertYomitanDictionarySettings(
         existing.alias = normalizedTitle;
         changed = true;
       }
-      if (existingIndex > 0) {
-        dictionaries.splice(existingIndex, 1);
-        dictionaries.unshift(existing);
-        changed = true;
-      }
       continue;
     }
 
