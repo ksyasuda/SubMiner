@@ -106,6 +106,7 @@ const DEFAULT_ANNOTATION_POS1_EXCLUSIONS = resolveAnnotationPos1ExclusionSet(
 const DEFAULT_ANNOTATION_POS2_EXCLUSIONS = resolveAnnotationPos2ExclusionSet(
   DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
 );
+const INVISIBLE_SEPARATOR_PATTERN = /[\u200b\u2060\ufeff]/g;
 
 function getKnownWordLookup(
   deps: TokenizerServiceDeps,
@@ -563,7 +564,11 @@ export async function tokenizeSubtitle(
     return { text, tokens: null };
   }
 
-  const tokenizeText = displayText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+  const tokenizeText = displayText
+    .replace(INVISIBLE_SEPARATOR_PATTERN, ' ')
+    .replace(/\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   const annotationOptions = getAnnotationOptions(deps);
 
   const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps, annotationOptions);

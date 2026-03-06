@@ -1235,6 +1235,30 @@ test('tokenizeSubtitle normalizes newlines before Yomitan parse request', async 
   assert.equal(result.tokens, null);
 });
 
+test('tokenizeSubtitle collapses zero-width separators before Yomitan parse request', async () => {
+  let parseInput = '';
+  const result = await tokenizeSubtitle(
+    'キリキリと\u200bかかってこい\nこのヘナチョコ冒険者どもめが！',
+    makeDeps({
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              parseInput = script;
+              return null;
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.match(parseInput, /キリキリと かかってこい このヘナチョコ冒険者どもめが！/);
+  assert.equal(result.text, 'キリキリと\u200bかかってこい\nこのヘナチョコ冒険者どもめが！');
+  assert.equal(result.tokens, null);
+});
+
 test('tokenizeSubtitle returns null tokens when Yomitan parsing is unavailable', async () => {
   const result = await tokenizeSubtitle('猫です', makeDeps());
 
