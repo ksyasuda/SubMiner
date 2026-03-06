@@ -3,10 +3,10 @@ id: TASK-87.4
 title: >-
   Runtime composition root: remove dead symbols and tighten module boundaries in
   src/main.ts
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-06 03:19'
-updated_date: '2026-03-06 03:21'
+updated_date: '2026-03-06 18:10'
 labels:
   - tech-debt
   - runtime
@@ -36,10 +36,10 @@ A noUnusedLocals/noUnusedParameters compile pass reports a large concentration o
 
 <!-- AC:BEGIN -->
 
-- [ ] #1 src/main.ts no longer emits dead-symbol diagnostics under a noUnusedLocals/noUnusedParameters compile pass for the areas touched by this cleanup.
-- [ ] #2 Unused imports, destructured values, and stale locals identified in the current composition root are removed or relocated without behavior changes.
-- [ ] #3 The resulting composition root has clearer ownership boundaries for at least one runtime slice that is currently buried in the monolith.
-- [ ] #4 Relevant runtime and startup verification commands pass after the cleanup, and any command changes are documented if needed.
+- [x] #1 src/main.ts no longer emits dead-symbol diagnostics under a noUnusedLocals/noUnusedParameters compile pass for the areas touched by this cleanup.
+- [x] #2 Unused imports, destructured values, and stale locals identified in the current composition root are removed or relocated without behavior changes.
+- [x] #3 The resulting composition root has clearer ownership boundaries for at least one runtime slice that is currently buried in the monolith.
+- [x] #4 Relevant runtime and startup verification commands pass after the cleanup, and any command changes are documented if needed.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -51,3 +51,13 @@ A noUnusedLocals/noUnusedParameters compile pass reports a large concentration o
 3. Keep changes behavior-preserving and avoid mixing unrelated cleanup outside src/main.ts unless required to compile.
 4. Verify with the updated runtime/startup test commands from TASK-87.1 plus a noUnused compile pass.
 <!-- SECTION:PLAN:END -->
+
+## Completion Notes
+
+- Removed the dead import/destructure backlog from `src/main.ts` and deleted stale wrapper seams that no longer owned runtime behavior after the composer/runtime extractions.
+- Tightened module boundaries so the composition root depends on the composed/public runtime surfaces it actually uses instead of retaining unused lower-level domain factory symbols.
+- Cleared the remaining strict `noUnusedLocals`/`noUnusedParameters` failures in nearby touched files required for a clean repo-wide pass: `launcher/commands/playback-command.ts`, `src/anki-integration.ts`, `src/anki-integration/field-grouping-workflow.ts`, `src/core/services/tokenizer/yomitan-parser-runtime.test.ts`, and `src/main/runtime/composers/composer-contracts.type-test.ts`.
+- Verification:
+  - `bunx tsc --noEmit -p tsconfig.typecheck.json --noUnusedLocals --noUnusedParameters --pretty false`
+  - `bun run test:fast`
+- Commit: `e659b5d` (`refactor(runtime): remove dead symbols from composition roots`)
