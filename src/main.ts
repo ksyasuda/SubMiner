@@ -339,11 +339,14 @@ import {
   createSubtitleProcessingController,
   createTokenizerDepsRuntime,
   cycleSecondarySubMode as cycleSecondarySubModeCore,
+  deleteYomitanDictionaryByTitle,
   enforceOverlayLayerOrder as enforceOverlayLayerOrderCore,
   ensureOverlayWindowLevel as ensureOverlayWindowLevelCore,
+  getYomitanDictionaryInfo,
   handleMineSentenceDigit as handleMineSentenceDigitCore,
   handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
+  importYomitanDictionaryFromZip,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
   jellyfinTicksToSecondsRuntime,
   listJellyfinItemsRuntime,
@@ -358,6 +361,7 @@ import {
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
   resolveJellyfinPlaybackPlanRuntime,
+  removeYomitanDictionarySettings,
   runStartupBootstrapRuntime,
   saveSubtitlePosition as saveSubtitlePositionCore,
   clearYomitanParserCachesForWindow,
@@ -370,6 +374,7 @@ import {
   showMpvOsdRuntime,
   tokenizeSubtitle as tokenizeSubtitleCore,
   triggerFieldGrouping as triggerFieldGroupingCore,
+  upsertYomitanDictionarySettings,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
@@ -416,6 +421,8 @@ import {
 } from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
+import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
+import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
 import {
   type AnilistMediaGuessRuntimeState,
   type AppState,
@@ -1215,6 +1222,75 @@ const mediaRuntime = createMediaRuntimeService(
     },
   })(),
 );
+
+const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
+  userDataPath: USER_DATA_PATH,
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getCurrentMediaTitle: () => appState.currentMediaTitle,
+  resolveMediaPathForJimaku: (mediaPath) => mediaRuntime.resolveMediaPathForJimaku(mediaPath),
+  guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
+  now: () => Date.now(),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+});
+
+const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRuntimeService({
+  userDataPath: USER_DATA_PATH,
+  getConfig: () => getResolvedConfig().anilist.characterDictionary,
+  generateCharacterDictionary: (options) =>
+    characterDictionaryRuntime.generateForCurrentMedia(undefined, options),
+  getYomitanDictionaryInfo: async () => {
+    await ensureYomitanExtensionLoaded();
+    return await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
+      error: (message, ...args) => logger.error(message, ...args),
+      info: (message, ...args) => logger.info(message, ...args),
+    });
+  },
+  importYomitanDictionary: async (zipPath) => {
+    await ensureYomitanExtensionLoaded();
+    return await importYomitanDictionaryFromZip(zipPath, getYomitanParserRuntimeDeps(), {
+      error: (message, ...args) => logger.error(message, ...args),
+      info: (message, ...args) => logger.info(message, ...args),
+    });
+  },
+  deleteYomitanDictionary: async (dictionaryTitle) => {
+    await ensureYomitanExtensionLoaded();
+    return await deleteYomitanDictionaryByTitle(dictionaryTitle, getYomitanParserRuntimeDeps(), {
+      error: (message, ...args) => logger.error(message, ...args),
+      info: (message, ...args) => logger.info(message, ...args),
+    });
+  },
+  upsertYomitanDictionarySettings: async (dictionaryTitle, profileScope) => {
+    await ensureYomitanExtensionLoaded();
+    return await upsertYomitanDictionarySettings(
+      dictionaryTitle,
+      profileScope,
+      getYomitanParserRuntimeDeps(),
+      {
+        error: (message, ...args) => logger.error(message, ...args),
+        info: (message, ...args) => logger.info(message, ...args),
+      },
+    );
+  },
+  removeYomitanDictionarySettings: async (dictionaryTitle, profileScope, mode) => {
+    await ensureYomitanExtensionLoaded();
+    return await removeYomitanDictionarySettings(
+      dictionaryTitle,
+      profileScope,
+      mode,
+      getYomitanParserRuntimeDeps(),
+      {
+        error: (message, ...args) => logger.error(message, ...args),
+        info: (message, ...args) => logger.info(message, ...args),
+      },
+    );
+  },
+  now: () => Date.now(),
+  schedule: (fn, delayMs) => setTimeout(fn, delayMs),
+  clearSchedule: (timer) => clearTimeout(timer),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+});
 
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   createBuildOverlayVisibilityRuntimeMainDepsHandler({
@@ -2204,7 +2280,10 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     handleInitialArgs: () => handleInitialArgs(),
     shouldSkipHeavyStartup: () =>
-      Boolean(appState.initialArgs && shouldRunSettingsOnlyStartup(appState.initialArgs)),
+      Boolean(
+        appState.initialArgs &&
+          (shouldRunSettingsOnlyStartup(appState.initialArgs) || appState.initialArgs.dictionary),
+      ),
     createImmersionTracker: () => {
       ensureImmersionTrackerStarted();
     },
@@ -2372,6 +2451,9 @@ const {
     },
     syncImmersionMediaState: () => {
       immersionMediaRuntime.syncFromCurrentMediaState();
+    },
+    scheduleCharacterDictionarySync: () => {
+      characterDictionaryAutoSyncRuntime.scheduleSync();
     },
     updateCurrentMediaTitle: (title) => {
       mediaRuntime.updateCurrentMediaTitle(title);
@@ -2638,6 +2720,24 @@ function getPreferredYomitanAnkiServerUrl(): string {
   return config.url;
 }
 
+function getYomitanParserRuntimeDeps() {
+  return {
+    getYomitanExt: () => appState.yomitanExt,
+    getYomitanParserWindow: () => appState.yomitanParserWindow,
+    setYomitanParserWindow: (window: BrowserWindow | null) => {
+      appState.yomitanParserWindow = window;
+    },
+    getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
+    setYomitanParserReadyPromise: (promise: Promise<void> | null) => {
+      appState.yomitanParserReadyPromise = promise;
+    },
+    getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
+    setYomitanParserInitPromise: (promise: Promise<boolean> | null) => {
+      appState.yomitanParserInitPromise = promise;
+    },
+  };
+}
+
 async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
   const targetUrl = getPreferredYomitanAnkiServerUrl().trim();
   if (!targetUrl || targetUrl === lastSyncedYomitanAnkiServer) {
@@ -2646,21 +2746,7 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
 
   const synced = await syncYomitanDefaultAnkiServerCore(
     targetUrl,
-    {
-      getYomitanExt: () => appState.yomitanExt,
-      getYomitanParserWindow: () => appState.yomitanParserWindow,
-      setYomitanParserWindow: (window) => {
-        appState.yomitanParserWindow = window;
-      },
-      getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
-      setYomitanParserReadyPromise: (promise) => {
-        appState.yomitanParserReadyPromise = promise;
-      },
-      getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
-      setYomitanParserInitPromise: (promise) => {
-        appState.yomitanParserInitPromise = promise;
-      },
-    },
+    getYomitanParserRuntimeDeps(),
     {
       error: (message, ...args) => {
         logger.error(message, ...args);
@@ -3130,6 +3216,8 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
   getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
   processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
+  generateCharacterDictionary: (targetPath?: string) =>
+    characterDictionaryRuntime.generateForCurrentMedia(targetPath),
   runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
   openYomitanSettings: () => openYomitanSettings(),
   cycleSecondarySubMode: () => handleCycleSecondarySubMode(),

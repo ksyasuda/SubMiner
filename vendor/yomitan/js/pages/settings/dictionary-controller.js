@@ -722,6 +722,24 @@ export class DictionaryController {
 
     /**
      * @param {string} dictionaryTitle
+     * @returns {Promise<void>}
+     */
+    async deleteDictionaryNow(dictionaryTitle) {
+        const dictionaries = await this._settingsController.getDictionaryInfo();
+        if (!dictionaries.some((dictionary) => dictionary.title === dictionaryTitle)) {
+            return;
+        }
+
+        await this._deleteDictionary(dictionaryTitle);
+
+        const remaining = await this._settingsController.getDictionaryInfo();
+        if (remaining.some((dictionary) => dictionary.title === dictionaryTitle)) {
+            throw new Error(`Dictionary still present after delete: ${dictionaryTitle}`);
+        }
+    }
+
+    /**
+     * @param {string} dictionaryTitle
      * @returns {Promise<string[]>}
      */
     async getProfileNamesUsingDictionary(dictionaryTitle) {

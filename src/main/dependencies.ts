@@ -151,6 +151,9 @@ export interface CliCommandRuntimeServiceDepsParams {
     getQueueStatus: CliCommandDepsRuntimeOptions['anilist']['getQueueStatus'];
     retryQueueNow: CliCommandDepsRuntimeOptions['anilist']['retryQueueNow'];
   };
+  dictionary: {
+    generate: CliCommandDepsRuntimeOptions['dictionary']['generate'];
+  };
   jellyfin: {
     openSetup: CliCommandDepsRuntimeOptions['jellyfin']['openSetup'];
     runCommand: CliCommandDepsRuntimeOptions['jellyfin']['runCommand'];
@@ -295,6 +298,9 @@ export function createCliCommandRuntimeServiceDeps(
       openSetup: params.anilist.openSetup,
       getQueueStatus: params.anilist.getQueueStatus,
       retryQueueNow: params.anilist.retryQueueNow,
+    },
+    dictionary: {
+      generate: params.dictionary.generate,
     },
     jellyfin: {
       openSetup: params.jellyfin.openSetup,

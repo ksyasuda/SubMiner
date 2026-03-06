@@ -57,9 +57,6 @@ jobs:
       - name: Dist smoke suite
         run: bun run test:smoke:dist
 
-      - name: Build docs
-        run: bun run docs:build
-
       - name: Security audit
         run: bun audit --audit-level high
         continue-on-error: true

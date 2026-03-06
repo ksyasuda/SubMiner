@@ -121,6 +121,14 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(hasExplicitCommand(anilistRetryQueue), true);
   assert.equal(shouldStartApp(anilistRetryQueue), false);
 
+  const dictionary = parseArgs(['--dictionary']);
+  assert.equal(dictionary.dictionary, true);
+  assert.equal(hasExplicitCommand(dictionary), true);
+  assert.equal(shouldStartApp(dictionary), true);
+  const dictionaryTarget = parseArgs(['--dictionary', '--dictionary-target', '/tmp/example.mkv']);
+  assert.equal(dictionaryTarget.dictionary, true);
+  assert.equal(dictionaryTarget.dictionaryTarget, '/tmp/example.mkv');
+
   const jellyfinLibraries = parseArgs(['--jellyfin-libraries']);
   assert.equal(jellyfinLibraries.jellyfinLibraries, true);
   assert.equal(hasExplicitCommand(jellyfinLibraries), true);

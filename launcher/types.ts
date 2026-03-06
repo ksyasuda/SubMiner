@@ -92,6 +92,8 @@ export interface Args {
   jellyfinLogout: boolean;
   jellyfinPlay: boolean;
   jellyfinDiscovery: boolean;
+  dictionary: boolean;
+  dictionaryTarget?: string;
   doctor: boolean;
   configPath: boolean;
   configShow: boolean;

@@ -28,7 +28,7 @@ test('renderer stylesheet no longer contains invisible-layer selectors', () => {
   assert.doesNotMatch(cssSource, /body\.layer-invisible/);
 });
 
-test('top-level docs avoid stale overlay-layers wording', () => {
-  const docsReadmeSource = readWorkspaceFile('docs/README.md');
-  assert.doesNotMatch(docsReadmeSource, /overlay layers/i);
+test('top-level readme avoids stale overlay-layers wording', () => {
+  const readmeSource = readWorkspaceFile('README.md');
+  assert.doesNotMatch(readmeSource, /overlay layers/i);
 });

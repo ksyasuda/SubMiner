@@ -46,6 +46,13 @@ test('build cli command context deps maps handlers and values', () => {
     openJellyfinSetup: () => calls.push('jellyfin'),
     getAnilistQueueStatus: () => ({}) as never,
     retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
+    generateCharacterDictionary: async () => ({
+      zipPath: '/tmp/anilist-1.zip',
+      fromCache: false,
+      mediaId: 1,
+      mediaTitle: 'Test',
+      entryCount: 10,
+    }),
     runJellyfinCommand: async () => {
       calls.push('run-jellyfin');
     },

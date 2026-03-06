@@ -40,6 +40,13 @@ function createDeps() {
       openJellyfinSetup: () => {},
       getAnilistQueueStatus: () => ({}) as never,
       retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
+      generateCharacterDictionary: async () => ({
+        zipPath: '/tmp/anilist-1.zip',
+        fromCache: false,
+        mediaId: 1,
+        mediaTitle: 'Test',
+        entryCount: 1,
+      }),
       runJellyfinCommand: async () => {},
       openYomitanSettings: () => {},
       cycleSecondarySubMode: () => {},

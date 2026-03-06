@@ -1,4 +1,6 @@
 import type { BrowserWindow, Extension } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface LoggerLike {
   error: (message: string, ...args: unknown[]) => void;
@@ -13,6 +15,12 @@ interface YomitanParserRuntimeDeps {
   setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
   getYomitanParserInitPromise: () => Promise<boolean> | null;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
+  createYomitanExtensionWindow?: (pageName: string) => Promise<BrowserWindow | null>;
+}
+
+export interface YomitanDictionaryInfo {
+  title: string;
+  revision?: string | number;
 }
 
 export interface YomitanTermFrequency {
@@ -489,6 +497,93 @@ async function ensureYomitanParserWindow(
   return initPromise;
 }
 
+async function createYomitanExtensionWindow(
+  pageName: string,
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<BrowserWindow | null> {
+  if (typeof deps.createYomitanExtensionWindow === 'function') {
+    return await deps.createYomitanExtensionWindow(pageName);
+  }
+
+  const electron = await import('electron');
+  const yomitanExt = deps.getYomitanExt();
+  if (!yomitanExt) {
+    return null;
+  }
+
+  const { BrowserWindow, session } = electron;
+  const window = new BrowserWindow({
+    show: false,
+    width: 1200,
+    height: 800,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      session: session.defaultSession,
+    },
+  });
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      window.webContents.once('did-finish-load', () => resolve());
+      window.webContents.once('did-fail-load', (_event, _errorCode, errorDescription) => {
+        reject(new Error(errorDescription));
+      });
+      void window
+        .loadURL(`chrome-extension://${yomitanExt.id}/${pageName}`)
+        .catch((error: Error) => reject(error));
+    });
+    return window;
+  } catch (err) {
+    logger.error(
+      `Failed to create hidden Yomitan ${pageName} window: ${(err as Error).message}`,
+    );
+    if (!window.isDestroyed()) {
+      window.destroy();
+    }
+    return null;
+  }
+}
+
+async function invokeYomitanSettingsAutomation<T>(
+  script: string,
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<T | null> {
+  const settingsWindow = await createYomitanExtensionWindow('settings.html', deps, logger);
+  if (!settingsWindow || settingsWindow.isDestroyed()) {
+    return null;
+  }
+
+  try {
+    await settingsWindow.webContents.executeJavaScript(
+      `
+        (async () => {
+          const deadline = Date.now() + 10000;
+          while (Date.now() < deadline) {
+            if (globalThis.__subminerYomitanSettingsAutomation?.ready === true) {
+              return true;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+          throw new Error("Yomitan settings automation bridge did not become ready");
+        })();
+      `,
+      true,
+    );
+
+    return (await settingsWindow.webContents.executeJavaScript(script, true)) as T;
+  } catch (err) {
+    logger.error('Failed to drive Yomitan settings automation:', (err as Error).message);
+    return null;
+  } finally {
+    if (!settingsWindow.isDestroyed()) {
+      settingsWindow.destroy();
+    }
+  }
+}
+
 export async function requestYomitanParseResults(
   text: string,
   deps: YomitanParserRuntimeDeps,
@@ -962,4 +1057,321 @@ export async function syncYomitanDefaultAnkiServer(
     logger.error('Failed to sync Yomitan default profile Anki server:', (err as Error).message);
     return false;
   }
+}
+
+function buildYomitanInvokeScript(actionLiteral: string, paramsLiteral: string): string {
+  return `
+    (async () => {
+      const invoke = (action, params) =>
+        new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ action, params }, (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!response || typeof response !== "object") {
+              reject(new Error("Invalid response from Yomitan backend"));
+              return;
+            }
+            if (response.error) {
+              reject(new Error(response.error.message || "Yomitan backend error"));
+              return;
+            }
+            resolve(response.result);
+          });
+        });
+
+      return await invoke(${actionLiteral}, ${paramsLiteral});
+    })();
+  `;
+}
+
+async function invokeYomitanBackendAction<T>(
+  action: string,
+  params: unknown,
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<T | null> {
+  const isReady = await ensureYomitanParserWindow(deps, logger);
+  const parserWindow = deps.getYomitanParserWindow();
+  if (!isReady || !parserWindow || parserWindow.isDestroyed()) {
+    return null;
+  }
+
+  const script = buildYomitanInvokeScript(
+    JSON.stringify(action),
+    params === undefined ? 'undefined' : JSON.stringify(params),
+  );
+
+  try {
+    return (await parserWindow.webContents.executeJavaScript(script, true)) as T;
+  } catch (err) {
+    logger.error(`Yomitan backend action failed (${action}):`, (err as Error).message);
+    return null;
+  }
+}
+
+function createDefaultDictionarySettings(name: string, enabled: boolean): Record<string, unknown> {
+  return {
+    name,
+    alias: name,
+    enabled,
+    allowSecondarySearches: false,
+    definitionsCollapsible: 'not-collapsible',
+    partsOfSpeechFilter: true,
+    useDeinflections: true,
+    styles: '',
+  };
+}
+
+function getTargetProfileIndices(
+  optionsFull: Record<string, unknown>,
+  profileScope: 'all' | 'active',
+): number[] {
+  const profiles = Array.isArray(optionsFull.profiles) ? optionsFull.profiles : [];
+  if (profileScope === 'active') {
+    const profileCurrent =
+      typeof optionsFull.profileCurrent === 'number' && Number.isFinite(optionsFull.profileCurrent)
+        ? Math.max(0, Math.floor(optionsFull.profileCurrent))
+        : 0;
+    return profileCurrent < profiles.length ? [profileCurrent] : [];
+  }
+  return profiles.map((_profile, index) => index);
+}
+
+export async function getYomitanDictionaryInfo(
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<YomitanDictionaryInfo[]> {
+  const result = await invokeYomitanBackendAction<unknown>('getDictionaryInfo', undefined, deps, logger);
+  if (!Array.isArray(result)) {
+    return [];
+  }
+
+  return result
+    .filter((entry): entry is Record<string, unknown> => isObject(entry))
+    .map((entry) => {
+      const title = typeof entry.title === 'string' ? entry.title.trim() : '';
+      const revision = entry.revision;
+      return {
+        title,
+        revision:
+          typeof revision === 'string' || typeof revision === 'number' ? revision : undefined,
+      };
+    })
+    .filter((entry) => entry.title.length > 0);
+}
+
+export async function getYomitanSettingsFull(
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<Record<string, unknown> | null> {
+  const result = await invokeYomitanBackendAction<unknown>('optionsGetFull', undefined, deps, logger);
+  return isObject(result) ? result : null;
+}
+
+export async function setYomitanSettingsFull(
+  value: Record<string, unknown>,
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+  source = 'subminer',
+): Promise<boolean> {
+  const result = await invokeYomitanBackendAction<unknown>(
+    'setAllSettings',
+    { value, source },
+    deps,
+    logger,
+  );
+  return result !== null;
+}
+
+export async function importYomitanDictionaryFromZip(
+  zipPath: string,
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<boolean> {
+  const normalizedZipPath = zipPath.trim();
+  if (!normalizedZipPath || !fs.existsSync(normalizedZipPath)) {
+    logger.error(`Dictionary ZIP not found: ${zipPath}`);
+    return false;
+  }
+
+  const archiveBase64 = fs.readFileSync(normalizedZipPath).toString('base64');
+  const script = `
+    (async () => {
+      await globalThis.__subminerYomitanSettingsAutomation.importDictionaryArchiveBase64(
+        ${JSON.stringify(archiveBase64)},
+        ${JSON.stringify(path.basename(normalizedZipPath))}
+      );
+      return true;
+    })();
+  `;
+  const result = await invokeYomitanSettingsAutomation<boolean>(script, deps, logger);
+  return result === true;
+}
+
+export async function deleteYomitanDictionaryByTitle(
+  dictionaryTitle: string,
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<boolean> {
+  const normalizedTitle = dictionaryTitle.trim();
+  if (!normalizedTitle) {
+    return false;
+  }
+  const result = await invokeYomitanSettingsAutomation<boolean>(
+    `
+      (async () => {
+        await globalThis.__subminerYomitanSettingsAutomation.deleteDictionary(
+          ${JSON.stringify(normalizedTitle)}
+        );
+        return true;
+      })();
+    `,
+    deps,
+    logger,
+  );
+  return result === true;
+}
+
+export async function upsertYomitanDictionarySettings(
+  dictionaryTitle: string,
+  profileScope: 'all' | 'active',
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<boolean> {
+  const normalizedTitle = dictionaryTitle.trim();
+  if (!normalizedTitle) {
+    return false;
+  }
+
+  const optionsFull = await getYomitanSettingsFull(deps, logger);
+  if (!optionsFull) {
+    return false;
+  }
+
+  const profiles = Array.isArray(optionsFull.profiles) ? optionsFull.profiles : [];
+  const indices = getTargetProfileIndices(optionsFull, profileScope);
+  let changed = false;
+
+  for (const index of indices) {
+    const profile = profiles[index];
+    if (!isObject(profile)) {
+      continue;
+    }
+
+    if (!isObject(profile.options)) {
+      profile.options = {};
+    }
+    const profileOptions = profile.options as Record<string, unknown>;
+    if (!Array.isArray(profileOptions.dictionaries)) {
+      profileOptions.dictionaries = [];
+    }
+
+    const dictionaries = profileOptions.dictionaries as unknown[];
+    const existingIndex = dictionaries.findIndex(
+      (entry) =>
+        isObject(entry) &&
+        typeof (entry as { name?: unknown }).name === 'string' &&
+        ((entry as { name: string }).name.trim() === normalizedTitle),
+    );
+
+    if (existingIndex >= 0) {
+      const existing = dictionaries[existingIndex] as Record<string, unknown>;
+      if (existing.enabled !== true) {
+        existing.enabled = true;
+        changed = true;
+      }
+      if (typeof existing.alias !== 'string' || existing.alias.trim().length === 0) {
+        existing.alias = normalizedTitle;
+        changed = true;
+      }
+      if (existingIndex > 0) {
+        dictionaries.splice(existingIndex, 1);
+        dictionaries.unshift(existing);
+        changed = true;
+      }
+      continue;
+    }
+
+    dictionaries.unshift(createDefaultDictionarySettings(normalizedTitle, true));
+    changed = true;
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  return await setYomitanSettingsFull(optionsFull, deps, logger);
+}
+
+export async function removeYomitanDictionarySettings(
+  dictionaryTitle: string,
+  profileScope: 'all' | 'active',
+  mode: 'delete' | 'disable',
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<boolean> {
+  const normalizedTitle = dictionaryTitle.trim();
+  if (!normalizedTitle) {
+    return false;
+  }
+
+  const optionsFull = await getYomitanSettingsFull(deps, logger);
+  if (!optionsFull) {
+    return false;
+  }
+
+  const profiles = Array.isArray(optionsFull.profiles) ? optionsFull.profiles : [];
+  const indices = getTargetProfileIndices(optionsFull, profileScope);
+  let changed = false;
+
+  for (const index of indices) {
+    const profile = profiles[index];
+    if (!isObject(profile) || !isObject(profile.options)) {
+      continue;
+    }
+    const profileOptions = profile.options as Record<string, unknown>;
+    if (!Array.isArray(profileOptions.dictionaries)) {
+      continue;
+    }
+
+    const dictionaries = profileOptions.dictionaries as unknown[];
+    if (mode === 'delete') {
+      const before = dictionaries.length;
+      profileOptions.dictionaries = dictionaries.filter(
+        (entry) =>
+          !(
+            isObject(entry) &&
+            typeof (entry as { name?: unknown }).name === 'string' &&
+            (entry as { name: string }).name.trim() === normalizedTitle
+          ),
+      );
+      if ((profileOptions.dictionaries as unknown[]).length !== before) {
+        changed = true;
+      }
+      continue;
+    }
+
+    for (const entry of dictionaries) {
+      if (
+        !isObject(entry) ||
+        typeof (entry as { name?: unknown }).name !== 'string' ||
+        (entry as { name: string }).name.trim() !== normalizedTitle
+      ) {
+        continue;
+      }
+      const dictionaryEntry = entry as Record<string, unknown>;
+      if (dictionaryEntry.enabled !== false) {
+        dictionaryEntry.enabled = false;
+        changed = true;
+      }
+    }
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  return await setYomitanSettingsFull(optionsFull, deps, logger);
 }

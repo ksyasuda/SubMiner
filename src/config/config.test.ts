@@ -19,6 +19,11 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.ankiConnect.behavior.autoUpdateNewCards, true);
   assert.deepEqual(config.ankiConnect.tags, ['SubMiner']);
   assert.equal(config.anilist.enabled, false);
+  assert.equal(config.anilist.characterDictionary.enabled, false);
+  assert.equal(config.anilist.characterDictionary.refreshTtlHours, 168);
+  assert.equal(config.anilist.characterDictionary.maxLoaded, 3);
+  assert.equal(config.anilist.characterDictionary.evictionPolicy, 'delete');
+  assert.equal(config.anilist.characterDictionary.profileScope, 'all');
   assert.equal(config.jellyfin.remoteControlEnabled, true);
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, false);
@@ -296,6 +301,39 @@ test('parses anilist.enabled and warns for invalid value', () => {
 
   service.patchRawConfig({ anilist: { enabled: true } });
   assert.equal(service.getConfig().anilist.enabled, true);
+});
+
+test('parses anilist.characterDictionary config with clamping and enum validation', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "anilist": {
+        "characterDictionary": {
+          "enabled": true,
+          "refreshTtlHours": 0,
+          "maxLoaded": 1000,
+          "evictionPolicy": "remove",
+          "profileScope": "everywhere"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.anilist.characterDictionary.enabled, true);
+  assert.equal(config.anilist.characterDictionary.refreshTtlHours, 1);
+  assert.equal(config.anilist.characterDictionary.maxLoaded, 20);
+  assert.equal(config.anilist.characterDictionary.evictionPolicy, 'delete');
+  assert.equal(config.anilist.characterDictionary.profileScope, 'all');
+  assert.ok(warnings.some((warning) => warning.path === 'anilist.characterDictionary.refreshTtlHours'));
+  assert.ok(warnings.some((warning) => warning.path === 'anilist.characterDictionary.maxLoaded'));
+  assert.ok(warnings.some((warning) => warning.path === 'anilist.characterDictionary.evictionPolicy'));
+  assert.ok(warnings.some((warning) => warning.path === 'anilist.characterDictionary.profileScope'));
 });
 
 test('parses jellyfin remote control fields', () => {
@@ -1292,6 +1330,7 @@ test('template generator includes known keys', () => {
   assert.match(output, /"discordPresence":/);
   assert.match(output, /"startupWarmups":/);
   assert.match(output, /"youtubeSubgen":/);
+  assert.match(output, /"characterDictionary":\s*\{/);
   assert.match(output, /"preserveLineBreaks": false/);
   assert.match(output, /"nPlusOne"\s*:\s*\{/);
   assert.match(output, /"nPlusOne": "#c6a0f6"/);

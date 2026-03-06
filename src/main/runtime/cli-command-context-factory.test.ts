@@ -53,6 +53,13 @@ test('cli command context factory composes main deps and context handlers', () =
       lastError: null,
     }),
     processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'ok' }),
+    generateCharacterDictionary: async () => ({
+      zipPath: '/tmp/anilist-1.zip',
+      fromCache: false,
+      mediaId: 1,
+      mediaTitle: 'Test',
+      entryCount: 10,
+    }),
     runJellyfinCommand: async () => {},
     openYomitanSettings: () => {},
     cycleSecondarySubMode: () => {},

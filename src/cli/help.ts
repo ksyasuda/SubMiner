@@ -40,6 +40,8 @@ ${B}AniList${R}
   --anilist-status               Show token and retry queue status
   --anilist-logout               Clear stored AniList token
   --anilist-retry-queue          Retry next queued update
+  --dictionary                   Generate character dictionary ZIP for current anime
+  --dictionary-target ${D}PATH${R}         Override dictionary source path (file or directory)
 
 ${B}Jellyfin${R}
   --jellyfin                     Open Jellyfin setup window

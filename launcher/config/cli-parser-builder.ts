@@ -36,6 +36,9 @@ export interface CliInvocations {
   configInvocation: CommandActionInvocation | null;
   mpvInvocation: CommandActionInvocation | null;
   appInvocation: { appArgs: string[] } | null;
+  dictionaryTriggered: boolean;
+  dictionaryTarget: string | null;
+  dictionaryLogLevel: string | null;
   doctorTriggered: boolean;
   doctorLogLevel: string | null;
   texthookerTriggered: boolean;
@@ -81,6 +84,8 @@ function getTopLevelCommand(argv: string[]): { name: string; index: number } | n
     'doctor',
     'config',
     'mpv',
+    'dictionary',
+    'dict',
     'texthooker',
     'app',
     'bin',
@@ -128,6 +133,9 @@ export function parseCliPrograms(
   let configInvocation: CommandActionInvocation | null = null;
   let mpvInvocation: CommandActionInvocation | null = null;
   let appInvocation: { appArgs: string[] } | null = null;
+  let dictionaryTriggered = false;
+  let dictionaryTarget: string | null = null;
+  let dictionaryLogLevel: string | null = null;
   let doctorLogLevel: string | null = null;
   let texthookerLogLevel: string | null = null;
   let doctorTriggered = false;
@@ -215,6 +223,18 @@ export function parseCliPrograms(
     });
 
   commandProgram
+    .command('dictionary')
+    .alias('dict')
+    .description('Generate character dictionary ZIP from a file or directory target')
+    .argument('<target>', 'Video file path or anime directory path')
+    .option('--log-level <level>', 'Log level')
+    .action((target: string, options: Record<string, unknown>) => {
+      dictionaryTriggered = true;
+      dictionaryTarget = target;
+      dictionaryLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
+    });
+
+  commandProgram
     .command('doctor')
     .description('Run dependency and environment checks')
     .option('--log-level <level>', 'Log level')
@@ -289,6 +309,9 @@ export function parseCliPrograms(
       configInvocation,
       mpvInvocation,
       appInvocation,
+      dictionaryTriggered,
+      dictionaryTarget,
+      dictionaryLogLevel,
       doctorTriggered,
       doctorLogLevel,
       texthookerTriggered,

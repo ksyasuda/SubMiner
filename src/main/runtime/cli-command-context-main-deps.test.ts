@@ -70,6 +70,13 @@ test('cli command context main deps builder maps state and callbacks', async () 
       lastError: null,
     }),
     processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'ok' }),
+    generateCharacterDictionary: async () => ({
+      zipPath: '/tmp/anilist-1.zip',
+      fromCache: false,
+      mediaId: 1,
+      mediaTitle: 'Test',
+      entryCount: 10,
+    }),
     runJellyfinCommand: async () => {
       calls.push('run-jellyfin');
     },

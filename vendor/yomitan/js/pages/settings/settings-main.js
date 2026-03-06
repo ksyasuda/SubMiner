@@ -113,6 +113,21 @@ await Application.main(true, async (application) => {
     const dictionaryImportController = new DictionaryImportController(settingsController, modalController, statusFooter);
     dictionaryImportController.prepare();
 
+    globalThis.__subminerYomitanSettingsAutomation = {
+        ready: false,
+        importDictionaryArchiveBase64: async (archiveBase64, fileName='dictionary.zip') => {
+            const binary = atob(archiveBase64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; ++i) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            await dictionaryImportController.importDictionaryArchiveContent(bytes.buffer, fileName);
+        },
+        deleteDictionary: async (dictionaryTitle) => {
+            await dictionaryController.deleteDictionaryNow(dictionaryTitle);
+        },
+    };
+
     const genericSettingController = new GenericSettingController(settingsController);
     preparePromises.push(setupGenericSettingController(genericSettingController));
 
@@ -184,5 +199,6 @@ await Application.main(true, async (application) => {
 
     await Promise.all(preparePromises);
 
+    globalThis.__subminerYomitanSettingsAutomation.ready = true;
     document.documentElement.dataset.loaded = 'true';
 });

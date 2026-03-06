@@ -36,6 +36,8 @@ export class DisplayContentManager {
         this._eventListeners = new EventListenerCollection();
         /** @type {import('display-content-manager').LoadMediaRequest[]} */
         this._loadMediaRequests = [];
+        /** @type {string[]} */
+        this._mediaUrls = [];
     }
 
     /** @type {import('display-content-manager').LoadMediaRequest[]} */
@@ -47,10 +49,10 @@ export class DisplayContentManager {
      * Queues loading media file from a given dictionary.
      * @param {string} path
      * @param {string} dictionary
-     * @param {OffscreenCanvas} canvas
+     * @param {HTMLImageElement|HTMLCanvasElement} element
      */
-    loadMedia(path, dictionary, canvas) {
-        this._loadMediaRequests.push({path, dictionary, canvas});
+    loadMedia(path, dictionary, element) {
+        this._loadMediaRequests.push({path, dictionary, element});
     }
 
     /**
@@ -62,6 +64,10 @@ export class DisplayContentManager {
         this._eventListeners.removeAllEventListeners();
 
         this._loadMediaRequests = [];
+        for (const mediaUrl of this._mediaUrls) {
+            URL.revokeObjectURL(mediaUrl);
+        }
+        this._mediaUrls = [];
     }
 
     /**
@@ -83,7 +89,70 @@ export class DisplayContentManager {
      * Execute media requests
      */
     async executeMediaRequests() {
-        this._display.application.api.drawMedia(this._loadMediaRequests, this._loadMediaRequests.map(({canvas}) => canvas));
+        const token = this._token;
+        for (const {path, dictionary, element} of this._loadMediaRequests) {
+            try {
+                const data = await this._display.application.api.getMedia([{path, dictionary}]);
+                if (this._token !== token) { return; }
+
+                const item = data[0];
+                if (
+                    typeof item !== 'object' ||
+                    item === null ||
+                    typeof item.content !== 'string' ||
+                    typeof item.mediaType !== 'string'
+                ) {
+                    this._setMediaElementState(element, 'load-error');
+                    continue;
+                }
+
+                const buffer = base64ToArrayBuffer(item.content);
+                const blob = new Blob([buffer], {type: item.mediaType});
+                const blobUrl = URL.createObjectURL(blob);
+
+                if (element instanceof HTMLImageElement) {
+                    this._mediaUrls.push(blobUrl);
+                    element.onload = () => {
+                        if (this._token !== token) { return; }
+                        this._setMediaElementState(element, 'loaded');
+                    };
+                    element.onerror = () => {
+                        if (this._token !== token) { return; }
+                        this._setMediaElementState(element, 'load-error');
+                    };
+                    element.src = blobUrl;
+                    continue;
+                }
+
+                const image = new Image();
+                image.onload = () => {
+                    try {
+                        if (this._token !== token) { return; }
+                        const context = element.getContext('2d');
+                        if (context === null) {
+                            this._setMediaElementState(element, 'load-error');
+                            return;
+                        }
+                        element.width = image.naturalWidth || element.width;
+                        element.height = image.naturalHeight || element.height;
+                        context.drawImage(image, 0, 0, element.width, element.height);
+                        this._setMediaElementState(element, 'loaded');
+                    } finally {
+                        URL.revokeObjectURL(blobUrl);
+                    }
+                };
+                image.onerror = () => {
+                    if (this._token === token) {
+                        this._setMediaElementState(element, 'load-error');
+                    }
+                    URL.revokeObjectURL(blobUrl);
+                };
+                image.src = blobUrl;
+            } catch (_e) {
+                if (this._token !== token) { return; }
+                this._setMediaElementState(element, 'load-error');
+            }
+        }
         this._loadMediaRequests = [];
     }
 
@@ -126,5 +195,18 @@ export class DisplayContentManager {
             state: null,
             content: null,
         });
+    }
+
+    /**
+     * @param {HTMLImageElement|HTMLCanvasElement} element
+     * @param {'loaded'|'load-error'} state
+     */
+    _setMediaElementState(element, state) {
+        const link = element.closest('.gloss-image-link');
+        if (link === null) { return; }
+        link.dataset.imageLoadState = state;
+        if (state === 'loaded') {
+            link.dataset.hasImage = 'true';
+        }
     }
 }

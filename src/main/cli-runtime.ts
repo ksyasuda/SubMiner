@@ -33,6 +33,7 @@ export interface CliCommandRuntimeServiceContext {
   openAnilistSetup: CliCommandRuntimeServiceDepsParams['anilist']['openSetup'];
   getAnilistQueueStatus: CliCommandRuntimeServiceDepsParams['anilist']['getQueueStatus'];
   retryAnilistQueueNow: CliCommandRuntimeServiceDepsParams['anilist']['retryQueueNow'];
+  generateCharacterDictionary: CliCommandRuntimeServiceDepsParams['dictionary']['generate'];
   openJellyfinSetup: CliCommandRuntimeServiceDepsParams['jellyfin']['openSetup'];
   runJellyfinCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runCommand'];
   openYomitanSettings: () => void;
@@ -93,6 +94,9 @@ function createCliCommandDepsFromContext(
       openSetup: context.openAnilistSetup,
       getQueueStatus: context.getAnilistQueueStatus,
       retryQueueNow: context.retryAnilistQueueNow,
+    },
+    dictionary: {
+      generate: context.generateCharacterDictionary,
     },
     jellyfin: {
       openSetup: context.openJellyfinSetup,

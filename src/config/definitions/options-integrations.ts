@@ -136,6 +136,39 @@ export function buildIntegrationConfigOptionRegistry(
         'Optional explicit AniList access token override; leave empty to use locally stored token from setup.',
     },
     {
+      path: 'anilist.characterDictionary.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.anilist.characterDictionary.enabled,
+      description:
+        'Enable automatic Yomitan character dictionary sync for currently watched AniList media.',
+    },
+    {
+      path: 'anilist.characterDictionary.refreshTtlHours',
+      kind: 'number',
+      defaultValue: defaultConfig.anilist.characterDictionary.refreshTtlHours,
+      description: 'TTL in hours before refreshing the currently watched media dictionary.',
+    },
+    {
+      path: 'anilist.characterDictionary.maxLoaded',
+      kind: 'number',
+      defaultValue: defaultConfig.anilist.characterDictionary.maxLoaded,
+      description: 'Maximum number of auto-synced AniList dictionaries kept loaded at once.',
+    },
+    {
+      path: 'anilist.characterDictionary.evictionPolicy',
+      kind: 'enum',
+      enumValues: ['disable', 'delete'],
+      defaultValue: defaultConfig.anilist.characterDictionary.evictionPolicy,
+      description: 'Eviction behavior when maxLoaded is exceeded.',
+    },
+    {
+      path: 'anilist.characterDictionary.profileScope',
+      kind: 'enum',
+      enumValues: ['all', 'active'],
+      defaultValue: defaultConfig.anilist.characterDictionary.profileScope,
+      description: 'Yomitan profile scope for dictionary enable/disable updates.',
+    },
+    {
       path: 'jellyfin.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.jellyfin.enabled,

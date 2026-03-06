@@ -86,6 +86,13 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   anilist: {
     enabled: false,
     accessToken: '',
+    characterDictionary: {
+      enabled: false,
+      refreshTtlHours: 168,
+      maxLoaded: 3,
+      evictionPolicy: 'delete',
+      profileScope: 'all',
+    },
   },
   jellyfin: {
     enabled: false,

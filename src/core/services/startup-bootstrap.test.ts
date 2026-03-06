@@ -30,6 +30,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     anilistLogout: false,
     anilistSetup: false,
     anilistRetryQueue: false,
+    dictionary: false,
     jellyfin: false,
     jellyfinLogin: false,
     jellyfinLogout: false,

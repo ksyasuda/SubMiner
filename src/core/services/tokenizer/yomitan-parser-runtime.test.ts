@@ -1,12 +1,25 @@
 import assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import test from 'node:test';
 import {
+  getYomitanDictionaryInfo,
+  importYomitanDictionaryFromZip,
+  deleteYomitanDictionaryByTitle,
+  removeYomitanDictionarySettings,
   requestYomitanParseResults,
   requestYomitanTermFrequencies,
   syncYomitanDefaultAnkiServer,
+  upsertYomitanDictionarySettings,
 } from './yomitan-parser-runtime';
 
-function createDeps(executeJavaScript: (script: string) => Promise<unknown>) {
+function createDeps(
+  executeJavaScript: (script: string) => Promise<unknown>,
+  options?: {
+    createYomitanExtensionWindow?: (pageName: string) => Promise<unknown>;
+  },
+) {
   const parserWindow = {
     isDestroyed: () => false,
     webContents: {
@@ -22,6 +35,7 @@ function createDeps(executeJavaScript: (script: string) => Promise<unknown>) {
     setYomitanParserReadyPromise: () => undefined,
     getYomitanParserInitPromise: () => null,
     setYomitanParserInitPromise: () => undefined,
+    createYomitanExtensionWindow: options?.createYomitanExtensionWindow as never,
   };
 }
 
@@ -416,4 +430,127 @@ test('requestYomitanParseResults disables Yomitan MeCab parser path', async () =
   const parseScript = scripts.find((script) => script.includes('parseText'));
   assert.ok(parseScript, 'expected parseText request script');
   assert.match(parseScript ?? '', /useMecabParser:\s*false/);
+});
+
+test('getYomitanDictionaryInfo requests dictionary info via backend action', async () => {
+  let scriptValue = '';
+  const deps = createDeps(async (script) => {
+    scriptValue = script;
+    return [{ title: 'SubMiner Character Dictionary (AniList 130298)', revision: '1' }];
+  });
+
+  const dictionaries = await getYomitanDictionaryInfo(deps, { error: () => undefined });
+  assert.equal(dictionaries.length, 1);
+  assert.equal(dictionaries[0]?.title, 'SubMiner Character Dictionary (AniList 130298)');
+  assert.match(scriptValue, /getDictionaryInfo/);
+});
+
+test('dictionary settings helpers upsert and remove dictionary entries', async () => {
+  const scripts: string[] = [];
+  const optionsFull = {
+    profileCurrent: 0,
+    profiles: [
+      {
+        options: {
+          dictionaries: [
+            {
+              name: 'SubMiner Character Dictionary (AniList 1)',
+              alias: 'SubMiner Character Dictionary (AniList 1)',
+              enabled: false,
+            },
+          ],
+        },
+      },
+    ],
+  };
+
+  const deps = createDeps(async (script) => {
+    scripts.push(script);
+    if (script.includes('optionsGetFull')) {
+      return JSON.parse(JSON.stringify(optionsFull));
+    }
+    if (script.includes('setAllSettings')) {
+      return true;
+    }
+    return null;
+  });
+
+  const title = 'SubMiner Character Dictionary (AniList 1)';
+  const upserted = await upsertYomitanDictionarySettings(title, 'all', deps, {
+    error: () => undefined,
+  });
+  const removed = await removeYomitanDictionarySettings(title, 'all', 'delete', deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(upserted, true);
+  assert.equal(removed, true);
+  const setCalls = scripts.filter((script) => script.includes('setAllSettings')).length;
+  assert.equal(setCalls, 2);
+});
+
+test('importYomitanDictionaryFromZip uses settings automation bridge instead of custom backend action', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yomitan-import-'));
+  const zipPath = path.join(tempDir, 'dict.zip');
+  fs.writeFileSync(zipPath, Buffer.from('zip-bytes'));
+
+  const scripts: string[] = [];
+  const settingsWindow = {
+    isDestroyed: () => false,
+    destroy: () => undefined,
+    webContents: {
+      executeJavaScript: async (script: string) => {
+        scripts.push(script);
+        return true;
+      },
+    },
+  };
+
+  const deps = createDeps(async () => true, {
+    createYomitanExtensionWindow: async (pageName: string) => {
+      assert.equal(pageName, 'settings.html');
+      return settingsWindow;
+    },
+  });
+
+  const imported = await importYomitanDictionaryFromZip(zipPath, deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(imported, true);
+  assert.equal(scripts.some((script) => script.includes('__subminerYomitanSettingsAutomation')), true);
+  assert.equal(scripts.some((script) => script.includes('importDictionaryArchiveBase64')), true);
+  assert.equal(scripts.some((script) => script.includes('subminerImportDictionary')), false);
+});
+
+test('deleteYomitanDictionaryByTitle uses settings automation bridge instead of custom backend action', async () => {
+  const scripts: string[] = [];
+  const settingsWindow = {
+    isDestroyed: () => false,
+    destroy: () => undefined,
+    webContents: {
+      executeJavaScript: async (script: string) => {
+        scripts.push(script);
+        return true;
+      },
+    },
+  };
+
+  const deps = createDeps(async () => true, {
+    createYomitanExtensionWindow: async (pageName: string) => {
+      assert.equal(pageName, 'settings.html');
+      return settingsWindow;
+    },
+  });
+
+  const deleted = await deleteYomitanDictionaryByTitle(
+    'SubMiner Character Dictionary (AniList 130298)',
+    deps,
+    { error: () => undefined },
+  );
+
+  assert.equal(deleted, true);
+  assert.equal(scripts.some((script) => script.includes('__subminerYomitanSettingsAutomation')), true);
+  assert.equal(scripts.some((script) => script.includes('deleteDictionary')), true);
+  assert.equal(scripts.some((script) => script.includes('subminerDeleteDictionary')), false);
 });

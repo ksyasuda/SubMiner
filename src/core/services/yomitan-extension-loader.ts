@@ -2,7 +2,7 @@ import { BrowserWindow, Extension, session } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createLogger } from '../../logger';
-import { shouldCopyYomitanExtension } from './yomitan-extension-copy';
+import { ensureExtensionCopy } from './yomitan-extension-copy';
 
 const logger = createLogger('main:yomitan-extension-loader');
 
@@ -13,26 +13,6 @@ export interface YomitanExtensionLoaderDeps {
   setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
   setYomitanExtension: (extension: Extension | null) => void;
-}
-
-function ensureExtensionCopy(sourceDir: string, userDataPath: string): string {
-  if (process.platform === 'win32') {
-    return sourceDir;
-  }
-
-  const extensionsRoot = path.join(userDataPath, 'extensions');
-  const targetDir = path.join(extensionsRoot, 'yomitan');
-
-  const shouldCopy = shouldCopyYomitanExtension(sourceDir, targetDir);
-
-  if (shouldCopy) {
-    fs.mkdirSync(extensionsRoot, { recursive: true });
-    fs.rmSync(targetDir, { recursive: true, force: true });
-    fs.cpSync(sourceDir, targetDir, { recursive: true });
-    logger.info(`Copied yomitan extension to ${targetDir}`);
-  }
-
-  return targetDir;
 }
 
 export async function loadYomitanExtension(
@@ -60,7 +40,11 @@ export async function loadYomitanExtension(
     return null;
   }
 
-  extPath = ensureExtensionCopy(extPath, deps.userDataPath);
+  const extensionCopy = ensureExtensionCopy(extPath, deps.userDataPath);
+  if (extensionCopy.copied) {
+    logger.info(`Copied yomitan extension to ${extensionCopy.targetDir}`);
+  }
+  extPath = extensionCopy.targetDir;
 
   const parserWindow = deps.getYomitanParserWindow();
   if (parserWindow && !parserWindow.isDestroyed()) {

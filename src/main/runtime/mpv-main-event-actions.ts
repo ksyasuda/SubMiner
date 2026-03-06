@@ -39,11 +39,13 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
   maybeProbeAnilistDuration: (mediaKey: string) => void;
   ensureAnilistMediaGuess: (mediaKey: string) => void;
   syncImmersionMediaState: () => void;
+  scheduleCharacterDictionarySync?: () => void;
   refreshDiscordPresence: () => void;
 }) {
-  return ({ path }: { path: string }): void => {
-    deps.updateCurrentMediaPath(path);
-    if (!path) {
+  return ({ path }: { path: string | null }): void => {
+    const normalizedPath = typeof path === 'string' ? path : '';
+    deps.updateCurrentMediaPath(normalizedPath);
+    if (!normalizedPath) {
       deps.reportJellyfinRemoteStopped();
       deps.restoreMpvSubVisibility();
     }
@@ -54,6 +56,9 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
       deps.ensureAnilistMediaGuess(mediaKey);
     }
     deps.syncImmersionMediaState();
+    if (normalizedPath.trim().length > 0) {
+      deps.scheduleCharacterDictionarySync?.();
+    }
     deps.refreshDiscordPresence();
   };
 }
@@ -63,13 +68,18 @@ export function createHandleMpvMediaTitleChangeHandler(deps: {
   resetAnilistMediaGuessState: () => void;
   notifyImmersionTitleUpdate: (title: string) => void;
   syncImmersionMediaState: () => void;
+  scheduleCharacterDictionarySync?: () => void;
   refreshDiscordPresence: () => void;
 }) {
-  return ({ title }: { title: string }): void => {
-    deps.updateCurrentMediaTitle(title);
+  return ({ title }: { title: string | null }): void => {
+    const normalizedTitle = typeof title === 'string' ? title : '';
+    deps.updateCurrentMediaTitle(normalizedTitle);
     deps.resetAnilistMediaGuessState();
-    deps.notifyImmersionTitleUpdate(title);
+    deps.notifyImmersionTitleUpdate(normalizedTitle);
     deps.syncImmersionMediaState();
+    if (normalizedTitle.trim().length > 0) {
+      deps.scheduleCharacterDictionarySync?.();
+    }
     deps.refreshDiscordPresence();
   };
 }

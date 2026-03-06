@@ -104,7 +104,11 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   },
   {
     title: 'Anilist',
-    description: ['Anilist API credentials and update behavior.'],
+    description: [
+      'Anilist API credentials and update behavior.',
+      'Includes optional auto-sync for per-media character dictionaries in bundled Yomitan.',
+      'Character dictionaries are keyed by AniList media ID (no season/franchise merge).',
+    ],
     key: 'anilist',
   },
   {

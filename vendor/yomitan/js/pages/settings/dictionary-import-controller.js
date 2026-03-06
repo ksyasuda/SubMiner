@@ -453,6 +453,25 @@ export class DictionaryImportController {
     }
 
     /**
+     * @param {ArrayBuffer} archiveContent
+     * @param {string} fileName
+     * @returns {Promise<void>}
+     */
+    async importDictionaryArchiveContent(archiveContent, fileName='dictionary.zip') {
+        const file = new File([archiveContent], fileName, {type: 'application/zip'});
+        const importProgressTracker = new ImportProgressTracker(this._getFileImportSteps(), 1);
+        const errors = await this._importDictionaries(
+            this._arrayToAsyncGenerator([file]),
+            null,
+            null,
+            importProgressTracker,
+        );
+        if (errors.length > 0) {
+            throw errors[0];
+        }
+    }
+
+    /**
      * @param {string[]} urls
      * @param {import('dictionary-worker').ImportProgressCallback} onProgress
      * @yields {Promise<File>}
@@ -532,9 +551,10 @@ export class DictionaryImportController {
      * @param {import('settings-controller').ProfilesDictionarySettings} profilesDictionarySettings
      * @param {import('settings-controller').ImportDictionaryDoneCallback} onImportDone
      * @param {ImportProgressTracker} importProgressTracker
+     * @returns {Promise<Error[]>}
      */
     async _importDictionaries(dictionaries, profilesDictionarySettings, onImportDone, importProgressTracker) {
-        if (this._modifying) { return; }
+        if (this._modifying) { return [new Error('Dictionary import already in progress.')]; }
 
         const statusFooter = this._statusFooter;
         const progressSelector = '.dictionary-import-progress';
@@ -588,6 +608,7 @@ export class DictionaryImportController {
             this._triggerStorageChanged();
             if (onImportDone) { onImportDone(); }
         }
+        return errors;
     }
 
     /**

@@ -11,10 +11,6 @@
     "test-yomitan-parser:electron": "bun build scripts/test-yomitan-parser.ts --format=cjs --target=node --outfile dist/scripts/test-yomitan-parser.js --external electron && electron dist/scripts/test-yomitan-parser.js",
     "build": "tsc && bun run build:renderer && cp src/renderer/index.html src/renderer/style.css dist/renderer/ && cp -r src/renderer/fonts dist/renderer/ && bash scripts/build-macos-helper.sh",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js --sourcemap",
-    "docs:dev": "VITE_EXTRA_EXTENSIONS=jsonc vitepress dev docs --host 0.0.0.0 --port 5173 --strictPort",
-    "docs:watch": "bunx concurrently -n docs,backlog \"bun run docs:dev\" \"backlog browser\"",
-    "docs:build": "VITE_EXTRA_EXTENSIONS=jsonc vitepress build docs",
-    "docs:preview": "VITE_EXTRA_EXTENSIONS=jsonc vitepress preview docs --host 0.0.0.0 --port 4173 --strictPort",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:config:src": "bun test src/config/config.test.ts src/config/path-resolution.test.ts src/config/resolve/anki-connect.test.ts src/config/resolve/subtitle-style.test.ts src/config/resolve/jellyfin.test.ts src/config/definitions/domain-registry.test.ts",
@@ -57,12 +53,10 @@
   "author": "",
   "license": "GPL-3.0-or-later",
   "dependencies": {
-    "@catppuccin/vitepress": "^0.1.2",
     "axios": "^1.13.5",
     "commander": "^14.0.3",
     "discord-rpc": "^4.0.1",
     "jsonc-parser": "^3.3.1",
-    "mermaid": "^11.12.3",
     "ws": "^8.19.0"
   },
   "devDependencies": {
@@ -72,8 +66,7 @@
     "electron-builder": "^26.8.1",
     "esbuild": "^0.25.12",
     "prettier": "^3.8.1",
-    "typescript": "^5.9.3",
-    "vitepress": "^1.6.4"
+    "typescript": "^5.9.3"
   },
   "build": {
     "appId": "com.sudacode.SubMiner",

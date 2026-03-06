@@ -22,6 +22,7 @@ test('config option registry includes critical paths and has unique entries', ()
     'subtitleStyle.enableJlpt',
     'subtitleStyle.autoPauseVideoOnYomitanPopup',
     'ankiConnect.enabled',
+    'anilist.characterDictionary.enabled',
     'immersionTracking.enabled',
   ]) {
     assert.ok(paths.includes(requiredPath), `missing config path: ${requiredPath}`);

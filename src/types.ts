@@ -393,9 +393,21 @@ export interface JimakuConfig {
   maxEntryResults?: number;
 }
 
+export type AnilistCharacterDictionaryEvictionPolicy = 'disable' | 'delete';
+export type AnilistCharacterDictionaryProfileScope = 'all' | 'active';
+
+export interface AnilistCharacterDictionaryConfig {
+  enabled?: boolean;
+  refreshTtlHours?: number;
+  maxLoaded?: number;
+  evictionPolicy?: AnilistCharacterDictionaryEvictionPolicy;
+  profileScope?: AnilistCharacterDictionaryProfileScope;
+}
+
 export interface AnilistConfig {
   enabled?: boolean;
   accessToken?: string;
+  characterDictionary?: AnilistCharacterDictionaryConfig;
 }
 
 export interface JellyfinConfig {
@@ -583,6 +595,13 @@ export interface ResolvedConfig {
   anilist: {
     enabled: boolean;
     accessToken: string;
+    characterDictionary: {
+      enabled: boolean;
+      refreshTtlHours: number;
+      maxLoaded: number;
+      evictionPolicy: AnilistCharacterDictionaryEvictionPolicy;
+      profileScope: AnilistCharacterDictionaryProfileScope;
+    };
   };
   jellyfin: {
     enabled: boolean;

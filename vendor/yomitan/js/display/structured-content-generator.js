@@ -148,9 +148,7 @@ export class StructuredContentGenerator {
         }
 
         if (this._contentManager !== null) {
-            const image = this._contentManager instanceof DisplayContentManager ?
-                /** @type {HTMLCanvasElement} */ (this._createElement('canvas', 'gloss-image')) :
-                /** @type {HTMLImageElement} */ (this._createElement('img', 'gloss-image'));
+            const image = /** @type {HTMLImageElement} */ (this._createElement('img', 'gloss-image'));
             if (sizeUnits === 'em' && (hasPreferredWidth || hasPreferredHeight)) {
                 const emSize = 14; // We could Number.parseFloat(getComputedStyle(document.documentElement).fontSize); here for more accuracy but it would cause a layout and be extremely slow; possible improvement would be to calculate and cache the value
                 const scaleFactor = 2 * this._window.devicePixelRatio;
@@ -172,7 +170,7 @@ export class StructuredContentGenerator {
                 this._contentManager.loadMedia(
                     path,
                     dictionary,
-                    (/** @type {HTMLCanvasElement} */(image)).transferControlToOffscreen(),
+                    image,
                 );
             } else if (this._contentManager instanceof AnkiTemplateRendererContentManager) {
                 this._contentManager.loadMedia(

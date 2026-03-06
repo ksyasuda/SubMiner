@@ -23,6 +23,115 @@ export function applyIntegrationConfig(context: ResolveContext): void {
         'Expected string.',
       );
     }
+
+    if (isObject(src.anilist.characterDictionary)) {
+      const characterDictionary = src.anilist.characterDictionary;
+
+      const dictionaryEnabled = asBoolean(characterDictionary.enabled);
+      if (dictionaryEnabled !== undefined) {
+        resolved.anilist.characterDictionary.enabled = dictionaryEnabled;
+      } else if (characterDictionary.enabled !== undefined) {
+        warn(
+          'anilist.characterDictionary.enabled',
+          characterDictionary.enabled,
+          resolved.anilist.characterDictionary.enabled,
+          'Expected boolean.',
+        );
+      }
+
+      const refreshTtlHours = asNumber(characterDictionary.refreshTtlHours);
+      if (refreshTtlHours !== undefined) {
+        const normalized = Math.min(24 * 365, Math.max(1, Math.floor(refreshTtlHours)));
+        if (normalized !== refreshTtlHours) {
+          warn(
+            'anilist.characterDictionary.refreshTtlHours',
+            characterDictionary.refreshTtlHours,
+            normalized,
+            'Out of range; clamped to 1..8760 hours.',
+          );
+        }
+        resolved.anilist.characterDictionary.refreshTtlHours = normalized;
+      } else if (characterDictionary.refreshTtlHours !== undefined) {
+        warn(
+          'anilist.characterDictionary.refreshTtlHours',
+          characterDictionary.refreshTtlHours,
+          resolved.anilist.characterDictionary.refreshTtlHours,
+          'Expected number.',
+        );
+      }
+
+      const maxLoaded = asNumber(characterDictionary.maxLoaded);
+      if (maxLoaded !== undefined) {
+        const normalized = Math.min(20, Math.max(1, Math.floor(maxLoaded)));
+        if (normalized !== maxLoaded) {
+          warn(
+            'anilist.characterDictionary.maxLoaded',
+            characterDictionary.maxLoaded,
+            normalized,
+            'Out of range; clamped to 1..20.',
+          );
+        }
+        resolved.anilist.characterDictionary.maxLoaded = normalized;
+      } else if (characterDictionary.maxLoaded !== undefined) {
+        warn(
+          'anilist.characterDictionary.maxLoaded',
+          characterDictionary.maxLoaded,
+          resolved.anilist.characterDictionary.maxLoaded,
+          'Expected number.',
+        );
+      }
+
+      const evictionPolicyRaw = asString(characterDictionary.evictionPolicy);
+      if (evictionPolicyRaw !== undefined) {
+        const evictionPolicy = evictionPolicyRaw.trim().toLowerCase();
+        if (evictionPolicy === 'disable' || evictionPolicy === 'delete') {
+          resolved.anilist.characterDictionary.evictionPolicy = evictionPolicy;
+        } else {
+          warn(
+            'anilist.characterDictionary.evictionPolicy',
+            characterDictionary.evictionPolicy,
+            resolved.anilist.characterDictionary.evictionPolicy,
+            "Expected one of: 'disable', 'delete'.",
+          );
+        }
+      } else if (characterDictionary.evictionPolicy !== undefined) {
+        warn(
+          'anilist.characterDictionary.evictionPolicy',
+          characterDictionary.evictionPolicy,
+          resolved.anilist.characterDictionary.evictionPolicy,
+          'Expected string.',
+        );
+      }
+
+      const profileScopeRaw = asString(characterDictionary.profileScope);
+      if (profileScopeRaw !== undefined) {
+        const profileScope = profileScopeRaw.trim().toLowerCase();
+        if (profileScope === 'all' || profileScope === 'active') {
+          resolved.anilist.characterDictionary.profileScope = profileScope;
+        } else {
+          warn(
+            'anilist.characterDictionary.profileScope',
+            characterDictionary.profileScope,
+            resolved.anilist.characterDictionary.profileScope,
+            "Expected one of: 'all', 'active'.",
+          );
+        }
+      } else if (characterDictionary.profileScope !== undefined) {
+        warn(
+          'anilist.characterDictionary.profileScope',
+          characterDictionary.profileScope,
+          resolved.anilist.characterDictionary.profileScope,
+          'Expected string.',
+        );
+      }
+    } else if (src.anilist.characterDictionary !== undefined) {
+      warn(
+        'anilist.characterDictionary',
+        src.anilist.characterDictionary,
+        resolved.anilist.characterDictionary,
+        'Expected object.',
+      );
+    }
   }
 
   if (isObject(src.jellyfin)) {

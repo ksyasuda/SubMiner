@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { fail } from '../log.js';
 import type {
   Args,
@@ -68,6 +69,27 @@ function parseBackend(value: string): Backend {
   fail(`Invalid backend: ${value} (must be auto, hyprland, x11, or macos)`);
 }
 
+function parseDictionaryTarget(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    fail('Dictionary target path is required.');
+  }
+  if (isUrlTarget(trimmed)) {
+    fail('Dictionary target must be a local file or directory path, not a URL.');
+  }
+  const resolved = path.resolve(resolvePathMaybe(trimmed));
+  let stat: fs.Stats | null = null;
+  try {
+    stat = fs.statSync(resolved);
+  } catch {
+    stat = null;
+  }
+  if (!stat || (!stat.isFile() && !stat.isDirectory())) {
+    fail(`Dictionary target path must be an existing file or directory: ${trimmed}`);
+  }
+  return resolved;
+}
+
 export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): Args {
   const envMode = (process.env.SUBMINER_YT_SUBGEN_MODE || '').toLowerCase();
   const defaultMode: YoutubeSubgenMode =
@@ -114,6 +136,7 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     jellyfinLogout: false,
     jellyfinPlay: false,
     jellyfinDiscovery: false,
+    dictionary: false,
     doctor: false,
     configPath: false,
     configShow: false,
@@ -170,6 +193,10 @@ export function applyRootOptionsToArgs(
 }
 
 export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations): void {
+  if (invocations.dictionaryTriggered) parsed.dictionary = true;
+  if (invocations.dictionaryTarget) {
+    parsed.dictionaryTarget = parseDictionaryTarget(invocations.dictionaryTarget);
+  }
   if (invocations.doctorTriggered) parsed.doctor = true;
   if (invocations.texthookerTriggered) parsed.texthookerOnly = true;
 
@@ -228,6 +255,10 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
       parsed.youtubeSubgenAudioFormat = invocations.ytInvocation.ytSubgenAudioFormat;
     }
     if (invocations.ytInvocation.target) ensureTarget(invocations.ytInvocation.target, parsed);
+  }
+
+  if (invocations.dictionaryLogLevel) {
+    parsed.logLevel = parseLogLevel(invocations.dictionaryLogLevel);
   }
 
   if (invocations.doctorLogLevel) parsed.logLevel = parseLogLevel(invocations.doctorLogLevel);

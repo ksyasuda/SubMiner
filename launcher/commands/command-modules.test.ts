@@ -4,6 +4,7 @@ import { parseArgs } from '../config.js';
 import type { ProcessAdapter } from '../process-adapter.js';
 import type { LauncherCommandContext } from './context.js';
 import { runConfigCommand } from './config-command.js';
+import { runDictionaryCommand } from './dictionary-command.js';
 import { runDoctorCommand } from './doctor-command.js';
 import { runMpvPreAppCommand } from './mpv-command.js';
 
@@ -93,4 +94,24 @@ test('mpv pre-app command exits non-zero when socket is not ready', async () => 
     },
     (error: unknown) => error instanceof ExitSignal && error.code === 1,
   );
+});
+
+test('dictionary command forwards --dictionary and target path to app binary', () => {
+  const context = createContext();
+  context.args.dictionary = true;
+  context.args.dictionaryTarget = '/tmp/anime';
+  const forwarded: string[][] = [];
+
+  assert.throws(
+    () =>
+      runDictionaryCommand(context, {
+        runAppCommandWithInherit: (_appPath, appArgs) => {
+          forwarded.push(appArgs);
+          throw new ExitSignal(0);
+        },
+      }),
+    (error: unknown) => error instanceof ExitSignal && error.code === 0,
+  );
+
+  assert.deepEqual(forwarded, [['--dictionary', '--dictionary-target', '/tmp/anime']]);
 });
