@@ -48,7 +48,7 @@ await Application.main(true, async (application) => {
     displayResizer.prepare();
 
     document.addEventListener('keydown', (event) => {
-        if (event.defaultPrevented || event.repeat) { return; }
+        if (event.defaultPrevented) { return; }
         if (event.ctrlKey || event.metaKey || event.altKey) { return; }
 
         const target = /** @type {?Element} */ (event.target instanceof Element ? event.target : null);
@@ -59,29 +59,40 @@ await Application.main(true, async (application) => {
         }
 
         const code = event.code;
-        if (code === 'KeyJ' || code === 'KeyK') {
+        const isPopupScrollKey =
+            code === 'KeyJ' ||
+            code === 'KeyK' ||
+            code === 'ArrowDown' ||
+            code === 'ArrowUp';
+        if (isPopupScrollKey) {
             const scanningOptions = display.getOptions()?.scanning;
             const scale = Number.isFinite(scanningOptions?.reducedMotionScrollingScale)
                 ? scanningOptions.reducedMotionScrollingScale
                 : 1;
-            display._scrollByPopupHeight(code === 'KeyJ' ? 1 : -1, scale);
+            display._scrollByPopupHeight(
+                code === 'KeyJ' || code === 'ArrowDown' ? 1 : -1,
+                scale,
+            );
             event.preventDefault();
             return;
         }
 
         if (code === 'KeyM') {
+            if (event.repeat) { return; }
             displayAnki._hotkeySaveAnkiNoteForSelectedEntry('0');
             event.preventDefault();
             return;
         }
 
         if (code === 'KeyP') {
+            if (event.repeat) { return; }
             void displayAudio.playAudio(display.selectedIndex, 0);
             event.preventDefault();
             return;
         }
 
         if (code === 'BracketLeft' || code === 'BracketRight') {
+            if (event.repeat) { return; }
             displayAudio._onMessageCycleAudioSource({direction: code === 'BracketLeft' ? 1 : -1});
             event.preventDefault();
         }

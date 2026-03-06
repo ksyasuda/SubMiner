@@ -446,7 +446,6 @@ export function createKeyboardHandlers(
   }
 
   function handleYomitanPopupKeybind(e: KeyboardEvent): boolean {
-    if (e.repeat) return false;
     const modifierOnlyCodes = new Set([
       'ShiftLeft',
       'ShiftRight',
@@ -460,6 +459,7 @@ export function createKeyboardHandlers(
     if (modifierOnlyCodes.has(e.code)) return false;
 
     if (!e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'KeyM') {
+      if (e.repeat) return false;
       dispatchYomitanPopupMineSelected();
       return true;
     }

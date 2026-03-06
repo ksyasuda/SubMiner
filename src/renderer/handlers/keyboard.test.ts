@@ -10,6 +10,7 @@ type CommandEventDetail = {
   visible?: boolean;
   key?: string;
   code?: string;
+  repeat?: boolean;
 };
 
 function createClassList() {
@@ -369,6 +370,36 @@ test('keyboard mode: up/down/j/k forward keydown to yomitan popup when open', as
       (event) => event.type === 'setVisible' && event.visible === false,
     );
     assert.equal(closeEvents.length, 0);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: repeated popup navigation keys are forwarded while popup is open', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+
+    testGlobals.dispatchKeydown({ key: 'j', code: 'KeyJ', repeat: true });
+    testGlobals.dispatchKeydown({ key: 'ArrowDown', code: 'ArrowDown', repeat: true });
+
+    const forwarded = testGlobals.commandEvents.filter(
+      (event) => event.type === 'forwardKeyDown',
+    );
+    assert.equal(forwarded.length, 2);
+    assert.deepEqual(
+      forwarded.map((event) => ({ code: event.code, repeat: event.repeat })),
+      [
+        { code: 'KeyJ', repeat: true },
+        { code: 'ArrowDown', repeat: true },
+      ],
+    );
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();
