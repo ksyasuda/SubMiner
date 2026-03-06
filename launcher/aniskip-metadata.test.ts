@@ -166,8 +166,10 @@ test('buildSubminerScriptOpts includes aniskip payload fields', () => {
   assert.match(opts, /subminer-aniskip_intro_end=62/);
   assert.match(opts, /subminer-aniskip_lookup_status=ready/);
   assert.ok(payloadMatch !== null);
-  assert.equal(payloadMatch[1].includes('%'), false);
-  const payloadJson = Buffer.from(payloadMatch[1], 'base64url').toString('utf-8');
+  const encodedPayload = payloadMatch[1];
+  assert.ok(encodedPayload !== undefined);
+  assert.equal(encodedPayload.includes('%'), false);
+  const payloadJson = Buffer.from(encodedPayload, 'base64url').toString('utf-8');
   const payload = JSON.parse(payloadJson);
   assert.equal(payload.found, true);
   const first = payload.results?.[0];

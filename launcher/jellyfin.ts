@@ -284,8 +284,10 @@ export function parseEpisodePathFromDisplay(
   const normalized = display.trim().replace(/\s+/g, ' ');
   const match = normalized.match(/^(.*?)\s+S(\d{1,2})E\d{1,3}\b/i);
   if (!match) return null;
-  const seriesName = match[1].trim();
-  const seasonNumber = Number.parseInt(match[2], 10);
+  const seriesName = match[1]?.trim();
+  const seasonText = match[2];
+  if (!seriesName || !seasonText) return null;
+  const seasonNumber = Number.parseInt(seasonText, 10);
   if (!seriesName || !Number.isFinite(seasonNumber) || seasonNumber < 0) return null;
   return { seriesName, seasonNumber };
 }

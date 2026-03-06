@@ -59,6 +59,7 @@ function getRetryAfter(headers: http.IncomingHttpHeaders): number | undefined {
   const value = headers['x-ratelimit-reset-after'];
   if (!value) return undefined;
   const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw) return undefined;
   const parsed = Number.parseFloat(raw);
   if (!Number.isFinite(parsed)) return undefined;
   return parsed;
@@ -72,9 +73,14 @@ export function matchEpisodeFromName(name: string): {
 } {
   const seasonEpisode = name.match(/S(\d{1,2})E(\d{1,3})/i);
   if (seasonEpisode && seasonEpisode.index !== undefined) {
+    const seasonText = seasonEpisode[1];
+    const episodeText = seasonEpisode[2];
+    if (!seasonText || !episodeText) {
+      return { season: null, episode: null, index: null, confidence: 'low' };
+    }
     return {
-      season: Number.parseInt(seasonEpisode[1], 10),
-      episode: Number.parseInt(seasonEpisode[2], 10),
+      season: Number.parseInt(seasonText, 10),
+      episode: Number.parseInt(episodeText, 10),
       index: seasonEpisode.index,
       confidence: 'high',
     };
@@ -82,9 +88,14 @@ export function matchEpisodeFromName(name: string): {
 
   const alt = name.match(/(\d{1,2})x(\d{1,3})/i);
   if (alt && alt.index !== undefined) {
+    const seasonText = alt[1];
+    const episodeText = alt[2];
+    if (!seasonText || !episodeText) {
+      return { season: null, episode: null, index: null, confidence: 'low' };
+    }
     return {
-      season: Number.parseInt(alt[1], 10),
-      episode: Number.parseInt(alt[2], 10),
+      season: Number.parseInt(seasonText, 10),
+      episode: Number.parseInt(episodeText, 10),
       index: alt.index,
       confidence: 'high',
     };
@@ -92,9 +103,13 @@ export function matchEpisodeFromName(name: string): {
 
   const epOnly = name.match(/(?:^|[\s._-])E(?:P)?(\d{1,3})(?:\b|[\s._-])/i);
   if (epOnly && epOnly.index !== undefined) {
+    const episodeText = epOnly[1];
+    if (!episodeText) {
+      return { season: null, episode: null, index: null, confidence: 'low' };
+    }
     return {
       season: null,
-      episode: Number.parseInt(epOnly[1], 10),
+      episode: Number.parseInt(episodeText, 10),
       index: epOnly.index,
       confidence: 'medium',
     };
@@ -102,9 +117,13 @@ export function matchEpisodeFromName(name: string): {
 
   const numeric = name.match(/(?:^|[-–—]\s*)(\d{1,3})\s*[-–—]/);
   if (numeric && numeric.index !== undefined) {
+    const episodeText = numeric[1];
+    if (!episodeText) {
+      return { season: null, episode: null, index: null, confidence: 'low' };
+    }
     return {
       season: null,
-      episode: Number.parseInt(numeric[1], 10),
+      episode: Number.parseInt(episodeText, 10),
       index: numeric.index,
       confidence: 'medium',
     };
@@ -117,7 +136,9 @@ function detectSeasonFromDir(mediaPath: string): number | null {
   const parent = path.basename(path.dirname(mediaPath));
   const match = parent.match(/(?:Season|S)\s*(\d{1,2})/i);
   if (!match) return null;
-  const parsed = Number.parseInt(match[1], 10);
+  const seasonText = match[1];
+  if (!seasonText) return null;
+  const parsed = Number.parseInt(seasonText, 10);
   return Number.isFinite(parsed) ? parsed : null;
 }
 

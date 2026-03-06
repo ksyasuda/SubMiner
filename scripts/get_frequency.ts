@@ -14,7 +14,7 @@ interface CliOptions {
   emitDiagnostics: boolean;
   mecabCommand?: string;
   mecabDictionaryPath?: string;
-  forceMecabOnly?: boolean;
+  forceMecabOnly: boolean;
   yomitanExtensionPath?: string;
   yomitanUserDataPath?: string;
   emitColoredLine: boolean;
@@ -678,7 +678,7 @@ function getBandColor(
   }
   const normalizedBand = Math.ceil((safeRank / topX) * bandedColors.length);
   const band = Math.min(bandedColors.length, Math.max(1, normalizedBand));
-  return bandedColors[band - 1];
+  return bandedColors[band - 1] ?? colorSingle;
 }
 
 function getTokenColor(token: MergedToken, args: CliOptions): string {
@@ -845,7 +845,26 @@ async function main(): Promise<void> {
           ? simplifyTokenWithVerbose(token, getFrequencyRank)
           : simplifyToken(token),
       ) ?? null;
-    const diagnostics = {
+    const diagnostics: {
+      yomitan: {
+        available: boolean;
+        loaded: boolean;
+        forceMecabOnly: boolean;
+        note: string | null;
+      };
+      mecab: {
+        command: string;
+        dictionaryPath: string | null;
+        available: boolean;
+        status?: 'ok' | 'no-tokens';
+        note?: string;
+      };
+      tokenizer: {
+        sourceHint: 'none' | 'yomitan-merged' | 'mecab-merge';
+        mergedTokenCount: number;
+        totalTokenCount: number;
+      };
+    } = {
       yomitan: {
         available: Boolean(yomitanState?.available),
         loaded: useYomitan,
@@ -864,11 +883,11 @@ async function main(): Promise<void> {
       },
     };
     if (tokens === null) {
-      diagnostics.mecab['status'] = 'no-tokens';
-      diagnostics.mecab['note'] =
+      diagnostics.mecab.status = 'no-tokens';
+      diagnostics.mecab.note =
         'MeCab returned no parseable tokens. This is often caused by a missing/invalid MeCab dictionary path.';
     } else {
-      diagnostics.mecab['status'] = 'ok';
+      diagnostics.mecab.status = 'ok';
     }
 
     const output = {

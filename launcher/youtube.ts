@@ -58,7 +58,7 @@ function pickBestCandidate(candidates: SubtitleCandidate[]): SubtitleCandidate |
     if (srtA !== srtB) return srtB - srtA;
     return b.size - a.size;
   });
-  return scored[0];
+  return scored[0] ?? null;
 }
 
 function scanSubtitleCandidates(
@@ -120,7 +120,7 @@ function findAudioFile(tempDir: string, preferredExt: string): string | null {
   const preferred = audioFiles.find((entry) => entry.ext === `.${preferredExt.toLowerCase()}`);
   if (preferred) return preferred.path;
   audioFiles.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  return audioFiles[0].path;
+  return audioFiles[0]?.path ?? null;
 }
 
 async function runWhisper(

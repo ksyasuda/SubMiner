@@ -53,6 +53,13 @@ interface AniSkipPayloadResponse {
   results?: unknown;
 }
 
+const ROMAN_SEASON_ALIASES: Record<number, readonly string[]> = {
+  2: [' ii ', ' second season ', ' 2nd season '],
+  3: [' iii ', ' third season ', ' 3rd season '],
+  4: [' iv ', ' fourth season ', ' 4th season '],
+  5: [' v ', ' fifth season ', ' 5th season '],
+};
+
 const MAL_PREFIX_API = 'https://myanimelist.net/search/prefix.json?type=anime&keyword=';
 const ANISKIP_PAYLOAD_API = 'https://api.aniskip.com/v1/skip-times/';
 const MAL_USER_AGENT = 'SubMiner-launcher/ani-skip';
@@ -188,14 +195,7 @@ function seasonSignalScore(requestedSeason: number | null, candidateTitle: strin
     return 40;
   }
 
-  const romanAliases = {
-    2: [' ii ', ' second season ', ' 2nd season '],
-    3: [' iii ', ' third season ', ' 3rd season '],
-    4: [' iv ', ' fourth season ', ' 4th season '],
-    5: [' v ', ' fifth season ', ' 5th season '],
-  } as const;
-
-  const aliases = romanAliases[season] ?? [];
+  const aliases = ROMAN_SEASON_ALIASES[season] ?? [];
   return aliases.some((alias) => normalized.includes(alias))
     ? 40
     : hasAnySequelMarker(candidateTitle)

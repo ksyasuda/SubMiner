@@ -40,7 +40,7 @@ jobs:
 
       - name: Build (TypeScript check)
         # Keep explicit typecheck for fast fail before full build/bundle.
-        run: bun run tsc --noEmit
+        run: bun run typecheck
 
       - name: Test suite (source)
         run: bun run test:fast

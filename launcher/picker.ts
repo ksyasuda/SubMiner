@@ -207,7 +207,8 @@ export function pickLibrary(
       iconPath: ensureIcon(session, lib.id) || undefined,
     }));
     const idx = showRofiIconMenu(entries, 'Jellyfin Library', initialQuery, themePath);
-    return idx >= 0 ? visibleLibraries[idx].id : '';
+    const selected = idx >= 0 ? visibleLibraries[idx] : undefined;
+    return selected?.id ?? '';
   }
 
   const lines = visibleLibraries.map((lib) => `${lib.id}\t${lib.name} [${lib.kind}]`);
@@ -244,7 +245,8 @@ export function pickItem(
       iconPath: ensureIcon(session, item.id) || undefined,
     }));
     const idx = showRofiIconMenu(entries, 'Jellyfin Item', initialQuery, themePath);
-    return idx >= 0 ? visibleItems[idx].id : '';
+    const selected = idx >= 0 ? visibleItems[idx] : undefined;
+    return selected?.id ?? '';
   }
 
   const lines = visibleItems.map((item) => `${item.id}\t${item.display}`);
@@ -281,7 +283,8 @@ export function pickGroup(
       iconPath: ensureIcon(session, group.id) || undefined,
     }));
     const idx = showRofiIconMenu(entries, 'Jellyfin Anime/Folder', initialQuery, themePath);
-    return idx >= 0 ? visibleGroups[idx].id : '';
+    const selected = idx >= 0 ? visibleGroups[idx] : undefined;
+    return selected?.id ?? '';
   }
 
   const lines = visibleGroups.map((group) => `${group.id}\t${group.display}`);
