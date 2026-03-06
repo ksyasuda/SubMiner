@@ -1,18 +1,6 @@
 import path from 'node:path';
 import os from 'node:os';
-
-export const VIDEO_EXTENSIONS = new Set([
-  'mkv',
-  'mp4',
-  'avi',
-  'webm',
-  'mov',
-  'flv',
-  'wmv',
-  'm4v',
-  'ts',
-  'm2ts',
-]);
+export { VIDEO_EXTENSIONS } from '../src/shared/video-extensions.js';
 
 export const ROFI_THEME_FILE = 'subminer.rasi';
 export const DEFAULT_SOCKET_PATH = '/tmp/subminer-socket';

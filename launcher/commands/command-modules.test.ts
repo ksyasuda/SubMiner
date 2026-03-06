@@ -115,3 +115,16 @@ test('dictionary command forwards --dictionary and target path to app binary', (
 
   assert.deepEqual(forwarded, [['--dictionary', '--dictionary-target', '/tmp/anime']]);
 });
+
+test('dictionary command throws if app handoff unexpectedly returns', () => {
+  const context = createContext();
+  context.args.dictionary = true;
+
+  assert.throws(
+    () =>
+      runDictionaryCommand(context, {
+        runAppCommandWithInherit: () => undefined as never,
+      }),
+    /unexpectedly returned/,
+  );
+});

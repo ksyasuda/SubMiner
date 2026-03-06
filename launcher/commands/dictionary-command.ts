@@ -27,5 +27,5 @@ export function runDictionaryCommand(
   }
 
   deps.runAppCommandWithInherit(appPath, forwarded);
-  return true;
+  throw new Error('Dictionary command app handoff unexpectedly returned.');
 }

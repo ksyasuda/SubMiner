@@ -2,8 +2,11 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { AnilistMediaGuess } from '../core/services/anilist/anilist-updater';
+import { hasVideoExtension } from '../shared/video-extensions';
 
 const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
+const ANILIST_REQUEST_DELAY_MS = 2000;
+const CHARACTER_IMAGE_DOWNLOAD_DELAY_MS = 250;
 const HONORIFIC_SUFFIXES = [
   'さん',
   '様',
@@ -21,19 +24,6 @@ const HONORIFIC_SUFFIXES = [
   '社長',
   '部長',
 ] as const;
-const VIDEO_EXTENSIONS = new Set([
-  '.mkv',
-  '.mp4',
-  '.avi',
-  '.webm',
-  '.mov',
-  '.flv',
-  '.wmv',
-  '.m4v',
-  '.ts',
-  '.m2ts',
-]);
-
 type CharacterDictionaryRole = 'main' | 'primary' | 'side' | 'appears';
 
 type CharacterDictionaryCacheEntry = {
@@ -137,6 +127,7 @@ export interface CharacterDictionaryRuntimeDeps {
     mediaTitle: string | null,
   ) => Promise<AnilistMediaGuess | null>;
   now: () => number;
+  sleep?: (ms: number) => Promise<void>;
   logInfo?: (message: string) => void;
   logWarn?: (message: string) => void;
 }
@@ -325,8 +316,7 @@ function expandUserPath(input: string): string {
 }
 
 function isVideoFile(filePath: string): boolean {
-  const ext = path.extname(filePath).toLowerCase();
-  return VIDEO_EXTENSIONS.has(ext);
+  return hasVideoExtension(path.extname(filePath));
 }
 
 function findFirstVideoFileInDirectory(directoryPath: string): string | null {
@@ -604,7 +594,11 @@ function createStoredZip(files: Array<{ name: string; data: Buffer }>): Buffer {
 async function fetchAniList<T>(
   query: string,
   variables: Record<string, unknown>,
+  beforeRequest?: () => Promise<void>,
 ): Promise<T> {
+  if (beforeRequest) {
+    await beforeRequest();
+  }
   const response = await fetch(ANILIST_GRAPHQL_URL, {
     method: 'POST',
     headers: {
@@ -634,6 +628,7 @@ async function fetchAniList<T>(
 
 async function resolveAniListMediaIdFromGuess(
   guess: AnilistMediaGuess,
+  beforeRequest?: () => Promise<void>,
 ): Promise<ResolvedAniListMedia> {
   const data = await fetchAniList<AniListSearchResponse>(
     `
@@ -654,6 +649,7 @@ async function resolveAniListMediaIdFromGuess(
     {
       search: guess.title,
     },
+    beforeRequest,
   );
 
   const media = data.Page?.media ?? [];
@@ -664,7 +660,10 @@ async function resolveAniListMediaIdFromGuess(
   return resolved;
 }
 
-async function fetchCharactersForMedia(mediaId: number): Promise<{
+async function fetchCharactersForMedia(
+  mediaId: number,
+  beforeRequest?: () => Promise<void>,
+): Promise<{
   mediaTitle: string;
   characters: CharacterRecord[];
 }> {
@@ -708,6 +707,7 @@ async function fetchCharactersForMedia(mediaId: number): Promise<{
         id: mediaId,
         page,
       },
+      beforeRequest,
     );
 
     const media = data.Media;
@@ -744,7 +744,6 @@ async function fetchCharactersForMedia(mediaId: number): Promise<{
       break;
     }
     page += 1;
-    await sleep(300);
   }
 
   return {
@@ -805,12 +804,22 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
 } {
   const outputDir = path.join(deps.userDataPath, 'character-dictionaries');
   const cachePath = path.join(outputDir, 'cache.json');
+  const sleepMs = deps.sleep ?? sleep;
 
   return {
     generateForCurrentMedia: async (
       targetPath?: string,
       options?: CharacterDictionaryGenerateOptions,
     ) => {
+      let hasAniListRequest = false;
+      const waitForAniListRequestSlot = async (): Promise<void> => {
+        if (!hasAniListRequest) {
+          hasAniListRequest = true;
+          return;
+        }
+        await sleepMs(ANILIST_REQUEST_DELAY_MS);
+      };
+
       const dictionaryTarget = targetPath?.trim() || '';
       const guessInput =
         dictionaryTarget.length > 0
@@ -826,7 +835,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         throw new Error('Unable to resolve current anime from media path/title.');
       }
 
-      const resolvedMedia = await resolveAniListMediaIdFromGuess(guessed);
+      const resolvedMedia = await resolveAniListMediaIdFromGuess(guessed, waitForAniListRequestSlot);
       const cache = readCache(cachePath);
       const cached = cache.anilistById[String(resolvedMedia.id)];
       const refreshTtlMsRaw = options?.refreshTtlMs;
@@ -859,6 +868,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
 
       const { mediaTitle: fetchedMediaTitle, characters } = await fetchCharactersForMedia(
         resolvedMedia.id,
+        waitForAniListRequestSlot,
       );
       if (characters.length === 0) {
         throw new Error(`No characters returned for AniList media ${resolvedMedia.id}.`);
@@ -870,9 +880,14 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         [];
       const seen = new Set<string>();
 
+      let hasAttemptedCharacterImageDownload = false;
       for (const character of characters) {
         let imagePath: string | null = null;
         if (character.imageUrl) {
+          if (hasAttemptedCharacterImageDownload) {
+            await sleepMs(CHARACTER_IMAGE_DOWNLOAD_DELAY_MS);
+          }
+          hasAttemptedCharacterImageDownload = true;
           const image = await downloadCharacterImage(character.imageUrl, character.id);
           if (image) {
             imagePath = `img/${image.filename}`;
