@@ -256,7 +256,9 @@ export function handleCliCommand(
     deps.setLogLevel?.(args.logLevel);
   }
 
-  const shouldStart = args.start || args.toggle || args.toggleVisibleOverlay;
+  const ignoreSecondInstanceStart =
+    source === 'second-instance' && args.start && deps.isOverlayRuntimeInitialized();
+  const shouldStart = (!ignoreSecondInstanceStart && args.start) || args.toggle || args.toggleVisibleOverlay;
   const needsOverlayRuntime = commandNeedsOverlayRuntime(args);
   const shouldInitializeOverlayRuntime = needsOverlayRuntime || args.start;
 
@@ -277,6 +279,10 @@ export function handleCliCommand(
     deps.log('Stopping SubMiner...');
     deps.stopApp();
     return;
+  }
+
+  if (ignoreSecondInstanceStart) {
+    deps.log('Ignoring --start because SubMiner is already running.');
   }
 
   if (shouldInitializeOverlayRuntime && !deps.isOverlayRuntimeInitialized()) {
