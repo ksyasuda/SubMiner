@@ -276,6 +276,59 @@ test('runSubsyncManual writes deterministic _retimed filename when replace is fa
   assert.equal(outputPath, path.join(tmpDir, 'episode.ja_retimed.srt'));
 });
 
+test('runSubsyncManual reports ffsubsync command failures with details', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-ffsubsync-failure-'));
+  const ffsubsyncPath = path.join(tmpDir, 'ffsubsync.sh');
+  const ffmpegPath = path.join(tmpDir, 'ffmpeg.sh');
+  const alassPath = path.join(tmpDir, 'alass.sh');
+  const videoPath = path.join(tmpDir, 'video.mkv');
+  const primaryPath = path.join(tmpDir, 'primary.srt');
+
+  fs.writeFileSync(videoPath, 'video');
+  fs.writeFileSync(primaryPath, 'sub');
+  writeExecutableScript(ffmpegPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(alassPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(ffsubsyncPath, '#!/bin/sh\necho "reference audio missing" >&2\nexit 1\n');
+
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      currentAudioStreamIndex: null,
+      send: () => {},
+      requestProperty: async (name: string) => {
+        if (name === 'path') return videoPath;
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return null;
+        if (name === 'track-list') {
+          return [
+            {
+              id: 1,
+              type: 'sub',
+              selected: true,
+              external: true,
+              'external-filename': primaryPath,
+            },
+          ];
+        }
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      defaultMode: 'manual',
+      alassPath,
+      ffsubsyncPath,
+      ffmpegPath,
+    }),
+  });
+
+  const result = await runSubsyncManual({ engine: 'ffsubsync', sourceTrackId: null }, deps);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.message.startsWith('ffsubsync synchronization failed'), true);
+  assert.match(result.message, /code=1/);
+  assert.match(result.message, /reference audio missing/);
+});
+
 test('runSubsyncManual constructs alass command and returns failure on non-zero exit', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-alass-'));
   const alassLogPath = path.join(tmpDir, 'alass-args.log');

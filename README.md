@@ -96,6 +96,11 @@ subminer --start video.mkv # optional explicit overlay start when plugin auto_st
 
 For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.moe](https://docs.subminer.moe).
 
+## Verification
+
+- Run `bun run test:subtitle` to verify subtitle sync coverage for the maintained `alass`/`ffsubsync` test surface.
+- That lane reuses `src/core/services/subsync.test.ts` and `src/subsync/utils.test.ts`, which are also included in the broader `bun run test:core` suite.
+
 ## Acknowledgments
 
 Built on the shoulders of [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner), [texthooker-ui](https://github.com/Renji-XD/texthooker-ui), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script), and [autosubsync-mpv](https://github.com/joaquintorres/autosubsync-mpv). Subtitles powered by [Jimaku.cc](https://jimaku.cc). Dictionary lookups via [Yomitan](https://github.com/yomidevs/yomitan).
