@@ -161,6 +161,7 @@ export class MpvIpcClient implements MpvClient {
     osdDimensions: null,
   };
   private previousSecondarySubVisibility: boolean | null = null;
+  private playbackPaused: boolean | null = null;
   private pauseAtTime: number | null = null;
   private pendingPauseAtSubEnd = false;
   private nextDynamicRequestId = 1000;
@@ -207,6 +208,7 @@ export class MpvIpcClient implements MpvClient {
         this.connected = false;
         this.connecting = false;
         this.socket = null;
+        this.playbackPaused = null;
         this.emit('connection-change', { connected: false });
         this.failPendingRequests();
         this.scheduleReconnect();
@@ -310,6 +312,7 @@ export class MpvIpcClient implements MpvClient {
         this.emit('time-pos-change', payload);
       },
       emitPauseChange: (payload) => {
+        this.playbackPaused = payload.paused;
         this.emit('pause-change', payload);
       },
       emitSecondarySubtitleChange: (payload) => {
@@ -492,6 +495,12 @@ export class MpvIpcClient implements MpvClient {
   }
 
   playNextSubtitle(): void {
+    if (this.playbackPaused === true) {
+      this.pendingPauseAtSubEnd = false;
+      this.pauseAtTime = null;
+      this.send({ command: ['sub-seek', 1] });
+      return;
+    }
     this.pendingPauseAtSubEnd = true;
     this.send({ command: ['sub-seek', 1] });
   }
