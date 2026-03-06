@@ -44,12 +44,15 @@ Polling mode uses the query `"deck:<your-deck>" added:1` to find recently added 
 
 Then point Yomitan/clients to `http://127.0.0.1:8766` instead of `8765`.
 
-When SubMiner loads the bundled Yomitan extension, it also attempts to update the **default Yomitan profile** (`profiles[0].options.anki.server`) to the active SubMiner endpoint:
+When SubMiner loads the bundled Yomitan extension, it also attempts to update the **active bundled Yomitan profile** (`profiles[profileCurrent].options.anki.server`) to the active SubMiner endpoint:
 
 - proxy URL when `ankiConnect.proxy.enabled` is `true`
 - direct `ankiConnect.url` when proxy mode is disabled
 
-To avoid clobbering custom setups, this auto-update only changes the default profile when its current server is blank or the stock Yomitan default (`http://127.0.0.1:8765`).
+Server update behavior differs by mode:
+
+- Proxy mode (`ankiConnect.proxy.enabled: true`): SubMiner force-syncs the bundled active profile to the proxy URL so `addNote` traffic goes through the local proxy and auto-enrichment can trigger.
+- Direct mode (`ankiConnect.proxy.enabled: false`): SubMiner only replaces blank/default server values (`http://127.0.0.1:8765`) to avoid overwriting custom direct-server setups.
 
 For browser-based Yomitan or other external clients (for example Texthooker in a normal browser profile), set their Anki server to the same proxy URL separately: `http://127.0.0.1:8766` (or your configured `proxy.host` + `proxy.port`).
 
@@ -69,7 +72,7 @@ In Yomitan, go to Settings → Profile and:
 3. Set server to `http://127.0.0.1:8766` (or your configured proxy URL).
 4. Save and make that profile active when using SubMiner.
 
-This is only for non-bundled, external/browser Yomitan or other clients. The bundled profile auto-update logic only targets `profiles[0]` when it is blank or still default.
+This is only for non-bundled, external/browser Yomitan or other clients. Bundled Yomitan profile sync behavior is described above (force-sync in proxy mode, conservative sync in direct mode).
 
 ### Proxy Troubleshooting (quick checks)
 

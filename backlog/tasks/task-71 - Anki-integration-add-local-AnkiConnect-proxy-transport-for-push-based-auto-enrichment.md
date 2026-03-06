@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-02-28 02:38'
-updated_date: '2026-02-28 22:36'
+updated_date: '2026-03-04 13:55'
 labels: []
 dependencies: []
 references:
@@ -48,5 +48,11 @@ Risk/impact context:
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 
 Completed implementation in branch working tree; ready to merge once local changes are committed and test gate passes.
+
+Follow-up fix (2026-03-04):
+
+- Updated bundled Yomitan server-sync behavior to target `profileCurrent` instead of hardcoded `profiles[0]`.
+- Added proxy-mode force override so bundled Yomitan always points at SubMiner proxy URL when `ankiConnect.proxy.enabled=true`; this ensures mined cards pass through proxy and trigger auto-enrichment.
+- Added regression tests for blocked existing-server case and force-override injection path.
 
 <!-- SECTION:FINAL_SUMMARY:END -->
