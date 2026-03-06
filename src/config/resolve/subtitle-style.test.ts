@@ -66,6 +66,20 @@ test('subtitleStyle autoPauseVideoOnYomitanPopup falls back on invalid value', (
   );
 });
 
+test('subtitleStyle frequencyDictionary defaults to the teal fourth band color', () => {
+  const { context } = createResolveContext({});
+
+  applySubtitleDomainConfig(context);
+
+  assert.deepEqual(context.resolved.subtitleStyle.frequencyDictionary.bandedColors, [
+    '#ed8796',
+    '#f5a97f',
+    '#f9e2af',
+    '#8bd5ca',
+    '#8aadf4',
+  ]);
+});
+
 test('subtitleStyle frequencyDictionary.matchMode accepts valid values and warns on invalid', () => {
   const valid = createResolveContext({
     subtitleStyle: {

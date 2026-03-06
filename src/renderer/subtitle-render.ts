@@ -75,7 +75,7 @@ const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
   topX: 1000,
   mode: 'single',
   singleColor: '#f5a97f',
-  bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#a6e3a1', '#8aadf4'],
+  bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],
 };
 
 function sanitizeFrequencyTopX(value: unknown, fallback: number): number {

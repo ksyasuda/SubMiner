@@ -139,7 +139,7 @@
       "mode": "single", // single: use one color for all matching tokens. banded: use color ramp by frequency band. Values: single | banded
       "matchMode": "headword", // Frequency lookup text selection mode. Values: headword | surface
       "singleColor": "#f5a97f", // Color used when frequencyDictionary.mode is `single`.
-      "bandedColors": ["#ed8796", "#f5a97f", "#f9e2af", "#a6e3a1", "#8aadf4"], // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
+      "bandedColors": ["#ed8796", "#f5a97f", "#f9e2af", "#8bd5ca", "#8aadf4"], // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
     }, // Frequency dictionary setting.
     "secondary": {
       "fontFamily": "Inter, Noto Sans, Helvetica Neue, sans-serif", // Font family setting.

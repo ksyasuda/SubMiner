@@ -37,7 +37,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle'> = {
       mode: 'single',
       matchMode: 'headword',
       singleColor: '#f5a97f',
-      bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#a6e3a1', '#8aadf4'],
+      bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],
     },
     secondary: {
       fontFamily: 'Inter, Noto Sans, Helvetica Neue, sans-serif',

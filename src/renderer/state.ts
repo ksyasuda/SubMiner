@@ -140,7 +140,7 @@ export function createRendererState(): RendererState {
     frequencyDictionaryBand1Color: '#ed8796',
     frequencyDictionaryBand2Color: '#f5a97f',
     frequencyDictionaryBand3Color: '#f9e2af',
-    frequencyDictionaryBand4Color: '#a6e3a1',
+    frequencyDictionaryBand4Color: '#8bd5ca',
     frequencyDictionaryBand5Color: '#8aadf4',
 
     keybindingsMap: new Map(),

@@ -48,7 +48,7 @@ function parseCliArgs(argv: string[]): CliOptions {
   let colorBand1 = '#ed8796';
   let colorBand2 = '#f5a97f';
   let colorBand3 = '#f9e2af';
-  let colorBand4 = '#a6e3a1';
+  let colorBand4 = '#8bd5ca';
   let colorBand5 = '#8aadf4';
   let colorKnown = '#a6da95';
   let colorNPlusOne = '#c6a0f6';
