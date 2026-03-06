@@ -5,7 +5,7 @@ status: Done
 assignee:
   - Codex
 created_date: '2026-03-04 13:40'
-updated_date: '2026-03-04 14:05'
+updated_date: '2026-03-05 11:30'
 labels:
   - enhancement
   - renderer
@@ -59,5 +59,5 @@ Add true keyboard-driven token lookup flow in overlay:
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implemented keyboard-driven Yomitan workflow end-to-end in renderer + bundled Yomitan runtime bridge. Added overlay-level keyboard mode state, token selection sync, lookup toggle routing, popup command forwarding, and focus recovery after popup close. Added popup-visible detection improvements and CSS/test updates for keyboard-selected tooltip behavior. Updated user docs/README to document fixed keyboard workflow shortcuts.
+Implemented keyboard-driven Yomitan workflow end-to-end in renderer + bundled Yomitan runtime bridge. Added overlay-level keyboard mode state, token selection sync, lookup toggle routing, popup command forwarding, and focus recovery after popup close. Follow-up fixes kept lookup open while moving between tokens, made popup-local `J/K` and `ArrowUp/ArrowDown` scroll work from overlay-owned focus with key repeat, skipped keyboard/token annotation flow for parser groups that have no dictionary-backed headword, and preserved paused playback when token navigation jumps across subtitle lines. Updated user docs/README to document the final shortcut behavior.
 <!-- SECTION:FINAL_SUMMARY:END -->

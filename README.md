@@ -25,6 +25,7 @@
 SubMiner is an Electron overlay that sits on top of mpv. It turns your video player into a full sentence-mining workstation:
 
 - **Hover to look up** — Yomitan dictionary popups directly on subtitles
+- **Keyboard-driven lookup mode** — Navigate token-by-token, keep lookup open across tokens, and control popup scrolling/audio/mining without leaving the overlay
 - **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and translation
 - **Instant auto-enrichment** — Optional local AnkiConnect proxy enriches new Yomitan cards immediately
 - **Reading annotations** — Combines N+1 targeting, frequency-dictionary highlighting, and JLPT underlining while you read
