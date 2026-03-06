@@ -54,7 +54,7 @@ export type CharacterDictionarySnapshot = {
   images: CharacterDictionarySnapshotImage[];
 };
 
-const CHARACTER_DICTIONARY_FORMAT_VERSION = 9;
+const CHARACTER_DICTIONARY_FORMAT_VERSION = 10;
 const CHARACTER_DICTIONARY_MERGED_TITLE = 'SubMiner Character Dictionary';
 
 type AniListSearchResponse = {
@@ -238,6 +238,246 @@ function buildReading(term: string): string {
   return katakanaToHiragana(compact);
 }
 
+function isRomanizedName(value: string): boolean {
+  return /^[A-Za-zĀĪŪĒŌÂÊÎÔÛāīūēōâêîôû'’.\-\s]+$/.test(value);
+}
+
+function normalizeRomanizedName(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/[.\-]/g, ' ')
+    .replace(/ā|â/g, 'aa')
+    .replace(/ī|î/g, 'ii')
+    .replace(/ū|û/g, 'uu')
+    .replace(/ē|ê/g, 'ei')
+    .replace(/ō|ô/g, 'ou')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const ROMANIZED_KANA_DIGRAPHS: ReadonlyArray<[string, string]> = [
+  ['kya', 'キャ'],
+  ['kyu', 'キュ'],
+  ['kyo', 'キョ'],
+  ['gya', 'ギャ'],
+  ['gyu', 'ギュ'],
+  ['gyo', 'ギョ'],
+  ['sha', 'シャ'],
+  ['shu', 'シュ'],
+  ['sho', 'ショ'],
+  ['sya', 'シャ'],
+  ['syu', 'シュ'],
+  ['syo', 'ショ'],
+  ['ja', 'ジャ'],
+  ['ju', 'ジュ'],
+  ['jo', 'ジョ'],
+  ['jya', 'ジャ'],
+  ['jyu', 'ジュ'],
+  ['jyo', 'ジョ'],
+  ['cha', 'チャ'],
+  ['chu', 'チュ'],
+  ['cho', 'チョ'],
+  ['tya', 'チャ'],
+  ['tyu', 'チュ'],
+  ['tyo', 'チョ'],
+  ['cya', 'チャ'],
+  ['cyu', 'チュ'],
+  ['cyo', 'チョ'],
+  ['nya', 'ニャ'],
+  ['nyu', 'ニュ'],
+  ['nyo', 'ニョ'],
+  ['hya', 'ヒャ'],
+  ['hyu', 'ヒュ'],
+  ['hyo', 'ヒョ'],
+  ['bya', 'ビャ'],
+  ['byu', 'ビュ'],
+  ['byo', 'ビョ'],
+  ['pya', 'ピャ'],
+  ['pyu', 'ピュ'],
+  ['pyo', 'ピョ'],
+  ['mya', 'ミャ'],
+  ['myu', 'ミュ'],
+  ['myo', 'ミョ'],
+  ['rya', 'リャ'],
+  ['ryu', 'リュ'],
+  ['ryo', 'リョ'],
+  ['fa', 'ファ'],
+  ['fi', 'フィ'],
+  ['fe', 'フェ'],
+  ['fo', 'フォ'],
+  ['fyu', 'フュ'],
+  ['fyo', 'フョ'],
+  ['fya', 'フャ'],
+  ['va', 'ヴァ'],
+  ['vi', 'ヴィ'],
+  ['vu', 'ヴ'],
+  ['ve', 'ヴェ'],
+  ['vo', 'ヴォ'],
+  ['she', 'シェ'],
+  ['che', 'チェ'],
+  ['je', 'ジェ'],
+  ['tsi', 'ツィ'],
+  ['tse', 'ツェ'],
+  ['tsa', 'ツァ'],
+  ['tso', 'ツォ'],
+  ['thi', 'ティ'],
+  ['thu', 'テュ'],
+  ['dhi', 'ディ'],
+  ['dhu', 'デュ'],
+  ['wi', 'ウィ'],
+  ['we', 'ウェ'],
+  ['wo', 'ウォ'],
+];
+
+const ROMANIZED_KANA_MONOGRAPHS: ReadonlyArray<[string, string]> = [
+  ['a', 'ア'],
+  ['i', 'イ'],
+  ['u', 'ウ'],
+  ['e', 'エ'],
+  ['o', 'オ'],
+  ['ka', 'カ'],
+  ['ki', 'キ'],
+  ['ku', 'ク'],
+  ['ke', 'ケ'],
+  ['ko', 'コ'],
+  ['ga', 'ガ'],
+  ['gi', 'ギ'],
+  ['gu', 'グ'],
+  ['ge', 'ゲ'],
+  ['go', 'ゴ'],
+  ['sa', 'サ'],
+  ['shi', 'シ'],
+  ['si', 'シ'],
+  ['su', 'ス'],
+  ['se', 'セ'],
+  ['so', 'ソ'],
+  ['za', 'ザ'],
+  ['ji', 'ジ'],
+  ['zi', 'ジ'],
+  ['zu', 'ズ'],
+  ['ze', 'ゼ'],
+  ['zo', 'ゾ'],
+  ['ta', 'タ'],
+  ['chi', 'チ'],
+  ['ti', 'チ'],
+  ['tsu', 'ツ'],
+  ['tu', 'ツ'],
+  ['te', 'テ'],
+  ['to', 'ト'],
+  ['da', 'ダ'],
+  ['de', 'デ'],
+  ['do', 'ド'],
+  ['na', 'ナ'],
+  ['ni', 'ニ'],
+  ['nu', 'ヌ'],
+  ['ne', 'ネ'],
+  ['no', 'ノ'],
+  ['ha', 'ハ'],
+  ['hi', 'ヒ'],
+  ['fu', 'フ'],
+  ['hu', 'フ'],
+  ['he', 'ヘ'],
+  ['ho', 'ホ'],
+  ['ba', 'バ'],
+  ['bi', 'ビ'],
+  ['bu', 'ブ'],
+  ['be', 'ベ'],
+  ['bo', 'ボ'],
+  ['pa', 'パ'],
+  ['pi', 'ピ'],
+  ['pu', 'プ'],
+  ['pe', 'ペ'],
+  ['po', 'ポ'],
+  ['ma', 'マ'],
+  ['mi', 'ミ'],
+  ['mu', 'ム'],
+  ['me', 'メ'],
+  ['mo', 'モ'],
+  ['ya', 'ヤ'],
+  ['yu', 'ユ'],
+  ['yo', 'ヨ'],
+  ['ra', 'ラ'],
+  ['ri', 'リ'],
+  ['ru', 'ル'],
+  ['re', 'レ'],
+  ['ro', 'ロ'],
+  ['wa', 'ワ'],
+  ['wo', 'ヲ'],
+  ['n', 'ン'],
+];
+
+function romanizedTokenToKatakana(token: string): string | null {
+  const normalized = normalizeRomanizedName(token).replace(/\s+/g, '');
+  if (!normalized || !/^[a-z]+$/.test(normalized)) {
+    return null;
+  }
+
+  let output = '';
+  for (let i = 0; i < normalized.length; ) {
+    const current = normalized[i]!;
+    const next = normalized[i + 1] ?? '';
+
+    if (
+      i + 1 < normalized.length &&
+      current === next &&
+      current !== 'n' &&
+      !'aeiou'.includes(current)
+    ) {
+      output += 'ッ';
+      i += 1;
+      continue;
+    }
+
+    if (
+      current === 'n' &&
+      next.length > 0 &&
+      next !== 'y' &&
+      !'aeiou'.includes(next)
+    ) {
+      output += 'ン';
+      i += 1;
+      continue;
+    }
+
+    const digraph = ROMANIZED_KANA_DIGRAPHS.find(([romaji]) =>
+      normalized.startsWith(romaji, i),
+    );
+    if (digraph) {
+      output += digraph[1];
+      i += digraph[0].length;
+      continue;
+    }
+
+    const monograph = ROMANIZED_KANA_MONOGRAPHS.find(([romaji]) =>
+      normalized.startsWith(romaji, i),
+    );
+    if (monograph) {
+      output += monograph[1];
+      i += monograph[0].length;
+      continue;
+    }
+
+    return null;
+  }
+
+  return output.length > 0 ? output : null;
+}
+
+function addRomanizedKanaAliases(values: Iterable<string>): string[] {
+  const aliases = new Set<string>();
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed || !isRomanizedName(trimmed)) continue;
+    const katakana = romanizedTokenToKatakana(trimmed);
+    if (katakana) {
+      aliases.add(katakana);
+    }
+  }
+  return [...aliases];
+}
+
 function buildNameTerms(character: CharacterRecord): string[] {
   const base = new Set<string>();
   const rawNames = [character.nativeName, character.fullName];
@@ -278,6 +518,13 @@ function buildNameTerms(character: CharacterRecord): string[] {
     withHonorifics.add(entry);
     for (const suffix of HONORIFIC_SUFFIXES) {
       withHonorifics.add(`${entry}${suffix}`);
+    }
+  }
+
+  for (const alias of addRomanizedKanaAliases(withHonorifics)) {
+    withHonorifics.add(alias);
+    for (const suffix of HONORIFIC_SUFFIXES) {
+      withHonorifics.add(`${alias}${suffix}`);
     }
   }
 

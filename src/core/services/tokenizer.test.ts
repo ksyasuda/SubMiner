@@ -30,25 +30,32 @@ function makeDepsFromYomitanTokens(
   tokens: YomitanTokenInput[],
   overrides: Partial<TokenizerServiceDeps> = {},
 ): TokenizerServiceDeps {
+  let cursor = 0;
   return makeDeps({
     getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
     getYomitanParserWindow: () =>
       ({
         isDestroyed: () => false,
         webContents: {
-          executeJavaScript: async () => [
-            {
-              source: 'scanning-parser',
-              index: 0,
-              content: tokens.map((token) => [
-                {
-                  text: token.surface,
-                  reading: token.reading ?? token.surface,
-                  headwords: [[{ term: token.headword ?? token.surface }]],
-                },
-              ]),
-            },
-          ],
+          executeJavaScript: async (script: string) => {
+            if (script.includes('getTermFrequencies')) {
+              return [];
+            }
+
+            cursor = 0;
+            return tokens.map((token) => {
+              const startPos = cursor;
+              const endPos = startPos + token.surface.length;
+              cursor = endPos;
+              return {
+                surface: token.surface,
+                reading: token.reading ?? token.surface,
+                headword: token.headword ?? token.surface,
+                startPos,
+                endPos,
+              };
+            });
+          },
         },
       }) as unknown as Electron.BrowserWindow,
     ...overrides,
@@ -180,6 +187,69 @@ test('tokenizeSubtitle applies frequency dictionary ranks', async () => {
   assert.equal(result.tokens?.length, 2);
   assert.equal(result.tokens?.[0]?.frequencyRank, 23);
   assert.equal(result.tokens?.[1]?.frequencyRank, 1200);
+});
+
+test('tokenizeSubtitle uses left-to-right yomitan scanning to keep full katakana name tokens', async () => {
+  const result = await tokenizeSubtitle(
+    'カズマ 魔王軍',
+    makeDeps({
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [];
+              }
+
+              return [
+                {
+                  surface: 'カズマ',
+                  reading: 'かずま',
+                  headword: 'カズマ',
+                  startPos: 0,
+                  endPos: 3,
+                },
+                {
+                  surface: '魔王軍',
+                  reading: 'まおうぐん',
+                  headword: '魔王軍',
+                  startPos: 4,
+                  endPos: 7,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+      startPos: token.startPos,
+      endPos: token.endPos,
+    })),
+    [
+      {
+        surface: 'カズマ',
+        reading: 'かずま',
+        headword: 'カズマ',
+        startPos: 0,
+        endPos: 3,
+      },
+      {
+        surface: '魔王軍',
+        reading: 'まおうぐん',
+        headword: '魔王軍',
+        startPos: 4,
+        endPos: 7,
+      },
+    ],
+  );
 });
 
 test('tokenizeSubtitle loads frequency ranks from Yomitan installed dictionaries', async () => {

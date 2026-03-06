@@ -9,6 +9,7 @@ import {
   deleteYomitanDictionaryByTitle,
   removeYomitanDictionarySettings,
   requestYomitanParseResults,
+  requestYomitanScanTokens,
   requestYomitanTermFrequencies,
   syncYomitanDefaultAnkiServer,
   upsertYomitanDictionarySettings,
@@ -403,7 +404,7 @@ test('requestYomitanTermFrequencies caches repeated term+reading lookups', async
   assert.equal(frequencyCalls, 1);
 });
 
-test('requestYomitanParseResults disables Yomitan MeCab parser path', async () => {
+test('requestYomitanScanTokens uses left-to-right termsFind scanning instead of parseText', async () => {
   const scripts: string[] = [];
   const deps = createDeps(async (script) => {
     scripts.push(script);
@@ -419,17 +420,35 @@ test('requestYomitanParseResults disables Yomitan MeCab parser path', async () =
         ],
       };
     }
-    return [];
+    return [
+      {
+        surface: 'カズマ',
+        reading: 'かずま',
+        headword: 'カズマ',
+        startPos: 0,
+        endPos: 3,
+      },
+    ];
   });
 
-  const result = await requestYomitanParseResults('猫です', deps, {
+  const result = await requestYomitanScanTokens('カズマ', deps, {
     error: () => undefined,
   });
 
-  assert.deepEqual(result, []);
-  const parseScript = scripts.find((script) => script.includes('parseText'));
-  assert.ok(parseScript, 'expected parseText request script');
-  assert.match(parseScript ?? '', /useMecabParser:\s*false/);
+  assert.deepEqual(result, [
+    {
+      surface: 'カズマ',
+      reading: 'かずま',
+      headword: 'カズマ',
+      startPos: 0,
+      endPos: 3,
+    },
+  ]);
+  const scannerScript = scripts.find((script) => script.includes('termsFind'));
+  assert.ok(scannerScript, 'expected termsFind scanning request script');
+  assert.doesNotMatch(scannerScript ?? '', /parseText/);
+  assert.match(scannerScript ?? '', /matchType:\s*"exact"/);
+  assert.match(scannerScript ?? '', /deinflect:\s*true/);
 });
 
 test('getYomitanDictionaryInfo requests dictionary info via backend action', async () => {

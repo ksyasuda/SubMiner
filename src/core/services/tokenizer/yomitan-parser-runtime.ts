@@ -1,6 +1,7 @@
 import type { BrowserWindow, Extension } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { selectYomitanParseTokens } from './parser-selection-stage';
 
 interface LoggerLike {
   error: (message: string, ...args: unknown[]) => void;
@@ -38,6 +39,14 @@ export interface YomitanTermReadingPair {
   reading: string | null;
 }
 
+export interface YomitanScanToken {
+  surface: string;
+  reading: string;
+  headword: string;
+  startPos: number;
+  endPos: number;
+}
+
 interface YomitanProfileMetadata {
   profileIndex: number;
   scanLength: number;
@@ -54,6 +63,21 @@ const yomitanFrequencyCacheByWindow = new WeakMap<
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object');
+}
+
+function isScanTokenArray(value: unknown): value is YomitanScanToken[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (entry) =>
+        isObject(entry) &&
+        typeof entry.surface === 'string' &&
+        typeof entry.reading === 'string' &&
+        typeof entry.headword === 'string' &&
+        typeof entry.startPos === 'number' &&
+        typeof entry.endPos === 'number',
+    )
+  );
 }
 
 function makeTermReadingCacheKey(term: string, reading: string | null): string {
@@ -584,6 +608,244 @@ async function invokeYomitanSettingsAutomation<T>(
   }
 }
 
+const YOMITAN_SCANNING_HELPERS = String.raw`
+      const HIRAGANA_CONVERSION_RANGE = [0x3041, 0x3096];
+      const KATAKANA_CONVERSION_RANGE = [0x30a1, 0x30f6];
+      const KANA_PROLONGED_SOUND_MARK_CODE_POINT = 0x30fc;
+      const KATAKANA_SMALL_KA_CODE_POINT = 0x30f5;
+      const KATAKANA_SMALL_KE_CODE_POINT = 0x30f6;
+      const KANA_RANGES = [[0x3040, 0x309f], [0x30a0, 0x30ff]];
+      const JAPANESE_RANGES = [[0x3040, 0x30ff], [0x3400, 0x9fff]];
+      function isCodePointInRange(codePoint, range) { return codePoint >= range[0] && codePoint <= range[1]; }
+      function isCodePointInRanges(codePoint, ranges) { return ranges.some((range) => isCodePointInRange(codePoint, range)); }
+      function isCodePointKana(codePoint) { return isCodePointInRanges(codePoint, KANA_RANGES); }
+      function isCodePointJapanese(codePoint) { return isCodePointInRanges(codePoint, JAPANESE_RANGES); }
+      function createFuriganaSegment(text, reading) { return {text, reading}; }
+      function getProlongedHiragana(previousCharacter) {
+        switch (previousCharacter) {
+          case "あ": case "か": case "が": case "さ": case "ざ": case "た": case "だ": case "な": case "は": case "ば": case "ぱ": case "ま": case "や": case "ら": case "わ": case "ぁ": case "ゃ": case "ゎ": return "あ";
+          case "い": case "き": case "ぎ": case "し": case "じ": case "ち": case "ぢ": case "に": case "ひ": case "び": case "ぴ": case "み": case "り": case "ぃ": return "い";
+          case "う": case "く": case "ぐ": case "す": case "ず": case "つ": case "づ": case "ぬ": case "ふ": case "ぶ": case "ぷ": case "む": case "ゆ": case "る": case "ぅ": case "ゅ": return "う";
+          case "え": case "け": case "げ": case "せ": case "ぜ": case "て": case "で": case "ね": case "へ": case "べ": case "ぺ": case "め": case "れ": case "ぇ": return "え";
+          case "お": case "こ": case "ご": case "そ": case "ぞ": case "と": case "ど": case "の": case "ほ": case "ぼ": case "ぽ": case "も": case "よ": case "ろ": case "を": case "ぉ": case "ょ": return "う";
+          default: return null;
+        }
+      }
+      function getFuriganaKanaSegments(text, reading) {
+        const newSegments = [];
+        let start = 0;
+        let state = (reading[0] === text[0]);
+        for (let i = 1; i < text.length; ++i) {
+          const newState = (reading[i] === text[i]);
+          if (state === newState) { continue; }
+          newSegments.push(createFuriganaSegment(text.substring(start, i), state ? '' : reading.substring(start, i)));
+          state = newState;
+          start = i;
+        }
+        newSegments.push(createFuriganaSegment(text.substring(start), state ? '' : reading.substring(start)));
+        return newSegments;
+      }
+      function convertKatakanaToHiragana(text, keepProlongedSoundMarks = false) {
+        let result = '';
+        const offset = (HIRAGANA_CONVERSION_RANGE[0] - KATAKANA_CONVERSION_RANGE[0]);
+        for (let char of text) {
+          const codePoint = char.codePointAt(0);
+          switch (codePoint) {
+            case KATAKANA_SMALL_KA_CODE_POINT:
+            case KATAKANA_SMALL_KE_CODE_POINT:
+              break;
+            case KANA_PROLONGED_SOUND_MARK_CODE_POINT:
+              if (!keepProlongedSoundMarks && result.length > 0) {
+                const char2 = getProlongedHiragana(result[result.length - 1]);
+                if (char2 !== null) { char = char2; }
+              }
+              break;
+            default:
+              if (isCodePointInRange(codePoint, KATAKANA_CONVERSION_RANGE)) {
+                char = String.fromCodePoint(codePoint + offset);
+              }
+              break;
+          }
+          result += char;
+        }
+        return result;
+      }
+      function segmentizeFurigana(reading, readingNormalized, groups, groupsStart) {
+        const groupCount = groups.length - groupsStart;
+        if (groupCount <= 0) { return reading.length === 0 ? [] : null; }
+        const group = groups[groupsStart];
+        const {isKana, text} = group;
+        if (isKana) {
+          if (group.textNormalized !== null && readingNormalized.startsWith(group.textNormalized)) {
+            const segments = segmentizeFurigana(reading.substring(text.length), readingNormalized.substring(text.length), groups, groupsStart + 1);
+            if (segments !== null) {
+              if (reading.startsWith(text)) { segments.unshift(createFuriganaSegment(text, '')); }
+              else { segments.unshift(...getFuriganaKanaSegments(text, reading)); }
+              return segments;
+            }
+          }
+          return null;
+        }
+        let result = null;
+        for (let i = reading.length; i >= text.length; --i) {
+          const segments = segmentizeFurigana(reading.substring(i), readingNormalized.substring(i), groups, groupsStart + 1);
+          if (segments !== null) {
+            if (result !== null) { return null; }
+            segments.unshift(createFuriganaSegment(text, reading.substring(0, i)));
+            result = segments;
+          }
+          if (groupCount === 1) { break; }
+        }
+        return result;
+      }
+      function distributeFurigana(term, reading) {
+        if (reading === term) { return [createFuriganaSegment(term, '')]; }
+        const groups = [];
+        let groupPre = null;
+        let isKanaPre = null;
+        for (const c of term) {
+          const isKana = isCodePointKana(c.codePointAt(0));
+          if (isKana === isKanaPre) { groupPre.text += c; }
+          else {
+            groupPre = {isKana, text: c, textNormalized: null};
+            groups.push(groupPre);
+            isKanaPre = isKana;
+          }
+        }
+        for (const group of groups) {
+          if (group.isKana) { group.textNormalized = convertKatakanaToHiragana(group.text); }
+        }
+        const segments = segmentizeFurigana(reading, convertKatakanaToHiragana(reading), groups, 0);
+        return segments !== null ? segments : [createFuriganaSegment(term, reading)];
+      }
+      function getStemLength(text1, text2) {
+        const minLength = Math.min(text1.length, text2.length);
+        if (minLength === 0) { return 0; }
+        let i = 0;
+        while (true) {
+          const char1 = text1.codePointAt(i);
+          const char2 = text2.codePointAt(i);
+          if (char1 !== char2) { break; }
+          const charLength = String.fromCodePoint(char1).length;
+          i += charLength;
+          if (i >= minLength) {
+            if (i > minLength) { i -= charLength; }
+            break;
+          }
+        }
+        return i;
+      }
+      function distributeFuriganaInflected(term, reading, source) {
+        const termNormalized = convertKatakanaToHiragana(term);
+        const readingNormalized = convertKatakanaToHiragana(reading);
+        const sourceNormalized = convertKatakanaToHiragana(source);
+        let mainText = term;
+        let stemLength = getStemLength(termNormalized, sourceNormalized);
+        const readingStemLength = getStemLength(readingNormalized, sourceNormalized);
+        if (readingStemLength > 0 && readingStemLength >= stemLength) {
+          mainText = reading;
+          stemLength = readingStemLength;
+          reading = source.substring(0, stemLength) + reading.substring(stemLength);
+        }
+        const segments = [];
+        if (stemLength > 0) {
+          mainText = source.substring(0, stemLength) + mainText.substring(stemLength);
+          const segments2 = distributeFurigana(mainText, reading);
+          let consumed = 0;
+          for (const segment of segments2) {
+            const start = consumed;
+            consumed += segment.text.length;
+            if (consumed < stemLength) { segments.push(segment); }
+            else if (consumed === stemLength) { segments.push(segment); break; }
+            else {
+              if (start < stemLength) { segments.push(createFuriganaSegment(mainText.substring(start, stemLength), '')); }
+              break;
+            }
+          }
+        }
+        if (stemLength < source.length) {
+          const remainder = source.substring(stemLength);
+          const last = segments[segments.length - 1];
+          if (last && last.reading.length === 0) { last.text += remainder; }
+          else { segments.push(createFuriganaSegment(remainder, '')); }
+        }
+        return segments;
+      }
+      function getPreferredHeadword(dictionaryEntries, token) {
+        for (const dictionaryEntry of dictionaryEntries || []) {
+          for (const headword of dictionaryEntry.headwords || []) {
+            const validSources = [];
+            for (const src of headword.sources || []) {
+              if (src.originalText !== token) { continue; }
+              if (!src.isPrimary) { continue; }
+              if (src.matchType !== 'exact') { continue; }
+              validSources.push(src);
+            }
+            if (validSources.length > 0) { return {term: headword.term, reading: headword.reading}; }
+          }
+        }
+        const fallback = dictionaryEntries?.[0]?.headwords?.[0];
+        return fallback ? {term: fallback.term, reading: fallback.reading} : null;
+      }
+`;
+
+function buildYomitanScanningScript(text: string, profileIndex: number, scanLength: number): string {
+  return `
+    (async () => {
+      const invoke = (action, params) =>
+        new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ action, params }, (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!response || typeof response !== "object") {
+              reject(new Error("Invalid response from Yomitan backend"));
+              return;
+            }
+            if (response.error) {
+              reject(new Error(response.error.message || "Yomitan backend error"));
+              return;
+            }
+            resolve(response.result);
+          });
+        });
+${YOMITAN_SCANNING_HELPERS}
+      const text = ${JSON.stringify(text)};
+      const details = {matchType: "exact", deinflect: true};
+      const tokens = [];
+      let i = 0;
+      while (i < text.length) {
+        const codePoint = text.codePointAt(i);
+        const character = String.fromCodePoint(codePoint);
+        const substring = text.substring(i, i + ${scanLength});
+        const result = await invoke("termsFind", { text: substring, details, optionsContext: { index: ${profileIndex} } });
+        const dictionaryEntries = Array.isArray(result?.dictionaryEntries) ? result.dictionaryEntries : [];
+        const originalTextLength = typeof result?.originalTextLength === "number" ? result.originalTextLength : 0;
+        if (dictionaryEntries.length > 0 && originalTextLength > 0 && (originalTextLength !== character.length || isCodePointJapanese(codePoint))) {
+          const source = substring.substring(0, originalTextLength);
+          const preferredHeadword = getPreferredHeadword(dictionaryEntries, source);
+          if (preferredHeadword && typeof preferredHeadword.term === "string") {
+            const reading = typeof preferredHeadword.reading === "string" ? preferredHeadword.reading : "";
+            const segments = distributeFuriganaInflected(preferredHeadword.term, reading, source);
+            tokens.push({
+              surface: segments.map((segment) => segment.text).join("") || source,
+              reading: segments.map((segment) => typeof segment.reading === "string" ? segment.reading : "").join(""),
+              headword: preferredHeadword.term,
+              startPos: i,
+              endPos: i + originalTextLength,
+            });
+            i += originalTextLength;
+            continue;
+          }
+        }
+        i += character.length;
+      }
+      return tokens;
+    })();
+  `;
+}
+
 export async function requestYomitanParseResults(
   text: string,
   deps: YomitanParserRuntimeDeps,
@@ -674,6 +936,51 @@ export async function requestYomitanParseResults(
     return Array.isArray(parseResults) ? parseResults : null;
   } catch (err) {
     logger.error('Yomitan parser request failed:', (err as Error).message);
+    return null;
+  }
+}
+
+export async function requestYomitanScanTokens(
+  text: string,
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<YomitanScanToken[] | null> {
+  const yomitanExt = deps.getYomitanExt();
+  if (!text || !yomitanExt) {
+    return null;
+  }
+
+  const isReady = await ensureYomitanParserWindow(deps, logger);
+  const parserWindow = deps.getYomitanParserWindow();
+  if (!isReady || !parserWindow || parserWindow.isDestroyed()) {
+    return null;
+  }
+
+  const metadata = await requestYomitanProfileMetadata(parserWindow, logger);
+  const profileIndex = metadata?.profileIndex ?? 0;
+  const scanLength = metadata?.scanLength ?? DEFAULT_YOMITAN_SCAN_LENGTH;
+
+  try {
+    const rawResult = await parserWindow.webContents.executeJavaScript(
+      buildYomitanScanningScript(text, profileIndex, scanLength),
+      true,
+    );
+    if (isScanTokenArray(rawResult)) {
+      return rawResult;
+    }
+    if (Array.isArray(rawResult)) {
+      const selectedTokens = selectYomitanParseTokens(rawResult, () => false, 'headword');
+      return selectedTokens?.map((token) => ({
+        surface: token.surface,
+        reading: token.reading,
+        headword: token.headword,
+        startPos: token.startPos,
+        endPos: token.endPos,
+      })) ?? null;
+    }
+    return null;
+  } catch (err) {
+    logger.error('Yomitan scanner request failed:', (err as Error).message);
     return null;
   }
 }

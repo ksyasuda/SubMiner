@@ -196,6 +196,115 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
   }
 });
 
+test('generateForCurrentMedia adds kana aliases for romanized names when native name is kanji', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 20594,
+                    episodes: 10,
+                    title: {
+                      romaji: 'Kono Subarashii Sekai ni Shukufuku wo!',
+                      english: 'KONOSUBA -God’s blessing on this wonderful world!',
+                      native: 'この素晴らしい世界に祝福を！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  romaji: 'Kono Subarashii Sekai ni Shukufuku wo!',
+                  english: 'KONOSUBA -God’s blessing on this wonderful world!',
+                  native: 'この素晴らしい世界に祝福を！',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 1,
+                        description: 'The protagonist.',
+                        image: null,
+                        name: {
+                          full: 'Satou Kazuma',
+                          native: '佐藤和真',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/konosuba-s02e05.mkv',
+      getCurrentMediaTitle: () => 'Konosuba S02E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'Konosuba',
+        episode: 5,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_000,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const termBank = JSON.parse(readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8')) as Array<
+      [string, string, string, string, number, Array<string | Record<string, unknown>>, number, string]
+    >;
+
+    const kazuma = termBank.find(([term]) => term === 'カズマ');
+    assert.ok(kazuma, 'expected katakana alias for romanized name');
+    assert.equal(kazuma[1], 'かずま');
+
+    const fullName = termBank.find(([term]) => term === 'サトウカズマ');
+    assert.ok(fullName, 'expected compact full-name katakana alias for romanized name');
+    assert.equal(fullName[1], 'さとうかずま');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('getOrCreateCurrentSnapshot persists and reuses normalized snapshot data', async () => {
   const userDataPath = makeTempDir();
   const originalFetch = globalThis.fetch;
@@ -331,6 +440,139 @@ test('getOrCreateCurrentSnapshot persists and reuses normalized snapshot data', 
     assert.equal(snapshot.entryCount > 0, true);
     const alpha = snapshot.termEntries.find(([term]) => term === 'アルファ');
     assert.ok(alpha);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('getOrCreateCurrentSnapshot rebuilds snapshots written with an older format version', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+  let searchQueryCount = 0;
+  let characterQueryCount = 0;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        searchQueryCount += 1;
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 130298,
+                    episodes: 20,
+                    title: {
+                      romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                      english: 'The Eminence in Shadow',
+                      native: '陰の実力者になりたくて！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        characterQueryCount += 1;
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                  english: 'The Eminence in Shadow',
+                  native: '陰の実力者になりたくて！',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 321,
+                        description: 'Alpha is the second-in-command of Shadow Garden.',
+                        image: null,
+                        name: {
+                          full: 'Alpha',
+                          native: 'アルファ',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const snapshotsDir = path.join(userDataPath, 'character-dictionaries', 'snapshots');
+    fs.mkdirSync(snapshotsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(snapshotsDir, 'anilist-130298.json'),
+      JSON.stringify({
+        formatVersion: 9,
+        mediaId: 130298,
+        mediaTitle: 'The Eminence in Shadow',
+        entryCount: 1,
+        updatedAt: 1_700_000_000_000,
+        termEntries: [['stale', '', 'name side', '', 1, ['stale'], 0, '']],
+        images: [],
+      }),
+      'utf8',
+    );
+
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        episode: 5,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_100,
+    });
+
+    const result = await runtime.getOrCreateCurrentSnapshot();
+
+    assert.equal(result.fromCache, false);
+    assert.equal(searchQueryCount, 1);
+    assert.equal(characterQueryCount, 1);
+
+    const snapshotPath = path.join(snapshotsDir, 'anilist-130298.json');
+    const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) as {
+      formatVersion: number;
+      termEntries: Array<
+        [string, string, string, string, number, Array<string | Record<string, unknown>>, number, string]
+      >;
+    };
+    assert.equal(snapshot.formatVersion > 9, true);
+    assert.equal(snapshot.termEntries.some(([term]) => term === 'アルファ'), true);
+    assert.equal(snapshot.termEntries.some(([term]) => term === 'stale'), false);
   } finally {
     globalThis.fetch = originalFetch;
   }

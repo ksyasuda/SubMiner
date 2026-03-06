@@ -9,6 +9,7 @@ import {
   Token,
   FrequencyDictionaryLookup,
   JlptLevel,
+  PartOfSpeech,
 } from '../../types';
 import {
   DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG,
@@ -18,9 +19,8 @@ import {
   DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
   resolveAnnotationPos2ExclusionSet,
 } from '../../token-pos2-exclusions';
-import { selectYomitanParseTokens } from './tokenizer/parser-selection-stage';
 import {
-  requestYomitanParseResults,
+  requestYomitanScanTokens,
   requestYomitanTermFrequencies,
 } from './tokenizer/yomitan-parser-runtime';
 
@@ -296,6 +296,10 @@ function normalizeYomitanMergedReading(token: MergedToken): string {
 function normalizeSelectedYomitanTokens(tokens: MergedToken[]): MergedToken[] {
   return tokens.map((token) => ({
     ...token,
+    partOfSpeech: token.partOfSpeech ?? PartOfSpeech.other,
+    isMerged: token.isMerged ?? true,
+    isKnown: token.isKnown ?? false,
+    isNPlusOneTarget: token.isNPlusOneTarget ?? false,
     reading: normalizeYomitanMergedReading(token),
   }));
 }
@@ -468,20 +472,25 @@ async function parseWithYomitanInternalParser(
   deps: TokenizerServiceDeps,
   options: TokenizerAnnotationOptions,
 ): Promise<MergedToken[] | null> {
-  const parseResults = await requestYomitanParseResults(text, deps, logger);
-  if (!parseResults) {
-    return null;
-  }
-
-  const selectedTokens = selectYomitanParseTokens(
-    parseResults,
-    getKnownWordLookup(deps, options),
-    deps.getKnownWordMatchMode(),
-  );
+  const selectedTokens = await requestYomitanScanTokens(text, deps, logger);
   if (!selectedTokens || selectedTokens.length === 0) {
     return null;
   }
-  const normalizedSelectedTokens = normalizeSelectedYomitanTokens(selectedTokens);
+  const normalizedSelectedTokens = normalizeSelectedYomitanTokens(
+    selectedTokens.map(
+      (token): MergedToken => ({
+        surface: token.surface,
+        reading: token.reading,
+        headword: token.headword,
+        startPos: token.startPos,
+        endPos: token.endPos,
+        partOfSpeech: PartOfSpeech.other,
+        isMerged: true,
+        isKnown: false,
+        isNPlusOneTarget: false,
+      }),
+    ),
+  );
 
   if (deps.getYomitanGroupDebugEnabled?.() === true) {
     logSelectedYomitanGroups(text, normalizedSelectedTokens);
