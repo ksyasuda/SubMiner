@@ -96,14 +96,16 @@ subminer --start video.mkv # optional explicit overlay start when plugin auto_st
 
 For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.moe](https://docs.subminer.moe).
 
-## Verification
+## Testing
 
-- Run `bun run test` for the default Bun source suite.
-- Run `bun run test:immersion:sqlite` to compile `dist/**` and execute the SQLite-backed immersion tracker persistence tests under Node with `node:sqlite` support; on Node 22 this lane enables that with `--experimental-sqlite`.
-- If you only run the Bun source tests, the SQLite-backed immersion tracker cases may be skipped when `node:sqlite` is unavailable; those files now print an explicit warning telling you to use the dedicated SQLite lane for real DB coverage.
-- Run `bun run test:subtitle` to verify subtitle sync coverage for the maintained `alass`/`ffsubsync` test surface.
-- The SQLite lane covers persistence/finalization behavior beyond the seam tests, including session finalization, telemetry writes, and storage-session schema/write paths.
-- The subtitle lane reuses `src/core/services/subsync.test.ts` and `src/subsync/utils.test.ts`, which are also included in the broader `bun run test:core` suite.
+- Run `bun run test` or `bun run test:fast` for the default fast lane: config/core coverage plus representative entry/runtime, Anki integration, and main runtime checks.
+- Run `bun run test:full` for the maintained test surface: Bun-compatible `src/**` coverage, Bun-compatible launcher unit coverage, and a Node compatibility lane for suites that depend on Electron named exports or `node:sqlite` behavior.
+- Run `bun run test:node:compat` directly when you only need the Node-backed compatibility slice: `ipc`, `anki-jimaku-ipc`, `overlay-manager`, `config-validation`, `startup-config`, and runtime registry coverage.
+- Run `bun run test:env` for environment-specific verification: launcher smoke/plugin checks plus the SQLite-backed immersion tracker lane.
+- Run `bun run test:immersion:sqlite` when you specifically need real SQLite persistence coverage under Node with `--experimental-sqlite`.
+- Run `bun run test:subtitle` for the maintained `alass`/`ffsubsync` subtitle surface.
+
+The Bun-managed discovery lanes intentionally exclude a small set of suites that are currently Node-only because of Bun runtime/tooling gaps rather than product behavior: Electron named-export tests in `src/core/services/ipc.test.ts`, `src/core/services/anki-jimaku-ipc.test.ts`, and `src/core/services/overlay-manager.test.ts`, plus runtime/config tests in `src/main/config-validation.test.ts`, `src/main/runtime/startup-config.test.ts`, and `src/main/runtime/registry.test.ts`. `bun run test:node:compat` keeps those suites in the standard workflow instead of leaving them untracked.
 
 ## Acknowledgments
 

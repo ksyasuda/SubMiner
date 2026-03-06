@@ -1,13 +1,15 @@
 import type { RuntimeOptionsManager } from '../../runtime-options';
 import type { JimakuApiResponse, JimakuLanguagePreference, ResolvedConfig } from '../../types';
 import {
+  isAutoUpdateEnabledRuntime as isAutoUpdateEnabledRuntimeCore,
+  shouldAutoInitializeOverlayRuntimeFromConfig as shouldAutoInitializeOverlayRuntimeFromConfigCore,
+} from '../../core/services/startup';
+import {
   getJimakuLanguagePreference as getJimakuLanguagePreferenceCore,
   getJimakuMaxEntryResults as getJimakuMaxEntryResultsCore,
-  isAutoUpdateEnabledRuntime as isAutoUpdateEnabledRuntimeCore,
   jimakuFetchJson as jimakuFetchJsonCore,
   resolveJimakuApiKey as resolveJimakuApiKeyCore,
-  shouldAutoInitializeOverlayRuntimeFromConfig as shouldAutoInitializeOverlayRuntimeFromConfigCore,
-} from '../../core/services';
+} from '../../core/services/jimaku';
 
 export type ConfigDerivedRuntimeDeps = {
   getResolvedConfig: () => ResolvedConfig;

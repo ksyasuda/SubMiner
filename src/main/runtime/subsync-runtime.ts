@@ -1,8 +1,8 @@
-import type { MpvIpcClient } from '../../core/services';
+import type { MpvIpcClient } from '../../core/services/mpv';
 import {
   runSubsyncManualFromIpcRuntime,
   triggerSubsyncFromConfigRuntime,
-} from '../../core/services';
+} from '../../core/services/subsync-runner';
 import type {
   SubsyncResult,
   SubsyncManualPayload,

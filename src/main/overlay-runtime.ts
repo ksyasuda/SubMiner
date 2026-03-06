@@ -59,7 +59,7 @@ export function createOverlayModalRuntimeService(
   const getTargetOverlayWindow = (): BrowserWindow | null => {
     const visibleMainWindow = deps.getMainWindow();
 
-    if (visibleMainWindow && !visibleMainWindow.isDestroyed()) {
+    if (visibleMainWindow && !visibleMainWindow.isDestroyed() && visibleMainWindow.isVisible()) {
       return visibleMainWindow;
     }
     return null;
@@ -221,7 +221,13 @@ export function createOverlayModalRuntimeService(
         showModalWindow(modalWindow);
       }
 
-      sendOrQueueForWindow(modalWindow, sendNow);
+      sendOrQueueForWindow(modalWindow, (window) => {
+        if (payload === undefined) {
+          window.webContents.send(channel);
+        } else {
+          window.webContents.send(channel, payload);
+        }
+      });
       return true;
     }
 

@@ -5,7 +5,8 @@ async function loadRegistryOrSkip(t: test.TestContext) {
   try {
     return await import('./registry');
   } catch (error) {
-    if (error instanceof Error && error.message.includes('node:sqlite')) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('node:sqlite')) {
       t.skip('registry import requires node:sqlite support in this runtime');
       return null;
     }

@@ -1,5 +1,5 @@
 import type { ConfigHotReloadDiff } from '../../core/services/config-hot-reload';
-import { resolveKeybindings } from '../../core/utils';
+import { resolveKeybindings } from '../../core/utils/keybindings';
 import { DEFAULT_KEYBINDINGS } from '../../config';
 import type { ConfigHotReloadPayload, ResolvedConfig, SecondarySubMode } from '../../types';
 

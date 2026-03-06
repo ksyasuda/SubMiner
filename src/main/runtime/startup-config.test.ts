@@ -42,13 +42,12 @@ test('createReloadConfigHandler runs success flow with warnings', async () => {
     calls.some((entry) => entry.includes('notify:SubMiner:1 config validation issue(s) detected.')),
   );
   assert.ok(calls.some((entry) => entry.includes('1. ankiConnect.pollingRate: must be >= 50')));
-  assert.ok(
-    calls.some((entry) =>
-      entry.includes(
-        'dialog:SubMiner config validation warning:SubMiner detected config validation issues.',
-      ),
+  const showedWarningDialog = calls.some((entry) =>
+    entry.includes(
+      'dialog:SubMiner config validation warning:SubMiner detected config validation issues.',
     ),
   );
+  assert.equal(showedWarningDialog, process.platform === 'darwin');
   assert.ok(calls.some((entry) => entry.includes('actual=10 fallback=250')));
   assert.ok(calls.includes('hotReload:start'));
   assert.deepEqual(refreshCalls, [{ force: true }]);
