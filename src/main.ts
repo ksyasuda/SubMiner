@@ -92,8 +92,6 @@ import type {
   SecondarySubMode,
   SubtitleData,
   SubtitlePosition,
-  SubsyncManualRunRequest,
-  SubsyncResult,
   WindowGeometry,
 } from './types';
 import { AnkiIntegration } from './anki-integration';
@@ -116,36 +114,15 @@ import {
   failStartupFromConfig,
 } from './main/config-validation';
 import {
-  buildAnilistAttemptKey,
   buildAnilistSetupUrl,
   consumeAnilistSetupCallbackUrl,
   createAnilistStateRuntime,
-  createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler,
-  createBuildGetCurrentAnilistMediaKeyMainDepsHandler,
-  createBuildMaybeProbeAnilistDurationMainDepsHandler,
-  createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler,
   createBuildOpenAnilistSetupWindowMainDepsHandler,
-  createBuildProcessNextAnilistRetryUpdateMainDepsHandler,
-  createBuildRefreshAnilistClientSecretStateMainDepsHandler,
-  createBuildResetAnilistMediaGuessStateMainDepsHandler,
-  createBuildResetAnilistMediaTrackingMainDepsHandler,
-  createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler,
-  createEnsureAnilistMediaGuessHandler,
-  createGetAnilistMediaGuessRuntimeStateHandler,
-  createGetCurrentAnilistMediaKeyHandler,
   createMaybeFocusExistingAnilistSetupWindowHandler,
-  createMaybeProbeAnilistDurationHandler,
-  createMaybeRunAnilistPostWatchUpdateHandler,
   createOpenAnilistSetupWindowHandler,
-  createProcessNextAnilistRetryUpdateHandler,
-  createRefreshAnilistClientSecretStateHandler,
-  createResetAnilistMediaGuessStateHandler,
-  createResetAnilistMediaTrackingHandler,
-  createSetAnilistMediaGuessRuntimeStateHandler,
   findAnilistSetupDeepLinkArgvUrl,
   isAnilistTrackingEnabled,
   loadAnilistManualTokenEntry,
-  loadAnilistSetupFallback,
   openAnilistSetupInBrowser,
   rememberAnilistAttemptedUpdateKey,
 } from './main/runtime/domains/anilist';
@@ -153,50 +130,9 @@ import {
   createApplyJellyfinMpvDefaultsHandler,
   createBuildApplyJellyfinMpvDefaultsMainDepsHandler,
   createBuildGetDefaultSocketPathMainDepsHandler,
-  createEnsureMpvConnectedForJellyfinPlaybackHandler,
-  createBuildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler,
   createGetDefaultSocketPathHandler,
-  createGetJellyfinClientInfoHandler,
-  createBuildGetJellyfinClientInfoMainDepsHandler,
-  createHandleJellyfinAuthCommands,
-  createBuildHandleJellyfinAuthCommandsMainDepsHandler,
-  createHandleJellyfinListCommands,
-  createBuildHandleJellyfinListCommandsMainDepsHandler,
-  createHandleJellyfinPlayCommand,
-  createBuildHandleJellyfinPlayCommandMainDepsHandler,
-  createHandleJellyfinRemoteAnnounceCommand,
-  createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler,
-  createHandleJellyfinRemotePlay,
-  createBuildHandleJellyfinRemotePlayMainDepsHandler,
-  createHandleJellyfinRemotePlaystate,
-  createBuildHandleJellyfinRemotePlaystateMainDepsHandler,
-  createHandleJellyfinRemoteGeneralCommand,
-  createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler,
-  createLaunchMpvIdleForJellyfinPlaybackHandler,
-  createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler,
-  createPlayJellyfinItemInMpvHandler,
-  createBuildPlayJellyfinItemInMpvMainDepsHandler,
-  createPreloadJellyfinExternalSubtitlesHandler,
-  createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler,
-  createReportJellyfinRemoteProgressHandler,
-  createBuildReportJellyfinRemoteProgressMainDepsHandler,
-  createReportJellyfinRemoteStoppedHandler,
-  createBuildReportJellyfinRemoteStoppedMainDepsHandler,
-  createStartJellyfinRemoteSessionHandler,
-  createBuildStartJellyfinRemoteSessionMainDepsHandler,
-  createStopJellyfinRemoteSessionHandler,
-  createBuildStopJellyfinRemoteSessionMainDepsHandler,
-  createRunJellyfinCommandHandler,
-  createBuildRunJellyfinCommandMainDepsHandler,
-  createWaitForMpvConnectedHandler,
-  createBuildWaitForMpvConnectedMainDepsHandler,
-  createOpenJellyfinSetupWindowHandler,
-  createBuildOpenJellyfinSetupWindowMainDepsHandler,
-  createGetResolvedJellyfinConfigHandler,
-  createBuildGetResolvedJellyfinConfigMainDepsHandler,
-  parseJellyfinSetupSubmissionUrl,
   buildJellyfinSetupFormHtml,
-  createMaybeFocusExistingJellyfinSetupWindowHandler,
+  parseJellyfinSetupSubmissionUrl,
 } from './main/runtime/domains/jellyfin';
 import type { ActiveJellyfinRemotePlaybackState } from './main/runtime/domains/jellyfin';
 import { getConfiguredJellyfinSession } from './main/runtime/domains/jellyfin';
@@ -226,7 +162,6 @@ import {
   createBuildEnsureOverlayWindowLevelMainDepsHandler,
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
   createOverlayWindowRuntimeHandlers,
-  createOverlayRuntimeBootstrapHandlers,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
   createBroadcastRuntimeOptionsChangedHandler,
@@ -268,25 +203,11 @@ import {
   createConfigDerivedRuntime,
   appendClipboardVideoToQueueRuntime,
   createMainSubsyncRuntime,
-  createLaunchBackgroundWarmupTaskHandler,
-  createStartBackgroundWarmupsHandler,
-  createBuildLaunchBackgroundWarmupTaskMainDepsHandler,
-  createBuildStartBackgroundWarmupsMainDepsHandler,
 } from './main/runtime/domains/startup';
 import {
-  createBuildBindMpvMainEventHandlersMainDepsHandler,
-  createBuildMpvClientRuntimeServiceFactoryDepsHandler,
-  createMpvClientRuntimeServiceFactory,
-  createBindMpvMainEventHandlersHandler,
-  createBuildTokenizerDepsMainHandler,
-  createCreateMecabTokenizerAndCheckMainHandler,
-  createPrewarmSubtitleDictionariesMainHandler,
-  createUpdateMpvSubtitleRenderMetricsHandler,
-  createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler,
   createMpvOsdRuntimeHandlers,
   createCycleSecondarySubModeRuntimeHandler,
 } from './main/runtime/domains/mpv';
-import type { MpvClientRuntimeServiceOptions } from './main/runtime/domains/mpv';
 import {
   createBuildCopyCurrentSubtitleMainDepsHandler,
   createBuildHandleMineSentenceDigitMainDepsHandler,
@@ -324,7 +245,6 @@ import {
   MpvIpcClient,
   SubtitleWebSocket,
   Texthooker,
-  DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
   applyMpvSubtitleRenderMetricsPatch,
   authenticateWithPasswordRuntime,
   broadcastRuntimeOptionsChangedRuntime,
@@ -424,7 +344,6 @@ import { createCharacterDictionaryRuntimeService } from './main/character-dictio
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
 import {
   type AnilistMediaGuessRuntimeState,
-  type AppState,
   type StartupState,
   applyStartupState,
   createAppState,
@@ -1455,13 +1374,8 @@ function shouldInitializeMecabForAnnotations(): boolean {
 
 const {
   getResolvedJellyfinConfig,
-  getJellyfinClientInfo,
   reportJellyfinRemoteProgress,
   reportJellyfinRemoteStopped,
-  handleJellyfinRemotePlay,
-  handleJellyfinRemotePlaystate,
-  handleJellyfinRemoteGeneralCommand,
-  playJellyfinItemInMpv,
   startJellyfinRemoteSession,
   stopJellyfinRemoteSession,
   runJellyfinCommand,
@@ -2184,7 +2098,7 @@ const ensureImmersionTrackerStarted = (): void => {
   createImmersionTrackerStartup();
 };
 
-const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppReadyRuntime({
+const { appReadyRuntimeRunner } = composeAppReadyRuntime({
   reloadConfigMainDeps: {
     reloadConfigStrict: () => configService.reloadConfigStrict(),
     logInfo: (message) => appLogger.logInfo(message),
@@ -2288,7 +2202,7 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
   immersionTrackerStartupMainDeps,
 });
 
-const { appLifecycleRuntimeRunner, runAndApplyStartupState } =
+const { runAndApplyStartupState } =
   runtimeRegistry.startup.createStartupRuntimeHandlers<
     CliArgs,
     StartupState,
@@ -2386,7 +2300,6 @@ function handleInitialArgs(): void {
 }
 
 const {
-  bindMpvClientEventHandlers,
   createMpvClientRuntimeService: createMpvClientRuntimeServiceHandler,
   updateMpvSubtitleRenderMetrics: updateMpvSubtitleRenderMetricsHandler,
   tokenizeSubtitle,
@@ -2758,10 +2671,6 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
   }
 }
 
-function createOverlayWindow(kind: 'visible' | 'modal'): BrowserWindow {
-  return createOverlayWindowHandler(kind);
-}
-
 function createModalWindow(): BrowserWindow {
   const existingWindow = overlayManager.getModalWindow();
   if (existingWindow && !existingWindow.isDestroyed()) {
@@ -2774,13 +2683,6 @@ function createModalWindow(): BrowserWindow {
 
 function createMainWindow(): BrowserWindow {
   return createMainWindowHandler();
-}
-function resolveTrayIconPath(): string | null {
-  return resolveTrayIconPathHandler();
-}
-
-function buildTrayMenu(): Menu {
-  return buildTrayMenuHandler();
 }
 
 function ensureTray(): void {
@@ -2808,8 +2710,6 @@ const {
   startPendingMultiCopy,
   cancelPendingMineSentenceMultiple,
   startPendingMineSentenceMultiple,
-  registerOverlayShortcuts,
-  unregisterOverlayShortcuts,
   syncOverlayShortcuts,
   refreshOverlayShortcuts,
 } = composeShortcutRuntimes({
@@ -2848,7 +2748,7 @@ const {
   },
 });
 
-const { appendToMpvLog, flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
+const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
     logPath: DEFAULT_MPV_LOG_PATH,
     dirname: (targetPath) => path.dirname(targetPath),
@@ -3005,7 +2905,6 @@ const {
   setVisibleOverlayVisible: setVisibleOverlayVisibleHandler,
   toggleVisibleOverlay: toggleVisibleOverlayHandler,
   setOverlayVisible: setOverlayVisibleHandler,
-  toggleOverlay: toggleOverlayHandler,
 } = createOverlayVisibilityRuntime({
   setVisibleOverlayVisibleDeps: {
     setVisibleOverlayVisibleCore,
@@ -3065,11 +2964,7 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
-const {
-  handleMpvCommandFromIpc: handleMpvCommandFromIpcHandler,
-  runSubsyncManualFromIpc: runSubsyncManualFromIpcHandler,
-  registerIpcRuntimeHandlers,
-} = composeIpcRuntimeHandlers({
+const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
@@ -3224,11 +3119,8 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   logWarn: (message: string) => logger.warn(message),
   logError: (message: string, err: unknown) => logger.error(message, err),
 });
-const {
-  createOverlayWindow: createOverlayWindowHandler,
-  createMainWindow: createMainWindowHandler,
-  createModalWindow: createModalWindowHandler,
-} = createOverlayWindowRuntimeHandlers<BrowserWindow>({
+const { createMainWindow: createMainWindowHandler, createModalWindow: createModalWindowHandler } =
+  createOverlayWindowRuntimeHandlers<BrowserWindow>({
   createOverlayWindowDeps: {
     createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
     isDev,
@@ -3250,12 +3142,8 @@ const {
   setMainWindow: (window) => overlayManager.setMainWindow(window),
   setModalWindow: (window) => overlayManager.setModalWindow(window),
 });
-const {
-  resolveTrayIconPath: resolveTrayIconPathHandler,
-  buildTrayMenu: buildTrayMenuHandler,
-  ensureTray: ensureTrayHandler,
-  destroyTray: destroyTrayHandler,
-} = createTrayRuntimeHandlers({
+const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
+  createTrayRuntimeHandlers({
   resolveTrayIconPathDeps: {
     resolveTrayIconPathRuntime,
     platform: process.platform,
@@ -3436,23 +3324,8 @@ function setOverlayVisible(visible: boolean): void {
   setOverlayVisibleHandler(visible);
   syncOverlayMpvSubtitleSuppression();
 }
-function toggleOverlay(): void {
-  if (!overlayManager.getVisibleOverlayVisible()) {
-    void ensureOverlayMpvSubtitlesHidden();
-  }
-  toggleOverlayHandler();
-  syncOverlayMpvSubtitleSuppression();
-}
 function handleOverlayModalClosed(modal: OverlayHostedModal): void {
   handleOverlayModalClosedHandler(modal);
-}
-
-function handleMpvCommandFromIpc(command: (string | number)[]): void {
-  handleMpvCommandFromIpcHandler(command);
-}
-
-async function runSubsyncManualFromIpc(request: SubsyncManualRunRequest): Promise<SubsyncResult> {
-  return runSubsyncManualFromIpcHandler(request) as Promise<SubsyncResult>;
 }
 
 function appendClipboardVideoToQueue(): { ok: boolean; message: string } {

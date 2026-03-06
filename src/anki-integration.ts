@@ -458,14 +458,6 @@ export class AnkiIntegration {
     return this.config.nPlusOne?.highlightEnabled === true;
   }
 
-  private startKnownWordCacheLifecycle(): void {
-    this.knownWordCache.startLifecycle();
-  }
-
-  private stopKnownWordCacheLifecycle(): void {
-    this.knownWordCache.stopLifecycle();
-  }
-
   private getConfiguredAnkiTags(): string[] {
     if (!Array.isArray(this.config.tags)) {
       return [];

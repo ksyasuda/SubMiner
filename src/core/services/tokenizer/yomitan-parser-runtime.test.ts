@@ -8,7 +8,6 @@ import {
   importYomitanDictionaryFromZip,
   deleteYomitanDictionaryByTitle,
   removeYomitanDictionarySettings,
-  requestYomitanParseResults,
   requestYomitanScanTokens,
   requestYomitanTermFrequencies,
   syncYomitanDefaultAnkiServer,

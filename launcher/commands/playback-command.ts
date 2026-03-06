@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { fail, log } from '../log.js';
 import { commandExists, isYoutubeTarget, realpathMaybe, resolvePathMaybe } from '../util.js';
 import { collectVideos, showFzfMenu, showRofiMenu } from '../picker.js';
