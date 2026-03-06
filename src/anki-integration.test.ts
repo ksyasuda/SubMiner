@@ -222,9 +222,11 @@ test('AnkiIntegration does not allocate proxy server when proxy transport is dis
   );
 
   const privateState = integration as unknown as {
-    proxyServer: unknown | null;
+    runtime: {
+      proxyServer: unknown | null;
+    };
   };
-  assert.equal(privateState.proxyServer, null);
+  assert.equal(privateState.runtime.proxyServer, null);
 });
 
 test('FieldGroupingMergeCollaborator synchronizes ExpressionAudio from merged SentenceAudio', async () => {
