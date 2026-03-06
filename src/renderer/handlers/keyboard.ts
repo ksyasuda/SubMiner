@@ -22,11 +22,14 @@ export function createKeyboardHandlers(
       fallbackUnavailable: boolean;
     }) => void;
     appendClipboardVideoToQueue: () => void;
+    getPlaybackPaused: () => Promise<boolean | null>;
   },
 ) {
   // Timeout for the modal chord capture window (e.g. Y followed by H/K).
   const CHORD_TIMEOUT_MS = 1000;
   const KEYBOARD_SELECTED_WORD_CLASS = 'keyboard-selected';
+  let pendingSelectionAnchorAfterSubtitleSeek: 'start' | 'end' | null = null;
+  let pendingLookupRefreshAfterSubtitleSeek = false;
 
   const CHORD_MAP = new Map<
     string,
@@ -138,7 +141,26 @@ export function createKeyboardHandlers(
 
     if (!ctx.state.keyboardDrivenModeEnabled || wordNodes.length === 0) {
       ctx.state.keyboardSelectedWordIndex = null;
+      if (!ctx.state.keyboardDrivenModeEnabled) {
+        pendingSelectionAnchorAfterSubtitleSeek = null;
+        pendingLookupRefreshAfterSubtitleSeek = false;
+      }
       return;
+    }
+
+    if (pendingSelectionAnchorAfterSubtitleSeek) {
+      ctx.state.keyboardSelectedWordIndex =
+        pendingSelectionAnchorAfterSubtitleSeek === 'start' ? 0 : wordNodes.length - 1;
+      pendingSelectionAnchorAfterSubtitleSeek = null;
+      const shouldRefreshLookup =
+        pendingLookupRefreshAfterSubtitleSeek &&
+        (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document));
+      pendingLookupRefreshAfterSubtitleSeek = false;
+      if (shouldRefreshLookup) {
+        queueMicrotask(() => {
+          triggerLookupForSelectedWord();
+        });
+      }
     }
 
     const selectedIndex = Math.min(
@@ -156,6 +178,8 @@ export function createKeyboardHandlers(
     ctx.state.keyboardDrivenModeEnabled = enabled;
     if (!enabled) {
       ctx.state.keyboardSelectedWordIndex = null;
+      pendingSelectionAnchorAfterSubtitleSeek = null;
+      pendingLookupRefreshAfterSubtitleSeek = false;
     }
     syncKeyboardTokenSelection();
   }
@@ -164,19 +188,45 @@ export function createKeyboardHandlers(
     setKeyboardDrivenModeEnabled(!ctx.state.keyboardDrivenModeEnabled);
   }
 
-  function moveKeyboardSelection(delta: -1 | 1): boolean {
+  function moveKeyboardSelection(delta: -1 | 1): 'moved' | 'start-boundary' | 'end-boundary' | 'no-words' {
     const wordNodes = getSubtitleWordNodes();
     if (wordNodes.length === 0) {
       ctx.state.keyboardSelectedWordIndex = null;
       syncKeyboardTokenSelection();
-      return true;
+      return 'no-words';
     }
 
-    const currentIndex = ctx.state.keyboardSelectedWordIndex ?? 0;
-    const nextIndex = Math.min(Math.max(currentIndex + delta, 0), wordNodes.length - 1);
+    const currentIndex = Math.min(
+      Math.max(ctx.state.keyboardSelectedWordIndex ?? 0, 0),
+      wordNodes.length - 1,
+    );
+    if (delta < 0 && currentIndex <= 0) {
+      return 'start-boundary';
+    }
+    if (delta > 0 && currentIndex >= wordNodes.length - 1) {
+      return 'end-boundary';
+    }
+
+    const nextIndex = currentIndex + delta;
     ctx.state.keyboardSelectedWordIndex = nextIndex;
     syncKeyboardTokenSelection();
-    return true;
+    return 'moved';
+  }
+
+  function seekAdjacentSubtitleAndQueueSelection(delta: -1 | 1, popupVisible: boolean): void {
+    pendingSelectionAnchorAfterSubtitleSeek = delta > 0 ? 'start' : 'end';
+    pendingLookupRefreshAfterSubtitleSeek = popupVisible;
+    void options
+      .getPlaybackPaused()
+      .then((paused) => {
+        window.electronAPI.sendMpvCommand(['sub-seek', delta]);
+        if (paused !== false) {
+          window.electronAPI.sendMpvCommand(['set_property', 'pause', 'yes']);
+        }
+      })
+      .catch(() => {
+        window.electronAPI.sendMpvCommand(['sub-seek', delta]);
+      });
   }
 
   type ScanModifierState = {
@@ -346,10 +396,18 @@ export function createKeyboardHandlers(
 
     const key = e.code;
     if (key === 'ArrowLeft') {
-      return moveKeyboardSelection(-1);
+      const result = moveKeyboardSelection(-1);
+      if (result === 'start-boundary') {
+        seekAdjacentSubtitleAndQueueSelection(-1, false);
+      }
+      return result !== 'no-words';
     }
     if (key === 'ArrowRight' || key === 'KeyL') {
-      return moveKeyboardSelection(1);
+      const result = moveKeyboardSelection(1);
+      if (result === 'end-boundary') {
+        seekAdjacentSubtitleAndQueueSelection(1, false);
+      }
+      return result !== 'no-words';
     }
     return false;
   }
@@ -364,32 +422,21 @@ export function createKeyboardHandlers(
 
     const key = e.code;
     const popupVisible = ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document);
-    if (key === 'ArrowUp' || key === 'KeyJ') {
-      triggerLookupForSelectedWord();
-      return true;
-    }
-
-    if (key === 'ArrowDown') {
-      if (popupVisible) {
-        dispatchYomitanPopupVisibility(false);
-        queueMicrotask(() => {
-          restoreOverlayKeyboardFocus();
-        });
-      }
-      return true;
-    }
-
     if (key === 'ArrowLeft' || key === 'KeyH') {
-      moveKeyboardSelection(-1);
-      if (popupVisible) {
+      const result = moveKeyboardSelection(-1);
+      if (result === 'start-boundary') {
+        seekAdjacentSubtitleAndQueueSelection(-1, popupVisible);
+      } else if (popupVisible && result === 'moved') {
         triggerLookupForSelectedWord();
       }
       return true;
     }
 
     if (key === 'ArrowRight' || key === 'KeyL') {
-      moveKeyboardSelection(1);
-      if (popupVisible) {
+      const result = moveKeyboardSelection(1);
+      if (result === 'end-boundary') {
+        seekAdjacentSubtitleAndQueueSelection(1, popupVisible);
+      } else if (popupVisible && result === 'moved') {
         triggerLookupForSelectedWord();
       }
       return true;

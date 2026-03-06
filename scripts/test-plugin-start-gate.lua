@@ -507,12 +507,12 @@ do
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
 	assert_true(
-		not call_has_arg(start_call, "--show-visible-overlay"),
-		"auto-start should keep --start command free of --show-visible-overlay"
+		call_has_arg(start_call, "--show-visible-overlay"),
+		"auto-start with visible overlay enabled should include --show-visible-overlay on --start"
 	)
 	assert_true(
 		not call_has_arg(start_call, "--hide-visible-overlay"),
-		"auto-start should keep --start command free of --hide-visible-overlay"
+		"auto-start with visible overlay enabled should not include --hide-visible-overlay on --start"
 	)
 	assert_true(
 		find_control_call(recorded.async_calls, "--show-visible-overlay") ~= nil,
@@ -583,8 +583,8 @@ do
 		"duplicate pause-until-ready auto-start should not issue duplicate --start commands while overlay is already running"
 	)
 	assert_true(
-		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
-		"duplicate pause-until-ready auto-start should still re-assert visible overlay state"
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 4,
+		"duplicate pause-until-ready auto-start should re-assert visible overlay on both start and ready events"
 	)
 	assert_true(
 		count_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization...") == 2,
@@ -645,6 +645,10 @@ do
 		"autoplay-ready should show loaded OSD message"
 	)
 	assert_true(
+		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,
+		"autoplay-ready should re-assert visible overlay state"
+	)
+	assert_true(
 		#recorded.periodic_timers == 1,
 		"pause-until-ready auto-start should create periodic loading OSD refresher"
 	)
@@ -703,12 +707,12 @@ do
 	local start_call = find_start_call(recorded.async_calls)
 	assert_true(start_call ~= nil, "auto-start should issue --start command")
 	assert_true(
-		not call_has_arg(start_call, "--hide-visible-overlay"),
-		"auto-start should keep --start command free of --hide-visible-overlay"
+		call_has_arg(start_call, "--hide-visible-overlay"),
+		"auto-start with visible overlay disabled should include --hide-visible-overlay on --start"
 	)
 	assert_true(
 		not call_has_arg(start_call, "--show-visible-overlay"),
-		"auto-start should keep --start command free of --show-visible-overlay"
+		"auto-start with visible overlay disabled should not include --show-visible-overlay on --start"
 	)
 	assert_true(
 		find_control_call(recorded.async_calls, "--hide-visible-overlay") ~= nil,

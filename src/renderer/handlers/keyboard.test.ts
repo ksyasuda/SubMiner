@@ -44,6 +44,8 @@ function installKeyboardTestGlobals() {
 
   const documentListeners = new Map<string, Array<(event: unknown) => void>>();
   const commandEvents: CommandEventDetail[] = [];
+  const mpvCommands: Array<Array<string | number>> = [];
+  let playbackPausedResponse: boolean | null = false;
 
   let popupVisible = false;
 
@@ -112,7 +114,10 @@ function installKeyboardTestGlobals() {
       },
       electronAPI: {
         getKeybindings: async () => [],
-        sendMpvCommand: () => {},
+        sendMpvCommand: (command: Array<string | number>) => {
+          mpvCommands.push(command);
+        },
+        getPlaybackPaused: async () => playbackPausedResponse,
         toggleDevTools: () => {},
         focusMainWindow: () => {
           focusMainWindowCalls += 1;
@@ -211,6 +216,7 @@ function installKeyboardTestGlobals() {
 
   return {
     commandEvents,
+    mpvCommands,
     overlay,
     overlayFocusCalls,
     focusMainWindowCalls: () => focusMainWindowCalls,
@@ -220,6 +226,10 @@ function installKeyboardTestGlobals() {
     setPopupVisible: (value: boolean) => {
       popupVisible = value;
     },
+    getPlaybackPaused: async () => playbackPausedResponse,
+    setPlaybackPausedResponse: (value: boolean | null) => {
+      playbackPausedResponse = value;
+    },
     restore,
   };
 }
@@ -228,23 +238,12 @@ function createKeyboardHandlerHarness() {
   const testGlobals = installKeyboardTestGlobals();
   const subtitleRootClassList = createClassList();
 
-  const wordNodes = [
-    {
-      classList: createClassList(),
-      getBoundingClientRect: () => ({ left: 10, top: 10, width: 30, height: 20 }),
-      dispatchEvent: () => true,
-    },
-    {
-      classList: createClassList(),
-      getBoundingClientRect: () => ({ left: 80, top: 10, width: 30, height: 20 }),
-      dispatchEvent: () => true,
-    },
-    {
-      classList: createClassList(),
-      getBoundingClientRect: () => ({ left: 150, top: 10, width: 30, height: 20 }),
-      dispatchEvent: () => true,
-    },
-  ];
+  const createWordNode = (left: number) => ({
+    classList: createClassList(),
+    getBoundingClientRect: () => ({ left, top: 10, width: 30, height: 20 }),
+    dispatchEvent: () => true,
+  });
+  let wordNodes = [createWordNode(10), createWordNode(80), createWordNode(150)];
 
   const ctx = {
     dom: {
@@ -273,9 +272,17 @@ function createKeyboardHandlerHarness() {
     handleSessionHelpKeydown: () => false,
     openSessionHelpModal: () => {},
     appendClipboardVideoToQueue: () => {},
+    getPlaybackPaused: () => testGlobals.getPlaybackPaused(),
   });
 
-  return { ctx, handlers, testGlobals };
+  return {
+    ctx,
+    handlers,
+    testGlobals,
+    setWordCount: (count: number) => {
+      wordNodes = Array.from({ length: count }, (_, index) => createWordNode(10 + index * 70));
+    },
+  };
 }
 
 test('keyboard mode: left and right move token selection while popup remains open', async () => {
@@ -306,7 +313,7 @@ test('keyboard mode: left and right move token selection while popup remains ope
   }
 });
 
-test('keyboard mode: up and j open yomitan lookup for selected token', async () => {
+test('keyboard mode: up/down/j/k do not open or close lookup when popup is closed', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
   try {
@@ -314,19 +321,25 @@ test('keyboard mode: up and j open yomitan lookup for selected token', async () 
     handlers.handleKeyboardModeToggleRequested();
 
     testGlobals.dispatchKeydown({ key: 'ArrowUp', code: 'ArrowUp' });
+    testGlobals.dispatchKeydown({ key: 'ArrowDown', code: 'ArrowDown' });
     testGlobals.dispatchKeydown({ key: 'j', code: 'KeyJ' });
+    testGlobals.dispatchKeydown({ key: 'k', code: 'KeyK' });
 
-    await wait(80);
+    await wait(0);
 
     const openEvents = testGlobals.commandEvents.filter((event) => event.type === 'scanSelectedText');
-    assert.equal(openEvents.length, 2);
+    assert.equal(openEvents.length, 0);
+    const closeEvents = testGlobals.commandEvents.filter(
+      (event) => event.type === 'setVisible' && event.visible === false,
+    );
+    assert.equal(closeEvents.length, 0);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();
   }
 });
 
-test('keyboard mode: down closes yomitan lookup window', async () => {
+test('keyboard mode: up/down/j/k forward keydown to yomitan popup when open', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
   try {
@@ -336,13 +349,26 @@ test('keyboard mode: down closes yomitan lookup window', async () => {
     ctx.state.yomitanPopupVisible = true;
     testGlobals.setPopupVisible(true);
 
+    testGlobals.dispatchKeydown({ key: 'ArrowUp', code: 'ArrowUp' });
     testGlobals.dispatchKeydown({ key: 'ArrowDown', code: 'ArrowDown' });
-    await wait(0);
+    testGlobals.dispatchKeydown({ key: 'j', code: 'KeyJ' });
+    testGlobals.dispatchKeydown({ key: 'k', code: 'KeyK' });
 
+    const forwarded = testGlobals.commandEvents.filter(
+      (event) => event.type === 'forwardKeyDown',
+    );
+    assert.equal(forwarded.length, 4);
+    assert.equal(forwarded.some((event) => event.code === 'ArrowUp'), true);
+    assert.equal(forwarded.some((event) => event.code === 'ArrowDown'), true);
+    assert.equal(forwarded.some((event) => event.code === 'KeyJ'), true);
+    assert.equal(forwarded.some((event) => event.code === 'KeyK'), true);
+
+    const openEvents = testGlobals.commandEvents.filter((event) => event.type === 'scanSelectedText');
+    assert.equal(openEvents.length, 0);
     const closeEvents = testGlobals.commandEvents.filter(
       (event) => event.type === 'setVisible' && event.visible === false,
     );
-    assert.equal(closeEvents.length, 1);
+    assert.equal(closeEvents.length, 0);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();
@@ -407,12 +433,140 @@ test('keyboard mode: opening lookup restores overlay keyboard focus', async () =
     await handlers.setupMpvInputForwarding();
     handlers.handleKeyboardModeToggleRequested();
 
-    testGlobals.dispatchKeydown({ key: 'ArrowUp', code: 'ArrowUp' });
+    testGlobals.dispatchKeydown({ key: 'y', code: 'KeyY', ctrlKey: true });
     await wait(0);
 
     assert.equal(testGlobals.focusMainWindowCalls() > 0, true);
     assert.equal(testGlobals.windowFocusCalls() > 0, true);
     assert.equal(testGlobals.overlayFocusCalls.length > 0, true);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: moving right beyond end jumps next subtitle and resets selector to start', async () => {
+  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    setWordCount(3);
+    ctx.state.keyboardSelectedWordIndex = 2;
+    handlers.syncKeyboardTokenSelection();
+
+    testGlobals.dispatchKeydown({ key: 'ArrowRight', code: 'ArrowRight' });
+    await wait(0);
+    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['sub-seek', 1]);
+
+    setWordCount(2);
+    handlers.syncKeyboardTokenSelection();
+    assert.equal(ctx.state.keyboardSelectedWordIndex, 0);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: moving left beyond start jumps previous subtitle and sets selector to end', async () => {
+  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    setWordCount(3);
+    ctx.state.keyboardSelectedWordIndex = 0;
+    handlers.syncKeyboardTokenSelection();
+
+    testGlobals.dispatchKeydown({ key: 'ArrowLeft', code: 'ArrowLeft' });
+    await wait(0);
+    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['sub-seek', -1]);
+
+    setWordCount(4);
+    handlers.syncKeyboardTokenSelection();
+    assert.equal(ctx.state.keyboardSelectedWordIndex, 3);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: popup-open edge jump refreshes lookup on the new subtitle selection', async () => {
+  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    setWordCount(2);
+    ctx.state.keyboardSelectedWordIndex = 1;
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+    handlers.syncKeyboardTokenSelection();
+
+    testGlobals.dispatchKeydown({ key: 'ArrowRight', code: 'ArrowRight' });
+    await wait(0);
+    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['sub-seek', 1]);
+
+    setWordCount(3);
+    handlers.syncKeyboardTokenSelection();
+    await wait(80);
+
+    assert.equal(ctx.state.keyboardSelectedWordIndex, 0);
+    const openEvents = testGlobals.commandEvents.filter((event) => event.type === 'scanSelectedText');
+    assert.equal(openEvents.length > 0, true);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: edge jump while paused re-applies paused state after subtitle seek', async () => {
+  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    setWordCount(2);
+    ctx.state.keyboardSelectedWordIndex = 1;
+    handlers.syncKeyboardTokenSelection();
+    testGlobals.setPlaybackPausedResponse(true);
+
+    testGlobals.dispatchKeydown({ key: 'ArrowRight', code: 'ArrowRight' });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.mpvCommands.slice(-2), [
+      ['sub-seek', 1],
+      ['set_property', 'pause', 'yes'],
+    ]);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: edge jump with unknown pause state re-applies pause conservatively', async () => {
+  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    setWordCount(2);
+    ctx.state.keyboardSelectedWordIndex = 1;
+    handlers.syncKeyboardTokenSelection();
+    testGlobals.setPlaybackPausedResponse(null);
+
+    testGlobals.dispatchKeydown({ key: 'ArrowRight', code: 'ArrowRight' });
+    await wait(0);
+
+    assert.deepEqual(testGlobals.mpvCommands.slice(-2), [
+      ['sub-seek', 1],
+      ['set_property', 'pause', 'yes'],
+    ]);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();

@@ -114,6 +114,7 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   appendClipboardVideoToQueue: () => {
     void window.electronAPI.appendClipboardVideoToQueue();
   },
+  getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
 });
 const mouseHandlers = createMouseHandlers(ctx, {
   modalStateReader: { isAnySettingsModalOpen, isAnyModalOpen },

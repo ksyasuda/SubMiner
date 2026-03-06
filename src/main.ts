@@ -871,12 +871,18 @@ function maybeSignalPluginAutoplayReady(
   if (duplicateMediaSignal && !allowDuplicateWhilePaused) {
     return;
   }
-  autoPlayReadySignalMediaPath = mediaPath;
-  const playbackGeneration = ++autoPlayReadySignalGeneration;
   const signalPluginAutoplayReady = (): void => {
     logger.debug(`[autoplay-ready] signaling mpv for media: ${mediaPath}`);
     sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
   };
+  if (duplicateMediaSignal && allowDuplicateWhilePaused) {
+    // Keep re-notifying the plugin while paused (for startup visibility sync), but
+    // do not run local unpause fallback on duplicates to avoid resuming user-paused playback.
+    signalPluginAutoplayReady();
+    return;
+  }
+  autoPlayReadySignalMediaPath = mediaPath;
+  const playbackGeneration = ++autoPlayReadySignalGeneration;
   signalPluginAutoplayReady();
   const isPlaybackPaused = async (client: {
     requestProperty: (property: string) => Promise<unknown>;

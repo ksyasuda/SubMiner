@@ -16,6 +16,7 @@ function M.create(ctx)
 	local subminer_log = ctx.log.subminer_log
 	local show_osd = ctx.log.show_osd
 	local normalize_log_level = ctx.log.normalize_log_level
+	local run_control_command_async
 
 	local function resolve_visible_overlay_startup()
 		local raw_visible_overlay = opts.auto_start_visible_overlay
@@ -132,6 +133,11 @@ function M.create(ctx)
 
 	local function notify_auto_play_ready()
 		release_auto_play_ready_gate("tokenization-ready")
+		if state.overlay_running and resolve_visible_overlay_startup() then
+			run_control_command_async("show-visible-overlay", {
+				socket_path = opts.socket_path,
+			})
+		end
 	end
 
 	local function build_command_args(action, overrides)
@@ -156,22 +162,18 @@ function M.create(ctx)
 			table.insert(args, "--socket")
 			table.insert(args, socket_path)
 
-			-- Keep auto-start --start requests idempotent for second-instance handling.
-			-- Visibility is applied as a separate control command after startup.
-			if overrides.auto_start_trigger ~= true then
-				local should_show_visible = resolve_visible_overlay_startup()
-				if should_show_visible then
-					table.insert(args, "--show-visible-overlay")
-				else
-					table.insert(args, "--hide-visible-overlay")
-				end
+			local should_show_visible = resolve_visible_overlay_startup()
+			if should_show_visible then
+				table.insert(args, "--show-visible-overlay")
+			else
+				table.insert(args, "--hide-visible-overlay")
 			end
 		end
 
 		return args
 	end
 
-	local function run_control_command_async(action, overrides, callback)
+	run_control_command_async = function(action, overrides, callback)
 		local args = build_command_args(action, overrides)
 		subminer_log("debug", "process", "Control command: " .. table.concat(args, " "))
 		mp.command_native_async({
@@ -290,6 +292,7 @@ function M.create(ctx)
 						and "show-visible-overlay"
 					or "hide-visible-overlay"
 				run_control_command_async(visibility_action, {
+					socket_path = socket_path,
 					log_level = overrides.log_level,
 				})
 				return
@@ -360,9 +363,10 @@ function M.create(ctx)
 					local visibility_action = resolve_visible_overlay_startup()
 							and "show-visible-overlay"
 						or "hide-visible-overlay"
-					run_control_command_async(visibility_action, {
-						log_level = overrides.log_level,
-					})
+						run_control_command_async(visibility_action, {
+							socket_path = socket_path,
+							log_level = overrides.log_level,
+						})
 				end
 
 			end)

@@ -51,7 +51,7 @@ test('prefers scanning parser when scanning candidate has more than one token', 
 test('keeps scanning parser candidate when scanning candidate is single token', () => {
   const parseResults = [
     makeParseItem('scanning-parser', [
-      [{ text: '俺は公園にいきたい', reading: 'おれはこうえんにいきたい' }],
+      [{ text: '俺は公園にいきたい', reading: 'おれはこうえんにいきたい', headword: '行きたい' }],
     ]),
     makeParseItem('mecab', [
       [{ text: '俺', reading: 'おれ', headword: '俺' }],
@@ -95,4 +95,35 @@ test('returns null when only mecab-source candidates are present', () => {
 
   const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
   assert.equal(tokens, null);
+});
+
+test('returns null when scanning parser candidates have no dictionary headwords', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [{ text: 'これは', reading: 'これは' }],
+      [{ text: 'テスト', reading: 'てすと' }],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.equal(tokens, null);
+});
+
+test('drops scanning parser tokens which have no dictionary headword', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [{ text: '(ダクネスの荒い息)', reading: 'だくねすのあらいいき' }],
+      [{ text: 'アクア', reading: 'あくあ', headword: 'アクア' }],
+      [{ text: 'トラウマ', reading: 'とらうま', headword: 'トラウマ' }],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.deepEqual(
+    tokens?.map((token) => ({ surface: token.surface, headword: token.headword })),
+    [
+      { surface: 'アクア', headword: 'アクア' },
+      { surface: 'トラウマ', headword: 'トラウマ' },
+    ],
+  );
 });

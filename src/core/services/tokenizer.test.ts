@@ -1171,6 +1171,106 @@ test('tokenizeSubtitle returns null tokens when Yomitan parsing is unavailable',
   assert.deepEqual(result, { text: '猫です', tokens: null });
 });
 
+test('tokenizeSubtitle skips token payload and annotations when Yomitan parse has no dictionary matches', async () => {
+  let frequencyRequested = false;
+  let jlptLookupCalls = 0;
+  let mecabCalls = 0;
+
+  const result = await tokenizeSubtitle(
+    'これはテスト',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                frequencyRequested = true;
+                return [];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [{ text: 'これは', reading: 'これは' }],
+                    [{ text: 'テスト', reading: 'てすと' }],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+      tokenizeWithMecab: async () => {
+        mecabCalls += 1;
+        return null;
+      },
+      getJlptLevel: () => {
+        jlptLookupCalls += 1;
+        return 'N5';
+      },
+    }),
+  );
+
+  assert.deepEqual(result, { text: 'これはテスト', tokens: null });
+  assert.equal(frequencyRequested, false);
+  assert.equal(jlptLookupCalls, 0);
+  assert.equal(mecabCalls, 0);
+});
+
+test('tokenizeSubtitle excludes Yomitan token groups without dictionary headwords from annotation paths', async () => {
+  let jlptLookupCalls = 0;
+  let frequencyLookupCalls = 0;
+
+  const result = await tokenizeSubtitle(
+    '(ダクネスの荒い息) 猫',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [{ text: '(ダクネスの荒い息)', reading: 'だくねすのあらいいき' }],
+                    [{ text: '猫', reading: 'ねこ', headwords: [[{ term: '猫' }]] }],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+      getJlptLevel: (text) => {
+        jlptLookupCalls += 1;
+        return text === '猫' ? 'N5' : null;
+      },
+      getFrequencyRank: () => {
+        frequencyLookupCalls += 1;
+        return 12;
+      },
+      tokenizeWithMecab: async () => null,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.surface, '猫');
+  assert.equal(result.tokens?.[0]?.headword, '猫');
+  assert.equal(jlptLookupCalls, 1);
+  assert.equal(frequencyLookupCalls, 1);
+});
+
 test('tokenizeSubtitle returns null tokens when mecab throws', async () => {
   const result = await tokenizeSubtitle(
     '猫です',
@@ -1184,7 +1284,7 @@ test('tokenizeSubtitle returns null tokens when mecab throws', async () => {
   assert.deepEqual(result, { text: '猫です', tokens: null });
 });
 
-test('tokenizeSubtitle uses Yomitan parser result when available', async () => {
+test('tokenizeSubtitle uses Yomitan parser result when available and drops no-headword groups', async () => {
   const parserWindow = {
     isDestroyed: () => false,
     webContents: {
@@ -1222,13 +1322,10 @@ test('tokenizeSubtitle uses Yomitan parser result when available', async () => {
   );
 
   assert.equal(result.text, '猫です');
-  assert.equal(result.tokens?.length, 2);
+  assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.surface, '猫');
   assert.equal(result.tokens?.[0]?.reading, 'ねこ');
   assert.equal(result.tokens?.[0]?.isKnown, false);
-  assert.equal(result.tokens?.[1]?.surface, 'です');
-  assert.equal(result.tokens?.[1]?.reading, 'です');
-  assert.equal(result.tokens?.[1]?.isKnown, false);
 });
 
 test('tokenizeSubtitle logs selected Yomitan groups when debug toggle is enabled', async () => {

@@ -130,6 +130,7 @@ export function mapYomitanParseResultItemToMergedTokens(
   const tokens: MergedToken[] = [];
   let charOffset = 0;
   let validLineCount = 0;
+  let hasDictionaryMatch = false;
 
   for (const line of content) {
     if (!isYomitanParseLine(line)) {
@@ -163,7 +164,13 @@ export function mapYomitanParseResultItemToMergedTokens(
     const start = charOffset;
     const end = start + combinedSurface.length;
     charOffset = end;
-    const headword = combinedHeadword || combinedSurface;
+    if (!combinedHeadword) {
+      // No dictionary-backed headword for this merged unit; skip it entirely so
+      // downstream keyboard/frequency/JLPT flows only operate on lookup-backed tokens.
+      continue;
+    }
+    hasDictionaryMatch = true;
+    const headword = combinedHeadword;
 
     tokens.push({
       surface: combinedSurface,
@@ -182,7 +189,7 @@ export function mapYomitanParseResultItemToMergedTokens(
     });
   }
 
-  if (validLineCount === 0 || tokens.length === 0) {
+  if (validLineCount === 0 || tokens.length === 0 || !hasDictionaryMatch) {
     return null;
   }
 
