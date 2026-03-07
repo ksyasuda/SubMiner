@@ -111,7 +111,7 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
                       node: {
                         id: 123,
                         description:
-                          '__Race:__ Human Alexia Midgar is the second princess of the Kingdom of Midgar.',
+                          '__Race:__ Human\nAlexia Midgar is the second princess of the Kingdom of Midgar.',
                         image: {
                           large: 'https://example.com/alexia.png',
                           medium: null,
@@ -171,21 +171,54 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
 
     const entry = glossary[0] as {
       type: string;
-      content: unknown[];
+      content: { tag: string; content: Array<Record<string, unknown>> };
     };
     assert.equal(entry.type, 'structured-content');
-    assert.equal(Array.isArray(entry.content), true);
 
-    const image = entry.content[0] as Record<string, unknown>;
+    const wrapper = entry.content;
+    assert.equal(wrapper.tag, 'div');
+    const children = wrapper.content;
+
+    const nameDiv = children[0] as { tag: string; content: string };
+    assert.equal(nameDiv.tag, 'div');
+    assert.equal(nameDiv.content, 'アレクシア・ミドガル');
+
+    const secondaryNameDiv = children[1] as { tag: string; content: string };
+    assert.equal(secondaryNameDiv.tag, 'div');
+    assert.equal(secondaryNameDiv.content, 'Alexia Midgar');
+
+    const imageWrap = children[2] as { tag: string; content: Record<string, unknown> };
+    assert.equal(imageWrap.tag, 'div');
+    const image = imageWrap.content as Record<string, unknown>;
     assert.equal(image.tag, 'img');
     assert.equal(image.path, 'img/m130298-c123.png');
     assert.equal(image.sizeUnits, 'em');
 
-    const descriptionLine = entry.content[5];
-    assert.equal(
-      descriptionLine,
-      'Race: Human Alexia Midgar is the second princess of the Kingdom of Midgar.',
+    const sourceDiv = children[3] as { tag: string; content: string };
+    assert.equal(sourceDiv.tag, 'div');
+    assert.ok(sourceDiv.content.includes('The Eminence in Shadow'));
+
+    const roleBadgeDiv = children[4] as { tag: string; content: Record<string, unknown> };
+    assert.equal(roleBadgeDiv.tag, 'div');
+    const badge = roleBadgeDiv.content as { tag: string; content: string };
+    assert.equal(badge.tag, 'span');
+    assert.equal(badge.content, 'Side Character');
+
+    const descSection = children.find(
+      (c) => (c as { tag?: string }).tag === 'details' && Array.isArray((c as { content?: unknown[] }).content) &&
+        ((c as { content: Array<{ content?: string }> }).content[0]?.content === 'Description'),
+    ) as { tag: string; content: Array<Record<string, unknown>> } | undefined;
+    assert.ok(descSection, 'expected Description collapsible section');
+    const descBody = descSection.content[1] as { content: string };
+    assert.ok(
+      descBody.content.includes('Alexia Midgar is the second princess of the Kingdom of Midgar.'),
     );
+
+    const infoSection = children.find(
+      (c) => (c as { tag?: string }).tag === 'details' && Array.isArray((c as { content?: unknown[] }).content) &&
+        ((c as { content: Array<{ content?: string }> }).content[0]?.content === 'Character Information'),
+    ) as { tag: string; content: Array<Record<string, unknown>> } | undefined;
+    assert.ok(infoSection, 'expected Character Information collapsible section with parsed __Race:__ field');
 
     const topLevelImageGlossaryEntry = glossary.find(
       (item) => typeof item === 'object' && item !== null && (item as { type?: string }).type === 'image',
@@ -693,7 +726,7 @@ test('generateForCurrentMedia logs progress while resolving and rebuilding snaps
       '[dictionary] AniList match: The Eminence in Shadow -> AniList 130298',
       '[dictionary] snapshot miss for AniList 130298, fetching characters',
       '[dictionary] downloaded AniList character page 1 for AniList 130298',
-      '[dictionary] downloading 1 character images for AniList 130298',
+      '[dictionary] downloading 1 images for AniList 130298',
       '[dictionary] stored snapshot for AniList 130298: 32 terms',
       '[dictionary] building ZIP for AniList 130298',
       '[dictionary] generated AniList 130298: 32 terms -> ' +

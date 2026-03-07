@@ -54,7 +54,7 @@ export type CharacterDictionarySnapshot = {
   images: CharacterDictionarySnapshotImage[];
 };
 
-const CHARACTER_DICTIONARY_FORMAT_VERSION = 10;
+const CHARACTER_DICTIONARY_FORMAT_VERSION = 12;
 const CHARACTER_DICTIONARY_MERGED_TITLE = 'SubMiner Character Dictionary';
 
 type AniListSearchResponse = {
@@ -84,6 +84,17 @@ type AniListCharacterPageResponse = {
       };
       edges?: Array<{
         role?: string | null;
+        voiceActors?: Array<{
+          id: number;
+          name?: {
+            full?: string | null;
+            native?: string | null;
+          } | null;
+          image?: {
+            large?: string | null;
+            medium?: string | null;
+          } | null;
+        }> | null;
         node?: {
           id: number;
           description?: string | null;
@@ -101,6 +112,13 @@ type AniListCharacterPageResponse = {
   } | null;
 };
 
+type VoiceActorRecord = {
+  id: number;
+  fullName: string;
+  nativeName: string;
+  imageUrl: string | null;
+};
+
 type CharacterRecord = {
   id: number;
   role: CharacterDictionaryRole;
@@ -108,6 +126,7 @@ type CharacterRecord = {
   nativeName: string;
   description: string;
   imageUrl: string | null;
+  voiceActors: VoiceActorRecord[];
 };
 
 type ZipEntry = {
@@ -531,14 +550,34 @@ function buildNameTerms(character: CharacterRecord): string[] {
   return [...withHonorifics].filter((entry) => entry.trim().length > 0);
 }
 
-function stripDescription(value: string): string {
-  return value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-}
+function parseCharacterDescription(raw: string): {
+  fields: Array<{ key: string; value: string }>;
+  text: string;
+} {
+  const cleaned = raw.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ');
+  const lines = cleaned.split(/\n/);
+  const fields: Array<{ key: string; value: string }> = [];
+  const textLines: string[] = [];
 
-function normalizeDescription(value: string): string {
-  const stripped = stripDescription(value);
-  if (!stripped) return '';
-  return stripped
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const match = trimmed.match(/^__([^_]+):__\s*(.+)$/);
+    if (match) {
+      const value = match[2]!
+        .replace(/__([^_]+)__/g, '$1')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/_([^_]+)_/g, '$1')
+        .replace(/\*([^*]+)\*/g, '$1')
+        .trim();
+      fields.push({ key: match[1]!.trim(), value });
+    } else {
+      textLines.push(trimmed);
+    }
+  }
+
+  const text = textLines
+    .join(' ')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1')
     .replace(/https?:\/\/\S+/g, '')
     .replace(/__([^_]+)__/g, '$1')
@@ -547,6 +586,8 @@ function normalizeDescription(value: string): string {
     .replace(/!~/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+  return { fields, text };
 }
 
 function roleInfo(role: CharacterDictionaryRole): { tag: string; score: number } {
@@ -708,56 +749,201 @@ function writeSnapshot(snapshotPath: string, snapshot: CharacterDictionarySnapsh
   fs.writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2), 'utf8');
 }
 
+function roleBadgeStyle(role: CharacterDictionaryRole): Record<string, string> {
+  const base = { borderRadius: '4px', padding: '0.15em 0.5em', fontSize: '0.8em', fontWeight: 'bold', color: '#fff' };
+  if (role === 'main') return { ...base, backgroundColor: '#4a8c3f' };
+  if (role === 'primary') return { ...base, backgroundColor: '#5c82b0' };
+  if (role === 'side') return { ...base, backgroundColor: '#7889a0' };
+  return { ...base, backgroundColor: '#777' };
+}
+
+function buildCollapsibleSection(
+  title: string,
+  body: Array<string | Record<string, unknown>> | string | Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    tag: 'details',
+    open: true,
+    style: { marginTop: '0.4em' },
+    content: [
+      {
+        tag: 'summary',
+        style: { fontWeight: 'bold', fontSize: '0.95em', cursor: 'pointer' },
+        content: title,
+      },
+      {
+        tag: 'div',
+        style: { padding: '0.25em 0 0 0.4em', fontSize: '0.9em' },
+        content: body,
+      },
+    ],
+  };
+}
+
+function buildVoicedByContent(
+  voiceActors: VoiceActorRecord[],
+  vaImagePaths: Map<number, string>,
+): Record<string, unknown> {
+  if (voiceActors.length === 1) {
+    const va = voiceActors[0]!;
+    const vaImgPath = vaImagePaths.get(va.id);
+    const vaLabel = va.nativeName
+      ? va.fullName ? `${va.nativeName} (${va.fullName})` : va.nativeName
+      : va.fullName;
+
+    if (vaImgPath) {
+      return {
+        tag: 'table',
+        content: {
+          tag: 'tr',
+          content: [
+            {
+              tag: 'td',
+              style: { verticalAlign: 'top', padding: '0', paddingRight: '0.4em', borderWidth: '0' },
+              content: {
+                tag: 'img',
+                path: vaImgPath,
+                width: 3,
+                height: 3,
+                sizeUnits: 'em',
+                title: vaLabel,
+                alt: vaLabel,
+                collapsed: false,
+                collapsible: false,
+                background: true,
+              },
+            },
+            {
+              tag: 'td',
+              style: { verticalAlign: 'middle', padding: '0', borderWidth: '0' },
+              content: vaLabel,
+            },
+          ],
+        },
+      };
+    }
+
+    return { tag: 'div', content: vaLabel };
+  }
+
+  const items: Array<Record<string, unknown>> = [];
+  for (const va of voiceActors) {
+    const vaLabel = va.nativeName
+      ? va.fullName ? `${va.nativeName} (${va.fullName})` : va.nativeName
+      : va.fullName;
+    items.push({ tag: 'li', content: vaLabel });
+  }
+  return { tag: 'ul', style: { marginTop: '0.15em' }, content: items };
+}
+
 function createDefinitionGlossary(
   character: CharacterRecord,
   mediaTitle: string,
   imagePath: string | null,
+  vaImagePaths: Map<number, string>,
 ): CharacterDictionaryGlossaryEntry[] {
   const displayName = character.nativeName || character.fullName || `Character ${character.id}`;
-  const lines: string[] = [`${displayName} [${roleLabel(character.role)}]`, `${mediaTitle} · AniList`];
-
-  const description = normalizeDescription(character.description);
-  if (description) {
-    lines.push(description);
-  }
-
-  if (!imagePath) {
-    return [lines.join('\n')];
-  }
+  const secondaryName =
+    character.nativeName &&
+    character.fullName &&
+    character.fullName !== character.nativeName
+      ? character.fullName
+      : null;
+  const { fields, text: descriptionText } = parseCharacterDescription(character.description);
 
   const content: Array<string | Record<string, unknown>> = [
     {
-      tag: 'img',
-      path: imagePath,
-      width: 8,
-      height: 11,
-      sizeUnits: 'em',
-      title: displayName,
-      alt: displayName,
-      description: `${displayName} · ${mediaTitle}`,
-      collapsed: false,
-      collapsible: false,
-      background: true,
+      tag: 'div',
+      style: { fontWeight: 'bold', fontSize: '1.1em', marginBottom: '0.1em' },
+      content: displayName,
     },
   ];
 
-  for (let i = 0; i < lines.length; i += 1) {
-    if (i > 0) {
-      content.push({ tag: 'br' });
-    }
-    content.push(lines[i]!);
+  if (secondaryName) {
+    content.push({
+      tag: 'div',
+      style: { fontSize: '0.85em', fontStyle: 'italic', color: '#b0b0b0', marginBottom: '0.2em' },
+      content: secondaryName,
+    });
+  }
+
+  if (imagePath) {
+    content.push({
+      tag: 'div',
+      style: { marginTop: '0.3em', marginBottom: '0.3em' },
+      content: {
+        tag: 'img',
+        path: imagePath,
+        width: 8,
+        height: 11,
+        sizeUnits: 'em',
+        title: displayName,
+        alt: displayName,
+        description: `${displayName} · ${mediaTitle}`,
+        collapsed: false,
+        collapsible: false,
+        background: true,
+      },
+    });
+  }
+
+  content.push({
+    tag: 'div',
+    style: { fontSize: '0.8em', color: '#999', marginBottom: '0.2em' },
+    content: `From: ${mediaTitle}`,
+  });
+
+  content.push({
+    tag: 'div',
+    style: { marginBottom: '0.15em' },
+    content: {
+      tag: 'span',
+      style: roleBadgeStyle(character.role),
+      content: `${roleLabel(character.role)} Character`,
+    },
+  });
+
+  if (descriptionText) {
+    content.push(buildCollapsibleSection('Description', descriptionText));
+  }
+
+  if (fields.length > 0) {
+    const fieldItems: Array<Record<string, unknown>> = fields.map((f) => ({
+      tag: 'li',
+      content: `${f.key}: ${f.value}`,
+    }));
+    content.push(
+      buildCollapsibleSection('Character Information', {
+        tag: 'ul',
+        style: { marginTop: '0.15em' },
+        content: fieldItems,
+      }),
+    );
+  }
+
+  if (character.voiceActors.length > 0) {
+    content.push(
+      buildCollapsibleSection(
+        'Voiced by',
+        buildVoicedByContent(character.voiceActors, vaImagePaths),
+      ),
+    );
   }
 
   return [
     {
       type: 'structured-content',
-      content,
+      content: { tag: 'div', content },
     },
   ];
 }
 
 function buildSnapshotImagePath(mediaId: number, charId: number, ext: string): string {
   return `img/m${mediaId}-c${charId}.${ext}`;
+}
+
+function buildVaImagePath(mediaId: number, vaId: number, ext: string): string {
+  return `img/m${mediaId}-va${vaId}.${ext}`;
 }
 
 function buildTermEntry(
@@ -998,6 +1184,16 @@ async function fetchCharactersForMedia(
               }
               edges {
                 role
+                voiceActors(language: JAPANESE) {
+                  id
+                  name {
+                    full
+                    native
+                  }
+                  image {
+                    medium
+                  }
+                }
                 node {
                   id
                   description(asHtml: false)
@@ -1042,6 +1238,19 @@ async function fetchCharactersForMedia(
       const fullName = node.name?.full?.trim() || '';
       const nativeName = node.name?.native?.trim() || '';
       if (!fullName && !nativeName) continue;
+      const voiceActors: VoiceActorRecord[] = [];
+      for (const va of edge?.voiceActors ?? []) {
+        if (!va || typeof va.id !== 'number') continue;
+        const vaFull = va.name?.full?.trim() || '';
+        const vaNative = va.name?.native?.trim() || '';
+        if (!vaFull && !vaNative) continue;
+        voiceActors.push({
+          id: va.id,
+          fullName: vaFull,
+          nativeName: vaNative,
+          imageUrl: va.image?.medium || null,
+        });
+      }
       characters.push({
         id: node.id,
         role: mapRole(edge?.role),
@@ -1049,6 +1258,7 @@ async function fetchCharactersForMedia(
         nativeName,
         description: node.description || '',
         imageUrl: node.image?.large || node.image?.medium || null,
+        voiceActors,
       });
     }
 
@@ -1119,6 +1329,7 @@ function buildSnapshotFromCharacters(
   mediaTitle: string,
   characters: CharacterRecord[],
   imagesByCharacterId: Map<number, CharacterDictionarySnapshotImage>,
+  imagesByVaId: Map<number, CharacterDictionarySnapshotImage>,
   updatedAt: number,
 ): CharacterDictionarySnapshot {
   const termEntries: CharacterDictionaryTermEntry[] = [];
@@ -1126,7 +1337,12 @@ function buildSnapshotFromCharacters(
 
   for (const character of characters) {
     const imagePath = imagesByCharacterId.get(character.id)?.path ?? null;
-    const glossary = createDefinitionGlossary(character, mediaTitle, imagePath);
+    const vaImagePaths = new Map<number, string>();
+    for (const va of character.voiceActors) {
+      const vaImg = imagesByVaId.get(va.id);
+      if (vaImg) vaImagePaths.set(va.id, vaImg.path);
+    }
+    const glossary = createDefinitionGlossary(character, mediaTitle, imagePath, vaImagePaths);
     const candidateTerms = buildNameTerms(character);
     for (const term of candidateTerms) {
       const reading = buildReading(term);
@@ -1148,7 +1364,7 @@ function buildSnapshotFromCharacters(
     entryCount: termEntries.length,
     updatedAt,
     termEntries,
-    images: [...imagesByCharacterId.values()],
+    images: [...imagesByCharacterId.values(), ...imagesByVaId.values()],
   };
 }
 
@@ -1278,25 +1494,42 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     }
 
     const imagesByCharacterId = new Map<number, CharacterDictionarySnapshotImage>();
-    const charactersWithImages = characters.filter((character) => Boolean(character.imageUrl)).length;
-    if (charactersWithImages > 0) {
+    const imagesByVaId = new Map<number, CharacterDictionarySnapshotImage>();
+    const allImageUrls: Array<{ id: number; url: string; kind: 'character' | 'va' }> = [];
+    for (const character of characters) {
+      if (character.imageUrl) {
+        allImageUrls.push({ id: character.id, url: character.imageUrl, kind: 'character' });
+      }
+      for (const va of character.voiceActors) {
+        if (va.imageUrl && !allImageUrls.some((u) => u.kind === 'va' && u.id === va.id)) {
+          allImageUrls.push({ id: va.id, url: va.imageUrl, kind: 'va' });
+        }
+      }
+    }
+    if (allImageUrls.length > 0) {
       deps.logInfo?.(
-        `[dictionary] downloading ${charactersWithImages} character images for AniList ${mediaId}`,
+        `[dictionary] downloading ${allImageUrls.length} images for AniList ${mediaId}`,
       );
     }
-    let hasAttemptedCharacterImageDownload = false;
-    for (const character of characters) {
-      if (!character.imageUrl) continue;
-      if (hasAttemptedCharacterImageDownload) {
+    let hasAttemptedImageDownload = false;
+    for (const entry of allImageUrls) {
+      if (hasAttemptedImageDownload) {
         await sleepMs(CHARACTER_IMAGE_DOWNLOAD_DELAY_MS);
       }
-      hasAttemptedCharacterImageDownload = true;
-      const image = await downloadCharacterImage(character.imageUrl, character.id);
+      hasAttemptedImageDownload = true;
+      const image = await downloadCharacterImage(entry.url, entry.id);
       if (!image) continue;
-      imagesByCharacterId.set(character.id, {
-        path: buildSnapshotImagePath(mediaId, character.id, image.ext),
-        dataBase64: image.bytes.toString('base64'),
-      });
+      if (entry.kind === 'character') {
+        imagesByCharacterId.set(entry.id, {
+          path: buildSnapshotImagePath(mediaId, entry.id, image.ext),
+          dataBase64: image.bytes.toString('base64'),
+        });
+      } else {
+        imagesByVaId.set(entry.id, {
+          path: buildVaImagePath(mediaId, entry.id, image.ext),
+          dataBase64: image.bytes.toString('base64'),
+        });
+      }
     }
 
     const snapshot = buildSnapshotFromCharacters(
@@ -1304,6 +1537,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       fetchedMediaTitle || mediaTitleHint || `AniList ${mediaId}`,
       characters,
       imagesByCharacterId,
+      imagesByVaId,
       deps.now(),
     );
     writeSnapshot(snapshotPath, snapshot);
