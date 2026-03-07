@@ -25,6 +25,8 @@ test('tray main deps builders return mapped handlers', () => {
     initializeOverlayRuntime: () => calls.push('init'),
     isOverlayRuntimeInitialized: () => false,
     setVisibleOverlayVisible: (visible) => calls.push(`visible:${visible}`),
+    showFirstRunSetup: () => true,
+    openFirstRunSetupWindow: () => calls.push('setup'),
     openYomitanSettings: () => calls.push('yomitan'),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
@@ -34,6 +36,8 @@ test('tray main deps builders return mapped handlers', () => {
 
   const template = menuDeps.buildTrayMenuTemplateRuntime({
     openOverlay: () => calls.push('open-overlay'),
+    openFirstRunSetup: () => calls.push('open-setup'),
+    showFirstRunSetup: true,
     openYomitanSettings: () => calls.push('open-yomitan'),
     openRuntimeOptions: () => calls.push('open-runtime-options'),
     openJellyfinSetup: () => calls.push('open-jellyfin'),

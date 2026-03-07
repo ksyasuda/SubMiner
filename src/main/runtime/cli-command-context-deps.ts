@@ -16,6 +16,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   isOverlayInitialized: () => boolean;
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
+  openFirstRunSetup: () => void;
   setVisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;
@@ -61,6 +62,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     isOverlayInitialized: deps.isOverlayInitialized,
     initializeOverlay: deps.initializeOverlay,
     toggleVisibleOverlay: deps.toggleVisibleOverlay,
+    openFirstRunSetup: deps.openFirstRunSetup,
     setVisibleOverlay: deps.setVisibleOverlay,
     copyCurrentSubtitle: deps.copyCurrentSubtitle,
     startPendingMultiCopy: deps.startPendingMultiCopy,

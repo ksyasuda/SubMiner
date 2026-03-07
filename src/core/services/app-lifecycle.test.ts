@@ -11,6 +11,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     settings: false,
+    setup: false,
     show: false,
     hide: false,
     showVisibleOverlay: false,

@@ -17,6 +17,7 @@ export interface CliCommandServiceDeps {
   isOverlayRuntimeInitialized: () => boolean;
   initializeOverlayRuntime: () => void;
   toggleVisibleOverlay: () => void;
+  openFirstRunSetup: () => void;
   openYomitanSettingsDelayed: (delayMs: number) => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
@@ -115,6 +116,7 @@ interface MiningCliRuntime {
 }
 
 interface UiCliRuntime {
+  openFirstRunSetup: () => void;
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -195,6 +197,7 @@ export function createCliCommandDepsRuntime(
     isOverlayRuntimeInitialized: options.overlay.isInitialized,
     initializeOverlayRuntime: options.overlay.initialize,
     toggleVisibleOverlay: options.overlay.toggleVisible,
+    openFirstRunSetup: options.ui.openFirstRunSetup,
     openYomitanSettingsDelayed: (delayMs) => {
       options.schedule(() => {
         options.ui.openYomitanSettings();
@@ -298,6 +301,9 @@ export function handleCliCommand(
 
   if (args.toggle || args.toggleVisibleOverlay) {
     deps.toggleVisibleOverlay();
+  } else if (args.setup) {
+    deps.openFirstRunSetup();
+    deps.log('Opened first-run setup flow.');
   } else if (args.settings) {
     deps.openYomitanSettingsDelayed(1000);
   } else if (args.show || args.showVisibleOverlay) {

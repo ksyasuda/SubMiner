@@ -33,6 +33,7 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 - **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
 - **Immersion tracking** — SQLite-powered stats on your watch time and mining activity
 - **Custom texthooker page** — Built-in custom texthooker page and websocket, no extra setup
+- **Annotated websocket API** — Dedicated annotation feed can serve bundled texthooker or external clients with rendered `sentence` HTML plus structured `tokens`
 - **Jellyfin integration** — Remote playback setup, cast device mode, and direct playback launch
 - **AniList progress** — Track episode completion and push watching progress automatically
 
@@ -55,28 +56,34 @@ chmod +x ~/.local/bin/subminer
 
 **From source** or **macOS** — see the [installation guide](https://docs.subminer.moe/installation#from-source).
 
-### 2. Install the mpv plugin and configuration file
+### 2. Launch the app once
 
 ```bash
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
-tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
-mkdir -p ~/.config/mpv/scripts/subminer
-mkdir -p ~/.config/mpv/script-opts
-cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
-cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
-mkdir -p ~/.config/SubMiner && cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
+SubMiner.AppImage
 ```
 
-### 3. Set up Yomitan Dictionaries
+On first launch, SubMiner now:
 
-```bash
-subminer app --yomitan
-```
+- starts in the tray/background
+- creates the default config directory and `config.jsonc`
+- opens a compact setup popup
+- can install the mpv plugin to the default mpv scripts location for you
+- links directly to Yomitan settings so you can install dictionaries before finishing setup
+
+Existing installs that already have a valid config plus at least one Yomitan dictionary are auto-detected as complete and will not be re-prompted.
+
+### 3. Finish setup
+
+- click `Install mpv plugin` if you want the default plugin auto-start flow
+- click `Open Yomitan Settings` and install at least one dictionary
+- click `Refresh status`
+- click `Finish setup`
+
+The mpv plugin step is optional. Yomitan must report at least one installed dictionary before setup can be completed.
 
 ### 4. Mine
 
 ```bash
-subminer app --start --background
 subminer video.mkv # default plugin config auto-starts visible overlay + resumes playback when ready
 subminer --start video.mkv # optional explicit overlay start when plugin auto_start=no
 ```

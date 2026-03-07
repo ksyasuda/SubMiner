@@ -69,6 +69,13 @@ export function runStartupBootstrapRuntime(
 }
 
 interface AppReadyConfigLike {
+  annotationWebsocket?: {
+    enabled?: boolean;
+    port?: number;
+  };
+  texthooker?: {
+    launchAtStartup?: boolean;
+  };
   secondarySub?: {
     defaultMode?: SecondarySubMode;
   };
@@ -92,6 +99,7 @@ interface AppReadyConfigLike {
 }
 
 export interface AppReadyRuntimeDeps {
+  ensureDefaultConfigBootstrap: () => void;
   loadSubtitlePosition: () => void;
   resolveKeybindings: () => void;
   createMpvClient: () => void;
@@ -104,14 +112,19 @@ export interface AppReadyRuntimeDeps {
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   defaultSecondarySubMode: SecondarySubMode;
   defaultWebsocketPort: number;
+  defaultAnnotationWebsocketPort: number;
+  defaultTexthookerPort: number;
   hasMpvWebsocketPlugin: () => boolean;
   startSubtitleWebsocket: (port: number) => void;
+  startAnnotationWebsocket: (port: number) => void;
+  startTexthooker: (port: number, websocketUrl?: string) => void;
   log: (message: string) => void;
   createMecabTokenizerAndCheck: () => Promise<void>;
   createSubtitleTimingTracker: () => void;
   createImmersionTracker?: () => void;
   startJellyfinRemoteSession?: () => Promise<void>;
   loadYomitanExtension: () => Promise<void>;
+  handleFirstRunSetup: () => Promise<void>;
   prewarmSubtitleDictionaries?: () => Promise<void>;
   startBackgroundWarmups: () => void;
   texthookerOnlyMode: boolean;
@@ -169,8 +182,10 @@ export function isAutoUpdateEnabledRuntime(
 export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<void> {
   const now = deps.now ?? (() => Date.now());
   const startupStartedAtMs = now();
+  deps.ensureDefaultConfigBootstrap();
   if (deps.shouldSkipHeavyStartup?.()) {
     await deps.loadYomitanExtension();
+    await deps.handleFirstRunSetup();
     deps.handleInitialArgs();
     return;
   }
@@ -179,6 +194,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
 
   if (deps.shouldSkipHeavyStartup?.()) {
     await deps.loadYomitanExtension();
+    await deps.handleFirstRunSetup();
     deps.handleInitialArgs();
     deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
     return;
@@ -210,11 +226,27 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   const wsConfig = config.websocket || {};
   const wsEnabled = wsConfig.enabled ?? 'auto';
   const wsPort = wsConfig.port || deps.defaultWebsocketPort;
+  const annotationWsConfig = config.annotationWebsocket || {};
+  const annotationWsEnabled = annotationWsConfig.enabled !== false;
+  const annotationWsPort = annotationWsConfig.port || deps.defaultAnnotationWebsocketPort;
+  const texthookerPort = deps.defaultTexthookerPort;
+  let texthookerWebsocketUrl: string | undefined;
 
   if (wsEnabled === true || (wsEnabled === 'auto' && !deps.hasMpvWebsocketPlugin())) {
     deps.startSubtitleWebsocket(wsPort);
   } else if (wsEnabled === 'auto') {
     deps.log('mpv_websocket detected, skipping built-in WebSocket server');
+  }
+
+  if (annotationWsEnabled) {
+    deps.startAnnotationWebsocket(annotationWsPort);
+    texthookerWebsocketUrl = `ws://127.0.0.1:${annotationWsPort}`;
+  } else if (wsEnabled === true || (wsEnabled === 'auto' && !deps.hasMpvWebsocketPlugin())) {
+    texthookerWebsocketUrl = `ws://127.0.0.1:${wsPort}`;
+  }
+
+  if (config.texthooker?.launchAtStartup !== false) {
+    deps.startTexthooker(texthookerPort, texthookerWebsocketUrl);
   }
 
   deps.createSubtitleTimingTracker();
@@ -233,6 +265,8 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
     deps.log('Overlay runtime deferred: waiting for explicit overlay command.');
   }
 
+  await deps.loadYomitanExtension();
+  await deps.handleFirstRunSetup();
   deps.handleInitialArgs();
   deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
 }

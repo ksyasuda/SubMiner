@@ -147,6 +147,7 @@ export interface AppState {
   yomitanParserWindow: BrowserWindow | null;
   anilistSetupWindow: BrowserWindow | null;
   jellyfinSetupWindow: BrowserWindow | null;
+  firstRunSetupWindow: BrowserWindow | null;
   yomitanParserReadyPromise: Promise<void> | null;
   yomitanParserInitPromise: Promise<boolean> | null;
   mpvClient: MpvIpcClient | null;
@@ -193,6 +194,7 @@ export interface AppState {
   frequencyRankLookup: FrequencyDictionaryLookup;
   anilistSetupPageOpened: boolean;
   anilistRetryQueueState: AnilistRetryQueueState;
+  firstRunSetupCompleted: boolean;
 }
 
 export interface AppStateInitialValues {
@@ -221,6 +223,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     yomitanParserWindow: null,
     anilistSetupWindow: null,
     jellyfinSetupWindow: null,
+    firstRunSetupWindow: null,
     yomitanParserReadyPromise: null,
     yomitanParserInitPromise: null,
     mpvClient: null,
@@ -269,6 +272,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     frequencyRankLookup: () => null,
     anilistSetupPageOpened: false,
     anilistRetryQueueState: createInitialAnilistRetryQueueState(),
+    firstRunSetupCompleted: false,
   };
 }
 

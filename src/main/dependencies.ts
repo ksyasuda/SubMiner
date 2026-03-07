@@ -159,6 +159,7 @@ export interface CliCommandRuntimeServiceDepsParams {
     runCommand: CliCommandDepsRuntimeOptions['jellyfin']['runCommand'];
   };
   ui: {
+    openFirstRunSetup: CliCommandDepsRuntimeOptions['ui']['openFirstRunSetup'];
     openYomitanSettings: CliCommandDepsRuntimeOptions['ui']['openYomitanSettings'];
     cycleSecondarySubMode: CliCommandDepsRuntimeOptions['ui']['cycleSecondarySubMode'];
     openRuntimeOptionsPalette: CliCommandDepsRuntimeOptions['ui']['openRuntimeOptionsPalette'];
@@ -307,6 +308,7 @@ export function createCliCommandRuntimeServiceDeps(
       runCommand: params.jellyfin.runCommand,
     },
     ui: {
+      openFirstRunSetup: params.ui.openFirstRunSetup,
       openYomitanSettings: params.ui.openYomitanSettings,
       cycleSecondarySubMode: params.ui.cycleSecondarySubMode,
       openRuntimeOptionsPalette: params.ui.openRuntimeOptionsPalette,

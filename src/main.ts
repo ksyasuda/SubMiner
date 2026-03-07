@@ -240,6 +240,11 @@ import {
   showDesktopNotification,
 } from './core/utils';
 import {
+  ensureDefaultConfigBootstrap,
+  getDefaultConfigFilePaths,
+  resolveDefaultMpvInstallPaths,
+} from './shared/setup-state';
+import {
   ImmersionTrackerService,
   JellyfinRemoteSessionService,
   MpvIpcClient,
@@ -296,6 +301,21 @@ import {
   upsertYomitanDictionarySettings,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
+import {
+  createFirstRunSetupService,
+  shouldAutoOpenFirstRunSetup,
+} from './main/runtime/first-run-setup-service';
+import {
+  buildFirstRunSetupHtml,
+  createMaybeFocusExistingFirstRunSetupWindowHandler,
+  createOpenFirstRunSetupWindowHandler,
+  parseFirstRunSetupSubmissionUrl,
+  type FirstRunSetupAction,
+} from './main/runtime/first-run-setup-window';
+import {
+  detectInstalledFirstRunPlugin,
+  installFirstRunPluginToDefaultLocation,
+} from './main/runtime/first-run-setup-plugin';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
 import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
@@ -495,6 +515,7 @@ const anilistUpdateQueue = createAnilistUpdateQueue(
 const isDev = process.argv.includes('--dev') || process.argv.includes('--debug');
 const texthookerService = new Texthooker();
 const subtitleWsService = new SubtitleWebSocket();
+const annotationSubtitleWsService = new SubtitleWebSocket();
 const logger = createLogger('main');
 notifyAnilistTokenStoreWarning = (message: string) => {
   logger.warn(`[AniList] ${message}`);
@@ -600,6 +621,41 @@ const overlayModalRuntime = createOverlayModalRuntimeService(
 const appState = createAppState({
   mpvSocketPath: getDefaultSocketPath(),
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
+});
+let firstRunSetupMessage: string | null = null;
+const firstRunSetupService = createFirstRunSetupService({
+  configDir: CONFIG_DIR,
+  getYomitanDictionaryCount: async () => {
+    await ensureYomitanExtensionLoaded();
+    const dictionaries = await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
+      error: (message, ...args) => logger.error(message, ...args),
+      info: (message, ...args) => logger.info(message, ...args),
+    });
+    return dictionaries.length;
+  },
+  detectPluginInstalled: () => {
+    const installPaths = resolveDefaultMpvInstallPaths(
+      process.platform,
+      os.homedir(),
+      process.env.XDG_CONFIG_HOME,
+    );
+    return detectInstalledFirstRunPlugin(installPaths);
+  },
+  installPlugin: async () =>
+    installFirstRunPluginToDefaultLocation({
+      platform: process.platform,
+      homeDir: os.homedir(),
+      xdgConfigHome: process.env.XDG_CONFIG_HOME,
+      dirname: __dirname,
+      appPath: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+    }),
+  onStateChanged: (state) => {
+    appState.firstRunSetupCompleted = state.status === 'completed';
+    if (appTray) {
+      ensureTray();
+    }
+  },
 });
 const discordPresenceSessionStartedAtMs = Date.now();
 let discordPresenceMediaDurationSec: number | null = null;
@@ -886,6 +942,11 @@ const buildSubtitleProcessingControllerMainDepsHandler =
       appState.currentSubtitleData = payload;
       broadcastToOverlayWindows('subtitle:set', payload);
       subtitleWsService.broadcast(payload, {
+        enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+        topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+        mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+      });
+      annotationSubtitleWsService.broadcast(payload, {
         enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
         topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
         mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
@@ -1596,6 +1657,96 @@ const {
   },
 });
 
+const maybeFocusExistingFirstRunSetupWindow =
+  createMaybeFocusExistingFirstRunSetupWindowHandler({
+    getSetupWindow: () => appState.firstRunSetupWindow,
+  });
+const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
+  maybeFocusExistingSetupWindow: maybeFocusExistingFirstRunSetupWindow,
+  createSetupWindow: () =>
+    new BrowserWindow({
+      width: 480,
+      height: 460,
+      title: 'SubMiner Setup',
+      show: true,
+      autoHideMenuBar: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    }),
+  getSetupSnapshot: async () => {
+    const snapshot = await firstRunSetupService.getSetupStatus();
+    return {
+      configReady: snapshot.configReady,
+      dictionaryCount: snapshot.dictionaryCount,
+      canFinish: snapshot.canFinish,
+      pluginStatus: snapshot.pluginStatus,
+      pluginInstallPathSummary: snapshot.pluginInstallPathSummary,
+      message: firstRunSetupMessage,
+    };
+  },
+  buildSetupHtml: (model) => buildFirstRunSetupHtml(model),
+  parseSubmissionUrl: (rawUrl) => parseFirstRunSetupSubmissionUrl(rawUrl),
+  handleAction: async (action: FirstRunSetupAction) => {
+    if (action === 'install-plugin') {
+      const snapshot = await firstRunSetupService.installMpvPlugin();
+      firstRunSetupMessage = snapshot.message;
+      return;
+    }
+    if (action === 'open-yomitan-settings') {
+      openYomitanSettings();
+      firstRunSetupMessage = 'Opened Yomitan settings. Install dictionaries, then refresh status.';
+      return;
+    }
+    if (action === 'refresh') {
+      const snapshot = await firstRunSetupService.refreshStatus('Status refreshed.');
+      firstRunSetupMessage = snapshot.message;
+      return;
+    }
+    if (action === 'skip-plugin') {
+      await firstRunSetupService.skipPluginInstall();
+      firstRunSetupMessage = 'mpv plugin installation skipped.';
+      return;
+    }
+
+    const snapshot = await firstRunSetupService.markSetupCompleted();
+    if (snapshot.state.status === 'completed') {
+      firstRunSetupMessage = null;
+      return { closeWindow: true };
+    }
+    firstRunSetupMessage = 'Install at least one Yomitan dictionary before finishing setup.';
+    return;
+  },
+  markSetupInProgress: async () => {
+    firstRunSetupMessage = null;
+    await firstRunSetupService.markSetupInProgress();
+  },
+  markSetupCancelled: async () => {
+    firstRunSetupMessage = null;
+    await firstRunSetupService.markSetupCancelled();
+  },
+  isSetupCompleted: () => firstRunSetupService.isSetupCompleted(),
+  clearSetupWindow: () => {
+    appState.firstRunSetupWindow = null;
+  },
+  setSetupWindow: (window) => {
+    appState.firstRunSetupWindow = window as BrowserWindow;
+  },
+  encodeURIComponent: (value) => encodeURIComponent(value),
+  logError: (message, error) => logger.error(message, error),
+});
+
+function openFirstRunSetupWindow(): void {
+  if (firstRunSetupService.isSetupCompleted()) {
+    return;
+  }
+  openFirstRunSetupWindowHandler();
+}
+
 const {
   notifyAnilistSetup,
   consumeAnilistSetupTokenFromUrl,
@@ -2018,7 +2169,10 @@ const {
       restoreOverlayMpvSubtitles();
     },
     unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
-    stopSubtitleWebsocket: () => subtitleWsService.stop(),
+    stopSubtitleWebsocket: () => {
+      subtitleWsService.stop();
+      annotationSubtitleWsService.stop();
+    },
     stopTexthookerService: () => texthookerService.stop(),
     getYomitanParserWindow: () => appState.yomitanParserWindow,
     clearYomitanParserState: () => {
@@ -2123,6 +2277,13 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     },
   },
   appReadyRuntimeMainDeps: {
+    ensureDefaultConfigBootstrap: () => {
+      ensureDefaultConfigBootstrap({
+        configDir: CONFIG_DIR,
+        configFilePaths: getDefaultConfigFilePaths(CONFIG_DIR),
+        generateTemplate: () => generateConfigTemplate(DEFAULT_CONFIG),
+      });
+    },
     loadSubtitlePosition: () => loadSubtitlePosition(),
     resolveKeybindings: () => {
       appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
@@ -2157,9 +2318,49 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     },
     defaultSecondarySubMode: 'hover',
     defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
+    defaultAnnotationWebsocketPort: DEFAULT_CONFIG.annotationWebsocket.port,
+    defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
     hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
     startSubtitleWebsocket: (port: number) => {
-      subtitleWsService.start(port, () => appState.currentSubText);
+      subtitleWsService.start(
+        port,
+        () =>
+          appState.currentSubtitleData ??
+          (appState.currentSubText
+            ? {
+                text: appState.currentSubText,
+                tokens: null,
+              }
+            : null),
+        () => ({
+          enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+          topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+          mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+        }),
+      );
+    },
+    startAnnotationWebsocket: (port: number) => {
+      annotationSubtitleWsService.start(
+        port,
+        () =>
+          appState.currentSubtitleData ??
+          (appState.currentSubText
+            ? {
+                text: appState.currentSubText,
+                tokens: null,
+              }
+            : null),
+        () => ({
+          enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+          topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+          mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+        }),
+      );
+    },
+    startTexthooker: (port: number, websocketUrl?: string) => {
+      if (!texthookerService.isRunning()) {
+        texthookerService.start(port, websocketUrl);
+      }
     },
     log: (message) => appLogger.logInfo(message),
     createMecabTokenizerAndCheck: async () => {
@@ -2171,6 +2372,17 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     },
     loadYomitanExtension: async () => {
       await loadYomitanExtension();
+    },
+    handleFirstRunSetup: async () => {
+      const snapshot = await firstRunSetupService.ensureSetupStateInitialized();
+      appState.firstRunSetupCompleted = snapshot.state.status === 'completed';
+      if (
+        appState.initialArgs &&
+        shouldAutoOpenFirstRunSetup(appState.initialArgs) &&
+        snapshot.state.status !== 'completed'
+      ) {
+        openFirstRunSetupWindow();
+      }
     },
     startJellyfinRemoteSession: async () => {
       await startJellyfinRemoteSession();
@@ -2192,7 +2404,9 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     shouldSkipHeavyStartup: () =>
       Boolean(
         appState.initialArgs &&
-          (shouldRunSettingsOnlyStartup(appState.initialArgs) || appState.initialArgs.dictionary),
+          (shouldRunSettingsOnlyStartup(appState.initialArgs) ||
+            appState.initialArgs.dictionary ||
+            appState.initialArgs.setup),
       ),
     createImmersionTracker: () => {
       ensureImmersionTrackerStarted();
@@ -3092,6 +3306,7 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   showMpvOsd: (text: string) => showMpvOsd(text),
   initializeOverlayRuntime: () => initializeOverlayRuntime(),
   toggleVisibleOverlay: () => toggleVisibleOverlay(),
+  openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
   setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
   copyCurrentSubtitle: () => copyCurrentSubtitle(),
   startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
@@ -3163,6 +3378,8 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
     setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+    showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
+    openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
     openYomitanSettings: () => openYomitanSettings(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJellyfinSetupWindow: () => openJellyfinSetupWindow(),

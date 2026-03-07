@@ -5,6 +5,7 @@ export interface CliArgs {
   toggle: boolean;
   toggleVisibleOverlay: boolean;
   settings: boolean;
+  setup: boolean;
   show: boolean;
   hide: boolean;
   showVisibleOverlay: boolean;
@@ -71,6 +72,7 @@ export function parseArgs(argv: string[]): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     settings: false,
+    setup: false,
     show: false,
     hide: false,
     showVisibleOverlay: false,
@@ -125,6 +127,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--toggle') args.toggle = true;
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
     else if (arg === '--settings' || arg === '--yomitan') args.settings = true;
+    else if (arg === '--setup') args.setup = true;
     else if (arg === '--show') args.show = true;
     else if (arg === '--hide') args.hide = true;
     else if (arg === '--show-visible-overlay') args.showVisibleOverlay = true;
@@ -298,6 +301,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.toggle ||
     args.toggleVisibleOverlay ||
     args.settings ||
+    args.setup ||
     args.show ||
     args.hide ||
     args.showVisibleOverlay ||
@@ -341,6 +345,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.toggle ||
     args.toggleVisibleOverlay ||
     args.settings ||
+    args.setup ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
     args.mineSentence ||
@@ -371,6 +376,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.toggleVisibleOverlay &&
     !args.show &&
     !args.hide &&
+    !args.setup &&
     !args.showVisibleOverlay &&
     !args.hideVisibleOverlay &&
     !args.copySubtitle &&

@@ -169,4 +169,9 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(background.background, true);
   assert.equal(hasExplicitCommand(background), true);
   assert.equal(shouldStartApp(background), true);
+
+  const setup = parseArgs(['--setup']);
+  assert.equal((setup as typeof setup & { setup?: boolean }).setup, true);
+  assert.equal(hasExplicitCommand(setup), true);
+  assert.equal(shouldStartApp(setup), true);
 });

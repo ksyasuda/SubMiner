@@ -20,6 +20,7 @@ test('cli command context factory composes main deps and context handlers', () =
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     initializeOverlayRuntime: () => calls.push('init-overlay'),
     toggleVisibleOverlay: () => calls.push('toggle-visible'),
+    openFirstRunSetupWindow: () => calls.push('setup'),
     setVisibleOverlayVisible: (visible) => calls.push(`set-visible:${visible}`),
     copyCurrentSubtitle: () => calls.push('copy-sub'),
     startPendingMultiCopy: (timeoutMs) => calls.push(`multi:${timeoutMs}`),

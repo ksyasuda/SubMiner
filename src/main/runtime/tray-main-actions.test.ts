@@ -42,6 +42,7 @@ test('build tray template handler wires actions and init guards', () => {
   const buildTemplate = createBuildTrayMenuTemplateHandler({
     buildTrayMenuTemplateRuntime: (handlers) => {
       handlers.openOverlay();
+      handlers.openFirstRunSetup();
       handlers.openYomitanSettings();
       handlers.openRuntimeOptions();
       handlers.openJellyfinSetup();
@@ -55,6 +56,8 @@ test('build tray template handler wires actions and init guards', () => {
     },
     isOverlayRuntimeInitialized: () => initialized,
     setVisibleOverlayVisible: (visible) => calls.push(`visible:${visible}`),
+    showFirstRunSetup: () => true,
+    openFirstRunSetupWindow: () => calls.push('setup'),
     openYomitanSettings: () => calls.push('yomitan'),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
@@ -67,6 +70,7 @@ test('build tray template handler wires actions and init guards', () => {
   assert.deepEqual(calls, [
     'init',
     'visible:true',
+    'setup',
     'yomitan',
     'runtime-options',
     'jellyfin',

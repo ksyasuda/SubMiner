@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import { spawn } from 'node:child_process';
 import { fail, log } from '../log.js';
 import { commandExists, isYoutubeTarget, realpathMaybe, resolvePathMaybe } from '../util.js';
 import { collectVideos, showFzfMenu, showRofiMenu } from '../picker.js';
@@ -13,6 +15,11 @@ import {
 import { generateYoutubeSubtitles } from '../youtube.js';
 import type { Args } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
+import { ensureLauncherSetupReady } from '../setup-gate.js';
+import { getDefaultConfigDir, getSetupStatePath, readSetupState } from '../../src/shared/setup-state.js';
+
+const SETUP_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
+const SETUP_POLL_INTERVAL_MS = 500;
 
 function checkDependencies(args: Args): void {
   const missing: string[] = [];
@@ -84,11 +91,46 @@ function registerCleanup(context: LauncherCommandContext): void {
   });
 }
 
+async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promise<void> {
+  const { args, appPath } = context;
+  if (!appPath) return;
+
+  const configDir = getDefaultConfigDir({
+    xdgConfigHome: process.env.XDG_CONFIG_HOME,
+    homeDir: os.homedir(),
+  });
+  const statePath = getSetupStatePath(configDir);
+  const ready = await ensureLauncherSetupReady({
+    readSetupState: () => readSetupState(statePath),
+    launchSetupApp: () => {
+      const setupArgs = ['--background', '--setup'];
+      if (args.logLevel) {
+        setupArgs.push('--log-level', args.logLevel);
+      }
+      const child = spawn(appPath, setupArgs, {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+    },
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    now: () => Date.now(),
+    timeoutMs: SETUP_WAIT_TIMEOUT_MS,
+    pollIntervalMs: SETUP_POLL_INTERVAL_MS,
+  });
+
+  if (!ready) {
+    fail('SubMiner setup is incomplete. Complete setup in the app, then retry playback.');
+  }
+}
+
 export async function runPlaybackCommand(context: LauncherCommandContext): Promise<void> {
   const { args, appPath, scriptPath, mpvSocketPath, pluginRuntimeConfig, processAdapter } = context;
   if (!appPath) {
     fail('SubMiner AppImage not found. Install to ~/.local/bin/ or set SUBMINER_APPIMAGE_PATH.');
   }
+
+  await ensurePlaybackSetupReady(context);
 
   if (!args.target) {
     checkPickerDependencies(args);

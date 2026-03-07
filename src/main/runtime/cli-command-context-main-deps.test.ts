@@ -23,6 +23,7 @@ test('cli command context main deps builder maps state and callbacks', async () 
 
     initializeOverlayRuntime: () => calls.push('init-overlay'),
     toggleVisibleOverlay: () => calls.push('toggle-visible'),
+    openFirstRunSetupWindow: () => calls.push('open-setup'),
     setVisibleOverlayVisible: (visible) => calls.push(`set-visible:${visible}`),
 
     copyCurrentSubtitle: () => calls.push('copy-sub'),
@@ -107,10 +108,11 @@ test('cli command context main deps builder maps state and callbacks', async () 
   assert.equal(deps.shouldOpenBrowser(), true);
   deps.showOsd('hello');
   deps.initializeOverlay();
+  deps.openFirstRunSetup();
   deps.setVisibleOverlay(true);
   deps.printHelp();
 
-  assert.deepEqual(calls, ['osd:hello', 'init-overlay', 'set-visible:true', 'help']);
+  assert.deepEqual(calls, ['osd:hello', 'init-overlay', 'open-setup', 'set-visible:true', 'help']);
 
   const retry = await deps.retryAnilistQueueNow();
   assert.deepEqual(retry, { ok: true, message: 'ok' });

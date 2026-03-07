@@ -11,6 +11,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     settings: false,
+    setup: false,
     show: false,
     hide: false,
     showVisibleOverlay: false,
@@ -95,6 +96,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     openYomitanSettingsDelayed: (delayMs) => {
       calls.push(`openYomitanSettingsDelayed:${delayMs}`);
+    },
+    openFirstRunSetup: () => {
+      calls.push('openFirstRunSetup');
     },
     setVisibleOverlayVisible: (visible) => {
       calls.push(`setVisibleOverlayVisible:${visible}`);
@@ -227,6 +231,16 @@ test('handleCliCommand processes --start for second-instance when overlay runtim
     calls.some((value) => value.includes('connectMpvClient')),
     true,
   );
+});
+
+test('handleCliCommand opens first-run setup window for --setup', () => {
+  const { deps, calls } = createDeps();
+
+  handleCliCommand(makeArgs({ setup: true }), 'initial', deps);
+
+  assert.ok(calls.includes('openFirstRunSetup'));
+  assert.ok(calls.includes('log:Opened first-run setup flow.'));
+  assert.equal(calls.includes('openYomitanSettingsDelayed:1000'), false);
 });
 
 test('handleCliCommand applies cli log level for second-instance commands', () => {

@@ -24,6 +24,7 @@ function createDeps() {
       isOverlayInitialized: () => true,
       initializeOverlay: () => {},
       toggleVisibleOverlay: () => {},
+      openFirstRunSetup: () => {},
       setVisibleOverlay: () => {},
       copyCurrentSubtitle: () => {},
       startPendingMultiCopy: () => {},
