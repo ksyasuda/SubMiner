@@ -375,7 +375,7 @@ if (process.platform === 'linux') {
     getPasswordStoreArg(process.argv) ?? getDefaultPasswordStore(),
   );
   app.commandLine.appendSwitch('password-store', passwordStore);
-  console.debug(`[main] Applied --password-store ${passwordStore}`);
+  createLogger('main').debug(`Applied --password-store ${passwordStore}`);
 }
 
 app.setName('SubMiner');
@@ -1646,7 +1646,7 @@ const {
       appPath
         ? app.setAsDefaultProtocolClient(scheme, appPath, args)
         : app.setAsDefaultProtocolClient(scheme),
-    logWarn: (message, details) => logger.warn(message, details),
+    logDebug: (message, details) => logger.debug(message, details),
   },
 });
 

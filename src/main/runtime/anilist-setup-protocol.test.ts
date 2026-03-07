@@ -56,9 +56,24 @@ test('createRegisterSubminerProtocolClientHandler registers default app entry', 
       calls.push(`register:${String(args?.[0])}`);
       return true;
     },
-    logWarn: (message) => calls.push(`warn:${message}`),
+    logDebug: (message) => calls.push(`debug:${message}`),
   });
 
   register();
   assert.deepEqual(calls, ['register:/resolved/./entry.js']);
+});
+
+test('createRegisterSubminerProtocolClientHandler keeps unsupported registration at debug level', () => {
+  const calls: string[] = [];
+  const register = createRegisterSubminerProtocolClientHandler({
+    isDefaultApp: () => false,
+    getArgv: () => ['SubMiner.AppImage'],
+    execPath: '/tmp/SubMiner.AppImage',
+    resolvePath: (value) => value,
+    setAsDefaultProtocolClient: () => false,
+    logDebug: (message) => calls.push(`debug:${message}`),
+  });
+
+  register();
+  assert.deepEqual(calls, ['debug:Failed to register default protocol handler for subminer:// URLs']);
 });

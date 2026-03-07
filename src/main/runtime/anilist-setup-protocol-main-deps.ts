@@ -60,6 +60,6 @@ export function createBuildRegisterSubminerProtocolClientMainDepsHandler(
     resolvePath: (value: string) => deps.resolvePath(value),
     setAsDefaultProtocolClient: (scheme: string, path?: string, args?: string[]) =>
       deps.setAsDefaultProtocolClient(scheme, path, args),
-    logWarn: (message: string, details?: unknown) => deps.logWarn(message, details),
+    logDebug: (message: string, details?: unknown) => deps.logDebug(message, details),
   });
 }

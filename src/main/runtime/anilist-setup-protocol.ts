@@ -67,7 +67,7 @@ export function createRegisterSubminerProtocolClientHandler(deps: {
   execPath: string;
   resolvePath: (value: string) => string;
   setAsDefaultProtocolClient: (scheme: string, path?: string, args?: string[]) => boolean;
-  logWarn: (message: string, details?: unknown) => void;
+  logDebug: (message: string, details?: unknown) => void;
 }) {
   return (): void => {
     try {
@@ -78,10 +78,10 @@ export function createRegisterSubminerProtocolClientHandler(deps: {
           ])
         : deps.setAsDefaultProtocolClient('subminer');
       if (!success) {
-        deps.logWarn('Failed to register default protocol handler for subminer:// URLs');
+        deps.logDebug('Failed to register default protocol handler for subminer:// URLs');
       }
     } catch (error) {
-      deps.logWarn('Failed to register subminer:// protocol handler', error);
+      deps.logDebug('Failed to register subminer:// protocol handler', error);
     }
   };
 }

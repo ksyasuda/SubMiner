@@ -29,7 +29,7 @@ test('composeAnilistSetupHandlers returns callable setup handlers', () => {
       execPath: process.execPath,
       resolvePath: (value) => value,
       setAsDefaultProtocolClient: () => true,
-      logWarn: () => {},
+      logDebug: () => {},
     },
   });
 
