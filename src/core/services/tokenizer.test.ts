@@ -1861,9 +1861,9 @@ test('tokenizeSubtitle keeps parsing explicit by scanning-parser source only', a
   assert.equal(result.tokens?.[4]?.frequencyRank, 1500);
 });
 
-test('tokenizeSubtitle still assigns frequency to non-known Yomitan tokens', async () => {
+test('tokenizeSubtitle still assigns frequency to non-known multi-character Yomitan tokens', async () => {
   const result = await tokenizeSubtitle(
-    '小園に',
+    '小園友達',
     makeDeps({
       getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
       getYomitanParserWindow: () =>
@@ -1884,9 +1884,9 @@ test('tokenizeSubtitle still assigns frequency to non-known Yomitan tokens', asy
                   ],
                   [
                     {
-                      text: 'に',
-                      reading: 'に',
-                      headwords: [[{ term: 'に' }]],
+                      text: '友達',
+                      reading: 'ともだち',
+                      headwords: [[{ term: '友達' }]],
                     },
                   ],
                 ],
@@ -1895,7 +1895,7 @@ test('tokenizeSubtitle still assigns frequency to non-known Yomitan tokens', asy
           },
         }) as unknown as Electron.BrowserWindow,
       getFrequencyDictionaryEnabled: () => true,
-      getFrequencyRank: (text) => (text === '小園' ? 75 : text === 'に' ? 3000 : null),
+      getFrequencyRank: (text) => (text === '小園' ? 75 : text === '友達' ? 3000 : null),
       isKnownWord: (text) => text === '小園',
     }),
   );
@@ -2633,6 +2633,21 @@ test('tokenizeSubtitle excludes default non-independent pos2 from N+1 and freque
   assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
   assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
+});
+
+test('tokenizeSubtitle excludes single-kana merged tokens from frequency highlighting', async () => {
+  const result = await tokenizeSubtitle(
+    'た',
+    makeDepsFromYomitanTokens([{ surface: 'た', reading: 'た', headword: 'た' }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === 'た' ? 17 : null),
+      getMinSentenceWordsForNPlusOne: () => 1,
+      tokenizeWithMecab: async () => null,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
 });
 
 test('tokenizeSubtitle excludes merged function/content token from frequency highlighting but keeps N+1', async () => {

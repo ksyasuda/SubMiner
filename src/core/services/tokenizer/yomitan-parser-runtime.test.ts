@@ -643,6 +643,175 @@ test('requestYomitanScanTokens marks grouped entries when SubMiner dictionary al
   assert.equal((result as Array<{ isNameMatch?: boolean }>)[0]?.isNameMatch, true);
 });
 
+test('requestYomitanScanTokens skips fallback fragments without exact primary source matches', async () => {
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+
+    return await runInjectedYomitanScript(script, (action, params) => {
+      if (action !== 'termsFind') {
+        throw new Error(`unexpected action: ${action}`);
+      }
+
+      const text = (params as { text?: string } | undefined)?.text ?? '';
+      if (text.startsWith('だが ')) {
+        return {
+          originalTextLength: 2,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: 'だが',
+                  reading: 'だが',
+                  sources: [{ originalText: 'だが', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (text.startsWith('それでも')) {
+        return {
+          originalTextLength: 4,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: 'それでも',
+                  reading: 'それでも',
+                  sources: [{ originalText: 'それでも', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (text.startsWith('届かぬ')) {
+        return {
+          originalTextLength: 3,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: '届く',
+                  reading: 'とどく',
+                  sources: [{ originalText: '届かぬ', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (text.startsWith('高み')) {
+        return {
+          originalTextLength: 2,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: '高み',
+                  reading: 'たかみ',
+                  sources: [{ originalText: '高み', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (text.startsWith('があった')) {
+        return {
+          originalTextLength: 2,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: 'があ',
+                  reading: '',
+                  sources: [{ originalText: 'が', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (text.startsWith('あった')) {
+        return {
+          originalTextLength: 3,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: 'ある',
+                  reading: 'ある',
+                  sources: [{ originalText: 'あった', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    });
+  });
+
+  const result = await requestYomitanScanTokens(
+    'だが それでも届かぬ高みがあった',
+    deps,
+    { error: () => undefined },
+  );
+
+  assert.deepEqual(
+    result?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      startPos: token.startPos,
+      endPos: token.endPos,
+    })),
+    [
+      {
+        surface: 'だが',
+        headword: 'だが',
+        startPos: 0,
+        endPos: 2,
+      },
+      {
+        surface: 'それでも',
+        headword: 'それでも',
+        startPos: 3,
+        endPos: 7,
+      },
+      {
+        surface: '届かぬ',
+        headword: '届く',
+        startPos: 7,
+        endPos: 10,
+      },
+      {
+        surface: '高み',
+        headword: '高み',
+        startPos: 10,
+        endPos: 12,
+      },
+      {
+        surface: 'あった',
+        headword: 'ある',
+        startPos: 13,
+        endPos: 16,
+      },
+    ],
+  );
+});
+
 test('getYomitanDictionaryInfo requests dictionary info via backend action', async () => {
   let scriptValue = '';
   const deps = createDeps(async (script) => {

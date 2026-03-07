@@ -252,12 +252,12 @@ test('annotateTokens applies configured pos1 exclusions to both frequency and N+
 test('annotateTokens allows previously default-excluded pos1 when removed from effective set', () => {
   const tokens = [
     makeToken({
-      surface: 'は',
-      headword: 'は',
+      surface: 'まで',
+      headword: 'まで',
       partOfSpeech: PartOfSpeech.other,
       pos1: '助詞',
       startPos: 0,
-      endPos: 1,
+      endPos: 2,
       frequencyRank: 8,
     }),
   ];
@@ -312,6 +312,52 @@ test('annotateTokens excludes likely kana SFX tokens from frequency when POS tag
   });
 
   assert.equal(result[0]?.frequencyRank, undefined);
+});
+
+test('annotateTokens excludes single hiragana and katakana tokens from frequency when POS tags are missing', () => {
+  const tokens = [
+    makeToken({
+      surface: 'た',
+      reading: 'た',
+      headword: 'た',
+      pos1: '',
+      pos2: '',
+      partOfSpeech: PartOfSpeech.other,
+      frequencyRank: 21,
+      startPos: 0,
+      endPos: 1,
+    }),
+    makeToken({
+      surface: 'ア',
+      reading: 'ア',
+      headword: 'ア',
+      pos1: '',
+      pos2: '',
+      partOfSpeech: PartOfSpeech.other,
+      frequencyRank: 22,
+      startPos: 1,
+      endPos: 2,
+    }),
+    makeToken({
+      surface: '山',
+      reading: 'やま',
+      headword: '山',
+      pos1: '',
+      pos2: '',
+      partOfSpeech: PartOfSpeech.other,
+      frequencyRank: 23,
+      startPos: 2,
+      endPos: 3,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[1]?.frequencyRank, undefined);
+  assert.equal(result[2]?.frequencyRank, 23);
 });
 
 test('annotateTokens keeps frequency when mecab tags classify token as content-bearing', () => {

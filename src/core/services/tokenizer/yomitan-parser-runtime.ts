@@ -843,14 +843,7 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
             };
           }
         }
-        const fallback = dictionaryEntries?.[0]?.headwords?.[0];
-        return fallback
-          ? {
-              term: fallback.term,
-              reading: fallback.reading,
-              isNameMatch: matchedNameDictionary || isNameDictionaryEntry(dictionaryEntries?.[0])
-            }
-          : null;
+        return null;
       }
 `;
 
