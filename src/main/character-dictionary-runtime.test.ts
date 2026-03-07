@@ -160,8 +160,19 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
     });
 
     const result = await runtime.generateForCurrentMedia();
-    const termBank = JSON.parse(readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8')) as Array<
-      [string, string, string, string, number, Array<string | Record<string, unknown>>, number, string]
+    const termBank = JSON.parse(
+      readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
     >;
     const alexia = termBank.find(([term]) => term === 'アレクシア');
 
@@ -205,8 +216,10 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
     assert.equal(badge.content, 'Side Character');
 
     const descSection = children.find(
-      (c) => (c as { tag?: string }).tag === 'details' && Array.isArray((c as { content?: unknown[] }).content) &&
-        ((c as { content: Array<{ content?: string }> }).content[0]?.content === 'Description'),
+      (c) =>
+        (c as { tag?: string }).tag === 'details' &&
+        Array.isArray((c as { content?: unknown[] }).content) &&
+        (c as { content: Array<{ content?: string }> }).content[0]?.content === 'Description',
     ) as { tag: string; content: Array<Record<string, unknown>> } | undefined;
     assert.ok(descSection, 'expected Description collapsible section');
     const descBody = descSection.content[1] as { content: string };
@@ -215,13 +228,20 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
     );
 
     const infoSection = children.find(
-      (c) => (c as { tag?: string }).tag === 'details' && Array.isArray((c as { content?: unknown[] }).content) &&
-        ((c as { content: Array<{ content?: string }> }).content[0]?.content === 'Character Information'),
+      (c) =>
+        (c as { tag?: string }).tag === 'details' &&
+        Array.isArray((c as { content?: unknown[] }).content) &&
+        (c as { content: Array<{ content?: string }> }).content[0]?.content ===
+          'Character Information',
     ) as { tag: string; content: Array<Record<string, unknown>> } | undefined;
-    assert.ok(infoSection, 'expected Character Information collapsible section with parsed __Race:__ field');
+    assert.ok(
+      infoSection,
+      'expected Character Information collapsible section with parsed __Race:__ field',
+    );
 
     const topLevelImageGlossaryEntry = glossary.find(
-      (item) => typeof item === 'object' && item !== null && (item as { type?: string }).type === 'image',
+      (item) =>
+        typeof item === 'object' && item !== null && (item as { type?: string }).type === 'image',
     );
     assert.equal(topLevelImageGlossaryEntry, undefined);
   } finally {
@@ -322,8 +342,19 @@ test('generateForCurrentMedia adds kana aliases for romanized names when native 
     });
 
     const result = await runtime.generateForCurrentMedia();
-    const termBank = JSON.parse(readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8')) as Array<
-      [string, string, string, string, number, Array<string | Record<string, unknown>>, number, string]
+    const termBank = JSON.parse(
+      readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
     >;
 
     const kazuma = termBank.find(([term]) => term === 'カズマ');
@@ -430,7 +461,7 @@ test('getOrCreateCurrentSnapshot persists and reuses normalized snapshot data', 
     throw new Error(`Unexpected fetch URL: ${url}`);
   }) as typeof globalThis.fetch;
 
-    try {
+  try {
     const runtime = createCharacterDictionaryRuntimeService({
       userDataPath,
       getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
@@ -466,7 +497,16 @@ test('getOrCreateCurrentSnapshot persists and reuses normalized snapshot data', 
       mediaId: number;
       entryCount: number;
       termEntries: Array<
-        [string, string, string, string, number, Array<string | Record<string, unknown>>, number, string]
+        [
+          string,
+          string,
+          string,
+          string,
+          number,
+          Array<string | Record<string, unknown>>,
+          number,
+          string,
+        ]
       >;
     };
     assert.equal(snapshot.mediaId, 130298);
@@ -600,12 +640,27 @@ test('getOrCreateCurrentSnapshot rebuilds snapshots written with an older format
     const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) as {
       formatVersion: number;
       termEntries: Array<
-        [string, string, string, string, number, Array<string | Record<string, unknown>>, number, string]
+        [
+          string,
+          string,
+          string,
+          string,
+          number,
+          Array<string | Record<string, unknown>>,
+          number,
+          string,
+        ]
       >;
     };
     assert.equal(snapshot.formatVersion > 9, true);
-    assert.equal(snapshot.termEntries.some(([term]) => term === 'アルファ'), true);
-    assert.equal(snapshot.termEntries.some(([term]) => term === 'stale'), false);
+    assert.equal(
+      snapshot.termEntries.some(([term]) => term === 'アルファ'),
+      true,
+    );
+    assert.equal(
+      snapshot.termEntries.some(([term]) => term === 'stale'),
+      false,
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -731,6 +786,168 @@ test('generateForCurrentMedia logs progress while resolving and rebuilding snaps
       '[dictionary] building ZIP for AniList 130298',
       '[dictionary] generated AniList 130298: 32 terms -> ' +
         path.join(userDataPath, 'character-dictionaries', 'anilist-130298.zip'),
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia downloads shared voice actor images once per AniList person id', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+  const fetchedImageUrls: string[] = [];
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 130298,
+                    episodes: 20,
+                    title: {
+                      romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                      english: 'The Eminence in Shadow',
+                      native: '陰の実力者になりたくて！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                  english: 'The Eminence in Shadow',
+                  native: '陰の実力者になりたくて！',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      voiceActors: [
+                        {
+                          id: 9001,
+                          name: {
+                            full: 'Kana Hanazawa',
+                            native: '花澤香菜',
+                          },
+                          image: {
+                            large: null,
+                            medium: 'https://example.com/kana.png',
+                          },
+                        },
+                      ],
+                      node: {
+                        id: 321,
+                        description: 'Alpha is the second-in-command of Shadow Garden.',
+                        image: {
+                          large: 'https://example.com/alpha.png',
+                          medium: null,
+                        },
+                        name: {
+                          full: 'Alpha',
+                          native: 'アルファ',
+                        },
+                      },
+                    },
+                    {
+                      role: 'SUPPORTING',
+                      voiceActors: [
+                        {
+                          id: 9001,
+                          name: {
+                            full: 'Kana Hanazawa',
+                            native: '花澤香菜',
+                          },
+                          image: {
+                            large: null,
+                            medium: 'https://example.com/kana.png',
+                          },
+                        },
+                      ],
+                      node: {
+                        id: 654,
+                        description: 'Beta documents Shadow Garden operations.',
+                        image: {
+                          large: 'https://example.com/beta.png',
+                          medium: null,
+                        },
+                        name: {
+                          full: 'Beta',
+                          native: 'ベータ',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+    }
+
+    if (
+      url === 'https://example.com/alpha.png' ||
+      url === 'https://example.com/beta.png' ||
+      url === 'https://example.com/kana.png'
+    ) {
+      fetchedImageUrls.push(url);
+      return new Response(PNG_1X1, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        episode: 5,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_100,
+      sleep: async () => undefined,
+    });
+
+    await runtime.generateForCurrentMedia();
+
+    assert.deepEqual(fetchedImageUrls, [
+      'https://example.com/alpha.png',
+      'https://example.com/kana.png',
+      'https://example.com/beta.png',
     ]);
   } finally {
     globalThis.fetch = originalFetch;
@@ -913,8 +1130,19 @@ test('buildMergedDictionary combines stored snapshots into one stable dictionary
     const index = JSON.parse(readStoredZipEntry(merged.zipPath, 'index.json').toString('utf8')) as {
       title: string;
     };
-    const termBank = JSON.parse(readStoredZipEntry(merged.zipPath, 'term_bank_1.json').toString('utf8')) as Array<
-      [string, string, string, string, number, Array<string | Record<string, unknown>>, number, string]
+    const termBank = JSON.parse(
+      readStoredZipEntry(merged.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
     >;
     const frieren = termBank.find(([term]) => term === 'フリーレン');
     const alpha = termBank.find(([term]) => term === 'アルファ');
@@ -1064,7 +1292,10 @@ test('generateForCurrentMedia paces AniList requests and character image downloa
     await runtime.generateForCurrentMedia();
 
     assert.deepEqual(sleepCalls, [2000, 250]);
-    assert.deepEqual(imageRequests, ['https://example.com/alpha.png', 'https://example.com/beta.png']);
+    assert.deepEqual(imageRequests, [
+      'https://example.com/alpha.png',
+      'https://example.com/beta.png',
+    ]);
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -449,20 +449,13 @@ function romanizedTokenToKatakana(token: string): string | null {
       continue;
     }
 
-    if (
-      current === 'n' &&
-      next.length > 0 &&
-      next !== 'y' &&
-      !'aeiou'.includes(next)
-    ) {
+    if (current === 'n' && next.length > 0 && next !== 'y' && !'aeiou'.includes(next)) {
       output += 'ン';
       i += 1;
       continue;
     }
 
-    const digraph = ROMANIZED_KANA_DIGRAPHS.find(([romaji]) =>
-      normalized.startsWith(romaji, i),
-    );
+    const digraph = ROMANIZED_KANA_DIGRAPHS.find(([romaji]) => normalized.startsWith(romaji, i));
     if (digraph) {
       output += digraph[1];
       i += digraph[0].length;
@@ -750,7 +743,13 @@ function writeSnapshot(snapshotPath: string, snapshot: CharacterDictionarySnapsh
 }
 
 function roleBadgeStyle(role: CharacterDictionaryRole): Record<string, string> {
-  const base = { borderRadius: '4px', padding: '0.15em 0.5em', fontSize: '0.8em', fontWeight: 'bold', color: '#fff' };
+  const base = {
+    borderRadius: '4px',
+    padding: '0.15em 0.5em',
+    fontSize: '0.8em',
+    fontWeight: 'bold',
+    color: '#fff',
+  };
   if (role === 'main') return { ...base, backgroundColor: '#4a8c3f' };
   if (role === 'primary') return { ...base, backgroundColor: '#5c82b0' };
   if (role === 'side') return { ...base, backgroundColor: '#7889a0' };
@@ -788,7 +787,9 @@ function buildVoicedByContent(
     const va = voiceActors[0]!;
     const vaImgPath = vaImagePaths.get(va.id);
     const vaLabel = va.nativeName
-      ? va.fullName ? `${va.nativeName} (${va.fullName})` : va.nativeName
+      ? va.fullName
+        ? `${va.nativeName} (${va.fullName})`
+        : va.nativeName
       : va.fullName;
 
     if (vaImgPath) {
@@ -799,7 +800,12 @@ function buildVoicedByContent(
           content: [
             {
               tag: 'td',
-              style: { verticalAlign: 'top', padding: '0', paddingRight: '0.4em', borderWidth: '0' },
+              style: {
+                verticalAlign: 'top',
+                padding: '0',
+                paddingRight: '0.4em',
+                borderWidth: '0',
+              },
               content: {
                 tag: 'img',
                 path: vaImgPath,
@@ -829,7 +835,9 @@ function buildVoicedByContent(
   const items: Array<Record<string, unknown>> = [];
   for (const va of voiceActors) {
     const vaLabel = va.nativeName
-      ? va.fullName ? `${va.nativeName} (${va.fullName})` : va.nativeName
+      ? va.fullName
+        ? `${va.nativeName} (${va.fullName})`
+        : va.nativeName
       : va.fullName;
     items.push({ tag: 'li', content: vaLabel });
   }
@@ -844,9 +852,7 @@ function createDefinitionGlossary(
 ): CharacterDictionaryGlossaryEntry[] {
   const displayName = character.nativeName || character.fullName || `Character ${character.id}`;
   const secondaryName =
-    character.nativeName &&
-    character.fullName &&
-    character.fullName !== character.nativeName
+    character.nativeName && character.fullName && character.fullName !== character.nativeName
       ? character.fullName
       : null;
   const { fields, text: descriptionText } = parseCharacterDescription(character.description);
@@ -1275,7 +1281,10 @@ async function fetchCharactersForMedia(
   };
 }
 
-async function downloadCharacterImage(imageUrl: string, charId: number): Promise<{
+async function downloadCharacterImage(
+  imageUrl: string,
+  charId: number,
+): Promise<{
   filename: string;
   ext: string;
   bytes: Buffer;
@@ -1379,7 +1388,10 @@ function buildDictionaryZip(
   const zipFiles: Array<{ name: string; data: Buffer }> = [
     {
       name: 'index.json',
-      data: Buffer.from(JSON.stringify(createIndex(dictionaryTitle, description, revision), null, 2), 'utf8'),
+      data: Buffer.from(
+        JSON.stringify(createIndex(dictionaryTitle, description, revision), null, 2),
+        'utf8',
+      ),
     },
     {
       name: 'tag_bank_1.json',
@@ -1454,7 +1466,9 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     }
     deps.logInfo?.(
       `[dictionary] current anime guess: ${guessed.title.trim()}${
-        typeof guessed.episode === 'number' && guessed.episode > 0 ? ` (episode ${guessed.episode})` : ''
+        typeof guessed.episode === 'number' && guessed.episode > 0
+          ? ` (episode ${guessed.episode})`
+          : ''
       }`,
     );
     const resolved = await resolveAniListMediaIdFromGuess(guessed, beforeRequest);
@@ -1486,7 +1500,9 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       mediaId,
       beforeRequest,
       (page) => {
-        deps.logInfo?.(`[dictionary] downloaded AniList character page ${page} for AniList ${mediaId}`);
+        deps.logInfo?.(
+          `[dictionary] downloaded AniList character page ${page} for AniList ${mediaId}`,
+        );
       },
     );
     if (characters.length === 0) {
@@ -1496,12 +1512,14 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     const imagesByCharacterId = new Map<number, CharacterDictionarySnapshotImage>();
     const imagesByVaId = new Map<number, CharacterDictionarySnapshotImage>();
     const allImageUrls: Array<{ id: number; url: string; kind: 'character' | 'va' }> = [];
+    const seenVaIds = new Set<number>();
     for (const character of characters) {
       if (character.imageUrl) {
         allImageUrls.push({ id: character.id, url: character.imageUrl, kind: 'character' });
       }
       for (const va of character.voiceActors) {
-        if (va.imageUrl && !allImageUrls.some((u) => u.kind === 'va' && u.id === va.id)) {
+        if (va.imageUrl && !seenVaIds.has(va.id)) {
+          seenVaIds.add(va.id);
           allImageUrls.push({ id: va.id, url: va.imageUrl, kind: 'va' });
         }
       }
@@ -1601,7 +1619,10 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         entryCount,
       };
     },
-    generateForCurrentMedia: async (targetPath?: string, _options?: CharacterDictionaryGenerateOptions) => {
+    generateForCurrentMedia: async (
+      targetPath?: string,
+      _options?: CharacterDictionaryGenerateOptions,
+    ) => {
       let hasAniListRequest = false;
       const waitForAniListRequestSlot = async (): Promise<void> => {
         if (!hasAniListRequest) {
