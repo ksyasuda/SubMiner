@@ -105,6 +105,8 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     const fallbackSubtitleStyleHoverTokenColor = resolved.subtitleStyle.hoverTokenColor;
     const fallbackSubtitleStyleHoverTokenBackgroundColor =
       resolved.subtitleStyle.hoverTokenBackgroundColor;
+    const fallbackSubtitleStyleNameMatchEnabled = resolved.subtitleStyle.nameMatchEnabled;
+    const fallbackSubtitleStyleNameMatchColor = resolved.subtitleStyle.nameMatchColor;
     const fallbackFrequencyDictionary = {
       ...resolved.subtitleStyle.frequencyDictionary,
     };
@@ -225,6 +227,36 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         (src.subtitleStyle as { hoverTokenBackgroundColor?: unknown }).hoverTokenBackgroundColor,
         resolved.subtitleStyle.hoverTokenBackgroundColor,
         'Expected a CSS color value (hex, rgba/hsl/hsla, named color, or var()).',
+      );
+    }
+
+    const nameMatchColor = asColor(
+      (src.subtitleStyle as { nameMatchColor?: unknown }).nameMatchColor,
+    );
+    const nameMatchEnabled = asBoolean(
+      (src.subtitleStyle as { nameMatchEnabled?: unknown }).nameMatchEnabled,
+    );
+    if (nameMatchEnabled !== undefined) {
+      resolved.subtitleStyle.nameMatchEnabled = nameMatchEnabled;
+    } else if ((src.subtitleStyle as { nameMatchEnabled?: unknown }).nameMatchEnabled !== undefined) {
+      resolved.subtitleStyle.nameMatchEnabled = fallbackSubtitleStyleNameMatchEnabled;
+      warn(
+        'subtitleStyle.nameMatchEnabled',
+        (src.subtitleStyle as { nameMatchEnabled?: unknown }).nameMatchEnabled,
+        resolved.subtitleStyle.nameMatchEnabled,
+        'Expected boolean.',
+      );
+    }
+
+    if (nameMatchColor !== undefined) {
+      resolved.subtitleStyle.nameMatchColor = nameMatchColor;
+    } else if ((src.subtitleStyle as { nameMatchColor?: unknown }).nameMatchColor !== undefined) {
+      resolved.subtitleStyle.nameMatchColor = fallbackSubtitleStyleNameMatchColor;
+      warn(
+        'subtitleStyle.nameMatchColor',
+        (src.subtitleStyle as { nameMatchColor?: unknown }).nameMatchColor,
+        resolved.subtitleStyle.nameMatchColor,
+        'Expected hex color.',
       );
     }
 

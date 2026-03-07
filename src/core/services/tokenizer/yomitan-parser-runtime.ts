@@ -45,6 +45,7 @@ export interface YomitanScanToken {
   headword: string;
   startPos: number;
   endPos: number;
+  isNameMatch?: boolean;
 }
 
 interface YomitanProfileMetadata {
@@ -75,7 +76,8 @@ function isScanTokenArray(value: unknown): value is YomitanScanToken[] {
         typeof entry.reading === 'string' &&
         typeof entry.headword === 'string' &&
         typeof entry.startPos === 'number' &&
-        typeof entry.endPos === 'number',
+        typeof entry.endPos === 'number' &&
+        (entry.isNameMatch === undefined || typeof entry.isNameMatch === 'boolean'),
     )
   );
 }
@@ -772,24 +774,92 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
         return segments;
       }
       function getPreferredHeadword(dictionaryEntries, token) {
+        function appendDictionaryNames(target, value) {
+          if (!value || typeof value !== 'object') {
+            return;
+          }
+          const candidates = [
+            value.dictionary,
+            value.dictionaryName,
+            value.name,
+            value.title,
+            value.dictionaryTitle,
+            value.dictionaryAlias
+          ];
+          for (const candidate of candidates) {
+            if (typeof candidate === 'string' && candidate.trim().length > 0) {
+              target.push(candidate.trim());
+            }
+          }
+        }
+        function getDictionaryEntryNames(entry) {
+          const names = [];
+          appendDictionaryNames(names, entry);
+          for (const definition of entry?.definitions || []) {
+            appendDictionaryNames(names, definition);
+          }
+          for (const frequency of entry?.frequencies || []) {
+            appendDictionaryNames(names, frequency);
+          }
+          for (const pronunciation of entry?.pronunciations || []) {
+            appendDictionaryNames(names, pronunciation);
+          }
+          return names;
+        }
+        function isNameDictionaryEntry(entry) {
+          if (!includeNameMatchMetadata || !entry || typeof entry !== 'object') {
+            return false;
+          }
+          return getDictionaryEntryNames(entry).some((name) => name.startsWith("SubMiner Character Dictionary"));
+        }
+        function hasExactPrimarySource(headword, token) {
+          for (const src of headword.sources || []) {
+            if (src.originalText !== token) { continue; }
+            if (!src.isPrimary) { continue; }
+            if (src.matchType !== 'exact') { continue; }
+            return true;
+          }
+          return false;
+        }
+        let matchedNameDictionary = false;
+        if (includeNameMatchMetadata) {
+          for (const dictionaryEntry of dictionaryEntries || []) {
+            if (!isNameDictionaryEntry(dictionaryEntry)) { continue; }
+            for (const headword of dictionaryEntry.headwords || []) {
+              if (!hasExactPrimarySource(headword, token)) { continue; }
+              matchedNameDictionary = true;
+              break;
+            }
+            if (matchedNameDictionary) { break; }
+          }
+        }
         for (const dictionaryEntry of dictionaryEntries || []) {
           for (const headword of dictionaryEntry.headwords || []) {
-            const validSources = [];
-            for (const src of headword.sources || []) {
-              if (src.originalText !== token) { continue; }
-              if (!src.isPrimary) { continue; }
-              if (src.matchType !== 'exact') { continue; }
-              validSources.push(src);
-            }
-            if (validSources.length > 0) { return {term: headword.term, reading: headword.reading}; }
+            if (!hasExactPrimarySource(headword, token)) { continue; }
+            return {
+              term: headword.term,
+              reading: headword.reading,
+              isNameMatch: matchedNameDictionary || isNameDictionaryEntry(dictionaryEntry)
+            };
           }
         }
         const fallback = dictionaryEntries?.[0]?.headwords?.[0];
-        return fallback ? {term: fallback.term, reading: fallback.reading} : null;
+        return fallback
+          ? {
+              term: fallback.term,
+              reading: fallback.reading,
+              isNameMatch: matchedNameDictionary || isNameDictionaryEntry(dictionaryEntries?.[0])
+            }
+          : null;
       }
 `;
 
-function buildYomitanScanningScript(text: string, profileIndex: number, scanLength: number): string {
+function buildYomitanScanningScript(
+  text: string,
+  profileIndex: number,
+  scanLength: number,
+  includeNameMatchMetadata: boolean,
+): string {
   return `
     (async () => {
       const invoke = (action, params) =>
@@ -811,6 +881,7 @@ function buildYomitanScanningScript(text: string, profileIndex: number, scanLeng
           });
         });
 ${YOMITAN_SCANNING_HELPERS}
+      const includeNameMatchMetadata = ${includeNameMatchMetadata ? 'true' : 'false'};
       const text = ${JSON.stringify(text)};
       const details = {matchType: "exact", deinflect: true};
       const tokens = [];
@@ -834,6 +905,7 @@ ${YOMITAN_SCANNING_HELPERS}
               headword: preferredHeadword.term,
               startPos: i,
               endPos: i + originalTextLength,
+              isNameMatch: includeNameMatchMetadata && preferredHeadword.isNameMatch === true,
             });
             i += originalTextLength;
             continue;
@@ -944,6 +1016,9 @@ export async function requestYomitanScanTokens(
   text: string,
   deps: YomitanParserRuntimeDeps,
   logger: LoggerLike,
+  options?: {
+    includeNameMatchMetadata?: boolean;
+  },
 ): Promise<YomitanScanToken[] | null> {
   const yomitanExt = deps.getYomitanExt();
   if (!text || !yomitanExt) {
@@ -962,7 +1037,12 @@ export async function requestYomitanScanTokens(
 
   try {
     const rawResult = await parserWindow.webContents.executeJavaScript(
-      buildYomitanScanningScript(text, profileIndex, scanLength),
+      buildYomitanScanningScript(
+        text,
+        profileIndex,
+        scanLength,
+        options?.includeNameMatchMetadata === true,
+      ),
       true,
     );
     if (isScanTokenArray(rawResult)) {

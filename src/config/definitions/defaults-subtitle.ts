@@ -8,6 +8,8 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle'> = {
     autoPauseVideoOnYomitanPopup: false,
     hoverTokenColor: '#f4dbd6',
     hoverTokenBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+    nameMatchEnabled: true,
+    nameMatchColor: '#f5bde6',
     fontFamily: 'M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP',
     fontSize: 35,
     fontColor: '#cad3f5',

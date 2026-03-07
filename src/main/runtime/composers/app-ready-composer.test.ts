@@ -48,6 +48,7 @@ test('composeAppReadyRuntime returns reload/critical/app-ready handlers', () => 
       startBackgroundWarmups: () => {},
       texthookerOnlyMode: false,
       shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
+      setVisibleOverlayVisible: () => {},
       initializeOverlayRuntime: () => {},
       handleInitialArgs: () => {},
       logDebug: () => {},

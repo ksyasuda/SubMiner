@@ -116,6 +116,7 @@ export interface AppReadyRuntimeDeps {
   startBackgroundWarmups: () => void;
   texthookerOnlyMode: boolean;
   shouldAutoInitializeOverlayRuntimeFromConfig: () => boolean;
+  setVisibleOverlayVisible: (visible: boolean) => void;
   initializeOverlayRuntime: () => void;
   handleInitialArgs: () => void;
   logDebug?: (message: string) => void;
@@ -226,6 +227,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   if (deps.texthookerOnlyMode) {
     deps.log('Texthooker-only mode enabled; skipping overlay window.');
   } else if (deps.shouldAutoInitializeOverlayRuntimeFromConfig()) {
+    deps.setVisibleOverlayVisible(true);
     deps.initializeOverlayRuntime();
   } else {
     deps.log('Overlay runtime deferred: waiting for explicit overlay command.');

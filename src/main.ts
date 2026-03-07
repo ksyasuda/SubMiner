@@ -2184,6 +2184,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
       appState.backgroundMode
         ? false
         : configDerivedRuntime.shouldAutoInitializeOverlayRuntimeFromConfig(),
+    setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     handleInitialArgs: () => handleInitialArgs(),
     shouldSkipHeavyStartup: () =>
@@ -2435,6 +2436,7 @@ const {
           'subtitle.annotation.jlpt',
           getResolvedConfig().subtitleStyle.enableJlpt,
         ),
+      getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.frequency',

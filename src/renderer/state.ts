@@ -58,6 +58,8 @@ export type RendererState = {
 
   knownWordColor: string;
   nPlusOneColor: string;
+  nameMatchEnabled: boolean;
+  nameMatchColor: string;
   jlptN1Color: string;
   jlptN2Color: string;
   jlptN3Color: string;
@@ -125,6 +127,8 @@ export function createRendererState(): RendererState {
 
     knownWordColor: '#a6da95',
     nPlusOneColor: '#c6a0f6',
+    nameMatchEnabled: true,
+    nameMatchColor: '#f5bde6',
     jlptN1Color: '#ed8796',
     jlptN2Color: '#f5a97f',
     jlptN3Color: '#f9e2af',

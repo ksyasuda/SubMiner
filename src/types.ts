@@ -54,6 +54,7 @@ export interface MergedToken {
   isMerged: boolean;
   isKnown: boolean;
   isNPlusOneTarget: boolean;
+  isNameMatch?: boolean;
   jlptLevel?: JlptLevel;
   frequencyRank?: number;
 }
@@ -293,6 +294,8 @@ export interface SubtitleStyleConfig {
   autoPauseVideoOnYomitanPopup?: boolean;
   hoverTokenColor?: string;
   hoverTokenBackgroundColor?: string;
+  nameMatchEnabled?: boolean;
+  nameMatchColor?: string;
   fontFamily?: string;
   fontSize?: number;
   fontColor?: string;

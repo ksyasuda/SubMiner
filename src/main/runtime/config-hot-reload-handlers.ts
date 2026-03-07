@@ -24,6 +24,7 @@ export function resolveSubtitleStyleForRenderer(config: ResolvedConfig) {
     ...config.subtitleStyle,
     nPlusOneColor: config.ankiConnect.nPlusOne.nPlusOne,
     knownWordColor: config.ankiConnect.nPlusOne.knownWord,
+    nameMatchColor: config.subtitleStyle.nameMatchColor,
     enableJlpt: config.subtitleStyle.enableJlpt,
     frequencyDictionary: config.subtitleStyle.frequencyDictionary,
   };

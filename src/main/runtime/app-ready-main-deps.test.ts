@@ -37,6 +37,7 @@ test('app-ready main deps builder returns mapped app-ready runtime deps', async 
     startBackgroundWarmups: () => calls.push('start-warmups'),
     texthookerOnlyMode: false,
     shouldAutoInitializeOverlayRuntimeFromConfig: () => true,
+    setVisibleOverlayVisible: () => calls.push('set-visible-overlay'),
     initializeOverlayRuntime: () => calls.push('init-overlay'),
     handleInitialArgs: () => calls.push('handle-initial-args'),
     onCriticalConfigErrors: () => {
@@ -58,6 +59,7 @@ test('app-ready main deps builder returns mapped app-ready runtime deps', async 
   await onReady.loadYomitanExtension();
   await onReady.prewarmSubtitleDictionaries?.();
   onReady.startBackgroundWarmups();
+  onReady.setVisibleOverlayVisible(true);
 
   assert.deepEqual(calls, [
     'load-subtitle-position',
@@ -67,5 +69,6 @@ test('app-ready main deps builder returns mapped app-ready runtime deps', async 
     'load-yomitan',
     'prewarm-dicts',
     'start-warmups',
+    'set-visible-overlay',
   ]);
 });

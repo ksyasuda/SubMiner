@@ -42,6 +42,7 @@ function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
     },
     texthookerOnlyMode: false,
     shouldAutoInitializeOverlayRuntimeFromConfig: () => true,
+    setVisibleOverlayVisible: (visible) => calls.push(`setVisibleOverlayVisible:${visible}`),
     initializeOverlayRuntime: () => calls.push('initializeOverlayRuntime'),
     handleInitialArgs: () => calls.push('handleInitialArgs'),
     logDebug: (message) => calls.push(`debug:${message}`),
@@ -57,7 +58,11 @@ test('runAppReadyRuntime starts websocket in auto mode when plugin missing', asy
   });
   await runAppReadyRuntime(deps);
   assert.ok(calls.includes('startSubtitleWebsocket:9001'));
+  assert.ok(calls.includes('setVisibleOverlayVisible:true'));
   assert.ok(calls.includes('initializeOverlayRuntime'));
+  assert.ok(
+    calls.indexOf('setVisibleOverlayVisible:true') < calls.indexOf('initializeOverlayRuntime'),
+  );
   assert.ok(calls.includes('startBackgroundWarmups'));
   assert.ok(
     calls.includes(

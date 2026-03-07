@@ -181,6 +181,45 @@ test('computeWordClass preserves known and n+1 classes while adding JLPT classes
   assert.equal(computeWordClass(nPlusOneJlpt), 'word word-n-plus-one word-jlpt-n2');
 });
 
+test('computeWordClass applies name-match class ahead of known and frequency classes', () => {
+  const token = createToken({
+    isKnown: true,
+    frequencyRank: 10,
+    surface: 'アクア',
+  }) as MergedToken & { isNameMatch?: boolean };
+  token.isNameMatch = true;
+
+  assert.equal(
+    computeWordClass(token, {
+      enabled: true,
+      topX: 100,
+      mode: 'single',
+      singleColor: '#000000',
+      bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
+    }),
+    'word word-name-match',
+  );
+});
+
+test('computeWordClass skips name-match class when disabled', () => {
+  const token = createToken({
+    surface: 'アクア',
+  }) as MergedToken & { isNameMatch?: boolean };
+  token.isNameMatch = true;
+
+  assert.equal(
+    computeWordClass(token, {
+      nameMatchEnabled: false,
+      enabled: true,
+      topX: 100,
+      mode: 'single',
+      singleColor: '#000000',
+      bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
+    }),
+    'word',
+  );
+});
+
 test('computeWordClass keeps known and N+1 color classes exclusive over frequency classes', () => {
   const known = createToken({
     isKnown: true,
@@ -227,6 +266,39 @@ test('computeWordClass keeps known and N+1 color classes exclusive over frequenc
     }),
     'word word-frequency-single',
   );
+});
+
+test('applySubtitleStyle sets subtitle name-match color variable', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      nameMatchColor: '#f5bde6',
+    } as never);
+
+    assert.equal(
+      (subtitleRoot.style as unknown as { values?: Map<string, string> }).values?.get(
+        '--subtitle-name-match-color',
+      ),
+      '#f5bde6',
+    );
+  } finally {
+    restoreDocument();
+  }
 });
 
 test('computeWordClass adds frequency class for single mode when rank is within topX', () => {
@@ -598,7 +670,7 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
 
   assert.match(
     cssText,
-    /#subtitleRoot\s+\.word:not\(\.word-known\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\s*\.word-frequency-band-1\s*\):not\(\.word-frequency-band-2\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\s*\.word-frequency-band-5\s*\):hover\s*\{[\s\S]*?background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+    /#subtitleRoot\s+\.word:not\(\.word-known\):not\(\.word-n-plus-one\):not\(\.word-name-match\):not\(\.word-frequency-single\):not\(\s*\.word-frequency-band-1\s*\):not\(\.word-frequency-band-2\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\s*\.word-frequency-band-5\s*\):hover\s*\{[\s\S]*?background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
 
   const coloredWordHoverBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known:hover');
@@ -636,11 +708,11 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
 
   assert.match(
     cssText,
-    /\.word:is\(\.word-jlpt-n1,\s*\.word-jlpt-n2,\s*\.word-jlpt-n3,\s*\.word-jlpt-n4,\s*\.word-jlpt-n5\):not\(\s*\.word-known\s*\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\.word-frequency-band-1\):not\(\s*\.word-frequency-band-2\s*\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\.word-frequency-band-5\):hover\s*\{[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+    /\.word:is\(\.word-jlpt-n1,\s*\.word-jlpt-n2,\s*\.word-jlpt-n3,\s*\.word-jlpt-n4,\s*\.word-jlpt-n5\):not\(\s*\.word-known\s*\):not\(\.word-n-plus-one\):not\(\.word-name-match\):not\(\.word-frequency-single\):not\(\.word-frequency-band-1\):not\(\s*\.word-frequency-band-2\s*\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\.word-frequency-band-5\):hover\s*\{[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
   assert.match(
     cssText,
-    /\.word:is\(\.word-jlpt-n1,\s*\.word-jlpt-n2,\s*\.word-jlpt-n3,\s*\.word-jlpt-n4,\s*\.word-jlpt-n5\):not\(\s*\.word-known\s*\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\.word-frequency-band-1\):not\(\s*\.word-frequency-band-2\s*\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\.word-frequency-band-5\)::selection[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+    /\.word:is\(\.word-jlpt-n1,\s*\.word-jlpt-n2,\s*\.word-jlpt-n3,\s*\.word-jlpt-n4,\s*\.word-jlpt-n5\):not\(\s*\.word-known\s*\):not\(\.word-n-plus-one\):not\(\.word-name-match\):not\(\.word-frequency-single\):not\(\.word-frequency-band-1\):not\(\s*\.word-frequency-band-2\s*\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\.word-frequency-band-5\)::selection[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
 
   const selectionBlock = extractClassBlock(cssText, '#subtitleRoot::selection');

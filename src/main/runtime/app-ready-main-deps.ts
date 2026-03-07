@@ -26,6 +26,7 @@ export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeD
     startBackgroundWarmups: deps.startBackgroundWarmups,
     texthookerOnlyMode: deps.texthookerOnlyMode,
     shouldAutoInitializeOverlayRuntimeFromConfig: deps.shouldAutoInitializeOverlayRuntimeFromConfig,
+    setVisibleOverlayVisible: deps.setVisibleOverlayVisible,
     initializeOverlayRuntime: deps.initializeOverlayRuntime,
     handleInitialArgs: deps.handleInitialArgs,
     onCriticalConfigErrors: deps.onCriticalConfigErrors,

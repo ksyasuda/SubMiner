@@ -9,6 +9,10 @@ type FrequencyRenderSettings = {
   bandedColors: [string, string, string, string, string];
 };
 
+type TokenRenderSettings = FrequencyRenderSettings & {
+  nameMatchEnabled: boolean;
+};
+
 export type SubtitleTokenHoverRange = {
   start: number;
   end: number;
@@ -77,6 +81,7 @@ const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
   singleColor: '#f5a97f',
   bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],
 };
+const DEFAULT_NAME_MATCH_ENABLED = true;
 
 function sanitizeFrequencyTopX(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
@@ -218,25 +223,23 @@ export function getJlptLevelLabelForToken(token: MergedToken): string | null {
 function renderWithTokens(
   root: HTMLElement,
   tokens: MergedToken[],
-  frequencyRenderSettings?: Partial<FrequencyRenderSettings>,
+  tokenRenderSettings?: Partial<TokenRenderSettings>,
   sourceText?: string,
   preserveLineBreaks = false,
 ): void {
-  const resolvedFrequencyRenderSettings = {
+  const resolvedTokenRenderSettings = {
     ...DEFAULT_FREQUENCY_RENDER_SETTINGS,
-    ...frequencyRenderSettings,
+    ...tokenRenderSettings,
     bandedColors: sanitizeFrequencyBandedColors(
-      frequencyRenderSettings?.bandedColors,
+      tokenRenderSettings?.bandedColors,
       DEFAULT_FREQUENCY_RENDER_SETTINGS.bandedColors,
     ),
-    topX: sanitizeFrequencyTopX(
-      frequencyRenderSettings?.topX,
-      DEFAULT_FREQUENCY_RENDER_SETTINGS.topX,
-    ),
+    topX: sanitizeFrequencyTopX(tokenRenderSettings?.topX, DEFAULT_FREQUENCY_RENDER_SETTINGS.topX),
     singleColor: sanitizeHexColor(
-      frequencyRenderSettings?.singleColor,
+      tokenRenderSettings?.singleColor,
       DEFAULT_FREQUENCY_RENDER_SETTINGS.singleColor,
     ),
+    nameMatchEnabled: tokenRenderSettings?.nameMatchEnabled ?? DEFAULT_NAME_MATCH_ENABLED,
   };
 
   const fragment = document.createDocumentFragment();
@@ -257,14 +260,14 @@ function renderWithTokens(
 
       const token = segment.token;
       const span = document.createElement('span');
-      span.className = computeWordClass(token, resolvedFrequencyRenderSettings);
+      span.className = computeWordClass(token, resolvedTokenRenderSettings);
       span.textContent = token.surface;
       span.dataset.tokenIndex = String(segment.tokenIndex);
       if (token.reading) span.dataset.reading = token.reading;
       if (token.headword) span.dataset.headword = token.headword;
       const frequencyRankLabel = getFrequencyRankLabelForToken(
         token,
-        resolvedFrequencyRenderSettings,
+        resolvedTokenRenderSettings,
       );
       if (frequencyRankLabel) {
         span.dataset.frequencyRank = frequencyRankLabel;
@@ -296,14 +299,14 @@ function renderWithTokens(
     }
 
     const span = document.createElement('span');
-    span.className = computeWordClass(token, resolvedFrequencyRenderSettings);
+    span.className = computeWordClass(token, resolvedTokenRenderSettings);
     span.textContent = surface;
     span.dataset.tokenIndex = String(index);
     if (token.reading) span.dataset.reading = token.reading;
     if (token.headword) span.dataset.headword = token.headword;
     const frequencyRankLabel = getFrequencyRankLabelForToken(
       token,
-      resolvedFrequencyRenderSettings,
+      resolvedTokenRenderSettings,
     );
     if (frequencyRankLabel) {
       span.dataset.frequencyRank = frequencyRankLabel;
@@ -401,26 +404,32 @@ export function buildSubtitleTokenHoverRanges(
 
 export function computeWordClass(
   token: MergedToken,
-  frequencySettings?: Partial<FrequencyRenderSettings>,
+  tokenRenderSettings?: Partial<TokenRenderSettings>,
 ): string {
-  const resolvedFrequencySettings = {
+  const resolvedTokenRenderSettings = {
     ...DEFAULT_FREQUENCY_RENDER_SETTINGS,
-    ...frequencySettings,
+    ...tokenRenderSettings,
     bandedColors: sanitizeFrequencyBandedColors(
-      frequencySettings?.bandedColors,
+      tokenRenderSettings?.bandedColors,
       DEFAULT_FREQUENCY_RENDER_SETTINGS.bandedColors,
     ),
-    topX: sanitizeFrequencyTopX(frequencySettings?.topX, DEFAULT_FREQUENCY_RENDER_SETTINGS.topX),
+    topX: sanitizeFrequencyTopX(
+      tokenRenderSettings?.topX,
+      DEFAULT_FREQUENCY_RENDER_SETTINGS.topX,
+    ),
     singleColor: sanitizeHexColor(
-      frequencySettings?.singleColor,
+      tokenRenderSettings?.singleColor,
       DEFAULT_FREQUENCY_RENDER_SETTINGS.singleColor,
     ),
+    nameMatchEnabled: tokenRenderSettings?.nameMatchEnabled ?? DEFAULT_NAME_MATCH_ENABLED,
   };
 
   const classes = ['word'];
 
   if (token.isNPlusOneTarget) {
     classes.push('word-n-plus-one');
+  } else if (resolvedTokenRenderSettings.nameMatchEnabled && token.isNameMatch) {
+    classes.push('word-name-match');
   } else if (token.isKnown) {
     classes.push('word-known');
   }
@@ -429,8 +438,12 @@ export function computeWordClass(
     classes.push(`word-jlpt-${token.jlptLevel.toLowerCase()}`);
   }
 
-  if (!token.isKnown && !token.isNPlusOneTarget) {
-    const frequencyClass = getFrequencyDictionaryClass(token, resolvedFrequencySettings);
+  if (
+    !token.isKnown &&
+    !token.isNPlusOneTarget &&
+    !(resolvedTokenRenderSettings.nameMatchEnabled && token.isNameMatch)
+  ) {
+    const frequencyClass = getFrequencyDictionaryClass(token, resolvedTokenRenderSettings);
     if (frequencyClass) {
       classes.push(frequencyClass);
     }
@@ -494,7 +507,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       renderWithTokens(
         ctx.dom.subtitleRoot,
         tokens,
-        getFrequencyRenderSettings(),
+        getTokenRenderSettings(),
         text,
         ctx.state.preserveSubtitleLineBreaks,
       );
@@ -503,8 +516,9 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     renderCharacterLevel(ctx.dom.subtitleRoot, normalized);
   }
 
-  function getFrequencyRenderSettings(): Partial<FrequencyRenderSettings> {
+  function getTokenRenderSettings(): Partial<TokenRenderSettings> {
     return {
+      nameMatchEnabled: ctx.state.nameMatchEnabled,
       enabled: ctx.state.frequencyDictionaryEnabled,
       topX: ctx.state.frequencyDictionaryTopX,
       mode: ctx.state.frequencyDictionaryMode,
@@ -577,6 +591,8 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     if (style.fontStyle) ctx.dom.subtitleRoot.style.fontStyle = style.fontStyle;
     const knownWordColor = style.knownWordColor ?? ctx.state.knownWordColor ?? '#a6da95';
     const nPlusOneColor = style.nPlusOneColor ?? ctx.state.nPlusOneColor ?? '#c6a0f6';
+    const nameMatchEnabled = style.nameMatchEnabled ?? ctx.state.nameMatchEnabled ?? true;
+    const nameMatchColor = style.nameMatchColor ?? ctx.state.nameMatchColor ?? '#f5bde6';
     const hoverTokenColor = sanitizeSubtitleHoverTokenColor(style.hoverTokenColor);
     const hoverTokenBackgroundColor = sanitizeSubtitleHoverTokenBackgroundColor(
       style.hoverTokenBackgroundColor,
@@ -600,8 +616,11 @@ export function createSubtitleRenderer(ctx: RendererContext) {
 
     ctx.state.knownWordColor = knownWordColor;
     ctx.state.nPlusOneColor = nPlusOneColor;
+    ctx.state.nameMatchEnabled = nameMatchEnabled;
+    ctx.state.nameMatchColor = nameMatchColor;
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-known-word-color', knownWordColor);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-n-plus-one-color', nPlusOneColor);
+    ctx.dom.subtitleRoot.style.setProperty('--subtitle-name-match-color', nameMatchColor);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-hover-token-color', hoverTokenColor);
     ctx.dom.subtitleRoot.style.setProperty(
       '--subtitle-hover-token-background-color',

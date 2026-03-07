@@ -2,6 +2,7 @@ import type { TokenizerDepsRuntimeOptions } from '../../core/services/tokenizer'
 
 type TokenizerMainDeps = TokenizerDepsRuntimeOptions & {
   getJlptEnabled: NonNullable<TokenizerDepsRuntimeOptions['getJlptEnabled']>;
+  getNameMatchEnabled?: NonNullable<TokenizerDepsRuntimeOptions['getNameMatchEnabled']>;
   getFrequencyDictionaryEnabled: NonNullable<
     TokenizerDepsRuntimeOptions['getFrequencyDictionaryEnabled']
   >;
@@ -43,6 +44,11 @@ export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
     getMinSentenceWordsForNPlusOne: () => deps.getMinSentenceWordsForNPlusOne(),
     getJlptLevel: (text: string) => deps.getJlptLevel(text),
     getJlptEnabled: () => deps.getJlptEnabled(),
+    ...(deps.getNameMatchEnabled
+      ? {
+          getNameMatchEnabled: () => deps.getNameMatchEnabled!(),
+        }
+      : {}),
     getFrequencyDictionaryEnabled: () => deps.getFrequencyDictionaryEnabled(),
     getFrequencyDictionaryMatchMode: () => deps.getFrequencyDictionaryMatchMode(),
     getFrequencyRank: (text: string) => deps.getFrequencyRank(text),

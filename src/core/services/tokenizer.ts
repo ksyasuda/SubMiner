@@ -44,6 +44,7 @@ export interface TokenizerServiceDeps {
   getJlptLevel: (text: string) => JlptLevel | null;
   getNPlusOneEnabled?: () => boolean;
   getJlptEnabled?: () => boolean;
+  getNameMatchEnabled?: () => boolean;
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyDictionaryMatchMode?: () => FrequencyDictionaryMatchMode;
   getFrequencyRank?: FrequencyDictionaryLookup;
@@ -73,6 +74,7 @@ export interface TokenizerDepsRuntimeOptions {
   getJlptLevel: (text: string) => JlptLevel | null;
   getNPlusOneEnabled?: () => boolean;
   getJlptEnabled?: () => boolean;
+  getNameMatchEnabled?: () => boolean;
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyDictionaryMatchMode?: () => FrequencyDictionaryMatchMode;
   getFrequencyRank?: FrequencyDictionaryLookup;
@@ -85,6 +87,7 @@ export interface TokenizerDepsRuntimeOptions {
 interface TokenizerAnnotationOptions {
   nPlusOneEnabled: boolean;
   jlptEnabled: boolean;
+  nameMatchEnabled: boolean;
   frequencyEnabled: boolean;
   frequencyMatchMode: FrequencyDictionaryMatchMode;
   minSentenceWordsForNPlusOne: number | undefined;
@@ -190,6 +193,7 @@ export function createTokenizerDepsRuntime(
     getJlptLevel: options.getJlptLevel,
     getNPlusOneEnabled: options.getNPlusOneEnabled,
     getJlptEnabled: options.getJlptEnabled,
+    getNameMatchEnabled: options.getNameMatchEnabled,
     getFrequencyDictionaryEnabled: options.getFrequencyDictionaryEnabled,
     getFrequencyDictionaryMatchMode: options.getFrequencyDictionaryMatchMode ?? (() => 'headword'),
     getFrequencyRank: options.getFrequencyRank,
@@ -301,6 +305,7 @@ function normalizeSelectedYomitanTokens(tokens: MergedToken[]): MergedToken[] {
     isMerged: token.isMerged ?? true,
     isKnown: token.isKnown ?? false,
     isNPlusOneTarget: token.isNPlusOneTarget ?? false,
+    isNameMatch: token.isNameMatch ?? false,
     reading: normalizeYomitanMergedReading(token),
   }));
 }
@@ -460,6 +465,7 @@ function getAnnotationOptions(deps: TokenizerServiceDeps): TokenizerAnnotationOp
   return {
     nPlusOneEnabled: deps.getNPlusOneEnabled?.() !== false,
     jlptEnabled: deps.getJlptEnabled?.() !== false,
+    nameMatchEnabled: deps.getNameMatchEnabled?.() !== false,
     frequencyEnabled: deps.getFrequencyDictionaryEnabled?.() !== false,
     frequencyMatchMode: deps.getFrequencyDictionaryMatchMode?.() ?? 'headword',
     minSentenceWordsForNPlusOne: deps.getMinSentenceWordsForNPlusOne?.(),
@@ -473,7 +479,9 @@ async function parseWithYomitanInternalParser(
   deps: TokenizerServiceDeps,
   options: TokenizerAnnotationOptions,
 ): Promise<MergedToken[] | null> {
-  const selectedTokens = await requestYomitanScanTokens(text, deps, logger);
+  const selectedTokens = await requestYomitanScanTokens(text, deps, logger, {
+    includeNameMatchMetadata: options.nameMatchEnabled,
+  });
   if (!selectedTokens || selectedTokens.length === 0) {
     return null;
   }
@@ -489,6 +497,7 @@ async function parseWithYomitanInternalParser(
         isMerged: true,
         isKnown: false,
         isNPlusOneTarget: false,
+        isNameMatch: token.isNameMatch ?? false,
       }),
     ),
   );

@@ -66,6 +66,25 @@ test('subtitleStyle autoPauseVideoOnYomitanPopup falls back on invalid value', (
   );
 });
 
+test('subtitleStyle nameMatchEnabled falls back on invalid value', () => {
+  const { context, warnings } = createResolveContext({
+    subtitleStyle: {
+      nameMatchEnabled: 'invalid' as unknown as boolean,
+    },
+  });
+
+  applySubtitleDomainConfig(context);
+
+  assert.equal(context.resolved.subtitleStyle.nameMatchEnabled, true);
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.nameMatchEnabled' &&
+        warning.message === 'Expected boolean.',
+    ),
+  );
+});
+
 test('subtitleStyle frequencyDictionary defaults to the teal fourth band color', () => {
   const { context } = createResolveContext({});
 
@@ -78,6 +97,37 @@ test('subtitleStyle frequencyDictionary defaults to the teal fourth band color',
     '#8bd5ca',
     '#8aadf4',
   ]);
+});
+
+test('subtitleStyle nameMatchColor accepts valid values and warns on invalid', () => {
+  const valid = createResolveContext({
+    subtitleStyle: {
+      nameMatchColor: '#f5bde6',
+    },
+  });
+  applySubtitleDomainConfig(valid.context);
+  assert.equal(
+    (valid.context.resolved.subtitleStyle as { nameMatchColor?: string }).nameMatchColor,
+    '#f5bde6',
+  );
+
+  const invalid = createResolveContext({
+    subtitleStyle: {
+      nameMatchColor: 'pink',
+    },
+  });
+  applySubtitleDomainConfig(invalid.context);
+  assert.equal(
+    (invalid.context.resolved.subtitleStyle as { nameMatchColor?: string }).nameMatchColor,
+    '#f5bde6',
+  );
+  assert.ok(
+    invalid.warnings.some(
+      (warning) =>
+        warning.path === 'subtitleStyle.nameMatchColor' &&
+        warning.message === 'Expected hex color.',
+    ),
+  );
 });
 
 test('subtitleStyle frequencyDictionary.matchMode accepts valid values and warns on invalid', () => {

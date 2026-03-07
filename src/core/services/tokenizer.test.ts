@@ -24,6 +24,7 @@ interface YomitanTokenInput {
   surface: string;
   reading?: string;
   headword?: string;
+  isNameMatch?: boolean;
 }
 
 function makeDepsFromYomitanTokens(
@@ -53,6 +54,7 @@ function makeDepsFromYomitanTokens(
                 headword: token.headword ?? token.surface,
                 startPos,
                 endPos,
+                isNameMatch: token.isNameMatch ?? false,
               };
             });
           },
@@ -113,6 +115,20 @@ test('tokenizeSubtitle assigns JLPT level to parsed Yomitan tokens', async () =>
 
   assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.jlptLevel, 'N5');
+});
+
+test('tokenizeSubtitle preserves Yomitan name-match metadata on tokens', async () => {
+  const result = await tokenizeSubtitle(
+    'アクアです',
+    makeDepsFromYomitanTokens([
+      { surface: 'アクア', reading: 'あくあ', headword: 'アクア', isNameMatch: true },
+      { surface: 'です', reading: 'です', headword: 'です' },
+    ]),
+  );
+
+  assert.equal(result.tokens?.length, 2);
+  assert.equal((result.tokens?.[0] as { isNameMatch?: boolean } | undefined)?.isNameMatch, true);
+  assert.equal((result.tokens?.[1] as { isNameMatch?: boolean } | undefined)?.isNameMatch, false);
 });
 
 test('tokenizeSubtitle caches JLPT lookups across repeated tokens', async () => {

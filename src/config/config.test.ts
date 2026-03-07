@@ -242,6 +242,49 @@ test('parses subtitleStyle.hoverTokenColor and warns on invalid values', () => {
   );
 });
 
+test('parses subtitleStyle.nameMatchColor and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "nameMatchColor": "#eed49f"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(
+    ((validService.getConfig().subtitleStyle as unknown as Record<string, unknown>).nameMatchColor ??
+      null) as string | null,
+    '#eed49f',
+  );
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "nameMatchColor": "pink"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    ((invalidService.getConfig().subtitleStyle as unknown as Record<string, unknown>)
+      .nameMatchColor ?? null) as string | null,
+    '#f5bde6',
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.nameMatchColor'),
+  );
+});
+
 test('parses subtitleStyle.hoverTokenBackgroundColor and warns on invalid values', () => {
   const validDir = makeTempDir();
   fs.writeFileSync(
@@ -277,6 +320,44 @@ test('parses subtitleStyle.hoverTokenBackgroundColor and warns on invalid values
     invalidService
       .getWarnings()
       .some((warning) => warning.path === 'subtitleStyle.hoverTokenBackgroundColor'),
+  );
+});
+
+test('parses subtitleStyle.nameMatchEnabled and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "nameMatchEnabled": false
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.nameMatchEnabled, false);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "nameMatchEnabled": "no"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.nameMatchEnabled,
+    DEFAULT_CONFIG.subtitleStyle.nameMatchEnabled,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.nameMatchEnabled'),
   );
 });
 
