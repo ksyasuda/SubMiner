@@ -220,8 +220,9 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
         (c as { tag?: string }).tag === 'details' &&
         Array.isArray((c as { content?: unknown[] }).content) &&
         (c as { content: Array<{ content?: string }> }).content[0]?.content === 'Description',
-    ) as { tag: string; content: Array<Record<string, unknown>> } | undefined;
+    ) as { tag: string; open?: boolean; content: Array<Record<string, unknown>> } | undefined;
     assert.ok(descSection, 'expected Description collapsible section');
+    assert.equal(descSection.open, false);
     const descBody = descSection.content[1] as { content: string };
     assert.ok(
       descBody.content.includes('Alexia Midgar is the second princess of the Kingdom of Midgar.'),
@@ -233,17 +234,340 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
         Array.isArray((c as { content?: unknown[] }).content) &&
         (c as { content: Array<{ content?: string }> }).content[0]?.content ===
           'Character Information',
-    ) as { tag: string; content: Array<Record<string, unknown>> } | undefined;
+    ) as { tag: string; open?: boolean; content: Array<Record<string, unknown>> } | undefined;
     assert.ok(
       infoSection,
       'expected Character Information collapsible section with parsed __Race:__ field',
     );
+    assert.equal(infoSection.open, false);
 
     const topLevelImageGlossaryEntry = glossary.find(
       (item) =>
         typeof item === 'object' && item !== null && (item as { type?: string }).type === 'image',
     );
     assert.equal(topLevelImageGlossaryEntry, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia applies configured open states to character dictionary sections', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 130298,
+                    episodes: 20,
+                    title: {
+                      romaji: 'The Eminence in Shadow',
+                      english: 'The Eminence in Shadow',
+                      native: '陰の実力者になりたくて！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  romaji: 'The Eminence in Shadow',
+                  english: 'The Eminence in Shadow',
+                  native: '陰の実力者になりたくて！',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'SUPPORTING',
+                      voiceActors: [
+                        {
+                          id: 456,
+                          name: {
+                            full: 'Rina Hidaka',
+                            native: '日高里菜',
+                          },
+                          image: {
+                            medium: 'https://cdn.example.com/va-456.jpg',
+                          },
+                        },
+                      ],
+                      node: {
+                        id: 123,
+                        description:
+                          'Alexia Midgar is the second princess of the Kingdom of Midgar.\n\n__Race:__ Human',
+                        image: {
+                          large: 'https://cdn.example.com/character-123.png',
+                          medium: 'https://cdn.example.com/character-123-small.png',
+                        },
+                        name: {
+                          full: 'Alexia Midgar',
+                          native: 'アレクシア・ミドガル',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+
+    if (url === 'https://cdn.example.com/character-123.png') {
+      return new Response(Buffer.from([0x89, 0x50, 0x4e, 0x47]), {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    }
+
+    if (url === 'https://cdn.example.com/va-456.jpg') {
+      return new Response(Buffer.from([0xff, 0xd8, 0xff, 0xd9]), {
+        status: 200,
+        headers: { 'content-type': 'image/jpeg' },
+      });
+    }
+
+    throw new Error(`Unexpected fetch: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        episode: 5,
+        source: 'fallback',
+      }),
+      getCollapsibleSectionOpenState: (section) =>
+        section === 'description' || section === 'voicedBy',
+      now: () => 1_700_000_000_000,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const termBank = JSON.parse(
+      readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
+    >;
+    const alexia = termBank.find(([term]) => term === 'アレクシア');
+    assert.ok(alexia);
+
+    const glossary = alexia[5];
+    const entry = glossary[0] as {
+      type: string;
+      content: { tag: string; content: Array<Record<string, unknown>> };
+    };
+    const children = entry.content.content;
+
+    const getSection = (title: string) =>
+      children.find(
+        (c) =>
+          (c as { tag?: string }).tag === 'details' &&
+          Array.isArray((c as { content?: unknown[] }).content) &&
+          (c as { content: Array<{ content?: string }> }).content[0]?.content === title,
+      ) as { open?: boolean } | undefined;
+
+    assert.equal(getSection('Description')?.open, true);
+    assert.equal(getSection('Character Information')?.open, false);
+    assert.equal(getSection('Voiced by')?.open, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia reapplies collapsible open states when using cached snapshot data', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 130298,
+                    episodes: 20,
+                    title: {
+                      romaji: 'The Eminence in Shadow',
+                      english: 'The Eminence in Shadow',
+                      native: '陰の実力者になりたくて！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  english: 'The Eminence in Shadow',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'SUPPORTING',
+                      voiceActors: [
+                        {
+                          id: 456,
+                          name: {
+                            full: 'Rina Hidaka',
+                            native: '日高里菜',
+                          },
+                          image: {
+                            medium: 'https://cdn.example.com/va-456.jpg',
+                          },
+                        },
+                      ],
+                      node: {
+                        id: 123,
+                        description:
+                          'Alexia Midgar is the second princess of the Kingdom of Midgar.\n\n__Race:__ Human',
+                        image: {
+                          large: 'https://cdn.example.com/character-123.png',
+                          medium: null,
+                        },
+                        name: {
+                          full: 'Alexia Midgar',
+                          native: 'アレクシア・ミドガル',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+
+    if (url === 'https://cdn.example.com/character-123.png') {
+      return new Response(PNG_1X1, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    }
+
+    if (url === 'https://cdn.example.com/va-456.jpg') {
+      return new Response(PNG_1X1, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    }
+
+    throw new Error(`Unexpected fetch: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtimeOpen = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        episode: 5,
+        source: 'fallback',
+      }),
+      getCollapsibleSectionOpenState: () => true,
+      now: () => 1_700_000_000_000,
+    });
+    await runtimeOpen.generateForCurrentMedia();
+
+    const runtimeClosed = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        episode: 5,
+        source: 'fallback',
+      }),
+      getCollapsibleSectionOpenState: () => false,
+      now: () => 1_700_000_000_500,
+    });
+    const result = await runtimeClosed.generateForCurrentMedia();
+
+    const termBank = JSON.parse(
+      readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
+    >;
+    const alexia = termBank.find(([term]) => term === 'アレクシア');
+    assert.ok(alexia);
+
+    const children = (
+      alexia[5][0] as {
+        content: { content: Array<Record<string, unknown>> };
+      }
+    ).content.content;
+    const sections = children.filter((item) => (item as { tag?: string }).tag === 'details') as Array<{
+      open?: boolean;
+    }>;
+    assert.ok(sections.length >= 2);
+    assert.ok(sections.every((section) => section.open === false));
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -364,6 +688,123 @@ test('generateForCurrentMedia adds kana aliases for romanized names when native 
     const fullName = termBank.find(([term]) => term === 'サトウカズマ');
     assert.ok(fullName, 'expected compact full-name katakana alias for romanized name');
     assert.equal(fullName[1], 'さとうかずま');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia indexes AniList alternative character names for alias lookups', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 130298,
+                    episodes: 20,
+                    title: {
+                      romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                      english: 'The Eminence in Shadow',
+                      native: '陰の実力者になりたくて！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                  english: 'The Eminence in Shadow',
+                  native: '陰の実力者になりたくて！',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 321,
+                        description: 'Leader of Shadow Garden.',
+                        image: null,
+                        name: {
+                          full: 'Cid Kagenou',
+                          native: 'シド・カゲノー',
+                          alternative: ['Shadow', 'Minoru Kagenou'],
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        episode: 5,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_000,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const termBank = JSON.parse(
+      readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
+    >;
+
+    const shadowKana = termBank.find(([term]) => term === 'シャドウ');
+    assert.ok(shadowKana, 'expected katakana alias from AniList alternative name');
+    assert.equal(shadowKana[1], 'しゃどう');
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1153,6 +1594,306 @@ test('buildMergedDictionary combines stored snapshots into one stable dictionary
     assert.ok(alpha);
     assert.equal((frieren[5][0] as { type?: string }).type, 'structured-content');
     assert.equal((alpha[5][0] as { type?: string }).type, 'structured-content');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('buildMergedDictionary rebuilds snapshots written with an older format version', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+  let characterQueryCount = 0;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+        variables?: Record<string, unknown>;
+      };
+
+      if (body.query?.includes('characters(page: $page')) {
+        characterQueryCount += 1;
+        assert.equal(body.variables?.id, 130298);
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  english: 'The Eminence in Shadow',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 111,
+                        description: 'Leader of Shadow Garden.',
+                        image: null,
+                        name: {
+                          full: 'Cid Kagenou',
+                          native: 'シド・カゲノー',
+                          alternative: ['Shadow'],
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const snapshotsDir = path.join(userDataPath, 'character-dictionaries', 'snapshots');
+    fs.mkdirSync(snapshotsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(snapshotsDir, 'anilist-130298.json'),
+      JSON.stringify({
+        formatVersion: 12,
+        mediaId: 130298,
+        mediaTitle: 'The Eminence in Shadow',
+        entryCount: 1,
+        updatedAt: 1_700_000_000_000,
+        termEntries: [['stale', '', 'name main', '', 100, ['stale'], 0, '']],
+        images: [],
+      }),
+      'utf8',
+    );
+
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => null,
+      getCurrentMediaTitle: () => null,
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => null,
+      now: () => 1_700_000_000_100,
+    });
+
+    const merged = await runtime.buildMergedDictionary([130298]);
+    const termBank = JSON.parse(
+      readStoredZipEntry(merged.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
+    >;
+
+    assert.equal(characterQueryCount, 1);
+    assert.ok(termBank.find(([term]) => term === 'シャドウ'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('buildMergedDictionary reapplies collapsible open states from current config', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+  const current = { title: 'The Eminence in Shadow', episode: 5 };
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+        variables?: Record<string, unknown>;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        if (body.variables?.search === 'The Eminence in Shadow') {
+          return new Response(
+            JSON.stringify({
+              data: {
+                Page: {
+                  media: [
+                    {
+                      id: 130298,
+                      episodes: 20,
+                      title: {
+                        english: 'The Eminence in Shadow',
+                      },
+                    },
+                  ],
+                },
+              },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 21,
+                    episodes: 28,
+                    title: {
+                      english: 'Frieren: Beyond Journey’s End',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        const mediaId = Number(body.variables?.id);
+        if (mediaId === 130298) {
+          return new Response(
+            JSON.stringify({
+              data: {
+                Media: {
+                  title: { english: 'The Eminence in Shadow' },
+                  characters: {
+                    pageInfo: { hasNextPage: false },
+                    edges: [
+                      {
+                        role: 'MAIN',
+                        node: {
+                          id: 111,
+                          description: 'Leader of Shadow Garden.',
+                          image: {
+                            large: 'https://example.com/alpha.png',
+                            medium: null,
+                          },
+                          name: {
+                            full: 'Alpha',
+                            native: 'アルファ',
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: { english: 'Frieren: Beyond Journey’s End' },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 222,
+                        description: 'Elven mage.',
+                        image: {
+                          large: 'https://example.com/frieren.png',
+                          medium: null,
+                        },
+                        name: {
+                          full: 'Frieren',
+                          native: 'フリーレン',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+
+    if (url === 'https://example.com/alpha.png' || url === 'https://example.com/frieren.png') {
+      return new Response(PNG_1X1, {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      });
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtimeOpen = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/current.mkv',
+      getCurrentMediaTitle: () => current.title,
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: current.title,
+        episode: current.episode,
+        source: 'fallback',
+      }),
+      getCollapsibleSectionOpenState: () => true,
+      now: () => 1_700_000_000_100,
+    });
+
+    await runtimeOpen.getOrCreateCurrentSnapshot();
+    current.title = 'Frieren: Beyond Journey’s End';
+    current.episode = 1;
+    await runtimeOpen.getOrCreateCurrentSnapshot();
+
+    const runtimeClosed = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/current.mkv',
+      getCurrentMediaTitle: () => current.title,
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: current.title,
+        episode: current.episode,
+        source: 'fallback',
+      }),
+      getCollapsibleSectionOpenState: () => false,
+      now: () => 1_700_000_000_200,
+    });
+
+    const merged = await runtimeClosed.buildMergedDictionary([21, 130298]);
+    const termBank = JSON.parse(
+      readStoredZipEntry(merged.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
+    >;
+    const alpha = termBank.find(([term]) => term === 'アルファ');
+    assert.ok(alpha);
+    const children = (
+      alpha[5][0] as {
+        content: { content: Array<Record<string, unknown>> };
+      }
+    ).content.content;
+    const sections = children.filter((item) => (item as { tag?: string }).tag === 'details') as Array<{
+      open?: boolean;
+    }>;
+    assert.ok(sections.length >= 1);
+    assert.ok(sections.every((section) => section.open === false));
   } finally {
     globalThis.fetch = originalFetch;
   }

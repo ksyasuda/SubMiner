@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'node:crypto';
 import type { AnilistMediaGuess } from '../core/services/anilist/anilist-updater';
+import type { AnilistCharacterDictionaryCollapsibleSectionKey } from '../types';
 import { hasVideoExtension } from '../shared/video-extensions';
 
 const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
@@ -54,7 +55,7 @@ export type CharacterDictionarySnapshot = {
   images: CharacterDictionarySnapshotImage[];
 };
 
-const CHARACTER_DICTIONARY_FORMAT_VERSION = 12;
+const CHARACTER_DICTIONARY_FORMAT_VERSION = 14;
 const CHARACTER_DICTIONARY_MERGED_TITLE = 'SubMiner Character Dictionary';
 
 type AniListSearchResponse = {
@@ -105,6 +106,7 @@ type AniListCharacterPageResponse = {
           name?: {
             full?: string | null;
             native?: string | null;
+            alternative?: Array<string | null> | null;
           } | null;
         } | null;
       } | null>;
@@ -124,6 +126,7 @@ type CharacterRecord = {
   role: CharacterDictionaryRole;
   fullName: string;
   nativeName: string;
+  alternativeNames: string[];
   description: string;
   imageUrl: string | null;
   voiceActors: VoiceActorRecord[];
@@ -178,6 +181,9 @@ export interface CharacterDictionaryRuntimeDeps {
   sleep?: (ms: number) => Promise<void>;
   logInfo?: (message: string) => void;
   logWarn?: (message: string) => void;
+  getCollapsibleSectionOpenState?: (
+    section: AnilistCharacterDictionaryCollapsibleSectionKey,
+  ) => boolean;
 }
 
 type ResolvedAniListMedia = {
@@ -423,6 +429,7 @@ const ROMANIZED_KANA_MONOGRAPHS: ReadonlyArray<[string, string]> = [
   ['re', 'レ'],
   ['ro', 'ロ'],
   ['wa', 'ワ'],
+  ['w', 'ウ'],
   ['wo', 'ヲ'],
   ['n', 'ン'],
 ];
@@ -490,37 +497,57 @@ function addRomanizedKanaAliases(values: Iterable<string>): string[] {
   return [...aliases];
 }
 
+function expandRawNameVariants(rawName: string): string[] {
+  const trimmed = rawName.trim();
+  if (!trimmed) return [];
+
+  const variants = new Set<string>([trimmed]);
+  const outer = trimmed.replace(/[（(][^()（）]+[)）]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (outer && outer !== trimmed) {
+    variants.add(outer);
+  }
+
+  for (const match of trimmed.matchAll(/[（(]([^()（）]+)[)）]/g)) {
+    const inner = match[1]?.trim() || '';
+    if (inner) {
+      variants.add(inner);
+    }
+  }
+
+  return [...variants];
+}
+
 function buildNameTerms(character: CharacterRecord): string[] {
   const base = new Set<string>();
-  const rawNames = [character.nativeName, character.fullName];
+  const rawNames = [character.nativeName, character.fullName, ...character.alternativeNames];
   for (const rawName of rawNames) {
-    const name = rawName.trim();
-    if (!name) continue;
-    base.add(name);
+    for (const name of expandRawNameVariants(rawName)) {
+      base.add(name);
 
-    const compact = name.replace(/[\s\u3000]+/g, '');
-    if (compact && compact !== name) {
-      base.add(compact);
-    }
+      const compact = name.replace(/[\s\u3000]+/g, '');
+      if (compact && compact !== name) {
+        base.add(compact);
+      }
 
-    const noMiddleDots = compact.replace(/[・･·•]/g, '');
-    if (noMiddleDots && noMiddleDots !== compact) {
-      base.add(noMiddleDots);
-    }
+      const noMiddleDots = compact.replace(/[・･·•]/g, '');
+      if (noMiddleDots && noMiddleDots !== compact) {
+        base.add(noMiddleDots);
+      }
 
-    const split = name.split(/[\s\u3000]+/).filter((part) => part.trim().length > 0);
-    if (split.length === 2) {
-      base.add(split[0]!);
-      base.add(split[1]!);
-    }
+      const split = name.split(/[\s\u3000]+/).filter((part) => part.trim().length > 0);
+      if (split.length === 2) {
+        base.add(split[0]!);
+        base.add(split[1]!);
+      }
 
-    const splitByMiddleDot = name
-      .split(/[・･·•]/)
-      .map((part) => part.trim())
-      .filter((part) => part.length > 0);
-    if (splitByMiddleDot.length >= 2) {
-      for (const part of splitByMiddleDot) {
-        base.add(part);
+      const splitByMiddleDot = name
+        .split(/[・･·•]/)
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0);
+      if (splitByMiddleDot.length >= 2) {
+        for (const part of splitByMiddleDot) {
+          base.add(part);
+        }
       }
     }
   }
@@ -758,11 +785,12 @@ function roleBadgeStyle(role: CharacterDictionaryRole): Record<string, string> {
 
 function buildCollapsibleSection(
   title: string,
+  open: boolean,
   body: Array<string | Record<string, unknown>> | string | Record<string, unknown>,
 ): Record<string, unknown> {
   return {
     tag: 'details',
-    open: true,
+    open,
     style: { marginTop: '0.4em' },
     content: [
       {
@@ -849,6 +877,9 @@ function createDefinitionGlossary(
   mediaTitle: string,
   imagePath: string | null,
   vaImagePaths: Map<number, string>,
+  getCollapsibleSectionOpenState: (
+    section: AnilistCharacterDictionaryCollapsibleSectionKey,
+  ) => boolean,
 ): CharacterDictionaryGlossaryEntry[] {
   const displayName = character.nativeName || character.fullName || `Character ${character.id}`;
   const secondaryName =
@@ -910,7 +941,13 @@ function createDefinitionGlossary(
   });
 
   if (descriptionText) {
-    content.push(buildCollapsibleSection('Description', descriptionText));
+    content.push(
+      buildCollapsibleSection(
+        'Description',
+        getCollapsibleSectionOpenState('description'),
+        descriptionText,
+      ),
+    );
   }
 
   if (fields.length > 0) {
@@ -919,11 +956,15 @@ function createDefinitionGlossary(
       content: `${f.key}: ${f.value}`,
     }));
     content.push(
-      buildCollapsibleSection('Character Information', {
-        tag: 'ul',
-        style: { marginTop: '0.15em' },
-        content: fieldItems,
-      }),
+      buildCollapsibleSection(
+        'Character Information',
+        getCollapsibleSectionOpenState('characterInformation'),
+        {
+          tag: 'ul',
+          style: { marginTop: '0.15em' },
+          content: fieldItems,
+        },
+      ),
     );
   }
 
@@ -931,6 +972,7 @@ function createDefinitionGlossary(
     content.push(
       buildCollapsibleSection(
         'Voiced by',
+        getCollapsibleSectionOpenState('voicedBy'),
         buildVoicedByContent(character.voiceActors, vaImagePaths),
       ),
     );
@@ -1210,6 +1252,7 @@ async function fetchCharactersForMedia(
                   name {
                     full
                     native
+                    alternative
                   }
                 }
               }
@@ -1243,7 +1286,13 @@ async function fetchCharactersForMedia(
       if (!node || typeof node.id !== 'number') continue;
       const fullName = node.name?.full?.trim() || '';
       const nativeName = node.name?.native?.trim() || '';
-      if (!fullName && !nativeName) continue;
+      const alternativeNames = [...new Set(
+        (node.name?.alternative ?? [])
+          .filter((value): value is string => typeof value === 'string')
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0),
+      )];
+      if (!fullName && !nativeName && alternativeNames.length === 0) continue;
       const voiceActors: VoiceActorRecord[] = [];
       for (const va of edge?.voiceActors ?? []) {
         if (!va || typeof va.id !== 'number') continue;
@@ -1262,6 +1311,7 @@ async function fetchCharactersForMedia(
         role: mapRole(edge?.role),
         fullName,
         nativeName,
+        alternativeNames,
         description: node.description || '',
         imageUrl: node.image?.large || node.image?.medium || null,
         voiceActors,
@@ -1340,6 +1390,9 @@ function buildSnapshotFromCharacters(
   imagesByCharacterId: Map<number, CharacterDictionarySnapshotImage>,
   imagesByVaId: Map<number, CharacterDictionarySnapshotImage>,
   updatedAt: number,
+  getCollapsibleSectionOpenState: (
+    section: AnilistCharacterDictionaryCollapsibleSectionKey,
+  ) => boolean,
 ): CharacterDictionarySnapshot {
   const termEntries: CharacterDictionaryTermEntry[] = [];
   const seen = new Set<string>();
@@ -1351,7 +1404,13 @@ function buildSnapshotFromCharacters(
       const vaImg = imagesByVaId.get(va.id);
       if (vaImg) vaImagePaths.set(va.id, vaImg.path);
     }
-    const glossary = createDefinitionGlossary(character, mediaTitle, imagePath, vaImagePaths);
+    const glossary = createDefinitionGlossary(
+      character,
+      mediaTitle,
+      imagePath,
+      vaImagePaths,
+      getCollapsibleSectionOpenState,
+    );
     const candidateTerms = buildNameTerms(character);
     for (const term of candidateTerms) {
       const reading = buildReading(term);
@@ -1375,6 +1434,67 @@ function buildSnapshotFromCharacters(
     termEntries,
     images: [...imagesByCharacterId.values(), ...imagesByVaId.values()],
   };
+}
+
+function getCollapsibleSectionKeyFromTitle(
+  title: string,
+): AnilistCharacterDictionaryCollapsibleSectionKey | null {
+  if (title === 'Description') return 'description';
+  if (title === 'Character Information') return 'characterInformation';
+  if (title === 'Voiced by') return 'voicedBy';
+  return null;
+}
+
+function applyCollapsibleOpenStatesToStructuredValue(
+  value: unknown,
+  getCollapsibleSectionOpenState: (
+    section: AnilistCharacterDictionaryCollapsibleSectionKey,
+  ) => boolean,
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      applyCollapsibleOpenStatesToStructuredValue(item, getCollapsibleSectionOpenState),
+    );
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  const next: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(record)) {
+    next[key] = applyCollapsibleOpenStatesToStructuredValue(child, getCollapsibleSectionOpenState);
+  }
+
+  if (record.tag === 'details') {
+    const content = Array.isArray(record.content) ? record.content : [];
+    const summary = content[0];
+    if (summary && typeof summary === 'object' && !Array.isArray(summary)) {
+      const summaryContent = (summary as Record<string, unknown>).content;
+      if (typeof summaryContent === 'string') {
+        const section = getCollapsibleSectionKeyFromTitle(summaryContent);
+        if (section) {
+          next.open = getCollapsibleSectionOpenState(section);
+        }
+      }
+    }
+  }
+
+  return next;
+}
+
+function applyCollapsibleOpenStatesToTermEntries(
+  termEntries: CharacterDictionaryTermEntry[],
+  getCollapsibleSectionOpenState: (
+    section: AnilistCharacterDictionaryCollapsibleSectionKey,
+  ) => boolean,
+): CharacterDictionaryTermEntry[] {
+  return termEntries.map((entry) => {
+    const glossary = entry[5].map((item) =>
+      applyCollapsibleOpenStatesToStructuredValue(item, getCollapsibleSectionOpenState),
+    ) as CharacterDictionaryGlossaryEntry[];
+    return [...entry.slice(0, 5), glossary, ...entry.slice(6)] as CharacterDictionaryTermEntry;
+  });
 }
 
 function buildDictionaryZip(
@@ -1444,6 +1564,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
 } {
   const outputDir = path.join(deps.userDataPath, 'character-dictionaries');
   const sleepMs = deps.sleep ?? sleep;
+  const getCollapsibleSectionOpenState = deps.getCollapsibleSectionOpenState ?? (() => false);
 
   const resolveCurrentMedia = async (
     targetPath?: string,
@@ -1557,6 +1678,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       imagesByCharacterId,
       imagesByVaId,
       deps.now(),
+      getCollapsibleSectionOpenState,
     );
     writeSnapshot(snapshotPath, snapshot);
     deps.logInfo?.(
@@ -1589,7 +1711,10 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       const normalizedMediaIds = mediaIds
         .filter((mediaId) => Number.isFinite(mediaId) && mediaId > 0)
         .map((mediaId) => Math.floor(mediaId));
-      const snapshots = normalizedMediaIds.map((mediaId) => {
+      const snapshotResults = await Promise.all(
+        normalizedMediaIds.map((mediaId) => getOrCreateSnapshot(mediaId)),
+      );
+      const snapshots = snapshotResults.map(({ mediaId }) => {
         const snapshot = readSnapshot(getSnapshotPath(outputDir, mediaId));
         if (!snapshot) {
           throw new Error(`Missing character dictionary snapshot for AniList ${mediaId}.`);
@@ -1606,7 +1731,10 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         CHARACTER_DICTIONARY_MERGED_TITLE,
         description,
         revision,
-        snapshots.flatMap((snapshot) => snapshot.termEntries),
+        applyCollapsibleOpenStatesToTermEntries(
+          snapshots.flatMap((snapshot) => snapshot.termEntries),
+          getCollapsibleSectionOpenState,
+        ),
         snapshots.flatMap((snapshot) => snapshot.images),
       );
       deps.logInfo?.(
@@ -1651,7 +1779,10 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         dictionaryTitle,
         description,
         revision,
-        storedSnapshot.termEntries,
+        applyCollapsibleOpenStatesToTermEntries(
+          storedSnapshot.termEntries,
+          getCollapsibleSectionOpenState,
+        ),
         storedSnapshot.images,
       );
       deps.logInfo?.(
