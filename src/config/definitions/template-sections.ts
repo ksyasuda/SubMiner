@@ -10,7 +10,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   },
   {
     title: 'Texthooker Server',
-    description: ['Control whether browser opens automatically for texthooker.'],
+    description: ['Configure texthooker startup launch and browser opening behavior.'],
     key: 'texthooker',
   },
   {
@@ -20,6 +20,14 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
       'Auto mode disables built-in server if mpv_websocket is detected.',
     ],
     key: 'websocket',
+  },
+  {
+    title: 'Annotation WebSocket',
+    description: [
+      'Dedicated annotated subtitle websocket for bundled texthooker and token-aware clients.',
+      'Independent from websocket.auto and defaults to port 6678.',
+    ],
+    key: 'annotationWebsocket',
   },
   {
     title: 'Logging',

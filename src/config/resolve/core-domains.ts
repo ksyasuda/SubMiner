@@ -5,6 +5,18 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
 
   if (isObject(src.texthooker)) {
+    const launchAtStartup = asBoolean(src.texthooker.launchAtStartup);
+    if (launchAtStartup !== undefined) {
+      resolved.texthooker.launchAtStartup = launchAtStartup;
+    } else if (src.texthooker.launchAtStartup !== undefined) {
+      warn(
+        'texthooker.launchAtStartup',
+        src.texthooker.launchAtStartup,
+        resolved.texthooker.launchAtStartup,
+        'Expected boolean.',
+      );
+    }
+
     const openBrowser = asBoolean(src.texthooker.openBrowser);
     if (openBrowser !== undefined) {
       resolved.texthooker.openBrowser = openBrowser;
@@ -39,6 +51,32 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
         'websocket.port',
         src.websocket.port,
         resolved.websocket.port,
+        'Expected integer between 1 and 65535.',
+      );
+    }
+  }
+
+  if (isObject(src.annotationWebsocket)) {
+    const enabled = asBoolean(src.annotationWebsocket.enabled);
+    if (enabled !== undefined) {
+      resolved.annotationWebsocket.enabled = enabled;
+    } else if (src.annotationWebsocket.enabled !== undefined) {
+      warn(
+        'annotationWebsocket.enabled',
+        src.annotationWebsocket.enabled,
+        resolved.annotationWebsocket.enabled,
+        'Expected boolean.',
+      );
+    }
+
+    const port = asNumber(src.annotationWebsocket.port);
+    if (port !== undefined && port > 0 && port <= 65535) {
+      resolved.annotationWebsocket.port = Math.floor(port);
+    } else if (src.annotationWebsocket.port !== undefined) {
+      warn(
+        'annotationWebsocket.port',
+        src.annotationWebsocket.port,
+        resolved.annotationWebsocket.port,
         'Expected integer between 1 and 65535.',
       );
     }

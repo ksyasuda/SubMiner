@@ -18,6 +18,26 @@ export type SubtitleWebsocketFrequencyOptions = {
   mode: 'single' | 'banded';
 };
 
+type SerializedSubtitleToken = Pick<
+  MergedToken,
+  | 'surface'
+  | 'reading'
+  | 'headword'
+  | 'startPos'
+  | 'endPos'
+  | 'partOfSpeech'
+  | 'isMerged'
+  | 'isKnown'
+  | 'isNPlusOneTarget'
+  | 'frequencyRank'
+  | 'jlptLevel'
+> & {
+  isNameMatch: boolean;
+  className: string;
+  frequencyRankLabel: string | null;
+  jlptLevelLabel: string | null;
+};
+
 function escapeHtml(text: string): string {
   return text
     .replaceAll('&', '&amp;')
@@ -46,11 +66,29 @@ function computeFrequencyClass(
   return 'word-frequency-single';
 }
 
+function getFrequencyRankLabel(
+  token: MergedToken,
+  options: SubtitleWebsocketFrequencyOptions,
+): string | null {
+  if (!options.enabled) return null;
+  if (typeof token.frequencyRank !== 'number' || !Number.isFinite(token.frequencyRank)) return null;
+
+  const rank = Math.max(1, Math.floor(token.frequencyRank));
+  const topX = Math.max(1, Math.floor(options.topX));
+  return rank <= topX ? String(rank) : null;
+}
+
+function getJlptLevelLabel(token: MergedToken): string | null {
+  return token.jlptLevel ?? null;
+}
+
 function computeWordClass(token: MergedToken, options: SubtitleWebsocketFrequencyOptions): string {
   const classes = ['word'];
 
   if (token.isNPlusOneTarget) {
     classes.push('word-n-plus-one');
+  } else if (token.isNameMatch) {
+    classes.push('word-name-match');
   } else if (token.isKnown) {
     classes.push('word-known');
   }
@@ -59,7 +97,7 @@ function computeWordClass(token: MergedToken, options: SubtitleWebsocketFrequenc
     classes.push(`word-jlpt-${token.jlptLevel.toLowerCase()}`);
   }
 
-  if (!token.isKnown && !token.isNPlusOneTarget) {
+  if (!token.isKnown && !token.isNPlusOneTarget && !token.isNameMatch) {
     const frequencyClass = computeFrequencyClass(token, options);
     if (frequencyClass) {
       classes.push(frequencyClass);
@@ -67,6 +105,55 @@ function computeWordClass(token: MergedToken, options: SubtitleWebsocketFrequenc
   }
 
   return classes.join(' ');
+}
+
+function serializeWordDataAttributes(
+  token: MergedToken,
+  options: SubtitleWebsocketFrequencyOptions,
+): string {
+  const attributes: string[] = [];
+
+  if (token.reading) {
+    attributes.push(`data-reading="${escapeHtml(token.reading)}"`);
+  }
+  if (token.headword) {
+    attributes.push(`data-headword="${escapeHtml(token.headword)}"`);
+  }
+
+  const frequencyRankLabel = getFrequencyRankLabel(token, options);
+  if (frequencyRankLabel) {
+    attributes.push(`data-frequency-rank="${escapeHtml(frequencyRankLabel)}"`);
+  }
+
+  const jlptLevelLabel = getJlptLevelLabel(token);
+  if (jlptLevelLabel) {
+    attributes.push(`data-jlpt-level="${escapeHtml(jlptLevelLabel)}"`);
+  }
+
+  return attributes.length > 0 ? ` ${attributes.join(' ')}` : '';
+}
+
+function serializeSubtitleToken(
+  token: MergedToken,
+  options: SubtitleWebsocketFrequencyOptions,
+): SerializedSubtitleToken {
+  return {
+    surface: token.surface,
+    reading: token.reading,
+    headword: token.headword,
+    startPos: token.startPos,
+    endPos: token.endPos,
+    partOfSpeech: token.partOfSpeech,
+    isMerged: token.isMerged,
+    isKnown: token.isKnown,
+    isNPlusOneTarget: token.isNPlusOneTarget,
+    isNameMatch: token.isNameMatch ?? false,
+    jlptLevel: token.jlptLevel,
+    frequencyRank: token.frequencyRank,
+    className: computeWordClass(token, options),
+    frequencyRankLabel: getFrequencyRankLabel(token, options),
+    jlptLevelLabel: getJlptLevelLabel(token),
+  };
 }
 
 export function serializeSubtitleMarkup(
@@ -80,11 +167,12 @@ export function serializeSubtitleMarkup(
   const chunks: string[] = [];
   for (const token of payload.tokens) {
     const klass = computeWordClass(token, options);
+    const attrs = serializeWordDataAttributes(token, options);
     const parts = token.surface.split('\n');
     for (let index = 0; index < parts.length; index += 1) {
       const part = parts[index];
       if (part) {
-        chunks.push(`<span class="${klass}">${escapeHtml(part)}</span>`);
+        chunks.push(`<span class="${klass}"${attrs}>${escapeHtml(part)}</span>`);
       }
       if (index < parts.length - 1) {
         chunks.push('<br>');
@@ -99,7 +187,23 @@ export function serializeSubtitleWebsocketMessage(
   payload: SubtitleData,
   options: SubtitleWebsocketFrequencyOptions,
 ): string {
-  return JSON.stringify({ sentence: serializeSubtitleMarkup(payload, options) });
+  return JSON.stringify({
+    version: 1,
+    text: payload.text,
+    sentence: serializeSubtitleMarkup(payload, options),
+    tokens: payload.tokens?.map((token) => serializeSubtitleToken(token, options)) ?? [],
+  });
+}
+
+export function serializeInitialSubtitleWebsocketMessage(
+  payload: SubtitleData | null,
+  options: SubtitleWebsocketFrequencyOptions,
+): string | null {
+  if (!payload || !payload.text.trim()) {
+    return null;
+  }
+
+  return serializeSubtitleWebsocketMessage(payload, options);
 }
 
 export class SubtitleWebSocket {
@@ -114,7 +218,11 @@ export class SubtitleWebSocket {
     return (this.server?.clients.size ?? 0) > 0;
   }
 
-  public start(port: number, getCurrentSubtitleText: () => string): void {
+  public start(
+    port: number,
+    getCurrentSubtitleData: () => SubtitleData | null,
+    getFrequencyOptions: () => SubtitleWebsocketFrequencyOptions,
+  ): void {
     this.server = new WebSocket.Server({ port, host: '127.0.0.1' });
 
     this.server.on('connection', (ws: WebSocket) => {
@@ -124,9 +232,12 @@ export class SubtitleWebSocket {
         return;
       }
 
-      const currentText = getCurrentSubtitleText();
-      if (currentText) {
-        ws.send(JSON.stringify({ sentence: currentText }));
+      const currentMessage = serializeInitialSubtitleWebsocketMessage(
+        getCurrentSubtitleData(),
+        getFrequencyOptions(),
+      );
+      if (currentMessage) {
+        ws.send(currentMessage);
       }
     });
 

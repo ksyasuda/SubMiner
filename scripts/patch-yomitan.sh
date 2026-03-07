@@ -29,9 +29,35 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 YOMITAN_DIR="${1:-$SCRIPT_DIR/../vendor/yomitan}"
+YOMITAN_MANIFEST_PATH="$YOMITAN_DIR/manifest.json"
 
 if [ ! -d "$YOMITAN_DIR" ]; then
     echo "Error: Yomitan directory not found: $YOMITAN_DIR"
+    exit 1
+fi
+
+if [ ! -f "$YOMITAN_MANIFEST_PATH" ]; then
+    echo "Error: manifest.json not found at $YOMITAN_MANIFEST_PATH"
+    exit 1
+fi
+
+echo "Patching manifest.json..."
+if node - "$YOMITAN_MANIFEST_PATH" <<'PATCH_EOF'
+const fs = require('node:fs');
+const path = process.argv[2];
+const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
+const stableKey = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxclvOy2sunfRa2UeSV/L9xyuMR9V65z85mbKCy0XvSLUkTBXM8BnvnrDu1DHhLjpidA3cBtetVt7rzwsJSA6/CzlMmtG6L6//3MOAH5Mhng8tXXWXbuNuJobLv/7MORPqoqYKZuoL1bnUvjdrf4Pb3BBDZtHN8LcDz13gOO4dnEFQbSE4F5RQ4mIQAGMkmbmlJkwFk5I022XyX+cWm/+9VvwPuEDA1Qf7X1G+4use3hGYWVPcRb6xTp7swXsO/fP7auE51gYQD0Ht36wr32UR6lfRmsahbHOX4RLe36S8B4ee74kk5C8iCsZf2fidWmevzLk7kK0GW15pv3dpGFpPQIDAQAB';
+if (manifest.key === stableKey) {
+    process.exit(0);
+}
+manifest.key = stableKey;
+fs.writeFileSync(path, `${JSON.stringify(manifest, null, 4)}\n`, 'utf8');
+process.exit(0);
+PATCH_EOF
+then
+    echo "  - Set stable manifest key in manifest.json"
+else
+    echo "  - Failed to patch manifest.json"
     exit 1
 fi
 

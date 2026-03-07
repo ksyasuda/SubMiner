@@ -114,7 +114,13 @@ export interface WebSocketConfig {
   port?: number;
 }
 
+export interface AnnotationWebSocketConfig {
+  enabled?: boolean;
+  port?: number;
+}
+
 export interface TexthookerConfig {
+  launchAtStartup?: boolean;
   openBrowser?: boolean;
 }
 
@@ -479,6 +485,7 @@ export interface Config {
   subtitlePosition?: SubtitlePosition;
   keybindings?: Keybinding[];
   websocket?: WebSocketConfig;
+  annotationWebsocket?: AnnotationWebSocketConfig;
   texthooker?: TexthookerConfig;
   ankiConnect?: AnkiConnectConfig;
   shortcuts?: ShortcutsConfig;
@@ -504,6 +511,7 @@ export interface ResolvedConfig {
   subtitlePosition: SubtitlePosition;
   keybindings: Keybinding[];
   websocket: Required<WebSocketConfig>;
+  annotationWebsocket: Required<AnnotationWebSocketConfig>;
   texthooker: Required<TexthookerConfig>;
   ankiConnect: AnkiConnectConfig & {
     enabled: boolean;
