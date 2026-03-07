@@ -92,6 +92,11 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       maxLoaded: 3,
       evictionPolicy: 'delete',
       profileScope: 'all',
+      collapsibleSections: {
+        description: false,
+        characterInformation: false,
+        voicedBy: false,
+      },
     },
   },
   jellyfin: {

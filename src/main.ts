@@ -1147,6 +1147,8 @@ const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
   getCurrentMediaTitle: () => appState.currentMediaTitle,
   resolveMediaPathForJimaku: (mediaPath) => mediaRuntime.resolveMediaPathForJimaku(mediaPath),
   guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
+  getCollapsibleSectionOpenState: (section) =>
+    getResolvedConfig().anilist.characterDictionary.collapsibleSections[section],
   now: () => Date.now(),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),

@@ -398,6 +398,16 @@ export interface JimakuConfig {
 
 export type AnilistCharacterDictionaryEvictionPolicy = 'disable' | 'delete';
 export type AnilistCharacterDictionaryProfileScope = 'all' | 'active';
+export type AnilistCharacterDictionaryCollapsibleSectionKey =
+  | 'description'
+  | 'characterInformation'
+  | 'voicedBy';
+
+export interface AnilistCharacterDictionaryCollapsibleSectionsConfig {
+  description?: boolean;
+  characterInformation?: boolean;
+  voicedBy?: boolean;
+}
 
 export interface AnilistCharacterDictionaryConfig {
   enabled?: boolean;
@@ -405,6 +415,7 @@ export interface AnilistCharacterDictionaryConfig {
   maxLoaded?: number;
   evictionPolicy?: AnilistCharacterDictionaryEvictionPolicy;
   profileScope?: AnilistCharacterDictionaryProfileScope;
+  collapsibleSections?: AnilistCharacterDictionaryCollapsibleSectionsConfig;
 }
 
 export interface AnilistConfig {
@@ -604,6 +615,7 @@ export interface ResolvedConfig {
       maxLoaded: number;
       evictionPolicy: AnilistCharacterDictionaryEvictionPolicy;
       profileScope: AnilistCharacterDictionaryProfileScope;
+      collapsibleSections: Required<AnilistCharacterDictionaryCollapsibleSectionsConfig>;
     };
   };
   jellyfin: {

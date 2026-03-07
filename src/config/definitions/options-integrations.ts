@@ -172,6 +172,26 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Yomitan profile scope for dictionary enable/disable updates.',
     },
     {
+      path: 'anilist.characterDictionary.collapsibleSections.description',
+      kind: 'boolean',
+      defaultValue: defaultConfig.anilist.characterDictionary.collapsibleSections.description,
+      description: 'Open the Description section by default in character dictionary glossary entries.',
+    },
+    {
+      path: 'anilist.characterDictionary.collapsibleSections.characterInformation',
+      kind: 'boolean',
+      defaultValue:
+        defaultConfig.anilist.characterDictionary.collapsibleSections.characterInformation,
+      description:
+        'Open the Character Information section by default in character dictionary glossary entries.',
+    },
+    {
+      path: 'anilist.characterDictionary.collapsibleSections.voicedBy',
+      kind: 'boolean',
+      defaultValue: defaultConfig.anilist.characterDictionary.collapsibleSections.voicedBy,
+      description: 'Open the Voiced by section by default in character dictionary glossary entries.',
+    },
+    {
       path: 'jellyfin.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.jellyfin.enabled,

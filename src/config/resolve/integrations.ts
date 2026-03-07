@@ -124,6 +124,31 @@ export function applyIntegrationConfig(context: ResolveContext): void {
           'Expected string.',
         );
       }
+
+      if (isObject(characterDictionary.collapsibleSections)) {
+        const collapsibleSections = characterDictionary.collapsibleSections;
+        const keys = ['description', 'characterInformation', 'voicedBy'] as const;
+        for (const key of keys) {
+          const value = asBoolean(collapsibleSections[key]);
+          if (value !== undefined) {
+            resolved.anilist.characterDictionary.collapsibleSections[key] = value;
+          } else if (collapsibleSections[key] !== undefined) {
+            warn(
+              `anilist.characterDictionary.collapsibleSections.${key}`,
+              collapsibleSections[key],
+              resolved.anilist.characterDictionary.collapsibleSections[key],
+              'Expected boolean.',
+            );
+          }
+        }
+      } else if (characterDictionary.collapsibleSections !== undefined) {
+        warn(
+          'anilist.characterDictionary.collapsibleSections',
+          characterDictionary.collapsibleSections,
+          resolved.anilist.characterDictionary.collapsibleSections,
+          'Expected object.',
+        );
+      }
     } else if (src.anilist.characterDictionary !== undefined) {
       warn(
         'anilist.characterDictionary',
