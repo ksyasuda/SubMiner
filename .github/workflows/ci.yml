@@ -31,7 +31,8 @@ jobs:
           path: |
             ~/.bun/install/cache
             node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+            vendor/subminer-yomitan/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'vendor/subminer-yomitan/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 

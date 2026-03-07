@@ -4,6 +4,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { createTokenizerDepsRuntime, tokenizeSubtitle } from '../src/core/services/tokenizer.js';
+import { resolveYomitanExtensionPath as resolveBuiltYomitanExtensionPath } from '../src/core/services/yomitan-extension-paths.js';
 import { MecabTokenizer } from '../src/mecab-tokenizer.js';
 import type { MergedToken } from '../src/types.js';
 
@@ -112,12 +113,12 @@ function parseCliArgs(argv: string[]): CliOptions {
       if (!next) {
         throw new Error('Missing value for --yomitan-extension');
       }
-      yomitanExtensionPath = path.resolve(next);
+      yomitanExtensionPath = next;
       continue;
     }
 
     if (arg.startsWith('--yomitan-extension=')) {
-      yomitanExtensionPath = path.resolve(arg.slice('--yomitan-extension='.length));
+      yomitanExtensionPath = arg.slice('--yomitan-extension='.length);
       continue;
     }
 
@@ -126,12 +127,12 @@ function parseCliArgs(argv: string[]): CliOptions {
       if (!next) {
         throw new Error('Missing value for --yomitan-user-data');
       }
-      yomitanUserDataPath = path.resolve(next);
+      yomitanUserDataPath = next;
       continue;
     }
 
     if (arg.startsWith('--yomitan-user-data=')) {
-      yomitanUserDataPath = path.resolve(arg.slice('--yomitan-user-data='.length));
+      yomitanUserDataPath = arg.slice('--yomitan-user-data='.length);
       continue;
     }
 
@@ -372,21 +373,10 @@ function findSelectedCandidateIndexes(
 }
 
 function resolveYomitanExtensionPath(explicitPath?: string): string | null {
-  const candidates = [
-    explicitPath ? path.resolve(explicitPath) : null,
-    path.resolve(process.cwd(), 'vendor', 'yomitan'),
-  ];
-
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue;
-    }
-    if (fs.existsSync(path.join(candidate, 'manifest.json'))) {
-      return candidate;
-    }
-  }
-
-  return null;
+  return resolveBuiltYomitanExtensionPath({
+    explicitPath,
+    cwd: process.cwd(),
+  });
 }
 
 async function setupYomitanRuntime(options: CliOptions): Promise<YomitanRuntimeState> {
@@ -420,7 +410,7 @@ async function setupYomitanRuntime(options: CliOptions): Promise<YomitanRuntimeS
 
   const extensionPath = resolveYomitanExtensionPath(options.yomitanExtensionPath);
   if (!extensionPath) {
-    state.note = 'no Yomitan extension directory found';
+    state.note = 'no built Yomitan extension directory found; run `bun run build:yomitan`';
     return state;
   }
 

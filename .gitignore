@@ -5,6 +5,7 @@ node_modules/
 out/
 dist/
 release/
+build/yomitan/
 
 # Launcher build artifact (produced by make build-launcher)
 /subminer

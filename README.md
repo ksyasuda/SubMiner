@@ -54,7 +54,7 @@ chmod +x ~/.local/bin/subminer
 > [!NOTE]
 > The `subminer` wrapper uses a [Bun](https://bun.sh) shebang. Make sure `bun` is on your `PATH`.
 
-**From source** or **macOS** — see the [installation guide](https://docs.subminer.moe/installation#from-source).
+**From source** or **macOS** — initialize submodules first (`git submodule update --init --recursive`). Source builds now also require Node.js 22 + npm because bundled Yomitan is built from the `vendor/subminer-yomitan` submodule into `build/yomitan` during `bun run build`. Full install guide: [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
 
 ### 2. Launch the app once
 
@@ -92,7 +92,7 @@ subminer --start video.mkv # optional explicit overlay start when plugin auto_st
 
 | Required                                   | Optional                                           |
 | ------------------------------------------ | -------------------------------------------------- |
-| `bun`                                      |                                                    |
+| `bun`, `node` 22, `npm`                    |                                                    |
 | `mpv` with IPC socket                      | `yt-dlp`                                           |
 | `ffmpeg`                                   | `guessit` (better AniSkip title/episode detection) |
 | `mecab` + `mecab-ipadic`                   | `fzf` / `rofi`                                     |

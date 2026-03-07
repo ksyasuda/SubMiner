@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 
-// @ts-expect-error Vendored Yomitan translator has no local TypeScript declarations.
-import { Translator } from '../vendor/yomitan/js/language/translator.js';
+import { resolveYomitanExtensionPath } from './core/services/yomitan-extension-paths';
 
 type SortableTermEntry = {
   matchPrimaryReading: boolean;
@@ -28,8 +29,20 @@ type SortableDefinition = {
   index: number;
 };
 
-test('Translator prioritizes SubMiner term entries without changing dictionary index order', () => {
-  const translator = new Translator({});
+async function loadTranslator(): Promise<{ new (...args: unknown[]): { [key: string]: unknown } }> {
+  const yomitanRoot = resolveYomitanExtensionPath({ cwd: process.cwd() });
+  assert.ok(yomitanRoot, 'Run `bun run build:yomitan` before Yomitan integration tests.');
+  const module = await import(
+    pathToFileURL(path.join(yomitanRoot, 'js', 'language', 'translator.js')).href
+  );
+  return module.Translator as { new (...args: unknown[]): { [key: string]: unknown } };
+}
+
+test('Translator prioritizes SubMiner term entries without changing dictionary index order', async () => {
+  const Translator = await loadTranslator();
+  const translator = new Translator({}) as {
+    _sortTermDictionaryEntries: (entries: unknown[]) => void;
+  };
   const entries: SortableTermEntry[] = [
     {
       matchPrimaryReading: true,
@@ -64,8 +77,11 @@ test('Translator prioritizes SubMiner term entries without changing dictionary i
   assert.equal(entries[0]?.dictionaryAlias, 'SubMiner Character Dictionary');
 });
 
-test('Translator prioritizes SubMiner definitions without changing dictionary index order', () => {
-  const translator = new Translator({});
+test('Translator prioritizes SubMiner definitions without changing dictionary index order', async () => {
+  const Translator = await loadTranslator();
+  const translator = new Translator({}) as {
+    _sortTermDictionaryEntryDefinitions: (definitions: unknown[]) => void;
+  };
   const definitions: SortableDefinition[] = [
     {
       dictionary: 'JMdict',

@@ -4,6 +4,7 @@ import process from 'node:process';
 
 import { createTokenizerDepsRuntime, tokenizeSubtitle } from '../src/core/services/tokenizer.js';
 import { createFrequencyDictionaryLookup } from '../src/core/services/frequency-dictionary.js';
+import { resolveYomitanExtensionPath as resolveBuiltYomitanExtensionPath } from '../src/core/services/yomitan-extension-paths.js';
 import { MecabTokenizer } from '../src/mecab-tokenizer.js';
 import type { MergedToken, FrequencyDictionaryLookup } from '../src/types.js';
 
@@ -94,7 +95,7 @@ function parseCliArgs(argv: string[]): CliOptions {
       if (!next) {
         throw new Error('Missing value for --yomitan-extension');
       }
-      yomitanExtensionPath = path.resolve(next);
+      yomitanExtensionPath = next;
       continue;
     }
 
@@ -103,7 +104,7 @@ function parseCliArgs(argv: string[]): CliOptions {
       if (!next) {
         throw new Error('Missing value for --yomitan-user-data');
       }
-      yomitanUserDataPath = path.resolve(next);
+      yomitanUserDataPath = next;
       continue;
     }
 
@@ -225,12 +226,12 @@ function parseCliArgs(argv: string[]): CliOptions {
     }
 
     if (arg.startsWith('--yomitan-extension=')) {
-      yomitanExtensionPath = path.resolve(arg.slice('--yomitan-extension='.length));
+      yomitanExtensionPath = arg.slice('--yomitan-extension='.length);
       continue;
     }
 
     if (arg.startsWith('--yomitan-user-data=')) {
-      yomitanUserDataPath = path.resolve(arg.slice('--yomitan-user-data='.length));
+      yomitanUserDataPath = arg.slice('--yomitan-user-data='.length);
       continue;
     }
 
@@ -524,7 +525,10 @@ function destroyUnknownParserWindow(window: unknown): void {
   }
 }
 
-async function createYomitanRuntimeState(userDataPath: string): Promise<YomitanRuntimeState> {
+async function createYomitanRuntimeState(
+  userDataPath: string,
+  extensionPath?: string,
+): Promise<YomitanRuntimeState> {
   const state: YomitanRuntimeState = {
     yomitanExt: null,
     parserWindow: null,
@@ -547,6 +551,7 @@ async function createYomitanRuntimeState(userDataPath: string): Promise<YomitanR
     const loadYomitanExtension = (await import('../src/core/services/yomitan-extension-loader.js'))
       .loadYomitanExtension as (options: {
       userDataPath: string;
+      extensionPath?: string;
       getYomitanParserWindow: () => unknown;
       setYomitanParserWindow: (window: unknown) => void;
       setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
@@ -556,6 +561,7 @@ async function createYomitanRuntimeState(userDataPath: string): Promise<YomitanR
 
     const extension = await loadYomitanExtension({
       userDataPath,
+      extensionPath,
       getYomitanParserWindow: () => state.parserWindow,
       setYomitanParserWindow: (window) => {
         state.parserWindow = window;
@@ -589,17 +595,16 @@ async function createYomitanRuntimeStateWithSearch(
   userDataPath: string,
   extensionPath?: string,
 ): Promise<YomitanRuntimeState> {
-  const preferredPath = extensionPath ? path.resolve(extensionPath) : undefined;
-  const defaultVendorPath = path.resolve(process.cwd(), 'vendor', 'yomitan');
-  const candidates = [...(preferredPath ? [preferredPath] : []), defaultVendorPath];
+  const resolvedExtensionPath = resolveBuiltYomitanExtensionPath({
+    explicitPath: extensionPath,
+    cwd: process.cwd(),
+  });
+  const candidates = resolvedExtensionPath ? [resolvedExtensionPath] : [];
 
   for (const candidate of candidates) {
-    if (!candidate) {
-      continue;
-    }
     try {
       if (fs.existsSync(path.join(candidate, 'manifest.json'))) {
-        const state = await createYomitanRuntimeState(userDataPath);
+        const state = await createYomitanRuntimeState(userDataPath, candidate);
         if (state.available) {
           return state;
         }
@@ -613,7 +618,7 @@ async function createYomitanRuntimeStateWithSearch(
     }
   }
 
-  return createYomitanRuntimeState(userDataPath);
+  return createYomitanRuntimeState(userDataPath, resolvedExtensionPath ?? undefined);
 }
 
 async function getFrequencyLookup(dictionaryPath: string): Promise<FrequencyDictionaryLookup> {

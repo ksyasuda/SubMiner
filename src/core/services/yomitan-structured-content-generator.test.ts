@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
+import { resolveYomitanExtensionPath } from './yomitan-extension-paths';
 
 class FakeStyle {
   private values = new Map<string, string>();
@@ -155,14 +156,17 @@ function findFirstByClass(node: FakeNode, className: string): FakeNode | null {
 }
 
 test('StructuredContentGenerator uses direct img loading for popup glossary images', async () => {
+  const yomitanRoot = resolveYomitanExtensionPath({ cwd: process.cwd() });
+  assert.ok(yomitanRoot, 'Run `bun run build:yomitan` before Yomitan integration tests.');
+
   const { DisplayContentManager } = await import(
     pathToFileURL(
-      path.join(process.cwd(), 'vendor/yomitan/js/display/display-content-manager.js'),
+      path.join(yomitanRoot, 'js', 'display', 'display-content-manager.js'),
     ).href
   );
   const { StructuredContentGenerator } = await import(
     pathToFileURL(
-      path.join(process.cwd(), 'vendor/yomitan/js/display/structured-content-generator.js'),
+      path.join(yomitanRoot, 'js', 'display', 'structured-content-generator.js'),
     ).href
   );
 
