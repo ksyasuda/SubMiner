@@ -54,6 +54,34 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
   assert.deepEqual(calls, ['lookup:true', 'lookup:false', 'set-window', 'set-ready', 'set-init']);
 });
 
+test('tokenizer deps builder disables name matching when character dictionary is disabled', () => {
+  const deps = createBuildTokenizerDepsMainHandler({
+    getYomitanExt: () => null,
+    getYomitanParserWindow: () => null,
+    setYomitanParserWindow: () => undefined,
+    getYomitanParserReadyPromise: () => null,
+    setYomitanParserReadyPromise: () => undefined,
+    getYomitanParserInitPromise: () => null,
+    setYomitanParserInitPromise: () => undefined,
+    isKnownWord: () => false,
+    recordLookup: () => undefined,
+    getKnownWordMatchMode: () => 'surface',
+    getNPlusOneEnabled: () => true,
+    getMinSentenceWordsForNPlusOne: () => 3,
+    getJlptLevel: () => 'N2',
+    getJlptEnabled: () => true,
+    getCharacterDictionaryEnabled: () => false,
+    getNameMatchEnabled: () => true,
+    getFrequencyDictionaryEnabled: () => true,
+    getFrequencyDictionaryMatchMode: () => 'surface',
+    getFrequencyRank: () => 5,
+    getYomitanGroupDebugEnabled: () => false,
+    getMecabTokenizer: () => null,
+  })();
+
+  assert.equal(deps.getNameMatchEnabled?.(), false);
+});
+
 test('mecab tokenizer check creates tokenizer once and runs availability check', async () => {
   const calls: string[] = [];
   type Tokenizer = { id: string };

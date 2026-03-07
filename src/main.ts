@@ -2436,6 +2436,7 @@ const {
           'subtitle.annotation.jlpt',
           getResolvedConfig().subtitleStyle.enableJlpt,
         ),
+      getCharacterDictionaryEnabled: () => getResolvedConfig().anilist.characterDictionary.enabled,
       getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
