@@ -4,6 +4,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import {
+  createDefaultSetupState,
+  getDefaultConfigDir,
+  getSetupStatePath,
+  readSetupState,
+  writeSetupState,
+} from '../src/shared/setup-state.js';
 
 type RunResult = {
   status: number | null;
@@ -57,6 +64,13 @@ function createSmokeCase(name: string): SmokeCase {
     path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
     `socket_path=${socketPath}\n`,
   );
+
+  const configDir = getDefaultConfigDir({ xdgConfigHome, homeDir });
+  const setupState = createDefaultSetupState();
+  setupState.status = 'completed';
+  setupState.completedAt = '2026-03-07T00:00:00.000Z';
+  setupState.completionSource = 'user';
+  writeSetupState(getSetupStatePath(configDir), setupState);
 
   const fakeMpvLogPath = path.join(artifactsDir, 'fake-mpv.log');
   const fakeAppLogPath = path.join(artifactsDir, 'fake-app.log');
@@ -223,6 +237,22 @@ async function waitForJsonLines(
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
   }
 }
+
+test('launcher smoke fixture seeds completed setup state', () => {
+  const smokeCase = createSmokeCase('setup-state');
+  try {
+    const configDir = getDefaultConfigDir({
+      xdgConfigHome: smokeCase.xdgConfigHome,
+      homeDir: smokeCase.homeDir,
+    });
+    const statePath = getSetupStatePath(configDir);
+
+    assert.equal(readSetupState(statePath)?.status, 'completed');
+  } finally {
+    fs.rmSync(smokeCase.root, { recursive: true, force: true });
+    fs.rmSync(smokeCase.socketDir, { recursive: true, force: true });
+  }
+});
 
 test('launcher mpv status returns ready when socket is connectable', async () => {
   await withSmokeCase('mpv-status', async (smokeCase) => {
