@@ -25,6 +25,8 @@ import {getAllLanguageReadingNormalizers, getAllLanguageTextProcessors} from './
 import {MultiLanguageTransformer} from './multi-language-transformer.js';
 import {isCodePointChinese} from './zh/chinese.js';
 
+const SUBMINER_DICTIONARY_TITLE_PREFIX = 'SubMiner Character Dictionary';
+
 /**
  * Class which finds term and kanji dictionary entries for text.
  */
@@ -1531,6 +1533,23 @@ export class Translator {
         return Array.isArray(value) ? value : (typeof value === 'number' ? [value] : []);
     }
 
+    /**
+     * @param {string|undefined} value
+     * @returns {boolean}
+     */
+    _isSubMinerDictionary(value) {
+        return typeof value === 'string' && value.startsWith(SUBMINER_DICTIONARY_TITLE_PREFIX);
+    }
+
+    /**
+     * @param {string|undefined} dictionary
+     * @param {string|undefined} dictionaryAlias
+     * @returns {number}
+     */
+    _getSubMinerDictionarySortBoost(dictionary, dictionaryAlias) {
+        return (this._isSubMinerDictionary(dictionary) || this._isSubMinerDictionary(dictionaryAlias)) ? 1 : 0;
+    }
+
     // Kanji data
 
     /**
@@ -2162,6 +2181,10 @@ export class Translator {
             i = v2.sourceTermExactMatchCount - v1.sourceTermExactMatchCount;
             if (i !== 0) { return i; }
 
+            // Prefer SubMiner character dictionary entries without changing user dictionary order.
+            i = this._getSubMinerDictionarySortBoost(v2.definitions[0]?.dictionary, v2.dictionaryAlias) - this._getSubMinerDictionarySortBoost(v1.definitions[0]?.dictionary, v1.dictionaryAlias);
+            if (i !== 0) { return i; }
+
             // Sort by frequency order
             i = v1.frequencyOrder - v2.frequencyOrder;
             if (i !== 0) { return i; }
@@ -2205,8 +2228,12 @@ export class Translator {
          * @returns {number}
          */
         const compareFunction = (v1, v2) => {
+            // Prefer SubMiner character dictionary definitions without changing user dictionary order.
+            let i = this._getSubMinerDictionarySortBoost(v2.dictionary, v2.dictionaryAlias) - this._getSubMinerDictionarySortBoost(v1.dictionary, v1.dictionaryAlias);
+            if (i !== 0) { return i; }
+
             // Sort by frequency order
-            let i = v1.frequencyOrder - v2.frequencyOrder;
+            i = v1.frequencyOrder - v2.frequencyOrder;
             if (i !== 0) { return i; }
 
             // Sort by dictionary order

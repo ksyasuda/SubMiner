@@ -656,7 +656,7 @@ test('getYomitanDictionaryInfo requests dictionary info via backend action', asy
   assert.match(scriptValue, /getDictionaryInfo/);
 });
 
-test('dictionary settings helpers upsert and remove dictionary entries', async () => {
+test('dictionary settings helpers upsert and remove dictionary entries without reordering', async () => {
   const scripts: string[] = [];
   const optionsFull = {
     profileCurrent: 0,

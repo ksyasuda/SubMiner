@@ -1676,7 +1676,7 @@ export async function upsertYomitanDictionarySettings(
       continue;
     }
 
-    dictionaries.unshift(createDefaultDictionarySettings(normalizedTitle, true));
+    dictionaries.push(createDefaultDictionarySettings(normalizedTitle, true));
     changed = true;
   }
 
