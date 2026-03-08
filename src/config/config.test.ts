@@ -64,6 +64,12 @@ test('loads defaults when config is missing', () => {
     'Inter, Noto Sans, Helvetica Neue, sans-serif',
   );
   assert.equal(config.subtitleStyle.secondary.fontColor, '#cad3f5');
+  assert.equal(config.subtitleStyle.secondary.fontWeight, '600');
+  assert.equal(
+    config.subtitleStyle.secondary.textShadow,
+    '0 2px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8), 0 0 16px rgba(0,0,0,0.55)',
+  );
+  assert.equal(config.subtitleStyle.secondary.backgroundColor, 'rgba(20, 22, 34, 0.78)');
   assert.equal(config.immersionTracking.enabled, true);
   assert.equal(config.immersionTracking.dbPath, '');
   assert.equal(config.immersionTracking.batchSize, 25);

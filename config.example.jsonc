@@ -185,10 +185,10 @@
       "wordSpacing": 0, // Word spacing setting.
       "fontKerning": "normal", // Font kerning setting.
       "textRendering": "geometricPrecision", // Text rendering setting.
-      "textShadow": "0 3px 10px rgba(0,0,0,0.69)", // Text shadow setting.
-      "backgroundColor": "transparent", // Background color setting.
+      "textShadow": "0 2px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8), 0 0 16px rgba(0,0,0,0.55)", // Text shadow setting.
+      "backgroundColor": "rgba(20, 22, 34, 0.78)", // Background color setting.
       "backdropFilter": "blur(6px)", // Backdrop filter setting.
-      "fontWeight": "normal", // Font weight setting.
+      "fontWeight": "600", // Font weight setting.
       "fontStyle": "normal" // Font style setting.
     } // Secondary setting.
   }, // Primary and secondary subtitle styling.

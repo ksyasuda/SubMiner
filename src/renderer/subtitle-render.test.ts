@@ -347,6 +347,58 @@ test('applySubtitleStyle sets subtitle name-match color variable', () => {
   }
 });
 
+test('applySubtitleStyle stores secondary background styles in hover-aware css variables', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      secondary: {
+        backgroundColor: 'rgba(20, 22, 34, 0.78)',
+        backdropFilter: 'blur(6px)',
+        fontWeight: '600',
+      },
+    } as never);
+
+    const secondaryStyleValues = (
+      secondarySubContainer.style as unknown as {
+        values?: Map<string, string>;
+        backgroundColor?: string;
+        backdropFilter?: string;
+      }
+    ).values;
+    assert.equal(
+      secondaryStyleValues?.get('--secondary-sub-background-color'),
+      'rgba(20, 22, 34, 0.78)',
+    );
+    assert.equal(secondaryStyleValues?.get('--secondary-sub-backdrop-filter'), 'blur(6px)');
+    assert.equal(
+      (secondarySubContainer.style as unknown as { backgroundColor?: string }).backgroundColor,
+      undefined,
+    );
+    assert.equal(
+      (secondarySubContainer.style as unknown as { backdropFilter?: string }).backdropFilter,
+      undefined,
+    );
+    assert.equal((secondarySubRoot.style as unknown as { fontWeight?: string }).fontWeight, '600');
+  } finally {
+    restoreDocument();
+  }
+});
+
 test('computeWordClass adds frequency class for single mode when rank is within topX', () => {
   const token = createToken({
     surface: '猫',
@@ -817,6 +869,42 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   assert.match(
     descendantSelectionBlock,
     /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+
+  const secondaryContainerBlock = extractClassBlock(cssText, '#secondarySubContainer');
+  assert.match(
+    secondaryContainerBlock,
+    /background:\s*var\(--secondary-sub-background-color,\s*transparent\);/,
+  );
+  assert.match(
+    secondaryContainerBlock,
+    /backdrop-filter:\s*var\(--secondary-sub-backdrop-filter,\s*none\);/,
+  );
+
+  const secondaryRootBlock = extractClassBlock(cssText, '#secondarySubRoot');
+  assert.match(secondaryRootBlock, /-webkit-text-stroke:\s*0\.45px rgba\(0,\s*0,\s*0,\s*0\.7\);/);
+  assert.match(
+    secondaryRootBlock,
+    /text-shadow:\s*0 2px 4px rgba\(0,\s*0,\s*0,\s*0\.95\),\s*0 0 8px rgba\(0,\s*0,\s*0,\s*0\.8\),\s*0 0 16px rgba\(0,\s*0,\s*0,\s*0\.55\);/,
+  );
+
+  const secondaryHoverBaseBlock = extractClassBlock(
+    cssText,
+    '#secondarySubContainer.secondary-sub-hover #secondarySubRoot',
+  );
+  assert.match(secondaryHoverBaseBlock, /background:\s*transparent;/);
+
+  const secondaryHoverVisibleBlock = extractClassBlock(
+    cssText,
+    '#secondarySubContainer.secondary-sub-hover:hover #secondarySubRoot',
+  );
+  assert.match(
+    secondaryHoverVisibleBlock,
+    /background:\s*var\(--secondary-sub-background-color,\s*transparent\);/,
+  );
+  assert.match(
+    secondaryHoverVisibleBlock,
+    /backdrop-filter:\s*var\(--secondary-sub-backdrop-filter,\s*none\);/,
   );
 
   assert.doesNotMatch(

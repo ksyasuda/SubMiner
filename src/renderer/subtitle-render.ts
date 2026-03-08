@@ -155,6 +155,33 @@ const CONTAINER_STYLE_KEYS = new Set<string>([
   '-webkit-backdrop-filter',
 ]);
 
+function resolveSecondaryBackgroundColor(declarations: Record<string, unknown>): string {
+  for (const key of ['backgroundColor', 'background']) {
+    const value = declarations[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return 'transparent';
+}
+
+function resolveSecondaryBackdropFilter(declarations: Record<string, unknown>): string {
+  for (const key of [
+    'backdropFilter',
+    'WebkitBackdropFilter',
+    'webkitBackdropFilter',
+    '-webkit-backdrop-filter',
+  ]) {
+    const value = declarations[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return 'none';
+}
+
 function getFrequencyDictionaryClass(
   token: MergedToken,
   settings: FrequencyRenderSettings,
@@ -700,9 +727,17 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       secondaryStyleDeclarations,
       CONTAINER_STYLE_KEYS,
     );
-    applyInlineStyleDeclarations(
-      ctx.dom.secondarySubContainer,
-      pickInlineStyleDeclarations(secondaryStyleDeclarations, CONTAINER_STYLE_KEYS),
+    const secondaryContainerStyleDeclarations = pickInlineStyleDeclarations(
+      secondaryStyleDeclarations,
+      CONTAINER_STYLE_KEYS,
+    );
+    ctx.dom.secondarySubContainer.style.setProperty(
+      '--secondary-sub-background-color',
+      resolveSecondaryBackgroundColor(secondaryContainerStyleDeclarations),
+    );
+    ctx.dom.secondarySubContainer.style.setProperty(
+      '--secondary-sub-backdrop-filter',
+      resolveSecondaryBackdropFilter(secondaryContainerStyleDeclarations),
     );
 
     if (secondaryStyle.fontFamily) {

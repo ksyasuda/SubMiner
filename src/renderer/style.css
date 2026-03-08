@@ -673,13 +673,17 @@ body.platform-macos.layer-visible #subtitleRoot {
 }
 
 #secondarySubContainer {
+  --secondary-sub-background-color: transparent;
+  --secondary-sub-backdrop-filter: none;
   position: absolute;
   top: 40px;
   left: 50%;
   transform: translateX(-50%);
   max-width: 80%;
   padding: 10px 18px;
-  background: transparent;
+  background: var(--secondary-sub-background-color, transparent);
+  backdrop-filter: var(--secondary-sub-backdrop-filter, none);
+  -webkit-backdrop-filter: var(--secondary-sub-backdrop-filter, none);
   border-radius: 8px;
   pointer-events: auto;
 }
@@ -736,6 +740,8 @@ body.settings-modal-open #secondarySubContainer {
   transform: none;
   max-width: 100%;
   background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   padding: 40px 0 0 0;
   border-radius: 0;
   display: flex;
@@ -744,12 +750,20 @@ body.settings-modal-open #secondarySubContainer {
 
 #secondarySubContainer.secondary-sub-hover #secondarySubRoot {
   background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border-radius: 8px;
   padding: 10px 18px;
 }
 
 #secondarySubContainer.secondary-sub-hover:hover {
   opacity: 1;
+}
+
+#secondarySubContainer.secondary-sub-hover:hover #secondarySubRoot {
+  background: var(--secondary-sub-background-color, transparent);
+  backdrop-filter: var(--secondary-sub-backdrop-filter, none);
+  -webkit-backdrop-filter: var(--secondary-sub-backdrop-filter, none);
 }
 
 iframe.yomitan-popup,
