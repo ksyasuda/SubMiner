@@ -75,5 +75,7 @@ test('createRegisterSubminerProtocolClientHandler keeps unsupported registration
   });
 
   register();
-  assert.deepEqual(calls, ['debug:Failed to register default protocol handler for subminer:// URLs']);
+  assert.deepEqual(calls, [
+    'debug:Failed to register default protocol handler for subminer:// URLs',
+  ]);
 });

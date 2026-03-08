@@ -16,6 +16,8 @@
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js --sourcemap",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "format:src": "bash scripts/prettier-scope.sh --write",
+    "format:check:src": "bash scripts/prettier-scope.sh --check",
     "test:config:src": "bun test src/config/config.test.ts src/config/path-resolution.test.ts src/config/resolve/anki-connect.test.ts src/config/resolve/subtitle-style.test.ts src/config/resolve/jellyfin.test.ts src/config/definitions/domain-registry.test.ts src/generate-config-example.test.ts",
     "test:config:dist": "bun test dist/config/config.test.js dist/config/path-resolution.test.js dist/config/resolve/anki-connect.test.js dist/config/resolve/subtitle-style.test.js dist/config/resolve/jellyfin.test.js dist/config/definitions/domain-registry.test.js dist/generate-config-example.test.js",
     "test:config:smoke:dist": "bun test dist/config/path-resolution.test.js",

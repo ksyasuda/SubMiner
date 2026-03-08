@@ -563,7 +563,9 @@ test('generateForCurrentMedia reapplies collapsible open states when using cache
         content: { content: Array<Record<string, unknown>> };
       }
     ).content.content;
-    const sections = children.filter((item) => (item as { tag?: string }).tag === 'details') as Array<{
+    const sections = children.filter(
+      (item) => (item as { tag?: string }).tag === 'details',
+    ) as Array<{
       open?: boolean;
     }>;
     assert.ok(sections.length >= 2);
@@ -1889,7 +1891,9 @@ test('buildMergedDictionary reapplies collapsible open states from current confi
         content: { content: Array<Record<string, unknown>> };
       }
     ).content.content;
-    const sections = children.filter((item) => (item as { tag?: string }).tag === 'details') as Array<{
+    const sections = children.filter(
+      (item) => (item as { tag?: string }).tag === 'details',
+    ) as Array<{
       open?: boolean;
     }>;
     assert.ok(sections.length >= 1);

@@ -253,7 +253,9 @@ export function createHandleFirstRunSetupNavigationHandler(deps: {
   };
 }
 
-export function createOpenFirstRunSetupWindowHandler<TWindow extends FirstRunSetupWindowLike>(deps: {
+export function createOpenFirstRunSetupWindowHandler<
+  TWindow extends FirstRunSetupWindowLike,
+>(deps: {
   maybeFocusExistingSetupWindow: () => boolean;
   createSetupWindow: () => TWindow;
   getSetupSnapshot: () => Promise<FirstRunSetupHtmlModel>;
@@ -279,9 +281,7 @@ export function createOpenFirstRunSetupWindowHandler<TWindow extends FirstRunSet
     const render = async (): Promise<void> => {
       const model = await deps.getSetupSnapshot();
       const html = deps.buildSetupHtml(model);
-      await setupWindow.loadURL(
-        `data:text/html;charset=utf-8,${deps.encodeURIComponent(html)}`,
-      );
+      await setupWindow.loadURL(`data:text/html;charset=utf-8,${deps.encodeURIComponent(html)}`);
     };
 
     const handleNavigation = createHandleFirstRunSetupNavigationHandler({

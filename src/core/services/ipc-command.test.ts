@@ -38,6 +38,7 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
     mpvSendCommand: (command) => {
       sentCommands.push(command);
     },
+    resolveProxyCommandOsd: async () => null,
     isMpvConnected: () => true,
     hasRuntimeOptionsManager: () => true,
     ...overrides,
@@ -52,30 +53,39 @@ test('handleMpvCommandFromIpc forwards regular mpv commands', () => {
   assert.deepEqual(osd, []);
 });
 
-test('handleMpvCommandFromIpc emits osd for subtitle position keybinding proxies', () => {
+test('handleMpvCommandFromIpc emits osd for subtitle position keybinding proxies', async () => {
   const { options, sentCommands, osd } = createOptions();
   handleMpvCommandFromIpc(['add', 'sub-pos', 1], options);
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(sentCommands, [['add', 'sub-pos', 1]]);
   assert.deepEqual(osd, ['Subtitle position: ${sub-pos}']);
 });
 
-test('handleMpvCommandFromIpc emits osd for primary subtitle track keybinding proxies', () => {
-  const { options, sentCommands, osd } = createOptions();
+test('handleMpvCommandFromIpc emits resolved osd for primary subtitle track keybinding proxies', async () => {
+  const { options, sentCommands, osd } = createOptions({
+    resolveProxyCommandOsd: async () => 'Subtitle track: Internal #3 - Japanese (active)',
+  });
   handleMpvCommandFromIpc(['cycle', 'sid'], options);
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(sentCommands, [['cycle', 'sid']]);
-  assert.deepEqual(osd, ['Subtitle track: ${sid}']);
+  assert.deepEqual(osd, ['Subtitle track: Internal #3 - Japanese (active)']);
 });
 
-test('handleMpvCommandFromIpc emits osd for secondary subtitle track keybinding proxies', () => {
-  const { options, sentCommands, osd } = createOptions();
+test('handleMpvCommandFromIpc emits resolved osd for secondary subtitle track keybinding proxies', async () => {
+  const { options, sentCommands, osd } = createOptions({
+    resolveProxyCommandOsd: async () =>
+      'Secondary subtitle track: External #8 - English Commentary',
+  });
   handleMpvCommandFromIpc(['set_property', 'secondary-sid', 'auto'], options);
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(sentCommands, [['set_property', 'secondary-sid', 'auto']]);
-  assert.deepEqual(osd, ['Secondary subtitle track: ${secondary-sid}']);
+  assert.deepEqual(osd, ['Secondary subtitle track: External #8 - English Commentary']);
 });
 
-test('handleMpvCommandFromIpc emits osd for subtitle delay keybinding proxies', () => {
+test('handleMpvCommandFromIpc emits osd for subtitle delay keybinding proxies', async () => {
   const { options, sentCommands, osd } = createOptions();
   handleMpvCommandFromIpc(['add', 'sub-delay', 0.1], options);
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(sentCommands, [['add', 'sub-delay', 0.1]]);
   assert.deepEqual(osd, ['Subtitle delay: ${sub-delay}']);
 });

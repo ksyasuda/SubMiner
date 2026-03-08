@@ -1657,10 +1657,9 @@ const {
   },
 });
 
-const maybeFocusExistingFirstRunSetupWindow =
-  createMaybeFocusExistingFirstRunSetupWindowHandler({
-    getSetupWindow: () => appState.firstRunSetupWindow,
-  });
+const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
+  getSetupWindow: () => appState.firstRunSetupWindow,
+});
 const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
   maybeFocusExistingSetupWindow: maybeFocusExistingFirstRunSetupWindow,
   createSetupWindow: () =>
@@ -2404,9 +2403,9 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     shouldSkipHeavyStartup: () =>
       Boolean(
         appState.initialArgs &&
-          (shouldRunSettingsOnlyStartup(appState.initialArgs) ||
-            appState.initialArgs.dictionary ||
-            appState.initialArgs.setup),
+        (shouldRunSettingsOnlyStartup(appState.initialArgs) ||
+          appState.initialArgs.dictionary ||
+          appState.initialArgs.setup),
       ),
     createImmersionTracker: () => {
       ensureImmersionTrackerStarted();
@@ -2419,65 +2418,64 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
   immersionTrackerStartupMainDeps,
 });
 
-const { runAndApplyStartupState } =
-  runtimeRegistry.startup.createStartupRuntimeHandlers<
-    CliArgs,
-    StartupState,
-    ReturnType<typeof createStartupBootstrapRuntimeDeps>
-  >({
-    appLifecycleRuntimeRunnerMainDeps: {
-      app,
-      platform: process.platform,
-      shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
-      parseArgs: (argv: string[]) => parseArgs(argv),
-      handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) =>
-        handleCliCommand(nextArgs, source),
-      printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-      logNoRunningInstance: () => appLogger.logNoRunningInstance(),
-      onReady: appReadyRuntimeRunner,
-      onWillQuitCleanup: () => onWillQuitCleanupHandler(),
-      shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
-      restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
-      shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
+const { runAndApplyStartupState } = runtimeRegistry.startup.createStartupRuntimeHandlers<
+  CliArgs,
+  StartupState,
+  ReturnType<typeof createStartupBootstrapRuntimeDeps>
+>({
+  appLifecycleRuntimeRunnerMainDeps: {
+    app,
+    platform: process.platform,
+    shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
+    parseArgs: (argv: string[]) => parseArgs(argv),
+    handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) =>
+      handleCliCommand(nextArgs, source),
+    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+    logNoRunningInstance: () => appLogger.logNoRunningInstance(),
+    onReady: appReadyRuntimeRunner,
+    onWillQuitCleanup: () => onWillQuitCleanupHandler(),
+    shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
+    restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
+    shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
+  },
+  createAppLifecycleRuntimeRunner: (params) => createAppLifecycleRuntimeRunner(params),
+  buildStartupBootstrapMainDeps: (startAppLifecycle) => ({
+    argv: process.argv,
+    parseArgs: (argv: string[]) => parseArgs(argv),
+    setLogLevel: (level: string, source: LogLevelSource) => {
+      setLogLevel(level, source);
     },
-    createAppLifecycleRuntimeRunner: (params) => createAppLifecycleRuntimeRunner(params),
-    buildStartupBootstrapMainDeps: (startAppLifecycle) => ({
-      argv: process.argv,
-      parseArgs: (argv: string[]) => parseArgs(argv),
-      setLogLevel: (level: string, source: LogLevelSource) => {
-        setLogLevel(level, source);
+    forceX11Backend: (args: CliArgs) => {
+      forceX11Backend(args);
+    },
+    enforceUnsupportedWaylandMode: (args: CliArgs) => {
+      enforceUnsupportedWaylandMode(args);
+    },
+    shouldStartApp: (args: CliArgs) => shouldStartApp(args),
+    getDefaultSocketPath: () => getDefaultSocketPath(),
+    defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
+    configDir: CONFIG_DIR,
+    defaultConfig: DEFAULT_CONFIG,
+    generateConfigTemplate: (config: ResolvedConfig) => generateConfigTemplate(config),
+    generateDefaultConfigFile: (
+      args: CliArgs,
+      options: {
+        configDir: string;
+        defaultConfig: unknown;
+        generateTemplate: (config: unknown) => string;
       },
-      forceX11Backend: (args: CliArgs) => {
-        forceX11Backend(args);
-      },
-      enforceUnsupportedWaylandMode: (args: CliArgs) => {
-        enforceUnsupportedWaylandMode(args);
-      },
-      shouldStartApp: (args: CliArgs) => shouldStartApp(args),
-      getDefaultSocketPath: () => getDefaultSocketPath(),
-      defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
-      configDir: CONFIG_DIR,
-      defaultConfig: DEFAULT_CONFIG,
-      generateConfigTemplate: (config: ResolvedConfig) => generateConfigTemplate(config),
-      generateDefaultConfigFile: (
-        args: CliArgs,
-        options: {
-          configDir: string;
-          defaultConfig: unknown;
-          generateTemplate: (config: unknown) => string;
-        },
-      ) => generateDefaultConfigFile(args, options),
-      setExitCode: (code) => {
-        process.exitCode = code;
-      },
-      quitApp: () => app.quit(),
-      logGenerateConfigError: (message) => logger.error(message),
-      startAppLifecycle,
-    }),
-    createStartupBootstrapRuntimeDeps: (deps) => createStartupBootstrapRuntimeDeps(deps),
-    runStartupBootstrapRuntime,
-    applyStartupState: (startupState) => applyStartupState(appState, startupState),
-  });
+    ) => generateDefaultConfigFile(args, options),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+    quitApp: () => app.quit(),
+    logGenerateConfigError: (message) => logger.error(message),
+    startAppLifecycle,
+  }),
+  createStartupBootstrapRuntimeDeps: (deps) => createStartupBootstrapRuntimeDeps(deps),
+  runStartupBootstrapRuntime,
+  applyStartupState: (startupState) => applyStartupState(appState, startupState),
+});
 
 runAndApplyStartupState();
 if (isAnilistTrackingEnabled(getResolvedConfig())) {
@@ -3203,6 +3201,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       shiftSubtitleDelayToAdjacentCueHandler(direction),
     sendMpvCommand: (rawCommand: (string | number)[]) =>
       sendMpvCommandRuntime(appState.mpvClient, rawCommand),
+    getMpvClient: () => appState.mpvClient,
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
     hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
   },
@@ -3341,74 +3340,75 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
 });
 const { createMainWindow: createMainWindowHandler, createModalWindow: createModalWindowHandler } =
   createOverlayWindowRuntimeHandlers<BrowserWindow>({
-  createOverlayWindowDeps: {
-    createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
-    isDev,
-    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-    onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-    setOverlayDebugVisualizationEnabled: (enabled) => setOverlayDebugVisualizationEnabled(enabled),
-    isOverlayVisible: (windowKind) =>
-      windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
-    tryHandleOverlayShortcutLocalFallback: (input) =>
-      overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
-    onWindowClosed: (windowKind) => {
-      if (windowKind === 'visible') {
-        overlayManager.setMainWindow(null);
-      } else {
-        overlayManager.setModalWindow(null);
-      }
+    createOverlayWindowDeps: {
+      createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
+      isDev,
+      ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+      onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+      setOverlayDebugVisualizationEnabled: (enabled) =>
+        setOverlayDebugVisualizationEnabled(enabled),
+      isOverlayVisible: (windowKind) =>
+        windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
+      tryHandleOverlayShortcutLocalFallback: (input) =>
+        overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
+      onWindowClosed: (windowKind) => {
+        if (windowKind === 'visible') {
+          overlayManager.setMainWindow(null);
+        } else {
+          overlayManager.setModalWindow(null);
+        }
+      },
     },
-  },
-  setMainWindow: (window) => overlayManager.setMainWindow(window),
-  setModalWindow: (window) => overlayManager.setModalWindow(window),
-});
+    setMainWindow: (window) => overlayManager.setMainWindow(window),
+    setModalWindow: (window) => overlayManager.setModalWindow(window),
+  });
 const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
   createTrayRuntimeHandlers({
-  resolveTrayIconPathDeps: {
-    resolveTrayIconPathRuntime,
-    platform: process.platform,
-    resourcesPath: process.resourcesPath,
-    appPath: app.getAppPath(),
-    dirname: __dirname,
-    joinPath: (...parts) => path.join(...parts),
-    fileExists: (candidate) => fs.existsSync(candidate),
-  },
-  buildTrayMenuTemplateDeps: {
-    buildTrayMenuTemplateRuntime,
-    initializeOverlayRuntime: () => initializeOverlayRuntime(),
-    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
-    openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
-    openYomitanSettings: () => openYomitanSettings(),
-    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
-    openAnilistSetupWindow: () => openAnilistSetupWindow(),
-    quitApp: () => app.quit(),
-  },
-  ensureTrayDeps: {
-    getTray: () => appTray,
-    setTray: (tray) => {
-      appTray = tray as Tray | null;
+    resolveTrayIconPathDeps: {
+      resolveTrayIconPathRuntime,
+      platform: process.platform,
+      resourcesPath: process.resourcesPath,
+      appPath: app.getAppPath(),
+      dirname: __dirname,
+      joinPath: (...parts) => path.join(...parts),
+      fileExists: (candidate) => fs.existsSync(candidate),
     },
-    createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
-    createEmptyImage: () => nativeImage.createEmpty(),
-    createTray: (icon) => new Tray(icon as ConstructorParameters<typeof Tray>[0]),
-    trayTooltip: TRAY_TOOLTIP,
-    platform: process.platform,
-    logWarn: (message) => logger.warn(message),
-    initializeOverlayRuntime: () => initializeOverlayRuntime(),
-    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-  },
-  destroyTrayDeps: {
-    getTray: () => appTray,
-    setTray: (tray) => {
-      appTray = tray as Tray | null;
+    buildTrayMenuTemplateDeps: {
+      buildTrayMenuTemplateRuntime,
+      initializeOverlayRuntime: () => initializeOverlayRuntime(),
+      isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+      setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+      showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
+      openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
+      openYomitanSettings: () => openYomitanSettings(),
+      openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+      openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
+      openAnilistSetupWindow: () => openAnilistSetupWindow(),
+      quitApp: () => app.quit(),
     },
-  },
-  buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
-});
+    ensureTrayDeps: {
+      getTray: () => appTray,
+      setTray: (tray) => {
+        appTray = tray as Tray | null;
+      },
+      createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
+      createEmptyImage: () => nativeImage.createEmpty(),
+      createTray: (icon) => new Tray(icon as ConstructorParameters<typeof Tray>[0]),
+      trayTooltip: TRAY_TOOLTIP,
+      platform: process.platform,
+      logWarn: (message) => logger.warn(message),
+      initializeOverlayRuntime: () => initializeOverlayRuntime(),
+      isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+      setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+    },
+    destroyTrayDeps: {
+      getTray: () => appTray,
+      setTray: (tray) => {
+        appTray = tray as Tray | null;
+      },
+    },
+    buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
+  });
 const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,

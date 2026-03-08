@@ -238,7 +238,9 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     );
     if (nameMatchEnabled !== undefined) {
       resolved.subtitleStyle.nameMatchEnabled = nameMatchEnabled;
-    } else if ((src.subtitleStyle as { nameMatchEnabled?: unknown }).nameMatchEnabled !== undefined) {
+    } else if (
+      (src.subtitleStyle as { nameMatchEnabled?: unknown }).nameMatchEnabled !== undefined
+    ) {
       resolved.subtitleStyle.nameMatchEnabled = fallbackSubtitleStyleNameMatchEnabled;
       warn(
         'subtitleStyle.nameMatchEnabled',

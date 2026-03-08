@@ -186,6 +186,7 @@ export interface MpvCommandRuntimeServiceDepsParams {
   mpvPlayNextSubtitle: HandleMpvCommandFromIpcOptions['mpvPlayNextSubtitle'];
   shiftSubDelayToAdjacentSubtitle: HandleMpvCommandFromIpcOptions['shiftSubDelayToAdjacentSubtitle'];
   mpvSendCommand: HandleMpvCommandFromIpcOptions['mpvSendCommand'];
+  resolveProxyCommandOsd?: HandleMpvCommandFromIpcOptions['resolveProxyCommandOsd'];
   isMpvConnected: HandleMpvCommandFromIpcOptions['isMpvConnected'];
   hasRuntimeOptionsManager: HandleMpvCommandFromIpcOptions['hasRuntimeOptionsManager'];
 }
@@ -339,6 +340,7 @@ export function createMpvCommandRuntimeServiceDeps(
     mpvPlayNextSubtitle: params.mpvPlayNextSubtitle,
     shiftSubDelayToAdjacentSubtitle: params.shiftSubDelayToAdjacentSubtitle,
     mpvSendCommand: params.mpvSendCommand,
+    resolveProxyCommandOsd: params.resolveProxyCommandOsd,
     isMpvConnected: params.isMpvConnected,
     hasRuntimeOptionsManager: params.hasRuntimeOptionsManager,
   };

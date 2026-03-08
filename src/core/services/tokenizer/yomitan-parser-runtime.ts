@@ -562,9 +562,7 @@ async function createYomitanExtensionWindow(
     });
     return window;
   } catch (err) {
-    logger.error(
-      `Failed to create hidden Yomitan ${pageName} window: ${(err as Error).message}`,
-    );
+    logger.error(`Failed to create hidden Yomitan ${pageName} window: ${(err as Error).message}`);
     if (!window.isDestroyed()) {
       window.destroy();
     }
@@ -1043,13 +1041,15 @@ export async function requestYomitanScanTokens(
     }
     if (Array.isArray(rawResult)) {
       const selectedTokens = selectYomitanParseTokens(rawResult, () => false, 'headword');
-      return selectedTokens?.map((token) => ({
-        surface: token.surface,
-        reading: token.reading,
-        headword: token.headword,
-        startPos: token.startPos,
-        endPos: token.endPos,
-      })) ?? null;
+      return (
+        selectedTokens?.map((token) => ({
+          surface: token.surface,
+          reading: token.reading,
+          headword: token.headword,
+          startPos: token.startPos,
+          endPos: token.endPos,
+        })) ?? null
+      );
     }
     return null;
   } catch (err) {
@@ -1523,7 +1523,12 @@ export async function getYomitanDictionaryInfo(
   deps: YomitanParserRuntimeDeps,
   logger: LoggerLike,
 ): Promise<YomitanDictionaryInfo[]> {
-  const result = await invokeYomitanBackendAction<unknown>('getDictionaryInfo', undefined, deps, logger);
+  const result = await invokeYomitanBackendAction<unknown>(
+    'getDictionaryInfo',
+    undefined,
+    deps,
+    logger,
+  );
   if (!Array.isArray(result)) {
     return [];
   }
@@ -1546,7 +1551,12 @@ export async function getYomitanSettingsFull(
   deps: YomitanParserRuntimeDeps,
   logger: LoggerLike,
 ): Promise<Record<string, unknown> | null> {
-  const result = await invokeYomitanBackendAction<unknown>('optionsGetFull', undefined, deps, logger);
+  const result = await invokeYomitanBackendAction<unknown>(
+    'optionsGetFull',
+    undefined,
+    deps,
+    logger,
+  );
   return isObject(result) ? result : null;
 }
 
@@ -1653,7 +1663,7 @@ export async function upsertYomitanDictionarySettings(
       (entry) =>
         isObject(entry) &&
         typeof (entry as { name?: unknown }).name === 'string' &&
-        ((entry as { name: string }).name.trim() === normalizedTitle),
+        (entry as { name: string }).name.trim() === normalizedTitle,
     );
 
     if (existingIndex >= 0) {

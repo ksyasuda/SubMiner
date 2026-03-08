@@ -43,7 +43,10 @@ test('ensureDefaultConfigBootstrap creates config dir and default jsonc only whe
     });
 
     assert.equal(fs.existsSync(configDir), true);
-    assert.equal(fs.readFileSync(path.join(configDir, 'config.jsonc'), 'utf8'), '{\n  "logging": {}\n}\n');
+    assert.equal(
+      fs.readFileSync(path.join(configDir, 'config.jsonc'), 'utf8'),
+      '{\n  "logging": {}\n}\n',
+    );
 
     fs.writeFileSync(path.join(configDir, 'config.json'), '{"keep":true}\n');
     fs.rmSync(path.join(configDir, 'config.jsonc'));

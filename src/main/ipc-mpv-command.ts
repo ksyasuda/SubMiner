@@ -2,6 +2,12 @@ import type { RuntimeOptionApplyResult, RuntimeOptionId } from '../types';
 import { handleMpvCommandFromIpc } from '../core/services';
 import { createMpvCommandRuntimeServiceDeps } from './dependencies';
 import { SPECIAL_COMMANDS } from '../config';
+import { resolveProxyCommandOsdRuntime } from './runtime/mpv-proxy-osd';
+
+type MpvPropertyClientLike = {
+  connected: boolean;
+  requestProperty: (name: string) => Promise<unknown>;
+};
 
 export interface MpvCommandFromIpcRuntimeDeps {
   triggerSubsyncFromConfig: () => void;
@@ -12,6 +18,7 @@ export interface MpvCommandFromIpcRuntimeDeps {
   playNextSubtitle: () => void;
   shiftSubDelayToAdjacentSubtitle: (direction: 'next' | 'previous') => Promise<void>;
   sendMpvCommand: (command: (string | number)[]) => void;
+  getMpvClient: () => MpvPropertyClientLike | null;
   isMpvConnected: () => boolean;
   hasRuntimeOptionsManager: () => boolean;
 }
@@ -33,6 +40,8 @@ export function handleMpvCommandFromIpcRuntime(
       shiftSubDelayToAdjacentSubtitle: (direction) =>
         deps.shiftSubDelayToAdjacentSubtitle(direction),
       mpvSendCommand: deps.sendMpvCommand,
+      resolveProxyCommandOsd: (nextCommand) =>
+        resolveProxyCommandOsdRuntime(nextCommand, deps.getMpvClient),
       isMpvConnected: deps.isMpvConnected,
       hasRuntimeOptionsManager: deps.hasRuntimeOptionsManager,
     }),

@@ -98,7 +98,7 @@ ensure-bun:
 	@command -v bun >/dev/null 2>&1 || { printf '%s\n' "[ERROR] bun not found"; exit 1; }
 
 pretty: ensure-bun
-	@bun run format
+	@bun run format:src
 
 build:
 	@printf '%s\n' "[INFO] Detected platform: $(PLATFORM)"

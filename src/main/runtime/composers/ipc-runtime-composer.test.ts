@@ -16,6 +16,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
       playNextSubtitle: () => {},
       shiftSubDelayToAdjacentSubtitle: async () => {},
       sendMpvCommand: () => {},
+      getMpvClient: () => null,
       isMpvConnected: () => false,
       hasRuntimeOptionsManager: () => true,
     },

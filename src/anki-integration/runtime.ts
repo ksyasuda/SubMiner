@@ -31,8 +31,7 @@ function trimToNonEmptyString(value: unknown): string | null {
 }
 
 export function normalizeAnkiIntegrationConfig(config: AnkiConnectConfig): AnkiConnectConfig {
-  const resolvedUrl =
-    trimToNonEmptyString(config.url) ?? DEFAULT_ANKI_CONNECT_CONFIG.url;
+  const resolvedUrl = trimToNonEmptyString(config.url) ?? DEFAULT_ANKI_CONNECT_CONFIG.url;
   const proxySource =
     config.proxy && typeof config.proxy === 'object'
       ? (config.proxy as NonNullable<AnkiConnectConfig['proxy']>)

@@ -79,7 +79,10 @@ test('installFirstRunPluginToDefaultLocation installs plugin and backs up existi
 
     const scriptsDirEntries = fs.readdirSync(installPaths.scriptsDir);
     const scriptOptsEntries = fs.readdirSync(installPaths.scriptOptsDir);
-    assert.equal(scriptsDirEntries.some((entry) => entry.startsWith('subminer.bak.')), true);
+    assert.equal(
+      scriptsDirEntries.some((entry) => entry.startsWith('subminer.bak.')),
+      true,
+    );
     assert.equal(
       scriptOptsEntries.some((entry) => entry.startsWith('subminer.conf.bak.')),
       true,

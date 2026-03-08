@@ -12,6 +12,7 @@ export function createBuildMpvCommandFromIpcRuntimeMainDepsHandler(
     playNextSubtitle: () => deps.playNextSubtitle(),
     shiftSubDelayToAdjacentSubtitle: (direction) => deps.shiftSubDelayToAdjacentSubtitle(direction),
     sendMpvCommand: (command: (string | number)[]) => deps.sendMpvCommand(command),
+    getMpvClient: () => deps.getMpvClient(),
     isMpvConnected: () => deps.isMpvConnected(),
     hasRuntimeOptionsManager: () => deps.hasRuntimeOptionsManager(),
   });

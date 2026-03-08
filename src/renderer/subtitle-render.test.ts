@@ -114,7 +114,8 @@ function installFakeDocument() {
 
 function collectWordNodes(root: FakeElement): FakeElement[] {
   return root.childNodes.filter(
-    (child): child is FakeElement => child instanceof FakeElement && child.className.includes('word'),
+    (child): child is FakeElement =>
+      child instanceof FakeElement && child.className.includes('word'),
   );
 }
 

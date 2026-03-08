@@ -162,7 +162,10 @@ export function ensureDefaultConfigBootstrap(options: {
   const writeFileSync = options.writeFileSync ?? fs.writeFileSync;
 
   mkdirSync(options.configDir, { recursive: true });
-  if (existsSync(options.configFilePaths.jsoncPath) || existsSync(options.configFilePaths.jsonPath)) {
+  if (
+    existsSync(options.configFilePaths.jsoncPath) ||
+    existsSync(options.configFilePaths.jsonPath)
+  ) {
     return;
   }
 
@@ -178,7 +181,7 @@ export function resolveDefaultMpvInstallPaths(
     platform === 'darwin'
       ? path.join(homeDir, 'Library', 'Application Support', 'mpv')
       : platform === 'linux'
-        ? path.join((xdgConfigHome?.trim() || path.join(homeDir, '.config')), 'mpv')
+        ? path.join(xdgConfigHome?.trim() || path.join(homeDir, '.config'), 'mpv')
         : path.join(homeDir, 'AppData', 'Roaming', 'mpv');
 
   return {

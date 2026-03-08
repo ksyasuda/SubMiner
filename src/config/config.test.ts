@@ -166,9 +166,7 @@ test('parses texthooker.launchAtStartup and warns on invalid values', () => {
     DEFAULT_CONFIG.texthooker.launchAtStartup,
   );
   assert.ok(
-    invalidService
-      .getWarnings()
-      .some((warning) => warning.path === 'texthooker.launchAtStartup'),
+    invalidService.getWarnings().some((warning) => warning.path === 'texthooker.launchAtStartup'),
   );
 });
 
@@ -211,14 +209,10 @@ test('parses annotationWebsocket settings and warns on invalid values', () => {
     DEFAULT_CONFIG.annotationWebsocket.port,
   );
   assert.ok(
-    invalidService
-      .getWarnings()
-      .some((warning) => warning.path === 'annotationWebsocket.enabled'),
+    invalidService.getWarnings().some((warning) => warning.path === 'annotationWebsocket.enabled'),
   );
   assert.ok(
-    invalidService
-      .getWarnings()
-      .some((warning) => warning.path === 'annotationWebsocket.port'),
+    invalidService.getWarnings().some((warning) => warning.path === 'annotationWebsocket.port'),
   );
 });
 
@@ -350,8 +344,8 @@ test('parses subtitleStyle.nameMatchColor and warns on invalid values', () => {
 
   const validService = new ConfigService(validDir);
   assert.equal(
-    ((validService.getConfig().subtitleStyle as unknown as Record<string, unknown>).nameMatchColor ??
-      null) as string | null,
+    ((validService.getConfig().subtitleStyle as unknown as Record<string, unknown>)
+      .nameMatchColor ?? null) as string | null,
     '#eed49f',
   );
 
@@ -373,9 +367,7 @@ test('parses subtitleStyle.nameMatchColor and warns on invalid values', () => {
     '#f5bde6',
   );
   assert.ok(
-    invalidService
-      .getWarnings()
-      .some((warning) => warning.path === 'subtitleStyle.nameMatchColor'),
+    invalidService.getWarnings().some((warning) => warning.path === 'subtitleStyle.nameMatchColor'),
   );
 });
 
@@ -505,10 +497,16 @@ test('parses anilist.characterDictionary config with clamping and enum validatio
   assert.equal(config.anilist.characterDictionary.maxLoaded, 20);
   assert.equal(config.anilist.characterDictionary.evictionPolicy, 'delete');
   assert.equal(config.anilist.characterDictionary.profileScope, 'all');
-  assert.ok(warnings.some((warning) => warning.path === 'anilist.characterDictionary.refreshTtlHours'));
+  assert.ok(
+    warnings.some((warning) => warning.path === 'anilist.characterDictionary.refreshTtlHours'),
+  );
   assert.ok(warnings.some((warning) => warning.path === 'anilist.characterDictionary.maxLoaded'));
-  assert.ok(warnings.some((warning) => warning.path === 'anilist.characterDictionary.evictionPolicy'));
-  assert.ok(warnings.some((warning) => warning.path === 'anilist.characterDictionary.profileScope'));
+  assert.ok(
+    warnings.some((warning) => warning.path === 'anilist.characterDictionary.evictionPolicy'),
+  );
+  assert.ok(
+    warnings.some((warning) => warning.path === 'anilist.characterDictionary.profileScope'),
+  );
 });
 
 test('parses anilist.characterDictionary.collapsibleSections booleans and warns on invalid values', () => {

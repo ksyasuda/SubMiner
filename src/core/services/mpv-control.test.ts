@@ -22,6 +22,22 @@ test('showMpvOsdRuntime sends show-text when connected', () => {
   assert.deepEqual(commands, [['show-text', 'hello', '3000']]);
 });
 
+test('showMpvOsdRuntime enables property expansion for placeholder-based messages', () => {
+  const commands: (string | number)[][] = [];
+  showMpvOsdRuntime(
+    {
+      connected: true,
+      send: ({ command }) => {
+        commands.push(command);
+      },
+    },
+    'Subtitle delay: ${sub-delay}',
+  );
+  assert.deepEqual(commands, [
+    ['expand-properties', 'show-text', 'Subtitle delay: ${sub-delay}', '3000'],
+  ]);
+});
+
 test('showMpvOsdRuntime logs fallback when disconnected', () => {
   const logs: string[] = [];
   showMpvOsdRuntime(

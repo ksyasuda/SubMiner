@@ -3,10 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  createFirstRunSetupService,
-  shouldAutoOpenFirstRunSetup,
-} from './first-run-setup-service';
+import { createFirstRunSetupService, shouldAutoOpenFirstRunSetup } from './first-run-setup-service';
 import type { CliArgs } from '../../cli/args';
 
 function withTempDir(fn: (dir: string) => Promise<void> | void): Promise<void> | void {

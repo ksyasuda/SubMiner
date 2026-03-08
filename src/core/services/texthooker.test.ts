@@ -12,7 +12,7 @@ test('injectTexthookerBootstrapHtml injects websocket bootstrap before head clos
     /window\.localStorage\.setItem\('bannou-texthooker-websocketUrl', "ws:\/\/127\.0\.0\.1:6678"\)/,
   );
   assert.ok(actual.indexOf('</script></head>') !== -1);
-  assert.ok(actual.includes("bannou-texthooker-websocketUrl"));
+  assert.ok(actual.includes('bannou-texthooker-websocketUrl'));
   assert.ok(!actual.includes('bannou-texthooker-enableKnownWordColoring'));
   assert.ok(!actual.includes('bannou-texthooker-enableNPlusOneColoring'));
   assert.ok(!actual.includes('bannou-texthooker-enableNameMatchColoring'));

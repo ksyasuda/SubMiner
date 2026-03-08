@@ -160,14 +160,10 @@ test('StructuredContentGenerator uses direct img loading for popup glossary imag
   assert.ok(yomitanRoot, 'Run `bun run build:yomitan` before Yomitan integration tests.');
 
   const { DisplayContentManager } = await import(
-    pathToFileURL(
-      path.join(yomitanRoot, 'js', 'display', 'display-content-manager.js'),
-    ).href
+    pathToFileURL(path.join(yomitanRoot, 'js', 'display', 'display-content-manager.js')).href
   );
   const { StructuredContentGenerator } = await import(
-    pathToFileURL(
-      path.join(yomitanRoot, 'js', 'display', 'structured-content-generator.js'),
-    ).href
+    pathToFileURL(path.join(yomitanRoot, 'js', 'display', 'structured-content-generator.js')).href
   );
 
   const createObjectURLCalls: string[] = [];
@@ -201,14 +197,10 @@ test('StructuredContentGenerator uses direct img loading for popup glossary imag
       },
     });
 
-    const generator = new StructuredContentGenerator(
-      manager,
-      new FakeDocument(),
-      {
-        devicePixelRatio: 1,
-        navigator: { userAgent: 'Mozilla/5.0' },
-      },
-    );
+    const generator = new StructuredContentGenerator(manager, new FakeDocument(), {
+      devicePixelRatio: 1,
+      navigator: { userAgent: 'Mozilla/5.0' },
+    });
 
     const node = generator.createDefinitionImage(
       {

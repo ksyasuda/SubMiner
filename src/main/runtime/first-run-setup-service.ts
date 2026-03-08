@@ -43,39 +43,39 @@ export interface FirstRunSetupService {
 function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
   return Boolean(
     args.toggle ||
-      args.toggleVisibleOverlay ||
-      args.settings ||
-      args.show ||
-      args.hide ||
-      args.showVisibleOverlay ||
-      args.hideVisibleOverlay ||
-      args.copySubtitle ||
-      args.copySubtitleMultiple ||
-      args.mineSentence ||
-      args.mineSentenceMultiple ||
-      args.updateLastCardFromClipboard ||
-      args.refreshKnownWords ||
-      args.toggleSecondarySub ||
-      args.triggerFieldGrouping ||
-      args.triggerSubsync ||
-      args.markAudioCard ||
-      args.openRuntimeOptions ||
-      args.anilistStatus ||
-      args.anilistLogout ||
-      args.anilistSetup ||
-      args.anilistRetryQueue ||
-      args.dictionary ||
-      args.jellyfin ||
-      args.jellyfinLogin ||
-      args.jellyfinLogout ||
-      args.jellyfinLibraries ||
-      args.jellyfinItems ||
-      args.jellyfinSubtitles ||
-      args.jellyfinPlay ||
-      args.jellyfinRemoteAnnounce ||
-      args.jellyfinPreviewAuth ||
-      args.texthooker ||
-      args.help
+    args.toggleVisibleOverlay ||
+    args.settings ||
+    args.show ||
+    args.hide ||
+    args.showVisibleOverlay ||
+    args.hideVisibleOverlay ||
+    args.copySubtitle ||
+    args.copySubtitleMultiple ||
+    args.mineSentence ||
+    args.mineSentenceMultiple ||
+    args.updateLastCardFromClipboard ||
+    args.refreshKnownWords ||
+    args.toggleSecondarySub ||
+    args.triggerFieldGrouping ||
+    args.triggerSubsync ||
+    args.markAudioCard ||
+    args.openRuntimeOptions ||
+    args.anilistStatus ||
+    args.anilistLogout ||
+    args.anilistSetup ||
+    args.anilistRetryQueue ||
+    args.dictionary ||
+    args.jellyfin ||
+    args.jellyfinLogin ||
+    args.jellyfinLogout ||
+    args.jellyfinLibraries ||
+    args.jellyfinItems ||
+    args.jellyfinSubtitles ||
+    args.jellyfinPlay ||
+    args.jellyfinRemoteAnnounce ||
+    args.jellyfinPreviewAuth ||
+    args.texthooker ||
+    args.help,
   );
 }
 
@@ -85,7 +85,10 @@ export function shouldAutoOpenFirstRunSetup(args: CliArgs): boolean {
   return !hasAnyStartupCommandBeyondSetup(args);
 }
 
-function getPluginStatus(state: SetupState, pluginInstalled: boolean): SetupStatusSnapshot['pluginStatus'] {
+function getPluginStatus(
+  state: SetupState,
+  pluginInstalled: boolean,
+): SetupStatusSnapshot['pluginStatus'] {
   if (pluginInstalled) return 'installed';
   if (state.pluginInstallStatus === 'skipped') return 'skipped';
   if (state.pluginInstallStatus === 'failed') return 'failed';

@@ -15,6 +15,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
       calls.push(`shift:${direction}`);
     },
     sendMpvCommand: (command) => calls.push(`cmd:${command.join(':')}`),
+    getMpvClient: () => ({ connected: true, requestProperty: async () => null }),
     isMpvConnected: () => true,
     hasRuntimeOptionsManager: () => false,
   })();
@@ -27,6 +28,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
   deps.playNextSubtitle();
   void deps.shiftSubDelayToAdjacentSubtitle('next');
   deps.sendMpvCommand(['show-text', 'ok']);
+  assert.equal(typeof deps.getMpvClient()?.requestProperty, 'function');
   assert.equal(deps.isMpvConnected(), true);
   assert.equal(deps.hasRuntimeOptionsManager(), false);
   assert.deepEqual(calls, [

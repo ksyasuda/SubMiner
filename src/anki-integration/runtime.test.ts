@@ -55,7 +55,10 @@ test('AnkiIntegrationRuntime normalizes url and proxy defaults', () => {
   assert.equal(normalized.proxy?.host, '0.0.0.0');
   assert.equal(normalized.proxy?.port, 7001);
   assert.equal(normalized.proxy?.upstreamUrl, 'http://anki.local:8765');
-  assert.equal(normalized.media?.fallbackDuration, DEFAULT_ANKI_CONNECT_CONFIG.media.fallbackDuration);
+  assert.equal(
+    normalized.media?.fallbackDuration,
+    DEFAULT_ANKI_CONNECT_CONFIG.media.fallbackDuration,
+  );
 });
 
 test('AnkiIntegrationRuntime starts proxy transport when proxy mode is enabled', () => {
@@ -70,10 +73,7 @@ test('AnkiIntegrationRuntime starts proxy transport when proxy mode is enabled',
 
   runtime.start();
 
-  assert.deepEqual(calls, [
-    'known:start',
-    'proxy:start:127.0.0.1:9999:http://upstream:8765',
-  ]);
+  assert.deepEqual(calls, ['known:start', 'proxy:start:127.0.0.1:9999:http://upstream:8765']);
 });
 
 test('AnkiIntegrationRuntime switches transports and clears known words when runtime patch disables highlighting', () => {

@@ -99,8 +99,7 @@ test('runAppReadyRuntime starts texthooker on startup when enabled in config', a
     calls.indexOf('createMpvClient') < calls.indexOf('startTexthooker:5174:ws://127.0.0.1:6678'),
   );
   assert.ok(
-    calls.indexOf('startTexthooker:5174:ws://127.0.0.1:6678') <
-      calls.indexOf('handleInitialArgs'),
+    calls.indexOf('startTexthooker:5174:ws://127.0.0.1:6678') < calls.indexOf('handleInitialArgs'),
   );
 });
 

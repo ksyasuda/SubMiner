@@ -16,10 +16,7 @@ test('normalizeStartupArgv defaults no-arg startup to --start --background', () 
     '--background',
   ]);
   assert.deepEqual(
-    normalizeStartupArgv(
-      ['SubMiner.AppImage', '--password-store', 'gnome-libsecret'],
-      {},
-    ),
+    normalizeStartupArgv(['SubMiner.AppImage', '--password-store', 'gnome-libsecret'], {}),
     ['SubMiner.AppImage', '--password-store', 'gnome-libsecret', '--start', '--background'],
   );
   assert.deepEqual(normalizeStartupArgv(['SubMiner.AppImage', '--background'], {}), [

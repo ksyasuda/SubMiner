@@ -172,7 +172,10 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
         ? String(existing.revision)
         : null;
     const shouldImport =
-      merged !== null || existing === null || existingRevision === null || existingRevision !== revision;
+      merged !== null ||
+      existing === null ||
+      existingRevision === null ||
+      existingRevision !== revision;
 
     if (shouldImport) {
       if (existing !== null) {

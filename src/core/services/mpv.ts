@@ -53,7 +53,10 @@ export function showMpvOsdRuntime(
   fallbackLog: (text: string) => void = (line) => logger.info(line),
 ): void {
   if (mpvClient && mpvClient.connected) {
-    mpvClient.send({ command: ['show-text', text, '3000'] });
+    const command = text.includes('${')
+      ? ['expand-properties', 'show-text', text, '3000']
+      : ['show-text', text, '3000'];
+    mpvClient.send({ command });
     return;
   }
   fallbackLog(`OSD (MPV not connected): ${text}`);

@@ -5,9 +5,6 @@
 [submodule "vendor/yomitan-jlpt-vocab"]
 	path = vendor/yomitan-jlpt-vocab
 	url = https://github.com/stephenmk/yomitan-jlpt-vocab
-[submodule "yomitan-jlpt-vocab"]
-	path = vendor/yomitan-jlpt-vocab
-	url = https://github.com/stephenmk/yomitan-jlpt-vocab
 [submodule "vendor/subminer-yomitan"]
 	path = vendor/subminer-yomitan
 	url = https://github.com/ksyasuda/subminer-yomitan

@@ -16,7 +16,11 @@ import { generateYoutubeSubtitles } from '../youtube.js';
 import type { Args } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
 import { ensureLauncherSetupReady } from '../setup-gate.js';
-import { getDefaultConfigDir, getSetupStatePath, readSetupState } from '../../src/shared/setup-state.js';
+import {
+  getDefaultConfigDir,
+  getSetupStatePath,
+  readSetupState,
+} from '../../src/shared/setup-state.js';
 
 const SETUP_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const SETUP_POLL_INTERVAL_MS = 500;

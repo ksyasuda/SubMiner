@@ -265,10 +265,7 @@ function renderWithTokens(
       span.dataset.tokenIndex = String(segment.tokenIndex);
       if (token.reading) span.dataset.reading = token.reading;
       if (token.headword) span.dataset.headword = token.headword;
-      const frequencyRankLabel = getFrequencyRankLabelForToken(
-        token,
-        resolvedTokenRenderSettings,
-      );
+      const frequencyRankLabel = getFrequencyRankLabelForToken(token, resolvedTokenRenderSettings);
       if (frequencyRankLabel) {
         span.dataset.frequencyRank = frequencyRankLabel;
       }
@@ -304,10 +301,7 @@ function renderWithTokens(
     span.dataset.tokenIndex = String(index);
     if (token.reading) span.dataset.reading = token.reading;
     if (token.headword) span.dataset.headword = token.headword;
-    const frequencyRankLabel = getFrequencyRankLabelForToken(
-      token,
-      resolvedTokenRenderSettings,
-    );
+    const frequencyRankLabel = getFrequencyRankLabelForToken(token, resolvedTokenRenderSettings);
     if (frequencyRankLabel) {
       span.dataset.frequencyRank = frequencyRankLabel;
     }
@@ -413,10 +407,7 @@ export function computeWordClass(
       tokenRenderSettings?.bandedColors,
       DEFAULT_FREQUENCY_RENDER_SETTINGS.bandedColors,
     ),
-    topX: sanitizeFrequencyTopX(
-      tokenRenderSettings?.topX,
-      DEFAULT_FREQUENCY_RENDER_SETTINGS.topX,
-    ),
+    topX: sanitizeFrequencyTopX(tokenRenderSettings?.topX, DEFAULT_FREQUENCY_RENDER_SETTINGS.topX),
     singleColor: sanitizeHexColor(
       tokenRenderSettings?.singleColor,
       DEFAULT_FREQUENCY_RENDER_SETTINGS.singleColor,

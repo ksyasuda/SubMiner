@@ -502,7 +502,10 @@ function expandRawNameVariants(rawName: string): string[] {
   if (!trimmed) return [];
 
   const variants = new Set<string>([trimmed]);
-  const outer = trimmed.replace(/[（(][^()（）]+[)）]/g, ' ').replace(/\s+/g, ' ').trim();
+  const outer = trimmed
+    .replace(/[（(][^()（）]+[)）]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (outer && outer !== trimmed) {
     variants.add(outer);
   }
@@ -1286,12 +1289,14 @@ async function fetchCharactersForMedia(
       if (!node || typeof node.id !== 'number') continue;
       const fullName = node.name?.full?.trim() || '';
       const nativeName = node.name?.native?.trim() || '';
-      const alternativeNames = [...new Set(
-        (node.name?.alternative ?? [])
-          .filter((value): value is string => typeof value === 'string')
-          .map((value) => value.trim())
-          .filter((value) => value.length > 0),
-      )];
+      const alternativeNames = [
+        ...new Set(
+          (node.name?.alternative ?? [])
+            .filter((value): value is string => typeof value === 'string')
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0),
+        ),
+      ];
       if (!fullName && !nativeName && alternativeNames.length === 0) continue;
       const voiceActors: VoiceActorRecord[] = [];
       for (const va of edge?.voiceActors ?? []) {

@@ -261,7 +261,8 @@ export function handleCliCommand(
 
   const ignoreSecondInstanceStart =
     source === 'second-instance' && args.start && deps.isOverlayRuntimeInitialized();
-  const shouldStart = (!ignoreSecondInstanceStart && args.start) || args.toggle || args.toggleVisibleOverlay;
+  const shouldStart =
+    (!ignoreSecondInstanceStart && args.start) || args.toggle || args.toggleVisibleOverlay;
   const needsOverlayRuntime = commandNeedsOverlayRuntime(args);
   const shouldInitializeOverlayRuntime = needsOverlayRuntime || args.start;
 

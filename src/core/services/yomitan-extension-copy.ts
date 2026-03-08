@@ -90,7 +90,10 @@ export function shouldCopyYomitanExtension(sourceDir: string, targetDir: string)
   return sourceHash === null || targetHash === null || sourceHash !== targetHash;
 }
 
-export function ensureExtensionCopy(sourceDir: string, userDataPath: string): {
+export function ensureExtensionCopy(
+  sourceDir: string,
+  userDataPath: string,
+): {
   targetDir: string;
   copied: boolean;
 } {

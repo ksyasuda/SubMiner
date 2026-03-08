@@ -29,7 +29,10 @@ export function getYomitanExtensionSearchPaths(
       ? path.resolve(options.moduleDir, '..', '..', '..', 'build', 'yomitan')
       : null,
   );
-  pushUnique(searchPaths, options.resourcesPath ? path.join(options.resourcesPath, 'yomitan') : null);
+  pushUnique(
+    searchPaths,
+    options.resourcesPath ? path.join(options.resourcesPath, 'yomitan') : null,
+  );
   pushUnique(searchPaths, '/usr/share/SubMiner/yomitan');
   pushUnique(searchPaths, options.userDataPath ? path.join(options.userDataPath, 'yomitan') : null);
 

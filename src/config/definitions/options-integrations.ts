@@ -175,7 +175,8 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'anilist.characterDictionary.collapsibleSections.description',
       kind: 'boolean',
       defaultValue: defaultConfig.anilist.characterDictionary.collapsibleSections.description,
-      description: 'Open the Description section by default in character dictionary glossary entries.',
+      description:
+        'Open the Description section by default in character dictionary glossary entries.',
     },
     {
       path: 'anilist.characterDictionary.collapsibleSections.characterInformation',
@@ -189,7 +190,8 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'anilist.characterDictionary.collapsibleSections.voicedBy',
       kind: 'boolean',
       defaultValue: defaultConfig.anilist.characterDictionary.collapsibleSections.voicedBy,
-      description: 'Open the Voiced by section by default in character dictionary glossary entries.',
+      description:
+        'Open the Voiced by section by default in character dictionary glossary entries.',
     },
     {
       path: 'jellyfin.enabled',

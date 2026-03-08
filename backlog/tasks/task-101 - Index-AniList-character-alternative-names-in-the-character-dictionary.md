@@ -4,15 +4,15 @@ title: Index AniList character alternative names in the character dictionary
 status: Done
 assignee: []
 created_date: '2026-03-07 00:00'
-updated_date: '2026-03-07 00:00'
+updated_date: '2026-03-08 00:11'
 labels:
   - dictionary
   - anilist
-priority: high
 dependencies: []
 references:
-  - /home/sudacode/projects/japanese/SubMiner/src/main/character-dictionary-runtime.ts
-  - /home/sudacode/projects/japanese/SubMiner/src/main/character-dictionary-runtime.test.ts
+  - src/main/character-dictionary-runtime.ts
+  - src/main/character-dictionary-runtime.test.ts
+priority: high
 ---
 
 ## Description

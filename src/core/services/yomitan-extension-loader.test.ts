@@ -75,7 +75,10 @@ test('ensureExtensionCopy refreshes copied extension when display files change',
   assert.equal(result.targetDir, targetDir);
   assert.equal(result.copied, true);
   assert.equal(
-    fs.readFileSync(path.join(targetDir, 'js', 'display', 'structured-content-generator.js'), 'utf8'),
+    fs.readFileSync(
+      path.join(targetDir, 'js', 'display', 'structured-content-generator.js'),
+      'utf8',
+    ),
     'new display code',
   );
 });

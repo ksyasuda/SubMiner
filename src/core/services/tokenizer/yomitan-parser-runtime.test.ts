@@ -764,11 +764,9 @@ test('requestYomitanScanTokens skips fallback fragments without exact primary so
     });
   });
 
-  const result = await requestYomitanScanTokens(
-    'だが それでも届かぬ高みがあった',
-    deps,
-    { error: () => undefined },
-  );
+  const result = await requestYomitanScanTokens('だが それでも届かぬ高みがあった', deps, {
+    error: () => undefined,
+  });
 
   assert.deepEqual(
     result?.map((token) => ({
@@ -875,7 +873,8 @@ test('dictionary settings helpers upsert and remove dictionary entries without r
 
   const upsertScript = scripts.find(
     (script) =>
-      script.includes('setAllSettings') && script.includes('"SubMiner Character Dictionary (AniList 1)"'),
+      script.includes('setAllSettings') &&
+      script.includes('"SubMiner Character Dictionary (AniList 1)"'),
   );
   assert.ok(upsertScript);
   const jitendexOffset = upsertScript?.indexOf('"Jitendex"') ?? -1;
@@ -915,9 +914,18 @@ test('importYomitanDictionaryFromZip uses settings automation bridge instead of 
   });
 
   assert.equal(imported, true);
-  assert.equal(scripts.some((script) => script.includes('__subminerYomitanSettingsAutomation')), true);
-  assert.equal(scripts.some((script) => script.includes('importDictionaryArchiveBase64')), true);
-  assert.equal(scripts.some((script) => script.includes('subminerImportDictionary')), false);
+  assert.equal(
+    scripts.some((script) => script.includes('__subminerYomitanSettingsAutomation')),
+    true,
+  );
+  assert.equal(
+    scripts.some((script) => script.includes('importDictionaryArchiveBase64')),
+    true,
+  );
+  assert.equal(
+    scripts.some((script) => script.includes('subminerImportDictionary')),
+    false,
+  );
 });
 
 test('deleteYomitanDictionaryByTitle uses settings automation bridge instead of custom backend action', async () => {
@@ -947,7 +955,16 @@ test('deleteYomitanDictionaryByTitle uses settings automation bridge instead of 
   );
 
   assert.equal(deleted, true);
-  assert.equal(scripts.some((script) => script.includes('__subminerYomitanSettingsAutomation')), true);
-  assert.equal(scripts.some((script) => script.includes('deleteDictionary')), true);
-  assert.equal(scripts.some((script) => script.includes('subminerDeleteDictionary')), false);
+  assert.equal(
+    scripts.some((script) => script.includes('__subminerYomitanSettingsAutomation')),
+    true,
+  );
+  assert.equal(
+    scripts.some((script) => script.includes('deleteDictionary')),
+    true,
+  );
+  assert.equal(
+    scripts.some((script) => script.includes('subminerDeleteDictionary')),
+    false,
+  );
 });
