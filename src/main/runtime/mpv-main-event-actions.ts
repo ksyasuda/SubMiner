@@ -40,6 +40,7 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
   ensureAnilistMediaGuess: (mediaKey: string) => void;
   syncImmersionMediaState: () => void;
   scheduleCharacterDictionarySync?: () => void;
+  signalAutoplayReadyIfWarm?: (path: string) => void;
   refreshDiscordPresence: () => void;
 }) {
   return ({ path }: { path: string | null }): void => {
@@ -58,6 +59,7 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
     deps.syncImmersionMediaState();
     if (normalizedPath.trim().length > 0) {
       deps.scheduleCharacterDictionarySync?.();
+      deps.signalAutoplayReadyIfWarm?.(normalizedPath);
     }
     deps.refreshDiscordPresence();
   };

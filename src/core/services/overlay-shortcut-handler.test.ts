@@ -6,6 +6,7 @@ import {
   OverlayShortcutRuntimeDeps,
   runOverlayShortcutLocalFallback,
 } from './overlay-shortcut-handler';
+import { shouldActivateOverlayShortcuts } from './overlay-shortcut';
 
 function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): ConfiguredShortcuts {
   return {
@@ -278,4 +279,37 @@ test('runOverlayShortcutLocalFallback returns false when no action matches', () 
 
   assert.equal(result, false);
   assert.equal(called, false);
+});
+
+test('shouldActivateOverlayShortcuts disables macOS overlay shortcuts when tracked mpv is unfocused', () => {
+  assert.equal(
+    shouldActivateOverlayShortcuts({
+      overlayRuntimeInitialized: true,
+      isMacOSPlatform: true,
+      trackedMpvWindowFocused: false,
+    }),
+    false,
+  );
+});
+
+test('shouldActivateOverlayShortcuts keeps macOS overlay shortcuts active when tracked mpv is focused', () => {
+  assert.equal(
+    shouldActivateOverlayShortcuts({
+      overlayRuntimeInitialized: true,
+      isMacOSPlatform: true,
+      trackedMpvWindowFocused: true,
+    }),
+    true,
+  );
+});
+
+test('shouldActivateOverlayShortcuts preserves non-macOS behavior', () => {
+  assert.equal(
+    shouldActivateOverlayShortcuts({
+      overlayRuntimeInitialized: true,
+      isMacOSPlatform: false,
+      trackedMpvWindowFocused: false,
+    }),
+    true,
+  );
 });

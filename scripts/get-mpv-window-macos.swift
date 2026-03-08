@@ -20,6 +20,11 @@ private struct WindowGeometry {
     let height: Int
 }
 
+private struct WindowState {
+    let geometry: WindowGeometry
+    let focused: Bool
+}
+
 private let targetMpvSocketPath: String? = {
     guard CommandLine.arguments.count > 1 else {
         return nil
@@ -136,13 +141,19 @@ private func geometryFromAXWindow(_ axWindow: AXUIElement) -> WindowGeometry? {
     return geometry
 }
 
-private func geometryFromAccessibilityAPI() -> WindowGeometry? {
+private func frontmostApplicationPid() -> pid_t? {
+    NSWorkspace.shared.frontmostApplication?.processIdentifier
+}
+
+private func windowStateFromAccessibilityAPI() -> WindowState? {
     let runningApps = NSWorkspace.shared.runningApplications.filter { app in
         guard let name = app.localizedName else {
             return false
         }
         return normalizedMpvName(name)
     }
+
+    let frontmostPid = frontmostApplicationPid()
 
     for app in runningApps {
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
@@ -173,7 +184,10 @@ private func geometryFromAccessibilityAPI() -> WindowGeometry? {
             }
 
             if let geometry = geometryFromAXWindow(window) {
-                return geometry
+                return WindowState(
+                    geometry: geometry,
+                    focused: frontmostPid == windowPid
+                )
             }
         }
     }
@@ -181,11 +195,12 @@ private func geometryFromAccessibilityAPI() -> WindowGeometry? {
     return nil
 }
 
-private func geometryFromCoreGraphics() -> WindowGeometry? {
+private func windowStateFromCoreGraphics() -> WindowState? {
     // Keep the CG fallback for environments without Accessibility permissions.
     // Use on-screen layer-0 windows to avoid off-screen helpers/shadows.
     let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
     let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+    let frontmostPid = frontmostApplicationPid()
 
     for window in windowList {
         guard let ownerName = window[kCGWindowOwnerName as String] as? String,
@@ -226,14 +241,19 @@ private func geometryFromCoreGraphics() -> WindowGeometry? {
             continue
         }
 
-        return geometry
+        return WindowState(
+            geometry: geometry,
+            focused: frontmostPid == ownerPid
+        )
     }
 
     return nil
 }
 
-if let window = geometryFromAccessibilityAPI() ?? geometryFromCoreGraphics() {
-    print("\(window.x),\(window.y),\(window.width),\(window.height)")
+if let window = windowStateFromAccessibilityAPI() ?? windowStateFromCoreGraphics() {
+    print(
+        "\(window.geometry.x),\(window.geometry.y),\(window.geometry.width),\(window.geometry.height),\(window.focused ? 1 : 0)"
+    )
 } else {
     print("not-found")
 }

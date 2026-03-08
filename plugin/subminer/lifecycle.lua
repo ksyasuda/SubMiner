@@ -62,9 +62,7 @@ function M.create(ctx)
 		hover.clear_hover_overlay()
 		process.disarm_auto_play_ready_gate()
 		if state.overlay_running or state.texthooker_running then
-			subminer_log("info", "lifecycle", "mpv shutting down, stopping SubMiner process")
-			show_osd("Shutting down...")
-			process.stop_overlay()
+			subminer_log("info", "lifecycle", "mpv shutting down, preserving SubMiner background process")
 		end
 	end
 

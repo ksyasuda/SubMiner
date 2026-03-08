@@ -8,6 +8,8 @@ export function createBuildOverlayShortcutsRuntimeMainDepsHandler(
     getShortcutsRegistered: () => deps.getShortcutsRegistered(),
     setShortcutsRegistered: (registered: boolean) => deps.setShortcutsRegistered(registered),
     isOverlayRuntimeInitialized: () => deps.isOverlayRuntimeInitialized(),
+    isMacOSPlatform: () => deps.isMacOSPlatform(),
+    isTrackedMpvWindowFocused: () => deps.isTrackedMpvWindowFocused(),
     showMpvOsd: (text: string) => deps.showMpvOsd(text),
     openRuntimeOptionsPalette: () => deps.openRuntimeOptionsPalette(),
     openJimaku: () => deps.openJimaku(),

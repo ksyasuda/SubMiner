@@ -6,9 +6,10 @@ import {
 import {
   refreshOverlayShortcutsRuntime,
   registerOverlayShortcuts,
+  shouldActivateOverlayShortcuts,
   syncOverlayShortcutsRuntime,
   unregisterOverlayShortcutsRuntime,
-} from '../core/services';
+} from '../core/services/overlay-shortcut';
 import { runOverlayShortcutLocalFallback } from '../core/services/overlay-shortcut-handler';
 
 export interface OverlayShortcutRuntimeServiceInput {
@@ -16,6 +17,8 @@ export interface OverlayShortcutRuntimeServiceInput {
   getShortcutsRegistered: () => boolean;
   setShortcutsRegistered: (registered: boolean) => void;
   isOverlayRuntimeInitialized: () => boolean;
+  isMacOSPlatform: () => boolean;
+  isTrackedMpvWindowFocused: () => boolean;
   showMpvOsd: (text: string) => void;
   openRuntimeOptionsPalette: () => void;
   openJimaku: () => void;
@@ -89,7 +92,12 @@ export function createOverlayShortcutsRuntimeService(
     };
   };
 
-  const shouldOverlayShortcutsBeActive = () => input.isOverlayRuntimeInitialized();
+  const shouldOverlayShortcutsBeActive = () =>
+    shouldActivateOverlayShortcuts({
+      overlayRuntimeInitialized: input.isOverlayRuntimeInitialized(),
+      isMacOSPlatform: input.isMacOSPlatform(),
+      trackedMpvWindowFocused: input.isTrackedMpvWindowFocused(),
+    });
 
   return {
     tryHandleOverlayShortcutLocalFallback: (inputEvent) =>

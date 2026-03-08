@@ -27,6 +27,20 @@ export interface OverlayShortcutLifecycleDeps {
   cancelPendingMineSentenceMultiple: () => void;
 }
 
+export function shouldActivateOverlayShortcuts(args: {
+  overlayRuntimeInitialized: boolean;
+  isMacOSPlatform: boolean;
+  trackedMpvWindowFocused: boolean;
+}): boolean {
+  if (!args.overlayRuntimeInitialized) {
+    return false;
+  }
+  if (!args.isMacOSPlatform) {
+    return true;
+  }
+  return args.trackedMpvWindowFocused;
+}
+
 export function registerOverlayShortcuts(
   shortcuts: ConfiguredShortcuts,
   handlers: OverlayShortcutHandlers,

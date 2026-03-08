@@ -201,7 +201,7 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
   return { deps, calls, osd };
 }
 
-test('handleCliCommand ignores --start for second-instance when overlay runtime is already initialized', () => {
+test('handleCliCommand reconnects MPV for second-instance --start when overlay runtime is already initialized', () => {
   const { deps, calls } = createDeps({
     isOverlayRuntimeInitialized: () => true,
   });
@@ -209,11 +209,9 @@ test('handleCliCommand ignores --start for second-instance when overlay runtime 
 
   handleCliCommand(args, 'second-instance', deps);
 
-  assert.ok(calls.includes('log:Ignoring --start because SubMiner is already running.'));
-  assert.equal(
-    calls.some((value) => value.includes('connectMpvClient')),
-    false,
-  );
+  assert.ok(calls.includes('setMpvClientSocketPath:/tmp/subminer.sock'));
+  assert.equal(calls.some((value) => value.includes('connectMpvClient')), true);
+  assert.equal(calls.some((value) => value.includes('initializeOverlayRuntime')), false);
 });
 
 test('handleCliCommand processes --start for second-instance when overlay runtime is not initialized', () => {

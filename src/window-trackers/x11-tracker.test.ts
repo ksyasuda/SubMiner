@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseX11WindowGeometry, parseX11WindowPid, X11WindowTracker } from './x11-tracker';
+import { parseMacOSHelperOutput } from './macos-tracker';
 
 test('parseX11WindowGeometry parses xwininfo output', () => {
   const geometry = parseX11WindowGeometry(`
@@ -51,4 +52,28 @@ Height: 360`;
   assert.ok(release);
   release();
   await new Promise((resolve) => setTimeout(resolve, 0));
+});
+
+test('parseMacOSHelperOutput parses geometry and focused state', () => {
+  assert.deepEqual(parseMacOSHelperOutput('120,240,1280,720,1'), {
+    geometry: {
+      x: 120,
+      y: 240,
+      width: 1280,
+      height: 720,
+    },
+    focused: true,
+  });
+});
+
+test('parseMacOSHelperOutput tolerates unfocused helper output', () => {
+  assert.deepEqual(parseMacOSHelperOutput('120,240,1280,720,0'), {
+    geometry: {
+      x: 120,
+      y: 240,
+      width: 1280,
+      height: 720,
+    },
+    focused: false,
+  });
 });

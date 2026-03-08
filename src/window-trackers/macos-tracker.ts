@@ -22,8 +22,55 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { BaseWindowTracker } from './base-tracker';
 import { createLogger } from '../logger';
+import type { WindowGeometry } from '../types';
 
 const log = createLogger('tracker').child('macos');
+
+export interface MacOSHelperWindowState {
+  geometry: WindowGeometry;
+  focused: boolean;
+}
+
+export function parseMacOSHelperOutput(result: string): MacOSHelperWindowState | null {
+  const trimmed = result.trim();
+  if (!trimmed || trimmed === 'not-found') {
+    return null;
+  }
+
+  const parts = trimmed.split(',');
+  if (parts.length !== 4 && parts.length !== 5) {
+    return null;
+  }
+
+  const x = parseInt(parts[0]!, 10);
+  const y = parseInt(parts[1]!, 10);
+  const width = parseInt(parts[2]!, 10);
+  const height = parseInt(parts[3]!, 10);
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return null;
+  }
+
+  const focusedRaw = parts[4]?.trim().toLowerCase();
+  const focused =
+    focusedRaw === undefined ? true : focusedRaw === '1' || focusedRaw === 'true';
+
+  return {
+    geometry: {
+      x,
+      y,
+      width,
+      height,
+    },
+    focused,
+  };
+}
 
 export class MacOSWindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -173,33 +220,12 @@ export class MacOSWindowTracker extends BaseWindowTracker {
           return;
         }
 
-        const result = (stdout || '').trim();
-        if (result && result !== 'not-found') {
-          const parts = result.split(',');
-          if (parts.length === 4) {
-            const x = parseInt(parts[0]!, 10);
-            const y = parseInt(parts[1]!, 10);
-            const width = parseInt(parts[2]!, 10);
-            const height = parseInt(parts[3]!, 10);
-
-            if (
-              Number.isFinite(x) &&
-              Number.isFinite(y) &&
-              Number.isFinite(width) &&
-              Number.isFinite(height) &&
-              width > 0 &&
-              height > 0
-            ) {
-              this.updateGeometry({
-                x,
-                y,
-                width,
-                height,
-              });
-              this.pollInFlight = false;
-              return;
-            }
-          }
+        const parsed = parseMacOSHelperOutput(stdout || '');
+        if (parsed) {
+          this.updateFocus(parsed.focused);
+          this.updateGeometry(parsed.geometry);
+          this.pollInFlight = false;
+          return;
         }
 
         this.updateGeometry(null);

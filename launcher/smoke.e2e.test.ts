@@ -295,7 +295,7 @@ test('launcher mpv status returns ready when socket is connectable', async () =>
 });
 
 test(
-  'launcher start-overlay run forwards socket/backend and stops overlay after mpv exits',
+  'launcher start-overlay run forwards socket/backend and keeps background app alive after mpv exits',
   { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
   async () => {
     await withSmokeCase('overlay-start-stop', async (smokeCase) => {
@@ -310,7 +310,6 @@ test(
       const appStartPath = path.join(smokeCase.artifactsDir, 'fake-app-start.log');
       const appStopPath = path.join(smokeCase.artifactsDir, 'fake-app-stop.log');
       await waitForJsonLines(appStartPath, 1);
-      await waitForJsonLines(appStopPath, 1);
 
       const appStartEntries = readJsonLines(appStartPath);
       const appStopEntries = readJsonLines(appStopPath);
@@ -325,7 +324,7 @@ test(
       assert.match(result.stdout, /Starting SubMiner overlay/i);
 
       assert.equal(appStartEntries.length, 1);
-      assert.equal(appStopEntries.length, 1);
+      assert.equal(appStopEntries.length, 0);
       assert.equal(mpvEntries.length >= 1, true);
 
       const appStartArgs = appStartEntries[0]?.argv;
@@ -336,9 +335,6 @@ test(
       assert.equal((appStartArgs as string[]).includes('--socket'), true);
       assert.equal((appStartArgs as string[]).includes(smokeCase.socketPath), true);
       assert.equal(appStartEntries[0]?.subminerMpvLog, smokeCase.mpvOverlayLogPath);
-
-      const appStopArgs = appStopEntries[0]?.argv;
-      assert.deepEqual(appStopArgs, ['--stop']);
 
       const mpvFirstArgs = mpvEntries[0]?.argv;
       assert.equal(Array.isArray(mpvFirstArgs), true);
