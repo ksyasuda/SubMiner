@@ -54,6 +54,9 @@ function makeTestEnv(homeDir: string, xdgConfigHome: string): NodeJS.ProcessEnv 
   return {
     ...process.env,
     HOME: homeDir,
+    USERPROFILE: homeDir,
+    APPDATA: xdgConfigHome,
+    LOCALAPPDATA: path.join(homeDir, 'AppData', 'Local'),
     XDG_CONFIG_HOME: xdgConfigHome,
   };
 }
@@ -81,6 +84,7 @@ test('config discovery ignores lowercase subminer candidate', () => {
   const resolved = resolveConfigFilePath({
     xdgConfigHome,
     homeDir,
+    platform: 'linux',
     existsSync: (candidate) => foundPaths.has(path.normalize(candidate)),
   });
 
@@ -528,15 +532,20 @@ test('parseJellyfinPreviewAuthResponse returns null for invalid payloads', () =>
 });
 
 test('deriveJellyfinTokenStorePath resolves alongside config path', () => {
-  const tokenPath = deriveJellyfinTokenStorePath('/home/test/.config/SubMiner/config.jsonc');
-  assert.equal(tokenPath, '/home/test/.config/SubMiner/jellyfin-token-store.json');
+  const configPath = path.join('/home/test', '.config', 'SubMiner', 'config.jsonc');
+  const tokenPath = deriveJellyfinTokenStorePath(configPath);
+  assert.equal(tokenPath, path.join(path.dirname(configPath), 'jellyfin-token-store.json'));
 });
 
 test('hasStoredJellyfinSession checks token-store existence', () => {
-  const exists = (candidate: string): boolean =>
-    candidate === '/home/test/.config/SubMiner/jellyfin-token-store.json';
-  assert.equal(hasStoredJellyfinSession('/home/test/.config/SubMiner/config.jsonc', exists), true);
-  assert.equal(hasStoredJellyfinSession('/home/test/.config/Other/alt.jsonc', exists), false);
+  const configPath = path.join('/home/test', '.config', 'SubMiner', 'config.jsonc');
+  const tokenPath = deriveJellyfinTokenStorePath(configPath);
+  const exists = (candidate: string): boolean => candidate === tokenPath;
+  assert.equal(hasStoredJellyfinSession(configPath, exists), true);
+  assert.equal(
+    hasStoredJellyfinSession(path.join('/home/test', '.config', 'Other', 'alt.jsonc'), exists),
+    false,
+  );
 });
 
 test('shouldRetryWithStartForNoRunningInstance matches expected app lifecycle error', () => {

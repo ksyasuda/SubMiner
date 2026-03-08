@@ -27,6 +27,11 @@ export const state = {
   stopRequested: false,
 };
 
+type SpawnTarget = {
+  command: string;
+  args: string[];
+};
+
 const DETACHED_IDLE_MPV_PID_FILE = path.join(os.tmpdir(), 'subminer-idle-mpv.pid');
 const OVERLAY_START_SOCKET_READY_TIMEOUT_MS = 900;
 const OVERLAY_START_COMMAND_SETTLE_TIMEOUT_MS = 700;
@@ -682,8 +687,56 @@ function buildAppEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
+function maybeCaptureAppArgs(appArgs: string[]): boolean {
+  const capturePath = process.env.SUBMINER_TEST_CAPTURE?.trim();
+  if (!capturePath) {
+    return false;
+  }
+
+  fs.writeFileSync(capturePath, `${appArgs.join('\n')}${appArgs.length > 0 ? '\n' : ''}`, 'utf8');
+  return true;
+}
+
+function resolveAppSpawnTarget(appPath: string, appArgs: string[]): SpawnTarget {
+  if (process.platform !== 'win32') {
+    return { command: appPath, args: appArgs };
+  }
+
+  const normalizeBashArg = (value: string): string => {
+    const normalized = value.replace(/\\/g, '/');
+    const driveMatch = normalized.match(/^([A-Za-z]):\/(.*)$/);
+    if (!driveMatch) {
+      return normalized;
+    }
+
+    const [, driveLetter, remainder] = driveMatch;
+    return `/mnt/${driveLetter!.toLowerCase()}/${remainder}`;
+  };
+  const extension = path.extname(appPath).toLowerCase();
+  if (extension === '.ps1') {
+    return {
+      command: 'powershell.exe',
+      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', appPath, ...appArgs],
+    };
+  }
+
+  if (extension === '.sh') {
+    return {
+      command: 'bash',
+      args: [normalizeBashArg(appPath), ...appArgs.map(normalizeBashArg)],
+    };
+  }
+
+  return { command: appPath, args: appArgs };
+}
+
 export function runAppCommandWithInherit(appPath: string, appArgs: string[]): never {
-  const result = spawnSync(appPath, appArgs, {
+  if (maybeCaptureAppArgs(appArgs)) {
+    process.exit(0);
+  }
+
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  const result = spawnSync(target.command, target.args, {
     stdio: 'inherit',
     env: buildAppEnv(),
   });
@@ -702,7 +755,16 @@ export function runAppCommandCaptureOutput(
   stderr: string;
   error?: Error;
 } {
-  const result = spawnSync(appPath, appArgs, {
+  if (maybeCaptureAppArgs(appArgs)) {
+    return {
+      status: 0,
+      stdout: '',
+      stderr: '',
+    };
+  }
+
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  const result = spawnSync(target.command, target.args, {
     env: buildAppEnv(),
     encoding: 'utf8',
   });
@@ -721,8 +783,17 @@ export function runAppCommandWithInheritLogged(
   logLevel: LogLevel,
   label: string,
 ): never {
-  log('debug', logLevel, `${label}: launching app with args: ${appArgs.join(' ')}`);
-  const result = spawnSync(appPath, appArgs, {
+  if (maybeCaptureAppArgs(appArgs)) {
+    process.exit(0);
+  }
+
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  log(
+    'debug',
+    logLevel,
+    `${label}: launching app with args: ${[target.command, ...target.args].join(' ')}`,
+  );
+  const result = spawnSync(target.command, target.args, {
     stdio: 'inherit',
     env: buildAppEnv(),
   });
@@ -736,7 +807,11 @@ export function runAppCommandWithInheritLogged(
 export function launchAppStartDetached(appPath: string, logLevel: LogLevel): void {
   const startArgs = ['--start'];
   if (logLevel !== 'info') startArgs.push('--log-level', logLevel);
-  const proc = spawn(appPath, startArgs, {
+  if (maybeCaptureAppArgs(startArgs)) {
+    return;
+  }
+  const target = resolveAppSpawnTarget(appPath, startArgs);
+  const proc = spawn(target.command, target.args, {
     stdio: 'ignore',
     detached: true,
     env: buildAppEnv(),

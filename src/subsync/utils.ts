@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as childProcess from 'child_process';
+import * as path from 'path';
 import { DEFAULT_CONFIG } from '../config';
 import { SubsyncConfig, SubsyncMode } from '../types';
 
@@ -43,6 +44,42 @@ export interface CommandResult {
   stderr: string;
   stdout: string;
   error?: string;
+}
+
+function resolveCommandInvocation(
+  executable: string,
+  args: string[],
+): { command: string; args: string[] } {
+  if (process.platform !== 'win32') {
+    return { command: executable, args };
+  }
+
+  const normalizeBashArg = (value: string): string => {
+    const normalized = value.replace(/\\/g, '/');
+    const driveMatch = normalized.match(/^([A-Za-z]):\/(.*)$/);
+    if (!driveMatch) {
+      return normalized;
+    }
+
+    const [, driveLetter, remainder] = driveMatch;
+    return `/mnt/${driveLetter!.toLowerCase()}/${remainder}`;
+  };
+  const extension = path.extname(executable).toLowerCase();
+  if (extension === '.ps1') {
+    return {
+      command: 'powershell.exe',
+      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', executable, ...args],
+    };
+  }
+
+  if (extension === '.sh') {
+    return {
+      command: 'bash',
+      args: [normalizeBashArg(executable), ...args.map(normalizeBashArg)],
+    };
+  }
+
+  return { command: executable, args };
 }
 
 export function getSubsyncConfig(config: SubsyncConfig | undefined): SubsyncResolvedConfig {
@@ -108,7 +145,8 @@ export function runCommand(
   timeoutMs = 120000,
 ): Promise<CommandResult> {
   return new Promise((resolve) => {
-    const child = childProcess.spawn(executable, args, {
+    const invocation = resolveCommandInvocation(executable, args);
+    const child = childProcess.spawn(invocation.command, invocation.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
