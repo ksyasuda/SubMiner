@@ -30,6 +30,8 @@ export function createStartBackgroundWarmupsHandler(deps: {
   shouldWarmupJellyfinRemoteSession: () => boolean;
   shouldAutoConnectJellyfinRemote: () => boolean;
   startJellyfinRemoteSession: () => Promise<void>;
+  onYomitanExtensionWarmupScheduled?: (promise: Promise<void>) => void;
+  onTokenizationWarmupScheduled?: (promise: Promise<void>) => void;
   logDebug?: (message: string) => void;
 }) {
   return (): void => {
@@ -46,37 +48,42 @@ export function createStartBackgroundWarmupsHandler(deps: {
     const shouldWarmupTokenization =
       warmupMecab || warmupYomitanExtension || warmupSubtitleDictionaries;
     if (shouldWarmupTokenization) {
-      deps.launchTask('subtitle-tokenization', async () => {
-        await Promise.all([
-          warmupYomitanExtension
-            ? (async () => {
-                deps.logDebug?.('[startup-warmup] stage start: yomitan-extension');
-                await deps.ensureYomitanExtensionLoaded();
-                deps.logDebug?.('[startup-warmup] stage ready: yomitan-extension');
-              })()
-            : Promise.resolve().then(() => {
-                deps.logDebug?.('[startup-warmup] stage skipped: yomitan-extension');
-              }),
-          warmupMecab
-            ? (async () => {
-                deps.logDebug?.('[startup-warmup] stage start: mecab');
-                await deps.createMecabTokenizerAndCheck();
-                deps.logDebug?.('[startup-warmup] stage ready: mecab');
-              })()
-            : Promise.resolve().then(() => {
-                deps.logDebug?.('[startup-warmup] stage skipped: mecab');
-              }),
-          warmupSubtitleDictionaries
-            ? (async () => {
-                deps.logDebug?.('[startup-warmup] stage start: subtitle-dictionaries');
-                await deps.prewarmSubtitleDictionaries();
-                deps.logDebug?.('[startup-warmup] stage ready: subtitle-dictionaries');
-              })()
-            : Promise.resolve().then(() => {
-                deps.logDebug?.('[startup-warmup] stage skipped: subtitle-dictionaries');
-              }),
-        ]);
-      });
+      const yomitanWarmupPromise = warmupYomitanExtension
+        ? (async () => {
+            deps.logDebug?.('[startup-warmup] stage start: yomitan-extension');
+            await deps.ensureYomitanExtensionLoaded();
+            deps.logDebug?.('[startup-warmup] stage ready: yomitan-extension');
+          })()
+        : Promise.resolve().then(() => {
+            deps.logDebug?.('[startup-warmup] stage skipped: yomitan-extension');
+          });
+      if (warmupYomitanExtension) {
+        deps.onYomitanExtensionWarmupScheduled?.(yomitanWarmupPromise);
+      }
+
+      const tokenizationWarmupPromise = Promise.all([
+        yomitanWarmupPromise,
+        warmupMecab
+          ? (async () => {
+              deps.logDebug?.('[startup-warmup] stage start: mecab');
+              await deps.createMecabTokenizerAndCheck();
+              deps.logDebug?.('[startup-warmup] stage ready: mecab');
+            })()
+          : Promise.resolve().then(() => {
+              deps.logDebug?.('[startup-warmup] stage skipped: mecab');
+            }),
+        warmupSubtitleDictionaries
+          ? (async () => {
+              deps.logDebug?.('[startup-warmup] stage start: subtitle-dictionaries');
+              await deps.prewarmSubtitleDictionaries();
+              deps.logDebug?.('[startup-warmup] stage ready: subtitle-dictionaries');
+            })()
+          : Promise.resolve().then(() => {
+              deps.logDebug?.('[startup-warmup] stage skipped: subtitle-dictionaries');
+            }),
+      ]).then(() => {});
+      deps.onTokenizationWarmupScheduled?.(tokenizationWarmupPromise);
+      deps.launchTask('subtitle-tokenization', () => tokenizationWarmupPromise);
     }
     if (warmupJellyfinRemoteSession && autoConnectJellyfinRemote) {
       deps.launchTask('jellyfin-remote-session', async () => {

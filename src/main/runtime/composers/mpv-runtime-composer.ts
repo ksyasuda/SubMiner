@@ -88,6 +88,7 @@ export type MpvRuntimeComposerResult<
   createMecabTokenizerAndCheck: () => Promise<void>;
   prewarmSubtitleDictionaries: () => Promise<void>;
   startTokenizationWarmups: () => Promise<void>;
+  isTokenizationWarmupReady: () => boolean;
   launchBackgroundWarmupTask: ReturnType<typeof createLaunchBackgroundWarmupTaskFromStartup>;
   startBackgroundWarmups: ReturnType<typeof createStartBackgroundWarmupsFromStartup>;
 }>;
@@ -151,6 +152,36 @@ export function composeMpvRuntimeHandlers<
   let tokenizationPrerequisiteWarmupInFlight: Promise<void> | null = null;
   let tokenizationPrerequisiteWarmupCompleted = false;
   let tokenizationWarmupCompleted = false;
+  let tokenizationPlaybackReady = false;
+  const markTokenizationPrerequisiteWarmupCompleted = (): void => {
+    tokenizationPrerequisiteWarmupCompleted = true;
+  };
+  const markTokenizationPlaybackReady = (): void => {
+    tokenizationPlaybackReady = true;
+  };
+  const markTokenizationWarmupCompleted = (): void => {
+    tokenizationPrerequisiteWarmupCompleted = true;
+    tokenizationWarmupCompleted = true;
+    tokenizationPlaybackReady = true;
+  };
+  const backgroundWarmupCoversOnDemandTokenization = (): boolean => {
+    if (!options.warmups.startBackgroundWarmupsMainDeps.shouldWarmupYomitanExtension()) {
+      return false;
+    }
+    if (
+      shouldInitializeMecabForAnnotations() &&
+      !options.warmups.startBackgroundWarmupsMainDeps.shouldWarmupMecab()
+    ) {
+      return false;
+    }
+    if (
+      shouldWarmupAnnotationDictionaries() &&
+      !options.warmups.startBackgroundWarmupsMainDeps.shouldWarmupSubtitleDictionaries()
+    ) {
+      return false;
+    }
+    return true;
+  };
   const ensureTokenizationPrerequisites = (): Promise<void> => {
     if (tokenizationPrerequisiteWarmupCompleted) {
       return Promise.resolve();
@@ -159,7 +190,7 @@ export function composeMpvRuntimeHandlers<
       tokenizationPrerequisiteWarmupInFlight = options.warmups.startBackgroundWarmupsMainDeps
         .ensureYomitanExtensionLoaded()
         .then(() => {
-          tokenizationPrerequisiteWarmupCompleted = true;
+          markTokenizationPrerequisiteWarmupCompleted();
         })
         .finally(() => {
           tokenizationPrerequisiteWarmupInFlight = null;
@@ -184,7 +215,7 @@ export function composeMpvRuntimeHandlers<
           warmupTasks.push(prewarmSubtitleDictionaries().catch(() => {}));
         }
         await Promise.all(warmupTasks);
-        tokenizationWarmupCompleted = true;
+        markTokenizationWarmupCompleted();
       })().finally(() => {
         tokenizationWarmupInFlight = null;
       });
@@ -198,6 +229,7 @@ export function composeMpvRuntimeHandlers<
     if (shouldWarmupAnnotationDictionaries()) {
       const onTokenizationReady = tokenizerMainDeps.onTokenizationReady;
       tokenizerMainDeps.onTokenizationReady = (tokenizedText: string): void => {
+        markTokenizationPlaybackReady();
         onTokenizationReady?.(tokenizedText);
         if (!tokenizationWarmupCompleted) {
           void prewarmSubtitleDictionaries({ showLoadingOsd: true }).catch(() => {});
@@ -221,6 +253,36 @@ export function composeMpvRuntimeHandlers<
       launchTask: (label, task) => launchBackgroundWarmupTask(label, task),
       createMecabTokenizerAndCheck: () => createMecabTokenizerAndCheck(),
       prewarmSubtitleDictionaries: () => prewarmSubtitleDictionaries(),
+      onYomitanExtensionWarmupScheduled: (promise) => {
+        if (tokenizationPrerequisiteWarmupCompleted) {
+          return;
+        }
+        const finalizedPromise = promise
+          .then(() => {
+            markTokenizationPrerequisiteWarmupCompleted();
+          })
+          .finally(() => {
+            if (tokenizationPrerequisiteWarmupInFlight === finalizedPromise) {
+              tokenizationPrerequisiteWarmupInFlight = null;
+            }
+          });
+        tokenizationPrerequisiteWarmupInFlight = finalizedPromise;
+      },
+      onTokenizationWarmupScheduled: (promise) => {
+        if (tokenizationWarmupCompleted || !backgroundWarmupCoversOnDemandTokenization()) {
+          return;
+        }
+        const finalizedPromise = promise
+          .then(() => {
+            markTokenizationWarmupCompleted();
+          })
+          .finally(() => {
+            if (tokenizationWarmupInFlight === finalizedPromise) {
+              tokenizationWarmupInFlight = null;
+            }
+          });
+        tokenizationWarmupInFlight = finalizedPromise;
+      },
     })(),
   );
 
@@ -232,6 +294,7 @@ export function composeMpvRuntimeHandlers<
     createMecabTokenizerAndCheck: () => createMecabTokenizerAndCheck(),
     prewarmSubtitleDictionaries: () => prewarmSubtitleDictionaries(),
     startTokenizationWarmups,
+    isTokenizationWarmupReady: () => tokenizationPlaybackReady,
     launchBackgroundWarmupTask: (label, task) => launchBackgroundWarmupTask(label, task),
     startBackgroundWarmups: () => startBackgroundWarmups(),
   };

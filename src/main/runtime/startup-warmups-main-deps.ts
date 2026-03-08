@@ -35,6 +35,18 @@ export function createBuildStartBackgroundWarmupsMainDepsHandler(
     shouldWarmupJellyfinRemoteSession: () => deps.shouldWarmupJellyfinRemoteSession(),
     shouldAutoConnectJellyfinRemote: () => deps.shouldAutoConnectJellyfinRemote(),
     startJellyfinRemoteSession: () => deps.startJellyfinRemoteSession(),
+    ...(deps.onYomitanExtensionWarmupScheduled
+      ? {
+          onYomitanExtensionWarmupScheduled: (promise: Promise<void>) =>
+            deps.onYomitanExtensionWarmupScheduled!(promise),
+        }
+      : {}),
+    ...(deps.onTokenizationWarmupScheduled
+      ? {
+          onTokenizationWarmupScheduled: (promise: Promise<void>) =>
+            deps.onTokenizationWarmupScheduled!(promise),
+        }
+      : {}),
     logDebug: deps.logDebug,
   });
 }
