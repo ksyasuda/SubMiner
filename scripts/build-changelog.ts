@@ -1,0 +1,566 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
+
+type ChangelogFsDeps = {
+  existsSync?: (candidate: string) => boolean;
+  mkdirSync?: (candidate: string, options: { recursive: true }) => void;
+  readFileSync?: (candidate: string, encoding: BufferEncoding) => string;
+  readdirSync?: (candidate: string, options: { withFileTypes: true }) => fs.Dirent[];
+  rmSync?: (candidate: string) => void;
+  writeFileSync?: (candidate: string, content: string, encoding: BufferEncoding) => void;
+  log?: (message: string) => void;
+};
+
+type ChangelogOptions = {
+  cwd?: string;
+  date?: string;
+  version?: string;
+  deps?: ChangelogFsDeps;
+};
+
+type FragmentType = 'added' | 'changed' | 'fixed' | 'docs' | 'internal';
+
+type ChangeFragment = {
+  area: string;
+  bullets: string[];
+  path: string;
+  type: FragmentType;
+};
+
+type PullRequestChangelogOptions = {
+  changedEntries: Array<{
+    path: string;
+    status: string;
+  }>;
+  changedLabels?: string[];
+};
+
+const RELEASE_NOTES_PATH = path.join('release', 'release-notes.md');
+const CHANGELOG_HEADER = '# Changelog';
+const CHANGE_TYPES: FragmentType[] = ['added', 'changed', 'fixed', 'docs', 'internal'];
+const CHANGE_TYPE_HEADINGS: Record<FragmentType, string> = {
+  added: 'Added',
+  changed: 'Changed',
+  fixed: 'Fixed',
+  docs: 'Docs',
+  internal: 'Internal',
+};
+const SKIP_CHANGELOG_LABEL = 'skip-changelog';
+
+function normalizeVersion(version: string): string {
+  return version.replace(/^v/, '');
+}
+
+function resolveDate(date?: string): string {
+  return date ?? new Date().toISOString().slice(0, 10);
+}
+
+function resolvePackageVersion(cwd: string, readFileSync: (candidate: string, encoding: BufferEncoding) => string): string {
+  const packageJsonPath = path.join(cwd, 'package.json');
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: string };
+  if (!packageJson.version) {
+    throw new Error(`Missing package.json version at ${packageJsonPath}`);
+  }
+  return normalizeVersion(packageJson.version);
+}
+
+function resolveVersion(
+  options: Pick<ChangelogOptions, 'cwd' | 'version' | 'deps'>,
+): string {
+  const cwd = options.cwd ?? process.cwd();
+  const readFileSync = options.deps?.readFileSync ?? fs.readFileSync;
+  return normalizeVersion(options.version ?? resolvePackageVersion(cwd, readFileSync));
+}
+
+function resolveChangesDir(cwd: string): string {
+  return path.join(cwd, 'changes');
+}
+
+function resolveFragmentPaths(
+  cwd: string,
+  deps?: ChangelogFsDeps,
+): string[] {
+  const changesDir = resolveChangesDir(cwd);
+  const existsSync = deps?.existsSync ?? fs.existsSync;
+  const readdirSync = deps?.readdirSync ?? fs.readdirSync;
+
+  if (!existsSync(changesDir)) {
+    return [];
+  }
+
+  return readdirSync(changesDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.md') && entry.name.toLowerCase() !== 'readme.md')
+    .map((entry) => path.join(changesDir, entry.name))
+    .sort();
+}
+
+function normalizeFragmentBullets(content: string): string[] {
+  const lines = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = /^[-*]\s+(.*)$/.exec(line);
+      return `- ${(match?.[1] ?? line).trim()}`;
+    });
+
+  if (lines.length === 0) {
+    throw new Error('Changelog fragment cannot be empty.');
+  }
+
+  return lines;
+}
+
+function parseFragmentMetadata(content: string, fragmentPath: string): {
+  area: string;
+  body: string;
+  type: FragmentType;
+} {
+  const lines = content.split(/\r?\n/);
+  let index = 0;
+
+  while (index < lines.length && !(lines[index] ?? '').trim()) {
+    index += 1;
+  }
+
+  const metadata = new Map<string, string>();
+  while (index < lines.length) {
+    const trimmed = (lines[index] ?? '').trim();
+    if (!trimmed) {
+      index += 1;
+      break;
+    }
+
+    const match = /^([a-z]+):\s*(.+)$/.exec(trimmed);
+    if (!match) {
+      break;
+    }
+
+    const [, rawKey = '', rawValue = ''] = match;
+    metadata.set(rawKey, rawValue.trim());
+    index += 1;
+  }
+
+  const type = metadata.get('type');
+  if (!type || !CHANGE_TYPES.includes(type as FragmentType)) {
+    throw new Error(
+      `${fragmentPath} must declare type as one of: ${CHANGE_TYPES.join(', ')}.`,
+    );
+  }
+
+  const area = metadata.get('area');
+  if (!area) {
+    throw new Error(`${fragmentPath} must declare area.`);
+  }
+
+  const body = lines.slice(index).join('\n').trim();
+  if (!body) {
+    throw new Error(`${fragmentPath} must include at least one changelog bullet.`);
+  }
+
+  return {
+    area,
+    body,
+    type: type as FragmentType,
+  };
+}
+
+function readChangeFragments(
+  cwd: string,
+  deps?: ChangelogFsDeps,
+): ChangeFragment[] {
+  const readFileSync = deps?.readFileSync ?? fs.readFileSync;
+  return resolveFragmentPaths(cwd, deps).map((fragmentPath) => {
+    const parsed = parseFragmentMetadata(readFileSync(fragmentPath, 'utf8'), fragmentPath);
+    return {
+      area: parsed.area,
+      bullets: normalizeFragmentBullets(parsed.body),
+      path: fragmentPath,
+      type: parsed.type,
+    };
+  });
+}
+
+function formatAreaLabel(area: string): string {
+  return area
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
+
+function renderFragmentBullet(fragment: ChangeFragment, bullet: string): string {
+  return `- ${formatAreaLabel(fragment.area)}: ${bullet.replace(/^- /, '')}`;
+}
+
+function renderGroupedChanges(fragments: ChangeFragment[]): string {
+  const sections = CHANGE_TYPES.flatMap((type) => {
+    const typeFragments = fragments.filter((fragment) => fragment.type === type);
+    if (typeFragments.length === 0) {
+      return [];
+    }
+
+    const bullets = typeFragments
+      .flatMap((fragment) => fragment.bullets.map((bullet) => renderFragmentBullet(fragment, bullet)))
+      .join('\n');
+    return [`### ${CHANGE_TYPE_HEADINGS[type]}\n${bullets}`];
+  });
+
+  return sections.join('\n\n');
+}
+
+function buildReleaseSection(version: string, date: string, fragments: ChangeFragment[]): string {
+  if (fragments.length === 0) {
+    throw new Error('No changelog fragments found in changes/.');
+  }
+
+  return [`## v${version} (${date})`, '', renderGroupedChanges(fragments), ''].join(
+    '\n',
+  );
+}
+
+function ensureChangelogHeader(existingChangelog: string): string {
+  const trimmed = existingChangelog.trim();
+  if (!trimmed) {
+    return `${CHANGELOG_HEADER}\n`;
+  }
+  if (trimmed.startsWith(CHANGELOG_HEADER)) {
+    return `${trimmed}\n`;
+  }
+  return `${CHANGELOG_HEADER}\n\n${trimmed}\n`;
+}
+
+function prependReleaseSection(existingChangelog: string, releaseSection: string, version: string): string {
+  const normalizedExisting = ensureChangelogHeader(existingChangelog);
+  if (extractReleaseSectionBody(normalizedExisting, version) !== null) {
+    throw new Error(`CHANGELOG already contains a section for v${version}.`);
+  }
+
+  const withoutHeader = normalizedExisting.replace(/^# Changelog\s*/, '').trimStart();
+  const body = [releaseSection.trimEnd(), withoutHeader.trimEnd()].filter(Boolean).join('\n\n');
+  return `${CHANGELOG_HEADER}\n\n${body}\n`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractReleaseSectionBody(changelog: string, version: string): string | null {
+  const headingPattern = new RegExp(
+    `^## v${escapeRegExp(normalizeVersion(version))} \\([^\\n]+\\)$`,
+    'm',
+  );
+  const headingMatch = headingPattern.exec(changelog);
+  if (!headingMatch) {
+    return null;
+  }
+
+  const bodyStart = headingMatch.index + headingMatch[0].length + 1;
+  const remaining = changelog.slice(bodyStart);
+  const nextHeadingMatch = /^## /m.exec(remaining);
+  const body = nextHeadingMatch ? remaining.slice(0, nextHeadingMatch.index) : remaining;
+  return body.trim();
+}
+
+export function resolveChangelogOutputPaths(options?: {
+  cwd?: string;
+}): string[] {
+  const cwd = options?.cwd ?? process.cwd();
+  return [path.join(cwd, 'CHANGELOG.md')];
+}
+
+function renderReleaseNotes(changes: string): string {
+  return [
+    '## Highlights',
+    changes,
+    '',
+    '## Installation',
+    '',
+    'See the README and docs/installation guide for full setup steps.',
+    '',
+    '## Assets',
+    '',
+    '- Linux: `SubMiner.AppImage`',
+    '- macOS: `SubMiner-*.dmg` and `SubMiner-*.zip`',
+    '- Optional extras: `subminer-assets.tar.gz` and the `subminer` launcher',
+    '',
+    'Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.',
+    '',
+  ].join('\n');
+}
+
+function writeReleaseNotesFile(
+  cwd: string,
+  changes: string,
+  deps?: ChangelogFsDeps,
+): string {
+  const mkdirSync = deps?.mkdirSync ?? fs.mkdirSync;
+  const writeFileSync = deps?.writeFileSync ?? fs.writeFileSync;
+  const releaseNotesPath = path.join(cwd, RELEASE_NOTES_PATH);
+
+  mkdirSync(path.dirname(releaseNotesPath), { recursive: true });
+  writeFileSync(releaseNotesPath, renderReleaseNotes(changes), 'utf8');
+  return releaseNotesPath;
+}
+
+export function writeChangelogArtifacts(options?: ChangelogOptions): {
+  deletedFragmentPaths: string[];
+  outputPaths: string[];
+  releaseNotesPath: string;
+} {
+  const cwd = options?.cwd ?? process.cwd();
+  const existsSync = options?.deps?.existsSync ?? fs.existsSync;
+  const mkdirSync = options?.deps?.mkdirSync ?? fs.mkdirSync;
+  const readFileSync = options?.deps?.readFileSync ?? fs.readFileSync;
+  const rmSync = options?.deps?.rmSync ?? fs.rmSync;
+  const writeFileSync = options?.deps?.writeFileSync ?? fs.writeFileSync;
+  const log = options?.deps?.log ?? console.log;
+  const version = resolveVersion(options ?? {});
+  const date = resolveDate(options?.date);
+  const fragments = readChangeFragments(cwd, options?.deps);
+  const releaseSection = buildReleaseSection(version, date, fragments);
+  const existingChangelogPath = path.join(cwd, 'CHANGELOG.md');
+  const existingChangelog = existsSync(existingChangelogPath)
+    ? readFileSync(existingChangelogPath, 'utf8')
+    : '';
+  const outputPaths = resolveChangelogOutputPaths({ cwd });
+  const nextChangelog = prependReleaseSection(existingChangelog, releaseSection, version);
+
+  for (const outputPath of outputPaths) {
+    mkdirSync(path.dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, nextChangelog, 'utf8');
+    log(`Updated ${outputPath}`);
+  }
+
+  const releaseNotesPath = writeReleaseNotesFile(
+    cwd,
+    extractReleaseSectionBody(nextChangelog, version) ?? releaseSection,
+    options?.deps,
+  );
+  log(`Generated ${releaseNotesPath}`);
+
+  for (const fragment of fragments) {
+    rmSync(fragment.path);
+    log(`Removed ${fragment.path}`);
+  }
+
+  return {
+    deletedFragmentPaths: fragments.map((fragment) => fragment.path),
+    outputPaths,
+    releaseNotesPath,
+  };
+}
+
+export function verifyChangelogFragments(options?: ChangelogOptions): void {
+  readChangeFragments(options?.cwd ?? process.cwd(), options?.deps);
+}
+
+export function verifyChangelogReadyForRelease(options?: ChangelogOptions): void {
+  const cwd = options?.cwd ?? process.cwd();
+  const readFileSync = options?.deps?.readFileSync ?? fs.readFileSync;
+  const version = resolveVersion(options ?? {});
+  const pendingFragments = resolveFragmentPaths(cwd, options?.deps);
+  if (pendingFragments.length > 0) {
+    throw new Error(`Pending changelog fragments must be released first: ${pendingFragments.join(', ')}`);
+  }
+
+  const changelogPath = path.join(cwd, 'CHANGELOG.md');
+  if (!(options?.deps?.existsSync ?? fs.existsSync)(changelogPath)) {
+    throw new Error(`Missing ${changelogPath}`);
+  }
+
+  const changelog = readFileSync(changelogPath, 'utf8');
+  if (extractReleaseSectionBody(changelog, version) === null) {
+    throw new Error(`Missing CHANGELOG section for v${version}.`);
+  }
+}
+
+function isFragmentPath(candidate: string): boolean {
+  return /^changes\/.+\.md$/u.test(candidate) && !/\/?README\.md$/iu.test(candidate);
+}
+
+function isIgnoredPullRequestPath(candidate: string): boolean {
+  return (
+    candidate === 'CHANGELOG.md'
+    || candidate === 'release/release-notes.md'
+    || candidate === 'AGENTS.md'
+    || candidate === 'README.md'
+    || candidate.startsWith('changes/')
+    || candidate.startsWith('docs/')
+    || candidate.startsWith('.github/')
+    || candidate.startsWith('backlog/')
+  );
+}
+
+export function verifyPullRequestChangelog(options: PullRequestChangelogOptions): void {
+  const labels = (options.changedLabels ?? []).map((label) => label.trim()).filter(Boolean);
+  if (labels.includes(SKIP_CHANGELOG_LABEL)) {
+    return;
+  }
+
+  const normalizedEntries = options.changedEntries
+    .map((entry) => ({
+      path: entry.path.trim(),
+      status: entry.status.trim().toUpperCase(),
+    }))
+    .filter((entry) => entry.path);
+  if (normalizedEntries.length === 0) {
+    return;
+  }
+
+  const hasFragment = normalizedEntries.some(
+    (entry) => entry.status !== 'D' && isFragmentPath(entry.path),
+  );
+  const requiresFragment = normalizedEntries.some(
+    (entry) => !isIgnoredPullRequestPath(entry.path),
+  );
+
+  if (requiresFragment && !hasFragment) {
+    throw new Error(
+      `This pull request changes release-relevant files and requires a changelog fragment under changes/ or the ${SKIP_CHANGELOG_LABEL} label.`,
+    );
+  }
+}
+
+function resolveChangedPathsFromGit(
+  cwd: string,
+  baseRef: string,
+  headRef: string,
+): Array<{ path: string; status: string }> {
+  const output = execFileSync('git', ['diff', '--name-status', `${baseRef}...${headRef}`], {
+    cwd,
+    encoding: 'utf8',
+  });
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [status = '', ...paths] = line.split(/\s+/);
+      return {
+        path: paths[paths.length - 1] ?? '',
+        status,
+      };
+    })
+    .filter((entry) => entry.path);
+}
+
+export function writeReleaseNotesForVersion(options?: ChangelogOptions): string {
+  const cwd = options?.cwd ?? process.cwd();
+  const readFileSync = options?.deps?.readFileSync ?? fs.readFileSync;
+  const version = resolveVersion(options ?? {});
+  const changelogPath = path.join(cwd, 'CHANGELOG.md');
+  const changelog = readFileSync(changelogPath, 'utf8');
+  const changes = extractReleaseSectionBody(changelog, version);
+
+  if (changes === null) {
+    throw new Error(`Missing CHANGELOG section for v${version}.`);
+  }
+
+  return writeReleaseNotesFile(cwd, changes, options?.deps);
+}
+
+function parseCliArgs(argv: string[]): {
+  baseRef?: string;
+  cwd?: string;
+  date?: string;
+  headRef?: string;
+  labels?: string;
+  version?: string;
+} {
+  const parsed: {
+    baseRef?: string;
+    cwd?: string;
+    date?: string;
+    headRef?: string;
+    labels?: string;
+    version?: string;
+  } = {};
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const current = argv[index];
+    const next = argv[index + 1];
+
+    if (current === '--cwd' && next) {
+      parsed.cwd = next;
+      index += 1;
+      continue;
+    }
+
+    if (current === '--date' && next) {
+      parsed.date = next;
+      index += 1;
+      continue;
+    }
+
+    if (current === '--version' && next) {
+      parsed.version = next;
+      index += 1;
+      continue;
+    }
+
+    if (current === '--base-ref' && next) {
+      parsed.baseRef = next;
+      index += 1;
+      continue;
+    }
+
+    if (current === '--head-ref' && next) {
+      parsed.headRef = next;
+      index += 1;
+      continue;
+    }
+
+    if (current === '--labels' && next) {
+      parsed.labels = next;
+      index += 1;
+    }
+  }
+
+  return parsed;
+}
+
+function main(): void {
+  const [command = 'build', ...argv] = process.argv.slice(2);
+  const options = parseCliArgs(argv);
+
+  if (command === 'build') {
+    writeChangelogArtifacts(options);
+    return;
+  }
+
+  if (command === 'check') {
+    verifyChangelogReadyForRelease(options);
+    return;
+  }
+
+  if (command === 'lint') {
+    verifyChangelogFragments(options);
+    return;
+  }
+
+  if (command === 'pr-check') {
+    verifyChangelogFragments(options);
+    verifyPullRequestChangelog({
+      changedLabels: options.labels?.split(',') ?? [],
+      changedEntries: resolveChangedPathsFromGit(
+        options.cwd ?? process.cwd(),
+        options.baseRef ?? 'origin/main',
+        options.headRef ?? 'HEAD',
+      ),
+    });
+    return;
+  }
+
+  if (command === 'release-notes') {
+    writeReleaseNotesForVersion(options);
+    return;
+  }
+
+  throw new Error(`Unknown changelog command: ${command}`);
+}
+
+if (require.main === module) {
+  main();
+}

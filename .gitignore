@@ -37,4 +37,3 @@ tests/*
 .worktrees/
 .codex/*
 .agents/*
-docs/*

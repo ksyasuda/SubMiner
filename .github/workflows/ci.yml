@@ -13,6 +13,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           submodules: true
 
       - name: Setup Bun
@@ -38,6 +39,13 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Lint changelog fragments
+        run: bun run changelog:lint
+
+      - name: Enforce pull request changelog fragments (`skip-changelog` label bypass)
+        if: github.event_name == 'pull_request'
+        run: bun run changelog:pr-check --base-ref "origin/${{ github.base_ref }}" --head-ref "HEAD" --labels "${{ join(github.event.pull_request.labels.*.name, ',') }}"
 
       - name: Build (TypeScript check)
         # Keep explicit typecheck for fast fail before full build/bundle.

@@ -281,23 +281,11 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -n "$PREV_TAG" ]; then
-            CHANGES=$(git log --pretty=format:"- %s" ${PREV_TAG}..HEAD)
-          else
-            COMMIT_COUNT=$(git rev-list --count HEAD)
-            if [ "$COMMIT_COUNT" -gt 10 ]; then
-              CHANGES=$(git log --pretty=format:"- %s" HEAD~10..HEAD)
-            else
-              CHANGES=$(git log --pretty=format:"- %s")
-            fi
-          fi
-          echo "CHANGES<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Verify changelog is ready for tagged release
+        run: bun run changelog:check --version "${{ steps.version.outputs.VERSION }}"
+
+      - name: Generate release notes from changelog
+        run: bun run changelog:release-notes --version "${{ steps.version.outputs.VERSION }}"
 
       - name: Publish Release
         env:
@@ -305,46 +293,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          cat > release-body.md <<'EOF'
-          ## Changes
-          ${{ steps.changelog.outputs.CHANGES }}
-
-          ## Installation
-
-          ### AppImage (Recommended)
-          1. Download the AppImage below
-          2. Make it executable: `chmod +x SubMiner.AppImage`
-          3. Run: `./SubMiner.AppImage`
-
-          ### macOS
-          1. Download `subminer-*.dmg`
-          2. Open the DMG and drag `SubMiner.app` into `/Applications`
-          3. If needed, use the ZIP artifact as an alternative
-
-          ### Manual Installation
-          See the [README](https://github.com/${{ github.repository }}#installation) for manual installation instructions.
-
-          ### Optional Assets (config example + mpv plugin + rofi theme)
-          1. Download `subminer-assets.tar.gz`
-          2. Extract and copy `config.example.jsonc` to `~/.config/SubMiner/config.jsonc`
-          3. Copy `plugin/subminer/` directory contents to `~/.config/mpv/scripts/`
-          4. Copy `plugin/subminer.conf` to `~/.config/mpv/script-opts/`
-          5. Copy `assets/themes/subminer.rasi` to:
-             - Linux: `~/.local/share/SubMiner/themes/subminer.rasi`
-             - macOS: `~/Library/Application Support/SubMiner/themes/subminer.rasi`
-
-          Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.
-          EOF
-
           if gh release view "${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
             # Do not pass the prerelease flag here; gh defaults to a normal release.
             gh release edit "${{ steps.version.outputs.VERSION }}" \
               --title "${{ steps.version.outputs.VERSION }}" \
-              --notes-file release-body.md
+              --notes-file release/release-notes.md
           else
             gh release create "${{ steps.version.outputs.VERSION }}" \
               --title "${{ steps.version.outputs.VERSION }}" \
-              --notes-file release-body.md
+              --notes-file release/release-notes.md
           fi
 
           shopt -s nullglob
