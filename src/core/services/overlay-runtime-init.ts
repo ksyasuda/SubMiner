@@ -101,6 +101,9 @@ export function initializeOverlayRuntime(options: {
       }
       options.syncOverlayShortcuts();
     };
+    windowTracker.onWindowFocusChange = () => {
+      options.syncOverlayShortcuts();
+    };
     windowTracker.start();
   }
 

@@ -6,10 +6,24 @@ import { parsePluginRuntimeConfigContent } from './config/plugin-runtime-config.
 
 test('parseLauncherYoutubeSubgenConfig keeps only valid typed values', () => {
   const parsed = parseLauncherYoutubeSubgenConfig({
+    ai: {
+      enabled: true,
+      apiKey: 'shared-key',
+      baseUrl: 'https://openrouter.ai/api',
+      model: 'openrouter/shared-model',
+      systemPrompt: 'Legacy shared prompt.',
+      requestTimeoutMs: 12000,
+    },
     youtubeSubgen: {
-      mode: 'preprocess',
       whisperBin: '/usr/bin/whisper',
       whisperModel: '/models/base.bin',
+      whisperVadModel: '/models/vad.bin',
+      whisperThreads: 6.8,
+      fixWithAi: true,
+      ai: {
+        model: 'openrouter/subgen-model',
+        systemPrompt: 'Fix subtitles only.',
+      },
       primarySubLanguages: ['ja', 42, 'en'],
     },
     secondarySub: {
@@ -24,9 +38,17 @@ test('parseLauncherYoutubeSubgenConfig keeps only valid typed values', () => {
     },
   });
 
-  assert.equal(parsed.mode, 'preprocess');
+  assert.equal('mode' in parsed, false);
   assert.deepEqual(parsed.primarySubLanguages, ['ja', 'en']);
   assert.deepEqual(parsed.secondarySubLanguages, ['eng', 'deu']);
+  assert.equal(parsed.whisperVadModel, '/models/vad.bin');
+  assert.equal(parsed.whisperThreads, 6);
+  assert.equal(parsed.fixWithAi, true);
+  assert.equal(parsed.ai?.enabled, true);
+  assert.equal(parsed.ai?.apiKey, 'shared-key');
+  assert.equal(parsed.ai?.model, 'openrouter/subgen-model');
+  assert.equal(parsed.ai?.systemPrompt, 'Fix subtitles only.');
+  assert.equal(parsed.ai?.requestTimeoutMs, 12000);
   assert.equal(parsed.jimakuLanguagePreference, 'ja');
   assert.equal(parsed.jimakuMaxEntryResults, 8);
 });

@@ -34,6 +34,13 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, false);
   assert.equal(config.jellyfin.remoteControlDeviceName, 'SubMiner');
+  assert.equal(config.ai.enabled, false);
+  assert.equal(config.ai.apiKeyCommand, '');
+  assert.deepEqual(config.ankiConnect.ai, {
+    enabled: false,
+    model: '',
+    systemPrompt: '',
+  });
   assert.equal(config.startupWarmups.lowPowerMode, false);
   assert.equal(config.startupWarmups.mecab, true);
   assert.equal(config.startupWarmups.yomitanExtension, true);
@@ -1068,12 +1075,20 @@ test('parses global shortcuts and startup settings', () => {
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
+      "ai": {
+        "enabled": true,
+        "apiKeyCommand": "pass show subminer/ai",
+        "model": "openai/gpt-4o-mini"
+      },
       "shortcuts": {
         "toggleVisibleOverlayGlobal": "Alt+Shift+U",
         "openJimaku": "Ctrl+Alt+J"
       },
       "youtubeSubgen": {
-        "primarySubLanguages": ["ja", "jpn", "jp"]
+        "primarySubLanguages": ["ja", "jpn", "jp"],
+        "whisperVadModel": "/models/vad.bin",
+        "whisperThreads": 12,
+        "fixWithAi": true
       }
     }`,
     'utf-8',
@@ -1081,9 +1096,14 @@ test('parses global shortcuts and startup settings', () => {
 
   const service = new ConfigService(dir);
   const config = service.getConfig();
+  assert.equal(config.ai.enabled, true);
+  assert.equal(config.ai.apiKeyCommand, 'pass show subminer/ai');
   assert.equal(config.shortcuts.toggleVisibleOverlayGlobal, 'Alt+Shift+U');
   assert.equal(config.shortcuts.openJimaku, 'Ctrl+Alt+J');
   assert.deepEqual(config.youtubeSubgen.primarySubLanguages, ['ja', 'jpn', 'jp']);
+  assert.equal(config.youtubeSubgen.whisperVadModel, '/models/vad.bin');
+  assert.equal(config.youtubeSubgen.whisperThreads, 12);
+  assert.equal(config.youtubeSubgen.fixWithAi, true);
 });
 
 test('runtime options registry is centralized', () => {
@@ -1324,14 +1344,86 @@ test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {
   );
 });
 
-test('warns when ankiConnect.openRouter is used and migrates to ai', () => {
+test('accepts top-level ai config', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ai": {
+        "enabled": true,
+        "apiKey": "abc123",
+        "apiKeyCommand": "pass show subminer/ai",
+        "baseUrl": "https://openrouter.ai/api",
+        "model": "openrouter/test-model",
+        "systemPrompt": "Return only fixed subtitles.",
+        "requestTimeoutMs": 20000
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  assert.equal(config.ai.enabled, true);
+  assert.equal(config.ai.apiKey, 'abc123');
+  assert.equal(config.ai.apiKeyCommand, 'pass show subminer/ai');
+  assert.equal(config.ai.baseUrl, 'https://openrouter.ai/api');
+  assert.equal(config.ai.model, 'openrouter/test-model');
+  assert.equal(config.ai.systemPrompt, 'Return only fixed subtitles.');
+  assert.equal(config.ai.requestTimeoutMs, 20000);
+});
+
+test('accepts per-feature ai overrides for anki and youtube subtitle generation', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ai": {
+        "enabled": true,
+        "apiKeyCommand": "pass show subminer/ai",
+        "baseUrl": "https://openrouter.ai/api",
+        "model": "openrouter/shared-model",
+        "systemPrompt": "Legacy shared prompt."
+      },
+      "ankiConnect": {
+        "ai": {
+          "enabled": true,
+          "model": "openrouter/anki-model",
+          "systemPrompt": "Translate mined sentence text."
+        }
+      },
+      "youtubeSubgen": {
+        "ai": {
+          "model": "openrouter/subgen-model",
+          "systemPrompt": "Fix subtitle mistakes only."
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.ai.enabled, true);
+  assert.equal(config.ai.model, 'openrouter/shared-model');
+  assert.equal(config.ankiConnect.ai.enabled, true);
+  assert.equal(config.ankiConnect.ai.model, 'openrouter/anki-model');
+  assert.equal(config.ankiConnect.ai.systemPrompt, 'Translate mined sentence text.');
+  assert.equal(config.youtubeSubgen.ai.model, 'openrouter/subgen-model');
+  assert.equal(config.youtubeSubgen.ai.systemPrompt, 'Fix subtitle mistakes only.');
+});
+
+test('warns and falls back when ankiConnect.ai override values are invalid', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
-        "openRouter": {
-          "model": "openrouter/test-model"
+        "ai": {
+          "enabled": "yes",
+          "model": 123,
+          "systemPrompt": true
         }
       }
     }`,
@@ -1342,13 +1434,10 @@ test('warns when ankiConnect.openRouter is used and migrates to ai', () => {
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
-  assert.equal((config.ankiConnect.ai as Record<string, unknown>).model, 'openrouter/test-model');
-  assert.ok(
-    warnings.some(
-      (warning) =>
-        warning.path === 'ankiConnect.openRouter' && warning.message.includes('ankiConnect.ai'),
-    ),
-  );
+  assert.deepEqual(config.ankiConnect.ai, DEFAULT_CONFIG.ankiConnect.ai);
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.ai.enabled'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.ai.model'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.ai.systemPrompt'));
 });
 
 test('falls back and warns when legacy ankiConnect migration values are invalid', () => {
@@ -1547,6 +1636,7 @@ test('falls back to default when ankiConnect n+1 deck list is invalid', () => {
 
 test('template generator includes known keys', () => {
   const output = generateConfigTemplate(DEFAULT_CONFIG);
+  assert.match(output, /"ai":/);
   assert.match(output, /"ankiConnect":/);
   assert.match(output, /"logging":/);
   assert.match(output, /"websocket":/);
@@ -1576,6 +1666,31 @@ test('template generator includes known keys', () => {
   assert.match(
     output,
     /"enabled": false,? \/\/ Enable AnkiConnect integration\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"enabled": false,? \/\/ Enable AI provider usage for Anki translation\/enrichment flows\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"model": "",? \/\/ Optional model override for Anki AI translation\/enrichment flows\./,
+  );
+  assert.match(
+    output,
+    /"enabled": false,? \/\/ Enable shared OpenAI-compatible AI provider features\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"fixWithAi": false,? \/\/ Use shared AI provider to post-process whisper-generated YouTube subtitles\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"systemPrompt": "",? \/\/ Optional system prompt override for YouTube subtitle AI post-processing\./,
+  );
+  assert.doesNotMatch(output, /"mode": "automatic"/);
+  assert.match(
+    output,
+    /"whisperThreads": 4,? \/\/ Thread count passed to whisper\.cpp subtitle generation runs\./,
   );
   assert.match(
     output,

@@ -969,6 +969,8 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
       appState.shortcutsRegistered = registered;
     },
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+    isMacOSPlatform: () => process.platform === 'darwin',
+    isTrackedMpvWindowFocused: () => appState.windowTracker?.isFocused() ?? false,
     showMpvOsd: (text: string) => showMpvOsd(text),
     openRuntimeOptionsPalette: () => {
       openRuntimeOptionsPalette();

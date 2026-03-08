@@ -2,7 +2,7 @@ import { ResolvedConfig } from '../../types';
 
 export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   ResolvedConfig,
-  'ankiConnect' | 'jimaku' | 'anilist' | 'jellyfin' | 'discordPresence' | 'youtubeSubgen'
+  'ankiConnect' | 'jimaku' | 'anilist' | 'jellyfin' | 'discordPresence' | 'ai' | 'youtubeSubgen'
 > = {
   ankiConnect: {
     enabled: false,
@@ -24,13 +24,8 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     },
     ai: {
       enabled: false,
-      alwaysUseAiTranslation: false,
-      apiKey: '',
-      model: 'openai/gpt-4o-mini',
-      baseUrl: 'https://openrouter.ai/api',
-      targetLanguage: 'English',
-      systemPrompt:
-        'You are a translation engine. Return only the translated text with no explanations.',
+      model: '',
+      systemPrompt: '',
     },
     media: {
       generateAudio: true,
@@ -122,10 +117,26 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     updateIntervalMs: 3_000,
     debounceMs: 750,
   },
+  ai: {
+    enabled: false,
+    apiKey: '',
+    apiKeyCommand: '',
+    model: 'openai/gpt-4o-mini',
+    baseUrl: 'https://openrouter.ai/api',
+    systemPrompt:
+      'You are a translation engine. Return only the translated text with no explanations.',
+    requestTimeoutMs: 15_000,
+  },
   youtubeSubgen: {
-    mode: 'automatic',
     whisperBin: '',
     whisperModel: '',
+    whisperVadModel: '',
+    whisperThreads: 4,
+    fixWithAi: false,
+    ai: {
+      model: '',
+      systemPrompt: '',
+    },
     primarySubLanguages: ['ja', 'jpn'],
   },
 };

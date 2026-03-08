@@ -34,12 +34,7 @@ function checkDependencies(args: Args): void {
     missing.push('yt-dlp');
   }
 
-  if (
-    args.targetKind === 'url' &&
-    isYoutubeTarget(args.target) &&
-    args.youtubeSubgenMode !== 'off' &&
-    !commandExists('ffmpeg')
-  ) {
+  if (args.targetKind === 'url' && isYoutubeTarget(args.target) && !commandExists('ffmpeg')) {
     missing.push('ffmpeg');
   }
 
@@ -164,22 +159,28 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
   const isYoutubeUrl = selectedTarget.kind === 'url' && isYoutubeTarget(selectedTarget.target);
   let preloadedSubtitles: { primaryPath?: string; secondaryPath?: string } | undefined;
 
-  if (isYoutubeUrl && args.youtubeSubgenMode === 'preprocess') {
-    log('info', args.logLevel, 'YouTube subtitle mode: preprocess');
+  if (isYoutubeUrl) {
+    log('info', args.logLevel, 'YouTube subtitle generation: preload before mpv');
     const generated = await generateYoutubeSubtitles(selectedTarget.target, args);
     preloadedSubtitles = {
       primaryPath: generated.primaryPath,
       secondaryPath: generated.secondaryPath,
     };
+    const primaryStatus = generated.primaryPath
+      ? 'ready'
+      : generated.primaryNative
+        ? 'native'
+        : 'missing';
+    const secondaryStatus = generated.secondaryPath
+      ? 'ready'
+      : generated.secondaryNative
+        ? 'native'
+        : 'missing';
     log(
       'info',
       args.logLevel,
-      `YouTube preprocess result: primary=${generated.primaryPath ? 'ready' : 'missing'}, secondary=${generated.secondaryPath ? 'ready' : 'missing'}`,
+      `YouTube subtitle result: primary=${primaryStatus}, secondary=${secondaryStatus}`,
     );
-  } else if (isYoutubeUrl && args.youtubeSubgenMode === 'automatic') {
-    log('info', args.logLevel, 'YouTube subtitle mode: automatic (background)');
-  } else if (isYoutubeUrl) {
-    log('info', args.logLevel, 'YouTube subtitle mode: off');
   }
 
   const shouldPauseUntilOverlayReady =
@@ -200,26 +201,6 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     preloadedSubtitles,
     { startPaused: shouldPauseUntilOverlayReady },
   );
-
-  if (isYoutubeUrl && args.youtubeSubgenMode === 'automatic') {
-    void generateYoutubeSubtitles(selectedTarget.target, args, async (lang, subtitlePath) => {
-      try {
-        await loadSubtitleIntoMpv(mpvSocketPath, subtitlePath, lang === 'primary', args.logLevel);
-      } catch (error) {
-        log(
-          'warn',
-          args.logLevel,
-          `Generated subtitle ready but failed to load in mpv: ${(error as Error).message}`,
-        );
-      }
-    }).catch((error) => {
-      log(
-        'warn',
-        args.logLevel,
-        `Background subtitle generation failed: ${(error as Error).message}`,
-      );
-    });
-  }
 
   const ready = await waitForUnixSocketReady(mpvSocketPath, 10000);
   const pluginAutoStartEnabled = pluginRuntimeConfig.autoStart;

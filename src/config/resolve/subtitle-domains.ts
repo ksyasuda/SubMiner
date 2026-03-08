@@ -46,18 +46,6 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
   }
 
   if (isObject(src.youtubeSubgen)) {
-    const mode = src.youtubeSubgen.mode;
-    if (mode === 'automatic' || mode === 'preprocess' || mode === 'off') {
-      resolved.youtubeSubgen.mode = mode;
-    } else if (mode !== undefined) {
-      warn(
-        'youtubeSubgen.mode',
-        mode,
-        resolved.youtubeSubgen.mode,
-        'Expected automatic, preprocess, or off.',
-      );
-    }
-
     const whisperBin = asString(src.youtubeSubgen.whisperBin);
     if (whisperBin !== undefined) {
       resolved.youtubeSubgen.whisperBin = whisperBin;
@@ -79,6 +67,75 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
         src.youtubeSubgen.whisperModel,
         resolved.youtubeSubgen.whisperModel,
         'Expected string.',
+      );
+    }
+
+    const whisperVadModel = asString(src.youtubeSubgen.whisperVadModel);
+    if (whisperVadModel !== undefined) {
+      resolved.youtubeSubgen.whisperVadModel = whisperVadModel;
+    } else if (src.youtubeSubgen.whisperVadModel !== undefined) {
+      warn(
+        'youtubeSubgen.whisperVadModel',
+        src.youtubeSubgen.whisperVadModel,
+        resolved.youtubeSubgen.whisperVadModel,
+        'Expected string.',
+      );
+    }
+
+    const whisperThreads = asNumber(src.youtubeSubgen.whisperThreads);
+    if (whisperThreads !== undefined && Number.isInteger(whisperThreads) && whisperThreads > 0) {
+      resolved.youtubeSubgen.whisperThreads = whisperThreads;
+    } else if (src.youtubeSubgen.whisperThreads !== undefined) {
+      warn(
+        'youtubeSubgen.whisperThreads',
+        src.youtubeSubgen.whisperThreads,
+        resolved.youtubeSubgen.whisperThreads,
+        'Expected positive integer.',
+      );
+    }
+
+    const fixWithAi = asBoolean(src.youtubeSubgen.fixWithAi);
+    if (fixWithAi !== undefined) {
+      resolved.youtubeSubgen.fixWithAi = fixWithAi;
+    } else if (src.youtubeSubgen.fixWithAi !== undefined) {
+      warn(
+        'youtubeSubgen.fixWithAi',
+        src.youtubeSubgen.fixWithAi,
+        resolved.youtubeSubgen.fixWithAi,
+        'Expected boolean.',
+      );
+    }
+
+    if (isObject(src.youtubeSubgen.ai)) {
+      const aiModel = asString(src.youtubeSubgen.ai.model);
+      if (aiModel !== undefined) {
+        resolved.youtubeSubgen.ai.model = aiModel;
+      } else if (src.youtubeSubgen.ai.model !== undefined) {
+        warn(
+          'youtubeSubgen.ai.model',
+          src.youtubeSubgen.ai.model,
+          resolved.youtubeSubgen.ai.model,
+          'Expected string.',
+        );
+      }
+
+      const aiSystemPrompt = asString(src.youtubeSubgen.ai.systemPrompt);
+      if (aiSystemPrompt !== undefined) {
+        resolved.youtubeSubgen.ai.systemPrompt = aiSystemPrompt;
+      } else if (src.youtubeSubgen.ai.systemPrompt !== undefined) {
+        warn(
+          'youtubeSubgen.ai.systemPrompt',
+          src.youtubeSubgen.ai.systemPrompt,
+          resolved.youtubeSubgen.ai.systemPrompt,
+          'Expected string.',
+        );
+      }
+    } else if (src.youtubeSubgen.ai !== undefined) {
+      warn(
+        'youtubeSubgen.ai',
+        src.youtubeSubgen.ai,
+        resolved.youtubeSubgen.ai,
+        'Expected object.',
       );
     }
 

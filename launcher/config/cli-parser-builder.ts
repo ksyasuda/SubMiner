@@ -16,11 +16,12 @@ export interface JellyfinInvocation {
 
 export interface YtInvocation {
   target?: string;
-  mode?: string;
   outDir?: string;
   keepTemp?: boolean;
   whisperBin?: string;
   whisperModel?: string;
+  whisperVadModel?: string;
+  whisperThreads?: number;
   ytSubgenAudioFormat?: string;
   logLevel?: string;
 }
@@ -201,21 +202,27 @@ export function parseCliPrograms(
     .alias('youtube')
     .description('YouTube workflows')
     .argument('[target]', 'YouTube URL or ytsearch: query')
-    .option('-m, --mode <mode>', 'Subtitle generation mode')
     .option('-o, --out-dir <dir>', 'Subtitle output dir')
     .option('--keep-temp', 'Keep temp files')
     .option('--whisper-bin <path>', 'whisper.cpp CLI path')
     .option('--whisper-model <path>', 'whisper model path')
+    .option('--whisper-vad-model <path>', 'whisper.cpp VAD model path')
+    .option('--whisper-threads <n>', 'whisper.cpp thread count')
     .option('--yt-subgen-audio-format <format>', 'Audio extraction format')
     .option('--log-level <level>', 'Log level')
     .action((target: string | undefined, options: Record<string, unknown>) => {
       ytInvocation = {
         target,
-        mode: typeof options.mode === 'string' ? options.mode : undefined,
         outDir: typeof options.outDir === 'string' ? options.outDir : undefined,
         keepTemp: options.keepTemp === true,
         whisperBin: typeof options.whisperBin === 'string' ? options.whisperBin : undefined,
         whisperModel: typeof options.whisperModel === 'string' ? options.whisperModel : undefined,
+        whisperVadModel:
+          typeof options.whisperVadModel === 'string' ? options.whisperVadModel : undefined,
+        whisperThreads:
+          typeof options.whisperThreads === 'number' && Number.isFinite(options.whisperThreads)
+            ? Math.floor(options.whisperThreads)
+            : undefined,
         ytSubgenAudioFormat:
           typeof options.ytSubgenAudioFormat === 'string' ? options.ytSubgenAudioFormat : undefined,
         logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,

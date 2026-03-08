@@ -1,4 +1,5 @@
 import type { LauncherYoutubeSubgenConfig } from '../types.js';
+import { mergeAiConfig } from '../../src/ai/config.js';
 
 function asStringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
@@ -21,17 +22,58 @@ export function parseLauncherYoutubeSubgenConfig(
   const jimakuRaw = root.jimaku;
   const jimaku =
     jimakuRaw && typeof jimakuRaw === 'object' ? (jimakuRaw as Record<string, unknown>) : null;
+  const aiRaw = root.ai;
+  const ai = aiRaw && typeof aiRaw === 'object' ? (aiRaw as Record<string, unknown>) : null;
+  const youtubeAiRaw = youtubeSubgen?.ai;
+  const youtubeAi =
+    youtubeAiRaw && typeof youtubeAiRaw === 'object'
+      ? (youtubeAiRaw as Record<string, unknown>)
+      : null;
 
-  const mode = youtubeSubgen?.mode;
   const jimakuLanguagePreference = jimaku?.languagePreference;
   const jimakuMaxEntryResults = jimaku?.maxEntryResults;
 
   return {
-    mode: mode === 'automatic' || mode === 'preprocess' || mode === 'off' ? mode : undefined,
     whisperBin:
       typeof youtubeSubgen?.whisperBin === 'string' ? youtubeSubgen.whisperBin : undefined,
     whisperModel:
       typeof youtubeSubgen?.whisperModel === 'string' ? youtubeSubgen.whisperModel : undefined,
+    whisperVadModel:
+      typeof youtubeSubgen?.whisperVadModel === 'string'
+        ? youtubeSubgen.whisperVadModel
+        : undefined,
+    whisperThreads:
+      typeof youtubeSubgen?.whisperThreads === 'number' &&
+      Number.isFinite(youtubeSubgen.whisperThreads) &&
+      youtubeSubgen.whisperThreads > 0
+        ? Math.floor(youtubeSubgen.whisperThreads)
+        : undefined,
+    fixWithAi: typeof youtubeSubgen?.fixWithAi === 'boolean' ? youtubeSubgen.fixWithAi : undefined,
+    ai: mergeAiConfig(
+      ai
+        ? {
+            enabled: typeof ai.enabled === 'boolean' ? ai.enabled : undefined,
+            apiKey: typeof ai.apiKey === 'string' ? ai.apiKey : undefined,
+            apiKeyCommand: typeof ai.apiKeyCommand === 'string' ? ai.apiKeyCommand : undefined,
+            baseUrl: typeof ai.baseUrl === 'string' ? ai.baseUrl : undefined,
+            model: typeof ai.model === 'string' ? ai.model : undefined,
+            systemPrompt: typeof ai.systemPrompt === 'string' ? ai.systemPrompt : undefined,
+            requestTimeoutMs:
+              typeof ai.requestTimeoutMs === 'number' &&
+              Number.isFinite(ai.requestTimeoutMs) &&
+              ai.requestTimeoutMs > 0
+                ? Math.floor(ai.requestTimeoutMs)
+                : undefined,
+          }
+        : undefined,
+      youtubeAi
+        ? {
+            model: typeof youtubeAi.model === 'string' ? youtubeAi.model : undefined,
+            systemPrompt:
+              typeof youtubeAi.systemPrompt === 'string' ? youtubeAi.systemPrompt : undefined,
+          }
+        : undefined,
+    ),
     primarySubLanguages: asStringArray(youtubeSubgen?.primarySubLanguages),
     secondarySubLanguages: asStringArray(secondarySub?.secondarySubLanguages),
     jimakuApiKey: typeof jimaku?.apiKey === 'string' ? jimaku.apiKey : undefined,

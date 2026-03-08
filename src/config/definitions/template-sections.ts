@@ -92,10 +92,18 @@ const SUBTITLE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
 
 const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
+    title: 'Shared AI Provider',
+    description: [
+      'Canonical OpenAI-compatible provider transport settings shared by Anki and YouTube subtitle fixing.',
+    ],
+    key: 'ai',
+  },
+  {
     title: 'AnkiConnect Integration',
     description: ['Automatic Anki updates and media generation options.'],
     notes: [
-      'Hot-reload: AI translation settings update live while SubMiner is running.',
+      'Hot-reload: ankiConnect.ai.enabled updates live while SubMiner is running.',
+      'Shared AI provider transport settings are read from top-level ai and typically require restart.',
       'Most other AnkiConnect settings still require restart.',
     ],
     key: 'ankiConnect',
@@ -107,7 +115,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   },
   {
     title: 'YouTube Subtitle Generation',
-    description: ['Defaults for subminer YouTube subtitle extraction/transcription mode.'],
+    description: ['Defaults for SubMiner YouTube subtitle generation.'],
     key: 'youtubeSubgen',
   },
   {

@@ -227,24 +227,7 @@ export interface AnkiConnectConfig {
     miscInfo?: string;
     translation?: string;
   };
-  ai?: {
-    enabled?: boolean;
-    alwaysUseAiTranslation?: boolean;
-    apiKey?: string;
-    model?: string;
-    baseUrl?: string;
-    targetLanguage?: string;
-    systemPrompt?: string;
-  };
-  openRouter?: {
-    enabled?: boolean;
-    alwaysUseAiTranslation?: boolean;
-    apiKey?: string;
-    model?: string;
-    baseUrl?: string;
-    targetLanguage?: string;
-    systemPrompt?: string;
-  };
+  ai?: boolean | AiFeatureConfig;
   media?: {
     generateAudio?: boolean;
     generateImage?: boolean;
@@ -455,12 +438,29 @@ export interface DiscordPresenceConfig {
   debounceMs?: number;
 }
 
-export type YoutubeSubgenMode = 'automatic' | 'preprocess' | 'off';
+export interface AiFeatureConfig {
+  enabled?: boolean;
+  model?: string;
+  systemPrompt?: string;
+}
+
+export interface AiConfig {
+  enabled?: boolean;
+  apiKey?: string;
+  apiKeyCommand?: string;
+  baseUrl?: string;
+  model?: string;
+  systemPrompt?: string;
+  requestTimeoutMs?: number;
+}
 
 export interface YoutubeSubgenConfig {
-  mode?: YoutubeSubgenMode;
   whisperBin?: string;
   whisperModel?: string;
+  whisperVadModel?: string;
+  whisperThreads?: number;
+  fixWithAi?: boolean;
+  ai?: AiFeatureConfig;
   primarySubLanguages?: string[];
 }
 
@@ -498,6 +498,7 @@ export interface Config {
   anilist?: AnilistConfig;
   jellyfin?: JellyfinConfig;
   discordPresence?: DiscordPresenceConfig;
+  ai?: AiConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
   logging?: {
@@ -531,14 +532,8 @@ export interface ResolvedConfig {
       miscInfo: string;
       translation: string;
     };
-    ai: {
+    ai: AiFeatureConfig & {
       enabled: boolean;
-      alwaysUseAiTranslation: boolean;
-      apiKey: string;
-      model: string;
-      baseUrl: string;
-      targetLanguage: string;
-      systemPrompt: string;
     };
     media: {
       generateAudio: boolean;
@@ -649,10 +644,22 @@ export interface ResolvedConfig {
     updateIntervalMs: number;
     debounceMs: number;
   };
+  ai: AiConfig & {
+    enabled: boolean;
+    apiKey: string;
+    apiKeyCommand: string;
+    baseUrl: string;
+    model: string;
+    systemPrompt: string;
+    requestTimeoutMs: number;
+  };
   youtubeSubgen: YoutubeSubgenConfig & {
-    mode: YoutubeSubgenMode;
     whisperBin: string;
     whisperModel: string;
+    whisperVadModel: string;
+    whisperThreads: number;
+    fixWithAi: boolean;
+    ai: AiFeatureConfig;
     primarySubLanguages: string[];
   };
   immersionTracking: {

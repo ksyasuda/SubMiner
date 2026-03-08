@@ -42,9 +42,18 @@ export const DEFAULT_MPV_SUBMINER_ARGS = [
 ] as const;
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-export type YoutubeSubgenMode = 'automatic' | 'preprocess' | 'off';
 export type Backend = 'auto' | 'hyprland' | 'x11' | 'macos';
 export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
+
+export interface LauncherAiConfig {
+  enabled?: boolean;
+  apiKey?: string;
+  apiKeyCommand?: string;
+  baseUrl?: string;
+  model?: string;
+  systemPrompt?: string;
+  requestTimeoutMs?: number;
+}
 
 export interface Args {
   backend: Backend;
@@ -52,16 +61,19 @@ export interface Args {
   recursive: boolean;
   profile: string;
   startOverlay: boolean;
-  youtubeSubgenMode: YoutubeSubgenMode;
   whisperBin: string;
   whisperModel: string;
+  whisperVadModel: string;
+  whisperThreads: number;
   youtubeSubgenOutDir: string;
   youtubeSubgenAudioFormat: string;
   youtubeSubgenKeepTemp: boolean;
+  youtubeFixWithAi: boolean;
   youtubePrimarySubLangs: string[];
   youtubeSecondarySubLangs: string[];
   youtubeAudioLangs: string[];
   youtubeWhisperSourceLanguage: string;
+  aiConfig: LauncherAiConfig;
   useTexthooker: boolean;
   autoStartOverlay: boolean;
   texthookerOnly: boolean;
@@ -96,9 +108,12 @@ export interface Args {
 }
 
 export interface LauncherYoutubeSubgenConfig {
-  mode?: YoutubeSubgenMode;
   whisperBin?: string;
   whisperModel?: string;
+  whisperVadModel?: string;
+  whisperThreads?: number;
+  fixWithAi?: boolean;
+  ai?: LauncherAiConfig;
   primarySubLanguages?: string[];
   secondarySubLanguages?: string[];
   jimakuApiKey?: string;
@@ -144,13 +159,15 @@ export interface SubtitleCandidate {
   lang: 'primary' | 'secondary';
   ext: string;
   size: number;
-  source: 'manual' | 'auto' | 'whisper' | 'whisper-translate';
+  source: 'manual' | 'whisper' | 'whisper-fixed' | 'whisper-translate' | 'whisper-translate-fixed';
 }
 
 export interface YoutubeSubgenOutputs {
   basename: string;
   primaryPath?: string;
   secondaryPath?: string;
+  primaryNative?: boolean;
+  secondaryNative?: boolean;
 }
 
 export interface MpvTrack {

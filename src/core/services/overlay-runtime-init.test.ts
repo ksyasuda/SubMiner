@@ -108,3 +108,49 @@ test('initializeOverlayRuntime starts Anki integration when ankiConnect.enabled 
   assert.equal(startedIntegrations, 1);
   assert.equal(setIntegrationCalls, 1);
 });
+
+test('initializeOverlayRuntime re-syncs overlay shortcuts when tracker focus changes', () => {
+  let syncCalls = 0;
+  const tracker = {
+    onGeometryChange: null as ((...args: unknown[]) => void) | null,
+    onWindowFound: null as ((...args: unknown[]) => void) | null,
+    onWindowLost: null as (() => void) | null,
+    onWindowFocusChange: null as ((focused: boolean) => void) | null,
+    start: () => {},
+  };
+
+  initializeOverlayRuntime({
+    backendOverride: null,
+    createMainWindow: () => {},
+    registerGlobalShortcuts: () => {},
+    updateVisibleOverlayBounds: () => {},
+    isVisibleOverlayVisible: () => false,
+    updateVisibleOverlayVisibility: () => {},
+    getOverlayWindows: () => [],
+    syncOverlayShortcuts: () => {
+      syncCalls += 1;
+    },
+    setWindowTracker: () => {},
+    getMpvSocketPath: () => '/tmp/mpv.sock',
+    createWindowTracker: () => tracker as never,
+    getResolvedConfig: () => ({
+      ankiConnect: { enabled: false } as never,
+    }),
+    getSubtitleTimingTracker: () => null,
+    getMpvClient: () => null,
+    getRuntimeOptionsManager: () => null,
+    setAnkiIntegration: () => {},
+    showDesktopNotification: () => {},
+    createFieldGroupingCallback: () => async () => ({
+      keepNoteId: 1,
+      deleteNoteId: 2,
+      deleteDuplicate: false,
+      cancelled: false,
+    }),
+    getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+  });
+
+  assert.equal(typeof tracker.onWindowFocusChange, 'function');
+  tracker.onWindowFocusChange?.(true);
+  assert.equal(syncCalls, 1);
+});

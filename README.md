@@ -27,7 +27,7 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 - **Dictionary lookups** — Yomitan popups on subtitles with hover or full keyboard-driven navigation; hover-aware auto-pause keeps playback in sync
 - **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and AI-powered translation
 - **Reading annotations** — N+1 targeting, frequency highlighting, and JLPT underlining while you watch
-- **Subtitle tools** — Jimaku downloads, alass/ffsubsync sync, and whisper.cpp transcription for YouTube with optional AI cleanup
+- **Subtitle tools** — Jimaku downloads, alass/ffsubsync sync, and YouTube subtitle generation via manual-track reuse plus whisper.cpp fallback with optional AI cleanup
 - **Texthooker** — Built-in texthooker page and annotated websocket API for external clients
 - **Immersion tracking** — SQLite-powered stats on watch time and mining activity
 - **Integrations** — Jellyfin remote playback, AniList episode progress, and AnkiConnect auto-enrichment

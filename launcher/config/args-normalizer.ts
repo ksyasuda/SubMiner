@@ -1,13 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fail } from '../log.js';
-import type {
-  Args,
-  Backend,
-  LauncherYoutubeSubgenConfig,
-  LogLevel,
-  YoutubeSubgenMode,
-} from '../types.js';
+import type { Args, Backend, LauncherYoutubeSubgenConfig, LogLevel } from '../types.js';
 import {
   DEFAULT_JIMAKU_API_BASE_URL,
   DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS,
@@ -54,14 +48,6 @@ function parseLogLevel(value: string): LogLevel {
   fail(`Invalid log level: ${value} (must be debug, info, warn, or error)`);
 }
 
-function parseYoutubeMode(value: string): YoutubeSubgenMode {
-  const normalized = value.toLowerCase();
-  if (normalized === 'automatic' || normalized === 'preprocess' || normalized === 'off') {
-    return normalized as YoutubeSubgenMode;
-  }
-  fail(`Invalid yt-subgen mode: ${value} (must be automatic, preprocess, or off)`);
-}
-
 function parseBackend(value: string): Backend {
   if (value === 'auto' || value === 'hyprland' || value === 'x11' || value === 'macos') {
     return value as Backend;
@@ -91,13 +77,6 @@ function parseDictionaryTarget(value: string): string {
 }
 
 export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): Args {
-  const envMode = (process.env.SUBMINER_YT_SUBGEN_MODE || '').toLowerCase();
-  const defaultMode: YoutubeSubgenMode =
-    envMode === 'preprocess' || envMode === 'off' || envMode === 'automatic'
-      ? (envMode as YoutubeSubgenMode)
-      : launcherConfig.mode
-        ? launcherConfig.mode
-        : 'automatic';
   const configuredSecondaryLangs = uniqueNormalizedLangCodes(
     launcherConfig.secondarySubLanguages ?? [],
   );
@@ -120,12 +99,18 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     recursive: false,
     profile: 'subminer',
     startOverlay: false,
-    youtubeSubgenMode: defaultMode,
     whisperBin: process.env.SUBMINER_WHISPER_BIN || launcherConfig.whisperBin || '',
     whisperModel: process.env.SUBMINER_WHISPER_MODEL || launcherConfig.whisperModel || '',
+    whisperVadModel: process.env.SUBMINER_WHISPER_VAD_MODEL || launcherConfig.whisperVadModel || '',
+    whisperThreads: (() => {
+      const envValue = Number.parseInt(process.env.SUBMINER_WHISPER_THREADS || '', 10);
+      if (Number.isInteger(envValue) && envValue > 0) return envValue;
+      return launcherConfig.whisperThreads || 4;
+    })(),
     youtubeSubgenOutDir: process.env.SUBMINER_YT_SUBGEN_OUT_DIR || DEFAULT_YOUTUBE_SUBGEN_OUT_DIR,
     youtubeSubgenAudioFormat: process.env.SUBMINER_YT_SUBGEN_AUDIO_FORMAT || 'm4a',
     youtubeSubgenKeepTemp: process.env.SUBMINER_YT_SUBGEN_KEEP_TEMP === '1',
+    youtubeFixWithAi: launcherConfig.fixWithAi === true,
     jimakuApiKey: process.env.SUBMINER_JIMAKU_API_KEY || '',
     jimakuApiKeyCommand: process.env.SUBMINER_JIMAKU_API_KEY_COMMAND || '',
     jimakuApiBaseUrl: process.env.SUBMINER_JIMAKU_API_BASE_URL || DEFAULT_JIMAKU_API_BASE_URL,
@@ -152,6 +137,15 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     youtubeSecondarySubLangs: secondarySubLangs,
     youtubeAudioLangs,
     youtubeWhisperSourceLanguage: inferWhisperLanguage(primarySubLangs, 'ja'),
+    aiConfig: {
+      enabled: launcherConfig.ai?.enabled,
+      apiKey: launcherConfig.ai?.apiKey,
+      apiKeyCommand: launcherConfig.ai?.apiKeyCommand,
+      baseUrl: launcherConfig.ai?.baseUrl,
+      model: launcherConfig.ai?.model,
+      systemPrompt: launcherConfig.ai?.systemPrompt,
+      requestTimeoutMs: launcherConfig.ai?.requestTimeoutMs,
+    },
     useTexthooker: true,
     autoStartOverlay: false,
     texthookerOnly: false,
@@ -242,8 +236,6 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
   if (invocations.ytInvocation) {
     if (invocations.ytInvocation.logLevel)
       parsed.logLevel = parseLogLevel(invocations.ytInvocation.logLevel);
-    if (invocations.ytInvocation.mode)
-      parsed.youtubeSubgenMode = parseYoutubeMode(invocations.ytInvocation.mode);
     if (invocations.ytInvocation.outDir)
       parsed.youtubeSubgenOutDir = invocations.ytInvocation.outDir;
     if (invocations.ytInvocation.keepTemp) parsed.youtubeSubgenKeepTemp = true;
@@ -251,6 +243,10 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
       parsed.whisperBin = invocations.ytInvocation.whisperBin;
     if (invocations.ytInvocation.whisperModel)
       parsed.whisperModel = invocations.ytInvocation.whisperModel;
+    if (invocations.ytInvocation.whisperVadModel)
+      parsed.whisperVadModel = invocations.ytInvocation.whisperVadModel;
+    if (invocations.ytInvocation.whisperThreads)
+      parsed.whisperThreads = invocations.ytInvocation.whisperThreads;
     if (invocations.ytInvocation.ytSubgenAudioFormat) {
       parsed.youtubeSubgenAudioFormat = invocations.ytInvocation.ytSubgenAudioFormat;
     }
