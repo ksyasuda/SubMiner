@@ -337,15 +337,14 @@ jobs:
           EOF
 
           if gh release view "${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
+            # Do not pass the prerelease flag here; gh defaults to a normal release.
             gh release edit "${{ steps.version.outputs.VERSION }}" \
               --title "${{ steps.version.outputs.VERSION }}" \
-              --notes-file release-body.md \
-              --prerelease false
+              --notes-file release-body.md
           else
             gh release create "${{ steps.version.outputs.VERSION }}" \
               --title "${{ steps.version.outputs.VERSION }}" \
-              --notes-file release-body.md \
-              --prerelease false
+              --notes-file release-body.md
           fi
 
           shopt -s nullglob

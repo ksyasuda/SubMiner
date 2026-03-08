@@ -1,6 +1,6 @@
 {
   "name": "subminer",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
   "packageManager": "bun@1.3.5",
   "main": "dist/main-entry.js",
@@ -43,7 +43,7 @@
     "test:launcher": "bun run test:launcher:src",
     "test:core": "bun run test:core:src",
     "test:subtitle": "bun run test:subtitle:src",
-    "test:fast": "bun run test:config:src && bun run test:core:src && bun test src/main-entry-runtime.test.ts src/anki-integration/anki-connect-proxy.test.ts && bun run tsc && node --experimental-sqlite --test dist/main/runtime/registry.test.js",
+    "test:fast": "bun run test:config:src && bun run test:core:src && bun test src/main-entry-runtime.test.ts src/anki-integration/anki-connect-proxy.test.ts src/release-workflow.test.ts && bun run tsc && node --experimental-sqlite --test dist/main/runtime/registry.test.js",
     "generate:config-example": "bun run build && bun dist/generate-config-example.js",
     "start": "bun run build && electron . --start",
     "dev": "bun run build && electron . --start --dev",
