@@ -24,18 +24,13 @@
 
 SubMiner is an Electron overlay that sits on top of mpv. It turns your video player into a full sentence-mining workstation:
 
-- **Hover to look up** — Yomitan dictionary popups directly on subtitles
-- **Keyboard-driven lookup mode** — Navigate token-by-token, keep lookup open across tokens, and control popup scrolling/audio/mining without leaving the overlay
-- **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and translation
-- **Instant auto-enrichment** — Optional local AnkiConnect proxy enriches new Yomitan cards immediately
-- **Reading annotations** — Combines N+1 targeting, frequency-dictionary highlighting, and JLPT underlining while you read
-- **Hover-aware playback** — By default, hovering subtitle text pauses mpv and resumes on mouse leave (`subtitleStyle.autoPauseVideoOnHover`)
-- **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
-- **Immersion tracking** — SQLite-powered stats on your watch time and mining activity
-- **Custom texthooker page** — Built-in custom texthooker page and websocket, no extra setup
-- **Annotated websocket API** — Dedicated annotation feed can serve bundled texthooker or external clients with rendered `sentence` HTML plus structured `tokens`
-- **Jellyfin integration** — Remote playback setup, cast device mode, and direct playback launch
-- **AniList progress** — Track episode completion and push watching progress automatically
+- **Dictionary lookups** — Yomitan popups on subtitles with hover or full keyboard-driven navigation; hover-aware auto-pause keeps playback in sync
+- **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and AI-powered translation
+- **Reading annotations** — N+1 targeting, frequency highlighting, and JLPT underlining while you watch
+- **Subtitle tools** — Jimaku downloads, alass/ffsubsync sync, and whisper.cpp transcription for YouTube with optional AI cleanup
+- **Texthooker** — Built-in texthooker page and annotated websocket API for external clients
+- **Immersion tracking** — SQLite-powered stats on watch time and mining activity
+- **Integrations** — Jellyfin remote playback, AniList episode progress, and AnkiConnect auto-enrichment
 
 ## Quick start
 
@@ -54,7 +49,7 @@ chmod +x ~/.local/bin/subminer
 > [!NOTE]
 > The `subminer` wrapper uses a [Bun](https://bun.sh) shebang. Make sure `bun` is on your `PATH`.
 
-**From source** or **macOS** — initialize submodules first (`git submodule update --init --recursive`). Source builds now also require Node.js 22 + npm because bundled Yomitan is built from the `vendor/subminer-yomitan` submodule into `build/yomitan` during `bun run build`. Full install guide: [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
+**From source** or **macOS** — initialize submodules first (`git submodule update --init --recursive`). Bundled Yomitan is built natively with Bun from the `vendor/subminer-yomitan` submodule into `build/yomitan` during `bun run build`, so Bun is the only JS runtime/package manager required for source builds. Full install guide: [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
 
 ### 2. Launch the app once
 
@@ -92,7 +87,7 @@ subminer --start video.mkv # optional explicit overlay start when plugin auto_st
 
 | Required                                   | Optional                                           |
 | ------------------------------------------ | -------------------------------------------------- |
-| `bun`, `node` 22, `npm`                    |                                                    |
+| `bun`                                      |                                                    |
 | `mpv` with IPC socket                      | `yt-dlp`                                           |
 | `ffmpeg`                                   | `guessit` (better AniSkip title/episode detection) |
 | `mecab` + `mecab-ipadic`                   | `fzf` / `rofi`                                     |
@@ -101,18 +96,7 @@ subminer --start video.mkv # optional explicit overlay start when plugin auto_st
 
 ## Documentation
 
-For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.moe](https://docs.subminer.moe).
-
-## Testing
-
-- Run `bun run test` or `bun run test:fast` for the default fast lane: config/core coverage plus representative entry/runtime, Anki integration, and main runtime checks.
-- Run `bun run test:full` for the maintained test surface: Bun-compatible `src/**` coverage, Bun-compatible launcher unit coverage, and a Node compatibility lane for suites that depend on Electron named exports or `node:sqlite` behavior.
-- Run `bun run test:node:compat` directly when you only need the Node-backed compatibility slice: `ipc`, `anki-jimaku-ipc`, `overlay-manager`, `config-validation`, `startup-config`, and runtime registry coverage.
-- Run `bun run test:env` for environment-specific verification: launcher smoke/plugin checks plus the SQLite-backed immersion tracker lane.
-- Run `bun run test:immersion:sqlite` when you specifically need real SQLite persistence coverage under Node with `--experimental-sqlite`.
-- Run `bun run test:subtitle` for the maintained `alass`/`ffsubsync` subtitle surface.
-
-The Bun-managed discovery lanes intentionally exclude a small set of suites that are currently Node-only because of Bun runtime/tooling gaps rather than product behavior: Electron named-export tests in `src/core/services/ipc.test.ts`, `src/core/services/anki-jimaku-ipc.test.ts`, and `src/core/services/overlay-manager.test.ts`, plus runtime/config tests in `src/main/config-validation.test.ts`, `src/main/runtime/startup-config.test.ts`, and `src/main/runtime/registry.test.ts`. `bun run test:node:compat` keeps those suites in the standard workflow instead of leaving them untracked.
+For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.moe](https://docs.subminer.moe). Contributor setup, build, and testing docs now live in the docs repo: [docs.subminer.moe/development#testing](https://docs.subminer.moe/development#testing).
 
 ## Acknowledgments
 

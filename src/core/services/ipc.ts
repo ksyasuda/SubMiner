@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain, IpcMainEvent } from 'electron';
+import electron from 'electron';
+import type { IpcMainEvent } from 'electron';
 import type {
   RuntimeOptionId,
   RuntimeOptionValue,
@@ -17,6 +18,8 @@ import {
   parseSubtitlePosition,
   parseSubsyncManualRunRequest,
 } from '../../shared/ipc/validators';
+
+const { BrowserWindow, ipcMain } = electron;
 
 export interface IpcServiceDeps {
   onOverlayModalClosed: (modal: OverlayHostedModal) => void;

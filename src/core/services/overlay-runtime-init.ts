@@ -1,6 +1,7 @@
-import { BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 import { BaseWindowTracker, createWindowTracker } from '../../window-trackers';
 import {
+  AiConfig,
   AnkiConnectConfig,
   KikuFieldGroupingChoice,
   KikuFieldGroupingRequestData,
@@ -13,6 +14,7 @@ type AnkiIntegrationLike = {
 
 type CreateAnkiIntegrationArgs = {
   config: AnkiConnectConfig;
+  aiConfig: AiConfig;
   subtitleTimingTracker: unknown;
   mpvClient: { send?: (payload: { command: string[] }) => void };
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
@@ -39,6 +41,7 @@ function createDefaultAnkiIntegration(args: CreateAnkiIntegrationArgs): AnkiInte
     args.showDesktopNotification,
     args.createFieldGroupingCallback(),
     args.knownWordCacheStatePath,
+    args.aiConfig,
   );
 }
 
@@ -57,7 +60,7 @@ export function initializeOverlayRuntime(options: {
     targetMpvSocketPath?: string | null,
   ) => BaseWindowTracker | null;
   getMpvSocketPath: () => string;
-  getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
+  getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig; ai?: AiConfig };
   getSubtitleTimingTracker: () => unknown | null;
   getMpvClient: () => {
     send?: (payload: { command: string[] }) => void;
@@ -118,6 +121,7 @@ export function initializeOverlayRuntime(options: {
     const createAnkiIntegration = options.createAnkiIntegration ?? createDefaultAnkiIntegration;
     const integration = createAnkiIntegration({
       config: effectiveAnkiConfig,
+      aiConfig: config.ai ?? {},
       subtitleTimingTracker,
       mpvClient,
       showDesktopNotification: options.showDesktopNotification,

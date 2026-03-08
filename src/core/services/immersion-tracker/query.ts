@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from './sqlite';
 import type {
   ImmersionSessionRollupRow,
   SessionSummaryQueryRow,
@@ -44,7 +44,7 @@ export function getSessionTimeline(
       cards_mined AS cardsMined
     FROM imm_session_telemetry
     WHERE session_id = ?
-    ORDER BY sample_ms DESC
+    ORDER BY sample_ms DESC, telemetry_id DESC
     LIMIT ?
   `);
   return prepared.all(sessionId, limit) as unknown as SessionTimelineRow[];
@@ -56,8 +56,8 @@ export function getQueryHints(db: DatabaseSync): {
 } {
   const sessions = db.prepare('SELECT COUNT(*) AS total FROM imm_sessions');
   const active = db.prepare('SELECT COUNT(*) AS total FROM imm_sessions WHERE ended_at_ms IS NULL');
-  const totalSessions = Number(sessions.get()?.total ?? 0);
-  const activeSessions = Number(active.get()?.total ?? 0);
+  const totalSessions = Number((sessions.get() as { total?: number } | null)?.total ?? 0);
+  const activeSessions = Number((active.get() as { total?: number } | null)?.total ?? 0);
   return { totalSessions, activeSessions };
 }
 

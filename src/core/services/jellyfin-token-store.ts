@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { safeStorage } from 'electron';
+import electron from 'electron';
+
+const { safeStorage } = electron;
 
 interface PersistedSessionPayload {
   encryptedSession?: string;

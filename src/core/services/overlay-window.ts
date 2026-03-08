@@ -1,9 +1,11 @@
-import { BrowserWindow } from 'electron';
+import electron from 'electron';
+import type { BrowserWindow } from 'electron';
 import * as path from 'path';
 import { WindowGeometry } from '../../types';
 import { createLogger } from '../../logger';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 
+const { BrowserWindow: ElectronBrowserWindow } = electron;
 const logger = createLogger('main:overlay-window');
 const overlayWindowLayerByInstance = new WeakMap<BrowserWindow, OverlayWindowKind>();
 
@@ -18,7 +20,7 @@ function loadOverlayWindowLayer(window: BrowserWindow, layer: OverlayWindowKind)
     .loadFile(htmlPath, {
       query: { layer },
     })
-    .catch((err) => {
+    .catch((err: unknown) => {
       logger.error('Failed to load HTML file:', err);
     });
 }
@@ -90,7 +92,7 @@ export function createOverlayWindow(
     onWindowClosed: (kind: OverlayWindowKind) => void;
   },
 ): BrowserWindow {
-  const window = new BrowserWindow({
+  const window = new ElectronBrowserWindow({
     show: false,
     width: 800,
     height: 600,

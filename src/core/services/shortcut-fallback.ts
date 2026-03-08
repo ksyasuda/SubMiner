@@ -1,4 +1,6 @@
-import { globalShortcut } from 'electron';
+import electron from 'electron';
+
+const { globalShortcut } = electron;
 
 export function isGlobalShortcutRegisteredSafe(accelerator: string): boolean {
   try {

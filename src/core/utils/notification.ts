@@ -1,7 +1,8 @@
-import { Notification, nativeImage } from 'electron';
+import electron from 'electron';
 import * as fs from 'fs';
 import { createLogger } from '../../logger';
 
+const { Notification, nativeImage } = electron;
 const logger = createLogger('core:notification');
 
 export function showDesktopNotification(

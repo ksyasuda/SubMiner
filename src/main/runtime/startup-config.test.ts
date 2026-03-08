@@ -55,8 +55,7 @@ test('createReloadConfigHandler runs success flow with warnings', async () => {
 
 test('createReloadConfigHandler fails startup for parse errors', () => {
   const calls: string[] = [];
-  const previousExitCode = process.exitCode;
-  process.exitCode = 0;
+  const exitCodes: number[] = [];
 
   const reloadConfig = createReloadConfigHandler({
     reloadConfigStrict: () => ({
@@ -74,12 +73,13 @@ test('createReloadConfigHandler fails startup for parse errors', () => {
     failHandlers: {
       logError: (details) => calls.push(`error:${details}`),
       showErrorBox: (title, details) => calls.push(`dialog:${title}:${details}`),
+      setExitCode: (code) => exitCodes.push(code),
       quit: () => calls.push('quit'),
     },
   });
 
   assert.throws(() => reloadConfig(), /Failed to parse config file at:/);
-  assert.equal(process.exitCode, 1);
+  assert.deepEqual(exitCodes, [1]);
   assert.ok(calls.some((entry) => entry.startsWith('error:Failed to parse config file at:')));
   assert.ok(calls.some((entry) => entry.includes('/tmp/config.jsonc')));
   assert.ok(calls.some((entry) => entry.includes('Error: unexpected token')));
@@ -91,20 +91,18 @@ test('createReloadConfigHandler fails startup for parse errors', () => {
   );
   assert.ok(calls.includes('quit'));
   assert.equal(calls.includes('hotReload:start'), false);
-
-  process.exitCode = previousExitCode;
 });
 
 test('createCriticalConfigErrorHandler formats and fails', () => {
   const calls: string[] = [];
-  const previousExitCode = process.exitCode;
-  process.exitCode = 0;
+  const exitCodes: number[] = [];
 
   const handleCriticalErrors = createCriticalConfigErrorHandler({
     getConfigPath: () => '/tmp/config.jsonc',
     failHandlers: {
       logError: (details) => calls.push(`error:${details}`),
       showErrorBox: (title, details) => calls.push(`dialog:${title}:${details}`),
+      setExitCode: (code) => exitCodes.push(code),
       quit: () => calls.push('quit'),
     },
   });
@@ -114,11 +112,9 @@ test('createCriticalConfigErrorHandler formats and fails', () => {
     /Critical config validation failed/,
   );
 
-  assert.equal(process.exitCode, 1);
+  assert.deepEqual(exitCodes, [1]);
   assert.ok(calls.some((entry) => entry.includes('/tmp/config.jsonc')));
   assert.ok(calls.some((entry) => entry.includes('1. foo invalid')));
   assert.ok(calls.some((entry) => entry.includes('2. bar invalid')));
   assert.ok(calls.includes('quit'));
-
-  process.exitCode = previousExitCode;
 });

@@ -17,6 +17,9 @@ export function createBuildReloadConfigMainDepsHandler(deps: ReloadConfigMainDep
       logError: (details: string) => deps.failHandlers.logError(details),
       showErrorBox: (title: string, details: string) =>
         deps.failHandlers.showErrorBox(title, details),
+      setExitCode: deps.failHandlers.setExitCode
+        ? (code: number) => deps.failHandlers.setExitCode?.(code)
+        : undefined,
       quit: () => deps.failHandlers.quit(),
     },
   });
@@ -29,6 +32,9 @@ export function createBuildCriticalConfigErrorMainDepsHandler(deps: CriticalConf
       logError: (details: string) => deps.failHandlers.logError(details),
       showErrorBox: (title: string, details: string) =>
         deps.failHandlers.showErrorBox(title, details),
+      setExitCode: deps.failHandlers.setExitCode
+        ? (code: number) => deps.failHandlers.setExitCode?.(code)
+        : undefined,
       quit: () => deps.failHandlers.quit(),
     },
   });

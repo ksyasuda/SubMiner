@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import electron from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -24,6 +24,8 @@ import {
   parseKikuMergePreviewRequest,
 } from '../../shared/ipc/validators';
 import { buildJimakuSubtitleFilenameFromMediaPath } from './jimaku-download-path';
+
+const { ipcMain } = electron;
 
 const logger = createLogger('main:anki-jimaku-ipc');
 

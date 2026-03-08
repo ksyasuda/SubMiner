@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from './sqlite';
 import { SCHEMA_VERSION } from './types';
 import type { QueuedWrite, VideoMetadata } from './types';
 
@@ -13,7 +13,7 @@ function hasColumn(db: DatabaseSync, tableName: string, columnName: string): boo
   return db
     .prepare(`PRAGMA table_info(${tableName})`)
     .all()
-    .some((row) => (row as { name: string }).name === columnName);
+    .some((row: unknown) => (row as { name: string }).name === columnName);
 }
 
 function addColumnIfMissing(db: DatabaseSync, tableName: string, columnName: string): void {

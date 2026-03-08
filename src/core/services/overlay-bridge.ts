@@ -1,6 +1,6 @@
 import { KikuFieldGroupingChoice, KikuFieldGroupingRequestData } from '../../types';
 import { createFieldGroupingCallback } from './field-grouping';
-import { BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 
 export function sendToVisibleOverlayRuntime<T extends string>(options: {
   mainWindow: BrowserWindow | null;

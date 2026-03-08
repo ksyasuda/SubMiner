@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from './sqlite';
 import { createInitialSessionState } from './reducer';
 import { SESSION_STATUS_ACTIVE, SESSION_STATUS_ENDED } from './types';
 import type { SessionState } from './types';

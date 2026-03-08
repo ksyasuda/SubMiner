@@ -3,6 +3,7 @@ import type { ConfigValidationWarning } from '../types';
 export type StartupFailureHandlers = {
   logError: (details: string) => void;
   showErrorBox: (title: string, details: string) => void;
+  setExitCode?: (code: number) => void;
   quit: () => void;
 };
 
@@ -98,7 +99,10 @@ export function failStartupFromConfig(
 ): never {
   handlers.logError(details);
   handlers.showErrorBox(title, details);
-  process.exitCode = 1;
+  handlers.setExitCode?.(1);
+  if (!handlers.setExitCode) {
+    process.exitCode = 1;
+  }
   handlers.quit();
   throw new Error(details);
 }

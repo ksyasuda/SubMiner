@@ -1,4 +1,5 @@
-import { BrowserWindow, Extension, session } from 'electron';
+import electron from 'electron';
+import type { BrowserWindow, Extension } from 'electron';
 import * as fs from 'fs';
 import { createLogger } from '../../logger';
 import { ensureExtensionCopy } from './yomitan-extension-copy';
@@ -7,6 +8,7 @@ import {
   resolveExistingYomitanExtensionPath,
 } from './yomitan-extension-paths';
 
+const { session } = electron;
 const logger = createLogger('main:yomitan-extension-loader');
 
 export interface YomitanExtensionLoaderDeps {

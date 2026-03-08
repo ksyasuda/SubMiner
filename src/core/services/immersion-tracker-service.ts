@@ -1,9 +1,9 @@
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import * as fs from 'node:fs';
 import { createLogger } from '../../logger';
 import { getLocalVideoMetadata } from './immersion-tracker/metadata';
 import { pruneRetention, runRollupMaintenance } from './immersion-tracker/maintenance';
+import { Database, type DatabaseSync } from './immersion-tracker/sqlite';
 import { finalizeSessionRecord, startSessionRecord } from './immersion-tracker/session';
 import {
   applyPragmas,
@@ -164,7 +164,7 @@ export class ImmersionTrackerService {
         1,
         3650,
       ) * 86_400_000;
-    this.db = new DatabaseSync(this.dbPath);
+    this.db = new Database(this.dbPath);
     applyPragmas(this.db);
     ensureSchema(this.db);
     this.preparedStatements = createTrackerPreparedStatements(this.db);

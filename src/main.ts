@@ -2264,6 +2264,9 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     failHandlers: {
       logError: (details) => logger.error(details),
       showErrorBox: (title, details) => dialog.showErrorBox(title, details),
+      setExitCode: (code) => {
+        process.exitCode = code;
+      },
       quit: () => app.quit(),
     },
   },
@@ -2272,6 +2275,9 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     failHandlers: {
       logError: (message) => logger.error(message),
       showErrorBox: (title, message) => dialog.showErrorBox(title, message),
+      setExitCode: (code) => {
+        process.exitCode = code;
+      },
       quit: () => app.quit(),
     },
   },

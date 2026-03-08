@@ -1,22 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-async function loadRegistryOrSkip(t: test.TestContext) {
-  try {
-    return await import('./registry');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('node:sqlite')) {
-      t.skip('registry import requires node:sqlite support in this runtime');
-      return null;
-    }
-    throw error;
-  }
+async function loadRegistry() {
+  return import('./registry');
 }
 
-test('createMainRuntimeRegistry exposes expected runtime domains', async (t) => {
-  const loaded = await loadRegistryOrSkip(t);
-  if (!loaded) return;
+test('createMainRuntimeRegistry exposes expected runtime domains', async () => {
+  const loaded = await loadRegistry();
   const { createMainRuntimeRegistry } = loaded;
   const registry = createMainRuntimeRegistry();
 
@@ -30,9 +20,8 @@ test('createMainRuntimeRegistry exposes expected runtime domains', async (t) => 
   assert.ok(registry.mining);
 });
 
-test('registry domains expose representative factories', async (t) => {
-  const loaded = await loadRegistryOrSkip(t);
-  if (!loaded) return;
+test('registry domains expose representative factories', async () => {
+  const loaded = await loadRegistry();
   const { createMainRuntimeRegistry } = loaded;
   const registry = createMainRuntimeRegistry();
 

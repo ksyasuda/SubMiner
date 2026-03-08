@@ -1,8 +1,9 @@
-import { globalShortcut } from 'electron';
+import electron from 'electron';
 import { ConfiguredShortcuts } from '../utils/shortcut-config';
 import { isGlobalShortcutRegisteredSafe } from './shortcut-fallback';
 import { createLogger } from '../../logger';
 
+const { globalShortcut } = electron;
 const logger = createLogger('main:overlay-shortcut-service');
 
 export interface OverlayShortcutHandlers {

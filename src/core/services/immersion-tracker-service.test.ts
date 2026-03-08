@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { DatabaseSync as NodeDatabaseSync } from 'node:sqlite';
 import { toMonthKey } from './immersion-tracker/maintenance';
 import { enqueueWrite } from './immersion-tracker/queue';
+import { Database, type DatabaseSync } from './immersion-tracker/sqlite';
 import {
   deriveCanonicalTitle,
   normalizeText,
@@ -16,22 +16,6 @@ import type { QueuedWrite } from './immersion-tracker/types';
 type ImmersionTrackerService = import('./immersion-tracker-service').ImmersionTrackerService;
 type ImmersionTrackerServiceCtor =
   typeof import('./immersion-tracker-service').ImmersionTrackerService;
-
-type DatabaseSyncCtor = typeof NodeDatabaseSync;
-const DatabaseSync: DatabaseSyncCtor | null = (() => {
-  try {
-    return (require('node:sqlite') as { DatabaseSync?: DatabaseSyncCtor }).DatabaseSync ?? null;
-  } catch {
-    return null;
-  }
-})();
-const testIfSqlite = DatabaseSync ? test : test.skip;
-
-if (!DatabaseSync) {
-  console.warn(
-    'Skipping SQLite-backed immersion tracker persistence tests in this runtime; run `bun run test:immersion:sqlite` for real DB coverage.',
-  );
-}
 
 let trackerCtor: ImmersionTrackerServiceCtor | null = null;
 
@@ -89,7 +73,7 @@ test('seam: toMonthKey uses UTC calendar month', () => {
   assert.equal(toMonthKey(Date.UTC(2026, 1, 1, 0, 0, 0, 0)), 202602);
 });
 
-testIfSqlite('startSession generates UUID-like session identifiers', async () => {
+test('startSession generates UUID-like session identifiers', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
 
@@ -105,7 +89,7 @@ testIfSqlite('startSession generates UUID-like session identifiers', async () =>
     privateApi.flushTelemetry(true);
     privateApi.flushNow();
 
-    const db = new DatabaseSync!(dbPath);
+    const db = new Database(dbPath);
     const row = db.prepare('SELECT session_uuid FROM imm_sessions LIMIT 1').get() as {
       session_uuid: string;
     } | null;
@@ -120,7 +104,7 @@ testIfSqlite('startSession generates UUID-like session identifiers', async () =>
   }
 });
 
-testIfSqlite('destroy finalizes active session and persists final telemetry', async () => {
+test('destroy finalizes active session and persists final telemetry', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
 
@@ -132,7 +116,7 @@ testIfSqlite('destroy finalizes active session and persists final telemetry', as
     tracker.recordSubtitleLine('Hello immersion', 0, 1);
     tracker.destroy();
 
-    const db = new DatabaseSync!(dbPath);
+    const db = new Database(dbPath);
     const sessionRow = db.prepare('SELECT ended_at_ms FROM imm_sessions LIMIT 1').get() as {
       ended_at_ms: number | null;
     } | null;
@@ -150,7 +134,7 @@ testIfSqlite('destroy finalizes active session and persists final telemetry', as
   }
 });
 
-testIfSqlite('persists and retrieves minimum immersion tracking fields', async () => {
+test('persists and retrieves minimum immersion tracking fields', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
 
@@ -178,7 +162,7 @@ testIfSqlite('persists and retrieves minimum immersion tracking fields', async (
 
     tracker.destroy();
 
-    const db = new DatabaseSync!(dbPath);
+    const db = new Database(dbPath);
     const videoRow = db
       .prepare('SELECT canonical_title, source_path, duration_ms FROM imm_videos LIMIT 1')
       .get() as {
@@ -190,7 +174,7 @@ testIfSqlite('persists and retrieves minimum immersion tracking fields', async (
       .prepare(
         `SELECT lines_seen, words_seen, tokens_seen, cards_mined
          FROM imm_session_telemetry
-         ORDER BY sample_ms DESC
+         ORDER BY sample_ms DESC, telemetry_id DESC
          LIMIT 1`,
       )
       .get() as {
@@ -217,7 +201,7 @@ testIfSqlite('persists and retrieves minimum immersion tracking fields', async (
   }
 });
 
-testIfSqlite('applies configurable queue, flush, and retention policy', async () => {
+test('applies configurable queue, flush, and retention policy', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
 
@@ -270,7 +254,7 @@ testIfSqlite('applies configurable queue, flush, and retention policy', async ()
   }
 });
 
-testIfSqlite('monthly rollups are grouped by calendar month', async () => {
+test('monthly rollups are grouped by calendar month', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
 
@@ -278,7 +262,7 @@ testIfSqlite('monthly rollups are grouped by calendar month', async () => {
     const Ctor = await loadTrackerCtor();
     tracker = new Ctor({ dbPath });
     const privateApi = tracker as unknown as {
-      db: NodeDatabaseSync;
+      db: DatabaseSync;
       runRollupMaintenance: () => void;
     };
 
@@ -433,16 +417,16 @@ testIfSqlite('monthly rollups are grouped by calendar month', async () => {
   }
 });
 
-testIfSqlite('flushSingle reuses cached prepared statements', async () => {
+test('flushSingle reuses cached prepared statements', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
-  let originalPrepare: NodeDatabaseSync['prepare'] | null = null;
+  let originalPrepare: DatabaseSync['prepare'] | null = null;
 
   try {
     const Ctor = await loadTrackerCtor();
     tracker = new Ctor({ dbPath });
     const privateApi = tracker as unknown as {
-      db: NodeDatabaseSync;
+      db: DatabaseSync;
       flushSingle: (write: {
         kind: 'telemetry' | 'event';
         sessionId: number;
@@ -472,7 +456,7 @@ testIfSqlite('flushSingle reuses cached prepared statements', async () => {
 
     originalPrepare = privateApi.db.prepare;
     let prepareCalls = 0;
-    privateApi.db.prepare = (...args: Parameters<NodeDatabaseSync['prepare']>) => {
+    privateApi.db.prepare = (...args: Parameters<DatabaseSync['prepare']>) => {
       prepareCalls += 1;
       return originalPrepare!.apply(privateApi.db, args);
     };
@@ -557,7 +541,7 @@ testIfSqlite('flushSingle reuses cached prepared statements', async () => {
     assert.equal(prepareCalls, 0);
   } finally {
     if (tracker && originalPrepare) {
-      const privateApi = tracker as unknown as { db: NodeDatabaseSync };
+      const privateApi = tracker as unknown as { db: DatabaseSync };
       privateApi.db.prepare = originalPrepare;
     }
     tracker?.destroy();

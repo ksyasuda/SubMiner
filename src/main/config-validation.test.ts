@@ -32,10 +32,10 @@ test('buildConfigWarningSummary includes warnings with formatted values', () => 
 test('buildConfigWarningNotificationBody includes concise warning details', () => {
   const body = buildConfigWarningNotificationBody('/tmp/config.jsonc', [
     {
-      path: 'ankiConnect.openRouter',
-      message: 'Deprecated key; use ankiConnect.ai instead.',
+      path: 'ankiConnect.ai',
+      message: 'Expected boolean.',
       value: { enabled: true },
-      fallback: {},
+      fallback: false,
     },
     {
       path: 'ankiConnect.isLapis.sentenceCardSentenceField',
@@ -47,7 +47,7 @@ test('buildConfigWarningNotificationBody includes concise warning details', () =
 
   assert.match(body, /2 config validation issue\(s\) detected\./);
   assert.match(body, /File: \/tmp\/config\.jsonc/);
-  assert.match(body, /1\. ankiConnect\.openRouter: Deprecated key; use ankiConnect\.ai instead\./);
+  assert.match(body, /1\. ankiConnect\.ai: Expected boolean\./);
   assert.match(
     body,
     /2\. ankiConnect\.isLapis\.sentenceCardSentenceField: Deprecated key; sentence-card sentence field is fixed to Sentence\./,
@@ -81,8 +81,7 @@ test('buildConfigParseErrorDetails includes path error and restart guidance', ()
 
 test('failStartupFromConfig invokes handlers and throws', () => {
   const calls: string[] = [];
-  const previousExitCode = process.exitCode;
-  process.exitCode = 0;
+  const exitCodes: number[] = [];
 
   assert.throws(
     () =>
@@ -93,6 +92,9 @@ test('failStartupFromConfig invokes handlers and throws', () => {
         showErrorBox: (title, details) => {
           calls.push(`dialog:${title}:${details}`);
         },
+        setExitCode: (code) => {
+          exitCodes.push(code);
+        },
         quit: () => {
           calls.push('quit');
         },
@@ -100,8 +102,6 @@ test('failStartupFromConfig invokes handlers and throws', () => {
     /bad value/,
   );
 
-  assert.equal(process.exitCode, 1);
+  assert.deepEqual(exitCodes, [1]);
   assert.deepEqual(calls, ['log:bad value', 'dialog:Config Error:bad value', 'quit']);
-
-  process.exitCode = previousExitCode;
 });

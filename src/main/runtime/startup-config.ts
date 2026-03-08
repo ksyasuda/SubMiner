@@ -31,6 +31,7 @@ export type ReloadConfigRuntimeDeps = {
   failHandlers: {
     logError: (details: string) => void;
     showErrorBox: (title: string, details: string) => void;
+    setExitCode?: (code: number) => void;
     quit: () => void;
   };
 };
@@ -40,6 +41,7 @@ export type CriticalConfigErrorRuntimeDeps = {
   failHandlers: {
     logError: (details: string) => void;
     showErrorBox: (title: string, details: string) => void;
+    setExitCode?: (code: number) => void;
     quit: () => void;
   };
 };

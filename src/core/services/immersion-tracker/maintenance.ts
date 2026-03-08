@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from './sqlite';
 
 const ROLLUP_STATE_KEY = 'last_rollup_sample_ms';
 const DAILY_MS = 86_400_000;

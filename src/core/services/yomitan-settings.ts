@@ -1,6 +1,8 @@
-import { BrowserWindow, Extension, session } from 'electron';
+import electron from 'electron';
+import type { BrowserWindow, Extension } from 'electron';
 import { createLogger } from '../../logger';
 
+const { BrowserWindow: ElectronBrowserWindow, session } = electron;
 const logger = createLogger('main:yomitan-settings');
 
 export interface OpenYomitanSettingsWindowOptions {
@@ -28,7 +30,7 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
 
   logger.info('Creating new settings window for extension:', options.yomitanExt.id);
 
-  const settingsWindow = new BrowserWindow({
+  const settingsWindow = new ElectronBrowserWindow({
     width: 1200,
     height: 800,
     show: false,

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import type { DatabaseSync as NodeDatabaseSync } from 'node:sqlite';
+import { Database } from './sqlite';
 import { finalizeSessionRecord, startSessionRecord } from './session';
 import {
   createTrackerPreparedStatements,
@@ -12,22 +12,6 @@ import {
   getOrCreateVideoRecord,
 } from './storage';
 import { EVENT_SUBTITLE_LINE, SESSION_STATUS_ENDED, SOURCE_TYPE_LOCAL } from './types';
-
-type DatabaseSyncCtor = typeof NodeDatabaseSync;
-const DatabaseSync: DatabaseSyncCtor | null = (() => {
-  try {
-    return (require('node:sqlite') as { DatabaseSync?: DatabaseSyncCtor }).DatabaseSync ?? null;
-  } catch {
-    return null;
-  }
-})();
-const testIfSqlite = DatabaseSync ? test : test.skip;
-
-if (!DatabaseSync) {
-  console.warn(
-    'Skipping SQLite-backed immersion tracker storage/session tests in this runtime; run `bun run test:immersion:sqlite` for real DB coverage.',
-  );
-}
 
 function makeDbPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-imm-storage-session-'));
@@ -41,9 +25,9 @@ function cleanupDbPath(dbPath: string): void {
   }
 }
 
-testIfSqlite('ensureSchema creates immersion core tables', () => {
+test('ensureSchema creates immersion core tables', () => {
   const dbPath = makeDbPath();
-  const db = new DatabaseSync!(dbPath);
+  const db = new Database(dbPath);
 
   try {
     ensureSchema(db);
@@ -77,9 +61,9 @@ testIfSqlite('ensureSchema creates immersion core tables', () => {
   }
 });
 
-testIfSqlite('start/finalize session updates ended_at and status', () => {
+test('start/finalize session updates ended_at and status', () => {
   const dbPath = makeDbPath();
-  const db = new DatabaseSync!(dbPath);
+  const db = new Database(dbPath);
 
   try {
     ensureSchema(db);
@@ -111,9 +95,9 @@ testIfSqlite('start/finalize session updates ended_at and status', () => {
   }
 });
 
-testIfSqlite('executeQueuedWrite inserts event and telemetry rows', () => {
+test('executeQueuedWrite inserts event and telemetry rows', () => {
   const dbPath = makeDbPath();
-  const db = new DatabaseSync!(dbPath);
+  const db = new Database(dbPath);
 
   try {
     ensureSchema(db);
@@ -178,9 +162,9 @@ testIfSqlite('executeQueuedWrite inserts event and telemetry rows', () => {
   }
 });
 
-testIfSqlite('executeQueuedWrite inserts and upserts word and kanji rows', () => {
+test('executeQueuedWrite inserts and upserts word and kanji rows', () => {
   const dbPath = makeDbPath();
-  const db = new DatabaseSync!(dbPath);
+  const db = new Database(dbPath);
 
   try {
     ensureSchema(db);

@@ -1,6 +1,8 @@
-import { BrowserWindow, globalShortcut } from 'electron';
+import electron from 'electron';
+import type { BrowserWindow } from 'electron';
 import { createLogger } from '../../logger';
 
+const { globalShortcut } = electron;
 const logger = createLogger('main:shortcut');
 
 export interface GlobalShortcutConfig {
