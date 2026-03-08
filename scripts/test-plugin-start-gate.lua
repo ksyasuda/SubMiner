@@ -466,6 +466,36 @@ do
 		process_list = "",
 		option_overrides = {
 			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "no",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "https://www.youtube.com/watch?v=lJI7uL4JDkE",
+		media_title = "【文字起こし】マジで役立つ！！恋愛術！【告radio】",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for URL overlay-start AniSkip scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(find_start_call(recorded.async_calls) ~= nil, "URL auto-start should still invoke --start command")
+	assert_true(
+		not has_async_curl_for(recorded.async_calls, "myanimelist.net/search/prefix.json"),
+		"URL playback should skip AniSkip MAL lookup even after overlay-start"
+	)
+	assert_true(
+		not has_async_curl_for(recorded.async_calls, "api.aniskip.com"),
+		"URL playback should skip AniSkip API lookup even after overlay-start"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
 			auto_start = "no",
 		},
 		media_title = "Sample Show S01E01",
@@ -684,6 +714,30 @@ do
 	assert_true(
 		count_property_set(recorded.property_sets, "pause", false) == 1,
 		"ending file while gate is armed should clear forced pause state"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for shutdown-preserve-background scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	fire_event(recorded, "shutdown")
+	assert_true(
+		find_control_call(recorded.async_calls, "--stop") == nil,
+		"mpv shutdown should not stop the background SubMiner process"
 	)
 end
 

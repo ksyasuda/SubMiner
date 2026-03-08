@@ -5,7 +5,14 @@ import path from 'node:path';
 import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
-import { runAppCommandCaptureOutput, startOverlay, state, waitForUnixSocketReady } from './mpv';
+import {
+  cleanupPlaybackSession,
+  runAppCommandCaptureOutput,
+  shouldResolveAniSkipMetadata,
+  startOverlay,
+  state,
+  waitForUnixSocketReady,
+} from './mpv';
 import * as mpvModule from './mpv';
 
 function createTempSocketPath(): { dir: string; socketPath: string } {
@@ -73,6 +80,20 @@ test('waitForUnixSocketReady returns true when socket becomes connectable before
   }
 });
 
+test('shouldResolveAniSkipMetadata skips URL and YouTube-preloaded playback', () => {
+  assert.equal(shouldResolveAniSkipMetadata('/media/show.mkv', 'file'), true);
+  assert.equal(
+    shouldResolveAniSkipMetadata('https://www.youtube.com/watch?v=test123', 'url'),
+    false,
+  );
+  assert.equal(
+    shouldResolveAniSkipMetadata('/tmp/video123.webm', 'file', {
+      primaryPath: '/tmp/video123.ja.srt',
+    }),
+    false,
+  );
+});
+
 function makeArgs(overrides: Partial<Args> = {}): Args {
   return {
     backend: 'x11',
@@ -80,16 +101,19 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     recursive: false,
     profile: '',
     startOverlay: false,
-    youtubeSubgenMode: 'off',
     whisperBin: '',
     whisperModel: '',
+    whisperVadModel: '',
+    whisperThreads: 4,
     youtubeSubgenOutDir: '',
     youtubeSubgenAudioFormat: 'wav',
     youtubeSubgenKeepTemp: false,
+    youtubeFixWithAi: false,
     youtubePrimarySubLangs: [],
     youtubeSecondarySubLangs: [],
     youtubeAudioLangs: [],
     youtubeWhisperSourceLanguage: 'ja',
+    aiConfig: {},
     useTexthooker: false,
     autoStartOverlay: false,
     texthookerOnly: false,
@@ -149,6 +173,62 @@ test('startOverlay resolves without fixed 2s sleep when readiness signals arrive
     net.createConnection = originalCreateConnection;
     state.overlayProc = null;
     state.overlayManagedByLauncher = false;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('cleanupPlaybackSession preserves background app while stopping mpv-owned children', async () => {
+  const { dir } = createTempSocketPath();
+  const appPath = path.join(dir, 'fake-subminer.sh');
+  const appInvocationsPath = path.join(dir, 'app-invocations.log');
+  fs.writeFileSync(
+    appPath,
+    `#!/bin/sh\necho \"$@\" >> ${JSON.stringify(appInvocationsPath)}\nexit 0\n`,
+  );
+  fs.chmodSync(appPath, 0o755);
+
+  const calls: string[] = [];
+  const overlayProc = {
+    killed: false,
+    kill: () => {
+      calls.push('overlay-kill');
+      return true;
+    },
+  } as unknown as NonNullable<typeof state.overlayProc>;
+  const mpvProc = {
+    killed: false,
+    kill: () => {
+      calls.push('mpv-kill');
+      return true;
+    },
+  } as unknown as NonNullable<typeof state.mpvProc>;
+  const helperProc = {
+    killed: false,
+    kill: () => {
+      calls.push('helper-kill');
+      return true;
+    },
+  } as unknown as NonNullable<typeof state.overlayProc>;
+
+  state.stopRequested = false;
+  state.appPath = appPath;
+  state.overlayManagedByLauncher = true;
+  state.overlayProc = overlayProc;
+  state.mpvProc = mpvProc;
+  state.youtubeSubgenChildren.add(helperProc);
+
+  try {
+    await cleanupPlaybackSession(makeArgs());
+
+    assert.deepEqual(calls, ['mpv-kill', 'helper-kill']);
+    assert.equal(fs.existsSync(appInvocationsPath), false);
+  } finally {
+    state.overlayProc = null;
+    state.mpvProc = null;
+    state.youtubeSubgenChildren.clear();
+    state.overlayManagedByLauncher = false;
+    state.appPath = '';
+    state.stopRequested = false;
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

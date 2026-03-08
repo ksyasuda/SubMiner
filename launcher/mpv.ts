@@ -419,6 +419,20 @@ export async function loadSubtitleIntoMpv(
   }
 }
 
+export function shouldResolveAniSkipMetadata(
+  target: string,
+  targetKind: 'file' | 'url',
+  preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
+): boolean {
+  if (targetKind !== 'file') {
+    return false;
+  }
+  if (preloadedSubtitles?.primaryPath || preloadedSubtitles?.secondaryPath) {
+    return false;
+  }
+  return !isYoutubeTarget(target);
+}
+
 export async function startMpv(
   target: string,
   targetKind: 'file' | 'url',
@@ -456,17 +470,13 @@ export async function startMpv(
       log('debug', args.logLevel, `YouTube subtitle langs: ${subtitleLangs}`);
       log('debug', args.logLevel, `YouTube audio langs: ${audioLangs}`);
       mpvArgs.push(`--ytdl-format=${DEFAULT_YOUTUBE_YTDL_FORMAT}`, `--alang=${audioLangs}`);
-
-      if (args.youtubeSubgenMode === 'off') {
-        mpvArgs.push(
-          '--sub-auto=fuzzy',
-          `--slang=${subtitleLangs}`,
-          '--ytdl-raw-options-append=write-auto-subs=',
-          '--ytdl-raw-options-append=write-subs=',
-          '--ytdl-raw-options-append=sub-format=vtt/best',
-          `--ytdl-raw-options-append=sub-langs=${subtitleLangs}`,
-        );
-      }
+      mpvArgs.push(
+        '--sub-auto=fuzzy',
+        `--slang=${subtitleLangs}`,
+        '--ytdl-raw-options-append=write-subs=',
+        '--ytdl-raw-options-append=sub-format=vtt/best',
+        `--ytdl-raw-options-append=sub-langs=${subtitleLangs}`,
+      );
     }
   }
 
@@ -479,8 +489,9 @@ export async function startMpv(
   if (options?.startPaused) {
     mpvArgs.push('--pause=yes');
   }
-  const aniSkipMetadata =
-    targetKind === 'file' ? await resolveAniSkipMetadataForFile(target) : null;
+  const aniSkipMetadata = shouldResolveAniSkipMetadata(target, targetKind, preloadedSubtitles)
+    ? await resolveAniSkipMetadataForFile(target)
+    : null;
   const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata);
   if (aniSkipMetadata) {
     log(
@@ -626,6 +637,29 @@ export function stopOverlay(args: Args): void {
   state.youtubeSubgenChildren.clear();
 
   void terminateTrackedDetachedMpv(args.logLevel);
+}
+
+export async function cleanupPlaybackSession(args: Args): Promise<void> {
+  if (state.mpvProc && !state.mpvProc.killed) {
+    try {
+      state.mpvProc.kill('SIGTERM');
+    } catch {
+      // ignore
+    }
+  }
+
+  for (const child of state.youtubeSubgenChildren) {
+    if (!child.killed) {
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        // ignore
+      }
+    }
+  }
+  state.youtubeSubgenChildren.clear();
+
+  await terminateTrackedDetachedMpv(args.logLevel);
 }
 
 function buildAppEnv(): NodeJS.ProcessEnv {

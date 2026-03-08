@@ -31,6 +31,18 @@ function M.create(ctx)
 		return encoded:gsub(" ", "%%20")
 	end
 
+	local function is_remote_media_path()
+		local media_path = mp.get_property("path")
+		if type(media_path) ~= "string" then
+			return false
+		end
+		local trimmed = media_path:match("^%s*(.-)%s*$") or ""
+		if trimmed == "" then
+			return false
+		end
+		return trimmed:match("^%a[%w+.-]*://") ~= nil
+	end
+
 	local function parse_json_payload(text)
 		if type(text) ~= "string" then
 			return nil
@@ -523,6 +535,10 @@ function M.create(ctx)
 	end
 
 	local function should_fetch_aniskip_async(trigger_source, callback)
+		if is_remote_media_path() then
+			callback(false, "remote-url")
+			return
+		end
 		if trigger_source == "script-message" or trigger_source == "overlay-start" then
 			callback(true, trigger_source)
 			return
