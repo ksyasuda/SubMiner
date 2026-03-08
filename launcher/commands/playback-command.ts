@@ -5,7 +5,7 @@ import { fail, log } from '../log.js';
 import { commandExists, isYoutubeTarget, realpathMaybe, resolvePathMaybe } from '../util.js';
 import { collectVideos, showFzfMenu, showRofiMenu } from '../picker.js';
 import {
-  loadSubtitleIntoMpv,
+  cleanupPlaybackSession,
   startMpv,
   startOverlay,
   state,
@@ -264,9 +264,10 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
     }
 
     const finalize = (code: number | null | undefined) => {
-      stopOverlay(args);
-      processAdapter.setExitCode(code ?? 0);
-      resolve();
+      void cleanupPlaybackSession(args).finally(() => {
+        processAdapter.setExitCode(code ?? 0);
+        resolve();
+      });
     };
 
     if (mpvProc.exitCode !== null && mpvProc.exitCode !== undefined) {

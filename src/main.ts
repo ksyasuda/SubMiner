@@ -2524,6 +2524,7 @@ const {
   createMpvClientRuntimeService: createMpvClientRuntimeServiceHandler,
   updateMpvSubtitleRenderMetrics: updateMpvSubtitleRenderMetricsHandler,
   tokenizeSubtitle,
+  isTokenizationWarmupReady,
   createMecabTokenizerAndCheck,
   prewarmSubtitleDictionaries,
   startBackgroundWarmups,
@@ -2562,6 +2563,12 @@ const {
         ensureImmersionTrackerStarted();
       }
       mediaRuntime.updateCurrentMediaPath(path);
+    },
+    signalAutoplayReadyIfWarm: (path) => {
+      if (!isTokenizationWarmupReady()) {
+        return;
+      }
+      maybeSignalPluginAutoplayReady({ text: path, tokens: null }, { forceWhilePaused: true });
     },
     restoreMpvSubVisibility: () => {
       restoreOverlayMpvSubtitles();
