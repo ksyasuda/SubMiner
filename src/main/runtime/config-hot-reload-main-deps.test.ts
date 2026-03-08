@@ -98,7 +98,7 @@ test('config hot reload applied main deps builder maps callbacks', () => {
   deps.refreshGlobalAndOverlayShortcuts();
   deps.setSecondarySubMode('hover');
   deps.broadcastToOverlayWindows('config:hot-reload', {});
-  deps.applyAnkiRuntimeConfigPatch({ ai: {} as never });
+  deps.applyAnkiRuntimeConfigPatch({ ai: true });
   assert.deepEqual(calls, [
     'keybindings',
     'refresh-shortcuts',

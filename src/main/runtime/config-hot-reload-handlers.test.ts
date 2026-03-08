@@ -19,7 +19,7 @@ test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
     broadcastToOverlayWindows: (channel, payload) =>
       calls.push(`broadcast:${channel}:${typeof payload === 'string' ? payload : 'object'}`),
     applyAnkiRuntimeConfigPatch: (patch) => {
-      ankiPatches.push({ enabled: patch.ai.enabled });
+      ankiPatches.push({ enabled: patch.ai });
     },
   });
 

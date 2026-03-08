@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import { BaseWindowTracker, createWindowTracker } from '../../window-trackers';
+import { mergeAiConfig } from '../../ai/config';
 import {
   AiConfig,
   AnkiConnectConfig,
@@ -124,7 +125,7 @@ export function initializeOverlayRuntime(options: {
     const createAnkiIntegration = options.createAnkiIntegration ?? createDefaultAnkiIntegration;
     const integration = createAnkiIntegration({
       config: effectiveAnkiConfig,
-      aiConfig: config.ai ?? {},
+      aiConfig: mergeAiConfig(config.ai, config.ankiConnect?.ai),
       subtitleTimingTracker,
       mpvClient,
       showDesktopNotification: options.showDesktopNotification,

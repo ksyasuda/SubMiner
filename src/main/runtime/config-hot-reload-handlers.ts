@@ -8,7 +8,7 @@ type ConfigHotReloadAppliedDeps = {
   refreshGlobalAndOverlayShortcuts: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
-  applyAnkiRuntimeConfigPatch: (patch: { ai: ResolvedConfig['ankiConnect']['ai'] }) => void;
+  applyAnkiRuntimeConfigPatch: (patch: { ai: ResolvedConfig['ankiConnect']['ai']['enabled'] }) => void;
 };
 
 type ConfigHotReloadMessageDeps = {
@@ -53,7 +53,7 @@ export function createConfigHotReloadAppliedHandler(deps: ConfigHotReloadApplied
     }
 
     if (diff.hotReloadFields.includes('ankiConnect.ai')) {
-      deps.applyAnkiRuntimeConfigPatch({ ai: config.ankiConnect.ai });
+      deps.applyAnkiRuntimeConfigPatch({ ai: config.ankiConnect.ai.enabled });
     }
 
     if (diff.hotReloadFields.length > 0) {

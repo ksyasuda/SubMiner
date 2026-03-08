@@ -109,6 +109,65 @@ test('initializeOverlayRuntime starts Anki integration when ankiConnect.enabled 
   assert.equal(setIntegrationCalls, 1);
 });
 
+test('initializeOverlayRuntime merges shared ai config with Anki overrides', () => {
+  initializeOverlayRuntime({
+    backendOverride: null,
+    createMainWindow: () => {},
+    registerGlobalShortcuts: () => {},
+    updateVisibleOverlayBounds: () => {},
+    isVisibleOverlayVisible: () => false,
+    updateVisibleOverlayVisibility: () => {},
+    getOverlayWindows: () => [],
+    syncOverlayShortcuts: () => {},
+    setWindowTracker: () => {},
+    getMpvSocketPath: () => '/tmp/mpv.sock',
+    createWindowTracker: () => null,
+    getResolvedConfig: () => ({
+      ankiConnect: {
+        enabled: true,
+        ai: {
+          enabled: true,
+          model: 'openrouter/anki-model',
+          systemPrompt: 'Translate mined sentence text.',
+        },
+      } as never,
+      ai: {
+        enabled: true,
+        apiKey: 'shared-key',
+        baseUrl: 'https://openrouter.ai/api',
+        model: 'openrouter/shared-model',
+        systemPrompt: 'Legacy shared prompt.',
+        requestTimeoutMs: 15000,
+      },
+    }),
+    getSubtitleTimingTracker: () => ({}),
+    getMpvClient: () => ({
+      send: () => {},
+    }),
+    getRuntimeOptionsManager: () => ({
+      getEffectiveAnkiConnectConfig: (config) => config as never,
+    }),
+    createAnkiIntegration: (args) => {
+      assert.equal(args.aiConfig.apiKey, 'shared-key');
+      assert.equal(args.aiConfig.baseUrl, 'https://openrouter.ai/api');
+      assert.equal(args.aiConfig.model, 'openrouter/anki-model');
+      assert.equal(args.aiConfig.systemPrompt, 'Translate mined sentence text.');
+      return {
+        start: () => {},
+      };
+    },
+    setAnkiIntegration: () => {},
+    showDesktopNotification: () => {},
+    createFieldGroupingCallback: () => async () => ({
+      keepNoteId: 5,
+      deleteNoteId: 6,
+      deleteDuplicate: false,
+      cancelled: false,
+    }),
+    getKnownWordCacheStatePath: () => '/tmp/known-words-cache.json',
+  });
+});
+
 test('initializeOverlayRuntime re-syncs overlay shortcuts when tracker focus changes', () => {
   let syncCalls = 0;
   const tracker = {

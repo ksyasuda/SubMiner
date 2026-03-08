@@ -1,5 +1,5 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
-import { AnkiConnectConfig } from '../types';
+import { AiConfig, AnkiConnectConfig } from '../types';
 import { createLogger } from '../logger';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
 import { MpvClient } from '../types';
@@ -62,6 +62,7 @@ interface CardCreationMediaGenerator {
 
 interface CardCreationDeps {
   getConfig: () => AnkiConnectConfig;
+  getAiConfig: () => AiConfig;
   getTimingTracker: () => SubtitleTimingTracker;
   getMpvClient: () => MpvClient;
   getDeck?: () => string | undefined;
@@ -495,11 +496,18 @@ export class CardCreationService {
 
         fields[sentenceField] = sentence;
 
+        const ankiAiConfig = this.deps.getConfig().ai;
+        const ankiAiEnabled =
+          typeof ankiAiConfig === 'object' && ankiAiConfig !== null
+            ? ankiAiConfig.enabled === true
+            : ankiAiConfig === true;
+
         const backText = await resolveSentenceBackText(
           {
             sentence,
             secondarySubText,
-            config: this.deps.getConfig().ai || {},
+            aiEnabled: ankiAiEnabled,
+            aiConfig: this.deps.getAiConfig(),
           },
           {
             logWarning: (message: string) => log.warn(message),

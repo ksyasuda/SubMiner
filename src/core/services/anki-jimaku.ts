@@ -1,5 +1,7 @@
 import { AnkiIntegration } from '../../anki-integration';
+import { mergeAiConfig } from '../../ai/config';
 import {
+  AiConfig,
   AnkiConnectConfig,
   JimakuApiResponse,
   JimakuEntry,
@@ -30,7 +32,7 @@ interface SubtitleTimingTrackerLike {
 
 export interface AnkiJimakuIpcRuntimeOptions {
   patchAnkiConnectEnabled: (enabled: boolean) => void;
-  getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig };
+  getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig; ai?: AiConfig };
   getRuntimeOptionsManager: () => RuntimeOptionsManagerLike | null;
   getSubtitleTimingTracker: () => SubtitleTimingTrackerLike | null;
   getMpvClient: () => MpvClientLike | null;
@@ -100,6 +102,7 @@ export function registerAnkiJimakuIpcRuntime(
           options.showDesktopNotification,
           options.createFieldGroupingCallback(),
           options.getKnownWordCacheStatePath(),
+          mergeAiConfig(config.ai, config.ankiConnect?.ai) as AiConfig,
         );
         integration.start();
         options.setAnkiIntegration(integration);

@@ -13,7 +13,6 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
   const media = isObject(ac.media) ? (ac.media as Record<string, unknown>) : {};
   const metadata = isObject(ac.metadata) ? (ac.metadata as Record<string, unknown>) : {};
   const proxy = isObject(ac.proxy) ? (ac.proxy as Record<string, unknown>) : {};
-  const aiSource = isObject(ac.ai) ? ac.ai : isObject(ac.openRouter) ? ac.openRouter : {};
   const legacyKeys = new Set([
     'audioField',
     'imageField',
@@ -42,19 +41,11 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
     'autoUpdateNewCards',
   ]);
 
-  if (ac.openRouter !== undefined) {
-    context.warn(
-      'ankiConnect.openRouter',
-      ac.openRouter,
-      context.resolved.ankiConnect.ai,
-      'Deprecated key; use ankiConnect.ai instead.',
-    );
-  }
-
-  const { nPlusOne: _nPlusOneConfigFromAnkiConnect, ...ankiConnectWithoutNPlusOne } = ac as Record<
-    string,
-    unknown
-  >;
+  const {
+    nPlusOne: _nPlusOneConfigFromAnkiConnect,
+    ai: _ankiAiConfig,
+    ...ankiConnectWithoutNPlusOne
+  } = ac as Record<string, unknown>;
   const ankiConnectWithoutLegacy = Object.fromEntries(
     Object.entries(ankiConnectWithoutNPlusOne).filter(([key]) => !legacyKeys.has(key)),
   );
@@ -69,10 +60,6 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       ...(isObject(ac.fields)
         ? (ac.fields as (typeof context.resolved)['ankiConnect']['fields'])
         : {}),
-    },
-    ai: {
-      ...context.resolved.ankiConnect.ai,
-      ...(aiSource as (typeof context.resolved)['ankiConnect']['ai']),
     },
     media: {
       ...context.resolved.ankiConnect.media,
@@ -217,6 +204,56 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       context.resolved.ankiConnect.proxy,
       'Expected object.',
     );
+  }
+
+  if (isObject(ac.ai)) {
+    const aiEnabled = asBoolean(ac.ai.enabled);
+    if (aiEnabled !== undefined) {
+      context.resolved.ankiConnect.ai.enabled = aiEnabled;
+    } else if (ac.ai.enabled !== undefined) {
+      context.warn(
+        'ankiConnect.ai.enabled',
+        ac.ai.enabled,
+        context.resolved.ankiConnect.ai.enabled,
+        'Expected boolean.',
+      );
+    }
+
+    const aiModel = asString(ac.ai.model);
+    if (aiModel !== undefined) {
+      context.resolved.ankiConnect.ai.model = aiModel;
+    } else if (ac.ai.model !== undefined) {
+      context.warn(
+        'ankiConnect.ai.model',
+        ac.ai.model,
+        context.resolved.ankiConnect.ai.model,
+        'Expected string.',
+      );
+    }
+
+    const aiSystemPrompt = asString(ac.ai.systemPrompt);
+    if (aiSystemPrompt !== undefined) {
+      context.resolved.ankiConnect.ai.systemPrompt = aiSystemPrompt;
+    } else if (ac.ai.systemPrompt !== undefined) {
+      context.warn(
+        'ankiConnect.ai.systemPrompt',
+        ac.ai.systemPrompt,
+        context.resolved.ankiConnect.ai.systemPrompt,
+        'Expected string.',
+      );
+    }
+  } else {
+    const aiEnabled = asBoolean(ac.ai);
+    if (aiEnabled !== undefined) {
+      context.resolved.ankiConnect.ai.enabled = aiEnabled;
+    } else if (ac.ai !== undefined) {
+      context.warn(
+        'ankiConnect.ai',
+        ac.ai,
+        context.resolved.ankiConnect.ai.enabled,
+        'Expected boolean or object.',
+      );
+    }
   }
 
   if (Array.isArray(ac.tags)) {

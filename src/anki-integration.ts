@@ -21,6 +21,7 @@ import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { MediaGenerator } from './media-generator';
 import path from 'path';
 import {
+  AiConfig,
   AnkiConnectConfig,
   KikuDuplicateCardInfo,
   KikuFieldGroupingChoice,
@@ -135,6 +136,7 @@ export class AnkiIntegration {
   private noteUpdateWorkflow: NoteUpdateWorkflow;
   private fieldGroupingWorkflow: FieldGroupingWorkflow;
   private runtime: AnkiIntegrationRuntime;
+  private aiConfig: AiConfig;
 
   constructor(
     config: AnkiConnectConfig,
@@ -147,8 +149,10 @@ export class AnkiIntegration {
       duplicate: KikuDuplicateCardInfo;
     }) => Promise<KikuFieldGroupingChoice>,
     knownWordCacheStatePath?: string,
+    aiConfig: AiConfig = {},
   ) {
     this.config = normalizeAnkiIntegrationConfig(config);
+    this.aiConfig = { ...aiConfig };
     this.client = new AnkiConnectClient(this.config.url!);
     this.mediaGenerator = new MediaGenerator();
     this.timingTracker = timingTracker;
@@ -253,6 +257,7 @@ export class AnkiIntegration {
   private createCardCreationService(): CardCreationService {
     return new CardCreationService({
       getConfig: () => this.config,
+      getAiConfig: () => this.aiConfig,
       getTimingTracker: () => this.timingTracker,
       getMpvClient: () => this.mpvClient,
       getDeck: () => this.config.deck,
@@ -1096,7 +1101,10 @@ export class AnkiIntegration {
     return requiredFields.every((fieldName) => this.hasFieldValue(noteInfo, fieldName));
   }
 
-  applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>): void {
+  applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>, aiConfig?: AiConfig): void {
+    if (aiConfig) {
+      this.aiConfig = { ...aiConfig };
+    }
     this.runtime.applyRuntimeConfigPatch(patch);
   }
 

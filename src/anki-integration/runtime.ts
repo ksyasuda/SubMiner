@@ -30,6 +30,22 @@ function trimToNonEmptyString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeAnkiAiConfig(config: AnkiConnectConfig['ai']): NonNullable<AnkiConnectConfig['ai']> {
+  if (config && typeof config === 'object') {
+    return {
+      enabled: config.enabled === true,
+      model: trimToNonEmptyString(config.model) ?? '',
+      systemPrompt: trimToNonEmptyString(config.systemPrompt) ?? '',
+    };
+  }
+
+  return {
+    enabled: config === true,
+    model: '',
+    systemPrompt: '',
+  };
+}
+
 export function normalizeAnkiIntegrationConfig(config: AnkiConnectConfig): AnkiConnectConfig {
   const resolvedUrl = trimToNonEmptyString(config.url) ?? DEFAULT_ANKI_CONNECT_CONFIG.url;
   const proxySource =
@@ -63,11 +79,7 @@ export function normalizeAnkiIntegrationConfig(config: AnkiConnectConfig): AnkiC
       port: normalizedProxyPort,
       upstreamUrl: normalizedProxyUpstreamUrl,
     },
-    ai: {
-      ...DEFAULT_ANKI_CONNECT_CONFIG.ai,
-      ...(config.openRouter ?? {}),
-      ...(config.ai ?? {}),
-    },
+    ai: normalizeAnkiAiConfig(config.ai),
     media: {
       ...DEFAULT_ANKI_CONNECT_CONFIG.media,
       ...(config.media ?? {}),

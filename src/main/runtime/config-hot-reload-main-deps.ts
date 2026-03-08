@@ -65,7 +65,7 @@ export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
   refreshGlobalAndOverlayShortcuts: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
-  applyAnkiRuntimeConfigPatch: (patch: { ai: ResolvedConfig['ankiConnect']['ai'] }) => void;
+  applyAnkiRuntimeConfigPatch: (patch: { ai: ResolvedConfig['ankiConnect']['ai']['enabled'] }) => void;
 }) {
   return () => ({
     setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) =>
@@ -74,7 +74,7 @@ export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
     setSecondarySubMode: (mode: SecondarySubMode) => deps.setSecondarySubMode(mode),
     broadcastToOverlayWindows: (channel: string, payload: unknown) =>
       deps.broadcastToOverlayWindows(channel, payload),
-    applyAnkiRuntimeConfigPatch: (patch: { ai: ResolvedConfig['ankiConnect']['ai'] }) =>
+    applyAnkiRuntimeConfigPatch: (patch: { ai: ResolvedConfig['ankiConnect']['ai']['enabled'] }) =>
       deps.applyAnkiRuntimeConfigPatch(patch),
   });
 }

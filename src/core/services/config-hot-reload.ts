@@ -73,7 +73,11 @@ function classifyDiff(prev: ResolvedConfig, next: ResolvedConfig): ConfigHotRelo
     if (key === 'ankiConnect') {
       const normalizedPrev = {
         ...prev.ankiConnect,
-        ai: next.ankiConnect.ai,
+        ai: {
+          enabled: next.ankiConnect.ai.enabled,
+          model: prev.ankiConnect.ai.model,
+          systemPrompt: prev.ankiConnect.ai.systemPrompt,
+        },
       };
       if (!isEqual(normalizedPrev, next.ankiConnect)) {
         restartRequiredFields.push('ankiConnect');

@@ -4,6 +4,46 @@ import { asBoolean, asNumber, asString, isObject } from './shared';
 export function applyIntegrationConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
 
+  if (isObject(src.ai)) {
+    const booleanKeys = ['enabled'] as const;
+    for (const key of booleanKeys) {
+      const value = asBoolean(src.ai[key]);
+      if (value !== undefined) {
+        resolved.ai[key] = value;
+      } else if (src.ai[key] !== undefined) {
+        warn(`ai.${key}`, src.ai[key], resolved.ai[key], 'Expected boolean.');
+      }
+    }
+
+    const stringKeys = ['apiKey', 'apiKeyCommand', 'baseUrl', 'model', 'systemPrompt'] as const;
+    for (const key of stringKeys) {
+      const value = asString(src.ai[key]);
+      if (value !== undefined) {
+        resolved.ai[key] = value;
+      } else if (src.ai[key] !== undefined) {
+        warn(`ai.${key}`, src.ai[key], resolved.ai[key], 'Expected string.');
+      }
+    }
+
+    const requestTimeoutMs = asNumber(src.ai.requestTimeoutMs);
+    if (
+      requestTimeoutMs !== undefined &&
+      Number.isInteger(requestTimeoutMs) &&
+      requestTimeoutMs > 0
+    ) {
+      resolved.ai.requestTimeoutMs = requestTimeoutMs;
+    } else if (src.ai.requestTimeoutMs !== undefined) {
+      warn(
+        'ai.requestTimeoutMs',
+        src.ai.requestTimeoutMs,
+        resolved.ai.requestTimeoutMs,
+        'Expected positive integer.',
+      );
+    }
+  } else if (src.ai !== undefined) {
+    warn('ai', src.ai, resolved.ai, 'Expected object.');
+  }
+
   if (isObject(src.anilist)) {
     const enabled = asBoolean(src.anilist.enabled);
     if (enabled !== undefined) {

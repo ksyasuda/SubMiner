@@ -125,10 +125,10 @@ test('config hot reload runtime reports validation warnings from reload', () => 
       config: deepCloneConfig(DEFAULT_CONFIG),
       warnings: [
         {
-          path: 'ankiConnect.openRouter',
-          message: 'Deprecated key; use ankiConnect.ai instead.',
+          path: 'ankiConnect.ai',
+          message: 'Expected boolean.',
           value: { enabled: true },
-          fallback: {},
+          fallback: false,
         },
       ],
       path: '/tmp/config.jsonc',
