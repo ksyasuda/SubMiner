@@ -151,11 +151,15 @@ export interface CliCommandRuntimeServiceDepsParams {
     getQueueStatus: CliCommandDepsRuntimeOptions['anilist']['getQueueStatus'];
     retryQueueNow: CliCommandDepsRuntimeOptions['anilist']['retryQueueNow'];
   };
+  dictionary: {
+    generate: CliCommandDepsRuntimeOptions['dictionary']['generate'];
+  };
   jellyfin: {
     openSetup: CliCommandDepsRuntimeOptions['jellyfin']['openSetup'];
     runCommand: CliCommandDepsRuntimeOptions['jellyfin']['runCommand'];
   };
   ui: {
+    openFirstRunSetup: CliCommandDepsRuntimeOptions['ui']['openFirstRunSetup'];
     openYomitanSettings: CliCommandDepsRuntimeOptions['ui']['openYomitanSettings'];
     cycleSecondarySubMode: CliCommandDepsRuntimeOptions['ui']['cycleSecondarySubMode'];
     openRuntimeOptionsPalette: CliCommandDepsRuntimeOptions['ui']['openRuntimeOptionsPalette'];
@@ -182,6 +186,7 @@ export interface MpvCommandRuntimeServiceDepsParams {
   mpvPlayNextSubtitle: HandleMpvCommandFromIpcOptions['mpvPlayNextSubtitle'];
   shiftSubDelayToAdjacentSubtitle: HandleMpvCommandFromIpcOptions['shiftSubDelayToAdjacentSubtitle'];
   mpvSendCommand: HandleMpvCommandFromIpcOptions['mpvSendCommand'];
+  resolveProxyCommandOsd?: HandleMpvCommandFromIpcOptions['resolveProxyCommandOsd'];
   isMpvConnected: HandleMpvCommandFromIpcOptions['isMpvConnected'];
   hasRuntimeOptionsManager: HandleMpvCommandFromIpcOptions['hasRuntimeOptionsManager'];
 }
@@ -296,11 +301,15 @@ export function createCliCommandRuntimeServiceDeps(
       getQueueStatus: params.anilist.getQueueStatus,
       retryQueueNow: params.anilist.retryQueueNow,
     },
+    dictionary: {
+      generate: params.dictionary.generate,
+    },
     jellyfin: {
       openSetup: params.jellyfin.openSetup,
       runCommand: params.jellyfin.runCommand,
     },
     ui: {
+      openFirstRunSetup: params.ui.openFirstRunSetup,
       openYomitanSettings: params.ui.openYomitanSettings,
       cycleSecondarySubMode: params.ui.cycleSecondarySubMode,
       openRuntimeOptionsPalette: params.ui.openRuntimeOptionsPalette,
@@ -331,6 +340,7 @@ export function createMpvCommandRuntimeServiceDeps(
     mpvPlayNextSubtitle: params.mpvPlayNextSubtitle,
     shiftSubDelayToAdjacentSubtitle: params.shiftSubDelayToAdjacentSubtitle,
     mpvSendCommand: params.mpvSendCommand,
+    resolveProxyCommandOsd: params.resolveProxyCommandOsd,
     isMpvConnected: params.isMpvConnected,
     hasRuntimeOptionsManager: params.hasRuntimeOptionsManager,
   };

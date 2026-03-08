@@ -49,6 +49,7 @@ function isKanaChar(char: string): boolean {
   return (
     (code >= 0x3041 && code <= 0x3096) ||
     (code >= 0x309b && code <= 0x309f) ||
+    code === 0x30fc ||
     (code >= 0x30a0 && code <= 0x30fa) ||
     (code >= 0x30fd && code <= 0x30ff)
   );
@@ -111,6 +112,51 @@ function extractYomitanHeadword(segment: YomitanParseSegment): string {
   return '';
 }
 
+function selectMergedHeadword(
+  firstHeadword: string,
+  expandedHeadwords: string[],
+  surface: string,
+): string {
+  if (expandedHeadwords.length > 0) {
+    const exactSurfaceMatch = expandedHeadwords.find((headword) => headword === surface);
+    if (exactSurfaceMatch) {
+      return exactSurfaceMatch;
+    }
+
+    return expandedHeadwords.reduce((best, current) => {
+      if (current.length !== best.length) {
+        return current.length > best.length ? current : best;
+      }
+      return best;
+    });
+  }
+
+  if (!firstHeadword) {
+    return '';
+  }
+  return firstHeadword;
+}
+
+function isKanaOnlyText(text: string): boolean {
+  return text.length > 0 && Array.from(text).every((char) => isKanaChar(char));
+}
+
+function shouldMergeKanaContinuation(
+  previousToken: MergedToken | undefined,
+  continuationSurface: string,
+): previousToken is MergedToken {
+  if (!previousToken || !continuationSurface || !isKanaOnlyText(continuationSurface)) {
+    return false;
+  }
+
+  if (!previousToken.headword || previousToken.headword.length <= previousToken.surface.length) {
+    return false;
+  }
+
+  const appendedSurface = previousToken.surface + continuationSurface;
+  return previousToken.headword.startsWith(appendedSurface);
+}
+
 export function mapYomitanParseResultItemToMergedTokens(
   parseResult: YomitanParseResultItem,
   isKnownWord: (text: string) => boolean,
@@ -140,7 +186,8 @@ export function mapYomitanParseResultItemToMergedTokens(
 
     let combinedSurface = '';
     let combinedReading = '';
-    let combinedHeadword = '';
+    let firstHeadword = '';
+    const expandedHeadwords: string[] = [];
 
     for (const segment of line) {
       const segmentText = segment.text;
@@ -152,8 +199,14 @@ export function mapYomitanParseResultItemToMergedTokens(
       if (typeof segment.reading === 'string') {
         combinedReading += segment.reading;
       }
-      if (!combinedHeadword) {
-        combinedHeadword = extractYomitanHeadword(segment);
+      const segmentHeadword = extractYomitanHeadword(segment);
+      if (segmentHeadword) {
+        if (!firstHeadword) {
+          firstHeadword = segmentHeadword;
+        }
+        if (segmentHeadword.length > segmentText.length) {
+          expandedHeadwords.push(segmentHeadword);
+        }
       }
     }
 
@@ -164,7 +217,20 @@ export function mapYomitanParseResultItemToMergedTokens(
     const start = charOffset;
     const end = start + combinedSurface.length;
     charOffset = end;
+    const combinedHeadword = selectMergedHeadword(
+      firstHeadword,
+      expandedHeadwords,
+      combinedSurface,
+    );
     if (!combinedHeadword) {
+      const previousToken = tokens[tokens.length - 1];
+      if (shouldMergeKanaContinuation(previousToken, combinedSurface)) {
+        previousToken.surface += combinedSurface;
+        previousToken.reading += combinedReading;
+        previousToken.endPos = end;
+        continue;
+      }
+
       // No dictionary-backed headword for this merged unit; skip it entirely so
       // downstream keyboard/frequency/JLPT flows only operate on lookup-backed tokens.
       continue;

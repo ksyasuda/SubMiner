@@ -5,6 +5,7 @@ export interface CliArgs {
   toggle: boolean;
   toggleVisibleOverlay: boolean;
   settings: boolean;
+  setup: boolean;
   show: boolean;
   hide: boolean;
   showVisibleOverlay: boolean;
@@ -24,6 +25,8 @@ export interface CliArgs {
   anilistLogout: boolean;
   anilistSetup: boolean;
   anilistRetryQueue: boolean;
+  dictionary: boolean;
+  dictionaryTarget?: string;
   jellyfin: boolean;
   jellyfinLogin: boolean;
   jellyfinLogout: boolean;
@@ -69,6 +72,7 @@ export function parseArgs(argv: string[]): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     settings: false,
+    setup: false,
     show: false,
     hide: false,
     showVisibleOverlay: false,
@@ -88,6 +92,7 @@ export function parseArgs(argv: string[]): CliArgs {
     anilistLogout: false,
     anilistSetup: false,
     anilistRetryQueue: false,
+    dictionary: false,
     jellyfin: false,
     jellyfinLogin: false,
     jellyfinLogout: false,
@@ -122,6 +127,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--toggle') args.toggle = true;
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
     else if (arg === '--settings' || arg === '--yomitan') args.settings = true;
+    else if (arg === '--setup') args.setup = true;
     else if (arg === '--show') args.show = true;
     else if (arg === '--hide') args.hide = true;
     else if (arg === '--show-visible-overlay') args.showVisibleOverlay = true;
@@ -141,7 +147,14 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--anilist-logout') args.anilistLogout = true;
     else if (arg === '--anilist-setup') args.anilistSetup = true;
     else if (arg === '--anilist-retry-queue') args.anilistRetryQueue = true;
-    else if (arg === '--jellyfin') args.jellyfin = true;
+    else if (arg === '--dictionary') args.dictionary = true;
+    else if (arg.startsWith('--dictionary-target=')) {
+      const value = arg.split('=', 2)[1];
+      if (value) args.dictionaryTarget = value;
+    } else if (arg === '--dictionary-target') {
+      const value = readValue(argv[i + 1]);
+      if (value) args.dictionaryTarget = value;
+    } else if (arg === '--jellyfin') args.jellyfin = true;
     else if (arg === '--jellyfin-login') args.jellyfinLogin = true;
     else if (arg === '--jellyfin-logout') args.jellyfinLogout = true;
     else if (arg === '--jellyfin-libraries') args.jellyfinLibraries = true;
@@ -288,6 +301,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.toggle ||
     args.toggleVisibleOverlay ||
     args.settings ||
+    args.setup ||
     args.show ||
     args.hide ||
     args.showVisibleOverlay ||
@@ -307,6 +321,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.anilistLogout ||
     args.anilistSetup ||
     args.anilistRetryQueue ||
+    args.dictionary ||
     args.jellyfin ||
     args.jellyfinLogin ||
     args.jellyfinLogout ||
@@ -330,6 +345,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.toggle ||
     args.toggleVisibleOverlay ||
     args.settings ||
+    args.setup ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
     args.mineSentence ||
@@ -340,6 +356,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.triggerSubsync ||
     args.markAudioCard ||
     args.openRuntimeOptions ||
+    args.dictionary ||
     args.jellyfin ||
     args.jellyfinPlay ||
     args.texthooker
@@ -359,6 +376,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.toggleVisibleOverlay &&
     !args.show &&
     !args.hide &&
+    !args.setup &&
     !args.showVisibleOverlay &&
     !args.hideVisibleOverlay &&
     !args.copySubtitle &&
@@ -376,6 +394,7 @@ export function shouldRunSettingsOnlyStartup(args: CliArgs): boolean {
     !args.anilistLogout &&
     !args.anilistSetup &&
     !args.anilistRetryQueue &&
+    !args.dictionary &&
     !args.jellyfin &&
     !args.jellyfinLogin &&
     !args.jellyfinLogout &&

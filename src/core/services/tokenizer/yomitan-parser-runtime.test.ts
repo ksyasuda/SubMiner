@@ -1,12 +1,26 @@
 import assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import test from 'node:test';
+import * as vm from 'node:vm';
 import {
-  requestYomitanParseResults,
+  getYomitanDictionaryInfo,
+  importYomitanDictionaryFromZip,
+  deleteYomitanDictionaryByTitle,
+  removeYomitanDictionarySettings,
+  requestYomitanScanTokens,
   requestYomitanTermFrequencies,
   syncYomitanDefaultAnkiServer,
+  upsertYomitanDictionarySettings,
 } from './yomitan-parser-runtime';
 
-function createDeps(executeJavaScript: (script: string) => Promise<unknown>) {
+function createDeps(
+  executeJavaScript: (script: string) => Promise<unknown>,
+  options?: {
+    createYomitanExtensionWindow?: (pageName: string) => Promise<unknown>;
+  },
+) {
   const parserWindow = {
     isDestroyed: () => false,
     webContents: {
@@ -22,7 +36,42 @@ function createDeps(executeJavaScript: (script: string) => Promise<unknown>) {
     setYomitanParserReadyPromise: () => undefined,
     getYomitanParserInitPromise: () => null,
     setYomitanParserInitPromise: () => undefined,
+    createYomitanExtensionWindow: options?.createYomitanExtensionWindow as never,
   };
+}
+
+async function runInjectedYomitanScript(
+  script: string,
+  handler: (action: string, params: unknown) => unknown,
+): Promise<unknown> {
+  return await vm.runInNewContext(script, {
+    chrome: {
+      runtime: {
+        lastError: null,
+        sendMessage: (
+          payload: { action?: string; params?: unknown },
+          callback: (response: { result?: unknown; error?: { message?: string } }) => void,
+        ) => {
+          try {
+            callback({ result: handler(payload.action ?? '', payload.params) });
+          } catch (error) {
+            callback({ error: { message: (error as Error).message } });
+          }
+        },
+      },
+    },
+    Array,
+    Error,
+    JSON,
+    Map,
+    Math,
+    Number,
+    Object,
+    Promise,
+    RegExp,
+    Set,
+    String,
+  });
 }
 
 test('syncYomitanDefaultAnkiServer updates default profile server when script reports update', async () => {
@@ -389,7 +438,7 @@ test('requestYomitanTermFrequencies caches repeated term+reading lookups', async
   assert.equal(frequencyCalls, 1);
 });
 
-test('requestYomitanParseResults disables Yomitan MeCab parser path', async () => {
+test('requestYomitanScanTokens uses left-to-right termsFind scanning instead of parseText', async () => {
   const scripts: string[] = [];
   const deps = createDeps(async (script) => {
     scripts.push(script);
@@ -405,15 +454,517 @@ test('requestYomitanParseResults disables Yomitan MeCab parser path', async () =
         ],
       };
     }
-    return [];
+    return [
+      {
+        surface: 'カズマ',
+        reading: 'かずま',
+        headword: 'カズマ',
+        startPos: 0,
+        endPos: 3,
+      },
+    ];
   });
 
-  const result = await requestYomitanParseResults('猫です', deps, {
+  const result = await requestYomitanScanTokens('カズマ', deps, {
     error: () => undefined,
   });
 
-  assert.deepEqual(result, []);
-  const parseScript = scripts.find((script) => script.includes('parseText'));
-  assert.ok(parseScript, 'expected parseText request script');
-  assert.match(parseScript ?? '', /useMecabParser:\s*false/);
+  assert.deepEqual(result, [
+    {
+      surface: 'カズマ',
+      reading: 'かずま',
+      headword: 'カズマ',
+      startPos: 0,
+      endPos: 3,
+    },
+  ]);
+  const scannerScript = scripts.find((script) => script.includes('termsFind'));
+  assert.ok(scannerScript, 'expected termsFind scanning request script');
+  assert.doesNotMatch(scannerScript ?? '', /parseText/);
+  assert.match(scannerScript ?? '', /matchType:\s*"exact"/);
+  assert.match(scannerScript ?? '', /deinflect:\s*true/);
+});
+
+test('requestYomitanScanTokens marks tokens backed by SubMiner character dictionary entries', async () => {
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+
+    return [
+      {
+        surface: 'アクア',
+        reading: 'あくあ',
+        headword: 'アクア',
+        startPos: 0,
+        endPos: 3,
+        isNameMatch: true,
+      },
+      {
+        surface: 'です',
+        reading: 'です',
+        headword: 'です',
+        startPos: 3,
+        endPos: 5,
+        isNameMatch: false,
+      },
+    ];
+  });
+
+  const result = await requestYomitanScanTokens('アクアです', deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(result?.length, 2);
+  assert.equal((result?.[0] as { isNameMatch?: boolean } | undefined)?.isNameMatch, true);
+  assert.equal((result?.[1] as { isNameMatch?: boolean } | undefined)?.isNameMatch, false);
+});
+
+test('requestYomitanScanTokens skips name-match work when disabled', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+
+    return [
+      {
+        surface: 'アクア',
+        reading: 'あくあ',
+        headword: 'アクア',
+        startPos: 0,
+        endPos: 3,
+      },
+    ];
+  });
+
+  const result = await requestYomitanScanTokens(
+    'アクア',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: false },
+  );
+
+  assert.equal(result?.length, 1);
+  assert.equal((result?.[0] as { isNameMatch?: boolean } | undefined)?.isNameMatch, undefined);
+  assert.match(scannerScript, /const includeNameMatchMetadata = false;/);
+});
+
+test('requestYomitanScanTokens marks grouped entries when SubMiner dictionary alias only exists on definitions', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens(
+    'カズマ',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true },
+  );
+
+  assert.match(scannerScript, /getPreferredHeadword/);
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action === 'termsFind') {
+      const text = (params as { text?: string } | undefined)?.text;
+      if (text === 'カズマ') {
+        return {
+          originalTextLength: 3,
+          dictionaryEntries: [
+            {
+              dictionaryAlias: '',
+              headwords: [
+                {
+                  term: 'カズマ',
+                  reading: 'かずま',
+                  sources: [{ originalText: 'カズマ', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+              definitions: [
+                { dictionary: 'JMdict', dictionaryAlias: 'JMdict' },
+                {
+                  dictionary: 'SubMiner Character Dictionary (AniList 130298)',
+                  dictionaryAlias: 'SubMiner Character Dictionary (AniList 130298)',
+                },
+              ],
+            },
+          ],
+        };
+      }
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+    throw new Error(`unexpected action: ${action}`);
+  });
+
+  assert.equal(Array.isArray(result), true);
+  assert.equal((result as { length?: number } | null)?.length, 1);
+  assert.equal((result as Array<{ surface?: string }>)[0]?.surface, 'カズマ');
+  assert.equal((result as Array<{ headword?: string }>)[0]?.headword, 'カズマ');
+  assert.equal((result as Array<{ startPos?: number }>)[0]?.startPos, 0);
+  assert.equal((result as Array<{ endPos?: number }>)[0]?.endPos, 3);
+  assert.equal((result as Array<{ isNameMatch?: boolean }>)[0]?.isNameMatch, true);
+});
+
+test('requestYomitanScanTokens skips fallback fragments without exact primary source matches', async () => {
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+
+    return await runInjectedYomitanScript(script, (action, params) => {
+      if (action !== 'termsFind') {
+        throw new Error(`unexpected action: ${action}`);
+      }
+
+      const text = (params as { text?: string } | undefined)?.text ?? '';
+      if (text.startsWith('だが ')) {
+        return {
+          originalTextLength: 2,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: 'だが',
+                  reading: 'だが',
+                  sources: [{ originalText: 'だが', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (text.startsWith('それでも')) {
+        return {
+          originalTextLength: 4,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: 'それでも',
+                  reading: 'それでも',
+                  sources: [{ originalText: 'それでも', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (text.startsWith('届かぬ')) {
+        return {
+          originalTextLength: 3,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: '届く',
+                  reading: 'とどく',
+                  sources: [{ originalText: '届かぬ', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (text.startsWith('高み')) {
+        return {
+          originalTextLength: 2,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: '高み',
+                  reading: 'たかみ',
+                  sources: [{ originalText: '高み', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (text.startsWith('があった')) {
+        return {
+          originalTextLength: 2,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: 'があ',
+                  reading: '',
+                  sources: [{ originalText: 'が', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      if (text.startsWith('あった')) {
+        return {
+          originalTextLength: 3,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: 'ある',
+                  reading: 'ある',
+                  sources: [{ originalText: 'あった', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+            },
+          ],
+        };
+      }
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    });
+  });
+
+  const result = await requestYomitanScanTokens('だが それでも届かぬ高みがあった', deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(
+    result?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      startPos: token.startPos,
+      endPos: token.endPos,
+    })),
+    [
+      {
+        surface: 'だが',
+        headword: 'だが',
+        startPos: 0,
+        endPos: 2,
+      },
+      {
+        surface: 'それでも',
+        headword: 'それでも',
+        startPos: 3,
+        endPos: 7,
+      },
+      {
+        surface: '届かぬ',
+        headword: '届く',
+        startPos: 7,
+        endPos: 10,
+      },
+      {
+        surface: '高み',
+        headword: '高み',
+        startPos: 10,
+        endPos: 12,
+      },
+      {
+        surface: 'あった',
+        headword: 'ある',
+        startPos: 13,
+        endPos: 16,
+      },
+    ],
+  );
+});
+
+test('getYomitanDictionaryInfo requests dictionary info via backend action', async () => {
+  let scriptValue = '';
+  const deps = createDeps(async (script) => {
+    scriptValue = script;
+    return [{ title: 'SubMiner Character Dictionary (AniList 130298)', revision: '1' }];
+  });
+
+  const dictionaries = await getYomitanDictionaryInfo(deps, { error: () => undefined });
+  assert.equal(dictionaries.length, 1);
+  assert.equal(dictionaries[0]?.title, 'SubMiner Character Dictionary (AniList 130298)');
+  assert.match(scriptValue, /getDictionaryInfo/);
+});
+
+test('dictionary settings helpers upsert and remove dictionary entries without reordering', async () => {
+  const scripts: string[] = [];
+  const optionsFull = {
+    profileCurrent: 0,
+    profiles: [
+      {
+        options: {
+          dictionaries: [
+            {
+              name: 'Jitendex',
+              alias: 'Jitendex',
+              enabled: true,
+            },
+            {
+              name: 'SubMiner Character Dictionary (AniList 1)',
+              alias: 'SubMiner Character Dictionary (AniList 1)',
+              enabled: false,
+            },
+          ],
+        },
+      },
+    ],
+  };
+
+  const deps = createDeps(async (script) => {
+    scripts.push(script);
+    if (script.includes('optionsGetFull')) {
+      return JSON.parse(JSON.stringify(optionsFull));
+    }
+    if (script.includes('setAllSettings')) {
+      return true;
+    }
+    return null;
+  });
+
+  const title = 'SubMiner Character Dictionary (AniList 1)';
+  const upserted = await upsertYomitanDictionarySettings(title, 'all', deps, {
+    error: () => undefined,
+  });
+  const removed = await removeYomitanDictionarySettings(title, 'all', 'delete', deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(upserted, true);
+  assert.equal(removed, true);
+  const setCalls = scripts.filter((script) => script.includes('setAllSettings')).length;
+  assert.equal(setCalls, 2);
+
+  const upsertScript = scripts.find(
+    (script) =>
+      script.includes('setAllSettings') &&
+      script.includes('"SubMiner Character Dictionary (AniList 1)"'),
+  );
+  assert.ok(upsertScript);
+  const jitendexOffset = upsertScript?.indexOf('"Jitendex"') ?? -1;
+  const subMinerOffset = upsertScript?.indexOf('"SubMiner Character Dictionary (AniList 1)"') ?? -1;
+  assert.equal(jitendexOffset >= 0, true);
+  assert.equal(subMinerOffset >= 0, true);
+  assert.equal(jitendexOffset < subMinerOffset, true);
+  assert.match(upsertScript ?? '', /"enabled":true/);
+});
+
+test('importYomitanDictionaryFromZip uses settings automation bridge instead of custom backend action', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-yomitan-import-'));
+  const zipPath = path.join(tempDir, 'dict.zip');
+  fs.writeFileSync(zipPath, Buffer.from('zip-bytes'));
+
+  const scripts: string[] = [];
+  const settingsWindow = {
+    isDestroyed: () => false,
+    destroy: () => undefined,
+    webContents: {
+      executeJavaScript: async (script: string) => {
+        scripts.push(script);
+        return true;
+      },
+    },
+  };
+
+  const deps = createDeps(async () => true, {
+    createYomitanExtensionWindow: async (pageName: string) => {
+      assert.equal(pageName, 'settings.html');
+      return settingsWindow;
+    },
+  });
+
+  const imported = await importYomitanDictionaryFromZip(zipPath, deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(imported, true);
+  assert.equal(
+    scripts.some((script) => script.includes('__subminerYomitanSettingsAutomation')),
+    true,
+  );
+  assert.equal(
+    scripts.some((script) => script.includes('importDictionaryArchiveBase64')),
+    true,
+  );
+  assert.equal(
+    scripts.some((script) => script.includes('subminerImportDictionary')),
+    false,
+  );
+});
+
+test('deleteYomitanDictionaryByTitle uses settings automation bridge instead of custom backend action', async () => {
+  const scripts: string[] = [];
+  const settingsWindow = {
+    isDestroyed: () => false,
+    destroy: () => undefined,
+    webContents: {
+      executeJavaScript: async (script: string) => {
+        scripts.push(script);
+        return true;
+      },
+    },
+  };
+
+  const deps = createDeps(async () => true, {
+    createYomitanExtensionWindow: async (pageName: string) => {
+      assert.equal(pageName, 'settings.html');
+      return settingsWindow;
+    },
+  });
+
+  const deleted = await deleteYomitanDictionaryByTitle(
+    'SubMiner Character Dictionary (AniList 130298)',
+    deps,
+    { error: () => undefined },
+  );
+
+  assert.equal(deleted, true);
+  assert.equal(
+    scripts.some((script) => script.includes('__subminerYomitanSettingsAutomation')),
+    true,
+  );
+  assert.equal(
+    scripts.some((script) => script.includes('deleteDictionary')),
+    true,
+  );
+  assert.equal(
+    scripts.some((script) => script.includes('subminerDeleteDictionary')),
+    false,
+  );
 });

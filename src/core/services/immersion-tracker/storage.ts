@@ -315,7 +315,7 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
         lookup_hits, pause_count, pause_ms, seek_forward_count,
         seek_backward_count, media_buffer_events, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `),
     eventInsertStmt: db.prepare(`
@@ -323,7 +323,7 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
         session_id, ts_ms, event_type, line_index, segment_start_ms, segment_end_ms,
         words_delta, cards_delta, payload_json, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `),
     wordUpsertStmt: db.prepare(`

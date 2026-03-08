@@ -23,6 +23,7 @@ export interface HandleMpvCommandFromIpcOptions {
   mpvPlayNextSubtitle: () => void;
   shiftSubDelayToAdjacentSubtitle: (direction: 'next' | 'previous') => Promise<void>;
   mpvSendCommand: (command: (string | number)[]) => void;
+  resolveProxyCommandOsd?: (command: (string | number)[]) => Promise<string | null>;
   isMpvConnected: () => boolean;
   hasRuntimeOptionsManager: () => boolean;
 }
@@ -36,7 +37,7 @@ const MPV_PROPERTY_COMMANDS = new Set([
   'multiply',
 ]);
 
-function resolveProxyCommandOsd(command: (string | number)[]): string | null {
+function resolveProxyCommandOsdTemplate(command: (string | number)[]): string | null {
   const operation = typeof command[0] === 'string' ? command[0] : '';
   const property = typeof command[1] === 'string' ? command[1] : '';
   if (!MPV_PROPERTY_COMMANDS.has(operation)) return null;
@@ -53,6 +54,25 @@ function resolveProxyCommandOsd(command: (string | number)[]): string | null {
     return 'Subtitle delay: ${sub-delay}';
   }
   return null;
+}
+
+function showResolvedProxyCommandOsd(
+  command: (string | number)[],
+  options: HandleMpvCommandFromIpcOptions,
+): void {
+  const template = resolveProxyCommandOsdTemplate(command);
+  if (!template) return;
+
+  const emit = async () => {
+    try {
+      const resolved = await options.resolveProxyCommandOsd?.(command);
+      options.showMpvOsd(resolved || template);
+    } catch {
+      options.showMpvOsd(template);
+    }
+  };
+
+  void emit();
 }
 
 export function handleMpvCommandFromIpc(
@@ -103,10 +123,7 @@ export function handleMpvCommandFromIpc(
       options.mpvPlayNextSubtitle();
     } else {
       options.mpvSendCommand(command);
-      const osd = resolveProxyCommandOsd(command);
-      if (osd) {
-        options.showMpvOsd(osd);
-      }
+      showResolvedProxyCommandOsd(command, options);
     }
   }
 }

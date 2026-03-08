@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { printHelp } from './cli/help';
 import {
+  normalizeStartupArgv,
+  sanitizeStartupEnv,
   sanitizeBackgroundEnv,
   sanitizeHelpEnv,
   shouldDetachBackgroundLaunch,
@@ -8,6 +10,21 @@ import {
 } from './main-entry-runtime';
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
+
+function applySanitizedEnv(sanitizedEnv: NodeJS.ProcessEnv): void {
+  if (sanitizedEnv.NODE_NO_WARNINGS) {
+    process.env.NODE_NO_WARNINGS = sanitizedEnv.NODE_NO_WARNINGS;
+  }
+
+  if (sanitizedEnv.VK_INSTANCE_LAYERS) {
+    process.env.VK_INSTANCE_LAYERS = sanitizedEnv.VK_INSTANCE_LAYERS;
+  } else {
+    delete process.env.VK_INSTANCE_LAYERS;
+  }
+}
+
+process.argv = normalizeStartupArgv(process.argv, process.env);
+applySanitizedEnv(sanitizeStartupEnv(process.env));
 
 if (shouldDetachBackgroundLaunch(process.argv, process.env)) {
   const child = spawn(process.execPath, process.argv.slice(1), {

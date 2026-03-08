@@ -5,6 +5,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'subtitlePosition'
   | 'keybindings'
   | 'websocket'
+  | 'annotationWebsocket'
   | 'logging'
   | 'texthooker'
   | 'shortcuts'
@@ -19,10 +20,15 @@ export const CORE_DEFAULT_CONFIG: Pick<
     enabled: 'auto',
     port: 6677,
   },
+  annotationWebsocket: {
+    enabled: true,
+    port: 6678,
+  },
   logging: {
     level: 'info',
   },
   texthooker: {
+    launchAtStartup: true,
     openBrowser: true,
   },
   shortcuts: {

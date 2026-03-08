@@ -57,6 +57,7 @@ test('media path change handler reports stop for empty path and probes media key
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
     ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
     syncImmersionMediaState: () => calls.push('sync'),
+    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
     refreshDiscordPresence: () => calls.push('presence'),
   });
 
@@ -80,6 +81,7 @@ test('media title change handler clears guess state and syncs immersion', () => 
     resetAnilistMediaGuessState: () => calls.push('reset-guess'),
     notifyImmersionTitleUpdate: (title) => calls.push(`notify:${title}`),
     syncImmersionMediaState: () => calls.push('sync'),
+    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
     refreshDiscordPresence: () => calls.push('presence'),
   });
 
@@ -89,6 +91,7 @@ test('media title change handler clears guess state and syncs immersion', () => 
     'reset-guess',
     'notify:Episode 1',
     'sync',
+    'dict-sync',
     'presence',
   ]);
 });

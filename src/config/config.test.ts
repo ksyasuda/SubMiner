@@ -16,9 +16,20 @@ test('loads defaults when config is missing', () => {
   const service = new ConfigService(dir);
   const config = service.getConfig();
   assert.equal(config.websocket.port, DEFAULT_CONFIG.websocket.port);
+  assert.equal(config.annotationWebsocket.enabled, DEFAULT_CONFIG.annotationWebsocket.enabled);
+  assert.equal(config.annotationWebsocket.port, DEFAULT_CONFIG.annotationWebsocket.port);
+  assert.equal(config.texthooker.launchAtStartup, true);
   assert.equal(config.ankiConnect.behavior.autoUpdateNewCards, true);
   assert.deepEqual(config.ankiConnect.tags, ['SubMiner']);
   assert.equal(config.anilist.enabled, false);
+  assert.equal(config.anilist.characterDictionary.enabled, false);
+  assert.equal(config.anilist.characterDictionary.refreshTtlHours, 168);
+  assert.equal(config.anilist.characterDictionary.maxLoaded, 3);
+  assert.equal(config.anilist.characterDictionary.evictionPolicy, 'delete');
+  assert.equal(config.anilist.characterDictionary.profileScope, 'all');
+  assert.equal(config.anilist.characterDictionary.collapsibleSections.description, false);
+  assert.equal(config.anilist.characterDictionary.collapsibleSections.characterInformation, false);
+  assert.equal(config.anilist.characterDictionary.collapsibleSections.voicedBy, false);
   assert.equal(config.jellyfin.remoteControlEnabled, true);
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, false);
@@ -120,6 +131,88 @@ test('parses subtitleStyle.preserveLineBreaks and warns on invalid values', () =
     invalidService
       .getWarnings()
       .some((warning) => warning.path === 'subtitleStyle.preserveLineBreaks'),
+  );
+});
+
+test('parses texthooker.launchAtStartup and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "texthooker": {
+        "launchAtStartup": false
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().texthooker.launchAtStartup, false);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "texthooker": {
+        "launchAtStartup": "yes"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().texthooker.launchAtStartup,
+    DEFAULT_CONFIG.texthooker.launchAtStartup,
+  );
+  assert.ok(
+    invalidService.getWarnings().some((warning) => warning.path === 'texthooker.launchAtStartup'),
+  );
+});
+
+test('parses annotationWebsocket settings and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "annotationWebsocket": {
+        "enabled": false,
+        "port": 7788
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().annotationWebsocket.enabled, false);
+  assert.equal(validService.getConfig().annotationWebsocket.port, 7788);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "annotationWebsocket": {
+        "enabled": "yes",
+        "port": "bad"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().annotationWebsocket.enabled,
+    DEFAULT_CONFIG.annotationWebsocket.enabled,
+  );
+  assert.equal(
+    invalidService.getConfig().annotationWebsocket.port,
+    DEFAULT_CONFIG.annotationWebsocket.port,
+  );
+  assert.ok(
+    invalidService.getWarnings().some((warning) => warning.path === 'annotationWebsocket.enabled'),
+  );
+  assert.ok(
+    invalidService.getWarnings().some((warning) => warning.path === 'annotationWebsocket.port'),
   );
 });
 
@@ -237,6 +330,47 @@ test('parses subtitleStyle.hoverTokenColor and warns on invalid values', () => {
   );
 });
 
+test('parses subtitleStyle.nameMatchColor and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "nameMatchColor": "#eed49f"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(
+    ((validService.getConfig().subtitleStyle as unknown as Record<string, unknown>)
+      .nameMatchColor ?? null) as string | null,
+    '#eed49f',
+  );
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "nameMatchColor": "pink"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    ((invalidService.getConfig().subtitleStyle as unknown as Record<string, unknown>)
+      .nameMatchColor ?? null) as string | null,
+    '#f5bde6',
+  );
+  assert.ok(
+    invalidService.getWarnings().some((warning) => warning.path === 'subtitleStyle.nameMatchColor'),
+  );
+});
+
 test('parses subtitleStyle.hoverTokenBackgroundColor and warns on invalid values', () => {
   const validDir = makeTempDir();
   fs.writeFileSync(
@@ -275,6 +409,44 @@ test('parses subtitleStyle.hoverTokenBackgroundColor and warns on invalid values
   );
 });
 
+test('parses subtitleStyle.nameMatchEnabled and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "nameMatchEnabled": false
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().subtitleStyle.nameMatchEnabled, false);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "subtitleStyle": {
+        "nameMatchEnabled": "no"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().subtitleStyle.nameMatchEnabled,
+    DEFAULT_CONFIG.subtitleStyle.nameMatchEnabled,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'subtitleStyle.nameMatchEnabled'),
+  );
+});
+
 test('parses anilist.enabled and warns for invalid value', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
@@ -296,6 +468,78 @@ test('parses anilist.enabled and warns for invalid value', () => {
 
   service.patchRawConfig({ anilist: { enabled: true } });
   assert.equal(service.getConfig().anilist.enabled, true);
+});
+
+test('parses anilist.characterDictionary config with clamping and enum validation', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "anilist": {
+        "characterDictionary": {
+          "enabled": true,
+          "refreshTtlHours": 0,
+          "maxLoaded": 1000,
+          "evictionPolicy": "remove",
+          "profileScope": "everywhere"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.anilist.characterDictionary.enabled, true);
+  assert.equal(config.anilist.characterDictionary.refreshTtlHours, 1);
+  assert.equal(config.anilist.characterDictionary.maxLoaded, 20);
+  assert.equal(config.anilist.characterDictionary.evictionPolicy, 'delete');
+  assert.equal(config.anilist.characterDictionary.profileScope, 'all');
+  assert.ok(
+    warnings.some((warning) => warning.path === 'anilist.characterDictionary.refreshTtlHours'),
+  );
+  assert.ok(warnings.some((warning) => warning.path === 'anilist.characterDictionary.maxLoaded'));
+  assert.ok(
+    warnings.some((warning) => warning.path === 'anilist.characterDictionary.evictionPolicy'),
+  );
+  assert.ok(
+    warnings.some((warning) => warning.path === 'anilist.characterDictionary.profileScope'),
+  );
+});
+
+test('parses anilist.characterDictionary.collapsibleSections booleans and warns on invalid values', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "anilist": {
+        "characterDictionary": {
+          "collapsibleSections": {
+            "description": true,
+            "characterInformation": "yes",
+            "voicedBy": true
+          }
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.anilist.characterDictionary.collapsibleSections.description, true);
+  assert.equal(config.anilist.characterDictionary.collapsibleSections.characterInformation, false);
+  assert.equal(config.anilist.characterDictionary.collapsibleSections.voicedBy, true);
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.path === 'anilist.characterDictionary.collapsibleSections.characterInformation',
+    ),
+  );
 });
 
 test('parses jellyfin remote control fields', () => {
@@ -721,6 +965,10 @@ test('warning emission order is deterministic across reloads', () => {
         "enabled": "sometimes",
         "port": -1
       },
+      "annotationWebsocket": {
+        "enabled": "sometimes",
+        "port": -1
+      },
       "logging": {
         "level": "trace"
       }
@@ -737,7 +985,14 @@ test('warning emission order is deterministic across reloads', () => {
   assert.deepEqual(secondWarnings, firstWarnings);
   assert.deepEqual(
     firstWarnings.map((warning) => warning.path),
-    ['unknownFeature', 'websocket.enabled', 'websocket.port', 'logging.level'],
+    [
+      'unknownFeature',
+      'websocket.enabled',
+      'websocket.port',
+      'annotationWebsocket.enabled',
+      'annotationWebsocket.port',
+      'logging.level',
+    ],
   );
 });
 
@@ -1292,6 +1547,7 @@ test('template generator includes known keys', () => {
   assert.match(output, /"discordPresence":/);
   assert.match(output, /"startupWarmups":/);
   assert.match(output, /"youtubeSubgen":/);
+  assert.match(output, /"characterDictionary":\s*\{/);
   assert.match(output, /"preserveLineBreaks": false/);
   assert.match(output, /"nPlusOne"\s*:\s*\{/);
   assert.match(output, /"nPlusOne": "#c6a0f6"/);
@@ -1308,6 +1564,15 @@ test('template generator includes known keys', () => {
   );
   assert.match(
     output,
+    /"enabled": true,? \/\/ Annotated subtitle websocket server enabled state\. Values: true \| false/,
+  );
+  assert.match(output, /"port": 6678,? \/\/ Annotated subtitle websocket server port\./);
+  assert.match(
+    output,
     /"enabled": false,? \/\/ Enable AnkiConnect integration\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"launchAtStartup": true,? \/\/ Launch texthooker server automatically when SubMiner starts\. Values: true \| false/,
   );
 });

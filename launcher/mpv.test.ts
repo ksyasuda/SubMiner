@@ -108,6 +108,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     jellyfinLogout: false,
     jellyfinPlay: false,
     jellyfinDiscovery: false,
+    dictionary: false,
     doctor: false,
     configPath: false,
     configShow: false,

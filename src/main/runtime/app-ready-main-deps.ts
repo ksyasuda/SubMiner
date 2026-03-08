@@ -2,6 +2,7 @@ import type { AppReadyRuntimeDepsFactoryInput } from '../app-lifecycle';
 
 export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeDepsFactoryInput) {
   return (): AppReadyRuntimeDepsFactoryInput => ({
+    ensureDefaultConfigBootstrap: deps.ensureDefaultConfigBootstrap,
     loadSubtitlePosition: deps.loadSubtitlePosition,
     resolveKeybindings: deps.resolveKeybindings,
     createMpvClient: deps.createMpvClient,
@@ -13,8 +14,12 @@ export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeD
     setSecondarySubMode: deps.setSecondarySubMode,
     defaultSecondarySubMode: deps.defaultSecondarySubMode,
     defaultWebsocketPort: deps.defaultWebsocketPort,
+    defaultAnnotationWebsocketPort: deps.defaultAnnotationWebsocketPort,
+    defaultTexthookerPort: deps.defaultTexthookerPort,
     hasMpvWebsocketPlugin: deps.hasMpvWebsocketPlugin,
     startSubtitleWebsocket: deps.startSubtitleWebsocket,
+    startAnnotationWebsocket: deps.startAnnotationWebsocket,
+    startTexthooker: deps.startTexthooker,
     log: deps.log,
     setLogLevel: deps.setLogLevel,
     createMecabTokenizerAndCheck: deps.createMecabTokenizerAndCheck,
@@ -22,10 +27,12 @@ export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeD
     createImmersionTracker: deps.createImmersionTracker,
     startJellyfinRemoteSession: deps.startJellyfinRemoteSession,
     loadYomitanExtension: deps.loadYomitanExtension,
+    handleFirstRunSetup: deps.handleFirstRunSetup,
     prewarmSubtitleDictionaries: deps.prewarmSubtitleDictionaries,
     startBackgroundWarmups: deps.startBackgroundWarmups,
     texthookerOnlyMode: deps.texthookerOnlyMode,
     shouldAutoInitializeOverlayRuntimeFromConfig: deps.shouldAutoInitializeOverlayRuntimeFromConfig,
+    setVisibleOverlayVisible: deps.setVisibleOverlayVisible,
     initializeOverlayRuntime: deps.initializeOverlayRuntime,
     handleInitialArgs: deps.handleInitialArgs,
     onCriticalConfigErrors: deps.onCriticalConfigErrors,

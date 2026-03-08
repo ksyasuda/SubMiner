@@ -8,6 +8,8 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle'> = {
     autoPauseVideoOnYomitanPopup: false,
     hoverTokenColor: '#f4dbd6',
     hoverTokenBackgroundColor: 'rgba(54, 58, 79, 0.84)',
+    nameMatchEnabled: true,
+    nameMatchColor: '#f5bde6',
     fontFamily: 'M PLUS 1 Medium, Source Han Sans JP, Noto Sans CJK JP',
     fontSize: 35,
     fontColor: '#cad3f5',
@@ -37,7 +39,7 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle'> = {
       mode: 'single',
       matchMode: 'headword',
       singleColor: '#f5a97f',
-      bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#a6e3a1', '#8aadf4'],
+      bandedColors: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],
     },
     secondary: {
       fontFamily: 'Inter, Noto Sans, Helvetica Neue, sans-serif',

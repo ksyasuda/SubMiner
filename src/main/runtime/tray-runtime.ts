@@ -31,6 +31,8 @@ export function resolveTrayIconPathRuntime(deps: {
 
 export type TrayMenuActionHandlers = {
   openOverlay: () => void;
+  openFirstRunSetup: () => void;
+  showFirstRunSetup: boolean;
   openYomitanSettings: () => void;
   openRuntimeOptions: () => void;
   openJellyfinSetup: () => void;
@@ -48,6 +50,14 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
       label: 'Open Overlay',
       click: handlers.openOverlay,
     },
+    ...(handlers.showFirstRunSetup
+      ? [
+          {
+            label: 'Complete Setup',
+            click: handlers.openFirstRunSetup,
+          },
+        ]
+      : []),
     {
       label: 'Open Yomitan Settings',
       click: handlers.openYomitanSettings,

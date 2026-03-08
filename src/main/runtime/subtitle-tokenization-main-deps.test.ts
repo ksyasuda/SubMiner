@@ -34,6 +34,7 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
     getMinSentenceWordsForNPlusOne: () => 3,
     getJlptLevel: () => 'N2',
     getJlptEnabled: () => true,
+    getNameMatchEnabled: () => false,
     getFrequencyDictionaryEnabled: () => true,
     getFrequencyDictionaryMatchMode: () => 'surface',
     getFrequencyRank: () => 5,
@@ -48,8 +49,37 @@ test('tokenizer deps builder records known-word lookups and maps readers', () =>
   deps.setYomitanParserInitPromise(null);
   assert.equal(deps.getNPlusOneEnabled?.(), true);
   assert.equal(deps.getMinSentenceWordsForNPlusOne?.(), 3);
+  assert.equal(deps.getNameMatchEnabled?.(), false);
   assert.equal(deps.getFrequencyDictionaryMatchMode?.(), 'surface');
   assert.deepEqual(calls, ['lookup:true', 'lookup:false', 'set-window', 'set-ready', 'set-init']);
+});
+
+test('tokenizer deps builder disables name matching when character dictionary is disabled', () => {
+  const deps = createBuildTokenizerDepsMainHandler({
+    getYomitanExt: () => null,
+    getYomitanParserWindow: () => null,
+    setYomitanParserWindow: () => undefined,
+    getYomitanParserReadyPromise: () => null,
+    setYomitanParserReadyPromise: () => undefined,
+    getYomitanParserInitPromise: () => null,
+    setYomitanParserInitPromise: () => undefined,
+    isKnownWord: () => false,
+    recordLookup: () => undefined,
+    getKnownWordMatchMode: () => 'surface',
+    getNPlusOneEnabled: () => true,
+    getMinSentenceWordsForNPlusOne: () => 3,
+    getJlptLevel: () => 'N2',
+    getJlptEnabled: () => true,
+    getCharacterDictionaryEnabled: () => false,
+    getNameMatchEnabled: () => true,
+    getFrequencyDictionaryEnabled: () => true,
+    getFrequencyDictionaryMatchMode: () => 'surface',
+    getFrequencyRank: () => 5,
+    getYomitanGroupDebugEnabled: () => false,
+    getMecabTokenizer: () => null,
+  })();
+
+  assert.equal(deps.getNameMatchEnabled?.(), false);
 });
 
 test('mecab tokenizer check creates tokenizer once and runs availability check', async () => {

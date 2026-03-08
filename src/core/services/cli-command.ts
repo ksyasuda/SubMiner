@@ -17,6 +17,7 @@ export interface CliCommandServiceDeps {
   isOverlayRuntimeInitialized: () => boolean;
   initializeOverlayRuntime: () => void;
   toggleVisibleOverlay: () => void;
+  openFirstRunSetup: () => void;
   openYomitanSettingsDelayed: (delayMs: number) => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
@@ -53,6 +54,13 @@ export interface CliCommandServiceDeps {
     lastError: string | null;
   };
   retryAnilistQueue: () => Promise<{ ok: boolean; message: string }>;
+  generateCharacterDictionary: (targetPath?: string) => Promise<{
+    zipPath: string;
+    fromCache: boolean;
+    mediaId: number;
+    mediaTitle: string;
+    entryCount: number;
+  }>;
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   printHelp: () => void;
   hasMainWindow: () => boolean;
@@ -108,6 +116,7 @@ interface MiningCliRuntime {
 }
 
 interface UiCliRuntime {
+  openFirstRunSetup: () => void;
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -134,6 +143,15 @@ export interface CliCommandDepsRuntimeOptions {
   overlay: OverlayCliRuntime;
   mining: MiningCliRuntime;
   anilist: AnilistCliRuntime;
+  dictionary: {
+    generate: (targetPath?: string) => Promise<{
+      zipPath: string;
+      fromCache: boolean;
+      mediaId: number;
+      mediaTitle: string;
+      entryCount: number;
+    }>;
+  };
   jellyfin: {
     openSetup: () => void;
     runCommand: (args: CliArgs) => Promise<void>;
@@ -179,6 +197,7 @@ export function createCliCommandDepsRuntime(
     isOverlayRuntimeInitialized: options.overlay.isInitialized,
     initializeOverlayRuntime: options.overlay.initialize,
     toggleVisibleOverlay: options.overlay.toggleVisible,
+    openFirstRunSetup: options.ui.openFirstRunSetup,
     openYomitanSettingsDelayed: (delayMs) => {
       options.schedule(() => {
         options.ui.openYomitanSettings();
@@ -202,6 +221,7 @@ export function createCliCommandDepsRuntime(
     openJellyfinSetup: options.jellyfin.openSetup,
     getAnilistQueueStatus: options.anilist.getQueueStatus,
     retryAnilistQueue: options.anilist.retryQueueNow,
+    generateCharacterDictionary: options.dictionary.generate,
     runJellyfinCommand: options.jellyfin.runCommand,
     printHelp: options.ui.printHelp,
     hasMainWindow: options.app.hasMainWindow,
@@ -239,51 +259,10 @@ export function handleCliCommand(
     deps.setLogLevel?.(args.logLevel);
   }
 
-  const hasNonStartAction =
-    args.stop ||
-    args.toggle ||
-    args.toggleVisibleOverlay ||
-    args.settings ||
-    args.show ||
-    args.hide ||
-    args.showVisibleOverlay ||
-    args.hideVisibleOverlay ||
-    args.copySubtitle ||
-    args.copySubtitleMultiple ||
-    args.mineSentence ||
-    args.mineSentenceMultiple ||
-    args.updateLastCardFromClipboard ||
-    args.refreshKnownWords ||
-    args.toggleSecondarySub ||
-    args.triggerFieldGrouping ||
-    args.triggerSubsync ||
-    args.markAudioCard ||
-    args.openRuntimeOptions ||
-    args.anilistStatus ||
-    args.anilistLogout ||
-    args.anilistSetup ||
-    args.anilistRetryQueue ||
-    args.jellyfin ||
-    args.jellyfinLogin ||
-    args.jellyfinLogout ||
-    args.jellyfinLibraries ||
-    args.jellyfinItems ||
-    args.jellyfinSubtitles ||
-    args.jellyfinPlay ||
-    args.jellyfinRemoteAnnounce ||
-    args.texthooker ||
-    args.help;
-  const ignoreStartOnly =
-    source === 'second-instance' &&
-    args.start &&
-    !hasNonStartAction &&
-    deps.isOverlayRuntimeInitialized();
-  if (ignoreStartOnly) {
-    deps.log('Ignoring --start because SubMiner is already running.');
-    return;
-  }
-
-  const shouldStart = args.start || args.toggle || args.toggleVisibleOverlay;
+  const ignoreSecondInstanceStart =
+    source === 'second-instance' && args.start && deps.isOverlayRuntimeInitialized();
+  const shouldStart =
+    (!ignoreSecondInstanceStart && args.start) || args.toggle || args.toggleVisibleOverlay;
   const needsOverlayRuntime = commandNeedsOverlayRuntime(args);
   const shouldInitializeOverlayRuntime = needsOverlayRuntime || args.start;
 
@@ -306,6 +285,10 @@ export function handleCliCommand(
     return;
   }
 
+  if (ignoreSecondInstanceStart) {
+    deps.log('Ignoring --start because SubMiner is already running.');
+  }
+
   if (shouldInitializeOverlayRuntime && !deps.isOverlayRuntimeInitialized()) {
     deps.initializeOverlayRuntime();
   }
@@ -319,6 +302,9 @@ export function handleCliCommand(
 
   if (args.toggle || args.toggleVisibleOverlay) {
     deps.toggleVisibleOverlay();
+  } else if (args.setup) {
+    deps.openFirstRunSetup();
+    deps.log('Opened first-run setup flow.');
   } else if (args.settings) {
     deps.openYomitanSettingsDelayed(1000);
   } else if (args.show || args.showVisibleOverlay) {
@@ -402,6 +388,29 @@ export function handleCliCommand(
   } else if (args.jellyfin) {
     deps.openJellyfinSetup();
     deps.log('Opened Jellyfin setup flow.');
+  } else if (args.dictionary) {
+    const shouldStopAfterRun = source === 'initial' && !deps.hasMainWindow();
+    deps.log('Generating character dictionary for current anime...');
+    deps
+      .generateCharacterDictionary(args.dictionaryTarget)
+      .then((result) => {
+        const cacheLabel = result.fromCache ? 'cache hit' : 'generated';
+        deps.log(
+          `Character dictionary ${cacheLabel}: AniList ${result.mediaId} (${result.mediaTitle}), entries=${result.entryCount}`,
+        );
+        deps.log(`Dictionary ZIP: ${result.zipPath}`);
+      })
+      .catch((error) => {
+        deps.error('generateCharacterDictionary failed:', error);
+        deps.warn(
+          `Dictionary generation failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      })
+      .finally(() => {
+        if (shouldStopAfterRun) {
+          deps.stopApp();
+        }
+      });
   } else if (args.anilistRetryQueue) {
     const queueStatus = deps.getAnilistQueueStatus();
     deps.log(

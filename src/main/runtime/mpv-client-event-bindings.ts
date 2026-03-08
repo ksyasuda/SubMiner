@@ -19,6 +19,7 @@ export function createHandleMpvConnectionChangeHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
   refreshDiscordPresence: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
+  scheduleCharacterDictionarySync?: () => void;
   hasInitialJellyfinPlayArg: () => boolean;
   isOverlayRuntimeInitialized: () => boolean;
   isQuitOnDisconnectArmed: () => boolean;
@@ -30,6 +31,7 @@ export function createHandleMpvConnectionChangeHandler(deps: {
     deps.refreshDiscordPresence();
     if (connected) {
       deps.syncOverlayMpvSubtitleSuppression();
+      deps.scheduleCharacterDictionarySync?.();
       return;
     }
     deps.reportJellyfinRemoteStopped();
@@ -67,8 +69,8 @@ export function createBindMpvClientEventHandlers(deps: {
   onSubtitleAssChange: (payload: { text: string }) => void;
   onSecondarySubtitleChange: (payload: { text: string }) => void;
   onSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
-  onMediaPathChange: (payload: { path: string }) => void;
-  onMediaTitleChange: (payload: { title: string }) => void;
+  onMediaPathChange: (payload: { path: string | null }) => void;
+  onMediaTitleChange: (payload: { title: string | null }) => void;
   onTimePosChange: (payload: { time: number }) => void;
   onPauseChange: (payload: { paused: boolean }) => void;
   onSubtitleMetricsChange: (payload: { patch: Record<string, unknown> }) => void;

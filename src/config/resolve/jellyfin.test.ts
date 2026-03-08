@@ -62,3 +62,45 @@ test('discordPresence invalid values warn and keep defaults', () => {
   assert.ok(warnedPaths.includes('discordPresence.updateIntervalMs'));
   assert.ok(warnedPaths.includes('discordPresence.debounceMs'));
 });
+
+test('anilist character dictionary fields are parsed, clamped, and enum-validated', () => {
+  const { context, warnings } = createResolveContext({
+    anilist: {
+      characterDictionary: {
+        enabled: true,
+        refreshTtlHours: 0,
+        maxLoaded: 99,
+        evictionPolicy: 'purge' as never,
+        profileScope: 'global' as never,
+        collapsibleSections: {
+          description: true,
+          characterInformation: 'invalid' as never,
+          voicedBy: true,
+        } as never,
+      },
+    },
+  });
+
+  applyIntegrationConfig(context);
+
+  assert.equal(context.resolved.anilist.characterDictionary.enabled, true);
+  assert.equal(context.resolved.anilist.characterDictionary.refreshTtlHours, 1);
+  assert.equal(context.resolved.anilist.characterDictionary.maxLoaded, 20);
+  assert.equal(context.resolved.anilist.characterDictionary.evictionPolicy, 'delete');
+  assert.equal(context.resolved.anilist.characterDictionary.profileScope, 'all');
+  assert.equal(context.resolved.anilist.characterDictionary.collapsibleSections.description, true);
+  assert.equal(
+    context.resolved.anilist.characterDictionary.collapsibleSections.characterInformation,
+    false,
+  );
+  assert.equal(context.resolved.anilist.characterDictionary.collapsibleSections.voicedBy, true);
+
+  const warnedPaths = warnings.map((warning) => warning.path);
+  assert.ok(warnedPaths.includes('anilist.characterDictionary.refreshTtlHours'));
+  assert.ok(warnedPaths.includes('anilist.characterDictionary.maxLoaded'));
+  assert.ok(warnedPaths.includes('anilist.characterDictionary.evictionPolicy'));
+  assert.ok(warnedPaths.includes('anilist.characterDictionary.profileScope'));
+  assert.ok(
+    warnedPaths.includes('anilist.characterDictionary.collapsibleSections.characterInformation'),
+  );
+});

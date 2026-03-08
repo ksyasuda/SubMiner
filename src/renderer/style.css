@@ -285,6 +285,7 @@ body {
   color: #cad3f5;
   --subtitle-known-word-color: #a6da95;
   --subtitle-n-plus-one-color: #c6a0f6;
+  --subtitle-name-match-color: #f5bde6;
   --subtitle-jlpt-n1-color: #ed8796;
   --subtitle-jlpt-n2-color: #f5a97f;
   --subtitle-jlpt-n3-color: #f9e2af;
@@ -296,7 +297,7 @@ body {
   --subtitle-frequency-band-1-color: #ed8796;
   --subtitle-frequency-band-2-color: #f5a97f;
   --subtitle-frequency-band-3-color: #f9e2af;
-  --subtitle-frequency-band-4-color: #a6e3a1;
+  --subtitle-frequency-band-4-color: #8bd5ca;
   --subtitle-frequency-band-5-color: #8aadf4;
   text-shadow:
     2px 2px 4px rgba(0, 0, 0, 0.8),
@@ -416,6 +417,11 @@ body.settings-modal-open #subtitleContainer {
   text-shadow: 0 0 6px rgba(198, 160, 246, 0.35);
 }
 
+#subtitleRoot .word.word-name-match {
+  color: var(--subtitle-name-match-color, #f5bde6);
+  text-shadow: 0 0 6px rgba(245, 189, 230, 0.35);
+}
+
 #subtitleRoot .word.word-jlpt-n1 {
   text-decoration-line: underline;
   text-decoration-thickness: 2px;
@@ -502,7 +508,7 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-frequency-band-4 {
-  color: var(--subtitle-frequency-band-4-color, #a6e3a1);
+  color: var(--subtitle-frequency-band-4-color, #8bd5ca);
 }
 
 #subtitleRoot .word.word-frequency-band-5 {
@@ -510,11 +516,11 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot
-  .word:not(.word-known):not(.word-n-plus-one):not(.word-frequency-single):not(
-    .word-frequency-band-1
-  ):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(
-    .word-frequency-band-5
-  ):hover {
+  .word:not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(
+    .word-frequency-single
+  ):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(
+    .word-frequency-band-4
+  ):not(.word-frequency-band-5):hover {
   background: var(--subtitle-hover-token-background-color, rgba(54, 58, 79, 0.84));
   border-radius: 3px;
   color: var(--subtitle-hover-token-color, #f4dbd6) !important;
@@ -523,6 +529,7 @@ body.settings-modal-open #subtitleContainer {
 
 #subtitleRoot .word.word-known:hover,
 #subtitleRoot .word.word-n-plus-one:hover,
+#subtitleRoot .word.word-name-match:hover,
 #subtitleRoot .word.word-frequency-single:hover,
 #subtitleRoot .word.word-frequency-band-1:hover,
 #subtitleRoot .word.word-frequency-band-2:hover,
@@ -536,6 +543,7 @@ body.settings-modal-open #subtitleContainer {
 
 #subtitleRoot .word.word-known .c:hover,
 #subtitleRoot .word.word-n-plus-one .c:hover,
+#subtitleRoot .word.word-name-match .c:hover,
 #subtitleRoot .word.word-frequency-single .c:hover,
 #subtitleRoot .word.word-frequency-band-1 .c:hover,
 #subtitleRoot .word.word-frequency-band-2 .c:hover,
@@ -550,9 +558,11 @@ body.settings-modal-open #subtitleContainer {
 #subtitleRoot
   .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(
     .word-known
-  ):not(.word-n-plus-one):not(.word-frequency-single):not(.word-frequency-band-1):not(
-    .word-frequency-band-2
-  ):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5):hover {
+  ):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(
+    .word-frequency-band-1
+  ):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(
+    .word-frequency-band-5
+  ):hover {
   color: var(--subtitle-hover-token-color, #f4dbd6) !important;
   -webkit-text-fill-color: var(--subtitle-hover-token-color, #f4dbd6) !important;
 }
@@ -583,6 +593,12 @@ body.settings-modal-open #subtitleContainer {
   -webkit-text-fill-color: var(--subtitle-n-plus-one-color, #c6a0f6) !important;
 }
 
+#subtitleRoot .word.word-name-match::selection,
+#subtitleRoot .word.word-name-match .c::selection {
+  color: var(--subtitle-name-match-color, #f5bde6) !important;
+  -webkit-text-fill-color: var(--subtitle-name-match-color, #f5bde6) !important;
+}
+
 #subtitleRoot .word.word-frequency-single::selection,
 #subtitleRoot .word.word-frequency-single .c::selection {
   color: var(--subtitle-frequency-single-color, #f5a97f) !important;
@@ -609,8 +625,8 @@ body.settings-modal-open #subtitleContainer {
 
 #subtitleRoot .word.word-frequency-band-4::selection,
 #subtitleRoot .word.word-frequency-band-4 .c::selection {
-  color: var(--subtitle-frequency-band-4-color, #a6e3a1) !important;
-  -webkit-text-fill-color: var(--subtitle-frequency-band-4-color, #a6e3a1) !important;
+  color: var(--subtitle-frequency-band-4-color, #8bd5ca) !important;
+  -webkit-text-fill-color: var(--subtitle-frequency-band-4-color, #8bd5ca) !important;
 }
 
 #subtitleRoot .word.word-frequency-band-5::selection,
@@ -622,15 +638,19 @@ body.settings-modal-open #subtitleContainer {
 #subtitleRoot
   .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(
     .word-known
-  ):not(.word-n-plus-one):not(.word-frequency-single):not(.word-frequency-band-1):not(
-    .word-frequency-band-2
-  ):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)::selection,
+  ):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(
+    .word-frequency-band-1
+  ):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(
+    .word-frequency-band-5
+  )::selection,
 #subtitleRoot
   .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(
     .word-known
-  ):not(.word-n-plus-one):not(.word-frequency-single):not(.word-frequency-band-1):not(
-    .word-frequency-band-2
-  ):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)
+  ):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(
+    .word-frequency-band-1
+  ):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(
+    .word-frequency-band-5
+  )
   .c::selection {
   color: var(--subtitle-hover-token-color, #f4dbd6) !important;
   -webkit-text-fill-color: var(--subtitle-hover-token-color, #f4dbd6) !important;

@@ -13,6 +13,12 @@ export function buildCoreConfigOptionRegistry(
       description: 'Minimum log level for runtime logging.',
     },
     {
+      path: 'texthooker.launchAtStartup',
+      kind: 'boolean',
+      defaultValue: defaultConfig.texthooker.launchAtStartup,
+      description: 'Launch texthooker server automatically when SubMiner starts.',
+    },
+    {
       path: 'websocket.enabled',
       kind: 'enum',
       enumValues: ['auto', 'true', 'false'],
@@ -24,6 +30,18 @@ export function buildCoreConfigOptionRegistry(
       kind: 'number',
       defaultValue: defaultConfig.websocket.port,
       description: 'Built-in subtitle websocket server port.',
+    },
+    {
+      path: 'annotationWebsocket.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.annotationWebsocket.enabled,
+      description: 'Annotated subtitle websocket server enabled state.',
+    },
+    {
+      path: 'annotationWebsocket.port',
+      kind: 'number',
+      defaultValue: defaultConfig.annotationWebsocket.port,
+      description: 'Annotated subtitle websocket server port.',
     },
     {
       path: 'subsync.defaultMode',

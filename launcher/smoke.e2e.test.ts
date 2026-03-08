@@ -4,6 +4,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import {
+  createDefaultSetupState,
+  getDefaultConfigDir,
+  getSetupStatePath,
+  readSetupState,
+  writeSetupState,
+} from '../src/shared/setup-state.js';
 
 type RunResult = {
   status: number | null;
@@ -24,6 +31,9 @@ type SmokeCase = {
   fakeMpvPath: string;
   mpvOverlayLogPath: string;
 };
+
+const LAUNCHER_RUN_TIMEOUT_MS = 25000;
+const LONG_SMOKE_TEST_TIMEOUT_MS = 30000;
 
 function writeExecutable(filePath: string, body: string): void {
   fs.writeFileSync(filePath, body);
@@ -54,6 +64,13 @@ function createSmokeCase(name: string): SmokeCase {
     path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
     `socket_path=${socketPath}\n`,
   );
+
+  const configDir = getDefaultConfigDir({ xdgConfigHome, homeDir });
+  const setupState = createDefaultSetupState();
+  setupState.status = 'completed';
+  setupState.completedAt = '2026-03-07T00:00:00.000Z';
+  setupState.completionSource = 'user';
+  writeSetupState(getSetupStatePath(configDir), setupState);
 
   const fakeMpvLogPath = path.join(artifactsDir, 'fake-mpv.log');
   const fakeAppLogPath = path.join(artifactsDir, 'fake-app.log');
@@ -162,7 +179,7 @@ function runLauncher(
     {
       env,
       encoding: 'utf8',
-      timeout: 15000,
+      timeout: LAUNCHER_RUN_TIMEOUT_MS,
     },
   );
 
@@ -221,6 +238,22 @@ async function waitForJsonLines(
   }
 }
 
+test('launcher smoke fixture seeds completed setup state', () => {
+  const smokeCase = createSmokeCase('setup-state');
+  try {
+    const configDir = getDefaultConfigDir({
+      xdgConfigHome: smokeCase.xdgConfigHome,
+      homeDir: smokeCase.homeDir,
+    });
+    const statePath = getSetupStatePath(configDir);
+
+    assert.equal(readSetupState(statePath)?.status, 'completed');
+  } finally {
+    fs.rmSync(smokeCase.root, { recursive: true, force: true });
+    fs.rmSync(smokeCase.socketDir, { recursive: true, force: true });
+  }
+});
+
 test('launcher mpv status returns ready when socket is connectable', async () => {
   await withSmokeCase('mpv-status', async (smokeCase) => {
     const env = makeTestEnv(smokeCase);
@@ -263,7 +296,7 @@ test('launcher mpv status returns ready when socket is connectable', async () =>
 
 test(
   'launcher start-overlay run forwards socket/backend and stops overlay after mpv exits',
-  { timeout: 20000 },
+  { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
   async () => {
     await withSmokeCase('overlay-start-stop', async (smokeCase) => {
       const env = makeTestEnv(smokeCase);
@@ -322,7 +355,7 @@ test(
 
 test(
   'launcher starts mpv paused when plugin auto-start visible overlay gate is enabled',
-  { timeout: 20000 },
+  { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
   async () => {
     await withSmokeCase('autoplay-ready-gate', async (smokeCase) => {
       fs.writeFileSync(

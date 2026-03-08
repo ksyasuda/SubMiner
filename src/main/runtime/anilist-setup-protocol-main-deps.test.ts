@@ -76,7 +76,7 @@ test('register subminer protocol client main deps builder maps callbacks', () =>
     execPath: '/tmp/electron',
     resolvePath: (value) => `/abs/${value}`,
     setAsDefaultProtocolClient: () => true,
-    logWarn: (message) => calls.push(`warn:${message}`),
+    logDebug: (message) => calls.push(`debug:${message}`),
   })();
 
   assert.equal(deps.isDefaultApp(), true);

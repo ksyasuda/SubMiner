@@ -18,10 +18,13 @@ test('config option registry includes critical paths and has unique entries', ()
 
   for (const requiredPath of [
     'logging.level',
+    'annotationWebsocket.enabled',
     'startupWarmups.lowPowerMode',
     'subtitleStyle.enableJlpt',
     'subtitleStyle.autoPauseVideoOnYomitanPopup',
     'ankiConnect.enabled',
+    'anilist.characterDictionary.enabled',
+    'anilist.characterDictionary.collapsibleSections.description',
     'immersionTracking.enabled',
   ]) {
     assert.ok(paths.includes(requiredPath), `missing config path: ${requiredPath}`);
@@ -34,6 +37,7 @@ test('config template sections include expected domains and unique keys', () => 
   const keys = CONFIG_TEMPLATE_SECTIONS.map((section) => section.key);
   const requiredKeys: (typeof keys)[number][] = [
     'websocket',
+    'annotationWebsocket',
     'startupWarmups',
     'subtitleStyle',
     'ankiConnect',

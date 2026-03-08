@@ -136,6 +136,64 @@ export function buildIntegrationConfigOptionRegistry(
         'Optional explicit AniList access token override; leave empty to use locally stored token from setup.',
     },
     {
+      path: 'anilist.characterDictionary.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.anilist.characterDictionary.enabled,
+      description:
+        'Enable automatic Yomitan character dictionary sync for currently watched AniList media.',
+    },
+    {
+      path: 'anilist.characterDictionary.refreshTtlHours',
+      kind: 'number',
+      defaultValue: defaultConfig.anilist.characterDictionary.refreshTtlHours,
+      description:
+        'Legacy setting; merged character dictionary retention is now usage-based and this value is ignored.',
+    },
+    {
+      path: 'anilist.characterDictionary.maxLoaded',
+      kind: 'number',
+      defaultValue: defaultConfig.anilist.characterDictionary.maxLoaded,
+      description:
+        'Maximum number of most-recently-used anime snapshots included in the merged Yomitan character dictionary.',
+    },
+    {
+      path: 'anilist.characterDictionary.evictionPolicy',
+      kind: 'enum',
+      enumValues: ['disable', 'delete'],
+      defaultValue: defaultConfig.anilist.characterDictionary.evictionPolicy,
+      description:
+        'Legacy setting; merged character dictionary eviction is usage-based and this value is ignored.',
+    },
+    {
+      path: 'anilist.characterDictionary.profileScope',
+      kind: 'enum',
+      enumValues: ['all', 'active'],
+      defaultValue: defaultConfig.anilist.characterDictionary.profileScope,
+      description: 'Yomitan profile scope for dictionary enable/disable updates.',
+    },
+    {
+      path: 'anilist.characterDictionary.collapsibleSections.description',
+      kind: 'boolean',
+      defaultValue: defaultConfig.anilist.characterDictionary.collapsibleSections.description,
+      description:
+        'Open the Description section by default in character dictionary glossary entries.',
+    },
+    {
+      path: 'anilist.characterDictionary.collapsibleSections.characterInformation',
+      kind: 'boolean',
+      defaultValue:
+        defaultConfig.anilist.characterDictionary.collapsibleSections.characterInformation,
+      description:
+        'Open the Character Information section by default in character dictionary glossary entries.',
+    },
+    {
+      path: 'anilist.characterDictionary.collapsibleSections.voicedBy',
+      kind: 'boolean',
+      defaultValue: defaultConfig.anilist.characterDictionary.collapsibleSections.voicedBy,
+      description:
+        'Open the Voiced by section by default in character dictionary glossary entries.',
+    },
+    {
       path: 'jellyfin.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.jellyfin.enabled,

@@ -19,6 +19,7 @@ export interface AppLifecycleRuntimeDepsFactoryInput {
 }
 
 export interface AppReadyRuntimeDepsFactoryInput {
+  ensureDefaultConfigBootstrap: AppReadyRuntimeDeps['ensureDefaultConfigBootstrap'];
   loadSubtitlePosition: AppReadyRuntimeDeps['loadSubtitlePosition'];
   resolveKeybindings: AppReadyRuntimeDeps['resolveKeybindings'];
   createMpvClient: AppReadyRuntimeDeps['createMpvClient'];
@@ -30,8 +31,12 @@ export interface AppReadyRuntimeDepsFactoryInput {
   setSecondarySubMode: AppReadyRuntimeDeps['setSecondarySubMode'];
   defaultSecondarySubMode: AppReadyRuntimeDeps['defaultSecondarySubMode'];
   defaultWebsocketPort: AppReadyRuntimeDeps['defaultWebsocketPort'];
+  defaultAnnotationWebsocketPort: AppReadyRuntimeDeps['defaultAnnotationWebsocketPort'];
+  defaultTexthookerPort: AppReadyRuntimeDeps['defaultTexthookerPort'];
   hasMpvWebsocketPlugin: AppReadyRuntimeDeps['hasMpvWebsocketPlugin'];
   startSubtitleWebsocket: AppReadyRuntimeDeps['startSubtitleWebsocket'];
+  startAnnotationWebsocket: AppReadyRuntimeDeps['startAnnotationWebsocket'];
+  startTexthooker: AppReadyRuntimeDeps['startTexthooker'];
   log: AppReadyRuntimeDeps['log'];
   setLogLevel: AppReadyRuntimeDeps['setLogLevel'];
   createMecabTokenizerAndCheck: AppReadyRuntimeDeps['createMecabTokenizerAndCheck'];
@@ -39,10 +44,12 @@ export interface AppReadyRuntimeDepsFactoryInput {
   createImmersionTracker?: AppReadyRuntimeDeps['createImmersionTracker'];
   startJellyfinRemoteSession?: AppReadyRuntimeDeps['startJellyfinRemoteSession'];
   loadYomitanExtension: AppReadyRuntimeDeps['loadYomitanExtension'];
+  handleFirstRunSetup: AppReadyRuntimeDeps['handleFirstRunSetup'];
   prewarmSubtitleDictionaries?: AppReadyRuntimeDeps['prewarmSubtitleDictionaries'];
   startBackgroundWarmups: AppReadyRuntimeDeps['startBackgroundWarmups'];
   texthookerOnlyMode: AppReadyRuntimeDeps['texthookerOnlyMode'];
   shouldAutoInitializeOverlayRuntimeFromConfig: AppReadyRuntimeDeps['shouldAutoInitializeOverlayRuntimeFromConfig'];
+  setVisibleOverlayVisible: AppReadyRuntimeDeps['setVisibleOverlayVisible'];
   initializeOverlayRuntime: AppReadyRuntimeDeps['initializeOverlayRuntime'];
   handleInitialArgs: AppReadyRuntimeDeps['handleInitialArgs'];
   onCriticalConfigErrors?: AppReadyRuntimeDeps['onCriticalConfigErrors'];
@@ -74,6 +81,7 @@ export function createAppReadyRuntimeDeps(
   params: AppReadyRuntimeDepsFactoryInput,
 ): AppReadyRuntimeDeps {
   return {
+    ensureDefaultConfigBootstrap: params.ensureDefaultConfigBootstrap,
     loadSubtitlePosition: params.loadSubtitlePosition,
     resolveKeybindings: params.resolveKeybindings,
     createMpvClient: params.createMpvClient,
@@ -85,8 +93,12 @@ export function createAppReadyRuntimeDeps(
     setSecondarySubMode: params.setSecondarySubMode,
     defaultSecondarySubMode: params.defaultSecondarySubMode,
     defaultWebsocketPort: params.defaultWebsocketPort,
+    defaultAnnotationWebsocketPort: params.defaultAnnotationWebsocketPort,
+    defaultTexthookerPort: params.defaultTexthookerPort,
     hasMpvWebsocketPlugin: params.hasMpvWebsocketPlugin,
     startSubtitleWebsocket: params.startSubtitleWebsocket,
+    startAnnotationWebsocket: params.startAnnotationWebsocket,
+    startTexthooker: params.startTexthooker,
     log: params.log,
     setLogLevel: params.setLogLevel,
     createMecabTokenizerAndCheck: params.createMecabTokenizerAndCheck,
@@ -94,11 +106,13 @@ export function createAppReadyRuntimeDeps(
     createImmersionTracker: params.createImmersionTracker,
     startJellyfinRemoteSession: params.startJellyfinRemoteSession,
     loadYomitanExtension: params.loadYomitanExtension,
+    handleFirstRunSetup: params.handleFirstRunSetup,
     prewarmSubtitleDictionaries: params.prewarmSubtitleDictionaries,
     startBackgroundWarmups: params.startBackgroundWarmups,
     texthookerOnlyMode: params.texthookerOnlyMode,
     shouldAutoInitializeOverlayRuntimeFromConfig:
       params.shouldAutoInitializeOverlayRuntimeFromConfig,
+    setVisibleOverlayVisible: params.setVisibleOverlayVisible,
     initializeOverlayRuntime: params.initializeOverlayRuntime,
     handleInitialArgs: params.handleInitialArgs,
     onCriticalConfigErrors: params.onCriticalConfigErrors,

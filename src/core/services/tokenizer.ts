@@ -9,6 +9,7 @@ import {
   Token,
   FrequencyDictionaryLookup,
   JlptLevel,
+  PartOfSpeech,
 } from '../../types';
 import {
   DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG,
@@ -18,9 +19,8 @@ import {
   DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
   resolveAnnotationPos2ExclusionSet,
 } from '../../token-pos2-exclusions';
-import { selectYomitanParseTokens } from './tokenizer/parser-selection-stage';
 import {
-  requestYomitanParseResults,
+  requestYomitanScanTokens,
   requestYomitanTermFrequencies,
 } from './tokenizer/yomitan-parser-runtime';
 
@@ -44,6 +44,7 @@ export interface TokenizerServiceDeps {
   getJlptLevel: (text: string) => JlptLevel | null;
   getNPlusOneEnabled?: () => boolean;
   getJlptEnabled?: () => boolean;
+  getNameMatchEnabled?: () => boolean;
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyDictionaryMatchMode?: () => FrequencyDictionaryMatchMode;
   getFrequencyRank?: FrequencyDictionaryLookup;
@@ -73,6 +74,7 @@ export interface TokenizerDepsRuntimeOptions {
   getJlptLevel: (text: string) => JlptLevel | null;
   getNPlusOneEnabled?: () => boolean;
   getJlptEnabled?: () => boolean;
+  getNameMatchEnabled?: () => boolean;
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyDictionaryMatchMode?: () => FrequencyDictionaryMatchMode;
   getFrequencyRank?: FrequencyDictionaryLookup;
@@ -85,6 +87,7 @@ export interface TokenizerDepsRuntimeOptions {
 interface TokenizerAnnotationOptions {
   nPlusOneEnabled: boolean;
   jlptEnabled: boolean;
+  nameMatchEnabled: boolean;
   frequencyEnabled: boolean;
   frequencyMatchMode: FrequencyDictionaryMatchMode;
   minSentenceWordsForNPlusOne: number | undefined;
@@ -106,6 +109,7 @@ const DEFAULT_ANNOTATION_POS1_EXCLUSIONS = resolveAnnotationPos1ExclusionSet(
 const DEFAULT_ANNOTATION_POS2_EXCLUSIONS = resolveAnnotationPos2ExclusionSet(
   DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
 );
+const INVISIBLE_SEPARATOR_PATTERN = /[\u200b\u2060\ufeff]/g;
 
 function getKnownWordLookup(
   deps: TokenizerServiceDeps,
@@ -189,6 +193,7 @@ export function createTokenizerDepsRuntime(
     getJlptLevel: options.getJlptLevel,
     getNPlusOneEnabled: options.getNPlusOneEnabled,
     getJlptEnabled: options.getJlptEnabled,
+    getNameMatchEnabled: options.getNameMatchEnabled,
     getFrequencyDictionaryEnabled: options.getFrequencyDictionaryEnabled,
     getFrequencyDictionaryMatchMode: options.getFrequencyDictionaryMatchMode ?? (() => 'headword'),
     getFrequencyRank: options.getFrequencyRank,
@@ -263,6 +268,7 @@ function isKanaChar(char: string): boolean {
   return (
     (code >= 0x3041 && code <= 0x3096) ||
     (code >= 0x309b && code <= 0x309f) ||
+    code === 0x30fc ||
     (code >= 0x30a0 && code <= 0x30fa) ||
     (code >= 0x30fd && code <= 0x30ff)
   );
@@ -295,6 +301,11 @@ function normalizeYomitanMergedReading(token: MergedToken): string {
 function normalizeSelectedYomitanTokens(tokens: MergedToken[]): MergedToken[] {
   return tokens.map((token) => ({
     ...token,
+    partOfSpeech: token.partOfSpeech ?? PartOfSpeech.other,
+    isMerged: token.isMerged ?? true,
+    isKnown: token.isKnown ?? false,
+    isNPlusOneTarget: token.isNPlusOneTarget ?? false,
+    isNameMatch: token.isNameMatch ?? false,
     reading: normalizeYomitanMergedReading(token),
   }));
 }
@@ -454,6 +465,7 @@ function getAnnotationOptions(deps: TokenizerServiceDeps): TokenizerAnnotationOp
   return {
     nPlusOneEnabled: deps.getNPlusOneEnabled?.() !== false,
     jlptEnabled: deps.getJlptEnabled?.() !== false,
+    nameMatchEnabled: deps.getNameMatchEnabled?.() !== false,
     frequencyEnabled: deps.getFrequencyDictionaryEnabled?.() !== false,
     frequencyMatchMode: deps.getFrequencyDictionaryMatchMode?.() ?? 'headword',
     minSentenceWordsForNPlusOne: deps.getMinSentenceWordsForNPlusOne?.(),
@@ -467,20 +479,28 @@ async function parseWithYomitanInternalParser(
   deps: TokenizerServiceDeps,
   options: TokenizerAnnotationOptions,
 ): Promise<MergedToken[] | null> {
-  const parseResults = await requestYomitanParseResults(text, deps, logger);
-  if (!parseResults) {
-    return null;
-  }
-
-  const selectedTokens = selectYomitanParseTokens(
-    parseResults,
-    getKnownWordLookup(deps, options),
-    deps.getKnownWordMatchMode(),
-  );
+  const selectedTokens = await requestYomitanScanTokens(text, deps, logger, {
+    includeNameMatchMetadata: options.nameMatchEnabled,
+  });
   if (!selectedTokens || selectedTokens.length === 0) {
     return null;
   }
-  const normalizedSelectedTokens = normalizeSelectedYomitanTokens(selectedTokens);
+  const normalizedSelectedTokens = normalizeSelectedYomitanTokens(
+    selectedTokens.map(
+      (token): MergedToken => ({
+        surface: token.surface,
+        reading: token.reading,
+        headword: token.headword,
+        startPos: token.startPos,
+        endPos: token.endPos,
+        partOfSpeech: PartOfSpeech.other,
+        isMerged: true,
+        isKnown: false,
+        isNPlusOneTarget: false,
+        isNameMatch: token.isNameMatch ?? false,
+      }),
+    ),
+  );
 
   if (deps.getYomitanGroupDebugEnabled?.() === true) {
     logSelectedYomitanGroups(text, normalizedSelectedTokens);
@@ -553,7 +573,11 @@ export async function tokenizeSubtitle(
     return { text, tokens: null };
   }
 
-  const tokenizeText = displayText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+  const tokenizeText = displayText
+    .replace(INVISIBLE_SEPARATOR_PATTERN, ' ')
+    .replace(/\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   const annotationOptions = getAnnotationOptions(deps);
 
   const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps, annotationOptions);

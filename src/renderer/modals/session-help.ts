@@ -27,6 +27,7 @@ const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA
 const FALLBACK_COLORS = {
   knownWordColor: '#a6da95',
   nPlusOneColor: '#c6a0f6',
+  nameMatchColor: '#f5bde6',
   jlptN1Color: '#ed8796',
   jlptN2Color: '#f5a97f',
   jlptN3Color: '#f9e2af',
@@ -207,6 +208,7 @@ function buildBindingSections(keybindings: Keybinding[]): SessionHelpSection[] {
 function buildColorSection(style: {
   knownWordColor?: unknown;
   nPlusOneColor?: unknown;
+  nameMatchColor?: unknown;
   jlptColors?: {
     N1?: unknown;
     N2?: unknown;
@@ -227,6 +229,11 @@ function buildColorSection(style: {
         shortcut: 'N+1 words',
         action: normalizeColor(style.nPlusOneColor, FALLBACK_COLORS.nPlusOneColor),
         color: normalizeColor(style.nPlusOneColor, FALLBACK_COLORS.nPlusOneColor),
+      },
+      {
+        shortcut: 'Character names',
+        action: normalizeColor(style.nameMatchColor, FALLBACK_COLORS.nameMatchColor),
+        color: normalizeColor(style.nameMatchColor, FALLBACK_COLORS.nameMatchColor),
       },
       {
         shortcut: 'JLPT N1',

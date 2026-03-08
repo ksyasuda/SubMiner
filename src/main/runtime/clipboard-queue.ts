@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseClipboardVideoPath } from '../../core/services';
+import { parseClipboardVideoPath } from '../../core/services/overlay-drop';
 
 type MpvClientLike = {
   connected: boolean;

@@ -1,0 +1,329 @@
+type FocusableWindowLike = {
+  focus: () => void;
+};
+
+type FirstRunSetupWebContentsLike = {
+  on: (event: 'will-navigate', handler: (event: unknown, url: string) => void) => void;
+};
+
+type FirstRunSetupWindowLike = FocusableWindowLike & {
+  webContents: FirstRunSetupWebContentsLike;
+  loadURL: (url: string) => unknown;
+  on: (event: 'closed', handler: () => void) => void;
+  isDestroyed: () => boolean;
+  close: () => void;
+};
+
+export type FirstRunSetupAction =
+  | 'install-plugin'
+  | 'open-yomitan-settings'
+  | 'refresh'
+  | 'skip-plugin'
+  | 'finish';
+
+export interface FirstRunSetupHtmlModel {
+  configReady: boolean;
+  dictionaryCount: number;
+  canFinish: boolean;
+  pluginStatus: 'installed' | 'optional' | 'skipped' | 'failed';
+  pluginInstallPathSummary: string | null;
+  message: string | null;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function renderStatusBadge(value: string, tone: 'ready' | 'warn' | 'muted' | 'danger'): string {
+  return `<span class="badge ${tone}">${escapeHtml(value)}</span>`;
+}
+
+export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
+  const pluginActionLabel =
+    model.pluginStatus === 'installed' ? 'Reinstall mpv plugin' : 'Install mpv plugin';
+  const pluginLabel =
+    model.pluginStatus === 'installed'
+      ? 'Installed'
+      : model.pluginStatus === 'skipped'
+        ? 'Skipped'
+        : model.pluginStatus === 'failed'
+          ? 'Failed'
+          : 'Optional';
+  const pluginTone =
+    model.pluginStatus === 'installed'
+      ? 'ready'
+      : model.pluginStatus === 'failed'
+        ? 'danger'
+        : model.pluginStatus === 'skipped'
+          ? 'muted'
+          : 'warn';
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>SubMiner First-Run Setup</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --base: #24273a;
+      --mantle: #1e2030;
+      --surface: #363a4f;
+      --surface-strong: #494d64;
+      --text: #cad3f5;
+      --muted: #b8c0e0;
+      --blue: #8aadf4;
+      --green: #a6da95;
+      --yellow: #eed49f;
+      --red: #ed8796;
+    }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, var(--mantle), var(--base));
+      color: var(--text);
+      font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      padding: 18px;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 18px;
+    }
+    p {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+    .card {
+      background: rgba(54, 58, 79, 0.92);
+      border: 1px solid rgba(202, 211, 245, 0.08);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+    .badge.ready { background: rgba(166, 218, 149, 0.16); color: var(--green); }
+    .badge.warn { background: rgba(238, 212, 159, 0.18); color: var(--yellow); }
+    .badge.muted { background: rgba(184, 192, 224, 0.12); color: var(--muted); }
+    .badge.danger { background: rgba(237, 135, 150, 0.16); color: var(--red); }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--text);
+      background: var(--surface);
+    }
+    button.primary {
+      background: var(--blue);
+      color: #1e2030;
+    }
+    button.ghost {
+      background: transparent;
+      border: 1px solid rgba(202, 211, 245, 0.12);
+    }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+    .message {
+      min-height: 18px;
+      margin-top: 12px;
+      color: var(--muted);
+    }
+    .footer {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>SubMiner setup</h1>
+    <div class="card">
+      <div>
+        <strong>Config file</strong>
+        <div class="meta">Default config directory seeded automatically.</div>
+      </div>
+      ${renderStatusBadge(model.configReady ? 'Ready' : 'Missing', model.configReady ? 'ready' : 'danger')}
+    </div>
+    <div class="card">
+      <div>
+        <strong>mpv plugin</strong>
+        <div class="meta">${escapeHtml(model.pluginInstallPathSummary ?? 'Default mpv scripts location')}</div>
+      </div>
+      ${renderStatusBadge(pluginLabel, pluginTone)}
+    </div>
+    <div class="card">
+      <div>
+        <strong>Yomitan dictionaries</strong>
+        <div class="meta">${model.dictionaryCount} installed</div>
+      </div>
+      ${renderStatusBadge(
+        model.dictionaryCount >= 1 ? 'Ready' : 'Missing',
+        model.dictionaryCount >= 1 ? 'ready' : 'warn',
+      )}
+    </div>
+    <div class="actions">
+      <button onclick="window.location.href='subminer://first-run-setup?action=install-plugin'">${pluginActionLabel}</button>
+      <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">Open Yomitan Settings</button>
+      <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh status</button>
+      <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=skip-plugin'">Skip plugin</button>
+      <button class="primary" ${model.canFinish ? '' : 'disabled'} onclick="window.location.href='subminer://first-run-setup?action=finish'">Finish setup</button>
+    </div>
+    <div class="message">${model.message ? escapeHtml(model.message) : ''}</div>
+    <div class="footer">Finish stays locked until Yomitan reports at least one installed dictionary.</div>
+  </main>
+</body>
+</html>`;
+}
+
+export function parseFirstRunSetupSubmissionUrl(
+  rawUrl: string,
+): { action: FirstRunSetupAction } | null {
+  if (!rawUrl.startsWith('subminer://first-run-setup')) {
+    return null;
+  }
+  const parsed = new URL(rawUrl);
+  const action = parsed.searchParams.get('action');
+  if (
+    action !== 'install-plugin' &&
+    action !== 'open-yomitan-settings' &&
+    action !== 'refresh' &&
+    action !== 'skip-plugin' &&
+    action !== 'finish'
+  ) {
+    return null;
+  }
+  return { action };
+}
+
+export function createMaybeFocusExistingFirstRunSetupWindowHandler(deps: {
+  getSetupWindow: () => FocusableWindowLike | null;
+}) {
+  return (): boolean => {
+    const window = deps.getSetupWindow();
+    if (!window) return false;
+    window.focus();
+    return true;
+  };
+}
+
+export function createHandleFirstRunSetupNavigationHandler(deps: {
+  parseSubmissionUrl: (rawUrl: string) => { action: FirstRunSetupAction } | null;
+  handleAction: (action: FirstRunSetupAction) => Promise<unknown>;
+  logError: (message: string, error: unknown) => void;
+}) {
+  return (params: { url: string; preventDefault: () => void }): boolean => {
+    const submission = deps.parseSubmissionUrl(params.url);
+    if (!submission) return false;
+    params.preventDefault();
+    void deps.handleAction(submission.action).catch((error) => {
+      deps.logError('Failed handling first-run setup action', error);
+    });
+    return true;
+  };
+}
+
+export function createOpenFirstRunSetupWindowHandler<
+  TWindow extends FirstRunSetupWindowLike,
+>(deps: {
+  maybeFocusExistingSetupWindow: () => boolean;
+  createSetupWindow: () => TWindow;
+  getSetupSnapshot: () => Promise<FirstRunSetupHtmlModel>;
+  buildSetupHtml: (model: FirstRunSetupHtmlModel) => string;
+  parseSubmissionUrl: (rawUrl: string) => { action: FirstRunSetupAction } | null;
+  handleAction: (action: FirstRunSetupAction) => Promise<{ closeWindow?: boolean } | void>;
+  markSetupInProgress: () => Promise<unknown>;
+  markSetupCancelled: () => Promise<unknown>;
+  isSetupCompleted: () => boolean;
+  clearSetupWindow: () => void;
+  setSetupWindow: (window: TWindow) => void;
+  encodeURIComponent: (value: string) => string;
+  logError: (message: string, error: unknown) => void;
+}) {
+  return (): void => {
+    if (deps.maybeFocusExistingSetupWindow()) {
+      return;
+    }
+
+    const setupWindow = deps.createSetupWindow();
+    deps.setSetupWindow(setupWindow);
+
+    const render = async (): Promise<void> => {
+      const model = await deps.getSetupSnapshot();
+      const html = deps.buildSetupHtml(model);
+      await setupWindow.loadURL(`data:text/html;charset=utf-8,${deps.encodeURIComponent(html)}`);
+    };
+
+    const handleNavigation = createHandleFirstRunSetupNavigationHandler({
+      parseSubmissionUrl: deps.parseSubmissionUrl,
+      handleAction: async (action) => {
+        const result = await deps.handleAction(action);
+        if (result?.closeWindow) {
+          if (!setupWindow.isDestroyed()) {
+            setupWindow.close();
+          }
+          return;
+        }
+        if (!setupWindow.isDestroyed()) {
+          await render();
+        }
+      },
+      logError: deps.logError,
+    });
+
+    setupWindow.webContents.on('will-navigate', (event, url) => {
+      handleNavigation({
+        url,
+        preventDefault: () => {
+          if (event && typeof event === 'object' && 'preventDefault' in event) {
+            (event as { preventDefault?: () => void }).preventDefault?.();
+          }
+        },
+      });
+    });
+
+    setupWindow.on('closed', () => {
+      if (!deps.isSetupCompleted()) {
+        void deps.markSetupCancelled().catch((error) => {
+          deps.logError('Failed marking first-run setup cancelled', error);
+        });
+      }
+      deps.clearSetupWindow();
+    });
+
+    void deps
+      .markSetupInProgress()
+      .then(() => render())
+      .catch((error) => deps.logError('Failed opening first-run setup window', error));
+  };
+}

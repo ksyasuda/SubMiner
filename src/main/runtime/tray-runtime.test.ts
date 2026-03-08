@@ -30,6 +30,8 @@ test('tray menu template contains expected entries and handlers', () => {
   const calls: string[] = [];
   const template = buildTrayMenuTemplateRuntime({
     openOverlay: () => calls.push('overlay'),
+    openFirstRunSetup: () => calls.push('setup'),
+    showFirstRunSetup: true,
     openYomitanSettings: () => calls.push('yomitan'),
     openRuntimeOptions: () => calls.push('runtime'),
     openJellyfinSetup: () => calls.push('jellyfin'),
@@ -37,9 +39,26 @@ test('tray menu template contains expected entries and handlers', () => {
     quitApp: () => calls.push('quit'),
   });
 
-  assert.equal(template.length, 7);
+  assert.equal(template.length, 8);
   template[0]!.click?.();
-  template[5]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
-  template[6]!.click?.();
+  template[6]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
+  template[7]!.click?.();
   assert.deepEqual(calls, ['overlay', 'separator', 'quit']);
+});
+
+test('tray menu template omits first-run setup entry when setup is complete', () => {
+  const labels = buildTrayMenuTemplateRuntime({
+    openOverlay: () => undefined,
+    openFirstRunSetup: () => undefined,
+    showFirstRunSetup: false,
+    openYomitanSettings: () => undefined,
+    openRuntimeOptions: () => undefined,
+    openJellyfinSetup: () => undefined,
+    openAnilistSetup: () => undefined,
+    quitApp: () => undefined,
+  })
+    .map((entry) => entry.label)
+    .filter(Boolean);
+
+  assert.equal(labels.includes('Complete Setup'), false);
 });

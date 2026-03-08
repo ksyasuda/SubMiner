@@ -20,6 +20,7 @@ ${B}Overlay${R}
   --show-visible-overlay         Show subtitle overlay
   --hide-visible-overlay         Hide subtitle overlay
   --settings                     Open Yomitan settings window
+  --setup                        Open first-run setup window
   --auto-start-overlay           Auto-hide mpv subs, show overlay on connect
 
 ${B}Mining${R}
@@ -40,6 +41,8 @@ ${B}AniList${R}
   --anilist-status               Show token and retry queue status
   --anilist-logout               Clear stored AniList token
   --anilist-retry-queue          Retry next queued update
+  --dictionary                   Generate character dictionary ZIP for current anime
+  --dictionary-target ${D}PATH${R}         Override dictionary source path (file or directory)
 
 ${B}Jellyfin${R}
   --jellyfin                     Open Jellyfin setup window

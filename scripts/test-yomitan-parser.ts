@@ -4,6 +4,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { createTokenizerDepsRuntime, tokenizeSubtitle } from '../src/core/services/tokenizer.js';
+import { resolveYomitanExtensionPath as resolveBuiltYomitanExtensionPath } from '../src/core/services/yomitan-extension-paths.js';
 import { MecabTokenizer } from '../src/mecab-tokenizer.js';
 import type { MergedToken } from '../src/types.js';
 
@@ -112,12 +113,12 @@ function parseCliArgs(argv: string[]): CliOptions {
       if (!next) {
         throw new Error('Missing value for --yomitan-extension');
       }
-      yomitanExtensionPath = path.resolve(next);
+      yomitanExtensionPath = next;
       continue;
     }
 
     if (arg.startsWith('--yomitan-extension=')) {
-      yomitanExtensionPath = path.resolve(arg.slice('--yomitan-extension='.length));
+      yomitanExtensionPath = arg.slice('--yomitan-extension='.length);
       continue;
     }
 
@@ -126,12 +127,12 @@ function parseCliArgs(argv: string[]): CliOptions {
       if (!next) {
         throw new Error('Missing value for --yomitan-user-data');
       }
-      yomitanUserDataPath = path.resolve(next);
+      yomitanUserDataPath = next;
       continue;
     }
 
     if (arg.startsWith('--yomitan-user-data=')) {
-      yomitanUserDataPath = path.resolve(arg.slice('--yomitan-user-data='.length));
+      yomitanUserDataPath = arg.slice('--yomitan-user-data='.length);
       continue;
     }
 
@@ -348,7 +349,11 @@ function findSelectedCandidateIndexes(
   const mergedSignatures = mergedTokens.map(mergedTokenSignature);
   const selected: number[] = [];
   for (let i = 0; i < candidates.length; i += 1) {
-    const candidateSignatures = candidates[i].tokens.map(candidateTokenSignature);
+    const candidate = candidates[i];
+    if (!candidate) {
+      continue;
+    }
+    const candidateSignatures = candidate.tokens.map(candidateTokenSignature);
     if (candidateSignatures.length !== mergedSignatures.length) {
       continue;
     }
@@ -368,21 +373,10 @@ function findSelectedCandidateIndexes(
 }
 
 function resolveYomitanExtensionPath(explicitPath?: string): string | null {
-  const candidates = [
-    explicitPath ? path.resolve(explicitPath) : null,
-    path.resolve(process.cwd(), 'vendor', 'yomitan'),
-  ];
-
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue;
-    }
-    if (fs.existsSync(path.join(candidate, 'manifest.json'))) {
-      return candidate;
-    }
-  }
-
-  return null;
+  return resolveBuiltYomitanExtensionPath({
+    explicitPath,
+    cwd: process.cwd(),
+  });
 }
 
 async function setupYomitanRuntime(options: CliOptions): Promise<YomitanRuntimeState> {
@@ -416,7 +410,7 @@ async function setupYomitanRuntime(options: CliOptions): Promise<YomitanRuntimeS
 
   const extensionPath = resolveYomitanExtensionPath(options.yomitanExtensionPath);
   if (!extensionPath) {
-    state.note = 'no Yomitan extension directory found';
+    state.note = 'no built Yomitan extension directory found; run `bun run build:yomitan`';
     return state;
   }
 
@@ -490,6 +484,9 @@ function renderTextOutput(payload: Record<string, unknown>): void {
   } else {
     for (let i = 0; i < finalTokens.length; i += 1) {
       const token = finalTokens[i];
+      if (!token) {
+        continue;
+      }
       process.stdout.write(
         `  [${i}] ${token.surface} -> ${token.headword} (${token.reading}) [${token.startPos}, ${token.endPos})\n`,
       );
@@ -505,6 +502,9 @@ function renderTextOutput(payload: Record<string, unknown>): void {
 
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
+    if (!candidate) {
+      continue;
+    }
     process.stdout.write(
       `  [${i}] source=${String(candidate.source)} index=${String(candidate.index)} selectedByTokenizer=${String(candidate.selectedByTokenizer)} tokenCount=${String(candidate.tokenCount)}\n`,
     );
@@ -514,6 +514,9 @@ function renderTextOutput(payload: Record<string, unknown>): void {
     }
     for (let j = 0; j < tokens.length; j += 1) {
       const token = tokens[j];
+      if (!token) {
+        continue;
+      }
       process.stdout.write(
         `      - ${token.surface} -> ${token.headword} (${token.reading}) [${token.startPos}, ${token.endPos})\n`,
       );

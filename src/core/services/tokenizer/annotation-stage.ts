@@ -103,6 +103,10 @@ function isFrequencyExcludedByPos(
   pos1Exclusions: ReadonlySet<string>,
   pos2Exclusions: ReadonlySet<string>,
 ): boolean {
+  if (isSingleKanaFrequencyNoiseToken(token.surface)) {
+    return true;
+  }
+
   const normalizedPos1 = normalizePos1Tag(token.pos1);
   const hasPos1 = normalizedPos1.length > 0;
   if (isExcludedByTagSet(normalizedPos1, pos1Exclusions)) {
@@ -231,6 +235,7 @@ function isKanaChar(char: string): boolean {
   return (
     (code >= 0x3041 && code <= 0x3096) ||
     (code >= 0x309b && code <= 0x309f) ||
+    code === 0x30fc ||
     (code >= 0x30a0 && code <= 0x30fa) ||
     (code >= 0x30fd && code <= 0x30ff)
   );
@@ -360,6 +365,20 @@ function isLikelyFrequencyNoiseToken(token: MergedToken): boolean {
   }
 
   return false;
+}
+
+function isSingleKanaFrequencyNoiseToken(text: string | undefined): boolean {
+  if (typeof text !== 'string') {
+    return false;
+  }
+
+  const normalized = text.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const chars = [...normalized];
+  return chars.length === 1 && isKanaChar(chars[0]!);
 }
 
 function isJlptEligibleToken(token: MergedToken): boolean {

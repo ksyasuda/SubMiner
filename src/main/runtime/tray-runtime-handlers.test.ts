@@ -27,6 +27,8 @@ test('tray runtime handlers compose resolve/menu/ensure/destroy handlers', () =>
       setVisibleOverlayVisible: (visible) => {
         visibleOverlay = visible;
       },
+      showFirstRunSetup: () => true,
+      openFirstRunSetupWindow: () => {},
       openYomitanSettings: () => {},
       openRuntimeOptionsPalette: () => {},
       openJellyfinSetupWindow: () => {},

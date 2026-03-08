@@ -22,10 +22,13 @@ type RequiredMpvInputKeys = keyof ComposerInputs<
   MpvRuntimeComposerOptions<FakeMpvClient, FakeTokenizerDeps, FakeTokenizedSubtitle>
 >;
 
-type _anilistHasNotifyDeps = Assert<IsAssignable<'notifyDeps', RequiredAnilistSetupInputKeys>>;
-type _jellyfinHasGetMpvClient = Assert<IsAssignable<'getMpvClient', RequiredJellyfinInputKeys>>;
-type _ipcHasRegistration = Assert<IsAssignable<'registration', RequiredIpcInputKeys>>;
-type _mpvHasTokenizer = Assert<IsAssignable<'tokenizer', RequiredMpvInputKeys>>;
+const contractAssertions = [
+  true as Assert<IsAssignable<'notifyDeps', RequiredAnilistSetupInputKeys>>,
+  true as Assert<IsAssignable<'getMpvClient', RequiredJellyfinInputKeys>>,
+  true as Assert<IsAssignable<'registration', RequiredIpcInputKeys>>,
+  true as Assert<IsAssignable<'tokenizer', RequiredMpvInputKeys>>,
+];
+void contractAssertions;
 
 // @ts-expect-error missing required notifyDeps should fail compile-time contract
 const anilistMissingRequired: AnilistSetupComposerOptions = {

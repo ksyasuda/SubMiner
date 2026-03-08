@@ -1,5 +1,5 @@
 import type { ConfigHotReloadDiff } from '../../core/services/config-hot-reload';
-import { resolveKeybindings } from '../../core/utils';
+import { resolveKeybindings } from '../../core/utils/keybindings';
 import { DEFAULT_KEYBINDINGS } from '../../config';
 import type { ConfigHotReloadPayload, ResolvedConfig, SecondarySubMode } from '../../types';
 
@@ -24,6 +24,7 @@ export function resolveSubtitleStyleForRenderer(config: ResolvedConfig) {
     ...config.subtitleStyle,
     nPlusOneColor: config.ankiConnect.nPlusOne.nPlusOne,
     knownWordColor: config.ankiConnect.nPlusOne.knownWord,
+    nameMatchColor: config.subtitleStyle.nameMatchColor,
     enableJlpt: config.subtitleStyle.enableJlpt,
     frequencyDictionary: config.subtitleStyle.frequencyDictionary,
   };

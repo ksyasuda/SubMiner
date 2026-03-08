@@ -4,7 +4,8 @@ import { AppReadyRuntimeDeps, runAppReadyRuntime } from './startup';
 
 function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
   const calls: string[] = [];
-  const deps: AppReadyRuntimeDeps = {
+  const deps = {
+    ensureDefaultConfigBootstrap: () => calls.push('ensureDefaultConfigBootstrap'),
     loadSubtitlePosition: () => calls.push('loadSubtitlePosition'),
     resolveKeybindings: () => calls.push('resolveKeybindings'),
     createMpvClient: () => calls.push('createMpvClient'),
@@ -20,8 +21,13 @@ function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
     setSecondarySubMode: (mode) => calls.push(`setSecondarySubMode:${mode}`),
     defaultSecondarySubMode: 'hover',
     defaultWebsocketPort: 9001,
+    defaultAnnotationWebsocketPort: 6678,
+    defaultTexthookerPort: 5174,
     hasMpvWebsocketPlugin: () => true,
     startSubtitleWebsocket: (port) => calls.push(`startSubtitleWebsocket:${port}`),
+    startAnnotationWebsocket: (port) => calls.push(`startAnnotationWebsocket:${port}`),
+    startTexthooker: (port, websocketUrl) =>
+      calls.push(`startTexthooker:${port}:${websocketUrl ?? ''}`),
     log: (message) => calls.push(`log:${message}`),
     createMecabTokenizerAndCheck: async () => {
       calls.push('createMecabTokenizerAndCheck');
@@ -34,6 +40,9 @@ function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
     loadYomitanExtension: async () => {
       calls.push('loadYomitanExtension');
     },
+    handleFirstRunSetup: async () => {
+      calls.push('handleFirstRunSetup');
+    },
     prewarmSubtitleDictionaries: async () => {
       calls.push('prewarmSubtitleDictionaries');
     },
@@ -42,12 +51,13 @@ function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
     },
     texthookerOnlyMode: false,
     shouldAutoInitializeOverlayRuntimeFromConfig: () => true,
+    setVisibleOverlayVisible: (visible) => calls.push(`setVisibleOverlayVisible:${visible}`),
     initializeOverlayRuntime: () => calls.push('initializeOverlayRuntime'),
     handleInitialArgs: () => calls.push('handleInitialArgs'),
     logDebug: (message) => calls.push(`debug:${message}`),
     now: () => 1000,
     ...overrides,
-  };
+  } as AppReadyRuntimeDeps;
   return { deps, calls };
 }
 
@@ -56,14 +66,60 @@ test('runAppReadyRuntime starts websocket in auto mode when plugin missing', asy
     hasMpvWebsocketPlugin: () => false,
   });
   await runAppReadyRuntime(deps);
+  assert.ok(calls.includes('ensureDefaultConfigBootstrap'));
   assert.ok(calls.includes('startSubtitleWebsocket:9001'));
+  assert.ok(calls.includes('startAnnotationWebsocket:6678'));
+  assert.ok(calls.includes('setVisibleOverlayVisible:true'));
   assert.ok(calls.includes('initializeOverlayRuntime'));
+  assert.ok(
+    calls.indexOf('setVisibleOverlayVisible:true') < calls.indexOf('initializeOverlayRuntime'),
+  );
   assert.ok(calls.includes('startBackgroundWarmups'));
   assert.ok(
     calls.includes(
       'log:Runtime ready: immersion tracker startup deferred until first media activity.',
     ),
   );
+});
+
+test('runAppReadyRuntime starts texthooker on startup when enabled in config', async () => {
+  const { deps, calls } = makeDeps({
+    getResolvedConfig: () => ({
+      websocket: { enabled: 'auto' },
+      secondarySub: {},
+      texthooker: { launchAtStartup: true },
+    }),
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assert.ok(calls.includes('startTexthooker:5174:ws://127.0.0.1:6678'));
+  assert.ok(calls.indexOf('handleFirstRunSetup') < calls.indexOf('handleInitialArgs'));
+  assert.ok(
+    calls.indexOf('createMpvClient') < calls.indexOf('startTexthooker:5174:ws://127.0.0.1:6678'),
+  );
+  assert.ok(
+    calls.indexOf('startTexthooker:5174:ws://127.0.0.1:6678') < calls.indexOf('handleInitialArgs'),
+  );
+});
+
+test('runAppReadyRuntime keeps annotation websocket enabled when regular websocket auto-skips', async () => {
+  const { deps, calls } = makeDeps({
+    getResolvedConfig: () => ({
+      websocket: { enabled: 'auto' },
+      annotationWebsocket: { enabled: true, port: 6678 },
+      secondarySub: {},
+      texthooker: { launchAtStartup: true },
+    }),
+    hasMpvWebsocketPlugin: () => true,
+  });
+
+  await runAppReadyRuntime(deps);
+
+  assert.equal(calls.includes('startSubtitleWebsocket:9001'), false);
+  assert.ok(calls.includes('startAnnotationWebsocket:6678'));
+  assert.ok(calls.includes('startTexthooker:5174:ws://127.0.0.1:6678'));
+  assert.ok(calls.includes('log:mpv_websocket detected, skipping built-in WebSocket server'));
 });
 
 test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns true', async () => {
@@ -97,6 +153,7 @@ test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns
 
   await runAppReadyRuntime(deps);
 
+  assert.equal(calls.includes('ensureDefaultConfigBootstrap'), true);
   assert.equal(calls.includes('reloadConfig'), false);
   assert.equal(calls.includes('getResolvedConfig'), false);
   assert.equal(calls.includes('getConfigWarnings'), false);
@@ -111,7 +168,10 @@ test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns
   assert.equal(calls.includes('logConfigWarning'), false);
   assert.equal(calls.includes('handleInitialArgs'), true);
   assert.equal(calls.includes('loadYomitanExtension'), true);
+  assert.equal(calls.includes('handleFirstRunSetup'), true);
   assert.ok(calls.indexOf('loadYomitanExtension') < calls.indexOf('handleInitialArgs'));
+  assert.ok(calls.indexOf('loadYomitanExtension') < calls.indexOf('handleFirstRunSetup'));
+  assert.ok(calls.indexOf('handleFirstRunSetup') < calls.indexOf('handleInitialArgs'));
 });
 
 test('runAppReadyRuntime skips Jellyfin remote startup when dependency is not wired', async () => {

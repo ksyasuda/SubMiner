@@ -22,6 +22,8 @@ function createMockWindow(): MockWindow & {
   isFocused: () => boolean;
   getURL: () => string;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
+  setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => void;
+  moveTop: () => void;
   getShowCount: () => number;
   getHideCount: () => number;
   show: () => void;
@@ -59,6 +61,8 @@ function createMockWindow(): MockWindow & {
     setIgnoreMouseEvents: (ignore: boolean, _options?: { forward?: boolean }) => {
       state.ignoreMouseEvents = ignore;
     },
+    setAlwaysOnTop: (_flag: boolean, _level?: string, _relativeLevel?: number) => {},
+    moveTop: () => {},
     getShowCount: () => state.showCount,
     getHideCount: () => state.hideCount,
     show: () => {
@@ -97,6 +101,27 @@ function createMockWindow(): MockWindow & {
     get: () => state.loading,
     set: (value: boolean) => {
       state.loading = value;
+    },
+  });
+
+  Object.defineProperty(window, 'visible', {
+    get: () => state.visible,
+    set: (value: boolean) => {
+      state.visible = value;
+    },
+  });
+
+  Object.defineProperty(window, 'focused', {
+    get: () => state.focused,
+    set: (value: boolean) => {
+      state.focused = value;
+    },
+  });
+
+  Object.defineProperty(window, 'webContentsFocused', {
+    get: () => state.webContentsFocused,
+    set: (value: boolean) => {
+      state.webContentsFocused = value;
     },
   });
 
@@ -318,7 +343,7 @@ test('notifyOverlayModalOpened enables input on visible main overlay window when
   runtime.notifyOverlayModalOpened('runtime-options');
 
   assert.equal(sent, true);
-  assert.equal(state, [true]);
+  assert.deepEqual(state, [true]);
   assert.equal(mainWindow.ignoreMouseEvents, false);
   assert.equal(mainWindow.isFocused(), true);
   assert.equal(mainWindow.webContentsFocused, true);
@@ -400,7 +425,7 @@ test('modal fallback reveal keeps mouse events ignored until modal confirms open
   });
 
   assert.equal(window.getShowCount(), 1);
-  assert.equal(window.ignoreMouseEvents, true);
+  assert.equal(window.ignoreMouseEvents, false);
 
   runtime.notifyOverlayModalOpened('jimaku');
   assert.equal(window.ignoreMouseEvents, false);

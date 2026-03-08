@@ -48,6 +48,20 @@ export function buildSubtitleConfigOptionRegistry(
       description: 'CSS color used for hovered subtitle token background highlight in mpv.',
     },
     {
+      path: 'subtitleStyle.nameMatchEnabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleStyle.nameMatchEnabled,
+      description:
+        'Enable subtitle token coloring for matches from the SubMiner character dictionary.',
+    },
+    {
+      path: 'subtitleStyle.nameMatchColor',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.nameMatchColor,
+      description:
+        'Hex color used when a subtitle token matches an entry from the SubMiner character dictionary.',
+    },
+    {
       path: 'subtitleStyle.frequencyDictionary.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleStyle.frequencyDictionary.enabled,

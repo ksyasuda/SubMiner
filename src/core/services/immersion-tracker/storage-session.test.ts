@@ -23,6 +23,12 @@ const DatabaseSync: DatabaseSyncCtor | null = (() => {
 })();
 const testIfSqlite = DatabaseSync ? test : test.skip;
 
+if (!DatabaseSync) {
+  console.warn(
+    'Skipping SQLite-backed immersion tracker storage/session tests in this runtime; run `bun run test:immersion:sqlite` for real DB coverage.',
+  );
+}
+
 function makeDbPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-imm-storage-session-'));
   return path.join(dir, 'immersion.sqlite');

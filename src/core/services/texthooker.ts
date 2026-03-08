@@ -5,6 +5,22 @@ import { createLogger } from '../../logger';
 
 const logger = createLogger('main:texthooker');
 
+export function injectTexthookerBootstrapHtml(html: string, websocketUrl?: string): string {
+  if (!websocketUrl) {
+    return html;
+  }
+
+  const bootstrapScript = `<script>window.localStorage.setItem('bannou-texthooker-websocketUrl', ${JSON.stringify(
+    websocketUrl,
+  )});</script>`;
+
+  if (html.includes('</head>')) {
+    return html.replace('</head>', `${bootstrapScript}</head>`);
+  }
+
+  return `${bootstrapScript}${html}`;
+}
+
 export class Texthooker {
   private server: http.Server | null = null;
 
@@ -12,7 +28,11 @@ export class Texthooker {
     return this.server !== null;
   }
 
-  public start(port: number): http.Server | null {
+  public start(port: number, websocketUrl?: string): http.Server | null {
+    if (this.server) {
+      return this.server;
+    }
+
     const texthookerPath = this.getTexthookerPath();
     if (!texthookerPath) {
       logger.error('texthooker-ui not found');
@@ -42,8 +62,12 @@ export class Texthooker {
           res.end('Not found');
           return;
         }
+        const responseData =
+          urlPath === '/' || urlPath === '/index.html'
+            ? Buffer.from(injectTexthookerBootstrapHtml(data.toString('utf-8'), websocketUrl))
+            : data;
         res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'text/plain' });
-        res.end(data);
+        res.end(responseData);
       });
     });
 

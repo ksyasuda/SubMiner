@@ -28,6 +28,8 @@ export function createBuildResolveTrayIconPathMainDepsHandler(deps: {
 export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   buildTrayMenuTemplateRuntime: (handlers: {
     openOverlay: () => void;
+    openFirstRunSetup: () => void;
+    showFirstRunSetup: boolean;
     openYomitanSettings: () => void;
     openRuntimeOptions: () => void;
     openJellyfinSetup: () => void;
@@ -37,6 +39,8 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   initializeOverlayRuntime: () => void;
   isOverlayRuntimeInitialized: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
+  showFirstRunSetup: () => boolean;
+  openFirstRunSetupWindow: () => void;
   openYomitanSettings: () => void;
   openRuntimeOptionsPalette: () => void;
   openJellyfinSetupWindow: () => void;
@@ -48,6 +52,8 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
     initializeOverlayRuntime: deps.initializeOverlayRuntime,
     isOverlayRuntimeInitialized: deps.isOverlayRuntimeInitialized,
     setVisibleOverlayVisible: deps.setVisibleOverlayVisible,
+    showFirstRunSetup: deps.showFirstRunSetup,
+    openFirstRunSetupWindow: deps.openFirstRunSetupWindow,
     openYomitanSettings: deps.openYomitanSettings,
     openRuntimeOptionsPalette: deps.openRuntimeOptionsPalette,
     openJellyfinSetupWindow: deps.openJellyfinSetupWindow,

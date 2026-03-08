@@ -453,3 +453,46 @@ test('MpvIpcClient updates current audio stream index from track list', async ()
 
   assert.equal(client.currentAudioStreamIndex, 11);
 });
+
+test('MpvIpcClient playNextSubtitle preserves a manual paused state', async () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  (client as any).send = (payload: unknown) => {
+    commands.push(payload);
+    return true;
+  };
+  (client as any).pendingPauseAtSubEnd = true;
+  (client as any).pauseAtTime = 42;
+
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'pause',
+    data: true,
+  });
+
+  client.playNextSubtitle();
+
+  assert.equal((client as any).pendingPauseAtSubEnd, false);
+  assert.equal((client as any).pauseAtTime, null);
+  assert.deepEqual(commands, [{ command: ['sub-seek', 1] }]);
+});
+
+test('MpvIpcClient playNextSubtitle still auto-pauses at end while already playing', async () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  (client as any).send = (payload: unknown) => {
+    commands.push(payload);
+    return true;
+  };
+
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'pause',
+    data: false,
+  });
+
+  client.playNextSubtitle();
+
+  assert.equal((client as any).pendingPauseAtSubEnd, true);
+  assert.deepEqual(commands, [{ command: ['sub-seek', 1] }]);
+});

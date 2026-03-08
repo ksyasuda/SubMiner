@@ -127,3 +127,88 @@ test('drops scanning parser tokens which have no dictionary headword', () => {
     ],
   );
 });
+
+test('prefers the longest dictionary headword across merged segments', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [
+        { text: 'バニ', reading: 'ばに', headword: 'バニ' },
+        { text: 'ール', reading: 'ーる', headword: 'バニール' },
+      ],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.deepEqual(
+    tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+    })),
+    [
+      {
+        surface: 'バニール',
+        reading: 'ばにーる',
+        headword: 'バニール',
+      },
+    ],
+  );
+});
+
+test('keeps the first headword when later segments are standalone words', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [
+        { text: '猫', reading: 'ねこ', headword: '猫' },
+        { text: 'です', reading: 'です', headword: 'です' },
+      ],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.deepEqual(
+    tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+    })),
+    [
+      {
+        surface: '猫です',
+        reading: 'ねこです',
+        headword: '猫',
+      },
+    ],
+  );
+});
+
+test('merges trailing katakana continuation without headword into previous token', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [{ text: 'カズ', reading: 'かず', headword: 'カズマ' }],
+      [{ text: 'マ', reading: 'ま' }],
+      [{ text: '魔王軍', reading: 'まおうぐん', headword: '魔王軍' }],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.deepEqual(
+    tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+    })),
+    [
+      {
+        surface: 'カズマ',
+        reading: 'かずま',
+        headword: 'カズマ',
+      },
+      {
+        surface: '魔王軍',
+        reading: 'まおうぐん',
+        headword: '魔王軍',
+      },
+    ],
+  );
+});

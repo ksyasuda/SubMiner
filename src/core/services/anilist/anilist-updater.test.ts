@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as childProcess from 'child_process';
 
 import { guessAnilistMediaInfo, updateAnilistPostWatchProgress } from './anilist-updater';
 
@@ -12,67 +11,27 @@ function createJsonResponse(payload: unknown): Response {
 }
 
 test('guessAnilistMediaInfo uses guessit output when available', async () => {
-  const originalExecFile = childProcess.execFile;
-  (
-    childProcess as unknown as {
-      execFile: typeof childProcess.execFile;
-    }
-  ).execFile = ((...args: unknown[]) => {
-    const callback = args[args.length - 1];
-    const cb =
-      typeof callback === 'function'
-        ? (callback as (error: Error | null, stdout: string, stderr: string) => void)
-        : null;
-    cb?.(null, JSON.stringify({ title: 'Guessit Title', episode: 7 }), '');
-    return {} as childProcess.ChildProcess;
-  }) as typeof childProcess.execFile;
-
-  try {
-    const result = await guessAnilistMediaInfo('/tmp/demo.mkv', null);
-    assert.deepEqual(result, {
-      title: 'Guessit Title',
-      episode: 7,
-      source: 'guessit',
-    });
-  } finally {
-    (
-      childProcess as unknown as {
-        execFile: typeof childProcess.execFile;
-      }
-    ).execFile = originalExecFile;
-  }
+  const result = await guessAnilistMediaInfo('/tmp/demo.mkv', null, {
+    runGuessit: async () => JSON.stringify({ title: 'Guessit Title', episode: 7 }),
+  });
+  assert.deepEqual(result, {
+    title: 'Guessit Title',
+    episode: 7,
+    source: 'guessit',
+  });
 });
 
 test('guessAnilistMediaInfo falls back to parser when guessit fails', async () => {
-  const originalExecFile = childProcess.execFile;
-  (
-    childProcess as unknown as {
-      execFile: typeof childProcess.execFile;
-    }
-  ).execFile = ((...args: unknown[]) => {
-    const callback = args[args.length - 1];
-    const cb =
-      typeof callback === 'function'
-        ? (callback as (error: Error | null, stdout: string, stderr: string) => void)
-        : null;
-    cb?.(new Error('guessit not found'), '', '');
-    return {} as childProcess.ChildProcess;
-  }) as typeof childProcess.execFile;
-
-  try {
-    const result = await guessAnilistMediaInfo('/tmp/My Anime S01E03.mkv', null);
-    assert.deepEqual(result, {
-      title: 'My Anime',
-      episode: 3,
-      source: 'fallback',
-    });
-  } finally {
-    (
-      childProcess as unknown as {
-        execFile: typeof childProcess.execFile;
-      }
-    ).execFile = originalExecFile;
-  }
+  const result = await guessAnilistMediaInfo('/tmp/My Anime S01E03.mkv', null, {
+    runGuessit: async () => {
+      throw new Error('guessit not found');
+    },
+  });
+  assert.deepEqual(result, {
+    title: 'My Anime',
+    episode: 3,
+    source: 'fallback',
+  });
 });
 
 test('updateAnilistPostWatchProgress updates progress when behind', async () => {

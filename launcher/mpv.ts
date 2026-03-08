@@ -427,7 +427,7 @@ export async function startMpv(
   appPath: string,
   preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
   options?: { startPaused?: boolean },
-): void {
+): Promise<void> {
   if (targetKind === 'file' && (!fs.existsSync(target) || !fs.statSync(target).isFile())) {
     fail(`Video file not found: ${target}`);
   }

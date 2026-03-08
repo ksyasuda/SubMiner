@@ -50,3 +50,11 @@ test('parseArgs maps mpv idle action', () => {
   assert.equal(parsed.mpvIdle, true);
   assert.equal(parsed.mpvStatus, false);
 });
+
+test('parseArgs maps dictionary command and log-level override', () => {
+  const parsed = parseArgs(['dictionary', '.', '--log-level', 'debug'], 'subminer', {});
+
+  assert.equal(parsed.dictionary, true);
+  assert.equal(parsed.dictionaryTarget, process.cwd());
+  assert.equal(parsed.logLevel, 'debug');
+});

@@ -80,7 +80,7 @@ export class FieldGroupingWorkflow {
 
   async handleManual(
     originalNoteId: number,
-    newNoteId: number,
+    _newNoteId: number,
     newNoteInfo: FieldGroupingWorkflowNoteInfo,
   ): Promise<boolean> {
     const callback = await this.resolveFieldGroupingCallback();

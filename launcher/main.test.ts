@@ -162,6 +162,35 @@ test('doctor reports checks and exits non-zero without hard dependencies', () =>
   });
 });
 
+test('dictionary command forwards --dictionary and --dictionary-target to app command path', () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const capturePath = path.join(root, 'captured-args.txt');
+    fs.writeFileSync(
+      appPath,
+      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+    );
+    fs.chmodSync(appPath, 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_CAPTURE: capturePath,
+    };
+    const targetPath = path.join(root, 'anime-folder');
+    fs.mkdirSync(targetPath, { recursive: true });
+    const result = runLauncher(['dictionary', targetPath], env);
+
+    assert.equal(result.status, 0);
+    assert.equal(
+      fs.readFileSync(capturePath, 'utf8'),
+      `--dictionary\n--dictionary-target\n${targetPath}\n`,
+    );
+  });
+});
+
 test('jellyfin discovery routes to app --background and remote announce with log-level forwarding', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');

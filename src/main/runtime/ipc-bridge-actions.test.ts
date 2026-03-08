@@ -16,6 +16,7 @@ test('handle mpv command handler forwards command and built deps', () => {
     playNextSubtitle: () => {},
     shiftSubDelayToAdjacentSubtitle: async () => {},
     sendMpvCommand: () => {},
+    getMpvClient: () => null,
     isMpvConnected: () => true,
     hasRuntimeOptionsManager: () => true,
   };

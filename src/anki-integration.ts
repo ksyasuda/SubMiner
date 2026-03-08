@@ -48,6 +48,7 @@ import { FieldGroupingService } from './anki-integration/field-grouping';
 import { FieldGroupingMergeCollaborator } from './anki-integration/field-grouping-merge';
 import { NoteUpdateWorkflow } from './anki-integration/note-update-workflow';
 import { FieldGroupingWorkflow } from './anki-integration/field-grouping-workflow';
+import { AnkiIntegrationRuntime, normalizeAnkiIntegrationConfig } from './anki-integration/runtime';
 
 const log = createLogger('anki').child('integration');
 
@@ -113,8 +114,6 @@ export class AnkiIntegration {
   private timingTracker: SubtitleTimingTracker;
   private config: AnkiConnectConfig;
   private pollingRunner!: PollingRunner;
-  private proxyServer: AnkiConnectProxyServer | null = null;
-  private started = false;
   private previousNoteIds = new Set<number>();
   private mpvClient: MpvClient;
   private osdCallback: ((text: string) => void) | null = null;
@@ -135,6 +134,7 @@ export class AnkiIntegration {
   private fieldGroupingService: FieldGroupingService;
   private noteUpdateWorkflow: NoteUpdateWorkflow;
   private fieldGroupingWorkflow: FieldGroupingWorkflow;
+  private runtime: AnkiIntegrationRuntime;
 
   constructor(
     config: AnkiConnectConfig,
@@ -148,7 +148,7 @@ export class AnkiIntegration {
     }) => Promise<KikuFieldGroupingChoice>,
     knownWordCacheStatePath?: string,
   ) {
-    this.config = this.normalizeConfig(config);
+    this.config = normalizeAnkiIntegrationConfig(config);
     this.client = new AnkiConnectClient(this.config.url!);
     this.mediaGenerator = new MediaGenerator();
     this.timingTracker = timingTracker;
@@ -163,6 +163,7 @@ export class AnkiIntegration {
     this.fieldGroupingService = this.createFieldGroupingService();
     this.noteUpdateWorkflow = this.createNoteUpdateWorkflow();
     this.fieldGroupingWorkflow = this.createFieldGroupingWorkflow();
+    this.runtime = this.createRuntime(config);
   }
 
   private createFieldGroupingMergeCollaborator(): FieldGroupingMergeCollaborator {
@@ -180,75 +181,6 @@ export class AnkiIntegration {
       warnFieldParseOnce: (fieldName, reason, detail) =>
         this.warnFieldParseOnce(fieldName, reason, detail),
     });
-  }
-
-  private normalizeConfig(config: AnkiConnectConfig): AnkiConnectConfig {
-    const resolvedUrl =
-      typeof config.url === 'string' && config.url.trim().length > 0
-        ? config.url.trim()
-        : DEFAULT_ANKI_CONNECT_CONFIG.url;
-    const proxySource =
-      config.proxy && typeof config.proxy === 'object'
-        ? (config.proxy as NonNullable<AnkiConnectConfig['proxy']>)
-        : {};
-    const normalizedProxyPort =
-      typeof proxySource.port === 'number' &&
-      Number.isInteger(proxySource.port) &&
-      proxySource.port >= 1 &&
-      proxySource.port <= 65535
-        ? proxySource.port
-        : DEFAULT_ANKI_CONNECT_CONFIG.proxy?.port;
-    const normalizedProxyHost =
-      typeof proxySource.host === 'string' && proxySource.host.trim().length > 0
-        ? proxySource.host.trim()
-        : DEFAULT_ANKI_CONNECT_CONFIG.proxy?.host;
-    const normalizedProxyUpstreamUrl =
-      typeof proxySource.upstreamUrl === 'string' && proxySource.upstreamUrl.trim().length > 0
-        ? proxySource.upstreamUrl.trim()
-        : resolvedUrl;
-
-    return {
-      ...DEFAULT_ANKI_CONNECT_CONFIG,
-      ...config,
-      url: resolvedUrl,
-      fields: {
-        ...DEFAULT_ANKI_CONNECT_CONFIG.fields,
-        ...(config.fields ?? {}),
-      },
-      proxy: {
-        ...DEFAULT_ANKI_CONNECT_CONFIG.proxy,
-        ...(config.proxy ?? {}),
-        enabled: proxySource.enabled === true,
-        host: normalizedProxyHost,
-        port: normalizedProxyPort,
-        upstreamUrl: normalizedProxyUpstreamUrl,
-      },
-      ai: {
-        ...DEFAULT_ANKI_CONNECT_CONFIG.ai,
-        ...(config.openRouter ?? {}),
-        ...(config.ai ?? {}),
-      },
-      media: {
-        ...DEFAULT_ANKI_CONNECT_CONFIG.media,
-        ...(config.media ?? {}),
-      },
-      behavior: {
-        ...DEFAULT_ANKI_CONNECT_CONFIG.behavior,
-        ...(config.behavior ?? {}),
-      },
-      metadata: {
-        ...DEFAULT_ANKI_CONNECT_CONFIG.metadata,
-        ...(config.metadata ?? {}),
-      },
-      isLapis: {
-        ...DEFAULT_ANKI_CONNECT_CONFIG.isLapis,
-        ...(config.isLapis ?? {}),
-      },
-      isKiku: {
-        ...DEFAULT_ANKI_CONNECT_CONFIG.isKiku,
-        ...(config.isKiku ?? {}),
-      },
-    } as AnkiConnectConfig;
   }
 
   private createKnownWordCache(knownWordCacheStatePath?: string): KnownWordCacheManager {
@@ -302,11 +234,20 @@ export class AnkiIntegration {
     });
   }
 
-  private getOrCreateProxyServer(): AnkiConnectProxyServer {
-    if (!this.proxyServer) {
-      this.proxyServer = this.createProxyServer();
-    }
-    return this.proxyServer;
+  private createRuntime(initialConfig: AnkiConnectConfig): AnkiIntegrationRuntime {
+    return new AnkiIntegrationRuntime({
+      initialConfig,
+      pollingRunner: this.pollingRunner,
+      knownWordCache: this.knownWordCache,
+      proxyServerFactory: () => this.createProxyServer(),
+      logInfo: (message, ...args) => log.info(message, ...args),
+      logWarn: (message, ...args) => log.warn(message, ...args),
+      logError: (message, ...args) => log.error(message, ...args),
+      onConfigChanged: (nextConfig) => {
+        this.config = nextConfig;
+        this.client = new AnkiConnectClient(nextConfig.url!);
+      },
+    });
   }
 
   private createCardCreationService(): CardCreationService {
@@ -517,14 +458,6 @@ export class AnkiIntegration {
     return this.config.nPlusOne?.highlightEnabled === true;
   }
 
-  private startKnownWordCacheLifecycle(): void {
-    this.knownWordCache.startLifecycle();
-  }
-
-  private stopKnownWordCacheLifecycle(): void {
-    this.knownWordCache.stopLifecycle();
-  }
-
   private getConfiguredAnkiTags(): string[] {
     if (!Array.isArray(this.config.tags)) {
       return [];
@@ -606,64 +539,12 @@ export class AnkiIntegration {
     };
   }
 
-  private isProxyTransportEnabled(config: AnkiConnectConfig = this.config): boolean {
-    return config.proxy?.enabled === true;
-  }
-
-  private getTransportConfigKey(config: AnkiConnectConfig = this.config): string {
-    if (this.isProxyTransportEnabled(config)) {
-      return [
-        'proxy',
-        config.proxy?.host ?? '',
-        String(config.proxy?.port ?? ''),
-        config.proxy?.upstreamUrl ?? '',
-      ].join(':');
-    }
-    return ['polling', String(config.pollingRate ?? DEFAULT_ANKI_CONNECT_CONFIG.pollingRate)].join(
-      ':',
-    );
-  }
-
-  private startTransport(): void {
-    if (this.isProxyTransportEnabled()) {
-      const proxyHost = this.config.proxy?.host ?? '127.0.0.1';
-      const proxyPort = this.config.proxy?.port ?? 8766;
-      const upstreamUrl = this.config.proxy?.upstreamUrl ?? this.config.url ?? '';
-      this.getOrCreateProxyServer().start({
-        host: proxyHost,
-        port: proxyPort,
-        upstreamUrl,
-      });
-      log.info(
-        `Starting AnkiConnect integration with local proxy: http://${proxyHost}:${proxyPort} -> ${upstreamUrl}`,
-      );
-      return;
-    }
-
-    log.info('Starting AnkiConnect integration with polling rate:', this.config.pollingRate);
-    this.pollingRunner.start();
-  }
-
-  private stopTransport(): void {
-    this.pollingRunner.stop();
-    this.proxyServer?.stop();
-  }
-
   start(): void {
-    if (this.started) {
-      this.stop();
-    }
-
-    this.startKnownWordCacheLifecycle();
-    this.startTransport();
-    this.started = true;
+    this.runtime.start();
   }
 
   stop(): void {
-    this.stopTransport();
-    this.stopKnownWordCacheLifecycle();
-    this.started = false;
-    log.info('Stopped AnkiConnect integration');
+    this.runtime.stop();
   }
 
   private async processNewCard(
@@ -1216,58 +1097,7 @@ export class AnkiIntegration {
   }
 
   applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>): void {
-    const wasEnabled = this.config.nPlusOne?.highlightEnabled === true;
-    const previousTransportKey = this.getTransportConfigKey(this.config);
-
-    const mergedConfig: AnkiConnectConfig = {
-      ...this.config,
-      ...patch,
-      nPlusOne:
-        patch.nPlusOne !== undefined
-          ? {
-              ...(this.config.nPlusOne ?? DEFAULT_ANKI_CONNECT_CONFIG.nPlusOne),
-              ...patch.nPlusOne,
-            }
-          : this.config.nPlusOne,
-      fields:
-        patch.fields !== undefined
-          ? { ...this.config.fields, ...patch.fields }
-          : this.config.fields,
-      media:
-        patch.media !== undefined ? { ...this.config.media, ...patch.media } : this.config.media,
-      behavior:
-        patch.behavior !== undefined
-          ? { ...this.config.behavior, ...patch.behavior }
-          : this.config.behavior,
-      proxy:
-        patch.proxy !== undefined ? { ...this.config.proxy, ...patch.proxy } : this.config.proxy,
-      metadata:
-        patch.metadata !== undefined
-          ? { ...this.config.metadata, ...patch.metadata }
-          : this.config.metadata,
-      isLapis:
-        patch.isLapis !== undefined
-          ? { ...this.config.isLapis, ...patch.isLapis }
-          : this.config.isLapis,
-      isKiku:
-        patch.isKiku !== undefined
-          ? { ...this.config.isKiku, ...patch.isKiku }
-          : this.config.isKiku,
-    };
-    this.config = this.normalizeConfig(mergedConfig);
-
-    if (wasEnabled && this.config.nPlusOne?.highlightEnabled === false) {
-      this.stopKnownWordCacheLifecycle();
-      this.knownWordCache.clearKnownWordCacheState();
-    } else {
-      this.startKnownWordCacheLifecycle();
-    }
-
-    const nextTransportKey = this.getTransportConfigKey(this.config);
-    if (this.started && previousTransportKey !== nextTransportKey) {
-      this.stopTransport();
-      this.startTransport();
-    }
+    this.runtime.applyRuntimeConfigPatch(patch);
   }
 
   destroy(): void {

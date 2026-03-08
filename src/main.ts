@@ -92,8 +92,6 @@ import type {
   SecondarySubMode,
   SubtitleData,
   SubtitlePosition,
-  SubsyncManualRunRequest,
-  SubsyncResult,
   WindowGeometry,
 } from './types';
 import { AnkiIntegration } from './anki-integration';
@@ -116,36 +114,15 @@ import {
   failStartupFromConfig,
 } from './main/config-validation';
 import {
-  buildAnilistAttemptKey,
   buildAnilistSetupUrl,
   consumeAnilistSetupCallbackUrl,
   createAnilistStateRuntime,
-  createBuildGetAnilistMediaGuessRuntimeStateMainDepsHandler,
-  createBuildGetCurrentAnilistMediaKeyMainDepsHandler,
-  createBuildMaybeProbeAnilistDurationMainDepsHandler,
-  createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler,
   createBuildOpenAnilistSetupWindowMainDepsHandler,
-  createBuildProcessNextAnilistRetryUpdateMainDepsHandler,
-  createBuildRefreshAnilistClientSecretStateMainDepsHandler,
-  createBuildResetAnilistMediaGuessStateMainDepsHandler,
-  createBuildResetAnilistMediaTrackingMainDepsHandler,
-  createBuildSetAnilistMediaGuessRuntimeStateMainDepsHandler,
-  createEnsureAnilistMediaGuessHandler,
-  createGetAnilistMediaGuessRuntimeStateHandler,
-  createGetCurrentAnilistMediaKeyHandler,
   createMaybeFocusExistingAnilistSetupWindowHandler,
-  createMaybeProbeAnilistDurationHandler,
-  createMaybeRunAnilistPostWatchUpdateHandler,
   createOpenAnilistSetupWindowHandler,
-  createProcessNextAnilistRetryUpdateHandler,
-  createRefreshAnilistClientSecretStateHandler,
-  createResetAnilistMediaGuessStateHandler,
-  createResetAnilistMediaTrackingHandler,
-  createSetAnilistMediaGuessRuntimeStateHandler,
   findAnilistSetupDeepLinkArgvUrl,
   isAnilistTrackingEnabled,
   loadAnilistManualTokenEntry,
-  loadAnilistSetupFallback,
   openAnilistSetupInBrowser,
   rememberAnilistAttemptedUpdateKey,
 } from './main/runtime/domains/anilist';
@@ -153,50 +130,9 @@ import {
   createApplyJellyfinMpvDefaultsHandler,
   createBuildApplyJellyfinMpvDefaultsMainDepsHandler,
   createBuildGetDefaultSocketPathMainDepsHandler,
-  createEnsureMpvConnectedForJellyfinPlaybackHandler,
-  createBuildEnsureMpvConnectedForJellyfinPlaybackMainDepsHandler,
   createGetDefaultSocketPathHandler,
-  createGetJellyfinClientInfoHandler,
-  createBuildGetJellyfinClientInfoMainDepsHandler,
-  createHandleJellyfinAuthCommands,
-  createBuildHandleJellyfinAuthCommandsMainDepsHandler,
-  createHandleJellyfinListCommands,
-  createBuildHandleJellyfinListCommandsMainDepsHandler,
-  createHandleJellyfinPlayCommand,
-  createBuildHandleJellyfinPlayCommandMainDepsHandler,
-  createHandleJellyfinRemoteAnnounceCommand,
-  createBuildHandleJellyfinRemoteAnnounceCommandMainDepsHandler,
-  createHandleJellyfinRemotePlay,
-  createBuildHandleJellyfinRemotePlayMainDepsHandler,
-  createHandleJellyfinRemotePlaystate,
-  createBuildHandleJellyfinRemotePlaystateMainDepsHandler,
-  createHandleJellyfinRemoteGeneralCommand,
-  createBuildHandleJellyfinRemoteGeneralCommandMainDepsHandler,
-  createLaunchMpvIdleForJellyfinPlaybackHandler,
-  createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler,
-  createPlayJellyfinItemInMpvHandler,
-  createBuildPlayJellyfinItemInMpvMainDepsHandler,
-  createPreloadJellyfinExternalSubtitlesHandler,
-  createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler,
-  createReportJellyfinRemoteProgressHandler,
-  createBuildReportJellyfinRemoteProgressMainDepsHandler,
-  createReportJellyfinRemoteStoppedHandler,
-  createBuildReportJellyfinRemoteStoppedMainDepsHandler,
-  createStartJellyfinRemoteSessionHandler,
-  createBuildStartJellyfinRemoteSessionMainDepsHandler,
-  createStopJellyfinRemoteSessionHandler,
-  createBuildStopJellyfinRemoteSessionMainDepsHandler,
-  createRunJellyfinCommandHandler,
-  createBuildRunJellyfinCommandMainDepsHandler,
-  createWaitForMpvConnectedHandler,
-  createBuildWaitForMpvConnectedMainDepsHandler,
-  createOpenJellyfinSetupWindowHandler,
-  createBuildOpenJellyfinSetupWindowMainDepsHandler,
-  createGetResolvedJellyfinConfigHandler,
-  createBuildGetResolvedJellyfinConfigMainDepsHandler,
-  parseJellyfinSetupSubmissionUrl,
   buildJellyfinSetupFormHtml,
-  createMaybeFocusExistingJellyfinSetupWindowHandler,
+  parseJellyfinSetupSubmissionUrl,
 } from './main/runtime/domains/jellyfin';
 import type { ActiveJellyfinRemotePlaybackState } from './main/runtime/domains/jellyfin';
 import { getConfiguredJellyfinSession } from './main/runtime/domains/jellyfin';
@@ -226,7 +162,6 @@ import {
   createBuildEnsureOverlayWindowLevelMainDepsHandler,
   createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
   createOverlayWindowRuntimeHandlers,
-  createOverlayRuntimeBootstrapHandlers,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
   createBroadcastRuntimeOptionsChangedHandler,
@@ -268,25 +203,11 @@ import {
   createConfigDerivedRuntime,
   appendClipboardVideoToQueueRuntime,
   createMainSubsyncRuntime,
-  createLaunchBackgroundWarmupTaskHandler,
-  createStartBackgroundWarmupsHandler,
-  createBuildLaunchBackgroundWarmupTaskMainDepsHandler,
-  createBuildStartBackgroundWarmupsMainDepsHandler,
 } from './main/runtime/domains/startup';
 import {
-  createBuildBindMpvMainEventHandlersMainDepsHandler,
-  createBuildMpvClientRuntimeServiceFactoryDepsHandler,
-  createMpvClientRuntimeServiceFactory,
-  createBindMpvMainEventHandlersHandler,
-  createBuildTokenizerDepsMainHandler,
-  createCreateMecabTokenizerAndCheckMainHandler,
-  createPrewarmSubtitleDictionariesMainHandler,
-  createUpdateMpvSubtitleRenderMetricsHandler,
-  createBuildUpdateMpvSubtitleRenderMetricsMainDepsHandler,
   createMpvOsdRuntimeHandlers,
   createCycleSecondarySubModeRuntimeHandler,
 } from './main/runtime/domains/mpv';
-import type { MpvClientRuntimeServiceOptions } from './main/runtime/domains/mpv';
 import {
   createBuildCopyCurrentSubtitleMainDepsHandler,
   createBuildHandleMineSentenceDigitMainDepsHandler,
@@ -319,12 +240,16 @@ import {
   showDesktopNotification,
 } from './core/utils';
 import {
+  ensureDefaultConfigBootstrap,
+  getDefaultConfigFilePaths,
+  resolveDefaultMpvInstallPaths,
+} from './shared/setup-state';
+import {
   ImmersionTrackerService,
   JellyfinRemoteSessionService,
   MpvIpcClient,
   SubtitleWebSocket,
   Texthooker,
-  DEFAULT_MPV_SUBTITLE_RENDER_METRICS,
   applyMpvSubtitleRenderMetricsPatch,
   authenticateWithPasswordRuntime,
   broadcastRuntimeOptionsChangedRuntime,
@@ -339,11 +264,14 @@ import {
   createSubtitleProcessingController,
   createTokenizerDepsRuntime,
   cycleSecondarySubMode as cycleSecondarySubModeCore,
+  deleteYomitanDictionaryByTitle,
   enforceOverlayLayerOrder as enforceOverlayLayerOrderCore,
   ensureOverlayWindowLevel as ensureOverlayWindowLevelCore,
+  getYomitanDictionaryInfo,
   handleMineSentenceDigit as handleMineSentenceDigitCore,
   handleMultiCopyDigit as handleMultiCopyDigitCore,
   hasMpvWebsocketPlugin,
+  importYomitanDictionaryFromZip,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
   jellyfinTicksToSecondsRuntime,
   listJellyfinItemsRuntime,
@@ -370,8 +298,24 @@ import {
   showMpvOsdRuntime,
   tokenizeSubtitle as tokenizeSubtitleCore,
   triggerFieldGrouping as triggerFieldGroupingCore,
+  upsertYomitanDictionarySettings,
   updateLastCardFromClipboard as updateLastCardFromClipboardCore,
 } from './core/services';
+import {
+  createFirstRunSetupService,
+  shouldAutoOpenFirstRunSetup,
+} from './main/runtime/first-run-setup-service';
+import {
+  buildFirstRunSetupHtml,
+  createMaybeFocusExistingFirstRunSetupWindowHandler,
+  createOpenFirstRunSetupWindowHandler,
+  parseFirstRunSetupSubmissionUrl,
+  type FirstRunSetupAction,
+} from './main/runtime/first-run-setup-window';
+import {
+  detectInstalledFirstRunPlugin,
+  installFirstRunPluginToDefaultLocation,
+} from './main/runtime/first-run-setup-plugin';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
 import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
@@ -416,9 +360,10 @@ import {
 } from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
+import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
+import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
 import {
   type AnilistMediaGuessRuntimeState,
-  type AppState,
   type StartupState,
   applyStartupState,
   createAppState,
@@ -450,7 +395,7 @@ if (process.platform === 'linux') {
     getPasswordStoreArg(process.argv) ?? getDefaultPasswordStore(),
   );
   app.commandLine.appendSwitch('password-store', passwordStore);
-  console.debug(`[main] Applied --password-store ${passwordStore}`);
+  createLogger('main').debug(`Applied --password-store ${passwordStore}`);
 }
 
 app.setName('SubMiner');
@@ -570,6 +515,7 @@ const anilistUpdateQueue = createAnilistUpdateQueue(
 const isDev = process.argv.includes('--dev') || process.argv.includes('--debug');
 const texthookerService = new Texthooker();
 const subtitleWsService = new SubtitleWebSocket();
+const annotationSubtitleWsService = new SubtitleWebSocket();
 const logger = createLogger('main');
 notifyAnilistTokenStoreWarning = (message: string) => {
   logger.warn(`[AniList] ${message}`);
@@ -675,6 +621,41 @@ const overlayModalRuntime = createOverlayModalRuntimeService(
 const appState = createAppState({
   mpvSocketPath: getDefaultSocketPath(),
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
+});
+let firstRunSetupMessage: string | null = null;
+const firstRunSetupService = createFirstRunSetupService({
+  configDir: CONFIG_DIR,
+  getYomitanDictionaryCount: async () => {
+    await ensureYomitanExtensionLoaded();
+    const dictionaries = await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
+      error: (message, ...args) => logger.error(message, ...args),
+      info: (message, ...args) => logger.info(message, ...args),
+    });
+    return dictionaries.length;
+  },
+  detectPluginInstalled: () => {
+    const installPaths = resolveDefaultMpvInstallPaths(
+      process.platform,
+      os.homedir(),
+      process.env.XDG_CONFIG_HOME,
+    );
+    return detectInstalledFirstRunPlugin(installPaths);
+  },
+  installPlugin: async () =>
+    installFirstRunPluginToDefaultLocation({
+      platform: process.platform,
+      homeDir: os.homedir(),
+      xdgConfigHome: process.env.XDG_CONFIG_HOME,
+      dirname: __dirname,
+      appPath: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+    }),
+  onStateChanged: (state) => {
+    appState.firstRunSetupCompleted = state.status === 'completed';
+    if (appTray) {
+      ensureTray();
+    }
+  },
 });
 const discordPresenceSessionStartedAtMs = Date.now();
 let discordPresenceMediaDurationSec: number | null = null;
@@ -965,6 +946,11 @@ const buildSubtitleProcessingControllerMainDepsHandler =
         topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
         mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
       });
+      annotationSubtitleWsService.broadcast(payload, {
+        enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+        topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+        mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+      });
     },
     logDebug: (message) => {
       logger.debug(`[subtitle-processing] ${message}`);
@@ -1216,6 +1202,71 @@ const mediaRuntime = createMediaRuntimeService(
   })(),
 );
 
+const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
+  userDataPath: USER_DATA_PATH,
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getCurrentMediaTitle: () => appState.currentMediaTitle,
+  resolveMediaPathForJimaku: (mediaPath) => mediaRuntime.resolveMediaPathForJimaku(mediaPath),
+  guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
+  getCollapsibleSectionOpenState: (section) =>
+    getResolvedConfig().anilist.characterDictionary.collapsibleSections[section],
+  now: () => Date.now(),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+});
+
+const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRuntimeService({
+  userDataPath: USER_DATA_PATH,
+  getConfig: () => {
+    const config = getResolvedConfig().anilist.characterDictionary;
+    return {
+      enabled: config.enabled,
+      maxLoaded: config.maxLoaded,
+      profileScope: config.profileScope,
+    };
+  },
+  getOrCreateCurrentSnapshot: () => characterDictionaryRuntime.getOrCreateCurrentSnapshot(),
+  buildMergedDictionary: (mediaIds) => characterDictionaryRuntime.buildMergedDictionary(mediaIds),
+  getYomitanDictionaryInfo: async () => {
+    await ensureYomitanExtensionLoaded();
+    return await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
+      error: (message, ...args) => logger.error(message, ...args),
+      info: (message, ...args) => logger.info(message, ...args),
+    });
+  },
+  importYomitanDictionary: async (zipPath) => {
+    await ensureYomitanExtensionLoaded();
+    return await importYomitanDictionaryFromZip(zipPath, getYomitanParserRuntimeDeps(), {
+      error: (message, ...args) => logger.error(message, ...args),
+      info: (message, ...args) => logger.info(message, ...args),
+    });
+  },
+  deleteYomitanDictionary: async (dictionaryTitle) => {
+    await ensureYomitanExtensionLoaded();
+    return await deleteYomitanDictionaryByTitle(dictionaryTitle, getYomitanParserRuntimeDeps(), {
+      error: (message, ...args) => logger.error(message, ...args),
+      info: (message, ...args) => logger.info(message, ...args),
+    });
+  },
+  upsertYomitanDictionarySettings: async (dictionaryTitle, profileScope) => {
+    await ensureYomitanExtensionLoaded();
+    return await upsertYomitanDictionarySettings(
+      dictionaryTitle,
+      profileScope,
+      getYomitanParserRuntimeDeps(),
+      {
+        error: (message, ...args) => logger.error(message, ...args),
+        info: (message, ...args) => logger.info(message, ...args),
+      },
+    );
+  },
+  now: () => Date.now(),
+  schedule: (fn, delayMs) => setTimeout(fn, delayMs),
+  clearSchedule: (timer) => clearTimeout(timer),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+});
+
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   createBuildOverlayVisibilityRuntimeMainDepsHandler({
     getMainWindow: () => overlayManager.getMainWindow(),
@@ -1386,13 +1437,8 @@ function shouldInitializeMecabForAnnotations(): boolean {
 
 const {
   getResolvedJellyfinConfig,
-  getJellyfinClientInfo,
   reportJellyfinRemoteProgress,
   reportJellyfinRemoteStopped,
-  handleJellyfinRemotePlay,
-  handleJellyfinRemotePlaystate,
-  handleJellyfinRemoteGeneralCommand,
-  playJellyfinItemInMpv,
   startJellyfinRemoteSession,
   stopJellyfinRemoteSession,
   runJellyfinCommand,
@@ -1611,6 +1657,95 @@ const {
   },
 });
 
+const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
+  getSetupWindow: () => appState.firstRunSetupWindow,
+});
+const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
+  maybeFocusExistingSetupWindow: maybeFocusExistingFirstRunSetupWindow,
+  createSetupWindow: () =>
+    new BrowserWindow({
+      width: 480,
+      height: 460,
+      title: 'SubMiner Setup',
+      show: true,
+      autoHideMenuBar: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    }),
+  getSetupSnapshot: async () => {
+    const snapshot = await firstRunSetupService.getSetupStatus();
+    return {
+      configReady: snapshot.configReady,
+      dictionaryCount: snapshot.dictionaryCount,
+      canFinish: snapshot.canFinish,
+      pluginStatus: snapshot.pluginStatus,
+      pluginInstallPathSummary: snapshot.pluginInstallPathSummary,
+      message: firstRunSetupMessage,
+    };
+  },
+  buildSetupHtml: (model) => buildFirstRunSetupHtml(model),
+  parseSubmissionUrl: (rawUrl) => parseFirstRunSetupSubmissionUrl(rawUrl),
+  handleAction: async (action: FirstRunSetupAction) => {
+    if (action === 'install-plugin') {
+      const snapshot = await firstRunSetupService.installMpvPlugin();
+      firstRunSetupMessage = snapshot.message;
+      return;
+    }
+    if (action === 'open-yomitan-settings') {
+      openYomitanSettings();
+      firstRunSetupMessage = 'Opened Yomitan settings. Install dictionaries, then refresh status.';
+      return;
+    }
+    if (action === 'refresh') {
+      const snapshot = await firstRunSetupService.refreshStatus('Status refreshed.');
+      firstRunSetupMessage = snapshot.message;
+      return;
+    }
+    if (action === 'skip-plugin') {
+      await firstRunSetupService.skipPluginInstall();
+      firstRunSetupMessage = 'mpv plugin installation skipped.';
+      return;
+    }
+
+    const snapshot = await firstRunSetupService.markSetupCompleted();
+    if (snapshot.state.status === 'completed') {
+      firstRunSetupMessage = null;
+      return { closeWindow: true };
+    }
+    firstRunSetupMessage = 'Install at least one Yomitan dictionary before finishing setup.';
+    return;
+  },
+  markSetupInProgress: async () => {
+    firstRunSetupMessage = null;
+    await firstRunSetupService.markSetupInProgress();
+  },
+  markSetupCancelled: async () => {
+    firstRunSetupMessage = null;
+    await firstRunSetupService.markSetupCancelled();
+  },
+  isSetupCompleted: () => firstRunSetupService.isSetupCompleted(),
+  clearSetupWindow: () => {
+    appState.firstRunSetupWindow = null;
+  },
+  setSetupWindow: (window) => {
+    appState.firstRunSetupWindow = window as BrowserWindow;
+  },
+  encodeURIComponent: (value) => encodeURIComponent(value),
+  logError: (message, error) => logger.error(message, error),
+});
+
+function openFirstRunSetupWindow(): void {
+  if (firstRunSetupService.isSetupCompleted()) {
+    return;
+  }
+  openFirstRunSetupWindowHandler();
+}
+
 const {
   notifyAnilistSetup,
   consumeAnilistSetupTokenFromUrl,
@@ -1663,7 +1798,7 @@ const {
       appPath
         ? app.setAsDefaultProtocolClient(scheme, appPath, args)
         : app.setAsDefaultProtocolClient(scheme),
-    logWarn: (message, details) => logger.warn(message, details),
+    logDebug: (message, details) => logger.debug(message, details),
   },
 });
 
@@ -2033,7 +2168,10 @@ const {
       restoreOverlayMpvSubtitles();
     },
     unregisterAllGlobalShortcuts: () => globalShortcut.unregisterAll(),
-    stopSubtitleWebsocket: () => subtitleWsService.stop(),
+    stopSubtitleWebsocket: () => {
+      subtitleWsService.stop();
+      annotationSubtitleWsService.stop();
+    },
     stopTexthookerService: () => texthookerService.stop(),
     getYomitanParserWindow: () => appState.yomitanParserWindow,
     clearYomitanParserState: () => {
@@ -2115,7 +2253,7 @@ const ensureImmersionTrackerStarted = (): void => {
   createImmersionTrackerStartup();
 };
 
-const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppReadyRuntime({
+const { appReadyRuntimeRunner } = composeAppReadyRuntime({
   reloadConfigMainDeps: {
     reloadConfigStrict: () => configService.reloadConfigStrict(),
     logInfo: (message) => appLogger.logInfo(message),
@@ -2138,6 +2276,13 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
     },
   },
   appReadyRuntimeMainDeps: {
+    ensureDefaultConfigBootstrap: () => {
+      ensureDefaultConfigBootstrap({
+        configDir: CONFIG_DIR,
+        configFilePaths: getDefaultConfigFilePaths(CONFIG_DIR),
+        generateTemplate: () => generateConfigTemplate(DEFAULT_CONFIG),
+      });
+    },
     loadSubtitlePosition: () => loadSubtitlePosition(),
     resolveKeybindings: () => {
       appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
@@ -2172,9 +2317,49 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
     },
     defaultSecondarySubMode: 'hover',
     defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
+    defaultAnnotationWebsocketPort: DEFAULT_CONFIG.annotationWebsocket.port,
+    defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
     hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
     startSubtitleWebsocket: (port: number) => {
-      subtitleWsService.start(port, () => appState.currentSubText);
+      subtitleWsService.start(
+        port,
+        () =>
+          appState.currentSubtitleData ??
+          (appState.currentSubText
+            ? {
+                text: appState.currentSubText,
+                tokens: null,
+              }
+            : null),
+        () => ({
+          enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+          topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+          mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+        }),
+      );
+    },
+    startAnnotationWebsocket: (port: number) => {
+      annotationSubtitleWsService.start(
+        port,
+        () =>
+          appState.currentSubtitleData ??
+          (appState.currentSubText
+            ? {
+                text: appState.currentSubText,
+                tokens: null,
+              }
+            : null),
+        () => ({
+          enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+          topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
+          mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+        }),
+      );
+    },
+    startTexthooker: (port: number, websocketUrl?: string) => {
+      if (!texthookerService.isRunning()) {
+        texthookerService.start(port, websocketUrl);
+      }
     },
     log: (message) => appLogger.logInfo(message),
     createMecabTokenizerAndCheck: async () => {
@@ -2186,6 +2371,17 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
     },
     loadYomitanExtension: async () => {
       await loadYomitanExtension();
+    },
+    handleFirstRunSetup: async () => {
+      const snapshot = await firstRunSetupService.ensureSetupStateInitialized();
+      appState.firstRunSetupCompleted = snapshot.state.status === 'completed';
+      if (
+        appState.initialArgs &&
+        shouldAutoOpenFirstRunSetup(appState.initialArgs) &&
+        snapshot.state.status !== 'completed'
+      ) {
+        openFirstRunSetupWindow();
+      }
     },
     startJellyfinRemoteSession: async () => {
       await startJellyfinRemoteSession();
@@ -2201,10 +2397,16 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
       appState.backgroundMode
         ? false
         : configDerivedRuntime.shouldAutoInitializeOverlayRuntimeFromConfig(),
+    setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     handleInitialArgs: () => handleInitialArgs(),
     shouldSkipHeavyStartup: () =>
-      Boolean(appState.initialArgs && shouldRunSettingsOnlyStartup(appState.initialArgs)),
+      Boolean(
+        appState.initialArgs &&
+        (shouldRunSettingsOnlyStartup(appState.initialArgs) ||
+          appState.initialArgs.dictionary ||
+          appState.initialArgs.setup),
+      ),
     createImmersionTracker: () => {
       ensureImmersionTrackerStarted();
     },
@@ -2216,65 +2418,64 @@ const { reloadConfig: reloadConfigHandler, appReadyRuntimeRunner } = composeAppR
   immersionTrackerStartupMainDeps,
 });
 
-const { appLifecycleRuntimeRunner, runAndApplyStartupState } =
-  runtimeRegistry.startup.createStartupRuntimeHandlers<
-    CliArgs,
-    StartupState,
-    ReturnType<typeof createStartupBootstrapRuntimeDeps>
-  >({
-    appLifecycleRuntimeRunnerMainDeps: {
-      app,
-      platform: process.platform,
-      shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
-      parseArgs: (argv: string[]) => parseArgs(argv),
-      handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) =>
-        handleCliCommand(nextArgs, source),
-      printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-      logNoRunningInstance: () => appLogger.logNoRunningInstance(),
-      onReady: appReadyRuntimeRunner,
-      onWillQuitCleanup: () => onWillQuitCleanupHandler(),
-      shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
-      restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
-      shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
+const { runAndApplyStartupState } = runtimeRegistry.startup.createStartupRuntimeHandlers<
+  CliArgs,
+  StartupState,
+  ReturnType<typeof createStartupBootstrapRuntimeDeps>
+>({
+  appLifecycleRuntimeRunnerMainDeps: {
+    app,
+    platform: process.platform,
+    shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
+    parseArgs: (argv: string[]) => parseArgs(argv),
+    handleCliCommand: (nextArgs: CliArgs, source: CliCommandSource) =>
+      handleCliCommand(nextArgs, source),
+    printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
+    logNoRunningInstance: () => appLogger.logNoRunningInstance(),
+    onReady: appReadyRuntimeRunner,
+    onWillQuitCleanup: () => onWillQuitCleanupHandler(),
+    shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
+    restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
+    shouldQuitOnWindowAllClosed: () => !appState.backgroundMode,
+  },
+  createAppLifecycleRuntimeRunner: (params) => createAppLifecycleRuntimeRunner(params),
+  buildStartupBootstrapMainDeps: (startAppLifecycle) => ({
+    argv: process.argv,
+    parseArgs: (argv: string[]) => parseArgs(argv),
+    setLogLevel: (level: string, source: LogLevelSource) => {
+      setLogLevel(level, source);
     },
-    createAppLifecycleRuntimeRunner: (params) => createAppLifecycleRuntimeRunner(params),
-    buildStartupBootstrapMainDeps: (startAppLifecycle) => ({
-      argv: process.argv,
-      parseArgs: (argv: string[]) => parseArgs(argv),
-      setLogLevel: (level: string, source: LogLevelSource) => {
-        setLogLevel(level, source);
+    forceX11Backend: (args: CliArgs) => {
+      forceX11Backend(args);
+    },
+    enforceUnsupportedWaylandMode: (args: CliArgs) => {
+      enforceUnsupportedWaylandMode(args);
+    },
+    shouldStartApp: (args: CliArgs) => shouldStartApp(args),
+    getDefaultSocketPath: () => getDefaultSocketPath(),
+    defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
+    configDir: CONFIG_DIR,
+    defaultConfig: DEFAULT_CONFIG,
+    generateConfigTemplate: (config: ResolvedConfig) => generateConfigTemplate(config),
+    generateDefaultConfigFile: (
+      args: CliArgs,
+      options: {
+        configDir: string;
+        defaultConfig: unknown;
+        generateTemplate: (config: unknown) => string;
       },
-      forceX11Backend: (args: CliArgs) => {
-        forceX11Backend(args);
-      },
-      enforceUnsupportedWaylandMode: (args: CliArgs) => {
-        enforceUnsupportedWaylandMode(args);
-      },
-      shouldStartApp: (args: CliArgs) => shouldStartApp(args),
-      getDefaultSocketPath: () => getDefaultSocketPath(),
-      defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
-      configDir: CONFIG_DIR,
-      defaultConfig: DEFAULT_CONFIG,
-      generateConfigTemplate: (config: ResolvedConfig) => generateConfigTemplate(config),
-      generateDefaultConfigFile: (
-        args: CliArgs,
-        options: {
-          configDir: string;
-          defaultConfig: unknown;
-          generateTemplate: (config: unknown) => string;
-        },
-      ) => generateDefaultConfigFile(args, options),
-      setExitCode: (code) => {
-        process.exitCode = code;
-      },
-      quitApp: () => app.quit(),
-      logGenerateConfigError: (message) => logger.error(message),
-      startAppLifecycle,
-    }),
-    createStartupBootstrapRuntimeDeps: (deps) => createStartupBootstrapRuntimeDeps(deps),
-    runStartupBootstrapRuntime,
-    applyStartupState: (startupState) => applyStartupState(appState, startupState),
-  });
+    ) => generateDefaultConfigFile(args, options),
+    setExitCode: (code) => {
+      process.exitCode = code;
+    },
+    quitApp: () => app.quit(),
+    logGenerateConfigError: (message) => logger.error(message),
+    startAppLifecycle,
+  }),
+  createStartupBootstrapRuntimeDeps: (deps) => createStartupBootstrapRuntimeDeps(deps),
+  runStartupBootstrapRuntime,
+  applyStartupState: (startupState) => applyStartupState(appState, startupState),
+});
 
 runAndApplyStartupState();
 if (isAnilistTrackingEnabled(getResolvedConfig())) {
@@ -2314,7 +2515,6 @@ function handleInitialArgs(): void {
 }
 
 const {
-  bindMpvClientEventHandlers,
   createMpvClientRuntimeService: createMpvClientRuntimeServiceHandler,
   updateMpvSubtitleRenderMetrics: updateMpvSubtitleRenderMetricsHandler,
   tokenizeSubtitle,
@@ -2372,6 +2572,9 @@ const {
     },
     syncImmersionMediaState: () => {
       immersionMediaRuntime.syncFromCurrentMediaState();
+    },
+    scheduleCharacterDictionarySync: () => {
+      characterDictionaryAutoSyncRuntime.scheduleSync();
     },
     updateCurrentMediaTitle: (title) => {
       mediaRuntime.updateCurrentMediaTitle(title);
@@ -2447,6 +2650,8 @@ const {
           'subtitle.annotation.jlpt',
           getResolvedConfig().subtitleStyle.enableJlpt,
         ),
+      getCharacterDictionaryEnabled: () => getResolvedConfig().anilist.characterDictionary.enabled,
+      getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.frequency',
@@ -2638,6 +2843,24 @@ function getPreferredYomitanAnkiServerUrl(): string {
   return config.url;
 }
 
+function getYomitanParserRuntimeDeps() {
+  return {
+    getYomitanExt: () => appState.yomitanExt,
+    getYomitanParserWindow: () => appState.yomitanParserWindow,
+    setYomitanParserWindow: (window: BrowserWindow | null) => {
+      appState.yomitanParserWindow = window;
+    },
+    getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
+    setYomitanParserReadyPromise: (promise: Promise<void> | null) => {
+      appState.yomitanParserReadyPromise = promise;
+    },
+    getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
+    setYomitanParserInitPromise: (promise: Promise<boolean> | null) => {
+      appState.yomitanParserInitPromise = promise;
+    },
+  };
+}
+
 async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
   const targetUrl = getPreferredYomitanAnkiServerUrl().trim();
   if (!targetUrl || targetUrl === lastSyncedYomitanAnkiServer) {
@@ -2646,21 +2869,7 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
 
   const synced = await syncYomitanDefaultAnkiServerCore(
     targetUrl,
-    {
-      getYomitanExt: () => appState.yomitanExt,
-      getYomitanParserWindow: () => appState.yomitanParserWindow,
-      setYomitanParserWindow: (window) => {
-        appState.yomitanParserWindow = window;
-      },
-      getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
-      setYomitanParserReadyPromise: (promise) => {
-        appState.yomitanParserReadyPromise = promise;
-      },
-      getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
-      setYomitanParserInitPromise: (promise) => {
-        appState.yomitanParserInitPromise = promise;
-      },
-    },
+    getYomitanParserRuntimeDeps(),
     {
       error: (message, ...args) => {
         logger.error(message, ...args);
@@ -2679,10 +2888,6 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
   }
 }
 
-function createOverlayWindow(kind: 'visible' | 'modal'): BrowserWindow {
-  return createOverlayWindowHandler(kind);
-}
-
 function createModalWindow(): BrowserWindow {
   const existingWindow = overlayManager.getModalWindow();
   if (existingWindow && !existingWindow.isDestroyed()) {
@@ -2695,13 +2900,6 @@ function createModalWindow(): BrowserWindow {
 
 function createMainWindow(): BrowserWindow {
   return createMainWindowHandler();
-}
-function resolveTrayIconPath(): string | null {
-  return resolveTrayIconPathHandler();
-}
-
-function buildTrayMenu(): Menu {
-  return buildTrayMenuHandler();
 }
 
 function ensureTray(): void {
@@ -2729,8 +2927,6 @@ const {
   startPendingMultiCopy,
   cancelPendingMineSentenceMultiple,
   startPendingMineSentenceMultiple,
-  registerOverlayShortcuts,
-  unregisterOverlayShortcuts,
   syncOverlayShortcuts,
   refreshOverlayShortcuts,
 } = composeShortcutRuntimes({
@@ -2769,7 +2965,7 @@ const {
   },
 });
 
-const { appendToMpvLog, flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
+const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
     logPath: DEFAULT_MPV_LOG_PATH,
     dirname: (targetPath) => path.dirname(targetPath),
@@ -2926,7 +3122,6 @@ const {
   setVisibleOverlayVisible: setVisibleOverlayVisibleHandler,
   toggleVisibleOverlay: toggleVisibleOverlayHandler,
   setOverlayVisible: setOverlayVisibleHandler,
-  toggleOverlay: toggleOverlayHandler,
 } = createOverlayVisibilityRuntime({
   setVisibleOverlayVisibleDeps: {
     setVisibleOverlayVisibleCore,
@@ -2986,11 +3181,7 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
   showMpvOsd: (text) => showMpvOsd(text),
 });
 
-const {
-  handleMpvCommandFromIpc: handleMpvCommandFromIpcHandler,
-  runSubsyncManualFromIpc: runSubsyncManualFromIpcHandler,
-  registerIpcRuntimeHandlers,
-} = composeIpcRuntimeHandlers({
+const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
@@ -3010,6 +3201,7 @@ const {
       shiftSubtitleDelayToAdjacentCueHandler(direction),
     sendMpvCommand: (rawCommand: (string | number)[]) =>
       sendMpvCommandRuntime(appState.mpvClient, rawCommand),
+    getMpvClient: () => appState.mpvClient,
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
     hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
   },
@@ -3113,6 +3305,7 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   showMpvOsd: (text: string) => showMpvOsd(text),
   initializeOverlayRuntime: () => initializeOverlayRuntime(),
   toggleVisibleOverlay: () => toggleVisibleOverlay(),
+  openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
   setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
   copyCurrentSubtitle: () => copyCurrentSubtitle(),
   startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
@@ -3130,6 +3323,8 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
   getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
   processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
+  generateCharacterDictionary: (targetPath?: string) =>
+    characterDictionaryRuntime.generateForCurrentMedia(targetPath),
   runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
   openYomitanSettings: () => openYomitanSettings(),
   cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
@@ -3143,81 +3338,77 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   logWarn: (message: string) => logger.warn(message),
   logError: (message: string, err: unknown) => logger.error(message, err),
 });
-const {
-  createOverlayWindow: createOverlayWindowHandler,
-  createMainWindow: createMainWindowHandler,
-  createModalWindow: createModalWindowHandler,
-} = createOverlayWindowRuntimeHandlers<BrowserWindow>({
-  createOverlayWindowDeps: {
-    createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
-    isDev,
-    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-    onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-    setOverlayDebugVisualizationEnabled: (enabled) => setOverlayDebugVisualizationEnabled(enabled),
-    isOverlayVisible: (windowKind) =>
-      windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
-    tryHandleOverlayShortcutLocalFallback: (input) =>
-      overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
-    onWindowClosed: (windowKind) => {
-      if (windowKind === 'visible') {
-        overlayManager.setMainWindow(null);
-      } else {
-        overlayManager.setModalWindow(null);
-      }
+const { createMainWindow: createMainWindowHandler, createModalWindow: createModalWindowHandler } =
+  createOverlayWindowRuntimeHandlers<BrowserWindow>({
+    createOverlayWindowDeps: {
+      createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
+      isDev,
+      ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+      onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+      setOverlayDebugVisualizationEnabled: (enabled) =>
+        setOverlayDebugVisualizationEnabled(enabled),
+      isOverlayVisible: (windowKind) =>
+        windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
+      tryHandleOverlayShortcutLocalFallback: (input) =>
+        overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
+      onWindowClosed: (windowKind) => {
+        if (windowKind === 'visible') {
+          overlayManager.setMainWindow(null);
+        } else {
+          overlayManager.setModalWindow(null);
+        }
+      },
     },
-  },
-  setMainWindow: (window) => overlayManager.setMainWindow(window),
-  setModalWindow: (window) => overlayManager.setModalWindow(window),
-});
-const {
-  resolveTrayIconPath: resolveTrayIconPathHandler,
-  buildTrayMenu: buildTrayMenuHandler,
-  ensureTray: ensureTrayHandler,
-  destroyTray: destroyTrayHandler,
-} = createTrayRuntimeHandlers({
-  resolveTrayIconPathDeps: {
-    resolveTrayIconPathRuntime,
-    platform: process.platform,
-    resourcesPath: process.resourcesPath,
-    appPath: app.getAppPath(),
-    dirname: __dirname,
-    joinPath: (...parts) => path.join(...parts),
-    fileExists: (candidate) => fs.existsSync(candidate),
-  },
-  buildTrayMenuTemplateDeps: {
-    buildTrayMenuTemplateRuntime,
-    initializeOverlayRuntime: () => initializeOverlayRuntime(),
-    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    openYomitanSettings: () => openYomitanSettings(),
-    openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
-    openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
-    openAnilistSetupWindow: () => openAnilistSetupWindow(),
-    quitApp: () => app.quit(),
-  },
-  ensureTrayDeps: {
-    getTray: () => appTray,
-    setTray: (tray) => {
-      appTray = tray as Tray | null;
+    setMainWindow: (window) => overlayManager.setMainWindow(window),
+    setModalWindow: (window) => overlayManager.setModalWindow(window),
+  });
+const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
+  createTrayRuntimeHandlers({
+    resolveTrayIconPathDeps: {
+      resolveTrayIconPathRuntime,
+      platform: process.platform,
+      resourcesPath: process.resourcesPath,
+      appPath: app.getAppPath(),
+      dirname: __dirname,
+      joinPath: (...parts) => path.join(...parts),
+      fileExists: (candidate) => fs.existsSync(candidate),
     },
-    createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
-    createEmptyImage: () => nativeImage.createEmpty(),
-    createTray: (icon) => new Tray(icon as ConstructorParameters<typeof Tray>[0]),
-    trayTooltip: TRAY_TOOLTIP,
-    platform: process.platform,
-    logWarn: (message) => logger.warn(message),
-    initializeOverlayRuntime: () => initializeOverlayRuntime(),
-    isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-    setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-  },
-  destroyTrayDeps: {
-    getTray: () => appTray,
-    setTray: (tray) => {
-      appTray = tray as Tray | null;
+    buildTrayMenuTemplateDeps: {
+      buildTrayMenuTemplateRuntime,
+      initializeOverlayRuntime: () => initializeOverlayRuntime(),
+      isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+      setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+      showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
+      openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
+      openYomitanSettings: () => openYomitanSettings(),
+      openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
+      openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
+      openAnilistSetupWindow: () => openAnilistSetupWindow(),
+      quitApp: () => app.quit(),
     },
-  },
-  buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
-});
+    ensureTrayDeps: {
+      getTray: () => appTray,
+      setTray: (tray) => {
+        appTray = tray as Tray | null;
+      },
+      createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
+      createEmptyImage: () => nativeImage.createEmpty(),
+      createTray: (icon) => new Tray(icon as ConstructorParameters<typeof Tray>[0]),
+      trayTooltip: TRAY_TOOLTIP,
+      platform: process.platform,
+      logWarn: (message) => logger.warn(message),
+      initializeOverlayRuntime: () => initializeOverlayRuntime(),
+      isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+      setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
+    },
+    destroyTrayDeps: {
+      getTray: () => appTray,
+      setTray: (tray) => {
+        appTray = tray as Tray | null;
+      },
+    },
+    buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
+  });
 const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,
@@ -3355,23 +3546,8 @@ function setOverlayVisible(visible: boolean): void {
   setOverlayVisibleHandler(visible);
   syncOverlayMpvSubtitleSuppression();
 }
-function toggleOverlay(): void {
-  if (!overlayManager.getVisibleOverlayVisible()) {
-    void ensureOverlayMpvSubtitlesHidden();
-  }
-  toggleOverlayHandler();
-  syncOverlayMpvSubtitleSuppression();
-}
 function handleOverlayModalClosed(modal: OverlayHostedModal): void {
   handleOverlayModalClosedHandler(modal);
-}
-
-function handleMpvCommandFromIpc(command: (string | number)[]): void {
-  handleMpvCommandFromIpcHandler(command);
-}
-
-async function runSubsyncManualFromIpc(request: SubsyncManualRunRequest): Promise<SubsyncResult> {
-  return runSubsyncManualFromIpcHandler(request) as Promise<SubsyncResult>;
 }
 
 function appendClipboardVideoToQueue(): { ok: boolean; message: string } {

@@ -3,10 +3,10 @@ id: TASK-87
 title: >-
   Codebase health: harden verification and retire dead architecture identified
   in the March 2026 review
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-03-06 03:19'
-updated_date: '2026-03-06 03:20'
+updated_date: '2026-03-06 11:11'
 labels:
   - tech-debt
   - tests
@@ -19,9 +19,10 @@ references:
   - src/main.ts
   - src/anki-integration.ts
   - src/core/services/immersion-tracker-service.test.ts
-  - src/translators/index.ts
-  - src/subsync/engines.ts
-  - src/subtitle/pipeline.ts
+- src/translators/index.ts
+- src/subsync/engines.ts
+- src/subtitle/pipeline.ts
+  - backlog/tasks/task-87.5 - Dead-architecture-cleanup-delete-unused-registry-and-pipeline-modules-that-are-off-the-live-path.md
 documentation:
   - docs/reports/2026-02-22-task-100-dead-code-report.md
 priority: high
@@ -69,3 +70,10 @@ Shared review context to restate in child tasks:
 - src/main.ts trips many noUnusedLocals/noUnusedParameters diagnostics.
 - src/translators/index.ts, src/subsync/engines.ts, src/subtitle/pipeline.ts, src/tokenizers/index.ts, and src/token-mergers/index.ts appeared unreferenced during review and must be re-verified before deletion.
 <!-- SECTION:PLAN:END -->
+
+## Progress Notes
+
+- `TASK-87.5` is complete. The isolated dead registry/pipeline modules were re-verified as off the maintained runtime path and removed.
+- Live subtitle tokenization now owns the zero-width separator normalization that previously only existed in the dead subtitle pipeline path, so the cleanup did not drop that behavior.
+- Verification completed for the cleanup slice with `bun test src/core/services/tokenizer.test.ts`, `bun test src/dead-architecture-cleanup.test.ts`, `bun test src/core/services/subsync.test.ts src/subsync/utils.test.ts`, `bun run tsc`, and `bun run test:src`.
+- Remaining parent-task scope still includes the broader verification hardening, `src/main.ts` dead-symbol cleanup, and `src/anki-integration.ts` decomposition work tracked by the other child tasks.

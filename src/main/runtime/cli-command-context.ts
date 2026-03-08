@@ -21,6 +21,7 @@ export type CliCommandContextFactoryDeps = {
   isOverlayInitialized: () => boolean;
   initializeOverlay: () => void;
   toggleVisibleOverlay: () => void;
+  openFirstRunSetup: () => void;
   setVisibleOverlay: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;
@@ -37,6 +38,7 @@ export type CliCommandContextFactoryDeps = {
   openJellyfinSetup: CliCommandRuntimeServiceContext['openJellyfinSetup'];
   getAnilistQueueStatus: CliCommandRuntimeServiceContext['getAnilistQueueStatus'];
   retryAnilistQueueNow: CliCommandRuntimeServiceContext['retryAnilistQueueNow'];
+  generateCharacterDictionary: CliCommandRuntimeServiceContext['generateCharacterDictionary'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   openYomitanSettings: () => void;
   cycleSecondarySubMode: () => void;
@@ -72,6 +74,7 @@ export function createCliCommandContext(
     isOverlayInitialized: deps.isOverlayInitialized,
     initializeOverlay: deps.initializeOverlay,
     toggleVisibleOverlay: deps.toggleVisibleOverlay,
+    openFirstRunSetup: deps.openFirstRunSetup,
     setVisibleOverlay: deps.setVisibleOverlay,
     copyCurrentSubtitle: deps.copyCurrentSubtitle,
     startPendingMultiCopy: deps.startPendingMultiCopy,
@@ -88,6 +91,7 @@ export function createCliCommandContext(
     openJellyfinSetup: deps.openJellyfinSetup,
     getAnilistQueueStatus: deps.getAnilistQueueStatus,
     retryAnilistQueueNow: deps.retryAnilistQueueNow,
+    generateCharacterDictionary: deps.generateCharacterDictionary,
     runJellyfinCommand: deps.runJellyfinCommand,
     openYomitanSettings: deps.openYomitanSettings,
     cycleSecondarySubMode: deps.cycleSecondarySubMode,

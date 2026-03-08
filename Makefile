@@ -1,4 +1,4 @@
-.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config docs-dev docs docs-preview docs-watch dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop
+.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
@@ -56,10 +56,6 @@ help:
 		"  dev-watch-macos  Start watch loop with forced macOS tracker backend" \
 		"  dev-toggle       Toggle overlay in a running local Electron app" \
 		"  dev-stop         Stop a running local Electron app" \
-		"  docs-dev         Run VitePress docs dev server" \
-		"  docs-watch  Run VitePress docs dev + Backlog browser together" \
-		"  docs            Build VitePress static docs" \
-		"  docs-preview     Preview built VitePress docs" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
 		"  install-macos    Install macOS wrapper/theme/app artifacts" \
 		"  install-plugin   Install mpv Lua plugin and plugin config" \
@@ -102,7 +98,7 @@ ensure-bun:
 	@command -v bun >/dev/null 2>&1 || { printf '%s\n' "[ERROR] bun not found"; exit 1; }
 
 pretty: ensure-bun
-	@bun run format
+	@bun run format:src
 
 build:
 	@printf '%s\n' "[INFO] Detected platform: $(PLATFORM)"
@@ -157,18 +153,6 @@ generate-config: ensure-bun
 generate-example-config: ensure-bun
 	@bun run build
 	@bun run generate:config-example
-
-docs-dev: ensure-bun
-	@bun run docs:dev
-
-docs-watch: ensure-bun
-	@bun run docs:watch
-
-docs: ensure-bun
-	@bun run docs:build
-
-docs-preview: ensure-bun
-	@bun run docs:preview
 
 dev-start: ensure-bun
 	@bun run build

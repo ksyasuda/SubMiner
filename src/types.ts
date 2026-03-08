@@ -54,6 +54,7 @@ export interface MergedToken {
   isMerged: boolean;
   isKnown: boolean;
   isNPlusOneTarget: boolean;
+  isNameMatch?: boolean;
   jlptLevel?: JlptLevel;
   frequencyRank?: number;
 }
@@ -113,7 +114,13 @@ export interface WebSocketConfig {
   port?: number;
 }
 
+export interface AnnotationWebSocketConfig {
+  enabled?: boolean;
+  port?: number;
+}
+
 export interface TexthookerConfig {
+  launchAtStartup?: boolean;
   openBrowser?: boolean;
 }
 
@@ -293,6 +300,8 @@ export interface SubtitleStyleConfig {
   autoPauseVideoOnYomitanPopup?: boolean;
   hoverTokenColor?: string;
   hoverTokenBackgroundColor?: string;
+  nameMatchEnabled?: boolean;
+  nameMatchColor?: string;
   fontFamily?: string;
   fontSize?: number;
   fontColor?: string;
@@ -393,9 +402,32 @@ export interface JimakuConfig {
   maxEntryResults?: number;
 }
 
+export type AnilistCharacterDictionaryEvictionPolicy = 'disable' | 'delete';
+export type AnilistCharacterDictionaryProfileScope = 'all' | 'active';
+export type AnilistCharacterDictionaryCollapsibleSectionKey =
+  | 'description'
+  | 'characterInformation'
+  | 'voicedBy';
+
+export interface AnilistCharacterDictionaryCollapsibleSectionsConfig {
+  description?: boolean;
+  characterInformation?: boolean;
+  voicedBy?: boolean;
+}
+
+export interface AnilistCharacterDictionaryConfig {
+  enabled?: boolean;
+  refreshTtlHours?: number;
+  maxLoaded?: number;
+  evictionPolicy?: AnilistCharacterDictionaryEvictionPolicy;
+  profileScope?: AnilistCharacterDictionaryProfileScope;
+  collapsibleSections?: AnilistCharacterDictionaryCollapsibleSectionsConfig;
+}
+
 export interface AnilistConfig {
   enabled?: boolean;
   accessToken?: string;
+  characterDictionary?: AnilistCharacterDictionaryConfig;
 }
 
 export interface JellyfinConfig {
@@ -453,6 +485,7 @@ export interface Config {
   subtitlePosition?: SubtitlePosition;
   keybindings?: Keybinding[];
   websocket?: WebSocketConfig;
+  annotationWebsocket?: AnnotationWebSocketConfig;
   texthooker?: TexthookerConfig;
   ankiConnect?: AnkiConnectConfig;
   shortcuts?: ShortcutsConfig;
@@ -478,6 +511,7 @@ export interface ResolvedConfig {
   subtitlePosition: SubtitlePosition;
   keybindings: Keybinding[];
   websocket: Required<WebSocketConfig>;
+  annotationWebsocket: Required<AnnotationWebSocketConfig>;
   texthooker: Required<TexthookerConfig>;
   ankiConnect: AnkiConnectConfig & {
     enabled: boolean;
@@ -583,6 +617,14 @@ export interface ResolvedConfig {
   anilist: {
     enabled: boolean;
     accessToken: string;
+    characterDictionary: {
+      enabled: boolean;
+      refreshTtlHours: number;
+      maxLoaded: number;
+      evictionPolicy: AnilistCharacterDictionaryEvictionPolicy;
+      profileScope: AnilistCharacterDictionaryProfileScope;
+      collapsibleSections: Required<AnilistCharacterDictionaryCollapsibleSectionsConfig>;
+    };
   };
   jellyfin: {
     enabled: boolean;

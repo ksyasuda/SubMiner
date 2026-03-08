@@ -9,12 +9,115 @@ import {
   alignTokensToSourceText,
   buildSubtitleTokenHoverRanges,
   computeWordClass,
+  createSubtitleRenderer,
   getFrequencyRankLabelForToken,
   getJlptLevelLabelForToken,
   normalizeSubtitle,
   sanitizeSubtitleHoverTokenColor,
   shouldRenderTokenizedSubtitle,
 } from './subtitle-render.js';
+import { createRendererState } from './state.js';
+
+class FakeTextNode {
+  constructor(public textContent: string) {}
+}
+
+class FakeDocumentFragment {
+  childNodes: Array<FakeElement | FakeTextNode> = [];
+
+  appendChild(
+    child: FakeElement | FakeTextNode | FakeDocumentFragment,
+  ): FakeElement | FakeTextNode | FakeDocumentFragment {
+    if (child instanceof FakeDocumentFragment) {
+      this.childNodes.push(...child.childNodes);
+      child.childNodes = [];
+      return child;
+    }
+
+    this.childNodes.push(child);
+    return child;
+  }
+}
+
+class FakeStyleDeclaration {
+  private values = new Map<string, string>();
+
+  setProperty(name: string, value: string) {
+    this.values.set(name, value);
+  }
+}
+
+class FakeElement {
+  childNodes: Array<FakeElement | FakeTextNode> = [];
+  dataset: Record<string, string> = {};
+  style = new FakeStyleDeclaration();
+  className = '';
+  private ownTextContent = '';
+
+  constructor(public tagName: string) {}
+
+  appendChild(
+    child: FakeElement | FakeTextNode | FakeDocumentFragment,
+  ): FakeElement | FakeTextNode | FakeDocumentFragment {
+    if (child instanceof FakeDocumentFragment) {
+      this.childNodes.push(...child.childNodes);
+      child.childNodes = [];
+      return child;
+    }
+
+    this.childNodes.push(child);
+    return child;
+  }
+
+  set textContent(value: string) {
+    this.ownTextContent = value;
+    this.childNodes = [];
+  }
+
+  get textContent(): string {
+    if (this.childNodes.length === 0) {
+      return this.ownTextContent;
+    }
+
+    return this.childNodes
+      .map((child) => (child instanceof FakeTextNode ? child.textContent : child.textContent))
+      .join('');
+  }
+
+  set innerHTML(value: string) {
+    if (value === '') {
+      this.childNodes = [];
+      this.ownTextContent = '';
+    }
+  }
+}
+
+function installFakeDocument() {
+  const previousDocument = (globalThis as { document?: unknown }).document;
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createDocumentFragment: () => new FakeDocumentFragment(),
+      createElement: (tagName: string) => new FakeElement(tagName),
+      createTextNode: (text: string) => new FakeTextNode(text),
+    },
+  });
+
+  return () => {
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: previousDocument,
+    });
+  };
+}
+
+function collectWordNodes(root: FakeElement): FakeElement[] {
+  return root.childNodes.filter(
+    (child): child is FakeElement =>
+      child instanceof FakeElement && child.className.includes('word'),
+  );
+}
 
 function createToken(overrides: Partial<MergedToken>): MergedToken {
   return {
@@ -35,17 +138,15 @@ function extractClassBlock(cssText: string, selector: string): string {
   const ruleRegex = /([^{}]+)\{([^}]*)\}/g;
   let match: RegExpExecArray | null = null;
   let fallbackBlock = '';
+  const normalizedSelector = normalizeCssSelector(selector);
 
   while ((match = ruleRegex.exec(cssText)) !== null) {
     const selectorsBlock = match[1]?.trim() ?? '';
     const selectorBlock = match[2] ?? '';
 
-    const selectors = selectorsBlock
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
+    const selectors = splitCssSelectors(selectorsBlock);
 
-    if (selectors.includes(selector)) {
+    if (selectors.some((entry) => normalizeCssSelector(entry) === normalizedSelector)) {
       if (selectors.length === 1) {
         return selectorBlock;
       }
@@ -63,6 +164,53 @@ function extractClassBlock(cssText: string, selector: string): string {
   return '';
 }
 
+function splitCssSelectors(selectorsBlock: string): string[] {
+  const selectors: string[] = [];
+  let current = '';
+  let parenDepth = 0;
+
+  for (const char of selectorsBlock) {
+    if (char === '(') {
+      parenDepth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ')') {
+      parenDepth = Math.max(0, parenDepth - 1);
+      current += char;
+      continue;
+    }
+
+    if (char === ',' && parenDepth === 0) {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        selectors.push(trimmed);
+      }
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  const trimmed = current.trim();
+  if (trimmed.length > 0) {
+    selectors.push(trimmed);
+  }
+
+  return selectors;
+}
+
+function normalizeCssSelector(selector: string): string {
+  return selector
+    .replace(/\s+/g, ' ')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .replace(/\s*,\s*/g, ', ')
+    .trim();
+}
+
 test('computeWordClass preserves known and n+1 classes while adding JLPT classes', () => {
   const knownJlpt = createToken({
     isKnown: true,
@@ -77,6 +225,45 @@ test('computeWordClass preserves known and n+1 classes while adding JLPT classes
 
   assert.equal(computeWordClass(knownJlpt), 'word word-known word-jlpt-n1');
   assert.equal(computeWordClass(nPlusOneJlpt), 'word word-n-plus-one word-jlpt-n2');
+});
+
+test('computeWordClass applies name-match class ahead of known and frequency classes', () => {
+  const token = createToken({
+    isKnown: true,
+    frequencyRank: 10,
+    surface: 'アクア',
+  }) as MergedToken & { isNameMatch?: boolean };
+  token.isNameMatch = true;
+
+  assert.equal(
+    computeWordClass(token, {
+      enabled: true,
+      topX: 100,
+      mode: 'single',
+      singleColor: '#000000',
+      bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
+    }),
+    'word word-name-match',
+  );
+});
+
+test('computeWordClass skips name-match class when disabled', () => {
+  const token = createToken({
+    surface: 'アクア',
+  }) as MergedToken & { isNameMatch?: boolean };
+  token.isNameMatch = true;
+
+  assert.equal(
+    computeWordClass(token, {
+      nameMatchEnabled: false,
+      enabled: true,
+      topX: 100,
+      mode: 'single',
+      singleColor: '#000000',
+      bandedColors: ['#000000', '#000000', '#000000', '#000000', '#000000'] as const,
+    }),
+    'word',
+  );
 });
 
 test('computeWordClass keeps known and N+1 color classes exclusive over frequency classes', () => {
@@ -125,6 +312,39 @@ test('computeWordClass keeps known and N+1 color classes exclusive over frequenc
     }),
     'word word-frequency-single',
   );
+});
+
+test('applySubtitleStyle sets subtitle name-match color variable', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      nameMatchColor: '#f5bde6',
+    } as never);
+
+    assert.equal(
+      (subtitleRoot.style as unknown as { values?: Map<string, string> }).values?.get(
+        '--subtitle-name-match-color',
+      ),
+      '#f5bde6',
+    );
+  } finally {
+    restoreDocument();
+  }
 });
 
 test('computeWordClass adds frequency class for single mode when rank is within topX', () => {
@@ -288,6 +508,16 @@ test('alignTokensToSourceText treats whitespace-only token surfaces as plain tex
   );
 });
 
+test('alignTokensToSourceText preserves unsupported punctuation between matched tokens', () => {
+  const tokens = [createToken({ surface: 'えっ' }), createToken({ surface: 'マジ' })];
+
+  const segments = alignTokensToSourceText(tokens, 'えっ！？マジ');
+  assert.deepEqual(
+    segments.map((segment) => (segment.kind === 'text' ? `text:${segment.text}` : 'token')),
+    ['token', 'text:！？', 'token'],
+  );
+});
+
 test('alignTokensToSourceText avoids duplicate tail when later token surface does not match source', () => {
   const tokens = [
     createToken({ surface: '君たちが潰した拠点に' }),
@@ -325,6 +555,55 @@ test('buildSubtitleTokenHoverRanges ignores unmatched token surfaces', () => {
     '君たちが潰した拠点に\n教団の主力は１人もいない',
   );
   assert.deepEqual(ranges, [{ start: 0, end: 10, tokenIndex: 0 }]);
+});
+
+test('buildSubtitleTokenHoverRanges skips unsupported punctuation while preserving later offsets', () => {
+  const tokens = [createToken({ surface: 'えっ' }), createToken({ surface: 'マジ' })];
+
+  const ranges = buildSubtitleTokenHoverRanges(tokens, 'えっ！？マジ');
+  assert.deepEqual(ranges, [
+    { start: 0, end: 2, tokenIndex: 0 },
+    { start: 4, end: 6, tokenIndex: 1 },
+  ]);
+});
+
+test('renderSubtitle preserves unsupported punctuation while keeping it non-interactive', () => {
+  const restoreDocument = installFakeDocument();
+
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const renderer = createSubtitleRenderer({
+      dom: {
+        subtitleRoot,
+        subtitleContainer: new FakeElement('div'),
+        secondarySubRoot: new FakeElement('div'),
+        secondarySubContainer: new FakeElement('div'),
+      },
+      platform: {
+        isMacOSPlatform: false,
+        isModalLayer: false,
+        overlayLayer: 'visible',
+        shouldToggleMouseIgnore: false,
+      },
+      state: createRendererState(),
+    } as never);
+
+    renderer.renderSubtitle({
+      text: 'えっ！？マジ',
+      tokens: [createToken({ surface: 'えっ' }), createToken({ surface: 'マジ' })],
+    });
+
+    assert.equal(subtitleRoot.textContent, 'えっ！？マジ');
+    assert.deepEqual(
+      collectWordNodes(subtitleRoot).map((node) => [node.textContent, node.dataset.tokenIndex]),
+      [
+        ['えっ', '0'],
+        ['マジ', '1'],
+      ],
+    );
+  } finally {
+    restoreDocument();
+  }
 });
 
 test('normalizeSubtitle collapses explicit line breaks when collapseLineBreaks is enabled', () => {
@@ -435,9 +714,21 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   );
   assert.match(jlptTooltipKeyboardSelectedBlock, /opacity:\s*1;/);
 
-  assert.match(
+  const plainWordHoverBlock = extractClassBlock(
     cssText,
-    /#subtitleRoot\s+\.word:not\(\.word-known\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\s*\.word-frequency-band-1\s*\):not\(\.word-frequency-band-2\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\s*\.word-frequency-band-5\s*\):hover\s*\{[\s\S]*?background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+    '#subtitleRoot .word:not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5):hover',
+  );
+  assert.match(
+    plainWordHoverBlock,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
+  );
+  assert.match(
+    plainWordHoverBlock,
+    /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+  assert.match(
+    plainWordHoverBlock,
+    /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
 
   const coloredWordHoverBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known:hover');
@@ -473,13 +764,31 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   assert.match(coloredCharHoverBlock, /background:\s*transparent;/);
   assert.match(coloredCharHoverBlock, /color:\s*inherit\s*!important;/);
 
-  assert.match(
+  const jlptOnlyHoverBlock = extractClassBlock(
     cssText,
-    /\.word:is\(\.word-jlpt-n1,\s*\.word-jlpt-n2,\s*\.word-jlpt-n3,\s*\.word-jlpt-n4,\s*\.word-jlpt-n5\):not\(\s*\.word-known\s*\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\.word-frequency-band-1\):not\(\s*\.word-frequency-band-2\s*\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\.word-frequency-band-5\):hover\s*\{[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+    '#subtitleRoot .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5):hover',
   );
   assert.match(
-    cssText,
-    /\.word:is\(\.word-jlpt-n1,\s*\.word-jlpt-n2,\s*\.word-jlpt-n3,\s*\.word-jlpt-n4,\s*\.word-jlpt-n5\):not\(\s*\.word-known\s*\):not\(\.word-n-plus-one\):not\(\.word-frequency-single\):not\(\.word-frequency-band-1\):not\(\s*\.word-frequency-band-2\s*\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\.word-frequency-band-5\)::selection[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+    jlptOnlyHoverBlock,
+    /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+  assert.match(
+    jlptOnlyHoverBlock,
+    /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+  assert.match(
+    extractClassBlock(
+      cssText,
+      '#subtitleRoot .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)::selection',
+    ),
+    /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+  assert.match(
+    extractClassBlock(
+      cssText,
+      '#subtitleRoot .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)::selection',
+    ),
+    /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
 
   const selectionBlock = extractClassBlock(cssText, '#subtitleRoot::selection');

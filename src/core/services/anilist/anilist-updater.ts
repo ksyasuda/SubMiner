@@ -72,6 +72,10 @@ function runGuessit(target: string): Promise<string> {
   });
 }
 
+type GuessAnilistMediaInfoDeps = {
+  runGuessit: (target: string) => Promise<string>;
+};
+
 function firstString(value: unknown): string | null {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -177,12 +181,13 @@ function pickBestSearchResult(
 export async function guessAnilistMediaInfo(
   mediaPath: string | null,
   mediaTitle: string | null,
+  deps: GuessAnilistMediaInfoDeps = { runGuessit },
 ): Promise<AnilistMediaGuess | null> {
   const target = mediaPath ?? mediaTitle;
 
   if (target && target.trim().length > 0) {
     try {
-      const stdout = await runGuessit(target);
+      const stdout = await deps.runGuessit(target);
       const parsed = JSON.parse(stdout) as Record<string, unknown>;
       const title = firstString(parsed.title);
       const episode = firstPositiveInteger(parsed.episode);

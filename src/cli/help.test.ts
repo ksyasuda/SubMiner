@@ -18,8 +18,11 @@ test('printHelp includes configured texthooker port', () => {
   assert.match(output, /--help\s+Show this help/);
   assert.match(output, /default: 7777/);
   assert.match(output, /--refresh-known-words/);
+  assert.match(output, /--setup\s+Open first-run setup window/);
   assert.match(output, /--anilist-status/);
   assert.match(output, /--anilist-retry-queue/);
+  assert.match(output, /--dictionary/);
+  assert.match(output, /--dictionary-target/);
   assert.match(output, /--jellyfin\s+Open Jellyfin setup window/);
   assert.match(output, /--jellyfin-login/);
   assert.match(output, /--jellyfin-subtitles/);

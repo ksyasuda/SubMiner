@@ -13,6 +13,7 @@ import { runDoctorCommand } from './commands/doctor-command.js';
 import { runConfigCommand } from './commands/config-command.js';
 import { runMpvPostAppCommand, runMpvPreAppCommand } from './commands/mpv-command.js';
 import { runAppPassthroughCommand, runTexthookerCommand } from './commands/app-command.js';
+import { runDictionaryCommand } from './commands/dictionary-command.js';
 import { runJellyfinCommand } from './commands/jellyfin-command.js';
 import { runPlaybackCommand } from './commands/playback-command.js';
 
@@ -87,6 +88,10 @@ async function main(): Promise<void> {
   }
 
   if (runTexthookerCommand(appContext)) {
+    return;
+  }
+
+  if (runDictionaryCommand(appContext)) {
     return;
   }
 

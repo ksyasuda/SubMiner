@@ -33,6 +33,7 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 - **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
 - **Immersion tracking** — SQLite-powered stats on your watch time and mining activity
 - **Custom texthooker page** — Built-in custom texthooker page and websocket, no extra setup
+- **Annotated websocket API** — Dedicated annotation feed can serve bundled texthooker or external clients with rendered `sentence` HTML plus structured `tokens`
 - **Jellyfin integration** — Remote playback setup, cast device mode, and direct playback launch
 - **AniList progress** — Track episode completion and push watching progress automatically
 
@@ -53,30 +54,36 @@ chmod +x ~/.local/bin/subminer
 > [!NOTE]
 > The `subminer` wrapper uses a [Bun](https://bun.sh) shebang. Make sure `bun` is on your `PATH`.
 
-**From source** or **macOS** — see the [installation guide](https://docs.subminer.moe/installation#from-source).
+**From source** or **macOS** — initialize submodules first (`git submodule update --init --recursive`). Source builds now also require Node.js 22 + npm because bundled Yomitan is built from the `vendor/subminer-yomitan` submodule into `build/yomitan` during `bun run build`. Full install guide: [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
 
-### 2. Install the mpv plugin and configuration file
-
-```bash
-wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
-tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
-mkdir -p ~/.config/mpv/scripts/subminer
-mkdir -p ~/.config/mpv/script-opts
-cp -R /tmp/plugin/subminer/. ~/.config/mpv/scripts/subminer/
-cp /tmp/plugin/subminer.conf ~/.config/mpv/script-opts/
-mkdir -p ~/.config/SubMiner && cp /tmp/config.example.jsonc ~/.config/SubMiner/config.jsonc
-```
-
-### 3. Set up Yomitan Dictionaries
+### 2. Launch the app once
 
 ```bash
-subminer app --yomitan
+SubMiner.AppImage
 ```
+
+On first launch, SubMiner now:
+
+- starts in the tray/background
+- creates the default config directory and `config.jsonc`
+- opens a compact setup popup
+- can install the mpv plugin to the default mpv scripts location for you
+- links directly to Yomitan settings so you can install dictionaries before finishing setup
+
+Existing installs that already have a valid config plus at least one Yomitan dictionary are auto-detected as complete and will not be re-prompted.
+
+### 3. Finish setup
+
+- click `Install mpv plugin` if you want the default plugin auto-start flow
+- click `Open Yomitan Settings` and install at least one dictionary
+- click `Refresh status`
+- click `Finish setup`
+
+The mpv plugin step is optional. Yomitan must report at least one installed dictionary before setup can be completed.
 
 ### 4. Mine
 
 ```bash
-subminer app --start --background
 subminer video.mkv # default plugin config auto-starts visible overlay + resumes playback when ready
 subminer --start video.mkv # optional explicit overlay start when plugin auto_start=no
 ```
@@ -85,7 +92,7 @@ subminer --start video.mkv # optional explicit overlay start when plugin auto_st
 
 | Required                                   | Optional                                           |
 | ------------------------------------------ | -------------------------------------------------- |
-| `bun`                                      |                                                    |
+| `bun`, `node` 22, `npm`                    |                                                    |
 | `mpv` with IPC socket                      | `yt-dlp`                                           |
 | `ffmpeg`                                   | `guessit` (better AniSkip title/episode detection) |
 | `mecab` + `mecab-ipadic`                   | `fzf` / `rofi`                                     |
@@ -96,9 +103,20 @@ subminer --start video.mkv # optional explicit overlay start when plugin auto_st
 
 For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.moe](https://docs.subminer.moe).
 
+## Testing
+
+- Run `bun run test` or `bun run test:fast` for the default fast lane: config/core coverage plus representative entry/runtime, Anki integration, and main runtime checks.
+- Run `bun run test:full` for the maintained test surface: Bun-compatible `src/**` coverage, Bun-compatible launcher unit coverage, and a Node compatibility lane for suites that depend on Electron named exports or `node:sqlite` behavior.
+- Run `bun run test:node:compat` directly when you only need the Node-backed compatibility slice: `ipc`, `anki-jimaku-ipc`, `overlay-manager`, `config-validation`, `startup-config`, and runtime registry coverage.
+- Run `bun run test:env` for environment-specific verification: launcher smoke/plugin checks plus the SQLite-backed immersion tracker lane.
+- Run `bun run test:immersion:sqlite` when you specifically need real SQLite persistence coverage under Node with `--experimental-sqlite`.
+- Run `bun run test:subtitle` for the maintained `alass`/`ffsubsync` subtitle surface.
+
+The Bun-managed discovery lanes intentionally exclude a small set of suites that are currently Node-only because of Bun runtime/tooling gaps rather than product behavior: Electron named-export tests in `src/core/services/ipc.test.ts`, `src/core/services/anki-jimaku-ipc.test.ts`, and `src/core/services/overlay-manager.test.ts`, plus runtime/config tests in `src/main/config-validation.test.ts`, `src/main/runtime/startup-config.test.ts`, and `src/main/runtime/registry.test.ts`. `bun run test:node:compat` keeps those suites in the standard workflow instead of leaving them untracked.
+
 ## Acknowledgments
 
-Built on the shoulders of [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner), [texthooker-ui](https://github.com/Renji-XD/texthooker-ui), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script), and [autosubsync-mpv](https://github.com/joaquintorres/autosubsync-mpv). Subtitles powered by [Jimaku.cc](https://jimaku.cc). Dictionary lookups via [Yomitan](https://github.com/yomidevs/yomitan).
+Built on the shoulders of [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner), [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script), and [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary). Subtitles powered by [Jimaku.cc](https://jimaku.cc). Dictionary lookups via [Yomitan](https://github.com/yomidevs/yomitan).
 
 ## License
 

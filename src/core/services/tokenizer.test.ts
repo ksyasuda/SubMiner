@@ -24,31 +24,40 @@ interface YomitanTokenInput {
   surface: string;
   reading?: string;
   headword?: string;
+  isNameMatch?: boolean;
 }
 
 function makeDepsFromYomitanTokens(
   tokens: YomitanTokenInput[],
   overrides: Partial<TokenizerServiceDeps> = {},
 ): TokenizerServiceDeps {
+  let cursor = 0;
   return makeDeps({
     getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
     getYomitanParserWindow: () =>
       ({
         isDestroyed: () => false,
         webContents: {
-          executeJavaScript: async () => [
-            {
-              source: 'scanning-parser',
-              index: 0,
-              content: tokens.map((token) => [
-                {
-                  text: token.surface,
-                  reading: token.reading ?? token.surface,
-                  headwords: [[{ term: token.headword ?? token.surface }]],
-                },
-              ]),
-            },
-          ],
+          executeJavaScript: async (script: string) => {
+            if (script.includes('getTermFrequencies')) {
+              return [];
+            }
+
+            cursor = 0;
+            return tokens.map((token) => {
+              const startPos = cursor;
+              const endPos = startPos + token.surface.length;
+              cursor = endPos;
+              return {
+                surface: token.surface,
+                reading: token.reading ?? token.surface,
+                headword: token.headword ?? token.surface,
+                startPos,
+                endPos,
+                isNameMatch: token.isNameMatch ?? false,
+              };
+            });
+          },
         },
       }) as unknown as Electron.BrowserWindow,
     ...overrides,
@@ -106,6 +115,20 @@ test('tokenizeSubtitle assigns JLPT level to parsed Yomitan tokens', async () =>
 
   assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.jlptLevel, 'N5');
+});
+
+test('tokenizeSubtitle preserves Yomitan name-match metadata on tokens', async () => {
+  const result = await tokenizeSubtitle(
+    'アクアです',
+    makeDepsFromYomitanTokens([
+      { surface: 'アクア', reading: 'あくあ', headword: 'アクア', isNameMatch: true },
+      { surface: 'です', reading: 'です', headword: 'です' },
+    ]),
+  );
+
+  assert.equal(result.tokens?.length, 2);
+  assert.equal((result.tokens?.[0] as { isNameMatch?: boolean } | undefined)?.isNameMatch, true);
+  assert.equal((result.tokens?.[1] as { isNameMatch?: boolean } | undefined)?.isNameMatch, false);
 });
 
 test('tokenizeSubtitle caches JLPT lookups across repeated tokens', async () => {
@@ -180,6 +203,69 @@ test('tokenizeSubtitle applies frequency dictionary ranks', async () => {
   assert.equal(result.tokens?.length, 2);
   assert.equal(result.tokens?.[0]?.frequencyRank, 23);
   assert.equal(result.tokens?.[1]?.frequencyRank, 1200);
+});
+
+test('tokenizeSubtitle uses left-to-right yomitan scanning to keep full katakana name tokens', async () => {
+  const result = await tokenizeSubtitle(
+    'カズマ 魔王軍',
+    makeDeps({
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [];
+              }
+
+              return [
+                {
+                  surface: 'カズマ',
+                  reading: 'かずま',
+                  headword: 'カズマ',
+                  startPos: 0,
+                  endPos: 3,
+                },
+                {
+                  surface: '魔王軍',
+                  reading: 'まおうぐん',
+                  headword: '魔王軍',
+                  startPos: 4,
+                  endPos: 7,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.deepEqual(
+    result.tokens?.map((token) => ({
+      surface: token.surface,
+      reading: token.reading,
+      headword: token.headword,
+      startPos: token.startPos,
+      endPos: token.endPos,
+    })),
+    [
+      {
+        surface: 'カズマ',
+        reading: 'かずま',
+        headword: 'カズマ',
+        startPos: 0,
+        endPos: 3,
+      },
+      {
+        surface: '魔王軍',
+        reading: 'まおうぐん',
+        headword: '魔王軍',
+        startPos: 4,
+        endPos: 7,
+      },
+    ],
+  );
 });
 
 test('tokenizeSubtitle loads frequency ranks from Yomitan installed dictionaries', async () => {
@@ -1165,6 +1251,30 @@ test('tokenizeSubtitle normalizes newlines before Yomitan parse request', async 
   assert.equal(result.tokens, null);
 });
 
+test('tokenizeSubtitle collapses zero-width separators before Yomitan parse request', async () => {
+  let parseInput = '';
+  const result = await tokenizeSubtitle(
+    'キリキリと\u200bかかってこい\nこのヘナチョコ冒険者どもめが！',
+    makeDeps({
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              parseInput = script;
+              return null;
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.match(parseInput, /キリキリと かかってこい このヘナチョコ冒険者どもめが！/);
+  assert.equal(result.text, 'キリキリと\u200bかかってこい\nこのヘナチョコ冒険者どもめが！');
+  assert.equal(result.tokens, null);
+});
+
 test('tokenizeSubtitle returns null tokens when Yomitan parsing is unavailable', async () => {
   const result = await tokenizeSubtitle('猫です', makeDeps());
 
@@ -1751,9 +1861,9 @@ test('tokenizeSubtitle keeps parsing explicit by scanning-parser source only', a
   assert.equal(result.tokens?.[4]?.frequencyRank, 1500);
 });
 
-test('tokenizeSubtitle still assigns frequency to non-known Yomitan tokens', async () => {
+test('tokenizeSubtitle still assigns frequency to non-known multi-character Yomitan tokens', async () => {
   const result = await tokenizeSubtitle(
-    '小園に',
+    '小園友達',
     makeDeps({
       getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
       getYomitanParserWindow: () =>
@@ -1774,9 +1884,9 @@ test('tokenizeSubtitle still assigns frequency to non-known Yomitan tokens', asy
                   ],
                   [
                     {
-                      text: 'に',
-                      reading: 'に',
-                      headwords: [[{ term: 'に' }]],
+                      text: '友達',
+                      reading: 'ともだち',
+                      headwords: [[{ term: '友達' }]],
                     },
                   ],
                 ],
@@ -1785,7 +1895,7 @@ test('tokenizeSubtitle still assigns frequency to non-known Yomitan tokens', asy
           },
         }) as unknown as Electron.BrowserWindow,
       getFrequencyDictionaryEnabled: () => true,
-      getFrequencyRank: (text) => (text === '小園' ? 75 : text === 'に' ? 3000 : null),
+      getFrequencyRank: (text) => (text === '小園' ? 75 : text === '友達' ? 3000 : null),
       isKnownWord: (text) => text === '小園',
     }),
   );
@@ -2523,6 +2633,21 @@ test('tokenizeSubtitle excludes default non-independent pos2 from N+1 and freque
   assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
   assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
+});
+
+test('tokenizeSubtitle excludes single-kana merged tokens from frequency highlighting', async () => {
+  const result = await tokenizeSubtitle(
+    'た',
+    makeDepsFromYomitanTokens([{ surface: 'た', reading: 'た', headword: 'た' }], {
+      getFrequencyDictionaryEnabled: () => true,
+      getFrequencyRank: (text) => (text === 'た' ? 17 : null),
+      getMinSentenceWordsForNPlusOne: () => 1,
+      tokenizeWithMecab: async () => null,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
 });
 
 test('tokenizeSubtitle excludes merged function/content token from frequency highlighting but keeps N+1', async () => {

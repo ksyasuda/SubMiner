@@ -11,6 +11,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggle: false,
     toggleVisibleOverlay: false,
     settings: false,
+    setup: false,
     show: false,
     hide: false,
     showVisibleOverlay: false,
@@ -30,6 +31,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     anilistLogout: false,
     anilistSetup: false,
     anilistRetryQueue: false,
+    dictionary: false,
     jellyfin: false,
     jellyfinLogin: false,
     jellyfinLogout: false,
@@ -94,6 +96,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     openYomitanSettingsDelayed: (delayMs) => {
       calls.push(`openYomitanSettingsDelayed:${delayMs}`);
+    },
+    openFirstRunSetup: () => {
+      calls.push('openFirstRunSetup');
     },
     setVisibleOverlayVisible: (visible) => {
       calls.push(`setVisibleOverlayVisible:${visible}`);
@@ -163,6 +168,13 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
       calls.push('retryAnilistQueue');
       return { ok: true, message: 'AniList retry processed.' };
     },
+    generateCharacterDictionary: async () => ({
+      zipPath: '/tmp/anilist-1.zip',
+      fromCache: false,
+      mediaId: 1,
+      mediaTitle: 'Test',
+      entryCount: 10,
+    }),
     runJellyfinCommand: async () => {
       calls.push('runJellyfinCommand');
     },
@@ -219,6 +231,16 @@ test('handleCliCommand processes --start for second-instance when overlay runtim
     calls.some((value) => value.includes('connectMpvClient')),
     true,
   );
+});
+
+test('handleCliCommand opens first-run setup window for --setup', () => {
+  const { deps, calls } = createDeps();
+
+  handleCliCommand(makeArgs({ setup: true }), 'initial', deps);
+
+  assert.ok(calls.includes('openFirstRunSetup'));
+  assert.ok(calls.includes('log:Opened first-run setup flow.'));
+  assert.equal(calls.includes('openYomitanSettingsDelayed:1000'), false);
 });
 
 test('handleCliCommand applies cli log level for second-instance commands', () => {
@@ -394,6 +416,52 @@ test('handleCliCommand runs AniList retry command', async () => {
   await new Promise((resolve) => setImmediate(resolve));
   assert.ok(calls.includes('retryAnilistQueue'));
   assert.ok(calls.includes('log:AniList retry processed.'));
+});
+
+test('handleCliCommand runs dictionary generation command', async () => {
+  const { deps, calls } = createDeps({
+    hasMainWindow: () => false,
+    generateCharacterDictionary: async () => ({
+      zipPath: '/tmp/anilist-9253.zip',
+      fromCache: true,
+      mediaId: 9253,
+      mediaTitle: 'STEINS;GATE',
+      entryCount: 314,
+    }),
+  });
+  handleCliCommand(makeArgs({ dictionary: true }), 'initial', deps);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(calls.includes('log:Generating character dictionary for current anime...'));
+  assert.ok(
+    calls.includes('log:Character dictionary cache hit: AniList 9253 (STEINS;GATE), entries=314'),
+  );
+  assert.ok(calls.includes('log:Dictionary ZIP: /tmp/anilist-9253.zip'));
+  assert.ok(calls.includes('stopApp'));
+});
+
+test('handleCliCommand forwards --dictionary-target to dictionary runtime', async () => {
+  let receivedTarget: string | undefined;
+  const { deps } = createDeps({
+    generateCharacterDictionary: async (targetPath?: string) => {
+      receivedTarget = targetPath;
+      return {
+        zipPath: '/tmp/anilist-100.zip',
+        fromCache: false,
+        mediaId: 100,
+        mediaTitle: 'Test',
+        entryCount: 1,
+      };
+    },
+  });
+
+  handleCliCommand(
+    makeArgs({ dictionary: true, dictionaryTarget: '/tmp/example-video.mkv' }),
+    'initial',
+    deps,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(receivedTarget, '/tmp/example-video.mkv');
 });
 
 test('handleCliCommand does not dispatch runJellyfinCommand for non-Jellyfin commands', () => {

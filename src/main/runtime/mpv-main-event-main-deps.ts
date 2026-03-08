@@ -33,6 +33,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   maybeProbeAnilistDuration: (mediaKey: string) => void;
   ensureAnilistMediaGuess: (mediaKey: string) => void;
   syncImmersionMediaState: () => void;
+  scheduleCharacterDictionarySync?: () => void;
   updateCurrentMediaTitle: (title: string) => void;
   resetAnilistMediaGuessState: () => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
@@ -81,6 +82,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     maybeProbeAnilistDuration: (mediaKey: string) => deps.maybeProbeAnilistDuration(mediaKey),
     ensureAnilistMediaGuess: (mediaKey: string) => deps.ensureAnilistMediaGuess(mediaKey),
     syncImmersionMediaState: () => deps.syncImmersionMediaState(),
+    scheduleCharacterDictionarySync: () => deps.scheduleCharacterDictionarySync?.(),
     updateCurrentMediaTitle: (title: string) => deps.updateCurrentMediaTitle(title),
     resetAnilistMediaGuessState: () => deps.resetAnilistMediaGuessState(),
     notifyImmersionTitleUpdate: (title: string) => {

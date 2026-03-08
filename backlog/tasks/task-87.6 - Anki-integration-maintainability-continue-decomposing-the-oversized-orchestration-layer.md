@@ -3,10 +3,10 @@ id: TASK-87.6
 title: >-
   Anki integration maintainability: continue decomposing the oversized
   orchestration layer
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-06 03:20'
-updated_date: '2026-03-06 03:21'
+updated_date: '2026-03-06 09:23'
 labels:
   - tech-debt
   - anki
@@ -40,10 +40,10 @@ src/anki-integration.ts remains an oversized orchestration file even after earli
 
 <!-- AC:BEGIN -->
 
-- [ ] #1 The responsibilities currently concentrated in src/anki-integration.ts are split into clearer modules or services with narrow ownership boundaries.
-- [ ] #2 The resulting orchestration surface is materially smaller and easier to review, with at least one mixed-responsibility cluster extracted behind a well-named interface.
-- [ ] #3 Existing Anki integration behavior remains covered by automated verification, including note update, field grouping, and proxy-related flows that the refactor touches.
-- [ ] #4 Any developer-facing docs or notes needed to understand the new structure are updated in the same task.
+- [x] #1 The responsibilities currently concentrated in src/anki-integration.ts are split into clearer modules or services with narrow ownership boundaries.
+- [x] #2 The resulting orchestration surface is materially smaller and easier to review, with at least one mixed-responsibility cluster extracted behind a well-named interface.
+- [x] #3 Existing Anki integration behavior remains covered by automated verification, including note update, field grouping, and proxy-related flows that the refactor touches.
+- [x] #4 Any developer-facing docs or notes needed to understand the new structure are updated in the same task.
 <!-- AC:END -->
 
 ## Implementation Plan

@@ -1,13 +1,17 @@
 import { BrowserWindow, Extension, session } from 'electron';
 import * as fs from 'fs';
-import * as path from 'path';
 import { createLogger } from '../../logger';
-import { shouldCopyYomitanExtension } from './yomitan-extension-copy';
+import { ensureExtensionCopy } from './yomitan-extension-copy';
+import {
+  getYomitanExtensionSearchPaths,
+  resolveExistingYomitanExtensionPath,
+} from './yomitan-extension-paths';
 
 const logger = createLogger('main:yomitan-extension-loader');
 
 export interface YomitanExtensionLoaderDeps {
   userDataPath: string;
+  extensionPath?: string;
   getYomitanParserWindow: () => BrowserWindow | null;
   setYomitanParserWindow: (window: BrowserWindow | null) => void;
   setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
@@ -15,52 +19,28 @@ export interface YomitanExtensionLoaderDeps {
   setYomitanExtension: (extension: Extension | null) => void;
 }
 
-function ensureExtensionCopy(sourceDir: string, userDataPath: string): string {
-  if (process.platform === 'win32') {
-    return sourceDir;
-  }
-
-  const extensionsRoot = path.join(userDataPath, 'extensions');
-  const targetDir = path.join(extensionsRoot, 'yomitan');
-
-  const shouldCopy = shouldCopyYomitanExtension(sourceDir, targetDir);
-
-  if (shouldCopy) {
-    fs.mkdirSync(extensionsRoot, { recursive: true });
-    fs.rmSync(targetDir, { recursive: true, force: true });
-    fs.cpSync(sourceDir, targetDir, { recursive: true });
-    logger.info(`Copied yomitan extension to ${targetDir}`);
-  }
-
-  return targetDir;
-}
-
 export async function loadYomitanExtension(
   deps: YomitanExtensionLoaderDeps,
 ): Promise<Extension | null> {
-  const searchPaths = [
-    path.join(__dirname, '..', '..', 'vendor', 'yomitan'),
-    path.join(__dirname, '..', '..', '..', 'vendor', 'yomitan'),
-    path.join(process.resourcesPath, 'yomitan'),
-    '/usr/share/SubMiner/yomitan',
-    path.join(deps.userDataPath, 'yomitan'),
-  ];
-
-  let extPath: string | null = null;
-  for (const p of searchPaths) {
-    if (fs.existsSync(p)) {
-      extPath = p;
-      break;
-    }
-  }
+  const searchPaths = getYomitanExtensionSearchPaths({
+    explicitPath: deps.extensionPath,
+    moduleDir: __dirname,
+    resourcesPath: process.resourcesPath,
+    userDataPath: deps.userDataPath,
+  });
+  let extPath = resolveExistingYomitanExtensionPath(searchPaths, fs.existsSync);
 
   if (!extPath) {
     logger.error('Yomitan extension not found in any search path');
-    logger.error('Install Yomitan to one of:', searchPaths);
+    logger.error('Run `bun run build:yomitan` or install Yomitan to one of:', searchPaths);
     return null;
   }
 
-  extPath = ensureExtensionCopy(extPath, deps.userDataPath);
+  const extensionCopy = ensureExtensionCopy(extPath, deps.userDataPath);
+  if (extensionCopy.copied) {
+    logger.info(`Copied yomitan extension to ${extensionCopy.targetDir}`);
+  }
+  extPath = extensionCopy.targetDir;
 
   const parserWindow = deps.getYomitanParserWindow();
   if (parserWindow && !parserWindow.isDestroyed()) {
