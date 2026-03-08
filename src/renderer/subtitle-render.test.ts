@@ -138,17 +138,15 @@ function extractClassBlock(cssText: string, selector: string): string {
   const ruleRegex = /([^{}]+)\{([^}]*)\}/g;
   let match: RegExpExecArray | null = null;
   let fallbackBlock = '';
+  const normalizedSelector = normalizeCssSelector(selector);
 
   while ((match = ruleRegex.exec(cssText)) !== null) {
     const selectorsBlock = match[1]?.trim() ?? '';
     const selectorBlock = match[2] ?? '';
 
-    const selectors = selectorsBlock
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
+    const selectors = splitCssSelectors(selectorsBlock);
 
-    if (selectors.includes(selector)) {
+    if (selectors.some((entry) => normalizeCssSelector(entry) === normalizedSelector)) {
       if (selectors.length === 1) {
         return selectorBlock;
       }
@@ -164,6 +162,53 @@ function extractClassBlock(cssText: string, selector: string): string {
   }
 
   return '';
+}
+
+function splitCssSelectors(selectorsBlock: string): string[] {
+  const selectors: string[] = [];
+  let current = '';
+  let parenDepth = 0;
+
+  for (const char of selectorsBlock) {
+    if (char === '(') {
+      parenDepth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ')') {
+      parenDepth = Math.max(0, parenDepth - 1);
+      current += char;
+      continue;
+    }
+
+    if (char === ',' && parenDepth === 0) {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        selectors.push(trimmed);
+      }
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  const trimmed = current.trim();
+  if (trimmed.length > 0) {
+    selectors.push(trimmed);
+  }
+
+  return selectors;
+}
+
+function normalizeCssSelector(selector: string): string {
+  return selector
+    .replace(/\s+/g, ' ')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .replace(/\s*,\s*/g, ', ')
+    .trim();
 }
 
 test('computeWordClass preserves known and n+1 classes while adding JLPT classes', () => {
@@ -669,9 +714,21 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   );
   assert.match(jlptTooltipKeyboardSelectedBlock, /opacity:\s*1;/);
 
-  assert.match(
+  const plainWordHoverBlock = extractClassBlock(
     cssText,
-    /#subtitleRoot\s+\.word:not\(\.word-known\):not\(\.word-n-plus-one\):not\(\.word-name-match\):not\(\.word-frequency-single\):not\(\s*\.word-frequency-band-1\s*\):not\(\.word-frequency-band-2\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\s*\.word-frequency-band-5\s*\):hover\s*\{[\s\S]*?background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+    '#subtitleRoot .word:not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5):hover',
+  );
+  assert.match(
+    plainWordHoverBlock,
+    /background:\s*var\(--subtitle-hover-token-background-color,\s*rgba\(54,\s*58,\s*79,\s*0\.84\)\);/,
+  );
+  assert.match(
+    plainWordHoverBlock,
+    /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+  assert.match(
+    plainWordHoverBlock,
+    /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
 
   const coloredWordHoverBlock = extractClassBlock(cssText, '#subtitleRoot .word.word-known:hover');
@@ -707,13 +764,31 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   assert.match(coloredCharHoverBlock, /background:\s*transparent;/);
   assert.match(coloredCharHoverBlock, /color:\s*inherit\s*!important;/);
 
-  assert.match(
+  const jlptOnlyHoverBlock = extractClassBlock(
     cssText,
-    /\.word:is\(\.word-jlpt-n1,\s*\.word-jlpt-n2,\s*\.word-jlpt-n3,\s*\.word-jlpt-n4,\s*\.word-jlpt-n5\):not\(\s*\.word-known\s*\):not\(\.word-n-plus-one\):not\(\.word-name-match\):not\(\.word-frequency-single\):not\(\.word-frequency-band-1\):not\(\s*\.word-frequency-band-2\s*\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\.word-frequency-band-5\):hover\s*\{[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+    '#subtitleRoot .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5):hover',
   );
   assert.match(
-    cssText,
-    /\.word:is\(\.word-jlpt-n1,\s*\.word-jlpt-n2,\s*\.word-jlpt-n3,\s*\.word-jlpt-n4,\s*\.word-jlpt-n5\):not\(\s*\.word-known\s*\):not\(\.word-n-plus-one\):not\(\.word-name-match\):not\(\.word-frequency-single\):not\(\.word-frequency-band-1\):not\(\s*\.word-frequency-band-2\s*\):not\(\.word-frequency-band-3\):not\(\.word-frequency-band-4\):not\(\.word-frequency-band-5\)::selection[\s\S]*?color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;[\s\S]*?-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+    jlptOnlyHoverBlock,
+    /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+  assert.match(
+    jlptOnlyHoverBlock,
+    /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+  assert.match(
+    extractClassBlock(
+      cssText,
+      '#subtitleRoot .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)::selection',
+    ),
+    /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
+  );
+  assert.match(
+    extractClassBlock(
+      cssText,
+      '#subtitleRoot .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)::selection',
+    ),
+    /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
 
   const selectionBlock = extractClassBlock(cssText, '#subtitleRoot::selection');
