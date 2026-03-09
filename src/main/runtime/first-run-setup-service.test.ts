@@ -203,3 +203,47 @@ test('setup service reflects detected Windows mpv shortcuts before preferences a
     assert.equal(snapshot.windowsMpvShortcuts.desktopInstalled, true);
   });
 });
+
+test('setup service persists Windows mpv shortcut preferences and status with one state write', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+    const stateChanges: string[] = [];
+
+    const service = createFirstRunSetupService({
+      platform: 'win32',
+      configDir,
+      getYomitanDictionaryCount: async () => 0,
+      detectPluginInstalled: () => false,
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      applyWindowsMpvShortcuts: async () => ({
+        ok: true,
+        status: 'installed',
+        message: 'shortcuts updated',
+      }),
+      onStateChanged: (state) => {
+        stateChanges.push(state.windowsMpvShortcutLastStatus);
+      },
+    });
+
+    await service.ensureSetupStateInitialized();
+    stateChanges.length = 0;
+
+    const snapshot = await service.configureWindowsMpvShortcuts({
+      startMenuEnabled: false,
+      desktopEnabled: true,
+    });
+
+    assert.equal(snapshot.windowsMpvShortcuts.startMenuEnabled, false);
+    assert.equal(snapshot.windowsMpvShortcuts.desktopEnabled, true);
+    assert.equal(snapshot.state.windowsMpvShortcutLastStatus, 'installed');
+    assert.equal(snapshot.message, 'shortcuts updated');
+    assert.deepEqual(stateChanges, ['installed']);
+  });
+});

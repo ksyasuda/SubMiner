@@ -89,7 +89,7 @@ public static class SubMinerWindowsHelper {
     }
   }
 
-  $matches = New-Object System.Collections.Generic.List[object]
+  $mpvMatches = New-Object System.Collections.Generic.List[object]
   $foregroundWindow = [SubMinerWindowsHelper]::GetForegroundWindow()
   $callback = [SubMinerWindowsHelper+EnumWindowsProc]{
     param([IntPtr]$hWnd, [IntPtr]$lParam)
@@ -136,7 +136,7 @@ public static class SubMinerWindowsHelper {
       return $true
     }
 
-    $matches.Add([PSCustomObject]@{
+    $mpvMatches.Add([PSCustomObject]@{
       HWnd = $hWnd
       X = $bounds.X
       Y = $bounds.Y
@@ -151,14 +151,14 @@ public static class SubMinerWindowsHelper {
 
   [void][SubMinerWindowsHelper]::EnumWindows($callback, [IntPtr]::Zero)
 
-  $focusedMatch = $matches | Where-Object { $_.IsForeground } | Select-Object -First 1
+  $focusedMatch = $mpvMatches | Where-Object { $_.IsForeground } | Select-Object -First 1
   if ($null -ne $focusedMatch) {
     [Console]::Error.WriteLine('focus=focused')
   } else {
     [Console]::Error.WriteLine('focus=not-focused')
   }
 
-  if ($matches.Count -eq 0) {
+  if ($mpvMatches.Count -eq 0) {
     Write-Output 'not-found'
     exit 0
   }
@@ -166,7 +166,7 @@ public static class SubMinerWindowsHelper {
   $bestMatch = if ($null -ne $focusedMatch) {
     $focusedMatch
   } else {
-    $matches | Sort-Object -Property Area, Width, Height -Descending | Select-Object -First 1
+    $mpvMatches | Sort-Object -Property Area, Width, Height -Descending | Select-Object -First 1
   }
   Write-Output "$($bestMatch.X),$($bestMatch.Y),$($bestMatch.Width),$($bestMatch.Height)"
 } catch {

@@ -249,17 +249,20 @@ try {
 		local program_files_x86 = os.getenv("ProgramFiles(x86)") or "C:\\Program Files (x86)"
 		local search_paths = {}
 
-		add_search_path(search_paths, "/Applications/SubMiner.app/Contents/MacOS/SubMiner")
-		add_search_path(search_paths, utils.join_path(home, "Applications", "SubMiner.app", "Contents", "MacOS", "SubMiner"))
-		add_search_path(search_paths, utils.join_path(app_data_local, "Programs", "SubMiner", "SubMiner.exe"))
-		add_search_path(search_paths, utils.join_path(local_app_data, "Programs", "SubMiner", "SubMiner.exe"))
-		add_search_path(search_paths, utils.join_path(program_files, "SubMiner", "SubMiner.exe"))
-		add_search_path(search_paths, utils.join_path(program_files_x86, "SubMiner", "SubMiner.exe"))
-		add_search_path(search_paths, "C:\\SubMiner\\SubMiner.exe")
-		add_search_path(search_paths, utils.join_path(home, ".local", "bin", "SubMiner.AppImage"))
-		add_search_path(search_paths, "/opt/SubMiner/SubMiner.AppImage")
-		add_search_path(search_paths, "/usr/local/bin/SubMiner")
-		add_search_path(search_paths, "/usr/bin/SubMiner")
+		if environment.is_windows() then
+			add_search_path(search_paths, utils.join_path(app_data_local, "Programs", "SubMiner", "SubMiner.exe"))
+			add_search_path(search_paths, utils.join_path(local_app_data, "Programs", "SubMiner", "SubMiner.exe"))
+			add_search_path(search_paths, utils.join_path(program_files, "SubMiner", "SubMiner.exe"))
+			add_search_path(search_paths, utils.join_path(program_files_x86, "SubMiner", "SubMiner.exe"))
+			add_search_path(search_paths, "C:\\SubMiner\\SubMiner.exe")
+		else
+			add_search_path(search_paths, "/Applications/SubMiner.app/Contents/MacOS/SubMiner")
+			add_search_path(search_paths, utils.join_path(home, "Applications", "SubMiner.app", "Contents", "MacOS", "SubMiner"))
+			add_search_path(search_paths, utils.join_path(home, ".local", "bin", "SubMiner.AppImage"))
+			add_search_path(search_paths, "/opt/SubMiner/SubMiner.AppImage")
+			add_search_path(search_paths, "/usr/local/bin/SubMiner")
+			add_search_path(search_paths, "/usr/bin/SubMiner")
+		end
 
 		for _, path in ipairs(search_paths) do
 			if file_exists(path) then

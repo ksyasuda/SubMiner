@@ -354,7 +354,7 @@ jobs:
       - name: Generate checksums
         run: |
           shopt -s nullglob
-          files=(release/*.AppImage release/*.dmg release/*.zip release/*.tar.gz dist/launcher/subminer)
+          files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz dist/launcher/subminer)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No release artifacts found for checksum generation."
             exit 1
@@ -392,6 +392,7 @@ jobs:
           artifacts=(
             release/*.AppImage
             release/*.dmg
+            release/*.exe
             release/*.zip
             release/*.tar.gz
             release/SHA256SUMS.txt

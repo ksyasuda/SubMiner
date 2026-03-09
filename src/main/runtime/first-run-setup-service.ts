@@ -294,20 +294,23 @@ export function createFirstRunSetupService(deps: {
       );
     },
     configureWindowsMpvShortcuts: async (preferences) => {
-      const nextState = writeState({
-        ...readState(),
-        windowsMpvShortcutPreferences: {
-          startMenuEnabled: preferences.startMenuEnabled,
-          desktopEnabled: preferences.desktopEnabled,
-        },
-      });
       if (!isWindows || !deps.applyWindowsMpvShortcuts) {
-        return refreshWithState(nextState, null);
+        return refreshWithState(
+          writeState({
+            ...readState(),
+            windowsMpvShortcutPreferences: {
+              startMenuEnabled: preferences.startMenuEnabled,
+              desktopEnabled: preferences.desktopEnabled,
+            },
+          }),
+          null,
+        );
       }
       const result = await deps.applyWindowsMpvShortcuts(preferences);
+      const latestState = readState();
       return refreshWithState(
         writeState({
-          ...readState(),
+          ...latestState,
           windowsMpvShortcutPreferences: {
             startMenuEnabled: preferences.startMenuEnabled,
             desktopEnabled: preferences.desktopEnabled,

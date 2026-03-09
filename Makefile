@@ -117,6 +117,7 @@ build:
 	@case "$(PLATFORM)" in \
 		linux) $(MAKE) --no-print-directory build-linux ;; \
 		macos) $(MAKE) --no-print-directory build-macos ;; \
+		windows) printf '%s\n' "[INFO] Windows builds run via: bun run build:win" ;; \
 		*) printf '%s\n' "[ERROR] Unsupported OS for this Makefile target: $(PLATFORM)"; exit 1 ;; \
 	esac
 
@@ -236,7 +237,7 @@ install-plugin:
 	@cp -R ./plugin/subminer/. "$(MPV_SCRIPTS_DIR)/subminer/"
 	@install -m 0644 "./$(PLUGIN_CONF)" "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
 	@if [ "$(PLATFORM)" = "windows" ]; then \
-		node ./scripts/configure-plugin-binary-path.mjs "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf" "$(CURDIR)" win32; \
+		bun ./scripts/configure-plugin-binary-path.mjs "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf" "$(CURDIR)" win32; \
 	fi
 	@printf '%s\n' "Installed to:" "  $(MPV_SCRIPTS_DIR)/subminer/main.lua" "  $(MPV_SCRIPTS_DIR)/subminer/" "  $(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
 
