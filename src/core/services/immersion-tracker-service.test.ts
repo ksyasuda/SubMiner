@@ -33,9 +33,30 @@ function makeDbPath(): string {
 
 function cleanupDbPath(dbPath: string): void {
   const dir = path.dirname(dbPath);
-  if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
+  if (!fs.existsSync(dir)) {
+    return;
   }
+
+  const bunRuntime = globalThis as typeof globalThis & {
+    Bun?: {
+      gc?: (force?: boolean) => void;
+    };
+  };
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (process.platform !== 'win32' || err.code !== 'EBUSY') {
+        throw error;
+      }
+      bunRuntime.Bun?.gc?.(true);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
+  }
+
+  // libsql keeps Windows file handles alive after close when prepared statements were used.
 }
 
 test('seam: resolveBoundedInt keeps fallback for invalid values', () => {

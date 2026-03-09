@@ -3,6 +3,7 @@ import type { RendererContext } from '../context';
 
 const PREFERRED_Y_PERCENT_MIN = 2;
 const PREFERRED_Y_PERCENT_MAX = 80;
+const SUBTITLE_EDGE_PADDING_PX = 12;
 
 export type SubtitlePositionController = {
   applyStoredSubtitlePosition: (position: SubtitlePosition | null, source: string) => void;
@@ -11,8 +12,47 @@ export type SubtitlePositionController = {
   persistSubtitlePositionPatch: (patch: Partial<SubtitlePosition>) => void;
 };
 
-function clampYPercent(yPercent: number): number {
-  return Math.max(PREFERRED_Y_PERCENT_MIN, Math.min(PREFERRED_Y_PERCENT_MAX, yPercent));
+function getViewportHeight(): number {
+  return Math.max(window.innerHeight || 0, 1);
+}
+
+function getSubtitleContainerHeight(ctx: RendererContext): number {
+  const container = ctx.dom.subtitleContainer as HTMLElement & {
+    offsetHeight?: number;
+    getBoundingClientRect?: () => { height?: number };
+  };
+  if (typeof container.offsetHeight === 'number' && Number.isFinite(container.offsetHeight)) {
+    return Math.max(container.offsetHeight, 0);
+  }
+  if (typeof container.getBoundingClientRect === 'function') {
+    const height = container.getBoundingClientRect().height;
+    if (typeof height === 'number' && Number.isFinite(height)) {
+      return Math.max(height, 0);
+    }
+  }
+  return 0;
+}
+
+function resolveYPercentClampRange(ctx: RendererContext): { min: number; max: number } {
+  const viewportHeight = getViewportHeight();
+  const subtitleHeight = getSubtitleContainerHeight(ctx);
+  const minPercent = Math.max(PREFERRED_Y_PERCENT_MIN, (SUBTITLE_EDGE_PADDING_PX / viewportHeight) * 100);
+  const maxMarginBottomPx = Math.max(
+    SUBTITLE_EDGE_PADDING_PX,
+    viewportHeight - subtitleHeight - SUBTITLE_EDGE_PADDING_PX,
+  );
+  const maxPercent = Math.min(PREFERRED_Y_PERCENT_MAX, (maxMarginBottomPx / viewportHeight) * 100);
+
+  if (maxPercent < minPercent) {
+    return { min: minPercent, max: minPercent };
+  }
+
+  return { min: minPercent, max: maxPercent };
+}
+
+function clampYPercent(ctx: RendererContext, yPercent: number): number {
+  const { min, max } = resolveYPercentClampRange(ctx);
+  return Math.max(min, Math.min(max, yPercent));
 }
 
 function getPersistedYPercent(ctx: RendererContext, position: SubtitlePosition | null): number {
@@ -53,14 +93,14 @@ export function createInMemorySubtitlePositionController(
     }
 
     const marginBottom = parseFloat(ctx.dom.subtitleContainer.style.marginBottom) || 60;
-    ctx.state.currentYPercent = clampYPercent((marginBottom / window.innerHeight) * 100);
+    ctx.state.currentYPercent = clampYPercent(ctx, (marginBottom / getViewportHeight()) * 100);
     return ctx.state.currentYPercent;
   }
 
   function applyYPercent(yPercent: number): void {
-    const clampedPercent = clampYPercent(yPercent);
+    const clampedPercent = clampYPercent(ctx, yPercent);
     ctx.state.currentYPercent = clampedPercent;
-    const marginBottom = (clampedPercent / 100) * window.innerHeight;
+    const marginBottom = (clampedPercent / 100) * getViewportHeight();
 
     ctx.dom.subtitleContainer.style.position = '';
     ctx.dom.subtitleContainer.style.left = '';
@@ -85,7 +125,7 @@ export function createInMemorySubtitlePositionController(
     }
 
     const defaultMarginBottom = 60;
-    const defaultYPercent = (defaultMarginBottom / window.innerHeight) * 100;
+    const defaultYPercent = (defaultMarginBottom / getViewportHeight()) * 100;
     applyYPercent(defaultYPercent);
     console.log('Applied default subtitle position from', source);
   }

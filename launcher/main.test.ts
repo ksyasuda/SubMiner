@@ -51,10 +51,16 @@ function runLauncher(argv: string[], env: NodeJS.ProcessEnv): RunResult {
 }
 
 function makeTestEnv(homeDir: string, xdgConfigHome: string): NodeJS.ProcessEnv {
+  const pathValue = process.env.Path || process.env.PATH || '';
   return {
     ...process.env,
     HOME: homeDir,
+    USERPROFILE: homeDir,
+    APPDATA: xdgConfigHome,
+    LOCALAPPDATA: path.join(homeDir, 'AppData', 'Local'),
     XDG_CONFIG_HOME: xdgConfigHome,
+    PATH: pathValue,
+    Path: pathValue,
   };
 }
 
@@ -75,13 +81,14 @@ test('config path uses XDG_CONFIG_HOME override', () => {
 test('config discovery ignores lowercase subminer candidate', () => {
   const homeDir = '/home/tester';
   const xdgConfigHome = '/tmp/xdg-config';
-  const expected = path.join(xdgConfigHome, 'SubMiner', 'config.jsonc');
-  const foundPaths = new Set([path.join(xdgConfigHome, 'subminer', 'config.json')]);
+  const expected = path.posix.join(xdgConfigHome, 'SubMiner', 'config.jsonc');
+  const foundPaths = new Set([path.posix.join(xdgConfigHome, 'subminer', 'config.json')]);
 
   const resolved = resolveConfigFilePath({
     xdgConfigHome,
     homeDir,
-    existsSync: (candidate) => foundPaths.has(path.normalize(candidate)),
+    platform: 'linux',
+    existsSync: (candidate) => foundPaths.has(path.posix.normalize(candidate)),
   });
 
   assert.equal(resolved, expected);
@@ -138,6 +145,12 @@ test('mpv status exits non-zero when socket is not ready', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
+    const socketPath = path.join(root, 'missing.sock');
+    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
+    fs.writeFileSync(
+      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+      `socket_path=${socketPath}\n`,
+    );
     const result = runLauncher(['mpv', 'status'], makeTestEnv(homeDir, xdgConfigHome));
 
     assert.equal(result.status, 1);
@@ -152,6 +165,7 @@ test('doctor reports checks and exits non-zero without hard dependencies', () =>
     const env = {
       ...makeTestEnv(homeDir, xdgConfigHome),
       PATH: '',
+      Path: '',
     };
     const result = runLauncher(['doctor'], env);
 
@@ -184,7 +198,7 @@ test('youtube command rejects removed --mode option', () => {
   });
 });
 
-test('youtube playback generates subtitles before mpv launch', () => {
+test('youtube playback generates subtitles before mpv launch', { timeout: 15000 }, () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
@@ -194,6 +208,7 @@ test('youtube playback generates subtitles before mpv launch', () => {
     const mpvCapturePath = path.join(root, 'mpv-order.txt');
     const mpvArgsPath = path.join(root, 'mpv-args.txt');
     const socketPath = path.join(root, 'mpv.sock');
+    const bunBinary = JSON.stringify(process.execPath.replace(/\\/g, '/'));
 
     fs.mkdirSync(binDir, { recursive: true });
     fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
@@ -264,7 +279,7 @@ for arg in "$@"; do
       ;;
   esac
 done
-bun -e "const net=require('node:net'); const fs=require('node:fs'); const socket=process.argv[1]; try { fs.rmSync(socket,{force:true}); } catch {} const server=net.createServer((conn)=>conn.end()); server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250));" "$socket_path"
+${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const socket=process.argv[1]; try { fs.rmSync(socket,{force:true}); } catch {} const server=net.createServer((conn)=>conn.end()); server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250));" "$socket_path"
 `,
       'utf8',
     );
@@ -272,7 +287,8 @@ bun -e "const net=require('node:net'); const fs=require('node:fs'); const socket
 
     const env = {
       ...makeTestEnv(homeDir, xdgConfigHome),
-      PATH: `${binDir}${path.delimiter}${process.env.PATH || ''}`,
+      PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_YTDLP_LOG: ytdlpLogPath,
       SUBMINER_TEST_MPV_ORDER: mpvCapturePath,
@@ -280,7 +296,7 @@ bun -e "const net=require('node:net'); const fs=require('node:fs'); const socket
     };
     const result = runLauncher(['youtube', 'https://www.youtube.com/watch?v=test123'], env);
 
-    assert.equal(result.status, 0);
+    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
     assert.equal(fs.readFileSync(mpvCapturePath, 'utf8').trim(), 'generated-before-mpv');
     assert.match(
       fs.readFileSync(mpvArgsPath, 'utf8'),
@@ -528,15 +544,20 @@ test('parseJellyfinPreviewAuthResponse returns null for invalid payloads', () =>
 });
 
 test('deriveJellyfinTokenStorePath resolves alongside config path', () => {
-  const tokenPath = deriveJellyfinTokenStorePath('/home/test/.config/SubMiner/config.jsonc');
-  assert.equal(tokenPath, '/home/test/.config/SubMiner/jellyfin-token-store.json');
+  const configPath = path.join('/home/test', '.config', 'SubMiner', 'config.jsonc');
+  const tokenPath = deriveJellyfinTokenStorePath(configPath);
+  assert.equal(tokenPath, path.join(path.dirname(configPath), 'jellyfin-token-store.json'));
 });
 
 test('hasStoredJellyfinSession checks token-store existence', () => {
-  const exists = (candidate: string): boolean =>
-    candidate === '/home/test/.config/SubMiner/jellyfin-token-store.json';
-  assert.equal(hasStoredJellyfinSession('/home/test/.config/SubMiner/config.jsonc', exists), true);
-  assert.equal(hasStoredJellyfinSession('/home/test/.config/Other/alt.jsonc', exists), false);
+  const configPath = path.join('/home/test', '.config', 'SubMiner', 'config.jsonc');
+  const tokenPath = deriveJellyfinTokenStorePath(configPath);
+  const exists = (candidate: string): boolean => candidate === tokenPath;
+  assert.equal(hasStoredJellyfinSession(configPath, exists), true);
+  assert.equal(
+    hasStoredJellyfinSession(path.join('/home/test', '.config', 'Other', 'alt.jsonc'), exists),
+    false,
+  );
 });
 
 test('shouldRetryWithStartForNoRunningInstance matches expected app lifecycle error', () => {

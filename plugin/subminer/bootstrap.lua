@@ -1,6 +1,12 @@
 local M = {}
+local BOOTSTRAP_GUARD_KEY = "__subminer_plugin_bootstrapped"
 
 function M.init()
+	if rawget(_G, BOOTSTRAP_GUARD_KEY) == true then
+		return
+	end
+	rawset(_G, BOOTSTRAP_GUARD_KEY, true)
+
 	local input = require("mp.input")
 	local mp = require("mp")
 	local msg = require("mp.msg")

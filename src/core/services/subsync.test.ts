@@ -147,6 +147,28 @@ function writeExecutableScript(filePath: string, content: string): void {
   fs.chmodSync(filePath, 0o755);
 }
 
+function toShellPath(filePath: string): string {
+  if (process.platform !== 'win32') {
+    return filePath;
+  }
+
+  return filePath.replace(/\\/g, '/').replace(/^([A-Za-z]):\//, (_, driveLetter: string) => {
+    return `/mnt/${driveLetter.toLowerCase()}/`;
+  });
+}
+
+function fromShellPath(filePath: string): string {
+  if (process.platform !== 'win32') {
+    return filePath;
+  }
+
+  return filePath
+    .replace(/^\/mnt\/([a-z])\//, (_, driveLetter: string) => {
+      return `${driveLetter.toUpperCase()}:/`;
+    })
+    .replace(/\//g, '\\');
+}
+
 test('runSubsyncManual constructs ffsubsync command and returns success', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-ffsubsync-'));
   const ffsubsyncLogPath = path.join(tmpDir, 'ffsubsync-args.log');
@@ -162,7 +184,7 @@ test('runSubsyncManual constructs ffsubsync command and returns success', async 
   writeExecutableScript(alassPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(
     ffsubsyncPath,
-    `#!/bin/sh\n: > "${ffsubsyncLogPath}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${ffsubsyncLogPath}"; done\nout=\"\"\nprev=\"\"\nfor arg in \"$@\"; do\n  if [ \"$prev\" = \"-o\" ]; then out=\"$arg\"; fi\n  prev=\"$arg\"\ndone\nif [ -n \"$out\" ]; then : > \"$out\"; fi\nexit 0\n`,
+    `#!/bin/sh\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nout=\"\"\nprev=\"\"\nfor arg in \"$@\"; do\n  if [ \"$prev\" = \"-o\" ]; then out=\"$arg\"; fi\n  prev=\"$arg\"\ndone\nif [ -n \"$out\" ]; then : > \"$out\"; fi\nexit 0\n`,
   );
 
   const sentCommands: Array<Array<string | number>> = [];
@@ -204,14 +226,14 @@ test('runSubsyncManual constructs ffsubsync command and returns success', async 
   assert.equal(result.ok, true);
   assert.equal(result.message, 'Subtitle synchronized with ffsubsync');
   const ffArgs = fs.readFileSync(ffsubsyncLogPath, 'utf8').trim().split('\n');
-  assert.equal(ffArgs[0], videoPath);
+  assert.equal(ffArgs[0], toShellPath(videoPath));
   assert.ok(ffArgs.includes('-i'));
-  assert.ok(ffArgs.includes(primaryPath));
+  assert.ok(ffArgs.includes(toShellPath(primaryPath)));
   assert.ok(ffArgs.includes('--reference-stream'));
   assert.ok(ffArgs.includes('0:2'));
   const ffOutputFlagIndex = ffArgs.indexOf('-o');
   assert.equal(ffOutputFlagIndex >= 0, true);
-  assert.equal(ffArgs[ffOutputFlagIndex + 1], primaryPath);
+  assert.equal(ffArgs[ffOutputFlagIndex + 1], toShellPath(primaryPath));
   assert.equal(sentCommands[0]?.[0], 'sub_add');
   assert.deepEqual(sentCommands[1], ['set_property', 'sub-delay', 0]);
 });
@@ -231,7 +253,7 @@ test('runSubsyncManual writes deterministic _retimed filename when replace is fa
   writeExecutableScript(alassPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(
     ffsubsyncPath,
-    `#!/bin/sh\n: > "${ffsubsyncLogPath}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${ffsubsyncLogPath}"; done\nout=\"\"\nprev=\"\"\nfor arg in \"$@\"; do\n  if [ \"$prev\" = \"-o\" ]; then out=\"$arg\"; fi\n  prev=\"$arg\"\ndone\nif [ -n \"$out\" ]; then : > \"$out\"; fi\nexit 0\n`,
+    `#!/bin/sh\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nout=\"\"\nprev=\"\"\nfor arg in \"$@\"; do\n  if [ \"$prev\" = \"-o\" ]; then out=\"$arg\"; fi\n  prev=\"$arg\"\ndone\nif [ -n \"$out\" ]; then : > \"$out\"; fi\nexit 0\n`,
   );
 
   const deps = makeDeps({
@@ -273,7 +295,7 @@ test('runSubsyncManual writes deterministic _retimed filename when replace is fa
   const ffOutputFlagIndex = ffArgs.indexOf('-o');
   assert.equal(ffOutputFlagIndex >= 0, true);
   const outputPath = ffArgs[ffOutputFlagIndex + 1];
-  assert.equal(outputPath, path.join(tmpDir, 'episode.ja_retimed.srt'));
+  assert.equal(outputPath, toShellPath(path.join(tmpDir, 'episode.ja_retimed.srt')));
 });
 
 test('runSubsyncManual reports ffsubsync command failures with details', async () => {
@@ -346,7 +368,7 @@ test('runSubsyncManual constructs alass command and returns failure on non-zero 
   writeExecutableScript(ffsubsyncPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(
     alassPath,
-    `#!/bin/sh\n: > "${alassLogPath}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${alassLogPath}"; done\nexit 1\n`,
+    `#!/bin/sh\n: > "${toShellPath(alassLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(alassLogPath)}"; done\nexit 1\n`,
   );
 
   const deps = makeDeps({
@@ -393,8 +415,8 @@ test('runSubsyncManual constructs alass command and returns failure on non-zero 
   assert.equal(typeof result.message, 'string');
   assert.equal(result.message.startsWith('alass synchronization failed'), true);
   const alassArgs = fs.readFileSync(alassLogPath, 'utf8').trim().split('\n');
-  assert.equal(alassArgs[0], sourcePath);
-  assert.equal(alassArgs[1], primaryPath);
+  assert.equal(alassArgs[0], toShellPath(sourcePath));
+  assert.equal(alassArgs[1], toShellPath(primaryPath));
 });
 
 test('runSubsyncManual keeps internal alass source file alive until sync finishes', async () => {
@@ -482,7 +504,7 @@ test('runSubsyncManual resolves string sid values from mpv stream properties', a
   writeExecutableScript(alassPath, '#!/bin/sh\nexit 0\n');
   writeExecutableScript(
     ffsubsyncPath,
-    `#!/bin/sh\nmkdir -p "${tmpDir}"\n: > "${ffsubsyncLogPath}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${ffsubsyncLogPath}"; done\nprev=""\nout=""\nfor arg in "$@"; do\n  if [ "$prev" = "--reference-stream" ]; then :; fi\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then : > "$out"; fi`,
+    `#!/bin/sh\nmkdir -p "${toShellPath(tmpDir)}"\n: > "${toShellPath(ffsubsyncLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(ffsubsyncLogPath)}"; done\nprev=""\nout=""\nfor arg in "$@"; do\n  if [ "$prev" = "--reference-stream" ]; then :; fi\n  if [ "$prev" = "-o" ]; then out="$arg"; fi\n  prev="$arg"\ndone\nif [ -n "$out" ]; then : > "$out"; fi`,
   );
 
   const deps = makeDeps({
@@ -526,5 +548,5 @@ test('runSubsyncManual resolves string sid values from mpv stream properties', a
   const outputPath = ffArgs[syncOutputIndex + 1];
   assert.equal(typeof outputPath, 'string');
   assert.ok(outputPath!.length > 0);
-  assert.equal(fs.readFileSync(outputPath!, 'utf8'), '');
+  assert.equal(fs.readFileSync(fromShellPath(outputPath!), 'utf8'), '');
 });

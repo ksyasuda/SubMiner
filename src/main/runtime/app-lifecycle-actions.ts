@@ -19,6 +19,10 @@ export function createOnWillQuitCleanupHandler(deps: {
   clearAnilistSetupWindow: () => void;
   destroyJellyfinSetupWindow: () => void;
   clearJellyfinSetupWindow: () => void;
+  destroyFirstRunSetupWindow: () => void;
+  clearFirstRunSetupWindow: () => void;
+  destroyYomitanSettingsWindow: () => void;
+  clearYomitanSettingsWindow: () => void;
   stopJellyfinRemoteSession: () => void;
   stopDiscordPresenceService: () => void;
 }) {
@@ -43,6 +47,10 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.clearAnilistSetupWindow();
     deps.destroyJellyfinSetupWindow();
     deps.clearJellyfinSetupWindow();
+    deps.destroyFirstRunSetupWindow();
+    deps.clearFirstRunSetupWindow();
+    deps.destroyYomitanSettingsWindow();
+    deps.clearYomitanSettingsWindow();
     deps.stopJellyfinRemoteSession();
     deps.stopDiscordPresenceService();
   };

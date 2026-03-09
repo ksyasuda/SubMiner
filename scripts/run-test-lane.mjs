@@ -1,8 +1,9 @@
 import { readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const repoRoot = resolve(new URL('..', import.meta.url).pathname);
+const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 const lanes = {
   'bun-src-full': {

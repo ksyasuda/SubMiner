@@ -12,6 +12,25 @@ function backupExistingPath(targetPath: string): void {
   fs.renameSync(targetPath, `${targetPath}.bak.${timestamp()}`);
 }
 
+function resolveLegacyPluginLoaderPath(installPaths: MpvInstallPaths): string {
+  return path.join(installPaths.scriptsDir, 'subminer.lua');
+}
+
+function resolveLegacyPluginDebugLoaderPath(installPaths: MpvInstallPaths): string {
+  return path.join(installPaths.scriptsDir, 'subminer-loader.lua');
+}
+
+function rewriteInstalledWindowsPluginConfig(configPath: string): void {
+  const content = fs.readFileSync(configPath, 'utf8');
+  const updated = content.replace(
+    /^socket_path=.*$/m,
+    'socket_path=\\\\.\\pipe\\subminer-socket',
+  );
+  if (updated !== content) {
+    fs.writeFileSync(configPath, updated, 'utf8');
+  }
+}
+
 export function resolvePackagedFirstRunPluginAssets(deps: {
   dirname: string;
   appPath: string;
@@ -32,7 +51,11 @@ export function resolvePackagedFirstRunPluginAssets(deps: {
   for (const root of roots) {
     const pluginDirSource = joinPath(root, 'subminer');
     const pluginConfigSource = joinPath(root, 'subminer.conf');
-    if (existsSync(pluginDirSource) && existsSync(pluginConfigSource)) {
+    if (
+      existsSync(pluginDirSource) &&
+      existsSync(pluginConfigSource) &&
+      existsSync(joinPath(pluginDirSource, 'main.lua'))
+    ) {
       return { pluginDirSource, pluginConfigSource };
     }
   }
@@ -45,7 +68,11 @@ export function detectInstalledFirstRunPlugin(
   deps?: { existsSync?: (candidate: string) => boolean },
 ): boolean {
   const existsSync = deps?.existsSync ?? fs.existsSync;
-  return existsSync(installPaths.pluginDir) && existsSync(installPaths.pluginConfigPath);
+  return (
+    existsSync(installPaths.pluginEntrypointPath) &&
+    existsSync(installPaths.pluginDir) &&
+    existsSync(installPaths.pluginConfigPath)
+  );
 }
 
 export function installFirstRunPluginToDefaultLocation(options: {
@@ -86,10 +113,15 @@ export function installFirstRunPluginToDefaultLocation(options: {
 
   fs.mkdirSync(installPaths.scriptsDir, { recursive: true });
   fs.mkdirSync(installPaths.scriptOptsDir, { recursive: true });
+  backupExistingPath(resolveLegacyPluginLoaderPath(installPaths));
+  backupExistingPath(resolveLegacyPluginDebugLoaderPath(installPaths));
   backupExistingPath(installPaths.pluginDir);
   backupExistingPath(installPaths.pluginConfigPath);
   fs.cpSync(assets.pluginDirSource, installPaths.pluginDir, { recursive: true });
   fs.copyFileSync(assets.pluginConfigSource, installPaths.pluginConfigPath);
+  if (options.platform === 'win32') {
+    rewriteInstalledWindowsPluginConfig(installPaths.pluginConfigPath);
+  }
 
   return {
     ok: true,

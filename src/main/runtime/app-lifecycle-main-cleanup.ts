@@ -44,6 +44,10 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   clearAnilistSetupWindow: () => void;
   getJellyfinSetupWindow: () => Destroyable | null;
   clearJellyfinSetupWindow: () => void;
+  getFirstRunSetupWindow: () => Destroyable | null;
+  clearFirstRunSetupWindow: () => void;
+  getYomitanSettingsWindow: () => Destroyable | null;
+  clearYomitanSettingsWindow: () => void;
 
   stopJellyfinRemoteSession: () => void;
   stopDiscordPresenceService: () => void;
@@ -98,6 +102,14 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
       deps.getJellyfinSetupWindow()?.destroy();
     },
     clearJellyfinSetupWindow: () => deps.clearJellyfinSetupWindow(),
+    destroyFirstRunSetupWindow: () => {
+      deps.getFirstRunSetupWindow()?.destroy();
+    },
+    clearFirstRunSetupWindow: () => deps.clearFirstRunSetupWindow(),
+    destroyYomitanSettingsWindow: () => {
+      deps.getYomitanSettingsWindow()?.destroy();
+    },
+    clearYomitanSettingsWindow: () => deps.clearYomitanSettingsWindow(),
     stopJellyfinRemoteSession: () => deps.stopJellyfinRemoteSession(),
     stopDiscordPresenceService: () => deps.stopDiscordPresenceService(),
   });

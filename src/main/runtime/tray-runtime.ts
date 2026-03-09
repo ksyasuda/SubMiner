@@ -33,6 +33,8 @@ export type TrayMenuActionHandlers = {
   openOverlay: () => void;
   openFirstRunSetup: () => void;
   showFirstRunSetup: boolean;
+  openWindowsMpvLauncherSetup: () => void;
+  showWindowsMpvLauncherSetup: boolean;
   openYomitanSettings: () => void;
   openRuntimeOptions: () => void;
   openJellyfinSetup: () => void;
@@ -55,6 +57,14 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
           {
             label: 'Complete Setup',
             click: handlers.openFirstRunSetup,
+          },
+        ]
+      : []),
+    ...(handlers.showWindowsMpvLauncherSetup
+      ? [
+          {
+            label: 'Manage Windows mpv launcher',
+            click: handlers.openWindowsMpvLauncherSetup,
           },
         ]
       : []),

@@ -8,18 +8,21 @@ import {
 } from './yomitan-extension-paths';
 
 test('getYomitanExtensionSearchPaths prioritizes generated build output before packaged fallbacks', () => {
+  const repoRoot = path.resolve('repo');
+  const resourcesPath = path.join(path.sep, 'opt', 'SubMiner', 'resources');
+  const userDataPath = path.join(path.sep, 'Users', 'kyle', '.config', 'SubMiner');
   const searchPaths = getYomitanExtensionSearchPaths({
-    cwd: '/repo',
-    moduleDir: '/repo/dist/core/services',
-    resourcesPath: '/opt/SubMiner/resources',
-    userDataPath: '/Users/kyle/.config/SubMiner',
+    cwd: repoRoot,
+    moduleDir: path.join(repoRoot, 'dist', 'core', 'services'),
+    resourcesPath,
+    userDataPath,
   });
 
   assert.deepEqual(searchPaths, [
-    path.join('/repo', 'build', 'yomitan'),
-    path.join('/opt/SubMiner/resources', 'yomitan'),
+    path.join(repoRoot, 'build', 'yomitan'),
+    path.join(resourcesPath, 'yomitan'),
     '/usr/share/SubMiner/yomitan',
-    path.join('/Users/kyle/.config/SubMiner', 'yomitan'),
+    path.join(userDataPath, 'yomitan'),
   ]);
 });
 

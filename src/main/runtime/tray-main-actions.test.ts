@@ -43,6 +43,7 @@ test('build tray template handler wires actions and init guards', () => {
     buildTrayMenuTemplateRuntime: (handlers) => {
       handlers.openOverlay();
       handlers.openFirstRunSetup();
+      handlers.openWindowsMpvLauncherSetup();
       handlers.openYomitanSettings();
       handlers.openRuntimeOptions();
       handlers.openJellyfinSetup();
@@ -58,6 +59,7 @@ test('build tray template handler wires actions and init guards', () => {
     setVisibleOverlayVisible: (visible) => calls.push(`visible:${visible}`),
     showFirstRunSetup: () => true,
     openFirstRunSetupWindow: () => calls.push('setup'),
+    showWindowsMpvLauncherSetup: () => true,
     openYomitanSettings: () => calls.push('yomitan'),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     openJellyfinSetupWindow: () => calls.push('jellyfin'),
@@ -70,6 +72,7 @@ test('build tray template handler wires actions and init guards', () => {
   assert.deepEqual(calls, [
     'init',
     'visible:true',
+    'setup',
     'setup',
     'yomitan',
     'runtime-options',

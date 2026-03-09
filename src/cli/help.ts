@@ -12,6 +12,7 @@ ${B}Usage:${R} subminer ${D}[command] [options]${R}
 ${B}Session${R}
   --background                   Start in tray/background mode
   --start                        Connect to mpv and launch overlay
+  --launch-mpv ${D}[targets...]${R}       Launch mpv with the SubMiner mpv profile and exit
   --stop                         Stop the running instance
   --texthooker                   Start texthooker server only ${D}(no overlay)${R}
 
@@ -68,7 +69,7 @@ ${B}Jellyfin${R}
 
 ${B}Options${R}
   --socket ${D}PATH${R}                  mpv IPC socket path
-  --backend ${D}BACKEND${R}              Window tracker ${D}(auto, hyprland, sway, x11, macos)${R}
+  --backend ${D}BACKEND${R}              Window tracker ${D}(auto, hyprland, sway, x11, macos, windows)${R}
   --port ${D}PORT${R}                    Texthooker server port ${D}(default: ${defaultTexthookerPort})${R}
   --log-level ${D}LEVEL${R}              ${D}debug | info | warn | error${R}
   --debug                        Enable debug mode ${D}(alias: --dev)${R}

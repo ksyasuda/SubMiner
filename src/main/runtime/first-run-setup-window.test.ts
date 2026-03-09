@@ -4,6 +4,7 @@ import {
   buildFirstRunSetupHtml,
   createHandleFirstRunSetupNavigationHandler,
   createMaybeFocusExistingFirstRunSetupWindowHandler,
+  createOpenFirstRunSetupWindowHandler,
   parseFirstRunSetupSubmissionUrl,
 } from './first-run-setup-window';
 
@@ -14,6 +15,14 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
     canFinish: false,
     pluginStatus: 'optional',
     pluginInstallPathSummary: null,
+    windowsMpvShortcuts: {
+      supported: false,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: false,
+      desktopInstalled: false,
+      status: 'optional',
+    },
     message: 'Waiting for dictionaries',
   });
 
@@ -31,6 +40,14 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
     canFinish: true,
     pluginStatus: 'installed',
     pluginInstallPathSummary: '/tmp/mpv',
+    windowsMpvShortcuts: {
+      supported: true,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: true,
+      desktopInstalled: false,
+      status: 'installed',
+    },
     message: null,
   });
 
@@ -60,8 +77,8 @@ test('first-run setup navigation handler prevents default and dispatches action'
   const calls: string[] = [];
   const handleNavigation = createHandleFirstRunSetupNavigationHandler({
     parseSubmissionUrl: (url) => parseFirstRunSetupSubmissionUrl(url),
-    handleAction: async (action) => {
-      calls.push(action);
+    handleAction: async (submission) => {
+      calls.push(submission.action);
     },
     logError: (message) => calls.push(message),
   });
@@ -74,4 +91,72 @@ test('first-run setup navigation handler prevents default and dispatches action'
   assert.equal(prevented, true);
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(calls, ['preventDefault', 'install-plugin']);
+});
+
+test('closing incomplete first-run setup quits app outside background mode', async () => {
+  const calls: string[] = [];
+  let closedHandler: (() => void) | undefined;
+  const handler = createOpenFirstRunSetupWindowHandler({
+    maybeFocusExistingSetupWindow: () => false,
+    createSetupWindow: () =>
+      ({
+        webContents: {
+          on: () => {},
+        },
+        loadURL: async () => undefined,
+        on: (event: 'closed', callback: () => void) => {
+          if (event === 'closed') {
+            closedHandler = callback;
+          }
+        },
+        isDestroyed: () => false,
+        close: () => calls.push('close-window'),
+        focus: () => {},
+      }) as never,
+    getSetupSnapshot: async () => ({
+      configReady: false,
+      dictionaryCount: 0,
+      canFinish: false,
+      pluginStatus: 'optional',
+      pluginInstallPathSummary: null,
+      windowsMpvShortcuts: {
+        supported: false,
+        startMenuEnabled: true,
+        desktopEnabled: true,
+        startMenuInstalled: false,
+        desktopInstalled: false,
+        status: 'optional',
+      },
+      message: null,
+    }),
+    buildSetupHtml: () => '<html></html>',
+    parseSubmissionUrl: () => null,
+    handleAction: async () => undefined,
+    markSetupInProgress: async () => undefined,
+    markSetupCancelled: async () => {
+      calls.push('cancelled');
+    },
+    isSetupCompleted: () => false,
+    shouldQuitWhenClosedIncomplete: () => true,
+    quitApp: () => {
+      calls.push('quit');
+    },
+    clearSetupWindow: () => {
+      calls.push('clear');
+    },
+    setSetupWindow: () => {
+      calls.push('set');
+    },
+    encodeURIComponent: (value) => value,
+    logError: () => {},
+  });
+
+  handler();
+  if (typeof closedHandler !== 'function') {
+    throw new Error('expected closed handler');
+  }
+  closedHandler();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(calls, ['set', 'cancelled', 'clear', 'quit']);
 });

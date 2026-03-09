@@ -90,6 +90,9 @@ export function initializeOverlayRuntime(options: {
     windowTracker.onGeometryChange = (geometry: WindowGeometry) => {
       options.updateVisibleOverlayBounds(geometry);
     };
+    windowTracker.onTargetWindowFocusChange = () => {
+      options.syncOverlayShortcuts();
+    };
     windowTracker.onWindowFound = (geometry: WindowGeometry) => {
       options.updateVisibleOverlayBounds(geometry);
       if (options.isVisibleOverlayVisible()) {

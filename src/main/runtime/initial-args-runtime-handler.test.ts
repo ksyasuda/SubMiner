@@ -7,6 +7,7 @@ test('initial args runtime handler composes main deps and runs initial command f
   const handleInitialArgs = createInitialArgsRuntimeHandler({
     getInitialArgs: () => ({ start: true }) as never,
     isBackgroundMode: () => true,
+    shouldEnsureTrayOnStartup: () => false,
     ensureTray: () => calls.push('tray'),
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => true,

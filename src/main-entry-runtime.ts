@@ -45,6 +45,9 @@ export function normalizeStartupArgv(argv: string[], env: NodeJS.ProcessEnv): st
 
   const effectiveArgs = removePassiveStartupArgs(argv.slice(1));
   if (effectiveArgs.length === 0) {
+    if (process.platform === 'win32') {
+      return [...argv, START_ARG];
+    }
     return [...argv, START_ARG, BACKGROUND_ARG];
   }
 
@@ -72,6 +75,15 @@ export function shouldHandleHelpOnlyAtEntry(argv: string[], env: NodeJS.ProcessE
   return args.help && !shouldStartApp(args);
 }
 
+export function shouldHandleLaunchMpvAtEntry(argv: string[], env: NodeJS.ProcessEnv): boolean {
+  if (env.ELECTRON_RUN_AS_NODE === '1') return false;
+  return parseCliArgs(argv).launchMpv;
+}
+
+export function normalizeLaunchMpvTargets(argv: string[]): string[] {
+  return parseCliArgs(argv).launchMpvTargets;
+}
+
 export function sanitizeStartupEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env = { ...baseEnv };
   if (!env.NODE_NO_WARNINGS) {
@@ -82,6 +94,10 @@ export function sanitizeStartupEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEn
 }
 
 export function sanitizeHelpEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return sanitizeStartupEnv(baseEnv);
+}
+
+export function sanitizeLaunchMpvEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return sanitizeStartupEnv(baseEnv);
 }
 

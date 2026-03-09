@@ -5,12 +5,36 @@ import { log } from '../log.js';
 import type { LogLevel, PluginRuntimeConfig } from '../types.js';
 import { DEFAULT_SOCKET_PATH } from '../types.js';
 
-export function getPluginConfigCandidates(): string[] {
-  const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
+function getPlatformPath(platform: NodeJS.Platform): typeof path.posix | typeof path.win32 {
+  return platform === 'win32' ? path.win32 : path.posix;
+}
+
+export function getPluginConfigCandidates(options?: {
+  platform?: NodeJS.Platform;
+  homeDir?: string;
+  xdgConfigHome?: string;
+  appDataDir?: string;
+}): string[] {
+  const platform = options?.platform ?? process.platform;
+  const homeDir = options?.homeDir ?? os.homedir();
+  const platformPath = getPlatformPath(platform);
+
+  if (platform === 'win32') {
+    const appDataDir =
+      options?.appDataDir?.trim() ||
+      process.env.APPDATA?.trim() ||
+      platformPath.join(homeDir, 'AppData', 'Roaming');
+    return [platformPath.join(appDataDir, 'mpv', 'script-opts', 'subminer.conf')];
+  }
+
+  const xdgConfigHome =
+    options?.xdgConfigHome?.trim() ||
+    process.env.XDG_CONFIG_HOME ||
+    platformPath.join(homeDir, '.config');
   return Array.from(
     new Set([
-      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
-      path.join(os.homedir(), '.config', 'mpv', 'script-opts', 'subminer.conf'),
+      platformPath.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+      platformPath.join(homeDir, '.config', 'mpv', 'script-opts', 'subminer.conf'),
     ]),
   );
 }

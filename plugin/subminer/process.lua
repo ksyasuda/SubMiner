@@ -411,6 +411,28 @@ function M.create(ctx)
 		show_osd("Stopped")
 	end
 
+	local function hide_visible_overlay()
+		if not binary.ensure_binary_available() then
+			subminer_log("error", "binary", "SubMiner binary not found")
+			return
+		end
+
+		run_control_command_async("hide-visible-overlay", nil, function(ok, result)
+			if ok then
+				subminer_log("info", "process", "Visible overlay hidden")
+			else
+				subminer_log(
+					"warn",
+					"process",
+					"Hide-visible-overlay command returned non-zero status: "
+						.. tostring(result and result.status or "unknown")
+				)
+			end
+		end)
+
+		disarm_auto_play_ready_gate()
+	end
+
 	local function toggle_overlay()
 		if not binary.ensure_binary_available() then
 			subminer_log("error", "binary", "SubMiner binary not found")
@@ -511,6 +533,7 @@ function M.create(ctx)
 		start_overlay = start_overlay,
 		start_overlay_from_script_message = start_overlay_from_script_message,
 		stop_overlay = stop_overlay,
+		hide_visible_overlay = hide_visible_overlay,
 		toggle_overlay = toggle_overlay,
 		open_options = open_options,
 		restart_overlay = restart_overlay,

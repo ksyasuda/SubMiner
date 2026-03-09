@@ -17,4 +17,5 @@ paths=(
   "src"
 )
 
-exec bunx prettier "$@" "${paths[@]}"
+BUN_BIN="$(command -v bun.exe || command -v bun)"
+exec "$BUN_BIN" x prettier "$@" "${paths[@]}"

@@ -6,15 +6,23 @@ import { resolveConfigDir } from '../config/path-resolution';
 export type SetupStateStatus = 'incomplete' | 'in_progress' | 'completed' | 'cancelled';
 export type SetupCompletionSource = 'user' | 'legacy_auto_detected' | null;
 export type SetupPluginInstallStatus = 'unknown' | 'installed' | 'skipped' | 'failed';
+export type SetupWindowsMpvShortcutInstallStatus = 'unknown' | 'installed' | 'skipped' | 'failed';
+
+export interface SetupWindowsMpvShortcutPreferences {
+  startMenuEnabled: boolean;
+  desktopEnabled: boolean;
+}
 
 export interface SetupState {
-  version: 1;
+  version: 2;
   status: SetupStateStatus;
   completedAt: string | null;
   completionSource: SetupCompletionSource;
   lastSeenYomitanDictionaryCount: number;
   pluginInstallStatus: SetupPluginInstallStatus;
   pluginInstallPathSummary: string | null;
+  windowsMpvShortcutPreferences: SetupWindowsMpvShortcutPreferences;
+  windowsMpvShortcutLastStatus: SetupWindowsMpvShortcutInstallStatus;
 }
 
 export interface ConfigFilePaths {
@@ -27,8 +35,13 @@ export interface MpvInstallPaths {
   mpvConfigDir: string;
   scriptsDir: string;
   scriptOptsDir: string;
+  pluginEntrypointPath: string;
   pluginDir: string;
   pluginConfigPath: string;
+}
+
+function getPlatformPath(platform: NodeJS.Platform): typeof path.posix | typeof path.win32 {
+  return platform === 'win32' ? path.win32 : path.posix;
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -39,25 +52,33 @@ function asObject(value: unknown): Record<string, unknown> | null {
 
 export function createDefaultSetupState(): SetupState {
   return {
-    version: 1,
+    version: 2,
     status: 'incomplete',
     completedAt: null,
     completionSource: null,
     lastSeenYomitanDictionaryCount: 0,
     pluginInstallStatus: 'unknown',
     pluginInstallPathSummary: null,
+    windowsMpvShortcutPreferences: {
+      startMenuEnabled: true,
+      desktopEnabled: true,
+    },
+    windowsMpvShortcutLastStatus: 'unknown',
   };
 }
 
 export function normalizeSetupState(value: unknown): SetupState | null {
   const record = asObject(value);
   if (!record) return null;
+  const version = record.version;
   const status = record.status;
   const pluginInstallStatus = record.pluginInstallStatus;
   const completionSource = record.completionSource;
+  const windowsPrefs = asObject(record.windowsMpvShortcutPreferences);
+  const windowsMpvShortcutLastStatus = record.windowsMpvShortcutLastStatus;
 
   if (
-    record.version !== 1 ||
+    (version !== 1 && version !== 2) ||
     (status !== 'incomplete' &&
       status !== 'in_progress' &&
       status !== 'completed' &&
@@ -66,6 +87,11 @@ export function normalizeSetupState(value: unknown): SetupState | null {
       pluginInstallStatus !== 'installed' &&
       pluginInstallStatus !== 'skipped' &&
       pluginInstallStatus !== 'failed') ||
+    (version === 2 &&
+      windowsMpvShortcutLastStatus !== 'unknown' &&
+      windowsMpvShortcutLastStatus !== 'installed' &&
+      windowsMpvShortcutLastStatus !== 'skipped' &&
+      windowsMpvShortcutLastStatus !== 'failed') ||
     (completionSource !== null &&
       completionSource !== 'user' &&
       completionSource !== 'legacy_auto_detected')
@@ -74,7 +100,7 @@ export function normalizeSetupState(value: unknown): SetupState | null {
   }
 
   return {
-    version: 1,
+    version: 2,
     status,
     completedAt: typeof record.completedAt === 'string' ? record.completedAt : null,
     completionSource,
@@ -87,6 +113,24 @@ export function normalizeSetupState(value: unknown): SetupState | null {
     pluginInstallStatus,
     pluginInstallPathSummary:
       typeof record.pluginInstallPathSummary === 'string' ? record.pluginInstallPathSummary : null,
+    windowsMpvShortcutPreferences: {
+      startMenuEnabled:
+        version === 2 && typeof windowsPrefs?.startMenuEnabled === 'boolean'
+          ? windowsPrefs.startMenuEnabled
+          : true,
+      desktopEnabled:
+        version === 2 && typeof windowsPrefs?.desktopEnabled === 'boolean'
+          ? windowsPrefs.desktopEnabled
+          : true,
+    },
+    windowsMpvShortcutLastStatus:
+      version === 2 &&
+      (windowsMpvShortcutLastStatus === 'unknown' ||
+        windowsMpvShortcutLastStatus === 'installed' ||
+        windowsMpvShortcutLastStatus === 'skipped' ||
+        windowsMpvShortcutLastStatus === 'failed')
+        ? windowsMpvShortcutLastStatus
+        : 'unknown',
   };
 }
 
@@ -95,11 +139,15 @@ export function isSetupCompleted(state: SetupState | null | undefined): boolean 
 }
 
 export function getDefaultConfigDir(options?: {
+  platform?: NodeJS.Platform;
+  appDataDir?: string;
   xdgConfigHome?: string;
   homeDir?: string;
   existsSync?: (candidate: string) => boolean;
 }): string {
   return resolveConfigDir({
+    platform: options?.platform ?? process.platform,
+    appDataDir: options?.appDataDir ?? process.env.APPDATA,
     xdgConfigHome: options?.xdgConfigHome ?? process.env.XDG_CONFIG_HOME,
     homeDir: options?.homeDir ?? os.homedir(),
     existsSync: options?.existsSync ?? fs.existsSync,
@@ -160,15 +208,17 @@ export function ensureDefaultConfigBootstrap(options: {
   const existsSync = options.existsSync ?? fs.existsSync;
   const mkdirSync = options.mkdirSync ?? fs.mkdirSync;
   const writeFileSync = options.writeFileSync ?? fs.writeFileSync;
+  const configDirExists = existsSync(options.configDir);
 
-  mkdirSync(options.configDir, { recursive: true });
   if (
     existsSync(options.configFilePaths.jsoncPath) ||
-    existsSync(options.configFilePaths.jsonPath)
+    existsSync(options.configFilePaths.jsonPath) ||
+    configDirExists
   ) {
     return;
   }
 
+  mkdirSync(options.configDir, { recursive: true });
   writeFileSync(options.configFilePaths.jsoncPath, options.generateTemplate(), 'utf8');
 }
 
@@ -177,19 +227,21 @@ export function resolveDefaultMpvInstallPaths(
   homeDir: string,
   xdgConfigHome?: string,
 ): MpvInstallPaths {
+  const platformPath = getPlatformPath(platform);
   const mpvConfigDir =
     platform === 'darwin'
-      ? path.join(homeDir, 'Library', 'Application Support', 'mpv')
+      ? platformPath.join(homeDir, 'Library', 'Application Support', 'mpv')
       : platform === 'linux'
-        ? path.join(xdgConfigHome?.trim() || path.join(homeDir, '.config'), 'mpv')
-        : path.join(homeDir, 'AppData', 'Roaming', 'mpv');
+        ? platformPath.join(xdgConfigHome?.trim() || platformPath.join(homeDir, '.config'), 'mpv')
+        : platformPath.join(homeDir, 'AppData', 'Roaming', 'mpv');
 
   return {
-    supported: platform === 'linux' || platform === 'darwin',
+    supported: platform === 'linux' || platform === 'darwin' || platform === 'win32',
     mpvConfigDir,
-    scriptsDir: path.join(mpvConfigDir, 'scripts'),
-    scriptOptsDir: path.join(mpvConfigDir, 'script-opts'),
-    pluginDir: path.join(mpvConfigDir, 'scripts', 'subminer'),
-    pluginConfigPath: path.join(mpvConfigDir, 'script-opts', 'subminer.conf'),
+    scriptsDir: platformPath.join(mpvConfigDir, 'scripts'),
+    scriptOptsDir: platformPath.join(mpvConfigDir, 'script-opts'),
+    pluginEntrypointPath: platformPath.join(mpvConfigDir, 'scripts', 'subminer', 'main.lua'),
+    pluginDir: platformPath.join(mpvConfigDir, 'scripts', 'subminer'),
+    pluginConfigPath: platformPath.join(mpvConfigDir, 'script-opts', 'subminer.conf'),
   };
 }

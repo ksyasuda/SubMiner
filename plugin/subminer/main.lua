@@ -22,4 +22,9 @@ if not package.path:find(module_patterns, 1, true) then
 	package.path = module_patterns .. package.path
 end
 
-require("init").init()
+local init_module = assert(loadfile(script_dir .. "/init.lua"))()
+if type(init_module) == "table" and type(init_module.init) == "function" then
+	init_module.init()
+elseif type(init_module) == "function" then
+	init_module()
+end

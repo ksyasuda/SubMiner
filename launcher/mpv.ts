@@ -9,8 +9,10 @@ import { log, fail, getMpvLogPath } from './log.js';
 import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
 import {
   commandExists,
+  getPathEnv,
   isExecutable,
   resolveBinaryPathCandidate,
+  resolveCommandInvocation,
   realpathMaybe,
   isYoutubeTarget,
   uniqueNormalizedLangCodes,
@@ -25,6 +27,11 @@ export const state = {
   appPath: '' as string,
   overlayManagedByLauncher: false,
   stopRequested: false,
+};
+
+type SpawnTarget = {
+  command: string;
+  args: string[];
 };
 
 const DETACHED_IDLE_MPV_PID_FILE = path.join(os.tmpdir(), 'subminer-idle-mpv.pid');
@@ -199,7 +206,8 @@ export function findAppBinary(selfPath: string): string | null {
     if (isExecutable(candidate)) return candidate;
   }
 
-  const fromPath = process.env.PATH?.split(path.delimiter)
+  const fromPath = getPathEnv()
+    .split(path.delimiter)
     .map((dir) => path.join(dir, 'subminer'))
     .find((candidate) => isExecutable(candidate));
 
@@ -512,7 +520,8 @@ export async function startMpv(
   mpvArgs.push(`--input-ipc-server=${socketPath}`);
   mpvArgs.push(target);
 
-  state.mpvProc = spawn('mpv', mpvArgs, { stdio: 'inherit' });
+  const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);
+  state.mpvProc = spawn(mpvTarget.command, mpvTarget.args, { stdio: 'inherit' });
 }
 
 async function waitForOverlayStartCommandSettled(
@@ -563,7 +572,8 @@ export async function startOverlay(appPath: string, args: Args, socketPath: stri
   if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
   if (args.useTexthooker) overlayArgs.push('--texthooker');
 
-  state.overlayProc = spawn(appPath, overlayArgs, {
+  const target = resolveAppSpawnTarget(appPath, overlayArgs);
+  state.overlayProc = spawn(target.command, target.args, {
     stdio: 'inherit',
     env: { ...process.env, SUBMINER_MPV_LOG: getMpvLogPath() },
   });
@@ -682,8 +692,30 @@ function buildAppEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
+function maybeCaptureAppArgs(appArgs: string[]): boolean {
+  const capturePath = process.env.SUBMINER_TEST_CAPTURE?.trim();
+  if (!capturePath) {
+    return false;
+  }
+
+  fs.writeFileSync(capturePath, `${appArgs.join('\n')}${appArgs.length > 0 ? '\n' : ''}`, 'utf8');
+  return true;
+}
+
+function resolveAppSpawnTarget(appPath: string, appArgs: string[]): SpawnTarget {
+  if (process.platform !== 'win32') {
+    return { command: appPath, args: appArgs };
+  }
+  return resolveCommandInvocation(appPath, appArgs);
+}
+
 export function runAppCommandWithInherit(appPath: string, appArgs: string[]): never {
-  const result = spawnSync(appPath, appArgs, {
+  if (maybeCaptureAppArgs(appArgs)) {
+    process.exit(0);
+  }
+
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  const result = spawnSync(target.command, target.args, {
     stdio: 'inherit',
     env: buildAppEnv(),
   });
@@ -702,7 +734,16 @@ export function runAppCommandCaptureOutput(
   stderr: string;
   error?: Error;
 } {
-  const result = spawnSync(appPath, appArgs, {
+  if (maybeCaptureAppArgs(appArgs)) {
+    return {
+      status: 0,
+      stdout: '',
+      stderr: '',
+    };
+  }
+
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  const result = spawnSync(target.command, target.args, {
     env: buildAppEnv(),
     encoding: 'utf8',
   });
@@ -721,8 +762,17 @@ export function runAppCommandWithInheritLogged(
   logLevel: LogLevel,
   label: string,
 ): never {
-  log('debug', logLevel, `${label}: launching app with args: ${appArgs.join(' ')}`);
-  const result = spawnSync(appPath, appArgs, {
+  if (maybeCaptureAppArgs(appArgs)) {
+    process.exit(0);
+  }
+
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  log(
+    'debug',
+    logLevel,
+    `${label}: launching app with args: ${[target.command, ...target.args].join(' ')}`,
+  );
+  const result = spawnSync(target.command, target.args, {
     stdio: 'inherit',
     env: buildAppEnv(),
   });
@@ -736,7 +786,11 @@ export function runAppCommandWithInheritLogged(
 export function launchAppStartDetached(appPath: string, logLevel: LogLevel): void {
   const startArgs = ['--start'];
   if (logLevel !== 'info') startArgs.push('--log-level', logLevel);
-  const proc = spawn(appPath, startArgs, {
+  if (maybeCaptureAppArgs(startArgs)) {
+    return;
+  }
+  const target = resolveAppSpawnTarget(appPath, startArgs);
+  const proc = spawn(target.command, target.args, {
     stdio: 'ignore',
     detached: true,
     env: buildAppEnv(),
@@ -766,7 +820,8 @@ export function launchMpvIdleDetached(
     );
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);
-    const proc = spawn('mpv', mpvArgs, {
+    const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);
+    const proc = spawn(mpvTarget.command, mpvTarget.args, {
       stdio: 'ignore',
       detached: true,
     });

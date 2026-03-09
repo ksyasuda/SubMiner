@@ -7,22 +7,26 @@ test('waitForSetupCompletion resolves completed and cancelled states', async () 
   const sequence: Array<SetupState | null> = [
     null,
     {
-      version: 1,
+      version: 2,
       status: 'in_progress',
       completedAt: null,
       completionSource: null,
       lastSeenYomitanDictionaryCount: 0,
       pluginInstallStatus: 'unknown',
       pluginInstallPathSummary: null,
+      windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+      windowsMpvShortcutLastStatus: 'unknown',
     },
     {
-      version: 1,
+      version: 2,
       status: 'completed',
       completedAt: '2026-03-07T00:00:00.000Z',
       completionSource: 'user',
       lastSeenYomitanDictionaryCount: 1,
       pluginInstallStatus: 'skipped',
       pluginInstallPathSummary: null,
+      windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+      windowsMpvShortcutLastStatus: 'skipped',
     },
   ];
 
@@ -50,23 +54,27 @@ test('ensureLauncherSetupReady launches setup app and resumes only after complet
       if (reads === 1) return null;
       if (reads === 2) {
         return {
-          version: 1,
+          version: 2,
           status: 'in_progress',
           completedAt: null,
           completionSource: null,
           lastSeenYomitanDictionaryCount: 0,
           pluginInstallStatus: 'unknown',
           pluginInstallPathSummary: null,
+          windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+          windowsMpvShortcutLastStatus: 'unknown',
         };
       }
       return {
-        version: 1,
+        version: 2,
         status: 'completed',
         completedAt: '2026-03-07T00:00:00.000Z',
         completionSource: 'user',
         lastSeenYomitanDictionaryCount: 1,
         pluginInstallStatus: 'installed',
         pluginInstallPathSummary: '/tmp/mpv',
+        windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+        windowsMpvShortcutLastStatus: 'installed',
       };
     },
     launchSetupApp: () => {
@@ -88,13 +96,15 @@ test('ensureLauncherSetupReady launches setup app and resumes only after complet
 test('ensureLauncherSetupReady fails on timeout/cancelled state', async () => {
   const result = await ensureLauncherSetupReady({
     readSetupState: () => ({
-      version: 1,
+      version: 2,
       status: 'cancelled',
       completedAt: null,
       completionSource: null,
       lastSeenYomitanDictionaryCount: 0,
       pluginInstallStatus: 'unknown',
       pluginInstallPathSummary: null,
+      windowsMpvShortcutPreferences: { startMenuEnabled: true, desktopEnabled: true },
+      windowsMpvShortcutLastStatus: 'unknown',
     }),
     launchSetupApp: () => undefined,
     sleep: async () => undefined,

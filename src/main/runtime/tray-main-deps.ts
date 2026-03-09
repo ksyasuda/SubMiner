@@ -30,6 +30,8 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
     openOverlay: () => void;
     openFirstRunSetup: () => void;
     showFirstRunSetup: boolean;
+    openWindowsMpvLauncherSetup: () => void;
+    showWindowsMpvLauncherSetup: boolean;
     openYomitanSettings: () => void;
     openRuntimeOptions: () => void;
     openJellyfinSetup: () => void;
@@ -41,6 +43,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
   setVisibleOverlayVisible: (visible: boolean) => void;
   showFirstRunSetup: () => boolean;
   openFirstRunSetupWindow: () => void;
+  showWindowsMpvLauncherSetup: () => boolean;
   openYomitanSettings: () => void;
   openRuntimeOptionsPalette: () => void;
   openJellyfinSetupWindow: () => void;
@@ -54,6 +57,7 @@ export function createBuildTrayMenuTemplateMainDepsHandler<TMenuItem>(deps: {
     setVisibleOverlayVisible: deps.setVisibleOverlayVisible,
     showFirstRunSetup: deps.showFirstRunSetup,
     openFirstRunSetupWindow: deps.openFirstRunSetupWindow,
+    showWindowsMpvLauncherSetup: deps.showWindowsMpvLauncherSetup,
     openYomitanSettings: deps.openYomitanSettings,
     openRuntimeOptionsPalette: deps.openRuntimeOptionsPalette,
     openJellyfinSetupWindow: deps.openJellyfinSetupWindow,

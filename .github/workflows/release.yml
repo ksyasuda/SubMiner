@@ -10,6 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
@@ -25,11 +26,6 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.5
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.12.0
 
       - name: Cache dependencies
         uses: actions/cache@v4
@@ -84,11 +80,6 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.5
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.12.0
 
       - name: Cache dependencies
         uses: actions/cache@v4
@@ -146,11 +137,6 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.5
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.12.0
 
       - name: Cache dependencies
         uses: actions/cache@v4
@@ -211,8 +197,100 @@ jobs:
             release/*.dmg
             release/*.zip
 
+  build-windows:
+    needs: [quality-gate]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            vendor/texthooker-ui/node_modules
+            vendor/subminer-yomitan/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'vendor/texthooker-ui/package.json', 'vendor/subminer-yomitan/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Validate Windows signing secrets
+        shell: bash
+        run: |
+          missing=0
+          for name in SIGNPATH_API_TOKEN SIGNPATH_ORGANIZATION_ID SIGNPATH_PROJECT_SLUG SIGNPATH_SIGNING_POLICY_SLUG; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Set the SignPath Windows signing secrets and rerun."
+            exit 1
+          fi
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build texthooker-ui
+        shell: powershell
+        run: |
+          Set-Location vendor/texthooker-ui
+          bun install
+          bun run build
+
+      - name: Build unsigned Windows artifacts
+        run: bun run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload unsigned Windows artifact for SignPath
+        id: upload-unsigned-windows-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-windows
+          path: |
+            release/*.exe
+            release/*.zip
+          if-no-files-found: error
+
+      - name: Submit Windows signing request
+        id: signpath-sign
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-windows-artifact.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-windows
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload signed Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            signed-windows/*.exe
+            signed-windows/*.zip
+
   release:
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -230,6 +308,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: macos
+          path: release
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows
           path: release
 
       - name: Setup Bun
@@ -270,7 +354,7 @@ jobs:
       - name: Generate checksums
         run: |
           shopt -s nullglob
-          files=(release/*.AppImage release/*.dmg release/*.zip release/*.tar.gz dist/launcher/subminer)
+          files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz dist/launcher/subminer)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No release artifacts found for checksum generation."
             exit 1
@@ -308,6 +392,7 @@ jobs:
           artifacts=(
             release/*.AppImage
             release/*.dmg
+            release/*.exe
             release/*.zip
             release/*.tar.gz
             release/SHA256SUMS.txt

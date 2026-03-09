@@ -112,7 +112,7 @@ export function generateConfigTemplate(
   lines.push(' *');
   lines.push(' * This file is auto-generated from src/config/definitions.ts.');
   lines.push(
-    ' * Copy to $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) and edit as needed.',
+    ' * Copy to %APPDATA%/SubMiner/config.jsonc on Windows, or $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) on Linux/macOS.',
   );
   lines.push(' */');
   lines.push('{');

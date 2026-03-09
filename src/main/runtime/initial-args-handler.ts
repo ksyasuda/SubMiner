@@ -8,6 +8,7 @@ type MpvClientLike = {
 export function createHandleInitialArgsHandler(deps: {
   getInitialArgs: () => CliArgs | null;
   isBackgroundMode: () => boolean;
+  shouldEnsureTrayOnStartup: () => boolean;
   ensureTray: () => void;
   isTexthookerOnlyMode: () => boolean;
   hasImmersionTracker: () => boolean;
@@ -19,7 +20,7 @@ export function createHandleInitialArgsHandler(deps: {
     const initialArgs = deps.getInitialArgs();
     if (!initialArgs) return;
 
-    if (deps.isBackgroundMode()) {
+    if (deps.isBackgroundMode() || deps.shouldEnsureTrayOnStartup()) {
       deps.ensureTray();
     }
 

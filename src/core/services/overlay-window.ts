@@ -1,11 +1,9 @@
-import electron from 'electron';
-import type { BrowserWindow } from 'electron';
+import { BrowserWindow } from 'electron';
 import * as path from 'path';
 import { WindowGeometry } from '../../types';
 import { createLogger } from '../../logger';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 
-const { BrowserWindow: ElectronBrowserWindow } = electron;
 const logger = createLogger('main:overlay-window');
 const overlayWindowLayerByInstance = new WeakMap<BrowserWindow, OverlayWindowKind>();
 
@@ -20,7 +18,7 @@ function loadOverlayWindowLayer(window: BrowserWindow, layer: OverlayWindowKind)
     .loadFile(htmlPath, {
       query: { layer },
     })
-    .catch((err: unknown) => {
+    .catch((err) => {
       logger.error('Failed to load HTML file:', err);
     });
 }
@@ -65,6 +63,11 @@ export function ensureOverlayWindowLevel(window: BrowserWindow): void {
     window.setFullScreenable(false);
     return;
   }
+  if (process.platform === 'win32') {
+    window.setAlwaysOnTop(true, 'screen-saver', 1);
+    window.moveTop();
+    return;
+  }
   window.setAlwaysOnTop(true);
 }
 
@@ -92,7 +95,8 @@ export function createOverlayWindow(
     onWindowClosed: (kind: OverlayWindowKind) => void;
   },
 ): BrowserWindow {
-  const window = new ElectronBrowserWindow({
+  const showNativeDebugFrame = process.platform === 'win32' && options.isDev;
+  const window = new BrowserWindow({
     show: false,
     width: 800,
     height: 600,
@@ -106,6 +110,7 @@ export function createOverlayWindow(
     hasShadow: false,
     focusable: true,
     acceptFirstMouse: true,
+    ...(process.platform === 'win32' ? { thickFrame: showNativeDebugFrame } : {}),
     webPreferences: {
       preload: path.join(__dirname, '..', '..', 'preload.js'),
       contextIsolation: true,
@@ -162,6 +167,9 @@ export function createOverlayWindow(
   window.on('blur', () => {
     if (!window.isDestroyed()) {
       options.ensureOverlayWindowLevel(window);
+      if (kind === 'visible' && window.isVisible()) {
+        window.moveTop();
+      }
     }
   });
 

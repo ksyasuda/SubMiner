@@ -4,6 +4,7 @@ import { resolveConfigFilePath } from '../src/config/path-resolution.js';
 
 export function resolveMainConfigPath(): string {
   return resolveConfigFilePath({
+    appDataDir: process.env.APPDATA,
     xdgConfigHome: process.env.XDG_CONFIG_HOME,
     homeDir: os.homedir(),
     existsSync: fs.existsSync,

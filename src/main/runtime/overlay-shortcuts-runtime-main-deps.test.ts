@@ -13,8 +13,7 @@ test('overlay shortcuts runtime main deps builder maps lifecycle and action call
       calls.push(`registered:${registered}`);
     },
     isOverlayRuntimeInitialized: () => true,
-    isMacOSPlatform: () => true,
-    isTrackedMpvWindowFocused: () => false,
+    isOverlayShortcutContextActive: () => false,
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     openJimaku: () => calls.push('jimaku'),
@@ -42,8 +41,7 @@ test('overlay shortcuts runtime main deps builder maps lifecycle and action call
   })();
 
   assert.equal(deps.isOverlayRuntimeInitialized(), true);
-  assert.equal(deps.isMacOSPlatform(), true);
-  assert.equal(deps.isTrackedMpvWindowFocused(), false);
+  assert.equal(deps.isOverlayShortcutContextActive?.(), false);
   assert.equal(deps.getShortcutsRegistered(), false);
   deps.setShortcutsRegistered(true);
   assert.equal(shortcutsRegistered, true);

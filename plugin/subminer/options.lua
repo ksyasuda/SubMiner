@@ -1,5 +1,27 @@
 local M = {}
 
+local function normalize_socket_path_option(socket_path, default_socket_path)
+	if type(default_socket_path) ~= "string" then
+		return socket_path
+	end
+
+	local trimmed_default = default_socket_path:match("^%s*(.-)%s*$")
+	local trimmed_socket = type(socket_path) == "string" and socket_path:match("^%s*(.-)%s*$") or socket_path
+	if trimmed_default ~= "\\\\.\\pipe\\subminer-socket" then
+		return trimmed_socket
+	end
+	if type(trimmed_socket) ~= "string" or trimmed_socket == "" then
+		return trimmed_default
+	end
+	if trimmed_socket == "/tmp/subminer-socket" or trimmed_socket == "\\tmp\\subminer-socket" then
+		return trimmed_default
+	end
+	if trimmed_socket == "\\\\.\\pipe\\tmp\\subminer-socket" then
+		return trimmed_default
+	end
+	return trimmed_socket
+end
+
 function M.load(options_lib, default_socket_path)
 	local opts = {
 		binary_path = "",
@@ -25,6 +47,7 @@ function M.load(options_lib, default_socket_path)
 	}
 
 	options_lib.read_options(opts, "subminer")
+	opts.socket_path = normalize_socket_path_option(opts.socket_path, default_socket_path)
 	return opts
 end
 

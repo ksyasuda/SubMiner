@@ -29,6 +29,7 @@ test('tray runtime handlers compose resolve/menu/ensure/destroy handlers', () =>
       },
       showFirstRunSetup: () => true,
       openFirstRunSetupWindow: () => {},
+      showWindowsMpvLauncherSetup: () => true,
       openYomitanSettings: () => {},
       openRuntimeOptionsPalette: () => {},
       openJellyfinSetupWindow: () => {},
