@@ -1,11 +1,11 @@
 ---
 id: TASK-137
 title: Cut patch release v0.5.2 for SignPath artifact config pinning
-status: In Progress
+status: Done
 assignee:
   - codex
 created_date: '2026-03-08 20:44'
-updated_date: '2026-03-08 20:44'
+updated_date: '2026-03-08 20:58'
 labels:
   - release
   - patch
@@ -39,3 +39,19 @@ Publish a patch release from the SignPath artifact-configuration pinning change 
 3. Run changelog/typecheck/test verification.
 4. Commit the release-prep change set, create `v0.5.2`, and push commit plus tag.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Bumped `package.json` from `0.5.1` to `0.5.2`, ran `bun run changelog:build`, and committed the generated release artifacts. That prepended the `v0.5.2` section to `CHANGELOG.md`, regenerated `release/release-notes.md`, and removed the consumed `changes/signpath-artifact-config-pin.md` fragment.
+
+Verification before tagging: `bun run changelog:lint`, `bun run changelog:check --version 0.5.2`, `bun run typecheck`, and `bun run test:fast`.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Prepared patch release `v0.5.2` so the explicit SignPath artifact-configuration pin ships on a fresh release tag. Version metadata, committed changelog artifacts, and release notes are aligned with the new patch version.
+
+Validation: `bun run changelog:lint`, `bun run changelog:check --version 0.5.2`, `bun run typecheck`, `bun run test:fast`.
+<!-- SECTION:FINAL_SUMMARY:END -->

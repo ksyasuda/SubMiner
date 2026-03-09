@@ -1,11 +1,11 @@
 ---
 id: TASK-136
 title: Pin SignPath artifact configuration in release workflow
-status: In Progress
+status: Done
 assignee:
   - codex
 created_date: '2026-03-08 20:41'
-updated_date: '2026-03-08 20:41'
+updated_date: '2026-03-08 20:58'
 labels:
   - ci
   - release
@@ -41,3 +41,21 @@ The Windows release workflow currently relies on the default SignPath artifact c
 3. Run targeted release-workflow verification plus the standard fast lane.
 4. Cut a new patch release so the tag-triggered release workflow runs with the pinned SignPath configuration.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Added regression coverage in `src/release-workflow.test.ts` for an explicit SignPath artifact-configuration slug so the release workflow test now fails if the slug validation or action input is removed.
+
+Patched `.github/workflows/release.yml` so Windows signing now requires `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG` during secret validation and passes `artifact-configuration-slug: ${{ secrets.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}` on every SignPath submission attempt.
+
+Verification: `bun test src/release-workflow.test.ts`, `bun run typecheck`, `bun run test:fast`.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The release workflow is now pinned to an explicit SignPath artifact configuration instead of relying on whichever SignPath artifact config is marked default in the UI. Windows signing secret validation fails fast if `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG` is missing, and every SignPath submission attempt now includes the pinned slug.
+
+Validation: `bun test src/release-workflow.test.ts`, `bun run typecheck`, `bun run test:fast`.
+<!-- SECTION:FINAL_SUMMARY:END -->
