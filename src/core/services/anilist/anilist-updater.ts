@@ -1,4 +1,5 @@
 import * as childProcess from 'child_process';
+import * as path from 'path';
 
 import { parseMediaInfo } from '../../../jimaku/utils';
 
@@ -86,6 +87,32 @@ function firstString(value: unknown): string | null {
       const candidate = firstString(item);
       if (candidate) return candidate;
     }
+  }
+  return null;
+}
+
+function normalizeGuessitTitlePart(value: string): string {
+  return value
+    .replace(/[._]+/g, ' ')
+    .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function readGuessitTitle(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const normalized = normalizeGuessitTitlePart(value);
+    return normalized.length > 0 ? normalized : null;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => normalizeGuessitTitlePart(item))
+      .filter((item) => item.length > 0);
+    if (parts.length === 0) {
+      return null;
+    }
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
   }
   return null;
 }
@@ -184,12 +211,13 @@ export async function guessAnilistMediaInfo(
   deps: GuessAnilistMediaInfoDeps = { runGuessit },
 ): Promise<AnilistMediaGuess | null> {
   const target = mediaPath ?? mediaTitle;
+  const guessitTarget = mediaPath ? path.basename(mediaPath) : mediaTitle;
 
-  if (target && target.trim().length > 0) {
+  if (guessitTarget && guessitTarget.trim().length > 0) {
     try {
-      const stdout = await deps.runGuessit(target);
+      const stdout = await deps.runGuessit(guessitTarget);
       const parsed = JSON.parse(stdout) as Record<string, unknown>;
-      const title = firstString(parsed.title);
+      const title = readGuessitTitle(parsed.title);
       const episode = firstPositiveInteger(parsed.episode);
       if (title) {
         return { title, episode, source: 'guessit' };

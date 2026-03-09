@@ -34,6 +34,44 @@ test('guessAnilistMediaInfo falls back to parser when guessit fails', async () =
   });
 });
 
+test('guessAnilistMediaInfo uses basename for guessit input', async () => {
+  const mediaPath =
+    '/truenas/jellyfin/anime/Rascal-Does-not-Dream-of-Bunny-Girl-Senapi/Season-1/Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E01 - 001 - My Senpai Is a Bunny Girl [Bluray-1080p][10bit][x265][Opus 2.0][JA]-Subs.mkv';
+  const seenTargets: string[] = [];
+  const result = await guessAnilistMediaInfo(mediaPath, null, {
+    runGuessit: async (target) => {
+      seenTargets.push(target);
+      return JSON.stringify({
+        title: 'Rascal Does Not Dream of Bunny Girl Senpai',
+        episode: 1,
+      });
+    },
+  });
+  assert.deepEqual(seenTargets, [
+    'Rascal Does Not Dream of Bunny Girl Senpai (2018) - S01E01 - 001 - My Senpai Is a Bunny Girl [Bluray-1080p][10bit][x265][Opus 2.0][JA]-Subs.mkv',
+  ]);
+  assert.deepEqual(result, {
+    title: 'Rascal Does Not Dream of Bunny Girl Senpai',
+    episode: 1,
+    source: 'guessit',
+  });
+});
+
+test('guessAnilistMediaInfo joins multi-part guessit titles', async () => {
+  const result = await guessAnilistMediaInfo('/tmp/demo.mkv', null, {
+    runGuessit: async () =>
+      JSON.stringify({
+        title: ['Rascal', 'Does-not-Dream-of-Bunny-Girl-Senpai'],
+        episode: 1,
+      }),
+  });
+  assert.deepEqual(result, {
+    title: 'Rascal Does not Dream of Bunny Girl Senpai',
+    episode: 1,
+    source: 'guessit',
+  });
+});
+
 test('updateAnilistPostWatchProgress updates progress when behind', async () => {
   const originalFetch = globalThis.fetch;
   let call = 0;
