@@ -15,19 +15,24 @@ type ConfigPathOptions = {
 const DEFAULT_APP_NAMES = ['SubMiner'] as const;
 const DEFAULT_FILE_NAMES = ['config.jsonc', 'config.json'] as const;
 
+function getPlatformPath(platform: NodeJS.Platform): typeof path.posix | typeof path.win32 {
+  return platform === 'win32' ? path.win32 : path.posix;
+}
+
 export function resolveConfigBaseDirs(
   xdgConfigHome: string | undefined,
   homeDir: string,
   platform: NodeJS.Platform = process.platform,
   appDataDir?: string,
 ): string[] {
+  const platformPath = getPlatformPath(platform);
   if (platform === 'win32') {
-    const roamingBaseDir = path.join(homeDir, 'AppData', 'Roaming');
+    const roamingBaseDir = platformPath.join(homeDir, 'AppData', 'Roaming');
     const primaryBaseDir = appDataDir?.trim() || roamingBaseDir;
     return Array.from(new Set([primaryBaseDir, roamingBaseDir]));
   }
 
-  const fallbackBaseDir = path.join(homeDir, '.config');
+  const fallbackBaseDir = platformPath.join(homeDir, '.config');
   const primaryBaseDir = xdgConfigHome?.trim() || fallbackBaseDir;
   return Array.from(new Set([primaryBaseDir, fallbackBaseDir]));
 }
@@ -41,19 +46,21 @@ function getDefaultAppName(options: ConfigPathOptions): string {
 }
 
 export function resolveConfigDir(options: ConfigPathOptions): string {
+  const platform = options.platform ?? process.platform;
+  const platformPath = getPlatformPath(platform);
   const baseDirs = resolveConfigBaseDirs(
     options.xdgConfigHome,
     options.homeDir,
-    options.platform,
+    platform,
     options.appDataDir,
   );
   const appNames = getAppNames(options);
 
   for (const baseDir of baseDirs) {
     for (const appName of appNames) {
-      const dir = path.join(baseDir, appName);
+      const dir = platformPath.join(baseDir, appName);
       for (const fileName of DEFAULT_FILE_NAMES) {
-        if (options.existsSync(path.join(dir, fileName))) {
+        if (options.existsSync(platformPath.join(dir, fileName))) {
           return dir;
         }
       }
@@ -62,21 +69,23 @@ export function resolveConfigDir(options: ConfigPathOptions): string {
 
   for (const baseDir of baseDirs) {
     for (const appName of appNames) {
-      const dir = path.join(baseDir, appName);
+      const dir = platformPath.join(baseDir, appName);
       if (options.existsSync(dir)) {
         return dir;
       }
     }
   }
 
-  return path.join(baseDirs[0]!, getDefaultAppName(options));
+  return platformPath.join(baseDirs[0]!, getDefaultAppName(options));
 }
 
 export function resolveConfigFilePath(options: ConfigPathOptions): string {
+  const platform = options.platform ?? process.platform;
+  const platformPath = getPlatformPath(platform);
   const baseDirs = resolveConfigBaseDirs(
     options.xdgConfigHome,
     options.homeDir,
-    options.platform,
+    platform,
     options.appDataDir,
   );
   const appNames = getAppNames(options);
@@ -84,7 +93,7 @@ export function resolveConfigFilePath(options: ConfigPathOptions): string {
   for (const baseDir of baseDirs) {
     for (const appName of appNames) {
       for (const fileName of DEFAULT_FILE_NAMES) {
-        const candidate = path.join(baseDir, appName, fileName);
+        const candidate = platformPath.join(baseDir, appName, fileName);
         if (options.existsSync(candidate)) {
           return candidate;
         }
@@ -92,5 +101,5 @@ export function resolveConfigFilePath(options: ConfigPathOptions): string {
     }
   }
 
-  return path.join(baseDirs[0]!, getDefaultAppName(options), DEFAULT_FILE_NAMES[0]!);
+  return platformPath.join(baseDirs[0]!, getDefaultAppName(options), DEFAULT_FILE_NAMES[0]!);
 }

@@ -81,14 +81,14 @@ test('config path uses XDG_CONFIG_HOME override', () => {
 test('config discovery ignores lowercase subminer candidate', () => {
   const homeDir = '/home/tester';
   const xdgConfigHome = '/tmp/xdg-config';
-  const expected = path.join(xdgConfigHome, 'SubMiner', 'config.jsonc');
-  const foundPaths = new Set([path.join(xdgConfigHome, 'subminer', 'config.json')]);
+  const expected = path.posix.join(xdgConfigHome, 'SubMiner', 'config.jsonc');
+  const foundPaths = new Set([path.posix.join(xdgConfigHome, 'subminer', 'config.json')]);
 
   const resolved = resolveConfigFilePath({
     xdgConfigHome,
     homeDir,
     platform: 'linux',
-    existsSync: (candidate) => foundPaths.has(path.normalize(candidate)),
+    existsSync: (candidate) => foundPaths.has(path.posix.normalize(candidate)),
   });
 
   assert.equal(resolved, expected);

@@ -40,6 +40,10 @@ export interface MpvInstallPaths {
   pluginConfigPath: string;
 }
 
+function getPlatformPath(platform: NodeJS.Platform): typeof path.posix | typeof path.win32 {
+  return platform === 'win32' ? path.win32 : path.posix;
+}
+
 function asObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -223,20 +227,21 @@ export function resolveDefaultMpvInstallPaths(
   homeDir: string,
   xdgConfigHome?: string,
 ): MpvInstallPaths {
+  const platformPath = getPlatformPath(platform);
   const mpvConfigDir =
     platform === 'darwin'
-      ? path.join(homeDir, 'Library', 'Application Support', 'mpv')
+      ? platformPath.join(homeDir, 'Library', 'Application Support', 'mpv')
       : platform === 'linux'
-        ? path.join(xdgConfigHome?.trim() || path.join(homeDir, '.config'), 'mpv')
-        : path.join(homeDir, 'AppData', 'Roaming', 'mpv');
+        ? platformPath.join(xdgConfigHome?.trim() || platformPath.join(homeDir, '.config'), 'mpv')
+        : platformPath.join(homeDir, 'AppData', 'Roaming', 'mpv');
 
   return {
     supported: platform === 'linux' || platform === 'darwin' || platform === 'win32',
     mpvConfigDir,
-    scriptsDir: path.join(mpvConfigDir, 'scripts'),
-    scriptOptsDir: path.join(mpvConfigDir, 'script-opts'),
-    pluginEntrypointPath: path.join(mpvConfigDir, 'scripts', 'subminer', 'main.lua'),
-    pluginDir: path.join(mpvConfigDir, 'scripts', 'subminer'),
-    pluginConfigPath: path.join(mpvConfigDir, 'script-opts', 'subminer.conf'),
+    scriptsDir: platformPath.join(mpvConfigDir, 'scripts'),
+    scriptOptsDir: platformPath.join(mpvConfigDir, 'script-opts'),
+    pluginEntrypointPath: platformPath.join(mpvConfigDir, 'scripts', 'subminer', 'main.lua'),
+    pluginDir: platformPath.join(mpvConfigDir, 'scripts', 'subminer'),
+    pluginConfigPath: platformPath.join(mpvConfigDir, 'script-opts', 'subminer.conf'),
   };
 }

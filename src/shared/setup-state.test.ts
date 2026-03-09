@@ -30,10 +30,11 @@ test('getDefaultConfigDir prefers existing SubMiner config directory', () => {
     platform: 'linux',
     xdgConfigHome,
     homeDir,
-    existsSync: (candidate) => candidate === path.join(xdgConfigHome, 'SubMiner', 'config.jsonc'),
+    existsSync: (candidate) =>
+      candidate === path.posix.join(xdgConfigHome, 'SubMiner', 'config.jsonc'),
   });
 
-  assert.equal(dir, path.join(xdgConfigHome, 'SubMiner'));
+  assert.equal(dir, path.posix.join(xdgConfigHome, 'SubMiner'));
 });
 
 test('ensureDefaultConfigBootstrap creates config dir and default jsonc only when missing', () => {
@@ -138,27 +139,27 @@ test('resolveDefaultMpvInstallPaths resolves linux, macOS, and Windows defaults'
   const xdgConfigHome = path.join(path.sep, 'tmp', 'xdg');
   assert.deepEqual(resolveDefaultMpvInstallPaths('linux', linuxHomeDir, xdgConfigHome), {
     supported: true,
-    mpvConfigDir: path.join(xdgConfigHome, 'mpv'),
-    scriptsDir: path.join(xdgConfigHome, 'mpv', 'scripts'),
-    scriptOptsDir: path.join(xdgConfigHome, 'mpv', 'script-opts'),
-    pluginEntrypointPath: path.join(xdgConfigHome, 'mpv', 'scripts', 'subminer', 'main.lua'),
-    pluginDir: path.join(xdgConfigHome, 'mpv', 'scripts', 'subminer'),
-    pluginConfigPath: path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+    mpvConfigDir: path.posix.join(xdgConfigHome, 'mpv'),
+    scriptsDir: path.posix.join(xdgConfigHome, 'mpv', 'scripts'),
+    scriptOptsDir: path.posix.join(xdgConfigHome, 'mpv', 'script-opts'),
+    pluginEntrypointPath: path.posix.join(xdgConfigHome, 'mpv', 'scripts', 'subminer', 'main.lua'),
+    pluginDir: path.posix.join(xdgConfigHome, 'mpv', 'scripts', 'subminer'),
+    pluginConfigPath: path.posix.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
   });
 
   const macHomeDir = path.join(path.sep, 'Users', 'tester');
   assert.deepEqual(resolveDefaultMpvInstallPaths('darwin', macHomeDir, undefined), {
     supported: true,
-    mpvConfigDir: path.join(macHomeDir, 'Library', 'Application Support', 'mpv'),
-    scriptsDir: path.join(macHomeDir, 'Library', 'Application Support', 'mpv', 'scripts'),
-    scriptOptsDir: path.join(
+    mpvConfigDir: path.posix.join(macHomeDir, 'Library', 'Application Support', 'mpv'),
+    scriptsDir: path.posix.join(macHomeDir, 'Library', 'Application Support', 'mpv', 'scripts'),
+    scriptOptsDir: path.posix.join(
       macHomeDir,
       'Library',
       'Application Support',
       'mpv',
       'script-opts',
     ),
-    pluginEntrypointPath: path.join(
+    pluginEntrypointPath: path.posix.join(
       macHomeDir,
       'Library',
       'Application Support',
@@ -167,7 +168,7 @@ test('resolveDefaultMpvInstallPaths resolves linux, macOS, and Windows defaults'
       'subminer',
       'main.lua',
     ),
-    pluginDir: path.join(
+    pluginDir: path.posix.join(
       macHomeDir,
       'Library',
       'Application Support',
@@ -175,7 +176,7 @@ test('resolveDefaultMpvInstallPaths resolves linux, macOS, and Windows defaults'
       'scripts',
       'subminer',
     ),
-    pluginConfigPath: path.join(
+    pluginConfigPath: path.posix.join(
       macHomeDir,
       'Library',
       'Application Support',
@@ -187,10 +188,16 @@ test('resolveDefaultMpvInstallPaths resolves linux, macOS, and Windows defaults'
 
   assert.deepEqual(resolveDefaultMpvInstallPaths('win32', 'C:\\Users\\tester', undefined), {
     supported: true,
-    mpvConfigDir: path.join('C:\\Users\\tester', 'AppData', 'Roaming', 'mpv'),
-    scriptsDir: path.join('C:\\Users\\tester', 'AppData', 'Roaming', 'mpv', 'scripts'),
-    scriptOptsDir: path.join('C:\\Users\\tester', 'AppData', 'Roaming', 'mpv', 'script-opts'),
-    pluginEntrypointPath: path.join(
+    mpvConfigDir: path.win32.join('C:\\Users\\tester', 'AppData', 'Roaming', 'mpv'),
+    scriptsDir: path.win32.join('C:\\Users\\tester', 'AppData', 'Roaming', 'mpv', 'scripts'),
+    scriptOptsDir: path.win32.join(
+      'C:\\Users\\tester',
+      'AppData',
+      'Roaming',
+      'mpv',
+      'script-opts',
+    ),
+    pluginEntrypointPath: path.win32.join(
       'C:\\Users\\tester',
       'AppData',
       'Roaming',
@@ -199,8 +206,15 @@ test('resolveDefaultMpvInstallPaths resolves linux, macOS, and Windows defaults'
       'subminer',
       'main.lua',
     ),
-    pluginDir: path.join('C:\\Users\\tester', 'AppData', 'Roaming', 'mpv', 'scripts', 'subminer'),
-    pluginConfigPath: path.join(
+    pluginDir: path.win32.join(
+      'C:\\Users\\tester',
+      'AppData',
+      'Roaming',
+      'mpv',
+      'scripts',
+      'subminer',
+    ),
+    pluginConfigPath: path.win32.join(
       'C:\\Users\\tester',
       'AppData',
       'Roaming',
