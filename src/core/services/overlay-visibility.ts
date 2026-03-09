@@ -14,6 +14,7 @@ export function updateVisibleOverlayVisibility(args: {
   enforceOverlayLayerOrder: () => void;
   syncOverlayShortcuts: () => void;
   isMacOSPlatform?: boolean;
+  isWindowsPlatform?: boolean;
   showOverlayLoadingOsd?: (message: string) => void;
   resolveFallbackBounds?: () => WindowGeometry;
 }): void {
@@ -21,9 +22,24 @@ export function updateVisibleOverlayVisibility(args: {
     return;
   }
 
+  const mainWindow = args.mainWindow;
+
+  const showPassiveVisibleOverlay = (): void => {
+    if (args.isWindowsPlatform) {
+      mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    } else {
+      mainWindow.setIgnoreMouseEvents(false);
+    }
+    args.ensureOverlayWindowLevel(mainWindow);
+    mainWindow.show();
+    if (!args.isWindowsPlatform) {
+      mainWindow.focus();
+    }
+  };
+
   if (!args.visibleOverlayVisible) {
     args.setTrackerNotReadyWarningShown(false);
-    args.mainWindow.hide();
+    mainWindow.hide();
     args.syncOverlayShortcuts();
     return;
   }
@@ -35,31 +51,27 @@ export function updateVisibleOverlayVisibility(args: {
       args.updateVisibleOverlayBounds(geometry);
     }
     args.syncPrimaryOverlayWindowLayer('visible');
-    args.mainWindow.setIgnoreMouseEvents(false);
-    args.ensureOverlayWindowLevel(args.mainWindow);
-    args.mainWindow.show();
-    args.mainWindow.focus();
+    showPassiveVisibleOverlay();
     args.enforceOverlayLayerOrder();
     args.syncOverlayShortcuts();
     return;
   }
 
   if (!args.windowTracker) {
-    if (args.isMacOSPlatform) {
+    if (args.isMacOSPlatform || args.isWindowsPlatform) {
       if (!args.trackerNotReadyWarningShown) {
         args.setTrackerNotReadyWarningShown(true);
-        args.showOverlayLoadingOsd?.('Overlay loading...');
+        if (args.isMacOSPlatform) {
+          args.showOverlayLoadingOsd?.('Overlay loading...');
+        }
       }
-      args.mainWindow.hide();
+      mainWindow.hide();
       args.syncOverlayShortcuts();
       return;
     }
     args.setTrackerNotReadyWarningShown(false);
     args.syncPrimaryOverlayWindowLayer('visible');
-    args.mainWindow.setIgnoreMouseEvents(false);
-    args.ensureOverlayWindowLevel(args.mainWindow);
-    args.mainWindow.show();
-    args.mainWindow.focus();
+    showPassiveVisibleOverlay();
     args.enforceOverlayLayerOrder();
     args.syncOverlayShortcuts();
     return;
@@ -72,8 +84,8 @@ export function updateVisibleOverlayVisibility(args: {
     }
   }
 
-  if (args.isMacOSPlatform) {
-    args.mainWindow.hide();
+  if (args.isMacOSPlatform || args.isWindowsPlatform) {
+    mainWindow.hide();
     args.syncOverlayShortcuts();
     return;
   }
@@ -83,10 +95,7 @@ export function updateVisibleOverlayVisibility(args: {
 
   args.updateVisibleOverlayBounds(fallbackBounds);
   args.syncPrimaryOverlayWindowLayer('visible');
-  args.mainWindow.setIgnoreMouseEvents(false);
-  args.ensureOverlayWindowLevel(args.mainWindow);
-  args.mainWindow.show();
-  args.mainWindow.focus();
+  showPassiveVisibleOverlay();
   args.enforceOverlayLayerOrder();
   args.syncOverlayShortcuts();
 }

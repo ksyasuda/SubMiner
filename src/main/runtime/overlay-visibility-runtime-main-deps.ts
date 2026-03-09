@@ -18,6 +18,7 @@ export function createBuildOverlayVisibilityRuntimeMainDepsHandler(
     enforceOverlayLayerOrder: () => deps.enforceOverlayLayerOrder(),
     syncOverlayShortcuts: () => deps.syncOverlayShortcuts(),
     isMacOSPlatform: () => deps.isMacOSPlatform(),
+    isWindowsPlatform: () => deps.isWindowsPlatform(),
     showOverlayLoadingOsd: (message: string) => deps.showOverlayLoadingOsd(message),
     resolveFallbackBounds: () => deps.resolveFallbackBounds(),
   });

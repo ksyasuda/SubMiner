@@ -1,6 +1,6 @@
 {
   "name": "subminer",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "All-in-one sentence mining overlay with AnkiConnect and dictionary integration",
   "packageManager": "bun@1.3.5",
   "main": "dist/main-entry.js",
@@ -11,8 +11,9 @@
     "get-frequency:electron": "bun run build:yomitan && bun build scripts/get_frequency.ts --format=cjs --target=node --outfile dist/scripts/get_frequency.js --external electron && electron dist/scripts/get_frequency.js --pretty --color-top-x 10000 --yomitan-user-data ~/.config/SubMiner --colorized-line",
     "test-yomitan-parser": "bun run scripts/test-yomitan-parser.ts",
     "test-yomitan-parser:electron": "bun run build:yomitan && bun build scripts/test-yomitan-parser.ts --format=cjs --target=node --outfile dist/scripts/test-yomitan-parser.js --external electron && electron dist/scripts/test-yomitan-parser.js",
-    "build:yomitan": "cd vendor/subminer-yomitan && bun install --frozen-lockfile && bun run build -- --target chrome && rm -rf ../../build/yomitan && mkdir -p ../../build/yomitan && unzip -qo builds/yomitan-chrome.zip -d ../../build/yomitan",
-    "build": "bun run build:yomitan && tsc -p tsconfig.json && bun run build:renderer && cp src/renderer/index.html src/renderer/style.css dist/renderer/ && cp -r src/renderer/fonts dist/renderer/ && bash scripts/build-macos-helper.sh",
+    "build:yomitan": "node scripts/build-yomitan.mjs",
+    "build:assets": "node scripts/prepare-build-assets.mjs",
+    "build": "bun run build:yomitan && tsc -p tsconfig.json && bun run build:renderer && bun run build:assets",
     "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --format=esm --target=es2022 --outfile=dist/renderer/renderer.js --sourcemap",
     "changelog:build": "bun run scripts/build-changelog.ts build",
     "changelog:check": "bun run scripts/build-changelog.ts check",
@@ -26,30 +27,30 @@
     "test:config:src": "bun test src/config/config.test.ts src/config/path-resolution.test.ts src/config/resolve/anki-connect.test.ts src/config/resolve/subtitle-style.test.ts src/config/resolve/jellyfin.test.ts src/config/definitions/domain-registry.test.ts src/generate-config-example.test.ts",
     "test:config:dist": "bun test dist/config/config.test.js dist/config/path-resolution.test.js dist/config/resolve/anki-connect.test.js dist/config/resolve/subtitle-style.test.js dist/config/resolve/jellyfin.test.js dist/config/definitions/domain-registry.test.js dist/generate-config-example.test.js",
     "test:config:smoke:dist": "bun test dist/config/path-resolution.test.js",
-    "test:plugin:src": "lua scripts/test-plugin-start-gate.lua",
+    "test:plugin:src": "lua scripts/test-plugin-start-gate.lua && lua scripts/test-plugin-binary-windows.lua",
     "test:launcher:smoke:src": "bun test launcher/smoke.e2e.test.ts",
     "test:launcher:src": "bun test launcher/config.test.ts launcher/config-domain-parsers.test.ts launcher/mpv.test.ts launcher/parse-args.test.ts launcher/main.test.ts launcher/commands/command-modules.test.ts launcher/smoke.e2e.test.ts && bun run test:plugin:src",
-    "test:core:src": "bun test src/cli/args.test.ts src/cli/help.test.ts src/shared/setup-state.test.ts src/core/services/cli-command.test.ts src/core/services/field-grouping-overlay.test.ts src/core/services/numeric-shortcut-session.test.ts src/core/services/secondary-subtitle.test.ts src/core/services/mpv-render-metrics.test.ts src/core/services/overlay-content-measurement.test.ts src/core/services/mpv-control.test.ts src/core/services/mpv.test.ts src/core/services/runtime-options-ipc.test.ts src/core/services/runtime-config.test.ts src/core/services/yomitan-extension-paths.test.ts src/core/services/config-hot-reload.test.ts src/core/services/discord-presence.test.ts src/core/services/tokenizer.test.ts src/core/services/tokenizer/annotation-stage.test.ts src/core/services/tokenizer/parser-selection-stage.test.ts src/core/services/tokenizer/parser-enrichment-stage.test.ts src/core/services/subsync.test.ts src/core/services/overlay-bridge.test.ts src/core/services/overlay-shortcut-handler.test.ts src/core/services/mining.test.ts src/core/services/anki-jimaku.test.ts src/core/services/jimaku-download-path.test.ts src/core/services/jellyfin.test.ts src/core/services/jellyfin-remote.test.ts src/core/services/immersion-tracker-service.test.ts src/core/services/overlay-runtime-init.test.ts src/core/services/app-ready.test.ts src/core/services/startup-bootstrap.test.ts src/core/services/subtitle-processing-controller.test.ts src/core/services/anilist/anilist-update-queue.test.ts src/core/utils/shortcut-config.test.ts src/main/runtime/first-run-setup-plugin.test.ts src/main/runtime/first-run-setup-service.test.ts src/main/runtime/first-run-setup-window.test.ts src/main/runtime/tray-runtime.test.ts src/main/runtime/tray-main-actions.test.ts src/main/runtime/tray-main-deps.test.ts src/main/runtime/tray-runtime-handlers.test.ts src/main/runtime/cli-command-context-main-deps.test.ts src/main/runtime/app-ready-main-deps.test.ts src/renderer/error-recovery.test.ts src/renderer/subtitle-render.test.ts src/renderer/handlers/mouse.test.ts src/renderer/handlers/keyboard.test.ts src/renderer/modals/jimaku.test.ts src/subsync/utils.test.ts src/main/anilist-url-guard.test.ts src/window-trackers/x11-tracker.test.ts launcher/config.test.ts launcher/config-domain-parsers.test.ts launcher/parse-args.test.ts launcher/main.test.ts launcher/commands/command-modules.test.ts launcher/setup-gate.test.ts",
-    "test:core:dist": "bun test dist/cli/args.test.js dist/cli/help.test.js dist/core/services/cli-command.test.js dist/core/services/ipc.test.js dist/core/services/anki-jimaku-ipc.test.js dist/core/services/field-grouping-overlay.test.js dist/core/services/numeric-shortcut-session.test.js dist/core/services/secondary-subtitle.test.js dist/core/services/mpv-render-metrics.test.js dist/core/services/overlay-content-measurement.test.js dist/core/services/mpv-control.test.js dist/core/services/mpv.test.js dist/core/services/runtime-options-ipc.test.js dist/core/services/runtime-config.test.js dist/core/services/yomitan-extension-paths.test.js dist/core/services/config-hot-reload.test.js dist/core/services/discord-presence.test.js dist/core/services/tokenizer.test.js dist/core/services/tokenizer/annotation-stage.test.js dist/core/services/tokenizer/parser-selection-stage.test.js dist/core/services/tokenizer/parser-enrichment-stage.test.js dist/core/services/subsync.test.js dist/core/services/overlay-bridge.test.js dist/core/services/overlay-manager.test.js dist/core/services/overlay-shortcut-handler.test.js dist/core/services/mining.test.js dist/core/services/anki-jimaku.test.js dist/core/services/jimaku-download-path.test.js dist/core/services/jellyfin.test.js dist/core/services/jellyfin-remote.test.js dist/core/services/immersion-tracker-service.test.js dist/core/services/overlay-runtime-init.test.js dist/core/services/app-ready.test.js dist/core/services/startup-bootstrap.test.js dist/core/services/subtitle-processing-controller.test.js dist/core/services/anilist/anilist-token-store.test.js dist/core/services/anilist/anilist-update-queue.test.js dist/renderer/error-recovery.test.js dist/renderer/subtitle-render.test.js dist/renderer/handlers/mouse.test.js dist/renderer/handlers/keyboard.test.js dist/renderer/modals/jimaku.test.js dist/subsync/utils.test.js dist/main/anilist-url-guard.test.js dist/window-trackers/x11-tracker.test.js",
+    "test:core:src": "bun test src/cli/args.test.ts src/cli/help.test.ts src/shared/setup-state.test.ts src/core/services/cli-command.test.ts src/core/services/field-grouping-overlay.test.ts src/core/services/numeric-shortcut-session.test.ts src/core/services/secondary-subtitle.test.ts src/core/services/mpv-render-metrics.test.ts src/core/services/overlay-content-measurement.test.ts src/core/services/mpv-control.test.ts src/core/services/mpv.test.ts src/core/services/runtime-options-ipc.test.ts src/core/services/runtime-config.test.ts src/core/services/yomitan-extension-paths.test.ts src/core/services/config-hot-reload.test.ts src/core/services/discord-presence.test.ts src/core/services/tokenizer.test.ts src/core/services/tokenizer/annotation-stage.test.ts src/core/services/tokenizer/parser-selection-stage.test.ts src/core/services/tokenizer/parser-enrichment-stage.test.ts src/core/services/subsync.test.ts src/core/services/overlay-bridge.test.ts src/core/services/overlay-shortcut-handler.test.ts src/core/services/mining.test.ts src/core/services/anki-jimaku.test.ts src/core/services/jimaku-download-path.test.ts src/core/services/jellyfin.test.ts src/core/services/jellyfin-remote.test.ts src/core/services/immersion-tracker-service.test.ts src/core/services/overlay-runtime-init.test.ts src/core/services/app-ready.test.ts src/core/services/startup-bootstrap.test.ts src/core/services/subtitle-processing-controller.test.ts src/core/services/anilist/anilist-update-queue.test.ts src/core/utils/shortcut-config.test.ts src/main/runtime/first-run-setup-plugin.test.ts src/main/runtime/first-run-setup-service.test.ts src/main/runtime/first-run-setup-window.test.ts src/main/runtime/tray-runtime.test.ts src/main/runtime/tray-main-actions.test.ts src/main/runtime/tray-main-deps.test.ts src/main/runtime/tray-runtime-handlers.test.ts src/main/runtime/cli-command-context-main-deps.test.ts src/main/runtime/app-ready-main-deps.test.ts src/renderer/error-recovery.test.ts src/renderer/subtitle-render.test.ts src/renderer/handlers/mouse.test.ts src/renderer/handlers/keyboard.test.ts src/renderer/modals/jimaku.test.ts src/subsync/utils.test.ts src/main/anilist-url-guard.test.ts src/window-trackers/x11-tracker.test.ts src/window-trackers/windows-helper.test.ts src/window-trackers/windows-tracker.test.ts launcher/config.test.ts launcher/config-domain-parsers.test.ts launcher/parse-args.test.ts launcher/main.test.ts launcher/commands/command-modules.test.ts launcher/setup-gate.test.ts",
+    "test:core:dist": "bun test dist/cli/args.test.js dist/cli/help.test.js dist/core/services/cli-command.test.js dist/core/services/ipc.test.js dist/core/services/anki-jimaku-ipc.test.js dist/core/services/field-grouping-overlay.test.js dist/core/services/numeric-shortcut-session.test.js dist/core/services/secondary-subtitle.test.js dist/core/services/mpv-render-metrics.test.js dist/core/services/overlay-content-measurement.test.js dist/core/services/mpv-control.test.js dist/core/services/mpv.test.js dist/core/services/runtime-options-ipc.test.js dist/core/services/runtime-config.test.js dist/core/services/yomitan-extension-paths.test.js dist/core/services/config-hot-reload.test.js dist/core/services/discord-presence.test.js dist/core/services/tokenizer.test.js dist/core/services/tokenizer/annotation-stage.test.js dist/core/services/tokenizer/parser-selection-stage.test.js dist/core/services/tokenizer/parser-enrichment-stage.test.js dist/core/services/subsync.test.js dist/core/services/overlay-bridge.test.js dist/core/services/overlay-manager.test.js dist/core/services/overlay-shortcut-handler.test.js dist/core/services/mining.test.js dist/core/services/anki-jimaku.test.js dist/core/services/jimaku-download-path.test.js dist/core/services/jellyfin.test.js dist/core/services/jellyfin-remote.test.js dist/core/services/immersion-tracker-service.test.js dist/core/services/overlay-runtime-init.test.js dist/core/services/app-ready.test.js dist/core/services/startup-bootstrap.test.js dist/core/services/subtitle-processing-controller.test.js dist/core/services/anilist/anilist-token-store.test.js dist/core/services/anilist/anilist-update-queue.test.js dist/renderer/error-recovery.test.js dist/renderer/subtitle-render.test.js dist/renderer/handlers/mouse.test.js dist/renderer/handlers/keyboard.test.js dist/renderer/modals/jimaku.test.js dist/subsync/utils.test.js dist/main/anilist-url-guard.test.js dist/window-trackers/x11-tracker.test.js dist/window-trackers/windows-helper.test.js dist/window-trackers/windows-tracker.test.js",
     "test:core:smoke:dist": "bun test dist/cli/help.test.js dist/core/services/runtime-config.test.js dist/core/services/ipc.test.js dist/core/services/overlay-manager.test.js dist/core/services/anilist/anilist-token-store.test.js dist/core/services/startup-bootstrap.test.js dist/renderer/error-recovery.test.js dist/main/anilist-url-guard.test.js dist/window-trackers/x11-tracker.test.js",
     "test:smoke:dist": "bun run test:config:smoke:dist && bun run test:core:smoke:dist",
     "test:subtitle:src": "bun test src/core/services/subsync.test.ts src/subsync/utils.test.ts",
     "test:immersion:sqlite:src": "bun test src/core/services/immersion-tracker-service.test.ts src/core/services/immersion-tracker/storage-session.test.ts",
-    "test:immersion:sqlite:dist": "bun test dist/core/services/immersion-tracker-service.test.js dist/core/services/immersion-tracker/storage-session.test.js",
-    "test:immersion:sqlite": "tsc -p tsconfig.json && bun run test:immersion:sqlite:dist",
-    "test:src": "bun scripts/run-test-lane.mjs bun-src-full",
-    "test:launcher:unit:src": "bun scripts/run-test-lane.mjs bun-launcher-unit",
+    "test:immersion:sqlite:dist": "node --experimental-sqlite --test dist/core/services/immersion-tracker-service.test.js dist/core/services/immersion-tracker/storage-session.test.js",
+    "test:immersion:sqlite": "bun run tsc && bun run test:immersion:sqlite:dist",
+    "test:src": "node scripts/run-test-lane.mjs bun-src-full",
+    "test:launcher:unit:src": "node scripts/run-test-lane.mjs bun-launcher-unit",
     "test:launcher:env:src": "bun run test:launcher:smoke:src && bun run test:plugin:src",
     "test:env": "bun run test:launcher:env:src && bun run test:immersion:sqlite:src",
-    "test:runtime:compat": "tsc -p tsconfig.json && bun test dist/core/services/ipc.test.js dist/core/services/anki-jimaku-ipc.test.js dist/core/services/overlay-manager.test.js dist/main/config-validation.test.js dist/main/runtime/registry.test.js dist/main/runtime/startup-config.test.js",
+    "test:runtime:compat": "bun run tsc && node --experimental-sqlite --test dist/core/services/ipc.test.js dist/core/services/anki-jimaku-ipc.test.js dist/core/services/overlay-manager.test.js dist/main/config-validation.test.js dist/main/runtime/registry.test.js dist/main/runtime/startup-config.test.js",
     "test:node:compat": "bun run test:runtime:compat",
-    "test:full": "bun run test:src && bun run test:launcher:unit:src && bun run test:runtime:compat",
+    "test:full": "bun run test:src && bun run test:launcher:unit:src && bun run test:node:compat",
     "test": "bun run test:fast",
     "test:config": "bun run test:config:src",
     "test:launcher": "bun run test:launcher:src",
     "test:core": "bun run test:core:src",
     "test:subtitle": "bun run test:subtitle:src",
-    "test:fast": "bun run test:config:src && bun run test:core:src && bun test src/main-entry-runtime.test.ts src/anki-integration/anki-connect-proxy.test.ts src/release-workflow.test.ts src/ci-workflow.test.ts scripts/build-changelog.test.ts && tsc -p tsconfig.json && bun test dist/main/runtime/registry.test.js",
+    "test:fast": "bun run test:config:src && bun run test:core:src && bun test src/main-entry-runtime.test.ts src/anki-integration/anki-connect-proxy.test.ts src/release-workflow.test.ts src/ci-workflow.test.ts scripts/build-changelog.test.ts && bun run tsc && node --experimental-sqlite --test dist/main/runtime/registry.test.js",
     "generate:config-example": "bun run build && bun dist/generate-config-example.js",
     "start": "bun run build && electron . --start",
     "dev": "bun run build && electron . --start --dev",
@@ -58,7 +59,8 @@
     "build:appimage": "bun run build && electron-builder --linux AppImage",
     "build:mac": "bun run build && electron-builder --mac dmg zip",
     "build:mac:unsigned": "bun run build && env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u CSC_LINK -u CSC_KEY_PASSWORD CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip",
-    "build:mac:zip": "bun run build && electron-builder --mac zip"
+    "build:mac:zip": "bun run build && electron-builder --mac zip",
+    "build:win": "bun run build && electron-builder --win nsis zip"
   },
   "keywords": [
     "anki",
@@ -116,7 +118,26 @@
       "icon": "assets/SubMiner.png",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extraResources": [
+        {
+          "from": "dist/scripts/get-mpv-window-macos",
+          "to": "scripts/get-mpv-window-macos"
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "icon": "assets/SubMiner.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh"
     },
     "files": [
       "dist/**/*",
@@ -147,8 +168,8 @@
         "to": "plugin/subminer.conf"
       },
       {
-        "from": "dist/scripts/get-mpv-window-macos",
-        "to": "scripts/get-mpv-window-macos"
+        "from": "dist/scripts/get-mpv-window-windows.ps1",
+        "to": "scripts/get-mpv-window-windows.ps1"
       }
     ]
   }

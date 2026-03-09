@@ -3,6 +3,7 @@ import type { CliArgs } from '../../cli/args';
 export function createBuildHandleInitialArgsMainDepsHandler(deps: {
   getInitialArgs: () => CliArgs | null;
   isBackgroundMode: () => boolean;
+  shouldEnsureTrayOnStartup: () => boolean;
   ensureTray: () => void;
   isTexthookerOnlyMode: () => boolean;
   hasImmersionTracker: () => boolean;
@@ -13,6 +14,7 @@ export function createBuildHandleInitialArgsMainDepsHandler(deps: {
   return () => ({
     getInitialArgs: () => deps.getInitialArgs(),
     isBackgroundMode: () => deps.isBackgroundMode(),
+    shouldEnsureTrayOnStartup: () => deps.shouldEnsureTrayOnStartup(),
     ensureTray: () => deps.ensureTray(),
     isTexthookerOnlyMode: () => deps.isTexthookerOnlyMode(),
     hasImmersionTracker: () => deps.hasImmersionTracker(),

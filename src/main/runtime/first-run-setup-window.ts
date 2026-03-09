@@ -16,10 +16,17 @@ type FirstRunSetupWindowLike = FocusableWindowLike & {
 
 export type FirstRunSetupAction =
   | 'install-plugin'
+  | 'configure-windows-mpv-shortcuts'
   | 'open-yomitan-settings'
   | 'refresh'
   | 'skip-plugin'
   | 'finish';
+
+export interface FirstRunSetupSubmission {
+  action: FirstRunSetupAction;
+  startMenuEnabled?: boolean;
+  desktopEnabled?: boolean;
+}
 
 export interface FirstRunSetupHtmlModel {
   configReady: boolean;
@@ -27,6 +34,14 @@ export interface FirstRunSetupHtmlModel {
   canFinish: boolean;
   pluginStatus: 'installed' | 'optional' | 'skipped' | 'failed';
   pluginInstallPathSummary: string | null;
+  windowsMpvShortcuts: {
+    supported: boolean;
+    startMenuEnabled: boolean;
+    desktopEnabled: boolean;
+    startMenuInstalled: boolean;
+    desktopInstalled: boolean;
+    status: 'installed' | 'optional' | 'skipped' | 'failed';
+  };
   message: string | null;
 }
 
@@ -61,6 +76,43 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
         : model.pluginStatus === 'skipped'
           ? 'muted'
           : 'warn';
+  const windowsShortcutLabel =
+    model.windowsMpvShortcuts.status === 'installed'
+      ? 'Installed'
+      : model.windowsMpvShortcuts.status === 'skipped'
+        ? 'Skipped'
+        : model.windowsMpvShortcuts.status === 'failed'
+          ? 'Failed'
+          : 'Optional';
+  const windowsShortcutTone =
+    model.windowsMpvShortcuts.status === 'installed'
+      ? 'ready'
+      : model.windowsMpvShortcuts.status === 'failed'
+        ? 'danger'
+        : model.windowsMpvShortcuts.status === 'skipped'
+          ? 'muted'
+          : 'warn';
+  const windowsShortcutCard = model.windowsMpvShortcuts.supported
+    ? `
+    <div class="card block">
+      <div class="card-head">
+        <div>
+          <strong>Windows mpv launcher</strong>
+          <div class="meta">Create standalone \`SubMiner mpv\` shortcuts that run \`SubMiner.exe --launch-mpv\`.</div>
+          <div class="meta">Installed: Start Menu ${model.windowsMpvShortcuts.startMenuInstalled ? 'yes' : 'no'}, Desktop ${model.windowsMpvShortcuts.desktopInstalled ? 'yes' : 'no'}</div>
+        </div>
+        ${renderStatusBadge(windowsShortcutLabel, windowsShortcutTone)}
+      </div>
+      <form
+        class="shortcut-form"
+        onsubmit="event.preventDefault(); const params = new URLSearchParams({ action: 'configure-windows-mpv-shortcuts', startMenu: document.getElementById('shortcut-start-menu').checked ? '1' : '0', desktop: document.getElementById('shortcut-desktop').checked ? '1' : '0' }); window.location.href = 'subminer://first-run-setup?' + params.toString();"
+      >
+        <label><input id="shortcut-start-menu" type="checkbox" ${model.windowsMpvShortcuts.startMenuEnabled ? 'checked' : ''} /> Create Start Menu shortcut</label>
+        <label><input id="shortcut-desktop" type="checkbox" ${model.windowsMpvShortcuts.desktopEnabled ? 'checked' : ''} /> Create Desktop shortcut</label>
+        <button type="submit">Apply mpv launcher shortcuts</button>
+      </form>
+    </div>`
+    : '';
 
   return `<!doctype html>
 <html>
@@ -109,9 +161,29 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       align-items: center;
       gap: 12px;
     }
+    .card.block {
+      display: block;
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
     .meta {
       color: var(--muted);
       font-size: 12px;
+    }
+    .shortcut-form {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    label {
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .badge {
       display: inline-flex;
@@ -192,6 +264,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
         model.dictionaryCount >= 1 ? 'ready' : 'warn',
       )}
     </div>
+    ${windowsShortcutCard}
     <div class="actions">
       <button onclick="window.location.href='subminer://first-run-setup?action=install-plugin'">${pluginActionLabel}</button>
       <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">Open Yomitan Settings</button>
@@ -208,7 +281,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
 
 export function parseFirstRunSetupSubmissionUrl(
   rawUrl: string,
-): { action: FirstRunSetupAction } | null {
+): FirstRunSetupSubmission | null {
   if (!rawUrl.startsWith('subminer://first-run-setup')) {
     return null;
   }
@@ -216,12 +289,20 @@ export function parseFirstRunSetupSubmissionUrl(
   const action = parsed.searchParams.get('action');
   if (
     action !== 'install-plugin' &&
+    action !== 'configure-windows-mpv-shortcuts' &&
     action !== 'open-yomitan-settings' &&
     action !== 'refresh' &&
     action !== 'skip-plugin' &&
     action !== 'finish'
   ) {
     return null;
+  }
+  if (action === 'configure-windows-mpv-shortcuts') {
+    return {
+      action,
+      startMenuEnabled: parsed.searchParams.get('startMenu') === '1',
+      desktopEnabled: parsed.searchParams.get('desktop') === '1',
+    };
   }
   return { action };
 }
@@ -238,15 +319,15 @@ export function createMaybeFocusExistingFirstRunSetupWindowHandler(deps: {
 }
 
 export function createHandleFirstRunSetupNavigationHandler(deps: {
-  parseSubmissionUrl: (rawUrl: string) => { action: FirstRunSetupAction } | null;
-  handleAction: (action: FirstRunSetupAction) => Promise<unknown>;
+  parseSubmissionUrl: (rawUrl: string) => FirstRunSetupSubmission | null;
+  handleAction: (submission: FirstRunSetupSubmission) => Promise<unknown>;
   logError: (message: string, error: unknown) => void;
 }) {
   return (params: { url: string; preventDefault: () => void }): boolean => {
     const submission = deps.parseSubmissionUrl(params.url);
     if (!submission) return false;
     params.preventDefault();
-    void deps.handleAction(submission.action).catch((error) => {
+    void deps.handleAction(submission).catch((error) => {
       deps.logError('Failed handling first-run setup action', error);
     });
     return true;
@@ -260,11 +341,13 @@ export function createOpenFirstRunSetupWindowHandler<
   createSetupWindow: () => TWindow;
   getSetupSnapshot: () => Promise<FirstRunSetupHtmlModel>;
   buildSetupHtml: (model: FirstRunSetupHtmlModel) => string;
-  parseSubmissionUrl: (rawUrl: string) => { action: FirstRunSetupAction } | null;
-  handleAction: (action: FirstRunSetupAction) => Promise<{ closeWindow?: boolean } | void>;
+  parseSubmissionUrl: (rawUrl: string) => FirstRunSetupSubmission | null;
+  handleAction: (submission: FirstRunSetupSubmission) => Promise<{ closeWindow?: boolean } | void>;
   markSetupInProgress: () => Promise<unknown>;
   markSetupCancelled: () => Promise<unknown>;
   isSetupCompleted: () => boolean;
+  shouldQuitWhenClosedIncomplete: () => boolean;
+  quitApp: () => void;
   clearSetupWindow: () => void;
   setSetupWindow: (window: TWindow) => void;
   encodeURIComponent: (value: string) => string;
@@ -286,8 +369,8 @@ export function createOpenFirstRunSetupWindowHandler<
 
     const handleNavigation = createHandleFirstRunSetupNavigationHandler({
       parseSubmissionUrl: deps.parseSubmissionUrl,
-      handleAction: async (action) => {
-        const result = await deps.handleAction(action);
+      handleAction: async (submission) => {
+        const result = await deps.handleAction(submission);
         if (result?.closeWindow) {
           if (!setupWindow.isDestroyed()) {
             setupWindow.close();
@@ -313,12 +396,16 @@ export function createOpenFirstRunSetupWindowHandler<
     });
 
     setupWindow.on('closed', () => {
-      if (!deps.isSetupCompleted()) {
+      const setupCompleted = deps.isSetupCompleted();
+      if (!setupCompleted) {
         void deps.markSetupCancelled().catch((error) => {
           deps.logError('Failed marking first-run setup cancelled', error);
         });
       }
       deps.clearSetupWindow();
+      if (!setupCompleted && deps.shouldQuitWhenClosedIncomplete()) {
+        deps.quitApp();
+      }
     });
 
     void deps

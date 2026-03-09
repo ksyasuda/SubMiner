@@ -99,6 +99,7 @@ import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { RuntimeOptionsManager } from './runtime-options';
 import { downloadToFile, isRemoteMediaPath, parseMediaInfo } from './jimaku/utils';
 import { createLogger, setLogLevel, type LogLevelSource } from './logger';
+import { resolveDefaultLogFilePath } from './logger';
 import {
   commandNeedsOverlayRuntime,
   parseArgs,
@@ -310,12 +311,17 @@ import {
   createMaybeFocusExistingFirstRunSetupWindowHandler,
   createOpenFirstRunSetupWindowHandler,
   parseFirstRunSetupSubmissionUrl,
-  type FirstRunSetupAction,
+  type FirstRunSetupSubmission,
 } from './main/runtime/first-run-setup-window';
 import {
   detectInstalledFirstRunPlugin,
   installFirstRunPluginToDefaultLocation,
 } from './main/runtime/first-run-setup-plugin';
+import {
+  applyWindowsMpvShortcuts,
+  detectWindowsMpvShortcuts,
+  resolveWindowsMpvShortcutPaths,
+} from './main/runtime/windows-mpv-shortcuts';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
 import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
@@ -363,6 +369,10 @@ import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
 import {
+  getPreferredYomitanAnkiServerUrl as getPreferredYomitanAnkiServerUrlRuntime,
+  shouldForceOverrideYomitanAnkiServer,
+} from './main/runtime/yomitan-anki-server';
+import {
   type AnilistMediaGuessRuntimeState,
   type StartupState,
   applyStartupState,
@@ -401,7 +411,11 @@ if (process.platform === 'linux') {
 app.setName('SubMiner');
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
-const DEFAULT_MPV_LOG_FILE = path.join(os.homedir(), '.cache', 'SubMiner', 'mp.log');
+const DEFAULT_MPV_LOG_FILE = resolveDefaultLogFilePath({
+  platform: process.platform,
+  homeDir: os.homedir(),
+  appDataDir: process.env.APPDATA,
+});
 const ANILIST_SETUP_CLIENT_ID_URL = 'https://anilist.co/api/v2/oauth/authorize';
 const ANILIST_SETUP_RESPONSE_TYPE = 'token';
 const ANILIST_DEFAULT_CLIENT_ID = '36084';
@@ -462,6 +476,8 @@ function applyJellyfinMpvDefaults(
 }
 
 const CONFIG_DIR = resolveConfigDir({
+  platform: process.platform,
+  appDataDir: process.env.APPDATA,
   xdgConfigHome: process.env.XDG_CONFIG_HOME,
   homeDir: os.homedir(),
   existsSync: fs.existsSync,
@@ -480,7 +496,7 @@ const configService = (() => {
         {
           logError: (details) => console.error(details),
           showErrorBox: (title, details) => dialog.showErrorBox(title, details),
-          quit: () => app.quit(),
+          quit: () => requestAppQuit(),
         },
       );
     }
@@ -568,11 +584,23 @@ if (!fs.existsSync(USER_DATA_PATH)) {
 }
 app.setPath('userData', USER_DATA_PATH);
 
-process.on('SIGINT', () => {
+let forceQuitTimer: ReturnType<typeof setTimeout> | null = null;
+
+function requestAppQuit(): void {
+  if (!forceQuitTimer) {
+    forceQuitTimer = setTimeout(() => {
+      logger.warn('App quit timed out; forcing process exit.');
+      app.exit(0);
+    }, 2000);
+  }
   app.quit();
+}
+
+process.on('SIGINT', () => {
+  requestAppQuit();
 });
 process.on('SIGTERM', () => {
-  app.quit();
+  requestAppQuit();
 });
 
 const overlayManager = createOverlayManager();
@@ -623,7 +651,13 @@ const appState = createAppState({
   texthookerPort: DEFAULT_TEXTHOOKER_PORT,
 });
 let firstRunSetupMessage: string | null = null;
+const resolveWindowsMpvShortcutRuntimePaths = () =>
+  resolveWindowsMpvShortcutPaths({
+    appDataDir: app.getPath('appData'),
+    desktopDir: app.getPath('desktop'),
+  });
 const firstRunSetupService = createFirstRunSetupService({
+  platform: process.platform,
   configDir: CONFIG_DIR,
   getYomitanDictionaryCount: async () => {
     await ensureYomitanExtensionLoaded();
@@ -650,6 +684,31 @@ const firstRunSetupService = createFirstRunSetupService({
       appPath: app.getAppPath(),
       resourcesPath: process.resourcesPath,
     }),
+  detectWindowsMpvShortcuts: () => {
+    if (process.platform !== 'win32') {
+      return {
+        startMenuInstalled: false,
+        desktopInstalled: false,
+      };
+    }
+    return detectWindowsMpvShortcuts(resolveWindowsMpvShortcutRuntimePaths());
+  },
+  applyWindowsMpvShortcuts: async (preferences) => {
+    if (process.platform !== 'win32') {
+      return {
+        ok: true,
+        status: 'unknown' as const,
+        message: '',
+      };
+    }
+    return applyWindowsMpvShortcuts({
+      preferences,
+      paths: resolveWindowsMpvShortcutRuntimePaths(),
+      exePath: process.execPath,
+      writeShortcutLink: (shortcutPath, operation, details) =>
+        shell.writeShortcutLink(shortcutPath, operation, details),
+    });
+  },
   onStateChanged: (state) => {
     appState.firstRunSetupCompleted = state.status === 'completed';
     if (appTray) {
@@ -969,8 +1028,22 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
       appState.shortcutsRegistered = registered;
     },
     isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-    isMacOSPlatform: () => process.platform === 'darwin',
-    isTrackedMpvWindowFocused: () => appState.windowTracker?.isFocused() ?? false,
+    isOverlayShortcutContextActive: () => {
+      if (process.platform !== 'win32') {
+        return true;
+      }
+
+      if (!overlayManager.getVisibleOverlayVisible()) {
+        return false;
+      }
+
+      const windowTracker = appState.windowTracker;
+      if (!windowTracker || !windowTracker.isTracking()) {
+        return false;
+      }
+
+      return windowTracker.isTargetWindowFocused();
+    },
     showMpvOsd: (text: string) => showMpvOsd(text),
     openRuntimeOptionsPalette: () => {
       openRuntimeOptionsPalette();
@@ -1080,22 +1153,26 @@ const configHotReloadRuntime = createConfigHotReloadRuntime(
 );
 
 const buildDictionaryRootsHandler = createBuildDictionaryRootsMainHandler({
+  platform: process.platform,
   dirname: __dirname,
   appPath: app.getAppPath(),
   resourcesPath: process.resourcesPath,
   userDataPath: USER_DATA_PATH,
   appUserDataPath: app.getPath('userData'),
   homeDir: os.homedir(),
+  appDataDir: process.env.APPDATA,
   cwd: process.cwd(),
   joinPath: (...parts) => path.join(...parts),
 });
 const buildFrequencyDictionaryRootsHandler = createBuildFrequencyDictionaryRootsMainHandler({
+  platform: process.platform,
   dirname: __dirname,
   appPath: app.getAppPath(),
   resourcesPath: process.resourcesPath,
   userDataPath: USER_DATA_PATH,
   appUserDataPath: app.getPath('userData'),
   homeDir: os.homedir(),
+  appDataDir: process.env.APPDATA,
   cwd: process.cwd(),
   joinPath: (...parts) => path.join(...parts),
 });
@@ -1292,6 +1369,7 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
       overlayShortcutsRuntime.syncOverlayShortcuts();
     },
     isMacOSPlatform: () => process.platform === 'darwin',
+    isWindowsPlatform: () => process.platform === 'win32',
     showOverlayLoadingOsd: (message: string) => {
       showMpvOsd(message);
     },
@@ -1687,28 +1765,37 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       canFinish: snapshot.canFinish,
       pluginStatus: snapshot.pluginStatus,
       pluginInstallPathSummary: snapshot.pluginInstallPathSummary,
+      windowsMpvShortcuts: snapshot.windowsMpvShortcuts,
       message: firstRunSetupMessage,
     };
   },
   buildSetupHtml: (model) => buildFirstRunSetupHtml(model),
   parseSubmissionUrl: (rawUrl) => parseFirstRunSetupSubmissionUrl(rawUrl),
-  handleAction: async (action: FirstRunSetupAction) => {
-    if (action === 'install-plugin') {
+  handleAction: async (submission: FirstRunSetupSubmission) => {
+    if (submission.action === 'install-plugin') {
       const snapshot = await firstRunSetupService.installMpvPlugin();
       firstRunSetupMessage = snapshot.message;
       return;
     }
-    if (action === 'open-yomitan-settings') {
+    if (submission.action === 'configure-windows-mpv-shortcuts') {
+      const snapshot = await firstRunSetupService.configureWindowsMpvShortcuts({
+        startMenuEnabled: submission.startMenuEnabled === true,
+        desktopEnabled: submission.desktopEnabled === true,
+      });
+      firstRunSetupMessage = snapshot.message;
+      return;
+    }
+    if (submission.action === 'open-yomitan-settings') {
       openYomitanSettings();
       firstRunSetupMessage = 'Opened Yomitan settings. Install dictionaries, then refresh status.';
       return;
     }
-    if (action === 'refresh') {
+    if (submission.action === 'refresh') {
       const snapshot = await firstRunSetupService.refreshStatus('Status refreshed.');
       firstRunSetupMessage = snapshot.message;
       return;
     }
-    if (action === 'skip-plugin') {
+    if (submission.action === 'skip-plugin') {
       await firstRunSetupService.skipPluginInstall();
       firstRunSetupMessage = 'mpv plugin installation skipped.';
       return;
@@ -1731,6 +1818,8 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
     await firstRunSetupService.markSetupCancelled();
   },
   isSetupCompleted: () => firstRunSetupService.isSetupCompleted(),
+  shouldQuitWhenClosedIncomplete: () => !appState.backgroundMode,
+  quitApp: () => requestAppQuit(),
   clearSetupWindow: () => {
     appState.firstRunSetupWindow = null;
   },
@@ -2202,6 +2291,14 @@ const {
     clearJellyfinSetupWindow: () => {
       appState.jellyfinSetupWindow = null;
     },
+    getFirstRunSetupWindow: () => appState.firstRunSetupWindow,
+    clearFirstRunSetupWindow: () => {
+      appState.firstRunSetupWindow = null;
+    },
+    getYomitanSettingsWindow: () => appState.yomitanSettingsWindow,
+    clearYomitanSettingsWindow: () => {
+      appState.yomitanSettingsWindow = null;
+    },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
     stopDiscordPresenceService: () => {
       void appState.discordPresenceService?.stop();
@@ -2266,10 +2363,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     failHandlers: {
       logError: (details) => logger.error(details),
       showErrorBox: (title, details) => dialog.showErrorBox(title, details),
-      setExitCode: (code) => {
-        process.exitCode = code;
-      },
-      quit: () => app.quit(),
+      quit: () => requestAppQuit(),
     },
   },
   criticalConfigErrorMainDeps: {
@@ -2277,10 +2371,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     failHandlers: {
       logError: (message) => logger.error(message),
       showErrorBox: (title, message) => dialog.showErrorBox(title, message),
-      setExitCode: (code) => {
-        process.exitCode = code;
-      },
-      quit: () => app.quit(),
+      quit: () => requestAppQuit(),
     },
   },
   appReadyRuntimeMainDeps: {
@@ -2476,7 +2567,7 @@ const { runAndApplyStartupState } = runtimeRegistry.startup.createStartupRuntime
     setExitCode: (code) => {
       process.exitCode = code;
     },
-    quitApp: () => app.quit(),
+    quitApp: () => requestAppQuit(),
     logGenerateConfigError: (message) => logger.error(message),
     startAppLifecycle,
   }),
@@ -2510,6 +2601,7 @@ const handleCliCommand = createCliCommandRuntimeHandler({
 const handleInitialArgsRuntimeHandler = createInitialArgsRuntimeHandler({
   getInitialArgs: () => appState.initialArgs,
   isBackgroundMode: () => appState.backgroundMode,
+  shouldEnsureTrayOnStartup: () => process.platform === 'win32',
   ensureTray: () => ensureTray(),
   isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
   hasImmersionTracker: () => Boolean(appState.immersionTracker),
@@ -2526,7 +2618,6 @@ const {
   createMpvClientRuntimeService: createMpvClientRuntimeServiceHandler,
   updateMpvSubtitleRenderMetrics: updateMpvSubtitleRenderMetricsHandler,
   tokenizeSubtitle,
-  isTokenizationWarmupReady,
   createMecabTokenizerAndCheck,
   prewarmSubtitleDictionaries,
   startBackgroundWarmups,
@@ -2541,7 +2632,7 @@ const {
     scheduleQuitCheck: (callback) => {
       setTimeout(callback, 500);
     },
-    quitApp: () => app.quit(),
+    quitApp: () => requestAppQuit(),
     reportJellyfinRemoteStopped: () => {
       void reportJellyfinRemoteStopped();
     },
@@ -2565,12 +2656,6 @@ const {
         ensureImmersionTrackerStarted();
       }
       mediaRuntime.updateCurrentMediaPath(path);
-    },
-    signalAutoplayReadyIfWarm: (path) => {
-      if (!isTokenizationWarmupReady()) {
-        return;
-      }
-      maybeSignalPluginAutoplayReady({ text: path, tokens: null }, { forceWhilePaused: true });
     },
     restoreMpvSubVisibility: () => {
       restoreOverlayMpvSubtitles();
@@ -2849,13 +2934,7 @@ async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
 let lastSyncedYomitanAnkiServer: string | null = null;
 
 function getPreferredYomitanAnkiServerUrl(): string {
-  const config = getResolvedConfig().ankiConnect;
-  if (config.proxy?.enabled) {
-    const host = config.proxy.host || '127.0.0.1';
-    const port = config.proxy.port || 8766;
-    return `http://${host}:${port}`;
-  }
-  return config.url;
+  return getPreferredYomitanAnkiServerUrlRuntime(getResolvedConfig().ankiConnect);
 }
 
 function getYomitanParserRuntimeDeps() {
@@ -2894,7 +2973,7 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
       },
     },
     {
-      forceOverride: getResolvedConfig().ankiConnect.proxy?.enabled === true,
+      forceOverride: shouldForceOverrideYomitanAnkiServer(getResolvedConfig().ankiConnect),
     },
   );
 
@@ -3244,7 +3323,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         overlayModalRuntime.notifyOverlayModalOpened(modal);
       },
       openYomitanSettings: () => openYomitanSettings(),
-      quitApp: () => app.quit(),
+      quitApp: () => requestAppQuit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
       tokenizeCurrentSubtitle: () => tokenizeSubtitle(appState.currentSubText),
       getCurrentSubtitleRaw: () => appState.currentSubText,
@@ -3345,7 +3424,7 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
   openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
   printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
-  stopApp: () => app.quit(),
+  stopApp: () => requestAppQuit(),
   hasMainWindow: () => Boolean(overlayManager.getMainWindow()),
   getMultiCopyTimeoutMs: () => getConfiguredShortcuts().multiCopyTimeoutMs,
   schedule: (fn: () => void, delayMs: number) => setTimeout(fn, delayMs),
@@ -3395,11 +3474,12 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
       showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
       openFirstRunSetupWindow: () => openFirstRunSetupWindow(),
+      showWindowsMpvLauncherSetup: () => process.platform === 'win32',
       openYomitanSettings: () => openYomitanSettings(),
       openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
       openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
       openAnilistSetupWindow: () => openAnilistSetupWindow(),
-      quitApp: () => app.quit(),
+      quitApp: () => requestAppQuit(),
     },
     ensureTrayDeps: {
       getTray: () => appTray,

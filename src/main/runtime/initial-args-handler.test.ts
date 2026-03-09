@@ -7,6 +7,7 @@ test('initial args handler no-ops without initial args', () => {
   const handleInitialArgs = createHandleInitialArgsHandler({
     getInitialArgs: () => null,
     isBackgroundMode: () => false,
+    shouldEnsureTrayOnStartup: () => false,
     ensureTray: () => {},
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => false,
@@ -26,6 +27,7 @@ test('initial args handler ensures tray in background mode', () => {
   const handleInitialArgs = createHandleInitialArgsHandler({
     getInitialArgs: () => ({ start: true }) as never,
     isBackgroundMode: () => true,
+    shouldEnsureTrayOnStartup: () => false,
     ensureTray: () => {
       ensuredTray = true;
     },
@@ -46,6 +48,7 @@ test('initial args handler auto-connects mpv when needed', () => {
   const handleInitialArgs = createHandleInitialArgsHandler({
     getInitialArgs: () => ({ start: true }) as never,
     isBackgroundMode: () => false,
+    shouldEnsureTrayOnStartup: () => false,
     ensureTray: () => {},
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => true,
@@ -71,6 +74,7 @@ test('initial args handler forwards args to cli handler', () => {
   const handleInitialArgs = createHandleInitialArgsHandler({
     getInitialArgs: () => ({ start: true }) as never,
     isBackgroundMode: () => false,
+    shouldEnsureTrayOnStartup: () => false,
     ensureTray: () => {},
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => false,
@@ -83,4 +87,24 @@ test('initial args handler forwards args to cli handler', () => {
 
   handleInitialArgs();
   assert.deepEqual(seenSources, ['initial']);
+});
+
+test('initial args handler can ensure tray outside background mode when requested', () => {
+  let ensuredTray = false;
+  const handleInitialArgs = createHandleInitialArgsHandler({
+    getInitialArgs: () => ({ start: true }) as never,
+    isBackgroundMode: () => false,
+    shouldEnsureTrayOnStartup: () => true,
+    ensureTray: () => {
+      ensuredTray = true;
+    },
+    isTexthookerOnlyMode: () => true,
+    hasImmersionTracker: () => false,
+    getMpvClient: () => null,
+    logInfo: () => {},
+    handleCliCommand: () => {},
+  });
+
+  handleInitialArgs();
+  assert.equal(ensuredTray, true);
 });

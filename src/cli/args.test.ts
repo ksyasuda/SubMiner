@@ -47,6 +47,14 @@ test('parseArgs ignores missing value after --log-level', () => {
   assert.equal(args.start, true);
 });
 
+test('parseArgs captures launch-mpv targets and keeps it out of app startup', () => {
+  const args = parseArgs(['--launch-mpv', 'C:\\a.mkv', 'C:\\b.mkv']);
+  assert.equal(args.launchMpv, true);
+  assert.deepEqual(args.launchMpvTargets, ['C:\\a.mkv', 'C:\\b.mkv']);
+  assert.equal(hasExplicitCommand(args), true);
+  assert.equal(shouldStartApp(args), false);
+});
+
 test('parseArgs handles jellyfin item listing controls', () => {
   const args = parseArgs([
     '--jellyfin-items',
@@ -75,6 +83,12 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   const stopOnly = parseArgs(['--stop']);
   assert.equal(hasExplicitCommand(stopOnly), true);
   assert.equal(shouldStartApp(stopOnly), false);
+
+  const launchMpv = parseArgs(['--launch-mpv']);
+  assert.equal(launchMpv.launchMpv, true);
+  assert.deepEqual(launchMpv.launchMpvTargets, []);
+  assert.equal(hasExplicitCommand(launchMpv), true);
+  assert.equal(shouldStartApp(launchMpv), false);
 
   const toggle = parseArgs(['--toggle-visible-overlay']);
   assert.equal(hasExplicitCommand(toggle), true);

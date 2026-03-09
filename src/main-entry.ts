@@ -1,13 +1,18 @@
 import { spawn } from 'node:child_process';
+import { app, dialog } from 'electron';
 import { printHelp } from './cli/help';
 import {
+  normalizeLaunchMpvTargets,
   normalizeStartupArgv,
   sanitizeStartupEnv,
   sanitizeBackgroundEnv,
   sanitizeHelpEnv,
+  sanitizeLaunchMpvEnv,
   shouldDetachBackgroundLaunch,
   shouldHandleHelpOnlyAtEntry,
+  shouldHandleLaunchMpvAtEntry,
 } from './main-entry-runtime';
+import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
 
@@ -46,4 +51,21 @@ if (shouldHandleHelpOnlyAtEntry(process.argv, process.env)) {
   process.exit(0);
 }
 
-require('./main.js');
+if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
+  const sanitizedEnv = sanitizeLaunchMpvEnv(process.env);
+  applySanitizedEnv(sanitizedEnv);
+  void app.whenReady().then(() => {
+    const result = launchWindowsMpv(
+      normalizeLaunchMpvTargets(process.argv),
+      createWindowsMpvLaunchDeps({
+        getEnv: (name) => process.env[name],
+        showError: (title, content) => {
+          dialog.showErrorBox(title, content);
+        },
+      }),
+    );
+    app.exit(result.ok ? 0 : 1);
+  });
+} else {
+  require('./main.js');
+}

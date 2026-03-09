@@ -1,6 +1,8 @@
 export interface CliArgs {
   background: boolean;
   start: boolean;
+  launchMpv: boolean;
+  launchMpvTargets: string[];
   stop: boolean;
   toggle: boolean;
   toggleVisibleOverlay: boolean;
@@ -68,6 +70,8 @@ export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     background: false,
     start: false,
+    launchMpv: false,
+    launchMpvTargets: [],
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
@@ -123,6 +127,11 @@ export function parseArgs(argv: string[]): CliArgs {
 
     if (arg === '--background') args.background = true;
     else if (arg === '--start') args.start = true;
+    else if (arg === '--launch-mpv') {
+      args.launchMpv = true;
+      args.launchMpvTargets = argv.slice(i + 1).filter((value) => value && !value.startsWith('--'));
+      break;
+    }
     else if (arg === '--stop') args.stop = true;
     else if (arg === '--toggle') args.toggle = true;
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
@@ -297,6 +306,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
   return (
     args.background ||
     args.start ||
+    args.launchMpv ||
     args.stop ||
     args.toggle ||
     args.toggleVisibleOverlay ||
@@ -342,6 +352,7 @@ export function shouldStartApp(args: CliArgs): boolean {
   if (
     args.background ||
     args.start ||
+    args.launchMpv ||
     args.toggle ||
     args.toggleVisibleOverlay ||
     args.settings ||
@@ -361,6 +372,9 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.jellyfinPlay ||
     args.texthooker
   ) {
+    if (args.launchMpv) {
+      return false;
+    }
     return true;
   }
   return false;

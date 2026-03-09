@@ -7,9 +7,20 @@ import {
   readSetupState,
   writeSetupState,
   type SetupPluginInstallStatus,
+  type SetupWindowsMpvShortcutInstallStatus,
   type SetupState,
 } from '../../shared/setup-state';
 import type { CliArgs } from '../../cli/args';
+
+export interface SetupWindowsMpvShortcutSnapshot {
+  supported: boolean;
+  startMenuEnabled: boolean;
+  desktopEnabled: boolean;
+  startMenuInstalled: boolean;
+  desktopInstalled: boolean;
+  status: 'installed' | 'optional' | 'skipped' | 'failed';
+  message: string | null;
+}
 
 export interface SetupStatusSnapshot {
   configReady: boolean;
@@ -17,6 +28,7 @@ export interface SetupStatusSnapshot {
   canFinish: boolean;
   pluginStatus: 'installed' | 'optional' | 'skipped' | 'failed';
   pluginInstallPathSummary: string | null;
+  windowsMpvShortcuts: SetupWindowsMpvShortcutSnapshot;
   message: string | null;
   state: SetupState;
 }
@@ -37,6 +49,10 @@ export interface FirstRunSetupService {
   markSetupCompleted: () => Promise<SetupStatusSnapshot>;
   skipPluginInstall: () => Promise<SetupStatusSnapshot>;
   installMpvPlugin: () => Promise<SetupStatusSnapshot>;
+  configureWindowsMpvShortcuts: (preferences: {
+    startMenuEnabled: boolean;
+    desktopEnabled: boolean;
+  }) => Promise<SetupStatusSnapshot>;
   isSetupCompleted: () => boolean;
 }
 
@@ -44,6 +60,7 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
   return Boolean(
     args.toggle ||
     args.toggleVisibleOverlay ||
+    args.launchMpv ||
     args.settings ||
     args.show ||
     args.hide ||
@@ -95,15 +112,51 @@ function getPluginStatus(
   return 'optional';
 }
 
+function getWindowsMpvShortcutStatus(
+  state: SetupState,
+  installed: { startMenuInstalled: boolean; desktopInstalled: boolean },
+): SetupWindowsMpvShortcutSnapshot['status'] {
+  if (installed.startMenuInstalled || installed.desktopInstalled) return 'installed';
+  if (state.windowsMpvShortcutLastStatus === 'skipped') return 'skipped';
+  if (state.windowsMpvShortcutLastStatus === 'failed') return 'failed';
+  return 'optional';
+}
+
+function getEffectiveWindowsMpvShortcutPreferences(
+  state: SetupState,
+  installed: { startMenuInstalled: boolean; desktopInstalled: boolean },
+): { startMenuEnabled: boolean; desktopEnabled: boolean } {
+  if (state.windowsMpvShortcutLastStatus === 'unknown') {
+    return {
+      startMenuEnabled: installed.startMenuInstalled,
+      desktopEnabled: installed.desktopInstalled,
+    };
+  }
+
+  return {
+    startMenuEnabled: state.windowsMpvShortcutPreferences.startMenuEnabled,
+    desktopEnabled: state.windowsMpvShortcutPreferences.desktopEnabled,
+  };
+}
+
 export function createFirstRunSetupService(deps: {
+  platform?: NodeJS.Platform;
   configDir: string;
   getYomitanDictionaryCount: () => Promise<number>;
   detectPluginInstalled: () => boolean | Promise<boolean>;
   installPlugin: () => Promise<PluginInstallResult>;
+  detectWindowsMpvShortcuts?: () =>
+    | { startMenuInstalled: boolean; desktopInstalled: boolean }
+    | Promise<{ startMenuInstalled: boolean; desktopInstalled: boolean }>;
+  applyWindowsMpvShortcuts?: (preferences: {
+    startMenuEnabled: boolean;
+    desktopEnabled: boolean;
+  }) => Promise<{ ok: boolean; status: SetupWindowsMpvShortcutInstallStatus; message: string }>;
   onStateChanged?: (state: SetupState) => void;
 }): FirstRunSetupService {
   const setupStatePath = getSetupStatePath(deps.configDir);
   const configFilePaths = getDefaultConfigFilePaths(deps.configDir);
+  const isWindows = (deps.platform ?? process.platform) === 'win32';
   let completed = false;
 
   const readState = (): SetupState => readSetupState(setupStatePath) ?? createDefaultSetupState();
@@ -117,6 +170,17 @@ export function createFirstRunSetupService(deps: {
   const buildSnapshot = async (state: SetupState, message: string | null = null) => {
     const dictionaryCount = await deps.getYomitanDictionaryCount();
     const pluginInstalled = await deps.detectPluginInstalled();
+    const detectedWindowsMpvShortcuts = isWindows
+      ? await deps.detectWindowsMpvShortcuts?.()
+      : undefined;
+    const installedWindowsMpvShortcuts = {
+      startMenuInstalled: detectedWindowsMpvShortcuts?.startMenuInstalled ?? false,
+      desktopInstalled: detectedWindowsMpvShortcuts?.desktopInstalled ?? false,
+    };
+    const effectiveWindowsMpvShortcutPreferences = getEffectiveWindowsMpvShortcutPreferences(
+      state,
+      installedWindowsMpvShortcuts,
+    );
     const configReady =
       fs.existsSync(configFilePaths.jsoncPath) || fs.existsSync(configFilePaths.jsonPath);
     return {
@@ -125,6 +189,15 @@ export function createFirstRunSetupService(deps: {
       canFinish: dictionaryCount >= 1,
       pluginStatus: getPluginStatus(state, pluginInstalled),
       pluginInstallPathSummary: state.pluginInstallPathSummary,
+      windowsMpvShortcuts: {
+        supported: isWindows,
+        startMenuEnabled: effectiveWindowsMpvShortcutPreferences.startMenuEnabled,
+        desktopEnabled: effectiveWindowsMpvShortcutPreferences.desktopEnabled,
+        startMenuInstalled: installedWindowsMpvShortcuts.startMenuInstalled,
+        desktopInstalled: installedWindowsMpvShortcuts.desktopInstalled,
+        status: getWindowsMpvShortcutStatus(state, installedWindowsMpvShortcuts),
+        message: null,
+      },
       message,
       state,
     } satisfies SetupStatusSnapshot;
@@ -216,6 +289,30 @@ export function createFirstRunSetupService(deps: {
           ...readState(),
           pluginInstallStatus: result.pluginInstallStatus,
           pluginInstallPathSummary: result.pluginInstallPathSummary,
+        }),
+        result.message,
+      );
+    },
+    configureWindowsMpvShortcuts: async (preferences) => {
+      const nextState = writeState({
+        ...readState(),
+        windowsMpvShortcutPreferences: {
+          startMenuEnabled: preferences.startMenuEnabled,
+          desktopEnabled: preferences.desktopEnabled,
+        },
+      });
+      if (!isWindows || !deps.applyWindowsMpvShortcuts) {
+        return refreshWithState(nextState, null);
+      }
+      const result = await deps.applyWindowsMpvShortcuts(preferences);
+      return refreshWithState(
+        writeState({
+          ...readState(),
+          windowsMpvShortcutPreferences: {
+            startMenuEnabled: preferences.startMenuEnabled,
+            desktopEnabled: preferences.desktopEnabled,
+          },
+          windowsMpvShortcutLastStatus: result.status,
         }),
         result.message,
       );

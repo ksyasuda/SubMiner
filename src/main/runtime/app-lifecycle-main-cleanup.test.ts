@@ -46,6 +46,12 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
     clearAnilistSetupWindow: () => calls.push('clear-anilist-window'),
     getJellyfinSetupWindow: () => ({ destroy: () => calls.push('destroy-jellyfin-window') }),
     clearJellyfinSetupWindow: () => calls.push('clear-jellyfin-window'),
+    getFirstRunSetupWindow: () => ({ destroy: () => calls.push('destroy-first-run-window') }),
+    clearFirstRunSetupWindow: () => calls.push('clear-first-run-window'),
+    getYomitanSettingsWindow: () => ({
+      destroy: () => calls.push('destroy-yomitan-settings-window'),
+    }),
+    clearYomitanSettingsWindow: () => calls.push('clear-yomitan-settings-window'),
 
     stopJellyfinRemoteSession: () => calls.push('stop-jellyfin-remote'),
     stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
@@ -61,6 +67,8 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
   assert.ok(calls.includes('clear-reconnect-ref'));
   assert.ok(calls.includes('destroy-immersion'));
   assert.ok(calls.includes('clear-immersion-ref'));
+  assert.ok(calls.includes('destroy-first-run-window'));
+  assert.ok(calls.includes('destroy-yomitan-settings-window'));
   assert.ok(calls.includes('stop-jellyfin-remote'));
   assert.ok(calls.includes('stop-discord-presence'));
   assert.equal(reconnectTimer, null);
@@ -95,6 +103,10 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
     clearAnilistSetupWindow: () => {},
     getJellyfinSetupWindow: () => null,
     clearJellyfinSetupWindow: () => {},
+    getFirstRunSetupWindow: () => null,
+    clearFirstRunSetupWindow: () => {},
+    getYomitanSettingsWindow: () => null,
+    clearYomitanSettingsWindow: () => {},
     stopJellyfinRemoteSession: () => {},
     stopDiscordPresenceService: () => {},
   });

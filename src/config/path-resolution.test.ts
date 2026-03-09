@@ -10,8 +10,20 @@ function existsSyncFrom(paths: string[]): (candidate: string) => boolean {
 
 test('resolveConfigBaseDirs trims xdg value and deduplicates fallback dir', () => {
   const homeDir = '/home/tester';
-  const baseDirs = resolveConfigBaseDirs(' /home/tester/.config ', homeDir);
-  assert.deepEqual(baseDirs, [path.join(homeDir, '.config')]);
+  const trimmedXdgConfigHome = '/home/tester/.config';
+  const fallbackDir = path.join(homeDir, '.config');
+  const baseDirs = resolveConfigBaseDirs(` ${trimmedXdgConfigHome} `, homeDir, 'linux');
+  const expected = Array.from(new Set([trimmedXdgConfigHome, fallbackDir]));
+  assert.deepEqual(baseDirs, expected);
+});
+
+test('resolveConfigBaseDirs prefers APPDATA on windows and deduplicates fallback dir', () => {
+  const homeDir = 'C:\\Users\\tester';
+  const appDataDir = 'C:\\Users\\tester\\AppData\\Roaming';
+
+  const baseDirs = resolveConfigBaseDirs(undefined, homeDir, 'win32', ` ${appDataDir} `);
+
+  assert.deepEqual(baseDirs, [appDataDir]);
 });
 
 test('resolveConfigDir prefers xdg SubMiner config when present', () => {
@@ -23,6 +35,7 @@ test('resolveConfigDir prefers xdg SubMiner config when present', () => {
   const resolved = resolveConfigDir({
     xdgConfigHome,
     homeDir,
+    platform: 'linux',
     existsSync,
   });
 
@@ -37,10 +50,11 @@ test('resolveConfigDir ignores lowercase subminer candidate', () => {
   const resolved = resolveConfigDir({
     xdgConfigHome: '/tmp/missing-xdg',
     homeDir,
+    platform: 'linux',
     existsSync,
   });
 
-  assert.equal(resolved, '/tmp/missing-xdg/SubMiner');
+  assert.equal(resolved, path.join('/tmp/missing-xdg', 'SubMiner'));
 });
 
 test('resolveConfigDir falls back to existing directory when file is missing', () => {
@@ -51,6 +65,7 @@ test('resolveConfigDir falls back to existing directory when file is missing', (
   const resolved = resolveConfigDir({
     xdgConfigHome: '/tmp/missing-xdg',
     homeDir,
+    platform: 'linux',
     existsSync,
   });
 
@@ -68,6 +83,7 @@ test('resolveConfigFilePath prefers jsonc before json', () => {
   const resolved = resolveConfigFilePath({
     xdgConfigHome,
     homeDir,
+    platform: 'linux',
     existsSync,
   });
 
@@ -82,8 +98,40 @@ test('resolveConfigFilePath keeps legacy fallback output path', () => {
   const resolved = resolveConfigFilePath({
     xdgConfigHome,
     homeDir,
+    platform: 'linux',
     existsSync,
   });
 
   assert.equal(resolved, path.join(xdgConfigHome, 'SubMiner', 'config.jsonc'));
+});
+
+test('resolveConfigDir prefers APPDATA SubMiner config on windows when present', () => {
+  const homeDir = 'C:\\Users\\tester';
+  const appDataDir = 'C:\\Users\\tester\\AppData\\Roaming';
+  const configDir = path.join(appDataDir, 'SubMiner');
+  const existsSync = existsSyncFrom([path.join(configDir, 'config.jsonc')]);
+
+  const resolved = resolveConfigDir({
+    platform: 'win32',
+    appDataDir,
+    homeDir,
+    existsSync,
+  });
+
+  assert.equal(resolved, configDir);
+});
+
+test('resolveConfigFilePath uses APPDATA fallback output path on windows', () => {
+  const homeDir = 'C:\\Users\\tester';
+  const appDataDir = 'C:\\Users\\tester\\AppData\\Roaming';
+  const existsSync = existsSyncFrom([]);
+
+  const resolved = resolveConfigFilePath({
+    platform: 'win32',
+    appDataDir,
+    homeDir,
+    existsSync,
+  });
+
+  assert.equal(resolved, path.join(appDataDir, 'SubMiner', 'config.jsonc'));
 });

@@ -1,4 +1,4 @@
-.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-plugin uninstall uninstall-linux uninstall-macos print-dirs pretty ensure-bun generate-config generate-example-config dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop
+.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-windows install-plugin uninstall uninstall-linux uninstall-macos uninstall-windows print-dirs pretty ensure-bun generate-config generate-example-config dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop
 
 APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
@@ -20,11 +20,6 @@ MACOS_DATA_DIR ?= $(HOME)/Library/Application Support/SubMiner
 MACOS_APP_DIR ?= $(HOME)/Applications
 MACOS_APP_DEST ?= $(MACOS_APP_DIR)/SubMiner.app
 
-# mpv plugin install directories.
-MPV_CONFIG_DIR ?= $(HOME)/.config/mpv
-MPV_SCRIPTS_DIR ?= $(MPV_CONFIG_DIR)/scripts
-MPV_SCRIPT_OPTS_DIR ?= $(MPV_CONFIG_DIR)/script-opts
-
 # If building from source, the AppImage will typically land in release/.
 APPIMAGE_SRC := $(firstword $(wildcard release/SubMiner-*.AppImage))
 MACOS_APP_SRC := $(firstword $(wildcard release/*.app release/*/*.app))
@@ -40,6 +35,17 @@ PLATFORM := macos
 else
 PLATFORM := unknown
 endif
+
+WINDOWS_APPDATA ?= $(if $(APPDATA),$(subst \,/,$(APPDATA)),$(HOME)/AppData/Roaming)
+
+# mpv plugin install directories.
+ifeq ($(PLATFORM),windows)
+MPV_CONFIG_DIR ?= $(WINDOWS_APPDATA)/mpv
+else
+MPV_CONFIG_DIR ?= $(HOME)/.config/mpv
+endif
+MPV_SCRIPTS_DIR ?= $(MPV_CONFIG_DIR)/scripts
+MPV_SCRIPT_OPTS_DIR ?= $(MPV_CONFIG_DIR)/script-opts
 
 help:
 	@printf '%s\n' \
@@ -58,6 +64,7 @@ help:
 		"  dev-stop         Stop a running local Electron app" \
 		"  install-linux    Install Linux wrapper/theme/app artifacts" \
 		"  install-macos    Install macOS wrapper/theme/app artifacts" \
+		"  install-windows  Install Windows mpv plugin artifacts" \
 		"  install-plugin   Install mpv Lua plugin and plugin config" \
 		"  generate-config  Generate ~/.config/SubMiner/config.jsonc from centralized defaults" \
 		"" \
@@ -65,6 +72,7 @@ help:
 		"  deps             Install JS dependencies (root + texthooker-ui)" \
 		"  uninstall-linux  Remove Linux install artifacts" \
 		"  uninstall-macos  Remove macOS install artifacts" \
+		"  uninstall-windows Remove Windows mpv plugin artifacts" \
 		"  print-dirs       Show resolved install locations" \
 		"" \
 		"Variables:" \
@@ -74,7 +82,7 @@ help:
 		"  LINUX_DATA_DIR=... Override Linux app data dir" \
 		"  MACOS_DATA_DIR=... Override macOS app data dir" \
 		"  MACOS_APP_DIR=...  Override macOS app install dir (default: $$HOME/Applications)" \
-		"  MPV_CONFIG_DIR=... Override mpv config dir (default: $$HOME/.config/mpv)"
+		"  MPV_CONFIG_DIR=... Override mpv config dir (default: $$HOME/.config/mpv or %APPDATA%/mpv on Windows)"
 
 print-dirs:
 	@printf '%s\n' \
@@ -85,6 +93,10 @@ print-dirs:
 		"MACOS_DATA_DIR=$(MACOS_DATA_DIR)" \
 		"MACOS_APP_DIR=$(MACOS_APP_DIR)" \
 		"MACOS_APP_DEST=$(MACOS_APP_DEST)" \
+		"WINDOWS_APPDATA=$(WINDOWS_APPDATA)" \
+		"MPV_CONFIG_DIR=$(MPV_CONFIG_DIR)" \
+		"MPV_SCRIPTS_DIR=$(MPV_SCRIPTS_DIR)" \
+		"MPV_SCRIPT_OPTS_DIR=$(MPV_SCRIPT_OPTS_DIR)" \
 		"APPIMAGE_SRC=$(APPIMAGE_SRC)" \
 		"MACOS_APP_SRC=$(MACOS_APP_SRC)" \
 		"MACOS_ZIP_SRC=$(MACOS_ZIP_SRC)"
@@ -113,6 +125,7 @@ install:
 	@case "$(PLATFORM)" in \
 		linux) $(MAKE) --no-print-directory install-linux ;; \
 		macos) $(MAKE) --no-print-directory install-macos ;; \
+		windows) $(MAKE) --no-print-directory install-windows ;; \
 		*) printf '%s\n' "[ERROR] Unsupported OS for this Makefile target: $(PLATFORM)"; exit 1 ;; \
 	esac
 
@@ -210,18 +223,31 @@ install-macos: build-launcher
 	fi
 	@printf '%s\n' "Installed to:" "  $(BINDIR)/subminer" "  $(MACOS_DATA_DIR)/themes/$(THEME_FILE)" "  $(MACOS_APP_DEST)"
 
+install-windows:
+	@printf '%s\n' "[INFO] Installing Windows mpv plugin artifacts"
+	@$(MAKE) --no-print-directory install-plugin
+
 install-plugin:
 	@printf '%s\n' "[INFO] Installing mpv plugin artifacts"
 	@install -d "$(MPV_SCRIPTS_DIR)"
-	@rm -f "$(MPV_SCRIPTS_DIR)/subminer.lua"
+	@rm -f "$(MPV_SCRIPTS_DIR)/subminer.lua" "$(MPV_SCRIPTS_DIR)/subminer-loader.lua"
 	@install -d "$(MPV_SCRIPTS_DIR)/subminer"
 	@install -d "$(MPV_SCRIPT_OPTS_DIR)"
 	@cp -R ./plugin/subminer/. "$(MPV_SCRIPTS_DIR)/subminer/"
 	@install -m 0644 "./$(PLUGIN_CONF)" "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
+	@if [ "$(PLATFORM)" = "windows" ]; then \
+		node ./scripts/configure-plugin-binary-path.mjs "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf" "$(CURDIR)" win32; \
+	fi
 	@printf '%s\n' "Installed to:" "  $(MPV_SCRIPTS_DIR)/subminer/main.lua" "  $(MPV_SCRIPTS_DIR)/subminer/" "  $(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
 
-# Uninstall behavior kept unchanged by default.
-uninstall: uninstall-linux
+uninstall:
+	@printf '%s\n' "[INFO] Detected platform: $(PLATFORM)"
+	@case "$(PLATFORM)" in \
+		linux) $(MAKE) --no-print-directory uninstall-linux ;; \
+		macos) $(MAKE) --no-print-directory uninstall-macos ;; \
+		windows) $(MAKE) --no-print-directory uninstall-windows ;; \
+		*) printf '%s\n' "[ERROR] Unsupported OS for this Makefile target: $(PLATFORM)"; exit 1 ;; \
+	esac
 
 uninstall-linux:
 	@rm -f "$(BINDIR)/subminer" "$(BINDIR)/SubMiner.AppImage"
@@ -233,3 +259,8 @@ uninstall-macos:
 	@rm -f "$(MACOS_DATA_DIR)/themes/$(THEME_FILE)"
 	@rm -rf "$(MACOS_APP_DEST)"
 	@printf '%s\n' "Removed:" "  $(BINDIR)/subminer" "  $(MACOS_DATA_DIR)/themes/$(THEME_FILE)" "  $(MACOS_APP_DEST)"
+
+uninstall-windows:
+	@rm -rf "$(MPV_SCRIPTS_DIR)/subminer"
+	@rm -f "$(MPV_SCRIPTS_DIR)/subminer.lua" "$(MPV_SCRIPTS_DIR)/subminer-loader.lua" "$(MPV_SCRIPT_OPTS_DIR)/subminer.conf"
+	@printf '%s\n' "Removed:" "  $(MPV_SCRIPTS_DIR)/subminer" "  $(MPV_SCRIPT_OPTS_DIR)/subminer.conf"

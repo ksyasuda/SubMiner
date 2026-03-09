@@ -54,8 +54,10 @@ test('installFirstRunPluginToDefaultLocation installs plugin and backs up existi
     fs.writeFileSync(path.join(pluginRoot, 'subminer', 'main.lua'), '-- packaged plugin');
     fs.writeFileSync(path.join(pluginRoot, 'subminer.conf'), 'configured=true\n');
 
+    fs.mkdirSync(path.dirname(installPaths.pluginEntrypointPath), { recursive: true });
     fs.mkdirSync(installPaths.pluginDir, { recursive: true });
     fs.mkdirSync(path.dirname(installPaths.pluginConfigPath), { recursive: true });
+    fs.writeFileSync(path.join(installPaths.scriptsDir, 'subminer-loader.lua'), '-- old loader');
     fs.writeFileSync(path.join(installPaths.pluginDir, 'old.lua'), '-- old plugin');
     fs.writeFileSync(installPaths.pluginConfigPath, 'old=true\n');
 
@@ -72,7 +74,7 @@ test('installFirstRunPluginToDefaultLocation installs plugin and backs up existi
     assert.equal(result.pluginInstallStatus, 'installed');
     assert.equal(detectInstalledFirstRunPlugin(installPaths), true);
     assert.equal(
-      fs.readFileSync(path.join(installPaths.pluginDir, 'main.lua'), 'utf8'),
+      fs.readFileSync(installPaths.pluginEntrypointPath, 'utf8'),
       '-- packaged plugin',
     );
     assert.equal(fs.readFileSync(installPaths.pluginConfigPath, 'utf8'), 'configured=true\n');
@@ -84,23 +86,75 @@ test('installFirstRunPluginToDefaultLocation installs plugin and backs up existi
       true,
     );
     assert.equal(
+      scriptsDirEntries.some((entry) => entry.startsWith('subminer-loader.lua.bak.')),
+      true,
+    );
+    assert.equal(
       scriptOptsEntries.some((entry) => entry.startsWith('subminer.conf.bak.')),
       true,
     );
   });
 });
 
-test('installFirstRunPluginToDefaultLocation reports unsupported platforms', () => {
-  const result = installFirstRunPluginToDefaultLocation({
-    platform: 'win32',
-    homeDir: '/tmp/home',
-    xdgConfigHome: '/tmp/xdg',
-    dirname: '/tmp/dist/main/runtime',
-    appPath: '/tmp/app',
-    resourcesPath: '/tmp/resources',
-  });
+test('installFirstRunPluginToDefaultLocation installs plugin to Windows mpv defaults', () => {
+  withTempDir((root) => {
+    const resourcesPath = path.join(root, 'resources');
+    const pluginRoot = path.join(resourcesPath, 'plugin');
+    const homeDir = path.join(root, 'home');
+    const installPaths = resolveDefaultMpvInstallPaths('win32', homeDir);
 
-  assert.equal(result.ok, false);
-  assert.equal(result.pluginInstallStatus, 'failed');
-  assert.match(result.message, /not supported/i);
+    fs.mkdirSync(path.join(pluginRoot, 'subminer'), { recursive: true });
+    fs.writeFileSync(path.join(pluginRoot, 'subminer', 'main.lua'), '-- packaged plugin');
+    fs.writeFileSync(path.join(pluginRoot, 'subminer.conf'), 'configured=true\n');
+
+    const result = installFirstRunPluginToDefaultLocation({
+      platform: 'win32',
+      homeDir,
+      dirname: path.join(root, 'dist', 'main', 'runtime'),
+      appPath: path.join(root, 'app'),
+      resourcesPath,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.pluginInstallStatus, 'installed');
+    assert.equal(detectInstalledFirstRunPlugin(installPaths), true);
+    assert.equal(
+      fs.readFileSync(installPaths.pluginEntrypointPath, 'utf8'),
+      '-- packaged plugin',
+    );
+    assert.equal(
+      fs.readFileSync(installPaths.pluginConfigPath, 'utf8'),
+      'configured=true\n',
+    );
+  });
+});
+
+test('installFirstRunPluginToDefaultLocation rewrites Windows plugin socket_path', () => {
+  withTempDir((root) => {
+    const resourcesPath = path.join(root, 'resources');
+    const pluginRoot = path.join(resourcesPath, 'plugin');
+    const homeDir = path.join(root, 'home');
+    const installPaths = resolveDefaultMpvInstallPaths('win32', homeDir);
+
+    fs.mkdirSync(path.join(pluginRoot, 'subminer'), { recursive: true });
+    fs.writeFileSync(path.join(pluginRoot, 'subminer', 'main.lua'), '-- packaged plugin');
+    fs.writeFileSync(
+      path.join(pluginRoot, 'subminer.conf'),
+      'binary_path=\nsocket_path=/tmp/subminer-socket\n',
+    );
+
+    const result = installFirstRunPluginToDefaultLocation({
+      platform: 'win32',
+      homeDir,
+      dirname: path.join(root, 'dist', 'main', 'runtime'),
+      appPath: path.join(root, 'app'),
+      resourcesPath,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      fs.readFileSync(installPaths.pluginConfigPath, 'utf8'),
+      'binary_path=\nsocket_path=\\\\.\\pipe\\subminer-socket\n',
+    );
+  });
 });

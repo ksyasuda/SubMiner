@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLauncherYoutubeSubgenConfig } from './config/youtube-subgen-config.js';
 import { parseLauncherJellyfinConfig } from './config/jellyfin-config.js';
-import { parsePluginRuntimeConfigContent } from './config/plugin-runtime-config.js';
+import {
+  getPluginConfigCandidates,
+  parsePluginRuntimeConfigContent,
+} from './config/plugin-runtime-config.js';
+import { getDefaultSocketPath } from './types.js';
 
 test('parseLauncherYoutubeSubgenConfig keeps only valid typed values', () => {
   const parsed = parseLauncherYoutubeSubgenConfig({
@@ -96,4 +100,19 @@ auto_start_pause_until_ready = off
   assert.equal(parsed.autoStart, false);
   assert.equal(parsed.autoStartVisibleOverlay, false);
   assert.equal(parsed.autoStartPauseUntilReady, false);
+});
+
+test('getPluginConfigCandidates resolves Windows mpv script-opts path', () => {
+  assert.deepEqual(
+    getPluginConfigCandidates({
+      platform: 'win32',
+      homeDir: 'C:\\Users\\tester',
+      appDataDir: 'C:\\Users\\tester\\AppData\\Roaming',
+    }),
+    ['C:\\Users\\tester\\AppData\\Roaming\\mpv\\script-opts\\subminer.conf'],
+  );
+});
+
+test('getDefaultSocketPath returns Windows named pipe default', () => {
+  assert.equal(getDefaultSocketPath('win32'), '\\\\.\\pipe\\subminer-socket');
 });

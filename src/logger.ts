@@ -116,8 +116,26 @@ function resolveLogFilePath(): string {
   if (envPath) {
     return envPath;
   }
+  return resolveDefaultLogFilePath({
+    platform: process.platform,
+    homeDir: os.homedir(),
+    appDataDir: process.env.APPDATA,
+  });
+}
+
+export function resolveDefaultLogFilePath(options?: {
+  platform?: NodeJS.Platform;
+  homeDir?: string;
+  appDataDir?: string;
+}): string {
   const date = new Date().toISOString().slice(0, 10);
-  return path.join(os.homedir(), '.config', 'SubMiner', 'logs', `SubMiner-${date}.log`);
+  const platform = options?.platform ?? process.platform;
+  const homeDir = options?.homeDir ?? os.homedir();
+  const baseDir =
+    platform === 'win32'
+      ? path.join(options?.appDataDir?.trim() || path.join(homeDir, 'AppData', 'Roaming'), 'SubMiner')
+      : path.join(homeDir, '.config', 'SubMiner');
+  return path.join(baseDir, 'logs', `SubMiner-${date}.log`);
 }
 
 function appendToLogFile(line: string): void {

@@ -3,53 +3,93 @@ import type { FrequencyDictionaryLookup, JlptLevel } from '../../types';
 type JlptLookup = (term: string) => JlptLevel | null;
 
 export function createBuildDictionaryRootsMainHandler(deps: {
+  platform: NodeJS.Platform;
   dirname: string;
   appPath: string;
   resourcesPath: string;
   userDataPath: string;
   appUserDataPath: string;
   homeDir: string;
+  appDataDir?: string;
   cwd: string;
   joinPath: (...parts: string[]) => string;
 }) {
-  return () => [
-    deps.joinPath(deps.dirname, '..', '..', 'vendor', 'yomitan-jlpt-vocab'),
-    deps.joinPath(deps.appPath, 'vendor', 'yomitan-jlpt-vocab'),
-    deps.joinPath(deps.resourcesPath, 'yomitan-jlpt-vocab'),
-    deps.joinPath(deps.resourcesPath, 'app.asar', 'vendor', 'yomitan-jlpt-vocab'),
-    deps.userDataPath,
-    deps.appUserDataPath,
-    deps.joinPath(deps.homeDir, '.config', 'SubMiner'),
-    deps.joinPath(deps.homeDir, '.config', 'subminer'),
-    deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'SubMiner'),
-    deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'subminer'),
-    deps.cwd,
-  ];
+  return () => {
+    const platformRoots =
+      deps.platform === 'win32'
+        ? [
+            deps.joinPath(
+              deps.appDataDir ?? deps.joinPath(deps.homeDir, 'AppData', 'Roaming'),
+              'SubMiner',
+            ),
+            deps.joinPath(
+              deps.appDataDir ?? deps.joinPath(deps.homeDir, 'AppData', 'Roaming'),
+              'subminer',
+            ),
+          ]
+        : [
+            deps.joinPath(deps.homeDir, '.config', 'SubMiner'),
+            deps.joinPath(deps.homeDir, '.config', 'subminer'),
+            deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'SubMiner'),
+            deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'subminer'),
+          ];
+
+    return [
+      deps.joinPath(deps.dirname, '..', '..', 'vendor', 'yomitan-jlpt-vocab'),
+      deps.joinPath(deps.appPath, 'vendor', 'yomitan-jlpt-vocab'),
+      deps.joinPath(deps.resourcesPath, 'yomitan-jlpt-vocab'),
+      deps.joinPath(deps.resourcesPath, 'app.asar', 'vendor', 'yomitan-jlpt-vocab'),
+      deps.userDataPath,
+      deps.appUserDataPath,
+      ...platformRoots,
+      deps.cwd,
+    ];
+  };
 }
 
 export function createBuildFrequencyDictionaryRootsMainHandler(deps: {
+  platform: NodeJS.Platform;
   dirname: string;
   appPath: string;
   resourcesPath: string;
   userDataPath: string;
   appUserDataPath: string;
   homeDir: string;
+  appDataDir?: string;
   cwd: string;
   joinPath: (...parts: string[]) => string;
 }) {
-  return () => [
-    deps.joinPath(deps.dirname, '..', '..', 'vendor', 'frequency-dictionary'),
-    deps.joinPath(deps.appPath, 'vendor', 'frequency-dictionary'),
-    deps.joinPath(deps.resourcesPath, 'frequency-dictionary'),
-    deps.joinPath(deps.resourcesPath, 'app.asar', 'vendor', 'frequency-dictionary'),
-    deps.userDataPath,
-    deps.appUserDataPath,
-    deps.joinPath(deps.homeDir, '.config', 'SubMiner'),
-    deps.joinPath(deps.homeDir, '.config', 'subminer'),
-    deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'SubMiner'),
-    deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'subminer'),
-    deps.cwd,
-  ];
+  return () => {
+    const platformRoots =
+      deps.platform === 'win32'
+        ? [
+            deps.joinPath(
+              deps.appDataDir ?? deps.joinPath(deps.homeDir, 'AppData', 'Roaming'),
+              'SubMiner',
+            ),
+            deps.joinPath(
+              deps.appDataDir ?? deps.joinPath(deps.homeDir, 'AppData', 'Roaming'),
+              'subminer',
+            ),
+          ]
+        : [
+            deps.joinPath(deps.homeDir, '.config', 'SubMiner'),
+            deps.joinPath(deps.homeDir, '.config', 'subminer'),
+            deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'SubMiner'),
+            deps.joinPath(deps.homeDir, 'Library', 'Application Support', 'subminer'),
+          ];
+
+    return [
+      deps.joinPath(deps.dirname, '..', '..', 'vendor', 'frequency-dictionary'),
+      deps.joinPath(deps.appPath, 'vendor', 'frequency-dictionary'),
+      deps.joinPath(deps.resourcesPath, 'frequency-dictionary'),
+      deps.joinPath(deps.resourcesPath, 'app.asar', 'vendor', 'frequency-dictionary'),
+      deps.userDataPath,
+      deps.appUserDataPath,
+      ...platformRoots,
+      deps.cwd,
+    ];
+  };
 }
 
 export function createBuildJlptDictionaryRuntimeMainDepsHandler(deps: {

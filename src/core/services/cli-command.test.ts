@@ -7,6 +7,8 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
     background: false,
     start: false,
+    launchMpv: false,
+    launchMpvTargets: [],
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,

@@ -3,7 +3,14 @@ import os from 'node:os';
 export { VIDEO_EXTENSIONS } from '../src/shared/video-extensions.js';
 
 export const ROFI_THEME_FILE = 'subminer.rasi';
-export const DEFAULT_SOCKET_PATH = '/tmp/subminer-socket';
+export function getDefaultSocketPath(platform: NodeJS.Platform = process.platform): string {
+  if (platform === 'win32') {
+    return '\\\\.\\pipe\\subminer-socket';
+  }
+  return '/tmp/subminer-socket';
+}
+
+export const DEFAULT_SOCKET_PATH = getDefaultSocketPath();
 export const DEFAULT_YOUTUBE_PRIMARY_SUB_LANGS = ['ja', 'jpn'];
 export const DEFAULT_YOUTUBE_SECONDARY_SUB_LANGS = ['en', 'eng'];
 export const YOUTUBE_SUB_EXTENSIONS = new Set(['.srt', '.vtt', '.ass']);
@@ -22,13 +29,21 @@ export const DEFAULT_YOUTUBE_SUBGEN_OUT_DIR = path.join(
   'subminer',
   'youtube-subs',
 );
-export const DEFAULT_MPV_LOG_FILE = path.join(
-  os.homedir(),
-  '.config',
-  'SubMiner',
-  'logs',
-  `SubMiner-${new Date().toISOString().slice(0, 10)}.log`,
-);
+export function getDefaultMpvLogFile(options?: {
+  platform?: NodeJS.Platform;
+  homeDir?: string;
+  appDataDir?: string;
+}): string {
+  const platform = options?.platform ?? process.platform;
+  const homeDir = options?.homeDir ?? os.homedir();
+  const baseDir =
+    platform === 'win32'
+      ? path.join(options?.appDataDir?.trim() || path.join(homeDir, 'AppData', 'Roaming'), 'SubMiner')
+      : path.join(homeDir, '.config', 'SubMiner');
+  return path.join(baseDir, 'logs', `SubMiner-${new Date().toISOString().slice(0, 10)}.log`);
+}
+
+export const DEFAULT_MPV_LOG_FILE = getDefaultMpvLogFile();
 export const DEFAULT_YOUTUBE_YTDL_FORMAT = 'bestvideo*+bestaudio/best';
 export const DEFAULT_JIMAKU_API_BASE_URL = 'https://jimaku.cc';
 export const DEFAULT_MPV_SUBMINER_ARGS = [

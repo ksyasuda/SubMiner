@@ -21,17 +21,15 @@ import { WindowGeometry } from '../types';
 export type GeometryChangeCallback = (geometry: WindowGeometry) => void;
 export type WindowFoundCallback = (geometry: WindowGeometry) => void;
 export type WindowLostCallback = () => void;
-export type WindowFocusChangeCallback = (focused: boolean) => void;
 
 export abstract class BaseWindowTracker {
   protected currentGeometry: WindowGeometry | null = null;
   protected windowFound: boolean = false;
-  protected focusKnown: boolean = false;
-  protected windowFocused: boolean = false;
+  protected targetWindowFocused: boolean = false;
   public onGeometryChange: GeometryChangeCallback | null = null;
   public onWindowFound: WindowFoundCallback | null = null;
   public onWindowLost: WindowLostCallback | null = null;
-  public onWindowFocusChange: WindowFocusChangeCallback | null = null;
+  public onTargetWindowFocusChange: ((focused: boolean) => void) | null = null;
 
   abstract start(): void;
   abstract stop(): void;
@@ -44,23 +42,24 @@ export abstract class BaseWindowTracker {
     return this.windowFound;
   }
 
-  isFocused(): boolean {
-    return this.focusKnown ? this.windowFocused : this.windowFound;
+  isTargetWindowFocused(): boolean {
+    return this.targetWindowFocused;
   }
 
-  protected updateFocus(focused: boolean): void {
-    const changed = !this.focusKnown || this.windowFocused !== focused;
-    this.focusKnown = true;
-    this.windowFocused = focused;
-    if (changed) {
-      this.onWindowFocusChange?.(focused);
+  protected updateTargetWindowFocused(focused: boolean): void {
+    if (this.targetWindowFocused === focused) {
+      return;
     }
+
+    this.targetWindowFocused = focused;
+    this.onTargetWindowFocusChange?.(focused);
   }
 
   protected updateGeometry(newGeometry: WindowGeometry | null): void {
     if (newGeometry) {
       if (!this.windowFound) {
         this.windowFound = true;
+        this.updateTargetWindowFocused(true);
         if (this.onWindowFound) this.onWindowFound(newGeometry);
       }
 
@@ -75,14 +74,9 @@ export abstract class BaseWindowTracker {
         if (this.onGeometryChange) this.onGeometryChange(newGeometry);
       }
     } else {
-      const focusChanged = this.focusKnown && this.windowFocused;
-      this.focusKnown = false;
-      this.windowFocused = false;
-      if (focusChanged) {
-        this.onWindowFocusChange?.(false);
-      }
       if (this.windowFound) {
         this.windowFound = false;
+        this.updateTargetWindowFocused(false);
         this.currentGeometry = null;
         if (this.onWindowLost) this.onWindowLost();
       }

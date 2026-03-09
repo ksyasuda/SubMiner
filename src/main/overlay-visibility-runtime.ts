@@ -16,6 +16,7 @@ export interface OverlayVisibilityRuntimeDeps {
   enforceOverlayLayerOrder: () => void;
   syncOverlayShortcuts: () => void;
   isMacOSPlatform: () => boolean;
+  isWindowsPlatform: () => boolean;
   showOverlayLoadingOsd: (message: string) => void;
   resolveFallbackBounds: () => WindowGeometry;
 }
@@ -45,6 +46,7 @@ export function createOverlayVisibilityRuntimeService(
         enforceOverlayLayerOrder: () => deps.enforceOverlayLayerOrder(),
         syncOverlayShortcuts: () => deps.syncOverlayShortcuts(),
         isMacOSPlatform: deps.isMacOSPlatform(),
+        isWindowsPlatform: deps.isWindowsPlatform(),
         showOverlayLoadingOsd: (message: string) => deps.showOverlayLoadingOsd(message),
         resolveFallbackBounds: () => deps.resolveFallbackBounds(),
       });

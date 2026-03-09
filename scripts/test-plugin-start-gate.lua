@@ -802,4 +802,29 @@ do
 	)
 end
 
+do
+	local recorded, err = run_plugin_scenario({
+		platform = "windows",
+		process_list = "",
+		option_overrides = {
+			binary_path = "C:/Users/test/AppData/Local/Programs/SubMiner/SubMiner.exe",
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "\\\\.\\pipe\\subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			["C:/Users/test/AppData/Local/Programs/SubMiner/SubMiner.exe"] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for Windows legacy socket config scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	local start_call = find_start_call(recorded.async_calls)
+	assert_true(
+		start_call ~= nil,
+		"Windows plugin should normalize legacy /tmp socket_path values to the named pipe default"
+	)
+end
+
 print("plugin start gate regression tests: OK")

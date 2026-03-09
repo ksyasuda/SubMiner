@@ -21,6 +21,8 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
   return {
     background: false,
     start: false,
+    launchMpv: false,
+    launchMpvTargets: [],
     stop: false,
     toggle: false,
     toggleVisibleOverlay: false,
@@ -167,5 +169,37 @@ test('setup service marks cancelled when popup closes before completion', async 
     await service.markSetupInProgress();
     const cancelled = await service.markSetupCancelled();
     assert.equal(cancelled.state.status, 'cancelled');
+  });
+});
+
+test('setup service reflects detected Windows mpv shortcuts before preferences are persisted', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+
+    const service = createFirstRunSetupService({
+      platform: 'win32',
+      configDir,
+      getYomitanDictionaryCount: async () => 0,
+      detectPluginInstalled: () => false,
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      detectWindowsMpvShortcuts: async () => ({
+        startMenuInstalled: false,
+        desktopInstalled: true,
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    const snapshot = await service.ensureSetupStateInitialized();
+    assert.equal(snapshot.windowsMpvShortcuts.startMenuEnabled, false);
+    assert.equal(snapshot.windowsMpvShortcuts.desktopEnabled, true);
+    assert.equal(snapshot.windowsMpvShortcuts.startMenuInstalled, false);
+    assert.equal(snapshot.windowsMpvShortcuts.desktopInstalled, true);
   });
 });

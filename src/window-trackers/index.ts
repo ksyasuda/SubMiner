@@ -21,14 +21,16 @@ import { HyprlandWindowTracker } from './hyprland-tracker';
 import { SwayWindowTracker } from './sway-tracker';
 import { X11WindowTracker } from './x11-tracker';
 import { MacOSWindowTracker } from './macos-tracker';
+import { WindowsWindowTracker } from './windows-tracker';
 import { createLogger } from '../logger';
 
 const log = createLogger('tracker');
 
-export type Compositor = 'hyprland' | 'sway' | 'x11' | 'macos' | null;
+export type Compositor = 'hyprland' | 'sway' | 'x11' | 'macos' | 'windows' | null;
 export type Backend = 'auto' | Exclude<Compositor, null>;
 
 export function detectCompositor(): Compositor {
+  if (process.platform === 'win32') return 'windows';
   if (process.platform === 'darwin') return 'macos';
   if (process.env.HYPRLAND_INSTANCE_SIGNATURE) return 'hyprland';
   if (process.env.SWAYSOCK) return 'sway';
@@ -42,6 +44,7 @@ function normalizeCompositor(value: string): Compositor | null {
   if (normalized === 'sway') return 'sway';
   if (normalized === 'x11') return 'x11';
   if (normalized === 'macos') return 'macos';
+  if (normalized === 'windows') return 'windows';
   return null;
 }
 
@@ -70,6 +73,8 @@ export function createWindowTracker(
       return new X11WindowTracker(targetMpvSocketPath?.trim() || undefined);
     case 'macos':
       return new MacOSWindowTracker(targetMpvSocketPath?.trim() || undefined);
+    case 'windows':
+      return new WindowsWindowTracker(targetMpvSocketPath?.trim() || undefined);
     default:
       log.warn('No supported compositor detected. Window tracking disabled.');
       return null;
@@ -82,4 +87,5 @@ export {
   SwayWindowTracker,
   X11WindowTracker,
   MacOSWindowTracker,
+  WindowsWindowTracker,
 };

@@ -3,6 +3,8 @@ import path from 'node:path';
 type ExistsSync = (candidate: string) => boolean;
 
 type ConfigPathOptions = {
+  platform?: NodeJS.Platform;
+  appDataDir?: string;
   xdgConfigHome?: string;
   homeDir: string;
   existsSync: ExistsSync;
@@ -16,7 +18,15 @@ const DEFAULT_FILE_NAMES = ['config.jsonc', 'config.json'] as const;
 export function resolveConfigBaseDirs(
   xdgConfigHome: string | undefined,
   homeDir: string,
+  platform: NodeJS.Platform = process.platform,
+  appDataDir?: string,
 ): string[] {
+  if (platform === 'win32') {
+    const roamingBaseDir = path.join(homeDir, 'AppData', 'Roaming');
+    const primaryBaseDir = appDataDir?.trim() || roamingBaseDir;
+    return Array.from(new Set([primaryBaseDir, roamingBaseDir]));
+  }
+
   const fallbackBaseDir = path.join(homeDir, '.config');
   const primaryBaseDir = xdgConfigHome?.trim() || fallbackBaseDir;
   return Array.from(new Set([primaryBaseDir, fallbackBaseDir]));
@@ -31,7 +41,12 @@ function getDefaultAppName(options: ConfigPathOptions): string {
 }
 
 export function resolveConfigDir(options: ConfigPathOptions): string {
-  const baseDirs = resolveConfigBaseDirs(options.xdgConfigHome, options.homeDir);
+  const baseDirs = resolveConfigBaseDirs(
+    options.xdgConfigHome,
+    options.homeDir,
+    options.platform,
+    options.appDataDir,
+  );
   const appNames = getAppNames(options);
 
   for (const baseDir of baseDirs) {
@@ -58,7 +73,12 @@ export function resolveConfigDir(options: ConfigPathOptions): string {
 }
 
 export function resolveConfigFilePath(options: ConfigPathOptions): string {
-  const baseDirs = resolveConfigBaseDirs(options.xdgConfigHome, options.homeDir);
+  const baseDirs = resolveConfigBaseDirs(
+    options.xdgConfigHome,
+    options.homeDir,
+    options.platform,
+    options.appDataDir,
+  );
   const appNames = getAppNames(options);
 
   for (const baseDir of baseDirs) {

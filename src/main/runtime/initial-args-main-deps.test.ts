@@ -9,6 +9,7 @@ test('initial args main deps builder maps runtime callbacks and state readers', 
   const deps = createBuildHandleInitialArgsMainDepsHandler({
     getInitialArgs: () => args,
     isBackgroundMode: () => true,
+    shouldEnsureTrayOnStartup: () => false,
     ensureTray: () => calls.push('ensure-tray'),
     isTexthookerOnlyMode: () => false,
     hasImmersionTracker: () => true,
@@ -19,6 +20,7 @@ test('initial args main deps builder maps runtime callbacks and state readers', 
 
   assert.equal(deps.getInitialArgs(), args);
   assert.equal(deps.isBackgroundMode(), true);
+  assert.equal(deps.shouldEnsureTrayOnStartup(), false);
   assert.equal(deps.isTexthookerOnlyMode(), false);
   assert.equal(deps.hasImmersionTracker(), true);
   assert.equal(deps.getMpvClient(), mpvClient);
