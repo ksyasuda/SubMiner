@@ -12,6 +12,9 @@
         <pe-file path="*.dll" max-matches="unbounded">
           <authenticode-sign />
         </pe-file>
+        <pe-file path="*.node" max-matches="unbounded">
+          <authenticode-sign />
+        </pe-file>
       </directory>
     </zip-file>
   </zip-file>

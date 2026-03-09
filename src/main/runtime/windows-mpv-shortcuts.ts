@@ -77,7 +77,7 @@ export function applyWindowsMpvShortcuts(options: {
 
   const ensureShortcut = (shortcutPath: string): void => {
     mkdirSync(path.dirname(shortcutPath), { recursive: true });
-    const ok = options.writeShortcutLink(shortcutPath, 'create', details);
+    const ok = options.writeShortcutLink(shortcutPath, 'replace', details);
     if (!ok) {
       failures.push(shortcutPath);
     }

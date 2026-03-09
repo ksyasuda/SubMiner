@@ -67,8 +67,8 @@ test('applyWindowsMpvShortcuts creates enabled shortcuts and removes disabled on
       desktopPath: 'C:\\Desktop\\SubMiner mpv.lnk',
     },
     exePath: 'C:\\Apps\\SubMiner\\SubMiner.exe',
-    writeShortcutLink: (shortcutPath, _operation, details) => {
-      writes.push(`${shortcutPath}|${details.target}|${details.args}`);
+    writeShortcutLink: (shortcutPath, operation, details) => {
+      writes.push(`${shortcutPath}|${operation}|${details.target}|${details.args}`);
       return true;
     },
     rmSync: (candidate) => {
@@ -80,7 +80,7 @@ test('applyWindowsMpvShortcuts creates enabled shortcuts and removes disabled on
   assert.equal(result.ok, true);
   assert.equal(result.status, 'installed');
   assert.deepEqual(writes, [
-    'C:\\Programs\\SubMiner mpv.lnk|C:\\Apps\\SubMiner\\SubMiner.exe|--launch-mpv',
+    'C:\\Programs\\SubMiner mpv.lnk|replace|C:\\Apps\\SubMiner\\SubMiner.exe|--launch-mpv',
   ]);
   assert.deepEqual(removes, ['C:\\Desktop\\SubMiner mpv.lnk']);
 });

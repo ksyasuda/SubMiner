@@ -60,7 +60,7 @@ chmod +x ~/.local/bin/subminer
 
 **Windows (Installer/ZIP):** download the latest `SubMiner-<version>.exe` installer or portable `.zip` from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Keep `mpv` installed and available on `PATH`.
 
-**From source** — initialize submodules first (`git submodule update --init --recursive`). Bundled Yomitan is built from the `vendor/subminer-yomitan` submodule into `build/yomitan` during `bun run build`, so source builds only need Bun for the JS toolchain. Packaged macOS and Windows installs do not require Bun. Full install guide: [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
+**From source** — initialize submodules first (`git submodule update --init --recursive`). Bundled Yomitan is built from the `vendor/subminer-yomitan` submodule into `build/yomitan` during `bun run build`, so source builds only need Bun for the JS toolchain. Packaged macOS and Windows installs do not require Bun. Windows installer builds go through `electron-builder`; its bundled `app-builder-lib` NSIS templates already use the third-party `WinShell` plugin for shortcut AppUserModelID assignment, and the `WinShell.dll` binary is supplied by electron-builder's cached `nsis-resources` bundle, so `bun run build:win` does not need a separate repo-local plugin install step. Full install guide: [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
 
 ### 2. Launch the app once
 

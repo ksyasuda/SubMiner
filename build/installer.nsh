@@ -125,6 +125,8 @@ FunctionEnd
       CreateDirectory "$SMPROGRAMS\${MENU_FILENAME}"
     !endif
     CreateShortCut "$WindowsMpvShortcutStartMenuPath" "$appExe" "--launch-mpv" "$appExe" 0 "" "" "Launch mpv with the SubMiner profile"
+    # electron-builder's upstream NSIS templates use the same WinShell call for AppUserModelID wiring.
+    # WinShell.dll comes from electron-builder's cached nsis-resources bundle, so bun run build:win needs no extra repo-local setup.
     ClearErrors
     WinShell::SetLnkAUMI "$WindowsMpvShortcutStartMenuPath" "${APP_ID}"
   ${else}
@@ -133,6 +135,7 @@ FunctionEnd
 
   ${if} $WindowsMpvShortcutDesktopEnabled == "1"
     CreateShortCut "$WindowsMpvShortcutDesktopPath" "$appExe" "--launch-mpv" "$appExe" 0 "" "" "Launch mpv with the SubMiner profile"
+    # ClearErrors keeps the optional AUMI assignment non-fatal if the packaging environment is missing WinShell.
     ClearErrors
     WinShell::SetLnkAUMI "$WindowsMpvShortcutDesktopPath" "${APP_ID}"
   ${else}
