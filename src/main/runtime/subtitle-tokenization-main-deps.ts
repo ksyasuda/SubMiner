@@ -80,6 +80,8 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
   ensureJlptDictionaryLookup: () => Promise<void>;
   ensureFrequencyDictionaryLookup: () => Promise<void>;
   showMpvOsd?: (message: string) => void;
+  showLoadingOsd?: (message: string) => void;
+  showLoadedOsd?: (message: string) => void;
   shouldShowOsdNotification?: () => boolean;
   setInterval?: (callback: () => void, delayMs: number) => unknown;
   clearInterval?: (timer: unknown) => void;
@@ -90,6 +92,8 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
   let loadingOsdFrame = 0;
   let loadingOsdTimer: unknown = null;
   const showMpvOsd = deps.showMpvOsd;
+  const showLoadingOsd = deps.showLoadingOsd ?? showMpvOsd;
+  const showLoadedOsd = deps.showLoadedOsd ?? showMpvOsd;
   const setIntervalHandler =
     deps.setInterval ??
     ((callback: () => void, delayMs: number): unknown => setInterval(callback, delayMs));
@@ -99,7 +103,7 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
   const spinnerFrames = ['|', '/', '-', '\\'];
 
   const beginLoadingOsd = (): boolean => {
-    if (!showMpvOsd) {
+    if (!showLoadingOsd) {
       return false;
     }
     loadingOsdDepth += 1;
@@ -108,13 +112,13 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
     }
 
     loadingOsdFrame = 0;
-    showMpvOsd(`Loading subtitle annotations ${spinnerFrames[loadingOsdFrame]}`);
+    showLoadingOsd(`Loading subtitle annotations ${spinnerFrames[loadingOsdFrame]}`);
     loadingOsdFrame += 1;
     loadingOsdTimer = setIntervalHandler(() => {
-      if (!showMpvOsd) {
+      if (!showLoadingOsd) {
         return;
       }
-      showMpvOsd(
+      showLoadingOsd(
         `Loading subtitle annotations ${spinnerFrames[loadingOsdFrame % spinnerFrames.length]}`,
       );
       loadingOsdFrame += 1;
@@ -123,7 +127,7 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
   };
 
   const endLoadingOsd = (): void => {
-    if (!showMpvOsd) {
+    if (!showLoadedOsd) {
       return;
     }
 
@@ -136,7 +140,7 @@ export function createPrewarmSubtitleDictionariesMainHandler(deps: {
       clearIntervalHandler(loadingOsdTimer);
       loadingOsdTimer = null;
     }
-    showMpvOsd('Subtitle annotations loaded');
+    showLoadedOsd('Subtitle annotations loaded');
   };
 
   return async (options?: { showLoadingOsd?: boolean }): Promise<void> => {

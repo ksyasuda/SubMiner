@@ -1,4 +1,6 @@
 local M = {}
+local DEFAULT_ANISKIP_BUTTON_KEY = "TAB"
+local LEGACY_ANISKIP_BUTTON_KEY = "y-k"
 
 function M.create(ctx)
 	local mp = ctx.mp
@@ -89,8 +91,11 @@ function M.create(ctx)
 				aniskip.skip_intro_now()
 			end)
 		end
-		if opts.aniskip_button_key ~= "y-k" then
-			mp.add_key_binding("y-k", "subminer-skip-intro-fallback", function()
+		if
+			opts.aniskip_button_key ~= LEGACY_ANISKIP_BUTTON_KEY
+			and opts.aniskip_button_key ~= DEFAULT_ANISKIP_BUTTON_KEY
+		then
+			mp.add_key_binding(LEGACY_ANISKIP_BUTTON_KEY, "subminer-skip-intro-fallback", function()
 				aniskip.skip_intro_now()
 			end)
 		end

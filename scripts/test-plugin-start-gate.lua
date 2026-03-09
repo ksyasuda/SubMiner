@@ -6,6 +6,8 @@ local function run_plugin_scenario(config)
 		sync_calls = {},
 		script_messages = {},
 		events = {},
+		observers = {},
+		key_bindings = {},
 		osd = {},
 		logs = {},
 		property_sets = {},
@@ -39,6 +41,13 @@ local function run_plugin_scenario(config)
 
 		function mp.get_property_native(_name)
 			return config.chapter_list or {}
+		end
+
+		function mp.get_property_number(name)
+			if name == "time-pos" then
+				return config.time_pos
+			end
+			return nil
 		end
 
 		function mp.get_script_directory()
@@ -123,7 +132,13 @@ local function run_plugin_scenario(config)
 			recorded.script_messages[name] = fn
 		end
 
-		function mp.add_key_binding(_keys, _name, _fn) end
+		function mp.add_key_binding(keys, name, fn)
+			recorded.key_bindings[#recorded.key_bindings + 1] = {
+				keys = keys,
+				name = name,
+				fn = fn,
+			}
+		end
 		function mp.register_event(name, fn)
 			if recorded.events[name] == nil then
 				recorded.events[name] = {}
@@ -131,7 +146,12 @@ local function run_plugin_scenario(config)
 			recorded.events[name][#recorded.events[name] + 1] = fn
 		end
 		function mp.add_hook(_name, _prio, _fn) end
-		function mp.observe_property(_name, _kind, _fn) end
+		function mp.observe_property(name, _kind, fn)
+			if recorded.observers[name] == nil then
+				recorded.observers[name] = {}
+			end
+			recorded.observers[name][#recorded.observers[name] + 1] = fn
+		end
 		function mp.osd_message(message, _duration)
 			recorded.osd[#recorded.osd + 1] = message
 		end
@@ -213,6 +233,26 @@ local function run_plugin_scenario(config)
 	package.loaded["mp.msg"] = nil
 	package.loaded["mp.options"] = nil
 	package.loaded["mp.utils"] = nil
+	package.loaded["binary"] = nil
+	package.loaded["bootstrap"] = nil
+	package.loaded["environment"] = nil
+	package.loaded["hover"] = nil
+	package.loaded["init"] = nil
+	package.loaded["lifecycle"] = nil
+	package.loaded["log"] = nil
+	package.loaded["messages"] = nil
+	package.loaded["options"] = nil
+	package.loaded["process"] = nil
+	package.loaded["state"] = nil
+	package.loaded["ui"] = nil
+	package.loaded["aniskip"] = nil
+	_G.__subminer_plugin_bootstrapped = nil
+	local original_package_config = package.config
+	if config.platform == "windows" then
+		package.config = "\\\n;\n?\n!\n-\n"
+	else
+		package.config = "/\n;\n?\n!\n-\n"
+	end
 
 	package.preload["mp"] = function()
 		return mp
@@ -246,6 +286,7 @@ local function run_plugin_scenario(config)
 	end
 
 	local ok, err = pcall(dofile, "plugin/subminer/main.lua")
+	package.config = original_package_config
 	if not ok then
 		return nil, err, recorded
 	end
@@ -412,6 +453,22 @@ local function fire_event(recorded, name)
 	end
 end
 
+local function fire_observer(recorded, name, value)
+	local listeners = recorded.observers[name] or {}
+	for _, listener in ipairs(listeners) do
+		listener(name, value)
+	end
+end
+
+local function has_key_binding(recorded, keys, name)
+	for _, binding in ipairs(recorded.key_bindings or {}) do
+		if binding.keys == keys and binding.name == name then
+			return true
+		end
+	end
+	return false
+end
+
 local binary_path = "/tmp/subminer-binary"
 
 do
@@ -513,6 +570,38 @@ do
 	assert_true(
 		has_async_curl_for(recorded.async_calls, "myanimelist.net/search/prefix.json"),
 		"AniSkip refresh should perform MAL lookup even when app is not running"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "no",
+		},
+		media_title = "Sample Show S01E01",
+		time_pos = 13,
+		mal_lookup_stdout = "__MAL_FOUND__",
+		aniskip_stdout = "__ANISKIP_FOUND__",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for default AniSkip keybinding scenario: " .. tostring(err))
+	assert_true(
+		has_key_binding(recorded, "TAB", "subminer-skip-intro"),
+		"default AniSkip keybinding should register TAB"
+	)
+	assert_true(
+		not has_key_binding(recorded, "y-k", "subminer-skip-intro-fallback"),
+		"default AniSkip keybinding should not also register legacy y-k fallback"
+	)
+	recorded.script_messages["subminer-aniskip-refresh"]()
+	fire_observer(recorded, "time-pos", 13)
+	assert_true(
+		has_osd_message(recorded.osd, "You can skip by pressing TAB"),
+		"default AniSkip prompt should mention TAB"
 	)
 end
 

@@ -84,19 +84,7 @@ export function updateVisibleOverlayVisibility(args: {
     }
   }
 
-  if (args.isMacOSPlatform || args.isWindowsPlatform) {
-    mainWindow.hide();
-    args.syncOverlayShortcuts();
-    return;
-  }
-
-  const fallbackBounds = args.resolveFallbackBounds?.();
-  if (!fallbackBounds) return;
-
-  args.updateVisibleOverlayBounds(fallbackBounds);
-  args.syncPrimaryOverlayWindowLayer('visible');
-  showPassiveVisibleOverlay();
-  args.enforceOverlayLayerOrder();
+  mainWindow.hide();
   args.syncOverlayShortcuts();
 }
 

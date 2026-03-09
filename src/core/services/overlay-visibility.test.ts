@@ -77,7 +77,7 @@ test('macOS keeps visible overlay hidden while tracker is not ready and emits on
   assert.ok(!calls.includes('show'));
 });
 
-test('non-macOS keeps fallback visible overlay behavior when tracker is not ready', () => {
+test('tracked non-macOS overlay stays hidden while tracker is not ready', () => {
   const { window, calls } = createMainWindowRecorder();
   let trackerWarning = false;
   const tracker: WindowTrackerStub = {
@@ -116,7 +116,48 @@ test('non-macOS keeps fallback visible overlay behavior when tracker is not read
   } as never);
 
   assert.equal(trackerWarning, true);
-  assert.ok(calls.includes('update-bounds'));
+  assert.ok(calls.includes('hide'));
+  assert.ok(!calls.includes('update-bounds'));
+  assert.ok(!calls.includes('show'));
+  assert.ok(!calls.includes('focus'));
+  assert.ok(!calls.includes('osd'));
+});
+
+test('untracked non-macOS overlay keeps fallback visible behavior when no tracker exists', () => {
+  const { window, calls } = createMainWindowRecorder();
+  let trackerWarning = false;
+
+  updateVisibleOverlayVisibility({
+    visibleOverlayVisible: true,
+    mainWindow: window as never,
+    windowTracker: null,
+    trackerNotReadyWarningShown: trackerWarning,
+    setTrackerNotReadyWarningShown: (shown: boolean) => {
+      trackerWarning = shown;
+    },
+    updateVisibleOverlayBounds: () => {
+      calls.push('update-bounds');
+    },
+    ensureOverlayWindowLevel: () => {
+      calls.push('ensure-level');
+    },
+    syncPrimaryOverlayWindowLayer: () => {
+      calls.push('sync-layer');
+    },
+    enforceOverlayLayerOrder: () => {
+      calls.push('enforce-order');
+    },
+    syncOverlayShortcuts: () => {
+      calls.push('sync-shortcuts');
+    },
+    isMacOSPlatform: false,
+    showOverlayLoadingOsd: () => {
+      calls.push('osd');
+    },
+    resolveFallbackBounds: () => ({ x: 12, y: 24, width: 640, height: 360 }),
+  } as never);
+
+  assert.equal(trackerWarning, false);
   assert.ok(calls.includes('show'));
   assert.ok(calls.includes('focus'));
   assert.ok(!calls.includes('osd'));

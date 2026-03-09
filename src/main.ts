@@ -372,6 +372,9 @@ import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
+import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
+import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
+import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
   getPreferredYomitanAnkiServerUrl as getPreferredYomitanAnkiServerUrlRuntime,
   shouldForceOverrideYomitanAnkiServer,
@@ -913,6 +916,10 @@ const configDerivedRuntime = createConfigDerivedRuntime(buildConfigDerivedRuntim
 const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsHandler());
 let autoPlayReadySignalMediaPath: string | null = null;
 let autoPlayReadySignalGeneration = 0;
+const currentMediaTokenizationGate = createCurrentMediaTokenizationGate();
+const startupOsdSequencer = createStartupOsdSequencer({
+  showOsd: (message) => showMpvOsd(message),
+});
 
 function maybeSignalPluginAutoplayReady(
   payload: SubtitleData,
@@ -1324,8 +1331,13 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
       profileScope: config.profileScope,
     };
   },
-  getOrCreateCurrentSnapshot: () => characterDictionaryRuntime.getOrCreateCurrentSnapshot(),
+  getOrCreateCurrentSnapshot: (targetPath, progress) =>
+    characterDictionaryRuntime.getOrCreateCurrentSnapshot(targetPath, progress),
   buildMergedDictionary: (mediaIds) => characterDictionaryRuntime.buildMergedDictionary(mediaIds),
+  waitForYomitanMutationReady: () =>
+    currentMediaTokenizationGate.waitUntilReady(
+      appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
+    ),
   getYomitanDictionaryInfo: async () => {
     await ensureYomitanExtensionLoaded();
     return await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
@@ -1364,6 +1376,24 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   clearSchedule: (timer) => clearTimeout(timer),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
+  onSyncStatus: (event) => {
+    notifyCharacterDictionaryAutoSyncStatus(event, {
+      getNotificationType: () => getResolvedConfig().ankiConnect.behavior.notificationType,
+      showOsd: (message) => showMpvOsd(message),
+      showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+      startupOsdSequencer,
+    });
+  },
+  onSyncComplete: ({ mediaId, mediaTitle, changed }) => {
+    if (appState.yomitanParserWindow) {
+      clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
+    }
+    subtitleProcessingController.invalidateTokenizationCache();
+    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+    logger.info(
+      `[dictionary:auto-sync] refreshed current subtitle after sync (AniList ${mediaId}, changed=${changed ? 'yes' : 'no'}, title=${mediaTitle})`,
+    );
+  },
 });
 
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
@@ -2673,6 +2703,8 @@ const {
     },
     updateCurrentMediaPath: (path) => {
       autoPlayReadySignalMediaPath = null;
+      currentMediaTokenizationGate.updateCurrentMediaPath(path);
+      startupOsdSequencer.reset();
       if (path) {
         ensureImmersionTrackerStarted();
       }
@@ -2793,6 +2825,10 @@ const {
       getYomitanGroupDebugEnabled: () => appState.overlayDebugVisualizationEnabled,
       getMecabTokenizer: () => appState.mecabTokenizer,
       onTokenizationReady: (text) => {
+        currentMediaTokenizationGate.markReady(
+          appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
+        );
+        startupOsdSequencer.markTokenizationReady();
         maybeSignalPluginAutoplayReady({ text, tokens: null }, { forceWhilePaused: true });
       },
     },
@@ -2812,6 +2848,9 @@ const {
       ensureFrequencyDictionaryLookup: () =>
         frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup(),
       showMpvOsd: (message: string) => showMpvOsd(message),
+      showLoadingOsd: (message: string) => startupOsdSequencer.showAnnotationLoading(message),
+      showLoadedOsd: (message: string) =>
+        startupOsdSequencer.markAnnotationLoadingComplete(message),
       shouldShowOsdNotification: () => {
         const type = getResolvedConfig().ankiConnect.behavior.notificationType;
         return type === 'osd' || type === 'both';

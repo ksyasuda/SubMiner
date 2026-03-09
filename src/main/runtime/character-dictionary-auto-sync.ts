@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { AnilistCharacterDictionaryProfileScope } from '../../types';
 import type {
+  CharacterDictionarySnapshotProgressCallbacks,
   CharacterDictionarySnapshotResult,
   MergedCharacterDictionaryBuildResult,
 } from '../character-dictionary-runtime';
@@ -23,11 +24,23 @@ export interface CharacterDictionaryAutoSyncConfig {
   profileScope: AnilistCharacterDictionaryProfileScope;
 }
 
+export interface CharacterDictionaryAutoSyncStatusEvent {
+  phase: 'checking' | 'generating' | 'syncing' | 'importing' | 'ready' | 'failed';
+  mediaId?: number;
+  mediaTitle?: string;
+  message: string;
+  changed?: boolean;
+}
+
 export interface CharacterDictionaryAutoSyncRuntimeDeps {
   userDataPath: string;
   getConfig: () => CharacterDictionaryAutoSyncConfig;
-  getOrCreateCurrentSnapshot: (targetPath?: string) => Promise<CharacterDictionarySnapshotResult>;
+  getOrCreateCurrentSnapshot: (
+    targetPath?: string,
+    progress?: CharacterDictionarySnapshotProgressCallbacks,
+  ) => Promise<CharacterDictionarySnapshotResult>;
   buildMergedDictionary: (mediaIds: number[]) => Promise<MergedCharacterDictionaryBuildResult>;
+  waitForYomitanMutationReady?: () => Promise<void>;
   getYomitanDictionaryInfo: () => Promise<AutoSyncDictionaryInfo[]>;
   importYomitanDictionary: (zipPath: string) => Promise<boolean>;
   deleteYomitanDictionary: (dictionaryTitle: string) => Promise<boolean>;
@@ -41,6 +54,8 @@ export interface CharacterDictionaryAutoSyncRuntimeDeps {
   operationTimeoutMs?: number;
   logInfo?: (message: string) => void;
   logWarn?: (message: string) => void;
+  onSyncStatus?: (event: CharacterDictionaryAutoSyncStatusEvent) => void;
+  onSyncComplete?: (result: { mediaId: number; mediaTitle: string; changed: boolean }) => void;
 }
 
 function ensureDir(dirPath: string): void {
@@ -92,6 +107,33 @@ function arraysEqual(left: number[], right: number[]): boolean {
   return true;
 }
 
+function buildSyncingMessage(mediaTitle: string): string {
+  return `Updating character dictionary for ${mediaTitle}...`;
+}
+
+function buildCheckingMessage(mediaTitle: string): string {
+  return `Checking character dictionary for ${mediaTitle}...`;
+}
+
+function buildGeneratingMessage(mediaTitle: string): string {
+  return `Generating character dictionary for ${mediaTitle}...`;
+}
+
+function buildImportingMessage(mediaTitle: string): string {
+  return `Importing character dictionary for ${mediaTitle}...`;
+}
+
+function buildReadyMessage(mediaTitle: string): string {
+  return `Character dictionary ready for ${mediaTitle}`;
+}
+
+function buildFailedMessage(mediaTitle: string | null, errorMessage: string): string {
+  if (mediaTitle) {
+    return `Character dictionary sync failed for ${mediaTitle}: ${errorMessage}`;
+  }
+  return `Character dictionary sync failed: ${errorMessage}`;
+}
+
 export function createCharacterDictionaryAutoSyncRuntimeService(
   deps: CharacterDictionaryAutoSyncRuntimeDeps,
 ): {
@@ -133,84 +175,150 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       return;
     }
 
-    deps.logInfo?.('[dictionary:auto-sync] syncing current anime snapshot');
-    const snapshot = await deps.getOrCreateCurrentSnapshot();
-    const state = readAutoSyncState(statePath);
-    const nextActiveMediaIds = [
-      snapshot.mediaId,
-      ...state.activeMediaIds.filter((mediaId) => mediaId !== snapshot.mediaId),
-    ].slice(0, Math.max(1, Math.floor(config.maxLoaded)));
-    deps.logInfo?.(
-      `[dictionary:auto-sync] active AniList media set: ${nextActiveMediaIds.join(', ')}`,
-    );
+    let currentMediaId: number | undefined;
+    let currentMediaTitle: string | null = null;
 
-    const retainedChanged = !arraysEqual(nextActiveMediaIds, state.activeMediaIds);
-    let merged: MergedCharacterDictionaryBuildResult | null = null;
-    if (
-      retainedChanged ||
-      !state.mergedRevision ||
-      !state.mergedDictionaryTitle ||
-      !snapshot.fromCache
-    ) {
-      deps.logInfo?.('[dictionary:auto-sync] rebuilding merged dictionary for active anime set');
-      merged = await deps.buildMergedDictionary(nextActiveMediaIds);
-    }
+    try {
+      deps.logInfo?.('[dictionary:auto-sync] syncing current anime snapshot');
+      const snapshot = await deps.getOrCreateCurrentSnapshot(undefined, {
+        onChecking: ({ mediaId, mediaTitle }) => {
+          currentMediaId = mediaId;
+          currentMediaTitle = mediaTitle;
+          deps.onSyncStatus?.({
+            phase: 'checking',
+            mediaId,
+            mediaTitle,
+            message: buildCheckingMessage(mediaTitle),
+          });
+        },
+        onGenerating: ({ mediaId, mediaTitle }) => {
+          currentMediaId = mediaId;
+          currentMediaTitle = mediaTitle;
+          deps.onSyncStatus?.({
+            phase: 'generating',
+            mediaId,
+            mediaTitle,
+            message: buildGeneratingMessage(mediaTitle),
+          });
+        },
+      });
+      currentMediaId = snapshot.mediaId;
+      currentMediaTitle = snapshot.mediaTitle;
+      deps.onSyncStatus?.({
+        phase: 'syncing',
+        mediaId: snapshot.mediaId,
+        mediaTitle: snapshot.mediaTitle,
+        message: buildSyncingMessage(snapshot.mediaTitle),
+      });
+      const state = readAutoSyncState(statePath);
+      const nextActiveMediaIds = [
+        snapshot.mediaId,
+        ...state.activeMediaIds.filter((mediaId) => mediaId !== snapshot.mediaId),
+      ].slice(0, Math.max(1, Math.floor(config.maxLoaded)));
+      deps.logInfo?.(
+        `[dictionary:auto-sync] active AniList media set: ${nextActiveMediaIds.join(', ')}`,
+      );
 
-    const dictionaryTitle = merged?.dictionaryTitle ?? state.mergedDictionaryTitle;
-    const revision = merged?.revision ?? state.mergedRevision;
-    if (!dictionaryTitle || !revision) {
-      throw new Error('Merged character dictionary state is incomplete.');
-    }
-
-    const dictionaryInfo = await withOperationTimeout(
-      'getYomitanDictionaryInfo',
-      deps.getYomitanDictionaryInfo(),
-    );
-    const existing = dictionaryInfo.find((entry) => entry.title === dictionaryTitle) ?? null;
-    const existingRevision =
-      existing && (typeof existing.revision === 'string' || typeof existing.revision === 'number')
-        ? String(existing.revision)
-        : null;
-    const shouldImport =
-      merged !== null ||
-      existing === null ||
-      existingRevision === null ||
-      existingRevision !== revision;
-
-    if (shouldImport) {
-      if (existing !== null) {
-        await withOperationTimeout(
-          `deleteYomitanDictionary(${dictionaryTitle})`,
-          deps.deleteYomitanDictionary(dictionaryTitle),
-        );
-      }
-      if (merged === null) {
+      const retainedChanged = !arraysEqual(nextActiveMediaIds, state.activeMediaIds);
+      let merged: MergedCharacterDictionaryBuildResult | null = null;
+      if (
+        retainedChanged ||
+        !state.mergedRevision ||
+        !state.mergedDictionaryTitle ||
+        !snapshot.fromCache
+      ) {
+        deps.logInfo?.('[dictionary:auto-sync] rebuilding merged dictionary for active anime set');
         merged = await deps.buildMergedDictionary(nextActiveMediaIds);
       }
-      deps.logInfo?.(`[dictionary:auto-sync] importing merged dictionary: ${merged.zipPath}`);
-      const imported = await withOperationTimeout(
-        `importYomitanDictionary(${path.basename(merged.zipPath)})`,
-        deps.importYomitanDictionary(merged.zipPath),
-      );
-      if (!imported) {
-        throw new Error(`Failed to import dictionary ZIP: ${merged.zipPath}`);
+
+      const dictionaryTitle = merged?.dictionaryTitle ?? state.mergedDictionaryTitle;
+      const revision = merged?.revision ?? state.mergedRevision;
+      if (!dictionaryTitle || !revision) {
+        throw new Error('Merged character dictionary state is incomplete.');
       }
+
+      await deps.waitForYomitanMutationReady?.();
+
+      const dictionaryInfo = await withOperationTimeout(
+        'getYomitanDictionaryInfo',
+        deps.getYomitanDictionaryInfo(),
+      );
+      const existing = dictionaryInfo.find((entry) => entry.title === dictionaryTitle) ?? null;
+      const existingRevision =
+        existing && (typeof existing.revision === 'string' || typeof existing.revision === 'number')
+          ? String(existing.revision)
+          : null;
+      const shouldImport =
+        merged !== null ||
+        existing === null ||
+        existingRevision === null ||
+        existingRevision !== revision;
+      let changed = merged !== null;
+
+      if (shouldImport) {
+        deps.onSyncStatus?.({
+          phase: 'importing',
+          mediaId: snapshot.mediaId,
+          mediaTitle: snapshot.mediaTitle,
+          message: buildImportingMessage(snapshot.mediaTitle),
+        });
+        if (existing !== null) {
+          await withOperationTimeout(
+            `deleteYomitanDictionary(${dictionaryTitle})`,
+            deps.deleteYomitanDictionary(dictionaryTitle),
+          );
+        }
+        if (merged === null) {
+          merged = await deps.buildMergedDictionary(nextActiveMediaIds);
+        }
+        deps.logInfo?.(`[dictionary:auto-sync] importing merged dictionary: ${merged.zipPath}`);
+        const imported = await withOperationTimeout(
+          `importYomitanDictionary(${path.basename(merged.zipPath)})`,
+          deps.importYomitanDictionary(merged.zipPath),
+        );
+        if (!imported) {
+          throw new Error(`Failed to import dictionary ZIP: ${merged.zipPath}`);
+        }
+        changed = true;
+      }
+
+      deps.logInfo?.(`[dictionary:auto-sync] applying Yomitan settings for ${dictionaryTitle}`);
+      const settingsUpdated = await withOperationTimeout(
+        `upsertYomitanDictionarySettings(${dictionaryTitle})`,
+        deps.upsertYomitanDictionarySettings(dictionaryTitle, config.profileScope),
+      );
+      changed = changed || settingsUpdated === true;
+
+      writeAutoSyncState(statePath, {
+        activeMediaIds: nextActiveMediaIds,
+        mergedRevision: merged?.revision ?? revision,
+        mergedDictionaryTitle: merged?.dictionaryTitle ?? dictionaryTitle,
+      });
+      deps.logInfo?.(
+        `[dictionary:auto-sync] synced AniList ${snapshot.mediaId}: ${dictionaryTitle} (${snapshot.entryCount} entries)`,
+      );
+      deps.onSyncStatus?.({
+        phase: 'ready',
+        mediaId: snapshot.mediaId,
+        mediaTitle: snapshot.mediaTitle,
+        message: buildReadyMessage(snapshot.mediaTitle),
+        changed,
+      });
+      deps.onSyncComplete?.({
+        mediaId: snapshot.mediaId,
+        mediaTitle: snapshot.mediaTitle,
+        changed,
+      });
+    } catch (error) {
+      const errorMessage = (error as Error)?.message ?? String(error);
+      deps.onSyncStatus?.({
+        phase: 'failed',
+        mediaId: currentMediaId,
+        mediaTitle: currentMediaTitle ?? undefined,
+        message: buildFailedMessage(currentMediaTitle, errorMessage),
+      });
+      throw error;
     }
-
-    deps.logInfo?.(`[dictionary:auto-sync] applying Yomitan settings for ${dictionaryTitle}`);
-    await withOperationTimeout(
-      `upsertYomitanDictionarySettings(${dictionaryTitle})`,
-      deps.upsertYomitanDictionarySettings(dictionaryTitle, config.profileScope),
-    );
-
-    writeAutoSyncState(statePath, {
-      activeMediaIds: nextActiveMediaIds,
-      mergedRevision: merged?.revision ?? revision,
-      mergedDictionaryTitle: merged?.dictionaryTitle ?? dictionaryTitle,
-    });
-    deps.logInfo?.(
-      `[dictionary:auto-sync] synced AniList ${snapshot.mediaId}: ${dictionaryTitle} (${snapshot.entryCount} entries)`,
-    );
   };
 
   const enqueueSync = (): void => {

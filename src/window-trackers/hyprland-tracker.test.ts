@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  parseHyprctlClients,
   selectHyprlandMpvWindow,
   type HyprlandClient,
 } from './hyprland-tracker';
@@ -9,6 +10,7 @@ function makeClient(overrides: Partial<HyprlandClient> = {}): HyprlandClient {
   return {
     address: '0x1',
     class: 'mpv',
+    initialClass: 'mpv',
     at: [0, 0],
     size: [1280, 720],
     mapped: true,
@@ -69,4 +71,38 @@ test('selectHyprlandMpvWindow prefers active visible window among socket matches
   );
 
   assert.equal(selected?.address, '0xsecond');
+});
+
+test('selectHyprlandMpvWindow matches mpv by initialClass when class is blank', () => {
+  const selected = selectHyprlandMpvWindow(
+    [
+      makeClient({
+        address: '0xinitial',
+        class: '',
+        initialClass: 'mpv',
+      }),
+    ],
+    {
+      targetMpvSocketPath: null,
+      activeWindowAddress: null,
+      getWindowCommandLine: () => null,
+    },
+  );
+
+  assert.equal(selected?.address, '0xinitial');
+});
+
+test('parseHyprctlClients tolerates non-json prefix output', () => {
+  const clients = parseHyprctlClients(`ok
+[{"address":"0x1","class":"mpv","initialClass":"mpv","at":[1,2],"size":[3,4]}]`);
+
+  assert.deepEqual(clients, [
+    {
+      address: '0x1',
+      class: 'mpv',
+      initialClass: 'mpv',
+      at: [1, 2],
+      size: [3, 4],
+    },
+  ]);
 });

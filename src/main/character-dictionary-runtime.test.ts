@@ -213,7 +213,7 @@ test('generateForCurrentMedia emits structured-content glossary so image stays w
     assert.equal(roleBadgeDiv.tag, 'div');
     const badge = roleBadgeDiv.content as { tag: string; content: string };
     assert.equal(badge.tag, 'span');
-    assert.equal(badge.content, 'Side Character');
+    assert.equal(badge.content, 'Main Character');
 
     const descSection = children.find(
       (c) =>
@@ -695,6 +695,128 @@ test('generateForCurrentMedia adds kana aliases for romanized names when native 
   }
 });
 
+test('generateForCurrentMedia indexes kanji family and given names using AniList first and last hints', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 37450,
+                    episodes: 13,
+                    title: {
+                      romaji: 'Seishun Buta Yarou wa Bunny Girl Senpai no Yume wo Minai',
+                      english: 'Rascal Does Not Dream of Bunny Girl Senpai',
+                      native: '青春ブタ野郎はバニーガール先輩の夢を見ない',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  romaji: 'Seishun Buta Yarou wa Bunny Girl Senpai no Yume wo Minai',
+                  english: 'Rascal Does Not Dream of Bunny Girl Senpai',
+                  native: '青春ブタ野郎はバニーガール先輩の夢を見ない',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'SUPPORTING',
+                      node: {
+                        id: 77,
+                        description: 'Classmate.',
+                        image: null,
+                        name: {
+                          first: 'Yuuma',
+                          full: 'Yuuma Kunimi',
+                          last: 'Kunimi',
+                          native: '国見佑真',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/bunny-girl-senpai-s01e01.mkv',
+      getCurrentMediaTitle: () => 'Rascal Does Not Dream of Bunny Girl Senpai - S01E01',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'Rascal Does Not Dream of Bunny Girl Senpai',
+        episode: 1,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_000,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const termBank = JSON.parse(
+      readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
+    >;
+
+    const familyName = termBank.find(([term]) => term === '国見');
+    assert.ok(familyName, 'expected kanji family-name term from AniList hints');
+    assert.equal(familyName[1], 'くにみ');
+
+    const givenName = termBank.find(([term]) => term === '佑真');
+    assert.ok(givenName, 'expected kanji given-name term from AniList hints');
+    assert.equal(givenName[1], 'ゆうま');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('generateForCurrentMedia indexes AniList alternative character names for alias lookups', async () => {
   const userDataPath = makeTempDir();
   const originalFetch = globalThis.fetch;
@@ -807,6 +929,520 @@ test('generateForCurrentMedia indexes AniList alternative character names for al
     const shadowKana = termBank.find(([term]) => term === 'シャドウ');
     assert.ok(shadowKana, 'expected katakana alias from AniList alternative name');
     assert.equal(shadowKana[1], 'しゃどう');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia skips AniList characters without a native name when other valid characters exist', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 130298,
+                    episodes: 20,
+                    title: {
+                      romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                      english: 'The Eminence in Shadow',
+                      native: '陰の実力者になりたくて！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  english: 'The Eminence in Shadow',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 111,
+                        description: 'Valid native name.',
+                        image: null,
+                        name: {
+                          full: 'Alpha',
+                          native: 'アルファ',
+                          first: 'Alpha',
+                          last: null,
+                        },
+                      },
+                    },
+                    {
+                      role: 'SUPPORTING',
+                      node: {
+                        id: 222,
+                        description: 'Missing native name.',
+                        image: null,
+                        name: {
+                          full: 'John Smith',
+                          native: '',
+                          first: 'John',
+                          last: 'Smith',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        episode: 5,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_000,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const termBank = JSON.parse(
+      readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
+    >;
+
+    assert.ok(termBank.find(([term]) => term === 'アルファ'));
+    assert.equal(
+      termBank.some(([term]) => term === 'John Smith'),
+      false,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia uses AniList first and last name hints to build kanji readings', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 20594,
+                    episodes: 10,
+                    title: {
+                      romaji: 'Kono Subarashii Sekai ni Shukufuku wo!',
+                      english: 'KONOSUBA -God’s blessing on this wonderful world!',
+                      native: 'この素晴らしい世界に祝福を！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  romaji: 'Kono Subarashii Sekai ni Shukufuku wo!',
+                  english: 'KONOSUBA -God’s blessing on this wonderful world!',
+                  native: 'この素晴らしい世界に祝福を！',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 1,
+                        description: 'The protagonist.',
+                        image: null,
+                        name: {
+                          full: 'Satou Kazuma',
+                          native: '佐藤和真',
+                          first: '和真',
+                          last: '佐藤',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        );
+      }
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/konosuba-s02e05.mkv',
+      getCurrentMediaTitle: () => 'Konosuba S02E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'Konosuba',
+        episode: 5,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_000,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const termBank = JSON.parse(
+      readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
+    >;
+
+    assert.equal(termBank.find(([term]) => term === '佐藤和真')?.[1], 'さとうかずま');
+    assert.equal(termBank.find(([term]) => term === '佐藤')?.[1], 'さとう');
+    assert.equal(termBank.find(([term]) => term === '和真')?.[1], 'かずま');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia includes AniList gender age birthday and blood type in character information', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 130298,
+                    episodes: 20,
+                    title: {
+                      romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                      english: 'The Eminence in Shadow',
+                      native: '陰の実力者になりたくて！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  english: 'The Eminence in Shadow',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'SUPPORTING',
+                      node: {
+                        id: 123,
+                        description: 'Second princess of Midgar.',
+                        image: null,
+                        gender: 'Female',
+                        age: '15',
+                        dateOfBirth: {
+                          month: 9,
+                          day: 1,
+                        },
+                        bloodType: 'A',
+                        name: {
+                          full: 'Alexia Midgar',
+                          native: 'アレクシア・ミドガル',
+                          first: 'Alexia',
+                          last: 'Midgar',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        episode: 5,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_000,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const termBank = JSON.parse(
+      readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
+    >;
+    const alexia = termBank.find(([term]) => term === 'アレクシア');
+    assert.ok(alexia);
+
+    const children = (
+      alexia[5][0] as {
+        content: { content: Array<Record<string, unknown>> };
+      }
+    ).content.content;
+    const infoSection = children.find(
+      (c) =>
+        (c as { tag?: string }).tag === 'details' &&
+        Array.isArray((c as { content?: unknown[] }).content) &&
+        (c as { content: Array<{ content?: string }> }).content[0]?.content ===
+          'Character Information',
+    ) as { content: Array<Record<string, unknown>> } | undefined;
+    assert.ok(infoSection);
+    const body = infoSection.content[1] as { content: Array<{ content?: string }> };
+    const flattened = JSON.stringify(body.content);
+
+    assert.match(flattened, /Female|♂ Male|♀ Female/);
+    assert.match(flattened, /15 years/);
+    assert.match(flattened, /Blood Type A/);
+    assert.match(flattened, /Birthday: September 1/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia preserves duplicate surface forms across different characters', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        query?: string;
+      };
+
+      if (body.query?.includes('Page(perPage: 10)')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 130298,
+                    episodes: 20,
+                    title: {
+                      romaji: 'Kage no Jitsuryokusha ni Naritakute!',
+                      english: 'The Eminence in Shadow',
+                      native: '陰の実力者になりたくて！',
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: {
+                  english: 'The Eminence in Shadow',
+                },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 111,
+                        description: 'First Alpha.',
+                        image: null,
+                        name: {
+                          full: 'Alpha One',
+                          native: 'アルファ',
+                          first: 'Alpha',
+                          last: 'One',
+                        },
+                      },
+                    },
+                    {
+                      role: 'MAIN',
+                      node: {
+                        id: 222,
+                        description: 'Second Alpha.',
+                        image: null,
+                        name: {
+                          full: 'Alpha Two',
+                          native: 'アルファ',
+                          first: 'Alpha',
+                          last: 'Two',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        episode: 5,
+        source: 'fallback',
+      }),
+      now: () => 1_700_000_000_000,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const termBank = JSON.parse(
+      readStoredZipEntry(result.zipPath, 'term_bank_1.json').toString('utf8'),
+    ) as Array<
+      [
+        string,
+        string,
+        string,
+        string,
+        number,
+        Array<string | Record<string, unknown>>,
+        number,
+        string,
+      ]
+    >;
+
+    const alphaEntries = termBank.filter(([term]) => term === 'アルファ');
+    assert.equal(alphaEntries.length, 2);
+    const glossaries = alphaEntries.map((entry) =>
+      JSON.stringify(
+        (
+          entry[5][0] as {
+            content: { content: Array<Record<string, unknown>> };
+          }
+        ).content.content,
+      ),
+    );
+    assert.ok(glossaries.some((value) => value.includes('First Alpha.')));
+    assert.ok(glossaries.some((value) => value.includes('Second Alpha.')));
   } finally {
     globalThis.fetch = originalFetch;
   }

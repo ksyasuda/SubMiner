@@ -9,6 +9,14 @@ function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-char-dict-auto-sync-'));
 }
 
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 test('auto sync imports merged dictionary and persists MRU state', async () => {
   const userDataPath = makeTempDir();
   const imported: string[] = [];
@@ -266,4 +274,297 @@ test('auto sync evicts least recently used media from merged set', async () => {
     activeMediaIds: number[];
   };
   assert.deepEqual(state.activeMediaIds, [4, 3, 2]);
+});
+
+test('auto sync invokes completion callback after successful sync', async () => {
+  const userDataPath = makeTempDir();
+  const completions: Array<{ mediaId: number; mediaTitle: string; changed: boolean }> = [];
+  let importedRevision: string | null = null;
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({
+      enabled: true,
+      maxLoaded: 3,
+      profileScope: 'all',
+    }),
+    getOrCreateCurrentSnapshot: async () => ({
+      mediaId: 101291,
+      mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      entryCount: 2560,
+      fromCache: false,
+      updatedAt: 1000,
+    }),
+    buildMergedDictionary: async () => ({
+      zipPath: '/tmp/merged.zip',
+      revision: 'rev-101291',
+      dictionaryTitle: 'SubMiner Character Dictionary',
+      entryCount: 2560,
+    }),
+    getYomitanDictionaryInfo: async () =>
+      importedRevision
+        ? [{ title: 'SubMiner Character Dictionary', revision: importedRevision }]
+        : [],
+    importYomitanDictionary: async () => {
+      importedRevision = 'rev-101291';
+      return true;
+    },
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => 1000,
+    onSyncComplete: (completion) => {
+      completions.push(completion);
+    },
+  });
+
+  await runtime.runSyncNow();
+
+  assert.deepEqual(completions, [
+    {
+      mediaId: 101291,
+      mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      changed: true,
+    },
+  ]);
+});
+
+test('auto sync emits progress events for start import and completion', async () => {
+  const userDataPath = makeTempDir();
+  const events: Array<{
+    phase: 'checking' | 'generating' | 'syncing' | 'importing' | 'ready' | 'failed';
+    mediaId?: number;
+    mediaTitle?: string;
+    message: string;
+    changed?: boolean;
+  }> = [];
+  let importedRevision: string | null = null;
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({
+      enabled: true,
+      maxLoaded: 3,
+      profileScope: 'all',
+    }),
+    getOrCreateCurrentSnapshot: async (_targetPath, progress) => {
+      progress?.onChecking?.({
+        mediaId: 101291,
+        mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      });
+      progress?.onGenerating?.({
+        mediaId: 101291,
+        mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      });
+      return {
+        mediaId: 101291,
+        mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+        entryCount: 2560,
+        fromCache: false,
+        updatedAt: 1000,
+      };
+    },
+    buildMergedDictionary: async () => ({
+      zipPath: '/tmp/merged.zip',
+      revision: 'rev-101291',
+      dictionaryTitle: 'SubMiner Character Dictionary',
+      entryCount: 2560,
+    }),
+    getYomitanDictionaryInfo: async () =>
+      importedRevision
+        ? [{ title: 'SubMiner Character Dictionary', revision: importedRevision }]
+        : [],
+    importYomitanDictionary: async () => {
+      importedRevision = 'rev-101291';
+      return true;
+    },
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => 1000,
+    onSyncStatus: (event) => {
+      events.push(event);
+    },
+  });
+
+  await runtime.runSyncNow();
+
+  assert.deepEqual(events, [
+    {
+      phase: 'checking',
+      mediaId: 101291,
+      mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      message: 'Checking character dictionary for Rascal Does Not Dream of Bunny Girl Senpai...',
+    },
+    {
+      phase: 'generating',
+      mediaId: 101291,
+      mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      message: 'Generating character dictionary for Rascal Does Not Dream of Bunny Girl Senpai...',
+    },
+    {
+      phase: 'syncing',
+      mediaId: 101291,
+      mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      message: 'Updating character dictionary for Rascal Does Not Dream of Bunny Girl Senpai...',
+    },
+    {
+      phase: 'importing',
+      mediaId: 101291,
+      mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      message: 'Importing character dictionary for Rascal Does Not Dream of Bunny Girl Senpai...',
+    },
+    {
+      phase: 'ready',
+      mediaId: 101291,
+      mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      message: 'Character dictionary ready for Rascal Does Not Dream of Bunny Girl Senpai',
+      changed: true,
+    },
+  ]);
+});
+
+test('auto sync emits checking before snapshot resolves and skips generating on cache hit', async () => {
+  const userDataPath = makeTempDir();
+  const events: Array<{
+    phase: 'checking' | 'generating' | 'syncing' | 'importing' | 'ready' | 'failed';
+    mediaId?: number;
+    mediaTitle?: string;
+    message: string;
+    changed?: boolean;
+  }> = [];
+  const snapshotDeferred = createDeferred<{
+    mediaId: number;
+    mediaTitle: string;
+    entryCount: number;
+    fromCache: boolean;
+    updatedAt: number;
+  }>();
+  let importedRevision: string | null = null;
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({
+      enabled: true,
+      maxLoaded: 3,
+      profileScope: 'all',
+    }),
+    getOrCreateCurrentSnapshot: async (_targetPath, progress) => {
+      progress?.onChecking?.({
+        mediaId: 101291,
+        mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      });
+      return await snapshotDeferred.promise;
+    },
+    buildMergedDictionary: async () => ({
+      zipPath: '/tmp/merged.zip',
+      revision: 'rev-101291',
+      dictionaryTitle: 'SubMiner Character Dictionary',
+      entryCount: 2560,
+    }),
+    getYomitanDictionaryInfo: async () =>
+      importedRevision
+        ? [{ title: 'SubMiner Character Dictionary', revision: importedRevision }]
+        : [],
+    importYomitanDictionary: async () => {
+      importedRevision = 'rev-101291';
+      return true;
+    },
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => 1000,
+    onSyncStatus: (event) => {
+      events.push(event);
+    },
+  });
+
+  const syncPromise = runtime.runSyncNow();
+  await Promise.resolve();
+
+  assert.deepEqual(events, [
+    {
+      phase: 'checking',
+      mediaId: 101291,
+      mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      message: 'Checking character dictionary for Rascal Does Not Dream of Bunny Girl Senpai...',
+    },
+  ]);
+
+  snapshotDeferred.resolve({
+    mediaId: 101291,
+    mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+    entryCount: 2560,
+    fromCache: true,
+    updatedAt: 1000,
+  });
+  await syncPromise;
+
+  assert.equal(
+    events.some((event) => event.phase === 'generating'),
+    false,
+  );
+});
+
+test('auto sync waits for tokenization-ready gate before Yomitan mutations', async () => {
+  const userDataPath = makeTempDir();
+  const gate = (() => {
+    let resolve!: () => void;
+    const promise = new Promise<void>((nextResolve) => {
+      resolve = nextResolve;
+    });
+    return { promise, resolve };
+  })();
+  const calls: string[] = [];
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({
+      enabled: true,
+      maxLoaded: 3,
+      profileScope: 'all',
+    }),
+    getOrCreateCurrentSnapshot: async () => ({
+      mediaId: 101291,
+      mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      entryCount: 2560,
+      fromCache: false,
+      updatedAt: 1000,
+    }),
+    buildMergedDictionary: async () => {
+      calls.push('build');
+      return {
+        zipPath: '/tmp/merged.zip',
+        revision: 'rev-101291',
+        dictionaryTitle: 'SubMiner Character Dictionary',
+        entryCount: 2560,
+      };
+    },
+    waitForYomitanMutationReady: async () => {
+      calls.push('wait');
+      await gate.promise;
+    },
+    getYomitanDictionaryInfo: async () => {
+      calls.push('info');
+      return [];
+    },
+    importYomitanDictionary: async () => {
+      calls.push('import');
+      return true;
+    },
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => {
+      calls.push('settings');
+      return true;
+    },
+    now: () => 1000,
+  });
+
+  const syncPromise = runtime.runSyncNow();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.deepEqual(calls, ['build', 'wait']);
+
+  gate.resolve();
+  await syncPromise;
+
+  assert.deepEqual(calls, ['build', 'wait', 'info', 'import', 'settings']);
 });

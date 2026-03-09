@@ -50,6 +50,7 @@ export const SPECIAL_COMMANDS = {
 
 export const DEFAULT_KEYBINDINGS: NonNullable<ResolvedConfig['keybindings']> = [
   { key: 'Space', command: ['cycle', 'pause'] },
+  { key: 'KeyF', command: ['cycle', 'fullscreen'] },
   { key: 'KeyJ', command: ['cycle', 'sid'] },
   { key: 'Shift+KeyJ', command: ['cycle', 'secondary-sid'] },
   { key: 'ArrowRight', command: ['seek', 5] },

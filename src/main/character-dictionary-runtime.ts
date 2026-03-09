@@ -10,21 +10,21 @@ const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 const ANILIST_REQUEST_DELAY_MS = 2000;
 const CHARACTER_IMAGE_DOWNLOAD_DELAY_MS = 250;
 const HONORIFIC_SUFFIXES = [
-  'さん',
-  '様',
-  '先生',
-  '先輩',
-  '後輩',
-  '氏',
-  '君',
-  'くん',
-  'ちゃん',
-  'たん',
-  '坊',
-  '殿',
-  '博士',
-  '社長',
-  '部長',
+  { term: 'さん', reading: 'さん' },
+  { term: '様', reading: 'さま' },
+  { term: '先生', reading: 'せんせい' },
+  { term: '先輩', reading: 'せんぱい' },
+  { term: '後輩', reading: 'こうはい' },
+  { term: '氏', reading: 'し' },
+  { term: '君', reading: 'くん' },
+  { term: 'くん', reading: 'くん' },
+  { term: 'ちゃん', reading: 'ちゃん' },
+  { term: 'たん', reading: 'たん' },
+  { term: '坊', reading: 'ぼう' },
+  { term: '殿', reading: 'どの' },
+  { term: '博士', reading: 'はかせ' },
+  { term: '社長', reading: 'しゃちょう' },
+  { term: '部長', reading: 'ぶちょう' },
 ] as const;
 type CharacterDictionaryRole = 'main' | 'primary' | 'side' | 'appears';
 
@@ -45,6 +45,24 @@ type CharacterDictionarySnapshotImage = {
   dataBase64: string;
 };
 
+type CharacterBirthday = [number, number];
+
+type JapaneseNameParts = {
+  hasSpace: boolean;
+  original: string;
+  combined: string;
+  family: string | null;
+  given: string | null;
+};
+
+type NameReadings = {
+  hasSpace: boolean;
+  original: string;
+  full: string;
+  family: string;
+  given: string;
+};
+
 export type CharacterDictionarySnapshot = {
   formatVersion: number;
   mediaId: number;
@@ -55,7 +73,7 @@ export type CharacterDictionarySnapshot = {
   images: CharacterDictionarySnapshotImage[];
 };
 
-const CHARACTER_DICTIONARY_FORMAT_VERSION = 14;
+const CHARACTER_DICTIONARY_FORMAT_VERSION = 15;
 const CHARACTER_DICTIONARY_MERGED_TITLE = 'SubMiner Character Dictionary';
 
 type AniListSearchResponse = {
@@ -103,8 +121,17 @@ type AniListCharacterPageResponse = {
             large?: string | null;
             medium?: string | null;
           } | null;
+          gender?: string | null;
+          age?: string | number | null;
+          dateOfBirth?: {
+            month?: number | null;
+            day?: number | null;
+          } | null;
+          bloodType?: string | null;
           name?: {
+            first?: string | null;
             full?: string | null;
+            last?: string | null;
             native?: string | null;
             alternative?: Array<string | null> | null;
           } | null;
@@ -124,11 +151,17 @@ type VoiceActorRecord = {
 type CharacterRecord = {
   id: number;
   role: CharacterDictionaryRole;
+  firstNameHint: string;
   fullName: string;
+  lastNameHint: string;
   nativeName: string;
   alternativeNames: string[];
+  bloodType: string;
+  birthday: CharacterBirthday | null;
   description: string;
   imageUrl: string | null;
+  age: string;
+  sex: string;
   voiceActors: VoiceActorRecord[];
 };
 
@@ -159,6 +192,16 @@ export type CharacterDictionarySnapshotResult = {
   entryCount: number;
   fromCache: boolean;
   updatedAt: number;
+};
+
+export type CharacterDictionarySnapshotProgress = {
+  mediaId: number;
+  mediaTitle: string;
+};
+
+export type CharacterDictionarySnapshotProgressCallbacks = {
+  onChecking?: (progress: CharacterDictionarySnapshotProgress) => void;
+  onGenerating?: (progress: CharacterDictionarySnapshotProgress) => void;
 };
 
 export type MergedCharacterDictionaryBuildResult = {
@@ -261,6 +304,16 @@ function buildReading(term: string): string {
     return '';
   }
   return katakanaToHiragana(compact);
+}
+
+function containsKanji(value: string): boolean {
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+    if ((code >= 0x4e00 && code <= 0x9fff) || (code >= 0x3400 && code <= 0x4dbf)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isRomanizedName(value: string): boolean {
@@ -484,6 +537,67 @@ function romanizedTokenToKatakana(token: string): string | null {
   return output.length > 0 ? output : null;
 }
 
+function buildReadingFromRomanized(value: string): string {
+  const katakana = romanizedTokenToKatakana(value);
+  return katakana ? katakanaToHiragana(katakana) : '';
+}
+
+function buildReadingFromHint(value: string): string {
+  return buildReading(value) || buildReadingFromRomanized(value);
+}
+
+function scoreJapaneseNamePartLength(length: number): number {
+  if (length === 2) return 3;
+  if (length === 1 || length === 3) return 2;
+  if (length === 4) return 1;
+  return 0;
+}
+
+function inferJapaneseNameSplitIndex(
+  nameOriginal: string,
+  firstNameHint: string,
+  lastNameHint: string,
+): number | null {
+  const chars = [...nameOriginal];
+  if (chars.length < 2) return null;
+
+  const familyHintLength = [...buildReadingFromHint(lastNameHint)].length;
+  const givenHintLength = [...buildReadingFromHint(firstNameHint)].length;
+  const totalHintLength = familyHintLength + givenHintLength;
+  const defaultBoundary = Math.round(chars.length / 2);
+  let bestIndex: number | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (let index = 1; index < chars.length; index += 1) {
+    const familyLength = index;
+    const givenLength = chars.length - index;
+    let score =
+      scoreJapaneseNamePartLength(familyLength) + scoreJapaneseNamePartLength(givenLength);
+
+    if (chars.length >= 4 && familyLength >= 2 && givenLength >= 2) {
+      score += 1;
+    }
+
+    if (totalHintLength > 0) {
+      const expectedFamilyLength = (chars.length * familyHintLength) / totalHintLength;
+      score -= Math.abs(familyLength - expectedFamilyLength) * 1.5;
+    } else {
+      score -= Math.abs(familyLength - defaultBoundary) * 0.5;
+    }
+
+    if (familyLength === givenLength) {
+      score += 0.25;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+
+  return bestIndex;
+}
+
 function addRomanizedKanaAliases(values: Iterable<string>): string[] {
   const aliases = new Set<string>();
   for (const value of values) {
@@ -495,6 +609,166 @@ function addRomanizedKanaAliases(values: Iterable<string>): string[] {
     }
   }
   return [...aliases];
+}
+
+function splitJapaneseName(
+  nameOriginal: string,
+  firstNameHint?: string,
+  lastNameHint?: string,
+): JapaneseNameParts {
+  const trimmed = nameOriginal.trim();
+  if (!trimmed) {
+    return {
+      hasSpace: false,
+      original: '',
+      combined: '',
+      family: null,
+      given: null,
+    };
+  }
+
+  const normalizedSpace = trimmed.replace(/[\s\u3000]+/g, ' ').trim();
+  const spaceParts = normalizedSpace.split(' ').filter((part) => part.length > 0);
+  if (spaceParts.length === 2) {
+    const family = spaceParts[0]!;
+    const given = spaceParts[1]!;
+    return {
+      hasSpace: true,
+      original: normalizedSpace,
+      combined: `${family}${given}`,
+      family,
+      given,
+    };
+  }
+
+  const middleDotParts = trimmed
+    .split(/[・･·•]/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (middleDotParts.length === 2) {
+    const family = middleDotParts[0]!;
+    const given = middleDotParts[1]!;
+    return {
+      hasSpace: true,
+      original: trimmed,
+      combined: `${family}${given}`,
+      family,
+      given,
+    };
+  }
+
+  const hintedFirst = firstNameHint?.trim() || '';
+  const hintedLast = lastNameHint?.trim() || '';
+  if (hintedFirst && hintedLast) {
+    const familyGiven = `${hintedLast}${hintedFirst}`;
+    if (trimmed === familyGiven) {
+      return {
+        hasSpace: true,
+        original: trimmed,
+        combined: familyGiven,
+        family: hintedLast,
+        given: hintedFirst,
+      };
+    }
+
+    const givenFamily = `${hintedFirst}${hintedLast}`;
+    if (trimmed === givenFamily) {
+      return {
+        hasSpace: true,
+        original: trimmed,
+        combined: givenFamily,
+        family: hintedFirst,
+        given: hintedLast,
+      };
+    }
+  }
+
+  if (hintedFirst && hintedLast && containsKanji(trimmed)) {
+    const splitIndex = inferJapaneseNameSplitIndex(trimmed, hintedFirst, hintedLast);
+    if (splitIndex != null) {
+      const chars = [...trimmed];
+      const family = chars.slice(0, splitIndex).join('');
+      const given = chars.slice(splitIndex).join('');
+      if (family && given) {
+        return {
+          hasSpace: true,
+          original: trimmed,
+          combined: trimmed,
+          family,
+          given,
+        };
+      }
+    }
+  }
+
+  return {
+    hasSpace: false,
+    original: trimmed,
+    combined: trimmed,
+    family: null,
+    given: null,
+  };
+}
+
+function generateNameReadings(
+  nameOriginal: string,
+  romanizedName: string,
+  firstNameHint?: string,
+  lastNameHint?: string,
+): NameReadings {
+  const trimmed = nameOriginal.trim();
+  if (!trimmed) {
+    return {
+      hasSpace: false,
+      original: '',
+      full: '',
+      family: '',
+      given: '',
+    };
+  }
+
+  const nameParts = splitJapaneseName(trimmed, firstNameHint, lastNameHint);
+  if (!nameParts.hasSpace || !nameParts.family || !nameParts.given) {
+    const full = containsKanji(trimmed)
+      ? buildReadingFromRomanized(romanizedName)
+      : buildReading(trimmed);
+    return {
+      hasSpace: false,
+      original: trimmed,
+      full,
+      family: full,
+      given: full,
+    };
+  }
+
+  const romanizedParts = romanizedName
+    .trim()
+    .split(/\s+/)
+    .filter((part) => part.length > 0);
+  const familyFromHints = buildReadingFromHint(lastNameHint || '');
+  const givenFromHints = buildReadingFromHint(firstNameHint || '');
+  const familyRomajiFallback = romanizedParts[0] || '';
+  const givenRomajiFallback = romanizedParts.slice(1).join(' ');
+  const family =
+    familyFromHints ||
+    (containsKanji(nameParts.family)
+      ? buildReadingFromRomanized(familyRomajiFallback)
+      : buildReading(nameParts.family));
+  const given =
+    givenFromHints ||
+    (containsKanji(nameParts.given)
+      ? buildReadingFromRomanized(givenRomajiFallback)
+      : buildReading(nameParts.given));
+  const full =
+    `${family}${given}` || buildReading(trimmed) || buildReadingFromRomanized(romanizedName);
+
+  return {
+    hasSpace: true,
+    original: nameParts.original,
+    full,
+    family,
+    given,
+  };
 }
 
 function expandRawNameVariants(rawName: string): string[] {
@@ -555,22 +829,123 @@ function buildNameTerms(character: CharacterRecord): string[] {
     }
   }
 
+  const nativeParts = splitJapaneseName(
+    character.nativeName,
+    character.firstNameHint,
+    character.lastNameHint,
+  );
+  if (nativeParts.family) {
+    base.add(nativeParts.family);
+  }
+  if (nativeParts.given) {
+    base.add(nativeParts.given);
+  }
+
   const withHonorifics = new Set<string>();
   for (const entry of base) {
     withHonorifics.add(entry);
     for (const suffix of HONORIFIC_SUFFIXES) {
-      withHonorifics.add(`${entry}${suffix}`);
+      withHonorifics.add(`${entry}${suffix.term}`);
     }
   }
 
   for (const alias of addRomanizedKanaAliases(withHonorifics)) {
     withHonorifics.add(alias);
     for (const suffix of HONORIFIC_SUFFIXES) {
-      withHonorifics.add(`${alias}${suffix}`);
+      withHonorifics.add(`${alias}${suffix.term}`);
     }
   }
 
   return [...withHonorifics].filter((entry) => entry.trim().length > 0);
+}
+
+const MONTH_NAMES: ReadonlyArray<[number, string]> = [
+  [1, 'January'],
+  [2, 'February'],
+  [3, 'March'],
+  [4, 'April'],
+  [5, 'May'],
+  [6, 'June'],
+  [7, 'July'],
+  [8, 'August'],
+  [9, 'September'],
+  [10, 'October'],
+  [11, 'November'],
+  [12, 'December'],
+];
+
+const SEX_DISPLAY: ReadonlyArray<[string, string]> = [
+  ['m', '♂ Male'],
+  ['f', '♀ Female'],
+  ['male', '♂ Male'],
+  ['female', '♀ Female'],
+];
+
+function formatBirthday(birthday: CharacterBirthday | null): string {
+  if (!birthday) return '';
+  const [month, day] = birthday;
+  const monthName = MONTH_NAMES.find(([m]) => m === month)?.[1] || 'Unknown';
+  return `${monthName} ${day}`;
+}
+
+function formatCharacterStats(character: CharacterRecord): string {
+  const parts: string[] = [];
+  const normalizedSex = character.sex.trim().toLowerCase();
+  const sexDisplay = SEX_DISPLAY.find(([key]) => key === normalizedSex)?.[1];
+  if (sexDisplay) parts.push(sexDisplay);
+  if (character.age.trim()) parts.push(`${character.age.trim()} years`);
+  if (character.bloodType.trim()) parts.push(`Blood Type ${character.bloodType.trim()}`);
+  const birthday = formatBirthday(character.birthday);
+  if (birthday) parts.push(`Birthday: ${birthday}`);
+  return parts.join(' • ');
+}
+
+function buildReadingForTerm(
+  term: string,
+  character: CharacterRecord,
+  readings: NameReadings,
+  nameParts: JapaneseNameParts,
+): string {
+  for (const suffix of HONORIFIC_SUFFIXES) {
+    if (term.endsWith(suffix.term) && term.length > suffix.term.length) {
+      const baseTerm = term.slice(0, -suffix.term.length);
+      const baseReading = buildReadingForTerm(baseTerm, character, readings, nameParts);
+      return baseReading ? `${baseReading}${suffix.reading}` : '';
+    }
+  }
+
+  const compactNative = character.nativeName.replace(/[\s\u3000]+/g, '');
+  const noMiddleDotsNative = compactNative.replace(/[・･·•]/g, '');
+  if (
+    term === character.nativeName ||
+    term === compactNative ||
+    term === noMiddleDotsNative ||
+    term === nameParts.original ||
+    term === nameParts.combined
+  ) {
+    return readings.full;
+  }
+
+  const familyCompact = nameParts.family?.replace(/[・･·•]/g, '') || '';
+  if (nameParts.family && (term === nameParts.family || term === familyCompact)) {
+    return readings.family;
+  }
+
+  const givenCompact = nameParts.given?.replace(/[・･·•]/g, '') || '';
+  if (nameParts.given && (term === nameParts.given || term === givenCompact)) {
+    return readings.given;
+  }
+
+  const compact = term.replace(/[\s\u3000]+/g, '');
+  if (hasKanaOnly(compact)) {
+    return buildReading(compact);
+  }
+
+  if (isRomanizedName(term)) {
+    return buildReadingFromRomanized(term) || readings.full;
+  }
+
+  return '';
 }
 
 function parseCharacterDescription(raw: string): {
@@ -623,16 +998,16 @@ function roleInfo(role: CharacterDictionaryRole): { tag: string; score: number }
 function mapRole(input: string | null | undefined): CharacterDictionaryRole {
   const value = (input || '').trim().toUpperCase();
   if (value === 'MAIN') return 'main';
-  if (value === 'BACKGROUND') return 'appears';
-  if (value === 'SUPPORTING') return 'side';
-  return 'primary';
+  if (value === 'SUPPORTING') return 'primary';
+  if (value === 'BACKGROUND') return 'side';
+  return 'side';
 }
 
 function roleLabel(role: CharacterDictionaryRole): string {
-  if (role === 'main') return 'Main';
-  if (role === 'primary') return 'Primary';
-  if (role === 'side') return 'Side';
-  return 'Appears';
+  if (role === 'main') return 'Protagonist';
+  if (role === 'primary') return 'Main Character';
+  if (role === 'side') return 'Side Character';
+  return 'Minor Role';
 }
 
 function inferImageExt(contentType: string | null): string {
@@ -780,10 +1155,10 @@ function roleBadgeStyle(role: CharacterDictionaryRole): Record<string, string> {
     fontWeight: 'bold',
     color: '#fff',
   };
-  if (role === 'main') return { ...base, backgroundColor: '#4a8c3f' };
-  if (role === 'primary') return { ...base, backgroundColor: '#5c82b0' };
-  if (role === 'side') return { ...base, backgroundColor: '#7889a0' };
-  return { ...base, backgroundColor: '#777' };
+  if (role === 'main') return { ...base, backgroundColor: '#4CAF50' };
+  if (role === 'primary') return { ...base, backgroundColor: '#2196F3' };
+  if (role === 'side') return { ...base, backgroundColor: '#FF9800' };
+  return { ...base, backgroundColor: '#9E9E9E' };
 }
 
 function buildCollapsibleSection(
@@ -939,10 +1314,11 @@ function createDefinitionGlossary(
     content: {
       tag: 'span',
       style: roleBadgeStyle(character.role),
-      content: `${roleLabel(character.role)} Character`,
+      content: roleLabel(character.role),
     },
   });
 
+  const statsLine = formatCharacterStats(character);
   if (descriptionText) {
     content.push(
       buildCollapsibleSection(
@@ -953,11 +1329,21 @@ function createDefinitionGlossary(
     );
   }
 
-  if (fields.length > 0) {
-    const fieldItems: Array<Record<string, unknown>> = fields.map((f) => ({
+  const fieldItems: Array<Record<string, unknown>> = [];
+  if (statsLine) {
+    fieldItems.push({
+      tag: 'li',
+      style: { fontWeight: 'bold' },
+      content: statsLine,
+    });
+  }
+  fieldItems.push(
+    ...fields.map((f) => ({
       tag: 'li',
       content: `${f.key}: ${f.value}`,
-    }));
+    })),
+  );
+  if (fieldItems.length > 0) {
     content.push(
       buildCollapsibleSection(
         'Character Information',
@@ -1248,12 +1634,21 @@ async function fetchCharactersForMedia(
                 node {
                   id
                   description(asHtml: false)
+                  gender
+                  age
+                  dateOfBirth {
+                    month
+                    day
+                  }
+                  bloodType
                   image {
                     large
                     medium
                   }
                   name {
+                    first
                     full
+                    last
                     native
                     alternative
                   }
@@ -1287,7 +1682,9 @@ async function fetchCharactersForMedia(
     for (const edge of edges) {
       const node = edge?.node;
       if (!node || typeof node.id !== 'number') continue;
+      const firstNameHint = node.name?.first?.trim() || '';
       const fullName = node.name?.full?.trim() || '';
+      const lastNameHint = node.name?.last?.trim() || '';
       const nativeName = node.name?.native?.trim() || '';
       const alternativeNames = [
         ...new Set(
@@ -1297,7 +1694,7 @@ async function fetchCharactersForMedia(
             .filter((value) => value.length > 0),
         ),
       ];
-      if (!fullName && !nativeName && alternativeNames.length === 0) continue;
+      if (!nativeName) continue;
       const voiceActors: VoiceActorRecord[] = [];
       for (const va of edge?.voiceActors ?? []) {
         if (!va || typeof va.id !== 'number') continue;
@@ -1314,11 +1711,25 @@ async function fetchCharactersForMedia(
       characters.push({
         id: node.id,
         role: mapRole(edge?.role),
+        firstNameHint,
         fullName,
+        lastNameHint,
         nativeName,
         alternativeNames,
+        bloodType: node.bloodType?.trim() || '',
+        birthday:
+          typeof node.dateOfBirth?.month === 'number' && typeof node.dateOfBirth?.day === 'number'
+            ? [node.dateOfBirth.month, node.dateOfBirth.day]
+            : null,
         description: node.description || '',
         imageUrl: node.image?.large || node.image?.medium || null,
+        age:
+          typeof node.age === 'string'
+            ? node.age.trim()
+            : typeof node.age === 'number'
+              ? String(node.age)
+              : '',
+        sex: node.gender?.trim() || '',
         voiceActors,
       });
     }
@@ -1400,9 +1811,9 @@ function buildSnapshotFromCharacters(
   ) => boolean,
 ): CharacterDictionarySnapshot {
   const termEntries: CharacterDictionaryTermEntry[] = [];
-  const seen = new Set<string>();
 
   for (const character of characters) {
+    const seenTerms = new Set<string>();
     const imagePath = imagesByCharacterId.get(character.id)?.path ?? null;
     const vaImagePaths = new Map<number, string>();
     for (const va of character.voiceActors) {
@@ -1417,11 +1828,21 @@ function buildSnapshotFromCharacters(
       getCollapsibleSectionOpenState,
     );
     const candidateTerms = buildNameTerms(character);
+    const nameParts = splitJapaneseName(
+      character.nativeName,
+      character.firstNameHint,
+      character.lastNameHint,
+    );
+    const readings = generateNameReadings(
+      character.nativeName,
+      character.fullName,
+      character.firstNameHint,
+      character.lastNameHint,
+    );
     for (const term of candidateTerms) {
-      const reading = buildReading(term);
-      const dedupeKey = `${term}|${reading}|${character.role}`;
-      if (seen.has(dedupeKey)) continue;
-      seen.add(dedupeKey);
+      if (seenTerms.has(term)) continue;
+      seenTerms.add(term);
+      const reading = buildReadingForTerm(term, character, readings, nameParts);
       termEntries.push(buildTermEntry(term, reading, character.role, glossary));
     }
   }
@@ -1560,7 +1981,10 @@ function buildMergedRevision(mediaIds: number[], snapshots: CharacterDictionaryS
 }
 
 export function createCharacterDictionaryRuntimeService(deps: CharacterDictionaryRuntimeDeps): {
-  getOrCreateCurrentSnapshot: (targetPath?: string) => Promise<CharacterDictionarySnapshotResult>;
+  getOrCreateCurrentSnapshot: (
+    targetPath?: string,
+    progress?: CharacterDictionarySnapshotProgressCallbacks,
+  ) => Promise<CharacterDictionarySnapshotResult>;
   buildMergedDictionary: (mediaIds: number[]) => Promise<MergedCharacterDictionaryBuildResult>;
   generateForCurrentMedia: (
     targetPath?: string,
@@ -1606,6 +2030,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     mediaId: number,
     mediaTitleHint?: string,
     beforeRequest?: () => Promise<void>,
+    progress?: CharacterDictionarySnapshotProgressCallbacks,
   ): Promise<CharacterDictionarySnapshotResult> => {
     const snapshotPath = getSnapshotPath(outputDir, mediaId);
     const cachedSnapshot = readSnapshot(snapshotPath);
@@ -1620,6 +2045,10 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       };
     }
 
+    progress?.onGenerating?.({
+      mediaId,
+      mediaTitle: mediaTitleHint || `AniList ${mediaId}`,
+    });
     deps.logInfo?.(`[dictionary] snapshot miss for AniList ${mediaId}, fetching characters`);
 
     const { mediaTitle: fetchedMediaTitle, characters } = await fetchCharactersForMedia(
@@ -1700,7 +2129,10 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
   };
 
   return {
-    getOrCreateCurrentSnapshot: async (targetPath?: string) => {
+    getOrCreateCurrentSnapshot: async (
+      targetPath?: string,
+      progress?: CharacterDictionarySnapshotProgressCallbacks,
+    ) => {
       let hasAniListRequest = false;
       const waitForAniListRequestSlot = async (): Promise<void> => {
         if (!hasAniListRequest) {
@@ -1710,7 +2142,16 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         await sleepMs(ANILIST_REQUEST_DELAY_MS);
       };
       const resolvedMedia = await resolveCurrentMedia(targetPath, waitForAniListRequestSlot);
-      return getOrCreateSnapshot(resolvedMedia.id, resolvedMedia.title, waitForAniListRequestSlot);
+      progress?.onChecking?.({
+        mediaId: resolvedMedia.id,
+        mediaTitle: resolvedMedia.title,
+      });
+      return getOrCreateSnapshot(
+        resolvedMedia.id,
+        resolvedMedia.title,
+        waitForAniListRequestSlot,
+        progress,
+      );
     },
     buildMergedDictionary: async (mediaIds: number[]) => {
       const normalizedMediaIds = mediaIds

@@ -73,3 +73,10 @@ test('default keybindings include primary and secondary subtitle track cycling o
   assert.deepEqual(keybindingMap.get('KeyJ'), ['cycle', 'sid']);
   assert.deepEqual(keybindingMap.get('Shift+KeyJ'), ['cycle', 'secondary-sid']);
 });
+
+test('default keybindings include fullscreen on F', () => {
+  const keybindingMap = new Map(
+    DEFAULT_KEYBINDINGS.map((binding) => [binding.key, binding.command]),
+  );
+  assert.deepEqual(keybindingMap.get('KeyF'), ['cycle', 'fullscreen']);
+});

@@ -1,5 +1,6 @@
 local M = {}
 local matcher = require("aniskip_match")
+local DEFAULT_ANISKIP_BUTTON_KEY = "TAB"
 
 function M.create(ctx)
 	local mp = ctx.mp
@@ -464,7 +465,7 @@ function M.create(ctx)
 		local intro_start = state.aniskip.intro_start or -1
 		local hint_window_end = intro_start + 3
 		if in_intro and not state.aniskip.prompt_shown and now >= intro_start and now < hint_window_end then
-			local key = opts.aniskip_button_key ~= "" and opts.aniskip_button_key or "y-k"
+			local key = opts.aniskip_button_key ~= "" and opts.aniskip_button_key or DEFAULT_ANISKIP_BUTTON_KEY
 			local message = string.format(opts.aniskip_button_text, key)
 			mp.osd_message(message, tonumber(opts.aniskip_button_duration) or 3)
 			state.aniskip.prompt_shown = true

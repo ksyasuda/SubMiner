@@ -26,6 +26,7 @@ const log = createLogger('tracker').child('hyprland');
 export interface HyprlandClient {
   address?: string;
   class: string;
+  initialClass?: string;
   at: [number, number];
   size: [number, number];
   pid?: number;
@@ -37,6 +38,23 @@ interface SelectHyprlandMpvWindowOptions {
   targetMpvSocketPath: string | null;
   activeWindowAddress: string | null;
   getWindowCommandLine: (pid: number) => string | null;
+}
+
+function extractHyprctlJsonPayload(output: string): string | null {
+  const trimmed = output.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const arrayStart = trimmed.indexOf('[');
+  const objectStart = trimmed.indexOf('{');
+  const startCandidates = [arrayStart, objectStart].filter((index) => index >= 0);
+  if (startCandidates.length === 0) {
+    return null;
+  }
+
+  const startIndex = Math.min(...startCandidates);
+  return trimmed.slice(startIndex);
 }
 
 function matchesTargetSocket(commandLine: string, targetMpvSocketPath: string): boolean {
@@ -60,12 +78,23 @@ function preferActiveHyprlandWindow(
   return clients[0] ?? null;
 }
 
+function isMpvClassName(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return value.trim().toLowerCase().includes('mpv');
+}
+
 export function selectHyprlandMpvWindow(
   clients: HyprlandClient[],
   options: SelectHyprlandMpvWindowOptions,
 ): HyprlandClient | null {
   const visibleMpvWindows = clients.filter(
-    (client) => client.class === 'mpv' && client.mapped !== false && client.hidden !== true,
+    (client) =>
+      (isMpvClassName(client.class) || isMpvClassName(client.initialClass)) &&
+      client.mapped !== false &&
+      client.hidden !== true,
   );
 
   if (!options.targetMpvSocketPath) {
@@ -87,6 +116,20 @@ export function selectHyprlandMpvWindow(
   });
 
   return preferActiveHyprlandWindow(matchingWindows, options.activeWindowAddress);
+}
+
+export function parseHyprctlClients(output: string): HyprlandClient[] | null {
+  const jsonPayload = extractHyprctlJsonPayload(output);
+  if (!jsonPayload) {
+    return null;
+  }
+
+  const parsed = JSON.parse(jsonPayload) as unknown;
+  if (!Array.isArray(parsed)) {
+    return null;
+  }
+
+  return parsed as HyprlandClient[];
 }
 
 export class HyprlandWindowTracker extends BaseWindowTracker {
@@ -185,8 +228,12 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
 
   private pollGeometry(): void {
     try {
-      const output = execSync('hyprctl clients -j', { encoding: 'utf-8' });
-      const clients: HyprlandClient[] = JSON.parse(output);
+      const output = execSync('hyprctl -j clients', { encoding: 'utf-8' });
+      const clients = parseHyprctlClients(output);
+      if (!clients) {
+        this.updateGeometry(null);
+        return;
+      }
       const mpvWindow = this.findTargetWindow(clients);
 
       if (mpvWindow) {
