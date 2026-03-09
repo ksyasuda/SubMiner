@@ -48,6 +48,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
     ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
     syncImmersionMediaState: () => calls.push('sync-immersion'),
+    signalAutoplayReadyIfWarm: (path) => calls.push(`autoplay:${path}`),
     updateCurrentMediaTitle: (title) => calls.push(`title:${title}`),
     resetAnilistMediaGuessState: () => calls.push('reset-guess'),
     reportJellyfinRemoteProgress: (forceImmediate) => calls.push(`progress:${forceImmediate}`),
@@ -82,6 +83,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.maybeProbeAnilistDuration('media-key');
   deps.ensureAnilistMediaGuess('media-key');
   deps.syncImmersionMediaState();
+  deps.signalAutoplayReadyIfWarm('/tmp/video');
   deps.updateCurrentMediaTitle('title');
   deps.resetAnilistMediaGuessState();
   deps.notifyImmersionTitleUpdate('title');
@@ -100,6 +102,7 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('anilist-post-watch'));
   assert.ok(calls.includes('ensure-immersion'));
   assert.ok(calls.includes('sync-immersion'));
+  assert.ok(calls.includes('autoplay:/tmp/video'));
   assert.ok(calls.includes('metrics'));
   assert.ok(calls.includes('presence-refresh'));
   assert.ok(calls.includes('restore-mpv-sub'));

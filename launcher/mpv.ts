@@ -9,8 +9,10 @@ import { log, fail, getMpvLogPath } from './log.js';
 import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
 import {
   commandExists,
+  getPathEnv,
   isExecutable,
   resolveBinaryPathCandidate,
+  resolveCommandInvocation,
   realpathMaybe,
   isYoutubeTarget,
   uniqueNormalizedLangCodes,
@@ -204,7 +206,8 @@ export function findAppBinary(selfPath: string): string | null {
     if (isExecutable(candidate)) return candidate;
   }
 
-  const fromPath = process.env.PATH?.split(path.delimiter)
+  const fromPath = getPathEnv()
+    .split(path.delimiter)
     .map((dir) => path.join(dir, 'subminer'))
     .find((candidate) => isExecutable(candidate));
 
@@ -517,7 +520,8 @@ export async function startMpv(
   mpvArgs.push(`--input-ipc-server=${socketPath}`);
   mpvArgs.push(target);
 
-  state.mpvProc = spawn('mpv', mpvArgs, { stdio: 'inherit' });
+  const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);
+  state.mpvProc = spawn(mpvTarget.command, mpvTarget.args, { stdio: 'inherit' });
 }
 
 async function waitForOverlayStartCommandSettled(
@@ -568,7 +572,8 @@ export async function startOverlay(appPath: string, args: Args, socketPath: stri
   if (args.logLevel !== 'info') overlayArgs.push('--log-level', args.logLevel);
   if (args.useTexthooker) overlayArgs.push('--texthooker');
 
-  state.overlayProc = spawn(appPath, overlayArgs, {
+  const target = resolveAppSpawnTarget(appPath, overlayArgs);
+  state.overlayProc = spawn(target.command, target.args, {
     stdio: 'inherit',
     env: { ...process.env, SUBMINER_MPV_LOG: getMpvLogPath() },
   });
@@ -701,33 +706,7 @@ function resolveAppSpawnTarget(appPath: string, appArgs: string[]): SpawnTarget 
   if (process.platform !== 'win32') {
     return { command: appPath, args: appArgs };
   }
-
-  const normalizeBashArg = (value: string): string => {
-    const normalized = value.replace(/\\/g, '/');
-    const driveMatch = normalized.match(/^([A-Za-z]):\/(.*)$/);
-    if (!driveMatch) {
-      return normalized;
-    }
-
-    const [, driveLetter, remainder] = driveMatch;
-    return `/mnt/${driveLetter!.toLowerCase()}/${remainder}`;
-  };
-  const extension = path.extname(appPath).toLowerCase();
-  if (extension === '.ps1') {
-    return {
-      command: 'powershell.exe',
-      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', appPath, ...appArgs],
-    };
-  }
-
-  if (extension === '.sh') {
-    return {
-      command: 'bash',
-      args: [normalizeBashArg(appPath), ...appArgs.map(normalizeBashArg)],
-    };
-  }
-
-  return { command: appPath, args: appArgs };
+  return resolveCommandInvocation(appPath, appArgs);
 }
 
 export function runAppCommandWithInherit(appPath: string, appArgs: string[]): never {
@@ -841,7 +820,8 @@ export function launchMpvIdleDetached(
     );
     mpvArgs.push(`--log-file=${getMpvLogPath()}`);
     mpvArgs.push(`--input-ipc-server=${socketPath}`);
-    const proc = spawn('mpv', mpvArgs, {
+    const mpvTarget = resolveCommandInvocation('mpv', mpvArgs);
+    const proc = spawn(mpvTarget.command, mpvTarget.args, {
       stdio: 'ignore',
       detached: true,
     });

@@ -29,7 +29,23 @@ export abstract class BaseWindowTracker {
   public onGeometryChange: GeometryChangeCallback | null = null;
   public onWindowFound: WindowFoundCallback | null = null;
   public onWindowLost: WindowLostCallback | null = null;
-  public onTargetWindowFocusChange: ((focused: boolean) => void) | null = null;
+  private onWindowFocusChangeCallback: ((focused: boolean) => void) | null = null;
+
+  public get onWindowFocusChange(): ((focused: boolean) => void) | null {
+    return this.onWindowFocusChangeCallback;
+  }
+
+  public set onWindowFocusChange(callback: ((focused: boolean) => void) | null) {
+    this.onWindowFocusChangeCallback = callback;
+  }
+
+  public get onTargetWindowFocusChange(): ((focused: boolean) => void) | null {
+    return this.onWindowFocusChange;
+  }
+
+  public set onTargetWindowFocusChange(callback: ((focused: boolean) => void) | null) {
+    this.onWindowFocusChange = callback;
+  }
 
   abstract start(): void;
   abstract stop(): void;
@@ -52,7 +68,11 @@ export abstract class BaseWindowTracker {
     }
 
     this.targetWindowFocused = focused;
-    this.onTargetWindowFocusChange?.(focused);
+    this.onWindowFocusChangeCallback?.(focused);
+  }
+
+  protected updateFocus(focused: boolean): void {
+    this.updateTargetWindowFocused(focused);
   }
 
   protected updateGeometry(newGeometry: WindowGeometry | null): void {

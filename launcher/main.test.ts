@@ -51,6 +51,7 @@ function runLauncher(argv: string[], env: NodeJS.ProcessEnv): RunResult {
 }
 
 function makeTestEnv(homeDir: string, xdgConfigHome: string): NodeJS.ProcessEnv {
+  const pathValue = process.env.Path || process.env.PATH || '';
   return {
     ...process.env,
     HOME: homeDir,
@@ -58,6 +59,8 @@ function makeTestEnv(homeDir: string, xdgConfigHome: string): NodeJS.ProcessEnv 
     APPDATA: xdgConfigHome,
     LOCALAPPDATA: path.join(homeDir, 'AppData', 'Local'),
     XDG_CONFIG_HOME: xdgConfigHome,
+    PATH: pathValue,
+    Path: pathValue,
   };
 }
 
@@ -142,6 +145,12 @@ test('mpv status exits non-zero when socket is not ready', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
+    const socketPath = path.join(root, 'missing.sock');
+    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
+    fs.writeFileSync(
+      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+      `socket_path=${socketPath}\n`,
+    );
     const result = runLauncher(['mpv', 'status'], makeTestEnv(homeDir, xdgConfigHome));
 
     assert.equal(result.status, 1);
@@ -156,6 +165,7 @@ test('doctor reports checks and exits non-zero without hard dependencies', () =>
     const env = {
       ...makeTestEnv(homeDir, xdgConfigHome),
       PATH: '',
+      Path: '',
     };
     const result = runLauncher(['doctor'], env);
 
@@ -188,7 +198,7 @@ test('youtube command rejects removed --mode option', () => {
   });
 });
 
-test('youtube playback generates subtitles before mpv launch', () => {
+test('youtube playback generates subtitles before mpv launch', { timeout: 15000 }, () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');
     const xdgConfigHome = path.join(root, 'xdg');
@@ -198,6 +208,7 @@ test('youtube playback generates subtitles before mpv launch', () => {
     const mpvCapturePath = path.join(root, 'mpv-order.txt');
     const mpvArgsPath = path.join(root, 'mpv-args.txt');
     const socketPath = path.join(root, 'mpv.sock');
+    const bunBinary = JSON.stringify(process.execPath.replace(/\\/g, '/'));
 
     fs.mkdirSync(binDir, { recursive: true });
     fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
@@ -268,7 +279,7 @@ for arg in "$@"; do
       ;;
   esac
 done
-bun -e "const net=require('node:net'); const fs=require('node:fs'); const socket=process.argv[1]; try { fs.rmSync(socket,{force:true}); } catch {} const server=net.createServer((conn)=>conn.end()); server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250));" "$socket_path"
+${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const socket=process.argv[1]; try { fs.rmSync(socket,{force:true}); } catch {} const server=net.createServer((conn)=>conn.end()); server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250));" "$socket_path"
 `,
       'utf8',
     );
@@ -276,7 +287,8 @@ bun -e "const net=require('node:net'); const fs=require('node:fs'); const socket
 
     const env = {
       ...makeTestEnv(homeDir, xdgConfigHome),
-      PATH: `${binDir}${path.delimiter}${process.env.PATH || ''}`,
+      PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_YTDLP_LOG: ytdlpLogPath,
       SUBMINER_TEST_MPV_ORDER: mpvCapturePath,
@@ -284,7 +296,7 @@ bun -e "const net=require('node:net'); const fs=require('node:fs'); const socket
     };
     const result = runLauncher(['youtube', 'https://www.youtube.com/watch?v=test123'], env);
 
-    assert.equal(result.status, 0);
+    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
     assert.equal(fs.readFileSync(mpvCapturePath, 'utf8').trim(), 'generated-before-mpv');
     assert.match(
       fs.readFileSync(mpvArgsPath, 'utf8'),

@@ -350,6 +350,10 @@ import {
 } from './main/runtime/composers';
 import { createStartupBootstrapRuntimeDeps } from './main/startup';
 import { createAppLifecycleRuntimeRunner } from './main/startup-lifecycle';
+import {
+  registerSecondInstanceHandlerEarly,
+  requestSingleInstanceLockEarly,
+} from './main/early-single-instance';
 import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
@@ -568,6 +572,22 @@ const appLogger = {
   },
 };
 const runtimeRegistry = createMainRuntimeRegistry();
+const appLifecycleApp = {
+  requestSingleInstanceLock: () => requestSingleInstanceLockEarly(app),
+  quit: () => app.quit(),
+  on: (event: string, listener: (...args: unknown[]) => void) => {
+    if (event === 'second-instance') {
+      registerSecondInstanceHandlerEarly(
+        app,
+        listener as (_event: unknown, argv: string[]) => void,
+      );
+      return app;
+    }
+    app.on(event as Parameters<typeof app.on>[0], listener as (...args: any[]) => void);
+    return app;
+  },
+  whenReady: () => app.whenReady(),
+};
 
 const buildGetDefaultSocketPathMainDepsHandler = createBuildGetDefaultSocketPathMainDepsHandler({
   platform: process.platform,
@@ -2240,7 +2260,7 @@ const {
       app.on('open-url', listener);
     },
     registerSecondInstance: (listener) => {
-      app.on('second-instance', listener);
+      registerSecondInstanceHandlerEarly(app, listener);
     },
     handleAnilistSetupProtocolUrl: (rawUrl) => handleAnilistSetupProtocolUrl(rawUrl),
     findAnilistSetupDeepLinkArgvUrl: (argv) => findAnilistSetupDeepLinkArgvUrl(argv),
@@ -2523,7 +2543,7 @@ const { runAndApplyStartupState } = runtimeRegistry.startup.createStartupRuntime
   ReturnType<typeof createStartupBootstrapRuntimeDeps>
 >({
   appLifecycleRuntimeRunnerMainDeps: {
-    app,
+    app: appLifecycleApp,
     platform: process.platform,
     shouldStartApp: (nextArgs: CliArgs) => shouldStartApp(nextArgs),
     parseArgs: (argv: string[]) => parseArgs(argv),
@@ -2621,6 +2641,7 @@ const {
   createMecabTokenizerAndCheck,
   prewarmSubtitleDictionaries,
   startBackgroundWarmups,
+  isTokenizationWarmupReady,
 } = composeMpvRuntimeHandlers<
   MpvIpcClient,
   ReturnType<typeof createTokenizerDepsRuntime>,
@@ -2672,6 +2693,15 @@ const {
     },
     syncImmersionMediaState: () => {
       immersionMediaRuntime.syncFromCurrentMediaState();
+    },
+    signalAutoplayReadyIfWarm: () => {
+      if (!isTokenizationWarmupReady()) {
+        return;
+      }
+      maybeSignalPluginAutoplayReady(
+        { text: '__warm__', tokens: null },
+        { forceWhilePaused: true },
+      );
     },
     scheduleCharacterDictionarySync: () => {
       characterDictionaryAutoSyncRuntime.scheduleSync();

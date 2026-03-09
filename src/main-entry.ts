@@ -12,6 +12,7 @@ import {
   shouldHandleHelpOnlyAtEntry,
   shouldHandleLaunchMpvAtEntry,
 } from './main-entry-runtime';
+import { requestSingleInstanceLockEarly } from './main/early-single-instance';
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
@@ -67,5 +68,9 @@ if (shouldHandleLaunchMpvAtEntry(process.argv, process.env)) {
     app.exit(result.ok ? 0 : 1);
   });
 } else {
+  const gotSingleInstanceLock = requestSingleInstanceLockEarly(app);
+  if (!gotSingleInstanceLock) {
+    app.exit(0);
+  }
   require('./main.js');
 }

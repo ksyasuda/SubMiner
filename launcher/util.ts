@@ -18,14 +18,139 @@ export function isExecutable(filePath: string): boolean {
   }
 }
 
-export function commandExists(command: string): boolean {
-  const pathEnv = process.env.PATH ?? '';
+function isRunnableFile(filePath: string): boolean {
+  try {
+    if (!fs.statSync(filePath).isFile()) return false;
+    return process.platform === 'win32' ? true : isExecutable(filePath);
+  } catch {
+    return false;
+  }
+}
+
+function isPathLikeCommand(command: string): boolean {
+  return (
+    command.includes('/') ||
+    command.includes('\\') ||
+    /^[A-Za-z]:[\\/]/.test(command) ||
+    command.startsWith('.')
+  );
+}
+
+function getWindowsPathExts(): string[] {
+  const raw = process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD';
+  return raw
+    .split(';')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+export function getPathEnv(): string {
+  const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path');
+  return pathKey ? (process.env[pathKey] ?? '') : '';
+}
+
+function resolveExecutablePath(command: string): string | null {
+  const tryCandidate = (candidate: string): string | null =>
+    isRunnableFile(candidate) ? candidate : null;
+
+  const resolveWindowsCandidate = (candidate: string): string | null => {
+    const direct = tryCandidate(candidate);
+    if (direct) return direct;
+    if (path.extname(candidate)) return null;
+    for (const ext of getWindowsPathExts()) {
+      const withExt = tryCandidate(`${candidate}${ext}`);
+      if (withExt) return withExt;
+    }
+    return null;
+  };
+
+  if (isPathLikeCommand(command)) {
+    const resolved = path.resolve(resolvePathMaybe(command));
+    return process.platform === 'win32' ? resolveWindowsCandidate(resolved) : tryCandidate(resolved);
+  }
+
+  const pathEnv = getPathEnv();
   for (const dir of pathEnv.split(path.delimiter)) {
     if (!dir) continue;
-    const full = path.join(dir, command);
-    if (isExecutable(full)) return true;
+    const candidate = path.join(dir, command);
+    const resolved =
+      process.platform === 'win32' ? resolveWindowsCandidate(candidate) : tryCandidate(candidate);
+    if (resolved) return resolved;
   }
-  return false;
+  return null;
+}
+
+function normalizeWindowsBashArg(value: string): string {
+  const normalized = value.replace(/\\/g, '/');
+  const driveMatch = normalized.match(/^([A-Za-z]):\/(.*)$/);
+  if (!driveMatch) {
+    return normalized;
+  }
+
+  const [, driveLetter, remainder] = driveMatch;
+  return `/mnt/${driveLetter!.toLowerCase()}/${remainder}`;
+}
+
+function resolveGitBashExecutable(): string | null {
+  const directCandidates = [
+    'C:\\Program Files\\Git\\bin\\bash.exe',
+    'C:\\Program Files\\Git\\usr\\bin\\bash.exe',
+  ];
+  for (const candidate of directCandidates) {
+    if (isRunnableFile(candidate)) return candidate;
+  }
+
+  const gitExecutable = resolveExecutablePath('git');
+  if (!gitExecutable) return null;
+  const gitDir = path.dirname(gitExecutable);
+  const inferredCandidates = [
+    path.resolve(gitDir, '..', 'bin', 'bash.exe'),
+    path.resolve(gitDir, '..', 'usr', 'bin', 'bash.exe'),
+  ];
+  for (const candidate of inferredCandidates) {
+    if (isRunnableFile(candidate)) return candidate;
+  }
+  return null;
+}
+
+function resolveWindowsBashTarget(): {
+  command: string;
+  flavor: 'git' | 'wsl';
+} {
+  const gitBash = resolveGitBashExecutable();
+  if (gitBash) {
+    return { command: gitBash, flavor: 'git' };
+  }
+  return {
+    command: resolveExecutablePath('bash') ?? 'bash',
+    flavor: 'wsl',
+  };
+}
+
+function normalizeWindowsShellArg(value: string, flavor: 'git' | 'wsl'): string {
+  if (!isPathLikeCommand(value)) {
+    return value;
+  }
+  return flavor === 'git' ? value.replace(/\\/g, '/') : normalizeWindowsBashArg(value);
+}
+
+function readShebang(filePath: string): string {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const buffer = Buffer.alloc(160);
+      const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
+      return buffer.toString('utf8', 0, bytesRead).split(/\r?\n/, 1)[0] ?? '';
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return '';
+  }
+}
+
+export function commandExists(command: string): boolean {
+  return resolveExecutablePath(command) !== null;
 }
 
 export function resolvePathMaybe(input: string): string {
@@ -116,6 +241,51 @@ export function inferWhisperLanguage(langCodes: string[], fallback: string): str
   return fallback;
 }
 
+export function resolveCommandInvocation(
+  executable: string,
+  args: string[],
+): { command: string; args: string[] } {
+  if (process.platform !== 'win32') {
+    return { command: executable, args };
+  }
+
+  const resolvedExecutable = resolveExecutablePath(executable) ?? executable;
+  const extension = path.extname(resolvedExecutable).toLowerCase();
+  if (extension === '.ps1') {
+    return {
+      command: 'powershell.exe',
+      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolvedExecutable, ...args],
+    };
+  }
+
+  if (extension === '.sh') {
+    const bashTarget = resolveWindowsBashTarget();
+    return {
+      command: bashTarget.command,
+      args: [
+        normalizeWindowsShellArg(resolvedExecutable, bashTarget.flavor),
+        ...args.map((arg) => normalizeWindowsShellArg(arg, bashTarget.flavor)),
+      ],
+    };
+  }
+
+  if (!extension) {
+    const shebang = readShebang(resolvedExecutable);
+    if (/^#!.*\b(?:sh|bash)\b/i.test(shebang)) {
+      const bashTarget = resolveWindowsBashTarget();
+      return {
+        command: bashTarget.command,
+        args: [
+          normalizeWindowsShellArg(resolvedExecutable, bashTarget.flavor),
+          ...args.map((arg) => normalizeWindowsShellArg(arg, bashTarget.flavor)),
+        ],
+      };
+    }
+  }
+
+  return { command: resolvedExecutable, args };
+}
+
 export function runExternalCommand(
   executable: string,
   args: string[],
@@ -129,8 +299,13 @@ export function runExternalCommand(
   const streamOutput = opts.streamOutput === true;
 
   return new Promise((resolve, reject) => {
-    log('debug', configuredLogLevel, `[${commandLabel}] spawn: ${executable} ${args.join(' ')}`);
-    const child = spawn(executable, args, {
+    const target = resolveCommandInvocation(executable, args);
+    log(
+      'debug',
+      configuredLogLevel,
+      `[${commandLabel}] spawn: ${target.command} ${target.args.join(' ')}`,
+    );
+    const child = spawn(target.command, target.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, ...opts.env },
     });
@@ -201,7 +376,7 @@ export function runExternalCommand(
         `[${commandLabel}] exit code ${code ?? 1}`,
       );
       if (code !== 0 && !allowFailure) {
-        const commandString = `${executable} ${args.join(' ')}`;
+        const commandString = `${target.command} ${target.args.join(' ')}`;
         reject(
           new Error(`Command failed (${commandString}): ${stderr.trim() || `exit code ${code}`}`),
         );
