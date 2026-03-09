@@ -38,18 +38,16 @@ test('release package scripts disable implicit electron-builder publishing', () 
   assert.match(packageJson.scripts['build:appimage'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:mac'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:win'] ?? '', /--publish never/);
+  assert.match(packageJson.scripts['build:win:unsigned'] ?? '', /build-win-unsigned\.mjs/);
 });
 
-test('windows release workflow retries SignPath submission and fails only after exhausting attempts', () => {
-  assert.match(releaseWorkflow, /Submit Windows signing request \(attempt 1\)/);
-  assert.match(releaseWorkflow, /Submit Windows signing request \(attempt 2\)/);
-  assert.match(releaseWorkflow, /Submit Windows signing request \(attempt 3\)/);
-  assert.match(releaseWorkflow, /All SignPath signing attempts failed; rerun the workflow when SignPath is healthy\./);
-});
-
-test('windows release workflow pins the SignPath artifact configuration slug explicitly', () => {
-  assert.match(releaseWorkflow, /SIGNPATH_ARTIFACT_CONFIGURATION_SLUG/);
-  assert.match(releaseWorkflow, /artifact-configuration-slug: \$\{\{ secrets\.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG \}\}/);
+test('windows release workflow publishes unsigned artifacts directly without SignPath', () => {
+  assert.match(releaseWorkflow, /Build unsigned Windows artifacts/);
+  assert.match(releaseWorkflow, /run: bun run build:win:unsigned/);
+  assert.match(releaseWorkflow, /name: windows/);
+  assert.match(releaseWorkflow, /path: \|\n\s+release\/\*\.exe\n\s+release\/\*\.zip/);
+  assert.ok(!releaseWorkflow.includes('signpath/github-action-submit-signing-request'));
+  assert.ok(!releaseWorkflow.includes('SIGNPATH_'));
 });
 
 test('Makefile routes Windows install-plugin setup through bun and documents Windows builds', () => {

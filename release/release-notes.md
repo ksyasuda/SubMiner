@@ -1,6 +1,7 @@
 ## Highlights
-### Internal
-- Release: Pinned the Windows SignPath submission workflow to an explicit artifact-configuration slug instead of relying on the SignPath project's default configuration.
+### Changed
+- Release: Publish unsigned Windows `.exe` and `.zip` artifacts directly from release CI instead of routing them through SignPath.
+- Release: Added `bun run build:win:unsigned` for explicit local unsigned Windows packaging.
 
 ## Installation
 

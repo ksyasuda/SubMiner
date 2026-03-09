@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.5.3 (2026-03-09)
+
+### Changed
+- Release: Publish unsigned Windows `.exe` and `.zip` artifacts directly from release CI instead of routing them through SignPath.
+- Release: Added `bun run build:win:unsigned` for explicit local unsigned Windows packaging.
+
 ## v0.5.2 (2026-03-09)
 
 ### Internal

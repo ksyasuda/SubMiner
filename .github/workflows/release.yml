@@ -10,7 +10,6 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  actions: read
   contents: write
 
 jobs:
@@ -220,27 +219,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bun-
 
-      - name: Validate Windows signing secrets
-        shell: bash
-        run: |
-          missing=0
-          for name in SIGNPATH_API_TOKEN SIGNPATH_ORGANIZATION_ID SIGNPATH_PROJECT_SLUG SIGNPATH_SIGNING_POLICY_SLUG SIGNPATH_ARTIFACT_CONFIGURATION_SLUG; do
-            if [ -z "${!name}" ]; then
-              echo "Missing required secret: $name"
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            echo "Set the SignPath Windows signing secrets and rerun."
-            exit 1
-          fi
-        env:
-          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
-          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-          SIGNPATH_PROJECT_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
-          SIGNPATH_SIGNING_POLICY_SLUG: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
-          SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ secrets.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -252,98 +230,16 @@ jobs:
           bun run build
 
       - name: Build unsigned Windows artifacts
-        run: bun run build:win
+        run: bun run build:win:unsigned
 
-      - name: Upload unsigned Windows artifact for SignPath
-        id: upload-unsigned-windows-artifact
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: unsigned-windows
+          name: windows
           path: |
             release/*.exe
             release/*.zip
           if-no-files-found: error
-
-      - name: Submit Windows signing request (attempt 1)
-        id: signpath-sign-attempt-1
-        continue-on-error: true
-        uses: signpath/github-action-submit-signing-request@v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: ${{ secrets.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.upload-unsigned-windows-artifact.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed-windows-attempt-1
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Submit Windows signing request (attempt 2)
-        id: signpath-sign-attempt-2
-        if: steps.signpath-sign-attempt-1.outcome == 'failure'
-        continue-on-error: true
-        uses: signpath/github-action-submit-signing-request@v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: ${{ secrets.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.upload-unsigned-windows-artifact.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed-windows-attempt-2
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Submit Windows signing request (attempt 3)
-        id: signpath-sign-attempt-3
-        if: steps.signpath-sign-attempt-1.outcome == 'failure' && steps.signpath-sign-attempt-2.outcome == 'failure'
-        continue-on-error: true
-        uses: signpath/github-action-submit-signing-request@v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: ${{ secrets.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.upload-unsigned-windows-artifact.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed-windows-attempt-3
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Fail when all SignPath signing attempts fail
-        if: steps.signpath-sign-attempt-1.outcome == 'failure' && steps.signpath-sign-attempt-2.outcome == 'failure' && steps.signpath-sign-attempt-3.outcome == 'failure'
-        shell: bash
-        run: |
-          echo "All SignPath signing attempts failed; rerun the workflow when SignPath is healthy."
-          exit 1
-
-      - name: Upload signed Windows artifacts (attempt 1)
-        if: steps.signpath-sign-attempt-1.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows
-          path: |
-            signed-windows-attempt-1/*.exe
-            signed-windows-attempt-1/*.zip
-
-      - name: Upload signed Windows artifacts (attempt 2)
-        if: steps.signpath-sign-attempt-2.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows
-          path: |
-            signed-windows-attempt-2/*.exe
-            signed-windows-attempt-2/*.zip
-
-      - name: Upload signed Windows artifacts (attempt 3)
-        if: steps.signpath-sign-attempt-3.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows
-          path: |
-            signed-windows-attempt-3/*.exe
-            signed-windows-attempt-3/*.zip
 
   release:
     needs: [build-linux, build-macos, build-windows]
