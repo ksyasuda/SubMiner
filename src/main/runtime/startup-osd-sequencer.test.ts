@@ -72,6 +72,31 @@ test('startup OSD buffers checking behind annotations and replaces it with later
   ]);
 });
 
+test('startup OSD replaces earlier dictionary progress with later building progress', () => {
+  const osdMessages: string[] = [];
+  const sequencer = createStartupOsdSequencer({
+    showOsd: (message) => {
+      osdMessages.push(message);
+    },
+  });
+
+  sequencer.notifyCharacterDictionaryStatus(
+    makeDictionaryEvent('syncing', 'Updating character dictionary for Frieren...'),
+  );
+  sequencer.showAnnotationLoading('Loading subtitle annotations |');
+  sequencer.markTokenizationReady();
+  sequencer.notifyCharacterDictionaryStatus(
+    makeDictionaryEvent('building', 'Building character dictionary for Frieren...'),
+  );
+
+  sequencer.markAnnotationLoadingComplete('Subtitle annotations loaded');
+
+  assert.deepEqual(osdMessages, [
+    'Loading subtitle annotations |',
+    'Building character dictionary for Frieren...',
+  ]);
+});
+
 test('startup OSD skips buffered dictionary ready messages when progress completed before it became visible', () => {
   const osdMessages: string[] = [];
   const sequencer = createStartupOsdSequencer({

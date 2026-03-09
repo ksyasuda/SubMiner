@@ -15,6 +15,7 @@ test('create overlay window handler forwards options and kind', () => {
       assert.equal(options.isDev, true);
       assert.equal(options.isOverlayVisible('visible'), true);
       assert.equal(options.isOverlayVisible('modal'), false);
+      options.forwardTabToMpv();
       options.onRuntimeOptionsChanged();
       options.setOverlayDebugVisualizationEnabled(true);
       options.onWindowClosed(kind);
@@ -26,11 +27,18 @@ test('create overlay window handler forwards options and kind', () => {
     setOverlayDebugVisualizationEnabled: (enabled) => calls.push(`debug:${enabled}`),
     isOverlayVisible: (kind) => kind === 'visible',
     tryHandleOverlayShortcutLocalFallback: () => false,
+    forwardTabToMpv: () => calls.push('forward-tab'),
     onWindowClosed: (kind) => calls.push(`closed:${kind}`),
   });
 
   assert.equal(createOverlayWindow('visible'), window);
-  assert.deepEqual(calls, ['kind:visible', 'runtime-options', 'debug:true', 'closed:visible']);
+  assert.deepEqual(calls, [
+    'kind:visible',
+    'forward-tab',
+    'runtime-options',
+    'debug:true',
+    'closed:visible',
+  ]);
 });
 
 test('create main window handler stores visible window', () => {

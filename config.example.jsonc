@@ -2,9 +2,10 @@
  * SubMiner Example Configuration File
  *
  * This file is auto-generated from src/config/definitions.ts.
- * Copy to $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) and edit as needed.
+ * Copy to %APPDATA%/SubMiner/config.jsonc on Windows, or $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) on Linux/macOS.
  */
 {
+
   // ==========================================
   // Overlay Auto-Start
   // When overlay connects to mpv, automatically show overlay and hide mpv subtitles.
@@ -17,7 +18,7 @@
   // ==========================================
   "texthooker": {
     "launchAtStartup": true, // Launch texthooker server automatically when SubMiner starts. Values: true | false
-    "openBrowser": true, // Open browser setting. Values: true | false
+    "openBrowser": true // Open browser setting. Values: true | false
   }, // Configure texthooker startup launch and browser opening behavior.
 
   // ==========================================
@@ -27,7 +28,7 @@
   // ==========================================
   "websocket": {
     "enabled": "auto", // Built-in subtitle websocket server mode. Values: auto | true | false
-    "port": 6677, // Built-in subtitle websocket server port.
+    "port": 6677 // Built-in subtitle websocket server port.
   }, // Built-in WebSocket server broadcasts subtitle text to connected clients.
 
   // ==========================================
@@ -37,7 +38,7 @@
   // ==========================================
   "annotationWebsocket": {
     "enabled": true, // Annotated subtitle websocket server enabled state. Values: true | false
-    "port": 6678, // Annotated subtitle websocket server port.
+    "port": 6678 // Annotated subtitle websocket server port.
   }, // Dedicated annotated subtitle websocket for bundled texthooker and token-aware clients.
 
   // ==========================================
@@ -46,7 +47,7 @@
   // Set to debug for full runtime diagnostics.
   // ==========================================
   "logging": {
-    "level": "info", // Minimum log level for runtime logging. Values: debug | info | warn | error
+    "level": "info" // Minimum log level for runtime logging. Values: debug | info | warn | error
   }, // Controls logging verbosity.
 
   // ==========================================
@@ -60,7 +61,7 @@
     "mecab": true, // Warm up MeCab tokenizer at startup. Values: true | false
     "yomitanExtension": true, // Warm up Yomitan extension at startup. Values: true | false
     "subtitleDictionaries": true, // Warm up subtitle dictionaries at startup. Values: true | false
-    "jellyfinRemoteSession": true, // Warm up Jellyfin remote session at startup. Values: true | false
+    "jellyfinRemoteSession": true // Warm up Jellyfin remote session at startup. Values: true | false
   }, // Background warmup controls for MeCab, Yomitan, dictionaries, and Jellyfin session.
 
   // ==========================================
@@ -81,7 +82,7 @@
     "toggleSecondarySub": "CommandOrControl+Shift+V", // Toggle secondary sub setting.
     "markAudioCard": "CommandOrControl+Shift+A", // Mark audio card setting.
     "openRuntimeOptions": "CommandOrControl+Shift+O", // Open runtime options setting.
-    "openJimaku": "Ctrl+Shift+J", // Open jimaku setting.
+    "openJimaku": "Ctrl+Shift+J" // Open jimaku setting.
   }, // Overlay keyboard shortcuts. Set a shortcut to null to disable.
 
   // ==========================================
@@ -101,7 +102,7 @@
   "secondarySub": {
     "secondarySubLanguages": [], // Secondary sub languages setting.
     "autoLoadSecondarySub": false, // Auto load secondary sub setting. Values: true | false
-    "defaultMode": "hover", // Default mode setting.
+    "defaultMode": "hover" // Default mode setting.
   }, // Dual subtitle track options.
 
   // ==========================================
@@ -113,7 +114,7 @@
     "alass_path": "", // Alass path setting.
     "ffsubsync_path": "", // Ffsubsync path setting.
     "ffmpeg_path": "", // Ffmpeg path setting.
-    "replace": true, // Replace the active subtitle file when sync completes. Values: true | false
+    "replace": true // Replace the active subtitle file when sync completes. Values: true | false
   }, // Subsync engine and executable paths.
 
   // ==========================================
@@ -121,7 +122,7 @@
   // Initial vertical subtitle position from the bottom.
   // ==========================================
   "subtitlePosition": {
-    "yPercent": 10, // Y percent setting.
+    "yPercent": 10 // Y percent setting.
   }, // Initial vertical subtitle position from the bottom.
 
   // ==========================================
@@ -158,7 +159,7 @@
       "N2": "#f5a97f", // N2 setting.
       "N3": "#f9e2af", // N3 setting.
       "N4": "#a6e3a1", // N4 setting.
-      "N5": "#8aadf4", // N5 setting.
+      "N5": "#8aadf4" // N5 setting.
     }, // Jlpt colors setting.
     "frequencyDictionary": {
       "enabled": false, // Enable frequency-dictionary-based highlighting based on token rank. Values: true | false
@@ -167,7 +168,13 @@
       "mode": "single", // single: use one color for all matching tokens. banded: use color ramp by frequency band. Values: single | banded
       "matchMode": "headword", // headword: frequency lookup uses dictionary form. surface: lookup uses subtitle-visible token text. Values: headword | surface
       "singleColor": "#f5a97f", // Color used when frequencyDictionary.mode is `single`.
-      "bandedColors": ["#ed8796", "#f5a97f", "#f9e2af", "#8bd5ca", "#8aadf4"], // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
+      "bandedColors": [
+        "#ed8796",
+        "#f5a97f",
+        "#f9e2af",
+        "#8bd5ca",
+        "#8aadf4"
+      ] // Five colors used for rank bands when mode is `banded` (from most common to least within topX).
     }, // Frequency dictionary setting.
     "secondary": {
       "fontFamily": "Inter, Noto Sans, Helvetica Neue, sans-serif", // Font family setting.
@@ -182,8 +189,8 @@
       "backgroundColor": "rgba(20, 22, 34, 0.78)", // Background color setting.
       "backdropFilter": "blur(6px)", // Backdrop filter setting.
       "fontWeight": "600", // Font weight setting.
-      "fontStyle": "normal", // Font style setting.
-    }, // Secondary setting.
+      "fontStyle": "normal" // Font style setting.
+    } // Secondary setting.
   }, // Primary and secondary subtitle styling.
 
   // ==========================================
@@ -194,8 +201,10 @@
     "enabled": false, // Enable shared OpenAI-compatible AI provider features. Values: true | false
     "apiKey": "", // Static API key for the shared OpenAI-compatible AI provider.
     "apiKeyCommand": "", // Shell command used to resolve the shared AI provider API key.
+    "model": "openai/gpt-4o-mini", // Model setting.
     "baseUrl": "https://openrouter.ai/api", // Base URL for the shared OpenAI-compatible AI provider.
-    "requestTimeoutMs": 15000, // Timeout in milliseconds for shared AI provider requests.
+    "systemPrompt": "You are a translation engine. Return only the translated text with no explanations.", // System prompt setting.
+    "requestTimeoutMs": 15000 // Timeout in milliseconds for shared AI provider requests.
   }, // Canonical OpenAI-compatible provider transport settings shared by Anki and YouTube subtitle fixing.
 
   // ==========================================
@@ -213,20 +222,22 @@
       "enabled": true, // Enable local AnkiConnect-compatible proxy for push-based auto-enrichment. Values: true | false
       "host": "127.0.0.1", // Bind host for local AnkiConnect proxy.
       "port": 8766, // Bind port for local AnkiConnect proxy.
-      "upstreamUrl": "http://127.0.0.1:8765", // Upstream AnkiConnect URL proxied by local AnkiConnect proxy.
+      "upstreamUrl": "http://127.0.0.1:8765" // Upstream AnkiConnect URL proxied by local AnkiConnect proxy.
     }, // Proxy setting.
-    "tags": ["SubMiner"], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.
+    "tags": [
+      "SubMiner"
+    ], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.
     "fields": {
       "audio": "ExpressionAudio", // Audio setting.
       "image": "Picture", // Image setting.
       "sentence": "Sentence", // Sentence setting.
       "miscInfo": "MiscInfo", // Misc info setting.
-      "translation": "SelectionText", // Translation setting.
+      "translation": "SelectionText" // Translation setting.
     }, // Fields setting.
     "ai": {
       "enabled": false, // Enable AI provider usage for Anki translation/enrichment flows. Values: true | false
       "model": "", // Optional model override for Anki AI translation/enrichment flows.
-      "systemPrompt": "", // Optional system prompt override for Anki AI translation/enrichment flows.
+      "systemPrompt": "" // Optional system prompt override for Anki AI translation/enrichment flows.
     }, // Ai setting.
     "media": {
       "generateAudio": true, // Generate audio setting. Values: true | false
@@ -239,7 +250,7 @@
       "animatedCrf": 35, // Animated crf setting.
       "audioPadding": 0.5, // Audio padding setting.
       "fallbackDuration": 3, // Fallback duration setting.
-      "maxMediaDuration": 30, // Max media duration setting.
+      "maxMediaDuration": 30 // Max media duration setting.
     }, // Media setting.
     "behavior": {
       "overwriteAudio": true, // Overwrite audio setting. Values: true | false
@@ -247,7 +258,7 @@
       "mediaInsertMode": "append", // Media insert mode setting.
       "highlightWord": true, // Highlight word setting. Values: true | false
       "notificationType": "osd", // Notification type setting.
-      "autoUpdateNewCards": true, // Automatically update newly added cards. Values: true | false
+      "autoUpdateNewCards": true // Automatically update newly added cards. Values: true | false
     }, // Behavior setting.
     "nPlusOne": {
       "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false
@@ -256,20 +267,20 @@
       "decks": [], // Decks used for N+1 known-word cache scope. Supports one or more deck names.
       "minSentenceWords": 3, // Minimum sentence word count required for N+1 targeting (default: 3).
       "nPlusOne": "#c6a0f6", // Color used for the single N+1 target token highlight.
-      "knownWord": "#a6da95", // Color used for legacy known-word highlights.
+      "knownWord": "#a6da95" // Color used for legacy known-word highlights.
     }, // N plus one setting.
     "metadata": {
-      "pattern": "[SubMiner] %f (%t)", // Pattern setting.
+      "pattern": "[SubMiner] %f (%t)" // Pattern setting.
     }, // Metadata setting.
     "isLapis": {
       "enabled": false, // Enabled setting. Values: true | false
-      "sentenceCardModel": "Japanese sentences", // Sentence card model setting.
+      "sentenceCardModel": "Japanese sentences" // Sentence card model setting.
     }, // Is lapis setting.
     "isKiku": {
       "enabled": false, // Enabled setting. Values: true | false
       "fieldGrouping": "disabled", // Kiku duplicate-card field grouping mode. Values: auto | manual | disabled
-      "deleteDuplicateInAuto": true, // Delete duplicate in auto setting. Values: true | false
-    }, // Is kiku setting.
+      "deleteDuplicateInAuto": true // Delete duplicate in auto setting. Values: true | false
+    } // Is kiku setting.
   }, // Automatic Anki updates and media generation options.
 
   // ==========================================
@@ -279,7 +290,7 @@
   "jimaku": {
     "apiBaseUrl": "https://jimaku.cc", // Api base url setting.
     "languagePreference": "ja", // Preferred language used in Jimaku search. Values: ja | en | none
-    "maxEntryResults": 10, // Maximum Jimaku search results returned.
+    "maxEntryResults": 10 // Maximum Jimaku search results returned.
   }, // Jimaku API configuration and defaults.
 
   // ==========================================
@@ -294,9 +305,12 @@
     "fixWithAi": false, // Use shared AI provider to post-process whisper-generated YouTube subtitles. Values: true | false
     "ai": {
       "model": "", // Optional model override for YouTube subtitle AI post-processing.
-      "systemPrompt": "", // Optional system prompt override for YouTube subtitle AI post-processing.
+      "systemPrompt": "" // Optional system prompt override for YouTube subtitle AI post-processing.
     }, // Ai setting.
-    "primarySubLanguages": ["ja", "jpn"], // Comma-separated primary subtitle language priority used by the launcher.
+    "primarySubLanguages": [
+      "ja",
+      "jpn"
+    ] // Comma-separated primary subtitle language priority used by the launcher.
   }, // Defaults for SubMiner YouTube subtitle generation.
 
   // ==========================================
@@ -317,9 +331,9 @@
       "collapsibleSections": {
         "description": false, // Open the Description section by default in character dictionary glossary entries. Values: true | false
         "characterInformation": false, // Open the Character Information section by default in character dictionary glossary entries. Values: true | false
-        "voicedBy": false, // Open the Voiced by section by default in character dictionary glossary entries. Values: true | false
-      }, // Collapsible sections setting.
-    }, // Character dictionary setting.
+        "voicedBy": false // Open the Voiced by section by default in character dictionary glossary entries. Values: true | false
+      } // Collapsible sections setting.
+    } // Character dictionary setting.
   }, // Anilist API credentials and update behavior.
 
   // ==========================================
@@ -343,8 +357,16 @@
     "pullPictures": false, // Enable Jellyfin poster/icon fetching for launcher menus. Values: true | false
     "iconCacheDir": "/tmp/subminer-jellyfin-icons", // Directory used by launcher for cached Jellyfin poster icons.
     "directPlayPreferred": true, // Try direct play before server-managed transcoding when possible. Values: true | false
-    "directPlayContainers": ["mkv", "mp4", "webm", "mov", "flac", "mp3", "aac"], // Container allowlist for direct play decisions.
-    "transcodeVideoCodec": "h264", // Preferred transcode video codec when direct play is unavailable.
+    "directPlayContainers": [
+      "mkv",
+      "mp4",
+      "webm",
+      "mov",
+      "flac",
+      "mp3",
+      "aac"
+    ], // Container allowlist for direct play decisions.
+    "transcodeVideoCodec": "h264" // Preferred transcode video codec when direct play is unavailable.
   }, // Optional Jellyfin integration for auth, browsing, and playback launch.
 
   // ==========================================
@@ -355,7 +377,7 @@
   "discordPresence": {
     "enabled": false, // Enable optional Discord Rich Presence updates. Values: true | false
     "updateIntervalMs": 3000, // Minimum interval between presence payload updates.
-    "debounceMs": 750, // Debounce delay used to collapse bursty presence updates.
+    "debounceMs": 750 // Debounce delay used to collapse bursty presence updates.
   }, // Optional Discord Rich Presence activity card updates for current playback/study session.
 
   // ==========================================
@@ -377,7 +399,7 @@
       "telemetryDays": 30, // Telemetry retention window in days.
       "dailyRollupsDays": 365, // Daily rollup retention window in days.
       "monthlyRollupsDays": 1825, // Monthly rollup retention window in days.
-      "vacuumIntervalDays": 7, // Minimum days between VACUUM runs.
-    }, // Retention setting.
-  }, // Enable/disable immersion tracking.
+      "vacuumIntervalDays": 7 // Minimum days between VACUUM runs.
+    } // Retention setting.
+  } // Enable/disable immersion tracking.
 }

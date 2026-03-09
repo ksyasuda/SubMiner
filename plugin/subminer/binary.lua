@@ -107,12 +107,8 @@ function M.create(ctx)
 	end
 
 	local function find_binary_override()
-		local candidates = {
-			resolve_binary_candidate(os.getenv("SUBMINER_APPIMAGE_PATH")),
-			resolve_binary_candidate(os.getenv("SUBMINER_BINARY_PATH")),
-		}
-
-		for _, path in ipairs(candidates) do
+		for _, env_name in ipairs({ "SUBMINER_APPIMAGE_PATH", "SUBMINER_BINARY_PATH" }) do
+			local path = resolve_binary_candidate(os.getenv(env_name))
 			if path and path ~= "" then
 				return path
 			end

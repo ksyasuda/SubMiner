@@ -25,7 +25,7 @@ export interface CharacterDictionaryAutoSyncConfig {
 }
 
 export interface CharacterDictionaryAutoSyncStatusEvent {
-  phase: 'checking' | 'generating' | 'syncing' | 'importing' | 'ready' | 'failed';
+  phase: 'checking' | 'generating' | 'syncing' | 'building' | 'importing' | 'ready' | 'failed';
   mediaId?: number;
   mediaTitle?: string;
   message: string;
@@ -121,6 +121,10 @@ function buildGeneratingMessage(mediaTitle: string): string {
 
 function buildImportingMessage(mediaTitle: string): string {
   return `Importing character dictionary for ${mediaTitle}...`;
+}
+
+function buildBuildingMessage(mediaTitle: string): string {
+  return `Building character dictionary for ${mediaTitle}...`;
 }
 
 function buildReadyMessage(mediaTitle: string): string {
@@ -227,6 +231,12 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
         !state.mergedDictionaryTitle ||
         !snapshot.fromCache
       ) {
+        deps.onSyncStatus?.({
+          phase: 'building',
+          mediaId: snapshot.mediaId,
+          mediaTitle: snapshot.mediaTitle,
+          message: buildBuildingMessage(snapshot.mediaTitle),
+        });
         deps.logInfo?.('[dictionary:auto-sync] rebuilding merged dictionary for active anime set');
         merged = await deps.buildMergedDictionary(nextActiveMediaIds);
       }

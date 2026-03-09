@@ -3514,6 +3514,7 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
         windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
       tryHandleOverlayShortcutLocalFallback: (input) =>
         overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
+      forwardTabToMpv: () => sendMpvCommandRuntime(appState.mpvClient, ['keypress', 'TAB']),
       onWindowClosed: (windowKind) => {
         if (windowKind === 'visible') {
           overlayManager.setMainWindow(null);

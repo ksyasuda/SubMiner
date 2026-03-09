@@ -331,7 +331,7 @@ test('auto sync invokes completion callback after successful sync', async () => 
 test('auto sync emits progress events for start import and completion', async () => {
   const userDataPath = makeTempDir();
   const events: Array<{
-    phase: 'checking' | 'generating' | 'syncing' | 'importing' | 'ready' | 'failed';
+    phase: 'checking' | 'generating' | 'syncing' | 'building' | 'importing' | 'ready' | 'failed';
     mediaId?: number;
     mediaTitle?: string;
     message: string;
@@ -407,6 +407,12 @@ test('auto sync emits progress events for start import and completion', async ()
       message: 'Updating character dictionary for Rascal Does Not Dream of Bunny Girl Senpai...',
     },
     {
+      phase: 'building',
+      mediaId: 101291,
+      mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      message: 'Building character dictionary for Rascal Does Not Dream of Bunny Girl Senpai...',
+    },
+    {
       phase: 'importing',
       mediaId: 101291,
       mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
@@ -425,7 +431,7 @@ test('auto sync emits progress events for start import and completion', async ()
 test('auto sync emits checking before snapshot resolves and skips generating on cache hit', async () => {
   const userDataPath = makeTempDir();
   const events: Array<{
-    phase: 'checking' | 'generating' | 'syncing' | 'importing' | 'ready' | 'failed';
+    phase: 'checking' | 'generating' | 'syncing' | 'building' | 'importing' | 'ready' | 'failed';
     mediaId?: number;
     mediaTitle?: string;
     message: string;
@@ -501,6 +507,77 @@ test('auto sync emits checking before snapshot resolves and skips generating on 
     events.some((event) => event.phase === 'generating'),
     false,
   );
+});
+
+test('auto sync emits building while merged dictionary generation is in flight', async () => {
+  const userDataPath = makeTempDir();
+  const events: Array<{
+    phase: 'checking' | 'generating' | 'building' | 'syncing' | 'importing' | 'ready' | 'failed';
+    mediaId?: number;
+    mediaTitle?: string;
+    message: string;
+    changed?: boolean;
+  }> = [];
+  const buildDeferred = createDeferred<{
+    zipPath: string;
+    revision: string;
+    dictionaryTitle: string;
+    entryCount: number;
+  }>();
+  let importedRevision: string | null = null;
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({
+      enabled: true,
+      maxLoaded: 3,
+      profileScope: 'all',
+    }),
+    getOrCreateCurrentSnapshot: async (_targetPath, progress) => {
+      progress?.onChecking?.({
+        mediaId: 101291,
+        mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+      });
+      return {
+        mediaId: 101291,
+        mediaTitle: 'Rascal Does Not Dream of Bunny Girl Senpai',
+        entryCount: 2560,
+        fromCache: true,
+        updatedAt: 1000,
+      };
+    },
+    buildMergedDictionary: async () => await buildDeferred.promise,
+    getYomitanDictionaryInfo: async () =>
+      importedRevision
+        ? [{ title: 'SubMiner Character Dictionary', revision: importedRevision }]
+        : [],
+    importYomitanDictionary: async () => {
+      importedRevision = 'rev-101291';
+      return true;
+    },
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => 1000,
+    onSyncStatus: (event) => {
+      events.push(event);
+    },
+  });
+
+  const syncPromise = runtime.runSyncNow();
+  await Promise.resolve();
+
+  assert.equal(
+    events.some((event) => event.phase === 'building'),
+    true,
+  );
+
+  buildDeferred.resolve({
+    zipPath: '/tmp/merged.zip',
+    revision: 'rev-101291',
+    dictionaryTitle: 'SubMiner Character Dictionary',
+    entryCount: 2560,
+  });
+  await syncPromise;
 });
 
 test('auto sync waits for tokenization-ready gate before Yomitan mutations', async () => {

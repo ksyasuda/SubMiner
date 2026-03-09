@@ -84,6 +84,19 @@ function getNextPersistedPosition(
   };
 }
 
+function applyMarginBottom(ctx: RendererContext, yPercent: number): void {
+  const clampedPercent = clampYPercent(ctx, yPercent);
+  ctx.state.currentYPercent = clampedPercent;
+  const marginBottom = (clampedPercent / 100) * getViewportHeight();
+
+  ctx.dom.subtitleContainer.style.position = '';
+  ctx.dom.subtitleContainer.style.left = '';
+  ctx.dom.subtitleContainer.style.top = '';
+  ctx.dom.subtitleContainer.style.right = '';
+  ctx.dom.subtitleContainer.style.transform = '';
+  ctx.dom.subtitleContainer.style.marginBottom = `${marginBottom}px`;
+}
+
 export function createInMemorySubtitlePositionController(
   ctx: RendererContext,
 ): SubtitlePositionController {
@@ -98,16 +111,7 @@ export function createInMemorySubtitlePositionController(
   }
 
   function applyYPercent(yPercent: number): void {
-    const clampedPercent = clampYPercent(ctx, yPercent);
-    ctx.state.currentYPercent = clampedPercent;
-    const marginBottom = (clampedPercent / 100) * getViewportHeight();
-
-    ctx.dom.subtitleContainer.style.position = '';
-    ctx.dom.subtitleContainer.style.left = '';
-    ctx.dom.subtitleContainer.style.top = '';
-    ctx.dom.subtitleContainer.style.right = '';
-    ctx.dom.subtitleContainer.style.transform = '';
-    ctx.dom.subtitleContainer.style.marginBottom = `${marginBottom}px`;
+    applyMarginBottom(ctx, yPercent);
   }
 
   function persistSubtitlePositionPatch(patch: Partial<SubtitlePosition>): void {

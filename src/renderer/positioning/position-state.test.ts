@@ -38,6 +38,7 @@ function createContext(subtitleHeight: number) {
     state: {
       currentYPercent: null,
       persistedSubtitlePosition: { yPercent: 10 },
+      isOverSubtitle: false,
     },
   };
 }

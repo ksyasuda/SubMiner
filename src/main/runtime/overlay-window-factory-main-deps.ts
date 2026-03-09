@@ -8,6 +8,7 @@ export function createBuildCreateOverlayWindowMainDepsHandler<TWindow>(deps: {
       setOverlayDebugVisualizationEnabled: (enabled: boolean) => void;
       isOverlayVisible: (windowKind: 'visible' | 'modal') => boolean;
       tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
+      forwardTabToMpv: () => void;
       onWindowClosed: (windowKind: 'visible' | 'modal') => void;
     },
   ) => TWindow;
@@ -17,6 +18,7 @@ export function createBuildCreateOverlayWindowMainDepsHandler<TWindow>(deps: {
   setOverlayDebugVisualizationEnabled: (enabled: boolean) => void;
   isOverlayVisible: (windowKind: 'visible' | 'modal') => boolean;
   tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
+  forwardTabToMpv: () => void;
   onWindowClosed: (windowKind: 'visible' | 'modal') => void;
 }) {
   return () => ({
@@ -27,6 +29,7 @@ export function createBuildCreateOverlayWindowMainDepsHandler<TWindow>(deps: {
     setOverlayDebugVisualizationEnabled: deps.setOverlayDebugVisualizationEnabled,
     isOverlayVisible: deps.isOverlayVisible,
     tryHandleOverlayShortcutLocalFallback: deps.tryHandleOverlayShortcutLocalFallback,
+    forwardTabToMpv: deps.forwardTabToMpv,
     onWindowClosed: deps.onWindowClosed,
   });
 }

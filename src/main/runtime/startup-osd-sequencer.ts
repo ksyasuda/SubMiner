@@ -1,5 +1,5 @@
 export interface StartupOsdSequencerCharacterDictionaryEvent {
-  phase: 'checking' | 'generating' | 'syncing' | 'importing' | 'ready' | 'failed';
+  phase: 'checking' | 'generating' | 'syncing' | 'building' | 'importing' | 'ready' | 'failed';
   message: string;
 }
 
@@ -74,6 +74,7 @@ export function createStartupOsdSequencer(deps: { showOsd: (message: string) => 
         event.phase === 'checking' ||
         event.phase === 'generating' ||
         event.phase === 'syncing' ||
+        event.phase === 'building' ||
         event.phase === 'importing'
       ) {
         pendingDictionaryProgress = event;

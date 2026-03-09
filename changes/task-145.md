@@ -1,4 +1,4 @@
 type: changed
-area: overlay
+area: dictionary
 
-- Show `Checking character dictionary...` during startup auto-sync and only show `Generating character dictionary...` when a fresh character-dictionary snapshot rebuild is actually needed.
+- Added a visible startup OSD step for merged character-dictionary building so long rebuilds show progress before the later import/upload phase.

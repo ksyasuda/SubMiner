@@ -39,13 +39,25 @@ local function run_plugin_scenario(config)
 			return ""
 		end
 
-		function mp.get_property_native(_name)
+		function mp.get_property_native(name)
+			if name == "osd-dimensions" then
+				return config.osd_dimensions or {
+					w = 1280,
+					h = config.osd_height or 720,
+				}
+			end
 			return config.chapter_list or {}
 		end
 
 		function mp.get_property_number(name)
 			if name == "time-pos" then
 				return config.time_pos
+			end
+			if name == "sub-pos" then
+				return config.sub_pos or 100
+			end
+			if name == "osd-height" then
+				return config.osd_height or 720
 			end
 			return nil
 		end
@@ -197,6 +209,12 @@ local function run_plugin_scenario(config)
 	end
 
 	function utils.parse_json(json)
+		if json == '{"enabled":true,"amount":125}' then
+			return {
+				enabled = true,
+				amount = 125,
+			}, nil
+		end
 		if json == "__MAL_FOUND__" then
 			return {
 				categories = {
@@ -641,7 +659,7 @@ do
 		not has_property_set(recorded.property_sets, "pause", true),
 		"auto-start visible overlay should not force pause without explicit pause-until-ready option"
 	)
-	end
+end
 
 do
 	local recorded, err = run_plugin_scenario({

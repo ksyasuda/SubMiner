@@ -72,6 +72,10 @@ export {
   syncOverlayWindowLayer,
   updateOverlayWindowBounds,
 } from './overlay-window';
+export {
+  handleOverlayWindowBeforeInputEvent,
+  isTabInputForMpvForwarding,
+} from './overlay-window-input';
 export { initializeOverlayRuntime } from './overlay-runtime-init';
 export { setVisibleOverlayVisible, updateVisibleOverlayVisibility } from './overlay-visibility';
 export {

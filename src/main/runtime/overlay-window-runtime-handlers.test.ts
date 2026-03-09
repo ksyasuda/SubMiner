@@ -19,6 +19,7 @@ test('overlay window runtime handlers compose create/main/modal handlers', () =>
       },
       isOverlayVisible: (kind) => kind === 'visible',
       tryHandleOverlayShortcutLocalFallback: () => false,
+      forwardTabToMpv: () => calls.push('forward-tab'),
       onWindowClosed: (kind) => calls.push(`closed:${kind}`),
     },
     setMainWindow: (window) => {

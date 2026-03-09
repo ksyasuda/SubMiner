@@ -25,7 +25,12 @@ test('createConfigHotReloadAppliedHandler runs all hot-reload effects', () => {
 
   applyHotReload(
     {
-      hotReloadFields: ['shortcuts', 'secondarySub.defaultMode', 'ankiConnect.ai'],
+      hotReloadFields: [
+        'shortcuts',
+        'secondarySub.defaultMode',
+        'ankiConnect.ai',
+        'subtitleStyle.autoPauseVideoOnHover',
+      ],
       restartRequiredFields: [],
     },
     config,

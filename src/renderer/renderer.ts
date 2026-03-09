@@ -374,7 +374,8 @@ async function init(): Promise<void> {
 
   await keyboardHandlers.setupMpvInputForwarding();
 
-  subtitleRenderer.applySubtitleStyle(await window.electronAPI.getSubtitleStyle());
+  const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();
+  subtitleRenderer.applySubtitleStyle(initialSubtitleStyle);
 
   positioning.applyStoredSubtitlePosition(
     await window.electronAPI.getSubtitlePosition(),

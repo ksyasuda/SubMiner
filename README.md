@@ -29,7 +29,7 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 - **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and translation
 - **Instant auto-enrichment** — Optional local AnkiConnect proxy enriches new Yomitan cards immediately
 - **Reading annotations** — Combines N+1 targeting, frequency-dictionary highlighting, and JLPT underlining while you read
-- **Hover-aware playback** — By default, hovering subtitle text pauses mpv and resumes on mouse leave (`subtitleStyle.autoPauseVideoOnHover`)
+- **Hover-aware playback** — By default, hovering subtitle text pauses mpv and resumes on mouse leave
 - **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
 - **Immersion tracking** — SQLite-powered stats on your watch time and mining activity
 - **Custom texthooker page** — Built-in custom texthooker page and websocket, no extra setup
@@ -77,8 +77,6 @@ On first launch, SubMiner:
 - can install the mpv plugin to the default mpv scripts location for you
 - links directly to Yomitan settings so you can install dictionaries before finishing setup
 
-Existing installs that already have a valid config plus at least one Yomitan dictionary are auto-detected as complete and will not be re-prompted.
-
 ### 3. Finish setup
 
 - click `Install mpv plugin` if you want the default plugin auto-start flow
@@ -114,7 +112,7 @@ For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.m
 
 ## Acknowledgments
 
-Built on the shoulders of [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner), [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui), [mpvacious](https://github.com/Ajatt-Tools/mpvacious), [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script), and [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary). Subtitles powered by [Jimaku.cc](https://jimaku.cc). Dictionary lookups via [Yomitan](https://github.com/yomidevs/yomitan).
+Built on the shoulders of [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner), [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui), [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script), and [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary). Subtitles powered by [Jimaku.cc](https://jimaku.cc). Dictionary lookups via [Yomitan](https://github.com/yomidevs/yomitan), and JLPT tags from [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab).
 
 ## License
 

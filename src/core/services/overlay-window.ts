@@ -3,6 +3,10 @@ import * as path from 'path';
 import { WindowGeometry } from '../../types';
 import { createLogger } from '../../logger';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
+import {
+  handleOverlayWindowBeforeInputEvent,
+  type OverlayWindowKind,
+} from './overlay-window-input';
 
 const logger = createLogger('main:overlay-window');
 const overlayWindowLayerByInstance = new WeakMap<BrowserWindow, OverlayWindowKind>();
@@ -21,26 +25,6 @@ function loadOverlayWindowLayer(window: BrowserWindow, layer: OverlayWindowKind)
     .catch((err) => {
       logger.error('Failed to load HTML file:', err);
     });
-}
-
-export type OverlayWindowKind = 'visible' | 'modal';
-
-function isLookupWindowToggleInput(input: Electron.Input): boolean {
-  if (input.type !== 'keyDown') return false;
-  if (input.alt) return false;
-  if (!input.control && !input.meta) return false;
-  if (input.shift) return false;
-  const normalizedKey = typeof input.key === 'string' ? input.key.toLowerCase() : '';
-  return input.code === 'KeyY' || normalizedKey === 'y';
-}
-
-function isKeyboardModeToggleInput(input: Electron.Input): boolean {
-  if (input.type !== 'keyDown') return false;
-  if (input.alt) return false;
-  if (!input.control && !input.meta) return false;
-  if (!input.shift) return false;
-  const normalizedKey = typeof input.key === 'string' ? input.key.toLowerCase() : '';
-  return input.code === 'KeyY' || normalizedKey === 'y';
 }
 
 export function updateOverlayWindowBounds(
@@ -92,6 +76,7 @@ export function createOverlayWindow(
     setOverlayDebugVisualizationEnabled: (enabled: boolean) => void;
     isOverlayVisible: (kind: OverlayWindowKind) => boolean;
     tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
+    forwardTabToMpv: () => void;
     onWindowClosed: (kind: OverlayWindowKind) => void;
   },
 ): BrowserWindow {
@@ -142,20 +127,19 @@ export function createOverlayWindow(
   }
 
   window.webContents.on('before-input-event', (event, input) => {
-    if (kind === 'modal') return;
-    if (!window.isVisible()) return;
-    if (isKeyboardModeToggleInput(input)) {
-      event.preventDefault();
-      window.webContents.send(IPC_CHANNELS.event.keyboardModeToggleRequested);
-      return;
-    }
-    if (isLookupWindowToggleInput(input)) {
-      event.preventDefault();
-      window.webContents.send(IPC_CHANNELS.event.lookupWindowToggleRequested);
-      return;
-    }
-    if (!options.tryHandleOverlayShortcutLocalFallback(input)) return;
-    event.preventDefault();
+    handleOverlayWindowBeforeInputEvent({
+      kind,
+      windowVisible: window.isVisible(),
+      input,
+      preventDefault: () => event.preventDefault(),
+      sendKeyboardModeToggleRequested: () =>
+        window.webContents.send(IPC_CHANNELS.event.keyboardModeToggleRequested),
+      sendLookupWindowToggleRequested: () =>
+        window.webContents.send(IPC_CHANNELS.event.lookupWindowToggleRequested),
+      tryHandleOverlayShortcutLocalFallback: (nextInput) =>
+        options.tryHandleOverlayShortcutLocalFallback(nextInput),
+      forwardTabToMpv: () => options.forwardTabToMpv(),
+    });
   });
 
   window.hide();
@@ -185,3 +169,5 @@ export function syncOverlayWindowLayer(window: BrowserWindow, layer: 'visible'):
   if (overlayWindowLayerByInstance.get(window) === layer) return;
   loadOverlayWindowLayer(window, layer);
 }
+
+export type { OverlayWindowKind } from './overlay-window-input';
