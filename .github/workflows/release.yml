@@ -104,8 +104,6 @@ jobs:
 
       - name: Build AppImage
         run: bun run build:appimage
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build unversioned AppImage
         run: |
@@ -182,7 +180,6 @@ jobs:
       - name: Build signed + notarized macOS artifacts
         run: bun run build:mac
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -255,8 +252,6 @@ jobs:
 
       - name: Build unsigned Windows artifacts
         run: bun run build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload unsigned Windows artifact for SignPath
         id: upload-unsigned-windows-artifact
@@ -268,8 +263,9 @@ jobs:
             release/*.zip
           if-no-files-found: error
 
-      - name: Submit Windows signing request
-        id: signpath-sign
+      - name: Submit Windows signing request (attempt 1)
+        id: signpath-sign-attempt-1
+        continue-on-error: true
         uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -278,16 +274,72 @@ jobs:
           signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
           github-artifact-id: ${{ steps.upload-unsigned-windows-artifact.outputs.artifact-id }}
           wait-for-completion: true
-          output-artifact-directory: signed-windows
+          output-artifact-directory: signed-windows-attempt-1
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload signed Windows artifacts
+      - name: Submit Windows signing request (attempt 2)
+        id: signpath-sign-attempt-2
+        if: steps.signpath-sign-attempt-1.outcome == 'failure'
+        continue-on-error: true
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-windows-artifact.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-windows-attempt-2
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Submit Windows signing request (attempt 3)
+        id: signpath-sign-attempt-3
+        if: steps.signpath-sign-attempt-1.outcome == 'failure' && steps.signpath-sign-attempt-2.outcome == 'failure'
+        continue-on-error: true
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-windows-artifact.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-windows-attempt-3
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail when all SignPath signing attempts fail
+        if: steps.signpath-sign-attempt-1.outcome == 'failure' && steps.signpath-sign-attempt-2.outcome == 'failure' && steps.signpath-sign-attempt-3.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "All SignPath signing attempts failed; rerun the workflow when SignPath is healthy."
+          exit 1
+
+      - name: Upload signed Windows artifacts (attempt 1)
+        if: steps.signpath-sign-attempt-1.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: windows
           path: |
-            signed-windows/*.exe
-            signed-windows/*.zip
+            signed-windows-attempt-1/*.exe
+            signed-windows-attempt-1/*.zip
+
+      - name: Upload signed Windows artifacts (attempt 2)
+        if: steps.signpath-sign-attempt-2.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            signed-windows-attempt-2/*.exe
+            signed-windows-attempt-2/*.zip
+
+      - name: Upload signed Windows artifacts (attempt 3)
+        if: steps.signpath-sign-attempt-3.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            signed-windows-attempt-3/*.exe
+            signed-windows-attempt-3/*.zip
 
   release:
     needs: [build-linux, build-macos, build-windows]
@@ -380,6 +432,7 @@ jobs:
           if gh release view "${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
             # Do not pass the prerelease flag here; gh defaults to a normal release.
             gh release edit "${{ steps.version.outputs.VERSION }}" \
+              --draft=false \
               --title "${{ steps.version.outputs.VERSION }}" \
               --notes-file release/release-notes.md
           else

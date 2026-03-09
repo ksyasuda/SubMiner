@@ -56,11 +56,11 @@
     "dev": "bun run build && electron . --start --dev",
     "stop": "electron . --stop",
     "toggle": "electron . --toggle",
-    "build:appimage": "bun run build && electron-builder --linux AppImage",
-    "build:mac": "bun run build && electron-builder --mac dmg zip",
-    "build:mac:unsigned": "bun run build && env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u CSC_LINK -u CSC_KEY_PASSWORD CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip",
-    "build:mac:zip": "bun run build && electron-builder --mac zip",
-    "build:win": "bun run build && electron-builder --win nsis zip"
+    "build:appimage": "bun run build && electron-builder --linux AppImage --publish never",
+    "build:mac": "bun run build && electron-builder --mac dmg zip --publish never",
+    "build:mac:unsigned": "bun run build && env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u CSC_LINK -u CSC_KEY_PASSWORD CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --publish never",
+    "build:mac:zip": "bun run build && electron-builder --mac zip --publish never",
+    "build:win": "bun run build && electron-builder --win nsis zip --publish never"
   },
   "keywords": [
     "anki",
