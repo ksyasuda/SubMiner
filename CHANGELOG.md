@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5.1 (2026-03-09)
+
+### Changed
+- Launcher: Removed the YouTube subtitle generation mode switch so YouTube playback always preloads subtitles before mpv starts.
+
+### Fixed
+- Launcher: Hardened YouTube AI subtitle fixing so fenced SRT output and text-only one-cue-per-block responses can still be applied without losing original cue timing.
+- Launcher: Skipped AniSkip lookup during URL playback and YouTube subtitle-preload playback, limiting AniSkip to local file targets where it can actually resolve anime metadata.
+- Launcher: Keep the background SubMiner process running after a launcher-managed mpv session exits so the next mpv instance can reconnect without restarting the app.
+- Launcher: Reuse prior tokenization readiness after the background app is already warm so reopening a video does not pause again waiting for duplicate warmup completion.
+- Windows: Acquire the app single-instance lock earlier so Windows overlay/video launches reuse the running background SubMiner process instead of booting a second full app and repeating startup warmups.
+
 ## v0.3.0 (2026-03-05)
 - Added keyboard-driven Yomitan navigation and popup controls, including optional auto-pause.
 - Added subtitle/jump keyboard handling fixes for smoother subtitle playback control.
