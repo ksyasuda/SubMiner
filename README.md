@@ -60,7 +60,7 @@ chmod +x ~/.local/bin/subminer
 
 **Windows (Installer/ZIP):** download the latest `SubMiner-<version>.exe` installer or portable `.zip` from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest). Keep `mpv` installed and available on `PATH`.
 
-**From source** — initialize submodules first (`git submodule update --init --recursive`). Source builds now also require Node.js 22 + npm because bundled Yomitan is built from the `vendor/subminer-yomitan` submodule into `build/yomitan` during `bun run build`. Full install guide: [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
+**From source** — initialize submodules first (`git submodule update --init --recursive`). Bundled Yomitan is built from the `vendor/subminer-yomitan` submodule into `build/yomitan` during `bun run build`, so source builds only need Bun for the JS toolchain. Packaged macOS and Windows installs do not require Bun. Full install guide: [docs.subminer.moe/installation#from-source](https://docs.subminer.moe/installation#from-source).
 
 ### 2. Launch the app once
 
@@ -101,7 +101,7 @@ subminer --start video.mkv # optional explicit overlay start when plugin auto_st
 
 | Required                                   | Optional                                           |
 | ------------------------------------------ | -------------------------------------------------- |
-| `bun`, `node` 22, `npm`                    |                                                    |
+| `bun` (source builds, Linux `subminer`)    |                                                    |
 | `mpv` with IPC socket                      | `yt-dlp`                                           |
 | `ffmpeg`                                   | `guessit` (better AniSkip title/episode detection) |
 | `mecab` + `mecab-ipadic`                   | `fzf` / `rofi`                                     |
@@ -117,13 +117,13 @@ For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.m
 ## Testing
 
 - Run `bun run test` or `bun run test:fast` for the default fast lane: config/core coverage plus representative entry/runtime, Anki integration, and main runtime checks.
-- Run `bun run test:full` for the maintained test surface: Bun-compatible `src/**` coverage, Bun-compatible launcher unit coverage, and a Node compatibility lane for suites that depend on Electron named exports or `node:sqlite` behavior.
-- Run `bun run test:node:compat` directly when you only need the Node-backed compatibility slice: `ipc`, `anki-jimaku-ipc`, `overlay-manager`, `config-validation`, `startup-config`, and runtime registry coverage.
+- Run `bun run test:full` for the maintained test surface: Bun-compatible `src/**` coverage, Bun-compatible launcher unit coverage, and the maintained dist compatibility slice for `ipc`, `anki-jimaku-ipc`, `overlay-manager`, `config-validation`, `startup-config`, and runtime registry coverage.
+- Run `bun run test:node:compat` directly when you only need that dist compatibility slice. The command name is legacy; it now runs under Bun.
 - Run `bun run test:env` for environment-specific verification: launcher smoke/plugin checks plus the SQLite-backed immersion tracker lane.
-- Run `bun run test:immersion:sqlite` when you specifically need real SQLite persistence coverage under Node with `--experimental-sqlite`.
+- Run `bun run test:immersion:sqlite` when you specifically need the dist SQLite persistence coverage.
 - Run `bun run test:subtitle` for the maintained `alass`/`ffsubsync` subtitle surface.
 
-The Bun-managed discovery lanes intentionally exclude a small set of suites that are currently Node-only because of Bun runtime/tooling gaps rather than product behavior: Electron named-export tests in `src/core/services/ipc.test.ts`, `src/core/services/anki-jimaku-ipc.test.ts`, and `src/core/services/overlay-manager.test.ts`, plus runtime/config tests in `src/main/config-validation.test.ts`, `src/main/runtime/startup-config.test.ts`, and `src/main/runtime/registry.test.ts`. `bun run test:node:compat` keeps those suites in the standard workflow instead of leaving them untracked.
+The Bun-managed discovery lanes intentionally exclude a small set of suites from the source-file discovery pass and keep them in the maintained dist compatibility slice instead: Electron-focused tests in `src/core/services/ipc.test.ts`, `src/core/services/anki-jimaku-ipc.test.ts`, and `src/core/services/overlay-manager.test.ts`, plus runtime/config tests in `src/main/config-validation.test.ts`, `src/main/runtime/startup-config.test.ts`, and `src/main/runtime/registry.test.ts`. `bun run test:node:compat` keeps those suites in the standard workflow instead of leaving them untracked.
 
 ## Acknowledgments
 

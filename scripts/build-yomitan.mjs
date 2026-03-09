@@ -13,7 +13,7 @@ const submodulePackageLockPath = path.join(submoduleDir, 'package-lock.json');
 const buildOutputDir = path.join(repoRoot, 'build', 'yomitan');
 const stampPath = path.join(buildOutputDir, '.subminer-build.json');
 const zipPath = path.join(submoduleDir, 'builds', 'yomitan-chrome.zip');
-const npmCommand = process.platform === 'win32' ? process.env.ComSpec ?? 'cmd.exe' : 'npm';
+const bunCommand = process.versions.bun ? process.execPath : 'bun';
 const dependencyStampPath = path.join(submoduleDir, 'node_modules', '.subminer-package-lock-hash');
 
 function run(command, args, cwd) {
@@ -26,13 +26,6 @@ function escapePowerShellString(value) {
 
 function readCommand(command, args, cwd) {
   return execFileSync(command, args, { cwd, encoding: 'utf8' }).trim();
-}
-
-function getNpmArgs(args) {
-  if (process.platform !== 'win32') {
-    return args;
-  }
-  return ['/d', '/s', '/c', 'npm', ...args];
 }
 
 function readStamp() {
@@ -89,7 +82,7 @@ function ensureDependenciesInstalled() {
   } catch {}
 
   if (!fs.existsSync(nodeModulesDir) || installedLockHash !== currentLockHash) {
-    run(npmCommand, getNpmArgs(['ci']), submoduleDir);
+    run(bunCommand, ['install', '--no-save'], submoduleDir);
     fs.mkdirSync(nodeModulesDir, { recursive: true });
     fs.writeFileSync(dependencyStampPath, `${currentLockHash}\n`, 'utf8');
   }
@@ -97,7 +90,7 @@ function ensureDependenciesInstalled() {
 
 function installAndBuild() {
   ensureDependenciesInstalled();
-  run(npmCommand, getNpmArgs(['run', 'build', '--', '--target', 'chrome']), submoduleDir);
+  run(bunCommand, ['./dev/bin/build.js', '--target', 'chrome'], submoduleDir);
 }
 
 function extractBuild() {
