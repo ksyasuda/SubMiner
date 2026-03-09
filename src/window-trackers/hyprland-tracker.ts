@@ -23,17 +23,77 @@ import { createLogger } from '../logger';
 
 const log = createLogger('tracker').child('hyprland');
 
-interface HyprlandClient {
+export interface HyprlandClient {
+  address?: string;
   class: string;
   at: [number, number];
   size: [number, number];
   pid?: number;
+  mapped?: boolean;
+  hidden?: boolean;
+}
+
+interface SelectHyprlandMpvWindowOptions {
+  targetMpvSocketPath: string | null;
+  activeWindowAddress: string | null;
+  getWindowCommandLine: (pid: number) => string | null;
+}
+
+function matchesTargetSocket(commandLine: string, targetMpvSocketPath: string): boolean {
+  return (
+    commandLine.includes(`--input-ipc-server=${targetMpvSocketPath}`) ||
+    commandLine.includes(`--input-ipc-server ${targetMpvSocketPath}`)
+  );
+}
+
+function preferActiveHyprlandWindow(
+  clients: HyprlandClient[],
+  activeWindowAddress: string | null,
+): HyprlandClient | null {
+  if (activeWindowAddress) {
+    const activeClient = clients.find((client) => client.address === activeWindowAddress);
+    if (activeClient) {
+      return activeClient;
+    }
+  }
+
+  return clients[0] ?? null;
+}
+
+export function selectHyprlandMpvWindow(
+  clients: HyprlandClient[],
+  options: SelectHyprlandMpvWindowOptions,
+): HyprlandClient | null {
+  const visibleMpvWindows = clients.filter(
+    (client) => client.class === 'mpv' && client.mapped !== false && client.hidden !== true,
+  );
+
+  if (!options.targetMpvSocketPath) {
+    return preferActiveHyprlandWindow(visibleMpvWindows, options.activeWindowAddress);
+  }
+  const targetMpvSocketPath = options.targetMpvSocketPath;
+
+  const matchingWindows = visibleMpvWindows.filter((client) => {
+    if (!client.pid) {
+      return false;
+    }
+
+    const commandLine = options.getWindowCommandLine(client.pid);
+    if (!commandLine) {
+      return false;
+    }
+
+    return matchesTargetSocket(commandLine, targetMpvSocketPath);
+  });
+
+  return preferActiveHyprlandWindow(matchingWindows, options.activeWindowAddress);
 }
 
 export class HyprlandWindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private eventSocket: net.Socket | null = null;
   private readonly targetMpvSocketPath: string | null;
+  private activeWindowAddress: string | null = null;
 
   constructor(targetMpvSocketPath?: string) {
     super();
@@ -75,15 +135,7 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
     this.eventSocket.on('data', (data: Buffer) => {
       const events = data.toString().split('\n');
       for (const event of events) {
-        if (
-          event.includes('movewindow') ||
-          event.includes('windowtitle') ||
-          event.includes('openwindow') ||
-          event.includes('closewindow') ||
-          event.includes('fullscreen')
-        ) {
-          this.pollGeometry();
-        }
+        this.handleSocketEvent(event);
       }
     });
 
@@ -96,6 +148,39 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
     });
 
     this.eventSocket.connect(socketPath);
+  }
+
+  private handleSocketEvent(event: string): void {
+    const trimmedEvent = event.trim();
+    if (!trimmedEvent) {
+      return;
+    }
+
+    const [name, rawData = ''] = trimmedEvent.split('>>', 2);
+    const data = rawData.trim();
+
+    if (name === 'activewindowv2') {
+      this.activeWindowAddress = data || null;
+      this.pollGeometry();
+      return;
+    }
+
+    if (name === 'closewindow' && data === this.activeWindowAddress) {
+      this.activeWindowAddress = null;
+    }
+
+    if (
+      name === 'movewindow' ||
+      name === 'movewindowv2' ||
+      name === 'windowtitle' ||
+      name === 'windowtitlev2' ||
+      name === 'openwindow' ||
+      name === 'closewindow' ||
+      name === 'fullscreen' ||
+      name === 'changefloatingmode'
+    ) {
+      this.pollGeometry();
+    }
   }
 
   private pollGeometry(): void {
@@ -120,30 +205,11 @@ export class HyprlandWindowTracker extends BaseWindowTracker {
   }
 
   private findTargetWindow(clients: HyprlandClient[]): HyprlandClient | null {
-    const mpvWindows = clients.filter((client) => client.class === 'mpv');
-    if (!this.targetMpvSocketPath) {
-      return mpvWindows[0] || null;
-    }
-
-    for (const mpvWindow of mpvWindows) {
-      if (!mpvWindow.pid) {
-        continue;
-      }
-
-      const commandLine = this.getWindowCommandLine(mpvWindow.pid);
-      if (!commandLine) {
-        continue;
-      }
-
-      if (
-        commandLine.includes(`--input-ipc-server=${this.targetMpvSocketPath}`) ||
-        commandLine.includes(`--input-ipc-server ${this.targetMpvSocketPath}`)
-      ) {
-        return mpvWindow;
-      }
-    }
-
-    return null;
+    return selectHyprlandMpvWindow(clients, {
+      targetMpvSocketPath: this.targetMpvSocketPath,
+      activeWindowAddress: this.activeWindowAddress,
+      getWindowCommandLine: (pid) => this.getWindowCommandLine(pid),
+    });
   }
 
   private getWindowCommandLine(pid: number): string | null {

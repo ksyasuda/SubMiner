@@ -39,8 +39,8 @@ export function parseX11WindowGeometry(winInfo: string): {
   width: number;
   height: number;
 } | null {
-  const xMatch = winInfo.match(/Absolute upper-left X:\s*(\d+)/);
-  const yMatch = winInfo.match(/Absolute upper-left Y:\s*(\d+)/);
+  const xMatch = winInfo.match(/Absolute upper-left X:\s*(-?\d+)/);
+  const yMatch = winInfo.match(/Absolute upper-left Y:\s*(-?\d+)/);
   const widthMatch = winInfo.match(/Width:\s*(\d+)/);
   const heightMatch = winInfo.match(/Height:\s*(\d+)/);
   if (!xMatch || !yMatch || !widthMatch || !heightMatch) {
@@ -112,7 +112,12 @@ export class X11WindowTracker extends BaseWindowTracker {
   }
 
   private async pollGeometryAsync(): Promise<void> {
-    const windowIdsOutput = await this.runCommand('xdotool', ['search', '--class', 'mpv']);
+    const windowIdsOutput = await this.runCommand('xdotool', [
+      'search',
+      '--onlyvisible',
+      '--class',
+      'mpv',
+    ]);
     const windowIds = windowIdsOutput.trim();
     if (!windowIds) {
       this.updateGeometry(null);
