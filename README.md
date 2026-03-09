@@ -20,8 +20,6 @@
 
 <br />
 
-Initial packaged Windows support is now available alongside the existing Linux and macOS builds.
-
 ## What it does
 
 SubMiner is an Electron overlay that sits on top of mpv. It turns your video player into a full sentence-mining workstation:
@@ -71,7 +69,7 @@ SubMiner.AppImage
 
 On macOS, launch `SubMiner.app`. On Windows, launch `SubMiner.exe` from the Start menu or install directory.
 
-On first launch, SubMiner now:
+On first launch, SubMiner:
 
 - starts in the tray/background
 - creates the default config directory and `config.jsonc`
@@ -113,17 +111,6 @@ Windows builds use native window tracking and do not require the Linux composito
 ## Documentation
 
 For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.moe](https://docs.subminer.moe).
-
-## Testing
-
-- Run `bun run test` or `bun run test:fast` for the default fast lane: config/core coverage plus representative entry/runtime, Anki integration, and main runtime checks.
-- Run `bun run test:full` for the maintained test surface: Bun-compatible `src/**` coverage, Bun-compatible launcher unit coverage, and the maintained dist compatibility slice for `ipc`, `anki-jimaku-ipc`, `overlay-manager`, `config-validation`, `startup-config`, and runtime registry coverage.
-- Run `bun run test:node:compat` directly when you only need that dist compatibility slice. The command name is legacy; it now runs under Bun.
-- Run `bun run test:env` for environment-specific verification: launcher smoke/plugin checks plus the SQLite-backed immersion tracker lane.
-- Run `bun run test:immersion:sqlite` when you specifically need the dist SQLite persistence coverage.
-- Run `bun run test:subtitle` for the maintained `alass`/`ffsubsync` subtitle surface.
-
-The Bun-managed discovery lanes intentionally exclude a small set of suites from the source-file discovery pass and keep them in the maintained dist compatibility slice instead: Electron-focused tests in `src/core/services/ipc.test.ts`, `src/core/services/anki-jimaku-ipc.test.ts`, and `src/core/services/overlay-manager.test.ts`, plus runtime/config tests in `src/main/config-validation.test.ts`, `src/main/runtime/startup-config.test.ts`, and `src/main/runtime/registry.test.ts`. `bun run test:node:compat` keeps those suites in the standard workflow instead of leaving them untracked.
 
 ## Acknowledgments
 

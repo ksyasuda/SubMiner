@@ -37,3 +37,4 @@ tests/*
 .worktrees/
 .codex/*
 .agents/*
+favicon.png
