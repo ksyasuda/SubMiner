@@ -47,6 +47,11 @@ test('windows release workflow retries SignPath submission and fails only after 
   assert.match(releaseWorkflow, /All SignPath signing attempts failed; rerun the workflow when SignPath is healthy\./);
 });
 
+test('windows release workflow pins the SignPath artifact configuration slug explicitly', () => {
+  assert.match(releaseWorkflow, /SIGNPATH_ARTIFACT_CONFIGURATION_SLUG/);
+  assert.match(releaseWorkflow, /artifact-configuration-slug: \$\{\{ secrets\.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG \}\}/);
+});
+
 test('Makefile routes Windows install-plugin setup through bun and documents Windows builds', () => {
   assert.match(makefile, /windows\) printf '%s\\n' "\[INFO\] Windows builds run via: bun run build:win" ;;/);
   assert.match(makefile, /bun \.\/scripts\/configure-plugin-binary-path\.mjs/);
