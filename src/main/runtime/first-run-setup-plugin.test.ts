@@ -96,7 +96,10 @@ test('installFirstRunPluginToDefaultLocation installs plugin and backs up existi
   });
 });
 
-test('installFirstRunPluginToDefaultLocation installs plugin to Windows mpv defaults', () => {
+test(
+  'installFirstRunPluginToDefaultLocation installs plugin to Windows mpv defaults',
+  { skip: process.platform !== 'win32' },
+  () => {
   withTempDir((root) => {
     const resourcesPath = path.join(root, 'resources');
     const pluginRoot = path.join(resourcesPath, 'plugin');
@@ -127,9 +130,13 @@ test('installFirstRunPluginToDefaultLocation installs plugin to Windows mpv defa
       'configured=true\n',
     );
   });
-});
+},
+);
 
-test('installFirstRunPluginToDefaultLocation rewrites Windows plugin socket_path', () => {
+test(
+  'installFirstRunPluginToDefaultLocation rewrites Windows plugin socket_path',
+  { skip: process.platform !== 'win32' },
+  () => {
   withTempDir((root) => {
     const resourcesPath = path.join(root, 'resources');
     const pluginRoot = path.join(resourcesPath, 'plugin');
@@ -157,4 +164,5 @@ test('installFirstRunPluginToDefaultLocation rewrites Windows plugin socket_path
       'binary_path=\nsocket_path=\\\\.\\pipe\\subminer-socket\n',
     );
   });
-});
+},
+);

@@ -44,6 +44,8 @@ type ResolveWindowsTrackerHelperOptions = {
   copyFileSync?: (source: string, destination: string) => void;
 };
 
+const windowsPath = path.win32;
+
 function normalizeHelperMode(value: string | undefined): WindowsTrackerHelperMode {
   const normalized = value?.trim().toLowerCase();
   if (normalized === 'powershell' || normalized === 'native') {
@@ -72,8 +74,8 @@ function materializeAsarHelper(
 
   const fileName =
     kind === 'native' ? 'get-mpv-window-windows.exe' : 'get-mpv-window-windows.ps1';
-  const targetDir = path.join(os.tmpdir(), 'subminer', 'helpers');
-  const targetPath = path.join(targetDir, fileName);
+  const targetDir = windowsPath.join(os.tmpdir(), 'subminer', 'helpers');
+  const targetPath = windowsPath.join(targetDir, fileName);
 
   try {
     deps.mkdirSync(targetDir, { recursive: true });
@@ -137,29 +139,29 @@ function getHelperCandidates(dirname: string, resourcesPath: string | undefined)
 
   if (resourcesPath) {
     candidates.push({
-      path: path.join(resourcesPath, 'scripts', `${scriptFileBase}.exe`),
+      path: windowsPath.join(resourcesPath, 'scripts', `${scriptFileBase}.exe`),
       kind: 'native',
     });
     candidates.push({
-      path: path.join(resourcesPath, 'scripts', `${scriptFileBase}.ps1`),
+      path: windowsPath.join(resourcesPath, 'scripts', `${scriptFileBase}.ps1`),
       kind: 'powershell',
     });
   }
 
   candidates.push({
-    path: path.join(dirname, '..', 'scripts', `${scriptFileBase}.exe`),
+    path: windowsPath.join(dirname, '..', 'scripts', `${scriptFileBase}.exe`),
     kind: 'native',
   });
   candidates.push({
-    path: path.join(dirname, '..', 'scripts', `${scriptFileBase}.ps1`),
+    path: windowsPath.join(dirname, '..', 'scripts', `${scriptFileBase}.ps1`),
     kind: 'powershell',
   });
   candidates.push({
-    path: path.join(dirname, '..', '..', 'scripts', `${scriptFileBase}.exe`),
+    path: windowsPath.join(dirname, '..', '..', 'scripts', `${scriptFileBase}.exe`),
     kind: 'native',
   });
   candidates.push({
-    path: path.join(dirname, '..', '..', 'scripts', `${scriptFileBase}.ps1`),
+    path: windowsPath.join(dirname, '..', '..', 'scripts', `${scriptFileBase}.ps1`),
     kind: 'powershell',
   });
 
