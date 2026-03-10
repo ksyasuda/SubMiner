@@ -92,11 +92,7 @@ function firstString(value: unknown): string | null {
 }
 
 function normalizeGuessitTitlePart(value: string): string {
-  return value
-    .replace(/[._]+/g, ' ')
-    .replace(/-/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return value.replace(/[._]+/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function readGuessitTitle(value: unknown): string | null {

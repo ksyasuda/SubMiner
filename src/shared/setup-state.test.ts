@@ -78,10 +78,7 @@ test('ensureDefaultConfigBootstrap does not seed default config into an existing
     });
 
     assert.equal(fs.existsSync(path.join(configDir, 'config.jsonc')), false);
-    assert.equal(
-      fs.readFileSync(path.join(configDir, 'existing-user-file.txt'), 'utf8'),
-      'keep\n',
-    );
+    assert.equal(fs.readFileSync(path.join(configDir, 'existing-user-file.txt'), 'utf8'), 'keep\n');
   });
 });
 
@@ -190,13 +187,7 @@ test('resolveDefaultMpvInstallPaths resolves linux, macOS, and Windows defaults'
     supported: true,
     mpvConfigDir: path.win32.join('C:\\Users\\tester', 'AppData', 'Roaming', 'mpv'),
     scriptsDir: path.win32.join('C:\\Users\\tester', 'AppData', 'Roaming', 'mpv', 'scripts'),
-    scriptOptsDir: path.win32.join(
-      'C:\\Users\\tester',
-      'AppData',
-      'Roaming',
-      'mpv',
-      'script-opts',
-    ),
+    scriptOptsDir: path.win32.join('C:\\Users\\tester', 'AppData', 'Roaming', 'mpv', 'script-opts'),
     pluginEntrypointPath: path.win32.join(
       'C:\\Users\\tester',
       'AppData',

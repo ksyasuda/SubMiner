@@ -212,8 +212,14 @@ test('handleCliCommand reconnects MPV for second-instance --start when overlay r
   handleCliCommand(args, 'second-instance', deps);
 
   assert.ok(calls.includes('setMpvClientSocketPath:/tmp/subminer.sock'));
-  assert.equal(calls.some((value) => value.includes('connectMpvClient')), true);
-  assert.equal(calls.some((value) => value.includes('initializeOverlayRuntime')), false);
+  assert.equal(
+    calls.some((value) => value.includes('connectMpvClient')),
+    true,
+  );
+  assert.equal(
+    calls.some((value) => value.includes('initializeOverlayRuntime')),
+    false,
+  );
 });
 
 test('handleCliCommand processes --start for second-instance when overlay runtime is not initialized', () => {

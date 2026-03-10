@@ -22,10 +22,7 @@ function resolveLegacyPluginDebugLoaderPath(installPaths: MpvInstallPaths): stri
 
 function rewriteInstalledWindowsPluginConfig(configPath: string): void {
   const content = fs.readFileSync(configPath, 'utf8');
-  const updated = content.replace(
-    /^socket_path=.*$/m,
-    'socket_path=\\\\.\\pipe\\subminer-socket',
-  );
+  const updated = content.replace(/^socket_path=.*$/m, 'socket_path=\\\\.\\pipe\\subminer-socket');
   if (updated !== content) {
     fs.writeFileSync(configPath, updated, 'utf8');
   }

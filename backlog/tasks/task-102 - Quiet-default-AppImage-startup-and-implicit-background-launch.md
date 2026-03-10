@@ -18,6 +18,7 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Make the packaged Linux no-arg launch path behave like a quiet background start instead of surfacing startup-only noise.
 
 Scope:
@@ -31,6 +32,7 @@ Scope:
 ## Acceptance Criteria
 
 <!-- AC:BEGIN -->
+
 - [x] #1 Initial background launch reaches the start path without logging `No running instance. Use --start to launch the app.`
 - [x] #2 Default startup no longer emits the `Applied --password-store gnome-libsecret` line at normal log levels.
 - [x] #3 Entry/background launch sanitization suppresses the observed `ExperimentalWarning: SQLite...` and `lsfg-vk ... unsupported configuration version` startup noise.
@@ -40,6 +42,7 @@ Scope:
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Normalized no-arg/password-store-only entry launches to append implicit `--start --background`, and upgraded `--background`-only entry launches to include `--start`.
 
 Applied shared entry env sanitization before loading the main process so default startup strips the `lsfg-vk` Vulkan layer and sets `NODE_NO_WARNINGS=1`; background children keep the same sanitized env.
@@ -52,11 +55,13 @@ Verification:
 - `bun run test:fast`
 
 Note: the final `node --experimental-sqlite --test dist/main/runtime/registry.test.js` step in `bun run test:fast` still prints Node's own experimental SQLite warning because that test command explicitly enables the feature flag outside the app entrypoint.
+
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Default packaged startup is now quiet and behaves like an implicit `--start --background` launch.
 
 - No-arg AppImage entry launches now append `--start --background`, and `--background`-only launches append the missing `--start`.

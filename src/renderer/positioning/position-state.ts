@@ -36,7 +36,10 @@ function getSubtitleContainerHeight(ctx: RendererContext): number {
 function resolveYPercentClampRange(ctx: RendererContext): { min: number; max: number } {
   const viewportHeight = getViewportHeight();
   const subtitleHeight = getSubtitleContainerHeight(ctx);
-  const minPercent = Math.max(PREFERRED_Y_PERCENT_MIN, (SUBTITLE_EDGE_PADDING_PX / viewportHeight) * 100);
+  const minPercent = Math.max(
+    PREFERRED_Y_PERCENT_MIN,
+    (SUBTITLE_EDGE_PADDING_PX / viewportHeight) * 100,
+  );
   const maxMarginBottomPx = Math.max(
     SUBTITLE_EDGE_PADDING_PX,
     viewportHeight - subtitleHeight - SUBTITLE_EDGE_PADDING_PX,

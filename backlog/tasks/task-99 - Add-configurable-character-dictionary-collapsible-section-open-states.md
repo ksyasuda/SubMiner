@@ -19,11 +19,15 @@ dependencies: []
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Add per-section config for character dictionary collapsible glossary sections so Description, Character Information, and Voiced by can each default open or closed independently. Default all sections closed.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Config supports `anilist.characterDictionary.collapsibleSections.description`.
 - [x] #2 Config supports `anilist.characterDictionary.collapsibleSections.characterInformation`.
 - [x] #3 Config supports `anilist.characterDictionary.collapsibleSections.voicedBy`.
@@ -34,5 +38,7 @@ Add per-section config for character dictionary collapsible glossary sections so
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Added per-section open-state config under `anilist.characterDictionary.collapsibleSections` for `description`, `characterInformation`, and `voicedBy`, all defaulting to `false`. Wired the glossary generator to read those settings so generated `details.open` matches config, and added regression coverage for defaults, parsing/warnings, registry exposure, and runtime glossary output.
+
 <!-- SECTION:FINAL_SUMMARY:END -->

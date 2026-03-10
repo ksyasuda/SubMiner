@@ -58,8 +58,7 @@ export function parseMacOSHelperOutput(result: string): MacOSHelperWindowState |
   }
 
   const focusedRaw = parts[4]?.trim().toLowerCase();
-  const focused =
-    focusedRaw === undefined ? true : focusedRaw === '1' || focusedRaw === 'true';
+  const focused = focusedRaw === undefined ? true : focusedRaw === '1' || focusedRaw === 'true';
 
   return {
     geometry: {

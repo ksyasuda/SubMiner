@@ -38,7 +38,10 @@ export function getDefaultMpvLogFile(options?: {
   const homeDir = options?.homeDir ?? os.homedir();
   const baseDir =
     platform === 'win32'
-      ? path.join(options?.appDataDir?.trim() || path.join(homeDir, 'AppData', 'Roaming'), 'SubMiner')
+      ? path.join(
+          options?.appDataDir?.trim() || path.join(homeDir, 'AppData', 'Roaming'),
+          'SubMiner',
+        )
       : path.join(homeDir, '.config', 'SubMiner');
   return path.join(baseDir, 'logs', `SubMiner-${new Date().toISOString().slice(0, 10)}.log`);
 }

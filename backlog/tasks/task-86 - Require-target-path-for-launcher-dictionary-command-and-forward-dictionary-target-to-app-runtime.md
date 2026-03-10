@@ -15,11 +15,15 @@ priority: high
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+
 Change dictionary flow so launcher uses `subminer dictionary <file-or-directory>` and forwards target to app without playback launch. Keep direct app `--dictionary` behavior for in-session/mpv-triggered use, adding optional `--dictionary-target` path override.
+
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
+
 <!-- AC:BEGIN -->
+
 - [x] #1 Launcher `dictionary`/`dict` requires a target path argument and parses optional log level.
 - [x] #2 Launcher forwards target to app as `--dictionary-target <path>` together with `--dictionary`.
 - [x] #3 App CLI parses optional `--dictionary-target` and dictionary command passes it into dictionary runtime.
@@ -30,6 +34,7 @@ Change dictionary flow so launcher uses `subminer dictionary <file-or-directory>
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
+
 Launcher dictionary subcommand now requires a positional target path (`subminer dictionary <path>` / `dict <path>`) via commander argument wiring in `launcher/config/cli-parser-builder.ts`.
 
 Added `dictionaryTarget` flow in launcher normalization/types and path validation (must be existing local file or directory) in `launcher/config/args-normalizer.ts`.
@@ -45,10 +50,13 @@ Updated context/dependency pass-through for dictionary target argument (`src/mai
 Updated tests/docs for new syntax and forwarding behavior (`launcher/main.test.ts`, `launcher/parse-args.test.ts`, `launcher/commands/command-modules.test.ts`, `src/cli/args.test.ts`, `src/cli/help.test.ts`, `docs/usage.md`, `docs/launcher-script.md`).
 
 Follow-up noise reduction: dictionary commands now opt into lightweight startup path by extending `shouldSkipHeavyStartup` in `src/main.ts` to include `initialArgs.dictionary`. This skips heavy app-ready initialization (mpv client creation/background warmups/overlay bootstrap) for dictionary CLI runs.
+
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
+
 Launcher dictionary flow now uses explicit targets: run `subminer dictionary <file-or-directory>`. It forwards target to app and performs dictionary generation without depending on currently playing media. Direct app `--dictionary` remains available for in-session/mpv-triggered workflows, with optional `--dictionary-target` override support.
+
 <!-- SECTION:FINAL_SUMMARY:END -->

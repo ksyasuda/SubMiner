@@ -48,8 +48,7 @@ function runHelperWithExecFile(
   targetMpvSocketPath: string | null,
 ): Promise<WindowsTrackerRunnerResult> {
   return new Promise((resolve, reject) => {
-    const modeArgs =
-      spec.kind === 'native' ? ['--mode', mode] : ['-Mode', mode];
+    const modeArgs = spec.kind === 'native' ? ['--mode', mode] : ['-Mode', mode];
     const args = targetMpvSocketPath
       ? [...spec.args, ...modeArgs, targetMpvSocketPath]
       : [...spec.args, ...modeArgs];

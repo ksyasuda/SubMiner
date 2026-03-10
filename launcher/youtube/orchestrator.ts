@@ -235,8 +235,7 @@ export async function generateYoutubeSubtitles(
             failureMessage: 'Fallback audio extraction failed',
             log: (level, message) => log(level, args.logLevel, message),
           },
-          () =>
-            downloadYoutubeAudio(target, args, tempDir, state.youtubeSubgenChildren),
+          () => downloadYoutubeAudio(target, args, tempDir, state.youtubeSubgenChildren),
         );
         const whisperAudioPath = await runLoggedYoutubePhase(
           {

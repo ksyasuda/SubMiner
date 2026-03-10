@@ -65,7 +65,9 @@ export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
   refreshGlobalAndOverlayShortcuts: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
-  applyAnkiRuntimeConfigPatch: (patch: { ai: ResolvedConfig['ankiConnect']['ai']['enabled'] }) => void;
+  applyAnkiRuntimeConfigPatch: (patch: {
+    ai: ResolvedConfig['ankiConnect']['ai']['enabled'];
+  }) => void;
 }) {
   return () => ({
     setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) =>

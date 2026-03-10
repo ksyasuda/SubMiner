@@ -16,12 +16,18 @@ for (const name of [
 
 env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
 
-const electronBuilderCli = fileURLToPath(new URL('../node_modules/electron-builder/out/cli/cli.js', import.meta.url));
+const electronBuilderCli = fileURLToPath(
+  new URL('../node_modules/electron-builder/out/cli/cli.js', import.meta.url),
+);
 
-const result = spawnSync(process.execPath, [electronBuilderCli, '--win', 'nsis', 'zip', '--publish', 'never'], {
-  stdio: 'inherit',
-  env,
-});
+const result = spawnSync(
+  process.execPath,
+  [electronBuilderCli, '--win', 'nsis', 'zip', '--publish', 'never'],
+  {
+    stdio: 'inherit',
+    env,
+  },
+);
 
 if (result.error) {
   throw result.error;

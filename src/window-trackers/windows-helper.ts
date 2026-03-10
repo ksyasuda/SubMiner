@@ -64,16 +64,13 @@ function inferHelperKindFromPath(helperPath: string): WindowsTrackerHelperKind |
 function materializeAsarHelper(
   sourcePath: string,
   kind: WindowsTrackerHelperKind,
-  deps: Required<
-    Pick<ResolveWindowsTrackerHelperOptions, 'mkdirSync' | 'copyFileSync'>
-  >,
+  deps: Required<Pick<ResolveWindowsTrackerHelperOptions, 'mkdirSync' | 'copyFileSync'>>,
 ): string | null {
   if (!sourcePath.includes('.asar')) {
     return sourcePath;
   }
 
-  const fileName =
-    kind === 'native' ? 'get-mpv-window-windows.exe' : 'get-mpv-window-windows.ps1';
+  const fileName = kind === 'native' ? 'get-mpv-window-windows.exe' : 'get-mpv-window-windows.ps1';
   const targetDir = windowsPath.join(os.tmpdir(), 'subminer', 'helpers');
   const targetPath = windowsPath.join(targetDir, fileName);
 
@@ -130,7 +127,10 @@ function normalizeHelperPathOverride(
   return { path: helperPath, kind };
 }
 
-function getHelperCandidates(dirname: string, resourcesPath: string | undefined): Array<{
+function getHelperCandidates(
+  dirname: string,
+  resourcesPath: string | undefined,
+): Array<{
   path: string;
   kind: WindowsTrackerHelperKind;
 }> {

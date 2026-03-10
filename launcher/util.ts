@@ -66,7 +66,9 @@ function resolveExecutablePath(command: string): string | null {
 
   if (isPathLikeCommand(command)) {
     const resolved = path.resolve(resolvePathMaybe(command));
-    return process.platform === 'win32' ? resolveWindowsCandidate(resolved) : tryCandidate(resolved);
+    return process.platform === 'win32'
+      ? resolveWindowsCandidate(resolved)
+      : tryCandidate(resolved);
   }
 
   const pathEnv = getPathEnv();

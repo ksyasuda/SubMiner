@@ -30,7 +30,9 @@ function trimToNonEmptyString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeAnkiAiConfig(config: AnkiConnectConfig['ai']): NonNullable<AnkiConnectConfig['ai']> {
+function normalizeAnkiAiConfig(
+  config: AnkiConnectConfig['ai'],
+): NonNullable<AnkiConnectConfig['ai']> {
   if (config && typeof config === 'object') {
     return {
       enabled: config.enabled === true,

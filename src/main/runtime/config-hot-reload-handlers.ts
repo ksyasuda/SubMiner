@@ -8,7 +8,9 @@ type ConfigHotReloadAppliedDeps = {
   refreshGlobalAndOverlayShortcuts: () => void;
   setSecondarySubMode: (mode: SecondarySubMode) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
-  applyAnkiRuntimeConfigPatch: (patch: { ai: ResolvedConfig['ankiConnect']['ai']['enabled'] }) => void;
+  applyAnkiRuntimeConfigPatch: (patch: {
+    ai: ResolvedConfig['ankiConnect']['ai']['enabled'];
+  }) => void;
 };
 
 type ConfigHotReloadMessageDeps = {

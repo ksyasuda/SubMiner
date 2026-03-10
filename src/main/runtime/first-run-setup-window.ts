@@ -279,9 +279,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
 </html>`;
 }
 
-export function parseFirstRunSetupSubmissionUrl(
-  rawUrl: string,
-): FirstRunSetupSubmission | null {
+export function parseFirstRunSetupSubmissionUrl(rawUrl: string): FirstRunSetupSubmission | null {
   if (!rawUrl.startsWith('subminer://first-run-setup')) {
     return null;
   }

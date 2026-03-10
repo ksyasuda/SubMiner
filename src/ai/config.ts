@@ -10,8 +10,7 @@ export function mergeAiConfig(
   sharedConfig: AiConfig | undefined,
   featureConfig?: AiFeatureConfig | boolean | null,
 ): AiConfig {
-  const overrides =
-    featureConfig && typeof featureConfig === 'object' ? featureConfig : undefined;
+  const overrides = featureConfig && typeof featureConfig === 'object' ? featureConfig : undefined;
   const modelOverride = trimToOverride(overrides?.model);
   const systemPromptOverride = trimToOverride(overrides?.systemPrompt);
 

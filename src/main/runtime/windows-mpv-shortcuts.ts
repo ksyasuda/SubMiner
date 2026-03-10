@@ -32,7 +32,10 @@ export function resolveWindowsMpvShortcutPaths(options: {
   desktopDir: string;
 }): WindowsMpvShortcutPaths {
   return {
-    startMenuPath: path.join(resolveWindowsStartMenuProgramsDir(options.appDataDir), WINDOWS_MPV_SHORTCUT_NAME),
+    startMenuPath: path.join(
+      resolveWindowsStartMenuProgramsDir(options.appDataDir),
+      WINDOWS_MPV_SHORTCUT_NAME,
+    ),
     desktopPath: path.join(options.desktopDir, WINDOWS_MPV_SHORTCUT_NAME),
   };
 }

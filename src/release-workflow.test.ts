@@ -30,8 +30,14 @@ test('release workflow generates release notes from committed changelog output',
 });
 
 test('release workflow includes the Windows installer in checksums and uploaded assets', () => {
-  assert.match(releaseWorkflow, /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz dist\/launcher\/subminer\)/);
-  assert.match(releaseWorkflow, /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/);
+  assert.match(
+    releaseWorkflow,
+    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz dist\/launcher\/subminer\)/,
+  );
+  assert.match(
+    releaseWorkflow,
+    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
+  );
 });
 
 test('release package scripts disable implicit electron-builder publishing', () => {
@@ -51,6 +57,9 @@ test('windows release workflow publishes unsigned artifacts directly without Sig
 });
 
 test('Makefile routes Windows install-plugin setup through bun and documents Windows builds', () => {
-  assert.match(makefile, /windows\) printf '%s\\n' "\[INFO\] Windows builds run via: bun run build:win" ;;/);
+  assert.match(
+    makefile,
+    /windows\) printf '%s\\n' "\[INFO\] Windows builds run via: bun run build:win" ;;/,
+  );
   assert.match(makefile, /bun \.\/scripts\/configure-plugin-binary-path\.mjs/);
 });

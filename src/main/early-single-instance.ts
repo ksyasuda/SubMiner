@@ -1,9 +1,6 @@
 interface ElectronSecondInstanceAppLike {
   requestSingleInstanceLock: () => boolean;
-  on: (
-    event: 'second-instance',
-    listener: (_event: unknown, argv: string[]) => void,
-  ) => unknown;
+  on: (event: 'second-instance', listener: (_event: unknown, argv: string[]) => void) => unknown;
 }
 
 let cachedSingleInstanceLock: boolean | null = null;

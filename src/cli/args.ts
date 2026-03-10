@@ -131,8 +131,7 @@ export function parseArgs(argv: string[]): CliArgs {
       args.launchMpv = true;
       args.launchMpvTargets = argv.slice(i + 1).filter((value) => value && !value.startsWith('--'));
       break;
-    }
-    else if (arg === '--stop') args.stop = true;
+    } else if (arg === '--stop') args.stop = true;
     else if (arg === '--toggle') args.toggle = true;
     else if (arg === '--toggle-visible-overlay') args.toggleVisibleOverlay = true;
     else if (arg === '--settings' || arg === '--yomitan') args.settings = true;

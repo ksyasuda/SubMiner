@@ -73,10 +73,7 @@ test('installFirstRunPluginToDefaultLocation installs plugin and backs up existi
     assert.equal(result.ok, true);
     assert.equal(result.pluginInstallStatus, 'installed');
     assert.equal(detectInstalledFirstRunPlugin(installPaths), true);
-    assert.equal(
-      fs.readFileSync(installPaths.pluginEntrypointPath, 'utf8'),
-      '-- packaged plugin',
-    );
+    assert.equal(fs.readFileSync(installPaths.pluginEntrypointPath, 'utf8'), '-- packaged plugin');
     assert.equal(fs.readFileSync(installPaths.pluginConfigPath, 'utf8'), 'configured=true\n');
 
     const scriptsDirEntries = fs.readdirSync(installPaths.scriptsDir);
@@ -121,14 +118,8 @@ test('installFirstRunPluginToDefaultLocation installs plugin to Windows mpv defa
     assert.equal(result.ok, true);
     assert.equal(result.pluginInstallStatus, 'installed');
     assert.equal(detectInstalledFirstRunPlugin(installPaths), true);
-    assert.equal(
-      fs.readFileSync(installPaths.pluginEntrypointPath, 'utf8'),
-      '-- packaged plugin',
-    );
-    assert.equal(
-      fs.readFileSync(installPaths.pluginConfigPath, 'utf8'),
-      'configured=true\n',
-    );
+    assert.equal(fs.readFileSync(installPaths.pluginEntrypointPath, 'utf8'), '-- packaged plugin');
+    assert.equal(fs.readFileSync(installPaths.pluginConfigPath, 'utf8'), 'configured=true\n');
   });
 });
 
