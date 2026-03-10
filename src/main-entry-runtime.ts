@@ -1,9 +1,26 @@
+import fs from 'node:fs';
+import os from 'node:os';
 import { CliArgs, parseArgs, shouldStartApp } from './cli/args';
+import { resolveConfigDir } from './config/path-resolution';
 
 const BACKGROUND_ARG = '--background';
 const START_ARG = '--start';
 const PASSWORD_STORE_ARG = '--password-store';
 const BACKGROUND_CHILD_ENV = 'SUBMINER_BACKGROUND_CHILD';
+const APP_NAME = 'SubMiner';
+
+type EarlyAppLike = {
+  setName: (name: string) => void;
+  setPath: (name: 'userData', value: string) => void;
+};
+
+type EarlyAppPathOptions = {
+  platform?: NodeJS.Platform;
+  appDataDir?: string;
+  xdgConfigHome?: string;
+  homeDir?: string;
+  existsSync?: (candidate: string) => boolean;
+};
 
 function removeLsfgLayer(env: NodeJS.ProcessEnv): void {
   if (typeof env.VK_INSTANCE_LAYERS === 'string' && /lsfg/i.test(env.VK_INSTANCE_LAYERS)) {
@@ -60,6 +77,24 @@ export function normalizeStartupArgv(argv: string[], env: NodeJS.ProcessEnv): st
   }
 
   return argv;
+}
+
+export function configureEarlyAppPaths(
+  app: EarlyAppLike,
+  options?: EarlyAppPathOptions,
+): string {
+  const userDataPath = resolveConfigDir({
+    platform: options?.platform ?? process.platform,
+    appDataDir: options?.appDataDir ?? process.env.APPDATA,
+    xdgConfigHome: options?.xdgConfigHome ?? process.env.XDG_CONFIG_HOME,
+    homeDir: options?.homeDir ?? os.homedir(),
+    existsSync: options?.existsSync ?? fs.existsSync,
+  });
+
+  app.setName(APP_NAME);
+  app.setPath('userData', userDataPath);
+
+  return userDataPath;
 }
 
 export function shouldDetachBackgroundLaunch(argv: string[], env: NodeJS.ProcessEnv): boolean {

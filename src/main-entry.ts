@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { app, dialog } from 'electron';
 import { printHelp } from './cli/help';
 import {
+  configureEarlyAppPaths,
   normalizeLaunchMpvTargets,
   normalizeStartupArgv,
   sanitizeStartupEnv,
@@ -31,6 +32,7 @@ function applySanitizedEnv(sanitizedEnv: NodeJS.ProcessEnv): void {
 
 process.argv = normalizeStartupArgv(process.argv, process.env);
 applySanitizedEnv(sanitizeStartupEnv(process.env));
+configureEarlyAppPaths(app);
 
 if (shouldDetachBackgroundLaunch(process.argv, process.env)) {
   const child = spawn(process.execPath, process.argv.slice(1), {

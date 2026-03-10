@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  configureEarlyAppPaths,
   normalizeStartupArgv,
   normalizeLaunchMpvTargets,
   sanitizeHelpEnv,
@@ -114,4 +115,31 @@ test('shouldDetachBackgroundLaunch only for first background invocation', () => 
     false,
   );
   assert.equal(shouldDetachBackgroundLaunch(['--start'], {}), false);
+});
+
+test('configureEarlyAppPaths pins userData to canonical SubMiner config dir', () => {
+  const calls: string[] = [];
+
+  const userDataPath = configureEarlyAppPaths(
+    {
+      setName: (name) => {
+        calls.push(`name:${name}`);
+      },
+      setPath: (key, value) => {
+        calls.push(`path:${key}:${value}`);
+      },
+    },
+    {
+      platform: 'linux',
+      homeDir: '/home/tester',
+      xdgConfigHome: '/tmp/xdg',
+      existsSync: (candidate) => candidate === '/tmp/xdg/subminer/config.jsonc',
+    },
+  );
+
+  assert.equal(userDataPath, '/tmp/xdg/SubMiner');
+  assert.deepEqual(calls, [
+    'name:SubMiner',
+    'path:userData:/tmp/xdg/SubMiner',
+  ]);
 });
