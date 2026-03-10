@@ -423,11 +423,11 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-jlpt-n1 {
-  text-decoration-line: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-  text-decoration-color: var(--subtitle-jlpt-n1-color, #ed8796);
-  text-decoration-style: solid;
+  --subtitle-jlpt-underline-color: var(--subtitle-jlpt-n1-color, #ed8796);
+  border-bottom: 2px solid var(--subtitle-jlpt-underline-color);
+  padding-bottom: 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 #subtitleRoot .word.word-jlpt-n1[data-jlpt-level]::after {
@@ -435,11 +435,11 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-jlpt-n2 {
-  text-decoration-line: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-  text-decoration-color: var(--subtitle-jlpt-n2-color, #f5a97f);
-  text-decoration-style: solid;
+  --subtitle-jlpt-underline-color: var(--subtitle-jlpt-n2-color, #f5a97f);
+  border-bottom: 2px solid var(--subtitle-jlpt-underline-color);
+  padding-bottom: 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 #subtitleRoot .word.word-jlpt-n2[data-jlpt-level]::after {
@@ -447,11 +447,11 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-jlpt-n3 {
-  text-decoration-line: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-  text-decoration-color: var(--subtitle-jlpt-n3-color, #f9e2af);
-  text-decoration-style: solid;
+  --subtitle-jlpt-underline-color: var(--subtitle-jlpt-n3-color, #f9e2af);
+  border-bottom: 2px solid var(--subtitle-jlpt-underline-color);
+  padding-bottom: 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 #subtitleRoot .word.word-jlpt-n3[data-jlpt-level]::after {
@@ -459,11 +459,11 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-jlpt-n4 {
-  text-decoration-line: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-  text-decoration-color: var(--subtitle-jlpt-n4-color, #a6e3a1);
-  text-decoration-style: solid;
+  --subtitle-jlpt-underline-color: var(--subtitle-jlpt-n4-color, #a6e3a1);
+  border-bottom: 2px solid var(--subtitle-jlpt-underline-color);
+  padding-bottom: 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 #subtitleRoot .word.word-jlpt-n4[data-jlpt-level]::after {
@@ -471,11 +471,11 @@ body.settings-modal-open #subtitleContainer {
 }
 
 #subtitleRoot .word.word-jlpt-n5 {
-  text-decoration-line: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-  text-decoration-color: var(--subtitle-jlpt-n5-color, #8aadf4);
-  text-decoration-style: solid;
+  --subtitle-jlpt-underline-color: var(--subtitle-jlpt-n5-color, #8aadf4);
+  border-bottom: 2px solid var(--subtitle-jlpt-underline-color);
+  padding-bottom: 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 #subtitleRoot .word.word-jlpt-n5[data-jlpt-level]::after {

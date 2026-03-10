@@ -686,9 +686,14 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
   for (let level = 1; level <= 5; level += 1) {
     const block = extractClassBlock(cssText, `#subtitleRoot .word.word-jlpt-n${level}`);
     assert.ok(block.length > 0, `word-jlpt-n${level} class should exist`);
-    assert.match(block, /text-decoration-line:\s*underline;/);
-    assert.match(block, /text-decoration-thickness:\s*2px;/);
-    assert.match(block, /text-underline-offset:\s*4px;/);
+    assert.match(
+      block,
+      new RegExp(`--subtitle-jlpt-underline-color:\\s*var\\(--subtitle-jlpt-n${level}-color,`),
+    );
+    assert.match(block, /border-bottom:\s*2px solid var\(--subtitle-jlpt-underline-color\);/);
+    assert.match(block, /padding-bottom:\s*1px;/);
+    assert.match(block, /box-decoration-break:\s*clone;/);
+    assert.match(block, /-webkit-box-decoration-break:\s*clone;/);
     assert.doesNotMatch(block, /(?:^|\n)\s*color\s*:/m);
   }
 
@@ -828,18 +833,17 @@ test('JLPT CSS rules use underline-only styling in renderer stylesheet', () => {
     jlptOnlyHoverBlock,
     /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
+
+  const jlptOnlySelectionBlock = extractClassBlock(
+    cssText,
+    '#subtitleRoot .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)::selection',
+  );
   assert.match(
-    extractClassBlock(
-      cssText,
-      '#subtitleRoot .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)::selection',
-    ),
+    jlptOnlySelectionBlock,
     /color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
   assert.match(
-    extractClassBlock(
-      cssText,
-      '#subtitleRoot .word:is(.word-jlpt-n1, .word-jlpt-n2, .word-jlpt-n3, .word-jlpt-n4, .word-jlpt-n5):not(.word-known):not(.word-n-plus-one):not(.word-name-match):not(.word-frequency-single):not(.word-frequency-band-1):not(.word-frequency-band-2):not(.word-frequency-band-3):not(.word-frequency-band-4):not(.word-frequency-band-5)::selection',
-    ),
+    jlptOnlySelectionBlock,
     /-webkit-text-fill-color:\s*var\(--subtitle-hover-token-color,\s*#f4dbd6\)\s*!important;/,
   );
 
