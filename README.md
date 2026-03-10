@@ -24,18 +24,12 @@
 
 SubMiner is an Electron overlay that sits on top of mpv. It turns your video player into a full sentence-mining workstation:
 
-- **Hover to look up** — Yomitan dictionary popups directly on subtitles
-- **Keyboard-driven lookup mode** — Navigate token-by-token, keep lookup open across tokens, and control popup scrolling/audio/mining without leaving the overlay
-- **One-key mining** — Creates Anki cards with sentence, audio, screenshot, and translation
-- **Instant auto-enrichment** — Optional local AnkiConnect proxy enriches new Yomitan cards immediately
-- **Reading annotations** — Combines N+1 targeting, frequency-dictionary highlighting, and JLPT underlining while you read
-- **Hover-aware playback** — By default, hovering subtitle text pauses mpv and resumes on mouse leave
+- **Look up words as you watch** — Yomitan dictionary popups on hover or keyboard-driven token-by-token navigation
+- **One-key Anki mining** — Creates cards with sentence, audio, screenshot, and translation; optional local AnkiConnect proxy auto-enriches Yomitan cards instantly
+- **Reading annotations** — N+1 targeting, frequency-dictionary highlighting, JLPT underlining, and character name dictionary for anime/manga proper nouns
 - **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
-- **Immersion tracking** — SQLite-powered stats on your watch time and mining activity
-- **Custom texthooker page** — Built-in custom texthooker page and websocket, no extra setup
-- **Annotated websocket API** — Dedicated annotation feed can serve bundled texthooker or external clients with rendered `sentence` HTML plus structured `tokens`
-- **Jellyfin integration** — Remote playback setup, cast device mode, and direct playback launch
-- **AniList progress** — Track episode completion and push watching progress automatically
+- **Jellyfin & AniList integration** — Remote playback, cast device mode, and automatic episode progress tracking
+- **Texthooker & API** — Built-in texthooker page and annotated websocket feed for external clients
 
 ## Quick start
 

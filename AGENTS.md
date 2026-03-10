@@ -21,6 +21,15 @@
 - Release prep: `bun run changelog:build`, review `CHANGELOG.md` + `release/release-notes.md`, commit generated changelog + fragment deletions, then tag.
 - Release CI expects committed changelog entry already present; do not rely on tag job to invent notes.
 
+## Docs
+
+- The documentation for this project lives in a separate sister directory: [`../subminer-docs/`](https://github.com/ksyasuda/subminer-docs)
+- Read the [`../subminer-docs/development.md`](https://github.com/ksyasuda/subminer-docs/blob/main/development.md) and [`../subminer-docs/architecture.md`](https://github.com/ksyasuda/subminer-docs/blob/main/architecture.md) before making changes and follow the guidelines unless there is a specific reason to deviate
+- Make sure the changelog [`../subminer-docs/changelog.md`](https://github.com/ksyasuda/subminer-docs/blob/main/changelog.md) is updated on each release
+- Ensure the docs are kept up to date if any new or breaking changes are introduced
+- If the sister repo does not exist at `../subminer-docs`, then do not attempt
+  to update the docs and reference the files from GitHub if needed
+
 ## Flow & Runtime
 
 - Use repo’s package manager/runtime; no swaps w/o approval.
@@ -31,7 +40,6 @@
 - Before handoff: run full gate (lint/typecheck/tests/docs).
 - CI red: `gh run list/view`, rerun, fix, push, repeat til green.
 - Keep it observable (logs, panes, tails, MCP/browser tools).
-- Release: read `docs/RELEASING.md`
 
 ## Git
 
