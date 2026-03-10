@@ -56,7 +56,10 @@ function resolveDate(date?: string): string {
   return date ?? new Date().toISOString().slice(0, 10);
 }
 
-function resolvePackageVersion(cwd: string, readFileSync: (candidate: string, encoding: BufferEncoding) => string): string {
+function resolvePackageVersion(
+  cwd: string,
+  readFileSync: (candidate: string, encoding: BufferEncoding) => string,
+): string {
   const packageJsonPath = path.join(cwd, 'package.json');
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: string };
   if (!packageJson.version) {
@@ -65,22 +68,42 @@ function resolvePackageVersion(cwd: string, readFileSync: (candidate: string, en
   return normalizeVersion(packageJson.version);
 }
 
-function resolveVersion(
-  options: Pick<ChangelogOptions, 'cwd' | 'version' | 'deps'>,
-): string {
+function resolveVersion(options: Pick<ChangelogOptions, 'cwd' | 'version' | 'deps'>): string {
   const cwd = options.cwd ?? process.cwd();
   const readFileSync = options.deps?.readFileSync ?? fs.readFileSync;
   return normalizeVersion(options.version ?? resolvePackageVersion(cwd, readFileSync));
+}
+
+function verifyRequestedVersionMatchesPackageVersion(
+  options: Pick<ChangelogOptions, 'cwd' | 'version' | 'deps'>,
+): void {
+  if (!options.version) {
+    return;
+  }
+
+  const cwd = options.cwd ?? process.cwd();
+  const existsSync = options.deps?.existsSync ?? fs.existsSync;
+  const readFileSync = options.deps?.readFileSync ?? fs.readFileSync;
+  const packageJsonPath = path.join(cwd, 'package.json');
+  if (!existsSync(packageJsonPath)) {
+    return;
+  }
+
+  const packageVersion = resolvePackageVersion(cwd, readFileSync);
+  const requestedVersion = normalizeVersion(options.version);
+
+  if (packageVersion !== requestedVersion) {
+    throw new Error(
+      `package.json version (${packageVersion}) does not match requested release version (${requestedVersion}).`,
+    );
+  }
 }
 
 function resolveChangesDir(cwd: string): string {
   return path.join(cwd, 'changes');
 }
 
-function resolveFragmentPaths(
-  cwd: string,
-  deps?: ChangelogFsDeps,
-): string[] {
+function resolveFragmentPaths(cwd: string, deps?: ChangelogFsDeps): string[] {
   const changesDir = resolveChangesDir(cwd);
   const existsSync = deps?.existsSync ?? fs.existsSync;
   const readdirSync = deps?.readdirSync ?? fs.readdirSync;
@@ -90,7 +113,10 @@ function resolveFragmentPaths(
   }
 
   return readdirSync(changesDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.md') && entry.name.toLowerCase() !== 'readme.md')
+    .filter(
+      (entry) =>
+        entry.isFile() && entry.name.endsWith('.md') && entry.name.toLowerCase() !== 'readme.md',
+    )
     .map((entry) => path.join(changesDir, entry.name))
     .sort();
 }
@@ -112,7 +138,10 @@ function normalizeFragmentBullets(content: string): string[] {
   return lines;
 }
 
-function parseFragmentMetadata(content: string, fragmentPath: string): {
+function parseFragmentMetadata(
+  content: string,
+  fragmentPath: string,
+): {
   area: string;
   body: string;
   type: FragmentType;
@@ -144,9 +173,7 @@ function parseFragmentMetadata(content: string, fragmentPath: string): {
 
   const type = metadata.get('type');
   if (!type || !CHANGE_TYPES.includes(type as FragmentType)) {
-    throw new Error(
-      `${fragmentPath} must declare type as one of: ${CHANGE_TYPES.join(', ')}.`,
-    );
+    throw new Error(`${fragmentPath} must declare type as one of: ${CHANGE_TYPES.join(', ')}.`);
   }
 
   const area = metadata.get('area');
@@ -166,10 +193,7 @@ function parseFragmentMetadata(content: string, fragmentPath: string): {
   };
 }
 
-function readChangeFragments(
-  cwd: string,
-  deps?: ChangelogFsDeps,
-): ChangeFragment[] {
+function readChangeFragments(cwd: string, deps?: ChangelogFsDeps): ChangeFragment[] {
   const readFileSync = deps?.readFileSync ?? fs.readFileSync;
   return resolveFragmentPaths(cwd, deps).map((fragmentPath) => {
     const parsed = parseFragmentMetadata(readFileSync(fragmentPath, 'utf8'), fragmentPath);
@@ -202,7 +226,9 @@ function renderGroupedChanges(fragments: ChangeFragment[]): string {
     }
 
     const bullets = typeFragments
-      .flatMap((fragment) => fragment.bullets.map((bullet) => renderFragmentBullet(fragment, bullet)))
+      .flatMap((fragment) =>
+        fragment.bullets.map((bullet) => renderFragmentBullet(fragment, bullet)),
+      )
       .join('\n');
     return [`### ${CHANGE_TYPE_HEADINGS[type]}\n${bullets}`];
   });
@@ -215,9 +241,7 @@ function buildReleaseSection(version: string, date: string, fragments: ChangeFra
     throw new Error('No changelog fragments found in changes/.');
   }
 
-  return [`## v${version} (${date})`, '', renderGroupedChanges(fragments), ''].join(
-    '\n',
-  );
+  return [`## v${version} (${date})`, '', renderGroupedChanges(fragments), ''].join('\n');
 }
 
 function ensureChangelogHeader(existingChangelog: string): string {
@@ -231,7 +255,11 @@ function ensureChangelogHeader(existingChangelog: string): string {
   return `${CHANGELOG_HEADER}\n\n${trimmed}\n`;
 }
 
-function prependReleaseSection(existingChangelog: string, releaseSection: string, version: string): string {
+function prependReleaseSection(
+  existingChangelog: string,
+  releaseSection: string,
+  version: string,
+): string {
   const normalizedExisting = ensureChangelogHeader(existingChangelog);
   if (extractReleaseSectionBody(normalizedExisting, version) !== null) {
     throw new Error(`CHANGELOG already contains a section for v${version}.`);
@@ -263,9 +291,7 @@ function extractReleaseSectionBody(changelog: string, version: string): string |
   return body.trim();
 }
 
-export function resolveChangelogOutputPaths(options?: {
-  cwd?: string;
-}): string[] {
+export function resolveChangelogOutputPaths(options?: { cwd?: string }): string[] {
   const cwd = options?.cwd ?? process.cwd();
   return [path.join(cwd, 'CHANGELOG.md')];
 }
@@ -290,11 +316,7 @@ function renderReleaseNotes(changes: string): string {
   ].join('\n');
 }
 
-function writeReleaseNotesFile(
-  cwd: string,
-  changes: string,
-  deps?: ChangelogFsDeps,
-): string {
+function writeReleaseNotesFile(cwd: string, changes: string, deps?: ChangelogFsDeps): string {
   const mkdirSync = deps?.mkdirSync ?? fs.mkdirSync;
   const writeFileSync = deps?.writeFileSync ?? fs.writeFileSync;
   const releaseNotesPath = path.join(cwd, RELEASE_NOTES_PATH);
@@ -359,10 +381,13 @@ export function verifyChangelogFragments(options?: ChangelogOptions): void {
 export function verifyChangelogReadyForRelease(options?: ChangelogOptions): void {
   const cwd = options?.cwd ?? process.cwd();
   const readFileSync = options?.deps?.readFileSync ?? fs.readFileSync;
+  verifyRequestedVersionMatchesPackageVersion(options ?? {});
   const version = resolveVersion(options ?? {});
   const pendingFragments = resolveFragmentPaths(cwd, options?.deps);
   if (pendingFragments.length > 0) {
-    throw new Error(`Pending changelog fragments must be released first: ${pendingFragments.join(', ')}`);
+    throw new Error(
+      `Pending changelog fragments must be released first: ${pendingFragments.join(', ')}`,
+    );
   }
 
   const changelogPath = path.join(cwd, 'CHANGELOG.md');
@@ -382,14 +407,14 @@ function isFragmentPath(candidate: string): boolean {
 
 function isIgnoredPullRequestPath(candidate: string): boolean {
   return (
-    candidate === 'CHANGELOG.md'
-    || candidate === 'release/release-notes.md'
-    || candidate === 'AGENTS.md'
-    || candidate === 'README.md'
-    || candidate.startsWith('changes/')
-    || candidate.startsWith('docs/')
-    || candidate.startsWith('.github/')
-    || candidate.startsWith('backlog/')
+    candidate === 'CHANGELOG.md' ||
+    candidate === 'release/release-notes.md' ||
+    candidate === 'AGENTS.md' ||
+    candidate === 'README.md' ||
+    candidate.startsWith('changes/') ||
+    candidate.startsWith('docs/') ||
+    candidate.startsWith('.github/') ||
+    candidate.startsWith('backlog/')
   );
 }
 
@@ -412,9 +437,7 @@ export function verifyPullRequestChangelog(options: PullRequestChangelogOptions)
   const hasFragment = normalizedEntries.some(
     (entry) => entry.status !== 'D' && isFragmentPath(entry.path),
   );
-  const requiresFragment = normalizedEntries.some(
-    (entry) => !isIgnoredPullRequestPath(entry.path),
-  );
+  const requiresFragment = normalizedEntries.some((entry) => !isIgnoredPullRequestPath(entry.path));
 
   if (requiresFragment && !hasFragment) {
     throw new Error(
