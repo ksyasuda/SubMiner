@@ -2206,6 +2206,7 @@ test('buildMergedDictionary combines stored snapshots into one stable dictionary
     await runtime.getOrCreateCurrentSnapshot();
 
     const merged = await runtime.buildMergedDictionary([21, 130298]);
+    const mergedReordered = await runtime.buildMergedDictionary([130298, 21]);
     const index = JSON.parse(readStoredZipEntry(merged.zipPath, 'index.json').toString('utf8')) as {
       title: string;
     };
@@ -2228,6 +2229,7 @@ test('buildMergedDictionary combines stored snapshots into one stable dictionary
 
     assert.equal(index.title, 'SubMiner Character Dictionary');
     assert.equal(merged.entryCount >= 2, true);
+    assert.equal(merged.revision, mergedReordered.revision);
     assert.ok(frieren);
     assert.ok(alpha);
     assert.equal((frieren[5][0] as { type?: string }).type, 'structured-content');

@@ -150,7 +150,7 @@ test('auto sync skips rebuild/import on unchanged revisit when merged dictionary
   assert.deepEqual(imports, ['/tmp/merged.zip']);
 });
 
-test('auto sync rebuilds merged dictionary when MRU order changes', async () => {
+test('auto sync updates MRU order without rebuilding merged dictionary when membership is unchanged', async () => {
   const userDataPath = makeTempDir();
   const sequence = [1, 2, 1];
   const mergedBuilds: number[][] = [];
@@ -207,8 +207,14 @@ test('auto sync rebuilds merged dictionary when MRU order changes', async () => 
   await runtime.runSyncNow();
   await runtime.runSyncNow();
 
-  assert.deepEqual(mergedBuilds, [[1], [2, 1], [1, 2]]);
-  assert.ok(deleted.length >= 2);
+  assert.deepEqual(mergedBuilds, [[1], [2, 1]]);
+  assert.equal(deleted.length, 1);
+
+  const statePath = path.join(userDataPath, 'character-dictionaries', 'auto-sync-state.json');
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8')) as {
+    activeMediaIds: number[];
+  };
+  assert.deepEqual(state.activeMediaIds, [1, 2]);
 });
 
 test('auto sync evicts least recently used media from merged set', async () => {
@@ -274,6 +280,137 @@ test('auto sync evicts least recently used media from merged set', async () => {
     activeMediaIds: number[];
   };
   assert.deepEqual(state.activeMediaIds, [4, 3, 2]);
+});
+
+test('auto sync keeps revisited media retained when a new title is added afterward', async () => {
+  const userDataPath = makeTempDir();
+  const sequence = [1, 2, 3, 1, 4, 1];
+  const mergedBuilds: number[][] = [];
+  let runIndex = 0;
+  let importedRevision: string | null = null;
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({
+      enabled: true,
+      maxLoaded: 3,
+      profileScope: 'all',
+    }),
+    getOrCreateCurrentSnapshot: async () => {
+      const mediaId = sequence[Math.min(runIndex, sequence.length - 1)]!;
+      runIndex += 1;
+      return {
+        mediaId,
+        mediaTitle: `Title ${mediaId}`,
+        entryCount: 10,
+        fromCache: true,
+        updatedAt: mediaId,
+      };
+    },
+    buildMergedDictionary: async (mediaIds) => {
+      mergedBuilds.push([...mediaIds]);
+      const revision = `rev-${mediaIds.join('-')}`;
+      return {
+        zipPath: `/tmp/${revision}.zip`,
+        revision,
+        dictionaryTitle: 'SubMiner Character Dictionary',
+        entryCount: mediaIds.length * 10,
+      };
+    },
+    getYomitanDictionaryInfo: async () =>
+      importedRevision
+        ? [{ title: 'SubMiner Character Dictionary', revision: importedRevision }]
+        : [],
+    importYomitanDictionary: async (zipPath) => {
+      importedRevision = path.basename(zipPath, '.zip');
+      return true;
+    },
+    deleteYomitanDictionary: async () => {
+      importedRevision = null;
+      return true;
+    },
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => Date.now(),
+  });
+
+  await runtime.runSyncNow();
+  await runtime.runSyncNow();
+  await runtime.runSyncNow();
+  await runtime.runSyncNow();
+  await runtime.runSyncNow();
+  await runtime.runSyncNow();
+
+  assert.deepEqual(mergedBuilds, [[1], [2, 1], [3, 2, 1], [4, 1, 3]]);
+
+  const statePath = path.join(userDataPath, 'character-dictionaries', 'auto-sync-state.json');
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8')) as {
+    activeMediaIds: number[];
+  };
+  assert.deepEqual(state.activeMediaIds, [1, 4, 3]);
+});
+
+test('auto sync persists rebuilt MRU state even if Yomitan import fails afterward', async () => {
+  const userDataPath = makeTempDir();
+  const dictionariesDir = path.join(userDataPath, 'character-dictionaries');
+  fs.mkdirSync(dictionariesDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dictionariesDir, 'auto-sync-state.json'),
+    JSON.stringify(
+      {
+        activeMediaIds: [2, 3, 4],
+        mergedRevision: 'rev-2-3-4',
+        mergedDictionaryTitle: 'SubMiner Character Dictionary',
+      },
+      null,
+      2,
+    ),
+  );
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({
+      enabled: true,
+      maxLoaded: 3,
+      profileScope: 'all',
+    }),
+    getOrCreateCurrentSnapshot: async () => ({
+      mediaId: 1,
+      mediaTitle: 'Title 1',
+      entryCount: 10,
+      fromCache: true,
+      updatedAt: 1,
+    }),
+    buildMergedDictionary: async (mediaIds) => {
+      assert.deepEqual(mediaIds, [1, 2, 3]);
+      return {
+        zipPath: '/tmp/rev-1-2-3.zip',
+        revision: 'rev-1-2-3',
+        dictionaryTitle: 'SubMiner Character Dictionary',
+        entryCount: 30,
+      };
+    },
+    waitForYomitanMutationReady: async () => undefined,
+    getYomitanDictionaryInfo: async () => [],
+    importYomitanDictionary: async () => {
+      throw new Error('import failed');
+    },
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => 1000,
+  });
+
+  await assert.rejects(runtime.runSyncNow(), /import failed/);
+
+  const state = JSON.parse(
+    fs.readFileSync(path.join(dictionariesDir, 'auto-sync-state.json'), 'utf8'),
+  ) as {
+    activeMediaIds: number[];
+    mergedRevision: string | null;
+    mergedDictionaryTitle: string | null;
+  };
+  assert.deepEqual(state.activeMediaIds, [1, 2, 3]);
+  assert.equal(state.mergedRevision, 'rev-1-2-3');
+  assert.equal(state.mergedDictionaryTitle, 'SubMiner Character Dictionary');
 });
 
 test('auto sync invokes completion callback after successful sync', async () => {

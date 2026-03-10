@@ -1980,6 +1980,16 @@ function buildMergedRevision(mediaIds: number[], snapshots: CharacterDictionaryS
   return hash.digest('hex').slice(0, 12);
 }
 
+function normalizeMergedMediaIds(mediaIds: number[]): number[] {
+  return [
+    ...new Set(
+      mediaIds
+        .filter((mediaId) => Number.isFinite(mediaId) && mediaId > 0)
+        .map((mediaId) => Math.floor(mediaId)),
+    ),
+  ].sort((left, right) => left - right);
+}
+
 export function createCharacterDictionaryRuntimeService(deps: CharacterDictionaryRuntimeDeps): {
   getOrCreateCurrentSnapshot: (
     targetPath?: string,
@@ -2154,9 +2164,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       );
     },
     buildMergedDictionary: async (mediaIds: number[]) => {
-      const normalizedMediaIds = mediaIds
-        .filter((mediaId) => Number.isFinite(mediaId) && mediaId > 0)
-        .map((mediaId) => Math.floor(mediaId));
+      const normalizedMediaIds = normalizeMergedMediaIds(mediaIds);
       const snapshotResults = await Promise.all(
         normalizedMediaIds.map((mediaId) => getOrCreateSnapshot(mediaId)),
       );

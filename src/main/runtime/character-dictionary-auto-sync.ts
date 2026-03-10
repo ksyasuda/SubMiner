@@ -107,6 +107,13 @@ function arraysEqual(left: number[], right: number[]): boolean {
   return true;
 }
 
+function sameMembership(left: number[], right: number[]): boolean {
+  if (left.length !== right.length) return false;
+  const leftSorted = [...left].sort((a, b) => a - b);
+  const rightSorted = [...right].sort((a, b) => a - b);
+  return arraysEqual(leftSorted, rightSorted);
+}
+
 function buildSyncingMessage(mediaTitle: string): string {
   return `Updating character dictionary for ${mediaTitle}...`;
 }
@@ -223,10 +230,11 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
         `[dictionary:auto-sync] active AniList media set: ${nextActiveMediaIds.join(', ')}`,
       );
 
-      const retainedChanged = !arraysEqual(nextActiveMediaIds, state.activeMediaIds);
+      const retainedOrderChanged = !arraysEqual(nextActiveMediaIds, state.activeMediaIds);
+      const retainedMembershipChanged = !sameMembership(nextActiveMediaIds, state.activeMediaIds);
       let merged: MergedCharacterDictionaryBuildResult | null = null;
       if (
-        retainedChanged ||
+        retainedMembershipChanged ||
         !state.mergedRevision ||
         !state.mergedDictionaryTitle ||
         !snapshot.fromCache
@@ -247,6 +255,12 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
         throw new Error('Merged character dictionary state is incomplete.');
       }
 
+      writeAutoSyncState(statePath, {
+        activeMediaIds: nextActiveMediaIds,
+        mergedRevision: merged?.revision ?? revision,
+        mergedDictionaryTitle: merged?.dictionaryTitle ?? dictionaryTitle,
+      });
+
       await deps.waitForYomitanMutationReady?.();
 
       const dictionaryInfo = await withOperationTimeout(
@@ -263,7 +277,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
         existing === null ||
         existingRevision === null ||
         existingRevision !== revision;
-      let changed = merged !== null;
+      let changed = merged !== null || retainedOrderChanged;
 
       if (shouldImport) {
         deps.onSyncStatus?.({
@@ -299,11 +313,6 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       );
       changed = changed || settingsUpdated === true;
 
-      writeAutoSyncState(statePath, {
-        activeMediaIds: nextActiveMediaIds,
-        mergedRevision: merged?.revision ?? revision,
-        mergedDictionaryTitle: merged?.dictionaryTitle ?? dictionaryTitle,
-      });
       deps.logInfo?.(
         `[dictionary:auto-sync] synced AniList ${snapshot.mediaId}: ${dictionaryTitle} (${snapshot.entryCount} entries)`,
       );
