@@ -102,7 +102,19 @@ fi
 
 has_encoder() {
 	local encoder="$1"
-	ffmpeg -hide_banner -encoders 2> /dev/null | grep -qE "[[:space:]]${encoder}[[:space:]]"
+	ffmpeg -hide_banner -encoders 2> /dev/null | awk -v encoder="$encoder" '$2 == encoder { found = 1 } END { exit(found ? 0 : 1) }'
+}
+
+pick_webp_encoder() {
+	if has_encoder "libwebp_anim"; then
+		echo "libwebp_anim"
+		return 0
+	fi
+	if has_encoder "libwebp"; then
+		echo "libwebp"
+		return 0
+	fi
+	return 1
 }
 
 crop_vf="crop=1920:1080:760:205"
@@ -168,14 +180,14 @@ else
 fi
 
 if [[ "$generate_webp" -eq 1 ]]; then
-	if ! has_encoder "libwebp"; then
+	if ! webp_encoder="$(pick_webp_encoder)"; then
 		echo "Error: encoder not found: libwebp" >&2
 		exit 1
 	fi
-	echo "Generating animated WebP: $webp_out"
+	echo "Generating animated WebP with $webp_encoder: $webp_out"
 	ffmpeg "$overwrite_flag" -i "$input" \
 		-vf "${crop_vf},fps=24,scale=960:-1:flags=lanczos" \
-		-c:v libwebp \
+		-c:v "$webp_encoder" \
 		-q:v 80 \
 		-loop 0 \
 		-an \

@@ -50,7 +50,7 @@
     "test:launcher": "bun run test:launcher:src",
     "test:core": "bun run test:core:src",
     "test:subtitle": "bun run test:subtitle:src",
-    "test:fast": "bun run test:config:src && bun run test:core:src && bun test src/main-entry-runtime.test.ts src/anki-integration/anki-connect-proxy.test.ts src/release-workflow.test.ts src/ci-workflow.test.ts scripts/build-changelog.test.ts && bun run tsc && bun test dist/main/runtime/registry.test.js",
+    "test:fast": "bun run test:config:src && bun run test:core:src && bun test src/main-entry-runtime.test.ts src/anki-integration/anki-connect-proxy.test.ts src/release-workflow.test.ts src/ci-workflow.test.ts scripts/build-changelog.test.ts scripts/mkv-to-readme-video.test.ts && bun run tsc && bun test dist/main/runtime/registry.test.js",
     "generate:config-example": "bun run build && bun dist/generate-config-example.js",
     "start": "bun run build && electron . --start",
     "dev": "bun run build && electron . --start --dev",
