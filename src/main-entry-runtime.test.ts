@@ -138,8 +138,5 @@ test('configureEarlyAppPaths pins userData to canonical SubMiner config dir', ()
   );
 
   assert.equal(userDataPath, '/tmp/xdg/SubMiner');
-  assert.deepEqual(calls, [
-    'name:SubMiner',
-    'path:userData:/tmp/xdg/SubMiner',
-  ]);
+  assert.deepEqual(calls, ['name:SubMiner', 'path:userData:/tmp/xdg/SubMiner']);
 });

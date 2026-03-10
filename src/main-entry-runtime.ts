@@ -79,10 +79,7 @@ export function normalizeStartupArgv(argv: string[], env: NodeJS.ProcessEnv): st
   return argv;
 }
 
-export function configureEarlyAppPaths(
-  app: EarlyAppLike,
-  options?: EarlyAppPathOptions,
-): string {
+export function configureEarlyAppPaths(app: EarlyAppLike, options?: EarlyAppPathOptions): string {
   const userDataPath = resolveConfigDir({
     platform: options?.platform ?? process.platform,
     appDataDir: options?.appDataDir ?? process.env.APPDATA,
