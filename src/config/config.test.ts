@@ -1106,6 +1106,75 @@ test('parses global shortcuts and startup settings', () => {
   assert.equal(config.youtubeSubgen.fixWithAi, true);
 });
 
+test('parses controller settings with logical bindings and tuning knobs', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "controller": {
+        "enabled": true,
+        "preferredGamepadId": "Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)",
+        "preferredGamepadLabel": "Xbox Wireless Controller",
+        "smoothScroll": false,
+        "scrollPixelsPerSecond": 1440,
+        "horizontalJumpPixels": 180,
+        "stickDeadzone": 0.3,
+        "triggerInputMode": "analog",
+        "triggerDeadzone": 0.4,
+        "repeatDelayMs": 220,
+        "repeatIntervalMs": 70,
+        "buttonIndices": {
+          "select": 6,
+          "leftStickPress": 9,
+          "rightStickPress": 10
+        },
+        "bindings": {
+          "toggleLookup": "buttonWest",
+          "closeLookup": "buttonEast",
+          "toggleKeyboardOnlyMode": "buttonNorth",
+          "mineCard": "buttonSouth",
+          "quitMpv": "select",
+          "previousAudio": "leftShoulder",
+          "nextAudio": "rightShoulder",
+          "playCurrentAudio": "none",
+          "toggleMpvPause": "leftStickPress",
+          "leftStickHorizontal": "rightStickX",
+          "leftStickVertical": "rightStickY",
+          "rightStickHorizontal": "leftStickX",
+          "rightStickVertical": "leftStickY"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.controller.enabled, true);
+  assert.equal(
+    config.controller.preferredGamepadId,
+    'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)',
+  );
+  assert.equal(config.controller.preferredGamepadLabel, 'Xbox Wireless Controller');
+  assert.equal(config.controller.smoothScroll, false);
+  assert.equal(config.controller.scrollPixelsPerSecond, 1440);
+  assert.equal(config.controller.horizontalJumpPixels, 180);
+  assert.equal(config.controller.stickDeadzone, 0.3);
+  assert.equal(config.controller.triggerInputMode, 'analog');
+  assert.equal(config.controller.triggerDeadzone, 0.4);
+  assert.equal(config.controller.repeatDelayMs, 220);
+  assert.equal(config.controller.repeatIntervalMs, 70);
+  assert.equal(config.controller.buttonIndices.select, 6);
+  assert.equal(config.controller.buttonIndices.leftStickPress, 9);
+  assert.equal(config.controller.bindings.toggleLookup, 'buttonWest');
+  assert.equal(config.controller.bindings.quitMpv, 'select');
+  assert.equal(config.controller.bindings.playCurrentAudio, 'none');
+  assert.equal(config.controller.bindings.toggleMpvPause, 'leftStickPress');
+  assert.equal(config.controller.bindings.leftStickHorizontal, 'rightStickX');
+  assert.equal(config.controller.bindings.rightStickVertical, 'leftStickY');
+});
+
 test('runtime options registry is centralized', () => {
   const ids = RUNTIME_OPTION_REGISTRY.map((entry) => entry.id);
   assert.deepEqual(ids, [
@@ -1638,6 +1707,7 @@ test('template generator includes known keys', () => {
   const output = generateConfigTemplate(DEFAULT_CONFIG);
   assert.match(output, /"ai":/);
   assert.match(output, /"ankiConnect":/);
+  assert.match(output, /"controller":/);
   assert.match(output, /"logging":/);
   assert.match(output, /"websocket":/);
   assert.match(output, /"discordPresence":/);
@@ -1661,6 +1731,14 @@ test('template generator includes known keys', () => {
   assert.match(
     output,
     /"enabled": true,? \/\/ Annotated subtitle websocket server enabled state\. Values: true \| false/,
+  );
+  assert.match(
+    output,
+    /"scrollPixelsPerSecond": 900,? \/\/ Base popup scroll speed for controller stick input\./,
+  );
+  assert.match(
+    output,
+    /"triggerInputMode": "auto",? \/\/ How controller triggers are interpreted: auto, pressed-only, or thresholded analog\. Values: auto \| digital \| analog/,
   );
   assert.match(output, /"port": 6678,? \/\/ Annotated subtitle websocket server port\./);
   assert.match(

@@ -3,6 +3,21 @@ import { asBoolean, asNumber, asString, isObject } from './shared';
 
 export function applyCoreDomainConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
+  const controllerButtonBindings = [
+    'none',
+    'select',
+    'buttonSouth',
+    'buttonEast',
+    'buttonNorth',
+    'buttonWest',
+    'leftShoulder',
+    'rightShoulder',
+    'leftStickPress',
+    'rightStickPress',
+    'leftTrigger',
+    'rightTrigger',
+  ] as const;
+  const controllerAxisBindings = ['leftStickX', 'leftStickY', 'rightStickX', 'rightStickY'] as const;
 
   if (isObject(src.texthooker)) {
     const launchAtStartup = asBoolean(src.texthooker.launchAtStartup);
@@ -98,6 +113,170 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
         resolved.logging.level,
         'Expected debug, info, warn, or error.',
       );
+    }
+  }
+
+  if (isObject(src.controller)) {
+    const enabled = asBoolean(src.controller.enabled);
+    if (enabled !== undefined) {
+      resolved.controller.enabled = enabled;
+    } else if (src.controller.enabled !== undefined) {
+      warn(
+        'controller.enabled',
+        src.controller.enabled,
+        resolved.controller.enabled,
+        'Expected boolean.',
+      );
+    }
+
+    const preferredGamepadId = asString(src.controller.preferredGamepadId);
+    if (preferredGamepadId !== undefined) {
+      resolved.controller.preferredGamepadId = preferredGamepadId;
+    }
+
+    const preferredGamepadLabel = asString(src.controller.preferredGamepadLabel);
+    if (preferredGamepadLabel !== undefined) {
+      resolved.controller.preferredGamepadLabel = preferredGamepadLabel;
+    }
+
+    const smoothScroll = asBoolean(src.controller.smoothScroll);
+    if (smoothScroll !== undefined) {
+      resolved.controller.smoothScroll = smoothScroll;
+    } else if (src.controller.smoothScroll !== undefined) {
+      warn(
+        'controller.smoothScroll',
+        src.controller.smoothScroll,
+        resolved.controller.smoothScroll,
+        'Expected boolean.',
+      );
+    }
+
+    const triggerInputMode = asString(src.controller.triggerInputMode);
+    if (
+      triggerInputMode === 'auto' ||
+      triggerInputMode === 'digital' ||
+      triggerInputMode === 'analog'
+    ) {
+      resolved.controller.triggerInputMode = triggerInputMode;
+    } else if (src.controller.triggerInputMode !== undefined) {
+      warn(
+        'controller.triggerInputMode',
+        src.controller.triggerInputMode,
+        resolved.controller.triggerInputMode,
+        "Expected 'auto', 'digital', or 'analog'.",
+      );
+    }
+
+    const boundedNumberKeys = [
+      'scrollPixelsPerSecond',
+      'horizontalJumpPixels',
+      'repeatDelayMs',
+      'repeatIntervalMs',
+    ] as const;
+    for (const key of boundedNumberKeys) {
+      const value = asNumber(src.controller[key]);
+      if (value !== undefined && value > 0) {
+        resolved.controller[key] = Math.floor(value) as (typeof resolved.controller)[typeof key];
+      } else if (src.controller[key] !== undefined) {
+        warn(`controller.${key}`, src.controller[key], resolved.controller[key], 'Expected positive number.');
+      }
+    }
+
+    const deadzoneKeys = ['stickDeadzone', 'triggerDeadzone'] as const;
+    for (const key of deadzoneKeys) {
+      const value = asNumber(src.controller[key]);
+      if (value !== undefined && value >= 0 && value <= 1) {
+        resolved.controller[key] = value as (typeof resolved.controller)[typeof key];
+      } else if (src.controller[key] !== undefined) {
+        warn(`controller.${key}`, src.controller[key], resolved.controller[key], 'Expected number between 0 and 1.');
+      }
+    }
+
+    if (isObject(src.controller.buttonIndices)) {
+      const buttonIndexKeys = [
+        'select',
+        'buttonSouth',
+        'buttonEast',
+        'buttonNorth',
+        'buttonWest',
+        'leftShoulder',
+        'rightShoulder',
+        'leftStickPress',
+        'rightStickPress',
+        'leftTrigger',
+        'rightTrigger',
+      ] as const;
+
+      for (const key of buttonIndexKeys) {
+        const value = asNumber(src.controller.buttonIndices[key]);
+        if (value !== undefined && value >= 0) {
+          resolved.controller.buttonIndices[key] = Math.floor(value);
+        } else if (src.controller.buttonIndices[key] !== undefined) {
+          warn(
+            `controller.buttonIndices.${key}`,
+            src.controller.buttonIndices[key],
+            resolved.controller.buttonIndices[key],
+            'Expected non-negative integer.',
+          );
+        }
+      }
+    }
+
+    if (isObject(src.controller.bindings)) {
+      const buttonBindingKeys = [
+        'toggleLookup',
+        'closeLookup',
+        'toggleKeyboardOnlyMode',
+        'mineCard',
+        'quitMpv',
+        'previousAudio',
+        'nextAudio',
+        'playCurrentAudio',
+        'toggleMpvPause',
+      ] as const;
+
+      for (const key of buttonBindingKeys) {
+        const value = asString(src.controller.bindings[key]);
+        if (
+          value !== undefined &&
+          controllerButtonBindings.includes(value as (typeof controllerButtonBindings)[number])
+        ) {
+          resolved.controller.bindings[key] =
+            value as (typeof resolved.controller.bindings)[typeof key];
+        } else if (src.controller.bindings[key] !== undefined) {
+          warn(
+            `controller.bindings.${key}`,
+            src.controller.bindings[key],
+            resolved.controller.bindings[key],
+            `Expected one of: ${controllerButtonBindings.join(', ')}.`,
+          );
+        }
+      }
+
+      const axisBindingKeys = [
+        'leftStickHorizontal',
+        'leftStickVertical',
+        'rightStickHorizontal',
+        'rightStickVertical',
+      ] as const;
+
+      for (const key of axisBindingKeys) {
+        const value = asString(src.controller.bindings[key]);
+        if (
+          value !== undefined &&
+          controllerAxisBindings.includes(value as (typeof controllerAxisBindings)[number])
+        ) {
+          resolved.controller.bindings[key] =
+            value as (typeof resolved.controller.bindings)[typeof key];
+        } else if (src.controller.bindings[key] !== undefined) {
+          warn(
+            `controller.bindings.${key}`,
+            src.controller.bindings[key],
+            resolved.controller.bindings[key],
+            `Expected one of: ${controllerAxisBindings.join(', ')}.`,
+          );
+        }
+      }
     }
   }
 

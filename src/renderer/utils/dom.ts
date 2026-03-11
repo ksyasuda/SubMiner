@@ -2,6 +2,7 @@ export type RendererDom = {
   subtitleRoot: HTMLElement;
   subtitleContainer: HTMLElement;
   overlay: HTMLElement;
+  controllerStatusToast: HTMLDivElement;
   overlayErrorToast: HTMLDivElement;
   secondarySubContainer: HTMLElement;
   secondarySubRoot: HTMLElement;
@@ -56,6 +57,23 @@ export type RendererDom = {
   subsyncRunButton: HTMLButtonElement;
   subsyncStatus: HTMLDivElement;
 
+  controllerSelectModal: HTMLDivElement;
+  controllerSelectClose: HTMLButtonElement;
+  controllerSelectHint: HTMLDivElement;
+  controllerSelectStatus: HTMLDivElement;
+  controllerSelectList: HTMLUListElement;
+  controllerSelectSave: HTMLButtonElement;
+
+  controllerDebugModal: HTMLDivElement;
+  controllerDebugClose: HTMLButtonElement;
+  controllerDebugCopy: HTMLButtonElement;
+  controllerDebugToast: HTMLDivElement;
+  controllerDebugStatus: HTMLDivElement;
+  controllerDebugSummary: HTMLDivElement;
+  controllerDebugAxes: HTMLPreElement;
+  controllerDebugButtons: HTMLPreElement;
+  controllerDebugButtonIndices: HTMLPreElement;
+
   sessionHelpModal: HTMLDivElement;
   sessionHelpClose: HTMLButtonElement;
   sessionHelpShortcut: HTMLDivElement;
@@ -78,6 +96,7 @@ export function resolveRendererDom(): RendererDom {
     subtitleRoot: getRequiredElement<HTMLElement>('subtitleRoot'),
     subtitleContainer: getRequiredElement<HTMLElement>('subtitleContainer'),
     overlay: getRequiredElement<HTMLElement>('overlay'),
+    controllerStatusToast: getRequiredElement<HTMLDivElement>('controllerStatusToast'),
     overlayErrorToast: getRequiredElement<HTMLDivElement>('overlayErrorToast'),
     secondarySubContainer: getRequiredElement<HTMLElement>('secondarySubContainer'),
     secondarySubRoot: getRequiredElement<HTMLElement>('secondarySubRoot'),
@@ -131,6 +150,23 @@ export function resolveRendererDom(): RendererDom {
     subsyncSourceSelect: getRequiredElement<HTMLSelectElement>('subsyncSourceSelect'),
     subsyncRunButton: getRequiredElement<HTMLButtonElement>('subsyncRun'),
     subsyncStatus: getRequiredElement<HTMLDivElement>('subsyncStatus'),
+
+    controllerSelectModal: getRequiredElement<HTMLDivElement>('controllerSelectModal'),
+    controllerSelectClose: getRequiredElement<HTMLButtonElement>('controllerSelectClose'),
+    controllerSelectHint: getRequiredElement<HTMLDivElement>('controllerSelectHint'),
+    controllerSelectStatus: getRequiredElement<HTMLDivElement>('controllerSelectStatus'),
+    controllerSelectList: getRequiredElement<HTMLUListElement>('controllerSelectList'),
+    controllerSelectSave: getRequiredElement<HTMLButtonElement>('controllerSelectSave'),
+
+    controllerDebugModal: getRequiredElement<HTMLDivElement>('controllerDebugModal'),
+    controllerDebugClose: getRequiredElement<HTMLButtonElement>('controllerDebugClose'),
+    controllerDebugCopy: getRequiredElement<HTMLButtonElement>('controllerDebugCopy'),
+    controllerDebugToast: getRequiredElement<HTMLDivElement>('controllerDebugToast'),
+    controllerDebugStatus: getRequiredElement<HTMLDivElement>('controllerDebugStatus'),
+    controllerDebugSummary: getRequiredElement<HTMLDivElement>('controllerDebugSummary'),
+    controllerDebugAxes: getRequiredElement<HTMLPreElement>('controllerDebugAxes'),
+    controllerDebugButtons: getRequiredElement<HTMLPreElement>('controllerDebugButtons'),
+    controllerDebugButtonIndices: getRequiredElement<HTMLPreElement>('controllerDebugButtonIndices'),
 
     sessionHelpModal: getRequiredElement<HTMLDivElement>('sessionHelpModal'),
     sessionHelpClose: getRequiredElement<HTMLButtonElement>('sessionHelpClose'),

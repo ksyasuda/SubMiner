@@ -1,6 +1,13 @@
 import type { OverlayContentMeasurement, RuntimeOptionId, RuntimeOptionValue } from '../../types';
 
-export const OVERLAY_HOSTED_MODALS = ['runtime-options', 'subsync', 'jimaku', 'kiku'] as const;
+export const OVERLAY_HOSTED_MODALS = [
+  'runtime-options',
+  'subsync',
+  'jimaku',
+  'kiku',
+  'controller-select',
+  'controller-debug',
+] as const;
 export type OverlayHostedModal = (typeof OVERLAY_HOSTED_MODALS)[number];
 
 export const IPC_CHANNELS = {
@@ -12,6 +19,7 @@ export const IPC_CHANNELS = {
     toggleDevTools: 'toggle-dev-tools',
     toggleOverlay: 'toggle-overlay',
     saveSubtitlePosition: 'save-subtitle-position',
+    saveControllerPreference: 'save-controller-preference',
     setMecabEnabled: 'set-mecab-enabled',
     mpvCommand: 'mpv-command',
     setAnkiConnectEnabled: 'set-anki-connect-enabled',
@@ -32,6 +40,7 @@ export const IPC_CHANNELS = {
     getMecabStatus: 'get-mecab-status',
     getKeybindings: 'get-keybindings',
     getConfigShortcuts: 'get-config-shortcuts',
+    getControllerConfig: 'get-controller-config',
     getSecondarySubMode: 'get-secondary-sub-mode',
     getCurrentSecondarySub: 'get-current-secondary-sub',
     focusMainWindow: 'focus-main-window',

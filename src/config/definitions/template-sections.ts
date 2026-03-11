@@ -35,6 +35,16 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'logging',
   },
   {
+    title: 'Controller Support',
+    description: [
+      'Gamepad support for the visible overlay while keyboard-only mode is active.',
+      'Use the selection modal to save a preferred controller by id for future launches.',
+      'Trigger input mode can be auto, digital-only, or analog-thresholded depending on the controller.',
+      'Override controller.buttonIndices when your pad reports non-standard raw button numbers.',
+    ],
+    key: 'controller',
+  },
+  {
     title: 'Startup Warmups',
     description: [
       'Background warmup controls for MeCab, Yomitan, dictionaries, and Jellyfin session.',

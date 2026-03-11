@@ -26,7 +26,11 @@ import type {
   ConfigHotReloadPayload,
 } from '../types';
 import { createKeyboardHandlers } from './handlers/keyboard.js';
+import { createGamepadController } from './handlers/gamepad-controller.js';
 import { createMouseHandlers } from './handlers/mouse.js';
+import { createControllerStatusIndicator } from './controller-status-indicator.js';
+import { createControllerDebugModal } from './modals/controller-debug.js';
+import { createControllerSelectModal } from './modals/controller-select.js';
 import { createJimakuModal } from './modals/jimaku.js';
 import { createKikuModal } from './modals/kiku.js';
 import { createSessionHelpModal } from './modals/session-help.js';
@@ -36,6 +40,7 @@ import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { createRendererState } from './state.js';
 import { createSubtitleRenderer } from './subtitle-render.js';
+import { isYomitanPopupVisible } from './yomitan-popup.js';
 import {
   createRendererRecoveryController,
   registerRendererGlobalErrorHandlers,
@@ -55,6 +60,8 @@ const ctx = {
 
 function isAnySettingsModalOpen(): boolean {
   return (
+    ctx.state.controllerSelectModalOpen ||
+    ctx.state.controllerDebugModalOpen ||
     ctx.state.runtimeOptionsModalOpen ||
     ctx.state.subsyncModalOpen ||
     ctx.state.kikuModalOpen ||
@@ -65,6 +72,8 @@ function isAnySettingsModalOpen(): boolean {
 
 function isAnyModalOpen(): boolean {
   return (
+    ctx.state.controllerSelectModalOpen ||
+    ctx.state.controllerDebugModalOpen ||
     ctx.state.jimakuModalOpen ||
     ctx.state.kikuModalOpen ||
     ctx.state.runtimeOptionsModalOpen ||
@@ -92,6 +101,15 @@ const subsyncModal = createSubsyncModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const controllerSelectModal = createControllerSelectModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
+const controllerDebugModal = createControllerDebugModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
+const controllerStatusIndicator = createControllerStatusIndicator(ctx.dom);
 const sessionHelpModal = createSessionHelpModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
@@ -109,12 +127,22 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleSubsyncKeydown: subsyncModal.handleSubsyncKeydown,
   handleKikuKeydown: kikuModal.handleKikuKeydown,
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
+  handleControllerSelectKeydown: controllerSelectModal.handleControllerSelectKeydown,
+  handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
   openSessionHelpModal: sessionHelpModal.openSessionHelpModal,
   appendClipboardVideoToQueue: () => {
     void window.electronAPI.appendClipboardVideoToQueue();
   },
   getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
+  openControllerSelectModal: () => {
+    controllerSelectModal.openControllerSelectModal();
+    window.electronAPI.notifyOverlayModalOpened('controller-select');
+  },
+  openControllerDebugModal: () => {
+    controllerDebugModal.openControllerDebugModal();
+    window.electronAPI.notifyOverlayModalOpened('controller-debug');
+  },
 });
 const mouseHandlers = createMouseHandlers(ctx, {
   modalStateReader: { isAnySettingsModalOpen, isAnyModalOpen },
@@ -132,6 +160,7 @@ const mouseHandlers = createMouseHandlers(ctx, {
 let lastSubtitlePreview = '';
 let lastSecondarySubtitlePreview = '';
 let overlayErrorToastTimeout: ReturnType<typeof setTimeout> | null = null;
+let controllerAnimationFrameId: number | null = null;
 
 function truncateForErrorLog(text: string): string {
   const normalized = text.replace(/\s+/g, ' ').trim();
@@ -152,6 +181,8 @@ function getSubtitleTextForPreview(data: SubtitleData | string): string {
 }
 
 function getActiveModal(): string | null {
+  if (ctx.state.controllerSelectModalOpen) return 'controller-select';
+  if (ctx.state.controllerDebugModalOpen) return 'controller-debug';
   if (ctx.state.jimakuModalOpen) return 'jimaku';
   if (ctx.state.kikuModalOpen) return 'kiku';
   if (ctx.state.runtimeOptionsModalOpen) return 'runtime-options';
@@ -161,6 +192,12 @@ function getActiveModal(): string | null {
 }
 
 function dismissActiveUiAfterError(): void {
+  if (ctx.state.controllerSelectModalOpen) {
+    controllerSelectModal.closeControllerSelectModal();
+  }
+  if (ctx.state.controllerDebugModalOpen) {
+    controllerDebugModal.closeControllerDebugModal();
+  }
   if (ctx.state.jimakuModalOpen) {
     jimakuModal.closeJimakuModal();
   }
@@ -178,6 +215,132 @@ function dismissActiveUiAfterError(): void {
   }
 
   syncSettingsModalSubtitleSuppression();
+}
+
+function applyControllerSnapshot(snapshot: {
+  connectedGamepads: Array<{ id: string; index: number; mapping: string; connected: boolean }>;
+  activeGamepadId: string | null;
+  rawAxes: number[];
+  rawButtons: Array<{ value: number; pressed: boolean; touched?: boolean }>;
+}): void {
+  controllerStatusIndicator.update({
+    connectedGamepads: snapshot.connectedGamepads,
+    activeGamepadId: snapshot.activeGamepadId,
+  });
+  ctx.state.connectedGamepads = snapshot.connectedGamepads;
+  ctx.state.activeGamepadId = snapshot.activeGamepadId;
+  ctx.state.controllerRawAxes = snapshot.rawAxes;
+  ctx.state.controllerRawButtons = snapshot.rawButtons;
+  controllerSelectModal.updateDevices();
+  controllerDebugModal.updateSnapshot();
+}
+
+function emitControllerPopupScroll(deltaPixels: number): void {
+  if (deltaPixels === 0) return;
+  keyboardHandlers.scrollPopupByController(0, deltaPixels);
+}
+
+function emitControllerPopupJump(deltaPixels: number): void {
+  if (deltaPixels === 0) return;
+  keyboardHandlers.scrollPopupByController(0, deltaPixels * 4);
+}
+
+function startControllerPolling(): void {
+  if (controllerAnimationFrameId !== null) {
+    cancelAnimationFrame(controllerAnimationFrameId);
+    controllerAnimationFrameId = null;
+  }
+
+  const gamepadController = createGamepadController({
+    getGamepads: () => Array.from(navigator.getGamepads?.() ?? []),
+    getConfig: () =>
+      ctx.state.controllerConfig ?? {
+        enabled: true,
+        preferredGamepadId: '',
+        preferredGamepadLabel: '',
+        smoothScroll: true,
+        scrollPixelsPerSecond: 900,
+        horizontalJumpPixels: 160,
+        stickDeadzone: 0.2,
+        triggerInputMode: 'auto',
+        triggerDeadzone: 0.5,
+        repeatDelayMs: 320,
+        repeatIntervalMs: 120,
+        buttonIndices: {
+          select: 6,
+          buttonSouth: 0,
+          buttonEast: 1,
+          buttonWest: 2,
+          buttonNorth: 3,
+          leftShoulder: 4,
+          rightShoulder: 5,
+          leftStickPress: 9,
+          rightStickPress: 10,
+          leftTrigger: 6,
+          rightTrigger: 7,
+        },
+        bindings: {
+          toggleLookup: 'buttonSouth',
+          closeLookup: 'buttonEast',
+          toggleKeyboardOnlyMode: 'buttonNorth',
+          mineCard: 'buttonWest',
+          quitMpv: 'select',
+          previousAudio: 'none',
+          nextAudio: 'rightShoulder',
+          playCurrentAudio: 'leftShoulder',
+          toggleMpvPause: 'leftStickPress',
+          leftStickHorizontal: 'leftStickX',
+          leftStickVertical: 'leftStickY',
+          rightStickHorizontal: 'rightStickX',
+          rightStickVertical: 'rightStickY',
+        },
+      },
+    getKeyboardModeEnabled: () => ctx.state.keyboardDrivenModeEnabled,
+    getLookupWindowOpen: () => ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document),
+    getInteractionBlocked: () => isAnyModalOpen(),
+    toggleKeyboardMode: () => keyboardHandlers.handleKeyboardModeToggleRequested(),
+    toggleLookup: () => keyboardHandlers.handleLookupWindowToggleRequested(),
+    closeLookup: () => {
+      keyboardHandlers.closeLookupWindow();
+    },
+    moveSelection: (delta) => {
+      keyboardHandlers.moveSelectionForController(delta);
+    },
+    mineCard: () => {
+      keyboardHandlers.mineSelectedFromController();
+    },
+    quitMpv: () => {
+      window.electronAPI.sendMpvCommand(['quit']);
+    },
+    previousAudio: () => {
+      keyboardHandlers.cyclePopupAudioSourceForController(-1);
+    },
+    nextAudio: () => {
+      keyboardHandlers.cyclePopupAudioSourceForController(1);
+    },
+    playCurrentAudio: () => {
+      keyboardHandlers.playCurrentAudioForController();
+    },
+    toggleMpvPause: () => {
+      window.electronAPI.sendMpvCommand(['cycle', 'pause']);
+    },
+    scrollPopup: (deltaPixels) => {
+      emitControllerPopupScroll(deltaPixels);
+    },
+    jumpPopup: (deltaPixels) => {
+      emitControllerPopupJump(deltaPixels);
+    },
+    onState: (snapshot) => {
+      applyControllerSnapshot(snapshot);
+    },
+  });
+
+  const poll = (now: number): void => {
+    gamepadController.poll(now);
+    controllerAnimationFrameId = requestAnimationFrame(poll);
+  };
+
+  controllerAnimationFrameId = requestAnimationFrame(poll);
 }
 
 function restoreOverlayInteractionAfterError(): void {
@@ -298,6 +461,7 @@ async function init(): Promise<void> {
   window.electronAPI.onSubtitle((data: SubtitleData) => {
     runGuarded('subtitle:update', () => {
       lastSubtitlePreview = truncateForErrorLog(getSubtitleTextForPreview(data));
+      keyboardHandlers.handleSubtitleContentUpdated();
       subtitleRenderer.renderSubtitle(data);
       measurementReporter.schedule();
     });
@@ -317,6 +481,7 @@ async function init(): Promise<void> {
     initialSubtitle = await window.electronAPI.getCurrentSubtitleRaw();
   }
   lastSubtitlePreview = truncateForErrorLog(getSubtitleTextForPreview(initialSubtitle));
+  keyboardHandlers.handleSubtitleContentUpdated();
   subtitleRenderer.renderSubtitle(initialSubtitle);
   measurementReporter.schedule();
 
@@ -355,6 +520,8 @@ async function init(): Promise<void> {
   kikuModal.wireDomEvents();
   runtimeOptionsModal.wireDomEvents();
   subsyncModal.wireDomEvents();
+  controllerSelectModal.wireDomEvents();
+  controllerDebugModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
 
   window.electronAPI.onRuntimeOptionsChanged((options: RuntimeOptionState[]) => {
@@ -373,6 +540,8 @@ async function init(): Promise<void> {
   mouseHandlers.setupDragging();
 
   await keyboardHandlers.setupMpvInputForwarding();
+  ctx.state.controllerConfig = await window.electronAPI.getControllerConfig();
+  startControllerPolling();
 
   const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();
   subtitleRenderer.applySubtitleStyle(initialSubtitleStyle);

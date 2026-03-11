@@ -1,6 +1,8 @@
 import electron from 'electron';
 import type { IpcMainEvent } from 'electron';
 import type {
+  ControllerPreferenceUpdate,
+  ResolvedControllerConfig,
   RuntimeOptionId,
   RuntimeOptionValue,
   SubtitlePosition,
@@ -10,6 +12,7 @@ import type {
 import { IPC_CHANNELS, type OverlayHostedModal } from '../../shared/ipc/contracts';
 import {
   parseMpvCommand,
+  parseControllerPreferenceUpdate,
   parseOptionalForwardingOptions,
   parseOverlayHostedModal,
   parseRuntimeOptionDirection,
@@ -45,6 +48,8 @@ export interface IpcServiceDeps {
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
   getConfiguredShortcuts: () => unknown;
+  getControllerConfig: () => ResolvedControllerConfig;
+  saveControllerPreference: (update: ControllerPreferenceUpdate) => void;
   getSecondarySubMode: () => unknown;
   getCurrentSecondarySub: () => string;
   focusMainWindow: () => void;
@@ -108,6 +113,8 @@ export interface IpcDepsRuntimeOptions {
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
   getConfiguredShortcuts: () => unknown;
+  getControllerConfig: () => ResolvedControllerConfig;
+  saveControllerPreference: (update: ControllerPreferenceUpdate) => void;
   getSecondarySubMode: () => unknown;
   getMpvClient: () => MpvClientLike | null;
   focusMainWindow: () => void;
@@ -159,6 +166,8 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     handleMpvCommand: options.handleMpvCommand,
     getKeybindings: options.getKeybindings,
     getConfiguredShortcuts: options.getConfiguredShortcuts,
+    getControllerConfig: options.getControllerConfig,
+    saveControllerPreference: options.saveControllerPreference,
     getSecondarySubMode: options.getSecondarySubMode,
     getCurrentSecondarySub: () => options.getMpvClient()?.currentSecondarySubText || '',
     focusMainWindow: () => {
@@ -256,6 +265,12 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     deps.saveSubtitlePosition(parsedPosition);
   });
 
+  ipc.on(IPC_CHANNELS.command.saveControllerPreference, (_event: unknown, update: unknown) => {
+    const parsedUpdate = parseControllerPreferenceUpdate(update);
+    if (!parsedUpdate) return;
+    deps.saveControllerPreference(parsedUpdate);
+  });
+
   ipc.handle(IPC_CHANNELS.request.getMecabStatus, () => {
     return deps.getMecabStatus();
   });
@@ -277,6 +292,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.getConfigShortcuts, () => {
     return deps.getConfiguredShortcuts();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.getControllerConfig, () => {
+    return deps.getControllerConfig();
   });
 
   ipc.handle(IPC_CHANNELS.request.getSecondarySubMode, () => {

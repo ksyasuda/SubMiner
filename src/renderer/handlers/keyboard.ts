@@ -15,6 +15,8 @@ export function createKeyboardHandlers(
     handleSubsyncKeydown: (e: KeyboardEvent) => boolean;
     handleKikuKeydown: (e: KeyboardEvent) => boolean;
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
+    handleControllerSelectKeydown: (e: KeyboardEvent) => boolean;
+    handleControllerDebugKeydown: (e: KeyboardEvent) => boolean;
     handleSessionHelpKeydown: (e: KeyboardEvent) => boolean;
     openSessionHelpModal: (opening: {
       bindingKey: 'KeyH' | 'KeyK';
@@ -23,6 +25,8 @@ export function createKeyboardHandlers(
     }) => void;
     appendClipboardVideoToQueue: () => void;
     getPlaybackPaused: () => Promise<boolean | null>;
+    openControllerSelectModal: () => void;
+    openControllerDebugModal: () => void;
   },
 ) {
   // Timeout for the modal chord capture window (e.g. Y followed by H/K).
@@ -30,6 +34,7 @@ export function createKeyboardHandlers(
   const KEYBOARD_SELECTED_WORD_CLASS = 'keyboard-selected';
   let pendingSelectionAnchorAfterSubtitleSeek: 'start' | 'end' | null = null;
   let pendingLookupRefreshAfterSubtitleSeek = false;
+  let resetSelectionToStartOnNextSubtitleSync = false;
 
   const CHORD_MAP = new Map<
     string,
@@ -105,11 +110,54 @@ export function createKeyboardHandlers(
     );
   }
 
+  function dispatchYomitanPopupCycleAudioSource(direction: -1 | 1) {
+    window.dispatchEvent(
+      new CustomEvent(YOMITAN_POPUP_COMMAND_EVENT, {
+        detail: {
+          type: 'cycleAudioSource',
+          direction,
+        },
+      }),
+    );
+  }
+
+  function dispatchYomitanPopupPlayCurrentAudio() {
+    window.dispatchEvent(
+      new CustomEvent(YOMITAN_POPUP_COMMAND_EVENT, {
+        detail: {
+          type: 'playCurrentAudio',
+        },
+      }),
+    );
+  }
+
+  function dispatchYomitanPopupScrollBy(deltaX: number, deltaY: number) {
+    window.dispatchEvent(
+      new CustomEvent(YOMITAN_POPUP_COMMAND_EVENT, {
+        detail: {
+          type: 'scrollBy',
+          deltaX,
+          deltaY,
+        },
+      }),
+    );
+  }
+
   function dispatchYomitanFrontendScanSelectedText() {
     window.dispatchEvent(
       new CustomEvent(YOMITAN_POPUP_COMMAND_EVENT, {
         detail: {
           type: 'scanSelectedText',
+        },
+      }),
+    );
+  }
+
+  function dispatchYomitanFrontendClearActiveTextSource() {
+    window.dispatchEvent(
+      new CustomEvent(YOMITAN_POPUP_COMMAND_EVENT, {
+        detail: {
+          type: 'clearActiveTextSource',
         },
       }),
     );
@@ -135,17 +183,29 @@ export function createKeyboardHandlers(
     );
   }
 
-  function syncKeyboardTokenSelection(): void {
-    const wordNodes = getSubtitleWordNodes();
+  function clearKeyboardSelectedWordClasses(wordNodes: HTMLElement[] = getSubtitleWordNodes()): void {
     for (const wordNode of wordNodes) {
       wordNode.classList.remove(KEYBOARD_SELECTED_WORD_CLASS);
     }
+  }
+
+  function clearNativeSubtitleSelection(): void {
+    window.getSelection()?.removeAllRanges();
+    ctx.dom.subtitleRoot.classList.remove('has-selection');
+  }
+
+  function syncKeyboardTokenSelection(): void {
+    const wordNodes = getSubtitleWordNodes();
+    clearKeyboardSelectedWordClasses(wordNodes);
 
     if (!ctx.state.keyboardDrivenModeEnabled || wordNodes.length === 0) {
       ctx.state.keyboardSelectedWordIndex = null;
+      ctx.state.keyboardSelectionVisible = false;
       if (!ctx.state.keyboardDrivenModeEnabled) {
         pendingSelectionAnchorAfterSubtitleSeek = null;
         pendingLookupRefreshAfterSubtitleSeek = false;
+        resetSelectionToStartOnNextSubtitleSync = false;
+        clearNativeSubtitleSelection();
       }
       return;
     }
@@ -153,7 +213,9 @@ export function createKeyboardHandlers(
     if (pendingSelectionAnchorAfterSubtitleSeek) {
       ctx.state.keyboardSelectedWordIndex =
         pendingSelectionAnchorAfterSubtitleSeek === 'start' ? 0 : wordNodes.length - 1;
+      ctx.state.keyboardSelectionVisible = true;
       pendingSelectionAnchorAfterSubtitleSeek = null;
+      resetSelectionToStartOnNextSubtitleSync = false;
       const shouldRefreshLookup =
         pendingLookupRefreshAfterSubtitleSeek &&
         (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document));
@@ -165,23 +227,32 @@ export function createKeyboardHandlers(
       }
     }
 
+    if (resetSelectionToStartOnNextSubtitleSync) {
+      ctx.state.keyboardSelectedWordIndex = 0;
+      ctx.state.keyboardSelectionVisible = true;
+      resetSelectionToStartOnNextSubtitleSync = false;
+    }
+
     const selectedIndex = Math.min(
       Math.max(ctx.state.keyboardSelectedWordIndex ?? 0, 0),
       wordNodes.length - 1,
     );
     ctx.state.keyboardSelectedWordIndex = selectedIndex;
     const selectedWordNode = wordNodes[selectedIndex];
-    if (selectedWordNode) {
+    if (selectedWordNode && ctx.state.keyboardSelectionVisible) {
       selectedWordNode.classList.add(KEYBOARD_SELECTED_WORD_CLASS);
     }
   }
 
   function setKeyboardDrivenModeEnabled(enabled: boolean): void {
     ctx.state.keyboardDrivenModeEnabled = enabled;
+    ctx.state.keyboardSelectionVisible = enabled;
     if (!enabled) {
       ctx.state.keyboardSelectedWordIndex = null;
       pendingSelectionAnchorAfterSubtitleSeek = null;
       pendingLookupRefreshAfterSubtitleSeek = false;
+      resetSelectionToStartOnNextSubtitleSync = false;
+      clearNativeSubtitleSelection();
     }
     syncKeyboardTokenSelection();
   }
@@ -213,6 +284,7 @@ export function createKeyboardHandlers(
 
     const nextIndex = currentIndex + delta;
     ctx.state.keyboardSelectedWordIndex = nextIndex;
+    ctx.state.keyboardSelectionVisible = true;
     syncKeyboardTokenSelection();
     return 'moved';
   }
@@ -316,6 +388,7 @@ export function createKeyboardHandlers(
     const selectedWordNode = wordNodes[selectedIndex];
     if (!selectedWordNode) return false;
 
+    ctx.state.keyboardSelectionVisible = true;
     syncKeyboardTokenSelection();
     selectWordNodeText(selectedWordNode);
 
@@ -347,9 +420,21 @@ export function createKeyboardHandlers(
     toggleKeyboardDrivenMode();
   }
 
+  function handleSubtitleContentUpdated(): void {
+    if (!ctx.state.keyboardDrivenModeEnabled) {
+      return;
+    }
+    if (pendingSelectionAnchorAfterSubtitleSeek) {
+      return;
+    }
+    resetSelectionToStartOnNextSubtitleSync = true;
+  }
+
   function handleLookupWindowToggleRequested(): void {
     if (ctx.state.yomitanPopupVisible) {
       dispatchYomitanPopupVisibility(false);
+      dispatchYomitanFrontendClearActiveTextSource();
+      clearNativeSubtitleSelection();
       if (ctx.state.keyboardDrivenModeEnabled) {
         queueMicrotask(() => {
           restoreOverlayKeyboardFocus();
@@ -358,6 +443,87 @@ export function createKeyboardHandlers(
       return;
     }
     triggerLookupForSelectedWord();
+  }
+
+  function closeLookupWindow(): boolean {
+    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+      return false;
+    }
+
+    dispatchYomitanPopupVisibility(false);
+    dispatchYomitanFrontendClearActiveTextSource();
+    clearNativeSubtitleSelection();
+    if (ctx.state.keyboardDrivenModeEnabled) {
+      queueMicrotask(() => {
+        restoreOverlayKeyboardFocus();
+      });
+    }
+    return true;
+  }
+
+  function moveSelectionForController(delta: -1 | 1): boolean {
+    if (!ctx.state.keyboardDrivenModeEnabled) {
+      return false;
+    }
+
+    const popupVisible = ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document);
+    const result = moveKeyboardSelection(delta);
+    if (result === 'no-words') {
+      seekAdjacentSubtitleAndQueueSelection(delta, popupVisible);
+      return true;
+    }
+
+    if (result === 'start-boundary' || result === 'end-boundary') {
+      seekAdjacentSubtitleAndQueueSelection(delta, popupVisible);
+    } else if (popupVisible && result === 'moved') {
+      triggerLookupForSelectedWord();
+    }
+
+    return true;
+  }
+
+  function forwardPopupKeydownForController(
+    key: string,
+    code: string,
+    repeat: boolean = true,
+  ): boolean {
+    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+      return false;
+    }
+    dispatchYomitanPopupKeydown(key, code, [], repeat);
+    return true;
+  }
+
+  function mineSelectedFromController(): boolean {
+    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+      return false;
+    }
+    dispatchYomitanPopupMineSelected();
+    return true;
+  }
+
+  function cyclePopupAudioSourceForController(direction: -1 | 1): boolean {
+    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+      return false;
+    }
+    dispatchYomitanPopupCycleAudioSource(direction);
+    return true;
+  }
+
+  function playCurrentAudioForController(): boolean {
+    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+      return false;
+    }
+    dispatchYomitanPopupPlayCurrentAudio();
+    return true;
+  }
+
+  function scrollPopupByController(deltaX: number, deltaY: number): boolean {
+    if (!ctx.state.yomitanPopupVisible && !isYomitanPopupVisible(document)) {
+      return false;
+    }
+    dispatchYomitanPopupScrollBy(deltaX, deltaY);
+    return true;
   }
 
   function restoreOverlayKeyboardFocus(): void {
@@ -401,17 +567,17 @@ export function createKeyboardHandlers(
     const key = e.code;
     if (key === 'ArrowLeft') {
       const result = moveKeyboardSelection(-1);
-      if (result === 'start-boundary') {
+      if (result === 'start-boundary' || result === 'no-words') {
         seekAdjacentSubtitleAndQueueSelection(-1, false);
       }
-      return result !== 'no-words';
+      return true;
     }
     if (key === 'ArrowRight' || key === 'KeyL') {
       const result = moveKeyboardSelection(1);
-      if (result === 'end-boundary') {
+      if (result === 'end-boundary' || result === 'no-words') {
         seekAdjacentSubtitleAndQueueSelection(1, false);
       }
-      return result !== 'no-words';
+      return true;
     }
     return false;
   }
@@ -428,7 +594,7 @@ export function createKeyboardHandlers(
     const popupVisible = ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document);
     if (key === 'ArrowLeft' || key === 'KeyH') {
       const result = moveKeyboardSelection(-1);
-      if (result === 'start-boundary') {
+      if (result === 'start-boundary' || result === 'no-words') {
         seekAdjacentSubtitleAndQueueSelection(-1, popupVisible);
       } else if (popupVisible && result === 'moved') {
         triggerLookupForSelectedWord();
@@ -438,7 +604,7 @@ export function createKeyboardHandlers(
 
     if (key === 'ArrowRight' || key === 'KeyL') {
       const result = moveKeyboardSelection(1);
-      if (result === 'end-boundary') {
+      if (result === 'end-boundary' || result === 'no-words') {
         seekAdjacentSubtitleAndQueueSelection(1, popupVisible);
       } else if (popupVisible && result === 'moved') {
         triggerLookupForSelectedWord();
@@ -540,7 +706,9 @@ export function createKeyboardHandlers(
     });
 
     window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, () => {
+      clearNativeSubtitleSelection();
       if (!ctx.state.keyboardDrivenModeEnabled) {
+        syncKeyboardTokenSelection();
         return;
       }
       restoreOverlayKeyboardFocus();
@@ -593,13 +761,6 @@ export function createKeyboardHandlers(
         return;
       }
 
-      if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
-        if (handleYomitanPopupKeybind(e)) {
-          e.preventDefault();
-        }
-        return;
-      }
-
       if (ctx.state.runtimeOptionsModalOpen) {
         options.handleRuntimeOptionsKeydown(e);
         return;
@@ -616,8 +777,23 @@ export function createKeyboardHandlers(
         options.handleJimakuKeydown(e);
         return;
       }
+      if (ctx.state.controllerSelectModalOpen) {
+        options.handleControllerSelectKeydown(e);
+        return;
+      }
+      if (ctx.state.controllerDebugModalOpen) {
+        options.handleControllerDebugKeydown(e);
+        return;
+      }
       if (ctx.state.sessionHelpModalOpen) {
         options.handleSessionHelpKeydown(e);
+        return;
+      }
+
+      if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
+        if (handleYomitanPopupKeybind(e)) {
+          e.preventDefault();
+        }
         return;
       }
 
@@ -671,6 +847,16 @@ export function createKeyboardHandlers(
         return;
       }
 
+      if (!e.ctrlKey && !e.metaKey && e.altKey && !e.repeat && e.code === 'KeyC') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          options.openControllerDebugModal();
+        } else {
+          options.openControllerSelectModal();
+        }
+        return;
+      }
+
       const keyString = keyEventToString(e);
       const command = ctx.state.keybindingsMap.get(keyString);
 
@@ -707,7 +893,15 @@ export function createKeyboardHandlers(
     setupMpvInputForwarding,
     updateKeybindings,
     syncKeyboardTokenSelection,
+    handleSubtitleContentUpdated,
     handleKeyboardModeToggleRequested,
     handleLookupWindowToggleRequested,
+    closeLookupWindow,
+    moveSelectionForController,
+    forwardPopupKeydownForController,
+    mineSelectedFromController,
+    cyclePopupAudioSourceForController,
+    playCurrentAudioForController,
+    scrollPopupByController,
   };
 }

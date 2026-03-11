@@ -3,7 +3,13 @@ import type { WindowGeometry } from '../types';
 
 const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
 
-type OverlayHostedModal = 'runtime-options' | 'subsync' | 'jimaku' | 'kiku';
+type OverlayHostedModal =
+  | 'runtime-options'
+  | 'subsync'
+  | 'jimaku'
+  | 'kiku'
+  | 'controller-select'
+  | 'controller-debug';
 
 export interface OverlayWindowResolver {
   getMainWindow: () => BrowserWindow | null;

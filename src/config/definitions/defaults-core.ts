@@ -8,6 +8,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'annotationWebsocket'
   | 'logging'
   | 'texthooker'
+  | 'controller'
   | 'shortcuts'
   | 'secondarySub'
   | 'subsync'
@@ -30,6 +31,47 @@ export const CORE_DEFAULT_CONFIG: Pick<
   texthooker: {
     launchAtStartup: true,
     openBrowser: true,
+  },
+  controller: {
+    enabled: true,
+    preferredGamepadId: '',
+    preferredGamepadLabel: '',
+    smoothScroll: true,
+    scrollPixelsPerSecond: 900,
+    horizontalJumpPixels: 160,
+    stickDeadzone: 0.2,
+    triggerInputMode: 'auto',
+    triggerDeadzone: 0.5,
+    repeatDelayMs: 320,
+    repeatIntervalMs: 120,
+    buttonIndices: {
+      select: 6,
+      buttonSouth: 0,
+      buttonEast: 1,
+      buttonWest: 2,
+      buttonNorth: 3,
+      leftShoulder: 4,
+      rightShoulder: 5,
+      leftStickPress: 9,
+      rightStickPress: 10,
+      leftTrigger: 6,
+      rightTrigger: 7,
+    },
+    bindings: {
+      toggleLookup: 'buttonSouth',
+      closeLookup: 'buttonEast',
+      toggleKeyboardOnlyMode: 'buttonNorth',
+      mineCard: 'buttonWest',
+      quitMpv: 'select',
+      previousAudio: 'none',
+      nextAudio: 'rightShoulder',
+      playCurrentAudio: 'leftShoulder',
+      toggleMpvPause: 'leftStickPress',
+      leftStickHorizontal: 'leftStickX',
+      leftStickVertical: 'leftStickY',
+      rightStickHorizontal: 'rightStickX',
+      rightStickVertical: 'rightStickY',
+    },
   },
   shortcuts: {
     toggleVisibleOverlayGlobal: 'Alt+Shift+O',

@@ -3407,6 +3407,15 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getMecabTokenizer: () => appState.mecabTokenizer,
       getKeybindings: () => appState.keybindings,
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
+      getControllerConfig: () => getResolvedConfig().controller,
+      saveControllerPreference: ({ preferredGamepadId, preferredGamepadLabel }) => {
+        configService.patchRawConfig({
+          controller: {
+            preferredGamepadId,
+            preferredGamepadLabel,
+          },
+        });
+      },
       getSecondarySubMode: () => appState.secondarySubMode,
       getMpvClient: () => appState.mpvClient,
       getAnkiConnectStatus: () => appState.ankiIntegration !== null,

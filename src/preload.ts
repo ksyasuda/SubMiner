@@ -48,6 +48,8 @@ import type {
   OverlayContentMeasurement,
   ShortcutsConfig,
   ConfigHotReloadPayload,
+  ControllerPreferenceUpdate,
+  ResolvedControllerConfig,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 
@@ -205,6 +207,10 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getKeybindings),
   getConfiguredShortcuts: (): Promise<Required<ShortcutsConfig>> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getConfigShortcuts),
+  getControllerConfig: (): Promise<ResolvedControllerConfig> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getControllerConfig),
+  saveControllerPreference: (update: ControllerPreferenceUpdate): Promise<void> =>
+    Promise.resolve(ipcRenderer.send(IPC_CHANNELS.command.saveControllerPreference, update)),
 
   getJimakuMediaInfo: (): Promise<JimakuMediaInfo> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.jimakuGetMediaInfo),
@@ -292,10 +298,10 @@ const electronAPI: ElectronAPI = {
   onLookupWindowToggleRequested: onLookupWindowToggleRequestedEvent,
   appendClipboardVideoToQueue: (): Promise<ClipboardAppendResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.appendClipboardVideoToQueue),
-  notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => {
+  notifyOverlayModalClosed: (modal) => {
     ipcRenderer.send(IPC_CHANNELS.command.overlayModalClosed, modal);
   },
-  notifyOverlayModalOpened: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => {
+  notifyOverlayModalOpened: (modal) => {
     ipcRenderer.send(IPC_CHANNELS.command.overlayModalOpened, modal);
   },
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => {

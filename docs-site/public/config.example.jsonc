@@ -51,6 +51,55 @@
   }, // Controls logging verbosity.
 
   // ==========================================
+  // Controller Support
+  // Gamepad support for the visible overlay while keyboard-only mode is active.
+  // Use the selection modal to save a preferred controller by id for future launches.
+  // Trigger input mode can be auto, digital-only, or analog-thresholded depending on the controller.
+  // Override controller.buttonIndices when your pad reports non-standard raw button numbers.
+  // ==========================================
+  "controller": {
+    "enabled": true, // Enable overlay controller support through the Chrome Gamepad API. Values: true | false
+    "preferredGamepadId": "", // Preferred controller id saved from the controller selection modal.
+    "preferredGamepadLabel": "", // Preferred controller display label saved for diagnostics.
+    "smoothScroll": true, // Use smooth scrolling for controller-driven popup scroll input. Values: true | false
+    "scrollPixelsPerSecond": 900, // Base popup scroll speed for controller stick input.
+    "horizontalJumpPixels": 160, // Popup page-jump distance for controller jump input.
+    "stickDeadzone": 0.2, // Deadzone applied to controller stick axes.
+    "triggerInputMode": "auto", // How controller triggers are interpreted: auto, pressed-only, or thresholded analog. Values: auto | digital | analog
+    "triggerDeadzone": 0.5, // Minimum analog trigger value required when trigger input uses auto or analog mode.
+    "repeatDelayMs": 320, // Delay before repeating held controller actions.
+    "repeatIntervalMs": 120, // Repeat interval for held controller actions.
+    "buttonIndices": {
+      "select": 6, // Raw button index used for the controller select/minus/back button.
+      "buttonSouth": 0, // Raw button index used for controller south/A button input.
+      "buttonEast": 1, // Raw button index used for controller east/B button input.
+      "buttonWest": 2, // Raw button index used for controller west/X button input.
+      "buttonNorth": 3, // Raw button index used for controller north/Y button input.
+      "leftShoulder": 4, // Raw button index used for controller left shoulder input.
+      "rightShoulder": 5, // Raw button index used for controller right shoulder input.
+      "leftStickPress": 9, // Raw button index used for controller L3 input.
+      "rightStickPress": 10, // Raw button index used for controller R3 input.
+      "leftTrigger": 6, // Raw button index used for controller L2 input.
+      "rightTrigger": 7 // Raw button index used for controller R2 input.
+    }, // Button indices setting.
+    "bindings": {
+      "toggleLookup": "buttonSouth", // Controller binding for toggling lookup. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
+      "closeLookup": "buttonEast", // Controller binding for closing lookup. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
+      "toggleKeyboardOnlyMode": "buttonNorth", // Controller binding for toggling keyboard-only mode. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
+      "mineCard": "buttonWest", // Controller binding for mining the active card. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
+      "quitMpv": "select", // Controller binding for quitting mpv. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
+      "previousAudio": "none", // Controller binding for previous Yomitan audio. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
+      "nextAudio": "rightShoulder", // Controller binding for next Yomitan audio. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
+      "playCurrentAudio": "leftShoulder", // Controller binding for playing the current Yomitan audio. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
+      "toggleMpvPause": "leftStickPress", // Controller binding for toggling mpv play/pause. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
+      "leftStickHorizontal": "leftStickX", // Axis binding used for left/right token selection. Values: leftStickX | leftStickY | rightStickX | rightStickY
+      "leftStickVertical": "leftStickY", // Axis binding used for primary popup scrolling. Values: leftStickX | leftStickY | rightStickX | rightStickY
+      "rightStickHorizontal": "rightStickX", // Axis binding reserved for alternate right-stick mappings. Values: leftStickX | leftStickY | rightStickX | rightStickY
+      "rightStickVertical": "rightStickY" // Axis binding used for popup page jumps. Values: leftStickX | leftStickY | rightStickX | rightStickY
+    } // Bindings setting.
+  }, // Gamepad support for the visible overlay while keyboard-only mode is active.
+
+  // ==========================================
   // Startup Warmups
   // Background warmup controls for MeCab, Yomitan, dictionaries, and Jellyfin session.
   // Disable individual warmups to defer load until first real usage.

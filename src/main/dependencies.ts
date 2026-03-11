@@ -72,6 +72,8 @@ export interface MainIpcRuntimeServiceDepsParams {
   handleMpvCommand: IpcDepsRuntimeOptions['handleMpvCommand'];
   getKeybindings: IpcDepsRuntimeOptions['getKeybindings'];
   getConfiguredShortcuts: IpcDepsRuntimeOptions['getConfiguredShortcuts'];
+  getControllerConfig: IpcDepsRuntimeOptions['getControllerConfig'];
+  saveControllerPreference: IpcDepsRuntimeOptions['saveControllerPreference'];
   getSecondarySubMode: IpcDepsRuntimeOptions['getSecondarySubMode'];
   getMpvClient: IpcDepsRuntimeOptions['getMpvClient'];
   runSubsyncManual: IpcDepsRuntimeOptions['runSubsyncManual'];
@@ -213,6 +215,8 @@ export function createMainIpcRuntimeServiceDeps(
     handleMpvCommand: params.handleMpvCommand,
     getKeybindings: params.getKeybindings,
     getConfiguredShortcuts: params.getConfiguredShortcuts,
+    getControllerConfig: params.getControllerConfig,
+    saveControllerPreference: params.saveControllerPreference,
     focusMainWindow: params.focusMainWindow ?? (() => {}),
     getSecondarySubMode: params.getSecondarySubMode,
     getMpvClient: params.getMpvClient,
