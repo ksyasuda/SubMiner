@@ -216,7 +216,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.yomitan.externalProfilePath,
       description:
-        'Optional external Yomitan Electron profile path to use in read-only mode for shared dictionaries/settings.',
+        'Optional external Yomitan Electron profile path to use in read-only mode for shared dictionaries/settings. Example: ~/.config/gsm_overlay',
     },
     {
       path: 'jellyfin.enabled',

@@ -142,6 +142,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     description: [
       'Optional external Yomitan profile integration.',
       'Setting yomitan.externalProfilePath switches SubMiner to read-only external-profile mode.',
+      'For GameSentenceMiner on Linux, the default overlay profile is usually ~/.config/gsm_overlay.',
       'In external-profile mode SubMiner will not import, delete, or modify Yomitan dictionaries/settings.',
     ],
     key: 'yomitan',
