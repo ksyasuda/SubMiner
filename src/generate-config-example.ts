@@ -11,17 +11,17 @@ type ConfigExampleFsDeps = {
 
 export function resolveConfigExampleOutputPaths(options?: {
   cwd?: string;
-  docsRepoName?: string;
+  docsSiteDirName?: string;
   existsSync?: (candidate: string) => boolean;
 }): string[] {
   const cwd = options?.cwd ?? process.cwd();
   const existsSync = options?.existsSync ?? fs.existsSync;
-  const docsRepoName = options?.docsRepoName ?? 'subminer-docs';
+  const docsSiteDirName = options?.docsSiteDirName ?? 'docs-site';
   const outputPaths = [path.join(cwd, 'config.example.jsonc')];
-  const docsRepoRoot = path.resolve(cwd, '..', docsRepoName);
+  const docsSiteRoot = path.join(cwd, docsSiteDirName);
 
-  if (existsSync(docsRepoRoot)) {
-    outputPaths.push(path.join(docsRepoRoot, 'public', 'config.example.jsonc'));
+  if (existsSync(docsSiteRoot)) {
+    outputPaths.push(path.join(docsSiteRoot, 'public', 'config.example.jsonc'));
   }
 
   return outputPaths;
@@ -31,7 +31,7 @@ export function writeConfigExampleArtifacts(
   template: string,
   options?: {
     cwd?: string;
-    docsRepoName?: string;
+    docsSiteDirName?: string;
     deps?: ConfigExampleFsDeps;
   },
 ): string[] {
@@ -40,7 +40,7 @@ export function writeConfigExampleArtifacts(
   const log = options?.deps?.log ?? console.log;
   const outputPaths = resolveConfigExampleOutputPaths({
     cwd: options?.cwd,
-    docsRepoName: options?.docsRepoName,
+    docsSiteDirName: options?.docsSiteDirName,
     existsSync: options?.deps?.existsSync,
   });
 

@@ -13,20 +13,20 @@ function createWorkspace(name: string): string {
   return fs.mkdtempSync(path.join(baseDir, `${name}-`));
 }
 
-test('resolveConfigExampleOutputPaths includes sibling docs repo and never local docs/public', () => {
-  const workspace = createWorkspace('with-docs-repo');
+test('resolveConfigExampleOutputPaths includes in-repo docs site and never local docs/public', () => {
+  const workspace = createWorkspace('with-docs-site');
   const projectRoot = path.join(workspace, 'SubMiner');
-  const docsRepoRoot = path.join(workspace, 'subminer-docs');
+  const docsSiteRoot = path.join(projectRoot, 'docs-site');
 
   fs.mkdirSync(projectRoot, { recursive: true });
-  fs.mkdirSync(docsRepoRoot, { recursive: true });
+  fs.mkdirSync(docsSiteRoot, { recursive: true });
 
   try {
     const outputPaths = resolveConfigExampleOutputPaths({ cwd: projectRoot });
 
     assert.deepEqual(outputPaths, [
       path.join(projectRoot, 'config.example.jsonc'),
-      path.join(docsRepoRoot, 'public', 'config.example.jsonc'),
+      path.join(docsSiteRoot, 'public', 'config.example.jsonc'),
     ]);
     assert.equal(
       outputPaths.includes(path.join(projectRoot, 'docs', 'public', 'config.example.jsonc')),
@@ -37,8 +37,8 @@ test('resolveConfigExampleOutputPaths includes sibling docs repo and never local
   }
 });
 
-test('resolveConfigExampleOutputPaths stays repo-local when sibling docs repo is absent', () => {
-  const workspace = createWorkspace('without-docs-repo');
+test('resolveConfigExampleOutputPaths stays repo-local when docs site is absent', () => {
+  const workspace = createWorkspace('without-docs-site');
   const projectRoot = path.join(workspace, 'SubMiner');
 
   fs.mkdirSync(projectRoot, { recursive: true });
@@ -55,11 +55,11 @@ test('resolveConfigExampleOutputPaths stays repo-local when sibling docs repo is
 test('writeConfigExampleArtifacts creates parent directories for resolved outputs', () => {
   const workspace = createWorkspace('write-artifacts');
   const projectRoot = path.join(workspace, 'SubMiner');
-  const docsRepoRoot = path.join(workspace, 'subminer-docs');
+  const docsSiteRoot = path.join(projectRoot, 'docs-site');
   const template = '{\n  "ok": true\n}\n';
 
   fs.mkdirSync(projectRoot, { recursive: true });
-  fs.mkdirSync(docsRepoRoot, { recursive: true });
+  fs.mkdirSync(docsSiteRoot, { recursive: true });
 
   try {
     const writtenPaths = writeConfigExampleArtifacts(template, {
@@ -69,11 +69,11 @@ test('writeConfigExampleArtifacts creates parent directories for resolved output
 
     assert.deepEqual(writtenPaths, [
       path.join(projectRoot, 'config.example.jsonc'),
-      path.join(docsRepoRoot, 'public', 'config.example.jsonc'),
+      path.join(docsSiteRoot, 'public', 'config.example.jsonc'),
     ]);
     assert.equal(fs.readFileSync(path.join(projectRoot, 'config.example.jsonc'), 'utf8'), template);
     assert.equal(
-      fs.readFileSync(path.join(docsRepoRoot, 'public', 'config.example.jsonc'), 'utf8'),
+      fs.readFileSync(path.join(docsSiteRoot, 'public', 'config.example.jsonc'), 'utf8'),
       template,
     );
   } finally {

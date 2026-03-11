@@ -102,7 +102,7 @@ Windows builds use native window tracking and do not require the Linux composito
 
 ## Documentation
 
-For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.moe](https://docs.subminer.moe).
+For full guides on configuration, Anki, Jellyfin, and more, see [docs.subminer.moe](https://docs.subminer.moe). The VitePress source for that site lives in [`docs-site/`](./docs-site/).
 
 ## Acknowledgments
 

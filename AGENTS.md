@@ -1,11 +1,55 @@
 # AGENTS.MD
 
+## Quick Start
+
+- Read [`docs-site/development.md`](./docs-site/development.md) and [`docs-site/architecture.md`](./docs-site/architecture.md) before substantial changes; follow them unless task requires deviation.
+- Init workspace: `git submodule update --init --recursive`.
+- Install deps: `make deps` or `bun install` plus `(cd vendor/texthooker-ui && bun install --frozen-lockfile)`.
+- Fast dev loop: `make dev-watch`.
+- Full local run: `bun run dev`.
+- Verbose Electron debug: `electron . --start --dev --log-level debug`.
+
+## Build / Test
+
+- Use repo package manager/runtime only: Bun (`packageManager: bun@1.3.5`).
+- Default handoff gate:
+  `bun run typecheck`
+  `bun run test:fast`
+  `bun run test:env`
+  `bun run build`
+  `bun run test:smoke:dist`
+- If `docs-site/` changed, also run:
+  `bun run docs:test`
+  `bun run docs:build`
+- Formatting: prefer `make pretty` and `bun run format:check:src`; use `bun run format` only intentionally.
+- Keep verification observable; capture failing command + exact error in notes/handoff.
+
+## Change-Specific Checks
+
+- Config/schema/defaults changes: run `bun run test:config`; if config template/defaults changed, run `bun run generate:config-example`.
+- Launcher/plugin changes: run `bun run test:launcher` or `bun run test:env`; use `bun run test:launcher:smoke:src` for focused launcher e2e checks.
+- Runtime-compat or compiled/dist-sensitive changes: run `bun run test:runtime:compat`.
+- Docs-only changes: at least `bun run docs:test` if docs behavior/assertions changed; `bun run docs:build` before handoff.
+
+## Generated / Sensitive Files
+
+- Launcher source of truth: `launcher/*.ts`.
+- Generated launcher artifact: `dist/launcher/subminer`; never hand-edit it.
+- Repo-root `./subminer` is stale artifact path; do not revive/use it.
+- `bun run build` rebuilds bundled Yomitan from `vendor/subminer-yomitan`; check submodules before debugging build failures.
+- Avoid changing packaging/signing identifiers (`build.appId`, mac entitlements, signing-related settings) unless task explicitly requires it.
+
+## Docs
+
+- Docs site lives in-repo under [`docs-site/`](./docs-site/).
+- Update docs for new/breaking behavior; no ship with stale docs.
+- Make sure [`docs-site/changelog.md`](./docs-site/changelog.md) is updated on each release.
+
 ## PR Feedback
 
 - Active PR: `gh pr view --json number,title,url --jq '"PR #\\(.number): \\(.title)\\n\\(.url)"'`.
 - PR comments: `gh pr view …` + `gh api …/comments --paginate`.
 - Replies: cite fix + file/line; resolve threads only after fix lands.
-- When merging a PR: thank the contributor in `CHANGELOG.md`.
 
 ## Changelog
 
@@ -21,48 +65,15 @@
 - Release prep: `bun run changelog:build`, review `CHANGELOG.md` + `release/release-notes.md`, commit generated changelog + fragment deletions, then tag.
 - Release CI expects committed changelog entry already present; do not rely on tag job to invent notes.
 
-## Docs
-
-- The documentation for this project lives in a separate sister directory: [`../subminer-docs/`](https://github.com/ksyasuda/subminer-docs)
-- Read the [`../subminer-docs/development.md`](https://github.com/ksyasuda/subminer-docs/blob/main/development.md) and [`../subminer-docs/architecture.md`](https://github.com/ksyasuda/subminer-docs/blob/main/architecture.md) before making changes and follow the guidelines unless there is a specific reason to deviate
-- Make sure the changelog [`../subminer-docs/changelog.md`](https://github.com/ksyasuda/subminer-docs/blob/main/changelog.md) is updated on each release
-- Ensure the docs are kept up to date if any new or breaking changes are introduced
-- If the sister repo does not exist at `../subminer-docs`, then do not attempt
-  to update the docs and reference the files from GitHub if needed
-
 ## Flow & Runtime
 
-- Use repo’s package manager/runtime; no swaps w/o approval.
 - Use Codex background for long jobs; tmux only for interactive/persistent (debugger/server).
-
-## Build / Test
-
-- Before handoff: run full gate (lint/typecheck/tests/docs).
 - CI red: `gh run list/view`, rerun, fix, push, repeat til green.
-- Keep it observable (logs, panes, tails, MCP/browser tools).
-
-## Git
-
-- Safe by default: `git status/diff/log`. Push only when user asks.
-- `git checkout` ok for PR review / explicit request.
-- Branch changes require user consent.
-- Destructive ops forbidden unless explicit (`reset --hard`, `clean`, `restore`, `rm`, …).
-- Don’t delete/rename unexpected stuff; stop + ask.
-- No repo-wide S/R scripts; keep edits small/reviewable.
-- Avoid manual `git stash`; if Git auto-stashes during pull/rebase, that’s fine (hint, not hard guardrail).
-- If user types a command (“pull and push”), that’s consent for that command.
-- No amend unless asked.
-- Big review: `git --no-pager diff --color=never`.
-- Multi-agent: check `git status/diff` before edits; ship small commits.
 
 ## Language/Stack Notes
 
 - Swift: use workspace helper/daemon; validate `swift build` + tests; keep concurrency attrs right.
 - TypeScript: use repo PM; keep files small; follow existing patterns.
-
-## macOS Permissions / Signing (TCC)
-
-- Never re-sign / ad-hoc sign / change bundle ID as “debug” without explicit ok (can mess TCC).
 
 <!-- BACKLOG.MD MCP GUIDELINES START -->
 
