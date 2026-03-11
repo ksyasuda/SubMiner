@@ -14,3 +14,7 @@ test('ci workflow checks pull requests for required changelog fragments', () => 
   assert.match(ciWorkflow, /bun run changelog:pr-check/);
   assert.match(ciWorkflow, /skip-changelog/);
 });
+
+test('ci workflow verifies generated config examples stay in sync', () => {
+  assert.match(ciWorkflow, /bun run verify:config-example/);
+});

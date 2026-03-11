@@ -31,4 +31,6 @@ bun run docs:dev
 - Root directory: `docs-site`
 - Build command: `bun run docs:build`
 - Build output directory: `.vitepress/dist`
-- Build watch paths: `docs-site/**`
+- Build watch paths: `docs-site/*`
+
+Cloudflare Pages watch paths use a single `*` wildcard for monorepo subdirectories. `docs-site/*` matches nested files under the docs site; `docs-site/**` can cause docs-only pushes to be skipped.

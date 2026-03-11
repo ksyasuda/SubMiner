@@ -9,6 +9,7 @@
 4. Review `CHANGELOG.md`.
 5. Run release gate locally:
    `bun run changelog:check --version <version>`
+   `bun run verify:config-example`
    `bun run test:fast`
    `bun run typecheck`
 6. Commit release prep.

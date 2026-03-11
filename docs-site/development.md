@@ -186,7 +186,9 @@ Cloudflare Pages deploy settings:
 - Root directory: `docs-site`
 - Build command: `bun run docs:build`
 - Build output directory: `.vitepress/dist`
-- Build watch paths: `docs-site/**`
+- Build watch paths: `docs-site/*`
+
+Use Cloudflare's single `*` wildcard syntax for watch paths. `docs-site/*` covers nested docs-site changes in the repo; `docs-site/**` is not the correct Pages pattern and may skip docs-only pushes.
 
 ## Makefile Reference
 

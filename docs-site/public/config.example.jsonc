@@ -2,7 +2,7 @@
  * SubMiner Example Configuration File
  *
  * This file is auto-generated from src/config/definitions.ts.
- * Copy to $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) and edit as needed.
+ * Copy to %APPDATA%/SubMiner/config.jsonc on Windows, or $XDG_CONFIG_HOME/SubMiner/config.jsonc (or ~/.config/SubMiner/config.jsonc) on Linux/macOS.
  */
 {
 
@@ -201,7 +201,9 @@
     "enabled": false, // Enable shared OpenAI-compatible AI provider features. Values: true | false
     "apiKey": "", // Static API key for the shared OpenAI-compatible AI provider.
     "apiKeyCommand": "", // Shell command used to resolve the shared AI provider API key.
+    "model": "openai/gpt-4o-mini", // Model setting.
     "baseUrl": "https://openrouter.ai/api", // Base URL for the shared OpenAI-compatible AI provider.
+    "systemPrompt": "You are a translation engine. Return only the translated text with no explanations.", // System prompt setting.
     "requestTimeoutMs": 15000 // Timeout in milliseconds for shared AI provider requests.
   }, // Canonical OpenAI-compatible provider transport settings shared by Anki and YouTube subtitle fixing.
 

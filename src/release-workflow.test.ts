@@ -24,6 +24,10 @@ test('release workflow verifies a committed changelog section before publish', (
   assert.match(releaseWorkflow, /bun run changelog:check/);
 });
 
+test('release workflow verifies generated config examples before packaging artifacts', () => {
+  assert.match(releaseWorkflow, /bun run verify:config-example/);
+});
+
 test('release workflow generates release notes from committed changelog output', () => {
   assert.match(releaseWorkflow, /bun run changelog:release-notes/);
   assert.ok(!releaseWorkflow.includes('git log --pretty=format:"- %s"'));
@@ -45,6 +49,10 @@ test('release package scripts disable implicit electron-builder publishing', () 
   assert.match(packageJson.scripts['build:mac'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:win'] ?? '', /--publish never/);
   assert.match(packageJson.scripts['build:win:unsigned'] ?? '', /build-win-unsigned\.mjs/);
+});
+
+test('config example generation runs directly from source without unrelated bundle prerequisites', () => {
+  assert.equal(packageJson.scripts['generate:config-example'], 'bun run src/generate-config-example.ts');
 });
 
 test('windows release workflow publishes unsigned artifacts directly without SignPath', () => {

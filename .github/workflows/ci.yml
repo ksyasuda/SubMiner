@@ -46,6 +46,9 @@ jobs:
         # Keep explicit typecheck for fast fail before full build/bundle.
         run: bun run typecheck
 
+      - name: Verify generated config examples
+        run: bun run verify:config-example
+
       - name: Test suite (source)
         run: bun run test:fast
 

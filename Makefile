@@ -165,7 +165,6 @@ generate-config: ensure-bun
 	@bun run electron . --generate-config
 
 generate-example-config: ensure-bun
-	@bun run build
 	@bun run generate:config-example
 
 dev-start: ensure-bun

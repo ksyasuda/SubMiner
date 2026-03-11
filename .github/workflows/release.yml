@@ -295,6 +295,9 @@ jobs:
       - name: Enforce generated launcher workflow
         run: bash scripts/verify-generated-launcher.sh
 
+      - name: Verify generated config examples
+        run: bun run verify:config-example
+
       - name: Package optional assets bundle
         run: |
           tar -czf "release/subminer-assets.tar.gz" \

@@ -22,9 +22,11 @@ test('docs reflect current launcher and release surfaces', () => {
 
   expect(readmeContents).toContain('Root directory: `docs-site`');
   expect(readmeContents).toContain('Build output directory: `.vitepress/dist`');
+  expect(readmeContents).toContain('Build watch paths: `docs-site/*`');
   expect(developmentContents).not.toContain('../subminer-docs');
   expect(developmentContents).toContain('bun run docs:build');
   expect(developmentContents).toContain('bun run docs:test');
+  expect(developmentContents).toContain('Build watch paths: `docs-site/*`');
   expect(developmentContents).not.toContain('test:subtitle:dist');
   expect(developmentContents).toContain('bun run build:win');
 
