@@ -337,6 +337,17 @@
   }, // Anilist API credentials and update behavior.
 
   // ==========================================
+  // Yomitan
+  // Optional external Yomitan profile integration.
+  // Setting yomitan.externalProfilePath switches SubMiner to read-only external-profile mode.
+  // For GameSentenceMiner, the default Linux overlay profile is usually ~/.config/gsm_overlay.
+  // In external-profile mode SubMiner will not import, delete, or modify Yomitan dictionaries/settings.
+  // ==========================================
+  "yomitan": {
+    "externalProfilePath": "" // Optional external Yomitan Electron profile path to use in read-only mode for shared dictionaries/settings. Example: ~/.config/gsm_overlay
+  }, // Optional external Yomitan profile integration.
+
+  // ==========================================
   // Jellyfin
   // Optional Jellyfin integration for auth, browsing, and playback launch.
   // Access token is stored in local encrypted token storage after login/setup.

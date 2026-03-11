@@ -2,7 +2,14 @@ import { ResolvedConfig } from '../../types';
 
 export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   ResolvedConfig,
-  'ankiConnect' | 'jimaku' | 'anilist' | 'jellyfin' | 'discordPresence' | 'ai' | 'youtubeSubgen'
+  | 'ankiConnect'
+  | 'jimaku'
+  | 'anilist'
+  | 'yomitan'
+  | 'jellyfin'
+  | 'discordPresence'
+  | 'ai'
+  | 'youtubeSubgen'
 > = {
   ankiConnect: {
     enabled: false,
@@ -93,6 +100,9 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
         voicedBy: false,
       },
     },
+  },
+  yomitan: {
+    externalProfilePath: '',
   },
   jellyfin: {
     enabled: false,

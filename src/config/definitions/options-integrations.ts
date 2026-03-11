@@ -212,6 +212,13 @@ export function buildIntegrationConfigOptionRegistry(
         'Open the Voiced by section by default in character dictionary glossary entries.',
     },
     {
+      path: 'yomitan.externalProfilePath',
+      kind: 'string',
+      defaultValue: defaultConfig.yomitan.externalProfilePath,
+      description:
+        'Optional external Yomitan Electron profile path to use in read-only mode for shared dictionaries/settings.',
+    },
+    {
       path: 'jellyfin.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.jellyfin.enabled,

@@ -58,3 +58,16 @@ export function resolveYomitanExtensionPath(
 ): string | null {
   return resolveExistingYomitanExtensionPath(getYomitanExtensionSearchPaths(options), existsSync);
 }
+
+export function resolveExternalYomitanExtensionPath(
+  externalProfilePath: string,
+  existsSync: (path: string) => boolean = fs.existsSync,
+): string | null {
+  const normalizedProfilePath = externalProfilePath.trim();
+  if (!normalizedProfilePath) {
+    return null;
+  }
+
+  const candidate = path.join(path.resolve(normalizedProfilePath), 'extensions', 'yomitan');
+  return existsSync(path.join(candidate, 'manifest.json')) ? candidate : null;
+}

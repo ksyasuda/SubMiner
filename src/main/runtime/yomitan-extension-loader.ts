@@ -4,20 +4,24 @@ import type { YomitanExtensionLoaderDeps } from '../../core/services/yomitan-ext
 export function createLoadYomitanExtensionHandler(deps: {
   loadYomitanExtensionCore: (options: YomitanExtensionLoaderDeps) => Promise<Extension | null>;
   userDataPath: YomitanExtensionLoaderDeps['userDataPath'];
+  externalProfilePath?: YomitanExtensionLoaderDeps['externalProfilePath'];
   getYomitanParserWindow: YomitanExtensionLoaderDeps['getYomitanParserWindow'];
   setYomitanParserWindow: YomitanExtensionLoaderDeps['setYomitanParserWindow'];
   setYomitanParserReadyPromise: YomitanExtensionLoaderDeps['setYomitanParserReadyPromise'];
   setYomitanParserInitPromise: YomitanExtensionLoaderDeps['setYomitanParserInitPromise'];
   setYomitanExtension: YomitanExtensionLoaderDeps['setYomitanExtension'];
+  setYomitanSession: YomitanExtensionLoaderDeps['setYomitanSession'];
 }) {
   return async (): Promise<Extension | null> => {
     return deps.loadYomitanExtensionCore({
       userDataPath: deps.userDataPath,
+      externalProfilePath: deps.externalProfilePath,
       getYomitanParserWindow: deps.getYomitanParserWindow,
       setYomitanParserWindow: deps.setYomitanParserWindow,
       setYomitanParserReadyPromise: deps.setYomitanParserReadyPromise,
       setYomitanParserInitPromise: deps.setYomitanParserInitPromise,
       setYomitanExtension: deps.setYomitanExtension,
+      setYomitanSession: deps.setYomitanSession,
     });
   };
 }

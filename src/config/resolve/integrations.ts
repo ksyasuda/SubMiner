@@ -199,6 +199,22 @@ export function applyIntegrationConfig(context: ResolveContext): void {
     }
   }
 
+  if (isObject(src.yomitan)) {
+    const externalProfilePath = asString(src.yomitan.externalProfilePath);
+    if (externalProfilePath !== undefined) {
+      resolved.yomitan.externalProfilePath = externalProfilePath.trim();
+    } else if (src.yomitan.externalProfilePath !== undefined) {
+      warn(
+        'yomitan.externalProfilePath',
+        src.yomitan.externalProfilePath,
+        resolved.yomitan.externalProfilePath,
+        'Expected string.',
+      );
+    }
+  } else if (src.yomitan !== undefined) {
+    warn('yomitan', src.yomitan, resolved.yomitan, 'Expected object.');
+  }
+
   if (isObject(src.jellyfin)) {
     const enabled = asBoolean(src.jellyfin.enabled);
     if (enabled !== undefined) {

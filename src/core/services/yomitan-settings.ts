@@ -1,5 +1,5 @@
 import electron from 'electron';
-import type { BrowserWindow, Extension } from 'electron';
+import type { BrowserWindow, Extension, Session } from 'electron';
 import { createLogger } from '../../logger';
 
 const { BrowserWindow: ElectronBrowserWindow, session } = electron;
@@ -9,6 +9,7 @@ export interface OpenYomitanSettingsWindowOptions {
   yomitanExt: Extension | null;
   getExistingWindow: () => BrowserWindow | null;
   setWindow: (window: BrowserWindow | null) => void;
+  yomitanSession?: Session | null;
   onWindowClosed?: () => void;
 }
 
@@ -37,7 +38,7 @@ export function openYomitanSettingsWindow(options: OpenYomitanSettingsWindowOpti
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      session: session.defaultSession,
+      session: options.yomitanSession ?? session.defaultSession,
     },
   });
   options.setWindow(settingsWindow);

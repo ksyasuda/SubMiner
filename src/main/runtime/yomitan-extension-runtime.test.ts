@@ -9,6 +9,7 @@ test('yomitan extension runtime reuses in-flight ensure load and clears it after
   let parserWindow: unknown = null;
   let readyPromise: Promise<void> | null = null;
   let initPromise: Promise<boolean> | null = null;
+  let yomitanSession: unknown = null;
   let loadCalls = 0;
   const releaseLoadState: { releaseLoad: ((value: Extension | null) => void) | null } = {
     releaseLoad: null,
@@ -28,6 +29,7 @@ test('yomitan extension runtime reuses in-flight ensure load and clears it after
       });
     },
     userDataPath: '/tmp',
+    externalProfilePath: '/tmp/gsm-profile',
     getYomitanParserWindow: () => parserWindow as never,
     setYomitanParserWindow: (window) => {
       parserWindow = window;
@@ -40,6 +42,9 @@ test('yomitan extension runtime reuses in-flight ensure load and clears it after
     },
     setYomitanExtension: (next) => {
       extension = next;
+    },
+    setYomitanSession: (next) => {
+      yomitanSession = next;
     },
     getYomitanExtension: () => extension,
     getLoadInFlight: () => inFlight,
@@ -55,6 +60,7 @@ test('yomitan extension runtime reuses in-flight ensure load and clears it after
   assert.equal(parserWindow, null);
   assert.ok(readyPromise);
   assert.ok(initPromise);
+  assert.equal(yomitanSession, null);
 
   const fakeExtension = { id: 'yomitan' } as Extension;
   const releaseLoad = releaseLoadState.releaseLoad;
@@ -81,11 +87,13 @@ test('yomitan extension runtime direct load delegates to core', async () => {
       return null;
     },
     userDataPath: '/tmp',
+    externalProfilePath: '',
     getYomitanParserWindow: () => null,
     setYomitanParserWindow: () => {},
     setYomitanParserReadyPromise: () => {},
     setYomitanParserInitPromise: () => {},
     setYomitanExtension: () => {},
+    setYomitanSession: () => {},
     getYomitanExtension: () => null,
     getLoadInFlight: () => null,
     setLoadInFlight: () => {},

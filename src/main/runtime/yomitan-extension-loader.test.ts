@@ -12,23 +12,35 @@ test('load yomitan extension handler forwards parser state dependencies', async 
   const loadYomitanExtension = createLoadYomitanExtensionHandler({
     loadYomitanExtensionCore: async (options) => {
       calls.push(`path:${options.userDataPath}`);
+      calls.push(`external:${options.externalProfilePath ?? ''}`);
       assert.equal(options.getYomitanParserWindow(), parserWindow);
       options.setYomitanParserWindow(null);
       options.setYomitanParserReadyPromise(null);
       options.setYomitanParserInitPromise(null);
       options.setYomitanExtension(extension);
+      options.setYomitanSession(null);
       return extension;
     },
     userDataPath: '/tmp/subminer',
+    externalProfilePath: '/tmp/gsm-profile',
     getYomitanParserWindow: () => parserWindow,
     setYomitanParserWindow: () => calls.push('set-window'),
     setYomitanParserReadyPromise: () => calls.push('set-ready'),
     setYomitanParserInitPromise: () => calls.push('set-init'),
     setYomitanExtension: () => calls.push('set-ext'),
+    setYomitanSession: () => calls.push('set-session'),
   });
 
   assert.equal(await loadYomitanExtension(), extension);
-  assert.deepEqual(calls, ['path:/tmp/subminer', 'set-window', 'set-ready', 'set-init', 'set-ext']);
+  assert.deepEqual(calls, [
+    'path:/tmp/subminer',
+    'external:/tmp/gsm-profile',
+    'set-window',
+    'set-ready',
+    'set-init',
+    'set-ext',
+    'set-session',
+  ]);
 });
 
 test('ensure yomitan loader returns existing extension when available', async () => {

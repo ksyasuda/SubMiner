@@ -104,3 +104,26 @@ test('anilist character dictionary fields are parsed, clamped, and enum-validate
     warnedPaths.includes('anilist.characterDictionary.collapsibleSections.characterInformation'),
   );
 });
+
+test('yomitan externalProfilePath is trimmed and invalid values warn', () => {
+  const { context, warnings } = createResolveContext({
+    yomitan: {
+      externalProfilePath: '  /tmp/gsm-profile  ',
+    },
+  });
+
+  applyIntegrationConfig(context);
+
+  assert.equal(context.resolved.yomitan.externalProfilePath, '/tmp/gsm-profile');
+
+  const invalid = createResolveContext({
+    yomitan: {
+      externalProfilePath: 42 as never,
+    },
+  });
+
+  applyIntegrationConfig(invalid.context);
+
+  assert.equal(invalid.context.resolved.yomitan.externalProfilePath, '');
+  assert.ok(invalid.warnings.some((warning) => warning.path === 'yomitan.externalProfilePath'));
+});
