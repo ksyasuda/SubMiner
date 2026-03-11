@@ -59,6 +59,22 @@ Jimaku search, field-grouping, runtime options, and manual subsync open as modal
 3. Yomitan detects the selection and opens its lookup popup.
 4. From the popup, add the word to Anki.
 
+### Controller Workflow
+
+With a gamepad connected and keyboard-only mode enabled, the full mining loop works without a mouse or keyboard:
+
+1. **Navigate** — push the left stick left/right to move the token highlight across subtitle words.
+2. **Look up** — press `A` to trigger Yomitan lookup on the highlighted word.
+3. **Browse the popup** — push the left stick up/down to smooth-scroll through the Yomitan popup, or use the right stick for larger jumps.
+4. **Cycle audio** — press `R1` to move to the next dictionary audio entry, `L1` to play the current one.
+5. **Mine** — press `X` to create an Anki card for the current sentence (same as `Ctrl+S`).
+6. **Close** — press `B` to dismiss the Yomitan popup and return to subtitle navigation.
+7. **Pause/resume** — press `L3` (left stick click) to toggle mpv pause at any time.
+
+The controller and keyboard can be used interchangeably — switching mid-session is seamless. Toggle keyboard-only mode on or off with `Y` on the controller.
+
+See [Usage — Controller Support](/usage#controller-support) for setup details and [Configuration — Controller Support](/configuration#controller-support) for the full mapping and tuning options.
+
 ## Creating Anki Cards
 
 There are three ways to create cards, depending on your workflow.

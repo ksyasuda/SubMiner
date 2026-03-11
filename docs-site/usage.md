@@ -246,6 +246,45 @@ Notes:
   - `--whisper-threads`
   - `--yt-subgen-audio-format`
 
+## Controller Support
+
+SubMiner supports gamepad/controller input for couch-friendly usage via the Chrome Gamepad API. Controller input drives the overlay while keyboard-only mode is enabled.
+
+### Getting Started
+
+1. Connect a controller before or after launching SubMiner.
+2. Enable keyboard-only mode — press `Y` on the controller (default binding) or use the overlay keybinding.
+3. Use the left stick to navigate subtitle tokens and the right stick to scroll the Yomitan popup.
+4. Press `A` to look up the selected word, `X` to mine a card, `B` to close the popup.
+
+By default SubMiner uses the first connected controller. Press `Alt+C` in the overlay to open the controller selection modal and persist your preferred controller across sessions. Press `Alt+Shift+C` to open a live debug modal showing raw axes and button values.
+
+### Default Button Mapping
+
+| Button | Action |
+| ------ | ------ |
+| `A` (South) | Toggle lookup |
+| `B` (East) | Close lookup |
+| `Y` (North) | Toggle keyboard-only mode |
+| `X` (West) | Mine card |
+| `L1` | Play current Yomitan audio |
+| `R1` | Next Yomitan audio track |
+| `L3` (left stick press) | Toggle mpv pause |
+| `Select` / `Minus` | Quit mpv |
+| `L2` / `R2` | Unbound (available for custom bindings) |
+
+### Analog Controls
+
+| Input | Action |
+| ----- | ------ |
+| Left stick horizontal | Move token selection left/right |
+| Left stick vertical | Smooth scroll Yomitan popup |
+| Right stick horizontal | Jump inside popup (horizontal) |
+| Right stick vertical | Smooth scroll popup (vertical) |
+| D-pad | Fallback for stick navigation |
+
+All button and axis mappings are configurable under the `controller` config block. See [Configuration — Controller Support](/configuration#controller-support) for the full options.
+
 ## Keybindings
 
 See [Keyboard Shortcuts](/shortcuts) for the full reference, including mining shortcuts, overlay controls, and customization.
