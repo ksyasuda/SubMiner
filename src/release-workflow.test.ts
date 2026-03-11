@@ -52,7 +52,10 @@ test('release package scripts disable implicit electron-builder publishing', () 
 });
 
 test('config example generation runs directly from source without unrelated bundle prerequisites', () => {
-  assert.equal(packageJson.scripts['generate:config-example'], 'bun run src/generate-config-example.ts');
+  assert.equal(
+    packageJson.scripts['generate:config-example'],
+    'bun run src/generate-config-example.ts',
+  );
 });
 
 test('windows release workflow publishes unsigned artifacts directly without SignPath', () => {

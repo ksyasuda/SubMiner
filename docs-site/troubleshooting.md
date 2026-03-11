@@ -280,6 +280,39 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 - **X11**: Requires `xdotool` and `xwininfo`. If missing, the overlay cannot track the mpv window position.
 - **Mouse passthrough**: On Linux, Electron's mouse passthrough is unreliable. SubMiner keeps pointer events enabled, meaning you may need to toggle the overlay off to interact with mpv controls underneath.
 
+### Hyprland
+
+SubMiner's overlay is a transparent, frameless, always-on-top Electron window. Hyprland needs window rules to keep it transparent and borderless, and `pass` bindings to forward global shortcuts to SubMiner.
+
+**Overlay is not transparent or has a visible border**
+
+Add these window rules to your `hyprland.conf`:
+
+```ini
+windowrule = float on, match:class SubMiner
+windowrule = border_size 0, match:class SubMiner
+windowrule = xray off override, match:class SubMiner
+windowrule = no_shadow on, match:class SubMiner
+windowrule = no_blur on, match:class SubMiner
+```
+
+Without `xray off override`, the compositor may render the transparent overlay incorrectly — you might see a solid background or visual artifacts instead of the mpv video underneath.
+
+**Global shortcuts not working**
+
+On Hyprland, Electron cannot register global shortcuts on its own. You must explicitly pass keybindings to SubMiner using `pass` rules:
+
+```ini
+bind = ALT SHIFT, O, pass, class:^(SubMiner)$
+bind = ALT SHIFT, Y, pass, class:^(SubMiner)$
+```
+
+Add a `pass` rule for each global shortcut you configure. The defaults are `Alt+Shift+O` (toggle overlay) and `Alt+Shift+Y` (Yomitan settings). If you remap `shortcuts.toggleVisibleOverlayGlobal` to a different key, update the `pass` rule to match.
+
+Without these rules, Hyprland intercepts the keypresses before they reach SubMiner, and the shortcuts silently do nothing.
+
+For more details, see the Hyprland docs on [global keybinds](https://wiki.hypr.land/Configuring/Binds/#global-keybinds) and [window rules](https://wiki.hypr.land/Configuring/Window-Rules/).
+
 ### macOS
 
 - **Accessibility permission**: Required for window tracking. Grant it in System Settings > Privacy & Security > Accessibility.

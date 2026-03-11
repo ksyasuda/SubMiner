@@ -39,6 +39,22 @@
 
 ## Linux
 
+### Arch Linux (AUR)
+
+Install [`subminer-bin`](https://aur.archlinux.org/packages/subminer-bin) from the AUR if you want the packaged Linux release managed by pacman. The package installs the official SubMiner AppImage plus the `subminer` wrapper.
+
+```bash
+paru -S subminer-bin
+```
+
+Or manually:
+
+```bash
+git clone https://aur.archlinux.org/subminer-bin.git
+cd subminer-bin
+makepkg -si
+```
+
 ### AppImage (Recommended)
 
 Download the latest AppImage from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest):

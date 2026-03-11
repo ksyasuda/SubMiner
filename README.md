@@ -35,6 +35,22 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 
 ### 1. Install
 
+**Arch Linux (AUR):**
+
+Install [`subminer-bin`](https://aur.archlinux.org/packages/subminer-bin) from the AUR. It installs the packaged AppImage plus the `subminer` wrapper:
+
+```bash
+paru -S subminer-bin
+```
+
+Or manually:
+
+```bash
+git clone https://aur.archlinux.org/subminer-bin.git
+cd subminer-bin
+makepkg -si
+```
+
 **Linux (AppImage):**
 
 ```bash
