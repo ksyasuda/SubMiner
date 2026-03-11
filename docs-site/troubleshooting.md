@@ -182,6 +182,7 @@ If you installed from the AppImage and see this error, the package may be incomp
 
 - Verify Yomitan loaded successfully — check the terminal output for "Loaded Yomitan extension".
 - Yomitan requires dictionaries to be installed. Open Yomitan settings (`Alt+Shift+Y` or `SubMiner.AppImage --settings`) and confirm at least one dictionary is imported.
+- If `yomitan.externalProfilePath` is set, import/check dictionaries in the external app/profile instead. SubMiner treats that profile as read-only and does not open its own Yomitan settings window.
 - If the overlay shows subtitles but words are not clickable, the tokenizer may have failed. See the MeCab section below.
 
 ## MeCab / Tokenization

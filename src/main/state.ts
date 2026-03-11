@@ -1,4 +1,4 @@
-import type { BrowserWindow, Extension } from 'electron';
+import type { BrowserWindow, Extension, Session } from 'electron';
 
 import type {
   Keybinding,
@@ -143,6 +143,7 @@ export function transitionAnilistUpdateInFlightState(
 
 export interface AppState {
   yomitanExt: Extension | null;
+  yomitanSession: Session | null;
   yomitanSettingsWindow: BrowserWindow | null;
   yomitanParserWindow: BrowserWindow | null;
   anilistSetupWindow: BrowserWindow | null;
@@ -219,6 +220,7 @@ export interface StartupState {
 export function createAppState(values: AppStateInitialValues): AppState {
   return {
     yomitanExt: null,
+    yomitanSession: null,
     yomitanSettingsWindow: null,
     yomitanParserWindow: null,
     anilistSetupWindow: null,

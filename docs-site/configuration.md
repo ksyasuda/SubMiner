@@ -995,6 +995,32 @@ Current post-watch behavior:
 - If embedded AniList auth UI fails to render, SubMiner opens the authorize URL in your default browser and shows fallback instructions in-app.
 - Failed updates are retried with a persistent backoff queue in the background.
 
+### Yomitan
+
+SubMiner normally uses its bundled Yomitan profile under the app config directory. If you want to reuse dictionaries and profile settings from another Electron app, point SubMiner at that app's Yomitan Electron profile in read-only mode.
+
+For GameSentenceMiner on Linux, the default overlay profile path is typically `~/.config/gsm_overlay`.
+
+```json
+{
+  "yomitan": {
+    "externalProfilePath": "/home/you/.config/gsm_overlay"
+  }
+}
+```
+
+| Option                | Values      | Description                                                                                                                           |
+| --------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `externalProfilePath` | string path | Optional absolute path to another app's Yomitan Electron profile. SubMiner loads that profile read-only and reuses its dictionaries/settings. |
+
+External-profile mode behavior:
+
+- SubMiner uses the external profile's Yomitan extension/session instead of its local copy.
+- SubMiner reads the external profile's currently active Yomitan profile selection and installed dictionaries.
+- SubMiner does not open its own Yomitan settings window in this mode.
+- SubMiner does not import, delete, or update dictionaries/settings in the external profile.
+- SubMiner character-dictionary auto-sync is effectively disabled in this mode because it requires Yomitan writes.
+
 Setup flow details:
 
 1. Set `anilist.enabled` to `true`.

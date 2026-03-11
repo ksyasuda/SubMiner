@@ -1,4 +1,4 @@
-import type { BrowserWindow, Extension } from 'electron';
+import type { BrowserWindow, Extension, Session } from 'electron';
 import { mergeTokens } from '../../token-merger';
 import { createLogger } from '../../logger';
 import {
@@ -33,6 +33,7 @@ type MecabTokenEnrichmentFn = (
 
 export interface TokenizerServiceDeps {
   getYomitanExt: () => Extension | null;
+  getYomitanSession?: () => Session | null;
   getYomitanParserWindow: () => BrowserWindow | null;
   setYomitanParserWindow: (window: BrowserWindow | null) => void;
   getYomitanParserReadyPromise: () => Promise<void> | null;
@@ -63,6 +64,7 @@ interface MecabTokenizerLike {
 
 export interface TokenizerDepsRuntimeOptions {
   getYomitanExt: () => Extension | null;
+  getYomitanSession?: () => Session | null;
   getYomitanParserWindow: () => BrowserWindow | null;
   setYomitanParserWindow: (window: BrowserWindow | null) => void;
   getYomitanParserReadyPromise: () => Promise<void> | null;
@@ -182,6 +184,7 @@ export function createTokenizerDepsRuntime(
 
   return {
     getYomitanExt: options.getYomitanExt,
+    getYomitanSession: options.getYomitanSession,
     getYomitanParserWindow: options.getYomitanParserWindow,
     setYomitanParserWindow: options.setYomitanParserWindow,
     getYomitanParserReadyPromise: options.getYomitanParserReadyPromise,
