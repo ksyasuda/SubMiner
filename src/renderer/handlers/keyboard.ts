@@ -177,6 +177,10 @@ export function createKeyboardHandlers(
     return isPrimaryModifierPressed(e) && !e.altKey && !e.shiftKey && isYKey && !e.repeat;
   }
 
+  function isControllerModalShortcut(e: KeyboardEvent): boolean {
+    return !e.ctrlKey && !e.metaKey && e.altKey && !e.repeat && e.code === 'KeyC';
+  }
+
   function getSubtitleWordNodes(): HTMLElement[] {
     return Array.from(
       ctx.dom.subtitleRoot.querySelectorAll<HTMLElement>('.word[data-token-index]'),
@@ -790,7 +794,10 @@ export function createKeyboardHandlers(
         return;
       }
 
-      if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
+      if (
+        (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) &&
+        !isControllerModalShortcut(e)
+      ) {
         if (handleYomitanPopupKeybind(e)) {
           e.preventDefault();
         }
@@ -847,7 +854,7 @@ export function createKeyboardHandlers(
         return;
       }
 
-      if (!e.ctrlKey && !e.metaKey && e.altKey && !e.repeat && e.code === 'KeyC') {
+      if (isControllerModalShortcut(e)) {
         e.preventDefault();
         if (e.shiftKey) {
           options.openControllerDebugModal();

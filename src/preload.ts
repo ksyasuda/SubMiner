@@ -210,7 +210,7 @@ const electronAPI: ElectronAPI = {
   getControllerConfig: (): Promise<ResolvedControllerConfig> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getControllerConfig),
   saveControllerPreference: (update: ControllerPreferenceUpdate): Promise<void> =>
-    Promise.resolve(ipcRenderer.send(IPC_CHANNELS.command.saveControllerPreference, update)),
+    ipcRenderer.invoke(IPC_CHANNELS.command.saveControllerPreference, update),
 
   getJimakuMediaInfo: (): Promise<JimakuMediaInfo> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.jimakuGetMediaInfo),

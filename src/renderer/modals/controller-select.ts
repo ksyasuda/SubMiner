@@ -37,11 +37,17 @@ export function createControllerSelectModal(
 
   function syncSelectedIndexToCurrentController(): void {
     const preferredId = ctx.state.controllerConfig?.preferredGamepadId ?? '';
-    const nextIndex = ctx.state.connectedGamepads.findIndex(
-      (device) => device.id === ctx.state.activeGamepadId || device.id === preferredId,
+    const activeIndex = ctx.state.connectedGamepads.findIndex(
+      (device) => device.id === ctx.state.activeGamepadId,
     );
-    if (nextIndex >= 0) {
-      ctx.state.controllerDeviceSelectedIndex = nextIndex;
+    if (activeIndex >= 0) {
+      ctx.state.controllerDeviceSelectedIndex = activeIndex;
+      syncSelectedControllerId();
+      return;
+    }
+    const preferredIndex = ctx.state.connectedGamepads.findIndex((device) => device.id === preferredId);
+    if (preferredIndex >= 0) {
+      ctx.state.controllerDeviceSelectedIndex = preferredIndex;
       syncSelectedControllerId();
       return;
     }
@@ -132,7 +138,13 @@ export function createControllerSelectModal(
       setStatus('No controllers detected.');
       return;
     }
-    setStatus('Select a controller to save as preferred.');
+    const currentStatus = ctx.dom.controllerSelectStatus.textContent.trim();
+    if (
+      currentStatus !== 'No controller selected.' &&
+      !currentStatus.startsWith('Saved preferred controller:')
+    ) {
+      setStatus('Select a controller to save as preferred.');
+    }
   }
 
   async function saveSelectedController(): Promise<void> {

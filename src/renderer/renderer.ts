@@ -540,7 +540,12 @@ async function init(): Promise<void> {
   mouseHandlers.setupDragging();
 
   await keyboardHandlers.setupMpvInputForwarding();
-  ctx.state.controllerConfig = await window.electronAPI.getControllerConfig();
+  try {
+    ctx.state.controllerConfig = await window.electronAPI.getControllerConfig();
+  } catch (error) {
+    console.error('Failed to load controller config.', error);
+    ctx.state.controllerConfig = null;
+  }
   startControllerPolling();
 
   const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();

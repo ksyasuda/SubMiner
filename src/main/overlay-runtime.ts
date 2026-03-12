@@ -1,15 +1,8 @@
 import type { BrowserWindow } from 'electron';
+import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import type { WindowGeometry } from '../types';
 
 const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
-
-type OverlayHostedModal =
-  | 'runtime-options'
-  | 'subsync'
-  | 'jimaku'
-  | 'kiku'
-  | 'controller-select'
-  | 'controller-debug';
 
 export interface OverlayWindowResolver {
   getMainWindow: () => BrowserWindow | null;
@@ -300,5 +293,3 @@ export function createOverlayModalRuntimeService(
     getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
   };
 }
-
-export type { OverlayHostedModal };

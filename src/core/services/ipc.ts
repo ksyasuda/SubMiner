@@ -49,7 +49,7 @@ export interface IpcServiceDeps {
   getKeybindings: () => unknown;
   getConfiguredShortcuts: () => unknown;
   getControllerConfig: () => ResolvedControllerConfig;
-  saveControllerPreference: (update: ControllerPreferenceUpdate) => void;
+  saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
   getSecondarySubMode: () => unknown;
   getCurrentSecondarySub: () => string;
   focusMainWindow: () => void;
@@ -114,7 +114,7 @@ export interface IpcDepsRuntimeOptions {
   getKeybindings: () => unknown;
   getConfiguredShortcuts: () => unknown;
   getControllerConfig: () => ResolvedControllerConfig;
-  saveControllerPreference: (update: ControllerPreferenceUpdate) => void;
+  saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
   getSecondarySubMode: () => unknown;
   getMpvClient: () => MpvClientLike | null;
   focusMainWindow: () => void;
@@ -265,10 +265,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     deps.saveSubtitlePosition(parsedPosition);
   });
 
-  ipc.on(IPC_CHANNELS.command.saveControllerPreference, (_event: unknown, update: unknown) => {
+  ipc.handle(IPC_CHANNELS.command.saveControllerPreference, async (_event: unknown, update: unknown) => {
     const parsedUpdate = parseControllerPreferenceUpdate(update);
     if (!parsedUpdate) return;
-    deps.saveControllerPreference(parsedUpdate);
+    await deps.saveControllerPreference(parsedUpdate);
   });
 
   ipc.handle(IPC_CHANNELS.request.getMecabStatus, () => {

@@ -1175,6 +1175,35 @@ test('parses controller settings with logical bindings and tuning knobs', () => 
   assert.equal(config.controller.bindings.rightStickVertical, 'leftStickY');
 });
 
+test('controller positive-number tuning rejects sub-unit values that floor to zero', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "controller": {
+        "scrollPixelsPerSecond": 0.5,
+        "horizontalJumpPixels": 0.2,
+        "repeatDelayMs": 0.9,
+        "repeatIntervalMs": 0.1
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.controller.scrollPixelsPerSecond, DEFAULT_CONFIG.controller.scrollPixelsPerSecond);
+  assert.equal(config.controller.horizontalJumpPixels, DEFAULT_CONFIG.controller.horizontalJumpPixels);
+  assert.equal(config.controller.repeatDelayMs, DEFAULT_CONFIG.controller.repeatDelayMs);
+  assert.equal(config.controller.repeatIntervalMs, DEFAULT_CONFIG.controller.repeatIntervalMs);
+  assert.equal(warnings.some((warning) => warning.path === 'controller.scrollPixelsPerSecond'), true);
+  assert.equal(warnings.some((warning) => warning.path === 'controller.horizontalJumpPixels'), true);
+  assert.equal(warnings.some((warning) => warning.path === 'controller.repeatDelayMs'), true);
+  assert.equal(warnings.some((warning) => warning.path === 'controller.repeatIntervalMs'), true);
+});
+
 test('runtime options registry is centralized', () => {
   const ids = RUNTIME_OPTION_REGISTRY.map((entry) => entry.id);
   assert.deepEqual(ids, [

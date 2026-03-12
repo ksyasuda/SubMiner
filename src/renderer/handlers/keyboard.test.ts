@@ -510,6 +510,26 @@ test('keyboard mode: Alt+Shift+C opens controller debug modal', async () => {
   }
 });
 
+test('keyboard mode: Alt+Shift+C opens controller debug modal even while popup is visible', async () => {
+  const { ctx, testGlobals, handlers, controllerDebugOpenCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.state.yomitanPopupVisible = true;
+
+    testGlobals.dispatchKeydown({
+      key: 'C',
+      code: 'KeyC',
+      altKey: true,
+      shiftKey: true,
+    });
+
+    assert.equal(controllerDebugOpenCount(), 1);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: controller select modal handles arrow keys before yomitan popup', async () => {
   const { ctx, testGlobals, handlers, controllerSelectKeydownCount } = createKeyboardHandlerHarness();
 

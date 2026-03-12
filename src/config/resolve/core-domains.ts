@@ -175,7 +175,7 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
     ] as const;
     for (const key of boundedNumberKeys) {
       const value = asNumber(src.controller[key]);
-      if (value !== undefined && value > 0) {
+      if (value !== undefined && Math.floor(value) > 0) {
         resolved.controller[key] = Math.floor(value) as (typeof resolved.controller)[typeof key];
       } else if (src.controller[key] !== undefined) {
         warn(`controller.${key}`, src.controller[key], resolved.controller[key], 'Expected positive number.');

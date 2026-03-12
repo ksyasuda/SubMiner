@@ -347,22 +347,23 @@ export function createGamepadController(options: GamepadControllerOptions) {
       return;
     }
 
-    handleButtonEdge(
-      config.bindings.toggleKeyboardOnlyMode,
-      normalizeButtonState(
-        activeGamepad,
-        config,
-        config.bindings.toggleKeyboardOnlyMode,
-        config.triggerInputMode,
-        config.triggerDeadzone,
-      ),
-      options.toggleKeyboardMode,
-    );
-
     const interactionAllowed =
       config.enabled &&
       options.getKeyboardModeEnabled() &&
       !options.getInteractionBlocked();
+    if (config.enabled) {
+      handleButtonEdge(
+        config.bindings.toggleKeyboardOnlyMode,
+        normalizeButtonState(
+          activeGamepad,
+          config,
+          config.bindings.toggleKeyboardOnlyMode,
+          config.triggerInputMode,
+          config.triggerDeadzone,
+        ),
+        options.toggleKeyboardMode,
+      );
+    }
     if (!interactionAllowed) {
       return;
     }

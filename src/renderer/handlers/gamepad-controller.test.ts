@@ -177,6 +177,37 @@ test('gamepad controller allows keyboard-mode toggle while other actions stay ga
   assert.deepEqual(calls, ['toggle-keyboard-mode']);
 });
 
+test('gamepad controller does not toggle keyboard mode when controller support is disabled', () => {
+  const calls: string[] = [];
+  const buttons = Array.from({ length: 8 }, () => ({ value: 0, pressed: false, touched: false }));
+  buttons[3] = { value: 1, pressed: true, touched: true };
+
+  const controller = createGamepadController({
+    getGamepads: () => [createGamepad('pad-1', { buttons })],
+    getConfig: () => createControllerConfig({ enabled: false }),
+    getKeyboardModeEnabled: () => false,
+    getLookupWindowOpen: () => false,
+    getInteractionBlocked: () => false,
+    toggleKeyboardMode: () => calls.push('toggle-keyboard-mode'),
+    toggleLookup: () => {},
+    closeLookup: () => {},
+    moveSelection: () => {},
+    mineCard: () => {},
+    quitMpv: () => {},
+    previousAudio: () => {},
+    nextAudio: () => {},
+    playCurrentAudio: () => {},
+    toggleMpvPause: () => {},
+    scrollPopup: () => {},
+    jumpPopup: () => {},
+    onState: () => {},
+  });
+
+  controller.poll(0);
+
+  assert.deepEqual(calls, []);
+});
+
 test('gamepad controller maps left stick horizontal movement to token selection repeats', () => {
   const calls: number[] = [];
   let axes = [0.9, 0, 0, 0];

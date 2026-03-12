@@ -366,18 +366,6 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
   handlers.on.get(IPC_CHANNELS.command.saveSubtitlePosition)!({}, { yPercent: 42 });
   assert.deepEqual(saves, [{ yPercent: 42 }]);
 
-  handlers.on.get(IPC_CHANNELS.command.saveControllerPreference)!({}, { preferredGamepadId: 12 });
-  handlers.on.get(IPC_CHANNELS.command.saveControllerPreference)!({}, {
-    preferredGamepadId: 'pad-1',
-    preferredGamepadLabel: 'Pad 1',
-  });
-  assert.deepEqual(controllerSaves, [
-    {
-      preferredGamepadId: 'pad-1',
-      preferredGamepadLabel: 'Pad 1',
-    },
-  ]);
-
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'not-a-modal');
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'subsync');
   handlers.on.get(IPC_CHANNELS.command.overlayModalClosed)!({}, 'kiku');
@@ -387,4 +375,108 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
   handlers.on.get(IPC_CHANNELS.command.overlayModalOpened)!({}, 'subsync');
   handlers.on.get(IPC_CHANNELS.command.overlayModalOpened)!({}, 'runtime-options');
   assert.deepEqual(openedModals, ['subsync', 'runtime-options']);
+});
+
+test('registerIpcHandlers awaits saveControllerPreference through request-response IPC', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const controllerSaves: unknown[] = [];
+  registerIpcHandlers(
+    {
+      onOverlayModalClosed: () => {},
+      openYomitanSettings: () => {},
+      quitApp: () => {},
+      toggleDevTools: () => {},
+      getVisibleOverlayVisibility: () => false,
+      toggleVisibleOverlay: () => {},
+      tokenizeCurrentSubtitle: async () => null,
+      getCurrentSubtitleRaw: () => '',
+      getCurrentSubtitleAss: () => '',
+      getPlaybackPaused: () => false,
+      getSubtitlePosition: () => null,
+      getSubtitleStyle: () => null,
+      saveSubtitlePosition: () => {},
+      getMecabStatus: () => ({ available: false, enabled: false, path: null }),
+      setMecabEnabled: () => {},
+      handleMpvCommand: () => {},
+      getKeybindings: () => [],
+      getConfiguredShortcuts: () => ({}),
+      getControllerConfig: () => ({
+        enabled: true,
+        preferredGamepadId: '',
+        preferredGamepadLabel: '',
+        smoothScroll: true,
+        scrollPixelsPerSecond: 960,
+        horizontalJumpPixels: 160,
+        stickDeadzone: 0.2,
+        triggerInputMode: 'auto',
+        triggerDeadzone: 0.5,
+        repeatDelayMs: 220,
+        repeatIntervalMs: 80,
+        buttonIndices: {
+          select: 6,
+          buttonSouth: 0,
+          buttonEast: 1,
+          buttonWest: 2,
+          buttonNorth: 3,
+          leftShoulder: 4,
+          rightShoulder: 5,
+          leftStickPress: 9,
+          rightStickPress: 10,
+          leftTrigger: 6,
+          rightTrigger: 7,
+        },
+        bindings: {
+          toggleLookup: 'buttonSouth',
+          closeLookup: 'buttonEast',
+          toggleKeyboardOnlyMode: 'buttonNorth',
+          mineCard: 'buttonWest',
+          quitMpv: 'select',
+          previousAudio: 'leftShoulder',
+          nextAudio: 'rightShoulder',
+          playCurrentAudio: 'rightTrigger',
+          toggleMpvPause: 'leftTrigger',
+          leftStickHorizontal: 'leftStickX',
+          leftStickVertical: 'leftStickY',
+          rightStickHorizontal: 'rightStickX',
+          rightStickVertical: 'rightStickY',
+        },
+      }),
+      saveControllerPreference: async (update) => {
+        await Promise.resolve();
+        controllerSaves.push(update);
+      },
+      getSecondarySubMode: () => 'hover',
+      getCurrentSecondarySub: () => '',
+      focusMainWindow: () => {},
+      runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
+      getAnkiConnectStatus: () => false,
+      getRuntimeOptions: () => [],
+      setRuntimeOption: () => ({ ok: true }),
+      cycleRuntimeOption: () => ({ ok: true }),
+      reportOverlayContentBounds: () => {},
+      getAnilistStatus: () => ({}),
+      clearAnilistToken: () => {},
+      openAnilistSetup: () => {},
+      getAnilistQueueStatus: () => ({}),
+      retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
+      appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+    },
+    registrar,
+  );
+
+  const saveHandler = handlers.handle.get(IPC_CHANNELS.command.saveControllerPreference);
+  assert.ok(saveHandler);
+
+  await saveHandler!({}, { preferredGamepadId: 12 });
+  await saveHandler!({}, {
+    preferredGamepadId: 'pad-1',
+    preferredGamepadLabel: 'Pad 1',
+  });
+
+  assert.deepEqual(controllerSaves, [
+    {
+      preferredGamepadId: 'pad-1',
+      preferredGamepadLabel: 'Pad 1',
+    },
+  ]);
 });
