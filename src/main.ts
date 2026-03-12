@@ -374,6 +374,10 @@ import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
+import {
+  getCharacterDictionaryDisabledReason,
+  isCharacterDictionaryRuntimeEnabled,
+} from './main/runtime/character-dictionary-availability';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
@@ -1328,7 +1332,9 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   getConfig: () => {
     const config = getResolvedConfig().anilist.characterDictionary;
     return {
-      enabled: config.enabled,
+      enabled:
+        config.enabled &&
+        isCharacterDictionaryRuntimeEnabled(getConfiguredExternalYomitanProfilePath()),
       maxLoaded: config.maxLoaded,
       profileScope: config.profileScope,
     };
@@ -2756,6 +2762,9 @@ const {
       );
     },
     scheduleCharacterDictionarySync: () => {
+      if (!isCharacterDictionaryEnabledForCurrentProcess()) {
+        return;
+      }
       characterDictionaryAutoSyncRuntime.scheduleSync();
     },
     updateCurrentMediaTitle: (title) => {
@@ -2833,7 +2842,9 @@ const {
           'subtitle.annotation.jlpt',
           getResolvedConfig().subtitleStyle.enableJlpt,
         ),
-      getCharacterDictionaryEnabled: () => getResolvedConfig().anilist.characterDictionary.enabled,
+      getCharacterDictionaryEnabled: () =>
+        getResolvedConfig().anilist.characterDictionary.enabled &&
+        isCharacterDictionaryEnabledForCurrentProcess(),
       getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
@@ -3033,6 +3044,14 @@ function getConfiguredExternalYomitanProfilePath(): string {
 
 function isYomitanExternalReadOnlyMode(): boolean {
   return getConfiguredExternalYomitanProfilePath().length > 0;
+}
+
+function isCharacterDictionaryEnabledForCurrentProcess(): boolean {
+  return isCharacterDictionaryRuntimeEnabled(getConfiguredExternalYomitanProfilePath());
+}
+
+function getCharacterDictionaryDisabledReasonForCurrentProcess(): string | null {
+  return getCharacterDictionaryDisabledReason(getConfiguredExternalYomitanProfilePath());
 }
 
 function logSkippedYomitanWrite(action: string): void {
@@ -3537,8 +3556,13 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
   getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
   processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
-  generateCharacterDictionary: (targetPath?: string) =>
-    characterDictionaryRuntime.generateForCurrentMedia(targetPath),
+  generateCharacterDictionary: async (targetPath?: string) => {
+    const disabledReason = getCharacterDictionaryDisabledReasonForCurrentProcess();
+    if (disabledReason) {
+      throw new Error(disabledReason);
+    }
+    return await characterDictionaryRuntime.generateForCurrentMedia(targetPath);
+  },
   runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
   openYomitanSettings: () => openYomitanSettings(),
   cycleSecondarySubMode: () => handleCycleSecondarySubMode(),

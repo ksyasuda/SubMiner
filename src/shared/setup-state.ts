@@ -208,13 +208,8 @@ export function ensureDefaultConfigBootstrap(options: {
   const existsSync = options.existsSync ?? fs.existsSync;
   const mkdirSync = options.mkdirSync ?? fs.mkdirSync;
   const writeFileSync = options.writeFileSync ?? fs.writeFileSync;
-  const configDirExists = existsSync(options.configDir);
 
-  if (
-    existsSync(options.configFilePaths.jsoncPath) ||
-    existsSync(options.configFilePaths.jsonPath) ||
-    configDirExists
-  ) {
+  if (existsSync(options.configFilePaths.jsoncPath) || existsSync(options.configFilePaths.jsonPath)) {
     return;
   }
 

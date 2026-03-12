@@ -959,7 +959,7 @@ External-profile mode behavior:
 - SubMiner reads the external profile's currently active Yomitan profile selection and installed dictionaries.
 - SubMiner does not open its own Yomitan settings window in this mode.
 - SubMiner does not import, delete, or update dictionaries/settings in the external profile.
-- SubMiner character-dictionary auto-sync is effectively disabled in this mode because it requires Yomitan writes.
+- SubMiner character-dictionary features are fully disabled in this mode, including auto-sync, manual generation, and subtitle-side character-dictionary annotations.
 
 ### Jellyfin
 
