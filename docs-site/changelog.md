@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.6.2 (2026-03-12)
+- Added `yomitan.externalProfilePath` so SubMiner can reuse another Electron app's Yomitan profile in read-only mode.
+- Reused external Yomitan dictionaries/settings without writing back to that profile.
+- Let launcher-managed playback honor external Yomitan config instead of forcing first-run setup.
+- Seeded `config.jsonc` even when the default config directory already exists.
+- Let first-run setup complete without internal dictionaries while external Yomitan is configured, then require an internal dictionary again only if that external profile is later removed.
+
 ## v0.6.0 (2026-03-12)
 - Added Chrome Gamepad API controller support for keyboard-only overlay mode.
 - Added configurable controller bindings for lookup, mining, popup navigation, Yomitan audio, mpv pause, and d-pad fallback navigation.
