@@ -63,7 +63,7 @@ The first sync for a media title takes a few seconds while character data and po
 :::
 
 ::: warning
-If `yomitan.externalProfilePath` is set, SubMiner switches to read-only external-profile mode. In that mode SubMiner can reuse another app's installed Yomitan dictionaries/settings, but character-dictionary auto-sync does not import or update the merged dictionary.
+If `yomitan.externalProfilePath` is set, SubMiner switches to read-only external-profile mode. In that mode SubMiner can reuse another app's installed Yomitan dictionaries/settings, but SubMiner's own character-dictionary features are fully disabled.
 :::
 
 ## Name Generation

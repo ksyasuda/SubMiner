@@ -65,7 +65,7 @@ test('ensureDefaultConfigBootstrap creates config dir and default jsonc only whe
   });
 });
 
-test('ensureDefaultConfigBootstrap does not seed default config into an existing config directory', () => {
+test('ensureDefaultConfigBootstrap seeds default config into an existing config directory when missing', () => {
   withTempDir((root) => {
     const configDir = path.join(root, 'SubMiner');
     fs.mkdirSync(configDir, { recursive: true });
@@ -74,10 +74,13 @@ test('ensureDefaultConfigBootstrap does not seed default config into an existing
     ensureDefaultConfigBootstrap({
       configDir,
       configFilePaths: getDefaultConfigFilePaths(configDir),
-      generateTemplate: () => 'should-not-write',
+      generateTemplate: () => '{\n  "logging": {}\n}\n',
     });
 
-    assert.equal(fs.existsSync(path.join(configDir, 'config.jsonc')), false);
+    assert.equal(
+      fs.readFileSync(path.join(configDir, 'config.jsonc'), 'utf8'),
+      '{\n  "logging": {}\n}\n',
+    );
     assert.equal(fs.readFileSync(path.join(configDir, 'existing-user-file.txt'), 'utf8'), 'keep\n');
   });
 });
