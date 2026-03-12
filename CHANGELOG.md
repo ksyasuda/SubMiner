@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6.0 (2026-03-12)
+## v0.6.1 (2026-03-12)
 
 ### Added
 - Overlay: Added Chrome Gamepad API controller support for keyboard-only overlay mode, including configurable logical bindings for lookup, mining, popup navigation, Yomitan audio, mpv pause, d-pad fallback navigation, and slower smooth popup scrolling.
@@ -8,8 +8,12 @@
 - Overlay: Added a transient in-overlay controller-detected indicator when a controller is first found.
 - Overlay: Fixed stale keyboard-only token highlight cleanup when keyboard-only mode turns off or the Yomitan popup closes.
 
+### Docs
+- Install: Added Arch Linux AUR install docs for `subminer-bin` in the README and installation guide.
+
 ### Internal
 - Config: add an enforced `verify:config-example` gate so checked-in example config artifacts cannot drift silently
+- Release: Fixed the release workflow token permissions so tagged builds can download `oven-sh/setup-bun` and publish artifacts again.
 
 ## v0.5.6 (2026-03-10)
 
