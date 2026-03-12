@@ -66,10 +66,12 @@ export function createBuildOpenYomitanSettingsMainDepsHandler<TYomitanExt, TWind
     yomitanExt: TYomitanExt;
     getExistingWindow: () => TWindow | null;
     setWindow: (window: TWindow | null) => void;
+    yomitanSession?: unknown | null;
     onWindowClosed?: () => void;
   }) => void;
   getExistingWindow: () => TWindow | null;
   setWindow: (window: TWindow | null) => void;
+  getYomitanSession?: () => unknown | null;
   logWarn: (message: string) => void;
   logError: (message: string, error: unknown) => void;
 }) {
@@ -79,10 +81,12 @@ export function createBuildOpenYomitanSettingsMainDepsHandler<TYomitanExt, TWind
       yomitanExt: TYomitanExt;
       getExistingWindow: () => TWindow | null;
       setWindow: (window: TWindow | null) => void;
+      yomitanSession?: unknown | null;
       onWindowClosed?: () => void;
     }) => deps.openYomitanSettingsWindow(params),
     getExistingWindow: () => deps.getExistingWindow(),
     setWindow: (window: TWindow | null) => deps.setWindow(window),
+    getYomitanSession: () => deps.getYomitanSession?.() ?? null,
     logWarn: (message: string) => deps.logWarn(message),
     logError: (message: string, error: unknown) => deps.logError(message, error),
   });

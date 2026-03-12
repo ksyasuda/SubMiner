@@ -912,6 +912,28 @@ Current post-watch behavior:
 - If embedded AniList auth UI fails to render, SubMiner opens the authorize URL in your default browser and shows fallback instructions in-app.
 - Failed updates are retried with a persistent backoff queue in the background.
 
+Setup flow details:
+
+1. Set `anilist.enabled` to `true`.
+2. Leave `anilist.accessToken` empty and restart SubMiner (or run `--anilist-setup`) to trigger setup.
+3. Approve access in AniList.
+4. Callback flow returns to SubMiner via `subminer://anilist-setup?...`, and SubMiner stores the token automatically.
+   - Encryption backend: Linux defaults to `gnome-libsecret`.
+     Override with `--password-store=<backend>` (for example `--password-store=basic_text`).
+
+Token + detection notes:
+
+- `anilist.accessToken` can be set directly in config; when blank, SubMiner uses the locally stored encrypted token from setup.
+- Detection quality is best when `guessit` is installed and available on `PATH`.
+- When `guessit` cannot parse or is missing, SubMiner falls back automatically to internal filename parsing.
+
+AniList CLI commands:
+
+- `--anilist-status`: print current AniList token resolution state and retry queue counters.
+- `--anilist-logout`: clear stored AniList token from local persisted state.
+- `--anilist-setup`: open AniList setup/auth flow helper window.
+- `--anilist-retry-queue`: process one ready retry queue item immediately.
+
 ### Yomitan
 
 SubMiner normally uses its bundled Yomitan profile under the app config directory. If you want to reuse dictionaries and profile settings from another Electron app, point SubMiner at that app's Yomitan Electron profile in read-only mode.
@@ -937,28 +959,6 @@ External-profile mode behavior:
 - SubMiner does not open its own Yomitan settings window in this mode.
 - SubMiner does not import, delete, or update dictionaries/settings in the external profile.
 - SubMiner character-dictionary auto-sync is effectively disabled in this mode because it requires Yomitan writes.
-
-Setup flow details:
-
-1. Set `anilist.enabled` to `true`.
-2. Leave `anilist.accessToken` empty and restart SubMiner (or run `--anilist-setup`) to trigger setup.
-3. Approve access in AniList.
-4. Callback flow returns to SubMiner via `subminer://anilist-setup?...`, and SubMiner stores the token automatically.
-   - Encryption backend: Linux defaults to `gnome-libsecret`.
-     Override with `--password-store=<backend>` (for example `--password-store=basic_text`).
-
-Token + detection notes:
-
-- `anilist.accessToken` can be set directly in config; when blank, SubMiner uses the locally stored encrypted token from setup.
-- Detection quality is best when `guessit` is installed and available on `PATH`.
-- When `guessit` cannot parse or is missing, SubMiner falls back automatically to internal filename parsing.
-
-AniList CLI commands:
-
-- `--anilist-status`: print current AniList token resolution state and retry queue counters.
-- `--anilist-logout`: clear stored AniList token from local persisted state.
-- `--anilist-setup`: open AniList setup/auth flow helper window.
-- `--anilist-retry-queue`: process one ready retry queue item immediately.
 
 ### Jellyfin
 

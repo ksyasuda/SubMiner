@@ -5,11 +5,12 @@ import { createYomitanSettingsRuntime } from './yomitan-settings-runtime';
 test('yomitan settings runtime composes opener with built deps', async () => {
   let existingWindow: { id: string } | null = null;
   const calls: string[] = [];
+  const yomitanSession = { id: 'session' };
 
   const runtime = createYomitanSettingsRuntime({
     ensureYomitanExtensionLoaded: async () => ({ id: 'ext' }),
-    openYomitanSettingsWindow: ({ getExistingWindow, setWindow }) => {
-      calls.push('open-window');
+    openYomitanSettingsWindow: ({ getExistingWindow, setWindow, yomitanSession: forwardedSession }) => {
+      calls.push(`open-window:${(forwardedSession as { id: string } | null)?.id ?? 'null'}`);
       const current = getExistingWindow();
       if (!current) {
         setWindow({ id: 'settings' });
@@ -19,6 +20,7 @@ test('yomitan settings runtime composes opener with built deps', async () => {
     setWindow: (window) => {
       existingWindow = window as { id: string } | null;
     },
+    getYomitanSession: () => yomitanSession,
     logWarn: (message) => calls.push(`warn:${message}`),
     logError: (message) => calls.push(`error:${message}`),
   });
@@ -27,5 +29,5 @@ test('yomitan settings runtime composes opener with built deps', async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.deepEqual(existingWindow, { id: 'settings' });
-  assert.deepEqual(calls, ['open-window']);
+  assert.deepEqual(calls, ['open-window:session']);
 });
