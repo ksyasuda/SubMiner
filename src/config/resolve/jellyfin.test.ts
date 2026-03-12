@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as os from 'node:os';
 import { createResolveContext } from './context';
 import { applyIntegrationConfig } from './integrations';
 
@@ -126,4 +127,17 @@ test('yomitan externalProfilePath is trimmed and invalid values warn', () => {
 
   assert.equal(invalid.context.resolved.yomitan.externalProfilePath, '');
   assert.ok(invalid.warnings.some((warning) => warning.path === 'yomitan.externalProfilePath'));
+});
+
+test('yomitan externalProfilePath expands leading tilde to the current home directory', () => {
+  const homeDir = os.homedir();
+  const { context } = createResolveContext({
+    yomitan: {
+      externalProfilePath: '~/.config/gsm_overlay',
+    },
+  });
+
+  applyIntegrationConfig(context);
+
+  assert.equal(context.resolved.yomitan.externalProfilePath, `${homeDir}/.config/gsm_overlay`);
 });

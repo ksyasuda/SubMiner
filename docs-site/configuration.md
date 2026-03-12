@@ -113,6 +113,7 @@ The configuration file includes several main sections:
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
 - [**Auto Subtitle Sync**](#auto-subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
 - [**AniList**](#anilist) - Optional post-watch progress updates
+- [**Yomitan**](#yomitan) - Reuse an external read-only Yomitan profile via `yomitan.externalProfilePath`
 - [**Jellyfin**](#jellyfin) - Optional Jellyfin auth, library listing, and playback launch
 - [**Discord Rich Presence**](#discord-rich-presence) - Optional Discord activity card updates
 - [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite

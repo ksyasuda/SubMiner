@@ -1,5 +1,18 @@
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { ResolveContext } from './context';
 import { asBoolean, asNumber, asString, isObject } from './shared';
+
+function normalizeExternalProfilePath(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === '~') {
+    return os.homedir();
+  }
+  if (trimmed.startsWith('~/') || trimmed.startsWith('~\\')) {
+    return path.join(os.homedir(), trimmed.slice(2));
+  }
+  return trimmed;
+}
 
 export function applyIntegrationConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
@@ -202,7 +215,7 @@ export function applyIntegrationConfig(context: ResolveContext): void {
   if (isObject(src.yomitan)) {
     const externalProfilePath = asString(src.yomitan.externalProfilePath);
     if (externalProfilePath !== undefined) {
-      resolved.yomitan.externalProfilePath = externalProfilePath.trim();
+      resolved.yomitan.externalProfilePath = normalizeExternalProfilePath(externalProfilePath);
     } else if (src.yomitan.externalProfilePath !== undefined) {
       warn(
         'yomitan.externalProfilePath',
