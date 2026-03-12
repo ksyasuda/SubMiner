@@ -9,6 +9,10 @@ import {
   resolveExternalYomitanExtensionPath,
   resolveExistingYomitanExtensionPath,
 } from './yomitan-extension-paths';
+import {
+  clearYomitanExtensionRuntimeState,
+  clearYomitanParserRuntimeState,
+} from './yomitan-extension-runtime-state';
 
 const { session } = electron;
 const logger = createLogger('main:yomitan-extension-loader');
@@ -28,6 +32,22 @@ export interface YomitanExtensionLoaderDeps {
 export async function loadYomitanExtension(
   deps: YomitanExtensionLoaderDeps,
 ): Promise<Extension | null> {
+  const clearRuntimeState = () =>
+    clearYomitanExtensionRuntimeState({
+      getYomitanParserWindow: deps.getYomitanParserWindow,
+      setYomitanParserWindow: deps.setYomitanParserWindow,
+      setYomitanParserReadyPromise: deps.setYomitanParserReadyPromise,
+      setYomitanParserInitPromise: deps.setYomitanParserInitPromise,
+      setYomitanExtension: () => deps.setYomitanExtension(null),
+      setYomitanSession: () => deps.setYomitanSession(null),
+    });
+  const clearParserState = () =>
+    clearYomitanParserRuntimeState({
+      getYomitanParserWindow: deps.getYomitanParserWindow,
+      setYomitanParserWindow: deps.setYomitanParserWindow,
+      setYomitanParserReadyPromise: deps.setYomitanParserReadyPromise,
+      setYomitanParserInitPromise: deps.setYomitanParserInitPromise,
+    });
   const externalProfilePath = deps.externalProfilePath?.trim() ?? '';
   let extPath: string | null = null;
   let targetSession: Session = session.defaultSession;
@@ -38,8 +58,7 @@ export async function loadYomitanExtension(
     if (!extPath) {
       logger.error('External Yomitan extension not found in configured profile path');
       logger.error('Expected unpacked extension at:', path.join(resolvedProfilePath, 'extensions'));
-      deps.setYomitanExtension(null);
-      deps.setYomitanSession(null);
+      clearRuntimeState();
       return null;
     }
 
@@ -56,8 +75,7 @@ export async function loadYomitanExtension(
     if (!extPath) {
       logger.error('Yomitan extension not found in any search path');
       logger.error('Run `bun run build:yomitan` or install Yomitan to one of:', searchPaths);
-      deps.setYomitanExtension(null);
-      deps.setYomitanSession(null);
+      clearRuntimeState();
       return null;
     }
 
@@ -68,13 +86,7 @@ export async function loadYomitanExtension(
     extPath = extensionCopy.targetDir;
   }
 
-  const parserWindow = deps.getYomitanParserWindow();
-  if (parserWindow && !parserWindow.isDestroyed()) {
-    parserWindow.destroy();
-  }
-  deps.setYomitanParserWindow(null);
-  deps.setYomitanParserReadyPromise(null);
-  deps.setYomitanParserInitPromise(null);
+  clearParserState();
   deps.setYomitanSession(targetSession);
 
   try {
@@ -91,8 +103,7 @@ export async function loadYomitanExtension(
   } catch (err) {
     logger.error('Failed to load Yomitan extension:', (err as Error).message);
     logger.error('Full error:', err);
-    deps.setYomitanExtension(null);
-    deps.setYomitanSession(null);
+    clearRuntimeState();
     return null;
   }
 }

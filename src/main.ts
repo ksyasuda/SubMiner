@@ -374,12 +374,9 @@ import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
-import {
-  getCharacterDictionaryDisabledReason,
-  isCharacterDictionaryRuntimeEnabled,
-} from './main/runtime/character-dictionary-availability';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
+import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
 import {
   getPreferredYomitanAnkiServerUrl as getPreferredYomitanAnkiServerUrlRuntime,
@@ -1332,9 +1329,7 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   getConfig: () => {
     const config = getResolvedConfig().anilist.characterDictionary;
     return {
-      enabled:
-        config.enabled &&
-        isCharacterDictionaryRuntimeEnabled(getConfiguredExternalYomitanProfilePath()),
+      enabled: config.enabled && yomitanProfilePolicy.isCharacterDictionaryEnabled(),
       maxLoaded: config.maxLoaded,
       profileScope: config.profileScope,
     };
@@ -1354,8 +1349,10 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     });
   },
   importYomitanDictionary: async (zipPath) => {
-    if (isYomitanExternalReadOnlyMode()) {
-      logSkippedYomitanWrite(formatSkippedYomitanWriteAction('importYomitanDictionary', zipPath));
+    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
+      yomitanProfilePolicy.logSkippedWrite(
+        formatSkippedYomitanWriteAction('importYomitanDictionary', zipPath),
+      );
       return false;
     }
     await ensureYomitanExtensionLoaded();
@@ -1365,8 +1362,8 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     });
   },
   deleteYomitanDictionary: async (dictionaryTitle) => {
-    if (isYomitanExternalReadOnlyMode()) {
-      logSkippedYomitanWrite(
+    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
+      yomitanProfilePolicy.logSkippedWrite(
         formatSkippedYomitanWriteAction('deleteYomitanDictionary', dictionaryTitle),
       );
       return false;
@@ -1378,8 +1375,8 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     });
   },
   upsertYomitanDictionarySettings: async (dictionaryTitle, profileScope) => {
-    if (isYomitanExternalReadOnlyMode()) {
-      logSkippedYomitanWrite(
+    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
+      yomitanProfilePolicy.logSkippedWrite(
         formatSkippedYomitanWriteAction('upsertYomitanDictionarySettings', dictionaryTitle),
       );
       return false;
@@ -2762,7 +2759,7 @@ const {
       );
     },
     scheduleCharacterDictionarySync: () => {
-      if (!isCharacterDictionaryEnabledForCurrentProcess()) {
+      if (!yomitanProfilePolicy.isCharacterDictionaryEnabled()) {
         return;
       }
       characterDictionaryAutoSyncRuntime.scheduleSync();
@@ -2844,7 +2841,7 @@ const {
         ),
       getCharacterDictionaryEnabled: () =>
         getResolvedConfig().anilist.characterDictionary.enabled &&
-        isCharacterDictionaryEnabledForCurrentProcess(),
+        yomitanProfilePolicy.isCharacterDictionaryEnabled(),
       getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
@@ -3018,7 +3015,7 @@ const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler(
 
 async function loadYomitanExtension(): Promise<Extension | null> {
   const extension = await yomitanExtensionRuntime.loadYomitanExtension();
-  if (extension && !isYomitanExternalReadOnlyMode()) {
+  if (extension && !yomitanProfilePolicy.isExternalReadOnlyMode()) {
     await syncYomitanDefaultProfileAnkiServer();
   }
   return extension;
@@ -3026,7 +3023,7 @@ async function loadYomitanExtension(): Promise<Extension | null> {
 
 async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
   const extension = await yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
-  if (extension && !isYomitanExternalReadOnlyMode()) {
+  if (extension && !yomitanProfilePolicy.isExternalReadOnlyMode()) {
     await syncYomitanDefaultProfileAnkiServer();
   }
   return extension;
@@ -3036,28 +3033,6 @@ let lastSyncedYomitanAnkiServer: string | null = null;
 
 function getPreferredYomitanAnkiServerUrl(): string {
   return getPreferredYomitanAnkiServerUrlRuntime(getResolvedConfig().ankiConnect);
-}
-
-function getConfiguredExternalYomitanProfilePath(): string {
-  return configuredExternalYomitanProfilePath;
-}
-
-function isYomitanExternalReadOnlyMode(): boolean {
-  return getConfiguredExternalYomitanProfilePath().length > 0;
-}
-
-function isCharacterDictionaryEnabledForCurrentProcess(): boolean {
-  return isCharacterDictionaryRuntimeEnabled(getConfiguredExternalYomitanProfilePath());
-}
-
-function getCharacterDictionaryDisabledReasonForCurrentProcess(): string | null {
-  return getCharacterDictionaryDisabledReason(getConfiguredExternalYomitanProfilePath());
-}
-
-function logSkippedYomitanWrite(action: string): void {
-  logger.info(
-    `[yomitan] skipping ${action}: yomitan.externalProfilePath is configured; external profile mode is read-only`,
-  );
 }
 
 function getYomitanParserRuntimeDeps() {
@@ -3080,7 +3055,7 @@ function getYomitanParserRuntimeDeps() {
 }
 
 async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
-  if (isYomitanExternalReadOnlyMode()) {
+  if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
     return;
   }
 
@@ -3138,7 +3113,7 @@ function initializeOverlayRuntime(): void {
 }
 
 function openYomitanSettings(): boolean {
-  if (isYomitanExternalReadOnlyMode()) {
+  if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
     const message =
       'Yomitan settings unavailable while using read-only external-profile mode.';
     logger.warn(
@@ -3557,7 +3532,7 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
   processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
   generateCharacterDictionary: async (targetPath?: string) => {
-    const disabledReason = getCharacterDictionaryDisabledReasonForCurrentProcess();
+    const disabledReason = yomitanProfilePolicy.getCharacterDictionaryDisabledReason();
     if (disabledReason) {
       throw new Error(disabledReason);
     }
@@ -3650,11 +3625,15 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
     },
     buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
   });
-const configuredExternalYomitanProfilePath = getResolvedConfig().yomitan.externalProfilePath.trim();
+const yomitanProfilePolicy = createYomitanProfilePolicy({
+  externalProfilePath: getResolvedConfig().yomitan.externalProfilePath,
+  logInfo: (message) => logger.info(message),
+});
+const configuredExternalYomitanProfilePath = yomitanProfilePolicy.externalProfilePath;
 const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,
-  externalProfilePath: getConfiguredExternalYomitanProfilePath(),
+  externalProfilePath: configuredExternalYomitanProfilePath,
   getYomitanParserWindow: () => appState.yomitanParserWindow,
   setYomitanParserWindow: (window) => {
     appState.yomitanParserWindow = window as BrowserWindow | null;

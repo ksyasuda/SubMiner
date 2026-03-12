@@ -24,11 +24,16 @@ export function createOpenYomitanSettingsHandler(deps: {
         deps.logWarn('Unable to open Yomitan settings: extension failed to load.');
         return;
       }
+      const yomitanSession = deps.getYomitanSession?.() ?? null;
+      if (!yomitanSession) {
+        deps.logWarn('Unable to open Yomitan settings: Yomitan session is unavailable.');
+        return;
+      }
       deps.openYomitanSettingsWindow({
         yomitanExt: extension,
         getExistingWindow: deps.getExistingWindow,
         setWindow: deps.setWindow,
-        yomitanSession: deps.getYomitanSession?.() ?? null,
+        yomitanSession,
       });
     })().catch((error) => {
       deps.logError('Failed to open Yomitan settings window.', error);
