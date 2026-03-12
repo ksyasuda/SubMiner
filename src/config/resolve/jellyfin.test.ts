@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as os from 'node:os';
+import * as path from 'node:path';
 import { createResolveContext } from './context';
 import { applyIntegrationConfig } from './integrations';
 
@@ -139,5 +140,8 @@ test('yomitan externalProfilePath expands leading tilde to the current home dire
 
   applyIntegrationConfig(context);
 
-  assert.equal(context.resolved.yomitan.externalProfilePath, `${homeDir}/.config/gsm_overlay`);
+  assert.equal(
+    context.resolved.yomitan.externalProfilePath,
+    path.join(homeDir, '.config', 'gsm_overlay'),
+  );
 });

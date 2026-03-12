@@ -376,6 +376,7 @@ import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
+import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
 import {
   getPreferredYomitanAnkiServerUrl as getPreferredYomitanAnkiServerUrlRuntime,
   shouldForceOverrideYomitanAnkiServer,
@@ -1348,7 +1349,7 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   },
   importYomitanDictionary: async (zipPath) => {
     if (isYomitanExternalReadOnlyMode()) {
-      logSkippedYomitanWrite(`importYomitanDictionary(${zipPath})`);
+      logSkippedYomitanWrite(formatSkippedYomitanWriteAction('importYomitanDictionary', zipPath));
       return false;
     }
     await ensureYomitanExtensionLoaded();
@@ -1359,7 +1360,9 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   },
   deleteYomitanDictionary: async (dictionaryTitle) => {
     if (isYomitanExternalReadOnlyMode()) {
-      logSkippedYomitanWrite(`deleteYomitanDictionary(${dictionaryTitle})`);
+      logSkippedYomitanWrite(
+        formatSkippedYomitanWriteAction('deleteYomitanDictionary', dictionaryTitle),
+      );
       return false;
     }
     await ensureYomitanExtensionLoaded();
@@ -1370,7 +1373,9 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   },
   upsertYomitanDictionarySettings: async (dictionaryTitle, profileScope) => {
     if (isYomitanExternalReadOnlyMode()) {
-      logSkippedYomitanWrite(`upsertYomitanDictionarySettings(${dictionaryTitle})`);
+      logSkippedYomitanWrite(
+        formatSkippedYomitanWriteAction('upsertYomitanDictionarySettings', dictionaryTitle),
+      );
       return false;
     }
     await ensureYomitanExtensionLoaded();
