@@ -68,15 +68,19 @@ test('open yomitan settings main deps map async open callbacks', async () => {
   const calls: string[] = [];
   let currentWindow: unknown = null;
   const extension = { id: 'ext' };
+  const yomitanSession = { id: 'session' };
   const deps = createBuildOpenYomitanSettingsMainDepsHandler({
     ensureYomitanExtensionLoaded: async () => extension,
-    openYomitanSettingsWindow: ({ yomitanExt }) =>
-      calls.push(`open:${(yomitanExt as { id: string }).id}`),
+    openYomitanSettingsWindow: ({ yomitanExt, yomitanSession: forwardedSession }) =>
+      calls.push(
+        `open:${(yomitanExt as { id: string }).id}:${(forwardedSession as { id: string } | null)?.id ?? 'null'}`,
+      ),
     getExistingWindow: () => currentWindow,
     setWindow: (window) => {
       currentWindow = window;
       calls.push('set-window');
     },
+    getYomitanSession: () => yomitanSession,
     logWarn: (message) => calls.push(`warn:${message}`),
     logError: (message) => calls.push(`error:${message}`),
   })();
@@ -88,9 +92,10 @@ test('open yomitan settings main deps map async open callbacks', async () => {
     yomitanExt: extension,
     getExistingWindow: () => deps.getExistingWindow(),
     setWindow: (window) => deps.setWindow(window),
+    yomitanSession: deps.getYomitanSession(),
   });
   deps.logWarn('warn');
   deps.logError('error', new Error('boom'));
-  assert.deepEqual(calls, ['set-window', 'open:ext', 'warn:warn', 'error:error']);
+  assert.deepEqual(calls, ['set-window', 'open:ext:session', 'warn:warn', 'error:error']);
   assert.deepEqual(currentWindow, { id: 'win' });
 });

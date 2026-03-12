@@ -23,6 +23,7 @@ import {
   shell,
   protocol,
   Extension,
+  Session,
   Menu,
   nativeImage,
   Tray,
@@ -1849,8 +1850,9 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       return;
     }
     if (submission.action === 'open-yomitan-settings') {
-      openYomitanSettings();
-      firstRunSetupMessage = 'Opened Yomitan settings. Install dictionaries, then refresh status.';
+      firstRunSetupMessage = openYomitanSettings()
+        ? 'Opened Yomitan settings. Install dictionaries, then refresh status.'
+        : 'Yomitan settings are unavailable while external read-only profile mode is enabled.';
       return;
     }
     if (submission.action === 'refresh') {
@@ -3022,7 +3024,7 @@ function getPreferredYomitanAnkiServerUrl(): string {
 }
 
 function getConfiguredExternalYomitanProfilePath(): string {
-  return getResolvedConfig().yomitan.externalProfilePath.trim();
+  return configuredExternalYomitanProfilePath;
 }
 
 function isYomitanExternalReadOnlyMode(): boolean {
@@ -3112,14 +3114,19 @@ function initializeOverlayRuntime(): void {
   syncOverlayMpvSubtitleSuppression();
 }
 
-function openYomitanSettings(): void {
+function openYomitanSettings(): boolean {
   if (isYomitanExternalReadOnlyMode()) {
+    const message =
+      'Yomitan settings unavailable while using read-only external-profile mode.';
     logger.warn(
       'Yomitan settings window disabled while yomitan.externalProfilePath is configured because external profile mode is read-only.',
     );
-    return;
+    showDesktopNotification('SubMiner', { body: message });
+    showMpvOsd(message);
+    return false;
   }
   openYomitanSettingsHandler();
+  return true;
 }
 
 const {
@@ -3623,6 +3630,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
     },
     buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
   });
+const configuredExternalYomitanProfilePath = getResolvedConfig().yomitan.externalProfilePath.trim();
 const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,
@@ -3684,12 +3692,18 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
   });
 const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSettingsRuntime({
   ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
-  openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow }) => {
+  getYomitanSession: () => appState.yomitanSession,
+  openYomitanSettingsWindow: ({
+    yomitanExt,
+    getExistingWindow,
+    setWindow,
+    yomitanSession,
+  }) => {
     openYomitanSettingsWindow({
       yomitanExt: yomitanExt as Extension,
       getExistingWindow: () => getExistingWindow() as BrowserWindow | null,
       setWindow: (window) => setWindow(window as BrowserWindow | null),
-      yomitanSession: appState.yomitanSession,
+      yomitanSession: (yomitanSession as Session | null | undefined) ?? appState.yomitanSession,
       onWindowClosed: () => {
         if (appState.yomitanParserWindow) {
           clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
