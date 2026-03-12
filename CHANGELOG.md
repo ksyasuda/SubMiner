@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.6.2 (2026-03-12)
+
+### Changed
+- Config: Added `yomitan.externalProfilePath` to reuse another Electron app's Yomitan profile in read-only mode.
+- Config: SubMiner now reuses external Yomitan dictionaries/settings without writing back to that profile.
+- Config: Launcher-managed playback now respects `yomitan.externalProfilePath` and no longer forces first-run setup when external Yomitan is configured.
+- Config: SubMiner now seeds `config.jsonc` even when the default config directory already exists.
+- Config: First-run setup now allows zero internal dictionaries when `yomitan.externalProfilePath` is configured, and falls back to requiring at least one internal dictionary if that external profile is later removed.
+
+## v0.6.1 (2026-03-12)
+
+### Added
+- Overlay: Added Chrome Gamepad API controller support for keyboard-only overlay mode, including configurable logical bindings for lookup, mining, popup navigation, Yomitan audio, mpv pause, d-pad fallback navigation, and slower smooth popup scrolling.
+- Overlay: Added `Alt+C` controller selection and `Alt+Shift+C` controller debug modals, with preferred controller persistence and live raw input inspection.
+- Overlay: Added a transient in-overlay controller-detected indicator when a controller is first found.
+- Overlay: Fixed stale keyboard-only token highlight cleanup when keyboard-only mode turns off or the Yomitan popup closes.
+
+### Docs
+- Install: Added Arch Linux AUR install docs for `subminer-bin` in the README and installation guide.
+
+### Internal
+- Config: add an enforced `verify:config-example` gate so checked-in example config artifacts cannot drift silently
+- Release: Fixed the release workflow token permissions so tagged builds can download `oven-sh/setup-bun` and publish artifacts again.
+
 ## v0.5.6 (2026-03-10)
 
 ### Fixed
