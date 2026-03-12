@@ -1,4 +1,5 @@
 import type {
+  ControllerPreferenceUpdate,
   JimakuDownloadQuery,
   JimakuFilesQuery,
   JimakuSearchQuery,
@@ -45,6 +46,16 @@ export function parseSubtitlePosition(value: unknown): SubtitlePosition | null {
   }
   return {
     yPercent: value.yPercent,
+  };
+}
+
+export function parseControllerPreferenceUpdate(value: unknown): ControllerPreferenceUpdate | null {
+  if (!isObject(value)) return null;
+  if (typeof value.preferredGamepadId !== 'string') return null;
+  if (typeof value.preferredGamepadLabel !== 'string') return null;
+  return {
+    preferredGamepadId: value.preferredGamepadId,
+    preferredGamepadLabel: value.preferredGamepadLabel,
   };
 }
 

@@ -375,6 +375,94 @@ export interface ShortcutsConfig {
   openJimaku?: string | null;
 }
 
+export type ControllerButtonBinding =
+  | 'none'
+  | 'select'
+  | 'buttonSouth'
+  | 'buttonEast'
+  | 'buttonNorth'
+  | 'buttonWest'
+  | 'leftShoulder'
+  | 'rightShoulder'
+  | 'leftStickPress'
+  | 'rightStickPress'
+  | 'leftTrigger'
+  | 'rightTrigger';
+
+export type ControllerAxisBinding = 'leftStickX' | 'leftStickY' | 'rightStickX' | 'rightStickY';
+export type ControllerTriggerInputMode = 'auto' | 'digital' | 'analog';
+
+export interface ControllerBindingsConfig {
+  toggleLookup?: ControllerButtonBinding;
+  closeLookup?: ControllerButtonBinding;
+  toggleKeyboardOnlyMode?: ControllerButtonBinding;
+  mineCard?: ControllerButtonBinding;
+  quitMpv?: ControllerButtonBinding;
+  previousAudio?: ControllerButtonBinding;
+  nextAudio?: ControllerButtonBinding;
+  playCurrentAudio?: ControllerButtonBinding;
+  toggleMpvPause?: ControllerButtonBinding;
+  leftStickHorizontal?: ControllerAxisBinding;
+  leftStickVertical?: ControllerAxisBinding;
+  rightStickHorizontal?: ControllerAxisBinding;
+  rightStickVertical?: ControllerAxisBinding;
+}
+
+export interface ControllerButtonIndicesConfig {
+  select?: number;
+  buttonSouth?: number;
+  buttonEast?: number;
+  buttonNorth?: number;
+  buttonWest?: number;
+  leftShoulder?: number;
+  rightShoulder?: number;
+  leftStickPress?: number;
+  rightStickPress?: number;
+  leftTrigger?: number;
+  rightTrigger?: number;
+}
+
+export interface ControllerConfig {
+  enabled?: boolean;
+  preferredGamepadId?: string;
+  preferredGamepadLabel?: string;
+  smoothScroll?: boolean;
+  scrollPixelsPerSecond?: number;
+  horizontalJumpPixels?: number;
+  stickDeadzone?: number;
+  triggerInputMode?: ControllerTriggerInputMode;
+  triggerDeadzone?: number;
+  repeatDelayMs?: number;
+  repeatIntervalMs?: number;
+  buttonIndices?: ControllerButtonIndicesConfig;
+  bindings?: ControllerBindingsConfig;
+}
+
+export interface ControllerPreferenceUpdate {
+  preferredGamepadId: string;
+  preferredGamepadLabel: string;
+}
+
+export interface ControllerDeviceInfo {
+  id: string;
+  index: number;
+  mapping: string;
+  connected: boolean;
+}
+
+export interface ControllerButtonSnapshot {
+  value: number;
+  pressed: boolean;
+  touched?: boolean;
+}
+
+export interface ControllerRuntimeSnapshot {
+  connectedGamepads: ControllerDeviceInfo[];
+  activeGamepadId: string | null;
+  rawAxes: number[];
+  rawButtons: ControllerButtonSnapshot[];
+}
+
 export type JimakuLanguagePreference = 'ja' | 'en' | 'none';
 
 export interface JimakuConfig {
@@ -487,6 +575,7 @@ export interface Config {
   websocket?: WebSocketConfig;
   annotationWebsocket?: AnnotationWebSocketConfig;
   texthooker?: TexthookerConfig;
+  controller?: ControllerConfig;
   ankiConnect?: AnkiConnectConfig;
   shortcuts?: ShortcutsConfig;
   secondarySub?: SecondarySubConfig;
@@ -514,6 +603,21 @@ export interface ResolvedConfig {
   websocket: Required<WebSocketConfig>;
   annotationWebsocket: Required<AnnotationWebSocketConfig>;
   texthooker: Required<TexthookerConfig>;
+  controller: {
+    enabled: boolean;
+    preferredGamepadId: string;
+    preferredGamepadLabel: string;
+    smoothScroll: boolean;
+    scrollPixelsPerSecond: number;
+    horizontalJumpPixels: number;
+    stickDeadzone: number;
+    triggerInputMode: ControllerTriggerInputMode;
+    triggerDeadzone: number;
+    repeatDelayMs: number;
+    repeatIntervalMs: number;
+    buttonIndices: Required<ControllerButtonIndicesConfig>;
+    bindings: Required<ControllerBindingsConfig>;
+  };
   ankiConnect: AnkiConnectConfig & {
     enabled: boolean;
     url: string;
@@ -838,6 +942,8 @@ export interface ConfigHotReloadPayload {
   secondarySubMode: SecondarySubMode;
 }
 
+export type ResolvedControllerConfig = ResolvedConfig['controller'];
+
 export interface SubtitleHoverTokenPayload {
   tokenIndex: number | null;
 }
@@ -862,6 +968,8 @@ export interface ElectronAPI {
   sendMpvCommand: (command: (string | number)[]) => void;
   getKeybindings: () => Promise<Keybinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
+  getControllerConfig: () => Promise<ResolvedControllerConfig>;
+  saveControllerPreference: (update: ControllerPreferenceUpdate) => Promise<void>;
   getJimakuMediaInfo: () => Promise<JimakuMediaInfo>;
   jimakuSearchEntries: (query: JimakuSearchQuery) => Promise<JimakuApiResponse<JimakuEntry[]>>;
   jimakuListFiles: (query: JimakuFilesQuery) => Promise<JimakuApiResponse<JimakuFileEntry[]>>;
@@ -895,8 +1003,24 @@ export interface ElectronAPI {
   onKeyboardModeToggleRequested: (callback: () => void) => void;
   onLookupWindowToggleRequested: (callback: () => void) => void;
   appendClipboardVideoToQueue: () => Promise<ClipboardAppendResult>;
-  notifyOverlayModalClosed: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => void;
-  notifyOverlayModalOpened: (modal: 'runtime-options' | 'subsync' | 'jimaku' | 'kiku') => void;
+  notifyOverlayModalClosed: (
+    modal:
+      | 'runtime-options'
+      | 'subsync'
+      | 'jimaku'
+      | 'kiku'
+      | 'controller-select'
+      | 'controller-debug',
+  ) => void;
+  notifyOverlayModalOpened: (
+    modal:
+      | 'runtime-options'
+      | 'subsync'
+      | 'jimaku'
+      | 'kiku'
+      | 'controller-select'
+      | 'controller-debug',
+  ) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;
 }

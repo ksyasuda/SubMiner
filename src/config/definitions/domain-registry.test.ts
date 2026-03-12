@@ -19,6 +19,8 @@ test('config option registry includes critical paths and has unique entries', ()
   for (const requiredPath of [
     'logging.level',
     'annotationWebsocket.enabled',
+    'controller.enabled',
+    'controller.scrollPixelsPerSecond',
     'startupWarmups.lowPowerMode',
     'subtitleStyle.enableJlpt',
     'subtitleStyle.autoPauseVideoOnYomitanPopup',
@@ -38,6 +40,7 @@ test('config template sections include expected domains and unique keys', () => 
   const requiredKeys: (typeof keys)[number][] = [
     'websocket',
     'annotationWebsocket',
+    'controller',
     'startupWarmups',
     'subtitleStyle',
     'ankiConnect',

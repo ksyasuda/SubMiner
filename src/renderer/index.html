@@ -31,6 +31,12 @@
     <!-- Programmatic focus fallback target for Electron/window focus management. -->
     <div id="overlay" tabindex="-1">
       <div
+        id="controllerStatusToast"
+        class="controller-status-toast hidden"
+        role="status"
+        aria-live="polite"
+      ></div>
+      <div
         id="overlayErrorToast"
         class="overlay-error-toast hidden"
         role="status"
@@ -188,6 +194,62 @@
             <div id="subsyncStatus" class="runtime-options-status"></div>
             <div class="subsync-footer">
               <button id="subsyncRun" class="kiku-confirm-button" type="button">Run Sync</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="controllerSelectModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content runtime-modal-content">
+          <div class="modal-header">
+            <div class="modal-title">Controller Selection</div>
+            <button id="controllerSelectClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div id="controllerSelectHint" class="runtime-options-hint">
+              Arrow keys: select controller · Enter: save · Esc: close
+            </div>
+            <ul id="controllerSelectList" class="runtime-options-list"></ul>
+            <div id="controllerSelectStatus" class="runtime-options-status"></div>
+            <div class="subsync-footer">
+              <button id="controllerSelectSave" class="kiku-confirm-button" type="button">
+                Save Controller
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="controllerDebugModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content runtime-modal-content controller-debug-content">
+          <div
+            id="controllerDebugToast"
+            class="controller-debug-toast hidden"
+            aria-live="polite"
+          ></div>
+          <div class="modal-header">
+            <div class="modal-title">Controller Debug</div>
+            <button id="controllerDebugClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div id="controllerDebugStatus" class="runtime-options-status"></div>
+            <div id="controllerDebugSummary" class="controller-debug-summary"></div>
+            <div class="controller-debug-grid">
+              <div>
+                <div class="jimaku-section-title">Axes</div>
+                <pre id="controllerDebugAxes" class="controller-debug-pre"></pre>
+              </div>
+              <div>
+                <div class="jimaku-section-title">Buttons</div>
+                <pre id="controllerDebugButtons" class="controller-debug-pre"></pre>
+              </div>
+              <div class="controller-debug-span">
+                <div class="controller-debug-section-header">
+                  <div class="jimaku-section-title">Config</div>
+                  <button id="controllerDebugCopy" class="kiku-cancel-button" type="button">
+                    Copy
+                  </button>
+                </div>
+                <pre id="controllerDebugButtonIndices" class="controller-debug-pre"></pre>
+              </div>
             </div>
           </div>
         </div>

@@ -1,4 +1,7 @@
 import type {
+  ControllerButtonSnapshot,
+  ControllerDeviceInfo,
+  ResolvedControllerConfig,
   JimakuEntry,
   JimakuFileEntry,
   KikuDuplicateCardInfo,
@@ -53,6 +56,15 @@ export type RendererState = {
   subsyncSourceTracks: SubsyncSourceTrack[];
   subsyncSubmitting: boolean;
 
+  controllerSelectModalOpen: boolean;
+  controllerDebugModalOpen: boolean;
+  controllerDeviceSelectedIndex: number;
+  controllerConfig: ResolvedControllerConfig | null;
+  connectedGamepads: ControllerDeviceInfo[];
+  activeGamepadId: string | null;
+  controllerRawAxes: number[];
+  controllerRawButtons: ControllerButtonSnapshot[];
+
   sessionHelpModalOpen: boolean;
   sessionHelpSelectedIndex: number;
 
@@ -82,6 +94,7 @@ export type RendererState = {
   chordPending: boolean;
   chordTimeout: ReturnType<typeof setTimeout> | null;
   keyboardDrivenModeEnabled: boolean;
+  keyboardSelectionVisible: boolean;
   keyboardSelectedWordIndex: number | null;
   yomitanPopupVisible: boolean;
 };
@@ -122,6 +135,15 @@ export function createRendererState(): RendererState {
     subsyncSourceTracks: [],
     subsyncSubmitting: false,
 
+    controllerSelectModalOpen: false,
+    controllerDebugModalOpen: false,
+    controllerDeviceSelectedIndex: 0,
+    controllerConfig: null,
+    connectedGamepads: [],
+    activeGamepadId: null,
+    controllerRawAxes: [],
+    controllerRawButtons: [],
+
     sessionHelpModalOpen: false,
     sessionHelpSelectedIndex: 0,
 
@@ -151,6 +173,7 @@ export function createRendererState(): RendererState {
     chordPending: false,
     chordTimeout: null,
     keyboardDrivenModeEnabled: false,
+    keyboardSelectionVisible: false,
     keyboardSelectedWordIndex: null,
     yomitanPopupVisible: false,
   };

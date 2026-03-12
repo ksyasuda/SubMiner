@@ -1,4 +1,4 @@
-import type { OverlayHostedModal } from '../overlay-runtime';
+import type { OverlayHostedModal } from '../../shared/ipc/contracts';
 import type { AppendClipboardVideoToQueueRuntimeDeps } from './clipboard-queue';
 
 export function createSetOverlayVisibleHandler(deps: {

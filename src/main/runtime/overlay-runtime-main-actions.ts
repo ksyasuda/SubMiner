@@ -1,5 +1,5 @@
 import type { RuntimeOptionState } from '../../types';
-import type { OverlayHostedModal } from '../overlay-runtime';
+import type { OverlayHostedModal } from '../../shared/ipc/contracts';
 
 type RuntimeOptionsManagerLike = {
   listOptions: () => RuntimeOptionState[];

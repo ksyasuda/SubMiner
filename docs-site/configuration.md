@@ -95,6 +95,7 @@ The configuration file includes several main sections:
 
 - [**Keybindings**](#keybindings) - MPV command shortcuts
 - [**Shortcuts Configuration**](#shortcuts-configuration) - Overlay keyboard shortcuts
+- [**Controller Support**](#controller-support) - Gamepad support for keyboard-only mode
 - [**Manual Card Update Shortcuts**](#manual-card-update-shortcuts) - Shortcuts for manual Anki card workflows
 - [**Session Help Modal**](#session-help-modal) - In-overlay shortcut reference
 - [**Runtime Option Palette**](#runtime-option-palette) - Live, session-only option toggles
@@ -502,6 +503,88 @@ See `config.example.jsonc` for detailed configuration options.
 Set any shortcut to `null` to disable it.
 
 Feature-dependent shortcuts/keybindings only run when their related integration is enabled. For example, Anki/Kiku shortcuts require `ankiConnect.enabled` (and Kiku-specific behavior where applicable), and Jellyfin remote startup behavior requires Jellyfin to be enabled.
+
+### Controller Support
+
+SubMiner can read controllers through the Chrome Gamepad API and map them onto the existing keyboard-only overlay workflow.
+
+Important behavior:
+
+- Controller input is only active while keyboard-only mode is enabled.
+- Keyboard-only mode continues to work normally without a controller.
+- By default SubMiner uses the first connected controller.
+- `Alt+C` opens the controller selection modal and saves the selected controller for future launches.
+- `Alt+Shift+C` opens a live debug modal showing raw axes/button values plus a ready-to-copy `buttonIndices` config block.
+- Turning keyboard-only mode off clears the keyboard-only token highlight state.
+- Closing the Yomitan popup clears the temporary native text-selection fill, but keeps controller token selection active.
+
+```jsonc
+{
+  "controller": {
+    "enabled": true,
+    "preferredGamepadId": "",
+    "preferredGamepadLabel": "",
+    "smoothScroll": true,
+    "scrollPixelsPerSecond": 900,
+    "horizontalJumpPixels": 160,
+    "stickDeadzone": 0.2,
+    "triggerInputMode": "auto",
+    "triggerDeadzone": 0.5,
+    "repeatDelayMs": 320,
+    "repeatIntervalMs": 120,
+    "buttonIndices": {
+      "select": 6,
+      "buttonSouth": 0,
+      "buttonEast": 1,
+      "buttonWest": 2,
+      "buttonNorth": 3,
+      "leftShoulder": 4,
+      "rightShoulder": 5,
+      "leftStickPress": 9,
+      "rightStickPress": 10,
+      "leftTrigger": 6,
+      "rightTrigger": 7
+    },
+    "bindings": {
+      "toggleLookup": "buttonSouth",
+      "closeLookup": "buttonEast",
+      "toggleKeyboardOnlyMode": "buttonNorth",
+      "mineCard": "buttonWest",
+      "quitMpv": "select",
+      "previousAudio": "none",
+      "nextAudio": "rightShoulder",
+      "playCurrentAudio": "leftShoulder",
+      "toggleMpvPause": "leftStickPress",
+      "leftStickHorizontal": "leftStickX",
+      "leftStickVertical": "leftStickY",
+      "rightStickHorizontal": "rightStickX",
+      "rightStickVertical": "rightStickY"
+    }
+  }
+}
+```
+
+Default logical mapping:
+
+- Left stick up/down: scroll Yomitan popup
+- Left stick left/right: move subtitle token selection
+- Right stick up/down: page-jump through Yomitan popup
+- Right stick left/right: unused by default
+- `A`: toggle lookup
+- `B`: close lookup
+- `Y`: toggle keyboard-only mode
+- `X`: mine card
+- `Minus` / `Select`: quit mpv
+- `L1`: play current Yomitan audio (falls back to the first available track)
+- `R1`: move to the next available Yomitan audio track
+- `L3`: toggle mpv pause
+- `L2` / `R2`: unbound by default
+
+If you choose to bind `L2` or `R2` manually, set `triggerInputMode` to `analog` and tune `triggerDeadzone` when your controller reports triggers as analog values instead of digital pressed/not-pressed buttons. `auto` accepts either style and remains the default.
+
+If your controller reports non-standard raw button numbers, override `controller.buttonIndices` using values from the `Alt+Shift+C` debug modal.
+
+Tune `scrollPixelsPerSecond`, `horizontalJumpPixels`, deadzones, repeat timing, and `buttonIndices` to match your controller. See [config.example.jsonc](/config.example.jsonc) for the full generated comments for every controller field.
 
 ### Manual Card Update Shortcuts
 

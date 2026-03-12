@@ -358,7 +358,8 @@ import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
-import { createOverlayModalRuntimeService, type OverlayHostedModal } from './main/overlay-runtime';
+import { createOverlayModalRuntimeService } from './main/overlay-runtime';
+import type { OverlayHostedModal } from './shared/ipc/contracts';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -3407,6 +3408,15 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getMecabTokenizer: () => appState.mecabTokenizer,
       getKeybindings: () => appState.keybindings,
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
+      getControllerConfig: () => getResolvedConfig().controller,
+      saveControllerPreference: ({ preferredGamepadId, preferredGamepadLabel }) => {
+        configService.patchRawConfig({
+          controller: {
+            preferredGamepadId,
+            preferredGamepadLabel,
+          },
+        });
+      },
       getSecondarySubMode: () => appState.secondarySubMode,
       getMpvClient: () => appState.mpvClient,
       getAnkiConnectStatus: () => appState.ankiIntegration !== null,

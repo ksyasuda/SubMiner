@@ -69,6 +69,17 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`         |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`     |
 
+## Controller Shortcuts
+
+These overlay-local shortcuts are fixed and open controller utilities for the Chrome Gamepad API integration.
+
+| Shortcut      | Action                         | Configurable |
+| ------------- | ------------------------------ | ------------ |
+| `Alt+C`       | Open controller selection modal | Fixed        |
+| `Alt+Shift+C` | Open controller debug modal     | Fixed        |
+
+Controller input only drives the overlay while keyboard-only mode is enabled. The controller mapping and tuning live under the top-level `controller` config block; keyboard-only mode still works normally without a controller.
+
 ## MPV Plugin Chords
 
 When the mpv plugin is installed, all commands use a `y` chord prefix — press `y`, then the second key within 1 second.

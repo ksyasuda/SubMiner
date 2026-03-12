@@ -3,7 +3,10 @@ import test from 'node:test';
 
 import { createKeyboardHandlers } from './keyboard.js';
 import { createRendererState } from '../state.js';
-import { YOMITAN_POPUP_COMMAND_EVENT } from '../yomitan-popup.js';
+import {
+  YOMITAN_POPUP_COMMAND_EVENT,
+  YOMITAN_POPUP_HIDDEN_EVENT,
+} from '../yomitan-popup.js';
 
 type CommandEventDetail = {
   type?: string;
@@ -11,6 +14,9 @@ type CommandEventDetail = {
   key?: string;
   code?: string;
   repeat?: boolean;
+  direction?: number;
+  deltaX?: number;
+  deltaY?: number;
 };
 
 function createClassList() {
@@ -44,9 +50,12 @@ function installKeyboardTestGlobals() {
   const previousMouseEvent = (globalThis as { MouseEvent?: unknown }).MouseEvent;
 
   const documentListeners = new Map<string, Array<(event: unknown) => void>>();
+  const windowListeners = new Map<string, Array<(event: unknown) => void>>();
   const commandEvents: CommandEventDetail[] = [];
   const mpvCommands: Array<Array<string | number>> = [];
   let playbackPausedResponse: boolean | null = false;
+  let selectionClearCount = 0;
+  let selectionAddCount = 0;
 
   let popupVisible = false;
 
@@ -60,8 +69,12 @@ function installKeyboardTestGlobals() {
   };
 
   const selection = {
-    removeAllRanges: () => {},
-    addRange: () => {},
+    removeAllRanges: () => {
+      selectionClearCount += 1;
+    },
+    addRange: () => {
+      selectionAddCount += 1;
+    },
   };
 
   const overlayFocusCalls: Array<{ preventScroll?: boolean }> = [];
@@ -96,11 +109,19 @@ function installKeyboardTestGlobals() {
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: {
-      addEventListener: () => {},
+      addEventListener: (type: string, listener: (event: unknown) => void) => {
+        const listeners = windowListeners.get(type) ?? [];
+        listeners.push(listener);
+        windowListeners.set(type, listeners);
+      },
       dispatchEvent: (event: Event) => {
         if (event.type === YOMITAN_POPUP_COMMAND_EVENT) {
           const detail = (event as Event & { detail?: CommandEventDetail }).detail;
           commandEvents.push(detail ?? {});
+        }
+        const listeners = windowListeners.get(event.type) ?? [];
+        for (const listener of listeners) {
+          listener(event);
         }
         return true;
       },
@@ -192,6 +213,13 @@ function installKeyboardTestGlobals() {
     }
   }
 
+  function dispatchWindowEvent(type: string): void {
+    const listeners = windowListeners.get(type) ?? [];
+    for (const listener of listeners) {
+      listener(new Event(type));
+    }
+  }
+
   function restore() {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
@@ -224,6 +252,7 @@ function installKeyboardTestGlobals() {
     windowFocusCalls: () => windowFocusCalls,
     dispatchKeydown,
     dispatchFocusInOnPopup,
+    dispatchWindowEvent,
     setPopupVisible: (value: boolean) => {
       popupVisible = value;
     },
@@ -231,6 +260,8 @@ function installKeyboardTestGlobals() {
     setPlaybackPausedResponse: (value: boolean | null) => {
       playbackPausedResponse = value;
     },
+    selectionClearCount: () => selectionClearCount,
+    selectionAddCount: () => selectionAddCount,
     restore,
   };
 }
@@ -238,6 +269,9 @@ function installKeyboardTestGlobals() {
 function createKeyboardHandlerHarness() {
   const testGlobals = installKeyboardTestGlobals();
   const subtitleRootClassList = createClassList();
+  let controllerSelectOpenCount = 0;
+  let controllerDebugOpenCount = 0;
+  let controllerSelectKeydownCount = 0;
 
   const createWordNode = (left: number) => ({
     classList: createClassList(),
@@ -270,16 +304,30 @@ function createKeyboardHandlerHarness() {
     handleSubsyncKeydown: () => false,
     handleKikuKeydown: () => false,
     handleJimakuKeydown: () => false,
+    handleControllerSelectKeydown: () => {
+      controllerSelectKeydownCount += 1;
+      return true;
+    },
+    handleControllerDebugKeydown: () => false,
     handleSessionHelpKeydown: () => false,
     openSessionHelpModal: () => {},
     appendClipboardVideoToQueue: () => {},
     getPlaybackPaused: () => testGlobals.getPlaybackPaused(),
+    openControllerSelectModal: () => {
+      controllerSelectOpenCount += 1;
+    },
+    openControllerDebugModal: () => {
+      controllerDebugOpenCount += 1;
+    },
   });
 
   return {
     ctx,
     handlers,
     testGlobals,
+    controllerSelectOpenCount: () => controllerSelectOpenCount,
+    controllerDebugOpenCount: () => controllerDebugOpenCount,
+    controllerSelectKeydownCount: () => controllerSelectKeydownCount,
     setWordCount: (count: number) => {
       wordNodes = Array.from({ length: count }, (_, index) => createWordNode(10 + index * 70));
     },
@@ -418,6 +466,93 @@ test('keyboard mode: repeated popup navigation keys are forwarded while popup is
   }
 });
 
+test('keyboard mode: controller helpers dispatch popup audio play/cycle and scroll bridge commands', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+
+    assert.equal(handlers.playCurrentAudioForController(), true);
+    assert.equal(handlers.cyclePopupAudioSourceForController(1), true);
+    assert.equal(handlers.scrollPopupByController(48, -24), true);
+
+    assert.deepEqual(
+      testGlobals.commandEvents.slice(-3),
+      [
+        { type: 'playCurrentAudio' },
+        { type: 'cycleAudioSource', direction: 1 },
+        { type: 'scrollBy', deltaX: 48, deltaY: -24 },
+      ],
+    );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: Alt+Shift+C opens controller debug modal', async () => {
+  const { testGlobals, handlers, controllerDebugOpenCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchKeydown({
+      key: 'C',
+      code: 'KeyC',
+      altKey: true,
+      shiftKey: true,
+    });
+
+    assert.equal(controllerDebugOpenCount(), 1);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: Alt+Shift+C opens controller debug modal even while popup is visible', async () => {
+  const { ctx, testGlobals, handlers, controllerDebugOpenCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.state.yomitanPopupVisible = true;
+
+    testGlobals.dispatchKeydown({
+      key: 'C',
+      code: 'KeyC',
+      altKey: true,
+      shiftKey: true,
+    });
+
+    assert.equal(controllerDebugOpenCount(), 1);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: controller select modal handles arrow keys before yomitan popup', async () => {
+  const { ctx, testGlobals, handlers, controllerSelectKeydownCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.state.controllerSelectModalOpen = true;
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+
+    testGlobals.dispatchKeydown({ key: 'ArrowDown', code: 'ArrowDown' });
+
+    assert.equal(controllerSelectKeydownCount(), 1);
+    assert.equal(
+      testGlobals.commandEvents.some(
+        (event) => event.type === 'forwardKeyDown' && event.code === 'ArrowDown',
+      ),
+      false,
+    );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: h moves left when popup is closed', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 
@@ -490,6 +625,153 @@ test('keyboard mode: opening lookup restores overlay keyboard focus', async () =
   }
 });
 
+test('keyboard mode: turning mode off clears selected token highlight', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    ctx.state.keyboardSelectedWordIndex = 1;
+    handlers.syncKeyboardTokenSelection();
+    const wordNodes = ctx.dom.subtitleRoot.querySelectorAll();
+    assert.equal(wordNodes[1]?.classList.contains('keyboard-selected'), true);
+
+    handlers.handleKeyboardModeToggleRequested();
+
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
+    assert.equal(ctx.state.keyboardSelectedWordIndex, null);
+    assert.equal(wordNodes[1]?.classList.contains('keyboard-selected'), false);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: popup hidden after mode off clears stale selected token highlight', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    ctx.state.keyboardSelectedWordIndex = 1;
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+    handlers.syncKeyboardTokenSelection();
+
+    const wordNodes = ctx.dom.subtitleRoot.querySelectorAll();
+    assert.equal(wordNodes[1]?.classList.contains('keyboard-selected'), true);
+
+    handlers.handleKeyboardModeToggleRequested();
+    ctx.state.yomitanPopupVisible = false;
+    testGlobals.setPopupVisible(false);
+    testGlobals.dispatchWindowEvent(YOMITAN_POPUP_HIDDEN_EVENT);
+
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
+    assert.equal(wordNodes[1]?.classList.contains('keyboard-selected'), false);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: closing lookup keeps controller selection but clears native text selection', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    ctx.state.keyboardSelectedWordIndex = 1;
+    handlers.syncKeyboardTokenSelection();
+
+    const wordNodes = ctx.dom.subtitleRoot.querySelectorAll();
+    assert.equal(wordNodes[1]?.classList.contains('keyboard-selected'), true);
+    assert.equal(ctx.dom.subtitleRoot.classList.contains('has-selection'), false);
+
+    handlers.handleLookupWindowToggleRequested();
+    await wait(0);
+    assert.equal(ctx.dom.subtitleRoot.classList.contains('has-selection'), true);
+    assert.equal(testGlobals.selectionAddCount() > 0, true);
+
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+    handlers.closeLookupWindow();
+    ctx.state.yomitanPopupVisible = false;
+    testGlobals.setPopupVisible(false);
+    testGlobals.dispatchWindowEvent(YOMITAN_POPUP_HIDDEN_EVENT);
+    await wait(0);
+
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, true);
+    assert.equal(wordNodes[1]?.classList.contains('keyboard-selected'), true);
+    assert.equal(ctx.dom.subtitleRoot.classList.contains('has-selection'), false);
+    assert.equal(testGlobals.selectionClearCount() > 0, true);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: closing lookup clears yomitan active text source so same token can reopen immediately', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    ctx.state.keyboardSelectedWordIndex = 1;
+    handlers.syncKeyboardTokenSelection();
+
+    handlers.handleLookupWindowToggleRequested();
+    await wait(0);
+
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+    handlers.handleLookupWindowToggleRequested();
+    await wait(0);
+
+    const closeCommands = testGlobals.commandEvents.filter(
+      (event) => event.type === 'setVisible' || event.type === 'clearActiveTextSource',
+    );
+    assert.deepEqual(closeCommands.slice(-2), [
+      { type: 'setVisible', visible: false },
+      { type: 'clearActiveTextSource' },
+    ]);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: lookup toggle closes popup when DOM visibility is the source of truth', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    ctx.state.keyboardSelectedWordIndex = 1;
+    handlers.syncKeyboardTokenSelection();
+    ctx.state.yomitanPopupVisible = false;
+    testGlobals.setPopupVisible(true);
+
+    handlers.handleLookupWindowToggleRequested();
+    await wait(0);
+
+    const closeCommands = testGlobals.commandEvents.filter(
+      (event) => event.type === 'setVisible' || event.type === 'clearActiveTextSource',
+    );
+    assert.deepEqual(closeCommands.slice(-2), [
+      { type: 'setVisible', visible: false },
+      { type: 'clearActiveTextSource' },
+    ]);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: moving right beyond end jumps next subtitle and resets selector to start', async () => {
   const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
 
@@ -538,6 +820,52 @@ test('keyboard mode: moving left beyond start jumps previous subtitle and sets s
   }
 });
 
+test('keyboard mode: empty subtitle gap left and right still seek adjacent subtitle lines', async () => {
+  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    setWordCount(0);
+    handlers.syncKeyboardTokenSelection();
+
+    testGlobals.dispatchKeydown({ key: 'ArrowRight', code: 'ArrowRight' });
+    await wait(0);
+    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['sub-seek', 1]);
+
+    testGlobals.dispatchKeydown({ key: 'ArrowLeft', code: 'ArrowLeft' });
+    await wait(0);
+    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['sub-seek', -1]);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('controller mode: empty subtitle gap horizontal move still seeks adjacent subtitle lines', async () => {
+  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    setWordCount(0);
+    handlers.syncKeyboardTokenSelection();
+
+    assert.equal(handlers.moveSelectionForController(1), true);
+    await wait(0);
+    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['sub-seek', 1]);
+
+    assert.equal(handlers.moveSelectionForController(-1), true);
+    await wait(0);
+    assert.deepEqual(testGlobals.mpvCommands.at(-1), ['sub-seek', -1]);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: popup-open edge jump refreshes lookup on the new subtitle selection', async () => {
   const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
 
@@ -564,6 +892,28 @@ test('keyboard mode: popup-open edge jump refreshes lookup on the new subtitle s
       (event) => event.type === 'scanSelectedText',
     );
     assert.equal(openEvents.length > 0, true);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: natural subtitle advance resets selector to the start of the new line', async () => {
+  const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    setWordCount(3);
+    ctx.state.keyboardSelectedWordIndex = 2;
+    handlers.syncKeyboardTokenSelection();
+
+    handlers.handleSubtitleContentUpdated();
+    setWordCount(4);
+    handlers.syncKeyboardTokenSelection();
+
+    assert.equal(ctx.state.keyboardSelectedWordIndex, 0);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();

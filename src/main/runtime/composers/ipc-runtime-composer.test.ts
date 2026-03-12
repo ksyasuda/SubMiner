@@ -51,6 +51,8 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
         getMecabTokenizer: () => null,
         getKeybindings: () => [],
         getConfiguredShortcuts: () => ({}) as never,
+        getControllerConfig: () => ({}) as never,
+        saveControllerPreference: () => {},
         getSecondarySubMode: () => 'hover' as never,
         getMpvClient: () => null,
         getAnkiConnectStatus: () => false,
