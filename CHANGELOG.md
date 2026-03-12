@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.6.0 (2026-03-12)
+
+### Added
+- Overlay: Added Chrome Gamepad API controller support for keyboard-only overlay mode, including configurable logical bindings for lookup, mining, popup navigation, Yomitan audio, mpv pause, d-pad fallback navigation, and slower smooth popup scrolling.
+- Overlay: Added `Alt+C` controller selection and `Alt+Shift+C` controller debug modals, with preferred controller persistence and live raw input inspection.
+- Overlay: Added a transient in-overlay controller-detected indicator when a controller is first found.
+- Overlay: Fixed stale keyboard-only token highlight cleanup when keyboard-only mode turns off or the Yomitan popup closes.
+
+### Internal
+- Config: add an enforced `verify:config-example` gate so checked-in example config artifacts cannot drift silently
+
 ## v0.5.6 (2026-03-10)
 
 ### Fixed

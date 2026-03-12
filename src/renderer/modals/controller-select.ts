@@ -154,10 +154,16 @@ export function createControllerSelectModal(
       return;
     }
 
-    await window.electronAPI.saveControllerPreference({
-      preferredGamepadId: selected.id,
-      preferredGamepadLabel: selected.id,
-    });
+    try {
+      await window.electronAPI.saveControllerPreference({
+        preferredGamepadId: selected.id,
+        preferredGamepadLabel: selected.id,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(`Failed to save preferred controller: ${message}`, true);
+      return;
+    }
 
     if (ctx.state.controllerConfig) {
       ctx.state.controllerConfig.preferredGamepadId = selected.id;

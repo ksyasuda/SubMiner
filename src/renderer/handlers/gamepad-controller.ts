@@ -226,6 +226,24 @@ function resetHeldAction(state: HoldState): void {
   state.initialFired = false;
 }
 
+function syncHeldActionBlocked(
+  state: HoldState,
+  value: number,
+  now: number,
+  activationThreshold: number,
+): void {
+  if (Math.abs(value) < activationThreshold) {
+    resetHeldAction(state);
+    return;
+  }
+
+  const direction = value > 0 ? 1 : -1;
+  state.repeatStarted = false;
+  state.direction = direction;
+  state.lastFireAt = now;
+  state.initialFired = true;
+}
+
 export function createGamepadController(options: GamepadControllerOptions) {
   let previousButtons = new Map<ControllerButtonBinding, boolean>();
   let selectionHold = createHoldState();
@@ -331,6 +349,58 @@ export function createGamepadController(options: GamepadControllerOptions) {
     }
   }
 
+  function syncBlockedInteractionState(
+    activeGamepad: GamepadLike,
+    config: ResolvedControllerConfig,
+    now: number,
+  ): void {
+    const buttonBindings = new Set<ControllerButtonBinding>([
+      config.bindings.toggleKeyboardOnlyMode,
+      config.bindings.toggleLookup,
+      config.bindings.closeLookup,
+      config.bindings.mineCard,
+      config.bindings.quitMpv,
+      config.bindings.previousAudio,
+      config.bindings.nextAudio,
+      config.bindings.playCurrentAudio,
+      config.bindings.toggleMpvPause,
+    ]);
+
+    for (const binding of buttonBindings) {
+      if (binding === 'none') continue;
+      previousButtons.set(
+        binding,
+        normalizeButtonState(
+          activeGamepad,
+          config,
+          binding,
+          config.triggerInputMode,
+          config.triggerDeadzone,
+        ),
+      );
+    }
+
+    const selectionValue = (() => {
+      const axisValue = resolveAxisValue(activeGamepad, config.bindings.leftStickHorizontal);
+      if (Math.abs(axisValue) >= Math.max(config.stickDeadzone, 0.55)) {
+        return axisValue;
+      }
+      return resolveDpadHorizontalValue(activeGamepad, config.triggerDeadzone);
+    })();
+    syncHeldActionBlocked(selectionHold, selectionValue, now, Math.max(config.stickDeadzone, 0.55));
+
+    if (options.getLookupWindowOpen()) {
+      syncHeldActionBlocked(
+        jumpHold,
+        resolveAxisValue(activeGamepad, config.bindings.rightStickVertical),
+        now,
+        Math.max(config.stickDeadzone, 0.55),
+      );
+    } else {
+      resetHeldAction(jumpHold);
+    }
+  }
+
   function poll(now: number): void {
     const elapsedMs = lastPollAt === null ? 0 : Math.max(now - lastPollAt, 0);
     lastPollAt = now;
@@ -365,6 +435,7 @@ export function createGamepadController(options: GamepadControllerOptions) {
       );
     }
     if (!interactionAllowed) {
+      syncBlockedInteractionState(activeGamepad, config, now);
       return;
     }
 

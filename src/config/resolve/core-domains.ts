@@ -209,8 +209,8 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
 
       for (const key of buttonIndexKeys) {
         const value = asNumber(src.controller.buttonIndices[key]);
-        if (value !== undefined && value >= 0) {
-          resolved.controller.buttonIndices[key] = Math.floor(value);
+        if (value !== undefined && value >= 0 && Number.isInteger(value)) {
+          resolved.controller.buttonIndices[key] = value;
         } else if (src.controller.buttonIndices[key] !== undefined) {
           warn(
             `controller.buttonIndices.${key}`,

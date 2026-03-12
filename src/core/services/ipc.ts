@@ -267,7 +267,9 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.command.saveControllerPreference, async (_event: unknown, update: unknown) => {
     const parsedUpdate = parseControllerPreferenceUpdate(update);
-    if (!parsedUpdate) return;
+    if (!parsedUpdate) {
+      throw new Error('Invalid controller preference payload');
+    }
     await deps.saveControllerPreference(parsedUpdate);
   });
 

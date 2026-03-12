@@ -208,6 +208,55 @@ test('gamepad controller does not toggle keyboard mode when controller support i
   assert.deepEqual(calls, []);
 });
 
+test('gamepad controller does not treat blocked held inputs as fresh edges when interaction resumes', () => {
+  const calls: string[] = [];
+  const selectionCalls: number[] = [];
+  const buttons = Array.from({ length: 16 }, () => ({ value: 0, pressed: false, touched: false }));
+  buttons[0] = { value: 1, pressed: true, touched: true };
+  let axes = [0.9, 0, 0, 0];
+  let keyboardModeEnabled = true;
+  let interactionBlocked = true;
+
+  const controller = createGamepadController({
+    getGamepads: () => [createGamepad('pad-1', { buttons, axes })],
+    getConfig: () => createControllerConfig(),
+    getKeyboardModeEnabled: () => keyboardModeEnabled,
+    getLookupWindowOpen: () => false,
+    getInteractionBlocked: () => interactionBlocked,
+    toggleKeyboardMode: () => {},
+    toggleLookup: () => calls.push('toggle-lookup'),
+    closeLookup: () => {},
+    moveSelection: (delta) => selectionCalls.push(delta),
+    mineCard: () => {},
+    quitMpv: () => {},
+    previousAudio: () => {},
+    nextAudio: () => {},
+    playCurrentAudio: () => {},
+    toggleMpvPause: () => {},
+    scrollPopup: () => {},
+    jumpPopup: () => {},
+    onState: () => {},
+  });
+
+  controller.poll(0);
+  interactionBlocked = false;
+  controller.poll(100);
+
+  assert.deepEqual(calls, []);
+  assert.deepEqual(selectionCalls, []);
+
+  buttons[0] = { value: 0, pressed: false, touched: false };
+  axes = [0, 0, 0, 0];
+  controller.poll(200);
+
+  buttons[0] = { value: 1, pressed: true, touched: true };
+  axes = [0.9, 0, 0, 0];
+  controller.poll(300);
+
+  assert.deepEqual(calls, ['toggle-lookup']);
+  assert.deepEqual(selectionCalls, [1]);
+});
+
 test('gamepad controller maps left stick horizontal movement to token selection repeats', () => {
   const calls: number[] = [];
   let axes = [0.9, 0, 0, 0];

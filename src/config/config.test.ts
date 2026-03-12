@@ -1204,6 +1204,37 @@ test('controller positive-number tuning rejects sub-unit values that floor to ze
   assert.equal(warnings.some((warning) => warning.path === 'controller.repeatIntervalMs'), true);
 });
 
+test('controller button index config rejects fractional values', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "controller": {
+        "buttonIndices": {
+          "select": 6.5,
+          "leftStickPress": 9.1
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.controller.buttonIndices.select, DEFAULT_CONFIG.controller.buttonIndices.select);
+  assert.equal(
+    config.controller.buttonIndices.leftStickPress,
+    DEFAULT_CONFIG.controller.buttonIndices.leftStickPress,
+  );
+  assert.equal(warnings.some((warning) => warning.path === 'controller.buttonIndices.select'), true);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.buttonIndices.leftStickPress'),
+    true,
+  );
+});
+
 test('runtime options registry is centralized', () => {
   const ids = RUNTIME_OPTION_REGISTRY.map((entry) => entry.id);
   assert.deepEqual(ids, [

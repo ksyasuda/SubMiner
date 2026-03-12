@@ -435,15 +435,8 @@ export function createKeyboardHandlers(
   }
 
   function handleLookupWindowToggleRequested(): void {
-    if (ctx.state.yomitanPopupVisible) {
-      dispatchYomitanPopupVisibility(false);
-      dispatchYomitanFrontendClearActiveTextSource();
-      clearNativeSubtitleSelection();
-      if (ctx.state.keyboardDrivenModeEnabled) {
-        queueMicrotask(() => {
-          restoreOverlayKeyboardFocus();
-        });
-      }
+    if (ctx.state.yomitanPopupVisible || isYomitanPopupVisible(document)) {
+      closeLookupWindow();
       return;
     }
     triggerLookupForSelectedWord();

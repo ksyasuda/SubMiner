@@ -744,6 +744,34 @@ test('keyboard mode: closing lookup clears yomitan active text source so same to
   }
 });
 
+test('keyboard mode: lookup toggle closes popup when DOM visibility is the source of truth', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+
+    ctx.state.keyboardSelectedWordIndex = 1;
+    handlers.syncKeyboardTokenSelection();
+    ctx.state.yomitanPopupVisible = false;
+    testGlobals.setPopupVisible(true);
+
+    handlers.handleLookupWindowToggleRequested();
+    await wait(0);
+
+    const closeCommands = testGlobals.commandEvents.filter(
+      (event) => event.type === 'setVisible' || event.type === 'clearActiveTextSource',
+    );
+    assert.deepEqual(closeCommands.slice(-2), [
+      { type: 'setVisible', visible: false },
+      { type: 'clearActiveTextSource' },
+    ]);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: moving right beyond end jumps next subtitle and resets selector to start', async () => {
   const { ctx, handlers, testGlobals, setWordCount } = createKeyboardHandlerHarness();
 
