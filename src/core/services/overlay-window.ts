@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, type Session } from 'electron';
 import * as path from 'path';
 import { WindowGeometry } from '../../types';
 import { createLogger } from '../../logger';
@@ -78,6 +78,7 @@ export function createOverlayWindow(
     tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
     forwardTabToMpv: () => void;
     onWindowClosed: (kind: OverlayWindowKind) => void;
+    yomitanSession?: Session | null;
   },
 ): BrowserWindow {
   const showNativeDebugFrame = process.platform === 'win32' && options.isDev;
@@ -102,6 +103,7 @@ export function createOverlayWindow(
       nodeIntegration: false,
       sandbox: false,
       webSecurity: true,
+      session: options.yomitanSession ?? undefined,
       additionalArguments: [`--overlay-layer=${kind}`],
     },
   });

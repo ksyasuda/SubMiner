@@ -8,6 +8,7 @@ import {
 
 test('overlay window factory main deps builders return mapped handlers', () => {
   const calls: string[] = [];
+  const yomitanSession = { id: 'session' } as never;
   const buildOverlayDeps = createBuildCreateOverlayWindowMainDepsHandler({
     createOverlayWindowCore: (kind) => ({ kind }),
     isDev: true,
@@ -18,11 +19,13 @@ test('overlay window factory main deps builders return mapped handlers', () => {
     tryHandleOverlayShortcutLocalFallback: () => false,
     forwardTabToMpv: () => calls.push('forward-tab'),
     onWindowClosed: (kind) => calls.push(`closed:${kind}`),
+    getYomitanSession: () => yomitanSession,
   });
 
   const overlayDeps = buildOverlayDeps();
   assert.equal(overlayDeps.isDev, true);
   assert.equal(overlayDeps.isOverlayVisible('visible'), true);
+  assert.equal(overlayDeps.getYomitanSession(), yomitanSession);
   overlayDeps.forwardTabToMpv();
 
   const buildMainDeps = createBuildCreateMainWindowMainDepsHandler({

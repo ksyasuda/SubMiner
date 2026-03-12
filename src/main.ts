@@ -3566,10 +3566,11 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
       onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
       setOverlayDebugVisualizationEnabled: (enabled) =>
         setOverlayDebugVisualizationEnabled(enabled),
-      isOverlayVisible: (windowKind) =>
-        windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
-      tryHandleOverlayShortcutLocalFallback: (input) =>
-        overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
+    isOverlayVisible: (windowKind) =>
+      windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
+    getYomitanSession: () => appState.yomitanSession,
+    tryHandleOverlayShortcutLocalFallback: (input) =>
+      overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
       forwardTabToMpv: () => sendMpvCommandRuntime(appState.mpvClient, ['keypress', 'TAB']),
       onWindowClosed: (windowKind) => {
         if (windowKind === 'visible') {
