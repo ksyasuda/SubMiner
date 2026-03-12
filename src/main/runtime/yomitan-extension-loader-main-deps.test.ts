@@ -13,20 +13,31 @@ test('load yomitan extension main deps builder maps callbacks', async () => {
       return null;
     },
     userDataPath: '/tmp/subminer',
+    externalProfilePath: '/tmp/gsm-profile',
     getYomitanParserWindow: () => null,
     setYomitanParserWindow: () => calls.push('set-window'),
     setYomitanParserReadyPromise: () => calls.push('set-ready'),
     setYomitanParserInitPromise: () => calls.push('set-init'),
     setYomitanExtension: () => calls.push('set-ext'),
+    setYomitanSession: () => calls.push('set-session'),
   })();
 
   assert.equal(deps.userDataPath, '/tmp/subminer');
+  assert.equal(deps.externalProfilePath, '/tmp/gsm-profile');
   await deps.loadYomitanExtensionCore({} as never);
   deps.setYomitanParserWindow(null);
   deps.setYomitanParserReadyPromise(null);
   deps.setYomitanParserInitPromise(null);
   deps.setYomitanExtension(null);
-  assert.deepEqual(calls, ['load-core', 'set-window', 'set-ready', 'set-init', 'set-ext']);
+  deps.setYomitanSession(null as never);
+  assert.deepEqual(calls, [
+    'load-core',
+    'set-window',
+    'set-ready',
+    'set-init',
+    'set-ext',
+    'set-session',
+  ]);
 });
 
 test('ensure yomitan extension loaded main deps builder maps callbacks', async () => {

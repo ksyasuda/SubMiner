@@ -113,6 +113,7 @@ The configuration file includes several main sections:
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
 - [**Auto Subtitle Sync**](#auto-subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
 - [**AniList**](#anilist) - Optional post-watch progress updates
+- [**Yomitan**](#yomitan) - Reuse an external read-only Yomitan profile via `yomitan.externalProfilePath`
 - [**Jellyfin**](#jellyfin) - Optional Jellyfin auth, library listing, and playback launch
 - [**Discord Rich Presence**](#discord-rich-presence) - Optional Discord activity card updates
 - [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite
@@ -1016,6 +1017,33 @@ AniList CLI commands:
 - `--anilist-logout`: clear stored AniList token from local persisted state.
 - `--anilist-setup`: open AniList setup/auth flow helper window.
 - `--anilist-retry-queue`: process one ready retry queue item immediately.
+
+### Yomitan
+
+SubMiner normally uses its bundled Yomitan profile under the app config directory. If you want to reuse dictionaries and profile settings from another Electron app, point SubMiner at that app's Yomitan Electron profile in read-only mode.
+
+For GameSentenceMiner on Linux, the default overlay profile path is typically `~/.config/gsm_overlay`.
+
+```json
+{
+  "yomitan": {
+    "externalProfilePath": "/home/you/.config/gsm_overlay"
+  }
+}
+```
+
+| Option                | Values      | Description                                                                                                                           |
+| --------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `externalProfilePath` | string path | Optional absolute path, or a path beginning with `~` (expanded to your home directory), to another app's Yomitan Electron profile. SubMiner loads that profile read-only and reuses its dictionaries/settings. |
+
+External-profile mode behavior:
+
+- SubMiner uses the external profile's Yomitan extension/session instead of its local copy.
+- SubMiner reads the external profile's currently active Yomitan profile selection and installed dictionaries.
+- SubMiner does not open its own Yomitan settings window in this mode.
+- SubMiner does not import, delete, or update dictionaries/settings in the external profile.
+- SubMiner character-dictionary features are fully disabled in this mode, including auto-sync, manual generation, and subtitle-side character-dictionary annotations.
+- First-run setup does not require any internal dictionaries while this mode is configured. If you later launch without `yomitan.externalProfilePath`, setup will require at least one internal Yomitan dictionary unless SubMiner already finds one.
 
 ### Jellyfin
 

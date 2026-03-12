@@ -23,11 +23,13 @@ export function createYomitanExtensionRuntime(deps: YomitanExtensionRuntimeDeps)
   const buildLoadYomitanExtensionMainDepsHandler = createBuildLoadYomitanExtensionMainDepsHandler({
     loadYomitanExtensionCore: deps.loadYomitanExtensionCore,
     userDataPath: deps.userDataPath,
+    externalProfilePath: deps.externalProfilePath,
     getYomitanParserWindow: deps.getYomitanParserWindow,
     setYomitanParserWindow: deps.setYomitanParserWindow,
     setYomitanParserReadyPromise: deps.setYomitanParserReadyPromise,
     setYomitanParserInitPromise: deps.setYomitanParserInitPromise,
     setYomitanExtension: deps.setYomitanExtension,
+    setYomitanSession: deps.setYomitanSession,
   });
   const loadYomitanExtensionHandler = createLoadYomitanExtensionHandler(
     buildLoadYomitanExtensionMainDepsHandler(),

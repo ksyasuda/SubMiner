@@ -501,6 +501,10 @@ export interface AnilistConfig {
   characterDictionary?: AnilistCharacterDictionaryConfig;
 }
 
+export interface YomitanConfig {
+  externalProfilePath?: string;
+}
+
 export interface JellyfinConfig {
   enabled?: boolean;
   serverUrl?: string;
@@ -585,6 +589,7 @@ export interface Config {
   auto_start_overlay?: boolean;
   jimaku?: JimakuConfig;
   anilist?: AnilistConfig;
+  yomitan?: YomitanConfig;
   jellyfin?: JellyfinConfig;
   discordPresence?: DiscordPresenceConfig;
   ai?: AiConfig;
@@ -724,6 +729,9 @@ export interface ResolvedConfig {
       profileScope: AnilistCharacterDictionaryProfileScope;
       collapsibleSections: Required<AnilistCharacterDictionaryCollapsibleSectionsConfig>;
     };
+  };
+  yomitan: {
+    externalProfilePath: string;
   };
   jellyfin: {
     enabled: boolean;

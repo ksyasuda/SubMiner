@@ -1,4 +1,4 @@
-import type { BrowserWindow, Extension } from 'electron';
+import type { BrowserWindow, Extension, Session } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { selectYomitanParseTokens } from './parser-selection-stage';
@@ -10,6 +10,7 @@ interface LoggerLike {
 
 interface YomitanParserRuntimeDeps {
   getYomitanExt: () => Extension | null;
+  getYomitanSession?: () => Session | null;
   getYomitanParserWindow: () => BrowserWindow | null;
   setYomitanParserWindow: (window: BrowserWindow | null) => void;
   getYomitanParserReadyPromise: () => Promise<void> | null;
@@ -465,6 +466,7 @@ async function ensureYomitanParserWindow(
 
   const initPromise = (async () => {
     const { BrowserWindow, session } = electron;
+    const yomitanSession = deps.getYomitanSession?.() ?? session.defaultSession;
     const parserWindow = new BrowserWindow({
       show: false,
       width: 800,
@@ -472,7 +474,7 @@ async function ensureYomitanParserWindow(
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        session: session.defaultSession,
+        session: yomitanSession,
       },
     });
     deps.setYomitanParserWindow(parserWindow);
@@ -539,6 +541,7 @@ async function createYomitanExtensionWindow(
   }
 
   const { BrowserWindow, session } = electron;
+  const yomitanSession = deps.getYomitanSession?.() ?? session.defaultSession;
   const window = new BrowserWindow({
     show: false,
     width: 1200,
@@ -546,7 +549,7 @@ async function createYomitanExtensionWindow(
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      session: session.defaultSession,
+      session: yomitanSession,
     },
   });
 

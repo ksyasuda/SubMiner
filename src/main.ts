@@ -23,6 +23,7 @@ import {
   shell,
   protocol,
   Extension,
+  Session,
   Menu,
   nativeImage,
   Tray,
@@ -376,6 +377,8 @@ import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
+import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
+import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
 import {
   getPreferredYomitanAnkiServerUrl as getPreferredYomitanAnkiServerUrlRuntime,
   shouldForceOverrideYomitanAnkiServer,
@@ -691,6 +694,7 @@ const firstRunSetupService = createFirstRunSetupService({
     });
     return dictionaries.length;
   },
+  isExternalYomitanConfigured: () => getResolvedConfig().yomitan.externalProfilePath.trim().length > 0,
   detectPluginInstalled: () => {
     const installPaths = resolveDefaultMpvInstallPaths(
       process.platform,
@@ -1327,7 +1331,7 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   getConfig: () => {
     const config = getResolvedConfig().anilist.characterDictionary;
     return {
-      enabled: config.enabled,
+      enabled: config.enabled && yomitanProfilePolicy.isCharacterDictionaryEnabled(),
       maxLoaded: config.maxLoaded,
       profileScope: config.profileScope,
     };
@@ -1347,6 +1351,12 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     });
   },
   importYomitanDictionary: async (zipPath) => {
+    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
+      yomitanProfilePolicy.logSkippedWrite(
+        formatSkippedYomitanWriteAction('importYomitanDictionary', zipPath),
+      );
+      return false;
+    }
     await ensureYomitanExtensionLoaded();
     return await importYomitanDictionaryFromZip(zipPath, getYomitanParserRuntimeDeps(), {
       error: (message, ...args) => logger.error(message, ...args),
@@ -1354,6 +1364,12 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     });
   },
   deleteYomitanDictionary: async (dictionaryTitle) => {
+    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
+      yomitanProfilePolicy.logSkippedWrite(
+        formatSkippedYomitanWriteAction('deleteYomitanDictionary', dictionaryTitle),
+      );
+      return false;
+    }
     await ensureYomitanExtensionLoaded();
     return await deleteYomitanDictionaryByTitle(dictionaryTitle, getYomitanParserRuntimeDeps(), {
       error: (message, ...args) => logger.error(message, ...args),
@@ -1361,6 +1377,12 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     });
   },
   upsertYomitanDictionarySettings: async (dictionaryTitle, profileScope) => {
+    if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
+      yomitanProfilePolicy.logSkippedWrite(
+        formatSkippedYomitanWriteAction('upsertYomitanDictionarySettings', dictionaryTitle),
+      );
+      return false;
+    }
     await ensureYomitanExtensionLoaded();
     return await upsertYomitanDictionarySettings(
       dictionaryTitle,
@@ -1814,6 +1836,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       configReady: snapshot.configReady,
       dictionaryCount: snapshot.dictionaryCount,
       canFinish: snapshot.canFinish,
+      externalYomitanConfigured: snapshot.externalYomitanConfigured,
       pluginStatus: snapshot.pluginStatus,
       pluginInstallPathSummary: snapshot.pluginInstallPathSummary,
       windowsMpvShortcuts: snapshot.windowsMpvShortcuts,
@@ -1837,8 +1860,9 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       return;
     }
     if (submission.action === 'open-yomitan-settings') {
-      openYomitanSettings();
-      firstRunSetupMessage = 'Opened Yomitan settings. Install dictionaries, then refresh status.';
+      firstRunSetupMessage = openYomitanSettings()
+        ? 'Opened Yomitan settings. Install dictionaries, then refresh status.'
+        : 'Yomitan settings are unavailable while external read-only profile mode is enabled.';
       return;
     }
     if (submission.action === 'refresh') {
@@ -2320,6 +2344,7 @@ const {
       appState.yomitanParserWindow = null;
       appState.yomitanParserReadyPromise = null;
       appState.yomitanParserInitPromise = null;
+      appState.yomitanSession = null;
     },
     getWindowTracker: () => appState.windowTracker,
     flushMpvLog: () => flushPendingMpvLogWrites(),
@@ -2737,6 +2762,9 @@ const {
       );
     },
     scheduleCharacterDictionarySync: () => {
+      if (!yomitanProfilePolicy.isCharacterDictionaryEnabled()) {
+        return;
+      }
       characterDictionaryAutoSyncRuntime.scheduleSync();
     },
     updateCurrentMediaTitle: (title) => {
@@ -2780,6 +2808,7 @@ const {
   tokenizer: {
     buildTokenizerDepsMainDeps: {
       getYomitanExt: () => appState.yomitanExt,
+      getYomitanSession: () => appState.yomitanSession,
       getYomitanParserWindow: () => appState.yomitanParserWindow,
       setYomitanParserWindow: (window) => {
         appState.yomitanParserWindow = window as BrowserWindow | null;
@@ -2813,7 +2842,9 @@ const {
           'subtitle.annotation.jlpt',
           getResolvedConfig().subtitleStyle.enableJlpt,
         ),
-      getCharacterDictionaryEnabled: () => getResolvedConfig().anilist.characterDictionary.enabled,
+      getCharacterDictionaryEnabled: () =>
+        getResolvedConfig().anilist.characterDictionary.enabled &&
+        yomitanProfilePolicy.isCharacterDictionaryEnabled(),
       getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
@@ -2987,7 +3018,7 @@ const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler(
 
 async function loadYomitanExtension(): Promise<Extension | null> {
   const extension = await yomitanExtensionRuntime.loadYomitanExtension();
-  if (extension) {
+  if (extension && !yomitanProfilePolicy.isExternalReadOnlyMode()) {
     await syncYomitanDefaultProfileAnkiServer();
   }
   return extension;
@@ -2995,7 +3026,7 @@ async function loadYomitanExtension(): Promise<Extension | null> {
 
 async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
   const extension = await yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
-  if (extension) {
+  if (extension && !yomitanProfilePolicy.isExternalReadOnlyMode()) {
     await syncYomitanDefaultProfileAnkiServer();
   }
   return extension;
@@ -3010,6 +3041,7 @@ function getPreferredYomitanAnkiServerUrl(): string {
 function getYomitanParserRuntimeDeps() {
   return {
     getYomitanExt: () => appState.yomitanExt,
+    getYomitanSession: () => appState.yomitanSession,
     getYomitanParserWindow: () => appState.yomitanParserWindow,
     setYomitanParserWindow: (window: BrowserWindow | null) => {
       appState.yomitanParserWindow = window;
@@ -3026,6 +3058,10 @@ function getYomitanParserRuntimeDeps() {
 }
 
 async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
+  if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
+    return;
+  }
+
   const targetUrl = getPreferredYomitanAnkiServerUrl().trim();
   if (!targetUrl || targetUrl === lastSyncedYomitanAnkiServer) {
     return;
@@ -3079,8 +3115,19 @@ function initializeOverlayRuntime(): void {
   syncOverlayMpvSubtitleSuppression();
 }
 
-function openYomitanSettings(): void {
+function openYomitanSettings(): boolean {
+  if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
+    const message =
+      'Yomitan settings unavailable while using read-only external-profile mode.';
+    logger.warn(
+      'Yomitan settings window disabled while yomitan.externalProfilePath is configured because external profile mode is read-only.',
+    );
+    showDesktopNotification('SubMiner', { body: message });
+    showMpvOsd(message);
+    return false;
+  }
   openYomitanSettingsHandler();
+  return true;
 }
 
 const {
@@ -3496,8 +3543,13 @@ const createCliCommandContextHandler = createCliCommandContextFactory({
   openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
   getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
   processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
-  generateCharacterDictionary: (targetPath?: string) =>
-    characterDictionaryRuntime.generateForCurrentMedia(targetPath),
+  generateCharacterDictionary: async (targetPath?: string) => {
+    const disabledReason = yomitanProfilePolicy.getCharacterDictionaryDisabledReason();
+    if (disabledReason) {
+      throw new Error(disabledReason);
+    }
+    return await characterDictionaryRuntime.generateForCurrentMedia(targetPath);
+  },
   runJellyfinCommand: (argsFromCommand: CliArgs) => runJellyfinCommand(argsFromCommand),
   openYomitanSettings: () => openYomitanSettings(),
   cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
@@ -3520,10 +3572,11 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
       onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
       setOverlayDebugVisualizationEnabled: (enabled) =>
         setOverlayDebugVisualizationEnabled(enabled),
-      isOverlayVisible: (windowKind) =>
-        windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
-      tryHandleOverlayShortcutLocalFallback: (input) =>
-        overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
+    isOverlayVisible: (windowKind) =>
+      windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
+    getYomitanSession: () => appState.yomitanSession,
+    tryHandleOverlayShortcutLocalFallback: (input) =>
+      overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
       forwardTabToMpv: () => sendMpvCommandRuntime(appState.mpvClient, ['keypress', 'TAB']),
       onWindowClosed: (windowKind) => {
         if (windowKind === 'visible') {
@@ -3584,9 +3637,15 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
     },
     buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
   });
+const yomitanProfilePolicy = createYomitanProfilePolicy({
+  externalProfilePath: getResolvedConfig().yomitan.externalProfilePath,
+  logInfo: (message) => logger.info(message),
+});
+const configuredExternalYomitanProfilePath = yomitanProfilePolicy.externalProfilePath;
 const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   loadYomitanExtensionCore,
   userDataPath: USER_DATA_PATH,
+  externalProfilePath: configuredExternalYomitanProfilePath,
   getYomitanParserWindow: () => appState.yomitanParserWindow,
   setYomitanParserWindow: (window) => {
     appState.yomitanParserWindow = window as BrowserWindow | null;
@@ -3599,6 +3658,9 @@ const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   },
   setYomitanExtension: (extension) => {
     appState.yomitanExt = extension;
+  },
+  setYomitanSession: (nextSession) => {
+    appState.yomitanSession = nextSession;
   },
   getYomitanExtension: () => appState.yomitanExt,
   getLoadInFlight: () => yomitanLoadInFlight,
@@ -3641,11 +3703,18 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
   });
 const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSettingsRuntime({
   ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
-  openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow }) => {
+  getYomitanSession: () => appState.yomitanSession,
+  openYomitanSettingsWindow: ({
+    yomitanExt,
+    getExistingWindow,
+    setWindow,
+    yomitanSession,
+  }) => {
     openYomitanSettingsWindow({
       yomitanExt: yomitanExt as Extension,
       getExistingWindow: () => getExistingWindow() as BrowserWindow | null,
       setWindow: (window) => setWindow(window as BrowserWindow | null),
+      yomitanSession: (yomitanSession as Session | null | undefined) ?? appState.yomitanSession,
       onWindowClosed: () => {
         if (appState.yomitanParserWindow) {
           clearYomitanParserCachesForWindow(appState.yomitanParserWindow);

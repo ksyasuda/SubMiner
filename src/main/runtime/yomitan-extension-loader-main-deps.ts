@@ -12,11 +12,13 @@ export function createBuildLoadYomitanExtensionMainDepsHandler(deps: LoadYomitan
   return (): LoadYomitanExtensionMainDeps => ({
     loadYomitanExtensionCore: (options) => deps.loadYomitanExtensionCore(options),
     userDataPath: deps.userDataPath,
+    externalProfilePath: deps.externalProfilePath,
     getYomitanParserWindow: () => deps.getYomitanParserWindow(),
     setYomitanParserWindow: (window) => deps.setYomitanParserWindow(window),
     setYomitanParserReadyPromise: (promise) => deps.setYomitanParserReadyPromise(promise),
     setYomitanParserInitPromise: (promise) => deps.setYomitanParserInitPromise(promise),
     setYomitanExtension: (extension) => deps.setYomitanExtension(extension),
+    setYomitanSession: (session) => deps.setYomitanSession(session),
   });
 }
 

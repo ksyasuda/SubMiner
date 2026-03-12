@@ -30,6 +30,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.anilist.characterDictionary.collapsibleSections.description, false);
   assert.equal(config.anilist.characterDictionary.collapsibleSections.characterInformation, false);
   assert.equal(config.anilist.characterDictionary.collapsibleSections.voicedBy, false);
+  assert.equal(config.yomitan.externalProfilePath, '');
   assert.equal(config.jellyfin.remoteControlEnabled, true);
   assert.equal(config.jellyfin.remoteControlAutoConnect, true);
   assert.equal(config.jellyfin.autoAnnounce, false);

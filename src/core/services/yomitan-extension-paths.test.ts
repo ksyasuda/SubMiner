@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   getYomitanExtensionSearchPaths,
+  resolveExternalYomitanExtensionPath,
   resolveExistingYomitanExtensionPath,
 } from './yomitan-extension-paths';
 
@@ -48,6 +49,22 @@ test('resolveExistingYomitanExtensionPath ignores source tree without built mani
     [path.join('/repo', 'vendor', 'subminer-yomitan', 'ext')],
     () => false,
   );
+
+  assert.equal(resolved, null);
+});
+
+test('resolveExternalYomitanExtensionPath returns external extension dir when manifest exists', () => {
+  const profilePath = path.join('/Users', 'kyle', '.local', 'share', 'gsm-profile');
+  const resolved = resolveExternalYomitanExtensionPath(profilePath, (candidate) =>
+    candidate === path.join(profilePath, 'extensions', 'yomitan', 'manifest.json'),
+  );
+
+  assert.equal(resolved, path.join(profilePath, 'extensions', 'yomitan'));
+});
+
+test('resolveExternalYomitanExtensionPath returns null when external profile has no extension', () => {
+  const profilePath = path.join('/Users', 'kyle', '.local', 'share', 'gsm-profile');
+  const resolved = resolveExternalYomitanExtensionPath(profilePath, () => false);
 
   assert.equal(resolved, null);
 });

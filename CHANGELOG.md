@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.6.2 (2026-03-12)
+
+### Changed
+- Config: Added `yomitan.externalProfilePath` to reuse another Electron app's Yomitan profile in read-only mode.
+- Config: SubMiner now reuses external Yomitan dictionaries/settings without writing back to that profile.
+- Config: Launcher-managed playback now respects `yomitan.externalProfilePath` and no longer forces first-run setup when external Yomitan is configured.
+- Config: SubMiner now seeds `config.jsonc` even when the default config directory already exists.
+- Config: First-run setup now allows zero internal dictionaries when `yomitan.externalProfilePath` is configured, and falls back to requiring at least one internal dictionary if that external profile is later removed.
+
 ## v0.6.1 (2026-03-12)
 
 ### Added

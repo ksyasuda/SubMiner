@@ -23,6 +23,7 @@ type TokenizerMainDeps = TokenizerDepsRuntimeOptions & {
 export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
   return (): TokenizerDepsRuntimeOptions => ({
     getYomitanExt: () => deps.getYomitanExt(),
+    getYomitanSession: () => deps.getYomitanSession?.() ?? null,
     getYomitanParserWindow: () => deps.getYomitanParserWindow(),
     setYomitanParserWindow: (window) => deps.setYomitanParserWindow(window),
     getYomitanParserReadyPromise: () => deps.getYomitanParserReadyPromise(),

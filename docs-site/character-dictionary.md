@@ -62,6 +62,10 @@ Character dictionary sync is disabled by default. To turn it on:
 The first sync for a media title takes a few seconds while character data and portraits are fetched from AniList. Subsequent launches reuse the cached snapshot.
 :::
 
+::: warning
+If `yomitan.externalProfilePath` is set, SubMiner switches to read-only external-profile mode. In that mode SubMiner can reuse another app's installed Yomitan dictionaries/settings, but SubMiner's own character-dictionary features are fully disabled.
+:::
+
 ## Name Generation
 
 A single character produces many searchable terms so that names are recognized regardless of how they appear in dialogue. SubMiner generates variants for:

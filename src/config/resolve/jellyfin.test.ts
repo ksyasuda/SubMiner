@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { createResolveContext } from './context';
 import { applyIntegrationConfig } from './integrations';
 
@@ -102,5 +104,44 @@ test('anilist character dictionary fields are parsed, clamped, and enum-validate
   assert.ok(warnedPaths.includes('anilist.characterDictionary.profileScope'));
   assert.ok(
     warnedPaths.includes('anilist.characterDictionary.collapsibleSections.characterInformation'),
+  );
+});
+
+test('yomitan externalProfilePath is trimmed and invalid values warn', () => {
+  const { context, warnings } = createResolveContext({
+    yomitan: {
+      externalProfilePath: '  /tmp/gsm-profile  ',
+    },
+  });
+
+  applyIntegrationConfig(context);
+
+  assert.equal(context.resolved.yomitan.externalProfilePath, '/tmp/gsm-profile');
+
+  const invalid = createResolveContext({
+    yomitan: {
+      externalProfilePath: 42 as never,
+    },
+  });
+
+  applyIntegrationConfig(invalid.context);
+
+  assert.equal(invalid.context.resolved.yomitan.externalProfilePath, '');
+  assert.ok(invalid.warnings.some((warning) => warning.path === 'yomitan.externalProfilePath'));
+});
+
+test('yomitan externalProfilePath expands leading tilde to the current home directory', () => {
+  const homeDir = os.homedir();
+  const { context } = createResolveContext({
+    yomitan: {
+      externalProfilePath: '~/.config/gsm_overlay',
+    },
+  });
+
+  applyIntegrationConfig(context);
+
+  assert.equal(
+    context.resolved.yomitan.externalProfilePath,
+    path.join(homeDir, '.config', 'gsm_overlay'),
   );
 });

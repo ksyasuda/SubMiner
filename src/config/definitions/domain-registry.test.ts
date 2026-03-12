@@ -27,6 +27,7 @@ test('config option registry includes critical paths and has unique entries', ()
     'ankiConnect.enabled',
     'anilist.characterDictionary.enabled',
     'anilist.characterDictionary.collapsibleSections.description',
+    'yomitan.externalProfilePath',
     'immersionTracking.enabled',
   ]) {
     assert.ok(paths.includes(requiredPath), `missing config path: ${requiredPath}`);
@@ -44,6 +45,7 @@ test('config template sections include expected domains and unique keys', () => 
     'startupWarmups',
     'subtitleStyle',
     'ankiConnect',
+    'yomitan',
     'immersionTracking',
   ];
 

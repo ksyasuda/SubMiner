@@ -22,14 +22,16 @@ test('yomitan opener warns when extension cannot be loaded', async () => {
 });
 
 test('yomitan opener opens settings window when extension is available', async () => {
-  let opened = false;
+  let forwardedSession: { id: string } | null | undefined;
+  const yomitanSession = { id: 'session' };
   const openSettings = createOpenYomitanSettingsHandler({
     ensureYomitanExtensionLoaded: async () => ({ id: 'ext' }),
-    openYomitanSettingsWindow: () => {
-      opened = true;
+    openYomitanSettingsWindow: ({ yomitanSession: nextSession }) => {
+      forwardedSession = nextSession as { id: string } | null;
     },
     getExistingWindow: () => null,
     setWindow: () => {},
+    getYomitanSession: () => yomitanSession,
     logWarn: () => {},
     logError: () => {},
   });
@@ -37,5 +39,5 @@ test('yomitan opener opens settings window when extension is available', async (
   openSettings();
   await Promise.resolve();
   await Promise.resolve();
-  assert.equal(opened, true);
+  assert.equal(forwardedSession, yomitanSession);
 });

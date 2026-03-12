@@ -1,3 +1,5 @@
+import type { Session } from 'electron';
+
 type OverlayWindowKind = 'visible' | 'modal';
 
 export function createCreateOverlayWindowHandler<TWindow>(deps: {
@@ -12,6 +14,7 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
       tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
       forwardTabToMpv: () => void;
       onWindowClosed: (windowKind: OverlayWindowKind) => void;
+      yomitanSession?: Session | null;
     },
   ) => TWindow;
   isDev: boolean;
@@ -22,6 +25,7 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
   tryHandleOverlayShortcutLocalFallback: (input: Electron.Input) => boolean;
   forwardTabToMpv: () => void;
   onWindowClosed: (windowKind: OverlayWindowKind) => void;
+  getYomitanSession?: () => Session | null;
 }) {
   return (kind: OverlayWindowKind): TWindow => {
     return deps.createOverlayWindowCore(kind, {
@@ -33,6 +37,7 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
       tryHandleOverlayShortcutLocalFallback: deps.tryHandleOverlayShortcutLocalFallback,
       forwardTabToMpv: deps.forwardTabToMpv,
       onWindowClosed: deps.onWindowClosed,
+      yomitanSession: deps.getYomitanSession?.() ?? null,
     });
   };
 }

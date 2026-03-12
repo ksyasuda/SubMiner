@@ -1,5 +1,6 @@
 type YomitanExtensionLike = unknown;
 type BrowserWindowLike = unknown;
+type SessionLike = unknown;
 
 export function createOpenYomitanSettingsHandler(deps: {
   ensureYomitanExtensionLoaded: () => Promise<YomitanExtensionLike | null>;
@@ -7,10 +8,12 @@ export function createOpenYomitanSettingsHandler(deps: {
     yomitanExt: YomitanExtensionLike;
     getExistingWindow: () => BrowserWindowLike | null;
     setWindow: (window: BrowserWindowLike | null) => void;
+    yomitanSession?: SessionLike | null;
     onWindowClosed?: () => void;
   }) => void;
   getExistingWindow: () => BrowserWindowLike | null;
   setWindow: (window: BrowserWindowLike | null) => void;
+  getYomitanSession?: () => SessionLike | null;
   logWarn: (message: string) => void;
   logError: (message: string, error: unknown) => void;
 }) {
@@ -21,10 +24,16 @@ export function createOpenYomitanSettingsHandler(deps: {
         deps.logWarn('Unable to open Yomitan settings: extension failed to load.');
         return;
       }
+      const yomitanSession = deps.getYomitanSession?.() ?? null;
+      if (!yomitanSession) {
+        deps.logWarn('Unable to open Yomitan settings: Yomitan session is unavailable.');
+        return;
+      }
       deps.openYomitanSettingsWindow({
         yomitanExt: extension,
         getExistingWindow: deps.getExistingWindow,
         setWindow: deps.setWindow,
+        yomitanSession,
       });
     })().catch((error) => {
       deps.logError('Failed to open Yomitan settings window.', error);

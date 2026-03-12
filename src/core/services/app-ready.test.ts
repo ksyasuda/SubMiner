@@ -154,7 +154,7 @@ test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns
   await runAppReadyRuntime(deps);
 
   assert.equal(calls.includes('ensureDefaultConfigBootstrap'), true);
-  assert.equal(calls.includes('reloadConfig'), false);
+  assert.equal(calls.includes('reloadConfig'), true);
   assert.equal(calls.includes('getResolvedConfig'), false);
   assert.equal(calls.includes('getConfigWarnings'), false);
   assert.equal(calls.includes('setLogLevel:warn:config'), false);
@@ -170,6 +170,8 @@ test('runAppReadyRuntime skips heavy startup when shouldSkipHeavyStartup returns
   assert.equal(calls.includes('loadYomitanExtension'), true);
   assert.equal(calls.includes('handleFirstRunSetup'), true);
   assert.ok(calls.indexOf('loadYomitanExtension') < calls.indexOf('handleInitialArgs'));
+  assert.ok(calls.indexOf('loadYomitanExtension') < calls.indexOf('reloadConfig'));
+  assert.ok(calls.indexOf('reloadConfig') < calls.indexOf('handleFirstRunSetup'));
   assert.ok(calls.indexOf('loadYomitanExtension') < calls.indexOf('handleFirstRunSetup'));
   assert.ok(calls.indexOf('handleFirstRunSetup') < calls.indexOf('handleInitialArgs'));
 });

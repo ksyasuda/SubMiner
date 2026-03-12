@@ -7,10 +7,11 @@ test('waitForSetupCompletion resolves completed and cancelled states', async () 
   const sequence: Array<SetupState | null> = [
     null,
     {
-      version: 2,
+      version: 3,
       status: 'in_progress',
       completedAt: null,
       completionSource: null,
+      yomitanSetupMode: null,
       lastSeenYomitanDictionaryCount: 0,
       pluginInstallStatus: 'unknown',
       pluginInstallPathSummary: null,
@@ -18,10 +19,11 @@ test('waitForSetupCompletion resolves completed and cancelled states', async () 
       windowsMpvShortcutLastStatus: 'unknown',
     },
     {
-      version: 2,
+      version: 3,
       status: 'completed',
       completedAt: '2026-03-07T00:00:00.000Z',
       completionSource: 'user',
+      yomitanSetupMode: 'internal',
       lastSeenYomitanDictionaryCount: 1,
       pluginInstallStatus: 'skipped',
       pluginInstallPathSummary: null,
@@ -54,10 +56,11 @@ test('ensureLauncherSetupReady launches setup app and resumes only after complet
       if (reads === 1) return null;
       if (reads === 2) {
         return {
-          version: 2,
+          version: 3,
           status: 'in_progress',
           completedAt: null,
           completionSource: null,
+          yomitanSetupMode: null,
           lastSeenYomitanDictionaryCount: 0,
           pluginInstallStatus: 'unknown',
           pluginInstallPathSummary: null,
@@ -66,10 +69,11 @@ test('ensureLauncherSetupReady launches setup app and resumes only after complet
         };
       }
       return {
-        version: 2,
+        version: 3,
         status: 'completed',
         completedAt: '2026-03-07T00:00:00.000Z',
         completionSource: 'user',
+        yomitanSetupMode: 'internal',
         lastSeenYomitanDictionaryCount: 1,
         pluginInstallStatus: 'installed',
         pluginInstallPathSummary: '/tmp/mpv',
@@ -93,13 +97,33 @@ test('ensureLauncherSetupReady launches setup app and resumes only after complet
   assert.deepEqual(calls, ['launch']);
 });
 
+test('ensureLauncherSetupReady bypasses setup gate when external yomitan is configured', async () => {
+  const calls: string[] = [];
+
+  const ready = await ensureLauncherSetupReady({
+    readSetupState: () => null,
+    isExternalYomitanConfigured: () => true,
+    launchSetupApp: () => {
+      calls.push('launch');
+    },
+    sleep: async () => undefined,
+    now: () => 0,
+    timeoutMs: 5_000,
+    pollIntervalMs: 100,
+  });
+
+  assert.equal(ready, true);
+  assert.deepEqual(calls, []);
+});
+
 test('ensureLauncherSetupReady fails on timeout/cancelled state', async () => {
   const result = await ensureLauncherSetupReady({
     readSetupState: () => ({
-      version: 2,
+      version: 3,
       status: 'cancelled',
       completedAt: null,
       completionSource: null,
+      yomitanSetupMode: null,
       lastSeenYomitanDictionaryCount: 0,
       pluginInstallStatus: 'unknown',
       pluginInstallPathSummary: null,

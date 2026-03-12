@@ -1,11 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
+import { buildOverlayWindowOptions } from './overlay-window-options';
 
 test('overlay window config explicitly disables renderer sandbox for preload compatibility', () => {
-  const sourcePath = path.join(process.cwd(), 'src/core/services/overlay-window.ts');
-  const source = fs.readFileSync(sourcePath, 'utf8');
+  const options = buildOverlayWindowOptions('visible', {
+    isDev: false,
+    yomitanSession: null,
+  });
 
-  assert.match(source, /webPreferences:\s*\{[\s\S]*sandbox:\s*false[\s\S]*\}/m);
+  assert.equal(options.webPreferences?.sandbox, false);
+});
+
+test('overlay window config uses the provided Yomitan session when available', () => {
+  const yomitanSession = { id: 'session' } as never;
+  const withSession = buildOverlayWindowOptions('visible', {
+    isDev: false,
+    yomitanSession,
+  });
+  const withoutSession = buildOverlayWindowOptions('visible', {
+    isDev: false,
+    yomitanSession: null,
+  });
+
+  assert.equal(withSession.webPreferences?.session, yomitanSession);
+  assert.equal(withoutSession.webPreferences?.session, undefined);
 });
