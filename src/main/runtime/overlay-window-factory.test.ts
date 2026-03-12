@@ -9,12 +9,14 @@ import {
 test('create overlay window handler forwards options and kind', () => {
   const calls: string[] = [];
   const window = { id: 1 };
+  const yomitanSession = { id: 'session' } as never;
   const createOverlayWindow = createCreateOverlayWindowHandler({
     createOverlayWindowCore: (kind, options) => {
       calls.push(`kind:${kind}`);
       assert.equal(options.isDev, true);
       assert.equal(options.isOverlayVisible('visible'), true);
       assert.equal(options.isOverlayVisible('modal'), false);
+      assert.equal(options.yomitanSession, yomitanSession);
       options.forwardTabToMpv();
       options.onRuntimeOptionsChanged();
       options.setOverlayDebugVisualizationEnabled(true);
@@ -29,6 +31,7 @@ test('create overlay window handler forwards options and kind', () => {
     tryHandleOverlayShortcutLocalFallback: () => false,
     forwardTabToMpv: () => calls.push('forward-tab'),
     onWindowClosed: (kind) => calls.push(`closed:${kind}`),
+    getYomitanSession: () => yomitanSession,
   });
 
   assert.equal(createOverlayWindow('visible'), window);
