@@ -1034,7 +1034,7 @@ For GameSentenceMiner on Linux, the default overlay profile path is typically `~
 
 | Option                | Values      | Description                                                                                                                           |
 | --------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `externalProfilePath` | string path | Optional absolute path to another app's Yomitan Electron profile. SubMiner loads that profile read-only and reuses its dictionaries/settings. |
+| `externalProfilePath` | string path | Optional absolute path, or a path beginning with `~` (expanded to your home directory), to another app's Yomitan Electron profile. SubMiner loads that profile read-only and reuses its dictionaries/settings. |
 
 External-profile mode behavior:
 

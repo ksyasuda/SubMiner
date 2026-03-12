@@ -7,6 +7,7 @@ import {
   handleOverlayWindowBeforeInputEvent,
   type OverlayWindowKind,
 } from './overlay-window-input';
+import { buildOverlayWindowOptions } from './overlay-window-options';
 
 const logger = createLogger('main:overlay-window');
 const overlayWindowLayerByInstance = new WeakMap<BrowserWindow, OverlayWindowKind>();
@@ -81,32 +82,7 @@ export function createOverlayWindow(
     yomitanSession?: Session | null;
   },
 ): BrowserWindow {
-  const showNativeDebugFrame = process.platform === 'win32' && options.isDev;
-  const window = new BrowserWindow({
-    show: false,
-    width: 800,
-    height: 600,
-    x: 0,
-    y: 0,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    hasShadow: false,
-    focusable: true,
-    acceptFirstMouse: true,
-    ...(process.platform === 'win32' ? { thickFrame: showNativeDebugFrame } : {}),
-    webPreferences: {
-      preload: path.join(__dirname, '..', '..', 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-      webSecurity: true,
-      session: options.yomitanSession ?? undefined,
-      additionalArguments: [`--overlay-layer=${kind}`],
-    },
-  });
+  const window = new BrowserWindow(buildOverlayWindowOptions(kind, options));
 
   options.ensureOverlayWindowLevel(window);
   loadOverlayWindowLayer(window, kind);
@@ -172,4 +148,5 @@ export function syncOverlayWindowLayer(window: BrowserWindow, layer: 'visible'):
   loadOverlayWindowLayer(window, layer);
 }
 
+export { buildOverlayWindowOptions } from './overlay-window-options';
 export type { OverlayWindowKind } from './overlay-window-input';
