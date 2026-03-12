@@ -21,6 +21,7 @@ import {
   getSetupStatePath,
   readSetupState,
 } from '../../src/shared/setup-state.js';
+import { hasLauncherExternalYomitanProfileConfig } from '../config.js';
 
 const SETUP_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const SETUP_POLL_INTERVAL_MS = 500;
@@ -101,6 +102,7 @@ async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promis
   const statePath = getSetupStatePath(configDir);
   const ready = await ensureLauncherSetupReady({
     readSetupState: () => readSetupState(statePath),
+    isExternalYomitanConfigured: () => hasLauncherExternalYomitanProfileConfig(),
     launchSetupApp: () => {
       const setupArgs = ['--background', '--setup'];
       if (args.logLevel) {

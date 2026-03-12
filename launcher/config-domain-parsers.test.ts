@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLauncherYoutubeSubgenConfig } from './config/youtube-subgen-config.js';
 import { parseLauncherJellyfinConfig } from './config/jellyfin-config.js';
+import { readExternalYomitanProfilePath } from './config.js';
 import {
   getPluginConfigCandidates,
   parsePluginRuntimeConfigContent,
@@ -115,4 +116,37 @@ test('getPluginConfigCandidates resolves Windows mpv script-opts path', () => {
 
 test('getDefaultSocketPath returns Windows named pipe default', () => {
   assert.equal(getDefaultSocketPath('win32'), '\\\\.\\pipe\\subminer-socket');
+});
+
+test('readExternalYomitanProfilePath detects configured external profile paths', () => {
+  assert.equal(
+    readExternalYomitanProfilePath({
+      yomitan: {
+        externalProfilePath: '  ~/.config/gsm_overlay  ',
+      },
+    }),
+    '~/.config/gsm_overlay',
+  );
+  assert.equal(
+    readExternalYomitanProfilePath({
+      yomitan: {
+        externalProfilePath: '   ',
+      },
+    }),
+    null,
+  );
+  assert.equal(
+    readExternalYomitanProfilePath({
+      yomitan: null,
+    }),
+    null,
+  );
+  assert.equal(
+    readExternalYomitanProfilePath({
+      yomitan: {
+        externalProfilePath: 123,
+      },
+    } as never),
+    null,
+  );
 });

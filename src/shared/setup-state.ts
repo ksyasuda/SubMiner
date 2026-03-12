@@ -5,6 +5,7 @@ import { resolveConfigDir } from '../config/path-resolution';
 
 export type SetupStateStatus = 'incomplete' | 'in_progress' | 'completed' | 'cancelled';
 export type SetupCompletionSource = 'user' | 'legacy_auto_detected' | null;
+export type SetupYomitanMode = 'internal' | 'external' | null;
 export type SetupPluginInstallStatus = 'unknown' | 'installed' | 'skipped' | 'failed';
 export type SetupWindowsMpvShortcutInstallStatus = 'unknown' | 'installed' | 'skipped' | 'failed';
 
@@ -14,10 +15,11 @@ export interface SetupWindowsMpvShortcutPreferences {
 }
 
 export interface SetupState {
-  version: 2;
+  version: 3;
   status: SetupStateStatus;
   completedAt: string | null;
   completionSource: SetupCompletionSource;
+  yomitanSetupMode: SetupYomitanMode;
   lastSeenYomitanDictionaryCount: number;
   pluginInstallStatus: SetupPluginInstallStatus;
   pluginInstallPathSummary: string | null;
@@ -52,10 +54,11 @@ function asObject(value: unknown): Record<string, unknown> | null {
 
 export function createDefaultSetupState(): SetupState {
   return {
-    version: 2,
+    version: 3,
     status: 'incomplete',
     completedAt: null,
     completionSource: null,
+    yomitanSetupMode: null,
     lastSeenYomitanDictionaryCount: 0,
     pluginInstallStatus: 'unknown',
     pluginInstallPathSummary: null,
@@ -74,11 +77,12 @@ export function normalizeSetupState(value: unknown): SetupState | null {
   const status = record.status;
   const pluginInstallStatus = record.pluginInstallStatus;
   const completionSource = record.completionSource;
+  const yomitanSetupMode = record.yomitanSetupMode;
   const windowsPrefs = asObject(record.windowsMpvShortcutPreferences);
   const windowsMpvShortcutLastStatus = record.windowsMpvShortcutLastStatus;
 
   if (
-    (version !== 1 && version !== 2) ||
+    (version !== 1 && version !== 2 && version !== 3) ||
     (status !== 'incomplete' &&
       status !== 'in_progress' &&
       status !== 'completed' &&
@@ -94,16 +98,26 @@ export function normalizeSetupState(value: unknown): SetupState | null {
       windowsMpvShortcutLastStatus !== 'failed') ||
     (completionSource !== null &&
       completionSource !== 'user' &&
-      completionSource !== 'legacy_auto_detected')
+      completionSource !== 'legacy_auto_detected') ||
+    (version === 3 &&
+      yomitanSetupMode !== null &&
+      yomitanSetupMode !== 'internal' &&
+      yomitanSetupMode !== 'external')
   ) {
     return null;
   }
 
   return {
-    version: 2,
+    version: 3,
     status,
     completedAt: typeof record.completedAt === 'string' ? record.completedAt : null,
     completionSource,
+    yomitanSetupMode:
+      version === 3 && (yomitanSetupMode === 'internal' || yomitanSetupMode === 'external')
+        ? yomitanSetupMode
+        : status === 'completed'
+          ? 'internal'
+          : null,
     lastSeenYomitanDictionaryCount:
       typeof record.lastSeenYomitanDictionaryCount === 'number' &&
       Number.isFinite(record.lastSeenYomitanDictionaryCount) &&

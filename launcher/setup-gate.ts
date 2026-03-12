@@ -25,12 +25,16 @@ export async function waitForSetupCompletion(deps: {
 
 export async function ensureLauncherSetupReady(deps: {
   readSetupState: () => SetupState | null;
+  isExternalYomitanConfigured?: () => boolean;
   launchSetupApp: () => void;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
   timeoutMs: number;
   pollIntervalMs: number;
 }): Promise<boolean> {
+  if (deps.isExternalYomitanConfigured?.()) {
+    return true;
+  }
   if (isSetupCompleted(deps.readSetupState())) {
     return true;
   }

@@ -94,6 +94,7 @@ test('readSetupState ignores invalid files and round-trips valid state', () => {
     const state = createDefaultSetupState();
     state.status = 'completed';
     state.completionSource = 'user';
+    state.yomitanSetupMode = 'internal';
     state.lastSeenYomitanDictionaryCount = 2;
     writeSetupState(statePath, state);
 
@@ -101,7 +102,7 @@ test('readSetupState ignores invalid files and round-trips valid state', () => {
   });
 });
 
-test('readSetupState migrates v1 state to v2 windows shortcut defaults', () => {
+test('readSetupState migrates v1 state to v3 windows shortcut defaults', () => {
   withTempDir((root) => {
     const statePath = getSetupStatePath(root);
     fs.writeFileSync(
@@ -118,11 +119,51 @@ test('readSetupState migrates v1 state to v2 windows shortcut defaults', () => {
     );
 
     assert.deepEqual(readSetupState(statePath), {
-      version: 2,
+      version: 3,
       status: 'incomplete',
       completedAt: null,
       completionSource: null,
+      yomitanSetupMode: null,
       lastSeenYomitanDictionaryCount: 0,
+      pluginInstallStatus: 'unknown',
+      pluginInstallPathSummary: null,
+      windowsMpvShortcutPreferences: {
+        startMenuEnabled: true,
+        desktopEnabled: true,
+      },
+      windowsMpvShortcutLastStatus: 'unknown',
+    });
+  });
+});
+
+test('readSetupState migrates completed v2 state to internal yomitan setup mode', () => {
+  withTempDir((root) => {
+    const statePath = getSetupStatePath(root);
+    fs.writeFileSync(
+      statePath,
+      JSON.stringify({
+        version: 2,
+        status: 'completed',
+        completedAt: '2026-03-12T00:00:00.000Z',
+        completionSource: 'user',
+        lastSeenYomitanDictionaryCount: 1,
+        pluginInstallStatus: 'unknown',
+        pluginInstallPathSummary: null,
+        windowsMpvShortcutPreferences: {
+          startMenuEnabled: true,
+          desktopEnabled: true,
+        },
+        windowsMpvShortcutLastStatus: 'unknown',
+      }),
+    );
+
+    assert.deepEqual(readSetupState(statePath), {
+      version: 3,
+      status: 'completed',
+      completedAt: '2026-03-12T00:00:00.000Z',
+      completionSource: 'user',
+      yomitanSetupMode: 'internal',
+      lastSeenYomitanDictionaryCount: 1,
       pluginInstallStatus: 'unknown',
       pluginInstallPathSummary: null,
       windowsMpvShortcutPreferences: {

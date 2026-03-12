@@ -17,6 +17,19 @@ import { readPluginRuntimeConfig as readPluginRuntimeConfigValue } from './confi
 import { readLauncherMainConfigObject } from './config/shared-config-reader.js';
 import { parseLauncherYoutubeSubgenConfig } from './config/youtube-subgen-config.js';
 
+export function readExternalYomitanProfilePath(root: Record<string, unknown> | null): string | null {
+  const yomitan =
+    root?.yomitan && typeof root.yomitan === 'object' && !Array.isArray(root.yomitan)
+      ? (root.yomitan as Record<string, unknown>)
+      : null;
+  const externalProfilePath = yomitan?.externalProfilePath;
+  if (typeof externalProfilePath !== 'string') {
+    return null;
+  }
+  const trimmed = externalProfilePath.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export function loadLauncherYoutubeSubgenConfig(): LauncherYoutubeSubgenConfig {
   const root = readLauncherMainConfigObject();
   if (!root) return {};
@@ -27,6 +40,10 @@ export function loadLauncherJellyfinConfig(): LauncherJellyfinConfig {
   const root = readLauncherMainConfigObject();
   if (!root) return {};
   return parseLauncherJellyfinConfig(root);
+}
+
+export function hasLauncherExternalYomitanProfileConfig(): boolean {
+  return readExternalYomitanProfilePath(readLauncherMainConfigObject()) !== null;
 }
 
 export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig {

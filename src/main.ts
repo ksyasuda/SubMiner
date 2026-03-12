@@ -694,6 +694,7 @@ const firstRunSetupService = createFirstRunSetupService({
     });
     return dictionaries.length;
   },
+  isExternalYomitanConfigured: () => getResolvedConfig().yomitan.externalProfilePath.trim().length > 0,
   detectPluginInstalled: () => {
     const installPaths = resolveDefaultMpvInstallPaths(
       process.platform,
@@ -1835,6 +1836,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       configReady: snapshot.configReady,
       dictionaryCount: snapshot.dictionaryCount,
       canFinish: snapshot.canFinish,
+      externalYomitanConfigured: snapshot.externalYomitanConfigured,
       pluginStatus: snapshot.pluginStatus,
       pluginInstallPathSummary: snapshot.pluginInstallPathSummary,
       windowsMpvShortcuts: snapshot.windowsMpvShortcuts,
