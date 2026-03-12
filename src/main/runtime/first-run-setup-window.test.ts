@@ -13,6 +13,7 @@ test('buildFirstRunSetupHtml renders macchiato setup actions and disabled finish
     configReady: true,
     dictionaryCount: 0,
     canFinish: false,
+    externalYomitanConfigured: false,
     pluginStatus: 'optional',
     pluginInstallPathSummary: null,
     windowsMpvShortcuts: {
@@ -38,6 +39,7 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
     configReady: true,
     dictionaryCount: 1,
     canFinish: true,
+    externalYomitanConfigured: false,
     pluginStatus: 'installed',
     pluginInstallPathSummary: '/tmp/mpv',
     windowsMpvShortcuts: {
@@ -52,6 +54,32 @@ test('buildFirstRunSetupHtml switches plugin action to reinstall when already in
   });
 
   assert.match(html, /Reinstall mpv plugin/);
+});
+
+test('buildFirstRunSetupHtml explains external yomitan mode and keeps finish enabled', () => {
+  const html = buildFirstRunSetupHtml({
+    configReady: true,
+    dictionaryCount: 0,
+    canFinish: true,
+    externalYomitanConfigured: true,
+    pluginStatus: 'optional',
+    pluginInstallPathSummary: null,
+    windowsMpvShortcuts: {
+      supported: false,
+      startMenuEnabled: true,
+      desktopEnabled: true,
+      startMenuInstalled: false,
+      desktopInstalled: false,
+      status: 'optional',
+    },
+    message: null,
+  });
+
+  assert.match(html, /External profile configured/);
+  assert.match(
+    html,
+    /Finish stays unlocked while SubMiner is reusing an external Yomitan profile\./,
+  );
 });
 
 test('parseFirstRunSetupSubmissionUrl parses supported custom actions', () => {
@@ -117,6 +145,7 @@ test('closing incomplete first-run setup quits app outside background mode', asy
       configReady: false,
       dictionaryCount: 0,
       canFinish: false,
+      externalYomitanConfigured: false,
       pluginStatus: 'optional',
       pluginInstallPathSummary: null,
       windowsMpvShortcuts: {

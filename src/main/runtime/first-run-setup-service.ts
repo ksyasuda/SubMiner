@@ -26,6 +26,7 @@ export interface SetupStatusSnapshot {
   configReady: boolean;
   dictionaryCount: number;
   canFinish: boolean;
+  externalYomitanConfigured: boolean;
   pluginStatus: 'installed' | 'optional' | 'skipped' | 'failed';
   pluginInstallPathSummary: string | null;
   windowsMpvShortcuts: SetupWindowsMpvShortcutSnapshot;
@@ -139,10 +140,50 @@ function getEffectiveWindowsMpvShortcutPreferences(
   };
 }
 
+function isYomitanSetupSatisfied(options: {
+  configReady: boolean;
+  dictionaryCount: number;
+  externalYomitanConfigured: boolean;
+}): boolean {
+  if (!options.configReady) {
+    return false;
+  }
+  return options.externalYomitanConfigured || options.dictionaryCount >= 1;
+}
+
+async function resolveYomitanSetupStatus(deps: {
+  configFilePaths: { jsoncPath: string; jsonPath: string };
+  getYomitanDictionaryCount: () => Promise<number>;
+  isExternalYomitanConfigured?: () => boolean;
+}): Promise<{
+  configReady: boolean;
+  dictionaryCount: number;
+  externalYomitanConfigured: boolean;
+}> {
+  const configReady =
+    fs.existsSync(deps.configFilePaths.jsoncPath) || fs.existsSync(deps.configFilePaths.jsonPath);
+  const externalYomitanConfigured = deps.isExternalYomitanConfigured?.() ?? false;
+
+  if (configReady && externalYomitanConfigured) {
+    return {
+      configReady,
+      dictionaryCount: 0,
+      externalYomitanConfigured,
+    };
+  }
+
+  return {
+    configReady,
+    dictionaryCount: await deps.getYomitanDictionaryCount(),
+    externalYomitanConfigured,
+  };
+}
+
 export function createFirstRunSetupService(deps: {
   platform?: NodeJS.Platform;
   configDir: string;
   getYomitanDictionaryCount: () => Promise<number>;
+  isExternalYomitanConfigured?: () => boolean;
   detectPluginInstalled: () => boolean | Promise<boolean>;
   installPlugin: () => Promise<PluginInstallResult>;
   detectWindowsMpvShortcuts?: () =>
@@ -168,7 +209,12 @@ export function createFirstRunSetupService(deps: {
   };
 
   const buildSnapshot = async (state: SetupState, message: string | null = null) => {
-    const dictionaryCount = await deps.getYomitanDictionaryCount();
+    const { configReady, dictionaryCount, externalYomitanConfigured } =
+      await resolveYomitanSetupStatus({
+        configFilePaths,
+        getYomitanDictionaryCount: deps.getYomitanDictionaryCount,
+        isExternalYomitanConfigured: deps.isExternalYomitanConfigured,
+      });
     const pluginInstalled = await deps.detectPluginInstalled();
     const detectedWindowsMpvShortcuts = isWindows
       ? await deps.detectWindowsMpvShortcuts?.()
@@ -181,12 +227,15 @@ export function createFirstRunSetupService(deps: {
       state,
       installedWindowsMpvShortcuts,
     );
-    const configReady =
-      fs.existsSync(configFilePaths.jsoncPath) || fs.existsSync(configFilePaths.jsonPath);
     return {
       configReady,
       dictionaryCount,
-      canFinish: dictionaryCount >= 1,
+      canFinish: isYomitanSetupSatisfied({
+        configReady,
+        dictionaryCount,
+        externalYomitanConfigured,
+      }),
+      externalYomitanConfigured,
       pluginStatus: getPluginStatus(state, pluginInstalled),
       pluginInstallPathSummary: state.pluginInstallPathSummary,
       windowsMpvShortcuts: {
@@ -217,20 +266,32 @@ export function createFirstRunSetupService(deps: {
   return {
     ensureSetupStateInitialized: async () => {
       const state = readState();
-      if (isSetupCompleted(state)) {
+      const { configReady, dictionaryCount, externalYomitanConfigured } =
+        await resolveYomitanSetupStatus({
+          configFilePaths,
+          getYomitanDictionaryCount: deps.getYomitanDictionaryCount,
+          isExternalYomitanConfigured: deps.isExternalYomitanConfigured,
+        });
+      const yomitanSetupSatisfied = isYomitanSetupSatisfied({
+        configReady,
+        dictionaryCount,
+        externalYomitanConfigured,
+      });
+      if (
+        isSetupCompleted(state) &&
+        !(state.yomitanSetupMode === 'external' && !externalYomitanConfigured && !yomitanSetupSatisfied)
+      ) {
         completed = true;
         return refreshWithState(state);
       }
 
-      const dictionaryCount = await deps.getYomitanDictionaryCount();
-      const configReady =
-        fs.existsSync(configFilePaths.jsoncPath) || fs.existsSync(configFilePaths.jsonPath);
-      if (configReady && dictionaryCount >= 1) {
+      if (yomitanSetupSatisfied) {
         const completedState = writeState({
           ...state,
           status: 'completed',
           completedAt: new Date().toISOString(),
           completionSource: 'legacy_auto_detected',
+          yomitanSetupMode: externalYomitanConfigured ? 'external' : 'internal',
           lastSeenYomitanDictionaryCount: dictionaryCount,
         });
         return buildSnapshot(completedState);
@@ -242,6 +303,7 @@ export function createFirstRunSetupService(deps: {
           status: state.status === 'cancelled' ? 'cancelled' : 'incomplete',
           completedAt: null,
           completionSource: null,
+          yomitanSetupMode: null,
           lastSeenYomitanDictionaryCount: dictionaryCount,
         }),
       );
@@ -276,6 +338,7 @@ export function createFirstRunSetupService(deps: {
           status: 'completed',
           completedAt: new Date().toISOString(),
           completionSource: 'user',
+          yomitanSetupMode: snapshot.externalYomitanConfigured ? 'external' : 'internal',
           lastSeenYomitanDictionaryCount: snapshot.dictionaryCount,
         }),
       );

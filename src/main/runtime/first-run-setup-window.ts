@@ -32,6 +32,7 @@ export interface FirstRunSetupHtmlModel {
   configReady: boolean;
   dictionaryCount: number;
   canFinish: boolean;
+  externalYomitanConfigured: boolean;
   pluginStatus: 'installed' | 'optional' | 'skipped' | 'failed';
   pluginInstallPathSummary: string | null;
   windowsMpvShortcuts: {
@@ -113,6 +114,23 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       </form>
     </div>`
     : '';
+
+  const yomitanMeta = model.externalYomitanConfigured
+    ? 'External profile configured. SubMiner is reusing that Yomitan profile for this setup run.'
+    : `${model.dictionaryCount} installed`;
+  const yomitanBadgeLabel = model.externalYomitanConfigured
+    ? 'External'
+    : model.dictionaryCount >= 1
+      ? 'Ready'
+      : 'Missing';
+  const yomitanBadgeTone = model.externalYomitanConfigured
+    ? 'ready'
+    : model.dictionaryCount >= 1
+      ? 'ready'
+      : 'warn';
+  const footerMessage = model.externalYomitanConfigured
+    ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
+    : 'Finish stays locked until Yomitan reports at least one installed dictionary.';
 
   return `<!doctype html>
 <html>
@@ -257,12 +275,9 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     <div class="card">
       <div>
         <strong>Yomitan dictionaries</strong>
-        <div class="meta">${model.dictionaryCount} installed</div>
+        <div class="meta">${escapeHtml(yomitanMeta)}</div>
       </div>
-      ${renderStatusBadge(
-        model.dictionaryCount >= 1 ? 'Ready' : 'Missing',
-        model.dictionaryCount >= 1 ? 'ready' : 'warn',
-      )}
+      ${renderStatusBadge(yomitanBadgeLabel, yomitanBadgeTone)}
     </div>
     ${windowsShortcutCard}
     <div class="actions">
@@ -273,7 +288,7 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
       <button class="primary" ${model.canFinish ? '' : 'disabled'} onclick="window.location.href='subminer://first-run-setup?action=finish'">Finish setup</button>
     </div>
     <div class="message">${model.message ? escapeHtml(model.message) : ''}</div>
-    <div class="footer">Finish stays locked until Yomitan reports at least one installed dictionary.</div>
+    <div class="footer">${escapeHtml(footerMessage)}</div>
   </main>
 </body>
 </html>`;

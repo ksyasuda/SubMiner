@@ -185,6 +185,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   deps.ensureDefaultConfigBootstrap();
   if (deps.shouldSkipHeavyStartup?.()) {
     await deps.loadYomitanExtension();
+    deps.reloadConfig();
     await deps.handleFirstRunSetup();
     deps.handleInitialArgs();
     return;
@@ -194,6 +195,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
 
   if (deps.shouldSkipHeavyStartup?.()) {
     await deps.loadYomitanExtension();
+    deps.reloadConfig();
     await deps.handleFirstRunSetup();
     deps.handleInitialArgs();
     deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);

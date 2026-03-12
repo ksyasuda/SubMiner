@@ -143,6 +143,154 @@ test('setup service requires explicit finish for incomplete installs and support
     const completed = await service.markSetupCompleted();
     assert.equal(completed.state.status, 'completed');
     assert.equal(completed.state.completionSource, 'user');
+    assert.equal(completed.state.yomitanSetupMode, 'internal');
+  });
+});
+
+test('setup service allows completion without internal dictionaries when external yomitan is configured', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 0,
+      isExternalYomitanConfigured: () => true,
+      detectPluginInstalled: () => false,
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    const initial = await service.ensureSetupStateInitialized();
+    assert.equal(initial.canFinish, true);
+
+    const completed = await service.markSetupCompleted();
+    assert.equal(completed.state.status, 'completed');
+    assert.equal(completed.state.yomitanSetupMode, 'external');
+    assert.equal(completed.dictionaryCount, 0);
+  });
+});
+
+test('setup service does not probe internal dictionaries when external yomitan is configured', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => {
+        throw new Error('should not probe internal dictionaries in external mode');
+      },
+      isExternalYomitanConfigured: () => true,
+      detectPluginInstalled: () => false,
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    const snapshot = await service.ensureSetupStateInitialized();
+    assert.equal(snapshot.state.status, 'completed');
+    assert.equal(snapshot.canFinish, true);
+    assert.equal(snapshot.externalYomitanConfigured, true);
+    assert.equal(snapshot.dictionaryCount, 0);
+  });
+});
+
+test('setup service reopens when external-yomitan completion later has no external profile and no internal dictionaries', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 0,
+      isExternalYomitanConfigured: () => true,
+      detectPluginInstalled: () => false,
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    await service.ensureSetupStateInitialized();
+    await service.markSetupCompleted();
+
+    const relaunched = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 0,
+      isExternalYomitanConfigured: () => false,
+      detectPluginInstalled: () => false,
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    const snapshot = await relaunched.ensureSetupStateInitialized();
+    assert.equal(snapshot.state.status, 'incomplete');
+    assert.equal(snapshot.state.yomitanSetupMode, null);
+    assert.equal(snapshot.canFinish, false);
+  });
+});
+
+test('setup service keeps completed when external-yomitan completion later has internal dictionaries available', async () => {
+  await withTempDir(async (root) => {
+    const configDir = path.join(root, 'SubMiner');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.jsonc'), '{}');
+
+    const service = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 0,
+      isExternalYomitanConfigured: () => true,
+      detectPluginInstalled: () => false,
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    await service.ensureSetupStateInitialized();
+    await service.markSetupCompleted();
+
+    const relaunched = createFirstRunSetupService({
+      configDir,
+      getYomitanDictionaryCount: async () => 2,
+      isExternalYomitanConfigured: () => false,
+      detectPluginInstalled: () => false,
+      installPlugin: async () => ({
+        ok: true,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+        message: 'ok',
+      }),
+      onStateChanged: () => undefined,
+    });
+
+    const snapshot = await relaunched.ensureSetupStateInitialized();
+    assert.equal(snapshot.state.status, 'completed');
+    assert.equal(snapshot.canFinish, true);
   });
 });
 
