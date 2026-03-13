@@ -85,6 +85,18 @@ Preferred flow:
 
 Never hand off nontrivial work without stating what was verified and what was skipped.
 
+## Pre-Handoff Policy Checks (Required)
+
+Before handoff, always ask and answer both of these questions explicitly:
+
+1. **Docs update required?**
+2. **Changelog fragment required?**
+
+Rules:
+- Do not assume silence implies "no." Record an explicit yes/no decision for each item.
+- If the answer is yes, either complete the update or report the blocker before handoff.
+- Include the final answers in the handoff summary even when both answers are "no."
+
 ## Failure / Scope Handling
 
 - If a worker hits ambiguity, pause and ask the user.
@@ -128,4 +140,7 @@ At the end, report:
 - whether backlog was used and what changed
 - which workers were dispatched and what they owned
 - what verification ran
+- explicit answers to:
+  - docs update required?
+  - changelog fragment required?
 - blockers, skips, and risks
