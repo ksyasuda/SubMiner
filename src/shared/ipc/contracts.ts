@@ -19,6 +19,7 @@ export const IPC_CHANNELS = {
     toggleDevTools: 'toggle-dev-tools',
     toggleOverlay: 'toggle-overlay',
     saveSubtitlePosition: 'save-subtitle-position',
+    saveControllerConfig: 'save-controller-config',
     saveControllerPreference: 'save-controller-preference',
     setMecabEnabled: 'set-mecab-enabled',
     mpvCommand: 'mpv-command',

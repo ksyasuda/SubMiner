@@ -35,7 +35,7 @@ function createGamepad(
 
 function createControllerConfig(
   overrides: Omit<Partial<ResolvedControllerConfig>, 'bindings' | 'buttonIndices'> & {
-    bindings?: Partial<ResolvedControllerConfig['bindings']>;
+    bindings?: Partial<Record<keyof ResolvedControllerConfig['bindings'], unknown>>;
     buttonIndices?: Partial<ResolvedControllerConfig['buttonIndices']>;
   } = {},
 ): ResolvedControllerConfig {
@@ -71,23 +71,96 @@ function createControllerConfig(
       ...(buttonIndexOverrides ?? {}),
     },
     bindings: {
-      toggleLookup: 'buttonSouth',
-      closeLookup: 'buttonEast',
-      toggleKeyboardOnlyMode: 'buttonNorth',
-      mineCard: 'buttonWest',
-      quitMpv: 'select',
-      previousAudio: 'none',
-      nextAudio: 'rightShoulder',
-      playCurrentAudio: 'leftShoulder',
-      toggleMpvPause: 'leftStickPress',
-      leftStickHorizontal: 'leftStickX',
-      leftStickVertical: 'leftStickY',
-      rightStickHorizontal: 'rightStickX',
-      rightStickVertical: 'rightStickY',
-      ...(bindingOverrides ?? {}),
+      toggleLookup: { kind: 'button', buttonIndex: 0 },
+      closeLookup: { kind: 'button', buttonIndex: 1 },
+      toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+      mineCard: { kind: 'button', buttonIndex: 2 },
+      quitMpv: { kind: 'button', buttonIndex: 6 },
+      previousAudio: { kind: 'none' },
+      nextAudio: { kind: 'button', buttonIndex: 5 },
+      playCurrentAudio: { kind: 'button', buttonIndex: 4 },
+      toggleMpvPause: { kind: 'button', buttonIndex: 9 },
+      leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
+      leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
+      rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
+      rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
+      ...normalizeBindingOverrides(bindingOverrides ?? {}, {
+        select: 6,
+        buttonSouth: 0,
+        buttonEast: 1,
+        buttonWest: 2,
+        buttonNorth: 3,
+        leftShoulder: 4,
+        rightShoulder: 5,
+        leftStickPress: 9,
+        rightStickPress: 10,
+        leftTrigger: 6,
+        rightTrigger: 7,
+        ...(buttonIndexOverrides ?? {}),
+      }),
     },
     ...restOverrides,
   };
+}
+
+function normalizeBindingOverrides(
+  overrides: Partial<Record<keyof ResolvedControllerConfig['bindings'], unknown>>,
+  buttonIndices: ResolvedControllerConfig['buttonIndices'],
+): Partial<ResolvedControllerConfig['bindings']> {
+  const legacyButtonIndices = {
+    select: buttonIndices.select,
+    buttonSouth: buttonIndices.buttonSouth,
+    buttonEast: buttonIndices.buttonEast,
+    buttonWest: buttonIndices.buttonWest,
+    buttonNorth: buttonIndices.buttonNorth,
+    leftShoulder: buttonIndices.leftShoulder,
+    rightShoulder: buttonIndices.rightShoulder,
+    leftStickPress: buttonIndices.leftStickPress,
+    rightStickPress: buttonIndices.rightStickPress,
+    leftTrigger: buttonIndices.leftTrigger,
+    rightTrigger: buttonIndices.rightTrigger,
+  } as const;
+  const legacyAxisIndices = {
+    leftStickX: 0,
+    leftStickY: 1,
+    rightStickX: 3,
+    rightStickY: 4,
+  } as const;
+  const axisFallbackByKey = {
+    leftStickHorizontal: 'horizontal',
+    leftStickVertical: 'vertical',
+    rightStickHorizontal: 'none',
+    rightStickVertical: 'none',
+  } as const;
+
+  const normalized: Partial<ResolvedControllerConfig['bindings']> = {};
+  for (const [key, value] of Object.entries(overrides) as Array<
+    [keyof ResolvedControllerConfig['bindings'], unknown]
+  >) {
+    if (typeof value === 'string') {
+      if (value === 'none') {
+        normalized[key] = { kind: 'none' } as never;
+        continue;
+      }
+      if (value in legacyButtonIndices) {
+        normalized[key] = {
+          kind: 'button',
+          buttonIndex: legacyButtonIndices[value as keyof typeof legacyButtonIndices],
+        } as never;
+        continue;
+      }
+      if (value in legacyAxisIndices) {
+        normalized[key] = {
+          kind: 'axis',
+          axisIndex: legacyAxisIndices[value as keyof typeof legacyAxisIndices],
+          dpadFallback: axisFallbackByKey[key as keyof typeof axisFallbackByKey] ?? 'none',
+        } as never;
+        continue;
+      }
+    }
+    normalized[key] = value as never;
+  }
+  return normalized;
 }
 
 test('gamepad controller selects the first connected controller by default', () => {

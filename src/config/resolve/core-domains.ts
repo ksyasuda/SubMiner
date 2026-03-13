@@ -1,28 +1,141 @@
+import type {
+  ControllerAxisBinding,
+  ControllerAxisBindingConfig,
+  ControllerAxisDirection,
+  ControllerButtonBinding,
+  ControllerButtonIndicesConfig,
+  ControllerDpadFallback,
+  ControllerDiscreteBindingConfig,
+  ResolvedControllerAxisBinding,
+  ResolvedControllerDiscreteBinding,
+} from '../../types';
 import { ResolveContext } from './context';
 import { asBoolean, asNumber, asString, isObject } from './shared';
 
+const CONTROLLER_BUTTON_BINDINGS = [
+  'none',
+  'select',
+  'buttonSouth',
+  'buttonEast',
+  'buttonNorth',
+  'buttonWest',
+  'leftShoulder',
+  'rightShoulder',
+  'leftStickPress',
+  'rightStickPress',
+  'leftTrigger',
+  'rightTrigger',
+] as const;
+
+const CONTROLLER_AXIS_BINDINGS = ['leftStickX', 'leftStickY', 'rightStickX', 'rightStickY'] as const;
+
+const CONTROLLER_AXIS_INDEX_BY_BINDING: Record<ControllerAxisBinding, number> = {
+  leftStickX: 0,
+  leftStickY: 1,
+  rightStickX: 3,
+  rightStickY: 4,
+};
+
+const CONTROLLER_BUTTON_INDEX_KEY_BY_BINDING: Record<
+  Exclude<ControllerButtonBinding, 'none'>,
+  keyof Required<ControllerButtonIndicesConfig>
+> = {
+  select: 'select',
+  buttonSouth: 'buttonSouth',
+  buttonEast: 'buttonEast',
+  buttonNorth: 'buttonNorth',
+  buttonWest: 'buttonWest',
+  leftShoulder: 'leftShoulder',
+  rightShoulder: 'rightShoulder',
+  leftStickPress: 'leftStickPress',
+  rightStickPress: 'rightStickPress',
+  leftTrigger: 'leftTrigger',
+  rightTrigger: 'rightTrigger',
+};
+
+const CONTROLLER_AXIS_FALLBACK_BY_SLOT = {
+  leftStickHorizontal: 'horizontal',
+  leftStickVertical: 'vertical',
+  rightStickHorizontal: 'none',
+  rightStickVertical: 'none',
+} as const satisfies Record<string, ControllerDpadFallback>;
+
+function isControllerAxisDirection(value: unknown): value is ControllerAxisDirection {
+  return value === 'negative' || value === 'positive';
+}
+
+function isControllerDpadFallback(value: unknown): value is ControllerDpadFallback {
+  return value === 'none' || value === 'horizontal' || value === 'vertical';
+}
+
+function resolveLegacyDiscreteBinding(
+  value: ControllerButtonBinding,
+  buttonIndices: Required<ControllerButtonIndicesConfig>,
+): ResolvedControllerDiscreteBinding {
+  if (value === 'none') {
+    return { kind: 'none' };
+  }
+  return {
+    kind: 'button',
+    buttonIndex: buttonIndices[CONTROLLER_BUTTON_INDEX_KEY_BY_BINDING[value]],
+  };
+}
+
+function resolveLegacyAxisBinding(
+  value: ControllerAxisBinding,
+  slot: keyof typeof CONTROLLER_AXIS_FALLBACK_BY_SLOT,
+): ResolvedControllerAxisBinding {
+  return {
+    kind: 'axis',
+    axisIndex: CONTROLLER_AXIS_INDEX_BY_BINDING[value],
+    dpadFallback: CONTROLLER_AXIS_FALLBACK_BY_SLOT[slot],
+  };
+}
+
+function parseDiscreteBindingObject(value: unknown): ResolvedControllerDiscreteBinding | null {
+  if (!isObject(value) || typeof value.kind !== 'string') return null;
+  if (value.kind === 'none') {
+    return { kind: 'none' };
+  }
+  if (value.kind === 'button') {
+    return typeof value.buttonIndex === 'number' && Number.isInteger(value.buttonIndex) && value.buttonIndex >= 0
+      ? { kind: 'button', buttonIndex: value.buttonIndex }
+      : null;
+  }
+  if (value.kind === 'axis') {
+    return typeof value.axisIndex === 'number' &&
+      Number.isInteger(value.axisIndex) &&
+      value.axisIndex >= 0 &&
+      isControllerAxisDirection(value.direction)
+      ? { kind: 'axis', axisIndex: value.axisIndex, direction: value.direction }
+      : null;
+  }
+  return null;
+}
+
+function parseAxisBindingObject(
+  value: unknown,
+  slot: keyof typeof CONTROLLER_AXIS_FALLBACK_BY_SLOT,
+): ResolvedControllerAxisBinding | null {
+  if (isObject(value) && value.kind === 'none') {
+    return { kind: 'none' };
+  }
+  if (!isObject(value) || value.kind !== 'axis') return null;
+  if (typeof value.axisIndex !== 'number' || !Number.isInteger(value.axisIndex) || value.axisIndex < 0) {
+    return null;
+  }
+  if (value.dpadFallback !== undefined && !isControllerDpadFallback(value.dpadFallback)) {
+    return null;
+  }
+  return {
+    kind: 'axis',
+    axisIndex: value.axisIndex,
+    dpadFallback: value.dpadFallback ?? CONTROLLER_AXIS_FALLBACK_BY_SLOT[slot],
+  };
+}
+
 export function applyCoreDomainConfig(context: ResolveContext): void {
   const { src, resolved, warn } = context;
-  const controllerButtonBindings = [
-    'none',
-    'select',
-    'buttonSouth',
-    'buttonEast',
-    'buttonNorth',
-    'buttonWest',
-    'leftShoulder',
-    'rightShoulder',
-    'leftStickPress',
-    'rightStickPress',
-    'leftTrigger',
-    'rightTrigger',
-  ] as const;
-  const controllerAxisBindings = [
-    'leftStickX',
-    'leftStickY',
-    'rightStickX',
-    'rightStickY',
-  ] as const;
 
   if (isObject(src.texthooker)) {
     const launchAtStartup = asBoolean(src.texthooker.launchAtStartup);
@@ -251,19 +364,27 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       ] as const;
 
       for (const key of buttonBindingKeys) {
-        const value = asString(src.controller.bindings[key]);
+        const bindingValue = src.controller.bindings[key];
+        const legacyValue = asString(bindingValue);
         if (
-          value !== undefined &&
-          controllerButtonBindings.includes(value as (typeof controllerButtonBindings)[number])
+          legacyValue !== undefined &&
+          CONTROLLER_BUTTON_BINDINGS.includes(legacyValue as (typeof CONTROLLER_BUTTON_BINDINGS)[number])
         ) {
-          resolved.controller.bindings[key] =
-            value as (typeof resolved.controller.bindings)[typeof key];
-        } else if (src.controller.bindings[key] !== undefined) {
+          resolved.controller.bindings[key] = resolveLegacyDiscreteBinding(
+            legacyValue as ControllerButtonBinding,
+            resolved.controller.buttonIndices,
+          );
+          continue;
+        }
+        const parsedObject = parseDiscreteBindingObject(bindingValue);
+        if (parsedObject) {
+          resolved.controller.bindings[key] = parsedObject;
+        } else if (bindingValue !== undefined) {
           warn(
             `controller.bindings.${key}`,
-            src.controller.bindings[key],
+            bindingValue,
             resolved.controller.bindings[key],
-            `Expected one of: ${controllerButtonBindings.join(', ')}.`,
+            "Expected legacy controller button name or binding object with kind 'none', 'button', or 'axis'.",
           );
         }
       }
@@ -276,19 +397,31 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       ] as const;
 
       for (const key of axisBindingKeys) {
-        const value = asString(src.controller.bindings[key]);
+        const bindingValue = src.controller.bindings[key];
+        const legacyValue = asString(bindingValue);
         if (
-          value !== undefined &&
-          controllerAxisBindings.includes(value as (typeof controllerAxisBindings)[number])
+          legacyValue !== undefined &&
+          CONTROLLER_AXIS_BINDINGS.includes(legacyValue as (typeof CONTROLLER_AXIS_BINDINGS)[number])
         ) {
-          resolved.controller.bindings[key] =
-            value as (typeof resolved.controller.bindings)[typeof key];
-        } else if (src.controller.bindings[key] !== undefined) {
+          resolved.controller.bindings[key] = resolveLegacyAxisBinding(
+            legacyValue as ControllerAxisBinding,
+            key,
+          );
+          continue;
+        }
+        if (legacyValue === 'none') {
+          resolved.controller.bindings[key] = { kind: 'none' };
+          continue;
+        }
+        const parsedObject = parseAxisBindingObject(bindingValue, key);
+        if (parsedObject) {
+          resolved.controller.bindings[key] = parsedObject;
+        } else if (bindingValue !== undefined) {
           warn(
             `controller.bindings.${key}`,
-            src.controller.bindings[key],
+            bindingValue,
             resolved.controller.bindings[key],
-            `Expected one of: ${controllerAxisBindings.join(', ')}.`,
+            "Expected legacy controller axis name or binding object with kind 'axis'.",
           );
         }
       }

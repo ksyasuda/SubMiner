@@ -75,8 +75,8 @@ These overlay-local shortcuts are fixed and open controller utilities for the Ch
 
 | Shortcut      | Action                         | Configurable |
 | ------------- | ------------------------------ | ------------ |
-| `Alt+C`       | Open controller selection modal | Fixed        |
-| `Alt+Shift+C` | Open controller debug modal     | Fixed        |
+| `Alt+C`       | Open controller config + remap modal | Fixed        |
+| `Alt+Shift+C` | Open controller debug modal          | Fixed        |
 
 Controller input only drives the overlay while keyboard-only mode is enabled. The controller mapping and tuning live under the top-level `controller` config block; keyboard-only mode still works normally without a controller.
 

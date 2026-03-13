@@ -206,9 +206,14 @@
           </div>
           <div class="modal-body">
             <div id="controllerSelectHint" class="runtime-options-hint">
-              Arrow keys: select controller · Enter: save · Esc: close
+              Choose controller · Learn an action, then press a button, trigger, d-pad, or stick direction
             </div>
-            <ul id="controllerSelectList" class="runtime-options-list"></ul>
+            <label class="controller-select-field">
+              <span>Preferred Controller</span>
+              <select id="controllerSelectPicker"></select>
+            </label>
+            <div id="controllerSelectSummary" class="controller-select-summary"></div>
+            <div id="controllerConfigList" class="controller-config-list"></div>
             <div id="controllerSelectStatus" class="runtime-options-status"></div>
             <div class="subsync-footer">
               <button id="controllerSelectSave" class="kiku-confirm-button" type="button">

@@ -3456,6 +3456,11 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getKeybindings: () => appState.keybindings,
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
       getControllerConfig: () => getResolvedConfig().controller,
+      saveControllerConfig: (update) => {
+        configService.patchRawConfig({
+          controller: update,
+        });
+      },
       saveControllerPreference: ({ preferredGamepadId, preferredGamepadLabel }) => {
         configService.patchRawConfig({
           controller: {

@@ -254,10 +254,12 @@ SubMiner supports gamepad/controller input for couch-friendly usage via the Chro
 
 1. Connect a controller before or after launching SubMiner.
 2. Enable keyboard-only mode — press `Y` on the controller (default binding) or use the overlay keybinding.
-3. Use the left stick to navigate subtitle tokens and the right stick to scroll the Yomitan popup.
-4. Press `A` to look up the selected word, `X` to mine a card, `B` to close the popup.
+3. Press `Alt+C` in the overlay to pick the controller you want to save and remap any action inline.
+4. Click `Learn` on the overlay action you want, then press the matching button, trigger, or stick direction on the controller.
+5. Use the left stick to navigate subtitle tokens and scroll the popup; use the right stick vertically for popup page jumps.
+6. Press `A` to look up the selected word, `X` to mine a card, `B` to close the popup.
 
-By default SubMiner uses the first connected controller. Press `Alt+C` in the overlay to open the controller selection modal and persist your preferred controller across sessions. Press `Alt+Shift+C` to open a live debug modal showing raw axes and button values.
+By default SubMiner uses the first connected controller. `Alt+C` opens the controller config modal, where you can save the preferred controller and remap bindings inline. `Alt+Shift+C` still opens the live debug modal with raw axes/button values for non-standard pads.
 
 ### Default Button Mapping
 
@@ -278,10 +280,11 @@ By default SubMiner uses the first connected controller. Press `Alt+C` in the ov
 | Input | Action |
 | ----- | ------ |
 | Left stick horizontal | Move token selection left/right |
-| Left stick vertical | Smooth scroll Yomitan popup |
-| Right stick horizontal | Jump inside popup (horizontal) |
-| Right stick vertical | Smooth scroll popup (vertical) |
-| D-pad | Fallback for stick navigation |
+| Left stick vertical | Scroll Yomitan popup |
+| Right stick vertical | Jump through Yomitan popup |
+| D-pad | Fallback for stick navigation when configured |
+
+Learn mode ignores already-held inputs and waits for the next fresh button press or axis direction, which avoids accidental captures when you open the modal mid-input.
 
 All button and axis mappings are configurable under the `controller` config block. See [Configuration — Controller Support](/configuration#controller-support) for the full options.
 

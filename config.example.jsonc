@@ -53,13 +53,13 @@
   // ==========================================
   // Controller Support
   // Gamepad support for the visible overlay while keyboard-only mode is active.
-  // Use the selection modal to save a preferred controller by id for future launches.
+  // Use Alt+C to pick a preferred controller and remap actions inline with learn mode.
   // Trigger input mode can be auto, digital-only, or analog-thresholded depending on the controller.
   // Override controller.buttonIndices when your pad reports non-standard raw button numbers.
   // ==========================================
   "controller": {
     "enabled": true, // Enable overlay controller support through the Chrome Gamepad API. Values: true | false
-    "preferredGamepadId": "", // Preferred controller id saved from the controller selection modal.
+    "preferredGamepadId": "", // Preferred controller id saved from the controller config modal.
     "preferredGamepadLabel": "", // Preferred controller display label saved for diagnostics.
     "smoothScroll": true, // Use smooth scrolling for controller-driven popup scroll input. Values: true | false
     "scrollPixelsPerSecond": 900, // Base popup scroll speed for controller stick input.
@@ -83,19 +83,61 @@
       "rightTrigger": 7 // Raw button index used for controller R2 input.
     }, // Button indices setting.
     "bindings": {
-      "toggleLookup": "buttonSouth", // Controller binding for toggling lookup. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
-      "closeLookup": "buttonEast", // Controller binding for closing lookup. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
-      "toggleKeyboardOnlyMode": "buttonNorth", // Controller binding for toggling keyboard-only mode. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
-      "mineCard": "buttonWest", // Controller binding for mining the active card. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
-      "quitMpv": "select", // Controller binding for quitting mpv. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
-      "previousAudio": "none", // Controller binding for previous Yomitan audio. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
-      "nextAudio": "rightShoulder", // Controller binding for next Yomitan audio. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
-      "playCurrentAudio": "leftShoulder", // Controller binding for playing the current Yomitan audio. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
-      "toggleMpvPause": "leftStickPress", // Controller binding for toggling mpv play/pause. Values: none | select | buttonSouth | buttonEast | buttonNorth | buttonWest | leftShoulder | rightShoulder | leftStickPress | rightStickPress | leftTrigger | rightTrigger
-      "leftStickHorizontal": "leftStickX", // Axis binding used for left/right token selection. Values: leftStickX | leftStickY | rightStickX | rightStickY
-      "leftStickVertical": "leftStickY", // Axis binding used for primary popup scrolling. Values: leftStickX | leftStickY | rightStickX | rightStickY
-      "rightStickHorizontal": "rightStickX", // Axis binding reserved for alternate right-stick mappings. Values: leftStickX | leftStickY | rightStickX | rightStickY
-      "rightStickVertical": "rightStickY" // Axis binding used for popup page jumps. Values: leftStickX | leftStickY | rightStickX | rightStickY
+      "toggleLookup": {
+        "kind": "button", // Discrete binding input source kind. Values: none | button | axis
+        "buttonIndex": 0 // Raw button index captured for this discrete controller action.
+      }, // Controller binding descriptor for toggling lookup. Use Alt+C learn mode or set a raw button/axis descriptor manually.
+      "closeLookup": {
+        "kind": "button", // Discrete binding input source kind. Values: none | button | axis
+        "buttonIndex": 1 // Raw button index captured for this discrete controller action.
+      }, // Controller binding descriptor for closing lookup. Use Alt+C learn mode or set a raw button/axis descriptor manually.
+      "toggleKeyboardOnlyMode": {
+        "kind": "button", // Discrete binding input source kind. Values: none | button | axis
+        "buttonIndex": 3 // Raw button index captured for this discrete controller action.
+      }, // Controller binding descriptor for toggling keyboard-only mode. Use Alt+C learn mode or set a raw button/axis descriptor manually.
+      "mineCard": {
+        "kind": "button", // Discrete binding input source kind. Values: none | button | axis
+        "buttonIndex": 2 // Raw button index captured for this discrete controller action.
+      }, // Controller binding descriptor for mining the active card. Use Alt+C learn mode or set a raw button/axis descriptor manually.
+      "quitMpv": {
+        "kind": "button", // Discrete binding input source kind. Values: none | button | axis
+        "buttonIndex": 6 // Raw button index captured for this discrete controller action.
+      }, // Controller binding descriptor for quitting mpv. Use Alt+C learn mode or set a raw button/axis descriptor manually.
+      "previousAudio": {
+        "kind": "none" // Discrete binding input source kind. Values: none | button | axis
+      }, // Controller binding descriptor for previous Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually.
+      "nextAudio": {
+        "kind": "button", // Discrete binding input source kind. Values: none | button | axis
+        "buttonIndex": 5 // Raw button index captured for this discrete controller action.
+      }, // Controller binding descriptor for next Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually.
+      "playCurrentAudio": {
+        "kind": "button", // Discrete binding input source kind. Values: none | button | axis
+        "buttonIndex": 4 // Raw button index captured for this discrete controller action.
+      }, // Controller binding descriptor for playing the current Yomitan audio. Use Alt+C learn mode or set a raw button/axis descriptor manually.
+      "toggleMpvPause": {
+        "kind": "button", // Discrete binding input source kind. Values: none | button | axis
+        "buttonIndex": 9 // Raw button index captured for this discrete controller action.
+      }, // Controller binding descriptor for toggling mpv play/pause. Use Alt+C learn mode or set a raw button/axis descriptor manually.
+      "leftStickHorizontal": {
+        "kind": "axis", // Analog binding input source kind. Values: none | axis
+        "axisIndex": 0, // Raw axis index captured for this analog controller action.
+        "dpadFallback": "horizontal" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
+      }, // Axis binding descriptor used for left/right token selection. Use Alt+C learn mode or set a raw axis descriptor manually.
+      "leftStickVertical": {
+        "kind": "axis", // Analog binding input source kind. Values: none | axis
+        "axisIndex": 1, // Raw axis index captured for this analog controller action.
+        "dpadFallback": "vertical" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
+      }, // Axis binding descriptor used for primary popup scrolling. Use Alt+C learn mode or set a raw axis descriptor manually.
+      "rightStickHorizontal": {
+        "kind": "axis", // Analog binding input source kind. Values: none | axis
+        "axisIndex": 3, // Raw axis index captured for this analog controller action.
+        "dpadFallback": "none" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
+      }, // Axis binding descriptor reserved for alternate right-stick mappings. Use Alt+C learn mode or set a raw axis descriptor manually.
+      "rightStickVertical": {
+        "kind": "axis", // Analog binding input source kind. Values: none | axis
+        "axisIndex": 4, // Raw axis index captured for this analog controller action.
+        "dpadFallback": "none" // Optional D-pad fallback used when this analog controller action should also read D-pad input. Values: none | horizontal | vertical
+      } // Axis binding descriptor used for popup page jumps. Use Alt+C learn mode or set a raw axis descriptor manually.
     } // Bindings setting.
   }, // Gamepad support for the visible overlay while keyboard-only mode is active.
 

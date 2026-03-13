@@ -4,20 +4,76 @@ import { ConfigOptionRegistryEntry } from './shared';
 export function buildCoreConfigOptionRegistry(
   defaultConfig: ResolvedConfig,
 ): ConfigOptionRegistryEntry[] {
-  const controllerButtonEnumValues = [
-    'none',
-    'select',
-    'buttonSouth',
-    'buttonEast',
-    'buttonNorth',
-    'buttonWest',
-    'leftShoulder',
-    'rightShoulder',
-    'leftStickPress',
-    'rightStickPress',
-    'leftTrigger',
-    'rightTrigger',
-  ];
+  const discreteBindings = [
+    {
+      id: 'toggleLookup',
+      defaultValue: defaultConfig.controller.bindings.toggleLookup,
+      description: 'Controller binding descriptor for toggling lookup.',
+    },
+    {
+      id: 'closeLookup',
+      defaultValue: defaultConfig.controller.bindings.closeLookup,
+      description: 'Controller binding descriptor for closing lookup.',
+    },
+    {
+      id: 'toggleKeyboardOnlyMode',
+      defaultValue: defaultConfig.controller.bindings.toggleKeyboardOnlyMode,
+      description: 'Controller binding descriptor for toggling keyboard-only mode.',
+    },
+    {
+      id: 'mineCard',
+      defaultValue: defaultConfig.controller.bindings.mineCard,
+      description: 'Controller binding descriptor for mining the active card.',
+    },
+    {
+      id: 'quitMpv',
+      defaultValue: defaultConfig.controller.bindings.quitMpv,
+      description: 'Controller binding descriptor for quitting mpv.',
+    },
+    {
+      id: 'previousAudio',
+      defaultValue: defaultConfig.controller.bindings.previousAudio,
+      description: 'Controller binding descriptor for previous Yomitan audio.',
+    },
+    {
+      id: 'nextAudio',
+      defaultValue: defaultConfig.controller.bindings.nextAudio,
+      description: 'Controller binding descriptor for next Yomitan audio.',
+    },
+    {
+      id: 'playCurrentAudio',
+      defaultValue: defaultConfig.controller.bindings.playCurrentAudio,
+      description: 'Controller binding descriptor for playing the current Yomitan audio.',
+    },
+    {
+      id: 'toggleMpvPause',
+      defaultValue: defaultConfig.controller.bindings.toggleMpvPause,
+      description: 'Controller binding descriptor for toggling mpv play/pause.',
+    },
+  ] as const;
+
+  const axisBindings = [
+    {
+      id: 'leftStickHorizontal',
+      defaultValue: defaultConfig.controller.bindings.leftStickHorizontal,
+      description: 'Axis binding descriptor used for left/right token selection.',
+    },
+    {
+      id: 'leftStickVertical',
+      defaultValue: defaultConfig.controller.bindings.leftStickVertical,
+      description: 'Axis binding descriptor used for primary popup scrolling.',
+    },
+    {
+      id: 'rightStickHorizontal',
+      defaultValue: defaultConfig.controller.bindings.rightStickHorizontal,
+      description: 'Axis binding descriptor reserved for alternate right-stick mappings.',
+    },
+    {
+      id: 'rightStickVertical',
+      defaultValue: defaultConfig.controller.bindings.rightStickVertical,
+      description: 'Axis binding descriptor used for popup page jumps.',
+    },
+  ] as const;
 
   return [
     {
@@ -37,7 +93,7 @@ export function buildCoreConfigOptionRegistry(
       path: 'controller.preferredGamepadId',
       kind: 'string',
       defaultValue: defaultConfig.controller.preferredGamepadId,
-      description: 'Preferred controller id saved from the controller selection modal.',
+      description: 'Preferred controller id saved from the controller config modal.',
     },
     {
       path: 'controller.preferredGamepadLabel',
@@ -162,97 +218,70 @@ export function buildCoreConfigOptionRegistry(
       defaultValue: defaultConfig.controller.buttonIndices.rightTrigger,
       description: 'Raw button index used for controller R2 input.',
     },
-    {
-      path: 'controller.bindings.toggleLookup',
-      kind: 'enum',
-      enumValues: controllerButtonEnumValues,
-      defaultValue: defaultConfig.controller.bindings.toggleLookup,
-      description: 'Controller binding for toggling lookup.',
-    },
-    {
-      path: 'controller.bindings.closeLookup',
-      kind: 'enum',
-      enumValues: controllerButtonEnumValues,
-      defaultValue: defaultConfig.controller.bindings.closeLookup,
-      description: 'Controller binding for closing lookup.',
-    },
-    {
-      path: 'controller.bindings.toggleKeyboardOnlyMode',
-      kind: 'enum',
-      enumValues: controllerButtonEnumValues,
-      defaultValue: defaultConfig.controller.bindings.toggleKeyboardOnlyMode,
-      description: 'Controller binding for toggling keyboard-only mode.',
-    },
-    {
-      path: 'controller.bindings.mineCard',
-      kind: 'enum',
-      enumValues: controllerButtonEnumValues,
-      defaultValue: defaultConfig.controller.bindings.mineCard,
-      description: 'Controller binding for mining the active card.',
-    },
-    {
-      path: 'controller.bindings.quitMpv',
-      kind: 'enum',
-      enumValues: controllerButtonEnumValues,
-      defaultValue: defaultConfig.controller.bindings.quitMpv,
-      description: 'Controller binding for quitting mpv.',
-    },
-    {
-      path: 'controller.bindings.previousAudio',
-      kind: 'enum',
-      enumValues: controllerButtonEnumValues,
-      defaultValue: defaultConfig.controller.bindings.previousAudio,
-      description: 'Controller binding for previous Yomitan audio.',
-    },
-    {
-      path: 'controller.bindings.nextAudio',
-      kind: 'enum',
-      enumValues: controllerButtonEnumValues,
-      defaultValue: defaultConfig.controller.bindings.nextAudio,
-      description: 'Controller binding for next Yomitan audio.',
-    },
-    {
-      path: 'controller.bindings.playCurrentAudio',
-      kind: 'enum',
-      enumValues: controllerButtonEnumValues,
-      defaultValue: defaultConfig.controller.bindings.playCurrentAudio,
-      description: 'Controller binding for playing the current Yomitan audio.',
-    },
-    {
-      path: 'controller.bindings.toggleMpvPause',
-      kind: 'enum',
-      enumValues: controllerButtonEnumValues,
-      defaultValue: defaultConfig.controller.bindings.toggleMpvPause,
-      description: 'Controller binding for toggling mpv play/pause.',
-    },
-    {
-      path: 'controller.bindings.leftStickHorizontal',
-      kind: 'enum',
-      enumValues: ['leftStickX', 'leftStickY', 'rightStickX', 'rightStickY'],
-      defaultValue: defaultConfig.controller.bindings.leftStickHorizontal,
-      description: 'Axis binding used for left/right token selection.',
-    },
-    {
-      path: 'controller.bindings.leftStickVertical',
-      kind: 'enum',
-      enumValues: ['leftStickX', 'leftStickY', 'rightStickX', 'rightStickY'],
-      defaultValue: defaultConfig.controller.bindings.leftStickVertical,
-      description: 'Axis binding used for primary popup scrolling.',
-    },
-    {
-      path: 'controller.bindings.rightStickHorizontal',
-      kind: 'enum',
-      enumValues: ['leftStickX', 'leftStickY', 'rightStickX', 'rightStickY'],
-      defaultValue: defaultConfig.controller.bindings.rightStickHorizontal,
-      description: 'Axis binding reserved for alternate right-stick mappings.',
-    },
-    {
-      path: 'controller.bindings.rightStickVertical',
-      kind: 'enum',
-      enumValues: ['leftStickX', 'leftStickY', 'rightStickX', 'rightStickY'],
-      defaultValue: defaultConfig.controller.bindings.rightStickVertical,
-      description: 'Axis binding used for popup page jumps.',
-    },
+    ...discreteBindings.flatMap((binding) => [
+      {
+        path: `controller.bindings.${binding.id}`,
+        kind: 'object' as const,
+        defaultValue: binding.defaultValue,
+        description: `${binding.description} Use Alt+C learn mode or set a raw button/axis descriptor manually.`,
+      },
+      {
+        path: `controller.bindings.${binding.id}.kind`,
+        kind: 'enum' as const,
+        enumValues: ['none', 'button', 'axis'],
+        defaultValue: binding.defaultValue.kind,
+        description: 'Discrete binding input source kind.',
+      },
+      {
+        path: `controller.bindings.${binding.id}.buttonIndex`,
+        kind: 'number' as const,
+        defaultValue:
+          binding.defaultValue.kind === 'button' ? binding.defaultValue.buttonIndex : undefined,
+        description: 'Raw button index captured for this discrete controller action.',
+      },
+      {
+        path: `controller.bindings.${binding.id}.axisIndex`,
+        kind: 'number' as const,
+        defaultValue: binding.defaultValue.kind === 'axis' ? binding.defaultValue.axisIndex : undefined,
+        description: 'Raw axis index captured for this discrete controller action.',
+      },
+      {
+        path: `controller.bindings.${binding.id}.direction`,
+        kind: 'enum' as const,
+        enumValues: ['negative', 'positive'],
+        defaultValue: binding.defaultValue.kind === 'axis' ? binding.defaultValue.direction : undefined,
+        description: 'Axis direction captured for this discrete controller action.',
+      },
+    ]),
+    ...axisBindings.flatMap((binding) => [
+      {
+        path: `controller.bindings.${binding.id}`,
+        kind: 'object' as const,
+        defaultValue: binding.defaultValue,
+        description: `${binding.description} Use Alt+C learn mode or set a raw axis descriptor manually.`,
+      },
+      {
+        path: `controller.bindings.${binding.id}.kind`,
+        kind: 'enum' as const,
+        enumValues: ['none', 'axis'],
+        defaultValue: binding.defaultValue.kind,
+        description: 'Analog binding input source kind.',
+      },
+      {
+        path: `controller.bindings.${binding.id}.axisIndex`,
+        kind: 'number' as const,
+        defaultValue: binding.defaultValue.kind === 'axis' ? binding.defaultValue.axisIndex : undefined,
+        description: 'Raw axis index captured for this analog controller action.',
+      },
+      {
+        path: `controller.bindings.${binding.id}.dpadFallback`,
+        kind: 'enum' as const,
+        enumValues: ['none', 'horizontal', 'vertical'],
+        defaultValue:
+          binding.defaultValue.kind === 'axis' ? binding.defaultValue.dpadFallback : undefined,
+        description: 'Optional D-pad fallback used when this analog controller action should also read D-pad input.',
+      },
+    ]),
     {
       path: 'texthooker.launchAtStartup',
       kind: 'boolean',

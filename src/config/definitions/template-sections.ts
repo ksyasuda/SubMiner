@@ -38,7 +38,7 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: 'Controller Support',
     description: [
       'Gamepad support for the visible overlay while keyboard-only mode is active.',
-      'Use the selection modal to save a preferred controller by id for future launches.',
+      'Use Alt+C to pick a preferred controller and remap actions inline with learn mode.',
       'Trigger input mode can be auto, digital-only, or analog-thresholded depending on the controller.',
       'Override controller.buttonIndices when your pad reports non-standard raw button numbers.',
     ],

@@ -52,6 +52,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
         getKeybindings: () => [],
         getConfiguredShortcuts: () => ({}) as never,
         getControllerConfig: () => ({}) as never,
+        saveControllerConfig: () => {},
         saveControllerPreference: () => {},
         getSecondarySubMode: () => 'hover' as never,
         getMpvClient: () => null,

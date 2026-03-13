@@ -1105,6 +1105,80 @@ iframe[id^='yomitan-popup'] {
   color: #ff8f8f;
 }
 
+.controller-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.controller-select-field select {
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(10, 14, 20, 0.9);
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.controller-select-summary {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.controller-config-list {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.controller-config-group {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(120, 190, 255, 0.9);
+}
+
+.controller-config-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 180px) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.controller-config-row.learning {
+  border-color: rgba(100, 180, 255, 0.5);
+  background: rgba(100, 180, 255, 0.08);
+}
+
+.controller-config-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.controller-config-value {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.controller-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .controller-debug-content {
   position: relative;
   width: min(760px, 94%);
@@ -1178,6 +1252,14 @@ iframe[id^='yomitan-popup'] {
 }
 
 @media (max-width: 720px) {
+  .controller-config-row {
+    grid-template-columns: 1fr;
+  }
+
+  .controller-config-actions {
+    justify-content: flex-start;
+  }
+
   .controller-debug-grid {
     grid-template-columns: 1fr;
   }

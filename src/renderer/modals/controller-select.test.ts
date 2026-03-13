@@ -27,121 +27,153 @@ function createClassList(initialTokens: string[] = []) {
   };
 }
 
-test('controller select modal saves the selected preferred controller', async () => {
+function createFakeElement() {
+  return {
+    className: '',
+    textContent: '',
+    innerHTML: '',
+    value: '',
+    disabled: false,
+    selected: false,
+    type: '',
+    children: [] as any[],
+    listeners: new Map<string, Array<() => void>>(),
+    classList: createClassList(),
+    appendChild(child: any) {
+      this.children.push(child);
+      return child;
+    },
+    addEventListener(type: string, listener: () => void) {
+      const existing = this.listeners.get(type) ?? [];
+      existing.push(listener);
+      this.listeners.set(type, existing);
+    },
+    dispatch(type: string) {
+      for (const listener of this.listeners.get(type) ?? []) {
+        listener();
+      }
+    },
+    setAttribute: () => {},
+    focus: () => {},
+  };
+}
+
+function installFakeDom() {
   const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
   const previousWindow = globals.window;
   const previousDocument = globals.document;
-  const saved: Array<{ preferredGamepadId: string; preferredGamepadLabel: string }> = [];
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      createElement: () => createFakeElement(),
+    },
+  });
+
+  return {
+    restore: () => {
+      Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+      Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    },
+  };
+}
+
+function buildContext() {
+  const state = createRendererState();
+  state.controllerConfig = {
+    enabled: true,
+    preferredGamepadId: 'pad-1',
+    preferredGamepadLabel: 'pad-1',
+    smoothScroll: true,
+    scrollPixelsPerSecond: 900,
+    horizontalJumpPixels: 160,
+    stickDeadzone: 0.2,
+    triggerInputMode: 'auto',
+    triggerDeadzone: 0.5,
+    repeatDelayMs: 320,
+    repeatIntervalMs: 120,
+    buttonIndices: {
+      select: 6,
+      buttonSouth: 0,
+      buttonEast: 1,
+      buttonWest: 2,
+      buttonNorth: 3,
+      leftShoulder: 4,
+      rightShoulder: 5,
+      leftStickPress: 9,
+      rightStickPress: 10,
+      leftTrigger: 6,
+      rightTrigger: 7,
+    },
+    bindings: {
+      toggleLookup: { kind: 'button', buttonIndex: 0 },
+      closeLookup: { kind: 'button', buttonIndex: 1 },
+      toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+      mineCard: { kind: 'button', buttonIndex: 2 },
+      quitMpv: { kind: 'button', buttonIndex: 6 },
+      previousAudio: { kind: 'none' },
+      nextAudio: { kind: 'button', buttonIndex: 5 },
+      playCurrentAudio: { kind: 'button', buttonIndex: 4 },
+      toggleMpvPause: { kind: 'button', buttonIndex: 9 },
+      leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
+      leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
+      rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
+      rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
+    },
+  };
+  state.connectedGamepads = [
+    { id: 'pad-1', index: 0, mapping: 'standard', connected: true },
+    { id: 'pad-2', index: 1, mapping: 'standard', connected: true },
+  ];
+  state.activeGamepadId = 'pad-1';
+
+  const dom = {
+    overlay: { classList: createClassList(), focus: () => {} },
+    controllerSelectModal: { classList: createClassList(['hidden']), setAttribute: () => {} },
+    controllerSelectClose: createFakeElement(),
+    controllerSelectHint: createFakeElement(),
+    controllerSelectPicker: createFakeElement(),
+    controllerSelectSummary: createFakeElement(),
+    controllerConfigList: createFakeElement(),
+    controllerSelectStatus: { textContent: '', classList: createClassList() },
+    controllerSelectSave: createFakeElement(),
+  };
+
+  return { state, dom };
+}
+
+test('controller select modal saves preferred controller from dropdown selection', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
 
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: {
       focus: () => {},
       electronAPI: {
-        saveControllerPreference: async (update: {
-          preferredGamepadId: string;
-          preferredGamepadLabel: string;
-        }) => {
+        saveControllerConfig: async (update: unknown) => {
           saved.push(update);
         },
         notifyOverlayModalClosed: () => {},
       },
     },
   });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => ({
-        className: '',
-        textContent: '',
-        classList: createClassList(),
-        appendChild: () => {},
-        addEventListener: () => {},
-      }),
-    },
-  });
 
   try {
-    const overlayClassList = createClassList();
-    const state = createRendererState();
-    state.controllerConfig = {
-      enabled: true,
-      preferredGamepadId: 'pad-2',
-      preferredGamepadLabel: 'pad-2',
-      smoothScroll: true,
-      scrollPixelsPerSecond: 960,
-      horizontalJumpPixels: 160,
-      stickDeadzone: 0.2,
-      triggerInputMode: 'auto',
-      triggerDeadzone: 0.5,
-      repeatDelayMs: 220,
-      repeatIntervalMs: 80,
-      buttonIndices: {
-        select: 6,
-        buttonSouth: 0,
-        buttonEast: 1,
-        buttonWest: 2,
-        buttonNorth: 3,
-        leftShoulder: 4,
-        rightShoulder: 5,
-        leftStickPress: 9,
-        rightStickPress: 10,
-        leftTrigger: 6,
-        rightTrigger: 7,
-      },
-      bindings: {
-        toggleLookup: 'buttonSouth',
-        closeLookup: 'buttonEast',
-        toggleKeyboardOnlyMode: 'buttonNorth',
-        mineCard: 'buttonWest',
-        quitMpv: 'select',
-        previousAudio: 'leftShoulder',
-        nextAudio: 'rightShoulder',
-        playCurrentAudio: 'rightTrigger',
-        toggleMpvPause: 'leftTrigger',
-        leftStickHorizontal: 'leftStickX',
-        leftStickVertical: 'leftStickY',
-        rightStickHorizontal: 'rightStickX',
-        rightStickVertical: 'rightStickY',
-      },
-    };
-    state.connectedGamepads = [
-      { id: 'pad-1', index: 0, mapping: 'standard', connected: true },
-      { id: 'pad-2', index: 1, mapping: 'standard', connected: true },
-    ];
-    state.activeGamepadId = 'pad-2';
-
-    const ctx = {
-      dom: {
-        overlay: { classList: overlayClassList, focus: () => {} },
-        controllerSelectModal: {
-          classList: createClassList(['hidden']),
-          setAttribute: () => {},
-        },
-        controllerSelectClose: { addEventListener: () => {} },
-        controllerSelectHint: { textContent: '' },
-        controllerSelectStatus: { textContent: '', classList: createClassList() },
-        controllerSelectList: {
-          innerHTML: '',
-          appendChild: () => {},
-        },
-        controllerSelectSave: { addEventListener: () => {} },
-      },
-      state,
-    };
-
-    const modal = createControllerSelectModal(ctx as never, {
+    const { state, dom } = buildContext();
+    const modal = createControllerSelectModal({ state, dom } as never, {
       modalStateReader: { isAnyModalOpen: () => false },
       syncSettingsModalSubtitleSuppression: () => {},
     });
 
     modal.openControllerSelectModal();
-    assert.equal(state.controllerDeviceSelectedIndex, 1);
+    state.controllerDeviceSelectedIndex = 1;
 
     await modal.handleControllerSelectKeydown({
       key: 'Enter',
       preventDefault: () => {},
     } as KeyboardEvent);
+    await Promise.resolve();
 
     assert.deepEqual(saved, [
       {
@@ -150,578 +182,60 @@ test('controller select modal saves the selected preferred controller', async ()
       },
     ]);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    domHandle.restore();
   }
 });
 
-test('controller select modal preserves manual selection while controller polling updates', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
+test('controller select modal learn mode captures fresh button input and persists binding', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
 
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: {
       focus: () => {},
       electronAPI: {
-        saveControllerPreference: async () => {},
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
         notifyOverlayModalClosed: () => {},
       },
     },
   });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => ({
-        className: '',
-        textContent: '',
-        classList: createClassList(),
-        appendChild: () => {},
-        addEventListener: () => {},
-      }),
-    },
-  });
 
   try {
-    const state = createRendererState();
-    state.controllerConfig = {
-      enabled: true,
-      preferredGamepadId: 'pad-1',
-      preferredGamepadLabel: 'pad-1',
-      smoothScroll: true,
-      scrollPixelsPerSecond: 960,
-      horizontalJumpPixels: 160,
-      stickDeadzone: 0.2,
-      triggerInputMode: 'auto',
-      triggerDeadzone: 0.5,
-      repeatDelayMs: 220,
-      repeatIntervalMs: 80,
-      buttonIndices: {
-        select: 6,
-        buttonSouth: 0,
-        buttonEast: 1,
-        buttonWest: 2,
-        buttonNorth: 3,
-        leftShoulder: 4,
-        rightShoulder: 5,
-        leftStickPress: 9,
-        rightStickPress: 10,
-        leftTrigger: 6,
-        rightTrigger: 7,
-      },
-      bindings: {
-        toggleLookup: 'buttonSouth',
-        closeLookup: 'buttonEast',
-        toggleKeyboardOnlyMode: 'buttonNorth',
-        mineCard: 'buttonWest',
-        quitMpv: 'select',
-        previousAudio: 'none',
-        nextAudio: 'rightShoulder',
-        playCurrentAudio: 'leftShoulder',
-        toggleMpvPause: 'leftStickPress',
-        leftStickHorizontal: 'leftStickX',
-        leftStickVertical: 'leftStickY',
-        rightStickHorizontal: 'rightStickX',
-        rightStickVertical: 'rightStickY',
-      },
-    };
-    state.connectedGamepads = [
-      { id: 'pad-1', index: 0, mapping: 'standard', connected: true },
-      { id: 'pad-2', index: 1, mapping: 'standard', connected: true },
-    ];
-    state.activeGamepadId = 'pad-1';
-
-    const ctx = {
-      dom: {
-        overlay: { classList: createClassList(), focus: () => {} },
-        controllerSelectModal: {
-          classList: createClassList(['hidden']),
-          setAttribute: () => {},
-        },
-        controllerSelectClose: { addEventListener: () => {} },
-        controllerSelectHint: { textContent: '' },
-        controllerSelectStatus: { textContent: '', classList: createClassList() },
-        controllerSelectList: {
-          innerHTML: '',
-          appendChild: () => {},
-        },
-        controllerSelectSave: { addEventListener: () => {} },
-      },
-      state,
-    };
-
-    const modal = createControllerSelectModal(ctx as never, {
+    const { state, dom } = buildContext();
+    const modal = createControllerSelectModal({ state, dom } as never, {
       modalStateReader: { isAnyModalOpen: () => false },
       syncSettingsModalSubtitleSuppression: () => {},
     });
 
     modal.openControllerSelectModal();
-    assert.equal(state.controllerDeviceSelectedIndex, 0);
 
-    modal.handleControllerSelectKeydown({
-      key: 'ArrowDown',
-      preventDefault: () => {},
-    } as KeyboardEvent);
-    assert.equal(state.controllerDeviceSelectedIndex, 1);
+    const firstRow = dom.controllerConfigList.children[1];
+    const learnButton = firstRow.children[2].children[0];
+    learnButton.dispatch('click');
 
+    state.controllerRawButtons = Array.from({ length: 12 }, () => ({
+      value: 0,
+      pressed: false,
+      touched: false,
+    }));
+    state.controllerRawButtons[11] = { value: 1, pressed: true, touched: true };
     modal.updateDevices();
 
-    assert.equal(state.controllerDeviceSelectedIndex, 1);
-  } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
-  }
-});
+    await Promise.resolve();
 
-test('controller select modal prefers active controller over saved preferred controller', () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      focus: () => {},
-      electronAPI: {
-        saveControllerPreference: async () => {},
-        notifyOverlayModalClosed: () => {},
-      },
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => ({
-        className: '',
-        textContent: '',
-        classList: createClassList(),
-        appendChild: () => {},
-        addEventListener: () => {},
-      }),
-    },
-  });
-
-  try {
-    const state = createRendererState();
-    state.controllerConfig = {
-      enabled: true,
-      preferredGamepadId: 'pad-1',
-      preferredGamepadLabel: 'pad-1',
-      smoothScroll: true,
-      scrollPixelsPerSecond: 960,
-      horizontalJumpPixels: 160,
-      stickDeadzone: 0.2,
-      triggerInputMode: 'auto',
-      triggerDeadzone: 0.5,
-      repeatDelayMs: 220,
-      repeatIntervalMs: 80,
-      buttonIndices: {
-        select: 6,
-        buttonSouth: 0,
-        buttonEast: 1,
-        buttonWest: 2,
-        buttonNorth: 3,
-        leftShoulder: 4,
-        rightShoulder: 5,
-        leftStickPress: 9,
-        rightStickPress: 10,
-        leftTrigger: 6,
-        rightTrigger: 7,
-      },
+    assert.deepEqual(saved.at(-1), {
       bindings: {
-        toggleLookup: 'buttonSouth',
-        closeLookup: 'buttonEast',
-        toggleKeyboardOnlyMode: 'buttonNorth',
-        mineCard: 'buttonWest',
-        quitMpv: 'select',
-        previousAudio: 'none',
-        nextAudio: 'rightShoulder',
-        playCurrentAudio: 'leftShoulder',
-        toggleMpvPause: 'leftStickPress',
-        leftStickHorizontal: 'leftStickX',
-        leftStickVertical: 'leftStickY',
-        rightStickHorizontal: 'rightStickX',
-        rightStickVertical: 'rightStickY',
+        toggleLookup: { kind: 'button', buttonIndex: 11 },
       },
-    };
-    state.connectedGamepads = [
-      { id: 'pad-1', index: 0, mapping: 'standard', connected: true },
-      { id: 'pad-2', index: 1, mapping: 'standard', connected: true },
-    ];
-    state.activeGamepadId = 'pad-2';
-
-    const ctx = {
-      dom: {
-        overlay: { classList: createClassList(), focus: () => {} },
-        controllerSelectModal: {
-          classList: createClassList(['hidden']),
-          setAttribute: () => {},
-        },
-        controllerSelectClose: { addEventListener: () => {} },
-        controllerSelectHint: { textContent: '' },
-        controllerSelectStatus: { textContent: '', classList: createClassList() },
-        controllerSelectList: {
-          innerHTML: '',
-          appendChild: () => {},
-        },
-        controllerSelectSave: { addEventListener: () => {} },
-      },
-      state,
-    };
-
-    const modal = createControllerSelectModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
     });
-
-    modal.openControllerSelectModal();
-
-    assert.equal(state.controllerDeviceSelectedIndex, 1);
-  } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
-  }
-});
-
-test('controller select modal preserves saved status across polling updates', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      focus: () => {},
-      electronAPI: {
-        saveControllerPreference: async () => {},
-        notifyOverlayModalClosed: () => {},
-      },
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => ({
-        className: '',
-        textContent: '',
-        classList: createClassList(),
-        appendChild: () => {},
-        addEventListener: () => {},
-      }),
-    },
-  });
-
-  try {
-    const state = createRendererState();
-    state.controllerConfig = {
-      enabled: true,
-      preferredGamepadId: 'pad-1',
-      preferredGamepadLabel: 'pad-1',
-      smoothScroll: true,
-      scrollPixelsPerSecond: 960,
-      horizontalJumpPixels: 160,
-      stickDeadzone: 0.2,
-      triggerInputMode: 'auto',
-      triggerDeadzone: 0.5,
-      repeatDelayMs: 220,
-      repeatIntervalMs: 80,
-      buttonIndices: {
-        select: 6,
-        buttonSouth: 0,
-        buttonEast: 1,
-        buttonWest: 2,
-        buttonNorth: 3,
-        leftShoulder: 4,
-        rightShoulder: 5,
-        leftStickPress: 9,
-        rightStickPress: 10,
-        leftTrigger: 6,
-        rightTrigger: 7,
-      },
-      bindings: {
-        toggleLookup: 'buttonSouth',
-        closeLookup: 'buttonEast',
-        toggleKeyboardOnlyMode: 'buttonNorth',
-        mineCard: 'buttonWest',
-        quitMpv: 'select',
-        previousAudio: 'none',
-        nextAudio: 'rightShoulder',
-        playCurrentAudio: 'leftShoulder',
-        toggleMpvPause: 'leftStickPress',
-        leftStickHorizontal: 'leftStickX',
-        leftStickVertical: 'leftStickY',
-        rightStickHorizontal: 'rightStickX',
-        rightStickVertical: 'rightStickY',
-      },
-    };
-    state.connectedGamepads = [{ id: 'pad-1', index: 0, mapping: 'standard', connected: true }];
-    state.activeGamepadId = 'pad-1';
-
-    const ctx = {
-      dom: {
-        overlay: { classList: createClassList(), focus: () => {} },
-        controllerSelectModal: {
-          classList: createClassList(['hidden']),
-          setAttribute: () => {},
-        },
-        controllerSelectClose: { addEventListener: () => {} },
-        controllerSelectHint: { textContent: '' },
-        controllerSelectStatus: { textContent: '', classList: createClassList() },
-        controllerSelectList: {
-          innerHTML: '',
-          appendChild: () => {},
-        },
-        controllerSelectSave: { addEventListener: () => {} },
-      },
-      state,
-    };
-
-    const modal = createControllerSelectModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
+    assert.deepEqual(state.controllerConfig?.bindings.toggleLookup, {
+      kind: 'button',
+      buttonIndex: 11,
     });
-
-    modal.openControllerSelectModal();
-    await modal.handleControllerSelectKeydown({
-      key: 'Enter',
-      preventDefault: () => {},
-    } as KeyboardEvent);
-    modal.updateDevices();
-
-    assert.match(ctx.dom.controllerSelectStatus.textContent, /Saved preferred controller/);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
-  }
-});
-
-test('controller select modal surfaces save errors without mutating saved preference', async () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      focus: () => {},
-      electronAPI: {
-        saveControllerPreference: async () => {
-          throw new Error('disk write failed');
-        },
-        notifyOverlayModalClosed: () => {},
-      },
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => ({
-        className: '',
-        textContent: '',
-        classList: createClassList(),
-        appendChild: () => {},
-        addEventListener: () => {},
-      }),
-    },
-  });
-
-  try {
-    const state = createRendererState();
-    state.controllerConfig = {
-      enabled: true,
-      preferredGamepadId: 'pad-1',
-      preferredGamepadLabel: 'pad-1',
-      smoothScroll: true,
-      scrollPixelsPerSecond: 960,
-      horizontalJumpPixels: 160,
-      stickDeadzone: 0.2,
-      triggerInputMode: 'auto',
-      triggerDeadzone: 0.5,
-      repeatDelayMs: 220,
-      repeatIntervalMs: 80,
-      buttonIndices: {
-        select: 6,
-        buttonSouth: 0,
-        buttonEast: 1,
-        buttonWest: 2,
-        buttonNorth: 3,
-        leftShoulder: 4,
-        rightShoulder: 5,
-        leftStickPress: 9,
-        rightStickPress: 10,
-        leftTrigger: 6,
-        rightTrigger: 7,
-      },
-      bindings: {
-        toggleLookup: 'buttonSouth',
-        closeLookup: 'buttonEast',
-        toggleKeyboardOnlyMode: 'buttonNorth',
-        mineCard: 'buttonWest',
-        quitMpv: 'select',
-        previousAudio: 'none',
-        nextAudio: 'rightShoulder',
-        playCurrentAudio: 'leftShoulder',
-        toggleMpvPause: 'leftStickPress',
-        leftStickHorizontal: 'leftStickX',
-        leftStickVertical: 'leftStickY',
-        rightStickHorizontal: 'rightStickX',
-        rightStickVertical: 'rightStickY',
-      },
-    };
-    state.connectedGamepads = [{ id: 'pad-2', index: 1, mapping: 'standard', connected: true }];
-    state.activeGamepadId = 'pad-2';
-
-    const ctx = {
-      dom: {
-        overlay: { classList: createClassList(), focus: () => {} },
-        controllerSelectModal: {
-          classList: createClassList(['hidden']),
-          setAttribute: () => {},
-        },
-        controllerSelectClose: { addEventListener: () => {} },
-        controllerSelectHint: { textContent: '' },
-        controllerSelectStatus: { textContent: '', classList: createClassList() },
-        controllerSelectList: {
-          innerHTML: '',
-          appendChild: () => {},
-        },
-        controllerSelectSave: { addEventListener: () => {} },
-      },
-      state,
-    };
-
-    const modal = createControllerSelectModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
-    });
-
-    modal.openControllerSelectModal();
-    await modal.handleControllerSelectKeydown({
-      key: 'Enter',
-      preventDefault: () => {},
-    } as KeyboardEvent);
-
-    assert.match(ctx.dom.controllerSelectStatus.textContent, /Failed to save preferred controller/);
-    assert.equal(state.controllerConfig.preferredGamepadId, 'pad-1');
-  } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
-  }
-});
-
-test('controller select modal does not rerender unchanged device snapshots every poll', () => {
-  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
-  const previousWindow = globals.window;
-  const previousDocument = globals.document;
-  let appendCount = 0;
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      focus: () => {},
-      electronAPI: {
-        saveControllerPreference: async () => {},
-        notifyOverlayModalClosed: () => {},
-      },
-    },
-  });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      createElement: () => ({
-        className: '',
-        textContent: '',
-        classList: createClassList(),
-        appendChild: () => {},
-        addEventListener: () => {},
-      }),
-    },
-  });
-
-  try {
-    const state = createRendererState();
-    state.controllerConfig = {
-      enabled: true,
-      preferredGamepadId: 'pad-1',
-      preferredGamepadLabel: 'pad-1',
-      smoothScroll: true,
-      scrollPixelsPerSecond: 960,
-      horizontalJumpPixels: 160,
-      stickDeadzone: 0.2,
-      triggerInputMode: 'auto',
-      triggerDeadzone: 0.5,
-      repeatDelayMs: 220,
-      repeatIntervalMs: 80,
-      buttonIndices: {
-        select: 6,
-        buttonSouth: 0,
-        buttonEast: 1,
-        buttonWest: 2,
-        buttonNorth: 3,
-        leftShoulder: 4,
-        rightShoulder: 5,
-        leftStickPress: 9,
-        rightStickPress: 10,
-        leftTrigger: 6,
-        rightTrigger: 7,
-      },
-      bindings: {
-        toggleLookup: 'buttonSouth',
-        closeLookup: 'buttonEast',
-        toggleKeyboardOnlyMode: 'buttonNorth',
-        mineCard: 'buttonWest',
-        quitMpv: 'select',
-        previousAudio: 'none',
-        nextAudio: 'rightShoulder',
-        playCurrentAudio: 'leftShoulder',
-        toggleMpvPause: 'leftStickPress',
-        leftStickHorizontal: 'leftStickX',
-        leftStickVertical: 'leftStickY',
-        rightStickHorizontal: 'rightStickX',
-        rightStickVertical: 'rightStickY',
-      },
-    };
-    state.connectedGamepads = [
-      { id: 'pad-1', index: 0, mapping: 'standard', connected: true },
-      { id: 'pad-2', index: 1, mapping: 'standard', connected: true },
-    ];
-    state.activeGamepadId = 'pad-1';
-
-    const ctx = {
-      dom: {
-        overlay: { classList: createClassList(), focus: () => {} },
-        controllerSelectModal: {
-          classList: createClassList(['hidden']),
-          setAttribute: () => {},
-        },
-        controllerSelectClose: { addEventListener: () => {} },
-        controllerSelectHint: { textContent: '' },
-        controllerSelectStatus: { textContent: '', classList: createClassList() },
-        controllerSelectList: {
-          innerHTML: '',
-          appendChild: () => {
-            appendCount += 1;
-          },
-        },
-        controllerSelectSave: { addEventListener: () => {} },
-      },
-      state,
-    };
-
-    const modal = createControllerSelectModal(ctx as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
-    });
-
-    modal.openControllerSelectModal();
-    const initialAppendCount = appendCount;
-
-    modal.updateDevices();
-
-    assert.equal(appendCount, initialAppendCount);
-  } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    domHandle.restore();
   }
 });

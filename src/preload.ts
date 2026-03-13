@@ -48,6 +48,7 @@ import type {
   OverlayContentMeasurement,
   ShortcutsConfig,
   ConfigHotReloadPayload,
+  ControllerConfigUpdate,
   ControllerPreferenceUpdate,
   ResolvedControllerConfig,
 } from './types';
@@ -209,6 +210,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getConfigShortcuts),
   getControllerConfig: (): Promise<ResolvedControllerConfig> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getControllerConfig),
+  saveControllerConfig: (update: ControllerConfigUpdate): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.command.saveControllerConfig, update),
   saveControllerPreference: (update: ControllerPreferenceUpdate): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.command.saveControllerPreference, update),
 

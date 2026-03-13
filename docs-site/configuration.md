@@ -514,7 +514,8 @@ Important behavior:
 - Controller input is only active while keyboard-only mode is enabled.
 - Keyboard-only mode continues to work normally without a controller.
 - By default SubMiner uses the first connected controller.
-- `Alt+C` opens the controller selection modal and saves the selected controller for future launches.
+- `Alt+C` opens the controller config modal, where you can save the selected controller and remap actions inline.
+- Click `Learn`, then press the next fresh button, trigger, or stick direction you want to bind for that overlay action.
 - `Alt+Shift+C` opens a live debug modal showing raw axes/button values plus a ready-to-copy `buttonIndices` config block.
 - Turning keyboard-only mode off clears the keyboard-only token highlight state.
 - Closing the Yomitan popup clears the temporary native text-selection fill, but keeps controller token selection active.
@@ -547,19 +548,19 @@ Important behavior:
       "rightTrigger": 7
     },
     "bindings": {
-      "toggleLookup": "buttonSouth",
-      "closeLookup": "buttonEast",
-      "toggleKeyboardOnlyMode": "buttonNorth",
-      "mineCard": "buttonWest",
-      "quitMpv": "select",
-      "previousAudio": "none",
-      "nextAudio": "rightShoulder",
-      "playCurrentAudio": "leftShoulder",
-      "toggleMpvPause": "leftStickPress",
-      "leftStickHorizontal": "leftStickX",
-      "leftStickVertical": "leftStickY",
-      "rightStickHorizontal": "rightStickX",
-      "rightStickVertical": "rightStickY"
+      "toggleLookup": { "kind": "button", "buttonIndex": 0 },
+      "closeLookup": { "kind": "button", "buttonIndex": 1 },
+      "toggleKeyboardOnlyMode": { "kind": "button", "buttonIndex": 3 },
+      "mineCard": { "kind": "button", "buttonIndex": 2 },
+      "quitMpv": { "kind": "button", "buttonIndex": 6 },
+      "previousAudio": { "kind": "none" },
+      "nextAudio": { "kind": "button", "buttonIndex": 5 },
+      "playCurrentAudio": { "kind": "button", "buttonIndex": 4 },
+      "toggleMpvPause": { "kind": "button", "buttonIndex": 9 },
+      "leftStickHorizontal": { "kind": "axis", "axisIndex": 0, "dpadFallback": "horizontal" },
+      "leftStickVertical": { "kind": "axis", "axisIndex": 1, "dpadFallback": "vertical" },
+      "rightStickHorizontal": { "kind": "axis", "axisIndex": 3, "dpadFallback": "none" },
+      "rightStickVertical": { "kind": "axis", "axisIndex": 4, "dpadFallback": "none" }
     }
   }
 }
@@ -580,6 +581,8 @@ Default logical mapping:
 - `R1`: move to the next available Yomitan audio track
 - `L3`: toggle mpv pause
 - `L2` / `R2`: unbound by default
+
+Discrete bindings may use raw button indices or raw axis directions, and analog bindings use raw axis indices with optional D-pad fallback. The `Alt+C` learn flow writes those descriptors for you, so manual edits are only needed when you want to script or copy exact mappings.
 
 If you choose to bind `L2` or `R2` manually, set `triggerInputMode` to `analog` and tune `triggerDeadzone` when your controller reports triggers as analog values instead of digital pressed/not-pressed buttons. `auto` accepts either style and remains the default.
 
