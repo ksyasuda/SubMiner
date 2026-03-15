@@ -43,20 +43,6 @@ function resolveKnownWordText(
   return matchMode === 'surface' ? surface : headword;
 }
 
-function applyKnownWordMarking(
-  tokens: MergedToken[],
-  isKnownWord: (text: string) => boolean,
-  knownWordMatchMode: NPlusOneMatchMode,
-): MergedToken[] {
-  return tokens.map((token) => {
-    const matchText = resolveKnownWordText(token.surface, token.headword, knownWordMatchMode);
-
-    return {
-      ...token,
-      isKnown: token.isKnown || (matchText ? isKnownWord(matchText) : false),
-    };
-  });
-}
 
 function normalizePos1Tag(pos1: string | undefined): string {
   return typeof pos1 === 'string' ? pos1.trim() : '';
@@ -144,27 +130,6 @@ export function shouldExcludeTokenFromVocabularyPersistence(
   );
 }
 
-function applyFrequencyMarking(
-  tokens: MergedToken[],
-  pos1Exclusions: ReadonlySet<string>,
-  pos2Exclusions: ReadonlySet<string>,
-): MergedToken[] {
-  return tokens.map((token) => {
-    if (isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions)) {
-      return { ...token, frequencyRank: undefined };
-    }
-
-    if (typeof token.frequencyRank === 'number' && Number.isFinite(token.frequencyRank)) {
-      const rank = Math.max(1, Math.floor(token.frequencyRank));
-      return { ...token, frequencyRank: rank };
-    }
-
-    return {
-      ...token,
-      frequencyRank: undefined,
-    };
-  });
-}
 
 function getCachedJlptLevel(
   lookupText: string,
@@ -425,24 +390,45 @@ function isJlptEligibleToken(token: MergedToken): boolean {
   return true;
 }
 
-function applyJlptMarking(
-  tokens: MergedToken[],
+function computeTokenKnownStatus(
+  token: MergedToken,
+  isKnownWord: (text: string) => boolean,
+  knownWordMatchMode: NPlusOneMatchMode,
+): boolean {
+  const matchText = resolveKnownWordText(token.surface, token.headword, knownWordMatchMode);
+  return token.isKnown || (matchText ? isKnownWord(matchText) : false);
+}
+
+function filterTokenFrequencyRank(
+  token: MergedToken,
+  pos1Exclusions: ReadonlySet<string>,
+  pos2Exclusions: ReadonlySet<string>,
+): number | undefined {
+  if (isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions)) {
+    return undefined;
+  }
+
+  if (typeof token.frequencyRank === 'number' && Number.isFinite(token.frequencyRank)) {
+    return Math.max(1, Math.floor(token.frequencyRank));
+  }
+
+  return undefined;
+}
+
+function computeTokenJlptLevel(
+  token: MergedToken,
   getJlptLevel: (text: string) => JlptLevel | null,
-): MergedToken[] {
-  return tokens.map((token) => {
-    if (!isJlptEligibleToken(token)) {
-      return { ...token, jlptLevel: undefined };
-    }
+): JlptLevel | undefined {
+  if (!isJlptEligibleToken(token)) {
+    return undefined;
+  }
 
-    const primaryLevel = getCachedJlptLevel(resolveJlptLookupText(token), getJlptLevel);
-    const fallbackLevel =
-      primaryLevel === null ? getCachedJlptLevel(token.surface, getJlptLevel) : null;
+  const primaryLevel = getCachedJlptLevel(resolveJlptLookupText(token), getJlptLevel);
+  const fallbackLevel =
+    primaryLevel === null ? getCachedJlptLevel(token.surface, getJlptLevel) : null;
 
-    return {
-      ...token,
-      jlptLevel: primaryLevel ?? fallbackLevel ?? token.jlptLevel,
-    };
-  });
+  const level = primaryLevel ?? fallbackLevel ?? token.jlptLevel;
+  return level ?? undefined;
 }
 
 export function annotateTokens(
@@ -453,36 +439,34 @@ export function annotateTokens(
   const pos1Exclusions = resolvePos1Exclusions(options);
   const pos2Exclusions = resolvePos2Exclusions(options);
   const nPlusOneEnabled = options.nPlusOneEnabled !== false;
-  const knownMarkedTokens = nPlusOneEnabled
-    ? applyKnownWordMarking(tokens, deps.isKnownWord, deps.knownWordMatchMode)
-    : tokens.map((token) => ({
-        ...token,
-        isKnown: false,
-        isNPlusOneTarget: false,
-      }));
-
   const frequencyEnabled = options.frequencyEnabled !== false;
-  const frequencyMarkedTokens = frequencyEnabled
-    ? applyFrequencyMarking(knownMarkedTokens, pos1Exclusions, pos2Exclusions)
-    : knownMarkedTokens.map((token) => ({
-        ...token,
-        frequencyRank: undefined,
-      }));
-
   const jlptEnabled = options.jlptEnabled !== false;
-  const jlptMarkedTokens = jlptEnabled
-    ? applyJlptMarking(frequencyMarkedTokens, deps.getJlptLevel)
-    : frequencyMarkedTokens.map((token) => ({
-        ...token,
-        jlptLevel: undefined,
-      }));
+
+  // Single pass: compute known word status, frequency filtering, and JLPT level together
+  const annotated = tokens.map((token) => {
+    const isKnown = nPlusOneEnabled
+      ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)
+      : false;
+
+    const frequencyRank = frequencyEnabled
+      ? filterTokenFrequencyRank(token, pos1Exclusions, pos2Exclusions)
+      : undefined;
+
+    const jlptLevel = jlptEnabled
+      ? computeTokenJlptLevel(token, deps.getJlptLevel)
+      : undefined;
+
+    return {
+      ...token,
+      isKnown,
+      isNPlusOneTarget: nPlusOneEnabled ? token.isNPlusOneTarget : false,
+      frequencyRank,
+      jlptLevel,
+    };
+  });
 
   if (!nPlusOneEnabled) {
-    return jlptMarkedTokens.map((token) => ({
-      ...token,
-      isKnown: false,
-      isNPlusOneTarget: false,
-    }));
+    return annotated;
   }
 
   const minSentenceWordsForNPlusOne = options.minSentenceWordsForNPlusOne;
@@ -494,7 +478,7 @@ export function annotateTokens(
       : 3;
 
   return markNPlusOneTargets(
-    jlptMarkedTokens,
+    annotated,
     sanitizedMinSentenceWordsForNPlusOne,
     pos1Exclusions,
     pos2Exclusions,
