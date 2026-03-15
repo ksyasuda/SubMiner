@@ -166,7 +166,9 @@ export function resolveRendererDom(): RendererDom {
     controllerDebugSummary: getRequiredElement<HTMLDivElement>('controllerDebugSummary'),
     controllerDebugAxes: getRequiredElement<HTMLPreElement>('controllerDebugAxes'),
     controllerDebugButtons: getRequiredElement<HTMLPreElement>('controllerDebugButtons'),
-    controllerDebugButtonIndices: getRequiredElement<HTMLPreElement>('controllerDebugButtonIndices'),
+    controllerDebugButtonIndices: getRequiredElement<HTMLPreElement>(
+      'controllerDebugButtonIndices',
+    ),
 
     sessionHelpModal: getRequiredElement<HTMLDivElement>('sessionHelpModal'),
     sessionHelpClose: getRequiredElement<HTMLButtonElement>('sessionHelpClose'),

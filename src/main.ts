@@ -694,7 +694,8 @@ const firstRunSetupService = createFirstRunSetupService({
     });
     return dictionaries.length;
   },
-  isExternalYomitanConfigured: () => getResolvedConfig().yomitan.externalProfilePath.trim().length > 0,
+  isExternalYomitanConfigured: () =>
+    getResolvedConfig().yomitan.externalProfilePath.trim().length > 0,
   detectPluginInstalled: () => {
     const installPaths = resolveDefaultMpvInstallPaths(
       process.platform,
@@ -3117,8 +3118,7 @@ function initializeOverlayRuntime(): void {
 
 function openYomitanSettings(): boolean {
   if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
-    const message =
-      'Yomitan settings unavailable while using read-only external-profile mode.';
+    const message = 'Yomitan settings unavailable while using read-only external-profile mode.';
     logger.warn(
       'Yomitan settings window disabled while yomitan.externalProfilePath is configured because external profile mode is read-only.',
     );
@@ -3572,11 +3572,11 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
       onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
       setOverlayDebugVisualizationEnabled: (enabled) =>
         setOverlayDebugVisualizationEnabled(enabled),
-    isOverlayVisible: (windowKind) =>
-      windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
-    getYomitanSession: () => appState.yomitanSession,
-    tryHandleOverlayShortcutLocalFallback: (input) =>
-      overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
+      isOverlayVisible: (windowKind) =>
+        windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
+      getYomitanSession: () => appState.yomitanSession,
+      tryHandleOverlayShortcutLocalFallback: (input) =>
+        overlayShortcutsRuntime.tryHandleOverlayShortcutLocalFallback(input),
       forwardTabToMpv: () => sendMpvCommandRuntime(appState.mpvClient, ['keypress', 'TAB']),
       onWindowClosed: (windowKind) => {
         if (windowKind === 'visible') {
@@ -3704,12 +3704,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
 const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSettingsRuntime({
   ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded(),
   getYomitanSession: () => appState.yomitanSession,
-  openYomitanSettingsWindow: ({
-    yomitanExt,
-    getExistingWindow,
-    setWindow,
-    yomitanSession,
-  }) => {
+  openYomitanSettingsWindow: ({ yomitanExt, getExistingWindow, setWindow, yomitanSession }) => {
     openYomitanSettingsWindow({
       yomitanExt: yomitanExt as Extension,
       getExistingWindow: () => getExistingWindow() as BrowserWindow | null,

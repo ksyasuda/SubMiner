@@ -159,10 +159,7 @@ function resolveDpadValue(
   );
 }
 
-function resolveDpadAxisValue(
-  gamepad: GamepadLike,
-  axisIndex: number,
-): number {
+function resolveDpadAxisValue(gamepad: GamepadLike, axisIndex: number): number {
   const value = resolveGamepadAxis(gamepad, axisIndex);
   if (Math.abs(value) < 0.5) {
     return 0;
@@ -175,7 +172,12 @@ function resolveDpadHorizontalValue(gamepad: GamepadLike, triggerDeadzone: numbe
   if (axisValue !== 0) {
     return axisValue;
   }
-  return resolveDpadValue(gamepad, DPAD_BUTTON_INDEX.left, DPAD_BUTTON_INDEX.right, triggerDeadzone);
+  return resolveDpadValue(
+    gamepad,
+    DPAD_BUTTON_INDEX.left,
+    DPAD_BUTTON_INDEX.right,
+    triggerDeadzone,
+  );
 }
 
 function resolveDpadVerticalValue(gamepad: GamepadLike, triggerDeadzone: number): number {
@@ -201,7 +203,12 @@ function createHoldState(): HoldState {
   };
 }
 
-function shouldFireHeldAction(state: HoldState, now: number, repeatDelayMs: number, repeatIntervalMs: number): boolean {
+function shouldFireHeldAction(
+  state: HoldState,
+  now: number,
+  repeatDelayMs: number,
+  repeatIntervalMs: number,
+): boolean {
   if (!state.initialFired) {
     state.initialFired = true;
     state.lastFireAt = now;
@@ -305,11 +312,7 @@ export function createGamepadController(options: GamepadControllerOptions) {
     }
   }
 
-  function handleSelectionAxis(
-    value: number,
-    now: number,
-    config: ResolvedControllerConfig,
-  ): void {
+  function handleSelectionAxis(value: number, now: number, config: ResolvedControllerConfig): void {
     const activationThreshold = Math.max(config.stickDeadzone, 0.55);
     if (Math.abs(value) < activationThreshold) {
       resetHeldAction(selectionHold);
@@ -327,11 +330,7 @@ export function createGamepadController(options: GamepadControllerOptions) {
     }
   }
 
-  function handleJumpAxis(
-    value: number,
-    now: number,
-    config: ResolvedControllerConfig,
-  ): void {
+  function handleJumpAxis(value: number, now: number, config: ResolvedControllerConfig): void {
     const activationThreshold = Math.max(config.stickDeadzone, 0.55);
     if (Math.abs(value) < activationThreshold) {
       resetHeldAction(jumpHold);
@@ -418,9 +417,7 @@ export function createGamepadController(options: GamepadControllerOptions) {
     }
 
     const interactionAllowed =
-      config.enabled &&
-      options.getKeyboardModeEnabled() &&
-      !options.getInteractionBlocked();
+      config.enabled && options.getKeyboardModeEnabled() && !options.getInteractionBlocked();
     if (config.enabled) {
       handleButtonEdge(
         config.bindings.toggleKeyboardOnlyMode,

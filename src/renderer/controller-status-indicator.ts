@@ -58,7 +58,9 @@ export function createControllerStatusIndicator(
         (device) => device.id === snapshot.activeGamepadId,
       );
       const announcedDevice =
-        newDevices.find((device) => device.id === snapshot.activeGamepadId) ?? newDevices[0] ?? activeDevice;
+        newDevices.find((device) => device.id === snapshot.activeGamepadId) ??
+        newDevices[0] ??
+        activeDevice;
       show(`Controller detected: ${getDeviceLabel(announcedDevice)}`);
     }
 

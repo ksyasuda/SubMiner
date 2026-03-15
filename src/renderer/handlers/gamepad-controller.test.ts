@@ -39,8 +39,11 @@ function createControllerConfig(
     buttonIndices?: Partial<ResolvedControllerConfig['buttonIndices']>;
   } = {},
 ): ResolvedControllerConfig {
-  const { bindings: bindingOverrides, buttonIndices: buttonIndexOverrides, ...restOverrides } =
-    overrides;
+  const {
+    bindings: bindingOverrides,
+    buttonIndices: buttonIndexOverrides,
+    ...restOverrides
+  } = overrides;
   return {
     enabled: true,
     preferredGamepadId: '',
@@ -90,7 +93,11 @@ function createControllerConfig(
 test('gamepad controller selects the first connected controller by default', () => {
   const updates: string[] = [];
   const controller = createGamepadController({
-    getGamepads: () => [null, createGamepad('pad-2', { index: 1 }), createGamepad('pad-3', { index: 2 })],
+    getGamepads: () => [
+      null,
+      createGamepad('pad-2', { index: 1 }),
+      createGamepad('pad-3', { index: 2 }),
+    ],
     getConfig: () => createControllerConfig(),
     getKeyboardModeEnabled: () => false,
     getLookupWindowOpen: () => false,
@@ -310,13 +317,12 @@ test('gamepad controller maps L1 play-current, R1 next-audio, and popup navigati
   buttons[7] = { value: 0.9, pressed: true, touched: true };
 
   const controller = createGamepadController({
-    getGamepads: () =>
-      [
-        createGamepad('pad-1', {
-          axes: [0, -0.75, 0.1, 0, 0.8],
-          buttons,
-        }),
-      ],
+    getGamepads: () => [
+      createGamepad('pad-1', {
+        axes: [0, -0.75, 0.1, 0, 0.8],
+        buttons,
+      }),
+    ],
     getConfig: () =>
       createControllerConfig({
         bindings: {
@@ -352,7 +358,10 @@ test('gamepad controller maps L1 play-current, R1 next-audio, and popup navigati
   assert.equal(calls.includes('prev-audio'), false);
   assert.equal(calls.includes('toggle-mpv-pause'), true);
   assert.equal(calls.includes('quit-mpv'), true);
-  assert.deepEqual(scrollCalls.map((value) => Math.round(value)), [-67]);
+  assert.deepEqual(
+    scrollCalls.map((value) => Math.round(value)),
+    [-67],
+  );
   assert.equal(calls.includes('jump:160'), true);
 });
 
@@ -492,7 +501,10 @@ test('gamepad controller maps d-pad left/right to selection and d-pad up/down to
   controller.poll(100);
 
   assert.deepEqual(selectionCalls, [1]);
-  assert.deepEqual(scrollCalls.map((value) => Math.round(value)), [-90]);
+  assert.deepEqual(
+    scrollCalls.map((value) => Math.round(value)),
+    [-90],
+  );
 });
 
 test('gamepad controller maps d-pad axes 6 and 7 to selection and popup scroll', () => {
@@ -524,7 +536,10 @@ test('gamepad controller maps d-pad axes 6 and 7 to selection and popup scroll',
   controller.poll(100);
 
   assert.deepEqual(selectionCalls, [1]);
-  assert.deepEqual(scrollCalls.map((value) => Math.round(value)), [-90]);
+  assert.deepEqual(
+    scrollCalls.map((value) => Math.round(value)),
+    [-90],
+  );
 });
 
 test('gamepad controller trigger analog mode uses trigger values above threshold', () => {

@@ -55,8 +55,9 @@ test('resolveExistingYomitanExtensionPath ignores source tree without built mani
 
 test('resolveExternalYomitanExtensionPath returns external extension dir when manifest exists', () => {
   const profilePath = path.join('/Users', 'kyle', '.local', 'share', 'gsm-profile');
-  const resolved = resolveExternalYomitanExtensionPath(profilePath, (candidate) =>
-    candidate === path.join(profilePath, 'extensions', 'yomitan', 'manifest.json'),
+  const resolved = resolveExternalYomitanExtensionPath(
+    profilePath,
+    (candidate) => candidate === path.join(profilePath, 'extensions', 'yomitan', 'manifest.json'),
   );
 
   assert.equal(resolved, path.join(profilePath, 'extensions', 'yomitan'));

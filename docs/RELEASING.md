@@ -20,3 +20,5 @@ Notes:
 
 - `changelog:check` now rejects tag/package version mismatches.
 - Do not tag while `changes/*.md` fragments still exist.
+- Tagged release workflow now also attempts to update `subminer-bin` on the AUR after GitHub Release publication.
+- Required GitHub Actions secret: `AUR_SSH_PRIVATE_KEY`. Add the matching public key to your AUR account before relying on the automation.

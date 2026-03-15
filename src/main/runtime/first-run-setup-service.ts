@@ -279,7 +279,11 @@ export function createFirstRunSetupService(deps: {
       });
       if (
         isSetupCompleted(state) &&
-        !(state.yomitanSetupMode === 'external' && !externalYomitanConfigured && !yomitanSetupSatisfied)
+        !(
+          state.yomitanSetupMode === 'external' &&
+          !externalYomitanConfigured &&
+          !yomitanSetupSatisfied
+        )
       ) {
         completed = true;
         return refreshWithState(state);

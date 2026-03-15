@@ -467,16 +467,16 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
   const saveHandler = handlers.handle.get(IPC_CHANNELS.command.saveControllerPreference);
   assert.ok(saveHandler);
 
-  await assert.rejects(
-    async () => {
-      await saveHandler!({}, { preferredGamepadId: 12 });
+  await assert.rejects(async () => {
+    await saveHandler!({}, { preferredGamepadId: 12 });
+  }, /Invalid controller preference payload/);
+  await saveHandler!(
+    {},
+    {
+      preferredGamepadId: 'pad-1',
+      preferredGamepadLabel: 'Pad 1',
     },
-    /Invalid controller preference payload/,
   );
-  await saveHandler!({}, {
-    preferredGamepadId: 'pad-1',
-    preferredGamepadLabel: 'Pad 1',
-  });
 
   assert.deepEqual(controllerSaves, [
     {
@@ -570,10 +570,7 @@ test('registerIpcHandlers rejects malformed controller preference payloads', asy
   );
 
   const saveHandler = handlers.handle.get(IPC_CHANNELS.command.saveControllerPreference);
-  await assert.rejects(
-    async () => {
-      await saveHandler!({}, { preferredGamepadId: 12 });
-    },
-    /Invalid controller preference payload/,
-  );
+  await assert.rejects(async () => {
+    await saveHandler!({}, { preferredGamepadId: 12 });
+  }, /Invalid controller preference payload/);
 });
