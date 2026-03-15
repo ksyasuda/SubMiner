@@ -58,3 +58,26 @@ test('parseArgs maps dictionary command and log-level override', () => {
   assert.equal(parsed.dictionaryTarget, process.cwd());
   assert.equal(parsed.logLevel, 'debug');
 });
+
+test('parseArgs maps stats command and log-level override', () => {
+  const parsed = parseArgs(['stats', '--log-level', 'debug'], 'subminer', {});
+
+  assert.equal(parsed.stats, true);
+  assert.equal(parsed.logLevel, 'debug');
+});
+
+test('parseArgs maps stats cleanup to vocab mode by default', () => {
+  const parsed = parseArgs(['stats', 'cleanup'], 'subminer', {});
+
+  assert.equal(parsed.stats, true);
+  assert.equal(parsed.statsCleanup, true);
+  assert.equal(parsed.statsCleanupVocab, true);
+});
+
+test('parseArgs maps explicit stats cleanup vocab flag', () => {
+  const parsed = parseArgs(['stats', 'cleanup', '-v'], 'subminer', {});
+
+  assert.equal(parsed.stats, true);
+  assert.equal(parsed.statsCleanup, true);
+  assert.equal(parsed.statsCleanupVocab, true);
+});

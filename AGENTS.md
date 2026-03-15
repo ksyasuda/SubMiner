@@ -1,17 +1,29 @@
 # AGENTS.MD
 
+## Internal Docs
+
+Start here, then leave this file.
+
+- Internal system of record: [`docs/README.md`](./docs/README.md)
+- Architecture map: [`docs/architecture/README.md`](./docs/architecture/README.md)
+- Workflow map: [`docs/workflow/README.md`](./docs/workflow/README.md)
+- Verification lanes: [`docs/workflow/verification.md`](./docs/workflow/verification.md)
+- Knowledge-base rules: [`docs/knowledge-base/README.md`](./docs/knowledge-base/README.md)
+- Release guide: [`docs/RELEASING.md`](./docs/RELEASING.md)
+
+`docs-site/` is user-facing. Do not treat it as the canonical internal source of truth.
+
 ## Quick Start
 
-- Read [`docs-site/development.md`](./docs-site/development.md) and [`docs-site/architecture.md`](./docs-site/architecture.md) before substantial changes; follow them unless task requires deviation.
-- Init workspace: `git submodule update --init --recursive`.
-- Install deps: `make deps` or `bun install` plus `(cd vendor/texthooker-ui && bun install --frozen-lockfile)`.
-- Fast dev loop: `make dev-watch`.
-- Full local run: `bun run dev`.
-- Verbose Electron debug: `electron . --start --dev --log-level debug`.
+- Init workspace: `git submodule update --init --recursive`
+- Install deps: `make deps` or `bun install` plus `(cd vendor/texthooker-ui && bun install --frozen-lockfile)`
+- Fast dev loop: `make dev-watch`
+- Full local run: `bun run dev`
+- Verbose Electron debug: `electron . --start --dev --log-level debug`
 
 ## Build / Test
 
-- Use repo package manager/runtime only: Bun (`packageManager: bun@1.3.5`).
+- Runtime/package manager: Bun (`packageManager: bun@1.3.5`)
 - Default handoff gate:
   `bun run typecheck`
   `bun run test:fast`
@@ -21,59 +33,37 @@
 - If `docs-site/` changed, also run:
   `bun run docs:test`
   `bun run docs:build`
-- Formatting: prefer `make pretty` and `bun run format:check:src`; use `bun run format` only intentionally.
-- Keep verification observable; capture failing command + exact error in notes/handoff.
+- Prefer `make pretty` and `bun run format:check:src`
 
 ## Change-Specific Checks
 
-- Config/schema/defaults changes: run `bun run test:config`; if config template/defaults changed, run `bun run generate:config-example`.
-- Launcher/plugin changes: run `bun run test:launcher` or `bun run test:env`; use `bun run test:launcher:smoke:src` for focused launcher e2e checks.
-- Runtime-compat or compiled/dist-sensitive changes: run `bun run test:runtime:compat`.
-- Docs-only changes: at least `bun run docs:test` if docs behavior/assertions changed; `bun run docs:build` before handoff.
+- Config/schema/defaults: `bun run test:config`; if template/defaults changed, `bun run generate:config-example`
+- Launcher/plugin: `bun run test:launcher` or `bun run test:env`
+- Runtime-compat / dist-sensitive: `bun run test:runtime:compat`
+- Docs-only: `bun run docs:test`, then `bun run docs:build`
 
-## Generated / Sensitive Files
+## Sensitive Files
 
-- Launcher source of truth: `launcher/*.ts`.
-- Generated launcher artifact: `dist/launcher/subminer`; never hand-edit it.
-- Repo-root `./subminer` is stale artifact path; do not revive/use it.
-- `bun run build` rebuilds bundled Yomitan from `vendor/subminer-yomitan`; check submodules before debugging build failures.
-- Avoid changing packaging/signing identifiers (`build.appId`, mac entitlements, signing-related settings) unless task explicitly requires it.
+- Launcher source of truth: `launcher/*.ts`
+- Generated launcher artifact: `dist/launcher/subminer`; never hand-edit it
+- Repo-root `./subminer` is stale; do not revive it
+- `bun run build` rebuilds bundled Yomitan from `vendor/subminer-yomitan`
+- Do not change signing/packaging identifiers unless the task explicitly requires it
 
-## Docs
+## Release / PR Notes
 
-- Docs site lives in-repo under [`docs-site/`](./docs-site/).
-- Update docs for new/breaking behavior; no ship with stale docs.
-- Make sure [`docs-site/changelog.md`](./docs-site/changelog.md) is updated on each release.
+- User-visible PRs need one fragment in `changes/*.md`
+- CI enforces `bun run changelog:lint` and `bun run changelog:pr-check`
+- PR review helpers:
+  - `gh pr view --json number,title,url --jq '"PR #\\(.number): \\(.title)\\n\\(.url)"'`
+  - `gh api repos/:owner/:repo/pulls/<num>/comments --paginate`
 
-## PR Feedback
+## Runtime Notes
 
-- Active PR: `gh pr view --json number,title,url --jq '"PR #\\(.number): \\(.title)\\n\\(.url)"'`.
-- PR comments: `gh pr view …` + `gh api …/comments --paginate`.
-- Replies: cite fix + file/line; resolve threads only after fix lands.
-
-## Changelog
-
-- User-visible PRs: add one fragment in `changes/*.md`.
-- Fragment format:
-  `type: added|changed|fixed|docs|internal`
-  `area: <short-area>`
-  blank line
-  `- bullet`
-- `changes/README.md`: instructions only; generator ignores it.
-- No release-note entry wanted: use PR label `skip-changelog`.
-- CI runs `bun run changelog:lint` + `bun run changelog:pr-check` on PRs.
-- Release prep: `bun run changelog:build`, review `CHANGELOG.md` + `release/release-notes.md`, commit generated changelog + fragment deletions, then tag.
-- Release CI expects committed changelog entry already present; do not rely on tag job to invent notes.
-
-## Flow & Runtime
-
-- Use Codex background for long jobs; tmux only for interactive/persistent (debugger/server).
-- CI red: `gh run list/view`, rerun, fix, push, repeat til green.
-
-## Language/Stack Notes
-
-- Swift: use workspace helper/daemon; validate `swift build` + tests; keep concurrency attrs right.
-- TypeScript: use repo PM; keep files small; follow existing patterns.
+- Use Codex background for long jobs; tmux only when persistence/interaction is required
+- CI red: `gh run list/view`, rerun, fix, repeat until green
+- TypeScript: keep files small; follow existing patterns
+- Swift: use workspace helper/daemon; validate `swift build` + tests
 
 <!-- BACKLOG.MD MCP GUIDELINES START -->
 

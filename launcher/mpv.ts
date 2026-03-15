@@ -756,6 +756,37 @@ export function runAppCommandCaptureOutput(
   };
 }
 
+export function runAppCommandAttached(
+  appPath: string,
+  appArgs: string[],
+  logLevel: LogLevel,
+  label: string,
+): Promise<number> {
+  if (maybeCaptureAppArgs(appArgs)) {
+    return Promise.resolve(0);
+  }
+
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  log(
+    'debug',
+    logLevel,
+    `${label}: launching attached app with args: ${[target.command, ...target.args].join(' ')}`,
+  );
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(target.command, target.args, {
+      stdio: 'inherit',
+      env: buildAppEnv(),
+    });
+    proc.once('error', (error) => {
+      reject(error);
+    });
+    proc.once('exit', (code) => {
+      resolve(code ?? 0);
+    });
+  });
+}
+
 export function runAppCommandWithInheritLogged(
   appPath: string,
   appArgs: string[],
@@ -786,10 +817,24 @@ export function runAppCommandWithInheritLogged(
 export function launchAppStartDetached(appPath: string, logLevel: LogLevel): void {
   const startArgs = ['--start'];
   if (logLevel !== 'info') startArgs.push('--log-level', logLevel);
-  if (maybeCaptureAppArgs(startArgs)) {
+  launchAppCommandDetached(appPath, startArgs, logLevel, 'start');
+}
+
+export function launchAppCommandDetached(
+  appPath: string,
+  appArgs: string[],
+  logLevel: LogLevel,
+  label: string,
+): void {
+  if (maybeCaptureAppArgs(appArgs)) {
     return;
   }
-  const target = resolveAppSpawnTarget(appPath, startArgs);
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  log(
+    'debug',
+    logLevel,
+    `${label}: launching detached app with args: ${[target.command, ...target.args].join(' ')}`,
+  );
   const proc = spawn(target.command, target.args, {
     stdio: 'ignore',
     detached: true,

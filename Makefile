@@ -69,7 +69,7 @@ help:
 		"  generate-config  Generate ~/.config/SubMiner/config.jsonc from centralized defaults" \
 		"" \
 		"Other targets:" \
-		"  deps             Install JS dependencies (root + texthooker-ui)" \
+		"  deps             Install JS dependencies (root + stats + texthooker-ui)" \
 		"  uninstall-linux  Remove Linux install artifacts" \
 		"  uninstall-macos  Remove macOS install artifacts" \
 		"  uninstall-windows Remove Windows mpv plugin artifacts" \
@@ -104,6 +104,7 @@ print-dirs:
 deps:
 	@$(MAKE) --no-print-directory ensure-bun
 	@bun install
+	@cd stats && bun install --frozen-lockfile
 	@cd vendor/texthooker-ui && bun install --frozen-lockfile
 
 ensure-bun:

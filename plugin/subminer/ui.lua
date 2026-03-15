@@ -32,6 +32,7 @@ function M.create(ctx)
 			"Open options",
 			"Restart overlay",
 			"Check status",
+			"Stats",
 		}
 
 		local actions = {
@@ -52,6 +53,9 @@ function M.create(ctx)
 			end,
 			function()
 				process.check_status()
+			end,
+			function()
+				mp.commandv("script-message", "subminer-stats-toggle")
 			end,
 		}
 
