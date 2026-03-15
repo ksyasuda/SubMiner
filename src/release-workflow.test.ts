@@ -67,6 +67,19 @@ test('windows release workflow publishes unsigned artifacts directly without Sig
   assert.ok(!releaseWorkflow.includes('SIGNPATH_'));
 });
 
+test('release workflow publishes subminer-bin to AUR from tagged release artifacts', () => {
+  assert.match(releaseWorkflow, /aur-publish:/);
+  assert.match(releaseWorkflow, /needs:\s*\[release\]/);
+  assert.match(releaseWorkflow, /AUR_SSH_PRIVATE_KEY/);
+  assert.match(releaseWorkflow, /ssh:\/\/aur@aur\.archlinux\.org\/subminer-bin\.git/);
+  assert.match(releaseWorkflow, /Install makepkg/);
+  assert.match(releaseWorkflow, /scripts\/update-aur-package\.sh/);
+});
+
+test('release workflow skips empty AUR sync commits', () => {
+  assert.match(releaseWorkflow, /git diff --quiet/);
+});
+
 test('Makefile routes Windows install-plugin setup through bun and documents Windows builds', () => {
   assert.match(
     makefile,
