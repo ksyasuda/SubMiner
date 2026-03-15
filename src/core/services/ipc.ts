@@ -229,6 +229,13 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     return Math.min(value as number, maxValue);
   };
 
+  const parsePositiveInteger = (value: unknown): number | null => {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+      return null;
+    }
+    return value;
+  };
+
   ipc.on(
     IPC_CHANNELS.command.setIgnoreMouseEvents,
     (event: unknown, ignore: unknown, options: unknown = {}) => {
@@ -474,18 +481,20 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   ipc.handle(
     IPC_CHANNELS.request.statsGetSessionTimeline,
     async (_event, sessionId: unknown, limit: unknown) => {
-      if (typeof sessionId !== 'number') return [];
+      const parsedSessionId = parsePositiveInteger(sessionId);
+      if (parsedSessionId === null) return [];
       const parsedLimit = parsePositiveIntLimit(limit, 200, 1000);
-      return deps.immersionTracker?.getSessionTimeline(sessionId, parsedLimit) ?? [];
+      return deps.immersionTracker?.getSessionTimeline(parsedSessionId, parsedLimit) ?? [];
     },
   );
 
   ipc.handle(
     IPC_CHANNELS.request.statsGetSessionEvents,
     async (_event, sessionId: unknown, limit: unknown) => {
-      if (typeof sessionId !== 'number') return [];
+      const parsedSessionId = parsePositiveInteger(sessionId);
+      if (parsedSessionId === null) return [];
       const parsedLimit = parsePositiveIntLimit(limit, 500, 1000);
-      return deps.immersionTracker?.getSessionEvents(sessionId, parsedLimit) ?? [];
+      return deps.immersionTracker?.getSessionEvents(parsedSessionId, parsedLimit) ?? [];
     },
   );
 

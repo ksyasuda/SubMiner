@@ -618,8 +618,8 @@ test('monthly rollups are grouped by calendar month', async () => {
       runRollupMaintenance: () => void;
     };
 
-    const januaryStartedAtMs = Date.UTC(2026, 0, 31, 23, 59, 59, 0);
-    const februaryStartedAtMs = Date.UTC(2026, 1, 1, 0, 0, 1, 0);
+    const januaryStartedAtMs = Date.UTC(2026, 0, 15, 12, 0, 0, 0);
+    const februaryStartedAtMs = Date.UTC(2026, 1, 15, 12, 0, 0, 0);
 
     privateApi.db.exec(`
       INSERT INTO imm_videos (

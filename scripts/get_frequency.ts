@@ -482,6 +482,7 @@ function simplifyTokenWithVerbose(
 
 interface YomitanRuntimeState {
   yomitanExt: unknown | null;
+  yomitanSession: unknown | null;
   parserWindow: unknown | null;
   parserReadyPromise: Promise<void> | null;
   parserInitPromise: Promise<boolean> | null;
@@ -525,24 +526,38 @@ function destroyUnknownParserWindow(window: unknown): void {
   }
 }
 
+async function loadElectronModule(): Promise<typeof import('electron') | null> {
+  try {
+    const electronImport = await import('electron');
+    return (electronImport.default ?? electronImport) as typeof import('electron');
+  } catch {
+    return null;
+  }
+}
+
 async function createYomitanRuntimeState(
   userDataPath: string,
   extensionPath?: string,
 ): Promise<YomitanRuntimeState> {
   const state: YomitanRuntimeState = {
     yomitanExt: null,
+    yomitanSession: null,
     parserWindow: null,
     parserReadyPromise: null,
     parserInitPromise: null,
     available: false,
   };
 
-  const electronImport = await import('electron').catch((error) => {
-    state.note = error instanceof Error ? error.message : 'unknown error';
-    return null;
-  });
-  if (!electronImport || !electronImport.app || !electronImport.app.whenReady) {
-    state.note = 'electron runtime not available in this process';
+  const electronImport = await loadElectronModule();
+  if (
+    !electronImport ||
+    !electronImport.app ||
+    typeof electronImport.app.whenReady !== 'function' ||
+    !electronImport.session
+  ) {
+    state.note = electronImport
+      ? 'electron runtime not available in this process'
+      : 'electron import failed';
     return state;
   }
 
@@ -557,6 +572,7 @@ async function createYomitanRuntimeState(
       setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
       setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
       setYomitanExtension: (extension: unknown) => void;
+      setYomitanSession: (session: unknown) => void;
     }) => Promise<unknown>;
 
     const extension = await loadYomitanExtension({
@@ -574,6 +590,9 @@ async function createYomitanRuntimeState(
       },
       setYomitanExtension: (extension) => {
         state.yomitanExt = extension;
+      },
+      setYomitanSession: (nextSession) => {
+        state.yomitanSession = nextSession;
       },
     });
 
@@ -768,8 +787,12 @@ async function main(): Promise<void> {
       );
     }
 
-    electronModule = await import('electron').catch(() => null);
-    if (electronModule && args.yomitanUserDataPath) {
+    electronModule = await loadElectronModule();
+    if (
+      electronModule?.app &&
+      typeof electronModule.app.setPath === 'function' &&
+      args.yomitanUserDataPath
+    ) {
       electronModule.app.setPath('userData', args.yomitanUserDataPath);
     }
     yomitanState = !args.forceMecabOnly
@@ -783,6 +806,7 @@ async function main(): Promise<void> {
 
     const deps = createTokenizerDepsRuntime({
       getYomitanExt: () => (useYomitan ? yomitanState!.yomitanExt : null) as never,
+      getYomitanSession: () => (useYomitan ? yomitanState!.yomitanSession : null) as never,
       getYomitanParserWindow: () => (useYomitan ? yomitanState!.parserWindow : null) as never,
       setYomitanParserWindow: (window) => {
         if (!useYomitan) {
