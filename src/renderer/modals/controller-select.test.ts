@@ -28,6 +28,7 @@ function createClassList(initialTokens: string[] = []) {
 }
 
 function createFakeElement() {
+  const attributes = new Map<string, string>();
   return {
     className: '',
     textContent: '',
@@ -53,7 +54,27 @@ function createFakeElement() {
         listener();
       }
     },
-    setAttribute: () => {},
+    setAttribute(name: string, value: string) {
+      attributes.set(name, value);
+    },
+    getAttribute(name: string) {
+      return attributes.get(name) ?? null;
+    },
+    querySelector(selector: string) {
+      const match = selector.match(/^\[data-testid="(.+)"\]$/);
+      if (!match) return null;
+      const testId = match[1];
+      for (const child of this.children) {
+        if (typeof child.getAttribute === 'function' && child.getAttribute('data-testid') === testId) {
+          return child;
+        }
+        if (typeof child.querySelector === 'function') {
+          const nested = child.querySelector(selector);
+          if (nested) return nested;
+        }
+      }
+      return null;
+    },
     focus: () => {},
   };
 }
@@ -142,8 +163,10 @@ function buildContext() {
   return { state, dom };
 }
 
-function findActionRow(container: ReturnType<typeof createFakeElement>, labelText: string) {
-  return container.children.find((child) => child.children?.[0]?.textContent === labelText) ?? null;
+function getByTestId(container: ReturnType<typeof createFakeElement>, testId: string) {
+  const element = container.querySelector(`[data-testid="${testId}"]`);
+  assert.ok(element);
+  return element;
 }
 
 test('controller select modal saves preferred controller from dropdown selection', async () => {
@@ -218,8 +241,8 @@ test('controller select modal learn mode captures fresh button input and persist
     modal.wireDomEvents();
     modal.openControllerSelectModal();
 
-    const firstRow = dom.controllerConfigList.children[1];
-    const learnButton = firstRow.children[2].children[0];
+    const firstRow = getByTestId(dom.controllerConfigList, 'controller-row-toggleLookup');
+    const learnButton = getByTestId(firstRow, 'learn-button');
     learnButton.dispatch('click');
 
     state.controllerRawButtons = Array.from({ length: 12 }, () => ({
@@ -278,9 +301,8 @@ test('controller select modal preserves saved axis dpad fallback while relearnin
 
     modal.openControllerSelectModal();
 
-    const tokenMoveRow = findActionRow(dom.controllerConfigList, 'Token Move');
-    assert.ok(tokenMoveRow);
-    const learnButton = tokenMoveRow.children[2].children[0];
+    const tokenMoveRow = getByTestId(dom.controllerConfigList, 'controller-row-leftStickHorizontal');
+    const learnButton = getByTestId(tokenMoveRow, 'learn-button');
     learnButton.dispatch('click');
 
     state.controllerRawAxes = [0, 0, 0.85];

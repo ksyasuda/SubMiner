@@ -161,6 +161,7 @@ export function createControllerConfigForm(options: {
 
       const row = document.createElement('div');
       row.className = 'controller-config-row';
+      row.setAttribute('data-testid', `controller-row-${definition.id}`);
       row.classList.toggle('learning', options.getLearningActionId() === definition.id);
 
       const label = document.createElement('div');
@@ -177,6 +178,7 @@ export function createControllerConfigForm(options: {
       const learnButton = document.createElement('button');
       learnButton.type = 'button';
       learnButton.className = 'kiku-confirm-button';
+      learnButton.setAttribute('data-testid', 'learn-button');
       learnButton.textContent =
         options.getLearningActionId() === definition.id ? 'Learning...' : 'Learn';
       learnButton.addEventListener('click', () => {

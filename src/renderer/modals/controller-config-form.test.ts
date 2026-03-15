@@ -27,6 +27,7 @@ function createClassList(initialTokens: string[] = []) {
 }
 
 function createFakeElement() {
+  const attributes = new Map<string, string>();
   return {
     className: '',
     textContent: '',
@@ -47,6 +48,12 @@ function createFakeElement() {
       for (const listener of this.listeners.get(type) ?? []) {
         listener();
       }
+    },
+    setAttribute(name: string, value: string) {
+      attributes.set(name, value);
+    },
+    getAttribute(name: string) {
+      return attributes.get(name) ?? null;
     },
   };
 }

@@ -13,6 +13,20 @@ type TestGamepad = {
   buttons: Array<{ value: number; pressed?: boolean; touched?: boolean }>;
 };
 
+const DEFAULT_BUTTON_INDICES = {
+  select: 6,
+  buttonSouth: 0,
+  buttonEast: 1,
+  buttonWest: 2,
+  buttonNorth: 3,
+  leftShoulder: 4,
+  rightShoulder: 5,
+  leftStickPress: 9,
+  rightStickPress: 10,
+  leftTrigger: 6,
+  rightTrigger: 7,
+} satisfies ResolvedControllerConfig['buttonIndices'];
+
 function createGamepad(
   id: string,
   options: Partial<Pick<TestGamepad, 'index' | 'axes' | 'buttons'>> = {},
@@ -57,17 +71,7 @@ function createControllerConfig(
     repeatDelayMs: 320,
     repeatIntervalMs: 120,
     buttonIndices: {
-      select: 6,
-      buttonSouth: 0,
-      buttonEast: 1,
-      buttonWest: 2,
-      buttonNorth: 3,
-      leftShoulder: 4,
-      rightShoulder: 5,
-      leftStickPress: 9,
-      rightStickPress: 10,
-      leftTrigger: 6,
-      rightTrigger: 7,
+      ...DEFAULT_BUTTON_INDICES,
       ...(buttonIndexOverrides ?? {}),
     },
     bindings: {
@@ -85,17 +89,7 @@ function createControllerConfig(
       rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
       rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       ...normalizeBindingOverrides(bindingOverrides ?? {}, {
-        select: 6,
-        buttonSouth: 0,
-        buttonEast: 1,
-        buttonWest: 2,
-        buttonNorth: 3,
-        leftShoulder: 4,
-        rightShoulder: 5,
-        leftStickPress: 9,
-        rightStickPress: 10,
-        leftTrigger: 6,
-        rightTrigger: 7,
+        ...DEFAULT_BUTTON_INDICES,
         ...(buttonIndexOverrides ?? {}),
       }),
     },
