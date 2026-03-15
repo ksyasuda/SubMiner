@@ -391,21 +391,84 @@ export type ControllerButtonBinding =
 
 export type ControllerAxisBinding = 'leftStickX' | 'leftStickY' | 'rightStickX' | 'rightStickY';
 export type ControllerTriggerInputMode = 'auto' | 'digital' | 'analog';
+export type ControllerAxisDirection = 'negative' | 'positive';
+export type ControllerDpadFallback = 'none' | 'horizontal' | 'vertical';
+
+export interface ControllerNoneBinding {
+  kind: 'none';
+}
+
+export interface ControllerButtonInputBinding {
+  kind: 'button';
+  buttonIndex: number;
+}
+
+export interface ControllerAxisDirectionInputBinding {
+  kind: 'axis';
+  axisIndex: number;
+  direction: ControllerAxisDirection;
+}
+
+export interface ControllerAxisInputBinding {
+  kind: 'axis';
+  axisIndex: number;
+  dpadFallback?: ControllerDpadFallback;
+}
+
+export type ControllerDiscreteBindingConfig =
+  | ControllerButtonBinding
+  | ControllerNoneBinding
+  | ControllerButtonInputBinding
+  | ControllerAxisDirectionInputBinding;
+
+export type ResolvedControllerDiscreteBinding =
+  | ControllerNoneBinding
+  | ControllerButtonInputBinding
+  | ControllerAxisDirectionInputBinding;
+
+export type ControllerAxisBindingConfig =
+  | ControllerAxisBinding
+  | ControllerNoneBinding
+  | ControllerAxisInputBinding;
+
+export type ResolvedControllerAxisBinding =
+  | ControllerNoneBinding
+  | {
+      kind: 'axis';
+      axisIndex: number;
+      dpadFallback: ControllerDpadFallback;
+    };
 
 export interface ControllerBindingsConfig {
-  toggleLookup?: ControllerButtonBinding;
-  closeLookup?: ControllerButtonBinding;
-  toggleKeyboardOnlyMode?: ControllerButtonBinding;
-  mineCard?: ControllerButtonBinding;
-  quitMpv?: ControllerButtonBinding;
-  previousAudio?: ControllerButtonBinding;
-  nextAudio?: ControllerButtonBinding;
-  playCurrentAudio?: ControllerButtonBinding;
-  toggleMpvPause?: ControllerButtonBinding;
-  leftStickHorizontal?: ControllerAxisBinding;
-  leftStickVertical?: ControllerAxisBinding;
-  rightStickHorizontal?: ControllerAxisBinding;
-  rightStickVertical?: ControllerAxisBinding;
+  toggleLookup?: ControllerDiscreteBindingConfig;
+  closeLookup?: ControllerDiscreteBindingConfig;
+  toggleKeyboardOnlyMode?: ControllerDiscreteBindingConfig;
+  mineCard?: ControllerDiscreteBindingConfig;
+  quitMpv?: ControllerDiscreteBindingConfig;
+  previousAudio?: ControllerDiscreteBindingConfig;
+  nextAudio?: ControllerDiscreteBindingConfig;
+  playCurrentAudio?: ControllerDiscreteBindingConfig;
+  toggleMpvPause?: ControllerDiscreteBindingConfig;
+  leftStickHorizontal?: ControllerAxisBindingConfig;
+  leftStickVertical?: ControllerAxisBindingConfig;
+  rightStickHorizontal?: ControllerAxisBindingConfig;
+  rightStickVertical?: ControllerAxisBindingConfig;
+}
+
+export interface ResolvedControllerBindingsConfig {
+  toggleLookup?: ResolvedControllerDiscreteBinding;
+  closeLookup?: ResolvedControllerDiscreteBinding;
+  toggleKeyboardOnlyMode?: ResolvedControllerDiscreteBinding;
+  mineCard?: ResolvedControllerDiscreteBinding;
+  quitMpv?: ResolvedControllerDiscreteBinding;
+  previousAudio?: ResolvedControllerDiscreteBinding;
+  nextAudio?: ResolvedControllerDiscreteBinding;
+  playCurrentAudio?: ResolvedControllerDiscreteBinding;
+  toggleMpvPause?: ResolvedControllerDiscreteBinding;
+  leftStickHorizontal?: ResolvedControllerAxisBinding;
+  leftStickVertical?: ResolvedControllerAxisBinding;
+  rightStickHorizontal?: ResolvedControllerAxisBinding;
+  rightStickVertical?: ResolvedControllerAxisBinding;
 }
 
 export interface ControllerButtonIndicesConfig {
@@ -442,6 +505,8 @@ export interface ControllerPreferenceUpdate {
   preferredGamepadId: string;
   preferredGamepadLabel: string;
 }
+
+export type ControllerConfigUpdate = ControllerConfig;
 
 export interface ControllerDeviceInfo {
   id: string;
@@ -621,7 +686,7 @@ export interface ResolvedConfig {
     repeatDelayMs: number;
     repeatIntervalMs: number;
     buttonIndices: Required<ControllerButtonIndicesConfig>;
-    bindings: Required<ControllerBindingsConfig>;
+    bindings: Required<ResolvedControllerBindingsConfig>;
   };
   ankiConnect: AnkiConnectConfig & {
     enabled: boolean;
@@ -977,6 +1042,7 @@ export interface ElectronAPI {
   getKeybindings: () => Promise<Keybinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
   getControllerConfig: () => Promise<ResolvedControllerConfig>;
+  saveControllerConfig: (update: ControllerConfigUpdate) => Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => Promise<void>;
   getJimakuMediaInfo: () => Promise<JimakuMediaInfo>;
   jimakuSearchEntries: (query: JimakuSearchQuery) => Promise<JimakuApiResponse<JimakuEntry[]>>;

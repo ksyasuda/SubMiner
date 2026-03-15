@@ -1,4 +1,5 @@
 import type {
+  ControllerConfigUpdate,
   ControllerPreferenceUpdate,
   JimakuDownloadQuery,
   JimakuFilesQuery,
@@ -57,6 +58,99 @@ export function parseControllerPreferenceUpdate(value: unknown): ControllerPrefe
     preferredGamepadId: value.preferredGamepadId,
     preferredGamepadLabel: value.preferredGamepadLabel,
   };
+}
+
+function parseDiscreteBinding(value: unknown) {
+  if (!isObject(value) || typeof value.kind !== 'string') return null;
+  if (value.kind === 'none') {
+    return { kind: 'none' };
+  }
+  if (value.kind === 'button') {
+    if (!isInteger(value.buttonIndex) || value.buttonIndex < 0) return null;
+    return { kind: 'button', buttonIndex: value.buttonIndex };
+  }
+  if (value.kind === 'axis') {
+    if (!isInteger(value.axisIndex) || value.axisIndex < 0) return null;
+    if (value.direction !== 'negative' && value.direction !== 'positive') return null;
+    return { kind: 'axis', axisIndex: value.axisIndex, direction: value.direction };
+  }
+  return null;
+}
+
+function parseAxisBinding(value: unknown) {
+  if (isObject(value) && value.kind === 'none') {
+    return { kind: 'none' };
+  }
+  if (!isObject(value) || value.kind !== 'axis') return null;
+  if (!isInteger(value.axisIndex) || value.axisIndex < 0) return null;
+  if (
+    value.dpadFallback !== undefined &&
+    value.dpadFallback !== 'none' &&
+    value.dpadFallback !== 'horizontal' &&
+    value.dpadFallback !== 'vertical'
+  ) {
+    return null;
+  }
+  return {
+    kind: 'axis',
+    axisIndex: value.axisIndex,
+    ...(value.dpadFallback === undefined ? {} : { dpadFallback: value.dpadFallback }),
+  };
+}
+
+export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpdate | null {
+  if (!isObject(value)) return null;
+  const update: ControllerConfigUpdate = {};
+
+  if (value.enabled !== undefined) {
+    if (typeof value.enabled !== 'boolean') return null;
+    update.enabled = value.enabled;
+  }
+  if (value.preferredGamepadId !== undefined) {
+    if (typeof value.preferredGamepadId !== 'string') return null;
+    update.preferredGamepadId = value.preferredGamepadId;
+  }
+  if (value.preferredGamepadLabel !== undefined) {
+    if (typeof value.preferredGamepadLabel !== 'string') return null;
+    update.preferredGamepadLabel = value.preferredGamepadLabel;
+  }
+
+  if (value.bindings !== undefined) {
+    if (!isObject(value.bindings)) return null;
+    const bindings: NonNullable<ControllerConfigUpdate['bindings']> = {};
+    const discreteKeys = [
+      'toggleLookup',
+      'closeLookup',
+      'toggleKeyboardOnlyMode',
+      'mineCard',
+      'quitMpv',
+      'previousAudio',
+      'nextAudio',
+      'playCurrentAudio',
+      'toggleMpvPause',
+    ] as const;
+    for (const key of discreteKeys) {
+      if (value.bindings[key] === undefined) continue;
+      const parsed = parseDiscreteBinding(value.bindings[key]);
+      if (!parsed) return null;
+      bindings[key] = parsed as NonNullable<ControllerConfigUpdate['bindings']>[typeof key];
+    }
+    const axisKeys = [
+      'leftStickHorizontal',
+      'leftStickVertical',
+      'rightStickHorizontal',
+      'rightStickVertical',
+    ] as const;
+    for (const key of axisKeys) {
+      if (value.bindings[key] === undefined) continue;
+      const parsed = parseAxisBinding(value.bindings[key]);
+      if (!parsed) return null;
+      bindings[key] = parsed as NonNullable<ControllerConfigUpdate['bindings']>[typeof key];
+    }
+    update.bindings = bindings;
+  }
+
+  return update;
 }
 
 export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRequest | null {

@@ -1,6 +1,7 @@
 import electron from 'electron';
 import type { IpcMainEvent } from 'electron';
 import type {
+  ControllerConfigUpdate,
   ControllerPreferenceUpdate,
   ResolvedControllerConfig,
   RuntimeOptionId,
@@ -12,6 +13,7 @@ import type {
 import { IPC_CHANNELS, type OverlayHostedModal } from '../../shared/ipc/contracts';
 import {
   parseMpvCommand,
+  parseControllerConfigUpdate,
   parseControllerPreferenceUpdate,
   parseOptionalForwardingOptions,
   parseOverlayHostedModal,
@@ -49,6 +51,7 @@ export interface IpcServiceDeps {
   getKeybindings: () => unknown;
   getConfiguredShortcuts: () => unknown;
   getControllerConfig: () => ResolvedControllerConfig;
+  saveControllerConfig: (update: ControllerConfigUpdate) => void | Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
   getSecondarySubMode: () => unknown;
   getCurrentSecondarySub: () => string;
@@ -114,6 +117,7 @@ export interface IpcDepsRuntimeOptions {
   getKeybindings: () => unknown;
   getConfiguredShortcuts: () => unknown;
   getControllerConfig: () => ResolvedControllerConfig;
+  saveControllerConfig: (update: ControllerConfigUpdate) => void | Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
   getSecondarySubMode: () => unknown;
   getMpvClient: () => MpvClientLike | null;
@@ -167,6 +171,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     getKeybindings: options.getKeybindings,
     getConfiguredShortcuts: options.getConfiguredShortcuts,
     getControllerConfig: options.getControllerConfig,
+    saveControllerConfig: options.saveControllerConfig,
     saveControllerPreference: options.saveControllerPreference,
     getSecondarySubMode: options.getSecondarySubMode,
     getCurrentSecondarySub: () => options.getMpvClient()?.currentSecondarySubText || '',
@@ -275,6 +280,14 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       await deps.saveControllerPreference(parsedUpdate);
     },
   );
+
+  ipc.handle(IPC_CHANNELS.command.saveControllerConfig, async (_event: unknown, update: unknown) => {
+    const parsedUpdate = parseControllerConfigUpdate(update);
+    if (!parsedUpdate) {
+      throw new Error('Invalid controller config payload');
+    }
+    await deps.saveControllerConfig(parsedUpdate);
+  });
 
   ipc.handle(IPC_CHANNELS.request.getMecabStatus, () => {
     return deps.getMecabStatus();

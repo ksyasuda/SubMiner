@@ -201,14 +201,16 @@
       <div id="controllerSelectModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content runtime-modal-content">
           <div class="modal-header">
-            <div class="modal-title">Controller Selection</div>
+            <div class="modal-title">Controller Configuration</div>
             <button id="controllerSelectClose" class="modal-close" type="button">Close</button>
           </div>
           <div class="modal-body">
-            <div id="controllerSelectHint" class="runtime-options-hint">
-              Arrow keys: select controller · Enter: save · Esc: close
-            </div>
-            <ul id="controllerSelectList" class="runtime-options-list"></ul>
+            <label class="controller-select-field">
+              <span>Preferred Controller</span>
+              <select id="controllerSelectPicker"></select>
+            </label>
+            <div id="controllerSelectSummary" class="controller-select-summary"></div>
+            <div id="controllerConfigList" class="controller-config-list"></div>
             <div id="controllerSelectStatus" class="runtime-options-status"></div>
             <div class="subsync-footer">
               <button id="controllerSelectSave" class="kiku-confirm-button" type="button">

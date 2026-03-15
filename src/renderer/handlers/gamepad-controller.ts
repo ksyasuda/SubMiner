@@ -1,10 +1,9 @@
 import type {
-  ControllerAxisBinding,
-  ControllerButtonBinding,
   ControllerDeviceInfo,
   ControllerRuntimeSnapshot,
-  ControllerTriggerInputMode,
+  ResolvedControllerAxisBinding,
   ResolvedControllerConfig,
+  ResolvedControllerDiscreteBinding,
 } from '../../types';
 
 type ControllerButtonState = {
@@ -50,68 +49,17 @@ type HoldState = {
   initialFired: boolean;
 };
 
-const DEFAULT_BUTTON_INDEX_BY_BINDING: Record<Exclude<ControllerButtonBinding, 'none'>, number> = {
-  select: 8,
-  buttonSouth: 0,
-  buttonEast: 1,
-  buttonWest: 2,
-  buttonNorth: 3,
-  leftShoulder: 4,
-  rightShoulder: 5,
-  leftStickPress: 9,
-  rightStickPress: 10,
-  leftTrigger: 6,
-  rightTrigger: 7,
-};
-
-const AXIS_INDEX_BY_BINDING: Record<ControllerAxisBinding, number> = {
-  leftStickX: 0,
-  leftStickY: 1,
-  rightStickX: 3,
-  rightStickY: 4,
-};
-
 const DPAD_BUTTON_INDEX = {
   up: 12,
   down: 13,
   left: 14,
   right: 15,
 } as const;
+
 const DPAD_AXIS_INDEX = {
   horizontal: 6,
   vertical: 7,
 } as const;
-
-function isTriggerBinding(binding: ControllerButtonBinding): boolean {
-  return binding === 'leftTrigger' || binding === 'rightTrigger';
-}
-
-function resolveButtonIndex(
-  config: ResolvedControllerConfig,
-  binding: ControllerButtonBinding,
-): number {
-  if (binding === 'none') {
-    return -1;
-  }
-  return config.buttonIndices[binding] ?? DEFAULT_BUTTON_INDEX_BY_BINDING[binding];
-}
-
-function normalizeButtonState(
-  gamepad: GamepadLike,
-  config: ResolvedControllerConfig,
-  binding: ControllerButtonBinding,
-  triggerInputMode: ControllerTriggerInputMode,
-  triggerDeadzone: number,
-): boolean {
-  if (binding === 'none') {
-    return false;
-  }
-  const button = gamepad.buttons[resolveButtonIndex(config, binding)];
-  if (isTriggerBinding(binding)) {
-    return normalizeTriggerState(button, triggerInputMode, triggerDeadzone);
-  }
-  return normalizeRawButtonState(button, triggerDeadzone);
-}
 
 function normalizeRawButtonState(
   button: ControllerButtonState | undefined,
@@ -121,23 +69,18 @@ function normalizeRawButtonState(
   return Boolean(button.pressed) || button.value >= triggerDeadzone;
 }
 
-function normalizeTriggerState(
+function resolveTriggerBindingPressed(
   button: ControllerButtonState | undefined,
-  mode: ControllerTriggerInputMode,
-  triggerDeadzone: number,
+  config: ResolvedControllerConfig,
 ): boolean {
   if (!button) return false;
-  if (mode === 'digital') {
+  if (config.triggerInputMode === 'digital') {
     return Boolean(button.pressed);
   }
-  if (mode === 'analog') {
-    return button.value >= triggerDeadzone;
+  if (config.triggerInputMode === 'analog') {
+    return button.value >= config.triggerDeadzone;
   }
-  return Boolean(button.pressed) || button.value >= triggerDeadzone;
-}
-
-function resolveAxisValue(gamepad: GamepadLike, binding: ControllerAxisBinding): number {
-  return gamepad.axes[AXIS_INDEX_BY_BINDING[binding]] ?? 0;
+  return normalizeRawButtonState(button, config.triggerDeadzone);
 }
 
 function resolveGamepadAxis(gamepad: GamepadLike, axisIndex: number): number {
@@ -251,8 +194,57 @@ function syncHeldActionBlocked(
   state.initialFired = true;
 }
 
+function resolveDiscreteBindingPressed(
+  gamepad: GamepadLike,
+  binding: ResolvedControllerDiscreteBinding,
+  config: ResolvedControllerConfig,
+): boolean {
+  if (binding.kind === 'none') {
+    return false;
+  }
+
+  if (binding.kind === 'button') {
+    const button = gamepad.buttons[binding.buttonIndex];
+    const isTriggerBinding =
+      binding.buttonIndex === config.buttonIndices.leftTrigger ||
+      binding.buttonIndex === config.buttonIndices.rightTrigger;
+    return isTriggerBinding
+      ? resolveTriggerBindingPressed(button, config)
+      : normalizeRawButtonState(button, config.triggerDeadzone);
+  }
+
+  const activationThreshold = Math.max(config.stickDeadzone, 0.55);
+  const axisValue = resolveGamepadAxis(gamepad, binding.axisIndex);
+  return binding.direction === 'positive'
+    ? axisValue >= activationThreshold
+    : axisValue <= -activationThreshold;
+}
+
+function resolveAxisBindingValue(
+  gamepad: GamepadLike,
+  binding: ResolvedControllerAxisBinding,
+  triggerDeadzone: number,
+  activationThreshold: number,
+): number {
+  if (binding.kind === 'none') {
+    return 0;
+  }
+  const axisValue = resolveGamepadAxis(gamepad, binding.axisIndex);
+  if (Math.abs(axisValue) >= activationThreshold) {
+    return axisValue;
+  }
+
+  if (binding.dpadFallback === 'horizontal') {
+    return resolveDpadHorizontalValue(gamepad, triggerDeadzone);
+  }
+  if (binding.dpadFallback === 'vertical') {
+    return resolveDpadVerticalValue(gamepad, triggerDeadzone);
+  }
+  return axisValue;
+}
+
 export function createGamepadController(options: GamepadControllerOptions) {
-  let previousButtons = new Map<ControllerButtonBinding, boolean>();
+  let previousActions = new Map<string, boolean>();
   let selectionHold = createHoldState();
   let jumpHold = createHoldState();
   let activeGamepadId: string | null = null;
@@ -297,16 +289,16 @@ export function createGamepadController(options: GamepadControllerOptions) {
     });
   }
 
-  function handleButtonEdge(
-    binding: ControllerButtonBinding,
-    isPressed: boolean,
+  function handleActionEdge(
+    actionKey: string,
+    binding: ResolvedControllerDiscreteBinding,
+    activeGamepad: GamepadLike,
+    config: ResolvedControllerConfig,
     action: () => void,
   ): void {
-    if (binding === 'none') {
-      return;
-    }
-    const wasPressed = previousButtons.get(binding) ?? false;
-    previousButtons.set(binding, isPressed);
+    const isPressed = resolveDiscreteBindingPressed(activeGamepad, binding, config);
+    const wasPressed = previousActions.get(actionKey) ?? false;
+    previousActions.set(actionKey, isPressed);
     if (!wasPressed && isPressed) {
       action();
     }
@@ -353,47 +345,42 @@ export function createGamepadController(options: GamepadControllerOptions) {
     config: ResolvedControllerConfig,
     now: number,
   ): void {
-    const buttonBindings = new Set<ControllerButtonBinding>([
-      config.bindings.toggleKeyboardOnlyMode,
-      config.bindings.toggleLookup,
-      config.bindings.closeLookup,
-      config.bindings.mineCard,
-      config.bindings.quitMpv,
-      config.bindings.previousAudio,
-      config.bindings.nextAudio,
-      config.bindings.playCurrentAudio,
-      config.bindings.toggleMpvPause,
-    ]);
+    const discreteActions = [
+      ['toggleKeyboardOnlyMode', config.bindings.toggleKeyboardOnlyMode],
+      ['toggleLookup', config.bindings.toggleLookup],
+      ['closeLookup', config.bindings.closeLookup],
+      ['mineCard', config.bindings.mineCard],
+      ['quitMpv', config.bindings.quitMpv],
+      ['previousAudio', config.bindings.previousAudio],
+      ['nextAudio', config.bindings.nextAudio],
+      ['playCurrentAudio', config.bindings.playCurrentAudio],
+      ['toggleMpvPause', config.bindings.toggleMpvPause],
+    ] as const;
 
-    for (const binding of buttonBindings) {
-      if (binding === 'none') continue;
-      previousButtons.set(
-        binding,
-        normalizeButtonState(
-          activeGamepad,
-          config,
-          binding,
-          config.triggerInputMode,
-          config.triggerDeadzone,
-        ),
-      );
+    for (const [actionKey, binding] of discreteActions) {
+      previousActions.set(actionKey, resolveDiscreteBindingPressed(activeGamepad, binding, config));
     }
 
-    const selectionValue = (() => {
-      const axisValue = resolveAxisValue(activeGamepad, config.bindings.leftStickHorizontal);
-      if (Math.abs(axisValue) >= Math.max(config.stickDeadzone, 0.55)) {
-        return axisValue;
-      }
-      return resolveDpadHorizontalValue(activeGamepad, config.triggerDeadzone);
-    })();
-    syncHeldActionBlocked(selectionHold, selectionValue, now, Math.max(config.stickDeadzone, 0.55));
+    const activationThreshold = Math.max(config.stickDeadzone, 0.55);
+    const selectionValue = resolveAxisBindingValue(
+      activeGamepad,
+      config.bindings.leftStickHorizontal,
+      config.triggerDeadzone,
+      activationThreshold,
+    );
+    syncHeldActionBlocked(selectionHold, selectionValue, now, activationThreshold);
 
     if (options.getLookupWindowOpen()) {
       syncHeldActionBlocked(
         jumpHold,
-        resolveAxisValue(activeGamepad, config.bindings.rightStickVertical),
+        resolveAxisBindingValue(
+          activeGamepad,
+          config.bindings.rightStickVertical,
+          config.triggerDeadzone,
+          activationThreshold,
+        ),
         now,
-        Math.max(config.stickDeadzone, 0.55),
+        activationThreshold,
       );
     } else {
       resetHeldAction(jumpHold);
@@ -406,129 +393,102 @@ export function createGamepadController(options: GamepadControllerOptions) {
     const config = options.getConfig();
     const connectedGamepads = getConnectedGamepads();
     const activeGamepad = resolveActiveGamepad(connectedGamepads, config);
+    const previousActiveGamepadId = activeGamepadId;
     publishState(connectedGamepads, activeGamepad);
 
     if (!activeGamepad) {
-      previousButtons = new Map();
+      previousActions = new Map();
       resetHeldAction(selectionHold);
       resetHeldAction(jumpHold);
       lastPollAt = null;
       return;
     }
 
-    const interactionAllowed =
+    if (activeGamepad.id !== previousActiveGamepadId) {
+      previousActions = new Map();
+      resetHeldAction(selectionHold);
+      resetHeldAction(jumpHold);
+    }
+
+    let interactionAllowed =
       config.enabled && options.getKeyboardModeEnabled() && !options.getInteractionBlocked();
     if (config.enabled) {
-      handleButtonEdge(
+      handleActionEdge(
+        'toggleKeyboardOnlyMode',
         config.bindings.toggleKeyboardOnlyMode,
-        normalizeButtonState(
-          activeGamepad,
-          config,
-          config.bindings.toggleKeyboardOnlyMode,
-          config.triggerInputMode,
-          config.triggerDeadzone,
-        ),
+        activeGamepad,
+        config,
         options.toggleKeyboardMode,
       );
     }
+
+    interactionAllowed =
+      config.enabled && options.getKeyboardModeEnabled() && !options.getInteractionBlocked();
+
     if (!interactionAllowed) {
       syncBlockedInteractionState(activeGamepad, config, now);
       return;
     }
 
-    handleButtonEdge(
+    handleActionEdge(
+      'toggleLookup',
       config.bindings.toggleLookup,
-      normalizeButtonState(
-        activeGamepad,
-        config,
-        config.bindings.toggleLookup,
-        config.triggerInputMode,
-        config.triggerDeadzone,
-      ),
+      activeGamepad,
+      config,
       options.toggleLookup,
     );
-    handleButtonEdge(
+    handleActionEdge(
+      'closeLookup',
       config.bindings.closeLookup,
-      normalizeButtonState(
-        activeGamepad,
-        config,
-        config.bindings.closeLookup,
-        config.triggerInputMode,
-        config.triggerDeadzone,
-      ),
+      activeGamepad,
+      config,
       options.closeLookup,
     );
-    handleButtonEdge(
-      config.bindings.mineCard,
-      normalizeButtonState(
-        activeGamepad,
-        config,
-        config.bindings.mineCard,
-        config.triggerInputMode,
-        config.triggerDeadzone,
-      ),
-      options.mineCard,
-    );
-    handleButtonEdge(
-      config.bindings.quitMpv,
-      normalizeButtonState(
-        activeGamepad,
-        config,
-        config.bindings.quitMpv,
-        config.triggerInputMode,
-        config.triggerDeadzone,
-      ),
-      options.quitMpv,
-    );
+    handleActionEdge('mineCard', config.bindings.mineCard, activeGamepad, config, options.mineCard);
+    handleActionEdge('quitMpv', config.bindings.quitMpv, activeGamepad, config, options.quitMpv);
+
+    const activationThreshold = Math.max(config.stickDeadzone, 0.55);
 
     if (options.getLookupWindowOpen()) {
-      handleButtonEdge(
+      handleActionEdge(
+        'previousAudio',
         config.bindings.previousAudio,
-        normalizeButtonState(
-          activeGamepad,
-          config,
-          config.bindings.previousAudio,
-          config.triggerInputMode,
-          config.triggerDeadzone,
-        ),
+        activeGamepad,
+        config,
         options.previousAudio,
       );
-      handleButtonEdge(
+      handleActionEdge(
+        'nextAudio',
         config.bindings.nextAudio,
-        normalizeButtonState(
-          activeGamepad,
-          config,
-          config.bindings.nextAudio,
-          config.triggerInputMode,
-          config.triggerDeadzone,
-        ),
+        activeGamepad,
+        config,
         options.nextAudio,
       );
-      handleButtonEdge(
+      handleActionEdge(
+        'playCurrentAudio',
         config.bindings.playCurrentAudio,
-        normalizeButtonState(
-          activeGamepad,
-          config,
-          config.bindings.playCurrentAudio,
-          config.triggerInputMode,
-          config.triggerDeadzone,
-        ),
+        activeGamepad,
+        config,
         options.playCurrentAudio,
       );
 
-      const dpadVertical = resolveDpadVerticalValue(activeGamepad, config.triggerDeadzone);
-      const primaryScroll = resolveAxisValue(activeGamepad, config.bindings.leftStickVertical);
-      if (elapsedMs > 0) {
-        if (Math.abs(primaryScroll) >= config.stickDeadzone) {
-          options.scrollPopup((primaryScroll * config.scrollPixelsPerSecond * elapsedMs) / 1000);
-        }
-        if (dpadVertical !== 0) {
-          options.scrollPopup((dpadVertical * config.scrollPixelsPerSecond * elapsedMs) / 1000);
-        }
+      const primaryScroll = resolveAxisBindingValue(
+        activeGamepad,
+        config.bindings.leftStickVertical,
+        config.triggerDeadzone,
+        config.stickDeadzone,
+      );
+      if (elapsedMs > 0 && Math.abs(primaryScroll) >= config.stickDeadzone) {
+        options.scrollPopup((primaryScroll * config.scrollPixelsPerSecond * elapsedMs) / 1000);
       }
 
       handleJumpAxis(
-        resolveAxisValue(activeGamepad, config.bindings.rightStickVertical),
+        resolveAxisBindingValue(
+          activeGamepad,
+          config.bindings.rightStickVertical,
+          config.triggerDeadzone,
+          activationThreshold,
+        ),
         now,
         config,
       );
@@ -536,26 +496,21 @@ export function createGamepadController(options: GamepadControllerOptions) {
       resetHeldAction(jumpHold);
     }
 
-    handleButtonEdge(
+    handleActionEdge(
+      'toggleMpvPause',
       config.bindings.toggleMpvPause,
-      normalizeButtonState(
-        activeGamepad,
-        config,
-        config.bindings.toggleMpvPause,
-        config.triggerInputMode,
-        config.triggerDeadzone,
-      ),
+      activeGamepad,
+      config,
       options.toggleMpvPause,
     );
 
     handleSelectionAxis(
-      (() => {
-        const axisValue = resolveAxisValue(activeGamepad, config.bindings.leftStickHorizontal);
-        if (Math.abs(axisValue) >= Math.max(config.stickDeadzone, 0.55)) {
-          return axisValue;
-        }
-        return resolveDpadHorizontalValue(activeGamepad, config.triggerDeadzone);
-      })(),
+      resolveAxisBindingValue(
+        activeGamepad,
+        config.bindings.leftStickHorizontal,
+        config.triggerDeadzone,
+        activationThreshold,
+      ),
       now,
       config,
     );

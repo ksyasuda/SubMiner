@@ -1,4 +1,11 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import { createControllerBindingCapture } from '../handlers/controller-binding-capture.js';
+import {
+  createControllerConfigForm,
+  getControllerBindingDefinition,
+  getDefaultControllerBinding,
+  getDefaultDpadFallback,
+} from './controller-config-form.js';
 
 function clampSelectedIndex(ctx: RendererContext): void {
   if (ctx.state.connectedGamepads.length === 0) {
@@ -19,10 +26,104 @@ export function createControllerSelectModal(
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
-  let selectedControllerId: string | null = null;
+  let selectedControllerKey: string | null = null;
   let lastRenderedDevicesKey = '';
   let lastRenderedActiveGamepadId: string | null = null;
   let lastRenderedPreferredId = '';
+  type ControllerBindingKey = keyof NonNullable<typeof ctx.state.controllerConfig>['bindings'];
+  type ControllerBindingValue =
+    NonNullable<NonNullable<typeof ctx.state.controllerConfig>['bindings']>[ControllerBindingKey];
+  let learningActionId: ControllerBindingKey | null = null;
+  let dpadLearningActionId: ControllerBindingKey | null = null;
+  let bindingCapture: ReturnType<typeof createControllerBindingCapture> | null = null;
+
+  const controllerConfigForm = createControllerConfigForm({
+    container: ctx.dom.controllerConfigList,
+    getBindings: () =>
+      ctx.state.controllerConfig?.bindings ?? {
+        toggleLookup: { kind: 'button', buttonIndex: 0 },
+        closeLookup: { kind: 'button', buttonIndex: 1 },
+        toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+        mineCard: { kind: 'button', buttonIndex: 2 },
+        quitMpv: { kind: 'button', buttonIndex: 6 },
+        previousAudio: { kind: 'none' },
+        nextAudio: { kind: 'button', buttonIndex: 5 },
+        playCurrentAudio: { kind: 'button', buttonIndex: 4 },
+        toggleMpvPause: { kind: 'button', buttonIndex: 9 },
+        leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
+        leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
+        rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
+        rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
+      },
+    getLearningActionId: () => learningActionId,
+    getDpadLearningActionId: () => dpadLearningActionId,
+    onLearn: (actionId, bindingType) => {
+      const definition = getControllerBindingDefinition(actionId);
+      if (!definition) return;
+      dpadLearningActionId = null;
+      const config = ctx.state.controllerConfig;
+      bindingCapture = createControllerBindingCapture({
+        triggerDeadzone: config?.triggerDeadzone ?? 0.5,
+        stickDeadzone: config?.stickDeadzone ?? 0.2,
+      });
+      const currentBinding = config?.bindings[actionId];
+      const currentDpadFallback =
+        currentBinding && currentBinding.kind === 'axis' && 'dpadFallback' in currentBinding
+          ? currentBinding.dpadFallback
+          : 'none';
+      bindingCapture.arm(
+        bindingType === 'axis'
+          ? {
+              actionId,
+              bindingType: 'axis',
+              dpadFallback: currentDpadFallback,
+            }
+          : {
+              actionId,
+              bindingType: 'discrete',
+            },
+        {
+          axes: ctx.state.controllerRawAxes,
+          buttons: ctx.state.controllerRawButtons,
+        },
+      );
+      learningActionId = actionId;
+      controllerConfigForm.render();
+      setStatus(`Waiting for input for ${definition.label}.`);
+    },
+    onClear: (actionId) => {
+      void saveBinding(actionId, { kind: 'none' });
+    },
+    onReset: (actionId) => {
+      void saveBinding(actionId, getDefaultControllerBinding(actionId));
+    },
+    onDpadLearn: (actionId) => {
+      const definition = getControllerBindingDefinition(actionId);
+      if (!definition) return;
+      learningActionId = null;
+      const config = ctx.state.controllerConfig;
+      bindingCapture = createControllerBindingCapture({
+        triggerDeadzone: config?.triggerDeadzone ?? 0.5,
+        stickDeadzone: config?.stickDeadzone ?? 0.2,
+      });
+      bindingCapture.arm(
+        { actionId, bindingType: 'dpad' },
+        {
+          axes: ctx.state.controllerRawAxes,
+          buttons: ctx.state.controllerRawButtons,
+        },
+      );
+      dpadLearningActionId = actionId;
+      controllerConfigForm.render();
+      setStatus(`Press a D-pad direction for ${definition.label}.`);
+    },
+    onDpadClear: (actionId) => {
+      void saveDpadFallback(actionId, 'none');
+    },
+    onDpadReset: (actionId) => {
+      void saveDpadFallback(actionId, getDefaultDpadFallback(actionId));
+    },
+  });
 
   function getDevicesKey(): string {
     return ctx.state.connectedGamepads
@@ -30,9 +131,13 @@ export function createControllerSelectModal(
       .join('||');
   }
 
+  function getDeviceSelectionKey(device: { id: string; index: number }): string {
+    return `${device.id}:${device.index}`;
+  }
+
   function syncSelectedControllerId(): void {
     const selected = ctx.state.connectedGamepads[ctx.state.controllerDeviceSelectedIndex];
-    selectedControllerId = selected?.id ?? null;
+    selectedControllerKey = selected ? getDeviceSelectionKey(selected) : null;
   }
 
   function syncSelectedIndexToCurrentController(): void {
@@ -62,90 +167,93 @@ export function createControllerSelectModal(
     ctx.dom.controllerSelectStatus.classList.toggle('error', isError);
   }
 
-  function renderList(): void {
-    ctx.dom.controllerSelectList.innerHTML = '';
+  function renderPicker(): void {
+    ctx.dom.controllerSelectPicker.innerHTML = '';
     clampSelectedIndex(ctx);
 
     const preferredId = ctx.state.controllerConfig?.preferredGamepadId ?? '';
     ctx.state.connectedGamepads.forEach((device, index) => {
-      const li = document.createElement('li');
-      li.className = 'runtime-options-list-entry';
-
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'runtime-options-item runtime-options-item-button';
-      button.classList.toggle('active', index === ctx.state.controllerDeviceSelectedIndex);
-
-      const label = document.createElement('div');
-      label.className = 'runtime-options-label';
-      label.textContent = device.id || `Gamepad ${device.index}`;
-
-      const meta = document.createElement('div');
-      meta.className = 'runtime-options-value';
-      const tags = [
-        `Index ${device.index}`,
-        device.mapping || 'unknown mapping',
+      const option = document.createElement('option');
+      option.value = getDeviceSelectionKey(device);
+      option.selected = index === ctx.state.controllerDeviceSelectedIndex;
+      option.textContent = `${device.id || `Gamepad ${device.index}`} (${[
+        `#${device.index}`,
+        device.mapping || 'unknown',
         device.id === ctx.state.activeGamepadId ? 'active' : null,
         device.id === preferredId ? 'saved' : null,
-      ].filter(Boolean);
-      meta.textContent = tags.join(' · ');
-
-      button.appendChild(label);
-      button.appendChild(meta);
-      button.addEventListener('click', () => {
-        ctx.state.controllerDeviceSelectedIndex = index;
-        syncSelectedControllerId();
-        renderList();
-      });
-      button.addEventListener('dblclick', () => {
-        ctx.state.controllerDeviceSelectedIndex = index;
-        syncSelectedControllerId();
-        void saveSelectedController();
-      });
-      li.appendChild(button);
-
-      ctx.dom.controllerSelectList.appendChild(li);
+      ]
+        .filter(Boolean)
+        .join(', ')})`;
+      ctx.dom.controllerSelectPicker.appendChild(option);
     });
+
+    ctx.dom.controllerSelectPicker.disabled = ctx.state.connectedGamepads.length === 0;
+    ctx.dom.controllerSelectSummary.textContent =
+      ctx.state.connectedGamepads.length === 0
+        ? 'No controller detected.'
+        : `Active: ${ctx.state.activeGamepadId ?? 'none'} · Preferred: ${preferredId || 'none'}`;
 
     lastRenderedDevicesKey = getDevicesKey();
     lastRenderedActiveGamepadId = ctx.state.activeGamepadId;
     lastRenderedPreferredId = preferredId;
   }
 
-  function updateDevices(): void {
-    if (!ctx.state.controllerSelectModalOpen) return;
-    if (selectedControllerId) {
-      const preservedIndex = ctx.state.connectedGamepads.findIndex(
-        (device) => device.id === selectedControllerId,
-      );
-      if (preservedIndex >= 0) {
-        ctx.state.controllerDeviceSelectedIndex = preservedIndex;
-      } else {
-        syncSelectedIndexToCurrentController();
-      }
-    } else {
-      syncSelectedIndexToCurrentController();
+  async function saveControllerConfig(update: Parameters<typeof window.electronAPI.saveControllerConfig>[0]) {
+    await window.electronAPI.saveControllerConfig(update);
+    if (!ctx.state.controllerConfig) return;
+    if (update.preferredGamepadId !== undefined) {
+      ctx.state.controllerConfig.preferredGamepadId = update.preferredGamepadId;
     }
+    if (update.preferredGamepadLabel !== undefined) {
+      ctx.state.controllerConfig.preferredGamepadLabel = update.preferredGamepadLabel;
+    }
+    if (update.bindings) {
+      ctx.state.controllerConfig.bindings = {
+        ...ctx.state.controllerConfig.bindings,
+        ...update.bindings,
+      } as typeof ctx.state.controllerConfig.bindings;
+    }
+  }
 
-    const preferredId = ctx.state.controllerConfig?.preferredGamepadId ?? '';
-    const shouldRender =
-      getDevicesKey() !== lastRenderedDevicesKey ||
-      ctx.state.activeGamepadId !== lastRenderedActiveGamepadId ||
-      preferredId !== lastRenderedPreferredId;
-    if (shouldRender) {
-      renderList();
+  async function saveBinding(
+    actionId: ControllerBindingKey,
+    binding: ControllerBindingValue,
+  ): Promise<void> {
+    const definition = getControllerBindingDefinition(actionId);
+    try {
+      await saveControllerConfig({
+        bindings: {
+          [actionId]: binding,
+        },
+      });
+      learningActionId = null;
+      dpadLearningActionId = null;
+      bindingCapture = null;
+      controllerConfigForm.render();
+      setStatus(`${definition?.label ?? actionId} updated.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(`Failed to save binding: ${message}`, true);
     }
+  }
 
-    if (ctx.state.connectedGamepads.length === 0) {
-      setStatus('No controllers detected.');
-      return;
-    }
-    const currentStatus = ctx.dom.controllerSelectStatus.textContent.trim();
-    if (
-      currentStatus !== 'No controller selected.' &&
-      !currentStatus.startsWith('Saved preferred controller:')
-    ) {
-      setStatus('Select a controller to save as preferred.');
+  async function saveDpadFallback(
+    actionId: ControllerBindingKey,
+    dpadFallback: import('../../types').ControllerDpadFallback,
+  ): Promise<void> {
+    const definition = getControllerBindingDefinition(actionId);
+    const currentBinding = ctx.state.controllerConfig?.bindings[actionId];
+    if (!currentBinding || currentBinding.kind !== 'axis') return;
+    const updated = { ...currentBinding, dpadFallback };
+    try {
+      await saveControllerConfig({ bindings: { [actionId]: updated } });
+      dpadLearningActionId = null;
+      bindingCapture = null;
+      controllerConfigForm.render();
+      setStatus(`${definition?.label ?? actionId} D-pad updated.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(`Failed to save D-pad binding: ${message}`, true);
     }
   }
 
@@ -157,7 +265,7 @@ export function createControllerSelectModal(
     }
 
     try {
-      await window.electronAPI.saveControllerPreference({
+      await saveControllerConfig({
         preferredGamepadId: selected.id,
         preferredGamepadLabel: selected.id,
       });
@@ -167,13 +275,53 @@ export function createControllerSelectModal(
       return;
     }
 
-    if (ctx.state.controllerConfig) {
-      ctx.state.controllerConfig.preferredGamepadId = selected.id;
-      ctx.state.controllerConfig.preferredGamepadLabel = selected.id;
-    }
     syncSelectedControllerId();
-    renderList();
+    renderPicker();
     setStatus(`Saved preferred controller: ${selected.id || `Gamepad ${selected.index}`}`);
+  }
+
+  function updateDevices(): void {
+    if (!ctx.state.controllerSelectModalOpen) return;
+    if (selectedControllerKey) {
+      const preservedIndex = ctx.state.connectedGamepads.findIndex(
+        (device) => getDeviceSelectionKey(device) === selectedControllerKey,
+      );
+      if (preservedIndex >= 0) {
+        ctx.state.controllerDeviceSelectedIndex = preservedIndex;
+      } else {
+        syncSelectedIndexToCurrentController();
+      }
+    } else {
+      syncSelectedIndexToCurrentController();
+    }
+
+    if (bindingCapture && (learningActionId || dpadLearningActionId)) {
+      const result = bindingCapture.poll({
+        axes: ctx.state.controllerRawAxes,
+        buttons: ctx.state.controllerRawButtons,
+      });
+      if (result) {
+        if (result.bindingType === 'dpad') {
+          void saveDpadFallback(result.actionId as ControllerBindingKey, result.dpadDirection);
+        } else {
+          void saveBinding(result.actionId as ControllerBindingKey, result.binding as ControllerBindingValue);
+        }
+      }
+    }
+
+    const preferredId = ctx.state.controllerConfig?.preferredGamepadId ?? '';
+    const shouldRender =
+      getDevicesKey() !== lastRenderedDevicesKey ||
+      ctx.state.activeGamepadId !== lastRenderedActiveGamepadId ||
+      preferredId !== lastRenderedPreferredId;
+    if (shouldRender) {
+      renderPicker();
+      controllerConfigForm.render();
+    }
+
+    if (ctx.state.connectedGamepads.length === 0 && !learningActionId && !dpadLearningActionId) {
+      setStatus('No controllers detected.');
+    }
   }
 
   function openControllerSelectModal(): void {
@@ -185,16 +333,20 @@ export function createControllerSelectModal(
     ctx.dom.controllerSelectModal.setAttribute('aria-hidden', 'false');
     window.focus();
     ctx.dom.overlay.focus({ preventScroll: true });
-    renderList();
+    renderPicker();
+    controllerConfigForm.render();
     if (ctx.state.connectedGamepads.length === 0) {
       setStatus('No controllers detected.');
     } else {
-      setStatus('Select a controller to save as preferred.');
+      setStatus('Choose a controller or click Learn to remap an action.');
     }
   }
 
   function closeControllerSelectModal(): void {
     if (!ctx.state.controllerSelectModalOpen) return;
+    learningActionId = null;
+    dpadLearningActionId = null;
+    bindingCapture = null;
     ctx.state.controllerSelectModalOpen = false;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.controllerSelectModal.classList.add('hidden');
@@ -208,6 +360,14 @@ export function createControllerSelectModal(
   function handleControllerSelectKeydown(event: KeyboardEvent): boolean {
     if (event.key === 'Escape') {
       event.preventDefault();
+      if (learningActionId || dpadLearningActionId) {
+        learningActionId = null;
+        dpadLearningActionId = null;
+        bindingCapture = null;
+        controllerConfigForm.render();
+        setStatus('Controller learn mode cancelled.');
+        return true;
+      }
       closeControllerSelectModal();
       return true;
     }
@@ -220,7 +380,7 @@ export function createControllerSelectModal(
           ctx.state.controllerDeviceSelectedIndex + 1,
         );
         syncSelectedControllerId();
-        renderList();
+        renderPicker();
       }
       return true;
     }
@@ -233,12 +393,12 @@ export function createControllerSelectModal(
           ctx.state.controllerDeviceSelectedIndex - 1,
         );
         syncSelectedControllerId();
-        renderList();
+        renderPicker();
       }
       return true;
     }
 
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !learningActionId && !dpadLearningActionId) {
       event.preventDefault();
       void saveSelectedController();
       return true;
@@ -253,6 +413,17 @@ export function createControllerSelectModal(
     });
     ctx.dom.controllerSelectSave.addEventListener('click', () => {
       void saveSelectedController();
+    });
+    ctx.dom.controllerSelectPicker.addEventListener('change', () => {
+      const selectedKey = ctx.dom.controllerSelectPicker.value;
+      const selectedIndex = ctx.state.connectedGamepads.findIndex(
+        (device) => getDeviceSelectionKey(device) === selectedKey,
+      );
+      if (selectedIndex >= 0) {
+        ctx.state.controllerDeviceSelectedIndex = selectedIndex;
+        syncSelectedControllerId();
+        renderPicker();
+      }
     });
   }
 

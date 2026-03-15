@@ -59,9 +59,10 @@ export type RendererDom = {
 
   controllerSelectModal: HTMLDivElement;
   controllerSelectClose: HTMLButtonElement;
-  controllerSelectHint: HTMLDivElement;
+  controllerSelectPicker: HTMLSelectElement;
+  controllerSelectSummary: HTMLDivElement;
   controllerSelectStatus: HTMLDivElement;
-  controllerSelectList: HTMLUListElement;
+  controllerConfigList: HTMLDivElement;
   controllerSelectSave: HTMLButtonElement;
 
   controllerDebugModal: HTMLDivElement;
@@ -153,9 +154,10 @@ export function resolveRendererDom(): RendererDom {
 
     controllerSelectModal: getRequiredElement<HTMLDivElement>('controllerSelectModal'),
     controllerSelectClose: getRequiredElement<HTMLButtonElement>('controllerSelectClose'),
-    controllerSelectHint: getRequiredElement<HTMLDivElement>('controllerSelectHint'),
+    controllerSelectPicker: getRequiredElement<HTMLSelectElement>('controllerSelectPicker'),
+    controllerSelectSummary: getRequiredElement<HTMLDivElement>('controllerSelectSummary'),
     controllerSelectStatus: getRequiredElement<HTMLDivElement>('controllerSelectStatus'),
-    controllerSelectList: getRequiredElement<HTMLUListElement>('controllerSelectList'),
+    controllerConfigList: getRequiredElement<HTMLDivElement>('controllerConfigList'),
     controllerSelectSave: getRequiredElement<HTMLButtonElement>('controllerSelectSave'),
 
     controllerDebugModal: getRequiredElement<HTMLDivElement>('controllerDebugModal'),

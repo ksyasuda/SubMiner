@@ -13,6 +13,20 @@ type TestGamepad = {
   buttons: Array<{ value: number; pressed?: boolean; touched?: boolean }>;
 };
 
+const DEFAULT_BUTTON_INDICES = {
+  select: 6,
+  buttonSouth: 0,
+  buttonEast: 1,
+  buttonWest: 2,
+  buttonNorth: 3,
+  leftShoulder: 4,
+  rightShoulder: 5,
+  leftStickPress: 9,
+  rightStickPress: 10,
+  leftTrigger: 6,
+  rightTrigger: 7,
+} satisfies ResolvedControllerConfig['buttonIndices'];
+
 function createGamepad(
   id: string,
   options: Partial<Pick<TestGamepad, 'index' | 'axes' | 'buttons'>> = {},
@@ -35,7 +49,7 @@ function createGamepad(
 
 function createControllerConfig(
   overrides: Omit<Partial<ResolvedControllerConfig>, 'bindings' | 'buttonIndices'> & {
-    bindings?: Partial<ResolvedControllerConfig['bindings']>;
+    bindings?: Partial<Record<keyof ResolvedControllerConfig['bindings'], unknown>>;
     buttonIndices?: Partial<ResolvedControllerConfig['buttonIndices']>;
   } = {},
 ): ResolvedControllerConfig {
@@ -57,37 +71,90 @@ function createControllerConfig(
     repeatDelayMs: 320,
     repeatIntervalMs: 120,
     buttonIndices: {
-      select: 6,
-      buttonSouth: 0,
-      buttonEast: 1,
-      buttonWest: 2,
-      buttonNorth: 3,
-      leftShoulder: 4,
-      rightShoulder: 5,
-      leftStickPress: 9,
-      rightStickPress: 10,
-      leftTrigger: 6,
-      rightTrigger: 7,
+      ...DEFAULT_BUTTON_INDICES,
       ...(buttonIndexOverrides ?? {}),
     },
     bindings: {
-      toggleLookup: 'buttonSouth',
-      closeLookup: 'buttonEast',
-      toggleKeyboardOnlyMode: 'buttonNorth',
-      mineCard: 'buttonWest',
-      quitMpv: 'select',
-      previousAudio: 'none',
-      nextAudio: 'rightShoulder',
-      playCurrentAudio: 'leftShoulder',
-      toggleMpvPause: 'leftStickPress',
-      leftStickHorizontal: 'leftStickX',
-      leftStickVertical: 'leftStickY',
-      rightStickHorizontal: 'rightStickX',
-      rightStickVertical: 'rightStickY',
-      ...(bindingOverrides ?? {}),
+      toggleLookup: { kind: 'button', buttonIndex: 0 },
+      closeLookup: { kind: 'button', buttonIndex: 1 },
+      toggleKeyboardOnlyMode: { kind: 'button', buttonIndex: 3 },
+      mineCard: { kind: 'button', buttonIndex: 2 },
+      quitMpv: { kind: 'button', buttonIndex: 6 },
+      previousAudio: { kind: 'none' },
+      nextAudio: { kind: 'button', buttonIndex: 5 },
+      playCurrentAudio: { kind: 'button', buttonIndex: 4 },
+      toggleMpvPause: { kind: 'button', buttonIndex: 9 },
+      leftStickHorizontal: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
+      leftStickVertical: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
+      rightStickHorizontal: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
+      rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
+      ...normalizeBindingOverrides(bindingOverrides ?? {}, {
+        ...DEFAULT_BUTTON_INDICES,
+        ...(buttonIndexOverrides ?? {}),
+      }),
     },
     ...restOverrides,
   };
+}
+
+function normalizeBindingOverrides(
+  overrides: Partial<Record<keyof ResolvedControllerConfig['bindings'], unknown>>,
+  buttonIndices: ResolvedControllerConfig['buttonIndices'],
+): Partial<ResolvedControllerConfig['bindings']> {
+  const legacyButtonIndices = {
+    select: buttonIndices.select,
+    buttonSouth: buttonIndices.buttonSouth,
+    buttonEast: buttonIndices.buttonEast,
+    buttonWest: buttonIndices.buttonWest,
+    buttonNorth: buttonIndices.buttonNorth,
+    leftShoulder: buttonIndices.leftShoulder,
+    rightShoulder: buttonIndices.rightShoulder,
+    leftStickPress: buttonIndices.leftStickPress,
+    rightStickPress: buttonIndices.rightStickPress,
+    leftTrigger: buttonIndices.leftTrigger,
+    rightTrigger: buttonIndices.rightTrigger,
+  } as const;
+  const legacyAxisIndices = {
+    leftStickX: 0,
+    leftStickY: 1,
+    rightStickX: 3,
+    rightStickY: 4,
+  } as const;
+  const axisFallbackByKey = {
+    leftStickHorizontal: 'horizontal',
+    leftStickVertical: 'vertical',
+    rightStickHorizontal: 'none',
+    rightStickVertical: 'none',
+  } as const;
+
+  const normalized: Partial<ResolvedControllerConfig['bindings']> = {};
+  for (const [key, value] of Object.entries(overrides) as Array<
+    [keyof ResolvedControllerConfig['bindings'], unknown]
+  >) {
+    if (typeof value === 'string') {
+      if (value === 'none') {
+        normalized[key] = { kind: 'none' } as never;
+        continue;
+      }
+      if (value in legacyButtonIndices) {
+        normalized[key] = {
+          kind: 'button',
+          buttonIndex: legacyButtonIndices[value as keyof typeof legacyButtonIndices],
+        } as never;
+        continue;
+      }
+      if (value in legacyAxisIndices) {
+        normalized[key] = {
+          kind: 'axis',
+          axisIndex: legacyAxisIndices[value as keyof typeof legacyAxisIndices],
+          dpadFallback: axisFallbackByKey[key as keyof typeof axisFallbackByKey] ?? 'none',
+        } as never;
+        continue;
+      }
+    }
+    normalized[key] = value as never;
+  }
+  return normalized;
 }
 
 test('gamepad controller selects the first connected controller by default', () => {
@@ -182,6 +249,82 @@ test('gamepad controller allows keyboard-mode toggle while other actions stay ga
   controller.poll(0);
 
   assert.deepEqual(calls, ['toggle-keyboard-mode']);
+});
+
+test('gamepad controller re-evaluates interaction gating after toggling keyboard mode', () => {
+  const calls: string[] = [];
+  let keyboardModeEnabled = true;
+  const buttons = Array.from({ length: 8 }, () => ({ value: 0, pressed: false, touched: false }));
+  buttons[0] = { value: 1, pressed: true, touched: true };
+  buttons[3] = { value: 1, pressed: true, touched: true };
+
+  const controller = createGamepadController({
+    getGamepads: () => [createGamepad('pad-1', { buttons })],
+    getConfig: () => createControllerConfig(),
+    getKeyboardModeEnabled: () => keyboardModeEnabled,
+    getLookupWindowOpen: () => false,
+    getInteractionBlocked: () => false,
+    toggleKeyboardMode: () => {
+      calls.push('toggle-keyboard-mode');
+      keyboardModeEnabled = false;
+    },
+    toggleLookup: () => calls.push('toggle-lookup'),
+    closeLookup: () => {},
+    moveSelection: () => {},
+    mineCard: () => {},
+    quitMpv: () => {},
+    previousAudio: () => {},
+    nextAudio: () => {},
+    playCurrentAudio: () => {},
+    toggleMpvPause: () => {},
+    scrollPopup: () => {},
+    jumpPopup: () => {},
+    onState: () => {},
+  });
+
+  controller.poll(0);
+
+  assert.deepEqual(calls, ['toggle-keyboard-mode']);
+});
+
+test('gamepad controller resets edge state when active controller changes', () => {
+  const calls: string[] = [];
+  let currentGamepads = [
+    createGamepad('pad-1', {
+      buttons: [{ value: 1, pressed: true, touched: true }],
+    }),
+  ];
+
+  const controller = createGamepadController({
+    getGamepads: () => currentGamepads,
+    getConfig: () => createControllerConfig(),
+    getKeyboardModeEnabled: () => true,
+    getLookupWindowOpen: () => false,
+    getInteractionBlocked: () => false,
+    toggleKeyboardMode: () => {},
+    toggleLookup: () => calls.push('toggle-lookup'),
+    closeLookup: () => {},
+    moveSelection: () => {},
+    mineCard: () => {},
+    quitMpv: () => {},
+    previousAudio: () => {},
+    nextAudio: () => {},
+    playCurrentAudio: () => {},
+    toggleMpvPause: () => {},
+    scrollPopup: () => {},
+    jumpPopup: () => {},
+    onState: () => {},
+  });
+
+  controller.poll(0);
+  currentGamepads = [
+    createGamepad('pad-2', {
+      buttons: [{ value: 1, pressed: true, touched: true }],
+    }),
+  ];
+  controller.poll(50);
+
+  assert.deepEqual(calls, ['toggle-lookup', 'toggle-lookup']);
 });
 
 test('gamepad controller does not toggle keyboard mode when controller support is disabled', () => {
@@ -620,6 +763,46 @@ test('gamepad controller trigger digital mode uses pressed state only', () => {
   controller.poll(0);
 
   assert.deepEqual(calls, ['play-audio', 'toggle-mpv-pause']);
+});
+
+test('gamepad controller digital trigger bindings ignore analog-only trigger values', () => {
+  const calls: string[] = [];
+  const buttons = Array.from({ length: 16 }, () => ({ value: 0, pressed: false, touched: false }));
+  buttons[6] = { value: 0.9, pressed: false, touched: true };
+  buttons[7] = { value: 0.9, pressed: false, touched: true };
+
+  const controller = createGamepadController({
+    getGamepads: () => [createGamepad('pad-1', { buttons })],
+    getConfig: () =>
+      createControllerConfig({
+        triggerInputMode: 'digital',
+        triggerDeadzone: 0.6,
+        bindings: {
+          playCurrentAudio: 'rightTrigger',
+          toggleMpvPause: 'leftTrigger',
+        },
+      }),
+    getKeyboardModeEnabled: () => true,
+    getLookupWindowOpen: () => true,
+    getInteractionBlocked: () => false,
+    toggleKeyboardMode: () => {},
+    toggleLookup: () => {},
+    closeLookup: () => {},
+    moveSelection: () => {},
+    mineCard: () => {},
+    quitMpv: () => {},
+    previousAudio: () => {},
+    nextAudio: () => {},
+    playCurrentAudio: () => calls.push('play-audio'),
+    toggleMpvPause: () => calls.push('toggle-mpv-pause'),
+    scrollPopup: () => {},
+    jumpPopup: () => {},
+    onState: () => {},
+  });
+
+  controller.poll(0);
+
+  assert.deepEqual(calls, []);
 });
 
 test('gamepad controller maps L3 to mpv pause and keeps unbound audio action inactive', () => {

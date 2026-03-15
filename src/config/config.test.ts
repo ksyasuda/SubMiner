@@ -1168,12 +1168,103 @@ test('parses controller settings with logical bindings and tuning knobs', () => 
   assert.equal(config.controller.repeatIntervalMs, 70);
   assert.equal(config.controller.buttonIndices.select, 6);
   assert.equal(config.controller.buttonIndices.leftStickPress, 9);
-  assert.equal(config.controller.bindings.toggleLookup, 'buttonWest');
-  assert.equal(config.controller.bindings.quitMpv, 'select');
-  assert.equal(config.controller.bindings.playCurrentAudio, 'none');
-  assert.equal(config.controller.bindings.toggleMpvPause, 'leftStickPress');
-  assert.equal(config.controller.bindings.leftStickHorizontal, 'rightStickX');
-  assert.equal(config.controller.bindings.rightStickVertical, 'leftStickY');
+  assert.deepEqual(config.controller.bindings.toggleLookup, { kind: 'button', buttonIndex: 2 });
+  assert.deepEqual(config.controller.bindings.quitMpv, { kind: 'button', buttonIndex: 6 });
+  assert.deepEqual(config.controller.bindings.playCurrentAudio, { kind: 'none' });
+  assert.deepEqual(config.controller.bindings.toggleMpvPause, { kind: 'button', buttonIndex: 9 });
+  assert.deepEqual(config.controller.bindings.leftStickHorizontal, {
+    kind: 'axis',
+    axisIndex: 3,
+    dpadFallback: 'horizontal',
+  });
+  assert.deepEqual(config.controller.bindings.rightStickVertical, {
+    kind: 'axis',
+    axisIndex: 1,
+    dpadFallback: 'none',
+  });
+});
+
+test('parses descriptor-based controller bindings', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "controller": {
+        "bindings": {
+          "toggleLookup": { "kind": "button", "buttonIndex": 11 },
+          "closeLookup": { "kind": "axis", "axisIndex": 4, "direction": "negative" },
+          "playCurrentAudio": { "kind": "none" },
+          "leftStickHorizontal": { "kind": "axis", "axisIndex": 7, "dpadFallback": "none" },
+          "leftStickVertical": { "kind": "axis", "axisIndex": 2, "dpadFallback": "vertical" }
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.deepEqual(config.controller.bindings.toggleLookup, {
+    kind: 'button',
+    buttonIndex: 11,
+  });
+  assert.deepEqual(config.controller.bindings.closeLookup, {
+    kind: 'axis',
+    axisIndex: 4,
+    direction: 'negative',
+  });
+  assert.deepEqual(config.controller.bindings.playCurrentAudio, { kind: 'none' });
+  assert.deepEqual(config.controller.bindings.leftStickHorizontal, {
+    kind: 'axis',
+    axisIndex: 7,
+    dpadFallback: 'none',
+  });
+  assert.deepEqual(config.controller.bindings.leftStickVertical, {
+    kind: 'axis',
+    axisIndex: 2,
+    dpadFallback: 'vertical',
+  });
+});
+
+test('controller descriptor config rejects malformed binding objects', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "controller": {
+        "bindings": {
+          "toggleLookup": { "kind": "button", "buttonIndex": -1 },
+          "closeLookup": { "kind": "axis", "axisIndex": 1, "direction": "sideways" },
+          "leftStickHorizontal": { "kind": "axis", "axisIndex": 0, "dpadFallback": "diagonal" }
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.deepEqual(
+    config.controller.bindings.toggleLookup,
+    DEFAULT_CONFIG.controller.bindings.toggleLookup,
+  );
+  assert.deepEqual(
+    config.controller.bindings.closeLookup,
+    DEFAULT_CONFIG.controller.bindings.closeLookup,
+  );
+  assert.deepEqual(
+    config.controller.bindings.leftStickHorizontal,
+    DEFAULT_CONFIG.controller.bindings.leftStickHorizontal,
+  );
+  assert.equal(warnings.some((warning) => warning.path === 'controller.bindings.toggleLookup'), true);
+  assert.equal(warnings.some((warning) => warning.path === 'controller.bindings.closeLookup'), true);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.bindings.leftStickHorizontal'),
+    true,
+  );
 });
 
 test('controller positive-number tuning rejects sub-unit values that floor to zero', () => {
@@ -1824,6 +1915,24 @@ test('template generator includes known keys', () => {
   assert.match(
     output,
     /"triggerInputMode": "auto",? \/\/ How controller triggers are interpreted: auto, pressed-only, or thresholded analog\. Values: auto \| digital \| analog/,
+  );
+  assert.match(
+    output,
+    /"preferredGamepadId": "",? \/\/ Preferred controller id saved from the controller config modal\./,
+  );
+  assert.match(
+    output,
+    /"toggleLookup": \{\s*"kind": "button"[\s\S]*\},? \/\/ Controller binding descriptor for toggling lookup\. Use Alt\+C learn mode or set a raw button\/axis descriptor manually\./,
+  );
+  assert.match(
+    output,
+    /"kind": "button",? \/\/ Discrete binding input source kind\. When kind is "axis", set both axisIndex and direction\. Values: none \| button \| axis/,
+  );
+  assert.match(output, /"toggleLookup": \{\s*"kind": "button"/);
+  assert.match(output, /"leftStickHorizontal": \{\s*"kind": "axis"/);
+  assert.match(
+    output,
+    /"dpadFallback": "horizontal",? \/\/ Optional D-pad fallback used when this analog controller action should also read D-pad input\. Values: none \| horizontal \| vertical/,
   );
   assert.match(output, /"port": 6678,? \/\/ Annotated subtitle websocket server port\./);
   assert.match(
