@@ -45,7 +45,9 @@ export function createControllerSelectModal(
       syncSelectedControllerId();
       return;
     }
-    const preferredIndex = ctx.state.connectedGamepads.findIndex((device) => device.id === preferredId);
+    const preferredIndex = ctx.state.connectedGamepads.findIndex(
+      (device) => device.id === preferredId,
+    );
     if (preferredIndex >= 0) {
       ctx.state.controllerDeviceSelectedIndex = preferredIndex;
       syncSelectedControllerId();

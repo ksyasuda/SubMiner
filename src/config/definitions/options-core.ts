@@ -74,13 +74,15 @@ export function buildCoreConfigOptionRegistry(
       kind: 'enum',
       enumValues: ['auto', 'digital', 'analog'],
       defaultValue: defaultConfig.controller.triggerInputMode,
-      description: 'How controller triggers are interpreted: auto, pressed-only, or thresholded analog.',
+      description:
+        'How controller triggers are interpreted: auto, pressed-only, or thresholded analog.',
     },
     {
       path: 'controller.triggerDeadzone',
       kind: 'number',
       defaultValue: defaultConfig.controller.triggerDeadzone,
-      description: 'Minimum analog trigger value required when trigger input uses auto or analog mode.',
+      description:
+        'Minimum analog trigger value required when trigger input uses auto or analog mode.',
     },
     {
       path: 'controller.repeatDelayMs',

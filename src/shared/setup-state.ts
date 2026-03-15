@@ -223,7 +223,10 @@ export function ensureDefaultConfigBootstrap(options: {
   const mkdirSync = options.mkdirSync ?? fs.mkdirSync;
   const writeFileSync = options.writeFileSync ?? fs.writeFileSync;
 
-  if (existsSync(options.configFilePaths.jsoncPath) || existsSync(options.configFilePaths.jsonPath)) {
+  if (
+    existsSync(options.configFilePaths.jsoncPath) ||
+    existsSync(options.configFilePaths.jsonPath)
+  ) {
     return;
   }
 

@@ -3,10 +3,7 @@ import test from 'node:test';
 
 import { createKeyboardHandlers } from './keyboard.js';
 import { createRendererState } from '../state.js';
-import {
-  YOMITAN_POPUP_COMMAND_EVENT,
-  YOMITAN_POPUP_HIDDEN_EVENT,
-} from '../yomitan-popup.js';
+import { YOMITAN_POPUP_COMMAND_EVENT, YOMITAN_POPUP_HIDDEN_EVENT } from '../yomitan-popup.js';
 
 type CommandEventDetail = {
   type?: string;
@@ -478,14 +475,11 @@ test('keyboard mode: controller helpers dispatch popup audio play/cycle and scro
     assert.equal(handlers.cyclePopupAudioSourceForController(1), true);
     assert.equal(handlers.scrollPopupByController(48, -24), true);
 
-    assert.deepEqual(
-      testGlobals.commandEvents.slice(-3),
-      [
-        { type: 'playCurrentAudio' },
-        { type: 'cycleAudioSource', direction: 1 },
-        { type: 'scrollBy', deltaX: 48, deltaY: -24 },
-      ],
-    );
+    assert.deepEqual(testGlobals.commandEvents.slice(-3), [
+      { type: 'playCurrentAudio' },
+      { type: 'cycleAudioSource', direction: 1 },
+      { type: 'scrollBy', deltaX: 48, deltaY: -24 },
+    ]);
   } finally {
     testGlobals.restore();
   }
@@ -531,7 +525,8 @@ test('keyboard mode: Alt+Shift+C opens controller debug modal even while popup i
 });
 
 test('keyboard mode: controller select modal handles arrow keys before yomitan popup', async () => {
-  const { ctx, testGlobals, handlers, controllerSelectKeydownCount } = createKeyboardHandlerHarness();
+  const { ctx, testGlobals, handlers, controllerSelectKeydownCount } =
+    createKeyboardHandlerHarness();
 
   try {
     await handlers.setupMpvInputForwarding();

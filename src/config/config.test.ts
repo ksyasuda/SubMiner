@@ -1195,14 +1195,32 @@ test('controller positive-number tuning rejects sub-unit values that floor to ze
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
-  assert.equal(config.controller.scrollPixelsPerSecond, DEFAULT_CONFIG.controller.scrollPixelsPerSecond);
-  assert.equal(config.controller.horizontalJumpPixels, DEFAULT_CONFIG.controller.horizontalJumpPixels);
+  assert.equal(
+    config.controller.scrollPixelsPerSecond,
+    DEFAULT_CONFIG.controller.scrollPixelsPerSecond,
+  );
+  assert.equal(
+    config.controller.horizontalJumpPixels,
+    DEFAULT_CONFIG.controller.horizontalJumpPixels,
+  );
   assert.equal(config.controller.repeatDelayMs, DEFAULT_CONFIG.controller.repeatDelayMs);
   assert.equal(config.controller.repeatIntervalMs, DEFAULT_CONFIG.controller.repeatIntervalMs);
-  assert.equal(warnings.some((warning) => warning.path === 'controller.scrollPixelsPerSecond'), true);
-  assert.equal(warnings.some((warning) => warning.path === 'controller.horizontalJumpPixels'), true);
-  assert.equal(warnings.some((warning) => warning.path === 'controller.repeatDelayMs'), true);
-  assert.equal(warnings.some((warning) => warning.path === 'controller.repeatIntervalMs'), true);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.scrollPixelsPerSecond'),
+    true,
+  );
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.horizontalJumpPixels'),
+    true,
+  );
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.repeatDelayMs'),
+    true,
+  );
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.repeatIntervalMs'),
+    true,
+  );
 });
 
 test('controller button index config rejects fractional values', () => {
@@ -1224,12 +1242,18 @@ test('controller button index config rejects fractional values', () => {
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
-  assert.equal(config.controller.buttonIndices.select, DEFAULT_CONFIG.controller.buttonIndices.select);
+  assert.equal(
+    config.controller.buttonIndices.select,
+    DEFAULT_CONFIG.controller.buttonIndices.select,
+  );
   assert.equal(
     config.controller.buttonIndices.leftStickPress,
     DEFAULT_CONFIG.controller.buttonIndices.leftStickPress,
   );
-  assert.equal(warnings.some((warning) => warning.path === 'controller.buttonIndices.select'), true);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'controller.buttonIndices.select'),
+    true,
+  );
   assert.equal(
     warnings.some((warning) => warning.path === 'controller.buttonIndices.leftStickPress'),
     true,

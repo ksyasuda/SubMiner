@@ -25,9 +25,7 @@ export function clearYomitanParserRuntimeState(deps: YomitanParserRuntimeStateDe
   deps.setYomitanParserInitPromise(null);
 }
 
-export function clearYomitanExtensionRuntimeState(
-  deps: YomitanExtensionRuntimeStateDeps,
-): void {
+export function clearYomitanExtensionRuntimeState(deps: YomitanExtensionRuntimeStateDeps): void {
   clearYomitanParserRuntimeState(deps);
   deps.setYomitanExtension(null);
   deps.setYomitanSession(null);

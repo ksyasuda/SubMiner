@@ -187,7 +187,9 @@ export function createKeyboardHandlers(
     );
   }
 
-  function clearKeyboardSelectedWordClasses(wordNodes: HTMLElement[] = getSubtitleWordNodes()): void {
+  function clearKeyboardSelectedWordClasses(
+    wordNodes: HTMLElement[] = getSubtitleWordNodes(),
+  ): void {
     for (const wordNode of wordNodes) {
       wordNode.classList.remove(KEYBOARD_SELECTED_WORD_CLASS);
     }

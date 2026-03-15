@@ -25,20 +25,17 @@ test('controller status indicator shows once when a controller is first detected
     classList,
   };
 
-  const indicator = createControllerStatusIndicator(
-    { controllerStatusToast: toast } as never,
-    {
-      durationMs: 1500,
-      setTimeout: (callback: () => void) => {
-        const id = nextTimerId++;
-        scheduled.set(id, callback);
-        return id as never;
-      },
-      clearTimeout: (id) => {
-        scheduled.delete(id as never as number);
-      },
+  const indicator = createControllerStatusIndicator({ controllerStatusToast: toast } as never, {
+    durationMs: 1500,
+    setTimeout: (callback: () => void) => {
+      const id = nextTimerId++;
+      scheduled.set(id, callback);
+      return id as never;
     },
-  );
+    clearTimeout: (id) => {
+      scheduled.delete(id as never as number);
+    },
+  });
 
   indicator.update({
     connectedGamepads: [],
@@ -78,13 +75,10 @@ test('controller status indicator announces newly detected controllers after sta
     classList: createClassList(['hidden']),
   };
 
-  const indicator = createControllerStatusIndicator(
-    { controllerStatusToast: toast } as never,
-    {
-      setTimeout: () => 1 as never,
-      clearTimeout: () => {},
-    },
-  );
+  const indicator = createControllerStatusIndicator({ controllerStatusToast: toast } as never, {
+    setTimeout: () => 1 as never,
+    clearTimeout: () => {},
+  });
 
   indicator.update({
     connectedGamepads: [{ id: 'pad-1', index: 0, mapping: 'standard', connected: true }],

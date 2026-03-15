@@ -17,7 +17,12 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
     'leftTrigger',
     'rightTrigger',
   ] as const;
-  const controllerAxisBindings = ['leftStickX', 'leftStickY', 'rightStickX', 'rightStickY'] as const;
+  const controllerAxisBindings = [
+    'leftStickX',
+    'leftStickY',
+    'rightStickX',
+    'rightStickY',
+  ] as const;
 
   if (isObject(src.texthooker)) {
     const launchAtStartup = asBoolean(src.texthooker.launchAtStartup);
@@ -178,7 +183,12 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       if (value !== undefined && Math.floor(value) > 0) {
         resolved.controller[key] = Math.floor(value) as (typeof resolved.controller)[typeof key];
       } else if (src.controller[key] !== undefined) {
-        warn(`controller.${key}`, src.controller[key], resolved.controller[key], 'Expected positive number.');
+        warn(
+          `controller.${key}`,
+          src.controller[key],
+          resolved.controller[key],
+          'Expected positive number.',
+        );
       }
     }
 
@@ -188,7 +198,12 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       if (value !== undefined && value >= 0 && value <= 1) {
         resolved.controller[key] = value as (typeof resolved.controller)[typeof key];
       } else if (src.controller[key] !== undefined) {
-        warn(`controller.${key}`, src.controller[key], resolved.controller[key], 'Expected number between 0 and 1.');
+        warn(
+          `controller.${key}`,
+          src.controller[key],
+          resolved.controller[key],
+          'Expected number between 0 and 1.',
+        );
       }
     }
 

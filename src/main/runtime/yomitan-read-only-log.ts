@@ -1,7 +1,10 @@
 import * as path from 'path';
 
 function redactSkippedYomitanWriteValue(
-  actionName: 'importYomitanDictionary' | 'deleteYomitanDictionary' | 'upsertYomitanDictionarySettings',
+  actionName:
+    | 'importYomitanDictionary'
+    | 'deleteYomitanDictionary'
+    | 'upsertYomitanDictionarySettings',
   rawValue: string,
 ): string {
   const trimmed = rawValue.trim();
@@ -18,7 +21,10 @@ function redactSkippedYomitanWriteValue(
 }
 
 export function formatSkippedYomitanWriteAction(
-  actionName: 'importYomitanDictionary' | 'deleteYomitanDictionary' | 'upsertYomitanDictionarySettings',
+  actionName:
+    | 'importYomitanDictionary'
+    | 'deleteYomitanDictionary'
+    | 'upsertYomitanDictionarySettings',
   rawValue: string,
 ): string {
   return `${actionName}(${redactSkippedYomitanWriteValue(actionName, rawValue)})`;

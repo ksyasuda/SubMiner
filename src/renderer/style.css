@@ -63,8 +63,7 @@ body {
   padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid rgba(138, 213, 202, 0.45);
-  background:
-    linear-gradient(135deg, rgba(10, 44, 40, 0.94), rgba(8, 28, 33, 0.94));
+  background: linear-gradient(135deg, rgba(10, 44, 40, 0.94), rgba(8, 28, 33, 0.94));
   color: rgba(228, 255, 251, 0.98);
   font-size: 12px;
   font-weight: 700;

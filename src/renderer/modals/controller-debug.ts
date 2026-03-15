@@ -18,21 +18,19 @@ function formatButtons(
 }
 
 function formatButtonIndices(
-  value:
-    | {
-        select: number;
-        buttonSouth: number;
-        buttonEast: number;
-        buttonNorth: number;
-        buttonWest: number;
-        leftShoulder: number;
-        rightShoulder: number;
-        leftStickPress: number;
-        rightStickPress: number;
-        leftTrigger: number;
-        rightTrigger: number;
-      }
-    | null,
+  value: {
+    select: number;
+    buttonSouth: number;
+    buttonEast: number;
+    buttonNorth: number;
+    buttonWest: number;
+    leftShoulder: number;
+    rightShoulder: number;
+    leftStickPress: number;
+    rightStickPress: number;
+    leftTrigger: number;
+    rightTrigger: number;
+  } | null,
 ): string {
   if (!value) {
     return 'No controller config loaded.';
@@ -97,7 +95,9 @@ export function createControllerDebugModal(
     );
     setStatus(
       activeDevice?.id ??
-        (ctx.state.connectedGamepads.length > 0 ? 'Controller connected.' : 'No controller detected.'),
+        (ctx.state.connectedGamepads.length > 0
+          ? 'Controller connected.'
+          : 'No controller detected.'),
     );
     ctx.dom.controllerDebugSummary.textContent =
       ctx.state.connectedGamepads.length > 0

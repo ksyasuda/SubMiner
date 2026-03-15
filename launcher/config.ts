@@ -17,7 +17,9 @@ import { readPluginRuntimeConfig as readPluginRuntimeConfigValue } from './confi
 import { readLauncherMainConfigObject } from './config/shared-config-reader.js';
 import { parseLauncherYoutubeSubgenConfig } from './config/youtube-subgen-config.js';
 
-export function readExternalYomitanProfilePath(root: Record<string, unknown> | null): string | null {
+export function readExternalYomitanProfilePath(
+  root: Record<string, unknown> | null,
+): string | null {
   const yomitan =
     root?.yomitan && typeof root.yomitan === 'object' && !Array.isArray(root.yomitan)
       ? (root.yomitan as Record<string, unknown>)

@@ -106,7 +106,10 @@ test('controller debug modal renders active controller axes, buttons, and config
     assert.match(ctx.dom.controllerDebugStatus.textContent, /pad-1/);
     assert.match(ctx.dom.controllerDebugSummary.textContent, /standard/);
     assert.match(ctx.dom.controllerDebugAxes.textContent, /axis\[0\] = 0\.500/);
-    assert.match(ctx.dom.controllerDebugButtons.textContent, /button\[0\] value=1\.000 pressed=true/);
+    assert.match(
+      ctx.dom.controllerDebugButtons.textContent,
+      /button\[0\] value=1\.000 pressed=true/,
+    );
     assert.match(ctx.dom.controllerDebugButtonIndices.textContent, /"buttonIndices": \{/);
     assert.match(ctx.dom.controllerDebugButtonIndices.textContent, /"select": 6/);
     assert.match(ctx.dom.controllerDebugButtonIndices.textContent, /"leftStickPress": 9/);
@@ -224,8 +227,14 @@ test('controller debug modal copies buttonIndices config to clipboard', async ()
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     assert.deepEqual(copied, [ctx.dom.controllerDebugButtonIndices.textContent]);
-    assert.match(ctx.dom.controllerDebugStatus.textContent, /Copied controller buttonIndices config/);
-    assert.match(ctx.dom.controllerDebugToast.textContent, /Copied controller buttonIndices config/);
+    assert.match(
+      ctx.dom.controllerDebugStatus.textContent,
+      /Copied controller buttonIndices config/,
+    );
+    assert.match(
+      ctx.dom.controllerDebugToast.textContent,
+      /Copied controller buttonIndices config/,
+    );
     assert.equal(ctx.dom.controllerDebugToast.classList.contains('hidden'), false);
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });

@@ -9,7 +9,11 @@ test('yomitan settings runtime composes opener with built deps', async () => {
 
   const runtime = createYomitanSettingsRuntime({
     ensureYomitanExtensionLoaded: async () => ({ id: 'ext' }),
-    openYomitanSettingsWindow: ({ getExistingWindow, setWindow, yomitanSession: forwardedSession }) => {
+    openYomitanSettingsWindow: ({
+      getExistingWindow,
+      setWindow,
+      yomitanSession: forwardedSession,
+    }) => {
       calls.push(`open-window:${(forwardedSession as { id: string } | null)?.id ?? 'null'}`);
       const current = getExistingWindow();
       if (!current) {
@@ -54,5 +58,7 @@ test('yomitan settings runtime warns and does not open when no yomitan session i
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(existingWindow, null);
-  assert.deepEqual(calls, ['warn:Unable to open Yomitan settings: Yomitan session is unavailable.']);
+  assert.deepEqual(calls, [
+    'warn:Unable to open Yomitan settings: Yomitan session is unavailable.',
+  ]);
 });
