@@ -140,3 +140,72 @@ test('prefetch service can be stopped mid-flight', async () => {
   assert.equal(tokenizeCalls, callsAtStop, 'No further tokenize calls after stop');
   assert.ok(tokenizeCalls < 100, 'Should not have tokenized all cues');
 });
+
+test('prefetch service onSeek re-prioritizes from new position', async () => {
+  const cues = makeCues(20);
+  const cachedTexts: string[] = [];
+
+  const service = createSubtitlePrefetchService({
+    cues,
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    preCacheTokenization: (text) => {
+      cachedTexts.push(text);
+    },
+    isCacheFull: () => false,
+    priorityWindowSize: 3,
+  });
+
+  service.start(0);
+  // Let a few cues process
+  for (let i = 0; i < 5; i += 1) {
+    await flushMicrotasks();
+  }
+
+  // Seek to near the end
+  service.onSeek(80.0);
+  for (let i = 0; i < 30; i += 1) {
+    await flushMicrotasks();
+  }
+  service.stop();
+
+  // After seek to 80.0, cues starting after 80.0 (line-17, line-18, line-19) should appear in cached
+  const hasPostSeekCue = cachedTexts.some((t) => t === 'line-17' || t === 'line-18' || t === 'line-19');
+  assert.ok(hasPostSeekCue, 'Should have cached cues after seek position');
+});
+
+test('prefetch service pause/resume halts and continues tokenization', async () => {
+  const cues = makeCues(20);
+  let tokenizeCalls = 0;
+
+  const service = createSubtitlePrefetchService({
+    cues,
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    preCacheTokenization: () => {},
+    isCacheFull: () => false,
+    priorityWindowSize: 3,
+  });
+
+  service.start(0);
+  await flushMicrotasks();
+  await flushMicrotasks();
+  service.pause();
+
+  const callsWhenPaused = tokenizeCalls;
+  // Wait while paused
+  for (let i = 0; i < 5; i += 1) {
+    await flushMicrotasks();
+  }
+  // Should not have advanced much (may have 1 in-flight)
+  assert.ok(tokenizeCalls <= callsWhenPaused + 1, 'Should not tokenize much while paused');
+
+  service.resume();
+  for (let i = 0; i < 30; i += 1) {
+    await flushMicrotasks();
+  }
+  service.stop();
+
+  assert.ok(tokenizeCalls > callsWhenPaused + 1, 'Should resume tokenizing after unpause');
+});
