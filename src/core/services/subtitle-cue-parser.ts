@@ -122,7 +122,31 @@ export function parseAssCues(content: string): SubtitleCue[] {
   return cues;
 }
 
-// Stub export — will be implemented in Task 6
-export function parseSubtitleCues(_content: string, _filename: string): SubtitleCue[] {
-  throw new Error('parseSubtitleCues not yet implemented');
+function detectSubtitleFormat(filename: string): 'srt' | 'vtt' | 'ass' | 'ssa' | null {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  if (ext === 'srt') return 'srt';
+  if (ext === 'vtt') return 'vtt';
+  if (ext === 'ass' || ext === 'ssa') return 'ass';
+  return null;
+}
+
+export function parseSubtitleCues(content: string, filename: string): SubtitleCue[] {
+  const format = detectSubtitleFormat(filename);
+  let cues: SubtitleCue[];
+
+  switch (format) {
+    case 'srt':
+    case 'vtt':
+      cues = parseSrtCues(content);
+      break;
+    case 'ass':
+    case 'ssa':
+      cues = parseAssCues(content);
+      break;
+    default:
+      return [];
+  }
+
+  cues.sort((a, b) => a.startTime - b.startTime);
+  return cues;
 }
