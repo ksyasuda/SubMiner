@@ -78,7 +78,7 @@ export function createBuildMineSentenceCardMainDepsHandler<TAnki, TMpv>(deps: {
     mpvClient: TMpv;
     showMpvOsd: (text: string) => void;
   }) => Promise<boolean>;
-  recordCardsMined: (count: number) => void;
+  recordCardsMined: (count: number, noteIds?: number[]) => void;
 }) {
   return () => ({
     getAnkiIntegration: () => deps.getAnkiIntegration(),
@@ -89,6 +89,6 @@ export function createBuildMineSentenceCardMainDepsHandler<TAnki, TMpv>(deps: {
       mpvClient: TMpv;
       showMpvOsd: (text: string) => void;
     }) => deps.mineSentenceCardCore(options),
-    recordCardsMined: (count: number) => deps.recordCardsMined(count),
+    recordCardsMined: (count: number, noteIds?: number[]) => deps.recordCardsMined(count, noteIds),
   });
 }

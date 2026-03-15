@@ -87,6 +87,7 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
       getPauseAtTime: () => null,
       setPauseAtTime: () => {},
       emitTimePosChange: () => {},
+      emitDurationChange: () => {},
       emitPauseChange: () => {},
       autoLoadSecondarySubTrack: () => {},
       setCurrentVideoPath: () => {},

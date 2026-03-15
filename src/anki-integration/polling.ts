@@ -9,6 +9,7 @@ export interface PollingRunnerDeps {
   ) => Promise<number[]>;
   shouldAutoUpdateNewCards: () => boolean;
   processNewCard: (noteId: number) => Promise<void>;
+  recordCardsAdded?: (count: number, noteIds: number[]) => void;
   isUpdateInProgress: () => boolean;
   setUpdateInProgress: (value: boolean) => void;
   getTrackedNoteIds: () => Set<number>;
@@ -80,6 +81,7 @@ export class PollingRunner {
           previousNoteIds.add(noteId);
         }
         this.deps.setTrackedNoteIds(previousNoteIds);
+        this.deps.recordCardsAdded?.(newNoteIds.length, newNoteIds);
 
         if (this.deps.shouldAutoUpdateNewCards()) {
           for (const noteId of newNoteIds) {

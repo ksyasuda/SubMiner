@@ -48,6 +48,7 @@ export interface IpcServiceDeps {
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
   getConfiguredShortcuts: () => unknown;
+  getStatsToggleKey: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
   getSecondarySubMode: () => unknown;
@@ -65,6 +66,21 @@ export interface IpcServiceDeps {
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
+  immersionTracker?: {
+    getSessionSummaries: (limit?: number) => Promise<unknown>;
+    getDailyRollups: (limit?: number) => Promise<unknown>;
+    getMonthlyRollups: (limit?: number) => Promise<unknown>;
+    getQueryHints: () => Promise<{ totalSessions: number; activeSessions: number; episodesToday: number; activeAnimeCount: number }>;
+    getSessionTimeline: (sessionId: number, limit?: number) => Promise<unknown>;
+    getSessionEvents: (sessionId: number, limit?: number) => Promise<unknown>;
+    getVocabularyStats: (limit?: number) => Promise<unknown>;
+    getKanjiStats: (limit?: number) => Promise<unknown>;
+    getMediaLibrary: () => Promise<unknown>;
+    getMediaDetail: (videoId: number) => Promise<unknown>;
+    getMediaSessions: (videoId: number, limit?: number) => Promise<unknown>;
+    getMediaDailyRollups: (videoId: number, limit?: number) => Promise<unknown>;
+    getCoverArt: (videoId: number) => Promise<unknown>;
+  } | null;
 }
 
 interface WindowLike {
@@ -113,6 +129,7 @@ export interface IpcDepsRuntimeOptions {
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
   getConfiguredShortcuts: () => unknown;
+  getStatsToggleKey: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
   getSecondarySubMode: () => unknown;
@@ -130,6 +147,7 @@ export interface IpcDepsRuntimeOptions {
   getAnilistQueueStatus: () => unknown;
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
+  getImmersionTracker?: () => IpcServiceDeps['immersionTracker'];
 }
 
 export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcServiceDeps {
@@ -166,6 +184,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     handleMpvCommand: options.handleMpvCommand,
     getKeybindings: options.getKeybindings,
     getConfiguredShortcuts: options.getConfiguredShortcuts,
+    getStatsToggleKey: options.getStatsToggleKey,
     getControllerConfig: options.getControllerConfig,
     saveControllerPreference: options.saveControllerPreference,
     getSecondarySubMode: options.getSecondarySubMode,
@@ -187,10 +206,24 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     getAnilistQueueStatus: options.getAnilistQueueStatus,
     retryAnilistQueueNow: options.retryAnilistQueueNow,
     appendClipboardVideoToQueue: options.appendClipboardVideoToQueue,
+    get immersionTracker() {
+      return options.getImmersionTracker?.() ?? null;
+    },
   };
 }
 
 export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar = ipcMain): void {
+  const parsePositiveIntLimit = (
+    value: unknown,
+    defaultValue: number,
+    maxValue: number,
+  ): number => {
+    if (!Number.isInteger(value) || (value as number) < 1) {
+      return defaultValue;
+    }
+    return Math.min(value as number, maxValue);
+  };
+
   ipc.on(
     IPC_CHANNELS.command.setIgnoreMouseEvents,
     (event: unknown, ignore: unknown, options: unknown = {}) => {
@@ -299,6 +332,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     return deps.getConfiguredShortcuts();
   });
 
+  ipc.handle(IPC_CHANNELS.request.getStatsToggleKey, () => {
+    return deps.getStatsToggleKey();
+  });
+
   ipc.handle(IPC_CHANNELS.request.getControllerConfig, () => {
     return deps.getControllerConfig();
   });
@@ -384,4 +421,106 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   ipc.handle(IPC_CHANNELS.request.appendClipboardVideoToQueue, () => {
     return deps.appendClipboardVideoToQueue();
   });
+
+  // Stats request handlers
+  ipc.handle(IPC_CHANNELS.request.statsGetOverview, async () => {
+    const tracker = deps.immersionTracker;
+    if (!tracker) {
+      return {
+        sessions: [],
+        rollups: [],
+        hints: {
+          totalSessions: 0,
+          activeSessions: 0,
+        },
+      };
+    }
+    const [sessions, rollups, hints] = await Promise.all([
+      tracker.getSessionSummaries(5),
+      tracker.getDailyRollups(14),
+      tracker.getQueryHints(),
+    ]);
+    return { sessions, rollups, hints };
+  });
+
+  ipc.handle(IPC_CHANNELS.request.statsGetDailyRollups, async (_event, limit: unknown) => {
+    const parsedLimit = parsePositiveIntLimit(limit, 60, 500);
+    return deps.immersionTracker?.getDailyRollups(parsedLimit) ?? [];
+  });
+
+  ipc.handle(IPC_CHANNELS.request.statsGetMonthlyRollups, async (_event, limit: unknown) => {
+    const parsedLimit = parsePositiveIntLimit(limit, 24, 120);
+    return deps.immersionTracker?.getMonthlyRollups(parsedLimit) ?? [];
+  });
+
+  ipc.handle(IPC_CHANNELS.request.statsGetSessions, async (_event, limit: unknown) => {
+    const parsedLimit = parsePositiveIntLimit(limit, 50, 500);
+    return deps.immersionTracker?.getSessionSummaries(parsedLimit) ?? [];
+  });
+
+  ipc.handle(
+    IPC_CHANNELS.request.statsGetSessionTimeline,
+    async (_event, sessionId: unknown, limit: unknown) => {
+      if (typeof sessionId !== 'number') return [];
+      const parsedLimit = parsePositiveIntLimit(limit, 200, 1000);
+      return deps.immersionTracker?.getSessionTimeline(sessionId, parsedLimit) ?? [];
+    },
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.request.statsGetSessionEvents,
+    async (_event, sessionId: unknown, limit: unknown) => {
+      if (typeof sessionId !== 'number') return [];
+      const parsedLimit = parsePositiveIntLimit(limit, 500, 1000);
+      return deps.immersionTracker?.getSessionEvents(sessionId, parsedLimit) ?? [];
+    },
+  );
+
+  ipc.handle(IPC_CHANNELS.request.statsGetVocabulary, async (_event, limit: unknown) => {
+    const parsedLimit = parsePositiveIntLimit(limit, 100, 500);
+    return deps.immersionTracker?.getVocabularyStats(parsedLimit) ?? [];
+  });
+
+  ipc.handle(IPC_CHANNELS.request.statsGetKanji, async (_event, limit: unknown) => {
+    const parsedLimit = parsePositiveIntLimit(limit, 100, 500);
+    return deps.immersionTracker?.getKanjiStats(parsedLimit) ?? [];
+  });
+
+  ipc.handle(IPC_CHANNELS.request.statsGetMediaLibrary, async () => {
+    return deps.immersionTracker?.getMediaLibrary() ?? [];
+  });
+
+  ipc.handle(
+    IPC_CHANNELS.request.statsGetMediaDetail,
+    async (_event, videoId: unknown) => {
+      if (typeof videoId !== 'number') return null;
+      return deps.immersionTracker?.getMediaDetail(videoId) ?? null;
+    },
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.request.statsGetMediaSessions,
+    async (_event, videoId: unknown, limit: unknown) => {
+      if (typeof videoId !== 'number') return [];
+      const parsedLimit = parsePositiveIntLimit(limit, 100, 500);
+      return deps.immersionTracker?.getMediaSessions(videoId, parsedLimit) ?? [];
+    },
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.request.statsGetMediaDailyRollups,
+    async (_event, videoId: unknown, limit: unknown) => {
+      if (typeof videoId !== 'number') return [];
+      const parsedLimit = parsePositiveIntLimit(limit, 90, 500);
+      return deps.immersionTracker?.getMediaDailyRollups(videoId, parsedLimit) ?? [];
+    },
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.request.statsGetMediaCover,
+    async (_event, videoId: unknown) => {
+      if (typeof videoId !== 'number') return null;
+      return deps.immersionTracker?.getCoverArt(videoId) ?? null;
+    },
+  );
 }

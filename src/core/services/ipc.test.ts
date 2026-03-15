@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createIpcDepsRuntime, registerIpcHandlers } from './ipc';
+import { createIpcDepsRuntime, registerIpcHandlers, type IpcServiceDeps } from './ipc';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 
 interface FakeIpcRegistrar {
@@ -33,6 +33,90 @@ function createFakeIpcRegistrar(): {
   };
 }
 
+function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServiceDeps {
+  return {
+    onOverlayModalClosed: () => {},
+    openYomitanSettings: () => {},
+    quitApp: () => {},
+    toggleDevTools: () => {},
+    getVisibleOverlayVisibility: () => false,
+    toggleVisibleOverlay: () => {},
+    tokenizeCurrentSubtitle: async () => null,
+    getCurrentSubtitleRaw: () => '',
+    getCurrentSubtitleAss: () => '',
+    getPlaybackPaused: () => false,
+    getSubtitlePosition: () => null,
+    getSubtitleStyle: () => null,
+    saveSubtitlePosition: () => {},
+    getMecabStatus: () => ({ available: false, enabled: false, path: null }),
+    setMecabEnabled: () => {},
+    handleMpvCommand: () => {},
+    getKeybindings: () => [],
+    getConfiguredShortcuts: () => ({}),
+    getStatsToggleKey: () => 'Backquote',
+    getControllerConfig: () =>
+      ({
+        enabled: true,
+        preferredGamepadId: '',
+        preferredGamepadLabel: '',
+        smoothScroll: true,
+        scrollPixelsPerSecond: 960,
+        horizontalJumpPixels: 160,
+        stickDeadzone: 0.2,
+        triggerInputMode: 'auto',
+        triggerDeadzone: 0.5,
+        repeatDelayMs: 220,
+        repeatIntervalMs: 80,
+        buttonIndices: {
+          select: 6,
+          buttonSouth: 0,
+          buttonEast: 1,
+          buttonWest: 2,
+          buttonNorth: 3,
+          leftShoulder: 4,
+          rightShoulder: 5,
+          leftStickPress: 9,
+          rightStickPress: 10,
+          leftTrigger: 6,
+          rightTrigger: 7,
+        },
+        bindings: {
+          toggleLookup: 'buttonSouth',
+          closeLookup: 'buttonEast',
+          toggleKeyboardOnlyMode: 'buttonNorth',
+          mineCard: 'buttonWest',
+          quitMpv: 'select',
+          previousAudio: 'leftShoulder',
+          nextAudio: 'rightShoulder',
+          playCurrentAudio: 'rightTrigger',
+          toggleMpvPause: 'leftTrigger',
+          leftStickHorizontal: 'leftStickX',
+          leftStickVertical: 'leftStickY',
+          rightStickHorizontal: 'rightStickX',
+          rightStickVertical: 'rightStickY',
+        },
+      }) as never,
+    saveControllerPreference: async () => {},
+    getSecondarySubMode: () => 'hover',
+    getCurrentSecondarySub: () => '',
+    focusMainWindow: () => {},
+    runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
+    getAnkiConnectStatus: () => false,
+    getRuntimeOptions: () => [],
+    setRuntimeOption: () => ({ ok: true }),
+    cycleRuntimeOption: () => ({ ok: true }),
+    reportOverlayContentBounds: () => {},
+    getAnilistStatus: () => ({}),
+    clearAnilistToken: () => {},
+    openAnilistSetup: () => {},
+    getAnilistQueueStatus: () => ({}),
+    retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
+    appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+    immersionTracker: null,
+    ...overrides,
+  };
+}
+
 test('createIpcDepsRuntime wires AniList handlers', async () => {
   const calls: string[] = [];
   const deps = createIpcDepsRuntime({
@@ -53,6 +137,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     handleMpvCommand: () => {},
     getKeybindings: () => [],
     getConfiguredShortcuts: () => ({}),
+    getStatsToggleKey: () => 'Backquote',
     getControllerConfig: () => ({
       enabled: true,
       preferredGamepadId: '',
@@ -159,6 +244,7 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       handleMpvCommand: () => {},
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      getStatsToggleKey: () => 'Backquote',
       getControllerConfig: () => ({
         enabled: true,
         preferredGamepadId: '',
@@ -266,6 +352,90 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
   );
 });
 
+test('registerIpcHandlers returns empty stats overview shape without a tracker', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  registerIpcHandlers(createRegisterIpcDeps(), registrar);
+
+  const overviewHandler = handlers.handle.get(IPC_CHANNELS.request.statsGetOverview);
+  assert.ok(overviewHandler);
+  assert.deepEqual(await overviewHandler!({}), {
+    sessions: [],
+    rollups: [],
+    hints: {
+      totalSessions: 0,
+      activeSessions: 0,
+    },
+  });
+});
+
+test('registerIpcHandlers validates and clamps stats request limits', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: Array<[string, number, number?]> = [];
+
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      immersionTracker: {
+        getSessionSummaries: async (limit = 0) => {
+          calls.push(['sessions', limit]);
+          return [];
+        },
+        getDailyRollups: async (limit = 0) => {
+          calls.push(['daily', limit]);
+          return [];
+        },
+        getMonthlyRollups: async (limit = 0) => {
+          calls.push(['monthly', limit]);
+          return [];
+        },
+        getQueryHints: async () => ({ totalSessions: 0, activeSessions: 0, episodesToday: 0, activeAnimeCount: 0 }),
+        getSessionTimeline: async (sessionId: number, limit = 0) => {
+          calls.push(['timeline', limit, sessionId]);
+          return [];
+        },
+        getSessionEvents: async (sessionId: number, limit = 0) => {
+          calls.push(['events', limit, sessionId]);
+          return [];
+        },
+        getVocabularyStats: async (limit = 0) => {
+          calls.push(['vocabulary', limit]);
+          return [];
+        },
+        getKanjiStats: async (limit = 0) => {
+          calls.push(['kanji', limit]);
+          return [];
+        },
+        getMediaLibrary: async () => [],
+        getMediaDetail: async () => null,
+        getMediaSessions: async () => [],
+        getMediaDailyRollups: async () => [],
+        getCoverArt: async () => null,
+      },
+    }),
+    registrar,
+  );
+
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetDailyRollups)!({}, -1);
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetMonthlyRollups)!(
+    {},
+    Number.POSITIVE_INFINITY,
+  );
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetSessions)!({}, 9999);
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetSessionTimeline)!({}, 7, 12.5);
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetSessionEvents)!({}, 7, 0);
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetVocabulary)!({}, 1000);
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetKanji)!({}, NaN);
+
+  assert.deepEqual(calls, [
+    ['daily', 60],
+    ['monthly', 24],
+    ['sessions', 500],
+    ['timeline', 200, 7],
+    ['events', 500, 7],
+    ['vocabulary', 500],
+    ['kanji', 100],
+  ]);
+});
+
 test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const saves: unknown[] = [];
@@ -299,6 +469,7 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       handleMpvCommand: () => {},
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      getStatsToggleKey: () => 'Backquote',
       getControllerConfig: () => ({
         enabled: true,
         preferredGamepadId: '',
@@ -400,6 +571,7 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
       handleMpvCommand: () => {},
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      getStatsToggleKey: () => 'Backquote',
       getControllerConfig: () => ({
         enabled: true,
         preferredGamepadId: '',
@@ -508,6 +680,7 @@ test('registerIpcHandlers rejects malformed controller preference payloads', asy
       handleMpvCommand: () => {},
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      getStatsToggleKey: () => 'Backquote',
       getControllerConfig: () => ({
         enabled: true,
         preferredGamepadId: '',

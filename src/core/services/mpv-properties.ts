@@ -59,6 +59,7 @@ const MPV_SUBTITLE_PROPERTY_OBSERVATIONS: string[] = [
   'sub-ass-override',
   'sub-use-margins',
   'pause',
+  'duration',
   'media-title',
   'secondary-sub-visibility',
   'sub-visibility',

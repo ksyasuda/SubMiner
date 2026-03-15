@@ -176,6 +176,14 @@ const IMMERSION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     ],
     key: 'immersionTracking',
   },
+  {
+    title: 'Stats Dashboard',
+    description: [
+      'Local immersion stats dashboard served on localhost and available as an in-app overlay.',
+      'Uses the immersion tracking database for overview, trends, sessions, and vocabulary views.',
+    ],
+    key: 'stats',
+  },
 ];
 
 export const CONFIG_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
