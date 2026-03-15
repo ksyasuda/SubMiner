@@ -150,7 +150,7 @@ function detectSubtitleFormat(source: string): 'srt' | 'vtt' | 'ass' | 'ssa' | n
     } catch {
       return source;
     }
-  })().split(/[?#]/, 1);
+  })().split(/[?#]/, 1)[0] ?? '';
   const ext = normalizedSource.split('.').pop()?.toLowerCase() ?? '';
   if (ext === 'srt') return 'srt';
   if (ext === 'vtt') return 'vtt';
