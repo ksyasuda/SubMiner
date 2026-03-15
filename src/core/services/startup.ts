@@ -135,6 +135,7 @@ export interface AppReadyRuntimeDeps {
   logDebug?: (message: string) => void;
   onCriticalConfigErrors?: (errors: string[]) => void;
   now?: () => number;
+  shouldUseMinimalStartup?: () => boolean;
   shouldSkipHeavyStartup?: () => boolean;
 }
 
@@ -183,6 +184,12 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   const now = deps.now ?? (() => Date.now());
   const startupStartedAtMs = now();
   deps.ensureDefaultConfigBootstrap();
+  if (deps.shouldUseMinimalStartup?.()) {
+    deps.reloadConfig();
+    deps.handleInitialArgs();
+    return;
+  }
+
   if (deps.shouldSkipHeavyStartup?.()) {
     await deps.loadYomitanExtension();
     deps.reloadConfig();

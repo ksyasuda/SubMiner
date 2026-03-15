@@ -137,6 +137,7 @@ export class AnkiIntegration {
   private fieldGroupingWorkflow: FieldGroupingWorkflow;
   private runtime: AnkiIntegrationRuntime;
   private aiConfig: AiConfig;
+  private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
 
   constructor(
     config: AnkiConnectConfig,
@@ -150,6 +151,7 @@ export class AnkiIntegration {
     }) => Promise<KikuFieldGroupingChoice>,
     knownWordCacheStatePath?: string,
     aiConfig: AiConfig = {},
+    recordCardsMined?: (count: number, noteIds?: number[]) => void,
   ) {
     this.config = normalizeAnkiIntegrationConfig(config);
     this.aiConfig = { ...aiConfig };
@@ -160,6 +162,7 @@ export class AnkiIntegration {
     this.osdCallback = osdCallback || null;
     this.notificationCallback = notificationCallback || null;
     this.fieldGroupingCallback = fieldGroupingCallback || null;
+    this.recordCardsMinedCallback = recordCardsMined ?? null;
     this.knownWordCache = this.createKnownWordCache(knownWordCacheStatePath);
     this.pollingRunner = this.createPollingRunner();
     this.cardCreationService = this.createCardCreationService();
@@ -208,6 +211,9 @@ export class AnkiIntegration {
         (await this.client.findNotes(query, options)) as number[],
       shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId) => this.processNewCard(noteId),
+      recordCardsAdded: (count, noteIds) => {
+        this.recordCardsMinedCallback?.(count, noteIds);
+      },
       isUpdateInProgress: () => this.updateInProgress,
       setUpdateInProgress: (value) => {
         this.updateInProgress = value;
@@ -229,6 +235,9 @@ export class AnkiIntegration {
     return new AnkiConnectProxyServer({
       shouldAutoUpdateNewCards: () => this.config.behavior?.autoUpdateNewCards !== false,
       processNewCard: (noteId: number) => this.processNewCard(noteId),
+      recordCardsAdded: (count, noteIds) => {
+        this.recordCardsMinedCallback?.(count, noteIds);
+      },
       getDeck: () => this.config.deck,
       findNotes: async (query, options) =>
         (await this.client.findNotes(query, options)) as number[],
@@ -1111,5 +1120,9 @@ export class AnkiIntegration {
   destroy(): void {
     this.stop();
     this.mediaGenerator.cleanup();
+  }
+
+  setRecordCardsMinedCallback(callback: ((count: number, noteIds?: number[]) => void) | null): void {
+    this.recordCardsMinedCallback = callback;
   }
 }

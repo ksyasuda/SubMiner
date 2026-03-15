@@ -61,6 +61,7 @@ export interface MpvProtocolHandleMessageDeps {
   emitMediaPathChange: (payload: { path: string }) => void;
   emitMediaTitleChange: (payload: { title: string | null }) => void;
   emitTimePosChange: (payload: { time: number }) => void;
+  emitDurationChange: (payload: { duration: number }) => void;
   emitPauseChange: (payload: { paused: boolean }) => void;
   emitSubtitleMetricsChange: (payload: Partial<MpvSubtitleRenderMetrics>) => void;
   setCurrentSecondarySubText: (text: string) => void;
@@ -171,6 +172,11 @@ export async function dispatchMpvProtocolMessage(
       ) {
         deps.setPauseAtTime(null);
         deps.sendCommand({ command: ['set_property', 'pause', true] });
+      }
+    } else if (msg.name === 'duration') {
+      const duration = typeof msg.data === 'number' ? msg.data : 0;
+      if (duration > 0) {
+        deps.emitDurationChange({ duration });
       }
     } else if (msg.name === 'pause') {
       deps.emitPauseChange({ paused: asBoolean(msg.data, false) });

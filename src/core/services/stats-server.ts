@@ -1,0 +1,372 @@
+import { Hono } from 'hono';
+import { serve } from '@hono/node-server';
+import type { ImmersionTrackerService } from './immersion-tracker-service.js';
+import { extname, resolve, sep } from 'node:path';
+import { readFileSync, existsSync, statSync } from 'node:fs';
+
+function parseIntQuery(raw: string | undefined, fallback: number, maxLimit?: number): number {
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    return fallback;
+  }
+  const parsed = Math.floor(n);
+  return maxLimit === undefined ? parsed : Math.min(parsed, maxLimit);
+}
+
+export interface StatsServerConfig {
+  port: number;
+  staticDir: string; // Path to stats/dist/
+  tracker: ImmersionTrackerService;
+}
+
+const STATS_STATIC_CONTENT_TYPES: Record<string, string> = {
+  '.css': 'text/css; charset=utf-8',
+  '.gif': 'image/gif',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+function resolveStatsStaticPath(staticDir: string, requestPath: string): string | null {
+  const normalizedPath = requestPath.replace(/^\/+/, '') || 'index.html';
+  const decodedPath = decodeURIComponent(normalizedPath);
+  const absoluteStaticDir = resolve(staticDir);
+  const absolutePath = resolve(absoluteStaticDir, decodedPath);
+  if (absolutePath !== absoluteStaticDir && !absolutePath.startsWith(`${absoluteStaticDir}${sep}`)) {
+    return null;
+  }
+  if (!existsSync(absolutePath)) {
+    return null;
+  }
+  const stats = statSync(absolutePath);
+  if (!stats.isFile()) {
+    return null;
+  }
+  return absolutePath;
+}
+
+function createStatsStaticResponse(staticDir: string, requestPath: string): Response | null {
+  const absolutePath = resolveStatsStaticPath(staticDir, requestPath);
+  if (!absolutePath) {
+    return null;
+  }
+
+  const extension = extname(absolutePath).toLowerCase();
+  const contentType =
+    STATS_STATIC_CONTENT_TYPES[extension] ?? 'application/octet-stream';
+  const body = readFileSync(absolutePath);
+  return new Response(body, {
+    headers: {
+      'Content-Type': contentType,
+      'Cache-Control': absolutePath.endsWith('index.html')
+        ? 'no-cache'
+        : 'public, max-age=31536000, immutable',
+    },
+  });
+}
+
+export function createStatsApp(
+  tracker: ImmersionTrackerService,
+  options?: { staticDir?: string },
+) {
+  const app = new Hono();
+
+  app.get('/api/stats/overview', async (c) => {
+    const [sessions, rollups, hints] = await Promise.all([
+      tracker.getSessionSummaries(5),
+      tracker.getDailyRollups(14),
+      tracker.getQueryHints(),
+    ]);
+    return c.json({ sessions, rollups, hints });
+  });
+
+  app.get('/api/stats/daily-rollups', async (c) => {
+    const limit = parseIntQuery(c.req.query('limit'), 60, 500);
+    const rollups = await tracker.getDailyRollups(limit);
+    return c.json(rollups);
+  });
+
+  app.get('/api/stats/monthly-rollups', async (c) => {
+    const limit = parseIntQuery(c.req.query('limit'), 24, 120);
+    const rollups = await tracker.getMonthlyRollups(limit);
+    return c.json(rollups);
+  });
+
+  app.get('/api/stats/streak-calendar', async (c) => {
+    const days = parseIntQuery(c.req.query('days'), 90, 365);
+    return c.json(await tracker.getStreakCalendar(days));
+  });
+
+  app.get('/api/stats/trends/episodes-per-day', async (c) => {
+    const limit = parseIntQuery(c.req.query('limit'), 90, 365);
+    return c.json(await tracker.getEpisodesPerDay(limit));
+  });
+
+  app.get('/api/stats/trends/new-anime-per-day', async (c) => {
+    const limit = parseIntQuery(c.req.query('limit'), 90, 365);
+    return c.json(await tracker.getNewAnimePerDay(limit));
+  });
+
+  app.get('/api/stats/trends/watch-time-per-anime', async (c) => {
+    const limit = parseIntQuery(c.req.query('limit'), 90, 365);
+    return c.json(await tracker.getWatchTimePerAnime(limit));
+  });
+
+  app.get('/api/stats/sessions', async (c) => {
+    const limit = parseIntQuery(c.req.query('limit'), 50, 500);
+    const sessions = await tracker.getSessionSummaries(limit);
+    return c.json(sessions);
+  });
+
+  app.get('/api/stats/sessions/:id/timeline', async (c) => {
+    const id = parseIntQuery(c.req.query('id') ?? c.req.param('id'), 0);
+    if (id <= 0) return c.json([], 400);
+    const limit = parseIntQuery(c.req.query('limit'), 200, 1000);
+    const timeline = await tracker.getSessionTimeline(id, limit);
+    return c.json(timeline);
+  });
+
+  app.get('/api/stats/sessions/:id/events', async (c) => {
+    const id = parseIntQuery(c.req.query('id') ?? c.req.param('id'), 0);
+    if (id <= 0) return c.json([], 400);
+    const limit = parseIntQuery(c.req.query('limit'), 500, 1000);
+    const events = await tracker.getSessionEvents(id, limit);
+    return c.json(events);
+  });
+
+  app.get('/api/stats/vocabulary', async (c) => {
+    const limit = parseIntQuery(c.req.query('limit'), 100, 500);
+    const excludePos = c.req.query('excludePos')?.split(',').filter(Boolean);
+    const vocab = await tracker.getVocabularyStats(limit, excludePos);
+    return c.json(vocab);
+  });
+
+  app.get('/api/stats/vocabulary/occurrences', async (c) => {
+    const headword = (c.req.query('headword') ?? '').trim();
+    const word = (c.req.query('word') ?? '').trim();
+    const reading = (c.req.query('reading') ?? '').trim();
+    if (!headword || !word) {
+      return c.json([], 400);
+    }
+    const limit = parseIntQuery(c.req.query('limit'), 50, 500);
+    const offset = parseIntQuery(c.req.query('offset'), 0, 10_000);
+    const occurrences = await tracker.getWordOccurrences(headword, word, reading, limit, offset);
+    return c.json(occurrences);
+  });
+
+  app.get('/api/stats/kanji', async (c) => {
+    const limit = parseIntQuery(c.req.query('limit'), 100, 500);
+    const kanji = await tracker.getKanjiStats(limit);
+    return c.json(kanji);
+  });
+
+  app.get('/api/stats/kanji/occurrences', async (c) => {
+    const kanji = (c.req.query('kanji') ?? '').trim();
+    if (!kanji) {
+      return c.json([], 400);
+    }
+    const limit = parseIntQuery(c.req.query('limit'), 50, 500);
+    const offset = parseIntQuery(c.req.query('offset'), 0, 10_000);
+    const occurrences = await tracker.getKanjiOccurrences(kanji, limit, offset);
+    return c.json(occurrences);
+  });
+
+  app.get('/api/stats/vocabulary/:wordId/detail', async (c) => {
+    const wordId = parseIntQuery(c.req.param('wordId'), 0);
+    if (wordId <= 0) return c.body(null, 400);
+    const detail = await tracker.getWordDetail(wordId);
+    if (!detail) return c.body(null, 404);
+    const animeAppearances = await tracker.getWordAnimeAppearances(wordId);
+    const similarWords = await tracker.getSimilarWords(wordId);
+    return c.json({ detail, animeAppearances, similarWords });
+  });
+
+  app.get('/api/stats/kanji/:kanjiId/detail', async (c) => {
+    const kanjiId = parseIntQuery(c.req.param('kanjiId'), 0);
+    if (kanjiId <= 0) return c.body(null, 400);
+    const detail = await tracker.getKanjiDetail(kanjiId);
+    if (!detail) return c.body(null, 404);
+    const animeAppearances = await tracker.getKanjiAnimeAppearances(kanjiId);
+    const words = await tracker.getKanjiWords(kanjiId);
+    return c.json({ detail, animeAppearances, words });
+  });
+
+  app.get('/api/stats/media', async (c) => {
+    const library = await tracker.getMediaLibrary();
+    return c.json(library);
+  });
+
+  app.get('/api/stats/media/:videoId', async (c) => {
+    const videoId = parseIntQuery(c.req.param('videoId'), 0);
+    if (videoId <= 0) return c.json(null, 400);
+    const [detail, sessions, rollups] = await Promise.all([
+      tracker.getMediaDetail(videoId),
+      tracker.getMediaSessions(videoId, 100),
+      tracker.getMediaDailyRollups(videoId, 90),
+    ]);
+    return c.json({ detail, sessions, rollups });
+  });
+
+  app.get('/api/stats/anime', async (c) => {
+    const rows = await tracker.getAnimeLibrary();
+    return c.json(rows);
+  });
+
+  app.get('/api/stats/anime/:animeId', async (c) => {
+    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    if (animeId <= 0) return c.body(null, 400);
+    const detail = await tracker.getAnimeDetail(animeId);
+    if (!detail) return c.body(null, 404);
+    const [episodes, anilistEntries] = await Promise.all([
+      tracker.getAnimeEpisodes(animeId),
+      tracker.getAnimeAnilistEntries(animeId),
+    ]);
+    return c.json({ detail, episodes, anilistEntries });
+  });
+
+  app.get('/api/stats/anime/:animeId/words', async (c) => {
+    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    const limit = parseIntQuery(c.req.query('limit'), 50, 200);
+    if (animeId <= 0) return c.body(null, 400);
+    return c.json(await tracker.getAnimeWords(animeId, limit));
+  });
+
+  app.get('/api/stats/anime/:animeId/rollups', async (c) => {
+    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    const limit = parseIntQuery(c.req.query('limit'), 90, 365);
+    if (animeId <= 0) return c.body(null, 400);
+    return c.json(await tracker.getAnimeDailyRollups(animeId, limit));
+  });
+
+  app.patch('/api/stats/media/:videoId/watched', async (c) => {
+    const videoId = parseIntQuery(c.req.param('videoId'), 0);
+    if (videoId <= 0) return c.body(null, 400);
+    const body = await c.req.json().catch(() => null);
+    const watched = typeof body?.watched === 'boolean' ? body.watched : true;
+    await tracker.setVideoWatched(videoId, watched);
+    return c.json({ ok: true });
+  });
+
+  app.get('/api/stats/anime/:animeId/cover', async (c) => {
+    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    if (animeId <= 0) return c.body(null, 404);
+    const art = await tracker.getAnimeCoverArt(animeId);
+    if (!art?.coverBlob) return c.body(null, 404);
+    return new Response(new Uint8Array(art.coverBlob), {
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=86400',
+      },
+    });
+  });
+
+  app.get('/api/stats/media/:videoId/cover', async (c) => {
+    const videoId = parseIntQuery(c.req.param('videoId'), 0);
+    if (videoId <= 0) return c.body(null, 404);
+    let art = await tracker.getCoverArt(videoId);
+    if (!art?.coverBlob) {
+      await tracker.ensureCoverArt(videoId);
+      art = await tracker.getCoverArt(videoId);
+    }
+    if (!art?.coverBlob) return c.body(null, 404);
+    return new Response(new Uint8Array(art.coverBlob), {
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=604800',
+      },
+    });
+  });
+
+  app.get('/api/stats/episode/:videoId/detail', async (c) => {
+    const videoId = parseIntQuery(c.req.param('videoId'), 0);
+    if (videoId <= 0) return c.body(null, 400);
+    const sessions = await tracker.getEpisodeSessions(videoId);
+    const words = await tracker.getEpisodeWords(videoId);
+    const cardEvents = await tracker.getEpisodeCardEvents(videoId);
+    return c.json({ sessions, words, cardEvents });
+  });
+
+  app.post('/api/stats/anki/browse', async (c) => {
+    const noteId = parseIntQuery(c.req.query('noteId'), 0);
+    if (noteId <= 0) return c.body(null, 400);
+    try {
+      const response = await fetch('http://127.0.0.1:8765', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'guiBrowse', version: 6, params: { query: `nid:${noteId}` } }),
+      });
+      const result = await response.json();
+      return c.json(result);
+    } catch {
+      return c.json({ error: 'Failed to reach AnkiConnect' }, 502);
+    }
+  });
+
+  app.post('/api/stats/anki/notesInfo', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const noteIds = Array.isArray(body?.noteIds) ? body.noteIds.filter((id: unknown) => typeof id === 'number') : [];
+    if (noteIds.length === 0) return c.json([]);
+    try {
+      const response = await fetch('http://127.0.0.1:8765', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'notesInfo', version: 6, params: { notes: noteIds } }),
+      });
+      const result = await response.json() as { result?: Array<{ noteId: number; fields: Record<string, { value: string }> }> };
+      return c.json(result.result ?? []);
+    } catch {
+      return c.json([], 502);
+    }
+  });
+
+  if (options?.staticDir) {
+    app.get('/assets/*', (c) => {
+      const response = createStatsStaticResponse(options.staticDir!, c.req.path);
+      if (!response) return c.text('Not found', 404);
+      return response;
+    });
+
+    app.get('/index.html', (c) => {
+      const response = createStatsStaticResponse(options.staticDir!, '/index.html');
+      if (!response) return c.text('Stats UI not built', 404);
+      return response;
+    });
+
+    app.get('*', (c) => {
+      const staticResponse = createStatsStaticResponse(options.staticDir!, c.req.path);
+      if (staticResponse) return staticResponse;
+      const fallback = createStatsStaticResponse(options.staticDir!, '/index.html');
+      if (!fallback) return c.text('Stats UI not built', 404);
+      return fallback;
+    });
+  }
+
+  return app;
+}
+
+export function startStatsServer(config: StatsServerConfig): { close: () => void } {
+  const app = createStatsApp(config.tracker, { staticDir: config.staticDir });
+
+  const server = serve({
+    fetch: app.fetch,
+    port: config.port,
+    hostname: '127.0.0.1',
+  });
+
+  return {
+    close: () => {
+      server.close();
+    },
+  };
+}

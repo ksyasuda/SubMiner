@@ -208,6 +208,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getKeybindings),
   getConfiguredShortcuts: (): Promise<Required<ShortcutsConfig>> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getConfigShortcuts),
+  getStatsToggleKey: (): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getStatsToggleKey),
   getControllerConfig: (): Promise<ResolvedControllerConfig> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getControllerConfig),
   saveControllerConfig: (update: ControllerConfigUpdate): Promise<void> =>
@@ -234,6 +236,10 @@ const electronAPI: ElectronAPI = {
 
   toggleOverlay: () => {
     ipcRenderer.send(IPC_CHANNELS.command.toggleOverlay);
+  },
+
+  toggleStatsOverlay: () => {
+    ipcRenderer.send(IPC_CHANNELS.command.toggleStatsOverlay);
   },
 
   getAnkiConnectStatus: (): Promise<boolean> =>

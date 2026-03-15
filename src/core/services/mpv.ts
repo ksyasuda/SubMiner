@@ -115,6 +115,7 @@ export interface MpvIpcClientEventMap {
   'subtitle-ass-change': { text: string };
   'subtitle-timing': { text: string; start: number; end: number };
   'time-pos-change': { time: number };
+  'duration-change': { duration: number };
   'pause-change': { paused: boolean };
   'secondary-subtitle-change': { text: string };
   'media-path-change': { path: string };
@@ -313,6 +314,9 @@ export class MpvIpcClient implements MpvClient {
       },
       emitTimePosChange: (payload) => {
         this.emit('time-pos-change', payload);
+      },
+      emitDurationChange: (payload) => {
+        this.emit('duration-change', payload);
       },
       emitPauseChange: (payload) => {
         this.playbackPaused = payload.paused;

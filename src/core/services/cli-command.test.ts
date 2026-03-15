@@ -34,6 +34,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     anilistSetup: false,
     anilistRetryQueue: false,
     dictionary: false,
+    stats: false,
     jellyfin: false,
     jellyfinLogin: false,
     jellyfinLogout: false,
@@ -177,6 +178,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
       mediaTitle: 'Test',
       entryCount: 10,
     }),
+    runStatsCommand: async () => {
+      calls.push('runStatsCommand');
+    },
     runJellyfinCommand: async () => {
       calls.push('runJellyfinCommand');
     },
@@ -247,6 +251,21 @@ test('handleCliCommand opens first-run setup window for --setup', () => {
   assert.ok(calls.includes('openFirstRunSetup'));
   assert.ok(calls.includes('log:Opened first-run setup flow.'));
   assert.equal(calls.includes('openYomitanSettingsDelayed:1000'), false);
+});
+
+test('handleCliCommand dispatches stats command without overlay startup', async () => {
+  const { deps, calls } = createDeps({
+    runStatsCommand: async () => {
+      calls.push('runStatsCommand');
+    },
+  });
+
+  handleCliCommand(makeArgs({ stats: true }), 'initial', deps);
+  await Promise.resolve();
+
+  assert.ok(calls.includes('runStatsCommand'));
+  assert.equal(calls.includes('initializeOverlayRuntime'), false);
+  assert.equal(calls.includes('connectMpvClient'), false);
 });
 
 test('handleCliCommand applies cli log level for second-instance commands', () => {

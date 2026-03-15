@@ -621,6 +621,13 @@ export interface YoutubeSubgenConfig {
   primarySubLanguages?: string[];
 }
 
+export interface StatsConfig {
+  toggleKey?: string;
+  serverPort?: number;
+  autoStartServer?: boolean;
+  autoOpenBrowser?: boolean;
+}
+
 export interface ImmersionTrackingConfig {
   enabled?: boolean;
   dbPath?: string;
@@ -660,6 +667,7 @@ export interface Config {
   ai?: AiConfig;
   youtubeSubgen?: YoutubeSubgenConfig;
   immersionTracking?: ImmersionTrackingConfig;
+  stats?: StatsConfig;
   logging?: {
     level?: 'debug' | 'info' | 'warn' | 'error';
   };
@@ -855,6 +863,12 @@ export interface ResolvedConfig {
       vacuumIntervalDays: number;
     };
   };
+  stats: {
+    toggleKey: string;
+    serverPort: number;
+    autoStartServer: boolean;
+    autoOpenBrowser: boolean;
+  };
   logging: {
     level: 'debug' | 'info' | 'warn' | 'error';
   };
@@ -1041,6 +1055,7 @@ export interface ElectronAPI {
   sendMpvCommand: (command: (string | number)[]) => void;
   getKeybindings: () => Promise<Keybinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
+  getStatsToggleKey: () => Promise<string>;
   getControllerConfig: () => Promise<ResolvedControllerConfig>;
   saveControllerConfig: (update: ControllerConfigUpdate) => Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => Promise<void>;
@@ -1051,6 +1066,7 @@ export interface ElectronAPI {
   quitApp: () => void;
   toggleDevTools: () => void;
   toggleOverlay: () => void;
+  toggleStatsOverlay: () => void;
   getAnkiConnectStatus: () => Promise<boolean>;
   setAnkiConnectEnabled: (enabled: boolean) => void;
   clearAnkiConnectHistory: () => void;

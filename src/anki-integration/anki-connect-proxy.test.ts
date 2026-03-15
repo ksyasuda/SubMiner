@@ -17,10 +17,14 @@ async function waitForCondition(
 
 test('proxy enqueues addNote result for enrichment', async () => {
   const processed: number[] = [];
+  const recordedCards: number[] = [];
   const proxy = new AnkiConnectProxyServer({
     shouldAutoUpdateNewCards: () => true,
     processNewCard: async (noteId) => {
       processed.push(noteId);
+    },
+    recordCardsAdded: (count) => {
+      recordedCards.push(count);
     },
     logInfo: () => undefined,
     logWarn: () => undefined,
@@ -38,6 +42,7 @@ test('proxy enqueues addNote result for enrichment', async () => {
 
   await waitForCondition(() => processed.length === 1);
   assert.deepEqual(processed, [42]);
+  assert.deepEqual(recordedCards, [1]);
 });
 
 test('proxy enqueues addNote bare numeric response for enrichment', async () => {
@@ -64,11 +69,15 @@ test('proxy enqueues addNote bare numeric response for enrichment', async () => 
 
 test('proxy de-duplicates addNotes IDs within the same response', async () => {
   const processed: number[] = [];
+  const recordedCards: number[] = [];
   const proxy = new AnkiConnectProxyServer({
     shouldAutoUpdateNewCards: () => true,
     processNewCard: async (noteId) => {
       processed.push(noteId);
       await new Promise((resolve) => setTimeout(resolve, 5));
+    },
+    recordCardsAdded: (count) => {
+      recordedCards.push(count);
     },
     logInfo: () => undefined,
     logWarn: () => undefined,
@@ -86,6 +95,7 @@ test('proxy de-duplicates addNotes IDs within the same response', async () => {
 
   await waitForCondition(() => processed.length === 2);
   assert.deepEqual(processed, [101, 102]);
+  assert.deepEqual(recordedCards, [2]);
 });
 
 test('proxy enqueues note IDs from multi action addNote/addNotes results', async () => {
@@ -277,11 +287,15 @@ test('proxy does not fallback-enqueue latest note for multi requests without add
 
 test('proxy fallback-enqueues latest note for addNote responses without note IDs and escapes deck quotes', async () => {
   const processed: number[] = [];
+  const recordedCards: number[] = [];
   const findNotesQueries: string[] = [];
   const proxy = new AnkiConnectProxyServer({
     shouldAutoUpdateNewCards: () => true,
     processNewCard: async (noteId) => {
       processed.push(noteId);
+    },
+    recordCardsAdded: (count) => {
+      recordedCards.push(count);
     },
     getDeck: () => 'My "Japanese" Deck',
     findNotes: async (query) => {
@@ -305,6 +319,7 @@ test('proxy fallback-enqueues latest note for addNote responses without note IDs
   await waitForCondition(() => processed.length === 1);
   assert.deepEqual(findNotesQueries, ['"deck:My \\"Japanese\\" Deck" added:1']);
   assert.deepEqual(processed, [501]);
+  assert.deepEqual(recordedCards, [1]);
 });
 
 test('proxy detects self-referential loop configuration', () => {

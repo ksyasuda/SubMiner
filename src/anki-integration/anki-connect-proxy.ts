@@ -15,6 +15,7 @@ interface AnkiConnectEnvelope {
 export interface AnkiConnectProxyServerDeps {
   shouldAutoUpdateNewCards: () => boolean;
   processNewCard: (noteId: number) => Promise<void>;
+  recordCardsAdded?: (count: number, noteIds: number[]) => void;
   getDeck?: () => string | undefined;
   findNotes?: (
     query: string,
@@ -332,12 +333,14 @@ export class AnkiConnectProxyServer {
 
   private enqueueNotes(noteIds: number[]): void {
     let enqueuedCount = 0;
+    const acceptedIds: number[] = [];
     for (const noteId of noteIds) {
       if (this.pendingNoteIdSet.has(noteId) || this.inFlightNoteIds.has(noteId)) {
         continue;
       }
       this.pendingNoteIds.push(noteId);
       this.pendingNoteIdSet.add(noteId);
+      acceptedIds.push(noteId);
       enqueuedCount += 1;
     }
 
@@ -345,6 +348,7 @@ export class AnkiConnectProxyServer {
       return;
     }
 
+    this.deps.recordCardsAdded?.(enqueuedCount, acceptedIds);
     this.deps.logInfo(`[anki-proxy] Enqueued ${enqueuedCount} note(s) for enrichment`);
     this.processQueue();
   }

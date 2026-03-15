@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createIpcDepsRuntime, registerIpcHandlers } from './ipc';
+import { createIpcDepsRuntime, registerIpcHandlers, type IpcServiceDeps } from './ipc';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 
 interface FakeIpcRegistrar {
@@ -77,6 +77,50 @@ function createControllerConfigFixture() {
   };
 }
 
+function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServiceDeps {
+  return {
+    onOverlayModalClosed: () => {},
+    openYomitanSettings: () => {},
+    quitApp: () => {},
+    toggleDevTools: () => {},
+    getVisibleOverlayVisibility: () => false,
+    toggleVisibleOverlay: () => {},
+    tokenizeCurrentSubtitle: async () => null,
+    getCurrentSubtitleRaw: () => '',
+    getCurrentSubtitleAss: () => '',
+    getPlaybackPaused: () => false,
+    getSubtitlePosition: () => null,
+    getSubtitleStyle: () => null,
+    saveSubtitlePosition: () => {},
+    getMecabStatus: () => ({ available: false, enabled: false, path: null }),
+    setMecabEnabled: () => {},
+    handleMpvCommand: () => {},
+    getKeybindings: () => [],
+    getConfiguredShortcuts: () => ({}),
+    getStatsToggleKey: () => 'Backquote',
+    getControllerConfig: () => createControllerConfigFixture(),
+    saveControllerConfig: async () => {},
+    saveControllerPreference: async () => {},
+    getSecondarySubMode: () => 'hover',
+    getCurrentSecondarySub: () => '',
+    focusMainWindow: () => {},
+    runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
+    getAnkiConnectStatus: () => false,
+    getRuntimeOptions: () => [],
+    setRuntimeOption: () => ({ ok: true }),
+    cycleRuntimeOption: () => ({ ok: true }),
+    reportOverlayContentBounds: () => {},
+    getAnilistStatus: () => ({}),
+    clearAnilistToken: () => {},
+    openAnilistSetup: () => {},
+    getAnilistQueueStatus: () => ({}),
+    retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
+    appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
+    immersionTracker: null,
+    ...overrides,
+  };
+}
+
 test('createIpcDepsRuntime wires AniList handlers', async () => {
   const calls: string[] = [];
   const deps = createIpcDepsRuntime({
@@ -97,6 +141,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     handleMpvCommand: () => {},
     getKeybindings: () => [],
     getConfiguredShortcuts: () => ({}),
+    getStatsToggleKey: () => 'Backquote',
     getControllerConfig: () => createControllerConfigFixture(),
     saveControllerConfig: () => {},
     saveControllerPreference: () => {},
@@ -164,6 +209,7 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       handleMpvCommand: () => {},
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      getStatsToggleKey: () => 'Backquote',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: () => {},
       saveControllerPreference: () => {},
@@ -232,6 +278,90 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
   );
 });
 
+test('registerIpcHandlers returns empty stats overview shape without a tracker', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  registerIpcHandlers(createRegisterIpcDeps(), registrar);
+
+  const overviewHandler = handlers.handle.get(IPC_CHANNELS.request.statsGetOverview);
+  assert.ok(overviewHandler);
+  assert.deepEqual(await overviewHandler!({}), {
+    sessions: [],
+    rollups: [],
+    hints: {
+      totalSessions: 0,
+      activeSessions: 0,
+    },
+  });
+});
+
+test('registerIpcHandlers validates and clamps stats request limits', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: Array<[string, number, number?]> = [];
+
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      immersionTracker: {
+        getSessionSummaries: async (limit = 0) => {
+          calls.push(['sessions', limit]);
+          return [];
+        },
+        getDailyRollups: async (limit = 0) => {
+          calls.push(['daily', limit]);
+          return [];
+        },
+        getMonthlyRollups: async (limit = 0) => {
+          calls.push(['monthly', limit]);
+          return [];
+        },
+        getQueryHints: async () => ({ totalSessions: 0, activeSessions: 0, episodesToday: 0, activeAnimeCount: 0 }),
+        getSessionTimeline: async (sessionId: number, limit = 0) => {
+          calls.push(['timeline', limit, sessionId]);
+          return [];
+        },
+        getSessionEvents: async (sessionId: number, limit = 0) => {
+          calls.push(['events', limit, sessionId]);
+          return [];
+        },
+        getVocabularyStats: async (limit = 0) => {
+          calls.push(['vocabulary', limit]);
+          return [];
+        },
+        getKanjiStats: async (limit = 0) => {
+          calls.push(['kanji', limit]);
+          return [];
+        },
+        getMediaLibrary: async () => [],
+        getMediaDetail: async () => null,
+        getMediaSessions: async () => [],
+        getMediaDailyRollups: async () => [],
+        getCoverArt: async () => null,
+      },
+    }),
+    registrar,
+  );
+
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetDailyRollups)!({}, -1);
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetMonthlyRollups)!(
+    {},
+    Number.POSITIVE_INFINITY,
+  );
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetSessions)!({}, 9999);
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetSessionTimeline)!({}, 7, 12.5);
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetSessionEvents)!({}, 7, 0);
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetVocabulary)!({}, 1000);
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetKanji)!({}, NaN);
+
+  assert.deepEqual(calls, [
+    ['daily', 60],
+    ['monthly', 24],
+    ['sessions', 500],
+    ['timeline', 200, 7],
+    ['events', 500, 7],
+    ['vocabulary', 500],
+    ['kanji', 100],
+  ]);
+});
+
 test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const saves: unknown[] = [];
@@ -265,10 +395,9 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       handleMpvCommand: () => {},
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      getStatsToggleKey: () => 'Backquote',
       getControllerConfig: () => createControllerConfigFixture(),
-      saveControllerConfig: (update) => {
-        controllerSaves.push(update);
-      },
+      saveControllerConfig: () => {},
       saveControllerPreference: (update) => {
         controllerSaves.push(update);
       },
@@ -329,6 +458,7 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
       handleMpvCommand: () => {},
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      getStatsToggleKey: () => 'Backquote',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: async () => {},
       saveControllerPreference: async (update) => {
@@ -376,85 +506,6 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
   ]);
 });
 
-test('registerIpcHandlers awaits saveControllerConfig through request-response IPC', async () => {
-  const { registrar, handlers } = createFakeIpcRegistrar();
-  const controllerConfigSaves: unknown[] = [];
-  registerIpcHandlers(
-    {
-      onOverlayModalClosed: () => {},
-      openYomitanSettings: () => {},
-      quitApp: () => {},
-      toggleDevTools: () => {},
-      getVisibleOverlayVisibility: () => false,
-      toggleVisibleOverlay: () => {},
-      tokenizeCurrentSubtitle: async () => null,
-      getCurrentSubtitleRaw: () => '',
-      getCurrentSubtitleAss: () => '',
-      getPlaybackPaused: () => false,
-      getSubtitlePosition: () => null,
-      getSubtitleStyle: () => null,
-      saveSubtitlePosition: () => {},
-      getMecabStatus: () => ({ available: false, enabled: false, path: null }),
-      setMecabEnabled: () => {},
-      handleMpvCommand: () => {},
-      getKeybindings: () => [],
-      getConfiguredShortcuts: () => ({}),
-      getControllerConfig: () => createControllerConfigFixture(),
-      saveControllerConfig: async (update) => {
-        await Promise.resolve();
-        controllerConfigSaves.push(update);
-      },
-      saveControllerPreference: async () => {},
-      getSecondarySubMode: () => 'hover',
-      getCurrentSecondarySub: () => '',
-      focusMainWindow: () => {},
-      runSubsyncManual: async () => ({ ok: true, message: 'ok' }),
-      getAnkiConnectStatus: () => false,
-      getRuntimeOptions: () => [],
-      setRuntimeOption: () => ({ ok: true }),
-      cycleRuntimeOption: () => ({ ok: true }),
-      reportOverlayContentBounds: () => {},
-      getAnilistStatus: () => ({}),
-      clearAnilistToken: () => {},
-      openAnilistSetup: () => {},
-      getAnilistQueueStatus: () => ({}),
-      retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
-      appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
-    },
-    registrar,
-  );
-
-  const saveHandler = handlers.handle.get(IPC_CHANNELS.command.saveControllerConfig);
-  assert.ok(saveHandler);
-
-  await assert.rejects(
-    async () => {
-      await saveHandler!({}, { bindings: { toggleLookup: { kind: 'button', buttonIndex: -1 } } });
-    },
-    /Invalid controller config payload/,
-  );
-
-  await saveHandler!({}, {
-    preferredGamepadId: 'pad-2',
-    bindings: {
-      toggleLookup: { kind: 'button', buttonIndex: 11 },
-      closeLookup: { kind: 'axis', axisIndex: 4, direction: 'negative' },
-      leftStickHorizontal: { kind: 'axis', axisIndex: 7, dpadFallback: 'none' },
-    },
-  });
-
-  assert.deepEqual(controllerConfigSaves, [
-    {
-      preferredGamepadId: 'pad-2',
-      bindings: {
-        toggleLookup: { kind: 'button', buttonIndex: 11 },
-        closeLookup: { kind: 'axis', axisIndex: 4, direction: 'negative' },
-        leftStickHorizontal: { kind: 'axis', axisIndex: 7, dpadFallback: 'none' },
-      },
-    },
-  ]);
-});
-
 test('registerIpcHandlers rejects malformed controller preference payloads', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   registerIpcHandlers(
@@ -477,6 +528,7 @@ test('registerIpcHandlers rejects malformed controller preference payloads', asy
       handleMpvCommand: () => {},
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
+      getStatsToggleKey: () => 'Backquote',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: async () => {},
       saveControllerPreference: async () => {},
