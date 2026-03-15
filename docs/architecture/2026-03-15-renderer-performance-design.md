@@ -74,7 +74,8 @@ interface SubtitleCue {
 
 **Supported formats:**
 - SRT/VTT: Regex-based parsing of timing lines + text content between timing blocks.
-- ASS: Parse `[Events]` section, extract `Dialogue:` lines, split on commas to get timing and text fields.
+- ASS: Parse `[Events]` section, extract `Dialogue:` lines, split on the first 9 commas only (ASS v4+ has 10 fields; the last field is Text which can itself contain commas). Strip ASS override tags (`{\...}`) from the text before storing.
+  ASS text fields contain inline override tags like `{\b1}`, `{\an8}`, `{\fad(200,300)}`. The cue parser strips these during extraction so the tokenizer receives clean text.
 
 #### Prefetch Service Lifecycle
 
@@ -82,8 +83,8 @@ interface SubtitleCue {
 2. **Parse phase:** Parse all cues from the file content. Sort by start time. Store as an ordered array.
 3. **Priority window:** Determine the current playback position. Identify the next 10 cues as the priority window.
 4. **Priority tokenization:** Tokenize the priority window cues sequentially, storing results into the `SubtitleProcessingController`'s tokenization cache.
-5. **Background tokenization:** After the priority window is done, tokenize remaining cues working forward from the current position, then wrapping around to cover earlier cues.
-6. **Seek handling:** On seek (detected via playback position jump), re-compute the priority window from the new position. The current in-flight tokenization finishes naturally, then the new priority window takes over.
+5. **Background tokenization:** After the priority window is done, tokenize remaining cues working forward from the current position, then wrapping around to cover earlier cues. The prefetcher stops once it has tokenized all cues or the cache is full (whichever comes first) to avoid wasteful eviction churn. For files with more cues than the cache limit, background tokenization focuses on cues ahead of the current position.
+6. **Seek handling:** On seek, re-compute the priority window from the new position. A seek is detected by observing MPV's `time-pos` property and checking if the delta from the last observed position exceeds a threshold (e.g., > 3 seconds forward or any backward jump). The current in-flight tokenization finishes naturally, then the new priority window takes over.
 7. **Teardown:** When the subtitle track changes or playback ends, stop all prefetch work and discard state.
 
 #### Live Priority
@@ -96,7 +97,7 @@ The prefetcher and live subtitle handler share the Yomitan parser (single-thread
 
 #### Cache Integration
 
-The prefetcher writes into the existing `SubtitleProcessingController` tokenization cache. This requires exposing a method to insert pre-computed results:
+The prefetcher calls the same `tokenizeSubtitle` function used by live processing to produce `SubtitleData` results, then stores them into the existing `SubtitleProcessingController` tokenization cache via a new method:
 
 ```typescript
 // New method on SubtitleProcessingController
@@ -105,12 +106,21 @@ preCacheTokenization: (text: string, data: SubtitleData) => void;
 
 This uses the same `setCachedTokenization` logic internally (LRU eviction, Map-based storage).
 
+#### Cache Invalidation
+
+When the user marks a word as known (or any event triggers `invalidateTokenizationCache()`), all cached results are cleared -- including prefetched ones, since they share the same cache. After invalidation, the prefetcher re-computes the priority window from the current playback position and re-tokenizes those cues to restore warm cache state.
+
+#### Error Handling
+
+If the subtitle file is malformed or partially parseable, the cue parser uses what it can extract. A file that yields zero cues disables prefetching silently (falls back to live-only processing). Encoding errors from `loadSubtitleSourceText` are caught and logged; prefetching is skipped for that track.
+
 #### Integration Points
 
-- **MPV property subscriptions:** Needs `track-list` (to detect external subtitle file path) and `time-pos` or `sub-start`/`sub-end` (to track playback position for window calculation).
+- **MPV property subscriptions:** Needs `track-list` (to detect external subtitle file path) and `time-pos` (to track playback position for window calculation and seek detection).
 - **File loading:** Uses existing `loadSubtitleSourceText` dependency.
 - **Tokenization:** Calls the same `tokenizeSubtitle` function used by live processing.
 - **Cache:** Writes into `SubtitleProcessingController`'s cache.
+- **Cache invalidation:** Listens for cache invalidation events to re-prefetch the priority window.
 
 ### Files Affected
 
@@ -127,12 +137,14 @@ This uses the same `setCachedTokenization` logic internally (LRU eviction, Map-b
 
 Collapse the 4 sequential annotation passes (`applyKnownWordMarking` -> `applyFrequencyMarking` -> `applyJlptMarking` -> `markNPlusOneTargets`) into a single iteration over the token array, followed by N+1 marking.
 
+**Important context:** Frequency rank _values_ (`token.frequencyRank`) are already assigned at the parser level by `applyFrequencyRanks()` in `tokenizer.ts`, before the annotation stage is called. The annotation stage's `applyFrequencyMarking` only performs POS-based _filtering_ -- clearing `frequencyRank` to `undefined` for tokens that should be excluded (particles, noise tokens, etc.) and normalizing valid ranks. This optimization does not change the parser-level frequency rank assignment; it only batches the annotation-level filtering.
+
 ### Current Flow (4 passes, 4 array copies)
 
 ```
-tokens
+tokens (already have frequencyRank values from parser-level applyFrequencyRanks)
   -> applyKnownWordMarking()   // .map() -> new array
-  -> applyFrequencyMarking()   // .map() -> new array
+  -> applyFrequencyMarking()   // .map() -> new array (POS-based filtering only)
   -> applyJlptMarking()        // .map() -> new array
   -> markNPlusOneTargets()     // .map() -> new array
 ```
@@ -141,11 +153,11 @@ tokens
 
 All annotations either depend on MeCab POS data or benefit from running after it:
 - **Known word marking:** Needs base tokens (surface/headword). No POS dependency, but no reason to run separately.
-- **Frequency marking:** Uses `pos1Exclusions` and `pos2Exclusions` to filter out particles and noise tokens. Depends on MeCab POS data.
+- **Frequency filtering:** Uses `pos1Exclusions` and `pos2Exclusions` to clear frequency ranks on excluded tokens (particles, noise). Depends on MeCab POS data.
 - **JLPT marking:** Uses `shouldIgnoreJlptForMecabPos1` to filter. Depends on MeCab POS data.
 - **N+1 marking:** Uses POS exclusion sets to filter candidates. Depends on known word status + MeCab POS.
 
-Since frequency and JLPT filtering both depend on POS data from MeCab enrichment, and MeCab enrichment already happens before the annotation stage, all four can run in a single pass after MeCab completes.
+Since frequency filtering and JLPT marking both depend on POS data from MeCab enrichment, and MeCab enrichment already happens before the annotation stage, all four can run in a single pass after MeCab completes.
 
 ### New Flow (1 pass + N+1)
 
@@ -154,14 +166,15 @@ function annotateTokens(tokens, deps, options): MergedToken[] {
   const pos1Exclusions = resolvePos1Exclusions(options);
   const pos2Exclusions = resolvePos2Exclusions(options);
 
-  // Single pass: known word + frequency + JLPT computed together
+  // Single pass: known word + frequency filtering + JLPT computed together
   const annotated = tokens.map((token) => {
     const isKnown = nPlusOneEnabled
       ? token.isKnown || computeIsKnown(token, deps)
       : false;
 
+    // Filter frequency rank using POS exclusions (rank values already set at parser level)
     const frequencyRank = frequencyEnabled
-      ? computeFrequencyRank(token, pos1Exclusions, pos2Exclusions)
+      ? filterFrequencyRank(token, pos1Exclusions, pos2Exclusions)
       : undefined;
 
     const jlptLevel = jlptEnabled
@@ -182,9 +195,10 @@ function annotateTokens(tokens, deps, options): MergedToken[] {
 
 ### What Changes
 
-- The individual `applyKnownWordMarking`, `applyFrequencyMarking`, `applyJlptMarking` functions are refactored into per-token computation helpers (pure functions that compute a single field).
+- The individual `applyKnownWordMarking`, `applyFrequencyMarking`, `applyJlptMarking` functions are refactored into per-token computation helpers (pure functions that compute a single field). The frequency helper is named `filterFrequencyRank` to clarify it performs POS-based exclusion, not rank computation.
 - The `annotateTokens` orchestrator runs one `.map()` call that invokes all three helpers per token.
 - `markNPlusOneTargets` remains a separate pass because it needs the full array with `isKnown` set (it examines sentence-level context).
+- The parser-level `applyFrequencyRanks()` call in `tokenizer.ts` is unchanged -- it remains a separate step outside the annotation stage.
 - Net: 4 array copies + 4 iterations become 1 array copy + 1 iteration + N+1 pass.
 
 ### Expected Savings
@@ -222,7 +236,8 @@ In `renderWithTokens` (`subtitle-render.ts`), each render cycle:
    ```typescript
    const span = templateSpan.cloneNode(false) as HTMLSpanElement;
    ```
-3. Everything else stays the same (setting className, textContent, dataset, appending to fragment).
+3. Replace `innerHTML = ''` with `root.replaceChildren()` to avoid the HTML parser invocation on clear.
+4. Everything else stays the same (setting className, textContent, dataset, appending to fragment).
 
 ### Why cloneNode Over Full Node Recycling
 
