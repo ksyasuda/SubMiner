@@ -1,0 +1,137 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import type { DailyRollup, OverviewData, SessionSummary, StreakCalendarDay, VocabularyEntry } from '../types/stats';
+import {
+  buildOverviewSummary,
+  buildStreakCalendar,
+  buildTrendDashboard,
+  buildVocabularySummary,
+} from './dashboard-data';
+
+test('buildOverviewSummary aggregates tracked totals and recent windows', () => {
+  const now = Date.UTC(2026, 2, 13, 12);
+  const today = Math.floor(now / 86_400_000);
+  const sessions: SessionSummary[] = [
+    {
+      sessionId: 1,
+      canonicalTitle: 'A',
+      videoId: 1,
+      animeId: null,
+      animeTitle: null,
+      startedAtMs: now - 3_600_000,
+      endedAtMs: now - 1_800_000,
+      totalWatchedMs: 3_600_000,
+      activeWatchedMs: 3_000_000,
+      linesSeen: 20,
+      wordsSeen: 100,
+      tokensSeen: 80,
+      cardsMined: 2,
+      lookupCount: 10,
+      lookupHits: 8,
+    },
+  ];
+  const rollups: DailyRollup[] = [
+    {
+      rollupDayOrMonth: today,
+      videoId: 1,
+      totalSessions: 1,
+      totalActiveMin: 50,
+      totalLinesSeen: 20,
+      totalWordsSeen: 100,
+      totalTokensSeen: 80,
+      totalCards: 2,
+      cardsPerHour: 2.4,
+      wordsPerMin: 2,
+      lookupHitRate: 0.8,
+    },
+  ];
+  const overview: OverviewData = {
+    sessions,
+    rollups,
+    hints: { totalSessions: 1, activeSessions: 0, episodesToday: 2, activeAnimeCount: 3 },
+  };
+
+  const summary = buildOverviewSummary(overview, now);
+  assert.equal(summary.todayCards, 2);
+  assert.equal(summary.totalTrackedCards, 2);
+  assert.equal(summary.episodesToday, 2);
+  assert.equal(summary.activeAnimeCount, 3);
+  assert.equal(summary.averageSessionMinutes, 50);
+});
+
+test('buildVocabularySummary treats firstSeen timestamps as seconds', () => {
+  const now = Date.UTC(2026, 2, 13, 12);
+  const nowSec = now / 1000;
+  const words: VocabularyEntry[] = [
+    {
+      wordId: 1,
+      headword: '猫',
+      word: '猫',
+      reading: 'ねこ',
+      partOfSpeech: null,
+      pos1: null,
+      pos2: null,
+      pos3: null,
+      frequency: 4,
+      firstSeen: nowSec - 2 * 86_400,
+      lastSeen: nowSec - 1,
+    },
+  ];
+
+  const summary = buildVocabularySummary(words, [], now);
+  assert.equal(summary.newThisWeek, 1);
+});
+
+test('buildTrendDashboard derives dense chart series', () => {
+  const now = Date.UTC(2026, 2, 13, 12);
+  const today = Math.floor(now / 86_400_000);
+  const rollups: DailyRollup[] = [
+    {
+      rollupDayOrMonth: today - 1,
+      videoId: 1,
+      totalSessions: 2,
+      totalActiveMin: 60,
+      totalLinesSeen: 30,
+      totalWordsSeen: 120,
+      totalTokensSeen: 100,
+      totalCards: 3,
+      cardsPerHour: 3,
+      wordsPerMin: 2,
+      lookupHitRate: 0.5,
+    },
+    {
+      rollupDayOrMonth: today,
+      videoId: 1,
+      totalSessions: 1,
+      totalActiveMin: 30,
+      totalLinesSeen: 10,
+      totalWordsSeen: 40,
+      totalTokensSeen: 30,
+      totalCards: 1,
+      cardsPerHour: 2,
+      wordsPerMin: 1.33,
+      lookupHitRate: 0.75,
+    },
+  ];
+
+  const dashboard = buildTrendDashboard(rollups);
+  assert.equal(dashboard.watchTime.length, 2);
+  assert.equal(dashboard.words[1]?.value, 40);
+  assert.equal(dashboard.sessions[0]?.value, 2);
+});
+
+test('buildStreakCalendar converts epoch days to YYYY-MM-DD dates', () => {
+  const days: StreakCalendarDay[] = [
+    { epochDay: 20525, totalActiveMin: 45 },
+    { epochDay: 20526, totalActiveMin: 0 },
+    { epochDay: 20527, totalActiveMin: 30 },
+  ];
+
+  const points = buildStreakCalendar(days);
+  assert.equal(points.length, 3);
+  assert.match(points[0]!.date, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(points[0]!.value, 45);
+  assert.equal(points[1]!.value, 0);
+  assert.equal(points[2]!.value, 30);
+});

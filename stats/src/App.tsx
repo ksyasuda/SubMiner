@@ -1,0 +1,93 @@
+import { useState, useCallback } from 'react';
+import { TabBar } from './components/layout/TabBar';
+import { OverviewTab } from './components/overview/OverviewTab';
+import { TrendsTab } from './components/trends/TrendsTab';
+import { AnimeTab } from './components/anime/AnimeTab';
+import { VocabularyTab } from './components/vocabulary/VocabularyTab';
+import { SessionsTab } from './components/sessions/SessionsTab';
+import { WordDetailPanel } from './components/vocabulary/WordDetailPanel';
+import type { TabId } from './components/layout/TabBar';
+
+export function App() {
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [selectedAnimeId, setSelectedAnimeId] = useState<number | null>(null);
+  const [globalWordId, setGlobalWordId] = useState<number | null>(null);
+
+  const navigateToAnime = useCallback((animeId: number) => {
+    setActiveTab('anime');
+    setSelectedAnimeId(animeId);
+  }, []);
+
+  const openWordDetail = useCallback((wordId: number) => {
+    setGlobalWordId(wordId);
+  }, []);
+
+  const handleTabChange = useCallback((tabId: TabId) => {
+    setActiveTab(tabId);
+    setSelectedAnimeId(null);
+  }, []);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-ctp-base">
+      <header className="px-4 pt-3 pb-0">
+        <h1 className="text-lg font-semibold text-ctp-text mb-2">SubMiner Stats</h1>
+        <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
+      </header>
+      <main className="flex-1 overflow-y-auto p-4">
+        <section
+          id="panel-overview"
+          role="tabpanel"
+          aria-labelledby="tab-overview"
+          hidden={activeTab !== 'overview'}
+        >
+          <OverviewTab />
+        </section>
+        <section
+          id="panel-anime"
+          role="tabpanel"
+          aria-labelledby="tab-anime"
+          hidden={activeTab !== 'anime'}
+        >
+          <AnimeTab
+            initialAnimeId={selectedAnimeId}
+            onClearInitialAnime={() => setSelectedAnimeId(null)}
+            onNavigateToWord={openWordDetail}
+          />
+        </section>
+        <section
+          id="panel-trends"
+          role="tabpanel"
+          aria-labelledby="tab-trends"
+          hidden={activeTab !== 'trends'}
+        >
+          <TrendsTab />
+        </section>
+        <section
+          id="panel-vocabulary"
+          role="tabpanel"
+          aria-labelledby="tab-vocabulary"
+          hidden={activeTab !== 'vocabulary'}
+        >
+          <VocabularyTab
+            onNavigateToAnime={navigateToAnime}
+            onOpenWordDetail={openWordDetail}
+          />
+        </section>
+        <section
+          id="panel-sessions"
+          role="tabpanel"
+          aria-labelledby="tab-sessions"
+          hidden={activeTab !== 'sessions'}
+        >
+          <SessionsTab />
+        </section>
+      </main>
+      <WordDetailPanel
+        wordId={globalWordId}
+        onClose={() => setGlobalWordId(null)}
+        onSelectWord={openWordDetail}
+        onNavigateToAnime={navigateToAnime}
+      />
+    </div>
+  );
+}

@@ -1,0 +1,76 @@
+import { useState } from 'react';
+import { BASE_URL } from '../../lib/api-client';
+import {
+  formatDuration,
+  formatRelativeDate,
+  formatNumber,
+} from '../../lib/formatters';
+import type { SessionSummary } from '../../types/stats';
+
+interface SessionRowProps {
+  session: SessionSummary;
+  isExpanded: boolean;
+  detailsId: string;
+  onToggle: () => void;
+}
+
+function CoverThumbnail({ videoId, title }: { videoId: number | null; title: string }) {
+  const [failed, setFailed] = useState(false);
+  const fallbackChar = title.charAt(0) || '?';
+
+  if (!videoId || failed) {
+    return (
+      <div className="w-10 h-14 rounded bg-ctp-surface2 flex items-center justify-center text-ctp-overlay2 text-sm font-bold shrink-0">
+        {fallbackChar}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={`${BASE_URL}/api/stats/media/${videoId}/cover`}
+      alt=""
+      loading="lazy"
+      className="w-10 h-14 rounded object-cover shrink-0 bg-ctp-surface2"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+export function SessionRow({ session, isExpanded, detailsId, onToggle }: SessionRowProps) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={isExpanded}
+      aria-controls={detailsId}
+      className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 flex items-center gap-3 hover:border-ctp-surface2 transition-colors text-left"
+    >
+      <CoverThumbnail videoId={session.videoId} title={session.canonicalTitle ?? 'Unknown'} />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-ctp-text truncate">
+          {session.canonicalTitle ?? 'Unknown Media'}
+        </div>
+        <div className="text-xs text-ctp-overlay2">
+          {formatRelativeDate(session.startedAtMs)} · {formatDuration(session.activeWatchedMs)}{' '}
+          active
+        </div>
+      </div>
+      <div className="flex gap-4 text-xs text-center shrink-0">
+        <div>
+          <div className="text-ctp-green font-medium">{formatNumber(session.cardsMined)}</div>
+          <div className="text-ctp-overlay2">cards</div>
+        </div>
+        <div>
+          <div className="text-ctp-mauve font-medium">{formatNumber(session.wordsSeen)}</div>
+          <div className="text-ctp-overlay2">words</div>
+        </div>
+      </div>
+      <div
+        className={`text-ctp-blue text-xs transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+      >
+        {'\u25B8'}
+      </div>
+    </button>
+  );
+}
