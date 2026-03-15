@@ -91,20 +91,21 @@ interface SubtitleCue {
 
 The prefetcher and live subtitle handler share the Yomitan parser (single-threaded IPC). Live subtitle requests must always take priority. The prefetcher:
 
-- Pauses when a live subtitle change arrives.
-- Resumes after the live subtitle has been processed and emitted.
-- Yields between each background cue tokenization (e.g., via `setTimeout(0)` or checking a pause flag) so live processing is never blocked.
+- Checks a `paused` flag before each cue tokenization. The live handler sets `paused = true` on subtitle change and clears it after emission.
+- Yields between each background cue tokenization (via `setTimeout(0)` or equivalent) so the live handler can set the pause flag between cues.
+- When paused, the prefetcher waits (polling the flag on a short interval or awaiting a resume signal) before continuing with the next cue.
 
 #### Cache Integration
 
 The prefetcher calls the same `tokenizeSubtitle` function used by live processing to produce `SubtitleData` results, then stores them into the existing `SubtitleProcessingController` tokenization cache via a new method:
 
 ```typescript
-// New method on SubtitleProcessingController
+// New methods on SubtitleProcessingController
 preCacheTokenization: (text: string, data: SubtitleData) => void;
+isCacheFull: () => boolean;
 ```
 
-This uses the same `setCachedTokenization` logic internally (LRU eviction, Map-based storage).
+`preCacheTokenization` uses the same `setCachedTokenization` logic internally (LRU eviction, Map-based storage). `isCacheFull` returns `true` when the cache has reached its limit, allowing the prefetcher to stop background tokenization and avoid wasteful eviction churn.
 
 #### Cache Invalidation
 
@@ -236,7 +237,7 @@ In `renderWithTokens` (`subtitle-render.ts`), each render cycle:
    ```typescript
    const span = templateSpan.cloneNode(false) as HTMLSpanElement;
    ```
-3. Replace `innerHTML = ''` with `root.replaceChildren()` to avoid the HTML parser invocation on clear.
+3. Replace all `innerHTML = ''` calls with `root.replaceChildren()` to avoid the HTML parser invocation on clear. This applies to `renderSubtitle` (primary subtitle root), `renderSecondarySub` (secondary subtitle root), and `renderCharacterLevel` if applicable.
 4. Everything else stays the same (setting className, textContent, dataset, appending to fragment).
 
 ### Why cloneNode Over Full Node Recycling
