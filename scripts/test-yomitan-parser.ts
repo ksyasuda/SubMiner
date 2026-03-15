@@ -379,6 +379,15 @@ function resolveYomitanExtensionPath(explicitPath?: string): string | null {
   });
 }
 
+async function loadElectronModule(): Promise<typeof import('electron') | null> {
+  try {
+    const electronImport = await import('electron');
+    return (electronImport.default ?? electronImport) as typeof import('electron');
+  } catch {
+    return null;
+  }
+}
+
 async function setupYomitanRuntime(options: CliOptions): Promise<YomitanRuntimeState> {
   const state: YomitanRuntimeState = {
     available: false,
@@ -394,16 +403,13 @@ async function setupYomitanRuntime(options: CliOptions): Promise<YomitanRuntimeS
     return state;
   }
 
-  const electronModule = await import('electron').catch((error) => {
-    state.note = error instanceof Error ? error.message : 'electron import failed';
-    return null;
-  });
+  const electronModule = await loadElectronModule();
   if (!electronModule?.app || !electronModule?.session) {
     state.note = 'electron runtime not available in this process';
     return state;
   }
 
-  if (options.yomitanUserDataPath) {
+  if (options.yomitanUserDataPath && typeof electronModule.app.setPath === 'function') {
     electronModule.app.setPath('userData', options.yomitanUserDataPath);
   }
   await electronModule.app.whenReady();

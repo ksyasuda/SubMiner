@@ -109,7 +109,13 @@ test('getSessionSummaries returns sessionId and canonicalTitle', () => {
     assert.equal(row.sessionId, sessionId);
     assert.equal(row.canonicalTitle, 'Query Test Episode');
     assert.equal(row.videoId, videoId);
-    assert.ok(row.linesSeen >= 5);
+    assert.equal(row.linesSeen, 5);
+    assert.equal(row.totalWatchedMs, 3_000);
+    assert.equal(row.activeWatchedMs, 2_500);
+    assert.equal(row.wordsSeen, 10);
+    assert.equal(row.tokensSeen, 10);
+    assert.equal(row.lookupCount, 2);
+    assert.equal(row.lookupHits, 1);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -137,7 +143,12 @@ test('getSessionSummaries with no telemetry returns zero aggregates', () => {
     assert.ok(row, 'expected to find the session with no telemetry');
     assert.equal(row.canonicalTitle, 'No Telemetry');
     assert.equal(row.totalWatchedMs, 0);
+    assert.equal(row.activeWatchedMs, 0);
     assert.equal(row.linesSeen, 0);
+    assert.equal(row.wordsSeen, 0);
+    assert.equal(row.tokensSeen, 0);
+    assert.equal(row.lookupCount, 0);
+    assert.equal(row.lookupHits, 0);
     assert.equal(row.cardsMined, 0);
   } finally {
     db.close();
@@ -153,12 +164,18 @@ test('getVocabularyStats returns rows ordered by frequency descending', () => {
     ensureSchema(db);
     const stmts = createTrackerPreparedStatements(db);
 
-    // Insert words: 猫 twice, 犬 once
+    // Insert words with the highest-frequency entry inserted after another word
+    stmts.wordUpsertStmt.run('犬', '犬', 'いぬ', 'noun', '名詞', '一般', '', 1_500, 1_500);
     stmts.wordUpsertStmt.run('猫', '猫', 'ねこ', 'noun', '名詞', '一般', '', 1_000, 2_000);
     stmts.wordUpsertStmt.run('猫', '猫', 'ねこ', 'noun', '名詞', '一般', '', 1_000, 3_000);
-    stmts.wordUpsertStmt.run('犬', '犬', 'いぬ', 'noun', '名詞', '一般', '', 1_500, 1_500);
 
     const rows = getVocabularyStats(db, 10);
+
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0]?.headword, '猫');
+    assert.equal(rows[1]?.headword, '犬');
+    assert.equal(rows[0]?.frequency, 2);
+    assert.equal(rows[1]?.frequency, 1);
 
     assert.ok(rows.length >= 2);
     // First row should be 猫 (frequency 2)
@@ -432,12 +449,16 @@ test('getKanjiStats returns rows ordered by frequency descending', () => {
     ensureSchema(db);
     const stmts = createTrackerPreparedStatements(db);
 
-    // Insert kanji: 日 twice, 月 once
+    // Insert kanji with highest-frequency entry inserted after another character
+    stmts.kanjiUpsertStmt.run('月', 1_500, 1_500);
     stmts.kanjiUpsertStmt.run('日', 1_000, 2_000);
     stmts.kanjiUpsertStmt.run('日', 1_000, 3_000);
-    stmts.kanjiUpsertStmt.run('月', 1_500, 1_500);
 
     const rows = getKanjiStats(db, 10);
+
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0]?.kanji, '日');
+    assert.equal(rows[1]?.kanji, '月');
 
     assert.ok(rows.length >= 2);
     const nichiRow = rows.find((r) => r.kanji === '日');
@@ -539,8 +560,83 @@ test('getSessionEvents returns empty array for session with no events', () => {
 
   try {
     ensureSchema(db);
-    const events = getSessionEvents(db, 9999, 50);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/events-empty.mkv', {
+      canonicalTitle: 'Events Empty',
+      sourcePath: '/tmp/events-empty.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const { sessionId } = startSessionRecord(db, videoId, 6_000_000);
+
+    const events = getSessionEvents(db, sessionId, 50);
     assert.deepEqual(events, []);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getSessionEvents filters events to the requested session id', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    const decoyVideoId = getOrCreateVideoRecord(db, 'local:/tmp/events-filter-decoy.mkv', {
+      canonicalTitle: 'Events Filter Decoy',
+      sourcePath: '/tmp/events-filter-decoy.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const targetVideoId = getOrCreateVideoRecord(db, 'local:/tmp/events-filter-target.mkv', {
+      canonicalTitle: 'Events Filter Target',
+      sourcePath: '/tmp/events-filter-target.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const decoySession = startSessionRecord(db, decoyVideoId, 8_000_000);
+    const targetSession = startSessionRecord(db, targetVideoId, 8_100_000);
+
+    // Decoy session event
+    stmts.eventInsertStmt.run(
+      decoySession.sessionId,
+      8_100_000 + 1,
+      EVENT_SUBTITLE_LINE,
+      1,
+      0,
+      500,
+      1,
+      0,
+      '{"line":"decoy"}',
+      8_100_000 + 1,
+      8_100_000 + 1,
+    );
+
+    // Target session event
+    stmts.eventInsertStmt.run(
+      targetSession.sessionId,
+      8_100_000 + 2,
+      EVENT_SUBTITLE_LINE,
+      2,
+      0,
+      600,
+      1,
+      0,
+      '{"line":"target"}',
+      8_100_000 + 2,
+      8_100_000 + 2,
+    );
+
+    const events = getSessionEvents(db, targetSession.sessionId, 50);
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]?.payload, '{"line":"target"}');
+    assert.equal(events[0]?.eventType, EVENT_SUBTITLE_LINE);
+    assert.equal(events[0]?.tsMs, 8100002);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

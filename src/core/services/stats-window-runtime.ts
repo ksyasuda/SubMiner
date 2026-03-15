@@ -36,7 +36,7 @@ export function buildStatsWindowOptions(options: {
     width: options.bounds?.width ?? DEFAULT_STATS_WINDOW_WIDTH,
     height: options.bounds?.height ?? DEFAULT_STATS_WINDOW_HEIGHT,
     frame: false,
-    transparent: false,
+    transparent: true,
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: true,
@@ -50,7 +50,7 @@ export function buildStatsWindowOptions(options: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: options.preloadPath,
-      sandbox: false,
+      sandbox: true,
     },
   };
 }

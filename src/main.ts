@@ -621,13 +621,19 @@ if (!fs.existsSync(USER_DATA_PATH)) {
 app.setPath('userData', USER_DATA_PATH);
 
 let forceQuitTimer: ReturnType<typeof setTimeout> | null = null;
+let statsServer: ReturnType<typeof startStatsServer> | null = null;
+
+function stopStatsServer(): void {
+  if (!statsServer) {
+    return;
+  }
+  statsServer.close();
+  statsServer = null;
+}
 
 function requestAppQuit(): void {
   destroyStatsWindow();
-  if (appState.statsServer) {
-    appState.statsServer.close();
-    appState.statsServer = null;
-  }
+  stopStatsServer();
   if (!forceQuitTimer) {
     forceQuitTimer = setTimeout(() => {
       logger.warn('App quit timed out; forcing process exit.');
@@ -2375,6 +2381,8 @@ const {
     getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
     getImmersionTracker: () => appState.immersionTracker,
     clearImmersionTracker: () => {
+      stopStatsServer();
+      appState.statsServer = null;
       appState.immersionTracker = null;
     },
     getAnkiIntegration: () => appState.ankiIntegration,
@@ -2426,13 +2434,15 @@ const ensureStatsServerStarted = (): string => {
   if (!tracker) {
     throw new Error('Immersion tracker failed to initialize.');
   }
-  if (!appState.statsServer) {
-    appState.statsServer = startStatsServer({
+  if (!statsServer) {
+    statsServer = startStatsServer({
       port: getResolvedConfig().stats.serverPort,
       staticDir: statsDistPath,
       tracker,
     });
+    appState.statsServer = statsServer;
   }
+  appState.statsServer = statsServer;
   return `http://127.0.0.1:${getResolvedConfig().stats.serverPort}`;
 };
 
@@ -2472,10 +2482,17 @@ const immersionTrackerStartupMainDeps: Parameters<
       resolveLegacyVocabularyPos,
     }),
   setTracker: (tracker) => {
+    const trackerHasChanged =
+      appState.immersionTracker !== null && appState.immersionTracker !== tracker;
+    if (trackerHasChanged && appState.statsServer) {
+      stopStatsServer();
+      appState.statsServer = null;
+    }
+
     appState.immersionTracker = tracker as ImmersionTrackerService | null;
     appState.immersionTracker?.setCoverArtFetcher(statsCoverArtFetcher);
     if (tracker) {
-      // Start HTTP stats server (once)
+      // Start HTTP stats server
       if (!appState.statsServer) {
         const config = getResolvedConfig();
         if (config.stats.autoStartServer) {

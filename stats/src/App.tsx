@@ -41,53 +41,38 @@ export function App() {
         <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
       </header>
       <main className="flex-1 overflow-y-auto p-4">
-        <section
-          id="panel-overview"
-          role="tabpanel"
-          aria-labelledby="tab-overview"
-          hidden={activeTab !== 'overview'}
-        >
-          <OverviewTab />
-        </section>
-        <section
-          id="panel-anime"
-          role="tabpanel"
-          aria-labelledby="tab-anime"
-          hidden={activeTab !== 'anime'}
-        >
-          <AnimeTab
-            initialAnimeId={selectedAnimeId}
-            onClearInitialAnime={() => setSelectedAnimeId(null)}
-            onNavigateToWord={openWordDetail}
-          />
-        </section>
-        <section
-          id="panel-trends"
-          role="tabpanel"
-          aria-labelledby="tab-trends"
-          hidden={activeTab !== 'trends'}
-        >
-          <TrendsTab />
-        </section>
-        <section
-          id="panel-vocabulary"
-          role="tabpanel"
-          aria-labelledby="tab-vocabulary"
-          hidden={activeTab !== 'vocabulary'}
-        >
-          <VocabularyTab
-            onNavigateToAnime={navigateToAnime}
-            onOpenWordDetail={openWordDetail}
-          />
-        </section>
-        <section
-          id="panel-sessions"
-          role="tabpanel"
-          aria-labelledby="tab-sessions"
-          hidden={activeTab !== 'sessions'}
-        >
-          <SessionsTab />
-        </section>
+        {activeTab === 'overview' ? (
+          <section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+            <OverviewTab />
+          </section>
+        ) : null}
+        {activeTab === 'anime' ? (
+          <section id="panel-anime" role="tabpanel" aria-labelledby="tab-anime">
+            <AnimeTab
+              initialAnimeId={selectedAnimeId}
+              onClearInitialAnime={() => setSelectedAnimeId(null)}
+              onNavigateToWord={openWordDetail}
+            />
+          </section>
+        ) : null}
+        {activeTab === 'trends' ? (
+          <section id="panel-trends" role="tabpanel" aria-labelledby="tab-trends">
+            <TrendsTab />
+          </section>
+        ) : null}
+        {activeTab === 'vocabulary' ? (
+          <section id="panel-vocabulary" role="tabpanel" aria-labelledby="tab-vocabulary">
+            <VocabularyTab
+              onNavigateToAnime={navigateToAnime}
+              onOpenWordDetail={openWordDetail}
+            />
+          </section>
+        ) : null}
+        {activeTab === 'sessions' ? (
+          <section id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions">
+            <SessionsTab />
+          </section>
+        ) : null}
       </main>
       <WordDetailPanel
         wordId={globalWordId}

@@ -27,7 +27,7 @@ test('buildStatsWindowOptions uses tracked overlay bounds and preload-friendly w
   assert.equal(options.webPreferences?.preload, '/tmp/preload-stats.js');
   assert.equal(options.webPreferences?.contextIsolation, true);
   assert.equal(options.webPreferences?.nodeIntegration, false);
-  assert.equal(options.webPreferences?.sandbox, false);
+  assert.equal(options.webPreferences?.sandbox, true);
 });
 
 test('shouldHideStatsWindowForInput matches Escape and configured bare toggle key', () => {
@@ -53,6 +53,58 @@ test('shouldHideStatsWindowForInput matches Escape and configured bare toggle ke
       'Backquote',
     ),
     true,
+  );
+
+  assert.equal(
+    shouldHideStatsWindowForInput(
+      {
+        type: 'keyDown',
+        key: '`',
+        code: 'Backquote',
+        control: true,
+      } as Electron.Input,
+      'Backquote',
+    ),
+    false,
+  );
+
+  assert.equal(
+    shouldHideStatsWindowForInput(
+      {
+        type: 'keyDown',
+        key: '`',
+        code: 'Backquote',
+        alt: true,
+      } as Electron.Input,
+      'Backquote',
+    ),
+    false,
+  );
+
+  assert.equal(
+    shouldHideStatsWindowForInput(
+      {
+        type: 'keyDown',
+        key: '`',
+        code: 'Backquote',
+        meta: true,
+      } as Electron.Input,
+      'Backquote',
+    ),
+    false,
+  );
+
+  assert.equal(
+    shouldHideStatsWindowForInput(
+      {
+        type: 'keyDown',
+        key: '`',
+        code: 'Backquote',
+        isAutoRepeat: true,
+      } as Electron.Input,
+      'Backquote',
+    ),
+    false,
   );
 
   assert.equal(

@@ -37,6 +37,7 @@ const STATS_STATIC_CONTENT_TYPES: Record<string, string> = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
 };
+const ANKI_CONNECT_FETCH_TIMEOUT_MS = 3_000;
 
 function resolveStatsStaticPath(staticDir: string, requestPath: string): string | null {
   const normalizedPath = requestPath.replace(/^\/+/, '') || 'index.html';
@@ -130,7 +131,7 @@ export function createStatsApp(
   });
 
   app.get('/api/stats/sessions/:id/timeline', async (c) => {
-    const id = parseIntQuery(c.req.query('id') ?? c.req.param('id'), 0);
+    const id = parseIntQuery(c.req.param('id'), 0);
     if (id <= 0) return c.json([], 400);
     const limit = parseIntQuery(c.req.query('limit'), 200, 1000);
     const timeline = await tracker.getSessionTimeline(id, limit);
@@ -138,7 +139,7 @@ export function createStatsApp(
   });
 
   app.get('/api/stats/sessions/:id/events', async (c) => {
-    const id = parseIntQuery(c.req.query('id') ?? c.req.param('id'), 0);
+    const id = parseIntQuery(c.req.param('id'), 0);
     if (id <= 0) return c.json([], 400);
     const limit = parseIntQuery(c.req.query('limit'), 500, 1000);
     const events = await tracker.getSessionEvents(id, limit);
@@ -304,6 +305,7 @@ export function createStatsApp(
       const response = await fetch('http://127.0.0.1:8765', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(ANKI_CONNECT_FETCH_TIMEOUT_MS),
         body: JSON.stringify({ action: 'guiBrowse', version: 6, params: { query: `nid:${noteId}` } }),
       });
       const result = await response.json();
@@ -315,12 +317,17 @@ export function createStatsApp(
 
   app.post('/api/stats/anki/notesInfo', async (c) => {
     const body = await c.req.json().catch(() => null);
-    const noteIds = Array.isArray(body?.noteIds) ? body.noteIds.filter((id: unknown) => typeof id === 'number') : [];
+    const noteIds = Array.isArray(body?.noteIds)
+      ? body.noteIds.filter(
+          (id: unknown): id is number => typeof id === 'number' && Number.isInteger(id) && id > 0,
+        )
+      : [];
     if (noteIds.length === 0) return c.json([]);
     try {
       const response = await fetch('http://127.0.0.1:8765', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(ANKI_CONNECT_FETCH_TIMEOUT_MS),
         body: JSON.stringify({ action: 'notesInfo', version: 6, params: { notes: noteIds } }),
       });
       const result = await response.json() as { result?: Array<{ noteId: number; fields: Record<string, { value: string }> }> };

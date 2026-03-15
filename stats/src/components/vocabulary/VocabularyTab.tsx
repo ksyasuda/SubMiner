@@ -19,8 +19,20 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail }: Vocabular
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
 
-  if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
-  if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
+  if (loading) {
+    return (
+      <div className="text-ctp-overlay2 p-4" role="status" aria-live="polite">
+        Loading...
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="text-ctp-red p-4" role="alert" aria-live="assertive">
+        Error: {error}
+      </div>
+    );
+  }
 
   const summary = buildVocabularySummary(words, kanji);
 

@@ -178,7 +178,7 @@ SubMiner does not load the source tree directly from `vendor/subminer-yomitan`; 
 
 If you installed from the AppImage and see this error, the package may be incomplete. Re-download the AppImage or place the unpacked Yomitan extension manually in `~/.config/SubMiner/yomitan`.
 
-**Yomitan popup does not appear when hovering words and triggering lookup**
+**Yomitan lookup popup does not appear when hovering words or triggering lookup**
 
 - Verify Yomitan loaded successfully — check the terminal output for "Loaded Yomitan extension".
 - Yomitan requires dictionaries to be installed. Open Yomitan settings (`Alt+Shift+Y` or `SubMiner.AppImage --settings`) and confirm at least one dictionary is imported.
