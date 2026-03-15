@@ -14,6 +14,8 @@ export interface OverviewSummary {
   totalTrackedCards: number;
   episodesToday: number;
   activeAnimeCount: number;
+  totalEpisodesWatched: number;
+  totalAnimeCompleted: number;
   averageSessionMinutes: number;
   totalSessions: number;
   activeDays: number;
@@ -146,6 +148,8 @@ export function buildOverviewSummary(
     totalTrackedCards: Math.max(sessionCards, rollupCards),
     episodesToday: overview.hints.episodesToday ?? 0,
     activeAnimeCount: overview.hints.activeAnimeCount ?? 0,
+    totalEpisodesWatched: overview.hints.totalEpisodesWatched ?? 0,
+    totalAnimeCompleted: overview.hints.totalAnimeCompleted ?? 0,
     averageSessionMinutes:
       overview.sessions.length > 0
         ? Math.round(sumBy(overview.sessions, (session) => session.activeWatchedMs) / overview.sessions.length / 60_000)

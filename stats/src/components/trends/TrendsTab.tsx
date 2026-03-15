@@ -141,9 +141,6 @@ export function TrendsTab() {
           type="line"
         />
 
-        <SectionHeader>Efficiency</SectionHeader>
-        <TrendChart title="Cards per Hour" data={dashboard.cardsPerHour} color="#f5a97f" type="line" />
-
         <SectionHeader>Anime</SectionHeader>
         <StackedTrendChart title="Anime Progress (episodes)" data={animeProgress} />
         <StackedTrendChart title="Watch Time per Anime (min)" data={watchTimePerAnime} />

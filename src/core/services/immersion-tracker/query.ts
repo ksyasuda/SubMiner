@@ -124,6 +124,8 @@ export function getQueryHints(db: DatabaseSync): {
   activeSessions: number;
   episodesToday: number;
   activeAnimeCount: number;
+  totalEpisodesWatched: number;
+  totalAnimeCompleted: number;
 } {
   const sessions = db.prepare('SELECT COUNT(*) AS total FROM imm_sessions');
   const active = db.prepare('SELECT COUNT(*) AS total FROM imm_sessions WHERE ended_at_ms IS NULL');
@@ -147,7 +149,23 @@ export function getQueryHints(db: DatabaseSync): {
     AND s.started_at_ms >= ?
   `).get(thirtyDaysAgoMs) as { count: number })?.count ?? 0;
 
-  return { totalSessions, activeSessions, episodesToday, activeAnimeCount };
+  const totalEpisodesWatched = (db.prepare(`
+    SELECT COUNT(*) AS count FROM imm_videos WHERE watched = 1
+  `).get() as { count: number })?.count ?? 0;
+
+  const totalAnimeCompleted = (db.prepare(`
+    SELECT COUNT(*) AS count FROM (
+      SELECT a.anime_id
+      FROM imm_anime a
+      JOIN imm_videos v ON v.anime_id = a.anime_id
+      JOIN imm_media_art m ON m.video_id = v.video_id
+      WHERE m.episodes_total IS NOT NULL AND m.episodes_total > 0
+      GROUP BY a.anime_id
+      HAVING COUNT(DISTINCT CASE WHEN v.watched = 1 THEN v.video_id END) >= MAX(m.episodes_total)
+    )
+  `).get() as { count: number })?.count ?? 0;
+
+  return { totalSessions, activeSessions, episodesToday, activeAnimeCount, totalEpisodesWatched, totalAnimeCompleted };
 }
 
 export function getDailyRollups(db: DatabaseSync, limit = 60): ImmersionSessionRollupRow[] {

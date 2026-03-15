@@ -40,7 +40,7 @@ export function OverviewTab() {
             No tracked card-add events in the current immersion DB yet. New cards mined after this fix will show here.
           </div>
         )}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-sm">
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Total Sessions</div>
             <div className="mt-1 text-xl font-semibold text-ctp-lavender">
@@ -69,6 +69,18 @@ export function OverviewTab() {
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Cards Mined</div>
             <div className="mt-1 text-xl font-semibold text-ctp-green">
               {formatNumber(summary.totalTrackedCards)}
+            </div>
+          </div>
+          <div className="rounded-lg bg-ctp-surface1/60 p-3">
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Episodes Completed</div>
+            <div className="mt-1 text-xl font-semibold text-ctp-blue">
+              {formatNumber(summary.totalEpisodesWatched)}
+            </div>
+          </div>
+          <div className="rounded-lg bg-ctp-surface1/60 p-3">
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Anime Completed</div>
+            <div className="mt-1 text-xl font-semibold text-ctp-sapphire">
+              {formatNumber(summary.totalAnimeCompleted)}
             </div>
           </div>
         </div>

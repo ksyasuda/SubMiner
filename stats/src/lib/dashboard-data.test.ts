@@ -49,7 +49,7 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
   const overview: OverviewData = {
     sessions,
     rollups,
-    hints: { totalSessions: 1, activeSessions: 0, episodesToday: 2, activeAnimeCount: 3 },
+    hints: { totalSessions: 1, activeSessions: 0, episodesToday: 2, activeAnimeCount: 3, totalEpisodesWatched: 5, totalAnimeCompleted: 1 },
   };
 
   const summary = buildOverviewSummary(overview, now);
