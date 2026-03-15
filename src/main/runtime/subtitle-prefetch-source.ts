@@ -30,5 +30,13 @@ export function getActiveExternalSubtitleSource(
 }
 
 export function resolveSubtitleSourcePath(source: string): string {
-  return source.startsWith('file://') ? fileURLToPath(new URL(source)) : source;
+  if (!source.startsWith('file://')) {
+    return source;
+  }
+
+  try {
+    return fileURLToPath(new URL(source));
+  } catch {
+    return source;
+  }
 }

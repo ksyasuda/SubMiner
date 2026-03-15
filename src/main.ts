@@ -425,6 +425,7 @@ import {
   getActiveExternalSubtitleSource,
   resolveSubtitleSourcePath,
 } from './main/runtime/subtitle-prefetch-source';
+import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -1092,36 +1093,23 @@ function clearScheduledSubtitlePrefetchRefresh(): void {
   }
 }
 
-async function initSubtitlePrefetch(
-  externalFilename: string,
-  currentTimePos: number,
-): Promise<void> {
-  subtitlePrefetchService?.stop();
-  subtitlePrefetchService = null;
-
-  try {
-    const content = await loadSubtitleSourceText(externalFilename);
-    const cues = parseSubtitleCues(content, externalFilename);
-    if (cues.length === 0) {
-      return;
-    }
-
-    subtitlePrefetchService = createSubtitlePrefetchService({
-      cues,
-      tokenizeSubtitle: async (text) =>
-        tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
-      preCacheTokenization: (text, data) => {
-        subtitleProcessingController.preCacheTokenization(text, data);
-      },
-      isCacheFull: () => subtitleProcessingController.isCacheFull(),
-    });
-
-    subtitlePrefetchService.start(currentTimePos);
-    logger.info(`[subtitle-prefetch] started prefetching ${cues.length} cues from ${externalFilename}`);
-  } catch (error) {
-    logger.warn('[subtitle-prefetch] failed to initialize:', (error as Error).message);
-  }
-}
+const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
+  getCurrentService: () => subtitlePrefetchService,
+  setCurrentService: (service) => {
+    subtitlePrefetchService = service;
+  },
+  loadSubtitleSourceText,
+  parseSubtitleCues: (content, filename) => parseSubtitleCues(content, filename),
+  createSubtitlePrefetchService: (deps) => createSubtitlePrefetchService(deps),
+  tokenizeSubtitle: async (text) =>
+    tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
+  preCacheTokenization: (text, data) => {
+    subtitleProcessingController.preCacheTokenization(text, data);
+  },
+  isCacheFull: () => subtitleProcessingController.isCacheFull(),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+});
 
 async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
   const client = appState.mpvClient;
@@ -1136,11 +1124,10 @@ async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
     ]);
     const externalFilename = getActiveExternalSubtitleSource(trackListRaw, sidRaw);
     if (!externalFilename) {
-      subtitlePrefetchService?.stop();
-      subtitlePrefetchService = null;
+      subtitlePrefetchInitController.cancelPendingInit();
       return;
     }
-    await initSubtitlePrefetch(externalFilename, lastObservedTimePos);
+    await subtitlePrefetchInitController.initSubtitlePrefetch(externalFilename, lastObservedTimePos);
   } catch {
     // Track list query failed; skip subtitle prefetch refresh.
   }
@@ -2940,8 +2927,7 @@ const {
       currentMediaTokenizationGate.updateCurrentMediaPath(path);
       startupOsdSequencer.reset();
       clearScheduledSubtitlePrefetchRefresh();
-      subtitlePrefetchService?.stop();
-      subtitlePrefetchService = null;
+      subtitlePrefetchInitController.cancelPendingInit();
       if (path) {
         ensureImmersionTrackerStarted();
         // Delay slightly to allow MPV's track-list to be populated.

@@ -20,7 +20,7 @@ test('computePriorityWindow returns next N cues from current position', () => {
   const window = computePriorityWindow(cues, 12.0, 5);
 
   assert.equal(window.length, 5);
-  // Position 12.0 is during cue index 2 (start=10, end=14). Priority window starts from index 3.
+  // Position 12.0 falls during cue 2, so the window starts at cue 3 (startTime >= 12.0).
   assert.equal(window[0]!.text, 'line-3');
   assert.equal(window[4]!.text, 'line-7');
 });
