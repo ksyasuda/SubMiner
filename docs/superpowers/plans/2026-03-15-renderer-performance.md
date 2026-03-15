@@ -17,6 +17,7 @@
 ## File Structure
 
 ### New Files
+
 | File | Responsibility |
 |------|---------------|
 | `src/core/services/subtitle-cue-parser.ts` | Parse SRT/VTT/ASS files into `SubtitleCue[]` (timing + text) |
@@ -25,6 +26,7 @@
 | `src/core/services/subtitle-prefetch.test.ts` | Tests for prefetch service |
 
 ### Modified Files
+
 | File | Change |
 |------|--------|
 | `src/core/services/subtitle-processing-controller.ts` | Add `preCacheTokenization` + `isCacheFull` to public interface |
@@ -33,6 +35,7 @@
 | `src/core/services/tokenizer/annotation-stage.test.ts` | Existing tests must still pass (behavioral equivalence) |
 | `src/renderer/subtitle-render.ts` | `cloneNode` template + `replaceChildren()` |
 | `src/main.ts` | Wire up prefetch service |
+
 
 ---
 
@@ -1554,17 +1557,32 @@ subtitle processing, and restarts on cache invalidation."
 
 ### Task 10: Full test suite and type check
 
-- [ ] **Step 1: Run full test suite**
+- [ ] **Step 1: Run handoff type check**
 
-Run: `bun run test`
-Expected: 500+ pass, 1 pre-existing fail in immersion-tracker-service.
-
-- [ ] **Step 2: Run TypeScript type check**
-
-Run: `bun run tsc`
+Run: `bun run typecheck`
 Expected: No type errors.
 
-- [ ] **Step 3: Review all commits on the branch**
+- [ ] **Step 2: Run fast test lane**
+
+Run: `bun run test:fast`
+Expected: Fast unit/integration tests pass.
+
+- [ ] **Step 3: Run environment-sensitive test lane**
+
+Run: `bun run test:env`
+Expected: Environment/runtime-sensitive tests pass.
+
+- [ ] **Step 4: Run production build**
+
+Run: `bun run build`
+Expected: Production build succeeds.
+
+- [ ] **Step 5: Run dist smoke test**
+
+Run: `bun run test:smoke:dist`
+Expected: Dist smoke tests pass.
+
+- [ ] **Step 6: Review all commits on the branch**
 
 Run: `git log --oneline main..HEAD`
 Expected: ~8 focused commits, one per logical change.

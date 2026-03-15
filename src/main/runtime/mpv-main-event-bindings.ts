@@ -42,6 +42,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   setCurrentSubAssText: (text: string) => void;
   broadcastSubtitleAss: (text: string) => void;
   broadcastSecondarySubtitle: (text: string) => void;
+  onSubtitleTrackChange?: (sid: number | null) => void;
+  onSubtitleTrackListChange?: (trackList: unknown[] | null) => void;
 
   updateCurrentMediaPath: (path: string) => void;
   restoreMpvSubVisibility: () => void;
@@ -146,6 +148,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       onSubtitleChange: handleMpvSubtitleChange,
       onSubtitleAssChange: handleMpvSubtitleAssChange,
       onSecondarySubtitleChange: handleMpvSecondarySubtitleChange,
+      onSubtitleTrackChange: ({ sid }) => deps.onSubtitleTrackChange?.(sid),
+      onSubtitleTrackListChange: ({ trackList }) => deps.onSubtitleTrackListChange?.(trackList),
       onSubtitleTiming: handleMpvSubtitleTiming,
       onMediaPathChange: handleMpvMediaPathChange,
       onMediaTitleChange: handleMpvMediaTitleChange,

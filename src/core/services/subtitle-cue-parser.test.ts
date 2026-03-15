@@ -186,6 +186,21 @@ test('parseAssCues handles hour timestamps', () => {
   assert.equal(cues[0]!.endTime, 5405.0);
 });
 
+test('parseAssCues respects dynamic field ordering from the Format row', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Style, Start, End, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,Default,0:00:01.00,0:00:04.00,,0,0,0,,順番が違う',
+  ].join('\n');
+
+  const cues = parseAssCues(content);
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]!.startTime, 1.0);
+  assert.equal(cues[0]!.endTime, 4.0);
+  assert.equal(cues[0]!.text, '順番が違う');
+});
+
 test('parseSubtitleCues auto-detects SRT format', () => {
   const content = [
     '1',
@@ -243,4 +258,17 @@ test('parseSubtitleCues returns cues sorted by start time', () => {
   const cues = parseSubtitleCues(content, 'test.srt');
   assert.equal(cues[0]!.text, '一番目');
   assert.equal(cues[1]!.text, '二番目');
+});
+
+test('parseSubtitleCues detects subtitle formats from remote URLs', () => {
+  const assContent = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,URLテスト',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(assContent, 'https://host/subs.ass?lang=ja#track');
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]!.text, 'URLテスト');
 });

@@ -421,6 +421,10 @@ import { resolveConfigDir } from './config/path-resolution';
 import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
 import { createSubtitlePrefetchService } from './core/services/subtitle-prefetch';
 import type { SubtitlePrefetchService } from './core/services/subtitle-prefetch';
+import {
+  getActiveExternalSubtitleSource,
+  resolveSubtitleSourcePath,
+} from './main/runtime/subtitle-prefetch-source';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -1077,8 +1081,16 @@ const subtitleProcessingController = createSubtitleProcessingController(
 );
 
 let subtitlePrefetchService: SubtitlePrefetchService | null = null;
+let subtitlePrefetchRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let lastObservedTimePos = 0;
 const SEEK_THRESHOLD_SECONDS = 3;
+
+function clearScheduledSubtitlePrefetchRefresh(): void {
+  if (subtitlePrefetchRefreshTimer) {
+    clearTimeout(subtitlePrefetchRefreshTimer);
+    subtitlePrefetchRefreshTimer = null;
+  }
+}
 
 async function initSubtitlePrefetch(
   externalFilename: string,
@@ -1109,6 +1121,37 @@ async function initSubtitlePrefetch(
   } catch (error) {
     logger.warn('[subtitle-prefetch] failed to initialize:', (error as Error).message);
   }
+}
+
+async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
+  const client = appState.mpvClient;
+  if (!client?.connected) {
+    return;
+  }
+
+  try {
+    const [trackListRaw, sidRaw] = await Promise.all([
+      client.requestProperty('track-list'),
+      client.requestProperty('sid'),
+    ]);
+    const externalFilename = getActiveExternalSubtitleSource(trackListRaw, sidRaw);
+    if (!externalFilename) {
+      subtitlePrefetchService?.stop();
+      subtitlePrefetchService = null;
+      return;
+    }
+    await initSubtitlePrefetch(externalFilename, lastObservedTimePos);
+  } catch {
+    // Track list query failed; skip subtitle prefetch refresh.
+  }
+}
+
+function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
+  clearScheduledSubtitlePrefetchRefresh();
+  subtitlePrefetchRefreshTimer = setTimeout(() => {
+    subtitlePrefetchRefreshTimer = null;
+    void refreshSubtitlePrefetchFromActiveTrack();
+  }, delayMs);
 }
 
 const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
@@ -2896,42 +2939,13 @@ const {
       autoPlayReadySignalMediaPath = null;
       currentMediaTokenizationGate.updateCurrentMediaPath(path);
       startupOsdSequencer.reset();
+      clearScheduledSubtitlePrefetchRefresh();
       subtitlePrefetchService?.stop();
       subtitlePrefetchService = null;
       if (path) {
         ensureImmersionTrackerStarted();
-        // Attempt to initialize subtitle prefetch for external subtitle tracks.
         // Delay slightly to allow MPV's track-list to be populated.
-        setTimeout(() => {
-          const client = appState.mpvClient;
-          if (!client?.connected) return;
-          void (async () => {
-            try {
-              const [trackListRaw, sidRaw] = await Promise.all([
-                client.requestProperty('track-list'),
-                client.requestProperty('sid'),
-              ]);
-              if (!Array.isArray(trackListRaw) || sidRaw == null) return;
-              const sid = typeof sidRaw === 'number' ? sidRaw : typeof sidRaw === 'string' ? Number(sidRaw) : null;
-              if (sid == null || !Number.isFinite(sid)) return;
-              const activeTrack = trackListRaw.find(
-                (entry: unknown) => {
-                  if (!entry || typeof entry !== 'object') return false;
-                  const t = entry as Record<string, unknown>;
-                  return t.type === 'sub' && t.id === sid && t.external === true;
-                },
-              ) as Record<string, unknown> | undefined;
-              if (!activeTrack) return;
-              const externalFilename = typeof activeTrack['external-filename'] === 'string'
-                ? (activeTrack['external-filename'] as string).trim()
-                : '';
-              if (!externalFilename) return;
-              void initSubtitlePrefetch(externalFilename, lastObservedTimePos);
-            } catch {
-              // Track list query failed — not critical, skip prefetch.
-            }
-          })();
-        }, 500);
+        scheduleSubtitlePrefetchRefresh(500);
       }
       mediaRuntime.updateCurrentMediaPath(path);
     },
@@ -2981,6 +2995,12 @@ const {
         subtitlePrefetchService.onSeek(time);
       }
       lastObservedTimePos = time;
+    },
+    onSubtitleTrackChange: () => {
+      scheduleSubtitlePrefetchRefresh();
+    },
+    onSubtitleTrackListChange: () => {
+      scheduleSubtitlePrefetchRefresh();
     },
     updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
@@ -3590,7 +3610,7 @@ async function loadSubtitleSourceText(source: string): Promise<string> {
     }
   }
 
-  const filePath = source.startsWith('file://') ? decodeURI(new URL(source).pathname) : source;
+  const filePath = resolveSubtitleSourcePath(source);
   return fs.promises.readFile(filePath, 'utf8');
 }
 

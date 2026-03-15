@@ -9,7 +9,7 @@ Minimize the time between a subtitle line appearing and annotations being displa
 
 ## Current Pipeline (Warm State)
 
-```
+```text
 MPV subtitle change (0ms)
   -> IPC to main (5ms)
   -> Cache check (2ms)
@@ -25,7 +25,7 @@ MPV subtitle change (0ms)
 
 ## Target Pipeline
 
-```
+```text
 MPV subtitle change (0ms)
   -> IPC to main (5ms)
   -> Cache check (2ms)
@@ -142,7 +142,7 @@ Collapse the 4 sequential annotation passes (`applyKnownWordMarking` -> `applyFr
 
 ### Current Flow (4 passes, 4 array copies)
 
-```
+```text
 tokens (already have frequencyRank values from parser-level applyFrequencyRanks)
   -> applyKnownWordMarking()   // .map() -> new array
   -> applyFrequencyMarking()   // .map() -> new array (POS-based filtering only)
