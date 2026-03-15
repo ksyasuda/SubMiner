@@ -117,6 +117,7 @@ The configuration file includes several main sections:
 - [**Jellyfin**](#jellyfin) - Optional Jellyfin auth, library listing, and playback launch
 - [**Discord Rich Presence**](#discord-rich-presence) - Optional Discord activity card updates
 - [**Immersion Tracking**](#immersion-tracking) - Track subtitle sessions and mining activity in SQLite
+- [**Stats Dashboard**](#stats-dashboard) - Local dashboard and overlay for immersion progress
 - [**YouTube Subtitle Generation**](#youtube-subtitle-generation) - Launcher defaults for yt-dlp + local whisper fallback
 
 ## Core Settings
@@ -1144,7 +1145,7 @@ Troubleshooting:
 
 ### Immersion Tracking
 
-Enable or disable local immersion analytics stored in SQLite for mined subtitles and media sessions:
+Enable or disable local immersion analytics stored in SQLite for mined subtitles and media sessions. This data also powers the stats dashboard:
 
 ```json
 {
@@ -1190,7 +1191,34 @@ When `dbPath` is blank or omitted, SubMiner writes telemetry and session summari
 
 Set `dbPath` only if you want to relocate the database (for backup, syncing, or inspection workflows). The database is created when tracking starts for the first time.
 
-See [Immersion Tracking Storage](/immersion-tracking) for schema details, query templates, retention/rollup behavior, backend portability notes, and the dedicated SQLite verification command.
+See [Immersion Tracking Storage](/immersion-tracking) for schema details, query templates, dashboard access, retention/rollup behavior, backend portability notes, and the dedicated SQLite verification command.
+
+### Stats Dashboard
+
+Configure the local stats UI served from SubMiner and the in-app stats overlay toggle:
+
+```json
+{
+  "stats": {
+    "toggleKey": "Backquote",
+    "serverPort": 5175,
+    "autoStartServer": true
+  }
+}
+```
+
+| Option            | Values            | Description                                                                 |
+| ----------------- | ----------------- | --------------------------------------------------------------------------- |
+| `toggleKey`       | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`. |
+| `serverPort`      | integer           | Localhost port for the browser stats UI. Default `5175`.                    |
+| `autoStartServer` | `true`, `false`   | Start the local stats HTTP server automatically once immersion tracking is active. Default `true`. |
+
+Usage notes:
+
+- The browser UI is served at `http://127.0.0.1:<serverPort>`.
+- The overlay toggle is local to the focused visible overlay window; it is not registered as a global OS shortcut.
+- The dashboard reads from the same immersion-tracking database, so keep `immersionTracking.enabled` on if you want data to appear.
+- The UI includes Overview, Trends, Sessions, and Vocabulary tabs.
 
 ### YouTube Subtitle Generation
 

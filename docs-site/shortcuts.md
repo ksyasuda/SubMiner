@@ -68,6 +68,9 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions` |
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`         |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`     |
+| `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`              |
+
+The stats toggle is handled inside the focused visible overlay window. It is configurable through the top-level `stats.toggleKey` setting and defaults to `Backquote`.
 
 ## Controller Shortcuts
 
