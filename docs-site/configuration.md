@@ -517,6 +517,7 @@ Important behavior:
 - `Alt+C` opens the controller config modal, where you can save the selected controller and remap actions inline.
 - Click `Learn`, then press the next fresh button, trigger, or stick direction you want to bind for that overlay action.
 - `Alt+Shift+C` opens a live debug modal showing raw axes/button values plus a ready-to-copy `buttonIndices` config block.
+- `controller.buttonIndices` is a semantic reference/legacy mapping. Changing it does not rewrite the raw numeric descriptor values already stored under `controller.bindings`.
 - Turning keyboard-only mode off clears the keyboard-only token highlight state.
 - Closing the Yomitan popup clears the temporary native text-selection fill, but keeps controller token selection active.
 
@@ -584,9 +585,25 @@ Default logical mapping:
 
 Discrete bindings may use raw button indices or raw axis directions, and analog bindings use raw axis indices with optional D-pad fallback. The `Alt+C` learn flow writes those descriptors for you, so manual edits are only needed when you want to script or copy exact mappings.
 
+If you bind a discrete action to an axis manually, include `direction`:
+
+```jsonc
+{
+  "controller": {
+    "bindings": {
+      "toggleLookup": { "kind": "axis", "axisIndex": 5, "direction": "positive" }
+    }
+  }
+}
+```
+
+Treat `controller.buttonIndices` as reference-only unless you are still using legacy semantic bindings or copying values from the debug modal. Updating `controller.buttonIndices` alone does not rewrite the hardcoded raw numeric values already present in `controller.bindings`. If you need a real remap, prefer the `Alt+C` learn flow so both the source and the descriptor shape stay correct.
+
 If you choose to bind `L2` or `R2` manually, set `triggerInputMode` to `analog` and tune `triggerDeadzone` when your controller reports triggers as analog values instead of digital pressed/not-pressed buttons. `auto` accepts either style and remains the default.
 
 If your controller reports non-standard raw button numbers, override `controller.buttonIndices` using values from the `Alt+Shift+C` debug modal.
+
+If you update this controller documentation or the generated controller examples, run `bun run docs:test` and `bun run docs:build` before merging.
 
 Tune `scrollPixelsPerSecond`, `horizontalJumpPixels`, deadzones, repeat timing, and `buttonIndices` to match your controller. See [config.example.jsonc](/config.example.jsonc) for the full generated comments for every controller field.
 

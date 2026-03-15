@@ -153,6 +153,13 @@ export function buildCoreConfigOptionRegistry(
       description: 'Repeat interval for held controller actions.',
     },
     {
+      path: 'controller.buttonIndices',
+      kind: 'object',
+      defaultValue: defaultConfig.controller.buttonIndices,
+      description:
+        'Semantic button-name reference mapping used for legacy configs and debug output. Updating it does not rewrite existing raw binding descriptors.',
+    },
+    {
       path: 'controller.buttonIndices.select',
       kind: 'number',
       defaultValue: defaultConfig.controller.buttonIndices.select,
@@ -218,19 +225,27 @@ export function buildCoreConfigOptionRegistry(
       defaultValue: defaultConfig.controller.buttonIndices.rightTrigger,
       description: 'Raw button index used for controller R2 input.',
     },
+    {
+      path: 'controller.bindings',
+      kind: 'object',
+      defaultValue: defaultConfig.controller.bindings,
+      description:
+        'Raw controller binding descriptors saved by Alt+C learn mode. For discrete axis bindings, kind "axis" requires axisIndex and direction.',
+    },
     ...discreteBindings.flatMap((binding) => [
       {
         path: `controller.bindings.${binding.id}`,
         kind: 'object' as const,
         defaultValue: binding.defaultValue,
-        description: `${binding.description} Use Alt+C learn mode or set a raw button/axis descriptor manually.`,
+        description: `${binding.description} Use Alt+C learn mode or set a raw button/axis descriptor manually. If kind is "axis", direction is required.`,
       },
       {
         path: `controller.bindings.${binding.id}.kind`,
         kind: 'enum' as const,
         enumValues: ['none', 'button', 'axis'],
         defaultValue: binding.defaultValue.kind,
-        description: 'Discrete binding input source kind.',
+        description:
+          'Discrete binding input source kind. When kind is "axis", set both axisIndex and direction.',
       },
       {
         path: `controller.bindings.${binding.id}.buttonIndex`,
@@ -249,8 +264,10 @@ export function buildCoreConfigOptionRegistry(
         path: `controller.bindings.${binding.id}.direction`,
         kind: 'enum' as const,
         enumValues: ['negative', 'positive'],
-        defaultValue: binding.defaultValue.kind === 'axis' ? binding.defaultValue.direction : undefined,
-        description: 'Axis direction captured for this discrete controller action.',
+        defaultValue:
+          binding.defaultValue.kind === 'axis' ? binding.defaultValue.direction : undefined,
+        description:
+          'Axis direction captured for this discrete controller action. Required when kind is "axis".',
       },
     ]),
     ...axisBindings.flatMap((binding) => [

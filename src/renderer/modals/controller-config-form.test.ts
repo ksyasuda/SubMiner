@@ -52,8 +52,7 @@ function createFakeElement() {
 }
 
 test('controller config form renders rows and dispatches learn clear reset callbacks', () => {
-  const globals = globalThis as typeof globalThis & { document?: unknown };
-  const previousDocument = globals.document;
+  const previousDocumentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
     value: {
@@ -83,7 +82,7 @@ test('controller config form renders rows and dispatches learn clear reset callb
           rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
         }) as never,
       getLearningActionId: () => 'toggleLookup',
-      onLearn: (actionId) => calls.push(`learn:${actionId}`),
+      onLearn: (actionId, bindingType) => calls.push(`learn:${actionId}:${bindingType}`),
       onClear: (actionId) => calls.push(`clear:${actionId}`),
       onReset: (actionId) => calls.push(`reset:${actionId}`),
     });
@@ -97,13 +96,20 @@ test('controller config form renders rows and dispatches learn clear reset callb
     firstRow.children[2].children[0].dispatch('click');
     firstRow.children[2].children[1].dispatch('click');
     firstRow.children[2].children[2].dispatch('click');
+    const firstAxisRow = container.children[13];
+    firstAxisRow.children[2].children[0].dispatch('click');
 
     assert.deepEqual(calls, [
-      'learn:toggleLookup',
+      'learn:toggleLookup:discrete',
       'clear:toggleLookup',
       'reset:toggleLookup',
+      'learn:leftStickHorizontal:axis',
     ]);
   } finally {
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+    if (previousDocumentDescriptor) {
+      Object.defineProperty(globalThis, 'document', previousDocumentDescriptor);
+    } else {
+      Reflect.deleteProperty(globalThis, 'document');
+    }
   }
 });

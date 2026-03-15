@@ -257,6 +257,82 @@ test('gamepad controller allows keyboard-mode toggle while other actions stay ga
   assert.deepEqual(calls, ['toggle-keyboard-mode']);
 });
 
+test('gamepad controller re-evaluates interaction gating after toggling keyboard mode', () => {
+  const calls: string[] = [];
+  let keyboardModeEnabled = true;
+  const buttons = Array.from({ length: 8 }, () => ({ value: 0, pressed: false, touched: false }));
+  buttons[0] = { value: 1, pressed: true, touched: true };
+  buttons[3] = { value: 1, pressed: true, touched: true };
+
+  const controller = createGamepadController({
+    getGamepads: () => [createGamepad('pad-1', { buttons })],
+    getConfig: () => createControllerConfig(),
+    getKeyboardModeEnabled: () => keyboardModeEnabled,
+    getLookupWindowOpen: () => false,
+    getInteractionBlocked: () => false,
+    toggleKeyboardMode: () => {
+      calls.push('toggle-keyboard-mode');
+      keyboardModeEnabled = false;
+    },
+    toggleLookup: () => calls.push('toggle-lookup'),
+    closeLookup: () => {},
+    moveSelection: () => {},
+    mineCard: () => {},
+    quitMpv: () => {},
+    previousAudio: () => {},
+    nextAudio: () => {},
+    playCurrentAudio: () => {},
+    toggleMpvPause: () => {},
+    scrollPopup: () => {},
+    jumpPopup: () => {},
+    onState: () => {},
+  });
+
+  controller.poll(0);
+
+  assert.deepEqual(calls, ['toggle-keyboard-mode']);
+});
+
+test('gamepad controller resets edge state when active controller changes', () => {
+  const calls: string[] = [];
+  let currentGamepads = [
+    createGamepad('pad-1', {
+      buttons: [{ value: 1, pressed: true, touched: true }],
+    }),
+  ];
+
+  const controller = createGamepadController({
+    getGamepads: () => currentGamepads,
+    getConfig: () => createControllerConfig(),
+    getKeyboardModeEnabled: () => true,
+    getLookupWindowOpen: () => false,
+    getInteractionBlocked: () => false,
+    toggleKeyboardMode: () => {},
+    toggleLookup: () => calls.push('toggle-lookup'),
+    closeLookup: () => {},
+    moveSelection: () => {},
+    mineCard: () => {},
+    quitMpv: () => {},
+    previousAudio: () => {},
+    nextAudio: () => {},
+    playCurrentAudio: () => {},
+    toggleMpvPause: () => {},
+    scrollPopup: () => {},
+    jumpPopup: () => {},
+    onState: () => {},
+  });
+
+  controller.poll(0);
+  currentGamepads = [
+    createGamepad('pad-2', {
+      buttons: [{ value: 1, pressed: true, touched: true }],
+    }),
+  ];
+  controller.poll(50);
+
+  assert.deepEqual(calls, ['toggle-lookup', 'toggle-lookup']);
+});
+
 test('gamepad controller does not toggle keyboard mode when controller support is disabled', () => {
   const calls: string[] = [];
   const buttons = Array.from({ length: 8 }, () => ({ value: 0, pressed: false, touched: false }));

@@ -421,7 +421,7 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
             `controller.bindings.${key}`,
             bindingValue,
             resolved.controller.bindings[key],
-            "Expected legacy controller axis name or binding object with kind 'axis'.",
+            "Expected legacy controller axis name ('none' allowed) or binding object with kind 'axis'.",
           );
         }
       }

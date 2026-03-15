@@ -1926,7 +1926,7 @@ test('template generator includes known keys', () => {
   );
   assert.match(
     output,
-    /"kind": "button",? \/\/ Discrete binding input source kind\. Values: none \| button \| axis/,
+    /"kind": "button",? \/\/ Discrete binding input source kind\. When kind is "axis", set both axisIndex and direction\. Values: none \| button \| axis/,
   );
   assert.match(output, /"toggleLookup": \{\s*"kind": "button"/);
   assert.match(output, /"leftStickHorizontal": \{\s*"kind": "axis"/);

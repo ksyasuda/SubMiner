@@ -96,3 +96,34 @@ test('controller binding capture emits axis binding for continuous learn mode', 
     binding: { kind: 'axis', axisIndex: 3, dpadFallback: 'horizontal' },
   });
 });
+
+test('controller binding capture ignores button presses for continuous learn mode', () => {
+  const capture = createControllerBindingCapture({
+    triggerDeadzone: 0.5,
+    stickDeadzone: 0.2,
+  });
+
+  capture.arm(
+    {
+      actionId: 'leftStickHorizontal',
+      bindingType: 'axis',
+      dpadFallback: 'horizontal',
+    },
+    createSnapshot(),
+  );
+
+  assert.equal(
+    capture.poll(
+      createSnapshot({
+        buttons: [{ value: 1, pressed: true, touched: true }],
+      }),
+    ),
+    null,
+  );
+
+  assert.deepEqual(capture.poll(createSnapshot({ axes: [0, 0, 0.75, 0, 0] })), {
+    actionId: 'leftStickHorizontal',
+    bindingType: 'axis',
+    binding: { kind: 'axis', axisIndex: 2, dpadFallback: 'horizontal' },
+  });
+});

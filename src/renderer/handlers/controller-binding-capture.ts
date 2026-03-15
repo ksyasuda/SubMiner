@@ -112,23 +112,13 @@ export function createControllerBindingCapture(options: {
     for (let index = 0; index < snapshot.buttons.length; index += 1) {
       if (!isActiveButton(snapshot.buttons[index], options.triggerDeadzone)) continue;
       if (blockedButtons.has(index)) continue;
+      if (target.bindingType === 'axis') continue;
 
-      const result: ControllerBindingCaptureResult =
-        target.bindingType === 'discrete'
-          ? {
-              actionId: target.actionId,
-              bindingType: 'discrete',
-              binding: { kind: 'button', buttonIndex: index },
-            }
-          : {
-              actionId: target.actionId,
-              bindingType: 'axis',
-              binding: {
-                kind: 'axis',
-                axisIndex: index,
-                dpadFallback: target.dpadFallback,
-              },
-            };
+      const result: ControllerBindingCaptureResult = {
+        actionId: target.actionId,
+        bindingType: 'discrete',
+        binding: { kind: 'button', buttonIndex: index },
+      };
       cancel();
       return result;
     }

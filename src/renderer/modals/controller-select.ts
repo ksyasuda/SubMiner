@@ -29,7 +29,10 @@ export function createControllerSelectModal(
   let lastRenderedDevicesKey = '';
   let lastRenderedActiveGamepadId: string | null = null;
   let lastRenderedPreferredId = '';
-  let learningActionId: keyof NonNullable<typeof ctx.state.controllerConfig>['bindings'] | null = null;
+  type ControllerBindingKey = keyof NonNullable<typeof ctx.state.controllerConfig>['bindings'];
+  type ControllerBindingValue =
+    NonNullable<NonNullable<typeof ctx.state.controllerConfig>['bindings']>[ControllerBindingKey];
+  let learningActionId: ControllerBindingKey | null = null;
   let bindingCapture: ReturnType<typeof createControllerBindingCapture> | null = null;
 
   const controllerConfigForm = createControllerConfigForm({
@@ -178,8 +181,8 @@ export function createControllerSelectModal(
   }
 
   async function saveBinding(
-    actionId: keyof NonNullable<typeof ctx.state.controllerConfig>['bindings'],
-    binding: NonNullable<NonNullable<typeof ctx.state.controllerConfig>['bindings']>[typeof actionId],
+    actionId: ControllerBindingKey,
+    binding: ControllerBindingValue,
   ): Promise<void> {
     const definition = getControllerBindingDefinition(actionId);
     try {
@@ -242,7 +245,7 @@ export function createControllerSelectModal(
         buttons: ctx.state.controllerRawButtons,
       });
       if (result) {
-        void saveBinding(result.actionId as keyof NonNullable<typeof ctx.state.controllerConfig>['bindings'], result.binding as never);
+        void saveBinding(result.actionId as ControllerBindingKey, result.binding as ControllerBindingValue);
       }
     }
 

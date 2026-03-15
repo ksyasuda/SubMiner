@@ -30,6 +30,7 @@ import {
   dialog,
   screen,
 } from 'electron';
+import { applyControllerConfigUpdate } from './main/controller-config-update.js';
 
 function getPasswordStoreArg(argv: string[]): string | null {
   for (let i = 0; i < argv.length; i += 1) {
@@ -3457,8 +3458,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
       getControllerConfig: () => getResolvedConfig().controller,
       saveControllerConfig: (update) => {
+        const currentRawConfig = configService.getRawConfig();
         configService.patchRawConfig({
-          controller: update,
+          controller: applyControllerConfigUpdate(currentRawConfig.controller, update),
         });
       },
       saveControllerPreference: ({ preferredGamepadId, preferredGamepadLabel }) => {
