@@ -29,10 +29,11 @@ The same immersion data powers the stats dashboard.
 
 Dashboard tabs:
 
-- Overview: recent sessions, quick totals, short-term watch-time chart
-- Trends: watch time, cards mined, cards/hour, lookup hit rate over time
-- Sessions: per-session breakdown with timeline and event drill-down
-- Vocabulary: top words, kanji frequency, recent vocabulary growth, and click-through occurrence drilldown in a right-side drawer
+- Overview: recent sessions, streak calendar, watch-time history, and a tracking snapshot with completed episodes/anime totals
+- Anime: cover-art library, per-series progress, episode drill-down, and direct links into mined cards
+- Trends: watch time, sessions, words seen, and per-anime progress/pattern charts
+- Sessions: expandable session history with new-word activity, cumulative totals, and pause/seek/card markers
+- Vocabulary: top repeated words, new-word timeline, kanji breakdown, and click-through occurrence drilldown in a right-side drawer
 
 Stats server config lives under `stats`:
 
@@ -41,7 +42,8 @@ Stats server config lives under `stats`:
   "stats": {
     "toggleKey": "Backquote",
     "serverPort": 5175,
-    "autoStartServer": true
+    "autoStartServer": true,
+    "autoOpenBrowser": true
   }
 }
 ```
@@ -49,6 +51,7 @@ Stats server config lives under `stats`:
 - `toggleKey` is overlay-local, not a system-wide shortcut.
 - `serverPort` controls the localhost dashboard URL.
 - `autoStartServer` starts the local stats HTTP server on launch once immersion tracking is active.
+- `autoOpenBrowser` controls whether `subminer stats` launches the dashboard URL in your browser after ensuring the server is running.
 - `subminer stats` forces the dashboard server to start even when `autoStartServer` is `false`.
 - `subminer stats` fails with an error when `immersionTracking.enabled` is `false`.
 - `subminer stats cleanup` defaults to vocabulary cleanup, repairs stale `headword`, `reading`, and `part_of_speech` values, attempts best-effort MeCab backfill for legacy rows, and removes rows that still fail vocab filtering.
