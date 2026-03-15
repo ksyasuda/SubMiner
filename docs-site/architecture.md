@@ -1,5 +1,7 @@
 # Architecture
 
+This page is a contributor-facing architecture summary. Canonical internal architecture guidance lives in `docs/architecture/README.md` at the repo root.
+
 SubMiner is split into three cooperating runtimes:
 
 - Electron desktop app (`src/`) for overlay/UI/runtime orchestration.

@@ -1,8 +1,8 @@
 # Immersion Tracking
 
-SubMiner can log your watching and mining activity to a local SQLite database. This is optional and disabled by default.
+SubMiner can log your watching and mining activity to a local SQLite database, then surface it in the built-in stats dashboard. Tracking is enabled by default and can be turned off if you do not want local analytics.
 
-When enabled, SubMiner records per-session statistics (watch time, subtitle lines seen, words encountered, cards mined) and maintains daily and monthly rollups. You can query the database directly with any SQLite tool to track your progress over time.
+When enabled, SubMiner records per-session statistics (watch time, subtitle lines seen, words encountered, cards mined) and maintains daily and monthly rollups. You can view that data in SubMiner's stats UI or query the database directly with any SQLite tool.
 
 ## Enabling
 
@@ -17,6 +17,41 @@ When enabled, SubMiner records per-session statistics (watch time, subtitle line
 
 - Leave `dbPath` empty to use the default location (`immersion.sqlite` in SubMiner's app-data directory).
 - Set an explicit path to move the database (useful for backups, cloud syncing, or external tools).
+
+## Stats Dashboard
+
+The same immersion data powers the stats dashboard.
+
+- In-app overlay: focus the visible overlay, then press the key from `stats.toggleKey` (default: `` ` `` / `Backquote`).
+- Launcher command: run `subminer stats` to start the local stats server on demand and open the dashboard in your browser.
+- Maintenance command: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand.
+- Browser page: open `http://127.0.0.1:5175` directly if the local stats server is already running.
+
+Dashboard tabs:
+
+- Overview: recent sessions, quick totals, short-term watch-time chart
+- Trends: watch time, cards mined, cards/hour, lookup hit rate over time
+- Sessions: per-session breakdown with timeline and event drill-down
+- Vocabulary: top words, kanji frequency, recent vocabulary growth, and click-through occurrence drilldown in a right-side drawer
+
+Stats server config lives under `stats`:
+
+```jsonc
+{
+  "stats": {
+    "toggleKey": "Backquote",
+    "serverPort": 5175,
+    "autoStartServer": true
+  }
+}
+```
+
+- `toggleKey` is overlay-local, not a system-wide shortcut.
+- `serverPort` controls the localhost dashboard URL.
+- `autoStartServer` starts the local stats HTTP server on launch once immersion tracking is active.
+- `subminer stats` forces the dashboard server to start even when `autoStartServer` is `false`.
+- `subminer stats` fails with an error when `immersionTracking.enabled` is `false`.
+- `subminer stats cleanup` defaults to vocabulary cleanup, repairs stale `headword`, `reading`, and `part_of_speech` values, attempts best-effort MeCab backfill for legacy rows, and removes rows that still fail vocab filtering.
 
 ## Retention Defaults
 

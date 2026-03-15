@@ -1,5 +1,7 @@
 # Building & Testing
 
+For internal architecture/workflow guidance, use `docs/README.md` at the repo root. This page stays focused on contributor-facing build and test commands.
+
 ## Prerequisites
 
 - [Bun](https://bun.sh)
@@ -13,6 +15,7 @@ cd SubMiner
 git submodule update --init --recursive
 
 bun install
+(cd stats && bun install --frozen-lockfile)
 (cd vendor/texthooker-ui && bun install --frozen-lockfile)
 ```
 
@@ -200,7 +203,7 @@ Run `make help` for a full list of targets. Key ones:
 | `make build-launcher`  | Generate Bun launcher wrapper at `dist/launcher/subminer`        |
 | `make install`         | Install platform artifacts (wrapper, theme, AppImage/app bundle) |
 | `make install-plugin`  | Install mpv Lua plugin and config                                |
-| `make deps`            | Install JS dependencies (root + texthooker-ui)                   |
+| `make deps`            | Install JS dependencies (root + stats + texthooker-ui)           |
 | `make pretty`          | Run scoped Prettier formatting for maintained source/config files |
 | `make generate-config` | Generate default config from centralized registry                |
 | `make build-linux`     | Convenience wrapper for Linux packaging                          |
@@ -214,7 +217,7 @@ Run `make help` for a full list of targets. Key ones:
 - To add/change generated config template blocks/comments, update `src/config/definitions/template-sections.ts`.
 - Keep `src/config/definitions.ts` as the composed public API (`DEFAULT_CONFIG`, registries, template export) that wires domain modules together.
 - Overlay window/visibility state is owned by `src/core/services/overlay-manager.ts`.
-- Runtime architecture/module-boundary conventions are documented in [Architecture](/architecture); keep contributor changes aligned with that canonical guide.
+- Runtime architecture/module-boundary conventions are summarized in [Architecture](/architecture), with canonical internal guidance in `docs/architecture/README.md` at the repo root.
 - Linux packaged desktop launches pass `--background` using electron-builder `build.linux.executableArgs` in `package.json`.
 - Prefer direct inline deps objects in `src/main/` modules for simple pass-through wiring.
 - Add a helper/adapter service only when it performs meaningful adaptation, validation, or reuse (not identity mapping).

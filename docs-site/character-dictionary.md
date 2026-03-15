@@ -2,7 +2,7 @@
 
 SubMiner can build a Yomitan-compatible character dictionary from AniList metadata so that character names in subtitles are recognized, highlighted, and enrichable with context — portraits, roles, voice actors, and biographical detail — without leaving the overlay.
 
-The dictionary is generated per-media, merged across your recently-watched titles, and auto-imported into Yomitan. When a character name appears in a subtitle line, it gets highlighted and becomes clickable for a full profile lookup.
+The dictionary is generated per-media, merged across your recently-watched titles, and auto-imported into Yomitan. When a character name appears in a subtitle line, it gets highlighted and becomes available for hover-driven Yomitan profile lookup.
 
 ## How It Works
 

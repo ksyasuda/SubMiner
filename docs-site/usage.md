@@ -11,7 +11,7 @@
 3. The overlay connects and subscribes to subtitle changes
 4. Subtitles are tokenized with Yomitan's internal parser
 5. Words are displayed as interactive spans in the overlay
-6. Hovering or clicking a word triggers Yomitan popup for dictionary lookup
+6. Hover a word, then trigger Yomitan lookup with your configured lookup key/modifier to open the Yomitan popup
 7. Optional [subtitle annotations](/subtitle-annotations) (N+1, character-name, frequency, JLPT) highlight useful cues in real time
 
 There are two ways to use SubMiner:

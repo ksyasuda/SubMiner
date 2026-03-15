@@ -2,6 +2,8 @@
 
 In-repo VitePress documentation source for SubMiner.
 
+Internal architecture/workflow source of truth lives in `docs/README.md` at the repo root. Keep `docs-site/` user-facing.
+
 ## Local development
 
 ```bash
