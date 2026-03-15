@@ -771,6 +771,46 @@ test('gamepad controller trigger digital mode uses pressed state only', () => {
   assert.deepEqual(calls, ['play-audio', 'toggle-mpv-pause']);
 });
 
+test('gamepad controller digital trigger bindings ignore analog-only trigger values', () => {
+  const calls: string[] = [];
+  const buttons = Array.from({ length: 16 }, () => ({ value: 0, pressed: false, touched: false }));
+  buttons[6] = { value: 0.9, pressed: false, touched: true };
+  buttons[7] = { value: 0.9, pressed: false, touched: true };
+
+  const controller = createGamepadController({
+    getGamepads: () => [createGamepad('pad-1', { buttons })],
+    getConfig: () =>
+      createControllerConfig({
+        triggerInputMode: 'digital',
+        triggerDeadzone: 0.6,
+        bindings: {
+          playCurrentAudio: 'rightTrigger',
+          toggleMpvPause: 'leftTrigger',
+        },
+      }),
+    getKeyboardModeEnabled: () => true,
+    getLookupWindowOpen: () => true,
+    getInteractionBlocked: () => false,
+    toggleKeyboardMode: () => {},
+    toggleLookup: () => {},
+    closeLookup: () => {},
+    moveSelection: () => {},
+    mineCard: () => {},
+    quitMpv: () => {},
+    previousAudio: () => {},
+    nextAudio: () => {},
+    playCurrentAudio: () => calls.push('play-audio'),
+    toggleMpvPause: () => calls.push('toggle-mpv-pause'),
+    scrollPopup: () => {},
+    jumpPopup: () => {},
+    onState: () => {},
+  });
+
+  controller.poll(0);
+
+  assert.deepEqual(calls, []);
+});
+
 test('gamepad controller maps L3 to mpv pause and keeps unbound audio action inactive', () => {
   const calls: string[] = [];
   const buttons = Array.from({ length: 16 }, () => ({ value: 0, pressed: false, touched: false }));

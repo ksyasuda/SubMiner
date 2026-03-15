@@ -69,6 +69,20 @@ function normalizeRawButtonState(
   return Boolean(button.pressed) || button.value >= triggerDeadzone;
 }
 
+function resolveTriggerBindingPressed(
+  button: ControllerButtonState | undefined,
+  config: ResolvedControllerConfig,
+): boolean {
+  if (!button) return false;
+  if (config.triggerInputMode === 'digital') {
+    return Boolean(button.pressed);
+  }
+  if (config.triggerInputMode === 'analog') {
+    return button.value >= config.triggerDeadzone;
+  }
+  return normalizeRawButtonState(button, config.triggerDeadzone);
+}
+
 function resolveGamepadAxis(gamepad: GamepadLike, axisIndex: number): number {
   const value = gamepad.axes[axisIndex];
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -190,7 +204,13 @@ function resolveDiscreteBindingPressed(
   }
 
   if (binding.kind === 'button') {
-    return normalizeRawButtonState(gamepad.buttons[binding.buttonIndex], config.triggerDeadzone);
+    const button = gamepad.buttons[binding.buttonIndex];
+    const isTriggerBinding =
+      binding.buttonIndex === config.buttonIndices.leftTrigger ||
+      binding.buttonIndex === config.buttonIndices.rightTrigger;
+    return isTriggerBinding
+      ? resolveTriggerBindingPressed(button, config)
+      : normalizeRawButtonState(button, config.triggerDeadzone);
   }
 
   const activationThreshold = Math.max(config.stickDeadzone, 0.55);

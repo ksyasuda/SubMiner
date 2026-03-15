@@ -142,6 +142,10 @@ function buildContext() {
   return { state, dom };
 }
 
+function findActionRow(container: ReturnType<typeof createFakeElement>, labelText: string) {
+  return container.children.find((child) => child.children?.[0]?.textContent === labelText) ?? null;
+}
+
 test('controller select modal saves preferred controller from dropdown selection', async () => {
   const domHandle = installFakeDom();
   const saved: unknown[] = [];
@@ -166,6 +170,7 @@ test('controller select modal saves preferred controller from dropdown selection
       syncSettingsModalSubtitleSuppression: () => {},
     });
 
+    modal.wireDomEvents();
     modal.openControllerSelectModal();
     state.controllerDeviceSelectedIndex = 1;
 
@@ -210,6 +215,7 @@ test('controller select modal learn mode captures fresh button input and persist
       syncSettingsModalSubtitleSuppression: () => {},
     });
 
+    modal.wireDomEvents();
     modal.openControllerSelectModal();
 
     const firstRow = dom.controllerConfigList.children[1];
@@ -235,6 +241,104 @@ test('controller select modal learn mode captures fresh button input and persist
       kind: 'button',
       buttonIndex: 11,
     });
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal preserves saved axis dpad fallback while relearning', async () => {
+  const domHandle = installFakeDom();
+  const saved: unknown[] = [];
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async (update: unknown) => {
+          saved.push(update);
+        },
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    state.controllerConfig!.bindings.leftStickHorizontal = {
+      kind: 'axis',
+      axisIndex: 0,
+      dpadFallback: 'none',
+    };
+
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+    });
+
+    modal.openControllerSelectModal();
+
+    const tokenMoveRow = findActionRow(dom.controllerConfigList, 'Token Move');
+    assert.ok(tokenMoveRow);
+    const learnButton = tokenMoveRow.children[2].children[0];
+    learnButton.dispatch('click');
+
+    state.controllerRawAxes = [0, 0, 0.85];
+    modal.updateDevices();
+
+    await Promise.resolve();
+
+    assert.deepEqual(saved.at(-1), {
+      bindings: {
+        leftStickHorizontal: {
+          kind: 'axis',
+          axisIndex: 2,
+          dpadFallback: 'none',
+        },
+      },
+    });
+  } finally {
+    domHandle.restore();
+  }
+});
+
+test('controller select modal uses unique picker values for duplicate controller ids', async () => {
+  const domHandle = installFakeDom();
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      focus: () => {},
+      electronAPI: {
+        saveControllerConfig: async () => {},
+        notifyOverlayModalClosed: () => {},
+      },
+    },
+  });
+
+  try {
+    const { state, dom } = buildContext();
+    state.connectedGamepads = [
+      { id: 'same-pad', index: 0, mapping: 'standard', connected: true },
+      { id: 'same-pad', index: 1, mapping: 'standard', connected: true },
+    ];
+    state.activeGamepadId = 'same-pad';
+
+    const modal = createControllerSelectModal({ state, dom } as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+    });
+
+    modal.wireDomEvents();
+    modal.openControllerSelectModal();
+
+    const [firstOption, secondOption] = dom.controllerSelectPicker.children;
+    assert.notEqual(firstOption.value, secondOption.value);
+
+    dom.controllerSelectPicker.value = secondOption.value;
+    dom.controllerSelectPicker.dispatch('change');
+
+    assert.equal(state.controllerDeviceSelectedIndex, 1);
   } finally {
     domHandle.restore();
   }

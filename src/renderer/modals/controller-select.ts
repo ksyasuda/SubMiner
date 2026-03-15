@@ -25,7 +25,7 @@ export function createControllerSelectModal(
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
-  let selectedControllerId: string | null = null;
+  let selectedControllerKey: string | null = null;
   let lastRenderedDevicesKey = '';
   let lastRenderedActiveGamepadId: string | null = null;
   let lastRenderedPreferredId = '';
@@ -58,6 +58,7 @@ export function createControllerSelectModal(
       const definition = getControllerBindingDefinition(actionId);
       if (!definition) return;
       const config = ctx.state.controllerConfig;
+      const currentBinding = config?.bindings[actionId];
       bindingCapture = createControllerBindingCapture({
         triggerDeadzone: config?.triggerDeadzone ?? 0.5,
         stickDeadzone: config?.stickDeadzone ?? 0.2,
@@ -68,8 +69,10 @@ export function createControllerSelectModal(
               actionId,
               bindingType: 'axis',
               dpadFallback:
-                definition.defaultBinding.kind === 'axis' &&
-                'dpadFallback' in definition.defaultBinding
+                currentBinding?.kind === 'axis' && 'dpadFallback' in currentBinding
+                  ? currentBinding.dpadFallback
+                  : definition.defaultBinding.kind === 'axis' &&
+                      'dpadFallback' in definition.defaultBinding
                   ? definition.defaultBinding.dpadFallback
                   : 'none',
             }
@@ -100,9 +103,13 @@ export function createControllerSelectModal(
       .join('||');
   }
 
+  function getDeviceSelectionKey(device: { id: string; index: number }): string {
+    return `${device.id}:${device.index}`;
+  }
+
   function syncSelectedControllerId(): void {
     const selected = ctx.state.connectedGamepads[ctx.state.controllerDeviceSelectedIndex];
-    selectedControllerId = selected?.id ?? null;
+    selectedControllerKey = selected ? getDeviceSelectionKey(selected) : null;
   }
 
   function syncSelectedIndexToCurrentController(): void {
@@ -139,7 +146,7 @@ export function createControllerSelectModal(
     const preferredId = ctx.state.controllerConfig?.preferredGamepadId ?? '';
     ctx.state.connectedGamepads.forEach((device, index) => {
       const option = document.createElement('option');
-      option.value = device.id;
+      option.value = getDeviceSelectionKey(device);
       option.selected = index === ctx.state.controllerDeviceSelectedIndex;
       option.textContent = `${device.id || `Gamepad ${device.index}`} (${[
         `#${device.index}`,
@@ -226,9 +233,9 @@ export function createControllerSelectModal(
 
   function updateDevices(): void {
     if (!ctx.state.controllerSelectModalOpen) return;
-    if (selectedControllerId) {
+    if (selectedControllerKey) {
       const preservedIndex = ctx.state.connectedGamepads.findIndex(
-        (device) => device.id === selectedControllerId,
+        (device) => getDeviceSelectionKey(device) === selectedControllerKey,
       );
       if (preservedIndex >= 0) {
         ctx.state.controllerDeviceSelectedIndex = preservedIndex;
@@ -353,8 +360,10 @@ export function createControllerSelectModal(
       void saveSelectedController();
     });
     ctx.dom.controllerSelectPicker.addEventListener('change', () => {
-      const selectedId = ctx.dom.controllerSelectPicker.value;
-      const selectedIndex = ctx.state.connectedGamepads.findIndex((device) => device.id === selectedId);
+      const selectedKey = ctx.dom.controllerSelectPicker.value;
+      const selectedIndex = ctx.state.connectedGamepads.findIndex(
+        (device) => getDeviceSelectionKey(device) === selectedKey,
+      );
       if (selectedIndex >= 0) {
         ctx.state.controllerDeviceSelectedIndex = selectedIndex;
         syncSelectedControllerId();
