@@ -418,6 +418,9 @@ import {
   generateConfigTemplate,
 } from './config';
 import { resolveConfigDir } from './config/path-resolution';
+import { parseSubtitleCues } from './core/services/subtitle-cue-parser';
+import { createSubtitlePrefetchService } from './core/services/subtitle-prefetch';
+import type { SubtitlePrefetchService } from './core/services/subtitle-prefetch';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -1067,6 +1070,7 @@ const buildSubtitleProcessingControllerMainDepsHandler =
         topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
         mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
       });
+      subtitlePrefetchService?.resume();
     },
     logDebug: (message) => {
       logger.debug(`[subtitle-processing] ${message}`);
@@ -1077,6 +1081,42 @@ const subtitleProcessingControllerMainDeps = buildSubtitleProcessingControllerMa
 const subtitleProcessingController = createSubtitleProcessingController(
   subtitleProcessingControllerMainDeps,
 );
+
+let subtitlePrefetchService: SubtitlePrefetchService | null = null;
+let lastObservedTimePos = 0;
+const SEEK_THRESHOLD_SECONDS = 3;
+
+async function initSubtitlePrefetch(
+  externalFilename: string,
+  currentTimePos: number,
+): Promise<void> {
+  subtitlePrefetchService?.stop();
+  subtitlePrefetchService = null;
+
+  try {
+    const content = await loadSubtitleSourceText(externalFilename);
+    const cues = parseSubtitleCues(content, externalFilename);
+    if (cues.length === 0) {
+      return;
+    }
+
+    subtitlePrefetchService = createSubtitlePrefetchService({
+      cues,
+      tokenizeSubtitle: async (text) =>
+        tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
+      preCacheTokenization: (text, data) => {
+        subtitleProcessingController.preCacheTokenization(text, data);
+      },
+      isCacheFull: () => subtitleProcessingController.isCacheFull(),
+    });
+
+    subtitlePrefetchService.start(currentTimePos);
+    logger.info(`[subtitle-prefetch] started prefetching ${cues.length} cues from ${externalFilename}`);
+  } catch (error) {
+    logger.warn('[subtitle-prefetch] failed to initialize:', (error as Error).message);
+  }
+}
+
 const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
   createBuildOverlayShortcutsRuntimeMainDepsHandler({
     getConfiguredShortcuts: () => getConfiguredShortcuts(),
@@ -1437,6 +1477,7 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
       clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
     }
     subtitleProcessingController.invalidateTokenizationCache();
+    subtitlePrefetchService?.onSeek(lastObservedTimePos);
     subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
     logger.info(
       `[dictionary:auto-sync] refreshed current subtitle after sync (AniList ${mediaId}, changed=${changed ? 'yes' : 'no'}, title=${mediaTitle})`,
@@ -2615,6 +2656,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
           getSubtitleStyleConfig: () => configService.getConfig().subtitleStyle,
           onOptionsChanged: () => {
             subtitleProcessingController.invalidateTokenizationCache();
+            subtitlePrefetchService?.onSeek(lastObservedTimePos);
             broadcastRuntimeOptionsChanged();
             refreshOverlayShortcuts();
           },
@@ -2856,6 +2898,7 @@ const {
       broadcastToOverlayWindows(channel, payload);
     },
     onSubtitleChange: (text) => {
+      subtitlePrefetchService?.pause();
       subtitleProcessingController.onSubtitleChange(text);
     },
     refreshDiscordPresence: () => {
@@ -2870,8 +2913,42 @@ const {
       autoPlayReadySignalMediaPath = null;
       currentMediaTokenizationGate.updateCurrentMediaPath(path);
       startupOsdSequencer.reset();
+      subtitlePrefetchService?.stop();
+      subtitlePrefetchService = null;
       if (path) {
         ensureImmersionTrackerStarted();
+        // Attempt to initialize subtitle prefetch for external subtitle tracks.
+        // Delay slightly to allow MPV's track-list to be populated.
+        setTimeout(() => {
+          const client = appState.mpvClient;
+          if (!client?.connected) return;
+          void (async () => {
+            try {
+              const [trackListRaw, sidRaw] = await Promise.all([
+                client.requestProperty('track-list'),
+                client.requestProperty('sid'),
+              ]);
+              if (!Array.isArray(trackListRaw) || sidRaw == null) return;
+              const sid = typeof sidRaw === 'number' ? sidRaw : typeof sidRaw === 'string' ? Number(sidRaw) : null;
+              if (sid == null || !Number.isFinite(sid)) return;
+              const activeTrack = trackListRaw.find(
+                (entry: unknown) => {
+                  if (!entry || typeof entry !== 'object') return false;
+                  const t = entry as Record<string, unknown>;
+                  return t.type === 'sub' && t.id === sid && t.external === true;
+                },
+              ) as Record<string, unknown> | undefined;
+              if (!activeTrack) return;
+              const externalFilename = typeof activeTrack['external-filename'] === 'string'
+                ? (activeTrack['external-filename'] as string).trim()
+                : '';
+              if (!externalFilename) return;
+              void initSubtitlePrefetch(externalFilename, lastObservedTimePos);
+            } catch {
+              // Track list query failed — not critical, skip prefetch.
+            }
+          })();
+        }, 500);
       }
       mediaRuntime.updateCurrentMediaPath(path);
     },
@@ -2914,6 +2991,13 @@ const {
     },
     reportJellyfinRemoteProgress: (forceImmediate) => {
       void reportJellyfinRemoteProgress(forceImmediate);
+    },
+    onTimePosUpdate: (time) => {
+      const delta = time - lastObservedTimePos;
+      if (subtitlePrefetchService && (delta > SEEK_THRESHOLD_SECONDS || delta < 0)) {
+        subtitlePrefetchService.onSeek(time);
+      }
+      lastObservedTimePos = time;
     },
     updateSubtitleRenderMetrics: (patch) => {
       updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
@@ -3508,26 +3592,28 @@ const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHand
   appendClipboardVideoToQueueMainDeps,
 );
 
+async function loadSubtitleSourceText(source: string): Promise<string> {
+  if (/^https?:\/\//i.test(source)) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    try {
+      const response = await fetch(source, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Failed to download subtitle source (${response.status})`);
+      }
+      return await response.text();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  const filePath = source.startsWith('file://') ? decodeURI(new URL(source).pathname) : source;
+  return fs.promises.readFile(filePath, 'utf8');
+}
+
 const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacentCueHandler({
   getMpvClient: () => appState.mpvClient,
-  loadSubtitleSourceText: async (source) => {
-    if (/^https?:\/\//i.test(source)) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      try {
-        const response = await fetch(source, { signal: controller.signal });
-        if (!response.ok) {
-          throw new Error(`Failed to download subtitle source (${response.status})`);
-        }
-        return await response.text();
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    }
-
-    const filePath = source.startsWith('file://') ? decodeURI(new URL(source).pathname) : source;
-    return fs.promises.readFile(filePath, 'utf8');
-  },
+  loadSubtitleSourceText,
   sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
   showMpvOsd: (text) => showMpvOsd(text),
 });

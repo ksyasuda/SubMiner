@@ -59,6 +59,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   recordPlaybackPosition: (time: number) => void;
   recordMediaDuration: (durationSec: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
+  onTimePosUpdate?: (time: number) => void;
   recordPauseState: (paused: boolean) => void;
 
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
@@ -124,6 +125,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       reportJellyfinRemoteProgress: (forceImmediate) =>
         deps.reportJellyfinRemoteProgress(forceImmediate),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
+      onTimePosUpdate: (time) => deps.onTimePosUpdate?.(time),
     });
     const handleMpvPauseChange = createHandleMpvPauseChangeHandler({
       recordPauseState: (paused) => deps.recordPauseState(paused),
