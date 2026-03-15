@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useVocabulary } from '../../hooks/useVocabulary';
 import { StatCard } from '../layout/StatCard';
 import { WordList } from './WordList';
@@ -7,7 +7,6 @@ import { KanjiDetailPanel } from './KanjiDetailPanel';
 import { formatNumber } from '../../lib/formatters';
 import { TrendChart } from '../trends/TrendChart';
 import { buildVocabularySummary } from '../../lib/dashboard-data';
-import { isFilterable } from './pos-helpers';
 import type { KanjiEntry, VocabularyEntry } from '../../types/stats';
 
 interface VocabularyTabProps {
@@ -18,18 +17,12 @@ interface VocabularyTabProps {
 export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail }: VocabularyTabProps) {
   const { words, kanji, loading, error } = useVocabulary();
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
-  const [hideParticles, setHideParticles] = useState(true);
   const [search, setSearch] = useState('');
-
-  const filteredWords = useMemo(
-    () => hideParticles ? words.filter(w => !isFilterable(w)) : words,
-    [words, hideParticles],
-  );
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
 
-  const summary = buildVocabularySummary(filteredWords, kanji);
+  const summary = buildVocabularySummary(words, kanji);
 
   const handleSelectWord = (entry: VocabularyEntry): void => {
     onOpenWordDetail?.(entry.wordId);
@@ -52,15 +45,6 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail }: Vocabular
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-xs text-ctp-subtext0 select-none cursor-pointer">
-          <input
-            type="checkbox"
-            checked={hideParticles}
-            onChange={(e) => setHideParticles(e.target.checked)}
-            className="rounded border-ctp-surface2 bg-ctp-surface1 text-ctp-blue focus:ring-ctp-blue"
-          />
-          Hide particles & single kana
-        </label>
         <input
           type="text"
           value={search}
@@ -86,7 +70,7 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail }: Vocabular
       </div>
 
       <WordList
-        words={filteredWords}
+        words={words}
         selectedKey={null}
         onSelectWord={handleSelectWord}
         search={search}

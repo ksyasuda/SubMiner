@@ -30,7 +30,14 @@ export function App() {
   return (
     <div className="min-h-screen flex flex-col bg-ctp-base">
       <header className="px-4 pt-3 pb-0">
-        <h1 className="text-lg font-semibold text-ctp-text mb-2">SubMiner Stats</h1>
+        <button
+          type="button"
+          onClick={() => handleTabChange('overview')}
+          className="flex items-center gap-2 mb-2 hover:opacity-80 transition-opacity"
+        >
+          <img src="/favicon.png" alt="" className="h-6 object-contain" />
+          <h1 className="text-lg font-semibold text-ctp-text">SubMiner Stats</h1>
+        </button>
         <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
       </header>
       <main className="flex-1 overflow-y-auto p-4">
