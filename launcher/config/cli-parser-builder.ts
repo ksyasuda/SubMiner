@@ -260,7 +260,7 @@ export function parseCliPrograms(
       statsTriggered = true;
       if ((action || '').toLowerCase() === 'cleanup') {
         statsCleanup = true;
-        statsCleanupVocab = options.vocab === true;
+        statsCleanupVocab = options.vocab !== false;
       }
       statsLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
     });
