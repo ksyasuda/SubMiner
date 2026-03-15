@@ -91,6 +91,8 @@ export interface OverviewData {
     activeSessions: number;
     episodesToday: number;
     activeAnimeCount: number;
+    totalEpisodesWatched: number;
+    totalAnimeCompleted: number;
   };
 }
 
