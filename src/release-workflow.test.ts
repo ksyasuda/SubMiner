@@ -83,7 +83,7 @@ test('release workflow publishes subminer-bin to AUR from tagged release artifac
 });
 
 test('release workflow skips empty AUR sync commits', () => {
-  assert.match(releaseWorkflow, /git diff --quiet/);
+  assert.match(releaseWorkflow, /if git diff --quiet -- PKGBUILD \.SRCINFO; then/);
 });
 
 test('Makefile routes Windows install-plugin setup through bun and documents Windows builds', () => {
