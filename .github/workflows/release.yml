@@ -317,7 +317,7 @@ jobs:
 
       - name: Get version from tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Verify changelog is ready for tagged release
         run: bun run changelog:check --version "${{ steps.version.outputs.VERSION }}"
@@ -374,7 +374,7 @@ jobs:
 
       - name: Get version from tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Validate AUR SSH secret
         env:
@@ -423,11 +423,13 @@ jobs:
       - name: Update AUR packaging metadata
         run: |
           set -euo pipefail
+          version_no_v="${{ steps.version.outputs.VERSION }}"
+          version_no_v="${version_no_v#v}"
           cp packaging/aur/subminer-bin/PKGBUILD aur-subminer-bin/PKGBUILD
           bash scripts/update-aur-package.sh \
             --pkg-dir aur-subminer-bin \
             --version "${{ steps.version.outputs.VERSION }}" \
-            --appimage ".tmp/aur-release-assets/SubMiner-${{ steps.version.outputs.VERSION }}.AppImage" \
+            --appimage ".tmp/aur-release-assets/SubMiner-${version_no_v}.AppImage" \
             --wrapper ".tmp/aur-release-assets/subminer" \
             --assets ".tmp/aur-release-assets/subminer-assets.tar.gz"
 

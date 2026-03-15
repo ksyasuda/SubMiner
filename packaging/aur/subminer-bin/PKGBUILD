@@ -28,7 +28,7 @@ optdepends=(
 	'alass-git: preferred subtitle synchronization engine'
 	'python-ffsubsync: fallback subtitle synchronization engine'
 )
-provides=('subminer')
+provides=("subminer=${pkgver}")
 conflicts=('subminer')
 source=(
 	"SubMiner-${pkgver}.AppImage::https://github.com/ksyasuda/SubMiner/releases/download/v${pkgver}/SubMiner-${pkgver}.AppImage"
@@ -46,9 +46,9 @@ package() {
 	install -dm755 "${pkgdir}/usr/bin"
 
 	install -Dm755 "${srcdir}/SubMiner-${pkgver}.AppImage" \
-		"${pkgdir}/usr/lib/SubMiner/SubMiner.AppImage"
-	install -dm755 "${pkgdir}/usr/lib/SubMiner"
-	ln -s '/usr/lib/SubMiner/SubMiner.AppImage' "${pkgdir}/usr/bin/SubMiner.AppImage"
+		"${pkgdir}/opt/SubMiner/SubMiner.AppImage"
+	install -dm755 "${pkgdir}/opt/SubMiner"
+	ln -s '/opt/SubMiner/SubMiner.AppImage' "${pkgdir}/usr/bin/SubMiner.AppImage"
 
 	install -Dm755 "${srcdir}/subminer" "${pkgdir}/usr/bin/subminer"
 

@@ -21,7 +21,7 @@ pkgbase = subminer-bin
 	optdepends = python-guessit: improved AniSkip title and episode inference
 	optdepends = alass-git: preferred subtitle synchronization engine
 	optdepends = python-ffsubsync: fallback subtitle synchronization engine
-	provides = subminer
+	provides = subminer=0.6.2
 	conflicts = subminer
 	noextract = SubMiner-0.6.2.AppImage
 	options = !strip

@@ -78,9 +78,12 @@ awk \
   '
   BEGIN {
     in_sha_block = 0
+    found_pkgver = 0
+    found_sha_block = 0
   }
   /^pkgver=/ {
     print "pkgver=" version
+    found_pkgver = 1
     next
   }
   /^sha256sums=\(/ {
@@ -95,11 +98,22 @@ awk \
     if ($0 ~ /^\)/) {
       print ")"
       in_sha_block = 0
+      found_sha_block = 1
     }
     next
   }
   {
     print
+  }
+  END {
+    if (!found_pkgver) {
+      print "Missing pkgver= line in PKGBUILD" > "/dev/stderr"
+      exit 1
+    }
+    if (!found_sha_block) {
+      print "Missing sha256sums block in PKGBUILD" > "/dev/stderr"
+      exit 1
+    }
   }
   ' "$pkgbuild" > "$tmpfile"
 mv "$tmpfile" "$pkgbuild"
