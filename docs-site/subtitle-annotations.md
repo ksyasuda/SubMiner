@@ -60,7 +60,7 @@ Frequency highlighting colors tokens based on how common they are, using diction
 - **Single** — all highlighted tokens share one color (`singleColor`).
 - **Banded** — tokens are assigned to five color bands from most common to least common within the `topX` window.
 
-SubMiner looks up each token's `frequencyRank` from `term_meta_bank_*.json` files. Only tokens with a positive rank at or below `topX` are highlighted.
+SubMiner looks up each token's `frequencyRank` from Yomitan's configured frequency-sorting dictionary (`general.sortFrequencyDictionary`) when one is set. Otherwise it falls back to the enabled Yomitan dictionaries. Only tokens with a positive rank at or below `topX` are highlighted.
 
 **Key settings:**
 
@@ -77,7 +77,7 @@ SubMiner looks up each token's `frequencyRank` from `term_meta_bank_*.json` file
 When `sourcePath` is omitted, SubMiner searches default install/runtime locations for `frequency-dictionary` directories automatically.
 
 ::: info
-Frequency highlighting skips tokens that look like non-lexical noise (kana reduplication, short kana endings like `っ`), even when dictionary ranks exist.
+Frequency highlighting skips tokens that look like non-lexical noise (kana reduplication, short kana endings like `っ`), even when dictionary ranks exist. When Yomitan lookup results include part-of-speech tags, SubMiner also uses those tags to suppress interjections, particles, auxiliaries, and similar non-card material without requiring MeCab.
 :::
 
 ## JLPT Tagging

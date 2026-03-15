@@ -47,6 +47,8 @@ export interface YomitanScanToken {
   startPos: number;
   endPos: number;
   isNameMatch?: boolean;
+  pos1?: string;
+  pos2?: string;
 }
 
 interface YomitanProfileMetadata {
@@ -78,7 +80,9 @@ function isScanTokenArray(value: unknown): value is YomitanScanToken[] {
         typeof entry.headword === 'string' &&
         typeof entry.startPos === 'number' &&
         typeof entry.endPos === 'number' &&
-        (entry.isNameMatch === undefined || typeof entry.isNameMatch === 'boolean'),
+        (entry.isNameMatch === undefined || typeof entry.isNameMatch === 'boolean') &&
+        (entry.pos1 === undefined || typeof entry.pos1 === 'string') &&
+        (entry.pos2 === undefined || typeof entry.pos2 === 'string'),
     )
   );
 }
@@ -157,6 +161,43 @@ function parsePositiveFrequencyValue(value: unknown): number | null {
   }
 
   return null;
+}
+
+function extractEnabledDictionaryNames(dictionariesRaw: unknown): string[] {
+  if (!Array.isArray(dictionariesRaw)) {
+    return [];
+  }
+
+  return dictionariesRaw
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        return entry.trim();
+      }
+      if (!isObject(entry) || entry.enabled === false || typeof entry.name !== 'string') {
+        return null;
+      }
+      const normalizedName = entry.name.trim();
+      return normalizedName.length > 0 ? normalizedName : null;
+    })
+    .filter((entry): entry is string => entry !== null);
+}
+
+function resolveRequestedFrequencyDictionaries(
+  dictionariesRaw: unknown,
+  sortFrequencyDictionaryRaw: unknown,
+): string[] {
+  const enabledDictionaries = extractEnabledDictionaryNames(dictionariesRaw);
+  if (enabledDictionaries.length === 0) {
+    return enabledDictionaries;
+  }
+
+  const sortFrequencyDictionary =
+    typeof sortFrequencyDictionaryRaw === 'string' ? sortFrequencyDictionaryRaw.trim() : '';
+  if (sortFrequencyDictionary && enabledDictionaries.includes(sortFrequencyDictionary)) {
+    return [sortFrequencyDictionary];
+  }
+
+  return enabledDictionaries;
 }
 
 function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
@@ -244,37 +285,20 @@ function toYomitanProfileMetadata(value: unknown): YomitanProfileMetadata | null
     typeof scanLengthRaw === 'number' && Number.isFinite(scanLengthRaw)
       ? Math.max(1, Math.floor(scanLengthRaw))
       : DEFAULT_YOMITAN_SCAN_LENGTH;
+  const profileOptions =
+    Array.isArray(value.profiles) && isObject(value.profiles[profileIndex])
+      ? (value.profiles[profileIndex] as { options?: Record<string, unknown> }).options
+      : undefined;
   const dictionariesRaw =
-    value.dictionaries ??
-    (Array.isArray(value.profiles) && isObject(value.profiles[profileIndex])
-      ? (value.profiles[profileIndex] as { options?: { dictionaries?: unknown[] } }).options
-          ?.dictionaries
-      : undefined);
-  const dictionaries = Array.isArray(dictionariesRaw)
-    ? dictionariesRaw
-        .map((entry, index) => {
-          if (typeof entry === 'string') {
-            return { name: entry.trim(), priority: index };
-          }
-          if (!isObject(entry) || entry.enabled === false || typeof entry.name !== 'string') {
-            return null;
-          }
-          const normalizedName = entry.name.trim();
-          if (!normalizedName) {
-            return null;
-          }
-          const priorityRaw = (entry as { id?: unknown }).id;
-          const priority =
-            typeof priorityRaw === 'number' && Number.isFinite(priorityRaw)
-              ? Math.max(0, Math.floor(priorityRaw))
-              : index;
-          return { name: normalizedName, priority };
-        })
-        .filter((entry): entry is { name: string; priority: number } => entry !== null)
-        .sort((a, b) => a.priority - b.priority)
-        .map((entry) => entry.name)
-        .filter((entry) => entry.length > 0)
-    : [];
+    value.dictionaries ?? (profileOptions as { dictionaries?: unknown[] } | undefined)?.dictionaries;
+  const sortFrequencyDictionaryRaw =
+    value.sortFrequencyDictionary ??
+    (profileOptions as { general?: { sortFrequencyDictionary?: unknown } } | undefined)?.general
+      ?.sortFrequencyDictionary;
+  const dictionaries = resolveRequestedFrequencyDictionaries(
+    dictionariesRaw,
+    sortFrequencyDictionaryRaw,
+  );
   const dictionaryPriorityByNameRaw = value.dictionaryPriorityByName;
   const dictionaryPriorityByName: Record<string, number> = {};
   if (isObject(dictionaryPriorityByNameRaw)) {
@@ -320,10 +344,12 @@ function normalizeFrequencyEntriesWithPriority(
     }
 
     const dictionaryPriority = dictionaryPriorityByName[frequency.dictionary];
+    if (dictionaryPriority === undefined) {
+      continue;
+    }
     normalized.push({
       ...frequency,
-      dictionaryPriority:
-        dictionaryPriority !== undefined ? dictionaryPriority : frequency.dictionaryPriority,
+      dictionaryPriority,
     });
   }
 
@@ -410,19 +436,23 @@ async function requestYomitanProfileMetadata(
         typeof scanLengthRaw === "number" && Number.isFinite(scanLengthRaw)
           ? Math.max(1, Math.floor(scanLengthRaw))
           : ${DEFAULT_YOMITAN_SCAN_LENGTH};
-      const dictionariesRaw = optionsFull.profiles?.[profileIndex]?.options?.dictionaries ?? [];
-      const dictionaryEntries = Array.isArray(dictionariesRaw)
+      const profileOptions = optionsFull.profiles?.[profileIndex]?.options ?? {};
+      const dictionariesRaw = profileOptions.dictionaries ?? [];
+      const sortFrequencyDictionaryRaw = profileOptions.general?.sortFrequencyDictionary;
+      const enabledDictionaries = Array.isArray(dictionariesRaw)
         ? dictionariesRaw
             .filter((entry) => entry && typeof entry === "object" && entry.enabled === true && typeof entry.name === "string")
-            .map((entry, index) => ({
-              name: entry.name,
-              id: typeof entry.id === "number" && Number.isFinite(entry.id) ? Math.max(0, Math.floor(entry.id)) : index
-            }))
-            .sort((a, b) => a.id - b.id)
+            .map((entry) => entry.name.trim())
+            .filter((entry) => entry.length > 0)
         : [];
-      const dictionaries = dictionaryEntries.map((entry) => entry.name);
-      const dictionaryPriorityByName = dictionaryEntries.reduce((acc, entry, index) => {
-        acc[entry.name] = index;
+      const sortFrequencyDictionary =
+        typeof sortFrequencyDictionaryRaw === "string" ? sortFrequencyDictionaryRaw.trim() : "";
+      const dictionaries =
+        sortFrequencyDictionary !== "" && enabledDictionaries.includes(sortFrequencyDictionary)
+          ? [sortFrequencyDictionary]
+          : enabledDictionaries;
+      const dictionaryPriorityByName = dictionaries.reduce((acc, entry, index) => {
+        acc[entry] = index;
         return acc;
       }, {});
 
@@ -619,6 +649,36 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
       const KATAKANA_SMALL_KE_CODE_POINT = 0x30f6;
       const KANA_RANGES = [[0x3040, 0x309f], [0x30a0, 0x30ff]];
       const JAPANESE_RANGES = [[0x3040, 0x30ff], [0x3400, 0x9fff]];
+      const POS1_TAG_ALIASES = new Map([
+        ["noun", "名詞"],
+        ["verb", "動詞"],
+        ["adjective", "形容詞"],
+        ["i adjective", "形容詞"],
+        ["i-adjective", "形容詞"],
+        ["na adjective", "形状詞"],
+        ["na-adjective", "形状詞"],
+        ["adjectival noun", "形状詞"],
+        ["adnominal", "連体詞"],
+        ["interjection", "感動詞"],
+        ["conjunction", "接続詞"],
+        ["particle", "助詞"],
+        ["auxiliary verb", "助動詞"],
+        ["auxiliary", "助動詞"],
+        ["prefix", "接頭詞"],
+        ["symbol", "記号"],
+        ["punctuation", "記号"],
+        ["supplementary symbol", "補助記号"]
+      ]);
+      const POS2_TAG_ALIASES = new Map([
+        ["non independent", "非自立"],
+        ["non-independent", "非自立"],
+        ["non independent verb", "非自立"],
+        ["bound", "非自立"]
+      ]);
+      const KNOWN_POS1_TAGS = new Set([
+        "名詞", "動詞", "形容詞", "形状詞", "形容動詞", "連体詞", "感動詞", "接続詞", "助詞", "助動詞", "接頭詞", "記号", "補助記号"
+      ]);
+      const KNOWN_POS2_TAGS = new Set(["非自立"]);
       function isCodePointInRange(codePoint, range) { return codePoint >= range[0] && codePoint <= range[1]; }
       function isCodePointInRanges(codePoint, ranges) { return ranges.some((range) => isCodePointInRange(codePoint, range)); }
       function isCodePointKana(codePoint) { return isCodePointInRanges(codePoint, KANA_RANGES); }
@@ -774,6 +834,57 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
         }
         return segments;
       }
+      function normalizePosTagValue(value) {
+        return typeof value === "string" ? value.trim() : "";
+      }
+      function normalizePosTagLookupKey(value) {
+        return normalizePosTagValue(value)
+          .toLowerCase()
+          .replace(/[()]/g, " ")
+          .replace(/[_-]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+      function pushUnique(target, value) {
+        if (!value || target.includes(value)) {
+          return;
+        }
+        target.push(value);
+      }
+      function mapPosTagName(value, aliases, knownTags) {
+        const normalized = normalizePosTagValue(value);
+        if (!normalized) {
+          return "";
+        }
+        const alias = aliases.get(normalizePosTagLookupKey(normalized));
+        if (typeof alias === "string" && alias.length > 0) {
+          return alias;
+        }
+        return knownTags.has(normalized) ? normalized : "";
+      }
+      function appendPosTags(targetPos1, targetPos2, tags) {
+        if (!Array.isArray(tags)) {
+          return;
+        }
+        for (const tag of tags) {
+          if (!tag || typeof tag !== "object") {
+            continue;
+          }
+          const category = normalizePosTagLookupKey(tag.category);
+          if (category && category !== "partofspeech") {
+            continue;
+          }
+          const pos1 = mapPosTagName(tag.name, POS1_TAG_ALIASES, KNOWN_POS1_TAGS);
+          if (pos1) {
+            pushUnique(targetPos1, pos1);
+            continue;
+          }
+          const pos2 = mapPosTagName(tag.name, POS2_TAG_ALIASES, KNOWN_POS2_TAGS);
+          if (pos2) {
+            pushUnique(targetPos2, pos2);
+          }
+        }
+      }
       function getPreferredHeadword(dictionaryEntries, token) {
         function appendDictionaryNames(target, value) {
           if (!value || typeof value !== 'object') {
@@ -822,29 +933,94 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
           }
           return false;
         }
+        function getMatchedHeadwords(entry, token) {
+          const matched = [];
+          for (const headword of entry?.headwords || []) {
+            if (hasExactPrimarySource(headword, token)) {
+              matched.push(headword);
+            }
+          }
+          return matched;
+        }
+        function getPosMetadata(entry, matchedHeadwords) {
+          const pos1 = [];
+          const pos2 = [];
+          for (const headword of matchedHeadwords) {
+            appendPosTags(pos1, pos2, headword?.tags);
+          }
+          const matchedHeadwordIndices = new Set(
+            matchedHeadwords
+              .map((headword) =>
+                typeof headword?.index === "number" && Number.isFinite(headword.index)
+                  ? Math.floor(headword.index)
+                  : null
+              )
+              .filter((index) => index !== null)
+          );
+          for (const definition of entry?.definitions || []) {
+            if (matchedHeadwordIndices.size > 0 && Array.isArray(definition?.headwordIndices)) {
+              const matchesHeadword = definition.headwordIndices.some((index) => matchedHeadwordIndices.has(index));
+              if (!matchesHeadword) {
+                continue;
+              }
+            }
+            appendPosTags(pos1, pos2, definition?.tags);
+          }
+          appendPosTags(pos1, pos2, entry?.tags);
+          return {
+            pos1: pos1.join("|"),
+            pos2: pos2.join("|")
+          };
+        }
         let matchedNameDictionary = false;
         if (includeNameMatchMetadata) {
           for (const dictionaryEntry of dictionaryEntries || []) {
             if (!isNameDictionaryEntry(dictionaryEntry)) { continue; }
-            for (const headword of dictionaryEntry.headwords || []) {
-              if (!hasExactPrimarySource(headword, token)) { continue; }
+            for (const headword of getMatchedHeadwords(dictionaryEntry, token)) {
               matchedNameDictionary = true;
               break;
             }
             if (matchedNameDictionary) { break; }
           }
         }
+        let matchedEntryCount = 0;
+        let preferredPos1 = "";
+        let preferredPos2 = "";
+        let preferredHeadword = null;
         for (const dictionaryEntry of dictionaryEntries || []) {
-          for (const headword of dictionaryEntry.headwords || []) {
-            if (!hasExactPrimarySource(headword, token)) { continue; }
-            return {
+          const matchedHeadwords = getMatchedHeadwords(dictionaryEntry, token);
+          if (matchedHeadwords.length === 0) {
+            continue;
+          }
+          if (preferredHeadword === null) {
+            const headword = matchedHeadwords[0];
+            preferredHeadword = {
               term: headword.term,
               reading: headword.reading,
               isNameMatch: matchedNameDictionary || isNameDictionaryEntry(dictionaryEntry)
             };
           }
+          matchedEntryCount += 1;
+          if (matchedEntryCount <= 3 && preferredPos1.length === 0 && preferredPos2.length === 0) {
+            const metadata = getPosMetadata(dictionaryEntry, matchedHeadwords);
+            if (metadata.pos1.length > 0 || metadata.pos2.length > 0) {
+              preferredPos1 = metadata.pos1;
+              preferredPos2 = metadata.pos2;
+            }
+          }
+          if (matchedEntryCount >= 3 && preferredHeadword !== null) {
+            break;
+          }
         }
-        return null;
+        return preferredHeadword !== null
+          ? {
+              term: preferredHeadword.term,
+              reading: preferredHeadword.reading,
+              isNameMatch: preferredHeadword.isNameMatch,
+              pos1: preferredPos1,
+              pos2: preferredPos2
+            }
+          : null;
       }
 `;
 
@@ -900,6 +1076,8 @@ ${YOMITAN_SCANNING_HELPERS}
               startPos: i,
               endPos: i + originalTextLength,
               isNameMatch: includeNameMatchMetadata && preferredHeadword.isNameMatch === true,
+              pos1: typeof preferredHeadword.pos1 === "string" ? preferredHeadword.pos1 : "",
+              pos2: typeof preferredHeadword.pos2 === "string" ? preferredHeadword.pos2 : "",
             });
             i += originalTextLength;
             continue;
@@ -1051,6 +1229,8 @@ export async function requestYomitanScanTokens(
           headword: token.headword,
           startPos: token.startPos,
           endPos: token.endPos,
+          pos1: '',
+          pos2: '',
         })) ?? null
       );
     }
@@ -1130,19 +1310,23 @@ async function fetchYomitanTermFrequencies(
 
       const optionsFull = await invoke("optionsGetFull", undefined);
       const profileIndex = optionsFull.profileCurrent;
-      const dictionariesRaw = optionsFull.profiles?.[profileIndex]?.options?.dictionaries ?? [];
-      const dictionaryEntries = Array.isArray(dictionariesRaw)
+      const profileOptions = optionsFull.profiles?.[profileIndex]?.options ?? {};
+      const dictionariesRaw = profileOptions.dictionaries ?? [];
+      const sortFrequencyDictionaryRaw = profileOptions.general?.sortFrequencyDictionary;
+      const enabledDictionaries = Array.isArray(dictionariesRaw)
         ? dictionariesRaw
             .filter((entry) => entry && typeof entry === "object" && entry.enabled === true && typeof entry.name === "string")
-            .map((entry, index) => ({
-              name: entry.name,
-              id: typeof entry.id === "number" && Number.isFinite(entry.id) ? Math.floor(entry.id) : index
-            }))
-            .sort((a, b) => a.id - b.id)
+            .map((entry) => entry.name.trim())
+            .filter((entry) => entry.length > 0)
         : [];
-      const dictionaries = dictionaryEntries.map((entry) => entry.name);
-      const dictionaryPriorityByName = dictionaryEntries.reduce((acc, entry, index) => {
-        acc[entry.name] = index;
+      const sortFrequencyDictionary =
+        typeof sortFrequencyDictionaryRaw === "string" ? sortFrequencyDictionaryRaw.trim() : "";
+      const dictionaries =
+        sortFrequencyDictionary !== "" && enabledDictionaries.includes(sortFrequencyDictionary)
+          ? [sortFrequencyDictionary]
+          : enabledDictionaries;
+      const dictionaryPriorityByName = dictionaries.reduce((acc, entry, index) => {
+        acc[entry] = index;
         return acc;
       }, {});
 
@@ -1160,13 +1344,15 @@ async function fetchYomitanTermFrequencies(
       }
 
       return rawFrequencies
-        .filter((entry) => entry && typeof entry === "object")
+        .filter((entry) =>
+          entry &&
+          typeof entry === "object" &&
+          typeof entry.dictionary === "string" &&
+          dictionaryPriorityByName[entry.dictionary] !== undefined
+        )
         .map((entry) => ({
           ...entry,
-          dictionaryPriority:
-            typeof entry.dictionary === "string" && dictionaryPriorityByName[entry.dictionary] !== undefined
-              ? dictionaryPriorityByName[entry.dictionary]
-              : Number.MAX_SAFE_INTEGER
+          dictionaryPriority: dictionaryPriorityByName[entry.dictionary]
         }));
     })();
   `;

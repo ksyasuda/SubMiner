@@ -783,7 +783,7 @@ async function main(): Promise<void> {
       dictionaryPath: args.mecabDictionaryPath,
     });
     const isMecabAvailable = await mecabTokenizer.checkAvailability();
-    if (!isMecabAvailable) {
+    if (!isMecabAvailable && args.forceMecabOnly) {
       throw new Error(
         'MeCab is not available on this system. Install/run environment with MeCab to tokenize input.',
       );
@@ -797,9 +797,12 @@ async function main(): Promise<void> {
     ) {
       electronModule.app.setPath('userData', args.yomitanUserDataPath);
     }
+    const yomitanUserDataPath =
+      args.yomitanUserDataPath ??
+      (electronModule?.app?.getPath ? electronModule.app.getPath('userData') : process.cwd());
     yomitanState = !args.forceMecabOnly
       ? await createYomitanRuntimeStateWithSearch(
-          electronModule?.app?.getPath ? electronModule.app.getPath('userData') : process.cwd(),
+          yomitanUserDataPath,
           args.yomitanExtensionPath,
         )
       : null;
@@ -839,6 +842,8 @@ async function main(): Promise<void> {
       getFrequencyRank,
       getMecabTokenizer: () => ({
         tokenize: (text: string) => mecabTokenizer.tokenize(text),
+        checkAvailability: () => mecabTokenizer.checkAvailability(),
+        getStatus: () => mecabTokenizer.getStatus(),
       }),
     });
 
