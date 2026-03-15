@@ -196,6 +196,8 @@ export interface AppState {
   anilistSetupPageOpened: boolean;
   anilistRetryQueueState: AnilistRetryQueueState;
   firstRunSetupCompleted: boolean;
+  statsServer: { close: () => void } | null;
+  statsStartupInProgress: boolean;
 }
 
 export interface AppStateInitialValues {
@@ -275,6 +277,8 @@ export function createAppState(values: AppStateInitialValues): AppState {
     anilistSetupPageOpened: false,
     anilistRetryQueueState: createInitialAnilistRetryQueueState(),
     firstRunSetupCompleted: false,
+    statsServer: null,
+    statsStartupInProgress: false,
   };
 }
 

@@ -1,12 +1,20 @@
+import type { MergedToken, SubtitleData } from '../../types';
+
 export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   appState: {
     initialArgs?: { jellyfinPlay?: unknown } | null;
     overlayRuntimeInitialized: boolean;
     mpvClient: { connected?: boolean } | null;
     immersionTracker: {
-      recordSubtitleLine?: (text: string, start: number, end: number) => void;
+      recordSubtitleLine?: (
+        text: string,
+        start: number,
+        end: number,
+        tokens?: MergedToken[] | null,
+      ) => void;
       handleMediaTitleUpdate?: (title: string) => void;
       recordPlaybackPosition?: (time: number) => void;
+      recordMediaDuration?: (durationSec: number) => void;
       recordPauseState?: (paused: boolean) => void;
     } | null;
     subtitleTimingTracker: {
@@ -14,6 +22,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     } | null;
     currentSubText: string;
     currentSubAssText: string;
+    currentSubtitleData?: SubtitleData | null;
     playbackPaused: boolean | null;
     previousSecondarySubVisibility: boolean | null;
   };
@@ -41,6 +50,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
   refreshDiscordPresence: () => void;
   ensureImmersionTrackerInitialized: () => void;
+  tokenizeSubtitleForImmersion?: (text: string) => Promise<SubtitleData | null>;
 }) {
   return () => ({
     reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
@@ -53,7 +63,30 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     quitApp: () => deps.quitApp(),
     recordImmersionSubtitleLine: (text: string, start: number, end: number) => {
       deps.ensureImmersionTrackerInitialized();
-      deps.appState.immersionTracker?.recordSubtitleLine?.(text, start, end);
+      const tracker = deps.appState.immersionTracker;
+      if (!tracker?.recordSubtitleLine) {
+        return;
+      }
+      const cachedTokens =
+        deps.appState.currentSubtitleData?.text === text
+          ? deps.appState.currentSubtitleData.tokens
+          : null;
+      if (cachedTokens) {
+        tracker.recordSubtitleLine(text, start, end, cachedTokens);
+        return;
+      }
+      if (!deps.tokenizeSubtitleForImmersion) {
+        tracker.recordSubtitleLine(text, start, end, null);
+        return;
+      }
+      void deps
+        .tokenizeSubtitleForImmersion(text)
+        .then((payload) => {
+          tracker.recordSubtitleLine?.(text, start, end, payload?.tokens ?? null);
+        })
+        .catch(() => {
+          tracker.recordSubtitleLine?.(text, start, end, null);
+        });
     },
     hasSubtitleTimingTracker: () => Boolean(deps.appState.subtitleTimingTracker),
     recordSubtitleTiming: (text: string, start: number, end: number) =>
@@ -94,6 +127,10 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     recordPlaybackPosition: (time: number) => {
       deps.ensureImmersionTrackerInitialized();
       deps.appState.immersionTracker?.recordPlaybackPosition?.(time);
+    },
+    recordMediaDuration: (durationSec: number) => {
+      deps.ensureImmersionTrackerInitialized();
+      deps.appState.immersionTracker?.recordMediaDuration?.(durationSec);
     },
     reportJellyfinRemoteProgress: (forceImmediate: boolean) =>
       deps.reportJellyfinRemoteProgress(forceImmediate),

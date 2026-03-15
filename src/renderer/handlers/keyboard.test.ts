@@ -51,6 +51,8 @@ function installKeyboardTestGlobals() {
   const commandEvents: CommandEventDetail[] = [];
   const mpvCommands: Array<Array<string | number>> = [];
   let playbackPausedResponse: boolean | null = false;
+  let statsToggleKey = 'Backquote';
+  let statsToggleOverlayCalls = 0;
   let selectionClearCount = 0;
   let selectionAddCount = 0;
 
@@ -137,7 +139,11 @@ function installKeyboardTestGlobals() {
           mpvCommands.push(command);
         },
         getPlaybackPaused: async () => playbackPausedResponse,
+        getStatsToggleKey: async () => statsToggleKey,
         toggleDevTools: () => {},
+        toggleStatsOverlay: () => {
+          statsToggleOverlayCalls += 1;
+        },
         focusMainWindow: () => {
           focusMainWindowCalls += 1;
           return Promise.resolve();
@@ -253,6 +259,10 @@ function installKeyboardTestGlobals() {
     setPopupVisible: (value: boolean) => {
       popupVisible = value;
     },
+    setStatsToggleKey: (value: string) => {
+      statsToggleKey = value;
+    },
+    statsToggleOverlayCalls: () => statsToggleOverlayCalls,
     getPlaybackPaused: async () => playbackPausedResponse,
     setPlaybackPausedResponse: (value: boolean | null) => {
       playbackPausedResponse = value;
@@ -543,6 +553,22 @@ test('keyboard mode: controller select modal handles arrow keys before yomitan p
       ),
       false,
     );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: configured stats toggle works even while popup is open', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    testGlobals.setPopupVisible(true);
+    testGlobals.setStatsToggleKey('KeyG');
+    await handlers.setupMpvInputForwarding();
+
+    testGlobals.dispatchKeydown({ key: 'g', code: 'KeyG' });
+
+    assert.equal(testGlobals.statsToggleOverlayCalls(), 1);
   } finally {
     testGlobals.restore();
   }

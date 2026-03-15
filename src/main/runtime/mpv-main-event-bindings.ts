@@ -57,6 +57,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   notifyImmersionTitleUpdate: (title: string) => void;
 
   recordPlaybackPosition: (time: number) => void;
+  recordMediaDuration: (durationSec: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   recordPauseState: (paused: boolean) => void;
 
@@ -147,6 +148,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       onMediaPathChange: handleMpvMediaPathChange,
       onMediaTitleChange: handleMpvMediaTitleChange,
       onTimePosChange: handleMpvTimePosChange,
+      onDurationChange: ({ duration }) => deps.recordMediaDuration(duration),
       onPauseChange: handleMpvPauseChange,
       onSubtitleMetricsChange: handleMpvSubtitleMetricsChange,
       onSecondarySubtitleVisibility: handleMpvSecondarySubtitleVisibility,

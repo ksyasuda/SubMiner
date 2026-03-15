@@ -48,6 +48,7 @@ function createDeps() {
         mediaTitle: 'Test',
         entryCount: 1,
       }),
+      runStatsCommand: async () => {},
       runJellyfinCommand: async () => {},
       openYomitanSettings: () => {},
       cycleSecondarySubMode: () => {},

@@ -8,7 +8,7 @@ import {
 test('process next anilist retry update main deps builder maps callbacks', async () => {
   const calls: string[] = [];
   const deps = createBuildProcessNextAnilistRetryUpdateMainDepsHandler({
-    nextReady: () => ({ key: 'k', title: 't', episode: 1 }),
+    nextReady: () => ({ key: 'k', title: 't', season: null, episode: 1 }),
     refreshRetryQueueState: () => calls.push('refresh'),
     setLastAttemptAt: () => calls.push('attempt'),
     setLastError: () => calls.push('error'),
@@ -59,7 +59,7 @@ test('maybe run anilist post watch update main deps builder maps callbacks', asy
     resetTrackedMedia: () => calls.push('reset'),
     getWatchedSeconds: () => 100,
     maybeProbeAnilistDuration: async () => 120,
-    ensureAnilistMediaGuess: async () => ({ title: 'x', episode: 1 }),
+    ensureAnilistMediaGuess: async () => ({ title: 'x', season: null, episode: 1 }),
     hasAttemptedUpdateKey: () => false,
     processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'ok' }),
     refreshAnilistClientSecretState: async () => 'token',
@@ -85,7 +85,7 @@ test('maybe run anilist post watch update main deps builder maps callbacks', asy
   deps.resetTrackedMedia('media');
   assert.equal(deps.getWatchedSeconds(), 100);
   assert.equal(await deps.maybeProbeAnilistDuration('media'), 120);
-  assert.deepEqual(await deps.ensureAnilistMediaGuess('media'), { title: 'x', episode: 1 });
+  assert.deepEqual(await deps.ensureAnilistMediaGuess('media'), { title: 'x', season: null, episode: 1 });
   assert.equal(deps.hasAttemptedUpdateKey('k'), false);
   assert.deepEqual(await deps.processNextAnilistRetryUpdate(), { ok: true, message: 'ok' });
   assert.equal(await deps.refreshAnilistClientSecretState(), 'token');

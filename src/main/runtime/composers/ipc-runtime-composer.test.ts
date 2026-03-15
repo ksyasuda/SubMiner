@@ -51,6 +51,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
         getMecabTokenizer: () => null,
         getKeybindings: () => [],
         getConfiguredShortcuts: () => ({}) as never,
+        getStatsToggleKey: () => 'Backquote',
         getControllerConfig: () => ({}) as never,
         saveControllerPreference: () => {},
         getSecondarySubMode: () => 'hover' as never,

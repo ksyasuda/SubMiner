@@ -38,6 +38,7 @@ export type ImmersionTrackerStartupDeps = {
   createTrackerService: (params: ImmersionTrackerServiceParams) => unknown;
   setTracker: (tracker: unknown | null) => void;
   getMpvClient: () => MpvClientLike | null;
+  shouldAutoConnectMpv?: () => boolean;
   seedTrackerFromCurrentMedia: () => void;
   logInfo: (message: string) => void;
   logDebug: (message: string) => void;
@@ -86,7 +87,7 @@ export function createImmersionTrackerStartupHandler(
       deps.logDebug('Immersion tracker initialized successfully.');
 
       const mpvClient = deps.getMpvClient();
-      if (mpvClient && !mpvClient.connected) {
+      if ((deps.shouldAutoConnectMpv?.() ?? true) && mpvClient && !mpvClient.connected) {
         deps.logInfo('Auto-connecting MPV client for immersion tracking');
         mpvClient.connect();
       }

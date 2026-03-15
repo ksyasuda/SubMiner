@@ -54,6 +54,9 @@ test('build cli command context deps maps handlers and values', () => {
       mediaTitle: 'Test',
       entryCount: 10,
     }),
+    runStatsCommand: async () => {
+      calls.push('run-stats');
+    },
     runJellyfinCommand: async () => {
       calls.push('run-jellyfin');
     },
