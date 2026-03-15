@@ -131,11 +131,11 @@ test('composeAnilistTrackingHandlers returns callable handlers and forwards call
       getCurrentMediaTitle: () => 'Episode title',
       guessAnilistMediaInfo: async () => {
         guessAnilistMediaInfoCalls += 1;
-        return { title: 'Episode title', episode: 7, source: 'guessit' };
+        return { title: 'Episode title', season: null, episode: 7, source: 'guessit' };
       },
     },
     processNextRetryUpdateMainDeps: {
-      nextReady: () => ({ key: 'retry-key', title: 'Retry title', episode: 1 }),
+      nextReady: () => ({ key: 'retry-key', title: 'Retry title', season: null, episode: 1 }),
       refreshRetryQueueState: () => {},
       setLastAttemptAt: () => {},
       setLastError: () => {},
@@ -163,6 +163,7 @@ test('composeAnilistTrackingHandlers returns callable handlers and forwards call
       maybeProbeAnilistDuration: async () => 600,
       ensureAnilistMediaGuess: async () => ({
         title: 'Episode title',
+        season: null,
         episode: 2,
         source: 'guessit',
       }),
@@ -209,7 +210,7 @@ test('composeAnilistTrackingHandlers returns callable handlers and forwards call
   composed.setAnilistMediaGuessRuntimeState({
     mediaKey: 'media-key',
     mediaDurationSec: 90,
-    mediaGuess: { title: 'Known', episode: 3, source: 'fallback' },
+    mediaGuess: { title: 'Known', season: null, episode: 3, source: 'fallback' },
     mediaGuessPromise: null,
     lastDurationProbeAtMs: 11,
   });

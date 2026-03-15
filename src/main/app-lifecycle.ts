@@ -55,6 +55,7 @@ export interface AppReadyRuntimeDepsFactoryInput {
   onCriticalConfigErrors?: AppReadyRuntimeDeps['onCriticalConfigErrors'];
   logDebug?: AppReadyRuntimeDeps['logDebug'];
   now?: AppReadyRuntimeDeps['now'];
+  shouldUseMinimalStartup?: AppReadyRuntimeDeps['shouldUseMinimalStartup'];
   shouldSkipHeavyStartup?: AppReadyRuntimeDeps['shouldSkipHeavyStartup'];
 }
 
@@ -118,6 +119,7 @@ export function createAppReadyRuntimeDeps(
     onCriticalConfigErrors: params.onCriticalConfigErrors,
     logDebug: params.logDebug,
     now: params.now,
+    shouldUseMinimalStartup: params.shouldUseMinimalStartup,
     shouldSkipHeavyStartup: params.shouldSkipHeavyStartup,
   };
 }

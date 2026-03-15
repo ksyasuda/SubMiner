@@ -28,3 +28,25 @@ test('initial args runtime handler composes main deps and runs initial command f
     'cli:initial',
   ]);
 });
+
+test('initial args runtime handler skips mpv auto-connect for stats mode', () => {
+  const calls: string[] = [];
+  const handleInitialArgs = createInitialArgsRuntimeHandler({
+    getInitialArgs: () => ({ stats: true }) as never,
+    isBackgroundMode: () => false,
+    shouldEnsureTrayOnStartup: () => false,
+    ensureTray: () => calls.push('tray'),
+    isTexthookerOnlyMode: () => false,
+    hasImmersionTracker: () => true,
+    getMpvClient: () => ({
+      connected: false,
+      connect: () => calls.push('connect'),
+    }),
+    logInfo: (message) => calls.push(`log:${message}`),
+    handleCliCommand: (_args, source) => calls.push(`cli:${source}`),
+  });
+
+  handleInitialArgs();
+
+  assert.deepEqual(calls, ['cli:initial']);
+});

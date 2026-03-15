@@ -27,6 +27,7 @@ export function createHandleInitialArgsHandler(deps: {
     const mpvClient = deps.getMpvClient();
     if (
       !deps.isTexthookerOnlyMode() &&
+      !initialArgs.stats &&
       deps.hasImmersionTracker() &&
       mpvClient &&
       !mpvClient.connected

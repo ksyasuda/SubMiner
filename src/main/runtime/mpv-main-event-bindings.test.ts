@@ -48,6 +48,7 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     notifyImmersionTitleUpdate: (title) => calls.push(`notify-title:${title}`),
 
     recordPlaybackPosition: (time) => calls.push(`time-pos:${time}`),
+    recordMediaDuration: (duration) => calls.push(`duration:${duration}`),
     reportJellyfinRemoteProgress: (forceImmediate) =>
       calls.push(`progress:${forceImmediate ? 'force' : 'normal'}`),
     recordPauseState: (paused) => calls.push(`pause:${paused ? 'yes' : 'no'}`),

@@ -181,6 +181,17 @@ export function createKeyboardHandlers(
     return !e.ctrlKey && !e.metaKey && e.altKey && !e.repeat && e.code === 'KeyC';
   }
 
+  function isStatsOverlayToggle(e: KeyboardEvent): boolean {
+    return (
+      e.code === ctx.state.statsToggleKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.metaKey &&
+      !e.shiftKey &&
+      !e.repeat
+    );
+  }
+
   function getSubtitleWordNodes(): HTMLElement[] {
     return Array.from(
       ctx.dom.subtitleRoot.querySelectorAll<HTMLElement>('.word[data-token-index]'),
@@ -693,7 +704,12 @@ export function createKeyboardHandlers(
   }
 
   async function setupMpvInputForwarding(): Promise<void> {
-    updateKeybindings(await window.electronAPI.getKeybindings());
+    const [keybindings, statsToggleKey] = await Promise.all([
+      window.electronAPI.getKeybindings(),
+      window.electronAPI.getStatsToggleKey(),
+    ]);
+    updateKeybindings(keybindings);
+    ctx.state.statsToggleKey = statsToggleKey;
     syncKeyboardTokenSelection();
 
     const subtitleMutationObserver = new MutationObserver(() => {
@@ -786,6 +802,12 @@ export function createKeyboardHandlers(
       }
       if (ctx.state.sessionHelpModalOpen) {
         options.handleSessionHelpKeydown(e);
+        return;
+      }
+
+      if (isStatsOverlayToggle(e)) {
+        e.preventDefault();
+        window.electronAPI.toggleStatsOverlay();
         return;
       }
 

@@ -72,6 +72,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   handleMpvCommand: IpcDepsRuntimeOptions['handleMpvCommand'];
   getKeybindings: IpcDepsRuntimeOptions['getKeybindings'];
   getConfiguredShortcuts: IpcDepsRuntimeOptions['getConfiguredShortcuts'];
+  getStatsToggleKey: IpcDepsRuntimeOptions['getStatsToggleKey'];
   getControllerConfig: IpcDepsRuntimeOptions['getControllerConfig'];
   saveControllerConfig: IpcDepsRuntimeOptions['saveControllerConfig'];
   saveControllerPreference: IpcDepsRuntimeOptions['saveControllerPreference'];
@@ -89,6 +90,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getAnilistQueueStatus: IpcDepsRuntimeOptions['getAnilistQueueStatus'];
   retryAnilistQueueNow: IpcDepsRuntimeOptions['retryAnilistQueueNow'];
   appendClipboardVideoToQueue: IpcDepsRuntimeOptions['appendClipboardVideoToQueue'];
+  getImmersionTracker?: IpcDepsRuntimeOptions['getImmersionTracker'];
 }
 
 export interface AnkiJimakuIpcRuntimeServiceDepsParams {
@@ -159,6 +161,7 @@ export interface CliCommandRuntimeServiceDepsParams {
   };
   jellyfin: {
     openSetup: CliCommandDepsRuntimeOptions['jellyfin']['openSetup'];
+    runStatsCommand: CliCommandDepsRuntimeOptions['jellyfin']['runStatsCommand'];
     runCommand: CliCommandDepsRuntimeOptions['jellyfin']['runCommand'];
   };
   ui: {
@@ -216,6 +219,7 @@ export function createMainIpcRuntimeServiceDeps(
     handleMpvCommand: params.handleMpvCommand,
     getKeybindings: params.getKeybindings,
     getConfiguredShortcuts: params.getConfiguredShortcuts,
+    getStatsToggleKey: params.getStatsToggleKey,
     getControllerConfig: params.getControllerConfig,
     saveControllerConfig: params.saveControllerConfig,
     saveControllerPreference: params.saveControllerPreference,
@@ -234,6 +238,7 @@ export function createMainIpcRuntimeServiceDeps(
     getAnilistQueueStatus: params.getAnilistQueueStatus,
     retryAnilistQueueNow: params.retryAnilistQueueNow,
     appendClipboardVideoToQueue: params.appendClipboardVideoToQueue,
+    getImmersionTracker: params.getImmersionTracker,
   };
 }
 
@@ -312,6 +317,7 @@ export function createCliCommandRuntimeServiceDeps(
     },
     jellyfin: {
       openSetup: params.jellyfin.openSetup,
+      runStatsCommand: params.jellyfin.runStatsCommand,
       runCommand: params.jellyfin.runCommand,
     },
     ui: {

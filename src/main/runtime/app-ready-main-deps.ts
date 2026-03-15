@@ -38,6 +38,7 @@ export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeD
     onCriticalConfigErrors: deps.onCriticalConfigErrors,
     logDebug: deps.logDebug,
     now: deps.now,
+    shouldUseMinimalStartup: deps.shouldUseMinimalStartup,
     shouldSkipHeavyStartup: deps.shouldSkipHeavyStartup,
   });
 }

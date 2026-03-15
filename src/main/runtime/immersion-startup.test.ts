@@ -135,3 +135,28 @@ test('createImmersionTrackerStartupHandler disables tracker on failure', () => {
     calls.includes('warn:Immersion tracker startup failed; disabling tracking.:db unavailable'),
   );
 });
+
+test('createImmersionTrackerStartupHandler skips mpv auto-connect when disabled by caller', () => {
+  let connectCalls = 0;
+  const handler = createImmersionTrackerStartupHandler({
+    getResolvedConfig: () => makeConfig(),
+    getConfiguredDbPath: () => '/tmp/subminer.db',
+    createTrackerService: () => ({}),
+    setTracker: () => {},
+    getMpvClient: () => ({
+      connected: false,
+      connect: () => {
+        connectCalls += 1;
+      },
+    }),
+    shouldAutoConnectMpv: () => false,
+    seedTrackerFromCurrentMedia: () => {},
+    logInfo: () => {},
+    logDebug: () => {},
+    logWarn: () => {},
+  });
+
+  handler();
+
+  assert.equal(connectCalls, 0);
+});

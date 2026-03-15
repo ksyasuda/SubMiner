@@ -78,6 +78,9 @@ test('cli command context main deps builder maps state and callbacks', async () 
       mediaTitle: 'Test',
       entryCount: 10,
     }),
+    runStatsCommand: async () => {
+      calls.push('run-stats');
+    },
     runJellyfinCommand: async () => {
       calls.push('run-jellyfin');
     },

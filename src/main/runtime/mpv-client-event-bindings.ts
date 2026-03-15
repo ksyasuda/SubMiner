@@ -7,6 +7,7 @@ type MpvBindingEventName =
   | 'media-path-change'
   | 'media-title-change'
   | 'time-pos-change'
+  | 'duration-change'
   | 'pause-change'
   | 'subtitle-metrics-change'
   | 'secondary-subtitle-visibility';
@@ -72,6 +73,7 @@ export function createBindMpvClientEventHandlers(deps: {
   onMediaPathChange: (payload: { path: string | null }) => void;
   onMediaTitleChange: (payload: { title: string | null }) => void;
   onTimePosChange: (payload: { time: number }) => void;
+  onDurationChange: (payload: { duration: number }) => void;
   onPauseChange: (payload: { paused: boolean }) => void;
   onSubtitleMetricsChange: (payload: { patch: Record<string, unknown> }) => void;
   onSecondarySubtitleVisibility: (payload: { visible: boolean }) => void;
@@ -85,6 +87,7 @@ export function createBindMpvClientEventHandlers(deps: {
     mpvClient.on('media-path-change', deps.onMediaPathChange);
     mpvClient.on('media-title-change', deps.onMediaTitleChange);
     mpvClient.on('time-pos-change', deps.onTimePosChange);
+    mpvClient.on('duration-change', deps.onDurationChange);
     mpvClient.on('pause-change', deps.onPauseChange);
     mpvClient.on('subtitle-metrics-change', deps.onSubtitleMetricsChange);
     mpvClient.on('secondary-subtitle-visibility', deps.onSecondarySubtitleVisibility);

@@ -55,7 +55,7 @@ test('ensure anilist media guess main deps builder maps callbacks', async () => 
     getCurrentMediaTitle: () => 'title',
     guessAnilistMediaInfo: async () => {
       calls.push('guess');
-      return { title: 'title', episode: 1, source: 'fallback' };
+      return { title: 'title', season: null, episode: 1, source: 'fallback' };
     },
   })();
 
@@ -64,6 +64,7 @@ test('ensure anilist media guess main deps builder maps callbacks', async () => 
   assert.equal(deps.resolveMediaPathForJimaku('/tmp/video.mkv'), '/tmp/video.mkv');
   assert.deepEqual(await deps.guessAnilistMediaInfo('/tmp/video.mkv', 'title'), {
     title: 'title',
+    season: null,
     episode: 1,
     source: 'fallback',
   });
