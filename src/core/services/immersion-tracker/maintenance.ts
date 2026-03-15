@@ -112,35 +112,46 @@ function upsertDailyRollupsForGroups(
       words_per_min, lookup_hit_rate, CREATED_DATE, LAST_UPDATE_DATE
     )
     SELECT
-      CAST(s.started_at_ms / 86400000 AS INTEGER) AS rollup_day,
+      CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS rollup_day,
       s.video_id AS video_id,
       COUNT(DISTINCT s.session_id) AS total_sessions,
-      COALESCE(SUM(t.active_watched_ms), 0) / 60000.0 AS total_active_min,
-      COALESCE(SUM(t.lines_seen), 0) AS total_lines_seen,
-      COALESCE(SUM(t.words_seen), 0) AS total_words_seen,
-      COALESCE(SUM(t.tokens_seen), 0) AS total_tokens_seen,
-      COALESCE(SUM(t.cards_mined), 0) AS total_cards,
+      COALESCE(SUM(sm.max_active_ms), 0) / 60000.0 AS total_active_min,
+      COALESCE(SUM(sm.max_lines), 0) AS total_lines_seen,
+      COALESCE(SUM(sm.max_words), 0) AS total_words_seen,
+      COALESCE(SUM(sm.max_tokens), 0) AS total_tokens_seen,
+      COALESCE(SUM(sm.max_cards), 0) AS total_cards,
       CASE
-        WHEN COALESCE(SUM(t.active_watched_ms), 0) > 0
-          THEN (COALESCE(SUM(t.cards_mined), 0) * 60.0) / (COALESCE(SUM(t.active_watched_ms), 0) / 60000.0)
+        WHEN COALESCE(SUM(sm.max_active_ms), 0) > 0
+          THEN (COALESCE(SUM(sm.max_cards), 0) * 60.0) / (COALESCE(SUM(sm.max_active_ms), 0) / 60000.0)
         ELSE NULL
       END AS cards_per_hour,
       CASE
-        WHEN COALESCE(SUM(t.active_watched_ms), 0) > 0
-          THEN COALESCE(SUM(t.words_seen), 0) / (COALESCE(SUM(t.active_watched_ms), 0) / 60000.0)
+        WHEN COALESCE(SUM(sm.max_active_ms), 0) > 0
+          THEN COALESCE(SUM(sm.max_words), 0) / (COALESCE(SUM(sm.max_active_ms), 0) / 60000.0)
         ELSE NULL
       END AS words_per_min,
       CASE
-        WHEN COALESCE(SUM(t.lookup_count), 0) > 0
-          THEN CAST(COALESCE(SUM(t.lookup_hits), 0) AS REAL) / CAST(SUM(t.lookup_count) AS REAL)
+        WHEN COALESCE(SUM(sm.max_lookups), 0) > 0
+          THEN CAST(COALESCE(SUM(sm.max_hits), 0) AS REAL) / CAST(SUM(sm.max_lookups) AS REAL)
         ELSE NULL
       END AS lookup_hit_rate,
       ? AS CREATED_DATE,
       ? AS LAST_UPDATE_DATE
     FROM imm_sessions s
-    JOIN imm_session_telemetry t
-      ON t.session_id = s.session_id
-    WHERE CAST(s.started_at_ms / 86400000 AS INTEGER) = ? AND s.video_id = ?
+    JOIN (
+      SELECT
+        t.session_id,
+        MAX(t.active_watched_ms) AS max_active_ms,
+        MAX(t.lines_seen) AS max_lines,
+        MAX(t.words_seen) AS max_words,
+        MAX(t.tokens_seen) AS max_tokens,
+        MAX(t.cards_mined) AS max_cards,
+        MAX(t.lookup_count) AS max_lookups,
+        MAX(t.lookup_hits) AS max_hits
+      FROM imm_session_telemetry t
+      GROUP BY t.session_id
+    ) sm ON s.session_id = sm.session_id
+    WHERE CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) = ? AND s.video_id = ?
     GROUP BY rollup_day, s.video_id
     ON CONFLICT (rollup_day, video_id) DO UPDATE SET
       total_sessions = excluded.total_sessions,
@@ -176,20 +187,29 @@ function upsertMonthlyRollupsForGroups(
       total_words_seen, total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
     )
     SELECT
-      CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch') AS INTEGER) AS rollup_month,
+      CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollup_month,
       s.video_id AS video_id,
       COUNT(DISTINCT s.session_id) AS total_sessions,
-      COALESCE(SUM(t.active_watched_ms), 0) / 60000.0 AS total_active_min,
-      COALESCE(SUM(t.lines_seen), 0) AS total_lines_seen,
-      COALESCE(SUM(t.words_seen), 0) AS total_words_seen,
-      COALESCE(SUM(t.tokens_seen), 0) AS total_tokens_seen,
-      COALESCE(SUM(t.cards_mined), 0) AS total_cards,
+      COALESCE(SUM(sm.max_active_ms), 0) / 60000.0 AS total_active_min,
+      COALESCE(SUM(sm.max_lines), 0) AS total_lines_seen,
+      COALESCE(SUM(sm.max_words), 0) AS total_words_seen,
+      COALESCE(SUM(sm.max_tokens), 0) AS total_tokens_seen,
+      COALESCE(SUM(sm.max_cards), 0) AS total_cards,
       ? AS CREATED_DATE,
       ? AS LAST_UPDATE_DATE
     FROM imm_sessions s
-    JOIN imm_session_telemetry t
-      ON t.session_id = s.session_id
-    WHERE CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch') AS INTEGER) = ? AND s.video_id = ?
+    JOIN (
+      SELECT
+        t.session_id,
+        MAX(t.active_watched_ms) AS max_active_ms,
+        MAX(t.lines_seen) AS max_lines,
+        MAX(t.words_seen) AS max_words,
+        MAX(t.tokens_seen) AS max_tokens,
+        MAX(t.cards_mined) AS max_cards
+      FROM imm_session_telemetry t
+      GROUP BY t.session_id
+    ) sm ON s.session_id = sm.session_id
+    WHERE CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) = ? AND s.video_id = ?
     GROUP BY rollup_month, s.video_id
     ON CONFLICT (rollup_month, video_id) DO UPDATE SET
       total_sessions = excluded.total_sessions,
@@ -216,8 +236,8 @@ function getAffectedRollupGroups(
       .prepare(
         `
           SELECT DISTINCT
-            CAST(s.started_at_ms / 86400000 AS INTEGER) AS rollup_day,
-            CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch') AS INTEGER) AS rollup_month,
+            CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS rollup_day,
+            CAST(strftime('%Y%m', s.started_at_ms / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollup_month,
             s.video_id AS video_id
           FROM imm_session_telemetry t
           JOIN imm_sessions s

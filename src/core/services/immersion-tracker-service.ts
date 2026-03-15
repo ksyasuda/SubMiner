@@ -1,7 +1,8 @@
 import path from 'node:path';
 import * as fs from 'node:fs';
 import { createLogger } from '../../logger';
-import { getLocalVideoMetadata } from './immersion-tracker/metadata';
+import type { CoverArtFetcher } from './anilist/cover-art-fetcher';
+import { getLocalVideoMetadata, guessAnimeVideoMetadata } from './immersion-tracker/metadata';
 import { pruneRetention, runRollupMaintenance } from './immersion-tracker/maintenance';
 import { Database, type DatabaseSync } from './immersion-tracker/sqlite';
 import { finalizeSessionRecord, startSessionRecord } from './immersion-tracker/session';
@@ -10,23 +11,58 @@ import {
   createTrackerPreparedStatements,
   ensureSchema,
   executeQueuedWrite,
+  getOrCreateAnimeRecord,
   getOrCreateVideoRecord,
+  linkVideoToAnimeRecord,
   type TrackerPreparedStatements,
   updateVideoMetadataRecord,
   updateVideoTitleRecord,
 } from './immersion-tracker/storage';
 import {
+  cleanupVocabularyStats,
+  getAnimeCoverArt,
+  getAnimeDailyRollups,
+  getAnimeAnilistEntries,
+  getAnimeDetail,
+  getAnimeEpisodes,
+  getAnimeLibrary,
+  getAnimeWords,
+  getEpisodeCardEvents,
+  getEpisodeSessions,
+  getEpisodeWords,
+  getCoverArt,
   getDailyRollups,
+  getEpisodesPerDay,
+  getKanjiAnimeAppearances,
+  getKanjiDetail,
+  getKanjiWords,
+  getNewAnimePerDay,
+  getSimilarWords,
+  getStreakCalendar,
+  getKanjiOccurrences,
+  getKanjiStats,
+  getMediaDailyRollups,
+  getMediaDetail,
+  getMediaLibrary,
+  getMediaSessions,
   getMonthlyRollups,
   getQueryHints,
+  getSessionEvents,
   getSessionSummaries,
   getSessionTimeline,
+  getVocabularyStats,
+  getWatchTimePerAnime,
+  getWordAnimeAppearances,
+  getWordDetail,
+  getWordOccurrences,
+  getVideoDurationMs,
+  markVideoWatched,
 } from './immersion-tracker/query';
 import {
   buildVideoKey,
   calculateTextMetrics,
-  extractLineVocabulary,
   deriveCanonicalTitle,
+  isKanji,
   isRemoteSource,
   normalizeMediaPath,
   normalizeText,
@@ -57,19 +93,73 @@ import {
   SOURCE_TYPE_LOCAL,
   SOURCE_TYPE_REMOTE,
   type ImmersionSessionRollupRow,
+  type EpisodeCardEventRow,
+  type EpisodesPerDayRow,
   type ImmersionTrackerOptions,
+  type KanjiAnimeAppearanceRow,
+  type KanjiDetailRow,
+  type KanjiOccurrenceRow,
+  type KanjiStatsRow,
+  type KanjiWordRow,
+  type LegacyVocabularyPosResolution,
+  type LegacyVocabularyPosRow,
+  type AnimeAnilistEntryRow,
+  type AnimeDetailRow,
+  type AnimeEpisodeRow,
+  type AnimeLibraryRow,
+  type AnimeWordRow,
+  type MediaArtRow,
+  type MediaDetailRow,
+  type MediaLibraryRow,
+  type NewAnimePerDayRow,
   type QueuedWrite,
+  type SessionEventRow,
   type SessionState,
   type SessionSummaryQueryRow,
   type SessionTimelineRow,
+  type SimilarWordRow,
+  type StreakCalendarRow,
+  type VocabularyCleanupSummary,
+  type WatchTimePerAnimeRow,
+  type WordAnimeAppearanceRow,
+  type WordDetailRow,
+  type WordOccurrenceRow,
+  type VocabularyStatsRow,
 } from './immersion-tracker/types';
+import type { MergedToken } from '../../types';
+import { shouldExcludeTokenFromVocabularyPersistence } from './tokenizer/annotation-stage';
+import { deriveStoredPartOfSpeech } from './tokenizer/part-of-speech';
 
 export type {
+  AnimeAnilistEntryRow,
+  AnimeDetailRow,
+  AnimeEpisodeRow,
+  AnimeLibraryRow,
+  AnimeWordRow,
+  EpisodeCardEventRow,
+  EpisodesPerDayRow,
   ImmersionSessionRollupRow,
   ImmersionTrackerOptions,
   ImmersionTrackerPolicy,
+  KanjiAnimeAppearanceRow,
+  KanjiDetailRow,
+  KanjiOccurrenceRow,
+  KanjiStatsRow,
+  KanjiWordRow,
+  MediaArtRow,
+  MediaDetailRow,
+  MediaLibraryRow,
+  NewAnimePerDayRow,
+  SessionEventRow,
   SessionSummaryQueryRow,
   SessionTimelineRow,
+  SimilarWordRow,
+  StreakCalendarRow,
+  WatchTimePerAnimeRow,
+  WordAnimeAppearanceRow,
+  WordDetailRow,
+  WordOccurrenceRow,
+  VocabularyStatsRow,
 } from './immersion-tracker/types';
 
 export class ImmersionTrackerService {
@@ -98,9 +188,17 @@ export class ImmersionTrackerService {
   private currentVideoKey = '';
   private currentMediaPathOrUrl = '';
   private readonly preparedStatements: TrackerPreparedStatements;
+  private coverArtFetcher: CoverArtFetcher | null = null;
+  private readonly pendingCoverFetches = new Map<number, Promise<boolean>>();
+  private readonly recordedSubtitleKeys = new Set<string>();
+  private readonly pendingAnimeMetadataUpdates = new Map<number, Promise<void>>();
+  private readonly resolveLegacyVocabularyPos:
+    | ((row: LegacyVocabularyPosRow) => Promise<LegacyVocabularyPosResolution | null>)
+    | undefined;
 
   constructor(options: ImmersionTrackerOptions) {
     this.dbPath = options.dbPath;
+    this.resolveLegacyVocabularyPos = options.resolveLegacyVocabularyPos;
     const parentDir = path.dirname(this.dbPath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
@@ -198,6 +296,8 @@ export class ImmersionTrackerService {
   async getQueryHints(): Promise<{
     totalSessions: number;
     activeSessions: number;
+    episodesToday: number;
+    activeAnimeCount: number;
   }> {
     return getQueryHints(this.db);
   }
@@ -208,6 +308,180 @@ export class ImmersionTrackerService {
 
   async getMonthlyRollups(limit = 24): Promise<ImmersionSessionRollupRow[]> {
     return getMonthlyRollups(this.db, limit);
+  }
+
+  async getVocabularyStats(limit = 100, excludePos?: string[]): Promise<VocabularyStatsRow[]> {
+    return getVocabularyStats(this.db, limit, excludePos);
+  }
+
+  async cleanupVocabularyStats(): Promise<VocabularyCleanupSummary> {
+    return cleanupVocabularyStats(this.db, {
+      resolveLegacyPos: this.resolveLegacyVocabularyPos,
+    });
+  }
+
+  async getKanjiStats(limit = 100): Promise<KanjiStatsRow[]> {
+    return getKanjiStats(this.db, limit);
+  }
+
+  async getWordOccurrences(
+    headword: string,
+    word: string,
+    reading: string,
+    limit = 100,
+    offset = 0,
+  ): Promise<WordOccurrenceRow[]> {
+    return getWordOccurrences(this.db, headword, word, reading, limit, offset);
+  }
+
+  async getKanjiOccurrences(
+    kanji: string,
+    limit = 100,
+    offset = 0,
+  ): Promise<KanjiOccurrenceRow[]> {
+    return getKanjiOccurrences(this.db, kanji, limit, offset);
+  }
+
+  async getSessionEvents(sessionId: number, limit = 500): Promise<SessionEventRow[]> {
+    return getSessionEvents(this.db, sessionId, limit);
+  }
+
+  async getMediaLibrary(): Promise<MediaLibraryRow[]> {
+    return getMediaLibrary(this.db);
+  }
+
+  async getMediaDetail(videoId: number): Promise<MediaDetailRow | null> {
+    return getMediaDetail(this.db, videoId);
+  }
+
+  async getMediaSessions(videoId: number, limit = 100): Promise<SessionSummaryQueryRow[]> {
+    return getMediaSessions(this.db, videoId, limit);
+  }
+
+  async getMediaDailyRollups(videoId: number, limit = 90): Promise<ImmersionSessionRollupRow[]> {
+    return getMediaDailyRollups(this.db, videoId, limit);
+  }
+
+  async getCoverArt(videoId: number): Promise<MediaArtRow | null> {
+    return getCoverArt(this.db, videoId);
+  }
+
+  async getAnimeLibrary(): Promise<AnimeLibraryRow[]> {
+    return getAnimeLibrary(this.db);
+  }
+
+  async getAnimeDetail(animeId: number): Promise<AnimeDetailRow | null> {
+    return getAnimeDetail(this.db, animeId);
+  }
+
+  async getAnimeEpisodes(animeId: number): Promise<AnimeEpisodeRow[]> {
+    return getAnimeEpisodes(this.db, animeId);
+  }
+
+  async getAnimeAnilistEntries(animeId: number): Promise<AnimeAnilistEntryRow[]> {
+    return getAnimeAnilistEntries(this.db, animeId);
+  }
+
+  async getAnimeCoverArt(animeId: number): Promise<MediaArtRow | null> {
+    return getAnimeCoverArt(this.db, animeId);
+  }
+
+  async getAnimeWords(animeId: number, limit = 50): Promise<AnimeWordRow[]> {
+    return getAnimeWords(this.db, animeId, limit);
+  }
+
+  async getEpisodeWords(videoId: number, limit = 50): Promise<AnimeWordRow[]> {
+    return getEpisodeWords(this.db, videoId, limit);
+  }
+
+  async getEpisodeSessions(videoId: number): Promise<SessionSummaryQueryRow[]> {
+    return getEpisodeSessions(this.db, videoId);
+  }
+
+  async setVideoWatched(videoId: number, watched: boolean): Promise<void> {
+    markVideoWatched(this.db, videoId, watched);
+  }
+
+  async getEpisodeCardEvents(videoId: number): Promise<EpisodeCardEventRow[]> {
+    return getEpisodeCardEvents(this.db, videoId);
+  }
+
+  async getAnimeDailyRollups(animeId: number, limit = 90): Promise<ImmersionSessionRollupRow[]> {
+    return getAnimeDailyRollups(this.db, animeId, limit);
+  }
+
+  async getStreakCalendar(days = 90): Promise<StreakCalendarRow[]> {
+    return getStreakCalendar(this.db, days);
+  }
+
+  async getEpisodesPerDay(limit = 90): Promise<EpisodesPerDayRow[]> {
+    return getEpisodesPerDay(this.db, limit);
+  }
+
+  async getNewAnimePerDay(limit = 90): Promise<NewAnimePerDayRow[]> {
+    return getNewAnimePerDay(this.db, limit);
+  }
+
+  async getWatchTimePerAnime(limit = 90): Promise<WatchTimePerAnimeRow[]> {
+    return getWatchTimePerAnime(this.db, limit);
+  }
+
+  async getWordDetail(wordId: number): Promise<WordDetailRow | null> {
+    return getWordDetail(this.db, wordId);
+  }
+
+  async getWordAnimeAppearances(wordId: number): Promise<WordAnimeAppearanceRow[]> {
+    return getWordAnimeAppearances(this.db, wordId);
+  }
+
+  async getSimilarWords(wordId: number, limit = 10): Promise<SimilarWordRow[]> {
+    return getSimilarWords(this.db, wordId, limit);
+  }
+
+  async getKanjiDetail(kanjiId: number): Promise<KanjiDetailRow | null> {
+    return getKanjiDetail(this.db, kanjiId);
+  }
+
+  async getKanjiAnimeAppearances(kanjiId: number): Promise<KanjiAnimeAppearanceRow[]> {
+    return getKanjiAnimeAppearances(this.db, kanjiId);
+  }
+
+  async getKanjiWords(kanjiId: number, limit = 20): Promise<KanjiWordRow[]> {
+    return getKanjiWords(this.db, kanjiId, limit);
+  }
+
+  setCoverArtFetcher(fetcher: CoverArtFetcher | null): void {
+    this.coverArtFetcher = fetcher;
+  }
+
+  async ensureCoverArt(videoId: number): Promise<boolean> {
+    const existing = getCoverArt(this.db, videoId);
+    if (existing?.coverBlob) {
+      return true;
+    }
+    if (!this.coverArtFetcher) {
+      return false;
+    }
+    const inFlight = this.pendingCoverFetches.get(videoId);
+    if (inFlight) {
+      return await inFlight;
+    }
+
+    const fetchPromise = (async () => {
+      const detail = getMediaDetail(this.db, videoId);
+      const canonicalTitle = detail?.canonicalTitle?.trim();
+      if (!canonicalTitle) {
+        return false;
+      }
+      return await this.coverArtFetcher!.fetchIfMissing(this.db, videoId, canonicalTitle);
+    })();
+
+    this.pendingCoverFetches.set(videoId, fetchPromise);
+    try {
+      return await fetchPromise;
+    } finally {
+      this.pendingCoverFetches.delete(videoId);
+    }
   }
 
   handleMediaChange(mediaPath: string | null, mediaTitle: string | null): void {
@@ -254,6 +528,7 @@ export class ImmersionTrackerService {
       `Starting immersion session for path=${normalizedPath} videoId=${sessionInfo.videoId}`,
     );
     this.startSession(sessionInfo.videoId, sessionInfo.startedAtMs);
+    this.captureAnimeMetadataAsync(sessionInfo.videoId, normalizedPath, normalizedTitle || null);
     this.captureVideoMetadataAsync(sessionInfo.videoId, sourceType, normalizedPath);
   }
 
@@ -265,40 +540,110 @@ export class ImmersionTrackerService {
     this.updateVideoTitleForActiveSession(normalizedTitle);
   }
 
-  recordSubtitleLine(text: string, startSec: number, endSec: number): void {
+  recordSubtitleLine(
+    text: string,
+    startSec: number,
+    endSec: number,
+    tokens?: MergedToken[] | null,
+  ): void {
     if (!this.sessionState || !text.trim()) return;
     const cleaned = normalizeText(text);
     if (!cleaned) return;
+
+    if (!endSec || endSec <= 0) {
+      return;
+    }
+
+    const startMs = secToMs(startSec);
+    const subtitleKey = `${startMs}:${cleaned}`;
+    if (this.recordedSubtitleKeys.has(subtitleKey)) {
+      return;
+    }
+    this.recordedSubtitleKeys.add(subtitleKey);
+
     const nowMs = Date.now();
     const nowSec = nowMs / 1000;
 
     const metrics = calculateTextMetrics(cleaned);
-    const extractedVocabulary = extractLineVocabulary(cleaned);
     this.sessionState.currentLineIndex += 1;
     this.sessionState.linesSeen += 1;
     this.sessionState.wordsSeen += metrics.words;
     this.sessionState.tokensSeen += metrics.tokens;
     this.sessionState.pendingTelemetry = true;
 
-    for (const { headword, word, reading } of extractedVocabulary.words) {
-      this.recordWrite({
-        kind: 'word',
+    const wordOccurrences = new Map<
+      string,
+      {
+        headword: string;
+        word: string;
+        reading: string;
+        partOfSpeech: string;
+        pos1: string;
+        pos2: string;
+        pos3: string;
+        occurrenceCount: number;
+      }
+    >();
+    for (const token of tokens ?? []) {
+      if (shouldExcludeTokenFromVocabularyPersistence(token)) {
+        continue;
+      }
+      const headword = normalizeText(token.headword || token.surface);
+      const word = normalizeText(token.surface || token.headword);
+      const reading = normalizeText(token.reading);
+      if (!headword || !word) {
+        continue;
+      }
+      const wordKey = [
         headword,
         word,
         reading,
-        firstSeen: nowSec,
-        lastSeen: nowSec,
+      ].join('\u0000');
+      const storedPartOfSpeech = deriveStoredPartOfSpeech({
+        partOfSpeech: token.partOfSpeech,
+        pos1: token.pos1 ?? '',
+      });
+      const existing = wordOccurrences.get(wordKey);
+      if (existing) {
+        existing.occurrenceCount += 1;
+        continue;
+      }
+      wordOccurrences.set(wordKey, {
+        headword,
+        word,
+        reading,
+        partOfSpeech: storedPartOfSpeech,
+        pos1: token.pos1 ?? '',
+        pos2: token.pos2 ?? '',
+        pos3: token.pos3 ?? '',
+        occurrenceCount: 1,
       });
     }
 
-    for (const kanji of extractedVocabulary.kanji) {
-      this.recordWrite({
-        kind: 'kanji',
-        kanji,
-        firstSeen: nowSec,
-        lastSeen: nowSec,
-      });
+    const kanjiCounts = new Map<string, number>();
+    for (const char of cleaned) {
+      if (!isKanji(char)) {
+        continue;
+      }
+      kanjiCounts.set(char, (kanjiCounts.get(char) ?? 0) + 1);
     }
+
+    this.recordWrite({
+      kind: 'subtitleLine',
+      sessionId: this.sessionState.sessionId,
+      videoId: this.sessionState.videoId,
+      lineIndex: this.sessionState.currentLineIndex,
+      segmentStartMs: secToMs(startSec),
+      segmentEndMs: secToMs(endSec),
+      text: cleaned,
+      wordOccurrences: Array.from(wordOccurrences.values()),
+      kanjiOccurrences: Array.from(kanjiCounts.entries()).map(([kanji, occurrenceCount]) => ({
+        kanji,
+        occurrenceCount,
+      })),
+      firstSeen: nowSec,
+      lastSeen: nowSec,
+    });
 
     this.recordWrite({
       kind: 'event',
@@ -319,6 +664,16 @@ export class ImmersionTrackerService {
         this.maxPayloadBytes,
       ),
     });
+  }
+
+  recordMediaDuration(durationSec: number): void {
+    if (!this.sessionState || !Number.isFinite(durationSec) || durationSec <= 0) return;
+    const durationMs = Math.round(durationSec * 1000);
+    const current = getVideoDurationMs(this.db, this.sessionState.videoId);
+    if (current === 0 || Math.abs(current - durationMs) > 1000) {
+      this.db.prepare('UPDATE imm_videos SET duration_ms = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?')
+        .run(durationMs, Date.now(), this.sessionState.videoId);
+    }
   }
 
   recordPlaybackPosition(mediaTimeSec: number | null): void {
@@ -391,6 +746,14 @@ export class ImmersionTrackerService {
     this.sessionState.lastWallClockMs = nowMs;
     this.sessionState.lastMediaMs = mediaMs;
     this.sessionState.pendingTelemetry = true;
+
+    if (!this.sessionState.markedWatched) {
+      const durationMs = getVideoDurationMs(this.db, this.sessionState.videoId);
+      if (durationMs > 0 && mediaMs >= durationMs * 0.98) {
+        markVideoWatched(this.db, this.sessionState.videoId, true);
+        this.sessionState.markedWatched = true;
+      }
+    }
   }
 
   recordPauseState(isPaused: boolean): void {
@@ -454,7 +817,7 @@ export class ImmersionTrackerService {
     });
   }
 
-  recordCardsMined(count = 1): void {
+  recordCardsMined(count = 1, noteIds?: number[]): void {
     if (!this.sessionState) return;
     this.sessionState.cardsMined += count;
     this.sessionState.pendingTelemetry = true;
@@ -465,7 +828,10 @@ export class ImmersionTrackerService {
       eventType: EVENT_CARD_MINED,
       wordsDelta: 0,
       cardsDelta: count,
-      payloadJson: sanitizePayload({ cardsMined: count }, this.maxPayloadBytes),
+      payloadJson: sanitizePayload(
+        { cardsMined: count, ...(noteIds?.length ? { noteIds } : {}) },
+        this.maxPayloadBytes,
+      ),
     });
   }
 
@@ -615,6 +981,7 @@ export class ImmersionTrackerService {
   private startSession(videoId: number, startedAtMs?: number): void {
     const { sessionId, state } = startSessionRecord(this.db, videoId, startedAtMs);
     this.sessionState = state;
+    this.recordedSubtitleKeys.clear();
     this.recordWrite({
       kind: 'telemetry',
       sessionId,
@@ -671,6 +1038,48 @@ export class ImmersionTrackerService {
         this.logger.warn('Unable to capture local video metadata', (error as Error).message);
       }
     })();
+  }
+
+  private captureAnimeMetadataAsync(
+    videoId: number,
+    mediaPath: string | null,
+    mediaTitle: string | null,
+  ): void {
+    const updatePromise = (async () => {
+      try {
+        const parsed = await guessAnimeVideoMetadata(mediaPath, mediaTitle);
+        if (this.isDestroyed || !parsed?.parsedTitle.trim()) {
+          return;
+        }
+
+        const animeId = getOrCreateAnimeRecord(this.db, {
+          parsedTitle: parsed.parsedTitle,
+          canonicalTitle: parsed.parsedTitle,
+          anilistId: null,
+          titleRomaji: null,
+          titleEnglish: null,
+          titleNative: null,
+          metadataJson: parsed.parseMetadataJson,
+        });
+        linkVideoToAnimeRecord(this.db, videoId, {
+          animeId,
+          parsedBasename: parsed.parsedBasename,
+          parsedTitle: parsed.parsedTitle,
+          parsedSeason: parsed.parsedSeason,
+          parsedEpisode: parsed.parsedEpisode,
+          parserSource: parsed.parserSource,
+          parserConfidence: parsed.parserConfidence,
+          parseMetadataJson: parsed.parseMetadataJson,
+        });
+      } catch (error) {
+        this.logger.warn('Unable to capture anime metadata', (error as Error).message);
+      }
+    })();
+
+    this.pendingAnimeMetadataUpdates.set(videoId, updatePromise);
+    void updatePromise.finally(() => {
+      this.pendingAnimeMetadataUpdates.delete(videoId);
+    });
   }
 
   private updateVideoTitleForActiveSession(canonicalTitle: string): void {

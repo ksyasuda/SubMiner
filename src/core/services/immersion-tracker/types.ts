@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 7;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -29,6 +29,9 @@ export const EVENT_PAUSE_END = 8;
 export interface ImmersionTrackerOptions {
   dbPath: string;
   policy?: ImmersionTrackerPolicy;
+  resolveLegacyVocabularyPos?: (
+    row: LegacyVocabularyPosRow,
+  ) => Promise<LegacyVocabularyPosResolution | null>;
 }
 
 export interface ImmersionTrackerPolicy {
@@ -72,6 +75,7 @@ export interface SessionState extends TelemetryAccumulator {
   lastPauseStartMs: number | null;
   isPaused: boolean;
   pendingTelemetry: boolean;
+  markedWatched: boolean;
 }
 
 interface QueuedTelemetryWrite {
@@ -118,6 +122,10 @@ interface QueuedWordWrite {
   headword: string;
   word: string;
   reading: string;
+  partOfSpeech: string;
+  pos1: string;
+  pos2: string;
+  pos3: string;
   firstSeen: number;
   lastSeen: number;
 }
@@ -129,11 +137,42 @@ interface QueuedKanjiWrite {
   lastSeen: number;
 }
 
+export interface CountedWordOccurrence {
+  headword: string;
+  word: string;
+  reading: string;
+  partOfSpeech: string;
+  pos1: string;
+  pos2: string;
+  pos3: string;
+  occurrenceCount: number;
+}
+
+export interface CountedKanjiOccurrence {
+  kanji: string;
+  occurrenceCount: number;
+}
+
+interface QueuedSubtitleLineWrite {
+  kind: 'subtitleLine';
+  sessionId: number;
+  videoId: number;
+  lineIndex: number;
+  segmentStartMs: number | null;
+  segmentEndMs: number | null;
+  text: string;
+  wordOccurrences: CountedWordOccurrence[];
+  kanjiOccurrences: CountedKanjiOccurrence[];
+  firstSeen: number;
+  lastSeen: number;
+}
+
 export type QueuedWrite =
   | QueuedTelemetryWrite
   | QueuedEventWrite
   | QueuedWordWrite
-  | QueuedKanjiWrite;
+  | QueuedKanjiWrite
+  | QueuedSubtitleLineWrite;
 
 export interface VideoMetadata {
   sourceType: number;
@@ -152,8 +191,33 @@ export interface VideoMetadata {
   metadataJson: string | null;
 }
 
+export interface ParsedAnimeVideoMetadata {
+  animeId: number | null;
+  parsedBasename: string | null;
+  parsedTitle: string | null;
+  parsedSeason: number | null;
+  parsedEpisode: number | null;
+  parserSource: string | null;
+  parserConfidence: number | null;
+  parseMetadataJson: string | null;
+}
+
+export interface ParsedAnimeVideoGuess {
+  parsedBasename: string | null;
+  parsedTitle: string;
+  parsedSeason: number | null;
+  parsedEpisode: number | null;
+  parserSource: 'guessit' | 'fallback';
+  parserConfidence: number;
+  parseMetadataJson: string;
+}
+
 export interface SessionSummaryQueryRow {
+  sessionId: number;
   videoId: number | null;
+  canonicalTitle: string | null;
+  animeId: number | null;
+  animeTitle: string | null;
   startedAtMs: number;
   endedAtMs: number | null;
   totalWatchedMs: number;
@@ -164,6 +228,82 @@ export interface SessionSummaryQueryRow {
   cardsMined: number;
   lookupCount: number;
   lookupHits: number;
+}
+
+export interface VocabularyStatsRow {
+  wordId: number;
+  headword: string;
+  word: string;
+  reading: string;
+  partOfSpeech: string | null;
+  pos1: string | null;
+  pos2: string | null;
+  pos3: string | null;
+  frequency: number;
+  firstSeen: number;
+  lastSeen: number;
+}
+
+export interface VocabularyCleanupSummary {
+  scanned: number;
+  kept: number;
+  deleted: number;
+  repaired: number;
+}
+
+export interface LegacyVocabularyPosRow {
+  headword: string;
+  word: string;
+  reading: string | null;
+}
+
+export interface LegacyVocabularyPosResolution {
+  headword: string;
+  reading: string;
+  partOfSpeech: string;
+  pos1: string;
+  pos2: string;
+  pos3: string;
+}
+
+export interface KanjiStatsRow {
+  kanjiId: number;
+  kanji: string;
+  frequency: number;
+  firstSeen: number;
+  lastSeen: number;
+}
+
+export interface WordOccurrenceRow {
+  animeId: number | null;
+  animeTitle: string | null;
+  videoId: number;
+  videoTitle: string;
+  sessionId: number;
+  lineIndex: number;
+  segmentStartMs: number | null;
+  segmentEndMs: number | null;
+  text: string;
+  occurrenceCount: number;
+}
+
+export interface KanjiOccurrenceRow {
+  animeId: number | null;
+  animeTitle: string | null;
+  videoId: number;
+  videoTitle: string;
+  sessionId: number;
+  lineIndex: number;
+  segmentStartMs: number | null;
+  segmentEndMs: number | null;
+  text: string;
+  occurrenceCount: number;
+}
+
+export interface SessionEventRow {
+  eventType: number;
+  tsMs: number;
+  payload: string | null;
 }
 
 export interface SessionTimelineRow {
@@ -199,4 +339,181 @@ export interface ProbeMetadata {
   fpsX100: number | null;
   bitrateKbps: number | null;
   audioCodecId: number | null;
+}
+
+export interface MediaArtRow {
+  videoId: number;
+  anilistId: number | null;
+  coverUrl: string | null;
+  coverBlob: Buffer | null;
+  titleRomaji: string | null;
+  titleEnglish: string | null;
+  episodesTotal: number | null;
+  fetchedAtMs: number;
+}
+
+export interface MediaLibraryRow {
+  videoId: number;
+  canonicalTitle: string;
+  totalSessions: number;
+  totalActiveMs: number;
+  totalCards: number;
+  totalWordsSeen: number;
+  lastWatchedMs: number;
+  hasCoverArt: number;
+}
+
+export interface MediaDetailRow {
+  videoId: number;
+  canonicalTitle: string;
+  totalSessions: number;
+  totalActiveMs: number;
+  totalCards: number;
+  totalWordsSeen: number;
+  totalLinesSeen: number;
+  totalLookupCount: number;
+  totalLookupHits: number;
+}
+
+export interface AnimeLibraryRow {
+  animeId: number;
+  canonicalTitle: string;
+  anilistId: number | null;
+  totalSessions: number;
+  totalActiveMs: number;
+  totalCards: number;
+  totalWordsSeen: number;
+  episodeCount: number;
+  episodesTotal: number | null;
+  lastWatchedMs: number;
+}
+
+export interface AnimeDetailRow {
+  animeId: number;
+  canonicalTitle: string;
+  anilistId: number | null;
+  titleRomaji: string | null;
+  titleEnglish: string | null;
+  titleNative: string | null;
+  totalSessions: number;
+  totalActiveMs: number;
+  totalCards: number;
+  totalWordsSeen: number;
+  totalLinesSeen: number;
+  totalLookupCount: number;
+  totalLookupHits: number;
+  episodeCount: number;
+  lastWatchedMs: number;
+}
+
+export interface AnimeAnilistEntryRow {
+  anilistId: number;
+  titleRomaji: string | null;
+  titleEnglish: string | null;
+  season: number | null;
+}
+
+export interface AnimeEpisodeRow {
+  animeId: number;
+  videoId: number;
+  canonicalTitle: string;
+  parsedTitle: string | null;
+  season: number | null;
+  episode: number | null;
+  durationMs: number;
+  watched: number;
+  totalSessions: number;
+  totalActiveMs: number;
+  totalCards: number;
+  totalWordsSeen: number;
+  lastWatchedMs: number;
+}
+
+export interface StreakCalendarRow {
+  epochDay: number;
+  totalActiveMin: number;
+}
+
+export interface AnimeWordRow {
+  wordId: number;
+  headword: string;
+  word: string;
+  reading: string;
+  partOfSpeech: string | null;
+  frequency: number;
+}
+
+export interface EpisodesPerDayRow {
+  epochDay: number;
+  episodeCount: number;
+}
+
+export interface NewAnimePerDayRow {
+  epochDay: number;
+  newAnimeCount: number;
+}
+
+export interface WatchTimePerAnimeRow {
+  epochDay: number;
+  animeId: number;
+  animeTitle: string;
+  totalActiveMin: number;
+}
+
+export interface WordDetailRow {
+  wordId: number;
+  headword: string;
+  word: string;
+  reading: string;
+  partOfSpeech: string | null;
+  pos1: string | null;
+  pos2: string | null;
+  pos3: string | null;
+  frequency: number;
+  firstSeen: number;
+  lastSeen: number;
+}
+
+export interface WordAnimeAppearanceRow {
+  animeId: number;
+  animeTitle: string;
+  occurrenceCount: number;
+}
+
+export interface SimilarWordRow {
+  wordId: number;
+  headword: string;
+  word: string;
+  reading: string;
+  frequency: number;
+}
+
+export interface KanjiDetailRow {
+  kanjiId: number;
+  kanji: string;
+  frequency: number;
+  firstSeen: number;
+  lastSeen: number;
+}
+
+export interface KanjiAnimeAppearanceRow {
+  animeId: number;
+  animeTitle: string;
+  occurrenceCount: number;
+}
+
+export interface KanjiWordRow {
+  wordId: number;
+  headword: string;
+  word: string;
+  reading: string;
+  frequency: number;
+}
+
+export interface EpisodeCardEventRow {
+  eventId: number;
+  sessionId: number;
+  tsMs: number;
+  cardsDelta: number;
+  noteIds: number[];
 }

@@ -9,7 +9,9 @@ import {
   createTrackerPreparedStatements,
   ensureSchema,
   executeQueuedWrite,
+  getOrCreateAnimeRecord,
   getOrCreateVideoRecord,
+  linkVideoToAnimeRecord,
 } from './storage';
 import { EVENT_SUBTITLE_LINE, SESSION_STATUS_ENDED, SOURCE_TYPE_LOCAL } from './types';
 
@@ -60,6 +62,7 @@ test('ensureSchema creates immersion core tables', () => {
     const tableNames = new Set(rows.map((row) => row.name));
 
     assert.ok(tableNames.has('imm_videos'));
+    assert.ok(tableNames.has('imm_anime'));
     assert.ok(tableNames.has('imm_sessions'));
     assert.ok(tableNames.has('imm_session_telemetry'));
     assert.ok(tableNames.has('imm_session_events'));
@@ -67,7 +70,27 @@ test('ensureSchema creates immersion core tables', () => {
     assert.ok(tableNames.has('imm_monthly_rollups'));
     assert.ok(tableNames.has('imm_words'));
     assert.ok(tableNames.has('imm_kanji'));
+    assert.ok(tableNames.has('imm_subtitle_lines'));
+    assert.ok(tableNames.has('imm_word_line_occurrences'));
+    assert.ok(tableNames.has('imm_kanji_line_occurrences'));
     assert.ok(tableNames.has('imm_rollup_state'));
+
+    const videoColumns = new Set(
+      (
+        db.prepare('PRAGMA table_info(imm_videos)').all() as Array<{
+          name: string;
+        }>
+      ).map((row) => row.name),
+    );
+
+    assert.ok(videoColumns.has('anime_id'));
+    assert.ok(videoColumns.has('parsed_basename'));
+    assert.ok(videoColumns.has('parsed_title'));
+    assert.ok(videoColumns.has('parsed_season'));
+    assert.ok(videoColumns.has('parsed_episode'));
+    assert.ok(videoColumns.has('parser_source'));
+    assert.ok(videoColumns.has('parser_confidence'));
+    assert.ok(videoColumns.has('parse_metadata_json'));
 
     const rollupStateRow = db
       .prepare('SELECT state_value FROM imm_rollup_state WHERE state_key = ?')
@@ -76,6 +99,470 @@ test('ensureSchema creates immersion core tables', () => {
     } | null;
     assert.ok(rollupStateRow);
     assert.equal(rollupStateRow?.state_value, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('ensureSchema migrates legacy videos and backfills anime metadata from filenames', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    db.exec(`
+      CREATE TABLE imm_schema_version (
+        schema_version INTEGER PRIMARY KEY,
+        applied_at_ms INTEGER NOT NULL
+      );
+      INSERT INTO imm_schema_version(schema_version, applied_at_ms) VALUES (4, 1);
+
+      CREATE TABLE imm_videos(
+        video_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        video_key TEXT NOT NULL UNIQUE,
+        canonical_title TEXT NOT NULL,
+        source_type INTEGER NOT NULL,
+        source_path TEXT,
+        source_url TEXT,
+        duration_ms INTEGER NOT NULL CHECK(duration_ms>=0),
+        file_size_bytes INTEGER CHECK(file_size_bytes>=0),
+        codec_id INTEGER, container_id INTEGER,
+        width_px INTEGER, height_px INTEGER, fps_x100 INTEGER,
+        bitrate_kbps INTEGER, audio_codec_id INTEGER,
+        hash_sha256 TEXT, screenshot_path TEXT,
+        metadata_json TEXT,
+        CREATED_DATE INTEGER,
+        LAST_UPDATE_DATE INTEGER
+      );
+    `);
+
+    const insertLegacyVideo = db.prepare(`
+      INSERT INTO imm_videos (
+        video_key, canonical_title, source_type, source_path, source_url,
+        duration_ms, file_size_bytes, codec_id, container_id, width_px, height_px,
+        fps_x100, bitrate_kbps, audio_codec_id, hash_sha256, screenshot_path,
+        metadata_json, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertLegacyVideo.run(
+      'local:/library/Little Witch Academia S02E05.mkv',
+      'Episode 5',
+      SOURCE_TYPE_LOCAL,
+      '/library/Little Witch Academia S02E05.mkv',
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      1,
+      1,
+    );
+    insertLegacyVideo.run(
+      'local:/library/Little Witch Academia S02E06.mkv',
+      'Episode 6',
+      SOURCE_TYPE_LOCAL,
+      '/library/Little Witch Academia S02E06.mkv',
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      1,
+      1,
+    );
+    insertLegacyVideo.run(
+      'local:/library/[SubsPlease] Frieren - 03 - Departure.mkv',
+      'Episode 3',
+      SOURCE_TYPE_LOCAL,
+      '/library/[SubsPlease] Frieren - 03 - Departure.mkv',
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      1,
+      1,
+    );
+
+    ensureSchema(db);
+
+    const videoColumns = new Set(
+      (
+        db.prepare('PRAGMA table_info(imm_videos)').all() as Array<{
+          name: string;
+        }>
+      ).map((row) => row.name),
+    );
+    assert.ok(videoColumns.has('anime_id'));
+    assert.ok(videoColumns.has('parsed_basename'));
+    assert.ok(videoColumns.has('parsed_title'));
+    assert.ok(videoColumns.has('parsed_season'));
+    assert.ok(videoColumns.has('parsed_episode'));
+    assert.ok(videoColumns.has('parser_source'));
+    assert.ok(videoColumns.has('parser_confidence'));
+    assert.ok(videoColumns.has('parse_metadata_json'));
+
+    const animeRows = db
+      .prepare('SELECT canonical_title FROM imm_anime ORDER BY canonical_title')
+      .all() as Array<{ canonical_title: string }>;
+    assert.deepEqual(
+      animeRows.map((row) => row.canonical_title),
+      ['Frieren', 'Little Witch Academia'],
+    );
+
+    const littleWitchRows = db
+      .prepare(
+        `
+          SELECT
+            a.canonical_title AS anime_title,
+            v.parsed_title,
+            v.parsed_basename,
+            v.parsed_season,
+            v.parsed_episode,
+            v.parser_source,
+            v.parser_confidence
+          FROM imm_videos v
+          JOIN imm_anime a ON a.anime_id = v.anime_id
+          WHERE v.video_key LIKE 'local:/library/Little Witch Academia%'
+          ORDER BY v.video_key
+        `,
+      )
+      .all() as Array<{
+      anime_title: string;
+      parsed_title: string | null;
+      parsed_basename: string | null;
+      parsed_season: number | null;
+      parsed_episode: number | null;
+      parser_source: string | null;
+      parser_confidence: number | null;
+    }>;
+
+    assert.equal(littleWitchRows.length, 2);
+    assert.deepEqual(
+      littleWitchRows.map((row) => ({
+        animeTitle: row.anime_title,
+        parsedTitle: row.parsed_title,
+        parsedBasename: row.parsed_basename,
+        parsedSeason: row.parsed_season,
+        parsedEpisode: row.parsed_episode,
+        parserSource: row.parser_source,
+      })),
+      [
+        {
+          animeTitle: 'Little Witch Academia',
+          parsedTitle: 'Little Witch Academia',
+          parsedBasename: 'Little Witch Academia S02E05.mkv',
+          parsedSeason: 2,
+          parsedEpisode: 5,
+          parserSource: 'fallback',
+        },
+        {
+          animeTitle: 'Little Witch Academia',
+          parsedTitle: 'Little Witch Academia',
+          parsedBasename: 'Little Witch Academia S02E06.mkv',
+          parsedSeason: 2,
+          parsedEpisode: 6,
+          parserSource: 'fallback',
+        },
+      ],
+    );
+    assert.ok(
+      littleWitchRows.every(
+        (row) => typeof row.parser_confidence === 'number' && row.parser_confidence > 0,
+      ),
+    );
+
+    const frierenRow = db
+      .prepare(
+        `
+          SELECT
+            a.canonical_title AS anime_title,
+            v.parsed_title,
+            v.parsed_episode,
+            v.parser_source
+          FROM imm_videos v
+          JOIN imm_anime a ON a.anime_id = v.anime_id
+          WHERE v.video_key = ?
+        `,
+      )
+      .get('local:/library/[SubsPlease] Frieren - 03 - Departure.mkv') as {
+      anime_title: string;
+      parsed_title: string | null;
+      parsed_episode: number | null;
+      parser_source: string | null;
+    } | null;
+
+    assert.ok(frierenRow);
+    assert.equal(frierenRow?.anime_title, 'Frieren');
+    assert.equal(frierenRow?.parsed_title, 'Frieren');
+    assert.equal(frierenRow?.parsed_episode, 3);
+    assert.equal(frierenRow?.parser_source, 'fallback');
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('ensureSchema adds subtitle-line occurrence tables to schema version 6 databases', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    db.exec(`
+      CREATE TABLE imm_schema_version (
+        schema_version INTEGER PRIMARY KEY,
+        applied_at_ms INTEGER NOT NULL
+      );
+      INSERT INTO imm_schema_version(schema_version, applied_at_ms) VALUES (6, 1);
+
+      CREATE TABLE imm_videos(
+        video_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        video_key TEXT NOT NULL UNIQUE,
+        anime_id INTEGER,
+        canonical_title TEXT NOT NULL,
+        source_type INTEGER NOT NULL,
+        source_path TEXT,
+        source_url TEXT,
+        parsed_basename TEXT,
+        parsed_title TEXT,
+        parsed_season INTEGER,
+        parsed_episode INTEGER,
+        parser_source TEXT,
+        parser_confidence REAL,
+        parse_metadata_json TEXT,
+        duration_ms INTEGER NOT NULL CHECK(duration_ms>=0),
+        file_size_bytes INTEGER CHECK(file_size_bytes>=0),
+        codec_id INTEGER, container_id INTEGER,
+        width_px INTEGER, height_px INTEGER, fps_x100 INTEGER,
+        bitrate_kbps INTEGER, audio_codec_id INTEGER,
+        hash_sha256 TEXT, screenshot_path TEXT,
+        metadata_json TEXT,
+        CREATED_DATE INTEGER,
+        LAST_UPDATE_DATE INTEGER
+      );
+      CREATE TABLE imm_sessions(
+        session_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_uuid TEXT NOT NULL UNIQUE,
+        video_id INTEGER NOT NULL,
+        started_at_ms INTEGER NOT NULL,
+        ended_at_ms INTEGER,
+        status INTEGER NOT NULL,
+        locale_id INTEGER,
+        target_lang_id INTEGER,
+        difficulty_tier INTEGER,
+        subtitle_mode INTEGER,
+        CREATED_DATE INTEGER,
+        LAST_UPDATE_DATE INTEGER
+      );
+      CREATE TABLE imm_session_events(
+        event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL,
+        ts_ms INTEGER NOT NULL,
+        event_type INTEGER NOT NULL,
+        line_index INTEGER,
+        segment_start_ms INTEGER,
+        segment_end_ms INTEGER,
+        words_delta INTEGER NOT NULL DEFAULT 0,
+        cards_delta INTEGER NOT NULL DEFAULT 0,
+        payload_json TEXT,
+        CREATED_DATE INTEGER,
+        LAST_UPDATE_DATE INTEGER
+      );
+      CREATE TABLE imm_words(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        headword TEXT,
+        word TEXT,
+        reading TEXT,
+        part_of_speech TEXT,
+        pos1 TEXT,
+        pos2 TEXT,
+        pos3 TEXT,
+        first_seen REAL,
+        last_seen REAL,
+        frequency INTEGER,
+        UNIQUE(headword, word, reading)
+      );
+      CREATE TABLE imm_kanji(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kanji TEXT,
+        first_seen REAL,
+        last_seen REAL,
+        frequency INTEGER,
+        UNIQUE(kanji)
+      );
+      CREATE TABLE imm_rollup_state(
+        state_key TEXT PRIMARY KEY,
+        state_value INTEGER NOT NULL
+      );
+    `);
+
+    ensureSchema(db);
+
+    const tableNames = new Set(
+      (
+        db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'imm_%'`).all() as
+          Array<{ name: string }>
+      ).map((row) => row.name),
+    );
+
+    assert.ok(tableNames.has('imm_subtitle_lines'));
+    assert.ok(tableNames.has('imm_word_line_occurrences'));
+    assert.ok(tableNames.has('imm_kanji_line_occurrences'));
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('anime rows are reused by normalized parsed title and upgraded with AniList metadata', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const firstVideoId = getOrCreateVideoRecord(db, 'local:/tmp/lwa-s02e05.mkv', {
+      canonicalTitle: 'Episode 5',
+      sourcePath: '/tmp/Little Witch Academia S02E05.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const secondVideoId = getOrCreateVideoRecord(db, 'local:/tmp/lwa-s02e06.mkv', {
+      canonicalTitle: 'Episode 6',
+      sourcePath: '/tmp/Little Witch Academia S02E06.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const provisionalAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Little Witch Academia',
+      canonicalTitle: 'Little Witch Academia',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: '{"source":"parsed"}',
+    });
+    linkVideoToAnimeRecord(db, firstVideoId, {
+      animeId: provisionalAnimeId,
+      parsedBasename: 'Little Witch Academia S02E05.mkv',
+      parsedTitle: 'Little Witch Academia',
+      parsedSeason: 2,
+      parsedEpisode: 5,
+      parserSource: 'fallback',
+      parserConfidence: 0.6,
+      parseMetadataJson: '{"source":"parsed","episode":5}',
+    });
+
+    const reusedAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: ' little  witch academia ',
+      canonicalTitle: 'Little Witch Academia',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: '{"source":"parsed"}',
+    });
+    linkVideoToAnimeRecord(db, secondVideoId, {
+      animeId: reusedAnimeId,
+      parsedBasename: 'Little Witch Academia S02E06.mkv',
+      parsedTitle: 'Little Witch Academia',
+      parsedSeason: 2,
+      parsedEpisode: 6,
+      parserSource: 'fallback',
+      parserConfidence: 0.6,
+      parseMetadataJson: '{"source":"parsed","episode":6}',
+    });
+
+    assert.equal(reusedAnimeId, provisionalAnimeId);
+
+    const upgradedAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Little Witch Academia',
+      canonicalTitle: 'Little Witch Academia TV',
+      anilistId: 33_435,
+      titleRomaji: 'Little Witch Academia',
+      titleEnglish: 'Little Witch Academia',
+      titleNative: 'リトルウィッチアカデミア',
+      metadataJson: '{"source":"anilist"}',
+    });
+
+    assert.equal(upgradedAnimeId, provisionalAnimeId);
+
+    const animeRows = db.prepare('SELECT * FROM imm_anime').all() as Array<{
+      anime_id: number;
+      normalized_title_key: string;
+      canonical_title: string;
+      anilist_id: number | null;
+      title_romaji: string | null;
+      title_english: string | null;
+      title_native: string | null;
+      metadata_json: string | null;
+    }>;
+    assert.equal(animeRows.length, 1);
+    assert.equal(animeRows[0]?.anime_id, provisionalAnimeId);
+    assert.equal(animeRows[0]?.normalized_title_key, 'little witch academia');
+    assert.equal(animeRows[0]?.canonical_title, 'Little Witch Academia TV');
+    assert.equal(animeRows[0]?.anilist_id, 33_435);
+    assert.equal(animeRows[0]?.title_romaji, 'Little Witch Academia');
+    assert.equal(animeRows[0]?.title_english, 'Little Witch Academia');
+    assert.equal(animeRows[0]?.title_native, 'リトルウィッチアカデミア');
+    assert.equal(animeRows[0]?.metadata_json, '{"source":"anilist"}');
+
+    const linkedVideos = db
+      .prepare(
+        `
+          SELECT anime_id, parsed_title, parsed_season, parsed_episode
+          FROM imm_videos
+          WHERE video_id IN (?, ?)
+          ORDER BY video_id
+        `,
+      )
+      .all(firstVideoId, secondVideoId) as Array<{
+      anime_id: number | null;
+      parsed_title: string | null;
+      parsed_season: number | null;
+      parsed_episode: number | null;
+    }>;
+
+    assert.deepEqual(linkedVideos, [
+      {
+        anime_id: provisionalAnimeId,
+        parsed_title: 'Little Witch Academia',
+        parsed_season: 2,
+        parsed_episode: 5,
+      },
+      {
+        anime_id: provisionalAnimeId,
+        parsed_title: 'Little Witch Academia',
+        parsed_season: 2,
+        parsed_episode: 6,
+      },
+    ]);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -191,18 +678,22 @@ test('executeQueuedWrite inserts and upserts word and kanji rows', () => {
     ensureSchema(db);
     const stmts = createTrackerPreparedStatements(db);
 
-    stmts.wordUpsertStmt.run('猫', '猫', '', 10.0, 10.0);
-    stmts.wordUpsertStmt.run('猫', '猫', '', 5.0, 15.0);
+    stmts.wordUpsertStmt.run('猫', '猫', '', 'noun', '名詞', '一般', '', 10.0, 10.0);
+    stmts.wordUpsertStmt.run('猫', '猫', '', 'noun', '名詞', '一般', '', 5.0, 15.0);
     stmts.kanjiUpsertStmt.run('日', 9.0, 9.0);
     stmts.kanjiUpsertStmt.run('日', 8.0, 11.0);
 
     const wordRow = db
       .prepare(
-        'SELECT headword, frequency, first_seen, last_seen FROM imm_words WHERE headword = ?',
+        `SELECT headword, frequency, part_of_speech, pos1, pos2, first_seen, last_seen
+         FROM imm_words WHERE headword = ?`,
       )
       .get('猫') as {
       headword: string;
       frequency: number;
+      part_of_speech: string;
+      pos1: string;
+      pos2: string;
       first_seen: number;
       last_seen: number;
     } | null;
@@ -218,11 +709,45 @@ test('executeQueuedWrite inserts and upserts word and kanji rows', () => {
     assert.ok(wordRow);
     assert.ok(kanjiRow);
     assert.equal(wordRow?.frequency, 2);
+    assert.equal(wordRow?.part_of_speech, 'noun');
+    assert.equal(wordRow?.pos1, '名詞');
+    assert.equal(wordRow?.pos2, '一般');
     assert.equal(kanjiRow?.frequency, 2);
     assert.equal(wordRow?.first_seen, 5);
     assert.equal(wordRow?.last_seen, 15);
     assert.equal(kanjiRow?.first_seen, 8);
     assert.equal(kanjiRow?.last_seen, 11);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('word upsert replaces legacy other part_of_speech when better POS metadata arrives later', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    stmts.wordUpsertStmt.run('知っている', '知っている', 'しっている', 'other', '動詞', '自立', '', 10, 10);
+    stmts.wordUpsertStmt.run('知っている', '知っている', 'しっている', 'verb', '動詞', '自立', '', 11, 12);
+
+    const row = db
+      .prepare('SELECT frequency, part_of_speech, pos1, pos2 FROM imm_words WHERE headword = ?')
+      .get('知っている') as {
+      frequency: number;
+      part_of_speech: string;
+      pos1: string;
+      pos2: string;
+    } | null;
+
+    assert.ok(row);
+    assert.equal(row?.frequency, 2);
+    assert.equal(row?.part_of_speech, 'verb');
+    assert.equal(row?.pos1, '動詞');
+    assert.equal(row?.pos2, '自立');
   } finally {
     db.close();
     cleanupDbPath(dbPath);

@@ -1,6 +1,13 @@
 import crypto from 'node:crypto';
 import { spawn as nodeSpawn } from 'node:child_process';
 import * as fs from 'node:fs';
+import path from 'node:path';
+import { parseMediaInfo } from '../../../jimaku/utils';
+import {
+  guessAnilistMediaInfo,
+  runGuessit,
+  type GuessAnilistMediaInfoDeps,
+} from '../anilist/anilist-updater';
 import {
   deriveCanonicalTitle,
   emptyMetadata,
@@ -8,7 +15,12 @@ import {
   parseFps,
   toNullableInt,
 } from './reducer';
-import { SOURCE_TYPE_LOCAL, type ProbeMetadata, type VideoMetadata } from './types';
+import {
+  SOURCE_TYPE_LOCAL,
+  type ParsedAnimeVideoGuess,
+  type ProbeMetadata,
+  type VideoMetadata,
+} from './types';
 
 type SpawnFn = typeof nodeSpawn;
 
@@ -22,6 +34,21 @@ interface FsDeps {
 interface MetadataDeps {
   spawn?: SpawnFn;
   fs?: FsDeps;
+}
+
+interface GuessAnimeVideoMetadataDeps {
+  runGuessit?: GuessAnilistMediaInfoDeps['runGuessit'];
+}
+
+function mapParserConfidenceToScore(confidence: 'high' | 'medium' | 'low'): number {
+  switch (confidence) {
+    case 'high':
+      return 1;
+    case 'medium':
+      return 0.6;
+    default:
+      return 0.2;
+  }
 }
 
 export async function computeSha256(
@@ -149,5 +176,50 @@ export async function getLocalVideoMetadata(
     hashSha256: hash,
     screenshotPath: null,
     metadataJson: null,
+  };
+}
+
+export async function guessAnimeVideoMetadata(
+  mediaPath: string | null,
+  mediaTitle: string | null,
+  deps: GuessAnimeVideoMetadataDeps = {},
+): Promise<ParsedAnimeVideoGuess | null> {
+  const parsed = await guessAnilistMediaInfo(mediaPath, mediaTitle, {
+    runGuessit: deps.runGuessit ?? runGuessit,
+  });
+  if (!parsed) {
+    return null;
+  }
+
+  const parsedBasename = mediaPath ? path.basename(mediaPath) : null;
+  if (parsed.source === 'guessit') {
+    return {
+      parsedBasename,
+      parsedTitle: parsed.title,
+      parsedSeason: parsed.season,
+      parsedEpisode: parsed.episode,
+      parserSource: 'guessit',
+      parserConfidence: 1,
+      parseMetadataJson: JSON.stringify({
+        filename: parsedBasename,
+        source: 'guessit',
+      }),
+    };
+  }
+
+  const fallbackInfo = parseMediaInfo(mediaPath ?? mediaTitle);
+  return {
+    parsedBasename: parsedBasename ?? fallbackInfo.filename ?? null,
+    parsedTitle: parsed.title,
+    parsedSeason: parsed.season,
+    parsedEpisode: parsed.episode,
+    parserSource: 'fallback',
+    parserConfidence: mapParserConfidenceToScore(fallbackInfo.confidence),
+    parseMetadataJson: JSON.stringify({
+      confidence: fallbackInfo.confidence,
+      filename: fallbackInfo.filename,
+      rawTitle: fallbackInfo.rawTitle,
+      source: 'fallback',
+    }),
   };
 }
