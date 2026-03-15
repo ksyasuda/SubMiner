@@ -39,3 +39,9 @@ test('resolveSubtitleSourcePath converts file URLs with spaces into filesystem p
 test('resolveSubtitleSourcePath leaves non-file sources unchanged', () => {
   assert.equal(resolveSubtitleSourcePath('/tmp/subs.ass'), '/tmp/subs.ass');
 });
+
+test('resolveSubtitleSourcePath returns the original source for malformed file URLs', () => {
+  const source = 'file://invalid[path';
+
+  assert.equal(resolveSubtitleSourcePath(source), source);
+});
