@@ -56,6 +56,8 @@ export function parseSrtCues(content: string): SubtitleCue[] {
 const ASS_OVERRIDE_TAG_PATTERN = /\{[^}]*\}/g;
 
 const ASS_TIMING_PATTERN = /^(\d+):(\d{2}):(\d{2})\.(\d{1,2})$/;
+const ASS_FORMAT_PREFIX = 'Format:';
+const ASS_DIALOGUE_PREFIX = 'Dialogue:';
 
 function parseAssTimestamp(raw: string): number | null {
   const match = ASS_TIMING_PATTERN.exec(raw.trim());
@@ -73,12 +75,20 @@ export function parseAssCues(content: string): SubtitleCue[] {
   const cues: SubtitleCue[] = [];
   const lines = content.split(/\r?\n/);
   let inEventsSection = false;
+  let startFieldIndex = -1;
+  let endFieldIndex = -1;
+  let textFieldIndex = -1;
 
   for (const line of lines) {
     const trimmed = line.trim();
 
     if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
       inEventsSection = trimmed.toLowerCase() === '[events]';
+      if (!inEventsSection) {
+        startFieldIndex = -1;
+        endFieldIndex = -1;
+        textFieldIndex = -1;
+      }
       continue;
     }
 
@@ -86,34 +96,45 @@ export function parseAssCues(content: string): SubtitleCue[] {
       continue;
     }
 
-    if (!trimmed.startsWith('Dialogue:')) {
+    if (trimmed.startsWith(ASS_FORMAT_PREFIX)) {
+      const formatFields = trimmed
+        .slice(ASS_FORMAT_PREFIX.length)
+        .split(',')
+        .map((field) => field.trim().toLowerCase());
+      startFieldIndex = formatFields.indexOf('start');
+      endFieldIndex = formatFields.indexOf('end');
+      textFieldIndex = formatFields.indexOf('text');
       continue;
     }
 
-    // Split on first 9 commas (ASS v4+ has 10 fields; last is Text which can contain commas)
-    const afterPrefix = trimmed.slice('Dialogue:'.length);
-    const fields: string[] = [];
-    let remaining = afterPrefix;
-    for (let fieldIndex = 0; fieldIndex < 9; fieldIndex += 1) {
-      const commaIndex = remaining.indexOf(',');
-      if (commaIndex < 0) {
-        break;
-      }
-      fields.push(remaining.slice(0, commaIndex));
-      remaining = remaining.slice(commaIndex + 1);
-    }
-
-    if (fields.length < 9) {
+    if (!trimmed.startsWith(ASS_DIALOGUE_PREFIX)) {
       continue;
     }
 
-    const startTime = parseAssTimestamp(fields[1]!);
-    const endTime = parseAssTimestamp(fields[2]!);
+    if (startFieldIndex < 0 || endFieldIndex < 0 || textFieldIndex < 0) {
+      continue;
+    }
+
+    const fields = trimmed.slice(ASS_DIALOGUE_PREFIX.length).split(',');
+    if (
+      startFieldIndex >= fields.length ||
+      endFieldIndex >= fields.length ||
+      textFieldIndex >= fields.length
+    ) {
+      continue;
+    }
+
+    const startTime = parseAssTimestamp(fields[startFieldIndex]!);
+    const endTime = parseAssTimestamp(fields[endFieldIndex]!);
     if (startTime === null || endTime === null) {
       continue;
     }
 
-    const rawText = remaining.replace(ASS_OVERRIDE_TAG_PATTERN, '').trim();
+    const rawText = fields
+      .slice(textFieldIndex)
+      .join(',')
+      .replace(ASS_OVERRIDE_TAG_PATTERN, '')
+      .trim();
     if (rawText) {
       cues.push({ startTime, endTime, text: rawText });
     }
@@ -122,8 +143,15 @@ export function parseAssCues(content: string): SubtitleCue[] {
   return cues;
 }
 
-function detectSubtitleFormat(filename: string): 'srt' | 'vtt' | 'ass' | 'ssa' | null {
-  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+function detectSubtitleFormat(source: string): 'srt' | 'vtt' | 'ass' | 'ssa' | null {
+  const normalizedSource = (() => {
+    try {
+      return /^[a-z]+:\/\//i.test(source) ? new URL(source).pathname : source;
+    } catch {
+      return source;
+    }
+  })().split(/[?#]/, 1)[0];
+  const ext = normalizedSource.split('.').pop()?.toLowerCase() ?? '';
   if (ext === 'srt') return 'srt';
   if (ext === 'vtt') return 'vtt';
   if (ext === 'ass' || ext === 'ssa') return 'ass';

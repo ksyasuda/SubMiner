@@ -34,6 +34,8 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     setCurrentSubAssText: (text) => calls.push(`set-ass:${text}`),
     broadcastSubtitleAss: (text) => calls.push(`broadcast-ass:${text}`),
     broadcastSecondarySubtitle: (text) => calls.push(`broadcast-secondary:${text}`),
+    onSubtitleTrackChange: () => calls.push('subtitle-track-change'),
+    onSubtitleTrackListChange: () => calls.push('subtitle-track-list-change'),
 
     updateCurrentMediaPath: (path) => calls.push(`media-path:${path}`),
     restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
@@ -65,6 +67,8 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   });
 
   handlers.get('subtitle-change')?.({ text: 'line' });
+  handlers.get('subtitle-track-change')?.({ sid: 3 });
+  handlers.get('subtitle-track-list-change')?.({ trackList: [] });
   handlers.get('media-path-change')?.({ path: '' });
   handlers.get('media-title-change')?.({ title: 'Episode 1' });
   handlers.get('time-pos-change')?.({ time: 2.5 });
@@ -73,6 +77,8 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.ok(calls.includes('set-sub:line'));
   assert.ok(calls.includes('broadcast-sub:line'));
   assert.ok(calls.includes('subtitle-change:line'));
+  assert.ok(calls.includes('subtitle-track-change'));
+  assert.ok(calls.includes('subtitle-track-list-change'));
   assert.ok(calls.includes('media-title:Episode 1'));
   assert.ok(calls.includes('restore-mpv-sub'));
   assert.ok(calls.includes('reset-guess-state'));

@@ -173,6 +173,29 @@ test('prefetch service onSeek re-prioritizes from new position', async () => {
   assert.ok(hasPostSeekCue, 'Should have cached cues after seek position');
 });
 
+test('prefetch service still warms the priority window when cache is full', async () => {
+  const cues = makeCues(20);
+  const cachedTexts: string[] = [];
+
+  const service = createSubtitlePrefetchService({
+    cues,
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    preCacheTokenization: (text) => {
+      cachedTexts.push(text);
+    },
+    isCacheFull: () => true,
+    priorityWindowSize: 3,
+  });
+
+  service.start(0);
+  for (let i = 0; i < 10; i += 1) {
+    await flushMicrotasks();
+  }
+  service.stop();
+
+  assert.deepEqual(cachedTexts.slice(0, 3), ['line-0', 'line-1', 'line-2']);
+});
+
 test('prefetch service pause/resume halts and continues tokenization', async () => {
   const cues = makeCues(20);
   let tokenizeCalls = 0;

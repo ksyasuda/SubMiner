@@ -58,6 +58,7 @@ export function createSubtitlePrefetchService(
   async function tokenizeCueList(
     cuesToProcess: SubtitleCue[],
     runId: number,
+    options: { allowWhenCacheFull?: boolean } = {},
   ): Promise<void> {
     for (const cue of cuesToProcess) {
       if (stopped || runId !== currentRunId) {
@@ -73,7 +74,7 @@ export function createSubtitlePrefetchService(
         return;
       }
 
-      if (deps.isCacheFull()) {
+      if (!options.allowWhenCacheFull && deps.isCacheFull()) {
         return;
       }
 
@@ -96,7 +97,7 @@ export function createSubtitlePrefetchService(
 
     // Phase 1: Priority window
     const priorityCues = computePriorityWindow(cues, currentTimeSeconds, windowSize);
-    await tokenizeCueList(priorityCues, runId);
+    await tokenizeCueList(priorityCues, runId, { allowWhenCacheFull: true });
 
     if (stopped || runId !== currentRunId) {
       return;

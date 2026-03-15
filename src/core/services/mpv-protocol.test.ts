@@ -60,6 +60,8 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
       emitSubtitleAssChange: (payload) => state.events.push(payload),
       emitSubtitleTiming: (payload) => state.events.push(payload),
       emitSecondarySubtitleChange: (payload) => state.events.push(payload),
+      emitSubtitleTrackChange: (payload) => state.events.push(payload),
+      emitSubtitleTrackListChange: (payload) => state.events.push(payload),
       getCurrentSubText: () => state.subText,
       setCurrentSubText: (text) => {
         state.subText = text;
@@ -118,6 +120,24 @@ test('dispatchMpvProtocolMessage emits subtitle text on property change', async 
 
   assert.equal(state.subText, '字幕');
   assert.deepEqual(state.events, [{ text: '字幕', isOverlayVisible: false }]);
+});
+
+test('dispatchMpvProtocolMessage emits subtitle track changes', async () => {
+  const { deps, state } = createDeps({
+    emitSubtitleTrackChange: (payload) => state.events.push(payload),
+    emitSubtitleTrackListChange: (payload) => state.events.push(payload),
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'sid', data: '3' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'track-list', data: [{ type: 'sub', id: 3 }] },
+    deps,
+  );
+
+  assert.deepEqual(state.events, [{ sid: 3 }, { trackList: [{ type: 'sub', id: 3 }] }]);
 });
 
 test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay suppression is enabled', async () => {
