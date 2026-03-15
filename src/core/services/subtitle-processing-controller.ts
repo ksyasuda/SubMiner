@@ -11,6 +11,8 @@ export interface SubtitleProcessingController {
   onSubtitleChange: (text: string) => void;
   refreshCurrentSubtitle: (textOverride?: string) => void;
   invalidateTokenizationCache: () => void;
+  preCacheTokenization: (text: string, data: SubtitleData) => void;
+  isCacheFull: () => boolean;
 }
 
 export function createSubtitleProcessingController(
@@ -129,6 +131,12 @@ export function createSubtitleProcessingController(
     },
     invalidateTokenizationCache: () => {
       tokenizationCache.clear();
+    },
+    preCacheTokenization: (text: string, data: SubtitleData) => {
+      setCachedTokenization(text, data);
+    },
+    isCacheFull: () => {
+      return tokenizationCache.size >= SUBTITLE_TOKENIZATION_CACHE_LIMIT;
     },
   };
 }
