@@ -1,0 +1,142 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  computePriorityWindow,
+  createSubtitlePrefetchService,
+} from './subtitle-prefetch';
+import type { SubtitleCue } from './subtitle-cue-parser';
+import type { SubtitleData } from '../../types';
+
+function makeCues(count: number, startOffset = 0): SubtitleCue[] {
+  return Array.from({ length: count }, (_, i) => ({
+    startTime: startOffset + i * 5,
+    endTime: startOffset + i * 5 + 4,
+    text: `line-${i}`,
+  }));
+}
+
+test('computePriorityWindow returns next N cues from current position', () => {
+  const cues = makeCues(20);
+  const window = computePriorityWindow(cues, 12.0, 5);
+
+  assert.equal(window.length, 5);
+  // Position 12.0 is during cue index 2 (start=10, end=14). Priority window starts from index 3.
+  assert.equal(window[0]!.text, 'line-3');
+  assert.equal(window[4]!.text, 'line-7');
+});
+
+test('computePriorityWindow clamps to remaining cues at end of file', () => {
+  const cues = makeCues(5);
+  const window = computePriorityWindow(cues, 18.0, 10);
+
+  // Position 18.0 is during cue 3 (start=15). Only cue 4 is ahead.
+  assert.equal(window.length, 1);
+  assert.equal(window[0]!.text, 'line-4');
+});
+
+test('computePriorityWindow returns empty when past all cues', () => {
+  const cues = makeCues(3);
+  const window = computePriorityWindow(cues, 999.0, 10);
+  assert.equal(window.length, 0);
+});
+
+test('computePriorityWindow at position 0 returns first N cues', () => {
+  const cues = makeCues(20);
+  const window = computePriorityWindow(cues, 0, 5);
+
+  assert.equal(window.length, 5);
+  assert.equal(window[0]!.text, 'line-0');
+});
+
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+test('prefetch service tokenizes priority window cues and caches them', async () => {
+  const cues = makeCues(20);
+  const cached: Map<string, SubtitleData> = new Map();
+  let tokenizeCalls = 0;
+
+  const service = createSubtitlePrefetchService({
+    cues,
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    preCacheTokenization: (text, data) => {
+      cached.set(text, data);
+    },
+    isCacheFull: () => false,
+    priorityWindowSize: 3,
+  });
+
+  service.start(0);
+  // Allow all async tokenization to complete
+  for (let i = 0; i < 25; i += 1) {
+    await flushMicrotasks();
+  }
+  service.stop();
+
+  // Priority window (first 3) should be cached
+  assert.ok(cached.has('line-0'));
+  assert.ok(cached.has('line-1'));
+  assert.ok(cached.has('line-2'));
+});
+
+test('prefetch service stops when cache is full', async () => {
+  const cues = makeCues(20);
+  let tokenizeCalls = 0;
+  let cacheSize = 0;
+
+  const service = createSubtitlePrefetchService({
+    cues,
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    preCacheTokenization: () => {
+      cacheSize += 1;
+    },
+    isCacheFull: () => cacheSize >= 5,
+    priorityWindowSize: 3,
+  });
+
+  service.start(0);
+  for (let i = 0; i < 30; i += 1) {
+    await flushMicrotasks();
+  }
+  service.stop();
+
+  // Should have stopped at 5 (cache full), not tokenized all 20
+  assert.ok(tokenizeCalls <= 6, `Expected <= 6 tokenize calls, got ${tokenizeCalls}`);
+});
+
+test('prefetch service can be stopped mid-flight', async () => {
+  const cues = makeCues(100);
+  let tokenizeCalls = 0;
+
+  const service = createSubtitlePrefetchService({
+    cues,
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    preCacheTokenization: () => {},
+    isCacheFull: () => false,
+    priorityWindowSize: 3,
+  });
+
+  service.start(0);
+  await flushMicrotasks();
+  await flushMicrotasks();
+  service.stop();
+  const callsAtStop = tokenizeCalls;
+
+  // Wait more to confirm no further calls
+  for (let i = 0; i < 10; i += 1) {
+    await flushMicrotasks();
+  }
+
+  assert.equal(tokenizeCalls, callsAtStop, 'No further tokenize calls after stop');
+  assert.ok(tokenizeCalls < 100, 'Should not have tokenized all cues');
+});
