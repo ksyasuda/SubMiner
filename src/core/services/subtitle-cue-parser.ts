@@ -144,13 +144,13 @@ export function parseAssCues(content: string): SubtitleCue[] {
 }
 
 function detectSubtitleFormat(source: string): 'srt' | 'vtt' | 'ass' | 'ssa' | null {
-  const normalizedSource = (() => {
+  const [normalizedSource = source] = (() => {
     try {
       return /^[a-z]+:\/\//i.test(source) ? new URL(source).pathname : source;
     } catch {
       return source;
     }
-  })().split(/[?#]/, 1)[0];
+  })().split(/[?#]/, 1);
   const ext = normalizedSource.split('.').pop()?.toLowerCase() ?? '';
   if (ext === 'srt') return 'srt';
   if (ext === 'vtt') return 'vtt';
