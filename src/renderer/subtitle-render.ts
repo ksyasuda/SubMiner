@@ -19,6 +19,14 @@ export type SubtitleTokenHoverRange = {
   tokenIndex: number;
 };
 
+let _spanTemplate: HTMLSpanElement | null = null;
+function getSpanTemplate(): HTMLSpanElement {
+  if (!_spanTemplate) {
+    _spanTemplate = document.createElement('span');
+  }
+  return _spanTemplate;
+}
+
 export function shouldRenderTokenizedSubtitle(tokenCount: number): boolean {
   return tokenCount > 0;
 }
@@ -286,7 +294,7 @@ function renderWithTokens(
       }
 
       const token = segment.token;
-      const span = document.createElement('span');
+      const span = getSpanTemplate().cloneNode(false) as HTMLSpanElement;
       span.className = computeWordClass(token, resolvedTokenRenderSettings);
       span.textContent = token.surface;
       span.dataset.tokenIndex = String(segment.tokenIndex);
@@ -322,7 +330,7 @@ function renderWithTokens(
       continue;
     }
 
-    const span = document.createElement('span');
+    const span = getSpanTemplate().cloneNode(false) as HTMLSpanElement;
     span.className = computeWordClass(token, resolvedTokenRenderSettings);
     span.textContent = surface;
     span.dataset.tokenIndex = String(index);
@@ -478,7 +486,7 @@ function renderCharacterLevel(root: HTMLElement, text: string): void {
       fragment.appendChild(document.createElement('br'));
       continue;
     }
-    const span = document.createElement('span');
+    const span = getSpanTemplate().cloneNode(false) as HTMLSpanElement;
     span.className = 'c';
     span.textContent = char;
     fragment.appendChild(span);
@@ -503,7 +511,7 @@ function renderPlainTextPreserveLineBreaks(root: ParentNode, text: string): void
 
 export function createSubtitleRenderer(ctx: RendererContext) {
   function renderSubtitle(data: SubtitleData | string): void {
-    ctx.dom.subtitleRoot.innerHTML = '';
+    ctx.dom.subtitleRoot.replaceChildren();
 
     let text: string;
     let tokens: MergedToken[] | null;
@@ -552,7 +560,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
   }
 
   function renderSecondarySub(text: string): void {
-    ctx.dom.secondarySubRoot.innerHTML = '';
+    ctx.dom.secondarySubRoot.replaceChildren();
     if (!text) return;
 
     const normalized = text
