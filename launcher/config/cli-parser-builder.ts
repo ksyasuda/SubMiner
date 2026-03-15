@@ -40,6 +40,10 @@ export interface CliInvocations {
   dictionaryTriggered: boolean;
   dictionaryTarget: string | null;
   dictionaryLogLevel: string | null;
+  statsTriggered: boolean;
+  statsCleanup: boolean;
+  statsCleanupVocab: boolean;
+  statsLogLevel: string | null;
   doctorTriggered: boolean;
   doctorLogLevel: string | null;
   texthookerTriggered: boolean;
@@ -87,6 +91,7 @@ function getTopLevelCommand(argv: string[]): { name: string; index: number } | n
     'mpv',
     'dictionary',
     'dict',
+    'stats',
     'texthooker',
     'app',
     'bin',
@@ -137,6 +142,10 @@ export function parseCliPrograms(
   let dictionaryTriggered = false;
   let dictionaryTarget: string | null = null;
   let dictionaryLogLevel: string | null = null;
+  let statsTriggered = false;
+  let statsCleanup = false;
+  let statsCleanupVocab = false;
+  let statsLogLevel: string | null = null;
   let doctorLogLevel: string | null = null;
   let texthookerLogLevel: string | null = null;
   let doctorTriggered = false;
@@ -242,6 +251,21 @@ export function parseCliPrograms(
     });
 
   commandProgram
+    .command('stats')
+    .description('Launch the local immersion stats dashboard')
+    .argument('[action]', 'cleanup')
+    .option('-v, --vocab', 'Clean vocabulary rows in the stats database')
+    .option('--log-level <level>', 'Log level')
+    .action((action: string | undefined, options: Record<string, unknown>) => {
+      statsTriggered = true;
+      if ((action || '').toLowerCase() === 'cleanup') {
+        statsCleanup = true;
+        statsCleanupVocab = options.vocab === true;
+      }
+      statsLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
+    });
+
+  commandProgram
     .command('doctor')
     .description('Run dependency and environment checks')
     .option('--log-level <level>', 'Log level')
@@ -319,6 +343,10 @@ export function parseCliPrograms(
       dictionaryTriggered,
       dictionaryTarget,
       dictionaryLogLevel,
+      statsTriggered,
+      statsCleanup,
+      statsCleanupVocab,
+      statsLogLevel,
       doctorTriggered,
       doctorLogLevel,
       texthookerTriggered,

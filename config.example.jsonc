@@ -503,5 +503,16 @@
       "monthlyRollupsDays": 1825, // Monthly rollup retention window in days.
       "vacuumIntervalDays": 7 // Minimum days between VACUUM runs.
     } // Retention setting.
-  } // Enable/disable immersion tracking.
+  }, // Enable/disable immersion tracking.
+
+  // ==========================================
+  // Stats Dashboard
+  // Local immersion stats dashboard served on localhost and available as an in-app overlay.
+  // Uses the immersion tracking database for overview, trends, sessions, and vocabulary views.
+  // ==========================================
+  "stats": {
+    "toggleKey": "Backquote", // Key code to toggle the stats overlay.
+    "serverPort": 5175, // Port for the stats HTTP server.
+    "autoStartServer": true // Automatically start the stats server on launch. Values: true | false
+  } // Local immersion stats dashboard served on localhost and available as an in-app overlay.
 }

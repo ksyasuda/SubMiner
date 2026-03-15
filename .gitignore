@@ -52,3 +52,4 @@ tests/*
 !.agents/skills/subminer-scrum-master/SKILL.md
 favicon.png
 .claude/*
+!stats/public/favicon.png

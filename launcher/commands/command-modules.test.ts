@@ -7,6 +7,7 @@ import { runConfigCommand } from './config-command.js';
 import { runDictionaryCommand } from './dictionary-command.js';
 import { runDoctorCommand } from './doctor-command.js';
 import { runMpvPreAppCommand } from './mpv-command.js';
+import { runStatsCommand } from './stats-command.js';
 
 class ExitSignal extends Error {
   code: number;
@@ -126,5 +127,100 @@ test('dictionary command throws if app handoff unexpectedly returns', () => {
         runAppCommandWithInherit: () => undefined as never,
       }),
     /unexpectedly returned/,
+  );
+});
+
+test('stats command launches attached app command with response path', async () => {
+  const context = createContext();
+  context.args.stats = true;
+  context.args.logLevel = 'debug';
+  const forwarded: string[][] = [];
+
+  const handled = await runStatsCommand(context, {
+    createTempDir: () => '/tmp/subminer-stats-test',
+    joinPath: (...parts) => parts.join('/'),
+    runAppCommandAttached: async (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+      return 0;
+    },
+    waitForStatsResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
+    removeDir: () => {},
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(forwarded, [
+    ['--stats', '--stats-response-path', '/tmp/subminer-stats-test/response.json', '--log-level', 'debug'],
+  ]);
+});
+
+test('stats cleanup command forwards cleanup vocab flags to the app', async () => {
+  const context = createContext();
+  context.args.stats = true;
+  context.args.statsCleanup = true;
+  context.args.statsCleanupVocab = true;
+  const forwarded: string[][] = [];
+
+  const handled = await runStatsCommand(context, {
+    createTempDir: () => '/tmp/subminer-stats-test',
+    joinPath: (...parts) => parts.join('/'),
+    runAppCommandAttached: async (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+      return 0;
+    },
+    waitForStatsResponse: async () => ({ ok: true }),
+    removeDir: () => {},
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(forwarded, [
+    [
+      '--stats',
+      '--stats-response-path',
+      '/tmp/subminer-stats-test/response.json',
+      '--stats-cleanup',
+      '--stats-cleanup-vocab',
+    ],
+  ]);
+});
+
+test('stats command throws when stats response reports an error', async () => {
+  const context = createContext();
+  context.args.stats = true;
+
+  await assert.rejects(
+    async () => {
+      await runStatsCommand(context, {
+        createTempDir: () => '/tmp/subminer-stats-test',
+        joinPath: (...parts) => parts.join('/'),
+        runAppCommandAttached: async () => 0,
+        waitForStatsResponse: async () => ({
+          ok: false,
+          error: 'Immersion tracking is disabled in config.',
+        }),
+        removeDir: () => {},
+      });
+    },
+    /Immersion tracking is disabled in config\./,
+  );
+});
+
+test('stats command fails if attached app exits before startup response', async () => {
+  const context = createContext();
+  context.args.stats = true;
+
+  await assert.rejects(
+    async () => {
+      await runStatsCommand(context, {
+        createTempDir: () => '/tmp/subminer-stats-test',
+        joinPath: (...parts) => parts.join('/'),
+        runAppCommandAttached: async () => 2,
+        waitForStatsResponse: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          return { ok: true, url: 'http://127.0.0.1:5175' };
+        },
+        removeDir: () => {},
+      });
+    },
+    /Stats app exited before startup response \(status 2\)\./,
   );
 });

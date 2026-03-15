@@ -122,6 +122,9 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     jellyfinPlay: false,
     jellyfinDiscovery: false,
     dictionary: false,
+    stats: false,
+    statsCleanup: false,
+    statsCleanupVocab: false,
     doctor: false,
     configPath: false,
     configShow: false,
@@ -188,6 +191,9 @@ export function applyRootOptionsToArgs(
 
 export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations): void {
   if (invocations.dictionaryTriggered) parsed.dictionary = true;
+  if (invocations.statsTriggered) parsed.stats = true;
+  if (invocations.statsCleanup) parsed.statsCleanup = true;
+  if (invocations.statsCleanupVocab) parsed.statsCleanupVocab = true;
   if (invocations.dictionaryTarget) {
     parsed.dictionaryTarget = parseDictionaryTarget(invocations.dictionaryTarget);
   }
@@ -255,6 +261,9 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
 
   if (invocations.dictionaryLogLevel) {
     parsed.logLevel = parseLogLevel(invocations.dictionaryLogLevel);
+  }
+  if (invocations.statsLogLevel) {
+    parsed.logLevel = parseLogLevel(invocations.statsLogLevel);
   }
 
   if (invocations.doctorLogLevel) parsed.logLevel = parseLogLevel(invocations.doctorLogLevel);
