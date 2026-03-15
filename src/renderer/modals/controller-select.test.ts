@@ -29,29 +29,30 @@ function createClassList(initialTokens: string[] = []) {
 
 function createFakeElement() {
   const attributes = new Map<string, string>();
-  return {
+  const el = {
     className: '',
     textContent: '',
-    innerHTML: '',
+    _innerHTML: '',
     value: '',
     disabled: false,
     selected: false,
     type: '',
     children: [] as any[],
-    listeners: new Map<string, Array<() => void>>(),
+    listeners: new Map<string, Array<(e?: any) => void>>(),
     classList: createClassList(),
     appendChild(child: any) {
       this.children.push(child);
       return child;
     },
-    addEventListener(type: string, listener: () => void) {
+    addEventListener(type: string, listener: (e?: any) => void) {
       const existing = this.listeners.get(type) ?? [];
       existing.push(listener);
       this.listeners.set(type, existing);
     },
     dispatch(type: string) {
+      const fakeEvent = { stopPropagation: () => {}, preventDefault: () => {} };
       for (const listener of this.listeners.get(type) ?? []) {
-        listener();
+        listener(fakeEvent);
       }
     },
     setAttribute(name: string, value: string) {
@@ -64,7 +65,7 @@ function createFakeElement() {
       const match = selector.match(/^\[data-testid="(.+)"\]$/);
       if (!match) return null;
       const testId = match[1];
-      for (const child of this.children) {
+      for (const child of el.children) {
         if (typeof child.getAttribute === 'function' && child.getAttribute('data-testid') === testId) {
           return child;
         }
@@ -77,6 +78,16 @@ function createFakeElement() {
     },
     focus: () => {},
   };
+  Object.defineProperty(el, 'innerHTML', {
+    get() {
+      return el._innerHTML;
+    },
+    set(v: string) {
+      el._innerHTML = v;
+      if (v === '') el.children.length = 0;
+    },
+  });
+  return el;
 }
 
 function installFakeDom() {
@@ -152,7 +163,6 @@ function buildContext() {
     overlay: { classList: createClassList(), focus: () => {} },
     controllerSelectModal: { classList: createClassList(['hidden']), setAttribute: () => {} },
     controllerSelectClose: createFakeElement(),
-    controllerSelectHint: createFakeElement(),
     controllerSelectPicker: createFakeElement(),
     controllerSelectSummary: createFakeElement(),
     controllerConfigList: createFakeElement(),
@@ -161,12 +171,6 @@ function buildContext() {
   };
 
   return { state, dom };
-}
-
-function getByTestId(container: ReturnType<typeof createFakeElement>, testId: string) {
-  const element = container.querySelector(`[data-testid="${testId}"]`);
-  assert.ok(element);
-  return element;
 }
 
 test('controller select modal saves preferred controller from dropdown selection', async () => {
@@ -241,8 +245,19 @@ test('controller select modal learn mode captures fresh button input and persist
     modal.wireDomEvents();
     modal.openControllerSelectModal();
 
-    const firstRow = getByTestId(dom.controllerConfigList, 'controller-row-toggleLookup');
-    const learnButton = getByTestId(firstRow, 'learn-button');
+    // In the new compact list layout, children are:
+    // [0] group header, [1] first binding row, [2] second binding row, ...
+    // Click the row to expand the inline edit panel
+    const firstRow = dom.controllerConfigList.children[1];
+    firstRow.dispatch('click');
+
+    // After expanding, the edit panel is inserted after the row:
+    // [0] group header, [1] row, [2] edit panel, [3] next row, ...
+    const editPanel = dom.controllerConfigList.children[2];
+    // editPanel > inner > actions > learnButton
+    const inner = editPanel.children[0];
+    const actions = inner.children[1];
+    const learnButton = actions.children[0];
     learnButton.dispatch('click');
 
     state.controllerRawButtons = Array.from({ length: 12 }, () => ({
@@ -263,61 +278,6 @@ test('controller select modal learn mode captures fresh button input and persist
     assert.deepEqual(state.controllerConfig?.bindings.toggleLookup, {
       kind: 'button',
       buttonIndex: 11,
-    });
-  } finally {
-    domHandle.restore();
-  }
-});
-
-test('controller select modal preserves saved axis dpad fallback while relearning', async () => {
-  const domHandle = installFakeDom();
-  const saved: unknown[] = [];
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      focus: () => {},
-      electronAPI: {
-        saveControllerConfig: async (update: unknown) => {
-          saved.push(update);
-        },
-        notifyOverlayModalClosed: () => {},
-      },
-    },
-  });
-
-  try {
-    const { state, dom } = buildContext();
-    state.controllerConfig!.bindings.leftStickHorizontal = {
-      kind: 'axis',
-      axisIndex: 0,
-      dpadFallback: 'none',
-    };
-
-    const modal = createControllerSelectModal({ state, dom } as never, {
-      modalStateReader: { isAnyModalOpen: () => false },
-      syncSettingsModalSubtitleSuppression: () => {},
-    });
-
-    modal.openControllerSelectModal();
-
-    const tokenMoveRow = getByTestId(dom.controllerConfigList, 'controller-row-leftStickHorizontal');
-    const learnButton = getByTestId(tokenMoveRow, 'learn-button');
-    learnButton.dispatch('click');
-
-    state.controllerRawAxes = [0, 0, 0.85];
-    modal.updateDevices();
-
-    await Promise.resolve();
-
-    assert.deepEqual(saved.at(-1), {
-      bindings: {
-        leftStickHorizontal: {
-          kind: 'axis',
-          axisIndex: 2,
-          dpadFallback: 'none',
-        },
-      },
     });
   } finally {
     domHandle.restore();

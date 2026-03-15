@@ -1,4 +1,5 @@
 import type {
+  ControllerDpadFallback,
   ResolvedControllerAxisBinding,
   ResolvedControllerConfig,
   ResolvedControllerDiscreteBinding,
@@ -120,6 +121,56 @@ export function getDefaultControllerBinding(actionId: ControllerBindingActionId)
   return JSON.parse(JSON.stringify(definition.defaultBinding)) as ResolvedControllerConfig['bindings'][ControllerBindingActionId];
 }
 
+export function getDefaultDpadFallback(actionId: ControllerBindingActionId): ControllerDpadFallback {
+  const definition = getControllerBindingDefinition(actionId);
+  if (!definition || definition.defaultBinding.kind !== 'axis') return 'none';
+  const binding = definition.defaultBinding;
+  return 'dpadFallback' in binding && binding.dpadFallback ? binding.dpadFallback : 'none';
+}
+
+const STANDARD_BUTTON_NAMES: Record<number, string> = {
+  0: 'A / Cross',
+  1: 'B / Circle',
+  2: 'X / Square',
+  3: 'Y / Triangle',
+  4: 'LB / L1',
+  5: 'RB / R1',
+  6: 'Back / Select',
+  7: 'Start / Options',
+  8: 'L3 / LS',
+  9: 'R3 / RS',
+  10: 'Left Stick Click',
+  11: 'Right Stick Click',
+  12: 'D-pad Up',
+  13: 'D-pad Down',
+  14: 'D-pad Left',
+  15: 'D-pad Right',
+  16: 'Guide / Home',
+};
+
+const STANDARD_AXIS_NAMES: Record<number, string> = {
+  0: 'Left Stick X',
+  1: 'Left Stick Y',
+  2: 'Left Trigger',
+  3: 'Right Stick X',
+  4: 'Right Stick Y',
+  5: 'Right Trigger',
+};
+
+const DPAD_FALLBACK_LABELS: Record<ControllerDpadFallback, string> = {
+  none: 'None',
+  horizontal: 'D-pad \u2194',
+  vertical: 'D-pad \u2195',
+};
+
+function getFriendlyButtonName(buttonIndex: number): string {
+  return STANDARD_BUTTON_NAMES[buttonIndex] ?? `Button ${buttonIndex}`;
+}
+
+function getFriendlyAxisName(axisIndex: number): string {
+  return STANDARD_AXIS_NAMES[axisIndex] ?? `Axis ${axisIndex}`;
+}
+
 export function formatControllerBindingSummary(
   binding: ResolvedControllerDiscreteBinding | ResolvedControllerAxisBinding,
 ): string {
@@ -138,17 +189,52 @@ export function formatControllerBindingSummary(
   return `Axis ${binding.axisIndex} + D-pad ${binding.dpadFallback}`;
 }
 
+function formatFriendlyStickLabel(binding: ResolvedControllerAxisBinding): string {
+  if (binding.kind === 'none') return 'None';
+  return getFriendlyAxisName(binding.axisIndex);
+}
+
+function formatFriendlyBindingLabel(
+  binding: ResolvedControllerDiscreteBinding | ResolvedControllerAxisBinding,
+): string {
+  if (binding.kind === 'none') return 'None';
+  if ('direction' in binding) {
+    const name = getFriendlyAxisName(binding.axisIndex);
+    return `${name} ${binding.direction === 'positive' ? '+' : '\u2212'}`;
+  }
+  if ('buttonIndex' in binding) return getFriendlyButtonName(binding.buttonIndex);
+  return getFriendlyAxisName(binding.axisIndex);
+}
+
+/** Unique key for expanded rows. Stick rows use the action id, dpad rows append ':dpad'. */
+type ExpandedRowKey = string;
+
 export function createControllerConfigForm(options: {
   container: HTMLElement;
   getBindings: () => ResolvedControllerConfig['bindings'];
   getLearningActionId: () => ControllerBindingActionId | null;
+  getDpadLearningActionId: () => ControllerBindingActionId | null;
   onLearn: (actionId: ControllerBindingActionId, bindingType: 'discrete' | 'axis') => void;
   onClear: (actionId: ControllerBindingActionId) => void;
   onReset: (actionId: ControllerBindingActionId) => void;
+  onDpadLearn: (actionId: ControllerBindingActionId) => void;
+  onDpadClear: (actionId: ControllerBindingActionId) => void;
+  onDpadReset: (actionId: ControllerBindingActionId) => void;
 }) {
+  let expandedRowKey: ExpandedRowKey | null = null;
+
   function render(): void {
     options.container.innerHTML = '';
     let lastGroup = '';
+    const learningActionId = options.getLearningActionId();
+    const dpadLearningActionId = options.getDpadLearningActionId();
+
+    // Auto-expand when learning starts
+    if (learningActionId) {
+      expandedRowKey = learningActionId;
+    } else if (dpadLearningActionId) {
+      expandedRowKey = `${dpadLearningActionId}:dpad`;
+    }
 
     for (const definition of CONTROLLER_BINDING_DEFINITIONS) {
       if (definition.group !== lastGroup) {
@@ -159,57 +245,184 @@ export function createControllerConfigForm(options: {
         lastGroup = definition.group;
       }
 
-      const row = document.createElement('div');
-      row.className = 'controller-config-row';
-      row.setAttribute('data-testid', `controller-row-${definition.id}`);
-      row.classList.toggle('learning', options.getLearningActionId() === definition.id);
+      const binding = options.getBindings()[definition.id];
 
-      const label = document.createElement('div');
-      label.className = 'controller-config-label';
-      label.textContent = definition.label;
-
-      const value = document.createElement('div');
-      value.className = 'controller-config-value';
-      value.textContent = formatControllerBindingSummary(options.getBindings()[definition.id]);
-
-      const actions = document.createElement('div');
-      actions.className = 'controller-config-actions';
-
-      const learnButton = document.createElement('button');
-      learnButton.type = 'button';
-      learnButton.className = 'kiku-confirm-button';
-      learnButton.setAttribute('data-testid', 'learn-button');
-      learnButton.textContent =
-        options.getLearningActionId() === definition.id ? 'Learning...' : 'Learn';
-      learnButton.addEventListener('click', () => {
-        options.onLearn(definition.id, definition.bindingType);
-      });
-
-      const clearButton = document.createElement('button');
-      clearButton.type = 'button';
-      clearButton.className = 'kiku-cancel-button';
-      clearButton.textContent = 'Clear';
-      clearButton.addEventListener('click', () => {
-        options.onClear(definition.id);
-      });
-
-      const resetButton = document.createElement('button');
-      resetButton.type = 'button';
-      resetButton.className = 'kiku-cancel-button';
-      resetButton.textContent = 'Reset';
-      resetButton.addEventListener('click', () => {
-        options.onReset(definition.id);
-      });
-
-      actions.appendChild(learnButton);
-      actions.appendChild(clearButton);
-      actions.appendChild(resetButton);
-
-      row.appendChild(label);
-      row.appendChild(value);
-      row.appendChild(actions);
-      options.container.appendChild(row);
+      if (definition.bindingType === 'axis') {
+        renderAxisStickRow(definition, binding as ResolvedControllerAxisBinding, learningActionId);
+        renderAxisDpadRow(definition, binding as ResolvedControllerAxisBinding, dpadLearningActionId);
+      } else {
+        renderDiscreteRow(definition, binding, learningActionId);
+      }
     }
+  }
+
+  function renderDiscreteRow(
+    definition: ControllerBindingDefinition,
+    binding: ResolvedControllerConfig['bindings'][ControllerBindingActionId],
+    learningActionId: ControllerBindingActionId | null,
+  ): void {
+    const rowKey = definition.id as string;
+    const isExpanded = expandedRowKey === rowKey;
+    const isLearning = learningActionId === definition.id;
+
+    const row = createRow(definition.label, formatFriendlyBindingLabel(binding), binding.kind === 'none', isExpanded);
+    row.addEventListener('click', () => {
+      expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
+      render();
+    });
+    options.container.appendChild(row);
+
+    if (isExpanded) {
+      const hint = isLearning
+        ? 'Press a button, trigger, or move a stick\u2026'
+        : `Currently: ${formatControllerBindingSummary(binding)}`;
+      const panel = createEditPanel(hint, isLearning, {
+        onLearn: (e) => { e.stopPropagation(); options.onLearn(definition.id, definition.bindingType); },
+        onClear: (e) => { e.stopPropagation(); options.onClear(definition.id); },
+        onReset: (e) => { e.stopPropagation(); options.onReset(definition.id); },
+      });
+      options.container.appendChild(panel);
+    }
+  }
+
+  function renderAxisStickRow(
+    definition: ControllerBindingDefinition,
+    binding: ResolvedControllerAxisBinding,
+    learningActionId: ControllerBindingActionId | null,
+  ): void {
+    const rowKey = definition.id as string;
+    const isExpanded = expandedRowKey === rowKey;
+    const isLearning = learningActionId === definition.id;
+
+    const row = createRow(`${definition.label} (Stick)`, formatFriendlyStickLabel(binding), binding.kind === 'none', isExpanded);
+    row.addEventListener('click', () => {
+      expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
+      render();
+    });
+    options.container.appendChild(row);
+
+    if (isExpanded) {
+      const summary = binding.kind === 'none' ? 'Disabled' : `Axis ${binding.axisIndex}`;
+      const hint = isLearning ? 'Move a stick or trigger\u2026' : `Currently: ${summary}`;
+      const panel = createEditPanel(hint, isLearning, {
+        onLearn: (e) => { e.stopPropagation(); options.onLearn(definition.id, 'axis'); },
+        onClear: (e) => { e.stopPropagation(); options.onClear(definition.id); },
+        onReset: (e) => { e.stopPropagation(); options.onReset(definition.id); },
+      });
+      options.container.appendChild(panel);
+    }
+  }
+
+  function renderAxisDpadRow(
+    definition: ControllerBindingDefinition,
+    binding: ResolvedControllerAxisBinding,
+    dpadLearningActionId: ControllerBindingActionId | null,
+  ): void {
+    const rowKey = `${definition.id as string}:dpad`;
+    const isExpanded = expandedRowKey === rowKey;
+    const isLearning = dpadLearningActionId === definition.id;
+
+    const dpadFallback: ControllerDpadFallback = binding.kind === 'none' ? 'none' : binding.dpadFallback;
+    const badgeText = DPAD_FALLBACK_LABELS[dpadFallback];
+    const row = createRow(`${definition.label} (D-pad)`, badgeText, dpadFallback === 'none', isExpanded);
+    row.addEventListener('click', () => {
+      expandedRowKey = expandedRowKey === rowKey ? null : rowKey;
+      render();
+    });
+    options.container.appendChild(row);
+
+    if (isExpanded) {
+      const hint = isLearning
+        ? 'Press a D-pad direction\u2026'
+        : `Currently: ${DPAD_FALLBACK_LABELS[dpadFallback]}`;
+      const panel = createEditPanel(hint, isLearning, {
+        onLearn: (e) => { e.stopPropagation(); options.onDpadLearn(definition.id); },
+        onClear: (e) => { e.stopPropagation(); options.onDpadClear(definition.id); },
+        onReset: (e) => { e.stopPropagation(); options.onDpadReset(definition.id); },
+      });
+      options.container.appendChild(panel);
+    }
+  }
+
+  function createRow(labelText: string, badgeText: string, isDisabled: boolean, isExpanded: boolean): HTMLDivElement {
+    const row = document.createElement('div');
+    row.className = 'controller-config-row';
+    if (isExpanded) row.classList.add('expanded');
+
+    const label = document.createElement('div');
+    label.className = 'controller-config-label';
+    label.textContent = labelText;
+
+    const right = document.createElement('div');
+    right.className = 'controller-config-right';
+
+    const badge = document.createElement('span');
+    badge.className = 'controller-config-badge';
+    if (isDisabled) badge.classList.add('disabled');
+    badge.textContent = badgeText;
+
+    const editIcon = document.createElement('span');
+    editIcon.className = 'controller-config-edit-icon';
+    editIcon.textContent = '\u270E';
+
+    right.appendChild(badge);
+    right.appendChild(editIcon);
+    row.appendChild(label);
+    row.appendChild(right);
+
+    return row;
+  }
+
+  function createEditPanel(
+    hintText: string,
+    isLearning: boolean,
+    callbacks: {
+      onLearn: (e: Event) => void;
+      onClear: (e: Event) => void;
+      onReset: (e: Event) => void;
+    },
+  ): HTMLDivElement {
+    const panel = document.createElement('div');
+    panel.className = 'controller-config-edit-panel';
+
+    const inner = document.createElement('div');
+    inner.className = 'controller-config-edit-inner';
+
+    const hint = document.createElement('div');
+    hint.className = 'controller-config-edit-hint';
+    if (isLearning) hint.classList.add('learning');
+    hint.textContent = hintText;
+
+    const actions = document.createElement('div');
+    actions.className = 'controller-config-edit-actions';
+
+    const learnButton = document.createElement('button');
+    learnButton.type = 'button';
+    learnButton.className = isLearning ? 'btn-learn active' : 'btn-learn';
+    learnButton.textContent = isLearning ? 'Listening\u2026' : 'Learn';
+    learnButton.addEventListener('click', callbacks.onLearn);
+
+    const clearButton = document.createElement('button');
+    clearButton.type = 'button';
+    clearButton.className = 'btn-secondary';
+    clearButton.textContent = 'Clear';
+    clearButton.addEventListener('click', callbacks.onClear);
+
+    const resetButton = document.createElement('button');
+    resetButton.type = 'button';
+    resetButton.className = 'btn-secondary';
+    resetButton.textContent = 'Reset';
+    resetButton.addEventListener('click', callbacks.onReset);
+
+    actions.appendChild(learnButton);
+    actions.appendChild(clearButton);
+    actions.appendChild(resetButton);
+
+    inner.appendChild(hint);
+    inner.appendChild(actions);
+    panel.appendChild(inner);
+
+    return panel;
   }
 
   return { render };

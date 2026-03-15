@@ -4,6 +4,7 @@ import {
   createControllerConfigForm,
   getControllerBindingDefinition,
   getDefaultControllerBinding,
+  getDefaultDpadFallback,
 } from './controller-config-form.js';
 
 function clampSelectedIndex(ctx: RendererContext): void {
@@ -33,6 +34,7 @@ export function createControllerSelectModal(
   type ControllerBindingValue =
     NonNullable<NonNullable<typeof ctx.state.controllerConfig>['bindings']>[ControllerBindingKey];
   let learningActionId: ControllerBindingKey | null = null;
+  let dpadLearningActionId: ControllerBindingKey | null = null;
   let bindingCapture: ReturnType<typeof createControllerBindingCapture> | null = null;
 
   const controllerConfigForm = createControllerConfigForm({
@@ -54,27 +56,27 @@ export function createControllerSelectModal(
         rightStickVertical: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
       },
     getLearningActionId: () => learningActionId,
+    getDpadLearningActionId: () => dpadLearningActionId,
     onLearn: (actionId, bindingType) => {
       const definition = getControllerBindingDefinition(actionId);
       if (!definition) return;
+      dpadLearningActionId = null;
       const config = ctx.state.controllerConfig;
-      const currentBinding = config?.bindings[actionId];
       bindingCapture = createControllerBindingCapture({
         triggerDeadzone: config?.triggerDeadzone ?? 0.5,
         stickDeadzone: config?.stickDeadzone ?? 0.2,
       });
+      const currentBinding = config?.bindings[actionId];
+      const currentDpadFallback =
+        currentBinding && currentBinding.kind === 'axis' && 'dpadFallback' in currentBinding
+          ? currentBinding.dpadFallback
+          : 'none';
       bindingCapture.arm(
         bindingType === 'axis'
           ? {
               actionId,
               bindingType: 'axis',
-              dpadFallback:
-                currentBinding?.kind === 'axis' && 'dpadFallback' in currentBinding
-                  ? currentBinding.dpadFallback
-                  : definition.defaultBinding.kind === 'axis' &&
-                      'dpadFallback' in definition.defaultBinding
-                  ? definition.defaultBinding.dpadFallback
-                  : 'none',
+              dpadFallback: currentDpadFallback,
             }
           : {
               actionId,
@@ -94,6 +96,32 @@ export function createControllerSelectModal(
     },
     onReset: (actionId) => {
       void saveBinding(actionId, getDefaultControllerBinding(actionId));
+    },
+    onDpadLearn: (actionId) => {
+      const definition = getControllerBindingDefinition(actionId);
+      if (!definition) return;
+      learningActionId = null;
+      const config = ctx.state.controllerConfig;
+      bindingCapture = createControllerBindingCapture({
+        triggerDeadzone: config?.triggerDeadzone ?? 0.5,
+        stickDeadzone: config?.stickDeadzone ?? 0.2,
+      });
+      bindingCapture.arm(
+        { actionId, bindingType: 'dpad' },
+        {
+          axes: ctx.state.controllerRawAxes,
+          buttons: ctx.state.controllerRawButtons,
+        },
+      );
+      dpadLearningActionId = actionId;
+      controllerConfigForm.render();
+      setStatus(`Press a D-pad direction for ${definition.label}.`);
+    },
+    onDpadClear: (actionId) => {
+      void saveDpadFallback(actionId, 'none');
+    },
+    onDpadReset: (actionId) => {
+      void saveDpadFallback(actionId, getDefaultDpadFallback(actionId));
     },
   });
 
@@ -199,12 +227,33 @@ export function createControllerSelectModal(
         },
       });
       learningActionId = null;
+      dpadLearningActionId = null;
       bindingCapture = null;
       controllerConfigForm.render();
       setStatus(`${definition?.label ?? actionId} updated.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setStatus(`Failed to save binding: ${message}`, true);
+    }
+  }
+
+  async function saveDpadFallback(
+    actionId: ControllerBindingKey,
+    dpadFallback: import('../../types').ControllerDpadFallback,
+  ): Promise<void> {
+    const definition = getControllerBindingDefinition(actionId);
+    const currentBinding = ctx.state.controllerConfig?.bindings[actionId];
+    if (!currentBinding || currentBinding.kind !== 'axis') return;
+    const updated = { ...currentBinding, dpadFallback };
+    try {
+      await saveControllerConfig({ bindings: { [actionId]: updated } });
+      dpadLearningActionId = null;
+      bindingCapture = null;
+      controllerConfigForm.render();
+      setStatus(`${definition?.label ?? actionId} D-pad updated.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(`Failed to save D-pad binding: ${message}`, true);
     }
   }
 
@@ -246,13 +295,17 @@ export function createControllerSelectModal(
       syncSelectedIndexToCurrentController();
     }
 
-    if (bindingCapture && learningActionId) {
+    if (bindingCapture && (learningActionId || dpadLearningActionId)) {
       const result = bindingCapture.poll({
         axes: ctx.state.controllerRawAxes,
         buttons: ctx.state.controllerRawButtons,
       });
       if (result) {
-        void saveBinding(result.actionId as ControllerBindingKey, result.binding as ControllerBindingValue);
+        if (result.bindingType === 'dpad') {
+          void saveDpadFallback(result.actionId as ControllerBindingKey, result.dpadDirection);
+        } else {
+          void saveBinding(result.actionId as ControllerBindingKey, result.binding as ControllerBindingValue);
+        }
       }
     }
 
@@ -266,7 +319,7 @@ export function createControllerSelectModal(
       controllerConfigForm.render();
     }
 
-    if (ctx.state.connectedGamepads.length === 0 && !learningActionId) {
+    if (ctx.state.connectedGamepads.length === 0 && !learningActionId && !dpadLearningActionId) {
       setStatus('No controllers detected.');
     }
   }
@@ -292,6 +345,7 @@ export function createControllerSelectModal(
   function closeControllerSelectModal(): void {
     if (!ctx.state.controllerSelectModalOpen) return;
     learningActionId = null;
+    dpadLearningActionId = null;
     bindingCapture = null;
     ctx.state.controllerSelectModalOpen = false;
     options.syncSettingsModalSubtitleSuppression();
@@ -306,8 +360,9 @@ export function createControllerSelectModal(
   function handleControllerSelectKeydown(event: KeyboardEvent): boolean {
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (learningActionId) {
+      if (learningActionId || dpadLearningActionId) {
         learningActionId = null;
+        dpadLearningActionId = null;
         bindingCapture = null;
         controllerConfigForm.render();
         setStatus('Controller learn mode cancelled.');
@@ -343,7 +398,7 @@ export function createControllerSelectModal(
       return true;
     }
 
-    if (event.key === 'Enter' && !learningActionId) {
+    if (event.key === 'Enter' && !learningActionId && !dpadLearningActionId) {
       event.preventDefault();
       void saveSelectedController();
       return true;
