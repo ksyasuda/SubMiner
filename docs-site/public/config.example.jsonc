@@ -513,6 +513,7 @@
   "stats": {
     "toggleKey": "Backquote", // Key code to toggle the stats overlay.
     "serverPort": 5175, // Port for the stats HTTP server.
-    "autoStartServer": true // Automatically start the stats server on launch. Values: true | false
+    "autoStartServer": true, // Automatically start the stats server on launch. Values: true | false
+    "autoOpenBrowser": true // Automatically open the stats dashboard in a browser when the server starts. Values: true | false
   } // Local immersion stats dashboard served on localhost and available as an in-app overlay.
 }

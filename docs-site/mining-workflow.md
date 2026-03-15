@@ -206,7 +206,7 @@ Enable it in your config:
 }
 ```
 
-Open the dashboard in the overlay with `stats.toggleKey` (default: `` ` ``), launch it in a browser with `subminer stats`, or visit `http://127.0.0.1:5175` directly if the local stats server is already running.
+Open the dashboard in the overlay with `stats.toggleKey` (default: `` ` ``), launch it in a browser with `subminer stats`, or visit `http://127.0.0.1:5175` directly if the local stats server is already running. The dashboard covers overview totals, anime progress, session detail, and vocabulary drill-down from the same local immersion database.
 
 See [Immersion Tracking](/immersion-tracking) for dashboard details, schema, and retention settings.
 

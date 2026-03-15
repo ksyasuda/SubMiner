@@ -3,22 +3,30 @@
 # Releasing
 
 1. Confirm `main` is green: `gh run list --workflow CI --limit 5`.
-2. Bump `package.json` to the release version.
-3. Build release metadata before tagging:
+2. Confirm release-facing docs are current: `README.md`, `changes/*.md`, and any touched `docs-site/` pages/config examples.
+3. Run `bun run changelog:lint`.
+4. Bump `package.json` to the release version.
+5. Build release metadata before tagging:
    `bun run changelog:build --version <version>`
-4. Review `CHANGELOG.md`.
-5. Run release gate locally:
+6. Review `CHANGELOG.md` and `release/release-notes.md`.
+7. Run release gate locally:
    `bun run changelog:check --version <version>`
    `bun run verify:config-example`
-   `bun run test:fast`
    `bun run typecheck`
-6. Commit release prep.
-7. Tag the commit: `git tag v<version>`.
-8. Push commit + tag.
+   `bun run test:fast`
+   `bun run test:env`
+   `bun run build`
+8. If `docs-site/` changed, also run:
+   `bun run docs:test`
+   `bun run docs:build`
+9. Commit release prep.
+10. Tag the commit: `git tag v<version>`.
+11. Push commit + tag.
 
 Notes:
 
 - `changelog:check` now rejects tag/package version mismatches.
+- `changelog:build` generates `CHANGELOG.md` + `release/release-notes.md` and removes the released `changes/*.md` fragments.
 - Do not tag while `changes/*.md` fragments still exist.
 - Tagged release workflow now also attempts to update `subminer-bin` on the AUR after GitHub Release publication.
 - Required GitHub Actions secret: `AUR_SSH_PRIVATE_KEY`. Add the matching public key to your AUR account before relying on the automation.

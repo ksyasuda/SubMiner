@@ -1222,7 +1222,8 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
   "stats": {
     "toggleKey": "Backquote",
     "serverPort": 5175,
-    "autoStartServer": true
+    "autoStartServer": true,
+    "autoOpenBrowser": true
   }
 }
 ```
@@ -1232,13 +1233,14 @@ Configure the local stats UI served from SubMiner and the in-app stats overlay t
 | `toggleKey`       | Electron key code | Overlay-local key code used to toggle the stats overlay. Default `Backquote`. |
 | `serverPort`      | integer           | Localhost port for the browser stats UI. Default `5175`.                    |
 | `autoStartServer` | `true`, `false`   | Start the local stats HTTP server automatically once immersion tracking is active. Default `true`. |
+| `autoOpenBrowser` | `true`, `false`   | When `subminer stats` starts the server on demand, also open the dashboard in your default browser. Default `true`. |
 
 Usage notes:
 
 - The browser UI is served at `http://127.0.0.1:<serverPort>`.
 - The overlay toggle is local to the focused visible overlay window; it is not registered as a global OS shortcut.
 - The dashboard reads from the same immersion-tracking database, so keep `immersionTracking.enabled` on if you want data to appear.
-- The UI includes Overview, Trends, Sessions, and Vocabulary tabs.
+- The UI includes Overview, Anime, Trends, Vocabulary, and Sessions tabs.
 
 ### YouTube Subtitle Generation
 
