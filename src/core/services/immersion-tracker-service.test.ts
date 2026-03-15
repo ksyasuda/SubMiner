@@ -12,6 +12,7 @@ import {
   resolveBoundedInt,
 } from './immersion-tracker/reducer';
 import type { QueuedWrite } from './immersion-tracker/types';
+import { PartOfSpeech, type MergedToken } from '../../types';
 
 type ImmersionTrackerService = import('./immersion-tracker-service').ImmersionTrackerService;
 type ImmersionTrackerServiceCtor =
@@ -24,6 +25,34 @@ async function loadTrackerCtor(): Promise<ImmersionTrackerServiceCtor> {
   const mod = await import('./immersion-tracker-service');
   trackerCtor = mod.ImmersionTrackerService;
   return trackerCtor;
+}
+
+async function waitForPendingAnimeMetadata(tracker: ImmersionTrackerService): Promise<void> {
+  const privateApi = tracker as unknown as {
+    sessionState: { videoId: number } | null;
+    pendingAnimeMetadataUpdates?: Map<number, Promise<void>>;
+  };
+  const videoId = privateApi.sessionState?.videoId;
+  if (!videoId) return;
+  await privateApi.pendingAnimeMetadataUpdates?.get(videoId);
+}
+
+function makeMergedToken(overrides: Partial<MergedToken>): MergedToken {
+  return {
+    surface: '',
+    reading: '',
+    headword: '',
+    startPos: 0,
+    endPos: 0,
+    partOfSpeech: PartOfSpeech.other,
+    pos1: '',
+    pos2: '',
+    pos3: '',
+    isMerged: true,
+    isKnown: false,
+    isNPlusOneTarget: false,
+    ...overrides,
+  };
 }
 
 function makeDbPath(): string {
@@ -216,6 +245,308 @@ test('persists and retrieves minimum immersion tracking fields', async () => {
     assert.ok(Number(telemetryRow?.words_seen ?? 0) >= 2);
     assert.ok(Number(telemetryRow?.tokens_seen ?? 0) >= 2);
     assert.ok(Number(telemetryRow?.cards_mined ?? 0) >= 2);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('recordSubtitleLine persists counted allowed tokenized vocabulary rows and subtitle-line occurrences', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E04.mkv', 'Episode 4');
+    await waitForPendingAnimeMetadata(tracker);
+    tracker.recordSubtitleLine('猫 猫 日 日 は 知っている', 0, 1, [
+      makeMergedToken({
+        surface: '猫',
+        headword: '猫',
+        reading: 'ねこ',
+        partOfSpeech: PartOfSpeech.noun,
+        pos1: '名詞',
+        pos2: '一般',
+      }),
+      makeMergedToken({
+        surface: '猫',
+        headword: '猫',
+        reading: 'ねこ',
+        partOfSpeech: PartOfSpeech.noun,
+        pos1: '名詞',
+        pos2: '一般',
+      }),
+      makeMergedToken({
+        surface: 'は',
+        headword: 'は',
+        reading: 'は',
+        partOfSpeech: PartOfSpeech.particle,
+        pos1: '助詞',
+        pos2: '係助詞',
+      }),
+      makeMergedToken({
+        surface: '知っている',
+        headword: '知る',
+        reading: 'しっている',
+        partOfSpeech: PartOfSpeech.other,
+        pos1: '動詞',
+        pos2: '自立',
+      }),
+    ]);
+
+    const privateApi = tracker as unknown as {
+      flushTelemetry: (force?: boolean) => void;
+      flushNow: () => void;
+    };
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    const db = new Database(dbPath);
+    const rows = db
+      .prepare(
+        `SELECT headword, word, reading, part_of_speech, pos1, pos2, frequency
+         FROM imm_words
+         ORDER BY id ASC`,
+      )
+      .all() as Array<{
+      headword: string;
+      word: string;
+      reading: string;
+      part_of_speech: string;
+      pos1: string;
+      pos2: string;
+      frequency: number;
+    }>;
+    const lineRows = db
+      .prepare(
+        `SELECT video_id, anime_id, line_index, segment_start_ms, segment_end_ms, text
+         FROM imm_subtitle_lines
+         ORDER BY line_id ASC`,
+      )
+      .all() as Array<{
+      video_id: number;
+      anime_id: number | null;
+      line_index: number;
+      segment_start_ms: number | null;
+      segment_end_ms: number | null;
+      text: string;
+    }>;
+    const wordOccurrenceRows = db
+      .prepare(
+        `SELECT o.occurrence_count, w.headword, w.word, w.reading
+         FROM imm_word_line_occurrences o
+         JOIN imm_words w ON w.id = o.word_id
+         ORDER BY o.line_id ASC, o.word_id ASC`,
+      )
+      .all() as Array<{
+      occurrence_count: number;
+      headword: string;
+      word: string;
+      reading: string;
+    }>;
+    const kanjiOccurrenceRows = db
+      .prepare(
+        `SELECT o.occurrence_count, k.kanji
+         FROM imm_kanji_line_occurrences o
+         JOIN imm_kanji k ON k.id = o.kanji_id
+         ORDER BY o.line_id ASC, k.kanji ASC`,
+      )
+      .all() as Array<{
+      occurrence_count: number;
+      kanji: string;
+    }>;
+    db.close();
+
+    assert.deepEqual(rows, [
+      {
+        headword: '猫',
+        word: '猫',
+        reading: 'ねこ',
+        part_of_speech: PartOfSpeech.noun,
+        pos1: '名詞',
+        pos2: '一般',
+        frequency: 2,
+      },
+      {
+        headword: '知る',
+        word: '知っている',
+        reading: 'しっている',
+        part_of_speech: PartOfSpeech.verb,
+        pos1: '動詞',
+        pos2: '自立',
+        frequency: 1,
+      },
+    ]);
+    assert.equal(lineRows.length, 1);
+    assert.equal(lineRows[0]?.line_index, 1);
+    assert.equal(lineRows[0]?.segment_start_ms, 0);
+    assert.equal(lineRows[0]?.segment_end_ms, 1000);
+    assert.equal(lineRows[0]?.text, '猫 猫 日 日 は 知っている');
+    assert.ok(lineRows[0]?.video_id);
+    assert.ok(lineRows[0]?.anime_id);
+    assert.deepEqual(wordOccurrenceRows, [
+      {
+        occurrence_count: 2,
+        headword: '猫',
+        word: '猫',
+        reading: 'ねこ',
+      },
+      {
+        occurrence_count: 1,
+        headword: '知る',
+        word: '知っている',
+        reading: 'しっている',
+      },
+    ]);
+    assert.deepEqual(kanjiOccurrenceRows, [
+      {
+        occurrence_count: 2,
+        kanji: '日',
+      },
+      {
+        occurrence_count: 2,
+        kanji: '猫',
+      },
+      {
+        occurrence_count: 1,
+        kanji: '知',
+      },
+    ]);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('handleMediaChange links parsed anime metadata on the active video row', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { videoId: number } | null;
+    };
+    const videoId = privateApi.sessionState?.videoId;
+    assert.ok(videoId);
+
+    const row = privateApi.db
+      .prepare(
+        `
+          SELECT
+            v.anime_id,
+            v.parsed_basename,
+            v.parsed_title,
+            v.parsed_season,
+            v.parsed_episode,
+            v.parser_source,
+            a.canonical_title AS anime_title,
+            a.anilist_id
+          FROM imm_videos v
+          LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+          WHERE v.video_id = ?
+        `,
+      )
+      .get(videoId) as {
+      anime_id: number | null;
+      parsed_basename: string | null;
+      parsed_title: string | null;
+      parsed_season: number | null;
+      parsed_episode: number | null;
+      parser_source: string | null;
+      anime_title: string | null;
+      anilist_id: number | null;
+    } | null;
+
+    assert.ok(row);
+    assert.ok(row?.anime_id);
+    assert.equal(row?.parsed_basename, 'Little Witch Academia S02E05.mkv');
+    assert.equal(row?.parsed_title, 'Little Witch Academia');
+    assert.equal(row?.parsed_season, 2);
+    assert.equal(row?.parsed_episode, 5);
+    assert.ok(row?.parser_source === 'guessit' || row?.parser_source === 'fallback');
+    assert.equal(row?.anime_title, 'Little Witch Academia');
+    assert.equal(row?.anilist_id, null);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('handleMediaChange reuses the same provisional anime row across matching files', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E06.mkv', 'Episode 6');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+    };
+    const rows = privateApi.db
+      .prepare(
+        `
+          SELECT
+            v.source_path,
+            v.anime_id,
+            v.parsed_episode,
+            a.canonical_title AS anime_title,
+            a.anilist_id
+          FROM imm_videos v
+          LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+          WHERE v.source_path IN (?, ?)
+          ORDER BY v.source_path
+        `,
+      )
+      .all('/tmp/Little Witch Academia S02E05.mkv', '/tmp/Little Witch Academia S02E06.mkv') as
+      Array<{
+        source_path: string | null;
+        anime_id: number | null;
+        parsed_episode: number | null;
+        anime_title: string | null;
+        anilist_id: number | null;
+      }>;
+
+    assert.equal(rows.length, 2);
+    assert.ok(rows[0]?.anime_id);
+    assert.equal(rows[0]?.anime_id, rows[1]?.anime_id);
+    assert.deepEqual(
+      rows.map((row) => ({
+        sourcePath: row.source_path,
+        parsedEpisode: row.parsed_episode,
+        animeTitle: row.anime_title,
+        anilistId: row.anilist_id,
+      })),
+      [
+        {
+          sourcePath: '/tmp/Little Witch Academia S02E05.mkv',
+          parsedEpisode: 5,
+          animeTitle: 'Little Witch Academia',
+          anilistId: null,
+        },
+        {
+          sourcePath: '/tmp/Little Witch Academia S02E06.mkv',
+          parsedEpisode: 6,
+          animeTitle: 'Little Witch Academia',
+          anilistId: null,
+        },
+      ],
+    );
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

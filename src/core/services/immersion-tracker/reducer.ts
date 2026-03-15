@@ -30,6 +30,7 @@ export function createInitialSessionState(
     lastPauseStartMs: null,
     isPaused: false,
     pendingTelemetry: true,
+    markedWatched: false,
   };
 }
 

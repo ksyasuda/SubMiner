@@ -133,6 +133,17 @@ function isFrequencyExcludedByPos(
   );
 }
 
+export function shouldExcludeTokenFromVocabularyPersistence(
+  token: MergedToken,
+  options: Pick<AnnotationStageOptions, 'pos1Exclusions' | 'pos2Exclusions'> = {},
+): boolean {
+  return isFrequencyExcludedByPos(
+    token,
+    resolvePos1Exclusions(options),
+    resolvePos2Exclusions(options),
+  );
+}
+
 function applyFrequencyMarking(
   tokens: MergedToken[],
   pos1Exclusions: ReadonlySet<string>,

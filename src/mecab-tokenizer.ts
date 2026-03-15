@@ -19,33 +19,11 @@
 import * as childProcess from 'child_process';
 import { PartOfSpeech, Token, MecabStatus } from './types';
 import { createLogger } from './logger';
+import { mapMecabPos1ToPartOfSpeech } from './core/services/tokenizer/part-of-speech';
 
 export { PartOfSpeech };
 
 const log = createLogger('mecab');
-
-function mapPartOfSpeech(pos1: string): PartOfSpeech {
-  switch (pos1) {
-    case '名詞':
-      return PartOfSpeech.noun;
-    case '動詞':
-      return PartOfSpeech.verb;
-    case '形容詞':
-      return PartOfSpeech.i_adjective;
-    case '形状詞':
-    case '形容動詞':
-      return PartOfSpeech.na_adjective;
-    case '助詞':
-      return PartOfSpeech.particle;
-    case '助動詞':
-      return PartOfSpeech.bound_auxiliary;
-    case '記号':
-    case '補助記号':
-      return PartOfSpeech.symbol;
-    default:
-      return PartOfSpeech.other;
-  }
-}
 
 export function parseMecabLine(line: string): Token | null {
   if (!line || line === 'EOS' || line.trim() === '') {
@@ -73,7 +51,7 @@ export function parseMecabLine(line: string): Token | null {
 
   return {
     word: surface,
-    partOfSpeech: mapPartOfSpeech(pos1),
+    partOfSpeech: mapMecabPos1ToPartOfSpeech(pos1),
     pos1,
     pos2,
     pos3,
@@ -446,4 +424,4 @@ export class MecabTokenizer {
   }
 }
 
-export { mapPartOfSpeech };
+export { mapMecabPos1ToPartOfSpeech as mapPartOfSpeech };
