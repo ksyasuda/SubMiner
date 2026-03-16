@@ -484,7 +484,6 @@ interface YomitanRuntimeState {
   yomitanExt: unknown | null;
   yomitanSession: unknown | null;
   parserWindow: unknown | null;
-  yomitanSession: unknown | null;
   parserReadyPromise: Promise<void> | null;
   parserInitPromise: Promise<boolean> | null;
   available: boolean;
@@ -544,7 +543,6 @@ async function createYomitanRuntimeState(
     yomitanExt: null,
     yomitanSession: null,
     parserWindow: null,
-    yomitanSession: null,
     parserReadyPromise: null,
     parserInitPromise: null,
     available: false,
