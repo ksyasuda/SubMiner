@@ -73,3 +73,44 @@ test('createJlptVocabularyLookup does not require synchronous fs APIs', async ()
     (fs as unknown as Record<string, unknown>).existsSync = existsSync;
   }
 });
+
+test('createJlptVocabularyLookup summarizes duplicate JLPT terms without per-entry log spam', async () => {
+  const logs: string[] = [];
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jlpt-dict-'));
+  fs.writeFileSync(
+    path.join(tempDir, 'term_meta_bank_1.json'),
+    JSON.stringify([
+      ['余り', 1, { frequency: { displayValue: 'N1' }, reading: 'あんまり' }],
+      ['私', 2, { frequency: { displayValue: 'N1' }, reading: 'あたし' }],
+    ]),
+  );
+  fs.writeFileSync(path.join(tempDir, 'term_meta_bank_2.json'), JSON.stringify([]));
+  fs.writeFileSync(path.join(tempDir, 'term_meta_bank_3.json'), JSON.stringify([]));
+  fs.writeFileSync(path.join(tempDir, 'term_meta_bank_4.json'), JSON.stringify([]));
+  fs.writeFileSync(
+    path.join(tempDir, 'term_meta_bank_5.json'),
+    JSON.stringify([
+      ['余り', 3, { frequency: { displayValue: 'N5' }, reading: 'あまり' }],
+      ['私', 4, { frequency: { displayValue: 'N5' }, reading: 'わたし' }],
+      ['私', 5, { frequency: { displayValue: 'N5' }, reading: 'わたくし' }],
+    ]),
+  );
+
+  const lookup = await createJlptVocabularyLookup({
+    searchPaths: [tempDir],
+    log: (message) => {
+      logs.push(message);
+    },
+  });
+
+  assert.equal(lookup('余り'), 'N1');
+  assert.equal(lookup('私'), 'N1');
+  assert.equal(
+    logs.some((entry) => entry.includes('keeping that level instead of')),
+    false,
+  );
+  assert.equal(
+    logs.some((entry) => entry.includes('collapsed 3 duplicate JLPT entries across 2 terms')),
+    true,
+  );
+});

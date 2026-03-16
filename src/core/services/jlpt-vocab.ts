@@ -22,9 +22,16 @@ const JLPT_LEVEL_PRECEDENCE: Record<JlptLevel, number> = {
   N4: 2,
   N5: 1,
 };
+const JLPT_DUPLICATE_LOG_EXAMPLE_LIMIT = 5;
 
 const NOOP_LOOKUP = (): null => null;
 const ENTRY_YIELD_INTERVAL = 5000;
+
+interface JlptDuplicateStats {
+  duplicateEntryCount: number;
+  duplicateTerms: Set<string>;
+  exampleTerms: string[];
+}
 
 function isErrorCode(error: unknown, code: string): boolean {
   return Boolean(error && typeof error === 'object' && (error as { code?: unknown }).code === code);
@@ -47,11 +54,30 @@ function hasFrequencyDisplayValue(meta: unknown): boolean {
   return Object.prototype.hasOwnProperty.call(frequency as Record<string, unknown>, 'displayValue');
 }
 
+function createJlptDuplicateStats(): JlptDuplicateStats {
+  return {
+    duplicateEntryCount: 0,
+    duplicateTerms: new Set<string>(),
+    exampleTerms: [],
+  };
+}
+
+function recordJlptDuplicate(stats: JlptDuplicateStats, term: string): void {
+  stats.duplicateEntryCount += 1;
+  stats.duplicateTerms.add(term);
+  if (
+    stats.exampleTerms.length < JLPT_DUPLICATE_LOG_EXAMPLE_LIMIT &&
+    !stats.exampleTerms.includes(term)
+  ) {
+    stats.exampleTerms.push(term);
+  }
+}
+
 async function addEntriesToMap(
   rawEntries: unknown,
   level: JlptLevel,
   terms: Map<string, JlptLevel>,
-  log: (message: string) => void,
+  duplicateStats: JlptDuplicateStats,
 ): Promise<void> {
   const shouldUpdateLevel = (
     existingLevel: JlptLevel | undefined,
@@ -90,14 +116,13 @@ async function addEntriesToMap(
     }
 
     const existingLevel = terms.get(normalizedTerm);
-    if (shouldUpdateLevel(existingLevel, level)) {
-      terms.set(normalizedTerm, level);
-      continue;
+    if (existingLevel !== undefined) {
+      recordJlptDuplicate(duplicateStats, normalizedTerm);
     }
 
-    log(
-      `JLPT dictionary already has ${normalizedTerm} as ${existingLevel}; keeping that level instead of ${level}`,
-    );
+    if (shouldUpdateLevel(existingLevel, level)) {
+      terms.set(normalizedTerm, level);
+    }
   }
 }
 
@@ -106,6 +131,7 @@ async function collectDictionaryFromPath(
   log: (message: string) => void,
 ): Promise<Map<string, JlptLevel>> {
   const terms = new Map<string, JlptLevel>();
+  const duplicateStats = createJlptDuplicateStats();
 
   for (const bank of JLPT_BANK_FILES) {
     const bankPath = path.join(dictionaryPath, bank.filename);
@@ -146,10 +172,20 @@ async function collectDictionaryFromPath(
     }
 
     const beforeSize = terms.size;
-    await addEntriesToMap(rawEntries, bank.level, terms, log);
+    await addEntriesToMap(rawEntries, bank.level, terms, duplicateStats);
     if (terms.size === beforeSize) {
       log(`JLPT bank file contained no extractable entries: ${bankPath}`);
     }
+  }
+
+  if (duplicateStats.duplicateEntryCount > 0) {
+    const examples =
+      duplicateStats.exampleTerms.length > 0
+        ? `; examples: ${duplicateStats.exampleTerms.join(', ')}`
+        : '';
+    log(
+      `JLPT dictionary collapsed ${duplicateStats.duplicateEntryCount} duplicate JLPT entries across ${duplicateStats.duplicateTerms.size} terms; keeping highest-precedence level per surface form${examples}`,
+    );
   }
 
   return terms;
