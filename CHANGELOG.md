@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.6.3 (2026-03-15)
+
+### Changed
+- Overlay: Expanded the `Alt+C` controller modal into an inline config/remap flow with preferred-controller saving and per-action learn mode for buttons, triggers, and stick directions.
+
+### Internal
+- Workflow: Hardened the `subminer-scrum-master` skill to explicitly answer whether docs updates and changelog fragments are required before handoff.
+- Release: Automate `subminer-bin` AUR package updates from the tagged release workflow.
+
 ## v0.6.2 (2026-03-12)
 
 ### Changed

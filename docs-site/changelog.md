@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.6.3 (2026-03-15)
+- Expanded `Alt+C` into an inline controller config/remap flow with preferred-controller saving and per-action learn mode for buttons, triggers, and stick directions.
+- Automated `subminer-bin` AUR package updates from the tagged release workflow.
+
 ## v0.6.2 (2026-03-12)
 - Added `yomitan.externalProfilePath` so SubMiner can reuse another Electron app's Yomitan profile in read-only mode.
 - Reused external Yomitan dictionaries/settings without writing back to that profile.
@@ -7,7 +11,7 @@
 - Seeded `config.jsonc` even when the default config directory already exists.
 - Let first-run setup complete without internal dictionaries while external Yomitan is configured, then require an internal dictionary again only if that external profile is later removed.
 
-## v0.6.0 (2026-03-12)
+## v0.6.1 (2026-03-12)
 - Added Chrome Gamepad API controller support for keyboard-only overlay mode.
 - Added configurable controller bindings for lookup, mining, popup navigation, Yomitan audio, mpv pause, and d-pad fallback navigation.
 - Added smooth, slower popup scrolling for controller navigation.
