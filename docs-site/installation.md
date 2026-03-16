@@ -9,7 +9,7 @@
 | Bun                  | Yes        | Required for `subminer` wrapper and source workflows     |
 | mpv                  | Yes        | Must support IPC sockets (`--input-ipc-server`)          |
 | ffmpeg               | For media  | Audio extraction and screenshot generation               |
-| MeCab + mecab-ipadic | No         | Optional Japanese metadata enrichment (not the primary tokenizer) |
+| MeCab + mecab-ipadic | No         | Optional legacy/auxiliary Japanese metadata tooling; subtitle annotations do not require it |
 | fuse2                | Linux only | Required for AppImage                                    |
 | yt-dlp               | No         | Recommended for YouTube playback and subtitle extraction |
 
@@ -103,7 +103,13 @@ A **ZIP** artifact is also available as a fallback — unzip and drag `SubMiner.
 Install dependencies using Homebrew:
 
 ```bash
-brew install mpv mecab mecab-ipadic
+brew install mpv
+```
+
+Optional:
+
+```bash
+brew install mecab mecab-ipadic
 ```
 
 ### From Source (macOS)
@@ -143,12 +149,12 @@ mpv --input-ipc-server=/tmp/subminer-socket video.mkv
 
 **Config location:** `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`).
 
-**MeCab paths (Homebrew):**
+**Optional MeCab paths (Homebrew):**
 
 - Apple Silicon (M1/M2): `/opt/homebrew/bin/mecab`
 - Intel: `/usr/local/bin/mecab`
 
-Ensure `mecab` is available on your PATH when launching SubMiner.
+Only needed if you want MeCab-enabled auxiliary workflows.
 
 **Fullscreen:** The overlay should appear correctly in fullscreen. If you encounter issues, check that accessibility permissions are granted.
 

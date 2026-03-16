@@ -321,9 +321,11 @@ Lookup behavior:
 
 - Set `frequencyDictionary.sourcePath` to a directory containing `term_meta_bank_*.json` for a fully custom source.
 - If `sourcePath` is missing or empty, SubMiner searches default install/runtime locations for `frequency-dictionary` directories (for example app resources, user data paths, and current working directory).
+- If Yomitan has `general.sortFrequencyDictionary` set, SubMiner prefers that selected dictionary for subtitle frequency lookups instead of merging all enabled dictionaries.
 - In both cases, only terms with a valid `frequencyRank` are used; everything else falls back to no highlighting.
 - `frequencyDictionary.matchMode` controls which token text is used for frequency lookups: `headword` (dictionary form) or `surface` (visible subtitle text).
 - Frequency highlighting skips tokens that look like non-lexical SFX/interjection noise (for example kana reduplication or short kana endings like `っ`), even when dictionary ranks exist.
+- When Yomitan lookup results include part-of-speech tags, SubMiner uses those tags to suppress interjections, particles, auxiliaries, and similar non-card material without requiring MeCab.
 
 In `single` mode all highlights use `singleColor`; in `banded` mode tokens map to five ascending color bands from most common to least common inside the topX window.
 
