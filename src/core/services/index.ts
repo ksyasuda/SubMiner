@@ -29,7 +29,7 @@ export {
 } from './startup';
 export { openYomitanSettingsWindow } from './yomitan-settings';
 export { createTokenizerDepsRuntime, tokenizeSubtitle } from './tokenizer';
-export { clearYomitanParserCachesForWindow } from './tokenizer/yomitan-parser-runtime';
+export { addYomitanNoteViaSearch, clearYomitanParserCachesForWindow } from './tokenizer/yomitan-parser-runtime';
 export {
   deleteYomitanDictionaryByTitle,
   getYomitanDictionaryInfo,

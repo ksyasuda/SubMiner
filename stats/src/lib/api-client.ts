@@ -150,6 +150,23 @@ export const apiClient = {
       body: JSON.stringify(info),
     });
   },
+  mineCard: async (params: {
+    sourcePath: string;
+    startMs: number;
+    endMs: number;
+    sentence: string;
+    word: string;
+    secondaryText?: string | null;
+    videoTitle: string;
+    mode: 'word' | 'sentence' | 'audio';
+  }): Promise<{ noteId?: number; error?: string; errors?: string[] }> => {
+    const res = await fetch(`${BASE_URL}/api/stats/mine-card?mode=${params.mode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    return res.json();
+  },
   ankiBrowse: async (noteId: number): Promise<void> => {
     await fetchResponse(`/api/stats/anki/browse?noteId=${noteId}`, { method: 'POST' });
   },

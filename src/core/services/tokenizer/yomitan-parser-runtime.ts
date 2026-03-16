@@ -1977,3 +1977,34 @@ export async function removeYomitanDictionarySettings(
 
   return await setYomitanSettingsFull(optionsFull, deps, logger);
 }
+
+export async function addYomitanNoteViaSearch(
+  word: string,
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<number | null> {
+  const isReady = await ensureYomitanParserWindow(deps, logger);
+  const parserWindow = deps.getYomitanParserWindow();
+  if (!isReady || !parserWindow || parserWindow.isDestroyed()) {
+    return null;
+  }
+
+  const escapedWord = JSON.stringify(word);
+
+  const script = `
+    (async () => {
+      if (typeof window.__subminerAddNote !== 'function') {
+        throw new Error('Yomitan search page bridge not initialized');
+      }
+      return await window.__subminerAddNote(${escapedWord});
+    })();
+  `;
+
+  try {
+    const noteId = await parserWindow.webContents.executeJavaScript(script, true);
+    return typeof noteId === 'number' ? noteId : null;
+  } catch (err) {
+    logger.error('Yomitan addNoteFromWord failed:', (err as Error).message);
+    return null;
+  }
+}

@@ -1,8 +1,11 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
-import { extname, resolve, sep } from 'node:path';
+import { basename, extname, resolve, sep } from 'node:path';
 import { readFileSync, existsSync, statSync } from 'node:fs';
+import { MediaGenerator } from '../../media-generator.js';
+import { AnkiConnectClient } from '../../anki-connect.js';
+import type { AnkiConnectConfig } from '../../types.js';
 
 function parseIntQuery(raw: string | undefined, fallback: number, maxLimit?: number): number {
   if (raw === undefined) return fallback;
@@ -19,6 +22,9 @@ export interface StatsServerConfig {
   staticDir: string; // Path to stats/dist/
   tracker: ImmersionTrackerService;
   knownWordCachePath?: string;
+  mpvSocketPath?: string;
+  ankiConnectConfig?: AnkiConnectConfig;
+  addYomitanNote?: (word: string) => Promise<number | null>;
 }
 
 const STATS_STATIC_CONTENT_TYPES: Record<string, string> = {
@@ -80,7 +86,7 @@ function createStatsStaticResponse(staticDir: string, requestPath: string): Resp
 
 export function createStatsApp(
   tracker: ImmersionTrackerService,
-  options?: { staticDir?: string; knownWordCachePath?: string },
+  options?: { staticDir?: string; knownWordCachePath?: string; mpvSocketPath?: string; ankiConnectConfig?: AnkiConnectConfig; addYomitanNote?: (word: string) => Promise<number | null> },
 ) {
   const app = new Hono();
 
@@ -402,6 +408,256 @@ export function createStatsApp(
     }
   });
 
+  app.post('/api/stats/mine-card', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const sourcePath = typeof body?.sourcePath === 'string' ? body.sourcePath.trim() : '';
+    const startMs = typeof body?.startMs === 'number' ? body.startMs : NaN;
+    const endMs = typeof body?.endMs === 'number' ? body.endMs : NaN;
+    const sentence = typeof body?.sentence === 'string' ? body.sentence.trim() : '';
+    const word = typeof body?.word === 'string' ? body.word.trim() : '';
+    const secondaryText = typeof body?.secondaryText === 'string' ? body.secondaryText.trim() : '';
+    const videoTitle = typeof body?.videoTitle === 'string' ? body.videoTitle.trim() : '';
+    const rawMode = c.req.query('mode');
+    const mode = rawMode === 'audio' ? 'audio' : rawMode === 'word' ? 'word' : 'sentence';
+
+    if (!sourcePath || !sentence || !Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+      return c.json({ error: 'sourcePath, sentence, startMs, and endMs are required' }, 400);
+    }
+
+    if (!existsSync(sourcePath)) {
+      return c.json({ error: 'File not found' }, 404);
+    }
+
+    const ankiConfig = options?.ankiConnectConfig;
+    if (!ankiConfig) {
+      return c.json({ error: 'AnkiConnect is not configured' }, 500);
+    }
+
+    const client = new AnkiConnectClient(ankiConfig.url ?? 'http://127.0.0.1:8765');
+    const mediaGen = new MediaGenerator();
+
+    const audioPadding = ankiConfig.media?.audioPadding ?? 0.5;
+    const maxMediaDuration = ankiConfig.media?.maxMediaDuration ?? 30;
+
+    const startSec = startMs / 1000;
+    const endSec = endMs / 1000;
+    const rawDuration = endSec - startSec;
+    const clampedEndSec = rawDuration > maxMediaDuration ? startSec + maxMediaDuration : endSec;
+
+    const highlightedSentence = word
+      ? sentence.replace(new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `<b>${word}</b>`)
+      : sentence;
+
+    const generateAudio = ankiConfig.media?.generateAudio !== false;
+    const generateImage = ankiConfig.media?.generateImage !== false && mode !== 'audio';
+    const imageType = ankiConfig.media?.imageType ?? 'static';
+
+    const audioPromise = generateAudio
+      ? mediaGen.generateAudio(sourcePath, startSec, clampedEndSec, audioPadding)
+      : Promise.resolve(null);
+
+    let imagePromise: Promise<Buffer | null>;
+    if (!generateImage) {
+      imagePromise = Promise.resolve(null);
+    } else if (imageType === 'avif') {
+      imagePromise = mediaGen.generateAnimatedImage(sourcePath, startSec, clampedEndSec, audioPadding, {
+        fps: ankiConfig.media?.animatedFps ?? 10,
+        maxWidth: ankiConfig.media?.animatedMaxWidth ?? 640,
+        maxHeight: ankiConfig.media?.animatedMaxHeight,
+        crf: ankiConfig.media?.animatedCrf ?? 35,
+      });
+    } else {
+      const midpointSec = (startSec + clampedEndSec) / 2;
+      imagePromise = mediaGen.generateScreenshot(sourcePath, midpointSec, {
+        format: ankiConfig.media?.imageFormat ?? 'jpg',
+        quality: ankiConfig.media?.imageQuality ?? 92,
+        maxWidth: ankiConfig.media?.imageMaxWidth,
+        maxHeight: ankiConfig.media?.imageMaxHeight,
+      });
+    }
+
+    const errors: string[] = [];
+    let noteId: number;
+
+    if (mode === 'word') {
+      if (!options?.addYomitanNote) {
+        return c.json({ error: 'Yomitan bridge not available' }, 500);
+      }
+
+      const [yomitanResult, audioResult, imageResult] = await Promise.allSettled([
+        options.addYomitanNote(word),
+        audioPromise,
+        imagePromise,
+      ]);
+
+      if (yomitanResult.status === 'rejected' || !yomitanResult.value) {
+        return c.json({ error: `Yomitan failed to create note: ${yomitanResult.status === 'rejected' ? (yomitanResult.reason as Error).message : 'no result'}` }, 502);
+      }
+
+      noteId = yomitanResult.value;
+      const audioBuffer = audioResult.status === 'fulfilled' ? audioResult.value : null;
+      const imageBuffer = imageResult.status === 'fulfilled' ? imageResult.value : null;
+      if (audioResult.status === 'rejected') errors.push(`audio: ${(audioResult.reason as Error).message}`);
+      if (imageResult.status === 'rejected') errors.push(`image: ${(imageResult.reason as Error).message}`);
+
+      const mediaFields: Record<string, string> = {};
+      const timestamp = Date.now();
+      const sentenceFieldName = ankiConfig.fields?.sentence ?? 'Sentence';
+      const audioFieldName = ankiConfig.fields?.audio ?? 'ExpressionAudio';
+      const imageFieldName = ankiConfig.fields?.image ?? 'Picture';
+
+      mediaFields[sentenceFieldName] = highlightedSentence;
+      if (secondaryText) {
+        mediaFields[ankiConfig.fields?.translation ?? 'SelectionText'] = secondaryText;
+      }
+
+      if (audioBuffer) {
+        const audioFilename = `subminer_audio_${timestamp}.mp3`;
+        try {
+          await client.storeMediaFile(audioFilename, audioBuffer);
+          mediaFields[audioFieldName] = `[sound:${audioFilename}]`;
+        } catch (err) {
+          errors.push(`audio upload: ${(err as Error).message}`);
+        }
+      }
+
+      if (imageBuffer) {
+        const imageExt = imageType === 'avif' ? 'avif' : (ankiConfig.media?.imageFormat ?? 'jpg');
+        const imageFilename = `subminer_image_${timestamp}.${imageExt}`;
+        try {
+          await client.storeMediaFile(imageFilename, imageBuffer);
+          mediaFields[imageFieldName] = `<img src="${imageFilename}">`;
+        } catch (err) {
+          errors.push(`image upload: ${(err as Error).message}`);
+        }
+      }
+
+      const miscInfoFieldName = ankiConfig.fields?.miscInfo ?? '';
+      if (miscInfoFieldName) {
+        const pattern = ankiConfig.metadata?.pattern ?? '[SubMiner] %f (%t)';
+        const filenameWithExt = videoTitle || basename(sourcePath);
+        const filenameWithoutExt = filenameWithExt.replace(/\.[^.]+$/, '');
+        const totalMs = Math.floor(startMs);
+        const totalSec2 = Math.floor(totalMs / 1000);
+        const hours = String(Math.floor(totalSec2 / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((totalSec2 % 3600) / 60)).padStart(2, '0');
+        const secs = String(totalSec2 % 60).padStart(2, '0');
+        const ms = String(totalMs % 1000).padStart(3, '0');
+        mediaFields[miscInfoFieldName] = pattern
+          .replace(/%f/g, filenameWithoutExt)
+          .replace(/%F/g, filenameWithExt)
+          .replace(/%t/g, `${hours}:${minutes}:${secs}`)
+          .replace(/%T/g, `${hours}:${minutes}:${secs}:${ms}`)
+          .replace(/<br>/g, '\n');
+      }
+
+      if (Object.keys(mediaFields).length > 0) {
+        try {
+          await client.updateNoteFields(noteId, mediaFields);
+        } catch (err) {
+          errors.push(`update fields: ${(err as Error).message}`);
+        }
+      }
+
+      return c.json({ noteId, ...(errors.length > 0 ? { errors } : {}) });
+    }
+
+    const [audioResult, imageResult] = await Promise.allSettled([audioPromise, imagePromise]);
+
+    const audioBuffer = audioResult.status === 'fulfilled' ? audioResult.value : null;
+    const imageBuffer = imageResult.status === 'fulfilled' ? imageResult.value : null;
+    if (audioResult.status === 'rejected') errors.push(`audio: ${(audioResult.reason as Error).message}`);
+    if (imageResult.status === 'rejected') errors.push(`image: ${(imageResult.reason as Error).message}`);
+
+    const sentenceFieldName = ankiConfig.fields?.sentence ?? 'Sentence';
+    const translationFieldName = ankiConfig.fields?.translation ?? 'SelectionText';
+    const audioFieldName = ankiConfig.fields?.audio ?? 'ExpressionAudio';
+    const imageFieldName = ankiConfig.fields?.image ?? 'Picture';
+    const miscInfoFieldName = ankiConfig.fields?.miscInfo ?? '';
+
+    const fields: Record<string, string> = {
+      [sentenceFieldName]: highlightedSentence,
+    };
+
+    if (secondaryText) {
+      fields[translationFieldName] = secondaryText;
+    }
+
+    if (ankiConfig.isLapis?.enabled || ankiConfig.isKiku?.enabled) {
+      if (word) {
+        fields['Expression'] = word;
+      }
+      if (mode === 'sentence') {
+        fields['IsSentenceCard'] = 'x';
+      } else if (mode === 'audio') {
+        fields['IsAudioCard'] = 'x';
+      }
+    }
+
+    const model = ankiConfig.isLapis?.sentenceCardModel || 'Basic';
+    const deck = ankiConfig.deck ?? 'Default';
+    const tags = ankiConfig.tags ?? ['SubMiner'];
+
+    try {
+      noteId = await client.addNote(deck, model, fields, tags);
+    } catch (err) {
+      return c.json({ error: `Failed to add note: ${(err as Error).message}` }, 502);
+    }
+
+    const mediaFields: Record<string, string> = {};
+    const timestamp = Date.now();
+
+    if (audioBuffer) {
+      const audioFilename = `subminer_audio_${timestamp}.mp3`;
+      try {
+        await client.storeMediaFile(audioFilename, audioBuffer);
+        mediaFields[audioFieldName] = `[sound:${audioFilename}]`;
+      } catch (err) {
+        errors.push(`audio upload: ${(err as Error).message}`);
+      }
+    }
+
+    if (imageBuffer) {
+      const imageExt = imageType === 'avif' ? 'avif' : (ankiConfig.media?.imageFormat ?? 'jpg');
+      const imageFilename = `subminer_image_${timestamp}.${imageExt}`;
+      try {
+        await client.storeMediaFile(imageFilename, imageBuffer);
+        mediaFields[imageFieldName] = `<img src="${imageFilename}">`;
+      } catch (err) {
+        errors.push(`image upload: ${(err as Error).message}`);
+      }
+    }
+
+    if (miscInfoFieldName) {
+      const pattern = ankiConfig.metadata?.pattern ?? '[SubMiner] %f (%t)';
+      const filenameWithExt = videoTitle || basename(sourcePath);
+      const filenameWithoutExt = filenameWithExt.replace(/\.[^.]+$/, '');
+      const totalMs = Math.floor(startMs);
+      const totalSec = Math.floor(totalMs / 1000);
+      const hours = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const minutes = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const secs = String(totalSec % 60).padStart(2, '0');
+      const ms = String(totalMs % 1000).padStart(3, '0');
+      const miscInfo = pattern
+        .replace(/%f/g, filenameWithoutExt)
+        .replace(/%F/g, filenameWithExt)
+        .replace(/%t/g, `${hours}:${minutes}:${secs}`)
+        .replace(/%T/g, `${hours}:${minutes}:${secs}:${ms}`)
+        .replace(/<br>/g, '\n');
+      mediaFields[miscInfoFieldName] = miscInfo;
+    }
+
+    if (Object.keys(mediaFields).length > 0) {
+      try {
+        await client.updateNoteFields(noteId, mediaFields);
+      } catch (err) {
+        errors.push(`update fields: ${(err as Error).message}`);
+      }
+    }
+
+    return c.json({ noteId, ...(errors.length > 0 ? { errors } : {}) });
+  });
+
   if (options?.staticDir) {
     app.get('/assets/*', (c) => {
       const response = createStatsStaticResponse(options.staticDir!, c.req.path);
@@ -428,7 +684,7 @@ export function createStatsApp(
 }
 
 export function startStatsServer(config: StatsServerConfig): { close: () => void } {
-  const app = createStatsApp(config.tracker, { staticDir: config.staticDir, knownWordCachePath: config.knownWordCachePath });
+  const app = createStatsApp(config.tracker, { staticDir: config.staticDir, knownWordCachePath: config.knownWordCachePath, mpvSocketPath: config.mpvSocketPath, ankiConnectConfig: config.ankiConnectConfig, addYomitanNote: config.addYomitanNote });
 
   const server = serve({
     fetch: app.fetch,
