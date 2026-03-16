@@ -6,9 +6,16 @@ import test from 'node:test';
 
 import { createJlptVocabularyLookup } from './jlpt-vocab';
 
-test('createJlptVocabularyLookup loads JLPT bank entries and resolves known levels', async () => {
+function createTempDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jlpt-dict-'));
+}
+
+test('createJlptVocabularyLookup loads JLPT bank entries and resolves known levels', async (t) => {
   const logs: string[] = [];
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jlpt-dict-'));
+  const tempDir = createTempDir();
+  t.after(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
   fs.writeFileSync(
     path.join(tempDir, 'term_meta_bank_5.json'),
     JSON.stringify([
@@ -37,8 +44,11 @@ test('createJlptVocabularyLookup loads JLPT bank entries and resolves known leve
   );
 });
 
-test('createJlptVocabularyLookup does not require synchronous fs APIs', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jlpt-dict-'));
+test('createJlptVocabularyLookup does not require synchronous fs APIs', async (t) => {
+  const tempDir = createTempDir();
+  t.after(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
   fs.writeFileSync(
     path.join(tempDir, 'term_meta_bank_4.json'),
     JSON.stringify([['見る', 1, { frequency: { displayValue: 3 } }]]),
@@ -72,4 +82,48 @@ test('createJlptVocabularyLookup does not require synchronous fs APIs', async ()
     (fs as unknown as Record<string, unknown>).statSync = statSync;
     (fs as unknown as Record<string, unknown>).existsSync = existsSync;
   }
+});
+
+test('createJlptVocabularyLookup summarizes duplicate JLPT terms without per-entry log spam', async (t) => {
+  const logs: string[] = [];
+  const tempDir = createTempDir();
+  t.after(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+  fs.writeFileSync(
+    path.join(tempDir, 'term_meta_bank_1.json'),
+    JSON.stringify([
+      ['余り', 1, { frequency: { displayValue: 'N1' }, reading: 'あんまり' }],
+      ['私', 2, { frequency: { displayValue: 'N1' }, reading: 'あたし' }],
+    ]),
+  );
+  fs.writeFileSync(path.join(tempDir, 'term_meta_bank_2.json'), JSON.stringify([]));
+  fs.writeFileSync(path.join(tempDir, 'term_meta_bank_3.json'), JSON.stringify([]));
+  fs.writeFileSync(path.join(tempDir, 'term_meta_bank_4.json'), JSON.stringify([]));
+  fs.writeFileSync(
+    path.join(tempDir, 'term_meta_bank_5.json'),
+    JSON.stringify([
+      ['余り', 3, { frequency: { displayValue: 'N5' }, reading: 'あまり' }],
+      ['私', 4, { frequency: { displayValue: 'N5' }, reading: 'わたし' }],
+      ['私', 5, { frequency: { displayValue: 'N5' }, reading: 'わたくし' }],
+    ]),
+  );
+
+  const lookup = await createJlptVocabularyLookup({
+    searchPaths: [tempDir],
+    log: (message) => {
+      logs.push(message);
+    },
+  });
+
+  assert.equal(lookup('余り'), 'N1');
+  assert.equal(lookup('私'), 'N1');
+  assert.equal(
+    logs.some((entry) => entry.includes('keeping') && entry.includes('instead')),
+    false,
+  );
+  assert.equal(
+    logs.some((entry) => entry.includes('collapsed') && entry.includes('duplicate')),
+    true,
+  );
 });
