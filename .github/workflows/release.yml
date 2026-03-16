@@ -386,11 +386,6 @@ jobs:
             exit 1
           fi
 
-      - name: Install makepkg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y makepkg
-
       - name: Configure SSH for AUR
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}

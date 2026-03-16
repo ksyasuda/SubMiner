@@ -1,10 +1,6 @@
 ## Highlights
-### Changed
-- Overlay: Expanded the `Alt+C` controller modal into an inline config/remap flow with preferred-controller saving and per-action learn mode for buttons, triggers, and stick directions.
-
 ### Internal
-- Workflow: Hardened the `subminer-scrum-master` skill to explicitly answer whether docs updates and changelog fragments are required before handoff.
-- Release: Automate `subminer-bin` AUR package updates from the tagged release workflow.
+- Release: Reworked AUR metadata generation to update `.SRCINFO` directly instead of depending on runner `makepkg`, fixing tagged release publishing for `subminer-bin`.
 
 ## Installation
 

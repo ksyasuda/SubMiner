@@ -72,7 +72,6 @@ test('release workflow publishes subminer-bin to AUR from tagged release artifac
   assert.match(releaseWorkflow, /needs:\s*\[release\]/);
   assert.match(releaseWorkflow, /AUR_SSH_PRIVATE_KEY/);
   assert.match(releaseWorkflow, /ssh:\/\/aur@aur\.archlinux\.org\/subminer-bin\.git/);
-  assert.match(releaseWorkflow, /Install makepkg/);
   assert.match(releaseWorkflow, /scripts\/update-aur-package\.sh/);
   assert.match(releaseWorkflow, /version_no_v="\$\{\{ steps\.version\.outputs\.VERSION \}\}"/);
   assert.match(releaseWorkflow, /SubMiner-\$\{version_no_v\}\.AppImage/);
@@ -80,6 +79,7 @@ test('release workflow publishes subminer-bin to AUR from tagged release artifac
     releaseWorkflow,
     /SubMiner-\$\{\{ steps\.version\.outputs\.VERSION \}\}\.AppImage/,
   );
+  assert.doesNotMatch(releaseWorkflow, /Install makepkg/);
 });
 
 test('release workflow skips empty AUR sync commits', () => {

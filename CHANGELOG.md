@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.4 (2026-03-15)
+
+### Internal
+- Release: Reworked AUR metadata generation to update `.SRCINFO` directly instead of depending on runner `makepkg`, fixing tagged release publishing for `subminer-bin`.
+
 ## v0.6.3 (2026-03-15)
 
 ### Changed

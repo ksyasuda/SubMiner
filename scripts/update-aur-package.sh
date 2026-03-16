@@ -54,6 +54,7 @@ fi
 
 version="${version#v}"
 pkgbuild="${pkg_dir}/PKGBUILD"
+srcinfo="${pkg_dir}/.SRCINFO"
 
 if [[ ! -f "$pkgbuild" ]]; then
   echo "Missing PKGBUILD at $pkgbuild" >&2
@@ -118,7 +119,96 @@ awk \
   ' "$pkgbuild" > "$tmpfile"
 mv "$tmpfile" "$pkgbuild"
 
-(
-  cd "$pkg_dir"
-  makepkg --printsrcinfo > .SRCINFO
-)
+if [[ ! -f "$srcinfo" ]]; then
+  echo "Missing .SRCINFO at $srcinfo" >&2
+  exit 1
+fi
+
+tmpfile="$(mktemp)"
+awk \
+  -v version="$version" \
+  -v sum_appimage="${sha256sums[0]}" \
+  -v sum_wrapper="${sha256sums[1]}" \
+  -v sum_assets="${sha256sums[2]}" \
+  '
+  BEGIN {
+    sha_index = 0
+    found_pkgver = 0
+    found_provides = 0
+    found_noextract = 0
+    found_source_appimage = 0
+    found_source_wrapper = 0
+    found_source_assets = 0
+  }
+  /^\tpkgver = / {
+    print "\tpkgver = " version
+    found_pkgver = 1
+    next
+  }
+  /^\tprovides = subminer=/ {
+    print "\tprovides = subminer=" version
+    found_provides = 1
+    next
+  }
+  /^\tnoextract = SubMiner-.*\.AppImage$/ {
+    print "\tnoextract = SubMiner-" version ".AppImage"
+    found_noextract = 1
+    next
+  }
+  /^\tsource = SubMiner-.*\.AppImage::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v.*\/SubMiner-.*\.AppImage$/ {
+    print "\tsource = SubMiner-" version ".AppImage::https://github.com/ksyasuda/SubMiner/releases/download/v" version "/SubMiner-" version ".AppImage"
+    found_source_appimage = 1
+    next
+  }
+  /^\tsource = subminer::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v.*\/subminer$/ {
+    print "\tsource = subminer::https://github.com/ksyasuda/SubMiner/releases/download/v" version "/subminer"
+    found_source_wrapper = 1
+    next
+  }
+  /^\tsource = subminer-assets\.tar\.gz::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v.*\/subminer-assets\.tar\.gz$/ {
+    print "\tsource = subminer-assets.tar.gz::https://github.com/ksyasuda/SubMiner/releases/download/v" version "/subminer-assets.tar.gz"
+    found_source_assets = 1
+    next
+  }
+  /^\tsha256sums = / {
+    sha_index += 1
+    if (sha_index == 1) {
+      print "\tsha256sums = " sum_appimage
+      next
+    }
+    if (sha_index == 2) {
+      print "\tsha256sums = " sum_wrapper
+      next
+    }
+    if (sha_index == 3) {
+      print "\tsha256sums = " sum_assets
+      next
+    }
+  }
+  {
+    print
+  }
+  END {
+    if (!found_pkgver) {
+      print "Missing pkgver entry in .SRCINFO" > "/dev/stderr"
+      exit 1
+    }
+    if (!found_provides) {
+      print "Missing provides entry in .SRCINFO" > "/dev/stderr"
+      exit 1
+    }
+    if (!found_noextract) {
+      print "Missing noextract entry in .SRCINFO" > "/dev/stderr"
+      exit 1
+    }
+    if (!found_source_appimage || !found_source_wrapper || !found_source_assets) {
+      print "Missing source entry in .SRCINFO" > "/dev/stderr"
+      exit 1
+    }
+    if (sha_index < 3) {
+      print "Missing sha256sums entries in .SRCINFO" > "/dev/stderr"
+      exit 1
+    }
+  }
+  ' "$srcinfo" > "$tmpfile"
+mv "$tmpfile" "$srcinfo"
