@@ -27,7 +27,7 @@ SubMiner is an Electron overlay that sits on top of mpv. It turns your video pla
 - **Look up words as you watch** — Yomitan dictionary popups on hover or keyboard-driven token-by-token navigation
 - **One-key Anki mining** — Creates cards with sentence, audio, screenshot, and translation; optional local AnkiConnect proxy auto-enriches Yomitan cards instantly
 - **Reading annotations** — N+1 targeting, frequency-dictionary highlighting, JLPT underlining, and character name dictionary for anime/manga proper nouns
-- **Immersion stats** — Optional local dashboard and overlay for watch time, anime progress, session drill-down, vocabulary growth, and mining throughput
+- **Immersion stats** — Optional local dashboard and overlay for watch time, anime progress, session drill-down, vocabulary growth, mining throughput, and card mining directly from example sentences
 - **Subtitle tools** — Download from Jimaku, sync with alass/ffsubsync
 - **Jellyfin & AniList integration** — Remote playback, cast device mode, and automatic episode progress tracking
 - **Texthooker & API** — Built-in texthooker page and annotated websocket feed for external clients

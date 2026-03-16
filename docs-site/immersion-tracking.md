@@ -33,7 +33,7 @@ Dashboard tabs:
 - Anime: cover-art library, per-series progress, episode drill-down, and direct links into mined cards
 - Trends: watch time, sessions, words seen, and per-anime progress/pattern charts
 - Sessions: expandable session history with new-word activity, cumulative totals, and pause/seek/card markers
-- Vocabulary: top repeated words, new-word timeline, kanji breakdown, and click-through occurrence drilldown in a right-side drawer
+- Vocabulary: top repeated words (click a bar to open the word), new-word timeline, frequency rank table with full readings, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons
 
 Stats server config lives under `stats`:
 
@@ -55,6 +55,22 @@ Stats server config lives under `stats`:
 - `subminer stats` forces the dashboard server to start even when `autoStartServer` is `false`.
 - `subminer stats` fails with an error when `immersionTracking.enabled` is `false`.
 - `subminer stats cleanup` defaults to vocabulary cleanup, repairs stale `headword`, `reading`, and `part_of_speech` values, attempts best-effort MeCab backfill for legacy rows, and removes rows that still fail vocab filtering.
+
+## Mining Cards from the Stats Page
+
+The Vocabulary tab's word detail panel shows example lines from your viewing history. Each example line with a valid source file offers three mining buttons:
+
+- **Mine Word** — performs a full Yomitan dictionary lookup for the word (definition, reading, pitch accent, etc.) via the hidden search page, then enriches the card with sentence audio, a screenshot or animated AVIF clip, the highlighted sentence, and metadata extracted from the source video file. Requires Anki and Yomitan dictionaries to be loaded.
+- **Mine Sentence** — creates a sentence card directly with the `IsSentenceCard` flag set (for Lapis/Kiku workflows), along with audio, image, and translation from the secondary subtitle if available.
+- **Mine Audio** — creates an audio-only card with the `IsAudioCard` flag, attaching only the sentence audio clip.
+
+All three modes respect your `ankiConnect` config: deck, model, field mappings, media settings (static vs AVIF, quality, dimensions), audio padding, metadata pattern, and tags. Media generation runs in parallel for faster card creation.
+
+Secondary subtitle text (typically English translations) is stored alongside primary subtitles during playback and used as the translation field when mining from the stats page.
+
+### Word Exclusion List
+
+The Vocabulary tab toolbar includes an **Exclusions** button for hiding words from all vocabulary views. Excluded words are stored in browser localStorage and can be managed (restored or cleared) from the exclusion modal. Exclusions affect stat cards, charts, the frequency rank table, and the word list.
 
 ## Retention Defaults
 
