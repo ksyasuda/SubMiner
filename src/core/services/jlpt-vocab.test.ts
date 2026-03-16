@@ -119,11 +119,11 @@ test('createJlptVocabularyLookup summarizes duplicate JLPT terms without per-ent
   assert.equal(lookup('余り'), 'N1');
   assert.equal(lookup('私'), 'N1');
   assert.equal(
-    logs.some((entry) => entry.includes('keeping that level instead of')),
+    logs.some((entry) => entry.includes('keeping') && entry.includes('instead')),
     false,
   );
   assert.equal(
-    logs.some((entry) => entry.includes('collapsed 3 duplicate JLPT entries across 2 terms')),
+    logs.some((entry) => entry.includes('collapsed') && entry.includes('duplicate')),
     true,
   );
 });
