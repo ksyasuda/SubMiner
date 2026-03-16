@@ -183,13 +183,13 @@ If you installed from the AppImage and see this error, the package may be incomp
 - Verify Yomitan loaded successfully — check the terminal output for "Loaded Yomitan extension".
 - Yomitan requires dictionaries to be installed. Open Yomitan settings (`Alt+Shift+Y` or `SubMiner.AppImage --settings`) and confirm at least one dictionary is imported.
 - If `yomitan.externalProfilePath` is set, import/check dictionaries in the external app/profile instead. SubMiner treats that profile as read-only and does not open its own Yomitan settings window.
-- If the overlay shows subtitles but hover lookup never resolves on tokens, the tokenizer may have failed. Check Yomitan dictionaries/profile first; MeCab is not required for subtitle annotation or hover tokenization.
+- If the overlay shows subtitles but hover lookup never resolves on tokens, the tokenizer may have failed. See the MeCab section below.
 
 ## MeCab / Tokenization
 
 **"MeCab not found on system"**
 
-This is informational, not an error. Subtitle tokenization, frequency filtering, JLPT tagging, and N+1 filtering are driven by Yomitan's parser and lookup tags. MeCab is optional and mainly useful for legacy/auxiliary workflows outside the main subtitle annotation path.
+This is informational, not an error. SubMiner tokenization is driven by Yomitan's internal parser. MeCab availability checks may still run for auxiliary token metadata, but MeCab is not used as a tokenization fallback path.
 
 To install MeCab:
 

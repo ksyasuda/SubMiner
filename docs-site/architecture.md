@@ -87,7 +87,7 @@ src/
 - **Shortcuts/input:** `shortcut.ts`, `overlay-shortcut.ts`, `overlay-shortcut-handler.ts`, `shortcut-fallback.ts`, `numeric-shortcut.ts`
 - **MPV runtime:** `mpv.ts`, `mpv-transport.ts`, `mpv-protocol.ts`, `mpv-properties.ts`, `mpv-render-metrics.ts`
 - **Mining + Anki/Jimaku runtime:** `mining.ts`, `field-grouping.ts`, `field-grouping-overlay.ts`, `anki-jimaku.ts`, `anki-jimaku-ipc.ts`
-- **Subtitle/token pipeline:** `subtitle-processing-controller.ts`, `subtitle-position.ts`, `subtitle-ws.ts`, `tokenizer.ts` + `tokenizer/*` stage modules (including `yomitan-parser-runtime.ts` for scan-token lookup/tag extraction; legacy MeCab enrichment helpers remain under `parser-enrichment-worker-runtime.ts`)
+- **Subtitle/token pipeline:** `subtitle-processing-controller.ts`, `subtitle-position.ts`, `subtitle-ws.ts`, `tokenizer.ts` + `tokenizer/*` stage modules (including `parser-enrichment-worker-runtime.ts` for async MeCab enrichment and `yomitan-parser-runtime.ts`)
 - **Integrations:** `jimaku.ts`, `subsync.ts`, `subsync-runner.ts`, `texthooker.ts`, `jellyfin.ts`, `jellyfin-remote.ts`, `discord-presence.ts`, `yomitan-extension-loader.ts`, `yomitan-settings.ts`
 - **Anki integration:** `anki-integration.ts`, `anki-integration/anki-connect-proxy.ts` (local proxy for push-based auto-enrichment), `anki-integration/note-update-workflow.ts`
 - **Config/runtime controls:** `config-hot-reload.ts`, `runtime-options-ipc.ts`, `cli-command.ts`, `startup.ts`
