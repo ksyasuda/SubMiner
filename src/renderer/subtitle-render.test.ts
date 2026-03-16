@@ -667,6 +667,55 @@ test('renderSubtitle preserves unsupported punctuation while keeping it non-inte
   }
 });
 
+test('renderSubtitle keeps excluded interjection text visible while only rendering remaining tokens as interactive', () => {
+  const restoreDocument = installFakeDocument();
+
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const secondaryRoot = new FakeElement('div');
+    const renderer = createSubtitleRenderer({
+      dom: {
+        subtitleRoot,
+        secondarySubtitleRoot: secondaryRoot,
+      },
+      config: {
+        subtitleStyle: {},
+        frequencyDictionary: {
+          colorTopX: 1000,
+          colorMode: 'single',
+          colorSingle: '#f5a97f',
+          colorBanded: ['#ed8796', '#f5a97f', '#f9e2af', '#8bd5ca', '#8aadf4'],
+        },
+        secondarySubtitles: { mode: 'hidden' },
+      },
+      logger: {
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+      runtime: {
+        secondaryMode: 'hidden' as const,
+        shouldToggleMouseIgnore: false,
+      },
+      state: createRendererState(),
+    } as never);
+
+    renderer.renderSubtitle({
+      text: 'ぐはっ 猫',
+      tokens: [createToken({ surface: '猫', headword: '猫', reading: 'ねこ' })],
+    });
+
+    assert.equal(subtitleRoot.textContent, 'ぐはっ 猫');
+    assert.deepEqual(
+      collectWordNodes(subtitleRoot).map((node) => [node.textContent, node.dataset.tokenIndex]),
+      [['猫', '0']],
+    );
+  } finally {
+    restoreDocument();
+  }
+});
+
 test('normalizeSubtitle collapses explicit line breaks when collapseLineBreaks is enabled', () => {
   assert.equal(
     normalizeSubtitle('常人が使えば\\Nその圧倒的な力に\\n体が耐えきれず死に至るが…', true, true),
