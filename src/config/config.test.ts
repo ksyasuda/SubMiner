@@ -1585,7 +1585,10 @@ test('supports legacy ankiConnect nPlusOne known-word settings as fallback', () 
   assert.equal(config.ankiConnect.knownWords.highlightEnabled, true);
   assert.equal(config.ankiConnect.knownWords.refreshMinutes, 90);
   assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
-  assert.deepEqual(config.ankiConnect.knownWords.decks, ['Mining', 'Kaishi 1.5k']);
+  assert.deepEqual(config.ankiConnect.knownWords.decks, {
+    'Mining': ['Expression', 'Word', 'Reading', 'Word Reading'],
+    'Kaishi 1.5k': ['Expression', 'Word', 'Reading', 'Word Reading'],
+  });
   assert.equal(config.ankiConnect.knownWords.color, '#a6da95');
   assert.ok(
     warnings.some(
@@ -1842,14 +1845,14 @@ test('ignores deprecated isLapis sentence-card field overrides', () => {
   );
 });
 
-test('accepts valid ankiConnect knownWords deck list', () => {
+test('accepts valid ankiConnect knownWords deck object', () => {
   const dir = makeTempDir();
   fs.writeFileSync(
     path.join(dir, 'config.jsonc'),
     `{
       "ankiConnect": {
         "knownWords": {
-          "decks": ["Deck One", "Deck Two"]
+          "decks": { "Deck One": ["Word", "Reading"], "Deck Two": ["Expression"] }
         }
       }
     }`,
@@ -1859,7 +1862,10 @@ test('accepts valid ankiConnect knownWords deck list', () => {
   const service = new ConfigService(dir);
   const config = service.getConfig();
 
-  assert.deepEqual(config.ankiConnect.knownWords.decks, ['Deck One', 'Deck Two']);
+  assert.deepEqual(config.ankiConnect.knownWords.decks, {
+    'Deck One': ['Word', 'Reading'],
+    'Deck Two': ['Expression'],
+  });
 });
 
 test('accepts valid ankiConnect tags list', () => {
@@ -1918,7 +1924,7 @@ test('falls back to default when ankiConnect knownWords deck list is invalid', (
   const config = service.getConfig();
   const warnings = service.getWarnings();
 
-  assert.deepEqual(config.ankiConnect.knownWords.decks, []);
+  assert.deepEqual(config.ankiConnect.knownWords.decks, {});
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.decks'));
 });
 

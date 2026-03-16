@@ -832,74 +832,70 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       DEFAULT_CONFIG.ankiConnect.knownWords.matchMode;
   }
 
+  const DEFAULT_FIELDS = ['Expression', 'Word', 'Reading', 'Word Reading'];
   const knownWordsDecks = knownWordsConfig.decks;
   const legacyNPlusOneDecks = nPlusOneConfig.decks;
-  if (Array.isArray(knownWordsDecks)) {
-    const normalizedDecks = knownWordsDecks
+  if (isObject(knownWordsDecks)) {
+    const resolved: Record<string, string[]> = {};
+    for (const [deck, fields] of Object.entries(knownWordsDecks as Record<string, unknown>)) {
+      const deckName = deck.trim();
+      if (!deckName) continue;
+      if (Array.isArray(fields) && fields.every((f) => typeof f === 'string')) {
+        resolved[deckName] = (fields as string[]).map((f) => f.trim()).filter((f) => f.length > 0);
+      } else {
+        context.warn(
+          `ankiConnect.knownWords.decks["${deckName}"]`,
+          fields,
+          DEFAULT_FIELDS,
+          'Expected an array of field name strings.',
+        );
+        resolved[deckName] = DEFAULT_FIELDS;
+      }
+    }
+    context.resolved.ankiConnect.knownWords.decks = resolved;
+  } else if (Array.isArray(knownWordsDecks)) {
+    const normalized = knownWordsDecks
       .filter((entry): entry is string => typeof entry === 'string')
       .map((entry) => entry.trim())
       .filter((entry) => entry.length > 0);
-
-    if (normalizedDecks.length === knownWordsDecks.length) {
-      context.resolved.ankiConnect.knownWords.decks = [...new Set(normalizedDecks)];
-    } else if (knownWordsDecks.length > 0) {
+    const resolved: Record<string, string[]> = {};
+    for (const deck of new Set(normalized)) {
+      resolved[deck] = DEFAULT_FIELDS;
+    }
+    context.resolved.ankiConnect.knownWords.decks = resolved;
+    if (normalized.length > 0) {
       context.warn(
         'ankiConnect.knownWords.decks',
         knownWordsDecks,
-        context.resolved.ankiConnect.knownWords.decks,
-        'Expected an array of strings.',
+        resolved,
+        'Legacy array format is deprecated; use object format: { "Deck Name": ["Field1", "Field2"] }',
       );
-      context.resolved.ankiConnect.knownWords.decks = DEFAULT_CONFIG.ankiConnect.knownWords.decks;
-    } else {
-      context.resolved.ankiConnect.knownWords.decks = [];
     }
   } else if (knownWordsDecks !== undefined) {
     context.warn(
       'ankiConnect.knownWords.decks',
       knownWordsDecks,
       context.resolved.ankiConnect.knownWords.decks,
-      'Expected an array of strings.',
+      'Expected an object mapping deck names to field arrays.',
     );
-    context.resolved.ankiConnect.knownWords.decks = DEFAULT_CONFIG.ankiConnect.knownWords.decks;
   } else if (Array.isArray(legacyNPlusOneDecks)) {
-    const normalizedDecks = legacyNPlusOneDecks
+    const normalized = legacyNPlusOneDecks
       .filter((entry): entry is string => typeof entry === 'string')
       .map((entry) => entry.trim())
       .filter((entry) => entry.length > 0);
-
-    if (normalizedDecks.length === legacyNPlusOneDecks.length) {
-      context.resolved.ankiConnect.knownWords.decks = [...new Set(normalizedDecks)];
+    const resolved: Record<string, string[]> = {};
+    for (const deck of new Set(normalized)) {
+      resolved[deck] = DEFAULT_FIELDS;
+    }
+    context.resolved.ankiConnect.knownWords.decks = resolved;
+    if (normalized.length > 0) {
       context.warn(
         'ankiConnect.nPlusOne.decks',
         legacyNPlusOneDecks,
         DEFAULT_CONFIG.ankiConnect.knownWords.decks,
-        'Legacy key is deprecated; use ankiConnect.knownWords.decks',
-      );
-    } else if (legacyNPlusOneDecks.length > 0) {
-      context.warn(
-        'ankiConnect.nPlusOne.decks',
-        legacyNPlusOneDecks,
-        context.resolved.ankiConnect.knownWords.decks,
-        'Expected an array of strings.',
-      );
-      context.resolved.ankiConnect.knownWords.decks = DEFAULT_CONFIG.ankiConnect.knownWords.decks;
-    } else {
-      context.resolved.ankiConnect.knownWords.decks = [];
-      context.warn(
-        'ankiConnect.nPlusOne.decks',
-        legacyNPlusOneDecks,
-        DEFAULT_CONFIG.ankiConnect.knownWords.decks,
-        'Legacy key is deprecated; use ankiConnect.knownWords.decks',
+        'Legacy key is deprecated; use ankiConnect.knownWords.decks with object format',
       );
     }
-  } else if (legacyNPlusOneDecks !== undefined) {
-    context.warn(
-      'ankiConnect.nPlusOne.decks',
-      legacyNPlusOneDecks,
-      context.resolved.ankiConnect.knownWords.decks,
-      'Expected an array of strings.',
-    );
-    context.resolved.ankiConnect.knownWords.decks = DEFAULT_CONFIG.ankiConnect.knownWords.decks;
   }
 
   const nPlusOneHighlightColor = asColor(nPlusOneConfig.nPlusOne);

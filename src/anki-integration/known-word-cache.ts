@@ -217,10 +217,8 @@ export class KnownWordCacheManager {
 
   private getKnownWordDecks(): string[] {
     const configuredDecks = this.deps.getConfig().knownWords?.decks;
-    if (Array.isArray(configuredDecks)) {
-      return configuredDecks
-        .map((deck) => (typeof deck === 'string' ? deck.trim() : ''))
-        .filter((deck) => deck.length > 0);
+    if (configuredDecks && typeof configuredDecks === 'object' && !Array.isArray(configuredDecks)) {
+      return Object.keys(configuredDecks).map((d) => d.trim()).filter((d) => d.length > 0);
     }
 
     const deck = this.deps.getConfig().deck?.trim();
@@ -228,6 +226,18 @@ export class KnownWordCacheManager {
   }
 
   private getConfiguredFields(): string[] {
+    const configuredDecks = this.deps.getConfig().knownWords?.decks;
+    if (configuredDecks && typeof configuredDecks === 'object' && !Array.isArray(configuredDecks)) {
+      const allFields = new Set<string>();
+      for (const fields of Object.values(configuredDecks)) {
+        if (Array.isArray(fields)) {
+          for (const f of fields) {
+            if (typeof f === 'string' && f.trim()) allFields.add(f.trim());
+          }
+        }
+      }
+      if (allFields.size > 0) return [...allFields];
+    }
     return ['Expression', 'Word', 'Reading', 'Word Reading'];
   }
 

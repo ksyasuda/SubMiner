@@ -54,7 +54,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       highlightEnabled: false,
       refreshMinutes: 1440,
       matchMode: 'headword',
-      decks: [],
+      decks: {},
       color: '#a6da95',
     },
     behavior: {

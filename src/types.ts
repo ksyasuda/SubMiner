@@ -248,7 +248,7 @@ export interface AnkiConnectConfig {
     highlightEnabled?: boolean;
     refreshMinutes?: number;
     matchMode?: NPlusOneMatchMode;
-    decks?: string[];
+    decks?: Record<string, string[]>;
     color?: string;
   };
   nPlusOne?: {
@@ -739,7 +739,7 @@ export interface ResolvedConfig {
       highlightEnabled: boolean;
       refreshMinutes: number;
       matchMode: NPlusOneMatchMode;
-      decks: string[];
+      decks: Record<string, string[]>;
       color: string;
     };
     nPlusOne: {

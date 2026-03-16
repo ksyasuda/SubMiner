@@ -50,17 +50,30 @@ test('normalizes ankiConnect tags by trimming and deduping', () => {
   );
 });
 
-test('warns and falls back for invalid knownWords.decks entries', () => {
+test('accepts knownWords.decks object format with field arrays', () => {
   const { context, warnings } = makeContext({
-    knownWords: { decks: ['Core Deck', 123] },
+    knownWords: { decks: { 'Core Deck': ['Word', 'Reading'], 'Mining': ['Expression'] } },
   });
 
   applyAnkiConnectResolution(context);
 
-  assert.deepEqual(
-    context.resolved.ankiConnect.knownWords.decks,
-    DEFAULT_CONFIG.ankiConnect.knownWords.decks,
-  );
+  assert.deepEqual(context.resolved.ankiConnect.knownWords.decks, {
+    'Core Deck': ['Word', 'Reading'],
+    'Mining': ['Expression'],
+  });
+  assert.equal(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.decks'), false);
+});
+
+test('converts legacy knownWords.decks array to object with default fields', () => {
+  const { context, warnings } = makeContext({
+    knownWords: { decks: ['Core Deck'] },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.deepEqual(context.resolved.ankiConnect.knownWords.decks, {
+    'Core Deck': ['Expression', 'Word', 'Reading', 'Word Reading'],
+  });
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.decks'));
 });
 
