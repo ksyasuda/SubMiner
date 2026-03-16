@@ -6,9 +6,16 @@ import test from 'node:test';
 
 import { createJlptVocabularyLookup } from './jlpt-vocab';
 
-test('createJlptVocabularyLookup loads JLPT bank entries and resolves known levels', async () => {
+function createTempDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jlpt-dict-'));
+}
+
+test('createJlptVocabularyLookup loads JLPT bank entries and resolves known levels', async (t) => {
   const logs: string[] = [];
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jlpt-dict-'));
+  const tempDir = createTempDir();
+  t.after(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
   fs.writeFileSync(
     path.join(tempDir, 'term_meta_bank_5.json'),
     JSON.stringify([
@@ -37,8 +44,11 @@ test('createJlptVocabularyLookup loads JLPT bank entries and resolves known leve
   );
 });
 
-test('createJlptVocabularyLookup does not require synchronous fs APIs', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jlpt-dict-'));
+test('createJlptVocabularyLookup does not require synchronous fs APIs', async (t) => {
+  const tempDir = createTempDir();
+  t.after(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
   fs.writeFileSync(
     path.join(tempDir, 'term_meta_bank_4.json'),
     JSON.stringify([['見る', 1, { frequency: { displayValue: 3 } }]]),
@@ -74,9 +84,12 @@ test('createJlptVocabularyLookup does not require synchronous fs APIs', async ()
   }
 });
 
-test('createJlptVocabularyLookup summarizes duplicate JLPT terms without per-entry log spam', async () => {
+test('createJlptVocabularyLookup summarizes duplicate JLPT terms without per-entry log spam', async (t) => {
   const logs: string[] = [];
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-jlpt-dict-'));
+  const tempDir = createTempDir();
+  t.after(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
   fs.writeFileSync(
     path.join(tempDir, 'term_meta_bank_1.json'),
     JSON.stringify([
