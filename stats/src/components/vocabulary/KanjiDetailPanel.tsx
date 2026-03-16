@@ -21,7 +21,12 @@ function formatSegment(ms: number | null): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
-export function KanjiDetailPanel({ kanjiId, onClose, onSelectWord, onNavigateToAnime }: KanjiDetailPanelProps) {
+export function KanjiDetailPanel({
+  kanjiId,
+  onClose,
+  onSelectWord,
+  onNavigateToAnime,
+}: KanjiDetailPanelProps) {
   const { data, loading, error } = useKanjiDetail(kanjiId);
   const [occurrences, setOccurrences] = useState<VocabularyOccurrenceEntry[]>([]);
   const [occLoading, setOccLoading] = useState(false);
@@ -44,7 +49,7 @@ export function KanjiDetailPanel({ kanjiId, onClose, onSelectWord, onNavigateToA
     try {
       const rows = await apiClient.getKanjiOccurrences(kanji, OCCURRENCES_PAGE_SIZE, offset);
       if (reqId !== requestIdRef.current) return;
-      setOccurrences(prev => append ? [...prev, ...rows] : rows);
+      setOccurrences((prev) => (append ? [...prev, ...rows] : rows));
       setHasMore(rows.length === OCCURRENCES_PAGE_SIZE);
     } catch (err) {
       if (reqId !== requestIdRef.current) return;
@@ -83,7 +88,9 @@ export function KanjiDetailPanel({ kanjiId, onClose, onSelectWord, onNavigateToA
         <div className="flex h-full flex-col">
           <div className="flex items-start justify-between border-b border-ctp-surface1 px-5 py-4">
             <div className="min-w-0">
-              <div className="text-xs uppercase tracking-[0.18em] text-ctp-overlay1">Kanji Detail</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-ctp-overlay1">
+                Kanji Detail
+              </div>
               {loading && <div className="mt-2 text-sm text-ctp-overlay2">Loading...</div>}
               {error && <div className="mt-2 text-sm text-ctp-red">Error: {error}</div>}
               {data && (
@@ -109,28 +116,39 @@ export function KanjiDetailPanel({ kanjiId, onClose, onSelectWord, onNavigateToA
               <>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
-                    <div className="text-lg font-bold text-ctp-teal">{formatNumber(data.detail.frequency)}</div>
+                    <div className="text-lg font-bold text-ctp-teal">
+                      {formatNumber(data.detail.frequency)}
+                    </div>
                     <div className="text-[11px] text-ctp-overlay1 uppercase">Frequency</div>
                   </div>
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
-                    <div className="text-sm font-medium text-ctp-green">{formatRelativeDate(data.detail.firstSeen)}</div>
+                    <div className="text-sm font-medium text-ctp-green">
+                      {formatRelativeDate(data.detail.firstSeen)}
+                    </div>
                     <div className="text-[11px] text-ctp-overlay1 uppercase">First Seen</div>
                   </div>
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
-                    <div className="text-sm font-medium text-ctp-mauve">{formatRelativeDate(data.detail.lastSeen)}</div>
+                    <div className="text-sm font-medium text-ctp-mauve">
+                      {formatRelativeDate(data.detail.lastSeen)}
+                    </div>
                     <div className="text-[11px] text-ctp-overlay1 uppercase">Last Seen</div>
                   </div>
                 </div>
 
                 {data.animeAppearances.length > 0 && (
                   <section>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">Anime Appearances</h3>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
+                      Anime Appearances
+                    </h3>
                     <div className="space-y-1.5">
-                      {data.animeAppearances.map(a => (
+                      {data.animeAppearances.map((a) => (
                         <button
                           key={a.animeId}
                           type="button"
-                          onClick={() => { onClose(); onNavigateToAnime?.(a.animeId); }}
+                          onClick={() => {
+                            onClose();
+                            onNavigateToAnime?.(a.animeId);
+                          }}
                           className="w-full flex items-center justify-between rounded-lg bg-ctp-surface0 px-3 py-2 text-sm transition hover:border-ctp-teal hover:ring-1 hover:ring-ctp-teal text-left"
                         >
                           <span className="truncate text-ctp-text">{a.animeTitle}</span>
@@ -145,9 +163,11 @@ export function KanjiDetailPanel({ kanjiId, onClose, onSelectWord, onNavigateToA
 
                 {data.words.length > 0 && (
                   <section>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">Words Using This Kanji</h3>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
+                      Words Using This Kanji
+                    </h3>
                     <div className="flex flex-wrap gap-1.5">
-                      {data.words.map(w => (
+                      {data.words.map((w) => (
                         <button
                           key={w.wordId}
                           type="button"
@@ -163,7 +183,9 @@ export function KanjiDetailPanel({ kanjiId, onClose, onSelectWord, onNavigateToA
                 )}
 
                 <section>
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">Example Lines</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
+                    Example Lines
+                  </h3>
                   {!occLoaded && !occLoading && (
                     <button
                       type="button"
@@ -173,7 +195,9 @@ export function KanjiDetailPanel({ kanjiId, onClose, onSelectWord, onNavigateToA
                       Load example lines
                     </button>
                   )}
-                  {occLoading && <div className="text-sm text-ctp-overlay2">Loading occurrences...</div>}
+                  {occLoading && (
+                    <div className="text-sm text-ctp-overlay2">Loading occurrences...</div>
+                  )}
                   {occError && <div className="text-sm text-ctp-red">Error: {occError}</div>}
                   {occLoaded && !occLoading && occurrences.length === 0 && (
                     <div className="text-sm text-ctp-overlay2">No occurrences tracked yet.</div>
@@ -199,7 +223,8 @@ export function KanjiDetailPanel({ kanjiId, onClose, onSelectWord, onNavigateToA
                             </div>
                           </div>
                           <div className="mt-3 text-xs text-ctp-overlay1">
-                            {formatSegment(occ.segmentStartMs)}-{formatSegment(occ.segmentEndMs)} · session {occ.sessionId}
+                            {formatSegment(occ.segmentStartMs)}-{formatSegment(occ.segmentEndMs)} ·
+                            session {occ.sessionId}
                           </div>
                           <p className="mt-3 rounded-lg bg-ctp-base/70 px-3 py-3 text-sm leading-6 text-ctp-text">
                             {occ.text}

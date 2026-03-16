@@ -1,7 +1,11 @@
 import type { AnilistRateLimiter } from './rate-limiter';
 import type { DatabaseSync } from '../immersion-tracker/sqlite';
 import { getCoverArt, upsertCoverArt, updateAnimeAnilistInfo } from '../immersion-tracker/query';
-import { guessAnilistMediaInfo, runGuessit, type GuessAnilistMediaInfoDeps } from './anilist-updater';
+import {
+  guessAnilistMediaInfo,
+  runGuessit,
+  type GuessAnilistMediaInfoDeps,
+} from './anilist-updater';
 
 const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 const NO_MATCH_RETRY_MS = 5 * 60 * 1000;
@@ -91,7 +95,10 @@ export function stripFilenameTags(raw: string): string {
 }
 
 function removeSeasonHint(title: string): string {
-  return title.replace(/\bseason\s*\d+\b/gi, '').replace(/\s{2,}/g, ' ').trim();
+  return title
+    .replace(/\bseason\s*\d+\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function normalizeTitle(text: string): string {
@@ -134,23 +141,20 @@ function pickBestSearchResult(
     .map((value) => value.trim())
     .filter((value, index, all) => value.length > 0 && all.indexOf(value) === index);
 
-  const filtered = episode === null
-    ? media
-    : media.filter((item) => {
-        const total = item.episodes;
-        return total === null || total >= episode;
-      });
+  const filtered =
+    episode === null
+      ? media
+      : media.filter((item) => {
+          const total = item.episodes;
+          return total === null || total >= episode;
+        });
   const candidates = filtered.length > 0 ? filtered : media;
   if (candidates.length === 0) {
     return null;
   }
 
   const scored = candidates.map((item) => {
-    const candidateTitles = [
-      item.title?.romaji,
-      item.title?.english,
-      item.title?.native,
-    ]
+    const candidateTitles = [item.title?.romaji, item.title?.english, item.title?.native]
       .filter((value): value is string => typeof value === 'string')
       .map((value) => normalizeTitle(value));
 
@@ -186,7 +190,11 @@ function pickBestSearchResult(
   });
 
   const selected = scored[0]!;
-  const selectedTitle = selected.item.title?.english ?? selected.item.title?.romaji ?? selected.item.title?.native ?? title;
+  const selectedTitle =
+    selected.item.title?.english ??
+    selected.item.title?.romaji ??
+    selected.item.title?.native ??
+    title;
   return { id: selected.item.id, title: selectedTitle };
 }
 
@@ -311,9 +319,7 @@ export function createCoverArtFetcher(
 
       const parsedInfo = await resolveMediaInfo(canonicalTitle);
       const searchBase = parsedInfo?.title ?? cleaned;
-      const searchCandidates = parsedInfo
-        ? buildSearchCandidates(parsedInfo)
-        : [cleaned];
+      const searchCandidates = parsedInfo ? buildSearchCandidates(parsedInfo) : [cleaned];
 
       const effectiveCandidates = searchCandidates.includes(cleaned)
         ? searchCandidates

@@ -149,16 +149,20 @@ test('getLocalVideoMetadata derives title and falls back to null hash on read er
 
 test('guessAnimeVideoMetadata uses guessit basename output first when available', async () => {
   const seenTargets: string[] = [];
-  const parsed = await guessAnimeVideoMetadata('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5', {
-    runGuessit: async (target) => {
-      seenTargets.push(target);
-      return JSON.stringify({
-        title: 'Little Witch Academia',
-        season: 2,
-        episode: 5,
-      });
+  const parsed = await guessAnimeVideoMetadata(
+    '/tmp/Little Witch Academia S02E05.mkv',
+    'Episode 5',
+    {
+      runGuessit: async (target) => {
+        seenTargets.push(target);
+        return JSON.stringify({
+          title: 'Little Witch Academia',
+          season: 2,
+          episode: 5,
+        });
+      },
     },
-  });
+  );
 
   assert.deepEqual(seenTargets, ['Little Witch Academia S02E05.mkv']);
   assert.deepEqual(parsed, {
@@ -176,11 +180,15 @@ test('guessAnimeVideoMetadata uses guessit basename output first when available'
 });
 
 test('guessAnimeVideoMetadata falls back to parser when guessit throws', async () => {
-  const parsed = await guessAnimeVideoMetadata('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5', {
-    runGuessit: async () => {
-      throw new Error('guessit unavailable');
+  const parsed = await guessAnimeVideoMetadata(
+    '/tmp/Little Witch Academia S02E05.mkv',
+    'Episode 5',
+    {
+      runGuessit: async () => {
+        throw new Error('guessit unavailable');
+      },
     },
-  });
+  );
 
   assert.deepEqual(parsed, {
     parsedBasename: 'Little Witch Academia S02E05.mkv',
@@ -199,13 +207,9 @@ test('guessAnimeVideoMetadata falls back to parser when guessit throws', async (
 });
 
 test('guessAnimeVideoMetadata falls back when guessit output is incomplete', async () => {
-  const parsed = await guessAnimeVideoMetadata(
-    '/tmp/[SubsPlease] Frieren - 03 (1080p).mkv',
-    null,
-    {
-      runGuessit: async () => JSON.stringify({ episode: 3 }),
-    },
-  );
+  const parsed = await guessAnimeVideoMetadata('/tmp/[SubsPlease] Frieren - 03 (1080p).mkv', null, {
+    runGuessit: async () => JSON.stringify({ episode: 3 }),
+  });
 
   assert.deepEqual(parsed, {
     parsedBasename: '[SubsPlease] Frieren - 03 (1080p).mkv',

@@ -23,10 +23,14 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 function sortAnime(list: ReturnType<typeof useAnimeLibrary>['anime'], key: SortKey) {
   return [...list].sort((a, b) => {
     switch (key) {
-      case 'lastWatched': return b.lastWatchedMs - a.lastWatchedMs;
-      case 'watchTime': return b.totalActiveMs - a.totalActiveMs;
-      case 'cards': return b.totalCards - a.totalCards;
-      case 'episodes': return b.episodeCount - a.episodeCount;
+      case 'lastWatched':
+        return b.lastWatchedMs - a.lastWatchedMs;
+      case 'watchTime':
+        return b.totalActiveMs - a.totalActiveMs;
+      case 'cards':
+        return b.totalCards - a.totalCards;
+      case 'episodes':
+        return b.episodeCount - a.episodeCount;
     }
   });
 }
@@ -89,7 +93,9 @@ export function AnimeTab({ initialAnimeId, onClearInitialAnime, onNavigateToWord
           className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-2 py-2 text-sm text-ctp-text focus:outline-none focus:border-ctp-blue"
         >
           {SORT_OPTIONS.map((opt) => (
-            <option key={opt.key} value={opt.key}>{opt.label}</option>
+            <option key={opt.key} value={opt.key}>
+              {opt.label}
+            </option>
           ))}
         </select>
         <div className="flex bg-ctp-surface0 rounded-lg p-0.5 border border-ctp-surface1 shrink-0">

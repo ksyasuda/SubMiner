@@ -337,11 +337,7 @@ export class ImmersionTrackerService {
     return getWordOccurrences(this.db, headword, word, reading, limit, offset);
   }
 
-  async getKanjiOccurrences(
-    kanji: string,
-    limit = 100,
-    offset = 0,
-  ): Promise<KanjiOccurrenceRow[]> {
+  async getKanjiOccurrences(kanji: string, limit = 100, offset = 0): Promise<KanjiOccurrenceRow[]> {
     return getKanjiOccurrences(this.db, kanji, limit, offset);
   }
 
@@ -413,16 +409,21 @@ export class ImmersionTrackerService {
     deleteVideoQuery(this.db, videoId);
   }
 
-  async reassignAnimeAnilist(animeId: number, info: {
-    anilistId: number;
-    titleRomaji?: string | null;
-    titleEnglish?: string | null;
-    titleNative?: string | null;
-    episodesTotal?: number | null;
-    description?: string | null;
-    coverUrl?: string | null;
-  }): Promise<void> {
-    this.db.prepare(`
+  async reassignAnimeAnilist(
+    animeId: number,
+    info: {
+      anilistId: number;
+      titleRomaji?: string | null;
+      titleEnglish?: string | null;
+      titleNative?: string | null;
+      episodesTotal?: number | null;
+      description?: string | null;
+      coverUrl?: string | null;
+    },
+  ): Promise<void> {
+    this.db
+      .prepare(
+        `
       UPDATE imm_anime
       SET anilist_id = ?,
           title_romaji = COALESCE(?, title_romaji),
@@ -432,39 +433,55 @@ export class ImmersionTrackerService {
           description = ?,
           LAST_UPDATE_DATE = ?
       WHERE anime_id = ?
-    `).run(
-      info.anilistId,
-      info.titleRomaji ?? null,
-      info.titleEnglish ?? null,
-      info.titleNative ?? null,
-      info.episodesTotal ?? null,
-      info.description ?? null,
-      Date.now(),
-      animeId,
-    );
+    `,
+      )
+      .run(
+        info.anilistId,
+        info.titleRomaji ?? null,
+        info.titleEnglish ?? null,
+        info.titleNative ?? null,
+        info.episodesTotal ?? null,
+        info.description ?? null,
+        Date.now(),
+        animeId,
+      );
 
     // Update cover art for all videos in this anime
     if (info.coverUrl) {
-      const videos = this.db.prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?')
+      const videos = this.db
+        .prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?')
         .all(animeId) as Array<{ video_id: number }>;
       let coverBlob: Buffer | null = null;
       try {
         const res = await fetch(info.coverUrl);
         if (res.ok) coverBlob = Buffer.from(await res.arrayBuffer());
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       for (const v of videos) {
-        this.db.prepare(`
+        this.db
+          .prepare(
+            `
           INSERT INTO imm_media_art (video_id, anilist_id, cover_url, cover_blob, title_romaji, title_english, episodes_total, fetched_at_ms, CREATED_DATE, LAST_UPDATE_DATE)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(video_id) DO UPDATE SET
             anilist_id = excluded.anilist_id, cover_url = excluded.cover_url, cover_blob = COALESCE(excluded.cover_blob, cover_blob),
             title_romaji = excluded.title_romaji, title_english = excluded.title_english, episodes_total = excluded.episodes_total,
             fetched_at_ms = excluded.fetched_at_ms, LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
-        `).run(
-          v.video_id, info.anilistId, info.coverUrl, coverBlob,
-          info.titleRomaji ?? null, info.titleEnglish ?? null, info.episodesTotal ?? null,
-          Date.now(), Date.now(), Date.now(),
-        );
+        `,
+          )
+          .run(
+            v.video_id,
+            info.anilistId,
+            info.coverUrl,
+            coverBlob,
+            info.titleRomaji ?? null,
+            info.titleEnglish ?? null,
+            info.episodesTotal ?? null,
+            Date.now(),
+            Date.now(),
+            Date.now(),
+          );
       }
     }
   }
@@ -650,11 +667,7 @@ export class ImmersionTrackerService {
       if (!headword || !word) {
         continue;
       }
-      const wordKey = [
-        headword,
-        word,
-        reading,
-      ].join('\u0000');
+      const wordKey = [headword, word, reading].join('\u0000');
       const storedPartOfSpeech = deriveStoredPartOfSpeech({
         partOfSpeech: token.partOfSpeech,
         pos1: token.pos1 ?? '',
@@ -729,7 +742,8 @@ export class ImmersionTrackerService {
     const durationMs = Math.round(durationSec * 1000);
     const current = getVideoDurationMs(this.db, this.sessionState.videoId);
     if (current === 0 || Math.abs(current - durationMs) > 1000) {
-      this.db.prepare('UPDATE imm_videos SET duration_ms = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?')
+      this.db
+        .prepare('UPDATE imm_videos SET duration_ms = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?')
         .run(durationMs, Date.now(), this.sessionState.videoId);
     }
   }

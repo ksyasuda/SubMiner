@@ -56,7 +56,8 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
       <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
         <h3 className="text-sm font-semibold text-ctp-text mb-2">Most Common Words Seen</h3>
         <div className="text-xs text-ctp-overlay2">
-          No frequency rank data available. Run the frequency backfill script or install a frequency dictionary.
+          No frequency rank data available. Run the frequency backfill script or install a frequency
+          dictionary.
         </div>
       </div>
     );
@@ -73,14 +74,21 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
           onClick={() => setCollapsed(!collapsed)}
           className="flex items-center gap-2 text-sm font-semibold text-ctp-text hover:text-ctp-subtext1 transition-colors"
         >
-          <span className={`text-xs text-ctp-overlay2 transition-transform ${collapsed ? '' : 'rotate-90'}`}>{'\u25B6'}</span>
+          <span
+            className={`text-xs text-ctp-overlay2 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+          >
+            {'\u25B6'}
+          </span>
           {hideKnown && hasKnownData ? 'Common Words Not Yet Mined' : 'Most Common Words Seen'}
         </button>
         <div className="flex items-center gap-3">
           {hasKnownData && (
             <button
               type="button"
-              onClick={() => { setHideKnown(!hideKnown); setPage(0); }}
+              onClick={() => {
+                setHideKnown(!hideKnown);
+                setPage(0);
+              }}
               className={`px-2.5 py-1 rounded-lg text-xs transition-colors border ${
                 hideKnown
                   ? 'bg-ctp-surface2 text-ctp-text border-ctp-blue/50'
@@ -90,9 +98,7 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
               Hide Known
             </button>
           )}
-          <span className="text-xs text-ctp-overlay2">
-            {ranked.length} words
-          </span>
+          <span className="text-xs text-ctp-overlay2">{ranked.length} words</span>
         </div>
       </div>
       {collapsed ? null : ranked.length === 0 ? (
@@ -122,9 +128,7 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
                     <td className="py-1.5 pr-3 font-mono tabular-nums text-ctp-peach text-xs">
                       #{w.frequencyRank!.toLocaleString()}
                     </td>
-                    <td className="py-1.5 pr-3 text-ctp-text font-medium">
-                      {w.headword}
-                    </td>
+                    <td className="py-1.5 pr-3 text-ctp-text font-medium">{w.headword}</td>
                     <td className="py-1.5 pr-3 text-ctp-subtext0">
                       {fullReading(w.headword, w.reading) || w.headword}
                     </td>
@@ -149,7 +153,9 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
               >
                 Prev
               </button>
-              <span className="text-ctp-overlay2">{page + 1} / {totalPages}</span>
+              <span className="text-ctp-overlay2">
+                {page + 1} / {totalPages}
+              </span>
               <button
                 type="button"
                 disabled={page >= totalPages - 1}

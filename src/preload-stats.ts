@@ -2,8 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 
 const statsAPI = {
-  getOverview: (): Promise<unknown> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.statsGetOverview),
+  getOverview: (): Promise<unknown> => ipcRenderer.invoke(IPC_CHANNELS.request.statsGetOverview),
 
   getDailyRollups: (limit?: number): Promise<unknown> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.statsGetDailyRollups, limit),

@@ -32,9 +32,15 @@ function AnimeWatchChart({ animeId }: { animeId: number }) {
     let cancelled = false;
     getStatsClient()
       .getAnimeRollups(animeId, 90)
-      .then((data) => { if (!cancelled) setRollups(data); })
-      .catch(() => { if (!cancelled) setRollups([]); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setRollups(data);
+      })
+      .catch(() => {
+        if (!cancelled) setRollups([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [animeId]);
 
   const byDay = new Map<number, number>();
@@ -75,8 +81,18 @@ function AnimeWatchChart({ animeId }: { animeId: number }) {
       </div>
       <ResponsiveContainer width="100%" height={160}>
         <BarChart data={chartData}>
-          <XAxis dataKey="date" tick={{ fontSize: 10, fill: CHART_THEME.tick }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: CHART_THEME.tick }} axisLine={false} tickLine={false} width={30} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10, fill: CHART_THEME.tick }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: CHART_THEME.tick }}
+            axisLine={false}
+            tickLine={false}
+            width={30}
+          />
           <Tooltip
             contentStyle={{
               background: CHART_THEME.tooltipBg,
@@ -104,9 +120,8 @@ export function AnimeDetailView({ animeId, onBack, onNavigateToWord }: AnimeDeta
   if (!data?.detail) return <div className="text-ctp-overlay2 p-4">Anime not found</div>;
 
   const { detail, episodes, anilistEntries } = data;
-  const avgSessionMs = detail.totalSessions > 0
-    ? Math.round(detail.totalActiveMs / detail.totalSessions)
-    : 0;
+  const avgSessionMs =
+    detail.totalSessions > 0 ? Math.round(detail.totalActiveMs / detail.totalSessions) : 0;
 
   return (
     <div className="space-y-4">
@@ -123,9 +138,17 @@ export function AnimeDetailView({ animeId, onBack, onNavigateToWord }: AnimeDeta
         onChangeAnilist={() => setShowAnilistSelector(true)}
       />
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-        <StatCard label="Watch Time" value={formatDuration(detail.totalActiveMs)} color="text-ctp-blue" />
+        <StatCard
+          label="Watch Time"
+          value={formatDuration(detail.totalActiveMs)}
+          color="text-ctp-blue"
+        />
         <StatCard label="Cards" value={formatNumber(detail.totalCards)} color="text-ctp-green" />
-        <StatCard label="Words" value={formatNumber(detail.totalWordsSeen)} color="text-ctp-mauve" />
+        <StatCard
+          label="Words"
+          value={formatNumber(detail.totalWordsSeen)}
+          color="text-ctp-mauve"
+        />
         <StatCard label="Sessions" value={String(detail.totalSessions)} color="text-ctp-peach" />
         <StatCard label="Avg Session" value={formatDuration(avgSessionMs)} />
       </div>

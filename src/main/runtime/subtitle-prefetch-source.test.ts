@@ -27,13 +27,16 @@ test('getActiveExternalSubtitleSource returns null when the selected track is no
 });
 
 test('resolveSubtitleSourcePath converts file URLs with spaces into filesystem paths', () => {
-  const fileUrl = process.platform === 'win32'
-    ? 'file:///C:/Users/test/Sub%20Folder/subs.ass'
-    : 'file:///tmp/Sub%20Folder/subs.ass';
+  const fileUrl =
+    process.platform === 'win32'
+      ? 'file:///C:/Users/test/Sub%20Folder/subs.ass'
+      : 'file:///tmp/Sub%20Folder/subs.ass';
 
   const resolved = resolveSubtitleSourcePath(fileUrl);
 
-  assert.ok(resolved.endsWith('/Sub Folder/subs.ass') || resolved.endsWith('\\Sub Folder\\subs.ass'));
+  assert.ok(
+    resolved.endsWith('/Sub Folder/subs.ass') || resolved.endsWith('\\Sub Folder\\subs.ass'),
+  );
 });
 
 test('resolveSubtitleSourcePath leaves non-file sources unchanged', () => {

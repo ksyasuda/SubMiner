@@ -58,8 +58,18 @@ export function MediaWatchChart({ rollups }: MediaWatchChartProps) {
       </div>
       <ResponsiveContainer width="100%" height={160}>
         <BarChart data={chartData}>
-          <XAxis dataKey="date" tick={{ fontSize: 10, fill: CHART_THEME.tick }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: CHART_THEME.tick }} axisLine={false} tickLine={false} width={30} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10, fill: CHART_THEME.tick }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: CHART_THEME.tick }}
+            axisLine={false}
+            tickLine={false}
+            width={30}
+          />
           <Tooltip
             contentStyle={{
               background: CHART_THEME.tooltipBg,

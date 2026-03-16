@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { getStatsClient } from './useStatsApi';
-import type { DailyRollup, MonthlyRollup, EpisodesPerDay, NewAnimePerDay, WatchTimePerAnime, SessionSummary, AnimeLibraryItem } from '../types/stats';
+import type {
+  DailyRollup,
+  MonthlyRollup,
+  EpisodesPerDay,
+  NewAnimePerDay,
+  WatchTimePerAnime,
+  SessionSummary,
+  AnimeLibraryItem,
+} from '../types/stats';
 
 export type TimeRange = '7d' | '30d' | '90d' | 'all';
 export type GroupBy = 'day' | 'month';
@@ -35,9 +43,7 @@ export function useTrends(range: TimeRange, groupBy: GroupBy) {
     const monthlyLimit = Math.max(1, Math.ceil(limit / 30));
 
     const rollupFetcher =
-      groupBy === 'month'
-        ? client.getMonthlyRollups(monthlyLimit)
-        : client.getDailyRollups(limit);
+      groupBy === 'month' ? client.getMonthlyRollups(monthlyLimit) : client.getDailyRollups(limit);
 
     Promise.all([
       rollupFetcher,
@@ -47,9 +53,18 @@ export function useTrends(range: TimeRange, groupBy: GroupBy) {
       client.getSessions(500),
       client.getAnimeLibrary(),
     ])
-      .then(([rollups, episodesPerDay, newAnimePerDay, watchTimePerAnime, sessions, animeLibrary]) => {
-        setData({ rollups, episodesPerDay, newAnimePerDay, watchTimePerAnime, sessions, animeLibrary });
-      })
+      .then(
+        ([rollups, episodesPerDay, newAnimePerDay, watchTimePerAnime, sessions, animeLibrary]) => {
+          setData({
+            rollups,
+            episodesPerDay,
+            newAnimePerDay,
+            watchTimePerAnime,
+            sessions,
+            animeLibrary,
+          });
+        },
+      )
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [range, groupBy]);

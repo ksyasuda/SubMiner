@@ -105,7 +105,8 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'ankiConnect.knownWords.decks',
       kind: 'object',
       defaultValue: defaultConfig.ankiConnect.knownWords.decks,
-      description: 'Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.',
+      description:
+        'Decks and fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word", "Word Reading"] }.',
     },
     {
       path: 'ankiConnect.nPlusOne.nPlusOne',

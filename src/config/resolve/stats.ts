@@ -24,13 +24,23 @@ export function applyStatsConfig(context: ResolveContext): void {
   if (autoStartServer !== undefined) {
     resolved.stats.autoStartServer = autoStartServer;
   } else if (src.stats.autoStartServer !== undefined) {
-    warn('stats.autoStartServer', src.stats.autoStartServer, resolved.stats.autoStartServer, 'Expected boolean.');
+    warn(
+      'stats.autoStartServer',
+      src.stats.autoStartServer,
+      resolved.stats.autoStartServer,
+      'Expected boolean.',
+    );
   }
 
   const autoOpenBrowser = asBoolean(src.stats.autoOpenBrowser);
   if (autoOpenBrowser !== undefined) {
     resolved.stats.autoOpenBrowser = autoOpenBrowser;
   } else if (src.stats.autoOpenBrowser !== undefined) {
-    warn('stats.autoOpenBrowser', src.stats.autoOpenBrowser, resolved.stats.autoOpenBrowser, 'Expected boolean.');
+    warn(
+      'stats.autoOpenBrowser',
+      src.stats.autoOpenBrowser,
+      resolved.stats.autoOpenBrowser,
+      'Expected boolean.',
+    );
   }
 }

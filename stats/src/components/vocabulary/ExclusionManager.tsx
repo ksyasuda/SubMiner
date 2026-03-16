@@ -7,7 +7,12 @@ interface ExclusionManagerProps {
   onClose: () => void;
 }
 
-export function ExclusionManager({ excluded, onRemove, onClearAll, onClose }: ExclusionManagerProps) {
+export function ExclusionManager({
+  excluded,
+  onRemove,
+  onClearAll,
+  onClose,
+}: ExclusionManagerProps) {
   return (
     <div className="fixed inset-0 z-50">
       <button
@@ -44,11 +49,12 @@ export function ExclusionManager({ excluded, onRemove, onClearAll, onClose }: Ex
         <div className="max-h-80 overflow-y-auto px-5 py-3">
           {excluded.length === 0 ? (
             <div className="py-6 text-center text-sm text-ctp-overlay2">
-              No excluded words yet. Use the Exclude button on a word's detail panel to hide it from stats.
+              No excluded words yet. Use the Exclude button on a word's detail panel to hide it from
+              stats.
             </div>
           ) : (
             <div className="space-y-1.5">
-              {excluded.map(w => (
+              {excluded.map((w) => (
                 <div
                   key={`${w.headword}\0${w.word}\0${w.reading}`}
                   className="flex items-center justify-between rounded-lg bg-ctp-surface0 px-3 py-2"

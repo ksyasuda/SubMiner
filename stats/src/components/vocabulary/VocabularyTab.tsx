@@ -26,7 +26,14 @@ function isProperNoun(w: VocabularyEntry): boolean {
   return w.pos2 === '固有名詞';
 }
 
-export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail, excluded, isExcluded, onRemoveExclusion, onClearExclusions }: VocabularyTabProps) {
+export function VocabularyTab({
+  onNavigateToAnime,
+  onOpenWordDetail,
+  excluded,
+  isExcluded,
+  onRemoveExclusion,
+  onClearExclusions,
+}: VocabularyTabProps) {
   const { words, kanji, knownWords, loading, error } = useVocabulary();
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
@@ -63,7 +70,7 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail, excluded, i
   };
 
   const handleBarClick = (headword: string): void => {
-    const match = filteredWords.find(w => w.headword === headword);
+    const match = filteredWords.find((w) => w.headword === headword);
     if (match) onOpenWordDetail?.(match.wordId);
   };
 
@@ -74,8 +81,16 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail, excluded, i
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
-        <StatCard label="Unique Words" value={formatNumber(summary.uniqueWords)} color="text-ctp-blue" />
-        <StatCard label="Unique Kanji" value={formatNumber(summary.uniqueKanji)} color="text-ctp-green" />
+        <StatCard
+          label="Unique Words"
+          value={formatNumber(summary.uniqueWords)}
+          color="text-ctp-blue"
+        />
+        <StatCard
+          label="Unique Kanji"
+          value={formatNumber(summary.uniqueKanji)}
+          color="text-ctp-green"
+        />
         <StatCard
           label="New This Week"
           value={`+${formatNumber(summary.newThisWeek)}`}
@@ -133,9 +148,17 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail, excluded, i
         />
       </div>
 
-      <FrequencyRankTable words={filteredWords} knownWords={knownWords} onSelectWord={handleSelectWord} />
+      <FrequencyRankTable
+        words={filteredWords}
+        knownWords={knownWords}
+        onSelectWord={handleSelectWord}
+      />
 
-      <CrossAnimeWordsTable words={filteredWords} knownWords={knownWords} onSelectWord={handleSelectWord} />
+      <CrossAnimeWordsTable
+        words={filteredWords}
+        knownWords={knownWords}
+        onSelectWord={handleSelectWord}
+      />
 
       <WordList
         words={filteredWords}

@@ -13,7 +13,9 @@ export function AnimeCoverImage({ animeId, title, className = '' }: AnimeCoverIm
 
   if (failed) {
     return (
-      <div className={`bg-ctp-surface2 flex items-center justify-center text-ctp-overlay2 text-2xl font-bold ${className}`}>
+      <div
+        className={`bg-ctp-surface2 flex items-center justify-center text-ctp-overlay2 text-2xl font-bold ${className}`}
+      >
         {fallbackChar}
       </div>
     );

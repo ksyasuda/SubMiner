@@ -18,7 +18,12 @@ interface AnilistSelectorProps {
   onLinked: () => void;
 }
 
-export function AnilistSelector({ animeId, initialQuery, onClose, onLinked }: AnilistSelectorProps) {
+export function AnilistSelector({
+  animeId,
+  initialQuery,
+  onClose,
+  onLinked,
+}: AnilistSelectorProps) {
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<AnilistMedia[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,7 +37,10 @@ export function AnilistSelector({ animeId, initialQuery, onClose, onLinked }: An
   }, []);
 
   const doSearch = async (q: string) => {
-    if (!q.trim()) { setResults([]); return; }
+    if (!q.trim()) {
+      setResults([]);
+      return;
+    }
     setLoading(true);
     try {
       const data = await apiClient.searchAnilist(q.trim());

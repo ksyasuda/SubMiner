@@ -81,12 +81,16 @@ export async function runStatsCommand(
       'stats',
     );
     const startupResult = await Promise.race([
-      deps.waitForStatsResponse(responsePath).then((response) => ({ kind: 'response' as const, response })),
+      deps
+        .waitForStatsResponse(responsePath)
+        .then((response) => ({ kind: 'response' as const, response })),
       attachedExitPromise.then((status) => ({ kind: 'exit' as const, status })),
     ]);
     if (startupResult.kind === 'exit') {
       if (startupResult.status !== 0) {
-        throw new Error(`Stats app exited before startup response (status ${startupResult.status}).`);
+        throw new Error(
+          `Stats app exited before startup response (status ${startupResult.status}).`,
+        );
       }
       const response = await deps.waitForStatsResponse(responsePath);
       if (!response.ok) {

@@ -73,7 +73,12 @@ export interface IpcServiceDeps {
     getSessionSummaries: (limit?: number) => Promise<unknown>;
     getDailyRollups: (limit?: number) => Promise<unknown>;
     getMonthlyRollups: (limit?: number) => Promise<unknown>;
-    getQueryHints: () => Promise<{ totalSessions: number; activeSessions: number; episodesToday: number; activeAnimeCount: number }>;
+    getQueryHints: () => Promise<{
+      totalSessions: number;
+      activeSessions: number;
+      episodesToday: number;
+      activeAnimeCount: number;
+    }>;
     getSessionTimeline: (sessionId: number, limit?: number) => Promise<unknown>;
     getSessionEvents: (sessionId: number, limit?: number) => Promise<unknown>;
     getVocabularyStats: (limit?: number) => Promise<unknown>;
@@ -512,13 +517,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     return deps.immersionTracker?.getMediaLibrary() ?? [];
   });
 
-  ipc.handle(
-    IPC_CHANNELS.request.statsGetMediaDetail,
-    async (_event, videoId: unknown) => {
-      if (typeof videoId !== 'number') return null;
-      return deps.immersionTracker?.getMediaDetail(videoId) ?? null;
-    },
-  );
+  ipc.handle(IPC_CHANNELS.request.statsGetMediaDetail, async (_event, videoId: unknown) => {
+    if (typeof videoId !== 'number') return null;
+    return deps.immersionTracker?.getMediaDetail(videoId) ?? null;
+  });
 
   ipc.handle(
     IPC_CHANNELS.request.statsGetMediaSessions,
@@ -538,11 +540,8 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     },
   );
 
-  ipc.handle(
-    IPC_CHANNELS.request.statsGetMediaCover,
-    async (_event, videoId: unknown) => {
-      if (typeof videoId !== 'number') return null;
-      return deps.immersionTracker?.getCoverArt(videoId) ?? null;
-    },
-  );
+  ipc.handle(IPC_CHANNELS.request.statsGetMediaCover, async (_event, videoId: unknown) => {
+    if (typeof videoId !== 'number') return null;
+    return deps.immersionTracker?.getCoverArt(videoId) ?? null;
+  });
 }

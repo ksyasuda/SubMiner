@@ -335,15 +335,18 @@ test('dictionary command forwards --dictionary and --dictionary-target to app co
   });
 });
 
-test('stats command launches attached app flow and waits for response file', { timeout: 15000 }, () => {
-  withTempDir((root) => {
-    const homeDir = path.join(root, 'home');
-    const xdgConfigHome = path.join(root, 'xdg');
-    const appPath = path.join(root, 'fake-subminer.sh');
-    const capturePath = path.join(root, 'captured-args.txt');
-    fs.writeFileSync(
-      appPath,
-      `#!/bin/sh
+test(
+  'stats command launches attached app flow and waits for response file',
+  { timeout: 15000 },
+  () => {
+    withTempDir((root) => {
+      const homeDir = path.join(root, 'home');
+      const xdgConfigHome = path.join(root, 'xdg');
+      const appPath = path.join(root, 'fake-subminer.sh');
+      const capturePath = path.join(root, 'captured-args.txt');
+      fs.writeFileSync(
+        appPath,
+        `#!/bin/sh
 set -eu
 response_path=""
 prev=""
@@ -369,20 +372,24 @@ mkdir -p "$(dirname "$response_path")"
 printf '%s' '{"ok":true,"url":"http://127.0.0.1:5175"}' > "$response_path"
 exit 0
 `,
-    );
-    fs.chmodSync(appPath, 0o755);
+      );
+      fs.chmodSync(appPath, 0o755);
 
-    const env = {
-      ...makeTestEnv(homeDir, xdgConfigHome),
-      SUBMINER_APPIMAGE_PATH: appPath,
-      SUBMINER_TEST_STATS_CAPTURE: capturePath,
-    };
-    const result = runLauncher(['stats', '--log-level', 'debug'], env);
+      const env = {
+        ...makeTestEnv(homeDir, xdgConfigHome),
+        SUBMINER_APPIMAGE_PATH: appPath,
+        SUBMINER_TEST_STATS_CAPTURE: capturePath,
+      };
+      const result = runLauncher(['stats', '--log-level', 'debug'], env);
 
-    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-    assert.match(fs.readFileSync(capturePath, 'utf8'), /^--stats\n--stats-response-path\n.+\n--log-level\ndebug\n$/);
-  });
-});
+      assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+      assert.match(
+        fs.readFileSync(capturePath, 'utf8'),
+        /^--stats\n--stats-response-path\n.+\n--log-level\ndebug\n$/,
+      );
+    });
+  },
+);
 
 test('jellyfin discovery routes to app --background and remote announce with log-level forwarding', () => {
   withTempDir((root) => {

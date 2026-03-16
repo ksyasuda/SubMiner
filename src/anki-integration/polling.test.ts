@@ -6,7 +6,10 @@ import { PollingRunner } from './polling';
 test('polling runner records newly added cards after initialization', async () => {
   const recordedCards: number[] = [];
   let tracked = new Set<number>();
-  const responses = [[10, 11], [10, 11, 12, 13]];
+  const responses = [
+    [10, 11],
+    [10, 11, 12, 13],
+  ];
   const runner = new PollingRunner({
     getDeck: () => 'Mining',
     getPollingRate: () => 250,

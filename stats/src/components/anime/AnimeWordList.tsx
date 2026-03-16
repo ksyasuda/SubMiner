@@ -18,10 +18,18 @@ export function AnimeWordList({ animeId, onNavigateToWord }: AnimeWordListProps)
     setLoading(true);
     getStatsClient()
       .getAnimeWords(animeId, 50)
-      .then((data) => { if (!cancelled) setWords(data); })
-      .catch(() => { if (!cancelled) setWords([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setWords(data);
+      })
+      .catch(() => {
+        if (!cancelled) setWords([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [animeId]);
 
   if (loading) return <div className="text-ctp-overlay2 text-sm p-4">Loading words...</div>;

@@ -425,8 +425,9 @@ test('ensureSchema adds subtitle-line occurrence tables to schema version 6 data
 
     const tableNames = new Set(
       (
-        db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'imm_%'`).all() as
-          Array<{ name: string }>
+        db
+          .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'imm_%'`)
+          .all() as Array<{ name: string }>
       ).map((row) => row.name),
     );
 
@@ -731,8 +732,28 @@ test('word upsert replaces legacy other part_of_speech when better POS metadata 
     ensureSchema(db);
     const stmts = createTrackerPreparedStatements(db);
 
-    stmts.wordUpsertStmt.run('知っている', '知っている', 'しっている', 'other', '動詞', '自立', '', 10, 10);
-    stmts.wordUpsertStmt.run('知っている', '知っている', 'しっている', 'verb', '動詞', '自立', '', 11, 12);
+    stmts.wordUpsertStmt.run(
+      '知っている',
+      '知っている',
+      'しっている',
+      'other',
+      '動詞',
+      '自立',
+      '',
+      10,
+      10,
+    );
+    stmts.wordUpsertStmt.run(
+      '知っている',
+      '知っている',
+      'しっている',
+      'verb',
+      '動詞',
+      '自立',
+      '',
+      11,
+      12,
+    );
 
     const row = db
       .prepare('SELECT frequency, part_of_speech, pos1, pos2 FROM imm_words WHERE headword = ?')

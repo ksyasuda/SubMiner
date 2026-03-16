@@ -111,7 +111,8 @@ test('fetchIfMissing uses guessit primary title and season when available', asyn
   const db = new Database(dbPath);
   ensureSchema(db);
   const videoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-season-test.mkv', {
-    canonicalTitle: '[Jellyfin] Little Witch Academia S02E05 - 025 - Pact of the Dragon (2020) [1080p].mkv',
+    canonicalTitle:
+      '[Jellyfin] Little Witch Academia S02E05 - 025 - Pact of the Dragon (2020) [1080p].mkv',
     sourcePath: '/tmp/cover-fetcher-season-test.mkv',
     sourceUrl: null,
     sourceType: SOURCE_TYPE_LOCAL,
@@ -138,7 +139,11 @@ test('fetchIfMissing uses guessit primary title and season when available', asyn
                 id: 19,
                 episodes: 24,
                 coverImage: { large: 'https://images.test/cover.jpg', medium: null },
-                title: { romaji: 'Little Witch Academia', english: 'Little Witch Academia', native: null },
+                title: {
+                  romaji: 'Little Witch Academia',
+                  english: 'Little Witch Academia',
+                  native: null,
+                },
               },
             ],
           },

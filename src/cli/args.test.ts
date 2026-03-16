@@ -143,7 +143,11 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(dictionaryTarget.dictionary, true);
   assert.equal(dictionaryTarget.dictionaryTarget, '/tmp/example.mkv');
 
-  const stats = parseArgs(['--stats', '--stats-response-path', '/tmp/subminer-stats-response.json']);
+  const stats = parseArgs([
+    '--stats',
+    '--stats-response-path',
+    '/tmp/subminer-stats-response.json',
+  ]);
   assert.equal(stats.stats, true);
   assert.equal(stats.statsResponsePath, '/tmp/subminer-stats-response.json');
   assert.equal(hasExplicitCommand(stats), true);

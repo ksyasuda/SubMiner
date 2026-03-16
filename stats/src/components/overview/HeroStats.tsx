@@ -10,9 +10,7 @@ interface HeroStatsProps {
 
 export function HeroStats({ summary, sessions }: HeroStatsProps) {
   const today = todayLocalDay();
-  const sessionsToday = sessions.filter(
-    (s) => localDayFromMs(s.startedAtMs) === today,
-  ).length;
+  const sessionsToday = sessions.filter((s) => localDayFromMs(s.startedAtMs) === today).length;
 
   return (
     <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
@@ -36,11 +34,7 @@ export function HeroStats({ summary, sessions }: HeroStatsProps) {
         value={formatNumber(summary.episodesToday)}
         color="text-ctp-teal"
       />
-      <StatCard
-        label="Current Streak"
-        value={`${summary.streakDays}d`}
-        color="text-ctp-peach"
-      />
+      <StatCard label="Current Streak" value={`${summary.streakDays}d`} color="text-ctp-peach" />
       <StatCard
         label="Active Anime"
         value={formatNumber(summary.activeAnimeCount)}

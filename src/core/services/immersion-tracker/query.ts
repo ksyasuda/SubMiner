@@ -133,27 +133,54 @@ export function getQueryHints(db: DatabaseSync): {
   const activeSessions = Number((active.get() as { total?: number } | null)?.total ?? 0);
 
   const now = new Date();
-  const todayLocal = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 86_400_000);
-  const episodesToday = (db.prepare(`
+  const todayLocal = Math.floor(
+    new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 86_400_000,
+  );
+  const episodesToday =
+    (
+      db
+        .prepare(
+          `
     SELECT COUNT(DISTINCT s.video_id) AS count
     FROM imm_sessions s
     WHERE CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) = ?
-  `).get(todayLocal) as { count: number })?.count ?? 0;
+  `,
+        )
+        .get(todayLocal) as { count: number }
+    )?.count ?? 0;
 
   const thirtyDaysAgoMs = Date.now() - 30 * 86400000;
-  const activeAnimeCount = (db.prepare(`
+  const activeAnimeCount =
+    (
+      db
+        .prepare(
+          `
     SELECT COUNT(DISTINCT v.anime_id) AS count
     FROM imm_sessions s
     JOIN imm_videos v ON v.video_id = s.video_id
     WHERE v.anime_id IS NOT NULL
     AND s.started_at_ms >= ?
-  `).get(thirtyDaysAgoMs) as { count: number })?.count ?? 0;
+  `,
+        )
+        .get(thirtyDaysAgoMs) as { count: number }
+    )?.count ?? 0;
 
-  const totalEpisodesWatched = (db.prepare(`
+  const totalEpisodesWatched =
+    (
+      db
+        .prepare(
+          `
     SELECT COUNT(*) AS count FROM imm_videos WHERE watched = 1
-  `).get() as { count: number })?.count ?? 0;
+  `,
+        )
+        .get() as { count: number }
+    )?.count ?? 0;
 
-  const totalAnimeCompleted = (db.prepare(`
+  const totalAnimeCompleted =
+    (
+      db
+        .prepare(
+          `
     SELECT COUNT(*) AS count FROM (
       SELECT a.anime_id
       FROM imm_anime a
@@ -163,9 +190,19 @@ export function getQueryHints(db: DatabaseSync): {
       GROUP BY a.anime_id
       HAVING COUNT(DISTINCT CASE WHEN v.watched = 1 THEN v.video_id END) >= MAX(m.episodes_total)
     )
-  `).get() as { count: number })?.count ?? 0;
+  `,
+        )
+        .get() as { count: number }
+    )?.count ?? 0;
 
-  return { totalSessions, activeSessions, episodesToday, activeAnimeCount, totalEpisodesWatched, totalAnimeCompleted };
+  return {
+    totalSessions,
+    activeSessions,
+    episodesToday,
+    activeAnimeCount,
+    totalEpisodesWatched,
+    totalAnimeCompleted,
+  };
 }
 
 export function getDailyRollups(db: DatabaseSync, limit = 60): ImmersionSessionRollupRow[] {
@@ -420,7 +457,9 @@ export async function cleanupVocabularyStats(
      ON CONFLICT(line_id, word_id) DO UPDATE SET
        occurrence_count = imm_word_line_occurrences.occurrence_count + excluded.occurrence_count`,
   );
-  const deleteOccurrencesStmt = db.prepare('DELETE FROM imm_word_line_occurrences WHERE word_id = ?');
+  const deleteOccurrencesStmt = db.prepare(
+    'DELETE FROM imm_word_line_occurrences WHERE word_id = ?',
+  );
   let kept = 0;
   let deleted = 0;
   let repaired = 0;
@@ -434,18 +473,16 @@ export async function cleanupVocabularyStats(
         row.word,
         resolvedPos.reading,
         row.id,
-      ) as
-        | {
-            id: number;
-            part_of_speech: string | null;
-            pos1: string | null;
-            pos2: string | null;
-            pos3: string | null;
-            first_seen: number | null;
-            last_seen: number | null;
-            frequency: number | null;
-          }
-        | null;
+      ) as {
+        id: number;
+        part_of_speech: string | null;
+        pos1: string | null;
+        pos2: string | null;
+        pos3: string | null;
+        first_seen: number | null;
+        last_seen: number | null;
+        frequency: number | null;
+      } | null;
       if (duplicate) {
         moveOccurrencesStmt.run(duplicate.id, row.id);
         deleteOccurrencesStmt.run(row.id);
@@ -493,7 +530,10 @@ export async function cleanupVocabularyStats(
       !normalizePosField(effectiveRow.pos1) &&
       !normalizePosField(effectiveRow.pos2) &&
       !normalizePosField(effectiveRow.pos3);
-    if (missingPos || shouldExcludeTokenFromVocabularyPersistence(toStoredWordToken(effectiveRow))) {
+    if (
+      missingPos ||
+      shouldExcludeTokenFromVocabularyPersistence(toStoredWordToken(effectiveRow))
+    ) {
       deleteStmt.run(row.id);
       deleted += 1;
       continue;
@@ -605,7 +645,9 @@ export function getSessionEvents(
 }
 
 export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT
       a.anime_id AS animeId,
       a.canonical_title AS canonicalTitle,
@@ -631,11 +673,15 @@ export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
     ) sm ON sm.session_id = s.session_id
     GROUP BY a.anime_id
     ORDER BY totalActiveMs DESC, lastWatchedMs DESC, canonicalTitle ASC
-  `).all() as unknown as AnimeLibraryRow[];
+  `,
+    )
+    .all() as unknown as AnimeLibraryRow[];
 }
 
 export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRow | null {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT
       a.anime_id AS animeId,
       a.canonical_title AS canonicalTitle,
@@ -670,11 +716,15 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
     ) sm ON sm.session_id = s.session_id
     WHERE a.anime_id = ?
     GROUP BY a.anime_id
-  `).get(animeId) as unknown as AnimeDetailRow | null;
+  `,
+    )
+    .get(animeId) as unknown as AnimeDetailRow | null;
 }
 
 export function getAnimeAnilistEntries(db: DatabaseSync, animeId: number): AnimeAnilistEntryRow[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT DISTINCT
       m.anilist_id AS anilistId,
       m.title_romaji AS titleRomaji,
@@ -685,11 +735,15 @@ export function getAnimeAnilistEntries(db: DatabaseSync, animeId: number): Anime
     WHERE v.anime_id = ?
       AND m.anilist_id IS NOT NULL
     ORDER BY v.parsed_season ASC
-  `).all(animeId) as unknown as AnimeAnilistEntryRow[];
+  `,
+    )
+    .all(animeId) as unknown as AnimeAnilistEntryRow[];
 }
 
 export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisodeRow[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT
       v.anime_id AS animeId,
       v.video_id AS videoId,
@@ -723,11 +777,15 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       CASE WHEN v.parsed_episode IS NULL THEN 1 ELSE 0 END,
       v.parsed_episode ASC,
       v.video_id ASC
-  `).all(animeId) as unknown as AnimeEpisodeRow[];
+  `,
+    )
+    .all(animeId) as unknown as AnimeEpisodeRow[];
 }
 
 export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT
       v.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
@@ -751,11 +809,15 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
     LEFT JOIN imm_media_art ma ON ma.video_id = v.video_id
     GROUP BY v.video_id
     ORDER BY lastWatchedMs DESC
-  `).all() as unknown as MediaLibraryRow[];
+  `,
+    )
+    .all() as unknown as MediaLibraryRow[];
 }
 
 export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRow | null {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT
       v.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
@@ -782,11 +844,19 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
     ) sm ON sm.session_id = s.session_id
     WHERE v.video_id = ?
     GROUP BY v.video_id
-  `).get(videoId) as unknown as MediaDetailRow | null;
+  `,
+    )
+    .get(videoId) as unknown as MediaDetailRow | null;
 }
 
-export function getMediaSessions(db: DatabaseSync, videoId: number, limit = 100): SessionSummaryQueryRow[] {
-  return db.prepare(`
+export function getMediaSessions(
+  db: DatabaseSync,
+  videoId: number,
+  limit = 100,
+): SessionSummaryQueryRow[] {
+  return db
+    .prepare(
+      `
     SELECT
       s.session_id AS sessionId,
       s.video_id AS videoId,
@@ -808,11 +878,19 @@ export function getMediaSessions(db: DatabaseSync, videoId: number, limit = 100)
     GROUP BY s.session_id
     ORDER BY s.started_at_ms DESC
     LIMIT ?
-  `).all(videoId, limit) as unknown as SessionSummaryQueryRow[];
+  `,
+    )
+    .all(videoId, limit) as unknown as SessionSummaryQueryRow[];
 }
 
-export function getMediaDailyRollups(db: DatabaseSync, videoId: number, limit = 90): ImmersionSessionRollupRow[] {
-  return db.prepare(`
+export function getMediaDailyRollups(
+  db: DatabaseSync,
+  videoId: number,
+  limit = 90,
+): ImmersionSessionRollupRow[] {
+  return db
+    .prepare(
+      `
     SELECT
       rollup_day AS rollupDayOrMonth,
       video_id AS videoId,
@@ -829,11 +907,15 @@ export function getMediaDailyRollups(db: DatabaseSync, videoId: number, limit = 
     WHERE video_id = ?
     ORDER BY rollup_day DESC
     LIMIT ?
-  `).all(videoId, limit) as unknown as ImmersionSessionRollupRow[];
+  `,
+    )
+    .all(videoId, limit) as unknown as ImmersionSessionRollupRow[];
 }
 
 export function getAnimeCoverArt(db: DatabaseSync, animeId: number): MediaArtRow | null {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT
       a.video_id AS videoId,
       a.anilist_id AS anilistId,
@@ -848,11 +930,15 @@ export function getAnimeCoverArt(db: DatabaseSync, animeId: number): MediaArtRow
     WHERE v.anime_id = ?
     AND a.cover_blob IS NOT NULL
     LIMIT 1
-  `).get(animeId) as unknown as MediaArtRow | null;
+  `,
+    )
+    .get(animeId) as unknown as MediaArtRow | null;
 }
 
 export function getCoverArt(db: DatabaseSync, videoId: number): MediaArtRow | null {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT
       video_id AS videoId,
       anilist_id AS anilistId,
@@ -864,7 +950,9 @@ export function getCoverArt(db: DatabaseSync, videoId: number): MediaArtRow | nu
       fetched_at_ms AS fetchedAtMs
     FROM imm_media_art
     WHERE video_id = ?
-  `).get(videoId) as unknown as MediaArtRow | null;
+  `,
+    )
+    .get(videoId) as unknown as MediaArtRow | null;
 }
 
 export function getStreakCalendar(db: DatabaseSync, days = 90): StreakCalendarRow[] {
@@ -872,17 +960,23 @@ export function getStreakCalendar(db: DatabaseSync, days = 90): StreakCalendarRo
   const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const todayLocalDay = Math.floor(localMidnight / 86_400_000);
   const cutoffDay = todayLocalDay - days;
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT rollup_day AS epochDay, SUM(total_active_min) AS totalActiveMin
     FROM imm_daily_rollups
     WHERE rollup_day >= ?
     GROUP BY rollup_day
     ORDER BY rollup_day ASC
-  `).all(cutoffDay) as StreakCalendarRow[];
+  `,
+    )
+    .all(cutoffDay) as StreakCalendarRow[];
 }
 
 export function getAnimeWords(db: DatabaseSync, animeId: number, limit = 50): AnimeWordRow[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT w.id AS wordId, w.headword, w.word, w.reading, w.part_of_speech AS partOfSpeech,
            SUM(o.occurrence_count) AS frequency
     FROM imm_word_line_occurrences o
@@ -892,11 +986,19 @@ export function getAnimeWords(db: DatabaseSync, animeId: number, limit = 50): An
     GROUP BY w.id
     ORDER BY frequency DESC
     LIMIT ?
-  `).all(animeId, limit) as unknown as AnimeWordRow[];
+  `,
+    )
+    .all(animeId, limit) as unknown as AnimeWordRow[];
 }
 
-export function getAnimeDailyRollups(db: DatabaseSync, animeId: number, limit = 90): ImmersionSessionRollupRow[] {
-  return db.prepare(`
+export function getAnimeDailyRollups(
+  db: DatabaseSync,
+  animeId: number,
+  limit = 90,
+): ImmersionSessionRollupRow[] {
+  return db
+    .prepare(
+      `
     SELECT r.rollup_day AS rollupDayOrMonth, r.video_id AS videoId,
            r.total_sessions AS totalSessions, r.total_active_min AS totalActiveMin,
            r.total_lines_seen AS totalLinesSeen, r.total_words_seen AS totalWordsSeen,
@@ -908,22 +1010,30 @@ export function getAnimeDailyRollups(db: DatabaseSync, animeId: number, limit = 
     WHERE v.anime_id = ?
     ORDER BY r.rollup_day DESC
     LIMIT ?
-  `).all(animeId, limit) as unknown as ImmersionSessionRollupRow[];
+  `,
+    )
+    .all(animeId, limit) as unknown as ImmersionSessionRollupRow[];
 }
 
 export function getEpisodesPerDay(db: DatabaseSync, limit = 90): EpisodesPerDayRow[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT CAST(julianday(s.started_at_ms / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS epochDay,
            COUNT(DISTINCT s.video_id) AS episodeCount
     FROM imm_sessions s
     GROUP BY epochDay
     ORDER BY epochDay DESC
     LIMIT ?
-  `).all(limit) as EpisodesPerDayRow[];
+  `,
+    )
+    .all(limit) as EpisodesPerDayRow[];
 }
 
 export function getNewAnimePerDay(db: DatabaseSync, limit = 90): NewAnimePerDayRow[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT first_day AS epochDay, COUNT(*) AS newAnimeCount
     FROM (
       SELECT CAST(julianday(MIN(s.started_at_ms) / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS first_day
@@ -935,13 +1045,20 @@ export function getNewAnimePerDay(db: DatabaseSync, limit = 90): NewAnimePerDayR
     GROUP BY first_day
     ORDER BY first_day DESC
     LIMIT ?
-  `).all(limit) as NewAnimePerDayRow[];
+  `,
+    )
+    .all(limit) as NewAnimePerDayRow[];
 }
 
 export function getWatchTimePerAnime(db: DatabaseSync, limit = 90): WatchTimePerAnimeRow[] {
   const nowD = new Date();
-  const cutoffDay = Math.floor(new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate()).getTime() / 86_400_000) - limit;
-  return db.prepare(`
+  const cutoffDay =
+    Math.floor(
+      new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate()).getTime() / 86_400_000,
+    ) - limit;
+  return db
+    .prepare(
+      `
     SELECT r.rollup_day AS epochDay, a.anime_id AS animeId,
            a.canonical_title AS animeTitle,
            SUM(r.total_active_min) AS totalActiveMin
@@ -951,20 +1068,31 @@ export function getWatchTimePerAnime(db: DatabaseSync, limit = 90): WatchTimePer
     WHERE r.rollup_day >= ?
     GROUP BY r.rollup_day, a.anime_id
     ORDER BY r.rollup_day ASC
-  `).all(cutoffDay) as WatchTimePerAnimeRow[];
+  `,
+    )
+    .all(cutoffDay) as WatchTimePerAnimeRow[];
 }
 
 export function getWordDetail(db: DatabaseSync, wordId: number): WordDetailRow | null {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT id AS wordId, headword, word, reading,
            part_of_speech AS partOfSpeech, pos1, pos2, pos3,
            frequency, first_seen AS firstSeen, last_seen AS lastSeen
     FROM imm_words WHERE id = ?
-  `).get(wordId) as WordDetailRow | null;
+  `,
+    )
+    .get(wordId) as WordDetailRow | null;
 }
 
-export function getWordAnimeAppearances(db: DatabaseSync, wordId: number): WordAnimeAppearanceRow[] {
-  return db.prepare(`
+export function getWordAnimeAppearances(
+  db: DatabaseSync,
+  wordId: number,
+): WordAnimeAppearanceRow[] {
+  return db
+    .prepare(
+      `
     SELECT a.anime_id AS animeId, a.canonical_title AS animeTitle,
            SUM(o.occurrence_count) AS occurrenceCount
     FROM imm_word_line_occurrences o
@@ -973,37 +1101,55 @@ export function getWordAnimeAppearances(db: DatabaseSync, wordId: number): WordA
     WHERE o.word_id = ? AND sl.anime_id IS NOT NULL
     GROUP BY a.anime_id
     ORDER BY occurrenceCount DESC
-  `).all(wordId) as WordAnimeAppearanceRow[];
+  `,
+    )
+    .all(wordId) as WordAnimeAppearanceRow[];
 }
 
 export function getSimilarWords(db: DatabaseSync, wordId: number, limit = 10): SimilarWordRow[] {
-  const word = db.prepare('SELECT headword, reading FROM imm_words WHERE id = ?').get(wordId) as { headword: string; reading: string } | null;
+  const word = db.prepare('SELECT headword, reading FROM imm_words WHERE id = ?').get(wordId) as {
+    headword: string;
+    reading: string;
+  } | null;
   if (!word) return [];
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT id AS wordId, headword, word, reading, frequency
     FROM imm_words
     WHERE id != ?
     AND (reading = ? OR headword LIKE ? OR headword LIKE ?)
     ORDER BY frequency DESC
     LIMIT ?
-  `).all(
-    wordId,
-    word.reading,
-    `%${word.headword.charAt(0)}%`,
-    `%${word.headword.charAt(word.headword.length - 1)}%`,
-    limit,
-  ) as SimilarWordRow[];
+  `,
+    )
+    .all(
+      wordId,
+      word.reading,
+      `%${word.headword.charAt(0)}%`,
+      `%${word.headword.charAt(word.headword.length - 1)}%`,
+      limit,
+    ) as SimilarWordRow[];
 }
 
 export function getKanjiDetail(db: DatabaseSync, kanjiId: number): KanjiDetailRow | null {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT id AS kanjiId, kanji, frequency, first_seen AS firstSeen, last_seen AS lastSeen
     FROM imm_kanji WHERE id = ?
-  `).get(kanjiId) as KanjiDetailRow | null;
+  `,
+    )
+    .get(kanjiId) as KanjiDetailRow | null;
 }
 
-export function getKanjiAnimeAppearances(db: DatabaseSync, kanjiId: number): KanjiAnimeAppearanceRow[] {
-  return db.prepare(`
+export function getKanjiAnimeAppearances(
+  db: DatabaseSync,
+  kanjiId: number,
+): KanjiAnimeAppearanceRow[] {
+  return db
+    .prepare(
+      `
     SELECT a.anime_id AS animeId, a.canonical_title AS animeTitle,
            SUM(o.occurrence_count) AS occurrenceCount
     FROM imm_kanji_line_occurrences o
@@ -1012,23 +1158,33 @@ export function getKanjiAnimeAppearances(db: DatabaseSync, kanjiId: number): Kan
     WHERE o.kanji_id = ? AND sl.anime_id IS NOT NULL
     GROUP BY a.anime_id
     ORDER BY occurrenceCount DESC
-  `).all(kanjiId) as KanjiAnimeAppearanceRow[];
+  `,
+    )
+    .all(kanjiId) as KanjiAnimeAppearanceRow[];
 }
 
 export function getKanjiWords(db: DatabaseSync, kanjiId: number, limit = 20): KanjiWordRow[] {
-  const kanjiRow = db.prepare('SELECT kanji FROM imm_kanji WHERE id = ?').get(kanjiId) as { kanji: string } | null;
+  const kanjiRow = db.prepare('SELECT kanji FROM imm_kanji WHERE id = ?').get(kanjiId) as {
+    kanji: string;
+  } | null;
   if (!kanjiRow) return [];
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT id AS wordId, headword, word, reading, frequency
     FROM imm_words
     WHERE headword LIKE ?
     ORDER BY frequency DESC
     LIMIT ?
-  `).all(`%${kanjiRow.kanji}%`, limit) as KanjiWordRow[];
+  `,
+    )
+    .all(`%${kanjiRow.kanji}%`, limit) as KanjiWordRow[];
 }
 
 export function getEpisodeWords(db: DatabaseSync, videoId: number, limit = 50): AnimeWordRow[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT w.id AS wordId, w.headword, w.word, w.reading, w.part_of_speech AS partOfSpeech,
            SUM(o.occurrence_count) AS frequency
     FROM imm_word_line_occurrences o
@@ -1038,11 +1194,15 @@ export function getEpisodeWords(db: DatabaseSync, videoId: number, limit = 50): 
     GROUP BY w.id
     ORDER BY frequency DESC
     LIMIT ?
-  `).all(videoId, limit) as unknown as AnimeWordRow[];
+  `,
+    )
+    .all(videoId, limit) as unknown as AnimeWordRow[];
 }
 
 export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSummaryQueryRow[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT
       s.session_id AS sessionId, s.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
@@ -1061,11 +1221,15 @@ export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSu
     WHERE s.video_id = ?
     GROUP BY s.session_id
     ORDER BY s.started_at_ms DESC
-  `).all(videoId) as SessionSummaryQueryRow[];
+  `,
+    )
+    .all(videoId) as SessionSummaryQueryRow[];
 }
 
 export function getEpisodeCardEvents(db: DatabaseSync, videoId: number): EpisodeCardEventRow[] {
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT e.event_id AS eventId, e.session_id AS sessionId,
            e.ts_ms AS tsMs, e.cards_delta AS cardsDelta,
            e.payload_json AS payloadJson
@@ -1073,9 +1237,17 @@ export function getEpisodeCardEvents(db: DatabaseSync, videoId: number): Episode
     JOIN imm_sessions s ON s.session_id = e.session_id
     WHERE s.video_id = ? AND e.event_type = 4
     ORDER BY e.ts_ms DESC
-  `).all(videoId) as Array<{ eventId: number; sessionId: number; tsMs: number; cardsDelta: number; payloadJson: string | null }>;
+  `,
+    )
+    .all(videoId) as Array<{
+    eventId: number;
+    sessionId: number;
+    tsMs: number;
+    cardsDelta: number;
+    payloadJson: string | null;
+  }>;
 
-  return rows.map(row => {
+  return rows.map((row) => {
     let noteIds: number[] = [];
     if (row.payloadJson) {
       try {
@@ -1083,7 +1255,13 @@ export function getEpisodeCardEvents(db: DatabaseSync, videoId: number): Episode
         if (Array.isArray(parsed.noteIds)) noteIds = parsed.noteIds;
       } catch {}
     }
-    return { eventId: row.eventId, sessionId: row.sessionId, tsMs: row.tsMs, cardsDelta: row.cardsDelta, noteIds };
+    return {
+      eventId: row.eventId,
+      sessionId: row.sessionId,
+      tsMs: row.tsMs,
+      cardsDelta: row.cardsDelta,
+      noteIds,
+    };
   });
 }
 
@@ -1100,7 +1278,8 @@ export function upsertCoverArt(
   },
 ): void {
   const nowMs = Date.now();
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO imm_media_art (
       video_id, anilist_id, cover_url, cover_blob,
       title_romaji, title_english, episodes_total,
@@ -1115,10 +1294,18 @@ export function upsertCoverArt(
       episodes_total = excluded.episodes_total,
       fetched_at_ms = excluded.fetched_at_ms,
       LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
-  `).run(
-    videoId, art.anilistId, art.coverUrl, art.coverBlob,
-    art.titleRomaji, art.titleEnglish, art.episodesTotal,
-    nowMs, nowMs, nowMs,
+  `,
+  ).run(
+    videoId,
+    art.anilistId,
+    art.coverUrl,
+    art.coverBlob,
+    art.titleRomaji,
+    art.titleEnglish,
+    art.episodesTotal,
+    nowMs,
+    nowMs,
+    nowMs,
   );
 }
 
@@ -1138,7 +1325,8 @@ export function updateAnimeAnilistInfo(
   } | null;
   if (!row?.anime_id) return;
 
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE imm_anime
     SET
       anilist_id = COALESCE(?, anilist_id),
@@ -1148,7 +1336,8 @@ export function updateAnimeAnilistInfo(
       episodes_total = COALESCE(?, episodes_total),
       LAST_UPDATE_DATE = ?
     WHERE anime_id = ?
-  `).run(
+  `,
+  ).run(
     info.anilistId,
     info.titleRomaji,
     info.titleEnglish,
@@ -1160,8 +1349,11 @@ export function updateAnimeAnilistInfo(
 }
 
 export function markVideoWatched(db: DatabaseSync, videoId: number, watched: boolean): void {
-  db.prepare('UPDATE imm_videos SET watched = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?')
-    .run(watched ? 1 : 0, Date.now(), videoId);
+  db.prepare('UPDATE imm_videos SET watched = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?').run(
+    watched ? 1 : 0,
+    Date.now(),
+    videoId,
+  );
 }
 
 export function getVideoDurationMs(db: DatabaseSync, videoId: number): number {
@@ -1186,7 +1378,9 @@ export function deleteSession(db: DatabaseSync, sessionId: number): void {
 }
 
 export function deleteVideo(db: DatabaseSync, videoId: number): void {
-  const sessions = db.prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?').all(videoId) as Array<{ session_id: number }>;
+  const sessions = db
+    .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
+    .all(videoId) as Array<{ session_id: number }>;
   for (const s of sessions) {
     deleteSession(db, s.session_id);
   }

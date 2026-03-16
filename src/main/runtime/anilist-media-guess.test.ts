@@ -60,6 +60,11 @@ test('ensureAnilistMediaGuess memoizes in-flight guess promise', async () => {
   assert.deepEqual(first, { title: 'Show', season: null, episode: 1, source: 'guessit' });
   assert.deepEqual(second, { title: 'Show', season: null, episode: 1, source: 'guessit' });
   assert.equal(calls, 1);
-  assert.deepEqual(state.mediaGuess, { title: 'Show', season: null, episode: 1, source: 'guessit' });
+  assert.deepEqual(state.mediaGuess, {
+    title: 'Show',
+    season: null,
+    episode: 1,
+    source: 'guessit',
+  });
   assert.equal(state.mediaGuessPromise, null);
 });

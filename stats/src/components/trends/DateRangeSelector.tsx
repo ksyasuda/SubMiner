@@ -56,7 +56,7 @@ export function DateRangeSelector({
         options={['7d', '30d', '90d', 'all'] as TimeRange[]}
         value={range}
         onChange={onRangeChange}
-        formatLabel={(r) => r === 'all' ? 'All' : r}
+        formatLabel={(r) => (r === 'all' ? 'All' : r)}
       />
       <SegmentedControl
         label="Group by"

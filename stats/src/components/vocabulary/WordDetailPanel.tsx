@@ -24,15 +24,22 @@ function highlightWord(text: string, words: string[]): React.ReactNode {
   const needles = words.filter(Boolean);
   if (needles.length === 0) return text;
 
-  const escaped = needles.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const escaped = needles.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   const pattern = new RegExp(`(${escaped.join('|')})`, 'g');
   const parts = text.split(pattern);
   const needleSet = new Set(needles);
 
   return parts.map((part, i) =>
-    needleSet.has(part)
-      ? <mark key={i} className="bg-transparent text-ctp-blue underline decoration-ctp-blue/40 underline-offset-2">{part}</mark>
-      : part
+    needleSet.has(part) ? (
+      <mark
+        key={i}
+        className="bg-transparent text-ctp-blue underline decoration-ctp-blue/40 underline-offset-2"
+      >
+        {part}
+      </mark>
+    ) : (
+      part
+    ),
   );
 }
 
@@ -44,7 +51,14 @@ function formatSegment(ms: number | null): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
-export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAnime, isExcluded, onToggleExclusion }: WordDetailPanelProps) {
+export function WordDetailPanel({
+  wordId,
+  onClose,
+  onSelectWord,
+  onNavigateToAnime,
+  isExcluded,
+  onToggleExclusion,
+}: WordDetailPanelProps) {
   const { data, loading, error } = useWordDetail(wordId);
   const [occurrences, setOccurrences] = useState<VocabularyOccurrenceEntry[]>([]);
   const [occLoading, setOccLoading] = useState(false);
@@ -68,7 +82,12 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
 
   if (wordId === null) return null;
 
-  const loadOccurrences = async (detail: NonNullable<typeof data>['detail'], offset: number, limit: number, append: boolean) => {
+  const loadOccurrences = async (
+    detail: NonNullable<typeof data>['detail'],
+    offset: number,
+    limit: number,
+    append: boolean,
+  ) => {
     const reqId = ++requestIdRef.current;
     if (append) {
       setOccLoadingMore(true);
@@ -78,11 +97,14 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
     }
     try {
       const rows = await apiClient.getWordOccurrences(
-        detail.headword, detail.word, detail.reading,
-        limit, offset,
+        detail.headword,
+        detail.word,
+        detail.reading,
+        limit,
+        offset,
       );
       if (reqId !== requestIdRef.current) return;
-      setOccurrences(prev => append ? [...prev, ...rows] : rows);
+      setOccurrences((prev) => (append ? [...prev, ...rows] : rows));
       setHasMore(rows.length === limit);
     } catch (err) {
       if (reqId !== requestIdRef.current) return;
@@ -109,9 +131,12 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
     void loadOccurrences(data.detail, occurrences.length, LOAD_MORE_SIZE, true);
   };
 
-  const handleMine = async (occ: VocabularyOccurrenceEntry, mode: 'word' | 'sentence' | 'audio') => {
+  const handleMine = async (
+    occ: VocabularyOccurrenceEntry,
+    mode: 'word' | 'sentence' | 'audio',
+  ) => {
     const key = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}-${mode}`;
-    setMineStatus(prev => ({ ...prev, [key]: { loading: true } }));
+    setMineStatus((prev) => ({ ...prev, [key]: { loading: true } }));
     try {
       const result = await apiClient.mineCard({
         sourcePath: occ.sourcePath!,
@@ -124,20 +149,28 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
         mode,
       });
       if (result.error) {
-        setMineStatus(prev => ({ ...prev, [key]: { error: result.error } }));
+        setMineStatus((prev) => ({ ...prev, [key]: { error: result.error } }));
       } else {
-        setMineStatus(prev => ({ ...prev, [key]: { success: true } }));
-        const label = mode === 'audio' ? 'Audio card' : mode === 'word' ? data!.detail.headword : occ.text.slice(0, 30);
+        setMineStatus((prev) => ({ ...prev, [key]: { success: true } }));
+        const label =
+          mode === 'audio'
+            ? 'Audio card'
+            : mode === 'word'
+              ? data!.detail.headword
+              : occ.text.slice(0, 30);
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           new Notification('Anki Card Created', { body: `Mined: ${label}`, icon: '/favicon.png' });
         } else if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
-          Notification.requestPermission().then(p => {
+          Notification.requestPermission().then((p) => {
             if (p === 'granted') new Notification('Anki Card Created', { body: `Mined: ${label}` });
           });
         }
       }
     } catch (err) {
-      setMineStatus(prev => ({ ...prev, [key]: { error: err instanceof Error ? err.message : String(err) } }));
+      setMineStatus((prev) => ({
+        ...prev,
+        [key]: { error: err instanceof Error ? err.message : String(err) },
+      }));
     }
   };
 
@@ -153,23 +186,35 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
         <div className="flex h-full flex-col">
           <div className="flex items-start justify-between border-b border-ctp-surface1 px-5 py-4">
             <div className="min-w-0">
-              <div className="text-xs uppercase tracking-[0.18em] text-ctp-overlay1">Word Detail</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-ctp-overlay1">
+                Word Detail
+              </div>
               {loading && <div className="mt-2 text-sm text-ctp-overlay2">Loading...</div>}
               {error && <div className="mt-2 text-sm text-ctp-red">Error: {error}</div>}
               {data && (
                 <>
-                  <h2 className="mt-1 truncate text-3xl font-semibold text-ctp-text">{data.detail.headword}</h2>
-                  <div className="mt-1 text-sm text-ctp-subtext0">{fullReading(data.detail.headword, data.detail.reading) || data.detail.word}</div>
+                  <h2 className="mt-1 truncate text-3xl font-semibold text-ctp-text">
+                    {data.detail.headword}
+                  </h2>
+                  <div className="mt-1 text-sm text-ctp-subtext0">
+                    {fullReading(data.detail.headword, data.detail.reading) || data.detail.word}
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {data.detail.partOfSpeech && <PosBadge pos={data.detail.partOfSpeech} />}
                     {data.detail.pos1 && data.detail.pos1 !== data.detail.partOfSpeech && (
-                      <span className="rounded-full bg-ctp-surface1 px-2 py-0.5 text-[11px] text-ctp-subtext0">{data.detail.pos1}</span>
+                      <span className="rounded-full bg-ctp-surface1 px-2 py-0.5 text-[11px] text-ctp-subtext0">
+                        {data.detail.pos1}
+                      </span>
                     )}
                     {data.detail.pos2 && (
-                      <span className="rounded-full bg-ctp-surface1 px-2 py-0.5 text-[11px] text-ctp-subtext0">{data.detail.pos2}</span>
+                      <span className="rounded-full bg-ctp-surface1 px-2 py-0.5 text-[11px] text-ctp-subtext0">
+                        {data.detail.pos2}
+                      </span>
                     )}
                     {data.detail.pos3 && (
-                      <span className="rounded-full bg-ctp-surface1 px-2 py-0.5 text-[11px] text-ctp-subtext0">{data.detail.pos3}</span>
+                      <span className="rounded-full bg-ctp-surface1 px-2 py-0.5 text-[11px] text-ctp-subtext0">
+                        {data.detail.pos3}
+                      </span>
                     )}
                   </div>
                 </>
@@ -204,28 +249,39 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
               <>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
-                    <div className="text-lg font-bold text-ctp-blue">{formatNumber(data.detail.frequency)}</div>
+                    <div className="text-lg font-bold text-ctp-blue">
+                      {formatNumber(data.detail.frequency)}
+                    </div>
                     <div className="text-[11px] text-ctp-overlay1 uppercase">Frequency</div>
                   </div>
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
-                    <div className="text-sm font-medium text-ctp-green">{formatRelativeDate(data.detail.firstSeen)}</div>
+                    <div className="text-sm font-medium text-ctp-green">
+                      {formatRelativeDate(data.detail.firstSeen)}
+                    </div>
                     <div className="text-[11px] text-ctp-overlay1 uppercase">First Seen</div>
                   </div>
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
-                    <div className="text-sm font-medium text-ctp-mauve">{formatRelativeDate(data.detail.lastSeen)}</div>
+                    <div className="text-sm font-medium text-ctp-mauve">
+                      {formatRelativeDate(data.detail.lastSeen)}
+                    </div>
                     <div className="text-[11px] text-ctp-overlay1 uppercase">Last Seen</div>
                   </div>
                 </div>
 
                 {data.animeAppearances.length > 0 && (
                   <section>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">Anime Appearances</h3>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
+                      Anime Appearances
+                    </h3>
                     <div className="space-y-1.5">
-                      {data.animeAppearances.map(a => (
+                      {data.animeAppearances.map((a) => (
                         <button
                           key={a.animeId}
                           type="button"
-                          onClick={() => { onClose(); onNavigateToAnime?.(a.animeId); }}
+                          onClick={() => {
+                            onClose();
+                            onNavigateToAnime?.(a.animeId);
+                          }}
                           className="w-full flex items-center justify-between rounded-lg bg-ctp-surface0 px-3 py-2 text-sm transition hover:border-ctp-blue hover:ring-1 hover:ring-ctp-blue text-left"
                         >
                           <span className="truncate text-ctp-text">{a.animeTitle}</span>
@@ -240,9 +296,11 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
 
                 {data.similarWords.length > 0 && (
                   <section>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">Similar Words</h3>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
+                      Similar Words
+                    </h3>
                     <div className="flex flex-wrap gap-1.5">
-                      {data.similarWords.map(sw => (
+                      {data.similarWords.map((sw) => (
                         <button
                           key={sw.wordId}
                           type="button"
@@ -258,7 +316,9 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
                 )}
 
                 <section>
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">Example Lines</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
+                    Example Lines
+                  </h3>
                   {!occLoaded && !occLoading && (
                     <button
                       type="button"
@@ -268,10 +328,15 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
                       Load example lines
                     </button>
                   )}
-                  {occLoading && <div className="text-sm text-ctp-overlay2">Loading occurrences...</div>}
+                  {occLoading && (
+                    <div className="text-sm text-ctp-overlay2">Loading occurrences...</div>
+                  )}
                   {occError && <div className="text-sm text-ctp-red">Error: {occError}</div>}
                   {occLoaded && !occLoading && occurrences.length === 0 && (
-                    <div className="text-sm text-ctp-overlay2">No example lines tracked yet. Lines are stored for sessions recorded after the subtitle tracking update.</div>
+                    <div className="text-sm text-ctp-overlay2">
+                      No example lines tracked yet. Lines are stored for sessions recorded after the
+                      subtitle tracking update.
+                    </div>
                   )}
                   {occurrences.length > 0 && (
                     <div className="space-y-3">
@@ -294,48 +359,68 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
                             </div>
                           </div>
                           <div className="mt-3 flex items-center gap-2 text-xs text-ctp-overlay1">
-                            <span>{formatSegment(occ.segmentStartMs)}-{formatSegment(occ.segmentEndMs)} · session {occ.sessionId}</span>
-                            {occ.sourcePath && occ.segmentStartMs != null && occ.segmentEndMs != null && (() => {
-                              const baseKey = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}`;
-                              const wordStatus = mineStatus[`${baseKey}-word`];
-                              const sentenceStatus = mineStatus[`${baseKey}-sentence`];
-                              const audioStatus = mineStatus[`${baseKey}-audio`];
-                              return (
-                                <>
-                                  <button
-                                    type="button"
-                                    className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-mauve hover:text-ctp-mauve disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={wordStatus?.loading}
-                                    onClick={() => void handleMine(occ, 'word')}
-                                  >
-                                    {wordStatus?.loading ? 'Mining...' : wordStatus?.success ? 'Mined!' : 'Mine Word'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-green hover:text-ctp-green disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={sentenceStatus?.loading}
-                                    onClick={() => void handleMine(occ, 'sentence')}
-                                  >
-                                    {sentenceStatus?.loading ? 'Mining...' : sentenceStatus?.success ? 'Mined!' : 'Mine Sentence'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={audioStatus?.loading}
-                                    onClick={() => void handleMine(occ, 'audio')}
-                                  >
-                                    {audioStatus?.loading ? 'Mining...' : audioStatus?.success ? 'Mined!' : 'Mine Audio'}
-                                  </button>
-                                </>
-                              );
-                            })()}
+                            <span>
+                              {formatSegment(occ.segmentStartMs)}-{formatSegment(occ.segmentEndMs)}{' '}
+                              · session {occ.sessionId}
+                            </span>
+                            {occ.sourcePath &&
+                              occ.segmentStartMs != null &&
+                              occ.segmentEndMs != null &&
+                              (() => {
+                                const baseKey = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}`;
+                                const wordStatus = mineStatus[`${baseKey}-word`];
+                                const sentenceStatus = mineStatus[`${baseKey}-sentence`];
+                                const audioStatus = mineStatus[`${baseKey}-audio`];
+                                return (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-mauve hover:text-ctp-mauve disabled:cursor-not-allowed disabled:opacity-60"
+                                      disabled={wordStatus?.loading}
+                                      onClick={() => void handleMine(occ, 'word')}
+                                    >
+                                      {wordStatus?.loading
+                                        ? 'Mining...'
+                                        : wordStatus?.success
+                                          ? 'Mined!'
+                                          : 'Mine Word'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-green hover:text-ctp-green disabled:cursor-not-allowed disabled:opacity-60"
+                                      disabled={sentenceStatus?.loading}
+                                      onClick={() => void handleMine(occ, 'sentence')}
+                                    >
+                                      {sentenceStatus?.loading
+                                        ? 'Mining...'
+                                        : sentenceStatus?.success
+                                          ? 'Mined!'
+                                          : 'Mine Sentence'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:cursor-not-allowed disabled:opacity-60"
+                                      disabled={audioStatus?.loading}
+                                      onClick={() => void handleMine(occ, 'audio')}
+                                    >
+                                      {audioStatus?.loading
+                                        ? 'Mining...'
+                                        : audioStatus?.success
+                                          ? 'Mined!'
+                                          : 'Mine Audio'}
+                                    </button>
+                                  </>
+                                );
+                              })()}
                           </div>
                           {(() => {
                             const baseKey = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}`;
                             const errors = ['word', 'sentence', 'audio']
-                              .map(m => mineStatus[`${baseKey}-${m}`]?.error)
+                              .map((m) => mineStatus[`${baseKey}-${m}`]?.error)
                               .filter(Boolean);
-                            return errors.length > 0 ? <div className="mt-1 text-[10px] text-ctp-red">{errors[0]}</div> : null;
+                            return errors.length > 0 ? (
+                              <div className="mt-1 text-[10px] text-ctp-red">{errors[0]}</div>
+                            ) : null;
                           })()}
                           <p className="mt-3 rounded-lg bg-ctp-base/70 px-3 py-3 text-sm leading-6 text-ctp-text">
                             {highlightWord(occ.text, [data!.detail.headword, data!.detail.word])}

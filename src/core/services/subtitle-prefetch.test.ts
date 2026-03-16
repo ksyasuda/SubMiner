@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  computePriorityWindow,
-  createSubtitlePrefetchService,
-} from './subtitle-prefetch';
+import { computePriorityWindow, createSubtitlePrefetchService } from './subtitle-prefetch';
 import type { SubtitleCue } from './subtitle-cue-parser';
 import type { SubtitleData } from '../../types';
 
@@ -169,7 +166,9 @@ test('prefetch service onSeek re-prioritizes from new position', async () => {
   service.stop();
 
   // After seek to 80.0, cues starting after 80.0 (line-17, line-18, line-19) should appear in cached
-  const hasPostSeekCue = cachedTexts.some((t) => t === 'line-17' || t === 'line-18' || t === 'line-19');
+  const hasPostSeekCue = cachedTexts.some(
+    (t) => t === 'line-17' || t === 'line-18' || t === 'line-19',
+  );
   assert.ok(hasPostSeekCue, 'Should have cached cues after seek position');
 });
 

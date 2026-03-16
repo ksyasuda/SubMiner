@@ -90,7 +90,9 @@ export function VocabularyOccurrencesDrawer({
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-4">
-            {loading ? <div className="text-sm text-ctp-overlay2">Loading occurrences...</div> : null}
+            {loading ? (
+              <div className="text-sm text-ctp-overlay2">Loading occurrences...</div>
+            ) : null}
             {!loading && error ? <div className="text-sm text-ctp-red">Error: {error}</div> : null}
             {!loading && !error && occurrences.length === 0 ? (
               <div className="text-sm text-ctp-overlay2">No occurrences tracked yet.</div>
@@ -116,8 +118,8 @@ export function VocabularyOccurrencesDrawer({
                       </div>
                     </div>
                     <div className="mt-3 text-xs text-ctp-overlay1">
-                      {formatSegment(occurrence.segmentStartMs)}-{formatSegment(occurrence.segmentEndMs)} · session{' '}
-                      {occurrence.sessionId}
+                      {formatSegment(occurrence.segmentStartMs)}-
+                      {formatSegment(occurrence.segmentEndMs)} · session {occurrence.sessionId}
                     </div>
                     <p className="mt-3 rounded-lg bg-ctp-base/70 px-3 py-3 text-sm leading-6 text-ctp-text">
                       {occurrence.text}

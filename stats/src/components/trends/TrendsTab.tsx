@@ -129,7 +129,9 @@ export function TrendsTab() {
   const watchByHour = buildWatchTimeByHour(data.sessions);
 
   const watchTimePerAnime = data.watchTimePerAnime.map((e) => ({
-    epochDay: e.epochDay, animeTitle: e.animeTitle, value: e.totalActiveMin,
+    epochDay: e.epochDay,
+    animeTitle: e.animeTitle,
+    value: e.totalActiveMin,
   }));
   const episodesPerAnime = buildEpisodesPerAnimeFromSessions(data.sessions);
   const cardsPerAnime = buildPerAnimeFromSessions(data.sessions, (s) => s.cardsMined);
@@ -149,7 +151,12 @@ export function TrendsTab() {
       />
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <SectionHeader>Activity</SectionHeader>
-        <TrendChart title="Watch Time (min)" data={dashboard.watchTime} color="#8aadf4" type="bar" />
+        <TrendChart
+          title="Watch Time (min)"
+          data={dashboard.watchTime}
+          color="#8aadf4"
+          type="bar"
+        />
         <TrendChart title="Cards Mined" data={dashboard.cards} color="#a6da95" type="bar" />
         <TrendChart title="Words Seen" data={dashboard.words} color="#8bd5ca" type="bar" />
         <TrendChart title="Sessions" data={dashboard.sessions} color="#b7bdf8" type="line" />
@@ -172,8 +179,18 @@ export function TrendsTab() {
         <StackedTrendChart title="Words Seen Progress" data={wordsProgress} />
 
         <SectionHeader>Patterns</SectionHeader>
-        <TrendChart title="Watch Time by Day of Week (min)" data={watchByDow} color="#8aadf4" type="bar" />
-        <TrendChart title="Watch Time by Hour (min)" data={watchByHour} color="#c6a0f6" type="bar" />
+        <TrendChart
+          title="Watch Time by Day of Week (min)"
+          data={watchByDow}
+          color="#8aadf4"
+          type="bar"
+        />
+        <TrendChart
+          title="Watch Time by Hour (min)"
+          data={watchByHour}
+          color="#c6a0f6"
+          type="bar"
+        />
       </div>
     </div>
   );

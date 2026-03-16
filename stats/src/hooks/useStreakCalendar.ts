@@ -11,10 +11,18 @@ export function useStreakCalendar(days = 90) {
     let cancelled = false;
     getStatsClient()
       .getStreakCalendar(days)
-      .then((data) => { if (!cancelled) setCalendar(data); })
-      .catch((err: Error) => { if (!cancelled) setError(err.message); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setCalendar(data);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [days]);
 
   return { calendar, loading, error };

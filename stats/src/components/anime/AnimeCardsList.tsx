@@ -37,7 +37,9 @@ export function AnimeCardsList({ episodes, totalCards }: AnimeCardsListProps) {
           {withCards.map((ep) => (
             <Fragment key={ep.videoId}>
               <tr
-                onClick={() => setExpandedVideoId(expandedVideoId === ep.videoId ? null : ep.videoId)}
+                onClick={() =>
+                  setExpandedVideoId(expandedVideoId === ep.videoId ? null : ep.videoId)
+                }
                 className="border-b border-ctp-surface1 last:border-0 cursor-pointer hover:bg-ctp-surface1/50 transition-colors"
               >
                 <td className="py-2 pr-1 text-ctp-overlay2 text-xs w-6">

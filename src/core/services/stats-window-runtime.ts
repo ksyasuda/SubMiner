@@ -16,13 +16,9 @@ function isBareToggleKeyInput(input: Electron.Input, toggleKey: string): boolean
   );
 }
 
-export function shouldHideStatsWindowForInput(
-  input: Electron.Input,
-  toggleKey: string,
-): boolean {
+export function shouldHideStatsWindowForInput(input: Electron.Input, toggleKey: string): boolean {
   return (
-    (input.type === 'keyDown' && input.key === 'Escape') ||
-    isBareToggleKeyInput(input, toggleKey)
+    (input.type === 'keyDown' && input.key === 'Escape') || isBareToggleKeyInput(input, toggleKey)
   );
 }
 

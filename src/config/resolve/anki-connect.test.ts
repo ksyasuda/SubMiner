@@ -33,7 +33,10 @@ test('modern invalid knownWords.highlightEnabled warns modern key and does not f
     DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled,
   );
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.highlightEnabled'));
-  assert.equal(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.highlightEnabled'), false);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.highlightEnabled'),
+    false,
+  );
 });
 
 test('normalizes ankiConnect tags by trimming and deduping', () => {
@@ -52,16 +55,19 @@ test('normalizes ankiConnect tags by trimming and deduping', () => {
 
 test('accepts knownWords.decks object format with field arrays', () => {
   const { context, warnings } = makeContext({
-    knownWords: { decks: { 'Core Deck': ['Word', 'Reading'], 'Mining': ['Expression'] } },
+    knownWords: { decks: { 'Core Deck': ['Word', 'Reading'], Mining: ['Expression'] } },
   });
 
   applyAnkiConnectResolution(context);
 
   assert.deepEqual(context.resolved.ankiConnect.knownWords.decks, {
     'Core Deck': ['Word', 'Reading'],
-    'Mining': ['Expression'],
+    Mining: ['Expression'],
   });
-  assert.equal(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.decks'), false);
+  assert.equal(
+    warnings.some((warning) => warning.path === 'ankiConnect.knownWords.decks'),
+    false,
+  );
 });
 
 test('converts legacy knownWords.decks array to object with default fields', () => {

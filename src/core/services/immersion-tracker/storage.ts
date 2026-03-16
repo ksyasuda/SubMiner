@@ -78,11 +78,7 @@ export function normalizeAnimeIdentityKey(title: string): string {
 }
 
 function looksLikeEpisodeOnlyTitle(title: string): boolean {
-  const normalized = title
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  const normalized = title.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
   return /^(episode|ep)\s*\d{1,3}$/.test(normalized) || /^第\s*\d{1,3}\s*話$/.test(normalized);
 }
 
@@ -757,7 +753,9 @@ export function ensureSchema(db: DatabaseSync): void {
   if (currentVersion?.schema_version && currentVersion.schema_version < SCHEMA_VERSION) {
     db.exec('DELETE FROM imm_daily_rollups');
     db.exec('DELETE FROM imm_monthly_rollups');
-    db.exec(`UPDATE imm_rollup_state SET state_value = 0 WHERE state_key = 'last_rollup_sample_ms'`);
+    db.exec(
+      `UPDATE imm_rollup_state SET state_value = 0 WHERE state_key = 'last_rollup_sample_ms'`,
+    );
   }
 
   db.exec(`
@@ -954,7 +952,9 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
     return;
   }
   if (write.kind === 'subtitleLine') {
-    const animeRow = stmts.videoAnimeIdSelectStmt.get(write.videoId) as { anime_id: number | null } | null;
+    const animeRow = stmts.videoAnimeIdSelectStmt.get(write.videoId) as {
+      anime_id: number | null;
+    } | null;
     const lineResult = stmts.subtitleLineInsertStmt.run(
       write.sessionId,
       null,

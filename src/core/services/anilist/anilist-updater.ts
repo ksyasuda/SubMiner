@@ -76,7 +76,7 @@ export function runGuessit(target: string): Promise<string> {
 
 export interface GuessAnilistMediaInfoDeps {
   runGuessit: (target: string) => Promise<string>;
-};
+}
 
 function firstString(value: unknown): string | null {
   if (typeof value === 'string') {

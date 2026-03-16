@@ -188,7 +188,9 @@ async function filterSubtitleAnnotationTokens(tokens: MergedToken[]): Promise<Me
   }
 
   const annotationStage = await annotationStageModulePromise;
-  return tokens.filter((token) => !annotationStage.shouldExcludeTokenFromSubtitleAnnotations(token));
+  return tokens.filter(
+    (token) => !annotationStage.shouldExcludeTokenFromSubtitleAnnotations(token),
+  );
 }
 
 export function createTokenizerDepsRuntime(
@@ -449,7 +451,11 @@ function buildYomitanFrequencyIndex(
       reading,
       frequency: rank,
     };
-    appendYomitanFrequencyEntry(byPair, makeYomitanFrequencyPairKey(term, reading), normalizedEntry);
+    appendYomitanFrequencyEntry(
+      byPair,
+      makeYomitanFrequencyPairKey(term, reading),
+      normalizedEntry,
+    );
     appendYomitanFrequencyEntry(byTerm, term, normalizedEntry);
   }
 
@@ -486,11 +492,15 @@ function getYomitanFrequencyRank(
   }
 
   const reading =
-    typeof token.reading === 'string' && token.reading.trim().length > 0 ? token.reading.trim() : null;
+    typeof token.reading === 'string' && token.reading.trim().length > 0
+      ? token.reading.trim()
+      : null;
   const pairEntries =
     frequencyIndex.byPair.get(makeYomitanFrequencyPairKey(normalizedCandidateText, reading)) ?? [];
   const candidateEntries =
-    pairEntries.length > 0 ? pairEntries : (frequencyIndex.byTerm.get(normalizedCandidateText) ?? []);
+    pairEntries.length > 0
+      ? pairEntries
+      : (frequencyIndex.byTerm.get(normalizedCandidateText) ?? []);
   if (candidateEntries.length === 0) {
     return null;
   }

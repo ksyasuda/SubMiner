@@ -2,9 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRunStatsCliCommandHandler } from './stats-cli-command';
 
-function makeHandler(overrides: Partial<Parameters<typeof createRunStatsCliCommandHandler>[0]> = {}) {
+function makeHandler(
+  overrides: Partial<Parameters<typeof createRunStatsCliCommandHandler>[0]> = {},
+) {
   const calls: string[] = [];
-  const responses: Array<{ responsePath: string; payload: { ok: boolean; url?: string; error?: string } }> = [];
+  const responses: Array<{
+    responsePath: string;
+    payload: { ok: boolean; url?: string; error?: string };
+  }> = [];
 
   const handler = createRunStatsCliCommandHandler({
     getResolvedConfig: () => ({

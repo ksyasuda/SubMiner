@@ -1,4 +1,10 @@
-import type { DailyRollup, KanjiEntry, OverviewData, StreakCalendarDay, VocabularyEntry } from '../types/stats';
+import type {
+  DailyRollup,
+  KanjiEntry,
+  OverviewData,
+  StreakCalendarDay,
+  VocabularyEntry,
+} from '../types/stats';
 import { epochDayToDate, localDayFromMs } from './formatters';
 
 export interface ChartPoint {
@@ -110,7 +116,9 @@ function buildAggregatedDailyRows(rollups: DailyRollup[]) {
       averageSessionMinutes:
         value.sessions > 0 ? +(value.activeMin / value.sessions).toFixed(1) : 0,
       lookupHitRate:
-        value.lookupWeight > 0 ? Math.round((value.lookupHitRateSum / value.lookupWeight) * 100) : 0,
+        value.lookupWeight > 0
+          ? Math.round((value.lookupHitRateSum / value.lookupWeight) * 100)
+          : 0,
     }));
 }
 
@@ -142,7 +150,10 @@ export function buildOverviewSummary(
 
   return {
     todayActiveMs: Math.max(todayActiveFromRollup, todayActiveFromSessions),
-    todayCards: Math.max(todayRow?.cards ?? 0, sumBy(todaySessions, (session) => session.cardsMined)),
+    todayCards: Math.max(
+      todayRow?.cards ?? 0,
+      sumBy(todaySessions, (session) => session.cardsMined),
+    ),
     streakDays,
     allTimeHours: Math.round(sumBy(aggregated, (row) => row.activeMin) / 60),
     totalTrackedCards: Math.max(sessionCards, rollupCards),
@@ -152,17 +163,21 @@ export function buildOverviewSummary(
     totalAnimeCompleted: overview.hints.totalAnimeCompleted ?? 0,
     averageSessionMinutes:
       overview.sessions.length > 0
-        ? Math.round(sumBy(overview.sessions, (session) => session.activeWatchedMs) / overview.sessions.length / 60_000)
+        ? Math.round(
+            sumBy(overview.sessions, (session) => session.activeWatchedMs) /
+              overview.sessions.length /
+              60_000,
+          )
         : 0,
     totalSessions: overview.hints.totalSessions,
     activeDays: daysWithActivity.size,
-    recentWatchTime: aggregated.slice(-14).map((row) => ({ label: row.label, value: row.activeMin })),
+    recentWatchTime: aggregated
+      .slice(-14)
+      .map((row) => ({ label: row.label, value: row.activeMin })),
   };
 }
 
-export function buildTrendDashboard(
-  rollups: DailyRollup[],
-): TrendDashboard {
+export function buildTrendDashboard(rollups: DailyRollup[]): TrendDashboard {
   const aggregated = buildAggregatedDailyRows(rollups);
   return {
     watchTime: aggregated.map((row) => ({ label: row.label, value: row.activeMin })),

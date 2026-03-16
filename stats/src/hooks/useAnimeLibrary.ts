@@ -11,10 +11,18 @@ export function useAnimeLibrary() {
     let cancelled = false;
     getStatsClient()
       .getAnimeLibrary()
-      .then((data) => { if (!cancelled) setAnime(data); })
-      .catch((err: Error) => { if (!cancelled) setError(err.message); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .then((data) => {
+        if (!cancelled) setAnime(data);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return { anime, loading, error };

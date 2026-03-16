@@ -1122,7 +1122,9 @@ export class AnkiIntegration {
     this.mediaGenerator.cleanup();
   }
 
-  setRecordCardsMinedCallback(callback: ((count: number, noteIds?: number[]) => void) | null): void {
+  setRecordCardsMinedCallback(
+    callback: ((count: number, noteIds?: number[]) => void) | null,
+  ): void {
     this.recordCardsMinedCallback = callback;
   }
 }

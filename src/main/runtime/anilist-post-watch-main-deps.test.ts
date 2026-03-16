@@ -85,7 +85,11 @@ test('maybe run anilist post watch update main deps builder maps callbacks', asy
   deps.resetTrackedMedia('media');
   assert.equal(deps.getWatchedSeconds(), 100);
   assert.equal(await deps.maybeProbeAnilistDuration('media'), 120);
-  assert.deepEqual(await deps.ensureAnilistMediaGuess('media'), { title: 'x', season: null, episode: 1 });
+  assert.deepEqual(await deps.ensureAnilistMediaGuess('media'), {
+    title: 'x',
+    season: null,
+    episode: 1,
+  });
   assert.equal(deps.hasAttemptedUpdateKey('k'), false);
   assert.deepEqual(await deps.processNextAnilistRetryUpdate(), { ok: true, message: 'ok' });
   assert.equal(await deps.refreshAnilistClientSecretState(), 'token');

@@ -51,7 +51,10 @@ function resolveStatsStaticPath(staticDir: string, requestPath: string): string 
   const decodedPath = decodeURIComponent(normalizedPath);
   const absoluteStaticDir = resolve(staticDir);
   const absolutePath = resolve(absoluteStaticDir, decodedPath);
-  if (absolutePath !== absoluteStaticDir && !absolutePath.startsWith(`${absoluteStaticDir}${sep}`)) {
+  if (
+    absolutePath !== absoluteStaticDir &&
+    !absolutePath.startsWith(`${absoluteStaticDir}${sep}`)
+  ) {
     return null;
   }
   if (!existsSync(absolutePath)) {
@@ -71,8 +74,7 @@ function createStatsStaticResponse(staticDir: string, requestPath: string): Resp
   }
 
   const extension = extname(absolutePath).toLowerCase();
-  const contentType =
-    STATS_STATIC_CONTENT_TYPES[extension] ?? 'application/octet-stream';
+  const contentType = STATS_STATIC_CONTENT_TYPES[extension] ?? 'application/octet-stream';
   const body = readFileSync(absolutePath);
   return new Response(body, {
     headers: {
@@ -86,7 +88,13 @@ function createStatsStaticResponse(staticDir: string, requestPath: string): Resp
 
 export function createStatsApp(
   tracker: ImmersionTrackerService,
-  options?: { staticDir?: string; knownWordCachePath?: string; mpvSocketPath?: string; ankiConnectConfig?: AnkiConnectConfig; addYomitanNote?: (word: string) => Promise<number | null> },
+  options?: {
+    staticDir?: string;
+    knownWordCachePath?: string;
+    mpvSocketPath?: string;
+    ankiConnectConfig?: AnkiConnectConfig;
+    addYomitanNote?: (word: string) => Promise<number | null>;
+  },
 ) {
   const app = new Hono();
 
@@ -304,7 +312,7 @@ export function createStatsApp(
           variables: { search: query },
         }),
       });
-      const json = await res.json() as { data?: { Page?: { media?: unknown[] } } };
+      const json = (await res.json()) as { data?: { Page?: { media?: unknown[] } } };
       return c.json(json.data?.Page?.media ?? []);
     } catch {
       return c.json([]);
@@ -315,9 +323,14 @@ export function createStatsApp(
     const cachePath = options?.knownWordCachePath;
     if (!cachePath || !existsSync(cachePath)) return c.json([]);
     try {
-      const raw = JSON.parse(readFileSync(cachePath, 'utf-8')) as { version?: number; words?: string[] };
+      const raw = JSON.parse(readFileSync(cachePath, 'utf-8')) as {
+        version?: number;
+        words?: string[];
+      };
       if (raw.version === 1 && Array.isArray(raw.words)) return c.json(raw.words);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return c.json([]);
   });
 
@@ -377,7 +390,11 @@ export function createStatsApp(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(ANKI_CONNECT_FETCH_TIMEOUT_MS),
-        body: JSON.stringify({ action: 'guiBrowse', version: 6, params: { query: `nid:${noteId}` } }),
+        body: JSON.stringify({
+          action: 'guiBrowse',
+          version: 6,
+          params: { query: `nid:${noteId}` },
+        }),
       });
       const result = await response.json();
       return c.json(result);
@@ -401,7 +418,9 @@ export function createStatsApp(
         signal: AbortSignal.timeout(ANKI_CONNECT_FETCH_TIMEOUT_MS),
         body: JSON.stringify({ action: 'notesInfo', version: 6, params: { notes: noteIds } }),
       });
-      const result = await response.json() as { result?: Array<{ noteId: number; fields: Record<string, { value: string }> }> };
+      const result = (await response.json()) as {
+        result?: Array<{ noteId: number; fields: Record<string, { value: string }> }>;
+      };
       return c.json(result.result ?? []);
     } catch {
       return c.json([], 502);
@@ -445,7 +464,10 @@ export function createStatsApp(
     const clampedEndSec = rawDuration > maxMediaDuration ? startSec + maxMediaDuration : endSec;
 
     const highlightedSentence = word
-      ? sentence.replace(new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), `<b>${word}</b>`)
+      ? sentence.replace(
+          new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+          `<b>${word}</b>`,
+        )
       : sentence;
 
     const generateAudio = ankiConfig.media?.generateAudio !== false;
@@ -460,12 +482,18 @@ export function createStatsApp(
     if (!generateImage) {
       imagePromise = Promise.resolve(null);
     } else if (imageType === 'avif') {
-      imagePromise = mediaGen.generateAnimatedImage(sourcePath, startSec, clampedEndSec, audioPadding, {
-        fps: ankiConfig.media?.animatedFps ?? 10,
-        maxWidth: ankiConfig.media?.animatedMaxWidth ?? 640,
-        maxHeight: ankiConfig.media?.animatedMaxHeight,
-        crf: ankiConfig.media?.animatedCrf ?? 35,
-      });
+      imagePromise = mediaGen.generateAnimatedImage(
+        sourcePath,
+        startSec,
+        clampedEndSec,
+        audioPadding,
+        {
+          fps: ankiConfig.media?.animatedFps ?? 10,
+          maxWidth: ankiConfig.media?.animatedMaxWidth ?? 640,
+          maxHeight: ankiConfig.media?.animatedMaxHeight,
+          crf: ankiConfig.media?.animatedCrf ?? 35,
+        },
+      );
     } else {
       const midpointSec = (startSec + clampedEndSec) / 2;
       imagePromise = mediaGen.generateScreenshot(sourcePath, midpointSec, {
@@ -491,14 +519,21 @@ export function createStatsApp(
       ]);
 
       if (yomitanResult.status === 'rejected' || !yomitanResult.value) {
-        return c.json({ error: `Yomitan failed to create note: ${yomitanResult.status === 'rejected' ? (yomitanResult.reason as Error).message : 'no result'}` }, 502);
+        return c.json(
+          {
+            error: `Yomitan failed to create note: ${yomitanResult.status === 'rejected' ? (yomitanResult.reason as Error).message : 'no result'}`,
+          },
+          502,
+        );
       }
 
       noteId = yomitanResult.value;
       const audioBuffer = audioResult.status === 'fulfilled' ? audioResult.value : null;
       const imageBuffer = imageResult.status === 'fulfilled' ? imageResult.value : null;
-      if (audioResult.status === 'rejected') errors.push(`audio: ${(audioResult.reason as Error).message}`);
-      if (imageResult.status === 'rejected') errors.push(`image: ${(imageResult.reason as Error).message}`);
+      if (audioResult.status === 'rejected')
+        errors.push(`audio: ${(audioResult.reason as Error).message}`);
+      if (imageResult.status === 'rejected')
+        errors.push(`image: ${(imageResult.reason as Error).message}`);
 
       const mediaFields: Record<string, string> = {};
       const timestamp = Date.now();
@@ -566,8 +601,10 @@ export function createStatsApp(
 
     const audioBuffer = audioResult.status === 'fulfilled' ? audioResult.value : null;
     const imageBuffer = imageResult.status === 'fulfilled' ? imageResult.value : null;
-    if (audioResult.status === 'rejected') errors.push(`audio: ${(audioResult.reason as Error).message}`);
-    if (imageResult.status === 'rejected') errors.push(`image: ${(imageResult.reason as Error).message}`);
+    if (audioResult.status === 'rejected')
+      errors.push(`audio: ${(audioResult.reason as Error).message}`);
+    if (imageResult.status === 'rejected')
+      errors.push(`image: ${(imageResult.reason as Error).message}`);
 
     const sentenceFieldName = ankiConfig.fields?.sentence ?? 'Sentence';
     const translationFieldName = ankiConfig.fields?.translation ?? 'SelectionText';
@@ -684,7 +721,13 @@ export function createStatsApp(
 }
 
 export function startStatsServer(config: StatsServerConfig): { close: () => void } {
-  const app = createStatsApp(config.tracker, { staticDir: config.staticDir, knownWordCachePath: config.knownWordCachePath, mpvSocketPath: config.mpvSocketPath, ankiConnectConfig: config.ankiConnectConfig, addYomitanNote: config.addYomitanNote });
+  const app = createStatsApp(config.tracker, {
+    staticDir: config.staticDir,
+    knownWordCachePath: config.knownWordCachePath,
+    mpvSocketPath: config.mpvSocketPath,
+    ankiConnectConfig: config.ankiConnectConfig,
+    addYomitanNote: config.addYomitanNote,
+  });
 
   const server = serve({
     fetch: app.fetch,

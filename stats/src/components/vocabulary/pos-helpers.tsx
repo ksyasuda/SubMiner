@@ -32,6 +32,7 @@ const PARTICLE_POS = new Set(['particle', 'auxiliary_verb', 'conjunction']);
 
 export function isFilterable(entry: VocabularyEntry): boolean {
   if (PARTICLE_POS.has(entry.partOfSpeech ?? '')) return true;
-  if (entry.headword.length === 1 && /[\u3040-\u309F\u30A0-\u30FF]/.test(entry.headword)) return true;
+  if (entry.headword.length === 1 && /[\u3040-\u309F\u30A0-\u30FF]/.test(entry.headword))
+    return true;
   return false;
 }

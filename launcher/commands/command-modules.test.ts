@@ -149,7 +149,13 @@ test('stats command launches attached app command with response path', async () 
 
   assert.equal(handled, true);
   assert.deepEqual(forwarded, [
-    ['--stats', '--stats-response-path', '/tmp/subminer-stats-test/response.json', '--log-level', 'debug'],
+    [
+      '--stats',
+      '--stats-response-path',
+      '/tmp/subminer-stats-test/response.json',
+      '--log-level',
+      'debug',
+    ],
   ]);
 });
 
@@ -187,40 +193,34 @@ test('stats command throws when stats response reports an error', async () => {
   const context = createContext();
   context.args.stats = true;
 
-  await assert.rejects(
-    async () => {
-      await runStatsCommand(context, {
-        createTempDir: () => '/tmp/subminer-stats-test',
-        joinPath: (...parts) => parts.join('/'),
-        runAppCommandAttached: async () => 0,
-        waitForStatsResponse: async () => ({
-          ok: false,
-          error: 'Immersion tracking is disabled in config.',
-        }),
-        removeDir: () => {},
-      });
-    },
-    /Immersion tracking is disabled in config\./,
-  );
+  await assert.rejects(async () => {
+    await runStatsCommand(context, {
+      createTempDir: () => '/tmp/subminer-stats-test',
+      joinPath: (...parts) => parts.join('/'),
+      runAppCommandAttached: async () => 0,
+      waitForStatsResponse: async () => ({
+        ok: false,
+        error: 'Immersion tracking is disabled in config.',
+      }),
+      removeDir: () => {},
+    });
+  }, /Immersion tracking is disabled in config\./);
 });
 
 test('stats command fails if attached app exits before startup response', async () => {
   const context = createContext();
   context.args.stats = true;
 
-  await assert.rejects(
-    async () => {
-      await runStatsCommand(context, {
-        createTempDir: () => '/tmp/subminer-stats-test',
-        joinPath: (...parts) => parts.join('/'),
-        runAppCommandAttached: async () => 2,
-        waitForStatsResponse: async () => {
-          await new Promise((resolve) => setTimeout(resolve, 25));
-          return { ok: true, url: 'http://127.0.0.1:5175' };
-        },
-        removeDir: () => {},
-      });
-    },
-    /Stats app exited before startup response \(status 2\)\./,
-  );
+  await assert.rejects(async () => {
+    await runStatsCommand(context, {
+      createTempDir: () => '/tmp/subminer-stats-test',
+      joinPath: (...parts) => parts.join('/'),
+      runAppCommandAttached: async () => 2,
+      waitForStatsResponse: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        return { ok: true, url: 'http://127.0.0.1:5175' };
+      },
+      removeDir: () => {},
+    });
+  }, /Stats app exited before startup response \(status 2\)\./);
 });

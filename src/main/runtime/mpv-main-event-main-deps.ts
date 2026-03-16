@@ -145,7 +145,9 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     },
     reportJellyfinRemoteProgress: (forceImmediate: boolean) =>
       deps.reportJellyfinRemoteProgress(forceImmediate),
-    onTimePosUpdate: deps.onTimePosUpdate ? (time: number) => deps.onTimePosUpdate!(time) : undefined,
+    onTimePosUpdate: deps.onTimePosUpdate
+      ? (time: number) => deps.onTimePosUpdate!(time)
+      : undefined,
     recordPauseState: (paused: boolean) => {
       deps.appState.playbackPaused = paused;
       deps.ensureImmersionTrackerInitialized();

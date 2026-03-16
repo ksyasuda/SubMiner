@@ -34,8 +34,18 @@ export function parseSrtCues(content: string): SubtitleCue[] {
       continue;
     }
 
-    const startTime = parseTimestamp(timingMatch[1], timingMatch[2]!, timingMatch[3]!, timingMatch[4]!);
-    const endTime = parseTimestamp(timingMatch[5], timingMatch[6]!, timingMatch[7]!, timingMatch[8]!);
+    const startTime = parseTimestamp(
+      timingMatch[1],
+      timingMatch[2]!,
+      timingMatch[3]!,
+      timingMatch[4]!,
+    );
+    const endTime = parseTimestamp(
+      timingMatch[5],
+      timingMatch[6]!,
+      timingMatch[7]!,
+      timingMatch[8]!,
+    );
 
     i += 1;
     const textLines: string[] = [];
@@ -144,13 +154,14 @@ export function parseAssCues(content: string): SubtitleCue[] {
 }
 
 function detectSubtitleFormat(source: string): 'srt' | 'vtt' | 'ass' | 'ssa' | null {
-  const [normalizedSource = source] = (() => {
-    try {
-      return /^[a-z]+:\/\//i.test(source) ? new URL(source).pathname : source;
-    } catch {
-      return source;
-    }
-  })().split(/[?#]/, 1)[0] ?? '';
+  const [normalizedSource = source] =
+    (() => {
+      try {
+        return /^[a-z]+:\/\//i.test(source) ? new URL(source).pathname : source;
+      } catch {
+        return source;
+      }
+    })().split(/[?#]/, 1)[0] ?? '';
   const ext = normalizedSource.split('.').pop()?.toLowerCase() ?? '';
   if (ext === 'srt') return 'srt';
   if (ext === 'vtt') return 'vtt';

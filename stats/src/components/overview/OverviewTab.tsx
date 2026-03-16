@@ -37,7 +37,8 @@ export function OverviewTab() {
         <h3 className="text-sm font-semibold text-ctp-text mb-3">Tracking Snapshot</h3>
         {showTrackedCardNote && (
           <div className="mb-3 rounded-lg border border-ctp-surface2 bg-ctp-surface1/50 px-3 py-2 text-xs text-ctp-subtext0">
-            No tracked card-add events in the current immersion DB yet. New cards mined after this fix will show here.
+            No tracked card-add events in the current immersion DB yet. New cards mined after this
+            fix will show here.
           </div>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-sm">
@@ -72,7 +73,9 @@ export function OverviewTab() {
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Episodes Completed</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">
+              Episodes Completed
+            </div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-blue">
               {formatNumber(summary.totalEpisodesWatched)}
             </div>

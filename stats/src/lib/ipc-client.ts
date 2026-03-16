@@ -1,12 +1,24 @@
 import type {
-  OverviewData, DailyRollup, MonthlyRollup,
-  SessionSummary, SessionTimelinePoint, SessionEvent,
-  VocabularyEntry, KanjiEntry,
+  OverviewData,
+  DailyRollup,
+  MonthlyRollup,
+  SessionSummary,
+  SessionTimelinePoint,
+  SessionEvent,
+  VocabularyEntry,
+  KanjiEntry,
   VocabularyOccurrenceEntry,
-  MediaLibraryItem, MediaDetailData,
-  AnimeLibraryItem, AnimeDetailData, AnimeWord,
-  StreakCalendarDay, EpisodesPerDay, NewAnimePerDay, WatchTimePerAnime,
-  WordDetailData, KanjiDetailData,
+  MediaLibraryItem,
+  MediaDetailData,
+  AnimeLibraryItem,
+  AnimeDetailData,
+  AnimeWord,
+  StreakCalendarDay,
+  EpisodesPerDay,
+  NewAnimePerDay,
+  WatchTimePerAnime,
+  WordDetailData,
+  KanjiDetailData,
   EpisodeDetailData,
 } from '../types/stats';
 
@@ -47,7 +59,9 @@ interface StatsElectronAPI {
     getKanjiDetail: (kanjiId: number) => Promise<KanjiDetailData>;
     getEpisodeDetail: (videoId: number) => Promise<EpisodeDetailData>;
     ankiBrowse: (noteId: number) => Promise<void>;
-    ankiNotesInfo: (noteIds: number[]) => Promise<Array<{ noteId: number; fields: Record<string, { value: string }> }>>;
+    ankiNotesInfo: (
+      noteIds: number[],
+    ) => Promise<Array<{ noteId: number; fields: Record<string, { value: string }> }>>;
     hideOverlay: () => void;
   };
 }

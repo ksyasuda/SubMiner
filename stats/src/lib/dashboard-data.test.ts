@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { DailyRollup, OverviewData, SessionSummary, StreakCalendarDay, VocabularyEntry } from '../types/stats';
+import type {
+  DailyRollup,
+  OverviewData,
+  SessionSummary,
+  StreakCalendarDay,
+  VocabularyEntry,
+} from '../types/stats';
 import {
   buildOverviewSummary,
   buildStreakCalendar,
@@ -49,7 +55,14 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
   const overview: OverviewData = {
     sessions,
     rollups,
-    hints: { totalSessions: 1, activeSessions: 0, episodesToday: 2, activeAnimeCount: 3, totalEpisodesWatched: 5, totalAnimeCompleted: 1 },
+    hints: {
+      totalSessions: 1,
+      activeSessions: 0,
+      episodesToday: 2,
+      activeAnimeCount: 3,
+      totalEpisodesWatched: 5,
+      totalAnimeCompleted: 1,
+    },
   };
 
   const summary = buildOverviewSummary(overview, now);

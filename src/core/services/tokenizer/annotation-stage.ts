@@ -54,7 +54,6 @@ function resolveKnownWordText(
   return matchMode === 'surface' ? surface : headword;
 }
 
-
 function normalizePos1Tag(pos1: string | undefined): string {
   return typeof pos1 === 'string' ? pos1.trim() : '';
 }
@@ -242,7 +241,6 @@ export function shouldExcludeTokenFromVocabularyPersistence(
     resolvePos2Exclusions(options),
   );
 }
-
 
 function getCachedJlptLevel(
   lookupText: string,
@@ -634,9 +632,7 @@ export function annotateTokens(
       ? filterTokenFrequencyRank(token, pos1Exclusions, pos2Exclusions)
       : undefined;
 
-    const jlptLevel = jlptEnabled
-      ? computeTokenJlptLevel(token, deps.getJlptLevel)
-      : undefined;
+    const jlptLevel = jlptEnabled ? computeTokenJlptLevel(token, deps.getJlptLevel) : undefined;
 
     return {
       ...token,

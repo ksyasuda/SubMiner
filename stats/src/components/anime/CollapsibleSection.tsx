@@ -6,7 +6,11 @@ interface CollapsibleSectionProps {
   children: React.ReactNode;
 }
 
-export function CollapsibleSection({ title, defaultOpen = true, children }: CollapsibleSectionProps) {
+export function CollapsibleSection({
+  title,
+  defaultOpen = true,
+  children,
+}: CollapsibleSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const contentId = useId();
 
@@ -20,9 +24,15 @@ export function CollapsibleSection({ title, defaultOpen = true, children }: Coll
         className="w-full flex items-center justify-between p-4 text-left"
       >
         <h3 className="text-sm font-semibold text-ctp-text">{title}</h3>
-        <span className="text-ctp-overlay2 text-xs" aria-hidden="true">{open ? '▲' : '▼'}</span>
+        <span className="text-ctp-overlay2 text-xs" aria-hidden="true">
+          {open ? '▲' : '▼'}
+        </span>
       </button>
-      {open && <div id={contentId} className="px-4 pb-4">{children}</div>}
+      {open && (
+        <div id={contentId} className="px-4 pb-4">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

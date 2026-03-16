@@ -188,7 +188,9 @@ function toYomitanTermFrequency(value: unknown): YomitanTermFrequency | null {
   const rawFrequency = parsePositiveFrequencyValue(value.frequency);
   const displayValueRaw = value.displayValue;
   const parsedDisplayFrequency =
-    displayValueRaw !== null && displayValueRaw !== undefined ? parseDisplayFrequencyValue(displayValueRaw) : null;
+    displayValueRaw !== null && displayValueRaw !== undefined
+      ? parseDisplayFrequencyValue(displayValueRaw)
+      : null;
   const frequency = parsedDisplayFrequency ?? rawFrequency;
   if (!term || !dictionary || frequency === null) {
     return null;

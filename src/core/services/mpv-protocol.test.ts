@@ -128,10 +128,7 @@ test('dispatchMpvProtocolMessage emits subtitle track changes', async () => {
     emitSubtitleTrackListChange: (payload) => state.events.push(payload),
   });
 
-  await dispatchMpvProtocolMessage(
-    { event: 'property-change', name: 'sid', data: '3' },
-    deps,
-  );
+  await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sid', data: '3' }, deps);
   await dispatchMpvProtocolMessage(
     { event: 'property-change', name: 'track-list', data: [{ type: 'sub', id: 3 }] },
     deps,

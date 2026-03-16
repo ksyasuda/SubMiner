@@ -23,19 +23,28 @@ const COLOR_TO_BORDER: Record<string, string> = {
   'text-ctp-text': 'border-l-ctp-surface2',
 };
 
-export function StatCard({ label, value, subValue, color = 'text-ctp-text', trend }: StatCardProps) {
+export function StatCard({
+  label,
+  value,
+  subValue,
+  color = 'text-ctp-text',
+  trend,
+}: StatCardProps) {
   const borderClass = COLOR_TO_BORDER[color] ?? 'border-l-ctp-surface2';
 
   return (
-    <div className={`bg-ctp-surface0 border border-ctp-surface1 border-l-[3px] ${borderClass} rounded-lg p-4 text-center`}>
+    <div
+      className={`bg-ctp-surface0 border border-ctp-surface1 border-l-[3px] ${borderClass} rounded-lg p-4 text-center`}
+    >
       <div className={`text-2xl font-bold font-mono tabular-nums ${color}`}>{value}</div>
       <div className="text-xs text-ctp-subtext0 mt-1 uppercase tracking-wide">{label}</div>
-      {subValue && (
-        <div className="text-xs text-ctp-overlay2 mt-1">{subValue}</div>
-      )}
+      {subValue && <div className="text-xs text-ctp-overlay2 mt-1">{subValue}</div>}
       {trend && (
-        <div className={`text-xs mt-1 font-mono tabular-nums ${trend.direction === 'up' ? 'text-ctp-green' : trend.direction === 'down' ? 'text-ctp-red' : 'text-ctp-overlay2'}`}>
-          {trend.direction === 'up' ? '\u25B2' : trend.direction === 'down' ? '\u25BC' : '\u2014'} {trend.text}
+        <div
+          className={`text-xs mt-1 font-mono tabular-nums ${trend.direction === 'up' ? 'text-ctp-green' : trend.direction === 'down' ? 'text-ctp-red' : 'text-ctp-overlay2'}`}
+        >
+          {trend.direction === 'up' ? '\u25B2' : trend.direction === 'down' ? '\u25BC' : '\u2014'}{' '}
+          {trend.text}
         </div>
       )}
     </div>

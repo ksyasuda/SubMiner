@@ -1135,7 +1135,10 @@ async function refreshSubtitlePrefetchFromActiveTrack(): Promise<void> {
       subtitlePrefetchInitController.cancelPendingInit();
       return;
     }
-    await subtitlePrefetchInitController.initSubtitlePrefetch(externalFilename, lastObservedTimePos);
+    await subtitlePrefetchInitController.initSubtitlePrefetch(
+      externalFilename,
+      lastObservedTimePos,
+    );
   } catch {
     // Track list query failed; skip subtitle prefetch refresh.
   }
@@ -2512,11 +2515,17 @@ const ensureStatsServerStarted = (): string => {
       getYomitanExt: () => appState.yomitanExt,
       getYomitanSession: () => appState.yomitanSession,
       getYomitanParserWindow: () => appState.yomitanParserWindow,
-      setYomitanParserWindow: (w: BrowserWindow | null) => { appState.yomitanParserWindow = w; },
+      setYomitanParserWindow: (w: BrowserWindow | null) => {
+        appState.yomitanParserWindow = w;
+      },
       getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
-      setYomitanParserReadyPromise: (p: Promise<void> | null) => { appState.yomitanParserReadyPromise = p; },
+      setYomitanParserReadyPromise: (p: Promise<void> | null) => {
+        appState.yomitanParserReadyPromise = p;
+      },
       getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
-      setYomitanParserInitPromise: (p: Promise<boolean> | null) => { appState.yomitanParserInitPromise = p; },
+      setYomitanParserInitPromise: (p: Promise<boolean> | null) => {
+        appState.yomitanParserInitPromise = p;
+      },
     };
     const yomitanLogger = createLogger('main:yomitan-stats');
     statsServer = startStatsServer({
@@ -2528,7 +2537,9 @@ const ensureStatsServerStarted = (): string => {
       ankiConnectConfig: getResolvedConfig().ankiConnect,
       addYomitanNote: async (word: string) => {
         const ankiUrl = getResolvedConfig().ankiConnect.url || 'http://127.0.0.1:8765';
-        await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, { forceOverride: true });
+        await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
+          forceOverride: true,
+        });
         return addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
       },
     });

@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
   --color-ctp-base: #24273a;
@@ -28,7 +28,8 @@
   --color-ctp-maroon: #ee99a0;
   --color-ctp-pink: #f5bde6;
 
-  --font-sans: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-sans:
+    'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'Geist Mono Variable', 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 }
 

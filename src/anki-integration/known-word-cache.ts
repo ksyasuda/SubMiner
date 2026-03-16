@@ -218,7 +218,9 @@ export class KnownWordCacheManager {
   private getKnownWordDecks(): string[] {
     const configuredDecks = this.deps.getConfig().knownWords?.decks;
     if (configuredDecks && typeof configuredDecks === 'object' && !Array.isArray(configuredDecks)) {
-      return Object.keys(configuredDecks).map((d) => d.trim()).filter((d) => d.length > 0);
+      return Object.keys(configuredDecks)
+        .map((d) => d.trim())
+        .filter((d) => d.length > 0);
     }
 
     const deck = this.deps.getConfig().deck?.trim();

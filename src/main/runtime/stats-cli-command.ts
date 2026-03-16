@@ -31,7 +31,9 @@ export function createRunStatsCliCommandHandler(deps: {
   getResolvedConfig: () => StatsCliConfig;
   ensureImmersionTrackerStarted: () => void;
   ensureVocabularyCleanupTokenizerReady?: () => Promise<void> | void;
-  getImmersionTracker: () => { cleanupVocabularyStats?: () => Promise<VocabularyCleanupSummary> } | null;
+  getImmersionTracker: () => {
+    cleanupVocabularyStats?: () => Promise<VocabularyCleanupSummary>;
+  } | null;
   ensureStatsServerStarted: () => string;
   openExternal: (url: string) => Promise<unknown>;
   writeResponse: (responsePath: string, payload: StatsCliCommandResponse) => void;

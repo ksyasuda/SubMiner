@@ -624,7 +624,9 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
     );
   }
 
-  const knownWordsConfig = isObject(ac.knownWords) ? (ac.knownWords as Record<string, unknown>) : {};
+  const knownWordsConfig = isObject(ac.knownWords)
+    ? (ac.knownWords as Record<string, unknown>)
+    : {};
   const nPlusOneConfig = isObject(ac.nPlusOne) ? (ac.nPlusOne as Record<string, unknown>) : {};
 
   const knownWordsHighlightEnabled = asBoolean(knownWordsConfig.highlightEnabled);
@@ -723,8 +725,7 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
       Number.isInteger(legacyBehaviorNPlusOneRefreshMinutes) &&
       legacyBehaviorNPlusOneRefreshMinutes > 0;
     if (hasValidLegacyRefreshMinutes) {
-      context.resolved.ankiConnect.knownWords.refreshMinutes =
-        legacyBehaviorNPlusOneRefreshMinutes;
+      context.resolved.ankiConnect.knownWords.refreshMinutes = legacyBehaviorNPlusOneRefreshMinutes;
       context.warn(
         'ankiConnect.behavior.nPlusOneRefreshMinutes',
         behavior.nPlusOneRefreshMinutes,

@@ -1528,10 +1528,7 @@ test('validates ankiConnect knownWords and n+1 color values', () => {
   const warnings = service.getWarnings();
 
   assert.equal(config.ankiConnect.nPlusOne.nPlusOne, DEFAULT_CONFIG.ankiConnect.nPlusOne.nPlusOne);
-  assert.equal(
-    config.ankiConnect.knownWords.color,
-    DEFAULT_CONFIG.ankiConnect.knownWords.color,
-  );
+  assert.equal(config.ankiConnect.knownWords.color, DEFAULT_CONFIG.ankiConnect.knownWords.color);
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.nPlusOne'));
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.color'));
 });
@@ -1586,7 +1583,7 @@ test('supports legacy ankiConnect nPlusOne known-word settings as fallback', () 
   assert.equal(config.ankiConnect.knownWords.refreshMinutes, 90);
   assert.equal(config.ankiConnect.knownWords.matchMode, 'surface');
   assert.deepEqual(config.ankiConnect.knownWords.decks, {
-    'Mining': ['Expression', 'Word', 'Reading', 'Word Reading'],
+    Mining: ['Expression', 'Word', 'Reading', 'Word Reading'],
     'Kaishi 1.5k': ['Expression', 'Word', 'Reading', 'Word Reading'],
   });
   assert.equal(config.ankiConnect.knownWords.color, '#a6da95');

@@ -7,12 +7,10 @@ interface MediaHeaderProps {
 }
 
 export function MediaHeader({ detail }: MediaHeaderProps) {
-  const hitRate = detail.totalLookupCount > 0
-    ? detail.totalLookupHits / detail.totalLookupCount
-    : null;
-  const avgSessionMs = detail.totalSessions > 0
-    ? Math.round(detail.totalActiveMs / detail.totalSessions)
-    : 0;
+  const hitRate =
+    detail.totalLookupCount > 0 ? detail.totalLookupHits / detail.totalLookupCount : null;
+  const avgSessionMs =
+    detail.totalSessions > 0 ? Math.round(detail.totalActiveMs / detail.totalSessions) : 0;
 
   return (
     <div className="flex gap-4">

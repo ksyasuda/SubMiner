@@ -15,10 +15,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import Database from 'libsql';
 
-const DB_PATH = join(
-  process.env.HOME ?? '~',
-  '.config/SubMiner/immersion.sqlite',
-);
+const DB_PATH = join(process.env.HOME ?? '~', '.config/SubMiner/immersion.sqlite');
 
 function parsePositiveNumber(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;

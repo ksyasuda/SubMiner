@@ -1,6 +1,13 @@
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  ReferenceArea, ReferenceLine,
+  ComposedChart,
+  Area,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceArea,
+  ReferenceLine,
 } from 'recharts';
 import { useSessionDetail } from '../../hooks/useSessions';
 import { CHART_THEME } from '../../lib/chart-theme';
@@ -28,7 +35,10 @@ function formatTime(ms: number): string {
   });
 }
 
-interface PauseRegion { startMs: number; endMs: number }
+interface PauseRegion {
+  startMs: number;
+  endMs: number;
+}
 
 function buildPauseRegions(events: SessionEvent[]): PauseRegion[] {
   const regions: PauseRegion[] = [];
@@ -216,7 +226,13 @@ export function SessionDetail({ sessionId, cardsMined }: SessionDetailProps) {
 
       <div className="flex flex-wrap items-center gap-4 text-[11px]">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-2 rounded-sm" style={{ background: 'linear-gradient(to bottom, rgba(198,160,246,0.5), rgba(198,160,246,0.05))' }} />
+          <span
+            className="inline-block w-3 h-2 rounded-sm"
+            style={{
+              background:
+                'linear-gradient(to bottom, rgba(198,160,246,0.5), rgba(198,160,246,0.05))',
+            }}
+          />
           <span className="text-ctp-overlay2">New words</span>
         </span>
         <span className="flex items-center gap-1.5">
@@ -225,19 +241,35 @@ export function SessionDetail({ sessionId, cardsMined }: SessionDetailProps) {
         </span>
         {pauseCount > 0 && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-2 rounded-sm" style={{ background: 'rgba(245,169,127,0.2)', border: '1px solid rgba(245,169,127,0.5)' }} />
-            <span className="text-ctp-overlay2">{pauseCount} pause{pauseCount !== 1 ? 's' : ''}</span>
+            <span
+              className="inline-block w-3 h-2 rounded-sm"
+              style={{
+                background: 'rgba(245,169,127,0.2)',
+                border: '1px solid rgba(245,169,127,0.5)',
+              }}
+            />
+            <span className="text-ctp-overlay2">
+              {pauseCount} pause{pauseCount !== 1 ? 's' : ''}
+            </span>
           </span>
         )}
         {seekCount > 0 && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-0.5 rounded" style={{ background: '#91d7e3', opacity: 0.7 }} />
-            <span className="text-ctp-overlay2">{seekCount} seek{seekCount !== 1 ? 's' : ''}</span>
+            <span
+              className="inline-block w-3 h-0.5 rounded"
+              style={{ background: '#91d7e3', opacity: 0.7 }}
+            />
+            <span className="text-ctp-overlay2">
+              {seekCount} seek{seekCount !== 1 ? 's' : ''}
+            </span>
           </span>
         )}
         <span className="flex items-center gap-1.5">
           <span className="text-[12px]">⛏</span>
-          <span className="text-ctp-green">{Math.max(cardEventCount, cardsMined)} card{Math.max(cardEventCount, cardsMined) !== 1 ? 's' : ''} mined</span>
+          <span className="text-ctp-green">
+            {Math.max(cardEventCount, cardsMined)} card
+            {Math.max(cardEventCount, cardsMined) !== 1 ? 's' : ''} mined
+          </span>
         </span>
       </div>
     </div>

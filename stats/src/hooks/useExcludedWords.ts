@@ -57,25 +57,19 @@ export function useExcludedWords() {
     [excluded],
   );
 
-  const toggleExclusion = useCallback(
-    (w: ExcludedWord) => {
-      const key = toKey(w);
-      const current = load();
-      if (getKeySet().has(key)) {
-        persist(current.filter(e => toKey(e) !== key));
-      } else {
-        persist([...current, w]);
-      }
-    },
-    [],
-  );
+  const toggleExclusion = useCallback((w: ExcludedWord) => {
+    const key = toKey(w);
+    const current = load();
+    if (getKeySet().has(key)) {
+      persist(current.filter((e) => toKey(e) !== key));
+    } else {
+      persist([...current, w]);
+    }
+  }, []);
 
-  const removeExclusion = useCallback(
-    (w: ExcludedWord) => {
-      persist(load().filter(e => toKey(e) !== toKey(w)));
-    },
-    [],
-  );
+  const removeExclusion = useCallback((w: ExcludedWord) => {
+    persist(load().filter((e) => toKey(e) !== toKey(w)));
+  }, []);
 
   const clearAll = useCallback(() => persist([]), []);
 

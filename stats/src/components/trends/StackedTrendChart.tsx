@@ -1,6 +1,4 @@
-import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-} from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { epochDayToDate } from '../../lib/formatters';
 
 export interface PerAnimeDataPoint {
@@ -15,8 +13,14 @@ interface StackedTrendChartProps {
 }
 
 const LINE_COLORS = [
-  '#8aadf4', '#c6a0f6', '#a6da95', '#f5a97f', '#f5bde6',
-  '#91d7e3', '#ee99a0', '#f4dbd6',
+  '#8aadf4',
+  '#c6a0f6',
+  '#a6da95',
+  '#f5a97f',
+  '#f5bde6',
+  '#91d7e3',
+  '#ee99a0',
+  '#f4dbd6',
 ];
 
 function buildLineData(raw: PerAnimeDataPoint[]) {
@@ -41,7 +45,10 @@ function buildLineData(raw: PerAnimeDataPoint[]) {
     .sort(([a], [b]) => a - b)
     .map(([epochDay, values]) => {
       const row: Record<string, string | number> = {
-        label: epochDayToDate(epochDay).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        label: epochDayToDate(epochDay).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+        }),
       };
       for (const title of topTitles) {
         row[title] = values[title] ?? 0;
@@ -56,7 +63,11 @@ export function StackedTrendChart({ title, data }: StackedTrendChartProps) {
   const { points, seriesKeys } = buildLineData(data);
 
   const tooltipStyle = {
-    background: '#363a4f', border: '1px solid #494d64', borderRadius: 6, color: '#cad3f5', fontSize: 12,
+    background: '#363a4f',
+    border: '1px solid #494d64',
+    borderRadius: 6,
+    color: '#cad3f5',
+    fontSize: 12,
   };
 
   if (points.length === 0) {
@@ -73,8 +84,18 @@ export function StackedTrendChart({ title, data }: StackedTrendChartProps) {
       <h3 className="text-xs font-semibold text-ctp-text mb-2">{title}</h3>
       <ResponsiveContainer width="100%" height={120}>
         <AreaChart data={points}>
-          <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a5adcb' }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 9, fill: '#a5adcb' }} axisLine={false} tickLine={false} width={28} />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 9, fill: '#a5adcb' }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 9, fill: '#a5adcb' }}
+            axisLine={false}
+            tickLine={false}
+            width={28}
+          />
           <Tooltip contentStyle={tooltipStyle} />
           {seriesKeys.map((key, i) => (
             <Area

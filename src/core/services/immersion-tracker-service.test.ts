@@ -513,14 +513,16 @@ test('handleMediaChange reuses the same provisional anime row across matching fi
           ORDER BY v.source_path
         `,
       )
-      .all('/tmp/Little Witch Academia S02E05.mkv', '/tmp/Little Witch Academia S02E06.mkv') as
-      Array<{
-        source_path: string | null;
-        anime_id: number | null;
-        parsed_episode: number | null;
-        anime_title: string | null;
-        anilist_id: number | null;
-      }>;
+      .all(
+        '/tmp/Little Witch Academia S02E05.mkv',
+        '/tmp/Little Witch Academia S02E06.mkv',
+      ) as Array<{
+      source_path: string | null;
+      anime_id: number | null;
+      parsed_episode: number | null;
+      anime_title: string | null;
+      anilist_id: number | null;
+    }>;
 
     assert.equal(rows.length, 2);
     assert.ok(rows[0]?.anime_id);

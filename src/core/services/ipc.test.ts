@@ -313,7 +313,12 @@ test('registerIpcHandlers validates and clamps stats request limits', async () =
           calls.push(['monthly', limit]);
           return [];
         },
-        getQueryHints: async () => ({ totalSessions: 0, activeSessions: 0, episodesToday: 0, activeAnimeCount: 0 }),
+        getQueryHints: async () => ({
+          totalSessions: 0,
+          activeSessions: 0,
+          episodesToday: 0,
+          activeAnimeCount: 0,
+        }),
         getSessionTimeline: async (sessionId: number, limit = 0) => {
           calls.push(['timeline', limit, sessionId]);
           return [];

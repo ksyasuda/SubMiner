@@ -27,13 +27,7 @@ test('parseSrtCues parses basic SRT content', () => {
 });
 
 test('parseSrtCues handles multi-line subtitle text', () => {
-  const content = [
-    '1',
-    '00:01:00,000 --> 00:01:05,000',
-    'これは',
-    'テストです',
-    '',
-  ].join('\n');
+  const content = ['1', '00:01:00,000 --> 00:01:05,000', 'これは', 'テストです', ''].join('\n');
 
   const cues = parseSrtCues(content);
 
@@ -42,12 +36,7 @@ test('parseSrtCues handles multi-line subtitle text', () => {
 });
 
 test('parseSrtCues handles hours in timestamps', () => {
-  const content = [
-    '1',
-    '01:30:00,000 --> 01:30:05,000',
-    'テスト',
-    '',
-  ].join('\n');
+  const content = ['1', '01:30:00,000 --> 01:30:05,000', 'テスト', ''].join('\n');
 
   const cues = parseSrtCues(content);
 
@@ -56,12 +45,7 @@ test('parseSrtCues handles hours in timestamps', () => {
 });
 
 test('parseSrtCues handles VTT-style dot separator', () => {
-  const content = [
-    '1',
-    '00:00:01.000 --> 00:00:04.000',
-    'VTTスタイル',
-    '',
-  ].join('\n');
+  const content = ['1', '00:00:01.000 --> 00:00:04.000', 'VTTスタイル', ''].join('\n');
 
   const cues = parseSrtCues(content);
 
@@ -151,10 +135,7 @@ test('parseAssCues handles \\N line breaks', () => {
 });
 
 test('parseAssCues returns empty for content without Events section', () => {
-  const content = [
-    '[Script Info]',
-    'Title: Test',
-  ].join('\n');
+  const content = ['[Script Info]', 'Title: Test'].join('\n');
 
   assert.deepEqual(parseAssCues(content), []);
 });
@@ -202,12 +183,7 @@ test('parseAssCues respects dynamic field ordering from the Format row', () => {
 });
 
 test('parseSubtitleCues auto-detects SRT format', () => {
-  const content = [
-    '1',
-    '00:00:01,000 --> 00:00:04,000',
-    'SRTテスト',
-    '',
-  ].join('\n');
+  const content = ['1', '00:00:01,000 --> 00:00:04,000', 'SRTテスト', ''].join('\n');
 
   const cues = parseSubtitleCues(content, 'test.srt');
   assert.equal(cues.length, 1);
@@ -227,12 +203,7 @@ test('parseSubtitleCues auto-detects ASS format', () => {
 });
 
 test('parseSubtitleCues auto-detects VTT format', () => {
-  const content = [
-    '1',
-    '00:00:01.000 --> 00:00:04.000',
-    'VTTテスト',
-    '',
-  ].join('\n');
+  const content = ['1', '00:00:01.000 --> 00:00:04.000', 'VTTテスト', ''].join('\n');
 
   const cues = parseSubtitleCues(content, 'test.vtt');
   assert.equal(cues.length, 1);

@@ -31,9 +31,10 @@ export function WordList({ words, selectedKey = null, onSelectWord, search = '' 
     const needle = search.trim().toLowerCase();
     if (!needle) return words;
     return words.filter(
-      w => w.headword.toLowerCase().includes(needle)
-        || w.word.toLowerCase().includes(needle)
-        || w.reading.toLowerCase().includes(needle),
+      (w) =>
+        w.headword.toLowerCase().includes(needle) ||
+        w.word.toLowerCase().includes(needle) ||
+        w.reading.toLowerCase().includes(needle),
     );
   }, [words, search]);
 
@@ -61,11 +62,16 @@ export function WordList({ words, selectedKey = null, onSelectWord, search = '' 
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-ctp-text">
           {titleBySort[sortBy]}
-          {search && <span className="ml-2 text-ctp-overlay1 font-normal">({filtered.length} matches)</span>}
+          {search && (
+            <span className="ml-2 text-ctp-overlay1 font-normal">({filtered.length} matches)</span>
+          )}
         </h3>
         <select
           value={sortBy}
-          onChange={(e) => { setSortBy(e.target.value as SortKey); setPage(0); }}
+          onChange={(e) => {
+            setSortBy(e.target.value as SortKey);
+            setPage(0);
+          }}
           className="text-xs bg-ctp-surface1 text-ctp-subtext0 border border-ctp-surface2 rounded px-2 py-1"
         >
           <option value="frequency">Frequency</option>
@@ -78,9 +84,9 @@ export function WordList({ words, selectedKey = null, onSelectWord, search = '' 
           <button
             type="button"
             key={toWordKey(w)}
-            className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs transition ${
-              getFrequencyColor(w.frequency)
-            } ${
+            className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs transition ${getFrequencyColor(
+              w.frequency,
+            )} ${
               selectedKey === toWordKey(w)
                 ? 'ring-1 ring-ctp-blue ring-offset-1 ring-offset-ctp-surface0'
                 : 'hover:ring-1 hover:ring-ctp-surface2'
@@ -89,9 +95,7 @@ export function WordList({ words, selectedKey = null, onSelectWord, search = '' 
             onClick={() => onSelectWord?.(w)}
           >
             {w.headword}
-            {w.partOfSpeech && (
-              <PosBadge pos={w.partOfSpeech} />
-            )}
+            {w.partOfSpeech && <PosBadge pos={w.partOfSpeech} />}
             <span className="opacity-60">({w.frequency})</span>
           </button>
         ))}
@@ -102,7 +106,7 @@ export function WordList({ words, selectedKey = null, onSelectWord, search = '' 
             type="button"
             disabled={page === 0}
             className="rounded border border-ctp-surface2 px-2 py-0.5 text-xs text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:opacity-40 disabled:cursor-not-allowed"
-            onClick={() => setPage(p => p - 1)}
+            onClick={() => setPage((p) => p - 1)}
           >
             Prev
           </button>
@@ -113,7 +117,7 @@ export function WordList({ words, selectedKey = null, onSelectWord, search = '' 
             type="button"
             disabled={page >= totalPages - 1}
             className="rounded border border-ctp-surface2 px-2 py-0.5 text-xs text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:opacity-40 disabled:cursor-not-allowed"
-            onClick={() => setPage(p => p + 1)}
+            onClick={() => setPage((p) => p + 1)}
           >
             Next
           </button>

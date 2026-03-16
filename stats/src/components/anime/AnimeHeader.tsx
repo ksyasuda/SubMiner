@@ -8,9 +8,10 @@ interface AnimeHeaderProps {
 }
 
 function AnilistButton({ entry }: { entry: AnilistEntry }) {
-  const label = entry.season != null
-    ? `Season ${entry.season}`
-    : entry.titleEnglish ?? entry.titleRomaji ?? 'AniList';
+  const label =
+    entry.season != null
+      ? `Season ${entry.season}`
+      : (entry.titleEnglish ?? entry.titleRomaji ?? 'AniList');
 
   return (
     <a
@@ -26,8 +27,9 @@ function AnilistButton({ entry }: { entry: AnilistEntry }) {
 }
 
 export function AnimeHeader({ detail, anilistEntries, onChangeAnilist }: AnimeHeaderProps) {
-  const altTitles = [detail.titleRomaji, detail.titleEnglish, detail.titleNative]
-    .filter((t): t is string => t != null && t !== detail.canonicalTitle);
+  const altTitles = [detail.titleRomaji, detail.titleEnglish, detail.titleNative].filter(
+    (t): t is string => t != null && t !== detail.canonicalTitle,
+  );
   const uniqueAltTitles = [...new Set(altTitles)];
 
   const hasMultipleEntries = anilistEntries.length > 1;
@@ -52,9 +54,7 @@ export function AnimeHeader({ detail, anilistEntries, onChangeAnilist }: AnimeHe
         <div className="flex flex-wrap gap-1.5 mt-2">
           {anilistEntries.length > 0 ? (
             hasMultipleEntries ? (
-              anilistEntries.map((entry) => (
-                <AnilistButton key={entry.anilistId} entry={entry} />
-              ))
+              anilistEntries.map((entry) => <AnilistButton key={entry.anilistId} entry={entry} />)
             ) : (
               <a
                 href={`https://anilist.co/anime/${anilistEntries[0]!.anilistId}`}
@@ -82,7 +82,9 @@ export function AnimeHeader({ detail, anilistEntries, onChangeAnilist }: AnimeHe
               title="Search AniList and manually select the correct anime entry"
               className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-overlay2 hover:bg-ctp-surface2 hover:text-ctp-subtext0 transition-colors"
             >
-              {anilistEntries.length > 0 || detail.anilistId ? 'Change AniList Entry' : 'Link to AniList'}
+              {anilistEntries.length > 0 || detail.anilistId
+                ? 'Change AniList Entry'
+                : 'Link to AniList'}
             </button>
           )}
         </div>
