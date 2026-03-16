@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { PosBadge } from './pos-helpers';
+import { fullReading } from '../../lib/reading-utils';
 import type { VocabularyEntry } from '../../types/stats';
 
 interface FrequencyRankTableProps {
@@ -13,11 +14,12 @@ const PAGE_SIZE = 25;
 export function FrequencyRankTable({ words, knownWords, onSelectWord }: FrequencyRankTableProps) {
   const [page, setPage] = useState(0);
   const [hideKnown, setHideKnown] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
 
   const hasKnownData = knownWords.size > 0;
 
   const isWordKnown = (w: VocabularyEntry): boolean => {
-    return knownWords.has(w.headword) || knownWords.has(w.word) || knownWords.has(w.reading);
+    return knownWords.has(w.headword) || knownWords.has(w.word);
   };
 
   const ranked = useMemo(() => {
@@ -25,7 +27,28 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
     if (hideKnown && hasKnownData) {
       filtered = filtered.filter((w) => !isWordKnown(w));
     }
-    return filtered.sort((a, b) => a.frequencyRank! - b.frequencyRank!);
+
+    const byHeadword = new Map<string, VocabularyEntry>();
+    for (const w of filtered) {
+      const existing = byHeadword.get(w.headword);
+      if (!existing) {
+        byHeadword.set(w.headword, { ...w });
+      } else {
+        existing.frequency += w.frequency;
+        existing.animeCount = Math.max(existing.animeCount, w.animeCount);
+        if (w.frequencyRank! < existing.frequencyRank!) {
+          existing.frequencyRank = w.frequencyRank;
+        }
+        if (!existing.reading && w.reading) {
+          existing.reading = w.reading;
+        }
+        if (!existing.partOfSpeech && w.partOfSpeech) {
+          existing.partOfSpeech = w.partOfSpeech;
+        }
+      }
+    }
+
+    return [...byHeadword.values()].sort((a, b) => a.frequencyRank! - b.frequencyRank!);
   }, [words, knownWords, hideKnown, hasKnownData]);
 
   if (words.every((w) => w.frequencyRank == null)) {
@@ -44,10 +67,15 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
 
   return (
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-ctp-text">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setCollapsed(!collapsed)}
+          className="flex items-center gap-2 text-sm font-semibold text-ctp-text hover:text-ctp-subtext1 transition-colors"
+        >
+          <span className={`text-xs text-ctp-overlay2 transition-transform ${collapsed ? '' : 'rotate-90'}`}>{'\u25B6'}</span>
           {hideKnown && hasKnownData ? 'Common Words Not Yet Mined' : 'Most Common Words Seen'}
-        </h3>
+        </button>
         <div className="flex items-center gap-3">
           {hasKnownData && (
             <button
@@ -67,13 +95,13 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
           </span>
         </div>
       </div>
-      {ranked.length === 0 ? (
-        <div className="text-xs text-ctp-overlay2">
+      {collapsed ? null : ranked.length === 0 ? (
+        <div className="text-xs text-ctp-overlay2 mt-3">
           {hideKnown ? 'All ranked words are already in Anki!' : 'No words with frequency data.'}
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto mt-3">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-ctp-overlay2 border-b border-ctp-surface1">
@@ -98,7 +126,7 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
                       {w.headword}
                     </td>
                     <td className="py-1.5 pr-3 text-ctp-subtext0">
-                      {w.reading !== w.headword ? w.reading : ''}
+                      {fullReading(w.headword, w.reading) || w.headword}
                     </td>
                     <td className="py-1.5 pr-3">
                       {w.partOfSpeech && <PosBadge pos={w.partOfSpeech} />}

@@ -1,17 +1,39 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useWordDetail } from '../../hooks/useWordDetail';
 import { apiClient } from '../../lib/api-client';
 import { formatNumber, formatRelativeDate } from '../../lib/formatters';
+import { fullReading } from '../../lib/reading-utils';
 import type { VocabularyOccurrenceEntry } from '../../types/stats';
 import { PosBadge } from './pos-helpers';
 
-const OCCURRENCES_PAGE_SIZE = 50;
+const INITIAL_PAGE_SIZE = 5;
+const LOAD_MORE_SIZE = 10;
+
+type MineStatus = { loading?: boolean; success?: boolean; error?: string };
 
 interface WordDetailPanelProps {
   wordId: number | null;
   onClose: () => void;
   onSelectWord?: (wordId: number) => void;
   onNavigateToAnime?: (animeId: number) => void;
+  isExcluded?: (w: { headword: string; word: string; reading: string }) => boolean;
+  onToggleExclusion?: (w: { headword: string; word: string; reading: string }) => void;
+}
+
+function highlightWord(text: string, words: string[]): React.ReactNode {
+  const needles = words.filter(Boolean);
+  if (needles.length === 0) return text;
+
+  const escaped = needles.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const pattern = new RegExp(`(${escaped.join('|')})`, 'g');
+  const parts = text.split(pattern);
+  const needleSet = new Set(needles);
+
+  return parts.map((part, i) =>
+    needleSet.has(part)
+      ? <mark key={i} className="bg-transparent text-ctp-blue underline decoration-ctp-blue/40 underline-offset-2">{part}</mark>
+      : part
+  );
 }
 
 function formatSegment(ms: number | null): string {
@@ -22,7 +44,7 @@ function formatSegment(ms: number | null): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
-export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAnime }: WordDetailPanelProps) {
+export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAnime, isExcluded, onToggleExclusion }: WordDetailPanelProps) {
   const { data, loading, error } = useWordDetail(wordId);
   const [occurrences, setOccurrences] = useState<VocabularyOccurrenceEntry[]>([]);
   const [occLoading, setOccLoading] = useState(false);
@@ -30,11 +52,23 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
   const [occError, setOccError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [occLoaded, setOccLoaded] = useState(false);
+  const [mineStatus, setMineStatus] = useState<Record<string, MineStatus>>({});
   const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    setOccurrences([]);
+    setOccLoaded(false);
+    setOccLoading(false);
+    setOccLoadingMore(false);
+    setOccError(null);
+    setHasMore(false);
+    setMineStatus({});
+    requestIdRef.current++;
+  }, [wordId]);
 
   if (wordId === null) return null;
 
-  const loadOccurrences = async (detail: NonNullable<typeof data>['detail'], offset: number, append: boolean) => {
+  const loadOccurrences = async (detail: NonNullable<typeof data>['detail'], offset: number, limit: number, append: boolean) => {
     const reqId = ++requestIdRef.current;
     if (append) {
       setOccLoadingMore(true);
@@ -45,11 +79,11 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
     try {
       const rows = await apiClient.getWordOccurrences(
         detail.headword, detail.word, detail.reading,
-        OCCURRENCES_PAGE_SIZE, offset,
+        limit, offset,
       );
       if (reqId !== requestIdRef.current) return;
       setOccurrences(prev => append ? [...prev, ...rows] : rows);
-      setHasMore(rows.length === OCCURRENCES_PAGE_SIZE);
+      setHasMore(rows.length === limit);
     } catch (err) {
       if (reqId !== requestIdRef.current) return;
       setOccError(err instanceof Error ? err.message : String(err));
@@ -67,12 +101,44 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
 
   const handleShowOccurrences = () => {
     if (!data) return;
-    void loadOccurrences(data.detail, 0, false);
+    void loadOccurrences(data.detail, 0, INITIAL_PAGE_SIZE, false);
   };
 
   const handleLoadMore = () => {
     if (!data || occLoadingMore || !hasMore) return;
-    void loadOccurrences(data.detail, occurrences.length, true);
+    void loadOccurrences(data.detail, occurrences.length, LOAD_MORE_SIZE, true);
+  };
+
+  const handleMine = async (occ: VocabularyOccurrenceEntry, mode: 'word' | 'sentence' | 'audio') => {
+    const key = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}-${mode}`;
+    setMineStatus(prev => ({ ...prev, [key]: { loading: true } }));
+    try {
+      const result = await apiClient.mineCard({
+        sourcePath: occ.sourcePath!,
+        startMs: occ.segmentStartMs!,
+        endMs: occ.segmentEndMs!,
+        sentence: occ.text,
+        word: data!.detail.headword,
+        secondaryText: occ.secondaryText,
+        videoTitle: occ.videoTitle,
+        mode,
+      });
+      if (result.error) {
+        setMineStatus(prev => ({ ...prev, [key]: { error: result.error } }));
+      } else {
+        setMineStatus(prev => ({ ...prev, [key]: { success: true } }));
+        const label = mode === 'audio' ? 'Audio card' : mode === 'word' ? data!.detail.headword : occ.text.slice(0, 30);
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification('Anki Card Created', { body: `Mined: ${label}`, icon: '/favicon.png' });
+        } else if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
+          Notification.requestPermission().then(p => {
+            if (p === 'granted') new Notification('Anki Card Created', { body: `Mined: ${label}` });
+          });
+        }
+      }
+    } catch (err) {
+      setMineStatus(prev => ({ ...prev, [key]: { error: err instanceof Error ? err.message : String(err) } }));
+    }
   };
 
   return (
@@ -93,7 +159,7 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
               {data && (
                 <>
                   <h2 className="mt-1 truncate text-3xl font-semibold text-ctp-text">{data.detail.headword}</h2>
-                  <div className="mt-1 text-sm text-ctp-subtext0">{data.detail.reading || data.detail.word}</div>
+                  <div className="mt-1 text-sm text-ctp-subtext0">{fullReading(data.detail.headword, data.detail.reading) || data.detail.word}</div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {data.detail.partOfSpeech && <PosBadge pos={data.detail.partOfSpeech} />}
                     {data.detail.pos1 && data.detail.pos1 !== data.detail.partOfSpeech && (
@@ -109,13 +175,28 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
                 </>
               )}
             </div>
-            <button
-              type="button"
-              className="rounded-md border border-ctp-surface2 px-3 py-1.5 text-xs font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue"
-              onClick={onClose}
-            >
-              Close
-            </button>
+            <div className="flex items-center gap-2">
+              {data && onToggleExclusion && (
+                <button
+                  type="button"
+                  className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                    isExcluded?.(data.detail)
+                      ? 'border-ctp-red/50 bg-ctp-red/10 text-ctp-red hover:bg-ctp-red/20'
+                      : 'border-ctp-surface2 text-ctp-subtext0 hover:border-ctp-red hover:text-ctp-red'
+                  }`}
+                  onClick={() => onToggleExclusion(data.detail)}
+                >
+                  {isExcluded?.(data.detail) ? 'Excluded' : 'Exclude'}
+                </button>
+              )}
+              <button
+                type="button"
+                className="rounded-md border border-ctp-surface2 px-3 py-1.5 text-xs font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue"
+                onClick={onClose}
+              >
+                Close
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
@@ -190,7 +271,7 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
                   {occLoading && <div className="text-sm text-ctp-overlay2">Loading occurrences...</div>}
                   {occError && <div className="text-sm text-ctp-red">Error: {occError}</div>}
                   {occLoaded && !occLoading && occurrences.length === 0 && (
-                    <div className="text-sm text-ctp-overlay2">No occurrences tracked yet.</div>
+                    <div className="text-sm text-ctp-overlay2">No example lines tracked yet. Lines are stored for sessions recorded after the subtitle tracking update.</div>
                   )}
                   {occurrences.length > 0 && (
                     <div className="space-y-3">
@@ -212,33 +293,71 @@ export function WordDetailPanel({ wordId, onClose, onSelectWord, onNavigateToAni
                               {formatNumber(occ.occurrenceCount)} in line
                             </div>
                           </div>
-                          <div className="mt-3 text-xs text-ctp-overlay1">
-                            {formatSegment(occ.segmentStartMs)}-{formatSegment(occ.segmentEndMs)} · session {occ.sessionId}
+                          <div className="mt-3 flex items-center gap-2 text-xs text-ctp-overlay1">
+                            <span>{formatSegment(occ.segmentStartMs)}-{formatSegment(occ.segmentEndMs)} · session {occ.sessionId}</span>
+                            {occ.sourcePath && occ.segmentStartMs != null && occ.segmentEndMs != null && (() => {
+                              const baseKey = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}`;
+                              const wordStatus = mineStatus[`${baseKey}-word`];
+                              const sentenceStatus = mineStatus[`${baseKey}-sentence`];
+                              const audioStatus = mineStatus[`${baseKey}-audio`];
+                              return (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-mauve hover:text-ctp-mauve disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={wordStatus?.loading}
+                                    onClick={() => void handleMine(occ, 'word')}
+                                  >
+                                    {wordStatus?.loading ? 'Mining...' : wordStatus?.success ? 'Mined!' : 'Mine Word'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-green hover:text-ctp-green disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={sentenceStatus?.loading}
+                                    onClick={() => void handleMine(occ, 'sentence')}
+                                  >
+                                    {sentenceStatus?.loading ? 'Mining...' : sentenceStatus?.success ? 'Mined!' : 'Mine Sentence'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="rounded border border-ctp-surface2 px-1.5 py-0.5 text-[10px] font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={audioStatus?.loading}
+                                    onClick={() => void handleMine(occ, 'audio')}
+                                  >
+                                    {audioStatus?.loading ? 'Mining...' : audioStatus?.success ? 'Mined!' : 'Mine Audio'}
+                                  </button>
+                                </>
+                              );
+                            })()}
                           </div>
+                          {(() => {
+                            const baseKey = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}`;
+                            const errors = ['word', 'sentence', 'audio']
+                              .map(m => mineStatus[`${baseKey}-${m}`]?.error)
+                              .filter(Boolean);
+                            return errors.length > 0 ? <div className="mt-1 text-[10px] text-ctp-red">{errors[0]}</div> : null;
+                          })()}
                           <p className="mt-3 rounded-lg bg-ctp-base/70 px-3 py-3 text-sm leading-6 text-ctp-text">
-                            {occ.text}
+                            {highlightWord(occ.text, [data!.detail.headword, data!.detail.word])}
                           </p>
                         </article>
                       ))}
+                      {hasMore && (
+                        <button
+                          type="button"
+                          className="w-full rounded-lg border border-ctp-surface2 bg-ctp-surface0 px-4 py-2 text-sm font-medium text-ctp-text transition hover:border-ctp-blue hover:text-ctp-blue disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={handleLoadMore}
+                          disabled={occLoadingMore}
+                        >
+                          {occLoadingMore ? 'Loading more...' : 'Load more'}
+                        </button>
+                      )}
                     </div>
                   )}
                 </section>
               </>
             )}
           </div>
-
-          {occLoaded && !occLoading && !occError && hasMore && (
-            <div className="border-t border-ctp-surface1 px-4 py-4">
-              <button
-                type="button"
-                className="w-full rounded-lg border border-ctp-surface2 bg-ctp-surface0 px-4 py-2 text-sm font-medium text-ctp-text transition hover:border-ctp-blue hover:text-ctp-blue disabled:cursor-not-allowed disabled:opacity-60"
-                onClick={handleLoadMore}
-                disabled={occLoadingMore}
-              >
-                {occLoadingMore ? 'Loading more...' : 'Load more'}
-              </button>
-            </div>
-          )}
         </div>
       </aside>
     </div>
