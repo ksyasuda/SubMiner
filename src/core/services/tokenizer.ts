@@ -23,7 +23,6 @@ import {
   requestYomitanScanTokens,
   requestYomitanTermFrequencies,
 } from './tokenizer/yomitan-parser-runtime';
-import { deriveStoredPartOfSpeech } from './tokenizer/part-of-speech';
 
 const logger = createLogger('main:tokenizer');
 
@@ -122,6 +121,10 @@ function getKnownWordLookup(
     return () => false;
   }
   return deps.isKnownWord;
+}
+
+function needsMecabPosEnrichment(options: TokenizerAnnotationOptions): boolean {
+  return options.nPlusOneEnabled || options.jlptEnabled || options.frequencyEnabled;
 }
 
 function hasAnyAnnotationEnabled(options: TokenizerAnnotationOptions): boolean {
@@ -493,9 +496,7 @@ async function parseWithYomitanInternalParser(
         headword: token.headword,
         startPos: token.startPos,
         endPos: token.endPos,
-        partOfSpeech: deriveStoredPartOfSpeech({ pos1: token.pos1 }),
-        pos1: token.pos1,
-        pos2: token.pos2,
+        partOfSpeech: PartOfSpeech.other,
         isMerged: true,
         isKnown: false,
         isNPlusOneTarget: false,
@@ -524,18 +525,41 @@ async function parseWithYomitanInternalParser(
         return buildYomitanFrequencyRankMap(yomitanFrequencies);
       })()
     : Promise.resolve(new Map<string, number>());
-  const yomitanRankByTerm = await frequencyRankPromise;
+
+  const mecabEnrichmentPromise: Promise<MergedToken[]> = needsMecabPosEnrichment(options)
+    ? (async () => {
+        try {
+          const mecabTokens = await deps.tokenizeWithMecab(text);
+          const enrichTokensWithMecab = deps.enrichTokensWithMecab ?? enrichTokensWithMecabAsync;
+          return await enrichTokensWithMecab(normalizedSelectedTokens, mecabTokens);
+        } catch (err) {
+          const error = err as Error;
+          logger.warn(
+            'Failed to enrich Yomitan tokens with MeCab POS:',
+            error.message,
+            `tokenCount=${normalizedSelectedTokens.length}`,
+            `textLength=${text.length}`,
+          );
+          return normalizedSelectedTokens;
+        }
+      })()
+    : Promise.resolve(normalizedSelectedTokens);
+
+  const [yomitanRankByTerm, enrichedTokens] = await Promise.all([
+    frequencyRankPromise,
+    mecabEnrichmentPromise,
+  ]);
 
   if (options.frequencyEnabled) {
     return applyFrequencyRanks(
-      normalizedSelectedTokens,
+      enrichedTokens,
       options.frequencyMatchMode,
       yomitanRankByTerm,
       deps.getFrequencyRank,
     );
   }
 
-  return normalizedSelectedTokens;
+  return enrichedTokens;
 }
 
 export async function tokenizeSubtitle(
