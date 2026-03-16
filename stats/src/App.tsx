@@ -6,12 +6,14 @@ import { AnimeTab } from './components/anime/AnimeTab';
 import { VocabularyTab } from './components/vocabulary/VocabularyTab';
 import { SessionsTab } from './components/sessions/SessionsTab';
 import { WordDetailPanel } from './components/vocabulary/WordDetailPanel';
+import { useExcludedWords } from './hooks/useExcludedWords';
 import type { TabId } from './components/layout/TabBar';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [selectedAnimeId, setSelectedAnimeId] = useState<number | null>(null);
   const [globalWordId, setGlobalWordId] = useState<number | null>(null);
+  const { excluded, isExcluded, toggleExclusion, removeExclusion, clearAll } = useExcludedWords();
 
   const navigateToAnime = useCallback((animeId: number) => {
     setActiveTab('anime');
@@ -65,6 +67,10 @@ export function App() {
             <VocabularyTab
               onNavigateToAnime={navigateToAnime}
               onOpenWordDetail={openWordDetail}
+              excluded={excluded}
+              isExcluded={isExcluded}
+              onRemoveExclusion={removeExclusion}
+              onClearExclusions={clearAll}
             />
           </section>
         ) : null}
@@ -79,6 +85,8 @@ export function App() {
         onClose={() => setGlobalWordId(null)}
         onSelectWord={openWordDetail}
         onNavigateToAnime={navigateToAnime}
+        isExcluded={isExcluded}
+        onToggleExclusion={toggleExclusion}
       />
     </div>
   );

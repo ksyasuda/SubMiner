@@ -4,32 +4,42 @@ import { StatCard } from '../layout/StatCard';
 import { WordList } from './WordList';
 import { KanjiBreakdown } from './KanjiBreakdown';
 import { KanjiDetailPanel } from './KanjiDetailPanel';
+import { ExclusionManager } from './ExclusionManager';
 import { formatNumber } from '../../lib/formatters';
 import { TrendChart } from '../trends/TrendChart';
 import { FrequencyRankTable } from './FrequencyRankTable';
+import { CrossAnimeWordsTable } from './CrossAnimeWordsTable';
 import { buildVocabularySummary } from '../../lib/dashboard-data';
+import type { ExcludedWord } from '../../hooks/useExcludedWords';
 import type { KanjiEntry, VocabularyEntry } from '../../types/stats';
 
 interface VocabularyTabProps {
   onNavigateToAnime?: (animeId: number) => void;
   onOpenWordDetail?: (wordId: number) => void;
+  excluded: ExcludedWord[];
+  isExcluded: (w: { headword: string; word: string; reading: string }) => boolean;
+  onRemoveExclusion: (w: ExcludedWord) => void;
+  onClearExclusions: () => void;
 }
 
 function isProperNoun(w: VocabularyEntry): boolean {
   return w.pos2 === '固有名詞';
 }
 
-export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail }: VocabularyTabProps) {
+export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail, excluded, isExcluded, onRemoveExclusion, onClearExclusions }: VocabularyTabProps) {
   const { words, kanji, knownWords, loading, error } = useVocabulary();
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [hideNames, setHideNames] = useState(false);
+  const [showExclusionManager, setShowExclusionManager] = useState(false);
 
   const hasNames = useMemo(() => words.some(isProperNoun), [words]);
-  const filteredWords = useMemo(
-    () => hideNames ? words.filter((w) => !isProperNoun(w)) : words,
-    [words, hideNames],
-  );
+  const filteredWords = useMemo(() => {
+    let result = words;
+    if (hideNames) result = result.filter((w) => !isProperNoun(w));
+    if (excluded.length > 0) result = result.filter((w) => !isExcluded(w));
+    return result;
+  }, [words, hideNames, excluded, isExcluded]);
 
   if (loading) {
     return (
@@ -50,6 +60,11 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail }: Vocabular
 
   const handleSelectWord = (entry: VocabularyEntry): void => {
     onOpenWordDetail?.(entry.wordId);
+  };
+
+  const handleBarClick = (headword: string): void => {
+    const match = filteredWords.find(w => w.headword === headword);
+    if (match) onOpenWordDetail?.(match.wordId);
   };
 
   const openKanjiDetail = (entry: KanjiEntry): void => {
@@ -89,6 +104,17 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail }: Vocabular
             Hide Names
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setShowExclusionManager(true)}
+          className={`shrink-0 px-3 py-2 rounded-lg text-xs transition-colors border ${
+            excluded.length > 0
+              ? 'bg-ctp-surface2 text-ctp-text border-ctp-red/50'
+              : 'bg-ctp-surface0 text-ctp-overlay2 border-ctp-surface1 hover:text-ctp-subtext0'
+          }`}
+        >
+          Exclusions{excluded.length > 0 && ` (${excluded.length})`}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -97,6 +123,7 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail }: Vocabular
           data={summary.topWords}
           color="#8aadf4"
           type="bar"
+          onBarClick={handleBarClick}
         />
         <TrendChart
           title="New Words by Day"
@@ -107,6 +134,8 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail }: Vocabular
       </div>
 
       <FrequencyRankTable words={filteredWords} knownWords={knownWords} onSelectWord={handleSelectWord} />
+
+      <CrossAnimeWordsTable words={filteredWords} knownWords={knownWords} onSelectWord={handleSelectWord} />
 
       <WordList
         words={filteredWords}
@@ -127,6 +156,15 @@ export function VocabularyTab({ onNavigateToAnime, onOpenWordDetail }: Vocabular
         onSelectWord={onOpenWordDetail}
         onNavigateToAnime={onNavigateToAnime}
       />
+
+      {showExclusionManager && (
+        <ExclusionManager
+          excluded={excluded}
+          onRemove={onRemoveExclusion}
+          onClearAll={onClearExclusions}
+          onClose={() => setShowExclusionManager(false)}
+        />
+      )}
     </div>
   );
 }
