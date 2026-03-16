@@ -41,6 +41,9 @@ jobs:
       - name: Lint changelog fragments
         run: bun run changelog:lint
 
+      - name: Lint stats (formatting)
+        run: bun run lint:stats
+
       - name: Enforce pull request changelog fragments (`skip-changelog` label bypass)
         if: github.event_name == 'pull_request'
         run: bun run changelog:pr-check --base-ref "origin/${{ github.base_ref }}" --head-ref "HEAD" --labels "${{ join(github.event.pull_request.labels.*.name, ',') }}"
