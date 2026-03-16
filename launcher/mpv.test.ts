@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import type { Args } from './types';
 import {
   cleanupPlaybackSession,
+  findAppBinary,
   runAppCommandCaptureOutput,
   shouldResolveAniSkipMetadata,
   startOverlay,
@@ -231,5 +233,74 @@ test('cleanupPlaybackSession preserves background app while stopping mpv-owned c
     state.appPath = '';
     state.stopRequested = false;
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── findAppBinary: Linux packaged path discovery ──────────────────────────────
+
+function makeExecutable(filePath: string): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, '#!/bin/sh\nexit 0\n');
+  fs.chmodSync(filePath, 0o755);
+}
+
+test('findAppBinary resolves ~/.local/bin/SubMiner.AppImage when it exists', () => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-home-'));
+  const originalHomedir = os.homedir;
+  try {
+    os.homedir = () => baseDir;
+    const appImage = path.join(baseDir, '.local/bin/SubMiner.AppImage');
+    makeExecutable(appImage);
+
+    const result = findAppBinary('/some/other/path/subminer');
+    assert.equal(result, appImage);
+  } finally {
+    os.homedir = originalHomedir;
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test('findAppBinary resolves /opt/SubMiner/SubMiner.AppImage when ~/.local/bin candidate does not exist', () => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-home-'));
+  const originalHomedir = os.homedir;
+  const originalAccessSync = fs.accessSync;
+  try {
+    os.homedir = () => baseDir;
+    // No ~/.local/bin/SubMiner.AppImage; patch accessSync so only /opt path is executable
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).accessSync = (filePath: string, mode?: number): void => {
+      if (filePath === '/opt/SubMiner/SubMiner.AppImage') return;
+      throw Object.assign(new Error(`EACCES: ${filePath}`), { code: 'EACCES' });
+    };
+
+    const result = findAppBinary('/some/other/path/subminer');
+    assert.equal(result, '/opt/SubMiner/SubMiner.AppImage');
+  } finally {
+    os.homedir = originalHomedir;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fs as any).accessSync = originalAccessSync;
+    fs.rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test('findAppBinary finds subminer on PATH when AppImage candidates do not exist', () => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-path-'));
+  const originalHomedir = os.homedir;
+  const originalPath = process.env.PATH;
+  try {
+    os.homedir = () => baseDir;
+    // No AppImage candidates in empty home dir; place subminer wrapper on PATH
+    const binDir = path.join(baseDir, 'bin');
+    const wrapperPath = path.join(binDir, 'subminer');
+    makeExecutable(wrapperPath);
+    process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
+
+    // selfPath must differ from wrapperPath so the self-check does not exclude it
+    const result = findAppBinary(path.join(baseDir, 'launcher', 'subminer'));
+    assert.equal(result, wrapperPath);
+  } finally {
+    os.homedir = originalHomedir;
+    process.env.PATH = originalPath;
+    fs.rmSync(baseDir, { recursive: true, force: true });
   }
 });

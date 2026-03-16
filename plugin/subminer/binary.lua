@@ -257,7 +257,9 @@ try {
 			add_search_path(search_paths, utils.join_path(home, ".local", "bin", "SubMiner.AppImage"))
 			add_search_path(search_paths, "/opt/SubMiner/SubMiner.AppImage")
 			add_search_path(search_paths, "/usr/local/bin/SubMiner")
+			add_search_path(search_paths, "/usr/local/bin/subminer")
 			add_search_path(search_paths, "/usr/bin/SubMiner")
+			add_search_path(search_paths, "/usr/bin/subminer")
 		end
 
 		for _, path in ipairs(search_paths) do
