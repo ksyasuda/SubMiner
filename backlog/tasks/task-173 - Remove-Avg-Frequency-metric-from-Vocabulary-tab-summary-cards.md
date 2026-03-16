@@ -4,12 +4,13 @@ title: Remove Avg Frequency metric from Vocabulary tab summary cards
 status: Done
 assignee: []
 created_date: '2026-03-15 00:13'
-updated_date: '2026-03-15 00:15'
+updated_date: '2026-03-16 05:13'
 labels:
   - stats
   - ui
 dependencies: []
 priority: low
+ordinal: 17500
 ---
 
 ## Description

@@ -4,7 +4,7 @@ title: Rewrite SubMiner agentic testing automation plan
 status: Done
 assignee: []
 created_date: '2026-03-13 04:45'
-updated_date: '2026-03-13 04:47'
+updated_date: '2026-03-16 05:13'
 labels:
   - planning
   - testing
@@ -19,6 +19,7 @@ references:
 documentation:
   - /home/sudacode/projects/japanese/SubMiner/docs-site/development.md
   - /home/sudacode/projects/japanese/SubMiner/docs-site/architecture.md
+ordinal: 23500
 ---
 
 ## Description

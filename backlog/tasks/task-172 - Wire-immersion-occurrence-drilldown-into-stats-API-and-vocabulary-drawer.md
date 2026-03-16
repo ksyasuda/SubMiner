@@ -5,14 +5,14 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-14 12:05'
-updated_date: '2026-03-14 12:11'
+updated_date: '2026-03-16 05:13'
 labels:
   - immersion
   - stats
   - ui
 dependencies:
   - TASK-171
-references: []
+ordinal: 18500
 ---
 
 ## Description
@@ -22,7 +22,6 @@ Expose the new immersion word/kanji occurrence queries through the stats server 
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
 - [x] #1 Stats server exposes word and kanji occurrence endpoints with bounded recent-first paging.
 - [x] #2 Stats client/types support loading occurrence pages for a selected word or kanji.

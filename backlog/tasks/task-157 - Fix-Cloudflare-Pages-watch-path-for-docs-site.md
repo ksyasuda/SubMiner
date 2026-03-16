@@ -1,15 +1,16 @@
 ---
 id: TASK-157
 title: Fix Cloudflare Pages watch path for docs-site
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-10 20:15'
-updated_date: '2026-03-10 20:15'
+updated_date: '2026-03-16 05:13'
 labels:
   - docs-site
   - cloudflare
 dependencies: []
 priority: medium
+ordinal: 98500
 ---
 
 ## Description
@@ -20,9 +21,9 @@ Cloudflare Pages skipped a docs-site deployment after the docs repo moved into t
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Docs contributor guidance points Cloudflare Pages watch paths at `docs-site/*`, not `docs-site/**`.
-- [ ] #2 Regression coverage fails if the docs revert to the incorrect watch-path string.
-- [ ] #3 Implementation notes record that the Cloudflare dashboard setting must be updated manually and the docs deploy retriggered.
+- [x] #1 Docs contributor guidance points Cloudflare Pages watch paths at `docs-site/*`, not `docs-site/**`.
+- [x] #2 Regression coverage fails if the docs revert to the incorrect watch-path string.
+- [x] #3 Implementation notes record that the Cloudflare dashboard setting must be updated manually and the docs deploy retriggered.
 <!-- AC:END -->
 
 ## Implementation Notes

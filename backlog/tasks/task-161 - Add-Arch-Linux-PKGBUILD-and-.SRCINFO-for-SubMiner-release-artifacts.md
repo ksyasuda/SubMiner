@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-11 07:50'
-updated_date: '2026-03-11 07:56'
+updated_date: '2026-03-16 05:13'
 labels:
   - packaging
   - linux
@@ -20,6 +20,7 @@ documentation:
   - docs-site/installation.md
   - docs/RELEASING.md
 priority: medium
+ordinal: 27500
 ---
 
 ## Description

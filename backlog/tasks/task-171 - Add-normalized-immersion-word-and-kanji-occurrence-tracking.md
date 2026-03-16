@@ -5,15 +5,18 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-14 11:30'
-updated_date: '2026-03-14 11:48'
+updated_date: '2026-03-16 05:13'
 labels:
   - immersion
   - stats
   - database
 dependencies: []
 references:
-  - /home/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-14-immersion-occurrence-tracking-design.md
-  - /home/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-14-immersion-occurrence-tracking.md
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-14-immersion-occurrence-tracking-design.md
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-14-immersion-occurrence-tracking.md
+ordinal: 19500
 ---
 
 ## Description
@@ -23,7 +26,6 @@ Add normalized occurrence tables for immersion-tracked words and kanji so stats 
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
 - [x] #1 The immersion schema adds normalized subtitle-line and counted occurrence tables for words and kanji, with additive migration support for existing databases.
 - [x] #2 Subtitle-line tracking writes one subtitle-line row per seen line plus counted word/kanji occurrences linked back to the line, session, video, and anime context.

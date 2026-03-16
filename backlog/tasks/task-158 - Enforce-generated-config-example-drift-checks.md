@@ -4,12 +4,13 @@ title: Enforce generated config example drift checks
 status: Done
 assignee: []
 created_date: '2026-03-10 20:35'
-updated_date: '2026-03-10 20:35'
+updated_date: '2026-03-16 05:13'
 labels:
   - config
   - docs-site
 dependencies: []
 priority: medium
+ordinal: 30500
 ---
 
 ## Description
@@ -26,7 +27,6 @@ Scope:
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
 - [x] #1 Automated verification fails when repo-root `config.example.jsonc` is missing or stale.
 - [x] #2 Automated verification fails when in-repo docs-site `public/config.example.jsonc` is missing or stale, when docs-site exists.

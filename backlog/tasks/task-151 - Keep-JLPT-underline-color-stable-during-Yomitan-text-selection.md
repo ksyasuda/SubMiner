@@ -5,7 +5,7 @@ status: Done
 assignee:
   - OpenCode
 created_date: '2026-03-10 06:42'
-updated_date: '2026-03-10 07:54'
+updated_date: '2026-03-16 05:13'
 labels: []
 dependencies: []
 references:
@@ -15,6 +15,7 @@ documentation:
   - ../subminer-docs/development.md
   - ../subminer-docs/architecture.md
 priority: medium
+ordinal: 33500
 ---
 
 ## Description

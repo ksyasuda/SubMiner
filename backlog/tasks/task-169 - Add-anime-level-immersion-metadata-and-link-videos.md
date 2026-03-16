@@ -5,7 +5,7 @@ status: Done
 assignee:
   - codex
 created_date: '2026-03-13 19:34'
-updated_date: '2026-03-13 21:46'
+updated_date: '2026-03-16 05:13'
 labels:
   - immersion
   - stats
@@ -13,8 +13,11 @@ labels:
   - anilist
 dependencies: []
 references:
-  - /home/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-13-immersion-anime-metadata-design.md
-  - /home/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-13-immersion-anime-metadata.md
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-13-immersion-anime-metadata-design.md
+  - >-
+    /home/sudacode/projects/japanese/SubMiner/docs/plans/2026-03-13-immersion-anime-metadata.md
+ordinal: 20500
 ---
 
 ## Description
@@ -24,7 +27,6 @@ Add first-class anime metadata to the immersion tracker so stats can group sessi
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
-
 <!-- AC:BEGIN -->
 - [x] #1 The immersion schema includes a new anime-level table plus additive video linkage/parsed metadata fields needed for anime, season, and episode stats.
 - [x] #2 Media ingest creates or reuses anime rows, stores parsed season/episode metadata on videos, and upgrades provisional anime rows when AniList data becomes available.
@@ -67,7 +69,6 @@ Add first-class anime metadata to the immersion tracker so stats can group sessi
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-
 Added `imm_anime`, additive `imm_videos` anime/parser metadata fields, and a legacy migration/backfill path that links existing videos to provisional anime rows from parsed filenames.
 
 Added focused storage helpers for normalized anime identity reuse, later AniList upgrades, and per-video season/episode/parser metadata linking. Media ingest now parses and links anime metadata during `handleMediaChange(...)`.
@@ -75,5 +76,4 @@ Added focused storage helpers for normalized anime identity reuse, later AniList
 Added anime-level query surfaces for library/detail/episode aggregation and regression coverage for schema, migration, storage, parser fallback, service ingest wiring, and anime stats queries.
 
 Verified with the focused SQLite lane plus verifier-selected `core` coverage (`typecheck`, `test:fast`). No stats API/UI export was added yet because there is no current consumer for the new anime query surface.
-
 <!-- SECTION:FINAL_SUMMARY:END -->

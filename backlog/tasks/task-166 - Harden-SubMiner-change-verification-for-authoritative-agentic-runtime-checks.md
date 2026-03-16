@@ -4,7 +4,7 @@ title: Harden SubMiner change verification for authoritative agentic runtime che
 status: Done
 assignee: []
 created_date: '2026-03-13 05:19'
-updated_date: '2026-03-13 05:36'
+updated_date: '2026-03-16 05:13'
 labels:
   - testing
   - agents
@@ -20,6 +20,7 @@ references:
 documentation:
   - /home/sudacode/projects/japanese/SubMiner/testing-plan.md
   - /home/sudacode/projects/japanese/SubMiner/docs-site/development.md
+ordinal: 22500
 ---
 
 ## Description

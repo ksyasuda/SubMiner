@@ -4,7 +4,7 @@ title: Track shared SubMiner agent skills in git and clean up ignore rules
 status: Done
 assignee: []
 created_date: '2026-03-13 05:46'
-updated_date: '2026-03-13 05:47'
+updated_date: '2026-03-16 05:13'
 labels:
   - git
   - agents
@@ -18,6 +18,7 @@ references:
     /home/sudacode/projects/japanese/SubMiner/.agents/skills/subminer-scrum-master/SKILL.md
 documentation:
   - /home/sudacode/projects/japanese/SubMiner/testing-plan.md
+ordinal: 21500
 ---
 
 ## Description
