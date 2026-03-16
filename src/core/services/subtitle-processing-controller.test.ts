@@ -170,3 +170,45 @@ test('subtitle processing cache invalidation only affects future subtitle events
 
   assert.equal(callsByText.get('same'), 2);
 });
+
+test('preCacheTokenization stores entry that is returned on next subtitle change', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.preCacheTokenization('予め', { text: '予め', tokens: [] });
+  controller.onSubtitleChange('予め');
+  await flushMicrotasks();
+
+  assert.equal(tokenizeCalls, 0, 'should not call tokenize when pre-cached');
+  assert.deepEqual(emitted, [{ text: '予め', tokens: [] }]);
+});
+
+test('isCacheFull returns false when cache is below limit', () => {
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: null }),
+    emitSubtitle: () => {},
+  });
+
+  assert.equal(controller.isCacheFull(), false);
+});
+
+test('isCacheFull returns true when cache reaches limit', async () => {
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: () => {},
+  });
+
+  // Fill cache to the 256 limit
+  for (let i = 0; i < 256; i += 1) {
+    controller.preCacheTokenization(`line-${i}`, { text: `line-${i}`, tokens: [] });
+  }
+
+  assert.equal(controller.isCacheFull(), true);
+});

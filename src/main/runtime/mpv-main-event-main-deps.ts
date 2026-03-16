@@ -35,6 +35,8 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   logSubtitleTimingError: (message: string, error: unknown) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
   onSubtitleChange: (text: string) => void;
+  onSubtitleTrackChange?: (sid: number | null) => void;
+  onSubtitleTrackListChange?: (trackList: unknown[] | null) => void;
   updateCurrentMediaPath: (path: string) => void;
   restoreMpvSubVisibility: () => void;
   getCurrentAnilistMediaKey: () => string | null;
@@ -47,6 +49,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   updateCurrentMediaTitle: (title: string) => void;
   resetAnilistMediaGuessState: () => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
+  onTimePosUpdate?: (time: number) => void;
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
   refreshDiscordPresence: () => void;
   ensureImmersionTrackerInitialized: () => void;
@@ -100,6 +103,12 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     broadcastSubtitle: (payload: { text: string; tokens: null }) =>
       deps.broadcastToOverlayWindows('subtitle:set', payload),
     onSubtitleChange: (text: string) => deps.onSubtitleChange(text),
+    onSubtitleTrackChange: deps.onSubtitleTrackChange
+      ? (sid: number | null) => deps.onSubtitleTrackChange!(sid)
+      : undefined,
+    onSubtitleTrackListChange: deps.onSubtitleTrackListChange
+      ? (trackList: unknown[] | null) => deps.onSubtitleTrackListChange!(trackList)
+      : undefined,
     refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     setCurrentSubAssText: (text: string) => {
       deps.appState.currentSubAssText = text;
@@ -134,6 +143,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     },
     reportJellyfinRemoteProgress: (forceImmediate: boolean) =>
       deps.reportJellyfinRemoteProgress(forceImmediate),
+    onTimePosUpdate: deps.onTimePosUpdate ? (time: number) => deps.onTimePosUpdate!(time) : undefined,
     recordPauseState: (paused: boolean) => {
       deps.appState.playbackPaused = paused;
       deps.ensureImmersionTrackerInitialized();

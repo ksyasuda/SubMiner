@@ -118,6 +118,8 @@ export interface MpvIpcClientEventMap {
   'duration-change': { duration: number };
   'pause-change': { paused: boolean };
   'secondary-subtitle-change': { text: string };
+  'subtitle-track-change': { sid: number | null };
+  'subtitle-track-list-change': { trackList: unknown[] | null };
   'media-path-change': { path: string };
   'media-title-change': { title: string | null };
   'subtitle-metrics-change': { patch: Partial<MpvSubtitleRenderMetrics> };
@@ -324,6 +326,12 @@ export class MpvIpcClient implements MpvClient {
       },
       emitSecondarySubtitleChange: (payload) => {
         this.emit('secondary-subtitle-change', payload);
+      },
+      emitSubtitleTrackChange: (payload) => {
+        this.emit('subtitle-track-change', payload);
+      },
+      emitSubtitleTrackListChange: (payload) => {
+        this.emit('subtitle-track-list-change', payload);
       },
       getCurrentSubText: () => this.currentSubText,
       setCurrentSubText: (text: string) => {

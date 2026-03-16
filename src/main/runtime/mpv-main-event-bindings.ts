@@ -42,6 +42,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   setCurrentSubAssText: (text: string) => void;
   broadcastSubtitleAss: (text: string) => void;
   broadcastSecondarySubtitle: (text: string) => void;
+  onSubtitleTrackChange?: (sid: number | null) => void;
+  onSubtitleTrackListChange?: (trackList: unknown[] | null) => void;
 
   updateCurrentMediaPath: (path: string) => void;
   restoreMpvSubVisibility: () => void;
@@ -59,6 +61,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   recordPlaybackPosition: (time: number) => void;
   recordMediaDuration: (durationSec: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
+  onTimePosUpdate?: (time: number) => void;
   recordPauseState: (paused: boolean) => void;
 
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
@@ -124,6 +127,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       reportJellyfinRemoteProgress: (forceImmediate) =>
         deps.reportJellyfinRemoteProgress(forceImmediate),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
+      onTimePosUpdate: (time) => deps.onTimePosUpdate?.(time),
     });
     const handleMpvPauseChange = createHandleMpvPauseChangeHandler({
       recordPauseState: (paused) => deps.recordPauseState(paused),
@@ -144,6 +148,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       onSubtitleChange: handleMpvSubtitleChange,
       onSubtitleAssChange: handleMpvSubtitleAssChange,
       onSecondarySubtitleChange: handleMpvSecondarySubtitleChange,
+      onSubtitleTrackChange: ({ sid }) => deps.onSubtitleTrackChange?.(sid),
+      onSubtitleTrackListChange: ({ trackList }) => deps.onSubtitleTrackListChange?.(trackList),
       onSubtitleTiming: handleMpvSubtitleTiming,
       onMediaPathChange: handleMpvMediaPathChange,
       onMediaTitleChange: handleMpvMediaTitleChange,

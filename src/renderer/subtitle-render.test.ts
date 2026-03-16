@@ -90,6 +90,15 @@ class FakeElement {
       this.ownTextContent = '';
     }
   }
+
+  replaceChildren(): void {
+    this.childNodes = [];
+    this.ownTextContent = '';
+  }
+
+  cloneNode(_deep: boolean): FakeElement {
+    return new FakeElement(this.tagName);
+  }
 }
 
 function installFakeDocument() {

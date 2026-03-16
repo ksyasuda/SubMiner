@@ -90,11 +90,13 @@ export function createHandleMpvTimePosChangeHandler(deps: {
   recordPlaybackPosition: (time: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   refreshDiscordPresence: () => void;
+  onTimePosUpdate?: (time: number) => void;
 }) {
   return ({ time }: { time: number }): void => {
     deps.recordPlaybackPosition(time);
     deps.reportJellyfinRemoteProgress(false);
     deps.refreshDiscordPresence();
+    deps.onTimePosUpdate?.(time);
   };
 }
 

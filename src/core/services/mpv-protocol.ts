@@ -52,6 +52,8 @@ export interface MpvProtocolHandleMessageDeps {
   emitSubtitleAssChange: (payload: { text: string }) => void;
   emitSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
   emitSecondarySubtitleChange: (payload: { text: string }) => void;
+  emitSubtitleTrackChange: (payload: { sid: number | null }) => void;
+  emitSubtitleTrackListChange: (payload: { trackList: unknown[] | null }) => void;
   getCurrentSubText: () => string;
   setCurrentSubText: (text: string) => void;
   setCurrentSubStart: (value: number) => void;
@@ -160,6 +162,18 @@ export async function dispatchMpvProtocolMessage(
       const nextSubText = (msg.data as string) || '';
       deps.setCurrentSecondarySubText(nextSubText);
       deps.emitSecondarySubtitleChange({ text: nextSubText });
+    } else if (msg.name === 'sid') {
+      const sid =
+        typeof msg.data === 'number'
+          ? msg.data
+          : typeof msg.data === 'string'
+            ? Number(msg.data)
+            : null;
+      deps.emitSubtitleTrackChange({ sid: sid !== null && Number.isFinite(sid) ? sid : null });
+    } else if (msg.name === 'track-list') {
+      deps.emitSubtitleTrackListChange({
+        trackList: Array.isArray(msg.data) ? (msg.data as unknown[]) : null,
+      });
     } else if (msg.name === 'aid') {
       deps.setCurrentAudioTrackId(typeof msg.data === 'number' ? (msg.data as number) : null);
       deps.syncCurrentAudioStreamIndex();
