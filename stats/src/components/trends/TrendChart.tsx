@@ -9,9 +9,10 @@ interface TrendChartProps {
   color: string;
   type: 'bar' | 'line';
   formatter?: (value: number) => string;
+  onBarClick?: (label: string) => void;
 }
 
-export function TrendChart({ title, data, color, type, formatter }: TrendChartProps) {
+export function TrendChart({ title, data, color, type, formatter, onBarClick }: TrendChartProps) {
   const tooltipStyle = {
     background: '#363a4f', border: '1px solid #494d64', borderRadius: 6, color: '#cad3f5', fontSize: 12,
   };
@@ -27,7 +28,13 @@ export function TrendChart({ title, data, color, type, formatter }: TrendChartPr
             <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a5adcb' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 9, fill: '#a5adcb' }} axisLine={false} tickLine={false} width={28} />
             <Tooltip contentStyle={tooltipStyle} formatter={formatValue} />
-            <Bar dataKey="value" fill={color} radius={[2, 2, 0, 0]} />
+            <Bar
+              dataKey="value"
+              fill={color}
+              radius={[2, 2, 0, 0]}
+              cursor={onBarClick ? 'pointer' : undefined}
+              onClick={onBarClick ? (entry: { label: string }) => onBarClick(entry.label) : undefined}
+            />
           </BarChart>
         ) : (
           <LineChart data={data}>
