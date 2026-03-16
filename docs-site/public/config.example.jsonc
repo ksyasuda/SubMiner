@@ -348,7 +348,7 @@
       "overwriteImage": true, // Overwrite image setting. Values: true | false
       "mediaInsertMode": "append", // Media insert mode setting.
       "highlightWord": true, // Highlight word setting. Values: true | false
-      "notificationType": "osd", // Notification type setting.
+      "notificationType": "osd", // Notification channel setting. "osd" prefers overlay notifications and falls back to mpv OSD.
       "autoUpdateNewCards": true // Automatically update newly added cards. Values: true | false
     }, // Behavior setting.
     "nPlusOne": {

@@ -51,6 +51,7 @@ import type {
   ControllerConfigUpdate,
   ControllerPreferenceUpdate,
   ResolvedControllerConfig,
+  OverlayNotificationPayload,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 
@@ -136,6 +137,10 @@ const onKikuFieldGroupingRequestEvent =
     IPC_CHANNELS.event.kikuFieldGroupingRequest,
     (payload) => payload as KikuFieldGroupingRequestData,
   );
+const onOverlayNotificationEvent = createQueuedIpcListenerWithPayload<OverlayNotificationPayload>(
+  IPC_CHANNELS.event.overlayNotification,
+  (payload) => payload as OverlayNotificationPayload,
+);
 
 const electronAPI: ElectronAPI = {
   getOverlayLayer: () => overlayLayer,
@@ -318,6 +323,7 @@ const electronAPI: ElectronAPI = {
       },
     );
   },
+  onOverlayNotification: onOverlayNotificationEvent,
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);

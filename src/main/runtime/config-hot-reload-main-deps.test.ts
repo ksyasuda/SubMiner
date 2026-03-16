@@ -75,13 +75,12 @@ test('watch config path main deps builder maps filesystem callbacks', () => {
 test('config hot reload message main deps builder maps notifications', () => {
   const calls: string[] = [];
   const deps = createBuildConfigHotReloadMessageMainDepsHandler({
-    showMpvOsd: (message) => calls.push(`osd:${message}`),
-    showDesktopNotification: (title) => calls.push(`notify:${title}`),
+    showConfiguredNotification: (title, payload) =>
+      calls.push(`configured:${title}:${payload.kind}:${payload.message}`),
   })();
 
-  deps.showMpvOsd('updated');
-  deps.showDesktopNotification('SubMiner', { body: 'updated' });
-  assert.deepEqual(calls, ['osd:updated', 'notify:SubMiner']);
+  deps.showConfiguredNotification('SubMiner', { kind: 'warning', message: 'updated' });
+  assert.deepEqual(calls, ['configured:SubMiner:warning:updated']);
 });
 
 test('config hot reload applied main deps builder maps callbacks', () => {

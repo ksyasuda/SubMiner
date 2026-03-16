@@ -724,12 +724,12 @@ do
 		"duplicate pause-until-ready auto-start should re-assert visible overlay on both start and ready events"
 	)
 	assert_true(
-		count_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization...") == 2,
-		"duplicate pause-until-ready auto-start should arm tokenization loading gate for each file"
+		count_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization...") == 0,
+		"duplicate pause-until-ready auto-start should suppress loading OSD when visible overlay is enabled"
 	)
 	assert_true(
-		count_osd_message(recorded.osd, "SubMiner: Subtitle tokenization ready") == 2,
-		"duplicate pause-until-ready auto-start should release tokenization gate for each file"
+		count_osd_message(recorded.osd, "SubMiner: Subtitle tokenization ready") == 0,
+		"duplicate pause-until-ready auto-start should suppress ready OSD when visible overlay is enabled"
 	)
 	assert_true(
 		count_property_set(recorded.property_sets, "pause", true) == 2,
@@ -770,16 +770,16 @@ do
 		"autoplay-ready script message should resume mpv playback"
 	)
 	assert_true(
-		has_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization..."),
-		"pause-until-ready auto-start should show loading OSD message"
+		not has_osd_message(recorded.osd, "SubMiner: Loading subtitle tokenization..."),
+		"pause-until-ready auto-start should suppress loading OSD when visible overlay is enabled"
 	)
 	assert_true(
 		not has_osd_message(recorded.osd, "SubMiner: Starting..."),
 		"pause-until-ready auto-start should avoid replacing loading OSD with generic starting OSD"
 	)
 	assert_true(
-		has_osd_message(recorded.osd, "SubMiner: Subtitle tokenization ready"),
-		"autoplay-ready should show loaded OSD message"
+		not has_osd_message(recorded.osd, "SubMiner: Subtitle tokenization ready"),
+		"autoplay-ready should suppress ready OSD when visible overlay is enabled"
 	)
 	assert_true(
 		count_control_calls(recorded.async_calls, "--show-visible-overlay") == 2,

@@ -77,6 +77,7 @@ export const IPC_CHANNELS = {
     keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     configHotReload: 'config:hot-reload',
+    overlayNotification: 'overlay:notification',
   },
 } as const;
 

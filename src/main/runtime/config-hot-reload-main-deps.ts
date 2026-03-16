@@ -54,9 +54,7 @@ export function createBuildConfigHotReloadMessageMainDepsHandler(
   deps: ConfigHotReloadMessageMainDeps,
 ) {
   return (): ConfigHotReloadMessageMainDeps => ({
-    showMpvOsd: (message: string) => deps.showMpvOsd(message),
-    showDesktopNotification: (title: string, options: { body: string }) =>
-      deps.showDesktopNotification(title, options),
+    showConfiguredNotification: (title, payload) => deps.showConfiguredNotification(title, payload),
   });
 }
 

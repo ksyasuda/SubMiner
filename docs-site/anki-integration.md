@@ -206,7 +206,7 @@ Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`)
     "overwriteImage": true,         // replace existing image, or append
     "mediaInsertMode": "append",    // "append" or "prepend" to field content
     "autoUpdateNewCards": true,     // auto-update when new card detected
-    "notificationType": "osd"       // "osd", "system", "both", or "none"
+    "notificationType": "osd"       // "osd" prefers overlay notifications and falls back to mpv OSD; "system", "both", or "none"
   }
 }
 ```

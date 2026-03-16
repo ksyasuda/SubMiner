@@ -108,6 +108,93 @@ body {
   transform: translateY(0);
 }
 
+.overlay-notification-toast {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(460px, calc(100vw - 36px));
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 46%),
+    linear-gradient(140deg, rgba(12, 18, 26, 0.96), rgba(20, 31, 46, 0.95));
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.32);
+  color: rgba(245, 249, 255, 0.98);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.985);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+  z-index: 1320;
+}
+
+.overlay-notification-toast[data-kind='success'] {
+  border-color: rgba(139, 213, 202, 0.35);
+}
+
+.overlay-notification-toast[data-kind='warning'] {
+  border-color: rgba(245, 169, 127, 0.45);
+}
+
+.overlay-notification-toast[data-kind='error'] {
+  border-color: rgba(237, 135, 150, 0.5);
+}
+
+.overlay-notification-toast[data-kind='loading'] {
+  border-color: rgba(138, 173, 244, 0.4);
+}
+
+.overlay-notification-toast:not(.hidden) {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.overlay-notification-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-top-color: rgba(198, 224, 255, 0.95);
+  flex: 0 0 auto;
+  animation: overlay-notification-spin 720ms linear infinite;
+}
+
+.overlay-notification-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.overlay-notification-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(184, 211, 255, 0.74);
+}
+
+.overlay-notification-message {
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: rgba(245, 249, 255, 0.98);
+}
+
+@keyframes overlay-notification-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .modal {
   position: absolute;
   inset: 0;

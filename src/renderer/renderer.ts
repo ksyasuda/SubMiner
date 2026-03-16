@@ -29,6 +29,7 @@ import { createKeyboardHandlers } from './handlers/keyboard.js';
 import { createGamepadController } from './handlers/gamepad-controller.js';
 import { createMouseHandlers } from './handlers/mouse.js';
 import { createControllerStatusIndicator } from './controller-status-indicator.js';
+import { createOverlayNotificationsController } from './overlay-notifications.js';
 import { createControllerDebugModal } from './modals/controller-debug.js';
 import { createControllerSelectModal } from './modals/controller-select.js';
 import { createJimakuModal } from './modals/jimaku.js';
@@ -110,6 +111,7 @@ const controllerDebugModal = createControllerDebugModal(ctx, {
   syncSettingsModalSubtitleSuppression,
 });
 const controllerStatusIndicator = createControllerStatusIndicator(ctx.dom);
+const overlayNotifications = createOverlayNotificationsController(ctx.dom);
 const sessionHelpModal = createSessionHelpModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
@@ -429,6 +431,12 @@ function registerKeyboardCommandHandlers(): void {
   window.electronAPI.onLookupWindowToggleRequested(() => {
     runGuarded('lookup-window-toggle:requested', () => {
       keyboardHandlers.handleLookupWindowToggleRequested();
+    });
+  });
+
+  window.electronAPI.onOverlayNotification((payload) => {
+    runGuarded('overlay-notification', () => {
+      overlayNotifications.show(payload);
     });
   });
 }

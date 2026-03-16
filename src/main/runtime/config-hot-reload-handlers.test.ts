@@ -70,12 +70,12 @@ test('createConfigHotReloadAppliedHandler skips optional effects when no hot fie
 test('createConfigHotReloadMessageHandler mirrors message to OSD and desktop notification', () => {
   const calls: string[] = [];
   const handleMessage = createConfigHotReloadMessageHandler({
-    showMpvOsd: (message) => calls.push(`osd:${message}`),
-    showDesktopNotification: (title, options) => calls.push(`notify:${title}:${options.body}`),
+    showConfiguredNotification: (title, payload) =>
+      calls.push(`configured:${title}:${payload.kind}:${payload.message}`),
   });
 
   handleMessage('Config reload failed');
-  assert.deepEqual(calls, ['osd:Config reload failed', 'notify:SubMiner:Config reload failed']);
+  assert.deepEqual(calls, ['configured:SubMiner:warning:Config reload failed']);
 });
 
 test('buildRestartRequiredConfigMessage formats changed fields', () => {

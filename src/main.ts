@@ -361,7 +361,7 @@ import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
-import type { OverlayHostedModal } from './shared/ipc/contracts';
+import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -377,6 +377,11 @@ import { createCharacterDictionaryRuntimeService } from './main/character-dictio
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
+import {
+  createConfiguredNotificationHandler,
+  createShowLogicalOsdHandler,
+  createShowOverlayNotificationHandler,
+} from './main/runtime/overlay-notifications';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
@@ -1120,8 +1125,7 @@ syncOverlayShortcutsForModal = (isActive: boolean): void => {
 
 const buildConfigHotReloadMessageMainDepsHandler = createBuildConfigHotReloadMessageMainDepsHandler(
   {
-    showMpvOsd: (message) => showMpvOsd(message),
-    showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+    showConfiguredNotification: (title, payload) => showConfiguredNotification(title, payload),
   },
 );
 const configHotReloadMessageMainDeps = buildConfigHotReloadMessageMainDepsHandler();
@@ -1921,9 +1925,7 @@ const {
   registerSubminerProtocolClient,
 } = composeAnilistSetupHandlers({
   notifyDeps: {
-    hasMpvClient: () => Boolean(appState.mpvClient),
-    showMpvOsd: (message) => showMpvOsd(message),
-    showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+    showConfiguredNotification: (title, payload) => showConfiguredNotification(title, payload),
     logInfo: (message) => logger.info(message),
   },
   consumeTokenDeps: {
@@ -3123,8 +3125,10 @@ function openYomitanSettings(): boolean {
     logger.warn(
       'Yomitan settings window disabled while yomitan.externalProfilePath is configured because external profile mode is read-only.',
     );
-    showDesktopNotification('SubMiner', { body: message });
-    showMpvOsd(message);
+    showConfiguredNotification('SubMiner', {
+      kind: 'warning',
+      message,
+    });
     return false;
   }
   openYomitanSettingsHandler();
@@ -3177,7 +3181,7 @@ const {
   },
 });
 
-const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
+const { flushMpvLog, showMpvOsd: showActualMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
     logPath: DEFAULT_MPV_LOG_PATH,
     dirname: (targetPath) => path.dirname(targetPath),
@@ -3200,6 +3204,21 @@ const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
 flushPendingMpvLogWrites = () => {
   void flushMpvLog();
 };
+const showOverlayNotification = createShowOverlayNotificationHandler({
+  isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  getMainWindow: () => overlayManager.getMainWindow(),
+  notificationChannel: IPC_CHANNELS.event.overlayNotification,
+});
+const showMpvOsd = createShowLogicalOsdHandler({
+  showOverlayNotification: (payload) => showOverlayNotification(payload),
+  showMpvOsd: (message) => showActualMpvOsd(message),
+});
+const showConfiguredNotification = createConfiguredNotificationHandler({
+  getNotificationType: () => getResolvedConfig().ankiConnect.behavior.notificationType,
+  showLogicalOsd: (payload) => showMpvOsd(payload),
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+});
 
 const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
   cycleSecondarySubModeMainDeps: {

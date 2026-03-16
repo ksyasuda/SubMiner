@@ -7,16 +7,18 @@ import {
   createRegisterSubminerProtocolClientHandler,
 } from './anilist-setup-protocol';
 
-test('createNotifyAnilistSetupHandler sends OSD when mpv client exists', () => {
+test('createNotifyAnilistSetupHandler routes AniList setup messages through configured notifications', () => {
   const calls: string[] = [];
   const notify = createNotifyAnilistSetupHandler({
-    hasMpvClient: () => true,
-    showMpvOsd: (message) => calls.push(`osd:${message}`),
-    showDesktopNotification: () => calls.push('desktop'),
+    showConfiguredNotification: (title, payload) =>
+      calls.push(`configured:${title}:${payload.kind}:${payload.message}`),
     logInfo: () => calls.push('log'),
   });
   notify('AniList login success');
-  assert.deepEqual(calls, ['osd:AniList login success']);
+  assert.deepEqual(calls, [
+    'configured:SubMiner AniList:success:AniList login success',
+    'log',
+  ]);
 });
 
 test('createConsumeAnilistSetupTokenFromUrlHandler delegates with deps', () => {

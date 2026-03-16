@@ -60,7 +60,7 @@ test('auto sync notifications send osd updates for progress phases', () => {
   ]);
 });
 
-test('auto sync notifications never send desktop notifications', () => {
+test('auto sync notifications send desktop notifications when the type includes system', () => {
   const calls: string[] = [];
 
   notifyCharacterDictionaryAutoSyncStatus(makeEvent('syncing', 'syncing'), {
@@ -88,5 +88,27 @@ test('auto sync notifications never send desktop notifications', () => {
       calls.push(`desktop:${title}:${options.body ?? ''}`),
   });
 
-  assert.deepEqual(calls, ['osd:syncing', 'osd:importing', 'osd:ready', 'osd:failed']);
+  assert.deepEqual(calls, [
+    'osd:syncing',
+    'desktop:SubMiner:syncing',
+    'osd:importing',
+    'desktop:SubMiner:importing',
+    'osd:ready',
+    'desktop:SubMiner:ready',
+    'osd:failed',
+    'desktop:SubMiner:failed',
+  ]);
+});
+
+test('auto sync notifications respect system-only mode', () => {
+  const calls: string[] = [];
+
+  notifyCharacterDictionaryAutoSyncStatus(makeEvent('syncing', 'syncing'), {
+    getNotificationType: () => 'system',
+    showOsd: (message) => calls.push(`osd:${message}`),
+    showDesktopNotification: (title, options) =>
+      calls.push(`desktop:${title}:${options.body ?? ''}`),
+  });
+
+  assert.deepEqual(calls, ['desktop:SubMiner:syncing']);
 });

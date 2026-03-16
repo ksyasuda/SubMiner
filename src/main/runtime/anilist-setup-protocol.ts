@@ -29,18 +29,28 @@ export function createConsumeAnilistSetupTokenFromUrlHandler(deps: ConsumeAnilis
     });
 }
 
+import type { OverlayNotificationPayload } from '../../types';
+
+function resolveAnilistNotificationKind(message: string): OverlayNotificationPayload['kind'] {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('failed') || normalized.includes('error')) {
+    return 'error';
+  }
+  if (normalized.includes('success')) {
+    return 'success';
+  }
+  return 'info';
+}
+
 export function createNotifyAnilistSetupHandler(deps: {
-  hasMpvClient: () => boolean;
-  showMpvOsd: (message: string) => void;
-  showDesktopNotification: (title: string, options: { body: string }) => void;
+  showConfiguredNotification: (title: string, payload: OverlayNotificationPayload) => void;
   logInfo: (message: string) => void;
 }) {
   return (message: string): void => {
-    if (deps.hasMpvClient()) {
-      deps.showMpvOsd(message);
-      return;
-    }
-    deps.showDesktopNotification('SubMiner AniList', { body: message });
+    deps.showConfiguredNotification('SubMiner AniList', {
+      kind: resolveAnilistNotificationKind(message),
+      message,
+    });
     deps.logInfo(`[AniList setup] ${message}`);
   };
 }

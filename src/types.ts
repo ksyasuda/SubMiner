@@ -1015,6 +1015,15 @@ export interface ConfigHotReloadPayload {
   secondarySubMode: SecondarySubMode;
 }
 
+export type OverlayNotificationKind = 'info' | 'success' | 'warning' | 'error' | 'loading';
+
+export interface OverlayNotificationPayload {
+  kind: OverlayNotificationKind;
+  title?: string;
+  message: string;
+  durationMs?: number;
+}
+
 export type ResolvedControllerConfig = ResolvedConfig['controller'];
 
 export interface SubtitleHoverTokenPayload {
@@ -1097,6 +1106,7 @@ export interface ElectronAPI {
   ) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;
+  onOverlayNotification: (callback: (payload: OverlayNotificationPayload) => void) => void;
 }
 
 declare global {

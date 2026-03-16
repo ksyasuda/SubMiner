@@ -5,9 +5,7 @@ import { composeAnilistSetupHandlers } from './anilist-setup-composer';
 test('composeAnilistSetupHandlers returns callable setup handlers', () => {
   const composed = composeAnilistSetupHandlers({
     notifyDeps: {
-      hasMpvClient: () => false,
-      showMpvOsd: () => {},
-      showDesktopNotification: () => {},
+      showConfiguredNotification: () => {},
       logInfo: () => {},
     },
     consumeTokenDeps: {

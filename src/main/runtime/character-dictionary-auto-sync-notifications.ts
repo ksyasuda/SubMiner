@@ -1,5 +1,6 @@
 import type { CharacterDictionaryAutoSyncStatusEvent } from './character-dictionary-auto-sync';
 import type { StartupOsdSequencerCharacterDictionaryEvent } from './startup-osd-sequencer';
+import { shouldShowDesktopNotification, shouldShowLogicalOsd } from './overlay-notifications';
 
 export type CharacterDictionaryAutoSyncNotificationEvent = CharacterDictionaryAutoSyncStatusEvent;
 
@@ -12,23 +13,23 @@ export interface CharacterDictionaryAutoSyncNotificationDeps {
   };
 }
 
-function shouldShowOsd(type: 'osd' | 'system' | 'both' | 'none' | undefined): boolean {
-  return type !== 'none';
-}
-
 export function notifyCharacterDictionaryAutoSyncStatus(
   event: CharacterDictionaryAutoSyncNotificationEvent,
   deps: CharacterDictionaryAutoSyncNotificationDeps,
 ): void {
   const type = deps.getNotificationType();
-  if (shouldShowOsd(type)) {
+  if (shouldShowLogicalOsd(type)) {
     if (deps.startupOsdSequencer) {
       deps.startupOsdSequencer.notifyCharacterDictionaryStatus({
         phase: event.phase,
         message: event.message,
       });
-      return;
+    } else {
+      deps.showOsd(event.message);
     }
-    deps.showOsd(event.message);
+  }
+
+  if (shouldShowDesktopNotification(type)) {
+    deps.showDesktopNotification('SubMiner', { body: event.message });
   }
 }

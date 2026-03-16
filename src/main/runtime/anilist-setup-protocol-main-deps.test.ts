@@ -10,17 +10,14 @@ import {
 test('notify anilist setup main deps builder maps callbacks', () => {
   const calls: string[] = [];
   const deps = createBuildNotifyAnilistSetupMainDepsHandler({
-    hasMpvClient: () => true,
-    showMpvOsd: (message) => calls.push(`osd:${message}`),
-    showDesktopNotification: (title) => calls.push(`notify:${title}`),
+    showConfiguredNotification: (title, payload) =>
+      calls.push(`configured:${title}:${payload.kind}:${payload.message}`),
     logInfo: (message) => calls.push(`log:${message}`),
   })();
 
-  assert.equal(deps.hasMpvClient(), true);
-  deps.showMpvOsd('ok');
-  deps.showDesktopNotification('SubMiner', { body: 'x' });
+  deps.showConfiguredNotification('SubMiner', { kind: 'success', message: 'ok' });
   deps.logInfo('done');
-  assert.deepEqual(calls, ['osd:ok', 'notify:SubMiner', 'log:done']);
+  assert.deepEqual(calls, ['configured:SubMiner:success:ok', 'log:done']);
 });
 
 test('consume anilist setup token main deps builder maps callbacks', () => {

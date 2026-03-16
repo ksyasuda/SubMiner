@@ -34,6 +34,17 @@ function M.create(ctx)
 		return options_helper.coerce_bool(raw_pause_until_ready, false)
 	end
 
+	local function should_prefer_overlay_notifications()
+		return resolve_visible_overlay_startup()
+	end
+
+	local function show_overlay_fallback_osd(message)
+		if should_prefer_overlay_notifications() then
+			return
+		end
+		show_osd(message)
+	end
+
 	local function normalize_socket_path(path)
 		if type(path) ~= "string" then
 			return nil
@@ -98,7 +109,7 @@ function M.create(ctx)
 		end
 		disarm_auto_play_ready_gate({ resume_playback = false })
 		mp.set_property_native("pause", false)
-		show_osd(AUTO_PLAY_READY_READY_OSD)
+		show_overlay_fallback_osd(AUTO_PLAY_READY_READY_OSD)
 		subminer_log("info", "process", "Resuming playback after startup gate: " .. tostring(reason or "ready"))
 	end
 
@@ -109,11 +120,11 @@ function M.create(ctx)
 		end
 		state.auto_play_ready_gate_armed = true
 		mp.set_property_native("pause", true)
-		show_osd(AUTO_PLAY_READY_LOADING_OSD)
+		show_overlay_fallback_osd(AUTO_PLAY_READY_LOADING_OSD)
 		if type(mp.add_periodic_timer) == "function" then
 			state.auto_play_ready_osd_timer = mp.add_periodic_timer(2.5, function()
 				if state.auto_play_ready_gate_armed then
-					show_osd(AUTO_PLAY_READY_LOADING_OSD)
+					show_overlay_fallback_osd(AUTO_PLAY_READY_LOADING_OSD)
 				end
 			end)
 		end
@@ -298,7 +309,7 @@ function M.create(ctx)
 				return
 			end
 			subminer_log("info", "process", "Overlay already running")
-			show_osd("Already running")
+			show_overlay_fallback_osd("Already running")
 			return
 		end
 
@@ -332,7 +343,7 @@ function M.create(ctx)
 			end
 
 			if attempt == 1 and not state.auto_play_ready_gate_armed then
-				show_osd("Starting...")
+				show_overlay_fallback_osd("Starting...")
 			end
 			state.overlay_running = true
 
@@ -458,7 +469,6 @@ function M.create(ctx)
 		run_control_command_async("settings", nil, function(ok)
 			if ok then
 				subminer_log("info", "process", "Options window opened")
-				show_osd("Options opened")
 			else
 				subminer_log("warn", "process", "Failed to open options")
 				show_osd("Failed to open options")
@@ -474,7 +484,7 @@ function M.create(ctx)
 		end
 
 		subminer_log("info", "process", "Restarting overlay...")
-		show_osd("Restarting...")
+		show_overlay_fallback_osd("Restarting...")
 
 		run_control_command_async("stop", nil, function()
 			state.overlay_running = false
@@ -502,7 +512,7 @@ function M.create(ctx)
 						)
 						show_osd("Restart failed")
 					else
-						show_osd("Restarted successfully")
+						show_overlay_fallback_osd("Restarted successfully")
 					end
 				end)
 			end)
@@ -516,7 +526,11 @@ function M.create(ctx)
 		end
 
 		local status = state.overlay_running and "running" or "stopped"
-		show_osd("Status: overlay is " .. status)
+		if state.overlay_running then
+			show_overlay_fallback_osd("Status: overlay is " .. status)
+		else
+			show_osd("Status: overlay is " .. status)
+		end
 		subminer_log("info", "process", "Status check: overlay is " .. status)
 	end
 

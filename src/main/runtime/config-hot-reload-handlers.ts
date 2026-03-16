@@ -1,7 +1,12 @@
 import type { ConfigHotReloadDiff } from '../../core/services/config-hot-reload';
 import { resolveKeybindings } from '../../core/utils/keybindings';
 import { DEFAULT_KEYBINDINGS } from '../../config';
-import type { ConfigHotReloadPayload, ResolvedConfig, SecondarySubMode } from '../../types';
+import type {
+  ConfigHotReloadPayload,
+  OverlayNotificationPayload,
+  ResolvedConfig,
+  SecondarySubMode,
+} from '../../types';
 
 type ConfigHotReloadAppliedDeps = {
   setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) => void;
@@ -14,8 +19,7 @@ type ConfigHotReloadAppliedDeps = {
 };
 
 type ConfigHotReloadMessageDeps = {
-  showMpvOsd: (message: string) => void;
-  showDesktopNotification: (title: string, options: { body: string }) => void;
+  showConfiguredNotification: (title: string, payload: OverlayNotificationPayload) => void;
 };
 
 export function resolveSubtitleStyleForRenderer(config: ResolvedConfig) {
@@ -66,8 +70,10 @@ export function createConfigHotReloadAppliedHandler(deps: ConfigHotReloadApplied
 
 export function createConfigHotReloadMessageHandler(deps: ConfigHotReloadMessageDeps) {
   return (message: string): void => {
-    deps.showMpvOsd(message);
-    deps.showDesktopNotification('SubMiner', { body: message });
+    deps.showConfiguredNotification('SubMiner', {
+      kind: 'warning',
+      message,
+    });
   };
 }
 
