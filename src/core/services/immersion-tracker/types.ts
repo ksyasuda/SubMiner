@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 9;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -128,6 +128,7 @@ interface QueuedWordWrite {
   pos3: string;
   firstSeen: number;
   lastSeen: number;
+  frequencyRank: number | null;
 }
 
 interface QueuedKanjiWrite {
@@ -146,6 +147,7 @@ export interface CountedWordOccurrence {
   pos2: string;
   pos3: string;
   occurrenceCount: number;
+  frequencyRank: number | null;
 }
 
 export interface CountedKanjiOccurrence {
@@ -240,6 +242,7 @@ export interface VocabularyStatsRow {
   pos2: string | null;
   pos3: string | null;
   frequency: number;
+  frequencyRank: number | null;
   firstSeen: number;
   lastSeen: number;
 }
@@ -395,6 +398,7 @@ export interface AnimeDetailRow {
   titleRomaji: string | null;
   titleEnglish: string | null;
   titleNative: string | null;
+  description: string | null;
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;

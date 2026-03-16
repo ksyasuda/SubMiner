@@ -6,6 +6,7 @@ import { StatCard } from '../layout/StatCard';
 import { AnimeHeader } from './AnimeHeader';
 import { EpisodeList } from './EpisodeList';
 import { AnimeWordList } from './AnimeWordList';
+import { AnilistSelector } from './AnilistSelector';
 import { CHART_THEME } from '../../lib/chart-theme';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import type { DailyRollup } from '../../types/stats';
@@ -95,7 +96,8 @@ function AnimeWatchChart({ animeId }: { animeId: number }) {
 }
 
 export function AnimeDetailView({ animeId, onBack, onNavigateToWord }: AnimeDetailViewProps) {
-  const { data, loading, error } = useAnimeDetail(animeId);
+  const { data, loading, error, reload } = useAnimeDetail(animeId);
+  const [showAnilistSelector, setShowAnilistSelector] = useState(false);
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
@@ -115,7 +117,11 @@ export function AnimeDetailView({ animeId, onBack, onNavigateToWord }: AnimeDeta
       >
         &larr; Back to Anime
       </button>
-      <AnimeHeader detail={detail} anilistEntries={anilistEntries ?? []} />
+      <AnimeHeader
+        detail={detail}
+        anilistEntries={anilistEntries ?? []}
+        onChangeAnilist={() => setShowAnilistSelector(true)}
+      />
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
         <StatCard label="Watch Time" value={formatDuration(detail.totalActiveMs)} color="text-ctp-blue" />
         <StatCard label="Cards" value={formatNumber(detail.totalCards)} color="text-ctp-green" />
@@ -126,6 +132,17 @@ export function AnimeDetailView({ animeId, onBack, onNavigateToWord }: AnimeDeta
       <EpisodeList episodes={episodes} />
       <AnimeWatchChart animeId={animeId} />
       <AnimeWordList animeId={animeId} onNavigateToWord={onNavigateToWord} />
+      {showAnilistSelector && (
+        <AnilistSelector
+          animeId={animeId}
+          initialQuery={detail.canonicalTitle}
+          onClose={() => setShowAnilistSelector(false)}
+          onLinked={() => {
+            setShowAnilistSelector(false);
+            reload();
+          }}
+        />
+      )}
     </div>
   );
 }

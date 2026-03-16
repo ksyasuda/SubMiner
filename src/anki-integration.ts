@@ -465,11 +465,11 @@ export class AnkiIntegration {
   }
 
   getKnownWordMatchMode(): NPlusOneMatchMode {
-    return this.config.nPlusOne?.matchMode ?? DEFAULT_ANKI_CONNECT_CONFIG.nPlusOne.matchMode;
+    return this.config.knownWords?.matchMode ?? DEFAULT_ANKI_CONNECT_CONFIG.knownWords.matchMode;
   }
 
   private isKnownWordCacheEnabled(): boolean {
-    return this.config.nPlusOne?.highlightEnabled === true;
+    return this.config.knownWords?.highlightEnabled === true;
   }
 
   private getConfiguredAnkiTags(): string[] {

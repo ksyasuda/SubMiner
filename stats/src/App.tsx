@@ -42,12 +42,12 @@ export function App() {
       </header>
       <main className="flex-1 overflow-y-auto p-4">
         {activeTab === 'overview' ? (
-          <section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+          <section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" key="overview" className="animate-fade-in">
             <OverviewTab />
           </section>
         ) : null}
         {activeTab === 'anime' ? (
-          <section id="panel-anime" role="tabpanel" aria-labelledby="tab-anime">
+          <section id="panel-anime" role="tabpanel" aria-labelledby="tab-anime" key="anime" className="animate-fade-in">
             <AnimeTab
               initialAnimeId={selectedAnimeId}
               onClearInitialAnime={() => setSelectedAnimeId(null)}
@@ -56,12 +56,12 @@ export function App() {
           </section>
         ) : null}
         {activeTab === 'trends' ? (
-          <section id="panel-trends" role="tabpanel" aria-labelledby="tab-trends">
+          <section id="panel-trends" role="tabpanel" aria-labelledby="tab-trends" key="trends" className="animate-fade-in">
             <TrendsTab />
           </section>
         ) : null}
         {activeTab === 'vocabulary' ? (
-          <section id="panel-vocabulary" role="tabpanel" aria-labelledby="tab-vocabulary">
+          <section id="panel-vocabulary" role="tabpanel" aria-labelledby="tab-vocabulary" key="vocabulary" className="animate-fade-in">
             <VocabularyTab
               onNavigateToAnime={navigateToAnime}
               onOpenWordDetail={openWordDetail}
@@ -69,7 +69,7 @@ export function App() {
           </section>
         ) : null}
         {activeTab === 'sessions' ? (
-          <section id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions">
+          <section id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions" key="sessions" className="animate-fade-in">
             <SessionsTab />
           </section>
         ) : null}

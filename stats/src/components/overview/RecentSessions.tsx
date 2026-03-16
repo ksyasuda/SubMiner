@@ -121,11 +121,11 @@ function SessionItem({ session }: { session: SessionSummary }) {
       </div>
       <div className="flex gap-4 text-xs text-center shrink-0">
         <div>
-          <div className="text-ctp-green font-medium">{formatNumber(session.cardsMined)}</div>
+          <div className="text-ctp-green font-medium font-mono tabular-nums">{formatNumber(session.cardsMined)}</div>
           <div className="text-ctp-overlay2">cards</div>
         </div>
         <div>
-          <div className="text-ctp-mauve font-medium">{formatNumber(session.wordsSeen)}</div>
+          <div className="text-ctp-mauve font-medium font-mono tabular-nums">{formatNumber(session.wordsSeen)}</div>
           <div className="text-ctp-overlay2">words</div>
         </div>
       </div>
@@ -161,11 +161,11 @@ function AnimeGroupRow({ group }: { group: AnimeGroup }) {
         </div>
         <div className="flex gap-4 text-xs text-center shrink-0">
           <div>
-            <div className="text-ctp-green font-medium">{formatNumber(group.totalCards)}</div>
+            <div className="text-ctp-green font-medium font-mono tabular-nums">{formatNumber(group.totalCards)}</div>
             <div className="text-ctp-overlay2">cards</div>
           </div>
           <div>
-            <div className="text-ctp-mauve font-medium">{formatNumber(group.totalWords)}</div>
+            <div className="text-ctp-mauve font-medium font-mono tabular-nums">{formatNumber(group.totalWords)}</div>
             <div className="text-ctp-overlay2">words</div>
           </div>
         </div>
@@ -193,11 +193,11 @@ function AnimeGroupRow({ group }: { group: AnimeGroup }) {
               </div>
               <div className="flex gap-4 text-xs text-center shrink-0">
                 <div>
-                  <div className="text-ctp-green font-medium">{formatNumber(s.cardsMined)}</div>
+                  <div className="text-ctp-green font-medium font-mono tabular-nums">{formatNumber(s.cardsMined)}</div>
                   <div className="text-ctp-overlay2">cards</div>
                 </div>
                 <div>
-                  <div className="text-ctp-mauve font-medium">{formatNumber(s.wordsSeen)}</div>
+                  <div className="text-ctp-mauve font-medium font-mono tabular-nums">{formatNumber(s.wordsSeen)}</div>
                   <div className="text-ctp-overlay2">words</div>
                 </div>
               </div>
@@ -226,9 +226,12 @@ export function RecentSessions({ sessions }: RecentSessionsProps) {
         const animeGroups = groupSessionsByAnime(daySessions);
         return (
           <div key={dayLabel}>
-            <h3 className="text-xs font-semibold text-ctp-overlay2 uppercase tracking-wider mb-2">
-              {dayLabel}
-            </h3>
+            <div className="flex items-center gap-3 mb-2">
+              <h3 className="text-xs font-semibold text-ctp-overlay2 uppercase tracking-widest shrink-0">
+                {dayLabel}
+              </h3>
+              <div className="flex-1 h-px bg-gradient-to-r from-ctp-surface1 to-transparent" />
+            </div>
             <div className="space-y-2">
               {animeGroups.map((group) => (
                 <AnimeGroupRow key={group.key} group={group} />

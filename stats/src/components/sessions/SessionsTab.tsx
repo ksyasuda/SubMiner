@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSessions } from '../../hooks/useSessions';
 import { SessionRow } from './SessionRow';
 import { SessionDetail } from './SessionDetail';
+import { apiClient } from '../../lib/api-client';
+import { confirmSessionDelete } from '../../lib/delete-confirm';
 import { todayLocalDay, localDayFromMs } from '../../lib/formatters';
 import type { SessionSummary } from '../../types/stats';
 
@@ -37,16 +39,37 @@ export function SessionsTab() {
   const { sessions, loading, error } = useSessions();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+  const [visibleSessions, setVisibleSessions] = useState<SessionSummary[]>([]);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
+
+  useEffect(() => {
+    setVisibleSessions(sessions);
+  }, [sessions]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return sessions;
-    return sessions.filter(
-      (s) => s.canonicalTitle?.toLowerCase().includes(q),
-    );
-  }, [sessions, search]);
+    if (!q) return visibleSessions;
+    return visibleSessions.filter((s) => s.canonicalTitle?.toLowerCase().includes(q));
+  }, [visibleSessions, search]);
 
   const groups = useMemo(() => groupSessionsByDay(filtered), [filtered]);
+
+  const handleDeleteSession = async (session: SessionSummary) => {
+    if (!confirmSessionDelete()) return;
+
+    setDeleteError(null);
+    setDeletingSessionId(session.sessionId);
+    try {
+      await apiClient.deleteSession(session.sessionId);
+      setVisibleSessions((prev) => prev.filter((item) => item.sessionId !== session.sessionId));
+      setExpandedId((prev) => (prev === session.sessionId ? null : prev));
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete session.');
+    } finally {
+      setDeletingSessionId(null);
+    }
+  };
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
@@ -61,11 +84,16 @@ export function SessionsTab() {
         className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay2 focus:outline-none focus:border-ctp-blue"
       />
 
+      {deleteError ? <div className="text-sm text-ctp-red">{deleteError}</div> : null}
+
       {Array.from(groups.entries()).map(([dayLabel, daySessions]) => (
         <div key={dayLabel}>
-          <h3 className="text-xs font-semibold text-ctp-overlay2 uppercase tracking-wider mb-2">
-            {dayLabel}
-          </h3>
+          <div className="flex items-center gap-3 mb-2">
+            <h3 className="text-xs font-semibold text-ctp-overlay2 uppercase tracking-widest shrink-0">
+              {dayLabel}
+            </h3>
+            <div className="flex-1 h-px bg-gradient-to-r from-ctp-surface1 to-transparent" />
+          </div>
           <div className="space-y-2">
             {daySessions.map((s) => {
               const detailsId = `session-details-${s.sessionId}`;
@@ -76,6 +104,8 @@ export function SessionsTab() {
                     isExpanded={expandedId === s.sessionId}
                     detailsId={detailsId}
                     onToggle={() => setExpandedId(expandedId === s.sessionId ? null : s.sessionId)}
+                    onDelete={() => void handleDeleteSession(s)}
+                    deleteDisabled={deletingSessionId === s.sessionId}
                   />
                   {expandedId === s.sessionId && (
                     <div id={detailsId}>

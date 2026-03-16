@@ -92,14 +92,14 @@ export function AnimeTab({ initialAnimeId, onClearInitialAnime, onNavigateToWord
             <option key={opt.key} value={opt.key}>{opt.label}</option>
           ))}
         </select>
-        <div className="flex gap-1 shrink-0">
+        <div className="flex bg-ctp-surface0 rounded-lg p-0.5 border border-ctp-surface1 shrink-0">
           {(['sm', 'md', 'lg'] as const).map((size) => (
             <button
               key={size}
               onClick={() => setCardSize(size)}
-              className={`px-2 py-1 rounded text-xs ${
+              className={`px-2 py-1 rounded-md text-xs transition-colors ${
                 cardSize === size
-                  ? 'bg-ctp-surface2 text-ctp-text'
+                  ? 'bg-ctp-surface2 text-ctp-text shadow-sm'
                   : 'text-ctp-overlay2 hover:text-ctp-subtext0'
               }`}
             >

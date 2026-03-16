@@ -1672,7 +1672,7 @@ function shouldInitializeMecabForAnnotations(): boolean {
   const config = getResolvedConfig();
   const nPlusOneEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.nPlusOne',
-    config.ankiConnect.nPlusOne.highlightEnabled,
+    config.ankiConnect.knownWords.highlightEnabled,
   );
   const jlptEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.jlpt',
@@ -2511,6 +2511,7 @@ const ensureStatsServerStarted = (): string => {
       port: getResolvedConfig().stats.serverPort,
       staticDir: statsDistPath,
       tracker,
+      knownWordCachePath: path.join(USER_DATA_PATH, 'known-words-cache.json'),
     });
     appState.statsServer = statsServer;
   }
@@ -2576,6 +2577,7 @@ const immersionTrackerStartupMainDeps: Parameters<
       registerStatsOverlayToggle({
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
+        getApiBaseUrl: () => ensureStatsServerStarted(),
         getToggleKey: () => getResolvedConfig().stats.toggleKey,
         resolveBounds: () => getCurrentOverlayGeometry(),
       });
@@ -3058,11 +3060,11 @@ const {
       },
       getKnownWordMatchMode: () =>
         appState.ankiIntegration?.getKnownWordMatchMode() ??
-        getResolvedConfig().ankiConnect.nPlusOne.matchMode,
+        getResolvedConfig().ankiConnect.knownWords.matchMode,
       getNPlusOneEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.nPlusOne',
-          getResolvedConfig().ankiConnect.nPlusOne.highlightEnabled,
+          getResolvedConfig().ankiConnect.knownWords.highlightEnabled,
         ),
       getMinSentenceWordsForNPlusOne: () =>
         getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,

@@ -665,10 +665,10 @@ Use the runtime options palette to toggle settings live while SubMiner is runnin
 Current runtime options:
 
 - `ankiConnect.behavior.autoUpdateNewCards` (`On` / `Off`)
-- `ankiConnect.nPlusOne.highlightEnabled` (`On` / `Off`)
+- `ankiConnect.knownWords.highlightEnabled` (`On` / `Off`)
 - `subtitleStyle.enableJlpt` (`On` / `Off`)
 - `subtitleStyle.frequencyDictionary.enabled` (`On` / `Off`)
-- `ankiConnect.nPlusOne.matchMode` (`headword` / `surface`)
+- `ankiConnect.knownWords.matchMode` (`headword` / `surface`)
 - `ankiConnect.isKiku.fieldGrouping` (`auto` / `manual` / `disabled`)
 
 Annotation toggles (`nPlusOne`, `enableJlpt`, `frequencyDictionary.enabled`) only apply to new subtitle lines after the toggle. The currently displayed line is not re-tokenized in place.
@@ -796,7 +796,7 @@ This example is intentionally compact. The option table below documents availabl
 | `proxy.upstreamUrl`                     | string (URL)                            | Upstream AnkiConnect URL that proxy forwards to (default: `http://127.0.0.1:8765`)                                                            |
 | `tags`                                  | array of strings                        | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                 |
 | `deck`                                  | string                                  | Anki deck to monitor for new cards                                                                                                            |
-| `ankiConnect.nPlusOne.decks`            | array of strings                        | Decks used for N+1 known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                            |
+| `ankiConnect.knownWords.decks`          | array of strings                        | Decks used for known-word cache lookups. When omitted/empty, falls back to `ankiConnect.deck`.                                                 |
 | `fields.audio`                          | string                                  | Card field for audio files (default: `ExpressionAudio`)                                                                                       |
 | `fields.image`                          | string                                  | Card field for images (default: `Picture`)                                                                                                    |
 | `fields.sentence`                       | string                                  | Card field for sentences (default: `Sentence`)                                                                                                |
@@ -823,13 +823,13 @@ This example is intentionally compact. The option table below documents availabl
 | `behavior.overwriteImage`               | `true`, `false`                         | Replace existing images on updates; when `false`, new images are appended/prepended per `behavior.mediaInsertMode` (default: `true`)          |
 | `behavior.mediaInsertMode`              | `"append"`, `"prepend"`                 | Where to insert new media when overwrite is off (default: `"append"`)                                                                         |
 | `behavior.highlightWord`                | `true`, `false`                         | Highlight the word in sentence context (default: `true`)                                                                                      |
-| `ankiConnect.nPlusOne.highlightEnabled` | `true`, `false`                         | Enable fast local highlighting for words already known in Anki (default: `false`)                                                             |
+| `ankiConnect.knownWords.highlightEnabled` | `true`, `false`                       | Enable fast local highlighting for words already known in Anki (default: `false`)                                                             |
+| `ankiConnect.knownWords.color`          | hex color string                        | Text color for tokens already found in the local known-word cache (default: `"#a6da95"`).                                                     |
+| `ankiConnect.knownWords.matchMode`      | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
+| `ankiConnect.knownWords.refreshMinutes` | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                  |
+| `ankiConnect.knownWords.decks`          | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                               |
 | `ankiConnect.nPlusOne.nPlusOne`         | hex color string                        | Text color for the single target token to study when exactly one unknown candidate exists in a sentence (default: `"#c6a0f6"`).               |
-| `ankiConnect.nPlusOne.knownWord`        | hex color string                        | Legacy known-word color kept for backward compatibility (default: `"#a6da95"`).                                                               |
-| `ankiConnect.nPlusOne.matchMode`        | `"headword"`, `"surface"`               | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text. |
 | `ankiConnect.nPlusOne.minSentenceWords` | number                                  | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                        |
-| `ankiConnect.nPlusOne.refreshMinutes`   | number                                  | Minutes between known-word cache refreshes (default: `1440`)                                                                                  |
-| `ankiConnect.nPlusOne.decks`            | array of strings                        | Decks used by known-word cache refresh. Leave empty for compatibility with legacy `deck` scope.                                               |
 | `behavior.notificationType`             | `"osd"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"osd"`)                                                                                           |
 | `behavior.autoUpdateNewCards`           | `true`, `false`                         | Automatically update cards on creation (default: `true`)                                                                                      |
 | `metadata.pattern`                      | string                                  | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                                      |
@@ -864,20 +864,20 @@ SubMiner is intentionally built for [Kiku](https://kiku.youyoumu.my.id/) and [La
 
 ### N+1 Word Highlighting
 
-When `ankiConnect.nPlusOne.highlightEnabled` is enabled, SubMiner builds a local cache of known words from Anki to highlight already learned tokens in subtitle rendering.
+When `ankiConnect.knownWords.highlightEnabled` is enabled, SubMiner builds a local cache of known words from Anki to highlight already learned tokens in subtitle rendering.
 
 Known-word cache policy:
 
 - Initial sync runs when the integration starts if the cache is missing or stale.
-- `ankiConnect.nPlusOne.refreshMinutes` controls the minimum time between refreshes; between refreshes, cached words are reused without querying Anki.
+- `ankiConnect.knownWords.refreshMinutes` controls the minimum time between refreshes; between refreshes, cached words are reused without querying Anki.
 - `ankiConnect.nPlusOne.nPlusOne` sets the color for the single target token when exactly one eligible unknown word exists.
 - `ankiConnect.nPlusOne.minSentenceWords` sets the minimum token count required in a sentence for N+1 highlighting (default: `3`).
-- `ankiConnect.nPlusOne.knownWord` sets the legacy known-word highlight color for tokens already in Anki.
-- `ankiConnect.nPlusOne.decks` accepts one or more decks. If empty, it uses the legacy single `ankiConnect.deck` value as scope.
+- `ankiConnect.knownWords.color` sets the known-word highlight color for tokens already in Anki.
+- `ankiConnect.knownWords.decks` accepts one or more decks. If empty, it uses the legacy single `ankiConnect.deck` value as scope.
 - Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
 - The cache is automatically invalidated when the configured scope changes (for example, when deck changes).
-- Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.nPlusOne.matchMode` to `"surface"` for raw subtitle text matching.
-- `ankiConnect.behavior.nPlusOne*` legacy keys (`nPlusOneHighlightEnabled`, `nPlusOneRefreshMinutes`, `nPlusOneMatchMode`) are deprecated and only kept for backward compatibility.
+- Cache lookups are in-memory. By default, token headwords are matched against cached `Expression` / `Word` values; set `ankiConnect.knownWords.matchMode` to `"surface"` for raw subtitle text matching.
+- Legacy moved keys under `ankiConnect.nPlusOne` (`highlightEnabled`, `refreshMinutes`, `matchMode`, `decks`, `knownWord`) and older `ankiConnect.behavior.nPlusOne*` keys are deprecated and only kept for backward compatibility.
 - Legacy top-level `ankiConnect` migration keys (for example `audioField`, `generateAudio`, `imageType`) are compatibility-only, validated before mapping, and ignored with a warning when invalid.
 - If AnkiConnect is unreachable, the cache remains in its previous state and an on-screen/system status message is shown.
 - Known-word sync activity is logged at `INFO`/`DEBUG` level with the `anki` logger scope and includes scope, notes returned, and word counts.
@@ -887,9 +887,12 @@ To refresh roughly once per day, set:
 ```json
 {
   "ankiConnect": {
-    "nPlusOne": {
+    "knownWords": {
       "highlightEnabled": true,
       "refreshMinutes": 1440
+    },
+    "nPlusOne": {
+      "minSentenceWords": 3
     }
   }
 }

@@ -9,7 +9,7 @@ function makeHandler(overrides: Partial<Parameters<typeof createRunStatsCliComma
   const handler = createRunStatsCliCommandHandler({
     getResolvedConfig: () => ({
       immersionTracking: { enabled: true },
-      stats: { serverPort: 5175 },
+      stats: { serverPort: 6969 },
     }),
     ensureImmersionTrackerStarted: () => {
       calls.push('ensureImmersionTrackerStarted');
@@ -17,7 +17,7 @@ function makeHandler(overrides: Partial<Parameters<typeof createRunStatsCliComma
     getImmersionTracker: () => ({ cleanupVocabularyStats: undefined }),
     ensureStatsServerStarted: () => {
       calls.push('ensureStatsServerStarted');
-      return 'http://127.0.0.1:5175';
+      return 'http://127.0.0.1:6969';
     },
     openExternal: async (url) => {
       calls.push(`openExternal:${url}`);
@@ -51,13 +51,13 @@ test('stats cli command starts tracker, server, browser, and writes success resp
   assert.deepEqual(calls, [
     'ensureImmersionTrackerStarted',
     'ensureStatsServerStarted',
-    'openExternal:http://127.0.0.1:5175',
-    'info:Stats dashboard available at http://127.0.0.1:5175',
+    'openExternal:http://127.0.0.1:6969',
+    'info:Stats dashboard available at http://127.0.0.1:6969',
   ]);
   assert.deepEqual(responses, [
     {
       responsePath: '/tmp/subminer-stats-response.json',
-      payload: { ok: true, url: 'http://127.0.0.1:5175' },
+      payload: { ok: true, url: 'http://127.0.0.1:6969' },
     },
   ]);
 });
@@ -66,7 +66,7 @@ test('stats cli command fails when immersion tracking is disabled', async () => 
   const { handler, calls, responses } = makeHandler({
     getResolvedConfig: () => ({
       immersionTracking: { enabled: false },
-      stats: { serverPort: 5175 },
+      stats: { serverPort: 6969 },
     }),
   });
 

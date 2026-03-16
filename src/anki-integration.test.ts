@@ -56,7 +56,7 @@ function createIntegrationTestContext(
 
   const integration = new AnkiIntegration(
     {
-      nPlusOne: {
+      knownWords: {
         highlightEnabled: options.highlightEnabled ?? true,
       },
     },

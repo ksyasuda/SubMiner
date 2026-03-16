@@ -55,10 +55,13 @@ export function buildStatsWindowOptions(options: {
   };
 }
 
-export function buildStatsWindowLoadFileOptions(): { query: Record<string, string> } {
+export function buildStatsWindowLoadFileOptions(apiBaseUrl?: string): {
+  query: Record<string, string>;
+} {
   return {
     query: {
       overlay: '1',
+      ...(apiBaseUrl ? { apiBase: apiBaseUrl } : {}),
     },
   };
 }

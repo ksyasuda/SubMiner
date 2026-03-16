@@ -169,13 +169,17 @@ export function mergeTokens(
   isKnownWord: (text: string) => boolean = () => false,
   knownWordMatchMode: 'headword' | 'surface' = 'headword',
   shouldLookupKnownWords = true,
+  sourceText?: string,
 ): MergedToken[] {
   if (!tokens || tokens.length === 0) {
     return [];
   }
 
   const result: MergedToken[] = [];
+  const normalizedSourceText =
+    typeof sourceText === 'string' ? sourceText.replace(/\r?\n/g, ' ').trim() : null;
   let charOffset = 0;
+  let sourceCursor = 0;
   let lastStandaloneToken: Token | null = null;
   const resolveKnownMatch = (text: string | undefined): boolean => {
     if (!shouldLookupKnownWords || !text) {
@@ -185,9 +189,12 @@ export function mergeTokens(
   };
 
   for (const token of tokens) {
-    const start = charOffset;
-    const end = charOffset + token.word.length;
+    const matchedStart =
+      normalizedSourceText !== null ? normalizedSourceText.indexOf(token.word, sourceCursor) : -1;
+    const start = matchedStart >= sourceCursor ? matchedStart : charOffset;
+    const end = start + token.word.length;
     charOffset = end;
+    sourceCursor = end;
 
     let shouldMergeToken = false;
 

@@ -57,6 +57,8 @@ import {
   getWordOccurrences,
   getVideoDurationMs,
   markVideoWatched,
+  deleteSession as deleteSessionQuery,
+  deleteVideo as deleteVideoQuery,
 } from './immersion-tracker/query';
 import {
   buildVideoKey,
@@ -125,6 +127,7 @@ import {
   type WordDetailRow,
   type WordOccurrenceRow,
   type VocabularyStatsRow,
+  type CountedWordOccurrence,
 } from './immersion-tracker/types';
 import type { MergedToken } from '../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from './tokenizer/annotation-stage';
@@ -402,6 +405,70 @@ export class ImmersionTrackerService {
     markVideoWatched(this.db, videoId, watched);
   }
 
+  async deleteSession(sessionId: number): Promise<void> {
+    deleteSessionQuery(this.db, sessionId);
+  }
+
+  async deleteVideo(videoId: number): Promise<void> {
+    deleteVideoQuery(this.db, videoId);
+  }
+
+  async reassignAnimeAnilist(animeId: number, info: {
+    anilistId: number;
+    titleRomaji?: string | null;
+    titleEnglish?: string | null;
+    titleNative?: string | null;
+    episodesTotal?: number | null;
+    description?: string | null;
+    coverUrl?: string | null;
+  }): Promise<void> {
+    this.db.prepare(`
+      UPDATE imm_anime
+      SET anilist_id = ?,
+          title_romaji = COALESCE(?, title_romaji),
+          title_english = COALESCE(?, title_english),
+          title_native = COALESCE(?, title_native),
+          episodes_total = COALESCE(?, episodes_total),
+          description = ?,
+          LAST_UPDATE_DATE = ?
+      WHERE anime_id = ?
+    `).run(
+      info.anilistId,
+      info.titleRomaji ?? null,
+      info.titleEnglish ?? null,
+      info.titleNative ?? null,
+      info.episodesTotal ?? null,
+      info.description ?? null,
+      Date.now(),
+      animeId,
+    );
+
+    // Update cover art for all videos in this anime
+    if (info.coverUrl) {
+      const videos = this.db.prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?')
+        .all(animeId) as Array<{ video_id: number }>;
+      let coverBlob: Buffer | null = null;
+      try {
+        const res = await fetch(info.coverUrl);
+        if (res.ok) coverBlob = Buffer.from(await res.arrayBuffer());
+      } catch { /* ignore */ }
+      for (const v of videos) {
+        this.db.prepare(`
+          INSERT INTO imm_media_art (video_id, anilist_id, cover_url, cover_blob, title_romaji, title_english, episodes_total, fetched_at_ms, CREATED_DATE, LAST_UPDATE_DATE)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(video_id) DO UPDATE SET
+            anilist_id = excluded.anilist_id, cover_url = excluded.cover_url, cover_blob = COALESCE(excluded.cover_blob, cover_blob),
+            title_romaji = excluded.title_romaji, title_english = excluded.title_english, episodes_total = excluded.episodes_total,
+            fetched_at_ms = excluded.fetched_at_ms, LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
+        `).run(
+          v.video_id, info.anilistId, info.coverUrl, coverBlob,
+          info.titleRomaji ?? null, info.titleEnglish ?? null, info.episodesTotal ?? null,
+          Date.now(), Date.now(), Date.now(),
+        );
+      }
+    }
+  }
+
   async getEpisodeCardEvents(videoId: number): Promise<EpisodeCardEventRow[]> {
     return getEpisodeCardEvents(this.db, videoId);
   }
@@ -571,19 +638,7 @@ export class ImmersionTrackerService {
     this.sessionState.tokensSeen += metrics.tokens;
     this.sessionState.pendingTelemetry = true;
 
-    const wordOccurrences = new Map<
-      string,
-      {
-        headword: string;
-        word: string;
-        reading: string;
-        partOfSpeech: string;
-        pos1: string;
-        pos2: string;
-        pos3: string;
-        occurrenceCount: number;
-      }
-    >();
+    const wordOccurrences = new Map<string, CountedWordOccurrence>();
     for (const token of tokens ?? []) {
       if (shouldExcludeTokenFromVocabularyPersistence(token)) {
         continue;
@@ -617,6 +672,7 @@ export class ImmersionTrackerService {
         pos2: token.pos2 ?? '',
         pos3: token.pos3 ?? '',
         occurrenceCount: 1,
+        frequencyRank: token.frequencyRank ?? null,
       });
     }
 

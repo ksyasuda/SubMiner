@@ -2,7 +2,7 @@
 
 SubMiner annotates subtitle tokens in real time as they appear in the overlay. Four annotation layers work together to surface useful context while you watch: **N+1 highlighting**, **character-name highlighting**, **frequency highlighting**, and **JLPT tagging**.
 
-All four are opt-in and configured under `subtitleStyle` and `ankiConnect.nPlusOne` in your config. They apply independently — you can enable any combination.
+All four are opt-in and configured under `subtitleStyle`, `ankiConnect.knownWords`, and `ankiConnect.nPlusOne` in your config. They apply independently — you can enable any combination.
 
 ## N+1 Word Highlighting
 
@@ -20,13 +20,13 @@ N+1 highlighting identifies sentences where you know every word except one, maki
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `ankiConnect.nPlusOne.highlightEnabled` | `false` | Enable N+1 highlighting |
-| `ankiConnect.nPlusOne.refreshMinutes` | `60` | Minutes between Anki cache refreshes |
-| `ankiConnect.nPlusOne.decks` | `[]` | Decks to query (falls back to `ankiConnect.deck`) |
-| `ankiConnect.nPlusOne.matchMode` | `"headword"` | `"headword"` (dictionary form) or `"surface"` (raw text) |
+| `ankiConnect.knownWords.highlightEnabled` | `false` | Enable known-word cache lookups used by N+1 highlighting |
+| `ankiConnect.knownWords.refreshMinutes` | `1440` | Minutes between Anki cache refreshes |
+| `ankiConnect.knownWords.decks` | `[]` | Decks to query (falls back to `ankiConnect.deck`) |
+| `ankiConnect.knownWords.matchMode` | `"headword"` | `"headword"` (dictionary form) or `"surface"` (raw text) |
 | `ankiConnect.nPlusOne.minSentenceWords` | `3` | Minimum tokens in a sentence for N+1 to trigger |
-| `subtitleStyle.nPlusOneColor` | `#c6a0f6` | Color for the single unknown target word |
-| `subtitleStyle.knownWordColor` | `#a6da95` | Color for already-known tokens |
+| `ankiConnect.nPlusOne.nPlusOne` | `#c6a0f6` | Color for the single unknown target word |
+| `ankiConnect.knownWords.color` | `#a6da95` | Color for already-known tokens |
 
 ::: tip
 Set `refreshMinutes` to `1440` (24 hours) for daily sync if your Anki collection is large.
@@ -115,7 +115,7 @@ JLPT tagging requires the offline vocabulary bundle. See [JLPT Vocabulary Bundle
 
 All annotation layers can be toggled at runtime via the mpv command menu without restarting:
 
-- `ankiConnect.nPlusOne.highlightEnabled` (`On` / `Off`)
+- `ankiConnect.knownWords.highlightEnabled` (`On` / `Off`)
 - `subtitleStyle.nameMatchEnabled` (`On` / `Off`)
 - `subtitleStyle.enableJlpt` (`On` / `Off`)
 - `subtitleStyle.frequencyDictionary.enabled` (`On` / `Off`)

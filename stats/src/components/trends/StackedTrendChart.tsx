@@ -1,5 +1,5 @@
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { epochDayToDate } from '../../lib/formatters';
 
@@ -39,10 +39,15 @@ function buildLineData(raw: PerAnimeDataPoint[]) {
 
   const points = [...byDay.entries()]
     .sort(([a], [b]) => a - b)
-    .map(([epochDay, values]) => ({
-      label: epochDayToDate(epochDay).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      ...values,
-    }));
+    .map(([epochDay, values]) => {
+      const row: Record<string, string | number> = {
+        label: epochDayToDate(epochDay).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      };
+      for (const title of topTitles) {
+        row[title] = values[title] ?? 0;
+      }
+      return row;
+    });
 
   return { points, seriesKeys: topTitles };
 }
@@ -67,31 +72,36 @@ export function StackedTrendChart({ title, data }: StackedTrendChartProps) {
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
       <h3 className="text-xs font-semibold text-ctp-text mb-2">{title}</h3>
       <ResponsiveContainer width="100%" height={120}>
-        <LineChart data={points}>
+        <AreaChart data={points}>
           <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a5adcb' }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 9, fill: '#a5adcb' }} axisLine={false} tickLine={false} width={28} />
           <Tooltip contentStyle={tooltipStyle} />
           {seriesKeys.map((key, i) => (
-            <Line
+            <Area
               key={key}
               type="monotone"
               dataKey={key}
               stroke={LINE_COLORS[i % LINE_COLORS.length]}
-              strokeWidth={2}
-              dot={false}
+              fill={LINE_COLORS[i % LINE_COLORS.length]}
+              fillOpacity={0.15}
+              strokeWidth={1.5}
               connectNulls
             />
           ))}
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 overflow-hidden max-h-10">
         {seriesKeys.map((key, i) => (
-          <span key={key} className="flex items-center gap-1 text-[10px] text-ctp-subtext0">
+          <span
+            key={key}
+            className="flex items-center gap-1 text-[10px] text-ctp-subtext0 max-w-[140px]"
+            title={key}
+          >
             <span
-              className="inline-block w-2 h-2 rounded-full"
+              className="inline-block w-2 h-2 rounded-full shrink-0"
               style={{ backgroundColor: LINE_COLORS[i % LINE_COLORS.length] }}
             />
-            {key}
+            <span className="truncate">{key}</span>
           </span>
         ))}
       </div>

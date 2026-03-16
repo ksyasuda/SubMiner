@@ -78,7 +78,7 @@ test('AnkiIntegrationRuntime starts proxy transport when proxy mode is enabled',
 
 test('AnkiIntegrationRuntime switches transports and clears known words when runtime patch disables highlighting', () => {
   const { runtime, calls } = createRuntime({
-    nPlusOne: {
+    knownWords: {
       highlightEnabled: true,
     },
     pollingRate: 250,
@@ -88,7 +88,7 @@ test('AnkiIntegrationRuntime switches transports and clears known words when run
   calls.length = 0;
 
   runtime.applyRuntimeConfigPatch({
-    nPlusOne: {
+    knownWords: {
       highlightEnabled: false,
     },
     proxy: {

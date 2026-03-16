@@ -343,6 +343,13 @@
       "fallbackDuration": 3, // Fallback duration setting.
       "maxMediaDuration": 30 // Max media duration setting.
     }, // Media setting.
+    "knownWords": {
+      "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false
+      "refreshMinutes": 1440, // Minutes between known-word cache refreshes.
+      "matchMode": "headword", // Known-word matching strategy for subtitle annotations. Values: headword | surface
+      "decks": [], // Decks used for known-word cache scope. Supports one or more deck names.
+      "color": "#a6da95" // Color used for known-word highlights.
+    }, // Known words setting.
     "behavior": {
       "overwriteAudio": true, // Overwrite audio setting. Values: true | false
       "overwriteImage": true, // Overwrite image setting. Values: true | false
@@ -352,13 +359,8 @@
       "autoUpdateNewCards": true // Automatically update newly added cards. Values: true | false
     }, // Behavior setting.
     "nPlusOne": {
-      "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false
-      "refreshMinutes": 1440, // Minutes between known-word cache refreshes.
-      "matchMode": "headword", // Known-word matching strategy for N+1 highlighting. Values: headword | surface
-      "decks": [], // Decks used for N+1 known-word cache scope. Supports one or more deck names.
       "minSentenceWords": 3, // Minimum sentence word count required for N+1 targeting (default: 3).
-      "nPlusOne": "#c6a0f6", // Color used for the single N+1 target token highlight.
-      "knownWord": "#a6da95" // Color used for legacy known-word highlights.
+      "nPlusOne": "#c6a0f6" // Color used for the single N+1 target token highlight.
     }, // N plus one setting.
     "metadata": {
       "pattern": "[SubMiner] %f (%t)" // Pattern setting.
@@ -512,7 +514,7 @@
   // ==========================================
   "stats": {
     "toggleKey": "Backquote", // Key code to toggle the stats overlay.
-    "serverPort": 5175, // Port for the stats HTTP server.
+    "serverPort": 6969, // Port for the stats HTTP server.
     "autoStartServer": true, // Automatically start the stats server on launch. Values: true | false
     "autoOpenBrowser": true // Automatically open the stats dashboard in a browser when the server starts. Values: true | false
   } // Local immersion stats dashboard served on localhost and available as an in-app overlay.

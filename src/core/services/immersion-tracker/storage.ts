@@ -345,6 +345,7 @@ export function ensureSchema(db: DatabaseSync): void {
       title_english TEXT,
       title_native TEXT,
       episodes_total INTEGER,
+      description TEXT,
       metadata_json TEXT,
       CREATED_DATE INTEGER,
       LAST_UPDATE_DATE INTEGER
@@ -479,6 +480,7 @@ export function ensureSchema(db: DatabaseSync): void {
       first_seen REAL,
       last_seen REAL,
       frequency INTEGER,
+      frequency_rank INTEGER,
       UNIQUE(headword, word, reading)
     );
   `);
@@ -672,6 +674,11 @@ export function ensureSchema(db: DatabaseSync): void {
     `);
   }
 
+  if (currentVersion?.schema_version && currentVersion.schema_version < 9) {
+    addColumnIfMissing(db, 'imm_anime', 'description', 'TEXT');
+    addColumnIfMissing(db, 'imm_words', 'frequency_rank', 'INTEGER');
+  }
+
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_anime_normalized_title
     ON imm_anime(normalized_title_key)
@@ -776,9 +783,9 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
     `),
     wordUpsertStmt: db.prepare(`
       INSERT INTO imm_words (
-        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency, frequency_rank
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?
       )
       ON CONFLICT(headword, word, reading) DO UPDATE SET
         frequency = COALESCE(frequency, 0) + 1,
@@ -792,7 +799,12 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
         pos2 = COALESCE(NULLIF(imm_words.pos2, ''), excluded.pos2),
         pos3 = COALESCE(NULLIF(imm_words.pos3, ''), excluded.pos3),
         first_seen = MIN(COALESCE(first_seen, excluded.first_seen), excluded.first_seen),
-        last_seen = MAX(COALESCE(last_seen, excluded.last_seen), excluded.last_seen)
+        last_seen = MAX(COALESCE(last_seen, excluded.last_seen), excluded.last_seen),
+        frequency_rank = CASE
+          WHEN excluded.frequency_rank IS NOT NULL AND (imm_words.frequency_rank IS NULL OR excluded.frequency_rank < imm_words.frequency_rank)
+          THEN excluded.frequency_rank
+          ELSE imm_words.frequency_rank
+        END
     `),
     kanjiUpsertStmt: db.prepare(`
       INSERT INTO imm_kanji (
@@ -863,6 +875,7 @@ function incrementWordAggregate(
       occurrence.pos3,
       firstSeen,
       lastSeen,
+      occurrence.frequencyRank ?? null,
     );
   }
   const row = stmts.wordIdSelectStmt.get(
@@ -926,6 +939,7 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
       write.pos3,
       write.firstSeen,
       write.lastSeen,
+      write.frequencyRank ?? null,
     );
     return;
   }

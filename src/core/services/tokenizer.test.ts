@@ -706,6 +706,240 @@ test('tokenizeSubtitle prefers Yomitan frequency from highest-priority dictionar
   assert.equal(result.tokens?.[0]?.frequencyRank, 100);
 });
 
+test('tokenizeSubtitle ignores occurrence-based Yomitan frequencies for inflected terms', async () => {
+  const result = await tokenizeSubtitle(
+    '潜み',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '潜む',
+                    reading: 'ひそ',
+                    dictionary: 'CC100',
+                    frequency: 118121,
+                    displayValue: null,
+                    displayValueParsed: false,
+                  },
+                ];
+              }
+
+              if (script.includes('optionsGetFull')) {
+                return {
+                  profileCurrent: 0,
+                  profileIndex: 0,
+                  scanLength: 40,
+                  dictionaries: ['CC100'],
+                  dictionaryPriorityByName: { CC100: 0 },
+                  dictionaryFrequencyModeByName: { CC100: 'occurrence-based' },
+                  profiles: [
+                    {
+                      options: {
+                        scanning: { length: 40 },
+                        dictionaries: [{ name: 'CC100', enabled: true, id: 0 }],
+                      },
+                    },
+                  ],
+                };
+              }
+
+              return [
+                {
+                  surface: '潜み',
+                  reading: 'ひそ',
+                  headword: '潜む',
+                  startPos: 0,
+                  endPos: 2,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, undefined);
+});
+
+test('tokenizeSubtitle falls back to raw term-only Yomitan rank when no scan-derived rank exists', async () => {
+  const result = await tokenizeSubtitle(
+    '潜み',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '潜む',
+                    reading: 'ひそ',
+                    hasReading: false,
+                    dictionary: 'CC100',
+                    frequency: 118121,
+                    displayValue: null,
+                    displayValueParsed: false,
+                  },
+                ];
+              }
+
+              if (script.includes('optionsGetFull')) {
+                return {
+                  profileCurrent: 0,
+                  profileIndex: 0,
+                  scanLength: 40,
+                  dictionaries: ['CC100'],
+                  dictionaryPriorityByName: { CC100: 0 },
+                  dictionaryFrequencyModeByName: { CC100: 'rank-based' },
+                  profiles: [
+                    {
+                      options: {
+                        scanning: { length: 40 },
+                        dictionaries: [{ name: 'CC100', enabled: true, id: 0 }],
+                      },
+                    },
+                  ],
+                };
+              }
+
+              return [
+                {
+                  surface: '潜み',
+                  reading: 'ひそ',
+                  headword: '潜む',
+                  startPos: 0,
+                  endPos: 2,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 118121);
+});
+
+test('tokenizeSubtitle keeps parsed display rank for term-only inflected headword fallback', async () => {
+  const result = await tokenizeSubtitle(
+    '潜み',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '潜む',
+                    reading: 'ひそ',
+                    hasReading: false,
+                    dictionary: 'CC100',
+                    frequency: 118121,
+                    displayValue: '118,121',
+                    displayValueParsed: false,
+                  },
+                ];
+              }
+
+              if (script.includes('optionsGetFull')) {
+                return {
+                  profileCurrent: 0,
+                  profileIndex: 0,
+                  scanLength: 40,
+                  dictionaries: ['CC100'],
+                  dictionaryPriorityByName: { CC100: 0 },
+                  dictionaryFrequencyModeByName: { CC100: 'rank-based' },
+                  profiles: [
+                    {
+                      options: {
+                        scanning: { length: 40 },
+                        dictionaries: [{ name: 'CC100', enabled: true, id: 0 }],
+                      },
+                    },
+                  ],
+                };
+              }
+
+              return [
+                {
+                  surface: '潜み',
+                  reading: 'ひそ',
+                  headword: '潜む',
+                  startPos: 0,
+                  endPos: 2,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 118);
+});
+
+test('tokenizeSubtitle preserves scan-derived rank over lower-priority Yomitan fallback', async () => {
+  const result = await tokenizeSubtitle(
+    '潜み',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                return [
+                  {
+                    term: '潜む',
+                    reading: 'ひそ',
+                    hasReading: false,
+                    dictionary: 'CC100',
+                    dictionaryPriority: 2,
+                    frequency: 118121,
+                    displayValue: null,
+                    displayValueParsed: false,
+                  },
+                ];
+              }
+
+              return [
+                {
+                  surface: '潜み',
+                  reading: 'ひそむ',
+                  headword: '潜む',
+                  startPos: 0,
+                  endPos: 2,
+                  frequencyRank: 4073,
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.frequencyRank, 4073);
+});
+
 test('tokenizeSubtitle uses only selected Yomitan headword for frequency lookup', async () => {
   const result = await tokenizeSubtitle(
     '猫です',
@@ -834,6 +1068,69 @@ test('tokenizeSubtitle prefers exact headword frequency over surface/reading whe
 
   assert.equal(result.tokens?.length, 1);
   assert.equal(result.tokens?.[0]?.frequencyRank, 8);
+});
+
+test('tokenizeSubtitle falls back to exact surface frequency when merged headword lookup misses', async () => {
+  const frequencyScripts: string[] = [];
+  const result = await tokenizeSubtitle(
+    '陰に',
+    makeDeps({
+      getFrequencyDictionaryEnabled: () => true,
+      getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+      getYomitanParserWindow: () =>
+        ({
+          isDestroyed: () => false,
+          webContents: {
+            executeJavaScript: async (script: string) => {
+              if (script.includes('getTermFrequencies')) {
+                frequencyScripts.push(script);
+                return script.includes('"term":"陰に","reading":"いんに"')
+                  ? [
+                      {
+                        term: '陰に',
+                        reading: 'いんに',
+                        dictionary: 'freq-dict',
+                        frequency: 5702,
+                        displayValue: '5702',
+                        displayValueParsed: true,
+                      },
+                    ]
+                  : [];
+              }
+
+              return [
+                {
+                  source: 'scanning-parser',
+                  index: 0,
+                  content: [
+                    [
+                      {
+                        text: '陰に',
+                        reading: 'いんに',
+                        headwords: [[{ term: '陰' }]],
+                      },
+                    ],
+                  ],
+                },
+              ];
+            },
+          },
+        }) as unknown as Electron.BrowserWindow,
+    }),
+  );
+
+  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.[0]?.surface, '陰に');
+  assert.equal(result.tokens?.[0]?.headword, '陰');
+  assert.equal(result.tokens?.[0]?.frequencyRank, 5702);
+  assert.equal(
+    frequencyScripts.some((script) => script.includes('"term":"陰","reading":"いんに"')),
+    true,
+  );
+  assert.equal(
+    frequencyScripts.some((script) => script.includes('"term":"陰に","reading":"いんに"')),
+    true,
+  );
 });
 
 test('tokenizeSubtitle keeps no frequency when only reading matches and headword misses', async () => {
@@ -2285,6 +2582,131 @@ test('tokenizeSubtitle keeps correct MeCab pos1 enrichment when Yomitan offsets 
   assert.equal(desuToken?.pos1, '助動詞');
   assert.equal(targets.length, 1);
   assert.equal(targets[0]?.surface, '仮面');
+});
+
+test('tokenizeSubtitle preserves merged token frequency when MeCab positions cross a newline gap', async () => {
+  const parserWindow = {
+    isDestroyed: () => false,
+    webContents: {
+      executeJavaScript: async (script: string) => {
+        if (script.includes('getTermFrequencies')) {
+          return script.includes('"term":"陰に","reading":"いんに"')
+            ? [
+                {
+                  term: '陰に',
+                  reading: 'いんに',
+                  dictionary: 'JPDBv2㋕',
+                  frequency: 5702,
+                  displayValue: '5702',
+                  displayValueParsed: false,
+                },
+              ]
+            : [];
+        }
+
+        return [
+          {
+            surface: 'X',
+            reading: 'えっくす',
+            headword: 'X',
+            startPos: 0,
+            endPos: 1,
+          },
+          {
+            surface: '陰に',
+            reading: 'いんに',
+            headword: '陰に',
+            startPos: 2,
+            endPos: 4,
+          },
+          {
+            surface: '潜み',
+            reading: 'ひそ',
+            headword: '潜む',
+            startPos: 4,
+            endPos: 6,
+          },
+        ];
+      },
+    },
+  } as unknown as Electron.BrowserWindow;
+
+  const deps = createTokenizerDepsRuntime({
+    getYomitanExt: () => ({ id: 'dummy-ext' }) as any,
+    getYomitanParserWindow: () => parserWindow,
+    setYomitanParserWindow: () => {},
+    getYomitanParserReadyPromise: () => null,
+    setYomitanParserReadyPromise: () => {},
+    getYomitanParserInitPromise: () => null,
+    setYomitanParserInitPromise: () => {},
+    isKnownWord: () => false,
+    getKnownWordMatchMode: () => 'headword',
+    getJlptLevel: () => null,
+    getFrequencyDictionaryEnabled: () => true,
+    getMecabTokenizer: () => ({
+      tokenize: async () => [
+        {
+          word: 'X',
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          pos2: '一般',
+          pos3: '',
+          pos4: '',
+          inflectionType: '',
+          inflectionForm: '',
+          headword: 'X',
+          katakanaReading: 'エックス',
+          pronunciation: 'エックス',
+        },
+        {
+          word: '陰',
+          partOfSpeech: PartOfSpeech.noun,
+          pos1: '名詞',
+          pos2: '一般',
+          pos3: '',
+          pos4: '',
+          inflectionType: '',
+          inflectionForm: '',
+          headword: '陰',
+          katakanaReading: 'カゲ',
+          pronunciation: 'カゲ',
+        },
+        {
+          word: 'に',
+          partOfSpeech: PartOfSpeech.particle,
+          pos1: '助詞',
+          pos2: '格助詞',
+          pos3: '一般',
+          pos4: '',
+          inflectionType: '',
+          inflectionForm: '',
+          headword: 'に',
+          katakanaReading: 'ニ',
+          pronunciation: 'ニ',
+        },
+        {
+          word: '潜み',
+          partOfSpeech: PartOfSpeech.verb,
+          pos1: '動詞',
+          pos2: '自立',
+          pos3: '',
+          pos4: '',
+          inflectionType: '五段・マ行',
+          inflectionForm: '連用形',
+          headword: '潜む',
+          katakanaReading: 'ヒソミ',
+          pronunciation: 'ヒソミ',
+        },
+      ],
+    }),
+  });
+
+  const result = await tokenizeSubtitle('X\n陰に潜み', deps);
+
+  assert.equal(result.tokens?.[1]?.surface, '陰に');
+  assert.equal(result.tokens?.[1]?.pos1, '名詞|助詞');
+  assert.equal(result.tokens?.[1]?.pos2, '一般|格助詞');
+  assert.equal(result.tokens?.[1]?.frequencyRank, 5702);
 });
 
 test('tokenizeSubtitle does not color 1-2 word sentences by default', async () => {

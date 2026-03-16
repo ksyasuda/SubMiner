@@ -22,12 +22,27 @@ import type {
   EpisodeDetailData,
 } from '../types/stats';
 
-export const BASE_URL = window.location.protocol === 'file:'
-  ? 'http://127.0.0.1:5175'
-  : window.location.origin;
+type StatsLocationLike = Pick<Location, 'protocol' | 'origin' | 'search'>;
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`);
+export function resolveStatsBaseUrl(location?: StatsLocationLike): string {
+  const resolvedLocation =
+    location ??
+    (typeof window === 'undefined'
+      ? { protocol: 'file:', origin: 'null', search: '' }
+      : window.location);
+
+  const queryApiBase = new URLSearchParams(resolvedLocation.search).get('apiBase')?.trim();
+  if (queryApiBase) {
+    return queryApiBase;
+  }
+
+  return resolvedLocation.protocol === 'file:' ? 'http://127.0.0.1:6969' : resolvedLocation.origin;
+}
+
+export const BASE_URL = resolveStatsBaseUrl();
+
+async function fetchResponse(path: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(`${BASE_URL}${path}`, init);
   if (!res.ok) {
     let body = '';
     try {
@@ -39,6 +54,11 @@ async function fetchJson<T>(path: string): Promise<T> {
       body ? `Stats API error: ${res.status} ${body}` : `Stats API error: ${res.status}`,
     );
   }
+  return res;
+}
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const res = await fetchResponse(path);
   return res.json() as Promise<T>;
 }
 
@@ -55,13 +75,7 @@ export const apiClient = {
     fetchJson<SessionEvent[]>(`/api/stats/sessions/${id}/events?limit=${limit}`),
   getVocabulary: (limit = 100) =>
     fetchJson<VocabularyEntry[]>(`/api/stats/vocabulary?limit=${limit}`),
-  getWordOccurrences: (
-    headword: string,
-    word: string,
-    reading: string,
-    limit = 50,
-    offset = 0,
-  ) =>
+  getWordOccurrences: (headword: string, word: string, reading: string, limit = 50, offset = 0) =>
     fetchJson<VocabularyOccurrenceEntry[]>(
       `/api/stats/vocabulary/occurrences?headword=${encodeURIComponent(headword)}&word=${encodeURIComponent(word)}&reading=${encodeURIComponent(reading)}&limit=${limit}&offset=${offset}`,
     ),
@@ -71,11 +85,9 @@ export const apiClient = {
       `/api/stats/kanji/occurrences?kanji=${encodeURIComponent(kanji)}&limit=${limit}&offset=${offset}`,
     ),
   getMediaLibrary: () => fetchJson<MediaLibraryItem[]>('/api/stats/media'),
-  getMediaDetail: (videoId: number) =>
-    fetchJson<MediaDetailData>(`/api/stats/media/${videoId}`),
+  getMediaDetail: (videoId: number) => fetchJson<MediaDetailData>(`/api/stats/media/${videoId}`),
   getAnimeLibrary: () => fetchJson<AnimeLibraryItem[]>('/api/stats/anime'),
-  getAnimeDetail: (animeId: number) =>
-    fetchJson<AnimeDetailData>(`/api/stats/anime/${animeId}`),
+  getAnimeDetail: (animeId: number) => fetchJson<AnimeDetailData>(`/api/stats/anime/${animeId}`),
   getAnimeWords: (animeId: number, limit = 50) =>
     fetchJson<AnimeWord[]>(`/api/stats/anime/${animeId}/words?limit=${limit}`),
   getAnimeRollups: (animeId: number, limit = 90) =>
@@ -96,16 +108,54 @@ export const apiClient = {
   getEpisodeDetail: (videoId: number) =>
     fetchJson<EpisodeDetailData>(`/api/stats/episode/${videoId}/detail`),
   setVideoWatched: async (videoId: number, watched: boolean): Promise<void> => {
-    await fetch(`${BASE_URL}/api/stats/media/${videoId}/watched`, {
+    await fetchResponse(`/api/stats/media/${videoId}/watched`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ watched }),
     });
   },
-  ankiBrowse: async (noteId: number): Promise<void> => {
-    await fetch(`${BASE_URL}/api/stats/anki/browse?noteId=${noteId}`, { method: 'POST' });
+  deleteSession: async (sessionId: number): Promise<void> => {
+    await fetchResponse(`/api/stats/sessions/${sessionId}`, { method: 'DELETE' });
   },
-  ankiNotesInfo: async (noteIds: number[]): Promise<Array<{ noteId: number; fields: Record<string, { value: string }> }>> => {
+  deleteVideo: async (videoId: number): Promise<void> => {
+    await fetchResponse(`/api/stats/media/${videoId}`, { method: 'DELETE' });
+  },
+  getKnownWords: () => fetchJson<string[]>('/api/stats/known-words'),
+  searchAnilist: (query: string) =>
+    fetchJson<
+      Array<{
+        id: number;
+        episodes: number | null;
+        season: string | null;
+        seasonYear: number | null;
+        coverImage: { large: string | null; medium: string | null } | null;
+        title: { romaji: string | null; english: string | null; native: string | null } | null;
+      }>
+    >(`/api/stats/anilist/search?q=${encodeURIComponent(query)}`),
+  reassignAnimeAnilist: async (
+    animeId: number,
+    info: {
+      anilistId: number;
+      titleRomaji?: string | null;
+      titleEnglish?: string | null;
+      titleNative?: string | null;
+      episodesTotal?: number | null;
+      description?: string | null;
+      coverUrl?: string | null;
+    },
+  ): Promise<void> => {
+    await fetchResponse(`/api/stats/anime/${animeId}/anilist`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(info),
+    });
+  },
+  ankiBrowse: async (noteId: number): Promise<void> => {
+    await fetchResponse(`/api/stats/anki/browse?noteId=${noteId}`, { method: 'POST' });
+  },
+  ankiNotesInfo: async (
+    noteIds: number[],
+  ): Promise<Array<{ noteId: number; fields: Record<string, { value: string }> }>> => {
     const res = await fetch(`${BASE_URL}/api/stats/anki/notesInfo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

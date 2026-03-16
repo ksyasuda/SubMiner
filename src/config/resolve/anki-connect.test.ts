@@ -20,23 +20,20 @@ function makeContext(ankiConnect: unknown): {
   return { context, warnings };
 }
 
-test('modern invalid nPlusOne.highlightEnabled warns modern key and does not fallback to legacy', () => {
+test('modern invalid knownWords.highlightEnabled warns modern key and does not fallback to legacy', () => {
   const { context, warnings } = makeContext({
-    behavior: { nPlusOneHighlightEnabled: true },
-    nPlusOne: { highlightEnabled: 'yes' },
+    nPlusOne: { highlightEnabled: true },
+    knownWords: { highlightEnabled: 'yes' },
   });
 
   applyAnkiConnectResolution(context);
 
   assert.equal(
-    context.resolved.ankiConnect.nPlusOne.highlightEnabled,
-    DEFAULT_CONFIG.ankiConnect.nPlusOne.highlightEnabled,
+    context.resolved.ankiConnect.knownWords.highlightEnabled,
+    DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled,
   );
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.highlightEnabled'));
-  assert.equal(
-    warnings.some((warning) => warning.path === 'ankiConnect.behavior.nPlusOneHighlightEnabled'),
-    false,
-  );
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.highlightEnabled'));
+  assert.equal(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.highlightEnabled'), false);
 });
 
 test('normalizes ankiConnect tags by trimming and deduping', () => {
@@ -53,18 +50,18 @@ test('normalizes ankiConnect tags by trimming and deduping', () => {
   );
 });
 
-test('warns and falls back for invalid nPlusOne.decks entries', () => {
+test('warns and falls back for invalid knownWords.decks entries', () => {
   const { context, warnings } = makeContext({
-    nPlusOne: { decks: ['Core Deck', 123] },
+    knownWords: { decks: ['Core Deck', 123] },
   });
 
   applyAnkiConnectResolution(context);
 
   assert.deepEqual(
-    context.resolved.ankiConnect.nPlusOne.decks,
-    DEFAULT_CONFIG.ankiConnect.nPlusOne.decks,
+    context.resolved.ankiConnect.knownWords.decks,
+    DEFAULT_CONFIG.ankiConnect.knownWords.decks,
   );
-  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.decks'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.decks'));
 });
 
 test('accepts valid proxy settings', () => {

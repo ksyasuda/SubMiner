@@ -293,6 +293,29 @@ test('annotateTokens excludes default non-independent pos2 from frequency and N+
   assert.equal(result[0]?.isNPlusOneTarget, false);
 });
 
+test('annotateTokens keeps frequency for kanji noun tokens even when mecab marks them non-independent', () => {
+  const tokens = [
+    makeToken({
+      surface: '者',
+      reading: 'もの',
+      headword: '者',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '名詞',
+      pos2: '非自立',
+      pos3: '一般',
+      startPos: 0,
+      endPos: 1,
+      frequencyRank: 475,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, 475);
+});
+
 test('annotateTokens excludes likely kana SFX tokens from frequency when POS tags are missing', () => {
   const tokens = [
     makeToken({

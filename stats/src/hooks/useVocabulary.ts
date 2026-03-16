@@ -5,6 +5,7 @@ import type { VocabularyEntry, KanjiEntry } from '../types/stats';
 export function useVocabulary() {
   const [words, setWords] = useState<VocabularyEntry[]>([]);
   const [kanji, setKanji] = useState<KanjiEntry[]>([]);
+  const [knownWords, setKnownWords] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -12,8 +13,8 @@ export function useVocabulary() {
     setLoading(true);
     setError(null);
     const client = getStatsClient();
-    Promise.allSettled([client.getVocabulary(500), client.getKanji(200)])
-      .then(([wordsResult, kanjiResult]) => {
+    Promise.allSettled([client.getVocabulary(500), client.getKanji(200), client.getKnownWords()])
+      .then(([wordsResult, kanjiResult, knownResult]) => {
         const errors: string[] = [];
 
         if (wordsResult.status === 'fulfilled') {
@@ -28,6 +29,10 @@ export function useVocabulary() {
           errors.push(kanjiResult.reason.message);
         }
 
+        if (knownResult.status === 'fulfilled') {
+          setKnownWords(new Set(knownResult.value));
+        }
+
         if (errors.length > 0) {
           setError(errors.join('; '));
         }
@@ -35,5 +40,5 @@ export function useVocabulary() {
       .finally(() => setLoading(false));
   }, []);
 
-  return { words, kanji, loading, error };
+  return { words, kanji, knownWords, loading, error };
 }

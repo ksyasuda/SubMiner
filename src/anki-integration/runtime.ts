@@ -86,6 +86,14 @@ export function normalizeAnkiIntegrationConfig(config: AnkiConnectConfig): AnkiC
       ...DEFAULT_ANKI_CONNECT_CONFIG.media,
       ...(config.media ?? {}),
     },
+    knownWords: {
+      ...DEFAULT_ANKI_CONNECT_CONFIG.knownWords,
+      ...(config.knownWords ?? {}),
+    },
+    nPlusOne: {
+      ...DEFAULT_ANKI_CONNECT_CONFIG.nPlusOne,
+      ...(config.nPlusOne ?? {}),
+    },
     behavior: {
       ...DEFAULT_ANKI_CONNECT_CONFIG.behavior,
       ...(config.behavior ?? {}),
@@ -136,12 +144,19 @@ export class AnkiIntegrationRuntime {
   }
 
   applyRuntimeConfigPatch(patch: Partial<AnkiConnectConfig>): void {
-    const wasKnownWordCacheEnabled = this.config.nPlusOne?.highlightEnabled === true;
+    const wasKnownWordCacheEnabled = this.config.knownWords?.highlightEnabled === true;
     const previousTransportKey = this.getTransportConfigKey(this.config);
 
     const mergedConfig: AnkiConnectConfig = {
       ...this.config,
       ...patch,
+      knownWords:
+        patch.knownWords !== undefined
+          ? {
+              ...(this.config.knownWords ?? DEFAULT_ANKI_CONNECT_CONFIG.knownWords),
+              ...patch.knownWords,
+            }
+          : this.config.knownWords,
       nPlusOne:
         patch.nPlusOne !== undefined
           ? {
@@ -177,7 +192,7 @@ export class AnkiIntegrationRuntime {
     this.config = normalizeAnkiIntegrationConfig(mergedConfig);
     this.deps.onConfigChanged?.(this.config);
 
-    if (wasKnownWordCacheEnabled && this.config.nPlusOne?.highlightEnabled === false) {
+    if (wasKnownWordCacheEnabled && this.config.knownWords?.highlightEnabled === false) {
       this.deps.knownWordCache.stopLifecycle();
       this.deps.knownWordCache.clearKnownWordCacheState();
     } else {

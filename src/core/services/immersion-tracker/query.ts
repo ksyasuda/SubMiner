@@ -223,7 +223,8 @@ export function getVocabularyStats(
   const stmt = db.prepare(`
     SELECT id AS wordId, headword, word, reading,
       part_of_speech AS partOfSpeech, pos1, pos2, pos3,
-      frequency, first_seen AS firstSeen, last_seen AS lastSeen
+      frequency, frequency_rank AS frequencyRank,
+      first_seen AS firstSeen, last_seen AS lastSeen
     FROM imm_words ${whereClause} ORDER BY frequency DESC LIMIT ?
   `);
   const params = hasExclude ? [...excludePos, limit] : [limit];
@@ -632,6 +633,7 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
       a.title_romaji AS titleRomaji,
       a.title_english AS titleEnglish,
       a.title_native AS titleNative,
+      a.description AS description,
       COUNT(DISTINCT s.session_id) AS totalSessions,
       COALESCE(SUM(sm.max_active_ms), 0) AS totalActiveMs,
       COALESCE(SUM(sm.max_cards), 0) AS totalCards,
@@ -1164,4 +1166,23 @@ export function isVideoWatched(db: DatabaseSync, videoId: number): boolean {
     watched: number;
   } | null;
   return row?.watched === 1;
+}
+
+export function deleteSession(db: DatabaseSync, sessionId: number): void {
+  db.prepare('DELETE FROM imm_subtitle_lines WHERE session_id = ?').run(sessionId);
+  db.prepare('DELETE FROM imm_session_telemetry WHERE session_id = ?').run(sessionId);
+  db.prepare('DELETE FROM imm_session_events WHERE session_id = ?').run(sessionId);
+  db.prepare('DELETE FROM imm_sessions WHERE session_id = ?').run(sessionId);
+}
+
+export function deleteVideo(db: DatabaseSync, videoId: number): void {
+  const sessions = db.prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?').all(videoId) as Array<{ session_id: number }>;
+  for (const s of sessions) {
+    deleteSession(db, s.session_id);
+  }
+  db.prepare('DELETE FROM imm_subtitle_lines WHERE video_id = ?').run(videoId);
+  db.prepare('DELETE FROM imm_daily_rollups WHERE video_id = ?').run(videoId);
+  db.prepare('DELETE FROM imm_monthly_rollups WHERE video_id = ?').run(videoId);
+  db.prepare('DELETE FROM imm_media_art WHERE video_id = ?').run(videoId);
+  db.prepare('DELETE FROM imm_videos WHERE video_id = ?').run(videoId);
 }

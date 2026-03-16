@@ -36,14 +36,14 @@ export function WatchTimeChart({ rollups }: WatchTimeChartProps) {
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-ctp-text">Watch Time</h3>
-        <div className="flex gap-1">
+        <div className="flex bg-ctp-surface0 rounded-lg p-0.5 border border-ctp-surface1">
           {ranges.map((r) => (
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`px-2 py-0.5 text-xs rounded ${
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
                 range === r
-                  ? 'bg-ctp-surface2 text-ctp-text'
+                  ? 'bg-ctp-surface2 text-ctp-text shadow-sm'
                   : 'text-ctp-overlay2 hover:text-ctp-subtext0'
               }`}
             >

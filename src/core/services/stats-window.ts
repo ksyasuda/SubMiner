@@ -16,6 +16,8 @@ export interface StatsWindowOptions {
   staticDir: string;
   /** Absolute path to the compiled preload-stats.js */
   preloadPath: string;
+  /** Resolve the active stats API base URL */
+  getApiBaseUrl?: () => string;
   /** Resolve the active stats toggle key from config */
   getToggleKey: () => string;
   /** Resolve the tracked overlay/mpv bounds */
@@ -46,7 +48,7 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
     );
 
     const indexPath = path.join(options.staticDir, 'index.html');
-    statsWindow.loadFile(indexPath, buildStatsWindowLoadFileOptions());
+    statsWindow.loadFile(indexPath, buildStatsWindowLoadFileOptions(options.getApiBaseUrl?.()));
 
     statsWindow.on('closed', () => {
       statsWindow = null;

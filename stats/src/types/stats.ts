@@ -58,6 +58,7 @@ export interface VocabularyEntry {
   pos2: string | null;
   pos3: string | null;
   frequency: number;
+  frequencyRank: number | null;
   firstSeen: number;
   lastSeen: number;
 }
@@ -164,6 +165,7 @@ export interface AnimeDetailData {
     titleRomaji: string | null;
     titleEnglish: string | null;
     titleNative: string | null;
+    description: string | null;
     totalSessions: number;
     totalActiveMs: number;
     totalCards: number;

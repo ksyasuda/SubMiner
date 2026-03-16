@@ -14,6 +14,7 @@ import {
 import { startSessionRecord } from '../session.js';
 import {
   cleanupVocabularyStats,
+  deleteSession,
   getAnimeDetail,
   getAnimeEpisodes,
   getAnimeLibrary,
@@ -295,35 +296,32 @@ test('cleanupVocabularyStats repairs stored POS metadata and removes excluded im
         { headword: '旧', frequency: 1 },
       ],
     );
-    assert.deepEqual(
-      repairedRows,
-      [
-        {
-          headword: '旧',
-          word: '旧',
-          reading: 'きゅう',
-          part_of_speech: 'noun',
-          pos1: '名詞',
-          pos2: '一般',
-        },
-        {
-          headword: '猫',
-          word: '猫',
-          reading: 'ねこ',
-          part_of_speech: 'noun',
-          pos1: '名詞',
-          pos2: '一般',
-        },
-        {
-          headword: '知る',
-          word: '知っている',
-          reading: 'しっている',
-          part_of_speech: 'verb',
-          pos1: '動詞',
-          pos2: '自立',
-        },
-      ],
-    );
+    assert.deepEqual(repairedRows, [
+      {
+        headword: '旧',
+        word: '旧',
+        reading: 'きゅう',
+        part_of_speech: 'noun',
+        pos1: '名詞',
+        pos2: '一般',
+      },
+      {
+        headword: '猫',
+        word: '猫',
+        reading: 'ねこ',
+        part_of_speech: 'noun',
+        pos1: '名詞',
+        pos2: '一般',
+      },
+      {
+        headword: '知る',
+        word: '知っている',
+        reading: 'しっている',
+        part_of_speech: 'verb',
+        pos1: '動詞',
+        pos2: '自立',
+      },
+    ]);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -708,7 +706,7 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
       canonicalTitle: 'Frieren',
       anilistId: 52_921,
       titleRomaji: 'Sousou no Frieren',
-      titleEnglish: 'Frieren: Beyond Journey\'s End',
+      titleEnglish: "Frieren: Beyond Journey's End",
       titleNative: '葬送のフリーレン',
       metadataJson: '{"source":"anilist"}',
     });
@@ -1065,6 +1063,154 @@ test('getKanjiOccurrences maps a kanji back to anime, video, and subtitle line c
         occurrenceCount: 2,
       },
     ]);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('deleteSession removes the session and all associated session-scoped rows', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const stmts = createTrackerPreparedStatements(db);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/delete-session.mkv', {
+      canonicalTitle: 'Delete Session Test',
+      sourcePath: '/tmp/delete-session.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const startedAtMs = 6_000_000;
+    const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
+
+    stmts.telemetryInsertStmt.run(
+      sessionId,
+      startedAtMs + 1_000,
+      5_000,
+      4_000,
+      3,
+      9,
+      9,
+      1,
+      2,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      startedAtMs + 1_000,
+      startedAtMs + 1_000,
+    );
+    const eventResult = stmts.eventInsertStmt.run(
+      sessionId,
+      startedAtMs + 1_500,
+      EVENT_SUBTITLE_LINE,
+      0,
+      0,
+      900,
+      2,
+      0,
+      '{"line":"delete me"}',
+      startedAtMs + 1_500,
+      startedAtMs + 1_500,
+    );
+    const eventId = Number(eventResult.lastInsertRowid);
+    const wordResult = db
+      .prepare(
+        `INSERT INTO imm_words (
+          headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('削除', '削除', 'さくじょ', 'noun', '名詞', '一般', '', startedAtMs, startedAtMs, 1);
+    const kanjiResult = db
+      .prepare(
+        `INSERT INTO imm_kanji (
+          kanji, first_seen, last_seen, frequency
+        ) VALUES (?, ?, ?, ?)`,
+      )
+      .run('削', startedAtMs, startedAtMs, 1);
+    const lineResult = stmts.subtitleLineInsertStmt.run(
+      sessionId,
+      eventId,
+      videoId,
+      null,
+      0,
+      0,
+      900,
+      'delete me',
+      startedAtMs + 1_500,
+      startedAtMs + 1_500,
+    );
+    const lineId = Number(lineResult.lastInsertRowid);
+    db.prepare(
+      `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count)
+       VALUES (?, ?, ?)`,
+    ).run(lineId, Number(wordResult.lastInsertRowid), 1);
+    db.prepare(
+      `INSERT INTO imm_kanji_line_occurrences (line_id, kanji_id, occurrence_count)
+       VALUES (?, ?, ?)`,
+    ).run(lineId, Number(kanjiResult.lastInsertRowid), 1);
+
+    deleteSession(db, sessionId);
+
+    const sessionCount = Number(
+      (
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_sessions WHERE session_id = ?')
+          .get(sessionId) as {
+          total: number;
+        }
+      ).total,
+    );
+    const telemetryCount = Number(
+      (
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_session_telemetry WHERE session_id = ?')
+          .get(sessionId) as { total: number }
+      ).total,
+    );
+    const eventCount = Number(
+      (
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_session_events WHERE session_id = ?')
+          .get(sessionId) as {
+          total: number;
+        }
+      ).total,
+    );
+    const subtitleLineCount = Number(
+      (
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_subtitle_lines WHERE session_id = ?')
+          .get(sessionId) as { total: number }
+      ).total,
+    );
+    const wordOccurrenceCount = Number(
+      (
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_word_line_occurrences WHERE line_id = ?')
+          .get(lineId) as { total: number }
+      ).total,
+    );
+    const kanjiOccurrenceCount = Number(
+      (
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_kanji_line_occurrences WHERE line_id = ?')
+          .get(lineId) as { total: number }
+      ).total,
+    );
+
+    assert.equal(sessionCount, 0);
+    assert.equal(telemetryCount, 0);
+    assert.equal(eventCount, 0);
+    assert.equal(subtitleLineCount, 0);
+    assert.equal(wordOccurrenceCount, 0);
+    assert.equal(kanjiOccurrenceCount, 0);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

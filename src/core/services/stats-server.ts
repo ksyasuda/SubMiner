@@ -18,6 +18,7 @@ export interface StatsServerConfig {
   port: number;
   staticDir: string; // Path to stats/dist/
   tracker: ImmersionTrackerService;
+  knownWordCachePath?: string;
 }
 
 const STATS_STATIC_CONTENT_TYPES: Record<string, string> = {
@@ -79,7 +80,7 @@ function createStatsStaticResponse(staticDir: string, requestPath: string): Resp
 
 export function createStatsApp(
   tracker: ImmersionTrackerService,
-  options?: { staticDir?: string },
+  options?: { staticDir?: string; knownWordCachePath?: string },
 ) {
   const app = new Hono();
 
@@ -259,6 +260,70 @@ export function createStatsApp(
     return c.json({ ok: true });
   });
 
+  app.delete('/api/stats/sessions/:sessionId', async (c) => {
+    const sessionId = parseIntQuery(c.req.param('sessionId'), 0);
+    if (sessionId <= 0) return c.body(null, 400);
+    await tracker.deleteSession(sessionId);
+    return c.json({ ok: true });
+  });
+
+  app.delete('/api/stats/media/:videoId', async (c) => {
+    const videoId = parseIntQuery(c.req.param('videoId'), 0);
+    if (videoId <= 0) return c.body(null, 400);
+    await tracker.deleteVideo(videoId);
+    return c.json({ ok: true });
+  });
+
+  app.get('/api/stats/anilist/search', async (c) => {
+    const query = (c.req.query('q') ?? '').trim();
+    if (!query) return c.json([]);
+    try {
+      const res = await fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `query ($search: String!) {
+            Page(perPage: 10) {
+              media(search: $search, type: ANIME) {
+                id
+                episodes
+                season
+                seasonYear
+                description(asHtml: false)
+                coverImage { large medium }
+                title { romaji english native }
+              }
+            }
+          }`,
+          variables: { search: query },
+        }),
+      });
+      const json = await res.json() as { data?: { Page?: { media?: unknown[] } } };
+      return c.json(json.data?.Page?.media ?? []);
+    } catch {
+      return c.json([]);
+    }
+  });
+
+  app.get('/api/stats/known-words', (c) => {
+    const cachePath = options?.knownWordCachePath;
+    if (!cachePath || !existsSync(cachePath)) return c.json([]);
+    try {
+      const raw = JSON.parse(readFileSync(cachePath, 'utf-8')) as { version?: number; words?: string[] };
+      if (raw.version === 1 && Array.isArray(raw.words)) return c.json(raw.words);
+    } catch { /* ignore */ }
+    return c.json([]);
+  });
+
+  app.patch('/api/stats/anime/:animeId/anilist', async (c) => {
+    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    if (animeId <= 0) return c.body(null, 400);
+    const body = await c.req.json().catch(() => null);
+    if (!body?.anilistId) return c.body(null, 400);
+    await tracker.reassignAnimeAnilist(animeId, body);
+    return c.json({ ok: true });
+  });
+
   app.get('/api/stats/anime/:animeId/cover', async (c) => {
     const animeId = parseIntQuery(c.req.param('animeId'), 0);
     if (animeId <= 0) return c.body(null, 404);
@@ -363,7 +428,7 @@ export function createStatsApp(
 }
 
 export function startStatsServer(config: StatsServerConfig): { close: () => void } {
-  const app = createStatsApp(config.tracker, { staticDir: config.staticDir });
+  const app = createStatsApp(config.tracker, { staticDir: config.staticDir, knownWordCachePath: config.knownWordCachePath });
 
   const server = serve({
     fetch: app.fetch,

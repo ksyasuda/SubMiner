@@ -244,13 +244,15 @@ export interface AnkiConnectConfig {
     fallbackDuration?: number;
     maxMediaDuration?: number;
   };
-  nPlusOne?: {
+  knownWords?: {
     highlightEnabled?: boolean;
     refreshMinutes?: number;
     matchMode?: NPlusOneMatchMode;
     decks?: string[];
+    color?: string;
+  };
+  nPlusOne?: {
     nPlusOne?: string;
-    knownWord?: string;
     minSentenceWords?: number;
   };
   behavior?: {
@@ -733,13 +735,15 @@ export interface ResolvedConfig {
       fallbackDuration: number;
       maxMediaDuration: number;
     };
-    nPlusOne: {
+    knownWords: {
       highlightEnabled: boolean;
       refreshMinutes: number;
       matchMode: NPlusOneMatchMode;
       decks: string[];
+      color: string;
+    };
+    nPlusOne: {
       nPlusOne: string;
-      knownWord: string;
       minSentenceWords: number;
     };
     behavior: {

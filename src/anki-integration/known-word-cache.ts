@@ -203,30 +203,32 @@ export class KnownWordCacheManager {
   }
 
   private isKnownWordCacheEnabled(): boolean {
-    return this.deps.getConfig().nPlusOne?.highlightEnabled === true;
+    return this.deps.getConfig().knownWords?.highlightEnabled === true;
   }
 
   private getKnownWordRefreshIntervalMs(): number {
-    const minutes = this.deps.getConfig().nPlusOne?.refreshMinutes;
+    const minutes = this.deps.getConfig().knownWords?.refreshMinutes;
     const safeMinutes =
       typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0
         ? minutes
-        : DEFAULT_ANKI_CONNECT_CONFIG.nPlusOne.refreshMinutes;
+        : DEFAULT_ANKI_CONNECT_CONFIG.knownWords.refreshMinutes;
     return safeMinutes * 60_000;
   }
 
   private getKnownWordDecks(): string[] {
-    const configuredDecks = this.deps.getConfig().nPlusOne?.decks;
+    const configuredDecks = this.deps.getConfig().knownWords?.decks;
     if (Array.isArray(configuredDecks)) {
-      const decks = configuredDecks
-        .filter((entry): entry is string => typeof entry === 'string')
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
-      return [...new Set(decks)];
+      return configuredDecks
+        .map((deck) => (typeof deck === 'string' ? deck.trim() : ''))
+        .filter((deck) => deck.length > 0);
     }
 
     const deck = this.deps.getConfig().deck?.trim();
     return deck ? [deck] : [];
+  }
+
+  private getConfiguredFields(): string[] {
+    return ['Expression', 'Word', 'Reading', 'Word Reading'];
   }
 
   private buildKnownWordsQuery(): string {
@@ -344,8 +346,8 @@ export class KnownWordCacheManager {
 
   private extractKnownWordsFromNoteInfo(noteInfo: KnownWordCacheNoteInfo): string[] {
     const words: string[] = [];
-    const preferredFields = ['Expression', 'Word'];
-    for (const preferredField of preferredFields) {
+    const configuredFields = this.getConfiguredFields();
+    for (const preferredField of configuredFields) {
       const fieldName = resolveFieldName(Object.keys(noteInfo.fields), preferredField);
       if (!fieldName) continue;
 

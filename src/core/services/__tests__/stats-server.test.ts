@@ -53,6 +53,7 @@ const VOCABULARY_STATS = [
     pos2: '自立',
     pos3: null,
     frequency: 100,
+    frequencyRank: 42,
     firstSeen: Date.now(),
     lastSeen: Date.now(),
   },
@@ -132,9 +133,7 @@ const EPISODES_PER_DAY = [
   { epochDay: Math.floor(Date.now() / 86_400_000), episodeCount: 1 },
 ];
 
-const NEW_ANIME_PER_DAY = [
-  { epochDay: Math.floor(Date.now() / 86_400_000) - 2, newAnimeCount: 2 },
-];
+const NEW_ANIME_PER_DAY = [{ epochDay: Math.floor(Date.now() / 86_400_000) - 2, newAnimeCount: 2 }];
 
 const WATCH_TIME_PER_ANIME = [
   {
@@ -210,7 +209,12 @@ function createMockTracker(
     getSessionSummaries: async () => SESSION_SUMMARIES,
     getDailyRollups: async () => DAILY_ROLLUPS,
     getMonthlyRollups: async () => [],
-    getQueryHints: async () => ({ totalSessions: 5, activeSessions: 1, episodesToday: 2, activeAnimeCount: 3 }),
+    getQueryHints: async () => ({
+      totalSessions: 5,
+      activeSessions: 1,
+      episodesToday: 2,
+      activeAnimeCount: 3,
+    }),
     getSessionTimeline: async () => [],
     getSessionEvents: async () => [],
     getVocabularyStats: async () => VOCABULARY_STATS,
@@ -445,7 +449,9 @@ describe('stats server API routes', () => {
       }),
     );
 
-    const res = await app.request('/api/stats/kanji/occurrences?kanji=%E6%97%A5&limit=999999&offset=10');
+    const res = await app.request(
+      '/api/stats/kanji/occurrences?kanji=%E6%97%A5&limit=999999&offset=10',
+    );
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.ok(Array.isArray(body));
@@ -709,6 +715,23 @@ describe('stats server API routes', () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/episode/0/detail');
     assert.equal(res.status, 400);
+  });
+
+  it('DELETE /api/stats/sessions/:sessionId deletes a session', async () => {
+    let deletedSessionId = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteSession: async (sessionId: number) => {
+          deletedSessionId = sessionId;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/sessions/42', { method: 'DELETE' });
+
+    assert.equal(res.status, 200);
+    assert.equal(deletedSessionId, 42);
+    assert.deepEqual(await res.json(), { ok: true });
   });
 
   it('POST /api/stats/anki/browse returns 400 for missing noteId', async () => {

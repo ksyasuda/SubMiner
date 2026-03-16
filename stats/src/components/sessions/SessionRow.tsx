@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import { BASE_URL } from '../../lib/api-client';
-import {
-  formatDuration,
-  formatRelativeDate,
-  formatNumber,
-} from '../../lib/formatters';
+import { formatDuration, formatRelativeDate, formatNumber } from '../../lib/formatters';
 import type { SessionSummary } from '../../types/stats';
 
 interface SessionRowProps {
@@ -12,6 +8,8 @@ interface SessionRowProps {
   isExpanded: boolean;
   detailsId: string;
   onToggle: () => void;
+  onDelete: () => void;
+  deleteDisabled?: boolean;
 }
 
 function CoverThumbnail({ videoId, title }: { videoId: number | null; title: string }) {
@@ -37,40 +35,63 @@ function CoverThumbnail({ videoId, title }: { videoId: number | null; title: str
   );
 }
 
-export function SessionRow({ session, isExpanded, detailsId, onToggle }: SessionRowProps) {
+export function SessionRow({
+  session,
+  isExpanded,
+  detailsId,
+  onToggle,
+  onDelete,
+  deleteDisabled = false,
+}: SessionRowProps) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={isExpanded}
-      aria-controls={detailsId}
-      className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 flex items-center gap-3 hover:border-ctp-surface2 transition-colors text-left"
-    >
-      <CoverThumbnail videoId={session.videoId} title={session.canonicalTitle ?? 'Unknown'} />
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-ctp-text truncate">
-          {session.canonicalTitle ?? 'Unknown Media'}
-        </div>
-        <div className="text-xs text-ctp-overlay2">
-          {formatRelativeDate(session.startedAtMs)} · {formatDuration(session.activeWatchedMs)}{' '}
-          active
-        </div>
-      </div>
-      <div className="flex gap-4 text-xs text-center shrink-0">
-        <div>
-          <div className="text-ctp-green font-medium">{formatNumber(session.cardsMined)}</div>
-          <div className="text-ctp-overlay2">cards</div>
-        </div>
-        <div>
-          <div className="text-ctp-mauve font-medium">{formatNumber(session.wordsSeen)}</div>
-          <div className="text-ctp-overlay2">words</div>
-        </div>
-      </div>
-      <div
-        className={`text-ctp-blue text-xs transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+    <div className="relative group">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isExpanded}
+        aria-controls={detailsId}
+        className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 pr-12 flex items-center gap-3 hover:border-ctp-surface2 transition-colors text-left"
       >
-        {'\u25B8'}
-      </div>
-    </button>
+        <CoverThumbnail videoId={session.videoId} title={session.canonicalTitle ?? 'Unknown'} />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-ctp-text truncate">
+            {session.canonicalTitle ?? 'Unknown Media'}
+          </div>
+          <div className="text-xs text-ctp-overlay2">
+            {formatRelativeDate(session.startedAtMs)} · {formatDuration(session.activeWatchedMs)}{' '}
+            active
+          </div>
+        </div>
+        <div className="flex gap-4 text-xs text-center shrink-0">
+          <div>
+            <div className="text-ctp-green font-medium font-mono tabular-nums">
+              {formatNumber(session.cardsMined)}
+            </div>
+            <div className="text-ctp-overlay2">cards</div>
+          </div>
+          <div>
+            <div className="text-ctp-mauve font-medium font-mono tabular-nums">
+              {formatNumber(session.wordsSeen)}
+            </div>
+            <div className="text-ctp-overlay2">words</div>
+          </div>
+        </div>
+        <div
+          className={`text-ctp-blue text-xs transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+        >
+          {'\u25B8'}
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={deleteDisabled}
+        aria-label={`Delete session ${session.canonicalTitle ?? 'Unknown Media'}`}
+        className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-red/50 hover:text-ctp-red hover:bg-ctp-red/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+        title="Delete session"
+      >
+        {'\u2715'}
+      </button>
+    </div>
   );
 }

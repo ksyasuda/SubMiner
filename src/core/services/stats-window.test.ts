@@ -140,3 +140,12 @@ test('buildStatsWindowLoadFileOptions enables overlay rendering mode', () => {
     },
   });
 });
+
+test('buildStatsWindowLoadFileOptions includes provided stats API base URL', () => {
+  assert.deepEqual(buildStatsWindowLoadFileOptions('http://127.0.0.1:6123'), {
+    query: {
+      overlay: '1',
+      apiBase: 'http://127.0.0.1:6123',
+    },
+  });
+});

@@ -1,14 +1,16 @@
 import { Fragment, useState } from 'react';
 import { formatDuration, formatNumber, formatRelativeDate } from '../../lib/formatters';
 import { apiClient } from '../../lib/api-client';
+import { confirmEpisodeDelete } from '../../lib/delete-confirm';
 import { EpisodeDetail } from './EpisodeDetail';
 import type { AnimeEpisode } from '../../types/stats';
 
 interface EpisodeListProps {
   episodes: AnimeEpisode[];
+  onEpisodeDeleted?: () => void;
 }
 
-export function EpisodeList({ episodes: initialEpisodes }: EpisodeListProps) {
+export function EpisodeList({ episodes: initialEpisodes, onEpisodeDeleted }: EpisodeListProps) {
   const [expandedVideoId, setExpandedVideoId] = useState<number | null>(null);
   const [episodes, setEpisodes] = useState(initialEpisodes);
 
@@ -35,6 +37,14 @@ export function EpisodeList({ episodes: initialEpisodes }: EpisodeListProps) {
     }
   };
 
+  const handleDeleteEpisode = async (videoId: number, title: string) => {
+    if (!confirmEpisodeDelete(title)) return;
+    await apiClient.deleteVideo(videoId);
+    setEpisodes((prev) => prev.filter((ep) => ep.videoId !== videoId));
+    if (expandedVideoId === videoId) setExpandedVideoId(null);
+    onEpisodeDeleted?.();
+  };
+
   const watchedCount = episodes.filter((ep) => ep.watched).length;
 
   return (
@@ -56,34 +66,36 @@ export function EpisodeList({ episodes: initialEpisodes }: EpisodeListProps) {
               <th className="text-right py-2 pr-3 font-medium">Watch Time</th>
               <th className="text-right py-2 pr-3 font-medium">Cards</th>
               <th className="text-right py-2 pr-3 font-medium">Last Watched</th>
-              <th className="w-8 py-2 font-medium" />
+              <th className="w-16 py-2 font-medium" />
             </tr>
           </thead>
           <tbody>
             {sorted.map((ep, idx) => (
               <Fragment key={ep.videoId}>
                 <tr
-                  onClick={() => setExpandedVideoId(expandedVideoId === ep.videoId ? null : ep.videoId)}
-                  className="border-b border-ctp-surface1 last:border-0 cursor-pointer hover:bg-ctp-surface1/50 transition-colors"
+                  onClick={() =>
+                    setExpandedVideoId(expandedVideoId === ep.videoId ? null : ep.videoId)
+                  }
+                  className="border-b border-ctp-surface1 last:border-0 cursor-pointer hover:bg-ctp-surface1/50 transition-colors group"
                 >
                   <td className="py-2 pr-1 text-ctp-overlay2 text-xs w-6">
                     {expandedVideoId === ep.videoId ? '\u25BC' : '\u25B6'}
                   </td>
-                  <td className="py-2 pr-3 text-ctp-subtext0">
-                    {ep.episode ?? idx + 1}
-                  </td>
+                  <td className="py-2 pr-3 text-ctp-subtext0">{ep.episode ?? idx + 1}</td>
                   <td className="py-2 pr-3 text-ctp-text truncate max-w-[200px]">
                     {ep.canonicalTitle}
                   </td>
                   <td className="py-2 pr-3 text-right">
                     {ep.durationMs > 0 ? (
-                      <span className={
-                        ep.totalActiveMs >= ep.durationMs * 0.85
-                          ? 'text-ctp-green'
-                          : ep.totalActiveMs >= ep.durationMs * 0.5
-                            ? 'text-ctp-peach'
-                            : 'text-ctp-overlay2'
-                      }>
+                      <span
+                        className={
+                          ep.totalActiveMs >= ep.durationMs * 0.85
+                            ? 'text-ctp-green'
+                            : ep.totalActiveMs >= ep.durationMs * 0.5
+                              ? 'text-ctp-peach'
+                              : 'text-ctp-overlay2'
+                        }
+                      >
                         {Math.min(100, Math.round((ep.totalActiveMs / ep.durationMs) * 100))}%
                       </span>
                     ) : (
@@ -99,28 +111,41 @@ export function EpisodeList({ episodes: initialEpisodes }: EpisodeListProps) {
                   <td className="py-2 pr-3 text-right text-ctp-overlay2">
                     {ep.lastWatchedMs > 0 ? formatRelativeDate(ep.lastWatchedMs) : '\u2014'}
                   </td>
-                  <td className="py-2 text-center w-8">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void toggleWatched(ep.videoId, ep.watched);
-                      }}
-                      className={`w-5 h-5 rounded border transition-colors ${
-                        ep.watched
-                          ? 'bg-ctp-green border-ctp-green text-ctp-base'
-                          : 'border-ctp-surface2 hover:border-ctp-overlay0 text-transparent hover:text-ctp-overlay0'
-                      }`}
-                      title={ep.watched ? 'Mark as unwatched' : 'Mark as watched'}
-                    >
-                      {'\u2713'}
-                    </button>
+                  <td className="py-2 text-center w-16">
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void toggleWatched(ep.videoId, ep.watched);
+                        }}
+                        className={`w-5 h-5 rounded border transition-colors ${
+                          ep.watched
+                            ? 'bg-ctp-green border-ctp-green text-ctp-base'
+                            : 'border-ctp-surface2 hover:border-ctp-overlay0 text-transparent hover:text-ctp-overlay0'
+                        }`}
+                        title={ep.watched ? 'Mark as unwatched' : 'Mark as watched'}
+                      >
+                        {'\u2713'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDeleteEpisode(ep.videoId, ep.canonicalTitle);
+                        }}
+                        className="w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-red/50 hover:text-ctp-red hover:bg-ctp-red/10 transition-colors opacity-0 group-hover:opacity-100 text-xs flex items-center justify-center"
+                        title="Delete episode"
+                      >
+                        {'\u2715'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 {expandedVideoId === ep.videoId && (
                   <tr>
                     <td colSpan={8} className="py-2">
-                      <EpisodeDetail videoId={ep.videoId} />
+                      <EpisodeDetail videoId={ep.videoId} onSessionDeleted={onEpisodeDeleted} />
                     </td>
                   </tr>
                 )}

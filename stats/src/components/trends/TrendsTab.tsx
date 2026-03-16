@@ -32,18 +32,32 @@ function buildWatchTimeByHour(sessions: SessionSummary[]): ChartPoint[] {
 
 function buildCumulativePerAnime(points: PerAnimeDataPoint[]): PerAnimeDataPoint[] {
   const byAnime = new Map<string, Map<number, number>>();
+  const allDays = new Set<number>();
   for (const p of points) {
     const dayMap = byAnime.get(p.animeTitle) ?? new Map();
     dayMap.set(p.epochDay, (dayMap.get(p.epochDay) ?? 0) + p.value);
     byAnime.set(p.animeTitle, dayMap);
+    allDays.add(p.epochDay);
   }
+
+  const sortedDays = [...allDays].sort((a, b) => a - b);
+  if (sortedDays.length < 2) return points;
+
+  const minDay = sortedDays[0]!;
+  const maxDay = sortedDays[sortedDays.length - 1]!;
+  const everyDay: number[] = [];
+  for (let d = minDay; d <= maxDay; d++) {
+    everyDay.push(d);
+  }
+
   const result: PerAnimeDataPoint[] = [];
   for (const [animeTitle, dayMap] of byAnime) {
-    const sorted = [...dayMap.entries()].sort(([a], [b]) => a - b);
     let cumulative = 0;
-    for (const [epochDay, value] of sorted) {
-      cumulative += value;
-      result.push({ epochDay, animeTitle, value: cumulative });
+    const firstDay = Math.min(...dayMap.keys());
+    for (const day of everyDay) {
+      if (day < firstDay) continue;
+      cumulative += dayMap.get(day) ?? 0;
+      result.push({ epochDay: day, animeTitle, value: cumulative });
     }
   }
   return result;
@@ -93,9 +107,12 @@ function buildEpisodesPerAnimeFromSessions(sessions: SessionSummary[]): PerAnime
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-ctp-subtext0 text-sm font-medium uppercase tracking-wider mt-6 mb-2 col-span-full">
-      {children}
-    </h3>
+    <div className="col-span-full mt-6 mb-2 flex items-center gap-3">
+      <h3 className="text-ctp-subtext0 text-xs font-semibold uppercase tracking-widest shrink-0">
+        {children}
+      </h3>
+      <div className="flex-1 h-px bg-gradient-to-r from-ctp-surface1 to-transparent" />
+    </div>
   );
 }
 
@@ -119,6 +136,8 @@ export function TrendsTab() {
   const wordsPerAnime = buildPerAnimeFromSessions(data.sessions, (s) => s.wordsSeen);
 
   const animeProgress = buildCumulativePerAnime(episodesPerAnime);
+  const cardsProgress = buildCumulativePerAnime(cardsPerAnime);
+  const wordsProgress = buildCumulativePerAnime(wordsPerAnime);
 
   return (
     <div className="space-y-4">
@@ -141,12 +160,16 @@ export function TrendsTab() {
           type="line"
         />
 
-        <SectionHeader>Anime</SectionHeader>
-        <StackedTrendChart title="Anime Progress (episodes)" data={animeProgress} />
-        <StackedTrendChart title="Watch Time per Anime (min)" data={watchTimePerAnime} />
+        <SectionHeader>Anime — Per Day</SectionHeader>
         <StackedTrendChart title="Episodes per Anime" data={episodesPerAnime} />
+        <StackedTrendChart title="Watch Time per Anime (min)" data={watchTimePerAnime} />
         <StackedTrendChart title="Cards Mined per Anime" data={cardsPerAnime} />
         <StackedTrendChart title="Words Seen per Anime" data={wordsPerAnime} />
+
+        <SectionHeader>Anime — Cumulative</SectionHeader>
+        <StackedTrendChart title="Episodes Progress" data={animeProgress} />
+        <StackedTrendChart title="Cards Mined Progress" data={cardsProgress} />
+        <StackedTrendChart title="Words Seen Progress" data={wordsProgress} />
 
         <SectionHeader>Patterns</SectionHeader>
         <TrendChart title="Watch Time by Day of Week (min)" data={watchByDow} color="#8aadf4" type="bar" />

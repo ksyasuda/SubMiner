@@ -6,6 +6,8 @@ export interface FrequencyDictionaryLookupOptions {
   log: (message: string) => void;
 }
 
+type FrequencyDictionaryMode = 'occurrence-based' | 'rank-based';
+
 interface FrequencyDictionaryEntry {
   rank: number;
   term: string;
@@ -29,30 +31,67 @@ function normalizeFrequencyTerm(value: string): string {
   return value.trim().toLowerCase();
 }
 
+async function readDictionaryMetadata(
+  dictionaryPath: string,
+  log: (message: string) => void,
+): Promise<{ title: string | null; frequencyMode: FrequencyDictionaryMode | null }> {
+  const indexPath = path.join(dictionaryPath, 'index.json');
+  let rawText: string;
+  try {
+    rawText = await fs.readFile(indexPath, 'utf-8');
+  } catch (error) {
+    if (isErrorCode(error, 'ENOENT')) {
+      return { title: null, frequencyMode: null };
+    }
+    log(`Failed to read frequency dictionary index ${indexPath}: ${String(error)}`);
+    return { title: null, frequencyMode: null };
+  }
+
+  let rawIndex: unknown;
+  try {
+    rawIndex = JSON.parse(rawText) as unknown;
+  } catch {
+    log(`Failed to parse frequency dictionary index as JSON: ${indexPath}`);
+    return { title: null, frequencyMode: null };
+  }
+
+  if (!rawIndex || typeof rawIndex !== 'object') {
+    return { title: null, frequencyMode: null };
+  }
+
+  const titleRaw = (rawIndex as { title?: unknown }).title;
+  const frequencyModeRaw = (rawIndex as { frequencyMode?: unknown }).frequencyMode;
+  return {
+    title: typeof titleRaw === 'string' && titleRaw.trim().length > 0 ? titleRaw.trim() : null,
+    frequencyMode:
+      frequencyModeRaw === 'occurrence-based' || frequencyModeRaw === 'rank-based'
+        ? frequencyModeRaw
+        : null,
+  };
+}
+
 function parsePositiveFrequencyString(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) {
     return null;
   }
 
-  const numericPrefix = trimmed.match(/^\d[\d,]*/)?.[0];
-  if (!numericPrefix) {
+  const numericMatch = trimmed.match(/[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?/)?.[0];
+  if (!numericMatch) {
     return null;
   }
 
-  const chunks = numericPrefix.split(',');
-  const normalizedNumber =
-    chunks.length <= 1
-      ? (chunks[0] ?? '')
-      : chunks.slice(1).every((chunk) => /^\d{3}$/.test(chunk))
-        ? chunks.join('')
-        : (chunks[0] ?? '');
-  const parsed = Number.parseInt(normalizedNumber, 10);
+  const parsed = Number.parseFloat(numericMatch);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return null;
   }
 
-  return parsed;
+  const normalized = Math.floor(parsed);
+  if (!Number.isFinite(normalized) || normalized <= 0) {
+    return null;
+  }
+
+  return normalized;
 }
 
 function parsePositiveFrequencyNumber(value: unknown): number | null {
@@ -68,18 +107,32 @@ function parsePositiveFrequencyNumber(value: unknown): number | null {
   return null;
 }
 
+function parseDisplayFrequencyNumber(value: unknown): number | null {
+  if (typeof value === 'string') {
+    const leadingDigits = value.trim().match(/^\d+/)?.[0];
+    if (!leadingDigits) {
+      return null;
+    }
+    const parsed = Number.parseInt(leadingDigits, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  return parsePositiveFrequencyNumber(value);
+}
+
 function extractFrequencyDisplayValue(meta: unknown): number | null {
   if (!meta || typeof meta !== 'object') return null;
   const frequency = (meta as { frequency?: unknown }).frequency;
   if (!frequency || typeof frequency !== 'object') return null;
+  const rawValue = (frequency as { value?: unknown }).value;
+  const parsedRawValue = parsePositiveFrequencyNumber(rawValue);
   const displayValue = (frequency as { displayValue?: unknown }).displayValue;
-  const parsedDisplayValue = parsePositiveFrequencyNumber(displayValue);
+  const parsedDisplayValue = parseDisplayFrequencyNumber(displayValue);
   if (parsedDisplayValue !== null) {
     return parsedDisplayValue;
   }
 
-  const rawValue = (frequency as { value?: unknown }).value;
-  return parsePositiveFrequencyNumber(rawValue);
+  return parsedRawValue;
 }
 
 function asFrequencyDictionaryEntry(entry: unknown): FrequencyDictionaryEntry | null {
@@ -141,6 +194,15 @@ async function collectDictionaryFromPath(
   log: (message: string) => void,
 ): Promise<Map<string, number>> {
   const terms = new Map<string, number>();
+  const metadata = await readDictionaryMetadata(dictionaryPath, log);
+  if (metadata.frequencyMode === 'occurrence-based') {
+    log(
+      `Skipping occurrence-based frequency dictionary ${
+        metadata.title ?? dictionaryPath
+      }; SubMiner frequency tags require rank-based values.`,
+    );
+    return terms;
+  }
 
   let fileNames: string[];
   try {

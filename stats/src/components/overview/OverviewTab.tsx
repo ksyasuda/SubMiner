@@ -43,43 +43,43 @@ export function OverviewTab() {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-sm">
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Total Sessions</div>
-            <div className="mt-1 text-xl font-semibold text-ctp-lavender">
+            <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-lavender">
               {formatNumber(summary.totalSessions)}
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Episodes Today</div>
-            <div className="mt-1 text-xl font-semibold text-ctp-teal">
+            <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-teal">
               {formatNumber(summary.episodesToday)}
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">All-Time Hours</div>
-            <div className="mt-1 text-xl font-semibold text-ctp-mauve">
+            <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-mauve">
               {formatNumber(summary.allTimeHours)}
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Active Days</div>
-            <div className="mt-1 text-xl font-semibold text-ctp-peach">
+            <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-peach">
               {formatNumber(summary.activeDays)}
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Cards Mined</div>
-            <div className="mt-1 text-xl font-semibold text-ctp-green">
+            <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-green">
               {formatNumber(summary.totalTrackedCards)}
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Episodes Completed</div>
-            <div className="mt-1 text-xl font-semibold text-ctp-blue">
+            <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-blue">
               {formatNumber(summary.totalEpisodesWatched)}
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Anime Completed</div>
-            <div className="mt-1 text-xl font-semibold text-ctp-sapphire">
+            <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-sapphire">
               {formatNumber(summary.totalAnimeCompleted)}
             </div>
           </div>

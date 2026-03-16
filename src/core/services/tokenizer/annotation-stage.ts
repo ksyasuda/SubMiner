@@ -89,6 +89,23 @@ function normalizePos2Tag(pos2: string | undefined): string {
   return typeof pos2 === 'string' ? pos2.trim() : '';
 }
 
+function hasKanjiChar(text: string): boolean {
+  for (const char of text) {
+    const code = char.codePointAt(0);
+    if (code === undefined) {
+      continue;
+    }
+    if (
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0xf900 && code <= 0xfaff)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function isExcludedComponent(
   pos1: string | undefined,
   pos2: string | undefined,
@@ -167,6 +184,34 @@ function isFrequencyExcludedByPos(
     token.partOfSpeech === PartOfSpeech.particle ||
     token.partOfSpeech === PartOfSpeech.bound_auxiliary
   );
+}
+
+function shouldKeepFrequencyForNonIndependentKanjiNoun(
+  token: MergedToken,
+  pos1Exclusions: ReadonlySet<string>,
+): boolean {
+  if (pos1Exclusions.has('名詞')) {
+    return false;
+  }
+
+  const rank =
+    typeof token.frequencyRank === 'number' && Number.isFinite(token.frequencyRank)
+      ? Math.max(1, Math.floor(token.frequencyRank))
+      : null;
+  if (rank === null) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  const pos2Parts = splitNormalizedTagParts(normalizePos2Tag(token.pos2));
+  if (pos1Parts.length !== 1 || pos2Parts.length !== 1) {
+    return false;
+  }
+  if (pos1Parts[0] !== '名詞' || pos2Parts[0] !== '非自立') {
+    return false;
+  }
+
+  return hasKanjiChar(token.surface) || hasKanjiChar(token.headword);
 }
 
 export function shouldExcludeTokenFromVocabularyPersistence(
@@ -454,7 +499,10 @@ function filterTokenFrequencyRank(
   pos1Exclusions: ReadonlySet<string>,
   pos2Exclusions: ReadonlySet<string>,
 ): number | undefined {
-  if (isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions)) {
+  if (
+    isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions) &&
+    !shouldKeepFrequencyForNonIndependentKanjiNoun(token, pos1Exclusions)
+  ) {
     return undefined;
   }
 
