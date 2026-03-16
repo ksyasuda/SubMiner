@@ -4,13 +4,14 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   appState: {
     initialArgs?: { jellyfinPlay?: unknown } | null;
     overlayRuntimeInitialized: boolean;
-    mpvClient: { connected?: boolean } | null;
+    mpvClient: { connected?: boolean; currentSecondarySubText?: string } | null;
     immersionTracker: {
       recordSubtitleLine?: (
         text: string,
         start: number,
         end: number,
         tokens?: MergedToken[] | null,
+        secondaryText?: string | null,
       ) => void;
       handleMediaTitleUpdate?: (title: string) => void;
       recordPlaybackPosition?: (time: number) => void;
@@ -70,25 +71,26 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       if (!tracker?.recordSubtitleLine) {
         return;
       }
+      const secondaryText = deps.appState.mpvClient?.currentSecondarySubText || null;
       const cachedTokens =
         deps.appState.currentSubtitleData?.text === text
           ? deps.appState.currentSubtitleData.tokens
           : null;
       if (cachedTokens) {
-        tracker.recordSubtitleLine(text, start, end, cachedTokens);
+        tracker.recordSubtitleLine(text, start, end, cachedTokens, secondaryText);
         return;
       }
       if (!deps.tokenizeSubtitleForImmersion) {
-        tracker.recordSubtitleLine(text, start, end, null);
+        tracker.recordSubtitleLine(text, start, end, null, secondaryText);
         return;
       }
       void deps
         .tokenizeSubtitleForImmersion(text)
         .then((payload) => {
-          tracker.recordSubtitleLine?.(text, start, end, payload?.tokens ?? null);
+          tracker.recordSubtitleLine?.(text, start, end, payload?.tokens ?? null, secondaryText);
         })
         .catch(() => {
-          tracker.recordSubtitleLine?.(text, start, end, null);
+          tracker.recordSubtitleLine?.(text, start, end, null, secondaryText);
         });
     },
     hasSubtitleTimingTracker: () => Boolean(deps.appState.subtitleTimingTracker),

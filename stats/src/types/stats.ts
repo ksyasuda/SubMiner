@@ -59,6 +59,7 @@ export interface VocabularyEntry {
   pos3: string | null;
   frequency: number;
   frequencyRank: number | null;
+  animeCount: number;
   firstSeen: number;
   lastSeen: number;
 }
@@ -76,6 +77,8 @@ export interface VocabularyOccurrenceEntry {
   animeTitle: string | null;
   videoId: number;
   videoTitle: string;
+  sourcePath: string | null;
+  secondaryText: string | null;
   sessionId: number;
   lineIndex: number;
   segmentStartMs: number | null;

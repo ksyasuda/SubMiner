@@ -612,6 +612,7 @@ export class ImmersionTrackerService {
     startSec: number,
     endSec: number,
     tokens?: MergedToken[] | null,
+    secondaryText?: string | null,
   ): void {
     if (!this.sessionState || !text.trim()) return;
     const cleaned = normalizeText(text);
@@ -692,6 +693,7 @@ export class ImmersionTrackerService {
       segmentStartMs: secToMs(startSec),
       segmentEndMs: secToMs(endSec),
       text: cleaned,
+      secondaryText: secondaryText ?? null,
       wordOccurrences: Array.from(wordOccurrences.values()),
       kanjiOccurrences: Array.from(kanjiCounts.entries()).map(([kanji, occurrenceCount]) => ({
         kanji,

@@ -221,11 +221,17 @@ export function getVocabularyStats(
     ? `WHERE (part_of_speech IS NULL OR part_of_speech NOT IN (${placeholders}))`
     : '';
   const stmt = db.prepare(`
-    SELECT id AS wordId, headword, word, reading,
-      part_of_speech AS partOfSpeech, pos1, pos2, pos3,
-      frequency, frequency_rank AS frequencyRank,
-      first_seen AS firstSeen, last_seen AS lastSeen
-    FROM imm_words ${whereClause} ORDER BY frequency DESC LIMIT ?
+    SELECT w.id AS wordId, w.headword, w.word, w.reading,
+      w.part_of_speech AS partOfSpeech, w.pos1, w.pos2, w.pos3,
+      w.frequency, w.frequency_rank AS frequencyRank,
+      w.first_seen AS firstSeen, w.last_seen AS lastSeen,
+      COUNT(DISTINCT sl.anime_id) AS animeCount
+    FROM imm_words w
+    LEFT JOIN imm_word_line_occurrences o ON o.word_id = w.id
+    LEFT JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id AND sl.anime_id IS NOT NULL
+    ${whereClause ? whereClause.replace('part_of_speech', 'w.part_of_speech') : ''}
+    GROUP BY w.id
+    ORDER BY w.frequency DESC LIMIT ?
   `);
   const params = hasExclude ? [...excludePos, limit] : [limit];
   return stmt.all(...params) as VocabularyStatsRow[];
@@ -528,6 +534,8 @@ export function getWordOccurrences(
           a.canonical_title AS animeTitle,
           l.video_id AS videoId,
           v.canonical_title AS videoTitle,
+          v.source_path AS sourcePath,
+          l.secondary_text AS secondaryText,
           l.session_id AS sessionId,
           l.line_index AS lineIndex,
           l.segment_start_ms AS segmentStartMs,
@@ -562,6 +570,8 @@ export function getKanjiOccurrences(
           a.canonical_title AS animeTitle,
           l.video_id AS videoId,
           v.canonical_title AS videoTitle,
+          v.source_path AS sourcePath,
+          l.secondary_text AS secondaryText,
           l.session_id AS sessionId,
           l.line_index AS lineIndex,
           l.segment_start_ms AS segmentStartMs,

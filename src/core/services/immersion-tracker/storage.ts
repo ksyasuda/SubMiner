@@ -505,6 +505,7 @@ export function ensureSchema(db: DatabaseSync): void {
       segment_start_ms INTEGER,
       segment_end_ms INTEGER,
       text TEXT NOT NULL,
+      secondary_text TEXT,
       CREATED_DATE INTEGER,
       LAST_UPDATE_DATE INTEGER,
       FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE,
@@ -644,6 +645,7 @@ export function ensureSchema(db: DatabaseSync): void {
         segment_start_ms INTEGER,
         segment_end_ms INTEGER,
         text TEXT NOT NULL,
+        secondary_text TEXT,
         CREATED_DATE INTEGER,
         LAST_UPDATE_DATE INTEGER,
         FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE,
@@ -677,6 +679,10 @@ export function ensureSchema(db: DatabaseSync): void {
   if (currentVersion?.schema_version && currentVersion.schema_version < 9) {
     addColumnIfMissing(db, 'imm_anime', 'description', 'TEXT');
     addColumnIfMissing(db, 'imm_words', 'frequency_rank', 'INTEGER');
+  }
+
+  if (currentVersion?.schema_version && currentVersion.schema_version < 10) {
+    addColumnIfMissing(db, 'imm_subtitle_lines', 'secondary_text', 'TEXT');
   }
 
   db.exec(`
@@ -820,9 +826,9 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
     subtitleLineInsertStmt: db.prepare(`
       INSERT INTO imm_subtitle_lines (
         session_id, event_id, video_id, anime_id, line_index, segment_start_ms,
-        segment_end_ms, text, CREATED_DATE, LAST_UPDATE_DATE
+        segment_end_ms, text, secondary_text, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `),
     wordIdSelectStmt: db.prepare(`
@@ -958,6 +964,7 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
       write.segmentStartMs ?? null,
       write.segmentEndMs ?? null,
       write.text,
+      write.secondaryText ?? null,
       Date.now(),
       Date.now(),
     );

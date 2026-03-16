@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -163,6 +163,7 @@ interface QueuedSubtitleLineWrite {
   segmentStartMs: number | null;
   segmentEndMs: number | null;
   text: string;
+  secondaryText?: string | null;
   wordOccurrences: CountedWordOccurrence[];
   kanjiOccurrences: CountedKanjiOccurrence[];
   firstSeen: number;
@@ -243,6 +244,7 @@ export interface VocabularyStatsRow {
   pos3: string | null;
   frequency: number;
   frequencyRank: number | null;
+  animeCount: number;
   firstSeen: number;
   lastSeen: number;
 }
@@ -282,6 +284,8 @@ export interface WordOccurrenceRow {
   animeTitle: string | null;
   videoId: number;
   videoTitle: string;
+  sourcePath: string | null;
+  secondaryText: string | null;
   sessionId: number;
   lineIndex: number;
   segmentStartMs: number | null;
@@ -295,6 +299,8 @@ export interface KanjiOccurrenceRow {
   animeTitle: string | null;
   videoId: number;
   videoTitle: string;
+  sourcePath: string | null;
+  secondaryText: string | null;
   sessionId: number;
   lineIndex: number;
   segmentStartMs: number | null;
