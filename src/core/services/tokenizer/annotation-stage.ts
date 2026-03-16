@@ -14,6 +14,17 @@ const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 const JLPT_LEVEL_LOOKUP_CACHE_LIMIT = 2048;
+const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
+  'ああ',
+  'ええ',
+  'うう',
+  'おお',
+  'はあ',
+  'はは',
+  'へえ',
+  'ふう',
+  'ほう',
+]);
 
 const jlptLevelLookupCaches = new WeakMap<
   (text: string) => JlptLevel | null,
@@ -48,6 +59,8 @@ function normalizePos1Tag(pos1: string | undefined): string {
   return typeof pos1 === 'string' ? pos1.trim() : '';
 }
 
+const SUBTITLE_ANNOTATION_EXCLUDED_POS1 = new Set(['感動詞']);
+
 function splitNormalizedTagParts(normalizedTag: string): string[] {
   if (!normalizedTag) {
     return [];
@@ -67,6 +80,11 @@ function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<strin
   // Frequency highlighting should be conservative: if any merged component is excluded,
   // skip highlighting the whole token to avoid noisy merged fragments.
   return parts.some((part) => exclusions.has(part));
+}
+
+function isExcludedFromSubtitleAnnotationsByPos1(normalizedPos1: string): boolean {
+  const parts = splitNormalizedTagParts(normalizedPos1);
+  return parts.some((part) => SUBTITLE_ANNOTATION_EXCLUDED_POS1.has(part));
 }
 
 function resolvePos1Exclusions(options: AnnotationStageOptions): ReadonlySet<string> {
@@ -383,6 +401,23 @@ function isReduplicatedKanaSfx(text: string): boolean {
   return chars.slice(0, half).join('') === chars.slice(half).join('');
 }
 
+function isReduplicatedKanaSfxWithOptionalTrailingTo(text: string): boolean {
+  const normalized = normalizeJlptTextForExclusion(text);
+  if (!normalized) {
+    return false;
+  }
+
+  if (isReduplicatedKanaSfx(normalized)) {
+    return true;
+  }
+
+  if (normalized.length <= 1 || !normalized.endsWith('と')) {
+    return false;
+  }
+
+  return isReduplicatedKanaSfx(normalized.slice(0, -1));
+}
+
 function hasAdjacentKanaRepeat(text: string): boolean {
   const normalized = normalizeJlptTextForExclusion(text);
   if (!normalized) {
@@ -483,6 +518,55 @@ function isJlptEligibleToken(token: MergedToken): boolean {
   }
 
   return true;
+}
+
+function isExcludedFromSubtitleAnnotationsByTerm(token: MergedToken): boolean {
+  const candidates = [
+    resolveJlptLookupText(token),
+    token.surface,
+    token.headword,
+    token.reading,
+  ].filter(
+    (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
+  );
+
+  for (const candidate of candidates) {
+    const trimmedCandidate = candidate.trim();
+    if (!trimmedCandidate) {
+      continue;
+    }
+
+    const normalizedCandidate = normalizeJlptTextForExclusion(trimmedCandidate);
+    if (!normalizedCandidate) {
+      continue;
+    }
+
+    if (
+      SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(trimmedCandidate) ||
+      SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(normalizedCandidate)
+    ) {
+      return true;
+    }
+
+    if (
+      isTrailingSmallTsuKanaSfx(trimmedCandidate) ||
+      isTrailingSmallTsuKanaSfx(normalizedCandidate) ||
+      isReduplicatedKanaSfxWithOptionalTrailingTo(trimmedCandidate) ||
+      isReduplicatedKanaSfxWithOptionalTrailingTo(normalizedCandidate)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function shouldExcludeTokenFromSubtitleAnnotations(token: MergedToken): boolean {
+  if (isExcludedFromSubtitleAnnotationsByPos1(normalizePos1Tag(token.pos1))) {
+    return true;
+  }
+
+  return isExcludedFromSubtitleAnnotationsByTerm(token);
 }
 
 function computeTokenKnownStatus(

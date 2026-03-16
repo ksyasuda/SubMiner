@@ -178,6 +178,19 @@ async function applyAnnotationStage(
   );
 }
 
+async function filterSubtitleAnnotationTokens(tokens: MergedToken[]): Promise<MergedToken[]> {
+  if (tokens.length === 0) {
+    return tokens;
+  }
+
+  if (!annotationStageModulePromise) {
+    annotationStageModulePromise = import('./tokenizer/annotation-stage');
+  }
+
+  const annotationStage = await annotationStageModulePromise;
+  return tokens.filter((token) => !annotationStage.shouldExcludeTokenFromSubtitleAnnotations(token));
+}
+
 export function createTokenizerDepsRuntime(
   options: TokenizerDepsRuntimeOptions,
 ): TokenizerServiceDeps {
@@ -698,9 +711,12 @@ export async function tokenizeSubtitle(
 
   const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps, annotationOptions);
   if (yomitanTokens && yomitanTokens.length > 0) {
+    const filteredTokens = await filterSubtitleAnnotationTokens(
+      await applyAnnotationStage(yomitanTokens, deps, annotationOptions),
+    );
     return {
       text: displayText,
-      tokens: await applyAnnotationStage(yomitanTokens, deps, annotationOptions),
+      tokens: filteredTokens.length > 0 ? filteredTokens : null,
     };
   }
 
