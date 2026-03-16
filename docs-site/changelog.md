@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.6.5 (2026-03-15)
+- Seeded the AUR checkout with the repo `.SRCINFO` template before rewriting metadata so tagged releases do not depend on prior AUR state.
+
 ## v0.6.4 (2026-03-15)
 - Reworked AUR metadata generation to update `.SRCINFO` directly instead of depending on runner `makepkg`, fixing tagged release publishing for `subminer-bin`.
 

@@ -73,6 +73,10 @@ test('release workflow publishes subminer-bin to AUR from tagged release artifac
   assert.match(releaseWorkflow, /AUR_SSH_PRIVATE_KEY/);
   assert.match(releaseWorkflow, /ssh:\/\/aur@aur\.archlinux\.org\/subminer-bin\.git/);
   assert.match(releaseWorkflow, /scripts\/update-aur-package\.sh/);
+  assert.match(
+    releaseWorkflow,
+    /cp packaging\/aur\/subminer-bin\/\.SRCINFO aur-subminer-bin\/\.SRCINFO/,
+  );
   assert.match(releaseWorkflow, /version_no_v="\$\{\{ steps\.version\.outputs\.VERSION \}\}"/);
   assert.match(releaseWorkflow, /SubMiner-\$\{version_no_v\}\.AppImage/);
   assert.doesNotMatch(

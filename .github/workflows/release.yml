@@ -421,6 +421,7 @@ jobs:
           version_no_v="${{ steps.version.outputs.VERSION }}"
           version_no_v="${version_no_v#v}"
           cp packaging/aur/subminer-bin/PKGBUILD aur-subminer-bin/PKGBUILD
+          cp packaging/aur/subminer-bin/.SRCINFO aur-subminer-bin/.SRCINFO
           bash scripts/update-aur-package.sh \
             --pkg-dir aur-subminer-bin \
             --version "${{ steps.version.outputs.VERSION }}" \

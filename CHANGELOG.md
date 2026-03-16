@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.5 (2026-03-15)
+
+### Internal
+- Release: Seed the AUR checkout with the repo `.SRCINFO` template before rewriting metadata so tagged releases do not depend on prior AUR state.
+
 ## v0.6.4 (2026-03-15)
 
 ### Internal
