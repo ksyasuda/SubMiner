@@ -12,11 +12,19 @@ interface SessionRowProps {
   deleteDisabled?: boolean;
 }
 
-function CoverThumbnail({ videoId, title }: { videoId: number | null; title: string }) {
+function CoverThumbnail({
+  animeId,
+  videoId,
+  title,
+}: {
+  animeId: number | null;
+  videoId: number | null;
+  title: string;
+}) {
   const [failed, setFailed] = useState(false);
   const fallbackChar = title.charAt(0) || '?';
 
-  if (!videoId || failed) {
+  if ((!animeId && !videoId) || failed) {
     return (
       <div className="w-10 h-14 rounded bg-ctp-surface2 flex items-center justify-center text-ctp-overlay2 text-sm font-bold shrink-0">
         {fallbackChar}
@@ -24,9 +32,14 @@ function CoverThumbnail({ videoId, title }: { videoId: number | null; title: str
     );
   }
 
+  const src =
+    animeId != null
+      ? `${BASE_URL}/api/stats/anime/${animeId}/cover`
+      : `${BASE_URL}/api/stats/media/${videoId}/cover`;
+
   return (
     <img
-      src={`${BASE_URL}/api/stats/media/${videoId}/cover`}
+      src={src}
       alt=""
       loading="lazy"
       className="w-10 h-14 rounded object-cover shrink-0 bg-ctp-surface2"
@@ -47,12 +60,16 @@ export function SessionRow({
     <div className="relative group">
       <button
         type="button"
-        onClick={onToggle}
-        aria-expanded={isExpanded}
-        aria-controls={detailsId}
-        className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 pr-12 flex items-center gap-3 hover:border-ctp-surface2 transition-colors text-left"
-      >
-        <CoverThumbnail videoId={session.videoId} title={session.canonicalTitle ?? 'Unknown'} />
+      onClick={onToggle}
+      aria-expanded={isExpanded}
+      aria-controls={detailsId}
+      className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 pr-12 flex items-center gap-3 hover:border-ctp-surface2 transition-colors text-left"
+    >
+        <CoverThumbnail
+          animeId={session.animeId}
+          videoId={session.videoId}
+          title={session.canonicalTitle ?? 'Unknown'}
+        />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-ctp-text truncate">
             {session.canonicalTitle ?? 'Unknown Media'}

@@ -4,38 +4,31 @@ import { SessionRow } from './SessionRow';
 import { SessionDetail } from './SessionDetail';
 import { apiClient } from '../../lib/api-client';
 import { confirmSessionDelete } from '../../lib/delete-confirm';
-import { todayLocalDay, localDayFromMs } from '../../lib/formatters';
+import { formatSessionDayLabel } from '../../lib/formatters';
 import type { SessionSummary } from '../../types/stats';
 
 function groupSessionsByDay(sessions: SessionSummary[]): Map<string, SessionSummary[]> {
   const groups = new Map<string, SessionSummary[]>();
-  const today = todayLocalDay();
 
   for (const session of sessions) {
-    const sessionDay = localDayFromMs(session.startedAtMs);
-    let label: string;
-    if (sessionDay === today) {
-      label = 'Today';
-    } else if (sessionDay === today - 1) {
-      label = 'Yesterday';
-    } else {
-      label = new Date(session.startedAtMs).toLocaleDateString(undefined, {
-        month: 'long',
-        day: 'numeric',
-      });
-    }
-    const group = groups.get(label);
+    const dayLabel = formatSessionDayLabel(session.startedAtMs);
+    const group = groups.get(dayLabel);
     if (group) {
       group.push(session);
     } else {
-      groups.set(label, [session]);
+      groups.set(dayLabel, [session]);
     }
   }
 
   return groups;
 }
 
-export function SessionsTab() {
+interface SessionsTabProps {
+  initialSessionId?: number | null;
+  onClearInitialSession?: () => void;
+}
+
+export function SessionsTab({ initialSessionId, onClearInitialSession }: SessionsTabProps = {}) {
   const { sessions, loading, error } = useSessions();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
@@ -46,6 +39,29 @@ export function SessionsTab() {
   useEffect(() => {
     setVisibleSessions(sessions);
   }, [sessions]);
+
+  useEffect(() => {
+    if (initialSessionId != null && sessions.length > 0) {
+      let canceled = false;
+      setExpandedId(initialSessionId);
+      onClearInitialSession?.();
+      const frame = requestAnimationFrame(() => {
+        if (canceled) return;
+        const el = document.getElementById(`session-details-${initialSessionId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          // Session row itself if detail hasn't rendered yet
+          const row = document.querySelector(`[aria-controls="session-details-${initialSessionId}"]`);
+          row?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+      return () => {
+        canceled = true;
+        cancelAnimationFrame(frame);
+      };
+    }
+  }, [initialSessionId, sessions, onClearInitialSession]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -77,7 +93,8 @@ export function SessionsTab() {
   return (
     <div className="space-y-4">
       <input
-        type="text"
+        type="search"
+        aria-label="Search sessions by title"
         placeholder="Search by title..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}

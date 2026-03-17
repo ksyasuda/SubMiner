@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { useWordDetail } from '../../hooks/useWordDetail';
 import { apiClient } from '../../lib/api-client';
-import { formatNumber, formatRelativeDate } from '../../lib/formatters';
+import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../lib/formatters';
 import { fullReading } from '../../lib/reading-utils';
 import type { VocabularyOccurrenceEntry } from '../../types/stats';
 import { PosBadge } from './pos-helpers';
@@ -256,13 +256,13 @@ export function WordDetailPanel({
                   </div>
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
                     <div className="text-sm font-medium text-ctp-green">
-                      {formatRelativeDate(data.detail.firstSeen)}
+                      {formatRelativeDate(epochMsFromDbTimestamp(data.detail.firstSeen))}
                     </div>
                     <div className="text-[11px] text-ctp-overlay1 uppercase">First Seen</div>
                   </div>
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
                     <div className="text-sm font-medium text-ctp-mauve">
-                      {formatRelativeDate(data.detail.lastSeen)}
+                      {formatRelativeDate(epochMsFromDbTimestamp(data.detail.lastSeen))}
                     </div>
                     <div className="text-[11px] text-ctp-overlay1 uppercase">Last Seen</div>
                   </div>

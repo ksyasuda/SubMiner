@@ -3,6 +3,11 @@ import { useTrends, type TimeRange, type GroupBy } from '../../hooks/useTrends';
 import { DateRangeSelector } from './DateRangeSelector';
 import { TrendChart } from './TrendChart';
 import { StackedTrendChart, type PerAnimeDataPoint } from './StackedTrendChart';
+import {
+  buildAnimeVisibilityOptions,
+  filterHiddenAnimeData,
+  pruneHiddenAnime,
+} from './anime-visibility';
 import { buildTrendDashboard, type ChartPoint } from '../../lib/dashboard-data';
 import { localDayFromMs } from '../../lib/formatters';
 import type { SessionSummary } from '../../types/stats';
@@ -116,9 +121,82 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
+interface AnimeVisibilityFilterProps {
+  animeTitles: string[];
+  hiddenAnime: ReadonlySet<string>;
+  onShowAll: () => void;
+  onHideAll: () => void;
+  onToggleAnime: (title: string) => void;
+}
+
+function AnimeVisibilityFilter({
+  animeTitles,
+  hiddenAnime,
+  onShowAll,
+  onHideAll,
+  onToggleAnime,
+}: AnimeVisibilityFilterProps) {
+  if (animeTitles.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="col-span-full -mt-1 mb-1 rounded-lg border border-ctp-surface1 bg-ctp-surface0/70 p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-widest text-ctp-subtext0">
+            Anime Visibility
+          </h4>
+          <p className="mt-1 text-xs text-ctp-overlay1">
+            Shared across all anime trend charts. Default: show everything.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded-md border border-ctp-surface2 px-2 py-1 text-[11px] font-medium text-ctp-text transition hover:border-ctp-blue hover:text-ctp-blue"
+            onClick={onShowAll}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            className="rounded-md border border-ctp-surface2 px-2 py-1 text-[11px] font-medium text-ctp-text transition hover:border-ctp-peach hover:text-ctp-peach"
+            onClick={onHideAll}
+          >
+            None
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {animeTitles.map((title) => {
+          const isVisible = !hiddenAnime.has(title);
+          return (
+            <button
+              key={title}
+              type="button"
+              aria-pressed={isVisible}
+              className={`max-w-full rounded-full border px-3 py-1 text-xs transition ${
+                isVisible
+                  ? 'border-ctp-blue/60 bg-ctp-blue/12 text-ctp-blue'
+                  : 'border-ctp-surface2 bg-transparent text-ctp-subtext0'
+              }`}
+              onClick={() => onToggleAnime(title)}
+              title={title}
+            >
+              <span className="block truncate">{title}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function TrendsTab() {
   const [range, setRange] = useState<TimeRange>('30d');
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
+  const [hiddenAnime, setHiddenAnime] = useState<Set<string>>(() => new Set());
   const { data, loading, error } = useTrends(range, groupBy);
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
@@ -140,6 +218,24 @@ export function TrendsTab() {
   const animeProgress = buildCumulativePerAnime(episodesPerAnime);
   const cardsProgress = buildCumulativePerAnime(cardsPerAnime);
   const wordsProgress = buildCumulativePerAnime(wordsPerAnime);
+  const animeTitles = buildAnimeVisibilityOptions([
+    episodesPerAnime,
+    watchTimePerAnime,
+    cardsPerAnime,
+    wordsPerAnime,
+    animeProgress,
+    cardsProgress,
+    wordsProgress,
+  ]);
+  const activeHiddenAnime = pruneHiddenAnime(hiddenAnime, animeTitles);
+
+  const filteredEpisodesPerAnime = filterHiddenAnimeData(episodesPerAnime, activeHiddenAnime);
+  const filteredWatchTimePerAnime = filterHiddenAnimeData(watchTimePerAnime, activeHiddenAnime);
+  const filteredCardsPerAnime = filterHiddenAnimeData(cardsPerAnime, activeHiddenAnime);
+  const filteredWordsPerAnime = filterHiddenAnimeData(wordsPerAnime, activeHiddenAnime);
+  const filteredAnimeProgress = filterHiddenAnimeData(animeProgress, activeHiddenAnime);
+  const filteredCardsProgress = filterHiddenAnimeData(cardsProgress, activeHiddenAnime);
+  const filteredWordsProgress = filterHiddenAnimeData(wordsProgress, activeHiddenAnime);
 
   return (
     <div className="space-y-4">
@@ -168,15 +264,32 @@ export function TrendsTab() {
         />
 
         <SectionHeader>Anime — Per Day</SectionHeader>
-        <StackedTrendChart title="Episodes per Anime" data={episodesPerAnime} />
-        <StackedTrendChart title="Watch Time per Anime (min)" data={watchTimePerAnime} />
-        <StackedTrendChart title="Cards Mined per Anime" data={cardsPerAnime} />
-        <StackedTrendChart title="Words Seen per Anime" data={wordsPerAnime} />
+        <AnimeVisibilityFilter
+          animeTitles={animeTitles}
+          hiddenAnime={activeHiddenAnime}
+          onShowAll={() => setHiddenAnime(new Set())}
+          onHideAll={() => setHiddenAnime(new Set(animeTitles))}
+          onToggleAnime={(title) =>
+            setHiddenAnime((current) => {
+              const next = new Set(current);
+              if (next.has(title)) {
+                next.delete(title);
+              } else {
+                next.add(title);
+              }
+              return next;
+            })
+          }
+        />
+        <StackedTrendChart title="Episodes per Anime" data={filteredEpisodesPerAnime} />
+        <StackedTrendChart title="Watch Time per Anime (min)" data={filteredWatchTimePerAnime} />
+        <StackedTrendChart title="Cards Mined per Anime" data={filteredCardsPerAnime} />
+        <StackedTrendChart title="Words Seen per Anime" data={filteredWordsPerAnime} />
 
         <SectionHeader>Anime — Cumulative</SectionHeader>
-        <StackedTrendChart title="Episodes Progress" data={animeProgress} />
-        <StackedTrendChart title="Cards Mined Progress" data={cardsProgress} />
-        <StackedTrendChart title="Words Seen Progress" data={wordsProgress} />
+        <StackedTrendChart title="Episodes Progress" data={filteredAnimeProgress} />
+        <StackedTrendChart title="Cards Mined Progress" data={filteredCardsProgress} />
+        <StackedTrendChart title="Words Seen Progress" data={filteredWordsProgress} />
 
         <SectionHeader>Patterns</SectionHeader>
         <TrendChart

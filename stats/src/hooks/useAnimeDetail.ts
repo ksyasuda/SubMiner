@@ -9,14 +9,34 @@ export function useAnimeDetail(animeId: number | null) {
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    if (animeId === null) return;
+    let cancelled = false;
+    if (animeId === null) {
+      setData(null);
+      setLoading(false);
+      setError(null);
+      return () => {
+        cancelled = true;
+      };
+    }
     setLoading(true);
     setError(null);
     getStatsClient()
       .getAnimeDetail(animeId)
-      .then(setData)
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+      .then((next) => {
+        if (cancelled) return;
+        setData(next);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setError(err.message);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [animeId, reloadKey]);
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);

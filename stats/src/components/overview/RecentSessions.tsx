@@ -3,14 +3,14 @@ import {
   formatDuration,
   formatRelativeDate,
   formatNumber,
-  todayLocalDay,
-  localDayFromMs,
+  formatSessionDayLabel,
 } from '../../lib/formatters';
 import { BASE_URL } from '../../lib/api-client';
 import type { SessionSummary } from '../../types/stats';
 
 interface RecentSessionsProps {
   sessions: SessionSummary[];
+  onNavigateToSession: (sessionId: number) => void;
 }
 
 interface AnimeGroup {
@@ -26,26 +26,14 @@ interface AnimeGroup {
 
 function groupSessionsByDay(sessions: SessionSummary[]): Map<string, SessionSummary[]> {
   const groups = new Map<string, SessionSummary[]>();
-  const today = todayLocalDay();
 
   for (const session of sessions) {
-    const sessionDay = localDayFromMs(session.startedAtMs);
-    let label: string;
-    if (sessionDay === today) {
-      label = 'Today';
-    } else if (sessionDay === today - 1) {
-      label = 'Yesterday';
-    } else {
-      label = new Date(session.startedAtMs).toLocaleDateString(undefined, {
-        month: 'long',
-        day: 'numeric',
-      });
-    }
-    const group = groups.get(label);
+    const dayLabel = formatSessionDayLabel(session.startedAtMs);
+    const group = groups.get(dayLabel);
     if (group) {
       group.push(session);
     } else {
-      groups.set(label, [session]);
+      groups.set(dayLabel, [session]);
     }
   }
 
@@ -86,10 +74,19 @@ function groupSessionsByAnime(sessions: SessionSummary[]): AnimeGroup[] {
   return Array.from(map.values());
 }
 
-function CoverThumbnail({ videoId, title }: { videoId: number | null; title: string }) {
+function CoverThumbnail({
+  animeId,
+  videoId,
+  title,
+}: {
+  animeId: number | null;
+  videoId: number | null;
+  title: string;
+}) {
   const fallbackChar = title.charAt(0) || '?';
+  const [isFallback, setIsFallback] = useState(false);
 
-  if (!videoId) {
+  if ((!animeId && !videoId) || isFallback) {
     return (
       <div className="w-12 h-16 rounded bg-ctp-surface2 flex items-center justify-center text-ctp-overlay2 text-lg font-bold shrink-0">
         {fallbackChar}
@@ -97,28 +94,39 @@ function CoverThumbnail({ videoId, title }: { videoId: number | null; title: str
     );
   }
 
+  const src =
+    animeId != null
+      ? `${BASE_URL}/api/stats/anime/${animeId}/cover`
+      : `${BASE_URL}/api/stats/media/${videoId}/cover`;
+
   return (
     <img
-      src={`${BASE_URL}/api/stats/media/${videoId}/cover`}
+      src={src}
       alt=""
       className="w-12 h-16 rounded object-cover shrink-0 bg-ctp-surface2"
-      onError={(e) => {
-        const target = e.currentTarget;
-        target.style.display = 'none';
-        const placeholder = document.createElement('div');
-        placeholder.className =
-          'w-12 h-16 rounded bg-ctp-surface2 flex items-center justify-center text-ctp-overlay2 text-lg font-bold shrink-0';
-        placeholder.textContent = fallbackChar;
-        target.parentElement?.insertBefore(placeholder, target);
-      }}
+      onError={() => setIsFallback(true)}
     />
   );
 }
 
-function SessionItem({ session }: { session: SessionSummary }) {
+function SessionItem({
+  session,
+  onNavigateToSession,
+}: {
+  session: SessionSummary;
+  onNavigateToSession: (sessionId: number) => void;
+}) {
   return (
-    <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 flex items-center gap-3">
-      <CoverThumbnail videoId={session.videoId} title={session.canonicalTitle ?? 'Unknown'} />
+    <button
+      type="button"
+      onClick={() => onNavigateToSession(session.sessionId)}
+      className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 flex items-center gap-3 hover:border-ctp-surface2 transition-colors text-left cursor-pointer"
+    >
+      <CoverThumbnail
+        animeId={session.animeId}
+        videoId={session.videoId}
+        title={session.canonicalTitle ?? 'Unknown'}
+      />
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium text-ctp-text truncate">
           {session.canonicalTitle ?? 'Unknown Media'}
@@ -142,28 +150,43 @@ function SessionItem({ session }: { session: SessionSummary }) {
           <div className="text-ctp-overlay2">words</div>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
-function AnimeGroupRow({ group }: { group: AnimeGroup }) {
+function AnimeGroupRow({
+  group,
+  onNavigateToSession,
+}: {
+  group: AnimeGroup;
+  onNavigateToSession: (sessionId: number) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
 
   if (group.sessions.length === 1) {
-    return <SessionItem session={group.sessions[0]!} />;
+    return (
+      <SessionItem session={group.sessions[0]!} onNavigateToSession={onNavigateToSession} />
+    );
   }
 
   const displayTitle = group.animeTitle ?? group.sessions[0]?.canonicalTitle ?? 'Unknown Media';
   const mostRecentSession = group.sessions[0]!;
+  const disclosureId = `recent-sessions-${mostRecentSession.sessionId}`;
 
   return (
     <div>
       <button
         type="button"
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setExpanded((value) => !value)}
+        aria-expanded={expanded}
+        aria-controls={disclosureId}
         className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-3 flex items-center gap-3 hover:border-ctp-surface2 transition-colors text-left"
       >
-        <CoverThumbnail videoId={mostRecentSession.videoId} title={displayTitle} />
+        <CoverThumbnail
+          animeId={group.animeId}
+          videoId={mostRecentSession.videoId}
+          title={displayTitle}
+        />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-ctp-text truncate">{displayTitle}</div>
           <div className="text-xs text-ctp-overlay2">
@@ -186,18 +209,25 @@ function AnimeGroupRow({ group }: { group: AnimeGroup }) {
         </div>
         <div
           className={`text-ctp-overlay2 text-xs transition-transform ${expanded ? 'rotate-90' : ''}`}
+          aria-hidden="true"
         >
           {'\u25B8'}
         </div>
       </button>
       {expanded && (
-        <div className="ml-6 mt-1 space-y-1">
+        <div id={disclosureId} role="region" aria-label={`${displayTitle} sessions`} className="ml-6 mt-1 space-y-1">
           {group.sessions.map((s) => (
-            <div
+            <button
+              type="button"
               key={s.sessionId}
-              className="bg-ctp-mantle border border-ctp-surface0 rounded-lg p-2.5 flex items-center gap-3"
+              onClick={() => onNavigateToSession(s.sessionId)}
+              className="w-full bg-ctp-mantle border border-ctp-surface0 rounded-lg p-2.5 flex items-center gap-3 hover:border-ctp-surface1 transition-colors text-left cursor-pointer"
             >
-              <CoverThumbnail videoId={s.videoId} title={s.canonicalTitle ?? 'Unknown'} />
+              <CoverThumbnail
+                animeId={s.animeId}
+                videoId={s.videoId}
+                title={s.canonicalTitle ?? 'Unknown'}
+              />
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium text-ctp-subtext1 truncate">
                   {s.canonicalTitle ?? 'Unknown Media'}
@@ -220,7 +250,7 @@ function AnimeGroupRow({ group }: { group: AnimeGroup }) {
                   <div className="text-ctp-overlay2">words</div>
                 </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -228,7 +258,7 @@ function AnimeGroupRow({ group }: { group: AnimeGroup }) {
   );
 }
 
-export function RecentSessions({ sessions }: RecentSessionsProps) {
+export function RecentSessions({ sessions, onNavigateToSession }: RecentSessionsProps) {
   if (sessions.length === 0) {
     return (
       <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
@@ -253,7 +283,7 @@ export function RecentSessions({ sessions }: RecentSessionsProps) {
             </div>
             <div className="space-y-2">
               {animeGroups.map((group) => (
-                <AnimeGroupRow key={group.key} group={group} />
+                <AnimeGroupRow key={group.key} group={group} onNavigateToSession={onNavigateToSession} />
               ))}
             </div>
           </div>

@@ -10,11 +10,13 @@ export function useVocabulary() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
     const client = getStatsClient();
     Promise.allSettled([client.getVocabulary(500), client.getKanji(200), client.getKnownWords()])
       .then(([wordsResult, kanjiResult, knownResult]) => {
+        if (cancelled) return;
         const errors: string[] = [];
 
         if (wordsResult.status === 'fulfilled') {
@@ -37,7 +39,13 @@ export function useVocabulary() {
           setError(errors.join('; '));
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return { words, kanji, knownWords, loading, error };

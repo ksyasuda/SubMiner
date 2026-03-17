@@ -7,7 +7,11 @@ import { TrendChart } from '../trends/TrendChart';
 import { buildOverviewSummary, buildStreakCalendar } from '../../lib/dashboard-data';
 import { formatNumber } from '../../lib/formatters';
 
-export function OverviewTab() {
+interface OverviewTabProps {
+  onNavigateToSession: (sessionId: number) => void;
+}
+
+export function OverviewTab({ onNavigateToSession }: OverviewTabProps) {
   const { data, sessions, loading, error } = useOverview();
   const { calendar, loading: calLoading } = useStreakCalendar(90);
 
@@ -34,16 +38,21 @@ export function OverviewTab() {
       </div>
 
       <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-ctp-text mb-3">Tracking Snapshot</h3>
+        <h3 className="text-sm font-semibold text-ctp-text">Tracking Snapshot</h3>
+        <p className="mt-1 mb-3 text-xs text-ctp-overlay2">
+          Today cards/episodes are daily values. Lifetime totals are sourced from summary tables.
+        </p>
         {showTrackedCardNote && (
           <div className="mb-3 rounded-lg border border-ctp-surface2 bg-ctp-surface1/50 px-3 py-2 text-xs text-ctp-subtext0">
-            No tracked card-add events in the current immersion DB yet. New cards mined after this
-            fix will show here.
+            No lifetime card totals in the summary table yet. New cards mined after this fix will
+            appear here.
           </div>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-sm">
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Total Sessions</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">
+              Lifetime Sessions
+            </div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-lavender">
               {formatNumber(summary.totalSessions)}
             </div>
@@ -55,33 +64,33 @@ export function OverviewTab() {
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">All-Time Hours</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Lifetime Hours</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-mauve">
               {formatNumber(summary.allTimeHours)}
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Active Days</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Lifetime Days</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-peach">
               {formatNumber(summary.activeDays)}
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Cards Mined</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Lifetime Cards</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-green">
               {formatNumber(summary.totalTrackedCards)}
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
             <div className="text-xs uppercase tracking-wide text-ctp-overlay2">
-              Episodes Completed
+              Lifetime Episodes
             </div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-blue">
               {formatNumber(summary.totalEpisodesWatched)}
             </div>
           </div>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Anime Completed</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Lifetime Anime</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-sapphire">
               {formatNumber(summary.totalAnimeCompleted)}
             </div>
@@ -89,7 +98,7 @@ export function OverviewTab() {
         </div>
       </div>
 
-      <RecentSessions sessions={sessions} />
+      <RecentSessions sessions={sessions} onNavigateToSession={onNavigateToSession} />
     </div>
   );
 }

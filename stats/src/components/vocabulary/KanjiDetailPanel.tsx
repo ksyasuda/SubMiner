@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useKanjiDetail } from '../../hooks/useKanjiDetail';
 import { apiClient } from '../../lib/api-client';
-import { formatNumber, formatRelativeDate } from '../../lib/formatters';
+import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../lib/formatters';
 import type { VocabularyOccurrenceEntry } from '../../types/stats';
 
 const OCCURRENCES_PAGE_SIZE = 50;
@@ -35,6 +35,16 @@ export function KanjiDetailPanel({
   const [hasMore, setHasMore] = useState(false);
   const [occLoaded, setOccLoaded] = useState(false);
   const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    setOccurrences([]);
+    setOccLoaded(false);
+    setOccLoading(false);
+    setOccLoadingMore(false);
+    setOccError(null);
+    setHasMore(false);
+    requestIdRef.current++;
+  }, [kanjiId]);
 
   if (kanjiId === null) return null;
 
@@ -123,13 +133,13 @@ export function KanjiDetailPanel({
                   </div>
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
                     <div className="text-sm font-medium text-ctp-green">
-                      {formatRelativeDate(data.detail.firstSeen)}
+                      {formatRelativeDate(epochMsFromDbTimestamp(data.detail.firstSeen))}
                     </div>
                     <div className="text-[11px] text-ctp-overlay1 uppercase">First Seen</div>
                   </div>
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
                     <div className="text-sm font-medium text-ctp-mauve">
-                      {formatRelativeDate(data.detail.lastSeen)}
+                      {formatRelativeDate(epochMsFromDbTimestamp(data.detail.lastSeen))}
                     </div>
                     <div className="text-[11px] text-ctp-overlay1 uppercase">Last Seen</div>
                   </div>

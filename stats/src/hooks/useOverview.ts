@@ -9,14 +9,27 @@ export function useOverview() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
     const client = getStatsClient();
     Promise.all([client.getOverview(), client.getSessions(50)])
       .then(([overview, allSessions]) => {
+        if (cancelled) return;
         setData(overview);
         setSessions(allSessions);
       })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return { data, sessions, loading, error };

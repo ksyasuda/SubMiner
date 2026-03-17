@@ -8,14 +8,34 @@ export function useMediaDetail(videoId: number | null) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (videoId === null) return;
+    let cancelled = false;
+    if (videoId === null) {
+      setData(null);
+      setLoading(false);
+      setError(null);
+      return () => {
+        cancelled = true;
+      };
+    }
     setLoading(true);
     setError(null);
     getStatsClient()
       .getMediaDetail(videoId)
-      .then(setData)
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+      .then((next) => {
+        if (cancelled) return;
+        setData(next);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setError(err.message);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [videoId]);
 
   return { data, loading, error };

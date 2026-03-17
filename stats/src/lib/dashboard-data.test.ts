@@ -52,25 +52,88 @@ test('buildOverviewSummary aggregates tracked totals and recent windows', () => 
       lookupHitRate: 0.8,
     },
   ];
+    const overview: OverviewData = {
+      sessions,
+      rollups,
+      hints: {
+        totalSessions: 1,
+        activeSessions: 0,
+        episodesToday: 2,
+        activeAnimeCount: 3,
+        totalEpisodesWatched: 5,
+        totalAnimeCompleted: 1,
+        totalActiveMin: 50,
+        activeDays: 2,
+        totalCards: 9,
+      },
+    };
+
+  const summary = buildOverviewSummary(overview, now);
+  assert.equal(summary.todayCards, 2);
+  assert.equal(summary.totalTrackedCards, 9);
+  assert.equal(summary.episodesToday, 2);
+  assert.equal(summary.activeAnimeCount, 3);
+  assert.equal(summary.averageSessionMinutes, 50);
+  assert.equal(summary.allTimeHours, 1);
+  assert.equal(summary.activeDays, 2);
+});
+
+test('buildOverviewSummary prefers lifetime totals from hints when provided', () => {
+  const now = Date.UTC(2026, 2, 13, 12);
+  const today = Math.floor(now / 86_400_000);
   const overview: OverviewData = {
-    sessions,
-    rollups,
+    sessions: [
+      {
+        sessionId: 2,
+        canonicalTitle: 'B',
+        videoId: 2,
+        animeId: null,
+        animeTitle: null,
+        startedAtMs: now - 60_000,
+        endedAtMs: now,
+        totalWatchedMs: 60_000,
+        activeWatchedMs: 60_000,
+        linesSeen: 10,
+        wordsSeen: 10,
+        tokensSeen: 10,
+        cardsMined: 10,
+        lookupCount: 1,
+        lookupHits: 1,
+      },
+    ],
+    rollups: [
+      {
+        rollupDayOrMonth: today,
+        videoId: 2,
+        totalSessions: 1,
+        totalActiveMin: 1,
+        totalLinesSeen: 10,
+        totalWordsSeen: 10,
+        totalTokensSeen: 10,
+        totalCards: 10,
+        cardsPerHour: 600,
+        wordsPerMin: 10,
+        lookupHitRate: 1,
+      },
+    ],
     hints: {
-      totalSessions: 1,
+      totalSessions: 999,
       activeSessions: 0,
-      episodesToday: 2,
-      activeAnimeCount: 3,
-      totalEpisodesWatched: 5,
-      totalAnimeCompleted: 1,
+      episodesToday: 0,
+      activeAnimeCount: 0,
+      totalEpisodesWatched: 0,
+      totalAnimeCompleted: 0,
+      totalActiveMin: 120,
+      activeDays: 40,
+      totalCards: 5,
     },
   };
 
   const summary = buildOverviewSummary(overview, now);
-  assert.equal(summary.todayCards, 2);
-  assert.equal(summary.totalTrackedCards, 2);
-  assert.equal(summary.episodesToday, 2);
-  assert.equal(summary.activeAnimeCount, 3);
-  assert.equal(summary.averageSessionMinutes, 50);
+  assert.equal(summary.totalTrackedCards, 5);
+  assert.equal(summary.totalSessions, 999);
+  assert.equal(summary.allTimeHours, 2);
+  assert.equal(summary.activeDays, 40);
 });
 
 test('buildVocabularySummary treats firstSeen timestamps as seconds', () => {

@@ -3,6 +3,7 @@ import { TabBar } from './components/layout/TabBar';
 import { OverviewTab } from './components/overview/OverviewTab';
 import { TrendsTab } from './components/trends/TrendsTab';
 import { AnimeTab } from './components/anime/AnimeTab';
+import { LibraryTab } from './components/library/LibraryTab';
 import { VocabularyTab } from './components/vocabulary/VocabularyTab';
 import { SessionsTab } from './components/sessions/SessionsTab';
 import { WordDetailPanel } from './components/vocabulary/WordDetailPanel';
@@ -11,23 +12,43 @@ import type { TabId } from './components/layout/TabBar';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [mountedTabs, setMountedTabs] = useState<Set<TabId>>(() => new Set(['overview']));
   const [selectedAnimeId, setSelectedAnimeId] = useState<number | null>(null);
+  const [focusedSessionId, setFocusedSessionId] = useState<number | null>(null);
   const [globalWordId, setGlobalWordId] = useState<number | null>(null);
   const { excluded, isExcluded, toggleExclusion, removeExclusion, clearAll } = useExcludedWords();
 
-  const navigateToAnime = useCallback((animeId: number) => {
-    setActiveTab('anime');
-    setSelectedAnimeId(animeId);
+  const activateTab = useCallback((tabId: TabId) => {
+    setActiveTab(tabId);
+    setMountedTabs((prev) => {
+      if (prev.has(tabId)) return prev;
+      const next = new Set(prev);
+      next.add(tabId);
+      return next;
+    });
   }, []);
+
+  const navigateToAnime = useCallback((animeId: number) => {
+    activateTab('anime');
+    setSelectedAnimeId(animeId);
+  }, [activateTab]);
+
+  const navigateToSession = useCallback((sessionId: number) => {
+    activateTab('sessions');
+    setFocusedSessionId(sessionId);
+  }, [activateTab]);
 
   const openWordDetail = useCallback((wordId: number) => {
     setGlobalWordId(wordId);
   }, []);
 
   const handleTabChange = useCallback((tabId: TabId) => {
-    setActiveTab(tabId);
+    activateTab(tabId);
     setSelectedAnimeId(null);
-  }, []);
+    if (tabId !== 'sessions') {
+      setFocusedSessionId(null);
+    }
+  }, [activateTab]);
 
   return (
     <div className="min-h-screen flex flex-col bg-ctp-base">
@@ -43,23 +64,23 @@ export function App() {
         <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
       </header>
       <main className="flex-1 overflow-y-auto p-4">
-        {activeTab === 'overview' ? (
+        {mountedTabs.has('overview') ? (
           <section
             id="panel-overview"
             role="tabpanel"
             aria-labelledby="tab-overview"
-            key="overview"
+            hidden={activeTab !== 'overview'}
             className="animate-fade-in"
           >
-            <OverviewTab />
+            <OverviewTab onNavigateToSession={navigateToSession} />
           </section>
         ) : null}
-        {activeTab === 'anime' ? (
+        {mountedTabs.has('anime') ? (
           <section
             id="panel-anime"
             role="tabpanel"
             aria-labelledby="tab-anime"
-            key="anime"
+            hidden={activeTab !== 'anime'}
             className="animate-fade-in"
           >
             <AnimeTab
@@ -69,23 +90,23 @@ export function App() {
             />
           </section>
         ) : null}
-        {activeTab === 'trends' ? (
+        {mountedTabs.has('trends') ? (
           <section
             id="panel-trends"
             role="tabpanel"
             aria-labelledby="tab-trends"
-            key="trends"
+            hidden={activeTab !== 'trends'}
             className="animate-fade-in"
           >
             <TrendsTab />
           </section>
         ) : null}
-        {activeTab === 'vocabulary' ? (
+        {mountedTabs.has('vocabulary') ? (
           <section
             id="panel-vocabulary"
             role="tabpanel"
             aria-labelledby="tab-vocabulary"
-            key="vocabulary"
+            hidden={activeTab !== 'vocabulary'}
             className="animate-fade-in"
           >
             <VocabularyTab
@@ -98,15 +119,29 @@ export function App() {
             />
           </section>
         ) : null}
-        {activeTab === 'sessions' ? (
+        {mountedTabs.has('library') ? (
+          <section
+            id="panel-library"
+            role="tabpanel"
+            aria-labelledby="tab-library"
+            hidden={activeTab !== 'library'}
+            className="animate-fade-in"
+          >
+            <LibraryTab />
+          </section>
+        ) : null}
+        {mountedTabs.has('sessions') ? (
           <section
             id="panel-sessions"
             role="tabpanel"
             aria-labelledby="tab-sessions"
-            key="sessions"
+            hidden={activeTab !== 'sessions'}
             className="animate-fade-in"
           >
-            <SessionsTab />
+            <SessionsTab
+              initialSessionId={focusedSessionId}
+              onClearInitialSession={() => setFocusedSessionId(null)}
+            />
           </section>
         ) : null}
       </main>

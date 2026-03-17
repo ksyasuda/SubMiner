@@ -8,11 +8,26 @@ export function useMediaLibrary() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
     getStatsClient()
       .getMediaLibrary()
-      .then(setMedia)
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+      .then((rows) => {
+        if (cancelled) return;
+        setMedia(rows);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setError(err.message);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return { media, loading, error };

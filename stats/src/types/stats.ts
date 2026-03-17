@@ -97,6 +97,9 @@ export interface OverviewData {
     activeAnimeCount: number;
     totalEpisodesWatched: number;
     totalAnimeCompleted: number;
+    totalActiveMin: number;
+    activeDays: number;
+    totalCards?: number;
   };
 }
 

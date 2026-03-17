@@ -5,7 +5,7 @@ import type {
   StreakCalendarDay,
   VocabularyEntry,
 } from '../types/stats';
-import { epochDayToDate, localDayFromMs } from './formatters';
+import { epochDayToDate, epochMsFromDbTimestamp, localDayFromMs } from './formatters';
 
 export interface ChartPoint {
   label: string;
@@ -45,6 +45,10 @@ export interface VocabularySummary {
   topWords: ChartPoint[];
   newWordsTimeline: ChartPoint[];
   recentDiscoveries: VocabularyEntry[];
+}
+
+function normalizeDbTimestampSeconds(ts: number): number {
+  return Math.floor(epochMsFromDbTimestamp(ts) / 1000);
 }
 
 function makeRollupLabel(value: number): string {
@@ -135,6 +139,8 @@ export function buildOverviewSummary(
 
   const sessionCards = sumBy(overview.sessions, (session) => session.cardsMined);
   const rollupCards = sumBy(aggregated, (row) => row.cards);
+  const lifetimeCards = overview.hints.totalCards ?? Math.max(sessionCards, rollupCards);
+  const totalActiveMin = overview.hints.totalActiveMin ?? sumBy(aggregated, (row) => row.activeMin);
 
   let streakDays = 0;
   const streakStart = daysWithActivity.has(today) ? today : today - 1;
@@ -155,8 +161,8 @@ export function buildOverviewSummary(
       sumBy(todaySessions, (session) => session.cardsMined),
     ),
     streakDays,
-    allTimeHours: Math.round(sumBy(aggregated, (row) => row.activeMin) / 60),
-    totalTrackedCards: Math.max(sessionCards, rollupCards),
+    allTimeHours: Math.max(0, Math.round(totalActiveMin / 60)),
+    totalTrackedCards: lifetimeCards,
     episodesToday: overview.hints.episodesToday ?? 0,
     activeAnimeCount: overview.hints.activeAnimeCount ?? 0,
     totalEpisodesWatched: overview.hints.totalEpisodesWatched ?? 0,
@@ -170,7 +176,7 @@ export function buildOverviewSummary(
           )
         : 0,
     totalSessions: overview.hints.totalSessions,
-    activeDays: daysWithActivity.size,
+    activeDays: overview.hints.activeDays ?? daysWithActivity.size,
     recentWatchTime: aggregated
       .slice(-14)
       .map((row) => ({ label: row.label, value: row.activeMin })),
@@ -202,14 +208,18 @@ export function buildVocabularySummary(
   const byDay = new Map<number, number>();
 
   for (const word of words) {
-    const day = Math.floor(word.firstSeen / 86_400);
+    const firstSeenSec = normalizeDbTimestampSeconds(word.firstSeen);
+    const day = Math.floor(firstSeenSec / 86_400);
     byDay.set(day, (byDay.get(day) ?? 0) + 1);
   }
 
   return {
     uniqueWords: words.length,
     uniqueKanji: kanji.length,
-    newThisWeek: words.filter((word) => word.firstSeen >= weekAgoSec).length,
+    newThisWeek: words.filter((word) => {
+      const firstSeenSec = normalizeDbTimestampSeconds(word.firstSeen);
+      return firstSeenSec >= weekAgoSec;
+    }).length,
     topWords: [...words]
       .sort((left, right) => right.frequency - left.frequency)
       .slice(0, 12)
@@ -222,7 +232,11 @@ export function buildVocabularySummary(
         value: count,
       })),
     recentDiscoveries: [...words]
-      .sort((left, right) => right.firstSeen - left.firstSeen)
+      .sort((left, right) => {
+        const leftFirst = normalizeDbTimestampSeconds(left.firstSeen);
+        const rightFirst = normalizeDbTimestampSeconds(right.firstSeen);
+        return rightFirst - leftFirst;
+      })
       .slice(0, 8),
   };
 }
