@@ -1180,12 +1180,20 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
     "queueCap": 1000,
     "payloadCapBytes": 256,
     "maintenanceIntervalMs": 86400000,
+    "retentionMode": "preset",
+    "retentionPreset": "balanced",
     "retention": {
-      "eventsDays": 7,
-      "telemetryDays": 30,
-      "dailyRollupsDays": 365,
-      "monthlyRollupsDays": 1825,
-      "vacuumIntervalDays": 7
+      "eventsDays": 0,
+      "telemetryDays": 0,
+      "sessionsDays": 0,
+      "dailyRollupsDays": 0,
+      "monthlyRollupsDays": 0,
+      "vacuumIntervalDays": 0
+    },
+    "lifetimeSummaries": {
+      "global": true,
+      "anime": true,
+      "media": true
     }
   }
 }
@@ -1200,11 +1208,16 @@ Enable or disable local immersion analytics stored in SQLite for mined subtitles
 | `queueCap`                     | integer (`100`-`100000`)      | In-memory queue cap. Overflow drops oldest writes. Default `1000`.                                          |
 | `payloadCapBytes`              | integer (`64`-`8192`)         | Event payload byte cap before truncation marker. Default `256`.                                             |
 | `maintenanceIntervalMs`        | integer (`60000`-`604800000`) | Prune + rollup maintenance cadence. Default `86400000` (24h).                                               |
-| `retention.eventsDays`         | integer (`1`-`3650`)          | Raw event retention window. Default `7` days.                                                               |
-| `retention.telemetryDays`      | integer (`1`-`3650`)          | Telemetry retention window. Default `30` days.                                                              |
-| `retention.dailyRollupsDays`   | integer (`1`-`36500`)         | Daily rollup retention window. Default `365` days.                                                          |
-| `retention.monthlyRollupsDays` | integer (`1`-`36500`)         | Monthly rollup retention window. Default `1825` days (~5 years).                                            |
-| `retention.vacuumIntervalDays` | integer (`1`-`3650`)          | Minimum spacing between `VACUUM` passes. Default `7` days.                                                  |
+| `retentionMode`                | `preset`,`advanced`           | Retention mode. `preset` applies `retentionPreset`, `advanced` uses explicit values only. Default `preset`. |
+| `retentionPreset`              | `minimal`,`balanced`,`deep-history` | Retention preset used when `retentionMode = "preset"`. Default `balanced`.                              |
+| `retention.eventsDays`         | integer (`0`-`3650`)          | Raw event retention window in days. Default `0` (keep all).                                                  |
+| `retention.telemetryDays`      | integer (`0`-`3650`)          | Telemetry retention window in days. Default `0` (keep all).                                                  |
+| `retention.sessionsDays`       | integer (`0`-`3650`)          | Session retention window in days. Default `0` (keep all).                                                    |
+| `retention.dailyRollupsDays`   | integer (`0`-`36500`)         | Daily rollup retention window. Default `0` (keep all).                                                      |
+| `retention.monthlyRollupsDays` | integer (`0`-`36500`)         | Monthly rollup retention window. Default `0` (keep all).                                                    |
+| `retention.vacuumIntervalDays` | integer (`0`-`3650`)          | Minimum spacing between `VACUUM` passes. `0` disables vacuum. Default `0` (disabled).                         |
+
+Default behavior keeps raw events, telemetry, sessions, and rollups forever while still maintaining lifetime summary tables and daily/monthly rollups for faster reads. If you later want bounded retention, switch `retentionMode` or set explicit `retention.*` values.
 
 When `dbPath` is blank or omitted, SubMiner writes telemetry and session summaries to the default app-data location:
 

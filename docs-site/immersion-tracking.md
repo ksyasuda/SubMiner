@@ -2,7 +2,7 @@
 
 SubMiner can log your watching and mining activity to a local SQLite database, then surface it in the built-in stats dashboard. Tracking is enabled by default and can be turned off if you do not want local analytics.
 
-When enabled, SubMiner records per-session statistics (watch time, subtitle lines seen, words encountered, cards mined) and maintains daily and monthly rollups. You can view that data in SubMiner's stats UI or query the database directly with any SQLite tool.
+When enabled, SubMiner records per-session statistics (watch time, subtitle lines seen, words encountered, cards mined) and maintains exact lifetime summary tables plus daily/monthly rollups. You can view that data in SubMiner's stats UI or query the database directly with any SQLite tool.
 
 ## Enabling
 
@@ -74,16 +74,35 @@ The Vocabulary tab toolbar includes an **Exclusions** button for hiding words fr
 
 ## Retention Defaults
 
-Data is kept for the following durations before automatic cleanup:
+By default, SubMiner keeps all retention tables and raw data (`0` means keep all) while continuing daily/monthly rollup maintenance:
 
 | Data type      | Retention |
 | -------------- | --------- |
-| Raw events     | 7 days    |
-| Telemetry      | 30 days   |
-| Daily rollups  | 1 year    |
-| Monthly rollups | 5 years  |
+| Raw events     | 0 (keep all)   |
+| Telemetry      | 0 (keep all)   |
+| Sessions      | 0 (keep all)   |
+| Daily rollups  | 0 (keep all)   |
+| Monthly rollups | 0 (keep all) |
 
-Maintenance runs on startup and every 24 hours. Vacuum runs weekly.
+Maintenance runs on startup and every 24 hours. Vacuum runs only when `retention.vacuumIntervalDays` is non-zero.
+
+In practice:
+
+- Overview totals read from lifetime summary tables, so all-time watch time/cards/words stay exact even if raw query paths evolve.
+- Anime and episode pages keep lifetime totals from summary tables while session drill-down still reads retained sessions directly. With the current defaults, both are kept forever.
+- Trends can read the full available history because daily/monthly rollups are also kept forever by default.
+- Vocabulary and kanji totals are cumulative and not bounded by the raw session retention knobs.
+
+## Storage / Performance Model
+
+The tracker is optimized for "keep everything" defaults:
+
+- Exact all-time totals live in dedicated lifetime summary tables (`imm_lifetime_global`, `imm_lifetime_anime`, `imm_lifetime_media`).
+- Ended-session totals are persisted onto `imm_sessions`, so most dashboard reads do not need to rescan raw telemetry.
+- Daily and monthly rollups remain available for chart queries and coarse trend views.
+- Subtitle text is stored once in `imm_subtitle_lines`; subtitle-line event payloads keep compact metadata only.
+- Cover-art binaries are deduplicated through a shared blob store so episodes in the same series do not each carry duplicate image bytes.
+- Hot tables have dedicated indexes for session time ranges, telemetry sample windows, frequency-ranked vocabulary, and cover-art lookup keys.
 
 ## Configurable Knobs
 
@@ -98,9 +117,15 @@ All policy options live under `immersionTracking` in your config:
 | `maintenanceIntervalMs` | How often maintenance runs |
 | `retention.eventsDays` | Raw event retention |
 | `retention.telemetryDays` | Telemetry retention |
+| `retention.sessionsDays` | Session retention |
 | `retention.dailyRollupsDays` | Daily rollup retention |
 | `retention.monthlyRollupsDays` | Monthly rollup retention |
 | `retention.vacuumIntervalDays` | Minimum spacing between vacuums |
+| `retentionMode` | `preset` or `advanced` |
+| `retentionPreset` | `minimal`, `balanced`, or `deep-history` (used by `retentionMode`) |
+| `lifetimeSummaries.global` | Maintain global lifetime totals |
+| `lifetimeSummaries.anime` | Maintain per-anime lifetime totals |
+| `lifetimeSummaries.media` | Maintain per-media lifetime totals |
 
 ## Query Templates
 
@@ -129,23 +154,40 @@ SELECT
   s.video_id,
   s.started_at_ms,
   s.ended_at_ms,
-  COALESCE(SUM(t.active_watched_ms), 0) AS active_watched_ms,
-  COALESCE(SUM(t.words_seen), 0) AS words_seen,
-  COALESCE(SUM(t.cards_mined), 0) AS cards_mined,
+  COALESCE(s.active_watched_ms, 0) AS active_watched_ms,
+  COALESCE(s.words_seen, 0) AS words_seen,
+  COALESCE(s.cards_mined, 0) AS cards_mined,
   CASE
-    WHEN COALESCE(SUM(t.active_watched_ms), 0) > 0
-      THEN COALESCE(SUM(t.words_seen), 0) / (COALESCE(SUM(t.active_watched_ms), 0) / 60000.0)
+    WHEN COALESCE(s.active_watched_ms, 0) > 0
+      THEN COALESCE(s.words_seen, 0) / (COALESCE(s.active_watched_ms, 0) / 60000.0)
     ELSE NULL
   END AS words_per_min,
   CASE
-    WHEN COALESCE(SUM(t.active_watched_ms), 0) > 0
-      THEN (COALESCE(SUM(t.cards_mined), 0) * 60.0) / (COALESCE(SUM(t.active_watched_ms), 0) / 60000.0)
+    WHEN COALESCE(s.active_watched_ms, 0) > 0
+      THEN (COALESCE(s.cards_mined, 0) * 60.0) / (COALESCE(s.active_watched_ms, 0) / 60000.0)
     ELSE NULL
   END AS cards_per_hour
 FROM imm_sessions s
-LEFT JOIN imm_session_telemetry t ON t.session_id = s.session_id
-GROUP BY s.session_id
 ORDER BY s.started_at_ms DESC
+LIMIT ?;
+```
+
+### Lifetime anime totals
+
+```sql
+SELECT
+  a.anime_id,
+  a.canonical_title,
+  la.total_sessions,
+  la.total_active_ms,
+  la.total_cards,
+  la.total_words_seen,
+  la.total_lines_seen,
+  la.first_watched_ms,
+  la.last_watched_ms
+FROM imm_lifetime_anime la
+JOIN imm_anime a ON a.anime_id = la.anime_id
+ORDER BY la.last_watched_ms DESC
 LIMIT ?;
 ```
 
@@ -192,16 +234,25 @@ LIMIT ?;
 - Queue overflow policy: drop oldest queued writes, keep newest.
 - SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=2500`.
 - Rollups run incrementally from the last processed telemetry sample; startup performs a one-time bootstrap pass.
-- If retention pruning removes telemetry/session rows, maintenance triggers a full rollup rebuild to resync historical aggregates.
+- Cover-art blobs are deduplicated into `imm_cover_art_blobs` and referenced from `imm_media_art`.
+- Large-table reads are index-backed for `sample_ms`, session time windows, frequency-ranked words/kanji, and cover-art identity lookups.
 
-### Schema (v3)
+### Schema (v12)
 
 Core tables:
 
 - `imm_videos` — video key/title/source metadata
-- `imm_sessions` — session UUID, video reference, timing/status
+- `imm_sessions` — session UUID, video reference, timing/status, final denormalized totals
 - `imm_session_telemetry` — high-frequency session aggregates over time
 - `imm_session_events` — event stream with compact numeric event types
+- `imm_subtitle_lines` — persisted subtitle text and timing per session/video
+
+Lifetime summary tables:
+
+- `imm_lifetime_global`
+- `imm_lifetime_anime`
+- `imm_lifetime_media`
+- `imm_lifetime_applied_sessions`
 
 Rollup tables:
 
@@ -212,3 +263,8 @@ Vocabulary tables:
 
 - `imm_words(id, headword, word, reading, first_seen, last_seen, frequency)`
 - `imm_kanji(id, kanji, first_seen, last_seen, frequency)`
+
+Media-art tables:
+
+- `imm_media_art` — per-video cover metadata plus shared blob reference
+- `imm_cover_art_blobs` — deduplicated image bytes keyed by blob hash

@@ -498,13 +498,21 @@
     "queueCap": 1000, // In-memory write queue cap before overflow policy applies.
     "payloadCapBytes": 256, // Max JSON payload size per event before truncation.
     "maintenanceIntervalMs": 86400000, // Maintenance cadence (prune + rollup + vacuum checks).
+    "retentionMode": "preset", // Retention mode to use for defaults. Values: preset | advanced
+    "retentionPreset": "balanced", // Named preset when retentionMode is preset.
     "retention": {
-      "eventsDays": 7, // Raw event retention window in days.
-      "telemetryDays": 30, // Telemetry retention window in days.
-      "dailyRollupsDays": 365, // Daily rollup retention window in days.
-      "monthlyRollupsDays": 1825, // Monthly rollup retention window in days.
-      "vacuumIntervalDays": 7 // Minimum days between VACUUM runs.
-    } // Retention setting.
+      "eventsDays": 0, // Raw event retention window in days. Use 0 to keep all.
+      "telemetryDays": 0, // Telemetry retention window in days. Use 0 to keep all.
+      "sessionsDays": 0, // Session retention window in days. Use 0 to keep all.
+      "dailyRollupsDays": 0, // Daily rollup retention window in days. Use 0 to keep all.
+      "monthlyRollupsDays": 0, // Monthly rollup retention window in days. Use 0 to keep all.
+      "vacuumIntervalDays": 0 // Minimum days between VACUUM runs. Use 0 to disable.
+    }, // Retention setting.
+    "lifetimeSummaries": {
+      "global": true, // Keep lifetime global totals.
+      "anime": true, // Keep lifetime per-anime totals.
+      "media": true // Keep lifetime per-media totals.
+    } // Lifetime summary setting.
   }, // Enable/disable immersion tracking.
 
   // ==========================================
