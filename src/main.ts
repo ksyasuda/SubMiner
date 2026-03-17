@@ -385,6 +385,7 @@ import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryAutoSyncRuntimeService } from './main/runtime/character-dictionary-auto-sync';
+import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/character-dictionary-auto-sync-completion';
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
@@ -1508,14 +1509,30 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     });
   },
   onSyncComplete: ({ mediaId, mediaTitle, changed }) => {
-    if (appState.yomitanParserWindow) {
-      clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
-    }
-    subtitleProcessingController.invalidateTokenizationCache();
-    subtitlePrefetchService?.onSeek(lastObservedTimePos);
-    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-    logger.info(
-      `[dictionary:auto-sync] refreshed current subtitle after sync (AniList ${mediaId}, changed=${changed ? 'yes' : 'no'}, title=${mediaTitle})`,
+    handleCharacterDictionaryAutoSyncComplete(
+      {
+        mediaId,
+        mediaTitle,
+        changed,
+      },
+      {
+        hasParserWindow: () => Boolean(appState.yomitanParserWindow),
+        clearParserCaches: () => {
+          if (appState.yomitanParserWindow) {
+            clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
+          }
+        },
+        invalidateTokenizationCache: () => {
+          subtitleProcessingController.invalidateTokenizationCache();
+        },
+        refreshSubtitlePrefetch: () => {
+          subtitlePrefetchService?.onSeek(lastObservedTimePos);
+        },
+        refreshCurrentSubtitle: () => {
+          subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+        },
+        logInfo: (message) => logger.info(message),
+      },
     );
   },
 });
@@ -1524,6 +1541,7 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   createBuildOverlayVisibilityRuntimeMainDepsHandler({
     getMainWindow: () => overlayManager.getMainWindow(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getForceMousePassthrough: () => appState.statsOverlayVisible,
     getWindowTracker: () => appState.windowTracker,
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown: boolean) => {
@@ -2610,6 +2628,10 @@ const immersionTrackerStartupMainDeps: Parameters<
         getApiBaseUrl: () => ensureStatsServerStarted(),
         getToggleKey: () => getResolvedConfig().stats.toggleKey,
         resolveBounds: () => getCurrentOverlayGeometry(),
+        onVisibilityChanged: (visible) => {
+          appState.statsOverlayVisible = visible;
+          overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+        },
       });
     }
   },
