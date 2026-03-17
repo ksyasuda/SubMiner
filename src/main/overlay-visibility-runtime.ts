@@ -7,6 +7,7 @@ import { updateVisibleOverlayVisibility } from '../core/services';
 export interface OverlayVisibilityRuntimeDeps {
   getMainWindow: () => BrowserWindow | null;
   getVisibleOverlayVisible: () => boolean;
+  getForceMousePassthrough: () => boolean;
   getWindowTracker: () => BaseWindowTracker | null;
   getTrackerNotReadyWarningShown: () => boolean;
   setTrackerNotReadyWarningShown: (shown: boolean) => void;
@@ -32,6 +33,7 @@ export function createOverlayVisibilityRuntimeService(
     updateVisibleOverlayVisibility(): void {
       updateVisibleOverlayVisibility({
         visibleOverlayVisible: deps.getVisibleOverlayVisible(),
+        forceMousePassthrough: deps.getForceMousePassthrough(),
         mainWindow: deps.getMainWindow(),
         windowTracker: deps.getWindowTracker(),
         trackerNotReadyWarningShown: deps.getTrackerNotReadyWarningShown(),

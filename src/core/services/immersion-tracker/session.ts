@@ -39,8 +39,39 @@ export function finalizeSessionRecord(
       SET
         ended_at_ms = ?,
         status = ?,
+        total_watched_ms = ?,
+        active_watched_ms = ?,
+        lines_seen = ?,
+        words_seen = ?,
+        tokens_seen = ?,
+        cards_mined = ?,
+        lookup_count = ?,
+        lookup_hits = ?,
+        pause_count = ?,
+        pause_ms = ?,
+        seek_forward_count = ?,
+        seek_backward_count = ?,
+        media_buffer_events = ?,
         LAST_UPDATE_DATE = ?
       WHERE session_id = ?
     `,
-  ).run(endedAtMs, SESSION_STATUS_ENDED, Date.now(), sessionState.sessionId);
+  ).run(
+    endedAtMs,
+    SESSION_STATUS_ENDED,
+    sessionState.totalWatchedMs,
+    sessionState.activeWatchedMs,
+    sessionState.linesSeen,
+    sessionState.wordsSeen,
+    sessionState.tokensSeen,
+    sessionState.cardsMined,
+    sessionState.lookupCount,
+    sessionState.lookupHits,
+    sessionState.pauseCount,
+    sessionState.pauseMs,
+    sessionState.seekForwardCount,
+    sessionState.seekBackwardCount,
+    sessionState.mediaBufferEvents,
+    Date.now(),
+    sessionState.sessionId,
+  );
 }

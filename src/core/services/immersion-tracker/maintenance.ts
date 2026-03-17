@@ -18,11 +18,9 @@ interface RollupTelemetryResult {
   maxSampleMs: number | null;
 }
 
-interface RetentionResult {
+interface RawRetentionResult {
   deletedSessionEvents: number;
   deletedTelemetryRows: number;
-  deletedDailyRows: number;
-  deletedMonthlyRows: number;
   deletedEndedSessions: number;
 }
 
@@ -31,20 +29,18 @@ export function toMonthKey(timestampMs: number): number {
   return monthDate.getUTCFullYear() * 100 + monthDate.getUTCMonth() + 1;
 }
 
-export function pruneRetention(
+export function pruneRawRetention(
   db: DatabaseSync,
   nowMs: number,
   policy: {
     eventsRetentionMs: number;
     telemetryRetentionMs: number;
-    dailyRollupRetentionMs: number;
-    monthlyRollupRetentionMs: number;
+    sessionsRetentionMs: number;
   },
-): RetentionResult {
+): RawRetentionResult {
   const eventCutoff = nowMs - policy.eventsRetentionMs;
   const telemetryCutoff = nowMs - policy.telemetryRetentionMs;
-  const dayCutoff = nowMs - policy.dailyRollupRetentionMs;
-  const monthCutoff = nowMs - policy.monthlyRollupRetentionMs;
+  const sessionsCutoff = nowMs - policy.sessionsRetentionMs;
 
   const deletedSessionEvents = (
     db.prepare(`DELETE FROM imm_session_events WHERE ts_ms < ?`).run(eventCutoff) as {
@@ -56,28 +52,49 @@ export function pruneRetention(
       changes: number;
     }
   ).changes;
-  const deletedDailyRows = (
-    db
-      .prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`)
-      .run(Math.floor(dayCutoff / DAILY_MS)) as { changes: number }
-  ).changes;
-  const deletedMonthlyRows = (
-    db
-      .prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`)
-      .run(toMonthKey(monthCutoff)) as { changes: number }
-  ).changes;
   const deletedEndedSessions = (
     db
       .prepare(`DELETE FROM imm_sessions WHERE ended_at_ms IS NOT NULL AND ended_at_ms < ?`)
-      .run(telemetryCutoff) as { changes: number }
+      .run(sessionsCutoff) as { changes: number }
   ).changes;
 
   return {
     deletedSessionEvents,
     deletedTelemetryRows,
+    deletedEndedSessions,
+  };
+}
+
+export function pruneRollupRetention(
+  db: DatabaseSync,
+  nowMs: number,
+  policy: {
+    dailyRollupRetentionMs: number;
+    monthlyRollupRetentionMs: number;
+  },
+): { deletedDailyRows: number; deletedMonthlyRows: number } {
+  const deletedDailyRows = Number.isFinite(policy.dailyRollupRetentionMs)
+    ? (
+        db
+          .prepare(`DELETE FROM imm_daily_rollups WHERE rollup_day < ?`)
+          .run(Math.floor((nowMs - policy.dailyRollupRetentionMs) / DAILY_MS)) as {
+          changes: number;
+        }
+      ).changes
+    : 0;
+  const deletedMonthlyRows = Number.isFinite(policy.monthlyRollupRetentionMs)
+    ? (
+        db
+          .prepare(`DELETE FROM imm_monthly_rollups WHERE rollup_month < ?`)
+          .run(toMonthKey(nowMs - policy.monthlyRollupRetentionMs)) as {
+          changes: number;
+        }
+      ).changes
+    : 0;
+
+  return {
     deletedDailyRows,
     deletedMonthlyRows,
-    deletedEndedSessions,
   };
 }
 

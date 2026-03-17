@@ -85,11 +85,17 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.immersionTracking.queueCap, 1000);
   assert.equal(config.immersionTracking.payloadCapBytes, 256);
   assert.equal(config.immersionTracking.maintenanceIntervalMs, 86_400_000);
-  assert.equal(config.immersionTracking.retention.eventsDays, 7);
-  assert.equal(config.immersionTracking.retention.telemetryDays, 30);
-  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 365);
-  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 1825);
-  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 7);
+  assert.equal(config.immersionTracking.retention.eventsDays, 0);
+  assert.equal(config.immersionTracking.retention.telemetryDays, 0);
+  assert.equal(config.immersionTracking.retention.sessionsDays, 0);
+  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 0);
+  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 0);
+  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 0);
+  assert.equal(config.immersionTracking.retentionMode, 'preset');
+  assert.equal(config.immersionTracking.retentionPreset, 'balanced');
+  assert.equal(config.immersionTracking.lifetimeSummaries?.global, true);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.anime, true);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.media, true);
 });
 
 test('throws actionable startup parse error for malformed config at construction time', () => {
@@ -742,12 +748,20 @@ test('accepts immersion tracking config values', () => {
         "queueCap": 2000,
         "payloadCapBytes": 512,
         "maintenanceIntervalMs": 3600000,
+        "retentionMode": "preset",
+        "retentionPreset": "minimal",
         "retention": {
           "eventsDays": 14,
           "telemetryDays": 45,
+          "sessionsDays": 60,
           "dailyRollupsDays": 730,
           "monthlyRollupsDays": 3650,
           "vacuumIntervalDays": 14
+        },
+        "lifetimeSummaries": {
+          "global": false,
+          "anime": true,
+          "media": false
         }
       }
     }`,
@@ -766,9 +780,15 @@ test('accepts immersion tracking config values', () => {
   assert.equal(config.immersionTracking.maintenanceIntervalMs, 3_600_000);
   assert.equal(config.immersionTracking.retention.eventsDays, 14);
   assert.equal(config.immersionTracking.retention.telemetryDays, 45);
+  assert.equal(config.immersionTracking.retention.sessionsDays, 60);
   assert.equal(config.immersionTracking.retention.dailyRollupsDays, 730);
   assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 3650);
   assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 14);
+  assert.equal(config.immersionTracking.retentionMode, 'preset');
+  assert.equal(config.immersionTracking.retentionPreset, 'minimal');
+  assert.equal(config.immersionTracking.lifetimeSummaries?.global, false);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.anime, true);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.media, false);
 });
 
 test('falls back for invalid immersion tracking tuning values', () => {
@@ -777,18 +797,22 @@ test('falls back for invalid immersion tracking tuning values', () => {
     path.join(dir, 'config.jsonc'),
     `{
       "immersionTracking": {
+        "retentionMode": "bad",
+        "retentionPreset": "bad",
         "batchSize": 0,
         "flushIntervalMs": 1,
         "queueCap": 5,
         "payloadCapBytes": 16,
         "maintenanceIntervalMs": 1000,
         "retention": {
-          "eventsDays": 0,
+          "eventsDays": -1,
           "telemetryDays": 99999,
-          "dailyRollupsDays": 0,
+          "sessionsDays": -1,
+          "dailyRollupsDays": -1,
           "monthlyRollupsDays": 999999,
-          "vacuumIntervalDays": 0
-        }
+          "vacuumIntervalDays": -1
+        },
+        "lifetimeSummaries": "bad"
       }
     }`,
     'utf-8',
@@ -803,11 +827,17 @@ test('falls back for invalid immersion tracking tuning values', () => {
   assert.equal(config.immersionTracking.queueCap, 1000);
   assert.equal(config.immersionTracking.payloadCapBytes, 256);
   assert.equal(config.immersionTracking.maintenanceIntervalMs, 86_400_000);
-  assert.equal(config.immersionTracking.retention.eventsDays, 7);
-  assert.equal(config.immersionTracking.retention.telemetryDays, 30);
-  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 365);
-  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 1825);
-  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 7);
+  assert.equal(config.immersionTracking.retention.eventsDays, 0);
+  assert.equal(config.immersionTracking.retention.telemetryDays, 0);
+  assert.equal(config.immersionTracking.retention.sessionsDays, 0);
+  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 0);
+  assert.equal(config.immersionTracking.retention.monthlyRollupsDays, 0);
+  assert.equal(config.immersionTracking.retention.vacuumIntervalDays, 0);
+  assert.equal(config.immersionTracking.retentionMode, 'preset');
+  assert.equal(config.immersionTracking.retentionPreset, 'balanced');
+  assert.equal(config.immersionTracking.lifetimeSummaries?.global, true);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.anime, true);
+  assert.equal(config.immersionTracking.lifetimeSummaries?.media, true);
 
   assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.batchSize'));
   assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.flushIntervalMs'));
@@ -819,6 +849,9 @@ test('falls back for invalid immersion tracking tuning values', () => {
     warnings.some((warning) => warning.path === 'immersionTracking.retention.telemetryDays'),
   );
   assert.ok(
+    warnings.some((warning) => warning.path === 'immersionTracking.retention.sessionsDays'),
+  );
+  assert.ok(
     warnings.some((warning) => warning.path === 'immersionTracking.retention.dailyRollupsDays'),
   );
   assert.ok(
@@ -827,6 +860,37 @@ test('falls back for invalid immersion tracking tuning values', () => {
   assert.ok(
     warnings.some((warning) => warning.path === 'immersionTracking.retention.vacuumIntervalDays'),
   );
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.retentionMode'));
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.retentionPreset'));
+  assert.ok(warnings.some((warning) => warning.path === 'immersionTracking.lifetimeSummaries'));
+});
+
+test('applies retention presets and explicit overrides', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "immersionTracking": {
+        "retentionMode": "preset",
+        "retentionPreset": "minimal",
+        "retention": {
+          "eventsDays": 11,
+          "sessionsDays": 8
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+
+  assert.equal(config.immersionTracking.retentionMode, 'preset');
+  assert.equal(config.immersionTracking.retentionPreset, 'minimal');
+  assert.equal(config.immersionTracking.retention.eventsDays, 11);
+  assert.equal(config.immersionTracking.retention.sessionsDays, 8);
+  assert.equal(config.immersionTracking.retention.telemetryDays, 14);
+  assert.equal(config.immersionTracking.retention.dailyRollupsDays, 30);
 });
 
 test('parses jsonc and warns/falls back on invalid value', () => {

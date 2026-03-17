@@ -1,6 +1,7 @@
 type ImmersionRetentionPolicy = {
   eventsDays: number;
   telemetryDays: number;
+  sessionsDays: number;
   dailyRollupsDays: number;
   monthlyRollupsDays: number;
   vacuumIntervalDays: number;
@@ -77,6 +78,7 @@ export function createImmersionTrackerStartupHandler(
             retention: {
               eventsDays: policy.retention.eventsDays,
               telemetryDays: policy.retention.telemetryDays,
+              sessionsDays: policy.retention.sessionsDays,
               dailyRollupsDays: policy.retention.dailyRollupsDays,
               monthlyRollupsDays: policy.retention.monthlyRollupsDays,
               vacuumIntervalDays: policy.retention.vacuumIntervalDays,

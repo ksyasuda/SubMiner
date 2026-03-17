@@ -159,6 +159,40 @@ test('stats command launches attached app command with response path', async () 
   ]);
 });
 
+test('stats command returns after startup response even if app process stays running', async () => {
+  const context = createContext();
+  context.args.stats = true;
+  const forwarded: string[][] = [];
+  const started = new Promise<number>((resolve) => setTimeout(() => resolve(0), 20));
+
+  const statsCommand = runStatsCommand(context, {
+    createTempDir: () => '/tmp/subminer-stats-test',
+    joinPath: (...parts) => parts.join('/'),
+    runAppCommandAttached: async (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+      return started;
+    },
+    waitForStatsResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
+    removeDir: () => {},
+  });
+  const result = await Promise.race([
+    statsCommand.then(() => 'resolved'),
+    new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 5)),
+  ]);
+
+  assert.equal(result, 'timeout');
+
+  const final = await statsCommand;
+  assert.equal(final, true);
+  assert.deepEqual(forwarded, [
+    [
+      '--stats',
+      '--stats-response-path',
+      '/tmp/subminer-stats-test/response.json',
+    ],
+  ]);
+});
+
 test('stats cleanup command forwards cleanup vocab flags to the app', async () => {
   const context = createContext();
   context.args.stats = true;
@@ -189,6 +223,36 @@ test('stats cleanup command forwards cleanup vocab flags to the app', async () =
   ]);
 });
 
+test('stats cleanup command forwards lifetime rebuild flag to the app', async () => {
+  const context = createContext();
+  context.args.stats = true;
+  context.args.statsCleanup = true;
+  context.args.statsCleanupLifetime = true;
+  const forwarded: string[][] = [];
+
+  const handled = await runStatsCommand(context, {
+    createTempDir: () => '/tmp/subminer-stats-test',
+    joinPath: (...parts) => parts.join('/'),
+    runAppCommandAttached: async (_appPath, appArgs) => {
+      forwarded.push(appArgs);
+      return 0;
+    },
+    waitForStatsResponse: async () => ({ ok: true }),
+    removeDir: () => {},
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(forwarded, [
+    [
+      '--stats',
+      '--stats-response-path',
+      '/tmp/subminer-stats-test/response.json',
+      '--stats-cleanup',
+      '--stats-cleanup-lifetime',
+    ],
+  ]);
+});
+
 test('stats command throws when stats response reports an error', async () => {
   const context = createContext();
   context.args.stats = true;
@@ -207,9 +271,11 @@ test('stats command throws when stats response reports an error', async () => {
   }, /Immersion tracking is disabled in config\./);
 });
 
-test('stats command fails if attached app exits before startup response', async () => {
+test('stats cleanup command fails if attached app exits before startup response', async () => {
   const context = createContext();
   context.args.stats = true;
+  context.args.statsCleanup = true;
+  context.args.statsCleanupVocab = true;
 
   await assert.rejects(async () => {
     await runStatsCommand(context, {

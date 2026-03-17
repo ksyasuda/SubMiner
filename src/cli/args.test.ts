@@ -147,11 +147,25 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
     '--stats',
     '--stats-response-path',
     '/tmp/subminer-stats-response.json',
+    '--stats-cleanup-lifetime',
   ]);
   assert.equal(stats.stats, true);
   assert.equal(stats.statsResponsePath, '/tmp/subminer-stats-response.json');
+  assert.equal(stats.statsCleanup, false);
+  assert.equal(stats.statsCleanupVocab, false);
+  assert.equal(stats.statsCleanupLifetime, true);
   assert.equal(hasExplicitCommand(stats), true);
   assert.equal(shouldStartApp(stats), true);
+
+  const statsLifetimeRebuild = parseArgs([
+    '--stats',
+    '--stats-cleanup',
+    '--stats-cleanup-lifetime',
+  ]);
+  assert.equal(statsLifetimeRebuild.stats, true);
+  assert.equal(statsLifetimeRebuild.statsCleanup, true);
+  assert.equal(statsLifetimeRebuild.statsCleanupLifetime, true);
+  assert.equal(statsLifetimeRebuild.statsCleanupVocab, false);
 
   const jellyfinLibraries = parseArgs(['--jellyfin-libraries']);
   assert.equal(jellyfinLibraries.jellyfinLibraries, true);

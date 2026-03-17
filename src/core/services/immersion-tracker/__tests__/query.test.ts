@@ -13,17 +13,26 @@ import {
 } from '../storage.js';
 import { startSessionRecord } from '../session.js';
 import {
+  getAnimeDailyRollups,
   cleanupVocabularyStats,
   deleteSession,
+  getDailyRollups,
+  getQueryHints,
+  getMonthlyRollups,
   getAnimeDetail,
   getAnimeEpisodes,
+  getAnimeCoverArt,
   getAnimeLibrary,
+  getCoverArt,
+  getMediaDetail,
+  getMediaLibrary,
   getKanjiOccurrences,
   getSessionSummaries,
   getVocabularyStats,
   getKanjiStats,
   getSessionEvents,
   getWordOccurrences,
+  upsertCoverArt,
 } from '../query.js';
 import { SOURCE_TYPE_LOCAL, EVENT_SUBTITLE_LINE } from '../types.js';
 
@@ -123,6 +132,85 @@ test('getSessionSummaries returns sessionId and canonicalTitle', () => {
   }
 });
 
+test('getDailyRollups limits by distinct days (not rows)', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const insert = db.prepare(
+      `
+      INSERT INTO imm_daily_rollups (
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_words_seen, total_tokens_seen, total_cards
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    );
+
+    insert.run(10, 1, 1, 1, 0, 0, 0, 2);
+    insert.run(10, 2, 1, 1, 0, 0, 0, 3);
+    insert.run(9, 1, 1, 1, 0, 0, 0, 1);
+    insert.run(8, 1, 1, 1, 0, 0, 0, 1);
+
+    const rows = getDailyRollups(db, 2);
+    assert.equal(rows.length, 3);
+    assert.ok(rows.every((r) => r.rollupDayOrMonth === 10 || r.rollupDayOrMonth === 9));
+    assert.ok(rows.some((r) => r.rollupDayOrMonth === 10 && r.videoId === 1));
+    assert.ok(rows.some((r) => r.rollupDayOrMonth === 10 && r.videoId === 2));
+    assert.ok(rows.some((r) => r.rollupDayOrMonth === 9 && r.videoId === 1));
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getQueryHints reads all-time totals from lifetime summary', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    db.prepare(
+      `
+      UPDATE imm_lifetime_global
+      SET
+        total_sessions = ?,
+        total_active_ms = ?,
+        total_cards = ?,
+        active_days = ?,
+        episodes_completed = ?,
+        anime_completed = ?
+      WHERE global_id = 1
+      `,
+    ).run(4, 90_000, 2, 9, 11, 22);
+
+    const insert = db.prepare(
+      `
+      INSERT INTO imm_daily_rollups (
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_words_seen, total_tokens_seen, total_cards
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    );
+
+    insert.run(10, 1, 1, 12, 0, 0, 0, 2);
+    insert.run(10, 2, 1, 11, 0, 0, 0, 3);
+    insert.run(9, 1, 1, 10, 0, 0, 0, 1);
+
+    const hints = getQueryHints(db);
+    assert.equal(hints.totalSessions, 4);
+    assert.equal(hints.totalCards, 2);
+    assert.equal(hints.totalActiveMin, 1);
+    assert.equal(hints.activeDays, 9);
+    assert.equal(hints.totalEpisodesWatched, 11);
+    assert.equal(hints.totalAnimeCompleted, 22);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getSessionSummaries with no telemetry returns zero aggregates', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -151,6 +239,59 @@ test('getSessionSummaries with no telemetry returns zero aggregates', () => {
     assert.equal(row.lookupCount, 0);
     assert.equal(row.lookupHits, 0);
     assert.equal(row.cardsMined, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getSessionSummaries uses denormalized session metrics for ended sessions without telemetry', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/ended-session-no-telemetry.mkv', {
+      canonicalTitle: 'Ended Session',
+      sourcePath: '/tmp/ended-session-no-telemetry.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const startedAtMs = 4_000_000;
+    const endedAtMs = startedAtMs + 8_000;
+    const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
+    db.prepare(
+      `
+      UPDATE imm_sessions
+      SET
+        ended_at_ms = ?,
+        status = 2,
+        total_watched_ms = ?,
+        active_watched_ms = ?,
+        lines_seen = ?,
+        words_seen = ?,
+        tokens_seen = ?,
+        cards_mined = ?,
+        lookup_count = ?,
+        lookup_hits = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE session_id = ?
+      `,
+    ).run(endedAtMs, 8_000, 7_000, 12, 34, 34, 5, 9, 6, endedAtMs, sessionId);
+
+    const rows = getSessionSummaries(db, 10);
+    const row = rows.find((r) => r.sessionId === sessionId);
+    assert.ok(row);
+    assert.equal(row.totalWatchedMs, 8_000);
+    assert.equal(row.activeWatchedMs, 7_000);
+    assert.equal(row.linesSeen, 12);
+    assert.equal(row.wordsSeen, 34);
+    assert.equal(row.tokensSeen, 34);
+    assert.equal(row.cardsMined, 5);
+    assert.equal(row.lookupCount, 9);
+    assert.equal(row.lookupHits, 6);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -328,6 +469,129 @@ test('cleanupVocabularyStats repairs stored POS metadata and removes excluded im
   }
 });
 
+test('getDailyRollups returns all rows for the most recent rollup days', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  try {
+    ensureSchema(db);
+    const insertRollup = db.prepare(
+      `
+      INSERT INTO imm_daily_rollups (
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_words_seen,
+        total_tokens_seen, total_cards, cards_per_hour, words_per_min, lookup_hit_rate
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    );
+    insertRollup.run(3_000, 1, 1, 10, 20, 30, 40, 2, 0.1, 0.2, 0.3);
+    insertRollup.run(3_000, 2, 2, 10, 20, 30, 40, 3, 0.1, 0.2, 0.3);
+    insertRollup.run(2_999, 3, 1, 5, 10, 15, 20, 1, 0.1, 0.2, 0.3);
+    insertRollup.run(2_998, 4, 1, 5, 10, 15, 20, 1, 0.1, 0.2, 0.3);
+
+    const rows = getDailyRollups(db, 1);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0]?.rollupDayOrMonth, 3_000);
+    assert.equal(rows[0]?.videoId, 2);
+    assert.equal(rows[1]?.rollupDayOrMonth, 3_000);
+    assert.equal(rows[1]?.videoId, 1);
+
+    const twoRows = getDailyRollups(db, 2);
+    assert.equal(twoRows.length, 3);
+    assert.equal(twoRows[0]?.rollupDayOrMonth, 3_000);
+    assert.equal(twoRows[1]?.rollupDayOrMonth, 3_000);
+    assert.equal(twoRows[2]?.rollupDayOrMonth, 2_999);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getMonthlyRollups returns all rows for the most recent rollup months', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  try {
+    ensureSchema(db);
+    const insertRollup = db.prepare(
+      `
+      INSERT INTO imm_monthly_rollups (
+        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen, total_words_seen,
+        total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    );
+    const nowMs = Date.now();
+    insertRollup.run(202602, 1, 1, 10, 20, 30, 40, 5, nowMs, nowMs);
+    insertRollup.run(202602, 2, 1, 10, 20, 30, 40, 6, nowMs, nowMs);
+    insertRollup.run(202601, 3, 1, 5, 10, 15, 20, 2, nowMs, nowMs);
+    insertRollup.run(202600, 4, 1, 5, 10, 15, 20, 2, nowMs, nowMs);
+
+    const rows = getMonthlyRollups(db, 1);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0]?.rollupDayOrMonth, 202602);
+    assert.equal(rows[0]?.videoId, 2);
+    assert.equal(rows[1]?.rollupDayOrMonth, 202602);
+    assert.equal(rows[1]?.videoId, 1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getAnimeDailyRollups returns all rows for the most recent rollup days', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  try {
+    ensureSchema(db);
+    const insertRollup = db.prepare(
+      `
+      INSERT INTO imm_daily_rollups (
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_words_seen,
+        total_tokens_seen, total_cards, cards_per_hour, words_per_min, lookup_hit_rate
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    );
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Test Anime',
+      canonicalTitle: 'Test Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    const video1 = getOrCreateVideoRecord(db, 'local:/tmp/anime-ep1.mkv', {
+      canonicalTitle: 'Episode 1',
+      sourcePath: '/tmp/anime-ep1.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const video2 = getOrCreateVideoRecord(db, 'local:/tmp/anime-ep2.mkv', {
+      canonicalTitle: 'Episode 2',
+      sourcePath: '/tmp/anime-ep2.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    db.prepare('UPDATE imm_videos SET anime_id = ? WHERE video_id IN (?, ?)').run(
+      animeId,
+      video1,
+      video2,
+    );
+
+    insertRollup.run(4_000, video1, 1, 10, 20, 30, 40, 2, 0.1, 0.2, 0.3);
+    insertRollup.run(4_000, video2, 1, 10, 20, 30, 40, 2, 0.1, 0.2, 0.3);
+    insertRollup.run(3_999, video1, 1, 10, 20, 30, 40, 2, 0.1, 0.2, 0.3);
+
+    const rows = getAnimeDailyRollups(db, animeId, 1);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0]?.rollupDayOrMonth, 4_000);
+    assert.equal(rows[0]?.videoId, video2);
+    assert.equal(rows[1]?.rollupDayOrMonth, 4_000);
+    assert.equal(rows[1]?.videoId, video1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('cleanupVocabularyStats merges repaired duplicates instead of violating the imm_words unique key', async () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -423,6 +687,8 @@ test('cleanupVocabularyStats merges repaired duplicates instead of violating the
       {
         animeId: null,
         animeTitle: null,
+        sourcePath: '/tmp/cleanup-merge.mkv',
+        secondaryText: null,
         videoId,
         videoTitle: 'Cleanup Merge',
         sessionId,
@@ -843,6 +1109,46 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
       1_031_000,
     );
 
+    const now = Date.now();
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_anime (
+        anime_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_words_seen,
+        total_lines_seen,
+        total_tokens_seen,
+        episodes_started,
+        episodes_completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    ).run(lwaAnimeId, 3, 12_000, 6, 80, 33, 0, 2, 1, 1_000_000, 1_021_000, now, now);
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_anime (
+        anime_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_words_seen,
+        total_lines_seen,
+        total_tokens_seen,
+        episodes_started,
+        episodes_completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    ).run(frierenAnimeId, 1, 3_500, 1, 20, 8, 0, 1, 1, 1_030_000, 1_030_000, now, now);
+
     const animeLibrary = getAnimeLibrary(db);
     assert.equal(animeLibrary.length, 2);
     assert.deepEqual(
@@ -923,6 +1229,464 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
   }
 });
 
+test('anime library and detail still return lifetime rows without retained sessions', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'No Session Anime',
+      canonicalTitle: 'No Session Anime',
+      anilistId: 111_111,
+      titleRomaji: 'No Session Anime',
+      titleEnglish: 'No Session Anime',
+      titleNative: 'No Session Anime',
+      metadataJson: null,
+    });
+    const ep1 = getOrCreateVideoRecord(db, 'local:/tmp/no-session-ep1.mkv', {
+      canonicalTitle: 'Episode 1',
+      sourcePath: '/tmp/no-session-ep1.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const ep2 = getOrCreateVideoRecord(db, 'local:/tmp/no-session-ep2.mkv', {
+      canonicalTitle: 'Episode 2',
+      sourcePath: '/tmp/no-session-ep2.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    linkVideoToAnimeRecord(db, ep1, {
+      animeId,
+      parsedBasename: 'Episode 1',
+      parsedTitle: 'No Session Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":1}',
+    });
+    linkVideoToAnimeRecord(db, ep2, {
+      animeId,
+      parsedBasename: 'Episode 2',
+      parsedTitle: 'No Session Anime',
+      parsedSeason: 1,
+      parsedEpisode: 2,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":2}',
+    });
+
+    const now = Date.now();
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_anime (
+        anime_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_words_seen,
+        total_lines_seen,
+        total_tokens_seen,
+        episodes_started,
+        episodes_completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(animeId, 12, 4_500, 9, 200, 80, 15, 2, 2, 1_000_000, now, now, now);
+
+    const library = getAnimeLibrary(db);
+    assert.equal(library.length, 1);
+    assert.equal(library[0]?.animeId, animeId);
+    assert.equal(library[0]?.canonicalTitle, 'No Session Anime');
+    assert.equal(library[0]?.totalSessions, 12);
+    assert.equal(library[0]?.totalActiveMs, 4_500);
+    assert.equal(library[0]?.totalCards, 9);
+    assert.equal(library[0]?.episodeCount, 2);
+
+    const detail = getAnimeDetail(db, animeId);
+    assert.ok(detail);
+    assert.equal(detail?.animeId, animeId);
+    assert.equal(detail?.canonicalTitle, 'No Session Anime');
+    assert.equal(detail?.totalSessions, 12);
+    assert.equal(detail?.totalActiveMs, 4_500);
+    assert.equal(detail?.totalCards, 9);
+    assert.equal(detail?.totalWordsSeen, 200);
+    assert.equal(detail?.totalLinesSeen, 80);
+    assert.equal(detail?.episodeCount, 2);
+    assert.equal(detail?.totalLookupCount, 0);
+    assert.equal(detail?.totalLookupHits, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('media library and detail queries read lifetime totals', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const mediaOne = getOrCreateVideoRecord(db, 'local:/tmp/media-one.mkv', {
+      canonicalTitle: 'Media One',
+      sourcePath: '/tmp/media-one.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const mediaTwo = getOrCreateVideoRecord(db, 'local:/tmp/media-two.mkv', {
+      canonicalTitle: 'Media Two',
+      sourcePath: '/tmp/media-two.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const insertLifetime = db.prepare(
+      `
+      INSERT INTO imm_lifetime_media (
+        video_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_words_seen,
+        total_lines_seen,
+        total_tokens_seen,
+        completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    );
+    const now = Date.now();
+    const older = now - 10_000;
+    insertLifetime.run(mediaOne, 3, 12_000, 4, 180, 10, 20, 1, 1_000, now, now, now, now);
+    insertLifetime.run(mediaTwo, 1, 2_000, 2, 40, 4, 6, 0, 900, older, now, now);
+
+    const library = getMediaLibrary(db);
+    assert.equal(library.length, 2);
+    assert.deepEqual(
+      library.map((row) => ({
+        videoId: row.videoId,
+        canonicalTitle: row.canonicalTitle,
+        totalSessions: row.totalSessions,
+        totalActiveMs: row.totalActiveMs,
+        totalCards: row.totalCards,
+        totalWordsSeen: row.totalWordsSeen,
+        lastWatchedMs: row.lastWatchedMs,
+        hasCoverArt: row.hasCoverArt,
+      })),
+      [
+        {
+          videoId: mediaOne,
+          canonicalTitle: 'Media One',
+          totalSessions: 3,
+          totalActiveMs: 12_000,
+          totalCards: 4,
+          totalWordsSeen: 180,
+          lastWatchedMs: now,
+          hasCoverArt: 0,
+        },
+        {
+          videoId: mediaTwo,
+          canonicalTitle: 'Media Two',
+          totalSessions: 1,
+          totalActiveMs: 2_000,
+          totalCards: 2,
+          totalWordsSeen: 40,
+          lastWatchedMs: older,
+          hasCoverArt: 0,
+        },
+      ],
+    );
+
+    const detail = getMediaDetail(db, mediaOne);
+    assert.ok(detail);
+    assert.equal(detail.totalSessions, 3);
+    assert.equal(detail.totalActiveMs, 12_000);
+    assert.equal(detail.totalCards, 4);
+    assert.equal(detail.totalWordsSeen, 180);
+    assert.equal(detail.totalLinesSeen, 10);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('cover art queries reuse a shared blob across duplicate anime art rows', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Shared Blob Anime',
+      canonicalTitle: 'Shared Blob Anime',
+      anilistId: 42_424,
+      titleRomaji: 'Shared Blob Anime',
+      titleEnglish: 'Shared Blob Anime',
+      titleNative: null,
+      metadataJson: null,
+    });
+    const videoOne = getOrCreateVideoRecord(db, 'local:/tmp/shared-blob-1.mkv', {
+      canonicalTitle: 'Shared Blob 1',
+      sourcePath: '/tmp/shared-blob-1.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const videoTwo = getOrCreateVideoRecord(db, 'local:/tmp/shared-blob-2.mkv', {
+      canonicalTitle: 'Shared Blob 2',
+      sourcePath: '/tmp/shared-blob-2.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    linkVideoToAnimeRecord(db, videoOne, {
+      animeId,
+      parsedBasename: 'Shared Blob 1',
+      parsedTitle: 'Shared Blob Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoTwo, {
+      animeId,
+      parsedBasename: 'Shared Blob 2',
+      parsedTitle: 'Shared Blob Anime',
+      parsedSeason: 1,
+      parsedEpisode: 2,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    const now = Date.now();
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_media (
+        video_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_words_seen,
+        total_lines_seen,
+        total_tokens_seen,
+        completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, 1, 1000, 0, 0, 0, 0, 0, ?, ?, ?, ?)
+      `,
+    ).run(videoOne, now, now, now, now);
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_media (
+        video_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_words_seen,
+        total_lines_seen,
+        total_tokens_seen,
+        completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (?, 1, 1000, 0, 0, 0, 0, 0, ?, ?, ?, ?)
+      `,
+    ).run(videoTwo, now, now - 1, now, now);
+
+    upsertCoverArt(db, videoOne, {
+      anilistId: 42_424,
+      coverUrl: 'https://images.test/shared.jpg',
+      coverBlob: Buffer.from([1, 2, 3, 4]),
+      titleRomaji: 'Shared Blob Anime',
+      titleEnglish: 'Shared Blob Anime',
+      episodesTotal: 12,
+    });
+    upsertCoverArt(db, videoTwo, {
+      anilistId: 42_424,
+      coverUrl: 'https://images.test/shared.jpg',
+      coverBlob: Buffer.from([9, 9, 9, 9]),
+      titleRomaji: 'Shared Blob Anime',
+      titleEnglish: 'Shared Blob Anime',
+      episodesTotal: 12,
+    });
+
+    const artOne = getCoverArt(db, videoOne);
+    const artTwo = getCoverArt(db, videoTwo);
+    const animeArt = getAnimeCoverArt(db, animeId);
+    const library = getMediaLibrary(db);
+
+    assert.equal(artOne?.coverBlob?.length, 4);
+    assert.equal(artTwo?.coverBlob?.length, 4);
+    assert.deepEqual(artOne?.coverBlob, artTwo?.coverBlob);
+    assert.equal(animeArt?.coverBlob?.length, 4);
+    assert.deepEqual(
+      library.map((row) => ({
+        videoId: row.videoId,
+        hasCoverArt: row.hasCoverArt,
+      })),
+      [
+        { videoId: videoOne, hasCoverArt: 1 },
+        { videoId: videoTwo, hasCoverArt: 1 },
+      ],
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('anime/media detail and episode queries use ended-session metrics when telemetry rows are absent', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Session Metrics Anime',
+      canonicalTitle: 'Session Metrics Anime',
+      anilistId: 999_001,
+      titleRomaji: 'Session Metrics Anime',
+      titleEnglish: 'Session Metrics Anime',
+      titleNative: 'Session Metrics Anime',
+      metadataJson: null,
+    });
+    const episodeOne = getOrCreateVideoRecord(db, 'local:/tmp/session-metrics-ep1.mkv', {
+      canonicalTitle: 'Episode 1',
+      sourcePath: '/tmp/session-metrics-ep1.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const episodeTwo = getOrCreateVideoRecord(db, 'local:/tmp/session-metrics-ep2.mkv', {
+      canonicalTitle: 'Episode 2',
+      sourcePath: '/tmp/session-metrics-ep2.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    linkVideoToAnimeRecord(db, episodeOne, {
+      animeId,
+      parsedBasename: 'session-metrics-ep1.mkv',
+      parsedTitle: 'Session Metrics Anime',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":1}',
+    });
+    linkVideoToAnimeRecord(db, episodeTwo, {
+      animeId,
+      parsedBasename: 'session-metrics-ep2.mkv',
+      parsedTitle: 'Session Metrics Anime',
+      parsedSeason: 1,
+      parsedEpisode: 2,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":2}',
+    });
+
+    const now = Date.now();
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_anime (
+        anime_id, total_sessions, total_active_ms, total_cards, total_words_seen, total_lines_seen,
+        total_tokens_seen, episodes_started, episodes_completed, first_watched_ms, last_watched_ms,
+        CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(animeId, 3, 12_000, 6, 60, 24, 60, 2, 2, 1_000_000, 1_020_000, now, now);
+    db.prepare(
+      `
+      INSERT INTO imm_lifetime_media (
+        video_id, total_sessions, total_active_ms, total_cards, total_words_seen, total_lines_seen,
+        total_tokens_seen, completed, first_watched_ms, last_watched_ms, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(episodeOne, 2, 7_000, 3, 30, 12, 30, 1, 1_000_000, 1_010_000, now, now);
+
+    const s1 = startSessionRecord(db, episodeOne, 1_000_000).sessionId;
+    const s2 = startSessionRecord(db, episodeOne, 1_010_000).sessionId;
+    const s3 = startSessionRecord(db, episodeTwo, 1_020_000).sessionId;
+    const updateSession = db.prepare(
+      `
+      UPDATE imm_sessions
+      SET
+        ended_at_ms = ?,
+        status = 2,
+        active_watched_ms = ?,
+        cards_mined = ?,
+        words_seen = ?,
+        lookup_count = ?,
+        lookup_hits = ?,
+        LAST_UPDATE_DATE = ?
+      WHERE session_id = ?
+      `,
+    );
+    updateSession.run(1_001_000, 3_000, 1, 10, 4, 3, now, s1);
+    updateSession.run(1_011_000, 4_000, 2, 20, 5, 4, now, s2);
+    updateSession.run(1_021_000, 5_000, 3, 30, 6, 5, now, s3);
+
+    const animeDetail = getAnimeDetail(db, animeId);
+    assert.ok(animeDetail);
+    assert.equal(animeDetail?.totalLookupCount, 15);
+    assert.equal(animeDetail?.totalLookupHits, 12);
+
+    const episodes = getAnimeEpisodes(db, animeId);
+    assert.deepEqual(
+      episodes.map((row) => ({
+        videoId: row.videoId,
+        totalSessions: row.totalSessions,
+        totalActiveMs: row.totalActiveMs,
+        totalCards: row.totalCards,
+        totalWordsSeen: row.totalWordsSeen,
+      })),
+      [
+        {
+          videoId: episodeOne,
+          totalSessions: 2,
+          totalActiveMs: 7_000,
+          totalCards: 3,
+          totalWordsSeen: 30,
+        },
+        {
+          videoId: episodeTwo,
+          totalSessions: 1,
+          totalActiveMs: 5_000,
+          totalCards: 3,
+          totalWordsSeen: 30,
+        },
+      ],
+    );
+
+    const mediaDetail = getMediaDetail(db, episodeOne);
+    assert.ok(mediaDetail);
+    assert.equal(mediaDetail?.totalSessions, 2);
+    assert.equal(mediaDetail?.totalActiveMs, 7_000);
+    assert.equal(mediaDetail?.totalCards, 3);
+    assert.equal(mediaDetail?.totalWordsSeen, 30);
+    assert.equal(mediaDetail?.totalLookupCount, 9);
+    assert.equal(mediaDetail?.totalLookupHits, 7);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getWordOccurrences maps a normalized word back to anime, video, and subtitle line context', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -980,6 +1744,8 @@ test('getWordOccurrences maps a normalized word back to anime, video, and subtit
       {
         animeId,
         animeTitle: 'Little Witch Academia',
+        sourcePath: '/tmp/Little Witch Academia S02E04.mkv',
+        secondaryText: null,
         videoId,
         videoTitle: 'Episode 4',
         sessionId,
@@ -1053,6 +1819,8 @@ test('getKanjiOccurrences maps a kanji back to anime, video, and subtitle line c
       {
         animeId,
         animeTitle: 'Frieren',
+        sourcePath: '/tmp/[SubsPlease] Frieren - 03 - Departure.mkv',
+        secondaryText: null,
         videoId,
         videoTitle: 'Episode 3',
         sessionId,

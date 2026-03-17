@@ -125,6 +125,7 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     stats: false,
     statsCleanup: false,
     statsCleanupVocab: false,
+    statsCleanupLifetime: false,
     doctor: false,
     configPath: false,
     configShow: false,
@@ -194,6 +195,7 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
   if (invocations.statsTriggered) parsed.stats = true;
   if (invocations.statsCleanup) parsed.statsCleanup = true;
   if (invocations.statsCleanupVocab) parsed.statsCleanupVocab = true;
+  if (invocations.statsCleanupLifetime) parsed.statsCleanupLifetime = true;
   if (invocations.dictionaryTarget) {
     parsed.dictionaryTarget = parseDictionaryTarget(invocations.dictionaryTarget);
   }

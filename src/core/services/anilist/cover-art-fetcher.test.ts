@@ -234,7 +234,7 @@ test('fetchIfMissing falls back to internal parser when guessit throws', async (
     const stored = getCoverArt(db, videoId);
 
     assert.equal(fetched, true);
-    assert.equal(requestCount, 1);
+    assert.equal(requestCount, 2);
     assert.equal(stored?.anilistId, 21);
   } finally {
     globalThis.fetch = originalFetch;

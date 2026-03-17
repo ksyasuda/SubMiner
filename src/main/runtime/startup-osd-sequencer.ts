@@ -11,6 +11,7 @@ export function createStartupOsdSequencer(deps: { showOsd: (message: string) => 
   notifyCharacterDictionaryStatus: (event: StartupOsdSequencerCharacterDictionaryEvent) => void;
 } {
   let tokenizationReady = false;
+  let tokenizationWarmupCompleted = false;
   let annotationLoadingMessage: string | null = null;
   let pendingDictionaryProgress: StartupOsdSequencerCharacterDictionaryEvent | null = null;
   let pendingDictionaryFailure: StartupOsdSequencerCharacterDictionaryEvent | null = null;
@@ -39,13 +40,14 @@ export function createStartupOsdSequencer(deps: { showOsd: (message: string) => 
 
   return {
     reset: () => {
-      tokenizationReady = false;
+      tokenizationReady = tokenizationWarmupCompleted;
       annotationLoadingMessage = null;
       pendingDictionaryProgress = null;
       pendingDictionaryFailure = null;
       dictionaryProgressShown = false;
     },
     markTokenizationReady: () => {
+      tokenizationWarmupCompleted = true;
       tokenizationReady = true;
       if (annotationLoadingMessage !== null) {
         deps.showOsd(annotationLoadingMessage);

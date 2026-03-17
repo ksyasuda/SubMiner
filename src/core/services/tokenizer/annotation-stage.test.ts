@@ -150,6 +150,76 @@ test('annotateTokens handles JLPT disabled and eligibility exclusion paths', () 
   assert.equal(excludedLookupCalls, 0);
 });
 
+test('annotateTokens prioritizes name matches over n+1, frequency, and JLPT when enabled', () => {
+  let jlptLookupCalls = 0;
+  const tokens = [
+    makeToken({
+      surface: 'オリヴィア',
+      reading: 'オリヴィア',
+      headword: 'オリヴィア',
+      isNameMatch: true,
+      frequencyRank: 42,
+      startPos: 0,
+      endPos: 5,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      getJlptLevel: () => {
+        jlptLookupCalls += 1;
+        return 'N2';
+      },
+    }),
+    {
+      nameMatchEnabled: true,
+      minSentenceWordsForNPlusOne: 1,
+    },
+  );
+
+  assert.equal(result[0]?.isNameMatch, true);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.jlptLevel, undefined);
+  assert.equal(jlptLookupCalls, 0);
+});
+
+test('annotateTokens keeps other annotations for name matches when name highlighting is disabled', () => {
+  let jlptLookupCalls = 0;
+  const tokens = [
+    makeToken({
+      surface: 'オリヴィア',
+      reading: 'オリヴィア',
+      headword: 'オリヴィア',
+      isNameMatch: true,
+      frequencyRank: 42,
+      startPos: 0,
+      endPos: 5,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      getJlptLevel: () => {
+        jlptLookupCalls += 1;
+        return 'N2';
+      },
+    }),
+    {
+      nameMatchEnabled: false,
+      minSentenceWordsForNPlusOne: 1,
+    },
+  );
+
+  assert.equal(result[0]?.isNameMatch, true);
+  assert.equal(result[0]?.isNPlusOneTarget, true);
+  assert.equal(result[0]?.frequencyRank, 42);
+  assert.equal(result[0]?.jlptLevel, 'N2');
+  assert.equal(jlptLookupCalls, 1);
+});
+
 test('annotateTokens N+1 handoff marks expected target when threshold is satisfied', () => {
   const tokens = [
     makeToken({ surface: '私', headword: '私', startPos: 0, endPos: 1 }),

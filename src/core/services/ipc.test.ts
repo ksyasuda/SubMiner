@@ -290,6 +290,13 @@ test('registerIpcHandlers returns empty stats overview shape without a tracker',
     hints: {
       totalSessions: 0,
       activeSessions: 0,
+      episodesToday: 0,
+      activeAnimeCount: 0,
+      totalCards: 0,
+      totalActiveMin: 0,
+      activeDays: 0,
+      totalEpisodesWatched: 0,
+      totalAnimeCompleted: 0,
     },
   });
 });
@@ -318,6 +325,11 @@ test('registerIpcHandlers validates and clamps stats request limits', async () =
           activeSessions: 0,
           episodesToday: 0,
           activeAnimeCount: 0,
+          totalCards: 0,
+          totalActiveMin: 0,
+          activeDays: 0,
+          totalEpisodesWatched: 0,
+          totalAnimeCompleted: 0,
         }),
         getSessionTimeline: async (sessionId: number, limit = 0) => {
           calls.push(['timeline', limit, sessionId]);

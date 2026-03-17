@@ -46,6 +46,7 @@ export function ensureOverlayWindowLevel(window: BrowserWindow): void {
     window.setAlwaysOnTop(true, 'screen-saver', 1);
     window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     window.setFullScreenable(false);
+    window.moveTop();
     return;
   }
   if (process.platform === 'win32') {

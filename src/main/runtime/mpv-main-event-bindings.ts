@@ -72,7 +72,6 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       reportJellyfinRemoteStopped: () => deps.reportJellyfinRemoteStopped(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
       syncOverlayMpvSubtitleSuppression: () => deps.syncOverlayMpvSubtitleSuppression(),
-      scheduleCharacterDictionarySync: () => deps.scheduleCharacterDictionarySync?.(),
       hasInitialJellyfinPlayArg: () => deps.hasInitialJellyfinPlayArg(),
       isOverlayRuntimeInitialized: () => deps.isOverlayRuntimeInitialized(),
       isQuitOnDisconnectArmed: () => deps.isQuitOnDisconnectArmed(),
@@ -119,7 +118,6 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       resetAnilistMediaGuessState: () => deps.resetAnilistMediaGuessState(),
       notifyImmersionTitleUpdate: (title) => deps.notifyImmersionTitleUpdate(title),
       syncImmersionMediaState: () => deps.syncImmersionMediaState(),
-      scheduleCharacterDictionarySync: () => deps.scheduleCharacterDictionarySync?.(),
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });
     const handleMpvTimePosChange = createHandleMpvTimePosChangeHandler({

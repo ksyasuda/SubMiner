@@ -26,7 +26,9 @@ type RunResult = {
 };
 
 function withTempDir<T>(fn: (dir: string) => T): T {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-launcher-test-'));
+  // Keep paths short on macOS/Linux: Unix domain sockets have small path-length limits.
+  const tmpBase = process.platform === 'win32' ? os.tmpdir() : '/tmp';
+  const dir = fs.mkdtempSync(path.join(tmpBase, 'subminer-launcher-test-'));
   try {
     return fn(dir);
   } finally {
@@ -279,8 +281,8 @@ for arg in "$@"; do
       ;;
   esac
 done
-${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const socket=process.argv[1]; try { fs.rmSync(socket,{force:true}); } catch {} const server=net.createServer((conn)=>conn.end()); server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250));" "$socket_path"
-`,
+		${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const path=require('node:path'); const socket=process.argv[1]||''; try{ if(socket) fs.mkdirSync(path.dirname(socket),{recursive:true}); }catch{} try{ if(socket) fs.rmSync(socket,{force:true}); }catch{} const server=net.createServer((c)=>c.end()); server.on('error',()=>process.exit(0)); if(!socket) process.exit(0); try{ server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250)); } catch { process.exit(0); }" "$socket_path"
+		`,
       'utf8',
     );
     fs.chmodSync(path.join(binDir, 'mpv'), 0o755);
@@ -387,6 +389,54 @@ exit 0
         fs.readFileSync(capturePath, 'utf8'),
         /^--stats\n--stats-response-path\n.+\n--log-level\ndebug\n$/,
       );
+    });
+  },
+);
+
+test(
+  'stats command tolerates slower dashboard startup before timing out',
+  { timeout: 20000 },
+  () => {
+    withTempDir((root) => {
+      const homeDir = path.join(root, 'home');
+      const xdgConfigHome = path.join(root, 'xdg');
+      const appPath = path.join(root, 'fake-subminer-slow.sh');
+      fs.writeFileSync(
+        appPath,
+        `#!/bin/sh
+set -eu
+response_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--stats-response-path" ]; then
+    response_path="$arg"
+    prev=""
+    continue
+  fi
+  case "$arg" in
+    --stats-response-path=*)
+      response_path="\${arg#--stats-response-path=}"
+      ;;
+    --stats-response-path)
+      prev="--stats-response-path"
+      ;;
+  esac
+done
+sleep 9
+mkdir -p "$(dirname "$response_path")"
+printf '%s' '{"ok":true,"url":"http://127.0.0.1:5175"}' > "$response_path"
+exit 0
+`,
+      );
+      fs.chmodSync(appPath, 0o755);
+
+      const env = {
+        ...makeTestEnv(homeDir, xdgConfigHome),
+        SUBMINER_APPIMAGE_PATH: appPath,
+      };
+      const result = runLauncher(['stats'], env);
+
+      assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
     });
   },
 );

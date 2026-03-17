@@ -217,6 +217,11 @@ function createMockTracker(
       activeSessions: 1,
       episodesToday: 2,
       activeAnimeCount: 3,
+      totalEpisodesWatched: 0,
+      totalAnimeCompleted: 0,
+      totalActiveMin: 120,
+      totalCards: 0,
+      activeDays: 7,
     }),
     getSessionTimeline: async () => [],
     getSessionEvents: async () => [],
@@ -289,6 +294,10 @@ describe('stats server API routes', () => {
     assert.equal(body.hints.activeSessions, 1);
     assert.equal(body.hints.episodesToday, 2);
     assert.equal(body.hints.activeAnimeCount, 3);
+    assert.equal(body.hints.totalEpisodesWatched, 0);
+    assert.equal(body.hints.totalAnimeCompleted, 0);
+    assert.equal(body.hints.totalActiveMin, 120);
+    assert.equal(body.hints.activeDays, 7);
   });
 
   it('GET /api/stats/sessions returns session list', async () => {

@@ -9,6 +9,8 @@ import {
   createTrackerPreparedStatements,
   ensureSchema,
   executeQueuedWrite,
+  normalizeCoverBlobBytes,
+  parseCoverBlobReference,
   getOrCreateAnimeRecord,
   getOrCreateVideoRecord,
   linkVideoToAnimeRecord,
@@ -74,6 +76,7 @@ test('ensureSchema creates immersion core tables', () => {
     assert.ok(tableNames.has('imm_word_line_occurrences'));
     assert.ok(tableNames.has('imm_kanji_line_occurrences'));
     assert.ok(tableNames.has('imm_rollup_state'));
+    assert.ok(tableNames.has('imm_cover_art_blobs'));
 
     const videoColumns = new Set(
       (
@@ -92,6 +95,15 @@ test('ensureSchema creates immersion core tables', () => {
     assert.ok(videoColumns.has('parser_confidence'));
     assert.ok(videoColumns.has('parse_metadata_json'));
 
+    const mediaArtColumns = new Set(
+      (
+        db.prepare('PRAGMA table_info(imm_media_art)').all() as Array<{
+          name: string;
+        }>
+      ).map((row) => row.name),
+    );
+    assert.ok(mediaArtColumns.has('cover_blob_hash'));
+
     const rollupStateRow = db
       .prepare('SELECT state_value FROM imm_rollup_state WHERE state_key = ?')
       .get('last_rollup_sample_ms') as {
@@ -99,6 +111,33 @@ test('ensureSchema creates immersion core tables', () => {
     } | null;
     assert.ok(rollupStateRow);
     assert.equal(rollupStateRow?.state_value, 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('ensureSchema creates large-history performance indexes', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const indexNames = new Set(
+      (
+        db.prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'`).all() as Array<{
+          name: string;
+        }>
+      ).map((row) => row.name),
+    );
+
+    assert.ok(indexNames.has('idx_telemetry_sample_ms'));
+    assert.ok(indexNames.has('idx_sessions_started_at'));
+    assert.ok(indexNames.has('idx_sessions_ended_at'));
+    assert.ok(indexNames.has('idx_words_frequency'));
+    assert.ok(indexNames.has('idx_kanji_frequency'));
+    assert.ok(indexNames.has('idx_media_art_anilist_id'));
+    assert.ok(indexNames.has('idx_media_art_cover_url'));
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -434,6 +473,67 @@ test('ensureSchema adds subtitle-line occurrence tables to schema version 6 data
     assert.ok(tableNames.has('imm_subtitle_lines'));
     assert.ok(tableNames.has('imm_word_line_occurrences'));
     assert.ok(tableNames.has('imm_kanji_line_occurrences'));
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('ensureSchema migrates legacy cover art blobs into the shared blob store', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    db.prepare('UPDATE imm_schema_version SET schema_version = 12').run();
+
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/legacy-cover-art.mkv', {
+      canonicalTitle: 'Legacy Cover Art',
+      sourcePath: '/tmp/legacy-cover-art.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const legacyBlob = Uint8Array.from([0xde, 0xad, 0xbe, 0xef]);
+
+    db.prepare(
+      `
+        INSERT INTO imm_media_art (
+          video_id,
+          anilist_id,
+          cover_url,
+          cover_blob,
+          cover_blob_hash,
+          title_romaji,
+          title_english,
+          episodes_total,
+          fetched_at_ms,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(videoId, null, null, legacyBlob, null, null, null, null, 1, 1, 1);
+
+    assert.doesNotThrow(() => ensureSchema(db));
+
+    const mediaArtRow = db
+      .prepare('SELECT cover_blob AS coverBlob, cover_blob_hash AS coverBlobHash FROM imm_media_art')
+      .get() as {
+      coverBlob: ArrayBuffer | Uint8Array | Buffer | null;
+      coverBlobHash: string | null;
+    } | null;
+
+    assert.ok(mediaArtRow);
+    assert.ok(mediaArtRow?.coverBlobHash);
+    assert.equal(parseCoverBlobReference(normalizeCoverBlobBytes(mediaArtRow?.coverBlob)), mediaArtRow?.coverBlobHash);
+
+    const sharedBlobRow = db
+      .prepare('SELECT cover_blob AS coverBlob FROM imm_cover_art_blobs WHERE blob_hash = ?')
+      .get(mediaArtRow?.coverBlobHash) as {
+      coverBlob: ArrayBuffer | Uint8Array | Buffer;
+    } | null;
+
+    assert.ok(sharedBlobRow);
+    assert.equal(normalizeCoverBlobBytes(sharedBlobRow?.coverBlob)?.toString('hex'), 'deadbeef');
   } finally {
     db.close();
     cleanupDbPath(dbPath);

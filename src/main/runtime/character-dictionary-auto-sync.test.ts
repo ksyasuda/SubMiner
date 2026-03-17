@@ -83,16 +83,16 @@ test('auto sync imports merged dictionary and persists MRU state', async () => {
 
   const statePath = path.join(userDataPath, 'character-dictionaries', 'auto-sync-state.json');
   const state = JSON.parse(fs.readFileSync(statePath, 'utf8')) as {
-    activeMediaIds: number[];
+    activeMediaIds: string[];
     mergedRevision: string | null;
     mergedDictionaryTitle: string | null;
   };
-  assert.deepEqual(state.activeMediaIds, [130298]);
+  assert.deepEqual(state.activeMediaIds, ['130298 - The Eminence in Shadow']);
   assert.equal(state.mergedRevision, 'rev-1');
   assert.equal(state.mergedDictionaryTitle, 'SubMiner Character Dictionary');
   assert.deepEqual(logs, [
     '[dictionary:auto-sync] syncing current anime snapshot',
-    '[dictionary:auto-sync] active AniList media set: 130298',
+    '[dictionary:auto-sync] active AniList media set: 130298 - The Eminence in Shadow',
     '[dictionary:auto-sync] rebuilding merged dictionary for active anime set',
     '[dictionary:auto-sync] importing merged dictionary: /tmp/subminer-character-dictionary.zip',
     '[dictionary:auto-sync] applying Yomitan settings for SubMiner Character Dictionary',
@@ -212,9 +212,9 @@ test('auto sync updates MRU order without rebuilding merged dictionary when memb
 
   const statePath = path.join(userDataPath, 'character-dictionaries', 'auto-sync-state.json');
   const state = JSON.parse(fs.readFileSync(statePath, 'utf8')) as {
-    activeMediaIds: number[];
+    activeMediaIds: string[];
   };
-  assert.deepEqual(state.activeMediaIds, [1, 2]);
+  assert.deepEqual(state.activeMediaIds, ['1 - Title 1', '2 - Title 2']);
 });
 
 test('auto sync evicts least recently used media from merged set', async () => {
@@ -277,9 +277,9 @@ test('auto sync evicts least recently used media from merged set', async () => {
 
   const statePath = path.join(userDataPath, 'character-dictionaries', 'auto-sync-state.json');
   const state = JSON.parse(fs.readFileSync(statePath, 'utf8')) as {
-    activeMediaIds: number[];
+    activeMediaIds: string[];
   };
-  assert.deepEqual(state.activeMediaIds, [4, 3, 2]);
+  assert.deepEqual(state.activeMediaIds, ['4 - Title 4', '3 - Title 3', '2 - Title 2']);
 });
 
 test('auto sync keeps revisited media retained when a new title is added afterward', async () => {
@@ -344,9 +344,9 @@ test('auto sync keeps revisited media retained when a new title is added afterwa
 
   const statePath = path.join(userDataPath, 'character-dictionaries', 'auto-sync-state.json');
   const state = JSON.parse(fs.readFileSync(statePath, 'utf8')) as {
-    activeMediaIds: number[];
+    activeMediaIds: string[];
   };
-  assert.deepEqual(state.activeMediaIds, [1, 4, 3]);
+  assert.deepEqual(state.activeMediaIds, ['1 - Title 1', '4 - Title 4', '3 - Title 3']);
 });
 
 test('auto sync persists rebuilt MRU state even if Yomitan import fails afterward', async () => {
@@ -404,11 +404,11 @@ test('auto sync persists rebuilt MRU state even if Yomitan import fails afterwar
   const state = JSON.parse(
     fs.readFileSync(path.join(dictionariesDir, 'auto-sync-state.json'), 'utf8'),
   ) as {
-    activeMediaIds: number[];
+    activeMediaIds: string[];
     mergedRevision: string | null;
     mergedDictionaryTitle: string | null;
   };
-  assert.deepEqual(state.activeMediaIds, [1, 2, 3]);
+  assert.deepEqual(state.activeMediaIds, ['1 - Title 1', '2', '3']);
   assert.equal(state.mergedRevision, 'rev-1-2-3');
   assert.equal(state.mergedDictionaryTitle, 'SubMiner Character Dictionary');
 });

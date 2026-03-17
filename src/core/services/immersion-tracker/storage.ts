@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { parseMediaInfo } from '../../../jimaku/utils';
 import type { DatabaseSync } from './sqlite';
 import { SCHEMA_VERSION } from './types';
@@ -35,6 +36,92 @@ export interface VideoAnimeLinkInput {
   parserSource: string | null;
   parserConfidence: number | null;
   parseMetadataJson: string | null;
+}
+
+const COVER_BLOB_REFERENCE_PREFIX = '__subminer_cover_blob_ref__:';
+
+export type CoverBlobBytes = ArrayBuffer | Uint8Array | Buffer;
+
+export function buildCoverBlobReference(hash: string): Buffer {
+  return Buffer.from(`${COVER_BLOB_REFERENCE_PREFIX}${hash}`, 'utf8');
+}
+
+export function normalizeCoverBlobBytes(blob: CoverBlobBytes | null | undefined): Buffer | null {
+  if (!blob) {
+    return null;
+  }
+  if (Buffer.isBuffer(blob)) {
+    return blob;
+  }
+  if (blob instanceof ArrayBuffer) {
+    return Buffer.from(blob);
+  }
+  return Buffer.from(blob.buffer, blob.byteOffset, blob.byteLength);
+}
+
+export function parseCoverBlobReference(blob: CoverBlobBytes | null | undefined): string | null {
+  const normalizedBlob = normalizeCoverBlobBytes(blob);
+  if (!normalizedBlob || normalizedBlob.length === 0) {
+    return null;
+  }
+  const value = normalizedBlob.toString('utf8');
+  if (!value.startsWith(COVER_BLOB_REFERENCE_PREFIX)) {
+    return null;
+  }
+  const hash = value.slice(COVER_BLOB_REFERENCE_PREFIX.length);
+  return hash.length > 0 ? hash : null;
+}
+
+function deduplicateExistingCoverArtRows(db: DatabaseSync): void {
+  const rows = db
+    .prepare(
+      `
+        SELECT video_id, cover_blob, cover_blob_hash
+        FROM imm_media_art
+        WHERE cover_blob IS NOT NULL
+      `,
+    )
+    .all() as Array<{
+    video_id: number;
+    cover_blob: CoverBlobBytes | null;
+    cover_blob_hash: string | null;
+  }>;
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  const nowMs = Date.now();
+  const upsertBlobStmt = db.prepare(`
+    INSERT INTO imm_cover_art_blobs (blob_hash, cover_blob, CREATED_DATE, LAST_UPDATE_DATE)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(blob_hash) DO UPDATE SET
+      LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
+  `);
+  const updateMediaStmt = db.prepare(`
+    UPDATE imm_media_art
+    SET cover_blob = ?, cover_blob_hash = ?, LAST_UPDATE_DATE = ?
+    WHERE video_id = ?
+  `);
+
+  for (const row of rows) {
+    const coverBlob = normalizeCoverBlobBytes(row.cover_blob);
+    if (!coverBlob || coverBlob.length === 0) {
+      continue;
+    }
+
+    const refHash = parseCoverBlobReference(coverBlob);
+    if (refHash) {
+      if (row.cover_blob_hash !== refHash) {
+        updateMediaStmt.run(coverBlob, refHash, nowMs, row.video_id);
+      }
+      continue;
+    }
+
+    const hash = createHash('sha256').update(coverBlob).digest('hex');
+    upsertBlobStmt.run(hash, coverBlob, nowMs, nowMs);
+    updateMediaStmt.run(buildCoverBlobReference(hash), hash, nowMs, row.video_id);
+  }
 }
 
 function hasColumn(db: DatabaseSync, tableName: string, columnName: string): boolean {
@@ -145,6 +232,102 @@ function parseLegacyAnimeBackfillCandidate(
       migrationSource: 'canonical_title',
     }),
   };
+}
+
+function ensureLifetimeSummaryTables(db: DatabaseSync): void {
+  const nowMs = Date.now();
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_lifetime_global(
+      global_id INTEGER PRIMARY KEY CHECK(global_id = 1),
+      total_sessions INTEGER NOT NULL DEFAULT 0,
+      total_active_ms INTEGER NOT NULL DEFAULT 0,
+      total_cards INTEGER NOT NULL DEFAULT 0,
+      active_days INTEGER NOT NULL DEFAULT 0,
+      episodes_started INTEGER NOT NULL DEFAULT 0,
+      episodes_completed INTEGER NOT NULL DEFAULT 0,
+      anime_completed INTEGER NOT NULL DEFAULT 0,
+      last_rebuilt_ms INTEGER,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER
+    )
+  `);
+
+  db.exec(`
+    INSERT INTO imm_lifetime_global(
+      global_id,
+      total_sessions,
+      total_active_ms,
+      total_cards,
+      active_days,
+      episodes_started,
+      episodes_completed,
+      anime_completed,
+      last_rebuilt_ms,
+      CREATED_DATE,
+      LAST_UPDATE_DATE
+    )
+    SELECT
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      NULL,
+      ${nowMs},
+      ${nowMs}
+    WHERE NOT EXISTS (SELECT 1 FROM imm_lifetime_global LIMIT 1)
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_lifetime_anime(
+      anime_id INTEGER PRIMARY KEY,
+      total_sessions INTEGER NOT NULL DEFAULT 0,
+      total_active_ms INTEGER NOT NULL DEFAULT 0,
+      total_cards INTEGER NOT NULL DEFAULT 0,
+      total_words_seen INTEGER NOT NULL DEFAULT 0,
+      total_lines_seen INTEGER NOT NULL DEFAULT 0,
+      total_tokens_seen INTEGER NOT NULL DEFAULT 0,
+      episodes_started INTEGER NOT NULL DEFAULT 0,
+      episodes_completed INTEGER NOT NULL DEFAULT 0,
+      first_watched_ms INTEGER,
+      last_watched_ms INTEGER,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER,
+      FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_lifetime_media(
+      video_id INTEGER PRIMARY KEY,
+      total_sessions INTEGER NOT NULL DEFAULT 0,
+      total_active_ms INTEGER NOT NULL DEFAULT 0,
+      total_cards INTEGER NOT NULL DEFAULT 0,
+      total_words_seen INTEGER NOT NULL DEFAULT 0,
+      total_lines_seen INTEGER NOT NULL DEFAULT 0,
+      total_tokens_seen INTEGER NOT NULL DEFAULT 0,
+      completed INTEGER NOT NULL DEFAULT 0,
+      first_watched_ms INTEGER,
+      last_watched_ms INTEGER,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER,
+      FOREIGN KEY(video_id) REFERENCES imm_videos(video_id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_lifetime_applied_sessions(
+      session_id INTEGER PRIMARY KEY,
+      applied_at_ms INTEGER NOT NULL,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER,
+      FOREIGN KEY(session_id) REFERENCES imm_sessions(session_id) ON DELETE CASCADE
+    )
+  `);
 }
 
 export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput): number {
@@ -328,6 +511,7 @@ export function ensureSchema(db: DatabaseSync): void {
     .prepare('SELECT schema_version FROM imm_schema_version ORDER BY schema_version DESC LIMIT 1')
     .get() as { schema_version: number } | null;
   if (currentVersion?.schema_version === SCHEMA_VERSION) {
+    ensureLifetimeSummaryTables(db);
     return;
   }
 
@@ -385,6 +569,19 @@ export function ensureSchema(db: DatabaseSync): void {
       status INTEGER NOT NULL,
       locale_id INTEGER, target_lang_id INTEGER,
       difficulty_tier INTEGER, subtitle_mode INTEGER,
+      total_watched_ms INTEGER NOT NULL DEFAULT 0,
+      active_watched_ms INTEGER NOT NULL DEFAULT 0,
+      lines_seen INTEGER NOT NULL DEFAULT 0,
+      words_seen INTEGER NOT NULL DEFAULT 0,
+      tokens_seen INTEGER NOT NULL DEFAULT 0,
+      cards_mined INTEGER NOT NULL DEFAULT 0,
+      lookup_count INTEGER NOT NULL DEFAULT 0,
+      lookup_hits INTEGER NOT NULL DEFAULT 0,
+      pause_count INTEGER NOT NULL DEFAULT 0,
+      pause_ms INTEGER NOT NULL DEFAULT 0,
+      seek_forward_count INTEGER NOT NULL DEFAULT 0,
+      seek_backward_count INTEGER NOT NULL DEFAULT 0,
+      media_buffer_events INTEGER NOT NULL DEFAULT 0,
       CREATED_DATE INTEGER,
       LAST_UPDATE_DATE INTEGER,
       FOREIGN KEY(video_id) REFERENCES imm_videos(video_id)
@@ -536,6 +733,7 @@ export function ensureSchema(db: DatabaseSync): void {
       anilist_id INTEGER,
       cover_url TEXT,
       cover_blob BLOB,
+      cover_blob_hash TEXT,
       title_romaji TEXT,
       title_english TEXT,
       episodes_total INTEGER,
@@ -543,6 +741,14 @@ export function ensureSchema(db: DatabaseSync): void {
       CREATED_DATE INTEGER,
       LAST_UPDATE_DATE INTEGER,
       FOREIGN KEY(video_id) REFERENCES imm_videos(video_id) ON DELETE CASCADE
+    );
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_cover_art_blobs(
+      blob_hash TEXT PRIMARY KEY,
+      cover_blob BLOB NOT NULL,
+      CREATED_DATE INTEGER,
+      LAST_UPDATE_DATE INTEGER
     );
   `);
 
@@ -681,6 +887,134 @@ export function ensureSchema(db: DatabaseSync): void {
     addColumnIfMissing(db, 'imm_subtitle_lines', 'secondary_text', 'TEXT');
   }
 
+  if (currentVersion?.schema_version && currentVersion.schema_version < 11) {
+    addColumnIfMissing(db, 'imm_sessions', 'total_watched_ms', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'active_watched_ms', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'lines_seen', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'words_seen', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'tokens_seen', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'cards_mined', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'lookup_count', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'lookup_hits', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'pause_count', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'pause_ms', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'seek_forward_count', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'seek_backward_count', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(db, 'imm_sessions', 'media_buffer_events', 'INTEGER NOT NULL DEFAULT 0');
+
+    db.exec(`
+      UPDATE imm_sessions
+      SET
+        total_watched_ms = COALESCE((
+          SELECT t.total_watched_ms
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), total_watched_ms),
+        active_watched_ms = COALESCE((
+          SELECT t.active_watched_ms
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), active_watched_ms),
+        lines_seen = COALESCE((
+          SELECT t.lines_seen
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), lines_seen),
+        words_seen = COALESCE((
+          SELECT t.words_seen
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), words_seen),
+        tokens_seen = COALESCE((
+          SELECT t.tokens_seen
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), tokens_seen),
+        cards_mined = COALESCE((
+          SELECT t.cards_mined
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), cards_mined),
+        lookup_count = COALESCE((
+          SELECT t.lookup_count
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), lookup_count),
+        lookup_hits = COALESCE((
+          SELECT t.lookup_hits
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), lookup_hits),
+        pause_count = COALESCE((
+          SELECT t.pause_count
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), pause_count),
+        pause_ms = COALESCE((
+          SELECT t.pause_ms
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), pause_ms),
+        seek_forward_count = COALESCE((
+          SELECT t.seek_forward_count
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), seek_forward_count),
+        seek_backward_count = COALESCE((
+          SELECT t.seek_backward_count
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), seek_backward_count),
+        media_buffer_events = COALESCE((
+          SELECT t.media_buffer_events
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), media_buffer_events)
+      WHERE ended_at_ms IS NOT NULL
+    `);
+  }
+
+  if (currentVersion?.schema_version && currentVersion.schema_version < 13) {
+    addColumnIfMissing(db, 'imm_media_art', 'cover_blob_hash', 'TEXT');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS imm_cover_art_blobs(
+        blob_hash TEXT PRIMARY KEY,
+        cover_blob BLOB NOT NULL,
+        CREATED_DATE INTEGER,
+        LAST_UPDATE_DATE INTEGER
+      )
+    `);
+    deduplicateExistingCoverArtRows(db);
+  }
+
+  ensureLifetimeSummaryTables(db);
+
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_anime_normalized_title
     ON imm_anime(normalized_title_key)
@@ -702,8 +1036,20 @@ export function ensureSchema(db: DatabaseSync): void {
     ON imm_sessions(status, started_at_ms DESC)
   `);
   db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_sessions_started_at
+    ON imm_sessions(started_at_ms DESC)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_sessions_ended_at
+    ON imm_sessions(ended_at_ms DESC)
+  `);
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_telemetry_session_sample
     ON imm_session_telemetry(session_id, sample_ms DESC)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_telemetry_sample_ms
+    ON imm_session_telemetry(sample_ms DESC)
   `);
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_events_session_ts
@@ -726,8 +1072,16 @@ export function ensureSchema(db: DatabaseSync): void {
     ON imm_words(headword, word, reading)
   `);
   db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_words_frequency
+    ON imm_words(frequency DESC)
+  `);
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_kanji_kanji
     ON imm_kanji(kanji)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_kanji_frequency
+    ON imm_kanji(frequency DESC)
   `);
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_subtitle_lines_session_line
@@ -748,6 +1102,18 @@ export function ensureSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_kanji_line_occurrences_kanji
     ON imm_kanji_line_occurrences(kanji_id, line_id)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_media_art_cover_blob_hash
+    ON imm_media_art(cover_blob_hash)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_media_art_anilist_id
+    ON imm_media_art(anilist_id)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_media_art_cover_url
+    ON imm_media_art(cover_url)
   `);
 
   if (currentVersion?.schema_version && currentVersion.schema_version < SCHEMA_VERSION) {

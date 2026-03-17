@@ -236,9 +236,11 @@ test('computeWordClass preserves known and n+1 classes while adding JLPT classes
   assert.equal(computeWordClass(nPlusOneJlpt), 'word word-n-plus-one word-jlpt-n2');
 });
 
-test('computeWordClass applies name-match class ahead of known and frequency classes', () => {
+test('computeWordClass applies name-match class ahead of known, n+1, frequency, and JLPT classes', () => {
   const token = createToken({
     isKnown: true,
+    isNPlusOneTarget: true,
+    jlptLevel: 'N2',
     frequencyRank: 10,
     surface: 'アクア',
   }) as MergedToken & { isNameMatch?: boolean };
@@ -511,19 +513,29 @@ test('getFrequencyRankLabelForToken returns rank only for frequency-colored toke
   const knownToken = createToken({ surface: '既知', isKnown: true, frequencyRank: 20 });
   const nPlusOneToken = createToken({ surface: '目標', isNPlusOneTarget: true, frequencyRank: 20 });
   const outOfRangeToken = createToken({ surface: '圏外', frequencyRank: 1000 });
+  const nameToken = createToken({ surface: 'アクア', frequencyRank: 20 }) as MergedToken & {
+    isNameMatch?: boolean;
+  };
+  nameToken.isNameMatch = true;
 
   assert.equal(getFrequencyRankLabelForToken(frequencyToken, settings), '20');
   assert.equal(getFrequencyRankLabelForToken(knownToken, settings), '20');
   assert.equal(getFrequencyRankLabelForToken(nPlusOneToken, settings), '20');
   assert.equal(getFrequencyRankLabelForToken(outOfRangeToken, settings), null);
+  assert.equal(getFrequencyRankLabelForToken(nameToken, { ...settings, nameMatchEnabled: true }), null);
 });
 
 test('getJlptLevelLabelForToken returns level when token has jlpt metadata', () => {
   const jlptToken = createToken({ surface: '語彙', jlptLevel: 'N2' });
   const noJlptToken = createToken({ surface: '語彙' });
+  const nameToken = createToken({ surface: 'アクア', jlptLevel: 'N5' }) as MergedToken & {
+    isNameMatch?: boolean;
+  };
+  nameToken.isNameMatch = true;
 
   assert.equal(getJlptLevelLabelForToken(jlptToken), 'N2');
   assert.equal(getJlptLevelLabelForToken(noJlptToken), null);
+  assert.equal(getJlptLevelLabelForToken(nameToken, { nameMatchEnabled: true }), null);
 });
 
 test('sanitizeSubtitleHoverTokenColor falls back for pure black values', () => {

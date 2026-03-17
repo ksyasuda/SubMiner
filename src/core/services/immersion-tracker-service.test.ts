@@ -184,6 +184,595 @@ test('destroy finalizes active session and persists final telemetry', async () =
   }
 });
 
+test('finalize updates lifetime summary rows from final session metrics', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      sessionState: { sessionId: number; videoId: number } | null;
+    };
+    const sessionId = privateApi.sessionState?.sessionId;
+    const videoId = privateApi.sessionState?.videoId;
+    assert.ok(sessionId);
+    assert.ok(videoId);
+
+    tracker.recordCardsMined(2);
+    tracker.recordSubtitleLine('today is bright', 0, 1.2);
+    tracker.recordLookup(true);
+
+    tracker.destroy();
+
+    const db = new Database(dbPath);
+    const globalRow = db
+      .prepare('SELECT total_sessions, total_cards, total_active_ms FROM imm_lifetime_global')
+      .get() as {
+      total_sessions: number;
+      total_cards: number;
+      total_active_ms: number;
+    } | null;
+    const mediaRow = db
+      .prepare(
+        'SELECT total_sessions, total_cards, total_active_ms, total_words_seen, total_lines_seen FROM imm_lifetime_media WHERE video_id = ?',
+      )
+      .get(videoId) as {
+      total_sessions: number;
+      total_cards: number;
+      total_active_ms: number;
+      total_words_seen: number;
+      total_lines_seen: number;
+    } | null;
+    const animeIdRow = db
+      .prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { anime_id: number | null } | null;
+    const animeRow = animeIdRow?.anime_id
+      ? (db
+          .prepare('SELECT total_sessions, total_cards FROM imm_lifetime_anime WHERE anime_id = ?')
+          .get(animeIdRow.anime_id) as {
+          total_sessions: number;
+          total_cards: number;
+        } | null)
+      : null;
+    const appliedRow = db
+      .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_applied_sessions WHERE session_id = ?')
+      .get(sessionId) as {
+      total: number;
+    } | null;
+    db.close();
+
+    assert.ok(globalRow);
+    assert.equal(globalRow?.total_sessions, 1);
+    assert.equal(globalRow?.total_cards, 2);
+    assert.ok(Number(globalRow?.total_active_ms ?? 0) >= 0);
+    assert.ok(mediaRow);
+    assert.equal(mediaRow?.total_sessions, 1);
+    assert.equal(mediaRow?.total_cards, 2);
+    assert.equal(mediaRow?.total_lines_seen, 1);
+    assert.ok(animeRow);
+    assert.equal(animeRow?.total_sessions, 1);
+    assert.equal(animeRow?.total_cards, 2);
+    assert.equal(appliedRow?.total, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('lifetime updates are not double-counted if finalize runs multiple times', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E06.mkv', 'Episode 6');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      finalizeActiveSession: () => void;
+      sessionState: { sessionId: number; videoId: number } | null;
+    };
+    const sessionState = privateApi.sessionState;
+    const sessionId = sessionState?.sessionId;
+    assert.ok(sessionId);
+
+    tracker.recordCardsMined(3);
+    privateApi.finalizeActiveSession();
+    privateApi.sessionState = sessionState;
+    privateApi.finalizeActiveSession();
+
+    const db = new Database(dbPath);
+    const globalRow = db
+      .prepare('SELECT total_sessions, total_cards FROM imm_lifetime_global')
+      .get() as {
+      total_sessions: number;
+      total_cards: number;
+    } | null;
+    const appliedRow = db
+      .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_applied_sessions WHERE session_id = ?')
+      .get(sessionId) as {
+      total: number;
+    } | null;
+    db.close();
+
+    assert.ok(globalRow);
+    assert.equal(globalRow?.total_sessions, 1);
+    assert.equal(globalRow?.total_cards, 3);
+    assert.equal(appliedRow?.total, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('lifetime counters use distinct-day and distinct-video semantics', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+    let privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { sessionId: number; videoId: number } | null;
+    };
+    const firstVideoId = privateApi.sessionState?.videoId;
+    assert.ok(firstVideoId);
+    const animeId = (
+      privateApi.db
+        .prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?')
+        .get(firstVideoId) as {
+        anime_id: number | null;
+      } | null
+    )?.anime_id;
+    assert.ok(animeId);
+    privateApi.db
+      .prepare('UPDATE imm_anime SET episodes_total = 2 WHERE anime_id = ?')
+      .run(animeId);
+    await tracker.setVideoWatched(firstVideoId, true);
+    tracker.destroy();
+
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+    privateApi = tracker as unknown as typeof privateApi;
+    const repeatedSessionApi = tracker as unknown as {
+      sessionState: { sessionId: number; videoId: number } | null;
+    };
+    const repeatedVideoId = repeatedSessionApi.sessionState?.videoId;
+    assert.equal(repeatedVideoId, firstVideoId);
+    await tracker.setVideoWatched(repeatedVideoId, true);
+    tracker.destroy();
+
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E06.mkv', 'Episode 6');
+    await waitForPendingAnimeMetadata(tracker);
+    privateApi = tracker as unknown as typeof privateApi;
+    const secondSessionApi = tracker as unknown as {
+      sessionState: { sessionId: number; videoId: number } | null;
+    };
+    const secondVideoId = secondSessionApi.sessionState?.videoId;
+    assert.ok(secondVideoId);
+    assert.ok(secondVideoId !== firstVideoId);
+    await tracker.setVideoWatched(secondVideoId, true);
+    tracker.destroy();
+
+    const db = new Database(dbPath);
+    const globalRow = db
+      .prepare(
+        'SELECT total_sessions, active_days, episodes_started, episodes_completed, anime_completed FROM imm_lifetime_global',
+      )
+      .get() as {
+      total_sessions: number;
+      active_days: number;
+      episodes_started: number;
+      episodes_completed: number;
+      anime_completed: number;
+    } | null;
+    const firstMediaRow = db
+      .prepare('SELECT completed FROM imm_lifetime_media WHERE video_id = ?')
+      .get(firstVideoId) as { completed: number } | null;
+    const secondMediaRow = db
+      .prepare('SELECT completed FROM imm_lifetime_media WHERE video_id = ?')
+      .get(secondVideoId) as { completed: number } | null;
+    const animeRow = db
+      .prepare(
+        'SELECT episodes_started, episodes_completed FROM imm_lifetime_anime WHERE anime_id = ?',
+      )
+      .get(animeId) as { episodes_started: number; episodes_completed: number } | null;
+    db.close();
+
+    assert.ok(globalRow);
+    assert.equal(globalRow?.total_sessions, 3);
+    assert.equal(globalRow?.active_days, 1);
+    assert.equal(globalRow?.episodes_started, 2);
+    assert.equal(globalRow?.episodes_completed, 2);
+    assert.equal(globalRow?.anime_completed, 1);
+    assert.ok(firstMediaRow);
+    assert.equal(firstMediaRow?.completed, 1);
+    assert.ok(secondMediaRow);
+    assert.equal(secondMediaRow?.completed, 1);
+    assert.ok(animeRow);
+    assert.equal(animeRow?.episodes_started, 2);
+    assert.equal(animeRow?.episodes_completed, 2);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('rebuildLifetimeSummaries backfills retained ended sessions and resets stale lifetime rows', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+    const firstApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { videoId: number } | null;
+    };
+    const firstVideoId = firstApi.sessionState?.videoId;
+    if (firstVideoId == null) {
+      throw new Error('Expected first session video id');
+    }
+    const animeId = (
+      firstApi.db
+        .prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?')
+        .get(firstVideoId) as {
+        anime_id: number | null;
+      } | null
+    )?.anime_id;
+    assert.ok(animeId);
+    firstApi.db.prepare('UPDATE imm_anime SET episodes_total = 2 WHERE anime_id = ?').run(animeId);
+    tracker.recordCardsMined(2);
+    await tracker.setVideoWatched(firstVideoId, true);
+    tracker.destroy();
+
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E06.mkv', 'Episode 6');
+    await waitForPendingAnimeMetadata(tracker);
+    const secondApi = tracker as unknown as {
+      sessionState: { videoId: number } | null;
+    };
+    const secondVideoId = secondApi.sessionState?.videoId;
+    if (secondVideoId == null) {
+      throw new Error('Expected second session video id');
+    }
+    tracker.recordCardsMined(1);
+    await tracker.setVideoWatched(secondVideoId, true);
+    tracker.destroy();
+
+    tracker = new Ctor({ dbPath });
+    const rebuildApi = tracker as unknown as { db: DatabaseSync };
+    rebuildApi.db
+      .prepare(
+        `
+      UPDATE imm_lifetime_global
+      SET
+        total_sessions = 99,
+        total_cards = 77,
+        episodes_started = 88,
+        episodes_completed = 66
+      WHERE global_id = 1
+      `,
+      )
+      .run();
+    rebuildApi.db.exec(`
+      DELETE FROM imm_lifetime_media;
+      DELETE FROM imm_lifetime_anime;
+      DELETE FROM imm_lifetime_applied_sessions;
+    `);
+
+    const rebuild = await tracker.rebuildLifetimeSummaries();
+
+    const globalRow = rebuildApi.db
+      .prepare(
+        'SELECT total_sessions, total_cards, episodes_started, episodes_completed, anime_completed, last_rebuilt_ms FROM imm_lifetime_global WHERE global_id = 1',
+      )
+      .get() as {
+      total_sessions: number;
+      total_cards: number;
+      episodes_started: number;
+      episodes_completed: number;
+      anime_completed: number;
+      last_rebuilt_ms: number | null;
+    } | null;
+    const appliedSessions = rebuildApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_applied_sessions')
+      .get() as { total: number } | null;
+
+    assert.equal(rebuild.appliedSessions, 2);
+    assert.ok(rebuild.rebuiltAtMs > 0);
+    assert.ok(globalRow);
+    assert.equal(globalRow?.total_sessions, 2);
+    assert.equal(globalRow?.total_cards, 3);
+    assert.equal(globalRow?.episodes_started, 2);
+    assert.equal(globalRow?.episodes_completed, 2);
+    assert.equal(globalRow?.anime_completed, 1);
+    assert.equal(globalRow?.last_rebuilt_ms, rebuild.rebuiltAtMs);
+    assert.equal(appliedSessions?.total, 2);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('fresh tracker DB creates lifetime summary tables', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    const db = new Database(dbPath);
+    const tableRows = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+      .all() as Array<{ name: string }>;
+    db.close();
+
+    const tableNames = new Set(tableRows.map((row) => row.name));
+    const expectedTables = [
+      'imm_lifetime_global',
+      'imm_lifetime_anime',
+      'imm_lifetime_media',
+      'imm_lifetime_applied_sessions',
+    ];
+
+    for (const tableName of expectedTables) {
+      assert.ok(tableNames.has(tableName), `Expected ${tableName} to exist`);
+    }
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('startup backfills lifetime summaries when retained sessions exist but summary tables are empty', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/KonoSuba S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+    tracker.recordCardsMined(2);
+    tracker.destroy();
+
+    const db = new Database(dbPath);
+    db.exec(`
+      DELETE FROM imm_lifetime_media;
+      DELETE FROM imm_lifetime_anime;
+      DELETE FROM imm_lifetime_applied_sessions;
+      UPDATE imm_lifetime_global
+      SET
+        total_sessions = 0,
+        total_active_ms = 0,
+        total_cards = 0,
+        active_days = 0,
+        episodes_started = 0,
+        episodes_completed = 0,
+        anime_completed = 0
+      WHERE global_id = 1;
+    `);
+    db.close();
+
+    tracker = new Ctor({ dbPath });
+    const trackerApi = tracker as unknown as { db: DatabaseSync };
+    const globalRow = trackerApi.db
+      .prepare(
+        'SELECT total_sessions, total_cards, active_days FROM imm_lifetime_global WHERE global_id = 1',
+      )
+      .get() as {
+      total_sessions: number;
+      total_cards: number;
+      active_days: number;
+    } | null;
+    const mediaRows = trackerApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_media')
+      .get() as { total: number } | null;
+    const appliedRows = trackerApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_applied_sessions')
+      .get() as { total: number } | null;
+
+    assert.ok(globalRow);
+    assert.equal(globalRow?.total_sessions, 1);
+    assert.equal(globalRow?.total_cards, 2);
+    assert.equal(globalRow?.active_days, 1);
+    assert.equal(mediaRows?.total, 1);
+    assert.equal(appliedRows?.total, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('startup finalizes stale active sessions and applies lifetime summaries', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const trackerApi = tracker as unknown as { db: DatabaseSync };
+    const db = trackerApi.db;
+    const startedAtMs = Date.now() - 10_000;
+    const sampleMs = startedAtMs + 5_000;
+
+    db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        canonical_title,
+        normalized_title_key,
+        episodes_total,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'KonoSuba',
+        'konosuba',
+        10,
+        ${startedAtMs},
+        ${startedAtMs}
+      );
+
+      INSERT INTO imm_videos (
+        video_id,
+        video_key,
+        canonical_title,
+        anime_id,
+        watched,
+        source_type,
+        duration_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'local:/tmp/konosuba-s02e05.mkv',
+        'KonoSuba S02E05',
+        1,
+        1,
+        1,
+        0,
+        ${startedAtMs},
+        ${startedAtMs}
+      );
+
+      INSERT INTO imm_sessions (
+        session_id,
+        session_uuid,
+        video_id,
+        started_at_ms,
+        status,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        '11111111-1111-1111-1111-111111111111',
+        1,
+        ${startedAtMs},
+        1,
+        ${startedAtMs},
+        ${sampleMs}
+      );
+
+      INSERT INTO imm_session_telemetry (
+        session_id,
+        sample_ms,
+        total_watched_ms,
+        active_watched_ms,
+        lines_seen,
+        words_seen,
+        tokens_seen,
+        cards_mined,
+        lookup_count,
+        lookup_hits,
+        pause_count,
+        pause_ms,
+        seek_forward_count,
+        seek_backward_count,
+        media_buffer_events
+      ) VALUES (
+        1,
+        ${sampleMs},
+        5000,
+        4000,
+        12,
+        90,
+        120,
+        2,
+        5,
+        3,
+        1,
+        250,
+        1,
+        0,
+        0
+      );
+    `);
+
+    tracker.destroy();
+    tracker = new Ctor({ dbPath });
+
+    const restartedApi = tracker as unknown as { db: DatabaseSync };
+    const sessionRow = restartedApi.db
+      .prepare(
+        `
+          SELECT ended_at_ms, status, active_watched_ms, words_seen, cards_mined
+          FROM imm_sessions
+          WHERE session_id = 1
+        `,
+      )
+      .get() as {
+      ended_at_ms: number | null;
+      status: number;
+      active_watched_ms: number;
+      words_seen: number;
+      cards_mined: number;
+    } | null;
+    const globalRow = restartedApi.db
+      .prepare(
+        `
+          SELECT total_sessions, total_active_ms, total_cards, active_days, episodes_started,
+                 episodes_completed
+          FROM imm_lifetime_global
+          WHERE global_id = 1
+        `,
+      )
+      .get() as {
+      total_sessions: number;
+      total_active_ms: number;
+      total_cards: number;
+      active_days: number;
+      episodes_started: number;
+      episodes_completed: number;
+    } | null;
+    const mediaRows = restartedApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_media')
+      .get() as { total: number } | null;
+    const animeRows = restartedApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_anime')
+      .get() as { total: number } | null;
+    const appliedRows = restartedApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_lifetime_applied_sessions')
+      .get() as { total: number } | null;
+
+    assert.ok(sessionRow);
+    assert.ok(Number(sessionRow?.ended_at_ms ?? 0) >= sampleMs);
+    assert.equal(sessionRow?.status, 2);
+    assert.equal(sessionRow?.active_watched_ms, 4000);
+    assert.equal(sessionRow?.words_seen, 90);
+    assert.equal(sessionRow?.cards_mined, 2);
+
+    assert.ok(globalRow);
+    assert.equal(globalRow?.total_sessions, 1);
+    assert.equal(globalRow?.total_active_ms, 4000);
+    assert.equal(globalRow?.total_cards, 2);
+    assert.equal(globalRow?.active_days, 1);
+    assert.equal(globalRow?.episodes_started, 1);
+    assert.equal(globalRow?.episodes_completed, 1);
+    assert.equal(mediaRows?.total, 1);
+    assert.equal(animeRows?.total, 1);
+    assert.equal(appliedRows?.total, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('persists and retrieves minimum immersion tracking fields', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -420,6 +1009,50 @@ test('recordSubtitleLine persists counted allowed tokenized vocabulary rows and 
   }
 });
 
+test('subtitle-line event payload omits duplicated subtitle text', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/payload-dup-test.mkv', 'Payload Dup Test');
+    tracker.recordSubtitleLine('same line text', 0, 1);
+
+    const privateApi = tracker as unknown as {
+      flushTelemetry: (force?: boolean) => void;
+      flushNow: () => void;
+      db: DatabaseSync;
+    };
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    const row = privateApi.db
+      .prepare(
+        `
+          SELECT payload_json AS payloadJson
+          FROM imm_session_events
+          WHERE event_type = ?
+          ORDER BY event_id DESC
+          LIMIT 1
+        `,
+      )
+      .get(1) as { payloadJson: string | null } | null;
+    assert.ok(row?.payloadJson);
+    const parsed = JSON.parse(row?.payloadJson ?? '{}') as {
+      event?: string;
+      words?: number;
+      text?: string;
+    };
+    assert.equal(parsed.event, 'subtitle-line');
+    assert.equal(typeof parsed.words, 'number');
+    assert.equal('text' in parsed, false);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('handleMediaChange links parsed anime metadata on the active video row', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -572,6 +1205,7 @@ test('applies configurable queue, flush, and retention policy', async () => {
         retention: {
           eventsDays: 14,
           telemetryDays: 45,
+          sessionsDays: 60,
           dailyRollupsDays: 730,
           monthlyRollupsDays: 3650,
           vacuumIntervalDays: 14,
@@ -587,6 +1221,7 @@ test('applies configurable queue, flush, and retention policy', async () => {
       maintenanceIntervalMs: number;
       eventsRetentionMs: number;
       telemetryRetentionMs: number;
+      sessionsRetentionMs: number;
       dailyRollupRetentionMs: number;
       monthlyRollupRetentionMs: number;
       vacuumIntervalMs: number;
@@ -599,9 +1234,184 @@ test('applies configurable queue, flush, and retention policy', async () => {
     assert.equal(privateApi.maintenanceIntervalMs, 7_200_000);
     assert.equal(privateApi.eventsRetentionMs, 14 * 86_400_000);
     assert.equal(privateApi.telemetryRetentionMs, 45 * 86_400_000);
+    assert.equal(privateApi.sessionsRetentionMs, 60 * 86_400_000);
     assert.equal(privateApi.dailyRollupRetentionMs, 730 * 86_400_000);
     assert.equal(privateApi.monthlyRollupRetentionMs, 3650 * 86_400_000);
     assert.equal(privateApi.vacuumIntervalMs, 14 * 86_400_000);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('zero retention days disables prune checks while preserving rollups', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({
+      dbPath,
+      policy: {
+        retention: {
+          eventsDays: 0,
+          telemetryDays: 0,
+          sessionsDays: 0,
+          dailyRollupsDays: 0,
+          monthlyRollupsDays: 0,
+          vacuumIntervalDays: 0,
+        },
+      },
+    });
+
+    const privateApi = tracker as unknown as {
+      runMaintenance: () => void;
+      db: DatabaseSync;
+      eventsRetentionMs: number;
+      telemetryRetentionMs: number;
+      sessionsRetentionMs: number;
+      dailyRollupRetentionMs: number;
+      monthlyRollupRetentionMs: number;
+      vacuumIntervalMs: number;
+      lastVacuumMs: number;
+    };
+
+    assert.equal(privateApi.eventsRetentionMs, Number.POSITIVE_INFINITY);
+    assert.equal(privateApi.telemetryRetentionMs, Number.POSITIVE_INFINITY);
+    assert.equal(privateApi.sessionsRetentionMs, Number.POSITIVE_INFINITY);
+    assert.equal(privateApi.dailyRollupRetentionMs, Number.POSITIVE_INFINITY);
+    assert.equal(privateApi.monthlyRollupRetentionMs, Number.POSITIVE_INFINITY);
+    assert.equal(privateApi.vacuumIntervalMs, Number.POSITIVE_INFINITY);
+    assert.equal(privateApi.lastVacuumMs, 0);
+
+    const nowMs = Date.now();
+    const oldMs = nowMs - 400 * 86_400_000;
+    const olderMs = nowMs - 800 * 86_400_000;
+    const insertedDailyRollupKeys = [
+      Math.floor(olderMs / 86_400_000) - 10,
+      Math.floor(oldMs / 86_400_000) - 5,
+    ];
+    const insertedMonthlyRollupKeys = [
+      toMonthKey(olderMs - 400 * 86_400_000),
+      toMonthKey(oldMs - 700 * 86_400_000),
+    ];
+
+    privateApi.db.exec(`
+      INSERT INTO imm_videos (
+        video_id,
+        video_key,
+        canonical_title,
+        source_type,
+        duration_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'local:/tmp/video.mkv',
+        'Episode',
+        1,
+        0,
+        ${olderMs},
+        ${olderMs}
+      )
+    `);
+    privateApi.db.exec(`
+      INSERT INTO imm_sessions (
+        session_id,
+        session_uuid,
+        video_id,
+        started_at_ms,
+        ended_at_ms,
+        status,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+      (1, 'session-1', 1, ${olderMs}, ${olderMs + 1_000}, 2, ${olderMs}, ${olderMs}),
+      (2, 'session-2', 1, ${oldMs}, ${oldMs + 1_000}, 2, ${oldMs}, ${oldMs})
+    `);
+    privateApi.db.exec(`
+      INSERT INTO imm_session_events (
+        session_id,
+        ts_ms,
+        event_type,
+        segment_start_ms,
+        segment_end_ms,
+        created_date,
+        last_update_date
+      ) VALUES
+      (1, ${olderMs}, 1, 0, 1, ${olderMs}, ${olderMs}),
+      (2, ${oldMs}, 1, 2, 3, ${oldMs}, ${oldMs})
+    `);
+    privateApi.db.exec(`
+      INSERT INTO imm_session_telemetry (
+        session_id,
+        sample_ms,
+        total_watched_ms,
+        active_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+      (1, ${olderMs}, 1000, 1000, ${olderMs}, ${olderMs}),
+      (2, ${oldMs}, 2000, 1500, ${oldMs}, ${oldMs})
+    `);
+    privateApi.db.exec(`
+      INSERT INTO imm_daily_rollups (
+        rollup_day,
+        video_id,
+        total_sessions,
+        total_active_min,
+        total_lines_seen,
+        total_words_seen,
+        total_tokens_seen,
+        total_cards
+      ) VALUES
+      (${insertedDailyRollupKeys[0]}, 1, 1, 1, 1, 1, 1, 1),
+      (${insertedDailyRollupKeys[1]}, 1, 1, 1, 1, 1, 1, 1)
+    `);
+    privateApi.db.exec(`
+      INSERT INTO imm_monthly_rollups (
+        rollup_month,
+        video_id,
+        total_sessions,
+        total_active_min,
+        total_lines_seen,
+        total_words_seen,
+        total_tokens_seen,
+        total_cards,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+      (${insertedMonthlyRollupKeys[0]}, 1, 1, 1, 1, 1, 1, 1, ${olderMs}, ${olderMs}),
+      (${insertedMonthlyRollupKeys[1]}, 1, 1, 1, 1, 1, 1, 1, ${oldMs}, ${oldMs})
+    `);
+
+    privateApi.runMaintenance();
+
+    const rawEvents = privateApi.db
+      .prepare('SELECT COUNT(*) as total FROM imm_session_events WHERE session_id IN (1,2)')
+      .get() as { total: number };
+    const rawTelemetry = privateApi.db
+      .prepare('SELECT COUNT(*) as total FROM imm_session_telemetry WHERE session_id IN (1,2)')
+      .get() as { total: number };
+    const endedSessions = privateApi.db
+      .prepare('SELECT COUNT(*) as total FROM imm_sessions WHERE session_id IN (1,2)')
+      .get() as { total: number };
+    const dailyRollups = privateApi.db
+      .prepare(
+        'SELECT COUNT(*) as total FROM imm_daily_rollups WHERE video_id = 1 AND rollup_day IN (?, ?)',
+      )
+      .get(insertedDailyRollupKeys[0], insertedDailyRollupKeys[1]) as { total: number };
+    const monthlyRollups = privateApi.db
+      .prepare(
+        'SELECT COUNT(*) as total FROM imm_monthly_rollups WHERE video_id = 1 AND rollup_month IN (?, ?)',
+      )
+      .get(insertedMonthlyRollupKeys[0], insertedMonthlyRollupKeys[1]) as { total: number };
+
+    assert.equal(rawEvents.total, 2);
+    assert.equal(rawTelemetry.total, 2);
+    assert.equal(endedSessions.total, 2);
+    assert.equal(dailyRollups.total, 2);
+    assert.equal(monthlyRollups.total, 2);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
@@ -898,6 +1708,115 @@ test('flushSingle reuses cached prepared statements', async () => {
       const privateApi = tracker as unknown as { db: DatabaseSync };
       privateApi.db.prepare = originalPrepare;
     }
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('reassignAnimeAnilist deduplicates cover blobs and getCoverArt remains compatible', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const originalFetch = globalThis.fetch;
+  const sharedCoverBlob = Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]);
+
+  try {
+    globalThis.fetch = async () =>
+      new Response(new Uint8Array(sharedCoverBlob), {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      });
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        normalized_title_key,
+        canonical_title,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'little witch academia',
+        'Little Witch Academia',
+        1000,
+        1000
+      );
+      INSERT INTO imm_videos (
+        video_id,
+        video_key,
+        canonical_title,
+        source_type,
+        duration_ms,
+        anime_id,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+      (
+        1,
+        'local:/tmp/lwa-1.mkv',
+        'Little Witch Academia S01E01',
+        1,
+        0,
+        1,
+        1000,
+        1000
+      ),
+      (
+        2,
+        'local:/tmp/lwa-2.mkv',
+        'Little Witch Academia S01E02',
+        1,
+        0,
+        1,
+        1000,
+        1000
+      );
+    `);
+
+    await tracker.reassignAnimeAnilist(1, {
+      anilistId: 33489,
+      titleRomaji: 'Little Witch Academia',
+      titleEnglish: 'Little Witch Academia',
+      episodesTotal: 25,
+      coverUrl: 'https://example.com/lwa.jpg',
+    });
+
+    const blobRows = privateApi.db
+      .prepare('SELECT blob_hash AS blobHash, cover_blob AS coverBlob FROM imm_cover_art_blobs')
+      .all() as Array<{ blobHash: string; coverBlob: Buffer }>;
+    const mediaRows = privateApi.db
+      .prepare(
+        `
+          SELECT
+            video_id AS videoId,
+            cover_blob AS coverBlob,
+            cover_blob_hash AS coverBlobHash
+          FROM imm_media_art
+          ORDER BY video_id ASC
+        `,
+      )
+      .all() as Array<{
+      videoId: number;
+      coverBlob: Buffer | null;
+      coverBlobHash: string | null;
+    }>;
+
+    assert.equal(blobRows.length, 1);
+    assert.deepEqual(new Uint8Array(blobRows[0]!.coverBlob), new Uint8Array(sharedCoverBlob));
+    assert.equal(mediaRows.length, 2);
+    assert.equal(typeof mediaRows[0]?.coverBlobHash, 'string');
+    assert.equal(mediaRows[0]?.coverBlobHash, mediaRows[1]?.coverBlobHash);
+
+    const resolvedCover = await tracker.getCoverArt(2);
+    assert.ok(resolvedCover?.coverBlob);
+    assert.deepEqual(
+      new Uint8Array(resolvedCover?.coverBlob ?? Buffer.alloc(0)),
+      new Uint8Array(sharedCoverBlob),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }

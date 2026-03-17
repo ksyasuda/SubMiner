@@ -138,7 +138,7 @@ test('startup OSD shows dictionary failure after annotation loading completes', 
   ]);
 });
 
-test('startup OSD reset requires the next media to wait for tokenization again', () => {
+test('startup OSD reset keeps tokenization ready after first warmup', () => {
   const osdMessages: string[] = [];
   const sequencer = createStartupOsdSequencer({
     showOsd: (message) => {
@@ -152,8 +152,5 @@ test('startup OSD reset requires the next media to wait for tokenization again',
     makeDictionaryEvent('syncing', 'Updating character dictionary for Frieren...'),
   );
 
-  assert.deepEqual(osdMessages, []);
-
-  sequencer.markTokenizationReady();
   assert.deepEqual(osdMessages, ['Updating character dictionary for Frieren...']);
 });

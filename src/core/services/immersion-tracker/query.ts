@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { DatabaseSync } from './sqlite';
 import type {
   AnimeAnilistEntryRow,
@@ -29,6 +30,7 @@ import type {
   WordOccurrenceRow,
   VocabularyStatsRow,
 } from './types';
+import { buildCoverBlobReference, normalizeCoverBlobBytes } from './storage';
 import { PartOfSpeech, type MergedToken } from '../../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import { deriveStoredPartOfSpeech } from '../tokenizer/part-of-speech';
@@ -68,8 +70,94 @@ type CleanupVocabularyStatsOptions = {
   } | null>;
 };
 
+const ACTIVE_SESSION_METRICS_CTE = `
+  WITH active_session_metrics AS (
+    SELECT
+      t.session_id AS sessionId,
+      MAX(t.total_watched_ms) AS totalWatchedMs,
+      MAX(t.active_watched_ms) AS activeWatchedMs,
+      MAX(t.lines_seen) AS linesSeen,
+      MAX(t.words_seen) AS wordsSeen,
+      MAX(t.tokens_seen) AS tokensSeen,
+      MAX(t.cards_mined) AS cardsMined,
+      MAX(t.lookup_count) AS lookupCount,
+      MAX(t.lookup_hits) AS lookupHits
+    FROM imm_session_telemetry t
+    JOIN imm_sessions s ON s.session_id = t.session_id
+    WHERE s.ended_at_ms IS NULL
+    GROUP BY t.session_id
+  )
+`;
+
+function resolvedCoverBlobExpr(mediaAlias: string, blobStoreAlias: string): string {
+  return `COALESCE(${blobStoreAlias}.cover_blob, CASE WHEN ${mediaAlias}.cover_blob_hash IS NULL THEN ${mediaAlias}.cover_blob ELSE NULL END)`;
+}
+
+function cleanupUnusedCoverArtBlobHash(db: DatabaseSync, blobHash: string | null): void {
+  if (!blobHash) {
+    return;
+  }
+  db.prepare(
+    `
+      DELETE FROM imm_cover_art_blobs
+      WHERE blob_hash = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM imm_media_art
+          WHERE cover_blob_hash = ?
+        )
+    `,
+  ).run(blobHash, blobHash);
+}
+
+function findSharedCoverBlobHash(
+  db: DatabaseSync,
+  videoId: number,
+  anilistId: number | null,
+  coverUrl: string | null,
+): string | null {
+  if (anilistId !== null) {
+    const byAnilist = db
+      .prepare(
+        `
+          SELECT cover_blob_hash AS coverBlobHash
+          FROM imm_media_art
+          WHERE video_id != ?
+            AND anilist_id = ?
+            AND cover_blob_hash IS NOT NULL
+          ORDER BY fetched_at_ms DESC, video_id DESC
+          LIMIT 1
+        `,
+      )
+      .get(videoId, anilistId) as { coverBlobHash: string | null } | undefined;
+    if (byAnilist?.coverBlobHash) {
+      return byAnilist.coverBlobHash;
+    }
+  }
+
+  if (coverUrl) {
+    const byUrl = db
+      .prepare(
+        `
+          SELECT cover_blob_hash AS coverBlobHash
+          FROM imm_media_art
+          WHERE video_id != ?
+            AND cover_url = ?
+            AND cover_blob_hash IS NOT NULL
+          ORDER BY fetched_at_ms DESC, video_id DESC
+          LIMIT 1
+        `,
+      )
+      .get(videoId, coverUrl) as { coverBlobHash: string | null } | undefined;
+    return byUrl?.coverBlobHash ?? null;
+  }
+
+  return null;
+}
+
 export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummaryQueryRow[] {
   const prepared = db.prepare(`
+    ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
       s.session_id AS sessionId,
       s.video_id AS videoId,
@@ -78,19 +166,18 @@ export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummar
       a.canonical_title AS animeTitle,
       s.started_at_ms AS startedAtMs,
       s.ended_at_ms AS endedAtMs,
-      COALESCE(MAX(t.total_watched_ms), 0) AS totalWatchedMs,
-      COALESCE(MAX(t.active_watched_ms), 0) AS activeWatchedMs,
-      COALESCE(MAX(t.lines_seen), 0) AS linesSeen,
-      COALESCE(MAX(t.words_seen), 0) AS wordsSeen,
-      COALESCE(MAX(t.tokens_seen), 0) AS tokensSeen,
-      COALESCE(MAX(t.cards_mined), 0) AS cardsMined,
-      COALESCE(MAX(t.lookup_count), 0) AS lookupCount,
-      COALESCE(MAX(t.lookup_hits), 0) AS lookupHits
+      COALESCE(asm.totalWatchedMs, s.total_watched_ms, 0) AS totalWatchedMs,
+      COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
+      COALESCE(asm.linesSeen, s.lines_seen, 0) AS linesSeen,
+      COALESCE(asm.wordsSeen, s.words_seen, 0) AS wordsSeen,
+      COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
+      COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
+      COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
+      COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits
     FROM imm_sessions s
-    LEFT JOIN imm_session_telemetry t ON t.session_id = s.session_id
+    LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
     LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
-    GROUP BY s.session_id
     ORDER BY s.started_at_ms DESC
     LIMIT ?
   `);
@@ -126,11 +213,34 @@ export function getQueryHints(db: DatabaseSync): {
   activeAnimeCount: number;
   totalEpisodesWatched: number;
   totalAnimeCompleted: number;
+  totalActiveMin: number;
+  totalCards: number;
+  activeDays: number;
 } {
-  const sessions = db.prepare('SELECT COUNT(*) AS total FROM imm_sessions');
   const active = db.prepare('SELECT COUNT(*) AS total FROM imm_sessions WHERE ended_at_ms IS NULL');
-  const totalSessions = Number((sessions.get() as { total?: number } | null)?.total ?? 0);
   const activeSessions = Number((active.get() as { total?: number } | null)?.total ?? 0);
+  const lifetime = db
+    .prepare(
+      `
+    SELECT
+      total_sessions AS totalSessions,
+      total_active_ms AS totalActiveMs,
+      total_cards AS totalCards,
+      active_days AS activeDays,
+      episodes_completed AS episodesCompleted,
+      anime_completed AS animeCompleted
+    FROM imm_lifetime_global
+    WHERE global_id = 1
+  `,
+    )
+    .get() as {
+    totalSessions: number;
+    totalActiveMs: number;
+    totalCards: number;
+    activeDays: number;
+    episodesCompleted: number;
+    animeCompleted: number;
+  } | null;
 
   const now = new Date();
   const todayLocal = Math.floor(
@@ -165,35 +275,14 @@ export function getQueryHints(db: DatabaseSync): {
         .get(thirtyDaysAgoMs) as { count: number }
     )?.count ?? 0;
 
-  const totalEpisodesWatched =
-    (
-      db
-        .prepare(
-          `
-    SELECT COUNT(*) AS count FROM imm_videos WHERE watched = 1
-  `,
-        )
-        .get() as { count: number }
-    )?.count ?? 0;
+  const totalEpisodesWatched = Number(lifetime?.episodesCompleted ?? 0);
 
-  const totalAnimeCompleted =
-    (
-      db
-        .prepare(
-          `
-    SELECT COUNT(*) AS count FROM (
-      SELECT a.anime_id
-      FROM imm_anime a
-      JOIN imm_videos v ON v.anime_id = a.anime_id
-      JOIN imm_media_art m ON m.video_id = v.video_id
-      WHERE m.episodes_total IS NOT NULL AND m.episodes_total > 0
-      GROUP BY a.anime_id
-      HAVING COUNT(DISTINCT CASE WHEN v.watched = 1 THEN v.video_id END) >= MAX(m.episodes_total)
-    )
-  `,
-        )
-        .get() as { count: number }
-    )?.count ?? 0;
+  const totalAnimeCompleted = Number(lifetime?.animeCompleted ?? 0);
+
+  const totalSessions = Number(lifetime?.totalSessions ?? 0);
+  const totalActiveMin = Math.floor(Math.max(0, lifetime?.totalActiveMs ?? 0) / 60000);
+  const totalCards = Number(lifetime?.totalCards ?? 0);
+  const activeDays = Number(lifetime?.activeDays ?? 0);
 
   return {
     totalSessions,
@@ -202,32 +291,48 @@ export function getQueryHints(db: DatabaseSync): {
     activeAnimeCount,
     totalEpisodesWatched,
     totalAnimeCompleted,
+    totalActiveMin,
+    totalCards,
+    activeDays,
   };
 }
 
 export function getDailyRollups(db: DatabaseSync, limit = 60): ImmersionSessionRollupRow[] {
   const prepared = db.prepare(`
+    WITH recent_days AS (
+      SELECT DISTINCT rollup_day
+      FROM imm_daily_rollups
+      ORDER BY rollup_day DESC
+      LIMIT ?
+    )
     SELECT
-      rollup_day AS rollupDayOrMonth,
-      video_id AS videoId,
-      total_sessions AS totalSessions,
-      total_active_min AS totalActiveMin,
-      total_lines_seen AS totalLinesSeen,
-      total_words_seen AS totalWordsSeen,
-      total_tokens_seen AS totalTokensSeen,
-      total_cards AS totalCards,
-      cards_per_hour AS cardsPerHour,
-      words_per_min AS wordsPerMin,
-      lookup_hit_rate AS lookupHitRate
-    FROM imm_daily_rollups
-    ORDER BY rollup_day DESC, video_id DESC
-    LIMIT ?
-  `);
+      r.rollup_day AS rollupDayOrMonth,
+      r.video_id AS videoId,
+      r.total_sessions AS totalSessions,
+      r.total_active_min AS totalActiveMin,
+      r.total_lines_seen AS totalLinesSeen,
+      r.total_words_seen AS totalWordsSeen,
+      r.total_tokens_seen AS totalTokensSeen,
+      r.total_cards AS totalCards,
+      r.cards_per_hour AS cardsPerHour,
+      r.words_per_min AS wordsPerMin,
+      r.lookup_hit_rate AS lookupHitRate
+    FROM imm_daily_rollups r
+    WHERE r.rollup_day IN (SELECT rollup_day FROM recent_days)
+    ORDER BY r.rollup_day DESC, r.video_id DESC
+    `);
+
   return prepared.all(limit) as unknown as ImmersionSessionRollupRow[];
 }
 
 export function getMonthlyRollups(db: DatabaseSync, limit = 24): ImmersionSessionRollupRow[] {
   const prepared = db.prepare(`
+    WITH recent_months AS (
+      SELECT DISTINCT rollup_month
+      FROM imm_monthly_rollups
+      ORDER BY rollup_month DESC
+      LIMIT ?
+    )
     SELECT
       rollup_month AS rollupDayOrMonth,
       video_id AS videoId,
@@ -241,8 +346,8 @@ export function getMonthlyRollups(db: DatabaseSync, limit = 24): ImmersionSessio
       0 AS wordsPerMin,
       0 AS lookupHitRate
     FROM imm_monthly_rollups
+    WHERE rollup_month IN (SELECT rollup_month FROM recent_months)
     ORDER BY rollup_month DESC, video_id DESC
-    LIMIT ?
   `);
   return prepared.all(limit) as unknown as ImmersionSessionRollupRow[];
 }
@@ -652,27 +757,18 @@ export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
       a.anime_id AS animeId,
       a.canonical_title AS canonicalTitle,
       a.anilist_id AS anilistId,
-      COUNT(DISTINCT s.session_id) AS totalSessions,
-      COALESCE(SUM(sm.max_active_ms), 0) AS totalActiveMs,
-      COALESCE(SUM(sm.max_cards), 0) AS totalCards,
-      COALESCE(SUM(sm.max_words), 0) AS totalWordsSeen,
+      COALESCE(lm.total_sessions, 0) AS totalSessions,
+      COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
+      COALESCE(lm.total_cards, 0) AS totalCards,
+      COALESCE(lm.total_words_seen, 0) AS totalWordsSeen,
       COUNT(DISTINCT v.video_id) AS episodeCount,
       a.episodes_total AS episodesTotal,
-      MAX(s.started_at_ms) AS lastWatchedMs
+      COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs
     FROM imm_anime a
+    JOIN imm_lifetime_anime lm ON lm.anime_id = a.anime_id
     JOIN imm_videos v ON v.anime_id = a.anime_id
-    JOIN imm_sessions s ON s.video_id = v.video_id
-    LEFT JOIN (
-      SELECT
-        t.session_id,
-        MAX(t.active_watched_ms) AS max_active_ms,
-        MAX(t.cards_mined) AS max_cards,
-        MAX(t.words_seen) AS max_words
-      FROM imm_session_telemetry t
-      GROUP BY t.session_id
-    ) sm ON sm.session_id = s.session_id
     GROUP BY a.anime_id
-    ORDER BY totalActiveMs DESC, lastWatchedMs DESC, canonicalTitle ASC
+    ORDER BY totalActiveMs DESC, lm.last_watched_ms DESC, canonicalTitle ASC
   `,
     )
     .all() as unknown as AnimeLibraryRow[];
@@ -682,6 +778,7 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
   return db
     .prepare(
       `
+    ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
       a.anime_id AS animeId,
       a.canonical_title AS canonicalTitle,
@@ -690,30 +787,20 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
       a.title_english AS titleEnglish,
       a.title_native AS titleNative,
       a.description AS description,
-      COUNT(DISTINCT s.session_id) AS totalSessions,
-      COALESCE(SUM(sm.max_active_ms), 0) AS totalActiveMs,
-      COALESCE(SUM(sm.max_cards), 0) AS totalCards,
-      COALESCE(SUM(sm.max_words), 0) AS totalWordsSeen,
-      COALESCE(SUM(sm.max_lines), 0) AS totalLinesSeen,
-      COALESCE(SUM(sm.max_lookups), 0) AS totalLookupCount,
-      COALESCE(SUM(sm.max_hits), 0) AS totalLookupHits,
+      COALESCE(lm.total_sessions, 0) AS totalSessions,
+      COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
+      COALESCE(lm.total_cards, 0) AS totalCards,
+      COALESCE(lm.total_words_seen, 0) AS totalWordsSeen,
+      COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
+      COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
+      COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
       COUNT(DISTINCT v.video_id) AS episodeCount,
-      MAX(s.started_at_ms) AS lastWatchedMs
+      COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs
     FROM imm_anime a
+    JOIN imm_lifetime_anime lm ON lm.anime_id = a.anime_id
     JOIN imm_videos v ON v.anime_id = a.anime_id
-    JOIN imm_sessions s ON s.video_id = v.video_id
-    LEFT JOIN (
-      SELECT
-        t.session_id,
-        MAX(t.active_watched_ms) AS max_active_ms,
-        MAX(t.cards_mined) AS max_cards,
-        MAX(t.words_seen) AS max_words,
-        MAX(t.lines_seen) AS max_lines,
-        MAX(t.lookup_count) AS max_lookups,
-        MAX(t.lookup_hits) AS max_hits
-      FROM imm_session_telemetry t
-      GROUP BY t.session_id
-    ) sm ON sm.session_id = s.session_id
+    LEFT JOIN imm_sessions s ON s.video_id = v.video_id
+    LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     WHERE a.anime_id = ?
     GROUP BY a.anime_id
   `,
@@ -744,6 +831,7 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
   return db
     .prepare(
       `
+    ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
       v.anime_id AS animeId,
       v.video_id AS videoId,
@@ -754,21 +842,13 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       v.duration_ms AS durationMs,
       v.watched AS watched,
       COUNT(DISTINCT s.session_id) AS totalSessions,
-      COALESCE(SUM(sm.max_active_ms), 0) AS totalActiveMs,
-      COALESCE(SUM(sm.max_cards), 0) AS totalCards,
-      COALESCE(SUM(sm.max_words), 0) AS totalWordsSeen,
+      COALESCE(SUM(COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0)), 0) AS totalActiveMs,
+      COALESCE(SUM(COALESCE(asm.cardsMined, s.cards_mined, 0)), 0) AS totalCards,
+      COALESCE(SUM(COALESCE(asm.wordsSeen, s.words_seen, 0)), 0) AS totalWordsSeen,
       MAX(s.started_at_ms) AS lastWatchedMs
     FROM imm_videos v
     JOIN imm_sessions s ON s.video_id = v.video_id
-    LEFT JOIN (
-      SELECT
-        t.session_id,
-        MAX(t.active_watched_ms) AS max_active_ms,
-        MAX(t.cards_mined) AS max_cards,
-        MAX(t.words_seen) AS max_words
-      FROM imm_session_telemetry t
-      GROUP BY t.session_id
-    ) sm ON sm.session_id = s.session_id
+    LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     WHERE v.anime_id = ?
     GROUP BY v.video_id
     ORDER BY
@@ -789,26 +869,19 @@ export function getMediaLibrary(db: DatabaseSync): MediaLibraryRow[] {
     SELECT
       v.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
-      COUNT(DISTINCT s.session_id) AS totalSessions,
-      COALESCE(SUM(sm.max_active_ms), 0) AS totalActiveMs,
-      COALESCE(SUM(sm.max_cards), 0) AS totalCards,
-      COALESCE(SUM(sm.max_words), 0) AS totalWordsSeen,
-      MAX(s.started_at_ms) AS lastWatchedMs,
-      CASE WHEN ma.cover_blob IS NOT NULL THEN 1 ELSE 0 END AS hasCoverArt
+      COALESCE(lm.total_sessions, 0) AS totalSessions,
+      COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
+      COALESCE(lm.total_cards, 0) AS totalCards,
+      COALESCE(lm.total_words_seen, 0) AS totalWordsSeen,
+      COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs,
+      CASE
+        WHEN ma.cover_blob_hash IS NOT NULL OR ma.cover_blob IS NOT NULL THEN 1
+        ELSE 0
+      END AS hasCoverArt
     FROM imm_videos v
-    JOIN imm_sessions s ON s.video_id = v.video_id
-    LEFT JOIN (
-      SELECT
-        t.session_id,
-        MAX(t.active_watched_ms) AS max_active_ms,
-        MAX(t.cards_mined) AS max_cards,
-        MAX(t.words_seen) AS max_words
-      FROM imm_session_telemetry t
-      GROUP BY t.session_id
-    ) sm ON sm.session_id = s.session_id
+    JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
     LEFT JOIN imm_media_art ma ON ma.video_id = v.video_id
-    GROUP BY v.video_id
-    ORDER BY lastWatchedMs DESC
+    ORDER BY lm.last_watched_ms DESC
   `,
     )
     .all() as unknown as MediaLibraryRow[];
@@ -818,30 +891,21 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
   return db
     .prepare(
       `
+    ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
       v.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
-      COUNT(DISTINCT s.session_id) AS totalSessions,
-      COALESCE(SUM(sm.max_active_ms), 0) AS totalActiveMs,
-      COALESCE(SUM(sm.max_cards), 0) AS totalCards,
-      COALESCE(SUM(sm.max_words), 0) AS totalWordsSeen,
-      COALESCE(SUM(sm.max_lines), 0) AS totalLinesSeen,
-      COALESCE(SUM(sm.max_lookups), 0) AS totalLookupCount,
-      COALESCE(SUM(sm.max_hits), 0) AS totalLookupHits
+      COALESCE(lm.total_sessions, 0) AS totalSessions,
+      COALESCE(lm.total_active_ms, 0) AS totalActiveMs,
+      COALESCE(lm.total_cards, 0) AS totalCards,
+      COALESCE(lm.total_words_seen, 0) AS totalWordsSeen,
+      COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
+      COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
+      COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits
     FROM imm_videos v
-    JOIN imm_sessions s ON s.video_id = v.video_id
-    LEFT JOIN (
-      SELECT
-        t.session_id,
-        MAX(t.active_watched_ms) AS max_active_ms,
-        MAX(t.cards_mined) AS max_cards,
-        MAX(t.words_seen) AS max_words,
-        MAX(t.lines_seen) AS max_lines,
-        MAX(t.lookup_count) AS max_lookups,
-        MAX(t.lookup_hits) AS max_hits
-      FROM imm_session_telemetry t
-      GROUP BY t.session_id
-    ) sm ON sm.session_id = s.session_id
+    JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
+    LEFT JOIN imm_sessions s ON s.video_id = v.video_id
+    LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     WHERE v.video_id = ?
     GROUP BY v.video_id
   `,
@@ -857,25 +921,25 @@ export function getMediaSessions(
   return db
     .prepare(
       `
+    ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
       s.session_id AS sessionId,
       s.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
       s.started_at_ms AS startedAtMs,
       s.ended_at_ms AS endedAtMs,
-      COALESCE(MAX(t.total_watched_ms), 0) AS totalWatchedMs,
-      COALESCE(MAX(t.active_watched_ms), 0) AS activeWatchedMs,
-      COALESCE(MAX(t.lines_seen), 0) AS linesSeen,
-      COALESCE(MAX(t.words_seen), 0) AS wordsSeen,
-      COALESCE(MAX(t.tokens_seen), 0) AS tokensSeen,
-      COALESCE(MAX(t.cards_mined), 0) AS cardsMined,
-      COALESCE(MAX(t.lookup_count), 0) AS lookupCount,
-      COALESCE(MAX(t.lookup_hits), 0) AS lookupHits
+      COALESCE(asm.totalWatchedMs, s.total_watched_ms, 0) AS totalWatchedMs,
+      COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
+      COALESCE(asm.linesSeen, s.lines_seen, 0) AS linesSeen,
+      COALESCE(asm.wordsSeen, s.words_seen, 0) AS wordsSeen,
+      COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
+      COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
+      COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
+      COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits
     FROM imm_sessions s
-    LEFT JOIN imm_session_telemetry t ON t.session_id = s.session_id
+    LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
     WHERE s.video_id = ?
-    GROUP BY s.session_id
     ORDER BY s.started_at_ms DESC
     LIMIT ?
   `,
@@ -891,6 +955,13 @@ export function getMediaDailyRollups(
   return db
     .prepare(
       `
+    WITH recent_days AS (
+      SELECT DISTINCT rollup_day
+      FROM imm_daily_rollups
+      WHERE video_id = ?
+      ORDER BY rollup_day DESC
+      LIMIT ?
+    )
     SELECT
       rollup_day AS rollupDayOrMonth,
       video_id AS videoId,
@@ -905,14 +976,47 @@ export function getMediaDailyRollups(
       lookup_hit_rate AS lookupHitRate
     FROM imm_daily_rollups
     WHERE video_id = ?
-    ORDER BY rollup_day DESC
-    LIMIT ?
-  `,
+    AND rollup_day IN (SELECT rollup_day FROM recent_days)
+    ORDER BY rollup_day DESC, video_id DESC
+    `,
     )
-    .all(videoId, limit) as unknown as ImmersionSessionRollupRow[];
+    .all(videoId, limit, videoId) as unknown as ImmersionSessionRollupRow[];
+}
+
+export function getAnimeDailyRollups(
+  db: DatabaseSync,
+  animeId: number,
+  limit = 90,
+): ImmersionSessionRollupRow[] {
+  return db
+    .prepare(
+      `
+    WITH recent_days AS (
+      SELECT DISTINCT r.rollup_day
+      FROM imm_daily_rollups r
+      JOIN imm_videos v ON v.video_id = r.video_id
+      WHERE v.anime_id = ?
+      ORDER BY r.rollup_day DESC
+      LIMIT ?
+    )
+    SELECT r.rollup_day AS rollupDayOrMonth, r.video_id AS videoId,
+           r.total_sessions AS totalSessions, r.total_active_min AS totalActiveMin,
+           r.total_lines_seen AS totalLinesSeen, r.total_words_seen AS totalWordsSeen,
+           r.total_tokens_seen AS totalTokensSeen, r.total_cards AS totalCards,
+           r.cards_per_hour AS cardsPerHour, r.words_per_min AS wordsPerMin,
+           r.lookup_hit_rate AS lookupHitRate
+    FROM imm_daily_rollups r
+    JOIN imm_videos v ON v.video_id = r.video_id
+    WHERE v.anime_id = ?
+    AND r.rollup_day IN (SELECT rollup_day FROM recent_days)
+    ORDER BY r.rollup_day DESC, r.video_id DESC
+    `,
+    )
+    .all(animeId, limit, animeId) as unknown as ImmersionSessionRollupRow[];
 }
 
 export function getAnimeCoverArt(db: DatabaseSync, animeId: number): MediaArtRow | null {
+  const resolvedCoverBlob = resolvedCoverBlobExpr('a', 'cab');
   return db
     .prepare(
       `
@@ -920,15 +1024,17 @@ export function getAnimeCoverArt(db: DatabaseSync, animeId: number): MediaArtRow
       a.video_id AS videoId,
       a.anilist_id AS anilistId,
       a.cover_url AS coverUrl,
-      a.cover_blob AS coverBlob,
+      ${resolvedCoverBlob} AS coverBlob,
       a.title_romaji AS titleRomaji,
       a.title_english AS titleEnglish,
       a.episodes_total AS episodesTotal,
       a.fetched_at_ms AS fetchedAtMs
     FROM imm_media_art a
     JOIN imm_videos v ON v.video_id = a.video_id
+    LEFT JOIN imm_cover_art_blobs cab ON cab.blob_hash = a.cover_blob_hash
     WHERE v.anime_id = ?
-    AND a.cover_blob IS NOT NULL
+    AND ${resolvedCoverBlob} IS NOT NULL
+    ORDER BY a.fetched_at_ms DESC, a.video_id DESC
     LIMIT 1
   `,
     )
@@ -936,20 +1042,22 @@ export function getAnimeCoverArt(db: DatabaseSync, animeId: number): MediaArtRow
 }
 
 export function getCoverArt(db: DatabaseSync, videoId: number): MediaArtRow | null {
+  const resolvedCoverBlob = resolvedCoverBlobExpr('a', 'cab');
   return db
     .prepare(
       `
     SELECT
-      video_id AS videoId,
-      anilist_id AS anilistId,
-      cover_url AS coverUrl,
-      cover_blob AS coverBlob,
-      title_romaji AS titleRomaji,
-      title_english AS titleEnglish,
-      episodes_total AS episodesTotal,
-      fetched_at_ms AS fetchedAtMs
-    FROM imm_media_art
-    WHERE video_id = ?
+      a.video_id AS videoId,
+      a.anilist_id AS anilistId,
+      a.cover_url AS coverUrl,
+      ${resolvedCoverBlob} AS coverBlob,
+      a.title_romaji AS titleRomaji,
+      a.title_english AS titleEnglish,
+      a.episodes_total AS episodesTotal,
+      a.fetched_at_ms AS fetchedAtMs
+    FROM imm_media_art a
+    LEFT JOIN imm_cover_art_blobs cab ON cab.blob_hash = a.cover_blob_hash
+    WHERE a.video_id = ?
   `,
     )
     .get(videoId) as unknown as MediaArtRow | null;
@@ -989,30 +1097,6 @@ export function getAnimeWords(db: DatabaseSync, animeId: number, limit = 50): An
   `,
     )
     .all(animeId, limit) as unknown as AnimeWordRow[];
-}
-
-export function getAnimeDailyRollups(
-  db: DatabaseSync,
-  animeId: number,
-  limit = 90,
-): ImmersionSessionRollupRow[] {
-  return db
-    .prepare(
-      `
-    SELECT r.rollup_day AS rollupDayOrMonth, r.video_id AS videoId,
-           r.total_sessions AS totalSessions, r.total_active_min AS totalActiveMin,
-           r.total_lines_seen AS totalLinesSeen, r.total_words_seen AS totalWordsSeen,
-           r.total_tokens_seen AS totalTokensSeen, r.total_cards AS totalCards,
-           r.cards_per_hour AS cardsPerHour, r.words_per_min AS wordsPerMin,
-           r.lookup_hit_rate AS lookupHitRate
-    FROM imm_daily_rollups r
-    JOIN imm_videos v ON v.video_id = r.video_id
-    WHERE v.anime_id = ?
-    ORDER BY r.rollup_day DESC
-    LIMIT ?
-  `,
-    )
-    .all(animeId, limit) as unknown as ImmersionSessionRollupRow[];
 }
 
 export function getEpisodesPerDay(db: DatabaseSync, limit = 90): EpisodesPerDayRow[] {
@@ -1203,23 +1287,23 @@ export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSu
   return db
     .prepare(
       `
+    ${ACTIVE_SESSION_METRICS_CTE}
     SELECT
       s.session_id AS sessionId, s.video_id AS videoId,
       v.canonical_title AS canonicalTitle,
       s.started_at_ms AS startedAtMs, s.ended_at_ms AS endedAtMs,
-      COALESCE(MAX(t.total_watched_ms), 0) AS totalWatchedMs,
-      COALESCE(MAX(t.active_watched_ms), 0) AS activeWatchedMs,
-      COALESCE(MAX(t.lines_seen), 0) AS linesSeen,
-      COALESCE(MAX(t.words_seen), 0) AS wordsSeen,
-      COALESCE(MAX(t.tokens_seen), 0) AS tokensSeen,
-      COALESCE(MAX(t.cards_mined), 0) AS cardsMined,
-      COALESCE(MAX(t.lookup_count), 0) AS lookupCount,
-      COALESCE(MAX(t.lookup_hits), 0) AS lookupHits
+      COALESCE(asm.totalWatchedMs, s.total_watched_ms, 0) AS totalWatchedMs,
+      COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
+      COALESCE(asm.linesSeen, s.lines_seen, 0) AS linesSeen,
+      COALESCE(asm.wordsSeen, s.words_seen, 0) AS wordsSeen,
+      COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
+      COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
+      COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
+      COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits
     FROM imm_sessions s
     JOIN imm_videos v ON v.video_id = s.video_id
-    LEFT JOIN imm_session_telemetry t ON t.session_id = s.session_id
+    LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     WHERE s.video_id = ?
-    GROUP BY s.session_id
     ORDER BY s.started_at_ms DESC
   `,
     )
@@ -1271,24 +1355,52 @@ export function upsertCoverArt(
   art: {
     anilistId: number | null;
     coverUrl: string | null;
-    coverBlob: Buffer | null;
+    coverBlob: ArrayBuffer | Uint8Array | Buffer | null;
     titleRomaji: string | null;
     titleEnglish: string | null;
     episodesTotal: number | null;
   },
 ): void {
+  const existing = db
+    .prepare(
+      `
+        SELECT cover_blob_hash AS coverBlobHash
+        FROM imm_media_art
+        WHERE video_id = ?
+      `,
+    )
+    .get(videoId) as { coverBlobHash: string | null } | undefined;
+  const sharedCoverBlobHash = findSharedCoverBlobHash(db, videoId, art.anilistId, art.coverUrl);
   const nowMs = Date.now();
+  const coverBlob = normalizeCoverBlobBytes(art.coverBlob);
+  let coverBlobHash = sharedCoverBlobHash ?? existing?.coverBlobHash ?? null;
+  if (!coverBlobHash && coverBlob && coverBlob.length > 0) {
+    coverBlobHash = createHash('sha256').update(coverBlob).digest('hex');
+  }
+
+  if (coverBlobHash && coverBlob && coverBlob.length > 0 && !sharedCoverBlobHash) {
+    db.prepare(
+      `
+        INSERT INTO imm_cover_art_blobs (blob_hash, cover_blob, CREATED_DATE, LAST_UPDATE_DATE)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(blob_hash) DO UPDATE SET
+          LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
+      `,
+    ).run(coverBlobHash, coverBlob, nowMs, nowMs);
+  }
+
   db.prepare(
     `
     INSERT INTO imm_media_art (
-      video_id, anilist_id, cover_url, cover_blob,
+      video_id, anilist_id, cover_url, cover_blob, cover_blob_hash,
       title_romaji, title_english, episodes_total,
       fetched_at_ms, CREATED_DATE, LAST_UPDATE_DATE
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(video_id) DO UPDATE SET
       anilist_id = excluded.anilist_id,
       cover_url = excluded.cover_url,
       cover_blob = excluded.cover_blob,
+      cover_blob_hash = excluded.cover_blob_hash,
       title_romaji = excluded.title_romaji,
       title_english = excluded.title_english,
       episodes_total = excluded.episodes_total,
@@ -1299,7 +1411,8 @@ export function upsertCoverArt(
     videoId,
     art.anilistId,
     art.coverUrl,
-    art.coverBlob,
+    coverBlobHash ? buildCoverBlobReference(coverBlobHash) : coverBlob,
+    coverBlobHash,
     art.titleRomaji,
     art.titleEnglish,
     art.episodesTotal,
@@ -1307,6 +1420,10 @@ export function upsertCoverArt(
     nowMs,
     nowMs,
   );
+
+  if (existing?.coverBlobHash !== coverBlobHash) {
+    cleanupUnusedCoverArtBlobHash(db, existing?.coverBlobHash ?? null);
+  }
 }
 
 export function updateAnimeAnilistInfo(
@@ -1378,6 +1495,15 @@ export function deleteSession(db: DatabaseSync, sessionId: number): void {
 }
 
 export function deleteVideo(db: DatabaseSync, videoId: number): void {
+  const artRow = db
+    .prepare(
+      `
+        SELECT cover_blob_hash AS coverBlobHash
+        FROM imm_media_art
+        WHERE video_id = ?
+      `,
+    )
+    .get(videoId) as { coverBlobHash: string | null } | undefined;
   const sessions = db
     .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
     .all(videoId) as Array<{ session_id: number }>;
@@ -1388,5 +1514,6 @@ export function deleteVideo(db: DatabaseSync, videoId: number): void {
   db.prepare('DELETE FROM imm_daily_rollups WHERE video_id = ?').run(videoId);
   db.prepare('DELETE FROM imm_monthly_rollups WHERE video_id = ?').run(videoId);
   db.prepare('DELETE FROM imm_media_art WHERE video_id = ?').run(videoId);
+  cleanupUnusedCoverArtBlobHash(db, artRow?.coverBlobHash ?? null);
   db.prepare('DELETE FROM imm_videos WHERE video_id = ?').run(videoId);
 }

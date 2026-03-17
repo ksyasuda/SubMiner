@@ -43,6 +43,7 @@ export interface CliInvocations {
   statsTriggered: boolean;
   statsCleanup: boolean;
   statsCleanupVocab: boolean;
+  statsCleanupLifetime: boolean;
   statsLogLevel: string | null;
   doctorTriggered: boolean;
   doctorLogLevel: string | null;
@@ -145,6 +146,7 @@ export function parseCliPrograms(
   let statsTriggered = false;
   let statsCleanup = false;
   let statsCleanupVocab = false;
+  let statsCleanupLifetime = false;
   let statsLogLevel: string | null = null;
   let doctorLogLevel: string | null = null;
   let texthookerLogLevel: string | null = null;
@@ -253,14 +255,21 @@ export function parseCliPrograms(
   commandProgram
     .command('stats')
     .description('Launch the local immersion stats dashboard')
-    .argument('[action]', 'cleanup')
+    .argument('[action]', 'cleanup|rebuild|backfill')
     .option('-v, --vocab', 'Clean vocabulary rows in the stats database')
+    .option('-l, --lifetime', 'Rebuild lifetime summary rows from retained data')
     .option('--log-level <level>', 'Log level')
     .action((action: string | undefined, options: Record<string, unknown>) => {
       statsTriggered = true;
-      if ((action || '').toLowerCase() === 'cleanup') {
+      const normalizedAction = (action || '').toLowerCase();
+      if (normalizedAction === 'cleanup') {
         statsCleanup = true;
-        statsCleanupVocab = options.vocab !== false;
+        statsCleanupLifetime = options.lifetime === true;
+        statsCleanupVocab = statsCleanupLifetime ? false : options.vocab !== false;
+      } else if (normalizedAction === 'rebuild' || normalizedAction === 'backfill') {
+        statsCleanup = true;
+        statsCleanupLifetime = true;
+        statsCleanupVocab = false;
       }
       statsLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
     });
@@ -346,6 +355,7 @@ export function parseCliPrograms(
       statsTriggered,
       statsCleanup,
       statsCleanupVocab,
+      statsCleanupLifetime,
       statsLogLevel,
       doctorTriggered,
       doctorLogLevel,

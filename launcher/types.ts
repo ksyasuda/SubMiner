@@ -114,6 +114,7 @@ export interface Args {
   stats: boolean;
   statsCleanup?: boolean;
   statsCleanupVocab?: boolean;
+  statsCleanupLifetime?: boolean;
   dictionaryTarget?: string;
   doctor: boolean;
   configPath: boolean;

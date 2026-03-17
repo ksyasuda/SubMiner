@@ -47,10 +47,15 @@ function escapeHtml(text: string): string {
     .replaceAll("'", '&#39;');
 }
 
+function hasPrioritizedNameMatch(token: MergedToken): boolean {
+  return token.isNameMatch === true;
+}
+
 function computeFrequencyClass(
   token: MergedToken,
   options: SubtitleWebsocketFrequencyOptions,
 ): string | null {
+  if (hasPrioritizedNameMatch(token)) return null;
   if (!options.enabled) return null;
   if (typeof token.frequencyRank !== 'number' || !Number.isFinite(token.frequencyRank)) return null;
 
@@ -70,6 +75,7 @@ function getFrequencyRankLabel(
   token: MergedToken,
   options: SubtitleWebsocketFrequencyOptions,
 ): string | null {
+  if (hasPrioritizedNameMatch(token)) return null;
   if (!options.enabled) return null;
   if (typeof token.frequencyRank !== 'number' || !Number.isFinite(token.frequencyRank)) return null;
 
@@ -79,21 +85,25 @@ function getFrequencyRankLabel(
 }
 
 function getJlptLevelLabel(token: MergedToken): string | null {
+  if (hasPrioritizedNameMatch(token)) {
+    return null;
+  }
+
   return token.jlptLevel ?? null;
 }
 
 function computeWordClass(token: MergedToken, options: SubtitleWebsocketFrequencyOptions): string {
   const classes = ['word'];
 
-  if (token.isNPlusOneTarget) {
-    classes.push('word-n-plus-one');
-  } else if (token.isNameMatch) {
+  if (hasPrioritizedNameMatch(token)) {
     classes.push('word-name-match');
+  } else if (token.isNPlusOneTarget) {
+    classes.push('word-n-plus-one');
   } else if (token.isKnown) {
     classes.push('word-known');
   }
 
-  if (token.jlptLevel) {
+  if (!hasPrioritizedNameMatch(token) && token.jlptLevel) {
     classes.push(`word-jlpt-${token.jlptLevel.toLowerCase()}`);
   }
 
@@ -137,6 +147,8 @@ function serializeSubtitleToken(
   token: MergedToken,
   options: SubtitleWebsocketFrequencyOptions,
 ): SerializedSubtitleToken {
+  const prioritizedNameMatch = hasPrioritizedNameMatch(token);
+
   return {
     surface: token.surface,
     reading: token.reading,
@@ -146,10 +158,10 @@ function serializeSubtitleToken(
     partOfSpeech: token.partOfSpeech,
     isMerged: token.isMerged,
     isKnown: token.isKnown,
-    isNPlusOneTarget: token.isNPlusOneTarget,
+    isNPlusOneTarget: prioritizedNameMatch ? false : token.isNPlusOneTarget,
     isNameMatch: token.isNameMatch ?? false,
-    jlptLevel: token.jlptLevel,
-    frequencyRank: token.frequencyRank,
+    jlptLevel: prioritizedNameMatch ? undefined : token.jlptLevel,
+    frequencyRank: prioritizedNameMatch ? undefined : token.frequencyRank,
     className: computeWordClass(token, options),
     frequencyRankLabel: getFrequencyRankLabel(token, options),
     jlptLevelLabel: getJlptLevelLabel(token),

@@ -3,7 +3,11 @@ import * as fs from 'node:fs';
 import { createLogger } from '../../logger';
 import type { CoverArtFetcher } from './anilist/cover-art-fetcher';
 import { getLocalVideoMetadata, guessAnimeVideoMetadata } from './immersion-tracker/metadata';
-import { pruneRetention, runRollupMaintenance } from './immersion-tracker/maintenance';
+import {
+  pruneRawRetention,
+  pruneRollupRetention,
+  runRollupMaintenance,
+} from './immersion-tracker/maintenance';
 import { Database, type DatabaseSync } from './immersion-tracker/sqlite';
 import { finalizeSessionRecord, startSessionRecord } from './immersion-tracker/session';
 import {
@@ -18,6 +22,12 @@ import {
   updateVideoMetadataRecord,
   updateVideoTitleRecord,
 } from './immersion-tracker/storage';
+import {
+  applySessionLifetimeSummary,
+  reconcileStaleActiveSessions,
+  rebuildLifetimeSummaries as rebuildLifetimeSummaryTables,
+  shouldBackfillLifetimeSummaries,
+} from './immersion-tracker/lifetime';
 import {
   cleanupVocabularyStats,
   getAnimeCoverArt,
@@ -56,6 +66,7 @@ import {
   getWordDetail,
   getWordOccurrences,
   getVideoDurationMs,
+  upsertCoverArt,
   markVideoWatched,
   deleteSession as deleteSessionQuery,
   deleteVideo as deleteVideoQuery,
@@ -82,6 +93,7 @@ import {
   DEFAULT_MAX_PAYLOAD_BYTES,
   DEFAULT_MONTHLY_ROLLUP_RETENTION_MS,
   DEFAULT_QUEUE_CAP,
+  DEFAULT_SESSIONS_RETENTION_MS,
   DEFAULT_TELEMETRY_RETENTION_MS,
   DEFAULT_VACUUM_INTERVAL_MS,
   EVENT_CARD_MINED,
@@ -103,6 +115,7 @@ import {
   type KanjiOccurrenceRow,
   type KanjiStatsRow,
   type KanjiWordRow,
+  type LifetimeRebuildSummary,
   type LegacyVocabularyPosResolution,
   type LegacyVocabularyPosRow,
   type AnimeAnilistEntryRow,
@@ -176,6 +189,7 @@ export class ImmersionTrackerService {
   private readonly maxPayloadBytes: number;
   private readonly eventsRetentionMs: number;
   private readonly telemetryRetentionMs: number;
+  private readonly sessionsRetentionMs: number;
   private readonly dailyRollupRetentionMs: number;
   private readonly monthlyRollupRetentionMs: number;
   private readonly vacuumIntervalMs: number;
@@ -230,44 +244,55 @@ export class ImmersionTrackerService {
     );
 
     const retention = policy.retention ?? {};
-    this.eventsRetentionMs =
-      resolveBoundedInt(
-        retention.eventsDays,
-        Math.floor(DEFAULT_EVENTS_RETENTION_MS / 86_400_000),
-        1,
-        3650,
-      ) * 86_400_000;
-    this.telemetryRetentionMs =
-      resolveBoundedInt(
-        retention.telemetryDays,
-        Math.floor(DEFAULT_TELEMETRY_RETENTION_MS / 86_400_000),
-        1,
-        3650,
-      ) * 86_400_000;
-    this.dailyRollupRetentionMs =
-      resolveBoundedInt(
-        retention.dailyRollupsDays,
-        Math.floor(DEFAULT_DAILY_ROLLUP_RETENTION_MS / 86_400_000),
-        1,
-        36500,
-      ) * 86_400_000;
-    this.monthlyRollupRetentionMs =
-      resolveBoundedInt(
-        retention.monthlyRollupsDays,
-        Math.floor(DEFAULT_MONTHLY_ROLLUP_RETENTION_MS / 86_400_000),
-        1,
-        36500,
-      ) * 86_400_000;
-    this.vacuumIntervalMs =
-      resolveBoundedInt(
-        retention.vacuumIntervalDays,
-        Math.floor(DEFAULT_VACUUM_INTERVAL_MS / 86_400_000),
-        1,
-        3650,
-      ) * 86_400_000;
+    const daysToRetentionMs = (value: number | undefined, fallbackMs: number, maxDays: number): number => {
+      const fallbackDays = Math.floor(fallbackMs / 86_400_000);
+      const resolvedDays = resolveBoundedInt(value, fallbackDays, 0, maxDays);
+      return resolvedDays === 0 ? Number.POSITIVE_INFINITY : resolvedDays * 86_400_000;
+    };
+
+    this.eventsRetentionMs = daysToRetentionMs(retention.eventsDays, DEFAULT_EVENTS_RETENTION_MS, 3650);
+    this.telemetryRetentionMs = daysToRetentionMs(
+      retention.telemetryDays,
+      DEFAULT_TELEMETRY_RETENTION_MS,
+      3650,
+    );
+    this.sessionsRetentionMs = daysToRetentionMs(
+      retention.sessionsDays,
+      DEFAULT_SESSIONS_RETENTION_MS,
+      3650,
+    );
+    this.dailyRollupRetentionMs = daysToRetentionMs(
+      retention.dailyRollupsDays,
+      DEFAULT_DAILY_ROLLUP_RETENTION_MS,
+      36500,
+    );
+    this.monthlyRollupRetentionMs = daysToRetentionMs(
+      retention.monthlyRollupsDays,
+      DEFAULT_MONTHLY_ROLLUP_RETENTION_MS,
+      36500,
+    );
+    this.vacuumIntervalMs = daysToRetentionMs(
+      retention.vacuumIntervalDays,
+      DEFAULT_VACUUM_INTERVAL_MS,
+      3650,
+    );
     this.db = new Database(this.dbPath);
     applyPragmas(this.db);
     ensureSchema(this.db);
+    const reconciledSessions = reconcileStaleActiveSessions(this.db);
+    if (reconciledSessions > 0) {
+      this.logger.info(
+        `Recovered stale active sessions on startup: reconciledSessions=${reconciledSessions}`,
+      );
+    }
+    if (shouldBackfillLifetimeSummaries(this.db)) {
+      const result = rebuildLifetimeSummaryTables(this.db);
+      if (result.appliedSessions > 0) {
+        this.logger.info(
+          `Backfilled lifetime summaries from retained sessions: appliedSessions=${result.appliedSessions}`,
+        );
+      }
+    }
     this.preparedStatements = createTrackerPreparedStatements(this.db);
     this.scheduleMaintenance();
     this.scheduleFlush();
@@ -301,6 +326,11 @@ export class ImmersionTrackerService {
     activeSessions: number;
     episodesToday: number;
     activeAnimeCount: number;
+    totalEpisodesWatched: number;
+    totalAnimeCompleted: number;
+    totalActiveMin: number;
+    totalCards: number;
+    activeDays: number;
   }> {
     return getQueryHints(this.db);
   }
@@ -321,6 +351,12 @@ export class ImmersionTrackerService {
     return cleanupVocabularyStats(this.db, {
       resolveLegacyPos: this.resolveLegacyVocabularyPos,
     });
+  }
+
+  async rebuildLifetimeSummaries(): Promise<LifetimeRebuildSummary> {
+    this.flushTelemetry(true);
+    this.flushNow();
+    return rebuildLifetimeSummaryTables(this.db);
   }
 
   async getKanjiStats(limit = 100): Promise<KanjiStatsRow[]> {
@@ -454,34 +490,21 @@ export class ImmersionTrackerService {
       let coverBlob: Buffer | null = null;
       try {
         const res = await fetch(info.coverUrl);
-        if (res.ok) coverBlob = Buffer.from(await res.arrayBuffer());
+        if (res.ok) {
+          coverBlob = Buffer.from(await res.arrayBuffer());
+        }
       } catch {
         /* ignore */
       }
       for (const v of videos) {
-        this.db
-          .prepare(
-            `
-          INSERT INTO imm_media_art (video_id, anilist_id, cover_url, cover_blob, title_romaji, title_english, episodes_total, fetched_at_ms, CREATED_DATE, LAST_UPDATE_DATE)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(video_id) DO UPDATE SET
-            anilist_id = excluded.anilist_id, cover_url = excluded.cover_url, cover_blob = COALESCE(excluded.cover_blob, cover_blob),
-            title_romaji = excluded.title_romaji, title_english = excluded.title_english, episodes_total = excluded.episodes_total,
-            fetched_at_ms = excluded.fetched_at_ms, LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
-        `,
-          )
-          .run(
-            v.video_id,
-            info.anilistId,
-            info.coverUrl,
-            coverBlob,
-            info.titleRomaji ?? null,
-            info.titleEnglish ?? null,
-            info.episodesTotal ?? null,
-            Date.now(),
-            Date.now(),
-            Date.now(),
-          );
+        upsertCoverArt(this.db, v.video_id, {
+          anilistId: info.anilistId,
+          coverUrl: info.coverUrl,
+          coverBlob,
+          titleRomaji: info.titleRomaji ?? null,
+          titleEnglish: info.titleEnglish ?? null,
+          episodesTotal: info.episodesTotal ?? null,
+        });
       }
     }
   }
@@ -539,7 +562,7 @@ export class ImmersionTrackerService {
   }
 
   async ensureCoverArt(videoId: number): Promise<boolean> {
-    const existing = getCoverArt(this.db, videoId);
+    const existing = await this.getCoverArt(videoId);
     if (existing?.coverBlob) {
       return true;
     }
@@ -557,7 +580,11 @@ export class ImmersionTrackerService {
       if (!canonicalTitle) {
         return false;
       }
-      return await this.coverArtFetcher!.fetchIfMissing(this.db, videoId, canonicalTitle);
+      const fetched = await this.coverArtFetcher!.fetchIfMissing(this.db, videoId, canonicalTitle);
+      if (!fetched) {
+        return false;
+      }
+      return (await this.getCoverArt(videoId))?.coverBlob !== null;
     })();
 
     this.pendingCoverFetches.set(videoId, fetchPromise);
@@ -729,7 +756,6 @@ export class ImmersionTrackerService {
       payloadJson: sanitizePayload(
         {
           event: 'subtitle-line',
-          text: cleaned,
           words: metrics.words,
         },
         this.maxPayloadBytes,
@@ -1024,17 +1050,33 @@ export class ImmersionTrackerService {
       this.flushTelemetry(true);
       this.flushNow();
       const nowMs = Date.now();
-      const retentionResult = pruneRetention(this.db, nowMs, {
-        eventsRetentionMs: this.eventsRetentionMs,
-        telemetryRetentionMs: this.telemetryRetentionMs,
-        dailyRollupRetentionMs: this.dailyRollupRetentionMs,
-        monthlyRollupRetentionMs: this.monthlyRollupRetentionMs,
-      });
-      const shouldRebuildRollups =
-        retentionResult.deletedTelemetryRows > 0 || retentionResult.deletedEndedSessions > 0;
-      this.runRollupMaintenance(shouldRebuildRollups);
+      this.runRollupMaintenance(false);
+      if (
+        Number.isFinite(this.eventsRetentionMs) ||
+        Number.isFinite(this.telemetryRetentionMs) ||
+        Number.isFinite(this.sessionsRetentionMs)
+      ) {
+        pruneRawRetention(this.db, nowMs, {
+          eventsRetentionMs: this.eventsRetentionMs,
+          telemetryRetentionMs: this.telemetryRetentionMs,
+          sessionsRetentionMs: this.sessionsRetentionMs,
+        });
+      }
+      if (
+        Number.isFinite(this.dailyRollupRetentionMs) ||
+        Number.isFinite(this.monthlyRollupRetentionMs)
+      ) {
+        pruneRollupRetention(this.db, nowMs, {
+          dailyRollupRetentionMs: this.dailyRollupRetentionMs,
+          monthlyRollupRetentionMs: this.monthlyRollupRetentionMs,
+        });
+      }
 
-      if (nowMs - this.lastVacuumMs >= this.vacuumIntervalMs && !this.writeLock.locked) {
+      if (
+        this.vacuumIntervalMs > 0 &&
+        nowMs - this.lastVacuumMs >= this.vacuumIntervalMs &&
+        !this.writeLock.locked
+      ) {
         this.db.exec('VACUUM');
         this.lastVacuumMs = nowMs;
       }
@@ -1097,6 +1139,7 @@ export class ImmersionTrackerService {
     this.sessionState.pendingTelemetry = false;
 
     finalizeSessionRecord(this.db, this.sessionState, endedAt);
+    applySessionLifetimeSummary(this.db, this.sessionState, endedAt);
     this.sessionState = null;
   }
 

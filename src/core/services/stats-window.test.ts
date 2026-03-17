@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildStatsWindowLoadFileOptions,
   buildStatsWindowOptions,
+  promoteStatsWindowLevel,
   shouldHideStatsWindowForInput,
 } from './stats-window-runtime';
 
@@ -148,4 +149,51 @@ test('buildStatsWindowLoadFileOptions includes provided stats API base URL', () 
       apiBase: 'http://127.0.0.1:6123',
     },
   });
+});
+
+test('promoteStatsWindowLevel raises stats above overlay level on macOS', () => {
+  const calls: string[] = [];
+  promoteStatsWindowLevel(
+    {
+      setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => {
+        calls.push(`always-on-top:${flag}:${level ?? 'none'}:${relativeLevel ?? 0}`);
+      },
+      setVisibleOnAllWorkspaces: (visible: boolean, options?: { visibleOnFullScreen?: boolean }) => {
+        calls.push(
+          `all-workspaces:${visible}:${options?.visibleOnFullScreen === true ? 'fullscreen' : 'plain'}`,
+        );
+      },
+      setFullScreenable: (fullscreenable: boolean) => {
+        calls.push(`fullscreenable:${fullscreenable}`);
+      },
+      moveTop: () => {
+        calls.push('move-top');
+      },
+    } as never,
+    'darwin',
+  );
+
+  assert.deepEqual(calls, [
+    'always-on-top:true:screen-saver:2',
+    'all-workspaces:true:fullscreen',
+    'fullscreenable:false',
+    'move-top',
+  ]);
+});
+
+test('promoteStatsWindowLevel raises stats above overlay level on Windows', () => {
+  const calls: string[] = [];
+  promoteStatsWindowLevel(
+    {
+      setAlwaysOnTop: (flag: boolean, level?: string, relativeLevel?: number) => {
+        calls.push(`always-on-top:${flag}:${level ?? 'none'}:${relativeLevel ?? 0}`);
+      },
+      moveTop: () => {
+        calls.push('move-top');
+      },
+    } as never,
+    'win32',
+  );
+
+  assert.deepEqual(calls, ['always-on-top:true:screen-saver:2', 'move-top']);
 });

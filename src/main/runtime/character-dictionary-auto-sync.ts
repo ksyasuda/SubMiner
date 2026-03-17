@@ -7,8 +7,13 @@ import type {
   MergedCharacterDictionaryBuildResult,
 } from '../character-dictionary-runtime';
 
+type AutoSyncMediaEntry = {
+  mediaId: number;
+  label: string;
+};
+
 type AutoSyncState = {
-  activeMediaIds: number[];
+  activeMediaIds: AutoSyncMediaEntry[];
   mergedRevision: string | null;
   mergedDictionaryTitle: string | null;
 };
@@ -64,16 +69,66 @@ function ensureDir(dirPath: string): void {
   }
 }
 
+function normalizeMediaId(rawMediaId: number): number | null {
+  const mediaId = Math.max(1, Math.floor(rawMediaId));
+  return Number.isFinite(mediaId) ? mediaId : null;
+}
+
+function parseActiveMediaEntry(rawEntry: unknown): AutoSyncMediaEntry | null {
+  if (typeof rawEntry === 'number') {
+    const mediaId = normalizeMediaId(rawEntry);
+    if (mediaId === null) {
+      return null;
+    }
+    return { mediaId, label: String(mediaId) };
+  }
+
+  if (typeof rawEntry !== 'string') {
+    return null;
+  }
+
+  const trimmed = rawEntry.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const [rawId, ...rawTitleParts] = trimmed.split(' - ');
+  if (!rawId || !/^\d+$/.test(rawId)) {
+    return null;
+  }
+  const mediaId = normalizeMediaId(Number.parseInt(rawId ?? '', 10));
+  if (mediaId === null || mediaId <= 0) {
+    return null;
+  }
+
+  const rawLabel = rawTitleParts.length > 0 ? rawTitleParts.join(' - ').trim() : '';
+  return { mediaId, label: rawLabel ? `${mediaId} - ${rawLabel}` : String(mediaId) };
+}
+
+function buildActiveMediaLabel(mediaId: number, mediaTitle: string | null | undefined): string {
+  const normalizedId = normalizeMediaId(mediaId);
+  const trimmedTitle = typeof mediaTitle === 'string' ? mediaTitle.trim() : '';
+  if (normalizedId === null) {
+    return trimmedTitle;
+  }
+  return trimmedTitle.length > 0 ? `${normalizedId} - ${trimmedTitle}` : String(normalizedId);
+}
+
 function readAutoSyncState(statePath: string): AutoSyncState {
   try {
     const raw = fs.readFileSync(statePath, 'utf8');
     const parsed = JSON.parse(raw) as Partial<AutoSyncState>;
-    const activeMediaIds = Array.isArray(parsed.activeMediaIds)
-      ? parsed.activeMediaIds
-          .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
-          .map((value) => Math.max(1, Math.floor(value)))
-          .filter((value, index, all) => all.indexOf(value) === index)
-      : [];
+    const activeMediaIds: AutoSyncMediaEntry[] = [];
+    const activeMediaIdSet = new Set<number>();
+    if (Array.isArray(parsed.activeMediaIds)) {
+      for (const value of parsed.activeMediaIds) {
+        const entry = parseActiveMediaEntry(value);
+        if (entry && !activeMediaIdSet.has(entry.mediaId)) {
+          activeMediaIdSet.add(entry.mediaId);
+          activeMediaIds.push(entry);
+        }
+      }
+    }
     return {
       activeMediaIds,
       mergedRevision:
@@ -96,7 +151,12 @@ function readAutoSyncState(statePath: string): AutoSyncState {
 
 function writeAutoSyncState(statePath: string, state: AutoSyncState): void {
   ensureDir(path.dirname(statePath));
-  fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf8');
+  const persistedState = {
+    activeMediaIds: state.activeMediaIds.map((entry) => entry.label),
+    mergedRevision: state.mergedRevision,
+    mergedDictionaryTitle: state.mergedDictionaryTitle,
+  };
+  fs.writeFileSync(statePath, JSON.stringify(persistedState, null, 2), 'utf8');
 }
 
 function arraysEqual(left: number[], right: number[]): boolean {
@@ -223,15 +283,22 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
       });
       const state = readAutoSyncState(statePath);
       const nextActiveMediaIds = [
-        snapshot.mediaId,
-        ...state.activeMediaIds.filter((mediaId) => mediaId !== snapshot.mediaId),
+        {
+          mediaId: snapshot.mediaId,
+          label: buildActiveMediaLabel(snapshot.mediaId, snapshot.mediaTitle),
+        },
+        ...state.activeMediaIds.filter((entry) => entry.mediaId !== snapshot.mediaId),
       ].slice(0, Math.max(1, Math.floor(config.maxLoaded)));
+      const nextActiveMediaIdValues = nextActiveMediaIds.map((entry) => entry.mediaId);
       deps.logInfo?.(
-        `[dictionary:auto-sync] active AniList media set: ${nextActiveMediaIds.join(', ')}`,
+        `[dictionary:auto-sync] active AniList media set: ${nextActiveMediaIds
+          .map((entry) => entry.label)
+          .join(', ')}`,
       );
 
-      const retainedOrderChanged = !arraysEqual(nextActiveMediaIds, state.activeMediaIds);
-      const retainedMembershipChanged = !sameMembership(nextActiveMediaIds, state.activeMediaIds);
+      const stateMediaIds = state.activeMediaIds.map((entry) => entry.mediaId);
+      const retainedOrderChanged = !arraysEqual(nextActiveMediaIdValues, stateMediaIds);
+      const retainedMembershipChanged = !sameMembership(nextActiveMediaIdValues, stateMediaIds);
       let merged: MergedCharacterDictionaryBuildResult | null = null;
       if (
         retainedMembershipChanged ||
@@ -244,9 +311,9 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
           mediaId: snapshot.mediaId,
           mediaTitle: snapshot.mediaTitle,
           message: buildBuildingMessage(snapshot.mediaTitle),
-        });
+          });
         deps.logInfo?.('[dictionary:auto-sync] rebuilding merged dictionary for active anime set');
-        merged = await deps.buildMergedDictionary(nextActiveMediaIds);
+        merged = await deps.buildMergedDictionary(nextActiveMediaIdValues);
       }
 
       const dictionaryTitle = merged?.dictionaryTitle ?? state.mergedDictionaryTitle;
@@ -293,7 +360,7 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
           );
         }
         if (merged === null) {
-          merged = await deps.buildMergedDictionary(nextActiveMediaIds);
+          merged = await deps.buildMergedDictionary(nextActiveMediaIdValues);
         }
         deps.logInfo?.(`[dictionary:auto-sync] importing merged dictionary: ${merged.zipPath}`);
         const imported = await withOperationTimeout(

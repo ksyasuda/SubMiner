@@ -39,6 +39,7 @@ export interface AnnotationStageDeps {
 
 export interface AnnotationStageOptions {
   nPlusOneEnabled?: boolean;
+  nameMatchEnabled?: boolean;
   jlptEnabled?: boolean;
   frequencyEnabled?: boolean;
   minSentenceWordsForNPlusOne?: number;
@@ -611,6 +612,13 @@ function computeTokenJlptLevel(
   return level ?? undefined;
 }
 
+function hasPrioritizedNameMatch(
+  token: MergedToken,
+  options: Pick<AnnotationStageOptions, 'nameMatchEnabled'>,
+): boolean {
+  return options.nameMatchEnabled !== false && token.isNameMatch === true;
+}
+
 export function annotateTokens(
   tokens: MergedToken[],
   deps: AnnotationStageDeps,
@@ -619,25 +627,31 @@ export function annotateTokens(
   const pos1Exclusions = resolvePos1Exclusions(options);
   const pos2Exclusions = resolvePos2Exclusions(options);
   const nPlusOneEnabled = options.nPlusOneEnabled !== false;
+  const nameMatchEnabled = options.nameMatchEnabled !== false;
   const frequencyEnabled = options.frequencyEnabled !== false;
   const jlptEnabled = options.jlptEnabled !== false;
 
   // Single pass: compute known word status, frequency filtering, and JLPT level together
   const annotated = tokens.map((token) => {
+    const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
     const isKnown = nPlusOneEnabled
       ? computeTokenKnownStatus(token, deps.isKnownWord, deps.knownWordMatchMode)
       : false;
 
-    const frequencyRank = frequencyEnabled
+    const frequencyRank = frequencyEnabled && !prioritizedNameMatch
       ? filterTokenFrequencyRank(token, pos1Exclusions, pos2Exclusions)
       : undefined;
 
-    const jlptLevel = jlptEnabled ? computeTokenJlptLevel(token, deps.getJlptLevel) : undefined;
+    const jlptLevel =
+      jlptEnabled && !prioritizedNameMatch
+        ? computeTokenJlptLevel(token, deps.getJlptLevel)
+        : undefined;
 
     return {
       ...token,
       isKnown,
-      isNPlusOneTarget: nPlusOneEnabled ? token.isNPlusOneTarget : false,
+      isNPlusOneTarget:
+        nPlusOneEnabled && !prioritizedNameMatch ? token.isNPlusOneTarget : false,
       frequencyRank,
       jlptLevel,
     };
@@ -655,10 +669,25 @@ export function annotateTokens(
       ? minSentenceWordsForNPlusOne
       : 3;
 
-  return markNPlusOneTargets(
+  const nPlusOneMarked = markNPlusOneTargets(
     annotated,
     sanitizedMinSentenceWordsForNPlusOne,
     pos1Exclusions,
     pos2Exclusions,
+  );
+
+  if (!nameMatchEnabled) {
+    return nPlusOneMarked;
+  }
+
+  return nPlusOneMarked.map((token) =>
+    hasPrioritizedNameMatch(token, options)
+      ? {
+          ...token,
+          isNPlusOneTarget: false,
+          frequencyRank: undefined,
+          jlptLevel: undefined,
+        }
+      : token,
   );
 }

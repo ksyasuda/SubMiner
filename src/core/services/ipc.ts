@@ -78,6 +78,11 @@ export interface IpcServiceDeps {
       activeSessions: number;
       episodesToday: number;
       activeAnimeCount: number;
+      totalActiveMin: number;
+      totalCards: number;
+      activeDays: number;
+      totalEpisodesWatched: number;
+      totalAnimeCompleted: number;
     }>;
     getSessionTimeline: (sessionId: number, limit?: number) => Promise<unknown>;
     getSessionEvents: (sessionId: number, limit?: number) => Promise<unknown>;
@@ -457,6 +462,13 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
         hints: {
           totalSessions: 0,
           activeSessions: 0,
+          episodesToday: 0,
+          activeAnimeCount: 0,
+          totalActiveMin: 0,
+          totalCards: 0,
+          activeDays: 0,
+          totalEpisodesWatched: 0,
+          totalAnimeCompleted: 0,
         },
       };
     }

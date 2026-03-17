@@ -630,6 +630,9 @@ export interface StatsConfig {
   autoOpenBrowser?: boolean;
 }
 
+export type ImmersionTrackingRetentionMode = 'preset' | 'advanced';
+export type ImmersionTrackingRetentionPreset = 'minimal' | 'balanced' | 'deep-history';
+
 export interface ImmersionTrackingConfig {
   enabled?: boolean;
   dbPath?: string;
@@ -638,12 +641,20 @@ export interface ImmersionTrackingConfig {
   queueCap?: number;
   payloadCapBytes?: number;
   maintenanceIntervalMs?: number;
+  retentionMode?: ImmersionTrackingRetentionMode;
+  retentionPreset?: ImmersionTrackingRetentionPreset;
   retention?: {
     eventsDays?: number;
     telemetryDays?: number;
+    sessionsDays?: number;
     dailyRollupsDays?: number;
     monthlyRollupsDays?: number;
     vacuumIntervalDays?: number;
+  };
+  lifetimeSummaries?: {
+    global?: boolean;
+    anime?: boolean;
+    media?: boolean;
   };
 }
 
@@ -859,12 +870,20 @@ export interface ResolvedConfig {
     queueCap: number;
     payloadCapBytes: number;
     maintenanceIntervalMs: number;
+    retentionMode: ImmersionTrackingRetentionMode;
+    retentionPreset: ImmersionTrackingRetentionPreset;
     retention: {
       eventsDays: number;
       telemetryDays: number;
+      sessionsDays: number;
       dailyRollupsDays: number;
       monthlyRollupsDays: number;
       vacuumIntervalDays: number;
+    };
+    lifetimeSummaries: {
+      global: boolean;
+      anime: boolean;
+      media: boolean;
     };
   };
   stats: {

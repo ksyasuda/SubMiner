@@ -81,3 +81,21 @@ test('parseArgs maps explicit stats cleanup vocab flag', () => {
   assert.equal(parsed.statsCleanup, true);
   assert.equal(parsed.statsCleanupVocab, true);
 });
+
+test('parseArgs maps lifetime stats cleanup flag', () => {
+  const parsed = parseArgs(['stats', 'cleanup', '--lifetime'], 'subminer', {});
+
+  assert.equal(parsed.stats, true);
+  assert.equal(parsed.statsCleanup, true);
+  assert.equal(parsed.statsCleanupVocab, false);
+  assert.equal(parsed.statsCleanupLifetime, true);
+});
+
+test('parseArgs maps stats rebuild action to cleanup lifetime mode', () => {
+  const parsed = parseArgs(['stats', 'rebuild'], 'subminer', {});
+
+  assert.equal(parsed.stats, true);
+  assert.equal(parsed.statsCleanup, true);
+  assert.equal(parsed.statsCleanupVocab, false);
+  assert.equal(parsed.statsCleanupLifetime, true);
+});

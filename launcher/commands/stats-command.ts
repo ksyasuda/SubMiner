@@ -24,13 +24,15 @@ type StatsCommandDeps = {
   removeDir: (targetPath: string) => void;
 };
 
+const STATS_STARTUP_RESPONSE_TIMEOUT_MS = 8_000;
+
 const defaultDeps: StatsCommandDeps = {
   createTempDir: (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix)),
   joinPath: (...parts) => path.join(...parts),
   runAppCommandAttached: (appPath, appArgs, logLevel, label) =>
     runAppCommandAttached(appPath, appArgs, logLevel, label),
   waitForStatsResponse: async (responsePath) => {
-    const deadline = Date.now() + 8000;
+    const deadline = Date.now() + STATS_STARTUP_RESPONSE_TIMEOUT_MS;
     while (Date.now() < deadline) {
       try {
         if (fs.existsSync(responsePath)) {
@@ -71,20 +73,46 @@ export async function runStatsCommand(
     if (args.statsCleanupVocab) {
       forwarded.push('--stats-cleanup-vocab');
     }
+    if (args.statsCleanupLifetime) {
+      forwarded.push('--stats-cleanup-lifetime');
+    }
     if (args.logLevel !== 'info') {
       forwarded.push('--log-level', args.logLevel);
     }
-    const attachedExitPromise = deps.runAppCommandAttached(
-      appPath,
-      forwarded,
-      args.logLevel,
-      'stats',
-    );
+    const attachedExitPromise = deps.runAppCommandAttached(appPath, forwarded, args.logLevel, 'stats');
+
+    if (!args.statsCleanup) {
+      const startupResult = await Promise.race([
+        deps
+          .waitForStatsResponse(responsePath)
+          .then((response) => ({ kind: 'response' as const, response })),
+        attachedExitPromise.then((status) => ({ kind: 'exit' as const, status })),
+      ]);
+      if (startupResult.kind === 'exit') {
+        if (startupResult.status !== 0) {
+          throw new Error(
+            `Stats app exited before startup response (status ${startupResult.status}).`,
+          );
+        }
+        const response = await deps.waitForStatsResponse(responsePath);
+        if (!response.ok) {
+          throw new Error(response.error || 'Stats dashboard failed to start.');
+        }
+        return true;
+      }
+      if (!startupResult.response.ok) {
+        throw new Error(startupResult.response.error || 'Stats dashboard failed to start.');
+      }
+      await attachedExitPromise;
+      return true;
+    }
+    const attachedExitPromiseCleanup = attachedExitPromise;
+
     const startupResult = await Promise.race([
       deps
         .waitForStatsResponse(responsePath)
         .then((response) => ({ kind: 'response' as const, response })),
-      attachedExitPromise.then((status) => ({ kind: 'exit' as const, status })),
+      attachedExitPromiseCleanup.then((status) => ({ kind: 'exit' as const, status })),
     ]);
     if (startupResult.kind === 'exit') {
       if (startupResult.status !== 0) {
@@ -101,7 +129,7 @@ export async function runStatsCommand(
     if (!startupResult.response.ok) {
       throw new Error(startupResult.response.error || 'Stats dashboard failed to start.');
     }
-    const exitStatus = await attachedExitPromise;
+    const exitStatus = await attachedExitPromiseCleanup;
     if (exitStatus !== 0) {
       throw new Error(`Stats app exited with status ${exitStatus}.`);
     }

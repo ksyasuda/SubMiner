@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CliArgs, CliCommandSource } from '../../cli/args';
-import type { VocabularyCleanupSummary } from '../../core/services/immersion-tracker/types';
+import type {
+  LifetimeRebuildSummary,
+  VocabularyCleanupSummary,
+} from '../../core/services/immersion-tracker/types';
 
 type StatsCliConfig = {
   immersionTracking?: {
@@ -33,6 +36,7 @@ export function createRunStatsCliCommandHandler(deps: {
   ensureVocabularyCleanupTokenizerReady?: () => Promise<void> | void;
   getImmersionTracker: () => {
     cleanupVocabularyStats?: () => Promise<VocabularyCleanupSummary>;
+    rebuildLifetimeSummaries?: () => Promise<LifetimeRebuildSummary>;
   } | null;
   ensureStatsServerStarted: () => string;
   openExternal: (url: string) => Promise<unknown>;
@@ -55,7 +59,10 @@ export function createRunStatsCliCommandHandler(deps: {
   };
 
   return async (
-    args: Pick<CliArgs, 'statsResponsePath' | 'statsCleanup' | 'statsCleanupVocab'>,
+    args: Pick<
+      CliArgs,
+      'statsResponsePath' | 'statsCleanup' | 'statsCleanupVocab' | 'statsCleanupLifetime'
+    >,
     source: CliCommandSource,
   ): Promise<void> => {
     try {
@@ -71,13 +78,31 @@ export function createRunStatsCliCommandHandler(deps: {
       }
 
       if (args.statsCleanup) {
-        await deps.ensureVocabularyCleanupTokenizerReady?.();
-        if (!args.statsCleanupVocab || !tracker.cleanupVocabularyStats) {
+        const cleanupModes = [
+          args.statsCleanupVocab ? 'vocab' : null,
+          args.statsCleanupLifetime ? 'lifetime' : null,
+        ].filter(Boolean);
+        if (cleanupModes.length !== 1) {
+          throw new Error('Choose exactly one stats cleanup mode.');
+        }
+
+        if (args.statsCleanupVocab) {
+          await deps.ensureVocabularyCleanupTokenizerReady?.();
+        }
+        if (args.statsCleanupVocab && tracker.cleanupVocabularyStats) {
+          const result = await tracker.cleanupVocabularyStats();
+          deps.logInfo(
+            `Stats vocabulary cleanup complete: scanned=${result.scanned} kept=${result.kept} deleted=${result.deleted} repaired=${result.repaired}`,
+          );
+          writeResponseSafe(args.statsResponsePath, { ok: true });
+          return;
+        }
+        if (!args.statsCleanupLifetime || !tracker.rebuildLifetimeSummaries) {
           throw new Error('Stats cleanup mode is not available.');
         }
-        const result = await tracker.cleanupVocabularyStats();
+        const result = await tracker.rebuildLifetimeSummaries();
         deps.logInfo(
-          `Stats vocabulary cleanup complete: scanned=${result.scanned} kept=${result.kept} deleted=${result.deleted} repaired=${result.repaired}`,
+          `Stats lifetime rebuild complete: appliedSessions=${result.appliedSessions} rebuiltAtMs=${result.rebuiltAtMs}`,
         );
         writeResponseSafe(args.statsResponsePath, { ok: true });
         return;

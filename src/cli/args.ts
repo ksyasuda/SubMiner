@@ -32,6 +32,7 @@ export interface CliArgs {
   stats: boolean;
   statsCleanup?: boolean;
   statsCleanupVocab?: boolean;
+  statsCleanupLifetime?: boolean;
   statsResponsePath?: string;
   jellyfin: boolean;
   jellyfinLogin: boolean;
@@ -104,6 +105,7 @@ export function parseArgs(argv: string[]): CliArgs {
     stats: false,
     statsCleanup: false,
     statsCleanupVocab: false,
+    statsCleanupLifetime: false,
     jellyfin: false,
     jellyfinLogin: false,
     jellyfinLogout: false,
@@ -172,6 +174,7 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--stats') args.stats = true;
     else if (arg === '--stats-cleanup') args.statsCleanup = true;
     else if (arg === '--stats-cleanup-vocab') args.statsCleanupVocab = true;
+    else if (arg === '--stats-cleanup-lifetime') args.statsCleanupLifetime = true;
     else if (arg.startsWith('--stats-response-path=')) {
       const value = arg.split('=', 2)[1];
       if (value) args.statsResponsePath = value;

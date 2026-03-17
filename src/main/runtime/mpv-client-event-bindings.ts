@@ -22,7 +22,6 @@ export function createHandleMpvConnectionChangeHandler(deps: {
   reportJellyfinRemoteStopped: () => void;
   refreshDiscordPresence: () => void;
   syncOverlayMpvSubtitleSuppression: () => void;
-  scheduleCharacterDictionarySync?: () => void;
   hasInitialJellyfinPlayArg: () => boolean;
   isOverlayRuntimeInitialized: () => boolean;
   isQuitOnDisconnectArmed: () => boolean;
@@ -34,7 +33,6 @@ export function createHandleMpvConnectionChangeHandler(deps: {
     deps.refreshDiscordPresence();
     if (connected) {
       deps.syncOverlayMpvSubtitleSuppression();
-      deps.scheduleCharacterDictionarySync?.();
       return;
     }
     deps.reportJellyfinRemoteStopped();

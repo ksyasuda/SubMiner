@@ -103,16 +103,19 @@ test('media path change handler signals autoplay-ready fast path for warm non-em
   ]);
 });
 
-test('media title change handler clears guess state and syncs immersion', () => {
+test('media title change handler clears guess state without re-scheduling character dictionary sync', () => {
   const calls: string[] = [];
-  const handler = createHandleMpvMediaTitleChangeHandler({
+  const deps: Parameters<typeof createHandleMpvMediaTitleChangeHandler>[0] & {
+    scheduleCharacterDictionarySync: () => void;
+  } = {
     updateCurrentMediaTitle: (title) => calls.push(`title:${title}`),
     resetAnilistMediaGuessState: () => calls.push('reset-guess'),
     notifyImmersionTitleUpdate: (title) => calls.push(`notify:${title}`),
     syncImmersionMediaState: () => calls.push('sync'),
     scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
     refreshDiscordPresence: () => calls.push('presence'),
-  });
+  };
+  const handler = createHandleMpvMediaTitleChangeHandler(deps);
 
   handler({ title: 'Episode 1' });
   assert.deepEqual(calls, [
@@ -120,7 +123,6 @@ test('media title change handler clears guess state and syncs immersion', () => 
     'reset-guess',
     'notify:Episode 1',
     'sync',
-    'dict-sync',
     'presence',
   ]);
 });

@@ -5,6 +5,7 @@ import { IPC_CHANNELS } from '../../shared/ipc/contracts.js';
 import {
   buildStatsWindowLoadFileOptions,
   buildStatsWindowOptions,
+  promoteStatsWindowLevel,
   shouldHideStatsWindowForInput,
 } from './stats-window-runtime.js';
 
@@ -22,6 +23,8 @@ export interface StatsWindowOptions {
   getToggleKey: () => string;
   /** Resolve the tracked overlay/mpv bounds */
   resolveBounds: () => WindowGeometry | null;
+  /** Notify the main process when the stats overlay becomes visible/hidden */
+  onVisibilityChanged?: (visible: boolean) => void;
 }
 
 function syncStatsWindowBounds(window: BrowserWindow, bounds: WindowGeometry | null): void {
@@ -32,6 +35,15 @@ function syncStatsWindowBounds(window: BrowserWindow, bounds: WindowGeometry | n
     width: bounds.width,
     height: bounds.height,
   });
+}
+
+function showStatsWindow(window: BrowserWindow, options: StatsWindowOptions): void {
+  syncStatsWindowBounds(window, options.resolveBounds());
+  promoteStatsWindowLevel(window);
+  window.show();
+  window.focus();
+  options.onVisibilityChanged?.(true);
+  promoteStatsWindowLevel(window);
 }
 
 /**
@@ -51,6 +63,7 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
     statsWindow.loadFile(indexPath, buildStatsWindowLoadFileOptions(options.getApiBaseUrl?.()));
 
     statsWindow.on('closed', () => {
+      options.onVisibilityChanged?.(false);
       statsWindow = null;
     });
 
@@ -58,21 +71,26 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
       if (shouldHideStatsWindowForInput(input, options.getToggleKey())) {
         event.preventDefault();
         statsWindow?.hide();
+        options.onVisibilityChanged?.(false);
       }
     });
 
     statsWindow.once('ready-to-show', () => {
-      if (statsWindow) {
-        syncStatsWindowBounds(statsWindow, options.resolveBounds());
+      if (!statsWindow) return;
+      showStatsWindow(statsWindow, options);
+    });
+
+    statsWindow.on('blur', () => {
+      if (!statsWindow || statsWindow.isDestroyed() || !statsWindow.isVisible()) {
+        return;
       }
-      statsWindow?.show();
+      promoteStatsWindowLevel(statsWindow);
     });
   } else if (statsWindow.isVisible()) {
     statsWindow.hide();
+    options.onVisibilityChanged?.(false);
   } else {
-    syncStatsWindowBounds(statsWindow, options.resolveBounds());
-    statsWindow.show();
-    statsWindow.focus();
+    showStatsWindow(statsWindow, options);
   }
 }
 

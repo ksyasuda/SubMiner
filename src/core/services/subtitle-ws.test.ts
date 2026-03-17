@@ -108,8 +108,9 @@ test('serializeSubtitleMarkup preserves tooltip attrs and name-match precedence'
         partOfSpeech: PartOfSpeech.other,
         isMerged: false,
         isKnown: false,
-        isNPlusOneTarget: false,
+        isNPlusOneTarget: true,
         isNameMatch: true,
+        jlptLevel: 'N5',
         frequencyRank: 12,
       },
     ],
@@ -122,9 +123,11 @@ test('serializeSubtitleMarkup preserves tooltip attrs and name-match precedence'
   );
   assert.match(
     markup,
-    /<span class="word word-name-match" data-reading="あれくしあ" data-headword="アレクシア" data-frequency-rank="12">アレクシア<\/span>/,
+    /<span class="word word-name-match" data-reading="あれくしあ" data-headword="アレクシア">アレクシア<\/span>/,
   );
   assert.doesNotMatch(markup, /word-name-match word-known|word-known word-name-match/);
+  assert.doesNotMatch(markup, /word-name-match word-n-plus-one|word-n-plus-one word-name-match/);
+  assert.doesNotMatch(markup, /data-frequency-rank="12"|data-jlpt-level="N5"|word-jlpt-n5/);
 });
 
 test('serializeSubtitleWebsocketMessage emits sentence payload', () => {

@@ -759,7 +759,7 @@ export function createKeyboardHandlers(
     );
 
     document.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (isKeyboardDrivenModeToggle(e)) {
+      if (isKeyboardDrivenModeToggle(e) && ctx.platform.isModalLayer) {
         e.preventDefault();
         handleKeyboardModeToggleRequested();
         return;

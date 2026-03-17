@@ -287,7 +287,7 @@ function createKeyboardHandlerHarness() {
   });
   let wordNodes = [createWordNode(10), createWordNode(80), createWordNode(150)];
 
-  const ctx = {
+    const ctx = {
     dom: {
       subtitleRoot: {
         classList: subtitleRootClassList,
@@ -301,6 +301,7 @@ function createKeyboardHandlerHarness() {
     platform: {
       shouldToggleMouseIgnore: false,
       isMacOSPlatform: false,
+      isModalLayer: false,
       overlayLayer: 'always-on-top',
     },
     state: createRendererState(),
@@ -640,6 +641,42 @@ test('keyboard mode: opening lookup restores overlay keyboard focus', async () =
     assert.equal(testGlobals.focusMainWindowCalls() > 0, true);
     assert.equal(testGlobals.windowFocusCalls() > 0, true);
     assert.equal(testGlobals.overlayFocusCalls.length > 0, true);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: visible-layer Ctrl+Shift+Y should not be toggled by renderer keydown', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.platform.isModalLayer = false;
+
+    testGlobals.dispatchKeydown({ key: 'Y', code: 'KeyY', ctrlKey: true, shiftKey: true });
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
+
+    handlers.handleKeyboardModeToggleRequested();
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, true);
+  } finally {
+    ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: modal-layer Ctrl+Shift+Y still toggles via renderer keydown', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.platform.isModalLayer = true;
+
+    testGlobals.dispatchKeydown({ key: 'Y', code: 'KeyY', ctrlKey: true, shiftKey: true });
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, true);
+
+    testGlobals.dispatchKeydown({ key: 'Y', code: 'KeyY', ctrlKey: true, shiftKey: true });
+    assert.equal(ctx.state.keyboardDrivenModeEnabled, false);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
     testGlobals.restore();

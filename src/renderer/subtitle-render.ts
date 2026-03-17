@@ -91,6 +91,13 @@ const DEFAULT_FREQUENCY_RENDER_SETTINGS: FrequencyRenderSettings = {
 };
 const DEFAULT_NAME_MATCH_ENABLED = true;
 
+function hasPrioritizedNameMatch(
+  token: MergedToken,
+  tokenRenderSettings?: Partial<Pick<TokenRenderSettings, 'nameMatchEnabled'>>,
+): boolean {
+  return (tokenRenderSettings?.nameMatchEnabled ?? DEFAULT_NAME_MATCH_ENABLED) && token.isNameMatch === true;
+}
+
 function sanitizeFrequencyTopX(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     return fallback;
@@ -227,8 +234,12 @@ function getNormalizedFrequencyRank(token: MergedToken): number | null {
 
 export function getFrequencyRankLabelForToken(
   token: MergedToken,
-  frequencySettings?: Partial<FrequencyRenderSettings>,
+  frequencySettings?: Partial<TokenRenderSettings>,
 ): string | null {
+  if (hasPrioritizedNameMatch(token, frequencySettings)) {
+    return null;
+  }
+
   const resolvedFrequencySettings = {
     ...DEFAULT_FREQUENCY_RENDER_SETTINGS,
     ...frequencySettings,
@@ -251,7 +262,14 @@ export function getFrequencyRankLabelForToken(
   return rank === null ? null : String(rank);
 }
 
-export function getJlptLevelLabelForToken(token: MergedToken): string | null {
+export function getJlptLevelLabelForToken(
+  token: MergedToken,
+  tokenRenderSettings?: Partial<Pick<TokenRenderSettings, 'nameMatchEnabled'>>,
+): string | null {
+  if (hasPrioritizedNameMatch(token, tokenRenderSettings)) {
+    return null;
+  }
+
   return token.jlptLevel ?? null;
 }
 
@@ -304,7 +322,7 @@ function renderWithTokens(
       if (frequencyRankLabel) {
         span.dataset.frequencyRank = frequencyRankLabel;
       }
-      const jlptLevelLabel = getJlptLevelLabelForToken(token);
+      const jlptLevelLabel = getJlptLevelLabelForToken(token, resolvedTokenRenderSettings);
       if (jlptLevelLabel) {
         span.dataset.jlptLevel = jlptLevelLabel;
       }
@@ -340,7 +358,7 @@ function renderWithTokens(
     if (frequencyRankLabel) {
       span.dataset.frequencyRank = frequencyRankLabel;
     }
-    const jlptLevelLabel = getJlptLevelLabelForToken(token);
+    const jlptLevelLabel = getJlptLevelLabelForToken(token, resolvedTokenRenderSettings);
     if (jlptLevelLabel) {
       span.dataset.jlptLevel = jlptLevelLabel;
     }
@@ -452,22 +470,22 @@ export function computeWordClass(
 
   const classes = ['word'];
 
-  if (token.isNPlusOneTarget) {
-    classes.push('word-n-plus-one');
-  } else if (resolvedTokenRenderSettings.nameMatchEnabled && token.isNameMatch) {
+  if (hasPrioritizedNameMatch(token, resolvedTokenRenderSettings)) {
     classes.push('word-name-match');
+  } else if (token.isNPlusOneTarget) {
+    classes.push('word-n-plus-one');
   } else if (token.isKnown) {
     classes.push('word-known');
   }
 
-  if (token.jlptLevel) {
+  if (!hasPrioritizedNameMatch(token, resolvedTokenRenderSettings) && token.jlptLevel) {
     classes.push(`word-jlpt-${token.jlptLevel.toLowerCase()}`);
   }
 
   if (
     !token.isKnown &&
     !token.isNPlusOneTarget &&
-    !(resolvedTokenRenderSettings.nameMatchEnabled && token.isNameMatch)
+    !hasPrioritizedNameMatch(token, resolvedTokenRenderSettings)
   ) {
     const frequencyClass = getFrequencyDictionaryClass(token, resolvedTokenRenderSettings);
     if (frequencyClass) {

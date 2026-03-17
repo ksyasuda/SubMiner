@@ -4,6 +4,7 @@ import { WindowGeometry } from '../../types';
 
 export function updateVisibleOverlayVisibility(args: {
   visibleOverlayVisible: boolean;
+  forceMousePassthrough?: boolean;
   mainWindow: BrowserWindow | null;
   windowTracker: BaseWindowTracker | null;
   trackerNotReadyWarningShown: boolean;
@@ -25,14 +26,15 @@ export function updateVisibleOverlayVisibility(args: {
   const mainWindow = args.mainWindow;
 
   const showPassiveVisibleOverlay = (): void => {
-    if (args.isWindowsPlatform) {
+    const forceMousePassthrough = args.forceMousePassthrough === true;
+    if (args.isWindowsPlatform || forceMousePassthrough) {
       mainWindow.setIgnoreMouseEvents(true, { forward: true });
     } else {
       mainWindow.setIgnoreMouseEvents(false);
     }
     args.ensureOverlayWindowLevel(mainWindow);
     mainWindow.show();
-    if (!args.isWindowsPlatform) {
+    if (!args.isWindowsPlatform && !args.isMacOSPlatform && !forceMousePassthrough) {
       mainWindow.focus();
     }
   };

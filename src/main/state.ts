@@ -183,6 +183,7 @@ export interface AppState {
   runtimeOptionsManager: RuntimeOptionsManager | null;
   trackerNotReadyWarningShown: boolean;
   overlayDebugVisualizationEnabled: boolean;
+  statsOverlayVisible: boolean;
   subsyncInProgress: boolean;
   initialArgs: CliArgs | null;
   mpvSocketPath: string;
@@ -260,6 +261,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     runtimeOptionsManager: null,
     trackerNotReadyWarningShown: false,
     overlayDebugVisualizationEnabled: false,
+    statsOverlayVisible: false,
     shortcutsRegistered: false,
     overlayRuntimeInitialized: false,
     fieldGroupingResolver: null,

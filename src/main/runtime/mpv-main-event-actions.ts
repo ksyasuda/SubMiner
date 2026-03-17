@@ -70,7 +70,6 @@ export function createHandleMpvMediaTitleChangeHandler(deps: {
   resetAnilistMediaGuessState: () => void;
   notifyImmersionTitleUpdate: (title: string) => void;
   syncImmersionMediaState: () => void;
-  scheduleCharacterDictionarySync?: () => void;
   refreshDiscordPresence: () => void;
 }) {
   return ({ title }: { title: string | null }): void => {
@@ -79,9 +78,6 @@ export function createHandleMpvMediaTitleChangeHandler(deps: {
     deps.resetAnilistMediaGuessState();
     deps.notifyImmersionTitleUpdate(normalizedTitle);
     deps.syncImmersionMediaState();
-    if (normalizedTitle.trim().length > 0) {
-      deps.scheduleCharacterDictionarySync?.();
-    }
     deps.refreshDiscordPresence();
   };
 }

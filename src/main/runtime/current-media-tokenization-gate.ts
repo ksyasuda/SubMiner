@@ -13,6 +13,7 @@ export function createCurrentMediaTokenizationGate(): {
 } {
   let currentMediaPath: string | null = null;
   let readyMediaPath: string | null = null;
+  let warmupCompleted = false;
   let pendingMediaPath: string | null = null;
   let pendingPromise: Promise<void> | null = null;
   let resolvePending: (() => void) | null = null;
@@ -43,6 +44,11 @@ export function createCurrentMediaTokenizationGate(): {
         return;
       }
       currentMediaPath = normalizedPath;
+      if (warmupCompleted) {
+        readyMediaPath = normalizedPath;
+        resolvePendingWaiter();
+        return;
+      }
       readyMediaPath = null;
       resolvePendingWaiter();
       if (normalizedPath) {
@@ -54,6 +60,7 @@ export function createCurrentMediaTokenizationGate(): {
       if (!normalizedPath) {
         return;
       }
+      warmupCompleted = true;
       readyMediaPath = normalizedPath;
       if (pendingMediaPath === normalizedPath) {
         resolvePendingWaiter();
@@ -61,7 +68,7 @@ export function createCurrentMediaTokenizationGate(): {
     },
     waitUntilReady: async (mediaPath) => {
       const normalizedPath = normalizeMediaPath(mediaPath) ?? currentMediaPath;
-      if (!normalizedPath || readyMediaPath === normalizedPath) {
+      if (warmupCompleted || !normalizedPath || readyMediaPath === normalizedPath) {
         return;
       }
       await ensurePendingPromise(normalizedPath);

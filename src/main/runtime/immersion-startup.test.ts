@@ -14,6 +14,7 @@ function makeConfig() {
       retention: {
         eventsDays: 14,
         telemetryDays: 30,
+        sessionsDays: 45,
         dailyRollupsDays: 180,
         monthlyRollupsDays: 730,
         vacuumIntervalDays: 7,
@@ -97,6 +98,7 @@ test('createImmersionTrackerStartupHandler creates tracker and auto-connects mpv
     retention: {
       eventsDays: 14,
       telemetryDays: 30,
+      sessionsDays: 45,
       dailyRollupsDays: 180,
       monthlyRollupsDays: 730,
       vacuumIntervalDays: 7,

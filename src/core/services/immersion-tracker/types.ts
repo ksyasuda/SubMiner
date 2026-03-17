@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 13;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -7,6 +7,7 @@ const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 export const DEFAULT_EVENTS_RETENTION_MS = ONE_WEEK_MS;
 export const DEFAULT_VACUUM_INTERVAL_MS = ONE_WEEK_MS;
 export const DEFAULT_TELEMETRY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+export const DEFAULT_SESSIONS_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 export const DEFAULT_DAILY_ROLLUP_RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
 export const DEFAULT_MONTHLY_ROLLUP_RETENTION_MS = 5 * 365 * 24 * 60 * 60 * 1000;
 export const DEFAULT_MAX_PAYLOAD_BYTES = 256;
@@ -43,6 +44,7 @@ export interface ImmersionTrackerPolicy {
   retention?: {
     eventsDays?: number;
     telemetryDays?: number;
+    sessionsDays?: number;
     dailyRollupsDays?: number;
     monthlyRollupsDays?: number;
     vacuumIntervalDays?: number;
@@ -231,6 +233,54 @@ export interface SessionSummaryQueryRow {
   cardsMined: number;
   lookupCount: number;
   lookupHits: number;
+}
+
+export interface LifetimeGlobalRow {
+  totalSessions: number;
+  totalActiveMs: number;
+  totalCards: number;
+  activeDays: number;
+  episodesStarted: number;
+  episodesCompleted: number;
+  animeCompleted: number;
+  lastRebuiltMs: number | null;
+}
+
+export interface LifetimeAnimeRow {
+  animeId: number;
+  totalSessions: number;
+  totalActiveMs: number;
+  totalCards: number;
+  totalWordsSeen: number;
+  totalLinesSeen: number;
+  totalTokensSeen: number;
+  episodesStarted: number;
+  episodesCompleted: number;
+  firstWatchedMs: number | null;
+  lastWatchedMs: number | null;
+}
+
+export interface LifetimeMediaRow {
+  videoId: number;
+  totalSessions: number;
+  totalActiveMs: number;
+  totalCards: number;
+  totalWordsSeen: number;
+  totalLinesSeen: number;
+  totalTokensSeen: number;
+  completed: number;
+  firstWatchedMs: number | null;
+  lastWatchedMs: number | null;
+}
+
+export interface AppliedSessionRow {
+  sessionId: number;
+  appliedAtMs: number;
+}
+
+export interface LifetimeRebuildSummary {
+  appliedSessions: number;
+  rebuiltAtMs: number;
 }
 
 export interface VocabularyStatsRow {

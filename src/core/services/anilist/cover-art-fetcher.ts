@@ -200,10 +200,10 @@ function pickBestSearchResult(
 
 function buildSearchCandidates(parsed: CoverArtCandidate): string[] {
   const candidateTitles = [
-    parsed.title,
     ...(parsed.source === 'guessit' && parsed.season !== null && parsed.season > 1
       ? [`${parsed.title} Season ${parsed.season}`]
       : []),
+    parsed.title,
   ];
   return candidateTitles
     .map((title) => title.trim())
@@ -257,8 +257,27 @@ export function createCoverArtFetcher(
   logger: Logger,
   options: CoverArtFetcherOptions = {},
 ): CoverArtFetcher {
-  const resolveMediaInfo = async (canonicalTitle: string): Promise<CoverArtCandidate | null> => {
-    const parsed = await guessAnilistMediaInfo(null, canonicalTitle, {
+  const resolveCanonicalTitle = (db: DatabaseSync, videoId: number, fallbackTitle: string): string => {
+    const row = db
+      .prepare(
+        `
+          SELECT canonical_title AS canonicalTitle
+          FROM imm_videos
+          WHERE video_id = ?
+          LIMIT 1
+        `,
+      )
+      .get(videoId) as { canonicalTitle: string | null } | undefined;
+    return row?.canonicalTitle?.trim() || fallbackTitle;
+  };
+
+  const resolveMediaInfo = async (
+    db: DatabaseSync,
+    videoId: number,
+    canonicalTitle: string,
+  ): Promise<CoverArtCandidate | null> => {
+    const effectiveTitle = resolveCanonicalTitle(db, videoId, canonicalTitle);
+    const parsed = await guessAnilistMediaInfo(null, effectiveTitle, {
       runGuessit: options.runGuessit ?? runGuessit,
     });
     if (!parsed) {
@@ -303,7 +322,8 @@ export function createCoverArtFetcher(
         return false;
       }
 
-      const cleaned = stripFilenameTags(canonicalTitle);
+      const effectiveTitle = resolveCanonicalTitle(db, videoId, canonicalTitle);
+      const cleaned = stripFilenameTags(effectiveTitle);
       if (!cleaned) {
         logger.warn('cover-art: empty title after stripping tags for videoId=%d', videoId);
         upsertCoverArt(db, videoId, {
@@ -317,7 +337,7 @@ export function createCoverArtFetcher(
         return false;
       }
 
-      const parsedInfo = await resolveMediaInfo(canonicalTitle);
+      const parsedInfo = await resolveMediaInfo(db, videoId, canonicalTitle);
       const searchBase = parsedInfo?.title ?? cleaned;
       const searchCandidates = parsedInfo ? buildSearchCandidates(parsedInfo) : [cleaned];
 

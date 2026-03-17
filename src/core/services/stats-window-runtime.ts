@@ -1,8 +1,11 @@
-import type { BrowserWindowConstructorOptions } from 'electron';
+import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron';
 import type { WindowGeometry } from '../../types';
 
 const DEFAULT_STATS_WINDOW_WIDTH = 900;
 const DEFAULT_STATS_WINDOW_HEIGHT = 700;
+
+type StatsWindowLevelController = Pick<BrowserWindow, 'setAlwaysOnTop' | 'moveTop'> &
+  Partial<Pick<BrowserWindow, 'setVisibleOnAllWorkspaces' | 'setFullScreenable'>>;
 
 function isBareToggleKeyInput(input: Electron.Input, toggleKey: string): boolean {
   return (
@@ -49,6 +52,28 @@ export function buildStatsWindowOptions(options: {
       sandbox: true,
     },
   };
+}
+
+export function promoteStatsWindowLevel(
+  window: StatsWindowLevelController,
+  platform: NodeJS.Platform = process.platform,
+): void {
+  if (platform === 'darwin') {
+    window.setAlwaysOnTop(true, 'screen-saver', 2);
+    window.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true });
+    window.setFullScreenable?.(false);
+    window.moveTop();
+    return;
+  }
+
+  if (platform === 'win32') {
+    window.setAlwaysOnTop(true, 'screen-saver', 2);
+    window.moveTop();
+    return;
+  }
+
+  window.setAlwaysOnTop(true);
+  window.moveTop();
 }
 
 export function buildStatsWindowLoadFileOptions(apiBaseUrl?: string): {

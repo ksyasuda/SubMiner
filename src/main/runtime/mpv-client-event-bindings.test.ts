@@ -29,10 +29,13 @@ test('mpv connection handler reports stop and quits when disconnect guard passes
 
 test('mpv connection handler syncs overlay subtitle suppression on connect', () => {
   const calls: string[] = [];
-  const handler = createHandleMpvConnectionChangeHandler({
+  const deps: Parameters<typeof createHandleMpvConnectionChangeHandler>[0] & {
+    scheduleCharacterDictionarySync: () => void;
+  } = {
     reportJellyfinRemoteStopped: () => calls.push('report-stop'),
     refreshDiscordPresence: () => calls.push('presence-refresh'),
     syncOverlayMpvSubtitleSuppression: () => calls.push('sync-overlay-mpv-sub'),
+    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
     hasInitialJellyfinPlayArg: () => true,
     isOverlayRuntimeInitialized: () => false,
     isQuitOnDisconnectArmed: () => true,
@@ -41,7 +44,8 @@ test('mpv connection handler syncs overlay subtitle suppression on connect', () 
     },
     isMpvConnected: () => false,
     quitApp: () => calls.push('quit'),
-  });
+  };
+  const handler = createHandleMpvConnectionChangeHandler(deps);
 
   handler({ connected: true });
 
