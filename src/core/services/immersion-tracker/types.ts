@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -26,6 +26,7 @@ export const EVENT_SEEK_FORWARD = 5;
 export const EVENT_SEEK_BACKWARD = 6;
 export const EVENT_PAUSE_START = 7;
 export const EVENT_PAUSE_END = 8;
+export const EVENT_YOMITAN_LOOKUP = 9;
 
 export interface ImmersionTrackerOptions {
   dbPath: string;
@@ -60,6 +61,7 @@ export interface TelemetryAccumulator {
   cardsMined: number;
   lookupCount: number;
   lookupHits: number;
+  yomitanLookupCount: number;
   pauseCount: number;
   pauseMs: number;
   seekForwardCount: number;
@@ -92,6 +94,7 @@ interface QueuedTelemetryWrite {
   cardsMined?: number;
   lookupCount?: number;
   lookupHits?: number;
+  yomitanLookupCount?: number;
   pauseCount?: number;
   pauseMs?: number;
   seekForwardCount?: number;
@@ -233,6 +236,7 @@ export interface SessionSummaryQueryRow {
   cardsMined: number;
   lookupCount: number;
   lookupHits: number;
+  yomitanLookupCount: number;
 }
 
 export interface LifetimeGlobalRow {
@@ -432,6 +436,7 @@ export interface MediaDetailRow {
   totalLinesSeen: number;
   totalLookupCount: number;
   totalLookupHits: number;
+  totalYomitanLookupCount: number;
 }
 
 export interface AnimeLibraryRow {
@@ -462,6 +467,7 @@ export interface AnimeDetailRow {
   totalLinesSeen: number;
   totalLookupCount: number;
   totalLookupHits: number;
+  totalYomitanLookupCount: number;
   episodeCount: number;
   lastWatchedMs: number;
 }
@@ -486,6 +492,7 @@ export interface AnimeEpisodeRow {
   totalActiveMs: number;
   totalCards: number;
   totalWordsSeen: number;
+  totalYomitanLookupCount: number;
   lastWatchedMs: number;
 }
 

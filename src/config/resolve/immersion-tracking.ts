@@ -242,11 +242,7 @@ export function applyImmersionTrackingConfig(context: ResolveContext): void {
       }
 
       const dailyRollupsDays = asNumber(src.immersionTracking.retention.dailyRollupsDays);
-      if (
-        dailyRollupsDays !== undefined &&
-        dailyRollupsDays >= 0 &&
-        dailyRollupsDays <= 36500
-      ) {
+      if (dailyRollupsDays !== undefined && dailyRollupsDays >= 0 && dailyRollupsDays <= 36500) {
         retention.dailyRollupsDays = Math.floor(dailyRollupsDays);
       } else if (src.immersionTracking.retention.dailyRollupsDays !== undefined) {
         warn(
@@ -274,7 +270,11 @@ export function applyImmersionTrackingConfig(context: ResolveContext): void {
       }
 
       const vacuumIntervalDays = asNumber(src.immersionTracking.retention.vacuumIntervalDays);
-      if (vacuumIntervalDays !== undefined && vacuumIntervalDays >= 0 && vacuumIntervalDays <= 3650) {
+      if (
+        vacuumIntervalDays !== undefined &&
+        vacuumIntervalDays >= 0 &&
+        vacuumIntervalDays <= 3650
+      ) {
         retention.vacuumIntervalDays = Math.floor(vacuumIntervalDays);
       } else if (src.immersionTracking.retention.vacuumIntervalDays !== undefined) {
         warn(

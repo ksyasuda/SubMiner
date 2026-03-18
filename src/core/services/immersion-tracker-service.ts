@@ -6,6 +6,7 @@ import { getLocalVideoMetadata, guessAnimeVideoMetadata } from './immersion-trac
 import {
   pruneRawRetention,
   pruneRollupRetention,
+  runOptimizeMaintenance,
   runRollupMaintenance,
 } from './immersion-tracker/maintenance';
 import { Database, type DatabaseSync } from './immersion-tracker/sqlite';
@@ -60,6 +61,11 @@ import {
   getSessionEvents,
   getSessionSummaries,
   getSessionTimeline,
+  getSessionWordsByLine,
+  getTrendsDashboard,
+  getAllDistinctHeadwords,
+  getAnimeDistinctHeadwords,
+  getMediaDistinctHeadwords,
   getVocabularyStats,
   getWatchTimePerAnime,
   getWordAnimeAppearances,
@@ -69,6 +75,7 @@ import {
   upsertCoverArt,
   markVideoWatched,
   deleteSession as deleteSessionQuery,
+  deleteSessions as deleteSessionsQuery,
   deleteVideo as deleteVideoQuery,
 } from './immersion-tracker/query';
 import {
@@ -83,6 +90,7 @@ import {
   sanitizePayload,
   secToMs,
 } from './immersion-tracker/reducer';
+import { DEFAULT_MIN_WATCH_RATIO } from '../../shared/watch-threshold';
 import { enqueueWrite } from './immersion-tracker/queue';
 import {
   DEFAULT_BATCH_SIZE,
@@ -104,6 +112,7 @@ import {
   EVENT_SEEK_BACKWARD,
   EVENT_SEEK_FORWARD,
   EVENT_SUBTITLE_LINE,
+  EVENT_YOMITAN_LOOKUP,
   SOURCE_TYPE_LOCAL,
   SOURCE_TYPE_REMOTE,
   type ImmersionSessionRollupRow,
@@ -244,13 +253,21 @@ export class ImmersionTrackerService {
     );
 
     const retention = policy.retention ?? {};
-    const daysToRetentionMs = (value: number | undefined, fallbackMs: number, maxDays: number): number => {
+    const daysToRetentionMs = (
+      value: number | undefined,
+      fallbackMs: number,
+      maxDays: number,
+    ): number => {
       const fallbackDays = Math.floor(fallbackMs / 86_400_000);
       const resolvedDays = resolveBoundedInt(value, fallbackDays, 0, maxDays);
       return resolvedDays === 0 ? Number.POSITIVE_INFINITY : resolvedDays * 86_400_000;
     };
 
-    this.eventsRetentionMs = daysToRetentionMs(retention.eventsDays, DEFAULT_EVENTS_RETENTION_MS, 3650);
+    this.eventsRetentionMs = daysToRetentionMs(
+      retention.eventsDays,
+      DEFAULT_EVENTS_RETENTION_MS,
+      3650,
+    );
     this.telemetryRetentionMs = daysToRetentionMs(
       retention.telemetryDays,
       DEFAULT_TELEMETRY_RETENTION_MS,
@@ -321,6 +338,24 @@ export class ImmersionTrackerService {
     return getSessionTimeline(this.db, sessionId, limit);
   }
 
+  async getSessionWordsByLine(
+    sessionId: number,
+  ): Promise<Array<{ lineIndex: number; headword: string; occurrenceCount: number }>> {
+    return getSessionWordsByLine(this.db, sessionId);
+  }
+
+  async getAllDistinctHeadwords(): Promise<string[]> {
+    return getAllDistinctHeadwords(this.db);
+  }
+
+  async getAnimeDistinctHeadwords(animeId: number): Promise<string[]> {
+    return getAnimeDistinctHeadwords(this.db, animeId);
+  }
+
+  async getMediaDistinctHeadwords(videoId: number): Promise<string[]> {
+    return getMediaDistinctHeadwords(this.db, videoId);
+  }
+
   async getQueryHints(): Promise<{
     totalSessions: number;
     activeSessions: number;
@@ -341,6 +376,13 @@ export class ImmersionTrackerService {
 
   async getMonthlyRollups(limit = 24): Promise<ImmersionSessionRollupRow[]> {
     return getMonthlyRollups(this.db, limit);
+  }
+
+  async getTrendsDashboard(
+    range: '7d' | '30d' | '90d' | 'all' = '30d',
+    groupBy: 'day' | 'month' = 'day',
+  ): Promise<unknown> {
+    return getTrendsDashboard(this.db, range, groupBy);
   }
 
   async getVocabularyStats(limit = 100, excludePos?: string[]): Promise<VocabularyStatsRow[]> {
@@ -437,11 +479,40 @@ export class ImmersionTrackerService {
     markVideoWatched(this.db, videoId, watched);
   }
 
+  async markActiveVideoWatched(): Promise<boolean> {
+    if (!this.sessionState) return false;
+    markVideoWatched(this.db, this.sessionState.videoId, true);
+    this.sessionState.markedWatched = true;
+    return true;
+  }
+
   async deleteSession(sessionId: number): Promise<void> {
+    if (this.sessionState?.sessionId === sessionId) {
+      this.logger.warn(`Ignoring delete request for active immersion session ${sessionId}`);
+      return;
+    }
     deleteSessionQuery(this.db, sessionId);
   }
 
+  async deleteSessions(sessionIds: number[]): Promise<void> {
+    const activeSessionId = this.sessionState?.sessionId;
+    const deletableSessionIds =
+      activeSessionId === undefined
+        ? sessionIds
+        : sessionIds.filter((sessionId) => sessionId !== activeSessionId);
+    if (deletableSessionIds.length !== sessionIds.length) {
+      this.logger.warn(
+        `Ignoring bulk delete request for active immersion session ${activeSessionId}`,
+      );
+    }
+    deleteSessionsQuery(this.db, deletableSessionIds);
+  }
+
   async deleteVideo(videoId: number): Promise<void> {
+    if (this.sessionState?.videoId === videoId) {
+      this.logger.warn(`Ignoring delete request for active immersion video ${videoId}`);
+      return;
+    }
     deleteVideoQuery(this.db, videoId);
   }
 
@@ -847,7 +918,7 @@ export class ImmersionTrackerService {
 
     if (!this.sessionState.markedWatched) {
       const durationMs = getVideoDurationMs(this.db, this.sessionState.videoId);
-      if (durationMs > 0 && mediaMs >= durationMs * 0.98) {
+      if (durationMs > 0 && mediaMs >= durationMs * DEFAULT_MIN_WATCH_RATIO) {
         markVideoWatched(this.db, this.sessionState.videoId, true);
         this.sessionState.markedWatched = true;
       }
@@ -912,6 +983,21 @@ export class ImmersionTrackerService {
         },
         this.maxPayloadBytes,
       ),
+    });
+  }
+
+  recordYomitanLookup(): void {
+    if (!this.sessionState) return;
+    this.sessionState.yomitanLookupCount += 1;
+    this.sessionState.pendingTelemetry = true;
+    this.recordWrite({
+      kind: 'event',
+      sessionId: this.sessionState.sessionId,
+      sampleMs: Date.now(),
+      eventType: EVENT_YOMITAN_LOOKUP,
+      cardsDelta: 0,
+      wordsDelta: 0,
+      payloadJson: null,
     });
   }
 
@@ -981,6 +1067,7 @@ export class ImmersionTrackerService {
       cardsMined: this.sessionState.cardsMined,
       lookupCount: this.sessionState.lookupCount,
       lookupHits: this.sessionState.lookupHits,
+      yomitanLookupCount: this.sessionState.yomitanLookupCount,
       pauseCount: this.sessionState.pauseCount,
       pauseMs: this.sessionState.pauseMs,
       seekForwardCount: this.sessionState.seekForwardCount,
@@ -1080,6 +1167,7 @@ export class ImmersionTrackerService {
         this.db.exec('VACUUM');
         this.lastVacuumMs = nowMs;
       }
+      runOptimizeMaintenance(this.db);
     } catch (error) {
       this.logger.warn(
         'Immersion tracker maintenance failed, will retry later',
@@ -1108,6 +1196,7 @@ export class ImmersionTrackerService {
       cardsMined: 0,
       lookupCount: 0,
       lookupHits: 0,
+      yomitanLookupCount: 0,
       pauseCount: 0,
       pauseMs: 0,
       seekForwardCount: 0,

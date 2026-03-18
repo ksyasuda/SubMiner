@@ -20,6 +20,7 @@ export function createInitialSessionState(
     cardsMined: 0,
     lookupCount: 0,
     lookupHits: 0,
+    yomitanLookupCount: 0,
     pauseCount: 0,
     pauseMs: 0,
     seekForwardCount: 0,

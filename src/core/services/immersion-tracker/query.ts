@@ -81,7 +81,8 @@ const ACTIVE_SESSION_METRICS_CTE = `
       MAX(t.tokens_seen) AS tokensSeen,
       MAX(t.cards_mined) AS cardsMined,
       MAX(t.lookup_count) AS lookupCount,
-      MAX(t.lookup_hits) AS lookupHits
+      MAX(t.lookup_hits) AS lookupHits,
+      MAX(t.yomitan_lookup_count) AS yomitanLookupCount
     FROM imm_session_telemetry t
     JOIN imm_sessions s ON s.session_id = t.session_id
     WHERE s.ended_at_ms IS NULL
@@ -155,6 +156,189 @@ function findSharedCoverBlobHash(
   return null;
 }
 
+function makePlaceholders(values: number[]): string {
+  return values.map(() => '?').join(',');
+}
+
+function getAffectedWordIdsForSessions(db: DatabaseSync, sessionIds: number[]): number[] {
+  if (sessionIds.length === 0) {
+    return [];
+  }
+
+  return (
+    db
+      .prepare(
+        `
+          SELECT DISTINCT o.word_id AS wordId
+          FROM imm_word_line_occurrences o
+          JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+          WHERE sl.session_id IN (${makePlaceholders(sessionIds)})
+        `,
+      )
+      .all(...sessionIds) as Array<{ wordId: number }>
+  ).map((row) => row.wordId);
+}
+
+function getAffectedKanjiIdsForSessions(db: DatabaseSync, sessionIds: number[]): number[] {
+  if (sessionIds.length === 0) {
+    return [];
+  }
+
+  return (
+    db
+      .prepare(
+        `
+          SELECT DISTINCT o.kanji_id AS kanjiId
+          FROM imm_kanji_line_occurrences o
+          JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+          WHERE sl.session_id IN (${makePlaceholders(sessionIds)})
+        `,
+      )
+      .all(...sessionIds) as Array<{ kanjiId: number }>
+  ).map((row) => row.kanjiId);
+}
+
+function getAffectedWordIdsForVideo(db: DatabaseSync, videoId: number): number[] {
+  return (
+    db
+      .prepare(
+        `
+          SELECT DISTINCT o.word_id AS wordId
+          FROM imm_word_line_occurrences o
+          JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+          WHERE sl.video_id = ?
+        `,
+      )
+      .all(videoId) as Array<{ wordId: number }>
+  ).map((row) => row.wordId);
+}
+
+function getAffectedKanjiIdsForVideo(db: DatabaseSync, videoId: number): number[] {
+  return (
+    db
+      .prepare(
+        `
+          SELECT DISTINCT o.kanji_id AS kanjiId
+          FROM imm_kanji_line_occurrences o
+          JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+          WHERE sl.video_id = ?
+        `,
+      )
+      .all(videoId) as Array<{ kanjiId: number }>
+  ).map((row) => row.kanjiId);
+}
+
+function refreshWordAggregates(db: DatabaseSync, wordIds: number[]): void {
+  if (wordIds.length === 0) {
+    return;
+  }
+
+  const rows = db
+    .prepare(
+      `
+        SELECT
+          w.id AS wordId,
+          COALESCE(SUM(o.occurrence_count), 0) AS frequency,
+          MIN(COALESCE(sl.CREATED_DATE, sl.LAST_UPDATE_DATE)) AS firstSeen,
+          MAX(COALESCE(sl.LAST_UPDATE_DATE, sl.CREATED_DATE)) AS lastSeen
+        FROM imm_words w
+        LEFT JOIN imm_word_line_occurrences o ON o.word_id = w.id
+        LEFT JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+        WHERE w.id IN (${makePlaceholders(wordIds)})
+        GROUP BY w.id
+      `,
+    )
+    .all(...wordIds) as Array<{
+    wordId: number;
+    frequency: number;
+    firstSeen: number | null;
+    lastSeen: number | null;
+  }>;
+  const updateStmt = db.prepare(
+    `
+      UPDATE imm_words
+      SET frequency = ?, first_seen = ?, last_seen = ?
+      WHERE id = ?
+    `,
+  );
+  const deleteStmt = db.prepare('DELETE FROM imm_words WHERE id = ?');
+
+  for (const row of rows) {
+    if (row.frequency <= 0 || row.firstSeen === null || row.lastSeen === null) {
+      deleteStmt.run(row.wordId);
+      continue;
+    }
+    updateStmt.run(row.frequency, row.firstSeen, row.lastSeen, row.wordId);
+  }
+}
+
+function refreshKanjiAggregates(db: DatabaseSync, kanjiIds: number[]): void {
+  if (kanjiIds.length === 0) {
+    return;
+  }
+
+  const rows = db
+    .prepare(
+      `
+        SELECT
+          k.id AS kanjiId,
+          COALESCE(SUM(o.occurrence_count), 0) AS frequency,
+          MIN(COALESCE(sl.CREATED_DATE, sl.LAST_UPDATE_DATE)) AS firstSeen,
+          MAX(COALESCE(sl.LAST_UPDATE_DATE, sl.CREATED_DATE)) AS lastSeen
+        FROM imm_kanji k
+        LEFT JOIN imm_kanji_line_occurrences o ON o.kanji_id = k.id
+        LEFT JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+        WHERE k.id IN (${makePlaceholders(kanjiIds)})
+        GROUP BY k.id
+      `,
+    )
+    .all(...kanjiIds) as Array<{
+    kanjiId: number;
+    frequency: number;
+    firstSeen: number | null;
+    lastSeen: number | null;
+  }>;
+  const updateStmt = db.prepare(
+    `
+      UPDATE imm_kanji
+      SET frequency = ?, first_seen = ?, last_seen = ?
+      WHERE id = ?
+    `,
+  );
+  const deleteStmt = db.prepare('DELETE FROM imm_kanji WHERE id = ?');
+
+  for (const row of rows) {
+    if (row.frequency <= 0 || row.firstSeen === null || row.lastSeen === null) {
+      deleteStmt.run(row.kanjiId);
+      continue;
+    }
+    updateStmt.run(row.frequency, row.firstSeen, row.lastSeen, row.kanjiId);
+  }
+}
+
+function refreshLexicalAggregates(db: DatabaseSync, wordIds: number[], kanjiIds: number[]): void {
+  refreshWordAggregates(db, [...new Set(wordIds)]);
+  refreshKanjiAggregates(db, [...new Set(kanjiIds)]);
+}
+
+function deleteSessionsByIds(db: DatabaseSync, sessionIds: number[]): void {
+  if (sessionIds.length === 0) {
+    return;
+  }
+
+  const placeholders = makePlaceholders(sessionIds);
+  db.prepare(`DELETE FROM imm_subtitle_lines WHERE session_id IN (${placeholders})`).run(
+    ...sessionIds,
+  );
+  db.prepare(`DELETE FROM imm_session_telemetry WHERE session_id IN (${placeholders})`).run(
+    ...sessionIds,
+  );
+  db.prepare(`DELETE FROM imm_session_events WHERE session_id IN (${placeholders})`).run(
+    ...sessionIds,
+  );
+  db.prepare(`DELETE FROM imm_sessions WHERE session_id IN (${placeholders})`).run(...sessionIds);
+}
+
 export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummaryQueryRow[] {
   const prepared = db.prepare(`
     ${ACTIVE_SESSION_METRICS_CTE}
@@ -173,7 +357,8 @@ export function getSessionSummaries(db: DatabaseSync, limit = 50): SessionSummar
       COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
-      COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits
+      COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits,
+      COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
     FROM imm_sessions s
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
@@ -206,6 +391,72 @@ export function getSessionTimeline(
   return prepared.all(sessionId, limit) as unknown as SessionTimelineRow[];
 }
 
+/** Returns all distinct headwords in the vocabulary table (global). */
+export function getAllDistinctHeadwords(db: DatabaseSync): string[] {
+  const rows = db.prepare('SELECT DISTINCT headword FROM imm_words').all() as Array<{
+    headword: string;
+  }>;
+  return rows.map((r) => r.headword);
+}
+
+/** Returns distinct headwords seen for a specific anime. */
+export function getAnimeDistinctHeadwords(db: DatabaseSync, animeId: number): string[] {
+  const rows = db
+    .prepare(
+      `
+      SELECT DISTINCT w.headword
+      FROM imm_word_line_occurrences o
+      JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+      JOIN imm_words w ON w.id = o.word_id
+      WHERE sl.anime_id = ?
+    `,
+    )
+    .all(animeId) as Array<{ headword: string }>;
+  return rows.map((r) => r.headword);
+}
+
+/** Returns distinct headwords seen for a specific video/media. */
+export function getMediaDistinctHeadwords(db: DatabaseSync, videoId: number): string[] {
+  const rows = db
+    .prepare(
+      `
+      SELECT DISTINCT w.headword
+      FROM imm_word_line_occurrences o
+      JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
+      JOIN imm_words w ON w.id = o.word_id
+      WHERE sl.video_id = ?
+    `,
+    )
+    .all(videoId) as Array<{ headword: string }>;
+  return rows.map((r) => r.headword);
+}
+
+/**
+ * Returns the headword for each word seen in a session, grouped by line_index.
+ * Used to compute cumulative known-words counts for the session timeline chart.
+ */
+export function getSessionWordsByLine(
+  db: DatabaseSync,
+  sessionId: number,
+): Array<{ lineIndex: number; headword: string; occurrenceCount: number }> {
+  const stmt = db.prepare(`
+    SELECT
+      sl.line_index AS lineIndex,
+      w.headword AS headword,
+      wlo.occurrence_count AS occurrenceCount
+    FROM imm_subtitle_lines sl
+    JOIN imm_word_line_occurrences wlo ON wlo.line_id = sl.line_id
+    JOIN imm_words w ON w.id = wlo.word_id
+    WHERE sl.session_id = ?
+    ORDER BY sl.line_index ASC
+  `);
+  return stmt.all(sessionId) as Array<{
+    lineIndex: number;
+    headword: string;
+    occurrenceCount: number;
+  }>;
+}
+
 export function getQueryHints(db: DatabaseSync): {
   totalSessions: number;
   activeSessions: number;
@@ -216,6 +467,10 @@ export function getQueryHints(db: DatabaseSync): {
   totalActiveMin: number;
   totalCards: number;
   activeDays: number;
+  totalLookupCount: number;
+  totalLookupHits: number;
+  newWordsToday: number;
+  newWordsThisWeek: number;
 } {
   const active = db.prepare('SELECT COUNT(*) AS total FROM imm_sessions WHERE ended_at_ms IS NULL');
   const activeSessions = Number((active.get() as { total?: number } | null)?.total ?? 0);
@@ -284,6 +539,23 @@ export function getQueryHints(db: DatabaseSync): {
   const totalCards = Number(lifetime?.totalCards ?? 0);
   const activeDays = Number(lifetime?.activeDays ?? 0);
 
+  const lookupTotals = db
+    .prepare(
+      `
+    SELECT
+      COALESCE(SUM(COALESCE(t.lookup_count, s.lookup_count, 0)), 0) AS totalLookupCount,
+      COALESCE(SUM(COALESCE(t.lookup_hits, s.lookup_hits, 0)), 0) AS totalLookupHits
+    FROM imm_sessions s
+    LEFT JOIN (
+      SELECT session_id, MAX(lookup_count) AS lookup_count, MAX(lookup_hits) AS lookup_hits
+      FROM imm_session_telemetry
+      GROUP BY session_id
+    ) t ON t.session_id = s.session_id
+    WHERE s.ended_at_ms IS NOT NULL
+  `,
+    )
+    .get() as { totalLookupCount: number; totalLookupHits: number } | null;
+
   return {
     totalSessions,
     activeSessions,
@@ -294,6 +566,32 @@ export function getQueryHints(db: DatabaseSync): {
     totalActiveMin,
     totalCards,
     activeDays,
+    totalLookupCount: Number(lookupTotals?.totalLookupCount ?? 0),
+    totalLookupHits: Number(lookupTotals?.totalLookupHits ?? 0),
+    ...getNewWordCounts(db),
+  };
+}
+
+function getNewWordCounts(db: DatabaseSync): { newWordsToday: number; newWordsThisWeek: number } {
+  const now = new Date();
+  const todayStartSec = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+  const weekAgoSec = todayStartSec - 7 * 86_400;
+
+  const row = db
+    .prepare(
+      `
+    SELECT
+      COALESCE(SUM(CASE WHEN first_seen >= ? THEN 1 ELSE 0 END), 0) AS today,
+      COALESCE(SUM(CASE WHEN first_seen >= ? THEN 1 ELSE 0 END), 0) AS week
+    FROM imm_words
+    WHERE first_seen IS NOT NULL
+  `,
+    )
+    .get(todayStartSec, weekAgoSec) as { today: number; week: number } | null;
+
+  return {
+    newWordsToday: Number(row?.today ?? 0),
+    newWordsThisWeek: Number(row?.week ?? 0),
   };
 }
 
@@ -350,6 +648,562 @@ export function getMonthlyRollups(db: DatabaseSync, limit = 24): ImmersionSessio
     ORDER BY rollup_month DESC, video_id DESC
   `);
   return prepared.all(limit) as unknown as ImmersionSessionRollupRow[];
+}
+
+type TrendRange = '7d' | '30d' | '90d' | 'all';
+type TrendGroupBy = 'day' | 'month';
+
+interface TrendChartPoint {
+  label: string;
+  value: number;
+}
+
+interface TrendPerAnimePoint {
+  epochDay: number;
+  animeTitle: string;
+  value: number;
+}
+
+interface TrendSessionMetricRow {
+  startedAtMs: number;
+  videoId: number | null;
+  canonicalTitle: string | null;
+  animeTitle: string | null;
+  activeWatchedMs: number;
+  wordsSeen: number;
+  tokensSeen: number;
+  cardsMined: number;
+  yomitanLookupCount: number;
+}
+
+export interface TrendsDashboardQueryResult {
+  activity: {
+    watchTime: TrendChartPoint[];
+    cards: TrendChartPoint[];
+    words: TrendChartPoint[];
+    sessions: TrendChartPoint[];
+  };
+  progress: {
+    watchTime: TrendChartPoint[];
+    sessions: TrendChartPoint[];
+    words: TrendChartPoint[];
+    newWords: TrendChartPoint[];
+    cards: TrendChartPoint[];
+    episodes: TrendChartPoint[];
+    lookups: TrendChartPoint[];
+  };
+  ratios: {
+    lookupsPerHundred: TrendChartPoint[];
+  };
+  animePerDay: {
+    episodes: TrendPerAnimePoint[];
+    watchTime: TrendPerAnimePoint[];
+    cards: TrendPerAnimePoint[];
+    words: TrendPerAnimePoint[];
+    lookups: TrendPerAnimePoint[];
+    lookupsPerHundred: TrendPerAnimePoint[];
+  };
+  animeCumulative: {
+    watchTime: TrendPerAnimePoint[];
+    episodes: TrendPerAnimePoint[];
+    cards: TrendPerAnimePoint[];
+    words: TrendPerAnimePoint[];
+  };
+  patterns: {
+    watchTimeByDayOfWeek: TrendChartPoint[];
+    watchTimeByHour: TrendChartPoint[];
+  };
+}
+
+const TREND_DAY_LIMITS: Record<Exclude<TrendRange, 'all'>, number> = {
+  '7d': 7,
+  '30d': 30,
+  '90d': 90,
+};
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function getTrendDayLimit(range: TrendRange): number {
+  return range === 'all' ? 365 : TREND_DAY_LIMITS[range];
+}
+
+function getTrendMonthlyLimit(range: TrendRange): number {
+  if (range === 'all') {
+    return 120;
+  }
+  return Math.max(1, Math.ceil(TREND_DAY_LIMITS[range] / 30));
+}
+
+function getTrendCutoffMs(range: TrendRange): number | null {
+  if (range === 'all') {
+    return null;
+  }
+  const dayLimit = getTrendDayLimit(range);
+  const now = new Date();
+  const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return localMidnight - (dayLimit - 1) * 86_400_000;
+}
+
+function makeTrendLabel(value: number): string {
+  if (value > 100_000) {
+    const year = Math.floor(value / 100);
+    const month = value % 100;
+    return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(undefined, {
+      month: 'short',
+      year: '2-digit',
+    });
+  }
+
+  return new Date(value * 86_400_000).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function getTrendSessionWordCount(
+  session: Pick<TrendSessionMetricRow, 'wordsSeen' | 'tokensSeen'>,
+): number {
+  return session.tokensSeen > 0 ? session.tokensSeen : session.wordsSeen;
+}
+
+function resolveTrendAnimeTitle(value: {
+  animeTitle: string | null;
+  canonicalTitle: string | null;
+}): string {
+  return value.animeTitle ?? value.canonicalTitle ?? 'Unknown';
+}
+
+function accumulatePoints(points: TrendChartPoint[]): TrendChartPoint[] {
+  let sum = 0;
+  return points.map((point) => {
+    sum += point.value;
+    return {
+      label: point.label,
+      value: sum,
+    };
+  });
+}
+
+function buildAggregatedTrendRows(rollups: ImmersionSessionRollupRow[]) {
+  const byKey = new Map<number, { activeMin: number; cards: number; words: number; sessions: number }>();
+
+  for (const rollup of rollups) {
+    const existing = byKey.get(rollup.rollupDayOrMonth) ?? {
+      activeMin: 0,
+      cards: 0,
+      words: 0,
+      sessions: 0,
+    };
+    existing.activeMin += Math.round(rollup.totalActiveMin);
+    existing.cards += rollup.totalCards;
+    existing.words += rollup.totalWordsSeen;
+    existing.sessions += rollup.totalSessions;
+    byKey.set(rollup.rollupDayOrMonth, existing);
+  }
+
+  return Array.from(byKey.entries())
+    .sort(([left], [right]) => left - right)
+    .map(([key, value]) => ({
+      label: makeTrendLabel(key),
+      activeMin: value.activeMin,
+      cards: value.cards,
+      words: value.words,
+      sessions: value.sessions,
+    }));
+}
+
+function buildWatchTimeByDayOfWeek(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
+  const totals = new Array(7).fill(0);
+  for (const session of sessions) {
+    totals[new Date(session.startedAtMs).getDay()] += session.activeWatchedMs;
+  }
+  return DAY_NAMES.map((name, index) => ({
+    label: name,
+    value: Math.round(totals[index] / 60_000),
+  }));
+}
+
+function buildWatchTimeByHour(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
+  const totals = new Array(24).fill(0);
+  for (const session of sessions) {
+    totals[new Date(session.startedAtMs).getHours()] += session.activeWatchedMs;
+  }
+  return totals.map((ms, index) => ({
+    label: `${String(index).padStart(2, '0')}:00`,
+    value: Math.round(ms / 60_000),
+  }));
+}
+
+function dayLabel(epochDay: number): string {
+  return new Date(epochDay * 86_400_000).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function buildSessionSeriesByDay(
+  sessions: TrendSessionMetricRow[],
+  getValue: (session: TrendSessionMetricRow) => number,
+): TrendChartPoint[] {
+  const byDay = new Map<number, number>();
+  for (const session of sessions) {
+    const epochDay = Math.floor(session.startedAtMs / 86_400_000);
+    byDay.set(epochDay, (byDay.get(epochDay) ?? 0) + getValue(session));
+  }
+  return Array.from(byDay.entries())
+    .sort(([left], [right]) => left - right)
+    .map(([epochDay, value]) => ({ label: dayLabel(epochDay), value }));
+}
+
+function buildLookupsPerHundredWords(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
+  const lookupsByDay = new Map<number, number>();
+  const wordsByDay = new Map<number, number>();
+
+  for (const session of sessions) {
+    const epochDay = Math.floor(session.startedAtMs / 86_400_000);
+    lookupsByDay.set(
+      epochDay,
+      (lookupsByDay.get(epochDay) ?? 0) + session.yomitanLookupCount,
+    );
+    wordsByDay.set(
+      epochDay,
+      (wordsByDay.get(epochDay) ?? 0) + getTrendSessionWordCount(session),
+    );
+  }
+
+  return Array.from(lookupsByDay.entries())
+    .sort(([left], [right]) => left - right)
+    .map(([epochDay, lookups]) => {
+      const words = wordsByDay.get(epochDay) ?? 0;
+      return {
+        label: dayLabel(epochDay),
+        value: words > 0 ? +((lookups / words) * 100).toFixed(1) : 0,
+      };
+    });
+}
+
+function buildPerAnimeFromSessions(
+  sessions: TrendSessionMetricRow[],
+  getValue: (session: TrendSessionMetricRow) => number,
+): TrendPerAnimePoint[] {
+  const byAnime = new Map<string, Map<number, number>>();
+
+  for (const session of sessions) {
+    const animeTitle = resolveTrendAnimeTitle(session);
+    const epochDay = Math.floor(session.startedAtMs / 86_400_000);
+    const dayMap = byAnime.get(animeTitle) ?? new Map();
+    dayMap.set(epochDay, (dayMap.get(epochDay) ?? 0) + getValue(session));
+    byAnime.set(animeTitle, dayMap);
+  }
+
+  const result: TrendPerAnimePoint[] = [];
+  for (const [animeTitle, dayMap] of byAnime) {
+    for (const [epochDay, value] of dayMap) {
+      result.push({ epochDay, animeTitle, value });
+    }
+  }
+  return result;
+}
+
+function buildLookupsPerHundredPerAnime(sessions: TrendSessionMetricRow[]): TrendPerAnimePoint[] {
+  const lookups = new Map<string, Map<number, number>>();
+  const words = new Map<string, Map<number, number>>();
+
+  for (const session of sessions) {
+    const animeTitle = resolveTrendAnimeTitle(session);
+    const epochDay = Math.floor(session.startedAtMs / 86_400_000);
+
+    const lookupMap = lookups.get(animeTitle) ?? new Map();
+    lookupMap.set(epochDay, (lookupMap.get(epochDay) ?? 0) + session.yomitanLookupCount);
+    lookups.set(animeTitle, lookupMap);
+
+    const wordMap = words.get(animeTitle) ?? new Map();
+    wordMap.set(epochDay, (wordMap.get(epochDay) ?? 0) + getTrendSessionWordCount(session));
+    words.set(animeTitle, wordMap);
+  }
+
+  const result: TrendPerAnimePoint[] = [];
+  for (const [animeTitle, dayMap] of lookups) {
+    const wordMap = words.get(animeTitle) ?? new Map();
+    for (const [epochDay, lookupCount] of dayMap) {
+      const wordCount = wordMap.get(epochDay) ?? 0;
+      result.push({
+        epochDay,
+        animeTitle,
+        value: wordCount > 0 ? +((lookupCount / wordCount) * 100).toFixed(1) : 0,
+      });
+    }
+  }
+  return result;
+}
+
+function buildCumulativePerAnime(points: TrendPerAnimePoint[]): TrendPerAnimePoint[] {
+  const byAnime = new Map<string, Map<number, number>>();
+  const allDays = new Set<number>();
+
+  for (const point of points) {
+    const dayMap = byAnime.get(point.animeTitle) ?? new Map();
+    dayMap.set(point.epochDay, (dayMap.get(point.epochDay) ?? 0) + point.value);
+    byAnime.set(point.animeTitle, dayMap);
+    allDays.add(point.epochDay);
+  }
+
+  const sortedDays = [...allDays].sort((left, right) => left - right);
+  if (sortedDays.length === 0) {
+    return [];
+  }
+
+  const minDay = sortedDays[0]!;
+  const maxDay = sortedDays[sortedDays.length - 1]!;
+  const result: TrendPerAnimePoint[] = [];
+
+  for (const [animeTitle, dayMap] of byAnime) {
+    const firstDay = Math.min(...dayMap.keys());
+    let cumulative = 0;
+    for (let epochDay = minDay; epochDay <= maxDay; epochDay += 1) {
+      if (epochDay < firstDay) {
+        continue;
+      }
+      cumulative += dayMap.get(epochDay) ?? 0;
+      result.push({ epochDay, animeTitle, value: cumulative });
+    }
+  }
+
+  return result;
+}
+
+function getVideoAnimeTitleMap(db: DatabaseSync, videoIds: Array<number | null>): Map<number, string> {
+  const uniqueIds = [...new Set(videoIds.filter((value): value is number => typeof value === 'number'))];
+  if (uniqueIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = db
+    .prepare(
+      `
+        SELECT
+          v.video_id AS videoId,
+          COALESCE(a.canonical_title, v.canonical_title, 'Unknown') AS animeTitle
+        FROM imm_videos v
+        LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+        WHERE v.video_id IN (${makePlaceholders(uniqueIds)})
+      `,
+    )
+    .all(...uniqueIds) as Array<{ videoId: number; animeTitle: string }>;
+
+  return new Map(rows.map((row) => [row.videoId, row.animeTitle]));
+}
+
+function resolveVideoAnimeTitle(videoId: number | null, titlesByVideoId: Map<number, string>): string {
+  if (videoId === null) {
+    return 'Unknown';
+  }
+  return titlesByVideoId.get(videoId) ?? 'Unknown';
+}
+
+function buildPerAnimeFromDailyRollups(
+  rollups: ImmersionSessionRollupRow[],
+  titlesByVideoId: Map<number, string>,
+  getValue: (rollup: ImmersionSessionRollupRow) => number,
+): TrendPerAnimePoint[] {
+  const byAnime = new Map<string, Map<number, number>>();
+
+  for (const rollup of rollups) {
+    const animeTitle = resolveVideoAnimeTitle(rollup.videoId, titlesByVideoId);
+    const dayMap = byAnime.get(animeTitle) ?? new Map();
+    dayMap.set(
+      rollup.rollupDayOrMonth,
+      (dayMap.get(rollup.rollupDayOrMonth) ?? 0) + getValue(rollup),
+    );
+    byAnime.set(animeTitle, dayMap);
+  }
+
+  const result: TrendPerAnimePoint[] = [];
+  for (const [animeTitle, dayMap] of byAnime) {
+    for (const [epochDay, value] of dayMap) {
+      result.push({ epochDay, animeTitle, value });
+    }
+  }
+  return result;
+}
+
+function buildEpisodesPerAnimeFromDailyRollups(
+  rollups: ImmersionSessionRollupRow[],
+  titlesByVideoId: Map<number, string>,
+): TrendPerAnimePoint[] {
+  const byAnime = new Map<string, Map<number, Set<number>>>();
+
+  for (const rollup of rollups) {
+    if (rollup.videoId === null) {
+      continue;
+    }
+    const animeTitle = resolveVideoAnimeTitle(rollup.videoId, titlesByVideoId);
+    const dayMap = byAnime.get(animeTitle) ?? new Map();
+    const videoIds = dayMap.get(rollup.rollupDayOrMonth) ?? new Set<number>();
+    videoIds.add(rollup.videoId);
+    dayMap.set(rollup.rollupDayOrMonth, videoIds);
+    byAnime.set(animeTitle, dayMap);
+  }
+
+  const result: TrendPerAnimePoint[] = [];
+  for (const [animeTitle, dayMap] of byAnime) {
+    for (const [epochDay, videoIds] of dayMap) {
+      result.push({ epochDay, animeTitle, value: videoIds.size });
+    }
+  }
+  return result;
+}
+
+function buildEpisodesPerDayFromDailyRollups(rollups: ImmersionSessionRollupRow[]): TrendChartPoint[] {
+  const byDay = new Map<number, Set<number>>();
+
+  for (const rollup of rollups) {
+    if (rollup.videoId === null) {
+      continue;
+    }
+    const videoIds = byDay.get(rollup.rollupDayOrMonth) ?? new Set<number>();
+    videoIds.add(rollup.videoId);
+    byDay.set(rollup.rollupDayOrMonth, videoIds);
+  }
+
+  return Array.from(byDay.entries())
+    .sort(([left], [right]) => left - right)
+    .map(([epochDay, videoIds]) => ({
+      label: dayLabel(epochDay),
+      value: videoIds.size,
+    }));
+}
+
+function getTrendSessionMetrics(
+  db: DatabaseSync,
+  cutoffMs: number | null,
+): TrendSessionMetricRow[] {
+  const whereClause = cutoffMs === null ? '' : 'WHERE s.started_at_ms >= ?';
+  const prepared = db.prepare(`
+    ${ACTIVE_SESSION_METRICS_CTE}
+    SELECT
+      s.started_at_ms AS startedAtMs,
+      s.video_id AS videoId,
+      v.canonical_title AS canonicalTitle,
+      a.canonical_title AS animeTitle,
+      COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0) AS activeWatchedMs,
+      COALESCE(asm.wordsSeen, s.words_seen, 0) AS wordsSeen,
+      COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
+      COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
+      COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
+    FROM imm_sessions s
+    LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
+    LEFT JOIN imm_videos v ON v.video_id = s.video_id
+    LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+    ${whereClause}
+    ORDER BY s.started_at_ms ASC
+  `);
+
+  return (cutoffMs === null ? prepared.all() : prepared.all(cutoffMs)) as TrendSessionMetricRow[];
+}
+
+function buildNewWordsPerDay(db: DatabaseSync, cutoffMs: number | null): TrendChartPoint[] {
+  const whereClause = cutoffMs === null ? '' : 'AND first_seen >= ?';
+  const prepared = db.prepare(`
+    SELECT
+      CAST(first_seen / 86400 AS INTEGER) AS epochDay,
+      COUNT(*) AS wordCount
+    FROM imm_words
+    WHERE first_seen IS NOT NULL
+    ${whereClause}
+    GROUP BY epochDay
+    ORDER BY epochDay ASC
+  `);
+
+  const rows = (cutoffMs === null ? prepared.all() : prepared.all(Math.floor(cutoffMs / 1000))) as Array<{
+    epochDay: number;
+    wordCount: number;
+  }>;
+
+  return rows.map((row) => ({
+    label: dayLabel(row.epochDay),
+    value: row.wordCount,
+  }));
+}
+
+export function getTrendsDashboard(
+  db: DatabaseSync,
+  range: TrendRange = '30d',
+  groupBy: TrendGroupBy = 'day',
+): TrendsDashboardQueryResult {
+  const dayLimit = getTrendDayLimit(range);
+  const monthlyLimit = getTrendMonthlyLimit(range);
+  const cutoffMs = getTrendCutoffMs(range);
+
+  const chartRollups =
+    groupBy === 'month' ? getMonthlyRollups(db, monthlyLimit) : getDailyRollups(db, dayLimit);
+  const dailyRollups = getDailyRollups(db, dayLimit);
+  const sessions = getTrendSessionMetrics(db, cutoffMs);
+  const titlesByVideoId = getVideoAnimeTitleMap(
+    db,
+    dailyRollups.map((rollup) => rollup.videoId),
+  );
+
+  const aggregatedRows = buildAggregatedTrendRows(chartRollups);
+  const activity = {
+    watchTime: aggregatedRows.map((row) => ({ label: row.label, value: row.activeMin })),
+    cards: aggregatedRows.map((row) => ({ label: row.label, value: row.cards })),
+    words: aggregatedRows.map((row) => ({ label: row.label, value: row.words })),
+    sessions: aggregatedRows.map((row) => ({ label: row.label, value: row.sessions })),
+  };
+
+  const animePerDay = {
+    episodes: buildEpisodesPerAnimeFromDailyRollups(dailyRollups, titlesByVideoId),
+    watchTime: buildPerAnimeFromDailyRollups(
+      dailyRollups,
+      titlesByVideoId,
+      (rollup) => Math.round(rollup.totalActiveMin),
+    ),
+    cards: buildPerAnimeFromDailyRollups(
+      dailyRollups,
+      titlesByVideoId,
+      (rollup) => rollup.totalCards,
+    ),
+    words: buildPerAnimeFromDailyRollups(
+      dailyRollups,
+      titlesByVideoId,
+      (rollup) => rollup.totalWordsSeen,
+    ),
+    lookups: buildPerAnimeFromSessions(
+      sessions,
+      (session) => session.yomitanLookupCount,
+    ),
+    lookupsPerHundred: buildLookupsPerHundredPerAnime(sessions),
+  };
+
+  return {
+    activity,
+    progress: {
+      watchTime: accumulatePoints(activity.watchTime),
+      sessions: accumulatePoints(activity.sessions),
+      words: accumulatePoints(activity.words),
+      newWords: accumulatePoints(buildNewWordsPerDay(db, cutoffMs)),
+      cards: accumulatePoints(activity.cards),
+      episodes: accumulatePoints(buildEpisodesPerDayFromDailyRollups(dailyRollups)),
+      lookups: accumulatePoints(
+        buildSessionSeriesByDay(sessions, (session) => session.yomitanLookupCount),
+      ),
+    },
+    ratios: {
+      lookupsPerHundred: buildLookupsPerHundredWords(sessions),
+    },
+    animePerDay,
+    animeCumulative: {
+      watchTime: buildCumulativePerAnime(animePerDay.watchTime),
+      episodes: buildCumulativePerAnime(animePerDay.episodes),
+      cards: buildCumulativePerAnime(animePerDay.cards),
+      words: buildCumulativePerAnime(animePerDay.words),
+    },
+    patterns: {
+      watchTimeByDayOfWeek: buildWatchTimeByDayOfWeek(sessions),
+      watchTimeByHour: buildWatchTimeByHour(sessions),
+    },
+  };
 }
 
 export function getVocabularyStats(
@@ -794,6 +1648,7 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
       COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
       COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
+      COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount,
       COUNT(DISTINCT v.video_id) AS episodeCount,
       COALESCE(lm.last_watched_ms, 0) AS lastWatchedMs
     FROM imm_anime a
@@ -845,6 +1700,7 @@ export function getAnimeEpisodes(db: DatabaseSync, animeId: number): AnimeEpisod
       COALESCE(SUM(COALESCE(asm.activeWatchedMs, s.active_watched_ms, 0)), 0) AS totalActiveMs,
       COALESCE(SUM(COALESCE(asm.cardsMined, s.cards_mined, 0)), 0) AS totalCards,
       COALESCE(SUM(COALESCE(asm.wordsSeen, s.words_seen, 0)), 0) AS totalWordsSeen,
+      COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount,
       MAX(s.started_at_ms) AS lastWatchedMs
     FROM imm_videos v
     JOIN imm_sessions s ON s.video_id = v.video_id
@@ -901,7 +1757,8 @@ export function getMediaDetail(db: DatabaseSync, videoId: number): MediaDetailRo
       COALESCE(lm.total_words_seen, 0) AS totalWordsSeen,
       COALESCE(lm.total_lines_seen, 0) AS totalLinesSeen,
       COALESCE(SUM(COALESCE(asm.lookupCount, s.lookup_count, 0)), 0) AS totalLookupCount,
-      COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits
+      COALESCE(SUM(COALESCE(asm.lookupHits, s.lookup_hits, 0)), 0) AS totalLookupHits,
+      COALESCE(SUM(COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0)), 0) AS totalYomitanLookupCount
     FROM imm_videos v
     JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
     LEFT JOIN imm_sessions s ON s.video_id = v.video_id
@@ -935,7 +1792,8 @@ export function getMediaSessions(
       COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
-      COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits
+      COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits,
+      COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
     FROM imm_sessions s
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
     LEFT JOIN imm_videos v ON v.video_id = s.video_id
@@ -1299,7 +2157,8 @@ export function getEpisodeSessions(db: DatabaseSync, videoId: number): SessionSu
       COALESCE(asm.tokensSeen, s.tokens_seen, 0) AS tokensSeen,
       COALESCE(asm.cardsMined, s.cards_mined, 0) AS cardsMined,
       COALESCE(asm.lookupCount, s.lookup_count, 0) AS lookupCount,
-      COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits
+      COALESCE(asm.lookupHits, s.lookup_hits, 0) AS lookupHits,
+      COALESCE(asm.yomitanLookupCount, s.yomitan_lookup_count, 0) AS yomitanLookupCount
     FROM imm_sessions s
     JOIN imm_videos v ON v.video_id = s.video_id
     LEFT JOIN active_session_metrics asm ON asm.sessionId = s.session_id
@@ -1488,10 +2347,35 @@ export function isVideoWatched(db: DatabaseSync, videoId: number): boolean {
 }
 
 export function deleteSession(db: DatabaseSync, sessionId: number): void {
-  db.prepare('DELETE FROM imm_subtitle_lines WHERE session_id = ?').run(sessionId);
-  db.prepare('DELETE FROM imm_session_telemetry WHERE session_id = ?').run(sessionId);
-  db.prepare('DELETE FROM imm_session_events WHERE session_id = ?').run(sessionId);
-  db.prepare('DELETE FROM imm_sessions WHERE session_id = ?').run(sessionId);
+  const sessionIds = [sessionId];
+  const affectedWordIds = getAffectedWordIdsForSessions(db, sessionIds);
+  const affectedKanjiIds = getAffectedKanjiIdsForSessions(db, sessionIds);
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    deleteSessionsByIds(db, sessionIds);
+    refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+export function deleteSessions(db: DatabaseSync, sessionIds: number[]): void {
+  if (sessionIds.length === 0) return;
+  const affectedWordIds = getAffectedWordIdsForSessions(db, sessionIds);
+  const affectedKanjiIds = getAffectedKanjiIdsForSessions(db, sessionIds);
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    deleteSessionsByIds(db, sessionIds);
+    refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 export function deleteVideo(db: DatabaseSync, videoId: number): void {
@@ -1504,16 +2388,28 @@ export function deleteVideo(db: DatabaseSync, videoId: number): void {
       `,
     )
     .get(videoId) as { coverBlobHash: string | null } | undefined;
+  const affectedWordIds = getAffectedWordIdsForVideo(db, videoId);
+  const affectedKanjiIds = getAffectedKanjiIdsForVideo(db, videoId);
   const sessions = db
     .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
     .all(videoId) as Array<{ session_id: number }>;
-  for (const s of sessions) {
-    deleteSession(db, s.session_id);
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    deleteSessionsByIds(
+      db,
+      sessions.map((session) => session.session_id),
+    );
+    db.prepare('DELETE FROM imm_subtitle_lines WHERE video_id = ?').run(videoId);
+    db.prepare('DELETE FROM imm_daily_rollups WHERE video_id = ?').run(videoId);
+    db.prepare('DELETE FROM imm_monthly_rollups WHERE video_id = ?').run(videoId);
+    db.prepare('DELETE FROM imm_media_art WHERE video_id = ?').run(videoId);
+    cleanupUnusedCoverArtBlobHash(db, artRow?.coverBlobHash ?? null);
+    db.prepare('DELETE FROM imm_videos WHERE video_id = ?').run(videoId);
+    refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
   }
-  db.prepare('DELETE FROM imm_subtitle_lines WHERE video_id = ?').run(videoId);
-  db.prepare('DELETE FROM imm_daily_rollups WHERE video_id = ?').run(videoId);
-  db.prepare('DELETE FROM imm_monthly_rollups WHERE video_id = ?').run(videoId);
-  db.prepare('DELETE FROM imm_media_art WHERE video_id = ?').run(videoId);
-  cleanupUnusedCoverArtBlobHash(db, artRow?.coverBlobHash ?? null);
-  db.prepare('DELETE FROM imm_videos WHERE video_id = ?').run(videoId);
 }

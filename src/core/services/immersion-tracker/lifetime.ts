@@ -51,6 +51,7 @@ interface RetainedSessionRow {
   cardsMined: number;
   lookupCount: number;
   lookupHits: number;
+  yomitanLookupCount: number;
   pauseCount: number;
   pauseMs: number;
   seekForwardCount: number;
@@ -154,6 +155,7 @@ function toRebuildSessionState(row: RetainedSessionRow): SessionState {
     cardsMined: Math.max(0, row.cardsMined),
     lookupCount: Math.max(0, row.lookupCount),
     lookupHits: Math.max(0, row.lookupHits),
+    yomitanLookupCount: Math.max(0, row.yomitanLookupCount),
     pauseCount: Math.max(0, row.pauseCount),
     pauseMs: Math.max(0, row.pauseMs),
     seekForwardCount: Math.max(0, row.seekForwardCount),
@@ -179,6 +181,7 @@ function getRetainedStaleActiveSessions(db: DatabaseSync): RetainedSessionRow[] 
         COALESCE(t.cards_mined, s.cards_mined, 0) AS cardsMined,
         COALESCE(t.lookup_count, s.lookup_count, 0) AS lookupCount,
         COALESCE(t.lookup_hits, s.lookup_hits, 0) AS lookupHits,
+        COALESCE(t.yomitan_lookup_count, s.yomitan_lookup_count, 0) AS yomitanLookupCount,
         COALESCE(t.pause_count, s.pause_count, 0) AS pauseCount,
         COALESCE(t.pause_ms, s.pause_ms, 0) AS pauseMs,
         COALESCE(t.seek_forward_count, s.seek_forward_count, 0) AS seekForwardCount,
@@ -511,6 +514,7 @@ export function rebuildLifetimeSummaries(db: DatabaseSync): LifetimeRebuildSumma
         cards_mined AS cardsMined,
         lookup_count AS lookupCount,
         lookup_hits AS lookupHits,
+        yomitan_lookup_count AS yomitanLookupCount,
         pause_count AS pauseCount,
         pause_ms AS pauseMs,
         seek_forward_count AS seekForwardCount,

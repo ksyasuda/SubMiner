@@ -39,6 +39,7 @@ export interface VideoAnimeLinkInput {
 }
 
 const COVER_BLOB_REFERENCE_PREFIX = '__subminer_cover_blob_ref__:';
+const WAL_JOURNAL_SIZE_LIMIT_BYTES = 64 * 1024 * 1024;
 
 export type CoverBlobBytes = ArrayBuffer | Uint8Array | Buffer;
 
@@ -153,6 +154,7 @@ export function applyPragmas(db: DatabaseSync): void {
   db.exec('PRAGMA synchronous = NORMAL');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 2500');
+  db.exec(`PRAGMA journal_size_limit = ${WAL_JOURNAL_SIZE_LIMIT_BYTES}`);
 }
 
 export function normalizeAnimeIdentityKey(title: string): string {
@@ -577,6 +579,7 @@ export function ensureSchema(db: DatabaseSync): void {
       cards_mined INTEGER NOT NULL DEFAULT 0,
       lookup_count INTEGER NOT NULL DEFAULT 0,
       lookup_hits INTEGER NOT NULL DEFAULT 0,
+      yomitan_lookup_count INTEGER NOT NULL DEFAULT 0,
       pause_count INTEGER NOT NULL DEFAULT 0,
       pause_ms INTEGER NOT NULL DEFAULT 0,
       seek_forward_count INTEGER NOT NULL DEFAULT 0,
@@ -600,6 +603,7 @@ export function ensureSchema(db: DatabaseSync): void {
       cards_mined INTEGER NOT NULL DEFAULT 0,
       lookup_count INTEGER NOT NULL DEFAULT 0,
       lookup_hits INTEGER NOT NULL DEFAULT 0,
+      yomitan_lookup_count INTEGER NOT NULL DEFAULT 0,
       pause_count INTEGER NOT NULL DEFAULT 0,
       pause_ms INTEGER NOT NULL DEFAULT 0,
       seek_forward_count INTEGER NOT NULL DEFAULT 0,
@@ -1013,6 +1017,29 @@ export function ensureSchema(db: DatabaseSync): void {
     deduplicateExistingCoverArtRows(db);
   }
 
+  if (currentVersion?.schema_version && currentVersion.schema_version < 14) {
+    addColumnIfMissing(db, 'imm_sessions', 'yomitan_lookup_count', 'INTEGER NOT NULL DEFAULT 0');
+    addColumnIfMissing(
+      db,
+      'imm_session_telemetry',
+      'yomitan_lookup_count',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+
+    db.exec(`
+      UPDATE imm_sessions
+      SET
+        yomitan_lookup_count = COALESCE((
+          SELECT t.yomitan_lookup_count
+          FROM imm_session_telemetry t
+          WHERE t.session_id = imm_sessions.session_id
+          ORDER BY t.sample_ms DESC, t.telemetry_id DESC
+          LIMIT 1
+        ), yomitan_lookup_count)
+      WHERE ended_at_ms IS NOT NULL
+    `);
+  }
+
   ensureLifetimeSummaryTables(db);
 
   db.exec(`
@@ -1137,10 +1164,10 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
       INSERT INTO imm_session_telemetry (
         session_id, sample_ms, total_watched_ms, active_watched_ms,
         lines_seen, words_seen, tokens_seen, cards_mined, lookup_count,
-        lookup_hits, pause_count, pause_ms, seek_forward_count,
+        lookup_hits, yomitan_lookup_count, pause_count, pause_ms, seek_forward_count,
         seek_backward_count, media_buffer_events, CREATED_DATE, LAST_UPDATE_DATE
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `),
     eventInsertStmt: db.prepare(`
@@ -1288,6 +1315,7 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
       write.cardsMined!,
       write.lookupCount!,
       write.lookupHits!,
+      write.yomitanLookupCount ?? 0,
       write.pauseCount!,
       write.pauseMs!,
       write.seekForwardCount!,

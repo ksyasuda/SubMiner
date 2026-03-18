@@ -6,6 +6,7 @@ import test from 'node:test';
 import { Database } from './sqlite';
 import { finalizeSessionRecord, startSessionRecord } from './session';
 import {
+  applyPragmas,
   createTrackerPreparedStatements,
   ensureSchema,
   executeQueuedWrite,
@@ -49,6 +50,34 @@ function cleanupDbPath(dbPath: string): void {
 
   // libsql keeps Windows file handles alive after close when prepared statements were used.
 }
+
+test('applyPragmas sets the SQLite tuning defaults used by immersion tracking', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    applyPragmas(db);
+
+    const journalModeRow = db.prepare('PRAGMA journal_mode').get() as {
+      journal_mode: string;
+    };
+    const synchronousRow = db.prepare('PRAGMA synchronous').get() as { synchronous: number };
+    const foreignKeysRow = db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number };
+    const busyTimeoutRow = db.prepare('PRAGMA busy_timeout').get() as { timeout: number };
+    const journalSizeLimitRow = db.prepare('PRAGMA journal_size_limit').get() as {
+      journal_size_limit: number;
+    };
+
+    assert.equal(journalModeRow.journal_mode, 'wal');
+    assert.equal(synchronousRow.synchronous, 1);
+    assert.equal(foreignKeysRow.foreign_keys, 1);
+    assert.equal(busyTimeoutRow.timeout, 2500);
+    assert.equal(journalSizeLimitRow.journal_size_limit, 67_108_864);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
 
 test('ensureSchema creates immersion core tables', () => {
   const dbPath = makeDbPath();
@@ -125,7 +154,9 @@ test('ensureSchema creates large-history performance indexes', () => {
     ensureSchema(db);
     const indexNames = new Set(
       (
-        db.prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'`).all() as Array<{
+        db
+          .prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'`)
+          .all() as Array<{
           name: string;
         }>
       ).map((row) => row.name),
@@ -516,7 +547,9 @@ test('ensureSchema migrates legacy cover art blobs into the shared blob store', 
     assert.doesNotThrow(() => ensureSchema(db));
 
     const mediaArtRow = db
-      .prepare('SELECT cover_blob AS coverBlob, cover_blob_hash AS coverBlobHash FROM imm_media_art')
+      .prepare(
+        'SELECT cover_blob AS coverBlob, cover_blob_hash AS coverBlobHash FROM imm_media_art',
+      )
       .get() as {
       coverBlob: ArrayBuffer | Uint8Array | Buffer | null;
       coverBlobHash: string | null;
@@ -524,7 +557,10 @@ test('ensureSchema migrates legacy cover art blobs into the shared blob store', 
 
     assert.ok(mediaArtRow);
     assert.ok(mediaArtRow?.coverBlobHash);
-    assert.equal(parseCoverBlobReference(normalizeCoverBlobBytes(mediaArtRow?.coverBlob)), mediaArtRow?.coverBlobHash);
+    assert.equal(
+      parseCoverBlobReference(normalizeCoverBlobBytes(mediaArtRow?.coverBlob)),
+      mediaArtRow?.coverBlobHash,
+    );
 
     const sharedBlobRow = db
       .prepare('SELECT cover_blob AS coverBlob FROM imm_cover_art_blobs WHERE blob_hash = ?')
@@ -732,6 +768,7 @@ test('executeQueuedWrite inserts event and telemetry rows', () => {
         cardsMined: 1,
         lookupCount: 2,
         lookupHits: 1,
+        yomitanLookupCount: 0,
         pauseCount: 1,
         pauseMs: 50,
         seekForwardCount: 0,

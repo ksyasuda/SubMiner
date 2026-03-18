@@ -840,6 +840,59 @@ test('persists and retrieves minimum immersion tracking fields', async () => {
   }
 });
 
+test('recordYomitanLookup persists a dedicated lookup counter without changing annotation lookup metrics', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/episode-yomitan.mkv', 'Episode Yomitan');
+    tracker.recordSubtitleLine('alpha beta gamma', 0, 1.2);
+    tracker.recordLookup(true);
+    tracker.recordYomitanLookup();
+
+    const privateApi = tracker as unknown as {
+      flushTelemetry: (force?: boolean) => void;
+      flushNow: () => void;
+    };
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    const summaries = await tracker.getSessionSummaries(10);
+    assert.ok(summaries.length >= 1);
+    assert.equal(summaries[0]?.lookupCount, 1);
+    assert.equal(summaries[0]?.lookupHits, 1);
+    assert.equal(summaries[0]?.yomitanLookupCount, 1);
+
+    tracker.destroy();
+
+    const db = new Database(dbPath);
+    const sessionRow = db
+      .prepare('SELECT lookup_count, lookup_hits, yomitan_lookup_count FROM imm_sessions LIMIT 1')
+      .get() as {
+      lookup_count: number;
+      lookup_hits: number;
+      yomitan_lookup_count: number;
+    } | null;
+    const eventRow = db
+      .prepare(
+        'SELECT event_type FROM imm_session_events WHERE event_type = ? ORDER BY ts_ms DESC LIMIT 1',
+      )
+      .get(9) as { event_type: number } | null;
+    db.close();
+
+    assert.equal(sessionRow?.lookup_count, 1);
+    assert.equal(sessionRow?.lookup_hits, 1);
+    assert.equal(sessionRow?.yomitan_lookup_count, 1);
+    assert.equal(eventRow?.event_type, 9);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('recordSubtitleLine persists counted allowed tokenized vocabulary rows and subtitle-line occurrences', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -1047,6 +1100,140 @@ test('subtitle-line event payload omits duplicated subtitle text', async () => {
     assert.equal(parsed.event, 'subtitle-line');
     assert.equal(typeof parsed.words, 'number');
     assert.equal('text' in parsed, false);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('recordPlaybackPosition marks watched at 85% completion', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/episode-85.mkv', 'Episode 85');
+    tracker.recordMediaDuration(100);
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { videoId: number } | null;
+    };
+    const videoId = privateApi.sessionState?.videoId;
+    assert.ok(videoId);
+
+    tracker.recordPlaybackPosition(84);
+    let row = privateApi.db
+      .prepare('SELECT watched FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { watched: number } | null;
+    assert.equal(row?.watched, 0);
+
+    tracker.recordPlaybackPosition(85);
+    row = privateApi.db
+      .prepare('SELECT watched FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { watched: number } | null;
+    assert.equal(row?.watched, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('deleteSession ignores the currently active session and keeps new writes flushable', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/active-delete-test.mkv', 'Active Delete Test');
+
+    const privateApi = tracker as unknown as {
+      sessionState: { sessionId: number } | null;
+      flushTelemetry: (force?: boolean) => void;
+      flushNow: () => void;
+      queue: unknown[];
+    };
+    const sessionId = privateApi.sessionState?.sessionId;
+    assert.ok(sessionId);
+
+    tracker.recordSubtitleLine('before delete', 0, 1);
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    await tracker.deleteSession(sessionId);
+
+    tracker.recordSubtitleLine('after delete', 1, 2);
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    const db = new Database(dbPath);
+    const sessionCountRow = db
+      .prepare('SELECT COUNT(*) AS total FROM imm_sessions WHERE session_id = ?')
+      .get(sessionId) as { total: number };
+    const subtitleLineCountRow = db
+      .prepare('SELECT COUNT(*) AS total FROM imm_subtitle_lines WHERE session_id = ?')
+      .get(sessionId) as { total: number };
+    db.close();
+
+    assert.equal(sessionCountRow.total, 1);
+    assert.equal(subtitleLineCountRow.total, 2);
+    assert.equal(privateApi.queue.length, 0);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('deleteVideo ignores the currently active video and keeps new writes flushable', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/active-video-delete-test.mkv', 'Active Video Delete Test');
+
+    const privateApi = tracker as unknown as {
+      sessionState: { sessionId: number; videoId: number } | null;
+      flushTelemetry: (force?: boolean) => void;
+      flushNow: () => void;
+      queue: unknown[];
+    };
+    const sessionId = privateApi.sessionState?.sessionId;
+    const videoId = privateApi.sessionState?.videoId;
+    assert.ok(sessionId);
+    assert.ok(videoId);
+
+    tracker.recordSubtitleLine('before video delete', 0, 1);
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    await tracker.deleteVideo(videoId);
+
+    tracker.recordSubtitleLine('after video delete', 1, 2);
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    const db = new Database(dbPath);
+    const sessionCountRow = db
+      .prepare('SELECT COUNT(*) AS total FROM imm_sessions WHERE session_id = ?')
+      .get(sessionId) as { total: number };
+    const videoCountRow = db
+      .prepare('SELECT COUNT(*) AS total FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { total: number };
+    const subtitleLineCountRow = db
+      .prepare('SELECT COUNT(*) AS total FROM imm_subtitle_lines WHERE session_id = ?')
+      .get(sessionId) as { total: number };
+    db.close();
+
+    assert.equal(sessionCountRow.total, 1);
+    assert.equal(videoCountRow.total, 1);
+    assert.equal(subtitleLineCountRow.total, 2);
+    assert.equal(privateApi.queue.length, 0);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
@@ -1817,6 +2004,52 @@ test('reassignAnimeAnilist deduplicates cover blobs and getCoverArt remains comp
     );
   } finally {
     globalThis.fetch = originalFetch;
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('markActiveVideoWatched marks current session video as watched', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/test-mark-active.mkv', 'Test Mark Active');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { videoId: number; markedWatched: boolean } | null;
+    };
+    const videoId = privateApi.sessionState?.videoId;
+    assert.ok(videoId);
+
+    const result = await tracker.markActiveVideoWatched();
+    assert.equal(result, true);
+    assert.equal(privateApi.sessionState?.markedWatched, true);
+
+    const row = privateApi.db
+      .prepare('SELECT watched FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { watched: number } | null;
+    assert.equal(row?.watched, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('markActiveVideoWatched returns false when no active session', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const result = await tracker.markActiveVideoWatched();
+    assert.equal(result, false);
+  } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }

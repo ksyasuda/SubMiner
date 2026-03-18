@@ -329,3 +329,7 @@ export function runRollupMaintenance(db: DatabaseSync, forceRebuild = false): vo
     throw error;
   }
 }
+
+export function runOptimizeMaintenance(db: DatabaseSync): void {
+  db.exec('PRAGMA optimize');
+}
