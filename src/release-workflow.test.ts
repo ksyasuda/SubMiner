@@ -28,6 +28,15 @@ test('release workflow verifies generated config examples before packaging artif
   assert.match(releaseWorkflow, /bun run verify:config-example/);
 });
 
+test('release build jobs install and cache stats dependencies before packaging', () => {
+  assert.match(releaseWorkflow, /build-linux:[\s\S]*stats\/node_modules/);
+  assert.match(releaseWorkflow, /build-macos:[\s\S]*stats\/node_modules/);
+  assert.match(releaseWorkflow, /build-windows:[\s\S]*stats\/node_modules/);
+  assert.match(releaseWorkflow, /build-linux:[\s\S]*cd stats && bun install --frozen-lockfile/);
+  assert.match(releaseWorkflow, /build-macos:[\s\S]*cd stats && bun install --frozen-lockfile/);
+  assert.match(releaseWorkflow, /build-windows:[\s\S]*cd stats && bun install --frozen-lockfile/);
+});
+
 test('release workflow generates release notes from committed changelog output', () => {
   assert.match(releaseWorkflow, /bun run changelog:release-notes/);
   assert.ok(!releaseWorkflow.includes('git log --pretty=format:"- %s"'));
