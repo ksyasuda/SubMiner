@@ -1014,7 +1014,7 @@ Character dictionary sync behavior:
 
 Current post-watch behavior:
 
-- SubMiner attempts an update near episode completion (`>=85%` watched and at least `10` minutes watched).
+- SubMiner attempts an update near episode completion using the shared default minimum watch ratio (`0.85`, or `>=85%`) from `src/shared/watch-threshold.ts`, and requires at least `10` minutes watched. The same ratio is also used by local episode watched state transitions.
 - Episode/title detection is `guessit`-first with fallback to SubMiner's filename parser.
 - If `guessit` is unavailable, updates still work via fallback parsing but title matching can be less accurate.
 - If embedded AniList auth UI fails to render, SubMiner opens the authorize URL in your default browser and shows fallback instructions in-app.
@@ -1256,7 +1256,7 @@ Usage notes:
 - The browser UI is served at `http://127.0.0.1:<serverPort>`.
 - The overlay toggle is local to the focused visible overlay window; it is not registered as a global OS shortcut.
 - The dashboard reads from the same immersion-tracking database, so keep `immersionTracking.enabled` on if you want data to appear.
-- The UI includes Overview, Anime, Trends, Vocabulary, and Sessions tabs.
+- The UI includes Overview, Library, Trends, Vocabulary, and Sessions tabs.
 
 ### YouTube Subtitle Generation
 

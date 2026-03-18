@@ -4,6 +4,8 @@ SubMiner can log your watching and mining activity to a local SQLite database, t
 
 When enabled, SubMiner records per-session statistics (watch time, subtitle lines seen, words encountered, cards mined) and maintains exact lifetime summary tables plus daily/monthly rollups. You can view that data in SubMiner's stats UI or query the database directly with any SQLite tool.
 
+Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_RATIO` (`85%`) value from `src/shared/watch-threshold.ts`.
+
 ## Enabling
 
 ```jsonc
@@ -24,13 +26,14 @@ The same immersion data powers the stats dashboard.
 
 - In-app overlay: focus the visible overlay, then press the key from `stats.toggleKey` (default: `` ` `` / `Backquote`).
 - Launcher command: run `subminer stats` to start the local stats server on demand and open the dashboard in your browser.
+- Background server: run `subminer stats -b` to start or reuse a dedicated background stats server without keeping the launcher attached, and `subminer stats -s` to stop that background server.
 - Maintenance command: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand.
 - Browser page: open `http://127.0.0.1:5175` directly if the local stats server is already running.
 
 Dashboard tabs:
 
 - Overview: recent sessions, streak calendar, watch-time history, and a tracking snapshot with completed episodes/anime totals
-- Anime: cover-art library, per-series progress, episode drill-down, and direct links into mined cards
+- Library: cover-art library, per-series progress, episode drill-down, and direct links into mined cards
 - Trends: watch time, sessions, words seen, and per-anime progress/pattern charts
 - Sessions: expandable session history with new-word activity, cumulative totals, and pause/seek/card markers
 - Vocabulary: top repeated words (click a bar to open the word), new-word timeline, frequency rank table with full readings, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons
@@ -50,9 +53,11 @@ Stats server config lives under `stats`:
 
 - `toggleKey` is overlay-local, not a system-wide shortcut.
 - `serverPort` controls the localhost dashboard URL.
-- `autoStartServer` starts the local stats HTTP server on launch once immersion tracking is active.
+- `autoStartServer` starts the local stats HTTP server on launch once immersion tracking is active, or reuses the dedicated background stats server when one is already running.
 - `autoOpenBrowser` controls whether `subminer stats` launches the dashboard URL in your browser after ensuring the server is running.
 - `subminer stats` forces the dashboard server to start even when `autoStartServer` is `false`.
+- `subminer stats -b` starts or reuses the dedicated background stats server and exits after startup acknowledgement.
+- `subminer stats -s` stops the dedicated background stats server without closing any browser tabs.
 - `subminer stats` fails with an error when `immersionTracking.enabled` is `false`.
 - `subminer stats cleanup` defaults to vocabulary cleanup, repairs stale `headword`, `reading`, and `part_of_speech` values, attempts best-effort MeCab backfill for legacy rows, and removes rows that still fail vocab filtering.
 
@@ -232,10 +237,12 @@ LIMIT ?;
 
 - Write path is asynchronous and queue-backed. Hot paths (subtitle parsing, render, token flows) enqueue telemetry and never await SQLite writes.
 - Queue overflow policy: drop oldest queued writes, keep newest.
-- SQLite pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=2500`.
+- SQLite tunings: `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=2500`, bounded WAL growth via `journal_size_limit`.
+- Maintenance executes `PRAGMA optimize` after periodic cleanup.
 - Rollups run incrementally from the last processed telemetry sample; startup performs a one-time bootstrap pass.
 - Cover-art blobs are deduplicated into `imm_cover_art_blobs` and referenced from `imm_media_art`.
 - Large-table reads are index-backed for `sample_ms`, session time windows, frequency-ranked words/kanji, and cover-art identity lookups.
+- Workload-dependent tuning knobs remain at defaults unless you change them: `cache_size`, `mmap_size`, `temp_store`, `auto_vacuum`.
 
 ### Schema (v12)
 
