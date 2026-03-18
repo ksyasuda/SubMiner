@@ -540,7 +540,7 @@ export class ImmersionTrackerService {
           title_english = COALESCE(?, title_english),
           title_native = COALESCE(?, title_native),
           episodes_total = COALESCE(?, episodes_total),
-          description = ?,
+          description = CASE WHEN ? = 1 THEN ? ELSE description END,
           LAST_UPDATE_DATE = ?
       WHERE anime_id = ?
     `,
@@ -551,6 +551,7 @@ export class ImmersionTrackerService {
         info.titleEnglish ?? null,
         info.titleNative ?? null,
         info.episodesTotal ?? null,
+        info.description !== undefined ? 1 : 0,
         info.description ?? null,
         Date.now(),
         animeId,
@@ -658,7 +659,8 @@ export class ImmersionTrackerService {
       if (!fetched) {
         return false;
       }
-      return (await this.getCoverArt(videoId))?.coverBlob !== null;
+      const cover = await this.getCoverArt(videoId);
+      return cover?.coverBlob != null;
     })();
 
     this.pendingCoverFetches.set(videoId, fetchPromise);

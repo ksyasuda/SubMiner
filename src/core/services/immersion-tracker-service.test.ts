@@ -2089,6 +2089,165 @@ test('reassignAnimeAnilist deduplicates cover blobs and getCoverArt remains comp
   }
 });
 
+test('reassignAnimeAnilist preserves existing description when description is omitted', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        normalized_title_key,
+        canonical_title,
+        description,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'little witch academia',
+        'Little Witch Academia',
+        'Original description',
+        1000,
+        1000
+      );
+    `);
+
+    await tracker.reassignAnimeAnilist(1, {
+      anilistId: 33489,
+      titleRomaji: 'Little Witch Academia',
+    });
+
+    const row = privateApi.db
+      .prepare(
+        'SELECT anilist_id AS anilistId, description FROM imm_anime WHERE anime_id = ?',
+      )
+      .get(1) as { anilistId: number | null; description: string | null } | null;
+
+    assert.equal(row?.anilistId, 33489);
+    assert.equal(row?.description, 'Original description');
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('reassignAnimeAnilist clears description when description is explicitly null', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        normalized_title_key,
+        canonical_title,
+        description,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'little witch academia',
+        'Little Witch Academia',
+        'Original description',
+        1000,
+        1000
+      );
+    `);
+
+    await tracker.reassignAnimeAnilist(1, {
+      anilistId: 33489,
+      description: null,
+    });
+
+    const row = privateApi.db
+      .prepare('SELECT description FROM imm_anime WHERE anime_id = ?')
+      .get(1) as { description: string | null } | null;
+
+    assert.equal(row?.description, null);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('ensureCoverArt returns false when fetcher reports success without storing art', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let fetchCalls = 0;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_videos (
+        video_id,
+        video_key,
+        canonical_title,
+        source_type,
+        duration_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'local:/tmp/lwa-1.mkv',
+        'Little Witch Academia S01E01',
+        1,
+        0,
+        1000,
+        1000
+      );
+      INSERT INTO imm_lifetime_media (
+        video_id,
+        total_sessions,
+        total_active_ms,
+        total_cards,
+        total_tokens_seen,
+        total_lines_seen,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1000,
+        1000
+      );
+    `);
+
+    tracker.setCoverArtFetcher({
+      fetchIfMissing: async () => {
+        fetchCalls += 1;
+        return true;
+      },
+    });
+
+    const storedBefore = await tracker.getCoverArt(1);
+    assert.equal(storedBefore?.coverBlob ?? null, null);
+
+    const result = await tracker.ensureCoverArt(1);
+
+    assert.equal(fetchCalls, 1);
+    assert.equal(result, false);
+    assert.equal((await tracker.getCoverArt(1))?.coverBlob ?? null, null);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('markActiveVideoWatched marks current session video as watched', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

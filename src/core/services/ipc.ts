@@ -486,6 +486,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
           activeDays: 0,
           totalEpisodesWatched: 0,
           totalAnimeCompleted: 0,
+          totalLookupCount: 0,
+          totalLookupHits: 0,
+          newWordsToday: 0,
+          newWordsThisWeek: 0,
         },
       };
     }

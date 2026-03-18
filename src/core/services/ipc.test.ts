@@ -140,6 +140,10 @@ function createFakeImmersionTracker(
       activeDays: 0,
       totalEpisodesWatched: 0,
       totalAnimeCompleted: 0,
+      totalLookupCount: 0,
+      totalLookupHits: 0,
+      newWordsToday: 0,
+      newWordsThisWeek: 0,
     }),
     getSessionTimeline: async () => [],
     getSessionEvents: async () => [],
@@ -355,6 +359,10 @@ test('registerIpcHandlers returns empty stats overview shape without a tracker',
       activeDays: 0,
       totalEpisodesWatched: 0,
       totalAnimeCompleted: 0,
+      totalLookupCount: 0,
+      totalLookupHits: 0,
+      newWordsToday: 0,
+      newWordsThisWeek: 0,
     },
   });
 });
@@ -389,6 +397,10 @@ test('registerIpcHandlers validates and clamps stats request limits', async () =
           activeDays: 0,
           totalEpisodesWatched: 0,
           totalAnimeCompleted: 0,
+          totalLookupCount: 0,
+          totalLookupHits: 0,
+          newWordsToday: 0,
+          newWordsThisWeek: 0,
         }),
         getSessionTimeline: async (sessionId: number, limit = 0) => {
           calls.push(['timeline', limit, sessionId]);
