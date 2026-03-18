@@ -1,12 +1,6 @@
-import { useState, useCallback } from 'react';
+import { Suspense, lazy, useCallback, useState } from 'react';
 import { TabBar } from './components/layout/TabBar';
 import { OverviewTab } from './components/overview/OverviewTab';
-import { TrendsTab } from './components/trends/TrendsTab';
-import { AnimeTab } from './components/anime/AnimeTab';
-import { MediaDetailView } from './components/library/MediaDetailView';
-import { VocabularyTab } from './components/vocabulary/VocabularyTab';
-import { SessionsTab } from './components/sessions/SessionsTab';
-import { WordDetailPanel } from './components/vocabulary/WordDetailPanel';
 import { useExcludedWords } from './hooks/useExcludedWords';
 import type { TabId } from './components/layout/TabBar';
 import {
@@ -18,6 +12,52 @@ import {
   openOverviewMediaDetail,
   switchTab,
 } from './lib/stats-navigation';
+
+const AnimeTab = lazy(() =>
+  import('./components/anime/AnimeTab').then((module) => ({
+    default: module.AnimeTab,
+  })),
+);
+const TrendsTab = lazy(() =>
+  import('./components/trends/TrendsTab').then((module) => ({
+    default: module.TrendsTab,
+  })),
+);
+const VocabularyTab = lazy(() =>
+  import('./components/vocabulary/VocabularyTab').then((module) => ({
+    default: module.VocabularyTab,
+  })),
+);
+const SessionsTab = lazy(() =>
+  import('./components/sessions/SessionsTab').then((module) => ({
+    default: module.SessionsTab,
+  })),
+);
+const MediaDetailView = lazy(() =>
+  import('./components/library/MediaDetailView').then((module) => ({
+    default: module.MediaDetailView,
+  })),
+);
+const WordDetailPanel = lazy(() =>
+  import('./components/vocabulary/WordDetailPanel').then((module) => ({
+    default: module.WordDetailPanel,
+  })),
+);
+
+function LoadingSurface({ label, overlay = false }: { label: string; overlay?: boolean }) {
+  return (
+    <div
+      aria-busy="true"
+      className={
+        overlay
+          ? 'fixed inset-x-4 bottom-4 z-50 rounded-xl border border-ctp-surface1 bg-ctp-mantle/95 p-4 text-sm text-ctp-overlay2 shadow-2xl backdrop-blur'
+          : 'rounded-xl border border-ctp-surface1 bg-ctp-surface0/70 p-4 text-sm text-ctp-overlay2'
+      }
+    >
+      {label}
+    </div>
+  );
+}
 
 export function App() {
   const [viewState, setViewState] = useState(createInitialStatsView);
@@ -96,27 +136,29 @@ export function App() {
       </header>
       <main className="flex-1 overflow-y-auto p-4">
         {mediaDetail ? (
-          <MediaDetailView
-            videoId={mediaDetail.videoId}
-            initialExpandedSessionId={mediaDetail.initialSessionId}
-            onConsumeInitialExpandedSession={() =>
-              setViewState((prev) =>
-                prev.mediaDetail
-                  ? {
-                      ...prev,
-                      mediaDetail: {
-                        ...prev.mediaDetail,
-                        initialSessionId: null,
-                      },
-                    }
-                  : prev,
-              )
-            }
-            onBack={() => setViewState((prev) => closeMediaDetail(prev))}
-            backLabel={
-              mediaDetail.origin.type === 'overview' ? 'Back to Overview' : 'Back to Library'
-            }
-          />
+          <Suspense fallback={<LoadingSurface label="Loading media detail..." />}>
+            <MediaDetailView
+              videoId={mediaDetail.videoId}
+              initialExpandedSessionId={mediaDetail.initialSessionId}
+              onConsumeInitialExpandedSession={() =>
+                setViewState((prev) =>
+                  prev.mediaDetail
+                    ? {
+                        ...prev,
+                        mediaDetail: {
+                          ...prev.mediaDetail,
+                          initialSessionId: null,
+                        },
+                      }
+                    : prev,
+                )
+              }
+              onBack={() => setViewState((prev) => closeMediaDetail(prev))}
+              backLabel={
+                mediaDetail.origin.type === 'overview' ? 'Back to Overview' : 'Back to Library'
+              }
+            />
+          </Suspense>
         ) : (
           <>
             {mountedTabs.has('overview') ? (
@@ -141,14 +183,16 @@ export function App() {
                 hidden={activeTab !== 'anime'}
                 className="animate-fade-in"
               >
-                <AnimeTab
-                  initialAnimeId={selectedAnimeId}
-                  onClearInitialAnime={() =>
-                    setViewState((prev) => ({ ...prev, selectedAnimeId: null }))
-                  }
-                  onNavigateToWord={openWordDetail}
-                  onOpenEpisodeDetail={navigateToEpisodeDetail}
-                />
+                <Suspense fallback={<LoadingSurface label="Loading library..." />}>
+                  <AnimeTab
+                    initialAnimeId={selectedAnimeId}
+                    onClearInitialAnime={() =>
+                      setViewState((prev) => ({ ...prev, selectedAnimeId: null }))
+                    }
+                    onNavigateToWord={openWordDetail}
+                    onOpenEpisodeDetail={navigateToEpisodeDetail}
+                  />
+                </Suspense>
               </section>
             ) : null}
             {mountedTabs.has('trends') ? (
@@ -159,7 +203,9 @@ export function App() {
                 hidden={activeTab !== 'trends'}
                 className="animate-fade-in"
               >
-                <TrendsTab />
+                <Suspense fallback={<LoadingSurface label="Loading trends..." />}>
+                  <TrendsTab />
+                </Suspense>
               </section>
             ) : null}
             {mountedTabs.has('vocabulary') ? (
@@ -170,14 +216,16 @@ export function App() {
                 hidden={activeTab !== 'vocabulary'}
                 className="animate-fade-in"
               >
-                <VocabularyTab
-                  onNavigateToAnime={navigateToAnime}
-                  onOpenWordDetail={openWordDetail}
-                  excluded={excluded}
-                  isExcluded={isExcluded}
-                  onRemoveExclusion={removeExclusion}
-                  onClearExclusions={clearAll}
-                />
+                <Suspense fallback={<LoadingSurface label="Loading vocabulary..." />}>
+                  <VocabularyTab
+                    onNavigateToAnime={navigateToAnime}
+                    onOpenWordDetail={openWordDetail}
+                    excluded={excluded}
+                    isExcluded={isExcluded}
+                    onRemoveExclusion={removeExclusion}
+                    onClearExclusions={clearAll}
+                  />
+                </Suspense>
               </section>
             ) : null}
             {mountedTabs.has('sessions') ? (
@@ -188,25 +236,31 @@ export function App() {
                 hidden={activeTab !== 'sessions'}
                 className="animate-fade-in"
               >
-                <SessionsTab
-                  initialSessionId={focusedSessionId}
-                  onClearInitialSession={() =>
-                    setViewState((prev) => ({ ...prev, focusedSessionId: null }))
-                  }
-                />
+                <Suspense fallback={<LoadingSurface label="Loading sessions..." />}>
+                  <SessionsTab
+                    initialSessionId={focusedSessionId}
+                    onClearInitialSession={() =>
+                      setViewState((prev) => ({ ...prev, focusedSessionId: null }))
+                    }
+                  />
+                </Suspense>
               </section>
             ) : null}
           </>
         )}
       </main>
-      <WordDetailPanel
-        wordId={globalWordId}
-        onClose={() => setGlobalWordId(null)}
-        onSelectWord={openWordDetail}
-        onNavigateToAnime={navigateToAnime}
-        isExcluded={isExcluded}
-        onToggleExclusion={toggleExclusion}
-      />
+      {globalWordId !== null ? (
+        <Suspense fallback={<LoadingSurface label="Loading word detail..." overlay />}>
+          <WordDetailPanel
+            wordId={globalWordId}
+            onClose={() => setGlobalWordId(null)}
+            onSelectWord={openWordDetail}
+            onNavigateToAnime={navigateToAnime}
+            isExcluded={isExcluded}
+            onToggleExclusion={toggleExclusion}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }
