@@ -308,6 +308,85 @@ done
   });
 });
 
+test('launcher forwards --args to mpv as parsed tokens', { timeout: 15000 }, () => {
+  withTempDir((root) => {
+    const homeDir = path.join(root, 'home');
+    const xdgConfigHome = path.join(root, 'xdg');
+    const binDir = path.join(root, 'bin');
+    const appPath = path.join(root, 'fake-subminer.sh');
+    const videoPath = path.join(root, 'movie.mkv');
+    const mpvArgsPath = path.join(root, 'mpv-args.txt');
+    const socketPath = path.join(root, 'mpv.sock');
+    const bunBinary = JSON.stringify(process.execPath.replace(/\\/g, '/'));
+
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.mkdirSync(path.join(xdgConfigHome, 'SubMiner'), { recursive: true });
+    fs.mkdirSync(path.join(xdgConfigHome, 'mpv', 'script-opts'), { recursive: true });
+    fs.writeFileSync(videoPath, 'fake video content');
+    fs.writeFileSync(
+      path.join(xdgConfigHome, 'SubMiner', 'setup-state.json'),
+      JSON.stringify({
+        version: 1,
+        status: 'completed',
+        completedAt: '2026-03-08T00:00:00.000Z',
+        completionSource: 'user',
+        lastSeenYomitanDictionaryCount: 0,
+        pluginInstallStatus: 'installed',
+        pluginInstallPathSummary: null,
+      }),
+    );
+    fs.writeFileSync(
+      path.join(xdgConfigHome, 'mpv', 'script-opts', 'subminer.conf'),
+      `socket_path=${socketPath}\nauto_start=no\nauto_start_visible_overlay=no\nauto_start_pause_until_ready=no\n`,
+    );
+    fs.writeFileSync(appPath, '#!/bin/sh\nexit 0\n');
+    fs.chmodSync(appPath, 0o755);
+
+    fs.writeFileSync(
+      path.join(binDir, 'mpv'),
+      `#!/bin/sh
+set -eu
+printf '%s\\n' "$@" > "$SUBMINER_TEST_MPV_ARGS"
+socket_path=""
+for arg in "$@"; do
+  case "$arg" in
+    --input-ipc-server=*)
+      socket_path="\${arg#--input-ipc-server=}"
+      ;;
+  esac
+done
+${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); const path=require('node:path'); const socket=process.argv[1]||''; try{ if (socket) fs.mkdirSync(path.dirname(socket),{recursive:true}); }catch{} try{ if (socket) fs.rmSync(socket,{force:true}); }catch{} if(!socket) process.exit(0); const server=net.createServer((c)=>c.end()); server.on('error',()=>process.exit(0)); try{ server.listen(socket,()=>setTimeout(()=>server.close(()=>process.exit(0)),250)); } catch { process.exit(0); }" "$socket_path"
+`,
+      'utf8',
+    );
+    fs.chmodSync(path.join(binDir, 'mpv'), 0o755);
+
+    const env = {
+      ...makeTestEnv(homeDir, xdgConfigHome),
+      PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
+      SUBMINER_APPIMAGE_PATH: appPath,
+      SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
+    };
+    const result = runLauncher(
+      ['--args', '--pause=yes --title="movie night"', videoPath],
+      env,
+    );
+
+    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    const argsFile = fs.readFileSync(mpvArgsPath, 'utf8');
+    const forwardedArgs = argsFile
+      .trim()
+      .split('\n')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    assert.equal(forwardedArgs.includes('--pause=yes'), true);
+    assert.equal(forwardedArgs.includes('--title=movie night'), true);
+    assert.equal(forwardedArgs.includes(videoPath), true);
+  });
+});
+
 test('dictionary command forwards --dictionary and --dictionary-target to app command path', () => {
   withTempDir((root) => {
     const homeDir = path.join(root, 'home');

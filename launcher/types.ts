@@ -124,6 +124,7 @@ export interface Args {
   mpvIdle: boolean;
   mpvSocket: boolean;
   mpvStatus: boolean;
+  mpvArgs: string;
   appPassthrough: boolean;
   appArgs: string[];
   jellyfinServer: string;

@@ -142,6 +142,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     mpvIdle: false,
     mpvSocket: false,
     mpvStatus: false,
+    mpvArgs: '',
     appPassthrough: false,
     appArgs: [],
     jellyfinServer: '',

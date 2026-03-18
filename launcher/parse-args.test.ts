@@ -23,6 +23,12 @@ test('parseArgs keeps all args after app verbatim', () => {
   assert.deepEqual(parsed.appArgs, ['--start', '--anilist-setup', '-h']);
 });
 
+test('parseArgs captures mpv args string', () => {
+  const parsed = parseArgs(['--args', '--pause=yes --title="movie night"'], 'subminer', {});
+
+  assert.equal(parsed.mpvArgs, '--pause=yes --title="movie night"');
+});
+
 test('parseArgs maps jellyfin play action and log-level override', () => {
   const parsed = parseArgs(['jellyfin', 'play', '--log-level', 'debug'], 'subminer', {});
 

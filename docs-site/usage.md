@@ -56,6 +56,7 @@ subminer ytsearch:"jp news"       # Play first YouTube search result
 subminer --setup                  # Open first-run setup popup
 subminer --log-level debug video.mkv # Enable verbose logs for launch/debugging
 subminer --log-level warn video.mkv  # Set logging level explicitly
+subminer --args '--fs=opengl-hq --ytdl-format=bestvideo*+bestaudio/best' video.mkv  # Pass extra mpv args
 
 # Options
 subminer -T video.mkv             # Disable texthooker server
@@ -188,6 +189,8 @@ Top-level launcher flags like `--jellyfin-*` and `--yt-subgen-*` are intentional
 - `--sid=auto`
 - `--secondary-sid=auto`
 - `--secondary-sub-visibility=no`
+
+You can append additional MPV arguments with launcher `-a/--args`, for example `--args "--ao=alsa --volume=80"`.
 
 You can define a matching profile in `~/.config/mpv/mpv.conf` for consistency when launching `mpv` manually or from other tools. `subminer` launches with `--profile=subminer` by default (or override with `subminer -p <profile> ...`):
 

@@ -134,6 +134,7 @@ export function createDefaultArgs(launcherConfig: LauncherYoutubeSubgenConfig): 
     mpvIdle: false,
     mpvSocket: false,
     mpvStatus: false,
+    mpvArgs: '',
     appPassthrough: false,
     appArgs: [],
     jellyfinServer: '',
@@ -189,6 +190,7 @@ export function applyRootOptionsToArgs(
   if (options.rofi === true) parsed.useRofi = true;
   if (options.startOverlay === true) parsed.autoStartOverlay = true;
   if (options.texthooker === false) parsed.useTexthooker = false;
+  if (typeof options.args === 'string') parsed.mpvArgs = options.args;
   if (typeof rootTarget === 'string' && rootTarget) ensureTarget(rootTarget, parsed);
 }
 

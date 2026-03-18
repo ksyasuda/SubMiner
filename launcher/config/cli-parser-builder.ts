@@ -57,6 +57,7 @@ function applyRootOptions(program: Command): void {
   program
     .option('-b, --backend <backend>', 'Display backend')
     .option('-d, --directory <dir>', 'Directory to browse')
+    .option('-a, --args <args>', 'Pass arguments to MPV')
     .option('-r, --recursive', 'Search directories recursively')
     .option('-p, --profile <profile>', 'MPV profile')
     .option('--start', 'Explicitly start overlay')
@@ -103,6 +104,8 @@ function getTopLevelCommand(argv: string[]): { name: string; index: number } | n
   const optionsWithValue = new Set([
     '-b',
     '--backend',
+    '-a',
+    '--args',
     '-d',
     '--directory',
     '-p',

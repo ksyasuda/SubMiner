@@ -38,6 +38,79 @@ const DETACHED_IDLE_MPV_PID_FILE = path.join(os.tmpdir(), 'subminer-idle-mpv.pid
 const OVERLAY_START_SOCKET_READY_TIMEOUT_MS = 900;
 const OVERLAY_START_COMMAND_SETTLE_TIMEOUT_MS = 700;
 
+export function parseMpvArgString(input: string): string[] {
+  const chars = input;
+  const args: string[] = [];
+  let current = '';
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let escaping = false;
+
+  for (let i = 0; i < chars.length; i += 1) {
+    const ch = chars[i] || '';
+    if (escaping) {
+      current += ch;
+      escaping = false;
+      continue;
+    }
+
+    if (inSingleQuote) {
+      if (ch === "'") {
+        inSingleQuote = false;
+      } else {
+        current += ch;
+      }
+      continue;
+    }
+
+    if (inDoubleQuote) {
+      if (ch === '\\') {
+        escaping = true;
+        continue;
+      }
+      if (ch === '"') {
+        inDoubleQuote = false;
+        continue;
+      }
+      current += ch;
+      continue;
+    }
+
+    if (ch === '\\') {
+      escaping = true;
+      continue;
+    }
+    if (ch === "'") {
+      inSingleQuote = true;
+      continue;
+    }
+    if (ch === '"') {
+      inDoubleQuote = true;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (current) {
+        args.push(current);
+        current = '';
+      }
+      continue;
+    }
+    current += ch;
+  }
+
+  if (escaping) {
+    fail('Could not parse mpv args: trailing backslash');
+  }
+  if (inSingleQuote || inDoubleQuote) {
+    fail('Could not parse mpv args: unmatched quote');
+  }
+  if (current) {
+    args.push(current);
+  }
+
+  return args;
+}
+
 function readTrackedDetachedMpvPid(): number | null {
   try {
     const raw = fs.readFileSync(DETACHED_IDLE_MPV_PID_FILE, 'utf8').trim();
@@ -463,6 +536,9 @@ export async function startMpv(
   const mpvArgs: string[] = [];
   if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
   mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
+  if (args.mpvArgs) {
+    mpvArgs.push(...parseMpvArgString(args.mpvArgs));
+  }
 
   if (targetKind === 'url' && isYoutubeTarget(target)) {
     log('info', args.logLevel, 'Applying URL playback options');
@@ -859,6 +935,9 @@ export function launchMpvIdleDetached(
     const mpvArgs: string[] = [];
     if (args.profile) mpvArgs.push(`--profile=${args.profile}`);
     mpvArgs.push(...DEFAULT_MPV_SUBMINER_ARGS);
+    if (args.mpvArgs) {
+      mpvArgs.push(...parseMpvArgString(args.mpvArgs));
+    }
     mpvArgs.push('--idle=yes');
     mpvArgs.push(
       `--script-opts=subminer-binary_path=${appPath},subminer-socket_path=${socketPath}`,
