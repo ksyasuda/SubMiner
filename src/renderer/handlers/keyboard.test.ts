@@ -52,6 +52,9 @@ function installKeyboardTestGlobals() {
   const mpvCommands: Array<Array<string | number>> = [];
   let playbackPausedResponse: boolean | null = false;
   let statsToggleKey = 'Backquote';
+  let markWatchedKey = 'KeyW';
+  let markActiveVideoWatchedResult = true;
+  let markActiveVideoWatchedCalls = 0;
   let statsToggleOverlayCalls = 0;
   let selectionClearCount = 0;
   let selectionAddCount = 0;
@@ -140,6 +143,11 @@ function installKeyboardTestGlobals() {
         },
         getPlaybackPaused: async () => playbackPausedResponse,
         getStatsToggleKey: async () => statsToggleKey,
+        getMarkWatchedKey: async () => markWatchedKey,
+        markActiveVideoWatched: async () => {
+          markActiveVideoWatchedCalls += 1;
+          return markActiveVideoWatchedResult;
+        },
         toggleDevTools: () => {},
         toggleStatsOverlay: () => {
           statsToggleOverlayCalls += 1;
@@ -262,6 +270,13 @@ function installKeyboardTestGlobals() {
     setStatsToggleKey: (value: string) => {
       statsToggleKey = value;
     },
+    setMarkWatchedKey: (value: string) => {
+      markWatchedKey = value;
+    },
+    setMarkActiveVideoWatchedResult: (value: boolean) => {
+      markActiveVideoWatchedResult = value;
+    },
+    markActiveVideoWatchedCalls: () => markActiveVideoWatchedCalls,
     statsToggleOverlayCalls: () => statsToggleOverlayCalls,
     getPlaybackPaused: async () => playbackPausedResponse,
     setPlaybackPausedResponse: (value: boolean | null) => {
@@ -287,7 +302,7 @@ function createKeyboardHandlerHarness() {
   });
   let wordNodes = [createWordNode(10), createWordNode(80), createWordNode(150)];
 
-    const ctx = {
+  const ctx = {
     dom: {
       subtitleRoot: {
         classList: subtitleRootClassList,
@@ -1045,6 +1060,47 @@ test('keyboard mode: popup iframe focusin reclaims overlay keyboard focus', asyn
     assert.equal(testGlobals.overlayFocusCalls.length > 0, true);
   } finally {
     ctx.state.keyboardDrivenModeEnabled = false;
+    testGlobals.restore();
+  }
+});
+
+test('mark-watched keybinding calls markActiveVideoWatched and sends mpv commands', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    const beforeCalls = testGlobals.markActiveVideoWatchedCalls();
+    const beforeMpvCount = testGlobals.mpvCommands.length;
+
+    testGlobals.dispatchKeydown({ key: 'w', code: 'KeyW' });
+    await wait(10);
+
+    assert.equal(testGlobals.markActiveVideoWatchedCalls(), beforeCalls + 1);
+    const newMpvCommands = testGlobals.mpvCommands.slice(beforeMpvCount);
+    assert.deepEqual(newMpvCommands, [
+      ['show-text', 'Marked as watched', '1500'],
+      ['playlist-next', 'force'],
+    ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('mark-watched keybinding does not send mpv commands when no active session', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    testGlobals.setMarkActiveVideoWatchedResult(false);
+    const beforeMpvCount = testGlobals.mpvCommands.length;
+
+    testGlobals.dispatchKeydown({ key: 'w', code: 'KeyW' });
+    await wait(10);
+
+    assert.equal(testGlobals.markActiveVideoWatchedCalls() > 0, true);
+    const newMpvCommands = testGlobals.mpvCommands.slice(beforeMpvCount);
+    assert.deepEqual(newMpvCommands, []);
+  } finally {
     testGlobals.restore();
   }
 });

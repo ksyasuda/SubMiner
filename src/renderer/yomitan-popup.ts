@@ -4,6 +4,20 @@ export const YOMITAN_POPUP_HIDDEN_EVENT = 'yomitan-popup-hidden';
 export const YOMITAN_POPUP_MOUSE_ENTER_EVENT = 'yomitan-popup-mouse-enter';
 export const YOMITAN_POPUP_MOUSE_LEAVE_EVENT = 'yomitan-popup-mouse-leave';
 export const YOMITAN_POPUP_COMMAND_EVENT = 'subminer-yomitan-popup-command';
+export const YOMITAN_LOOKUP_EVENT = 'subminer-yomitan-lookup';
+
+export function registerYomitanLookupListener(
+  target: EventTarget = window,
+  listener: () => void,
+): () => void {
+  const wrapped = (): void => {
+    listener();
+  };
+  target.addEventListener(YOMITAN_LOOKUP_EVENT, wrapped);
+  return () => {
+    target.removeEventListener(YOMITAN_LOOKUP_EVENT, wrapped);
+  };
+}
 
 export function isYomitanPopupIframe(element: Element | null): boolean {
   if (!element) return false;

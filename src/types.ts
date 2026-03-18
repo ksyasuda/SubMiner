@@ -625,6 +625,7 @@ export interface YoutubeSubgenConfig {
 
 export interface StatsConfig {
   toggleKey?: string;
+  markWatchedKey?: string;
   serverPort?: number;
   autoStartServer?: boolean;
   autoOpenBrowser?: boolean;
@@ -888,6 +889,7 @@ export interface ResolvedConfig {
   };
   stats: {
     toggleKey: string;
+    markWatchedKey: string;
     serverPort: number;
     autoStartServer: boolean;
     autoOpenBrowser: boolean;
@@ -1071,6 +1073,7 @@ export interface ElectronAPI {
   onSubtitleAss: (callback: (assText: string) => void) => void;
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
   openYomitanSettings: () => void;
+  recordYomitanLookup: () => void;
   getSubtitlePosition: () => Promise<SubtitlePosition | null>;
   saveSubtitlePosition: (position: SubtitlePosition) => void;
   getMecabStatus: () => Promise<MecabStatus>;
@@ -1079,6 +1082,8 @@ export interface ElectronAPI {
   getKeybindings: () => Promise<Keybinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
   getStatsToggleKey: () => Promise<string>;
+  getMarkWatchedKey: () => Promise<string>;
+  markActiveVideoWatched: () => Promise<boolean>;
   getControllerConfig: () => Promise<ResolvedControllerConfig>;
   saveControllerConfig: (update: ControllerConfigUpdate) => Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => Promise<void>;

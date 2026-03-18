@@ -3743,6 +3743,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getKeybindings: () => appState.keybindings,
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
       getStatsToggleKey: () => getResolvedConfig().stats.toggleKey,
+      getMarkWatchedKey: () => getResolvedConfig().stats.markWatchedKey,
       getControllerConfig: () => getResolvedConfig().controller,
       saveControllerConfig: (update) => {
         const currentRawConfig = configService.getRawConfig();

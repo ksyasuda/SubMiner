@@ -15,6 +15,7 @@ export const IPC_CHANNELS = {
     setIgnoreMouseEvents: 'set-ignore-mouse-events',
     overlayModalClosed: 'overlay:modal-closed',
     openYomitanSettings: 'open-yomitan-settings',
+    recordYomitanLookup: 'record-yomitan-lookup',
     quitApp: 'quit-app',
     toggleDevTools: 'toggle-dev-tools',
     toggleOverlay: 'toggle-overlay',
@@ -30,6 +31,7 @@ export const IPC_CHANNELS = {
     reportOverlayContentBounds: 'overlay-content-bounds:report',
     overlayModalOpened: 'overlay:modal-opened',
     toggleStatsOverlay: 'stats:toggle-overlay',
+    markActiveVideoWatched: 'immersion:mark-active-video-watched',
   },
   request: {
     getVisibleOverlayVisibility: 'get-visible-overlay-visibility',
@@ -43,6 +45,7 @@ export const IPC_CHANNELS = {
     getKeybindings: 'get-keybindings',
     getConfigShortcuts: 'get-config-shortcuts',
     getStatsToggleKey: 'get-stats-toggle-key',
+    getMarkWatchedKey: 'get-mark-watched-key',
     getControllerConfig: 'get-controller-config',
     getSecondarySubMode: 'get-secondary-sub-mode',
     getCurrentSecondarySub: 'get-current-secondary-sub',

@@ -51,6 +51,7 @@ export interface IpcServiceDeps {
   getKeybindings: () => unknown;
   getConfiguredShortcuts: () => unknown;
   getStatsToggleKey: () => string;
+  getMarkWatchedKey: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
   saveControllerConfig: (update: ControllerConfigUpdate) => void | Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
@@ -70,6 +71,7 @@ export interface IpcServiceDeps {
   retryAnilistQueueNow: () => Promise<{ ok: boolean; message: string }>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
   immersionTracker?: {
+    recordYomitanLookup: () => void;
     getSessionSummaries: (limit?: number) => Promise<unknown>;
     getDailyRollups: (limit?: number) => Promise<unknown>;
     getMonthlyRollups: (limit?: number) => Promise<unknown>;
@@ -93,6 +95,7 @@ export interface IpcServiceDeps {
     getMediaSessions: (videoId: number, limit?: number) => Promise<unknown>;
     getMediaDailyRollups: (videoId: number, limit?: number) => Promise<unknown>;
     getCoverArt: (videoId: number) => Promise<unknown>;
+    markActiveVideoWatched: () => Promise<boolean>;
   } | null;
 }
 
@@ -143,6 +146,7 @@ export interface IpcDepsRuntimeOptions {
   getKeybindings: () => unknown;
   getConfiguredShortcuts: () => unknown;
   getStatsToggleKey: () => string;
+  getMarkWatchedKey: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
   saveControllerConfig: (update: ControllerConfigUpdate) => void | Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
@@ -199,6 +203,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     getKeybindings: options.getKeybindings,
     getConfiguredShortcuts: options.getConfiguredShortcuts,
     getStatsToggleKey: options.getStatsToggleKey,
+    getMarkWatchedKey: options.getMarkWatchedKey,
     getControllerConfig: options.getControllerConfig,
     saveControllerConfig: options.saveControllerConfig,
     saveControllerPreference: options.saveControllerPreference,
@@ -272,6 +277,14 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.on(IPC_CHANNELS.command.openYomitanSettings, () => {
     deps.openYomitanSettings();
+  });
+
+  ipc.on(IPC_CHANNELS.command.recordYomitanLookup, () => {
+    deps.immersionTracker?.recordYomitanLookup();
+  });
+
+  ipc.handle(IPC_CHANNELS.command.markActiveVideoWatched, async () => {
+    return (await deps.immersionTracker?.markActiveVideoWatched()) ?? false;
   });
 
   ipc.on(IPC_CHANNELS.command.quitApp, () => {
@@ -364,6 +377,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.getStatsToggleKey, () => {
     return deps.getStatsToggleKey();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.getMarkWatchedKey, () => {
+    return deps.getMarkWatchedKey();
   });
 
   ipc.handle(IPC_CHANNELS.request.getControllerConfig, () => {

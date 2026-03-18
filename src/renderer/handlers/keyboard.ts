@@ -192,6 +192,25 @@ export function createKeyboardHandlers(
     );
   }
 
+  function isMarkWatchedKey(e: KeyboardEvent): boolean {
+    return (
+      e.code === ctx.state.markWatchedKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.metaKey &&
+      !e.shiftKey &&
+      !e.repeat
+    );
+  }
+
+  async function handleMarkWatched(): Promise<void> {
+    const marked = await window.electronAPI.markActiveVideoWatched();
+    if (marked) {
+      window.electronAPI.sendMpvCommand(['show-text', 'Marked as watched', '1500']);
+      window.electronAPI.sendMpvCommand(['playlist-next', 'force']);
+    }
+  }
+
   function getSubtitleWordNodes(): HTMLElement[] {
     return Array.from(
       ctx.dom.subtitleRoot.querySelectorAll<HTMLElement>('.word[data-token-index]'),
@@ -704,12 +723,14 @@ export function createKeyboardHandlers(
   }
 
   async function setupMpvInputForwarding(): Promise<void> {
-    const [keybindings, statsToggleKey] = await Promise.all([
+    const [keybindings, statsToggleKey, markWatchedKey] = await Promise.all([
       window.electronAPI.getKeybindings(),
       window.electronAPI.getStatsToggleKey(),
+      window.electronAPI.getMarkWatchedKey(),
     ]);
     updateKeybindings(keybindings);
     ctx.state.statsToggleKey = statsToggleKey;
+    ctx.state.markWatchedKey = markWatchedKey;
     syncKeyboardTokenSelection();
 
     const subtitleMutationObserver = new MutationObserver(() => {
@@ -808,6 +829,12 @@ export function createKeyboardHandlers(
       if (isStatsOverlayToggle(e)) {
         e.preventDefault();
         window.electronAPI.toggleStatsOverlay();
+        return;
+      }
+
+      if (isMarkWatchedKey(e)) {
+        e.preventDefault();
+        void handleMarkWatched();
         return;
       }
 

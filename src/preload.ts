@@ -188,6 +188,10 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.send(IPC_CHANNELS.command.openYomitanSettings);
   },
 
+  recordYomitanLookup: () => {
+    ipcRenderer.send(IPC_CHANNELS.command.recordYomitanLookup);
+  },
+
   getSubtitlePosition: (): Promise<SubtitlePosition | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitlePosition),
   saveSubtitlePosition: (position: SubtitlePosition) => {
@@ -210,6 +214,10 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getConfigShortcuts),
   getStatsToggleKey: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getStatsToggleKey),
+  getMarkWatchedKey: (): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getMarkWatchedKey),
+  markActiveVideoWatched: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.command.markActiveVideoWatched),
   getControllerConfig: (): Promise<ResolvedControllerConfig> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getControllerConfig),
   saveControllerConfig: (update: ControllerConfigUpdate): Promise<void> =>

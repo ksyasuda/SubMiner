@@ -92,6 +92,7 @@ export type RendererState = {
 
   keybindingsMap: Map<string, (string | number)[]>;
   statsToggleKey: string;
+  markWatchedKey: string;
   chordPending: boolean;
   chordTimeout: ReturnType<typeof setTimeout> | null;
   keyboardDrivenModeEnabled: boolean;
@@ -172,6 +173,7 @@ export function createRendererState(): RendererState {
 
     keybindingsMap: new Map(),
     statsToggleKey: 'Backquote',
+    markWatchedKey: 'KeyW',
     chordPending: false,
     chordTimeout: null,
     keyboardDrivenModeEnabled: false,

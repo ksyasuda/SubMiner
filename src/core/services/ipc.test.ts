@@ -98,6 +98,7 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     getKeybindings: () => [],
     getConfiguredShortcuts: () => ({}),
     getStatsToggleKey: () => 'Backquote',
+    getMarkWatchedKey: () => 'KeyW',
     getControllerConfig: () => createControllerConfigFixture(),
     saveControllerConfig: async () => {},
     saveControllerPreference: async () => {},
@@ -117,6 +118,39 @@ function createRegisterIpcDeps(overrides: Partial<IpcServiceDeps> = {}): IpcServ
     retryAnilistQueueNow: async () => ({ ok: true, message: 'ok' }),
     appendClipboardVideoToQueue: () => ({ ok: true, message: 'ok' }),
     immersionTracker: null,
+    ...overrides,
+  };
+}
+
+function createFakeImmersionTracker(
+  overrides: Partial<NonNullable<IpcServiceDeps['immersionTracker']>> = {},
+): NonNullable<IpcServiceDeps['immersionTracker']> {
+  return {
+    recordYomitanLookup: () => {},
+    getSessionSummaries: async () => [],
+    getDailyRollups: async () => [],
+    getMonthlyRollups: async () => [],
+    getQueryHints: async () => ({
+      totalSessions: 0,
+      activeSessions: 0,
+      episodesToday: 0,
+      activeAnimeCount: 0,
+      totalActiveMin: 0,
+      totalCards: 0,
+      activeDays: 0,
+      totalEpisodesWatched: 0,
+      totalAnimeCompleted: 0,
+    }),
+    getSessionTimeline: async () => [],
+    getSessionEvents: async () => [],
+    getVocabularyStats: async () => [],
+    getKanjiStats: async () => [],
+    getMediaLibrary: async () => [],
+    getMediaDetail: async () => null,
+    getMediaSessions: async () => [],
+    getMediaDailyRollups: async () => [],
+    getCoverArt: async () => null,
+    markActiveVideoWatched: async () => false,
     ...overrides,
   };
 }
@@ -142,6 +176,7 @@ test('createIpcDepsRuntime wires AniList handlers', async () => {
     getKeybindings: () => [],
     getConfiguredShortcuts: () => ({}),
     getStatsToggleKey: () => 'Backquote',
+    getMarkWatchedKey: () => 'KeyW',
     getControllerConfig: () => createControllerConfigFixture(),
     saveControllerConfig: () => {},
     saveControllerPreference: () => {},
@@ -210,6 +245,7 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
       getStatsToggleKey: () => 'Backquote',
+      getMarkWatchedKey: () => 'KeyW',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: () => {},
       saveControllerPreference: () => {},
@@ -278,6 +314,28 @@ test('registerIpcHandlers rejects malformed runtime-option payloads', async () =
   );
 });
 
+test('registerIpcHandlers forwards yomitan lookup tracking commands to immersion tracker', () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: string[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      immersionTracker: createFakeImmersionTracker({
+        recordYomitanLookup: () => {
+          calls.push('lookup');
+        },
+      }),
+    }),
+    registrar,
+  );
+
+  const handler = handlers.on.get(IPC_CHANNELS.command.recordYomitanLookup);
+  assert.equal(typeof handler, 'function');
+
+  handler?.({}, null);
+
+  assert.deepEqual(calls, ['lookup']);
+});
+
 test('registerIpcHandlers returns empty stats overview shape without a tracker', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   registerIpcHandlers(createRegisterIpcDeps(), registrar);
@@ -308,6 +366,7 @@ test('registerIpcHandlers validates and clamps stats request limits', async () =
   registerIpcHandlers(
     createRegisterIpcDeps({
       immersionTracker: {
+        recordYomitanLookup: () => {},
         getSessionSummaries: async (limit = 0) => {
           calls.push(['sessions', limit]);
           return [];
@@ -352,6 +411,7 @@ test('registerIpcHandlers validates and clamps stats request limits', async () =
         getMediaSessions: async () => [],
         getMediaDailyRollups: async () => [],
         getCoverArt: async () => null,
+        markActiveVideoWatched: async () => false,
       },
     }),
     registrar,
@@ -413,6 +473,7 @@ test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
       getStatsToggleKey: () => 'Backquote',
+      getMarkWatchedKey: () => 'KeyW',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: () => {},
       saveControllerPreference: (update) => {
@@ -476,6 +537,7 @@ test('registerIpcHandlers awaits saveControllerPreference through request-respon
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
       getStatsToggleKey: () => 'Backquote',
+      getMarkWatchedKey: () => 'KeyW',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: async () => {},
       saveControllerPreference: async (update) => {
@@ -546,6 +608,7 @@ test('registerIpcHandlers rejects malformed controller preference payloads', asy
       getKeybindings: () => [],
       getConfiguredShortcuts: () => ({}),
       getStatsToggleKey: () => 'Backquote',
+      getMarkWatchedKey: () => 'KeyW',
       getControllerConfig: () => createControllerConfigFixture(),
       saveControllerConfig: async () => {},
       saveControllerPreference: async () => {},
