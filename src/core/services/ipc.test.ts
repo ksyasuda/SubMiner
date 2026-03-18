@@ -439,6 +439,51 @@ test('registerIpcHandlers validates and clamps stats request limits', async () =
   ]);
 });
 
+test('registerIpcHandlers requests the full timeline when no limit is provided', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const calls: Array<[string, number | undefined, number]> = [];
+
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      immersionTracker: {
+        recordYomitanLookup: () => {},
+        getSessionSummaries: async () => [],
+        getDailyRollups: async () => [],
+        getMonthlyRollups: async () => [],
+        getQueryHints: async () => ({
+          totalSessions: 0,
+          activeSessions: 0,
+          episodesToday: 0,
+          activeAnimeCount: 0,
+          totalCards: 0,
+          totalActiveMin: 0,
+          activeDays: 0,
+          totalEpisodesWatched: 0,
+          totalAnimeCompleted: 0,
+        }),
+        getSessionTimeline: async (sessionId: number, limit?: number) => {
+          calls.push(['timeline', limit, sessionId]);
+          return [];
+        },
+        getSessionEvents: async () => [],
+        getVocabularyStats: async () => [],
+        getKanjiStats: async () => [],
+        getMediaLibrary: async () => [],
+        getMediaDetail: async () => null,
+        getMediaSessions: async () => [],
+        getMediaDailyRollups: async () => [],
+        getCoverArt: async () => null,
+        markActiveVideoWatched: async () => false,
+      },
+    }),
+    registrar,
+  );
+
+  await handlers.handle.get(IPC_CHANNELS.request.statsGetSessionTimeline)!({}, 7, undefined);
+
+  assert.deepEqual(calls, [['timeline', undefined, 7]]);
+});
+
 test('registerIpcHandlers ignores malformed fire-and-forget payloads', () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const saves: unknown[] = [];

@@ -83,7 +83,7 @@ export const ipcClient = {
   getDailyRollups: (limit = 60) => getIpc().getDailyRollups(limit),
   getMonthlyRollups: (limit = 24) => getIpc().getMonthlyRollups(limit),
   getSessions: (limit = 50) => getIpc().getSessions(limit),
-  getSessionTimeline: (id: number, limit = 200) => getIpc().getSessionTimeline(id, limit),
+  getSessionTimeline: (id: number, limit?: number) => getIpc().getSessionTimeline(id, limit),
   getSessionEvents: (id: number, limit = 500) => getIpc().getSessionEvents(id, limit),
   getVocabulary: (limit = 100) => getIpc().getVocabulary(limit),
   getWordOccurrences: (headword: string, word: string, reading: string, limit = 50, offset = 0) =>

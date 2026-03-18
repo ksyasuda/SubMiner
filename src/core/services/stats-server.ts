@@ -189,7 +189,8 @@ export function createStatsApp(
   app.get('/api/stats/sessions/:id/timeline', async (c) => {
     const id = parseIntQuery(c.req.param('id'), 0);
     if (id <= 0) return c.json([], 400);
-    const limit = parseIntQuery(c.req.query('limit'), 200, 1000);
+    const rawLimit = c.req.query('limit');
+    const limit = rawLimit === undefined ? undefined : parseIntQuery(rawLimit, 200, 1000);
     const timeline = await tracker.getSessionTimeline(id, limit);
     return c.json(timeline);
   });

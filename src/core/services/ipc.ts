@@ -517,7 +517,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     async (_event, sessionId: unknown, limit: unknown) => {
       const parsedSessionId = parsePositiveInteger(sessionId);
       if (parsedSessionId === null) return [];
-      const parsedLimit = parsePositiveIntLimit(limit, 200, 1000);
+      const parsedLimit = limit === undefined ? undefined : parsePositiveIntLimit(limit, 200, 1000);
       return deps.immersionTracker?.getSessionTimeline(parsedSessionId, parsedLimit) ?? [];
     },
   );

@@ -70,8 +70,12 @@ export const apiClient = {
   getMonthlyRollups: (limit = 24) =>
     fetchJson<MonthlyRollup[]>(`/api/stats/monthly-rollups?limit=${limit}`),
   getSessions: (limit = 50) => fetchJson<SessionSummary[]>(`/api/stats/sessions?limit=${limit}`),
-  getSessionTimeline: (id: number, limit = 200) =>
-    fetchJson<SessionTimelinePoint[]>(`/api/stats/sessions/${id}/timeline?limit=${limit}`),
+  getSessionTimeline: (id: number, limit?: number) =>
+    fetchJson<SessionTimelinePoint[]>(
+      limit === undefined
+        ? `/api/stats/sessions/${id}/timeline`
+        : `/api/stats/sessions/${id}/timeline?limit=${limit}`,
+    ),
   getSessionEvents: (id: number, limit = 500) =>
     fetchJson<SessionEvent[]>(`/api/stats/sessions/${id}/events?limit=${limit}`),
   getSessionKnownWordsTimeline: (id: number) =>
